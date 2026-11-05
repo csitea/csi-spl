@@ -1,6 +1,6 @@
 # Root-Cause Analysis: Never-Closed `"from_agent: <id>@<box>"` Blocker Issues (`SPL-4850`)
 
-- **Version**: `v0.2`
+- **Version**: `v0.3`
 - **Date**: `2026-11-05`
 - **Epic / Spec**: `SPL-2398` (`csi-spl-doc/specs/157-dispatch-automation`)
 - **Panel Issues**: `SPL-4850` (Editor `a-747`), `SPL-4851` (Hub Code Expert `c-754`), `SPL-4852` (Reviewer `c-756`)
@@ -30,7 +30,7 @@ Every cross-box spool message sent through `spool-fleet-relay.sh` has `from_agen
 | 88 of 96 open issues are automated cron/watchdog/nudge alarms using `--kind blocker` on synthetic task slugs | `spl-agent-restart.func.sh:831`, `spl-watchdog.func.sh:1230-1231,1273-1274`, `spl-asks-tick.func.sh:173`, `spl-spawn-place.func.sh:290`, `spl-wd-orch-outcome.func.sh:72`, `spl-push-orphan-check.func.sh:168`, `issue-close-landed-cron.sh:88,97`, `spl-epic-stall-check.func.sh:228,233` | Grouping `96` open issues by line 2 of `m.body`: 29 `WATCHDOG RESTART`, 24 `WATCHDOG kind=limit`, 11 `ASKS STILL OPEN`, 9 `SPAWN SHARE`, 7 `WATCHDOG login`, 4 `WATCHDOG orch-outcome`, 2 `push-orphan`, 1 `ISSUE CLOSER RED`, 1 `epic stalled`, 8 hand-written | See Section 2.2 & Section 2.4 tables |
 | `89/96` open issues have `0` subsequent posts by `bareID(assignee)` in `m.task_id` | `csi-spl-api/src/go/spool-hub-api/internal/store/blocker_issue.go:183-195`; `spool-fleet-relay.sh:161-164` (`uuid5(NAMESPACE_URL, "spool-task:" + task)`) | `55/96` have no later post in the topic; `34/96` have later posts by others, never by `bareID(assignee)` (mostly later alarms in shared `uuid5("spool-task:<name>")` topics or peer/sender replies) | `SPL-4783` (answered by `c-001@<box-b>` + closed with `result` by `c-001@<box-a>`, not `c-002`) |
 | `7/96` open issues received a same-topic post matching `bareID(assignee)`, but after `1d 07h .. 8d 01h`—past the hard `24h` `blockerLongLookback` cutoff | `csi-spl-api/src/go/spool-hub-api/internal/hub/blocker_issue.go:69-70, 93-97, 131-132` (`blockerShortLookback = time.Hour`, `blockerLongLookback = 24 * time.Hour`) | All 7 have `first_assignee_reply - m.received_at` between `1d 07h 07m` (`SPL-4360`) and `8d 00h 53m` (`SPL-3244`); `BlockerPosts` stops scanning `m.received_at < due - 24h` | `SPL-1588`, `SPL-2730`, `SPL-2769`, `SPL-3244`, `SPL-3355`, `SPL-3901`, `SPL-4360` |
-| `FirstPostAfter` matches `messages.from_id` (proxy) instead of `from_agent:`, causing false-positive matches on shared proxies and false-negative misses on proxied replies | `csi-spl-api/src/go/spool-hub-api/internal/store/blocker_issue.go:183-195` (`from_id = $4 OR from_id LIKE $4 || '@%'`) | Measured false positives in 2 of the 7 late rows: `SPL-2730` (`c0ab8fcb` is `from_agent: c-826@<box-a>` under `from_id='c-001'`) and `SPL-3355` (`ff9854bc` is `from_agent: c-001@<box-a>` under `from_id='c-003'`); code-path false negative for any proxied reply whose `from_id <> bareID(assignee)` | `SPL-2730`, `SPL-3355` |
+| `FirstPostAfter` matches bare `messages.from_id` instead of `id@box` from `from_agent:` / `from_box`, causing 4 of 7 late matches to be false positives (2 proxy, 2 other box) and missing proxied replies | `csi-spl-api/src/go/spool-hub-api/internal/store/blocker_issue.go:183-195` (`from_id = $4 OR from_id LIKE $4 || '@%'`) | Measured false positives in **4 of 7** late rows: **2 proxy** (`SPL-2730` `c0ab8fcb`, `SPL-3355` `ff9854bc`) and **2 same bare ID on the other box** (`SPL-1588` `6277957d` `<box-b>/c-002`, `SPL-2769` `4067d446` `<box-a>/g-002`); code-path false negative for any proxied reply whose `from_id <> bareID(assignee)` | `SPL-1588`, `SPL-2730`, `SPL-2769`, `SPL-3355` |
 
 ---
 
@@ -109,19 +109,19 @@ We tested all three hypotheses from the brief against `csi-spl-api` and `prd` Po
    - **Mechanism B (`7/96` open issues): A later same-topic post matched `bareID(assignee)`, but arrived after the hard `24h` `blockerLongLookback` window (`internal/hub/blocker_issue.go:69-70, 93-97, 131-132`).**
      `SweepBlockerIssues` only queries `BlockerPosts` with `received_at` between `due - lookback` and `due`, where `lookback` is `1h` (`blockerShortLookback`) on 9 of 10 ticks and `24h` (`blockerLongLookback`) on every 10th tick. Once a blocker message is older than `24h + 3m`, **`BlockerPosts` never returns that message again**, so `blockerResolve` is never called for any reply arriving after 24 hours:
 
-| Issue | Title (`from_agent:`) | `created_by` | Assignee | Category | Blocker `received_at` (UTC) | First Same-Topic Post Matching `bareID(assignee)` | Delay | Note on Match |
+| Issue | Title (`from_agent:`) | `created_by` | Assignee (`to_box`) | Category | Blocker `received_at` (UTC) | First Same-Topic Post Matching `bareID(assignee)` | Delay | Note on Match |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `SPL-1588` | `from_agent: c-001@<box-b>` | `c-001` | `c-002` | `ASKS STILL OPEN` | `2026-10-12 16:26:32Z` | `2026-10-19 12:51Z` (`6277957d`) | `6d 20h` | Arrived `>24h` later on shared `asks-open` topic |
-| `SPL-2730` | `from_agent: g-002@<box-b>` | `g-002` | `c-001` | `ISSUE CLOSER RED` | `2026-10-20 14:55:13Z` | `2026-10-22 01:31Z` (`c0ab8fcb`) | `1d 10h` | Arrived `>24h` later; **false proxy match** (`c-826@<box-a>` relayed under `from_id='c-001'`) |
-| `SPL-2769` | `from_agent: g-001@<box-a>` | `g-001` | `g-002` | `WATCHDOG (SPL-1717)` | `2026-10-21 17:13:20Z` | `2026-10-27 11:16Z` (`4067d446`) | `5d 18h` | Arrived `>24h` later on shared `orch-outcome` topic |
-| `SPL-3244` | `from_agent: c-001@<box-a>` | `c-001` | `c-002` | `WATCHDOG (SPL-1717)` | `2026-10-23 17:13:11Z` | `2026-10-31 18:06Z` (`e53626a5`) | `8d 01h` | Arrived `>24h` later on shared `orch-outcome` topic |
-| `SPL-3355` | `from_agent: c-001@<box-a>` | `c-001` | `c-003` | `SPAWN SHARE` | `2026-10-25 14:18:24Z` | `2026-10-27 17:07Z` (`ff9854bc`) | `2d 03h` | Arrived `>24h` later; **false proxy match** (`c-001@<box-a>` relayed under `from_id='c-003'`) |
-| `SPL-3901` | `from_agent: c-001@<box-a>` | `c-003` | `c-002` | `WATCHDOG (SPL-1717)` | `2026-10-27 22:40:18Z` | `2026-10-31 18:06Z` (`e53626a5`) | `3d 19h` | Arrived `>24h` later on shared `orch-outcome` topic |
-| `SPL-4360` | `from_agent: c-001@<box-a>` | `c-001` | `c-002` | `SPAWN SHARE` | `2026-10-30 11:01:29Z` | `2026-10-31 18:08Z` (`b3ababeb`) | `1d 07h` | Arrived `>24h` later on shared `spawn-share` topic |
+| `SPL-1588` | `from_agent: c-001@<box-b>` | `c-001` | `c-002` (`<box-a>`) | `ASKS STILL OPEN` | `2026-10-12 16:26:32Z` | `2026-10-19 12:51Z` (`6277957d`) | `6d 20h` | Arrived `>24h` later; **false box match** (`<box-b>/c-002` Status card, no `from_agent:` line; target was `c-002@<box-a>`) |
+| `SPL-2730` | `from_agent: g-002@<box-b>` | `g-002` | `c-001` (`<box-a>`) | `ISSUE CLOSER RED` | `2026-10-20 14:55:13Z` | `2026-10-22 01:31Z` (`c0ab8fcb`) | `1d 10h` | Arrived `>24h` later; **false proxy match** (`c-826@<box-a>` relayed under `from_id='c-001'`) |
+| `SPL-2769` | `from_agent: g-001@<box-a>` | `g-001` | `g-002` (`<box-b>`) | `WATCHDOG (SPL-1717)` | `2026-10-21 17:13:20Z` | `2026-10-27 11:16Z` (`4067d446`) | `5d 18h` | Arrived `>24h` later; **false box match** (`from_agent: g-002@<box-a>`, same bare ID on other box; target was `g-002@<box-b>`) |
+| `SPL-3244` | `from_agent: c-001@<box-a>` | `c-001` | `c-002` (`<box-b>`) | `WATCHDOG (SPL-1717)` | `2026-10-23 17:13:11Z` | `2026-10-31 18:06Z` (`e53626a5`) | `8d 01h` | Arrived `>24h` later on shared `orch-outcome` topic (`c-002@<box-b>`) |
+| `SPL-3355` | `from_agent: c-001@<box-a>` | `c-001` | `c-003` (`<box-b>`) | `SPAWN SHARE` | `2026-10-25 14:18:24Z` | `2026-10-27 17:07Z` (`ff9854bc`) | `2d 03h` | Arrived `>24h` later; **false proxy match** (`c-001@<box-a>` relayed under `from_id='c-003'`) |
+| `SPL-3901` | `from_agent: c-001@<box-a>` | `c-003` | `c-002` (`<box-b>`) | `WATCHDOG (SPL-1717)` | `2026-10-27 22:40:18Z` | `2026-10-31 18:06Z` (`e53626a5`) | `3d 19h` | Arrived `>24h` later on shared `orch-outcome` topic (`c-002@<box-b>`) |
+| `SPL-4360` | `from_agent: c-001@<box-a>` | `c-001` | `c-002` (`<box-b>`) | `SPAWN SHARE` | `2026-10-30 11:01:29Z` | `2026-10-31 18:08Z` (`b3ababeb`) | `1d 07h` | Arrived `>24h` later on shared `spawn-share` topic (`c-002@<box-b>`) |
 
-   - **Mechanism C: Proxy identity mismatch in `FirstPostAfter` (`internal/store/blocker_issue.go:183-195`).**
-     `FirstPostAfter` checks `from_id = $4 OR from_id LIKE $4 || '@%'` against `bareID(from)`. Because cross-box messages store the sending box's proxy seat in `messages.from_id` and the real sender only in line 1 of `messages.body` (`from_agent:`):
-     1. **False-positive match on shared proxy (measured)**: In 2 of the 7 rows above (`SPL-2730` via `c0ab8fcb`, `SPL-3355` via `ff9854bc`), the matching post is another agent (`c-826@<box-a>` and `c-001@<box-a>`, respectively) relayed under the assignee's bare ID (`c-001` and `c-003`), so removing the 24 h cap alone would close them on a non-answer. Option C1 must land together with Option A1.2's identity fix.
+   - **Mechanism C: Proxy and bare-ID identity mismatch in `FirstPostAfter` (`internal/store/blocker_issue.go:183-195`).**
+     `FirstPostAfter` checks `from_id = $4 OR from_id LIKE $4 || '@%'` against `bareID(from)`. Because cross-box messages store the sending box's proxy seat in `messages.from_id` and the real sender in line 1 of `messages.body` (`from_agent: <id>@<box>`), and because `bareID` strips `@<box>`:
+     1. **False-positive match on shared proxy or other box (measured in 4 of the 7 rows above)**: In **4 of the 7** late-reply rows—**2 by proxy** (`SPL-2730` via `c0ab8fcb`, `SPL-3355` via `ff9854bc`) and **2 by same bare ID on the other box** (`SPL-1588` via `6277957d` from `<box-b>/c-002` when the blocker targeted `c-002@<box-a>`, and `SPL-2769` via `4067d446` from `g-002@<box-a>` when the blocker targeted `g-002@<box-b>`)—the matching post is not from the target `id@box`. Removing the 24 h cap alone would close those 4 issues on non-answers; Option C1 must land together with Option A1.2's `id@box` identity fix.
      2. **False-negative miss on proxied reply (code-path inference from `blocker_issue.go:183-195` + `spool-fleet-relay.sh:122-134`)**: Any cross-box reply from an unannounced agent has its proxy in `messages.from_id`, which `FirstPostAfter` never matches to the real sender in `from_agent:`.
 
 ---
@@ -235,20 +235,20 @@ A complete fix has three parts:
 
 ### Part A — Stop Wrong Filings & Fix `from_agent:` Handling (Ranked)
 
-#### Option A1 (Recommended): Normalize `from_agent:` in hub blocker/store path + switch one-way cron nudges to `--kind note --ask blocker` + fix `FirstPostAfter` identity matching
+#### Option A1 (Recommended): Normalize `from_agent:` in hub blocker/store path + switch one-way cron nudges to `--kind note --ask blocker` + fix `FirstPostAfter` `id@box` identity matching
 - **What changes & where**:
   1. **Strip and normalize `from_agent:` on `BlockerPost` via a new helper**: In `csi-spl-api/src/go/spool-hub-api/internal/store/blocker_issue.go` (`BlockerPosts`, lines `164-180`, using a new helper alongside `spool.WithFromAgent` in `internal/spool/fromagent.go`), extract `from_agent: <id>@<box>` from `p.Body` before computing `blockerTitle(p)` (`internal/hub/blocker_issue.go:337-345`), `blockerDescription(p)` (`lines 347-351`), `p.FromID` (`created_by`), and `p.Assignees()` (`internal/store/blocker_issue.go:58-70`). This eliminates `"from_agent: <id>@<box>"` titles, sets `created_by` to the real sender, and restores `Assignees()` self-send suppression (`c-001@<box-a> -> c-001@<box-b>` and `c-001@<box-b> -> c-001@<box-a>` no longer file self-blockers when proxied through `c-003` or `a-289`).
-  2. **Match the real sender in `FirstPostAfter`**: In `internal/store/blocker_issue.go:183-195`, resolve a blocker post's reply author from `from_agent: <id>@<box>` when line 1 carries `FromAgentPrefix`, and only fall back to `messages.from_id` when no `from_agent:` line is present. That fixes both sides of Mechanism C: proxied replies from the true assignee match, and unrelated agents sharing a proxy (`SPL-2730` `c0ab8fcb`, `SPL-3355` `ff9854bc`) no longer falsely resolve an issue. Optionally (if selected by the owner), also treat a `kind = 'result'` post by the blocker's sender that references the blocker (`accepts` or `re <msg8>`) as resolving that blocker (`SPL-4783`), without letting unrelated `result` posts on shared synthetic topics close older blockers.
+  2. **Match the real `id@box` in `FirstPostAfter`**: In `internal/store/blocker_issue.go:183-195`, resolve a reply post's `(id, box)` from `from_agent: <id>@<box>` when line 1 carries `FromAgentPrefix` (verified against `r.from_box`), falling back to `(r.from_id, r.from_box)` when no `from_agent:` line is present, and compare **`id@box`** against the blocker's target `(bareID(assignee), blocker.to_box)` (when `blocker.to_box` is set, or `@box` in `to_id`). Comparing `id@box` instead of bare `id` prevents all 4 of the 7 false matches measured in Mechanism C (`SPL-2730, 3355` proxy; `SPL-1588, 2769` same bare ID on the other box) while matching proxied replies from the true `id@box`. Optionally (if selected by the owner), also treat a `kind = 'result'` post by the blocker's sender (`id@box`) that references the blocker (`accepts` or `re <msg8>`) as resolving that blocker (`SPL-4783`), without letting unrelated `result` posts on shared synthetic topics close older blockers.
   3. **Switch one-way periodic cron nudges from `--kind blocker` to `--kind note --ask blocker` (where sent `--to orchestrator`)**: In `spool-send.sh:48-55`, a `blocker` or `task` sent `--to orchestrator` is also journaled under `$SPOOL_ROOT/asks/<msg_id>.json` and pushed to the hub (`rdb 0097`) until acked. A plain switch to `--kind note` would drop watchdog (`spl-watchdog.func.sh:1230-1231, 1273-1274`), restart (`spl-agent-restart.func.sh:831`), orch-outcome (`spl-wd-orch-outcome.func.sh:72`), issue-closer (`issue-close-landed-cron.sh:97`), and epic-stall (`spl-epic-stall-check.func.sh:233`) alerts from the asks journal. Passing `--kind note --ask blocker` (`spool-send.sh:54`) preserves ask journaling and re-raising while stopping `SweepBlockerIssues` from creating duplicate `SPL-2394` issues; the non-orchestrator nudges (`spl-asks-tick.func.sh:173`, `spl-spawn-place.func.sh:290`, `spl-push-orphan-check.func.sh:168`) become `--kind note`.
 - **Risk**: Medium. Changing `--kind blocker` on `--to orchestrator` call sites requires passing `--ask blocker` (`spool-send.sh:54`) and a test on each site verifying that the ask is still journaled under `$SPOOL_ROOT/asks/`.
-- **Size**: Small (~50 LoC in Go across `internal/store/blocker_issue.go` and `internal/hub/blocker_issue.go` + 9 call-site updates and ask-journaling tests in `csi-spl-orc`).
+- **Size**: Small (~55 LoC in Go across `internal/store/blocker_issue.go` and `internal/hub/blocker_issue.go` + 9 call-site updates and ask-journaling tests in `csi-spl-orc`).
 
 #### Option A2: Normalize `from_agent:` in hub blocker/store path + keep `--kind blocker` on cron/watchdog scripts and skip their synthetic task slugs hub-side
 - **What changes & where**:
-  1. Apply A1.1 and A1.2 (`from_agent:` normalization in `BlockerPosts` and `FirstPostAfter`).
+  1. Apply A1.1 and A1.2 (`from_agent:` normalization in `BlockerPosts` and `id@box` matching in `FirstPostAfter`).
   2. Keep `--kind blocker` on the watchdog/cron scripts (leaving `spool-send.sh` ask journaling untouched), and teach `SweepBlockerIssues` (`internal/hub/blocker_issue.go:110-149`) to skip creating issues for messages whose `task_id` matches the synthetic alarm topics (`asks-open`, `spawn-share`, `orch-outcome`, `dispatch-push-orphan`, `dispatch-issue-closer`, `wd-*`) or an explicit message header.
 - **Risk**: Low. Does not touch `spool-send.sh` ask journaling; only suppresses `SPL-2394` issue creation for automated alarm topics.
-- **Size**: Small (~55 LoC in `internal/store/blocker_issue.go` and `internal/hub/blocker_issue.go`).
+- **Size**: Small (~60 LoC in `internal/store/blocker_issue.go` and `internal/hub/blocker_issue.go`).
 
 ---
 
@@ -263,9 +263,9 @@ A complete fix has three parts:
 - **Risk**: Very low. `DRY_RUN=1` previews the exact keys before any mutation; `SPL-4836` (normal title, `parent_number = 2393`, no `blocker` label) is untouched.
 - **Size**: Small (1 named action + `.tst.sh` test, executed once after owner `GO`).
 
-#### Option B2: Backfill `issues.title` to line 2 on the 96 rows, auto-resolve the 5 genuinely answered late-reply rows as `done`, and transition the remaining 91 to `diss`
+#### Option B2: Backfill `issues.title` to line 2 on the 96 rows, auto-resolve the 3 `id@box`-matched late-reply rows as `done`, and transition the remaining 93 to `diss`
 - **What changes & where**:
-  - Update `issues.title` on the 96 rows to line 2 of `messages.body`, let the updated `SweepBlockerIssues` (with A1.2 + C1) transition the 5 genuinely answered late-reply rows (`SPL-1588, 2769, 3244, 3901, 4360`) to `done`, and run the named action to transition the remaining 91 rows (`89` with zero assignee replies + `2` false-proxy matches `SPL-2730, 3355`) to `diss`.
+  - Update `issues.title` on the 96 rows to line 2 of `messages.body`, let the updated `SweepBlockerIssues` (with A1.2 + C1) transition the 3 late-reply rows whose reply matches `id@box` (`SPL-3244, 3901, 4360`) to `done`, and run the named action to transition the remaining 93 rows (`89` with zero assignee replies + `4` false proxy/box matches `SPL-1588, 2730, 2769, 3355`) to `diss`.
 - **Risk**: Low-Medium (mutates titles before immediately closing/archiving all 96 rows).
 - **Size**: Medium.
 
@@ -276,11 +276,11 @@ A complete fix has three parts:
 #### Option C1 (Recommended): Unit tests in `blocker_issue_test.go` + open-blocker-issue resolution pass without the `24h` cutoff (paired with A1.2)
 - **What changes & where**:
   1. **Regression tests (`csi-spl-api/src/go/spool-hub-api/internal/hub/blocker_issue_test.go`)**:
-     - Test that a relayed blocker with `Body = "from_agent: c-001@<box-a>\nReal blocker subject\nDetails"` and proxy `FromID = "c-003"` creates an issue titled `"Real blocker subject"` (never `"from_agent: ..."`), sets `created_by = "c-001"`, suppresses self-assignment when `ToID = "c-001"`, resolves when the assignee replies via cross-box relay (`Body = "from_agent: <assignee>@<box>\n..."`), and does **not** falsely resolve when a different agent relays a post through a proxy whose `from_id` matches the assignee.
+     - Test that a relayed blocker with `Body = "from_agent: c-001@<box-a>\nReal blocker subject\nDetails"` and proxy `FromID = "c-003"` creates an issue titled `"Real blocker subject"` (never `"from_agent: ..."`), sets `created_by = "c-001"`, suppresses self-assignment when `ToID = "c-001"`, resolves when the assignee on `to_box` replies via cross-box relay (`Body = "from_agent: <assignee>@<to_box>\n..."`), and does **not** falsely resolve when a different agent relays a post through a proxy whose `from_id` matches the assignee or when the same bare ID posts from the other box (`from_box <> to_box`).
   2. **Remove the `24h` resolution blind spot (`internal/hub/blocker_issue.go:110-149`, `internal/store/blocker_issue.go`)**:
-     - Keep `blockerShortLookback` (`1h`) / `blockerLongLookback` (`24h`) for **creating** new blocker issues, **but** on `long == true` ticks (every 10 minutes), query open `todo` issues under epic `SPL-2394` (`labels @> '{blocker}'`) and check `FirstPostAfter` (with A1.2's `from_agent:` identity fix) for their linked `(msg_id, task_id, assignee)`. That way, an open blocker issue is resolved whenever the true assignee's answer arrives—even `>24h` later—and uses the existing `messages_task_received (tenant_id, task_id, received_at, msg_id)` index (`rdb 0022/0083`).
-- **Risk**: Very low when landed together with A1.2 (landing C1 without A1.2 would close `SPL-2730` and `SPL-3355` on false proxy matches).
-- **Size**: Small (~60 LoC in `internal/hub/blocker_issue.go`, `internal/store/blocker_issue.go`, and `internal/hub/blocker_issue_test.go`).
+     - Keep `blockerShortLookback` (`1h`) / `blockerLongLookback` (`24h`) for **creating** new blocker issues, **but** on `long == true` ticks (every 10 minutes), query open `todo` issues under epic `SPL-2394` (`labels @> '{blocker}'`) and check `FirstPostAfter` (with A1.2's `id@box` identity fix) for their linked `(msg_id, task_id, assignee, to_box)`. That way, an open blocker issue is resolved whenever the true `id@box` assignee's answer arrives—even `>24h` later—and uses the existing `messages_task_received (tenant_id, task_id, received_at, msg_id)` index (`rdb 0022/0083`).
+- **Risk**: Very low when landed together with A1.2 (landing C1 without A1.2 would close `SPL-1588, 2730, 2769, 3355` on false proxy or other-box matches).
+- **Size**: Small (~65 LoC in `internal/hub/blocker_issue.go`, `internal/store/blocker_issue.go`, and `internal/hub/blocker_issue_test.go`).
 
 #### Option C2: CI/cron audit check failing if any open issue has `title LIKE 'from_agent:%'`
 - **What changes & where**:
@@ -294,15 +294,15 @@ A complete fix has three parts:
 
 ````poll
 How should we stop the wrong `from_agent:` blocker filings and fix resolution (Parts A + C)?
-1. Option A1 + C1 (Recommended) — normalize `from_agent:` in hub blocker/reply handling, resolve open blocker issues beyond 24h, and switch one-way cron/watchdog alerts to `--kind note --ask blocker` (keeping ask journaling)
-2. Option A2 + C1 — normalize `from_agent:` in hub blocker/reply handling, resolve open blocker issues beyond 24h, and keep `--kind blocker` on cron/watchdog scripts while skipping their synthetic alarm topics in the hub
+1. Option A1 + C1 (Recommended) — normalize `from_agent:` in hub blocker handling, match replies by `id@box`, resolve open blocker issues beyond 24h, and switch one-way cron/watchdog alerts to `--kind note --ask blocker` (keeping ask journaling)
+2. Option A2 + C1 — normalize `from_agent:` in hub blocker handling, match replies by `id@box`, resolve open blocker issues beyond 24h, and keep `--kind blocker` on cron/watchdog scripts while skipping their synthetic alarm topics in the hub
 3. Hold code changes for now
 ````
 
 ````poll
 How should we clean up the 96 existing open `from_agent:` `todo` issues (and `SPL-1555`) under `SPL-2394` in `t1` (`prd`)?
 1. Option B1 (Recommended) — run a named action (`DRY_RUN=1` default) calling `spool issue update --status diss` + `spool issue comment` on all 96 open `from_agent:` `todo` issues (plus `SPL-1555`), which clears their blocker marks and auto-archives `SPL-2394`
-2. Option B2 — rewrite their titles to line 2 first, let the 5 genuinely answered late-reply issues close as `done`, and transition the remaining 91 issues to `diss`
+2. Option B2 — rewrite their titles to line 2 first, let the 3 `id@box`-matched late-reply issues close as `done`, and transition the remaining 93 issues to `diss`
 3. Leave the existing 96 issues open for manual triage
 ````
 
@@ -318,11 +318,12 @@ How should we clean up the 96 existing open `from_agent:` `todo` issues (and `SP
 | `v0.1` | `a-747` (Editor) | Empirical SQL + WUI screenshot verification (`2026-11-05`) | Verified owner screenshot `ebd63d3d...` (`SPL-4836` is a separate non-blocker `todo` bug; the other 17 visible rows are part of the 96 `SPL-2394` `from_agent:` issues), identified proxied self-blockers (`c-001 -> c-001`), and verified `SPL-4783` was answered (`3f26318f`) and completed (`5152bbaf`) 81s before filing. | Folded into Sections 2.2, 2.3, and 2.4. |
 | `v0.2` | `c-754` (Hub Code Expert) | Spool `93cad526-a4ae-4ff5-a333-192c53c0b298` (`2026-11-05T11:26:06Z`) | 11 corrections on `v0.1`: (1) `i.created_at - m.received_at` range `00:03:00.67 .. 23:14:45.88` and `created_by = m.from_id` (`96/96`); (2) exact 22 proxy counts (`c-003` 17, `a-289` 3, `c-001` 1 [`SPL-3368`], `c-087` 1 [`SPL-3285`]); (3) 19 self-blockers (16 via `c-003` + 3 via `a-289`) vs unproxied drop (`270b52d0`); (4) exact title counts (`31/29/29/2/1/1/1/1/1` including `g-002@<box-b>`); (5) `spl-epic-stall-check.func.sh:228,233` passes v5 `$task` (no `uuid4`); (6) `SPL-4783` `received_at = 09:53:36Z`; (7) verbatim `blockerTitle` (`cutRunes`); (8) `blockerDescription` `:347-351`, `BlockerIssueTask` `bareID`, `WithFromAgent` `From = id@box`, new helper in A1.1; (9) `messages_task_received` index; (10) `spool-send.sh:48-55` `--ask blocker` requirement & Medium risk; (11) distinguish measured proxy false-positives from code-path inference and cite exact evidence for the 8 hand-written blockers. | Folded in full (all 11 items) into Sections 2.1–2.4, 3, and 4.1. |
 | `v0.2` | `c-756` (Reviewer) | Spool `ae776581-a85e-4d3a-be71-92f3a817fd4a` (`2026-11-05T11:27:58Z`) | 10 findings on `v0.1`: (1) title table `31/29/29/2/1/1/1/1/1`; (2) exact 7-row Mechanism B table (`SPL-1588, 2730, 2769, 3244, 3355, 3901, 4360`) and 4 `orch-outcome` IDs (`2769, 3244, 3369, 3901`); (3) 2 of 7 late matches (`SPL-2730`, `SPL-3355`) are false proxy matches requiring C1 to land with A1.2; (4) Mechanism A split (`55` with no later post, `34` with posts by others); (5) 19 self-blockers (`16` via `c-003`, `3` via `a-289`); (6) verbatim `blockerTitle`; (7) `spool-send.sh:48-55` `--ask blocker` & Medium risk; (8) scope sender `kind=result` in A1.2 so shared topics do not false-close; (9) B1 must use a named action (`spool issue update --status diss` + `issue comment`) and note `clearBlockerMark` (`issues.go:464`) and `SPL-2394` auto-close/archive (`blocker_issue_epic.go:28,34`); (10) `spl-epic-stall-check.func.sh:233`, `09:53:36Z`, `messages_task_received`, and per-issue `msg_id` evidence for the 8 hand-written blockers. | Folded in full (all 10 items) into Sections 2.1–2.4, 3, and 4.1. |
+| `v0.3` | `c-754` (Hub Code Expert) | Spool `c7e05980-84c3-4388-8fa0-eca28821cb6b` (`2026-11-05T11:34:37Z`) | Verified all 11 `v0.1` corrections in `v0.2` (`8afd18666`) and noted 1 remaining refinement: in Mechanism B/C.1 and A1.2, `SPL-2769` (target `g-002@<box-b>`, matched by `g-002@<box-a>` in `4067d446`) and `SPL-1588` (target `c-002@<box-a>`, matched by `<box-b>/c-002` Status card in `6277957d`) are also false matches (same bare ID on the other box), making **4 of 7** false matches (`SPL-2730, 3355` proxy; `SPL-1588, 2769` other box) and requiring A1.2 to compare **`id@box`** using the blocker's `to_box`. | Folded in full into Table 2.1, Section 2.3 (Mechanism B & C.1), and Section 3 (A1.2, B2, C1). |
 
 ### 4.2 Signatures
 
 | Role | Agent ID | Version | SHA Read | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **EDITOR** | `a-747` | `v0.2` | `14917cd6dda25e3137979df3a267dd8a622ad788` | Folded `c-754` (11) and `c-756` (10) findings into `v0.2` |
-| **HUB CODE EXPERT** | `c-754` | *(pending)* | *(pending)* | Reviewing `v0.2` for signature |
-| **REVIEWER** | `c-756` | *(pending)* | *(pending)* | Reviewing `v0.2` for `PASS` & signature |
+| **EDITOR** | `a-747` | `v0.3` | `8afd18666020841eadb876b1d142301f38a1c97f` | Folded `c-754`'s `id@box` 4-of-7 false-match refinement into `v0.3` |
+| **HUB CODE EXPERT** | `c-754` | *(pending)* | *(pending)* | Reviewing `v0.3` for signature |
+| **REVIEWER** | `c-756` | *(pending)* | *(pending)* | Reviewing `v0.3` for `PASS` & signature |

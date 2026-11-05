@@ -58,7 +58,8 @@ or the phone's Back) takes you back to the list.
   has 5. It is saved at once and the note moves to its place in the list.
 - **Pin** puts the note in the Pinned group; **Unpin** takes it out.
 - **Archive** hides the note from the list and closes it. Find it again with
-  **Archived**, open it and press **Unarchive**.
+  **Archived**, or in the **Archive** section (the left rail), under
+  **Notes**: open it there, or press **Unarchive** on its row.
 - **Move up** / **Move down** change the note's place in its group. In the
   list, **Alt+Up** / **Alt+Down** on a row does the same, and on a wide screen
   you can drag a row. A note moved onto a note of another priority takes that

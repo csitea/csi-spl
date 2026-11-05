@@ -16,6 +16,10 @@
 #   5. a failed hub read -> rc 1 (CI, COMMIT_LINKS_HARD default 1); with
 #      COMMIT_LINKS_HARD=0 (the hook) a WARN and the form only; a hub revision without the route (plain
 #      404) -> the form only with a WARN; bad inputs -> rc 1
+#   6. SPL-4832: the real do_log writes to stdout and the account pin logs
+#      INFO lines inside the hub read: they must not reach the parsed answer
+#      (the gate read every key as "no issue"); an answer it cannot parse is
+#      a FATAL that says so, rc 1, never "no issue"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -42,16 +46,21 @@ Closes: SPL-10")
 act() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$REPO" SPL_STATE_DIR="$T/state" COMMIT_LINKS_TENANT=t1 COMMIT_LINKS_PREFIX=SPL "$@" bash -c '
     set -uo pipefail
-    do_log() { echo "$*" >&2; }
+    if [[ -n "${LOG_ON_STDOUT:-}" ]]; then do_log() { echo "$*"; }; else do_log() { echo "$*" >&2; }; fi
     do_require_bin() { local b; for b in "$@"; do command -v "$b" >/dev/null || return 1; done; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     do_require_bin() { :; }
     do_spl_cloud_cnf() { SPL_CNF=/dev/null; }
     spl_hub_operator_url() { SPL_HUB_URL=https://hub.invalid; }
-    do_gcp_pin_account() { GCP_ACCOUNT=sa@test.invalid; }
+    do_gcp_pin_account() {
+      [[ -n "${LOG_ON_STDOUT:-}" ]] && do_log "INFO gcloud runs under a private CLOUDSDK_CONFIG for this run" &&
+        do_log "INFO gcloud project=p account=sa@test.invalid pinned per invocation (_spl_cl_hub_links)"
+      GCP_ACCOUNT=sa@test.invalid
+    }
     spl_hub_operator_call() {
       echo "$1 $2 $3" >>"$CALLS"
       SPL_HUB_OP_STATUS="${STUB_CODE:-200}"
+      [[ -n "${STUB_RAW:-}" ]] && { SPL_HUB_OP_BODY="$STUB_RAW"; return 0; }
       [[ "${STUB_CODE:-200}" == 404 ]] && { SPL_HUB_OP_BODY="${STUB_BODY:-404 page not found}"; return 0; }
       SPL_HUB_OP_BODY="$(jq -c "{keys: [.keys[] | {key: ., found: (. == \"SPL-10\" or . == \"SPL-20\"),
         discussions: (if . == \"SPL-10\" then 1 else 0 end), default_only: (. == \"SPL-20\")}]}" <<<"$3")"
@@ -127,6 +136,20 @@ for bad in "COMMIT_LINKS_RANGE=nope..HEAD" "COMMIT_LINKS_HUB=stg" "COMMIT_LINKS_
   out=$(act COMMIT_LINKS_HUB=none "$bad"); rc=$?
   [[ $rc == 1 ]] && pass "bad input $bad -> rc 1" || fail "bad input $bad: rc $rc out '$out'"
 done
+
+# --- 6. SPL-4832: log lines on stdout, an answer that does not parse -----------
+out=$(act LOG_ON_STDOUT=1 COMMIT_LINKS_HUB=prd COMMIT_LINKS_RANGE="$BASE..$TRAIL"); rc=$?
+[[ $rc == 0 && "$out" == *"COMMIT_LINKS_CHECK hub=prd range=$BASE..$TRAIL commits=2 ok=2 fail=0" ]] &&
+  ! grep -q 'parse error' "$T/err" && pass "do_log on stdout inside the hub read: the answer still parses, ok=2, rc 0" ||
+  fail "log on stdout: rc $rc out '$out' err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd STUB_RAW='INFO not json' COMMIT_LINKS_RANGE="$BASE..$GOOD"); rc=$?
+[[ $rc == 1 ]] && grep -q 'FATAL .*commit-links on prd .*could not be parsed' "$T/err" && ! grep -q 'has no issue for' "$T/err" &&
+  pass "an answer that does not parse -> FATAL says so, rc 1, never 'no issue'" ||
+  fail "unparsable: rc $rc out '$out' err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_HARD=0 STUB_RAW='INFO not json' COMMIT_LINKS_RANGE="$BASE..$GOOD"); rc=$?
+[[ $rc == 0 && "$out" == *"hub=none"*"(NOT hub-checked"* ]] && grep -q 'prd hub did not answer' "$T/err" &&
+  pass "an answer that does not parse, COMMIT_LINKS_HARD=0 (the hook) -> WARN, the form only" ||
+  fail "soft unparsable: rc $rc out '$out' err '$(cat "$T/err")'"
 
 echo "spl-commit-links-check: $fails failure(s)"
 ((fails == 0))

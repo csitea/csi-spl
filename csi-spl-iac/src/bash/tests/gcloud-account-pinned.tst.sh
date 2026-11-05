@@ -131,7 +131,9 @@ out=$(resolve do_gcp_account -u CLOUDSDK_CONFIG); rc=$?
   && pass "CONTROL: a key with the SHARED config (inside \$( )) is refused, nothing activated" \
   || fail "shared-config activation: rc=$rc out='$out' calls=$(cat "$T/gcloud.log")"
 out=$(resolve do_gcp_pin_account GCP_ACCOUNT=sa@example.com)
-grep -q "account=sa@example.com" <<<"$out" && pass "do_gcp_pin_account logs the pinned identity" || fail "no identity log line: $out"
+grep -q "account=sa@example.com" "$T/err" && ! grep -q "pinned per invocation" <<<"$out" &&
+  pass "do_gcp_pin_account logs the pinned identity on stderr, never stdout (SPL-4832)" ||
+  fail "identity log line: stdout '$out' stderr '$(cat "$T/err")'"
 
 # --- 2b. bootstrap: the owner only while no key exists -----------------------------
 [[ "$(resolve do_gcp_bootstrap_account HOME="$T/nokey")" == "$want_acct" ]] \

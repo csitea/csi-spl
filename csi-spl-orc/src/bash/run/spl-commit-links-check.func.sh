@@ -138,11 +138,22 @@ _spl_cl_hub() {
 }
 
 # _spl_cl_hub_links <env> <tenant> <keys, one per line>: the operator check's
-# answer as {key: {found, discussions, default_only}}; rc 1 on a failed read,
-# 4 when the hub has no such route (a plain 404, not the hub's JSON error).
+# answer as {key: {found, discussions, default_only}}; rc 1 on a failed read
+# or an answer that does not parse, 4 when the hub has no such route (a plain
+# 404, not the hub's JSON error). Its stdout is the answer alone: the read
+# runs with stdout on stderr and writes the answer to fd 3, so no do_log line
+# of the cnf, the account pin or the call can reach it (SPL-4832: two INFO
+# lines of the pin made every key read as "no issue").
 _spl_cl_hub_links() {
   local body
   body="$(jq -cRn --arg t "$2" '{tenant: $t, keys: [inputs | select(length > 0)][:200]}' <<<"$3")" || return 1
+  _spl_cl_hub_read "$1" "$body" 3>&1 1>&2
+}
+
+# _spl_cl_hub_read <env> <request body>: the hub read; the answer goes to
+# fd 3, anything else on stdout lands on stderr (the caller's redirect).
+_spl_cl_hub_read() {
+  local body="$2"
   (
     # shellcheck disable=SC2031 # ENV is this subshell's own
     ENV="$1"
@@ -154,6 +165,7 @@ _spl_cl_hub_links() {
     [[ "$SPL_HUB_OP_STATUS" == 404 ]] && ! jq -e .error <<<"$SPL_HUB_OP_BODY" >/dev/null 2>&1 && exit 4
     [[ "$SPL_HUB_OP_STATUS" == 200 ]] ||
       { do_log "FATAL POST /v1/operator/commit-links on $1 answered HTTP $SPL_HUB_OP_STATUS: $(jq -r '.message // .error // empty' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"; exit 1; }
-    jq -c '[.keys[] | {key: .key, value: .}] | from_entries' <<<"$SPL_HUB_OP_BODY"
+    jq -ce '[.keys[] | {key: .key, value: .}] | from_entries' <<<"$SPL_HUB_OP_BODY" >&3 2>/dev/null ||
+      { do_log "FATAL POST /v1/operator/commit-links on $1 answered HTTP 200, but its body could not be parsed as the links JSON: $(head -c 200 <<<"$SPL_HUB_OP_BODY")"; exit 1; }
   )
 }

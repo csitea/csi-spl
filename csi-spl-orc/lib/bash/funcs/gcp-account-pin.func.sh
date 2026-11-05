@@ -95,7 +95,7 @@ do_gcp_isolate_config() {
     trap "do_gcp_cleanup_isolated_configs${body:+; ${body}}" EXIT
   fi
   export CLOUDSDK_CONFIG="${dir}"
-  do_log "INFO gcloud runs under a private CLOUDSDK_CONFIG for this run; the shared ~/.config/gcloud is not written"
+  do_log "INFO gcloud runs under a private CLOUDSDK_CONFIG for this run; the shared ~/.config/gcloud is not written" >&2
 }
 
 #------------------------------------------------------------------------------
@@ -318,5 +318,5 @@ do_gcp_log_identity() {
   local project="${1:-<unset>}" account="${2:-<unset>}" context="${3:-}"
   local suffix=""
   [[ -n "${context}" ]] && suffix=" (${context})"
-  do_log "INFO gcloud project=${project} account=${account} — pinned per invocation, not taken from the shared config${suffix}"
+  do_log "INFO gcloud project=${project} account=${account} — pinned per invocation, not taken from the shared config${suffix}" >&2
 }

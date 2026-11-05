@@ -4,9 +4,12 @@
 # a stub read and a stub desk. An open from_agent: blocker is MOVEd, one closed
 # already is SKIPped. A dry run writes nothing. DRY_RUN=0 needs the owner's
 # go, comments the RCA reason citing it and sets diss on each MOVE item,
-# leaves one that is done or diss by now alone, deletes none and writes a 0600
-# undo file. A re-run on the moved rows changes nothing. The SQL reads the
-# epic's open from_agent: children plus the extra numbers, nothing else.
+# leaves one alone whose status is no longer the plan's or cannot be re-read
+# (a failed get, a stderr line beside the JSON), deletes none and writes a
+# 0600 undo file. The default plan path works with SPL_STATE_DIR unset until
+# do_spl_cloud_cnf sets it. A re-run on the moved rows changes nothing. The
+# SQL reads the epic's open from_agent: children plus the extra numbers,
+# nothing else.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -17,12 +20,20 @@ mkdir -p "$T/state/dev"
 printf 'SPL-1555\tdiss\tfrom_agent: c-001@box-a\nSPL-4480\ttodo\tfrom_agent: c-001@box-a\nSPL-4682\ttodo\tfrom_agent: c-001@box-b\nSPL-4783\ttodo\tfrom_agent: c-001@box-a\n' >"$T/rows.tsv"
 GO=70d39d81-241b-4137-aecf-399228fc2f52
 
-STUBS='spl_issue_brc_read() { cat "$ROWS"; }
+# GET_MODE: fail = the get of SPL-4480 exits 1, warn = every get also logs a
+# stderr line, doing = SPL-4682 is doing by now.
+STUBS='do_spl_cloud_cnf() { SPL_STATE_DIR="${CNF_STATE:-$SPL_STATE_DIR}"; }
+spl_issue_brc_read() { cat "$ROWS"; }
 spl_desk_issue_once() { :; }
 spl_desk_issue_run() {
   echo "$*" >>"$DESK_LOG"
   if [[ "$1" == get ]]; then
     local s=todo; [[ "$3" == SPL-4783 ]] && s=diss
+    case "${GET_MODE:-}:$3" in
+      fail:SPL-4480) return 1 ;;
+      warn:*) echo "WARN desk slow" >&2 ;;
+      doing:SPL-4682) s=doing ;;
+    esac
     printf "{\"result\":{\"key\":\"%s\",\"status\":\"%s\"}}\n" "$3" "$s"
   fi
 }
@@ -58,13 +69,46 @@ run DRY_RUN=0 ISSUE_OWNER_GO=$GO ISSUE_UNDO="$T/undo.sh"
   ! grep -qE '^(comment|update) --ref SPL-1555' "$T/desk.log" && ! grep -q '^delete' "$T/desk.log" &&
   pass "a real run comments the RCA reason with the go and sets diss on the open items only; the closed one untouched; no delete" ||
   fail "real run (rc=$RC): $(cat "$T/o") / $(cat "$T/desk.log")"
-! grep -qE '^(comment|update) --ref SPL-4783' "$T/desk.log" && grep -q 'SPL-4783 is diss already' "$T/o" &&
+! grep -qE '^(comment|update) --ref SPL-4783' "$T/desk.log" && grep -q "SPL-4783 is 'diss' now, the plan read 'todo': left alone" "$T/o" &&
   pass "an item closed by someone else since the plan is left alone (one move per issue)" ||
   fail "already closed: $(cat "$T/o") / $(cat "$T/desk.log")"
 [[ "$(stat -c %a "$T/undo.sh")" == 600 && "$(grep -c do_spl_issue_update "$T/undo.sh")" -eq 2 ]] &&
   grep -q 'ISSUE_REF=SPL-4480 ISSUE_STATUS=todo DRY_RUN=0' "$T/undo.sh" &&
   pass "the undo file is 0600, one command per moved item, back to its old status" ||
   fail "undo: $(cat "$T/undo.sh" 2>/dev/null)"
+
+moved_only() { # moved_only KEY...: the keys commented + set diss, sorted
+  [[ "$(grep -oP '^update --ref \K\S+(?= --status diss$)' "$T/desk.log" | sort | xargs)" == "$*" ]] &&
+    [[ "$(grep -oP '^comment --ref \K\S+' "$T/desk.log" | sort | xargs)" == "$*" ]]
+}
+run DRY_RUN=0 ISSUE_OWNER_GO=$GO ISSUE_UNDO="$T/undo3.sh" GET_MODE=fail
+[[ $RC -eq 0 ]] && moved_only SPL-4682 && grep -q "SPL-4480 is 'unreadable' now" "$T/o" &&
+  pass "a failed re-read (get exits 1) leaves the item alone: no comment, no update" ||
+  fail "get fails (rc=$RC): $(cat "$T/o") / $(cat "$T/desk.log")"
+run DRY_RUN=0 ISSUE_OWNER_GO=$GO ISSUE_UNDO="$T/undo4.sh" GET_MODE=warn
+[[ $RC -eq 0 ]] && moved_only SPL-4480 SPL-4682 && ! grep -qE '^(comment|update) --ref SPL-4783' "$T/desk.log" &&
+  pass "a stderr line beside the get's JSON still reads the status: the diss one is left alone" ||
+  fail "get warns (rc=$RC): $(cat "$T/o") / $(cat "$T/desk.log")"
+run DRY_RUN=0 ISSUE_OWNER_GO=$GO ISSUE_UNDO="$T/undo5.sh" GET_MODE=doing
+[[ $RC -eq 0 ]] && moved_only SPL-4480 && grep -q "SPL-4682 is 'doing' now, the plan read 'todo'" "$T/o" &&
+  pass "an item moved to doing since the plan (no longer todo) is left alone" ||
+  fail "doing (rc=$RC): $(cat "$T/o") / $(cat "$T/desk.log")"
+run DRY_RUN=0 ISSUE_OWNER_GO=$GO ISSUE_UNDO="$T/undo6.sh" ISSUE_REASON='Custom reason.'
+grep -q "^comment --ref SPL-4480 --body Custom reason. (owner go $GO)$" "$T/desk.log" &&
+  pass "an ISSUE_REASON override still cites the owner go" || fail "reason override: $(cat "$T/desk.log")"
+
+: >"$T/desk.log"
+SNIPPET="unset SPL_STATE_DIR; ${STUBS}do_spl_issue_blocker_rca_close" in_orc "${base[@]}" CNF_STATE="$T/state/cnf" >"$T/o" 2>&1
+RC=$?
+plan=$(ls "$T/state/cnf/issue-blocker-rca/"t1-*.plan.tsv 2>/dev/null)
+[[ $RC -eq 0 && -n "$plan" && "$(stat -c %a "$T/state/cnf/issue-blocker-rca")" == 700 && "$(stat -c %a "$plan")" == 600 ]] &&
+  grep -q "PLAN $plan" "$T/o" &&
+  pass "no ISSUE_PLAN, SPL_STATE_DIR unset: the plan lands in the dir do_spl_cloud_cnf sets (0700, plan 0600)" ||
+  fail "default plan path (rc=$RC): $(cat "$T/o")"
+
+(umask 022; : >"$T/plan.tsv"; chmod 644 "$T/plan.tsv")
+run
+[[ "$(stat -c %a "$T/plan.tsv")" == 600 ]] && pass "an existing ISSUE_PLAN is made 0600" || fail "existing plan mode: $(stat -c %a "$T/plan.tsv")"
 
 sed 's/\ttodo\t/\tdiss\t/' "$T/rows.tsv" >"$T/rows2.tsv"
 run DRY_RUN=0 ISSUE_OWNER_GO=$GO ROWS="$T/rows2.tsv" ISSUE_UNDO="$T/undo2.sh"

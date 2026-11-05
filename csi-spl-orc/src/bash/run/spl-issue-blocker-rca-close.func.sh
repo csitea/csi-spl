@@ -13,17 +13,20 @@
 # @description TSV line per candidate: key, status, verdict, why, title. MOVE
 # @description = an open issue; SKIP = one closed (done or diss) already.
 # @description DRY_RUN=0 needs ISSUE_OWNER_GO, re-reads each MOVE item first
-# @description (skips one closed meanwhile), comments the reason, sets diss,
+# @description (skips one whose status is no longer the plan's, or that it
+# @description cannot read), comments the reason, sets diss,
 # @description never deletes, and writes a 0600 undo file, one command per
 # @description item. A re-run finds no open item left and changes nothing.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug (e.g. t1)
 # @param DESK_AGENT - required: the agent the desk writes as
 # @param ISSUE_EPIC_NUM (optional) - the blocker epic's number, default 2394 (SPL-2394)
-# @param ISSUE_EXTRA_NUMS (optional) - more issue numbers, comma separated, default 1555; '' for none
+# @param ISSUE_EXTRA_NUMS (optional) - more issue numbers, comma separated, default 1555; '' for none. Each one is a candidate in ANY open status: review the plan before DRY_RUN=0
 # @param ISSUE_OWNER_GO - required with DRY_RUN=0: the owner's go message uuid, cited in each comment
-# @param ISSUE_REASON (optional) - the comment, default the RCA's
+# @param ISSUE_REASON (optional) - the comment, default the RCA's; the owner go is appended to it either way
 # @param ISSUE_PLAN (optional) - default $SPL_STATE_DIR/issue-blocker-rca/<tenant>-<utc>.plan.tsv
+# @param SPL_STATE_DIR (optional) - set by do_spl_cloud_cnf from ENV; the plan's default dir
+# @param DESK_BOX (optional) - the desk box spl_desk_issue_run writes through
 # @param ISSUE_UNDO (optional) - default the plan path, .undo.sh
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-996 ./run -a do_spl_issue_blocker_rca_close
@@ -33,6 +36,7 @@ do_spl_issue_blocker_rca_close() {
   local dry=1 plan rows rc=0
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_issue_brc_check "$dry" || return 1
+  do_spl_cloud_cnf || return 1
   plan="$(spl_issue_brc_plan_path)" || return 1
   rows="$(mktemp)"
   if spl_issue_brc_read >"$rows" && spl_issue_brc_verdicts <"$rows" >"$plan"; then
@@ -68,7 +72,7 @@ spl_issue_brc_plan_path() {
   local p="${ISSUE_PLAN:-${SPL_STATE_DIR}/issue-blocker-rca/${TENANT_ID}-$(date -u +%Y%m%dT%H%M%SZ).plan.tsv}"
   mkdir -p "$(dirname "$p")" || return 1
   [[ -n "${ISSUE_PLAN:-}" ]] || chmod 700 "$(dirname "$p")"
-  (umask 077; : >"$p") || return 1
+  (umask 077; : >"$p") && chmod 600 "$p" || return 1
   printf '%s\n' "$p"
 }
 
@@ -78,7 +82,6 @@ spl_issue_brc_read() {
   local provider
   provider="$(do_spl_cloud_provider)" || return 1
   spl_db_require_bins "$provider" || return 1
-  do_spl_cloud_cnf || return 1
   spl_db_query_rc "$provider" _spl_issue_brc_query
 }
 
@@ -122,16 +125,16 @@ spl_issue_brc_verdicts() {
 # undo file grows a line as each item changes.
 spl_issue_brc_apply() {
   local plan="$1" undo="${ISSUE_UNDO:-${1%.tsv}.undo.sh}" key status verdict n=0 gone=0 fail=0 now
-  local why="${ISSUE_REASON:-Closed as diss by the RCA of the never-closed from_agent: blocker issues (SPL-4850, csi-spl-doc/specs/157-dispatch-automation/rca-blocker-issues-from-agent.md, section 3 B1; owner go $ISSUE_OWNER_GO): an automated cross-box alarm or an old blocker that got no answer in its topic. Nothing was deleted; setting the old status back undoes it.}"
-  (umask 077; printf '#!/bin/bash\n# undo do_spl_issue_blocker_rca_close (%s): each item back to its old status\n' "$plan" >"$undo") || return 1
+  local why="${ISSUE_REASON:-Closed as diss by the RCA of the never-closed from_agent: blocker issues (SPL-4850, csi-spl-doc/specs/157-dispatch-automation/rca-blocker-issues-from-agent.md, section 3 B1): an automated cross-box alarm or an old blocker that got no answer in its topic. Nothing was deleted; setting the old status back undoes it.} (owner go $ISSUE_OWNER_GO)"
+  (umask 077; printf '#!/bin/bash\n# undo do_spl_issue_blocker_rca_close (%s): each item back to its old status\n' "$plan" >"$undo") && chmod 600 "$undo" || return 1
   spl_desk_issue_once || return 1
   while IFS=$'\t' read -r key status verdict _; do
     [[ "$verdict" == MOVE ]] || continue
-    now="$(spl_desk_issue_run get --ref "$key" 2>&1 | python3 -c 'import json,sys
+    now="$(spl_desk_issue_run get --ref "$key" 2>/dev/null | python3 -c 'import json,sys
 d = json.loads(sys.stdin.read() or "{}").get("result") or {}
-print((d.get("issue") or d).get("status", ""))' 2>/dev/null)"
-    if [[ "$now" == "done" || "$now" == "diss" ]]; then
-      do_log "INFO $key is $now already: left alone (one move per issue)"
+print((d.get("issue") or d).get("status", ""))' 2>/dev/null)" || now=""
+    if [[ "$now" != "$status" ]]; then
+      do_log "INFO $key is '${now:-unreadable}' now, the plan read '$status': left alone"
       gone=$((gone + 1)); continue
     fi
     if spl_issue_brc_one "$key" "$why"; then

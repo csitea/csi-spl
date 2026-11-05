@@ -18,6 +18,8 @@
 #      (R7 c-365 W2)
 #   L6 a line longer than line_bytes is masked before it is cut, so a token
 #      across the cut does not leave as an unmasked prefix (R7 c-365 N1)
+#   L7 a token hard-wrapped inside a TUI box ("│ … │" on each line) is
+#      masked: the border glyphs do not break the join (R7 c-164 W)
 # Each runs green on the module and red on a copy with one planted defect.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -38,7 +40,7 @@ B="-----BEGIN" E="-----END" PK="PRIV""ATE KEY"
 rnd() { python3 -c 'import secrets, string, sys; print("".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(int(sys.argv[1]))))' "$1"; }
 b64() { python3 -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(48)).decode()[:64])'; }
 TOKEN="gh""p_$(rnd 36)"
-WRAP2="gh""p_$(rnd 36)" WRAP4="gh""p_$(rnd 36)" LONG="gh""p_$(rnd 36)"
+WRAP2="gh""p_$(rnd 36)" WRAP4="gh""p_$(rnd 36)" LONG="gh""p_$(rnd 36)" BOXED="gh""p_$(rnd 36)"
 KEYLINES=("$(b64)" "$(b64)")
 
 # The screen: 220 lines, the token on line 150, a PEM key on lines 160-163.
@@ -68,6 +70,14 @@ tmux -S "$SOCK" new-window -d -t lc -n "c-903 wrapped" "cat '$T/wrap.txt'; sleep
 # a 3000-byte line with a token across byte 2048 (the follower's line cut)
 python3 -c 'import sys; print("x" * 2034 + sys.argv[1] + " tail-of-long-line")' "$LONG" >"$T/long.txt"
 tmux -S "$SOCK" new-window -d -t lc -n "c-904 long" "cat '$T/long.txt'; sleep 600"
+# a token cut after 16 characters inside a bordered TUI box
+python3 - "$T/boxed.txt" "$BOXED" <<'EOF'
+import sys
+out, w = sys.argv[1:]
+lines = ["before-box", f"│ cut {w[:16]} │", f"│ {w[16:]}            │", "-- after-box"]
+open(out, "w").write("\n".join(lines) + "\n")
+EOF
+tmux -S "$SOCK" new-window -d -t lc -n "c-905 boxed" "cat '$T/boxed.txt'; sleep 600"
 sleep 1
 
 # tmux wrapper: logs every call, then runs the private server's tmux
@@ -187,6 +197,19 @@ l6() {
   jq -e '.screen | contains("<redacted")' <<<"$s" >/dev/null || { echo "  L6: no marker: $(jq -r .screen <<<"$s" | tail -c 200)"; return 1; }
 }
 
+l7() {
+  local d="$T/l7-$RANDOM" s p
+  run "$1" "$d" '["c-905"]'
+  s="$(screens "$d" c-905 | tail -n 1)"
+  [[ -n "$s" ]] || { echo "  L7: no console push: $(cat "$d/out")"; return 1; }
+  for p in "${BOXED:4:8}" "${BOXED:20:8}" "${BOXED:32:8}"; do
+    if grep -qF -- "$p" "$d/pushed"; then echo "  L7: a piece of a boxed token left the box: $p"; return 1; fi
+  done
+  jq -e '(.screen | startswith("before-box\n<redacted:wrapped-secret>\n<redacted:wrapped-secret>\n-- after-box"))
+    and (.redactions["wrapped-secret"] // 0) >= 2' <<<"$s" >/dev/null ||
+    { echo "  L7: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
+}
+
 # check <id> <what> <fn> [<control> <old> <new>]...: green on the module,
 # red on each planted defect.
 check() {
@@ -219,6 +242,8 @@ check L5 "a token hard-wrapped by the TUI (2 lines at col 14, 4 lines at 12 cols
   pairs-only 'run = parts[i : i + WRAP_SPAN]' 'run = parts[i : i + 2]'
 check L6 "a long line is masked before it is cut" l6 \
   cut-first 'ln = ln.rstrip()' 'ln = self.cut(ln.rstrip())'
+check L7 "a token hard-wrapped inside a bordered TUI box is masked" l7 \
+  no-border 'parts = [x.strip().strip(BORDER).strip() for x in lines]  # ctl:console-border' 'parts = [x.strip() for x in lines]'
 
 [[ "$fails" == 0 ]] && echo "OK spl-lane-console: all passed" || echo "FAIL spl-lane-console: $fails failed"
 ((fails == 0))

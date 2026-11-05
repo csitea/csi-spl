@@ -42,6 +42,7 @@ PUSH_OP = "file_streams_console_push"
 WRAPPED_KIND = "wrapped-secret"
 WRAPPED_MASK = f"<redacted:{WRAPPED_KIND}>"
 WRAP_SPAN = 4  # lines a hard-wrapped secret may span: a 40-char token at 12 cols
+BORDER = "│┃|⎿"  # the box edges and gutters a TUI draws around a wrapped line
 
 
 def span(text, masked):
@@ -176,12 +177,13 @@ class LaneConsole:
         shows alone. capture-pane -J joins only the rows tmux wrapped; an
         agent's TUI hard-wraps at the pane width with real newlines, so a
         token can arrive in pieces. From each line, WRAP_SPAN lines are
-        joined at the wrap (end spaces and indents dropped); when the join
+        joined at the wrap (end spaces, indents and a TUI box's BORDER
+        glyphs dropped, R7 c-164 W); when the join
         finds more than its lines alone, every line the masked span of the
         join touches is marked (the whole run when the span is unclear).
         The join drops the newline, so a word that starts the line after a
         token may be masked with it: more is masked, never less."""
-        parts = [x.strip() for x in lines]
+        parts = [x.strip().strip(BORDER).strip() for x in lines]  # ctl:console-border
         one = [self.remask(x)[1] for x in parts]
         out = set()
         for i in range(len(parts) - 1):

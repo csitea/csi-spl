@@ -55,13 +55,18 @@ parallel with phase 1; they SHIP to the owner in this order.
    account(s) (spec 4.3, accountant Q4) as a setting: the main-box file or
    a `netvisor_settings` column; no row stores them today (`0255` holds the
    bank, VAT and tax accounts only).
-2. `netvisor_cost_recorded_in(tenant, spec123_key, billed, month,
-   net_amount, currency, tolerance) RETURNS text`: the store ingest reads
-   `vendor_map` and `dedup_tolerance` in the ingest scope (it already reads
-   `netvisor_settings` there, `internal/store/netvisor_postgres.go:135`),
-   resolves the Netvisor vendor to its map entry, and passes the mapped
-   spec-123 key, its billing mode and the tolerance. An unmapped vendor is
-   never passed (no call, no label). `SECURITY DEFINER`, owned by a `NOLOGIN NOBYPASSRLS`
+2. `netvisor_cost_recorded_in(tenant, spec123_source, spec123_key, billed,
+   month, net_amount, currency, tolerance) RETURNS text`, where
+   `spec123_source` is `cost_lines` | `cost_entries:<type>` |
+   `fleet_token_paid_items` from the map entry, and the function sums only
+   that table (a fleet-token vendor can sit in both `cost_lines` and
+   `fleet_token_paid_items`; summing both would double it). The store
+   ingest reads `vendor_map` and `dedup_tolerance` in the ingest scope (it
+   already reads `netvisor_settings` there,
+   `internal/store/netvisor_postgres.go:135`), resolves the Netvisor vendor
+   to its map entry, and passes the mapped spec-123 table and key, its
+   billing mode and the tolerance. An unmapped vendor is never passed (no
+   call, no label). `SECURITY DEFINER`, owned by a `NOLOGIN NOBYPASSRLS`
    role (the rdb `0168` / `0143` precedent: the migrator is a member `WITH
    INHERIT FALSE, SET TRUE`). That role holds column `SELECT` on the match
    columns and its own `SELECT` policy `TO` that role on `cost_lines`

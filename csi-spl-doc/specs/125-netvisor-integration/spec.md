@@ -305,15 +305,17 @@ booked voucher date so the user knows the cutoff.
      `app.tenant_id`, and only the runtime login may execute it, never
      `PUBLIC`. It never reads `netvisor_settings`: the store ingest, which
      already reads that row in the ingest scope, resolves the line's vendor
-     through the vendor map and passes the mapped spec-123 key, its billing
-     mode and the tolerance as arguments (an unmapped vendor gets no call).
+     through the vendor map and passes the mapped spec-123 table and key,
+     its billing mode and the tolerance as arguments (an unmapped vendor
+     gets no call).
      The store ingest calls it once per line while the transaction still
      carries the ingest scope, before it switches to the owner's scope to
      write the lines ([plan.md](plan.md) 3.1). A line matches a spec-123 record
      when all three agree: (a) the vendor, through a vendor map in
      `netvisor_settings` (a Netvisor vendor or merchant text -> a spec-123
-     `project_or_vendor` / `vendor` / `label`; a vendor with no map entry
-     is never matched and never compared); (b) the month: the Netvisor
+     `project_or_vendor` / `vendor` / `label`; the map entry also names the
+     spec-123 table, and only that table is summed; a vendor with no map
+     entry is never matched and never compared); (b) the month: the Netvisor
      line's invoice-date month, matched against the spec-123 usage month of
      the mapped vendor. The map entry carries the vendor's billing mode:
      `billed: arrears` (default for `cost_lines` sources such as the cloud

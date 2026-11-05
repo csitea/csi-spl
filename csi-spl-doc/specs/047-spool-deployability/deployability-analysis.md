@@ -24,85 +24,82 @@ is trunk `4dc8df91` (tag v1.9.2) unless a section names its own tree. Unless a r
 
 ## 1. Today, measured
 
+**Re-measured 2026-11-05 on `721fb9ad8` (`v8.5.6-c3-7-g721fb9ad8`; prd/dev served `0a639798a` / `8.5.6`).** The 2026-09-28 baseline (`4dc8df91`, `v1.9.2`) stays in each row for comparison; every verdict below is verified read-only by the command, commit or served build named.
+
 ### 1.1 A — self-hosted with docker compose (one machine)
 
 A fresh `git clone https://github.com/csitea/csi-spl.git` into a throwaway
-dir, run as the README says. The docker project was `spl-stranger-35078` on
-ports 18478/18479. The box had load average ~79 and the docker base images
-were cached, so read the times as an upper bound.
+dir, run as the README says. On 2026-09-28 (`4dc8df91`) the docker project was `spl-stranger-35078` on
+ports 18478/18479 (load average ~79, base images cached). Re-checked on `721fb9ad8` (read-only; container start / build times not re-measured).
 
-| step | measured | command |
-|---|---|---|
-| clone (37 MB) | 8 s | `time git clone ...`; `du -sh` |
-| build hub + WUI from source | 241 s | `time docker compose build --no-cache` |
-| start to healthy | 19 s | `time docker compose up -d` |
-| sign up, confirm (on-screen link), sign in as owner | ~1 min | browser, 0 errors |
-| **first human message** | **6 min 26 s after the clone** | clone at 14:12:02 UTC, post at 14:18:28 UTC |
-| agent seated + first agent message (manual CLI, 5 steps) | ~2 min, works | `spool keygen`, `hub-pin`, `send --kind note`, `hub-sync` |
-| idle RAM, whole stack | ~110 MiB (hub 27.7, web 34.5, pg 47.2) | `docker stats --no-stream` |
-| images | hub 79.5 MB, web 98.1 MB | `docker image ls` |
-| own-domain profile (`SPOOL_HUB_ENV=prd`, Secure cookie, SMTP) | hub boots healthy | `.env` own-domain block |
-| operator actions needed | **0** | first verified sign-in = owner (`SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: "true"`) |
+| step | 2026-09-28 (`4dc8df91`) | 2026-11-05 (`721fb9ad8`) | command / evidence |
+|---|---|---|---|
+| clone | 37 MB, 8 s | **changed** (repo grew; clone/pull time not re-measured read-only; `.git` in a full clone is 614 MB; still needs a checkout for bind mounts `./csi-spl-api/src/docker/{pg-init.sh,secret-env.sh,local-secrets}`) | `du -sh .git` -> `614M`; `grep -nE 'pg-init\.sh\|secret-env\.sh\|local-secrets' docker-compose.yml` -> lines 86, 114, 159, 248, 360 |
+| build hub + WUI from source | 241 s (required) | **changed — no build by default** (`docker compose up -d` pulls GHCR images pinned by sha256 digest: `ghcr.io/csitea/spool-{hub,web}:stable-2026-10-12@sha256:...`; anonymous pull HTTP 200; source build is opt-in via `SPOOL_IMAGE_TAG=local docker compose up --build -d`, build time not re-measured) | `251ab6f8d`, `fcb1a9115`, `925cfa259`; `docker-compose.yml:136,179,276`; `TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:csitea/spool-hub:pull" \| jq -r .token) && curl -sI -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.docker.distribution.manifest.v2+json" https://ghcr.io/v2/csitea/spool-hub/manifests/stable-2026-10-12` -> `HTTP/2 200` (and `spool-web` -> `HTTP/2 200`; `stable-2026-11-02` also `HTTP/2 200`) |
+| start to healthy | 19 s | **not re-measured** (read-only; CI workflow `50_oss-standalone.yml` proves the stack healthy on every push, recent runs 4m27s-5m19s total job time) | `gh run list -w 50_oss-standalone.yml -L 5` -> 5/5 `✓` |
+| sign up, confirm (on-screen link), sign in as owner | ~1 min | **still true on localhost** (`SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS: ${SPOOL_AUTH_DEBUG_LINKS:-true}`; not re-measured in browser) | `docker-compose.yml:212` |
+| **first human message** | **6 min 26 s after the clone** | **not re-measured** (read-only; the 241 s local build is removed on the default image-pull path) | `251ab6f8d`, `docker-compose.yml:4` |
+| agent seated + first agent message (manual CLI, 5 steps) | ~2 min, works | **changed** (`hub-init` prints a one-line `install.sh --env self` command; `install.sh` downloads prebuilt `spool-<os>-<arch>` from `stable-*` releases; admin can also mint a 1-hour join token so `spool join` / `install.sh --join` needs no root key; timing not re-measured) | `25e9b8b46` (W4), `c51bccc52` (W5), `d6525ec23` + `eb57b5a79` (A4), `d72e0654e` + `fbe002926` (073 T004/T005); `gh release view stable-2026-11-02 --json assets` -> 4 CLI binaries + `spool-SHA256SUMS` |
+| idle RAM, whole stack | ~110 MiB (hub 27.7, web 34.5, pg 47.2) | **changed — ~220 MiB** (s3 `chrislusf/seaweedfs:4.48` added for embedded S3 adds ~134 MiB; re-measured in `86213217e` at 12 min idle: 222 MiB total = s3 134, pg 52, hub 20, web 16; not re-run here read-only) | `86213217e` (SPL-3763); `README.md:40-42`; `docker-compose.yml:100-101` |
+| images | hub 79.5 MB, web 98.1 MB (uncompressed local build) | **changed** (published GHCR `stable-2026-10-12` compressed manifest layer sums: hub 24.7 MB, web 29.1 MB; `2454cef93` stripped `-s -w` on the `spool` binary; `6a00c67b4` unified one hub image; uncompressed size not re-measured) | `2454cef93`, `6a00c67b4`; GHCR v2 manifest `.layers[].size` sum: hub `24664360` B, web `29139243` B |
+| own-domain profile (`SPOOL_HUB_ENV=prd`, Secure cookie, SMTP) | hub boots healthy | **changed** (`./run -a do_spl_self_host_up` preflights DNS A, ports 80/443, SMTP login and Docker before `up`; `hub-init` refuses default DB passwords off localhost and requires `SPOOL_OWNER_EMAIL` for a one-time owner invite; 3 secrets mounted via `/run/secrets`; `SPOOL_HUB_MAIL_PREFLIGHT=require` probes SMTP at start) | `54cacd571` (A2), `b4bed27d7` (W9+W18), `6fd95f4bd` (W7), `docker-compose.yml:59-64,148-156,236,358-365` |
+| operator actions needed | **0** | **still true** (`0`: on localhost first verified sign-in = owner via `SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: auto`; off localhost `hub-init` prints the one-time owner invite link for `SPOOL_OWNER_EMAIL`) | `b4bed27d7`; `docker-compose.yml:218-221` |
 
-The README quick start is accurate. A stranger needs no cloud account, no
+The README quick start is accurate (`docker compose up -d` pulls prebuilt images; `SPOOL_IMAGE_TAG=local docker compose up --build -d` builds from source). A stranger needs no cloud account, no
 OAuth app and no key to get humans chatting.
 
 ### 1.2 A — self-hosted on their own GCP with our terraform
 
-**Verdict: this cannot run outside our estate without editing code.** It is
-not just slow.
+**Verdict: still cannot run outside our estate without editing code and cnf (though G2 and the `BITBUCKET_APP_PASSWORD` half of G7 are removed, and G1/G5/G6 are partially reduced).**
 
-| # | hard block | evidence |
-|---|---|---|
-| G1 | The project id is `${ORG}-${APP}-${ENV}`, derived from the module dir name (`csi-spl-iac` -> `csi-spl-dev`). Project ids are global and ours exist. | `csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh` (`proj_id=`); `csi-spl-iac/lib/bash/funcs/resolve-oap.func.sh` |
-| G2 | 7 terraform `validation` regexes accept only `^csi-spl-(dev\|prd)-*$` names, which are also global bucket/site names. | `grep -rn 'regex("^csi-spl' csi-spl-iac/src/terraform` -> 7 (steps 019, 020, 028, 040, 045 x2, 050) |
-| G3 | A GCP organisation or folder is required. | gcp-001: `FATAL ... GCP_ORG_ID or GCP_FOLDER_ID must have a value` |
-| G4 | The cnf is our estate: 1251 lines in 4 yaml files, `spool-hub.ai` in 15 cnf files, and no blank template. | `wc -l csi-spl-cnf/csi-spl/*.yaml`; `grep -rl spool-hub.ai csi-spl-cnf \| wc -l` |
-| G5 | Only `dev` and `prd`; registrar actions are Gandi only. | `contains(["dev", "prd"], var.env)` in 13 files; 6 `gandi-*.func.sh` |
-| G6 | CI assumes our self-hosted runners and `GCP_KEY_CSI_SPL_{DEV,PRD}`. | `cat .github/workflows/*.yml \| grep -c self-hosted` -> 19 |
-| G7 | The infra stack demands `GITHUB_TOKEN`, and two of its targets demand `BITBUCKET_APP_PASSWORD`, which nothing reads. | `csi-spl-orc/src/make/setup-app-inf.func.mk` lines 7, 50, 58; `grep -rn BITBUCKET csi-spl-orc/src/docker` -> 0 |
+| # | hard block (2026-09-28) | 2026-11-05 verdict | evidence |
+|---|---|---|---|
+| G1 | The project id is `${ORG}-${APP}-${ENV}`, derived from the module dir name (`csi-spl-iac` -> `csi-spl-dev`). Project ids are global and ours exist. | **changed — partially fixed** (`gcp-001` now reads `cnf_proj` (`env.gcp.gcp_project`) first and falls back to `${ORG}-${APP}-${ENV}`; `resolve-oap.func.sh` still derives `ORG`/`APP`/`PROJ` from `basename "$PROJ_PATH"` when unset) | `433151db6` (spec 072 A8); `grep -n "proj_id=" csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh` -> line 81 `proj_id="${cnf_proj:-${ORG}-${APP}-${ENV}}"`; `csi-spl-iac/lib/bash/funcs/resolve-oap.func.sh:13` |
+| G2 | 7 terraform `validation` regexes accept only `^csi-spl-(dev\|prd)-*$` names, which are also global bucket/site names. | **changed — removed** (all `^csi-spl` validation regexes replaced with generic resource-id rules in `433151db6`) | `grep -rn 'regex("^csi-spl' csi-spl-iac/src/terraform \| wc -l` -> `0`; `git merge-base --is-ancestor 433151db6 origin/master` -> exit 0 |
+| G3 | A GCP organisation or folder is required. | **still true** (spec 072 T026 / A10 is still open) | `grep -n "GCP_ORG_ID or GCP_FOLDER_ID must have a value" csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh` -> line 62 |
+| G4 | The cnf is our estate: 1251 lines in 4 yaml files, `spool-hub.ai` in 15 cnf files, and no blank template. | **still true (grown)** (2904 lines across the 4 yaml files, `spool-hub.ai` in 19 files under `csi-spl-cnf`, and no template dir yet; spec 072 T041 / A7 is still open) | `wc -l csi-spl-cnf/csi-spl/*.yaml` -> `2904 total` (1765 `all`, 478 `dev`, 175 `lde`, 486 `prd`); `grep -rl spool-hub.ai csi-spl-cnf \| wc -l` -> `19`; `ls csi-spl-cnf/csi-spl` -> no template |
+| G5 | Only `dev` and `prd`; registrar actions are Gandi only. | **still true (9 tf files, down from 13)** (`contains(["dev", "prd"], var.env)` remains in 9 terraform files; 6 `gandi-*.func.sh` live in `csi-spl-orc/src/bash/run/`) | `grep -rln 'contains(\["dev", "prd"\]' csi-spl-iac/src/terraform \| wc -l` -> `9`; `ls csi-spl-orc/src/bash/run/gandi-*.func.sh \| wc -l` -> `6` |
+| G6 | CI assumes our self-hosted runners and `GCP_KEY_CSI_SPL_{DEV,PRD}`. | **changed — partially fixed** (`10_ci-quality.yml` uses `vars.SPOOL_CI_RUNNER` falling back to `ubuntu-latest` on forks, `d8c60e64b`; 8 live-estate workflows have an estate guard, `8651ee708`; `do_spl_gh_wire` wires the 6 WIF repo vars, `6fa7d5959`; however `self-hosted` still appears 44 times across `.github/workflows/*.yml` and `GCP_KEY_CSI_SPL_` 79 times, with spec 072 T021 / A24 still open) | `d8c60e64b`, `8651ee708`, `6fa7d5959`; `cat .github/workflows/*.yml \| grep -c self-hosted` -> `44`; `grep -rn "GCP_KEY_CSI_SPL" .github/workflows/ \| wc -l` -> `79` |
+| G7 | The infra stack demands `GITHUB_TOKEN`, and two of its targets demand `BITBUCKET_APP_PASSWORD`, which nothing reads. | **changed — `BITBUCKET_APP_PASSWORD` removed and `do-setup-tpl-gen` needs no `GITHUB_TOKEN`; `do-setup-app-inf` and `do-setup-tf-runner` still demand `GITHUB_TOKEN`** | `25c4080de` (W8), `5c74662d6` (A14 part 1); `grep -c BITBUCKET csi-spl-orc/src/make/setup-app-inf.func.mk` -> `0`; `grep -n demand_var-GITHUB_TOKEN csi-spl-orc/src/make/setup-app-inf.func.mk csi-spl-orc/src/make/setup-tpl-gen.func.mk` -> 4 targets in `setup-app-inf.func.mk` + `do-setup-tf-runner` in `setup-tpl-gen.func.mk:30` |
 
-Counted from the tree, the path from zero, for us:
+Counted from the tree on `721fb9ad8`, the path from zero, for us:
 
-- 5 human prerequisites: a GCP org, a billing account, an org-admin identity,
+- 5 human prerequisites: a GCP org or folder, a billing account, an org-admin identity,
   a domain with NS delegation, and an SMTP account.
 - gcp-000 (4 sub-steps) x 2 envs.
-- The tpl-gen clone, the tf-runner stack, then **15 terraform steps x
-  render/plan/apply x 2 envs = 90 invocations**.
-- 4 out-of-band secret seeds (db bootstrap, session/auth, box-wui key, SMTP) x
-  2 envs, plus Stripe if paid tenants are wanted.
+- The tpl-gen clone, the tf-runner stack, then **29 terraform step directories** (`ls -d csi-spl-iac/src/terraform/[0-9]* | wc -l` -> `29`, up from 15; includes per-env steps plus shared/offsite/satellite/wine-box steps).
+- Secret seeds: `do_spl_secrets_check` and `do_spl_secrets_seed_all` (`25a9228a6`, spec 072 A30) now wrap the per-env seeds in `csi-spl-orc/src/bash/run/spl-*seed*.func.sh`.
+- `do_spl_gh_wire` (`6fa7d5959`, spec 072 A11) sets the 6 WIF GitHub repo variables from step 017's outputs.
 - The hub image build + push, the WUI deploy, and the Firebase certificate
   wait (10-25 min, CLE-35074).
 
-Estimate (not measured, since that needs a second GCP org): **2-3 working
+Estimate (not re-measured, since that needs a second GCP org and spec 072 T051 `do_spl_estate_up` / T052 clean-room estate are still open): **2-3 working
 days** for a GCP expert who has already forked and renamed everything. The
 peers estimated 2-5 days (AGY-3506/3507/3508).
 
-### 1.3 B — a paid tenant bought from Csitea (CLE-35079, measured on dev in Stripe test mode)
+### 1.3 B — a paid tenant bought from Csitea (CLE-35079, measured on dev in Stripe test mode; re-checked 2026-11-05)
 
-| step | measured | evidence |
-|---|---|---|
-| plan live on prd | card, 20 EUR, `available:true` | `curl -s https://api.spool-hub.ai/api/v1/checkout/plan` |
-| pay -> signed webhook -> paid -> claim (root key minted once, 2nd claim 410) | **11 s** | `do_spl_checkout_stripe_test_buy` on dev |
-| **buyer signs in** | **refused on prd** until an operator runs `do_spl_hub_invite` | `paidTx` writes only the tenant row; prd `SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: "false"` |
-| tenant host `<slug>.spool-hub.ai` | stays `pending` for ever: workflow 40 is paused | `.github/workflows/40_tenant-host-reconcile.yml` header |
-| live on prd | **0 checkouts ever**; all 10 prd tenants `billing_status=manual` | `payment_checkouts` empty |
-| billing model | one-off 20 EUR PaymentIntent; no renewal; refund/cancel -> `unpaid`, failed -> `grace` but the grace window is not timed; no VAT/invoice/terms page | `billing.MapEvent`; 006 T012a/T013a Planned |
-| buy page discoverability | nothing links to `/checkout` | `curl -s https://spool-hub.ai/ \| grep -ic 'checkout\|buy\|pricing'` -> 0 |
+| step | 2026-09-28 (`4dc8df91`) | 2026-11-05 (`721fb9ad8`) | evidence |
+|---|---|---|---|
+| plan live on prd | card, 20 EUR, `available:true` | **still true** (`amount_cents:2000`, `currency:"eur"`, `available:true`, `pk_live_...` on prd; `pk_test_...` on dev via `007abb51c`) | `curl -s https://api.spool-hub.ai/api/v1/checkout/plan` -> `{"amount_cents":2000,"available":true,"currency":"eur","methods":["card"],"plan_id":"default","publishable_key":"pk_live_...","rail":"card"}` |
+| pay -> signed webhook -> paid -> claim (root key minted once, 2nd claim 410) | **11 s** | **not re-measured** (read-only; proven on dev in `316951195` `do_spl_paid_owner_probe`) | `316951195` |
+| **buyer signs in** | **refused on prd** until an operator runs `do_spl_hub_invite` | **changed — fixed (0 operator actions)** (`paidTx` writes a `biz_owner` `tenant_invites` row for the checkout email in the same transaction; claim JSON and `tenant_paid` mail say "Sign in with <email>"; another email is refused 403 `not_allowed`) | `0f7e82002`, `d1e27b0ad`, `316951195` (SPL-1161, 047 W1); `csi-spl-api/src/go/spool-hub-api/internal/store/payments_postgres.go:180` |
+| tenant host `<slug>.spool-hub.ai` | stays `pending` for ever: workflow 40 is paused | **changed — fixed & active** (workflow `40_tenant-host-reconcile.yml` revived in `b3dbad08a` + `a982bff24` and enabled in GitHub Actions; runs every 15 min; meanwhile WUI `eccf5fcb9` + `aafdcc74a` stays on the apex and shows "your address is being prepared" instead of hopping to NXDOMAIN; on prd 21 `tenant_hosts` rows are `ready`, 0 `pending`) | `gh workflow list --all \| grep '^40'` -> `active`; `gh run list -w 40_tenant-host-reconcile.yml -L 5` -> 5/5 `✓`; `ENV=prd SQL="SELECT status, count(*) FROM tenant_hosts GROUP BY status ORDER BY status" ./run -a do_spl_db_query` -> `ready: 21, removed: 1` |
+| live on prd | **0 checkouts ever**; all 10 prd tenants `billing_status=manual` | **still true (0 checkouts; 22 prd tenants: 21 `manual`, 1 `internal`)** (`payment_checkouts` has 0 rows on prd; W3 owner live test buy has not been run yet) | `ENV=prd SQL="SELECT status, count(*) FROM payment_checkouts GROUP BY status" ./run -a do_spl_db_query` -> `0 rows`; `SQL="SELECT billing_status, count(*) AS tenants FROM tenants GROUP BY billing_status ORDER BY billing_status"` -> `internal: 1, manual: 21` |
+| billing model | one-off 20 EUR PaymentIntent; no renewal; refund/cancel -> `unpaid`, failed -> `grace` but the grace window is not timed; no VAT/invoice/terms page | **still true** (`billing.MapEvent` is still a one-off 20 EUR PaymentIntent; `de7e76126` updated the `grace` comment so it no longer claims a timer; seat caps exist in `7f2442caf`, but recurring subscriptions B4b are not built) | `csi-spl-api/src/go/spool-hub-api/internal/billing/`; `de7e76126` |
+| buy page discoverability | nothing links to `/checkout` | **changed — fixed** (`efdb63247` W2 added the "Buy a workspace" link to `/checkout` in the prerendered shell and on `/login` with the 20.00 EUR price line) | `curl -s https://spool-hub.ai/ \| grep -ic 'checkout\|buy\|pricing'` -> `2` (was 0); `efdb63247` |
 
-Operator actions per sale today: **1 required** (the invite) and 1 optional
-(the host). Time to value is **unbounded**, because it waits on the operator.
+Operator actions per sale today: **0 required** (`paidTx` invites the buyer as `biz_owner`, WUI stays on the apex until `<slug>.spool-hub.ai` answers, and workflow 40 reconciles the host every 15 min; note: spec 072 F31 notes `paidTx` does not write a `box-wui` pin, and W3 live prd checkout has not been run yet).
 
 ### 1.4 Taking it into use once it exists (CLE-35084, replacing AGY-3505)
 
-Trunk `4db84e2a`, a throwaway compose stack (`spl-use-35084`, hub on
-127.0.0.1:18490, the images built for 1.1), n = 1 per clean pass. Hosted
-facts are read from code and cnf only.
+On 2026-09-28 (`4db84e2a`), a throwaway compose stack (`spl-use-35084`, hub on
+127.0.0.1:18490, the images built for 1.1), n = 1 per clean pass (not re-run on 2026-11-05; read-only).
 
 **The hub is not the slow part.** One scripted pass on a fresh stack
-(`docker compose down -v`, then `up --wait`), through the hub API:
+(`docker compose down -v`, then `up --wait`), through the hub API (2026-09-28 measurement):
 
-| step | at (s) |
+| step | at (s) (2026-09-28) |
 |---|---|
 | stack healthy (images cached) | 20.0 |
 | owner registers, verifies, signs in -> `biz_owner` | 20.6 |
@@ -111,67 +108,59 @@ facts are read from code and cnf only.
 | agent box `spool keygen` + `spool pin` with the root key | 23.9 |
 | **first agent post in #lobby** (`spool send --channel lobby`, `spool hub-sync`) | **24.2** |
 
-Team setup costs 4.2 s of hub work. The time goes into **knowing the steps**.
-The first unscripted agent seat took ~3 min and 6 failed attempts, with the Go
-source open.
+Team setup costs 4.2 s of hub work. On 2026-09-28 the stumbles U1-U8 below were identified; **all eight are now fixed or reduced on `721fb9ad8`**:
 
-| # | stumble | severity | evidence |
+| # | stumble (2026-09-28) | 2026-11-05 verdict | evidence |
 |---|---|---|---|
-| U1 | Hosted: the buyer is not seated as owner (see 1.3) | blocker | `paidTx` writes only `tenants` |
-| U2 | An agent is seated only from a shell holding the tenant root key. Tenant settings -> Agents says "No agent is seated in this tenant yet." with no next step. `spool` usage hides `hub-pin` / `hub-sync` / `hub-run`. `--root-key` takes only a file. A second `keygen --force` strands queued posts as `bad_sig` | high | `spool` usage line (11 verbs); `tenant-settings/agents.vue`; `spool hub-sync` -> `bad_sig` |
-| U3 | MCP for Claude Code / Cursor is undocumented. `spool mcp --as <ID>` exists, but no user doc registers it. install.sh registers no MCP. `do_spl_agent_mcp_install` assumes our box-user/agent-user split. Cursor is named nowhere | high | `grep -rl "spool mcp" --include=*.md` -> specs only; `grep -ci mcp install.sh` -> 0 |
-| U4 | With no mail relay, an invite answers `"mail":"sent"` although nothing was delivered. The WUI has no copyable invite link | medium | hub log `invite.mail_sent delivered=false outcome=sent` |
-| U5 | An uninvited sign-in reads "This account cannot sign in here." and never says "ask your admin for an invite" | medium | `not_allowed` / `registrar refused`; `auth-client.mjs:19` |
-| U6 | The first issue is refused without an epic (`epic_required ... (epic: SPL-n)`). Every tenant's keys are `SPL-n`, and no WUI or API setting changes the prefix | medium | `internal/store/issues.go:73` `IssuePrefixDefault = "SPL"` |
-| U7 | 12 help pages exist (`ls csi-spl-doc/doc/help \| wc -l` -> 12), but the WUI links to none of them. `getting-started.md` points at `<tenant-name>.spool-hub.ai`. The first sign-in lands on "No topics yet." with no checklist | medium | `grep -rn getting-started csi-spl-wui/src` -> 0 |
-| U8 | The installer needs a 37 MB clone, Go, and the `<dir>/csi/csi-spl` layout (it warns otherwise). It seats a tmux pane agent, not an IDE | low-medium | `install.sh --dry-run --env prd` |
+| U1 | Hosted: the buyer is not seated as owner (see 1.3) | **changed — fixed** (`paidTx` writes the `biz_owner` invite for the checkout email in the same transaction; apex fallback holds until wf 40 provisions the host) | `0f7e82002`, `d1e27b0ad`, `eccf5fcb9`, `aafdcc74a` |
+| U2 | An agent is seated only from a shell holding the tenant root key. Tenant settings -> Agents says "No agent is seated in this tenant yet." with no next step. `spool` usage hides `hub-pin` / `hub-sync` / `hub-run`. `--root-key` takes only a file. A second `keygen --force` strands queued posts as `bad_sig` | **changed — fixed** (Workspace settings -> Agents has `ConnectAgentGuide.vue` (`adbfe24ef`, `496bfb803`) + `JoinTokensPanel.vue` (`db323e02b`) for `admin` (`agents.join`) to mint 1-hour single-use join tokens redeemed via `spool join` (`d72e0654e`) or `install.sh --join` (`fbe002926`), proven in < 60 s by wf 23 `08791c802`; `spool` usage lists 34 box verbs + `hub-pin`/`hub-sync`/`hub-run` (`504ae4d1e`); `--root-key` takes `<file \| key text \| - = stdin>`; note: `biz_owner` without `admin` still uses the root-key paste block, and spec 073 T009 switching the guide's default to join tokens is still open) | `spool` usage output; `504ae4d1e` (W17), `adbfe24ef` (W12), `496bfb803` (A65), `d72e0654e` + `fbe002926` + `db323e02b` + `08791c802` (spec 073); `gh run list -w 23_join-check.yml -L 5` -> 5/5 `✓` |
+| U3 | MCP for Claude Code / Cursor is undocumented. `spool mcp --as <ID>` exists, but no user doc registers it. install.sh registers no MCP. `do_spl_agent_mcp_install` assumes our box-user/agent-user split. Cursor is named nowhere | **changed — fixed** (`adbfe24ef` W12 + `53f773713` A65 + `2f50a9985`: `ConnectAgentGuide.vue`, `README.md`, `DEPLOY.md` and `csi-spl-doc/doc/help/connect-an-agent.md` document `claude mcp add` and Cursor `~/.cursor/mcp.json`; `install.sh` registers MCP for selected CLIs) | `grep -rl "spool mcp" --include="*.md"` -> `README.md`, `DEPLOY.md`, `csi-spl-doc/doc/help/connect-an-agent.md` (+ 22 other docs); `grep -ci mcp csi-spl-orc/src/bash/features/spool-install/install.sh` -> `6` |
+| U4 | With no mail relay, an invite answers `"mail":"sent"` although nothing was delivered. The WUI has no copyable invite link | **changed — fixed** (`dadb2295b` W13 answers `mail:"logged"` when no inbox is reached; `026d20be2` W13 adds "Copy invite link" on pending invites; `92b3997ed` adds a status column `expired / sent / not sent`) | `dadb2295b`, `026d20be2`, `92b3997ed` |
+| U5 | An uninvited sign-in reads "This account cannot sign in here." and never says "ask your admin for an invite" | **changed — fixed** (`96b1caa06` W14 updates `not_allowed` to say "ask your admin for an invite" across 19 locales; `df6ab30b5` adds a clear "invitation expired" message) | `96b1caa06`, `df6ab30b5` |
+| U6 | The first issue is refused without an epic (`epic_required ... (epic: SPL-n)`). Every tenant's keys are `SPL-n`, and no WUI or API setting changes the prefix | **changed — fixed** (`2e7e2a107` + `6bcb8b9d8` W16 allow level-2 issues without an epic and expose `issue_prefix` on `GET/PATCH /v1/tenant/settings` and in Workspace settings -> General) | `2e7e2a107`, `6bcb8b9d8` |
+| U7 | 12 help pages exist (`ls csi-spl-doc/doc/help \| wc -l` -> 12), but the WUI links to none of them. `getting-started.md` points at `<tenant-name>.spool-hub.ai`. The first sign-in lands on "No topics yet." with no checklist | **changed — fixed** (29 help pages exist today; `96b1caa06` + `9ecaf3508` W14 serve `/help` from the `?` rail icon and `/login` with `{{api}}`/`{{site}}` filled from the running site and no `<tenant-name>.spool-hub.ai`; `c8bfa3154` W15 shows the 3-step first-run checklist for `admin`/`biz_owner`) | `ls csi-spl-doc/doc/help \| wc -l` -> `29`; `96b1caa06`, `9ecaf3508`, `c8bfa3154` |
+| U8 | The installer needs a 37 MB clone, Go, and the `<dir>/csi/csi-spl` layout (it warns otherwise). It seats a tmux pane agent, not an IDE | **changed — partially fixed** (`eb57b5a79` + `d6525ec23` A4 download the prebuilt `spool-<os>-<arch>` binary from `stable-*` releases with `spool-SHA256SUMS` verification, building with Go only as a fallback; `f5d06ee8f` A49 makes fleet config opt-in (`--fleet`); `ConnectAgentGuide.vue` covers IDE MCP seating; `install.sh` itself is still invoked from a checkout) | `d6525ec23`, `eb57b5a79`, `f5d06ee8f`; `grep -c 'releases/download' csi-spl-orc/src/bash/features/spool-install/install.sh` -> `1` |
 
-What a biz_owner can do alone (Tenant settings, 046): invite, set roles,
-suspend, manage channels and responders, add a **seated** agent to a channel,
-and work on issues and topics. What still needs an operator or a shell: the
-first owner on a hosted tenant, **seating or revoking an agent box**,
-re-keying a lost root key, the issue prefix, direct account create (046 T006),
-and the tenant host. The human half is self-service; the agent half is not.
+What a `biz_owner` (or `admin`) can do alone today (Workspace settings): invite (with copyable invite link and expiry date `access_until` via `d34d3eb9e` + `5d0db71ad`), set roles,
+suspend, manage channels and responders, edit the issue key prefix (`W16`), create issues without an epic (`W16`), paste the "Connect an agent" block (`W12`), add a seated agent to `#lobby`, and (as `admin` with `agents.join` when box join is enabled) mint per-seat join tokens (`JoinTokensPanel.vue`, spec 073) and revoke seats from the WUI. What still needs an operator or a shell: re-keying a lost root key, direct account create (`046 T006`, still `[ ]` in `csi-spl-doc/specs/046-spool-tenant-settings/tasks.md`), and enabling `do_spl_box_join_switch` on a workspace before `admin` can mint join tokens.
 
-Quick wins (proposed for Wave 1): Q1 "Connect an agent" empty state in Tenant
-settings -> Agents with the exact lines to paste, including a `claude mcp add`
-line and a Cursor `mcp.json` (S; B2 join tokens replace it later). Q2 the
-invite answers `mail: "logged"` when nothing was delivered, and the pane gets
-"copy invite link" (S). Q3 a Help entry in the WUI serving `doc/help`, with the
-host fixed (S). Q4 a first-run checklist for a biz_owner (S-M). Q5 issues
-without an epic, and the prefix in Tenant settings -> General (S). Q6 `spool`
-usage lists the `hub-*` verbs, and `--root-key` also takes key text (XS).
-Target: a biz_owner has **an agent answering in #lobby within 10 min, from the
-WUI alone**.
+All six Wave 1 quick wins proposed here (Q1-Q6 = W12-W17) and W19-W20 (`f53f5c81a`) have landed and are proven on `origin/master` (see section 5.1).
 
 ### 1.5 A vs B at a glance
 
-| | A: compose self-host | A: GCP self-host | B: buy a tenant |
+| | A: compose self-host (2026-09-28 -> 2026-11-05) | A: GCP self-host (2026-09-28 -> 2026-11-05) | B: buy a tenant (2026-09-28 -> 2026-11-05) |
 |---|---|---|---|
-| time to first human message | **~6.5 min** (measured) | days (estimate), after a fork | unbounded (operator invite) |
-| operator actions | 0 | n/a (they are the operator) | 1 per sale |
-| agent seating | manual CLI, 5 steps; installer refuses | same | CLI + root key (installer against a bought tenant not measured) |
-| blocked by our estate? | no | **yes** (G1-G7) | n/a |
-| proven in production | CI workflow 50 on every push | no | **no** (0 prd checkouts) |
+| time to first human message | **~6.5 min** (2026-09-28 with 241 s source build) -> **pulls prebuilt GHCR images by default** (`251ab6f8d`; pull time not re-measured read-only) | days (estimate), after a fork (still true) | unbounded (operator invite) -> **0 operator actions** (`paidTx` auto-invites buyer as `biz_owner` in `0f7e82002`; WUI stays on apex until wf 40 provisions `<tenant>.<fqdn>` in `eccf5fcb9` + `b3dbad08a`) |
+| operator actions | 0 (still true) | n/a (they are the operator) | 1 per sale -> **0** (code path; live prd buy W3 still unrun) |
+| agent seating | manual CLI, 5 steps; installer refuses -> **`install.sh --env self` (`25e9b8b46`) + prebuilt `spool` CLI (`eb57b5a79`) + join tokens (`fbe002926`) + WUI paste block (`adbfe24ef`)** | same | CLI + root key -> **WUI paste block (`adbfe24ef`) or `admin` join token (`db323e02b` + `fbe002926`, < 60 s in wf 23)** |
+| blocked by our estate? | no | **yes** (G2 removed in `433151db6`, `BITBUCKET_APP_PASSWORD` removed in `25c4080de`; G1/G3/G4/G5/G6/G7-token still block) | n/a |
+| proven in production | CI workflow 50 on every push (`5/5` recent runs green) + wf 56 GHCR images | no (spec 072 T052 clean-room estate open) | **no on prd** (`payment_checkouts` still 0 rows on prd; proven on dev via `do_spl_paid_owner_probe` `316951195`) |
 
-## 2. Blockers, ranked
+## 2. Blockers, ranked (re-ranked 2026-11-05 on `721fb9ad8`)
 
-Rank = how many would-be users it stops x how cheap it is to remove.
+Rank = how many would-be users it stops x how cheap it is to remove. Of the 12 blockers from 2026-09-28, **9 are resolved** on `origin/master` (blockers 1, 2, 4, 5, 6, 7, 8, 9, 12) and **3 remain open** (old blockers 3, 10, 11, now ranked 1-3 below).
 
-| rank | blocker | path | severity | effort | evidence |
+### 2.1 Open blockers today
+
+| rank (was) | blocker | path | severity | effort | 2026-11-05 verdict & evidence |
 |---|---|---|---|---|---|
-| 1 | The buyer is not seated as owner after paying | B | blocker | S | CLE-35079 B1 |
-| 2 | The installer refuses any hub that is not ours (`do_spl_desk_pin` pins `SPOOL_HUB_URL` to our cnf, ENV dev/prd only) | A | blocker for agents | S | `ENV=dev SPOOL_HUB_URL=http://localhost:18478 ./run -a do_spl_desk_pin` -> FATAL |
-| 3 | The paid flow has never run on prd | B | high risk | 30 min owner | `payment_checkouts` empty |
-| 4 | Agent seating needs the root key + CLI; no join token or WUI flow; MCP for Claude Code / Cursor undocumented | A+B | high | M (S for the W12 stopgap) | 037 T005 OPEN; 1.4 U2/U3 |
-| 5 | The success page promises a host that never comes; the buy page is not linked anywhere | B | high | XS | CLE-35079 B2/B3 |
-| 6 | No prebuilt images; the public URL is baked into the WUI at build time | A | medium | S-M | `docker-compose.yml` `build:`; `wui.Dockerfile` |
-| 7 | No backup / upgrade / restore guide for compose | A | medium | S | `grep -ciE 'backup\|upgrade\|restore' README.md` -> 0 |
-| 8 | Wrong version on a self-built stack (WUI v1.1.3, hub 0.1.0-dev, tree v1.9.2) | A | medium | XS | `curl localhost:18478/version` |
-| 9 | No SMTP preflight: the prd profile starts green with a dead relay | A | medium | S | hub healthy with `SMTP_HOST=smtp.example.org` |
-| 10 | No recurring billing, VAT, invoices or terms | B | high (business): a fixed ~$62/month prd bill vs a one-off 20 EUR per tenant (4.2) | M | CLE-35079 B5/B7 |
-| 11 | The GCP estate is not reusable (G1-G7) | A (GCP) | high, but see decision D2 | L | section 1.2 |
-| 12 | On a public domain the first verified sign-up becomes owner: whoever reaches a new instance first owns it | A | high (security) | S | `SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: "true"` in `docker-compose.yml`; section 3.3 |
+| 1 (was 3) | The paid flow has never run on prd (and `paidTx` writes no `box-wui` pin for a bought tenant, spec 072 F31) | B | high risk | 30 min owner (W3) + S (`box-wui` pin) | **still true** — `ENV=prd SQL="SELECT status, count(*) FROM payment_checkouts GROUP BY status" ./run -a do_spl_db_query` -> `0 rows` (all 22 prd tenants are `manual: 21, internal: 1`); W3 checklist in topic `bea3a4e6` (SPL-1164); `paidTx` in `csi-spl-api/src/go/spool-hub-api/internal/store/payments_postgres.go:180` |
+| 2 (was 10) | No recurring billing, VAT, invoices or terms; no capped free tenant without a card | B | high (business): fixed prd bill vs one-off 20 EUR per tenant (4.2) | M-L | **still true** — `curl -s https://api.spool-hub.ai/api/v1/checkout/plan` -> one-off `amount_cents:2000`; `billing.MapEvent` (`csi-spl-api/src/go/spool-hub-api/internal/billing/`) has no subscription renewal (`de7e76126` removed the untimed grace comment; B4a/B4b open) |
+| 3 (was 11) | The GCP estate is not reusable out of the box (G3 org/folder required, G4 2904 lines of estate cnf with no template, G5 9 `dev`/`prd` checks + 6 Gandi scripts, G6 79 `GCP_KEY_CSI_SPL_` refs in workflows, G7 `GITHUB_TOKEN` on `tf-runner`) | A (GCP) | high (owner reversed D2 in spec 072 D1: byo-GCP is a supported path) | L | **partially reduced, still blocks** — G2 removed (`433151db6`), G7 `BITBUCKET_APP_PASSWORD` removed (`25c4080de`) and `do-setup-tpl-gen` token-free (`5c74662d6`), G1 reads `cnf_proj` first (`433151db6`), G6 wf 10 runner var (`d8c60e64b`) + estate guard (`8651ee708`) + `do_spl_gh_wire` (`6fa7d5959`); remaining items tracked in `csi-spl-doc/specs/072-rapid-deployability/tasks.md` (T020-T022, T026, T028, T029b, T030, T032, T041, T051, T052) |
+
+### 2.2 Resolved since 2026-09-28
+
+| old rank | blocker (2026-09-28) | path | resolved by (proof on `origin/master` `721fb9ad8`) |
+|---|---|---|---|
+| 1 | The buyer is not seated as owner after paying | B | **resolved (W1)** — `0f7e82002` + `d1e27b0ad` + `316951195` (SPL-1161): `paidTx` inserts a `biz_owner` `tenant_invites` row for the checkout email in the same transaction; `do_spl_paid_owner_probe` proves buyer login 200 (`biz_owner`) and other email 403 `not_allowed` |
+| 2 | The installer refuses any hub that is not ours (`do_spl_desk_pin` pins `SPOOL_HUB_URL` to our cnf, ENV dev/prd only) | A | **resolved (W4)** — `25e9b8b46` (SPL-1167) + `f5d06ee8f` (spec 072 A49): `install.sh --env self` and `do_spl_desk_pin` accept any `SPOOL_HUB_URL` without cnf or `dev`/`prd` |
+| 4 | Agent seating needs the root key + CLI; no join token or WUI flow; MCP for Claude Code / Cursor undocumented | A+B | **resolved (W12, B2/073, B3/072 A4)** — `adbfe24ef` + `496bfb803` + `2f50a9985` (`ConnectAgentGuide.vue` + `/help/connect-an-agent` with `claude mcp add` and Cursor `mcp.json`); `d72e0654e` + `fbe002926` + `db323e02b` + `08791c802` (spec 073 join tokens: `JoinTokensPanel.vue`, `spool join`, `install.sh --join`, wf 23 `23_join-check.yml` green in < 60 s); `d6525ec23` + `eb57b5a79` (`install.sh` downloads prebuilt `spool` CLI from `stable-*` releases) |
+| 5 | The success page promises a host that never comes; the buy page is not linked anywhere | B | **resolved (W2 + B5)** — `efdb63247` (SPL-1162: "Buy a workspace" link on `/` and `/login`; `curl -s https://spool-hub.ai/ \| grep -ic 'checkout\|buy\|pricing'` -> `2`); `eccf5fcb9` + `aafdcc74a` (WUI stays on apex while `<tenant>.<fqdn>` is being prepared); `b3dbad08a` + `a982bff24` (workflow `40_tenant-host-reconcile.yml` revived and `active` in GitHub Actions, 5/5 recent runs green) |
+| 6 | No prebuilt images; the public URL is baked into the WUI at build time | A | **resolved (B1 / spec 072 A1 + A3)** — `fcb1a9115` + `251ab6f8d` + `925cfa259` (`56_ghcr-images.yml` publishes `ghcr.io/csitea/spool-{hub,web}` on `stable-*`, anonymous pull HTTP 200, `docker-compose.yml` pulls by sha256 digest by default); `4a5957be3` (WUI reads `/config.json` at container start; `grep -c 'ARG SPOOL_PUBLIC_URL' csi-spl-wui/src/docker/wui.Dockerfile` -> `0`; note: `pg-init.sh` and `secret-env.sh` bind mounts still use the repo checkout, spec 072 T033 open) |
+| 7 | No backup / upgrade / restore guide for compose | A | **resolved (W5 / O1)** — `c51bccc52` (SPL-1171) + `DEPLOY.md` (`c7ed917ad`): `README.md` section "Backup, restore and upgrade" + `DEPLOY.md` sections 2.4-2.5 (`grep -ciE 'backup\|upgrade\|restore' README.md` -> `11`) |
+| 8 | Wrong version on a self-built stack (WUI v1.1.3, hub 0.1.0-dev, tree v1.9.2) | A | **resolved (W6)** — `fdce49592` (SPL-1174): `SPOOL_VERSION` build arg + `git describe --tags --match 'v[0-9]*'` fallback in `hub.Dockerfile` and `wui.Dockerfile` |
+| 9 | No SMTP preflight: the prd profile starts green with a dead relay | A | **resolved (W7 + 072 A2)** — `6fd95f4bd` (SPL-1165: `SMTP.Probe` at hub start, `SPOOL_HUB_MAIL_PREFLIGHT=require` default in `docker-compose.yml:236`) + `54cacd571` (`do_spl_self_host_up` preflights DNS, ports and SMTP before `up`) |
+| 12 | On a public domain the first verified sign-up becomes owner: whoever reaches a new instance first owns it | A | **resolved (W9 + W18)** — `b4bed27d7` (SPL-1176, SPL-1178): off localhost `hub-init` refuses default DB passwords, sets `SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=auto` (off outside localhost), creates a one-time `biz_owner` invite for `SPOOL_OWNER_EMAIL` and prints the sign-in link |
 
 ## 3. Benchmark targets (CLE-35086, replacing AGY-3510)
 
@@ -179,7 +168,7 @@ AGY-3510's figures were not sourced, so they are replaced here. Each peer
 number below is either **measured** on the box with `docker run` (a cold pull,
 then start until HTTP 200, then `docker stats --no-stream` after 90 s idle on an
 empty instance, n = 1, load average ~48), or **quoted** from the vendor's own
-page on 2026-09-28. The spool column is section 1.1.
+page on 2026-09-28. The spool column shows the 2026-09-28 baseline (`v1.9.2`) and the 2026-11-05 state (`v8.5.6-c3`, section 1.1).
 
 ### 3.1 Self-hosted peers, measured
 
@@ -188,17 +177,15 @@ page on 2026-09-28. The spool column is section 1.1.
 | Gitea 1.24 (SQLite) | 16.6 s | 3.0 s | 162 MiB | 259 MB | env var + restart | install wizard |
 | Mattermost Team 10.11 + pg 16 | 71.8 s | 23.2 s | 323 MiB | 1.22 GB | env var + restart | first sign-up = admin |
 | Rocket.Chat 7.10.0 + mongo 6 (replica set) | 275 s | 84.0 s | 772 MiB | 3.22 GB | env var + restart | 4-step wizard |
-| **spool v1.9.2** | build 241 s | 19 s | **~110 MiB** | 79.5 + 98.1 MB | **rebuild** | first verified sign-up = owner |
+| **spool v1.9.2 (2026-09-28)** | build 241 s | 19 s | **~110 MiB** (3 containers) | 79.5 + 98.1 MB | **rebuild** | first verified sign-up = owner |
+| **spool v8.5.6-c3 (2026-11-05)** | **GHCR pull by default** (time not re-measured) | not re-measured (wf 50 green) | **~220 MiB** (4 containers incl. s3 ~134 MiB, `86213217e`) | **24.7 + 29.1 MB** compressed GHCR layers | **env var + restart** (`/config.json` at start, `4a5957be3`) | localhost: first sign-up; public domain: **one-time owner invite for `SPOOL_OWNER_EMAIL`** (`b4bed27d7`) |
 | Zulip (vendor, not run) | tarball + install script | "a few minutes" | vendor minimum 2 GB + 2 GB swap | apt | `--hostname` at install | one-time org-creation link printed by the installer |
 
 Vendor sizing (under load, not idle): Mattermost 1 vCPU / 2 GB for up to 1000
 users; Rocket.Chat Starter 2 vCPU / 4 GiB plus a 3-member Mongo replica set of
 2 vCPU / 4 GiB each; Zulip 2 GB + swap.
 
-Spool is the lightest of the five and starts faster than Mattermost and
-Rocket.Chat. It is the **only** one without a prebuilt image and the **only**
-one that needs a rebuild to change its public URL (`SPOOL_PUBLIC_URL` is a build
-`arg` of `web` in `docker-compose.yml`).
+Spool now publishes prebuilt GHCR images (`fcb1a9115`, `251ab6f8d`), changes its public URL via env var + restart (`4a5957be3` runtime `/config.json`, 0 rebuilds), and seats the first owner on a public domain via a one-time invite link (`b4bed27d7`). With SeaweedFS (`s3`) added to the compose stack, idle RAM is ~220 MiB (`86213217e`, `README.md:41`), still below Mattermost (323 MiB) and Rocket.Chat (772 MiB).
 
 ### 3.2 Hosted and paid peers, vendor pages
 
@@ -221,17 +208,17 @@ already has the free half.
 
 ### 3.3 Targets
 
-| metric | spool today | benchmark | target |
-|---|---|---|---|
-| self-host: pull/clone to healthy | 268 s (8 + 241 + 19) | Gitea 19.6 s, Mattermost 95 s (measured) | **< 60 s** with prebuilt images |
-| self-host: stranger to first message | 6 min 26 s | Mattermost ~95 s + sign-up (measured); Zulip "a few minutes" (vendor) | **< 5 min** on a fresh VM |
-| self-host idle RAM | ~110 MiB | 162 / 323 / 772 MiB (measured) | **keep < 200 MiB**, and say so in the README |
-| domain change | a rebuild | env var + restart (3 of 3 measured) | **0 rebuilds** |
-| first owner on a public host | first verified sign-up wins | Zulip: one-time link from the installer | **one-time owner link or token** |
-| hosted: card before value | yes | 0 of the hosted peers | **a capped free tenant, no card** |
-| hosted: to first message | unbounded (operator invite) | minutes, 0 operator actions | **< 5 min, 0 operator actions** |
-| price shape | 20 EUR one-off | $3.50-16 per user per month | recurring, once billing renews (section 1.3) |
-| agent seated | 5 CLI steps; the installer refuses a non-Csitea hub | a bot token pasted into a config (Slack, Discord) | **one pasted line** from the WUI |
+| metric | spool 2026-09-28 (`v1.9.2`) | spool 2026-11-05 (`721fb9ad8`) | benchmark | target |
+|---|---|---|---|---|
+| self-host: pull/clone to healthy | 268 s (8 + 241 + 19) | **prebuilt GHCR pull** (`251ab6f8d`; pull time not re-measured read-only) | Gitea 19.6 s, Mattermost 95 s (measured) | **< 60 s** with prebuilt images |
+| self-host: stranger to first message | 6 min 26 s | **not re-measured** (241 s source build eliminated by default pull) | Mattermost ~95 s + sign-up (measured); Zulip "a few minutes" (vendor) | **< 5 min** on a fresh VM |
+| self-host idle RAM | ~110 MiB (pg + hub + web) | **~220 MiB** (s3 134 + pg 52 + hub 20 + web 16, `86213217e`, stated in `README.md:41`) | 162 / 323 / 772 MiB (measured) | **keep < 200 MiB** (s3 added ~134 MiB; hub+web+pg alone are ~88 MiB), and say so in the README (done in `86213217e`) |
+| domain change | a rebuild | **0 rebuilds** (env var + restart via runtime `/config.json`, `4a5957be3`) | env var + restart (3 of 3 measured) | **0 rebuilds** (**DONE**) |
+| first owner on a public host | first verified sign-up wins | **one-time owner invite link** for `SPOOL_OWNER_EMAIL` (`b4bed27d7`) | Zulip: one-time link from the installer | **one-time owner link or token** (**DONE**) |
+| hosted: card before value | yes | **still yes** (B4a open) | 0 of the hosted peers | **a capped free tenant, no card** |
+| hosted: to first message | unbounded (operator invite) | **0 operator actions** (`0f7e82002` W1 + `eccf5fcb9` apex fallback + `b3dbad08a` wf 40; live prd buy W3 unrun) | minutes, 0 operator actions | **< 5 min, 0 operator actions** |
+| price shape | 20 EUR one-off | **still 20 EUR one-off** (B4b open) | $3.50-16 per user per month | recurring, once billing renews (section 1.3) |
+| agent seated | 5 CLI steps; the installer refuses a non-Csitea hub | **one pasted block** from WUI (`adbfe24ef` W12) or **one join-token line** (`fbe002926` + `d72e0654e`, < 60 s in wf 23); `--env self` accepts any hub (`25e9b8b46`) | a bot token pasted into a config (Slack, Discord) | **one pasted line** from the WUI (**DONE**) |
 
 Sources: docs.mattermost.com/deployment-guide/software-hardware-requirements.html,
 zulip.readthedocs.io/en/stable/production/requirements.html and

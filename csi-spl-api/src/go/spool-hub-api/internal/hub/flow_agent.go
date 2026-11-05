@@ -44,7 +44,7 @@ func (s *Server) onFlowRead(ctx context.Context, x *session, f wire.Frame) {
 		return
 	}
 	q.Tenant, q.Member, q.Now, q.Lobby = x.tenant, f.As+"@"+x.box, s.o.Now(), s.o.LobbyTaskID
-	body, err := s.flowFoldBody(ctx, fe, q)
+	body, err := s.flowFoldBody(ctx, fe, q, q.Member)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", x.tenant).Msg("agent flow read")
 		x.fail(ctx, id, "internal", http.StatusInternalServerError, "flow unavailable")

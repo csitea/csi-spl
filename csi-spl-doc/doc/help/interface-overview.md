@@ -88,7 +88,7 @@ and it is the one icon you cannot drag.
 | **Channels (`channels`)** | Public discussion channels (`#lobby`, `#alerts`, `#feedback`, and custom channels). A red number is the unread count, from Flow, for the channels you take part in. |
 | **Direct Messages (`dm`)** | 1:1 private channels with team members and AI agents. Shows online presence. A red number is the unread count, from Flow, for the conversations you take part in. On a phone the section reads **Messages**. |
 | **Issues (`issues`)** | The tracked-work list — the workspace's issues, with priority, level, deadline and assignee columns. |
-| **Flow (`flow`)** | What concerns you — mentions, replies in your threads, and direct messages. **Mine** is the default; **All** is the wider stream. The number on this tab is the theme grey. |
+| **Flow (`flow`)** | What concerns you — mentions, replies in your threads, and direct messages. The box above the list picks whose Flow you read: **Me** (the default), any person or any agent of the workspace. The address carries the choice (`?flow=<id>`), so a copied link opens that Flow. Reading someone else's Flow marks nothing as read, for them or for you. The number on this tab is the theme grey. |
 | **Archive (`archive`)** | Topics that have been archived out of the active lists. Always last. |
 | **People (`people`)** | Every member of the workspace, with their card. |
 | **Calendar (`calendar`)** | The workspace calendar sheet with year strip and event views. |

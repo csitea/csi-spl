@@ -30,22 +30,25 @@ type DocHead struct {
 	// Restricted is the one human who may read it (rdb 0256,
 	// workspace_doc_lock.go), "" = the workspace's.
 	Restricted string
+	TenantID   string // the owning workspace (spec 114 section 4.4 label)
 }
 
 // DocHit is one search match.
 type DocHit struct {
-	DocID  string
-	ItemID string
-	Title  string
-	Rank   float32
+	DocID    string
+	ItemID   string
+	Title    string
+	Rank     float32
+	TenantID string // the owning workspace (spec 114 section 4.4 label)
 }
 
 // wsDocHeadSQL reads document heads; $1 = one doc id or NULL, $2 = a topic
 // id or NULL, $3 = the limit, $4 = the tenant (RLS also lets every tenant
-// read the system tenant's docs, rdb 0191: a workspace lists only its own).
+// read the system tenant's docs, rdb 0191, and spec 114's share_read will
+// admit docs shared with it: a workspace lists only its own, by this filter).
 const wsDocHeadSQL = `SELECT d.id::text, d.title, d.description, d.rev, coalesce(r.attrs->>'topic_id', ''), d.updated_at,
 		(SELECT count(*) FROM workspace_doc_item i WHERE i.doc_id = d.id), r.id::text, r.rev, r.attrs,
-		coalesce(d.restricted_to_human, '')
+		coalesce(d.restricted_to_human, ''), d.tenant_id
 	FROM workspace_doc d JOIN workspace_doc_item r ON r.doc_id = d.id AND r.parent_id IS NULL
 	WHERE d.tenant_id = $4 AND ($1::uuid IS NULL OR d.id = $1) AND ($2::text IS NULL OR r.attrs->>'topic_id' = $2)
 	ORDER BY d.updated_at DESC, d.id LIMIT $3`
@@ -55,7 +58,7 @@ func (s *Postgres) docHeads(ctx context.Context, tenant string, doc, topic any, 
 	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: wsDocHeadSQL, args: []any{doc, topic, limit, tenant},
 		each: func(r pgx.Rows) error {
 			var h DocHead
-			err := r.Scan(&h.ID, &h.Title, &h.Desc, &h.Rev, &h.TopicID, &h.UpdatedAt, &h.Items, &h.RootID, &h.RootRev, &h.RootAttrs, &h.Restricted)
+			err := r.Scan(&h.ID, &h.Title, &h.Desc, &h.Rev, &h.TopicID, &h.UpdatedAt, &h.Items, &h.RootID, &h.RootRev, &h.RootAttrs, &h.Restricted, &h.TenantID)
 			out = append(out, h)
 			return err
 		}})
@@ -92,8 +95,10 @@ func (s *Postgres) DocHeadOf(ctx context.Context, tenant, doc string) (DocHead, 
 // DocSearch matches q against the title and body of the items of doc ("" =
 // every document of the tenant), best first, at most limit. It uses spec
 // 100's spool_search configuration, so a word matches here as it does in a
-// message search, reads the items' index entries (rdb 0227, search_tsv), and
-// runs under FORCE RLS: another tenant's items never match.
+// message search and reads the items' index entries (rdb 0227, search_tsv).
+// Another tenant's items never match by its i.tenant_id filter, not by RLS
+// alone: RLS admits the system tenant's items (rdb 0191) and, with spec 114,
+// items of documents shared with this one, which are searched separately.
 func (s *Postgres) DocSearch(ctx context.Context, tenant, doc, q string, limit int) ([]DocHit, error) {
 	var d any
 	if doc != "" {
@@ -105,14 +110,14 @@ func (s *Postgres) DocSearch(ctx context.Context, tenant, doc, q string, limit i
 	var out []DocHit
 	tsv := docItemTSV(s.hasDocSearchTSV(ctx)) // the index entry of rdb 0227, computed before it
 	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: `WITH q AS (SELECT plainto_tsquery('spool_search', $2) AS q)
-		SELECT i.doc_id::text, i.id::text, i.title, ts_rank(` + tsv + `, q.q)
+		SELECT i.doc_id::text, i.id::text, i.title, ts_rank(` + tsv + `, q.q), i.tenant_id
 		FROM workspace_doc_item i, q
 		WHERE i.tenant_id = $4 AND ($1::uuid IS NULL OR i.doc_id = $1) AND i.parent_id IS NOT NULL
 			AND ` + tsv + ` @@ q.q
 		ORDER BY 4 DESC, 1, 2 LIMIT $3`, args: []any{d, q, limit, tenant},
 		each: func(r pgx.Rows) error {
 			var h DocHit
-			err := r.Scan(&h.DocID, &h.ItemID, &h.Title, &h.Rank)
+			err := r.Scan(&h.DocID, &h.ItemID, &h.Title, &h.Rank, &h.TenantID)
 			out = append(out, h)
 			return err
 		}})

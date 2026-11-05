@@ -165,6 +165,22 @@ rl --from CLE-100004 --to CLE-001 --kind note --body x >/dev/null 2>&1; eq "5. n
 printf 'LEASE_ENV=dev\nLEASE_TENANT=t1\nLEASE_DESK_BOX=box-desk-sat\n' >>"$B/dispatch/lease.conf"
 printf '/x/spool\0hub-run\0' >"$T_TMP/proc/4242/cmdline"
 rl --from CLE-100004 --to CLE-001 --kind note --body x >/dev/null 2>&1; eq "5. lease.conf names the desk too: exit 0" 0 "$?"
+# SPL-4880: --tenant picks the workspace desk for this one send, ahead of
+# box.env and lease.conf (both name t1 here).
+printf 'SPOOL_DESK_BOX=box-desk-sat\nSPOOL_FLEET_ENV=dev\nSPOOL_FLEET_TENANT=t1\n' >"$B/box.env"
+out="$(rl --from CLE-100004 --to CLE-001 --kind note --body x --tenant csitea 2>&1)"; rc=$?
+eq "5. --tenant csitea with no csitea desk: exit 3" 3 "$rc"
+has "5. ... it looked for the csitea desk, not t1's" "in csitea (dev" "$out"
+DC="$ST/dev/desk/csitea/box-desk-sat"; mkdir -p "$DC/spool/.hub" "$DC/spool/CLE-100004" "$T_TMP/proc/4243"
+echo 4243 >"$DC/spool/.hub/hub-run.pid"; printf '/x/spool\0hub-run\0' >"$T_TMP/proc/4243/cmdline"
+printf 'SPOOL_ROOT=%s\0SPOOL_KEYS_DIR=/k\0SPOOL_BOX_ID=box-desk-sat\0SPOOL_HUB_URL=http://hub\0SPOOL_TENANT=csitea\0' "$DC/spool" >"$T_TMP/proc/4243/environ"
+rl --from CLE-100004 --to CLE-001 --kind note --body x --tenant csitea >/dev/null 2>&1; rc=$?
+eq "5. --tenant csitea with its desk: exit 0" 0 "$rc"
+has "5. ... the send runs in the csitea desk" "SPOOL_TENANT=csitea" "$(cat "$T_TMP/stub.env")"
+rl --from CLE-100004 --to CLE-001 --kind note --body x >/dev/null 2>&1
+has "5. no --tenant: box.env's t1 as before" "SPOOL_TENANT=t1" "$(cat "$T_TMP/stub.env")"
+rl --from CLE-100004 --to CLE-001 --kind note --body x --tenant 'Bad/ws' >/dev/null 2>&1; eq "5. a bad --tenant: exit 2" 2 "$?"
+rm -f "$B/box.env"
 
 # ---- 6. lane agents: the box is the trust unit, not the seat (HOWTO-satellite-work §4 gaps 1-3)
 # CLE-100005 is a lane of machine B: a registry.tsv row, no seat on B's desk.

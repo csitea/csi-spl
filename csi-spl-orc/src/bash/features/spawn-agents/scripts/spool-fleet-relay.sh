@@ -6,11 +6,15 @@
 #   spool-fleet-relay.sh [--spool-root <dir>] --from <ID> --to <ID> --kind <k>
 #                        --body <text> [--task <uuid>] [--to-box <box>]
 #                        [--accept <msg_id>] [--to-this-box]
+#                        [--tenant <workspace>]
 #
 # --accept sets the v:1 key `accepts` (spec 130 section 4). --to-this-box
 # sends to an agent of THIS machine through the hub, to the sidecar's own box
 # (its SPOOL_BOX_ID): spool-send.sh uses it for an acceptance, which fires
-# `ready` only when the hub stores the line.
+# `ready` only when the hub stores the line. --tenant names the workspace of
+# this one send, ahead of every source below (SPL-4880: the box link watcher
+# keeps a topic's alert in that topic's workspace; sudo resets the
+# environment, so SPOOL_FLEET_TENANT cannot carry it). Unset: unchanged.
 #
 # It signs the message with THIS machine's desk box and hands it to the hub
 # through that desk's live `spool hub-run` sidecar (its warm socket, the same
@@ -21,7 +25,7 @@
 #
 # The fleet desk, first match wins:
 #   env     SPOOL_FLEET_ENV, box.env SPOOL_FLEET_ENV, lease.conf LEASE_ENV
-#   tenant  SPOOL_FLEET_TENANT, box.env SPOOL_FLEET_TENANT, lease.conf LEASE_TENANT
+#   tenant  --tenant, SPOOL_FLEET_TENANT, box.env SPOOL_FLEET_TENANT, lease.conf LEASE_TENANT
 #   box     SPOOL_DESK_BOX, box.env SPOOL_DESK_BOX, lease.conf LEASE_DESK_BOX, box-desk
 #   state   SPOOL_FLEET_STATE_ROOT, else spool_desk_root: the desk user's
 #           (SPOOL_DESK_USER) state root, else this user's
@@ -43,7 +47,7 @@ say() { echo "spool-fleet-relay: $*" >&2; }
 # shellcheck source=../lib/desk-root.inc.sh
 . "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/../lib/desk-root.inc.sh"
 
-ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0 ACCEPT="" THISBOX=0
+ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0 ACCEPT="" THISBOX=0 ARG_TENANT=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --spool-root) [ "$#" -ge 2 ] || exit 2; ROOT="$2"; shift 2 ;;
@@ -55,6 +59,7 @@ while [ "$#" -gt 0 ]; do
     --to-box) [ "$#" -ge 2 ] || exit 2; TOBOX="$2"; shift 2 ;;
     --accept) [ "$#" -ge 2 ] || exit 2; ACCEPT="$2"; shift 2 ;;
     --to-this-box) THISBOX=1; shift ;;
+    --tenant) [ "$#" -ge 2 ] || exit 2; ARG_TENANT="$2"; shift 2 ;;
     *) say "unknown argument: $1"; exit 2 ;;
   esac
 done
@@ -72,7 +77,8 @@ kv() {  # FILE KEY
 }
 BOXENV="${SPOOL_BOX_ENV:-$ROOT/box.env}" LCONF="$ROOT/dispatch/lease.conf"
 ENVN="${SPOOL_FLEET_ENV:-$(kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(kv "$LCONF" LEASE_ENV)}"
-TENANT="${SPOOL_FLEET_TENANT:-$(kv "$BOXENV" SPOOL_FLEET_TENANT)}"; TENANT="${TENANT:-$(kv "$LCONF" LEASE_TENANT)}"
+[[ -z "$ARG_TENANT" || "$ARG_TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "bad --tenant '$ARG_TENANT'"; exit 2; }
+TENANT="${ARG_TENANT:-${SPOOL_FLEET_TENANT:-$(kv "$BOXENV" SPOOL_FLEET_TENANT)}}"; TENANT="${TENANT:-$(kv "$LCONF" LEASE_TENANT)}"
 BOX="${SPOOL_DESK_BOX:-$(kv "$BOXENV" SPOOL_DESK_BOX)}"; BOX="${BOX:-$(kv "$LCONF" LEASE_DESK_BOX)}"; BOX="${BOX:-box-desk}"
 [[ "$ENVN" =~ ^(dev|prd|self)$ && "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || {
   say "$TO is not an agent of this machine ($ROOT), and no fleet desk is configured to reach the other machine: set SPOOL_FLEET_ENV + SPOOL_FLEET_TENANT in $BOXENV (or LEASE_ENV + LEASE_TENANT in $LCONF). Nothing was sent."

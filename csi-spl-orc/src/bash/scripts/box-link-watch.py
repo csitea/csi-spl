@@ -23,10 +23,18 @@ topic that owns the box, listing every condition over the limit, and one more
 (kind note) when none is left ("cleared after N min"). The state file keeps what
 was sent, so a second run on the same state sends nothing.
 
+Workspace (SPL-4880): each topic names its workspace. A send to a seat or the
+fallback on another machine goes through that workspace's desk only
+(GW_RELAY <workspace>, as spool-send.sh's SPOOL_FLEET_RELAY_CMD), never
+through lease.conf's LEASE_TENANT. A topic with no workspace, or a box with
+no topic row, sends nothing cross-machine (SPOOL_FLEET_RELAY=0, a WARN): a
+seat on this machine still gets it. The task is box-link-watch-<topic8>.
+
 Environment (the action sets the defaults):
   GW_ROOT, GW_LOG_DIR, GW_LOG_GLOB, GW_RESULTS, GW_STATE, GW_LIMIT_MIN, GW_WINDOW_H,
-  GW_QUIET_S, GW_TOPICS ("box=topic8,..."), GW_LANES_CMD, GW_FALLBACK,
-  GW_SEND, GW_FROM, GW_PS_CMD, GW_RADIATE_RX, GW_NOW (tests),
+  GW_QUIET_S, GW_TOPICS ("box=topic8/workspace,..."), GW_LANES_CMD,
+  GW_FALLBACK, GW_SEND, GW_RELAY, GW_FROM, GW_PS_CMD, GW_RADIATE_RX,
+  GW_NOW (tests),
   DRY_RUN (1 = print the plan only)
 A box with no topic row goes to GW_FALLBACK on task box-link-watch-<box>.
 Exit: 0 ran, 1 a send failed (retried next run) or a box has no topic row,
@@ -327,7 +335,14 @@ def seat_of(topic):
     ), "dispatch lease holder: no live seat row on topic %s" % topic
 
 
-def send(to, kind, task, body):
+def send(to, kind, task, body, ws):
+    """WS pins the cross-machine leg to that workspace's desk; empty = none."""
+    run_env = dict(os.environ)
+    run_env.pop("SPOOL_FLEET_RELAY_CMD", None)
+    if ws:
+        run_env["SPOOL_FLEET_RELAY_CMD"] = "bash %s %s" % (env("GW_RELAY"), ws)
+    else:
+        run_env["SPOOL_FLEET_RELAY"] = "0"
     cmd = [
         "bash",
         env("GW_SEND"),
@@ -342,7 +357,9 @@ def send(to, kind, task, body):
         "--body",
         body,
     ]
-    return subprocess.run(cmd, capture_output=True, text=True).returncode == 0
+    return (
+        subprocess.run(cmd, capture_output=True, text=True, env=run_env).returncode == 0
+    )
 
 
 class Run:
@@ -350,14 +367,18 @@ class Run:
         self.now = int(env("GW_NOW") or time.time())
         self.limit = int(float(env("GW_LIMIT_MIN", "7")) * 60)
         self.dry = env("DRY_RUN", "1") != "0"
-        self.topics = dict(
-            p.split("=", 1) for p in env("GW_TOPICS").split(",") if "=" in p
-        )
+        self.topics = {}
+        for p in env("GW_TOPICS").split(","):
+            if "=" in p:
+                box, val = p.split("=", 1)
+                topic, _, ws = val.partition("/")
+                ok = re.match(r"^[a-z0-9][a-z0-9-]{0,31}$", ws) and env("GW_RELAY")
+                self.topics[box] = (topic, ws if ok else "")
         self.seats, self.rc = {}, 0
 
     def deliver(self, box, kind, body):
         """True when sent (never in a dry run)."""
-        topic = self.topics.get(box, "")
+        topic, ws = self.topics.get(box, ("", ""))
         if not topic:
             print("WARN box %s has no topic in GW_TOPICS: sent to the fallback" % box)
             self.rc = 1
@@ -367,12 +388,22 @@ class Run:
         else:
             if topic not in self.seats:
                 self.seats[topic] = seat_of(topic)
-            (to, why), task = self.seats[topic], "dispatch-" + topic
+            (to, why), task = self.seats[topic], "box-link-watch-" + topic
+        where = "workspace " + ws if ws else "this machine only"
+        if not ws:
+            print(
+                "WARN box %s: no workspace for topic '%s' (topics.tsv column 3): "
+                "nothing is sent to another machine, never through the lease's "
+                "workspace" % (box, topic)
+            )
+            self.rc = 1
         if self.dry:
-            print("PLAN %s to %s (%s) on %s: %s" % (kind, to, why, task, body))
+            print(
+                "PLAN %s to %s (%s; %s) on %s: %s" % (kind, to, why, where, task, body)
+            )
             return False
-        if to and send(to, kind, task, body):
-            print("SENT %s to %s (%s): %s" % (kind, to, why, body))
+        if to and send(to, kind, task, body, ws):
+            print("SENT %s to %s (%s; %s): %s" % (kind, to, why, where, body))
             return True
         print(
             "WARN the %s to '%s' did not send; retried next run: %s" % (kind, to, body)

@@ -1,6 +1,9 @@
 # box-link-watch topics - which topic owns the work of each relay box
 # (do_spl_box_link_watch, SPL-4816). The watcher sends a stuck link to that
 # topic's live seat (lane map), else to the dispatch lease holder.
-# box = the dir under BOX_LINK_WATCH_ROOT on the hub; topic = its first 8 hex.
-# box	topic8
-box	0956269e
+# box = the dir under BOX_LINK_WATCH_ROOT on the hub; topic = its first 8 hex;
+# workspace = the topic's workspace (SPL-4880): a seat or fallback on another
+# machine is reached through that workspace's desk only, never the lease's;
+# a row without it sends nothing to another machine.
+# box	topic8	workspace
+box	0956269e	csitea

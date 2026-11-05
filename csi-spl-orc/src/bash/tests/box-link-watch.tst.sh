@@ -28,6 +28,14 @@
 #      bundle unreceipted 6 min -> nothing yet, at 8 min ONE blocker naming both
 #  18. a command STARTed on the box, no exit line, the box log silent 8 min ->
 #      ONE blocker; its `-> exit 0` -> CLEARED
+#  19. SPL-4880, through the real spool-send.sh, box-link-watch-relay.sh and
+#      spool-fleet-relay.sh to a stub hub binary: a csitea topic's alert to a
+#      seat on another machine goes through the csitea desk, never t1 (the
+#      lease.conf and box.env workspace); its fallback (no live seat) too
+#  20. no workspace for the topic (none in the row, the old 2-column form, a
+#      bad one) or no topic row: nothing reaches the hub, a WARN, rc 1
+#  21. the topics file gives each box its topic and workspace; a bad
+#      workspace is dropped
 #   RED CONTROL: case 2 with the state file gone sends a second blocker, so
 #   case 2's silence is the state's doing.
 #------------------------------------------------------------------------------
@@ -38,7 +46,7 @@ fails=0
 export TZ=UTC
 NOW=1793800000
 R="$T/root"; L="$T/logs"; RES="$T/results"
-printf '#!/bin/sh\nprintf "%%s|" "$@" | tr "\\n" " " >>%q\necho >>%q\n' "$T/sent" "$T/sent" >"$T/send-ok"
+printf '#!/bin/sh\nprintf "%%s|" "$@" | tr "\\n" " " >>%q\necho "@@relay=${SPOOL_FLEET_RELAY_CMD:-}@@off=${SPOOL_FLEET_RELAY:-}" >>%q\n' "$T/sent" "$T/sent" >"$T/send-ok"
 printf '#!/bin/sh\nexit 1\n' >"$T/send-fail"
 printf '{"lanes":[{"agent_id":"c-701","agent_box":"boxa","topic":"abcd1234-0000-4000-8000-000000000000","scope":"Seat brief: the box topic","state":"live","updated_at":"2026-11-04T10:00:00Z"},{"agent_id":"c-702","agent_box":"boxa","topic":"abcd1234-0000-4000-8000-000000000000","scope":"Lane brief: some lane","state":"live","updated_at":"2026-11-04T11:00:00Z"}]}\n' >"$T/lanes.json"
 printf '{"lanes":[]}\n' >"$T/lanes-none.json"
@@ -56,8 +64,8 @@ fresh() {
 }
 run() {
   SNIPPET='do_spl_box_link_watch' in_orc BOX_LINK_WATCH_ENV="$T/no-env" BOX_LINK_WATCH_ROOT="$R" BOX_LINK_WATCH_LOG_DIR="$L" BOX_LINK_WATCH_RESULTS="$RES" \
-    BOX_LINK_WATCH_HOME="$T/relay" BOX_LINK_WATCH_STATE="$T/st.json" BOX_LINK_WATCH_TOPICS="box=abcd1234" \
-    BOX_LINK_WATCH_FROM=c-001 BOX_LINK_WATCH_FALLBACK=c-002@sat BOX_LINK_WATCH_SEND="$T/send-ok" \
+    BOX_LINK_WATCH_HOME="$T/relay" BOX_LINK_WATCH_STATE="$T/st.json" BOX_LINK_WATCH_TOPICS="box=abcd1234/wsx" \
+    BOX_LINK_WATCH_FROM=c-001 BOX_LINK_WATCH_FALLBACK=c-002@sat BOX_LINK_WATCH_SEND="$T/send-ok" BOX_LINK_WATCH_RELAY="$T/ws-relay" \
     BOX_LINK_WATCH_LANES_CMD="cat $T/lanes.json" BOX_LINK_WATCH_PS_CMD="cat $T/ps" GW_NOW="$NOW" DRY_RUN=0 "$@" 2>&1
 }
 n() { grep -c . "$T/sent" 2>/dev/null || true; }
@@ -67,9 +75,10 @@ later() { NOW=$(( NOW + $1 * 60 )); touch -d "@$(( NOW - 60 ))" "$R/box/inbound/
 # 1. 8 min, no receipt -> one blocker
 fresh; logl 8 "sent b1.zip hub -> box (10 B, sha256 aa) as b-1 in 1 s, waiting for the box's receipt"
 out="$(run)"
-[ "$(n)" = 1 ] && grep -q '^--from|c-001|--to|c-701@boxa|--kind|blocker|--task|dispatch-abcd1234|--body|LINK STUCK > 7 min on box `box` since ' "$T/sent" \
+[ "$(n)" = 1 ] && grep -q '^--from|c-001|--to|c-701@boxa|--kind|blocker|--task|box-link-watch-abcd1234|--body|LINK STUCK > 7 min on box `box` since ' "$T/sent" \
   && grep -q 'bundle b1.zip sent, no receipt, since .* (8 min). Evidence: `.*sent b1.zip hub -> box' "$T/sent" \
-  && pass "1. 8 min with no receipt -> ONE blocker to the topic seat c-701@boxa (not the lane c-702), naming what, since and the evidence" || fail "1. ($(n): $(cat "$T/sent"); $out)"
+  && grep -q "@@relay=bash $T/ws-relay wsx@@off=$" "$T/sent" \
+  && pass "1. 8 min with no receipt -> ONE blocker to the topic seat c-701@boxa (not the lane c-702), naming what, since and the evidence, relayed only in the topic's workspace" || fail "1. ($(n): $(cat "$T/sent"); $out)"
 # 2. the same state again -> nothing
 cp "$T/st.json" "$T/st.after1"
 later 1; out="$(run)"
@@ -81,7 +90,7 @@ cp "$T/sent.keep" "$T/sent"
 # 3. the receipt -> one cleared note, then nothing
 logl -1 "delivered b1.zip to box1: marked sent; relay blob deleted"
 later 2; out="$(run)"
-[ "$(n)" = 2 ] && grep -q '|--kind|note|--task|dispatch-abcd1234|--body|LINK CLEARED on box `box` after 11 min (stuck since .*: bundle b1.zip sent, no receipt)' <<<"$(last)" \
+[ "$(n)" = 2 ] && grep -q '|--kind|note|--task|box-link-watch-abcd1234|--body|LINK CLEARED on box `box` after 11 min (stuck since .*: bundle b1.zip sent, no receipt)' <<<"$(last)" \
   && pass "3. the receipt -> ONE note 'cleared after 11 min'" || fail "3. ($(n): $(cat "$T/sent"); $out)"
 later 1; run >/dev/null
 [ "$(n)" = 2 ] && pass "3. ...and nothing after it" || fail "3. after ($(n))"
@@ -131,7 +140,7 @@ grep -q '^--from|c-001|--to|c-002@sat|--kind|blocker' "$T/sent" && grep -q 'disp
 # 9. DRY_RUN default: plan only
 fresh; logl 8 "sent b4.zip hub -> box (10 B, sha256 aa) as b-5 in 1 s, waiting for the box's receipt"
 out="$(run DRY_RUN=1)"
-[ "$(n)" = 0 ] && [ ! -e "$T/st.json" ] && grep -q '^PLAN blocker to c-701@boxa (seat of topic abcd1234) on dispatch-abcd1234: LINK STUCK' <<<"$out" \
+[ "$(n)" = 0 ] && [ ! -e "$T/st.json" ] && grep -q '^PLAN blocker to c-701@boxa (seat of topic abcd1234; workspace wsx) on box-link-watch-abcd1234: LINK STUCK' <<<"$out" \
   && pass "9. DRY_RUN=1 prints the plan, sends nothing, writes no state" || fail "9. ($(n): $out)"
 
 # 10. a failed send is not recorded
@@ -168,9 +177,10 @@ out="$(run BOX_LINK_WATCH_HOME=)"; rc=$?
 
 # 14. a box with no topic row -> the fallback
 fresh; logl 8 "sent b7.zip hub -> box (10 B, sha256 aa) as b-7 in 1 s, waiting for the box's receipt"
-out="$(run BOX_LINK_WATCH_TOPICS="other=abcd1234")"; rc=$?
+out="$(run BOX_LINK_WATCH_TOPICS="other=abcd1234/wsx")"; rc=$?
 [ "$(n)" = 1 ] && [ "$rc" = 1 ] && grep -q '^--from|c-001|--to|c-002@sat|--kind|blocker|--task|box-link-watch-box|--body|LINK STUCK' "$T/sent" \
-  && grep -q 'WARN box box has no topic' <<<"$out" && pass "14. a box with no topic row -> ONE blocker to the fallback, rc 1" || fail "14. (rc $rc, $(n): $(cat "$T/sent"); $out)"
+  && grep -q 'WARN box box has no topic' <<<"$out" && grep -q '@@relay=@@off=0$' "$T/sent" \
+  && pass "14. a box with no topic row -> ONE blocker to the fallback, rc 1, the relay off (no workspace)" || fail "14. (rc $rc, $(n): $(cat "$T/sent"); $out)"
 
 # 15. an open incident older than the window, still no receipt -> not cleared
 fresh; logl 8 "sent b8.zip hub -> box (10 B, sha256 aa) as b-8 in 1 s, waiting for the box's receipt"
@@ -209,5 +219,63 @@ out="$(run)"
 logl 0 "box: exec: request 0123456789ab DONE 'x' -> exit 0 in 4200s; result queued"
 NOW=$(( NOW + 60 )); run >/dev/null
 [ "$(n)" = 2 ] && grep -q "LINK CLEARED" <<<"$(last)" && pass "18. ...its exit line -> CLEARED" || fail "18. clear ($(cat "$T/sent"))"
+
+# 19. SPL-4880: the real chain spool-send.sh -> box-link-watch-relay.sh ->
+# spool-fleet-relay.sh -> a stub hub binary that records the workspace. This
+# machine is boxh; its lease.conf and box.env name t1, and both a t1 and a
+# csitea desk are live here. The seat c-701 is on boxa. The outer
+# SPOOL_FLEET_RELAY_CMD is the plain relay, the path that defaults to t1: the
+# watcher must replace it (a workspace) or turn it off (none).
+SA="$PROJ_ROOT/src/bash/features/spawn-agents/scripts"
+SP="$T/sp" ST="$T/fst" FP="$T/fproc"
+mkdir -p "$SP/c-001/inbox" "$SP/c-001/outbox" "$SP/c-001/archive" "$SP/dispatch"
+printf 'LEASE_ENV=dev\nLEASE_TENANT=t1\nLEASE_DESK_BOX=boxh\nLEASE_ORCH=c-001\n' >"$SP/dispatch/lease.conf"
+printf 'SPOOL_DESK_BOX=boxh\nSPOOL_FLEET_ENV=dev\nSPOOL_FLEET_TENANT=t1\n' >"$SP/box.env"
+pid=5000
+for ws in t1 csitea; do
+  pid=$(( pid + 1 )); d="$ST/dev/desk/$ws/boxh"
+  mkdir -p "$d/spool/.hub" "$d/spool/c-001" "$FP/$pid"; echo "$pid" >"$d/spool/.hub/hub-run.pid"
+  printf '/x/spool\0hub-run\0' >"$FP/$pid/cmdline"
+  printf 'SPOOL_ROOT=%s\0SPOOL_KEYS_DIR=/k\0SPOOL_BOX_ID=boxh\0SPOOL_HUB_URL=http://hub\0SPOOL_TENANT=%s\0' "$d/spool" "$ws" >"$FP/$pid/environ"
+done
+printf '#!/usr/bin/env bash\nprintf "%%s %%s" "$SPOOL_TENANT" "$*" | tr "\\n" " " >>%q; echo >>%q\necho %q\n' \
+  "$T/hub.log" "$T/hub.log" '{"delivery":"sent","msg_id":"0e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b"}' >"$T/fhub"
+chmod +x "$T/fhub"
+chain() {
+  : >"$T/hub.log"
+  run BOX_LINK_WATCH_SEND="$SA/spool-send.sh" BOX_LINK_WATCH_RELAY="$PROJ_ROOT/src/bash/scripts/box-link-watch-relay.sh" \
+    BOX_LINK_WATCH_RELAY_CMD="bash $SA/spool-fleet-relay.sh" SPOOL_FLEET_RELAY_CMD="bash $SA/spool-fleet-relay.sh" SPOOL_ROOT="$SP" SPOOL_BOX_ENV="$SP/box.env" \
+    SPOOL_FLEET_STATE_ROOT="$ST" SPOOL_FLEET_PROC_ROOT="$FP" SPOOL_FLEET_BIN="$T/fhub" SPOOL_NOTIFY_CMD=off "$@"
+}
+hub() { grep -c . "$T/hub.log" 2>/dev/null || true; }
+fresh; logl 8 "sent c1.zip hub -> box (10 B, sha256 aa) as b-19 in 1 s, waiting for the box's receipt"
+out="$(chain BOX_LINK_WATCH_TOPICS="box=abcd1234/csitea")"; rc=$?
+[ "$rc" = 0 ] && [ "$(hub)" = 1 ] && grep -q '^csitea send --from c-001 --to c-701 --kind blocker --body from_agent: c-001@boxh LINK STUCK > 7 min on box `box`' "$T/hub.log" \
+  && grep -q -- '--to-box boxa' "$T/hub.log" && ! grep -q '^t1 ' "$T/hub.log" && grep -q 'SENT blocker to c-701@boxa (seat of topic abcd1234; workspace csitea)' <<<"$out" \
+  && pass "19. a csitea topic's alert to a seat on another machine goes through the csitea desk, never t1" || fail "19. (rc $rc, hub: $(cat "$T/hub.log"); $out)"
+want="$(python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, "spool-task:box-link-watch-abcd1234"))')"
+grep -q -- "--task $want" "$T/hub.log" && pass "19. ...on task box-link-watch-<topic8>, not the dispatch-<topic8> topic of the t1 desk" || fail "19. task ($(cat "$T/hub.log"))"
+fresh; logl 8 "sent c2.zip hub -> box (10 B, sha256 aa) as b-20 in 1 s, waiting for the box's receipt"
+out="$(chain BOX_LINK_WATCH_TOPICS="box=abcd1234/csitea" BOX_LINK_WATCH_LANES_CMD="cat $T/lanes-none.json")"; rc=$?
+[ "$rc" = 0 ] && [ "$(hub)" = 1 ] && grep -q '^csitea send --from c-001 --to c-002 --kind blocker' "$T/hub.log" && grep -q -- '--to-box sat' "$T/hub.log" \
+  && pass "19. no live seat: the fallback c-002@sat is reached through the csitea desk too, never t1" || fail "19. fallback (rc $rc, hub: $(cat "$T/hub.log"); $out)"
+
+# 20. no workspace -> nothing reaches the hub
+for tp in "box=abcd1234/" "box=abcd1234" "box=abcd1234/Bad_WS"; do
+  fresh; logl 8 "sent c3.zip hub -> box (10 B, sha256 aa) as b-21 in 1 s, waiting for the box's receipt"
+  out="$(chain BOX_LINK_WATCH_TOPICS="$tp")"; rc=$?
+  [ "$rc" = 1 ] && [ "$(hub)" = 0 ] && grep -q "WARN box box: no workspace for topic 'abcd1234'" <<<"$out" && grep -q 'did not send; retried next run' <<<"$out" \
+    && pass "20. topics '$tp' (no workspace): nothing reaches the hub, a WARN, rc 1" || fail "20. $tp (rc $rc, hub: $(cat "$T/hub.log"); $out)"
+done
+fresh; logl 8 "sent c4.zip hub -> box (10 B, sha256 aa) as b-22 in 1 s, waiting for the box's receipt"
+out="$(chain BOX_LINK_WATCH_TOPICS="other=abcd1234/csitea")"; rc=$?
+[ "$rc" = 1 ] && [ "$(hub)" = 0 ] && pass "20. a box with no topic row: its fallback on another machine gets nothing through any hub, rc 1" || fail "20. no row (rc $rc, hub: $(cat "$T/hub.log"); $out)"
+
+# 21. the topics file
+printf '# c\nbox\t0956269e\tcsitea\nb2\tabcd1234ffff\tBad_WS\nb3\t12345678\n' >"$T/topics.tsv"
+got="$(SNIPPET="spl_box_link_watch_topics $T/topics.tsv" in_orc)"
+[ "$got" = "box=0956269e/csitea,b2=abcd1234/,b3=12345678/" ] && pass "21. the topics file -> box=topic8/workspace; a bad or missing workspace is empty" || fail "21. ($got)"
+[ "$(SNIPPET="spl_box_link_watch_topics $PROJ_ROOT/cnf/box-link-watch/topics.tsv" in_orc)" = "box=0956269e/csitea" ] \
+  && pass "21. the shipped row: box -> topic 0956269e in workspace csitea" || fail "21. shipped"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

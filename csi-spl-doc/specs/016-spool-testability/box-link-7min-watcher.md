@@ -47,7 +47,7 @@ running through the night and its log closed no session in the night of
 d did not bring the quiet box log back that night.
 
 When any condition is older than 7 min the box has ONE incident: one spool
-message, kind `blocker`, task `dispatch-<topic8>`, listing every stuck
+message, kind `blocker`, task `box-link-watch-<topic8>`, listing every stuck
 condition with since when and its evidence line (URLs and tokens redacted).
 When none is left: one note, `LINK CLEARED on box <box> after N min`. The
 state file (`$XDG_STATE_HOME/csi-spl/box-link-watch.json`) keeps what was
@@ -73,12 +73,43 @@ every box without the file.
 ## 3. Who gets it
 
 The topic that owns a box's work is `csi-spl-orc/cnf/box-link-watch/topics.tsv`
-(`box<TAB>topic8`). The receiver is that topic's live seat: the newest live
+(`box<TAB>topic8<TAB>workspace`). The receiver is that topic's live seat: the newest live
 lane-map row on the topic whose scope starts with `Seat`; with none, the
 dispatch lease holder. A box with no row in that file goes to the dispatch
 lease holder too, on task `box-link-watch-<box>`, and the run exits 1 so the
 missing row shows in the cron log. The watcher never posts to the hub: the seat tells the
 owner in the topic, within the 7 min.
+
+### 3.1 The alert stays in the topic's workspace (SPL-4880)
+
+Owner HUM-10, topic 0956269e, 2026-11-05 (msgs a3593e17, 79a71171): the
+alert must be in that topic's workspace, never in the spool-hub (t1)
+workspace; everything in that workspace is private, the alerts included.
+
+- A receiver on this machine (the seat, or the fallback) gets a local spool
+  message: no hub, no workspace.
+- A receiver on another machine is reached through the desk of the topic's
+  workspace (column 3 of `topics.tsv`) only. The watcher hands
+  `spool-send.sh` the relay command
+  `csi-spl-orc/src/bash/scripts/box-link-watch-relay.sh <workspace>`, which is
+  `spool_fleet_relay` with `spool-fleet-relay.sh --tenant <workspace>`. It never uses
+  lease.conf's `LEASE_TENANT` or box.env's `SPOOL_FLEET_TENANT`, which name t1
+  on the hub box. The fallback (no live seat) takes the same path.
+- No workspace (a row without column 3, a bad value, or a box with no row):
+  nothing leaves this machine (`SPOOL_FLEET_RELAY=0`). The run logs a WARN
+  and exits 1, and it retries the send on every run.
+- The task is `box-link-watch-<topic8>`. The old `dispatch-<topic8>` name
+  maps to the same topic uuid that the t1 dispatch traffic of that owner
+  topic already uses (`dispatch-0956269e` -> `c4ea04f8-...`, a t1 topic).
+
+Where the owner saw SPL-4816 in t1, read-only, 2026-11-05: the watcher's own
+two messages (the 14:17Z blocker and the 16:43Z note) stayed local on the hub
+box. The cron log names local receivers, and each copy sits in a local
+inbox. The SPL-4816 lane traffic, though, ran through t1 topic
+`c4ea04f8-4999-51b8-bf4c-cf54da7d2232` (= `dispatch-0956269e`): the build,
+review and land notes, and the "Live" relay 1024a86e (04:14:51Z) that the
+seat turned into the owner-topic post. After the first alert, the seat's
+evidence note 1ba054b4 (14:45Z, "re LINK STUCK") went the same way.
 
 Until the relay ships a box heartbeat line, "no box log for 7 min while
 work is in flight" is the silence signal (owner pick [4], narrowed by c-002
@@ -95,3 +126,12 @@ with no topic row -> the fallback; an incident older than the window is not
 cleared; UTC stamps read under another `TZ`; a box log silent 4 h with nothing
 in flight -> none, then a bundle unreceipted 8 min -> one alert naming both. Red
 control: the second run with the state file gone sends a second alert.
+
+SPL-4880 cases 19-21 run the real chain `spool-send.sh` ->
+`box-link-watch-relay.sh` -> `spool-fleet-relay.sh` to a stub hub binary, on
+a machine whose lease.conf and box.env name t1 and which has live t1 and
+csitea desks. A csitea topic's alert to a seat on another machine, and its
+fallback, go through the csitea desk only. With no workspace, nothing reaches
+the hub. Red control: the watcher from before SPL-4880 sends the same alerts
+as `t1 send ...` (13 cases fail).
+

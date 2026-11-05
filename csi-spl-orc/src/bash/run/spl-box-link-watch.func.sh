@@ -17,6 +17,10 @@
 # @description else the dispatch lease holder), naming what, since when and
 # @description the evidence lines; one note when it clears ("cleared after N
 # @description min"). It never posts to the hub: the seat tells the owner.
+# @description A seat or fallback on another machine is reached through the
+# @description desk of the topic's own workspace (topics.tsv column 3, via
+# @description box-link-watch-relay.sh), never lease.conf's LEASE_TENANT; no
+# @description workspace -> nothing leaves this machine, a WARN (SPL-4880).
 # @description The relay's paths are box-local, never in this tree: env, or
 # @description the KEY=VALUE file BOX_LINK_WATCH_ENV. No relay configured ->
 # @description nothing to watch, exit 0. A lock keeps two runs apart. Dry run
@@ -28,12 +32,13 @@
 # @param BOX_LINK_WATCH_RESULTS (env or file, optional) - the run-on-box results dir (<dir>/<id>/result.json)
 # @param BOX_LINK_WATCH_HOME (env or file, required with ROOT) - the relay checkout whose `run -a radiate` must run
 # @param BOX_LINK_WATCH_LIMIT_MIN (optional) - minutes before an alert, default 7
-# @param BOX_LINK_WATCH_TOPICS (optional) - "box=topic8,...", default cnf/box-link-watch/topics.tsv
+# @param BOX_LINK_WATCH_TOPICS (optional) - "box=topic8/workspace,...", default cnf/box-link-watch/topics.tsv
 # @param BOX_LINK_WATCH_STATE (optional) - default $XDG_STATE_HOME/csi-spl/box-link-watch.json
 # @param BOX_LINK_WATCH_FROM (optional) - the sender id, default LEASE_ORCH of the dispatch lease.conf
 # @param BOX_LINK_WATCH_FALLBACK (optional) - the receiver when a topic has no live seat or a box has no topic row, default the dispatch lease holder
 # @param BOX_LINK_WATCH_LANES_CMD (optional, tests) - prints the lane map JSON, default lane-map.sh list --json
 # @param BOX_LINK_WATCH_SEND (optional, tests) - the sender script, default spawn-agents/scripts/spool-send.sh
+# @param BOX_LINK_WATCH_RELAY (optional, tests) - the workspace relay, default src/bash/scripts/box-link-watch-relay.sh
 # @param BOX_LINK_WATCH_PS_CMD (optional, tests) - the process list, default ps -eo args=
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_box_link_watch
@@ -65,6 +70,7 @@ do_spl_box_link_watch() {
   GW_ROOT="$BOX_LINK_WATCH_ROOT" GW_LOG_DIR="$BOX_LINK_WATCH_LOG_DIR" GW_LOG_GLOB="${BOX_LINK_WATCH_LOG_GLOB:-*.out.log}" \
     GW_RESULTS="${BOX_LINK_WATCH_RESULTS:-}" GW_STATE="$st" GW_LIMIT_MIN="$lim" \
     GW_TOPICS="$topics" GW_FROM="$from" GW_SEND="${BOX_LINK_WATCH_SEND:-$sa/spool-send.sh}" \
+    GW_RELAY="${BOX_LINK_WATCH_RELAY:-$PROJ_PATH/src/bash/scripts/box-link-watch-relay.sh}" \
     GW_LANES_CMD="${BOX_LINK_WATCH_LANES_CMD:-bash $sa/lane-map.sh list --json}" \
     GW_FALLBACK="${BOX_LINK_WATCH_FALLBACK:-$(spl_box_link_watch_holder)}" \
     GW_PS_CMD="${BOX_LINK_WATCH_PS_CMD:-ps -eo args=}" GW_RADIATE_RX="^\\S*bash ${home//./\\.}/run -a (do-)?radiate( |\$)" \
@@ -89,9 +95,13 @@ spl_box_link_watch_env() {  # FILE
   done < <(grep -E '^BOX_LINK_WATCH_[A-Z_]+=[^[:space:];|&`]+$' "$1")
 }
 
-# The topics file as "box=topic8,...": one `box<TAB>topic8` row per box.
+# The topics file as "box=topic8/workspace,...": one `box<TAB>topic8<TAB>
+# workspace` row per box. A bad or missing workspace is left empty: the
+# watcher then sends nothing to another machine (SPL-4880).
 spl_box_link_watch_topics() {  # FILE
-  awk -F'\t' '!/^[[:space:]]*(#|$)/ && $2 ~ /^[0-9a-f]{8}/ {printf "%s%s=%s", (n++ ? "," : ""), $1, substr($2, 1, 8)}' "$1" 2>/dev/null
+  awk -F'\t' '!/^[[:space:]]*(#|$)/ && $2 ~ /^[0-9a-f]{8}/ {
+    ws = ($3 ~ /^[a-z0-9][a-z0-9-]*$/ && length($3) <= 32) ? $3 : ""
+    printf "%s%s=%s/%s", (n++ ? "," : ""), $1, substr($2, 1, 8), ws}' "$1" 2>/dev/null
 }
 
 # The dispatch lease holder (`<id>@<box>`), the fallback receiver; empty when

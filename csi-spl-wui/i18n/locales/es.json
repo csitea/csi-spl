@@ -2391,6 +2391,16 @@
       "open_issue": "Abrir la incidencia",
       "open_release": "Abrir el registro de versiones",
       "mark_read": "Marcar como leído"
+    },
+    "member": {
+      "label": "Flujo de quién",
+      "me": "Yo",
+      "persons": "Personas",
+      "agents": "Agentes",
+      "none": "Nadie coincide",
+      "viewing": "Estás leyendo el Flujo de otra persona. Abrir una línea aquí no marca nada como leído.",
+      "refused": "Ese Flujo no se puede leer. Se muestra el tuyo.",
+      "empty": "Todavía no hay nada en este Flujo."
     }
   },
   "release_notes": {

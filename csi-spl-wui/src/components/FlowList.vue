@@ -6,6 +6,21 @@
   <!-- spec 062: Mine, only what concerns me (spec 130 Q2: always, no All
        switch); the chips split Mine's unread by kind and filter on a click (a 0 chip is dimmed) -->
   <div v-if="flow.available !== false" class="flow-head" data-testid="flow-head">
+    <!-- spec 130 section 3.1 (owner t1 82dff03c): whose Flow - me first, then
+         every person and agent of the workspace; the choice rides ?flow= -->
+    <PersonPicker
+      v-if="flow.mineOn"
+      class="flow-member"
+      :options="memberOptions"
+      :model-value="flow.member || flow.self()"
+      :label="t('flow.member.label')"
+      :title="t('flow.member.label')"
+      test="flow-member-picker"
+      option-test="flow-member-option"
+      :tall="stack.isMobile.value"
+      :empty-text="t('flow.member.none')"
+      @pick="pickMember"
+    />
     <div v-if="flow.mineOn" class="flow-chips" role="group" :aria-label="t('flow.chips_label')">
       <button
         v-for="c in chips"
@@ -22,9 +37,11 @@
         @click="pickKind(c.kind, c.n)"
       ><span aria-hidden="true">{{ c.icon }}</span> {{ c.n }}</button>
     </div>
+    <p v-if="flow.viewing" class="muted flow-member-note" data-testid="flow-member-note">{{ t('flow.member.viewing') }}</p>
+    <p v-if="flow.memberRefused" class="msg-edit-error flow-member-note" role="alert" data-testid="flow-member-refused">{{ t('flow.member.refused') }}</p>
   </div>
   <div ref="scrollEl" class="sidebar-scroll flow-scroll" @scroll.passive="onScroll">
-    <p v-if="!items.length" class="muted topic-empty" data-testid="flow-empty">{{ loadingNow ? t('flow.loading') : flow.mineOn ? t('flow.empty_mine') : t('feed.empty') }}</p>
+    <p v-if="!items.length" class="muted topic-empty" data-testid="flow-empty">{{ loadingNow ? t('flow.loading') : flow.viewing ? t('flow.member.empty') : flow.mineOn ? t('flow.empty_mine') : t('feed.empty') }}</p>
     <LazySideHitList
       v-else
       ref="listEl"
@@ -81,6 +98,9 @@ import { flowLineTarget } from '~/utils/flow-fold.mjs'
 import type { FlowLine } from '~/utils/flow-fold.mjs'
 import { useFlowLineMenu } from '~/composables/useFlowLineMenu'
 import { useFlowListItems } from '~/composables/useFlowListItems'
+import { useFlowMemberRequest } from '~/composables/useFlowMemberRoute'
+import { useRosterStore } from '~/stores/roster'
+import { flowMemberOptions, flowMemberQuery } from '~/utils/flow-member.mjs'
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 
@@ -103,7 +123,7 @@ const CHIP_ICONS: Record<FlowKind, string> = { mention: '@', reply: '↳', dm: '
 const chips = computed(() => (['mention', 'reply', 'dm'] as FlowKind[]).map((kind) => ({
   kind,
   icon: CHIP_ICONS[kind],
-  n: Number((flow.unread || flow.counts)?.[kind] || 0),
+  n: Number(flow.chipCounts?.[kind] || 0),
 })))
 function pickKind(kind: FlowKind, n: number) {
   /* a 0 chip does not filter, unless it is the filter on (a click clears it) */
@@ -144,6 +164,25 @@ async function openLine(line: FlowLine, to: 'message' | 'issue' | 'release') {
   else if (to === 'issue') await router.push(localePath('/issues?issue=' + line.issue))
   else await router.push(localePath('/releases/' + encodeURIComponent(String(line.sha || ''))))
   if (keyboard && !stack.isMobile.value) listEl.value?.focus()
+}
+
+/* spec 130 section 3.1: the member picker; ?flow= (useFlowMemberRoute) and a pick set it */
+const roster = useRosterStore()
+const route = useRoute()
+const memberWant = useFlowMemberRequest()
+const memberOptions = computed(() => flowMemberOptions({
+  humans: Object.keys(roster.humansDetail),
+  people: roster.people,
+  self: flow.self(),
+  label: (id: string) => people.label(id),
+  meLabel: t('flow.member.me'),
+  personsGroup: t('flow.member.persons'),
+  agentsGroup: t('flow.member.agents'),
+}))
+watch(memberWant, (m) => { if (m !== null) flow.setMember(m) }, { immediate: true })
+function pickMember(id: string) {
+  memberWant.value = id === flow.self() ? '' : id
+  void router.replace({ query: flowMemberQuery(route.query, id, flow.self()) as typeof route.query })
 }
 
 /* the entry's menu (right-click, a long press, the menu key) and a folded
@@ -197,6 +236,8 @@ onMounted(() => {
 .flow-ai-error { margin: 4px 8px; }
 .flow-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 8px 6px; }
 .flow-chips { display: inline-flex; gap: 4px; }
+.flow-member { flex: 1 1 100%; }
+.flow-member-note { flex: 1 1 100%; margin: 0; font-size: 0.8125rem; }
 .flow-chip { padding: 1px 8px; font-size: 0.8125rem; border: 1px solid var(--color-border); border-radius: var(--radius-pill); background: transparent; color: var(--color-fg); cursor: pointer; }
 .flow-chip[aria-pressed="true"] { border-color: var(--color-accent); color: var(--color-accent); font-weight: 600; }
 .flow-chip--zero { opacity: 0.5; cursor: default; }

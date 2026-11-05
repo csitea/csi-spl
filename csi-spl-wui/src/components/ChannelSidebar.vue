@@ -688,6 +688,7 @@ import { useSidebarRowKeys } from '~/composables/useSidebarRowKeys'
 import { useSidebarRailOnly } from '~/composables/useSidebarRailOnly'
 import { useSidebarRailTabKeys } from '~/composables/useSidebarRailTabKeys'
 import { useSidebarRailNav } from '~/composables/useSidebarRailNav'
+import { useFlowMemberRoute } from '~/composables/useFlowMemberRoute'
 import { useSidebarVersion } from '~/composables/useSidebarVersion'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -854,6 +855,8 @@ const onRailLink = computed(() => stripOnly.value && Boolean(railLinkSection(rou
 const { selectTab, railClick, closeSearch, onCountClick } = useSidebarRailNav({ tab, holdFlow, holdSearch, stripOnly, onRailLink, helpRailOnly, docsRailOnly })
 /* spec 103 T006: Enter, the arrows, Home and End on a rail tab (useSidebarRailTabKeys) */
 const { onTabKey } = useSidebarRailTabKeys({ phone, tab, rail, railClick, selectTab })
+/* spec 130 section 3.1: ?flow=<id> opens the Flow tab on that member's Flow */
+useFlowMemberRoute(() => { void selectTab('flow') })
 function railOn(id: SideTab) {
   return tab.value === id && !onRailLink.value
 }

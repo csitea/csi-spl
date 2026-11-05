@@ -2391,6 +2391,16 @@
       "open_issue": "Otvoriť úlohu",
       "open_release": "Otvoriť denník vydaní",
       "mark_read": "Označiť ako prečítané"
+    },
+    "member": {
+      "label": "Čí tok",
+      "me": "Ja",
+      "persons": "Ľudia",
+      "agents": "Agenti",
+      "none": "Nič sa nezhoduje",
+      "viewing": "Čítaš tok niekoho iného. Otvorenie riadku tu nič neoznačí ako prečítané.",
+      "refused": "Tento tok sa nedá prečítať. Zobrazuje sa tvoj.",
+      "empty": "V tomto toku zatiaľ nič nie je."
     }
   },
   "release_notes": {

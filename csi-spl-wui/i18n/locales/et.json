@@ -2391,6 +2391,16 @@
       "open_issue": "Ava ülesanne",
       "open_release": "Ava väljalasete logi",
       "mark_read": "Märgi loetuks"
+    },
+    "member": {
+      "label": "Kelle voog",
+      "me": "Mina",
+      "persons": "Inimesed",
+      "agents": "Agendid",
+      "none": "Keegi ei sobi",
+      "viewing": "Loed kellegi teise voogu. Rea avamine siin ei märgi midagi loetuks.",
+      "refused": "Seda voogu ei saa lugeda. Näidatakse sinu oma.",
+      "empty": "Selles voos pole veel midagi."
     }
   },
   "release_notes": {

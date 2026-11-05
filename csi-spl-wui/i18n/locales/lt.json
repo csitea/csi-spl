@@ -2391,6 +2391,16 @@
       "open_issue": "Atverti užduotį",
       "open_release": "Atverti leidimų žurnalą",
       "mark_read": "Pažymėti kaip skaitytą"
+    },
+    "member": {
+      "label": "Kieno srautas",
+      "me": "Aš",
+      "persons": "Žmonės",
+      "agents": "Agentai",
+      "none": "Niekas neatitinka",
+      "viewing": "Skaitai kito žmogaus srautą. Atidarius eilutę čia niekas nepažymima kaip perskaityta.",
+      "refused": "Šio srauto perskaityti negalima. Rodomas tavo.",
+      "empty": "Šiame sraute dar nieko nėra."
     }
   },
   "release_notes": {

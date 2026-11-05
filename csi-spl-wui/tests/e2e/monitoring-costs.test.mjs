@@ -281,6 +281,12 @@ async function costsSections(browser, base, size) {
     const tot = await p.$eval('[data-test=cloud-total-amount]', (e) => ({ left: e.getAttribute('data-left'), title: e.getAttribute('title') || '' })).catch(() => ({}))
     ok('entries: the total says it leaves the unpriced one out', tot.left === '1' && tot.title === 'Entered costs with no exchange rate left out: 1', tot)
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-cloud-entries-${size.width}.png`, fullPage: true })
+    /* R7 W1: in EUR the unpriced CHF entry is left out of the total too, never blanks it (CONTROL: before the fix a dash) */
+    await open(p, base, '/reporting/costs/cloud?month=2026-09&currency=EUR')
+    await p.waitForSelector('[data-test=cloud-total-amount]', { visible: true, timeout: 20000 }).catch(() => null)
+    const totEur = await p.$eval('[data-test=cloud-total-amount]', (e) => ({ text: e.textContent.trim(), left: e.getAttribute('data-left'), title: e.getAttribute('title') || '' })).catch(() => ({}))
+    ok('entries: the EUR total keeps its amount and says it leaves the unpriced one out', /^€[\d,.]+$/.test(totEur.text || '') && totEur.left === '1'
+      && totEur.title === 'Entered costs with no exchange rate left out: 1', totEur)
     await open(p, base, '/reporting/costs/spend?month=2026-09')
     await p.waitForSelector('[data-test=costs-row][data-source=cost_entry]', { visible: true, timeout: 20000 }).catch(() => null)
     const usd = await titles(p, '[data-test=costs-row][data-source=cost_entry] [data-test=costs-usd]')
@@ -288,6 +294,9 @@ async function costsSections(browser, base, size) {
       && usd.some((c) => c.text === '\u2014' && /^No CHF rate/.test(c.title)) && usd.some((c) => c.text === '$70.43'), usd)
     const totUsd = await p.$eval('[data-test=costs-total-usd]', (e) => e.getAttribute('title') || '').catch(() => '')
     ok('entries: the Spend USD total says what it leaves out', totUsd === 'Entered costs with no exchange rate left out: 1', totUsd)
+    const totCells = await p.$$eval('[data-test=costs-total-eur], [data-test=costs-total-second]', (els) => els.map((e) => ({ text: e.textContent.trim(), title: e.getAttribute('title') || '' })))
+    ok('entries: the Spend EUR and second totals keep their amounts and say what they leave out (R7 W1, N2)', totCells.length === 2
+      && totCells.every((c) => /^€[\d,.]+$/.test(c.text) && c.title === 'Entered costs with no exchange rate left out: 1'), totCells)
     await ctx.close()
   }
   {

@@ -84,8 +84,8 @@
             <tr class="costs-total" data-test="costs-total">
               <th scope="row">{{ t('monitoring.costs.total') }}</th>
               <td class="num" data-label="USD" data-test="costs-total-usd" :title="unpricedRows ? t('monitoring.costs.total_unpriced', { n: unpricedRows }) : undefined">{{ money(view.total.usdMicros, 'USD') }}</td>
-              <td class="num" data-label="EUR" data-test="costs-total-eur">{{ money(view.total.eurMicros, 'EUR') }}</td>
-              <td class="num" :data-label="secondHead" data-test="costs-total-second" :title="second(view.total).title">{{ second(view.total).text }}</td>
+              <td class="num" data-label="EUR" data-test="costs-total-eur" :title="eurLeftRows ? t('monitoring.costs.total_unpriced', { n: eurLeftRows }) : undefined">{{ money(view.total.eurMicros, 'EUR') }}</td>
+              <td class="num" :data-label="secondHead" data-test="costs-total-second" :title="secondLeftRows && !second(view.total).none ? t('monitoring.costs.total_unpriced', { n: secondLeftRows }) : second(view.total).title">{{ second(view.total).text }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_pct')">{{ view.total.usdMicros > 0 ? '100 %' : '' }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_list')" data-test="costs-total-list">{{ listTotal ? money(listTotal, 'USD') : '' }}</td>
             </tr>
@@ -180,6 +180,9 @@ const shareNote = computed(() => (view.value ? costAIShareNote(view.value) : nul
 const empties = computed(() => (view.value ? costEmptySources(view.value) : []))
 /* SPL-4824: hand-entered costs no rate turned into USD; the USD total leaves them out and says so */
 const unpricedRows = computed(() => (view.value ? view.value.parts.filter((p: CostPart) => p.unpriced).length : 0))
+/* R7 W1/N2: the EUR and second totals leave out the unpriced ones that have no amount there, and say so */
+const eurLeftRows = computed(() => (view.value ? view.value.parts.filter((p: CostPart) => p.unpriced && p.entryCurrency !== 'EUR').length : 0))
+const secondLeftRows = computed(() => (view.value ? view.value.parts.filter((p: CostPart) => p.unpriced && p.secondMicros === null).length : 0))
 const listTotal = computed(() => (view.value ? costListTotal(view.value.parts) : 0))
 const coverage = computed(() => (view.value ? costCoverageRows(view.value) : []))
 const slices = computed(() => (view.value ? costPieSlices(view.value.parts) : []).map((s, i) => ({

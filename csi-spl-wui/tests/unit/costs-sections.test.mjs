@@ -81,6 +81,16 @@ describe('Cloud level 1: the hand-entered cloud costs (SPL-4824)', () => {
     assert.equal(tot.unpricedRows, 1)
     assert.equal(sectionAmount(tot, 'USD'), 109_870_000)
   })
+  it('an unpriced entry with no second-currency amount is left out of that total too, never blanks it (R7 W1)', () => {
+    const priced = cloudProjects(PARTS).filter((r) => r.secondMicros !== null)
+    const want = cloudTotal(priced).secondMicros
+    assert.ok(want > 0)
+    const [r] = cloudEntries([entry('suite', 0, { unpriced: true, entryCurrency: 'CHF', secondMicros: null })])
+    const tot = cloudTotal([...priced, r])
+    assert.equal(sectionAmount(tot, 'EUR'), want)
+    assert.equal(tot.secondLeftRows, 1)
+    assert.equal(tot.unpricedRows, 1)
+  })
   it('the mock month (scenario entries): a EUR entry priced at the mock rate and a CHF one unpriced', () => {
     const m = costMonthOf(mockTenantCostsBody('2026-09', 'entries', new Date(Date.UTC(2026, 9, 15)), 'EUR'))
     const rows = cloudEntries(m.parts)

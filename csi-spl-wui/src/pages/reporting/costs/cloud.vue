@@ -64,7 +64,7 @@
             <tfoot v-if="rows.length">
               <tr data-test="cloud-total">
                 <th scope="row">{{ t('monitoring.costs.total') }}</th>
-                <td class="num" data-test="cloud-total-amount" :data-left="sum.unpricedRows || 0" :title="total.title">{{ total.text }}</td>
+                <td class="num" data-test="cloud-total-amount" :data-left="(currency === 'USD' ? sum.unpricedRows : sum.secondLeftRows) || 0" :title="total.title">{{ total.text }}</td>
                 <td class="num">100 %</td>
               </tr>
             </tfoot>
@@ -88,7 +88,7 @@ type CloudApi = {
   getTenantCosts: (month?: string, secondCurrency?: string) => Promise<unknown>
   getCloudCostDays: (month?: string, project?: string, secondCurrency?: string) => Promise<unknown>
 }
-type Money = { usdMicros: number, eurMicros: number, secondMicros: number | null, unpriced?: boolean, entryCurrency?: string, unpricedRows?: number }
+type Money = { usdMicros: number, eurMicros: number, secondMicros: number | null, unpriced?: boolean, entryCurrency?: string, unpricedRows?: number, secondLeftRows?: number }
 type Row = Money & { key: string, label: string, box?: string, sub?: string, to?: { query: LocationQueryRaw } }
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -124,7 +124,8 @@ function cell(m: Money) {
     const title = m.unpriced ? t('monitoring.costs.unpriced', { currency: m.entryCurrency }) : t('monitoring.costs.second_none', { currency: currency.value })
     return { text: '—', title }
   }
-  const left = currency.value === 'USD' && m.unpricedRows ? t('monitoring.costs.total_unpriced', { n: m.unpricedRows }) : undefined
+  const n = currency.value === 'USD' ? m.unpricedRows : m.secondLeftRows
+  const left = n ? t('monitoring.costs.total_unpriced', { n }) : undefined
   return { text: costMoney(v, currency.value, locale.value), title: left }
 }
 

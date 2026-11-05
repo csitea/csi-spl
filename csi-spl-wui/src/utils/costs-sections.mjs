@@ -39,13 +39,18 @@ export function sectionAmount(r, currency) {
   return r.secondMicros
 }
 
-/* unpriced: how many summed rows had no USD (a total leaves them out and says so) */
-const zero = () => ({ usdMicros: 0, eurMicros: 0, secondMicros: 0, unpricedRows: 0 })
+/* unpricedRows: summed rows with no USD; secondLeftRows: unpriced rows with no
+   second-currency amount either. A total leaves both out and says so; only a
+   priced row with no rate blanks the second total (SPL-4824 R7 W1). */
+const zero = () => ({ usdMicros: 0, eurMicros: 0, secondMicros: 0, unpricedRows: 0, secondLeftRows: 0 })
 function add(acc, r) {
+  const noSecond = r.secondMicros === null || r.secondMicros === undefined
   acc.usdMicros += r.usdMicros
   acc.unpricedRows = (acc.unpricedRows || 0) + (r.unpriced ? 1 : 0)
+  acc.secondLeftRows = (acc.secondLeftRows || 0) + (r.unpriced && noSecond ? 1 : 0)
   acc.eurMicros += r.eurMicros
-  acc.secondMicros = acc.secondMicros === null || r.secondMicros === null || r.secondMicros === undefined ? null : acc.secondMicros + r.secondMicros
+  if (r.unpriced && noSecond) return acc
+  acc.secondMicros = acc.secondMicros === null || noSecond ? null : acc.secondMicros + r.secondMicros
   return acc
 }
 const byUsd = (a, b) => b.usdMicros - a.usdMicros || String(a.key).localeCompare(String(b.key))

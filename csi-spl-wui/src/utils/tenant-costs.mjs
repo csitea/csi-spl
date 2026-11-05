@@ -388,6 +388,7 @@ function mockSecond(parts, cur, w, scenario) {
     p.fx_rate = none ? null : rate
     p.fx_rate_day = none ? null : last
     p.fx_rate_first_day = none ? null : (p.days > 1 ? w.from : last)
+    if (p.unpriced) continue /* SPL-4824 R7 W1: left out, as the hub does; never blanks the total */
     total = total === null || p.second_micros === null ? null : total + p.second_micros
   }
   return total

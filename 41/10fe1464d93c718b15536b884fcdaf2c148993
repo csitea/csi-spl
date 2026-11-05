@@ -1,0 +1,6 @@
+Lay-What: A background self-check of the message server no longer fails at random on a busy build machine.
+Lay-How: The check now uses a pretend clock that only moves when the check says so, instead of the real one.
+Lay-Why: On a slow, loaded machine the real clock made the check think a service had run for a long time, so it failed for no real fault.
+Tech-What: hub supervise backoff tests (TestSuperviseLogsEveryPanicWithBoundedBackoff, new TestSuperviseResetsBackoffAfterALongRun) run on a fake clock.
+Tech-How: unexported supervise takes now func() time.Time; Supervise passes time.Now so prod is unchanged; tests advance a fake clock per run.
+Tech-Why: a slow -race run exceeded hi in wall time, so the reset rule (now-start > hi) reset the backoff and the asserted retry_in sequence broke.

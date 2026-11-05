@@ -25,7 +25,7 @@
 # @param ISSUE_TITLE - required: the title
 # @param ISSUE_DISCUSSIONS - required: the discussions it links, topic ids or /t/<id> links, comma separated (at least one; the hub refuses none: discussion_required). A /t/<id> link in the description stands in for it
 # @param ISSUE_EPIC (required for a level-2 issue) - the level-1 row (epic or feature) above it, e.g. SPL-17; a level-2 issue without it is refused (owner t1 7a98c2d1 msg 5863d0d6)
-# @param ISSUE_OWNER_GO (optional) - the full lowercase uuid of the owner's (HUM-<n>) message that ordered this issue, in one of ISSUE_DISCUSSIONS (or a /t/<id> of the description): a level-2 issue then needs no git spec (SPL-4443); refused in t1 and with both ISSUE_DESCRIPTION and ISSUE_DESCRIPTION_FILE; read from the hub only when DRY_RUN=0
+# @param ISSUE_OWNER_GO (optional) - the full lowercase uuid of the owner's (HUM-<n>) message that ordered this issue, in one of ISSUE_DISCUSSIONS (or a /t/<id> of the description): a level-2 issue then needs no git spec (SPL-4443); refused in t1 and with both ISSUE_DESCRIPTION and ISSUE_DESCRIPTION_FILE; an original post, never a spec 169 copy (its messages row, do_spl_db_message_show as the env SA, says copied_from null); read from the hub only when DRY_RUN=0
 # @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
 # @param ISSUE_DESCRIPTION (required for a level-2 issue: it names the spec, `Spec: csi-spl-doc/specs/NNN-<slug>`) - markdown, no fence needed (csi-spl-doc/doc/help/how-to-post.md); or ISSUE_DESCRIPTION_FILE
@@ -134,7 +134,8 @@ spl_issue_owner_go_line() {
 # of TENANT_ID (`spool hub-tail --task <topic> --json`; the hub scopes the
 # read to the desk's tenant) in each discussion the issue links:
 # ISSUE_DISCUSSIONS and the /t/<id> links of the description. Not found: one
-# FATAL line naming the topics read.
+# FATAL line naming the topics read. Found: it must be no copy
+# (spl_issue_owner_go_copy).
 spl_issue_owner_go_from() {
   local go="$1" tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" d t tail from topics=()
   spl_desk_issue_once >&2 || return 1
@@ -149,8 +150,26 @@ for l in sys.stdin:
     try: m = json.loads(l)
     except ValueError: continue
     if isinstance(m, dict) and m.get("msg_id") == sys.argv[1]: print(m.get("from") or "-"); break' "$go")"
-    [[ -n "$from" ]] && { printf '%s\n' "$from"; return 0; }
+    [[ -n "$from" ]] || continue
+    spl_issue_owner_go_copy "$go" "$tenant" || return 1
+    printf '%s\n' "$from"; return 0
   done
   do_log "FATAL refused, nothing filed: ISSUE_OWNER_GO $go is not a message of the linked discussions (${topics[*]:-none}) in $tenant" >&2
+  return 1
+}
+
+# spl_issue_owner_go_copy <uuid> <tenant>: a copied post is nobody's word in
+# its destination (spec 169 section 8, row T11b). hub-tail carries no copy
+# marker, so the hub's messages row (spl_lane_issue_hub_row, read as the
+# env's service account) must say `copied_from` and say null. A copy, a row
+# that does not say, or a read that fails: one FATAL line, nothing filed.
+spl_issue_owner_go_copy() {
+  local rc=0 no="FATAL refused, nothing filed: ISSUE_OWNER_GO $1"
+  spl_lane_issue_hub_row "$1" "$2" >/dev/null || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    2) do_log "$no is a spec 169 copy, nobody's word in $2 (or no messages row in the $ENV hub): only an original post is an owner go" >&2 ;;
+    *) do_log "$no: its messages row in the $ENV hub ($2) could not be read or does not say whether it is a copy (no copied_from)" >&2 ;;
+  esac
   return 1
 }

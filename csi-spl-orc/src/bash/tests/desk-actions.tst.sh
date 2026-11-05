@@ -792,7 +792,21 @@ mkdir -p "$T/tails" "$T/state/dev/desk/csitea/box-desk/spool/CLE-00"
 printf '%s\n' '{"v":1,"msg_id":"'"$GO_TOPIC"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"opener"}' \
   '{"v":1,"msg_id":"'"$GO_HUM"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"file it"}' \
   '{"v":1,"msg_id":"'"$GO_AGT"'","task_id":"'"$GO_TOPIC"'","from":"c-001","kind":"note","body":"me too"}' >"$T/tails/$GO_TOPIC"
-go_create() { : >"$T/issue.log"; SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakego" FAKE_LOG="$T/issue.log" FAKE_TAIL_DIR="$T/tails" \
+# Spec 169 T11b: hub-tail carries no copy marker, so the go's messages row is
+# read too (spl_lane_issue_hub_row -> do_spl_db_message_show, the stub below:
+# $FAKE_ROW_DIR/<msg id>, no file = exit 2, "fail" = exit 1).
+GO_CPY=c0c0c0c0-1111-4222-8333-444455556666 GO_NOM=d0d0d0d0-1111-4222-8333-444455556666 GO_ERR=e0e0e0e0-1111-4222-8333-444455556666
+mkdir -p "$T/rows"
+for m in "$GO_CPY" "$GO_NOM" "$GO_ERR"; do
+  printf '%s\n' '{"v":1,"msg_id":"'"$m"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"file it"}' >>"$T/tails/$GO_TOPIC"
+done
+go_row() { printf '{"tenant_id":"csitea","msg_id":"%s","task_id":"%s","from_id":"%s"%s}\n' "$1" "$GO_TOPIC" "$2" "${3-,\"copied_from\":null}" >"$T/rows/$1"; }
+go_row "$GO_HUM" HUM-10; go_row "$GO_AGT" c-001
+go_row "$GO_CPY" HUM-10 ',"copied_from":"'"$GO_HUM"'"'; go_row "$GO_NOM" HUM-10 ''; echo fail >"$T/rows/$GO_ERR"
+GO_DB='do_spl_db_message_show() { echo "db|$ENV|$TENANT_ID|$MSG_ID|" >>"$FAKE_DB_LOG"; [ -r "$FAKE_ROW_DIR/$MSG_ID" ] || return 2
+  [ "$(cat "$FAKE_ROW_DIR/$MSG_ID")" != fail ] || return 1; echo "OK noise"; cat "$FAKE_ROW_DIR/$MSG_ID"; }; '
+go_create() { : >"$T/issue.log"; : >"$T/db.log"; SNIPPET="${ISS}${GO_DB}do_spl_issue_create" in_orc FAKE="$T/fakego" FAKE_LOG="$T/issue.log" FAKE_TAIL_DIR="$T/tails" \
+  FAKE_ROW_DIR="$T/rows" FAKE_DB_LOG="$T/db.log" \
   TENANT_ID=csitea SPOOL_WORKSPACE_REPOS_MAP="$T/none.tsv" DESK_AGENT=CLE-00 ISSUE_TITLE=owner ISSUE_DISCUSSIONS="$GO_TOPIC" DRY_RUN=0 "$@" >"$T/o" 2>&1; rc=$?; }
 go_refused() {  # LABEL WANT: refused, one FATAL naming why, no issue create reached spool
   [[ $rc -ne 0 ]] && ! grep -q '^issue|create|' "$T/issue.log" && grep -q "FATAL refused, nothing filed: .*$2" "$T/o" &&
@@ -803,6 +817,14 @@ go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=card
   grep -q "^hub-tail|--task|$GO_TOPIC|--json|" "$T/issue.log" && grep -q "INFO owner go $GO_HUM from HUM-10 in csitea: the git-spec check is skipped" "$T/o" &&
   pass "an owner go from a HUM-n in the linked discussion files it with no spec, first line 'Owner order: <uuid>'" ||
   fail "owner go (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
+[[ "$(cat "$T/db.log")" == "db|dev|csitea|$GO_HUM|" ]] && pass "...its messages row is read once, in the desk's env and tenant (T11b)" ||
+  fail "owner go row read: $(cat "$T/db.log")"
+go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_CPY" ISSUE_DESCRIPTION=card
+go_refused "T11b a HUM-n go whose row is a spec 169 copy is refused" "ISSUE_OWNER_GO $GO_CPY is a spec 169 copy, nobody's word in csitea"
+go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_NOM" ISSUE_DESCRIPTION=card
+go_refused "T11b a go whose row does not say whether it is a copy is refused" "ISSUE_OWNER_GO $GO_NOM: its messages row in the dev hub (csitea) could not be read or does not say whether it is a copy"
+go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_ERR" ISSUE_DESCRIPTION=card
+go_refused "T11b a row read that fails files nothing" "ISSUE_OWNER_GO $GO_ERR: its messages row in the dev hub (csitea) could not be read"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_AGT" ISSUE_DESCRIPTION=card
 go_refused "the same go from an agent sender is refused" "ISSUE_OWNER_GO $GO_AGT is from 'c-001', not a human member"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO=06f343a5 ISSUE_DESCRIPTION=card
@@ -814,6 +836,7 @@ go_create ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=card
 go_refused "a go with no ISSUE_EPIC is refused: the epic rule stays" "set ISSUE_EPIC=SPL-<n>"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO=aaaaaaaa-1111-4222-8333-444455556666 ISSUE_DESCRIPTION=card
 go_refused "a go that is no message of the linked discussions is refused" "is not a message of the linked discussions ($GO_TOPIC) in csitea"
+[[ ! -s "$T/db.log" ]] && pass "...and reads no messages row" || fail "an outside go read the row: $(cat "$T/db.log")"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=$'Owner order: '"$GO_AGT"$'\ncard'
 go_refused "a description whose first line cites another order is refused" "the description's first line cites another order"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DISCUSSIONS="/t/$GO_TOPIC" ISSUE_DESCRIPTION=$'Owner order: '"$GO_HUM"$'\ncard'
@@ -846,7 +869,7 @@ go_create ISSUE_KIND=epic ISSUE_OWNER_GO="$GO_HUM"
 # N1: a dry run reads nothing and says what DRY_RUN=0 would check.
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_AGT" ISSUE_DESCRIPTION=card DRY_RUN=1
 [[ $rc -eq 0 && ! -s "$T/issue.log" ]] && grep -q "INFO DRY_RUN owner go $GO_AGT is not read: with DRY_RUN=0 it must be a HUM-<n>'s message" "$T/o" &&
-  ! grep -q "check is skipped" "$T/o" && pass "a dry run reads no hub and says the go would be checked, not that it was" || fail "dry go (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
+  ! grep -q "check is skipped" "$T/o" && [[ ! -s "$T/db.log" ]] && pass "a dry run reads no hub and says the go would be checked, not that it was" || fail "dry go (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log") / $(cat "$T/db.log")"
 : >"$T/issue.log"
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \

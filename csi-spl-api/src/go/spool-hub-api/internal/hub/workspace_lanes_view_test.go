@@ -193,11 +193,17 @@ func TestWorkspaceLanesShortID(t *testing.T) {
 	opBoxID := r.opBox.id
 	put := func(b *box, agent, topic string) string {
 		t.Helper()
-		got, err := lanePut(t, b, `{"agent_id":"`+agent+`","agent_box":"`+b.id+`","topic":"`+topic+`","scope":"scope of `+agent+`","state":"live"}`)
+		got, err := lanePut(t, b, `{"agent_id":"`+agent+`","agent_box":"`+b.id+`","topic":"`+topic+`","issue_key":"SPL-1","scope":"scope of `+agent+`","state":"live"}`)
 		if err != nil {
 			t.Fatalf("put %s %s: %v", agent, topic, err)
 		}
 		return got.Topic
+	}
+	// rdb 0264: a short id that resolves to no single topic is refused
+	refused := func(b *box, agent, topic string) bool {
+		t.Helper()
+		_, err := lanePut(t, b, `{"agent_id":"`+agent+`","agent_box":"`+b.id+`","topic":"`+topic+`","issue_key":"SPL-1","state":"live"}`)
+		return err != nil && strings.Contains(err.Error(), "names no single discussion")
 	}
 	// C28b: the short id of a w1 topic is stored as that topic's full uuid.
 	if got := put(r.opBox, "c-511", r.t1[:8]); got != r.t1 {
@@ -207,8 +213,8 @@ func TestWorkspaceLanesShortID(t *testing.T) {
 	twin := uid.New()[:8]
 	lobbyTopic(t, r.e, r.w1, twin+"-0000-4000-8000-000000000001", "## W1 twin\n\none")
 	lobbyTopic(t, r.e, r.w2, twin+"-0000-4000-8000-000000000002", "## W2 twin\n\ntwo")
-	if got := put(r.opBox, "c-512", twin); got != "" {
-		t.Errorf("C32 a prefix of two workspaces' topics stored %q, want \"\"", got)
+	if !refused(r.opBox, "c-512", twin) {
+		t.Errorf("C32 a prefix of two workspaces' topics: not refused")
 	}
 	// C33: the operator's own topic wins over a w1 topic with the same prefix.
 	opFirst := uid.New()[:8]
@@ -218,8 +224,8 @@ func TestWorkspaceLanesShortID(t *testing.T) {
 		t.Errorf("C33 operator and w1 prefix stored %q, want the operator's topic", got)
 	}
 	// C34: a box of another workspace never resolves outside its own.
-	if got := put(r.otherBox, "c-514", r.t2[:8]); got != "" {
-		t.Errorf("C34 a customer box's short id of a w2 topic stored %q, want \"\"", got)
+	if !refused(r.otherBox, "c-514", r.t2[:8]) {
+		t.Errorf("C34 a customer box's short id of a w2 topic: not refused")
 	}
 
 	// C31: w1's admin sees c-511 with w1's title, w2's admin does not, and

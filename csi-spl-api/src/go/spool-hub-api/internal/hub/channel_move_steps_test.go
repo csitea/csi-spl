@@ -310,8 +310,8 @@ func TestChannelMoveLanesW4(t *testing.T) {
 		ON CONFLICT (tenant_id) DO UPDATE SET prefix = EXCLUDED.prefix, last_number = 49`, f.dst, issue.Prefix)
 	lane := `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, issue_key, topic) VALUES ($1, 'main', $2, 'box-a', 'box-a', $3, $4, $5)`
 	moveExec(t, f.e, lane, f.src, "c-100", "live", old, f.task)
-	moveExec(t, f.e, lane, f.src, "c-101", "done", old, "")
-	moveExec(t, f.e, lane, f.src, "c-102", "live", issue.Prefix+"-50", "")
+	moveExec(t, f.e, lane, f.src, "c-101", "done", old, store.LaneUnknown)
+	moveExec(t, f.e, lane, f.src, "c-102", "live", issue.Prefix+"-50", store.LaneUnknown)
 	f.toP3(t)
 	if j := f.must(t, "journal", "", nil); listLen(j["lanes"]) != 0 {
 		t.Errorf("before P4 no key changed: %v", j["lanes"])
@@ -422,7 +422,7 @@ func TestChannelMoveLanesSameKey(t *testing.T) {
 	old := issue.Prefix + "-" + strconv.Itoa(issue.Number)
 	moveExec(t, f.e, `INSERT INTO issue_counters (tenant_id, prefix, last_number) VALUES ($1, $2, $3)
 		ON CONFLICT (tenant_id) DO UPDATE SET prefix = EXCLUDED.prefix, last_number = EXCLUDED.last_number`, f.dst, issue.Prefix, issue.Number-1)
-	moveExec(t, f.e, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, issue_key) VALUES ($1, 'main', 'c-100', 'box-a', 'box-a', 'live', $2)`, f.src, old)
+	moveExec(t, f.e, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, topic, issue_key) VALUES ($1, 'main', 'c-100', 'box-a', 'box-a', 'live', 't-1', $2)`, f.src, old)
 	f.toP3(t)
 	out := f.must(t, "step", "P4", nil)
 	if keys, _ := out["new_keys"].(map[string]any); keys[old] != old {
@@ -459,8 +459,8 @@ func TestChannelMoveOtherGoRefused(t *testing.T) {
 // go test -overlay with channelMoveFleetTopics answering nothing fails this test.
 func TestChannelMoveScanKnownC14(t *testing.T) {
 	f := moveFixture(t, true)
-	moveExec(t, f.e, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, topic, state, writer_box)
-		VALUES ($1, 'main', 'c-204', 'box-a', $2, 'live', 'box-a')`, f.src, f.task)
+	moveExec(t, f.e, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, topic, issue_key, state, writer_box)
+		VALUES ($1, 'main', 'c-204', 'box-a', $2, 'SPL-1', 'live', 'box-a')`, f.src, f.task)
 	moveExec(t, f.e, `INSERT INTO fleet_asks (tenant_id, fleet, ask_id, kind, from_agent, topic, state, writer_box)
 		VALUES ($1, 'main', $2, 'task', 'c-204', $3, 'open', 'box-a')`, f.src, uuid4(), f.task)
 	f.toP3(t)

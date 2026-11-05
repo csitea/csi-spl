@@ -1,6 +1,7 @@
 package hub_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -39,8 +40,11 @@ func lanePut(t *testing.T, b *box, row string) (hub.LaneRow, error) {
 
 // laneAt stores a live row of agent at box written at, through the store (a
 // legacy or box id the hub's put would refuse or rename, and a past write).
+// A "" topic or issue stores store.LaneUnknown, what rdb 0264 left in a row
+// that had none.
 func laneAt(t *testing.T, r *fleetTokensRig, agent, box, topic, issue string, at time.Time) {
 	t.Helper()
+	topic, issue = cmp.Or(topic, store.LaneUnknown), cmp.Or(issue, store.LaneUnknown)
 	l := store.FleetLane{Fleet: "main", AgentID: agent, AgentBox: box, Scope: "scope of " + agent, Topic: topic, IssueKey: issue, State: "live", Files: []string{}}
 	if _, err := r.e.st.PutFleetLane(context.Background(), r.op, l, box, at); err != nil {
 		t.Fatalf("lane %s: %v", agent, err)
@@ -131,7 +135,7 @@ func TestFleetLanePutIssueKeyAndShortTopic(t *testing.T) {
 	box := r.opBox.id
 
 	// C9: the key round-trips through put and list.
-	got, err := lanePut(t, r.opBox, `{"agent_id":"c-901","agent_box":"`+box+`","issue_key":"SPL-3075","state":"live"}`)
+	got, err := lanePut(t, r.opBox, `{"agent_id":"c-901","agent_box":"`+box+`","topic":"t-1","issue_key":"SPL-3075","state":"live"}`)
 	if err != nil || got.IssueKey != "SPL-3075" {
 		t.Errorf("C9 put issue_key: %+v %v", got, err)
 	}
@@ -142,27 +146,33 @@ func TestFleetLanePutIssueKeyAndShortTopic(t *testing.T) {
 
 	// C10: a malformed key is refused and the row stays; twin: SPL-1 stored.
 	for _, bad := range []string{"spl 1", "SPL-", "S-1", "SPL-1234567890"} {
-		if _, err := lanePut(t, r.opBox, `{"agent_id":"c-901","agent_box":"`+box+`","issue_key":"`+bad+`","state":"live"}`); err == nil || !strings.Contains(err.Error(), "issue_key") {
+		if _, err := lanePut(t, r.opBox, `{"agent_id":"c-901","agent_box":"`+box+`","topic":"t-1","issue_key":"`+bad+`","state":"live"}`); err == nil || !strings.Contains(err.Error(), "issue_key") {
 			t.Errorf("C10 issue_key %q: %v, want refused", bad, err)
 		}
 	}
 	if l := laneCall(t, r.opBox, action.LaneArgs{Fleet: "main"}).Lanes; len(l) != 1 || l[0].IssueKey != "SPL-3075" {
 		t.Errorf("C10 a refusal changed the row: %+v", l)
 	}
-	if got, err := lanePut(t, r.opBox, `{"agent_id":"c-901","agent_box":"`+box+`","issue_key":"SPL-1","state":"live"}`); err != nil || got.IssueKey != "SPL-1" {
+	if got, err := lanePut(t, r.opBox, `{"agent_id":"c-901","agent_box":"`+box+`","topic":"t-1","issue_key":"SPL-1","state":"live"}`); err != nil || got.IssueKey != "SPL-1" {
 		t.Errorf("C10 twin SPL-1: %+v %v", got, err)
 	}
 
-	// C7b: one topic starts 5eed0153 -> its uuid; two start b3b3b3b3 -> "".
+	// C7b: one topic starts 5eed0153 -> its uuid; two start b3b3b3b3 and
+	// none starts 0bad0bad -> refused (rdb 0264: no lane without its
+	// discussion), the stored row stays.
 	for _, c := range []struct{ topic, want string }{
 		{"5eed0153", one},
-		{"b3b3b3b3", ""},
-		{"0bad0bad", ""},
+		{"b3b3b3b3", one},
+		{"0bad0bad", one},
 		{"dispatch-5e7b15c9", "dispatch-5e7b15c9"}, // not a short id: as sent
 		{one, one},
 	} {
-		got, err := lanePut(t, r.opBox, `{"agent_id":"c-902","agent_box":"`+box+`","topic":"`+c.topic+`","state":"live"}`)
-		if err != nil || got.Topic != c.want {
+		got, err := lanePut(t, r.opBox, `{"agent_id":"c-902","agent_box":"`+box+`","topic":"`+c.topic+`","issue_key":"SPL-1","state":"live"}`)
+		if c.topic == "b3b3b3b3" || c.topic == "0bad0bad" {
+			if err == nil || !strings.Contains(err.Error(), "names no single discussion") {
+				t.Errorf("C7b topic %q: stored %q (%v), want refused", c.topic, got.Topic, err)
+			}
+		} else if err != nil || got.Topic != c.want {
 			t.Errorf("C7b topic %q stored %q (%v), want %q", c.topic, got.Topic, err, c.want)
 		}
 		ls, _ := r.e.st.ListFleetLanes(context.Background(), r.op, "main", time.Now())
@@ -199,7 +209,7 @@ func TestFleetLanesViewActiveAndDoor(t *testing.T) {
 	if _, err := r.push(t, other, tokSample{agent: "c-313", vendor: "claude", minute: m.Add(-5 * time.Minute), in: 10, out: 1}); err != nil {
 		t.Fatal(err)
 	}
-	done := store.FleetLane{Fleet: "main", AgentID: "c-316", AgentBox: box, State: "done", Files: []string{}}
+	done := store.FleetLane{Fleet: "main", AgentID: "c-316", AgentBox: box, Topic: store.LaneUnknown, IssueKey: store.LaneUnknown, State: "done", Files: []string{}}
 	if _, err := r.e.st.PutFleetLane(context.Background(), r.op, done, box, now.Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}

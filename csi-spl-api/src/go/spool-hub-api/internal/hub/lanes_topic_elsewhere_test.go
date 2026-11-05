@@ -3,10 +3,12 @@ package hub_test
 import (
 	"context"
 	"crypto/ed25519"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
@@ -21,7 +23,8 @@ import (
 // SPOOL_TEST_PG_DSN. RED CONTROL (master 022055fe6): C90 came back "", the
 // lane fell into "No discussion" (prd c-089@sat, 2026-11-04: its brief named
 // customer-workspace topic ebb24c8d-b371-50bc-..., a version-5 uuid the hub took
-// for a relay hash).
+// for a relay hash). rdb 0264 (SPL-4799): C92 is refused, not stored without
+// its discussion.
 
 // C90, C91, C92.
 func TestLanePutTopicOfAnotherWorkspace(t *testing.T) {
@@ -34,9 +37,13 @@ func TestLanePutTopicOfAnotherWorkspace(t *testing.T) {
 	}
 	v5 := uuid.NewSHA1(uuid.NameSpaceURL, []byte("customer topic "+uid.New())).String()
 	lobbyTopic(t, r.e, dv, v5, "## Deck v7\n\nthe topic")
+	try := func(id, topic string) (hub.LaneRow, error) {
+		t.Helper()
+		return lanePut(t, r.opBox, `{"agent_id":"`+id+`","agent_box":"`+r.opBox.id+`","state":"live","files":[],"issue_key":"SPL-1","topic":"`+topic+`"}`)
+	}
 	put := func(id, topic string) string {
 		t.Helper()
-		got, err := lanePut(t, r.opBox, `{"agent_id":"`+id+`","agent_box":"`+r.opBox.id+`","state":"live","files":[],"topic":"`+topic+`"}`)
+		got, err := try(id, topic)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,7 +55,7 @@ func TestLanePutTopicOfAnotherWorkspace(t *testing.T) {
 	if got := put("c-562", v5[:8]); got != v5 {
 		t.Errorf("C91 dispatch-<its topic8>, sent as its 8 hex: %q, want %s", got, v5)
 	}
-	if got := put("c-563", hashOf("dispatch-no-topic-"+uid.New())); got != "" {
-		t.Errorf("C92 a version-5 uuid that is no topic anywhere: %q, want none", got)
+	if got, err := try("c-563", hashOf("dispatch-no-topic-"+uid.New())); err == nil || !strings.Contains(err.Error(), "names no single discussion") {
+		t.Errorf("C92 a version-5 uuid that is no topic anywhere: stored %q (%v), want refused", got.Topic, err)
 	}
 }

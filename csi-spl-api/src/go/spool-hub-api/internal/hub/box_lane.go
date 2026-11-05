@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"time"
@@ -138,10 +139,17 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 		if why := store.CheckFleetLane(l); why != "" {
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", why}
 		}
+		sent := l.Topic
 		if l.Topic, ae = s.laneTopic(ctx, x.tenant, l.Topic); ae != nil {
 			return laneAnswer{}, ae
 		}
 		got, err := s.o.Store.PutFleetLane(ctx, x.tenant, l, x.box, now)
+		if errors.Is(err, store.ErrLaneUnlinked) { // rdb 0264
+			if sent != "" && l.Topic == "" {
+				return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "topic " + sent + " names no single discussion (rdb 0264: a lane needs one)"}
+			}
+			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", err.Error()}
+		}
 		if err != nil {
 			s.o.Log.Error().Err(err).Str("fleet", f.Fleet).Str("agent", l.AgentID).Msg("fleet lane store")
 			return laneAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}

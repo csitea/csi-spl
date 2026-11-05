@@ -41,12 +41,12 @@ func TestBoxFleetLaneMap(t *testing.T) {
 		t.Fatalf("empty map: %+v", got)
 	}
 	got := laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77920", Box: "box-b", Repo: "csi-spl",
-		Branch: "CLE-77920-lane-map", Scope: "lane map", Files: []string{"csi-spl-orc/src/bash/run/spl-lane-map.func.sh"}, Topic: "t-1"})
+		Branch: "CLE-77920-lane-map", Scope: "lane map", Files: []string{"csi-spl-orc/src/bash/run/spl-lane-map.func.sh"}, Topic: "t-1", Issue: "SPL-1"})
 	if len(got.Lanes) != 1 || got.Lanes[0].State != "live" || got.Lanes[0].WriterBox != "box-b" {
 		t.Fatalf("home put (state defaults to live, box from the session): %+v", got)
 	}
 	laneCall(t, sat, action.LaneArgs{Fleet: "main", Agent: "CLE-100001", Box: "box-c", Repo: "csi-spl",
-		Files: []string{"csi-spl-orc/src/bash/run/spl-lane-map.func.sh"}})
+		Files: []string{"csi-spl-orc/src/bash/run/spl-lane-map.func.sh"}, Topic: "t-2", Issue: "SPL-2"})
 
 	// the home box reads the satellite's lane, and the other way round
 	for _, b := range []*box{home, sat} {
@@ -64,7 +64,7 @@ func TestBoxFleetLaneMap(t *testing.T) {
 	}
 
 	// exit-clean on the home box flips its row, written from either box
-	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77920", Box: "box-b", State: "done"})
+	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77920", Box: "box-b", Topic: "t-1", Issue: "SPL-1", State: "done"})
 	m := laneCall(t, sat, action.LaneArgs{Fleet: "main"})
 	if len(m.Lanes) != 2 || m.Lanes[0].AgentID != "CLE-100001" || m.Lanes[1].State != "done" {
 		t.Fatalf("done row sorts after live: %+v", m)

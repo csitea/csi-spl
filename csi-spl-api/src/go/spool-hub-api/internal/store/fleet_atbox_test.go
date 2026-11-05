@@ -30,12 +30,12 @@ func TestAgentAtBoxCollision(t *testing.T) {
 
 			// lanes: one row per agent AT ITS BOX
 			for _, b := range []string{"box-desk", "sat"} {
-				l := FleetLane{Fleet: "main", AgentID: "c-004", AgentBox: b, Repo: "csi-spl", Branch: "c-004-" + b, State: "live"}
+				l := FleetLane{Fleet: "main", AgentID: "c-004", AgentBox: b, Repo: "csi-spl", Branch: "c-004-" + b, Topic: "t-4", IssueKey: "SPL-4", State: "live"}
 				if _, err := st.PutFleetLane(ctx, tid, l, b, t0); err != nil {
 					t.Fatalf("lane %s: %v", b, err)
 				}
 			}
-			done := FleetLane{Fleet: "main", AgentID: "c-004", AgentBox: "sat", Repo: "csi-spl", Branch: "c-004-sat", State: "done"}
+			done := FleetLane{Fleet: "main", AgentID: "c-004", AgentBox: "sat", Repo: "csi-spl", Branch: "c-004-sat", Topic: "t-4", IssueKey: "SPL-4", State: "done"}
 			if _, err := st.PutFleetLane(ctx, tid, done, "sat", t0.Add(time.Minute)); err != nil {
 				t.Fatal(err)
 			}

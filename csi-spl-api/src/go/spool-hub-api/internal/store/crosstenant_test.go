@@ -116,7 +116,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		t.Fatal(err)
 	}
 	// fleet_lanes (rdb 0096, CLE-77920): one lane row per tenant.
-	if _, err := pg.PutFleetLane(ctx, s.tenant, FleetLane{Fleet: "main", AgentID: "CLE-02", AgentBox: "box-a", State: "live"}, "box-a", now); err != nil {
+	if _, err := pg.PutFleetLane(ctx, s.tenant, FleetLane{Fleet: "main", AgentID: "CLE-02", AgentBox: "box-a", Topic: "t-2", IssueKey: "SPL-2", State: "live"}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
 	// shared_memory_lessons (rdb 0146, spec 102 T020): one lesson per tenant.

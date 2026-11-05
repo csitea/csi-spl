@@ -3,6 +3,7 @@ package hub_test
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -27,7 +28,7 @@ func hashOf(name string) string {
 func TestLanePutCarriesOriginIssue(t *testing.T) {
 	r := newFleetTokensRig(t)
 	row := func(id, origin string) string {
-		return `{"agent_id":"` + id + `","agent_box":"` + r.opBox.id + `","state":"live","files":[],"issue_key":"SPL-4490","origin_issue":"` + origin + `"}`
+		return `{"agent_id":"` + id + `","agent_box":"` + r.opBox.id + `","state":"live","files":[],"topic":"t-1","issue_key":"SPL-4490","origin_issue":"` + origin + `"}`
 	}
 	if got, err := lanePut(t, r.opBox, row("c-461", "SPL-4420")); err != nil || got.OriginIssue != "SPL-4420" || got.IssueKey != "SPL-4490" {
 		t.Errorf("C54 put: %+v %v, want origin SPL-4420 next to own SPL-4490", got, err)
@@ -48,7 +49,7 @@ func TestFleetLanesOriginIssue(t *testing.T) {
 		t.Fatalf("issue: %d %v", code, out)
 	}
 	for id, origin := range map[string]string{"c-471": "SPL-1", "c-472": "", "c-473": "OPS-9"} {
-		if _, err := lanePut(t, r.opBox, `{"agent_id":"`+id+`","agent_box":"`+r.opBox.id+`","state":"live","files":[],"origin_issue":"`+origin+`"}`); err != nil {
+		if _, err := lanePut(t, r.opBox, `{"agent_id":"`+id+`","agent_box":"`+r.opBox.id+`","state":"live","files":[],"topic":"t-1","issue_key":"SPL-2","origin_issue":"`+origin+`"}`); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -107,7 +108,7 @@ func TestLanePutRelayHashResolves(t *testing.T) {
 	lobbyTopic(t, r.e, r.op, talk, "## Lane origin\n\nthe topic")
 	put := func(id, topic string) string {
 		t.Helper()
-		got, err := lanePut(t, r.opBox, `{"agent_id":"`+id+`","agent_box":"`+r.opBox.id+`","state":"live","files":[],"topic":"`+topic+`"}`)
+		got, err := lanePut(t, r.opBox, `{"agent_id":"`+id+`","agent_box":"`+r.opBox.id+`","state":"live","files":[],"issue_key":"SPL-1","topic":"`+topic+`"}`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -119,8 +120,9 @@ func TestLanePutRelayHashResolves(t *testing.T) {
 	if got := put("c-482", hashOf("dispatch-"+talk[:8])); got != talk {
 		t.Errorf("C56 its relay hash: %q, want %s", got, talk)
 	}
-	if got := put("c-483", hashOf("dispatch-r47")); got != "" {
-		t.Errorf("C56b the hash of a name that is no topic: %q, want none", got)
+	// rdb 0264: a lane with no discussion is refused, never stored without one
+	if got, err := lanePut(t, r.opBox, `{"agent_id":"c-483","agent_box":"`+r.opBox.id+`","state":"live","files":[],"issue_key":"SPL-1","topic":"`+hashOf("dispatch-r47")+`"}`); err == nil || !strings.Contains(err.Error(), "names no single discussion") {
+		t.Errorf("C56b the hash of a name that is no topic: stored %q (%v), want refused", got.Topic, err)
 	}
 	if got := put("c-484", talk); got != talk {
 		t.Errorf("C56c a full topic uuid stays: %q, want %s", got, talk)

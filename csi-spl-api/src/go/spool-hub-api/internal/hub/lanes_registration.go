@@ -3,7 +3,6 @@ package hub
 import (
 	"context"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -26,19 +25,16 @@ import (
 //     row the role rotation wrote, scope "role <id> (rotation ...)") carries
 //     role_seat, so the page says "role seat" in place of an empty cell.
 
-// laneRoleScope is the scope the role rotation writes for a seat, `role
-// <id> (rotation <rid>)` (csi-spl-orc spl-rotate-lib.func.sh,
-// spl_rotate_spawn); a lane whose brief heading merely starts with "role "
-// is no seat (R7 c-287 W2).
-var laneRoleScope = regexp.MustCompile(`^role [acgmoqu]-[0-9]{3} \(rotation `)
-
 // laneIsRoleSeat is a role seat's row: no discussion and no issue by design.
 func laneIsRoleSeat(l store.FleetLane) bool {
-	return agentid.IsRoleSeat(l.AgentID) || laneRoleScope.MatchString(l.Scope)
+	return agentid.IsRoleSeat(l.AgentID) || store.LaneRoleScope.MatchString(l.Scope)
 }
 
+// laneNoTopic is a lane row that names no discussion.
+func laneNoTopic(l store.FleetLane) bool { return l.Topic == "" || l.Topic == store.LaneUnknown }
+
 // laneTopicsFromIssues fills, in place, the topic of each lane that has none
-// from the first discussion its own issue (a key of the tenant's prefix)
+// ("" or store.LaneUnknown, what rdb 0264 left in an old row) from the first discussion its own issue (a key of the tenant's prefix)
 // links, the tenant's default discussion aside. A store with no issues or no
 // discussion links fills nothing.
 func (s *Server) laneTopicsFromIssues(ctx context.Context, tenant string, ls []store.FleetLane) error {
@@ -46,7 +42,7 @@ func (s *Server) laneTopicsFromIssues(ctx context.Context, tenant string, ls []s
 	d, linked := s.issueDiscussionStore()
 	numbers := []int{}
 	for _, l := range ls {
-		if n, own := store.ParseIssueRef(l.IssueKey); own && l.Topic == "" {
+		if n, own := store.ParseIssueRef(l.IssueKey); own && laneNoTopic(l) {
 			numbers = append(numbers, n)
 		}
 	}
@@ -64,7 +60,7 @@ func (s *Server) laneTopicsFromIssues(ctx context.Context, tenant string, ls []s
 	def := store.IssueDiscussionDefault(tenant)
 	for i, l := range ls {
 		n, own := store.ParseIssueRef(l.IssueKey)
-		if !own || l.Topic != "" || !strings.EqualFold(l.IssueKey, store.IssueKey(prefix, n)) {
+		if !own || !laneNoTopic(l) || !strings.EqualFold(l.IssueKey, store.IssueKey(prefix, n)) {
 			continue
 		}
 		for _, x := range links[n] {

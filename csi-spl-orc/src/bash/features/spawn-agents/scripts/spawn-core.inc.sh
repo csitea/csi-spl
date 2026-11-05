@@ -308,6 +308,27 @@ _spawn_lane_relay_hash() {
     grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}' | sed -n 1p
 }
 
+# A lane with no discussion (topic) or no issue: the hub refuses its row
+# (rdb 0264, spec 153 3.21, SPL-4799) and the put runs in the background, so
+# say it on the spawner's stderr and in <ID>/lane-unlinked.log, or the lane
+# is missing from the lane map unseen. Rows that are no lane (a role seat
+# 001..003, BOX-<n>, a role-rotation scope; store.LaneIsNotLane) store
+# `unknown` and are not named. It never sends `unknown` for a lane itself.
+_spawn_lane_unlinked_warn() {  # SCOPE TOPIC ISSUE
+  local miss="" line
+  { spl_is_role_seat "${TITLE:-}" || [[ "${TITLE:-}" == BOX-* ]]; } && return 0
+  [[ "$1" =~ ^role\ [acgmoqu]-[0-9]{3}\ \(rotation\  ]] && return 0
+  [ -n "$2" ] || miss="no discussion (topic)"
+  [ -n "$3" ] || miss="${miss:+$miss and }no issue"
+  [ -n "$miss" ] || return 0
+  line="WARN: LANE ROW REFUSED: ${TITLE} has ${miss}: the hub refuses its lane-map row (spec 153 3.21), so lane-map --check will not see this lane. Name them: SPAWN_LANE_TOPIC=<discussion uuid>, SPAWN_ISSUE=<KEY-n> (or the brief's Issue: line)."
+  echo "$line" >&2
+  if _sp_live && [ -n "${SPOOL_ROOT:-}" ] && [ -d "${SPOOL_ROOT}/${TITLE}" ]; then
+    echo "$line" >>"${SPOOL_ROOT}/${TITLE}/lane-unlinked.log" 2>/dev/null || true
+  fi
+  return 0
+}
+
 # The agent's row in the fleet-wide lane map (CLE-77920, specs/058 N2):
 # <TITLE>@<box>, repo, branch, scope, files, topic, state live. Best effort and
 # in the background: a spawn never waits on, or fails for, the hub. Without a
@@ -347,6 +368,7 @@ _spawn_lane_put() {
   fi
   scope="${scope:-$SLUG}"
   [ -n "$REPO" ] && repo="$(basename "$REPO")"
+  _spawn_lane_unlinked_warn "$scope" "$topic" "$issue"
   _sp_plan lane "lane-map.sh put --agent ${TITLE} --repo ${repo:-<none>} --branch ${BRANCH:-<none>} --scope '${scope}' --files '${SPAWN_LANE_FILES:-}' --topic '${topic}' --issue '${issue}' --origin-issue '${origin}'"
   _sp_live || return 0
   log="${SPOOL_ROOT}/${TITLE}/lane.log"

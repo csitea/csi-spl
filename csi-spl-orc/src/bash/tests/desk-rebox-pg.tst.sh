@@ -54,9 +54,9 @@ INSERT INTO channels (tenant_id, channel_id, name, created_by) VALUES ('$t', 'lo
 INSERT INTO channel_subscriptions (tenant_id, channel_id, agent_id, box_id, backfilled_at)
 VALUES ('$t', 'lobby', 'c-002', 'box-desk', NULL), ('$t', 'ops', 'c-002', 'box-desk', now() - interval '1 day');
 INSERT INTO agent_id_aliases (tenant_id, old_id, new_id, kind, box_id) VALUES ('$t', 'CLE-002', 'c-002', 'claude', 'box-desk');
-INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, state, writer_box)
-VALUES ('$t', 'main', 'c-010', 'box-desk', 'live', 'box-desk'), ('$t', 'main', 'c-011', 'box-desk', 'done', 'box-desk'),
-       ('$t', 'main', 'c-012', 'box-desk', 'live', 'box-desk'), ('$t', 'main', 'c-012', 'hom', 'live', 'hom');
+INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, state, writer_box, topic, issue_key)
+VALUES ('$t', 'main', 'c-010', 'box-desk', 'live', 'box-desk', 'unknown', 'unknown'), ('$t', 'main', 'c-011', 'box-desk', 'done', 'box-desk', 'unknown', 'unknown'),
+       ('$t', 'main', 'c-012', 'box-desk', 'live', 'box-desk', 'unknown', 'unknown'), ('$t', 'main', 'c-012', 'hom', 'live', 'hom', 'unknown', 'unknown');
 PSQL
 done
 

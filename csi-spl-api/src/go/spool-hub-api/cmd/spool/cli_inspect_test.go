@@ -154,7 +154,7 @@ func TestLaneVerb(t *testing.T) {
 	}
 	rc, out, errOut = capture(t, "", func() int {
 		return cmdLane(cfg, []string{"--fleet", "csi", "--agent", "c-104", "--box", "box-a", "--repo", "csi-spl",
-			"--branch", "c-104-x", "--scope", "tests", "--files", " a.go, ,b.go ", "--topic", "t-1"})
+			"--branch", "c-104-x", "--scope", "tests", "--files", " a.go, ,b.go ", "--topic", "t-1", "--issue", "SPL-1"})
 	})
 	if rc != 0 || out != put+"\n" {
 		t.Errorf("put: rc %d %q err %q", rc, out, errOut)
@@ -188,7 +188,10 @@ func TestLaneRefusals(t *testing.T) {
 		{"local mode", false, []string{"--fleet", "csi"}, "needs hub mode"},
 		{"bad fleet", true, []string{"--fleet", "Csi Fleet"}, "--fleet must be"},
 		{"bad row", true, []string{"--fleet", "csi", "--agent", "c-104", "--box", "box-a", "--repo", "r",
-			"--branch", "b", "--topic", "t", "--state", "gone"}, "state must be live or done"},
+			"--branch", "b", "--topic", "t", "--issue", "SPL-1", "--state", "gone"}, "state must be live or done"},
+		// rdb 0264: a lane names its discussion and its issue
+		{"no topic", true, []string{"--fleet", "csi", "--agent", "c-104", "--box", "box-a", "--issue", "SPL-1"}, "topic is required"},
+		{"no issue", true, []string{"--fleet", "csi", "--agent", "c-104", "--box", "box-a", "--topic", "t"}, "issue_key is required"},
 		{"hub refuses", true, []string{"--fleet", "csi"}, "bad_lane_op"},
 	} {
 		c2 := cfg

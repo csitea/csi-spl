@@ -33,17 +33,17 @@ func TestAgentIDRenameAccept(t *testing.T) {
 	pinAgentClock(t, agentid.LegacyUntil.Add(-time.Minute))
 
 	// a new id and an aliased legacy id both land; the legacy one as its alias
-	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "c-005", Box: "box-b"})
-	got := laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77952", Box: "box-b"})
+	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "c-005", Box: "box-b", Topic: "t-1", Issue: "SPL-1"})
+	got := laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77952", Box: "box-b", Topic: "t-1", Issue: "SPL-1"})
 	if len(got.Lanes) != 1 || got.Lanes[0].AgentID != "c-004" {
 		t.Fatalf("legacy lane id resolves to its alias: %+v", got)
 	}
 	// the alias is keyed on the box: the same legacy id on another box has none
-	if got := laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77952", Box: "box-c"}); got.Lanes[0].AgentID != "CLE-77952" {
+	if got := laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77952", Box: "box-c", Topic: "t-1", Issue: "SPL-1"}); got.Lanes[0].AgentID != "CLE-77952" {
 		t.Fatalf("other box's legacy id: %+v", got)
 	}
 	// a legacy id with no alias row is accepted as itself (FR-002)
-	if got := laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77953", Box: "box-b"}); got.Lanes[0].AgentID != "CLE-77953" {
+	if got := laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77953", Box: "box-b", Topic: "t-1", Issue: "SPL-1"}); got.Lanes[0].AgentID != "CLE-77953" {
 		t.Fatalf("unaliased legacy id: %+v", got)
 	}
 	lease, err := action.Lease(ctx, home.cfg, action.LeaseArgs{Fleet: "main", Role: "orch", Holder: "CLE-77952@box-b", IfGen: 0, Hub: home.c})
@@ -73,5 +73,5 @@ func TestAgentIDRenameAccept(t *testing.T) {
 		!strings.Contains(err.Error(), "CLE-08 is retired as an id; use c-NNN") {
 		t.Fatalf("send after the deadline: %v", err)
 	}
-	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "c-005", Box: "box-b", State: "done"})
+	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "c-005", Box: "box-b", Topic: "t-1", Issue: "SPL-1", State: "done"})
 }

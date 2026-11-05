@@ -137,8 +137,8 @@ func TestMistralKind0155(t *testing.T) {
 		{"roster_agent_id_check", `INSERT INTO roster (tenant_id, box_id, agent_id) VALUES ($1, 'box-a', 'm-004')`},
 		{"issues_assignee_check", `INSERT INTO issues (tenant_id, number, title, task_id, created_by, updated_by, assignee)
 			VALUES ($1, 9155, 'mistral', gen_random_uuid(), 'HUM-1', 'HUM-1', 'm-004@box-a')`},
-		{"fleet_lanes_agent_id_check", `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, state, writer_box)
-			VALUES ($1, 'f155', 'm-004', 'box-a', 'live', 'box-a')`},
+		{"fleet_lanes_agent_id_check", `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, state, writer_box, topic, issue_key)
+			VALUES ($1, 'f155', 'm-004', 'box-a', 'live', 'box-a', 't-1', 'SPL-1')`},
 		{"fleet_asks_from_agent_check", `INSERT INTO fleet_asks (tenant_id, fleet, ask_id, kind, from_agent, state, writer_box)
 			VALUES ($1, 'f155', gen_random_uuid()::text, 'task', 'm-004@box-a', 'open', 'box-a')`},
 		{"fleet_asks_acked_by_check", `INSERT INTO fleet_asks (tenant_id, fleet, ask_id, kind, from_agent, state, acked_by, writer_box)

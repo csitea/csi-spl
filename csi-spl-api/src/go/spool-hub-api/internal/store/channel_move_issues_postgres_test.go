@@ -42,10 +42,10 @@ func seedMoveIssues(t *testing.T, f mvFix) mvIssues {
 	mvExec(t, pg, `UPDATE issues SET title = 'epic, renamed', updated_by = $3 WHERE tenant_id = $1 AND number = $2`, f.src, x.epic.Number, f.both)
 	mvExec(t, pg, `INSERT INTO issue_opens (tenant_id, member_id, number, opened_at) VALUES ($1, $2, $3, $4)`, f.src, f.both, x.epic.Number, now)
 	mvExec(t, pg, `INSERT INTO spec_sync_map (tenant_id, spec_path, spec_task_id, issue_number) VALUES ($1, 'csi-spl-doc/specs/001-x/tasks.md', 'T001', $2)`, f.src, x.child.Number)
-	mvExec(t, pg, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, issue_key) VALUES ($1, 'f', 'c-100', 'box-a', 'box-a', 'live', $2)`,
+	mvExec(t, pg, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, topic, issue_key) VALUES ($1, 'f', 'c-100', 'box-a', 'box-a', 'live', 't-1', $2)`,
 		f.src, planIssueKey(x.child.Prefix, x.child.Number))
 	// SPL-4620: a lane placed from the epic names it in origin_issue (row T7g).
-	mvExec(t, pg, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, issue_key, origin_issue) VALUES ($1, 'f', 'c-101', 'box-a', 'box-a', 'live', $2, $3)`,
+	mvExec(t, pg, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, topic, issue_key, origin_issue) VALUES ($1, 'f', 'c-101', 'box-a', 'box-a', 'live', 't-2', $2, $3)`,
 		f.src, planIssueKey(x.stay.Prefix, x.stay.Number), planIssueKey(x.epic.Prefix, x.epic.Number))
 	return x
 }

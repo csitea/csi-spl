@@ -9,7 +9,7 @@ func TestAgentIDSitesTakeBothGrammars(t *testing.T) {
 		if !ValidFleetAgent(id) || !ValidAskAgent(id) || !ValidAskAgent(id+"@box-desk") || !ValidFleetHolder(id+"@box-desk") {
 			t.Errorf("%q refused by a fleet site", id)
 		}
-		l := FleetLane{Fleet: "f", AgentID: id, AgentBox: "box-a", State: "live"}
+		l := FleetLane{Fleet: "f", AgentID: id, AgentBox: "box-a", Topic: "t-1", IssueKey: "SPL-1", State: "live"}
 		if why := CheckFleetLane(l); why != "" {
 			t.Errorf("lane %q: %s", id, why)
 		}

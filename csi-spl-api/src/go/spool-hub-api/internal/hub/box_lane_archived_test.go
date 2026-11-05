@@ -64,7 +64,7 @@ func TestFleetLaneArchived(t *testing.T) {
 	}
 	// a done lane is not answered
 	laneAt(t, r.fleetTokensRig, "c-601", "box-a", r.opTopic, "", now)
-	if _, err := lanePut(t, r.opBox, `{"agent_id":"c-601","agent_box":"box-a","topic":"`+r.opTopic+`","state":"done"}`); err != nil {
+	if _, err := lanePut(t, r.opBox, `{"agent_id":"c-601","agent_box":"box-a","topic":"`+r.opTopic+`","issue_key":"unknown","state":"done"}`); err != nil {
 		t.Fatal(err)
 	}
 	if got := archived("box-a"); len(got) != 1 || got["c-602"] == "" {

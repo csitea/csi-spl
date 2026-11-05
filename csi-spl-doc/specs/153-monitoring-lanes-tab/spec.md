@@ -1464,6 +1464,89 @@ Cases:
 - **C96** `unknown` is no link and keeps its own Topics row, apart from "No
   discussion". (`csi-spl-wui/tests/unit/monitoring-lanes-unknown.test.mjs`)
 
+### 3.21 The lanes table holds no lane without its discussion and its issue (SPL-4799)
+
+The owner's words, verbatim (HUM-10, t1 `0c2d08a2`, 2026-11-04): "and the
+tble of the lanes must not accept nulls , for neither discussions nor
+issues" (msg `80bee509`) and "for the already nulls , do not use resources
+to search what they were related to -, use the unknown string" (msg
+`937e89a4`). Lane (c) of the three this ask was split into; (a) is 3.20,
+(b) is 3.19.
+
+Measured on prd 2026-11-04 16:36Z, n = 1 read, read-only:
+`ENV=prd SQL="select count(*), count(*) filter (where topic is null), ...
+from fleet_lanes" ./run -a do_spl_db_query` (csi-spl-orc) -> 1035 rows,
+0 NULL in either column, `topic = ''` 533, `issue_key = ''` 151, live rows
+with either empty 155. Both columns were `NOT NULL` already (rdb 0096,
+0221); the empty string, their `DEFAULT ''`, was the "null" the owner saw.
+
+What changes:
+
+- **rdb 0264** (`0264_fleet_lanes_topic_issue_required.sql`, forward-only,
+  idempotent) writes the literal `unknown` into every empty (or NULL)
+  `topic` and `issue_key`, with no search; drops both `DEFAULT ''`, so an
+  insert that names neither fails on `NOT NULL`; adds `CHECK (topic <> '')`;
+  and replaces 0221's `issue_key` CHECK (`''` or a key) with "`unknown` or
+  a key". The old CHECK is dropped first: it refuses the `unknown` the
+  UPDATE writes. `origin_issue` (0253) stays optional. It applies with the
+  normal hub deploy (`spool migrate`).
+- **The store refuses** a put of a lane with no topic or no issue key,
+  `store.ErrLaneUnlinked`, on both drivers (`laneLinked`,
+  `internal/store/fleet_lane.go`). The hub answers it `400 bad_frame` with
+  the field that is missing, or "topic X names no single discussion" when
+  the sent topic resolved to none (`internal/hub/box_lane.go`).
+  `lane-map.sh put` runs in the background of a spawn, so a refused put
+  never stops a spawn; lane (a)'s placer refuses such a lane first.
+- **The spawner is told** (R7 c-198 W2): every spawn path, not only the
+  placer's, reaches `_spawn_lane_put` (`spawn-core.inc.sh`). A lane whose
+  put would carry no topic or no issue prints `WARN: LANE ROW REFUSED:
+  <id> has no discussion (topic) [and] no issue` on the spawner's stderr
+  (dry runs too) and appends it to `<SPOOL_ROOT>/<id>/lane-unlinked.log`,
+  because the put's own answer goes only to the background `lane.log` and
+  the lane would be missing from `lane-map --check` unseen. It never sends
+  `unknown` for a lane: that would dodge the owner's rule. Rows that are no
+  lane (below) are not named.
+- **`unknown` is a value**, not a gap: an old row's done write carries it,
+  and the issue-discussion fill of 3.12 (`laneTopicsFromIssues`) treats it
+  like none.
+- **Rows that are no lane** store `unknown` for a missing link, never a
+  refusal: a box's own load row (`BOX-<n>`), a role seat (001..003 of any
+  vendor) and a row the role rotation wrote (scope `role <id> (rotation
+  ...)`, `store.LaneRoleScope`, the same rule as 3.20's).
+
+Cases:
+
+- **C98** a lane put with no topic, with no issue key, or with neither
+  (`c-004`, and `c-005` whose scope merely starts with "role ") is refused
+  with `ErrLaneUnlinked`; a linked put is stored; an `unknown` row takes
+  its done write. **C99** `BOX-0`, `c-001`, `g-002`, `CLE-003` and a
+  `role c-462 (rotation ...)` row with no links store `unknown` in both.
+  Memory and Postgres (`store/fleet_lane_test.go`,
+  `TestFleetLaneLinksRequired`).
+- **C100** on the table as 0221 left it, three inserts are stored: one
+  naming neither column, one with `topic = ''`, one with `issue_key = ''`.
+  After 0264 each empty column of the three reads `unknown` and the
+  others keep their value (n = 3); the same three inserts are refused
+  (`23502` NOT NULL; `23514` `fleet_lanes_topic_set_check`; `23514`
+  `fleet_lanes_issue_key_check`); a second apply runs without error and a
+  linked insert is still stored
+  (`store/fleet_lanes_required_migrate_test.go`, Postgres only). Two more
+  inserts pin each `DROP DEFAULT` alone (R7 c-198 N1): one naming only
+  `issue_key`, one naming only `topic`, each refused `23502` after 0264,
+  and its missing column reads `unknown`. Red control: either `DROP
+  DEFAULT` taken out, its insert gets `23514` instead (n = 1 each).
+- **C101** a dry-run spawn with a topic and an issue prints no `LANE ROW
+  REFUSED`; with no issue, no topic, or neither, it prints the line naming
+  what is missing; `SPAWN_LANE_TOPIC` + `SPAWN_ISSUE` silence it; a role
+  seat (`c-002`) and a `role c-462 (rotation ...)` scope are not named, a
+  scope that merely starts with "role " is
+  (`spawn-agents/tests/test-spawn-lane-unlinked.sh`, n = 8). Red control:
+  the call taken out, the 4 refused cases fail.
+- Red controls: C98 before this change, the refused puts were stored
+  (n = 3 per driver); C99's role-rotation row with the scope rule taken out
+  (refused, `ErrLaneUnlinked`); C100 with 0221's CHECK still in place (the
+  UPDATE failed on the first empty `issue_key`).
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on

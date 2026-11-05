@@ -97,7 +97,8 @@ func TestLaneConsole(t *testing.T) {
 	laneAt(t, r.fleetTokensRig, "c-502", r.opBox.id, "", "", now.Add(-time.Minute))   // an operator lane, no topic
 	mac := r.e.box(r.w1, "mbp-"+newTenantID(""))
 	r.e.pin(r.w1, mac)
-	if _, err := lanePut(t, mac, `{"agent_id":"c-701","agent_box":"`+mac.id+`","scope":"own","state":"live"}`); err != nil {
+	// rdb 0264: a lane names its discussion and its issue; "unknown" is what an old row reads
+	if _, err := lanePut(t, mac, `{"agent_id":"c-701","agent_box":"`+mac.id+`","topic":"unknown","issue_key":"unknown","scope":"own","state":"live"}`); err != nil {
 		t.Fatal(err)
 	}
 

@@ -27,6 +27,12 @@ cmd/spool 77.8
 # hubclient 85.9, keydesk 88.7, keyexec 81.7, mail 91.2, marketing 84.2,
 # msg 90.8, payments 83.6, rbac 98.9, sign 86.2, wire 90.1. The comments
 # below that name an older floor are its history.
+# r50-09 (refactor round 24, SPL-4883): nine floors raised to the lowest
+# of n=3 readings, go test -count=1 -cover ./internal/<pkg>/, go1.26.10, on
+# c5d074a8b (rows r50-04..08 landed) each read: files 87.1, github 89.5,
+# hours 99.0, lockkey 79.3, mail 93.7, marketing 86.5, search 98.1, spool
+# 93.2, wire 91.3. Before: 82.9, 86.7, 98.0, 78.7, 91.2, 84.2, 95.6, 86.4,
+# 90.1.
 # internal/action: 80.8 with r15-06's edit_test.go and issue_test.go (edit.go
 # and issue.go 0 -> 100%), 75.6 without on ef6adfcf3; go test -count=1 -cover
 # ./internal/action/, go1.26.9, n=3 read 80.8 each.
@@ -67,12 +73,12 @@ internal/cloud 95.8
 internal/config 90.9
 internal/edge 98.9
 internal/enc 83.6
-internal/files 82.9
+internal/files 87.1
 internal/gcal 85.8
 internal/gcpalerts 91.8
-internal/github 86.7
+internal/github 89.5
 internal/github/githubtest 20.0
-internal/hours 98.0
+internal/hours 99.0
 # hubclient: 83.0, measured, deterministic. Its retry and redial paths ran or
 # not by timing (82.5 then read 81.3..81.7 by load, c-001 task d6f1ab13);
 # timing_paths_test.go now reaches each one on its own: go test -count=1
@@ -98,10 +104,10 @@ internal/keyexec 81.7
 # pidAlive on each pid file; writeFile errors), 76.7 without on e8e02f87e;
 # go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 78.7 each.
 # Before: 76.4 on its first commit (spec 025 row B4, SPL-2956); n=3 read 76.4.
-internal/lockkey 78.7
+internal/lockkey 79.3
 internal/logging 99.0
-internal/mail 91.2
-internal/marketing 84.2
+internal/mail 93.7
+internal/marketing 86.5
 internal/mcp 88.7
 internal/msg 90.8
 internal/notify 94.8
@@ -113,10 +119,10 @@ internal/payments 83.6
 internal/pollform 100.0
 internal/quiesce 96.8
 internal/rbac 98.9
-internal/search 95.6
+internal/search 98.1
 internal/secretfile 100.0
 internal/sign 86.2
-internal/spool 86.4
+internal/spool 93.2
 internal/testkit 77.0
 # fakehub: 84.5, deterministic since New's cleanup waits for its handlers
 # (SPL-2298). Before, a handler's exit ran after the profile was written on a
@@ -126,7 +132,7 @@ internal/testkit/fakehub 83.5
 internal/trace 95.0
 internal/uid 100.0
 internal/vendorkey 82.4
-internal/wire 90.1
+internal/wire 91.3
 internal/xlsx 91.2
 internal/auth 82.9 pg
 internal/hub 82.2 pg

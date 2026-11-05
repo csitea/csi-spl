@@ -25,7 +25,9 @@
 # @description   - at most one lane per fingerprint per 24 h and 3 a day; over
 # @description     a cap the issue is still filed, with no lane
 # @description Runs only on the machine whose agent holds the orch role
-# @description (<spool root>/dispatch/lease.orch), so the fleet files once.
+# @description (<spool root>/dispatch/lease.orch), so the fleet files once; a
+# @description live tick reads lease.orch again after its reads and before each
+# @description issue it files or reopens, and stops filing when the role moved.
 # @description The state is ONE file, <spool root>/dispatch/alert-issue/state.json
 # @description (a dry run keeps its own state.dry.json): `jq . <file>` reads it.
 # @description A dry run (the default) reads the sources and prints one PLAN
@@ -77,6 +79,12 @@ do_spl_alert_issue_tick() {
   plan="$(python3 "$PROJ_PATH/src/bash/scripts/alert-issue-fold.py" plan "$src" "$st" "$now" "$src/issues.json")" ||
     { do_log "ERROR the alert fold failed: nothing filed"; rm -rf "$src"; exec 6>&-; return 1; }
   jq -c '.state' <<<"$plan" >"$src/state.json"
+  # the orch role can move during the reads (minutes: GCP 180 s, each hub
+  # read 120 s): re-read lease.orch before any write
+  if ! spl_ai_holder_still; then
+    do_log "INFO the orch role moved during this tick: nothing filed, the window does not move"
+    rm -rf "$src"; exec 6>&-; return 0
+  fi
   spl_ai_apply "$src" "$plan" || rc=1
   # a failed action's alerts must be read again: the window does not move
   if (( rc != 0 )); then
@@ -112,6 +120,14 @@ spl_ai_holder_here() {
     return 1
   fi
   AI_HOLDER="$h"
+}
+
+# A live run's re-check before a write: lease.orch read again (the holder
+# the asks tick passed is the one of the tick's start); with no lease.orch
+# the holder it was given. A dry run writes nothing: always 0.
+spl_ai_holder_still() {
+  [[ "$AI_DRY" == 0 ]] || return 0
+  if [[ -r "$root/dispatch/lease.orch" ]]; then ALERT_ISSUE_HOLDER='' spl_ai_holder_here; else spl_ai_holder_here; fi
 }
 
 # 0 when ALERT_ISSUE_EVERY_S passed since the state's last tick.
@@ -151,7 +167,7 @@ spl_ai_stale() {
 
 spl_ai_src() {  # NAME FILE CMD...
   # shellcheck disable=SC2086 # a command line, split on purpose
-  ${3} >"$2" 2>"$2.err" || do_log "WARN the $1 source did not answer: $(tr '\n' ' ' <"$2.err" | cut -c1-200)"
+  ${3} >"$2" 2>"$2.err" 6>&- || do_log "WARN the $1 source did not answer: $(tr '\n' ' ' <"$2.err" | cut -c1-200)"
 }
 
 spl_ai_read_alerts() {
@@ -236,7 +252,7 @@ spl_ai_run() {
   while [[ $# -gt 0 && "$1" != -- ]]; do vars+=("$1"); shift; done
   shift
   env "${vars[@]}" DRY_RUN=0 SPOOL_ROOT="$root" timeout "${ALERT_ISSUE_TIMEOUT:-120}" \
-    "${ALERT_ISSUE_RUN:-$PROJ_PATH/run}" -a "$1" </dev/null 2>&1 7>&- 8>&-
+    "${ALERT_ISSUE_RUN:-$PROJ_PATH/run}" -a "$1" </dev/null 2>&1 6>&- 7>&- 8>&-
 }
 
 # Every action of the plan; a failed one is taken out of the state, so the
@@ -253,8 +269,10 @@ spl_ai_apply() {
     fi
     case "$op" in
       comment) spl_ai_comment "$a" ;;
-      file) spl_ai_file "$src" "$a" ;;
-      reopen) spl_ai_reopen "$src" "$a" ;;
+      # a write only while this machine still holds the orch role; a move
+      # rolls the action back, its alerts stay unseen for the new holder
+      file) spl_ai_holder_still && spl_ai_file "$src" "$a" ;;
+      reopen) spl_ai_holder_still && spl_ai_reopen "$src" "$a" ;;
       hold) jq -r '"INFO held fp:\(.hash) \(.key): \(.why | join("; "))"' <<<"$a"; true ;;
     esac || { rc=1; spl_ai_rollback "$src/state.json" "$a"; }
   done < <(jq -c '.actions[]' <<<"$plan")

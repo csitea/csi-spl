@@ -24,6 +24,12 @@
 #      reopen, no lane); one after it reopens it (todo) with a lane
 #   7. a create that fails leaves the fingerprint out of the state, so the
 #      next tick files it
+#   7b. a reopen with a lane whose update fails: the lane is taken back out
+#      of the day count and the fingerprint's last_lane_at (N1)
+#   3b. no action the tick runs inherits its lock fd 6 (round-2 N2)
+#   10. the orch role moves during the reads: nothing filed, no state
+#      written; it moves between two writes: the first stays, the rest are
+#      rolled back (round-2 W1)
 #   8. ALERT_ISSUE=0 does nothing; the orch role on another box does nothing;
 #      a live run without ALERT_ISSUE_DISCUSSION is refused
 #   9. do_spl_asks_tick starts the alert tick only on the holder's machine
@@ -66,6 +72,7 @@ EOF
 cat >"$T/run" <<EOF
 #!/bin/bash
 a="\$2"
+[ -e /proc/self/fd/6 ] && echo "\$a" >>"$T/fd6.log"
 echo "\$a ref=\${ISSUE_REF:-} st=\${ISSUE_STATUS:-} prio=\${ISSUE_PRIORITY:-} epic=\${ISSUE_EPIC:-} disc=\${ISSUE_DISCUSSIONS:-} class=\${SPAWN_CLASS:-} place=\${SPAWN_PLACE:-} topic=\${ASK_TOPIC:-} by=\${ASK_BY:-}\${ASK_FROM:-} dry=\${DRY_RUN:-}" >>"$T/calls.log"
 case "\$a" in
   do_spl_issue_status) printf 'issue-status\t%s\t%s\n' "\$ISSUE_REF" "\$(cat "$T/status.\$ISSUE_REF" 2>/dev/null || echo wip)" ;;
@@ -78,7 +85,10 @@ case "\$a" in
     [ -f "$T/create.fail" ] && { echo "FATAL hub down"; exit 1; }
     cat "\$ISSUE_DESCRIPTION_FILE" >>"$T/desc.log" 2>/dev/null
     n=\$(cat "$T/n" 2>/dev/null || echo 100); n=\$((n + 1)); echo \$n >"$T/n"
-    echo "{\"result\":{\"issue\":{\"key\":\"SPL-\$n\"}}}" ;;
+    echo "{\"result\":{\"issue\":{\"key\":\"SPL-\$n\"}}}"
+    [ -f "$T/move.after.create" ] && echo "c-001@box-b 1" >"$SP/dispatch/lease.orch"
+    true ;;
+  do_spl_issue_update) [ -f "$T/update.fail" ] && { echo "FATAL hub down"; exit 1; }; echo ok ;;
   *) echo ok ;;
 esac
 EOF
@@ -149,6 +159,7 @@ u='[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}'
 [[ "$(jq '[.fps[] | select(.key | test("^SPL-"))] | length' "$ST")" == 4 ]] && pass "3. the state maps 4 fingerprints to their keys" ||
   fail "3. state: $(jq -c .fps "$ST")"
 
+[[ ! -e "$T/fd6.log" ]] && pass "3b. no issue, ask or enqueue action inherits the tick's lock fd 6" || fail "3b. fd 6 leaked into: $(sort -u "$T/fd6.log" | tr '\n' ' ')"
 
 # 5: a repeat folds into the open issue
 cp "$S/alerts.json" "$T/alerts.keep"
@@ -236,12 +247,42 @@ out="$(AT=$((NOW + 4200)) GITD="$GITD" tick DRY_RUN=0 ALERT_ISSUE_LANE_GAP_S=600
 grep -q "^do_spl_issue_update ref=$key st=todo" "$T/calls.log" && [[ "$(count do_spl_spawn_enqueue)" == 1 ]] &&
   pass "6. the alert after the fix landed: $key reopened (todo) with a lane" || fail "6. after-fix: $out $(cat "$T/calls.log")"
 
+# 7b (N1): a reopen with a lane whose update fails rolls the lane back
+GIT_COMMITTER_DATE="@$((NOW + 4500))" GIT_AUTHOR_DATE="@$((NOW + 4500))" git -C "$GITD" -c user.name=t -c user.email=t@example.com \
+  commit -q --allow-empty -m "fix(orc, $key): the 5xx again" && git -C "$GITD" update-ref refs/remotes/origin/master HEAD
+kh="$(jq -r --arg k "$key" '[.fps | to_entries[] | select(.value.key == $k)][0].key' "$ST")"
+lanes0="$(jq '.lanes | length' "$ST")"
+gcp_at 2026-11-02T13:40Z; : >"$T/calls.log"; touch "$T/update.fail"
+out="$(AT=$((NOW + 6600)) GITD="$GITD" tick DRY_RUN=0 ALERT_ISSUE_LANE_GAP_S=600 ALERT_ISSUE_LANES_PER_DAY=9)"
+rm -f "$T/update.fail"
+[[ "$(count do_spl_issue_update)" == 1 && "$(count do_spl_spawn_enqueue)" == 0 && "$(jq '.lanes | length' "$ST")" == "$lanes0" ]] &&
+  [[ "$(jq --arg h "$kh" '.fps[$h] | has("last_lane_at")' "$ST")" == false ]] &&
+  pass "7b. a failed reopen with a lane: no enqueue, the day count keeps its $lanes0 lane(s), the fingerprint's last_lane_at is taken back" ||
+  fail "7b. rollback: lanes $lanes0 -> $(jq '.lanes | length' "$ST"), fp $(jq -c --arg h "$kh" '.fps[$h]' "$ST"); $out"
+
 # 7: a failed create is filed on the next tick
 reset; cp "$T/alerts.keep" "$S/alerts.json"; : >"$S/gcp.txt"; : >"$S/disk.ndjson"
 touch "$T/create.fail"; out="$(tick DRY_RUN=0)"
 [[ "$(jq '.fps | length' "$ST")" == 0 ]] && pass "7. a failed create leaves no fingerprint in the state" || fail "7. state after fail: $(jq -c . "$ST")"
 rm -f "$T/create.fail"; : >"$T/calls.log"; out="$(AT=$((NOW + 600)) tick DRY_RUN=0)"
 [[ "$(count do_spl_issue_create)" == 2 ]] && pass "7. the next tick files them" || fail "7. retry: $out"
+
+# 10 (round-2 W1): the orch role moves to box-b during the reads
+reset; cp "$T/alerts.keep" "$S/alerts.json"; : >"$S/gcp.txt"; : >"$S/disk.ndjson"
+printf '#!/bin/sh\necho "c-001@box-b 1" >"%s"\ncat "%s"\n' "$SP/dispatch/lease.orch" "$S/alerts.json" >"$T/move-alerts"; chmod +x "$T/move-alerts"
+out="$(tick DRY_RUN=0 ALERT_ISSUE_ALERTS_CMD="$T/move-alerts")"
+[[ "$(count do_spl_issue_create)" == 0 && "$(count do_spl_spawn_enqueue)" == 0 && ! -e "$ST" ]] &&
+  grep -q 'the orch role moved during this tick' <<<"$out" &&
+  pass "10. the orch role moves during the reads: 0 issues, 0 lanes, the state not written (its alerts stay for the new holder)" ||
+  fail "10. move during reads: state $(cat "$ST" 2>/dev/null) $out $(cat "$T/calls.log" 2>/dev/null)"
+# ... and between two writes: the first issue stays, the second is rolled back
+reset; echo "c-001@sat 1" >"$SP/dispatch/lease.orch"; touch "$T/move.after.create"
+out="$(tick DRY_RUN=0)"
+[[ "$(count do_spl_issue_create)" == 1 && "$(jq '.fps | length' "$ST")" == 1 && "$(jq '.window_from // 0' "$ST")" -gt 0 ]] &&
+  grep -q 'held on box-b' <<<"$out" &&
+  pass "10. the role moves after the first create: 1 issue, the second fingerprint rolled back (unseen), the window held" ||
+  fail "10. move between writes: create $(count do_spl_issue_create) fps $(jq -c .fps "$ST") $out"
+rm -f "$SP/dispatch/lease.orch" "$T/move.after.create"
 
 # 8: off, other box, no discussion
 reset; out="$(tick DRY_RUN=0 ALERT_ISSUE=0)"

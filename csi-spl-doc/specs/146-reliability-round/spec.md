@@ -66,7 +66,12 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
 - **Who runs it**: `do_spl_asks_tick` starts it on the machine whose agent
   holds the orch role (`dispatch/lease.orch`) only, so the fleet files once;
   at most one tick per `ALERT_ISSUE_EVERY_S` (300 s). Its log:
-  `<spool root>/dispatch/alert-issue/tick.out`.
+  `<spool root>/dispatch/alert-issue/tick.out`. The role can move during
+  the reads (minutes: GCP 180 s, each hub read 120 s), so a live tick reads
+  `lease.orch` again after them and before every issue it files or
+  reopens: moved, it files nothing more, and the alerts of the writes it
+  skipped stay unseen for the new holder. This narrows the race to one
+  write; only a hub-side lock would close it.
 - **Dry run by default**: it prints one `PLAN` line per fingerprint and files
   nothing. Live needs `ALERT_ISSUE_DRY_RUN=0` and `ALERT_ISSUE_DISCUSSION=<topic
   uuid>` (the discussion a disk or GCP alert's issue links) in
@@ -82,7 +87,10 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
   done path, and the lanes they record (`alert-lane-at: <epoch>` in the
   description of an issue filed or reopened with a lane) count toward both
   caps, fleet-wide. A failed write leaves its alerts unseen and the
-  read window unmoved, so the next tick retries.
+  read window unmoved, so the next tick retries. A re-fire posted as a
+  reply in an #alerts topic already seen (within the 7 days of its ref) is
+  not counted again; a reply after those 7 days counts once under the old
+  fingerprint, within both caps.
 - **Limit**: it sees only the alerts that get posted (the all-boxes-silent
   gap is SPL-4632).
 

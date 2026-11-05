@@ -494,7 +494,7 @@ spl_lane_rotate_busy_child() {
 
 # spl_lane_rotate_child_match PID RE [all]: "<pid> <command line>" of the
 # first descendant of PID whose command line matches RE, the line cut to 120;
-# with "all", one such line per matching descendant.
+# with "all", one such line per matching descendant, not searched below it.
 spl_lane_rotate_child_match() {
   local root="${LEASE_PROC_ROOT:-/proc}" d p pp cl
   local -A kids=()
@@ -510,7 +510,9 @@ spl_lane_rotate_child_match() {
       # NULs and line breaks to spaces: a multi-line command (a heredoc, a bash -c
       # script) stays one rotate.log line (SPL-2841)
       cl="$(tr '\0\n\r' '   ' < "$root/$d/cmdline" 2>/dev/null || true)"
-      grep -qE -- "$2" <<<"$cl" && { echo "$d $(cut -c1-120 <<<"$cl")"; [[ "${3:-}" == all ]] || return 0; }
+      # with "all", a match's own subtree is not searched: a bash subshell of a
+      # gate carries the gate's command line and a younger start (R7 W1 c-162)
+      grep -qE -- "$2" <<<"$cl" && { echo "$d $(cut -c1-120 <<<"$cl")"; [[ "${3:-}" == all ]] || return 0; continue; }
       q+=("$d")
     done
   done

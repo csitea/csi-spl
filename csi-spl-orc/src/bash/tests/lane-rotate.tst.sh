@@ -691,6 +691,12 @@ reset; lane c-295 70
 "$T/bin/proc" 4395 7300 c-295 bash 2295 "bash ./run -a do_check_pre_push"
 tick
 check "29. N3 a gate past the cap: rotated, the handoff names the gate" 'grep -q "lane-c-295 DONE OK" "$D/rotate.log" && grep -q "deadline while: running .bash ./run -a do_check_pre_push . (gate past ROTATE_LANE_GATE_MAX_AGE" "$D/handoff/"*-lane-c-295.md'
+# R7 W1 (c-162): a gate's own bash subshell (same command line, younger) does not reset its age
+reset; lane c-296 70
+"$T/bin/proc" 4296 7300 c-296 bash 2296 "bash ./run -a do_check_pre_push"
+"$T/bin/proc" 4396 1000 c-296 bash 4296 "bash ./run -a do_check_pre_push"
+tick
+check "29. a gate past the cap with a younger subshell of its own: rotated, the handoff names it" 'grep -q "lane-c-296 DONE OK" "$D/rotate.log" && grep -q "deadline while: running .bash ./run -a do_check_pre_push . (gate past ROTATE_LANE_GATE_MAX_AGE, 121 min" "$D/handoff/"*-lane-c-296.md'
 check "29. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------

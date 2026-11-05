@@ -31,7 +31,7 @@
 # @param BOX_LINK_WATCH_TOPICS (optional) - "box=topic8,...", default cnf/box-link-watch/topics.tsv
 # @param BOX_LINK_WATCH_STATE (optional) - default $XDG_STATE_HOME/csi-spl/box-link-watch.json
 # @param BOX_LINK_WATCH_FROM (optional) - the sender id, default LEASE_ORCH of the dispatch lease.conf
-# @param BOX_LINK_WATCH_FALLBACK (optional) - the receiver when a topic has no live seat, default the dispatch lease holder
+# @param BOX_LINK_WATCH_FALLBACK (optional) - the receiver when a topic has no live seat or a box has no topic row, default the dispatch lease holder
 # @param BOX_LINK_WATCH_LANES_CMD (optional, tests) - prints the lane map JSON, default lane-map.sh list --json
 # @param BOX_LINK_WATCH_SEND (optional, tests) - the sender script, default spawn-agents/scripts/spool-send.sh
 # @param BOX_LINK_WATCH_PS_CMD (optional, tests) - the process list, default ps -eo args=

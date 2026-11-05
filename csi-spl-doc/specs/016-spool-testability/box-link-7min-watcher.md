@@ -29,7 +29,10 @@ For each box the hub serves (a dir `<root>/<box>/` with `inbound/` and
 
 The hub logs read are the `*.out.log` files of the last 6 h in the log dir
 that name `<root>/<box>/`: a relay test run logs into the same dir but names
-its own temp queues, so it never counts.
+its own temp queues, so it never counts. While an incident is open the read
+reaches back to its start, so a stuck line older than 6 h still holds it open.
+A log stamp marked `UTC` (or `GMT`, `Z`) is read as UTC whatever the cron's
+`TZ`; any other zone token is read in the local zone.
 
 When any condition is older than 7 min the box has ONE incident: one spool
 message, kind `blocker`, task `dispatch-<topic8>`, listing every stuck
@@ -60,7 +63,9 @@ every box without the file.
 The topic that owns a box's work is `csi-spl-orc/cnf/box-link-watch/topics.tsv`
 (`box<TAB>topic8`). The receiver is that topic's live seat: the newest live
 lane-map row on the topic whose scope starts with `Seat`; with none, the
-dispatch lease holder. The watcher never posts to the hub: the seat tells the
+dispatch lease holder. A box with no row in that file goes to the dispatch
+lease holder too, on task `box-link-watch-<box>`, and the run exits 1 so the
+missing row shows in the cron log. The watcher never posts to the hub: the seat tells the
 owner in the topic, within the 7 min.
 
 Until the relay ships a box heartbeat line, "no box log for 7 min" is the
@@ -72,5 +77,7 @@ change here.
 `csi-spl-orc/src/bash/tests/box-link-watch.tst.sh`: a bundle 8 min with no
 receipt -> one alert; the next run -> none; the receipt -> one "cleared";
 6 min -> none; the command, box-log, link and refusal cases; the fallback;
-dry run; a failed send retried; a test-run log ignored; the env file. Red
+dry run; a failed send retried; a test-run log ignored; the env file; a box
+with no topic row -> the fallback; an incident older than the window is not
+cleared; UTC stamps read under another `TZ`. Red
 control: the second run with the state file gone sends a second alert.

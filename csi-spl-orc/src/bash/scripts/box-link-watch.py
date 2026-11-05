@@ -26,10 +26,12 @@ Environment (the action sets the defaults):
   GW_QUIET_S, GW_TOPICS ("box=topic8,..."), GW_LANES_CMD, GW_FALLBACK,
   GW_SEND, GW_FROM, GW_PS_CMD, GW_RADIATE_RX, GW_NOW (tests),
   DRY_RUN (1 = print the plan only)
-Exit: 0 ran, 1 a send failed or a box has no topic (retried next run),
+A box with no topic row goes to GW_FALLBACK on task box-link-watch-<box>.
+Exit: 0 ran, 1 a send failed (retried next run) or a box has no topic row,
 2 usage.
 """
 
+import calendar
 import glob
 import hashlib
 import json
@@ -42,7 +44,7 @@ import time
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 LINE = re.compile(
-    r"(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \S+ \[[a-z][a-z0-9-]*\]\[@([^\]]+)\] \[\d+\] (.*)"
+    r"(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\S+) \[[a-z][a-z0-9-]*\]\[@([^\]]+)\] \[\d+\] (.*)"
 )
 CMD_NAME = re.compile(r"^gr-cmd-(?:\d{8}T\d{6}Z-)?([0-9a-f]{12})\.zip$")
 SECRETISH = re.compile(r"https?://\S+|\b(token|sig|signature|key)=\S+", re.I)
@@ -52,8 +54,12 @@ def env(name, default=""):
     return os.environ.get(name, default) or default
 
 
-def ts_of(stamp):
-    return int(time.mktime(time.strptime(stamp, "%Y-%m-%d %H:%M:%S")))
+def ts_of(stamp, zone):
+    """A hub log stamp: a UTC one is read as UTC whatever the cron's TZ."""
+    t = time.strptime(stamp, "%Y-%m-%d %H:%M:%S")
+    return (
+        int(calendar.timegm(t)) if zone in ("UTC", "GMT", "Z") else int(time.mktime(t))
+    )
 
 
 def iso(epoch):
@@ -95,10 +101,10 @@ def hub_lines(log_dir, root, box, since):
             continue
         for raw in ANSI.sub("", body).splitlines():
             m = LINE.search(raw)
-            if m and m.group(2) == box:
-                t = ts_of(m.group(1))
+            if m and m.group(3) == box:
+                t = ts_of(m.group(1), m.group(2))
                 if t >= since:
-                    rows.append((t, m.group(3), raw))
+                    rows.append((t, m.group(4), raw))
     rows.sort(key=lambda r: r[0])
     return rows
 
@@ -234,10 +240,15 @@ def link_down(rows, ps_out, radiate_rx):
     return False, ""
 
 
-def conditions(box, now):
+def conditions(box, now, inc=None):
+    """INC is the open incident: while one is open the read reaches back to its
+    start, so a line older than the window cannot clear it."""
     root, results = env("GW_ROOT"), env("GW_RESULTS")
     window = int(float(env("GW_WINDOW_H", "6")) * 3600)
-    rows = hub_lines(env("GW_LOG_DIR"), root, box, now - window)
+    since = now - window
+    if inc:
+        since = min(since, int(inc["since"]) - 60)
+    rows = hub_lines(env("GW_LOG_DIR"), root, box, since)
     cur = pending_items(rows, results)
     cur.update(refusals(rows, results))
     seen, ev = box_log_seen(root, box, rows)
@@ -328,18 +339,19 @@ class Run:
         """True when sent (never in a dry run)."""
         topic = self.topics.get(box, "")
         if not topic:
-            print("WARN box %s has no topic in GW_TOPICS: not sent: %s" % (box, body))
+            print("WARN box %s has no topic in GW_TOPICS: sent to the fallback" % box)
             self.rc = 1
-            return False
-        if topic not in self.seats:
-            self.seats[topic] = seat_of(topic)
-        to, why = self.seats[topic]
+            to = env("GW_FALLBACK")
+            why = "dispatch lease holder: box %s has no topic row" % box
+            task = "box-link-watch-" + box
+        else:
+            if topic not in self.seats:
+                self.seats[topic] = seat_of(topic)
+            (to, why), task = self.seats[topic], "dispatch-" + topic
         if self.dry:
-            print(
-                "PLAN %s to %s (%s) on dispatch-%s: %s" % (kind, to, why, topic, body)
-            )
+            print("PLAN %s to %s (%s) on %s: %s" % (kind, to, why, task, body))
             return False
-        if to and send(to, kind, "dispatch-" + topic, body):
+        if to and send(to, kind, task, body):
             print("SENT %s to %s (%s): %s" % (kind, to, why, body))
             return True
         print(
@@ -351,7 +363,8 @@ class Run:
     def box(self, box, old):
         """One incident per box: open (one blocker) when any condition is
         older than the limit, cleared (one note) when none is."""
-        cur, conds = conditions(box, self.now), {}
+        inc = old.get("incident")
+        cur, conds = conditions(box, self.now, inc), {}
         for key, (since, what, ev) in sorted(cur.items()):
             prev = old.get("conds", {}).get(key, {})
             conds[key] = {
@@ -364,7 +377,6 @@ class Run:
                 % (box, key, what, (self.now - conds[key]["since"]) // 60)
             )
         stuck = [c for c in conds.values() if self.now - c["since"] > self.limit]
-        inc = old.get("incident")
         if stuck and not inc:
             first = min(c["since"] for c in stuck)
             lines = "".join(

@@ -21,6 +21,9 @@
 #  12. the manifest row box-link-watch runs the cron script every minute
 #  13. the relay paths come from the box-local env file (never sourced); no
 #      ROOT anywhere -> nothing to watch, exit 0; ROOT without HOME -> refused
+#  14. a box with no topic row -> ONE blocker to the fallback, rc 1
+#  15. an open incident older than GW_WINDOW_H with no receipt -> not cleared
+#  16. UTC stamps read under TZ=Europe/Sofia: 6 min -> still no alert
 #   RED CONTROL: case 2 with the state file gone sends a second blocker, so
 #   case 2's silence is the state's doing.
 #------------------------------------------------------------------------------
@@ -158,5 +161,23 @@ out="$(run BOX_LINK_WATCH_ROOT= BOX_LINK_WATCH_LOG_DIR= BOX_LINK_WATCH_HOME=)"; 
 [ "$rc" = 0 ] && grep -q 'OK no relay configured on this box' <<<"$out" && pass "13. no ROOT and no env file -> nothing to watch, exit 0" || fail "13. none (rc $rc: $out)"
 out="$(run BOX_LINK_WATCH_HOME=)"; rc=$?
 [ "$rc" != 0 ] && grep -q 'FATAL BOX_LINK_WATCH_LOG_DIR and BOX_LINK_WATCH_HOME must be set' <<<"$out" && pass "13. ROOT without HOME -> refused" || fail "13. no home (rc $rc: $out)"
+
+# 14. a box with no topic row -> the fallback
+fresh; logl 8 "sent b7.zip hub -> box (10 B, sha256 aa) as b-7 in 1 s, waiting for the box's receipt"
+out="$(run BOX_LINK_WATCH_TOPICS="other=abcd1234")"; rc=$?
+[ "$(n)" = 1 ] && [ "$rc" = 1 ] && grep -q '^--from|c-001|--to|c-002@sat|--kind|blocker|--task|box-link-watch-box|--body|LINK STUCK' "$T/sent" \
+  && grep -q 'WARN box box has no topic' <<<"$out" && pass "14. a box with no topic row -> ONE blocker to the fallback, rc 1" || fail "14. (rc $rc, $(n): $(cat "$T/sent"); $out)"
+
+# 15. an open incident older than the window, still no receipt -> not cleared
+fresh; logl 8 "sent b8.zip hub -> box (10 B, sha256 aa) as b-8 in 1 s, waiting for the box's receipt"
+run >/dev/null
+later 361; out="$(run)"
+[ "$(n)" = 1 ] && grep -q 'b8.zip sent, no receipt, 369 min' <<<"$out" && ! grep -q CLEARED "$T/sent" \
+  && pass "15. an incident older than the 6 h window with no receipt stays open (no CLEARED)" || fail "15. ($(n): $(cat "$T/sent"); $out)"
+
+# 16. UTC stamps under another TZ
+fresh; logl 6 "sent b9.zip hub -> box (10 B, sha256 aa) as b-9 in 1 s, waiting for the box's receipt"
+out="$(TZ=Europe/Sofia run)"
+[ "$(n)" = 0 ] && grep -q 'b9.zip sent, no receipt, 6 min' <<<"$out" && pass "16. UTC stamps read under TZ=Europe/Sofia: 6 min -> no alert" || fail "16. ($(n): $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

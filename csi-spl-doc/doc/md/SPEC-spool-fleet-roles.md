@@ -955,8 +955,11 @@ it is not restated here.
   rotation seats the vendor `rotate.conf` names again (claude by default).
   Tests: `dispatch-rotate.tst.sh` section 26, `orch-rotate.tst.sh` 15;
 - **a standby box's orch seat follows the vendor too** (SPL-2774): the
-  hourly orch rotation skips a box whose orch lease another machine holds,
-  and the restore never changes a seat's CLI, so on 2026-10-21 the standby
+  hourly orch rotation then skipped a box whose orch lease another machine
+  holds (since spec 060 FR-047 it refreshes that seat in place once it is
+  `ROTATE_ORCH_STANDBY_MAX_AGE`, 2 h, old, and a failover seat as soon as
+  claude can act), and the restore never changes a seat's CLI, so on
+  2026-10-21 the standby
   box's seat stayed `g-001` (grok) on its weekly limit after the owner moved the role to
   claude. `ROTATE_CMD=standby ./run -a do_spl_orch_rotate` (dry run unless
   `DRY_RUN=0`) re-seats it: on a standby box whose one live orch seat runs

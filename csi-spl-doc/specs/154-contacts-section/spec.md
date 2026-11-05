@@ -1049,6 +1049,8 @@ Editor's recommendation: **A** (section 11.3). Answer: open.
 | 2026-11-05 | c-150 (editor claude) | v1.3 draft (SPL-4896): section 11, import from a CSV file and online from Google, with pictures and the main attributes (owner msgs `bf20f1f2`, `900d2fd7`, topic `b400601b`); 11.1 measured on origin/master `db36843f4`; owner question O6; rows B13-B18, B8, B11 and B12 amended; cases C28-C48. Not signed |
 | 2026-11-05 | c-157 (seat claude) | FAIL on `a35a1e0c2` (msg `be767058`): W1 the `after` of B8 (amended) and B18 misses B15 and B17, which share files; W2 a re-import of a contact edited or soft-deleted in Spool undecided. Notes N1-N6 |
 | 2026-11-05 | c-150 (editor claude) | seat fold (SPL-4896): W1 and W2 folded as c-157 proposed (11.2.1, 11.6, C33b, C37b); N1-N6 all taken (route preflights, `private, no-cache` + ETag, the advisory lock, `Birthday.text` stores NULL, the first-load wording, the case range and the fake's full path, `avatar.ts:295-300`). O6 still open. Not signed |
+| 2026-11-05 | c-157 (seat claude) | PASS on `c93aee52b` (msg `631800df`): W1, W2, N1-N6 checked; notes N7-N9 |
+| 2026-11-05 | c-150 (editor claude) | N7-N9 folded (SPL-4896): `auth/handler.go:911` cited beside `:873`; `deleted_here` covers either `deleted_by`; a cleared birthday is not cleared at Google (accepted, no marker). Not signed |
 
 ## 11. v1.3: import from a CSV file and from Google, with pictures and the main attributes
 
@@ -1151,9 +1153,10 @@ seed's (row 42).
   matches a live contact is skipped and counted (`already_there`), even
   when Spool's values differ: the person edited it here last, and an
   import is not a merge (a merge would need a per-field rule the person
-  cannot see in a preview). A row that matches a contact the person
-  deleted in Spool that is still soft-deleted (`deleted_at` set, not yet
-  purged, 2.6) is skipped and counted as `deleted_here`, and the preview
+  cannot see in a preview). A row that matches a contact that is still
+  soft-deleted (`deleted_at` set, not yet purged, 2.6), with either
+  `deleted_by` value (`member`: deleted in Spool; `google-sync`: deleted
+  at Google and brought in by the sync), is skipped and counted as `deleted_here`, and the preview
   lists the count. Why: an import must not resurrect a delete, nor push
   it back to Google through the Out half. A hard-deleted contact (2.6:
   nothing was to be sent to Google) and one past the 30-day purge leave
@@ -1207,7 +1210,7 @@ other email and phone at Google, so nothing is lost there either way.
 |---|---|---|---|
 | `company` | text NOT NULL DEFAULT '' , <= 200 | the primary `organizations[].name` (else the first) | `Organization Name` / `Organization 1 - Name`, or `company` |
 | `job_title` | text NOT NULL DEFAULT '' , <= 200 | the same organization's `title` | `Organization Title` / `Organization 1 - Title`, or `job_title` |
-| `birthday` | text NULL, CHECK `'^([0-9]{4}|--)-[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year; a birthday with only the deprecated free-form `text` and no `date` stores NULL (no guessing at a free-form date), and the Out half never sends `birthdays` for that contact while Spool's value is NULL, so Google's text is kept | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
+| `birthday` | text NULL, CHECK `'^([0-9]{4}|--)-[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year; a birthday with only the deprecated free-form `text` and no `date` stores NULL (no guessing at a free-form date), and the Out half never sends `birthdays` while Spool's value is NULL, so Google's text is kept. B8 stores no marker for it, so clearing a birthday in Spool does not clear it at Google either (accepted: a cleared birthday is rare, and a marker column would cost more than it saves) | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
 | `notes` | text NOT NULL DEFAULT '' , <= 8000 | `biographies[].value` (`contentType` `TEXT_PLAIN`; `TEXT_HTML` is stored as text with the tags removed) | `Notes`, or `notes` |
 | `in_only` | boolean NOT NULL DEFAULT false | true when a Google value was over a cap and stored cut | always false |
 
@@ -1317,7 +1320,7 @@ Why the database and not the bucket:
 only, `inPerson`, 404 for none or another person's id) answers the bytes
 with their `mime`, `Cache-Control: private, no-cache`, `ETag:
 "<sha256>"` and `X-Content-Type-Options: nosniff`, as the person's own
-avatar route (`auth/handler.go:873`): an erased picture is not kept in
+avatar route (`auth/handler.go:911` for the bytes, `:873` for none): an erased picture is not kept in
 the browser's cache; the WUI's page-life cache per sha256 keeps the
 fetch count low. The list and the card answer
 `photo: "<sha256>"` or `null`; the WUI fetches

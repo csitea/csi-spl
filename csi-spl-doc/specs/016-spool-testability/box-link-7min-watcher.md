@@ -43,8 +43,8 @@ A silent box log alone is no incident: the box is off at night (about 00Z
 to 04-08Z on 2026-11-03 and 11-04), and with nothing in flight there is
 nothing to tell anyone (c-002@sat, msg b7011f23). The hub's radiate keeps
 running through the night and its log closed no session in the night of
-2026-11-04/05 (its only close since 11-02 was 22:19Z on 11-04), so d does not
-bring the quiet box log back every night.
+2026-11-04/05 (n=1 night; its only close since 11-02 was 22:19Z on 11-04), so
+d did not bring the quiet box log back that night.
 
 When any condition is older than 7 min the box has ONE incident: one spool
 message, kind `blocker`, task `dispatch-<topic8>`, listing every stuck

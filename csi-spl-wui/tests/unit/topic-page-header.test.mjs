@@ -51,7 +51,11 @@ describe('the topic page is the thread alone', () => {
     assert.match(template, /:data-phone="stack\.isMobile\.value \? 'thread' : undefined"/)
     assert.doesNotMatch(css, /data-phone="list"/)
     assert.match(page, /stack\.rightPanel\(/)
-    assert.match(page, /if \(was && !open && taskId\.value\) void navigateTo\(localePath\('\/'\), \{ replace: true \}\)/)
+    assert.match(page, /if \(!was \|\| open \|\| !taskId\.value\) return/)
+    assert.match(page, /void navigateTo\(localePath\('\/'\), \{ replace: true \}\)/)
+    /* SPL-4853: only while the reader is still on /t/<id>, or a menu jump that
+       closes the topic after it left (Open in channels view) lands in #lobby */
+    assert.match(page, /if \(!\/\\\/t\\\/\[\^\/\]\+\$\/\.test\(String\(useRouter\(\)\.currentRoute\.value\.path/)
   })
 
   it('a thread title has no Topic: prefix and a four-side border at every width', () => {

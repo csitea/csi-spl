@@ -57,9 +57,14 @@ const door = ref<{ detail: string } | null>(null)
 /* a phone: the thread is the right panel (level 3); Back leaves the page */
 stack.rightPanel(() => stack.isMobile.value && topic.open, () => topic.close())
 /* the thread's X: with no list beside it, the page has nothing left to
-   show, so it goes to the front door (Channels) */
+   show, so it goes to the front door (Channels). SPL-4853: only while the
+   reader is still here - "Open in channels view" on the opening card closes
+   the topic AFTER its push to /channel/<ch>, while this page is still
+   mounted, and this sent the reader on to #lobby. */
 watch(() => topic.open, (open, was) => {
-  if (was && !open && taskId.value) void navigateTo(localePath('/'), { replace: true })
+  if (!was || open || !taskId.value) return
+  if (!/\/t\/[^/]+$/.test(String(useRouter().currentRoute.value.path || ''))) return
+  void navigateTo(localePath('/'), { replace: true })
 })
 
 function openingOf(rows: SpoolMessage[], id: string): SpoolMessage | null {

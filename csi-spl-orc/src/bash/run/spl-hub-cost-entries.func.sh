@@ -11,9 +11,13 @@
 # @description           row with its id, period and type only, then one
 # @description           line per period: <period> rows=<n>; with
 # @description           COST_EXPECT_FILE also sum=OK|MISMATCH (the period's
-# @description           raw amounts summed, no FX, against the file's sum
-# @description           to the cent), sum=UNCHECKED for a period the file
-# @description           lacks; never an amount, currency, note or label
+# @description           raw amounts summed, no FX, OK when within half a
+# @description           cent of the file's sum), sum=UNCHECKED for a period
+# @description           the file lacks, sum=BADROW for a period holding an
+# @description           amount that is not a number; the sums are over the
+# @description           rows COST_TYPE leaves, and COST_MONTH drops the
+# @description           file's other periods; never an amount, currency,
+# @description           note or label, also not on a malformed hub answer
 # @description   create  POST an entry (DRY_RUN=1 default prints what it would)
 # @description   delete  DELETE entry COST_ID (DRY_RUN=1 default prints it)
 # @description create, delete and their DRY_RUN lines are figure-free
@@ -30,7 +34,8 @@
 # @param COST_MONTH (optional) - list and index filter: YYYY-MM
 # @param COST_EXPECT_FILE (optional) - index: a file kept outside git (or
 #   /dev/stdin), one `period<TAB>net sum` per line, no header; its sums are
-#   compared, never printed, also not on a bad line (its number only)
+#   compared, never printed, also not on a bad line (its number only), and
+#   never on a command line (they reach jq on stdin and in the environment)
 # @param COST_LABEL COST_AMOUNT COST_CURRENCY COST_PERIOD - create: the label
 #   (1..100 chars), the amount NET of VAT above 0 (owner poll 68d7f768
 #   answer 4 NET, msg 4eb41f4c), the ISO 4217 code, the month YYYY-MM
@@ -52,7 +57,7 @@ do_spl_hub_cost_entries() {
     list) method=GET path="$(_spl_hub_cost_entries_list_path)" || return 1 ;;
     index)
       method=GET path="$(_spl_hub_cost_entries_list_path)" || return 1
-      SPL_COST_EXPECT="$(_spl_hub_cost_entries_expect)" || return 1 ;;
+      SPL_COST_EXPECT="$(_spl_hub_cost_entries_expect)" || return 1; export SPL_COST_EXPECT ;;
     create)
       method=POST path=/v1/operator/cost-entries; body="$(_spl_hub_cost_entries_body)" || return 1
       shown="period=$COST_PERIOD type=$COST_TYPE label=$COST_LABEL" ;;
@@ -105,38 +110,46 @@ _spl_hub_cost_entries_id() {
   do_log "FATAL COST_ID must be a cost entry's uuid (the value is not printed)"; return 1
 }
 
-# _spl_hub_cost_entries_expect -> COST_EXPECT_FILE as a JSON object
-# {period: sum}, {} without it, else FATAL with the line number only: the
-# file holds figures, so no line of it is ever printed
+# _spl_hub_cost_entries_expect -> COST_EXPECT_FILE (a file or a pipe) as a
+# JSON object {period: sum}, {} without it, only COST_MONTH's period with
+# it, else FATAL with the line number only: the file holds figures, so no
+# line of it is ever printed, and no sum rides a command line (ps)
 _spl_hub_cost_entries_expect() {
-  local f="${COST_EXPECT_FILE:-}" line n=0 json='{}'
+  local f="${COST_EXPECT_FILE:-}" line n=0 kept=""
   local rx=$'^([0-9]{4}-(0[1-9]|1[0-2]))\t((0|[1-9][0-9]*)(\\.[0-9]{1,4})?)$'
   [[ -z "$f" ]] && { echo '{}'; return 0; }
-  [[ -r "$f" ]] || { do_log "FATAL COST_EXPECT_FILE is not a readable file" >&2; return 1; }
+  [[ (-f "$f" || -p "$f") && -r "$f" ]] || { do_log "FATAL COST_EXPECT_FILE is not a readable file or pipe" >&2; return 1; }
   while IFS= read -r line || [[ -n "$line" ]]; do
     n=$((n + 1)); line="${line%$'\r'}"
     [[ -z "${line//[[:space:]]/}" ]] && continue
     [[ "$line" =~ $rx ]] || { do_log "FATAL COST_EXPECT_FILE line $n must be period<TAB>sum (the value is not printed)" >&2; return 1; }
-    json="$(jq -c --arg p "${BASH_REMATCH[1]}" --argjson s "${BASH_REMATCH[3]}" '. + {($p): $s}' <<<"$json" 2>/dev/null)" ||
-      { do_log "FATAL COST_EXPECT_FILE line $n could not be read (the value is not printed)" >&2; return 1; }
+    [[ -n "${COST_MONTH:-}" && "${BASH_REMATCH[1]}" != "$COST_MONTH" ]] && continue
+    kept+="$line"$'\n'
   done <"$f"
-  echo "$json"
+  printf '%s' "$kept" | jq -Rnc '[inputs | split("\t") | {key: .[0], value: (.[1] | tonumber)}] | from_entries' 2>/dev/null ||
+    { do_log "FATAL COST_EXPECT_FILE could not be read (the values are not printed)" >&2; return 1; }
 }
 
 # _spl_hub_cost_entries_index <body> -> the figure-free index of a list
 # answer: per row id period type (each shape-checked, else "?"), then per
-# period its row count and, with SPL_COST_EXPECT, OK|MISMATCH|UNCHECKED
+# period its row count and, with the exported SPL_COST_EXPECT, OK (within
+# half a cent) | MISMATCH | UNCHECKED | BADROW; a malformed answer is FATAL
+# with nothing of it printed (jq's error would quote it)
 _spl_hub_cost_entries_index() {
-  jq -r --argjson exp "${SPL_COST_EXPECT:-"{}"}" '
+  jq -r '
     def ok(re): if type == "string" and test(re) then . else "?" end;
-    [(.entries // [])[] | {id: (.id | ok("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")),
+    ($ENV.SPL_COST_EXPECT // "{}" | fromjson) as $exp
+    | [(.entries // [])[] | {id: (.id | ok("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")),
       period: (.period | ok("^[0-9]{4}-(0[1-9]|1[0-2])$")), type: (.type | ok("^(cloud|hr)$")),
-      amount: (.amount | tonumber? // 0)}] as $e
-    | ($e | group_by(.period) | map({key: .[0].period, value: {n: length, s: (map(.amount) | add)}}) | from_entries) as $g
+      amount: (.amount | if type == "number" then . else (tonumber? // null) end)}] as $e
+    | ($e | group_by(.period) | map({key: .[0].period,
+        value: {n: length, bad: any(.[]; .amount == null), s: (map(.amount // 0) | add)}}) | from_entries) as $g
     | ($e[] | "  \(.id) \(.period) \(.type)"),
       (([$g | keys[]] + [$exp | keys[]] | unique[]) as $p
        | "\($p) rows=\($g[$p].n // 0)" + (if $exp == {} then "" elif $exp[$p] == null then " sum=UNCHECKED"
-           elif ((($g[$p].s // 0) * 100 | round) == ($exp[$p] * 100 | round)) then " sum=OK" else " sum=MISMATCH" end))' <<<"$1"
+           elif $g[$p].bad then " sum=BADROW" elif ((($g[$p].s // 0) - $exp[$p]) | fabs) < 0.005 then " sum=OK"
+           else " sum=MISMATCH" end))' <<<"$1" 2>/dev/null ||
+    { do_log "FATAL the hub's answer is not a list of cost entries (it is not printed)"; return 1; }
 }
 
 # _spl_hub_cost_entries_note -> COST_NOTE with COST_GROSS kept in it (the
@@ -178,7 +191,7 @@ _spl_hub_cost_entries_report() {
       do_log "OK $ENV cost entries: $(jq -r '.entries | length' <<<"$b")"
       jq -r '.entries[] | "  \(.id) \(.period) \(.type) \(.amount) \(.currency) \(.label)"' <<<"$b" ;;
     200:index)
-      do_log "OK $ENV cost entries (index, figure-free): $(jq -r '.entries | length' <<<"$b")"
+      do_log "OK $ENV cost entries (index, figure-free): $(jq -r '.entries | if type == "array" then length else "?" end' <<<"$b" 2>/dev/null)"
       _spl_hub_cost_entries_index "$b" ;;
     201:create) do_log "OK $ENV cost entry created: $(jq -r '"\(.id) \(.period) \(.type) \(.label)"' <<<"$b" 2>/dev/null)" ;;
     204:delete) do_log "OK $ENV cost entry $COST_ID deleted" ;;

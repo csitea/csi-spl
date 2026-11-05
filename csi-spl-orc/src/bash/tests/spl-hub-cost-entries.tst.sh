@@ -17,13 +17,17 @@
 #      note: no sentinel figure in stdout, stderr or any file the run wrote
 #   8. index (SPL-4891): the list GET, printed as id period type per row and
 #      <period> rows=<n> per period; COST_EXPECT_FILE adds sum=OK|MISMATCH|
-#      UNCHECKED (raw amounts, no FX, to the cent); a bad file line is refused
-#      by its number before any call; through the real ./run no amount,
-#      currency, label, note or expected sum reaches stdout, stderr or a file
+#      UNCHECKED (raw amounts, no FX, within half a cent: one cent off is a
+#      MISMATCH) | BADROW (an amount that is not a number); COST_MONTH keeps
+#      only its period of the file; a bad file line (by its number), a
+#      directory as the file and a malformed hub answer are refused; through
+#      the real ./run no amount, currency, label, note or expected sum
+#      reaches stdout, stderr or a file
 # RED CONTROL: case 2 fails when the dry-run guard is dropped (the call file
 # then holds the POST). Case 7 fails on the action before SPL-4877 (it logged
 # the body, the created row's amount and currency, and the hub's detail).
-# Case 8 fails when the index prints a row's amount (the plant in the commit).
+# Case 8 fails when the index prints a row's amount, or compares whole units
+# instead of cents (the plants in the commit).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -198,6 +202,27 @@ for bad in '2020-01 109876.99' '2020-01\t1e5' '2020-13\t1' '2020-01\t-1' '2020-0
 done
 run COST_CMD=index COST_EXPECT_FILE="$T/fs/no-such.tsv"; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "8. an unreadable COST_EXPECT_FILE is refused, no call" || fail "8. unreadable: rc=$rc $(cat "$T/o")"
+ROWS2='{"entries":[
+ {"id":"'$ID'","type":"cloud","amount":7.5,"currency":"XTS","period":"2020-05"},
+ {"id":"'$ID'","type":"cloud","amount":1.0012,"currency":"XTS","period":"2020-06"},
+ {"id":"'$ID'","type":"cloud","amount":0.9999,"currency":"XTS","period":"2020-06"},
+ {"id":"'$ID'","type":"cloud","amount":"n/a","currency":"XTS","period":"2020-07"},
+ {"id":"'$ID'","type":"cloud","amount":3,"currency":"XTS","period":"2020-08"}]}'
+printf '2020-05\t7.51\n2020-06\t2.00\n2020-07\t0\n2020-08\t3.00\n2020-09\t4\n' >"$T/fs/expect2.tsv"
+run COST_CMD=index COST_EXPECT_FILE="$T/fs/expect2.tsv" STUB_BODY="$ROWS2"; rc=$?
+[[ $rc -eq 0 ]] && diff <(grep '^2020' "$T/o") <(printf '%s\n' '2020-05 rows=1 sum=MISMATCH' '2020-06 rows=2 sum=OK' \
+  '2020-07 rows=1 sum=BADROW' '2020-08 rows=1 sum=OK' '2020-09 rows=0 sum=MISMATCH') >/dev/null \
+  && pass "8. one cent off: MISMATCH; within half a cent: OK; a non-number amount: BADROW" || fail "8. cents: rc=$rc $(cat "$T/o")"
+run COST_CMD=index COST_MONTH=2020-05 COST_EXPECT_FILE="$T/fs/expect2.tsv" STUB_BODY="$(jq -c '.entries |= map(select(.period == "2020-05"))' <<<"$ROWS2")"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'hub GET /v1/operator/cost-entries?month=2020-05 ' "$T/calls" && [[ "$(grep '^2020' "$T/o")" == '2020-05 rows=1 sum=MISMATCH' ]] \
+  && pass "8. COST_MONTH keeps only its period of the expect file" || fail "8. month+expect: rc=$rc $(cat "$T/o")"
+run COST_CMD=index COST_EXPECT_FILE="$T/fs"; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -qx 'FATAL COST_EXPECT_FILE is not a readable file or pipe' "$T/o" \
+  && pass "8. a directory as COST_EXPECT_FILE is refused, no call" || fail "8. dir: rc=$rc $(cat "$T/o")"
+run COST_CMD=index STUB_BODY='{"entries":"98765.4321xx"}'; rc=$?
+[[ $rc -ne 0 ]] && grep -qx "FATAL the hub's answer is not a list of cost entries (it is not printed)" "$T/o" && ! grep -qF 98765 "$T/o" \
+  && pass "8. a malformed hub answer fails and is not quoted" || fail "8. malformed: rc=$rc $(cat "$T/o")"
+real_run indexmalformed COST_CMD=index STUB_CODE=200 STUB_BODY='{"entries":"98765.4321xx"}'
 SENT+=(LABEL-SENTINEL 11111.5555 22222.7777 109876.99 33333.33)
 printf '2020-01\t1e5\n' >"$T/fs/bad.tsv"
 real_run index COST_CMD=index STUB_CODE=200 STUB_BODY="$ROWS"; rc=$?
@@ -207,7 +232,7 @@ real_run indexrefused COST_CMD=index STUB_CODE=500 STUB_BODY="$REFUSED"; rc4=$?
 [[ $rc -eq 0 && $rc2 -eq 0 && $rc3 -ne 0 && $rc4 -ne 0 ]] && grep -qx '2020-01 rows=2' "$T/fs/index/stdout" \
   && grep -qx '2020-02 rows=1 sum=MISMATCH' "$T/fs/indexexp/stdout" && grep -qF 'answered 500 (bad_cost_entry)' "$T/fs/indexrefused/stdout" \
   && pass "8. ./run index, with the expect file, a bad expect line, a 500: as above" || fail "8. ./run index: rc=$rc/$rc2/$rc3/$rc4 $(cat "$T/fs/index/stdout" "$T/fs/indexexp/stdout")"
-for r in dry ok refused r403 r404 r500 badamount badcur grossbelow swapped index indexexp indexbad indexrefused; do
+for r in dry ok refused r403 r404 r500 badamount badcur grossbelow swapped index indexexp indexbad indexrefused indexmalformed; do
   n=$(find "$T/fs/$r" -type f | wc -l)
   l="$(leaks "$r" | tr "\n" " ")"
   [[ -z "$l" && $n -gt 2 ]] && pass "8. $r: none of the ${#SENT[@]} sentinels in stdout, stderr or the $((n - 2)) file(s) the run wrote" \

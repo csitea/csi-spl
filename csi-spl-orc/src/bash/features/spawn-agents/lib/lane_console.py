@@ -9,7 +9,8 @@ finds the tmux window whose name is the agent id (an optional `<tag>: `
 prefix, then the id, then the title), captures its screen plus
 FILE_STREAMS_CONSOLE_LINES lines of scrollback as plain text, masks EVERY
 line (the follower's mask: spool_redact.redact() plus the PEM state, from
-the first captured line on) and pushes it (file_streams_console_push). An
+the first captured line on), masks whole the lines a secret hard-wrapped by
+the agent's TUI spans (up to WRAP_SPAN lines joined) and pushes it (file_streams_console_push). An
 unmasked line never leaves this module. Nothing is captured while nobody
 watches: no demand, no tmux call.
 
@@ -37,6 +38,23 @@ WINDOW_RE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*: )?(\S+)")
 SCREEN_MAX_BYTES = 120 << 10  # under the hub's 128 KiB cap
 DEMANDS_OP = "file_streams_console_demands"
 PUSH_OP = "file_streams_console_push"
+# a line a hard-wrapped secret spans (LaneConsole.wrapped)
+WRAPPED_KIND = "wrapped-secret"
+WRAPPED_MASK = f"<redacted:{WRAPPED_KIND}>"
+WRAP_SPAN = 4  # lines a hard-wrapped secret may span: a 40-char token at 12 cols
+
+
+def span(text, masked):
+    """-> [lo, hi) of `text` that the mask changed, or (None, None)."""
+    if masked is None or masked == text:
+        return None, None
+    lo = 0
+    while lo < min(len(text), len(masked)) and text[lo] == masked[lo]:
+        lo += 1
+    hi = 0
+    while hi < min(len(text), len(masked)) - lo and text[-1 - hi] == masked[-1 - hi]:
+        hi += 1
+    return lo, len(text) - hi
 
 
 def env_int(name, default):
@@ -122,20 +140,63 @@ class LaneConsole:
 
     def masked(self, raw):
         """-> (masked text, lines, {kind: n}): every line through the mask,
-        in order, one PEM state for the whole capture."""
+        in order, one PEM state for the whole capture; then the lines a
+        hard-wrapped secret spans (wrapped()) masked whole; then each line
+        cut to line_bytes, after the mask, so a cut never shortens a secret
+        below its pattern."""
         st, out, red = {}, [], {}
         for ln in raw.rstrip("\n").split("\n"):
             ln = ln.rstrip()
-            b = ln.encode("utf-8", "replace")
-            if len(b) > self.line_bytes:
-                ln = b[: self.line_bytes].decode("utf-8", "ignore")
             for text, _marker, counts in self.mask(st, ln):  # ctl:console-mask
                 out.append(text)
                 for k, n in counts.items():
                     red[k] = red.get(k, 0) + n
+        for i in self.wrapped(out):
+            out[i] = WRAPPED_MASK
+            red[WRAPPED_KIND] = red.get(WRAPPED_KIND, 0) + 1
+        out = [self.cut(x) for x in out]
         while out and sum(len(x.encode("utf-8")) + 1 for x in out) > SCREEN_MAX_BYTES:
             out.pop(0)
         return "\n".join(out), len(out), red
+
+    def cut(self, text):
+        b = text.encode("utf-8", "replace")
+        if len(b) <= self.line_bytes:
+            return text
+        return b[: self.line_bytes].decode("utf-8", "ignore")
+
+    def remask(self, text):
+        """-> (masked text, secrets found) for one line on its own."""
+        res = self.mask({}, text)
+        n = sum(v for _t, _m, c in res for v in c.values())
+        return (res[0][0] if len(res) == 1 else None), n
+
+    def wrapped(self, lines):
+        """-> the indexes of the masked lines a secret spans that no line
+        shows alone. capture-pane -J joins only the rows tmux wrapped; an
+        agent's TUI hard-wraps at the pane width with real newlines, so a
+        token can arrive in pieces. From each line, WRAP_SPAN lines are
+        joined at the wrap (end spaces and indents dropped); when the join
+        finds more than its lines alone, every line the masked span of the
+        join touches is marked (the whole run when the span is unclear).
+        The join drops the newline, so a word that starts the line after a
+        token may be masked with it: more is masked, never less."""
+        parts = [x.strip() for x in lines]
+        one = [self.remask(x)[1] for x in parts]
+        out = set()
+        for i in range(len(parts) - 1):
+            run = parts[i : i + WRAP_SPAN]
+            joined = "".join(run)
+            masked, n = self.remask(joined)
+            if n <= sum(one[i : i + len(run)]):  # ctl:console-wrap
+                continue
+            lo, hi = span(joined, masked)
+            at = 0
+            for j, x in enumerate(run):
+                if lo is None or (at < hi and at + len(x) > lo):
+                    out.add(i + j)
+                at += len(x)
+        return sorted(out)
 
     def tick(self, now):
         """Pull when due, then capture and push each watched agent."""

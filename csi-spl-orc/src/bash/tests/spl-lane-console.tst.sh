@@ -12,6 +12,12 @@
 #   L2 nobody watches: no capture (not one tmux call) and no push
 #   L3 a window named with a box tag ("<tag>: c-902 title") is found
 #   L4 an unchanged screen is not re-sent before keep_s
+#   L5 a token the agent's TUI hard-wrapped with real newlines (capture-pane
+#      -J joins only tmux's own wraps): split at col 14 into 2 lines, and
+#      at 12 cols into 4, each arrives masked, the lines around them kept
+#      (R7 c-365 W2)
+#   L6 a line longer than line_bytes is masked before it is cut, so a token
+#      across the cut does not leave as an unmasked prefix (R7 c-365 N1)
 # Each runs green on the module and red on a copy with one planted defect.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -32,6 +38,7 @@ B="-----BEGIN" E="-----END" PK="PRIV""ATE KEY"
 rnd() { python3 -c 'import secrets, string, sys; print("".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(int(sys.argv[1]))))' "$1"; }
 b64() { python3 -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(48)).decode()[:64])'; }
 TOKEN="gh""p_$(rnd 36)"
+WRAP2="gh""p_$(rnd 36)" WRAP4="gh""p_$(rnd 36)" LONG="gh""p_$(rnd 36)"
 KEYLINES=("$(b64)" "$(b64)")
 
 # The screen: 220 lines, the token on line 150, a PEM key on lines 160-163.
@@ -46,6 +53,21 @@ EOF
 # two windows on the private server; a tall pane, so 220 lines need scrollback
 tmux -S "$SOCK" -f /dev/null new-session -d -s lc -x 200 -y 40 -n "c-901 console test" "cat '$T/screen.txt'; sleep 600"
 tmux -S "$SOCK" new-window -d -t lc -n "box1: c-902 tagged" "echo tagged-window-text; sleep 600"
+# hard-wrapped tokens: WRAP2 cut at col 14, the rest indented as a TUI
+# does; WRAP4 folded at 12 columns into 4 lines
+python3 - "$T/wrap.txt" "$WRAP2" "$WRAP4" <<'EOF'
+import sys
+out, w2, w4 = sys.argv[1:]
+a = "cut " + w2
+b = "wrap " + w4
+lines = ["before-wrap", a[:14], "  " + a[14:], "between-wrap"]
+lines += [b[i : i + 12] for i in range(0, len(b), 12)] + ["after-wrap"]
+open(out, "w").write("\n".join(lines) + "\n")
+EOF
+tmux -S "$SOCK" new-window -d -t lc -n "c-903 wrapped" "cat '$T/wrap.txt'; sleep 600"
+# a 3000-byte line with a token across byte 2048 (the follower's line cut)
+python3 -c 'import sys; print("x" * 2034 + sys.argv[1] + " tail-of-long-line")' "$LONG" >"$T/long.txt"
+tmux -S "$SOCK" new-window -d -t lc -n "c-904 long" "cat '$T/long.txt'; sleep 600"
 sleep 1
 
 # tmux wrapper: logs every call, then runs the private server's tmux
@@ -140,6 +162,31 @@ l4() {
   [[ "$n" == 1 ]] || { echo "  L4: $n pushes of an unchanged screen, want 1"; return 1; }
 }
 
+l5() {
+  local d="$T/l5-$RANDOM" s p
+  run "$1" "$d" '["c-903"]'
+  s="$(screens "$d" c-903 | tail -n 1)"
+  [[ -n "$s" ]] || { echo "  L5: no console push: $(cat "$d/out")"; return 1; }
+  # 8 characters from the start, middle and end of each token's body
+  for p in "${WRAP2:4:8}" "${WRAP2:28:8}" "${WRAP4:4:8}" "${WRAP4:20:8}" "${WRAP4:32:8}"; do
+    if grep -qF -- "$p" "$d/pushed"; then echo "  L5: a piece of a wrapped token left the box: $p"; return 1; fi
+  done
+  # the join drops the newline, so a word that follows a token on the next
+  # line ("between-wrap") may be masked with it: more, never less
+  jq -e '(.screen | startswith("before-wrap\n<redacted:wrapped-secret>\n<redacted:wrapped-secret>\n")
+    and endswith("<redacted:wrapped-secret>\nafter-wrap")) and (.redactions["wrapped-secret"] // 0) >= 6' <<<"$s" >/dev/null ||
+    { echo "  L5: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
+}
+
+l6() {
+  local d="$T/l6-$RANDOM" s
+  run "$1" "$d" '["c-904"]'
+  s="$(screens "$d" c-904 | tail -n 1)"
+  [[ -n "$s" ]] || { echo "  L6: no console push: $(cat "$d/out")"; return 1; }
+  if grep -qF -- "${LONG:0:12}" "$d/pushed"; then echo "  L6: a prefix of the token across the cut left the box"; return 1; fi
+  jq -e '.screen | contains("<redacted")' <<<"$s" >/dev/null || { echo "  L6: no marker: $(jq -r .screen <<<"$s" | tail -c 200)"; return 1; }
+}
+
 # check <id> <what> <fn> [<control> <old> <new>]...: green on the module,
 # red on each planted defect.
 check() {
@@ -167,6 +214,11 @@ check L3 "a window named with a box tag is found" l3 \
   no-tag 'WINDOW_RE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*: )?(\S+)")' 'WINDOW_RE = re.compile(r"^(\S+)")'
 check L4 "an unchanged screen is not re-sent before keep_s" l4 \
   always-send 'if last and last[0] == sha and now - last[1] < self.keep_s:' 'if False:'
+check L5 "a token hard-wrapped by the TUI (2 lines at col 14, 4 lines at 12 cols) is masked" l5 \
+  no-wrap 'for i in self.wrapped(out):' 'for i in []:' \
+  pairs-only 'run = parts[i : i + WRAP_SPAN]' 'run = parts[i : i + 2]'
+check L6 "a long line is masked before it is cut" l6 \
+  cut-first 'ln = ln.rstrip()' 'ln = self.cut(ln.rstrip())'
 
 [[ "$fails" == 0 ]] && echo "OK spl-lane-console: all passed" || echo "FAIL spl-lane-console: $fails failed"
 ((fails == 0))

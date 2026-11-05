@@ -23,8 +23,9 @@ Owner HUM-10, t1 topic `27162335-08ea-4a9b-8a27-aad17a920eef`:
   (`defineAsyncComponent`), never in the first chunk.
 - **The feed.** Console shows the lane's tmux screen plus 200 lines of
   scrollback as plain text, newest at the bottom. It refreshes every 2 s
-  while the browser tab is visible; Pause stops it, closing the dialog ends
-  it. Follow keeps the bottom in view; scrolling up turns it off. The status
+  while the browser tab is visible; Pause stops it, closing the dialog stops
+  the reads and the watch renewals, and the box stops capturing when the
+  last demand runs out, within 60 s. Follow keeps the bottom in view; scrolling up turns it off. The status
   reads waiting (no capture yet), live (captured n s ago) or stale (the
   last capture is over 15 s old), and "n secrets masked on the box".
 - **Save.** Writes exactly the shown lines to a local file
@@ -76,7 +77,18 @@ those lanes, and so does the console's answer.
 The capture is masked on the box before it leaves it: every line through
 the follower's `mask_line()`, which is `spool_redact.redact()` (the box's one
 redaction list) plus the PEM state across lines, from the first captured
-line on. The hub stores and serves only the masked text and the per-kind
+line on. Then the lines a secret spans that the agent's TUI hard-wrapped
+with real newlines (`capture-pane -J` joins only the rows tmux itself
+wrapped) are masked whole as `<redacted:wrapped-secret>`: from each line,
+up to 4 lines are joined at the wrap, and when the join shows a secret its
+lines alone do not, every line the secret touches is masked. The join
+drops the newline, so a word that starts the line after a token may be
+masked with it: more, never less. Each line is cut to the follower's line
+limit only after the mask, so a cut never leaves a token's prefix
+unmasked. `spool_redact` also masks a `KEY=value` whose upper-case name
+carries KEY, SECRET, TOKEN, PASS, PWD, CRED, AUTH, SIGN, SALT, PRIVATE,
+COOKIE, SESSION or DSN, which an `env` or a `cat .env` in a pane shows.
+The hub stores and serves only the masked text and the per-kind
 count, never what was removed. Save writes the masked text the dialog shows.
 
 ## 6. Cost (db-f1-micro)
@@ -85,8 +97,12 @@ One row per watched lane, overwritten in place: no history. Writes happen
 only while someone watches: at most one push every 2 s per watched lane,
 plus one demand upsert every 20 s per open feed; reads are one `GET` every
 2 s per open feed (the lane's resolution is cached 30 s per reader) and one
-demand read every 5 s per box per hub. A row whose demand ended an hour ago
-is deleted by the next demand in that workspace.
+demand read every 5 s per box per hub. That pull runs on every box whether
+anyone watches or not: per box and hub, one `spool file-streams push`
+subprocess, one hub request and one indexed read every 5 s; the capture
+itself runs only on a demand. A row whose demand ended an hour ago is
+deleted by the next demand in that workspace; until then the last masked
+screen stays readable to the same readers.
 
 ## 7. Cases
 
@@ -101,6 +117,8 @@ is deleted by the next demand in that workspace.
 | L2 | nobody watches: no tmux call, no push | same |
 | L3 | a window named `<tag>: <id> title` is found | same |
 | L4 | an unchanged screen is not re-sent before keep_s | same |
+| L5 | a token hard-wrapped by the TUI (2 lines at col 14, 4 lines at 12 cols) arrives masked | same |
+| L6 | a line over the line limit is masked before it is cut | same |
 | W1 | the row opens a modal; Console only inside it; a click shows the feed; Save downloads the shown lines as .txt; both doors, 1440 and 390 | `csi-spl-wui/tests/e2e/monitoring-lane-console.test.mjs` |
 | W2 | the feed body, the routes, the file name and text, the mock's doors, the lazy dialog | `csi-spl-wui/tests/unit/monitoring-lane-console.test.mjs` |
 

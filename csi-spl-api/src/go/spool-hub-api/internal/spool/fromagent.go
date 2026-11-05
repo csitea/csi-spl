@@ -23,18 +23,32 @@ const FromAgentPrefix = "from_agent: "
 // carries that "<ID>@<box>" as from and the line is dropped from the body.
 // Anything else, a claim for another box included, returns m unchanged.
 func WithFromAgent(m *msg.Message, fromBox string) *msg.Message {
-	claim, rest, ok := strings.Cut(m.Body, "\n")
-	if !ok || !strings.HasPrefix(claim, FromAgentPrefix) || !agentSender(m.From) {
-		return m
-	}
-	id, box, ok := strings.Cut(strings.TrimSpace(strings.TrimPrefix(claim, FromAgentPrefix)), "@")
-	if !ok || box != fromBox || !msg.ValidBoxID(box) || !agentSender(id) {
+	id, box, rest, ok := FromAgentOf(m.From, fromBox, m.Body)
+	if !ok {
 		return m
 	}
 	c := *m
 	c.From = id + "@" + box
 	c.Body = rest
 	return &c
+}
+
+// FromAgentOf is WithFromAgent's rule on a stored row (RCA 8c64225e A1.1):
+// the real sender id and box a from_agent first line names, and the body
+// without that line. ok false, body unchanged, when the line is absent, the
+// row's from is not an agent, or the line claims an agent of a box other
+// than fromBox. The hub stores a relayed body verbatim, so its readers that
+// take the row as someone's word (the blocker sweep) split it here.
+func FromAgentOf(from, fromBox, body string) (id, box, rest string, ok bool) {
+	claim, rest, ok := strings.Cut(body, "\n")
+	if !ok || !strings.HasPrefix(claim, FromAgentPrefix) || !agentSender(from) {
+		return "", "", body, false
+	}
+	id, box, ok = strings.Cut(strings.TrimSpace(strings.TrimPrefix(claim, FromAgentPrefix)), "@")
+	if !ok || box != fromBox || !msg.ValidBoxID(box) || !agentSender(id) {
+		return "", "", body, false
+	}
+	return id, box, rest, true
 }
 
 // validStored is Validate for a message file in a local inbox: from may be

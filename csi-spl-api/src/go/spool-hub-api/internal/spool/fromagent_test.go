@@ -71,3 +71,21 @@ func TestDeliverAtBoxSenderIntoFleetRoot(t *testing.T) {
 		t.Fatal("a malformed box in from passed validStored")
 	}
 }
+
+// FromAgentOf is the same rule on a hub row's columns (RCA 8c64225e A1.1).
+func TestFromAgentOf(t *testing.T) {
+	id, box, rest, ok := FromAgentOf("c-003", "box-a", "from_agent: c-001@box-a\nReal subject\nmore")
+	if !ok || id != "c-001" || box != "box-a" || rest != "Real subject\nmore" {
+		t.Fatalf("got %q %q %q %v", id, box, rest, ok)
+	}
+	for name, c := range map[string][3]string{
+		"another box's claim": {"c-003", "box-b", "from_agent: c-001@box-a\nx"},
+		"a person's row":      {"HUM-4", "box-a", "from_agent: c-001@box-a\nx"},
+		"no line":             {"c-003", "box-a", "plain\nfrom_agent: c-001@box-a"},
+		"one line only":       {"c-003", "box-a", "from_agent: c-001@box-a"},
+	} {
+		if _, _, rest, ok := FromAgentOf(c[0], c[1], c[2]); ok || rest != c[2] {
+			t.Fatalf("%s: split to %q", name, rest)
+		}
+	}
+}

@@ -311,3 +311,166 @@ func TestBlockerResolvingIssueClearsMark(t *testing.T) {
 		}
 	}
 }
+
+// ---- relayed blockers (RCA 8c64225e C1.1, C1.2) -----------------------------
+//
+// A line one box relays to another opens with "from_agent: <id>@<box>" and
+// is sent under a seated proxy id of that box (spool-fleet-relay.sh); the hub
+// stores it verbatim. box-a and box-b are two boxes; c-003 and c-087 are
+// proxies there.
+
+// fromAgentRig is newBlockerRig with c-001 and proxy c-003 seated on box-a,
+// and c-123 and proxy c-087 on box-b (a bare id on two boxes is ambiguous).
+func fromAgentRig(t *testing.T) *blockerRig {
+	t.Helper()
+	r := newBlockerRig(t)
+	for box, ids := range map[string][]string{"box-a": {"c-001", "c-003"}, "box-b": {"c-087", r.agent}} {
+		if err := r.e.st.SetRoster(context.Background(), r.tid, box, ids, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return r
+}
+
+// relay stores one DM row as the hub keeps it: from_box/from_id, to_box/to_id.
+func (r *blockerRig) relay(t *testing.T, task, from, to, kind, body string, at time.Time) string {
+	t.Helper()
+	fid, fbox, _ := strings.Cut(from, "@")
+	tid, tbox, _ := strings.Cut(to, "@")
+	id := uid.New()
+	m := store.Message{TenantID: r.tid, MsgID: id, TaskID: task, TS: at,
+		FromBox: fbox, FromID: fid, ToBox: tbox, ToID: tid, Kind: kind, Body: body,
+		Files: []byte(`[]`), Msg: []byte(`{"v":1}`), EnvSig: "sig", Env: []byte(`{"env":1}`),
+		ReceivedAt: at, ExpiresAt: at.Add(30 * 24 * time.Hour)}
+	if _, err := r.e.st.InsertMessage(context.Background(), m); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// relayedBlocker: c-001 on box-a, proxied by c-003, blocks c-123 on box-b;
+// the sweep at 4 min makes its issue.
+func (r *blockerRig) relayedBlocker(t *testing.T, task string) (string, store.Issue) {
+	t.Helper()
+	id := r.relay(t, task, "c-003@box-a", r.agent+"@box-b", "blocker",
+		"from_agent: c-001@box-a\nReal blocker subject\nDetails", r.base)
+	if got := r.sweep(4 * time.Minute); got.Created != 1 {
+		t.Fatalf("relayed blocker: created %d, want 1", got.Created)
+	}
+	for _, i := range r.blockerIssues(t, r.tid) {
+		if strings.Contains(i.Description, "(/m/"+id+")") {
+			return id, i
+		}
+	}
+	t.Fatalf("no issue links blocker %s", id)
+	return "", store.Issue{}
+}
+
+func (r *blockerRig) issueStatus(t *testing.T, number int) string {
+	t.Helper()
+	for _, i := range r.blockerIssues(t, r.tid) {
+		if i.Number == number {
+			return i.Status
+		}
+	}
+	t.Fatalf("issue %d not found", number)
+	return ""
+}
+
+func TestBlockerRelayedTitleAndAuthor(t *testing.T) {
+	r := fromAgentRig(t)
+	_, i := r.relayedBlocker(t, uid.New())
+	if i.Title != "Real blocker subject" || i.CreatedBy != "c-001" || i.Assignee != r.agent {
+		t.Fatalf("relayed blocker issue: title %q created_by %q assignee %q", i.Title, i.CreatedBy, i.Assignee)
+	}
+	if strings.Contains(i.Description, "from_agent:") || !strings.Contains(i.Description, "Unanswered blocker from c-001 ") {
+		t.Fatalf("relayed blocker description: %q", i.Description)
+	}
+}
+
+func TestBlockerRelayedSelfSendMakesNoIssue(t *testing.T) {
+	r := fromAgentRig(t)
+	r.relay(t, uid.New(), "c-003@box-a", "c-001@box-b", "blocker", "from_agent: c-001@box-a\nWATCHDOG: x", r.base)
+	if got := r.sweep(4 * time.Minute); got.Created != 0 {
+		t.Fatalf("c-001 to c-001 through proxy c-003: created %d, want 0", got.Created)
+	}
+}
+
+func TestBlockerRelayedAnswerFromAssigneeBoxResolves(t *testing.T) {
+	r := fromAgentRig(t)
+	task := uid.New()
+	_, i := r.relayedBlocker(t, task)
+	r.relay(t, task, "c-087@box-b", "c-001@box-a", "result", "from_agent: "+r.agent+"@box-b\ndone", r.base.Add(6*time.Minute))
+	if got := r.sweep(7 * time.Minute); got.Resolved != 1 || r.issueStatus(t, i.Number) != store.IssueDone {
+		t.Fatalf("relayed answer by %s@box-b: resolved %d", r.agent, got.Resolved)
+	}
+}
+
+// The three false matches of RCA section 2.3 mechanism C: none resolves.
+func TestBlockerFalseMatchesDoNotResolve(t *testing.T) {
+	cases := map[string]func(r *blockerRig, task, blocker string){
+		"another agent relayed under a proxy id equal to the assignee": func(r *blockerRig, task, _ string) {
+			r.relay(t, task, r.agent+"@box-b", "c-001@box-a", "note", "from_agent: c-087@box-b\nnot an answer", r.base.Add(6*time.Minute))
+		},
+		"the same bare id on the other box": func(r *blockerRig, task, _ string) {
+			r.relay(t, task, r.agent+"@box-a", "c-001@box-a", "note", "status card", r.base.Add(6*time.Minute))
+		},
+		"an unrelated post by the assignee in a shared topic": func(r *blockerRig, task, _ string) {
+			newer := r.relay(t, task, "c-003@box-a", r.agent+"@box-b", "blocker", "from_agent: c-001@box-a\nthe next alarm", r.base.Add(5*time.Minute))
+			r.relay(t, task, r.agent+"@box-b", "c-001@box-a", "note", "re "+newer[:8]+": handled", r.base.Add(6*time.Minute))
+		},
+	}
+	for name, answer := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := fromAgentRig(t)
+			task := uid.New()
+			id, i := r.relayedBlocker(t, task)
+			answer(r, task, id)
+			r.sweep(7 * time.Minute)
+			if s := r.issueStatus(t, i.Number); s != store.IssueTodo {
+				t.Fatalf("issue %s after a non-answer, want todo", s)
+			}
+		})
+	}
+}
+
+// A shared topic: the answer that references the blocker resolves it.
+func TestBlockerSharedTopicReferenceResolves(t *testing.T) {
+	r := fromAgentRig(t)
+	task := uid.New()
+	id, i := r.relayedBlocker(t, task)
+	r.relay(t, task, "c-003@box-a", r.agent+"@box-b", "blocker", "from_agent: c-001@box-a\nthe next alarm", r.base.Add(5*time.Minute))
+	r.relay(t, task, r.agent+"@box-b", "c-001@box-a", "note", "re BLOCKER "+id[:8]+": done", r.base.Add(6*time.Minute))
+	if r.sweep(7 * time.Minute); r.issueStatus(t, i.Number) != store.IssueDone {
+		t.Fatalf("an answer naming %s in a shared topic did not resolve its issue", id[:8])
+	}
+}
+
+// Role rotation: the role id answers from its new box with a reference.
+func TestBlockerRotatedRoleAnswerWithReferenceResolves(t *testing.T) {
+	r := fromAgentRig(t)
+	task := uid.New()
+	id, i := r.relayedBlocker(t, task)
+	r.relay(t, task, r.agent+"@box-a", "c-001@box-a", "note", "re "+id[:8]+": go", r.base.Add(6*time.Minute))
+	if got := r.sweep(7 * time.Minute); got.Resolved != 1 || r.issueStatus(t, i.Number) != store.IssueDone {
+		t.Fatalf("rotated role answering %s from box-a: resolved %d", id[:8], got.Resolved)
+	}
+}
+
+// C1.2: an answer after the 24 h window still resolves, on a long tick.
+func TestBlockerAnswerAfterADayResolvesOnLongTick(t *testing.T) {
+	r := fromAgentRig(t)
+	task := uid.New()
+	_, i := r.relayedBlocker(t, task)
+	r.relay(t, task, r.agent+"@box-b", "c-001@box-a", "result", "late, but here", r.base.Add(30*time.Hour))
+	r.clock.set(r.base.Add(31 * time.Hour))
+	if got := r.e.srv.SweepBlockerIssues(context.Background(), time.Hour); got.Resolved != 0 {
+		t.Fatalf("a short tick resolved %d: it reads one hour only", got.Resolved)
+	}
+	if got := r.e.srv.SweepBlockerIssues(context.Background(), 24*time.Hour); got.Resolved != 1 || r.issueStatus(t, i.Number) != store.IssueDone {
+		t.Fatalf("long tick 31 h on: resolved %d, want 1", got.Resolved)
+	}
+	if got := r.e.srv.SweepBlockerIssues(context.Background(), 24*time.Hour); got.Resolved != 0 {
+		t.Fatalf("a second long tick resolved %d again", got.Resolved)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -34,8 +35,12 @@ import (
 //     @mention, a member HUM-n or a roster agent, never its author) is one
 //     assignee. The workspace setting blocker.issue_after_minutes is N
 //     (default 3, 0 = off).
-//   - Answer: any post by that assignee in the blocker's topic after it (a
+//   - Answer: a post by that assignee in the blocker's topic after it (a
 //     reaction is not an answer; a reply by someone else is not theirs).
+//     The author is the real one: a relayed row's from_agent line, not its
+//     proxy; an agent answers from the box it was asked on, or from another
+//     box with a reference to the blocker; in a topic with another blocker
+//     the answer must reference this one (store.AnswerQuery, RCA 8c64225e).
 //   - N minutes without one: ONE issue per (blocker, assignee), status todo,
 //     label blocker, reporter = the blocker's author, its body linking back to
 //     the message. Its topic id is BlockerIssueTask, so issues' UNIQUE
@@ -43,7 +48,9 @@ import (
 //   - Every such issue goes under the workspace's blocker epic (SPL-2409,
 //     blocker_issue_epic.go): owner rule "no issue without an epic".
 //   - The assignee answers after that: the issue resolves (done) and the
-//     answer is quoted as its resolving comment.
+//     answer is quoted as its resolving comment. The window above reads a
+//     blocker for a day at most, so every long tick also re-checks the open
+//     todo blocker issues older than that (blockerOpenPass).
 //   - Resolving the issue clears the blocker mark on the message (kind back to
 //     what it was before blocker, else note); clearing the mark resolves every
 //     open issue made from that message.
@@ -141,6 +148,9 @@ func (s *Server) SweepBlockerIssues(ctx context.Context, lookback time.Duration)
 				res.Resolved += r
 			}
 		}
+		if lookback >= blockerLongLookback {
+			res.Resolved += s.blockerOpenPass(ctx, bi, tenant, due.Add(-lookback))
+		}
 	}
 	if res.Created+res.Resolved > 0 {
 		s.o.Log.Info().Int("created", res.Created).Int("resolved", res.Resolved).Msg("blocker issues")
@@ -157,7 +167,7 @@ func (s *Server) blockerStep(ctx context.Context, bi store.BlockerIssues, tenant
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("msg_id", p.MsgID).Msg("blocker issues: issue lookup")
 		return 0, 0
 	}
-	reply, answered, rerr := bi.FirstPostAfter(ctx, tenant, p.TaskID, a, p.ReceivedAt)
+	reply, answered, rerr := bi.BlockerAnswer(ctx, tenant, answerQuery(p, a))
 	if rerr != nil {
 		s.o.Log.Error().Err(rerr).Str("tenant", tenant).Str("msg_id", p.MsgID).Msg("blocker issues: answer lookup")
 		return 0, 0
@@ -175,13 +185,63 @@ func (s *Server) blockerStep(ctx context.Context, bi store.BlockerIssues, tenant
 			return 1, 0
 		}
 	case answered && ref.Status != "" && !issueResolved(ref.Status):
-		if s.blockerResolve(ctx, tenant, ref.Number, task, bareAgentID(a),
-			fmt.Sprintf("Resolved by the answer of @%s in the discussion:\n\n%s\n\n[Open the answer](/m/%s)",
-				bareAgentID(a), blockerQuote(reply.Body), reply.MsgID), "answer:"+reply.MsgID) {
+		if s.blockerAnswerResolve(ctx, tenant, ref.Number, task, a, reply) {
 			return 0, 1
 		}
 	}
 	return 0, 0
+}
+
+// answerQuery is who answers blocker p for assignee a, from where.
+func answerQuery(p store.BlockerPost, a string) store.AnswerQuery {
+	return store.AnswerQuery{Task: p.TaskID, ID: a, Box: p.AssigneeBox(a), Ref: p.MsgID, At: p.ReceivedAt}
+}
+
+// blockerAnswerResolve resolves issue number with a's answer as its comment.
+func (s *Server) blockerAnswerResolve(ctx context.Context, tenant string, number int, task, a string, reply store.TopicPost) bool {
+	return s.blockerResolve(ctx, tenant, number, task, bareAgentID(a),
+		fmt.Sprintf("Resolved by the answer of @%s in the discussion:\n\n%s\n\n[Open the answer](/m/%s)",
+			bareAgentID(a), blockerQuote(reply.Body), reply.MsgID), "answer:"+reply.MsgID)
+}
+
+// blockerOpenPass is the long tick's re-check of the open todo blocker
+// issues whose message fell due before since, which the window no longer
+// reads (RCA 8c64225e C1.2): before it, an answer after a day never resolved
+// its issue. Each answer lookup is one read of messages_task_received.
+func (s *Server) blockerOpenPass(ctx context.Context, bi store.BlockerIssues, tenant string, since time.Time) int {
+	is, ie := s.issueStore()
+	if ie != nil {
+		return 0
+	}
+	all, err := is.ListIssues(ctx, tenant)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("blocker issues: open issues")
+		return 0
+	}
+	resolved := 0
+	for _, i := range all {
+		sm := blockerLinkRe.FindStringSubmatch(i.Description)
+		if i.Status != store.IssueTodo || !contains(i.Labels, store.BlockerIssueLabel) || sm == nil {
+			continue
+		}
+		m, err := s.o.Store.GetEditable(ctx, tenant, sm[1], s.o.Now())
+		if err != nil || m.Kind != blockerKind || !m.ReceivedAt.Before(since) {
+			continue
+		}
+		a, ok := madeFor(tenant, m, i.TaskID)
+		if !ok {
+			continue
+		}
+		reply, answered, err := bi.BlockerAnswer(ctx, tenant, answerQuery(blockerPostOf(m), a))
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Str("msg_id", m.MsgID).Msg("blocker issues: answer lookup")
+			continue
+		}
+		if answered && s.blockerAnswerResolve(ctx, tenant, i.Number, i.TaskID, a, reply) {
+			resolved++
+		}
+	}
+	return resolved
 }
 
 // blockerCreate makes the issue; false when the assignee is nobody this
@@ -254,7 +314,7 @@ func (s *Server) resolveBlockerIssues(ctx context.Context, tenant string, m stor
 	if !ok {
 		return
 	}
-	for _, a := range blockerPostOf(m).Assignees() {
+	for _, a := range blockerAssignees(m) {
 		task := store.BlockerIssueTask(tenant, m.MsgID, a)
 		ref, err := bi.IssueByTask(ctx, tenant, task)
 		if err != nil || ref.Status == "" || issueResolved(ref.Status) {
@@ -297,12 +357,34 @@ func (s *Server) clearBlockerMark(ctx context.Context, tenant, actor string, i s
 // madeFrom: issue topic task is one BlockerIssueTask of m. The link in the
 // body is text anyone may edit; the derived id is the proof.
 func madeFrom(tenant string, m store.EditableMessage, task string) bool {
-	for _, a := range blockerPostOf(m).Assignees() {
+	_, ok := madeFor(tenant, m, task)
+	return ok
+}
+
+// madeFor is the assignee whose BlockerIssueTask of m is task.
+func madeFor(tenant string, m store.EditableMessage, task string) (string, bool) {
+	for _, a := range blockerAssignees(m) {
 		if store.BlockerIssueTask(tenant, m.MsgID, a) == task {
-			return true
+			return a, true
 		}
 	}
-	return false
+	return "", false
+}
+
+// blockerAssignees is who m tags, read from its real sender, and also from
+// the row as stored: an issue made before the hub read the from_agent line
+// (a self-blocker through a proxy) still links to its message, so clearing
+// the mark or resolving it still reaches the other.
+func blockerAssignees(m store.EditableMessage) []string {
+	out := blockerPostOf(m).Assignees()
+	raw := store.BlockerPost{MsgID: m.MsgID, TaskID: m.TaskID, Channel: m.Channel, FromBox: m.FromBox,
+		FromID: m.FromID, ToBox: m.ToBox, ToID: m.ToID, Body: m.Body, ReceivedAt: m.ReceivedAt}
+	for _, a := range raw.Assignees() {
+		if !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // kindBeforeBlocker is the kind the message had before its latest change to
@@ -317,9 +399,10 @@ func (s *Server) kindBeforeBlocker(ctx context.Context, tenant, msgID string) st
 	return "note"
 }
 
+// blockerPostOf is m as the sweep reads it: its real sender (RealSender).
 func blockerPostOf(m store.EditableMessage) store.BlockerPost {
-	return store.BlockerPost{MsgID: m.MsgID, TaskID: m.TaskID, Channel: m.Channel, FromID: m.FromID,
-		ToID: m.ToID, Body: m.Body, ReceivedAt: m.ReceivedAt}
+	return store.BlockerPost{MsgID: m.MsgID, TaskID: m.TaskID, Channel: m.Channel, FromBox: m.FromBox,
+		FromID: m.FromID, ToBox: m.ToBox, ToID: m.ToID, Body: m.Body, ReceivedAt: m.ReceivedAt}.RealSender()
 }
 
 // issueResolved: done or discarded.

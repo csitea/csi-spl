@@ -52,7 +52,7 @@ RCA's list):
   `spl-workspace-delivery-probe.func.sh`, `spl-archived-seats-free.func.sh`,
   `spl-hub-member-access-schedule-check.func.sh`: each asks a person or a
   seat to act on one case; whether it is an alarm is a separate decision.
-- `box-link-watch.py:427` (`scripts/`, SPL-4816): the "LINK STUCK" alert,
+- `box-link-watch.py:458` (`scripts/`, SPL-4816): the "LINK STUCK" alert,
   one per box incident, to the seat of the topic that owns the box (else
   `GW_FALLBACK`); its clear goes as a note.
 - `spl-reply-count-probe.func.sh:115` (SPL-1008 live seed): the probe

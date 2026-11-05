@@ -30,7 +30,7 @@ Order matters: T002a lands BEFORE the migration's first grant row can exist
 in any env; the migration itself may land first (it opens nothing without a
 grant).
 
-- [ ] **T002a**: the store's own-workspace reads name the tenant explicitly
+- [x] **T002a**: the store's own-workspace reads name the tenant explicitly
   (c-714 #3, c-715 #4). Today they scope by RLS alone, so `share_read` would
   mix shared documents into the receiver's own list and search (spec P10,
   control C10). In `csi-spl-api/src/go/spool-hub-api/internal/store/`:
@@ -46,6 +46,12 @@ grant).
   - Done: a store test on testkit Postgres seeds one accepted grant to the
     session's tenant and asserts `DocList` and `DocSearch` are unchanged;
     `bash csi-spl-api/src/bash/tests/run-all-tests.sh` green.
+  - Landed: the two filters came with the system tenant (aa99db74a,
+    SPL-1746); the `TenantID` labels and the test
+    `TestWorkspaceDocOwnReadsShareGrant` (a planted `share_read`-shaped
+    policy with one accepted grant, T002's DDL not being on the tree) in
+    dea27734d (SPL-4846). Red control: either filter replaced by
+    `$4::text IS NOT NULL` and the shared doc or item shows up.
 - [ ] **T002**: data model. Migration 0159 (or the next free number) from
   `bench/share-grant.sql`; `spool-hub-roles/runtime-grants.sql` gains
   `REVOKE DELETE ON workspace_doc_share FROM :"runtime_role";` (its default

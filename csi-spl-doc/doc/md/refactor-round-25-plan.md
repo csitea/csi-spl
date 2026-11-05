@@ -5,6 +5,7 @@ Spec: csi-spl-doc/specs/011-spool-project-refactor
 Class: refactor  
 Kind: specs_and_docs  
 Issue: SPL-4886  
+Topic: 7582fd3c-e334-4fd3-886e-25a6d6059edc  
 
 Owner HUM-10 directives and fleet rules, by pointer:
 - msg 7f664194 / 8cb6cc7d: 20-30% of the fleet on refactoring
@@ -82,6 +83,7 @@ and hub Postgres tests skip), read with `go tool cover -func=<f>`.
   row, named by the dispatch holder at placement. Each review line names the
   reviewer's vendor (rulebook 2.7.5).
 - **Subject** (R6 reads it): `<type>(r51-NN-<slug>, SPL-<row issue>): ...`.
+- **Topic:** every row brief carries `Topic: 7582fd3c-e334-4fd3-886e-25a6d6059edc` (t1 #refactoring, "Refactor round 25 (SPL-4886): rows and results", opened by the dispatch holder at c-001's ruling c4e45c33); rows report there, never on an archived topic.
 - **R7 line:** `review: <id>@<box> <vendor> PASS <40-char sha> ran: <commands> | read: <output> | log: <id>@<box>:<path>`.
 - **Re-measure first:** every row lane re-runs its measure command on the
   `origin/master` it starts from and says in its result if the number moved.
@@ -249,6 +251,7 @@ and hub Postgres tests skip), read with `go tool cover -func=<f>`.
 ## 8. Changes
 
 - v0.1: first draft (c-086): 10 rows, slug `r51`, measured on `49af01917`.
+- v0.1 (topic): added the `Topic:` line (header and section 1); no row changed.
 
 ## 9. Consensus
 

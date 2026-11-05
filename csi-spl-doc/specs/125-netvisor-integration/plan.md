@@ -55,8 +55,13 @@ parallel with phase 1; they SHIP to the owner in this order.
    account(s) (spec 4.3, accountant Q4) as a setting: the main-box file or
    a `netvisor_settings` column; no row stores them today (`0255` holds the
    bank, VAT and tax accounts only).
-2. `netvisor_cost_recorded_in(tenant, vendor_key, month, amount, currency)
-   RETURNS text`, `SECURITY DEFINER`, owned by a `NOLOGIN NOBYPASSRLS`
+2. `netvisor_cost_recorded_in(tenant, spec123_key, billed, month,
+   net_amount, currency, tolerance) RETURNS text`: the store ingest reads
+   `vendor_map` and `dedup_tolerance` in the ingest scope (it already reads
+   `netvisor_settings` there, `internal/store/netvisor_postgres.go:135`),
+   resolves the Netvisor vendor to its map entry, and passes the mapped
+   spec-123 key, its billing mode and the tolerance. An unmapped vendor is
+   never passed (no call, no label). `SECURITY DEFINER`, owned by a `NOLOGIN NOBYPASSRLS`
    role (the rdb `0168` / `0143` precedent: the migrator is a member `WITH
    INHERIT FALSE, SET TRUE`). That role holds column `SELECT` on the match
    columns and its own `SELECT` policy `TO` that role on `cost_lines`
@@ -64,13 +69,15 @@ parallel with phase 1; they SHIP to the owner in this order.
    Not the migration role: `FORCE ROW LEVEL SECURITY` binds the table owner
    (`0014`), and the ingest transaction carries `app.tenant_id = csitea`
    and `app.rls_scope = netvisor_ingest`
-   (`internal/store/netvisor_postgres.go:23`, `pgScopeNetvisorIngest`), so the owner would read
-   only `csitea` rows and never return `spool-hub`. `search_path` pinned;
+   (`internal/store/netvisor_postgres.go:23`, `pgScopeNetvisorIngest`), so
+   the owner would read only `csitea` rows and never return `spool-hub`. `search_path` pinned;
    it refuses (`42501`) unless `app.rls_scope = 'netvisor_ingest'` and
-   the function's `tenant` argument equals `app.tenant_id` and has a
-   `netvisor_settings` row (its role holds column `SELECT (tenant_id)` on
-   `netvisor_settings`, whose rows pass under the ingest scope, rdb
-   `0260`); `EXECUTE` is revoked from
+   the function's `tenant` argument equals `app.tenant_id`. The function
+   never reads `netvisor_settings` and its role holds no grant on it (a
+   read there would also run rdb `0260` `member_read`'s
+   `netvisor_person_seat()`, which reads `tenant_memberships`, `humans` and
+   `tenant_member_roles`): the `netvisor_settings` row test stays in the
+   store ingest, which already ran it at `:135`; `EXECUTE` is revoked from
    `PUBLIC` and granted to the runtime login in
    `csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql`; it
    returns only the label (`csitea`, `spool-hub`, `check:csitea`,
@@ -85,7 +92,7 @@ parallel with phase 1; they SHIP to the owner in this order.
    lines in the owner's scope. The forecast is not touched (a payment is
    still a payment).
 4. WUI: the "already in Costs (`<workspace>`)" and "check: vendor also in
-   Costs" marks; i18n keys reviewed by `agy`.
+   Costs (`<workspace>`)" marks; i18n keys reviewed by `agy`.
 
 ### 3.2 B11, Qto `persons` mode (D3, spec 5.3)
 

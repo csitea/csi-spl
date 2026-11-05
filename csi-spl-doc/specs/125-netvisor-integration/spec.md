@@ -290,7 +290,7 @@ booked voucher date so the user knows the cutoff.
      | `csitea` | `cost_lines` (`0166`) | `tenant_id = 'csitea'`, live (`superseded_by IS NULL`) | the B3b function's own role (policy `TO` that role) |
      | `spool-hub` | `cost_lines` (`0166`) | `tenant_id = 't1'`, and the estate rows `tenant_id IS NULL` (GCP projects, fleet tokens), live | the B3b function's own role (policy `TO` that role) |
      | `spool-hub` | `cost_entries` (`0245`) | `type` `cloud` or `hr`, the month `period` | the B3b function's own role (policy `TO` that role) |
-     | `spool-hub` | `fleet_token_paid_items` (`0205`) | AI vendor subscriptions and top-ups whose `period_start..period_end` covers the month | the B3b function's own role (policy `TO` that role) |
+     | `spool-hub` | `fleet_token_paid_items` (`0205`) | AI vendor subscriptions and top-ups whose `period_start` falls in the compared month (an invoice is matched in the month it is charged, not spread) | the B3b function's own role (policy `TO` that role) |
 
    - **The check (row B3b, [tasks.md](tasks.md) T5)**: the store ingest
      runs it, for each Netvisor card or purchase cost line, through one
@@ -302,13 +302,14 @@ booked voucher date so the user knows the cutoff.
      under the `csitea` tenant scope, so the owner could never see a
      `spool-hub` row. It refuses (`42501`) unless the statement carries
      `app.rls_scope = 'netvisor_ingest'` and its `tenant` argument equals
-     `app.tenant_id` and has a `netvisor_settings` row (its role holds
-     column `SELECT (tenant_id)` on `netvisor_settings`, whose rows pass
-     under the ingest scope, rdb `0260`), and only the runtime login may
-     execute it, never `PUBLIC`. The store ingest calls it once per line
-     while the transaction still carries the ingest scope, before it
-     switches to the owner's scope to write the lines
-     ([plan.md](plan.md) 3.1). A line matches a spec-123 record
+     `app.tenant_id`, and only the runtime login may execute it, never
+     `PUBLIC`. It never reads `netvisor_settings`: the store ingest, which
+     already reads that row in the ingest scope, resolves the line's vendor
+     through the vendor map and passes the mapped spec-123 key, its billing
+     mode and the tolerance as arguments (an unmapped vendor gets no call).
+     The store ingest calls it once per line while the transaction still
+     carries the ingest scope, before it switches to the owner's scope to
+     write the lines ([plan.md](plan.md) 3.1). A line matches a spec-123 record
      when all three agree: (a) the vendor, through a vendor map in
      `netvisor_settings` (a Netvisor vendor or merchant text -> a spec-123
      `project_or_vendor` / `vendor` / `label`; a vendor with no map entry

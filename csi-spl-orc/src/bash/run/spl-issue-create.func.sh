@@ -94,8 +94,10 @@ spl_issue_owner_go_shape() {
 
 # spl_issue_owner_go: ISSUE_OWNER_GO (SPL-4443, shape checked above): the
 # description's first line is, or becomes, `Owner order: <uuid>`; with
-# DRY_RUN=0 the message is read through the desk (spl_issue_owner_go_from)
-# and must come from a HUM-<n>. One log line names the uuid, pass or refusal.
+# DRY_RUN=0 the message is read through the desk (spl_issue_owner_go_from),
+# must come from a HUM-<n>, and only then is its messages row read
+# (spl_issue_owner_go_copy): a non-human sender costs no DB read. One log line
+# names the uuid, pass or refusal.
 spl_issue_owner_go() {
   local go="$ISSUE_OWNER_GO" no="FATAL refused, nothing filed: ISSUE_OWNER_GO" first from
   if [[ -n "${ISSUE_DESCRIPTION+x}" || -z "${ISSUE_DESCRIPTION_FILE:-}" ]]; then
@@ -112,6 +114,7 @@ spl_issue_owner_go() {
   from="$(spl_issue_owner_go_from "$go")" || return 1
   [[ "$from" =~ ^HUM-[0-9]+$ ]] ||
     { do_log "$no $go is from '$from', not a human member (HUM-<n>)"; return 1; }
+  spl_issue_owner_go_copy "$go" "${TENANT_ID:-}" || return 1
   [[ "$first" == "Owner order: $go" ]] || spl_issue_owner_go_line "$go" || return 1
   do_log "INFO owner go $go from $from in $TENANT_ID: the git-spec check is skipped (SPL-4443), the epic $ISSUE_EPIC stays"
 }
@@ -134,8 +137,7 @@ spl_issue_owner_go_line() {
 # of TENANT_ID (`spool hub-tail --task <topic> --json`; the hub scopes the
 # read to the desk's tenant) in each discussion the issue links:
 # ISSUE_DISCUSSIONS and the /t/<id> links of the description. Not found: one
-# FATAL line naming the topics read. Found: it must be no copy
-# (spl_issue_owner_go_copy).
+# FATAL line naming the topics read.
 spl_issue_owner_go_from() {
   local go="$1" tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" d t tail from topics=()
   spl_desk_issue_once >&2 || return 1
@@ -151,7 +153,6 @@ for l in sys.stdin:
     except ValueError: continue
     if isinstance(m, dict) and m.get("msg_id") == sys.argv[1]: print(m.get("from") or "-"); break' "$go")"
     [[ -n "$from" ]] || continue
-    spl_issue_owner_go_copy "$go" "$tenant" || return 1
     printf '%s\n' "$from"; return 0
   done
   do_log "FATAL refused, nothing filed: ISSUE_OWNER_GO $go is not a message of the linked discussions (${topics[*]:-none}) in $tenant" >&2

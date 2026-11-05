@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.24 (2026-11-05). Status: **Draft** (part built: section 8.4's hub
+Version: v0.25 (2026-11-05). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -104,6 +104,9 @@ rulings a135a721 and 44111546): P7 proves the objects of 5.3 in the buckets
 themselves, and dates each kept copy (5.6) as P4's `done_at` plus the days
 the shell passes in P7's detail `retention_days`; with no value a row says
 `not read: <reason>`. The shell half is a follow-up row (8.4).
+v0.25 states row T11b's precondition (SPL-4871, R7 c-614 N1 and N2 on
+SPL-4838): the copy check reads the env's hub database, and runs only
+after the HUM-<n> sender check.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -649,7 +652,7 @@ Each row is one small task; files named are where it lands.
 | T9c | The shell plan path does W2's F14 half, which the hub cannot read (T4b checks only `channel_subscriptions` and channel-scope `dedicated_agents`): it reads the channel's row in this box's `channel-rules.tsv` through `channel-rules.inc.sh` and refuses when that desk agent has no `<DST>` desk on this box, naming it and the box. No row is no refusal; a copy checks nothing (no seat moves, section 7); a row of another env is said, not checked. Read-only: P5 rewrites the file, not `plan`. A box reads only its own file, and `plan` prints which box and file it read. The other box is covered by the operator, not by this row: run `plan` on every box that works the channel, and `plan` names the boxes of the hub's seats other than its own; nothing makes `MOVE_CMD=run` wait for that; tests C25, C26 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | built (SPL-4404, ticked by SPL-4771): `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
-| T11b | `spl_issue_owner_go_from` refuses a copy and a reply that does not say whether it is one; `hub-tail` does not return `copied_from` today. Control: remove the check -> the test goes red. c-001 writes its brief after T11 lands; no prd copy until T11b lands | built (SPL-4838): `spl_issue_owner_go_copy` in `orc/run/spl-issue-create.func.sh` reads the go's messages row through `spl_lane_issue_hub_row` (as the env's service account, in the desk's tenant) once `hub-tail` found it in a linked discussion; a copy, a row that does not say and a failed read are refused; the T11b cases of `orc/tests/desk-actions.tst.sh` |
+| T11b | `spl_issue_owner_go_from` refuses a copy and a reply that does not say whether it is one; `hub-tail` does not return `copied_from` today. Control: remove the check -> the test goes red. c-001 writes its brief after T11 lands; no prd copy until T11b lands | built (SPL-4838): `spl_issue_owner_go_copy` in `orc/run/spl-issue-create.func.sh` reads the go's messages row through `spl_lane_issue_hub_row` (as the env's service account, in the desk's tenant) once `hub-tail` found it in a linked discussion and its sender is a HUM-<n>; a copy, a row that does not say and a failed read are refused; the T11b cases of `orc/tests/desk-actions.tst.sh`. The check needs a database read: with `DRY_RUN=0`, once `hub-tail` found the go and its sender is a HUM-<n> (a non-human sender is refused first and reads nothing), `do_spl_db_message_show` reads its `messages` row in the `ENV` hub's Postgres. So `ENV` is `dev` or `prd` (`ENV=self` has no cnf and no database: the read is refused, so is the go), and the box needs gcloud, psql, python3 and jq on PATH, the env's service-account key `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (or `SPL_SA_KEY`) that can read the hub DSN secret, and the Cloud SQL Auth Proxy (`cloud-sql-proxy` on PATH, else docker with the cnf proxy image). Any of them missing: the read fails and nothing is filed (SPL-4871) |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
 | T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 on the seeded 3,650-post channel against the box's 30 s client cap (`curl -m 30`, `spl_hub_operator_call`; the hub's Cloud Run request timeout is 600 s); over 30 s means a bug row before the first prd move; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 

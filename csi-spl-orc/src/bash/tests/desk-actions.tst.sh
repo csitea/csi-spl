@@ -795,14 +795,14 @@ printf '%s\n' '{"v":1,"msg_id":"'"$GO_TOPIC"'","task_id":"'"$GO_TOPIC"'","from":
 # Spec 169 T11b: hub-tail carries no copy marker, so the go's messages row is
 # read too (spl_lane_issue_hub_row -> do_spl_db_message_show, the stub below:
 # $FAKE_ROW_DIR/<msg id>, no file = exit 2, "fail" = exit 1).
-GO_CPY=c0c0c0c0-1111-4222-8333-444455556666 GO_NOM=d0d0d0d0-1111-4222-8333-444455556666 GO_ERR=e0e0e0e0-1111-4222-8333-444455556666
+GO_COPY=c0c0c0c0-1111-4222-8333-444455556666 GO_NOM=d0d0d0d0-1111-4222-8333-444455556666 GO_ERR=e0e0e0e0-1111-4222-8333-444455556666
 mkdir -p "$T/rows"
-for m in "$GO_CPY" "$GO_NOM" "$GO_ERR"; do
+for m in "$GO_COPY" "$GO_NOM" "$GO_ERR"; do
   printf '%s\n' '{"v":1,"msg_id":"'"$m"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"file it"}' >>"$T/tails/$GO_TOPIC"
 done
 go_row() { printf '{"tenant_id":"csitea","msg_id":"%s","task_id":"%s","from_id":"%s"%s}\n' "$1" "$GO_TOPIC" "$2" "${3-,\"copied_from\":null}" >"$T/rows/$1"; }
 go_row "$GO_HUM" HUM-10; go_row "$GO_AGT" c-001
-go_row "$GO_CPY" HUM-10 ',"copied_from":"'"$GO_HUM"'"'; go_row "$GO_NOM" HUM-10 ''; echo fail >"$T/rows/$GO_ERR"
+go_row "$GO_COPY" HUM-10 ',"copied_from":"'"$GO_HUM"'"'; go_row "$GO_NOM" HUM-10 ''; echo fail >"$T/rows/$GO_ERR"
 GO_DB='do_spl_db_message_show() { echo "db|$ENV|$TENANT_ID|$MSG_ID|" >>"$FAKE_DB_LOG"; [ -r "$FAKE_ROW_DIR/$MSG_ID" ] || return 2
   [ "$(cat "$FAKE_ROW_DIR/$MSG_ID")" != fail ] || return 1; echo "OK noise"; cat "$FAKE_ROW_DIR/$MSG_ID"; }; '
 go_create() { : >"$T/issue.log"; : >"$T/db.log"; SNIPPET="${ISS}${GO_DB}do_spl_issue_create" in_orc FAKE="$T/fakego" FAKE_LOG="$T/issue.log" FAKE_TAIL_DIR="$T/tails" \
@@ -819,14 +819,16 @@ go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=card
   fail "owner go (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
 [[ "$(cat "$T/db.log")" == "db|dev|csitea|$GO_HUM|" ]] && pass "...its messages row is read once, in the desk's env and tenant (T11b)" ||
   fail "owner go row read: $(cat "$T/db.log")"
-go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_CPY" ISSUE_DESCRIPTION=card
-go_refused "T11b a HUM-n go whose row is a spec 169 copy is refused" "ISSUE_OWNER_GO $GO_CPY is a spec 169 copy, nobody's word in csitea"
+go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_COPY" ISSUE_DESCRIPTION=card
+go_refused "T11b a HUM-n go whose row is a spec 169 copy is refused" "ISSUE_OWNER_GO $GO_COPY is a spec 169 copy, nobody's word in csitea"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_NOM" ISSUE_DESCRIPTION=card
 go_refused "T11b a go whose row does not say whether it is a copy is refused" "ISSUE_OWNER_GO $GO_NOM: its messages row in the dev hub (csitea) could not be read or does not say whether it is a copy"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_ERR" ISSUE_DESCRIPTION=card
 go_refused "T11b a row read that fails files nothing" "ISSUE_OWNER_GO $GO_ERR: its messages row in the dev hub (csitea) could not be read"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_AGT" ISSUE_DESCRIPTION=card
 go_refused "the same go from an agent sender is refused" "ISSUE_OWNER_GO $GO_AGT is from 'c-001', not a human member"
+[[ ! -s "$T/db.log" ]] && pass "...before its messages row is read: a non-human sender costs no DB read (SPL-4871)" ||
+  fail "an agent go read the row: $(cat "$T/db.log")"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO=06f343a5 ISSUE_DESCRIPTION=card
 go_refused "an id8 go is refused" "ISSUE_OWNER_GO '06f343a5' is not a full lowercase message uuid"
 [[ ! -s "$T/issue.log" ]] && pass "...before any hub call" || fail "id8 read the hub: $(cat "$T/issue.log")"

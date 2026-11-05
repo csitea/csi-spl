@@ -39,6 +39,12 @@
 #      on the cnf's hub URL as the pinned account; the plan and its retention
 #      lines (C24) through it; a whole move; a non-200 is a refusal with the
 #      code and the answer; no per-env key = FATAL before any call
+#  13. T8c (N5): P7 sends retention_days, in days, per kept copy that ends with a
+#      retention: the bucket copies from the real cnf (lifecycle age + noncurrent
+#      + soft delete), Cloud SQL's backup COUNT as days at one backup a day (the
+#      later of it and the point-in-time logs); a value it cannot read is not
+#      sent and prints "RETENTION <copy>: not read: <why>"; the report prints
+#      each copy's date and .kept_until
 # Every hub op, probe and send is recorded (CONTROL: an absent call means
 # "not made", not "not recorded").
 #------------------------------------------------------------------------------
@@ -62,13 +68,14 @@ cat >"$T/plan.json" <<'EOF'
  "seats":[{"agent":"c-101","box":"box-desk"},{"agent":"c-102","box":"box-desk"}]}
 EOF
 printf '[{"agent":"c-201","topic":"dispatch-11112222","old_key":"SRC-7","new_key":"DST-1"}]\n' >"$T/lanes.json"
-printf '{"settings":{"backupConfiguration":{"enabled":true,"transactionLogRetentionDays":6,"backupRetentionSettings":{"retainedBackups":7,"retentionUnit":"COUNT"}}}}\n' >"$T/sql.json"
+printf '{"settings":{"backupConfiguration":{"enabled":true,"startTime":"01:00","transactionLogRetentionDays":6,"backupRetentionSettings":{"retainedBackups":7,"retentionUnit":"COUNT"}}}}\n' >"$T/sql.json"
 printf '[{"name":"projects/p/locations/global/buckets/_Default","retentionDays":30},{"name":"projects/p/locations/global/buckets/_Required","retentionDays":400}]\n' >"$T/log.json"
 
 # The hub stub: request JSON on stdin, answer JSON on stdout; a journal file.
 cat >"$T/hub" <<'EOF'
 #!/usr/bin/env bash
 req="$(cat)"; op="$(jq -r .op <<<"$req")"; step="$(jq -r '.step // ""' <<<"$req")"
+[ "$op/$step" = step/P7 ] && jq -c .detail <<<"$req" >"$STUB_DIR/p7.detail"
 echo "hub $op${step:+ $step} go=$(jq -r '.go_msg_id // ""' <<<"$req")" >>"$STUB_LOG"
 J="$STUB_DIR/journal.json"
 mark() { jq --arg s "$1" '.steps[$s] = "done"' "$J" >"$J.n" && mv "$J.n" "$J"; }
@@ -82,7 +89,8 @@ case "$op" in
     fi
     [ "$step" = P4 ] && jq --slurpfile l "$STUB_DIR/lanes.json" '.lanes = $l[0]' "$J" >"$J.n" && mv "$J.n" "$J"
     mark "$step"
-    if [ "$step" = P7 ]; then echo '{"ok":true,"proofs":[{"name":"messages","count":0},{"name":"channels","count":0}],"report":["deliveries: 2 expired"],"kept":[{"store":"git history","gone_by":"never"}]}'
+    if [ "$step" = P7 ] && [ -n "${STUB_P7:-}" ]; then echo "$STUB_P7"
+    elif [ "$step" = P7 ]; then echo '{"ok":true,"proofs":[{"name":"messages","count":0},{"name":"channels","count":0}],"report":["deliveries: 2 expired"],"kept":[{"store":"git history","gone_by":"never"}]}'
     elif [ "$step" = P4 ]; then jq -c '{ok:true, move_id, lost:[], new_keys:{}, report:["deliveries: 2 expired"]}' "$J"
     else jq -c '{ok:true, move_id}' "$J"; fi ;;
   mark) mark "$step"; jq -c '{ok:true, move_id}' "$J" ;;
@@ -386,6 +394,55 @@ in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= STU
 in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= GCP_ACCOUNT=; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'no gcloud account' "$T/out" \
   && pass "12. no per-env key: FATAL before any hub call, no owner fallback" || fail "12. no key: rc=$rc $(cat "$T/out" "$T/calls.log")"
+
+# --- 13. T8c P7 sends retention_days and prints the dates -------------------------------
+# The bucket days come from the real prd cnf: 045 30 + 7 soft delete, 046 90 + 30
+# noncurrent + 30 soft delete, 052 30 + 7 noncurrent + 7, 056 30 + 7.
+p7d() { jq -c '.retention_days' "$T/p7.detail" 2>/dev/null; }
+reset_state; rm -f "$RULES" "$T/p7.detail"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}"; rc=$?
+want='{"daily DB dumps":37,"off-project copy of the dumps":150,"Qto daily export":44,"box-state copy":37,"Cloud SQL automated backups":7}'
+[[ $rc -eq 0 && "$(p7d | jq -S .)" == "$(jq -S . <<<"$want")" ]] && [[ "$(grep -c '^hub step P7' "$T/calls.log")" -eq 1 ]] \
+  && pass "13. P7 sends retention_days in days for the five copies it can read" || fail "13. detail: rc=$rc '$(p7d)' $(cat "$T/out")"
+grep -qx 'RETENTION Cloud SQL automated backups: 7 days (7 backups kept, one a day at 01:00; point-in-time logs 6 days)' "$T/out" \
+  && grep -qx 'RETENTION daily DB dumps: 37 days (045 backup_max_age_days + soft delete)' "$T/out" \
+  && grep -q '^RETENTION hub logs: not read: no cnf value names the log bucket' "$T/out" && [[ "$(p7d | jq 'has("hub logs")')" == false ]] \
+  && pass "13. each copy's days and how, hub logs not read and not sent" || fail "13. lines: $(grep RETENTION "$T/out")"
+[[ "$(grep -c -- "^gcloud sql instances describe csi-spl-prd[-a-z]* --project=csi-spl-prd --account=pinned@example.com " "$T/gcloud.log")" -eq 1 ]] \
+  && pass "13. Cloud SQL read once, as the pinned account" || fail "13. gcloud: $(cat "$T/gcloud.log")"
+reset_state; rm -f "$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" STUB_SQL_DENY=1; rc=$?
+[[ $rc -eq 0 && "$(p7d | jq 'has("Cloud SQL automated backups")')" == false && "$(p7d | jq '."daily DB dumps"')" == 37 ]] \
+  && grep -q '^RETENTION Cloud SQL automated backups: not read: ERROR: (gcloud.sql.instances.describe) HTTPError 403' "$T/out" \
+  && pass "13. Cloud SQL unreadable: not sent, said why, the others sent" || fail "13. sql deny: rc=$rc '$(p7d)' $(grep RETENTION "$T/out")"
+for c in 'DAYS|7|01:00|6|unit DAYS' 'COUNT|7||6|no daily backup window' 'COUNT|7.5|01:00|6|no backup count' 'COUNT|0|01:00|6|no backup count'; do
+  IFS='|' read -r u n st l why <<<"$c"
+  j="{\"settings\":{\"backupConfiguration\":{\"enabled\":true,\"startTime\":\"$st\",\"transactionLogRetentionDays\":$l,\"backupRetentionSettings\":{\"retainedBackups\":$n,\"retentionUnit\":\"$u\"}}}}"
+  reset_state; rm -f "$RULES"
+  in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" "STUB_SQL_JSON=$j"; rc=$?
+  [[ $rc -eq 0 && "$(p7d | jq 'has("Cloud SQL automated backups")')" == false ]] && grep -q "^RETENTION Cloud SQL automated backups: not read: .*$why" "$T/out" \
+    && pass "13. Cloud SQL $u $n start '$st': not converted, not sent ($why)" || fail "13. sql $c: rc=$rc '$(p7d)' $(grep RETENTION "$T/out")"
+done
+reset_state; rm -f "$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" 'STUB_SQL_JSON={"settings":{"backupConfiguration":{"enabled":true,"startTime":"01:00","transactionLogRetentionDays":10,"backupRetentionSettings":{"retainedBackups":7,"retentionUnit":"COUNT"}}}}'; rc=$?
+[[ $rc -eq 0 && "$(p7d | jq '."Cloud SQL automated backups"')" == 10 ]] \
+  && pass "13. point-in-time logs kept longer than the backups: their days are sent" || fail "13. logs: rc=$rc '$(p7d)'"
+reset_state; rm -f "$RULES" "$T/p7.detail"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" GCP_ACCOUNT=; rc=$?
+[[ $rc -eq 0 && "$(p7d)" == '{}' && ! -s "$T/gcloud.log" && "$(grep -c '^RETENTION .*: not read: .*no gcloud account' "$T/out")" -eq 6 ]] \
+  && pass "13. no per-env key: nothing sent, all six not read, no gcloud call" || fail "13. no key: rc=$rc '$(p7d)' $(cat "$T/out" "$T/gcloud.log")"
+reset_state; rm -f "$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" MOVE_MODE=copy; rc=$?
+[[ $rc -eq 0 && "$(p7d | jq '."box-state copy"')" == 37 ]] && pass "13. a copy's P7 sends them too" || fail "13. copy: rc=$rc '$(p7d)'"
+P7A='{"ok":true,"proofs":[{"name":"messages","count":0}],"report":[],"kept_until":"not read: no date for hub logs",
+ "kept":[{"store":"daily DB dumps","gone_by":"their retention: 2026-12-12","expires":"2026-12-12"},
+ {"store":"hub logs","gone_by":"the log bucket'"'"'s retention: not read: no retention_days in P7'"'"'s detail","expires":"not read: no retention_days in P7'"'"'s detail"},
+ {"store":"git history","gone_by":"never","expires":"never"}]}'
+reset_state; rm -f "$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" "STUB_P7=$P7A"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'KEPT daily DB dumps until 2026-12-12' "$T/out" && grep -qx "KEPT hub logs until not read: no retention_days in P7's detail" "$T/out" \
+  && grep -qx 'KEPT git history until never' "$T/out" && grep -qx 'KEPT_UNTIL not read: no date for hub logs' "$T/out" \
+  && pass "13. the report prints each copy's date and .kept_until" || fail "13. report: rc=$rc $(grep KEPT "$T/out")"
 
 echo "spl-channel-workspace-move: $fails failure(s)"
 [[ $fails -eq 0 ]]

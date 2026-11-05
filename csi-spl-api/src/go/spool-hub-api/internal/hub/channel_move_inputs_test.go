@@ -152,6 +152,8 @@ func TestChannelMoveBadDetailT7d(t *testing.T) {
 		// T8b: retention_days dates only a kept row that ends with a retention.
 		{"retention_days": map[string]int{"git history": 30}}, {"retention_days": map[string]int{"hub logs": 0}},
 		{"retention_days": map[string]int{"no such row": 30}}, {"retention_days": []int{30}},
+		// T8c (N4): past 100 years, and a day that is not whole.
+		{"retention_days": map[string]int{"hub logs": 36501}}, {"retention_days": map[string]float64{"hub logs": 30.5}},
 	} {
 		code, out := opCall(t, e, src, http.MethodPost, moveURL, "good", chanMoveBody("plan", src, "proj-d", dst, moveDetail(d)))
 		if code != http.StatusBadRequest || out["error"] != "bad_detail" {

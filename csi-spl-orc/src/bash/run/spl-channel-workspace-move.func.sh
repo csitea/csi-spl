@@ -44,7 +44,11 @@
 # @description move_id, go_msg_id, step, detail}; op is plan, journal, step or
 # @description mark), the answer JSON back, any HTTP code but 200 = refused.
 # @description It prints the plan's shared files, P4's and P7's .report and
-# @description P7's .kept; none of them refuses.
+# @description P7's .kept with each copy's date and .kept_until; none of them refuses.
+# @description P7 sends the hub retention_days (row T8c): per kept copy of 5.6 that
+# @description ends with a retention, its days, read from the cnf and as the
+# @description per-env service account; a value it cannot read is not sent and
+# @description prints as "RETENTION <copy>: not read: <reason>".
 # @param ENV - required: dev or prd
 # @param CHANNEL - required: <SRC>/<channel id>, the workspace and channel to move
 # @param TO - required: the <DST> workspace slug
@@ -59,7 +63,7 @@
 # @param CHANNEL_MOVE_STATE (optional) - the box journal dir, default $SPOOL_ROOT/channel-move
 # @param PROBE_AGENT, PROBE_TO, PROBE_MOVE (MOVE_CMD=probe only) - the seat, the recipient <agent id>[@<box>], the move id
 # @param DESK_BOX (optional, MOVE_CMD=probe or plan) - the seat's box id, default this box's desk id
-# @param CWM_GCLOUD_TIMEOUT (optional, MOVE_CMD=plan) - seconds per retention read, default 60
+# @param CWM_GCLOUD_TIMEOUT (optional, MOVE_CMD=plan and P7) - seconds per retention read, default 60
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd CHANNEL=<SRC>/<channel> TO=<DST> ./run -a do_spl_channel_workspace_move
 # @example ENV=prd CHANNEL=<SRC>/<channel> TO=<DST> MOVE_CMD=run ./run -a do_spl_channel_workspace_move
@@ -321,12 +325,13 @@ _spl_cwm_run() {
 }
 
 _spl_cwm_step() {
-  local out
+  local out detail=null
   case "$1" in
     P2b) _spl_cwm_probe_all || return $? ;;
     P5) _spl_cwm_box_p5 || return $? ;;
     *)
-      out="$(_spl_cwm_hub step "$1")" || return 1
+      [[ "$1" != P7 ]] || detail="$(_spl_cwm_p7_detail)" || return 1
+      out="$(_spl_cwm_hub step "$1" "$detail")" || return 1
       [[ "$1" != P1 ]] || CWM_MOVE="$(jq -r '.move_id // empty' <<<"$out")"
       [[ -n "$CWM_MOVE" ]] || { do_log "FATAL P1 returned no move id"; return 1; }
       _spl_cwm_report "$1" "$out"
@@ -335,11 +340,113 @@ _spl_cwm_step() {
   do_log "OK $1 of move $CWM_MOVE done"
 }
 
-# _spl_cwm_report <step> <answer>: P4's and P7's .report lines and P7's .kept
-# list (section 8.4); they only print, a proof is what fails P7.
+# _spl_cwm_report <step> <answer>: P4's and P7's .report lines, P7's .kept
+# list with each copy's date (.expires, T8b: a date or "not read: <why>") and
+# .kept_until, the last of them (section 8.4, T8c); they only print, a proof is
+# what fails P7.
 _spl_cwm_report() {
   jq -r --arg s "$1" '(.report // [] | .[] | "REPORT \($s) \(.)"),
-    (.kept // [] | .[] | "KEPT \(.store) until \(.gone_by // "?")")' <<<"$2"
+    (.kept // [] | .[] | "KEPT \(.store) until \(.expires // .gone_by // "?")"),
+    (.kept_until // empty | "KEPT_UNTIL \(.)")' <<<"$2"
+}
+
+# _spl_cwm_p7_detail (T8c, N5): P7's detail, {"retention_days": {<copy>: <days>}},
+# on stdout. One RETENTION line per kept copy of 5.6 that ends with a retention
+# goes to stderr (stdout is the detail): its days and how they were counted, or
+# "not read: <why>", and that copy is then not sent: the hub dates no copy from
+# a guess. Days count from P4's done_at to the day the last copy made before P4
+# is gone for good, so a bucket's soft delete and a versioned bucket's
+# noncurrent generation count too: a date too late is safe, one too early is a
+# false "gone".
+_spl_cwm_p7_detail() {
+  local rows
+  rows="$(_spl_cwm_retention_days)"
+  awk -F'\t' 'NF { print "RETENTION " $1 ": " ($2 != "" ? $2 " days (" $3 ")" : "not read: " $3) }' <<<"$rows" >&2
+  jq -cRn '[inputs | split("\t") | select(length > 1 and .[1] != "") | {(.[0]): (.[1] | tonumber)}] | add // {}
+    | {retention_days: .}' <<<"$rows"
+}
+
+# _spl_cwm_retention_days: one line per dated copy, <copy> TAB <days> TAB <how>,
+# or <copy> TAB TAB <why not read>. A subshell, as the plan's reads: the cnf's
+# globals and the pin's private CLOUDSDK_CONFIG end here.
+_spl_cwm_retention_days() (
+  local log why c
+  log="$(mktemp)" || log=/dev/null
+  if ! { do_require_bin gcloud yq && do_spl_cloud_cnf && do_gcp_pin_account "$SPL_CNF"; } >"$log" 2>&1; then
+    why="$(_spl_cwm_last_line <"$log")"
+    [[ "$log" == /dev/null ]] || rm -f "$log"
+    for c in "daily DB dumps" "off-project copy of the dumps" "Cloud SQL automated backups" "Qto daily export" "box-state copy" "hub logs"; do
+      printf '%s\t\t%s\n' "$c" "${why:-the cnf or the account did not resolve}"
+    done
+    return 0
+  fi
+  [[ "$log" == /dev/null ]] || rm -f "$log"
+  _spl_cwm_retention_cnf_days
+  _spl_cwm_retention_sql_days
+  # The cnf and the terraform name no log bucket for the hub's lines (T9b
+  # prints every bucket of the project): a guessed bucket is not a date.
+  printf '%s\t\t%s\n' "hub logs" "no cnf value names the log bucket that holds the hub's lines (plan prints every bucket)"
+)
+
+# _spl_cwm_retention_cnf_days: the four bucket copies, from the cnf the
+# terraform steps are rendered from. Per step: its lifecycle Delete age; plus
+# the noncurrent rule's days where the bucket is versioned (the age rule only
+# makes the object noncurrent: 046 noncurrent_max_age_days, 052 the literal 7
+# days of 052-gcs-workspace-docs/03-workspace-docs-buckets.tf, no cnf key);
+# plus the soft delete, rounded up to whole days.
+_spl_cwm_retention_cnf_days() {
+  local q cnf rows
+  q='def n(v): v | if type == "number" and . >= 0 and . == floor then . else null end;
+    def sd(v): n(v) | if . == null then null else ((. + 86399) / 86400 | floor) end;
+    def row(c; parts; how): if (parts | all(. != null)) then [c, (parts | add | tostring), how]
+      else [c, "", "the cnf has no whole number for " + how] end;
+    .env.steps as $s
+    | row("daily DB dumps"; [n($s."045-gcs-db-backups".backup_max_age_days), sd($s."045-gcs-db-backups".soft_delete_retention_seconds)];
+        "045 backup_max_age_days + soft delete"),
+      row("off-project copy of the dumps"; [n($s."046-gcs-offsite-backups".max_age_days), n($s."046-gcs-offsite-backups".noncurrent_max_age_days),
+        sd($s."046-gcs-offsite-backups".soft_delete_retention_seconds)]; "046 max_age_days + noncurrent_max_age_days + soft delete"),
+      row("Qto daily export"; [n($s."052-gcs-workspace-docs".backup_retention_days), 7, sd($s."052-gcs-workspace-docs".soft_delete_retention_seconds)];
+        "052 backup_retention_days + 7 noncurrent + soft delete"),
+      row("box-state copy"; [n($s."056-gcs-box-state".retention_days), sd($s."056-gcs-box-state".soft_delete_retention_seconds)];
+        "056 retention_days + soft delete")
+    | @tsv'
+  if cnf="$(yq -o=json '.' "$SPL_CNF" 2>/dev/null)" && rows="$(jq -r "$q" <<<"$cnf" 2>/dev/null)" && [[ -n "$rows" ]]; then
+    _spl_cwm_days_capped <<<"$rows"
+    return 0
+  fi
+  printf '%s\t\t%s\n' "daily DB dumps" "cannot read $SPL_CNF" "off-project copy of the dumps" "cannot read $SPL_CNF" \
+    "Qto daily export" "cannot read $SPL_CNF" "box-state copy" "cannot read $SPL_CNF"
+}
+
+# _spl_cwm_retention_sql_days: Cloud SQL keeps a COUNT of automated backups
+# (backupRetentionSettings), not days. The schedule is one backup a day, in
+# the window at backupConfiguration.startTime (040's start_time "01:00"), so
+# the last backup made before P4 is the oldest of the count after <count> more
+# days and is gone then: days = the count. The point-in-time logs before P4
+# live transactionLogRetentionDays: the later of the two. Any other unit, no
+# daily window, or backups off: not read.
+_spl_cwm_retention_sql_days() {
+  local line c="Cloud SQL automated backups"
+  if ! _spl_cwm_read gcloud sql instances describe "$SPL_SQL_INSTANCE" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" \
+    --format='json(settings.backupConfiguration)'; then
+    printf '%s\t\t%s\n' "$c" "${CWM_WHY:-gcloud failed}"
+    return 0
+  fi
+  line="$(jq -r --arg c "$c" '.settings.backupConfiguration // {} | . as $b | (.backupRetentionSettings // {}) as $r
+    | ($r.retainedBackups // null) as $n | ($b.transactionLogRetentionDays // 0) as $l
+    | if $b.enabled != true then [$c, "", "automated backups are not on"]
+      elif $r.retentionUnit != "COUNT" or ($n | type) != "number" or $n < 1 or $n != ($n | floor) then
+        [$c, "", "no backup count in the answer (unit \($r.retentionUnit // "none"))"]
+      elif ($b.startTime // "") == "" then [$c, "", "no daily backup window (startTime) in the answer"]
+      else [$c, ([$n, $l] | max | tostring), "\($n) backups kept, one a day at \($b.startTime); point-in-time logs \($l) days"] end
+    | @tsv' <<<"$CWM_READ" 2>/dev/null)"
+  _spl_cwm_days_capped <<<"${line:-$c$'\t\t'no backup retention in the answer}"
+}
+
+# _spl_cwm_days_capped: the hub refuses days outside 1..36500 (bad_detail),
+# so such a value is not read, never clipped.
+_spl_cwm_days_capped() {
+  awk -F'\t' -v OFS='\t' '$2 != "" && ($2 !~ /^[0-9]+$/ || $2 < 1 || $2 > 36500) { $3 = $2 " days is outside 1..36500"; $2 = "" } { print }'
 }
 
 _spl_cwm_proofs() {

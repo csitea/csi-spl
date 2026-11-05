@@ -226,7 +226,8 @@ func (o Objects) deleteOne(ctx context.Context, src, id string, from []loc, to l
 // at its <DST> place, read from the stores themselves; P6's counts prove no
 // absence. A shared object a staying <SRC> row still lists (5.5) stays in
 // <SRC> by design and counts as Known. A store that cannot be read is an
-// error, never a 0.
+// error, never a 0. P7's `left in <SRC>` proof is a move's only; a copy (T11)
+// runs only `missing in <DST>`: a copy keeps every object in <SRC>.
 func (o Objects) Prove(ctx context.Context, src, dst string, set ObjectSet) ([]Proof, error) {
 	files, err := o.prove(ctx, src, dst, ObjectSet{Files: set.Files}, "M4 files bucket")
 	if err != nil {

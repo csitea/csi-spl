@@ -281,7 +281,9 @@ exit 1. Each step done prints `OK <step> of move <move id> done`; the run ends w
 
 P4 and P7 print each line of their `.report` (the deliveries line, section 5.2)
 as `REPORT <step> <line>`, and P7 prints its kept list as `KEPT <store> until
-<what ends it>`; neither refuses. The hub answers more than the action prints:
+<its date, or what ends it>` and `KEPT_UNTIL <the last date>` (section 4.1);
+neither refuses. Before P7 the action prints one `RETENTION <copy>: <n> days
+(<how>)` or `RETENTION <copy>: not read: <reason>` line per copy it dates. The hub answers more than the action prints:
 P4's `.lost` and `.new_keys`, P6's `.counts` and `.kept_objects`. Those step
 counts are in `channel_move_steps` in `<DST>`, readable with `do_spl_db_query`.
 
@@ -354,12 +356,22 @@ Two rows of the table below print no such line: the soft-deleted bucket objects,
 and the hours rows, which the plan lists as stops (section 2.3). P7's answer carries
 the same list in `.kept`, and the action prints it as `KEPT` lines (section 3.4).
 Each row that ends with a retention is dated by P7: P4's `done_at` plus the days in
-P7's detail `retention_days`, as `expires` and at the end of `gone_by`, so the line
-reads `KEPT daily DB dumps until their retention: 2026-12-05`. `.kept_until` is the
-last of those dates (owner, Q3). The shell does not send `retention_days` yet, so
-from this action such a line ends `: not read: no retention_days in P7's detail`
-and `.kept_until` says which rows have no date **[pending: no row owns the shell
-half yet]**. They are kept until they expire on their own (owner, Q3 = A).
+P7's detail `retention_days`, as `expires`, so the line reads
+`KEPT daily DB dumps until 2026-12-12`. `.kept_until` is the last of those dates
+(owner, Q3), printed as `KEPT_UNTIL <date>`. The action sends those days (spec row
+T8c), counted to the day the last copy made before P4 is gone for good:
+
+- the four bucket copies, from the cnf: the lifecycle age, plus the noncurrent
+  days of a versioned bucket (046, 052), plus the soft delete in whole days;
+- Cloud SQL's automated backups: their COUNT read as days at one backup a day
+  (the `startTime` window), or the point-in-time log days when those are longer,
+  read as the per-env service account.
+
+A copy it cannot read is not sent: the hub logs always (no cnf value names their
+bucket), and any value that fails to read. Its `RETENTION` line says why, its
+`KEPT` line ends `not read: no retention_days in P7's detail`, and `KEPT_UNTIL`
+says which rows have no date. They are kept until they expire on their own
+(owner, Q3 = A).
 
 | copy | holds | why it stays | gone by |
 |---|---|---|---|

@@ -331,4 +331,4 @@ How should we clean up the 96 existing open `from_agent:` `todo` issues (and `SP
 | :--- | :--- | :--- | :--- | :--- |
 | **EDITOR** | `a-747` | `v1.0` | `eb575811f87b3cecaffd2f880c9ec7f0db704c31` | Signed `v1.0` |
 | **HUB CODE EXPERT** | `c-754` | `v1.0` | `a1fb58112ac0acdbaea83657fc7d7027c1c3aafb` | Signed `v1.0` (read the full diff from `eb575811f8`: N1 risk note and v1.0 history row; my PASS msg id `0372a3e5` verified) |
-| **REVIEWER** | `c-756` | *(pending)* | *(pending)* | Ready to sign `v1.0` (`PASS` on `eb575811f8`) |
+| **REVIEWER** | `c-756` | `v1.0` | `deb40f555e5c60d1033765164ed09345cf76533d` | Signed `v1.0`: PASS on `eb575811f8` (msg `22aa0a5a`); read the v1.0 diff (N1 in A1 risk, history row, editor and c-754 rows) |

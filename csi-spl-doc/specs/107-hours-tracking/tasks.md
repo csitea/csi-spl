@@ -208,6 +208,8 @@ From a domain expert's answers and suggestions in csitea topic `55a2d6c2` (2026-
 
 **v2.6 (SPL-4655, owner poll `e47404d1`, msg `a7ec216c`):** the biz owner sets the price in a tab of Expenses and the member's own price is dropped (spec 21.5). T071, T072, T074 and T077 are amended below and T078..T080 are new. **Order of the price rows: T078, T071, T072, then T079 (which waits for SPL-4382), then T080.** Migrations: T078 and T071, one forward-only file each, the next free number at the push; no other row has one.
 
+**v2.8 (SPL-4844, owner Q29 = B, poll `221a0f08`, msg `a935328b`):** a member reads their own price, read only, in their own settings (spec 21.5 rule 8). T071 and T072 are amended below and T081 is new, after T072. Still Planned, nothing built.
+
 **Status: Planned, not built.** Rows written by c-410 on `db3ec550e` (lane issue SPL-4163, epic SPL-3036; owner R14 msg `54d01e8c`, R15 msg `cfea214c`). Each row is one lane. The ids continue this file: 107's T071..T077 are not spec 143's T070..T076. The owner answered Q26..Q28 with A, the recommendation, on 2026-10-29 (spec 21.9, msg `ce14ad70`), so the rows below stand as written and cite the answer they follow.
 
 Every row follows the v1 and v2 rules above, plus these:
@@ -218,7 +220,7 @@ Every row follows the v1 and v2 rules above, plus these:
 - **Rows that touch spec 143's files** (T075, T076) wait for 143's T070..T075 to land, and edit only the lines they add.
 
 - [ ] T071 **prices and the commit ledger, rdb** (spec 21.5, 21.8). One forward-only migration (the next free number at its push):
-  - `member_hourly_prices`: per workspace, the 3.2 RLS shape, with `set_by`; no `member_scope` guard (spec 21.6).
+  - `member_hourly_prices`: per workspace, the 3.2 RLS shape, with `set_by`; v2.8: plus the 3.4 RESTRICTIVE `member_scope` guard, for `GET /v1/me/hours/price` (spec 21.6).
   - `commit_human_time`: operator-only RLS as `commit_token_burn`, no member column, FK `release_notes`.
   - The partial index `hours_entries (tenant_id, target) WHERE state = 'approved'`.
   - Both tables seeded in `store/crosstenant_test.go`'s `seedTenantAll`: the v2 rule; `commit_human_time` is operator-only, like 143's ledger.
@@ -228,12 +230,13 @@ Every row follows the v1 and v2 rules above, plus these:
   - `GET /v1/hours/prices` (`hours.prices` or `hours.rates`): the listed people (rule 4) with price in force and history.
   - `PUT /v1/hours/prices/{member_id}` (`hours.prices` only). A start day in a `frozen` or `approved` period is 409 `period_frozen`. A currency without an rdb 0200 rate is 400 `bad_currency`. A person who is not listed (an agent id, a seat of `realmNotPerson` only, a member of another workspace) is 404.
   - `DELETE /v1/hours/prices/{member_id}/{valid_from}` (`hours.prices` only), the same 409.
-  - No `/v1/me/hours/price` route.
+  - v2.8: `GET /v1/me/hours/price` (member, no permission beyond membership; spec 21.5 rule 8): the caller's own price in force and history in this workspace, `amount`, `currency`, `valid_from` per row, no `set_by`, no money. Filtered `member_id = caller`, under `inMember`. `PUT`, `POST`, `DELETE` on it are 405.
 
   **Gate**: `bash csi-spl-api/src/bash/tests/run-all-tests.sh`; route tests on Postgres. **Red control**:
   - A `time_accountant` (`hours.read`, `hours.rates`) calling `PUT` must get 403. The planted defect, the write gated on `hours.read`, returns 200 and fails the test.
   - An admin and a plain member get 403 on `GET`, `PUT` and `DELETE`; a member's `PUT` naming themself is 403 too.
-  - `GET /v1/me/hours/price` is 404, so the dropped route cannot come back unnoticed.
+  - v2.8: with prices set for members A and B, A's `GET /v1/me/hours/price` returns A's rows only. The planted defect, the store query without `member_id = $2`, returns B's rows in the route test and 0 under the `member_scope` guard on Postgres: both fail the test that A reads exactly A's rows.
+  - v2.8: A's `PUT /v1/me/hours/price` is 405 and A's row is unchanged; the body never holds `set_by` or an amount times minutes.
   - A biz owner of workspace B naming a member of workspace A gets 404 and A's row is unchanged.
   - A start day inside a frozen period is 409 and the row is unchanged; the same day after the period is 200.
 
@@ -279,7 +282,7 @@ Every row follows the v1 and v2 rules above, plus these:
   - An operator admin without `hours.rates` must see hours and no money.
 
   Vendor: claude. Depends: T075; spec 143 T074, T075.
-- [ ] T077 **live proof on dev and prd** (spec 21.8.1): the seeded scenario end to end at 390 and 1440 px, then `do_check_deploy_lag` and the release-note links for both envs. **Gate**: the proof script `wui/tests/e2e/hours-107-v24-live.proof.mjs` green on dev, then prd. **Red control**: run before T075 lands, the proof fails on `human: pending approval` never turning into minutes. Vendor: claude. Depends: T071..T076, T078, T079.
+- [ ] T077 **live proof on dev and prd** (spec 21.8.1): the seeded scenario end to end at 390 and 1440 px, then `do_check_deploy_lag` and the release-note links for both envs. **Gate**: the proof script `wui/tests/e2e/hours-107-v24-live.proof.mjs` green on dev, then prd. **Red control**: run before T075 lands, the proof fails on `human: pending approval` never turning into minutes. Vendor: claude. Depends: T071..T076, T078, T079, T081 (v2.8: the member reads their own price in settings, spec 21.8.1).
 - [ ] T078 **the `hours.prices` permission, rdb + rbac** (spec 21.5 rule 1). **Migration.** One forward-only file (the next free number at its push): the `rbac_permissions` row, the grant to `biz_owner`, a CHECK `permission_id <> 'hours.prices' OR role_id = 'biz_owner'` on `rbac_role_permissions` and on `tenant_role_grants`, as rdb 0222 and 0223 pin `hours.rates`. `api/internal/rbac/rbac.go` (the constant, the catalogue, `biz_owner`'s list), `rbac_test.go`, `rbac_list_roles_test.go`, `store/hours_terminals_rls_test.go`. Must not touch: `store/tenant_role_grants*` while lane c-966 (spec 152 B3) holds them; check `lane-map.sh --check` first.
 
   **Gate**: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; `TestRBACSeedMatchesDefaults`; `lint-migration`. **Red control**:
@@ -301,6 +304,16 @@ Every row follows the v1 and v2 rules above, plus these:
 
   **Gate**: `pnpm run test:unit`, the i18n gates. **Red control**: a test that the en value no longer holds "own price"; on master it fails, and the served page stays "not tracked" with no number. Vendor: claude. Depends: none; it may land first, because the text is wrong today.
 
-The FR map for this addendum: R14 T071, T073, T074, T075 · R16 (replaces R15) T078, T071, T072, T079, T080 · Releases T075, T076 · proof T077.
+- [ ] T081 **the member's own price in settings, WUI** (spec 21.5 rule 8; owner Q29 = B, msg `a935328b`). A lazy read-only block "Hourly price" in `/settings/profile` (`pages/settings/[[section]].vue`), a new `components/SettingsHoursPrice.vue` and `utils/hours-price-me.mjs`, reading T072's `GET /v1/me/hours/price` for the current workspace: the price in force (amount, currency, from day) and the dated history; "no price" when none is set. No input, no button, no form. Hidden for a seat the route answers 404 (an agent, a not-a-person seat).
+  - **New user-facing text, in all 19 locale files:** the block title, the column heads, "no price", the line that the biz owner sets it. **Review step, last before it lands:** the same as T079, agy final, grok while agy is out of quota.
+
+  **Gate**: `pnpm run test:unit`, `pnpm run typecheck`, `BASE_URL=<generated bundle> pnpm run test:e2e` at 390 and 1440 px, `perf-budget.py` <= 155 KB, the i18n gates. **Red control**:
+  - An e2e as a priced member reads a non-empty amount and start day, so a missing testid cannot pass vacuously; on master it fails (no block).
+  - The same e2e asserts no input, button or form inside the block; the planted defect, an edit field, fails it.
+  - An e2e as an unpriced member reads "no price".
+
+  Vendor: claude. Depends: T072. Not on SPL-4382 (settings, not Expenses).
+
+The FR map for this addendum: R14 T071, T073, T074, T075 · R16 (replaces R15) T078, T071, T072, T079, T080 · Q29 B T071, T072, T081 · Releases T075, T076 · proof T077.
 
 <!-- version: 2.0.4 · updated: 2026-10-23 · last-edit: 2026-10-23T17:45:00Z -->

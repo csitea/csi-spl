@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.7** (2026-11-03: wording of v2.6 after its R7, no rule changed: the Expenses rail id is not on master, FR-20 opens with its exception, who may be listed is named as a reading) · v2.6 (2026-11-02: the biz owner sets each person's hourly price, per workspace, in a tab of Expenses; the member's own price is dropped, owner poll `e47404d1`, msg `a7ec216c`; section 21.5 rewritten, 21.6..21.9 follow; spec only, nothing built) · v2.5 (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.8** (2026-11-05: owner Q29 = B, msg `a935328b`: a member reads the prices set for them, read only, in their own settings, through `GET /v1/me/hours/price`; 21.5 rule 8, 21.6, 21.7, 21.8, 21.8.1 and 21.9 follow; every other rule unchanged, the biz owner still the only writer; spec only, nothing built) · v2.7 (2026-11-03: wording of v2.6 after its R7, no rule changed: the Expenses rail id is not on master, FR-20 opens with its exception, who may be listed is named as a reading) · v2.6 (2026-11-02: the biz owner sets each person's hourly price, per workspace, in a tab of Expenses; the member's own price is dropped, owner poll `e47404d1`, msg `a7ec216c`; section 21.5 rewritten, 21.6..21.9 follow; spec only, nothing built) · v2.5 (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -908,6 +908,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.4 | 2026-10-29 | c-410 | section 21 (owner R14 msg `54d01e8c`, R15 msg `cfea214c`): a human time counter per discussion, issue and object from approved entries only (P0); the member's own hourly price; a commit's human time and money for the Releases page (spec 143 section 8); owner questions Q26..Q28; build rows T071..T077 in `tasks.md` |
 | 2.5 | 2026-10-29 | c-600 | owner answers Q26 A, Q27 A, Q28 A (HUM-10, t1 `9815e592`, poll `e9523b1f`, msg `ce14ad70`) folded into section 21: 21.4 steps 4 and 7, 21.6, 21.8 routes, 21.9 now a decided table; `tasks.md` T073..T076 cite the answers; no rule changed, every answer was the recommendation |
 | 2.7 | 2026-11-03 | c-715 | wording after the R7 of v2.6 (g-974, notes N1..N3), no rule changed: 21.5's live table splits Expenses in two, the rail id is not on master; FR-20 opens with its price exception and the v2.0-draft scope line says price, not rates; 21.5 rule 4 names its list as a reading of the owner's words |
+| 2.8 | 2026-11-05 | c-179 | owner Q29 = B (HUM-10, workspace csitea, topic `36cc7f3b`, poll `221a0f08`, msg `a935328b`): 21.5 rule 8 rewritten (the member reads their own current and dated prices, read only, in `/settings/profile`, route `GET /v1/me/hours/price`, filtered `member_id = caller`, no write route), 21.6 (the member's price cell, the `member_scope` guard on `member_hourly_prices`), 21.7, 21.8 (the route row), 21.8.1, 21.9 (Q29 decided); every other rule unchanged; `tasks.md`: T071, T072 amended, T081 added (SPL-4844) |
 | 2.6 | 2026-11-02 | c-715 | owner R16 (HUM-10, topic `36cc7f3b`, msgs `da9a06a5`, `b2fe53b7`; poll `e47404d1`, answer A, msg `a7ec216c`) replaces R15: 21.5 rewritten (the biz owner writes, per workspace, in a tab of Expenses; the member's price and screen dropped), 21.6, 21.7, 21.8, 21.8.1, 21.9, FR-19 and FR-20 follow; Q29 listed; `tasks.md`: T071, T072, T074, T077 amended, T078..T080 added (SPL-4655) |
 
 ---
@@ -968,7 +969,7 @@ These mirror the questions the dispatcher c-002 already put to the owner on `dis
 
 ## 21. Addendum v2.4: a human time counter per discussion, per issue and per object, and each person's hourly price
 
-**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). v2.5: the owner decided Q26..Q28, all three on the recommendation (21.9, msg `ce14ad70`). v2.6: the owner moved the price from the member to the biz owner (21.5). Nothing here is built; the build rows are T071..T080 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
+**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). v2.5: the owner decided Q26..Q28, all three on the recommendation (21.9, msg `ce14ad70`). v2.6: the owner moved the price from the member to the biz owner (21.5). v2.8: the owner answered Q29 with B, the member reads their own price, read only (21.5 rule 8, 21.9). Nothing here is built; the build rows are T071..T080 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
 
 ### 21.0 The owner's words (verbatim) and what binds them
 
@@ -1082,7 +1083,7 @@ The rules:
 5. **Dated, never retroactive.** A price applies from a chosen day onward, in the priced person's zone (default: tomorrow there). A start day that falls in a period of that person in state `frozen` or `approved` (`0151_hours.sql:65`; `returned` is open again) is refused, 409 `period_frozen`, so a frozen period is never repriced. For the same reason, a price set late leaves the frozen days before it unpriced.
 6. **History.** The old prices stay, because a past commit's money reads the price of its day. One row per start day, carrying `set_by` and `set_at`. Writing the same start day again corrects it, and removing a start day is allowed, both only while rule 5 allows that day. No other trail is kept: a day that money can already read cannot be changed.
 7. **Currency.** The biz owner picks it per person, among those the Costs page converts: USD plus any currency with an rdb 0200 rate (`fx_rates.quote`), else 400 `bad_currency`. It is stored with the amount. Conversion happens on read, per day (21.4 step 5).
-8. **What a member sees: no price, no screen, no route** (recommended reading of "the member's own price is dropped"; Q29, 21.9). Their own approved time stays theirs (21.6). `GET|PUT /v1/me/hours/price` of v2.4 are dropped.
+8. **What a member sees: their own price, read only** (owner Q29 = B, msg `a935328b`, 21.9). A member reads the prices set for them in this workspace: the price in force and the dated history, each row an amount, its currency and its start day (`valid_from`). They read it in their own settings, a read-only block "Hourly price" on `/settings/profile`, for the workspace they are in; "no price" when none is set. The route is **`GET /v1/me/hours/price`**, read only. It needs no permission beyond membership of the workspace (an agent id or a seat whose every role is not-a-person, rule 4, gets 404). It is filtered `member_id = caller`, as 1.7's `/v1/me/hours*`, and the store sets the 3.4 member guard (`inMember`) on it, so a query that dropped its filter still reads no other member's row. **No write path for the member**: no `PUT`, `POST` or `DELETE` on `/v1/me/hours/price` (405), and the member still gets 403 on `PUT /v1/hours/prices/{member_id}` naming themself; the biz owner stays the only writer (rule 1). **What it never returns:** another member's price, `set_by` (which biz owner wrote it), or any computed money (minutes x price, labour cost, cost against quote): FR-20 stays, computed money is `hours.rates` only. Their own approved time stays theirs (21.6). `PUT /v1/me/hours/price` of v2.4 stays dropped.
 9. **What this changes in v2.** FR-19 said a person's rate lives in "a future accounting view, a separate spec (not written)", and T063 is blocked on it. R16 settles the first part of that view: the price is entered in Expenses and stored outside the `hours_*` tables, so FR-19's "hours tracking has no rate field" still holds for those tables. T063's job-cost half (approved hours x price against a quote) reads this price once T072 lands. FR-20 narrows in one point: the biz owner reads the prices they set. **Computed money stays with `hours.rates`** (Q27 A stands, spec 123 13.6 stands): the biz owner holds both inputs, a price and `hours.read`, and FR-20 already says this is "a separation of duties, not a boundary against the biz owner", who may assign themself the role, logged.
 10. **Not added up with the HR lines.** Spec 123's Human part reads this price. `cost_entries` type `hr` is a separate monthly line typed by the operator, and no report reads it today (`git grep -l cost_entries origin/master -- csi-spl-api csi-spl-wui csi-spl-orc csi-spl-iac` -> 4 files: `store/cost_entries*.go`, its test, and `hub/server.go`). A report that later adds both would count one person twice: that report must say which one it takes.
 
@@ -1090,7 +1091,7 @@ The rules:
 
 | who | discussion / issue / object counter | prices | a commit's human part (Releases) |
 |---|---|---|---|
-| the member | their own approved minutes on each target, plus "to approve" | no (21.5 rule 8, Q29) | as their role allows below |
+| the member | their own approved minutes on each target, plus "to approve" | **their own** price in force and history, read only (21.5 rule 8, Q29 B); never another member's | as their role allows below |
 | `hours.prices` (`biz_owner` only, pinned, 21.5 rule 1) | as `hours.read` | every person's price and history in the workspace; **sets them** | no (Releases is an operator page) |
 | `hours.read` without `hours.prices` (a foreman for their crew, FR-22) | the total summed over people; per member one click away (Q18) | no | no (Releases is an operator page) |
 | `hours.rates` (pinned to `time_accountant`, FR-20) | as `hours.read` | every person's price in the workspace, read only; computed money | no |
@@ -1099,8 +1100,8 @@ The rules:
 
 Enforced by route, as 1.7 is, and in the database:
 
-- `member_hourly_prices` has the 3.2 RLS shape: a second workspace reads and writes 0 rows. It carries no 3.4 `member_scope` guard, because no per-member call reads it.
-- The write is `hours.prices` alone. The read is `hours.prices` or `hours.rates`, and no other route returns a price.
+- `member_hourly_prices` has the 3.2 RLS shape: a second workspace reads and writes 0 rows. v2.8: it also carries the 3.4 `member_scope` guard, because `GET /v1/me/hours/price` is a per-member call; unset, the guard is TRUE, so the biz owner's and the time-accountant's list still read every member.
+- The write is `hours.prices` alone. The read of every person's price is `hours.prices` or `hours.rates`. The one other route that returns a price is `GET /v1/me/hours/price`, the caller's own rows only (21.5 rule 8).
 - The commit ledger is operator-only RLS, as `commit_token_burn` is.
 
 ### 21.7 What it never stores (P0)
@@ -1108,7 +1109,7 @@ Enforced by route, as 1.7 is, and in the database:
 - **No per-person row in the commit ledger.** The ledger keeps minutes and an amount per (commit, day, currency) only. Who worked on a commit is not stored there.
 - **No new raw signal.** No minute-level row, clock time, keystroke, typing or reading sequence. `hours_minutes` is unchanged and still pruned at the freeze (1.7).
 - **No open suggestion in a counter**, and no counter on a person's DMs (`dm:` folds into `ws`, Q13).
-- **No price shown** outside `hours.prices` and `hours.rates`, the priced person included (Q29). A price is never written into an export line unless the caller holds `hours.rates`.
+- **No price shown** outside `hours.prices` and `hours.rates`, except a member's own price to that member, read only (Q29 B, 21.5 rule 8). A price is never written into an export line unless the caller holds `hours.rates`.
 - **No money in the `hours_*` tables**: the price and the commit ledger are their own tables (FR-19).
 - **No retention beyond 107's:**
   - The commit ledger follows the approved-period totals (`hours.retention_years`, Q22). After that the commit keeps its agent part and shows `human: expired`.
@@ -1119,7 +1120,7 @@ Enforced by route, as 1.7 is, and in the database:
 Two new tables, one index, no CHECK widening; one new permission, `hours.prices`, with its pin (21.5 rule 1):
 
 ```sql
--- per workspace, the 3.2 RLS shape (tenant_scope with the NULLIF guard, operator_scope); no member_scope (21.6)
+-- per workspace, the 3.2 RLS shape (tenant_scope with the NULLIF guard, operator_scope), plus the 3.4 member_scope guard (v2.8, 21.6)
 member_hourly_prices (
   tenant_id     text   FK tenants, cascade,
   member_id     text,                       -- HUM-*
@@ -1154,6 +1155,7 @@ Routes, in the style of 6.3:
 | `GET /v1/hours/prices` | `hours.prices` or `hours.rates` | the listed people (21.5 rule 4), each with their price in force and history |
 | `PUT /v1/hours/prices/{member_id}` `{amount, currency, valid_from}` | `hours.prices` | a price from a day onward, never into a frozen period (409 `period_frozen`); 400 `bad_currency`; 404 for a person who is not listed |
 | `DELETE /v1/hours/prices/{member_id}/{valid_from}` | `hours.prices` | removes one start day, under the same 409 |
+| `GET /v1/me/hours/price` | member (no permission beyond membership) | the caller's own price in force and history in this workspace: `amount`, `currency`, `valid_from` per row; no `set_by`, no money; read only, other verbs 405 (21.5 rule 8, Q29 B) |
 | `GET /v1/me/hours/targets?target=&from=&to=` | member | own approved minutes (and "to approve") per target |
 | `GET /v1/hours/targets?target=&from=&to=&by=member` | `hours.read` / foreman scope | the total over people; per member with `by=member` |
 | 143's `GET /v1/reporting/releases/daily` and `/commits` | operator admin | gain `human_minutes`, `human_amount_micros` (masked unless the caller also holds `hours.rates`, Q27 A), `human_pending`, `human_unpriced` |
@@ -1173,7 +1175,7 @@ Then:
 - The label pill sums the commits.
 - A biz owner sees the issue's counter and sets and reads every price in Expenses, and sees no computed money.
 - A `time_accountant` reads the prices and cannot change one.
-- A plain member sees only their own time, no price and no Expenses tab; an admin who is not a biz owner has no price either.
+- A plain member sees only their own time and no Expenses tab. The priced member reads their own price and its start day in `/settings/profile`, read only, with no form; the unpriced member reads "no price". Neither reads the other's price. An admin who is not a biz owner reads only their own price, never another's.
 - A second workspace, its biz owner included, reads and writes nothing.
 - No ledger row names a member.
 
@@ -1191,12 +1193,12 @@ What a commit is credited with (the closed issue's topic plus its source discuss
 
 Decided since (v2.6): who sets the price. Poll `e47404d1`, answer A, msg `a7ec216c`, quoted in 21.0 R16; rows T071, T072, T074, T078, T079, T080.
 
-#### 21.9.1 Open for the holder (Q29)
+#### 21.9.1 Q29: decided B (v2.8)
 
-The code cannot answer this one, and the build starts on the first option:
+The owner answered on 2026-11-03 at 10:28Z (HUM-10, workspace csitea, topic `36cc7f3b`, poll `221a0f08`, msg `a935328b`). He chose B, not the recommendation A. The answer adds a read only; the biz owner stays the only writer (21.5 rule 1).
 
-| question | options | if it changes |
-|---|---|---|
-| Q29 May a member see the price set for them, read only? The owner's answer drops "the member's own price"; it does not say whether that covers reading it. | **A: no, nothing (recommended: one place, one owner; 21.5 rule 8; adding a read later is one route and one line).** B: yes, read only, in their own settings, with no way to change it. | B adds a row: `GET /v1/me/hours/price` and a line in settings, its text under the review step of T079; 21.6 and 21.7 change one line each. No migration. |
+| question | answer (verbatim) | msg | rows |
+|---|---|---|---|
+| Q29 May a member see the price set for them? (A) No, they see nothing (B) Yes, read only, in their own settings, with no way to change it | "B — Yes, read only, in their own settings, with no way to change it" | `a935328b` | T071 (the `member_scope` guard), T072 (`GET /v1/me/hours/price`), T081 (the line in settings); 21.5 rule 8, 21.6, 21.7, 21.8, 21.8.1 |
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
+import { NOTES_FILTER_SELECTOR, SEARCH_LINE, sectionSearchLine, sectionSearchType } from '~/utils/section-search.mjs'
 
 /**
  * 022 FR-010: the top-bar Omnibox sends to whatever page is on screen. A page
@@ -42,9 +43,38 @@ export const useOmniboxStore = defineStore('omnibox', () => {
    */
   const searchOpen = ref(false)
   const searchAsk = ref(0)
-  function openSearch() {
+  /** SPL-4901: the line openSearch() opens with, `/search ` or a section's prefill */
+  const searchLine = ref(SEARCH_LINE)
+  function openSearch(line: string = SEARCH_LINE) {
+    searchLine.value = line
     searchOpen.value = true
     searchAsk.value++
+  }
+
+  /** SPL-4901: bumped to open the calendar's own search (pages/calendar.vue) */
+  const calendarSearchAsk = ref(0)
+  /**
+   * SPL-4901: a section whose entities the hub search does not hold opens its
+   * own search: Calendar its search panel, Notes its filter. True when it did;
+   * false means the Omnibox search is the one (also on Notes when the page
+   * shows no filter, the notes switch off).
+   */
+  function openOwnSearch(type: string): boolean {
+    if (type === 'calendar') {
+      calendarSearchAsk.value++
+      return true
+    }
+    if (type !== 'notes') return false
+    const el = document.querySelector<HTMLInputElement>(NOTES_FILTER_SELECTOR)
+    if (!el) return false
+    el.focus()
+    el.select()
+    return true
+  }
+  /** SPL-4901: the search button: the section's own search, else the Omnibox on the section's type */
+  function openSectionSearch(path: string) {
+    const type = sectionSearchType(path)
+    if (!openOwnSearch(type)) openSearch(sectionSearchLine(type))
   }
   function closeSearch() {
     searchOpen.value = false
@@ -56,7 +86,10 @@ export const useOmniboxStore = defineStore('omnibox', () => {
   function unregister(owner: symbol) {
     if (target.value && target.value.owner === owner) target.value = null
   }
-  return { target, focusResults, searchOpen, searchAsk, openSearch, closeSearch, register, unregister }
+  return {
+    target, focusResults, searchOpen, searchAsk, searchLine, calendarSearchAsk,
+    openSearch, openOwnSearch, openSectionSearch, closeSearch, register, unregister,
+  }
 })
 
 /**
@@ -64,7 +97,7 @@ export const useOmniboxStore = defineStore('omnibox', () => {
  * `/docs` and `/workspace/docs` and below, in any locale.
  */
 export function isDocsReadingPath(path: string): boolean {
-  return /^\/(?:workspace\/)?docs(?:\/|$)/.test(productPath(path))
+  return sectionSearchType(productPath(path)) === 'doc'
 }
 
 /** Page helper: register a send target for this page's lifetime. */

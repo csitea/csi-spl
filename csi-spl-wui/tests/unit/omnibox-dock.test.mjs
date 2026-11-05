@@ -110,7 +110,8 @@ describe('wiring', () => {
   })
   it('search stays one tap away in the top bar while the box is at the bottom', () => {
     assert.match(topBar, /data-test="top-bar-search"/)
-    assert.match(topBar, /setText\('\/search '\)/)
+    /* SPL-4901: the line is the section's (utils/section-search.mjs), `/search ` outside docs */
+    assert.match(topBar, /setText\(sectionSearchLine\(type\)\)/)
   })
 })
 

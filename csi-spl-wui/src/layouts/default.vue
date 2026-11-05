@@ -110,7 +110,10 @@
       <!-- SPL-2516 (qto reading panel row 02): on a phone's docs routes the
            dock and the strip are collapsed; this keeps search one tap away
            (the omnibox store's openSearch brings the dock back in search
-           mode) until the docs pages carry their own search icon -->
+           mode) until the docs pages carry their own search icon.
+           SPL-4901: Notes collapses the same way, and the button opens the
+           section's type (utils/section-search.mjs): `type:doc` on docs,
+           the Notes filter on Notes -->
       <button
         v-if="docsReading"
         type="button"
@@ -118,7 +121,7 @@
         data-test="docs-search-open"
         :aria-label="$t('search.title')"
         :title="$t('search.title')"
-        @click="omnibox.openSearch()"
+        @click="omnibox.openSectionSearch(route.path)"
       ><UiIcon name="search" :size="20" /></button>
       </div>
       <template #fallback>
@@ -246,7 +249,8 @@ import { isLobbyPath } from '~/utils/lobby-warm.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
-import { isDocsReadingPath, useOmniboxStore } from '~/stores/omnibox'
+import { useOmniboxStore } from '~/stores/omnibox'
+import { isDockCollapsedPath } from '~/utils/section-search.mjs'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 import { closeArchivedPane, useArchiveUndo } from '~/composables/useArchiveUndo'
@@ -360,9 +364,10 @@ stack.install({
   topicOpen: topicPaneOpen,
   closeTopic: () => { livePane.close(); topic.close(); operatorPane.close() },
 })
-/* SPL-2516: a phone reading /docs or /workspace/docs, with search not open */
+/* SPL-2516: a phone reading /docs or /workspace/docs, with search not open;
+   SPL-4901 (owner msg 1497d676): Notes too */
 const omnibox = useOmniboxStore()
-const docsReading = computed(() => stack.isMobile.value && isDocsReadingPath(route.path) && !omnibox.searchOpen)
+const docsReading = computed(() => stack.isMobile.value && isDockCollapsedPath(route.path) && !omnibox.searchOpen)
 /* E08 (perf 20261004): phone level 1 CSS-hides this pane (main.css,
    data-mobile-level="1") and the reader never sees its ~120 nodes. Unmount
    it. Levels 2 and 3, and every width above 820 px, keep it: level 3 hides

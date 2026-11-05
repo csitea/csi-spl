@@ -338,7 +338,8 @@ import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { vTapAnim } from '~/composables/useTapAnim'
 import { callOmnibox } from '~/utils/omnibox-call'
 import { useChannelStore } from '~/stores/channel'
-import { isDocsReadingPath, useOmniboxStore } from '~/stores/omnibox'
+import { useOmniboxStore } from '~/stores/omnibox'
+import { isDockCollapsedPath, lineLeavingSection, sectionSearchType } from '~/utils/section-search.mjs'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { sendLimitError } from '~/utils/code-view.mjs'
@@ -459,15 +460,26 @@ const { syntaxOpen, syntaxId, insertOperator, onSyntaxClick } = useComposerSynta
    the dock and the strip under it collapse (height 0: the reading gets the
    73-95 px back). The layout's search button calls openSearch(): the dock
    comes back in search mode, and collapses again once the search line is
-   left or the page changes */
+   left or the page changes.
+   SPL-4901: Notes collapses too, and the search opens on the section's line
+   (`/search type:doc ` on docs, utils/section-search.mjs); leaving the
+   section empties a line that is still only that prefill (owner msg
+   acf9d324: the omnibox becomes normal) */
 const route = useRoute()
-const docsHidden = computed(() => docked.value && isDocsReadingPath(route.path) && !omniboxTargets.searchOpen)
+const docsHidden = computed(() => docked.value && isDockCollapsedPath(route.path) && !omniboxTargets.searchOpen)
 watch(() => omniboxTargets.searchAsk, () => {
-  if (!searchMode.value) setText(text.value.trim() ? `/search ${text.value.trim()}` : '/search ')
+  const line = omniboxTargets.searchLine
+  if (!searchMode.value) setText(text.value.trim() ? `${line}${text.value.trim()}` : line)
   void nextTick(focusInput)
 })
 watch(searchMode, (on) => { if (!on) omniboxTargets.closeSearch() })
-watch(() => route.path, () => omniboxTargets.closeSearch())
+watch(() => route.path, (to, from) => {
+  omniboxTargets.closeSearch()
+  const left = sectionSearchType(from)
+  if (left === sectionSearchType(to)) return
+  const next = lineLeavingSection(text.value, left)
+  if (next !== text.value) setText(next)
+})
 
 /* the sheet's Reply (MessageCard) puts the caret here. SPL-1637: a poll's
    "Chat about this" hands a start text too (the marker and the question

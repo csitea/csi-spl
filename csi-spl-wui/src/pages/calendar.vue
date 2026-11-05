@@ -16,7 +16,7 @@
      document title and a heading for assistive tech. The view is in the URL
      too (?v=day|3day|month; Week has none), so a link keeps it. -->
 <template>
-  <div class="feed-col calendar-page" data-test="calendar-page">
+  <div class="feed-col calendar-page" :class="{ 'calendar-page--desk': !phone }" data-test="calendar-page">
     <CalendarPhone v-if="phone" :focus="focus" :today="today" @move="show" />
     <template v-else>
     <h2 class="sr-only" data-test="calendar-heading">{{ t('calendar.title') }}</h2>
@@ -32,6 +32,10 @@
       </div>
       <CalendarHoursPanel v-if="hoursPanel" class="calendar-body__hours" :focus="focus" :today="today" closable @open-day="openHoursDay" @close="toggleHours" />
     </div>
+    <!-- SPL-4901: the top bar's search button on Calendar opens the phone
+         calendar's search (spec 106 T010, GET /v1/calendar/search), the same
+         component; a result opens its day and the entry (?d=&event=) -->
+    <CalendarPhoneSearch v-if="deskSearch" class="calendar-search" :today="today" @open="openFound" @close="deskSearch = false" />
     </template>
   </div>
 </template>
@@ -46,11 +50,15 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { PUBLIC_CALENDAR_PATH, signedOutCalendarTarget } from '~/utils/public-calendar.mjs'
 import { wasSignedIn } from '~/utils/session-recover.mjs'
 import { calDeskView } from '~/utils/calendar-desktop-view.mjs'
+import { useOmniboxStore } from '~/stores/omnibox'
+import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 
 /* the main view is its own chunk, fetched on route entry (spec 3, AC-02) */
 const CalendarMainView = defineAsyncComponent(() => import('~/components/CalendarMainView.vue'))
 /* spec 106 T004 (FR-001, FR-012): the phone calendar, a chunk of its own */
 const CalendarPhone = defineAsyncComponent(() => import('~/components/CalendarPhone.vue'))
+/* SPL-4901: the calendar search, on the search button only */
+const CalendarPhoneSearch = defineAsyncComponent(() => import('~/components/CalendarPhoneSearch.vue'))
 /* spec 107 v1.2 T011 (owner R11): the hours tabs on the right, a chunk of their own */
 const CalendarHoursPanel = defineAsyncComponent(() => import('~/components/CalendarHoursPanel.vue'))
 
@@ -83,6 +91,16 @@ async function pickView(v: string, iso = today) {
 async function show(iso: string) {
   if (Number.isNaN(calDayMs(iso)) || iso === focus.value) return
   await router.replace({ query: { ...route.query, d: iso === today ? undefined : iso } })
+}
+
+/* SPL-4901 (owner t1 7da30ebd msg 5af63dee): the search button opens the
+   calendar's own search; a phone has it in CalendarPhone's header */
+const omnibox = useOmniboxStore()
+const deskSearch = ref(false)
+watch(() => omnibox.calendarSearchAsk, () => { if (!phone.value) deskSearch.value = true })
+async function openFound(day: string, ev: CalendarItem) {
+  deskSearch.value = false
+  await router.replace({ query: { ...route.query, d: day === today ? undefined : day, event: ev.id } })
 }
 
 /* spec 107 v1.2 T011: the hours panel is open unless the member closed it in
@@ -138,6 +156,13 @@ useHead(() => ({ title: t('calendar.title') }))
 
 <style scoped>
 .calendar-page { min-height: 0; }
+/* SPL-4901: the search over the year strip and the main view's start */
+.calendar-page--desk { position: relative; }
+.calendar-page--desk > .calendar-search {
+  inset: 0 auto 0 0;
+  width: min(100%, 480px);
+  border-inline-end: 1px solid var(--color-border);
+}
 .calendar-body {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);

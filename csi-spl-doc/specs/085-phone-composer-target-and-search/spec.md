@@ -72,6 +72,31 @@ A second tap, or clearing the box, leaves search mode. Typing `/search ` still w
 
 On level 1 (the section chooser and its list) the box is a search box: placeholder `Search`, mode glyph a magnifier, Enter opens `/search?q=`. It does not post a new topic from a list. To post, the reader opens a channel (level 2), whose name is on screen and in the placeholder. See Q2.
 
+### 3.5 The search button opens on the section's type (SPL-4901)
+
+Owner HUM-10, t1 7da30ebd msg 5af63dee: "The search button click should
+prefilled the type of entities one need to search for based on the current
+type of entity Ies calendar entries, notes, qto docs one currently is"; t1
+2f4311d9 msgs 1497d676 (Notes hides the omnibox as the docs reading view
+does) and acf9d324 (changing sections makes the omnibox normal). One map,
+`wui/utils/section-search.mjs` (`sectionSearchType`):
+
+| section | the search button opens | why |
+|---|---|---|
+| `/docs`, `/workspace/docs` | the Omnibox on `/search type:doc ` (visible, delete the token to widen) | the hub search has the `doc` type |
+| `/calendar` | the calendar's own search (`CalendarPhoneSearch`, `GET /v1/calendar/search`); on a desktop the same component over the year strip, a result opens its day and entry (`?d=&event=`) | the hub's `type:event` is the event log, not calendar entries |
+| `/notes` | the Notes filter, focused | notes are not in `/search` (spec 155 section 2.5) |
+| any other | the plain `/search ` | unchanged |
+
+On a phone Notes collapses the dock and the status strip like the docs
+routes (`isDockCollapsedPath`, the one SPL-2516 mechanism). Leaving a
+section closes search, and a line that is still only the `type:doc` prefill
+is emptied. The buttons: the phone's collapsed-dock search button
+(`docs-search-open`) and the top bar's (`top-bar-search`, the Omnibox at the
+bottom); the phone calendar keeps its header search button. Tests:
+`wui-tests/unit/section-search.test.mjs`, `wui-tests/e2e/section-search.test.mjs`
+(390 and 1440 px).
+
 ## 4. User stories
 
 | ID | Priority | Role | Story | Benefit |
@@ -140,5 +165,6 @@ A search tab or a search screen of its own (consensus Q1 may add one). Changing 
 | Version | Change | Author |
 |---|---|---|
 | v0.1 | First spec from the mobile consensus, build item 2 | c-246 |
+| v0.2 | 3.5 the search button opens on the section's type (SPL-4901) | c-220 |
 
-<!-- version: 0.1.0 · updated: 2026-10-05 · last-edit: 2026-10-05T00:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-11-06 · last-edit: 2026-11-06T02:00:00Z -->

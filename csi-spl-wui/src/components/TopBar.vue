@@ -146,6 +146,7 @@ import { useClockHost } from '~/composables/useClockHost'
 import TenantDropBox from '~/components/TenantDropBox.vue'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
+import { sectionSearchLine, sectionSearchType } from '~/utils/section-search.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 
@@ -171,9 +172,13 @@ const atBottom = useOmniboxDock()
 const phone = usePhone()
 const stack = useMobileStack()
 const dockSelector = `#${DOCK_ID}`
-/* the bar's search button: the box is at the bottom now, `/search ` goes in it */
+/* the bar's search button: the box is at the bottom now, `/search ` goes in it.
+   SPL-4901: on the section's type (utils/section-search.mjs): Calendar and
+   Notes open their own search, docs `/search type:doc ` */
 function openSearch() {
-  composer.value?.setText('/search ')
+  const type = sectionSearchType(route.path)
+  if (omnibox.openOwnSearch(type)) return
+  composer.value?.setText(sectionSearchLine(type))
   composer.value?.focus()
 }
 

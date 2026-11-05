@@ -56,6 +56,8 @@ weekly-limit-alert | */5 * * * *    | src/bash/scripts/weekly-limit-alert-cron.s
 box-link-watch      | * * * * *       | src/bash/scripts/box-link-watch-cron.sh                   | box-link-watch/cron.log | | desk
 # spec 166 row B6: the night zombie-topic sweep; acts once a night on the dispatch holder's box
 zombie-topics     | */15 * * * *    | src/bash/scripts/zombie-topics-cron.sh                  | zombie-topics/cron.log | | desk
+# spec 166 row B8: the night's reflection, gathered and queued once a night on the dispatch holder's box
+reflection        | */15 * * * *    | src/bash/scripts/reflection-cron.sh                     | reflection/cron.log   | | desk
 # reliability round (spec 146, SPL-4064): one row per box check; row 10 runs
 # in workflow 45_db-backup.yml. Cadences: csi-spl-doc/specs/146-reliability-round/tasks.md section 4.
 rel-systemd-unit    | */5 * * * *        | src/bash/scripts/rel-systemd-unit-cron.sh | rel/systemd-unit.log |

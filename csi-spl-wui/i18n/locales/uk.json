@@ -3582,10 +3582,10 @@
         "human": "Люди"
       },
       "cloud": {
-        "title": "Витрати на хмару за проєктами GCP",
+        "title": "Витрати на хмару",
         "crumbs_label": "Рівні витрат на хмару",
         "all_projects": "Усі проєкти",
-        "col_project": "Проєкт GCP",
+        "col_project": "Проєкт GCP або введені витрати",
         "col_service": "Сервіс",
         "col_day": "День",
         "box": "box {box}",

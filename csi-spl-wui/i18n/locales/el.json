@@ -3582,10 +3582,10 @@
         "human": "Ανθρώπινο δυναμικό"
       },
       "cloud": {
-        "title": "Κόστος νέφους ανά έργο GCP",
+        "title": "Κόστος νέφους",
         "crumbs_label": "Επίπεδα κόστους νέφους",
         "all_projects": "Όλα τα έργα",
-        "col_project": "Έργο GCP",
+        "col_project": "Έργο GCP ή καταχωρημένο κόστος",
         "col_service": "Υπηρεσία",
         "col_day": "Ημέρα",
         "box": "box {box}",

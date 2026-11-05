@@ -3582,10 +3582,10 @@
         "human": "Cilvēki"
       },
       "cloud": {
-        "title": "Mākoņa izmaksas pa GCP projektiem",
+        "title": "Mākoņa izmaksas",
         "crumbs_label": "Mākoņa izmaksu līmeņi",
         "all_projects": "Visi projekti",
-        "col_project": "GCP projekts",
+        "col_project": "GCP projekts vai ievadītas izmaksas",
         "col_service": "Pakalpojums",
         "col_day": "Diena",
         "box": "box {box}",

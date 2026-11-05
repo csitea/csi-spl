@@ -3582,10 +3582,10 @@
         "human": "Personal"
       },
       "cloud": {
-        "title": "Molnkostnader per GCP-projekt",
+        "title": "Molnkostnader",
         "crumbs_label": "Nivåer av molnkostnader",
         "all_projects": "Alla projekt",
-        "col_project": "GCP-projekt",
+        "col_project": "GCP-projekt eller inmatad kostnad",
         "col_service": "Tjänst",
         "col_day": "Dag",
         "box": "box {box}",

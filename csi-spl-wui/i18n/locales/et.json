@@ -3582,10 +3582,10 @@
         "human": "Inimesed"
       },
       "cloud": {
-        "title": "Pilvekulud GCP projekti kaupa",
+        "title": "Pilvekulud",
         "crumbs_label": "Pilvekulude tasemed",
         "all_projects": "Kõik projektid",
-        "col_project": "GCP projekt",
+        "col_project": "GCP projekt või sisestatud kulu",
         "col_service": "Teenus",
         "col_day": "Päev",
         "box": "box {box}",

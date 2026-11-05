@@ -3582,10 +3582,10 @@
         "human": "כוח אדם"
       },
       "cloud": {
-        "title": "עלויות ענן לפי פרויקט GCP",
+        "title": "עלויות ענן",
         "crumbs_label": "רמות עלויות הענן",
         "all_projects": "כל הפרויקטים",
-        "col_project": "פרויקט GCP",
+        "col_project": "פרויקט GCP או עלות שהוזנה",
         "col_service": "שירות",
         "col_day": "יום",
         "box": "box {box}",

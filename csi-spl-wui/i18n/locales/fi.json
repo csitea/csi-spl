@@ -3582,10 +3582,10 @@
         "human": "Henkilöstö"
       },
       "cloud": {
-        "title": "Pilvikulut GCP-projekteittain",
+        "title": "Pilvikulut",
         "crumbs_label": "Pilvikulujen tasot",
         "all_projects": "Kaikki projektit",
-        "col_project": "GCP-projekti",
+        "col_project": "GCP-projekti tai syötetty kulu",
         "col_service": "Palvelu",
         "col_day": "Päivä",
         "box": "box {box}",

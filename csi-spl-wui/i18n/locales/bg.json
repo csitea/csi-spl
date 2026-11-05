@@ -3582,10 +3582,10 @@
         "human": "Хора"
       },
       "cloud": {
-        "title": "Разходи за облак по GCP проект",
+        "title": "Разходи за облак",
         "crumbs_label": "Нива на разходите за облак",
         "all_projects": "Всички проекти",
-        "col_project": "GCP проект",
+        "col_project": "GCP проект или въведен разход",
         "col_service": "Услуга",
         "col_day": "Ден",
         "box": "box {box}",

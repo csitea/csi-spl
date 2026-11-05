@@ -3582,10 +3582,10 @@
         "human": "Personeel"
       },
       "cloud": {
-        "title": "Cloudkosten per GCP-project",
+        "title": "Cloudkosten",
         "crumbs_label": "Niveaus van cloudkosten",
         "all_projects": "Alle projecten",
-        "col_project": "GCP-project",
+        "col_project": "GCP-project of ingevoerde kosten",
         "col_service": "Dienst",
         "col_day": "Dag",
         "box": "box {box}",

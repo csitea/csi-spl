@@ -3582,10 +3582,10 @@
         "human": "Ľudia"
       },
       "cloud": {
-        "title": "Náklady na cloud podľa projektu GCP",
+        "title": "Náklady na cloud",
         "crumbs_label": "Úrovne nákladov na cloud",
         "all_projects": "Všetky projekty",
-        "col_project": "Projekt GCP",
+        "col_project": "Projekt GCP alebo zadaný náklad",
         "col_service": "Služba",
         "col_day": "Deň",
         "box": "box {box}",

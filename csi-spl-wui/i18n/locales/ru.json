@@ -3582,10 +3582,10 @@
         "human": "Персонал"
       },
       "cloud": {
-        "title": "Затраты на облако по проектам GCP",
+        "title": "Затраты на облако",
         "crumbs_label": "Уровни затрат на облако",
         "all_projects": "Все проекты",
-        "col_project": "Проект GCP",
+        "col_project": "Проект GCP или введённые затраты",
         "col_service": "Сервис",
         "col_day": "День",
         "box": "box {box}",

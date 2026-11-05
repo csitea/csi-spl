@@ -3582,10 +3582,10 @@
         "human": "Human"
       },
       "cloud": {
-        "title": "Cloud costs by GCP project",
+        "title": "Cloud costs",
         "crumbs_label": "Cloud cost levels",
         "all_projects": "All projects",
-        "col_project": "GCP project",
+        "col_project": "GCP project or entered cost",
         "col_service": "Service",
         "col_day": "Day",
         "box": "box {box}",

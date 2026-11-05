@@ -3582,10 +3582,10 @@
         "human": "Personel"
       },
       "cloud": {
-        "title": "GCP projesine göre bulut maliyetleri",
+        "title": "Bulut maliyetleri",
         "crumbs_label": "Bulut maliyeti düzeyleri",
         "all_projects": "Tüm projeler",
-        "col_project": "GCP projesi",
+        "col_project": "GCP projesi veya girilen maliyet",
         "col_service": "Hizmet",
         "col_day": "Gün",
         "box": "box {box}",

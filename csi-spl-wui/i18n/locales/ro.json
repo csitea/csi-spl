@@ -3582,10 +3582,10 @@
         "human": "Personal"
       },
       "cloud": {
-        "title": "Costuri cloud pe proiect GCP",
+        "title": "Costuri cloud",
         "crumbs_label": "Niveluri ale costurilor cloud",
         "all_projects": "Toate proiectele",
-        "col_project": "Proiect GCP",
+        "col_project": "Proiect GCP sau cost introdus",
         "col_service": "Serviciu",
         "col_day": "Zi",
         "box": "box {box}",

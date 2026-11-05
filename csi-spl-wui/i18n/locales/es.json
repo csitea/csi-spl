@@ -3582,10 +3582,10 @@
         "human": "Personal"
       },
       "cloud": {
-        "title": "Costes de la nube por proyecto de GCP",
+        "title": "Costes de la nube",
         "crumbs_label": "Niveles de coste de la nube",
         "all_projects": "Todos los proyectos",
-        "col_project": "Proyecto de GCP",
+        "col_project": "Proyecto de GCP o coste introducido",
         "col_service": "Servicio",
         "col_day": "Día",
         "box": "equipo {box}",

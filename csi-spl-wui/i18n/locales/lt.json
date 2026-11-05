@@ -3582,10 +3582,10 @@
         "human": "Žmonės"
       },
       "cloud": {
-        "title": "Debesijos išlaidos pagal GCP projektą",
+        "title": "Debesijos išlaidos",
         "crumbs_label": "Debesijos išlaidų lygiai",
         "all_projects": "Visi projektai",
-        "col_project": "GCP projektas",
+        "col_project": "GCP projektas arba įvestos išlaidos",
         "col_service": "Paslauga",
         "col_day": "Diena",
         "box": "box {box}",

@@ -3582,10 +3582,10 @@
         "human": "Луѓе"
       },
       "cloud": {
-        "title": "Трошоци за облак по GCP проект",
+        "title": "Трошоци за облак",
         "crumbs_label": "Нивоа на трошоци за облак",
         "all_projects": "Сите проекти",
-        "col_project": "GCP проект",
+        "col_project": "GCP проект или внесен трошок",
         "col_service": "Услуга",
         "col_day": "Ден",
         "box": "box {box}",

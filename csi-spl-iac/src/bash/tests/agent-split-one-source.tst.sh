@@ -40,7 +40,9 @@ HUB=csi-spl-api/src/go/spool-hub-api/internal/store/agent_split_kind.go
 # drift <root> -> one line per disagreement, nothing when the copies equal the
 # cnf: "DRIFT <copy> <kind> cnf=<row> <copy>=<row>", "UNREAD <copy>" when a
 # copy yields no row (a renamed const, a new literal form), "MISSING <copy>
-# <kind>" when a copy lacks a cnf kind or carries one the cnf does not have.
+# <kind>" when a copy lacks a cnf kind or carries one the cnf does not have,
+# "MISSING <copy> <kind> (duplicate)" when a copy lists a kind twice (the hub
+# serves a slice: both rows would reach the WUI).
 drift() {
   python3 - "$1" "$CNF" "$WUI" "$HUB" <<'PY'
 import re, sys, yaml
@@ -62,22 +64,26 @@ def cnf_rows():
 def wui_rows():
     m = re.search(r'^export const DEFAULT_SPLIT_KINDS = Object\.freeze\(\{\n(.*?)^\}\)', read(wui_p), re.S | re.M)
     rx = r"^\s+([a-z0-9_]+): \{ weights: \{([^}]*)\}, backup: '([a-z]+)' \},?$"
-    return {k: row({v: int(n) for v, n in re.findall(r'([a-z]+): (\d+)', w)}, b)
-            for k, w, b in re.findall(rx, m.group(1) if m else '', re.M)}
+    return [(k, row({v: int(n) for v, n in re.findall(r'([a-z]+): (\d+)', w)}, b))
+            for k, w, b in re.findall(rx, m.group(1) if m else '', re.M)]
 
 def hub_rows():
     m = re.search(r'^func DefaultSplitKinds\(\) \[\]SplitKind \{\n(.*?)^\}', read(hub_p), re.S | re.M)
     rx = r'row\("([a-z0-9_]+)", "([a-z]+)", map\[string\]int\{([^}]*)\}\)'
-    return {k: row({v: int(n) for v, n in re.findall(r'"([a-z]+)": (\d+)', w)}, b)
-            for k, b, w in re.findall(rx, m.group(1) if m else '')}
+    return [(k, row({v: int(n) for v, n in re.findall(r'"([a-z]+)": (\d+)', w)}, b))
+            for k, b, w in re.findall(rx, m.group(1) if m else '')]
 
 cnf = cnf_rows()
 if not cnf:
     print('UNREAD cnf')
-for name, rows in (('wui', wui_rows()), ('hub', hub_rows())):
-    if not rows:
+for name, pairs in (('wui', wui_rows()), ('hub', hub_rows())):
+    if not pairs:
         print(f'UNREAD {name}')
         continue
+    kinds = [k for k, _ in pairs]
+    for k in sorted({k for k in kinds if kinds.count(k) > 1}):
+        print(f'MISSING {name} {k} (duplicate)')
+    rows = dict(pairs)
     for k in sorted(set(cnf) | set(rows)):
         if k not in cnf or k not in rows:
             print(f'MISSING {name} {k}')
@@ -89,7 +95,7 @@ PY
 python3 -c 'import yaml' 2>/dev/null || { fail "python3 with PyYAML is required (the iac suite's other yaml tests use it)"; exit 1; }
 
 # ---- the real tree ----------------------------------------------------------
-out=$(drift "$APP_ROOT"); rc=$?
+out=$(drift "$APP_ROOT" 2>&1); rc=$?
 if [[ $rc -ne 0 ]]; then
   fail "the split reader crashed (rc $rc): $out"
 elif [[ -n "$out" ]]; then
@@ -153,6 +159,17 @@ if grep -qx 'UNREAD wui' <<<"$got" && grep -qx 'MISSING hub orchestration' <<<"$
   pass "CONTROL: an unreadable WUI copy is UNREAD and a hub copy without orchestration is MISSING"
 else
   fail "CONTROL: an unreadable copy or a missing kind passed (got: '$got')"
+fi
+
+# CONTROL 5: a kind listed twice is a failure, even when one of the rows
+# equals the cnf (a dict would keep only the last one).
+fresh
+sed -i -E 's/^(\s+)(row\("tests", .*)$/\1row("tests", "grok", map[string]int{"claude": 1}),\n\1\2/' "$scratch/$HUB"
+got=$(drift "$scratch")
+if [[ "$got" == "MISSING hub tests (duplicate)" ]]; then
+  pass "CONTROL: a hub copy that lists tests twice is MISSING (duplicate)"
+else
+  fail "CONTROL: a duplicate kind row was not caught (got: '$got')"
 fi
 
 [[ "$fails" -eq 0 ]] && echo "PASS: all agent-split-one-source.tst.sh assertions"

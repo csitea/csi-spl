@@ -1282,6 +1282,36 @@ out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-519 2>&1)"
   grep -qF "lane refused, no issue: brief $T/briefs/no-disc.md has no 'Issue: <KEY>' line and no 'Epic: SPL-<n>' + 'Spec: <folder>' pair" "$T/send.log" &&
   pass "16c. placer: a brief with no Issue: key and no Epic:/Spec: pair is handed off with 'no issue', nothing launched" ||
   fail "16c. no issue: $out | $(cat "$T/launch.log") | $(sends) | $(hubrow "$E12")"
+# 16d. C97 (R7 c-343 W1): what the placer lets through is what the row gets.
+# A brief naming its discussion as `Discussion: <uuid>` or `**Topic:** <uuid>`
+# launches, and the spawn's row reader (_spawn_lane_topic) reads that same
+# uuid; an ask whose discussion is set (topic dispatch-s169-rows) launches with
+# SPAWN_LANE_TOPIC=<discussion>. RED before: both brief forms read row=[], and
+# the .discussion row launched with SPAWN_LANE_TOPIC unset.
+D16=0c2d08a2-b1c1-4bb7-983d-3237203a77ec; n16=13
+SC="$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh"
+for form in "Discussion: $D16" "**Topic:** $D16"; do
+  printf 'Kind: complex_coding\nReport on task dispatch-s169-rows.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n%s\n' "$form" >"$T/briefs/no-disc.md"
+  e16="317000${n16}-0000-4000-8000-0000000000${n16}"; n16=$((n16 + 1))
+  q16c "$e16" dispatch-s169-rows no-disc
+  out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-520 2>&1)"
+  row16="$(
+    # shellcheck source=../features/spawn-agents/scripts/spawn-core.inc.sh
+    . "$SC" 2>/dev/null
+    _spawn_lane_topic "$T/briefs/no-disc.md")"
+  [[ "$(jq -r .reason <<<"$(hubrow "$e16")")" == "placed: c-520@box-desk" && "$row16" == "$D16" ]] &&
+    pass "16d. a brief '$form' passes the placer and the row reads the same topic" ||
+    fail "16d. '$form': row=[$row16] $out | $(cat "$T/launch.log") | $(hubrow "$e16")"
+done
+E15=31700015-0000-4000-8000-000000000015
+printf 'Kind: complex_coding\nReport on task dispatch-s169-rows.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/no-disc.md"
+q16c "$E15" dispatch-s169-rows no-disc
+jq --arg i "$E15" --arg d "$D16" '(.[] | select(.ask_id == $i)) |= (.discussion = $d)' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+: >"$T/launch.log.env"
+out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-521 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$E15")")" == "placed: c-521@box-desk" ]] && grep -qx "no-disc SPAWN_LANE_TOPIC=$D16" "$T/launch.log.env" &&
+  pass "16d. an ask whose discussion is set launches with SPAWN_LANE_TOPIC=<discussion>" ||
+  fail "16d. .discussion: $out | $(cat "$T/launch.log.env") | $(hubrow "$E15")"
 jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
 
 # 17. SPL-2558: the placer reopens an epic the SPL-1729 close archived ------------------

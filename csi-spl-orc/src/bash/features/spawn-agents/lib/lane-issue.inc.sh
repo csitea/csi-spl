@@ -41,9 +41,11 @@ li_key_from_brief() {
 # li_discussion_from_brief FILE -> the discussion the brief names (spec 153
 # 3.20, SPL-4797; owner HUM-10, t1 0c2d08a2 msg e7009f10): a `topic <id>`,
 # `Topic: <id>`, `Discussion: <id>` or `/t/<id>` (a full uuid or its 8 hex),
-# else the 8 hex of its first `dispatch-<topic8>` task. The same reading as
-# the spawn's lane row (_spawn_lane_topic), minus its last resort, a report
-# task's bare uuid, which may be a relay task's. Nothing = no discussion.
+# else the 8 hex of its first `dispatch-<topic8>` task. The ONE reader: the
+# spawn's lane row (_spawn_lane_topic) calls it, then tries its last resort, a
+# report task's bare uuid, which may be a relay task's (R7 c-343 W1: two
+# readers had drifted, so a `Discussion:` brief passed the placer and landed
+# with no topic). Nothing = no discussion.
 li_discussion_from_brief() {
   [ -r "${1:-}" ] || return 1
   local t

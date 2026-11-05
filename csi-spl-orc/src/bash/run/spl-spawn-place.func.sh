@@ -632,7 +632,8 @@ spl_spawn_place_no_links() {  # ROW BRIEF
     . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 0
   topic="$(jq -r '.topic // ""' <<<"$1")"
   disc="$(jq -r '.discussion // ""' <<<"$1")"
-  if [[ ! "$topic" =~ ^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|dispatch-[0-9a-f]{8})$ && -z "$disc" ]] &&
+  if [[ ! "$topic" =~ ^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|dispatch-[0-9a-f]{8})$ &&
+    ! "$disc" =~ ^[0-9a-f]{8}((-[0-9a-f]{4}){3}-[0-9a-f]{12})?$ ]] &&
     ! li_discussion_from_brief "$2" >/dev/null; then
     why="no discussion: the ask's topic '${topic}' names no hub topic and brief $2 names none (add a 'Topic: <uuid>' line, or report on dispatch-<topic8>)"
   fi
@@ -1047,12 +1048,15 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   # The lane row's topic (spec 153 3.4): the ask's topic, set once for both
   # launch lines, when it is a full hub uuid, or the 8 hex of a dispatch-<topic8>
   # task, which the hub resolves to the full uuid at put (3.12); any other
-  # task name (dispatch-r47, dispatch-orc-<topic8>) sets nothing
-  local ask_topic; ask_topic="$(jq -r '.topic // ""' <<<"$2")"
+  # task name (dispatch-r47, dispatch-orc-<topic8>) sets nothing; else the
+  # ask's discussion (3.20, R7 c-343 W1), which the placer let it launch on
+  local ask_topic ask_disc; ask_topic="$(jq -r '.topic // ""' <<<"$2")"; ask_disc="$(jq -r '.discussion // ""' <<<"$2")"
   if [[ "$ask_topic" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]]; then
     local -x SPAWN_LANE_TOPIC="${BASH_REMATCH[0]}"
   elif [[ "$ask_topic" =~ ^dispatch-([0-9a-f]{8})$ ]]; then
     local -x SPAWN_LANE_TOPIC="${BASH_REMATCH[1]}"
+  elif [[ "$ask_disc" =~ ^[0-9a-f]{8}((-[0-9a-f]{4}){3}-[0-9a-f]{12})?$ ]]; then
+    local -x SPAWN_LANE_TOPIC="${BASH_REMATCH[0]}"
   fi
   # stdout is the launcher's "<ID>[@<box>] <PANE>"; its stderr names other ids
   if [[ -n "${SPAWN_PLACE_LAUNCH_CMD:-}" ]]; then

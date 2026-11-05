@@ -272,12 +272,15 @@ _spawn_worktree() {
 }
 
 # _spawn_lane_topic FILE: the first HUB topic FILE names, written
-# `topic:<id>`, `topic <id>` or `/t/<id>` (a full uuid, or an 8-hex short id
-# the hub resolves at put); never a bare uuid, which may be a spool task
-# alias's; else (spec 153 v1.3 3.8) the 8 hex of the first
-# `dispatch-<topic8>` task it names (a seat's `Task:` line or a lane's report
-# task), which the hub resolves in the workspace that holds it; never a
-# `dispatch-orc-<topic8>` relay task; else (3.11, SPL-4457) the full uuid of
+# `topic:<id>`, `topic <id>`, `**Topic:** <id>`, `Discussion: <id>` or
+# `/t/<id>` (a full uuid, or an 8-hex short id the hub resolves at put); never
+# a bare uuid, which may be a spool task alias's; else (spec 153 v1.3 3.8) the
+# 8 hex of the first `dispatch-<topic8>` task it names (a seat's `Task:` line
+# or a lane's report task), which the hub resolves in the workspace that holds
+# it; never a `dispatch-orc-<topic8>` relay task. Those two reads are
+# li_discussion_from_brief, the placer's (spec 153 3.20, R7 c-343 W1: one
+# reader, so a brief the placer lets through never lands with no topic);
+# else (3.11, SPL-4457) the full uuid of
 # the first report task it names, `task `<uuid>`` or `--task <uuid>` (a
 # reviewer's brief names only that), never a version-5 one: that is a relay
 # task's hash of its name (spool-fleet-relay.sh, uuid5 "spool-task:<name>"),
@@ -285,9 +288,9 @@ _spawn_worktree() {
 _spawn_lane_topic() {
   local f="${1:-}" t
   [ -n "$f" ] && [ -r "$f" ] || return 0
-  t="$(grep -oE '([Tt]opic[: ]+`?|/t/)[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?([^0-9A-Za-z-]|$)' "$f" 2>/dev/null |
-    head -1 | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?' | head -1)"
-  [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$f" 2>/dev/null | head -1 | grep -oE '[0-9a-f]{8}' | head -1)"
+  declare -F li_discussion_from_brief >/dev/null ||
+    . "$(dirname "${BASH_SOURCE[0]}")/../lib/lane-issue.inc.sh" 2>/dev/null || return 0
+  t="$(li_discussion_from_brief "$f" 2>/dev/null)"
   [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z])-?-?task[ =]+`?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}([^0-9A-Za-z-]|$)' "$f" 2>/dev/null |
     grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | grep -vE '^[0-9a-f]{8}-[0-9a-f]{4}-5' | head -1)"
   printf '%s' "$t"

@@ -16,7 +16,7 @@ brief, not a panel version.
 Addendum (2026-11-04, SPL-4797): section 3.20 (every new lane is written
 with its discussion and its issue, the placer refuses one that names
 neither, a 15-minute check reports the gaps; `unknown` is plain text),
-cases C90-C96. Owner HUM-10, t1 topic `0c2d08a2`, msgs `e7009f10`,
+cases C90-C97. Owner HUM-10, t1 topic `0c2d08a2`, msgs `e7009f10`,
 `08ac07da`, `937e89a4`. Placed by the dispatch holder as lane (a) of three:
 (b) the renderer, (c) the NOT NULL migration.
 
@@ -1402,6 +1402,12 @@ What changes:
   else a `dispatch-<topic8>` task); no issue = no `Issue:` key and no
   `Epic:` + `Spec:` pair the placer files one under. The row goes to the
   holder as a SPAWN QUEUE blocker naming the line to add; nothing launches.
+- **What the placer accepts is what the row gets** (R7 c-343 W1). The
+  spawn's row reader (`_spawn_lane_topic`, `spawn-core.inc.sh`) calls
+  `li_discussion_from_brief` first, so the two cannot drift (before, a
+  `Discussion: <id>` or `**Topic:** <id>` brief passed the placer and the row
+  stored no topic). An ask that passes on its `discussion` (a full uuid or its
+  8 hex) launches with that as `SPAWN_LANE_TOPIC` when its topic names none.
 - **Role seats** (001-003 of any vendor, or a row the role rotation wrote,
   scope `role <id> (rotation ...)`): their defined value is the hub's
   `role_seat` mark (3.11), which the pages show as "role seat" in both cells.
@@ -1439,6 +1445,11 @@ Cases:
   brief on `dispatch-<topic8>` launches); **C94** a brief with no `Issue:` key
   and no `Epic:`/`Spec:` pair is handed off with "no issue".
   (`csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` case 16c)
+- **C97** a brief naming `Discussion: <uuid>` or `**Topic:** <uuid>` passes the
+  placer and `_spawn_lane_topic` reads that uuid; an ask on
+  `dispatch-s169-rows` whose `discussion` is set launches with
+  `SPAWN_LANE_TOPIC=<discussion>`. (case 16d; RED on `76d88cb1c`: row=[] for
+  both briefs, SPAWN_LANE_TOPIC unset)
 - **C95** the check names the gaps and leaves out role seats, legacy ids,
   done, complete, `unknown` and day-old rows; DELIVER=1 sends one note to the
   holder, not again within the resend window; the minute cron runs it once

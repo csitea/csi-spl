@@ -77,7 +77,7 @@ A1=a1a1a1a1-0000-4000-8000-000000000001
 reset; ask "$A1" 10800
 file "$T/spool/dispatch/briefs/c001tnk-old.md" 9000
 wd "$NOW"
-[[ "$(n sent .)" == 1 && "$(n sent '--to c-002@box2 --kind blocker --task wd-orch-outcome')" == 1 && "$(n sent 'a1a1a1a1')" == 1 && -e "$T/wd/orch-outcome.alerted" ]] &&
+[[ "$(n sent .)" == 1 && "$(n sent '--to c-002@box2 --kind note --task wd-orch-outcome')" == 1 && "$(n sent 'a1a1a1a1')" == 1 && -e "$T/wd/orch-outcome.alerted" ]] &&
   pass "1. no outcome 2 h, an ask waits 3 h: ONE blocker to the dispatch holder naming the ask" ||
   fail "1. sent=$(cat "$T/sent" 2>/dev/null) log=$(tail -n 2 "$T/wd.log" 2>/dev/null)"
 

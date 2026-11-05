@@ -165,7 +165,7 @@ _po_one() {
   printf '%s\n' "$key" >"$d/orphan-alerted.tmp" 2>/dev/null && mv -f "$d/orphan-alerted.tmp" "$d/orphan-alerted" ||
     { do_log "WARN cannot write the marker in $d - no alert for $id (it would repeat every minute)"; return 2; }
   send="${PUSH_ORPHAN_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  SPOOL_ROOT="$SPOOL_ROOT" bash "$send" --from "$(_po_from)" --to "$to" --kind blocker \
+  SPOOL_ROOT="$SPOOL_ROOT" bash "$send" --from "$(_po_from)" --to "$to" --kind note \
     --task "${task:-${PUSH_ORPHAN_TASK:-dispatch-push-orphan}}" --body "$body" >/dev/null 2>&1 ||
     { do_log "WARN the blocker for $id ($sha) to $to was not sent; marker $d/orphan-alerted"; return 2; }
   echo "ALERT $id $v $sha -> $to"

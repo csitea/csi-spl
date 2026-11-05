@@ -94,7 +94,7 @@ red_tick() {
   for from in $src; do
     [[ " $tried " == *" $from "* ]] && continue
     tried="${tried:+$tried }$from"
-    why="$(SPOOL_ROOT="$root" bash "$send" --from "$from" --to orchestrator --kind blocker --task dispatch-issue-closer \
+    why="$(SPOOL_ROOT="$root" bash "$send" --from "$from" --to orchestrator --kind note --ask blocker --task dispatch-issue-closer \
              --body "$body" 2>&1 >/dev/null)"
     case $? in
       0) printf '%s\n' "$now" >"$state/red.alerted"; say "INFO told the orchestrator: $n red ticks in a row (as $from)"; return 0 ;;

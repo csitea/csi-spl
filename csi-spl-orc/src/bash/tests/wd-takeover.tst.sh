@@ -191,7 +191,7 @@ proof() {
     grep -q 'API ERROR: API Error: 500 overloaded' "$hand" || bad+=" handoff"
   grep -q 'brief at /briefs/T999.md' "$seed" && grep -q '^## B. The mechanical handoff' "$seed" || bad+=" seed"
   grep -q " $TS-wd-$id WD-SPAWN OK " "$D/rotate.log" && [[ "$(tail -1 "$D/rotate.log" | cut -d' ' -f3,4)" == "DONE OK" ]] || bad+=" rotate.log"
-  [[ "$(grep -c -- "--to orchestrator --kind blocker --task wd-$id-$TS " "$T/sent" 2>/dev/null)" == 1 ]] || bad+=" blocker:$(cat "$T/sent" 2>/dev/null)"
+  [[ "$(grep -c -- "--to orchestrator --kind note --ask blocker --task wd-$id-$TS " "$T/sent" 2>/dev/null)" == 1 ]] || bad+=" blocker:$(cat "$T/sent" 2>/dev/null)"
   grep -q ERRTRAP "$T/o" && bad+=" errtrap"
   [[ -z "$bad" ]] && pass "$desc" || fail "$desc:$bad -- $(tail -5 "$T/o")"
 }
@@ -295,7 +295,7 @@ rc="$(take ID=c-916 REASON=S4 DRY_RUN=0)"
   pass "7. a fresh session that does not start: the old pid 4016 and its window name kept, the new window closed" ||
   fail "7. failed start rc=$rc win=$(win %16)/$(win %3916): $(cat "$T/o")"
 [[ -s "$D/wd/c-916.heldout" ]] && grep -q '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log" && grep -q 'WD-SPAWN FAIL' "$D/rotate.log" &&
-  [[ "$(tail -1 "$D/rotate.log" | cut -d' ' -f3,4)" == "DONE FAIL" ]] && ! grep -q -- '--kind blocker' "$T/sent" 2>/dev/null &&
+  [[ "$(tail -1 "$D/rotate.log" | cut -d' ' -f3,4)" == "DONE FAIL" ]] && ! grep -q -- '--ask blocker' "$T/sent" 2>/dev/null &&
   pass "7. held out, ask + owner DM, DONE FAIL, no investigation blocker" || fail "7. alert: $(cat "$D/rotate.log")"
 
 # --- 8. dry run, relay ----------------------------------------------------------------------------

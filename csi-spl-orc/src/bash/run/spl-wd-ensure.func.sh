@@ -154,7 +154,7 @@ spl_wd_ensure_alert() {
   fi
   echo "$now" > "$f"
   bash "${WD_ENSURE_SEND:-$SPL_WD_ENSURE_DIR/../features/spawn-agents/scripts/spool-send.sh}" \
-    --from "${LEASE_ORCH:-$(spl_role_seat 1)}" --to orchestrator --kind blocker --task "wd-keeper-$(spl_wd_ensure_box)" \
+    --from "${LEASE_ORCH:-$(spl_role_seat 1)}" --to orchestrator --kind note --ask blocker --task "wd-keeper-$(spl_wd_ensure_box)" \
     --body "$text" 7>&- 8>&- || rc=$?
   # spool-send.sh 1-9: delivered, only the poke did not ring
   if (( rc >= 10 || rc == 2 )); then do_log "WARN $cond blocker NOT delivered (spool-send.sh exit $rc)"

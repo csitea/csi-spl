@@ -287,7 +287,7 @@ spl_spawn_place_supply() {  # HOLDER ROWS
     [[ -n "$line" ]] || continue
     to="$(spl_spawn_place_dispatch)"
     [[ -n "$to" ]] || { do_log "WARN $line, and nobody holds the dispatch lease: not told"; continue; }
-    if spl_spawn_q_send "$1" "$to" blocker spawn-share "**SPAWN SHARE: $line.** Request the next $c rows (a $c round / its rows) and queue them with \`SPAWN_CLASS=$c ./run -a do_spl_spawn_enqueue\`. The bands: fleet-rules-index.md (owner msg 8cb6cc7d); the report: \`./run -a do_spl_spawn_share\`."; then
+    if spl_spawn_q_send "$1" "$to" note spawn-share "**SPAWN SHARE: $line.** Request the next $c rows (a $c round / its rows) and queue them with \`SPAWN_CLASS=$c ./run -a do_spl_spawn_enqueue\`. The bands: fleet-rules-index.md (owner msg 8cb6cc7d); the report: \`./run -a do_spl_spawn_share\`."; then
       touch "$d/.share.$c.last"
       do_log "OK supply: $line; $to told"
     fi
@@ -327,7 +327,7 @@ spl_spawn_place_supply_lead_send() {  # HOLDER ROWS SHARE NIGHT
   [[ -n "$line" ]] || return 1
   to="$(spl_spawn_place_dispatch)"
   [[ -n "$to" ]] || { do_log "WARN supply lead: the night of $4 starts within ${SPAWN_SUPPLY_LEAD_MIN:-120} min, $line, and nobody holds the dispatch lease: not told"; return 0; }
-  spl_spawn_q_send "$1" "$to" blocker spawn-share "**SPAWN SUPPLY LEAD: the night of $4 starts within ${SPAWN_SUPPLY_LEAD_MIN:-120} min (do_spl_rhythm_phase) and $line.** Request the next refactor rows now (a round's planner runs by day, its rows at night: rounds-rulebook.md 1.4) and queue them with \`SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue\`, so they are ready when the night starts. The night bands: spec 166 section 3.1; the report: \`./run -a do_spl_spawn_share\`." || return 1
+  spl_spawn_q_send "$1" "$to" note spawn-share "**SPAWN SUPPLY LEAD: the night of $4 starts within ${SPAWN_SUPPLY_LEAD_MIN:-120} min (do_spl_rhythm_phase) and $line.** Request the next refactor rows now (a round's planner runs by day, its rows at night: rounds-rulebook.md 1.4) and queue them with \`SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue\`, so they are ready when the night starts. The night bands: spec 166 section 3.1; the report: \`./run -a do_spl_spawn_share\`." || return 1
   touch "$d/.share.refactor.last"
   printf '%s\n' "$4" >"$d/.share.refactor.lead"
   do_log "OK supply lead: the night of $4, $line; $to told"

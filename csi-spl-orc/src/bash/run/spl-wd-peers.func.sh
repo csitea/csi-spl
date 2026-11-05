@@ -191,7 +191,7 @@ spl_wd_peer_alert() {
     echo "$now" > "$f" 2>/dev/null || true
     if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_wd_peer_log "DRY_RUN would alert ($cause): $text"; exit 0; fi
     spl_wd_peer_log "ALERT ($cause): $text"
-    bash "$WD_SEND" --from "$WD_FROM" --to orchestrator --kind blocker --task "wd-box-$(spl_wd_peer_box)" \
+    bash "$WD_SEND" --from "$WD_FROM" --to orchestrator --kind note --ask blocker --task "wd-box-$(spl_wd_peer_box)" \
       --body "$text" >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || true
   ) || true
   # 3 = another instance alerted within the debounce: remember that too

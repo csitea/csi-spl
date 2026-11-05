@@ -560,7 +560,7 @@ on pc do_spl_spawn_placed ASK_ID="$B1" PLACED_AS=c-311@box-desk >/dev/null 2>&1
 LANES="$(jq -c '. + [{agent_id: "c-311", agent_box: "box-desk", state: "live"}]' <<<"$LANES")"
 : >"$T/send.log"
 out="$(on pc do_spl_spawn_place WINDOWS=40 SPAWN_SHARE_SUPPLY_MIN=60 2>&1)"
-if grep -q "^c-001 c-002 blocker spawn-share \*\*SPAWN SHARE: bug share 18% < 20% (2 of 11 live lanes with a class) and no bug row is queued" "$T/send.log" &&
+if grep -q "^c-001 c-002 note spawn-share \*\*SPAWN SHARE: bug share 18% < 20% (2 of 11 live lanes with a class) and no bug row is queued" "$T/send.log" &&
    [[ "$(grep -c "SPAWN SHARE" "$T/send.log")" == 1 ]]; then
   pass "supply: bug under its band with none queued -> ONE blocker to the dispatch holder (refactor in band: none)"
 else fail "supply: $out | $(sends)"; fi
@@ -571,7 +571,7 @@ on pc do_spl_spawn_place WINDOWS=40 SPAWN_SHARE_SUPPLY_MIN=60 >/dev/null 2>&1
 for ph in "day 2026-01-15T12:00Z" "night 2026-01-15T22:00Z"; do
   rm -f "$T/pc/spool/asks/.share.bug.last" "$T/pc/spool/asks/.share.refactor.last"; : >"$T/send.log"
   out="$(on pc do_spl_spawn_place WINDOWS=40 SPAWN_SHARE_SUPPLY_MIN=60 SPAWN_SHARE_BANDS= RHYTHM_NOW="${ph#* }" 2>&1)"
-  if grep -q "^c-001 c-002 blocker spawn-share \*\*SPAWN SHARE: bug share 18% < 20% (2 of 11 live lanes with a class)" "$T/send.log" &&
+  if grep -q "^c-001 c-002 note spawn-share \*\*SPAWN SHARE: bug share 18% < 20% (2 of 11 live lanes with a class)" "$T/send.log" &&
      [[ "$(grep -c "SPAWN SHARE" "$T/send.log")" == 1 ]]; then
     pass "supply by ${ph%% *}: bug 18% under the owner's 20% -> ONE blocker naming 20%, not the ${ph%% *} band"
   else fail "supply by ${ph%% *}: $out | $(sends)"; fi

@@ -104,7 +104,7 @@ s2_lane() {
   cp "$FL/login-expired.jsonl" "$T/tr.4033"
 }
 s2_lane; owner @4 20; NOW=$T0 wd >/dev/null; out="$(NOW=$((T0 + 30)) wd)"
-grep -q 'c-933 HIT S2 kind=login' <<<"$out" && [[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-933' "$T/sent" 2>/dev/null)" == 1 ]] &&
+grep -q 'c-933 HIT S2 kind=login' <<<"$out" && [[ "$(grep -c -- '--to orchestrator --kind note --ask blocker --task wd-c-933' "$T/sent" 2>/dev/null)" == 1 ]] &&
   pass "2. S2: the owner in another window -> ONE blocker" || fail "2. S2 other window: $out / $(cat "$T/sent" 2>/dev/null)"
 s2_lane; owner @3 20; NOW=$T0 wd >/dev/null; owner @3 20; out="$(NOW=$((T0 + 30)) wd)"
 grep -q "c-933 HIT S2 kind=login.*would dm (a human client was active" <<<"$out" && [[ ! -s "$T/sent" ]] &&

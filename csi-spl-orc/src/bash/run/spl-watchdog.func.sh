@@ -1224,10 +1224,10 @@ spl_wd_act() {
         elif (( age >= 2 * WD_JOB_WAIT )) && [[ " $ev " != *" prog=unknown "* ]]; then spl_wd_once "$id" S1 takeover "$now" "$ctx" spl_wd_takeover "$id" S1 "$ev"
         else spl_wd_once "$id" S1 ring "$now" "$ctx" spl_wd_ring "$id"; fi ;;
     S2) if [[ "$ev" == kind=auth* ]]; then
-          spl_wd_once "$id" S2 auth "$now" "$ctx" spl_wd_send "$(spl_wd_dispatcher)" blocker "$id" \
+          spl_wd_once "$id" S2 auth "$now" "$ctx" spl_wd_send "$(spl_wd_dispatcher)" alarm "$id" \
             "$(spl_wd_auth_body "$id" "$ev" "$pane" "$ctx")"
         elif [[ "$ev" == kind=login* ]]; then
-          spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator blocker "$id" \
+          spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator alarm "$id" \
             "WATCHDOG (093 S2): $id cannot act, a login or access screen: ${ev#kind=login }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. A restart does not fix a login: a human runs /login in that pane."
         else spl_wd_s2_limit "$id" "$ev" "$pane" "$now" "$ctx"; fi ;;
     S3) spl_wd_once "$id" S3 takeover "$now" "$ctx" spl_wd_takeover "$id" S3 "$ev" ;;
@@ -1270,7 +1270,7 @@ spl_wd_s2_limit() {
   r="$(cat "$f" 2>/dev/null || true)"
   [[ "$r" == *b ]] && { r="${r%b}"; b=" (back-off: no reset time read)"; }
   [[ "$r" =~ ^[0-9]+$ ]] || return 0
-  txt="$(spl_wd_once "$id" S2 blocker "$now" "$ctx" spl_wd_send orchestrator blocker "$id" \
+  txt="$(spl_wd_once "$id" S2 blocker "$now" "$ctx" spl_wd_send orchestrator alarm "$id" \
     "WATCHDOG (093 S2 kind=limit): $id is on its usage limit until $(date -u -d "@$r" +%FT%TZ)$b: ${ev#kind=limit }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. No restart: a restart hits the same limit. The watchdog waits, wakes it once ${WD_LIMIT_GRACE:-120}s past the reset, and holds S1 until then.")"
   if (( now < r + ${WD_LIMIT_GRACE:-120} )); then
     echo "not able until the reset $(date -u -d "@$r" +%FT%TZ)$b + ${WD_LIMIT_GRACE:-120}s; no restart; $txt"; return 0
@@ -1556,9 +1556,13 @@ spl_wd_repoke() { spl_wd_key "$2" C-c && spl_wd_ring "$1"; }
 # spl_wd_send TO KIND ID BODY: a spool message on task wd-<id>. spool-send.sh
 # 1-9 = delivered (only the poke did not ring); 10+ or 2 = not delivered.
 # SPL_WD_SEND_RC keeps the rc for a caller that logs the failure.
+# KIND alarm (RCA 8c64225e A1.3): sent as a note, never a blocker, so the hub
+# files no SPL-2394 issue for it; to the orchestrator it is still an ask
+# (--ask blocker: journaled under $SPOOL_ROOT/asks/ and re-raised).
 spl_wd_send() {
-  local rc=0
-  bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$2" --task "wd-$3" --body "$4" >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || rc=$?
+  local rc=0 kind="$2" ask=()
+  if [[ "$kind" == alarm ]]; then kind=note; [[ "$1" == orchestrator ]] && ask=(--ask blocker); fi
+  bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$kind" "${ask[@]}" --task "wd-$3" --body "$4" >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || rc=$?
   SPL_WD_SEND_RC=$rc
   (( rc < 10 && rc != 2 ))
 }
@@ -1592,7 +1596,7 @@ spl_wd_takeover() {
   n="$(spl_wd_restarts_n "$id" "$now")"
   if (( n >= RESTART_MAX_PER_HOUR )); then
     spl_wd_hold_out "$id" "$now" "$n restarts in the last hour, then $code again ($ev)"
-    spl_wd_send orchestrator blocker "$id" "WATCHDOG (102 6.1): $id was restarted $n times in the last hour and hit $code again ($ev); it is held out of the watchdog until the admin clears $SPOOL_ROOT/$id/lifetime/heldout. Recent verdicts: $(grep " $id HIT " "$WD_LOG" 2>/dev/null | tail -n 2 | cut -c1-200 | tr '\n' ';')" || true
+    spl_wd_send orchestrator alarm "$id" "WATCHDOG (102 6.1): $id was restarted $n times in the last hour and hit $code again ($ev); it is held out of the watchdog until the admin clears $SPOOL_ROOT/$id/lifetime/heldout. Recent verdicts: $(grep " $id HIT " "$WD_LOG" 2>/dev/null | tail -n 2 | cut -c1-200 | tr '\n' ';')" || true
     echo "held out: $n restarts in the last hour"
     return 1
   fi

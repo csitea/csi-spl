@@ -410,11 +410,12 @@ spl_wdt_seat_section() {
 
 # ---- BLOCKER + RELAY ---------------------------------------------------------------
 
-# One job for the peers (8.2): kind blocker, task wd-<id>-<ts>. --to
+# One job for the peers (8.2): kind note with a blocker ask (RCA 8c64225e
+# A1.3: no SPL-2394 issue for an alarm), task wd-<id>-<ts>. --to
 # orchestrator is the peers when this box has seats (spool-send.sh, 068 L4).
 spl_wdt_blocker() {
   local id="$1" rid="$2" ts="$3" hand="$4" rc=0
-  SPOOL_ROOT="$SPOOL_ROOT" bash "$WD_SEND" --from "$WD_FROM" --to orchestrator --kind blocker --task "wd-$id-$ts" --body \
+  SPOOL_ROOT="$SPOOL_ROOT" bash "$WD_SEND" --from "$WD_FROM" --to orchestrator --kind note --ask blocker --task "wd-$id-$ts" --body \
     "WATCHDOG TAKEOVER (093 8.2): $id@$ROTATE_BOX was taken over: $WDT_CODE $WDT_EV. The fresh session is pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE. Handoff: $hand. Investigate (8.3): read the handoff and the old transcript, post one paragraph here (what it was doing, why it stopped, whether its job was finished), then close this job; a new cause or a code defect opens a lane." \
     >/dev/null 2>&1 7>&- 8>&- 9>&- || rc=$?
   if (( rc < 10 && rc != 2 )); then spl_peer_rlog "$rid" WD-BLOCKER OK "task wd-$id-$ts to the peers"

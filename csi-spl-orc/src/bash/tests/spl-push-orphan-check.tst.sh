@@ -75,7 +75,7 @@ out="$(check)"
 : >"$T/live"
 out="$(check)"; rc=$?
 s="$(cat "$T/sends" 2>/dev/null)"
-[ "$rc" = 0 ] && [ "$(sends)" = 1 ] && grep -q -- "--to c-002@sat" <<<"$s" && grep -q -- "--kind blocker" <<<"$s" \
+[ "$rc" = 0 ] && [ "$(sends)" = 1 ] && grep -q -- "--to c-002@sat" <<<"$s" && grep -q -- "--kind note" <<<"$s" \
   && grep -q -- "--task dispatch-b61851fb" <<<"$s" && grep -q -- "--from c-001" <<<"$s" && grep -q "by m-595 ended REFUSED" <<<"$s" \
   && grep -q "sha: $SHA" <<<"$s" && grep -q "log, last line: 01:34:50Z END REFUSED push of $SHA" <<<"$s" \
   && grep -q "topic: /t/b61851fb-6c41-4145-8a53-ed4cd3574475" <<<"$s" && grep -q "ALERT m-595 REFUSED $SHA -> c-002@sat" <<<"$out" \

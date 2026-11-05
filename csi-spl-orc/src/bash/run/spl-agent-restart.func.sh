@@ -828,7 +828,7 @@ spl_ars_report() {
     return 0
   fi
   body="WATCHDOG RESTART (102 4.1): $id@$ROTATE_BOX was restarted: $ARS_CODE $ARS_EV. The new session is pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE. Handoff: $hand. Investigate (093 8.3): read the handoff and the old transcript, post one paragraph here (what it was doing, why it stopped, whether its job was finished), then close this job; a new cause or a code defect opens a lane."
-  spl_ars_report_send "$rid" "the blocker" "blocker on task wd-$id-$ts to the peers" orchestrator blocker "wd-$id-$ts" "$body"
+  spl_ars_report_send "$rid" "the blocker" "blocker on task wd-$id-$ts to the peers" orchestrator alarm "wd-$id-$ts" "$body"
   return 0
 }
 
@@ -898,10 +898,13 @@ spl_ars_report_flush() {
 }
 
 # spl_ars_send TO KIND TASK BODY [FLAG]: spool-send.sh exit 1-9 = delivered
-# (exit 2 = usage: not sent); ARS_SEND_RC is its exit.
+# (exit 2 = usage: not sent); ARS_SEND_RC is its exit. KIND alarm (RCA
+# 8c64225e A1.3) goes as a note, never a blocker (the hub files no SPL-2394
+# issue for it); to the orchestrator it is still an ask (--ask blocker).
 spl_ars_send() {
-  local rc=0
-  SPOOL_ROOT="$SPOOL_ROOT" bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$2" --task "$3" ${5:+"$5"} --body "$4" \
+  local rc=0 kind="$2" ask=()
+  if [[ "$kind" == alarm ]]; then kind=note; [[ "$1" == orchestrator ]] && ask=(--ask blocker); fi
+  SPOOL_ROOT="$SPOOL_ROOT" bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$kind" "${ask[@]}" --task "$3" ${5:+"$5"} --body "$4" \
     >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || rc=$?
   ARS_SEND_RC="$rc"
   (( rc < 10 && rc != 2 ))

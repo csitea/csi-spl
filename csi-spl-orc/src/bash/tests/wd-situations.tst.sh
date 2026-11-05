@@ -611,7 +611,7 @@ reset_box; agent c-912 %1 4012 claude 3600 "$FL/login-expired-2026-10-05.pane"; 
 for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done
 grep -q 'c-912 HIT S2 kind=login' <<<"$out" && pass "4 S2 on the login screen" || fail "4 S2: $out"
 [[ ! -s "$T/takeovers" ]] && pass "4 S2 never takes over (4 ticks)" || fail "4 S2 took over"
-[[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-912' "$T/sent")" == 1 ]] && pass "4 S2 sends ONE blocker to the orchestrator" || fail "4 S2 sends: $(cat "$T/sent" 2>/dev/null)"
+[[ "$(grep -c -- '--to orchestrator --kind note --ask blocker --task wd-c-912' "$T/sent")" == 1 ]] && pass "4 S2 sends ONE blocker to the orchestrator" || fail "4 S2 sends: $(cat "$T/sent" 2>/dev/null)"
 grep -q 'box box1, pane %1' "$T/sent" && pass "4 the blocker names the box and the pane" || fail "4 blocker text"
 
 # S1 rings at 120 s, takes over at 240 s (control: 90 s does nothing)
@@ -767,7 +767,7 @@ cnt() { for _ in $(seq 1 20); do [[ "$(grep -c . "$S/c-931/lifetime/restarts" 2>
 r1="$(lim "$T0")"; cnt 1; r2="$(lim $((T0 + 600)))"; cnt 2; r3="$(lim $((T0 + 900)))"; cnt 3; r4="$(lim $((T0 + 1200)))"; sleep 0.3
 [[ "$r1" == rc=0 && "$r2" == rc=0 && "$r3" == rc=0 ]] && pass "6 control: three restarts in an hour run (the third is under the limit)" || fail "6 first three: $r1 / $r2 / $r3"
 [[ "$r4" == *"held out: 3 restarts"*"rc=1" ]] && [[ "$(grep -c . "$T/takeovers")" == 3 ]] && pass "6 the fourth is not done: held out" || fail "6 fourth: $r4 / $(cat "$T/takeovers")"
-[[ "$(grep -c -- '--kind blocker --task wd-c-931' "$T/sent")" == 1 ]] && [[ -s "$S/c-931/lifetime/heldout" && -s "$D/wd/c-931.heldout" ]] &&
+[[ "$(grep -c -- '--kind note --ask blocker --task wd-c-931' "$T/sent")" == 1 ]] && [[ -s "$S/c-931/lifetime/heldout" && -s "$D/wd/c-931.heldout" ]] &&
   pass "6 held out (lifetime/heldout) + ONE blocker to the orchestrator" || fail "6 blocker: $(cat "$T/sent" 2>/dev/null)"
 reset_box; agent c-931 %1 -; mkdir -p "$S/c-931/lifetime"; echo "x 3 restarts" > "$S/c-931/lifetime/heldout"
 TICK=9000 NOW=$T0 wd >/dev/null; out="$(TICK=9000 NOW=$((T0 + 7200)) wd)"
@@ -1004,10 +1004,10 @@ grep -q 'c-960 HIT S3 .*-> takeover$' <<<"$out" && [[ "$(grep -c . "$T/takeovers
   pass "9 a takeover whose session is dead again 300 s later: failed, retried in the same episode" || fail "9 retry: $out / $(cat "$T/takeovers")"
 out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 630)) wd)"; sleep 0.3
 grep -q 'c-960 HIT S3 .*takeover not done: held out: 2 restarts' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] &&
-  [[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-960' "$T/sent")" == 1 ]] && [[ -s "$D/wd/c-960.heldout" ]] &&
+  [[ "$(grep -c -- '--to orchestrator --kind note --ask blocker --task wd-c-960' "$T/sent")" == 1 ]] && [[ -s "$D/wd/c-960.heldout" ]] &&
   pass "9 the third in an hour: held out, ONE blocker to the orchestrator" || fail "9 cap: $out / $(cat "$T/sent" 2>/dev/null)"
 out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 960)) wd)"
-grep -q 'c-960 HIT S3 .*would takeover (held out' <<<"$out" && [[ "$(grep -c -- '--kind blocker --task wd-c-960' "$T/sent")" == 1 ]] &&
+grep -q 'c-960 HIT S3 .*would takeover (held out' <<<"$out" && [[ "$(grep -c -- '--kind note --ask blocker --task wd-c-960' "$T/sent")" == 1 ]] &&
   pass "9 held out: no loop, no second blocker" || fail "9 after cap: $out"
 
 # 10. mistral (spec 110 T013b) at tick level
@@ -1029,12 +1029,12 @@ echo "c-002@box1 $T0" > "$D/lease"
 for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
 grep -q 'm-972 HIT S2 kind=auth pane: Invalid API key' <<<"$out" && pass "10 vibe's dead key: HIT S2 kind=auth" || fail "10 auth: $out"
 [[ ! -s "$T/takeovers" ]] && pass "10 an auth lane is left alone: no respawn in 4 ticks, a job waiting" || fail "10 auth took over: $(cat "$T/takeovers")"
-[[ "$(grep -c -- '--to c-002@box1 --kind blocker --task wd-m-972' "$T/sent")" == 1 ]] && grep -q 'API key is refused' "$T/sent" &&
+[[ "$(grep -c -- '--to c-002@box1 --kind note --task wd-m-972' "$T/sent")" == 1 ]] && grep -q 'API key is refused' "$T/sent" &&
   pass "10 ONE blocker to the dispatcher (the lease holder)" || fail "10 auth blocker: $(cat "$T/sent" 2>/dev/null)"
 grep -q '^HIT S2 kind=auth ' "$D/wd/ctx/m-972/out.s2" && pass "10 ctx/m-972/out.s2 carries 'HIT S2 kind=auth' (lane-mix's read)" || fail "10 out.s2: $(cat "$D/wd/ctx/m-972/out.s2" 2>/dev/null)"
 mreset; agent m-973 %1 4073 "Vibe CLI" 3600 "$MF/pane-mistral-auth.txt"
 for k in 0 1; do NOW=$((T0 + 30 * k)) wd >/dev/null; done; sleep 0.3
-grep -q -- '--to orchestrator --kind blocker --task wd-m-973' "$T/sent" && pass "10 control: no dispatch lease: the blocker goes to the orchestrator" || fail "10 no lease: $(cat "$T/sent" 2>/dev/null)"
+grep -q -- '--to orchestrator --kind note --ask blocker --task wd-m-973' "$T/sent" && pass "10 control: no dispatch lease: the blocker goes to the orchestrator" || fail "10 no lease: $(cat "$T/sent" 2>/dev/null)"
 # spec 132: agy's kind=auth is a missing login, not a refused key. The same
 # shape as m-972 (4 ticks, one blocker, no restart), the wording differs.
 reset_box; rm -rf "$S"/a-*
@@ -1044,7 +1044,7 @@ echo "c-002@box1 $T0" > "$D/lease"
 for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
 grep -q 'a-980 HIT S2 kind=auth pane: You are currently not signed in' <<<"$out" && pass "10 agy's missing login: HIT S2 kind=auth" || fail "10 agy auth: $out"
 [[ ! -s "$T/takeovers" ]] && pass "10 an agy auth lane is left alone: no respawn" || fail "10 agy auth took over: $(cat "$T/takeovers")"
-[[ "$(grep -c -- '--to c-002@box1 --kind blocker --task wd-a-980' "$T/sent")" == 1 ]] && grep -q 'login required (agy)' "$T/sent" &&
+[[ "$(grep -c -- '--to c-002@box1 --kind note --task wd-a-980' "$T/sent")" == 1 ]] && grep -q 'login required (agy)' "$T/sent" &&
   grep -q 'The owner logs in' "$T/sent" && ! grep -q 'API key is refused' "$T/sent" && ! grep -q 're-keys' "$T/sent" &&
   pass "10 ONE blocker says login required (agy), not a refused key" || fail "10 agy blocker: $(cat "$T/sent" 2>/dev/null)"
 # the idle mid-task lane of m-595: no file, empty prompt, a job unread; it rings
@@ -1139,7 +1139,7 @@ reset_box; limit_pane 'resets 1:50am (Europe/Helsinki)'; agent c-980 %1 4080 cla
 at $L0 >/dev/null; out="$(at $((L0 + 30)))"
 grep -q 'c-980 HIT S2 kind=limit .*-> not able until the reset 2026-10-08T22:50:00Z + 120s; no restart; blocker$' <<<"$out" &&
   [[ "$(cat "$D/wd/c-980.ep.S2.reset")" == "$LR" ]] && pass "11 1:50am (Europe/Helsinki) on 2026-10-08 is 22:50Z, stored once" || fail "11 tz: $out / $(cat "$D/wd/c-980.ep.S2.reset" 2>/dev/null)"
-[[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-980 --body WATCHDOG (093 S2 kind=limit): c-980 is on its usage limit until 2026-10-08T22:50:00Z' "$T/sent")" == 1 ]] &&
+[[ "$(grep -c -- '--to orchestrator --kind note --ask blocker --task wd-c-980 --body WATCHDOG (093 S2 kind=limit): c-980 is on its usage limit until 2026-10-08T22:50:00Z' "$T/sent")" == 1 ]] &&
   pass "11 ONE blocker to the orchestrator names the seat and the reset" || fail "11 blocker: $(cat "$T/sent" 2>/dev/null)"
 out="$(at $((LR + 60)))"
 [[ "$(wakes c-980)" == 0 ]] && grep -q 'c-980 HIT S2 .*not able until the reset' <<<"$out" && pass "11 (a) reset + 60 s (under the 120 s grace): no wake" || fail "11 (a): $out / $(cat "$T/sent" 2>/dev/null)"
@@ -1175,7 +1175,7 @@ at $L0 >/dev/null; out="$(at $((L0 + 30)))"
 AQ=$(( L0 + 30 + 13 * 3600 + 53 * 60 + 38 ))
 grep -q 'a-981 HIT S2 kind=limit pane: Individual quota reached, Resets in 13h53m38s\. .*not able until the reset' <<<"$out" &&
   [[ "$(cat "$D/wd/a-981.ep.S2.reset" 2>/dev/null)" == "$AQ" ]] && [[ ! -s "$T/takeovers" ]] &&
-  [[ "$(grep -c -- "--kind blocker --task wd-a-981 --body WATCHDOG (093 S2 kind=limit): a-981 is on its usage limit until $(date -u -d "@$AQ" +%FT%TZ):" "$T/sent")" == 1 ]] &&
+  [[ "$(grep -c -- "--kind note --ask blocker --task wd-a-981 --body WATCHDOG (093 S2 kind=limit): a-981 is on its usage limit until $(date -u -d "@$AQ" +%FT%TZ):" "$T/sent")" == 1 ]] &&
   pass "11 (d) agy's 'Resets in 13h53m38s' is the tick + 50018 s, ONE blocker, no takeover" || fail "11 (d) agy quota: $out / $(cat "$D/wd/a-981.ep.S2.reset" 2>/dev/null) / $(cat "$T/sent" 2>/dev/null)"
 
 # 12. a claude usage limit (no Stop): wait for the reset, never restart
@@ -1198,7 +1198,7 @@ grep -q "c-983 HIT S2 kind=limit transcript: You've hit your session limit · re
   [[ "$(cat "$D/wd/c-983.ep.S2.reset")" == "$U0" ]] && pass "12 (a) verdict S2 kind=limit from the transcript, no banner on the pane: waits for the reset 12:20Z" || fail "12 (a) verdict: $out"
 for n in $((UJ + 1800)) $((U0 + 60)); do out="$(at "$n")"; done; settle
 [[ ! -s "$T/takeovers" ]] && [[ "$(wakes c-983)" == 0 ]] && grep -q 'c-983 HIT S2 kind=limit .*no restart; blocker done ' <<<"$out" &&
-  [[ "$(grep -c -- '--kind blocker --task wd-c-983 --body WATCHDOG (093 S2 kind=limit): c-983 is on its usage limit until 2026-10-10T12:20:00Z' "$T/sent")" == 1 ]] &&
+  [[ "$(grep -c -- '--kind note --ask blocker --task wd-c-983 --body WATCHDOG (093 S2 kind=limit): c-983 is on its usage limit until 2026-10-10T12:20:00Z' "$T/sent")" == 1 ]] &&
   pass "12 (a) 56 min on the limit with its job unread: no restart, no wake, ONE blocker naming the reset" || fail "12 (a) no restart: $out / $(cat "$T/takeovers" "$T/sent" 2>/dev/null)"
 printf '{"type":"assistant","timestamp":"%s","message":{"content":[{"type":"text","text":"back"}]}}\n' "$(iso $((U0 + 70)))" >> "$T/tr.4083"
 uhook c-983 4083 Stop $((U0 + 71)) "{\"transcript_path\":\"$T/tr.4083\"}"

@@ -273,7 +273,7 @@ grep -q ' wip=[0-9a-f]\{12\}$' "$T/spawn.log" || bad+=" wip-not-pushed-before-sp
 for p in RS-GATE RS-RETIRE RS-CLEANUP RS-WIP RS-HANDOFF RS-SEED RS-SPAWN RS-REPORT DONE; do [[ "$(rlog c-931 $p)" -ge 1 ]] || bad+=" no-$p"; done
 [[ "$(tail -1 "$D/rotate.log" | cut -d' ' -f3,4)" == "DONE OK" ]] || bad+=" last=$(tail -1 "$D/rotate.log")"
 [[ "$(grep -c -- '--to orchestrator --kind note --task restart-c-931 --no-ask --body REBORN c-931@box1 #1 cause=rebirth handoff=' "$T/sent")" == 1 ]] || bad+=" reborn:$(cat "$T/sent" 2>/dev/null)"
-grep -q -- '--kind blocker' "$T/sent" && bad+=" blocker-sent"
+grep -q -- '--ask blocker' "$T/sent" && bad+=" blocker-sent"
 grep -q '^## 1. header' "$S/c-931/handoff/"*-rs-c-931.md && grep -q 'brief at /briefs/T999.md' "$S/c-931/handoff/"*-rs-c-931.seed.md || bad+=" handoff/seed"
 grep -q ERRTRAP "$T/o" && bad+=" errtrap"
 [[ -z "$bad" ]] && pass "1. a lane rebirth: one process, same id + worktree, wip pushed before the spawn, marker consumed, RS-* to DONE OK, ONE REBORN line" ||
@@ -284,7 +284,7 @@ crash c-931; rm -f "$T/sent"
 rc="$(go ID=c-931 CAUSE=rebirth DRY_RUN=0 LEASE_NOW=$((T0 + 600)))"
 [[ "$rc" == 3 ]] && grep -q 'no rebirth hit' "$T/o" && pass "2. control: after a rebirth no rebirth hit is left (CAUSE=rebirth -> exit 3)" || fail "2. rebirth again rc=$rc: $(cat "$T/o")"
 rc="$(go ID=c-931 CAUSE=S3 DRY_RUN=0 LEASE_NOW=$((T0 + 600)))"
-[[ "$rc" == 0 ]] && grep -q -- '--kind blocker --task wd-c-931-' "$T/sent" && ! grep -q 'REBORN' "$T/sent" &&
+[[ "$rc" == 0 ]] && grep -q -- '--kind note --ask blocker --task wd-c-931-' "$T/sent" && ! grep -q 'REBORN' "$T/sent" &&
   [[ "$(jq -r .cause "$S/c-931/lifetime/session.json")" == S3 ]] &&
   pass "2. a crash right after a rebirth is reported as S3 (a blocker), not rebirth" || fail "2. crash rc=$rc: $(cat "$T/sent" 2>/dev/null) $(tail -3 "$T/o")"
 # the real spawn appends a registry row under the reused id each session: the
@@ -494,7 +494,7 @@ rc="$(go ID=c-947 CAUSE=S3 DRY_RUN=0 ARS_REPORT_RETRY=0)"
   fail "15. blocker queued rc=$rc: $(grep RS-REPORT "$D/rotate.log")"
 rm -f "$T/relay.down"
 rc="$(go ID=c-948 CAUSE=rebirth DRY_RUN=0 ARS_REPORT_RETRY=0 LEASE_NOW=$((T0 + 60)))"
-[[ "$rc" == 0 && -z "$(ls -A "$Q")" ]] && [[ "$(grep -o -- '--kind [a-z]* --task [a-z]*-c-94[78]' "$T/sent" | tr '\n' ' ')" == "--kind blocker --task wd-c-947 --kind note --task restart-c-948 " ]] &&
+[[ "$rc" == 0 && -z "$(ls -A "$Q")" ]] && [[ "$(grep -oE -- '--kind [a-z]*( --ask [a-z]*)? --task [a-z]*-c-94[78]' "$T/sent" | tr '\n' ' ')" == "--kind note --ask blocker --task wd-c-947 --kind note --task restart-c-948 " ]] &&
   grep -q 'rs-c-947 RS-REPORT OK blocker on task wd-c-947-[0-9TZ]* to the peers (journaled 60s)$' "$D/rotate.log" &&
   pass "15. a journaled crash blocker is sent by the next restart's report, oldest first" || fail "15. next report rc=$rc: $(cat "$T/sent" 2>&1) $(grep RS-REPORT "$D/rotate.log")"
 world; lane c-949 %49 -; reborn c-949; touch "$T/relay.down"

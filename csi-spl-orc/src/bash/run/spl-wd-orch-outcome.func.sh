@@ -69,7 +69,7 @@ spl_wdo_check() {
     spl_wd_log "ORCH-OUTCOME-DRY would send $to a blocker: $why"
     return 0
   fi
-  if spl_wd_send "$to" blocker orch-outcome "$body"; then
+  if spl_wd_send "$to" alarm orch-outcome "$body"; then
     echo "$now" > "$WD_DIR/orch-outcome.alerted"
     spl_wd_log "ORCH-OUTCOME ALERT sent $to a blocker: $why"
   else

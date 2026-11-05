@@ -344,14 +344,14 @@ out="$(on st do_spl_epic_stall_check DRY_RUN=0 EPIC_STALL_NOW="$NOW")"
 [[ ! -s "$T/st/send.log" ]] && grep -q "work group SPL-8000 is short (0 of 2 in flight, 3 waiting) for 0 min" <<<"$out" &&
   pass "stall check: a short group is first remembered, no blocker yet" || fail "stall first: $out"
 out="$(on st do_spl_epic_stall_check DRY_RUN=0 EPIC_STALL_NOW="$((NOW + 31 * 60))")"
-if [[ "$(grep -c 'blocker' "$T/st/send.log" 2>/dev/null)" == 1 ]] && grep -q "^c-001 c-002 blocker spawn-queue \*\*Blocker: work group SPL-8000 has stalled\*\*" "$T/st/send.log" &&
+if [[ "$(grep -c ' note spawn-queue ' "$T/st/send.log" 2>/dev/null)" == 1 ]] && grep -q "^c-001 c-002 note spawn-queue \*\*Blocker: work group SPL-8000 has stalled\*\*" "$T/st/send.log" &&
    grep -q -- "- 1. SPL-8001 claude:g-s1 (bug)" "$T/st/send.log"; then
   pass "stall check: waiting rows and 0 of width 2 in flight for 31 min: ONE blocker naming the group and its next rows"
 else fail "stall: $out | $(cat "$T/st/send.log" 2>/dev/null)"; fi
 grep -q "work group SPL-8100: 1 of width 1 in flight, 0 waiting" <<<"$out" && ! grep -q "SPL-8100 has stalled" "$T/st/send.log" &&
   pass "control: the group with its width in flight is not stalled" || fail "stall control: $out"
 on st do_spl_epic_stall_check DRY_RUN=0 EPIC_STALL_NOW="$((NOW + 40 * 60))" >/dev/null
-[[ "$(grep -c 'blocker' "$T/st/send.log")" == 1 ]] && pass "stall check: one blocker per group per EPIC_STALL_REPEAT_H" ||
+[[ "$(grep -c ' note spawn-queue ' "$T/st/send.log")" == 1 ]] && pass "stall check: one blocker per group per EPIC_STALL_REPEAT_H" ||
   fail "stall repeat: $(cat "$T/st/send.log")"
 
 # 10. a large hub list ---------------------------------------------------------------------------

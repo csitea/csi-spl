@@ -230,7 +230,7 @@ spl_epic_stall_report() {  # STALLED FROM TO
       do_log "PLAN would send a blocker to $3 on $task: epic $key stalled ($(jq -r '"\(.open) of \(.total) open, last landed \(.last_key) \(.idle_min) min ago"' <<<"$row"))"
       n=$((n + 1)); continue
     fi
-    spl_spawn_q_send "$2" "$3" blocker "$task" "$(spl_epic_stall_body "$row")" || continue
+    spl_spawn_q_send "$2" "$3" note "$task" "$(spl_epic_stall_body "$row")" || continue
     spl_epic_stall_remember "$state" "$key" "$now"
     do_log "OK epic $key stalled: blocker sent to $3 on $task"
     n=$((n + 1))

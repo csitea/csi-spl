@@ -142,7 +142,7 @@ wait_held || true
   pass "3. dead loop: the next run starts it again, still only the watchdog" ||
   fail "3. restart rc=$rc out=$out calls=$(cat "$CALLS" 2>&1)"
 s="$(cat "$SENT")"
-[[ "$(wc -l < "$SENT")" -eq 1 && "$s" == *"--from c-001 --to orchestrator --kind blocker --task wd-keeper-box-t"* &&
+[[ "$(wc -l < "$SENT")" -eq 1 && "$s" == *"--from c-001 --to orchestrator --kind note --ask blocker --task wd-keeper-box-t"* &&
    "$s" == *"box box-t was dead (pid $dead1)"* && "$s" == *"old line 3;old line 4;old line 5;old line 6;old line 7;"* &&
    "$s" != *"old line 2"* && ! -s "$OWNER" ]] &&
   pass "9. restart: ONE blocker to the orchestrator naming the box, the dead pid and run.out's last 5 lines; no owner DM" ||
@@ -182,7 +182,7 @@ stop_loop || fail "the previous loop did not release the lock"
 rm -f "$D/ensure.alert."*; : > "$SENT"
 out="$(run_act do_spl_wd_ensure)"; rc=$?
 wait_held || true
-[[ $rc -eq 0 && "$(wc -l < "$SENT")" -eq 2 && "$(sed -n 2p "$SENT")" == *"--kind blocker"*"CRASH LOOP - the watchdog on box box-t was started 4 times"* &&
+[[ $rc -eq 0 && "$(wc -l < "$SENT")" -eq 2 && "$(sed -n 2p "$SENT")" == *"--kind note --ask blocker"*"CRASH LOOP - the watchdog on box box-t was started 4 times"* &&
    "$(cat "$OWNER")" == *"CRASH LOOP"* ]] &&
   pass "9. crash loop: 4 restarts in an hour, the restart blocker, the crash-loop blocker and ONE owner DM" ||
   fail "9. crash rc=$rc sent=$(cat "$SENT") owner=$(cat "$OWNER")"
@@ -205,7 +205,7 @@ out="$(run_act do_spl_wd_ensure)"; rc=$?
   fail "9. suspend control rc=$rc out=$out sent=$(cat "$SENT")"
 
 out="$(run_act do_spl_wd_ensure)"; rc=$?
-[[ $rc -eq 0 && "$(wc -l < "$SENT")" -eq 1 && "$(cat "$SENT")" == *"--kind blocker"*"HUNG - the watchdog on box box-t"*"has not ticked for 6"* &&
+[[ $rc -eq 0 && "$(wc -l < "$SENT")" -eq 1 && "$(cat "$SENT")" == *"--kind note --ask blocker"*"HUNG - the watchdog on box box-t"*"has not ticked for 6"* &&
    "$(cat "$OWNER")" == *"HUNG"* ]] &&
   pass "9. hung: alive, no tick for 10 min: ONE blocker and ONE owner DM" ||
   fail "9. hung rc=$rc out=$out sent=$(cat "$SENT") owner=$(cat "$OWNER")"

@@ -311,7 +311,7 @@ for _ in 1 2 3 4 5; do tick17 env FAKE_RC=1; done; s5="$(sends)"
 tick17 env FAKE_RC=1; rc6=$?; s6="$(sends)"
 tick17 env FAKE_RC=1; s7="$(sends)"
 [ "$s5" = 0 ] && [ "$rc6" = 1 ] && [ "$s6" = 1 ] && [ "$s7" = 1 ] &&
-  grep -q -- '--from c-002 --to orchestrator --kind blocker --task dispatch-issue-closer --body ISSUE CLOSER RED on box sat: the last 6 ticks' "$T/send.log" &&
+  grep -q -- '--from c-002 --to orchestrator --kind note --ask blocker --task dispatch-issue-closer --body ISSUE CLOSER RED on box sat: the last 6 ticks' "$T/send.log" &&
   pass "17. the 6th red tick in a row sends ONE blocker to the orchestrator (dispatch-issue-closer), the 7th none" ||
   fail "17. alert (sends after 5/6/7: $s5/$s6/$s7, rc6 $rc6): $(cat "$T/send.log") // $(tail -n 5 "$T/o17")"
 echo $(( $(date -u +%s) - 3601 )) >"$T/s17/red.alerted"
@@ -438,7 +438,7 @@ tick21() { rm -rf "$T/s21"; : >"$T/send.log"; CRON_LOG="$T/cron.log" SEND_LOG="$
   ISSUE_CLOSE_STATE_DIR="$T/s21" FAKE_RC=1 ISSUE_CLOSE_ALERT_AFTER=1 "$@" bash "$F/src/bash/scripts/issue-close-landed-cron.sh" >"$T/o21" 2>&1; }
 tick21 env ANNOUNCED="c-003 g-002"
 [ "$(grep '^try ' "$T/send.log" | awk '{print $3}' | tr '\n' ' ')" = "c-002 c-001 c-003 " ] && [ "$(grep '^sent ' "$T/send.log")" = "sent c-003" ] &&
-  grep -q -- '^try --from c-003 --to orchestrator --kind blocker --task dispatch-issue-closer --body ISSUE CLOSER RED on box box-a' "$T/send.log" &&
+  grep -q -- '^try --from c-003 --to orchestrator --kind note --ask blocker --task dispatch-issue-closer --body ISSUE CLOSER RED on box box-a' "$T/send.log" &&
   grep -q 'INFO told the orchestrator: 1 red ticks in a row (as c-003)' "$T/o21" && [ -s "$T/s21/red.alerted" ] &&
   pass "21. the holder c-002@box-b is not announced here: the alert goes as the first lease role seat this box announces (c-003)" ||
   fail "21. unannounced holder: $(cat "$T/send.log") // $(cat "$T/o21")"

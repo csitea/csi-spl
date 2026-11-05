@@ -170,7 +170,7 @@ spl_asks_send() {  # SEAT BODY [FROM, default the seat's own id]
   local send="${ASKS_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   to="$id"; [[ "$box" != "$ASKS_BOX" ]] && to="$id@$box"
   err="$(mktemp)"
-  SPOOL_ROOT="$SPOOL_ROOT" SPOOL_ASKS=0 SPOOL_BIN="${SPL_SPOOL:-${SPOOL_BIN:-}}" bash "$send" --from "$from" --to "$to" --kind blocker \
+  SPOOL_ROOT="$SPOOL_ROOT" SPOOL_ASKS=0 SPOOL_BIN="${SPL_SPOOL:-${SPOOL_BIN:-}}" bash "$send" --from "$from" --to "$to" --kind note \
     --task asks-open --no-ask --body "$body" >/dev/null 2>"$err" 7>&- 8>&- || rc=$?
   # spool-send.sh: 1-9 = delivered, only the poke did not ring
   if (( rc >= 10 || rc == 2 )); then

@@ -152,7 +152,7 @@ grep -q 'PLAN would send a blocker .*epic SPL-900 stalled' <<<"$out" &&
 # 2. a live run --------------------------------------------------------------------
 out="$(run do_spl_epic_stall_check DRY_RUN=0)"
 line="$(cat "$T/send.log" 2>/dev/null)"
-[[ "$(sends)" == 1 ]] && grep -q -- '--from c-001 --to c-002 --kind blocker --task dispatch-11111111 ' <<<"$line" &&
+[[ "$(sends)" == 1 ]] && grep -q -- '--from c-001 --to c-002 --kind note --task dispatch-11111111 ' <<<"$line" &&
   grep -q 'OK epic SPL-100 stalled: blocker sent' <<<"$out" &&
   pass "live: one blocker, from the orch holder to the dispatch holder, on the epic's topic task" || fail "live send: $line | $out"
 grep -q 'epic SPL-100 has stalled' <<<"$line" && grep -q '/t/11111111-1111-4111-8111-111111111111' <<<"$line" &&

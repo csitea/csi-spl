@@ -294,7 +294,7 @@ spl_spawn_group_stall() {  # LANES_FILE FROM TO
       do_log "PLAN would send a blocker to $3: work group $key stalled ($(jq -r '"\(.inflight) of width \(.width) in flight, \(.counts.waiting) waiting"' <<<"$st"))"
       continue
     fi
-    spl_spawn_q_send "$2" "$3" blocker "$(spl_spawn_q_task "$(jq -r '.topic // ""' <<<"$st")")" "$(spl_spawn_group_stall_body "$st")" || continue
+    spl_spawn_q_send "$2" "$3" note "$(spl_spawn_q_task "$(jq -r '.topic // ""' <<<"$st")")" "$(spl_spawn_group_stall_body "$st")" || continue
     spl_epic_stall_remember "$sent" "group:$key" "$now"
     do_log "OK work group $key stalled: blocker sent to $3"
   done

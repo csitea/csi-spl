@@ -242,11 +242,11 @@ f2="$(pidof_inst 2)"
 out="$(judge 1 WD_HB_SINK=/dev/full)"
 kill -0 "$f2" 2>/dev/null && [[ "$(cnt RESTART "$W/peers.log") $(cnt TERM "$W/peers.log")" == "0 0" ]] &&
   pass "6 disk full (heartbeat write ENOSPC): 0 peer kills" || fail "6 disk full kills: $out / $(cat "$W/peers.log")"
-[[ "$(cnt '--kind blocker' "$T/sent")" == 1 && "$(cnt 'cannot write' "$T/sent")" == 1 ]] &&
+[[ "$(cnt '--kind note --ask blocker' "$T/sent")" == 1 && "$(cnt 'cannot write' "$T/sent")" == 1 ]] &&
   pass "6 disk full: ONE admin alert (blocker to the orchestrator)" || fail "6 alert: $(cat "$T/sent" 2>/dev/null)"
 grep -q 'HEARTBEAT instance 1 cannot write' "$D/wd.log" 2>/dev/null && pass "6 the failed heartbeat write is logged" || fail "6 wd.log: $(cat "$D/wd.log" 2>/dev/null)"
 out="$(judge 1 WD_HB_SINK=/dev/full)"
-[[ "$(cnt '--kind blocker' "$T/sent")" == 1 ]] && kill -0 "$f2" 2>/dev/null && pass "6 the next tick: no second alert (debounced), still 0 kills" || fail "6 debounce: $(cat "$T/sent")"
+[[ "$(cnt '--kind note --ask blocker' "$T/sent")" == 1 ]] && kill -0 "$f2" 2>/dev/null && pass "6 the next tick: no second alert (debounced), still 0 kills" || fail "6 debounce: $(cat "$T/sent")"
 out="$(judge 1)"
 wait_new 2 "$WAIT_N" "$f2" && [[ "$(cnt 'RESTART instance 2 (hung)' "$W/peers.log")" == 1 ]] &&
   pass "6 control: the same peers on a normal disk -> the hung peer is restarted" || fail "6 control: $out / $(cat "$W/peers.log") / $(tail -5 "$W/run.2.out" 2>/dev/null)"
@@ -289,7 +289,7 @@ out="$(judge 1)"
 [[ "$(cnt 'crontab starter has not run' "$T/sent")" == 0 ]] && pass "9 control: the starter ran 30 s ago -> no alert" || fail "9 control: $(cat "$T/sent" 2>/dev/null)"
 echo $(( $(date +%s) - 400 )) > "$W/starter.last"
 out="$(judge 1)"
-[[ "$(cnt 'crontab starter has not run' "$T/sent")" == 1 && "$(cnt '--kind blocker' "$T/sent")" == 1 ]] &&
+[[ "$(cnt 'crontab starter has not run' "$T/sent")" == 1 && "$(cnt '--kind note --ask blocker' "$T/sent")" == 1 ]] &&
   pass "9 starter.last 400 s old while the watchdogs run: ONE alert (cron dead)" || fail "9 alert: $out / $(cat "$T/sent" 2>/dev/null)"
 out="$(judge 1)"
 [[ "$(cnt 'crontab starter has not run' "$T/sent")" == 1 ]] && pass "9 the next tick: debounced, no second alert" || fail "9 debounce: $(cat "$T/sent")"

@@ -73,8 +73,8 @@ tick() {
     spl_spawn_place_supply c-001@sat "$(cat "$2")"' _ "$PROJ_ROOT" "$T/rows.json" >"$T/out" 2>&1
 }
 nsend() { wc -l <"$T/send.log" | tr -d ' '; }
-lead() { grep -c "blocker spawn-share \*\*SPAWN SUPPLY LEAD: the night of $1 starts within 120 min" "$T/send.log"; }
-hourly() { grep -c "blocker spawn-share \*\*SPAWN SHARE: refactor share 10% < 20%" "$T/send.log"; }
+lead() { grep -c "note spawn-share \*\*SPAWN SUPPLY LEAD: the night of $1 starts within 120 min" "$T/send.log"; }
+hourly() { grep -c "note spawn-share \*\*SPAWN SHARE: refactor share 10% < 20%" "$T/send.log"; }
 seen() { echo "sends: $(cat "$T/send.log") | log: $(head -c 400 "$T/out")"; }
 
 # 1. two hours before the night ---------------------------------------------------
@@ -95,6 +95,8 @@ else fail "2 noon: $(seen)"; fi
 if git -C "$PROJ_ROOT" cat-file -e origin/master:csi-spl-orc/src/bash/run/spl-spawn-place.func.sh 2>/dev/null; then
   git -C "$PROJ_ROOT" show origin/master:csi-spl-orc/src/bash/run/spl-spawn-place.func.sh >"$T/master.func.sh"
   PLACE_FUNC="$T/master.func.sh" tick 2026-01-15T12:00Z
+  # the kind is not the bytes compared: a master before SPL-4869 sent it as a blocker
+  sed -i 's/ blocker spawn-share / note spawn-share /' "$T/send.log"
   cmp -s "$T/send.log" "$T/noon.mine" && pass "2 noon: the same bytes as origin/master's placer sends" ||
     fail "2 noon differs from origin/master: mine $(cat "$T/noon.mine") | master $(cat "$T/send.log")"
 else echo "SKIP: 2 no origin/master to compare the noon bytes with"; fi

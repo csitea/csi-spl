@@ -14,25 +14,34 @@ the tabs you opened. Opening `/reporting` on its own goes to the Releases tab.
 |---|---|---|---|
 | **Releases** | `/reporting/releases` | every member | Delivery report over the release notes: KPI summary, filter bar (range, kinds, areas, search), and daily commit list with release notes. |
 | **SQL** | `/reporting/sql` | workspace admins | Read-only SQL query editor for workspace tables returning up to 2,000 rows, with Copy, CSV and JSON export. |
-| **Costs** | `/reporting/costs` | workspace owners and admins (permission to read costs) | What the workspace costs: four pages under one month and currency header (below). |
+| **Costs** | `/reporting/costs` | workspace owners and admins (permission to read costs) | What the workspace costs: six pages under one month and currency header (below). |
 
 More tabs come later: **Issues**, **Posts** and **Lanes** (admins of the
 operator workspace). A tab is drawn only once its page exists.
 
-## Costs: one month, one currency, four pages
+## Costs: one month, one currency, six pages
 
 The **Costs** tab opens on its **Spend** page. A bar under the tab names its
-pages, each with its own address:
+pages, each with its own address. The bar draws a page only for a reader who
+may open it:
 
 | Page | Address | Who sees it | Description |
 |---|---|---|---|
-| **Spend** | `/reporting/costs/spend` | everyone who sees Costs | The month's costs: a breakdown table and a pie chart, as the Monitoring Costs tab showed them. |
-| **Tokens** | `/reporting/costs/tokens` | everyone who sees Costs | Coming in a later step. |
+| **Spend** | `/reporting/costs/spend` | everyone who sees Costs | The month's costs: a breakdown table and a pie chart (below). Hand-entered hr costs are not in it; they are on Human. |
+| **Cloud** | `/reporting/costs/cloud` | admins of the operator workspace | The month's cloud costs: one row per GCP project, then a project's services, then a service per day. The month's hand-entered cloud costs (for example an invoice) are listed with the projects, without the drill-down. |
+| **AI tokens** | `/reporting/costs/tokens` | everyone who sees Costs | The month's AI token costs: the tokens, what was paid in the header's currency, and the list price beside it. Admins of the operator workspace also see today's live fleet tokens. |
+| **Human** | `/reporting/costs/human` | everyone who sees Costs | Admins of the operator workspace see the month's hand-entered hr costs: one row per entry in the header's currency, with the amount as entered, and a total. Any other reader, or a month without hr entries, sees "Not tracked yet". |
 | **Price per token** | `/reporting/costs/price` | admins of the operator workspace | Coming in a later step. |
 | **Paid items** | `/reporting/costs/paid` | admins of the operator workspace | Coming in a later step. |
 
+Opening a page you may not see by its address shows "This report is for
+operator admins only." in place of its content.
+
+On Cloud and Human, an entry with no exchange rate to USD shows a dash, and
+the total says how many entries it leaves out.
+
 The header above the pages holds one **month** and one **currency** for all
-four pages:
+six pages:
 
 - **Month**: the current month (marked "so far") back to October 2026, the
   first month with cost lines. Never a future month.
@@ -47,8 +56,10 @@ switch and the Back button keep them.
 - **Cost breakdown**: one row per cost part (source, project or vendor, and
   kind), showing amounts in USD and EUR, percentage share of the month, list
   price where recorded, and marks for costs entered by hand or estimated,
-  followed by a total row. Sources without data say "No cost data yet for
-  <source>".
+  followed by a total row. Hand-entered hr costs are left out of the rows,
+  the total and every percentage. A part with no exchange rate to USD shows
+  a dash and an empty percentage. Sources without data say "No cost data yet
+  for <source>".
 - **Pie chart**: shows slices for parts exceeding 1 % of the month's total,
   with the remainder grouped under "Other". If no cost data is recorded for the
   month, no chart is drawn.
@@ -56,7 +67,7 @@ switch and the Back button keep them.
   labelled under its name.
 
 Old links land here and keep their query: `/monitoring/costs` opens Spend,
-`/reporting/tokens` opens Tokens, and `/reporting/costs` opens Spend. The
+`/reporting/tokens` opens AI tokens, and `/reporting/costs` opens Spend. The
 fleet's live token burn stays at Monitoring -> Tokens (`/monitoring/tokens`).
 
 ## Left panel order

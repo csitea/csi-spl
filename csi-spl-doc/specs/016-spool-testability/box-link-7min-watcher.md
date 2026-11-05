@@ -24,7 +24,7 @@ For each box the hub serves (a dir `<root>/<box>/` with `inbound/` and
 |---|---|---|---|
 | a | a queued or sent bundle/command with no receipt | hub log `queued ...` / `sent <name> hub -> ...` | `delivered <name> to`; a command also on its box `START`, its `exec: request <id> -> exit` line or `<results>/<id>/result.json` |
 | b | a box apply or command refused or timed out | `box: deploy:` / `box: exec:` REFUSED or timed out lines; `exec: request <id> -> exit <n>` with REFUSED / timed out in `<results>/<id>/` or exit 124 | a later `box: deploy: APPLIED` (apply) or `-> exit 0` (command) |
-| c | the box log not advancing | the newest `inbound/*/*-log.box.*` and the hub's `received ...-log.box.` lines; quiet for more than 180 s | the next box log |
+| c | the box log not advancing, while a, b or d holds | the newest `inbound/*/*-log.box.*` and the hub's `received ...-log.box.` lines; quiet for more than 180 s, counted from the later of that and the oldest of a, b or d | the next box log, or nothing left in flight |
 | d | the link or session down | no `<home>/run -a radiate` process, or the hub log closed the session after its last `radiating session` | the radiate back |
 
 The hub logs read are the `*.out.log` files of the last 6 h in the log dir
@@ -33,6 +33,10 @@ its own temp queues, so it never counts. While an incident is open the read
 reaches back to its start, so a stuck line older than 6 h still holds it open.
 A log stamp marked `UTC` (or `GMT`, `Z`) is read as UTC whatever the cron's
 `TZ`; any other zone token is read in the local zone.
+
+A silent box log alone is no incident: the box is off at night (about 00Z
+to 04-08Z on 2026-11-03 and 11-04), and with nothing in flight there is
+nothing to tell anyone (c-002@sat, msg b7011f23).
 
 When any condition is older than 7 min the box has ONE incident: one spool
 message, kind `blocker`, task `dispatch-<topic8>`, listing every stuck
@@ -79,5 +83,6 @@ receipt -> one alert; the next run -> none; the receipt -> one "cleared";
 6 min -> none; the command, box-log, link and refusal cases; the fallback;
 dry run; a failed send retried; a test-run log ignored; the env file; a box
 with no topic row -> the fallback; an incident older than the window is not
-cleared; UTC stamps read under another `TZ`. Red
+cleared; UTC stamps read under another `TZ`; a box log silent 4 h with nothing
+in flight -> none, then a bundle unreceipted 8 min -> one alert naming both. Red
 control: the second run with the state file gone sends a second alert.

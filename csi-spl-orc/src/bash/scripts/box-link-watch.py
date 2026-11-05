@@ -14,7 +14,9 @@ it raises ONE incident when one of these lasts longer than GW_LIMIT_MIN:
      with REFUSED / timed out in its output, or exit 124) with no later
      success of its kind (`box: deploy: APPLIED`, an exec `-> exit 0`)
   c  the box log not advancing: no <x>-log.box.* received for more than
-     GW_QUIET_S; it counts from the last one received
+     GW_QUIET_S, while a, b or d holds (a box quiet at night with nothing in
+     flight is no incident); it counts from the later of the last box log
+     received and the oldest of a, b or d
   d  the link down: no radiate process, or the hub log ended the session
 ONE incident per box: one spool message (kind blocker) to the seat of the
 topic that owns the box, listing every condition over the limit, and one more
@@ -372,9 +374,23 @@ class Run:
                 "what": what,
                 "ev": ev,
             }
+        quiet = conds.pop("c:box-log", None)
+        if quiet and conds:
+            quiet["since"] = max(
+                quiet["since"], min(c["since"] for c in conds.values())
+            )
+            conds["c:box-log"] = quiet
+        elif quiet:
+            print("INFO %s: %s, nothing in flight: no incident" % (box, quiet["what"]))
+        for key in sorted(conds):
             print(
                 "INFO %s %s: %s, %d min"
-                % (box, key, what, (self.now - conds[key]["since"]) // 60)
+                % (
+                    box,
+                    key,
+                    conds[key]["what"],
+                    (self.now - conds[key]["since"]) // 60,
+                )
             )
         stuck = [c for c in conds.values() if self.now - c["since"] > self.limit]
         if stuck and not inc:

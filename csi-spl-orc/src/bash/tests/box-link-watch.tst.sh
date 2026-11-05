@@ -10,8 +10,8 @@
 #   4. a bundle sent 6 min ago -> nothing
 #   5. a command: no receipt and no result after 8 min -> alert; its
 #      results/<id>/result.json alone clears it
-#   6. the box log silent 8 min -> alert; the link down (no radiate) -> alert;
-#      several stuck conditions on one box are ONE message
+#   6. the box log silent with nothing in flight -> nothing; the link down (no
+#      radiate) -> alert; several stuck conditions on one box are ONE message
 #   7. a refused apply 8 min ago -> alert; a later APPLIED clears it
 #   8. no live seat row on the topic -> the fallback receiver
 #   9. DRY_RUN (default) prints the plan, sends nothing, writes no state
@@ -24,6 +24,8 @@
 #  14. a box with no topic row -> ONE blocker to the fallback, rc 1
 #  15. an open incident older than GW_WINDOW_H with no receipt -> not cleared
 #  16. UTC stamps read under TZ=Europe/Sofia: 6 min -> still no alert
+#  17. the box log silent 4 h, nothing in flight -> no blocker; silent + a
+#      bundle unreceipted 6 min -> nothing yet, at 8 min ONE blocker naming both
 #   RED CONTROL: case 2 with the state file gone sends a second blocker, so
 #   case 2's silence is the state's doing.
 #------------------------------------------------------------------------------
@@ -96,12 +98,12 @@ mkdir -p "$RES/0123456789ab"; echo '{"exit":0}' >"$RES/0123456789ab/result.json"
 later 1; run >/dev/null
 [ "$(n)" = 2 ] && grep -q "LINK CLEARED" <<<"$(last)" && pass "5. ...results/<id>/result.json alone clears it" || fail "5. clear ($(cat "$T/sent"))"
 
-# 6. box log silent -> alert; link down counts from the first run that saw it;
-# both stuck -> ONE message naming both
+# 6. box log silent alone -> nothing; link down counts from the first run that
+# saw it; both stuck -> ONE message naming both
 fresh; touch -d "@$(( NOW - 480 ))" "$R/box/inbound/archived/<x>-log.box.h1.20261104.log"
-run >/dev/null
-[ "$(n)" = 1 ] && grep -q 'the box log is not advancing (last received .*), since .* (8 min). Evidence: `newest box log file inbound/archived/' "$T/sent" \
-  && pass "6. the box log silent 8 min -> alert" || fail "6. ($(n): $(cat "$T/sent"))"
+out="$(run)"
+[ "$(n)" = 0 ] && grep -q 'the box log is not advancing (last received .*), nothing in flight: no incident' <<<"$out" \
+  && pass "6. the box log silent 8 min with nothing in flight -> no alert" || fail "6. ($(n): $(cat "$T/sent"); $out)"
 fresh; : >"$T/ps"; out="$(run)"
 [ "$(n)" = 0 ] && grep -q 'd:link: the relay link/session is down, 0 min' <<<"$out" && pass "6. no radiate process: tracked from this run, no alert at once" || fail "6. down at once ($(n): $out)"
 NOW=$(( NOW + 8 * 60 )); run >/dev/null
@@ -179,5 +181,17 @@ later 361; out="$(run)"
 fresh; logl 6 "sent b9.zip hub -> box (10 B, sha256 aa) as b-9 in 1 s, waiting for the box's receipt"
 out="$(TZ=Europe/Sofia run)"
 [ "$(n)" = 0 ] && grep -q 'b9.zip sent, no receipt, 6 min' <<<"$out" && pass "16. UTC stamps read under TZ=Europe/Sofia: 6 min -> no alert" || fail "16. ($(n): $out)"
+
+# 17. a box quiet at night: silent 4 h, nothing in flight -> nothing; then a
+# bundle goes out and gets no receipt -> ONE blocker at 7 min, naming both
+fresh; touch -d "@$(( NOW - 240 * 60 ))" "$R/box/inbound/archived/<x>-log.box.h1.20261104.log"
+out="$(run)"
+[ "$(n)" = 0 ] && grep -q 'nothing in flight: no incident' <<<"$out" && pass "17. the box log silent 4 h, nothing in flight -> no blocker" || fail "17. ($(n): $(cat "$T/sent"); $out)"
+logl 6 "sent b10.zip hub -> box (10 B, sha256 aa) as b-10 in 1 s, waiting for the box's receipt"
+out="$(run)"
+[ "$(n)" = 0 ] && grep -q 'c:box-log: the box log is not advancing .*, 6 min' <<<"$out" && pass "17. ...a bundle unreceipted 6 min: the silent log counts from it, no blocker yet" || fail "17. 6 min ($(n): $(cat "$T/sent"); $out)"
+NOW=$(( NOW + 2 * 60 )); run >/dev/null
+[ "$(n)" = 1 ] && grep -q 'bundle b10.zip sent, no receipt, since .* (8 min)' "$T/sent" && grep -q 'the box log is not advancing (last received .*), since .* (8 min)' "$T/sent" \
+  && pass "17. ...at 8 min ONE blocker naming the bundle and the silent box log" || fail "17. 8 min ($(n): $(cat "$T/sent"))"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

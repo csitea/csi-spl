@@ -40,13 +40,17 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- [ ] **I. Paths** — no hard-coded `BASE_PATH` / `ORG` / `APP`; derive from the tree
-- [ ] **II. Env** — every external URL/host is an env var; missing required vars fail fast
-- [ ] **VI. Cnf-only config** — no hardcoded runtime values in source. New settings
-      live in `csi-rel-cnf/csi-rel/<env>.env.yaml` and are injected at deploy/build
-      (preferred) or startup. Tests may use example hosts; runtime MUST NOT invent
-      a hostname, cookie domain, origin, or flag from another URL.
-- [ ] **V. Hygiene** — org-neutral; no personal names, banned hosts, or real ticket IDs
+- [ ] **2.1–2.2 Core principles & clean code limits** — truth first, stay in lane, dev equals or leads prd; functions <= 80 lines, depth <= 4, params <= 8 (Go) / 6 (TS/Vue), no `SELECT *`, folded helpers used once
+- [ ] **2.3.1 Canonical path layout** — no hard-coded `BASE_PATH` / `ORG` / `APP` or box paths; derive from the tree
+- [ ] **2.3.2 Fail fast, no default host** — every external URL/host/bucket/account is read from an env var or cnf (`BASE_DOMAIN`); missing required vars fail fast
+- [ ] **2.3.3 Cnf single source of truth** — no hardcoded runtime values in source. New settings
+      live in `csi-spl-cnf/csi-spl/<env>.env.yaml` (and `all.env.yaml`), with generated twins
+      re-rendered via `do_tpl_gen` in the same commit. Tests may use example hosts; runtime MUST NOT
+      invent a hostname, cookie domain, origin, or flag from another URL.
+- [ ] **2.4 Shell scripting & run actions** — named `do_<verb>_<noun>` actions with `@description`, `@param`, `@example` tags and their test in the same commit
+- [ ] **2.5 Public distribution hygiene** — org-neutral (`csi` / `csitea` / `csitea.net` only); no personal names, literal OS users, box names, or `/home/<user>` paths (git commit authorship metadata is the carve-out, 2.5.3)
+- [ ] **2.6 Security, secrets & cloud access** — per-env SA keys outside git, no secrets in code/state/logs, pinned `gcloud` calls, RLS on every tenant table, Terraform in `tf-runner` with owner go
+- [ ] **2.7–2.12 UI/i18n, lint & migrations, trunk workflow, issue/spec delivery, uniform agent messaging, testing standards** — translation keys only, forward-only PG16 migrations, small rebased commits citing issue key, red controls and real PostgreSQL for store tests
 
 ## Project Structure
 

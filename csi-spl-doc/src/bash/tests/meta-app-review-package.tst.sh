@@ -3,8 +3,10 @@
 # Purpose: Verify the Meta App Review submission package (spec 090 T038,
 #          SPL-4805):
 #          1. meta-app-review-submission.md exists and is non-empty.
-#          2. Live vs not-built scope is stated (T035 and T037 live on prd;
-#             T036 and T007/T008/T010/T012 marked not built).
+#          2. Deployed vs not-built scope is stated (T035 and T037 in the
+#             deployed section; T036 and T007/T008/T010/T012 marked not
+#             built), and the English UI's "Workspace settings" is named,
+#             never "Tenant settings" (en.json tenant_settings.title).
 #          3. All five required permissions (pages_show_list,
 #             pages_read_engagement, pages_manage_posts, instagram_basic,
 #             instagram_content_publish) have non-empty submission
@@ -16,7 +18,7 @@
 #             login, Page connection, post queue, human approval, and live
 #             publishing) is present and non-empty.
 #          6. Owner checklist (record screencast, click Submit for Review) and
-#             no literal host or plaintext credential rules hold.
+#             no literal host (BASE_DOMAIN read from the cnf) holds.
 #          7. Self-contained red controls prove each planted defect fails with
 #             exit 1.
 #------------------------------------------------------------------------------
@@ -26,6 +28,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../../../.." && pwd)
 DEFAULT_DOC="$REPO_ROOT/csi-spl-doc/specs/090-marketing-automation/meta-app-review-submission.md"
 DOC_FILE="${META_REVIEW_DOC:-$DEFAULT_DOC}"
+CNF_FILE="$REPO_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
 
 PERMS=(
   pages_show_list
@@ -57,19 +60,25 @@ check_file_and_scope() {
   pass "meta-app-review-submission.md exists and is non-empty"
 
   local live_sec unbuilt_sec
-  live_sec=$(section_text "$f" '^### 1\.1 Live on `prd`' '^### 1\.2 Not Built')
+  live_sec=$(section_text "$f" "^### 1\\.1 Code on \`origin/master\` and deployed" '^### 1\.2 Not Built')
   unbuilt_sec=$(section_text "$f" '^### 1\.2 Not Built' '^## 2\.')
 
   if grep -q 'T035' <<<"$live_sec" && grep -q 'T037' <<<"$live_sec"; then
-    pass "Section 1.1 describes live T035 and T037 on prd"
+    pass "Section 1.1 lists deployed T035 and T037"
   else
-    fail "Section 1.1 describes live T035 and T037 on prd" "T035 or T037 missing in Section 1.1"
+    fail "Section 1.1 lists deployed T035 and T037" "T035 or T037 missing in Section 1.1"
   fi
 
   if grep -qi 'not built' <<<"$unbuilt_sec" && grep -q 'T036' <<<"$unbuilt_sec" && grep -q 'T007' <<<"$unbuilt_sec"; then
     pass "Section 1.2 marks T036 and T007/T008/T010/T012 as not built"
   else
     fail "Section 1.2 marks unbuilt tasks as not built" "missing not-built disclosure in Section 1.2"
+  fi
+
+  if grep -q 'Tenant settings' "$f"; then
+    fail "UI is named Workspace settings, never Tenant settings" "found 'Tenant settings' (en.json tenant_settings.title is Workspace settings)"
+  else
+    pass "UI is named Workspace settings, never Tenant settings"
   fi
 }
 
@@ -134,41 +143,52 @@ check_screencast_and_checklist() {
     fail "Owner checklist includes screencast recording and Submit for Review" "found ${checks} checklist items in Section 5"
   fi
 
-  if grep -E 'spool-hub\.ai' "$f" >/dev/null; then
-    fail "No literal host domain in submission guide" "found literal spool-hub.ai instead of <BASE_DOMAIN>"
+  local base
+  base=$(awk '$1 == "BASE_DOMAIN:" { print $2; exit }' "$CNF_FILE")
+  if [[ -z "$base" ]]; then
+    fail "No literal host domain in submission guide" "BASE_DOMAIN not found in $CNF_FILE"
+  elif grep -qF "$base" "$f"; then
+    fail "No literal host domain in submission guide" "found the literal BASE_DOMAIN instead of <BASE_DOMAIN>"
   else
     pass "No literal host domain in submission guide (<BASE_DOMAIN> used)"
   fi
 }
 
+# expect_red <label> <doc>: the suite run on <doc> without controls must exit 1.
+expect_red() {
+  local rc
+  META_REVIEW_DOC="$2" META_REVIEW_SKIP_CONTROLS=1 bash "$0" >/dev/null 2>&1; rc=$?
+  if [[ "$rc" -eq 1 ]]; then
+    pass "RED CONTROL: $1 exits 1"
+  else
+    fail "RED CONTROL: $1" "expected exit 1, got $rc"
+  fi
+}
+
 run_red_controls() {
-  local tmp rc
+  local tmp
   tmp=$(mktemp -d)
 
   # Control 1: missing permission justification for instagram_content_publish fails with exit 1.
   sed '/^### 2\.5 `instagram_content_publish`/,$d' "$DOC_FILE" >"$tmp/no-perm.md"
   grep -A 500 '^## 3\. Test User' "$DOC_FILE" >>"$tmp/no-perm.md"
-  META_REVIEW_DOC="$tmp/no-perm.md" META_REVIEW_SKIP_CONTROLS=1 bash "$0" >/dev/null 2>&1; rc=$?
-  [[ "$rc" -eq 1 ]] && pass "RED CONTROL: missing instagram_content_publish justification exits 1" \
-    || fail "RED CONTROL: missing instagram_content_publish justification" "expected exit 1, got $rc"
+  expect_red "missing instagram_content_publish justification" "$tmp/no-perm.md"
 
   # Control 2: incomplete test user reproduction steps fails with exit 1.
   sed '/^### 3\.2 Reviewer Reproduction Steps/,/^## 4\. Video Screencast Script/{/^[2-7]\./d;}' "$DOC_FILE" >"$tmp/bad-repro.md"
-  META_REVIEW_DOC="$tmp/bad-repro.md" META_REVIEW_SKIP_CONTROLS=1 bash "$0" >/dev/null 2>&1; rc=$?
-  [[ "$rc" -eq 1 ]] && pass "RED CONTROL: incomplete test user reproduction steps exits 1" \
-    || fail "RED CONTROL: incomplete test user reproduction steps" "expected exit 1, got $rc"
+  expect_red "incomplete test user reproduction steps" "$tmp/bad-repro.md"
 
   # Control 3: missing security note fails with exit 1.
   grep -v '\[!CAUTION\]' "$DOC_FILE" >"$tmp/no-caution.md"
-  META_REVIEW_DOC="$tmp/no-caution.md" META_REVIEW_SKIP_CONTROLS=1 bash "$0" >/dev/null 2>&1; rc=$?
-  [[ "$rc" -eq 1 ]] && pass "RED CONTROL: missing credential security note exits 1" \
-    || fail "RED CONTROL: missing credential security note" "expected exit 1, got $rc"
+  expect_red "missing credential security note" "$tmp/no-caution.md"
 
   # Control 4: incomplete screencast script fails with exit 1.
   grep -v '^### Scene 4 ' "$DOC_FILE" >"$tmp/no-scene4.md"
-  META_REVIEW_DOC="$tmp/no-scene4.md" META_REVIEW_SKIP_CONTROLS=1 bash "$0" >/dev/null 2>&1; rc=$?
-  [[ "$rc" -eq 1 ]] && pass "RED CONTROL: incomplete video screencast script exits 1" \
-    || fail "RED CONTROL: incomplete video screencast script" "expected exit 1, got $rc"
+  expect_red "incomplete video screencast script" "$tmp/no-scene4.md"
+
+  # Control 5: the UI named "Tenant settings" fails with exit 1.
+  sed '0,/Workspace settings/s//Tenant settings/' "$DOC_FILE" >"$tmp/tenant-name.md"
+  expect_red "Tenant settings named in the doc" "$tmp/tenant-name.md"
 
   rm -rf "$tmp"
 }

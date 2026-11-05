@@ -71,6 +71,10 @@ $B64L"
   "env-secret|$(rep s 14)|a; DB_DSN=$(rep s 14) b"
   "env-secret|$(rep t 7)|export GITHUB_KEY=\"$(rep r 3) $(rep s 3) $(rep t 7)\""
   "env-secret|$(rep t 7)|API_TOKEN='$(rep r 3) $(rep t 7)' next"
+  # a quote the TUI's hard wrap left open runs to the end of the line
+  # (R7 c-164 r3 W1)
+  "env-secret|$(rep t 7)|export GITHUB_KEY=\"$(rep r 3) $(rep s 3) $(rep t 7)"
+  "env-secret|$(rep t 7)|API_TOKEN='$(rep r 3) $(rep t 7)"
   "assignment|supersecret1|pw=supersecret1"
   "password|hunter2|password: hunter2"
   "password|abc12|Password=abc12"
@@ -113,6 +117,7 @@ same "a token budget"           "token: 400 left"
 same "env lines that hold no secret" "PATH=/usr/bin:/bin HOME=/srv/x LANG=C.UTF-8 TERM=xterm"
 same "a lower-case key in prose" "set keyboard=us and session=3 here"
 eq "a quoted env value is masked to its closing quote" "export GITHUB_KEY=<redacted> next" "$(red "export GITHUB_KEY=\"$(rep r 3) $(rep s 3) $(rep t 7)\" next")"
+eq "an unclosed quoted env value is masked to the end of the line" "export GITHUB_KEY=<redacted>" "$(red "export GITHUB_KEY=\"$(rep r 3) $(rep s 3) $(rep t 7)")"
 eq "an env secret masked once is counted once" '{"redactions": {"env-secret": 1}}' "$(red "export AWS_SECRET_ACCESS_KEY=$(rep r 20)" >/dev/null; cat "$T_TMP/counts")"
 same "a key header in prose"    "look for the words PRIVATE KEY in the file"
 out="$(red "$BEGIN RSA $PK-----

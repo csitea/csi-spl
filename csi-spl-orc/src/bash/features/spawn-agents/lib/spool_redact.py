@@ -103,7 +103,7 @@ SECRETS = [
     (
         r"(?m)(^|[\s;])((?:export\s+)?(?=[A-Z])[A-Z0-9_]*"
         r"(?:KEY|SECRET|TOKEN|PASS(?:WORD)?|PWD|CRED(?:ENTIAL)?S?|AUTH|SIGN(?:ING)?|SALT|PRIVATE|COOKIE|SESSION|DSN)"
-        r"[A-Z0-9_]*=)(?![\[<]redacted)(?:\"[^\"\n]*\"|'[^'\n]*'|\S+)",
+        r"[A-Z0-9_]*=)(?![\[<]redacted)(?:\"[^\"\n]*(?:\"|$)|'[^'\n]*(?:'|$)|\S+)",
         r"\1\2<redacted>",
         "env-secret",
     ),

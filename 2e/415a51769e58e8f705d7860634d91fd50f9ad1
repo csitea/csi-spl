@@ -1,0 +1,6 @@
+Lay-What: Changing a discussion's urgency from another workspace now updates its tasks the same way the five-minute check does.
+Lay-How: The instant update now looks at the same set of discussions as the regular check.
+Lay-Why: The instant update and the regular check could disagree, so a task's urgency flipped back and forth.
+Tech-What: the PUT's operator-workspace follow run uses lookIn = prioSyncWorkspaces(op)[1:], the list agentPrioSync uses.
+Tech-How: topic_priority_follow.go builds lookIn from the workspace list; TestTopicPriorityPutAgreesWithSync pins PUT == sweep.
+Tech-Why: the PUT read only the tenant's topics while the sweep read every workspace, so the two set different priorities (review finding W1).

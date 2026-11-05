@@ -69,7 +69,9 @@
 #      the gate gone = rotated on the next tick; a gate older than
 #      ROTATE_LANE_GATE_MAX_AGE = rotated anyway, the handoff naming it;
 #      the youngest gate decides (an old hung push never hides a live gate)
-#      and past the cap the handoff names the gate, not an older busy match.
+#      and past the cap the handoff names the gate, not an older busy match;
+#      c-294's live gate is a grandchild, so a first-match BFS meets the hung
+#      push first (red control deterministic).
 #      Red control (origin/master 599a1d393 + this case): rotated mid-gate.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
@@ -679,7 +681,8 @@ check "29. the handoff names the gate it cut" 'grep -q "deadline while: running 
 # R7 N2: an old hung push (past the cap) never hides a younger live gate
 reset; lane c-294 70
 "$T/bin/proc" 4294 7300 c-294 git 2294 "git push origin HEAD:review/y"
-"$T/bin/proc" 4394 600 c-294 bash 2294 "bash ./run -a do_check_pre_push"
+"$T/bin/proc" 4494 650 c-294 make 2294 "make -C csi-spl-iac"
+"$T/bin/proc" 4394 600 c-294 bash 4494 "bash ./run -a do_check_pre_push"
 tick
 check "29. N2 the youngest gate decides: an old hung push does not cut a live gate" '[ "$(n "$T/spawn.log")" = 0 ] && [ "$(n "$T/tick.out" "c-294 DEFER gate: running .bash ./run -a do_check_pre_push . for 10 min")" = 1 ]'
 # R7 N3: past the cap the handoff names the gate, not an older busy match

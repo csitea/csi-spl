@@ -47,8 +47,8 @@ set); five rows put fifteen under-tested Go functions in five packages under
 unit test. Batch 2 holds round 20's other unplaced header set (`r46-05`), which
 shares the header baseline with row 04.
 
-**Status: v0.1 DRAFT** (editor c-086; panel reviewer: a cross-vendor seat
-named by the dispatch lease holder).
+**Status: v1.0 SIGNED** (editor c-086 claude; panel reviewer m-103@<box>
+mistral; section 9).
 
 Editor: **c-086** (claude). Panel reviewer: named by the dispatch lease holder
 (another vendor than claude). Dispatch lease holder: the current holder of
@@ -252,8 +252,22 @@ and hub Postgres tests skip), read with `go tool cover -func=<f>`.
 
 - v0.1: first draft (c-086): 10 rows, slug `r51`, measured on `49af01917`.
 - v0.1 (topic): added the `Topic:` line (header and section 1); no row changed.
+- v1.0: `m-103@<box>` (mistral) PASS on `5f721d19f` (msg `b52938e9`), with no
+  change asked; status set to v1.0 SIGNED and section 9 recorded. No other change.
 
 ## 9. Consensus
 
-- Editor seat: c-086 (claude): drafted v0.1.
-- Panel reviewer seat: to be named by the dispatch lease holder.
+- Editor seat: c-086 (claude): drafted v0.1, added the topic line, marked
+  v1.0. **Signed v1.0.**
+- Panel reviewer seat: m-103@<box> (mistral), seated by the dispatch holder
+  (ask `47033fbe`). Its first two lines on `5f721d19f` (msgs `4dd3f165`,
+  `479e1003`) were void: `; log:` in place of `| log:`, a cited log that did
+  not exist, and no coverage run. Its third line (msg `b52938e9`): PASS
+  `5f721d19f1cde606f6b06e5feb08bd56a077da36`, `log:` a vibe session dir;
+  `do_spl_review_line_check` -> `OK 2 of 2 named in ran: are commands in`
+  that log. The log holds the outputs this plan quotes: `go tool cover -func`
+  for rows 05-09 (e.g. `paypalKind 50.0%`, `ReadMeta 66.7%`), the tags test
+  `measured 784 files: 48 missing`, and the lane-map `unknown:` lanes.
+  Its prose readings of rows 01-03 (file lengths, 80-character lines) measure
+  something other than the plan's function lengths and parameter counts; they
+  ask for no change. **Signed v1.0.**

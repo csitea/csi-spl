@@ -5,7 +5,9 @@
      of the range, each pill's size step grows with its commits, the most
      used in the centre; a click still toggles it as a filter. Each change
      is an update:<field> event; the search waits RELEASE_SEARCH_DEBOUNCE_MS
-     after the last key so one word is one read, not one per letter. -->
+     after the last key so one word is one read, not one per letter.
+     SPL-4900: above the phone breakpoint the four groups flow on one row and wrap as
+     whole groups (2560: one row, 1440: two or three); a phone keeps them stacked. -->
 <template>
   <div class="rf-bar" role="group" :aria-label="t('reporting.releases.filters_label')" data-test="releases-filters">
     <div class="rf-row" role="group" :aria-label="t('reporting.releases.range_label')" data-test="releases-range">
@@ -120,4 +122,8 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 .rf-search { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rf-search-label { font-size: 0.8125rem; color: var(--color-muted); }
 .rf-search input { flex: 1 1 auto; min-width: 0; max-width: 420px; }
+@media (min-width: 821px) {
+  .rf-bar { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .rf-search { flex: 1 1 260px; }
+}
 </style>

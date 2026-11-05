@@ -8,7 +8,11 @@
      release notes dialog), the area and kind chips, the subject, and a
      toggle that shows the Lay and Tech What/How/Why lines. SPL-4789: after
      the subject, the issues the commit cites and their discussions, as
-     links into the workspace that owns them, or "unknown". -->
+     links into the workspace that owns them, or "unknown". SPL-4900 (owner
+     HUM-10, t1 4d1e60b5, msg b164e955: "too much empty space"): above the phone breakpoint
+     a day's commits are cards in a grid that fills the width, the subject
+     on its own line; an opened commit spans its day's row. A phone keeps
+     one row per commit. -->
 <template>
   <ol class="rd-days" data-test="releases-days">
     <li v-for="g in groups" :key="g.day.date" class="rd-day" :data-date="g.day.date" data-test="releases-day">
@@ -28,7 +32,7 @@
         <span v-else class="rd-chip rd-chip--none" data-test="releases-day-no-deploys">{{ t('reporting.releases.deploys_none') }}</span>
       </header>
       <ul class="rd-rows">
-        <li v-for="n in g.notes" :key="n.sha" class="rd-row" :data-sha="n.sha" data-test="releases-commit">
+        <li v-for="n in g.notes" :key="n.sha" class="rd-row" :class="{ 'rd-row--open': open.has(n.sha) }" :data-sha="n.sha" data-test="releases-commit">
           <div class="rd-line">
             <time
               v-if="utcTime(n.committed_at)"
@@ -132,4 +136,11 @@ const areaOf = (a: string) => String(a || '').split(',')[0].trim().toLowerCase()
 .rd-trailers dt { font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); margin-top: 4px; }
 .rd-trailers dd { margin: 0; }
 .rd-trailers p { margin: 2px 0; overflow-wrap: anywhere; }
+/* SPL-4900: the desktop grid of commit cards (a phone keeps its rows) */
+@media (min-width: 821px) {
+  .rd-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 8px; padding-top: 8px; }
+  .rd-row { border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px); padding: 6px 10px; min-width: 0; }
+  .rd-row--open { grid-column: 1 / -1; }
+  .rd-subject { flex-basis: 100%; }
+}
 </style>

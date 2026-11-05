@@ -201,6 +201,7 @@ The Releases tab features three integrated UI sections:
    - **Kind Selector**: Multi-select pills (`feat`, `fix`, `docs`, `chore`, `perf`, `refactor`, `ci`, `test`).
    - **Area Selector**: Multi-select pills (`orc`, `api`, `wui`, `iac`, `cnf`, `doc`, `rdb`).
    - **Search Input**: Live filter across commit subject, SHA, version tag, and Lay/Tech summaries.
+   - SPL-4900 (owner HUM-10, t1 4d1e60b5, msg b164e955: "too much empty space"): above the phone breakpoint (821 px and up) the four groups (range, kinds, areas, search) flow on one row and wrap as whole groups: one row at 2560 px, two at 1440 px in the mock bundle (it was four). A phone keeps them stacked. (`ReleasesFilterBar.vue`, e2e `releases-desktop-density.test.mjs` D2, D4.)
 3. **Daily Breakdown & Commit List**:
    - Days rendered newest first.
    - Each day header displays: UTC Date, total commits, pill breakdown by kind (`feat: 3`, `fix: 2`, `docs: 5`), deploy badges (e.g. `[dev: v1.7.0 14:22 UTC]`, `[prd: v1.7.0 14:35 UTC]`). If deploy data is absent, a neutral `[Deploys: not recorded]` badge is shown.
@@ -211,6 +212,7 @@ The Releases tab features three integrated UI sections:
      - Area chip and Kind chip.
      - Subject line.
      - Expandable toggle showing Lay What/How/Why and Tech What/How/Why trailers.
+   - SPL-4900 (owner HUM-10, t1 4d1e60b5, msgs 402cb8df and b164e955): above the phone breakpoint a day's commits are cards in a grid that fills the width (`repeat(auto-fill, minmax(420px, 1fr))`: 5 columns at 2560 px, 3 at 1440 px), the subject on its own line, the issue links and the toggle under it; an opened commit spans its day's whole row. At 2560x1600 the first screen shows 47 commits of the mock bundle, against 27 as one full-width row each. A phone keeps one row per commit. (`ReleasesDailyList.vue`, e2e `releases-desktop-density.test.mjs` D1, D3, D5.)
 
 #### 2.2.1 The kind and area pills as a label cloud (SPL-3796)
 

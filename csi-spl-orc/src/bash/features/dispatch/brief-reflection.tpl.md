@@ -4,6 +4,7 @@ Class: refactor
 Kind: specs_and_docs
 Epic: SPL-2129
 Spec: csi-spl-doc/specs/166-orchestrator-daily-rhythm
+Discussion: c0b0d572-c575-4849-8792-4c3ce4d170f2
 
 Queued by `do_spl_reflection_gather` (spec 166 row B8, section 3.3), placement
 slug `reflection-{NIGHT}`. Window: {SINCE} .. {UNTIL}, the last 24 h. Report
@@ -26,7 +27,11 @@ the morning owner digest; never git, the repo is public".
    owner saying a rule was broken or a result was wrong, each with its msg id.
 2. Write ONE Qto doc page in the workspace `system`, titled
    `Reflection {NIGHT}`, through `do_spl_desk_doctree` under your own seat
-   (`TENANT_ID=system`). Its sections: CI reds, reverts, lanes ended without
+   in the operator workspace: `ENV=prd TENANT_ID=t1 DESK_AGENT=<you>
+   DOCTREE_FS=repo` (the system docs are that tree; `TENANT_ID=system` has no
+   desk seat on either box). No seat of your own: send the `DRY_RUN=0`
+   command list to the dispatch holder instead. Its sections: CI reds,
+   reverts, lanes ended without
    landing, owner corrections (msg id each), what each correction asks the
    fleet to change, the class share and the zombie count, and at most 3
    proposed rows.

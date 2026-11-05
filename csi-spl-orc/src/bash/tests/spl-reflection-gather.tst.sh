@@ -26,6 +26,9 @@
 #  11. the cron row: manifest row reflection every 15 min after zombie-topics,
 #      its script is executable, refuses a worktree, passes REFLECTION_DRY_RUN
 #      from lease.conf
+#  12. the brief names its discussion, the owner topic c0b0d572, on a
+#      Discussion: line, so li_discussion_from_brief never picks a topic of
+#      the gathered owner messages
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -129,6 +132,11 @@ grep -q "^qop queue .* c-001@box-a  claude:$SLUG refactor" "$T/calls.log" &&
   pass "2. it passes the enqueue gate: the queue op takes refactor, claude:$SLUG" || fail "2. qop: $(cat "$T/calls.log") $(cat "$T/out")"
 [[ "$(grep -c '^hub put .*--topic '"$SLUG" "$T/calls.log")" == 1 ]] && grep -qx 'mix kind=specs_and_docs sensitive=1' "$T/mix.log" &&
   pass "2. one ask put on the hub, topic $SLUG; the vendor asked as specs_and_docs on private data" || fail "2. hub: $(cat "$T/calls.log")"
+# --- 12. the brief's discussion is its Discussion: line ---------------------------
+LIB="$PROJ_ROOT/src/bash/features/spawn-agents/lib/lane-issue.inc.sh"
+got="$(bash -c 'do_log() { :; }; . "$1"; li_discussion_from_brief "$2"' _ "$LIB" "$B" 2>/dev/null)"
+[[ "$got" == c0b0d572-c575-4849-8792-4c3ce4d170f2 ]] && grep -qx 'Discussion: c0b0d572-c575-4849-8792-4c3ce4d170f2' "$B" &&
+  pass "12. the brief's discussion is the owner topic c0b0d572 (its Discussion: line)" || fail "12. discussion: '$got'"
 [[ "$(cat "$T/stamp" 2>/dev/null)" == "$NIGHT" ]] && pass "2. the night is stamped $NIGHT" || fail "2. stamp: $(cat "$T/stamp" 2>/dev/null)"
 [[ "$(snap)" == "$BEFORE" ]] && pass "3. nothing is written to git (fixture refs and status, this checkout's status)" ||
   fail "3. git changed: $(diff <(echo "$BEFORE") <(snap))"

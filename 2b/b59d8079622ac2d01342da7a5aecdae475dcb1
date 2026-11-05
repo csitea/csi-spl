@@ -1,0 +1,6 @@
+Lay-What: A task's urgency now follows the urgency set on the discussion it belongs to.
+Lay-How: When someone changes a discussion's urgency, its tasks change with it at once, and a check every five minutes catches any that were missed.
+Lay-Why: Tasks kept their old urgency after the discussion changed, so work was picked in the wrong order.
+Tech-What: hub issues take the minimum priority of their linked non-default topics on the topic-priority PUT and in a */5 sweep (do_spl_topic_prio_sync cron).
+Tech-How: topic_priority_follow.go follows a PUT; agentPrioSync sweeps all workspaces; the lane view and ask positions read the issue priority; cron manifest row added.
+Tech-Why: issue priority was set once at creation and never re-read from the discussion, so lanes and queued asks drifted from the owner's ordering.

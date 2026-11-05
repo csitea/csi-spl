@@ -13,8 +13,13 @@
 #      enqueues with a read-only brief each; the 4th fingerprint issue only
 #   5. a repeat of an open issue's alert: 1 comment, 0 issues, 0 enqueues;
 #      the same alert read again (its ref seen): nothing
+#   4. one lane per fingerprint per 24 h: a dismissed issue's fingerprint
+#      fires again 10 min later: a new issue, no lane, the reason named
 #   5b. an empty state (a holder on another box): the hub's open issue with
 #      the "[fp:<hash>]" title gets the comment, no second issue
+#   5c. an empty state: the hub's DONE issue of the fingerprint and an alert
+#      before its fix: held, never filed twice; the lanes recorded in the
+#      hub's issues ("alert-lane-at:") count toward the 3 a day
 #   6. a done issue: an alert before the fix commit landed is held (no
 #      reopen, no lane); one after it reopens it (todo) with a lane
 #   7. a create that fails leaves the fingerprint out of the state, so the
@@ -61,12 +66,17 @@ EOF
 cat >"$T/run" <<EOF
 #!/bin/bash
 a="\$2"
-echo "\$a ref=\${ISSUE_REF:-} st=\${ISSUE_STATUS:-} prio=\${ISSUE_PRIORITY:-} epic=\${ISSUE_EPIC:-} disc=\${ISSUE_DISCUSSIONS:-} class=\${SPAWN_CLASS:-} place=\${SPAWN_PLACE:-} by=\${ASK_BY:-}\${ASK_FROM:-} dry=\${DRY_RUN:-}" >>"$T/calls.log"
+echo "\$a ref=\${ISSUE_REF:-} st=\${ISSUE_STATUS:-} prio=\${ISSUE_PRIORITY:-} epic=\${ISSUE_EPIC:-} disc=\${ISSUE_DISCUSSIONS:-} class=\${SPAWN_CLASS:-} place=\${SPAWN_PLACE:-} topic=\${ASK_TOPIC:-} by=\${ASK_BY:-}\${ASK_FROM:-} dry=\${DRY_RUN:-}" >>"$T/calls.log"
 case "\$a" in
   do_spl_issue_status) printf 'issue-status\t%s\t%s\n' "\$ISSUE_REF" "\$(cat "$T/status.\$ISSUE_REF" 2>/dev/null || echo wip)" ;;
-  do_spl_issue_list) cat "$T/hub-open.json" 2>/dev/null || echo '{"result":{"issues":[]}}' ;;
+  do_spl_issue_list)
+    # ISSUE_STATUS unset = the open statuses only, as do_spl_issue_list does
+    f="\${ISSUE_STATUS-unset}"
+    { cat "$T/hub-open.json" 2>/dev/null || echo '{"result":{"issues":[]}}'; } |
+      if [ "\$f" = unset ]; then jq -c '.result.issues |= map(select(.status != "done" and .status != "diss"))'; else cat; fi ;;
   do_spl_issue_create)
     [ -f "$T/create.fail" ] && { echo "FATAL hub down"; exit 1; }
+    cat "\$ISSUE_DESCRIPTION_FILE" >>"$T/desc.log" 2>/dev/null
     n=\$(cat "$T/n" 2>/dev/null || echo 100); n=\$((n + 1)); echo \$n >"$T/n"
     echo "{\"result\":{\"issue\":{\"key\":\"SPL-\$n\"}}}" ;;
   *) echo ok ;;
@@ -80,7 +90,7 @@ tick() {
     ALERT_ISSUE_ALERTS_CMD="cat $S/alerts.json" ALERT_ISSUE_DISK_CMD="cat $S/disk.ndjson" \
     ALERT_ISSUE_GCP_CMD="cat $S/gcp.txt" ALERT_ISSUE_DISCUSSION="$DISC" "$@" 2>&1
 }
-reset() { rm -rf "$SP/dispatch/alert-issue" "$T/calls.log" "$T/n" "$T/create.fail" "$T"/status.* "$SP/dispatch/briefs"/*; }
+reset() { rm -rf "$SP/dispatch/alert-issue" "$T/calls.log" "$T/desc.log" "$T/n" "$T/create.fail" "$T"/status.* "$SP/dispatch/briefs"/*; }
 count() { grep -c "^$1 " "$T/calls.log" 2>/dev/null; }
 ST="$SP/dispatch/alert-issue/state.json"
 
@@ -121,14 +131,21 @@ c="$(count do_spl_issue_create)" q="$(count do_spl_spawn_enqueue)" k="$(count do
 grep -q "^do_spl_issue_create .* prio=1 epic=SPL-2364 disc=0b9e4c1a-1111-4aaa-8bbb-000000000001 " "$T/calls.log" &&
   grep -q "^do_spl_issue_create .* prio=1 .* disc=$DISC " "$T/calls.log" &&
   pass "3. prio 1, the epic, an #alerts issue links its topic, a disk/GCP one the discussion" || fail "3. issue fields: $(grep create "$T/calls.log")"
-grep -q '^do_spl_spawn_enqueue .* class=bug place=claude:alert-[0-9a-f]\{8\}-202611021200 by=c-001@sat' "$T/calls.log" &&
+grep -q '^do_spl_spawn_enqueue .* class=bug place=claude:alert-[0-9a-f]\{8\}-202611021200 topic= by=c-001@sat' "$T/calls.log" &&
   pass "3. enqueue: SPAWN_CLASS=bug, SPAWN_PLACE=claude:<slug>, ASK_BY the holder" || fail "3. enqueue: $(grep enqueue "$T/calls.log")"
 b="$(find "$SP/dispatch/briefs" -name "*.md" -printf "%f\n" | sort | sed -n 1p)"
-if [[ "$(ls "$SP/dispatch/briefs" | wc -l)" == 3 ]] && grep -q '^Issue: SPL-10[1-4]$' "$SP/dispatch/briefs/$b" &&
+if [[ "$(ls "$SP/dispatch/briefs" | wc -l)" == 3 ]] && grep -q '^Origin-Issue: SPL-10[1-4]$' "$SP/dispatch/briefs/$b" &&
+   ! grep -q '^Issue:' "$SP/dispatch/briefs/$b" && grep -qE '^Discussion: topic [0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$' "$SP/dispatch/briefs/$b" &&
    grep -q '^Epic: SPL-2364$' "$SP/dispatch/briefs/$b" && grep -q '^Spec: csi-spl-doc/specs/146' "$SP/dispatch/briefs/$b" &&
    grep -q 'Edit any file, commit or push' "$SP/dispatch/briefs/$b" && grep -q 'fingerprint: `fp:' "$SP/dispatch/briefs/$b"; then
-  pass "3. 3 briefs: issue, epic, spec, fingerprint, read-only"
+  pass "3. 3 briefs: Origin-Issue (never Issue:, so the lane files its own and the alert issue stays open), discussion, epic, spec, fingerprint, read-only"
 else fail "3. briefs: $(ls "$SP/dispatch/briefs"); $(head -12 "$SP/dispatch/briefs/$b" 2>/dev/null)"; fi
+u='[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}'
+[[ "$(grep -c '^do_spl_ask_put ' "$T/calls.log")" == 3 && "$(grep -cE "^do_spl_ask_put .* topic=$u " "$T/calls.log")" == 3 ]] &&
+  grep -qE "^do_spl_ask_put .* topic=0b9e4c1a-1111-4aaa-8bbb-000000000001 " "$T/calls.log" &&
+  pass "3. every ask topic is a full uuid (the lane row's discussion): an #alerts lane its topic" || fail "3. ask topics: $(grep ask_put "$T/calls.log")"
+[[ "$(grep -c "^alert-lane-at: $NOW\$" "$T/desc.log")" == 3 ]] && pass "3. the 3 lane issues record alert-lane-at in their description, the 4th none" ||
+  fail "3. lane markers: $(grep -c alert-lane-at "$T/desc.log")"
 [[ "$(jq '[.fps[] | select(.key | test("^SPL-"))] | length' "$ST")" == 4 ]] && pass "3. the state maps 4 fingerprints to their keys" ||
   fail "3. state: $(jq -c .fps "$ST")"
 
@@ -147,6 +164,20 @@ c="$(count do_spl_issue_create)" m="$(count do_spl_issue_comment)" q="$(count do
 [[ ! -s "$T/calls.log" ]] && pass "5. a tick before ALERT_ISSUE_EVERY_S does nothing" || fail "5. early tick acted: $(cat "$T/calls.log")"
 cp "$T/alerts.keep" "$S/alerts.json"
 
+# 4 (W3): one lane per fingerprint per 24 h. The lane-map issue is dismissed;
+# the same alert fires 10 min later on a day with lanes to spare: a new
+# issue, no lane, the reason named
+lmk="$(jq -r '[.fps[] | select(.fp | contains("lane map"))][0].key' "$ST")"
+echo diss >"$T/status.$lmk"
+jq '.topics = [{task_id: "0b9e4c1a-1111-4aaa-8bbb-00000000000a", subject: "**ALERT** lane map on sat: the hub did not answer 9 tries in a row (fleet f1), so the lane map sees that machine only. At most one such alert per box per 15 min.", last_ts: "2026-11-02T12:30:00Z"}]' \
+  "$T/alerts.keep" >"$S/alerts.json"
+mv "$S/disk.ndjson" "$T/disk.hold"; : >"$S/disk.ndjson"; mv "$S/gcp.txt" "$T/gcp.hold"; : >"$S/gcp.txt"
+: >"$T/calls.log"; out="$(AT=$((NOW + 2400)) tick DRY_RUN=0 ALERT_ISSUE_LANES_PER_DAY=9)"
+[[ "$(count do_spl_issue_create)" == 1 && "$(count do_spl_spawn_enqueue)" == 0 && "$(count do_spl_ask_put)" == 0 ]] &&
+  pass "4. the dismissed lane-map fingerprint again 10 min later: a new issue, no lane (one lane per fingerprint per 24 h)" ||
+  fail "4. 24 h gap: create $(count do_spl_issue_create) enqueue $(count do_spl_spawn_enqueue): $out"
+mv "$T/disk.hold" "$S/disk.ndjson"; mv "$T/gcp.hold" "$S/gcp.txt"; cp "$T/alerts.keep" "$S/alerts.json"; rm -f "$T/status.$lmk"
+
 # 5b: a holder on another box (an empty state) finds the open issue by its fp title
 reset; cp "$T/alerts.keep" "$S/alerts.json"; cp "$S/disk.ndjson" "$T/disk.keep"; : >"$S/alerts.json"; : >"$S/gcp.txt"
 h="$(python3 -c 'import hashlib; print(hashlib.sha1(b"disk|sat|/mnt/data|blocks").hexdigest()[:8])')"
@@ -154,6 +185,30 @@ printf '{"result":{"issues":[{"key":"SPL-77","title":"Alert: disk [fp:%s]"}]}}\n
 out="$(tick DRY_RUN=0)"
 [[ "$(count do_spl_issue_create)" == 0 ]] && grep -q '^do_spl_issue_comment ref=SPL-77 ' "$T/calls.log" &&
   pass "5b. an empty state: the hub's open [fp:$h] issue gets the comment, no second issue" || fail "5b. backstop: $out $(cat "$T/calls.log")"
+grep -q '^do_spl_issue_list ' "$T/calls.log" && pass "5b. the hub list reads every status (ISSUE_STATUS empty)" || fail "5b. no hub list"
+
+# 5c (W4): a lease move. An empty state; the hub holds the disk fingerprint's
+# DONE issue (its fix landed after the alerts) and a dismissed older one: the
+# alerts are held, nothing filed. Three lanes recorded in other issues'
+# descriptions in the last 24 h: the deploy-lag alert files with no lane
+GW="$T/repo5c"; git -c init.defaultBranch=master init -q "$GW"
+GIT_COMMITTER_DATE="@$NOW" GIT_AUTHOR_DATE="@$NOW" git -C "$GW" -c user.name=t -c user.email=t@example.com \
+  commit -q --allow-empty -m "fix(orc, SPL-88): the disk" && git -C "$GW" update-ref refs/remotes/origin/master HEAD
+jq -n --arg h "$h" --argjson t1 $((NOW - 3600)) --argjson t2 $((NOW - 7200)) --argjson t3 $((NOW - 90000)) '{result: {issues: [
+  {key: "SPL-88", title: "Alert: disk [fp:\($h)]", status: "done", created_at: "2026-11-02T05:00:00Z", description: "x"},
+  {key: "SPL-80", title: "Alert: disk [fp:\($h)]", status: "diss", created_at: "2026-11-01T05:00:00Z", description: "x"},
+  {key: "SPL-91", title: "Alert: a [fp:aaaaaaa1]", status: "wip", created_at: "2026-11-02T09:00:00Z", description: "y\nalert-lane-at: \($t1)\n"},
+  {key: "SPL-92", title: "Alert: b [fp:aaaaaaa2]", status: "wip", created_at: "2026-11-02T09:00:00Z", description: "y\nalert-lane-at: \($t2)\n"},
+  {key: "SPL-93", title: "Alert: c [fp:aaaaaaa3]", status: "done", created_at: "2026-11-02T09:00:00Z", description: "y\nalert-lane-at: \($t2)\n"},
+  {key: "SPL-94", title: "Alert: d [fp:aaaaaaa4]", status: "wip", created_at: "2026-11-01T09:00:00Z", description: "y\nalert-lane-at: \($t3)\n"}]}}' >"$T/hub-open.json"
+printf 'done\n' >"$T/status.SPL-88"
+jq '.topics = [.topics[3]]' "$T/alerts.keep" >"$S/alerts.json"; : >"$S/gcp.txt"
+reset; printf 'done\n' >"$T/status.SPL-88"; out="$(GITD="$GW" tick DRY_RUN=0)"
+[[ "$(count do_spl_issue_create)" == 1 && "$(count do_spl_spawn_enqueue)" == 0 ]] && ! grep -q '^do_spl_issue_comment ref=SPL-88' "$T/calls.log" &&
+  grep -q "INFO held fp:$h SPL-88" <<<"$out" && ! grep -q '^alert-lane-at:' "$T/desc.log" &&
+  pass "5c. a lease move: the hub's done SPL-88 holds the pre-fix disk alerts (no second issue); 3 hub lanes in 24 h: deploy lag files issue only" ||
+  fail "5c. lease move: $out $(cat "$T/calls.log")"
+[[ "$(jq '.lanes | length' "$ST")" == 3 ]] && pass "5c. the state's day count holds the 3 hub lanes (two of one tick at the same time both count; the 25 h old one not)" || fail "5c. lanes: $(jq -c .lanes "$ST")"
 rm -f "$T/hub-open.json"; cp "$T/alerts.keep" "$S/alerts.json"; cp "$T/disk.keep" "$S/disk.ndjson"
 cp "$S/gcp.txt" "$T/gcp.none"; cat >"$S/gcp.txt" <<'EOG'
 == prd (csi-spl-prd)

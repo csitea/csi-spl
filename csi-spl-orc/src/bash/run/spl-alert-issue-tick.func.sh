@@ -125,7 +125,11 @@ spl_ai_due() {
 spl_ai_read_sources() {
   local src="$1" last since_m
   last="$(jq -r '.window_from // .last_tick // 0' "$2" 2>/dev/null)" || last=0
-  (( ${last:-0} > 0 )) || last=$(( $3 - ${ALERT_ISSUE_FIRST_SINCE_S:-5400} ))
+  # no state, or a stale one (this box was not the holder): read back
+  # ALERT_ISSUE_FIRST_SINCE_S at most; the holder that was filed the rest
+  if (( ${last:-0} <= 0 )) || spl_ai_stale "$2" "$3"; then
+    (( ${last:-0} >= $3 - ${ALERT_ISSUE_FIRST_SINCE_S:-5400} )) || last=$(( $3 - ${ALERT_ISSUE_FIRST_SINCE_S:-5400} ))
+  fi
   since_m=$(( ($3 - last) / 60 + 15 ))
   (( since_m <= 1440 )) || since_m=1440
   # a 15 min overlap for a post the hub synced late; the seen refs dedupe it
@@ -135,6 +139,14 @@ spl_ai_read_sources() {
   [[ "${ALERT_ISSUE_GCP:-1}" == 1 ]] &&
     AI_SINCE="${since_m}m" spl_ai_src gcp "$src/gcp.txt" "${ALERT_ISSUE_GCP_CMD:-spl_ai_read_gcp}"
   return 0
+}
+
+# 0 when the state is missing or its last tick is older than 2 x
+# ALERT_ISSUE_EVERY_S: this box was not the holder, the hub knows better.
+spl_ai_stale() {
+  local last
+  last="$(jq -r '.last_tick // 0' "$1" 2>/dev/null)" || last=0
+  (( $2 - ${last:-0} > 2 * ${ALERT_ISSUE_EVERY_S:-300} ))
 }
 
 spl_ai_src() {  # NAME FILE CMD...
@@ -154,22 +166,37 @@ spl_ai_read_disk() {
 
 spl_ai_read_gcp() {
   ( cd "${APP_PATH:-$PROJ_PATH/..}/csi-spl-iac" && ORG="${ORG:-csi}" APP="${APP:-spl}" SINCE="$AI_SINCE" \
-      timeout 180 ./run -a do_gcp_list_alert_incidents )
+      ENV='' GCP_LIST_ENVS="${ALERT_ISSUE_GCP_ENVS:-dev prd}" timeout 180 ./run -a do_gcp_list_alert_incidents )
 }
 
-# {"<key>": {status, fixed_at}, "hub_open": {hash: key}} for what the plan needs.
+# {"<key>": {status, fixed_at}, "hub": {hash: key}, "hub_lanes": {hash: epoch}}
+# for what the plan needs. The hub's [fp:] issues are read when an alert has
+# no key here, and on every tick of a missing or stale state (a lease move).
 spl_ai_issues() {
-  local src="$1" st="$2" out='{}' k s f
+  local src="$1" st="$2" out='{}' k s f hub=0 fps
+  spl_ai_stale "$st" "$now" && hub=1
   while read -r what k; do
     case "$what" in
       key)
         s="$(spl_ai_run ISSUE_REF="$k" -- do_spl_issue_status | awk -F'\t' '$1 == "issue-status" { print $3 }' | tail -1)"
-        f="$(spl_ai_fixed_at "$k")"
-        out="$(jq -c --arg k "$k" --arg s "$s" --arg f "$f" '.[$k] = {status: $s, fixed_at: ($f | tonumber? // null)}' <<<"$out")" ;;
-      hub) out="$(jq -c --argjson h "$(spl_ai_hub_open)" '.hub_open = $h' <<<"$out")" ;;
+        out="$(spl_ai_issue_put "$out" "$k" "$s")" ;;
+      hub) hub=1 ;;
     esac
   done < <(python3 "$PROJ_PATH/src/bash/scripts/alert-issue-fold.py" keys "$src" "$st" 2>/dev/null)
+  if [[ "$hub" == 1 ]]; then
+    fps="$(spl_ai_hub_fps)"
+    out="$(jq -c --argjson f "$fps" '.hub = $f.hub | .hub_lanes = $f.lanes' <<<"$out")"
+    while read -r k s; do
+      [[ -n "$k" ]] && out="$(spl_ai_issue_put "$out" "$k" "$s")"
+    done < <(jq -r '.status | to_entries[] | "\(.key) \(.value)"' <<<"$fps")
+  fi
   printf '%s\n' "$out"
+}
+
+spl_ai_issue_put() {  # JSON KEY STATUS
+  local f=""
+  [[ "$3" == "done" ]] && f="$(spl_ai_fixed_at "$2")"
+  jq -c --arg k "$2" --arg s "$3" --arg f "$f" '.[$k] = {status: $s, fixed_at: ($f | tonumber? // null)}' <<<"$1"
 }
 
 # The committer time of the newest origin/master commit that closes KEY by the
@@ -182,13 +209,24 @@ spl_ai_fixed_at() {
   done < <(git -C "$g" log origin/master -E --grep="\\b$1\\b" --format='%H %ct' -n 20 2>/dev/null)
 }
 
-# {hash: key} of the hub's open prio 1 issues titled "... [fp:<hash>]".
-spl_ai_hub_open() {
-  [[ "$AI_DESK" == 1 ]] || { echo '{}'; return 0; }
-  spl_ai_run ISSUE_ASSIGNEE= ISSUE_PRIORITY=1 ISSUE_LIMIT=500 ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" \
+# The hub's prio 1 issues titled "... [fp:<hash>]", of EVERY status (a done
+# or dismissed one too): {hub: {hash: key}, status: {key: status},
+# lanes: {hash: epoch}}. Per hash an open issue wins over a done one, a done
+# one over a dismissed one, then the newest; lanes is the newest
+# "alert-lane-at: <epoch>" line of its descriptions.
+spl_ai_hub_fps() {
+  local none='{"hub":{},"status":{},"lanes":{}}'
+  [[ "$AI_DESK" == 1 ]] || { echo "$none"; return 0; }
+  spl_ai_run ISSUE_ASSIGNEE= ISSUE_STATUS= ISSUE_PRIORITY=1 ISSUE_LIMIT=500 ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" \
     -- do_spl_issue_list 2>/dev/null |
     jq -c -s '[.[] | (.result.issues // .issues // [])[] | select(.title | test("\\[fp:[0-9a-f]{8}\\]"))
-      | {key: ((.title | capture("\\[fp:(?<h>[0-9a-f]{8})\\]")).h), value: .key}] | from_entries' 2>/dev/null || echo '{}'
+      | {h: (.title | capture("\\[fp:(?<h>[0-9a-f]{8})\\]").h), key, status: (.status // ""), created_at: (.created_at // ""),
+         lane: ([(.description // "") | scan("alert-lane-at: ([0-9]+)") | .[0] | tonumber] | max // 0),
+         rank: (if (.status // "") == "done" then 1 elif (.status // "") == "diss" then 0 else 2 end)}]
+      | {hub: (group_by(.h) | map({key: .[0].h, value: (sort_by([.rank, .created_at]) | last | .key)}) | from_entries),
+         status: (map({key, value: .status}) | from_entries),
+         lanes: (group_by(.h) | map({key: .[0].h, value: (map(.lane) | max)}) | map(select(.value > 0)) | from_entries)}' 2>/dev/null |
+    grep . || echo "$none"
 }
 
 # VAR=value... -- ACTION: one orc action with the lease's desk, its output on
@@ -244,6 +282,7 @@ spl_ai_file() {
   title="$(jq -r '"Alert: \(.text | gsub("[*`\n]"; " ") | .[0:100]) [fp:\(.hash)]"' <<<"$a")"
   disc="$(jq -r '.topic' <<<"$a")"; [[ "$disc" =~ ^[0-9a-f-]{36}$ ]] || disc="$ALERT_ISSUE_DISCUSSION"
   spl_ai_description "$a" "$disc" >"$src/desc.$h.md"
+  [[ "$(jq -r '.lane' <<<"$a")" == true ]] && printf '\nalert-lane-at: %s\n' "$now" >>"$src/desc.$h.md"
   out="$(spl_ai_run ISSUE_TITLE="$title" ISSUE_DESCRIPTION_FILE="$src/desc.$h.md" ISSUE_DISCUSSIONS="$disc" ISSUE_PRIORITY=1 \
     ISSUE_STATUS=todo ISSUE_EPIC="${ALERT_ISSUE_EPIC:-SPL-2364}" ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" -- do_spl_issue_create)"
   key="$(printf '%s\n' "$out" | jq -R -r 'fromjson? | (.result.issue.key // .result.key // empty)' 2>/dev/null | tail -1)"
@@ -255,9 +294,18 @@ spl_ai_file() {
 }
 
 spl_ai_reopen() {
-  local src="$1" a="$2" key
-  key="$(jq -r '.key' <<<"$a")"
-  spl_ai_run ISSUE_REF="$key" ISSUE_STATUS=todo ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" -- do_spl_issue_update >/dev/null ||
+  local src="$1" a="$2" key h disc
+  key="$(jq -r '.key' <<<"$a")"; h="$(jq -r '.hash' <<<"$a")"
+  local -a desc=()
+  # a reopen with a lane re-writes the description with its alert-lane-at
+  # line, so a holder on another box counts the lane (the history is in
+  # the comments)
+  if [[ "$(jq -r '.lane' <<<"$a")" == true ]]; then
+    disc="$(jq -r '.topic' <<<"$a")"; [[ "$disc" =~ ^[0-9a-f-]{36}$ ]] || disc="$ALERT_ISSUE_DISCUSSION"
+    { spl_ai_description "$a" "$disc"; printf '\nalert-lane-at: %s\n' "$now"; } >"$src/desc.$h.md"
+    desc=(ISSUE_DESCRIPTION_FILE="$src/desc.$h.md")
+  fi
+  spl_ai_run ISSUE_REF="$key" ISSUE_STATUS=todo "${desc[@]}" ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" -- do_spl_issue_update >/dev/null ||
     { do_log "WARN $key was not reopened"; return 1; }
   spl_ai_run ISSUE_REF="$key" ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" \
     ISSUE_BODY="$(jq -r '"Reopened: the alert fired again after the fix landed (\(.n) time(s), fingerprint `fp:\(.hash)`). Latest: \(.text[0:300])"' <<<"$a")" \
@@ -278,15 +326,19 @@ spl_ai_description() {
 # ONE read-only investigator lane: the brief, the ask, the queue row. A failed
 # enqueue keeps the issue and the lane counters (no lane storm on a retry).
 spl_ai_lane() {
-  local a="$1" key="$2" h slug brief id out
+  local a="$1" key="$2" h slug brief id out topic
   h="$(jq -r '.hash' <<<"$a")"
+  # the lane's discussion: the #alerts topic, else ALERT_ISSUE_DISCUSSION; a
+  # full uuid as the ask topic gives the lane row its link (spec 153 3.4)
+  topic="$(jq -r '.topic' <<<"$a")"
+  [[ "$topic" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] || topic="$ALERT_ISSUE_DISCUSSION"
   slug="alert-$h-$(date -u -d "@$now" +%Y%m%d%H%M 2>/dev/null || date -u +%Y%m%d%H%M)"
   brief="${ALERT_ISSUE_BRIEF_DIR:-$root/dispatch/briefs}/$slug.md"
-  if ! spl_ai_brief "$a" "$key" "$slug" >"$brief" || [[ ! -s "$brief" ]]; then
+  if ! spl_ai_brief "$a" "$key" "$slug" "$topic" >"$brief" || [[ ! -s "$brief" ]]; then
     do_log "WARN the brief $brief was not written: no lane for $key"; return 0
   fi
   id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
-  out="$(spl_ai_run ASK_ID="$id" ASK_KIND=task ASK_FROM="$AI_HOLDER" ASK_TOPIC="alert-$h" \
+  out="$(spl_ai_run ASK_ID="$id" ASK_KIND=task ASK_FROM="$AI_HOLDER" ASK_TOPIC="$topic" \
     ASK_SUMMARY="alert investigation $key: $(jq -r '.text[0:120]' <<<"$a")" ASK_DISCUSSION="$ALERT_ISSUE_DISCUSSION" -- do_spl_ask_put)" ||
     { do_log "WARN the ask for $key was not recorded: no lane ($(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
   out="$(spl_ai_run ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE="claude:$slug" ASK_BY="$AI_HOLDER" \
@@ -296,17 +348,18 @@ spl_ai_lane() {
 }
 
 spl_ai_brief() {
-  jq -r --arg key "$2" --arg slug "$3" --arg epic "${ALERT_ISSUE_EPIC:-SPL-2364}" \
+  jq -r --arg key "$2" --arg slug "$3" --arg topic "$4" --arg epic "${ALERT_ISSUE_EPIC:-SPL-2364}" \
     --arg spec "${ALERT_ISSUE_SPEC:-csi-spl-doc/specs/146-reliability-round}" '
 "# Lane brief: investigate alert \($key), read-only (one small task, claude)
 
-Issue: \($key)
+Origin-Issue: \($key)
+Discussion: topic \($topic)
 Epic: \($epic)
 Spec: \($spec)
 Class: bug
 Kind: complex_coding
 
-Placement slug `\($slug)`, filed by do_spl_alert_issue_tick (SPL-4828). Report to the CURRENT dispatch lease holder (`cd csi-spl-orc && SPOOL_ROOT=/var/spool-hub LEASE_CMD=show ./run -a do_spl_dispatch_lease`), kind result, and comment your findings on \($key).
+Placement slug `\($slug)`, filed by do_spl_alert_issue_tick (SPL-4828). The alert issue \($key) is the origin: the placer files this lane its own issue, and \($key) stays open for the fix lane. Report to the CURRENT dispatch lease holder (`cd csi-spl-orc && SPOOL_ROOT=/var/spool-hub LEASE_CMD=show ./run -a do_spl_dispatch_lease`), kind result, and comment your findings on \($key).
 
 ## The alert
 - text: \(.text[0:600])
@@ -330,7 +383,8 @@ spl_ai_rollback() {
   jq -c --argjson a "$a" '
     reduce $a.refs[] as $r (.; del(.seen[$r]))
     | if $a.op == "file" then del(.fps[$a.hash]) | (if $a.lane then .lanes |= .[:-1] else . end)
-      else .fps[$a.hash].count -= $a.n end' "$f" >"$f.new" && mv "$f.new" "$f"
+      else .fps[$a.hash].count -= $a.n
+        | (if $a.op == "reopen" and $a.lane then .lanes |= .[:-1] | del(.fps[$a.hash].last_lane_at) else . end) end' "$f" >"$f.new" && mv "$f.new" "$f"
 }
 
 spl_ai_summary() {

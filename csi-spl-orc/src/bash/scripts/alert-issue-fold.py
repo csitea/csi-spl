@@ -18,13 +18,17 @@ SRC_DIR  the sources one tick read, each file optional:
 STATE    the fold state (JSON; missing or empty = a first tick)
 NOW      epoch seconds
 ISSUES   {"<key>": {"status": "<hub status>", "fixed_at": <epoch|null>},
-          "hub_open": {"<fp hash>": "<key>"}}: what the tick read for the
-         lines `keys` printed
+          "hub": {"<fp hash>": "<key>"},
+          "hub_lanes": {"<fp hash>": <epoch of its last lane>}}: what the
+         tick read for the lines `keys` printed
 
 keys prints one "key <SPL-n>" line per issue whose status the plan needs,
 and "hub 1" when an alert has no issue in the state: the tick then reads the
-hub's open prio 1 issues for a "fp:<hash>" title, so a holder that moved to
-another box (an empty state file there) does not file the issue twice.
+hub's prio 1 issues of EVERY status for a "fp:<hash>" title (the tick also
+reads them whenever its state is missing or stale, a holder that moved to
+this box). A done one goes the done path and a lane recorded in an issue's
+description ("alert-lane-at: <epoch>") counts toward both caps, so the
+fleet files once and keeps one lane budget over a lease move.
 
 plan prints {"actions": [...], "state": {...}}, one action per fingerprint:
   comment  its issue is open: one comment with the count, no lane
@@ -248,9 +252,12 @@ def decide(h, group, st, issues, now):
         "count": 0,
         "first_at": first["at"],
     }
+    hub_at = (st.get("hub_lane_at") or {}).get(h, 0)
+    if hub_at > (rec.get("last_lane_at") or 0):
+        rec["last_lane_at"] = hub_at
     rec["count"] = rec.get("count", 0) + len(group)
     rec["last_at"] = group[-1]["at"]
-    rec["key"] = rec.get("key") or (issues.get("hub_open") or {}).get(h, "")
+    rec["key"] = rec.get("key") or (issues.get("hub") or {}).get(h, "")
     status = (issues.get(rec["key"]) or {}).get("status", "")
     act = {
         "fp": rec["fp"],
@@ -281,10 +288,31 @@ def decide(h, group, st, issues, now):
     return act
 
 
+def seed_lanes(st, issues, now):
+    """The lanes the hub's issues record (another box's holder placed them):
+    into the day's count and each fingerprint's last lane, once per
+    fingerprint and lane (one tick places several lanes at the same NOW).
+    hub_lane_at keeps the seeded lane of a fingerprint this state has no
+    record of, for a day, so a second stale read does not count it again."""
+    known = st.setdefault("hub_lane_at", {})
+    for h, at in (issues.get("hub_lanes") or {}).items():
+        if not isinstance(at, int) or now - at >= DAY_S:
+            continue
+        rec = st["fps"].get(h)
+        if (rec and (rec.get("last_lane_at") or 0) >= at) or known.get(h, 0) >= at:
+            continue
+        st["lanes"].append(at)
+        known[h] = at
+        if rec:
+            rec["last_lane_at"] = at
+    st["hub_lane_at"] = {h: t for h, t in known.items() if now - t < DAY_S}
+
+
 def plan(src_dir, state_path, now, issues_path):
     st = load_state(state_path)
     issues = json.loads(read(issues_path) or "{}")
     st["lanes"] = [t for t in st["lanes"] if now - t < DAY_S]
+    seed_lanes(st, issues, now)
     actions = []
     for h, group in fresh(collect(src_dir), st, since(src_dir)).items():
         actions.append(decide(h, group, st, issues, now))

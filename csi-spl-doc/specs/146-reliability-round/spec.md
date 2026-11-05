@@ -49,7 +49,11 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
   read-only investigator lane: `do_spl_ask_put` + `do_spl_spawn_enqueue
   SPAWN_CLASS=bug SPAWN_PLACE=claude:alert-<hash>-<time>`, with a generated
   brief in `<spool root>/dispatch/briefs/` (no edits, no prd writes, no
-  installs; it names the alert text, source, fingerprint and issue).
+  installs; it names the alert text, source, fingerprint and issue). The
+  brief names the alert issue as `Origin-Issue:`, never `Issue:`, so the
+  placer files the lane its own issue and the alert issue stays open for the
+  fix lane; the ask topic is the #alerts topic uuid (else
+  `ALERT_ISSUE_DISCUSSION`), so the lane row gets its discussion link.
 - **Done issue**: reopened (`todo`, a comment, a lane) only for an alert newer
   than the fix: the committer time of the newest origin/master commit that
   closes the key by the closer's rule (`issue-close-landed.py --keys`). An
@@ -71,9 +75,13 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
 - **State**: one file, `jq . /var/spool-hub/dispatch/alert-issue/state.json`
   (a dry run keeps `state.dry.json`): per fingerprint its key, count, first
   and last alert, last lane; the lanes of the last 24 h; the alert refs seen
-  (7 days). A holder that moves to another box starts with an empty file
-  there, and finds an open issue by its `[fp:<hash>]` title on the hub before
-  it files a second one. A failed write leaves its alerts unseen and the
+  (7 days). A holder that moves to another box starts with an empty or stale
+  file there (last tick older than 2 x `ALERT_ISSUE_EVERY_S`): it reads back
+  `ALERT_ISSUE_FIRST_SINCE_S` at most, and the hub's prio 1 `[fp:<hash>]`
+  issues of every status, so an open one gets the comment, a done one the
+  done path, and the lanes they record (`alert-lane-at: <epoch>` in the
+  description of an issue filed or reopened with a lane) count toward both
+  caps, fleet-wide. A failed write leaves its alerts unseen and the
   read window unmoved, so the next tick retries.
 - **Limit**: it sees only the alerts that get posted (the all-boxes-silent
   gap is SPL-4632).

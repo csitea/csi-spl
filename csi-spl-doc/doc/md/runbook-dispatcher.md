@@ -252,6 +252,11 @@ Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down 
 - **Tell the owner when their spawn request is queued or placed (SPL-2429).** A human sender has no spool inbox, so the queue sends its "queued" and "placed" notes for a `HUM-<n>` request to you, the dispatch lease holder: a note headed "SPAWN QUEUE, for a human sender" with the full topic uuid and, when placed, the lane id. Post it as In progress in that topic.
 - **Post the share report** when the owner asks, or with a band breach: `./run -a do_spl_spawn_share` prints it in markdown, ready to post (`do_spl_desk_reply`).
 
+<a id="ws-doc-ee32f7c4-5328-4780-b150-34ee28e0f8d7"></a>
+### 6.2 The night's reflection (spec 166 row B8)
+
+The night's reflection (spec 166 row B8, SPL-4894) is box cron row `reflection` (`csi-spl-orc/src/bash/scripts/reflection-cron.sh`, `*/15`, action `do_spl_reflection_gather`). It runs at night only, once a night, on the dispatch holder's box. It gathers the last 24 h (CI reds, reverts, lanes ended diss, the owner's msg ids, the class share, the zombie count) into `<spool root>/dispatch/reflection/<night>.md`. Then it queues one `refactor` lane, `reflection-<night>`, which writes the day's Qto page in the `system` workspace and sends at most 3 rows. It runs `DRY_RUN=1` (it gathers and prints the brief, and queues nothing) until the orch holder sets `REFLECTION_DRY_RUN=0` in the dispatch `lease.conf`. What the dispatcher does: take the lane's result on task `dispatch-reflection-<night>`, and queue each row it sends (each with its `Class:`, `Epic:` and `Spec:` lines) through `do_spl_spawn_enqueue`.
+
 <a id="ws-doc-5af882b9-82ca-40ba-a468-e9d732595220"></a>
 ## 7 The data rule
 

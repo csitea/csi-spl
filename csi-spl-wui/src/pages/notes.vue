@@ -1,10 +1,12 @@
 <!-- Spec 155 2.6 (SPL-2403, B5 SPL-4123): the Notes section, the person's
      own list (the realm, 2.2: the same list in every workspace). The sidebar
      keeps the icon rail only (ChannelSidebar notesRailOnly); this page is the
-     list: the + (New note), the filter box, the Archived switch, the Pinned group,
-     then the rest. A row is one line, the title alone (owner, t1 2a0b4d9e,
-     SPL-4651) with its priority beside it (spec 155 2.9, SPL-4652; hidden on a
-     phone, SPL-4893), and is /notes?note=<id>; B6 (SPL-4186) opens it:
+     list: the + (New note), the filter box, the Pinned group, then the rest. An
+     archived note is seen in the Archive section (components/ArchiveNotes.vue;
+     owner t1 2f4311d9, SPL-4897), so the bar has no Archived switch. A row is
+     one line, the title alone (owner, t1 2a0b4d9e, SPL-4651) with its priority
+     beside it (spec 155 2.9, SPL-4652; hidden on a phone, SPL-4893), and is
+     /notes?note=<id>; B6 (SPL-4186) opens it:
      components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
      full screen on a phone. The order is the person's own: drag a row, or
      Alt+Up / Alt+Down on it (utils/note-order.mjs). Delete (D2) takes the note
@@ -50,13 +52,6 @@
             :placeholder="t('notes.filter')"
             :aria-label="t('notes.filter')"
           >
-          <button
-            type="button"
-            class="btn ghost notes-bar__archived"
-            data-test="notes-archived"
-            :aria-pressed="archived ? 'true' : 'false'"
-            @click="archived = !archived"
-          >{{ t('notes.archived') }}</button>
         </div>
         <p v-if="createFailed" class="notes-error" role="alert" data-test="notes-create-failed">{{ t('notes.create_failed') }}</p>
         <p v-if="store.state === 'failed'" class="notes-error" role="alert" data-test="notes-error">
@@ -147,22 +142,20 @@ const { openId, open, close } = useNoteOpen({ route, router, phone })
 const localePath = useLocalePath()
 const store = useNotesStore()
 const query = ref('')
-const archived = ref(false)
 const creating = ref(false)
 const createFailed = ref(false)
 
 useHead({ title: () => t('notes.title') })
 
-const rows = computed(() => filterNotes(store.notes, query.value, archived.value))
-/* 2.6: the Pinned group, then the rest; the Archived view is one list */
+const rows = computed(() => filterNotes(store.notes, query.value, false))
+/* 2.6: the Pinned group, then the rest; archived notes are in the Archive section */
 const groups = computed(() => {
-  if (archived.value) return [{ id: 'archived', label: '', rows: rows.value }]
   const pinned = rows.value.filter((n) => n.pinned)
   const rest = rows.value.filter((n) => !n.pinned)
   if (!pinned.length) return [{ id: 'rest', label: '', rows: rest }]
   return [{ id: 'pinned', label: 'notes.pinned', rows: pinned }, ...(rest.length ? [{ id: 'rest', label: 'notes.others', rows: rest }] : [])]
 })
-const emptyKey = computed(() => (query.value.trim() ? 'notes.empty_filter' : archived.value ? 'notes.empty_archived' : 'notes.empty'))
+const emptyKey = computed(() => (query.value.trim() ? 'notes.empty_filter' : 'notes.empty'))
 
 /* the order (B6): one PATCH position, with the priority when D8 changes it;
    the row moves at once, a refusal reloads the list */
@@ -237,7 +230,6 @@ async function newNote() {
     createFailed.value = true
     return
   }
-  archived.value = false
   query.value = ''
   open(id)
 }
@@ -300,7 +292,6 @@ onUnmounted(() => {
   color: var(--color-fg);
   font: inherit;
 }
-.notes-bar__archived[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-accent); }
 .notes-error { margin: 0 0 0.75rem; color: var(--color-danger); overflow-wrap: anywhere; }
 .notes-group + .notes-group { margin-top: 1rem; }
 .notes-group__head { margin: 0 0 0.5rem; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; color: var(--color-muted); }

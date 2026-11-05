@@ -230,9 +230,9 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
   it (2.9). At 820 px and below a row stays at least 44 px tall at every font
   size. Order: pinned first, each group by priority (2.9), then by the
   person's own order (drag, or Alt+Up/Down for the keyboard); a new note goes
-  on top of the notes of its priority. A filter "Archived" shows the
-  archived ones. They are also seen in the Archive section (`/archive`), in
-  a Notes part under its topics (owner HUM-10, t1 2f4311d9, msg c6bf6b39:
+  on top of the notes of its priority. The list has no "Archived" switch:
+  the archived notes are seen in the Archive section (`/archive`), in a
+  Notes part under its topics (owner HUM-10, t1 2f4311d9, msg c6bf6b39:
   "Remove tje archive buton, the archive section should be used for that";
   SPL-4897). A row there is the title, the priority (above 600 px) and when
   it last changed; a click opens the note in place, and Unarchive puts it

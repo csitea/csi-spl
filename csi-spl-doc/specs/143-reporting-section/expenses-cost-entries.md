@@ -68,13 +68,22 @@ of that month:
 | `second_micros`, `fx_rate`, `fx_rate_day` | the amount itself at rate 1 when the second currency is the entry's, else the USD at the second currency's rate |
 | `unpriced` | `true` when no rate turned the amount into USD: `usd_micros` 0 is then unknown, never free; nothing is guessed |
 
+**hr entries count in Human, never in Spend** (SPL-4840, owner csitea
+f7bba506 poll d82c98e2, answer A "In Human; left out of Spend"): an `hr`
+entry is not a part; it is a row of the estate answer's `human` list (same
+fields, `pct` null), so `total` and every part's `pct` leave it out. Every
+other type stays a part. **An unpriced part has no `pct`** (SPL-4824 R7 N1):
+its USD is unknown, so it has no share of the month.
+
 No coverage row: a month holds what was entered. Code:
 `internal/store/cost_entry_parts.go`, `costEntryMonthParts` in
 `internal/hub/cost_read.go`. Tests: `TestCostEntryParts` (the money, red
 control: P3 without `Unpriced`), `TestCostEntryPartsPostgresRates`,
 `TestCostReadAddsCostEntries` (the estate reads them, the operator's
 developer and another workspace's admin do not; red control: the append
-removed).
+removed), `TestCostReadHREntryInHumanNotSpend` (hr in `human` not `parts`,
+the total the parts' sum, no `pct` on an unpriced part; red control: the
+master before SPL-4840, H1 and H3 fail).
 
 ## 5. Box action: `do_spl_hub_cost_entries` (SPL-4824)
 
@@ -116,11 +125,17 @@ case 6 fails).
   with the by-hand mark; an unpriced one shows the same dash in USD (and in
   EUR unless it is a EUR entry), and the USD, EUR and second totals' titles
   each name what they leave out.
-- Pure parts: `cloudEntries`, `sectionAmount` and `cloudTotal`
+- **Human** (`human.vue`, SPL-4840): a month whose answer has `human` rows
+  lists them, one per `hr` entry in the header's currency with "Entered by
+  hand: <amount>" and a total; the same dash and left-out count for an
+  unpriced one. A month without them, or a reader other than the operator
+  admin, keeps "Not tracked yet". Spend never lists an `hr` entry, and an
+  unpriced part's "% of month" cell is empty beside its dash (R7 N1).
+- Pure parts: `cloudEntries`, `humanEntries`, `sectionAmount` and `cloudTotal`
   (`unpricedRows`) in `src/utils/costs-sections.mjs`; the mock month's
   scenario `entries` (`src/utils/tenant-costs.mjs`). Tests:
   `tests/unit/costs-sections.test.mjs` (red control: `sectionAmount`
   returning the unpriced 0), `tests/e2e/monitoring-costs.test.mjs` (the
   `entries` block).
 
-<!-- version: 0.6.0 · updated: 2026-11-05 -->
+<!-- version: 0.7.0 · updated: 2026-11-05 -->

@@ -61,6 +61,12 @@ import (
 // month (store/cost_entry_parts.go), entry_micros + entry_currency its own
 // amount, unpriced when no rate turned it into USD. No coverage row: a month
 // holds what was entered.
+//
+// The hr entries count in Human, never in Spend (SPL-4840, owner csitea
+// f7bba506 poll d82c98e2, answer A "In Human; left out of Spend"): they are
+// the estate answer's human list, outside parts, so neither the total nor a
+// part's pct holds them. An unpriced part has no pct (SPL-4824 R7 N1): its
+// USD is no amount, so it has no share of the month.
 
 // costMonthWindow is one month's days, as of now.
 type costMonthWindow struct {
@@ -133,6 +139,9 @@ type costMonthBody struct {
 	// Workspaces is every workspace's token burn of the month, the estate
 	// answer's only (absent from a workspace answer).
 	Workspaces []costWorkspaceOut `json:"workspaces,omitempty"`
+	// Human is the month's hr entries (SPL-4840), the estate answer's only:
+	// Reporting -> Costs -> Human, never in Total or a part's pct.
+	Human []costPartOut `json:"human,omitempty"`
 	// AIShareFrom is a customer workspace's first day with a workspace-
 	// stamped token (no share before it); absent elsewhere.
 	AIShareFrom string `json:"ai_share_from,omitempty"`
@@ -187,9 +196,9 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		ai, err = s.aiCostParts(r.Context(), op, estate, t.ID, win, cur)
 	}
-	var hand []store.CostPart
+	var hand, human []store.CostPart
 	if err == nil && estate {
-		hand, err = s.costEntryMonthParts(r.Context(), win.Month, cur)
+		hand, human, err = s.costEntryMonthParts(r.Context(), win.Month, cur)
 	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
@@ -208,7 +217,7 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		b.AIShareFrom = ai.ShareFrom
 	}
 	if estate {
-		b.Workspaces = costWorkspaces(burn)
+		b.Workspaces, b.Human = costWorkspaces(burn), costHumanParts(human)
 	}
 	writeJSON(w, http.StatusOK, b)
 }
@@ -224,21 +233,40 @@ func costBurnOf(estate bool, tenant string) string {
 
 // costEntryMonthParts is the month's hand-entered costs (SPL-4824,
 // store/cost_entry_parts.go), the estate's only; none on a store without
-// the entries. The rates are the paid items' (FleetPaidFXRate).
-func (s *Server) costEntryMonthParts(ctx context.Context, month, cur string) ([]store.CostPart, error) {
+// the entries. The rates are the paid items' (FleetPaidFXRate). spend is
+// every type but hr, human the hr ones (SPL-4840).
+func (s *Server) costEntryMonthParts(ctx context.Context, month, cur string) (spend, human []store.CostPart, err error) {
 	ce, ok := s.o.Store.(store.CostEntryStore)
 	if !ok {
-		return nil, nil
+		return nil, nil, nil
 	}
 	entries, err := ce.ListCostEntries(ctx, "", month)
 	if err != nil || len(entries) == 0 {
-		return nil, err
+		return nil, nil, err
 	}
 	rate := func(context.Context, string, string) (float64, string, bool, error) { return 0, "", false, nil }
 	if fx, ok := s.o.Store.(store.FleetPaidStore); ok {
 		rate = fx.FleetPaidFXRate
 	}
-	return store.CostEntryParts(ctx, entries, cur, rate)
+	parts, err := store.CostEntryParts(ctx, entries, cur, rate)
+	for _, p := range parts {
+		if p.Kind == "hr" {
+			human = append(human, p)
+		} else {
+			spend = append(spend, p)
+		}
+	}
+	return spend, human, err
+}
+
+// costHumanParts is Human's rows (SPL-4840): entered by hand, no pct (the
+// share is of the Spend total, which leaves them out).
+func costHumanParts(parts []store.CostPart) []costPartOut {
+	out := make([]costPartOut, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, costPartOut{CostPart: p, Hand: true})
+	}
+	return out
 }
 
 // aiCostParts reads the month's AI parts: the estate's ai_paid, a customer
@@ -308,7 +336,7 @@ func costMonthAnswer(win costMonthWindow, estate bool, cur string, cm store.Cost
 	}
 	for _, p := range cm.Parts {
 		o := costPartOut{CostPart: p, Hand: p.Origin == "hand" || p.Origin == "invoice"}
-		if b.Total.USDMicros > 0 {
+		if b.Total.USDMicros > 0 && !p.Unpriced {
 			pct := math.Round(float64(p.USDMicros)*1000/float64(b.Total.USDMicros)) / 10
 			o.Pct = &pct
 		}

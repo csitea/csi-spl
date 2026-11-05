@@ -2,7 +2,7 @@
 
 Status: **specified** (2026-10-02, CLE-77941). Being built in two lanes:
 orchestrator rotation CLE-77939, dispatcher rotation CLE-77940.
-Version: 1.1 (change log: section 11).
+Version: 1.2 (change log: section 11).
 Plan: [plan.md](plan.md). Tasks: [tasks.md](tasks.md).
 Related: [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md)
 (the roles, the leases, the ask book), [058 the fleet on many machines](../058-multi-machine-fleet/spec.md)
@@ -478,12 +478,19 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
     the seat is refreshed at the same age;
   - the fleet orch lease is never taken or moved, the lease file stays
     byte-identical (CLOSE of the run that started the refresh does not
-    count it as `lease-moved`; a resumed one logs `CLOSE WAIT lease-moved`,
-    log only, as a resumed `ROTATE_CMD=standby` run already did); the
-    holder's machine keeps `ROTATE_MIN_AGE`.
+    count it as `lease-moved`, and nor does a resumed one: the orch ctx
+    keeps `ROTATE_STANDBY_REFRESH` and the `ROTATE_CMD=standby` run's
+    `ROTATE_STANDBY`, and a new run clears both once no rotation is left
+    to resume, so a finished refresh never reaches the next run's CLOSE or
+    age gate); the holder's machine keeps `ROTATE_MIN_AGE`.
 
   Test: `orch-rotate.tst.sh` case 24 (red control: with only the age branch
-  of `spl_orch_rotate_standby_gate` removed, 17 of its checks fail).
+  of `spl_orch_rotate_standby_gate` removed, 17 of its checks fail) and
+  case 25 (SPL-4878): the gate's failover branch, ahead of the age one (red
+  control: that branch removed, 25 (a) fails); a refresh resumed at ACK
+  (red control: the code before SPL-4878, `CLOSE WAIT ... lease-moved`); a
+  DONE refresh in the ctx (red control: the keys kept but the reset left
+  before the ctx load, the next holder run reads `young ... (< 7200)`).
 - **FR-045** Rotation never writes the fleet row across machines. The HOLD
   moves the holder only between `<M>@<box>` and `<F>@<box>` of one machine.
   If the fleet loop flips a role to the other machine mid-rotation, the
@@ -844,5 +851,6 @@ seconds as SPAWN.
 | version | date | change |
 |---|---|---|
 | 1.1 | 2026-11-04 | R8, FR-047 (SPL-4807): a standby machine's orchestrator is refreshed in place once it is 2 h old; FR-010 gate 3, FR-044 and FR-053 follow |
+| 1.2 | 2026-11-05 | FR-047 (SPL-4878): the standby keys are kept in the orch ctx, so a resumed refresh or re-seat logs no `lease-moved`; case 25 tests the failover branch of the standby gate |
 
 <!-- last-edit: 2026-10-02T04:40:00Z — CLE-77941 -->

@@ -1,5 +1,7 @@
 # Marketing
 
+> Generated from qto doc `dce0e088-8630-4242-b201-c0ced5ad763b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Marketing lets a workspace share its live blog posts on **Facebook Pages**, **Instagram** professional accounts and **LinkedIn**. The share row on every blog post page also shares to WhatsApp, Viber, X, Telegram, Reddit, Substack and e-mail, or copies the link.
 
 Three rules apply across every channel:
@@ -10,10 +12,12 @@ Three rules apply across every channel:
 
 ---
 
+<a id="ws-doc-0a82ea36-9d45-4018-b350-25b015eab7e7"></a>
 ## 1. Workspace settings -> General (`/tenant-settings/general`): Connect Facebook Pages and Instagram, publish from the queue, and disconnect
 
 Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desktop) and choose **Workspace settings -> General** (`/tenant-settings/general`). Only workspace administrators and business owners (`tenant.settings`) can open this screen.
 
+<a id="ws-doc-dd009549-2b39-4d27-82e8-da299e5d529a"></a>
 ### 1.1 Turn on Marketing for the workspace
 
 1. In **Workspace settings -> General**, scroll to the **Marketing** section.
@@ -21,6 +25,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
    - By default this box is unchecked (*"Off by default. While it is off, nothing is drafted or posted on anyone's behalf."*).
    - If the workspace is not enabled on the hub (`marketing.workspaces`), the section reads *"Marketing is not available in this workspace."*
 
+<a id="ws-doc-577340a6-3692-4f1d-b1a9-ebd243651496"></a>
 ### 1.2 Connect Facebook Pages and Instagram accounts
 
 1. In **Workspace settings -> General**, find the **Facebook and Instagram** section (*"Connect the Facebook Pages you manage; the Instagram professional account linked to a Page comes with it. Nothing is posted without your approval."*).
@@ -38,6 +43,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
    - If a Facebook Page has a linked Instagram Business or Creator account, an indented child row appears directly beneath that Page showing `@username`, the platform label **Instagram**, and its status badge.
    - If your Facebook account does not hold the `MANAGE` (Full control) or `CREATE_CONTENT` (Content) task on a connected Page, that Page row hides the **Publish** button and shows a warning instead: *"You cannot post on this Page: your role on it gives no right to create content. Ask a Page admin on Facebook for full control or content access, then connect again."*
 
+<a id="ws-doc-94e20746-71bd-4252-a1f8-da6895d3ddd9"></a>
 ### 1.3 Publish a blog post from the queue
 
 1. In the **Facebook and Instagram** list on **Workspace settings -> General**, click **Publish** on the active **Facebook Page** or **Instagram** row you want to post to.
@@ -61,6 +67,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
    - After the last try, or on an error that is never retried, the row says *"The publish failed. Try again later."*, and the member who connected the channel gets a mail saying the post will not be retried and can be posted by hand (section 5).
    - If the token was revoked (`code 190`), the channel status changes to **Expired: connect again**, the member who connected the channel gets a mail with the re-connect link, and the channel's posts wait, unsent, for the re-connect.
 
+<a id="ws-doc-ff24a4f2-a7ff-411a-abae-a67926a069da"></a>
 ### 1.4 Disconnect a Facebook Page or Instagram account
 
 1. In the **Facebook and Instagram** list on **Workspace settings -> General**, find the **Facebook Page** or **Instagram** row you want to remove and click **Disconnect**.
@@ -71,6 +78,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 3. Click **Disconnect** to confirm (`DELETE /v1/marketing/channels/{id}`), or **Cancel** to keep the account connected.
 4. The hub deletes the stored KMS-encrypted token (`encrypted_tokens = NULL`), marks the channel `disconnected` (cascading to the linked Instagram channel when a Facebook Page is disconnected), removes the row from the list, and shows **Disconnected.**
 
+<a id="ws-doc-d4755944-bf98-4575-85de-858348bd9493"></a>
 ### 1.5 Connect LinkedIn and publish from the LinkedIn queue
 
 1. There is no Connect LinkedIn button yet. To connect LinkedIn for the first time, a workspace administrator (`tenant.settings`) who is signed in to spool-hub opens `<hub API>/v1/marketing/linkedin/connect?workspace=<workspace_id>` in the same browser while Marketing is switched on, and approves the LinkedIn consent screen (`openid`, `profile`, `w_member_social`). To renew, use the same link, which the hub mails to the member who connected LinkedIn 7 days before the token expires.
@@ -81,15 +89,18 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 
 ---
 
+<a id="ws-doc-31cae723-45e8-4397-8e58-c252ebec2919"></a>
 ## 2. Blog post page (`/blog/<post-id>`): Share a blog post to WhatsApp, Viber, Facebook, and Instagram
 
 Every public blog post page renders a share bar at the top and bottom of the article (`aria-label="Share"`). Sharing from this bar uses native intent URLs and your clipboard — no OAuth connection or API token is needed, and you choose the recipient chat, group, or channel yourself inside each app.
 
+<a id="ws-doc-8f4c4c59-168d-4082-b733-08379ac6e024"></a>
 ### 2.1 Open the share row on a blog post
 
 1. Open any live blog post at `https://{{site}}/blog/<post-id>`.
 2. Locate the **Share** row just under the post title, or at the foot of the article. Its buttons are icons; each icon's tooltip names it (for example **Share on WhatsApp**).
 
+<a id="ws-doc-303674c3-068b-4205-9c14-29b13bb11748"></a>
 ### 2.2 Share on WhatsApp
 
 1. Click the WhatsApp icon (tooltip **Share on WhatsApp**) in the blog post's share row.
@@ -99,6 +110,7 @@ Every public blog post page renders a share bar at the top and bottom of the art
 3. Pick the target chat, **Group**, or **WhatsApp Channel** inside WhatsApp and press **Send**.
    - WhatsApp share URLs (`wa.me`) do not allow a link to pre-select a group or channel ID; you always pick the destination inside WhatsApp.
 
+<a id="ws-doc-95bef34f-74a4-45dc-9750-39b8a55b10b3"></a>
 ### 2.3 Share on Viber
 
 1. Click the Viber icon (tooltip **Share on Viber**) in the blog post's share row.
@@ -108,6 +120,7 @@ Every public blog post page renders a share bar at the top and bottom of the art
    - **On a computer**: **Viber Desktop** must be installed (`viber://` is a custom protocol scheme with no web fallback).
 3. Select the target **Viber Channel**, **Group**, or contact in Viber and press **Send**.
 
+<a id="ws-doc-fe8e87ab-0dae-4c55-b135-86d6eeef8ef8"></a>
 ### 2.4 Share on Facebook
 
 1. Click the Facebook icon (tooltip **Share on Facebook**) in the blog post's share row.
@@ -115,6 +128,7 @@ Every public blog post page renders a share bar at the top and bottom of the art
    - Only the post URL (`u`) is passed because Meta deprecated the `quote` parameter; Facebook scrapes the blog post's Open Graph tags (`og:title`, `og:description`, `og:image`) to render the link preview card.
 3. Choose where to post on Facebook (your Feed, a Group, or a Page you manage), add an optional comment above the card, and publish.
 
+<a id="ws-doc-883f28e5-6b21-45aa-b870-49adde50d3c5"></a>
 ### 2.5 Share on Instagram
 
 1. Click the Instagram icon (tooltip **Share on Instagram**) in the blog post's share row.
@@ -123,6 +137,7 @@ Every public blog post page renders a share bar at the top and bottom of the art
    - It opens `https://www.instagram.com/` in a new tab.
 3. In Instagram, start a new post, upload a photo from the article, paste the copied caption from your clipboard, and share.
 
+<a id="ws-doc-b849431d-1da0-4902-8ae8-67ee5cceece6"></a>
 ### 2.6 Read share links from the Hub API
 
 Signed-in workspace members can also fetch the pre-built share links for any known marketing post from `GET /v1/marketing/posts/{id}/share-links`:
@@ -134,10 +149,12 @@ Signed-in workspace members can also fetch the pre-built share links for any kno
 
 ---
 
+<a id="ws-doc-4cf39bea-3697-410c-9204-825cb20b31e7"></a>
 ## 3. Meta App Dashboard (`developers.facebook.com`): What the Meta app administrator must set
 
 Spool reuses a single Meta app (`spool-hub`, platform `WEB`) for both Facebook sign-in and Facebook Page / Instagram marketing. Before a workspace administrator can connect a Page in section 1.2, the Meta app administrator must complete the setup below in the [Meta App Dashboard](https://developers.facebook.com/apps/) (documented in full in `csi-spl-doc/specs/090-marketing-automation/meta-app-setup.md`).
 
+<a id="ws-doc-9bda2a84-ea78-4e2c-a378-4ff3aebe98c8"></a>
 ### 3.1 Add the Facebook and Instagram use cases and permissions
 
 1. Open the `spool-hub` app in `developers.facebook.com/apps` and ensure it is connected to the organization's **Meta Business Portfolio** (under **App settings -> Basic -> Business Manager**).
@@ -152,6 +169,7 @@ Spool reuses a single Meta app (`spool-hub`, platform `WEB`) for both Facebook s
    - `instagram_basic` — read the Instagram Professional (`instagram_business_account`) profile linked to a Facebook Page.
    - `instagram_content_publish` — create and publish media containers on that Instagram account (`/{ig-user-id}/media`, `/{ig-user-id}/media_publish`).
 
+<a id="ws-doc-de0be1f6-c3f8-4e5d-953a-4ead3ad11b34"></a>
 ### 3.2 Add the OAuth redirect URIs and link the Instagram account
 
 1. In the Meta App Dashboard sidebar, open **Facebook Login for Business -> Settings** (or **Use cases -> Authentication and account creation -> Customize -> Settings**).
@@ -162,11 +180,13 @@ Spool reuses a single Meta app (`spool-hub`, platform `WEB`) for both Facebook s
 3. Check that **Client OAuth Login**, **Web OAuth Login**, and **Enforce HTTPS** are all set to **Yes**, then click **Save changes**.
 4. To publish to Instagram as well, link the Facebook Page to an **Instagram Professional** (**Business** or **Creator**) account in **Meta Business Suite -> Settings -> Accounts -> Instagram accounts** (or in the Instagram mobile app under **Edit profile -> Page**). Personal Instagram accounts are not returned by the Instagram Graph API.
 
+<a id="ws-doc-0da35730-d4bf-464a-96e8-cd046e9d91cb"></a>
 ### 3.3 Enable Facebook and Instagram on the hub
 
 1. Ensure the Meta App Secret is stored in GCP Secret Manager (`csi-spl-hub-auth-facebook-client-secret`). The KMS key (`marketing.kms_key`) is already configured.
 2. Flip `marketing.facebook.inject` to `"true"` per environment in `csi-spl-cnf/csi-spl/<env>.env.yaml`, include the workspace in `marketing.workspaces`, then apply terraform step 030 (owner go).
 
+<a id="ws-doc-227dc355-c121-4528-afad-3307921bac29"></a>
 ### 3.4 Standard Access vs. Advanced Access (Meta App Review)
 
 Meta grants every permission at **Standard Access** first:
@@ -176,22 +196,27 @@ Meta grants every permission at **Standard Access** first:
 
 ---
 
+<a id="ws-doc-03b61ebf-59bf-4adf-aed7-9075673d1a4f"></a>
 ## 4. What is not built or not switched on yet
 
 The following parts of spec `090-marketing-automation` are not live on production yet; do not look for them in the UI:
 
+<a id="ws-doc-de8c7ec7-07ca-467b-8de2-f3761a3c4337"></a>
 ### 4.1 Meta App Review submission for Advanced Access (`T038`)
 
 The Meta App Review submission package (`T038`) has **not been submitted or approved by Meta yet**. The `spool-hub` Meta app operates under **Standard Access** (section 3.4): once Facebook and Instagram are switched on (section 4.2), connecting a Facebook Page or Instagram account and publishing from the queue works only for the Pages of people who hold a role on the Meta app, and opens to other workspace administrators only after Meta approves **Advanced Access**.
 
+<a id="ws-doc-80265184-501c-4bc8-8cb5-7b705fab7a76"></a>
 ### 4.2 Facebook and Instagram are not switched on yet
 
 `marketing.facebook.inject` is `"false"` on dev and prd (`csi-spl-cnf/csi-spl/all.env.yaml`, with no override in `dev.env.yaml` or `prd.env.yaml`). Until it is switched on (section 3.3), sections 1.2 to 1.4 show only the line *"Facebook and Instagram are not set up on this hub yet."*
 
+<a id="ws-doc-55dd7060-67d3-453e-95ca-06cb753d5a95"></a>
 ### 4.3 LinkedIn is not switched on on dev
 
 `marketing.linkedin.inject` is `"false"` in `dev.env.yaml`, so section 1.5 does not work on dev; on prd it is switched on.
 
+<a id="ws-doc-109e2a47-7c72-40d7-96ed-4c16e41594f8"></a>
 ## 5. Post a blog post by hand
 
 To post a blog post yourself, with your own choice of photos, press **Post by hand** next to the post in the publish queue. The steps: [Post a blog post yourself: the draft hand-over](marketing-hand-over.md).

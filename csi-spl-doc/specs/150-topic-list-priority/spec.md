@@ -338,7 +338,9 @@ holds (panel.md section 1, one row per claim with its command).
    - **At once**: `PUT /v1/topics/{task_id}/priority` applies it to the
      issues linking that topic, after the set (`hub/topic_priority_follow.go`
      `followTopicPriority`), in the setter's workspace and in the operator
-     workspace; each change is an issue update by the setter (its
+     workspace, whose run reads every workspace's topics as the sweep's does
+     (else an operator issue on a far and an own topic flips every 5 min);
+     each change is an issue update by the setter (its
      history names who) and an `issue` frame to the open tabs. A failed apply
      is logged, never the PUT's error.
    - **Every 5 minutes, the safety net**: the agent issue op `prio-sync`
@@ -430,6 +432,7 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C406 | 4 | unanswered posts | a priority 1 post comes before an older priority 5 post | ORDER BY received_at only | `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` |
 | C407 | 4 | lane follows its discussion (v1.2) | a priority set to 1 after the lane and its issue exist: the issue and the lane show 1; a later 3 follows; an issue on the default discussion only keeps 5 | the lane stays at 5 (master 77463637a) | `hub/topic_priority_follow_test.go` `TestTopicPriorityFollowsToIssuesAndLanes` (Memory + Postgres) |
 | C408 | 4 | the 5-min sweep (v1.2) | `prio-sync` dry run lists the change and writes nothing; `--apply` writes it, counts the unset issues, walks every workspace from the operator one; a second run changes nothing | the op does not exist | `hub/topic_priority_follow_test.go` `TestTopicPrioritySyncOp`, `csi-spl-orc/src/bash/tests/spl-topic-prio-sync.tst.sh` |
+| C409 | 4 | the PUT agrees with the sweep (v1.2, R7 W1) | an operator issue on a far priority 1 topic and an own topic: the own topic's PUT to 3 leaves it at 1, the next sweep changes nothing | the PUT's operator run reads its own workspace only: prio 3 (ca1176c0f) | `hub/topic_priority_follow_test.go` `TestTopicPriorityPutAgreesWithSync` |
 
 ## 5. Build rows
 

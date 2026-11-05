@@ -195,3 +195,36 @@ func TestTopicPrioritySyncOp(t *testing.T) {
 		t.Errorf("C150-F2 second apply is not a no-op: %v", ch)
 	}
 }
+
+// C150-F4 (R7 W1): an operator issue links a far priority 1 topic and an
+// own one; the PUT on the own one gives what the sweep gives, or the issue's
+// priority flips every 5 min. RED CONTROL (ca1176c0f, the PUT's operator run
+// reads the operator workspace's own topics only): issue prio 3, want 1.
+func TestTopicPriorityPutAgreesWithSync(t *testing.T) {
+	r := newFleetTokensRig(t)
+	own, far := uid.New(), uid.New()
+	lobbyTopic(t, r.e, r.op, own, "## Own\n\nrow")
+	lobbyTopic(t, r.e, r.other, far, "## Far\n\nrow")
+	relayCopy(t, r.e, r.op, far)
+	k := issueWithPrio(t, r.e, r.op, r.admin, "lane issue on two topics", own, 5)
+	if code, out := call(t, r.e, r.op, http.MethodPost, "/v1/issues/"+k+"/discussions", r.admin, map[string]any{"discussion": far}); code != http.StatusOK {
+		t.Fatalf("link the far topic: %d %v", code, out)
+	}
+	ps := r.e.st.(store.TopicPriorityStore)
+	if _, err := ps.SetTopicPriority(context.Background(), r.other, far, 1, "HUM-1", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	prioSync(t, r, "dry_run=0")
+	if got := issuePrio(t, r.e, r.op, r.admin, k); got != 1 {
+		t.Fatalf("C150-F4 sweep: issue prio %d, want 1", got)
+	}
+	if code, out := putPriority(t, r.e, r.op, own, r.admin, map[string]any{"priority": 3}); code != http.StatusOK {
+		t.Fatalf("PUT own priority: %d %v", code, out)
+	}
+	if got := issuePrio(t, r.e, r.op, r.admin, k); got != 1 {
+		t.Errorf("C150-F4 PUT disagrees with the sweep: issue prio %d, want 1", got)
+	}
+	if ch, _ := ownChanges(r, prioSync(t, r, "dry_run=0"))["changes"].([]any); len(ch) != 0 {
+		t.Errorf("C150-F4 sweep after the PUT moves it again: %v", ch)
+	}
+}

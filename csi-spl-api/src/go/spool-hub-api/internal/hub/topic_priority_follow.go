@@ -192,16 +192,26 @@ func (s *Server) applyIssuePriority(ctx context.Context, is store.Issues, tenant
 }
 
 // followTopicPriority is the PUT's apply, for the issues linking task in
-// tenant and, when tenant is not the operator workspace, in the operator
-// workspace (the fleet's lane issues). A failure is logged, never the PUT's:
+// tenant and in the operator workspace (the fleet's lane issues), whose run
+// reads every workspace's topics, as the sweep's does. A failure is logged, never the PUT's:
 // the 5-min sweep applies it again.
 func (s *Server) followTopicPriority(ctx context.Context, tenant, task, by string) {
 	if strings.EqualFold(task, store.IssueDiscussionDefault(tenant)) {
 		return
 	}
 	runs := []prioRun{{tenant: tenant, by: by, apply: true}}
-	if op, err := s.operatorTenant(ctx); err == nil && op != "" && op != tenant {
-		runs = append(runs, prioRun{tenant: op, lookIn: []string{tenant}, by: by, apply: true})
+	if op, err := s.operatorTenant(ctx); err == nil && op != "" {
+		// the operator run reads what the sweep reads, or the two disagree
+		// and the issue's priority flips every 5 min
+		lookIn := []string{tenant}
+		if ws, werr := s.prioSyncWorkspaces(ctx, op); werr == nil && len(ws) > 0 {
+			lookIn = ws[1:]
+		}
+		if op == tenant {
+			runs[0].lookIn = lookIn
+		} else {
+			runs = append(runs, prioRun{tenant: op, lookIn: lookIn, by: by, apply: true})
+		}
 	}
 	for _, run := range runs {
 		if err := s.followTopicIn(ctx, run, task); err != nil {

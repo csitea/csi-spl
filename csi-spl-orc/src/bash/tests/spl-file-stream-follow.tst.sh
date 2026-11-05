@@ -331,7 +331,7 @@ c9() {
   nolines "$d" "$gh" "$br" "$jt" "$pw" "$b1" "$b2" || return 1
   texts "$d" | grep -x "after the key" >/dev/null || { echo "  C9: the line after the key was not followed"; return 1; }
   r="$(redactions "$d")"
-  jq -e '.["private-key"] == 1 and .["github-token"] >= 1 and .password >= 1 and .assignment >= 1' <<<"$r" >/dev/null ||
+  jq -e '.["private-key"] == 1 and .["github-token"] >= 1 and .password >= 1 and .["env-secret"] >= 1' <<<"$r" >/dev/null ||
     { echo "  C9: redactions $r"; return 1; }
 }
 

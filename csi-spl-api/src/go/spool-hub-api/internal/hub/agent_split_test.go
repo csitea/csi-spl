@@ -12,10 +12,13 @@ import (
 //   - a fresh workspace reads the spec 115 section 2 table, every kind unset;
 //   - a fixture PATCH updates the row (weights, backup, main, set, by) and a
 //     re-read shows it; null resets the kind to the default;
-//   - CONTROL: a PATCH with agy > 0 (or agy the backup) in a coding kind is
-//     refused 400 bad_split and nothing is written (drop the guard in
-//     store.CheckSplitKind and this goes red on Memory; rdb 0163's CHECK
-//     still refuses it on Postgres, store/agent_split_kind_test.go);
+//   - agy codes: a PATCH with agy in a coding kind (agy 20, agy the backup)
+//     is stored;
+//   - CONTROL: a PATCH with agy > 0 (or agy the backup) in secret or
+//     orchestration is refused 400 bad_split naming the data rule, and
+//     nothing is written, not even a good kind beside it (drop agy's absence
+//     from store.splitSecretVendors and this goes red; rdb 0178's
+//     tenant_agent_split_kind_secret_vendors refuses it on Postgres);
 //   - the other section 2 rules are refused the same way;
 //   - a member without tenant.settings is 403.
 
@@ -107,6 +110,20 @@ func TestAgentSplitKinds(t *testing.T) {
 		t.Fatalf("reread: %d %v", code, body)
 	}
 	assertKind(t, splitKinds(t, body)["simple_coding"], "mistral", "claude", true, map[string]float64{"mistral": 60, "claude": 30, "grok": 10})
+
+	// agy codes: agy in a coding kind, as weight and as backup, is stored.
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/agent-split", admin, map[string]any{
+		"kinds": map[string]any{"complex_coding": map[string]any{
+			"weights": map[string]int{"claude": 80, "agy": 20}, "backup": "agy"}},
+	})
+	if code != 200 {
+		t.Fatalf("patch agy complex_coding: %d %v", code, body)
+	}
+	assertKind(t, splitKinds(t, body)["complex_coding"], "claude", "agy", true, map[string]float64{"claude": 80, "agy": 20})
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/agent-split", admin, map[string]any{"kinds": map[string]any{"complex_coding": nil}})
+	if code != 200 {
+		t.Fatalf("reset complex_coding: %d %v", code, body)
+	}
 
 	// CONTROL: agy in a secret-class kind is refused and nothing is written,
 	// not even the good kind beside it.

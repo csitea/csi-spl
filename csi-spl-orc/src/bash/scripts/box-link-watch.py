@@ -14,9 +14,9 @@ it raises ONE incident when one of these lasts longer than GW_LIMIT_MIN:
      with REFUSED / timed out in its output, or exit 124) with no later
      success of its kind (`box: deploy: APPLIED`, an exec `-> exit 0`)
   c  the box log not advancing: no <x>-log.box.* received for more than
-     GW_QUIET_S, while a, b or d holds (a box quiet at night with nothing in
-     flight is no incident); it counts from the later of the last box log
-     received and the oldest of a, b or d
+     GW_QUIET_S, while a, b or d holds or a command runs on the box (a box
+     quiet at night with nothing in flight is no incident); it counts from the
+     later of the last box log received and the oldest of those
   d  the link down: no radiate process, or the hub log ended the session
 ONE incident per box: one spool message (kind blocker) to the seat of the
 topic that owns the box, listing every condition over the limit, and one more
@@ -167,6 +167,23 @@ def pending_items(rows, results):
     return out
 
 
+def running(rows, results):
+    """Not an alert on its own: a command the box STARTed with no exit line and
+    no result yet is work in flight, so a silent box log counts meanwhile."""
+    started, ended = {}, set()
+    for t, text, raw in rows:
+        m = re.search(r"exec: request ([0-9a-f]{12}) (START|DONE|-> exit)", text)
+        if m and m.group(2) == "START":
+            started.setdefault(m.group(1), (t, clean(raw)))
+        elif m:
+            ended.add(m.group(1))
+    return {
+        "r:" + c: (t, "command %s running on the box" % c, ev)
+        for c, (t, ev) in started.items()
+        if c not in ended and not has_result(results, c)
+    }
+
+
 def refusal_kind(text, raw, results):
     """('deploy'|'exec'|'', evidence) for one hub line."""
     if re.search(r"^box: deploy: .*(REFUSED|refused|timed out)", text):
@@ -253,6 +270,7 @@ def conditions(box, now, inc=None):
     rows = hub_lines(env("GW_LOG_DIR"), root, box, since)
     cur = pending_items(rows, results)
     cur.update(refusals(rows, results))
+    cur.update(running(rows, results))
     seen, ev = box_log_seen(root, box, rows)
     if not seen:
         cur["c:box-log"] = (
@@ -375,9 +393,10 @@ class Run:
                 "ev": ev,
             }
         quiet = conds.pop("c:box-log", None)
-        if quiet and conds:
+        busy = [conds.pop(k) for k in sorted(conds) if k.startswith("r:")]
+        if quiet and (conds or busy):
             quiet["since"] = max(
-                quiet["since"], min(c["since"] for c in conds.values())
+                quiet["since"], min(c["since"] for c in list(conds.values()) + busy)
             )
             conds["c:box-log"] = quiet
         elif quiet:

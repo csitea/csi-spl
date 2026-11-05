@@ -24,8 +24,13 @@ For each box the hub serves (a dir `<root>/<box>/` with `inbound/` and
 |---|---|---|---|
 | a | a queued or sent bundle/command with no receipt | hub log `queued ...` / `sent <name> hub -> ...` | `delivered <name> to`; a command also on its box `START`, its `exec: request <id> -> exit` line or `<results>/<id>/result.json` |
 | b | a box apply or command refused or timed out | `box: deploy:` / `box: exec:` REFUSED or timed out lines; `exec: request <id> -> exit <n>` with REFUSED / timed out in `<results>/<id>/` or exit 124 | a later `box: deploy: APPLIED` (apply) or `-> exit 0` (command) |
-| c | the box log not advancing, while a, b or d holds | the newest `inbound/*/*-log.box.*` and the hub's `received ...-log.box.` lines; quiet for more than 180 s, counted from the later of that and the oldest of a, b or d | the next box log, or nothing left in flight |
+| c | the box log not advancing, while a, b or d holds or a command runs on the box | the newest `inbound/*/*-log.box.*` and the hub's `received ...-log.box.` lines; quiet for more than 180 s, counted from the later of that and the oldest of a, b, d or a running command | the next box log, or nothing left in flight |
 | d | the link or session down | no `<home>/run -a radiate` process, or the hub log closed the session after its last `radiating session` | the radiate back |
+
+A command runs on the box from its `exec: request <id> START` line until its
+`DONE` / `-> exit` line or `<results>/<id>/result.json`. It is no condition of
+its own (a long command is no fault), but it is work in flight, so a box log
+silent while it runs counts as c.
 
 The hub logs read are the `*.out.log` files of the last 6 h in the log dir
 that name `<root>/<box>/`: a relay test run logs into the same dir but names
@@ -36,7 +41,10 @@ A log stamp marked `UTC` (or `GMT`, `Z`) is read as UTC whatever the cron's
 
 A silent box log alone is no incident: the box is off at night (about 00Z
 to 04-08Z on 2026-11-03 and 11-04), and with nothing in flight there is
-nothing to tell anyone (c-002@sat, msg b7011f23).
+nothing to tell anyone (c-002@sat, msg b7011f23). The hub's radiate keeps
+running through the night and its log closed no session in the night of
+2026-11-04/05 (its only close since 11-02 was 22:19Z on 11-04), so d does not
+bring the quiet box log back every night.
 
 When any condition is older than 7 min the box has ONE incident: one spool
 message, kind `blocker`, task `dispatch-<topic8>`, listing every stuck
@@ -72,8 +80,9 @@ lease holder too, on task `box-link-watch-<box>`, and the run exits 1 so the
 missing row shows in the cron log. The watcher never posts to the hub: the seat tells the
 owner in the topic, within the 7 min.
 
-Until the relay ships a box heartbeat line, "no box log for 7 min" is the
-silence signal; a heartbeat line arrives in the same box log, so it needs no
+Until the relay ships a box heartbeat line, "no box log for 7 min while
+work is in flight" is the silence signal (owner pick [4], narrowed by c-002
+msg b7011f23 for the night-off box); a heartbeat line arrives in the same box log, so it needs no
 change here.
 
 ## 4. Test

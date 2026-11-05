@@ -26,6 +26,8 @@
 #  16. UTC stamps read under TZ=Europe/Sofia: 6 min -> still no alert
 #  17. the box log silent 4 h, nothing in flight -> no blocker; silent + a
 #      bundle unreceipted 6 min -> nothing yet, at 8 min ONE blocker naming both
+#  18. a command STARTed on the box, no exit line, the box log silent 8 min ->
+#      ONE blocker; its `-> exit 0` -> CLEARED
 #   RED CONTROL: case 2 with the state file gone sends a second blocker, so
 #   case 2's silence is the state's doing.
 #------------------------------------------------------------------------------
@@ -193,5 +195,19 @@ out="$(run)"
 NOW=$(( NOW + 2 * 60 )); run >/dev/null
 [ "$(n)" = 1 ] && grep -q 'bundle b10.zip sent, no receipt, since .* (8 min)' "$T/sent" && grep -q 'the box log is not advancing (last received .*), since .* (8 min)' "$T/sent" \
   && pass "17. ...at 8 min ONE blocker naming the bundle and the silent box log" || fail "17. 8 min ($(n): $(cat "$T/sent"))"
+
+# 18. a command the box STARTed is in flight: the box log silent 8 min while
+# it runs -> ONE blocker; its exit line clears it
+fresh; touch -d "@$(( NOW - 8 * 60 ))" "$R/box/inbound/archived/<x>-log.box.h1.20261104.log"
+logl 70 "run-on-box: queued gr-cmd-0123456789ab.zip ('x', cwd /x, timeout 3600s)"
+logl 70 "sent gr-cmd-0123456789ab.zip hub -> box (10 B, sha256 aa) as b-18 in 1 s, waiting for the box's receipt"
+logl 69 "delivered gr-cmd-0123456789ab.zip to box1: marked sent; relay blob deleted"
+logl 69 "box: exec: request 0123456789ab START 'x' (cwd /x, timeout 3600s)"
+out="$(run)"
+[ "$(n)" = 1 ] && grep -q 'the box log is not advancing (last received .*), since .* (8 min)' "$T/sent" && ! grep -q 'running on the box, since' "$T/sent" \
+  && pass "18. a command running on the box, the box log silent 8 min -> ONE blocker naming the silent box log" || fail "18. ($(n): $(cat "$T/sent"); $out)"
+logl 0 "box: exec: request 0123456789ab DONE 'x' -> exit 0 in 4200s; result queued"
+NOW=$(( NOW + 60 )); run >/dev/null
+[ "$(n)" = 2 ] && grep -q "LINK CLEARED" <<<"$(last)" && pass "18. ...its exit line -> CLEARED" || fail "18. clear ($(cat "$T/sent"))"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

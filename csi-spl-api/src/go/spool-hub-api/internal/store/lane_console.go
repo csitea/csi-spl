@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// A lane's live console (spec 153 section 3.18, rdb 0261, SPL-4810): one
+// A lane's live console (spec 153 section 3.20, rdb 0262, SPL-4810): one
 // row per (workspace, box, agent). The hub writes the demand when an allowed
 // reader asks; the box pulls its live demands and pushes the captured
 // screen, masked on the box. Tenant is the BOX's workspace: the box writes

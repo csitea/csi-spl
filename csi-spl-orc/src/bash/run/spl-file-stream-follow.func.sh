@@ -48,7 +48,7 @@
 # @param   else the cnf env.box.file_streams.folders. The globs themselves are
 # @param   pulled from each hub by its follower (3.8.5), every cnf globs_s
 # @param FILE_STREAMS_CONSOLE_TMUX (optional) - the JSON argv of tmux for a
-# @param   lane's console (spec 153 3.18); default the box user's server
+# @param   lane's console (spec 153 3.20); default the box user's server
 # @param   (box.env SPOOL_BOX_USER, else the spool root's owner), through
 # @param   sudo -n -u when the agent user differs
 # @param FILE_STREAMS_CONSOLE_SOCKET (optional) - default /tmp/tmux-<uid>/default
@@ -204,7 +204,7 @@ spl_file_stream_hub_cmd() {
 }
 
 # spl_file_stream_console_tmux <agent user>: the JSON argv that runs tmux on
-# the agents' server for a lane's console (spec 153 3.18, lane_console.py):
+# the agents' server for a lane's console (spec 153 3.20, lane_console.py):
 # env FILE_STREAMS_CONSOLE_TMUX wins; else the box user's (box.env
 # SPOOL_BOX_USER, else the owner of the spool root, as spool-env.inc.sh)
 # socket /tmp/tmux-<uid>/default, through `sudo -n -u <box user>` when the

@@ -5545,7 +5545,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: the lane's last console capture (spec 153 3.18, SPL-4810): agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
+            "description": "OK: the lane's last console capture (spec 153 3.20, SPL-4810): agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -12820,7 +12820,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: the lane's last console capture (spec 153 3.18, SPL-4810): agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
+            "description": "OK: the lane's last console capture (spec 153 3.20, SPL-4810): agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"

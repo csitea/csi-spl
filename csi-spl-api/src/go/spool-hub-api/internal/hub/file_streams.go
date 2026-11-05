@@ -70,7 +70,7 @@ func (s *Server) fileStreamsLane(ctx context.Context, x *session, f wire.Frame) 
 	case wire.FileStreamsGlobsOp:
 		return s.fileStreamsGlobsPull(ctx, x, f, now) // file_stream_globs.go
 	case wire.FileStreamsConsoleDemandsOp, wire.FileStreamsConsolePushOp:
-		return s.laneConsoleLane(ctx, x, f, now) // lane_console.go, spec 153 3.18
+		return s.laneConsoleLane(ctx, x, f, now) // lane_console.go, spec 153 3.20
 	}
 	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be " + wire.FileStreamsAnnounceOp + ", " +
 		wire.FileStreamsPushOp + ", " + wire.FileStreamsGlobsOp + ", " + wire.FileStreamsConsoleDemandsOp + " or " +

@@ -615,7 +615,7 @@ func seedFileStreams(ctx context.Context, pg *Postgres, tenant, text string, now
 	if _, err := pg.AddFileStreamGlob(ctx, tenant, FileStreamGlobAdd{Box: "box-a", Key: "app", Glob: "/var/log/app*.log", Actor: "HUM-1", Max: 8}, now); err != nil {
 		return err
 	}
-	// lane_console (rdb 0261, spec 153 3.18, SPL-4810): one watched lane of
+	// lane_console (rdb 0262, spec 153 3.20, SPL-4810): one watched lane of
 	// box-a and its masked screen.
 	if _, err := pg.DemandLaneConsole(ctx, tenant, "box-a", "c-001", "HUM-1", now.Add(time.Minute), now); err != nil {
 		return err

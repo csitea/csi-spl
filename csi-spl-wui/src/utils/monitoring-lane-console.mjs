@@ -1,4 +1,4 @@
-// Spec 153 section 3.18 (SPL-4810; owner HUM-10, t1 27162335, msgs 038fa412,
+// Spec 153 section 3.20 (SPL-4810; owner HUM-10, t1 27162335, msgs 038fa412,
 // 8dd53bd9 and 3b2ba6f3): a lane's live console. The Lanes table opens a lane
 // in a dialog; its Console button shows that lane's tmux screen, refreshed
 // while the dialog stays open, and Save writes the shown lines to a local

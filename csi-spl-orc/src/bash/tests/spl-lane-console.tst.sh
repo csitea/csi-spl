@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: a lane's live console on the box side (spec 153 section 3.18,
+# Purpose: a lane's live console on the box side (spec 153 section 3.20,
 # SPL-4810): features/spawn-agents/lib/lane_console.py, run by the box file follower
 # (file-stream-follow.py) on each tick. A PRIVATE tmux server on a socket in
 # a mktemp dir and a stub hub: no live tmux, spool root or hub is touched,

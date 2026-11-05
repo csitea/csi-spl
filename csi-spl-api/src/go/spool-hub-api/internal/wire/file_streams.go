@@ -116,7 +116,7 @@ type FileStreamsAckFrame struct {
 	LaneOp  string                `json:"lane_op"`
 	Streams []FileStreamAckState  `json:"streams,omitempty"`
 	Globs   *[]FileStreamGlobLive `json:"globs,omitempty"`
-	// Agents answers a console demands pull (lane_console.go, spec 153 3.18)
+	// Agents answers a console demands pull (lane_console.go, spec 153 3.20)
 	Agents    *[]string `json:"agents,omitempty"`
 	StreamKey string    `json:"stream_key,omitempty"`
 	Inserted  int       `json:"inserted"`

@@ -62,7 +62,7 @@ Env (all set by do_spl_file_stream_follow from the cnf):
   FILE_STREAMS_GLOB_SCAN_S  seconds between two expansions of the globs (10)
   FILE_STREAMS_GLOB_SCAN_MAX  directory entries read a scan, per glob (10000)
 
-Lane consoles (spec 153 3.18, SPL-4810): lane_console.py beside spool_redact,
+Lane consoles (spec 153 3.20, SPL-4810): lane_console.py beside spool_redact,
 on each tick through the same push command: the agents of this box a
 reader watches, their tmux screen masked by the same mask_line() (redact()
 plus the PEM state) before it is sent. Env FILE_STREAMS_CONSOLE_* there.
@@ -102,7 +102,7 @@ sys.path.insert(
     ),
 )
 from spool_redact import redact  # noqa: E402  (the one redaction list)
-from lane_console import LaneConsole  # noqa: E402  (spec 153 3.18, beside spool_redact)
+from lane_console import LaneConsole  # noqa: E402  (spec 153 3.20, beside spool_redact)
 
 DEFAULT_SPOOL_ROOT = "/var/spool-hub"
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
@@ -647,7 +647,7 @@ class Follower:
         self.glob_rep = {}  # glob id -> its report (3.8.5)
         self.gstreams = {}  # stream key -> {gid, leaf, name, path}
         self.report_seen = None
-        # a lane's live console (spec 153 3.18, lane_console.py): captured
+        # a lane's live console (spec 153 3.20, lane_console.py): captured
         # and masked only while a reader watches it
         self.console = LaneConsole(
             self.send_ack,

@@ -1,4 +1,4 @@
-# 153 section 3.18: a lane's live console (SPL-4810)
+# 153 section 3.20: a lane's live console (SPL-4810)
 
 Addendum to [spec.md](spec.md), placed by the dispatch holder as one lane
 brief (task `dispatch-27162335`, plan msg `7e928b34`, GO msg `f85b9a18`), not
@@ -35,7 +35,7 @@ Owner HUM-10, t1 topic `27162335-08ea-4a9b-8a27-aad17a920eef`:
 
 1. **Watch.** Console sends `POST` (below) and repeats it every 20 s while
    the feed shows. The hub sets that lane's `demand_until = now + 60 s` in
-   `lane_console` (rdb `0261_lane_console.sql`), in the BOX's workspace.
+   `lane_console` (rdb `0262_lane_console.sql`), in the BOX's workspace.
 2. **Box.** The box file follower (`csi-spl-orc/src/bash/scripts/file-stream-follow.py`,
    spec 160) runs `features/spawn-agents/lib/lane_console.py` on every tick.
    Every 5 s it pulls the agents of its own box with a demand on (lane op
@@ -92,11 +92,11 @@ is deleted by the next demand in that workspace.
 
 | case | what | test |
 |---|---|---|
-| C82 | operator admin watches; the box pulls, pushes; the admin reads it live | `internal/hub/lane_console_test.go` |
-| C83 | a workspace owner and admin read an operator lane on their topic, box never named | same |
-| C84 | a developer (403), the operator door for a workspace admin (403), a lane not on the reader's Lanes tab (404), the operator box named by a workspace reader (404) | same |
-| C85 | a workspace's own lane (3.17) lives in that workspace; another box hears nothing and its push is 409; an oversized screen is 413 | same |
-| C86 | a demand ends after 60 s: no demand pulled, a push is 409 | same |
+| C90 | operator admin watches; the box pulls, pushes; the admin reads it live | `internal/hub/lane_console_test.go` |
+| C91 | a workspace owner and admin read an operator lane on their topic, box never named | same |
+| C92 | a developer (403), the operator door for a workspace admin (403), a lane not on the reader's Lanes tab (404), the operator box named by a workspace reader (404) | same |
+| C93 | a workspace's own lane (3.17) lives in that workspace; another box hears nothing and its push is 409; an oversized screen is 413 | same |
+| C94 | a demand ends after 60 s: no demand pulled, a push is 409 | same |
 | L1 | screen + 200 lines of scrollback; a token on scrollback line 150 and a PEM key arrive masked | `csi-spl-orc/src/bash/tests/spl-lane-console.tst.sh` |
 | L2 | nobody watches: no tmux call, no push | same |
 | L3 | a window named `<tag>: <id> title` is found | same |

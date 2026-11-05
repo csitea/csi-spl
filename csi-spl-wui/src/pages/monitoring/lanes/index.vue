@@ -146,7 +146,7 @@
               :data-selected="laneName(l) === selectedLane ? '1' : undefined"
               :aria-current="laneName(l) === selectedLane ? 'true' : undefined"
             >
-              <!-- 3.18 (SPL-4810): the lane opens in a dialog, its console at the end -->
+              <!-- 3.20 (SPL-4810): the lane opens in a dialog, its console at the end -->
               <th scope="row" class="ln-id" data-test="lanes-agent"><button type="button" class="ln-open" :title="t('monitoring.lanes.console.open_title')" data-test="lanes-open" @click="openLane(l)">{{ laneName(l) }}</button></th>
               <td class="ln-box" data-test="lanes-box">{{ l.box || DASH }}</td>
               <td class="num" data-test="lanes-priority" :data-priority="l.priority || undefined">
@@ -373,7 +373,7 @@ function onVisibility() {
   if (poll) poll.wake()
 }
 
-/* 3.18 (SPL-4810; owner HUM-10, t1 27162335): a row opens its lane in a
+/* 3.20 (SPL-4810; owner HUM-10, t1 27162335): a row opens its lane in a
    dialog (lazy: never in the first chunk), the way an issue opens from the
    Issues sheet; the console is inside it. The minute's refresh updates it. */
 const LaneDialog = defineAsyncComponent(() => import('~/components/monitoring/LaneDialog.vue'))
@@ -437,7 +437,7 @@ onBeforeUnmount(() => {
 .ln-table .num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ln-row[data-selected="1"] > * { background: var(--color-selected); }
 .ln-id { font-family: var(--font-mono); font-weight: 600; white-space: nowrap; }
-/* the agent opens its lane's dialog (3.18): a link-like button, the cell's text kept */
+/* the agent opens its lane's dialog (3.20): a link-like button, the cell's text kept */
 .ln-open { padding: 0; border: 0; background: none; font: inherit; color: var(--color-accent); cursor: pointer; text-align: start; }
 .ln-open:hover { text-decoration: underline; }
 .ln-mono { font-family: var(--font-mono); }

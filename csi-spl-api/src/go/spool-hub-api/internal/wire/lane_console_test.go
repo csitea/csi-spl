@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// Spec 153 3.18 (SPL-4810): the console push's decoder takes a masked screen
+// Spec 153 3.20 (SPL-4810): the console push's decoder takes a masked screen
 // and refuses anything else, with the reason as its error.
 func TestDecodeLaneConsolePush(t *testing.T) {
 	good := `{"agent_id":"c-128","screen":"$ make\nok","lines":2,"redactions":{"github-token":1}}`

@@ -141,7 +141,7 @@ func TestFileStreamsVerbGlobs(t *testing.T) {
 	}
 }
 
-// Spec 153 3.18 (SPL-4810): the console's two ops ride the same verb. The
+// Spec 153 3.20 (SPL-4810): the console's two ops ride the same verb. The
 // demands pull sends {} and prints the agents; the push sends the masked
 // screen with lines_n as "lines"; a bad agent id is refused before the hub.
 func TestFileStreamsVerbConsole(t *testing.T) {

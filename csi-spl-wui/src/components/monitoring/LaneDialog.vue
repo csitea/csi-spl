@@ -1,4 +1,4 @@
-<!-- Spec 153 section 3.18 (SPL-4810; owner HUM-10, t1 27162335, msgs
+<!-- Spec 153 section 3.20 (SPL-4810; owner HUM-10, t1 27162335, msgs
      038fa412, 8dd53bd9 and 3b2ba6f3): one lane in a modal dialog, opened from
      its row on Monitoring -> Lanes, the way an issue opens from the Issues
      sheet (UiDialog: Esc, X, backdrop close, focus handed back). The lane's

@@ -26,7 +26,7 @@ const fileStreamsReadMax = 2 << 20
 // streams and, from row B10, folders and globs (spec 160 3.8.5);
 // file_streams_push carries stream_key, lines, dropped and redactions;
 // file_streams_globs (the pull of the box's web globs) carries nothing and
-// its ack lists them; file_streams_console_demands (spec 153 3.18) carries
+// its ack lists them; file_streams_console_demands (spec 153 3.20) carries
 // nothing and its ack lists the agents watched; file_streams_console_push
 // carries agent_id, screen, lines_n (the line count: "lines" is the file
 // push's list) and redactions. Only the payload is sent, checked here first by the hub's own
@@ -90,7 +90,7 @@ func fileStreamsParts(raw []byte) (string, []json.RawMessage, error) {
 		Redactions json.RawMessage `json:"redactions"`
 		Folders    json.RawMessage `json:"folders"`
 		Globs      json.RawMessage `json:"globs"`
-		// the console push (spec 153 3.18, wire/lane_console.go)
+		// the console push (spec 153 3.20, wire/lane_console.go)
 		AgentID json.RawMessage `json:"agent_id"`
 		Screen  json.RawMessage `json:"screen"`
 		NLines  json.RawMessage `json:"lines_n"`

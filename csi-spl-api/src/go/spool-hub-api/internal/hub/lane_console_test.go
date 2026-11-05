@@ -13,7 +13,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// Spec 153 section 3.18 (SPL-4810; owner HUM-10, t1 27162335): a lane's
+// Spec 153 section 3.20 (SPL-4810; owner HUM-10, t1 27162335): a lane's
 // live console. A reader the Lanes tab shows the lane to watches it (POST),
 // the lane's box pulls the demand and pushes the masked screen, the reader
 // reads it (GET). Memory, and Postgres under SPOOL_TEST_PG_DSN (RLS).
@@ -88,7 +88,7 @@ func consolePush(t *testing.T, b *box, agent, screen string) error {
 	return err
 }
 
-// C82-C86: watch, pull, push, read on both doors; the access matrix; the
+// C90-C94: watch, pull, push, read on both doors; the access matrix; the
 // box's refusals; the demand's end.
 func TestLaneConsole(t *testing.T) {
 	r := newWSLanesRig(t)
@@ -101,32 +101,32 @@ func TestLaneConsole(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// C82: the operator admin watches c-501; the box pulls it, pushes, the admin reads it.
+	// C90: the operator admin watches c-501; the box pulls it, pushes, the admin reads it.
 	if c, _ := consoleCall(t, r, r.op, r.admin, opConsolePath, http.MethodPost, "c-501", r.opBox.id, http.StatusOK); c.State != "waiting" || c.Screen != "" {
-		t.Errorf("C82 first watch: %+v, want waiting with no screen", c)
+		t.Errorf("C90 first watch: %+v, want waiting with no screen", c)
 	}
 	if got := consoleDemands(t, r.opBox); !slices.Equal(got, []string{"c-501"}) {
-		t.Errorf("C82 demands of the operator box %v, want [c-501]", got)
+		t.Errorf("C90 demands of the operator box %v, want [c-501]", got)
 	}
 	screen := "$ make test\nok <redacted:github-token>\n❯ "
 	if err := consolePush(t, r.opBox, "c-501", screen); err != nil {
-		t.Fatalf("C82 push: %v", err)
+		t.Fatalf("C90 push: %v", err)
 	}
 	c, _ := consoleCall(t, r, r.op, r.admin, opConsolePath, http.MethodGet, "c-501", r.opBox.id, http.StatusOK)
 	if c.State != "live" || c.Screen != screen || c.Lines != 3 || c.Redactions["github-token"] != 1 || c.CapturedAt == "" {
-		t.Errorf("C82 read: %+v", c)
+		t.Errorf("C90 read: %+v", c)
 	}
 
-	// C83: w1's admin and owner read the same console through the lanes
+	// C91: w1's admin and owner read the same console through the lanes
 	// door, by agent alone: the operator box is never named to them.
 	for _, as := range []string{r.w1Admin, r.w1Owner} {
 		c, raw := consoleCall(t, r, r.w1, as, wsConsolePath, http.MethodPost, "c-501", "", http.StatusOK)
 		if c.Screen != screen || c.AgentBox != "" || strings.Contains(raw, r.opBox.id) {
-			t.Errorf("C83 w1 %s: %s", as, raw)
+			t.Errorf("C91 w1 %s: %s", as, raw)
 		}
 	}
 
-	// C84: who may not. A w1 developer (403), the operator's developer on
+	// C92: who may not. A w1 developer (403), the operator's developer on
 	// the operator door (403), w2's admin on a lane on no w2 topic (404),
 	// w1's admin on an operator lane on no w1 topic (404) or naming the
 	// operator box (404), an unknown lane (404).
@@ -140,31 +140,31 @@ func TestLaneConsole(t *testing.T) {
 	consoleCall(t, r, r.op, r.admin, opConsolePath, http.MethodPost, "c-999", r.opBox.id, http.StatusNotFound)
 	consoleCall(t, r, r.op, r.admin, opConsolePath, http.MethodPost, "../etc", r.opBox.id, http.StatusBadRequest)
 
-	// C85: a workspace's own lane (3.17) lives in that workspace: the
+	// C93: a workspace's own lane (3.17) lives in that workspace: the
 	// operator admin watches it, and only w1's box hears of it.
 	consoleCall(t, r, r.op, r.admin, opConsolePath, http.MethodPost, "c-701", mac.id, http.StatusOK)
 	if got := consoleDemands(t, mac); !slices.Equal(got, []string{"c-701"}) {
-		t.Errorf("C85 demands of w1's box %v, want [c-701]", got)
+		t.Errorf("C93 demands of w1's box %v, want [c-701]", got)
 	}
 	if got := consoleDemands(t, r.otherBox); len(got) != 0 {
-		t.Errorf("C85 another workspace's box hears %v", got)
+		t.Errorf("C93 another workspace's box hears %v", got)
 	}
 	if err := consolePush(t, r.otherBox, "c-501", "x"); err == nil || !strings.Contains(err.Error(), "not_demanded") {
-		t.Errorf("C85 a push from another box: %v, want 409 not_demanded", err)
+		t.Errorf("C93 a push from another box: %v, want 409 not_demanded", err)
 	}
 	if err := consolePush(t, r.opBox, "c-502", "x"); err == nil || !strings.Contains(err.Error(), "not_demanded") {
-		t.Errorf("C85 a push nobody asked for: %v, want 409 not_demanded", err)
+		t.Errorf("C93 a push nobody asked for: %v, want 409 not_demanded", err)
 	}
 	if err := consolePush(t, r.opBox, "c-501", strings.Repeat("x", wire.LaneConsoleScreenMax+1)); err == nil || !strings.Contains(err.Error(), "too_large") {
-		t.Errorf("C85 an oversized screen: %v, want 413 too_large", err)
+		t.Errorf("C93 an oversized screen: %v, want 413 too_large", err)
 	}
 
-	// C86: a demand lasts 60 s: past it the box hears none and a push is refused.
+	// C94: a demand lasts 60 s: past it the box hears none and a push is refused.
 	r.offset.Store(int64(61 * time.Second))
 	if got := consoleDemands(t, r.opBox); len(got) != 0 {
-		t.Errorf("C86 demands after 61 s %v, want none", got)
+		t.Errorf("C94 demands after 61 s %v, want none", got)
 	}
 	if err := consolePush(t, r.opBox, "c-501", screen); err == nil || !strings.Contains(err.Error(), "not_demanded") {
-		t.Errorf("C86 a push after the demand: %v, want 409 not_demanded", err)
+		t.Errorf("C94 a push after the demand: %v, want 409 not_demanded", err)
 	}
 }

@@ -1881,7 +1881,7 @@ async function getFleetRoster(ctx) {
 }
 
 /**
- * Spec 153 3.18 (SPL-4810): a lane's live console. `watch` is the POST that
+ * Spec 153 3.20 (SPL-4810): a lane's live console. `watch` is the POST that
  * asks the lane's box to capture (the dialog re-sends it every 20 s), else the
  * GET of the last capture. `own` picks the workspace door (/v1/lanes/console)
  * over the operator's (/v1/operator/lane-console), as getFleetLanes. The mock

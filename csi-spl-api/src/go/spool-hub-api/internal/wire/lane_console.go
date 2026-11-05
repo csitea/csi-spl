@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-// A lane's live console (spec 153 section 3.18, SPL-4810). Two more lane
+// A lane's live console (spec 153 section 3.20, SPL-4810). Two more lane
 // ops of the box follower (file-stream-follow.py), over the same `spool
 // file-streams push --json -` and the same session as the file streams:
 //
@@ -27,7 +27,7 @@ const (
 	FileStreamsConsoleDemandsOp = "file_streams_console_demands"
 	// FileStreamsConsolePushOp sends one agent's masked screen.
 	FileStreamsConsolePushOp = "file_streams_console_push"
-	// LaneConsoleScreenMax is the screen's byte cap (rdb 0261).
+	// LaneConsoleScreenMax is the screen's byte cap (rdb 0262).
 	LaneConsoleScreenMax = 128 << 10
 	// LaneConsoleLinesMax caps the line count a box reports.
 	LaneConsoleLinesMax = 5000

@@ -6,9 +6,9 @@ host, through the one `type:id` renderer), cases C88-C89. Owner HUM-10, t1
 topic `0c2d08a2`, msgs `e7009f10` and `ea369ab0`. Placed by the dispatch
 holder as one lane brief, not a panel version.
 
-Addendum (2026-11-04, SPL-4810): section 3.18 (a lane opens in a dialog
+Addendum (2026-11-04, SPL-4810): section 3.20 (a lane opens in a dialog
 from the Lanes table; its Console button shows the lane's live tmux screen,
-masked on the box, and Save writes it to a local file), cases C82-C86, L1-L4,
+masked on the box, and Save writes it to a local file), cases C90-C94, L1-L4,
 W1-W2, in [lane-console.md](lane-console.md). Owner HUM-10, t1 topic
 `27162335`, msgs `038fa412`, `8dd53bd9` and `3b2ba6f3`. Placed by the
 dispatch holder as one lane brief, not a panel version.

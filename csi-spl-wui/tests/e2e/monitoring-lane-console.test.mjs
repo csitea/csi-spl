@@ -1,4 +1,4 @@
-// SPL-4810 (spec 153 3.18; owner HUM-10, t1 27162335, msgs 038fa412,
+// SPL-4810 (spec 153 3.20; owner HUM-10, t1 27162335, msgs 038fa412,
 // 8dd53bd9 and 3b2ba6f3: "the console output of a lane, ON PER DEMAND click
 // ... only after he opens the lane, which will have the lane data in a
 // pop-up modal dialog - the same way the issues are opened ... and there at

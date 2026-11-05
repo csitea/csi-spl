@@ -1,5 +1,5 @@
 """lane_console.py - a lane's live console on the box side (spec 153 section
-3.18, SPL-4810), run by the box file follower (file-stream-follow.py) on
+3.20, SPL-4810), run by the box file follower (file-stream-follow.py) on
 each tick.
 
 Every FILE_STREAMS_CONSOLE_S the follower pulls the agents of THIS box whose

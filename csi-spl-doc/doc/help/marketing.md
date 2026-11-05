@@ -4,7 +4,7 @@ Marketing lets a workspace share its live blog posts on **Facebook Pages**, **In
 
 Three rules apply across every channel:
 
-- **Nothing is posted without human approval.** Connecting a Facebook Page, an Instagram account, or LinkedIn never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook Page or Instagram post is approved by the member who connected the channel, by a workspace admin (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved only by the member who connected LinkedIn, or by an agent for that member.
+- **Nothing is posted without human approval.** Connecting a Facebook Page, an Instagram account, or LinkedIn never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook Page or Instagram post is approved by the member who connected the channel, by a workspace admin (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved only by the workspace owner, on a LinkedIn account they connected themselves, or by an agent acting for them.
 - **No plaintext tokens.** Every OAuth access token is envelope-encrypted with Cloud KMS (`AES-256-GCM`) before it is stored, and is decrypted in memory only for the duration of an outbound API call.
 - **One API post per channel per 24 hours.** For a connected Facebook Page or Instagram account, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
 
@@ -32,7 +32,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
    - Choose the Facebook Page(s) and any linked Instagram professional (Business or Creator) account(s) you want to grant access to, and approve the requested permissions.
 4. Meta redirects back to the hub callback (`/api/v1/marketing/facebook/callback`), which exchanges the code for a long-lived user token (~60 days), fetches each Page's never-expiring Page access token and any linked `instagram_business_account`, encrypts the tokens with Cloud KMS, and shows a confirmation page:
    - **Facebook connected** — *"Connected N Facebook Page(s) and M Instagram account(s) for workspace `<id>`. Nothing is published on them without your approval."*
-   - Click **Back to spool-hub** to return to **Workspace settings -> General**.
+   - Click **Back to spool-hub**, then open **Workspace settings -> General** again.
 5. In the **Facebook and Instagram** list, each connected account now appears as a row:
    - Each **Facebook Page** row shows a two-letter avatar, the Page name, the platform label **Facebook Page**, and its status badge: **Connected**, **Expired: connect again**, or **Not active**.
    - If a Facebook Page has a linked Instagram Business or Creator account, an indented child row appears directly beneath that Page showing `@username`, the platform label **Instagram**, and its status badge.
@@ -55,8 +55,10 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 4. Click **Publish** on the post row (`POST /v1/marketing/posts/{id}/publish?channel=<channel_id>`):
    - While the request is in flight, the **Publish** buttons are disabled.
    - When the post goes out immediately, the notice reads **Published.** and the post leaves the unshared queue.
+   - Whatever the result, the post leaves the queue on screen. A deferred or retried post stays scheduled on the hub, but you will not find it in the list.
    - If the account has already published a post within the last 24 hours, the post stays scheduled and the notice reads: *"This account has reached its daily post; this one goes out when the 24-hour window frees up."*
    - If Meta is busy or rate-limits the call (`HTTP 429`, `HTTP 503`, a Graph throttling code such as `4`, `17`, `32` or `613`, or an Instagram container that is not ready yet), the notice says it is retried automatically, and the hub retries it later (at most 3 tries in all). A `500`, `502` or `504` after the post was sent is not retried, because the post may already be on Meta: it is never sent twice.
+   - After the last try, or on an error that is never retried, the row says *"The publish failed. Try again later."*, and the member who connected the channel gets a mail saying the post will not be retried and can be posted by hand (section 5).
    - If the token was revoked (`code 190`), the channel status changes to **Expired: connect again**, the member who connected the channel gets a mail with the re-connect link, and the channel's posts wait, unsent, for the re-connect.
 
 ### 1.4 Disconnect a Facebook Page or Instagram account
@@ -71,7 +73,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 
 ### 1.5 Connect LinkedIn and publish from the LinkedIn queue
 
-1. To connect LinkedIn for the first time (or renew an expiring token), a workspace administrator opens the connect link the hub mails (`<hub API>/v1/marketing/linkedin/connect?workspace=<workspace_id>`) while Marketing is switched on and approves the LinkedIn OAuth consent screen (`openid`, `profile`, `w_member_social`).
+1. There is no Connect LinkedIn button yet. To connect LinkedIn for the first time, a workspace administrator (`tenant.settings`) who is signed in to spool-hub opens `<hub API>/v1/marketing/linkedin/connect?workspace=<workspace_id>` in the same browser while Marketing is switched on, and approves the LinkedIn consent screen (`openid`, `profile`, `w_member_social`). To renew, use the same link, which the hub mails to the member who connected LinkedIn 7 days before the token expires.
    - On the first connect, all existing blog posts are baselined as `skipped` so connecting never floods your LinkedIn profile with old articles.
    - LinkedIn access tokens last about 60 days; 7 days before expiry, the hub mails the member who connected LinkedIn a one-click re-connect link.
 2. In **Workspace settings -> General**, under **Publish to LinkedIn** (*"Live blog posts not shared on LinkedIn yet. Only the workspace owner who connected LinkedIn can publish them."*), review the list of unshared live blog posts.
@@ -153,7 +155,7 @@ Spool reuses a single Meta app (`spool-hub`, platform `WEB`) for both Facebook s
 ### 3.2 Add the OAuth redirect URIs and link the Instagram account
 
 1. In the Meta App Dashboard sidebar, open **Facebook Login for Business -> Settings** (or **Use cases -> Authentication and account creation -> Customize -> Settings**).
-2. In **Valid OAuth Redirect URIs**, keep the existing sign-in callback (`/api/v1/auth/oauth/facebook/callback`) and add the marketing callback URIs:
+2. In **Valid OAuth Redirect URIs**, keep the existing sign-in callback (`/api/v1/auth/facebook/callback`) and add the marketing callback URIs:
    - Production: `https://<BASE_DOMAIN>/api/v1/marketing/facebook/callback`
    - Development: `https://dev.<BASE_DOMAIN>/api/v1/marketing/facebook/callback`
    - `<BASE_DOMAIN>` is `env.dns.BASE_DOMAIN` in `csi-spl-cnf/csi-spl/all.env.yaml`.
@@ -185,6 +187,10 @@ The Meta App Review submission package (`T038`) has **not been submitted or appr
 ### 4.2 Facebook and Instagram are not switched on yet
 
 `marketing.facebook.inject` is `"false"` on dev and prd (`csi-spl-cnf/csi-spl/all.env.yaml`, with no override in `dev.env.yaml` or `prd.env.yaml`). Until it is switched on (section 3.3), sections 1.2 to 1.4 show only the line *"Facebook and Instagram are not set up on this hub yet."*
+
+### 4.3 LinkedIn is not switched on on dev
+
+`marketing.linkedin.inject` is `"false"` in `dev.env.yaml`, so section 1.5 does not work on dev; on prd it is switched on.
 
 ## 5. Post a blog post by hand
 

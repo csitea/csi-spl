@@ -1,6 +1,6 @@
 # 172 The work chain: discussion -> issue -> lane -> agent, no bare issue, lane or agent
 
-Version: v0.2 (2026-11-05), evaluation only: nothing below is built. Issue
+Version: v0.3 (2026-11-05), evaluation only: nothing below is built. Issue
 SPL-4867 · Epic SPL-2403 · Class feature · Kind specs_and_docs · Task
 `dispatch-b0f50875` · Placement slug `c002-spec-enforce-discussion-chain-claude`
 · Author c-192.
@@ -195,7 +195,7 @@ and the box row).
 | G6 | `spawn-window.sh`, hand spawn | refuse | the placer's link check runs here too: a hand spawn launches nothing without both |
 | G7 | `_spawn_lane_put` | refuse | the put runs in the foreground before `tmux new-window`; a refused put (after 3 tries) stops the launch: no window without its row |
 | G8 | rotation, failover, seat restart | derive | `SPAWN_REUSE_ID=1` carries the previous row's topic and issue (`lifetime/*`, else the hub row); a role seat takes its standing values (section 4) |
-| G9 | identity restore | derive | after the resume, put the row again from `lifetime/brief.md` and `lifetime/issue`; none found -> Q2 |
+| G9 | identity restore | derive | before the resume, put the row from `lifetime/brief.md` and `lifetime/issue`; if they name no topic and no issue, do not resume and report it to the dispatch holder (decided: owner `4ef793d6`, "bare agents instantiated without lanes no") |
 | G10 | desk seat | none | it starts no agent; the agent it seats has its row |
 | G11 | BOX-0 heartbeat | default | it is no lane: a `kind` column, `kind = box` exempt (decided: a schema choice); every lane rule leaves it out |
 | G12 | hub lane put (`CheckFleetLane`) | refuse | empty topic or issue refused (lane (c), SPL-4799, `ErrLaneUnlinked`); role seats send their standing values, not `unknown` |
@@ -211,7 +211,7 @@ issue), and lane (c) writes `unknown` for them.
 
 Design:
 
-- **One standing discussion** per workspace that runs seats (Q3), made once by
+- **One standing discussion** per workspace that runs seats (Q2), made once by
   a new idempotent action `do_spl_standing_chain_ensure`, titled "Fleet
   operations: the standing seats", in that workspace's operations channel. Its
   uuid is cnf (`env.fleet.standing.discussion`), never a literal in code.
@@ -272,7 +272,7 @@ Owner `937e89a4`: no search, the literal `unknown`.
 | T14 | orc + cnf | a new `do_spl_standing_chain_ensure`; `csi-spl-cnf` `env.fleet.standing.*` | section 4: the discussion and the standing issues | M | none |
 | T15 | orc | `scripts/issue-close-landed.py` | the closer skips `standing` | S | none |
 | T16 | rdb | the migrations of section 5 (topic form, kind, default-only refusal, asks NOT NULL) | the DB holds the rule | M | none |
-| T17 | wui | Monitoring Lanes / Topics | ids render as links, `unknown` as text | built | **lane (b) SPL-4798** (`ce769cf93`); `unknown` as text: **lane (a) SPL-4797** (`88ac4f56e`) |
+| T17 | wui | Monitoring Lanes / Topics | ids render as links, `unknown` as text | built | **lane (b) SPL-4798** (`ce769cf93`); `unknown` as text: pinned by a test, **lane (a) SPL-4797** (`88ac4f56e`) |
 | T18 | api + orc | priority: discussion -> issues -> lanes | not a link rule; it walks this chain | built | **SPL-4813** (`2bb59d807`) |
 | T19 | api | `hub/box_lane.go`: a put keeps another workspace's v5 topic | a cross-workspace discussion survives the put | built | **lane (a) SPL-4797** (`f43810f8f`) |
 | T20 | doc | spec 153 / 135, `doc/md/lane-issue-and-docs.md`, `doc/md/SPEC-spool-fleet-roles.md` | the rule's one home and its pointers | S | none |
@@ -296,16 +296,13 @@ The 4 queued lanes:
 
 One line each; A is the recommendation.
 
-The poll in csitea `b0f50875` asked six questions; its Q1, Q3 and Q5 are
-decided above (G2/G3, G11, G14), so its Q2, Q4 and Q6 are Q1, Q2 and Q3 here.
+The poll in csitea `b0f50875` asked six questions; its Q1, Q3, Q4 and Q5 are
+decided above (G2/G3, G11, G9, G14), so its Q2 and Q6 are Q1 and Q2 here.
 
 - **Q1 another workspace's discussion.** A: a t1 issue may link a topic of the
   workspace its lane works for (today the hub refuses it, 2.1: a hub change).
   B: the issue is filed in that workspace.
-- **Q2 a restore that finds no lane on its box.** A: report it to the dispatch
-  holder and do not resume. B: resume and put the row from
-  `lifetime/brief.md` if it names a topic and an issue, else refuse as A.
-- **Q3 the standing discussion.** A: one per workspace that runs seats, in its
+- **Q2 the standing discussion.** A: one per workspace that runs seats, in its
   operations channel. B: one for the whole fleet, in t1.
 
 ## 9. Not built here

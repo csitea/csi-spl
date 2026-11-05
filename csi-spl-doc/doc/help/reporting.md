@@ -18,9 +18,13 @@ the tabs you opened. Opening `/reporting` on its own goes to the Releases tab.
 | **Releases** | `/reporting/releases` | every member | Delivery report over the release notes: KPI summary, filter bar (range, kinds, areas, search), and daily commit list with release notes. |
 | **SQL** | `/reporting/sql` | workspace admins | Read-only SQL query editor for workspace tables returning up to 2,000 rows, with Copy, CSV and JSON export. |
 | **Costs** | `/reporting/costs` | workspace owners and admins (permission to read costs) | What the workspace costs: six pages under one month and currency header (below). |
+| **Marketing** | `/reporting/marketing` | the workspace owner and its admins | One card per marketing stage; its numbers appear once a source is connected. Attribution: last touch, 28 days. |
+| **Incomes** | `/reporting/incomes` | the workspace owner only | The chosen year's income from invoices: one row per month, the year's totals per currency below. |
+| **Finance** | `/reporting/finance` | every person of the Netvisor workspace | The newest Netvisor snapshot: the month-end cash forecast and its items, the newest bank voucher date, and card costs. Only the Netvisor owner can ask for a refresh. |
 
 More tabs come later: **Issues**, **Posts** and **Lanes** (admins of the
-operator workspace). A tab is drawn only once its page exists.
+operator workspace). A tab is drawn only once its page exists, and only for
+a reader who may open it.
 
 <a id="ws-doc-d2049805-1b4a-44be-b785-d5f8841d0dea"></a>
 ## Costs: one month, one currency, six pages

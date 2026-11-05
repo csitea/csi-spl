@@ -80,14 +80,23 @@ redaction list) plus the PEM state across lines, from the first captured
 line on. Then the lines a secret spans that the agent's TUI hard-wrapped
 with real newlines (`capture-pane -J` joins only the rows tmux itself
 wrapped) are masked whole as `<redacted:wrapped-secret>`: from each line,
-up to 4 lines are joined at the wrap, and when the join shows a secret its
-lines alone do not, every line the secret touches is masked. The join
-drops the newline, so a word that starts the line after a token may be
-masked with it: more, never less. Each line is cut to the follower's line
-limit only after the mask, so a cut never leaves a token's prefix
-unmasked. `spool_redact` also masks a `KEY=value` whose upper-case name
+up to 4 lines are joined at the wrap (end spaces and every layer of a TUI
+box's border glyphs dropped), and when the join shows a secret its lines
+alone do not, every line the secret touches is masked. The join reads the
+raw lines, so a value-class secret (`password: <value>`, `KEY="<value>"`)
+whose head line is already masked still marks its tail line: a masked
+span that crosses the wrap marks the run unless the head line's own
+masked value is a whole secret by itself (a complete token after
+`GH_TOKEN=`). The join drops the newline, so a word that starts the line
+after a secret may be masked with it: more, never less. A secret wrapped
+over more than 4 lines (a narrow pane: a 40-character token under 10
+columns) leaves the lines after the 4th unmasked. Each line is cut to
+the follower's line limit only after the mask, so a cut never leaves a
+token's prefix unmasked. `spool_redact` also masks a `KEY=value` whose upper-case name
 carries KEY, SECRET, TOKEN, PASS, PWD, CRED, AUTH, SIGN, SALT, PRIVATE,
-COOKIE, SESSION or DSN, which an `env` or a `cat .env` in a pane shows.
+COOKIE, SESSION or DSN, which an `env` or a `cat .env` in a pane shows; a
+quoted value to its closing quote, or to the end of the line when a wrap
+left the quote open.
 The hub stores and serves only the masked text and the per-kind
 count, never what was removed. Save writes the masked text the dialog shows.
 
@@ -119,6 +128,9 @@ screen stays readable to the same readers.
 | L4 | an unchanged screen is not re-sent before keep_s | same |
 | L5 | a token hard-wrapped by the TUI (2 lines at col 14, 4 lines at 12 cols) arrives masked | same |
 | L6 | a line over the line limit is masked before it is cut | same |
+| L7 | a token hard-wrapped inside a bordered TUI box (`│ … │`) arrives masked | same |
+| L8 | a value-class secret (`KEY="<value>"` at col 80, `password: <value>` at col 40) hard-wrapped arrives masked, its tail line too | same |
+| L9 | a token hard-wrapped inside a nested TUI box (`│ │ … │ │`) arrives masked | same |
 | W1 | the row opens a modal; Console only inside it; a click shows the feed; Save downloads the shown lines as .txt; both doors, 1440 and 390 | `csi-spl-wui/tests/e2e/monitoring-lane-console.test.mjs` |
 | W2 | the feed body, the routes, the file name and text, the mock's doors, the lazy dialog | `csi-spl-wui/tests/unit/monitoring-lane-console.test.mjs` |
 

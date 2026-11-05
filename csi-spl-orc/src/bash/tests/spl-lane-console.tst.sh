@@ -20,6 +20,11 @@
 #      across the cut does not leave as an unmasked prefix (R7 c-365 N1)
 #   L7 a token hard-wrapped inside a TUI box ("│ … │" on each line) is
 #      masked: the border glyphs do not break the join (R7 c-164 W)
+#   L8 a value-class secret ("password: <value>", KEY="<value>") the TUI
+#      hard-wrapped arrives masked, its tail line too: the join reads the
+#      raw lines, not the masked ones (R7 c-164 r3 W1)
+#   L9 a token hard-wrapped inside a nested TUI box ("│ │ … │ │") is
+#      masked: every border layer is dropped (R7 c-164 r3 N1)
 # Each runs green on the module and red on a copy with one planted defect.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -41,6 +46,7 @@ rnd() { python3 -c 'import secrets, string, sys; print("".join(secrets.choice(st
 b64() { python3 -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(48)).decode()[:64])'; }
 TOKEN="gh""p_$(rnd 36)"
 WRAP2="gh""p_$(rnd 36)" WRAP4="gh""p_$(rnd 36)" LONG="gh""p_$(rnd 36)" BOXED="gh""p_$(rnd 36)"
+PW1="$(rnd 68)" PW2="$(rnd 68)" NESTED="gh""p_$(rnd 36)"
 KEYLINES=("$(b64)" "$(b64)")
 
 # The screen: 220 lines, the token on line 150, a PEM key on lines 160-163.
@@ -78,6 +84,24 @@ lines = ["before-box", f"│ cut {w[:16]} │", f"│ {w[16:]}            │", 
 open(out, "w").write("\n".join(lines) + "\n")
 EOF
 tmux -S "$SOCK" new-window -d -t lc -n "c-905 boxed" "cat '$T/boxed.txt'; sleep 600"
+# value-class secrets hard-wrapped: an env line at col 80, a key: value at col 40
+python3 - "$T/pw.txt" "$PW1" "$PW2" <<'EOF'
+import sys
+out, p1, p2 = sys.argv[1:]
+a = f'  export MY_SERVICE_PASSWORD="{p1}"'
+b = f"  db password: {p2}"
+lines = ["before-pw", a[:80], a[80:], "between-pw", b[:40], b[40:], "after-pw"]
+open(out, "w").write("\n".join(lines) + "\n")
+EOF
+tmux -S "$SOCK" new-window -d -t lc -n "c-906 password" "cat '$T/pw.txt'; sleep 600"
+# a token cut after 16 characters inside a box nested in a box
+python3 - "$T/nested.txt" "$NESTED" <<'EOF'
+import sys
+out, w = sys.argv[1:]
+lines = ["before-nest", f"│ │ cut {w[:16]} │ │", f"│ │ {w[16:]} │ │", "-- after-nest"]
+open(out, "w").write("\n".join(lines) + "\n")
+EOF
+tmux -S "$SOCK" new-window -d -t lc -n "c-907 nested" "cat '$T/nested.txt'; sleep 600"
 sleep 1
 
 # tmux wrapper: logs every call, then runs the private server's tmux
@@ -210,6 +234,35 @@ l7() {
     { echo "  L7: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
 }
 
+l8() {
+  local d="$T/l8-$RANDOM" s p
+  run "$1" "$d" '["c-906"]'
+  s="$(screens "$d" c-906 | tail -n 1)"
+  [[ -n "$s" ]] || { echo "  L8: no console push: $(cat "$d/out")"; return 1; }
+  # 8 characters from the head, the middle and the tail of each value
+  for p in "${PW1:2:8}" "${PW1:40:8}" "${PW1:58:8}" "${PW2:2:8}" "${PW2:30:8}" "${PW2:58:8}"; do
+    if grep -qF -- "$p" "$d/pushed"; then echo "  L8: a piece of a wrapped value left the box: $p"; return 1; fi
+  done
+  # a value ends at a space, and the join drops the newline, so the word
+  # that starts the next line ("between-pw", "after-pw") may be masked
+  # with it: more, never less (as in L5)
+  jq -e '(.screen | startswith("before-pw\n<redacted:wrapped-secret>\n<redacted:wrapped-secret>\n"))
+    and (.redactions["wrapped-secret"] // 0) >= 4' <<<"$s" >/dev/null ||
+    { echo "  L8: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
+}
+
+l9() {
+  local d="$T/l9-$RANDOM" s p
+  run "$1" "$d" '["c-907"]'
+  s="$(screens "$d" c-907 | tail -n 1)"
+  [[ -n "$s" ]] || { echo "  L9: no console push: $(cat "$d/out")"; return 1; }
+  for p in "${NESTED:4:8}" "${NESTED:20:8}" "${NESTED:32:8}"; do
+    if grep -qF -- "$p" "$d/pushed"; then echo "  L9: a piece of a nested-box token left the box: $p"; return 1; fi
+  done
+  jq -e '.screen | startswith("before-nest\n<redacted:wrapped-secret>\n<redacted:wrapped-secret>\n-- after-nest")' <<<"$s" >/dev/null ||
+    { echo "  L9: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
+}
+
 # check <id> <what> <fn> [<control> <old> <new>]...: green on the module,
 # red on each planted defect.
 check() {
@@ -229,8 +282,9 @@ check() {
 }
 
 check L1 "a watched window: screen + 200 lines of scrollback, line 150's token and a PEM key masked" l1 \
-  no-mask 'self.mask(st, ln):  # ctl:console-mask' '[(ln, False, {})]:' \
-  screen-only '"-S", f"-{self.scroll}", ' ''
+  no-mask 'self.mask(st, ln)' '[(ln, False, {})]:' \
+  screen-only '"-S", f"-{self.scroll}", ' '' \
+  no-whole 'and not self.whole(run[0])' ''
 check L2 "nobody watches: no tmux call, no push" l2 \
   always-capture 'if not self.agents:' 'if not self.agents and False:'
 check L3 "a window named with a box tag is found" l3 \
@@ -238,12 +292,17 @@ check L3 "a window named with a box tag is found" l3 \
 check L4 "an unchanged screen is not re-sent before keep_s" l4 \
   always-send 'if last and last[0] == sha and now - last[1] < self.keep_s:' 'if False:'
 check L5 "a token hard-wrapped by the TUI (2 lines at col 14, 4 lines at 12 cols) is masked" l5 \
-  no-wrap 'for i in self.wrapped(out):' 'for i in []:' \
+  no-wrap 'for i in self.wrapped(src):' 'for i in []:' \
   pairs-only 'run = parts[i : i + WRAP_SPAN]' 'run = parts[i : i + 2]'
 check L6 "a long line is masked before it is cut" l6 \
   cut-first 'ln = ln.rstrip()' 'ln = self.cut(ln.rstrip())'
 check L7 "a token hard-wrapped inside a bordered TUI box is masked" l7 \
-  no-border 'parts = [x.strip().strip(BORDER).strip() for x in lines]  # ctl:console-border' 'parts = [x.strip() for x in lines]'
+  no-border 'parts = [unbox(x) for x in lines]  # ctl:console-border' 'parts = [x.strip() for x in lines]'
+check L8 "a value-class secret hard-wrapped across two lines is masked, its tail too" l8 \
+  masked-join 'src.append(ln if raw else text)  # ctl:console-raw' 'src.append(text)' \
+  count-only 'and not crosses:  # ctl:console-wrap' ':  # ctl:console-wrap'
+check L9 "a token hard-wrapped inside a nested TUI box is masked" l9 \
+  one-layer 'while prev != text:  # ctl:console-unbox' 'for _ in [0]:'
 
 [[ "$fails" == 0 ]] && echo "OK spl-lane-console: all passed" || echo "FAIL spl-lane-console: $fails failed"
 ((fails == 0))

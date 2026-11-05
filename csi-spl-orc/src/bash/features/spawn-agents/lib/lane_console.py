@@ -45,6 +45,15 @@ WRAP_SPAN = 4  # lines a hard-wrapped secret may span: a 40-char token at 12 col
 BORDER = "│┃|⎿"  # the box edges and gutters a TUI draws around a wrapped line
 
 
+def unbox(text):
+    """-> text without its end spaces and every layer of BORDER glyphs a
+    TUI draws around it ("│ │ x │ │" -> "x"; R7 c-164 r3 N1)."""
+    prev = None
+    while prev != text:  # ctl:console-unbox
+        prev, text = text, text.strip().strip(BORDER).strip()
+    return text
+
+
 def span(text, masked):
     """-> [lo, hi) of `text` that the mask changed, or (None, None)."""
     if masked is None or masked == text:
@@ -145,14 +154,20 @@ class LaneConsole:
         hard-wrapped secret spans (wrapped()) masked whole; then each line
         cut to line_bytes, after the mask, so a cut never shortens a secret
         below its pattern."""
-        st, out, red = {}, [], {}
+        st, out, red, src = {}, [], {}, []
         for ln in raw.rstrip("\n").split("\n"):
             ln = ln.rstrip()
-            for text, _marker, counts in self.mask(st, ln):  # ctl:console-mask
+            res = self.mask(st, ln)
+            for text, _marker, counts in res:  # ctl:console-mask
                 out.append(text)
+                # the join reads the raw line: a masked head line hides
+                # the secret a wrapped tail line still carries (R7 c-164 r3
+                # W1); a line masked whole (a PEM body) stays masked
+                raw = len(res) == 1 and span(ln, text)[0]
+                src.append(ln if raw else text)  # ctl:console-raw
                 for k, n in counts.items():
                     red[k] = red.get(k, 0) + n
-        for i in self.wrapped(out):
+        for i in self.wrapped(src):
             out[i] = WRAPPED_MASK
             red[WRAPPED_KIND] = red.get(WRAPPED_KIND, 0) + 1
         out = [self.cut(x) for x in out]
@@ -172,6 +187,15 @@ class LaneConsole:
         n = sum(v for _t, _m, c in res for v in c.values())
         return (res[0][0] if len(res) == 1 else None), n
 
+    def whole(self, text):
+        """-> True when the value the mask hides in `text` is a secret on
+        its own (a complete token after GH_TOKEN=), so a join with the next
+        line is not a wrap of it; a cut value (a password's first half)
+        is not."""
+        masked, _n = self.remask(text)
+        lo, hi = span(text, masked)
+        return lo is not None and self.remask(text[lo:hi])[1] > 0  # ctl:console-whole
+
     def wrapped(self, lines):
         """-> the indexes of the masked lines a secret spans that no line
         shows alone. capture-pane -J joins only the rows tmux wrapped; an
@@ -183,16 +207,21 @@ class LaneConsole:
         join touches is marked (the whole run when the span is unclear).
         The join drops the newline, so a word that starts the line after a
         token may be masked with it: more is masked, never less."""
-        parts = [x.strip().strip(BORDER).strip() for x in lines]  # ctl:console-border
+        parts = [unbox(x) for x in lines]  # ctl:console-border
         one = [self.remask(x)[1] for x in parts]
         out = set()
         for i in range(len(parts) - 1):
             run = parts[i : i + WRAP_SPAN]
             joined = "".join(run)
             masked, n = self.remask(joined)
-            if n <= sum(one[i : i + len(run)]):  # ctl:console-wrap
-                continue
             lo, hi = span(joined, masked)
+            # a head line that holds the secret's start counts once alone
+            # and once joined: a masked span across the wrap still marks,
+            # unless the head line's own masked value is a whole secret
+            over = lo is not None and lo < len(run[0]) < hi
+            crosses = over and not self.whole(run[0])
+            if n <= sum(one[i : i + len(run)]) and not crosses:  # ctl:console-wrap
+                continue
             at = 0
             for j, x in enumerate(run):
                 if lo is None or (at < hi and at + len(x) > lo):

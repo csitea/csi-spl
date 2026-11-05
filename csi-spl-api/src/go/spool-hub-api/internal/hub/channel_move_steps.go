@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -597,7 +598,13 @@ func (run *channelMoveRun) p7(ctx context.Context) (map[string]any, store.Channe
 	if err != nil {
 		return nil, none, err
 	}
-	answer := map[string]any{"proofs": channelMoveProofLines(proofs), "kept": channelMoveKeptList, "report": run.report()}
+	objs, err := run.objectProofs(ctx)
+	if err != nil {
+		return nil, none, err
+	}
+	proofs = append(proofs, objs...)
+	kept, until := channelMoveKeptDates(run.j.Steps["P4"], run.q.in.RetentionDays)
+	answer := map[string]any{"proofs": channelMoveProofLines(proofs), "kept": kept, "kept_until": until, "report": run.report()}
 	if len(channelmove.Failed(proofs)) > 0 {
 		return answer, none, channelMoveProofsFailed{answer}
 	}
@@ -605,6 +612,78 @@ func (run *channelMoveRun) p7(ctx context.Context) (map[string]any, store.Channe
 		return nil, none, err
 	}
 	return answer, store.ChannelMoveStepDone{Proofs: map[string]any{"proofs": proofs}}, nil
+}
+
+// objectProofs are 5.3's proofs (T8b): each object P6 moved, read in both
+// buckets. A bucket P7 cannot read is an error, so P7 holds, never a 0.
+func (run *channelMoveRun) objectProofs(ctx context.Context) ([]channelmove.Proof, error) {
+	f, err := run.frozen()
+	if err != nil {
+		return nil, err
+	}
+	list, err := run.jr.ChannelMoveObjectLists(ctx, run.q.Dst, f.Msgs, f.Docs)
+	if err != nil {
+		return nil, err
+	}
+	o, err := run.objects()
+	if err != nil {
+		return nil, err
+	}
+	return o.Prove(ctx, run.q.Src, run.q.Dst, objectSet(list))
+}
+
+// channelMoveKeptAt is one row of P7's .kept: 5.6 with the date the copy
+// expires. gone_by carries the date too, so the shell's KEPT line prints it.
+type channelMoveKeptAt struct {
+	channelMoveKept
+	Expires string `json:"expires"`
+}
+
+// channelMoveDated: a kept row that ends with a retention can be dated (T8b).
+func channelMoveDated(store string) bool {
+	for _, k := range channelMoveKeptList {
+		if k.Store == store {
+			return strings.Contains(k.GoneBy, "retention")
+		}
+	}
+	return false
+}
+
+// channelMoveKeptDates dates each kept copy as P4's done_at + its retention (Q3
+// = A): the last copy that holds the channel was made before P4 committed. A
+// row with no retention given says "not read: <reason>", never a guessed date.
+// until is the last date (Q3), or "not read" while any row is undated.
+func channelMoveKeptDates(p4 store.ChannelMoveStep, days map[string]int) ([]channelMoveKeptAt, string) {
+	out := make([]channelMoveKeptAt, 0, len(channelMoveKeptList))
+	var last time.Time
+	var undated []string
+	for _, k := range channelMoveKeptList {
+		row := channelMoveKeptAt{channelMoveKept: k, Expires: k.GoneBy}
+		if channelMoveDated(k.Store) {
+			d, ok := days[k.Store]
+			switch {
+			case !p4.Done || p4.DoneAt.IsZero():
+				row.Expires = "not read: P4 has no done_at"
+			case !ok:
+				row.Expires = "not read: no retention_days in P7's detail"
+			default:
+				at := p4.DoneAt.UTC().AddDate(0, 0, d)
+				row.Expires = at.Format(time.DateOnly)
+				if at.After(last) {
+					last = at
+				}
+			}
+			row.GoneBy = k.GoneBy + ": " + row.Expires
+			if strings.HasPrefix(row.Expires, "not read") {
+				undated = append(undated, k.Store)
+			}
+		}
+		out = append(out, row)
+	}
+	if len(undated) > 0 {
+		return out, "not read: no date for " + strings.Join(undated, ", ")
+	}
+	return out, last.Format(time.DateOnly)
 }
 
 // channelMoveProofsFailed: P7 did not hold, so it stays not done; the operator
@@ -618,7 +697,11 @@ func channelMoveProofLines(ps []channelmove.Proof) []channelmove.Proof {
 	out := make([]channelmove.Proof, 0, len(ps))
 	for _, p := range ps {
 		if p.OK() && p.Known > 0 {
-			p.Name += " (known " + strconv.FormatInt(p.Count, 10) + " of " + strconv.FormatInt(p.Known, 10) + ", kept: 5.2)"
+			kept := "5.2"
+			if strings.HasPrefix(p.Name, "objects ") {
+				kept = "5.5" // a shared object a staying <SRC> row lists
+			}
+			p.Name += " (known " + strconv.FormatInt(p.Count, 10) + " of " + strconv.FormatInt(p.Known, 10) + ", kept: " + kept + ")"
 			p.Count = 0
 		}
 		p.Known = 0

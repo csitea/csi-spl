@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -26,6 +27,9 @@ import (
 //   - caller: MOVE_CALLER, <agent id>[@<box>], the <DST> orchestrator seat P2b
 //     probes to; P2 checks that seat. Absent, P2 checks any orchestrator seat,
 //     as before T7d.
+//   - retention_days: P7's only (T8b): per kept row of 5.6 that ends with a
+//     retention, its days, read by the shell from the cnf and T9b; P7 dates the
+//     copy from P4's done_at. A row with no value is not dated.
 //
 // An absent value is the safe side: no one kept, every hours stop stands. A mark
 // carries its own detail (the probes) and reads none of this.
@@ -35,6 +39,8 @@ type channelMoveInputs struct {
 	LeaveHours []string `json:"leave_hours"`
 	RuleDoc    string   `json:"rule_doc"`
 	Caller     string   `json:"caller"`
+	// RetentionDays is not a decision P2 checks: sameDecisions skips it.
+	RetentionDays map[string]int `json:"retention_days"`
 }
 
 // channelMoveReadInputs reads q.Detail into q.in; it writes the 400.
@@ -57,7 +63,7 @@ func parseChannelMoveInputs(raw json.RawMessage) (channelMoveInputs, string) {
 		dec := json.NewDecoder(bytes.NewReader(raw))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&in); err != nil {
-			return in, "detail must be {keep, keep_emails, leave_hours, rule_doc, caller}"
+			return in, "detail must be {keep, keep_emails, leave_hours, rule_doc, caller, retention_days}"
 		}
 	}
 	// keep_emails in tenant_invites' form, or P4's email = ANY misses a
@@ -82,6 +88,11 @@ func parseChannelMoveInputs(raw json.RawMessage) (channelMoveInputs, string) {
 	}
 	if in.Caller != "" && !agentid.IsAgent(channelMoveCallerAgent(in.Caller)) {
 		return in, "caller must be an agent seat, <agent id>[@<box>], got " + in.Caller
+	}
+	for k, d := range in.RetentionDays {
+		if !channelMoveDated(k) || d < 1 || d > 36500 {
+			return in, "retention_days names a kept row that ends with a retention, in days 1..36500, got " + k + "=" + strconv.Itoa(d)
+		}
 	}
 	return in, ""
 }

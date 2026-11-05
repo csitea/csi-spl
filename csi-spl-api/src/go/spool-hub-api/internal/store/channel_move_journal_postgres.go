@@ -110,12 +110,16 @@ func (s *Postgres) ChannelMoveJournal(ctx context.Context, dst, src, channel str
 	if err != nil {
 		return nil, err
 	}
-	err = s.queryTenant(ctx, dst, `SELECT step, done_at IS NOT NULL, counts, proofs, detail FROM channel_move_steps
+	err = s.queryTenant(ctx, dst, `SELECT step, done_at, counts, proofs, detail FROM channel_move_steps
 		WHERE tenant_id = $1 AND move_id = $2::uuid`, []any{dst, j.MoveID}, func(r pgx.Rows) error {
 		var step string
 		var st ChannelMoveStep
-		if err := r.Scan(&step, &st.Done, &st.Counts, &st.Proofs, &st.Detail); err != nil {
+		var at *time.Time
+		if err := r.Scan(&step, &at, &st.Counts, &st.Proofs, &st.Detail); err != nil {
 			return err
+		}
+		if st.Done = at != nil; st.Done {
+			st.DoneAt = *at
 		}
 		j.Steps[step] = st
 		return nil

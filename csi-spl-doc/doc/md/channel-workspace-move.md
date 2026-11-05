@@ -272,7 +272,7 @@ journal. A move runs P1 P2 P2b P3 P4 P5 P6 P7; a copy P1 P2 P3 P4 P7.
 | P4 | hub | one database transaction: re-read the plan under the channel lock (that is the set moved), insert it under `<DST>`, delete it in `<SRC>` (a move), recompute counters, bump change stamps, expire deliveries no box can verify. A stop found here refuses, and so does a seat with no probe | the transaction rolls back as a whole; both workspaces are as before (spec case C5) |
 | P5 | box | the channel's row of the box map `$SPOOL_ROOT/channel-rules.tsv` gets `<DST>` (and `TO_NAME`) in columns 1-2; one spool note per lane whose issue key changed | re-run; it resumes at P5 and sends only the missing notes |
 | P6 | hub | a move only: copy again what P4 moved (a post can land between P3 and P4), then delete the `<SRC>` blobs and Qto objects no staying row lists | re-run; it resumes from the journal |
-| P7 | hub | run the database proofs and write the results into the journal; prints `proof <name> <count>` per proof | a proof that is not 0 is a `FATAL`, exit 1, and P7 stays not done (section 5.1) |
+| P7 | hub | run the database proofs and the bucket proofs (spec 5.3) and write the results into the journal; prints `proof <name> <count>` per proof | a proof that is not 0 is a `FATAL`, exit 1, and P7 stays not done (section 5.1) |
 
 Each hub step needs the step before it done, the journal's move id and the same GO.
 A refusal prints as `FATAL the hub refused step <step> ...` with the hub's answer,
@@ -352,9 +352,14 @@ hold the channel and cannot be edited row by row; the move does not touch
 them. The plan prints most of them as `PLAN kept <store> until <what ends it>`.
 Two rows of the table below print no such line: the soft-deleted bucket objects,
 and the hours rows, which the plan lists as stops (section 2.3). P7's answer carries
-the same list in `.kept`, still in words, and the action prints it as `KEPT` lines
-(section 3.4). The date each copy expires, which spec 8.2 asks of P7, is not built **[pending:
-no row owns it yet]**. They are kept until they expire on their own (owner, Q3 = A).
+the same list in `.kept`, and the action prints it as `KEPT` lines (section 3.4).
+Each row that ends with a retention is dated by P7: P4's `done_at` plus the days in
+P7's detail `retention_days`, as `expires` and at the end of `gone_by`, so the line
+reads `KEPT daily DB dumps until their retention: 2026-12-05`. `.kept_until` is the
+last of those dates (owner, Q3). The shell does not send `retention_days` yet, so
+from this action such a line ends `: not read: no retention_days in P7's detail`
+and `.kept_until` says which rows have no date **[pending: no row owns the shell
+half yet]**. They are kept until they expire on their own (owner, Q3 = A).
 
 | copy | holds | why it stays | gone by |
 |---|---|---|---|
@@ -372,9 +377,11 @@ no row owns it yet]**. They are kept until they expire on their own (owner, Q3 =
 
 ### 4.2 Read the dates
 
-The plan names no dates yet: a `PLAN kept` line says in words what ends the
-copy (`their retention`, `never`). Read the days from the `PLAN retention` lines
-and the table above, and count them from the day of the move. The longest of
+The plan names no dates: a `PLAN kept` line says in words what ends the
+copy (`their retention`, `never`). P7's `KEPT` lines carry the date when its
+detail gave the days (section 4.1); until the shell sends them, read the days
+from the `PLAN retention` lines and the table above, and count them from the day
+P4 committed. The longest of
 them is the day after which the channel survives only in the "never" rows: mail
 already sent, git history, the hours rows the owner left and the boxes' copies.
 
@@ -394,9 +401,13 @@ The one exception to the scan's 0: when `<SRC>` holds the fleet rows, hits on
 `fleet_lanes.topic` and `fleet_asks.topic` are known. They print as
 `proof <name> (known <n> of <m>, kept: 5.2) 0`, never as a failure (spec 5.2).
 
-P7 does not prove the bucket objects of spec 5.3: it runs only the database proofs
-(`p7` in `channel_move_steps.go`). P6's counts are the record that the objects left
-`<SRC>` (section 3.4) **[pending: no row owns it yet]**.
+P7 also proves the bucket objects of spec 5.3 in the buckets themselves, not
+from P6's counts: for the files bucket (M4) and the Qto pictures (M8) it prints
+`proof objects <kind>: left in <SRC> <n>` and `proof objects <kind>: missing in
+<DST> <n>`, both 0 after a good move. A shared object that a staying `<SRC>` row
+still lists (spec 5.5) stays in `<SRC>` and prints as `(known <n> of <m>, kept:
+5.5) 0`. A bucket P7 cannot read stops P7 with the hub's error: it never prints
+0 for an object it could not read.
 
 The free-text scan proves only that those exact strings are absent. It
 cannot prove that nobody described the channel in other words in a post,

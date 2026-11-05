@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.23 (2026-11-05). Status: **Draft** (part built: section 8.4's hub
+Version: v0.24 (2026-11-05). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -99,6 +99,11 @@ v0.23 ticks row T11b (SPL-4838, c-001 ruling e0203dc0 (1)): an owner go
 found by `hub-tail` is also read as its messages row
 (`spl_lane_issue_hub_row`); a copy, a row with no `copied_from` and a read
 that fails file nothing.
+v0.24 adds and ticks row T8b (c-894 items 3 and 6, msg 4b6b98a1; c-001
+rulings a135a721 and 44111546): P7 proves the objects of 5.3 in the buckets
+themselves, and dates each kept copy (5.6) as P4's `done_at` plus the days
+the shell passes in P7's detail `retention_days`; with no value a row says
+`not read: <reason>`. The shell half is a follow-up row (8.4).
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -553,6 +558,10 @@ P5. Every call carries the owner's GO; after P1 it also carries the journal's
   a new key can equal a staying issue's key in `<SRC>`. A lane filed on a moved
   key after P1 gets no note. `op journal` lists only lanes whose key changed.
 - P6 copies from what P4 moved, then deletes: a post can land between P3 and P4.
+- P7 proves the objects of 5.3 in both buckets (T8b): per kind (M4 files, M8
+  Qto pictures) a `left in <SRC>` and a `missing in <DST>` count. A shared
+  object a staying `<SRC>` row lists (5.5) is a known hit; a bucket P7 cannot
+  read fails the step, never a 0.
 - P7 passes the `fleet_lanes` and `fleet_asks` topic counts as known (5.2). The
   shell fails on any `.proofs` count that is not 0, so a known hit is answered as
   count 0 with its count in the name. A failed proof answers 200 with the counts
@@ -561,11 +570,12 @@ P5. Every call carries the owner's GO; after P1 it also carries the journal's
   error text (C13). The reason goes to the operator in the answer.
 
 The `detail` of a plan or a step (T7d) is
-`{keep, keep_emails, leave_hours, rule_doc, caller}`, every field optional: the
+`{keep, keep_emails, leave_hours, rule_doc, caller, retention_days}`, every field optional: the
 HUM ids the owner adds to `<DST>` (Q5), the channel invites' emails that move
 (5.1b), the HUM ids whose hours rows stay in `<SRC>` (Q5, Q8: it clears their
 hours stops in plan, P2 and P4), the Qto doc of column 3 of the box rule row
-(F14) and the `MOVE_CALLER` seat. An unknown field or a malformed value answers
+(F14), the `MOVE_CALLER` seat, and for P7 the days of each kept row of 5.6
+that ends with a retention (T8b: P7 dates it from P4's `done_at`). An unknown field or a malformed value answers
 400 `bad_detail`. An absent value is the safe side: nobody kept, every invite
 deleted, every hours stop stands. P2 records the detail in its step, and P4
 refuses a detail that is not the one P2 checked. A mark's `detail` stays its own
@@ -633,6 +643,7 @@ Each row is one small task; files named are where it lands.
 | T7g | The closer maps an old issue key to the new one while the redirect lives; after that an old key closes nothing | orc/scripts/issue-close-landed.py, its read path, its test. Built (SPL-4774): the agent issue op `moved` (`api/hub/issues_agent_moved.go`; `IssueMoves` in `api/store/channel_move_journal*.go`), `spl_icl_plan` in `orc/run/spl-issue-close-landed.func.sh`, case 22 of `orc/tests/spl-issue-close-landed.tst.sh`, `api/hub/issues_agent_moved_test.go`; M11 rewrites `fleet_lanes.origin_issue` too (`channel_move_issues_postgres.go`, C3b) |
 | T7h | WUI: an old /t/<uuid> link at <SRC> takes the reader to the hub's moved_to; test it in a browser | built (SPL-4781): csi-spl-wui, its e2e test: `src/pages/t/[task_id].vue` follows only a `/t/<uuid>` link on its own origin or on a workspace host of this env (the apex or `<tenant>.<apex>`, never any other https host; R7 N1), once per navigation (the followed link carries `#moved`, and a page opened with it follows no further; R7 N4) (`src/utils/topic-moved.mjs`), `src/utils/spool-client.mjs` keeps `moved_to` on a 404 `topic_moved` only (R7 N2); `tests/e2e/topic-moved-link.test.mjs`, `tests/unit/topic-moved.test.mjs` |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
+| T8b | P7 proves the objects of 5.3 (each moved object gone from <SRC>, present in <DST>) and prints the date each kept copy expires | built (SPL-4837): `api/hub/channel_move_steps.go` (`objectProofs`, `channelMoveKeptDates`), `api/channelmove/objects.go` (`Prove`); the detail field `retention_days` in `api/hub/channel_move_inputs.go`; P4's `done_at` read as `ChannelMoveStep.DoneAt` (`api/store/channel_move_journal.go`, `_postgres.go`); tests `objects_prove_test.go` (red control: an object planted back in <SRC>; an unreadable bucket holds), `api/hub/channel_move_p7_test.go`, `channel_move_inputs_test.go`. P7's `.kept` rows that end with a retention carry `expires` (a date, or `not read: <reason>`) and say it in `gone_by`; `.kept_until` is the last date (Q3). The shell does not send `retention_days` yet: a follow-up row |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17. With no `CHANNEL_MOVE_HUB_CMD` (now a test seam) it calls the T7 endpoint, `POST /v1/operator/channel-moves` on the env's hub as the per-env service account (`spl_hub_operator_call`), any code but 200 a refusal; C24 is proved through it too. It prints the plan's `.shared_files` as `PLAN` lines, P4's `.report`, and P7's `.report` and `.kept`; none of them refuses | built (SPL-4404 the action, SPL-4771 the wiring): `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9c | The shell plan path does W2's F14 half, which the hub cannot read (T4b checks only `channel_subscriptions` and channel-scope `dedicated_agents`): it reads the channel's row in this box's `channel-rules.tsv` through `channel-rules.inc.sh` and refuses when that desk agent has no `<DST>` desk on this box, naming it and the box. No row is no refusal; a copy checks nothing (no seat moves, section 7); a row of another env is said, not checked. Read-only: P5 rewrites the file, not `plan`. A box reads only its own file, and `plan` prints which box and file it read. The other box is covered by the operator, not by this row: run `plan` on every box that works the channel, and `plan` names the boxes of the hub's seats other than its own; nothing makes `MOVE_CMD=run` wait for that; tests C25, C26 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |

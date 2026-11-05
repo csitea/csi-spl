@@ -124,6 +124,7 @@ func (j ChannelMoveJournalRow) StepDone(step string) bool { return j.Steps[step]
 // ChannelMoveStep is one channel_move_steps row.
 type ChannelMoveStep struct {
 	Done                   bool
+	DoneAt                 time.Time // zero while not done; P7 dates the kept copies from P4's (T8b)
 	Counts, Proofs, Detail json.RawMessage
 }
 

@@ -16,7 +16,8 @@ package channelmove
 // P6 (Delete) runs after the P4 commit and removes a <SRC> object only when
 // no <SRC> row still lists it (the shared-file rule, section 5.5) and its
 // <DST> copy exists, so it never deletes the only copy. A re-run of either
-// resumes: what is already done counts as Present or Gone.
+// resumes: what is already done counts as Present or Gone. P7 (Prove) reads
+// both stores again and counts what P6 left behind.
 
 import (
 	"context"
@@ -218,6 +219,64 @@ func (o Objects) deleteOne(ctx context.Context, src, id string, from []loc, to l
 		}
 	}
 	return nil
+}
+
+// Prove is P7's half of 5.3 (T8b): for the files bucket (M4) and the Qto
+// pictures (M8), each object of set is gone from every <SRC> place and present
+// at its <DST> place, read from the stores themselves; P6's counts prove no
+// absence. A shared object a staying <SRC> row still lists (5.5) stays in
+// <SRC> by design and counts as Known. A store that cannot be read is an
+// error, never a 0.
+func (o Objects) Prove(ctx context.Context, src, dst string, set ObjectSet) ([]Proof, error) {
+	files, err := o.prove(ctx, src, dst, ObjectSet{Files: set.Files}, "M4 files bucket")
+	if err != nil {
+		return nil, err
+	}
+	docs, err := o.prove(ctx, src, dst, ObjectSet{DocAssets: set.DocAssets}, "M8 Qto pictures")
+	if err != nil {
+		return nil, err
+	}
+	return append(files, docs...), nil
+}
+
+func (o Objects) prove(ctx context.Context, src, dst string, set ObjectSet, what string) ([]Proof, error) {
+	left := Proof{Name: "objects " + what + ": left in <SRC>"}
+	missing := Proof{Name: "objects " + what + ": missing in <DST>"}
+	err := o.pairs(ctx, src, dst, set, func(id string, from []loc, to loc) error {
+		switch ok, err := to.st.Exists(ctx, to.key); {
+		case err != nil:
+			return fmt.Errorf("check %s: %w", to.key, err)
+		case !ok:
+			missing.Count++
+		}
+		in, err := anyExists(ctx, from)
+		if err != nil || !in {
+			return err
+		}
+		left.Count++
+		held, err := o.held(ctx, src, id)
+		if held {
+			left.Known++
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []Proof{left, missing}, nil
+}
+
+// anyExists says whether one of ls holds its key.
+func anyExists(ctx context.Context, ls []loc) (bool, error) {
+	for _, l := range ls {
+		switch ok, err := l.st.Exists(ctx, l.key); {
+		case err != nil:
+			return false, fmt.Errorf("check %s: %w", l.key, err)
+		case ok:
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // held is the hub's keep rule for a blob of tenant (hub fileKept): a message

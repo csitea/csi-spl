@@ -1,7 +1,9 @@
 <!-- SPL-1024 (specs/045 §3.1 / §3.2): the keyboard and touch way to move.
      Move to channel… lists the channels the viewer may post in (the current
      one, the lobby and `issues` left out); Move to topic… lists the topics of
-     those channels, newest first, with a filter. Picking a row moves at once
+     those channels, newest first, with a filter. SPL-4892: each channel's own
+     page is read, so a busy channel (or the DMs) never crowds the others out
+     of one shared page. Picking a row moves at once
      (the toast offers Undo). Loaded lazily (LazyMovePickerDialog): only once
      the menu entry is picked. UiDialog owns focus, Escape, the phone full
      screen and the Back overlay (SPL-993 / SPL-994). -->
@@ -102,15 +104,20 @@ const rows = computed<Row[]>(() => {
   }).map((r) => ({ id: r.task_id, label: r.title || r.task_id, hint: '#' + r.channel }))
 })
 
+/* SPL-4892 (owner t1 5eee1925): one page per channel the viewer may read, not
+   one tenant-wide page of 50 that the busiest channel and the DMs fill */
+const TOPICS_PER_CHANNEL = 50
+
 async function load() {
   if (props.mode === 'channel') return
   loading.value = true
   try {
-    const page = await withSessionRetry(api, () => api.listTopics({ limit: 50 }))
-    topics.value = page.topics
-  } catch {
-    /* the held cards still list */
+    const ids = moveChannelTargets(channel.channels, '').map((c) => c.channel_id)
+    const pages = await Promise.all(ids.map((id) => withSessionRetry(api, () => api.listTopics({ channel: id, limit: TOPICS_PER_CHANNEL }))
+      .then((page) => page.topics, () => [])))
+    topics.value = pages.flat()
   } finally {
+    /* a channel whose read failed lists none; the held cards still list */
     loading.value = false
   }
 }

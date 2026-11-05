@@ -64,6 +64,14 @@ the wrong channel (prd t1 topic `82bf9be6`, 2026-09-27).
 - **Gesture**: drag a reply from the right pane and drop it on a topic card in the middle list.
   Keyboard / touch: the reply's menu **Move to topic…** opens a picker of the topics of the channels
   the caller may post in (a search box, newest first).
+- **Picker list** (SPL-4892, owner t1 5eee1925 msg 91dc8b84): the picker offers the topics of EVERY
+  channel of the workspace the caller may read and post in, not only the channel on screen: the same
+  channels as Move to channel… (3.1; the lobby, `issues` and every channel the caller is not in stay
+  out). It reads each such channel's own page of its newest topics (`GET /v1/view/topics?channel=<id>&limit=50`),
+  so a busy channel or the DMs never crowd the others out of one shared page; the cards of the channel
+  on screen are added at once. Every row names its `#channel`; the list is newest first across all of
+  them, and the search box filters by title or `#channel` across all of them (the topics read, not
+  older pages). The topic the reply is in is never offered.
 - **Effect**: the row gets `task_id` = the target task, `parent_task_id` = NULL, `is_parent` = 0 (a
   reply), `channel` = the target's channel. Its own thread (`task_id` = its `msg_id`) and everything
   under it come with it: those rows keep their `task_id`, get `channel` = the target's, and a
@@ -270,4 +278,4 @@ do not change.
   the card body does not move; a drag from the strip lights exactly one channel; a drop moves and Undo
   brings it back; a drop outside cancels; a forbidden channel is never lit.
 
-<!-- version: 0.4.0 · updated: 2026-09-28 · last-edit: 2026-09-28T15:40:00Z -->
+<!-- version: 0.4.1 · updated: 2026-11-06 · last-edit: 2026-09-28T15:40:00Z -->

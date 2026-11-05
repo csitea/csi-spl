@@ -321,7 +321,7 @@
       "continue": "Jätka teemade juurde",
       "invited_as": "Sind kutsuti aadressiga {email}.",
       "invited_use_google": "Jätka Googlega, kasutades seda Gmaili aadressi.",
-      "invited_use_any": "Logi sisse sama aadressiga: Google või Microsoft, kui see on töökonto, muidu e-post ja parool.",
+      "invited_use_any": "Logi sisse sama aadressiga: Google, kui see on Google'i konto, muidu e-post ja parool.",
       "links": {
         "blog": "Blogi",
         "calendar": "Kalender",

@@ -321,7 +321,7 @@
       "continue": "Fortsätt till ämnena",
       "invited_as": "Du bjöds in som {email}.",
       "invited_use_google": "Fortsätt med Google med den Gmail-adressen.",
-      "invited_use_any": "Logga in med samma adress: Google eller Microsoft om det är ett arbetskonto, annars e-post och lösenord.",
+      "invited_use_any": "Logga in med samma adress: Google om det är ett Google-konto, annars e-post och lösenord.",
       "links": {
         "blog": "Blogg",
         "calendar": "Kalender",

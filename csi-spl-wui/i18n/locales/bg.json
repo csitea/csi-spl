@@ -321,7 +321,7 @@
       "continue": "Към темите",
       "invited_as": "Поканени сте като {email}.",
       "invited_use_google": "Продължете с Google, използвайки този Gmail адрес.",
-      "invited_use_any": "Влезте със същия адрес: с Google или Microsoft, ако е служебен акаунт там, или с имейл и парола.",
+      "invited_use_any": "Влезте със същия адрес: с Google, ако е акаунт в Google, или с имейл и парола.",
       "links": {
         "blog": "Блог",
         "calendar": "Календар",

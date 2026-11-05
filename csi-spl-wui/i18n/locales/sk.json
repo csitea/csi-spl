@@ -321,7 +321,7 @@
       "continue": "Pokračovať na témy",
       "invited_as": "Boli ste pozvaný(-á) ako {email}.",
       "invited_use_google": "Pokračujte cez Google pomocou tejto adresy Gmail.",
-      "invited_use_any": "Prihláste sa pomocou tej istej adresy: cez Google alebo Microsoft, ak tam máte pracovný účet, inak e-mailom a heslom.",
+      "invited_use_any": "Prihláste sa pomocou tej istej adresy: cez Google, ak je to účet Google, inak e-mailom a heslom.",
       "links": {
         "blog": "Blog",
         "calendar": "Kalendár",

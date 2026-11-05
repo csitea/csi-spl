@@ -321,7 +321,7 @@
       "continue": "Przejdź do tematów",
       "invited_as": "Zaproszono Cię jako {email}.",
       "invited_use_google": "Kontynuuj przez Google, używając tego adresu Gmail.",
-      "invited_use_any": "Zaloguj się tym samym adresem: przez Google lub Microsoft, jeśli jest to tamtejsze konto służbowe, w przeciwnym razie adresem e-mail i hasłem.",
+      "invited_use_any": "Zaloguj się tym samym adresem: przez Google, jeśli jest to konto Google, w przeciwnym razie adresem e-mail i hasłem.",
       "links": {
         "blog": "Blog",
         "calendar": "Kalendarz",

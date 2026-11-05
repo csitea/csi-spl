@@ -321,7 +321,7 @@
       "continue": "Konulara devam et",
       "invited_as": "{email} olarak davet edildiniz.",
       "invited_use_google": "Bu Gmail adresini kullanarak Google ile devam edin.",
-      "invited_use_any": "Aynı adresle oturum açın: orada bir iş hesabıysa Google veya Microsoft, aksi takdirde e-posta ve şifre.",
+      "invited_use_any": "Aynı adresle oturum açın: bir Google hesabıysa Google, aksi takdirde e-posta ve şifre.",
       "links": {
         "blog": "Blog yazıları",
         "calendar": "Takvim",

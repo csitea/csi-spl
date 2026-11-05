@@ -321,7 +321,7 @@
       "continue": "Continuă la teme",
       "invited_as": "Ați fost invitat(ă) ca {email}.",
       "invited_use_google": "Continuați cu Google folosind acea adresă Gmail.",
-      "invited_use_any": "Conectați-vă cu aceeași adresă: Google sau Microsoft dacă este un cont de serviciu acolo, altfel cu e-mail și parolă.",
+      "invited_use_any": "Conectați-vă cu aceeași adresă: Google dacă este un cont Google, altfel cu e-mail și parolă.",
       "links": {
         "blog": "Blog",
         "calendar": "Calendar",

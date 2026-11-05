@@ -321,7 +321,7 @@
       "continue": "Jatka aiheisiin",
       "invited_as": "Sinut kutsuttiin osoitteella {email}.",
       "invited_use_google": "Jatka Googlella käyttäen tätä Gmail-osoitetta.",
-      "invited_use_any": "Kirjaudu sisään samalla osoitteella: Google tai Microsoft, jos se on työtili, muuten sähköposti ja salasana.",
+      "invited_use_any": "Kirjaudu sisään samalla osoitteella: Google, jos se on Google-tili, muuten sähköposti ja salasana.",
       "links": {
         "blog": "Blogi",
         "calendar": "Kalenteri",

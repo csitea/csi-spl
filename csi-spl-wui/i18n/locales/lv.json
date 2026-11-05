@@ -321,7 +321,7 @@
       "continue": "Turpināt uz tēmām",
       "invited_as": "Jūs tikāt uzaicināts(-a) kā {email}.",
       "invited_use_google": "Turpināt ar Google, izmantojot šo Gmail adresi.",
-      "invited_use_any": "Pierakstieties ar to pašu adresi: Google vai Microsoft, ja tas ir darba konts, pretējā gadījumā ar e-pastu un paroli.",
+      "invited_use_any": "Pierakstieties ar to pašu adresi: Google, ja tas ir Google konts, pretējā gadījumā ar e-pastu un paroli.",
       "links": {
         "blog": "Blogs",
         "calendar": "Kalendārs",

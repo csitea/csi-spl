@@ -321,7 +321,7 @@
       "continue": "המשך לנושאים",
       "invited_as": "הוזמנתם בתור {email}.",
       "invited_use_google": "המשיכו עם Google באמצעות כתובת Gmail זו.",
-      "invited_use_any": "התחברו עם אותה הכתובת: Google או Microsoft אם זה חשבון עבודה שם, אחרת באימייל ובסיסמה.",
+      "invited_use_any": "התחברו עם אותה הכתובת: Google אם זה חשבון Google, אחרת באימייל ובסיסמה.",
       "links": {
         "blog": "בלוג",
         "calendar": "יומן",

@@ -63,15 +63,16 @@ func wireLine(l store.FlowLine) wireFlowLine {
 	return w
 }
 
-// flowFoldBody is the folded page's JSON body for member of tenant: the
-// lines, the next cursor ("" = none) and the counts. A moderator's hidden
-// newest line is marked; for anyone else its text is not shown.
-func (s *Server) flowFoldBody(ctx context.Context, fe store.FlowFolder, q store.FlowQuery) (map[string]any, error) {
+// flowFoldBody is the folded page's JSON body for q.Member of tenant, as
+// viewer reads it: the lines, the next cursor ("" = none) and the counts. A
+// moderator viewer's hidden newest line is marked; for anyone else its text
+// is not shown.
+func (s *Server) flowFoldBody(ctx context.Context, fe store.FlowFolder, q store.FlowQuery, viewer string) (map[string]any, error) {
 	f, err := fe.FlowFoldRead(ctx, q)
 	if err != nil {
 		return nil, err
 	}
-	mod, err := s.moderation(ctx, q.Tenant, q.Member)
+	mod, err := s.moderation(ctx, q.Tenant, viewer)
 	if err != nil {
 		return nil, err
 	}
@@ -91,14 +92,14 @@ func (s *Server) flowFoldBody(ctx context.Context, fe store.FlowFolder, q store.
 	return map[string]any{"counts": f.Counts, "unread": f.Unread, "keys": wireFlowKeys(f.Keys), "lines": lines, "next": next}, nil
 }
 
-// writeFlowFold answers GET /v1/view/flow?fold=day.
+// writeFlowFold answers GET /v1/view/flow?fold=day; member is the viewer.
 func (s *Server) writeFlowFold(w http.ResponseWriter, r *http.Request, q store.FlowQuery, member string) {
 	fe, ok := s.o.Store.(store.FlowFolder)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
 		return
 	}
-	body, err := s.flowFoldBody(r.Context(), fe, q)
+	body, err := s.flowFoldBody(r.Context(), fe, q, member)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", q.Tenant).Msg("flow fold read")
 		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")

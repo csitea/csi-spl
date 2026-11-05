@@ -1,7 +1,9 @@
 # 130: Flow: what is happening
 
 Status: **v1.0, signed** (panel merge by s130-c1, f8107fc25; accepted by the dispatch holder; signatures in section 11).
-Q1 and Q2 decided by the owner (section 10).
+Q1 and Q2 decided by the owner (section 10). **Amended (SPL-4895)**: Q3, the
+owner's choice of 2026-11-05, lets every member read any member's or agent's
+whole Flow (section 3.1); it reverses Q2's "only mine".
 
 Amends and supersedes parts of 062.
 
@@ -20,6 +22,12 @@ Same topic, msg e1e37246 (Q1):
 
 Same topic, msg 8efbb023, 17:44Z (Q2):
 > "No, no, only mine are needed, so it should be basically a customized view of the flow of the events for each user. Then the user will get more info the more he's engaged with the system. This is the way it should work."
+
+prd t1, topic 82dff03c-7015-42cf-a798-8efd07ebfbdf, HUM-10, msg 47ec5aab (Q3):
+> "the flow should have a drobbox for each persons flow and each agents flow ... and of course the the default should be the currently logged person flow - that is I want as a user of the system to see what is happenging for not only me but also for the other users and agents"
+
+Same topic, msg 6a0ec650, answering poll 3c02fb10 (offered A and B, narrower, and C):
+> "C — That person's whole Flow, for every member of the workspace"
 
 ## 1. Today's Flow, measured
 
@@ -127,7 +135,9 @@ prd volume:
 
 ## 3. Relevance and "All"
 
-A person or agent sees only events from discussions they are **part of**.
+A person's or agent's Flow holds only events from discussions they are
+**part of**. Who may READ that Flow is section 3.1: since Q3, every member
+of the workspace, not only its owner.
 
 - **Part of** = a `flow_watches` row for (tenant, task, member). The insert
   already writes one for the author, every mentioned seat and the `to`
@@ -140,6 +150,56 @@ A person or agent sees only events from discussions they are **part of**.
 - **"All" switch**: removed (Q2, owner msg 8efbb023). The Flow is one
   per-user view of the events the user is involved in. Removing All stops
   the not-involved stream; it does not condense Mine. Section 2 does that.
+
+### 3.1 Reading another member's Flow (Q3, SPL-4895)
+
+Owner, t1 82dff03c, msgs 47ec5aab and 6a0ec650 (poll 3c02fb10, answer C):
+any member reads any person's or agent's whole Flow, direct messages and
+private channels included. The owner was offered the narrower A and B and
+chose C. Who can read what:
+
+| reader | may read | answer |
+|---|---|---|
+| a member of workspace W (a HUM-* seat whose role is not `demo_user` or `channel_guest`) | its own Flow, and the whole Flow of every HUM-* member of W and every agent `<id>@<box>` on a box of W | 200 |
+| the same member, naming an id that is no member of W, an agent on another workspace's box, a bare agent id or junk | nothing | 404 `not_member` |
+| a guest (`GST-*`, `channel_guest`), a demo visitor (`demo_user`), a session that is no member of W | its own Flow only | 403 |
+| anyone, on another workspace's host | nothing of W: the target is looked up in the session's workspace only | 403 / 404 |
+
+- **Route**: `GET /v1/view/flow?member=<id>` (`internal/hub/flow_member.go`);
+  no `member`, or the reader's own id, is the reader's Flow as before.
+  Contract: `062-flow-per-user-counts/contracts/flow-v1.md` section 2.
+- **Read-only**: the store's flow reads are queries only; reading another's
+  Flow moves no read mark, badge or count of the target's or the reader's
+  (hub test `TestFlowMemberReadMovesNoMarks`, on both drivers).
+- **The reader's own rules still apply**: the demo moderation and the box
+  owner lock are the reader's. A folded read (`fold=day`) of someone else
+  is refused (403) while a box of W is locked to someone other than the
+  reader, because a folded line names no box to cut it by; the unfolded
+  read cuts those events out. An agent on a box hidden from the reader is
+  `not_member`.
+- **Opening a line** of another's Flow opens its place as the reader: a
+  direct message or a private channel the reader is not in still answers
+  as it does today (no extra access is granted beyond the Flow line).
+- **The box `flow_read` frame** (`spool flow`) is unchanged: it stays keyed
+  by the session's own `<id>@<box>`; a `member` in its query is ignored.
+
+The WUI (`components/FlowList.vue`, `stores/flow.ts`,
+`utils/flow-member.mjs`):
+
+- A drop box with search above the chips (the one `PersonPicker`, now with
+  group headings): **Me** first, then the persons, then the agents, each
+  under its heading, A-Z. It starts on the signed-in person.
+- The address carries the choice: `?flow=<id>` on any page opens the Flow
+  tab on that Flow, so a copied URL points to it (owner e04820a5: "point to
+  a certain set ... by simply copy pasting the url"); no parameter, or one
+  that is no member key, is the reader's own Flow. Opening a line keeps the
+  choice; the same page without `?flow=` goes back to the reader's.
+- While another's Flow shows, nothing the reader does writes a mark as
+  them. Hidden or inert: **Mark read** (the line menu), the mark an open of
+  a line writes (FR-009, `t:` / `f:rel:`), and the pane's `f:seen`. The
+  chips show the target's unread; the reader's own badge, rail numbers and
+  app badge do not move. A note says so above the list.
+- A refused read (403 / 404) goes back to the reader's Flow with a notice.
 
 ## 4. New kinds: release, ready, blocked
 
@@ -269,7 +329,8 @@ No lane waits on an owner question: L1, L2a, L2b, L3 and L4 can start at once.
 | Q | question | panel vote | decided |
 |---|---|---|---|
 | **Q1** | A release nobody involved you in: does everyone get the event? | Everyone (a1, c1, c2, g1, m1) | **Everyone.** Owner, t1 da98036e, msg e1e37246: "Everyone should be able to see releases." `release_notes` has no `tenant_id`, so this means every member of every tenant on that hub (prd: 15 tenants). |
-| **Q2** | The "All" switch: A remove it, B keep it behind the switch? | A remove (a1, c1, c2, g1, m1) | **A, remove.** Owner, t1 da98036e, msg 8efbb023, 17:44Z: "No, no, only mine are needed, so it should be basically a customized view of the flow of the events for each user." The owner's decision, not the panel's vote. |
+| **Q2** | The "All" switch: A remove it, B keep it behind the switch? | A remove (a1, c1, c2, g1, m1) | **A, remove.** Owner, t1 da98036e, msg 8efbb023, 17:44Z: "No, no, only mine are needed, so it should be basically a customized view of the flow of the events for each user." The owner's decision, not the panel's vote. The "All" switch stays removed; "only mine" as a rule on who may READ a Flow is reversed by Q3. |
+| **Q3** | Whose Flow can a member read? (poll 3c02fb10) A / B narrower, C that person's whole Flow | none (owner poll) | **C.** Owner, t1 82dff03c, msg 6a0ec650: "C — That person's whole Flow, for every member of the workspace"; msg 47ec5aab asks for the drop box, default the signed-in person. Section 3.1. |
 
 ## 11. Panel record
 
@@ -304,9 +365,11 @@ Not folded from s130-m1, with the reason:
   `do_release_note_ingest` (section 1). So no `POST /v1/flow/*` APIs are
   added.
 - The agent read via `GET /v1/view/flow?member_id=`: that route answers 403
-  without a human seat (`internal/hub/flow.go:109-115`), and reading another
-  member's flow by a query parameter would open every member's flow to any
-  caller. The `flow_read` CLI frame keys by the session instead.
+  without a human seat (`internal/hub/flow.go:109-115`). The `flow_read` CLI
+  frame keys by the session instead, and still does. Reversed in part by Q3
+  (section 3.1): a signed-in member of the workspace now reads another
+  member's Flow by `?member=`, checked against that workspace only; a caller
+  without a member session still gets 403.
 
 Signatures on this v1.0 (each seat replies on `dispatch-da98036e-flow-v2`
 with SIGN or the exact change):

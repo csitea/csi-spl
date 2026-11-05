@@ -109,7 +109,8 @@ func flowQueryOf(v url.Values) (store.FlowQuery, bool) {
 }
 
 // handleViewFlow is GET /v1/view/flow: the member's page and counts in one
-// store round trip.
+// store round trip; ?member= reads another member's (flow_member.go). The
+// moderation and the box lock stay the viewer's (hum).
 func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(store.WithMemo(r.Context()))
 	s.allowOrigin(w, r)
@@ -119,6 +120,10 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 	}
 	if hum == "" {
 		writeForbidden(w, rbac.TopicsRead, "the flow needs a signed-in member session")
+		return
+	}
+	target, ok := s.flowTarget(w, r, t.ID, hum) // spec 130 section 3.1: ?member=
+	if !ok {
 		return
 	}
 	fe, ok := s.flowStore()
@@ -131,7 +136,7 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_query", "limit 1..50; kind mention|reply|dm|blocked|ready (release with fold=day); before a cursor")
 		return
 	}
-	q.Tenant, q.Member, q.Now, q.Lobby = t.ID, hum, s.o.Now(), s.o.LobbyTaskID
+	q.Tenant, q.Member, q.Now, q.Lobby = t.ID, target, s.o.Now(), s.o.LobbyTaskID
 	if r.URL.Query().Get("fold") == "day" && q.Limit > 0 {
 		s.writeFlowFold(w, r, q, hum)
 		return

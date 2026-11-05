@@ -39,8 +39,9 @@
 # own shell before its first line, c-715 N7), or edits the registry, is not
 # stopped by any shell check, the driver's own verify included: the barrier
 # is the owner's passphrase and the verify on the OTHER box (the hub path).
-# Outside SPOOL_TEST do_spl_channel_move first sets PATH to CM_SAFE_PATH and
-# refuses an exported function (c-715 W4). Under SPOOL_TEST=1 the spool root is $SPOOL_ROOT (the spool test
+# Outside SPOOL_TEST do_spl_channel_move refuses an exported function and
+# runs the action in a fresh env -i process with PATH = CM_SAFE_PATH (c-715
+# W4, W5). Under SPOOL_TEST=1 the spool root is $SPOOL_ROOT (the spool test
 # guard refuses the live one) and the environment is trusted, for the tests.
 # SPOOL_TEST=1 is itself an environment variable (c-715 N5): with it and a
 # fake root every seam is honoured again, so a cm_cmd_* hook (rows B4, B5)
@@ -154,7 +155,7 @@ cm_chain_agent() {  # ROOT CHAIN
   for p in $2; do
     comm="$(cat "$root/$p/comm" 2>/dev/null)"
     case " $CM_AGENT_COMMS " in *" $comm "*) echo "$p cli:$comm"; return 0 ;; esac
-    if tr '\0' '\n' <"$root/$p/environ" 2>/dev/null | grep -qE '^(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=.+'; then
+    if tr '\0' '\n' 2>/dev/null <"$root/$p/environ" | grep -qE '^(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=.+'; then
       echo "$p environ"; return 0
     fi
   done

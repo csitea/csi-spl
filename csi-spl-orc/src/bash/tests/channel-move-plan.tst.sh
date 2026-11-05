@@ -333,15 +333,36 @@ out="$(w4 PATH="$T/w4bin:$PATH")"
 out="$(w4t PATH="$T/w4bin:$PATH")"
 grep -q 'pane id c-998' <<<"$out" && pass "W4 CONTROL: the same PATH under SPOOL_TEST=1 makes the pane read as c-998 (the fakes work)" || fail "W4 PATH control: $out"
 out="$(w4 'BASH_FUNC_awk%%=() { echo c-998; }')"; rc=$?
-[ "$rc" = 3 ] && grep -q 'exports a function (BASH_FUNC_awk%%)' <<<"$out" && ! grep -q 'c-998' <<<"$out" &&
+[ "$rc" = 3 ] && grep -q 'exports a function' <<<"$out" && ! grep -q 'c-998' <<<"$out" &&
   pass "W4 an exported function outside SPOOL_TEST: refused (rc 3), nothing read" || fail "W4 function: rc $rc $out"
 out="$(w4)"
 ! grep -q 'exports a function' <<<"$out" && pass "W4 CONTROL: the same call with no exported function is not refused for one" || fail "W4 function control: $out"
 out="$(w4t 'BASH_FUNC_awk%%=() { echo c-998; }')"
 ! grep -q 'exports a function' <<<"$out" && pass "W4 CONTROL: the same function under SPOOL_TEST=1 is not refused (a test seam only)" || fail "W4 function test control: $out"
-pa="$(sed -n 's/^  PATH=\([^;]*\);.*/\1/p' "$PROJ_ROOT/src/bash/run/spl-channel-move.func.sh")"
+pa="$(sed -n 's/^  \/usr\/bin\/env -i PATH=\([^ ]*\) .*/\1/p' "$PROJ_ROOT/src/bash/run/spl-channel-move.func.sh")"
+pc="$(sed -n 's/^  else PATH=\([^;]*\);.*/\1/p' "$PROJ_ROOT/src/bash/run/spl-channel-move.func.sh")"
 pb="$(sed -n 's/^CM_SAFE_PATH=//p' "$LIB")"
-[ -n "$pa" ] && [ "$pa" = "$pb" ] && pass "W4 the action's PATH equals the lib's CM_SAFE_PATH ($pa)" || fail "W4 PATH drift: action '$pa' lib '$pb'"
+[ -n "$pa" ] && [ "$pa" = "$pb" ] && [ "$pc" = "$pb" ] && pass "W4 the action's PATH (env -i and the fresh script) equals the lib's CM_SAFE_PATH ($pa)" || fail "W4 PATH drift: env -i '$pa' script '$pc' lib '$pb'"
+
+# ---- W5: an exported function named after a builtin ([, builtin) ------------------------
+# Each prints SHADOW-<name> on stderr when a cm_* function calls it, so the
+# control shows it really runs where the environment is trusted.
+F_BR='() { [[ ${FUNCNAME[1]:-} == cm_* ]] && echo "SHADOW-[ ${FUNCNAME[1]}" >&2; if [[ ${FUNCNAME[1]:-} == cm_harden_env ]]; then return 0; fi; builtin [ "$@"; }'
+F_BI='() { echo "SHADOW-builtin ${FUNCNAME[1]:-main}" >&2; command "$@"; }'
+out="$(w4 PATH="$T/w4bin:$PATH" "BASH_FUNC_[%%=$F_BR")"; rc=$?
+[ "$rc" = 3 ] && ! grep -qE 'c-998|SHADOW' <<<"$out" && grep -q 'exports a function' <<<"$out" &&
+  pass "W5 P9 an exported '[' with the fake PATH outside SPOOL_TEST: refused rc 3, never ran, the pane never read as c-998" || fail "W5 P9: rc $rc $out"
+out="$(w4t PATH="$T/w4bin:$PATH" "BASH_FUNC_[%%=$F_BR")"
+grep -q 'SHADOW-\[ cm_' <<<"$out" && grep -q 'pane id c-998' <<<"$out" && pass "W5 CONTROL: the same '[' under SPOOL_TEST=1 runs inside cm_* and the pane reads as c-998" || fail "W5 P9 control: $out"
+out="$(w4 PATH="$T/w4bin:$PATH" "BASH_FUNC_builtin%%=$F_BI")"; rc=$?
+[ "$rc" = 3 ] && ! grep -qE 'c-998|SHADOW' <<<"$out" && grep -q 'exports a function' <<<"$out" &&
+  pass "W5 an exported 'builtin' outside SPOOL_TEST: refused rc 3, never ran" || fail "W5 builtin: rc $rc $out"
+out="$(env "BASH_FUNC_builtin%%=$F_BI" bash -c 'builtin echo ran' 2>&1)"
+grep -q 'SHADOW-builtin' <<<"$out" && grep -q '^ran$' <<<"$out" && pass "W5 CONTROL: this bash imports the same 'builtin' and it replaces the builtin" || fail "W5 builtin control: $out"
+out="$(env -u SPOOL_TEST PATH="$T/w4bin:$PATH" "BASH_FUNC_[%%=$F_BR" CHANNEL=bad TO=BAD bash "$PROJ_ROOT/src/bash/run/spl-channel-move.func.sh" </dev/null 2>&1)"; rc=$?
+[ "$rc" = 3 ] && ! grep -qE 'c-998|SHADOW' <<<"$out" && pass "W5 the file run directly with an exported '[': refused rc 3, never ran" || fail "W5 direct: rc $rc $out"
+out="$(env -u SPOOL_TEST -u SPOOL_AGENT_ID PATH="$T/w4bin:$PATH" CHANNEL=bad TO=BAD bash "$PROJ_ROOT/src/bash/run/spl-channel-move.func.sh" </dev/null 2>&1)"
+! grep -qE 'c-998|exports a function' <<<"$out" && pass "W5 CONTROL: the file run directly with only the fake PATH: no refusal for a function, the pane not read as c-998" || fail "W5 direct control: $out"
 
 # ---- unknown and unbuilt commands --------------------------------------------------------
 out="$(run 600 MOVE_CMD=status)"; rc=$?

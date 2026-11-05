@@ -23,22 +23,36 @@
 # @example MOVE_CMD=ack MOVE_ID=20261105T120000Z-1a2b3c SEAT=c-123 ./run -a do_spl_channel_move
 #------------------------------------------------------------------------------
 
-# Outside SPOOL_TEST the action trusts no PATH entry and no exported function
-# of its caller (c-715 W4): the caller check runs awk, tmux, sudo, stat, getent
-# and id, and the load runs dirname and readlink, so a fake one first on PATH,
-# or an exported function by that name, could name another pane's id. Runs
-# first, before anything is loaded; the PATH is the lib's CM_SAFE_PATH (the
-# test holds the two equal). 3 = an exported function: refused.
-cm_harden_env() {
-  local e
-  [ "${SPOOL_TEST:-}" = 1 ] && return 0
-  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; export PATH; hash -r
-  unset BASH_ENV ENV LD_PRELOAD LD_LIBRARY_PATH
-  while IFS= builtin read -r -d '' e; do
-    [[ "$e" == BASH_FUNC_* ]] || continue
-    builtin printf 'channel-move REFUSED: the caller exports a function (%s); D1 trusts no exported function. Nothing was read.\n' "${e%%=*}" >&2
-    return 3
-  done <"/proc/$$/environ"
+# Outside SPOOL_TEST the action runs in a fresh process (c-715 W4, W5): bash
+# imports every function the caller exports, named after a tool (awk, tmux,
+# sudo) or a builtin ([, builtin, local, return, exec), so no check in the
+# caller's shell may run a command before this one. The entry and the fresh
+# script's top use only [[ ]], assignments, $(<) and commands named by an
+# absolute path (a name with a / cannot be imported). cm_has_exported_func:
+# 0 when this process started with an exported function (its environ holds a
+# BASH_FUNC_ entry); defined here, so a caller's function by the same name is
+# overwritten when this file is sourced.
+cm_has_exported_func() {
+  { CM_ENVIRON="$(< "/proc/$$/environ")"; } 2>/dev/null
+  [[ "${CM_ENVIRON:-}" == *BASH_FUNC_* ]]
+}
+
+# Refuse (3) from a process the caller cannot shadow.
+cm_refuse_exported_func() {
+  /bin/sh -c 'echo "channel-move REFUSED: the caller exports a function (an environment BASH_FUNC_ entry); D1 trusts no exported function. Nothing was read." >&2; exit 3'
+}
+
+# Run this file under env -i with an allow-list only: the fixed PATH (the lib's
+# CM_SAFE_PATH; the test holds the two equal), HOME, USER, LOGNAME, LANG, TERM,
+# SUDO_USER (cm_owner_process reads it) and the action's parameters.
+cm_fresh_run() {
+  CM_SELF="${BASH_SOURCE[0]}"
+  [[ "$CM_SELF" == /* ]] || CM_SELF="$PWD/$CM_SELF"
+  /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    HOME="${HOME:-/nonexistent}" USER="${USER:-}" LOGNAME="${LOGNAME:-}" LANG="${LANG:-C.UTF-8}" TERM="${TERM:-dumb}" \
+    SUDO_USER="${SUDO_USER:-}" CHANNEL="${CHANNEL:-}" TO="${TO:-}" MOVE_CMD="${MOVE_CMD:-}" DRY_RUN="${DRY_RUN:-}" \
+    MOVE_ID="${MOVE_ID:-}" SEAT="${SEAT:-}" MOVE_UPLINK_KBPS="${MOVE_UPLINK_KBPS:-}" MOVE_SSH="${MOVE_SSH:-}" \
+    /bin/bash --noprofile --norc "$CM_SELF"
 }
 
 cm_action_load() {
@@ -54,11 +68,17 @@ cm_action_load() {
 }
 
 do_spl_channel_move() {
+  if [[ "${SPOOL_TEST:-}" == 1 ]]; then cm_main
+  elif cm_has_exported_func; then cm_refuse_exported_func
+  else cm_fresh_run
+  fi
+}
+
+cm_main() {
   local cmd="${MOVE_CMD:-plan}" peer="" rc
   case "$cmd" in plan|move|status|resume|back|clean|ack) ;;
     *) echo "channel-move: MOVE_CMD must be plan, move, status, resume, back, clean or ack, got '$cmd'" >&2; return 2 ;;
   esac
-  cm_harden_env || return 3
   cm_action_load || { echo "channel-move: cannot load the spool env" >&2; return 1; }
   if [[ " move resume back clean " == *" $cmd "* && "${DRY_RUN:-1}" != 0 ]]; then
     echo "channel-move: dry run (DRY_RUN=0 runs MOVE_CMD=$cmd); the plan:"
@@ -193,3 +213,11 @@ cm_plan() {
   [ "$CM_BLOCKED" = 0 ] || { echo "plan: $CM_BLOCKED blocker(s) above"; return 5; }
   echo "plan: OK"
 }
+
+# The fresh process of cm_fresh_run: refuse an exported function again (a
+# caller can run this file directly), then the action.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  if cm_has_exported_func; then cm_refuse_exported_func
+  else PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; export PATH; cm_main
+  fi
+fi

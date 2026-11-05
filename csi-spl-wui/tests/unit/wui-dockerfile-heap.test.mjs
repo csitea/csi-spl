@@ -46,6 +46,8 @@ const seen = (heapArg) => execFileSync('sh', ['-c',
   `WUI_BUILD_HEAP_MB='${heapArg}'; NODE_OPTIONS="${word[1]}"; printf %s "${scriptDefault[1]}"`,
 ], { encoding: 'utf8' })
 if (word && scriptDefault) {
+  // 6144 is a floor, the package.json generate default (SPL-4793): lowering
+  // that default on purpose means lowering this literal too
   const def = seen('').match(/--max-old-space-size=(\d+)/)
   check(def && Number(def[1]) >= 6144, 'ARG unset: generate gets the script default (>= 6144 MiB)', seen(''))
   check(seen('3072') === '--max-old-space-size=3072', 'ARG 3072: generate gets --max-old-space-size=3072', seen('3072'))

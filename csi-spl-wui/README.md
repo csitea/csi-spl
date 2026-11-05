@@ -272,7 +272,7 @@ Environment:
 
 | Variable | Purpose | Where set | Default | Dev-only |
 |---|---|---|---|---|
-| `NODE_OPTIONS` | Node flags for `nuxt generate`; the `generate` script defaults it to `--max-old-space-size=6144` because prerendering about 710 routes reached the default ~4 GB heap and died with exit 134 (SPL-4793). A value you set is used as-is | Caller of `pnpm run generate` (CI wf 10 and wf 30 set none; the WUI Dockerfile may set its own) | `--max-old-space-size=6144` | no |
+| `NODE_OPTIONS` | Node flags for `nuxt generate`; the `generate` script defaults it to `--max-old-space-size=6144` because prerendering about 710 routes reached the default ~4 GB heap and died with exit 134 (SPL-4793). A value you set is used as-is | Caller of `pnpm run generate` (CI wf 10 and wf 30 set none; `wui.Dockerfile` passes it only from `--build-arg WUI_BUILD_HEAP_MB=<MiB>`, empty otherwise, so this default applies) | `--max-old-space-size=6144` | no |
 | `NUXT_CLIENT_SOURCEMAP` | Enable client-side sourcemaps in `vite.$client.build` (`true`) | Local build / diagnostics | unset (`false`) | yes |
 | `NUXT_DEV_AUTH_PROXY` | Proxy `/api/v1/auth/**` and `/api/v1/checkout/**` in Nitro dev server to hub so auth cookies land same-origin | Local development (`pnpm dev`) | unset (no proxy) | yes |
 | `NUXT_I18N_SPLIT` | Split locale catalogues into core and lazy parts (`0` disables splitting) | Build environment / CI | `1` (prod), `0` (dev) | no |

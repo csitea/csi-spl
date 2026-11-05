@@ -53,17 +53,20 @@ func entryParts(t *testing.T, r *fleetTokensRig, tid, hum, month string, labels 
 // picked) is the amount itself; a USD hr entry is its amount in USD. E2 an
 // entry of another month is absent. E3 the operator workspace's developer
 // and another workspace's admin read no entry. A EUR entry with no EUR rate
-// says unpriced (Memory keeps no rates). RED CONTROL: E1 fails when the
+// says unpriced (Memory keeps no rates); one in XTS (the ISO test code, no
+// rate anywhere) is unpriced with no USD and no second amount. RED CONTROL: E1 fails when the
 // hub does not append the entries (cost_read.go `cm.Parts = append(cm.Parts,
 // hand...)` removed).
 func TestCostReadAddsCostEntries(t *testing.T) {
 	r := newFleetTokensRig(t)
 	month, other := "2003-07", "2003-08"
 	cloud, hr, late := "ws cloud "+newTenantID("c"), "ws hr "+newTenantID("h"), "ws late "+newTenantID("l")
+	norate := "ws norate " + newTenantID("n")
 	for _, e := range []map[string]any{
 		{"type": "cloud", "label": cloud, "amount": 64.8, "currency": "EUR", "period": month},
 		{"type": "hr", "label": hr, "amount": 10, "currency": "USD", "period": month},
 		{"type": "cloud", "label": late, "amount": 11.5, "currency": "EUR", "period": other},
+		{"type": "cloud", "label": norate, "amount": 7, "currency": "XTS", "period": month},
 	} {
 		code, got := call(t, r.e, r.op, http.MethodPost, costEntryPath, r.admin, e)
 		if code != http.StatusCreated {
@@ -72,14 +75,17 @@ func TestCostReadAddsCostEntries(t *testing.T) {
 		id, _ := got["id"].(string)
 		t.Cleanup(func() { call(t, r.e, r.op, http.MethodDelete, costEntryPath+"/"+id, r.admin, nil) })
 	}
-	got := entryParts(t, r, r.op, r.admin, month, cloud, hr, late)
-	c, h := got[cloud], got[hr]
+	got := entryParts(t, r, r.op, r.admin, month, cloud, hr, late, norate)
+	c, h, n := got[cloud], got[hr], got[norate]
 	if c.Kind != "cloud" || c.Origin != "hand" || !c.Hand || c.EntryMicros != 64800000 || c.EntryCurrency != "EUR" ||
 		c.SecondMicros == nil || *c.SecondMicros != 64800000 {
 		t.Errorf("E1 cloud entry: %+v", c)
 	}
 	if c.Unpriced != (c.USDMicros == 0) {
 		t.Errorf("E1 cloud entry: unpriced %v with usd %d", c.Unpriced, c.USDMicros)
+	}
+	if !n.Unpriced || n.USDMicros != 0 || n.SecondMicros != nil || n.EntryMicros != 7000000 || n.EntryCurrency != "XTS" {
+		t.Errorf("E1 an entry in a currency with no rate is unpriced, no USD, no second: %+v", n)
 	}
 	if h.Kind != "hr" || h.USDMicros != 10000000 || h.Unpriced || h.EntryCurrency != "USD" {
 		t.Errorf("E1 hr entry: %+v", h)

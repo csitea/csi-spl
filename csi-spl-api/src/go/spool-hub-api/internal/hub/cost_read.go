@@ -294,10 +294,13 @@ func costMonthAnswer(win costMonthWindow, estate bool, cur string, cm store.Cost
 	for _, p := range cm.Parts {
 		b.Total.USDMicros += p.USDMicros
 		b.Total.EURMicros += p.EURMicros
-		if p.SecondMicros == nil {
-			complete = false
-		} else {
+		switch {
+		case p.SecondMicros != nil:
 			second += *p.SecondMicros
+		case !p.Unpriced:
+			// SPL-4824: an unpriced entry is left out of the second
+			// currency as of USD, never blanks the total
+			complete = false
 		}
 	}
 	if complete {

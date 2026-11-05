@@ -106,10 +106,16 @@ case 6 fails).
   "No <currency> rate for this month, so no USD amount: it is not in the USD
   total", and the total's title names how many it leaves out
   (`data-left`). Never a silent $0.
+- **Every currency leaves it out the same way** (R7 W1): an unpriced entry
+  with no second-currency amount is left out of that total too, counted
+  (`secondLeftRows`), and never blanks it; the hub's `total.second_micros`
+  (`costMonthAnswer`) and the WUI sums agree. Only a priced part with no
+  rate still blanks the second total (never a guess). The heading reads
+  "Cloud costs" and the column "GCP project or entered cost".
 - **Spend** (`spend.vue`): the entry is a row of source "Entered costs"
   with the by-hand mark; an unpriced one shows the same dash in USD (and in
-  EUR unless it is a EUR entry), and the USD total's title names what it
-  leaves out.
+  EUR unless it is a EUR entry), and the USD, EUR and second totals' titles
+  each name what they leave out.
 - Pure parts: `cloudEntries`, `sectionAmount` and `cloudTotal`
   (`unpricedRows`) in `src/utils/costs-sections.mjs`; the mock month's
   scenario `entries` (`src/utils/tenant-costs.mjs`). Tests:
@@ -117,4 +123,4 @@ case 6 fails).
   returning the unpriced 0), `tests/e2e/monitoring-costs.test.mjs` (the
   `entries` block).
 
-<!-- version: 0.5.0 · updated: 2026-11-04 -->
+<!-- version: 0.6.0 · updated: 2026-11-05 -->

@@ -78,3 +78,23 @@ func TestCostMonthAnswer(t *testing.T) {
 		t.Errorf("a 0 USD month: %+v", z)
 	}
 }
+
+// SPL-4824 R7 W1: an unpriced cost entry (no rate, so no USD and no second
+// amount) is left out of the second-currency total, as of USD; a priced
+// part without a rate still blanks it (never a guess). RED CONTROL: fails
+// when costMonthAnswer sets complete = false for an Unpriced part.
+func TestCostMonthAnswerUnpricedEntryKeepsSecondTotal(t *testing.T) {
+	w, _ := costWindow("2026-10", time.Date(2026, 10, 11, 8, 0, 0, 0, time.UTC))
+	eur := int64(2_700_000)
+	gcp := store.CostPart{Estate: true, Source: "gcp", ProjectOrVendor: "p", Kind: "cloud_run", USDMicros: 3_000_000, EURMicros: eur, SecondMicros: &eur}
+	entry := store.CostPart{Estate: true, Source: store.CostSourceEntry, ProjectOrVendor: "suite", Kind: "cloud", Origin: "hand",
+		EntryMicros: 5_000_000, EntryCurrency: "CHF", Unpriced: true}
+	b := costMonthAnswer(w, true, "EUR", store.CostMonth{Parts: []store.CostPart{gcp, entry}})
+	if b.Total.SecondMicros == nil || *b.Total.SecondMicros != eur || b.Total.USDMicros != 3_000_000 {
+		t.Fatalf("total %+v, want second %d kept beside the unpriced entry", b.Total, eur)
+	}
+	gcp.SecondMicros = nil
+	if b := costMonthAnswer(w, true, "EUR", store.CostMonth{Parts: []store.CostPart{gcp, entry}}); b.Total.SecondMicros != nil {
+		t.Errorf("a priced part with no rate: second total %d, want none", *b.Total.SecondMicros)
+	}
+}

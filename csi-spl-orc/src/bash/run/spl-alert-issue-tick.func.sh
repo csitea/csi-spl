@@ -268,9 +268,9 @@ spl_ai_apply() {
       continue
     fi
     case "$op" in
-      comment) spl_ai_comment "$a" ;;
       # a write only while this machine still holds the orch role; a move
       # rolls the action back, its alerts stay unseen for the new holder
+      comment) spl_ai_holder_still && spl_ai_comment "$a" ;;
       file) spl_ai_holder_still && spl_ai_file "$src" "$a" ;;
       reopen) spl_ai_holder_still && spl_ai_reopen "$src" "$a" ;;
       hold) jq -r '"INFO held fp:\(.hash) \(.key): \(.why | join("; "))"' <<<"$a"; true ;;

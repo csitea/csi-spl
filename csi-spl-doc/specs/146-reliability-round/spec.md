@@ -68,13 +68,16 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
   at most one tick per `ALERT_ISSUE_EVERY_S` (300 s). Its log:
   `<spool root>/dispatch/alert-issue/tick.out`. The role can move during
   the reads (minutes: GCP 180 s, each hub read 120 s), so a live tick reads
-  `lease.orch` again after them and before every issue it files or
-  reopens: moved, it files nothing more, and the alerts of the writes it
-  skipped stay unseen for the new holder. This narrows the race, it does
-  not close it: the re-check reads this box's mirror of the hub lease
-  (`lease.orch`), which the lease loop refreshes once every `LEASE_PERIOD`
-  (60 s), so a move can go unseen here for up to one `LEASE_PERIOD` plus
-  the write in flight; only a hub-side lock would close it.
+  `lease.orch` again after them and before every issue it files,
+  reopens or comments on: moved, it writes nothing more, and the alerts of
+  the writes it skipped stay unseen for the new holder. This narrows the
+  race, it does not close it: the re-check reads this box's mirror of the
+  hub lease (`lease.orch`), which the lease loop refreshes once every
+  `LEASE_PERIOD` (60 s). So a move can go unseen here for one
+  `LEASE_PERIOD` while this box's lease loop reaches the hub, up to
+  `LEASE_STALE` (180 s) while its hub calls fail, and with no bound if the
+  loop itself is stalled (the re-check does not read the mirror's epoch),
+  plus the write in flight; only a hub-side lock would close it.
 - **Dry run by default**: it prints one `PLAN` line per fingerprint and files
   nothing. Live needs `ALERT_ISSUE_DRY_RUN=0` and `ALERT_ISSUE_DISCUSSION=<topic
   uuid>` (the discussion a disk or GCP alert's issue links) in

@@ -33,6 +33,7 @@
 #      rolled back (round-2 W1)
 #   10c. it moves after a create and before a reopen: the reopen is held
 #      (round-3 N2)
+#   10d. it moves after a comment: the next comment is held (round-4 N2)
 #   8. ALERT_ISSUE=0 does nothing; the orch role on another box does nothing;
 #      a live run without ALERT_ISSUE_DISCUSSION is refused
 #   9. do_spl_asks_tick starts the alert tick only on the holder's machine
@@ -92,6 +93,7 @@ case "\$a" in
     [ -f "$T/move.after.create" ] && echo "c-001@box-b 1" >"$SP/dispatch/lease.orch"
     true ;;
   do_spl_issue_update) [ -f "$T/update.fail" ] && { echo "FATAL hub down"; exit 1; }; echo ok ;;
+  do_spl_issue_comment) [ -f "$T/move.after.comment" ] && echo "c-001@box-b 1" >"$SP/dispatch/lease.orch"; echo ok ;;
   *) echo ok ;;
 esac
 EOF
@@ -280,6 +282,20 @@ rm -f "$SP/dispatch/lease.orch" "$T/move.after.create"; : >"$S/alerts.json"
 [[ "$(count do_spl_issue_create)" == 1 && "$(count do_spl_issue_update)" == 0 ]] && grep -q 'held on box-b' <<<"$out" &&
   pass "10c. the role moves after a create: the reopen that follows re-reads lease.orch and is held (no update)" ||
   fail "10c. move before reopen: create $(count do_spl_issue_create) update $(count do_spl_issue_update) $out"
+
+# 10d (round-4 N2): the role moves after a comment: the next repeat's
+# comment re-reads lease.orch and is held. Tick 1 files the lane-map and
+# deploy-lag issues; tick 2 repeats both
+reset; cp "$T/alerts.keep" "$S/alerts.json"; : >"$S/gcp.txt"; mv "$S/disk.ndjson" "$T/disk.hold"; : >"$S/disk.ndjson"
+out="$(tick DRY_RUN=0 ALERT_ISSUE_LANES_PER_DAY=9)"
+jq '.topics = [.topics[0] + {task_id: "0b9e4c1a-1111-4aaa-8bbb-00000000000d", last_ts: "2026-11-02T12:10:00Z"},
+  .topics[3] + {task_id: "0b9e4c1a-1111-4aaa-8bbb-00000000000e", last_ts: "2026-11-02T12:11:00Z"}]' "$T/alerts.keep" >"$S/alerts.json"
+: >"$T/calls.log"; echo "c-001@sat 1" >"$SP/dispatch/lease.orch"; touch "$T/move.after.comment"
+out="$(AT=$((NOW + 600)) tick DRY_RUN=0 ALERT_ISSUE_LANES_PER_DAY=9)"
+rm -f "$SP/dispatch/lease.orch" "$T/move.after.comment"; mv "$T/disk.hold" "$S/disk.ndjson"
+[[ "$(count do_spl_issue_comment)" == 1 && "$(count do_spl_issue_create)" == 0 ]] && grep -q 'held on box-b' <<<"$out" &&
+  pass "10d. the role moves after a comment: the next comment re-reads lease.orch and is held (1 comment, not 2)" ||
+  fail "10d. move after comment: comment $(count do_spl_issue_comment) create $(count do_spl_issue_create) $out"
 
 # 7: a failed create is filed on the next tick
 reset; cp "$T/alerts.keep" "$S/alerts.json"; : >"$S/gcp.txt"; : >"$S/disk.ndjson"

@@ -45,21 +45,28 @@
       :style="mode === 'field' ? listStyle : undefined"
       :data-test="test + '-list'"
     >
-      <li
-        v-for="(p, i) in rows"
-        :id="listId + '-' + i"
-        :key="p.id || '-'"
-        role="option"
-        class="person-picker__opt"
-        :class="{ 'is-active': i === active, 'person-picker__opt--tall': tall }"
-        :data-test="optionTest"
-        :data-value="p.id"
-        :data-current="p.id === modelValue ? 'true' : undefined"
-        :aria-selected="i === active ? 'true' : 'false'"
-        @mousedown.prevent
-        @mousemove="active = i"
-        @click="pick(p.id)"
-      >{{ p.label }}</li>
+      <template v-for="(p, i) in rows" :key="p.id || '-'">
+        <!-- a group's first row carries its heading (the Flow: persons, then agents) -->
+        <li
+          v-if="p.group && p.group !== rows[i - 1]?.group"
+          role="presentation"
+          class="person-picker__group"
+          :data-test="test + '-group'"
+        >{{ p.group }}</li>
+        <li
+          :id="listId + '-' + i"
+          role="option"
+          class="person-picker__opt"
+          :class="{ 'is-active': i === active, 'person-picker__opt--tall': tall }"
+          :data-test="optionTest"
+          :data-value="p.id"
+          :data-current="p.id === modelValue ? 'true' : undefined"
+          :aria-selected="i === active ? 'true' : 'false'"
+          @mousedown.prevent
+          @mousemove="active = i"
+          @click="pick(p.id)"
+        >{{ p.label }}</li>
+      </template>
     </ul>
     <p v-if="emptyText && open && !rows.length" class="person-picker__empty" role="status" :data-test="test + '-empty'">{{ emptyText }}</p>
   </div>
@@ -68,7 +75,8 @@
 <script setup lang="ts">
 import { enterPick, personRows, stepActive } from '~/utils/person-picker.mjs'
 
-type Person = { id: string, label: string }
+/** group: a heading the list shows above the first row of each group */
+type Person = { id: string, label: string, group?: string }
 const props = withDefaults(defineProps<{
   /** every choice, in order: the host puts "All" / "No assignee" first */
   options: Person[]
@@ -236,6 +244,7 @@ defineExpose({ focus: () => inputEl.value?.focus() })
   text-overflow: ellipsis;
 }
 .person-picker__opt.is-active { background: var(--color-selected); }
+.person-picker__group { padding: 6px 8px 2px; color: var(--color-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
 .person-picker__empty { margin: 0; padding: 6px 8px; color: var(--color-muted); }
 .person-picker__opt--tall { min-height: var(--tap, 44px); display: flex; align-items: center; }
 </style>

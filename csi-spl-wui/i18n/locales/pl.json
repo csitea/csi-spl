@@ -2387,6 +2387,16 @@
       "open_issue": "Otwórz zgłoszenie",
       "open_release": "Otwórz dziennik wydań",
       "mark_read": "Oznacz jako przeczytane"
+    },
+    "member": {
+      "label": "Czyj strumień",
+      "me": "Ja",
+      "persons": "Osoby",
+      "agents": "Agenci",
+      "none": "Brak dopasowań",
+      "viewing": "Czytasz strumień innej osoby. Otwarcie wiersza tutaj niczego nie oznacza jako przeczytane.",
+      "refused": "Tego strumienia nie można odczytać. Pokazujemy twój.",
+      "empty": "W tym strumieniu nie ma jeszcze nic."
     }
   },
   "release_notes": {

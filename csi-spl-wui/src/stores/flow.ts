@@ -84,6 +84,12 @@ function flowState(api: ReturnType<typeof useSpoolApi>) {
     unread: shallowRef<FlowCounts | null>(null),
     /** The pane is on screen: a new event is seen at once. */
     paneOpen: ref(false),
+    /** spec 130 section 3.1: whose Flow Mine shows, '' = the reader's own. */
+    member: ref(''),
+    /** The chips while another member's Flow shows: their unread, never the reader's badge. */
+    memberUnread: shallowRef<FlowCounts | null>(null),
+    /** That member's Flow was refused (403 / 404): the list went back to the reader's. */
+    memberRefused: ref(false),
     badge: useFlowBadge(),
     rail: useFlowRail(),
     /** The hub's unread per sidebar row (owner, t1 77540e6f). */
@@ -100,7 +106,10 @@ function flowViews(s: ReturnType<typeof flowState>) {
   /** What the panel lists: Mine's folded lines, or (mock fixtures only) the newest `shown` entries the read pages vouch for. */
   const visible = computed<Array<FlowLine | FlowEntry>>(() => (mineOn.value ? s.mine.value : view.value.entries as FlowEntry[]))
   const hasMore = computed(() => (mineOn.value ? Boolean(s.mineNext.value) : view.value.more))
-  const f = Object.assign(s, { view, mineOn, visible, hasMore, seenSoon: () => {}, refoldSoon: () => {} })
+  /** Another member's Flow shows: nothing the reader does here writes a mark (spec 130 section 3.1). */
+  const viewing = computed(() => Boolean(s.member.value))
+  const chipCounts = computed(() => (viewing.value ? s.memberUnread.value : s.unread.value || s.counts.value))
+  const f = Object.assign(s, { view, mineOn, visible, hasMore, viewing, chipCounts, seenSoon: () => {}, refoldSoon: () => {} })
   f.seenSoon = burst(SEEN_DEBOUNCE_MS, () => { void seen(f) })
   /** The hub folds (spec 130 section 2.6): a change re-reads the newest page, once per burst. */
   f.refoldSoon = burst(REFOLD_DEBOUNCE_MS, () => { if (f.mineLoaded.value) void readMine(f, '', true) })
@@ -202,6 +211,12 @@ function setCounts(f: Flow, c: unknown, u: unknown, k?: unknown) {
 /** A failed Flow read: a hub without the route (404) or no member session (403) turns Mine off. */
 function flowRefused(f: Flow, e: unknown) {
   const status = Number((e as { status?: number })?.status || 0)
+  /* another member's Flow refused (a guest, a member gone): back to the reader's own */
+  if (f.viewing.value && (status === 404 || status === 403)) {
+    f.memberRefused.value = true
+    setMember(f, '')
+    return true
+  }
   if (status === 404 || status === 403 || status === 405) {
     f.available.value = false
     f.badge.value = -1
@@ -217,10 +232,22 @@ function flowRefused(f: Flow, e: unknown) {
  */
 async function readMine(f: Flow, before: string, refresh = false) {
   const api = f.api
+  const member = f.member.value
   f.mineLoading.value = true
   f.error.value = ''
   try {
-    const r = await withSessionRetry(api, () => api.listFlow({ limit: FLOW_PAGE, before, kind: f.kind.value, self: self(), fold: true }))
+    const r = await withSessionRetry(api, () => api.listFlow({ limit: FLOW_PAGE, before, kind: f.kind.value, self: self(), member, fold: true }))
+    /* the picker moved while this page was on its way: it is someone else's */
+    if (member !== f.member.value) return
+    /* another member's counts are theirs: the chips show them, the reader's badge stays */
+    if (member) {
+      f.memberUnread.value = parseFlowCounts(r.unread)
+      if (before) f.mine.value = mergeFlowLines(f.mine.value, r.lines)
+      else f.mine.value = refresh && f.mineLoaded.value ? refreshFlowLines(r.lines, f.mine.value) : r.lines
+      if (!refresh || !f.mineLoaded.value) f.mineNext.value = String(r.next || '')
+      f.mineLoaded.value = true
+      return
+    }
     /* the cursor is the raw event the hub stopped at (contract flow-fold-v1 section 3) */
     if (before) f.mine.value = mergeFlowLines(f.mine.value, r.lines)
     else if (refresh && f.mineLoaded.value) {
@@ -278,7 +305,7 @@ function startBadge(f: Flow) {
  * tabs and devices (FR-007). The entries stay unread until opened.
  */
 async function seen(f: Flow) {
-  if (!f.counts.value || f.counts.value.total === 0) return
+  if (f.viewing.value || !f.counts.value || f.counts.value.total === 0) return
   f.counts.value = { mention: 0, reply: 0, dm: 0, total: 0 }
   f.badge.value = 0
   syncAppBadge(navigator, 0)
@@ -288,6 +315,27 @@ async function seen(f: Flow) {
   } catch {
     /* the next open marks it again; the hub's next frame corrects the number */
   }
+}
+
+/**
+ * spec 130 section 3.1: show `id`'s Flow ('' or the reader = the reader's
+ * own). A fresh read; the chip filter goes. Back on the reader's own with
+ * the pane open, the badge is seen again.
+ */
+function setMember(f: Flow, id: string) {
+  const next = id && id !== self() ? id : ''
+  if (next === f.member.value) return
+  if (next) f.memberRefused.value = false
+  /* before the first read, ensure() reads it (no double read on a pasted ?flow=) */
+  const read = f.mineLoaded.value || f.mineLoading.value
+  f.member.value = next
+  f.memberUnread.value = null
+  f.kind.value = ''
+  f.mine.value = []
+  f.mineNext.value = ''
+  f.mineLoaded.value = false
+  if (read && f.mineOn.value) void readMine(f, '')
+  if (!next && f.paneOpen.value) void seen(f)
 }
 
 /** A chip: that kind only; the same chip again shows every kind. */
@@ -335,7 +383,8 @@ function ensure(f: Flow) {
 }
 
 function markOpened(f: Flow, key: string) {
-  if (!key || f.opened.value.has(key)) return
+  /* another member's line: opening it reads it, it marks nobody's (spec 130 section 3.1) */
+  if (!key || f.viewing.value || f.opened.value.has(key)) return
   f.opened.value = new Set([...f.opened.value, key])
   /* spec 130 FR-009: opening a folded line marks all of it read on every
      device: t:<task_id> at its newest event, a release line f:rel:<version> */
@@ -358,8 +407,11 @@ export const useFlowStore = defineStore('flow', () => {
   const f = flowViews(flowState(useSpoolApi()))
   const { available, mineOn, mine, mineLoading, mineLoaded, kind, counts, unread, paneOpen } = f
   const { entries, visible, hasMore, loadingMore, loading, loaded, error, activeKey, opened } = f
+  const { member, viewing, chipCounts, memberRefused } = f
   return {
     available, mineOn, mine, mineLoading, mineLoaded, kind, counts, unread, paneOpen,
+    member, viewing, chipCounts, memberRefused,
+    setMember: (id: string) => setMember(f, id),
     startBadge: () => startBadge(f),
     readCounts: () => readCounts(f),
     seen: () => seen(f),

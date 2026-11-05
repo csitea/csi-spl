@@ -228,7 +228,7 @@ declare module '~/utils/spool-client.mjs' {
     unlinkIssueDiscussion(ref: string, taskId: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     createIssueLabel(opts: { name: string, color?: string }): Promise<{ label: import('~/utils/issues.mjs').IssueLabel }>
     /** spec 062 §4.2: the viewer's flow events (a page, or the counts alone). */
-    listFlow(opts?: { limit?: number, before?: string, kind?: string, countsOnly?: boolean, self?: string, fold?: boolean }): Promise<{
+    listFlow(opts?: { limit?: number, before?: string, kind?: string, countsOnly?: boolean, self?: string, member?: string, fold?: boolean }): Promise<{
       events: Array<Record<string, unknown>>
       /** spec 130: the folded lines (fold: true), [] otherwise */
       lines: import('~/utils/flow-fold.mjs').FlowLine[]

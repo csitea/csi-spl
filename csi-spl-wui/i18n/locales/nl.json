@@ -2387,6 +2387,16 @@
       "open_issue": "Issue openen",
       "open_release": "Releaselog openen",
       "mark_read": "Markeren als gelezen"
+    },
+    "member": {
+      "label": "Wiens Flow",
+      "me": "Ik",
+      "persons": "Mensen",
+      "agents": "Agenten",
+      "none": "Niemand gevonden",
+      "viewing": "Je leest de Flow van iemand anders. Een regel hier openen markeert niets als gelezen.",
+      "refused": "Die Flow kan niet worden gelezen. Je eigen Flow wordt getoond.",
+      "empty": "Nog niets in deze Flow."
     }
   },
   "release_notes": {

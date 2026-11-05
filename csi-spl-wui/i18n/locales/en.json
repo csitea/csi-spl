@@ -2387,6 +2387,16 @@
       "open_issue": "Open issue",
       "open_release": "Open release log",
       "mark_read": "Mark read"
+    },
+    "member": {
+      "label": "Whose Flow",
+      "me": "Me",
+      "persons": "People",
+      "agents": "Agents",
+      "none": "No one matches",
+      "viewing": "You are reading someone else's Flow. Opening a line here marks nothing as read.",
+      "refused": "That Flow cannot be read. Showing yours.",
+      "empty": "Nothing in this Flow yet."
     }
   },
   "release_notes": {

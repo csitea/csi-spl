@@ -2387,6 +2387,16 @@
       "open_issue": "Görevi aç",
       "open_release": "Sürüm günlüğünü aç",
       "mark_read": "Okundu olarak işaretle"
+    },
+    "member": {
+      "label": "Kimin akışı",
+      "me": "Ben",
+      "persons": "Kişiler",
+      "agents": "Ajanlar",
+      "none": "Eşleşen yok",
+      "viewing": "Başka birinin akışını okuyorsun. Burada bir satırı açmak hiçbir şeyi okundu olarak işaretlemez.",
+      "refused": "Bu akış okunamıyor. Seninki gösteriliyor.",
+      "empty": "Bu akışta henüz bir şey yok."
     }
   },
   "release_notes": {

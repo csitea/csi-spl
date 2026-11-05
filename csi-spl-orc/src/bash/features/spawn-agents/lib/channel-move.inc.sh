@@ -39,6 +39,13 @@
 # any shell check: the barrier is the owner's passphrase and the verify on
 # each box. Under SPOOL_TEST=1 the spool root is $SPOOL_ROOT (the spool test
 # guard refuses the live one) and the environment is trusted, for the tests.
+# SPOOL_TEST=1 is itself an environment variable (c-715 N5): with it and a
+# fake root every seam is honoured again, so a cm_cmd_* hook (rows B4, B5)
+# must, under SPOOL_TEST=1, refuse any path, pane or ssh target outside
+# $SPOOL_ROOT and its sandbox, and never drive a live seat.
+# The registry is keyed on the pane id (%N), which tmux reuses after a server
+# restart (c-715 N6, unverified): an old row can name a dead agent when the
+# window carries no id. B4/B5 re-check the id is live before acting on it.
 #
 # Seams, honoured only under SPOOL_TEST=1: MOVE_CALLER_PROC (a fake /proc),
 # MOVE_CALLER_PID (where the walk starts), MOVE_DIRECTIVE_DIR (the directive
@@ -242,16 +249,22 @@ cm_dir_scripts() {
   else printf '%s' "$CM_LIB_DIR/../../directive/scripts"; fi
 }
 
-# Run directive script NAME. Outside SPOOL_TEST every knob a caller could set
-# is stripped: the pin, keyring, ledger and window record come from the box
-# config and the user's own home; DIRECTIVE_BOX is this box's trusted tag.
+# Run directive script NAME. Outside SPOOL_TEST it runs under `env -i` with
+# an allow-list only (c-715 W1'): a fixed PATH, HOME from getent, USER and
+# LOGNAME, LANG, TERM and GPG_TTY for the pinentry, SPOOL_ROOT the live root,
+# DIRECTIVE_BOX this box's trusted tag. So no DIRECTIVE_* knob, BASH_ENV,
+# PATH entry, LD_PRELOAD or exported function of the caller reaches it; the
+# pin, keyring, ledger and window record come from the box config and the
+# user's own home. bash and env by absolute path.
+CM_SAFE_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 cm_dir_run() {  # NAME ARGS...
-  local f h; f="$(cm_dir_scripts)/$1"; shift
+  local f h u t=""; f="$(cm_dir_scripts)/$1"; shift
   if cm_in_test; then DIRECTIVE_BOX="$(cm_box)" bash "$f" "$@"; return; fi
-  h="$(cm_home_of "$(id -un)")"
-  env -u DIRECTIVE_FPR -u DIRECTIVE_GNUPGHOME -u DIRECTIVE_LEDGER -u DIRECTIVE_BOX \
-      -u DIRECTIVE_SESSION_STATE -u DIRECTIVE_REPLY_TO -u SPOOL_BOX_ENV -u GNUPGHOME \
-      HOME="${h:-/nonexistent}" SPOOL_ROOT="$(cm_trust_root)" DIRECTIVE_BOX="$(cm_box)" bash "$f" "$@"
+  u="$(id -un)"; h="$(cm_home_of "$u")"
+  [ -t 0 ] && t="$(/usr/bin/tty 2>/dev/null)"
+  /usr/bin/env -i PATH="$CM_SAFE_PATH" HOME="${h:-/nonexistent}" USER="$u" LOGNAME="$u" \
+    LANG="${LANG:-C.UTF-8}" TERM="${TERM:-dumb}" ${t:+GPG_TTY="$t"} \
+    SPOOL_ROOT="$(cm_trust_root)" DIRECTIVE_BOX="$(cm_box)" /bin/bash "$f" "$@"
 }
 
 # The text an owner command signs: command, channel, target, move id.

@@ -284,6 +284,27 @@ out="$(live SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FO
 grep -q 'rc=3' <<<"$out" && [ ! -e "$T/ledger-w1" ] && pass "W1 a forged DIRECTIVE_FPR/GNUPGHOME/LEDGER outside SPOOL_TEST: refused, the forged ledger untouched" || fail "W1 forged FPR: $out"
 out="$(env SPOOL_TEST=1 SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FORGE_TEXT="$TXT" DIRECTIVE_FPR="$FPR" DIRECTIVE_GNUPGHOME="$G" DIRECTIVE_LEDGER="$T/ledger-w1" SPOOL_BOX_ENV=/nonexistent bash -c '. "$0"; eval "$SNIPPET"' "$LIB" 2>&1)"
 grep -q 'rc=0' <<<"$out" && pass "W1 CONTROL: the same envelope and key verify when the env is trusted (SPOOL_TEST=1)" || fail "W1 control FPR: $out"
+mkdir -p "$T/fakebin"
+printf 'case "$0" in *directive-verify.sh) cat >/dev/null; printf "%%s\\n" "$FORGE_TEXT"; exit 0 ;; esac\n' >"$T/evil-bash-env.sh"
+out="$(live SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FORGE_TEXT="$TXT" BASH_ENV="$T/evil-bash-env.sh")"
+grep -q 'rc=3' <<<"$out" && pass "W1' a forged BASH_ENV outside SPOOL_TEST: refused" || fail "W1' BASH_ENV: $out"
+out="$(env SPOOL_TEST=1 SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FORGE_TEXT="$TXT" BASH_ENV="$T/evil-bash-env.sh" bash -c '. "$0"; eval "$SNIPPET"' "$LIB" 2>&1)"
+grep -q 'rc=0' <<<"$out" && pass "W1' CONTROL: the same BASH_ENV forges verify where the env is passed (SPOOL_TEST=1)" || fail "W1' BASH_ENV control: $out"
+# What reaches a directive script: a probe in place of the scripts dir prints
+# its own environment (this box pins no key, so the real verify stops before
+# gpg and a fake gpg there would prove nothing).
+mkdir -p "$T/probe"; printf '#!/bin/bash\nenv\n' >"$T/probe/directive-verify.sh"
+PROBE='cm_dir_scripts() { printf %s "$PROBE_DIR"; }; cm_dir_run directive-verify.sh'
+envd="$(live SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$PROBE" PROBE_DIR="$T/probe" PATH="$T/fakebin:$PATH" BASH_ENV=/dev/null \
+  LD_PRELOAD=/nonexistent.so DIRECTIVE_FPR=forged GNUPGHOME=/forged BASH_FUNC_gpg%%='() { :; }')"
+[ "$(sed -n 's/^PATH=//p' <<<"$envd")" = /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ] &&
+  ! grep -qE '^(BASH_ENV|LD_PRELOAD|DIRECTIVE_FPR|GNUPGHOME|BASH_FUNC_)' <<<"$envd" && grep -q "^DIRECTIVE_BOX=$LIVE_TAG\$" <<<"$envd" &&
+  pass "W1' outside SPOOL_TEST the script gets the fixed PATH and no BASH_ENV, LD_PRELOAD, DIRECTIVE_FPR, GNUPGHOME or exported function" ||
+  fail "W1' script env: $(grep -E '^(PATH|BASH_ENV|LD_PRELOAD|DIRECTIVE_|GNUPGHOME|BASH_FUNC_)' <<<"$envd" | tr '\n' ' ')"
+envd="$(env SPOOL_TEST=1 SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$PROBE" PROBE_DIR="$T/probe" PATH="$T/fakebin:$PATH" BASH_ENV=/dev/null \
+  bash -c '. "$0"; eval "$SNIPPET"' "$LIB" 2>&1)"
+grep -q "^PATH=$T/fakebin:" <<<"$envd" && grep -q '^BASH_ENV=' <<<"$envd" &&
+  pass "W1' CONTROL: the same probe under SPOOL_TEST=1 sees the caller's PATH and BASH_ENV" || fail "W1' env control: $envd"
 got="$(SNIPPET='cm_box; echo "|$(cm_trust_root)"' live SPOOL_BOX_TAG=box-z SPOOL_ROOT="$A")"
 [ "$got" != "box-z|/var/spool-hub" ] && [ "${got#*|}" = /var/spool-hub ] && [ "${got%%|*}" != box-z ] &&
   pass "W3 outside SPOOL_TEST the box tag is the box config's ('${got%%|*}'), not env box-z; the lease is read from /var/spool-hub" || fail "W3: got '$got'"

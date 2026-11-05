@@ -2387,6 +2387,16 @@
       "open_issue": "Avaa tehtävä",
       "open_release": "Avaa julkaisuloki",
       "mark_read": "Merkitse luetuksi"
+    },
+    "member": {
+      "label": "Kenen virta",
+      "me": "Minä",
+      "persons": "Ihmiset",
+      "agents": "Agentit",
+      "none": "Ei osumia",
+      "viewing": "Luet jonkun toisen virtaa. Rivin avaaminen täällä ei merkitse mitään luetuksi.",
+      "refused": "Tätä virtaa ei voi lukea. Näytetään omasi.",
+      "empty": "Tässä virrassa ei ole vielä mitään."
     }
   },
   "release_notes": {

@@ -1693,18 +1693,20 @@ function mockTopicTitle(messages, task) {
 /** MOCK ONLY: 'off' makes the mock Flow answer without `keys`, as an older hub. */
 const MOCK_FLOW_KEYS_OFF = 'spool.mock.flow-keys'
 
-async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = false, self = '', fold = false } = {}) {
+async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = false, self = '', member = '', fold = false } = {}) {
   const { live, mock, state } = ctx
   if (mock) {
-    const marks = mockFlowMarks(state)
+    /* spec 130 section 3.1: another member's Flow is theirs; the reader's marks do not cover it */
+    const marks = member ? mockFlowMarks({}) : mockFlowMarks(state)
     /* a t:<task_id> mark covers the topic's events at or before it */
-    const all = mockFlowEvents(state.messages, self).map((e) => {
+    /* the mock's rows name an agent by its bare id: <id>@<box> reads as <id> */
+    const all = mockFlowEvents(state.messages, String(member || self).split('@')[0]).map((e) => {
       const t = marks.topics.get(String(e.task_id || ''))
       if (t && String(e.at) <= t) marks.opened.add(String(e.msg_id))
       return e
     })
     /* the reader's read cursors stand in for the hub's read marks */
-    const cursors = loadCursors()
+    const cursors = member ? null : loadCursors()
     /* an archived topic's lines are read, as the hub's cover rule has them (t1 56b8cc17) */
     const cards = state.archived || []
     const gone = new Set([...cards.map((m) => String(m.msg_id)), ...cards.map((m) => String(m.task_id))])
@@ -1731,6 +1733,7 @@ async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = 
     return { events: page, next: from + limit < pick.length ? String(from + limit) : '', counts, unread, keys }
   }
   const q = new URLSearchParams()
+  if (member) q.set('member', String(member))
   if (countsOnly) q.set('counts_only', 'true')
   else {
     q.set('limit', String(limit))

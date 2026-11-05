@@ -2387,6 +2387,16 @@
       "open_issue": "Deschide sarcina",
       "open_release": "Deschide jurnalul de versiuni",
       "mark_read": "Marchează ca citit"
+    },
+    "member": {
+      "label": "Fluxul cui",
+      "me": "Eu",
+      "persons": "Persoane",
+      "agents": "Agenți",
+      "none": "Nicio potrivire",
+      "viewing": "Citești fluxul altcuiva. Deschiderea unui rând aici nu marchează nimic ca citit.",
+      "refused": "Acest flux nu poate fi citit. Se afișează al tău.",
+      "empty": "Încă nu este nimic în acest flux."
     }
   },
   "release_notes": {

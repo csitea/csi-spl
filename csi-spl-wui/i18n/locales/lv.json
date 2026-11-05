@@ -2387,6 +2387,16 @@
       "open_issue": "Atvērt uzdevumu",
       "open_release": "Atvērt laidienu žurnālu",
       "mark_read": "Atzīmēt kā lasītu"
+    },
+    "member": {
+      "label": "Kura plūsma",
+      "me": "Es",
+      "persons": "Cilvēki",
+      "agents": "Aģenti",
+      "none": "Neviens neatbilst",
+      "viewing": "Tu lasi kāda cita plūsmu. Atverot rindu šeit, nekas netiek atzīmēts kā izlasīts.",
+      "refused": "Šo plūsmu nevar izlasīt. Tiek rādīta tava.",
+      "empty": "Šajā plūsmā vēl nekā nav."
     }
   },
   "release_notes": {

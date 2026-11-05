@@ -35,14 +35,15 @@ export type FlowLineMenuOptions = {
 type MenuState = { row: FlowRow | null, x: number, y: number }
 
 /** What the open menu shows: a folded line's entries and its AI subject, else the message's. */
-function flowMenuView(menu: MenuState, isLine: FlowLineMenuOptions['isLine']) {
+function flowMenuView(menu: MenuState, isLine: FlowLineMenuOptions['isLine'], flow: FlowLineMenuOptions['flow']) {
   const MENU_ITEMS: PointMenuItem[] = [{ id: 'original', icon: 'open', labelKey: 'search.menu.original' }]
   const menuLine = computed(() => (isLine(menu.row) ? menu.row : null))
   /* a folded line: the entries it offers (flowLineOffered), each with its Shift key */
   const menuItems = computed<PointMenuItem[]>(() => {
     const line = menuLine.value
     if (!line) return MENU_ITEMS
-    const offered = flowLineOffered(line)
+    /* another member's line: Mark read would act as them (spec 130 section 3.1) */
+    const offered = flowLineOffered(line).filter((id: string) => !(flow.viewing && id === 'read'))
     return FLOW_LINE_ACTIONS.filter((a) => offered.includes(a.id))
       .map((a) => ({ id: a.id, icon: a.icon, labelKey: a.labelKey, keyHint: flowShortcutHint(a.id) }))
   })
@@ -106,7 +107,7 @@ function flowLineRunner(o: FlowLineMenuOptions, aiList: ReturnType<typeof useAiL
 export function useFlowLineMenu(o: FlowLineMenuOptions) {
   const { flow, listEl, stack, isLine, openKey } = o
   const menu = reactive<MenuState>({ row: null, x: 0, y: 0 })
-  const { menuLine, menuItems, menuAi } = flowMenuView(menu, isLine)
+  const { menuLine, menuItems, menuAi } = flowMenuView(menu, isLine, flow)
   const aiList = useAiListRun()
   const aiError = ref('')
   const runLine = flowLineRunner(o, aiList, aiError)

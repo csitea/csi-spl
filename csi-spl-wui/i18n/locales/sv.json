@@ -2387,6 +2387,16 @@
       "open_issue": "Öppna ärendet",
       "open_release": "Öppna versionsloggen",
       "mark_read": "Markera som läst"
+    },
+    "member": {
+      "label": "Vems flöde",
+      "me": "Jag",
+      "persons": "Personer",
+      "agents": "Agenter",
+      "none": "Ingen matchar",
+      "viewing": "Du läser någon annans flöde. Att öppna en rad här markerar ingenting som läst.",
+      "refused": "Det flödet kan inte läsas. Ditt eget visas.",
+      "empty": "Inget i det här flödet ännu."
     }
   },
   "release_notes": {

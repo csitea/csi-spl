@@ -11,7 +11,7 @@ Owner HUM-10, t1 topic `27162335-08ea-4a9b-8a27-aad17a920eef`:
 | msg | time (UTC) | text |
 |---|---|---|
 | `038fa412` | 2026-10-25 11:03:35 | "it should be possible for the end user to actually seen the console output of a lane , ON PER DEMAND click" |
-| `8dd53bd9` | 2026-10-25 11:05:22 | "meaning getting the same output which the terminal user on the tmux window will see , but ONLY after he opens the lane , which will have the lane data in a pop-up modal dialog - the same way the issues are opened within th table , and theere at tend should bhe the console output button , wihch one clicking will get a life feed of the console , the same one which one would get via the terminal" |
+| `8dd53bd9` | 2026-10-25 11:05:22 | "meaning getting the same output which the terminal user on the tmux window will see , but ONLY after he opens the lane , which will have the lane data in a pop-up modal dialog - the same way the issues are opened within th table , and there at tend should bhe the console output button , which one clicking will get a life feed of the console , the same one which one would get via the terminal" |
 | `3b2ba6f3` | 2026-10-25 11:05:41 | "and than the capability to save that logoutput to a file locally" |
 
 ## 2. What it does
@@ -87,8 +87,14 @@ raw lines, so a value-class secret (`password: <value>`, `KEY="<value>"`)
 whose head line is already masked still marks its tail line: a masked
 span that crosses the wrap marks the run unless the head line's own
 masked value is a whole secret by itself (a complete token after
-`GH_TOKEN=`). The join drops the newline, so a word that starts the line
-after a secret may be masked with it: more, never less. A secret wrapped
+`GH_TOKEN=` with words after it). A head line whose own mask runs to the
+line end always marks: a long token cut at the pane width
+(`github_pat_`, `sk-ant-api03-`, a Bearer JWT) still matches on its head
+line alone, so a complete token at a line end is masked with the line
+after it too. A line that starts with its secret (column 0) joins raw like
+any other; a PEM line masked whole joins masked. The join drops the
+newline, so a word that starts the line after a secret may be masked with
+it: more, never less. A secret wrapped
 over more than 4 lines (a narrow pane: a 40-character token under 10
 columns) leaves the lines after the 4th unmasked. Each line is cut to
 the follower's line limit only after the mask, so a cut never leaves a

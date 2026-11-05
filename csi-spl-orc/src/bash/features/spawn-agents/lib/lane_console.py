@@ -41,6 +41,7 @@ PUSH_OP = "file_streams_console_push"
 # a line a hard-wrapped secret spans (LaneConsole.wrapped)
 WRAPPED_KIND = "wrapped-secret"
 WRAPPED_MASK = f"<redacted:{WRAPPED_KIND}>"
+PEM_MASK = "<redacted:private-key>"  # a PEM line, masked whole by the follower
 WRAP_SPAN = 4  # lines a hard-wrapped secret may span: a 40-char token at 12 cols
 BORDER = "│┃|⎿"  # the box edges and gutters a TUI draws around a wrapped line
 
@@ -163,7 +164,13 @@ class LaneConsole:
                 # the join reads the raw line: a masked head line hides
                 # the secret a wrapped tail line still carries (R7 c-164 r3
                 # W1); a line masked whole (a PEM body) stays masked
-                raw = len(res) == 1 and span(ln, text)[0]
+                # (a secret at column 0 has lo 0: test None, not falsy,
+                # R7 c-164 r4)
+                raw = (
+                    len(res) == 1
+                    and span(ln, text)[0] is not None
+                    and PEM_MASK not in text
+                )
                 src.append(ln if raw else text)  # ctl:console-raw
                 for k, n in counts.items():
                     red[k] = red.get(k, 0) + n
@@ -196,6 +203,14 @@ class LaneConsole:
         lo, hi = span(text, masked)
         return lo is not None and self.remask(text[lo:hi])[1] > 0  # ctl:console-whole
 
+    def at_end(self, text):
+        """-> True when the value the mask hides in `text` runs to the end
+        of the line: a token the TUI cut at the pane width still matches
+        its pattern on the head line alone, so whole() cannot tell it from
+        a complete one and its tail line would leak (R7 c-164 r4)."""
+        _lo, hi = span(text, self.remask(text)[0])
+        return hi == len(text)
+
     def wrapped(self, lines):
         """-> the indexes of the masked lines a secret spans that no line
         shows alone. capture-pane -J joins only the rows tmux wrapped; an
@@ -219,7 +234,7 @@ class LaneConsole:
             # and once joined: a masked span across the wrap still marks,
             # unless the head line's own masked value is a whole secret
             over = lo is not None and lo < len(run[0]) < hi
-            crosses = over and not self.whole(run[0])
+            crosses = over and (self.at_end(run[0]) or not self.whole(run[0]))
             if n <= sum(one[i : i + len(run)]) and not crosses:  # ctl:console-wrap
                 continue
             at = 0

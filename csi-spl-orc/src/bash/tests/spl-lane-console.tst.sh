@@ -8,7 +8,8 @@
 #   L1 a watched window: its screen plus 200 lines of scrollback is pushed,
 #      a token planted on scrollback line 150 and a 4-line PEM key arrive
 #      masked, the lines around them unchanged (dispatch holder's condition
-#      on plan 7e928b34)
+#      on plan 7e928b34), but line 151: a complete token at a line end is
+#      masked with the next line, as a wrap is (ruling c-002 e58ee764)
 #   L2 nobody watches: no capture (not one tmux call) and no push
 #   L3 a window named with a box tag ("<tag>: c-902 title") is found
 #   L4 an unchanged screen is not re-sent before keep_s
@@ -25,6 +26,11 @@
 #      raw lines, not the masked ones (R7 c-164 r3 W1)
 #   L9 a token hard-wrapped inside a nested TUI box ("│ │ … │ │") is
 #      masked: every border layer is dropped (R7 c-164 r3 N1)
+#  L10 long tokens the TUI cut at col 80 (github_pat_, sk-ant-api03, a
+#      Bearer JWT) and tokens at column 0 (cut at 40..80) arrive masked,
+#      their tail lines too: a head line whose own mask runs to the line
+#      end is a wrap even when it matches alone; a complete token inside
+#      a line keeps the words after it (R7 c-164 r4)
 # Each runs green on the module and red on a copy with one planted defect.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -101,6 +107,34 @@ out, w = sys.argv[1:]
 lines = ["before-nest", f"│ │ cut {w[:16]} │ │", f"│ │ {w[16:]} │ │", "-- after-nest"]
 open(out, "w").write("\n".join(lines) + "\n")
 EOF
+# long tokens hard-wrapped (R7 c-164 r4 plants), WRAP_SPAN gap lines
+# apart; <case>.pieces: 8 characters from the head, middle and tail of each
+python3 - "$T/pat.txt" "$T/pat.pieces" <<'EOF'
+import secrets, string, sys
+out, pieces = sys.argv[1:]
+rnd = lambda n: "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(n))
+pat = lambda: "github" + "_pat_" + rnd(22) + "_" + rnd(59)
+sk = lambda: "sk" + "-ant-api03-" + rnd(93) + "-AA"
+jwt = "ey" + "J" + rnd(33) + ".ey" + "J" + rnd(60) + "." + rnd(43)
+cases = [  # (text, its secret, wrap column)
+    (f"  token: {(p := pat())}", p, 80),
+    (f"ANTHROPIC_API_KEY={(k := sk())}", k, 80),
+    (f'  -H "Authorization: Bearer {jwt}"', jwt, 80),
+    *[((p := pat()), p, w) for w in (50, 60, 80)],
+    ((k := sk()), k, 40),
+]
+keep = ["gh" + "p_" + rnd(36), "gh" + "p_" + rnd(36)]
+lines, bits = ["before-pat"], []
+for n, (text, sec, w) in enumerate(cases):
+    lines += [text[i : i + w] for i in range(0, len(text), w)]
+    lines += [f"-- gap {n} {g}" for g in range(4)]
+    bits += [sec[12:20], sec[len(sec) // 2 : len(sec) // 2 + 8], sec[-9:-1]]
+lines += [f"keep GH_TOKEN={keep[0]} kept-word", f"{keep[1]} tail", "-- after-pat"]
+bits += [keep[0][4:12], keep[1][4:12]]
+open(out, "w").write("\n".join(lines) + "\n")
+open(pieces, "w").write("\n".join(bits) + "\n")
+EOF
+tmux -S "$SOCK" new-window -d -t lc -n "c-908 pat" "cat '$T/pat.txt'; sleep 600"
 tmux -S "$SOCK" new-window -d -t lc -n "c-907 nested" "cat '$T/nested.txt'; sleep 600"
 sleep 1
 
@@ -166,7 +200,9 @@ l1() {
   if grep -qF -- "$TOKEN" "$d/pushed" || grep -qF -- "${KEYLINES[0]}" "$d/pushed" || grep -qF -- "${KEYLINES[1]}" "$d/pushed"; then
     echo "  L1: a secret left the box"; return 1
   fi
-  jq -e '.screen | contains("line 150 export GH_TOKEN=<redacted") and contains("line 149\nline 150") and contains("line 220")
+  # a complete token at a line end is masked with the line after it, as
+  # a wrap would be: more, never less (R7 c-164 r4, ruling c-002 e58ee764)
+  jq -e '.screen | contains("line 149\n<redacted:wrapped-secret>\n<redacted:wrapped-secret>\nline 152") and contains("line 220")
     and contains("line 30\n") and contains("<redacted:private-key>") and contains("line 164")' <<<"$s" >/dev/null ||
     { echo "  L1: screen: $(jq -r .screen <<<"$s" | sed -n '145,170p')"; return 1; }
   jq -e '([.redactions | to_entries[] | select(.key != "private-key") | .value] | add // 0) >= 1 and .redactions["private-key"] >= 1 and .lines_n >= 200' <<<"$s" >/dev/null ||
@@ -263,6 +299,21 @@ l9() {
     { echo "  L9: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
 }
 
+l10() {
+  local d="$T/l10-$RANDOM" s p
+  run "$1" "$d" '["c-908"]'
+  s="$(screens "$d" c-908 | tail -n 1)"
+  [[ -n "$s" ]] || { echo "  L10: no console push: $(cat "$d/out")"; return 1; }
+  while read -r p; do
+    if grep -qF -- "$p" "$d/pushed"; then echo "  L10: a piece of a wrapped long token left the box: $p"; return 1; fi
+  done <"$T/pat.pieces"
+  # a gap line after a token may be masked with it (more, never less):
+  # the last gap line of each case stays
+  jq -e '(.screen | contains("-- gap 0 3") and contains("-- gap 6 3") and contains("-- after-pat"))
+    and (.screen | contains("keep GH_TOKEN=<redacted:github-token> kept-word"))' <<<"$s" >/dev/null ||
+    { echo "  L10: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
+}
+
 # check <id> <what> <fn> [<control> <old> <new>]...: green on the module,
 # red on each planted defect.
 check() {
@@ -284,7 +335,7 @@ check() {
 check L1 "a watched window: screen + 200 lines of scrollback, line 150's token and a PEM key masked" l1 \
   no-mask 'self.mask(st, ln)' '[(ln, False, {})]:' \
   screen-only '"-S", f"-{self.scroll}", ' '' \
-  no-whole 'and not self.whole(run[0])' ''
+  pem-joined 'and PEM_MASK not in text' 'and True'
 check L2 "nobody watches: no tmux call, no push" l2 \
   always-capture 'if not self.agents:' 'if not self.agents and False:'
 check L3 "a window named with a box tag is found" l3 \
@@ -303,6 +354,10 @@ check L8 "a value-class secret hard-wrapped across two lines is masked, its tail
   count-only 'and not crosses:  # ctl:console-wrap' ':  # ctl:console-wrap'
 check L9 "a token hard-wrapped inside a nested TUI box is masked" l9 \
   one-layer 'while prev != text:  # ctl:console-unbox' 'for _ in [0]:'
+check L10 "a long token wrapped at col 80, and one at col 0, is masked, its tail too" l10 \
+  no-end 'self.at_end(run[0]) or ' '' \
+  no-whole ' or not self.whole(run[0])' ' or True' \
+  lo-falsy 'span(ln, text)[0] is not None' 'span(ln, text)[0]'
 
 [[ "$fails" == 0 ]] && echo "OK spl-lane-console: all passed" || echo "FAIL spl-lane-console: $fails failed"
 ((fails == 0))

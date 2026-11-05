@@ -28,21 +28,34 @@ export type CalendarDeepLinkOptions = {
   api: ReturnType<typeof useSpoolApi>
 }
 
-export function useCalendarDeepLinks(o: CalendarDeepLinkOptions) {
-  const { items, state, weekStart, weekEl, peekOpen, openPeek, openEdit, say, showNotice, move, api } = o
-  const route = useRoute()
-  const router = useRouter()
+/** The link each watch last acted on, shared by the steps below. */
+type DeepLinkAsked = { event: string, issue: string }
 
-  let askedEvent = ''
+export function useCalendarDeepLinks(o: CalendarDeepLinkOptions) {
+  const asked: DeepLinkAsked = { event: '', issue: '' }
+  watchEventLink(o, asked)
+  const issueMiss = watchIssueLink(o, asked)
+  const openIssue = watchPeekClose(o, asked)
+  /* openPeek put this deadline's key in the URL itself */
+  function askIssue(key: string) {
+    asked.issue = key
+  }
+  return { issueMiss, openIssue, askIssue }
+}
+
+/* ?event=<id>: open the event once the shown week holds it */
+function watchEventLink(o: CalendarDeepLinkOptions, asked: DeepLinkAsked) {
+  const { items, state, openPeek, openEdit, say } = o
+  const route = useRoute()
   watch([items, state, () => route.query.event], () => {
     const id = String(route.query.event || '')
-    if (!id || id === askedEvent) return
+    if (!id || id === asked.event) return
     const ev = items.value.find((x) => x.id === id)
     if (!ev) {
       if (state.value === 'ready') void linkMissing(id, String(route.query.d || ''))
       return
     }
-    askedEvent = id
+    asked.event = id
     if (calSynced(ev)) openPeek(ev)
     else openEdit(ev)
   })
@@ -53,56 +66,62 @@ export function useCalendarDeepLinks(o: CalendarDeepLinkOptions) {
      Open) stays silent, as before. */
   async function linkMissing(id: string, day: string) {
     if (!day) return
-    askedEvent = id
+    asked.event = id
     try {
       const { eventSeen } = await import('~/utils/event-link-titles')
       if (await eventSeen(id, day) === false && String(route.query.event || '') === id) say('calendar_event.not_available')
     } catch { /* nothing to say */ }
   }
+}
 
-  /* SPL-2034: closing the pop-over drops issue= (replace). A miss reads the
-     issue once (deadlineLinkMiss). */
-  let askedIssue = ''
+/* ?issue=<KEY> (SPL-2034): open that deadline's pop-over, scrolled into view.
+   A miss reads the issue once (deadlineLinkMiss); returns the miss. */
+function watchIssueLink(o: CalendarDeepLinkOptions, asked: DeepLinkAsked) {
+  const { items, state, weekStart, weekEl, openPeek, showNotice, move, api } = o
+  const route = useRoute()
   const issueMiss = shallowRef<{ issue: string, key: string, denied: boolean } | null>(null)
   watch([items, state, () => route.query.issue], () => {
     const key = String(route.query.issue || '')
-    if (!key) { askedIssue = ''; return }
-    if (key === askedIssue) return
+    if (!key) { asked.issue = ''; return }
+    if (key === asked.issue) return
     const ev = items.value.find((x) => calDeadline(x) && x.id === key)
     if (!ev) {
       if (state.value === 'ready') void issueLinkMissing(key)
       return
     }
-    askedIssue = key
+    asked.issue = key
     openPeek(ev)
     void nextTick(() => weekEl.value?.querySelector<HTMLElement>(`[data-source=issue][data-id="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'center', inline: 'nearest' }))
   })
-  watch(peekOpen, (open) => {
-    if (open || !route.query.issue) return
-    askedIssue = ''
-    void router.replace({ query: { ...route.query, issue: undefined } })
-  })
-  /* openPeek put this deadline's key in the URL itself */
-  function askIssue(key: string) {
-    askedIssue = key
-  }
-  /* Open issue: one history entry, the week left behind without issue= */
-  async function openIssue(to: string) {
-    askedIssue = ''
-    if (route.query.issue) await router.replace({ query: { ...route.query, issue: undefined } })
-    peekOpen.value = false
-    await router.push(to)
-  }
+
   async function issueLinkMissing(key: string) {
-    askedIssue = key
+    asked.issue = key
     const { deadlineLinkMiss } = await import('~/utils/issue-calendar-miss.mjs')
     const miss = await deadlineLinkMiss(api, key, weekStart.value, calAddDays(weekStart.value, 7))
     if (String(route.query.issue || '') !== key) return
-    if (miss.moveTo) { askedIssue = ''; move(miss.moveTo); return }
+    if (miss.moveTo) { asked.issue = ''; move(miss.moveTo); return }
     /* it stays (no fade): the week is otherwise blank about the link */
     issueMiss.value = { issue: key, key: miss.notice, denied: miss.denied }
     showNotice(miss.notice)
   }
+  return issueMiss
+}
 
-  return { issueMiss, openIssue, askIssue }
+/* SPL-2034: closing the pop-over drops issue= (replace); returns Open issue */
+function watchPeekClose(o: CalendarDeepLinkOptions, asked: DeepLinkAsked) {
+  const { peekOpen } = o
+  const route = useRoute()
+  const router = useRouter()
+  watch(peekOpen, (open) => {
+    if (open || !route.query.issue) return
+    asked.issue = ''
+    void router.replace({ query: { ...route.query, issue: undefined } })
+  })
+  /* Open issue: one history entry, the week left behind without issue= */
+  return async function openIssue(to: string) {
+    asked.issue = ''
+    if (route.query.issue) await router.replace({ query: { ...route.query, issue: undefined } })
+    peekOpen.value = false
+    await router.push(to)
+  }
 }

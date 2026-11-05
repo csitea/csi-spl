@@ -6,6 +6,8 @@ import assert from 'node:assert/strict'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import { deadlineOverdue, issueCalendarHref, issuePageHref } from '../../src/utils/issue-calendar-link.mjs'
 import { calEventLink } from '../../src/utils/calendar-event-link.mjs'
+import { effectScope, nextTick, reactive, ref, shallowRef, watch } from 'vue'
+import { importTs } from './lib/load-ts.mjs'
 
 afterEach(() => setTimeZoneSource(() => ''))
 
@@ -118,5 +120,73 @@ describe('mockWithIssueDeadlines (the mock hub)', async () => {
     const body = mockWithIssueDeadlines(mockCalendarEvents(start, end, '2026-10-05'), [
       { key: 'SPL-12', title: 'Real', status: 'wip', deadline: '2026-10-08T09:00:00Z' }])
     assert.deepEqual(body.events.filter((x) => x.id === 'SPL-12').map((x) => x.title), ['Real'])
+  })
+})
+
+describe('the deep links (useCalendarDeepLinks)', async () => {
+  // the Nuxt auto-imports the composable reads, stubbed before it loads
+  const route = reactive({ query: {} })
+  const calls = []
+  const router = {
+    async replace(to) {
+      calls.push(['replace', { ...to.query }])
+      route.query = Object.fromEntries(Object.entries(to.query).filter(([, v]) => v !== undefined))
+    },
+    async push(to) { calls.push(['push', to]) },
+  }
+  Object.assign(globalThis, { watch, shallowRef, nextTick, useRoute: () => route, useRouter: () => router })
+  const { useCalendarDeepLinks } = await importTs('src/composables/useCalendarDeepLinks.ts')
+
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) { await nextTick(); await new Promise((r) => setTimeout(r, 0)) }
+  }
+  let scope = null
+  /* the view's setup with this query; items and state are set after it, as on the week's load */
+  function setup(query, issue = null) {
+    scope?.stop()
+    calls.length = 0
+    route.query = query
+    const seen = { peeks: [], edits: [], moves: [], notices: [] }
+    const o = {
+      items: shallowRef([]), state: ref('loading'), weekStart: ref('2026-10-26'), weekEl: ref(null), peekOpen: ref(false),
+      openPeek: (ev) => seen.peeks.push(ev.id), openEdit: (ev) => seen.edits.push(ev.id), say: (k) => seen.notices.push(k),
+      showNotice: (k) => seen.notices.push(k), move: (iso) => seen.moves.push(iso), api: { getIssue: async () => ({ issue }) },
+    }
+    scope = effectScope()
+    scope.run(() => useCalendarDeepLinks(o))
+    return { o, seen }
+  }
+  beforeEach(() => setTimeZoneSource(() => 'UTC'))
+  afterEach(() => { scope?.stop(); scope = null })
+
+  it('an event link opens its event once, not again on the next load of the week', async () => {
+    const { o, seen } = setup({ event: 'e1' })
+    o.items.value = [{ id: 'e1', source_key: 'g' }]
+    o.state.value = 'ready'
+    await flush()
+    o.items.value = [{ id: 'e1', source_key: 'g' }, { id: 'e9' }]
+    await flush()
+    assert.deepEqual(seen.peeks, ['e1'])
+  })
+
+  it('closing the pop-over drops issue= from the URL by replace', async () => {
+    const { o, seen } = setup({ d: '2026-10-27', issue: 'SPL-1' })
+    o.items.value = [{ id: 'SPL-1', source: 'issue' }]
+    o.state.value = 'ready'
+    await flush()
+    assert.deepEqual(seen.peeks, ['SPL-1'])
+    o.peekOpen.value = true
+    await flush()
+    o.peekOpen.value = false
+    await flush()
+    assert.deepEqual(calls, [['replace', { d: '2026-10-27', issue: undefined }]])
+  })
+
+  it('a deadline outside the shown week moves the view to its day', async () => {
+    const { o, seen } = setup({ issue: 'SPL-2' }, { status: 'open', deadline: '2026-11-20' })
+    o.state.value = 'ready'
+    await flush()
+    assert.deepEqual(seen.moves, ['2026-11-20'])
+    assert.deepEqual(seen.notices, [])
   })
 })

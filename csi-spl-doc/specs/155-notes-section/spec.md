@@ -280,10 +280,17 @@ default. Every existing note reads 5. The WUI's discussion default is 3
 - **Set** in the open note (`NotePriorityChooser.vue`, the pattern of
   `TopicPriorityChooser.vue`): a click saves at once; a failed save puts the old
   value back and says why. Out of range is 400 `bad_note`, and the column's
-  CHECK refuses it too.
-- **Shown** on the list row as `P<n>` beside the title (the key of the message
-  badge, `topic.priority.badge`), for every note, 5 too. The row stays one line;
-  the title gives way, the chip does not.
+  CHECK refuses it too. It sits right of the title, on the title's row; a
+  title too long to share the row pushes it to the next row, still on the
+  right (owner HUM-10, t1 ba784026, msg 037cedef; SPL-4893). On a phone its
+  "Priority" label is for screen readers only, so a short title keeps it on
+  its row.
+- **Shown** on the list row as `P<n>` right after the title, 8 px from it, not
+  at the row's far edge (the key of the message badge, `topic.priority.badge`),
+  for every note, 5 too. The row stays one line; the title gives way, the chip
+  does not. At 820 px and below the chip is not drawn (owner HUM-10, t1
+  2f4311d9, msg 65341de0, poll 1de5c599 answer PH: "On phones only; on a
+  computer the chip stays right of the title"; SPL-4893).
 - **Order**: within each group (Pinned, the rest, Archived), priority ascending,
   then `position`, then `updated_at` descending on a tie. A pinned 5 stays above
   an unpinned 1, as pinning already wins. The tie key is `updated_at` in the

@@ -3,7 +3,8 @@
      keeps the icon rail only (ChannelSidebar notesRailOnly); this page is the
      list: New note, the filter box, the Archived switch, the Pinned group,
      then the rest. A row is one line, the title alone (owner, t1 2a0b4d9e,
-     SPL-4651) with its priority beside it (spec 155 2.9, SPL-4652), and is /notes?note=<id>; B6 (SPL-4186) opens it:
+     SPL-4651) with its priority beside it (spec 155 2.9, SPL-4652; hidden on a
+     phone, SPL-4893), and is /notes?note=<id>; B6 (SPL-4186) opens it:
      components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
      full screen on a phone. The order is the person's own: drag a row, or
      Alt+Up / Alt+Down on it (utils/note-order.mjs). Delete (D2) takes the note
@@ -275,8 +276,10 @@ onUnmounted(() => {
 }
 .notes-row__open--current { border-color: var(--color-accent); }
 .notes-row--over .notes-row__open { border-top: 2px solid var(--color-accent); }
+/* owner t1 ba784026 (msg 037cedef): the chip sits right of the title, not at
+   the row's far edge, so the title takes only its own width */
 .notes-row__title {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   font-weight: 600;
   white-space: nowrap;
@@ -296,5 +299,7 @@ onUnmounted(() => {
 }
 @media (max-width: 820px) {
   .notes-bar .btn, .notes-bar__filter, .notes-row__open { min-height: var(--tap, 44px); }
+  /* owner t1 2f4311d9 (msg 65341de0, poll 1de5c599 PH): no P1..P5 on a phone */
+  .notes-row__prio { display: none; }
 }
 </style>

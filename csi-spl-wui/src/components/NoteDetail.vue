@@ -51,17 +51,22 @@
         <button type="button" class="btn ghost" data-test="note-reload" @click="load()">{{ t('notes.retry') }}</button>
       </p>
       <template v-else-if="note">
-        <input
-          v-model="title"
-          type="text"
-          class="note-in__title"
-          data-test="note-title"
-          maxlength="200"
-          :placeholder="t('notes.untitled')"
-          :aria-label="t('notes.title_label')"
-          @input="schedule('fields')"
-        >
-        <NotePriorityChooser :note-id="note.id" :priority="note.priority" @saved="note = $event" />
+        <!-- owner t1 ba784026 (msg 037cedef): the priority sits right of the
+             title; a title too long to share the row pushes it to the next row,
+             still on the right (the input sizes to its text, the row wraps) -->
+        <div class="note-in__head" data-test="note-head">
+          <input
+            v-model="title"
+            type="text"
+            class="note-in__title"
+            data-test="note-title"
+            maxlength="200"
+            :placeholder="t('notes.untitled')"
+            :aria-label="t('notes.title_label')"
+            @input="schedule('fields')"
+          >
+          <NotePriorityChooser class="note-in__prio" :note-id="note.id" :priority="note.priority" @saved="note = $event" />
+        </div>
         <textarea
           v-model="body"
           class="note-in__body"
@@ -235,8 +240,13 @@ onBeforeUnmount(() => { void flush() })
 .note-in__gap { flex: 1 1 auto; }
 .note-in__acts { display: inline-flex; gap: 4px; }
 .note-in__act { display: inline-flex; align-items: center; justify-content: center; }
+.note-in__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.note-in__prio { margin-inline-start: auto; }
 .note-in__title {
-  min-width: 0;
+  flex: 0 1 auto;
+  min-width: 6ch;
+  max-width: 100%;
+  field-sizing: content;
   padding: 6px 8px;
   border: 1px solid transparent;
   background: transparent;

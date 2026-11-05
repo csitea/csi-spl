@@ -1,0 +1,145 @@
+// SPL-4893 (epic SPL-2400, spec 155): the Notes design round, on the mock bundle.
+//
+// Owner HUM-10, prd t1 topic ba784026 (msg 037cedef): "the priority should be
+// on the right of the note title, or if the note title is too long, on the
+// right on the next row". Topic 2f4311d9 (msg 65341de0, poll 1de5c599 PH): on a
+// phone the list shows no P1..P5; on a computer the chip stays right of the
+// title.
+//
+// Cases, at 1440 px and at 390 px:
+//   title row, short title: the priority chooser is on the title's row, right
+//     of it, its right edge at the row's right edge
+//   title row, long title: the chooser wraps to the next row, still right-aligned
+//   list: 1440 px the chip is right after the title (8 px), not at the far
+//     edge; 390 px the chip is not drawn
+// CONTROL: with the head row's flex-wrap / margin-inline-start: auto off, or
+// the list title back to flex: 1 1 auto, the checks of titleRow() and
+// listChip() FAIL.
+//
+// Run:
+//   node tests/e2e/notes-design.test.mjs
+//   BASE_URL=http://127.0.0.1:3000 node tests/e2e/notes-design.test.mjs
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+import { startServer } from './lib/server.mjs'
+import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+
+const results = []
+function check(name, pass, ev) {
+  results.push({ name, ok: Boolean(pass) })
+  console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
+}
+
+async function launch() {
+  const require = createRequire(import.meta.url)
+  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
+    try {
+      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
+      const mod = await import(href)
+      const puppeteer = mod.default ?? mod
+      return puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, defaultViewport: null, args: CHROME_LAUNCH_ARGS })
+    } catch { /* try the next spec */ }
+  }
+  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const NAV = Number(process.env.NAV_TIMEOUT ?? 90000)
+const LONG = 'A very long note title that does not fit on one row with its priority beside it at all'
+
+const signIn = (p) => p.evaluate(() => {
+  const session = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('session')
+  if (!session) return false
+  session.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' })
+  return true
+})
+const go = (p, path) => p.evaluate((path) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(path), path)
+const waitDetail = (p, id) => p.waitForSelector(`[data-test=note-detail][data-note-id="${id}"][data-state=ready]`, { visible: true, timeout: 15000 }).then(() => true, () => false)
+const waitGone = (p) => p.waitForFunction(() => !document.querySelector('[data-test=note-detail]'), { timeout: 15000 }).then(() => true, () => false)
+const setTitle = (p, id, title) => p.evaluate((id, title) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes').patch(id, { title }), id, title)
+
+async function openPage(browser, base, width, touch) {
+  const p = await browser.newPage()
+  await p.setViewport({ width, height: touch ? 844 : 900, isMobile: touch, hasTouch: touch })
+  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+  if (!(await signIn(p))) throw new Error('no session store')
+  await go(p, '/notes')
+  await p.waitForSelector('[data-test=notes-row]', { visible: true, timeout: NAV })
+  /* a phone's page slides in: measure once it has stopped */
+  if (touch) await p.waitForFunction(() => Math.round(document.querySelector('[data-test=notes-page]').getBoundingClientRect().left) === 0, { timeout: 5000 })
+  return p
+}
+async function closeNote(p, touch) {
+  if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
+  else await p.keyboard.press('Escape')
+  await waitGone(p)
+}
+
+/* the title, the chooser and their row, as drawn */
+const headShape = (p) => p.$eval('[data-test=note-head]', (head) => {
+  const r = (e) => e.getBoundingClientRect()
+  const h = r(head), t = r(head.querySelector('[data-test=note-title]')), c = r(head.querySelector('[data-test=note-priority]'))
+  return {
+    sameRow: c.top < t.bottom && c.bottom > t.top,
+    below: c.top >= t.bottom - 1,
+    rightOfTitle: c.left >= t.right,
+    rightEdge: Math.round(h.right - c.right),
+    fits: h.right <= window.innerWidth + 1,
+  }
+})
+
+async function titleRow(browser, base, width, touch) {
+  const tag = `${width}px title row`
+  const p = await openPage(browser, base, width, touch)
+  await p.click('[data-note-id="mock-note-2"] [data-test=notes-open]')
+  await waitDetail(p, 'mock-note-2')
+  await sleep(300)
+  const short = await headShape(p)
+  check(`${tag}: a short title has the priority on its row, right of it`, short.sameRow && short.rightOfTitle, short)
+  check(`${tag}: the priority is right-aligned`, short.rightEdge <= 1, short)
+  await closeNote(p, touch)
+  await setTitle(p, 'mock-note-2', LONG)
+  await p.click('[data-note-id="mock-note-2"] [data-test=notes-open]')
+  await waitDetail(p, 'mock-note-2')
+  await sleep(300)
+  const long = await headShape(p)
+  check(`${tag}: a long title pushes the priority to the next row`, long.below && !long.sameRow, long)
+  check(`${tag}: still right-aligned there`, long.rightEdge <= 1, long)
+  check(`${tag}: no sideways scroll`, long.fits && (await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)), long)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-title-row-long-${width}.png` })
+  await p.close()
+}
+
+async function listChip(browser, base, width, touch) {
+  const tag = `${width}px list chip`
+  const p = await openPage(browser, base, width, touch)
+  const shape = await p.$eval('[data-note-id="mock-note-2"]', (row) => {
+    const t = row.querySelector('.notes-row__title').getBoundingClientRect()
+    const c = row.querySelector('[data-test=notes-row-priority]')
+    const cr = c.getBoundingClientRect()
+    return { drawn: c.getClientRects().length > 0, gap: Math.round(cr.left - t.right), farEdge: Math.round(row.getBoundingClientRect().right - cr.right) }
+  })
+  if (touch) check(`${tag}: a phone shows no P1..P5`, !shape.drawn, shape)
+  else check(`${tag}: the chip follows the title, 8 px after it, not at the far edge`, shape.drawn && shape.gap === 8 && shape.farEdge > 100, shape)
+  await p.close()
+}
+
+const server = await startServer()
+const browser = await launch()
+let code = 0
+try {
+  for (const [w, touch] of [[1440, false], [390, true]]) {
+    await listChip(browser, server.base, w, touch)
+    await titleRow(browser, server.base, w, touch)
+  }
+} catch (e) {
+  console.error(e)
+  code = 1
+} finally {
+  await browser.close()
+  await server.stop()
+}
+const failed = results.filter((r) => !r.ok)
+console.log(`\nnotes-design: ${results.length - failed.length}/${results.length} passed`)
+process.exit(code || (failed.length ? 1 : 0))

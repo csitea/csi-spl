@@ -391,6 +391,7 @@ async function oneLine(browser, base, width, touch) {
       text: t.textContent.trim(),
       prio: row.querySelector('[data-test=notes-row-priority]')?.textContent.trim(),
       prioInLine: (() => { const c = row.querySelector('[data-test=notes-row-priority]')?.getBoundingClientRect(); return Boolean(c) && c.left >= t.getBoundingClientRect().right && c.right <= window.innerWidth + 1 && c.top < t.getBoundingClientRect().bottom && c.bottom > t.getBoundingClientRect().top })(),
+      prioShown: (() => { const c = row.querySelector('[data-test=notes-row-priority]'); return Boolean(c) && c.getClientRects().length > 0 })(),
       spans: row.querySelectorAll('[data-test=notes-open] *').length,
       previewOrMeta: Boolean(row.querySelector('[data-test=notes-row-text], .notes-row__text, .notes-row__meta')),
       lines: Math.round(t.getBoundingClientRect().height / parseFloat(css.lineHeight === 'normal' ? parseFloat(css.fontSize) * 1.2 : css.lineHeight)),
@@ -401,7 +402,9 @@ async function oneLine(browser, base, width, touch) {
   })
   const longRow = await shape('mock-note-2')
   check(`${tag}: the row holds the title and its priority, nothing more`, longRow.text === long && longRow.spans === 2 && longRow.prio === 'P5' && !longRow.previewOrMeta, longRow)
-  check(`${tag}: the priority sits beside the cut title, on the one line`, longRow.prioInLine, longRow)
+  /* SPL-4893 (owner t1 2f4311d9, poll 1de5c599 PH): a phone shows no P1..P5 */
+  if (touch) check(`${tag}: a phone shows no priority chip`, !longRow.prioShown, longRow)
+  else check(`${tag}: the priority sits beside the cut title, on the one line`, longRow.prioInLine, longRow)
   check(`${tag}: a long title stays on one line`, longRow.lines === 1, longRow.lines)
   check(`${tag}: it is cut with an ellipsis`, longRow.cut && longRow.ellipsis, longRow)
   check(`${tag}: inside the screen`, longRow.fits, longRow)

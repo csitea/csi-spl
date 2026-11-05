@@ -117,5 +117,15 @@ async function choose(n: number) {
 /* on a phone each value is a 44 px target */
 @media (max-width: 820px) {
   .note-prio__opt { min-width: var(--tap); min-height: var(--tap); }
+  /* SPL-4893: the chooser shares the title's row (NoteDetail); the label
+     stays for screen readers (the group's aria-labelledby), not drawn */
+  .note-prio__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 </style>

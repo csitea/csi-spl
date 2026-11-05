@@ -25,9 +25,25 @@
 #     text, signed in a 5-minute window this action opens and shuts (C22, C24).
 #   - anything else (no tty, cron, an unknown pane) is refused.
 #
-# Seams, honoured only under SPOOL_TEST=1: MOVE_CALLER_PROC (a fake /proc) and
-# MOVE_CALLER_PID (where the walk starts). Always: MOVE_SSH (the ssh command
-# prefix to the other box), MOVE_DIRECTIVE_DIR (the directive scripts),
+# What the check trusts, outside SPOOL_TEST=1 (c-715 review W1-W3): the live
+# spool root /var/spool-hub (lease.orch, registry.tsv, the journals), the box
+# tag from its box config (box.env SPOOL_BOX_TAG, never the environment), the
+# box user as the owner of that root, the tmux socket of that user, the
+# directive scripts next to this file, called with every DIRECTIVE_* knob,
+# SPOOL_BOX_ENV and GNUPGHOME stripped (the pin then comes from the box
+# config). The caller id comes from the registry row of its pane; a window
+# name that names another id is refused (a lane can rename its window).
+# The limits (N1): the owner process test reads SUDO_USER from the
+# environment and is a mistake-catcher only (spec 167 R5); a caller that
+# runs its own copy of this code, or edits the registry, is not stopped by
+# any shell check: the barrier is the owner's passphrase and the verify on
+# each box. Under SPOOL_TEST=1 the spool root is $SPOOL_ROOT (the spool test
+# guard refuses the live one) and the environment is trusted, for the tests.
+#
+# Seams, honoured only under SPOOL_TEST=1: MOVE_CALLER_PROC (a fake /proc),
+# MOVE_CALLER_PID (where the walk starts), MOVE_DIRECTIVE_DIR (the directive
+# scripts), SPOOL_BOX_TAG, SPOOL_BOX_USER and SPOOL_TMUX_SOCKET from the
+# environment. Always: MOVE_SSH (the ssh command prefix to the other box),
 # MOVE_UPLINK_KBPS (skip the 1 MB probe).
 # Guard: csi-spl-orc/src/bash/tests/channel-move-plan.tst.sh.
 
@@ -38,7 +54,33 @@ CM_KINDS_DECLARED='data config binary secret marker tests-not-run'
 CM_AGENT_COMMS='claude grok agy antigravity vibe mistral qwen codex gemini'
 CM_ID_RX='[a-z]-[0-9]{3}'
 
+CM_LIVE_ROOT=/var/spool-hub
+
+cm_in_test() { [ "${SPOOL_TEST:-}" = 1 ]; }
+
 cm_dir() { printf '%s/channel-move' "${SPOOL_ROOT:-/var/spool-hub}"; }
+
+# The spool root the caller check reads: the live one outside SPOOL_TEST.
+cm_trust_root() {
+  if cm_in_test; then printf '%s' "${SPOOL_ROOT:-$CM_LIVE_ROOT}"; else printf '%s' "$CM_LIVE_ROOT"; fi
+}
+
+# KEY's value in the trusted root's box config, parse-only.
+cm_box_env_get() {  # KEY
+  local k v
+  while IFS='=' read -r k v || [ -n "$k" ]; do
+    k="${k#export }"; k="${k// /}"
+    [ "$k" = "$1" ] || continue
+    v="${v%$'\r'}"; v="${v#\"}"; v="${v%\"}"; v="${v#\'}"; v="${v%\'}"
+    printf '%s' "$v"; return 0
+  done <"$(cm_trust_root)/box.env" 2>/dev/null
+  return 0
+}
+
+# The box user: the owner of the trusted spool root (SPOOL_BOX_USER in tests).
+cm_box_user() {
+  if cm_in_test; then printf '%s' "${SPOOL_BOX_USER:-}"; else stat -c %U "$(cm_trust_root)" 2>/dev/null; fi
+}
 
 # cm_parse_channel "<tenant>/<channel>": sets CM_TENANT, CM_CHANNEL; 2 + one
 # line on stderr when it is not that shape.
@@ -111,38 +153,45 @@ cm_chain_agent() {  # ROOT CHAIN
 
 # "<pane pid>\t<pane id>\t<window name>" of every pane on this box's server.
 cm_panes() {
-  local -a tm=(tmux)
-  if declare -F spool_tmux_argv >/dev/null && [ -n "${SPOOL_TMUX_SOCKET:-}" ] && [ -n "${SPOOL_BOX_USER:-}" ]; then
-    spool_tmux_argv; tm=("${SPOOL_TM[@]}")
-  fi
+  local u sock
+  u="$(cm_box_user)"
+  if cm_in_test; then sock="${SPOOL_TMUX_SOCKET:-}"; else sock="/tmp/tmux-$(id -u "$u" 2>/dev/null)/default"; fi
+  local -a tm=(tmux ${sock:+-S "$sock"})
+  [ -z "$u" ] || [ "$(id -un)" = "$u" ] || tm=(sudo -n -u "$u" "${tm[@]}")
   timeout 5 "${tm[@]}" list-panes -a -F '#{pane_pid}	#{pane_id}	#{window_name}' 2>/dev/null
 }
 
-# The agent id of the first pane in CHAIN: its window name, else the newest
-# registry row for its pane id. Prints "<id>" or "?" for a pane no agent
-# owns; nothing when the chain holds no pane.
+# The agent id of the first pane in CHAIN: the newest registry row for its
+# pane id. "?" when no row names the pane, or when its window name names
+# another id (a lane can rename its window, c-715 W2); nothing when the chain
+# holds no pane.
 cm_chain_pane_id() {  # CHAIN
-  local p ppid pid w id reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+  local p ppid pid w id wid reg
+  reg="$(cm_trust_root)/registry.tsv"
   local -A pane=() win=()
   while IFS=$'\t' read -r ppid pid w; do
     [ -n "$ppid" ] && { pane[$ppid]="$pid"; win[$ppid]="$w"; }
   done < <(cm_panes)
   for p in $1; do
     [ -n "${pane[$p]+x}" ] || continue
-    id="$(spool_id_of_window "${win[$p]}" 2>/dev/null)"
-    [ -n "$id" ] || id="$(awk -F'\t' -v q="${pane[$p]}" '$3 == q { i = $1 } END { print i }' "$reg" 2>/dev/null)"
+    id="$(awk -F'\t' -v q="${pane[$p]}" '$3 == q { i = $1 } END { print i }' "$reg" 2>/dev/null)"
     id="${id%%@*}"
-    [[ "$id" =~ ^${CM_ID_RX}$ ]] && { echo "$id"; return 0; }
+    wid="$(spool_id_of_window "${win[$p]}" 2>/dev/null)"
+    if [[ "$id" =~ ^${CM_ID_RX}$ ]] && { [ -z "$wid" ] || [ "$wid" = "$id" ]; }; then echo "$id"; return 0; fi
     echo "?"; return 0
   done
 }
 
-cm_box() { printf '%s' "${SPOOL_BOX_TAG:-${BOX_TAG:-}}"; }
+# This box's tag: the box config's SPOOL_BOX_TAG, never the environment
+# outside SPOOL_TEST (c-715 W3).
+cm_box() {
+  if cm_in_test; then printf '%s' "${SPOOL_BOX_TAG:-}"; else cm_box_env_get SPOOL_BOX_TAG; fi
+}
 
 # 0 when ID@<this box> is the fleet's orch lease holder.
 cm_is_orch() {  # ID
   local h=""
-  read -r h _ <"${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.orch" 2>/dev/null || return 1
+  read -r h _ <"$(cm_trust_root)/dispatch/lease.orch" 2>/dev/null || return 1
   [ -n "$1" ] && [ -n "$(cm_box)" ] && [ "$h" = "$1@$(cm_box)" ]
 }
 
@@ -150,7 +199,7 @@ cm_is_orch() {  # ID
 cm_journal_names_seat() {  # MOVE_ID ID
   local j
   [[ "${1:-}" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,63}$ ]] || return 1
-  j="$(cm_dir)/$1/journal.tsv"
+  j="$(cm_trust_root)/channel-move/$1/journal.tsv"
   [ -r "$j" ] || return 1
   awk -F'\t' -v s="S6:$2@$(cm_box)" '$1 == s { f = 1 } END { exit !f }' "$j"
 }
@@ -158,9 +207,10 @@ cm_journal_names_seat() {  # MOVE_ID ID
 # 0 when the caller is the box user's own login on a tty.
 cm_owner_process() {
   [ -t 0 ] || { CM_WHY="no tty on stdin (cron, a pipe or a detached process)"; return 1; }
-  [ -n "${SPOOL_BOX_USER:-}" ] || { CM_WHY="no box user known (SPOOL_BOX_USER)"; return 1; }
-  [ "$(id -un)" = "$SPOOL_BOX_USER" ] || { CM_WHY="not the box user's login ($(id -un))"; return 1; }
-  [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = "$SPOOL_BOX_USER" ] ||
+  local u; u="$(cm_box_user)"
+  [ -n "$u" ] || { CM_WHY="no box user known"; return 1; }
+  [ "$(id -un)" = "$u" ] || { CM_WHY="not the box user's login ($(id -un))"; return 1; }
+  [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = "$u" ] ||
     { CM_WHY="a sudo from $SUDO_USER, not the box user's own login"; return 1; }
 }
 
@@ -186,7 +236,23 @@ cm_caller_check() {  # CMD
 
 # ---- the owner's signed directive (C22, C24) -------------------------------
 
-cm_dir_scripts() { printf '%s' "${MOVE_DIRECTIVE_DIR:-$CM_LIB_DIR/../../directive/scripts}"; }
+# The directive scripts: next to this file; MOVE_DIRECTIVE_DIR in tests only.
+cm_dir_scripts() {
+  if cm_in_test && [ -n "${MOVE_DIRECTIVE_DIR:-}" ]; then printf '%s' "$MOVE_DIRECTIVE_DIR"
+  else printf '%s' "$CM_LIB_DIR/../../directive/scripts"; fi
+}
+
+# Run directive script NAME. Outside SPOOL_TEST every knob a caller could set
+# is stripped: the pin, keyring, ledger and window record come from the box
+# config and the user's own home; DIRECTIVE_BOX is this box's trusted tag.
+cm_dir_run() {  # NAME ARGS...
+  local f h; f="$(cm_dir_scripts)/$1"; shift
+  if cm_in_test; then DIRECTIVE_BOX="$(cm_box)" bash "$f" "$@"; return; fi
+  h="$(cm_home_of "$(id -un)")"
+  env -u DIRECTIVE_FPR -u DIRECTIVE_GNUPGHOME -u DIRECTIVE_LEDGER -u DIRECTIVE_BOX \
+      -u DIRECTIVE_SESSION_STATE -u DIRECTIVE_REPLY_TO -u SPOOL_BOX_ENV -u GNUPGHOME \
+      HOME="${h:-/nonexistent}" SPOOL_ROOT="$(cm_trust_root)" DIRECTIVE_BOX="$(cm_box)" bash "$f" "$@"
+}
 
 # The text an owner command signs: command, channel, target, move id.
 cm_directive_text() {  # CMD CHANNEL TO MOVE_ID
@@ -198,16 +264,15 @@ cm_directive_text() {  # CMD CHANNEL TO MOVE_ID
 # all in one window. A window the owner had open is used and left open; else
 # a 5-minute one is opened and shut before this returns. 3 = refused.
 cm_owner_sign() {  # OUTDIR TEXT DRIVER [PEER]
-  local out="$1" text="$2" s d opened=0 box rc=0
-  d="$(cm_dir_scripts)"; s="$d/directive-session.sh"
-  if ! bash "$s" --status 2>/dev/null | grep -q 'session OPEN'; then
-    bash "$s" --minutes 5 >&2 || { echo "channel-move REFUSED: no signing window (directive-session.sh --minutes 5 failed)" >&2; return 3; }
+  local out="$1" text="$2" opened=0 box rc=0
+  if ! grep -q 'session OPEN' <<<"$(cm_dir_run directive-session.sh --status 2>/dev/null)"; then
+    cm_dir_run directive-session.sh --minutes 5 >&2 || { echo "channel-move REFUSED: no signing window (directive-session.sh --minutes 5 failed)" >&2; return 3; }
     opened=1
   fi
   for box in "$3" ${4:+"$4"}; do
-    ( umask 077; bash "$d/directive-sign.sh" --minutes 10 "$box" "$text" >"$out/envelope.$box.asc" ) || rc=3
+    ( umask 077; cm_dir_run directive-sign.sh --minutes 10 "$box" "$text" >"$out/envelope.$box.asc" ) || rc=3
   done
-  [ "$opened" = 1 ] && bash "$s" --close >/dev/null 2>&1
+  [ "$opened" = 1 ] && cm_dir_run directive-session.sh --close >/dev/null 2>&1
   [ "$rc" = 0 ] || echo "channel-move REFUSED: the owner directive could not be signed" >&2
   return "$rc"
 }
@@ -216,7 +281,7 @@ cm_owner_sign() {  # OUTDIR TEXT DRIVER [PEER]
 # check and nonce ledger) and its instruction is exactly TEXT. 3 = refused.
 cm_owner_verify() {  # ENVELOPE TEXT
   local got rc
-  got="$(DIRECTIVE_BOX="$(cm_box)" bash "$(cm_dir_scripts)/directive-verify.sh" --show <"$1" 2>&1)"; rc=$?
+  got="$(cm_dir_run directive-verify.sh --show <"$1" 2>&1)"; rc=$?
   if [ "$rc" != 0 ] || [ "$got" != "$2" ]; then
     echo "channel-move REFUSED: the owner directive did not verify on $(cm_box) (rc $rc): ${got//$'\n'/ }" >&2
     return 3
@@ -227,7 +292,7 @@ cm_owner_verify() {  # ENVELOPE TEXT
 # CM_ENVELOPES (the dir) and CM_DIRECTIVE_NONCE. 3 = refused.
 cm_owner_directive() {  # CMD MOVE_ID PEER
   local text out
-  [ -n "$(cm_box)" ] || { echo "channel-move REFUSED: this box has no tag (SPOOL_BOX_TAG)" >&2; return 3; }
+  [ -n "$(cm_box)" ] || { echo "channel-move REFUSED: this box has no tag (box.env SPOOL_BOX_TAG)" >&2; return 3; }
   text="$(cm_directive_text "$1" "${CHANNEL:-}" "${TO:-}" "$2")"
   out="$(umask 077 && mktemp -d)" || return 3
   cm_owner_sign "$out" "$text" "$(cm_box)" "$3" || { rm -rf "$out"; return 3; }

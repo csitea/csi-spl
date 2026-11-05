@@ -39,6 +39,7 @@ UUID=00000000-0000-4000-8000-000000000001
 printf 't1\tgeneral\t%s\tdev\tc-001\tc-901@box-a\n' "$UUID" >"$A/channel-rules.tsv"
 printf 't1\tgeneral\t%s\tdev\tc-001\n' "$UUID" >"$B/channel-rules.tsv"
 printf 'c-901\tclaude\t%%91\t%s\t20261105T000000Z\n' "$W" >"$A/registry.tsv"
+printf 'c-001\tclaude\t%%5\t-\t-\nc-777\tclaude\t%%7\t-\t-\nc-777\tclaude\t%%8\t-\t-\nc-950\tclaude\t%%9\t-\t-\n' >>"$A/registry.tsv"
 printf '# Brief\nChannel: t1 #general\n' >"$A/c-901/lifetime/brief.md"
 printf 'c-001@box-a 1793871709\n' >"$A/dispatch/lease.orch"
 
@@ -52,13 +53,13 @@ head -c 2000 /dev/zero >"$T/data/report.csv"
 printf 'PLANTED-KEY-BYTES\n' >"$T/keys/k.json"; chmod 0600 "$T/keys/k.json"
 
 # stubs: ssh into box B (runs the command with B's spool root), tmux panes
-printf '#!/bin/bash\nshift\nexec env SPOOL_ROOT=%q bash -c "$*"\n' "$B" >"$T/stub/ssh-b"
+printf '#!/bin/bash\necho "$*" >>%q\nshift\nexec env SPOOL_ROOT=%q bash -c "$*"\n' "$T/ssh-argv.log" "$B" >"$T/stub/ssh-b"
 cat >"$T/stub/tmux" <<EOF
 #!/bin/bash
 case " \$* " in *" list-panes "*) cat "$T/panes.tsv" 2>/dev/null ;; *" list-windows "*) printf 'c-001\nc-002\n' ;; esac
 EOF
 chmod +x "$T/stub/ssh-b" "$T/stub/tmux"
-printf '602\t%%5\tc-001\n703\t%%7\tc-777\n803\t%%8\tc-777\n953\t%%9\tc-950\n' >"$T/panes.tsv"
+printf '602\t%%5\tc-001\n703\t%%7\tc-777\n803\t%%8\tc-777\n953\t%%9\tc-950\n723\t%%22\tc-001\n' >"$T/panes.tsv"
 
 # fake /proc: proc PID COMM PPID [ENV...]
 proc() {
@@ -74,6 +75,7 @@ proc 800 bash 801; proc 801 sudo 802; proc 802 claude 803; proc 803 sh 10   # la
 proc 810 bash 803                                                    # lane pane, no CLI, no env
 proc 900 bash 901; proc 901 cron 1                                   # cron
 proc 950 bash 951; proc 951 claude 953; proc 953 sh 10               # new seat c-950 in pane %9
+proc 720 bash 721; proc 721 claude 723; proc 723 sh 10               # a pane no registry row names
 
 cat >"$T/runner.sh" <<'EOF'
 set -uo pipefail
@@ -144,6 +146,13 @@ out="$(run 600)"; rc=$?
 [ "$rc" = 5 ] && grep -q 'REFUSED data: a path outside the allowed roots' <<<"$out" &&
   pass "C1 a hand-added path outside the allowed roots: plan refuses it, rc 5" || fail "C1 root refusal: rc $rc"
 sed -i '/^data \/etc\/hostname$/d' "$M"
+grep -qF k.json "$T/ssh-argv.log" && fail "N2 the secret's path was on the ssh argv: $(cat "$T/ssh-argv.log")" ||
+  pass "N2 the secret's path never reaches the ssh command line (it goes on stdin; $(wc -l <"$T/ssh-argv.log") ssh calls logged)"
+printf 'data\n' >>"$M"
+out="$(run 600)"; rc=$?
+[ "$rc" = 5 ] && grep -q 'REFUSED a manifest line with fewer than 2 fields' <<<"$out" &&
+  pass "N3 a manifest line with fewer than 2 fields: refused, rc 5" || fail "N3: rc $rc $out"
+sed -i '/^data$/d' "$M"
 out="$(run 600 DRY_RUN=0 MOVE_CMD=plan)"; rc=$?
 [ "$rc" = 0 ] && [ -z "$(find "$A/channel-move" -mindepth 1 -type d)" ] && pass "C1 DRY_RUN=0 MOVE_CMD=plan still writes nothing" || fail "C1 DRY_RUN=0 plan: rc $rc"
 
@@ -164,6 +173,12 @@ out="$(run 600)"; rc=$?
 printf 'c-001@box-a 1793871709\n' >"$A/dispatch/lease.orch"
 out="$(run 600)"; rc=$?
 [ "$rc" = 0 ] && pass "C14 CONTROL: the orch lease holder's own pane runs the plan" || fail "C14 orch control: rc $rc $out"
+sed -i 's/^703\t%7\tc-777$/703\t%7\tc-001/' "$T/panes.tsv"
+out="$(run 700)"; rc=$?
+[ "$rc" = 3 ] && pass "W2 a lane whose window is renamed to c-001 (registry: c-777): refused" || fail "W2 renamed window: rc $rc $out"
+sed -i 's/^703\t%7\tc-001$/703\t%7\tc-777/' "$T/panes.tsv"
+out="$(run 720)"; rc=$?
+[ "$rc" = 3 ] && pass "W2 a pane no registry row names, window c-001: refused" || fail "W2 unregistered pane: rc $rc $out"
 
 # ---- C21: cron ----------------------------------------------------------------------------
 out="$(run 900)"; rc=$?
@@ -248,6 +263,33 @@ out="$(run 950 MOVE_CMD=clean DRY_RUN=0 MOVE_ID=mv1 SEAT=c-950)"; rc=$?
 [ "$rc" = 3 ] && [ ! -e "$T/hook-ran" ] && pass "C23 (d) clean by the named seat: refused" || fail "C23 (d): rc $rc $out"
 out="$(ontty 500 MOVE_CMD=ack MOVE_ID=mv1 SEAT=c-950)"
 grep -q 'RC=3' <<<"$out" && pass "C23 an ack from the owner's shell (no pane): refused" || fail "C23 owner ack: $out"
+
+# ---- W1, W3: outside SPOOL_TEST the environment is not trusted ------------------------------
+LIB="$PROJ_ROOT/src/bash/features/spawn-agents/lib/channel-move.inc.sh"
+live() { env -u SPOOL_TEST -u SPOOL_BOX_TAG -u MOVE_DIRECTIVE_DIR "$@" bash -c '. "$0"; eval "$SNIPPET"' "$LIB" 2>&1; }
+LIVE_TAG="$(SNIPPET=cm_box live)"; LIVE_TAG="${LIVE_TAG:-none}"
+REAL_DIR="$(cd "$PROJ_ROOT/src/bash/features/directive/scripts" && pwd)"
+got="$(SNIPPET='cd "$(cm_dir_scripts)" && pwd' live MOVE_DIRECTIVE_DIR="$T/forge")"
+[ "$got" = "$REAL_DIR" ] && pass "W1 outside SPOOL_TEST MOVE_DIRECTIVE_DIR is ignored (the real scripts)" || fail "W1 dir: got '$got'"
+mkdir -p "$T/forge"; printf '#!/bin/bash\ncat >/dev/null\nprintf "%%s\\n" "$FORGE_TEXT"\n' >"$T/forge/directive-verify.sh"
+TXT='channel-move move CHANNEL=t1/general TO=box-b MOVE_ID=mv-w1'
+printf 'to: %s\nnonce: w1%s\nissued: %s\nexpires: %s\n---\n%s\n' "$LIVE_TAG" "$RANDOM$RANDOM" "$(date -u +%FT%TZ)" "$(date -u -d '+10 min' +%FT%TZ)" "$TXT" |
+  gpg --homedir "$G" --batch --pinentry-mode loopback --passphrase p --local-user "$FPR" --clearsign >"$T/w1.asc" 2>/dev/null
+SNIPPET='cm_owner_verify "$ENV_FILE" "$FORGE_TEXT"; echo "rc=$?"'
+out="$(live SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FORGE_TEXT="$TXT" MOVE_DIRECTIVE_DIR="$T/forge")"
+grep -q 'rc=3' <<<"$out" && pass "W1 a forged verify dir outside SPOOL_TEST: refused" || fail "W1 forged dir: $out"
+out="$(env SPOOL_TEST=1 SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FORGE_TEXT="$TXT" MOVE_DIRECTIVE_DIR="$T/forge" bash -c '. "$0"; eval "$SNIPPET"' "$LIB" 2>&1)"
+grep -q 'rc=0' <<<"$out" && pass "W1 CONTROL: the same forged dir under SPOOL_TEST=1 is used (a test seam only)" || fail "W1 control dir: $out"
+out="$(live SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FORGE_TEXT="$TXT" DIRECTIVE_FPR="$FPR" DIRECTIVE_GNUPGHOME="$G" DIRECTIVE_LEDGER="$T/ledger-w1")"
+grep -q 'rc=3' <<<"$out" && [ ! -e "$T/ledger-w1" ] && pass "W1 a forged DIRECTIVE_FPR/GNUPGHOME/LEDGER outside SPOOL_TEST: refused, the forged ledger untouched" || fail "W1 forged FPR: $out"
+out="$(env SPOOL_TEST=1 SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$SNIPPET" ENV_FILE="$T/w1.asc" FORGE_TEXT="$TXT" DIRECTIVE_FPR="$FPR" DIRECTIVE_GNUPGHOME="$G" DIRECTIVE_LEDGER="$T/ledger-w1" SPOOL_BOX_ENV=/nonexistent bash -c '. "$0"; eval "$SNIPPET"' "$LIB" 2>&1)"
+grep -q 'rc=0' <<<"$out" && pass "W1 CONTROL: the same envelope and key verify when the env is trusted (SPOOL_TEST=1)" || fail "W1 control FPR: $out"
+got="$(SNIPPET='cm_box; echo "|$(cm_trust_root)"' live SPOOL_BOX_TAG=box-z SPOOL_ROOT="$A")"
+[ "$got" != "box-z|/var/spool-hub" ] && [ "${got#*|}" = /var/spool-hub ] && [ "${got%%|*}" != box-z ] &&
+  pass "W3 outside SPOOL_TEST the box tag is the box config's ('${got%%|*}'), not env box-z; the lease is read from /var/spool-hub" || fail "W3: got '$got'"
+got="$(SNIPPET='cm_box' env SPOOL_TEST=1 SPOOL_BOX_TAG=box-z bash -c '. "$0"; eval "$SNIPPET"' "$LIB")"
+[ "$got" = box-z ] && pass "W3 CONTROL: under SPOOL_TEST=1 the env tag is used (a test seam only)" || fail "W3 control: '$got'"
+gpgconf --homedir "$G" --kill gpg-agent >/dev/null 2>&1
 
 # ---- unknown and unbuilt commands --------------------------------------------------------
 out="$(run 600 MOVE_CMD=status)"; rc=$?

@@ -133,6 +133,7 @@ cm_plan_target() {  # TO REACHABLE
 }
 
 # Whether each secret's copy on the target is the same (sha256 yes/no).
+# The path travels in the script on stdin, never on the ssh command line (N2).
 cm_plan_secrets() {  # TO REACHABLE
   local i=0 p mine theirs need=0
   [ "$CM_SECRETS" -gt 0 ] || { echo "  secrets: none found (the scan sees only declared paths)"; return 0; }
@@ -162,6 +163,7 @@ cm_plan() {
   while read -r line; do
     [ -n "$line" ] || continue
     read -r -a f <<<"$line"
+    if [ "${#f[@]}" -lt 2 ]; then CM_BLOCKED=$((CM_BLOCKED + 1)); echo "  REFUSED a manifest line with fewer than 2 fields: '${f[0]:-}'"; continue; fi
     cm_plan_line "$kbps" "${f[@]}"
   done < <(cm_manifest "$CM_TENANT" "$CM_CHANNEL")
   echo "target $to (transport: $([ "$reach" = yes ] && echo ssh || echo 'the hub (B3)')):"

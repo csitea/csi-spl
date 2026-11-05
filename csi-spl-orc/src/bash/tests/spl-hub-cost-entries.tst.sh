@@ -15,9 +15,15 @@
 #      run through the real ./run (HOME, VAR_DIR, TMPDIR in the test dir, a
 #      stub gcloud and a stub hub behind curl), print no amount, currency or
 #      note: no sentinel figure in stdout, stderr or any file the run wrote
+#   8. index (SPL-4891): the list GET, printed as id period type per row and
+#      <period> rows=<n> per period; COST_EXPECT_FILE adds sum=OK|MISMATCH|
+#      UNCHECKED (raw amounts, no FX, to the cent); a bad file line is refused
+#      by its number before any call; through the real ./run no amount,
+#      currency, label, note or expected sum reaches stdout, stderr or a file
 # RED CONTROL: case 2 fails when the dry-run guard is dropped (the call file
 # then holds the POST). Case 7 fails on the action before SPL-4877 (it logged
 # the body, the created row's amount and currency, and the hub's detail).
+# Case 8 fails when the index prints a row's amount (the plant in the commit).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -165,6 +171,47 @@ for r in dry ok refused r403 r404 r500 badamount badcur grossbelow swapped; do
   l="$(leaks "$r" | tr "\n" " ")"
   [[ -z "$l" && $n -gt 2 ]] && pass "7. $r: no amount, currency or note in stdout, stderr or the $((n - 2)) file(s) the run wrote" \
     || fail "7. $r leaks (files=$n): $l"
+done
+
+# --- 8. index: figure-free read back (SPL-4891) ---------------------------------------
+ROWS='{"entries":[
+ {"id":"'$ID'","type":"cloud","label":"LABEL-SENTINEL","amount":98765.4321,"currency":"XTS","period":"2020-01","note":"NOTE-SENTINEL"},
+ {"id":"'$ID'","type":"cloud","label":"fs-fixture","amount":11111.5555,"currency":"XTS","period":"2020-01","note":""},
+ {"id":"not-a-uuid 98765.4321","type":"hr","label":"fs-fixture","amount":"22222.7777","currency":"XTS","period":"2020-02","note":""},
+ {"id":"'$ID'","type":"hr","label":"fs-fixture","amount":1,"currency":"XTS","period":"2020-04","note":""}]}'
+printf '2020-01\t109876.99\n2020-02\t33333.33\r\n\n2020-03\t0\n' >"$T/fs/expect.tsv"
+INDEX_OUT=("  $ID 2020-01 cloud" "  $ID 2020-01 cloud" "  ? 2020-02 hr" "  $ID 2020-04 hr")
+run COST_CMD=index COST_TYPE=cloud STUB_BODY="$ROWS"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'hub GET /v1/operator/cost-entries?type=cloud ' "$T/calls" && grep -qx 'OK dev cost entries (index, figure-free): 4' "$T/o" \
+  && diff <(grep '^  ' "$T/o") <(printf '%s\n' "${INDEX_OUT[@]}") >/dev/null \
+  && diff <(grep '^2020' "$T/o") <(printf '%s\n' '2020-01 rows=2' '2020-02 rows=1' '2020-04 rows=1') >/dev/null \
+  && pass "8. index GETs with the filters and prints id period type per row, rows per period" || fail "8. index: rc=$rc $(cat "$T/calls" "$T/o")"
+run COST_CMD=index COST_EXPECT_FILE="$T/fs/expect.tsv" STUB_BODY="$ROWS"; rc=$?
+[[ $rc -eq 0 ]] && diff <(grep '^2020' "$T/o") <(printf '%s\n' '2020-01 rows=2 sum=OK' '2020-02 rows=1 sum=MISMATCH' \
+  '2020-03 rows=0 sum=OK' '2020-04 rows=1 sum=UNCHECKED') >/dev/null \
+  && pass "8. COST_EXPECT_FILE: OK to the cent, MISMATCH, an empty expected month OK, UNCHECKED" || fail "8. expect: rc=$rc $(cat "$T/o")"
+for bad in '2020-01 109876.99' '2020-01\t1e5' '2020-13\t1' '2020-01\t-1' '2020-01\t01.5'; do
+  printf '%b\n' "$bad" >"$T/fs/bad.tsv"
+  run COST_CMD=index COST_EXPECT_FILE="$T/fs/bad.tsv" STUB_BODY="$ROWS"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -qx 'FATAL COST_EXPECT_FILE line 1 must be period<TAB>sum (the value is not printed)' "$T/o" \
+    && pass "8. expect line '$bad' refused by its number, no call" || fail "8. bad expect '$bad': rc=$rc $(cat "$T/calls" "$T/o")"
+done
+run COST_CMD=index COST_EXPECT_FILE="$T/fs/no-such.tsv"; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "8. an unreadable COST_EXPECT_FILE is refused, no call" || fail "8. unreadable: rc=$rc $(cat "$T/o")"
+SENT+=(LABEL-SENTINEL 11111.5555 22222.7777 109876.99 33333.33)
+printf '2020-01\t1e5\n' >"$T/fs/bad.tsv"
+real_run index COST_CMD=index STUB_CODE=200 STUB_BODY="$ROWS"; rc=$?
+real_run indexexp COST_CMD=index COST_EXPECT_FILE="$T/fs/expect.tsv" STUB_CODE=200 STUB_BODY="$ROWS"; rc2=$?
+real_run indexbad COST_CMD=index COST_EXPECT_FILE="$T/fs/bad.tsv" STUB_CODE=200 STUB_BODY="$ROWS"; rc3=$?
+real_run indexrefused COST_CMD=index STUB_CODE=500 STUB_BODY="$REFUSED"; rc4=$?
+[[ $rc -eq 0 && $rc2 -eq 0 && $rc3 -ne 0 && $rc4 -ne 0 ]] && grep -qx '2020-01 rows=2' "$T/fs/index/stdout" \
+  && grep -qx '2020-02 rows=1 sum=MISMATCH' "$T/fs/indexexp/stdout" && grep -qF 'answered 500 (bad_cost_entry)' "$T/fs/indexrefused/stdout" \
+  && pass "8. ./run index, with the expect file, a bad expect line, a 500: as above" || fail "8. ./run index: rc=$rc/$rc2/$rc3/$rc4 $(cat "$T/fs/index/stdout" "$T/fs/indexexp/stdout")"
+for r in dry ok refused r403 r404 r500 badamount badcur grossbelow swapped index indexexp indexbad indexrefused; do
+  n=$(find "$T/fs/$r" -type f | wc -l)
+  l="$(leaks "$r" | tr "\n" " ")"
+  [[ -z "$l" && $n -gt 2 ]] && pass "8. $r: none of the ${#SENT[@]} sentinels in stdout, stderr or the $((n - 2)) file(s) the run wrote" \
+    || fail "8. $r leaks (files=$n): $l"
 done
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }

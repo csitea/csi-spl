@@ -7,6 +7,13 @@
 # @description do_spl_hub_fleet_paid. The estate's month cost read counts them
 # @description (source cost_entry). COST_CMD:
 # @description   list    (default) GET /v1/operator/cost-entries
+# @description   index   the same GET, figure-free (SPL-4891): one line per
+# @description           row with its id, period and type only, then one
+# @description           line per period: <period> rows=<n>; with
+# @description           COST_EXPECT_FILE also sum=OK|MISMATCH (the period's
+# @description           raw amounts summed, no FX, against the file's sum
+# @description           to the cent), sum=UNCHECKED for a period the file
+# @description           lacks; never an amount, currency, note or label
 # @description   create  POST an entry (DRY_RUN=1 default prints what it would)
 # @description   delete  DELETE entry COST_ID (DRY_RUN=1 default prints it)
 # @description create, delete and their DRY_RUN lines are figure-free
@@ -18,9 +25,12 @@
 # @description A dry create prints: OK DRY_RUN would POST
 # @description /v1/operator/cost-entries period=<p> type=<t> label=<l> to <hub> ...
 # @param ENV - required: dev or prd
-# @param COST_CMD (optional) - list | create | delete
-# @param COST_TYPE (optional) - list filter, or create: cloud | hr
-# @param COST_MONTH (optional) - list filter: YYYY-MM
+# @param COST_CMD (optional) - list | index | create | delete
+# @param COST_TYPE (optional) - list and index filter, or create: cloud | hr
+# @param COST_MONTH (optional) - list and index filter: YYYY-MM
+# @param COST_EXPECT_FILE (optional) - index: a file kept outside git (or
+#   /dev/stdin), one `period<TAB>net sum` per line, no header; its sums are
+#   compared, never printed, also not on a bad line (its number only)
 # @param COST_LABEL COST_AMOUNT COST_CURRENCY COST_PERIOD - create: the label
 #   (1..100 chars), the amount NET of VAT above 0 (owner poll 68d7f768
 #   answer 4 NET, msg 4eb41f4c), the ISO 4217 code, the month YYYY-MM
@@ -31,6 +41,7 @@
 # @param COST_ID - delete: the entry's uuid
 # @param DRY_RUN (optional) - 1 (default) or 0, create and delete only
 # @example ENV=dev COST_TYPE=cloud COST_MONTH=2026-01 ./run -a do_spl_hub_cost_entries
+# @example ENV=dev COST_CMD=index COST_TYPE=cloud COST_EXPECT_FILE=/dev/stdin ./run -a do_spl_hub_cost_entries
 # @example ENV=dev COST_CMD=create COST_TYPE=cloud COST_LABEL=fixture COST_AMOUNT=1 COST_GROSS=1.24 COST_CURRENCY=EUR COST_PERIOD=2020-01 ./run -a do_spl_hub_cost_entries
 # @example ENV=dev COST_CMD=delete COST_ID=<uuid> DRY_RUN=0 ./run -a do_spl_hub_cost_entries
 #------------------------------------------------------------------------------
@@ -39,11 +50,14 @@ do_spl_hub_cost_entries() {
   local cmd="${COST_CMD:-list}" method path body="" shown="" dry=0
   case "$cmd" in
     list) method=GET path="$(_spl_hub_cost_entries_list_path)" || return 1 ;;
+    index)
+      method=GET path="$(_spl_hub_cost_entries_list_path)" || return 1
+      SPL_COST_EXPECT="$(_spl_hub_cost_entries_expect)" || return 1 ;;
     create)
       method=POST path=/v1/operator/cost-entries; body="$(_spl_hub_cost_entries_body)" || return 1
       shown="period=$COST_PERIOD type=$COST_TYPE label=$COST_LABEL" ;;
     delete) _spl_hub_cost_entries_id || return 1; method=DELETE path="/v1/operator/cost-entries/$COST_ID" ;;
-    *) do_log "FATAL COST_CMD must be list, create or delete, got: '$cmd'"; return 1 ;;
+    *) do_log "FATAL COST_CMD must be list, index, create or delete, got: '$cmd'"; return 1 ;;
   esac
   if [[ "$method" != GET ]]; then
     if spl_dry_run; then dry=1; else local drc=$?; [[ $drc -eq 1 ]] || return 1; fi
@@ -91,6 +105,40 @@ _spl_hub_cost_entries_id() {
   do_log "FATAL COST_ID must be a cost entry's uuid (the value is not printed)"; return 1
 }
 
+# _spl_hub_cost_entries_expect -> COST_EXPECT_FILE as a JSON object
+# {period: sum}, {} without it, else FATAL with the line number only: the
+# file holds figures, so no line of it is ever printed
+_spl_hub_cost_entries_expect() {
+  local f="${COST_EXPECT_FILE:-}" line n=0 json='{}'
+  local rx=$'^([0-9]{4}-(0[1-9]|1[0-2]))\t((0|[1-9][0-9]*)(\\.[0-9]{1,4})?)$'
+  [[ -z "$f" ]] && { echo '{}'; return 0; }
+  [[ -r "$f" ]] || { do_log "FATAL COST_EXPECT_FILE is not a readable file" >&2; return 1; }
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    n=$((n + 1)); line="${line%$'\r'}"
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    [[ "$line" =~ $rx ]] || { do_log "FATAL COST_EXPECT_FILE line $n must be period<TAB>sum (the value is not printed)" >&2; return 1; }
+    json="$(jq -c --arg p "${BASH_REMATCH[1]}" --argjson s "${BASH_REMATCH[3]}" '. + {($p): $s}' <<<"$json" 2>/dev/null)" ||
+      { do_log "FATAL COST_EXPECT_FILE line $n could not be read (the value is not printed)" >&2; return 1; }
+  done <"$f"
+  echo "$json"
+}
+
+# _spl_hub_cost_entries_index <body> -> the figure-free index of a list
+# answer: per row id period type (each shape-checked, else "?"), then per
+# period its row count and, with SPL_COST_EXPECT, OK|MISMATCH|UNCHECKED
+_spl_hub_cost_entries_index() {
+  jq -r --argjson exp "${SPL_COST_EXPECT:-"{}"}" '
+    def ok(re): if type == "string" and test(re) then . else "?" end;
+    [(.entries // [])[] | {id: (.id | ok("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")),
+      period: (.period | ok("^[0-9]{4}-(0[1-9]|1[0-2])$")), type: (.type | ok("^(cloud|hr)$")),
+      amount: (.amount | tonumber? // 0)}] as $e
+    | ($e | group_by(.period) | map({key: .[0].period, value: {n: length, s: (map(.amount) | add)}}) | from_entries) as $g
+    | ($e[] | "  \(.id) \(.period) \(.type)"),
+      (([$g | keys[]] + [$exp | keys[]] | unique[]) as $p
+       | "\($p) rows=\($g[$p].n // 0)" + (if $exp == {} then "" elif $exp[$p] == null then " sum=UNCHECKED"
+           elif ((($g[$p].s // 0) * 100 | round) == ($exp[$p] * 100 | round)) then " sum=OK" else " sum=MISMATCH" end))' <<<"$1"
+}
+
 # _spl_hub_cost_entries_note -> COST_NOTE with COST_GROSS kept in it (the
 # amount is the net), else FATAL: a gross below the net, a note too long
 _spl_hub_cost_entries_note() {
@@ -129,6 +177,9 @@ _spl_hub_cost_entries_report() {
     200:list)
       do_log "OK $ENV cost entries: $(jq -r '.entries | length' <<<"$b")"
       jq -r '.entries[] | "  \(.id) \(.period) \(.type) \(.amount) \(.currency) \(.label)"' <<<"$b" ;;
+    200:index)
+      do_log "OK $ENV cost entries (index, figure-free): $(jq -r '.entries | length' <<<"$b")"
+      _spl_hub_cost_entries_index "$b" ;;
     201:create) do_log "OK $ENV cost entry created: $(jq -r '"\(.id) \(.period) \(.type) \(.label)"' <<<"$b" 2>/dev/null)" ;;
     204:delete) do_log "OK $ENV cost entry $COST_ID deleted" ;;
     400:*) do_log "FATAL the hub refused it (400)$err"; return 1 ;;

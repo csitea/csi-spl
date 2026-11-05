@@ -1,7 +1,7 @@
 # 164 Channel Box Pin: Pin a Channel to Chosen Boxes (Default: Any Box of the Fleet)
 
 Version: v1.3 (2026-10-30).
-Status: **Draft v1.3**, row B1 built (SPL-4438), B2..B8 planned (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
+Status: **Draft v1.3**, rows B1 (SPL-4438) and B2 (SPL-4866) built, B3..B8 planned (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
 Class: feature.
 Kind: specs_and_docs.
 
@@ -156,14 +156,14 @@ In `store/channel_box_pins.go` (Postgres, inside the tenant scope; the operator 
 - Setting a channel's pins needs `rbac.TenantSettings` (`api/internal/rbac/rbac.go:27`, stage Administer).
 - The hub refuses:
   1. a channel that does not exist or is archived: `404 unknown_channel`;
-  2. a box that is not pinned to the workspace, or is revoked (`store.GetPin`): `400 unknown_box`;
-  3. a default channel (`#lobby`, `#alerts`, `#feedback`, `#public`; `store/channels.go:16-25`): `400 channel_default_unpinnable` (owner, Q1 = A, msg `1cc5b9bb`).
+  2. a default channel (`#lobby`, `#alerts`, `#feedback`, `#public`; `store/channels.go:16-25`) or the hidden `#issues` (`store.ChannelPublic`, `store/channel_humans.go:26`): `400 channel_default_unpinnable` (owner, Q1 = A, msg `1cc5b9bb`);
+  3. a box that is not pinned to the workspace, or is revoked (`store.GetPin`): `400 unknown_box`.
 
 ### 4.2 REST Routes (human session, the WUI)
 1. `GET /v1/channels/{channel}/box-pins` -> `{"channel": "<c>", "box_pins": ["box-x"], "is_pinned": true}`; unpinned: `"box_pins": [], "is_pinned": false`.
 2. `PUT /v1/channels/{channel}/box-pins`, body `{"box_pins": ["box-x"]}`; `[]` clears the pin (back to the default).
 3. `GET /v1/tenant/channels` adds `box_pins: string[]` to each channel item.
-4. `PUT /v1/operator/channels/{channel}/box-pins?tenant=<id>`: the operator form of 2, in the operator scope (the `operator_scope` policy), for the seed action of B8. It sits next to the existing `GET /v1/operator/channels/{channel}`.
+4. `PUT /v1/operator/channels/{channel}/box-pins?tenant=<id>`: the operator form of 2, for the seed action of B8. `operatorAuth` checks the operator allow-list and `operatorChannelTenant` requires the Host to match `?tenant=`; the write then runs through B1's tenant-scoped `SetChannelBoxPins` under that one workspace's RLS (B1 has no `operator_scope` writer). It sits next to the existing `GET /v1/operator/channels/{channel}`.
 
 ### 4.3 Box-Signed Read (the placer and the launcher)
 The orc scripts talk to the hub only through the box-signed `spool` CLI (`spl_asks_hub`, `orc/run/spl-asks-open.func.sh:94-98`, runs `spool ask ...`). So the placer and the launcher read a channel's pins through a new verb, built like `spool ask` (`api/cmd/spool/ask.go`, `api/internal/action/ask.go`, `hub/box_ask.go`):
@@ -252,12 +252,12 @@ The backstop (2.4) is the orchestrator lease holder, which may sit on a box outs
 
 ## 8. Build Rows
 
-B1 is built (SPL-4438); B2..B8 are **Planned**, not built. Files are disjoint across rows.
+B1 (SPL-4438) and B2 (SPL-4866) are built; B3..B8 are **Planned**, not built. Files are disjoint across rows.
 
 | Row | Status | What | Files (only these) | Needs | Tests and red control |
 |---|---|---|---|---|---|
 | **B1** | Built (SPL-4438) | Table and store | `rdb/0246_channel_box_pins.sql`<br>`csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql` (only if a grant is missing; none was: its `ALL TABLES` grant and the default privileges cover the table)<br>`store/store.go`<br>`store/channel_box_pins.go`<br>`store/memory.go`<br>`store/channel_box_pins_test.go`<br>`store/crosstenant_test.go` (the per-tenant seed every new tenant table needs)<br>`store/channel_scope_rls_test.go` (one `channelScopeExempt` line: the table names a channel but has no visitor route)<br>`internal/channelmove/catalogue.go` (one `Rewritten` line: every tenant table is classed for a channel move) | none | `TestChannelBoxPinsStore`, `TestRLSChannelBoxPins`, `TestRLSCoversEveryTenantTable` (it checks FORCE), `TestCrossTenantEveryTable`, on PostgreSQL.<br>**Red**: pins written under tenant A, then read through the hub's runtime login in tenant A's scope -> the same rows (a policy on the wrong setting reads 0 and fails this); read in tenant B's scope -> 0 rows; a pin of a box with no `pins` row -> FK error. |
-| **B2** | Planned | Hub REST routes | `hub/channel_box_pins.go`<br>`hub/channel_box_pins_test.go`<br>`hub/server.go` (route lines)<br>`hub/tenant_settings.go` | B1 on master | `TestChannelBoxPinsAPI` (GET, PUT, operator PUT, `GET /v1/tenant/channels`).<br>**Red**: a member without `TenantSettings` -> 403 (not 200); an unknown or revoked box -> 400 `unknown_box`; `#lobby` -> 400 `channel_default_unpinnable`. |
+| **B2** | Built (SPL-4866) | Hub REST routes | `hub/channel_box_pins.go`<br>`hub/channel_box_pins_test.go`<br>`hub/server.go` (route lines)<br>`hub/tenant_settings.go`<br>`hub/openapi.json` (the three operations: `TestOpenAPIRoutes` fails a route without one) | B1 on master | `TestChannelBoxPinsAPI` (GET, PUT, operator PUT, `GET /v1/tenant/channels`).<br>**Red**: a member without `TenantSettings` -> 403 (not 200); an unknown or revoked box -> 400 `unknown_box`; `#lobby` -> 400 `channel_default_unpinnable`. |
 | **B3** | Planned | Fan-out, both direct-leg doors, mention, fallback, receive, posting | `hub/channels.go`<br>`hub/ws.go`<br>`hub/dispatch.go`<br>`hub/fallback.go`<br>`hub/channel_box_pins_route_test.go` | B2 on master | `TestRouteChannelBoxPin`, `TestSendChannelBoxPin`, `TestDispatchChannelBoxPin`, `TestRecvChannelBoxPin`, `TestFallbackChannelBoxPin`, `TestAgentInChannelBoxPin`.<br>**Red**: a pinned channel's post is queued for an unlisted member box; an agent on a listed box sends `to_box` = an unlisted box on a pinned channel over the box WebSocket and it is accepted (row stored or queued); the same from the browser is accepted; a row queued for an unlisted box before the pin (its `to_box` = that box) reaches it; a fallback picks an unlisted box; an agent on an unlisted box posts; a lookup error (store stub) delivers or allows. |
 | **B4** | Planned | Box-signed read verb | `api/cmd/spool/channel_pins.go`<br>`api/internal/action/channel_pins.go`<br>`hub/box_channel_pins.go`<br>`hub/box_channel_pins_test.go` | B2 on master | `TestBoxChannelPins` and the CLI test.<br>**Red**: a box of tenant B reads tenant A's pins; the CLI exits 0 when the hub does not answer. |
 | **B5** | Planned | Placer and launcher | `orc/run/spl-spawn-place.func.sh`<br>`orc/features/spawn-agents/scripts/spawn-window.sh`<br>`orc/tests/spl-spawn-place-channel-pin.tst.sh` | B4 served | `spl-spawn-place-channel-pin.tst.sh` (a stub `spool channel-pins`).<br>**Red**: a claude ask (not only agy or mistral) for a pinned channel launches on an unlisted box when the listed one is full; an unreadable pin list launches; the pins are read with the orchestrator's tenant keys instead of the `Channel:` line's tenant; no desk in that tenant launches instead of holding; `spawn-window.sh` with an unlisted `SPAWN_BOX` exits 0 instead of 15. |
@@ -310,5 +310,6 @@ Decided in this spec, no owner question (each can be reversed by a later spec):
 | v1.2 | R7 re-review by c-594 (W1-W4, W6-W9 closed). **W5**: the agent direct leg goes `onSend` -> `commitRow` (`hub/ws.go:611`, `:1009`), not `dispatchCheck` (browser only); 2.2 now names both doors, 5.1 refuses in the `onSend` chain before `commitRow` and in `dispatchCheck`, and `recvAgents` drops a pinned channel's rows (own ones too) on an unlisted box; `hub/ws.go` joins B3 with red controls for both. **N1**: 5.2.2 signs `spool channel-pins` with the desk keys of the `Channel:` line's tenant; no desk there -> hold; B5 red controls. |
 | v1.3 | Owner answers folded (HUM-10, msg `1cc5b9bb`, poll `400e5b85`): Q1 = A (default channels stay on every box, 4.1 refusal 3 is final), Q2 = A (the hub posts the holding notice, 6.2.2 is final). Section 9 records both; B2's "(per Q1)" and B7's "Q2 answered" gate are met. |
 | v1.3.1 | Row B1 built (SPL-4438): `rdb/0246_channel_box_pins.sql` (0242..0245 were taken), the store in `store/channel_box_pins.go` with the `ChannelBoxPins` interface embedded in `Store`, tests on PostgreSQL through the runtime login; `store/crosstenant_test.go` seeds the table (the cross-tenant suite fails an unseeded tenant table); `store/channel_scope_rls_test.go` exempts it from `channel_scope` (hub fan-out and admin pin routes only, no visitor route), and `channelmove/catalogue.go` classes it `Rewritten`. |
+| v1.3.2 | Row B2 built (SPL-4866): `hub/channel_box_pins.go`. The PUT checks in the order 404 `unknown_channel` (missing or archived), 400 `channel_default_unpinnable` (the four defaults and the reserved `#issues`), 400 `unknown_box` (`store.GetPin`: unpinned, revoked, another workspace's, or not a box id); the store sorts and dedupes. `GET /v1/channels/{channel}/box-pins` uses the channel's read door (`channelDoor`), so an admin outside a private channel reads its pins in `GET /v1/tenant/channels` (every row has `box_pins`, `[]` = unpinned), not there. The operator PUT writes through B1's tenant-scoped `SetChannelBoxPins` for the `?tenant=` workspace (B1 has no operator-scope writer), `pinned_by` = `operator`. R7 review (c-199): 4.1 lists the refusals in the code's order and 4.2.4 names the operator write path. |
 
-<!-- version: 1.3.1 · updated: 2026-10-30 -->
+<!-- version: 1.3.2 · updated: 2026-11-05 -->

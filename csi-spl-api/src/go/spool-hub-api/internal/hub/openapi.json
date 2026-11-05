@@ -2923,6 +2923,157 @@
         ]
       }
     },
+    "/v1/channels/{channel}/box-pins": {
+      "get": {
+        "operationId": "getChannelsByChannelBoxPins",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "box_pins": {
+                      "description": "the boxes the channel is pinned to, sorted; [] = unpinned (any pinned box of the workspace)",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "is_pinned": {
+                      "description": "true when box_pins is not empty",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "box_pins",
+                    "is_pinned"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the channel's box pins as stored"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a channel's box pins (whoever may read the channel)",
+        "tags": [
+          "channels"
+        ]
+      },
+      "put": {
+        "operationId": "putChannelsByChannelBoxPins",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/164-channel-box-pin/spec.md 4.1-4.2. Refused: 404 unknown_channel (missing or archived), 400 channel_default_unpinnable (a default channel), 400 unknown_box (not pinned to the workspace, or revoked).",
+                "properties": {
+                  "box_pins": {
+                    "description": "box ids pinned to the workspace; [] clears the pin",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 64,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "box_pins"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "box_pins": {
+                      "description": "the boxes the channel is pinned to, sorted; [] = unpinned (any pinned box of the workspace)",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "is_pinned": {
+                      "description": "true when box_pins is not empty",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "box_pins",
+                    "is_pinned"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the channel's box pins as stored"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Pin a channel to some boxes of the workspace, or clear the pin (tenant.settings)",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
     "/v1/channels/{channel}/members": {
       "get": {
         "operationId": "getChannelsByChannelMembers",
@@ -11373,6 +11524,107 @@
           }
         },
         "summary": "Read one channel back with its human members",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/channels/{channel}/box-pins": {
+      "put": {
+        "operationId": "putOperatorChannelsByChannelBoxPins",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/164-channel-box-pin/spec.md 4.1-4.2. Refused: 404 unknown_channel (missing or archived), 400 channel_default_unpinnable (a default channel), 400 unknown_box (not pinned to the workspace, or revoked).",
+                "properties": {
+                  "box_pins": {
+                    "description": "box ids pinned to the workspace; [] clears the pin",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 64,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "box_pins"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "box_pins": {
+                      "description": "the boxes the channel is pinned to, sorted; [] = unpinned (any pinned box of the workspace)",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "is_pinned": {
+                      "description": "true when box_pins is not empty",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "box_pins",
+                    "is_pinned"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the channel's box pins as stored"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set a channel's box pins in one workspace (pinned_by operator)",
         "tags": [
           "operator"
         ],

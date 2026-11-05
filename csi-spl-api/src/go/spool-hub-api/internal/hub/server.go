@@ -548,6 +548,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeNetvisor(mux) // spec 125 B5: /v1/view/netvisor/*, /v1/netvisor/*, the Netvisor owner only, netvisor.go
 	// SPL-4697: /v1/reporting/incomes (owner) + PUT /v1/operator/incomes, reporting_incomes.go
 	s.routeReportingIncomes(mux)
+	s.routeChannelBoxPins(mux) // spec 164 B2: /v1/channels/{channel}/box-pins + the operator PUT, channel_box_pins.go
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

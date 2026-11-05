@@ -41,7 +41,7 @@ var channelScopeExempt = map[string]string{
 	"token_budgets":       "the token limits (rdb 0171): the hub's quota check and a member's counter, no visitor route",
 	"delivery_live_acks":  "a box's live poke outcome per agent (rdb 0186): read by the hub's nack sweep, no reader route",
 	"channel_invites":     "a channel's pending invited addresses (rdb 0231): the channel members route behind the member door, no visitor route",
-	"channel_box_pins":    "the boxes a channel is pinned to (rdb 0246, spec 164): the hub's fan-out and the admin pin routes, no visitor route",
+	"channel_box_pins":    "the boxes a channel is pinned to (rdb 0246, spec 164): the hub's fan-out, the admin pin routes and the member GET behind the channel door, no visitor route",
 	// rdb 0249 (spec 169 T2): the move's own record, operator-written
 	"channel_move_journal": "the channel move journal: written and read by the operator's move action, no visitor route",
 	"channel_move_steps":   "the steps of a channel move journal: the operator's move action only, no visitor route",

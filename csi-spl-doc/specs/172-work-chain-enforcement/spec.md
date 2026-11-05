@@ -1,6 +1,6 @@
 # 172 The work chain: discussion -> issue -> lane -> agent, no bare issue, lane or agent
 
-Version: v0.1 (2026-11-05), evaluation only: nothing below is built. Issue
+Version: v0.2 (2026-11-05), evaluation only: nothing below is built. Issue
 SPL-4867 · Epic SPL-2403 · Class feature · Kind specs_and_docs · Task
 `dispatch-b0f50875` · Placement slug `c002-spec-enforce-discussion-chain-claude`
 · Author c-192.
@@ -38,6 +38,12 @@ Earlier rules it extends:
   (rdb 0194, SPL-1593).
 - t1 `0c2d08a2`, msg `937e89a4`: "for the already nulls , do not use resources
   to search what they were related to -, use the unknown string".
+- t1 `ef94396b`, msgs `61bf7791` and `dd164168`: a commit's issue links "at
+  least 1 discussion where this issue originated from", and "after this
+  feature has completed the usage of the unknown hsould be forbidden" (gate
+  SPL-4789, `do_spl_commit_links_check`: the workspace default is not such a
+  discussion). So a new issue that links only the default is a bare issue:
+  decided, not an owner choice.
 
 As one chain:
 
@@ -63,7 +69,7 @@ backlog" topic, `spool_issue_backlog_id`).
 `select tenant_id, count(*), count(*) filter (where only_default) ... from
 issues left join issue_discussions ... group by 1`:
 
-| workspace | issues | 0 links | only the default | ... open | ... created last 7 d | created last 7 d |
+| workspace | issues | 0 links | only the default | only the default, open | only the default, created last 7 d | created last 7 d |
 |---|---|---|---|---|---|---|
 | t1 | 4867 | 0 | 3012 | 257 | 279 | 618 |
 | w2 | 522 | 0 | 522 | 176 | 0 | 0 |
@@ -93,6 +99,8 @@ Who files t1's new bare issues (last 7 days, by `created_by`):
 | a lane | 4 | 0 | 0 | 0 |
 | g-001 | 1 | 0 | 0 | 0 |
 
+The rows add up to 617 of the 618: one issue is not classed.
+
 So every bare issue of the week was filed by a role seat, for a lane it
 placed. 213 of 279 name `/t/fcf09921` first (4 name no `/t/` at all): the brief named no
 discussion the reader takes, and `spl_lane_issue_place`
@@ -111,7 +119,7 @@ tried to link the brief's topic: the t1 hub refused `b0f50875` with
 link another workspace's discussion today; it linked the t1 topic `0c2d08a2`
 on the same rule instead (`select number, task_id from issue_discussions where
 tenant_id='t1' and number=4867` -> `0c2d08a2`, `fcf09921`). That refusal is
-what Q2 decides. The 62 that name
+what Q1 decides. The 62 that name
 another topic and still link only the default are not classed here.
 
 ### 2.2 Lanes with no issue or no discussion
@@ -180,19 +188,19 @@ and the box row).
 | # | path | gate | what exactly |
 |---|---|---|---|
 | G1 | `spl_lane_issue_place` | refuse | no discussion in the brief (`li_discussion_from_brief`) and no `LANE_ISSUE_TOPIC` -> FATAL, no default; the spawn exits 12 as for a missing issue |
-| G2 | `do_spl_issue_create` | refuse | a new issue whose only discussion is the workspace default is refused (Q1) |
-| G3 | hub `discussionsFor` | refuse | the same for every create path: a create whose only discussion is `IssueDiscussionDefault` is `discussion_required`; the hub's derived paths pass their real topic; the cascade's default fallback goes |
-| G4 | a brief's `Owner topic: <ws> <uuid>` line | derive | `li_discussion_from_brief` reads it (the form every dispatcher brief uses); a t1 issue then links another workspace's topic if Q2 = A, else the issue is filed in that workspace |
+| G2 | `do_spl_issue_create` | refuse | a new issue whose only discussion is the workspace default is refused (decided: owner `4ef793d6`, `61bf7791`); old issues keep the default as their `unknown` (`937e89a4`) |
+| G3 | hub `discussionsFor` | refuse | the same for every create path: a create whose only discussion is `IssueDiscussionDefault` is `discussion_required` (decided, as G2); the hub's derived paths pass their real topic; the cascade's default fallback goes |
+| G4 | a brief's `Owner topic: <ws> <uuid>` line | derive | `li_discussion_from_brief` reads it (the form every dispatcher brief uses); a t1 issue then links another workspace's topic if Q1 = A, else the issue is filed in that workspace |
 | G5 | `do_spl_spawn_enqueue` | refuse | refuses a brief with no discussion, as it refuses one with no `Epic:`/`Spec:`, and writes `fleet_asks.discussion` from it (derive), so the placer's refusal (SPL-4797) is the second net |
 | G6 | `spawn-window.sh`, hand spawn | refuse | the placer's link check runs here too: a hand spawn launches nothing without both |
 | G7 | `_spawn_lane_put` | refuse | the put runs in the foreground before `tmux new-window`; a refused put (after 3 tries) stops the launch: no window without its row |
 | G8 | rotation, failover, seat restart | derive | `SPAWN_REUSE_ID=1` carries the previous row's topic and issue (`lifetime/*`, else the hub row); a role seat takes its standing values (section 4) |
-| G9 | identity restore | derive | after the resume, put the row again from `lifetime/brief.md` and `lifetime/issue`; none found -> Q4 |
+| G9 | identity restore | derive | after the resume, put the row again from `lifetime/brief.md` and `lifetime/issue`; none found -> Q2 |
 | G10 | desk seat | none | it starts no agent; the agent it seats has its row |
-| G11 | BOX-0 heartbeat | default | it is no lane: `kind = box` or its own table (Q3); every lane rule leaves it out |
+| G11 | BOX-0 heartbeat | default | it is no lane: a `kind` column, `kind = box` exempt (decided: a schema choice); every lane rule leaves it out |
 | G12 | hub lane put (`CheckFleetLane`) | refuse | empty topic or issue refused (lane (c), SPL-4799, `ErrLaneUnlinked`); role seats send their standing values, not `unknown` |
 | G13 | 15-min check `do_spl_lane_links_check` | report | live (SPL-4797); after section 4 it stops leaving role seats out: a seat with no standing value is a gap |
-| G14 | dead live rows | derive | a live row whose agent has no pane on its box and whose last write is older than 24 h is set `done` (Q5) |
+| G14 | dead live rows | derive | a live row whose agent has no pane on its box and whose last write is older than 24 h is set `done` (decided: truth-first, a live row with no pane is false data; the reaper already closes reaped ids through `lane-map.sh done`, `sa/lib/reap-lane-close.inc.sh`) |
 
 ## 4. Role seats: standing discussion, standing issues, standing lanes
 
@@ -203,7 +211,7 @@ issue), and lane (c) writes `unknown` for them.
 
 Design:
 
-- **One standing discussion** per workspace that runs seats (Q6), made once by
+- **One standing discussion** per workspace that runs seats (Q3), made once by
   a new idempotent action `do_spl_standing_chain_ensure`, titled "Fleet
   operations: the standing seats", in that workspace's operations channel. Its
   uuid is cnf (`env.fleet.standing.discussion`), never a literal in code.
@@ -227,7 +235,7 @@ Design:
 | `fleet_lanes.topic`, `.issue_key` | `NOT NULL DEFAULT ''` | no default, CHECK `<> ''`, old `''` -> `unknown` | lane (c) SPL-4799, rdb 0263: commit `8c8d98323` in its worktree; `git log origin/master --grep SPL-4799` -> none. This spec adds nothing to 0263 |
 | `fleet_lanes.topic` | free text | CHECK the form: a uuid, `dispatch-[0-9a-f]{8}` or `unknown` | a migration after 0263; no FK: the topic may be another workspace's |
 | `fleet_lanes.issue_key` | key or `''` | a key or `unknown` (0263); no FK: a key may carry another workspace's prefix | the page resolves it (spec 153 3.19) |
-| `fleet_lanes.kind` | none | `lane` / `seat` / `box` (Q3 = A) | a new migration; a `box` row is exempt from both CHECKs |
+| `fleet_lanes.kind` | none | `lane` / `seat` / `box` (G11) | a new migration; a `box` row is exempt from both CHECKs |
 | `issues` / `issue_discussions` | >= 1 link at COMMIT (0194) | an issue created after the migration whose only link is the default is refused at COMMIT | a new migration; old issues keep their link |
 | `fleet_asks.discussion` | uuid, NULL allowed | NOT NULL for `task` asks created after the migration | after G5 lands |
 
@@ -249,7 +257,7 @@ Owner `937e89a4`: no search, the literal `unknown`.
 | # | component | file / action | change | effort | covered by |
 |---|---|---|---|---|---|
 | T1 | orc | `spl-lane-issue.func.sh` `spl_lane_issue_place` | G1: no default discussion, FATAL | S | none |
-| T2 | orc | `spl-issue-create.func.sh`, `lib/bash/funcs/spl-desk-issue.func.sh` | G2: refuse the default for a new issue | S | none |
+| T2 | orc | `spl-issue-create.func.sh`, `csi-spl-orc/lib/bash/funcs/spl-desk-issue.func.sh` | G2: refuse the default for a new issue | S | none |
 | T3 | api | `hub/issue_discussions.go` `discussionsFor`, `hub/issue_epic_close.go` | G3: the default is no discussion for a new issue; the cascade takes the epic's | M | none |
 | T4 | orc | `sa/lib/lane-issue.inc.sh` `li_discussion_from_brief` | G4: read `Owner topic: <ws> <uuid>` | S | none |
 | T5 | orc | `spl-spawn-enqueue.func.sh` | G5: refuse no discussion, write `ASK_DISCUSSION` | S | none (SPL-4797 refuses at placement only) |
@@ -264,7 +272,7 @@ Owner `937e89a4`: no search, the literal `unknown`.
 | T14 | orc + cnf | a new `do_spl_standing_chain_ensure`; `csi-spl-cnf` `env.fleet.standing.*` | section 4: the discussion and the standing issues | M | none |
 | T15 | orc | `scripts/issue-close-landed.py` | the closer skips `standing` | S | none |
 | T16 | rdb | the migrations of section 5 (topic form, kind, default-only refusal, asks NOT NULL) | the DB holds the rule | M | none |
-| T17 | wui | Monitoring Lanes / Topics | ids render as links, `unknown` as text | built | **lane (b) SPL-4798** (`ce769cf93`) |
+| T17 | wui | Monitoring Lanes / Topics | ids render as links, `unknown` as text | built | **lane (b) SPL-4798** (`ce769cf93`); `unknown` as text: **lane (a) SPL-4797** (`88ac4f56e`) |
 | T18 | api + orc | priority: discussion -> issues -> lanes | not a link rule; it walks this chain | built | **SPL-4813** (`2bb59d807`) |
 | T19 | api | `hub/box_lane.go`: a put keeps another workspace's v5 topic | a cross-workspace discussion survives the put | built | **lane (a) SPL-4797** (`f43810f8f`) |
 | T20 | doc | spec 153 / 135, `doc/md/lane-issue-and-docs.md`, `doc/md/SPEC-spool-fleet-roles.md` | the rule's one home and its pointers | S | none |
@@ -288,19 +296,16 @@ The 4 queued lanes:
 
 One line each; A is the recommendation.
 
-- **Q1 the default discussion.** A: a new issue may not link only its
-  workspace's default discussion; it stays the `unknown` of old issues.
-  B: it stays allowed as a catch-all.
-- **Q2 another workspace's discussion.** A: a t1 issue may link a topic of the
+The poll in csitea `b0f50875` asked six questions; its Q1, Q3 and Q5 are
+decided above (G2/G3, G11, G14), so its Q2, Q4 and Q6 are Q1, Q2 and Q3 here.
+
+- **Q1 another workspace's discussion.** A: a t1 issue may link a topic of the
   workspace its lane works for (today the hub refuses it, 2.1: a hub change).
   B: the issue is filed in that workspace.
-- **Q3 the BOX-0 row.** A: a `kind` column on `fleet_lanes`, the box row
-  exempt. B: its own table, out of `fleet_lanes`.
-- **Q4 a restore that finds no lane on its box.** A: report it to the dispatch
-  holder and do not resume. B: resume with `unknown` and report it.
-- **Q5 dead live rows.** A: set `done` (no pane, older than 24 h). B: they stay
-  live with `unknown`.
-- **Q6 the standing discussion.** A: one per workspace that runs seats, in its
+- **Q2 a restore that finds no lane on its box.** A: report it to the dispatch
+  holder and do not resume. B: resume and put the row from
+  `lifetime/brief.md` if it names a topic and an issue, else refuse as A.
+- **Q3 the standing discussion.** A: one per workspace that runs seats, in its
   operations channel. B: one for the whole fleet, in t1.
 
 ## 9. Not built here

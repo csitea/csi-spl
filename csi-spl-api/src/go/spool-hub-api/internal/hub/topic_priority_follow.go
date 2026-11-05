@@ -204,7 +204,10 @@ func (s *Server) followTopicPriority(ctx context.Context, tenant, task, by strin
 		// the operator run reads what the sweep reads, or the two disagree
 		// and the issue's priority flips every 5 min
 		lookIn := []string{tenant}
-		if ws, werr := s.prioSyncWorkspaces(ctx, op); werr == nil && len(ws) > 0 {
+		ws, werr := s.prioSyncWorkspaces(ctx, op)
+		if werr != nil {
+			s.o.Log.Warn().Err(werr).Str("tenant", op).Str("task", task).Msg("issue priority follow: workspaces not read, this one only")
+		} else if len(ws) > 0 {
 			lookIn = ws[1:]
 		}
 		if op == tenant {

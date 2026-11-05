@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Distributie en orkestratie",
     "split_rule_tie": "Twee leveranciers staan gelijk voor hoofd",
     "split_rule_backup": "De back-up moet verschillen van de hoofdleverancier",
-    "split_rule_agy": "Antigravity schrijft geen code",
     "split_rule_secret": "Alleen Claude, Grok of Mistral",
     "senders": {
       "title": "Wie elke agent berichten mag sturen",

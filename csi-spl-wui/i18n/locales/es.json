@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Asignación y orquestación",
     "split_rule_tie": "Dos proveedores empatan como principal",
     "split_rule_backup": "El respaldo debe diferir del principal",
-    "split_rule_agy": "Antigravity no escribe código",
     "split_rule_secret": "Solo Claude, Grok o Mistral",
     "senders": {
       "title": "Quién puede escribir a cada agente",

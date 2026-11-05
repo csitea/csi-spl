@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Dispečing a orchestrácia",
     "split_rule_tie": "Dvaja dodávatelia zdieľajú prvé miesto",
     "split_rule_backup": "Záložný sa musí líšiť od hlavného",
-    "split_rule_agy": "Antigravity nepíše kód",
     "split_rule_secret": "Iba Claude, Grok alebo Mistral",
     "senders": {
       "title": "Kto môže písať každému agentovi",

@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Диспетчеризація та оркестрація",
     "split_rule_tie": "Два вендори мають однакову частку",
     "split_rule_backup": "Резервний має відрізнятися від основного",
-    "split_rule_agy": "Antigravity не пише код",
     "split_rule_secret": "Лише Claude, Grok або Mistral",
     "senders": {
       "title": "Хто може писати кожному агенту",

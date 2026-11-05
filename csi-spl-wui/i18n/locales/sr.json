@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Диспечирање и оркестрација",
     "split_rule_tie": "Два добављача деле прво место",
     "split_rule_backup": "Резервни се мора разликовати од главног",
-    "split_rule_agy": "Antigravity не пише код",
     "split_rule_secret": "Само Claude, Grok или Мистрал",
     "senders": {
       "title": "Ко може да пише сваком агенту",

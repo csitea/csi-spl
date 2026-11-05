@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Jaotamine ja orkestreerimine",
     "split_rule_tie": "Kaks pakkujat on peamise kohal viigis",
     "split_rule_backup": "Varupakkuja peab erinema peamisest",
-    "split_rule_agy": "Antigravity ei kirjuta koodi",
     "split_rule_secret": "Ainult Claude, Grok või Mistral",
     "senders": {
       "title": "Kes võib igale agendile kirjutada",

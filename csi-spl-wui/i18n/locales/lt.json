@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Paskirstymas ir orkestravimas",
     "split_rule_tie": "Du tiekėjai turi vienodą pagrindinę dalį",
     "split_rule_backup": "Atsarginis turi skirtis nuo pagrindinio",
-    "split_rule_agy": "Antigravity nerašo jokio kodo",
     "split_rule_secret": "Tik Claude, Grok arba Mistral",
     "senders": {
       "title": "Kas gali rašyti kiekvienam agentui",

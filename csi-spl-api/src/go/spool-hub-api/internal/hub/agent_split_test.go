@@ -60,12 +60,12 @@ func TestAgentSplitKinds(t *testing.T) {
 	}
 	ks := splitKinds(t, body)
 	assertKind(t, ks["specs_and_docs"], "agy", "claude", false, map[string]float64{"agy": 80, "mistral": 15, "claude": 5})
-	assertKind(t, ks["tests"], "claude", "grok", false, map[string]float64{"claude": 85, "grok": 15})
-	assertKind(t, ks["simple_coding"], "claude", "grok", false, map[string]float64{"claude": 59, "grok": 41})
-	assertKind(t, ks["complex_coding"], "claude", "grok", false, map[string]float64{"claude": 90, "grok": 10})
+	assertKind(t, ks["tests"], "claude", "agy", false, map[string]float64{"claude": 85, "agy": 15})
+	assertKind(t, ks["simple_coding"], "claude", "agy", false, map[string]float64{"claude": 59, "agy": 41})
+	assertKind(t, ks["complex_coding"], "claude", "agy", false, map[string]float64{"claude": 90, "agy": 10})
 	assertKind(t, ks["i18n"], "agy", "claude", false, map[string]float64{"agy": 100})
 	assertKind(t, ks["secret"], "claude", "grok", false, map[string]float64{"claude": 100})
-	assertKind(t, ks["orchestration"], "claude", "grok", false, map[string]float64{"claude": 65, "grok": 35})
+	assertKind(t, ks["orchestration"], "claude", "grok", false, map[string]float64{"claude": 100})
 	if v, _ := body["vendors"].([]any); len(v) != 5 {
 		t.Fatalf("vendors: %v", body["vendors"])
 	}
@@ -83,7 +83,7 @@ func TestAgentSplitKinds(t *testing.T) {
 	if ks["simple_coding"]["updated_by"] == "" || ks["simple_coding"]["updated_at"] == nil {
 		t.Fatalf("patch: no updated_by / updated_at: %v", ks["simple_coding"])
 	}
-	assertKind(t, ks["tests"], "claude", "grok", false, map[string]float64{"claude": 85, "grok": 15})
+	assertKind(t, ks["tests"], "claude", "agy", false, map[string]float64{"claude": 85, "agy": 15})
 
 	// grok takes secret-class work: secret and orchestration (the data rule).
 	code, body = call(t, e, tid, http.MethodPatch, "/v1/agent-split", admin, map[string]any{
@@ -108,21 +108,20 @@ func TestAgentSplitKinds(t *testing.T) {
 	}
 	assertKind(t, splitKinds(t, body)["simple_coding"], "mistral", "claude", true, map[string]float64{"mistral": 60, "claude": 30, "grok": 10})
 
-	// CONTROL: agy in a coding kind is refused and nothing is written.
+	// CONTROL: agy in a secret-class kind is refused and nothing is written,
+	// not even the good kind beside it.
 	for name, kinds := range map[string]map[string]any{
-		"simple_coding agy 10": {"simple_coding": map[string]any{"weights": map[string]int{"mistral": 70, "claude": 20, "agy": 10}, "backup": "claude"}},
-		"tests agy 1":          {"tests": map[string]any{"weights": map[string]int{"claude": 69, "mistral": 30, "agy": 1}, "backup": "mistral"}},
-		"complex agy backup":   {"complex_coding": map[string]any{"weights": map[string]int{"claude": 80, "mistral": 20}, "backup": "agy"}},
-		// one good kind and one bad: the good one is not written either
+		"secret agy 10":        {"secret": map[string]any{"weights": map[string]int{"claude": 90, "agy": 10}, "backup": "grok"}},
+		"orchestration agy 10": {"orchestration": map[string]any{"weights": map[string]int{"claude": 90, "agy": 10}, "backup": "grok"}},
 		"mixed": {
 			"i18n":          map[string]any{"weights": map[string]int{"agy": 90, "claude": 10}, "backup": "claude"},
-			"simple_coding": map[string]any{"weights": map[string]int{"mistral": 60, "agy": 40}, "backup": "claude"},
+			"orchestration": map[string]any{"weights": map[string]int{"claude": 60, "agy": 40}, "backup": "grok"},
 		},
 	} {
 		code, body = call(t, e, tid, http.MethodPatch, "/v1/agent-split", admin, map[string]any{"kinds": kinds})
 		msg, _ := body["detail"].(string)
-		if code != http.StatusBadRequest || body["error"] != "bad_split" || !strings.Contains(msg, "agy writes no code") {
-			t.Errorf("CONTROL %s: %d %v, want 400 bad_split naming agy", name, code, body)
+		if code != http.StatusBadRequest || body["error"] != "bad_split" || !strings.Contains(msg, "only claude, grok and mistral") {
+			t.Errorf("CONTROL %s: %d %v, want 400 bad_split naming the data rule", name, code, body)
 		}
 	}
 	code, body = call(t, e, tid, http.MethodGet, "/v1/agent-split", admin, nil)
@@ -166,7 +165,7 @@ func TestAgentSplitKinds(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("reset: %d %v", code, body)
 	}
-	assertKind(t, splitKinds(t, body)["simple_coding"], "claude", "grok", false, map[string]float64{"claude": 59, "grok": 41})
+	assertKind(t, splitKinds(t, body)["simple_coding"], "claude", "agy", false, map[string]float64{"claude": 59, "agy": 41})
 
 	// tenant.settings only.
 	dev := seat(t, e, tid, rbac.Developer)

@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Dispatching and orchestration",
     "split_rule_tie": "Two vendors tie for main",
     "split_rule_backup": "The backup must differ from the main",
-    "split_rule_agy": "Antigravity writes no code",
     "split_rule_secret": "Only Claude, Grok or Mistral",
     "senders": {
       "title": "Who may message each agent",

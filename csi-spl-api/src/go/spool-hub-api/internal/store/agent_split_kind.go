@@ -29,10 +29,6 @@ import (
 // The picker's aliases (spec, hard, default) are never stored.
 var SplitTaskKinds = []string{"specs_and_docs", "tests", "simple_coding", "complex_coding", "i18n", "secret", "orchestration"}
 
-// splitCodingKinds are the kinds agy never serves (spec 115 G2): weight 0
-// and never the backup.
-var splitCodingKinds = []string{"tests", "simple_coding", "complex_coding"}
-
 // splitSecretKinds are the secret-class kinds: secret, and orchestration
 // (dispatching and orchestrating sees every lane's data). They may weigh or
 // name as the backup only splitSecretVendors (the data rule, owner msgs
@@ -74,19 +70,20 @@ func (k SplitKind) Main() string {
 // DefaultSplitKinds is the spec 115 section 2 table (cnf
 // env.box.agent_split_by_kind), in SplitTaskKinds order, each Set false.
 // Mistral writes no code (owner HUM-10 msg 91bf8278, 2026-10-17): 0 and
-// never the backup outside specs_and_docs.
+// never the backup outside specs_and_docs. agy takes grok's share and backup
+// in the coding kinds (owner HUM-10 msg dc673043, SPL-4826).
 func DefaultSplitKinds() []SplitKind {
 	row := func(kind, backup string, w map[string]int) SplitKind {
 		return SplitKind{Kind: kind, Weights: fullWeights(w), Backup: backup}
 	}
 	return []SplitKind{
 		row("specs_and_docs", "claude", map[string]int{"agy": 80, "mistral": 15, "claude": 5}),
-		row("tests", "grok", map[string]int{"claude": 85, "grok": 15}),
-		row("simple_coding", "grok", map[string]int{"claude": 59, "grok": 41}),
-		row("complex_coding", "grok", map[string]int{"claude": 90, "grok": 10}),
+		row("tests", "agy", map[string]int{"claude": 85, "agy": 15}),
+		row("simple_coding", "agy", map[string]int{"claude": 59, "agy": 41}),
+		row("complex_coding", "agy", map[string]int{"claude": 90, "agy": 10}),
 		row("i18n", "claude", map[string]int{"agy": 100}),
 		row("secret", "grok", map[string]int{"claude": 100}),
-		row("orchestration", "grok", map[string]int{"claude": 65, "grok": 35}),
+		row("orchestration", "grok", map[string]int{"claude": 100}),
 	}
 }
 
@@ -100,8 +97,9 @@ func badSplitKind(format string, a ...any) error {
 
 // CheckSplitKind applies the rdb 0163 rules to one row: a known kind and
 // known vendors, every weight 0..100 summing to 100, one strict main, a
-// backup that is a vendor other than the main, agy 0 and never the backup
-// in a coding kind, and only claude, grok or mistral in a secret-class kind.
+// backup that is a vendor other than the main, and only claude, grok or
+// mistral in a secret-class kind. agy may code (owner HUM-10 msg dc673043,
+// rdb 0262).
 func CheckSplitKind(k SplitKind) error {
 	if !slices.Contains(SplitTaskKinds, k.Kind) {
 		return badSplitKind("kind %q is not one of %s", k.Kind, strings.Join(SplitTaskKinds, ", "))
@@ -128,9 +126,6 @@ func CheckSplitKind(k SplitKind) error {
 	}
 	if k.Backup == main {
 		return badSplitKind("%s: the backup is the main (%s)", k.Kind, main)
-	}
-	if slices.Contains(splitCodingKinds, k.Kind) && (k.Weights["agy"] > 0 || k.Backup == "agy") {
-		return badSplitKind("%s: agy writes no code, so it is 0 and never the backup in a coding kind", k.Kind)
 	}
 	if slices.Contains(splitSecretKinds, k.Kind) {
 		for v, w := range k.Weights {

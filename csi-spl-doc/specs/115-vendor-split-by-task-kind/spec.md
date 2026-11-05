@@ -85,9 +85,12 @@ Rules on the table, enforced by the cnf validator and the hub PATCH:
   in their mix.
 - ~~In `simple_coding`, `complex_coding` and `tests`, agy is 0 and is never
   the backup.~~ Lifted 2026-11-04 (G2) in the cnf validator and
-  `do_spl_lane_mix`. The hub PATCH (`internal/store/agent_split_kind.go`) and
-  the rdb CHECK `tenant_agent_split_kind_no_agy_coding` (0163) still refuse
-  it until their own change lands.
+  `do_spl_lane_mix`, then (SPL-4826 follow-up) in the hub PATCH
+  (`internal/store/agent_split_kind.go` `CheckSplitKind`), the rdb (0262
+  drops 0163's CHECK `tenant_agent_split_kind_no_agy_coding`) and the WUI
+  table (`csi-spl-wui/src/utils/tenant-settings.mjs` `splitKindRule`). The
+  hub's `DefaultSplitKinds` and the WUI's `DEFAULT_SPLIT_KINDS` are the cnf
+  rows (a WUI unit test compares every kind with cnf).
 - In the secret-class kinds, `secret` and `orchestration`, only claude, grok
   and mistral may be non-zero or the backup (the data rule; grok added
   2026-10-11, owner msgs 26117740, 474f32a0).

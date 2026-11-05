@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Rozdzielanie i orkiestracja",
     "split_rule_tie": "Dwóch dostawców remisuje o pozycję główną",
     "split_rule_backup": "Zapasowy musi różnić się od głównego",
-    "split_rule_agy": "Antigravity nie pisze kodu",
     "split_rule_secret": "Tylko Claude, Grok lub Mistral",
     "senders": {
       "title": "Kto może pisać do każdego agenta",

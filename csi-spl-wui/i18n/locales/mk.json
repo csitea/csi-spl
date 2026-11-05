@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Распоредување и оркестрација",
     "split_rule_tie": "Два продавача се изедначени за главен",
     "split_rule_backup": "Резервниот мора да се разликува од главниот",
-    "split_rule_agy": "Antigravity не пишува код",
     "split_rule_secret": "Само Claude, Grok или Mistral",
     "senders": {
       "title": "Кој може да пишува на секој агент",

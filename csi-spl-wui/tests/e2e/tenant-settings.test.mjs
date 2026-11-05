@@ -22,8 +22,8 @@
 //   PROVE_RED=no-archive node tests/e2e/tenant-settings.test.mjs
 // (Performance: the compare is skipped, so step 16d goes red)
 //   PROVE_RED=no-compare node tests/e2e/tenant-settings.test.mjs
-// (Vendor split per kind: agy 10 in simple coding is saved, so step 8o goes red)
-//   PROVE_RED=agy-coding node tests/e2e/tenant-settings.test.mjs
+// (Vendor split per kind: agy 10 in orchestration is saved, so step 8o goes red)
+//   PROVE_RED=agy-secret node tests/e2e/tenant-settings.test.mjs
 // (Agent takeover: the new order is never saved, so step 8s goes red)
 //   PROVE_RED=takeover-no-save node tests/e2e/tenant-settings.test.mjs
 // (Join tokens: the biz_owner mock is not set, so step 17 goes red)
@@ -75,7 +75,7 @@ function cnfSplitKinds() {
     const weights = Object.fromEntries(AGENT_SPLIT_KINDS.map((v) => [v, Number(row[v] ?? 0)]))
     kinds[m[1]] = { weights, backup: row.backup }
   }
-  for (const k of ['simple_coding', 'tests']) if (!kinds[k]) throw new Error(`cnf agent_split_by_kind has no ${k} row`)
+  for (const k of ['simple_coding', 'tests', 'orchestration']) if (!kinds[k]) throw new Error(`cnf agent_split_by_kind has no ${k} row`)
   return kinds
 }
 
@@ -259,9 +259,11 @@ try {
   ok('8h mistral 55, grok 0 is saved and read back', moved === 'claude=25 grok=0 agy=10 qwen=10 mistral=55', moved)
 
   // spec 115 HUB-1: the split per task kind. The table shows the section 2
-  // defaults; agy in a coding kind is refused before Save (the CONTROL:
-  // PROVE_RED=agy-coding saves it anyway and the mock hub refuses it, 8o
-  // red); new weights save and read back after a section change. The
+  // defaults; agy codes, so agy in a coding kind passes the rules (owner msg
+  // dc673043, SPL-4826), but agy in orchestration is refused before Save
+  // (the data rule; the CONTROL: PROVE_RED=agy-secret saves it anyway and
+  // the mock hub refuses it, 8o red); new weights save and read back after
+  // a section change. The
   // expected defaults are read from cnf env.box.agent_split_by_kind, the
   // one source (the mock hub serves DEFAULT_SPLIT_KINDS, so a WUI copy that
   // drifts from cnf reds 8m), never pinned here: two runs (38179635327,
@@ -276,15 +278,22 @@ try {
   const enLabels = createRequire(import.meta.url)('../../i18n/locales/en.json').tenant_settings
   const kinds0 = { simple: await kindRow('simple_coding'), main: await text(p, '[data-test=split-kind-simple_coding-main]'), i18n: await text(p, '[data-test=split-kind-i18n-main]') }
   ok('8m the per-kind table shows the spec 115 defaults and the main', kinds0.simple === splitRowOf(simpleDef.weights, simpleDef.backup) && kinds0.main === enLabels[`split_${simpleMain}`] && kinds0.i18n === 'Antigravity', kinds0)
-  // agy 10 taken from the default main: the row still sums to 100, so the
-  // one rule it breaks is agy in a coding kind (checked on the code too).
-  const agyRow = { ...simpleDef.weights, [simpleMain]: simpleDef.weights[simpleMain] - 10, agy: 10 }
-  await setNum(`[data-test=split-kind-simple_coding-${simpleMain}]`, String(agyRow[simpleMain]))
-  await setNum('[data-test=split-kind-simple_coding-agy]', '10')
+  // agy 10 taken from the orchestration main: the row still sums to 100, so
+  // the one rule it breaks is the data rule (checked on the code too).
+  const orchDef = cnfKinds.orchestration
+  const orchMain = splitMainOf(orchDef.weights)
+  const agyRow = { ...orchDef.weights, [orchMain]: orchDef.weights[orchMain] - 10, agy: orchDef.weights.agy + 10 }
+  await setNum(`[data-test=split-kind-orchestration-${orchMain}]`, String(agyRow[orchMain]))
+  await setNum('[data-test=split-kind-orchestration-agy]', String(agyRow.agy))
   await sleep(100)
-  const agy = { code: splitKindRule('simple_coding', agyRow, simpleDef.backup), rule: await text(p, '[data-test=split-kind-simple_coding-main]'), disabled: await p.$eval('[data-test=split-kinds-save]', (el) => el.disabled) }
-  ok('8n CONTROL: agy 10 in simple coding names the rule and keeps Save off', agy.code === 'agy' && agy.rule === 'Antigravity writes no code' && agy.disabled === true, agy)
-  if (RED === 'agy-coding') {
+  const agy = { code: splitKindRule('orchestration', agyRow, orchDef.backup), rule: await text(p, '[data-test=split-kind-orchestration-main]'), disabled: await p.$eval('[data-test=split-kinds-save]', (el) => el.disabled) }
+  ok('8n CONTROL: agy 10 in orchestration names the data rule and keeps Save off', agy.code === 'secret' && agy.rule === enLabels.split_rule_secret && agy.disabled === true, agy)
+  if (RED !== 'agy-secret') {
+    await setNum('[data-test=split-kind-orchestration-agy]', String(orchDef.weights.agy))
+    await setNum(`[data-test=split-kind-orchestration-${orchMain}]`, String(orchDef.weights[orchMain]))
+    await sleep(100)
+  }
+  if (RED === 'agy-secret') {
     await p.$eval('[data-test=split-kinds-save]', (el) => { el.disabled = false })
     await p.click('[data-test=split-kinds-save]')
     await sleep(300)

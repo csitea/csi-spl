@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "שיגור ותזמור",
     "split_rule_tie": "שני ספקים בתיקו על הראשי",
     "split_rule_backup": "הגיבוי חייב להיות שונה מהראשי",
-    "split_rule_agy": "Antigravity לא כותבת קוד",
     "split_rule_secret": "רק Claude, Grok או Mistral",
     "senders": {
       "title": "מי רשאי לשלוח הודעות לכל סוכן",

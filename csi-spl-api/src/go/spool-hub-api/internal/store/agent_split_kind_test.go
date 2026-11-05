@@ -12,9 +12,10 @@ import (
 // spec 115 section 2 table, every kind unset; a set kind reads back whole
 // with its writer; a refused patch writes nothing, not even its good kinds;
 // a reset kind reads as the default again; another workspace sees none of it.
-// CONTROL: drop the agy rule from CheckSplitKind and Memory stores agy 10 in
-// simple_coding (red here); Postgres still refuses it at rdb 0163's CHECK,
-// which this test reads as ErrBadSplitKind too.
+// agy takes coding work (owner HUM-10 msg dc673043, SPL-4826): agy 20 and
+// agy the backup store in the coding kinds on both drivers (rdb 0262 drops
+// 0163's no-agy-coding CHECK). CONTROL: agy in orchestration beside a good
+// i18n is refused and writes neither kind.
 func TestSplitKinds(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 10, 10, 9, 0, 0, 0, time.UTC)
@@ -56,9 +57,9 @@ func TestSplitKinds(t *testing.T) {
 			for _, d := range DefaultSplitKinds() {
 				want(got[d.Kind], d.Main(), d.Backup, false, d.Weights)
 			}
-			want(got["simple_coding"], "claude", "grok", false, map[string]int{"claude": 59, "grok": 41})
+			want(got["simple_coding"], "claude", "agy", false, map[string]int{"claude": 59, "agy": 41})
 			want(got["specs_and_docs"], "agy", "claude", false, map[string]int{"agy": 80, "mistral": 15, "claude": 5})
-			want(got["orchestration"], "claude", "grok", false, map[string]int{"claude": 65, "grok": 35})
+			want(got["orchestration"], "claude", "grok", false, map[string]int{"claude": 100})
 
 			if err := sk.SetSplitKinds(ctx, tid, SplitKindPatch{By: "HUM-1", Set: []SplitKind{
 				{Kind: "simple_coding", Weights: map[string]int{"mistral": 60, "claude": 30, "grok": 10}, Backup: "claude"},
@@ -83,13 +84,12 @@ func TestSplitKinds(t *testing.T) {
 			if got["simple_coding"].UpdatedBy != "HUM-1" || !got["simple_coding"].UpdatedAt.Equal(now) {
 				t.Fatalf("writer: %q %v", got["simple_coding"].UpdatedBy, got["simple_coding"].UpdatedAt)
 			}
-			want(got["tests"], "claude", "grok", false, map[string]int{"claude": 85, "grok": 15})
+			want(got["tests"], "claude", "agy", false, map[string]int{"claude": 85, "agy": 15})
 
 			for label, p := range map[string]SplitKindPatch{
-				"agy in simple_coding (CONTROL)": {Set: []SplitKind{
+				"agy in orchestration beside a good i18n (CONTROL)": {Set: []SplitKind{
 					{Kind: "i18n", Weights: map[string]int{"agy": 90, "claude": 10}, Backup: "claude"},
-					{Kind: "simple_coding", Weights: map[string]int{"mistral": 70, "claude": 20, "agy": 10}, Backup: "claude"}}},
-				"agy the tests backup":      {Set: []SplitKind{{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 30}, Backup: "agy"}}},
+					{Kind: "orchestration", Weights: map[string]int{"claude": 90, "agy": 10}, Backup: "grok"}}},
 				"secret on qwen":            {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 90, "qwen": 10}, Backup: "mistral"}}},
 				"secret agy backup":         {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 100}, Backup: "agy"}}},
 				"orchestration on agy":      {Set: []SplitKind{{Kind: "orchestration", Weights: map[string]int{"claude": 90, "agy": 10}, Backup: "grok"}}},
@@ -109,6 +109,17 @@ func TestSplitKinds(t *testing.T) {
 			want(got["simple_coding"], "mistral", "claude", true, map[string]int{"mistral": 60, "claude": 30, "grok": 10})
 			want(got["i18n"], "agy", "claude", false, map[string]int{"agy": 100})
 
+			// agy codes: a weight and the backup in the coding kinds.
+			if err := sk.SetSplitKinds(ctx, tid, SplitKindPatch{Set: []SplitKind{
+				{Kind: "complex_coding", Weights: map[string]int{"claude": 80, "agy": 20}, Backup: "agy"},
+				{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 30}, Backup: "agy"},
+			}, By: "HUM-1"}, now); err != nil {
+				t.Fatalf("agy in the coding kinds: %v", err)
+			}
+			got = read(tid)
+			want(got["complex_coding"], "claude", "agy", true, map[string]int{"claude": 80, "agy": 20})
+			want(got["tests"], "claude", "agy", true, map[string]int{"claude": 70, "mistral": 30})
+
 			for _, k := range read(other) {
 				if k.Set {
 					t.Fatalf("another workspace reads %s as set", k.Kind)
@@ -119,7 +130,7 @@ func TestSplitKinds(t *testing.T) {
 				t.Fatalf("reset: %v", err)
 			}
 			got = read(tid)
-			want(got["simple_coding"], "claude", "grok", false, map[string]int{"claude": 59, "grok": 41})
+			want(got["simple_coding"], "claude", "agy", false, map[string]int{"claude": 59, "agy": 41})
 			want(got["secret"], "claude", "mistral", true, map[string]int{"claude": 70, "mistral": 30})
 		})
 	}

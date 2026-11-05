@@ -1909,7 +1909,6 @@
     "split_kind_orchestration": "Dağıtım ve orkestrasyon",
     "split_rule_tie": "İki satıcı asıl için berabere",
     "split_rule_backup": "Yedek asıldan farklı olmalıdır",
-    "split_rule_agy": "Antigravity kod yazmaz",
     "split_rule_secret": "Sadece Claude, Grok veya Mistral",
     "senders": {
       "title": "Her ajana kimler mesaj gönderebilir",

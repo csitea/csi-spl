@@ -1,6 +1,6 @@
 # 148: local dev mode (single docker-compose developer stack for spool-hub)
 
-**Feature ID**: `148-local-dev-mode` · **Milestone**: M3 · **Status**: Planned (Spec Only) · **Version**: 0.2.0
+**Feature ID**: `148-local-dev-mode` · **Milestone**: M3 · **Status**: Planned (Spec Only) · **Version**: 0.3.0
 **Created**: 2026-10-20 · **Epic**: SPL-2400 · **Issue**: SPL-2645 · **Lane**: a-623-c002-spec148-owner-decisions-v02
 **Authority**: this file for system architecture, dependency gap analysis, prerequisite contracts, parameterized secrets, and acceptance criteria. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 
@@ -552,6 +552,38 @@ Every scenario below was measured directly from the repository code. Each scenar
 
 ---
 
+### 5.3 Acceptance result (re-run 2026-11-05, SPL-4861)
+
+Walked by lane c-186 on 2026-11-05 between 12:34Z and 12:50Z, from a fresh
+clone of `origin/master` at `152682a0d`, on a Linux x86_64 box that already
+runs other stacks (none of them was touched). n = 1 run of each step. It
+re-runs the first acceptance run of 2026-10-31, which found two defects:
+the Dev login button missing from the login page (fixed by SPL-4750) and the
+one-liner failing from the clone root (fixed by SPL-4756). Neither shows
+again.
+
+| step (5.2) | command | result line | verdict |
+|---|---|---|---|
+| 1 preflight + bootstrap | `./run -a do_dev_mode_up` (clone root) | `OK dev preflight: all 7 checks passed`, then `OK local dev mode is up`; rc 0 in 7 min 3 s (image pulls and builds included); hub-init `Exited (0)`; web publishes `127.0.0.1:8080` and `:8443`, mail `127.0.0.1:1025` and `:8025`; pg, s3 and hub publish no host port | pass |
+| 2 Dev login, headless Chrome | `puppeteer-core` 25 on Google Chrome: open `/login`, click `[data-testid=dev-toolbar-login]` | the button reads `Dev login`; the click lands on `/lobby`; `GET /api/v1/auth/session` -> `200`, `sub dev-owner@spool.local`, `t main`; `tenant_memberships` row `main HUM-1 biz_owner` | pass |
+| 4 login scenarios | `bash csi-spl-orc/src/bash/scripts/dev-mailpit-scenarios.sh` | 38 `PASS` lines (flows 1 to 8 and their controls), `ALL PASS`, rc 0 | pass |
+| stranger check: port taken | a listener on `127.0.0.1:8025`, then `./run -a do_dev_mode_up` | `ERROR: Port 8025 is already bound by another service on this machine.` and `Fix (debian/ubuntu): sudo lsof -i :8025 -sTCP:LISTEN ...`; rc 7; no container started | pass |
+| stranger check: no compose | a `docker` on `PATH` that refuses `compose`, then `./run -a do_dev_mode_up` | `ERROR: Docker Compose v2 plugin is missing or older than v2.20.0 (found: none).` and `Fix (debian/ubuntu): sudo apt-get update && sudo apt-get install -y docker-compose-plugin`; rc 4; no container started | pass |
+| 5 teardown | `./run -a do_dev_mode_down`, then `--purge` | rc 0 both; no container, volume or network of project `spool` left; ports 8080, 8443, 1025, 8025 free | pass |
+
+Not checked:
+
+- Step 3 (offline): not run. The compose network `spool` is a plain bridge
+  network, and egress could be blocked for these containers alone only by
+  changing the box's firewall, which this run must not touch.
+- Moving the stack to other ports (`SPOOL_HTTP_PORT` and the like in
+  `.env.example`): not needed, every default port was free.
+- macOS, Fedora/RHEL and arm64; a missing `git` or `docker` binary; low
+  disk or RAM: not checked, this box offers none of them.
+- The preflight port check was tried on port 8025 only.
+
+---
+
 ## 6. Rollout Plan (Build Rows)
 
 The implementation is broken down into nine independent, strictly disjoint build rows. No two rows touch the same file:
@@ -591,4 +623,4 @@ The three architectural questions submitted to owner HUM-10 in v0.1.0 are fully 
 
 ---
 
-<!-- version: 0.2.0 · updated: 2026-10-20 · last-edit: 2026-10-20T14:15:00Z -->
+<!-- version: 0.3.0 · updated: 2026-11-05 · last-edit: 2026-11-05T13:00:00Z -->

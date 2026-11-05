@@ -267,7 +267,7 @@ grep -q 'RC=3' <<<"$out" && pass "C23 an ack from the owner's shell (no pane): r
 # ---- W1, W3: outside SPOOL_TEST the environment is not trusted ------------------------------
 LIB="$PROJ_ROOT/src/bash/features/spawn-agents/lib/channel-move.inc.sh"
 live() { env -u SPOOL_TEST -u SPOOL_BOX_TAG -u MOVE_DIRECTIVE_DIR "$@" bash -c '. "$0"; eval "$SNIPPET"' "$LIB" 2>&1; }
-LIVE_TAG="$(SNIPPET=cm_box live)"; LIVE_TAG="${LIVE_TAG:-none}"
+LIVE_BOX="$(SNIPPET=cm_box live)"; LIVE_TAG="${LIVE_BOX:-none}"
 REAL_DIR="$(cd "$PROJ_ROOT/src/bash/features/directive/scripts" && pwd)"
 got="$(SNIPPET='cd "$(cm_dir_scripts)" && pwd' live MOVE_DIRECTIVE_DIR="$T/forge")"
 [ "$got" = "$REAL_DIR" ] && pass "W1 outside SPOOL_TEST MOVE_DIRECTIVE_DIR is ignored (the real scripts)" || fail "W1 dir: got '$got'"
@@ -298,7 +298,7 @@ PROBE='cm_dir_scripts() { printf %s "$PROBE_DIR"; }; cm_dir_run directive-verify
 envd="$(live SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$PROBE" PROBE_DIR="$T/probe" PATH="$T/fakebin:$PATH" BASH_ENV=/dev/null \
   LD_PRELOAD=/nonexistent.so DIRECTIVE_FPR=forged GNUPGHOME=/forged BASH_FUNC_gpg%%='() { :; }')"
 [ "$(sed -n 's/^PATH=//p' <<<"$envd")" = /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ] &&
-  ! grep -qE '^(BASH_ENV|LD_PRELOAD|DIRECTIVE_FPR|GNUPGHOME|BASH_FUNC_)' <<<"$envd" && grep -q "^DIRECTIVE_BOX=$LIVE_TAG\$" <<<"$envd" &&
+  ! grep -qE '^(BASH_ENV|LD_PRELOAD|DIRECTIVE_FPR|GNUPGHOME|BASH_FUNC_)' <<<"$envd" && grep -q "^DIRECTIVE_BOX=$LIVE_BOX\$" <<<"$envd" &&
   pass "W1' outside SPOOL_TEST the script gets the fixed PATH and no BASH_ENV, LD_PRELOAD, DIRECTIVE_FPR, GNUPGHOME or exported function" ||
   fail "W1' script env: $(grep -E '^(PATH|BASH_ENV|LD_PRELOAD|DIRECTIVE_|GNUPGHOME|BASH_FUNC_)' <<<"$envd" | tr '\n' ' ')"
 envd="$(env SPOOL_TEST=1 SPOOL_BOX_TAG="$LIVE_TAG" SNIPPET="$PROBE" PROBE_DIR="$T/probe" PATH="$T/fakebin:$PATH" BASH_ENV=/dev/null \

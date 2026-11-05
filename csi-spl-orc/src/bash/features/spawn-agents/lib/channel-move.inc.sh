@@ -84,7 +84,7 @@ cm_box_env_get() {  # KEY
     [ "$k" = "$1" ] || continue
     v="${v%$'\r'}"; v="${v#\"}"; v="${v%\"}"; v="${v#\'}"; v="${v%\'}"
     printf '%s' "$v"; return 0
-  done <"$(cm_trust_root)/box.env" 2>/dev/null
+  done 2>/dev/null <"$(cm_trust_root)/box.env"
   return 0
 }
 

@@ -969,7 +969,7 @@ These mirror the questions the dispatcher c-002 already put to the owner on `dis
 
 ## 21. Addendum v2.4: a human time counter per discussion, per issue and per object, and each person's hourly price
 
-**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). v2.5: the owner decided Q26..Q28, all three on the recommendation (21.9, msg `ce14ad70`). v2.6: the owner moved the price from the member to the biz owner (21.5). v2.8: the owner answered Q29 with B, the member reads their own price, read only (21.5 rule 8, 21.9). Nothing here is built; the build rows are T071..T080 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
+**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). v2.5: the owner decided Q26..Q28, all three on the recommendation (21.9, msg `ce14ad70`). v2.6: the owner moved the price from the member to the biz owner (21.5). v2.8: the owner answered Q29 with B, the member reads their own price, read only (21.5 rule 8, 21.9). Nothing here is built; the build rows are T071..T081 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
 
 ### 21.0 The owner's words (verbatim) and what binds them
 
@@ -1195,7 +1195,7 @@ Decided since (v2.6): who sets the price. Poll `e47404d1`, answer A, msg `a7ec21
 
 #### 21.9.1 Q29: decided B (v2.8)
 
-The owner answered on 2026-11-03 at 10:28Z (HUM-10, workspace csitea, topic `36cc7f3b`, poll `221a0f08`, msg `a935328b`). He chose B, not the recommendation A. The answer adds a read only; the biz owner stays the only writer (21.5 rule 1).
+The owner answered on 2026-11-03 at 10:28Z (HUM-10, workspace csitea, topic `36cc7f3b`, poll `221a0f08`, msg `a935328b`). The owner chose B, not the recommendation A. The answer adds a read only; the biz owner stays the only writer (21.5 rule 1).
 
 | question | answer (verbatim) | msg | rows |
 |---|---|---|---|

@@ -206,7 +206,7 @@ From a domain expert's answers and suggestions in csitea topic `55a2d6c2` (2026-
 
 ## v2.4, amended v2.6: the human time counter and the hourly price (spec section 21)
 
-**v2.6 (SPL-4655, owner poll `e47404d1`, msg `a7ec216c`):** the biz owner sets the price in a tab of Expenses and the member's own price is dropped (spec 21.5). T071, T072, T074 and T077 are amended below and T078..T080 are new. **Order of the price rows: T078, T071, T072, then T079 (which waits for SPL-4382), then T080.** Migrations: T078 and T071, one forward-only file each, the next free number at the push; no other row has one.
+**v2.6 (SPL-4655, owner poll `e47404d1`, msg `a7ec216c`):** the biz owner sets the price in a tab of Expenses and the member's own price is dropped (spec 21.5). T071, T072, T074 and T077 are amended below and T078..T080 are new. **Order of the price rows: T078, T071, T072, then T079 (which waits for SPL-4382), then T080; v2.8: T081 after T072.** Migrations: T078 and T071, one forward-only file each, the next free number at the push; no other row has one.
 
 **v2.8 (SPL-4844, owner Q29 = B, poll `221a0f08`, msg `a935328b`):** a member reads their own price, read only, in their own settings (spec 21.5 rule 8). T071 and T072 are amended below and T081 is new, after T072. Still Planned, nothing built.
 
@@ -305,7 +305,7 @@ Every row follows the v1 and v2 rules above, plus these:
   **Gate**: `pnpm run test:unit`, the i18n gates. **Red control**: a test that the en value no longer holds "own price"; on master it fails, and the served page stays "not tracked" with no number. Vendor: claude. Depends: none; it may land first, because the text is wrong today.
 
 - [ ] T081 **the member's own price in settings, WUI** (spec 21.5 rule 8; owner Q29 = B, msg `a935328b`). A lazy read-only block "Hourly price" in `/settings/profile` (`pages/settings/[[section]].vue`), a new `components/SettingsHoursPrice.vue` and `utils/hours-price-me.mjs`, reading T072's `GET /v1/me/hours/price` for the current workspace: the price in force (amount, currency, from day) and the dated history; "no price" when none is set. No input, no button, no form. Hidden for a seat the route answers 404 (an agent, a not-a-person seat).
-  - **New user-facing text, in all 19 locale files:** the block title, the column heads, "no price", the line that the biz owner sets it. **Review step, last before it lands:** the same as T079, agy final, grok while agy is out of quota.
+  - **New user-facing text, in all 19 locale files:** the block title, the column heads, "no price", the line that the biz owner sets it. **Review step, last before it lands:** the same as T079, agy has the final word; with no agy, the text waits for one (grok is off, owner 2026-11-04).
 
   **Gate**: `pnpm run test:unit`, `pnpm run typecheck`, `BASE_URL=<generated bundle> pnpm run test:e2e` at 390 and 1440 px, `perf-budget.py` <= 155 KB, the i18n gates. **Red control**:
   - An e2e as a priced member reads a non-empty amount and start day, so a missing testid cannot pass vacuously; on master it fails (no block).

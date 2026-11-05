@@ -1,13 +1,15 @@
 // SPL-4897 (spec 155 2.6; owner HUM-10, prd t1 topic 2f4311d9, msg c6bf6b39:
 // "Remove tje archive buton, the archive section should be used for that"),
 // on the mock bundle at 1440 px and at 390 px:
+//   - the Notes bar has no Archived switch
 //   - a note archived from the open note shows in the Archive section's Notes
 //     part, beside the note that was archived already (mock-note-4)
 //   - its row carries the priority beside the title at 1440 px, not at 390 px
 //   - a click on an archived row opens the note in place, on the Archive page
 //   - Unarchive takes it off the Archive and puts it back in Notes
-// CONTROL: on the bundle of the parent commit (no Notes part in archive.vue)
-// the check "the Archive lists ..." FAILS.
+// CONTROL: on the bundle of the parent commit (no Notes part in archive.vue,
+// the switch still in notes.vue) the checks "no Archived switch" and "the
+// Archive lists ..." FAIL.
 //
 // Run:
 //   node tests/e2e/archive-notes.test.mjs
@@ -69,6 +71,7 @@ async function run(browser, base, width, touch) {
   if (!(await signIn(p))) throw new Error('no session store')
   await go(p, '/notes')
   await p.waitForSelector('[data-test=notes-row]', { visible: true, timeout: NAV })
+  check(`${tag}: the Notes bar has no Archived switch`, !(await p.$('[data-test=notes-archived]')))
   check(`${tag}: Notes lists the notes that are not archived`, !(await noteRows(p)).includes('mock-note-4'), await noteRows(p))
   await p.click('[data-note-id="mock-note-2"] [data-test=notes-open]')
   await waitDetail(p, 'mock-note-2')

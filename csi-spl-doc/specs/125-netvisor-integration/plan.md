@@ -63,15 +63,26 @@ parallel with phase 1; they SHIP to the owner in this order.
    (`csitea`, `t1`, estate), `cost_entries` and `fleet_token_paid_items`.
    Not the migration role: `FORCE ROW LEVEL SECURITY` binds the table owner
    (`0014`), and the ingest transaction carries `app.tenant_id = csitea`
-   and `app.rls_scope = netvisor_ingest` (`0260`), so the owner would read
+   and `app.rls_scope = netvisor_ingest`
+   (`internal/store/netvisor_postgres.go:23`, `pgScopeNetvisorIngest`), so the owner would read
    only `csitea` rows and never return `spool-hub`. `search_path` pinned;
    it refuses (`42501`) unless `app.rls_scope = 'netvisor_ingest'` and
-   `app.tenant_id` is the Netvisor workspace; `EXECUTE` is revoked from
+   the function's `tenant` argument equals `app.tenant_id` and has a
+   `netvisor_settings` row (its role holds column `SELECT (tenant_id)` on
+   `netvisor_settings`, whose rows pass under the ingest scope, rdb
+   `0260`); `EXECUTE` is revoked from
    `PUBLIC` and granted to the runtime login in
    `csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql`; it
-   returns only the label, never an amount.
-3. Hub ingest (`internal/hub/netvisor.go`): calls it per line, sets
-   `excluded` and `recorded_in`; the forecast is not touched (a payment is
+   returns only the label (`csitea`, `spool-hub`, `check:csitea`,
+   `check:spool-hub` or none), never an amount. The month follows the map
+   entry's billing mode (`arrears` | `advance`, spec 4.2 item 3 (b)); the
+   amount is the line's net amount, compared with a month's SUM.
+3. Store ingest (`internal/store/netvisor_postgres.go` `NetvisorIngest`):
+   calls it once per card or purchase line BEFORE `pgNetvisorIngestAsOwner`
+   (which clears the ingest scope), while the transaction still carries
+   `app.rls_scope = 'netvisor_ingest'`, and keeps the labels;
+   `nvsInsertSnapshot` then writes `excluded` and `recorded_in` with the
+   lines in the owner's scope. The forecast is not touched (a payment is
    still a payment).
 4. WUI: the "already in Costs (`<workspace>`)" and "check: vendor also in
    Costs" marks; i18n keys reviewed by `agy`.

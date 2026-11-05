@@ -9,7 +9,9 @@ for the accountants ([accountant-questions.md](accountant-questions.md)); the
 build plan ([plan.md](plan.md)) and task rows ([tasks.md](tasks.md)).
 After review (2026-11-05): the check's function has its own role, refuses
 outside the ingest scope and compares a month's sum (4.2 item 3); the
-credit-card vendor follows the card type (4.1, 4.2); the card liability
+store ingest calls it before it leaves the ingest scope, the month follows
+the vendor's billing mode and the amount is net of VAT (4.2 item 3, round
+2); the credit-card vendor follows the card type (4.1, 4.2); the card liability
 account is a setting (4.3, B3).
 
 Version v0.2 (2026-11-04): C7 rewritten for READING: every person of the
@@ -285,42 +287,58 @@ booked voucher date so the user knows the cutoff.
 
      | the cost is in | table (rdb) | rows that count | read under |
      |---|---|---|---|
-     | `csitea` | `cost_lines` (`0166`) | `tenant_id = 'csitea'`, live (`superseded_by IS NULL`) | the `csitea` tenant scope |
-     | `spool-hub` | `cost_lines` (`0166`) | `tenant_id = 't1'`, and the estate rows `tenant_id IS NULL` (GCP projects, fleet tokens), live | the operator scope |
-     | `spool-hub` | `cost_entries` (`0245`) | `type` `cloud` or `hr`, the month `period` | the operator scope |
-     | `spool-hub` | `fleet_token_paid_items` (`0205`) | AI vendor subscriptions and top-ups whose `period_start..period_end` covers the month | the operator scope |
+     | `csitea` | `cost_lines` (`0166`) | `tenant_id = 'csitea'`, live (`superseded_by IS NULL`) | the B3b function's own role (policy `TO` that role) |
+     | `spool-hub` | `cost_lines` (`0166`) | `tenant_id = 't1'`, and the estate rows `tenant_id IS NULL` (GCP projects, fleet tokens), live | the B3b function's own role (policy `TO` that role) |
+     | `spool-hub` | `cost_entries` (`0245`) | `type` `cloud` or `hr`, the month `period` | the B3b function's own role (policy `TO` that role) |
+     | `spool-hub` | `fleet_token_paid_items` (`0205`) | AI vendor subscriptions and top-ups whose `period_start..period_end` covers the month | the B3b function's own role (policy `TO` that role) |
 
-   - **The check (row B3b, [tasks.md](tasks.md) T5)**: the hub runs it at
-     ingest, for each Netvisor card or purchase cost line, through one
+   - **The check (row B3b, [tasks.md](tasks.md) T5)**: the store ingest
+     runs it, for each Netvisor card or purchase cost line, through one
      `SECURITY DEFINER` SQL function that returns only a label, never an
-     amount: `csitea`, `spool-hub` or none. The function is owned by its own
+     amount: `csitea`, `spool-hub`, `check:<workspace>` or none. The function is owned by its own
      `NOLOGIN NOBYPASSRLS` role with a `SELECT` policy `TO` that role on the
      three tables (the rdb `0168` / `0143` precedent), not by the table
      owner: `FORCE ROW LEVEL SECURITY` binds the owner, and the ingest runs
      under the `csitea` tenant scope, so the owner could never see a
-     `spool-hub` row. It refuses unless the statement carries
-     `app.rls_scope = 'netvisor_ingest'` and the Netvisor workspace, and
-     only the runtime login may execute it, never `PUBLIC`
+     `spool-hub` row. It refuses (`42501`) unless the statement carries
+     `app.rls_scope = 'netvisor_ingest'` and its `tenant` argument equals
+     `app.tenant_id` and has a `netvisor_settings` row (its role holds
+     column `SELECT (tenant_id)` on `netvisor_settings`, whose rows pass
+     under the ingest scope, rdb `0260`), and only the runtime login may
+     execute it, never `PUBLIC`. The store ingest calls it once per line
+     while the transaction still carries the ingest scope, before it
+     switches to the owner's scope to write the lines
      ([plan.md](plan.md) 3.1). A line matches a spec-123 record
      when all three agree: (a) the vendor, through a vendor map in
      `netvisor_settings` (a Netvisor vendor or merchant text -> a spec-123
      `project_or_vendor` / `vendor` / `label`; a vendor with no map entry
-     is never matched and never compared); (b) the calendar month; (c) the
-     amount: the Netvisor EUR line against the month's
+     is never matched and never compared); (b) the month: the Netvisor
+     line's invoice-date month, matched against the spec-123 usage month of
+     the mapped vendor. The map entry carries the vendor's billing mode:
+     `billed: arrears` (default for `cost_lines` sources such as the cloud
+     billing export, charged for the month before) compares the month
+     before the invoice month; `billed: advance` (default for
+     `cost_entries` and `fleet_token_paid_items`, subscriptions) compares
+     the month whose `period` / `period_start` falls in the invoice month;
+     (c) the amount: the Netvisor EUR line's net amount (without VAT, as
+     the spec-123 tables hold no VAT) against the month's
      `SUM(eur_micros) / 1e6` of the mapped vendor's live `cost_lines` rows
      (one row per day, source, project and kind, so no single row equals a
-     monthly bill), or against `cost_entries.amount` /
-     `fleet_token_paid_items.amount × quantity` when their currency is EUR;
+     monthly bill), or against the SUM of `cost_entries.amount` (`type`,
+     `label` = map entry, `period` = the month) or the SUM of
+     `fleet_token_paid_items.amount × quantity` (vendor = map entry,
+     `period_start` in the month) when every summed row is EUR;
      equal within the tolerance in `netvisor_settings` (absolute EUR,
      default 0). A mapped vendor whose spec-123 record is in another
      currency is never left out automatically: it shows as "check: vendor
-     also in Costs". A matched line is stored with `excluded = true` and a new
-     `recorded_in` column (`csitea` | `spool-hub`), shown on the screen as
+     also in Costs (`<workspace>`)". A matched line is stored with
+     `excluded = true` and a new `recorded_in` column (`csitea` | `spool-hub`), shown on the screen as
      "already in Costs (`<workspace>`)" and left out of the totals. A line
      whose vendor is mapped but whose amount does not match is kept and
-     shown as "check: vendor also in Costs" so a person decides. The screen
-     lists the month's unmapped Netvisor vendors so a person can add a map
-     entry; a missing entry double-counts.
+     shown as "check: vendor also in Costs (`<workspace>`)" so a person
+     decides; the function then returns `check:csitea` or `check:spool-hub`,
+     still a label, never an amount. The screen lists the month's unmapped
+     Netvisor vendors so a person can add a map entry; a missing entry double-counts.
    - The check reads the other workspace's rows only inside that function;
      a person of `csitea` sees the label `spool-hub`, never the `spool-hub`
      figure.

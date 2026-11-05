@@ -1046,7 +1046,9 @@ Editor's recommendation: **A** (section 11.3). Answer: open.
 | 2026-10-26 | a-870 (editor agy) | v1.2 seat fold, `60904da23` (SPL-3456): W1-W4 folded as c-771 proposed (each line re-read on the tree): W1 renewal, finish and fenced writes in inTenant(lease.Tenant), one new operatorCallers entry (claim); W2 fenced backoff write, claim backoff skip in C23h, outbound reads and google_etag in B8a and C23g; W3 pipe escaped in test cell; W4 B2 cites landed a4b9b1187 |
 | 2026-10-26 | c-771 (seat claude) | signed v1.2 at `60904da23` (msg `de40718c`, verdict file `seat-claude-v12.md` section 5, `21ebac769`): W1-W4 re-checked on the tree; notes N1-N2 stay for B8a builder |
 | 2026-10-26 | a-870 (editor agy) | v1.2 signed, this commit (SPL-3456): the header and these two rows only; the spec text is `60904da23` as signed by claude seat c-771 |
-| 2026-11-05 | c-150 (editor claude) | v1.3 draft (SPL-4896): section 11, import from a CSV file and online from Google, with pictures and the main attributes (owner msgs `bf20f1f2`, `900d2fd7`, topic `b400601b`); 11.1 measured on origin/master `db36843f4`; owner question O6; rows B13-B18, B8, B11 and B12 amended; cases C28-C47. Not signed |
+| 2026-11-05 | c-150 (editor claude) | v1.3 draft (SPL-4896): section 11, import from a CSV file and online from Google, with pictures and the main attributes (owner msgs `bf20f1f2`, `900d2fd7`, topic `b400601b`); 11.1 measured on origin/master `db36843f4`; owner question O6; rows B13-B18, B8, B11 and B12 amended; cases C28-C48. Not signed |
+| 2026-11-05 | c-157 (seat claude) | FAIL on `a35a1e0c2` (msg `be767058`): W1 the `after` of B8 (amended) and B18 misses B15 and B17, which share files; W2 a re-import of a contact edited or soft-deleted in Spool undecided. Notes N1-N6 |
+| 2026-11-05 | c-150 (editor claude) | seat fold (SPL-4896): W1 and W2 folded as c-157 proposed (11.2.1, 11.6, C33b, C37b); N1-N6 all taken (route preflights, `private, no-cache` + ETag, the advisory lock, `Birthday.text` stores NULL, the first-load wording, the case range and the fake's full path, `avatar.ts:295-300`). O6 still open. Not signed |
 
 ## 11. v1.3: import from a CSV file and from Google, with pictures and the main attributes
 
@@ -1071,7 +1073,7 @@ of this spec.
 | # | what | measured on `db36843f4` | what it means here |
 |---|---|---|---|
 | 36 | the contacts rows that landed | `git log --oneline origin/master -- <file>`: B1 `51a391fae` (`rdb/0226_contacts.sql`), B2 `a4b9b1187`, B8a `a09108c7c` (`store/contacts_sync_postgres.go:137` `ClaimContactsSync`, :178 `RenewContactsLease`, :193 `FinishContactsSync`), B3 `5c44cb30c` + `2385650be`, B5 `ec136411f`, B6 `08629c28f`, B9 `19537e7a1`, B11's 26 keys `4729ddc17` | the data, store, routes, search, match and People panel are live |
-| 37 | the rows not built | `ls api/internal/gcal/people.go hub/contacts_sync.go` -> no such file (B8); `grep -c '"want"' hub/gcal_connect.go` -> 0 and `grep -c 'granted_scopes\|GrantedScopes' hub/gcal_connect.go` -> 0 (B7); `grep -c -i contact wui/composables/usePaletteItems.ts csi-spl-doc/doc/help/people.md` -> 0 and 0 (B10, B12); `grep -lc ontact store/humans_rbac_test.go store/demo_stay_test.go store/clones_test.go` -> none (B4) | no Google contact is read or written today; the online import needs B7 and B8 |
+| 37 | the rows not built | `ls api/internal/gcal/people.go hub/contacts_sync.go` -> no such file (B8); `grep -c '"want"' hub/gcal_connect.go` -> 0 and `grep -c 'granted_scopes\|GrantedScopes' hub/gcal_connect.go` -> 0 (B7); `grep -c -i contact wui/composables/usePaletteItems.ts csi-spl-doc/doc/help/people.md` -> 0 and 0 (B10, B12); `grep -li contact store/humans_rbac_test.go store/demo_stay_test.go store/clones_test.go` -> none (B4) | no Google contact is read or written today; the online import needs B7 and B8 |
 | 38 | the kill switch per env | `cnf/dev.env.yaml:466-467` and `cnf/prd.env.yaml:458-459`: `contacts.workspaces: [t1]`; `cnf/all.env.yaml:1061-1063`: `workspaces: []`, `scopes: ""` | contacts are on in t1 on dev and prd; the Google scope is not in cnf yet (owner step S2) |
 | 39 | the contact columns | `rdb/0226_contacts.sql:62-83`: first and last name (<= 100 each), one `email`, one `phone` (`'^[+0-9 ().-]{3,40}$'`), the Google link (`google_account`, `google_resource`, `google_etag`), `sync_hash` (64 hex) | company, job title, birthday, notes and a picture are new columns or a new table (11.3, 11.4) |
 | 40 | `sync_hash` has no live writer | the only writer is B8a's link method (`store/personal_contacts_postgres.go:280`), whose caller is B8 (row 37, not built) | the echo hash may be redefined over more fields before B8 lands, with no rows to re-hash |
@@ -1080,7 +1082,7 @@ of this spec.
 | 43 | how the calendar imports from Google | `hub/gcal_sync_sources.go:17-40`: one Google connection (spec 149), the read scope from cnf, each source read with its own sync token, a 410 answered by a full list, an upsert by a source key ("never a duplicate"), a removed source's imports trashed; the import is read-only. `store/gcal_import.go:14-27`: the imported row is the member's private row, keyed `gcal:<connection>:<google id>` | the online contacts import takes the same shape: one connection, sync token, full list on expiry, upsert by Google's key (11.2) |
 | 44 | the calendar has no file import | `csi-spl-doc/specs/097-calendar-full-editing/spec.md:89` (G15: export `.ics` in v1, import later) and `:663` ("import `.ics` ... later") | the CSV path has no calendar precedent to copy; it is designed here |
 | 45 | how a person's picture is stored today | `blob/blob.go:40` `AvatarKey` -> `avatars/<sha256>`, hub-wide; `auth/idp.go:322` `AvatarMaxBytes = 256 << 10`; `auth/avatar_upload.go:33` `uploadTypes` png, jpeg, webp | the size and type rules are reused; the hub-wide key is not (11.4) |
-| 46 | how a picture reaches the browser | `wui/utils/avatar.ts:302-305`: every deployed CSP is `img-src 'self' data:` (`csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh:231`); a `blob:` URL is blocked, so the bytes are fetched with credentials and shown as a `data:` URL (`bytesToDataUri`, :294-300), by magic bytes only | a contact's picture uses the same path; no CSP change |
+| 46 | how a picture reaches the browser | `wui/utils/avatar.ts:302-305`: every deployed CSP is `img-src 'self' data:` (`csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh:231`); a `blob:` URL is blocked, so the bytes are fetched with credentials and shown as a `data:` URL (`bytesToDataUri`, :295-300), by magic bytes only | a contact's picture uses the same path; no CSP change |
 | 47 | the first-load budget | `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json:4` ceiling 155.0 KB; `:27` measured 151.9 KB (box generate, 2026-10-29, n=2), about 2.8 KB on CI before the SPL-4170 fix, about 1.7 KB after it (`:25`) | the brief reads under 1 KB of room today (not re-measured by this lane); every new part loads lazily and adds 0 bytes at first paint (C47) |
 | 48 | migration head | `ls rdb/ \| tail -1` -> `0263_lane_console.sql` | `<next>` = 0264 today, fixed at build time |
 | 49 | locales | `ls csi-spl-wui/i18n/locales \| wc -l` -> 19 | every new key in 19 files, agy last (B11) |
@@ -1095,7 +1097,7 @@ of this spec.
 | route | `POST /v1/me/contacts/import` (`text/csv` body), `?dry_run=1` for the preview | `PUT /v1/me/contacts/sync {enabled:true}`, `POST /v1/me/contacts/sync` (both live, row 41) |
 | formats | Google Contacts' own CSV export and the Spool export (row 41), told apart by the header (11.2.1) | the People API (11.5) |
 | pictures | none: a CSV carries no picture bytes; a `Photo` URL column is ignored and counted (11.4) | yes: the contact's own Google picture, fetched by the hub (11.4) |
-| matching | a live contact with the same email (lower case), else with no email the same first and last name, as the seed (row 42): skipped and counted, never overwritten | by `(google_account, google_resource)`; the first sync links by email (2.5 "Deletes", C20) |
+| matching | a live contact with the same email (lower case), else with no email the same first and last name, as the seed (row 42): skipped and counted, never overwritten; a still soft-deleted one: skipped as `deleted_here` (11.2.1, why there) | by `(google_account, google_resource)`; the first sync links by email (2.5 "Deletes", C20) |
 | repeat | idempotent: a second import of the same file adds 0 | the sync token: only changes come in (2.5) |
 | writes back to Google | no, the import itself never calls Google; a contact it adds is an ordinary Spool contact, so if the person's binding is on, the next cycle's Out half creates it at Google, as for one typed in (2.5 "Out") | the two-way rules of 2.5 |
 | calendar precedent | none (row 44) | `hub/gcal_sync_sources.go:17-40` (row 43) |
@@ -1145,9 +1147,21 @@ seed's (row 42).
   thousands is normal and a refusal would leave them nothing to do but
   edit a CSV by hand. The preview shows every skipped row first, so
   nothing is skipped silently.
+- **A re-import never undoes the person's own work.** A row that
+  matches a live contact is skipped and counted (`already_there`), even
+  when Spool's values differ: the person edited it here last, and an
+  import is not a merge (a merge would need a per-field rule the person
+  cannot see in a preview). A row that matches a contact the person
+  deleted in Spool that is still soft-deleted (`deleted_at` set, not yet
+  purged, 2.6) is skipped and counted as `deleted_here`, and the preview
+  lists the count. Why: an import must not resurrect a delete, nor push
+  it back to Google through the Out half. A hard-deleted contact (2.6:
+  nothing was to be sent to Google) and one past the 30-day purge leave
+  no trace, so such a row imports as new; that is the person's explicit
+  choice of file.
 - **Two steps.** `?dry_run=1` parses and matches, writes nothing, and
-  answers `{format, rows, would_add, already_there, file_duplicates,
-  skipped:[{line, code}], photos_ignored}`; `line` is the file's line
+  answers `{format, rows, would_add, already_there, deleted_here,
+  file_duplicates, skipped:[{line, code}], photos_ignored}`; `line` is the file's line
   number and `code` one of `row_empty`, `bad_email`, `bad_phone`,
   `too_long`, `bad_birthday`. The answer carries no contact value: the
   person has the file. The import (no `dry_run`) runs the same parse and
@@ -1193,7 +1207,7 @@ other email and phone at Google, so nothing is lost there either way.
 |---|---|---|---|
 | `company` | text NOT NULL DEFAULT '' , <= 200 | the primary `organizations[].name` (else the first) | `Organization Name` / `Organization 1 - Name`, or `company` |
 | `job_title` | text NOT NULL DEFAULT '' , <= 200 | the same organization's `title` | `Organization Title` / `Organization 1 - Title`, or `job_title` |
-| `birthday` | text NULL, CHECK `'^([0-9]{4}|--)-[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
+| `birthday` | text NULL, CHECK `'^([0-9]{4}|--)-[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year; a birthday with only the deprecated free-form `text` and no `date` stores NULL (no guessing at a free-form date), and the Out half never sends `birthdays` for that contact while Spool's value is NULL, so Google's text is kept | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
 | `notes` | text NOT NULL DEFAULT '' , <= 8000 | `biographies[].value` (`contentType` `TEXT_PLAIN`; `TEXT_HTML` is stored as text with the tags removed) | `Notes`, or `notes` |
 | `in_only` | boolean NOT NULL DEFAULT false | true when a Google value was over a cap and stored cut | always false |
 
@@ -1301,8 +1315,11 @@ Why the database and not the bucket:
 
 **How it reaches the browser.** `GET /v1/me/contacts/{id}/photo` (person
 only, `inPerson`, 404 for none or another person's id) answers the bytes
-with their `mime`, `Cache-Control: private, max-age=31536000, immutable`
-and `X-Content-Type-Options: nosniff`. The list and the card answer
+with their `mime`, `Cache-Control: private, no-cache`, `ETag:
+"<sha256>"` and `X-Content-Type-Options: nosniff`, as the person's own
+avatar route (`auth/handler.go:873`): an erased picture is not kept in
+the browser's cache; the WUI's page-life cache per sha256 keeps the
+fetch count low. The list and the card answer
 `photo: "<sha256>"` or `null`; the WUI fetches
 `/photo?v=<sha256>` with credentials and shows it as a `data:` URL
 through `bytesToDataUri` (row 46), so the CSP stays `img-src 'self'
@@ -1312,7 +1329,9 @@ the member's own avatar (2.7), never the contact picture, so a picture
 the reader keeps of someone is never shown as that person's face to
 anyone.
 
-**First-load cost**: 0 bytes. The picture is drawn only in
+**First-load cost**: a few dozen bytes for the import menu item and its
+`defineAsyncComponent` loader in `ChannelSidebar.vue`, measured by C47;
+the dialog and the picture code add 0. The picture is drawn only in
 `PeopleContactRows.vue` (already a lazy component, 2.7 "Budget") and the
 lazily routed card. The rows fetch pictures only for rows on screen
 (`IntersectionObserver`), at most 4 at once, one fetch per sha256 for the
@@ -1355,28 +1374,30 @@ page's life.
 - **CSV header**: no Google page found that lists the export header; two
   third-party pages disagree (`First Name` vs `Given Name`). Unchecked;
   B15 pins a real export of a test account (11.2.1).
-- **Not tested**: no call was made. The fake of 2.8 (`fakegcal/people.go`,
+- **Not tested**: no call was made. The fake of 2.8 (`api/internal/gcal/fakegcal/people.go`,
   B8) gains `organizations`, `birthdays`, `biographies`, `photos` and a
   photo URL it serves itself.
 
 ### 11.6 Build rows (v1.3)
 
 Order: B13 -> B14 -> B15 (the CSV path, no Google; can ship first) ->
-B8 (amended) after B7 and B8a, as before -> B16 (pictures) after B8 ->
-B17 (WUI) after B15 and B16 -> B18 (the Contacts switch, the row B9 moved
-out) after B7 and B8 -> B11 and B12 last. All coding rows are `secret`
+B8 (amended) after B7, B8a and B15 (it rebases onto B15's edits of
+`api/internal/config/config.go` and `cnf/all.env.yaml`) -> B16 (pictures)
+after B8 -> B17 (WUI) after B15 and B16 -> B18 (the Contacts switch, the
+row B9 moved out) after B7, B8 and B17 (it rebases onto B17's `en.json`)
+-> B11 and B12 last. All coding rows are `secret`
 kind (claude, grok; never qwen or agy), fixtures `FirstName LastName` and
 `example.com` only, R7 cross-vendor.
 
 | row | area | files (only these) | after | cases | test |
 |---|---|---|---|---|---|
 | B13 data | rdb, api | new `rdb/0264_contacts_import.sql` (the five columns of 11.3, `personal.contact_photos` of 11.4, its policy; the number re-checked at build time); `roles/runtime-grants.sql` (the new table's grant by name); `store/personal_catalogue_test.go` (the table, policy and grant lists); `store/personal_rls_test.go` (one raw seed row per person); `store/contacts_rls_test.go` (C28-C30, C38) | B1 | C28-C30, C38 | `go test ./internal/store/ -run 'TestRLS'` on Postgres; full tier |
-| B14 store | api | `store/personal_contacts.go`, `_memory.go`, `_postgres.go`, `_test.go` (the five fields; `ImportContacts(ctx, person, rows)` in one `inPerson` transaction with the seed's match rule; `PutContactPhoto`, `ContactPhoto`, `DeleteContactPhoto`, `CountContactPhotos` under `inPerson`); `store/personal_scope_test.go` (`personCallers`) | B13 | C31-C33, C39 | the store test files, memory and Postgres; `-run TestPersonScopeCallers`; full tier |
-| B15 CSV import and fields | api, cnf | `hub/contacts.go` (the five fields, the export header, `photo` sha in the answers, `GET /v1/me/contacts/{id}/photo`, one route line each for import and photo); new `hub/contacts_import.go` + `_test.go` (11.2.1: the two formats, the dry run, the caps, the skip codes); new `hub/testdata/contacts-google-export.csv` (a synthetic test account's real Google export header, `FirstName LastName` rows); `cnf/all.env.yaml` `contacts.photo_max_per_person: 2000`, `contacts.photo_hosts: []` and its tpl-gen output; `api/internal/config/config.go` | B14 | C34-C37, C40, C12 | `hub/contacts_import_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` |
-| B8 (amended) | api | as row B8, plus: the 11.3 mapping, `in_only`, the eight-value `sync_hash`, the wider `personFields` and `updatePersonFields`; `fakegcal/people.go` gains the four fields and `photos` | B3, B7, B8a, B14 | as B8, plus C41-C43 | as B8 |
-| B16 pictures | api | new `hub/contacts_photo.go` + `_test.go` (the fetch of 11.4: host list, redirects, timeout, magic bytes, cap, `source_url_hash`, 200 a cycle, outside every transaction); one call in `hub/contacts_sync.go` (B8's file) after the cycle's writes; `fakegcal/people.go` serves a photo URL | B8, B15 | C44-C46 | `go test ./internal/hub/ -run ContactsPhoto`; api tests; full tier |
+| B14 store | api | `store/personal_contacts.go`, `_memory.go`, `_postgres.go`, `_test.go` (the five fields; `ImportContacts(ctx, person, rows)` in one `inPerson` transaction with the seed's match rule, under `pg_advisory_xact_lock(hashtext('contacts-import:' \|\| person))` as the seed locks (`spl-contacts-seed.func.sh:153`), so two tabs or an import beside the sync add a row once; `PutContactPhoto`, `ContactPhoto`, `DeleteContactPhoto`, `CountContactPhotos` under `inPerson`); `store/personal_scope_test.go` (`personCallers`) | B13 | C31-C33, C33b, C37b, C39 | the store test files, memory and Postgres; `-run TestPersonScopeCallers`; full tier |
+| B15 CSV import and fields | api, cnf | `hub/contacts.go` (the five fields, the export header, `photo` sha in the answers, `GET /v1/me/contacts/{id}/photo`, two route lines each for import and photo: the method and its `OPTIONS ... gcalPreflight`, as `hub/contacts.go:519-533`; a `text/csv` body is not a CORS-safelisted type, so the browser sends the preflight); new `hub/contacts_import.go` + `_test.go` (11.2.1: the two formats, the dry run, the caps, the skip codes); new `hub/testdata/contacts-google-export.csv` (a synthetic test account's real Google export header, `FirstName LastName` rows); `cnf/all.env.yaml` `contacts.photo_max_per_person: 2000`, `contacts.photo_hosts: []` and its tpl-gen output; `api/internal/config/config.go` | B14 | C34-C37, C40, C12 | `hub/contacts_import_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` |
+| B8 (amended) | api | as row B8, plus: the 11.3 mapping, `in_only`, the eight-value `sync_hash`, the wider `personFields` and `updatePersonFields`; `api/internal/gcal/fakegcal/people.go` gains the four fields and `photos` | B3, B7, B8a, B14, B15 (both edit `api/internal/config/config.go` and `cnf/all.env.yaml`) | as B8, plus C41-C43 | as B8 |
+| B16 pictures | api | new `hub/contacts_photo.go` + `_test.go` (the fetch of 11.4: host list, redirects, timeout, magic bytes, cap, `source_url_hash`, 200 a cycle, outside every transaction); one call in `hub/contacts_sync.go` (B8's file) after the cycle's writes; `api/internal/gcal/fakegcal/people.go` serves a photo URL | B8, B15 | C44-C46 | `go test ./internal/hub/ -run ContactsPhoto`; api tests; full tier |
 | B17 WUI | wui | `wui/components/PeopleContactRows.vue` (the picture, on screen only); `wui/pages/people/contact/[id].vue` (the five fields, edit, `in_only` line); new lazy `wui/components/ContactsImportDialog.vue` (file pick, preview, import), opened from the People panel menu in `ChannelSidebar.vue` by `defineAsyncComponent`; `wui/utils/contacts-client.mjs` (import, photo); `csi-spl-wui/i18n/locales/en.json` (new keys only); unit + e2e tests on the mock bundle | B15, B16 | C47, C48 | `pnpm run typecheck`; unit tests; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` |
-| B18 Contacts switch | wui | `wui/components/settings/calendar-google.vue` (the switch moved out of B9, 2.7: connect with `want=contacts`, last sync, status, Sync now, the 409 `contacts_sync_elsewhere` line), its keys in `en.json`, tests | B7, B8 | C24 (switch part) | as B17 |
+| B18 Contacts switch | wui | `wui/components/settings/calendar-google.vue` (the switch moved out of B9, 2.7: connect with `want=contacts`, last sync, status, Sync now, the 409 `contacts_sync_elsewhere` line), its keys in `en.json`, tests | B7, B8, B17 (both edit `en.json`) | C24 (switch part) | as B17 |
 | B11 (amended) | wui | B17's and B18's keys in the 18 other locales; agy has the last word | B17, B18 | C27 | the two ratchet tests |
 | B12 (amended) | doc | the People help: import from a file and from Google, which details are kept, pictures (only you see them, from Google only, not in the export) | B17 | - | `do_check_dist_hygiene`; the qto doc drift check |
 
@@ -1392,6 +1413,8 @@ Every case is planned and red on `db36843f4` unless marked (C).
 | C31 | B14 | P2 reads, writes or deletes P1's picture through the store | n/a | not found, nothing changed | twin: P1 does each |
 | C32 | B14 | `ImportContacts` of 3 rows where 1 matches a live contact by email and 1 by name (no email) | n/a | 1 added, 2 already there | twin: an empty list adds 3 |
 | C33 | B14 | `ImportContacts` whose third row violates a CHECK | n/a | 0 rows added (one transaction) | twin: without the bad row, 3 |
+| C33b | B14 | two `ImportContacts` of the same 3 new rows at once (Postgres) | n/a | 3 added in all, not 6 | Postgres test; twin: without the lock, the race test adds 6 |
+| C37b | B14, B15 | a CSV row matching a contact soft-deleted in Spool | n/a | `deleted_here: 1`, 0 added | twin: after the purge, 1 added |
 | C34 | B15 | dry run of the pinned Google export fixture | 404 | `format: google`, the counts, 0 rows written | twin: the same file without `dry_run` writes them |
 | C35 | B15 | the same file imported twice | n/a | the second adds 0 | count before and after |
 | C36 | B15 | a file of 5 MiB + 1 byte; a file of 25,001 rows; an unknown header; Latin-1 bytes | n/a | 413, 413, 400 `csv_unknown_format`, 400 `csv_bad_encoding`; nothing written | twin: 5 MiB and 25,000 rows import |
@@ -1399,7 +1422,7 @@ Every case is planned and red on `db36843f4` unless marked (C).
 | C38 | B13 | the purge door deletes a soft-deleted contact that has a picture | n/a | the picture row is gone too | Postgres test; twin: a live contact's picture stays |
 | C39 | B14 | erase all (`DELETE /v1/me/contacts?scope=spool`) and a human delete | n/a | 0 pictures of that person left | twin: P2's pictures stay |
 | C40 | B15 | export after B15 | old header | the nine-column header, old header its prefix; `=cmd` in notes gets `'` | twin: a v1.2 export file imports with format `spool` |
-| C41 | B8 | a Google person with an organization, birthday without a year, and a plain-text biography | n/a | `company`, `job_title`, `--MM-DD`, `notes` stored | Go test on the fake |
+| C41 | B8 | a Google person with an organization, birthday without a year, and a plain-text biography | n/a | `company`, `job_title`, `--MM-DD`, `notes` stored | Go test on the fake; twin: a birthday with only `text` stores NULL and a later Spool edit sends no `birthdays` |
 | C42 | B8 | a biography of 9000 characters | n/a | stored cut to 8000, `in_only = true`; a later Spool edit sends 0 updates | twin: 7000 characters, `in_only` false, an edit sends one update |
 | C43 | B8 | a Spool edit of `job_title` on a person with two organizations at the fake | n/a | the primary's title changed, the second organization kept | Go test reads the fake's person |
 | C44 | B16 | a primary user photo on the fake | n/a | one fetch with `sz=128`, a picture row; the next cycle 0 fetches | count the fake's photo requests |

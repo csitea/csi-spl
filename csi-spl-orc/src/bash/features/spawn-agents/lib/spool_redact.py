@@ -98,11 +98,12 @@ SECRETS = [
     # An env-shaped assignment whose upper-case name says secret, the way
     # `env`, `printenv` or `cat .env` prints it in a terminal (spec 153
     # 3.20: a lane's console carries 200 lines of scrollback). Upper case
-    # only, so prose and lower-case config keys stay.
+    # only, so prose and lower-case config keys stay. A quoted value is
+    # masked to its closing quote, spaces and all (R7 c-164 N).
     (
         r"(?m)(^|[\s;])((?:export\s+)?(?=[A-Z])[A-Z0-9_]*"
         r"(?:KEY|SECRET|TOKEN|PASS(?:WORD)?|PWD|CRED(?:ENTIAL)?S?|AUTH|SIGN(?:ING)?|SALT|PRIVATE|COOKIE|SESSION|DSN)"
-        r"[A-Z0-9_]*=)(?![\[<]redacted)\S+",
+        r"[A-Z0-9_]*=)(?![\[<]redacted)(?:\"[^\"\n]*\"|'[^'\n]*'|\S+)",
         r"\1\2<redacted>",
         "env-secret",
     ),

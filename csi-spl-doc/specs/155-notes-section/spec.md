@@ -231,7 +231,12 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
   size. Order: pinned first, each group by priority (2.9), then by the
   person's own order (drag, or Alt+Up/Down for the keyboard); a new note goes
   on top of the notes of its priority. A filter "Archived" shows the
-  archived ones.
+  archived ones. They are also seen in the Archive section (`/archive`), in
+  a Notes part under its topics (owner HUM-10, t1 2f4311d9, msg c6bf6b39:
+  "Remove tje archive buton, the archive section should be used for that";
+  SPL-4897). A row there is the title, the priority (above 600 px) and when
+  it last changed; a click opens the note in place, and Unarchive puts it
+  back in the list.
 - **Open**: a click (or Enter) opens the note above 820 px as a modal like
   an issue (1.2 row 6), on a phone as a level-3 full screen (1.2 row 7).
   `/notes?note=<id>` opens it directly, so the browser's back and a

@@ -5,7 +5,10 @@
      opens this page is SPL-979's. A row click opens the thread in the shell's
      right pane and stays here (t1 58b8055d): /t/:id hides the rail, and
      closing that page leaves the Topics list with no way back. A modified
-     click still follows the topic permalink. -->
+     click still follows the topic permalink. Below the topics, the person's
+     archived notes (components/ArchiveNotes.vue, lazy; SPL-4897, owner t1
+     2f4311d9): the Notes bar has no Archived switch, archived notes are seen
+     here. -->
 <template>
   <div class="feed-col" data-test="archive-page">
     <header class="feed-header">
@@ -18,10 +21,11 @@
       <SectionClose side="end" />
     </header>
     <div class="feed-body">
+      <h3 class="archive-part__head">{{ t('archive.topics') }}</h3>
       <p class="muted archive-hint">{{ t('archive.hint') }}</p>
       <p v-if="loadError" class="archive-error" role="alert" data-test="archive-error">{{ t(loadError) }}</p>
       <p v-else-if="loading" class="muted" data-test="archive-loading">{{ t('common.loading') }}</p>
-      <p v-else-if="!rows.length" class="muted" data-test="archive-empty">{{ t('archive.empty') }}</p>
+      <p v-else-if="!rows.length" class="muted" data-test="archive-empty">{{ t('archive.topics_empty') }}</p>
       <ul v-else class="archive-list" data-test="archive-list">
         <li v-for="r in rows" :key="r.msg_id" class="archive-row" data-test="archive-row" :data-msg-id="r.msg_id">
           <a class="archive-row__open" :href="openPath(r)" data-test="archive-open" @click="openRow($event, r)">
@@ -62,6 +66,7 @@
       <button v-if="next && !loading" type="button" class="btn ghost" data-test="archive-load-more" @click="load(true)">
         {{ t('feed.load_more') }}
       </button>
+      <LazyArchiveNotes />
     </div>
     <LazyTopicDeleteDialog
       v-if="deleting"
@@ -193,6 +198,7 @@ onUnmounted(() => offTopic())
 <style scoped>
 .archive-title { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
 .archive-hint { margin: 0 0 0.75rem; overflow-wrap: anywhere; }
+.archive-part__head { margin: 0 0 0.5rem; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; color: var(--color-muted); }
 .archive-error { margin: 0.25rem 0 0; color: var(--color-danger); overflow-wrap: anywhere; }
 .archive-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .archive-row {

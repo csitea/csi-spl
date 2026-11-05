@@ -96,6 +96,9 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   the paths their rows name. A new iac test that reads another part's
   tree without a row fails `check-pre-push-scope.tst.sh` (case 18). Print
   a selection: `CROSS_RANGE=origin/master...HEAD ./run -a do_check_pre_push_cross`.
+  The cnf, the WUI copy or the hub copy of the per-kind vendor split
+  selects `agent-split-one-source` (under 1 s): both compiled copies must
+  equal cnf `env.box.agent_split_by_kind` (SPL-4876, after e696477ab).
   `PRE_PUSH_CROSS=0` turns it off.
 - **The cache key is content**: the git trees and blobs of what the part
   reads, plus the tier and the gate version. No commit sha and no base sha,

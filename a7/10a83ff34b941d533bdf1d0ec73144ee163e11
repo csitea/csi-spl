@@ -1,0 +1,3 @@
+Lay-What: When the instant urgency update cannot read the list of workspaces, it now leaves a warning in the log.
+Lay-How: The update still falls back to the one workspace it was called for, and the warning says so.
+Lay-Why: The failure was silent before, so a task whose urgency disagreed with the five-minute check could not be traced.

@@ -320,6 +320,27 @@ section 3.3 serves the live list only (decision P6).
   `scrollbar-width: none` and `.monitoring-tabs::-webkit-scrollbar {
   display: none }`.
 - The empty summary strip stays below the header, unchanged.
+- SPL-4811 (owner HUM-10, t1 c7c44497, msg 416d130f: "the tabs must be in
+  the same row as the "Reporting" - which should be Bold and 1px bigger
+  font than "space space >> space space" than the tabs with their current
+  size"): Monitoring and Reporting read `<title>  >>  <tabs>` on one row.
+  - Between the `<h2 class="section-title">` and the bar, a
+    `<span class="section-title-sep" aria-hidden="true">` holding the text
+    `"  >>  "`, drawn with `white-space: pre` so both pairs of spaces show,
+    muted, hidden from screen readers. The header's 12 px gap is cancelled
+    on both sides of it (the separator's and the bar's
+    `margin-inline-start: -12px`), so its spaces are the whole distance; the
+    first label sits the first tab's border and padding (12 px) after it.
+  - One rule in `main.css` sizes both pages: `--section-tab-fs` on
+    `.monitoring-page, .reporting-page` (1rem on a desktop, 0.8rem at
+    `max-width: 820px`, the sizes the tabs had before) sets the tabs and the
+    separator; `h2.section-title` is `calc(var(--section-tab-fs) + 1px)`,
+    weight 700.
+  - Phone: the title and the separator are not drawn (CLE-77886, a section
+    page shows no title); the bar is the row and scrolls inside itself.
+  - Tests: `csi-spl-wui/tests/e2e/reporting.test.mjs` T1-T5 (both pages,
+    1440, 390 and 320 px), and C2 here (the separator right after the
+    heading, the first label 12 px +-2 after the separator).
 
 ### 3.2 The Lanes tab (A2)
 
@@ -1344,7 +1365,7 @@ rule" twin, named in its control column.
 | # | row | case | master today | expected | red control |
 |---|---|---|---|---|---|
 | C1 | B1 | `/monitoring/agents`, desktop 1280 px: `[data-test=monitoring-tabs]` is inside the header | a sibling after it | inside, same row | e2e: `nav.closest('header')` is null today |
-| C2 | B1 | the same page: left edge of the first tab label minus right edge of the heading text | the bar is on the next row | 20 px +-2, the two `top`s within 4 px | e2e: the two rects' `top`s differ by a row today |
+| C2 | B1 | the same page: left edge of the first tab label minus right edge of the heading text (SPL-4811: of the separator's text, which starts at the heading's end +-1 px) | the bar is on the next row | 20 px +-2 (SPL-4811: 12 px +-2), the two `top`s within 4 px | e2e: the two rects' `top`s differ by a row today |
 | C2b | B1 | the same page: the active tab's rect `bottom` vs the header's rect `bottom` | the tab is below the header | equal +-1 px | e2e: today the tab's bottom is a row below |
 | C3 | B1 | phone, 4 tabs (B1 lands before B4): narrow the viewport until the tabs overflow (320 px, the longest locale): heading and bar on one row, `scrollWidth <= innerWidth`, the h2's height is one line | two rows | one row, the bar scrolls inside itself | e2e: the same-row check fails today |
 | C3b | B4 | C3 again with 5 tabs as an operator admin, 360 px | n/a | as C3 | the C3 e2e, run with the lanes tab |

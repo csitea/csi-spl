@@ -1,6 +1,7 @@
 <!-- spec 143 1.3 (SPL-2324, SPL-2351): the Reporting section, beside
      Monitoring. The sidebar keeps the icon rail only (ChannelSidebar
-     reportingRailOnly); this page is the tab bar and the open tab as a child
+     reportingRailOnly); this page is the tab bar (on the heading's row,
+     SPL-4811) and the open tab as a child
      route. Each tab is its own path and chunk (the list in
      utils/reporting-tabs.mjs); /reporting itself lands on Releases. -->
 <template>
@@ -8,20 +9,23 @@
     <header class="feed-header">
       <MobileBack />
       <SectionClose side="start" />
-      <h2 data-test="reporting-heading">{{ t('reporting.title') }}</h2>
+      <h2 class="section-title" data-test="reporting-heading">{{ t('reporting.title') }}</h2>
+      <!-- SPL-4811 (owner HUM-10, t1 c7c44497, msg 416d130f): the tab bar on
+           the heading's row, after "  >>  " (main.css .section-title-sep) -->
+      <span class="section-title-sep" aria-hidden="true" data-test="reporting-title-sep">{{ '  >>  ' }}</span>
+      <nav class="reporting-tabs" :aria-label="t('reporting.tabs_label')" data-test="reporting-tabs">
+        <NuxtLink
+          v-for="tab in tabs"
+          :key="tab.id"
+          :to="localePath(tab.path)"
+          class="reporting-tab"
+          :class="{ 'reporting-tab--active': active === tab.id }"
+          :aria-current="active === tab.id ? 'page' : undefined"
+          :data-test="'reporting-tab-' + tab.id"
+        >{{ t(tab.labelKey) }}</NuxtLink>
+      </nav>
       <SectionClose side="end" />
     </header>
-    <nav class="reporting-tabs" :aria-label="t('reporting.tabs_label')" data-test="reporting-tabs">
-      <NuxtLink
-        v-for="tab in tabs"
-        :key="tab.id"
-        :to="localePath(tab.path)"
-        class="reporting-tab"
-        :class="{ 'reporting-tab--active': active === tab.id }"
-        :aria-current="active === tab.id ? 'page' : undefined"
-        :data-test="'reporting-tab-' + tab.id"
-      >{{ t(tab.labelKey) }}</NuxtLink>
-    </nav>
     <div class="feed-body reporting-body">
       <NuxtPage />
     </div>

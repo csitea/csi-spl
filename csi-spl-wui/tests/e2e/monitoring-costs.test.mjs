@@ -36,8 +36,10 @@
 //     edit -> the hub's refusal text shows as it came -> delete -> empty.
 //     Anyone else: no Paid card.
 //   - spec 153 3.1 (SPL-3157), cases C1-C5: the tab bar sits on the
-//     heading's row, inside the header (C1), its first label 20 px after
-//     "Monitoring" on the same line (C2), the active underline on the
+//     heading's row, inside the header (C1), its first label on the same
+//     line right after "Monitoring  >>  " (C2, SPL-4811: the separator
+//     starts where the heading ends, the label 12 px after it, the tab's
+//     border and padding; was 20 px after the heading), the active underline on the
 //     header's bottom border (C2b); at 320 px in nl (the longest labels)
 //     one row, the bar scrolls inside itself with no scrollbar, the page
 //     never sideways (C3; a phone shows no heading, CLE-77886, so the bar
@@ -357,12 +359,15 @@ const tabRowGeometry = (p) => p.evaluate(() => {
   if (!header || !h2 || !nav || !first) return null
   const head = textRect(h2)
   const label = textRect(first)
+  const sep = document.querySelector('[data-test=monitoring-title-sep]')
+  const mark = sep ? textRect(sep) : null
   const kids = [...header.children]
   const tabs = [...nav.querySelectorAll('a')].map((a) => a.getBoundingClientRect())
   const at = (sel) => kids.findIndex((e) => e.matches(sel))
   return {
     inHeader: nav.closest('header') === header,
-    gap: Math.round((label.left - head.right) * 10) / 10,
+    sepGap: mark ? Math.round((mark.left - head.right) * 10) / 10 : null,
+    gap: mark ? Math.round((label.left - mark.right) * 10) / 10 : null,
     topDiff: Math.round(Math.abs(label.top - head.top) * 10) / 10,
     activeBottom: active ? Math.round((active.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom) * 10) / 10 : null,
     activeToBar: active ? Math.round((active.getBoundingClientRect().bottom - nav.getBoundingClientRect().bottom) * 10) / 10 : null,
@@ -414,7 +419,8 @@ async function tabRow(browser, base) {
       ok(`C3 ${label}: no scrollbar drawn under the tabs`, Boolean(g && g.navScrollbar === 0), g && g.navScrollbar)
     } else {
       ok(`C2 ${label}: the first label on the heading's line`, Boolean(g && g.topDiff <= 4), g && g.topDiff)
-      ok(`C2 ${label}: the first label 20 px +-2 after the heading text`, Boolean(g && Math.abs(g.gap - 20) <= 2), g && g.gap)
+      ok(`C2 ${label}: the separator right after the heading text (+-1 px, SPL-4811)`, Boolean(g && g.sepGap !== null && Math.abs(g.sepGap) <= 1), g && g.sepGap)
+      ok(`C2 ${label}: the first label 12 px +-2 after the separator`, Boolean(g && g.gap !== null && Math.abs(g.gap - 12) <= 2), g && g.gap)
       ok(`C2b ${label}: the active tab's bottom on the header's bottom (+-1 px)`, Boolean(g && g.activeBottom !== null && Math.abs(g.activeBottom) <= 1), g && g.activeBottom)
       if (opts.closeButtons === 'windows') {
         ok(`C4 ${label}: the end close X is the header's last element`, Boolean(g && g.last === 'end' && g.end > g.h2), g)

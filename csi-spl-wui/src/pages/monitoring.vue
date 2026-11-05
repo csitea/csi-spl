@@ -10,9 +10,11 @@
     <header class="feed-header">
       <MobileBack />
       <SectionClose side="start" />
-      <h2 data-test="monitoring-heading">{{ t('monitoring.title') }}</h2>
+      <h2 class="section-title" data-test="monitoring-heading">{{ t('monitoring.title') }}</h2>
       <!-- spec 153 3.1 (SPL-3157, owner HUM-10, t1 5e7b15c9): the tab bar on
-           the heading's row, its first label 20 px after "Monitoring" -->
+           the heading's row; SPL-4811 (t1 c7c44497, msg 416d130f): after
+           "  >>  " (main.css .section-title-sep) -->
+      <span class="section-title-sep" aria-hidden="true" data-test="monitoring-title-sep">{{ '  >>  ' }}</span>
       <!-- spec 153 3.16 (SPL-4730): the bar and a tab's actions share one
            row; display: contents on a desktop (the header is that row), a
            flex row of its own on a phone, where the header dissolves -->

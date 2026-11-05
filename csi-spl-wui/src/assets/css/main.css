@@ -1013,7 +1013,8 @@ html.pane-dragging * {
      is placed inside the page, not the screen */
   .spool-shell[data-mobile-section="1"] > .spool-main { position: relative; }
   .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header > .mobile-back,
-  .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header > h2 { display: none; }
+  .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header > h2,
+  .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header > .section-title-sep { display: none; }
   .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header:not(:has(> .btn)) { display: contents; }
   .spool-shell[data-mobile-level="1"] > .sidebar,
   .spool-shell[data-mobile-level="2"] > .spool-main,
@@ -1053,6 +1054,7 @@ html.pane-dragging * {
   .feed-header { padding: 4px 12px 4px 4px; gap: 6px; min-height: calc(var(--tap) + 8px); }
   .spool-shell[data-mobile-section-page="1"] .monitoring-tabrow { display: flex; align-items: flex-end; gap: 4px; min-width: 0; padding: 0 16px; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline; 3.16 (SPL-4730): a tab's actions at its right end */
   .spool-shell[data-mobile-section-page="1"] .monitoring-tabs { flex: 1 1 auto; margin: 0; padding: 4px 0 0; }
+  .spool-shell[data-mobile-section-page="1"] .reporting-tabs { flex: none; margin: 0; padding: 8px 16px 0; box-shadow: inset 0 -1px 0 var(--color-border); } /* SPL-4811: the bar moved into the header, which dissolves here (no heading), so it is its own row again, as before */
   .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions { gap: 4px; align-self: center; }
   .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions .btn:has(> .mh-icon) { display: inline-flex; align-items: center; justify-content: center; width: var(--tap); padding: 0; }
   .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions .mh-icon { display: block; }
@@ -1664,15 +1666,31 @@ form.composer.omnibox--called .omnibox-field { animation: omnibox-called-field 1
    dependency map in the first-load JS (ci_initial_gzip_kb). */
 .monitoring-summary:empty { display: none; }
 /* spec 153 3.1 (SPL-3157): the bar sits in the .feed-header row after the
-   h2. Its margin is the whole distance (the header's 12 px gap cancelled), so
-   the first label is 8 + 12 = 20 px after the heading. It stretches over the
-   header's block padding and its bottom border, so the active tab's underline
-   lies ON that border; tabs that do not fit scroll inside the bar, no
-   scrollbar drawn. The heading never shrinks or breaks on this page, and
-   sits on the labels' line: at the header's end, 3 px into its padding (its
-   1 px border + 12 px padding less a tab's 8 px padding + 2 px underline). */
-.monitoring-page .feed-header h2 { flex: none; white-space: nowrap; align-self: flex-end; margin-bottom: -3px; }
-.monitoring-tabs { display: flex; align-items: flex-end; align-self: stretch; gap: 4px; flex: 1 1 auto; min-width: 0; margin: -12px 0 -13px calc(0.5rem - 12px); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+   h2 (SPL-4811: after the separator below; its margin cancels the header's
+   12 px gap, so the first label is the first tab's border + padding after
+   the separator). It stretches over the header's block padding and its
+   bottom border, so the active tab's underline lies ON that border; tabs
+   that do not fit scroll inside the bar, no scrollbar drawn. The heading
+   never shrinks or breaks, and it and the separator sit on the labels'
+   line: at the header's end, 3 px into its padding (its 1 px border + 12 px
+   padding less a tab's 9 px padding + 1 px border, or Reporting's 8 px
+   padding + 2 px underline). */
+.feed-header .section-title, .feed-header .section-title-sep { flex: none; align-self: flex-end; margin-bottom: -3px; }
+.feed-header .section-title { white-space: nowrap; }
+/* SPL-4811 (owner HUM-10, t1 c7c44497, msg 416d130f: "the tabs must be in
+   the same row as the "Reporting" - which should be Bold and 1px bigger font
+   than "space space >> space space" than the tabs with their current size"):
+   Monitoring and Reporting read "<title>  >>  <tabs>" on one row. One size
+   for the tabs and the separator (--section-tab-fs, their size before), the
+   title bold at that size + 1 px. The separator keeps its spaces (pre), the
+   header's gap cancelled on both sides, and is hidden from screen readers
+   (aria-hidden) and from a copy (user-select: none); on a phone neither is
+   drawn (CLE-77886, above). */
+.monitoring-page, .reporting-page { --section-tab-fs: 1rem; }
+.feed-header h2.section-title { font-size: calc(var(--section-tab-fs) + 1px); font-weight: 700; }
+.section-title-sep { white-space: pre; margin-left: -12px; font-size: var(--section-tab-fs); color: var(--color-muted); user-select: none; }
+.monitoring-tab, .reporting-tab { font-size: var(--section-tab-fs); }
+.monitoring-tabs { display: flex; align-items: flex-end; align-self: stretch; gap: 4px; flex: 1 1 auto; min-width: 0; margin: -12px 0 -13px -12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .monitoring-tabs::-webkit-scrollbar { display: none; }
 .monitoring-head-actions { display: flex; align-items: center; gap: 0.5rem; flex: none; } /* SPL-3250: a tab's header actions (Events: Clear log) */
 .monitoring-head-actions:empty { display: none; }
@@ -1704,8 +1722,14 @@ form.composer.omnibox--called .omnibox-field { animation: omnibox-called-field 1
 /* spec 143 1.3 (SPL-2351): the Reporting section (pages/reporting.vue and its
    tabs), here for the same reason as Monitoring's: no CSS chunk in the
    router's dependency map of the first-load JS (ci_initial_gzip_kb). */
-.reporting-tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--color-border); }
-.reporting-tab { padding: 8px 12px; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+/* SPL-4811: the bar sits in the .feed-header row after the separator, as
+   Monitoring's (above): it stretches over the header's block padding and
+   bottom border, so the active underline lies ON that border; tabs that do
+   not fit scroll inside the bar, no scrollbar drawn. A tab's 8 px padding +
+   2 px underline below its label put the label on the heading's line. */
+.reporting-tabs { display: flex; align-items: flex-end; align-self: stretch; gap: 4px; flex: 1 1 auto; min-width: 0; margin: -12px 0 -13px -12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.reporting-tabs::-webkit-scrollbar { display: none; }
+.reporting-tab { flex: none; white-space: nowrap; padding: 8px 12px; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; }
 .reporting-tab:hover, .reporting-tab--active { color: var(--color-fg); }
 .reporting-tab--active { border-bottom-color: var(--color-accent); }
 /* SPL-4551 (owner HUM-10, t1 6cfd0257, msg 3207d42c): on a phone the
@@ -1714,12 +1738,12 @@ form.composer.omnibox--called .omnibox-field { animation: omnibox-called-field 1
    --tap, so a ::before keeps the tap area --tap tall, anchored to the tab's
    bottom and growing up into the bar's top padding, never past the bar. */
 @media (max-width: 820px) {
-  .monitoring-tab, .reporting-tab { position: relative; font-size: 0.8rem; }
+  .monitoring-page, .reporting-page { --section-tab-fs: 0.8rem; }
+  .monitoring-tab, .reporting-tab { position: relative; }
   .monitoring-tab::before, .reporting-tab::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--tap); }
   .monitoring-tab { padding: 6.4px 8.8px 7.2px; }
   .monitoring-tab--active { padding-top: 9.6px; }
   .reporting-tab { padding: 6.4px 9.6px; }
-  .reporting-tabs { padding-top: 8px; }
 }
 .reporting-soon { padding: 16px; margin: 0; }
 /* spec 143 costs-redesign.md 3.2 (SPL-3798): Reporting -> Costs, its page

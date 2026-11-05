@@ -173,6 +173,8 @@ export function reportingTabFor(path) {
 
 When a user visits `/reporting`, the page replaces the route immediately to `/reporting/releases`.
 
+SPL-4811 (owner HUM-10, t1 c7c44497, msg 416d130f): the tab bar moved into the header, after the heading and the separator `"  >>  "`, as on Monitoring: `Reporting  >>  Releases SQL Costs ...` on one row, the title bold and 1 px bigger than the tabs, the tabs at their size before. The rule and its tests: [spec 153 section 3.1](../153-monitoring-lanes-tab/spec.md#31-the-tab-rows-on-the-headings-row-a1). The block above shows the page as it was first built.
+
 ---
 
 ## 2. Tab 1: Releases & Deploys (v1, built first)
@@ -193,6 +195,7 @@ The Releases tab features three integrated UI sections:
    - Total commits landed within the selected period.
    - Commits per day average.
    - Deploys count (`dev` vs `prd`).
+   - SPL-4811 (owner HUM-10, t1 c7c44497, msg 60441a88: "one row only - aka first the value space space - space space - WHAT it is"): each card is one line, the value first, then `"  -  "` (`white-space: pre`, hidden from screen readers), then the label: `215  -  Releases`, `252 on dev, 252 on prd  -  Deploys`. A card is as wide as its line; the cards wrap as whole cards. A card wider than the page (a long locale on a narrow phone, e.g. Finnish at 320 px: `3 dev-ympäristössä, 3 prd-ympäristössä  -  Käyttöönotot`) wraps inside itself and keeps its label inside its border (R7 c-137 W1). The dash, like the title row's `>>`, is `user-select: none`, so a copy reads `3 on dev, 3 on prd Deploys` (R7 W2). (`ReportingReleasesSummary.vue`, e2e `reporting.test.mjs` T6, T6 `320px fi`). Monitoring -> Tokens has summary cards of this kind (`MonitoringTokensSummary.vue`, label above value, a sub line); they keep their shape.
 2. **Filter & Time Range Control Bar**:
    - **Time Range Selector**: `Today`, `Last 7 Days` (default), `Last 30 Days`, `Last 90 Days`, `Custom Range`.
    - **Kind Selector**: Multi-select pills (`feat`, `fix`, `docs`, `chore`, `perf`, `refactor`, `ci`, `test`).

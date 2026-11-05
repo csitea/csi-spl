@@ -193,7 +193,9 @@ spl_lane_rotate_consider() {
   if [[ -n "$why" ]]; then
     (( age >= at )) || { spl_lane_rotate_say "$id" "DEFER not quiet: $why (rotated anyway from $((at / 60)) min)"; return 0; }
     gate="$(spl_lane_rotate_gate "$pid")"
-    [[ -z "$gate" ]] || { spl_lane_rotate_say "$id" "DEFER gate: $gate"; return 0; }
+    [[ -z "$gate" || "$gate" == past\ * ]] || { spl_lane_rotate_say "$id" "DEFER gate: $gate"; return 0; }
+    # a hung gate is what the handoff names, not an older busy match (R7 N3)
+    [[ -z "$gate" ]] || why="${gate#past }"
     forced=1
   fi
   if [[ "$kind" == claude ]] && ! spl_lane_rotate_login_ok; then
@@ -463,15 +465,23 @@ spl_lane_rotate_busy() {
 # A pre-push or push gate (ROTATE_LANE_GATE_RE) under PID is never cut while
 # it is younger than ROTATE_LANE_GATE_MAX_AGE: c-850 lost two
 # PRE_PUSH_TIER=full runs on 2026-11-04, ~60 min in with 0 FAIL, to the
-# deadline. The full tier's wall on the home box, pre-push.log 2026-10-28..11-04:
-# p50 1320 s, p90 3272 s, max 4815 s (n=196 runs of 35 parts, no FAIL).
+# deadline. The youngest match decides, so an old hung push never hides a
+# live gate (R7 N2); past the cap it prints "past running '<cmd>' (...)" and
+# the lane is rotated. The full tier's wall on the home box, pre-push.log
+# 2026-10-28..11-04, PART lines with tier=full grouped per tree+HEAD, runs of
+# 35 distinct parts with no FAIL: p50 ~1535 s, p90 ~3750 s, max 4815 s
+# (n=94; 12 over 3600 s).
 spl_lane_rotate_gate() {
-  local m a
-  m="$(spl_lane_rotate_child_match "$1" "$ROTATE_LANE_GATE_RE")"
-  [[ -n "$m" ]] || return 0
-  a="$(spl_rotate_age "${m%% *}")"; a="${a:-0}"
-  (( a < ROTATE_LANE_GATE_MAX_AGE )) || return 0
-  echo "running '${m#* }' for $((a / 60)) min (never cut: rotated when it ends, or at $((ROTATE_LANE_GATE_MAX_AGE / 60)) min of it)"
+  local l m a best="" ba=-1
+  while IFS= read -r l; do
+    [[ -n "$l" ]] || continue; m="${l#* }"
+    a="$(spl_rotate_age "${l%% *}")"; a="${a:-0}"
+    (( ba < 0 || a < ba )) && { ba="$a"; best="$m"; }
+  done < <(spl_lane_rotate_child_match "$1" "$ROTATE_LANE_GATE_RE" all)
+  [[ -n "$best" ]] || return 0
+  (( ba < ROTATE_LANE_GATE_MAX_AGE )) ||
+    { echo "past running '$best' (gate past ROTATE_LANE_GATE_MAX_AGE, $((ba / 60)) min)"; return 0; }
+  echo "running '$best' for $((ba / 60)) min (never cut: rotated when it ends, or at $((ROTATE_LANE_GATE_MAX_AGE / 60)) min of it)"
 }
 
 # The first descendant of PID whose command line matches ROTATE_LANE_BUSY_RE.
@@ -482,8 +492,9 @@ spl_lane_rotate_busy_child() {
   return 0
 }
 
-# spl_lane_rotate_child_match PID RE: "<pid> <command line>" of the first
-# descendant of PID whose command line matches RE, the line cut to 120.
+# spl_lane_rotate_child_match PID RE [all]: "<pid> <command line>" of the
+# first descendant of PID whose command line matches RE, the line cut to 120;
+# with "all", one such line per matching descendant.
 spl_lane_rotate_child_match() {
   local root="${LEASE_PROC_ROOT:-/proc}" d p pp cl
   local -A kids=()
@@ -499,7 +510,7 @@ spl_lane_rotate_child_match() {
       # NULs and line breaks to spaces: a multi-line command (a heredoc, a bash -c
       # script) stays one rotate.log line (SPL-2841)
       cl="$(tr '\0\n\r' '   ' < "$root/$d/cmdline" 2>/dev/null || true)"
-      grep -qE -- "$2" <<<"$cl" && { echo "$d $(cut -c1-120 <<<"$cl")"; return 0; }
+      grep -qE -- "$2" <<<"$cl" && { echo "$d $(cut -c1-120 <<<"$cl")"; [[ "${3:-}" == all ]] || return 0; }
       q+=("$d")
     done
   done

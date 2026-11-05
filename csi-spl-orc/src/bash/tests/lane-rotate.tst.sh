@@ -67,7 +67,9 @@
 #  29. SPL-4820: a pre-push / push gate under the lane is never cut at the
 #      deadline: DEFER gate at 58 and at 70 min, one line naming the gate;
 #      the gate gone = rotated on the next tick; a gate older than
-#      ROTATE_LANE_GATE_MAX_AGE = rotated anyway, the handoff naming it.
+#      ROTATE_LANE_GATE_MAX_AGE = rotated anyway, the handoff naming it;
+#      the youngest gate decides (an old hung push never hides a live gate)
+#      and past the cap the handoff names the gate, not an older busy match.
 #      Red control (origin/master 599a1d393 + this case): rotated mid-gate.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
@@ -674,6 +676,18 @@ reset; lane c-293 70
 tick
 check "29. a gate past ROTATE_LANE_GATE_MAX_AGE (7200 s): rotated anyway" 'grep -q "lane-c-293 DONE OK" "$D/rotate.log"'
 check "29. the handoff names the gate it cut" 'grep -q "deadline while: running .bash ./run -a do_check_pre_push" "$D/handoff/"*-lane-c-293.md'
+# R7 N2: an old hung push (past the cap) never hides a younger live gate
+reset; lane c-294 70
+"$T/bin/proc" 4294 7300 c-294 git 2294 "git push origin HEAD:review/y"
+"$T/bin/proc" 4394 600 c-294 bash 2294 "bash ./run -a do_check_pre_push"
+tick
+check "29. N2 the youngest gate decides: an old hung push does not cut a live gate" '[ "$(n "$T/spawn.log")" = 0 ] && [ "$(n "$T/tick.out" "c-294 DEFER gate: running .bash ./run -a do_check_pre_push . for 10 min")" = 1 ]'
+# R7 N3: past the cap the handoff names the gate, not an older busy match
+reset; lane c-295 70
+"$T/bin/proc" 4295 7400 c-295 go 2295 "go test ./..."
+"$T/bin/proc" 4395 7300 c-295 bash 2295 "bash ./run -a do_check_pre_push"
+tick
+check "29. N3 a gate past the cap: rotated, the handoff names the gate" 'grep -q "lane-c-295 DONE OK" "$D/rotate.log" && grep -q "deadline while: running .bash ./run -a do_check_pre_push . (gate past ROTATE_LANE_GATE_MAX_AGE" "$D/handoff/"*-lane-c-295.md'
 check "29. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------

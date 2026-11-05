@@ -13,6 +13,10 @@
 #      own period) rather than the first one after it; counts only, no amount
 #   7. update (SPL-3890) PATCHes PAID_ID with only the fields given, dry by
 #      default; no field, a bad field or a bad id is refused before any call
+#   8. index (SPL-4843), through the real ./run: id, vendor, kind and the
+#      period days only; no amount, currency, quantity, note or plan label on
+#      stdout, stderr or in any file the run wrote, a refusal included; red
+#      control: the same check finds list's figures
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -127,6 +131,54 @@ run PAID_CMD=update PAID_ID=$ID DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'FATAL update needs at least one field' "$T/o" && pass "7. update with no field refused, no call" || fail "7. no field: rc=$rc $(cat "$T/calls" "$T/o")"
 run "${UPD[@]}" DRY_RUN=0 STUB_CODE=404 STUB_BODY='{"error":"not_found"}'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'answered 404' "$T/o" && pass "7. a 404 on update fails" || fail "7. 404: rc=$rc $(cat "$T/o")"
+
+# --- 8. index (SPL-4843): no figure on stdout, stderr or in any file the run wrote ---
+# Through the real ./run (its stdout / stderr tees, do_log's day log, the state
+# dir), with only gcloud and curl stubbed on PATH and HOME / VAR_DIR in $T.
+mkdir -p "$T/real/stub"
+cat >"$T/real/stub/gcloud" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in "auth print-identity-token "*|"auth print-access-token "*) echo tok-fake ;; esac
+STUB
+cat >"$T/real/stub/curl" <<'STUB'
+#!/usr/bin/env bash
+out=""; url=""
+while (( $# )); do case "$1" in -o) out="$2"; shift ;; -X) echo "curl $2" >>"$STUB_CALLS"; shift ;; http*) url="$1" ;; esac; shift; done
+echo "url $url" >>"$STUB_CALLS"; cp "$STUB_BODY_FILE" "$out"; printf '%s' "${STUB_CODE:-200}"
+STUB
+chmod +x "$T/real/stub/gcloud" "$T/real/stub/curl"
+SECRET_ITEM='{"id":"'$ID'","vendor":"agy","kind":"topup","plan_label":"LABEL-SENTINEL","quantity":4321,"amount":98765.4321,"currency":"XTS","note":"NOTE-SENTINEL","period_start":"2020-01-01","period_end":"2020-01-02","created_by":"sa@example.iam.gserviceaccount.com"}'
+echo "{\"items\":[$SECRET_ITEM]}" >"$T/real/items.json"
+echo '{"error":"forbidden","detail":"98765.4321 XTS NOTE-SENTINEL LABEL-SENTINEL"}' >"$T/real/refusal.json"
+run_real() { # <name> <PAID_CMD> <body file> [VAR=value]... -> $T/real/<name>/{out,err,home,var,calls}
+  local d="$T/real/$1" cmd="$2" body="$3"; shift 3
+  rm -rf "$d"; mkdir -p "$d/home" "$d/var"
+  env HOME="$d/home" VAR_DIR="$d/var" PATH="$T/real/stub:$PATH" STUB_BODY_FILE="$body" STUB_CALLS="$d/calls" \
+    GCP_ACCOUNT=sa@example.iam.gserviceaccount.com ENV=dev PAID_CMD="$cmd" "$@" "$PROJ_ROOT/run" -a do_spl_hub_fleet_paid >"$d/out" 2>"$d/err"
+}
+leaks() { # <dir> -> each file of the run holding a sentinel: out, err, anything under home / var
+  grep -rlE '98765|4321|XTS|NOTE-SENTINEL|LABEL-SENTINEL' "$1/out" "$1/err" "$1/home" "$1/var" 2>/dev/null
+}
+logs() { find "$1/home" "$1/var" -type f -name '*.log' | wc -l; }
+run_real index index "$T/real/items.json"; rc=$?
+d="$T/real/index"
+[[ $rc -eq 0 ]] && grep -qx 'curl GET' "$d/calls" && grep -q '^url https://.*/v1/operator/fleet-tokens/paid$' "$d/calls" \
+  && grep -qxF "  $ID agy topup [2020-01-01, 2020-01-02)" "$d/out" \
+  && pass "8. index GETs the list through ./run and prints id, vendor, kind and both period days" \
+  || fail "8. index: rc=$rc $(cat "$d/calls" "$d/out" "$d/err")"
+found=$(leaks "$d"); n=$(logs "$d")
+[[ $n -ge 3 && -z "$found" ]] && pass "8. index: no amount, currency, quantity, note or label on stdout, stderr or in any file the run wrote ($n log files)" \
+  || fail "8. index leaks (log files=$n): $found"
+run_real refused index "$T/real/refusal.json" STUB_CODE=403; rc=$?
+d="$T/real/refused"; found=$(leaks "$d"); n=$(logs "$d")
+[[ $rc -ne 0 && $n -ge 3 && -z "$found" ]] && grep -q 'FATAL the hub answered 403 (forbidden)' "$d/out" \
+  && pass "8. a refused index fails with its code only, the body's detail nowhere ($n log files)" \
+  || fail "8. refused index: rc=$rc logs=$n leaks=$found $(cat "$d/out")"
+run_real list list "$T/real/items.json"; rc=$?
+found=$(leaks "$T/real/list")
+[[ $rc -eq 0 ]] && grep -qxF "$T/real/list/out" <<<"$found" \
+  && pass "8. red control: the same check finds PAID_CMD=list's figures ($(wc -l <<<"$found") files)" \
+  || fail "8. red control: rc=$rc, list showed no sentinel, so the check proves nothing"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

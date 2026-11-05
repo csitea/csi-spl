@@ -7,13 +7,17 @@
 # @description The owner enters real items in the web UI; this action is for
 # @description reads and for test fixtures. PAID_CMD:
 # @description   list       (default) GET /v1/operator/fleet-tokens/paid
+# @description   index      the same GET, figure-free (SPL-4843): per item only
+# @description              id, vendor, kind and the period days; no amount,
+# @description              currency, quantity, note or plan label, and the
+# @description              raw body is never printed (a refusal: its code)
 # @description   effective  GET /v1/operator/fleet-tokens/effective?from=&to=
 # @description   create     POST an item (DRY_RUN=1 default prints the body)
 # @description   update     PATCH item PAID_ID with only the fields given
 # @description              (SPL-3890; DRY_RUN=1 default prints the body)
 # @description   delete     DELETE item PAID_ID (DRY_RUN=1 default prints it)
 # @param ENV - required: dev or prd
-# @param PAID_CMD (optional) - list | effective | create | update | delete
+# @param PAID_CMD (optional) - list | index | effective | create | update | delete
 # @param FROM, TO (optional) - effective: UTC days YYYY-MM-DD, TO excluded
 # @param VENDOR KIND PLAN_LABEL AMOUNT CURRENCY PERIOD_START PERIOD_END - create
 # @param QUANTITY (optional, default 1), NOTE (optional) - create
@@ -26,6 +30,7 @@
 #   before the item's period start), the first one after it, or none
 #   (SPL-3791; counts only, a second GET of the item list)
 # @example ENV=dev ./run -a do_spl_hub_fleet_paid
+# @example ENV=prd PAID_CMD=index ./run -a do_spl_hub_fleet_paid
 # @example ENV=dev PAID_CMD=effective FROM=2026-09-01 TO=2026-10-01 ./run -a do_spl_hub_fleet_paid
 # @example ENV=prd PAID_CMD=effective PAID_FX=1 FROM=2024-07-01 TO=2025-07-01 ./run -a do_spl_hub_fleet_paid
 # @example ENV=prd PAID_CMD=update PAID_ID=<uuid> PERIOD_END=2027-10-01 ./run -a do_spl_hub_fleet_paid
@@ -35,14 +40,14 @@ do_spl_hub_fleet_paid() {
   do_require_bin jq curl gcloud || return 1
   local cmd="${PAID_CMD:-list}" method path body="" dry=0
   case "$cmd" in
-    list) method=GET path=/v1/operator/fleet-tokens/paid ;;
+    list|index) method=GET path=/v1/operator/fleet-tokens/paid ;;
     effective) method=GET path="$(_spl_hub_fleet_paid_effective_path)" || return 1 ;;
     create) method=POST path=/v1/operator/fleet-tokens/paid; body="$(_spl_hub_fleet_paid_body)" || return 1 ;;
     update)
       _spl_hub_fleet_paid_id || return 1
       method=PATCH path="/v1/operator/fleet-tokens/paid/$PAID_ID"; body="$(_spl_hub_fleet_paid_patch)" || return 1 ;;
     delete) _spl_hub_fleet_paid_id || return 1; method=DELETE path="/v1/operator/fleet-tokens/paid/$PAID_ID" ;;
-    *) do_log "FATAL PAID_CMD must be list, effective, create, update or delete, got: '$cmd'"; return 1 ;;
+    *) do_log "FATAL PAID_CMD must be list, index, effective, create, update or delete, got: '$cmd'"; return 1 ;;
   esac
   if [[ "$method" != GET ]]; then
     if spl_dry_run; then dry=1; else local drc=$?; [[ $drc -eq 1 ]] || return 1; fi
@@ -56,9 +61,27 @@ do_spl_hub_fleet_paid() {
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   spl_hub_operator_call "$method" "$path" "$body" || return 1
+  [[ "$cmd" != index ]] || { _spl_hub_fleet_paid_index; return; }
   _spl_hub_fleet_paid_report "$cmd" || return 1
   [[ "$cmd" == effective && "${PAID_FX:-0}" == 1 ]] || return 0
   _spl_hub_fleet_paid_fx_counts
+}
+
+# _spl_hub_fleet_paid_index -> the item list without a figure (SPL-4843):
+# one line per item, id vendor kind [period_start, period_end), projected
+# before anything reaches stdout or a log line. A refusal names its HTTP code
+# and the hub's error code only, never the body or its detail.
+_spl_hub_fleet_paid_index() {
+  local err
+  if [[ "$SPL_HUB_OP_STATUS" != 200 ]]; then
+    err="$(jq -r '.error // empty' <<<"$SPL_HUB_OP_BODY" 2>/dev/null | grep -xE '[a-z_]{1,40}')"
+    do_log "FATAL the hub answered $SPL_HUB_OP_STATUS${err:+ ($err)} to the paid item index"
+    return 1
+  fi
+  jq -e '.items | type == "array"' <<<"$SPL_HUB_OP_BODY" >/dev/null 2>&1 ||
+    { do_log "FATAL the paid item list is not {items: [...]}; nothing printed"; return 1; }
+  do_log "OK $ENV paid items: $(jq -r '.items | length' <<<"$SPL_HUB_OP_BODY") (index: no amount, currency, quantity, note or plan label)"
+  jq -r '.items[] | "  \(.id) \(.vendor) \(.kind) [\(.period_start), \(.period_end))"' <<<"$SPL_HUB_OP_BODY"
 }
 
 # _spl_hub_fleet_paid_fx_counts -> per vendor of the effective read just made,

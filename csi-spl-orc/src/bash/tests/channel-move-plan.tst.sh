@@ -312,6 +312,37 @@ got="$(SNIPPET='cm_box' env SPOOL_TEST=1 SPOOL_BOX_TAG=box-z bash -c '. "$0"; ev
 [ "$got" = box-z ] && pass "W3 CONTROL: under SPOOL_TEST=1 the env tag is used (a test seam only)" || fail "W3 control: '$got'"
 gpgconf --homedir "$G" --kill gpg-agent >/dev/null 2>&1
 
+# ---- W4: outside SPOOL_TEST the caller check runs no tool of the caller's PATH --------------
+# A fake tmux/sudo lists every ancestor as pane %999 in window c-998, a fake awk
+# names c-998 for any registry.tsv read: with the caller's PATH the pane reads
+# as c-998. CHANNEL and TO are invalid, so even a pass reads nothing.
+mkdir -p "$T/w4bin"; AWK_REAL="$(command -v awk)"
+cat >"$T/w4bin/tmux" <<'EOF'
+#!/bin/bash
+p=$PPID
+while [ "${p:-0}" -gt 1 ]; do printf '%s\t%%999\tc-998\n' "$p"; p="$(sed -n 's/^PPid:[[:space:]]*//p' "/proc/$p/status")"; done
+EOF
+printf '#!/bin/bash\nwhile [ $# -gt 0 ] && [ "$1" != tmux ]; do shift; done\nexec "$@"\n' >"$T/w4bin/sudo"
+printf '#!/bin/bash\ncase "${*: -1}" in *registry.tsv) echo c-998 ;; *) exec %q "$@" ;; esac\n' "$AWK_REAL" >"$T/w4bin/awk"
+chmod +x "$T/w4bin/tmux" "$T/w4bin/sudo" "$T/w4bin/awk"
+w4() { env -u SPOOL_TEST -u SPOOL_AGENT_ID -u SPOOL_BOX_TAG PROJ_PATH="$PROJ_ROOT" CHANNEL=bad TO=BAD "$@" bash "$T/runner.sh" do_spl_channel_move </dev/null 2>&1; }
+w4t() { env -u SPOOL_AGENT_ID PROJ_PATH="$PROJ_ROOT" SPOOL_TEST=1 SPOOL_ROOT="$A" SPOOL_BOX_TAG=box-a SPOOL_BOX_USER="$ME" \
+  SPOOL_TMUX_SOCKET="$T/tmux.sock" CHANNEL=bad TO=BAD "$@" bash "$T/runner.sh" do_spl_channel_move </dev/null 2>&1; }
+out="$(w4 PATH="$T/w4bin:$PATH")"
+! grep -q 'c-998' <<<"$out" && pass "W4 a fake tmux/sudo/awk first on PATH outside SPOOL_TEST: the pane does not read as c-998" || fail "W4 PATH: $out"
+out="$(w4t PATH="$T/w4bin:$PATH")"
+grep -q 'pane id c-998' <<<"$out" && pass "W4 CONTROL: the same PATH under SPOOL_TEST=1 makes the pane read as c-998 (the fakes work)" || fail "W4 PATH control: $out"
+out="$(w4 'BASH_FUNC_awk%%=() { echo c-998; }')"; rc=$?
+[ "$rc" = 3 ] && grep -q 'exports a function (BASH_FUNC_awk%%)' <<<"$out" && ! grep -q 'c-998' <<<"$out" &&
+  pass "W4 an exported function outside SPOOL_TEST: refused (rc 3), nothing read" || fail "W4 function: rc $rc $out"
+out="$(w4)"
+! grep -q 'exports a function' <<<"$out" && pass "W4 CONTROL: the same call with no exported function is not refused for one" || fail "W4 function control: $out"
+out="$(w4t 'BASH_FUNC_awk%%=() { echo c-998; }')"
+! grep -q 'exports a function' <<<"$out" && pass "W4 CONTROL: the same function under SPOOL_TEST=1 is not refused (a test seam only)" || fail "W4 function test control: $out"
+pa="$(sed -n 's/^  PATH=\([^;]*\);.*/\1/p' "$PROJ_ROOT/src/bash/run/spl-channel-move.func.sh")"
+pb="$(sed -n 's/^CM_SAFE_PATH=//p' "$LIB")"
+[ -n "$pa" ] && [ "$pa" = "$pb" ] && pass "W4 the action's PATH equals the lib's CM_SAFE_PATH ($pa)" || fail "W4 PATH drift: action '$pa' lib '$pb'"
+
 # ---- unknown and unbuilt commands --------------------------------------------------------
 out="$(run 600 MOVE_CMD=status)"; rc=$?
 [ "$rc" = 4 ] && grep -q 'not built yet' <<<"$out" && pass "a command no row has built yet (status): exit 4, nothing done" || fail "unbuilt: rc $rc $out"

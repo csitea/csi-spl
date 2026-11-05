@@ -35,9 +35,12 @@
 # name that names another id is refused (a lane can rename its window).
 # The limits (N1): the owner process test reads SUDO_USER from the
 # environment and is a mistake-catcher only (spec 167 R5); a caller that
-# runs its own copy of this code, or edits the registry, is not stopped by
-# any shell check: the barrier is the owner's passphrase and the verify on
-# each box. Under SPOOL_TEST=1 the spool root is $SPOOL_ROOT (the spool test
+# runs its own copy of this code, sets a BASH_ENV (it runs in the action's
+# own shell before its first line, c-715 N7), or edits the registry, is not
+# stopped by any shell check, the driver's own verify included: the barrier
+# is the owner's passphrase and the verify on the OTHER box (the hub path).
+# Outside SPOOL_TEST do_spl_channel_move first sets PATH to CM_SAFE_PATH and
+# refuses an exported function (c-715 W4). Under SPOOL_TEST=1 the spool root is $SPOOL_ROOT (the spool test
 # guard refuses the live one) and the environment is trusted, for the tests.
 # SPOOL_TEST=1 is itself an environment variable (c-715 N5): with it and a
 # fake root every seam is honoured again, so a cm_cmd_* hook (rows B4, B5)

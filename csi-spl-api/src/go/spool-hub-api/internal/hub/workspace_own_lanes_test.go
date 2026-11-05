@@ -1,6 +1,7 @@
 package hub_test
 
 import (
+	"cmp"
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
@@ -28,7 +29,8 @@ func TestWorkspaceOwnLanes(t *testing.T) {
 	r.e.pin(r.w1, mac)
 	put := func(agent, topic, state string) {
 		t.Helper()
-		if _, err := lanePut(t, mac, `{"agent_id":"`+agent+`","agent_box":"`+mac.id+`","topic":"`+topic+`","scope":"scope of `+agent+`","state":"`+state+`"}`); err != nil {
+		topic = cmp.Or(topic, store.LaneUnknown) // rdb 0263: no lane without its discussion
+		if _, err := lanePut(t, mac, `{"agent_id":"`+agent+`","agent_box":"`+mac.id+`","topic":"`+topic+`","issue_key":"unknown","scope":"scope of `+agent+`","state":"`+state+`"}`); err != nil {
 			t.Fatalf("put %s: %v", agent, err)
 		}
 	}
@@ -37,7 +39,7 @@ func TestWorkspaceOwnLanes(t *testing.T) {
 	put("c-702", "", "live")                                                            // C71: no topic
 	put("c-703", r.t2, "live")                                                          // C72: a w2 topic id, no w2 text
 	put("c-704", "", "done")                                                            // C73: not active
-	old := store.FleetLane{Fleet: "main", AgentID: "c-705", AgentBox: mac.id, Scope: "old", State: "live", Files: []string{}}
+	old := store.FleetLane{Fleet: "main", AgentID: "c-705", AgentBox: mac.id, Scope: "old", Topic: store.LaneUnknown, IssueKey: store.LaneUnknown, State: "live", Files: []string{}}
 	if _, err := r.e.st.PutFleetLane(context.Background(), r.w1, old, mac.id, now.Add(-3*time.Hour)); err != nil {
 		t.Fatal(err) // C73: written 3 h ago, no burn
 	}
@@ -137,7 +139,7 @@ func TestWorkspaceOwnRosterLanes(t *testing.T) {
 			t.Fatal(err) // c-706 reported not running (C76); c-001, c-707 unreported (NULL)
 		}
 	}
-	if _, err := lanePut(t, mac, `{"agent_id":"c-701","agent_box":"`+mac.id+`","topic":"`+r.t1+`","scope":"the build","state":"live"}`); err != nil {
+	if _, err := lanePut(t, mac, `{"agent_id":"c-701","agent_box":"`+mac.id+`","topic":"`+r.t1+`","issue_key":"unknown","scope":"the build","state":"live"}`); err != nil {
 		t.Fatal(err)
 	}
 	laneAt(t, r.fleetTokensRig, "c-001", r.opBox.id, r.t1, "", now.Add(-1*time.Minute)) // the fleet's c-001 on a w1 topic
@@ -209,7 +211,7 @@ func TestOperatorLanesAnnouncedAgentOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	lane := store.FleetLane{Fleet: "main", AgentID: "c-711", AgentBox: mac.id, Scope: "w2 work", State: "live", Files: []string{}}
+	lane := store.FleetLane{Fleet: "main", AgentID: "c-711", AgentBox: mac.id, Scope: "w2 work", Topic: store.LaneUnknown, IssueKey: store.LaneUnknown, State: "live", Files: []string{}}
 	if _, err := r.e.st.PutFleetLane(ctx, r.w2, lane, mac.id, now.Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}

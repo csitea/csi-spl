@@ -28,11 +28,15 @@ func scanLane(row pgx.Row, fleet string, now time.Time) (FleetLane, error) {
 
 func (s *Postgres) PutFleetLane(ctx context.Context, tenant string, l FleetLane, box string, now time.Time) (FleetLane, error) {
 	var out FleetLane
+	l, err := laneLinked(l)
+	if err != nil {
+		return out, err
+	}
 	files := l.Files
 	if files == nil {
 		files = []string{}
 	}
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+	err = s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM fleet_lanes WHERE tenant_id = $1 AND fleet = $2
 			AND state = 'done' AND updated_at < $3`, tenant, l.Fleet, now.Add(-LaneDoneTTL)); err != nil {
 			return err

@@ -73,8 +73,8 @@ func TestFleetLanesTopicFromOwnIssue(t *testing.T) {
 		t.Errorf("C50 a lane with no topic shows its issue's discussion: %+v, want topic %s titled 'Lane origin', issue SPL-1", l, talk)
 	}
 	for _, id := range []string{"c-452", "c-453"} {
-		if l := rows[id]; l.TopicID != "" {
-			t.Errorf("C50b %s: topic %q, want none (default discussion / foreign key)", id, l.TopicID)
+		if l := rows[id]; l.TopicID != store.LaneUnknown {
+			t.Errorf("C50b %s: topic %q, want %q (default discussion / foreign key)", id, l.TopicID, store.LaneUnknown)
 		}
 	}
 	if l := rows["c-454"]; l.TopicID != other {
@@ -92,12 +92,12 @@ func TestFleetLanesRoleSeat(t *testing.T) {
 	laneAt(t, r, "c-001", box, "", "", now.Add(-time.Minute))
 	laneAt(t, r, "g-002", box, "", "", now.Add(-2*time.Minute))
 	laneAt(t, r, "c-461", box, "", "", now.Add(-3*time.Minute))
-	seat := store.FleetLane{Fleet: "main", AgentID: "c-462", AgentBox: box, Scope: "role c-462 (rotation 20261031T0005Z-orch)", State: "live", Files: []string{}}
+	seat := store.FleetLane{Fleet: "main", AgentID: "c-462", AgentBox: box, Scope: "role c-462 (rotation 20261031T0005Z-orch)", Topic: store.LaneUnknown, IssueKey: store.LaneUnknown, State: "live", Files: []string{}}
 	if _, err := r.e.st.PutFleetLane(context.Background(), r.op, seat, box, now.Add(-4*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	// R7 c-287 W2: a lane whose brief heading starts with "role " is no seat.
-	lane := store.FleetLane{Fleet: "main", AgentID: "c-463", AgentBox: box, Scope: "role seats: claude active, grok only when claude is silent", State: "live", Files: []string{}}
+	lane := store.FleetLane{Fleet: "main", AgentID: "c-463", AgentBox: box, Scope: "role seats: claude active, grok only when claude is silent", Topic: store.LaneUnknown, IssueKey: store.LaneUnknown, State: "live", Files: []string{}}
 	if _, err := r.e.st.PutFleetLane(context.Background(), r.op, lane, box, now.Add(-5*time.Minute)); err != nil {
 		t.Fatal(err)
 	}

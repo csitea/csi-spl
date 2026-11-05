@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -23,14 +25,57 @@ type FleetLane struct {
 	Branch   string
 	Scope    string
 	Files    []string
-	Topic    string
-	IssueKey string // the lane's own issue, "" for none (rdb 0221, spec 153 3.4)
+	Topic    string // the lane's discussion, never "" (rdb 0263); LaneUnknown on an old row
+	IssueKey string // the lane's own issue (rdb 0221, spec 153 3.4), never "" (rdb 0263); LaneUnknown on an old row
 	// OriginIssue is the issue the lane came from, "" for none (rdb 0253, spec 153 3.12)
 	OriginIssue string
 	State       string // live | done
 	WriterBox   string // the box that last wrote it (from the authenticated hello)
 	UpdatedAt   time.Time
 	Age         time.Duration
+}
+
+// LaneUnknown is what a lane row's topic or issue_key reads when nobody
+// knows it: rdb 0263 wrote it into every row that had none (owner HUM-10,
+// msg 937e89a4: "use the unknown string", no search). It is a value, not a
+// gap: a write may carry it (a done write of an old row does).
+const LaneUnknown = "unknown"
+
+// ErrLaneUnlinked refuses a lane row without its discussion or its issue
+// (rdb 0263, spec 153 3.21).
+var ErrLaneUnlinked = errors.New("a lane row needs its discussion (topic) and its issue (issue_key)")
+
+// LaneRoleScope is the scope the role rotation writes for a seat, `role
+// <id> (rotation <rid>)` (csi-spl-orc spl-rotate-lib.func.sh,
+// spl_rotate_spawn); a lane whose brief heading merely starts with "role "
+// is no seat (R7 c-287 W2).
+var LaneRoleScope = regexp.MustCompile(`^role [acgmoqu]-[0-9]{3} \(rotation `)
+
+// LaneIsNotLane is a row of the lane map that is no lane: a box's own load
+// row (BOX-<n>@<box>, spl-lane-map.func.sh) or a role seat (001..003 in any
+// vendor letter, legacy CLE-001..003: agentid.IsRoleSeat; or a row the role
+// rotation wrote, LaneRoleScope). It has no discussion and no issue of its
+// own, so a missing one stores LaneUnknown.
+func LaneIsNotLane(l FleetLane) bool {
+	return strings.HasPrefix(l.AgentID, "BOX-") || agentid.IsRoleSeat(l.AgentID) || LaneRoleScope.MatchString(l.Scope)
+}
+
+// laneLinked is the row a put stores (rdb 0263): a non-lane's missing links
+// read LaneUnknown; a lane without either is refused. Both drivers call it.
+func laneLinked(l FleetLane) (FleetLane, error) {
+	if LaneIsNotLane(l) {
+		if l.Topic == "" {
+			l.Topic = LaneUnknown
+		}
+		if l.IssueKey == "" {
+			l.IssueKey = LaneUnknown
+		}
+		return l, nil
+	}
+	if l.Topic == "" || l.IssueKey == "" {
+		return l, ErrLaneUnlinked
+	}
+	return l, nil
 }
 
 // LaneDoneTTL is how long a done row stays readable before a write prunes it.
@@ -110,6 +155,10 @@ func sortLanes(ls []FleetLane) {
 }
 
 func (s *Memory) PutFleetLane(_ context.Context, tenant string, l FleetLane, box string, now time.Time) (FleetLane, error) {
+	l, err := laneLinked(l)
+	if err != nil {
+		return FleetLane{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.lanes == nil {
@@ -195,8 +244,12 @@ func CheckFleetLane(l FleetLane) string {
 		return "files lists at most 50 paths"
 	case !LaneTopicRe.MatchString(l.Topic):
 		return "topic must be a task id ([A-Za-z0-9_-], up to 64)"
-	case !LaneIssueRe.MatchString(l.IssueKey):
+	case l.Topic == "" && !LaneIsNotLane(l):
+		return "topic is required: the discussion the lane comes from (rdb 0263)"
+	case !LaneIssueRe.MatchString(l.IssueKey) && l.IssueKey != LaneUnknown:
 		return "issue_key must be an issue key like SPL-12"
+	case l.IssueKey == "" && !LaneIsNotLane(l):
+		return "issue_key is required: the issue the lane works on (rdb 0263)"
 	case !LaneIssueRe.MatchString(l.OriginIssue):
 		return "origin_issue must be an issue key like SPL-12"
 	case l.State != "live" && l.State != "done":

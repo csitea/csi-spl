@@ -40,13 +40,13 @@ const ROLES = {
   'operator admin': { who: { admin: true, operator: true }, operator: true },
 }
 
-/** Server-render the shipped page's template as `role`. */
-async function render(id, role) {
+/** Server-render the shipped page's template as `role`; `extra` adds to its scope. */
+async function render(id, role, extra = {}) {
   const s = read(page(id))
   const template = s.slice(s.indexOf('<template>') + 10, s.lastIndexOf('</template>'))
   const code = compile(template, { mode: 'function', prefixIdentifiers: false }).code
   const fn = new Function('Vue', code)(Vue)
-  const ctx = { t, localePath: (p) => p, operator: { visible: ROLES[role].operator } }
+  const ctx = { t, localePath: (p) => p, operator: { visible: ROLES[role].operator }, ...extra }
   const scope = new Proxy({}, {
     has: (_, k) => typeof k === 'string' && !k.startsWith('_') && !(k in globalThis),
     get: (_, k) => (k in ctx ? ctx[k] : undefined),
@@ -81,12 +81,23 @@ describe('S1 Costs pages (SPL-3798; SPL-4187): AI tokens and Human for every mem
     assert.match(src, /tokenParts\(/)
     assert.doesNotMatch(src, /costs-shell-tokens|reporting\.costs\.coming/)
   })
-  it('SPL-4187: Human says "not tracked yet" for every role, no number', async () => {
+  it('SPL-4187: Human says "not tracked yet" for every role while it has no row, no number', async () => {
     for (const role of Object.keys(ROLES)) {
-      const html = await render('costs/human', role)
+      const html = await render('costs/human', role, { state: 'idle', rows: [] })
       assert.match(html, /data-test="costs-human-not-tracked"/, role)
+      assert.doesNotMatch(html, /data-test="human-table"/, role)
       assert.ok(html.includes(t('reporting.costs.human.title')), role)
     }
+  })
+  it('SPL-4840: a month with hr entries lists them in a table, and the "not tracked yet" line goes', async () => {
+    const row = { key: 'hr:pay:0', label: 'pay', entryMicros: 1, entryCurrency: 'EUR', amount: { text: '$1.00' } }
+    const html = await render('costs/human', 'operator admin', {
+      state: 'ok', rows: [row], sum: {}, total: { text: '$1.00' }, currency: 'USD', costMoney: () => '€1.00', locale: 'en',
+    })
+    /* CONTROL: rows [] (above) draws the line and no table */
+    assert.match(html, /data-test="human-table"/)
+    assert.match(html, /data-test="human-row"/)
+    assert.doesNotMatch(html, /data-test="costs-human-not-tracked"/)
   })
   it('SPL-4187: Cloud is the estate\'s: anyone but an operator admin gets the operators-only line, no table', async () => {
     for (const role of ['workspace admin', 'member']) {

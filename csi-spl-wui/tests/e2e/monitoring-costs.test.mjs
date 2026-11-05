@@ -297,6 +297,26 @@ async function costsSections(browser, base, size) {
     const totCells = await p.$$eval('[data-test=costs-total-eur], [data-test=costs-total-second]', (els) => els.map((e) => ({ text: e.textContent.trim(), title: e.getAttribute('title') || '' })))
     ok('entries: the Spend EUR and second totals keep their amounts and say what they leave out (R7 W1, N2)', totCells.length === 2
       && totCells.every((c) => /^€[\d,.]+$/.test(c.text) && c.title === 'Entered costs with no exchange rate left out: 1'), totCells)
+    /* SPL-4824 R7 N1: the unpriced part's share cell is empty beside its dash, never "0 %" (CONTROL: before the fix "0 %") */
+    const chfPct = await p.$$eval('[data-test=costs-row][data-source=cost_entry]', (els) => els.filter((e) => e.querySelector('[data-test=costs-usd]')?.getAttribute('data-none') === '1')
+      .map((e) => e.children[4]?.textContent.trim()))
+    ok('N1: the unpriced entry\'s % of month is empty, the dash alone', chfPct.length === 1 && chfPct[0] === '', chfPct)
+    /* SPL-4840 (owner answer A "In Human; left out of Spend"): Spend lists no hr entry (CONTROL: before it the hr entries are Spend rows) */
+    const spendLabels = await p.$$eval('[data-test=costs-row][data-source=cost_entry] .costs-part', (els) => els.map((e) => e.textContent.trim()))
+    ok('SPL-4840: Spend leaves the hr entries out', spendLabels.length === 2 && !spendLabels.some((l) => /contract/.test(l)), spendLabels)
+    await open(p, base, '/reporting/costs/human?month=2026-09')
+    await p.waitForSelector('[data-test=human-row]', { visible: true, timeout: 20000 }).catch(() => null)
+    const hr = await p.$$eval('[data-test=human-row]', (els) => els.map((e) => ({
+      key: e.getAttribute('data-key'), unpriced: e.getAttribute('data-unpriced'), text: e.querySelector('[data-test=human-amount]')?.textContent.trim(),
+      title: e.querySelector('[data-test=human-amount]')?.getAttribute('title') || '', sub: e.querySelector('.human-sub')?.textContent.trim() })))
+    ok('SPL-4840: Human lists the two hr entries, the priced one first with its own amount', hr.map((r) => r.key).join(',') === 'hr:Design contract:0,hr:Support contract:1'
+      && /^\$[\d,.]+$/.test(hr[0].text) && hr[0].sub === 'Entered by hand: €1,200.00', hr)
+    ok('SPL-4840: Human\'s unpriced entry is a dash saying no rate', hr[1] && hr[1].unpriced === '1' && hr[1].text === '\u2014' && /^No CHF rate for this month/.test(hr[1].title), hr[1])
+    const hrTot = await p.$eval('[data-test=human-total-amount]', (e) => ({ text: e.textContent.trim(), left: e.getAttribute('data-left') })).catch(() => ({}))
+    ok('SPL-4840: Human\'s total is the priced entry, and leaves the unpriced one out', hrTot.text === hr[0]?.text && hrTot.left === '1', hrTot)
+    ok('SPL-4840: no "not tracked yet" line on a month with hr entries', (await count(p, '[data-test=costs-human-not-tracked]')) === 0)
+    if (size.width < 600) ok('Human: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-human-entries-${size.width}.png`, fullPage: true })
     await ctx.close()
   }
   {

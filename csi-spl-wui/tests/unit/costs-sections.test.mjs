@@ -11,7 +11,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  CLOUD_SOURCE, ENTRY_SOURCE, HUMAN_ROWS, cloudDaysOf, cloudEntries, cloudDaysQuery, cloudProjectOf, cloudProjects, cloudServiceDays, cloudServices,
+  CLOUD_SOURCE, ENTRY_SOURCE, HUMAN_ROWS, cloudDaysOf, cloudEntries, humanEntries, cloudDaysQuery, cloudProjectOf, cloudProjects, cloudServiceDays, cloudServices,
   cloudTotal, mockCloudDays, sectionAmount, tokenParts,
 } from '../../src/utils/costs-sections.mjs'
 import { costMonthOf, mockTenantCostsBody } from '../../src/utils/tenant-costs.mjs'
@@ -139,11 +139,35 @@ describe('AI tokens and Human', () => {
     const m = costMonthOf(mockTenantCostsBody('2026-10', '', new Date(Date.UTC(2026, 10, 2))))
     assert.ok(tokenParts(m.parts).every((p) => /^(fleet_tokens|ai_paid|ai_share)/.test(p.source)))
   })
-  it('Human names the spec 107 rows and draws no number', () => {
+  it('Human names the spec 107 rows while it has no row, and reads the month\'s human list (SPL-4840)', () => {
     assert.equal(HUMAN_ROWS, 'T071..T077')
     const h = read('src/pages/reporting/costs/human.vue')
     assert.match(h, /reporting\.costs\.human\.not_tracked/)
-    assert.doesNotMatch(h, /costMoney|getTenantCosts/)
+    assert.match(h, /humanEntries\(/)
+    assert.match(h, /costMonthOf\(body\)\.human/)
+  })
+  it('SPL-4840: the hr entries are Human\'s rows, the most expensive first; cloud and workspace entries left out', () => {
+    const rows = humanEntries([entry('pay a', 9_000_000, { kind: 'hr' }), entry('pay b', 30_000_000, { kind: 'hr' }), entry('suite', 70_000_000),
+      entry('own', 1, { kind: 'hr', estate: false })])
+    assert.deepEqual(rows.map((r) => [r.key, r.label]), [['hr:pay b:1', 'pay b'], ['hr:pay a:0', 'pay a']])
+    assert.deepEqual(humanEntries(null), [])
+  })
+  it('SPL-4840: the mock month (scenario entries) keeps the hr entries out of parts and the total, in human', () => {
+    const body = mockTenantCostsBody('2026-09', 'entries', new Date(Date.UTC(2026, 9, 15)), 'EUR')
+    const m = costMonthOf(body)
+    assert.ok(m.parts.every((p) => p.kind !== 'hr'))
+    assert.equal(m.total.usdMicros, m.parts.reduce((s, p) => s + p.usdMicros, 0))
+    const rows = humanEntries(m.human)
+    assert.deepEqual(rows.map((r) => [r.label, r.unpriced, r.entryCurrency]), [['Design contract', false, 'EUR'], ['Support contract', true, 'CHF']])
+    assert.equal(rows[0].secondMicros, 1_200_000_000)
+    /* a workspace answer carries none */
+    assert.deepEqual(costMonthOf({ ...body, scope: 'workspace' }).human, [])
+  })
+  it('SPL-4824 R7 N1: an unpriced part has no pct in the mock month, as the hub answers', () => {
+    const m = costMonthOf(mockTenantCostsBody('2026-09', 'entries', new Date(Date.UTC(2026, 9, 15)), 'EUR'))
+    const chf = m.parts.find((p) => p.unpriced)
+    assert.ok(chf && m.total.usdMicros > 0)
+    assert.equal(chf.pct, null)
   })
 })
 

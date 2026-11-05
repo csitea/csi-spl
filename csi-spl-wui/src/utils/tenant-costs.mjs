@@ -159,6 +159,8 @@ export function costMonthOf(body) {
     coverage: Array.isArray(b.coverage) ? b.coverage.map(costCoverageOf) : [],
     /* spec 140 3.10: every workspace's token burn, the estate answer's only */
     workspaces: b.scope === 'estate' && Array.isArray(b.workspaces) ? b.workspaces.map(costWorkspaceOf) : [],
+    /* SPL-4840: the month's hr entries, Human's rows, never in parts or the total; the estate answer's only */
+    human: b.scope === 'estate' && Array.isArray(b.human) ? b.human.map(costPartOf) : [],
     /* spec 143 3.3.1 (SPL-3810): a customer workspace's first day with a stamped token, its answer's only */
     aiShareFrom: b.scope === 'estate' ? '' : str(b.ai_share_from),
   }
@@ -343,11 +345,11 @@ export const MOCK_FX_RATES = Object.freeze({ EUR: MOCK_EUR_PER_USD, GBP: 0.79, S
 
 /* SPL-4824: a hand-entered cloud cost of the mock month (source cost_entry);
    a currency the mock holds no rate of is unpriced: USD 0, the row says so */
-function mockEntryPart(label, amount, currency) {
+function mockEntryPart(label, amount, currency, kind = 'cloud') {
   const rate = MOCK_FX_RATES[currency]
   const usd = rate ? amount / rate : 0
   return {
-    ...mockPart('cost_entry', label, 'cloud', 'hand', usd),
+    ...mockPart('cost_entry', label, kind, 'hand', usd),
     eur_micros: currency === 'EUR' ? toMicros(amount) : toMicros(usd * MOCK_EUR_PER_USD),
     entry_micros: toMicros(amount),
     entry_currency: currency,
@@ -398,7 +400,8 @@ function mockSecond(parts, cur, w, scenario) {
  * The mock month: a full estate month, ('empty') today's prd shape, counts
  * only and no GCP, ('norate') the full month with a rate-less invoice, or
  * ('entries') the full month plus two hand-entered cloud costs, one in a
- * currency with no rate (SPL-4824).
+ * currency with no rate (SPL-4824), and two hr ones, Human's rows outside
+ * the parts and the total, one with no rate (SPL-4840).
  * `currency` is the reader's second currency (the hub reads it from the
  * session; the mock is handed it).
  */
@@ -424,14 +427,18 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
         mockPart('agent_hours', 'fleet', 'agent_seconds', 'agent_run', 0, { units: 9.1e5, days: n }),
       ]
   if (scenario === 'entries') parts.push(mockEntryPart('Workspace suite', 64.8, 'EUR'), mockEntryPart('Domain suite', 11.5, 'CHF'))
+  const human = scenario === 'entries' ? [mockEntryPart('Design contract', 1200, 'EUR', 'hr'), mockEntryPart('Support contract', 300, 'CHF', 'hr')] : []
   const usd = parts.reduce((s, p) => s + p.usd_micros, 0)
   const eur = parts.reduce((s, p) => s + p.eur_micros, 0)
   for (const p of parts) {
     p.hand = p.origin === 'hand' || p.origin === 'invoice'
-    p.pct = usd > 0 ? Math.round((p.usd_micros * 1000) / usd) / 10 : null
+    /* SPL-4824 R7 N1: an unpriced part has no share, as the hub answers */
+    p.pct = usd > 0 && !p.unpriced ? Math.round((p.usd_micros * 1000) / usd) / 10 : null
   }
+  for (const p of human) Object.assign(p, { hand: true, pct: null })
   const cur = costCurrency(currency) || COST_SECOND_DEFAULT
   const second = mockSecond(parts, cur, w, scenario)
+  mockSecond(human, cur, w, scenario)
   const cover = (source, ok, partial = 0, missing = 0) => ({ source, ok, partial, missing, unrecorded: Math.max(0, n - ok - partial - missing), days: n })
   const coverage = scenario === 'empty'
     ? [cover('agent_hours', n), cover('fleet_tokens', n)]
@@ -447,6 +454,7 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
     days_ended: n,
     total: { usd_micros: usd, eur_micros: eur, second_micros: second },
     parts,
+    ...(human.length ? { human } : {}),
     coverage,
     /* spec 140 3.10: the operator admin's every-workspace burn (the workspace ids are the mock's) */
     workspaces: [

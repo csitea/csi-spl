@@ -6,7 +6,9 @@
 // month read's gcp parts, level 2 a project's services (the line kind),
 // level 3 a service per day from GET /v1/tenant/costs/cloud; level 1 also
 // lists the month's hand-entered cloud costs (SPL-4824). AI tokens: the
-// month read's token parts. Human: not tracked yet (spec 107 T071..T077).
+// month read's token parts. Human: the month's hand-entered hr costs (the
+// month read's human list, SPL-4840, outside the Spend total), else not
+// tracked yet (spec 107 T071..T077).
 // Pure parts, loaded by those pages only; the money is formatted by
 // utils/tenant-costs.mjs.
 
@@ -77,10 +79,25 @@ export function cloudProjects(parts) {
  * @param {Array<any>} parts the costMonthOf parts
  */
 export function cloudEntries(parts) {
+  return entryRows(parts, 'cloud', 'entry:')
+}
+
+/**
+ * Human (SPL-4840, owner csitea f7bba506 answer A "In Human; left out of
+ * Spend"): the month's hand-entered hr costs, one row per entry, the most
+ * expensive first.
+ * @param {Array<any>} human the costMonthOf human list
+ */
+export function humanEntries(human) {
+  return entryRows(human, 'hr', 'hr:')
+}
+
+/** The entries of `kind` among parts, one row each keyed `<prefix><label>:<i>`, the most expensive first. */
+function entryRows(parts, kind, prefix) {
   return (Array.isArray(parts) ? parts : [])
-    .filter((p) => p && p.estate && p.source === ENTRY_SOURCE && p.kind === 'cloud')
+    .filter((p) => p && p.estate && p.source === ENTRY_SOURCE && p.kind === kind)
     .map((p, i) => ({
-      key: 'entry:' + p.projectOrVendor + ':' + i, label: p.projectOrVendor, usdMicros: p.usdMicros, eurMicros: p.eurMicros,
+      key: prefix + p.projectOrVendor + ':' + i, label: p.projectOrVendor, usdMicros: p.usdMicros, eurMicros: p.eurMicros,
       secondMicros: p.secondMicros, entryMicros: p.entryMicros, entryCurrency: p.entryCurrency, unpriced: p.unpriced === true,
     }))
     .sort(byUsd)

@@ -1,0 +1,6 @@
+Lay-What: The setup guide for building the web app image now says how much memory the build gets and how to change it.
+Lay-How: One line of the guide was rewritten, and a short explanation was added next to a check that guards the memory setting.
+Lay-Why: The old line was vague about where the image build takes its memory setting from, so a reader could not tell how to change it.
+Tech-What: csi-spl-wui README NODE_OPTIONS row names the WUI_BUILD_HEAP_MB build-arg; wui-dockerfile-heap test comments its 6144 floor.
+Tech-How: README row: empty build-arg leaves NODE_OPTIONS empty, so package.json generate falls back to 6144 MB; test gains a two-line comment.
+Tech-Why: Review nits N1 and N4 of SPL-4782: the README said only that the Dockerfile "may set its own" NODE_OPTIONS, and the test literal 6144 had no stated source.

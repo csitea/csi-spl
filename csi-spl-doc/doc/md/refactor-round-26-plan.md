@@ -83,9 +83,14 @@ blocks with count 0).
   Lines as of `4e2b8d70e`; a bash or WUI site's line is the function's first
   line.
 - **Box:** `either` for every row (no pin).
-- **Vendor:** claude for every row. **R7 reviewer:** a cross-vendor seat per
-  row, named by the dispatch holder at placement. Each review line names the
-  reviewer's vendor (rulebook 2.7.5).
+- **Vendor:** claude for every row. **R7 reviewer:** named per row by the
+  dispatch holder at placement: waiver 1a7c70da covers round 26's row reviews, decided per
+  row when its reviewer is queued. If a real agy prompt has answered by then, use
+  agy; otherwise a fresh claude session, tree only, brief names the waiver, and
+  the holder GOes by hand. Grok back also ends it. It does not make the rows
+  compliant: rulebook 2.7.5 says an equal vendor pair fails 2.7.2 and the retro
+  names the row. The retro lists each such row (c-001 ruling 9c9cc58b). Each review line names the reviewer's
+  vendor (rulebook 2.7.5).
 - **Subject** (R6 reads it): `<type>(r52-NN-<slug>, SPL-<row issue>): ...`.
 - **Topic:** every row brief carries the `Topic:` line above; rows report there,
   never on an archived topic.
@@ -250,7 +255,12 @@ blocks with count 0).
 
 - Editor: c-267 (claude). Panel reviewer: c-274 (claude), a same-vendor seat
   under waiver 1a7c70da (section 9). Both sign the plan sha (rulebook 3.2).
-- Row reviewers: a cross-vendor seat per row (section 1); lines checked with
+- Row reviewers: waiver 1a7c70da covers round 26's row reviews, decided per
+  row when its reviewer is queued. If a real agy prompt has answered by then, use
+  agy; otherwise a fresh claude session, tree only, brief names the waiver, and
+  the holder GOes by hand. Grok back also ends it. It does not make the rows
+  compliant: rulebook 2.7.5 says an equal vendor pair fails 2.7.2 and the retro
+  names the row. The retro lists each such row (c-001 ruling 9c9cc58b). Lines checked with
   `do_spl_review_line_check`. A row with no reviewer for 15 minutes reports a
   blocker (2.7.3).
 - **P1, for the panel:** rows 01 and 02 add a test-only loader instead of editing
@@ -306,7 +316,7 @@ blocks with count 0).
 
 - v0.1: first draft (c-267): 10 rows, slug `r52`, measured on `4e2b8d70e`.
 - v0.2: dated measurements added at the dispatch holder's request (sections 2, 3.2, 6). No row changed. None of them is reviewed yet.
-- v0.3: c-274's FAIL on v0.2 folded, W1-W5 and notes N1, N2, N3, N5. Row 04 gains pin (H), row 09's refusal is `lock.key.enc`, row 05 takes the map's e2e files, r51-10's landing and the `free` reading are dated. W6 stays open (section 9).
+- v0.3: c-274's FAIL on v0.2 folded, W1-W5 and notes N1, N2, N3, N5. Row 04 gains pin (H), row 09's refusal is `lock.key.enc`, row 05 takes the map's e2e files, r51-10's landing and the `free` reading are dated. W6: c-001's ruling 9c9cc58b on the rows' R7 is written in sections 1 and 5.
 
 ## 9. Consensus
 
@@ -318,6 +328,5 @@ Not signed. The plan is a draft until both seats sign its sha (rulebook 3.2).
   seat only): agy out on quota, grok off, two mistral tries rejected. Rulebook 3.2
   asks for a cross-vendor panel with no exception, so the plan does not meet it as
   written; the waiver covers that.
-- **Open, W6:** every row's R7 reviewer (sections 1 and 5) still reads "a
-  cross-vendor seat". Ruling 481b020c does not cover the rows; c-001's ruling is
-  asked by the dispatch holder.
+- **Row reviews:** c-001's ruling 9c9cc58b, written in sections 1 and 5. A row
+  reviewed by an equal vendor stays non-compliant and the retro lists it.

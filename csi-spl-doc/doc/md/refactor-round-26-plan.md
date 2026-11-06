@@ -267,8 +267,7 @@ blocks with count 0).
   up until R6 shows all 10 rows. **Backup reviewer per row:** a second fresh claude
   session on the same terms, tree only, its brief naming the waiver, queued by the
   dispatch holder; no seat id exists before a row is queued.
-- Row reviewers, absent: A row with no reviewer for 15 minutes reports a
-  blocker (2.7.3).
+- A row with no reviewer for 15 minutes reports a blocker (2.7.3).
 - **P1, for the panel:** rows 01 and 02 add a test-only loader instead of editing
   `load-ts.mjs`. The probe behind them was n=1 on a scratch copy, in one file
   that was deleted after; no such test is on master yet. If the panel prefers

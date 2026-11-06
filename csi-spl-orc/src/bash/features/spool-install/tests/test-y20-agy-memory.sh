@@ -13,8 +13,9 @@
 #      replaced; SPOOL_INSTALL_AGY_MEMORY=0 skips; no .gemini / no memory:
 #      skipped
 #   6. install.sh calls the step once, only with --fleet
-#   7. do_spl_agy_memory_install, dry run, this user, a sandbox repo: rc 0,
-#      nothing written in the real ~/.gemini/config/rules
+#   7. do_spl_agy_memory_install, DRY_RUN unset, this user, a sandbox home that
+#      holds the memory (getent stubbed): rc 0, plans both files, writes nothing
+#      there and nothing in the real ~/.gemini/config/rules
 #   8. LIVE, only with Y20_AGY_LIVE=1, agy on PATH and this user's agy login:
 #      a sandbox home (its .gemini/antigravity-cli linked to this user's agy
 #      state dir, so the session is logged in) asked for the probe fact
@@ -138,13 +139,21 @@ c="$(grep -c 'spool_install_agy_memory "\$HOME" "\$DRY"' "$FEAT/install.sh")"
 if [ "$c" = 1 ] && grep -q '^\[ "\$FLEET" = 1 \] && { \. "\$_here/steps/y20-agy-memory.sh"' "$FEAT/install.sh"
 then pass "install.sh calls the step once, only with --fleet"; else fail "install.sh wiring: $c call(s)"; fi
 
-# 7. the two-user action, dry run, this user only
+# 7. the two-user action, this user only, its default: DRY_RUN unset, and a home
+# that holds the memory, or the step skips before the dry run matters
+H7="$T/home7"; mk_home "$H7"
+R7="$H7/.gemini/config/rules"
+M7="$H7/.claude/projects/$slug/memory"
 real="$(find "$HOME/.gemini/config/rules" -maxdepth 1 -printf "%f %l %s\n" 2>/dev/null | sort | cksum)"
-out="$(PROJ_PATH="$ORC" AGY_MEMORY_USERS="$(id -un)" AGY_MEMORY_REPO="$R" DRY_RUN=1 bash -c '
+out="$(env -u DRY_RUN PROJ_PATH="$ORC" AGY_MEMORY_USERS="$(id -un)" AGY_MEMORY_REPO="$R" Y20_SANDBOX_HOME="$H7" bash -c '
   do_log() { echo "$*"; }
+  getent() { printf "x:x:0:0::%s:/bin/sh\n" "$Y20_SANDBOX_HOME"; }
   . "$1/src/bash/run/spl-agy-memory-install.func.sh" && do_spl_agy_memory_install' _ "$ORC" 2>&1)"; rc=$?
-if [ "$rc" = 0 ] && [[ "$out" == *"OK agy memory: $(id -un) (DRY_RUN=1)"* ]] && [ "$(find "$HOME/.gemini/config/rules" -maxdepth 1 -printf "%f %l %s\n" 2>/dev/null | sort | cksum)" = "$real" ]
-then pass "action dry run: rc 0, the real ~/.gemini/config/rules untouched"; else fail "action: rc=$rc $out"; fi
+if [ "$rc" = 0 ] && [[ "$out" == *"OK agy memory: $(id -un) (DRY_RUN=1)"* ]] &&
+  [[ "$out" == *"would: write $R7/fleet-memory-0-where.md"* ]] && [[ "$out" == *"would: ln -s $M7/MEMORY.md $R7/AGENTS.md"* ]]
+then pass "action default is a dry run: rc 0, plans both files"; else fail "action: rc=$rc $out"; fi
+if [ ! -e "$R7" ] && [ "$(find "$HOME/.gemini/config/rules" -maxdepth 1 -printf "%f %l %s\n" 2>/dev/null | sort | cksum)" = "$real" ]
+then pass "action default writes nothing: the sandbox and the real rules dirs untouched"; else fail "action wrote: $(ls -la "$R7" 2>&1)"; fi
 
 echo "--- y20 agy memory: $((n - fails))/$n passed, $notrun live agy checks not run"
 [ "$fails" = 0 ]

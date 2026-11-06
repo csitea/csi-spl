@@ -2,6 +2,7 @@
 // its operator panel, moved out of MessageComposer.vue.
 import type { Ref } from 'vue'
 import { omniboxMode, omniboxTextLeavingSearch } from '~/utils/search.mjs'
+import { sectionSearchLine, sectionSearchType } from '~/utils/section-search.mjs'
 import type { ComposerProps } from '~/composables/composerProps'
 
 interface SyntaxOpts {
@@ -74,11 +75,14 @@ function useSyntaxPress(o: SyntaxOpts, syntaxOpen: Ref<boolean>, run: () => void
 export function useComposerSyntax(o: SyntaxOpts) {
   const syntaxOpen = ref(false)
   const syntaxId = useId()
+  const route = useRoute()
+  /* SPL-4905: an operator picked outside search mode starts the section's
+     line, `/search type:doc <op>` on docs (utils/section-search.mjs) */
   function insertOperator(op: string) {
     syntaxOpen.value = false
     const cur = o.text.value
     const next = omniboxMode(cur) !== 'search'
-      ? `/search ${op}`
+      ? `${sectionSearchLine(sectionSearchType(route.path))}${op}`
       : (() => {
           const at = o.inputEl.value?.selectionStart ?? cur.length
           const gap = at > 0 && !/\s/.test(cur[at - 1] || '') ? ' ' : ''

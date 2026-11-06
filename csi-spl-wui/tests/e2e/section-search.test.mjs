@@ -16,6 +16,14 @@
 //     D3 /calendar: the button opens the calendar search; a result opens its entry
 //     D4 /notes: the button focuses the Notes filter
 //     D5 CONTROL /channel/general: the button opens the plain `/search `
+//   1440x900, the Omnibox at the TOP (the default; SPL-4905, owner msg
+//   3b5c61d9 "does not work on desktop"):
+//     T1 /workspace/docs: the top bar's search button opens `/search type:doc `
+//     T2 /calendar: the button opens the calendar search
+//     T3 /notes: the button focuses the Notes filter
+//     T4 CONTROL /channel/general: no top bar search button (the box is there)
+//     T5 /workspace/docs: the "?" still only opens the operator help; an
+//        operator picked there starts `/search type:doc <op>`
 //
 // Run:
 //   pnpm run test:e2e section-search
@@ -217,12 +225,68 @@ async function desktop(browser) {
   await p.close()
 }
 
+async function desktopTop(browser) {
+  const tag = '1440-top'
+  const p = await newPage(browser, { width: 1440, height: 900 })
+
+  await go(p, '/workspace/docs')
+  const btn = await p.waitForSelector(BAR_SEARCH, { visible: true, timeout: 15000 }).catch(() => null)
+  await shot(p, `${tag}-docs-before-click`)
+  if (btn) {
+    await p.click(BAR_SEARCH)
+    const d = await until(() => read(p), (x) => x.line === '/search type:doc ' && x.focused)
+    await shot(p, `${tag}-docs-after-click`)
+    ok(`${tag} T1 docs: the search button opens "/search type:doc "`, d.line === '/search type:doc ' && d.search && d.focused, d)
+  } else ok(`${tag} T1 docs: the search button opens "/search type:doc "`, false, 'no top bar search button')
+
+  await go(p, '/calendar')
+  await p.waitForSelector('[data-test=calendar-page]', { timeout: NAV })
+  await sleep(500)
+  if (await p.$(BAR_SEARCH)) {
+    await p.click(BAR_SEARCH)
+    const k = await until(() => read(p), (x) => x.calbox && x.calInputFocused)
+    await shot(p, `${tag}-calendar-after-click`)
+    ok(`${tag} T2 calendar: the search button opens the calendar search, field focused`, k.calbox && k.calInputFocused, k)
+  } else ok(`${tag} T2 calendar: the search button opens the calendar search, field focused`, false, 'no top bar search button')
+
+  await go(p, '/notes')
+  await p.waitForSelector(FILTER, { visible: true, timeout: NAV }).catch(() => {})
+  if (await p.$(BAR_SEARCH)) {
+    await p.click(BAR_SEARCH)
+    const f = await until(() => read(p), (x) => x.filterFocused)
+    await shot(p, `${tag}-notes-after-click`)
+    ok(`${tag} T3 notes: the search button focuses the Notes filter`, f.filterFocused && !f.search, f)
+  } else ok(`${tag} T3 notes: the search button focuses the Notes filter`, false, 'no top bar search button')
+
+  await go(p, '/channel/general')
+  await sleep(300)
+  await shot(p, `${tag}-channel`)
+  const none = !(await p.$(BAR_SEARCH))
+  ok(`${tag} T4 CONTROL /channel/general: no top bar search button, the box is the search`, none && Boolean(await p.$(FORM)), { none })
+
+  await go(p, '/workspace/docs')
+  await p.click('[data-test=search-syntax-help]')
+  const h = await until(() => p.evaluate(() => Boolean(document.querySelector('[data-test=search-syntax-panel]'))), Boolean)
+  const before = await read(p)
+  ok(`${tag} T5 docs: the "?" still only opens the operator help`, h && before.line === '' && !before.search, { panel: h, ...before })
+  const op = await p.$('[data-test=search-syntax-panel] .search-syntax__op')
+  const opText = op ? await op.evaluate((el) => el.querySelector('code')?.textContent || '') : ''
+  if (op) await op.click()
+  const o = await until(() => read(p), (x) => x.line === `/search type:doc ${opText}`)
+  await shot(p, `${tag}-docs-operator`)
+  ok(`${tag} T5 docs: an operator picked there starts "/search type:doc <op>"`, Boolean(opText) && o.line === `/search type:doc ${opText}` && o.search, o)
+
+  ok(`${tag} no page error`, p.__errors.length === 0, p.__errors)
+  await p.close()
+}
+
 const srv = await startServer()
 const browser = await launch()
 browser.__base = srv.base
 try {
   await phone(browser)
   await desktop(browser)
+  await desktopTop(browser)
 } finally {
   await browser.close()
   await srv.stop()

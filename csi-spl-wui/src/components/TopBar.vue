@@ -38,9 +38,11 @@
          this same box, not a copy, into the dock under the middle pane
          (layouts/default.vue). A Teleport keeps the draft, the picked files
          and the send error across the move. `defer`: the dock renders after
-         this bar. The bar keeps one button that puts `/search ` in it. -->
+         this bar. The bar keeps one button that puts `/search ` in it.
+         SPL-4905: on a desktop with the box at the top, the same button on a
+         section with its own search type (docs, calendar, notes). -->
     <button
-      v-if="atBottom"
+      v-if="barSearch"
       type="button"
       class="top-bar__search icon-btn"
       data-test="top-bar-search"
@@ -172,6 +174,9 @@ const atBottom = useOmniboxDock()
 const phone = usePhone()
 const stack = useMobileStack()
 const dockSelector = `#${DOCK_ID}`
+/* SPL-4905 (owner msg 3b5c61d9 "does not work on desktop"): at the top the
+   box itself was the only search, its "?" only the operator help */
+const barSearch = computed(() => atBottom.value || (!phone.value && sectionSearchType(route.path) !== ''))
 /* the bar's search button: the box is at the bottom now, `/search ` goes in it.
    SPL-4901: on the section's type (utils/section-search.mjs): Calendar and
    Notes open their own search, docs `/search type:doc ` */

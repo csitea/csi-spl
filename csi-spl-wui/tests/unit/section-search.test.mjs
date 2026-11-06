@@ -88,6 +88,15 @@ describe('the wiring reads the one map', () => {
     assert.match(s, /omnibox\.openOwnSearch\(type\)/)
     assert.match(s, /setText\(sectionSearchLine\(type\)\)/)
   })
+  it('SPL-4905: the top bar button also shows on a desktop with the box at the top, on a section with a type', () => {
+    const s = read('components/TopBar.vue')
+    assert.match(s, /v-if="barSearch"/)
+    assert.match(s, /const barSearch = computed\(\(\) => atBottom\.value \|\| \(!phone\.value && sectionSearchType\(route\.path\) !== ''\)\)/)
+  })
+  it('SPL-4905: an operator picked outside search mode starts the section line', () => {
+    const s = read('composables/useComposerSyntax.ts')
+    assert.match(s, /\$\{sectionSearchLine\(sectionSearchType\(route\.path\)\)\}\$\{op\}/)
+  })
   it('the desktop calendar reuses the phone calendar search, no new search UI', () => {
     const s = read('pages/calendar.vue')
     assert.match(s, /import\('~\/components\/CalendarPhoneSearch\.vue'\)/)

@@ -97,6 +97,16 @@ bottom); the phone calendar keeps its header search button. Tests:
 `wui-tests/unit/section-search.test.mjs`, `wui-tests/e2e/section-search.test.mjs`
 (390 and 1440 px).
 
+Desktop with the Omnibox at the top (the default; SPL-4905, owner msg
+3b5c61d9 "does not work on desktop"): the box itself was the only search
+there and its `?` only the operator help, so nothing opened on the
+section's type. The same `top-bar-search` button now shows at the top on a
+section with a type (docs, calendar, notes) and opens as in the table; on
+any other section there is no button (the box is the search). The `?` stays
+the operator help; an operator picked there outside search mode starts the
+section's line (`/search type:doc from:` on docs). e2e: the 1440 top block
+T1-T5.
+
 ## 4. User stories
 
 | ID | Priority | Role | Story | Benefit |
@@ -166,5 +176,6 @@ A search tab or a search screen of its own (consensus Q1 may add one). Changing 
 |---|---|---|
 | v0.1 | First spec from the mobile consensus, build item 2 | c-246 |
 | v0.2 | 3.5 the search button opens on the section's type (SPL-4901) | c-220 |
+| v0.3 | 3.5 the desktop with the Omnibox at the top (SPL-4905) | c-421 |
 
-<!-- version: 0.2.0 · updated: 2026-11-06 · last-edit: 2026-11-06T02:00:00Z -->
+<!-- version: 0.3.0 · updated: 2026-11-06 · last-edit: 2026-11-06T09:00:00Z -->

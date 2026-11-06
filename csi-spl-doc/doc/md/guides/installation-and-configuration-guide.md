@@ -149,7 +149,7 @@ sudo timedatectl set-timezone Europe/Helsinki
 <a id="ws-doc-2cec61e2-5de6-4041-8ebe-0cbb8227e5c3"></a>
 ## 4.1 Clone the repo
 
-As `<OWNER_USER>`, into `/opt/csi/csi-spl`, with the GitHub token of section 5 (gh reads it; `gh auth login --with-token` takes it on stdin). Both users need git and gh logged in (role `08_spool_harness` does it from `~/.github/token`).
+As `<OWNER_USER>`, into `/opt/csi/csi-spl` (on macOS, into `/Users/<OWNER_USER>/opt/csi/csi-spl`; see section 17.4), with the GitHub token of section 5 (gh reads it; `gh auth login --with-token` takes it on stdin). Both users need git and gh logged in (role `08_spool_harness` does it from `~/.github/token`).
 
 ```bash
 git clone https://github.com/csitea/csi-spl.git /opt/csi/csi-spl
@@ -792,7 +792,13 @@ Once this guide is exported to the repo (`csi-spl-doc/doc/md/guides/installation
 <a id="ws-doc-2e08704b-00d3-4bcc-b798-724232c4d125"></a>
 # 17 macOS box
 
-Sections 3, 6.1–6.2, 9 and 12 target Debian 13 (`apt-get`, `useradd`/`usermod`/`getent`, `setfacl`/`getfacl`, `systemd`/`loginctl enable-linger`, GNU `su --pty`, GNU `stat -c`). This section gives the macOS (`Darwin`, Apple silicon `arm64` or Intel `x86_64`) equivalents for each step of sections 3.x, 6.3 and 7.x that a joined Mac box needs so that `<OWNER_USER>` owns the box session and `/opt/csi`, while every AI CLI agent runs as the dedicated `<AGENT_USER>` account (spec 108 section 3.8). Section 4 (4.1–4.3: cloning `/opt/csi/csi-spl`, `tpl-gen` at its pin and the pre-push hook) runs unchanged on macOS once `/opt/csi` exists (section 17.4).
+Sections 3, 6.1–6.2, 9 and 12 target Debian 13 (`apt-get`, `useradd`/`usermod`/`getent`, `setfacl`/`getfacl`, `systemd`/`loginctl enable-linger`, GNU `su --pty`, GNU `stat -c`). This section gives the macOS (`Darwin`, Apple silicon `arm64` or Intel `x86_64`) equivalents for each step of sections 3.x, 4.x, 6.3 and 7.x that a joined Mac box needs so that `<OWNER_USER>` owns the box session and the single-user base directories under `/Users/<OWNER_USER>`, while every AI CLI agent runs as the dedicated `<AGENT_USER>` account (spec 108 section 3.8).
+
+On macOS, root `/opt` and `/var` are not writable by `<OWNER_USER>`, so every path uses the single-user home layout under `/Users/<OWNER_USER>`:
+
+- `BASE_PATH` (`BASE_DIR`) is `/Users/<OWNER_USER>/opt` and `VAR_BASE_PATH` (`VAR_DIR`) is `/Users/<OWNER_USER>/var`: `_do_probe_writable_root` in `csi-spl-orc/lib/bash/funcs/detect-base-paths.func.sh:9,17-19` (and the identical copies in `csi-spl-iac` and `csi-spl-utl`) falls back from `/opt` and `/var` to `$HOME/opt` and `$HOME/var` when `/` is not user-writable, and `csi-spl-orc/src/bash/run/run.sh:454-456,538-543,553` (plus `csi-spl-orc/lib/make/derive-proj-paths.mk:5-6`) derives `PROJ_PATH`, `APP_PATH`, `ORG_PATH`, `BASE_PATH` and `VAR_DIR="${VAR_DIR:-${_above_base%/}/var}"` relatively from the checkout's location in `${BASE_PATH}/${ORG}/${APP}/${APP}-${PROJ_KIND}`.
+- Cloning the repo into `/Users/<OWNER_USER>/opt/csi/csi-spl` (which also satisfies `csi-spl-orc/src/bash/features/spool-install/install.sh:306-312`) therefore sets `BASE_PATH=/Users/<OWNER_USER>/opt`, `ORG_PATH=/Users/<OWNER_USER>/opt/csi`, `APP_PATH=/Users/<OWNER_USER>/opt/csi/csi-spl`, `VAR_DIR=/Users/<OWNER_USER>/var`, run logs under `/Users/<OWNER_USER>/var/csi/csi-spl/<proj>/dat/log/bash` (`run.sh:454`), and spawned lane worktrees under `/Users/<OWNER_USER>/opt/csi/csi-spl-wt/<ID>` (`csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh:199,236`).
+- Workspace and spool state live under `/Users/<OWNER_USER>/var/spool-ws`: exporting `SPL_WS_BASE=/Users/<OWNER_USER>/var/spool-ws`, `SPOOL_ROOT=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool` and `SPOOL_BOX_ENV=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool/box.env` points `spool join` (`csi-spl-api/src/go/spool-hub-api/internal/action/join.go:36-38,93-100`), `spl_box_ws_base` (`csi-spl-orc/lib/bash/funcs/spl-box-workspace.func.sh:39-50`), `spool-env.inc.sh` (`csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh:10,323,437`), `box-config.sh` (`csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh:18-19`), and `install.sh --fleet` (`csi-spl-orc/src/bash/features/spool-install/install.sh:1004,1031`, `steps/y11-kill-guard.sh:33`, `steps/y17-rm-guard.sh:31`, `steps/y19-git-credential-store.sh:31`) to `/Users/<OWNER_USER>/var/spool-ws`.
 
 Placeholders: `<OWNER_USER>` is the primary macOS administrator account on the Mac, `<AGENT_USER>` is the dedicated agent OS user (never `<OWNER_USER>`), `<WORKSPACE>` is the workspace slug the Mac box joins, `<BOX>` is this Mac's box id, `<HUB_URL>` is the hub address shown in the WUI help (Connect an agent, section 2), and `<JOIN_TOKEN>` is the one-use join token from **Workspace settings -> Agents -> Join tokens**. Every command below that could not be executed on a Mac from the Linux fleet is marked **not tested on macOS**.
 
@@ -939,7 +945,7 @@ sudo -n -u <AGENT_USER> sudo -n -u <OWNER_USER> true && echo ok
 
 On Linux, membership in `sudo`, `<OWNER_USER>`'s group, `docker` and `spool-agents` plus `NOPASSWD:ALL` gives `<AGENT_USER>` unrestricted access to the whole filesystem. On macOS, two separate layers govern access:
 
-1. **UNIX / Darwin ACL layer (`admin` + `NOPASSWD:ALL` + `chmod +a`)**: putting `<AGENT_USER>` in `admin`, `staff` and `spool-agents` (17.2.2), granting `NOPASSWD:ALL` (17.2.3), and adding an inherited read/traverse ACL for `<AGENT_USER>` on `/Users/<OWNER_USER>` gives `<AGENT_USER>` visibility over `/opt/csi`, `/var/spool-ws`, `/Library`, `/Applications` and `<OWNER_USER>`'s workspace directories, plus root execution through `sudo -n`.
+1. **UNIX / Darwin ACL layer (`admin` + `NOPASSWD:ALL` + `chmod +a`)**: putting `<AGENT_USER>` in `admin`, `staff` and `spool-agents` (17.2.2), granting `NOPASSWD:ALL` (17.2.3), and adding an inherited read/traverse ACL for `<AGENT_USER>` on `/Users/<OWNER_USER>` gives `<AGENT_USER>` visibility over `/Users/<OWNER_USER>/opt/csi`, `/Users/<OWNER_USER>/var/csi/csi-spl`, `/Users/<OWNER_USER>/var/spool-ws`, `/Library`, `/Applications` and `<OWNER_USER>`'s workspace directories, plus root execution through `sudo -n`.
 2. **macOS TCC (Transparency, Consent, and Control) and SIP limits that `sudo` cannot lift**: even `root` (`sudo`) is denied (`Operation not permitted`, `EPERM`) when reading TCC-protected folders (`~/Desktop`, `~/Documents`, `~/Downloads`, `~/Library/Mail`, `~/Library/Messages`, `~/Library/Safari`, `/Library/Application Support/com.apple.TCC/TCC.db`) unless the responsible binary (`Terminal.app`, `iTerm.app`, `/opt/homebrew/bin/tmux`, `/opt/homebrew/bin/bash`, and `/usr/sbin/sshd-keygen-wrapper` for SSH sessions) has been granted **Full Disk Access** by a human in System Settings. When System Integrity Protection (SIP) is enabled, no CLI command (`sudo`, `tccutil`, or writing `TCC.db`) can grant Full Disk Access programmatically; a human must toggle it once in the GUI.
 
 First, open **System Settings -> Privacy & Security -> Full Disk Access** on the Mac, toggle Full Disk Access on for the terminal application, `/opt/homebrew/bin/tmux`, `/opt/homebrew/bin/bash` and `/usr/sbin/sshd-keygen-wrapper`, and open a new terminal window so the session runs with Full Disk Access (**not tested on macOS**):
@@ -961,39 +967,71 @@ sudo -n -u <AGENT_USER> ls /Users/<OWNER_USER>/Desktop >/dev/null && echo fda-ok
 ```
 
 <a id="ws-doc-25e5c50b-7784-4d5a-a1fc-310b339291c7"></a>
-## 17.4 Shared directories, ACLs (`chmod +a`), spool root and `box.env` (macOS equivalent of 3.4, 6.1, 6.2, 6.3)
+## 17.4 Shared directories under `/Users/<OWNER_USER>`, ACLs (`chmod +a`), checkout, spool root and `box.env` (macOS equivalent of 3.4, 4.1–4.5, 6.1, 6.2, 6.3)
 
-macOS uses Darwin extended ACLs (`chmod +a`, `ls -le`) instead of Linux POSIX ACLs (`setfacl`/`getfacl`), so `do_repair_spool_root` and `do_provision_spool_root` cannot run on Darwin. On BSD/Darwin, new files and directories automatically inherit their parent directory's group (`spool-agents`) without needing a Linux setgid bit. A dedicated joined Mac box keeps its spool root at `/var/spool-ws/<WORKSPACE>/spool` (section 17.4.1) rather than `/var/spool-hub`. Create `/opt/csi` and `/var/csi/csi-spl` with group `spool-agents`, mode `0775` and inherited Darwin ACLs granting `spool-agents` full read/write/execute inheritance (**not tested on macOS**):
-
-```bash
-sudo mkdir -p /opt/csi /var/csi/csi-spl && sudo chown -R <OWNER_USER>:spool-agents /opt/csi /var/csi && sudo chmod 0775 /opt/csi /var/csi/csi-spl && sudo chmod +a "group:spool-agents allow list,add_file,search,delete,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /opt/csi /var/csi/csi-spl
-```
-
-Verify the Darwin ACLs and permissions on `/opt/csi` and `/var/csi/csi-spl` (**not tested on macOS**):
+macOS uses Darwin extended ACLs (`chmod +a`, `ls -le`) instead of Linux POSIX ACLs (`setfacl`/`getfacl`), so `do_repair_spool_root` and `do_provision_spool_root` cannot run on Darwin. On BSD/Darwin, new files and directories automatically inherit their parent directory's group (`spool-agents`) without needing a Linux setgid bit, and `_sp_agent_acl` (`csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh:105`) is a clean no-op when `setfacl` is absent because worktrees under `/Users/<OWNER_USER>/opt/csi/csi-spl-wt/<ID>` inherit the Darwin ACL from `/Users/<OWNER_USER>/opt/csi`. A dedicated joined Mac box keeps its checkout at `/Users/<OWNER_USER>/opt/csi/csi-spl`, its run logs and state under `/Users/<OWNER_USER>/var/csi/csi-spl`, and its workspace spool root at `/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool` (section 17.4.1). Create `/Users/<OWNER_USER>/opt/csi` and `/Users/<OWNER_USER>/var/csi/csi-spl` with group `spool-agents`, mode `0775` and inherited Darwin ACLs granting `spool-agents` full read/write/execute inheritance (**not tested on macOS**):
 
 ```bash
-ls -lde /opt/csi /var/csi/csi-spl
+mkdir -p /Users/<OWNER_USER>/opt/csi /Users/<OWNER_USER>/var/csi/csi-spl && sudo chown -R <OWNER_USER>:spool-agents /Users/<OWNER_USER>/opt /Users/<OWNER_USER>/var && chmod 0775 /Users/<OWNER_USER>/opt /Users/<OWNER_USER>/opt/csi /Users/<OWNER_USER>/var /Users/<OWNER_USER>/var/csi /Users/<OWNER_USER>/var/csi/csi-spl && chmod +a "group:spool-agents allow list,add_file,search,delete,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /Users/<OWNER_USER>/opt/csi /Users/<OWNER_USER>/var/csi/csi-spl
 ```
 
-Once `/opt/csi` is in place, run section 4 (4.1–4.3) unchanged on macOS to clone `/opt/csi/csi-spl`, check out `tpl-gen` at its pin and enable the pre-push hook.
+Verify the Darwin ACLs and permissions on `/Users/<OWNER_USER>/opt/csi` and `/Users/<OWNER_USER>/var/csi/csi-spl` (**not tested on macOS**):
+
+```bash
+ls -lde /Users/<OWNER_USER>/opt/csi /Users/<OWNER_USER>/var/csi/csi-spl
+```
+
+Clone the repository into `/Users/<OWNER_USER>/opt/csi/csi-spl` as `<OWNER_USER>` (macOS equivalent of 4.1; **not tested on macOS**):
+
+```bash
+git clone https://github.com/csitea/csi-spl.git /Users/<OWNER_USER>/opt/csi/csi-spl
+```
+
+Read and acknowledge the developer guide from `/Users/<OWNER_USER>/opt/csi/csi-spl/csi-spl-orc` (macOS equivalent of 4.3; **not tested on macOS**):
+
+```bash
+cd /Users/<OWNER_USER>/opt/csi/csi-spl/csi-spl-orc && ./run -a do_dev_guide_ack
+```
+
+Set up `tpl-gen` at its pin under `/Users/<OWNER_USER>/opt/csi/csi-spl/csi-spl-iac` (macOS equivalent of 4.4; **not tested on macOS**):
+
+```bash
+cd /Users/<OWNER_USER>/opt/csi/csi-spl/csi-spl-iac && ./run -a do_setup_tpl_gen
+```
+
+Install the pre-push hook on `/Users/<OWNER_USER>/opt/csi/csi-spl` (macOS equivalent of 4.5; **not tested on macOS**):
+
+```bash
+bash /Users/<OWNER_USER>/opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/install-pre-push-hook.sh /Users/<OWNER_USER>/opt/csi/csi-spl
+```
 
 <a id="ws-doc-83b52dae-8c68-4c51-825f-98dfdbacc8ba"></a>
 ### 17.4.1 Dedicated workspace claim on a joined Mac box (spec 108 section 3.8)
 
-When a workspace has `box_join_enabled = true`, the hub accepts `spool join` only from a box whose `/var/spool-ws/claim` (`$SPL_WS_BASE/claim`) names `<WORKSPACE>` (`box_mode = dedicated`, spec 108 section 3.8; a missing claim joins as `shared` and is refused with `403 box_mode_shared`). Because `do_spl_box_workspace_setup` calls Linux `useradd --system` and `chown root:root` (on macOS root's group is `wheel`), create the dedicated workspace directory `/var/spool-ws/<WORKSPACE>` owned by `<AGENT_USER>` (mode `0700`) and the root-owned `/var/spool-ws/claim` (mode `0644`) directly (**not tested on macOS**):
+When a workspace has `box_join_enabled = true`, the hub accepts `spool join` only from a box whose `$SPL_WS_BASE/claim` (`csi-spl-api/src/go/spool-hub-api/internal/action/join.go:36-38,93-100`; default `/var/spool-ws`, overridden by `SPL_WS_BASE=/Users/<OWNER_USER>/var/spool-ws` in `~/.spool/env`, which `spl_box_ws_base` in `csi-spl-orc/lib/bash/funcs/spl-box-workspace.func.sh:39-50` also honours) names `<WORKSPACE>` (`box_mode = dedicated`, spec 108 section 3.8; a missing claim joins as `shared` and is refused with `403 box_mode_shared`). Because `do_spl_box_workspace_setup` (`csi-spl-orc/src/bash/run/spl-box-workspace-setup.func.sh:74-75`) hard-codes Linux `chown root:root` and `useradd --system` (on macOS root's group is `wheel`), create the dedicated workspace directory `/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>` owned by `<AGENT_USER>` (mode `0700`) and the root-owned `/Users/<OWNER_USER>/var/spool-ws/claim` (mode `0644`) directly (**not tested on macOS**):
 
 ```bash
-sudo mkdir -p /var/spool-ws/<WORKSPACE>/spool /var/spool-ws/<WORKSPACE>/state && sudo chown root:wheel /var/spool-ws && sudo chmod 0755 /var/spool-ws && sudo chown -R <AGENT_USER>:staff /var/spool-ws/<WORKSPACE> && sudo chmod 0700 /var/spool-ws/<WORKSPACE> /var/spool-ws/<WORKSPACE>/spool /var/spool-ws/<WORKSPACE>/state && printf '%s\n' '<WORKSPACE>' | sudo tee /var/spool-ws/claim >/dev/null && sudo chown root:wheel /var/spool-ws/claim && sudo chmod 0644 /var/spool-ws/claim
+sudo mkdir -p /Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool /Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/state && sudo chown root:wheel /Users/<OWNER_USER>/var/spool-ws && sudo chmod 0755 /Users/<OWNER_USER>/var/spool-ws && sudo chown -R <AGENT_USER>:staff /Users/<OWNER_USER>/var/spool-ws/<WORKSPACE> && sudo chmod 0700 /Users/<OWNER_USER>/var/spool-ws/<WORKSPACE> /Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool /Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/state && printf '%s\n' '<WORKSPACE>' | sudo tee /Users/<OWNER_USER>/var/spool-ws/claim >/dev/null && sudo chown root:wheel /Users/<OWNER_USER>/var/spool-ws/claim && sudo chmod 0644 /Users/<OWNER_USER>/var/spool-ws/claim
 ```
 
 <a id="ws-doc-498d7ae0-8570-46da-8240-f74e2854bbe5"></a>
-### 17.4.2 `box.env` (macOS equivalent of 6.3)
+### 17.4.2 `box.env` and paths that still need explicit overrides (macOS equivalent of 6.3)
 
-macOS BSD `su` does not support `--pty`, so `box.env` sets `SPOOL_RUN_AS_AGENT=sudo-i` alongside `SPOOL_AGENT_USER=<AGENT_USER>`. Because `/var/spool-ws/<WORKSPACE>/spool` is mode `0700` owned by `<AGENT_USER>`, run `box-config.sh` as `<AGENT_USER>` with `SPOOL_ROOT=/var/spool-ws/<WORKSPACE>/spool` so `SPOOL_DESK_BOX`, `SPOOL_BOX_TAG`, `SPOOL_FLEET_ENV` and `SPOOL_FLEET_TENANT` are written to `/var/spool-ws/<WORKSPACE>/spool/box.env` (**not tested on macOS**):
+macOS BSD `su` does not support `--pty`, so `box.env` sets `SPOOL_RUN_AS_AGENT=sudo-i` alongside `SPOOL_AGENT_USER=<AGENT_USER>`. Because `/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool` is mode `0700` owned by `<AGENT_USER>`, run `box-config.sh` (`csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh:18-19`) as `<AGENT_USER>` with `SPOOL_ROOT=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool` so `SPOOL_DESK_BOX`, `SPOOL_BOX_TAG`, `SPOOL_FLEET_ENV` and `SPOOL_FLEET_TENANT` are written to `/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool/box.env` (**not tested on macOS**):
 
 ```bash
-sudo -i -u <AGENT_USER> env SPOOL_ROOT=/var/spool-ws/<WORKSPACE>/spool /opt/homebrew/bin/bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh SPOOL_AGENT_USER=<AGENT_USER> SPOOL_RUN_AS_AGENT=sudo-i SPOOL_DESK_BOX=<BOX> SPOOL_BOX_TAG=<BOX> SPOOL_FLEET_ENV=prd SPOOL_FLEET_TENANT=<WORKSPACE>
+sudo -i -u <AGENT_USER> env SPOOL_ROOT=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool /opt/homebrew/bin/bash /Users/<OWNER_USER>/opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh SPOOL_AGENT_USER=<AGENT_USER> SPOOL_RUN_AS_AGENT=sudo-i SPOOL_DESK_BOX=<BOX> SPOOL_BOX_TAG=<BOX> SPOOL_FLEET_ENV=prd SPOOL_FLEET_TENANT=<WORKSPACE>
 ```
+
+Paths in fleet scripts that do not derive from `run.sh` or `SPOOL_ROOT` alone without an extra environment variable or a code change:
+
+- `spool-mcp.sh` `box.env` lookup — still at `/var/spool-hub/box.env`: `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-mcp.sh:109,230` hard-codes `${SPOOL_BOX_ENV:-/var/spool-hub/box.env}` (export `SPOOL_BOX_ENV=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool/box.env`; note that `spool-mcp.sh:114,118` also hard-codes Linux `/proc/$pid/cmdline` and `/proc/$pid/environ`, so section 17.5.3 registers `spool mcp --as c-001` directly).
+- Watcher role markers and box socket — still at `/var/spool-hub`: `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh:972,1003` hard-codes `/var/spool-hub` in `spl_watcher_markers` (which also checks `$SPOOL_ROOT`) and `stat -c %u /var/spool-hub` in `_spl_watcher_box_socket` (export `SPOOL_TMUX_SOCKET=/tmp/tmux-$(id -u <OWNER_USER>)/default`, which `spool-env.inc.sh:448,1029` honours).
+- `do_spl_desk_wsdoc` input allowlist — still at `/var/spool-hub/dispatch`: `csi-spl-orc/src/bash/run/spl-desk-wsdoc.func.sh:159,164` hard-codes `/var/spool-hub/dispatch` alongside `${APP_PATH:-}` and `/tmp` (pass `WSDOC_IN` under `/tmp` or `/Users/<OWNER_USER>/opt/csi/csi-spl`).
+- `do_spl_box_clean_tree` worktree root default — still at `/opt/csi/csi-spl-wt`: `csi-spl-orc/src/bash/run/spl-box-clean-tree.func.sh:33` hard-codes `SPOOL_WT_ROOT="${SPOOL_WT_ROOT:-/opt/csi/csi-spl-wt}"` (pass `SPOOL_WT_ROOT=/Users/<OWNER_USER>/opt/csi/csi-spl-wt`).
+- `do_spl_spawn_place` token-burn state dir default — still at `/var/csi/csi-spl/token-burn`: `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh:460` hard-codes `TOKEN_BURN_STATE_DIR="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}"` (pass `TOKEN_BURN_STATE_DIR=/Users/<OWNER_USER>/var/csi/csi-spl/token-burn`).
+- `do_spl_review_line_check` worktree and lifetime path checks — still at `/opt/csi/csi-spl-wt/` and `/var/spool-hub/`: `csi-spl-orc/src/bash/run/spl-review-line-check.func.sh:306,338,356` hard-codes `/opt/csi/csi-spl-wt/` and `/var/spool-hub/`.
+- `rm-guard` home directory list — still at `/etc/passwd`: `csi-spl-orc/src/bash/features/spool-install/assets/rm-guard/rm-guard.sh:102` reads `${RM_GUARD_PASSWD:-/etc/passwd}` (top-level `/Users` is still protected by `rm-guard.sh:74`, while `/Users/<user>` entries live in OpenDirectory unless listed in `RM_GUARD_PASSWD`).
 
 <a id="ws-doc-d9db30ce-3a50-4530-b63a-edeadc7f0612"></a>
 ## 17.5 The agent harness, join token and Claude login as `<AGENT_USER>` (macOS equivalent of 7.2, 7.3, 7.5, 7.8)
@@ -1001,33 +1039,34 @@ sudo -i -u <AGENT_USER> env SPOOL_ROOT=/var/spool-ws/<WORKSPACE>/spool /opt/home
 <a id="ws-doc-3e5a9d7c-6f24-4a2f-9580-f5ab00373ca9"></a>
 ### 17.5.1 Install the harness as `<AGENT_USER>` (macOS equivalent of 7.2)
 
-Because macOS `su` has no `--pty` flag, run `install.sh` as `<AGENT_USER>` through `sudo -i -u <AGENT_USER>` with `/opt/homebrew/bin/bash` (**not tested on macOS**):
+Because macOS `su` has no `--pty` flag and `install.sh --fleet` (`csi-spl-orc/src/bash/features/spool-install/install.sh:1004,1031`) defaults `SPOOL_ROOT` to `/var/spool-hub` unless `SPOOL_ROOT` is set in the environment, pass `SPOOL_ROOT=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool` when running `install.sh` from `/Users/<OWNER_USER>/opt/csi/csi-spl` as `<AGENT_USER>` (**not tested on macOS**):
 
 ```bash
-sudo -i -u <AGENT_USER> /opt/homebrew/bin/bash -lc 'cd /opt/csi/csi-spl && bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli claude,grok,agy,mistral --no-seat --fleet'
+sudo -i -u <AGENT_USER> /opt/homebrew/bin/bash -lc 'cd /Users/<OWNER_USER>/opt/csi/csi-spl && SPOOL_ROOT=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli claude,grok,agy,mistral --no-seat --fleet'
 ```
 
 <a id="ws-doc-d766cd99-d9fb-45db-bfe9-6241dc02b76a"></a>
 ### 17.5.2 Install `spool` and `spool-agent` as `<OWNER_USER>` (macOS equivalent of 7.3)
 
-Run the no-CLI harness install as `<OWNER_USER>` (**not tested on macOS**):
+Run the no-CLI harness install from `/Users/<OWNER_USER>/opt/csi/csi-spl` as `<OWNER_USER>` with `SPOOL_ROOT=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool` (**not tested on macOS**):
 
 ```bash
-cd /opt/csi/csi-spl && /opt/homebrew/bin/bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat --fleet
+cd /Users/<OWNER_USER>/opt/csi/csi-spl && SPOOL_ROOT=/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool /opt/homebrew/bin/bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat --fleet
 ```
 
 <a id="ws-doc-6a6d2028-2021-4817-9918-f495c5625681"></a>
 ### 17.5.3 Enrol the Mac box with a workspace join token (`spool join`)
 
-As `<AGENT_USER>`, write `~/.spool/env` (setting `<HUB_URL>` to the hub address shown in the WUI help under **Connect an agent**, section 2, or derived at write time with `awk '/^ *BASE_DOMAIN:/{print "https://api."$2; exit}' /opt/csi/csi-spl/csi-spl-cnf/csi-spl/all.env.yaml`), create the first agent mailbox (`c-001`), redeem the one-use join token from **Workspace settings -> Agents -> Join tokens** (`SPOOL_JOIN_TOKEN`), and register the `spool` MCP server in `<AGENT_USER>`'s Claude Code configuration (**not tested on macOS**):
+As `<AGENT_USER>`, write `~/.spool/env` (setting `<HUB_URL>` to the hub address shown in the WUI help under **Connect an agent**, section 2, or derived at write time with `awk '/^ *BASE_DOMAIN:/{print "https://api."$2; exit}' /Users/<OWNER_USER>/opt/csi/csi-spl/csi-spl-cnf/csi-spl/all.env.yaml`), create the first agent mailbox (`c-001`) under `/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool`, redeem the one-use join token from **Workspace settings -> Agents -> Join tokens** (`SPOOL_JOIN_TOKEN`), and register the `spool` MCP server in `<AGENT_USER>`'s Claude Code configuration (**not tested on macOS**):
 
 ```bash
-sudo -i -u <AGENT_USER> /opt/homebrew/bin/bash -lc 'mkdir -p ~/.spool /var/spool-ws/<WORKSPACE>/spool/c-001 && cat > ~/.spool/env <<EOF
+sudo -i -u <AGENT_USER> /opt/homebrew/bin/bash -lc 'mkdir -p ~/.spool /Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool/c-001 && cat > ~/.spool/env <<EOF
 export SPOOL_HUB_URL="<HUB_URL>"
 export SPOOL_TENANT="<WORKSPACE>"
 export SPOOL_BOX_ID="<BOX>"
-export SPOOL_ROOT="/var/spool-ws/<WORKSPACE>/spool"
-export SPL_WS_BASE="/var/spool-ws"
+export SPOOL_ROOT="/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool"
+export SPOOL_BOX_ENV="/Users/<OWNER_USER>/var/spool-ws/<WORKSPACE>/spool/box.env"
+export SPL_WS_BASE="/Users/<OWNER_USER>/var/spool-ws"
 export PATH="\$HOME/.local/bin:/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/bin:/usr/local/bin:\$PATH"
 EOF
 . ~/.spool/env && SPOOL_JOIN_TOKEN="<JOIN_TOKEN>" spool join "\$SPOOL_HUB_URL" && claude mcp add spool -- /opt/homebrew/bin/bash -c ". ~/.spool/env && exec spool mcp --as c-001"'
@@ -1115,4 +1154,26 @@ Verify that `net.csitea.spool.hub-run` is running as `<AGENT_USER>` and connecte
 
 ```bash
 sudo launchctl print system/net.csitea.spool.hub-run | head -n 25 && sudo -n -u <AGENT_USER> tail -n 10 /Users/<AGENT_USER>/.spool/hub-run.log
+```
+
+## 17.7 Local dev mode on macOS (spec 148)
+
+From `/Users/<OWNER_USER>/opt/csi/csi-spl`, the root `./run` symlink (`run` -> `csi-spl-orc/run`) resolves `APP_PATH=/Users/<OWNER_USER>/opt/csi/csi-spl`, `BASE_PATH=/Users/<OWNER_USER>/opt` and `VAR_DIR=/Users/<OWNER_USER>/var` (`csi-spl-orc/src/bash/run/run.sh:538-543`), and `do_dev_mode_ctl` (`csi-spl-orc/src/bash/run/dev-mode-ctl.func.sh:61`) sets `DEV_MODE_TREE="${DEV_MODE_TREE:-${APP_PATH:-}}"`. `dev-preflight.sh` (`csi-spl-orc/src/bash/scripts/dev-preflight.sh:85,121,183-184`) supports `Darwin:arm64`, `Darwin:aarch64` and `Darwin:x86_64`, verifying that Docker Desktop (section 17.1.1), `docker compose`, `go`, `node`, `pnpm`, `jq` and `curl` are available and that ports `5432`, `8025`, `1025`, `8080` and `5173` are free ([local-dev-mode-guide.md](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/md/local-dev-mode-guide.md)).
+
+Start the local dev stack (PostgreSQL 16 and Mailpit in Docker Compose, `spool-hub-api` with `SPOOL_DEV_MODE=1` on `http://127.0.0.1:8080/health`, Vite WUI on `http://127.0.0.1:5173`, Mailpit UI on `http://127.0.0.1:8025`, seeded workspace `acme-corp` and login `dev@local.test` / `dev`, with pids and logs under `/Users/<OWNER_USER>/opt/csi/csi-spl/.local/dev-mode/`) (`csi-spl-orc/src/bash/run/dev-mode-up.func.sh:10`, `dev-mode-ctl.func.sh:60-90`; **not tested on macOS**):
+
+```bash
+cd /Users/<OWNER_USER>/opt/csi/csi-spl && ./run -a do_dev_mode_up
+```
+
+Verify the 3 Mailpit email scenarios (`register`, `verify`, `reset`) against the running local stack (`csi-spl-orc/src/bash/scripts/dev-mailpit-scenarios.sh:1-35`; **not tested on macOS**):
+
+```bash
+cd /Users/<OWNER_USER>/opt/csi/csi-spl && bash csi-spl-orc/src/bash/scripts/dev-mailpit-scenarios.sh
+```
+
+Stop the local dev stack and purge the PostgreSQL volume and `/Users/<OWNER_USER>/opt/csi/csi-spl/.local/dev-mode/` state (`csi-spl-orc/src/bash/run/dev-mode-down.func.sh:11`, `dev-mode-ctl.func.sh:91-110`; **not tested on macOS**):
+
+```bash
+cd /Users/<OWNER_USER>/opt/csi/csi-spl && ./run -a do_dev_mode_down --purge
 ```

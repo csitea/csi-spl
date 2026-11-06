@@ -172,11 +172,13 @@ chose C. Who can read what:
   Flow moves no read mark, badge or count of the target's or the reader's
   (hub test `TestFlowMemberReadMovesNoMarks`, on both drivers).
 - **The reader's own rules still apply**: the demo moderation and the box
-  owner lock are the reader's. A folded read (`fold=day`) of someone else
-  is refused (403) while a box of W is locked to someone other than the
-  reader, because a folded line names no box to cut it by; the unfolded
-  read cuts those events out. An agent on a box hidden from the reader is
-  `not_member`.
+  owner lock are the reader's. Any read of someone else (folded,
+  unfolded or `counts_only`) is refused (403) while a box of W is locked
+  to someone other than the reader: a folded line names no box to cut it
+  by, and the target's `counts`, `unread` and `keys` are not cut per box,
+  so they would name the locked box's topics (R7 c-244, W1; hub test
+  `TestFlowMemberRefusedWhileABoxIsLocked`). An agent on a box hidden
+  from the reader is `not_member`.
 - **Opening a line** of another's Flow opens its place as the reader: a
   direct message or a private channel the reader is not in still answers
   as it does today (no extra access is granted beyond the Flow line).

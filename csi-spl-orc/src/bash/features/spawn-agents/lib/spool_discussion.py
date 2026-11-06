@@ -18,17 +18,24 @@ import re
 
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 UUID_RE = re.compile(r"^" + UUID + r"$")
-# A full uuid only: lib/lane-issue.inc.sh also accepts a short id, which names
-# no topic the hub can be asked about.
+# The brief's Discussion: line only, at the start of its line: a link cited
+# anywhere else in a brief is history, not this lane's discussion. A full uuid
+# only: lib/lane-issue.inc.sh also accepts a short id, which names no topic the
+# hub can be asked about.
 BRIEF_RE = re.compile(
-    r"(?:[Dd]iscussion[*_: ]+`?(?:https?://\S*?/t/)?|/t/)("
+    r"^[ \t>*_-]*[Dd]iscussion[*_: ]+`?(?:https?://\S*?/t/)?("
     + UUID
-    + r")(?![0-9A-Za-z-])"
+    + r")(?![0-9A-Za-z-])",
+    re.MULTILINE,
 )
 # lib/spool-env.inc.sh SPL_ROLE_SEAT_RX, and the legacy forms it accepts.
 ROLE_RE = re.compile(r"^(?:[acgmoqu]|CLE|GRK|AGY|QWN)-00[1-3](?:@[A-Za-z0-9._-]+)?$")
 SEEN_TTL = 24 * 3600  # a channel post older than this no longer names a discussion
 DEFAULT_MAX_PER_HOUR = 12
+# A follow-up of a person's DM can be as private as its answer, and nothing marks
+# it: a background job's report is one more notification turn. A session lasts at
+# most an hour and its background jobs end with it, hence the window.
+DM_HOLD = 3600
 
 
 def _cnf_dir():
@@ -80,16 +87,15 @@ def fleet_root():
     return os.environ.get("SPOOL_ROOT") or "/var/spool-hub"
 
 
-def brief_discussion(agent):
-    """The full uuid the lane's brief names as its discussion, else ''."""
+def brief_discussions(agent):
+    """The distinct full uuids on the Discussion: lines of the lane's brief."""
     try:
         with open(
             os.path.join(fleet_root(), agent, "lifetime", "brief.md"), errors="replace"
         ) as f:
-            m = BRIEF_RE.search(f.read())
+            return sorted(set(BRIEF_RE.findall(f.read())))
     except OSError:
-        return ""
-    return m.group(1) if m else ""
+        return []
 
 
 def _seen_path(adir):
@@ -125,16 +131,41 @@ def note_channel_post(adir, task, now):
     _write_json(_seen_path(adir), seen)
 
 
+def _dm_turn_path(adir):
+    return os.path.join(adir, ".mirror", "dm-turn")
+
+
+def note_dm_turn(adir, now):
+    """A person's DM started a turn. Written at the prompt, so it holds for every
+    hook of that turn's answer and for the turns that follow it."""
+    os.makedirs(os.path.join(adir, ".mirror"), exist_ok=True)
+    _write_json(_dm_turn_path(adir), {"ts": now})
+
+
+def dm_hold(adir, now):
+    """A DM turn began on this seat within DM_HOLD. A record that cannot be read
+    is a hold: a wrong landing is worse than silence."""
+    try:
+        with open(_dm_turn_path(adir)) as f:
+            return now - float(json.load(f)["ts"]) < DM_HOLD
+    except FileNotFoundError:
+        return False
+    except (OSError, ValueError, KeyError, TypeError):
+        return True
+
+
 def resolve(adir, agent, turn, now):
     """-> (task, '') or ('', why nothing): the spec's order. The turn's own
     channel post, the brief's one discussion, the one topic seen lately. Two
-    seen and no turn of their own: silence, a wrong landing is worse."""
+    named or seen and no turn of their own: silence, a wrong landing is worse."""
     task = str(turn.get("task") or "")
     if turn.get("kind") == "channel" and UUID_RE.match(task):
         return task, ""
-    task = brief_discussion(agent)
-    if task:
-        return task, ""
+    named = brief_discussions(agent)
+    if len(named) == 1:
+        return named[0], ""
+    if named:
+        return "", "the brief names %d discussions" % len(named)
     seen = [k for k, v in _read_json(_seen_path(adir)).items() if now - v <= SEEN_TTL]
     if len(seen) == 1:
         return seen[0], ""

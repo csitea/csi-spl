@@ -824,8 +824,13 @@ def post_one(seat, agent, event, text, session):
             return "skipped"
         turn = turn_trigger(adir, text, now)
         turn["ts"] = now
-        if turn.get("kind") == "channel":
-            sd.note_channel_post(adir, turn.get("task"), now)
+        try:
+            if turn.get("kind") == "channel":
+                sd.note_channel_post(adir, turn.get("task"), now)
+            elif turn.get("kind") == "dm":
+                sd.note_dm_turn(adir, now)
+        except Exception as e:  # noqa: BLE001 - never at the DM leg's cost
+            log(adir, f"discussion: FAIL: {type(e).__name__}")
         os.makedirs(os.path.join(adir, ".mirror"), exist_ok=True)
         with open(os.path.join(adir, ".mirror", "turn.tmp"), "w") as f:
             json.dump(turn, f)
@@ -1078,7 +1083,8 @@ def discussion_log_no_seat(agent):
 
 def discussion_leg(ss, agent, text, session, turns):
     """After the DM leg. Exactly one seat may post: each seat is a workspace, so
-    the text never chooses between them. A DM-started turn has had its answer."""
+    the text never chooses between them. A DM-started turn has had its answer,
+    and until the hold ends only a channel post's own turn may post."""
     if sd.is_role_seat(agent) or any(t.get("kind") == "dm" for t in turns.values()):
         return
     if not ss:
@@ -1097,6 +1103,16 @@ def discussion_leg(ss, agent, text, session, turns):
             )
         return
     now = time.time()
+    if any(sd.dm_hold(os.path.join(s, "spool", agent), now) for s in ss):
+        direct = [s for s in live if turns.get(s, {}).get("kind") == "channel"]
+        if not direct:
+            for s in live:
+                log(
+                    os.path.join(s, "spool", agent),
+                    "discussion: nothing posted: a DM turn in the last hour",
+                )
+            return
+        live = direct
     plans = {
         s: p
         for s in live

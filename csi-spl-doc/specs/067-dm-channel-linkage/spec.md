@@ -342,11 +342,12 @@ must ensure whit in the code somewhow ..". Report: t1 topic `bf2f0ab0`.
 |---|---|---|
 | who posts | a seated agent: `<seat>/spool/<id>` exists on a desk | only a seat has a desk's keys, tenant and hub session. Unseated lane: nothing posted, one line in `<fleet root>/<id>/mirror.log`. Open: 11.5 Q-1 |
 | dispatcher, orchestrator | role seats (001-003) never post | they carry many topics at once, and most of their turns are routing, so any choice of topic would be a guess |
-| which discussion, in order | 1. the channel post that started this turn. 2. the full uuid on the `Discussion:` line of the lane's brief. 3. the one topic this seat got a channel post on in the last 24 h | one answer or none |
-| two discussions | two topics at step 3 and no step 1 or 2: nothing posted, one log line | a wrong landing is worse than silence (c-615 has two) |
+| which discussion, in order | 1. the channel post that started this turn. 2. the full uuid on the `Discussion:` line of the lane's brief, a line that starts with that label. 3. the one topic this seat got a channel post on in the last 24 h | one answer or none. A link anywhere else in a brief is not read: of 3,758 dispatch briefs, 104 matched an unanchored read and 77 of those were not on a `Discussion:` line (c-263). A brief with `Topic: <uuid>` only (88 briefs) is not read either, so it falls to step 3 |
+| two discussions | two distinct uuids at step 2, or two topics at step 3 with no step 1 or 2: nothing posted, one log line. Two at step 2 do not fall through to step 3 | a wrong landing is worse than silence (c-615 has two) |
 | workspace | `hub-tail --with-channel` on THAT seat must return the topic, with a channel | the seat's tenant scopes the read. A topic of another workspace returns nothing |
 | agent on several seats | exactly one seat may qualify: the seat of step 1, else the only seat that can read the topic. More than one: nothing posted | each seat is a workspace, so text must not choose between them |
 | DM | a topic with an empty channel is never posted to. A DM-triggered turn posts nothing here | rule 1 |
+| after a DM | for one hour after a DM started a turn on any of the agent's seats, only a turn started by a channel post may post, and only on that post's seat. Everything else: nothing posted, one log line. The record is written when the prompt arrives, and one that cannot be read counts as a hold | a background job started for a person's DM ends as one more notification turn, and its text can be as private as the answer (holder ruling, c-002 41304654). A second hook reads the turn already consumed, so the record cannot live in the turn. One hour is the longest a session runs, and its background jobs end with it |
 | content | the Stop hook's final text only, after `answer_text` (status and spinner lines), with injected blocks removed, redacted first, then clipped. A sealed envelope is not posted | "not the logs and the jibrish". Tool output never enters the hook's text |
 | filler | `answer_text` drops a status-only text. `spool send` refuses a filler body (`IsFiller`), logged as a skip | how-to-post rule 7 |
 | posted already | nothing when the agent's own row in the topic is newer than the turn's start (hub), or its seat outbox holds a send on that task since the turn's start. Nothing either when the same text is already in the topic | a closing summary rarely matches its post word for word, so the check is per turn and not per text. The hub is the truth for every vendor |
@@ -414,6 +415,9 @@ code path. What differs is what the hook gives it:
 Asked through the dispatch holder, with these recommendations. The build
 assumes the recommendation and stays OFF until the orchestrator's step.
 
+**Answered: HUM-10, form a6b1053f, msg 5b0eb80c, 2026-11-06T18:56:02Z, A on both**,
+so the build stands as it is. Lanes are decided after the dev measurement.
+
 1. **Q-1 Unseated lanes.** A: seated agents only, today's build (the reported
    case). B: every lane with a `Discussion:` line too, about 630 posts a day
    and a change to the seed's "never post in an owner topic". Recommended: A,
@@ -433,3 +437,30 @@ stays false. A missing key, or a file that does not parse, reads as off.
 Off for one seat: `touch <seat>/spool/<id>/.no-mirror`. Off for the box:
 `$SPOOL_ROOT/.mirror-off`. What to read during the measurement:
 `discussion:` lines in `<seat>/spool/<id>/.mirror/mirror.log`.
+
+The measurement, all six before prd (R7, c-263):
+
+1. A real send through the real CLI on dev: the stored channel is set, deliveries
+   are `box-wui` only, and no seat starts a new turn in the window. So far this
+   is proven on the in-memory hub only, not on the CLI, Postgres or a live hub.
+2. Every `discussion: OK` checked against any DM in that session: 0 expected.
+3. A person reads a sample: right topic, no logs, no customer data. `redact`
+   knows secret shapes, not meaning, and a log pasted into a final text is
+   posted. Report the rates.
+4. Posts per seat-hour and per topic against the cap (there is no cap per topic
+   or per box), and `discussion: nothing` counted per reason.
+5. Duplicates: the agent's own post plus a mirror post in one turn.
+6. The lease gate and the off drill, below.
+
+Known, read but not run:
+
+- **Lease gate.** A mirror post counts as an agent reply in
+  `spl-desk-lease-gate.func.sh` (`hub-tail --agent-count`), so a lane's post could
+  lift the first-reply refusal for a non-holder seat. Check it before turning on.
+- **Off through cnf is not immediate.** The hook reads the cnf of the checkout its
+  script sits in, and sessions run different checkouts, so a cnf change reaches
+  a session when its checkout gets the commit. `.mirror-off` is immediate but
+  stops the DM mirror too.
+- **Lanes post little today.** Under Q-1 A, 4 non-role seated ids on this box,
+  2 of them live, of the 21 ids in window names (c-263, other boxes not read).
+- **agy and mistral** are fixture-tested only; do not count them as covered.

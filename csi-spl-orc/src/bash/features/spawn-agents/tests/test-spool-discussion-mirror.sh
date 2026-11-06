@@ -23,6 +23,12 @@
 #       same text is in the topic, two hooks for one answer
 #   C10 the send is the no-loop form: ALL-0, box-wui, no --channel
 #   C11 the rate cap skips, logs, and the next post counts what it skipped
+#   C12 the brief: only its Discussion: line names a discussion, and two
+#       distinct uuids on such lines are silence
+#   C13 the DM hold: two hooks on a DM turn, a follow-up turn after a DM, and an
+#       unreadable hold all stay out of the channel
+#   C14 a corrupt seen-list does not fail the prompt hook
+#   C15 is_role_seat agrees with SPL_ROLE_SEAT_RX
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -132,6 +138,19 @@ rm -f "${CNF:?}/dev.env.yaml"; switch absent; reset; brief "$TD"; turn_notificat
 eq "C1. key missing: nothing" 0 "$(nsends)"
 printf ': : not yaml [\n' >"$CNF/all.env.yaml"; reset; brief "$TD"; turn_notification
 eq "C1. a file that does not parse: nothing" 0 "$(nsends)"
+# Only a YAML true is on: a truthy value of any other type is off.
+for v in 1 '"true"' '[x]' '{a: 1}'; do
+  printf 'env:\n  box:\n    discussion_mirror:\n      enabled: false\n' >"$CNF/all.env.yaml"
+  printf 'env:\n  box:\n    discussion_mirror:\n      enabled: %s\n' "$v" >"$CNF/dev.env.yaml"
+  reset; brief "$TD"; turn_notification
+  eq "C1. enabled: $v is not true: nothing" 0 "$(nsends)"
+done
+# all.env.yaml on, the env file broken: a broken env file must not read as on.
+printf 'env:\n  box:\n    discussion_mirror:\n      enabled: true\n' >"$CNF/all.env.yaml"
+printf ': : not yaml [\n' >"$CNF/dev.env.yaml"; reset; brief "$TD"; turn_notification
+eq "C1. all on, the env file unparsable: nothing" 0 "$(nsends)"
+rm -f "${CNF:?}/dev.env.yaml"; reset; brief "$TD"; turn_notification
+eq "C1. CONTROL: all on, no env file: it posts" 1 "$(nsends)"
 eq "C1. the repo's default stays false" "False" \
   "$(python3 -c 'import yaml,sys; print(yaml.safe_load(open(sys.argv[1]))["env"]["box"]["discussion_mirror"]["enabled"])' "$T_REPO/csi-spl-cnf/csi-spl/all.env.yaml")"
 switch true
@@ -219,7 +238,7 @@ trig channel HUM-9 "$TE" "line two"; post prompt "line two"; post answer "$FINDI
 eq "C5. a channel post of the second discussion answers there" "$TE" "$(send_arg 2 --task)"
 n="$(nsends)"; turn_notification "$FINDINGS four"
 eq "C5. two discussions and no trigger: nothing (silence beats a wrong landing)" "$n" "$(nsends)"
-has "C5. ... and the log names it" "discussion: nothing" "$(tail -1 "$A/.mirror/mirror.log")"
+has "C5. ... and the log names why" "2 discussions and this turn names none" "$(tail -1 "$A/.mirror/mirror.log")"
 
 # --- C6 workspaces ------------------------------------------------------------
 reset; brief "$TX"; turn_notification
@@ -277,6 +296,75 @@ eq "C9. the same text is already in the topic: nothing" 0 "$(nsends)"
 cp "$T_TMP/td.keep" "$TAILS/t1/$TD"
 reset; brief "$TD"; post prompt "$NOTIFICATION"; post answer "$FINDINGS"; post answer "$FINDINGS"
 eq "C9. two hooks for one answer: one post" 1 "$(nsends)"
+
+# --- C12 the brief's line -----------------------------------------------------
+briefs() { printf '%b' "$1" >"$FLEET/$ID/lifetime/brief.md"; }
+U=https://hub.example.test/t
+reset; briefs "# Lane\n\nSee $U/$TE for the history.\nDiscussion: $U/$TD\n"; turn_notification
+eq "C12. a link cited above the Discussion: line does not win" "$TD" "$(send_arg 0 --task)"
+reset; briefs "# Lane\n\nSee $U/$TD for the history.\n"; turn_notification
+eq "C12. a link on no Discussion: line names nothing" 0 "$(nsends)"
+reset; briefs "# Lane\n\nthe old discussion: $TD was closed\n"; turn_notification
+eq "C12. a prose mention mid-line names nothing" 0 "$(nsends)"
+reset; briefs "Discussion: $U/$TD\nDiscussion: $U/$TE\n"; turn_notification
+eq "C12. two distinct Discussion: lines: nothing" 0 "$(nsends)"
+has "C12. ... and the log names why" "the brief names 2 discussions" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; trig channel HUM-9 "$TD" "line one"; post prompt "line one"; post answer "$FINDINGS one"
+n="$(nsends)"; briefs "Discussion: $U/$TD\nDiscussion: $U/$TE\n"; turn_notification "$FINDINGS two"
+eq "C12. two Discussion: lines do not fall through to the seen topic" "$n" "$(nsends)"
+reset; briefs "Discussion: $U/$TD\nDiscussion: $TD\n"; turn_notification
+eq "C12. the same uuid twice is one discussion" "$TD" "$(send_arg 0 --task)"
+reset; briefs '**Discussion:** `'"$TD"'`\n'; turn_notification
+eq "C12. a bold label and a bare uuid are accepted" "$TD" "$(send_arg 0 --task)"
+
+# --- C13 the DM hold ----------------------------------------------------------
+dm_turn() { trig dm HUM-9 "$TM" "a person's dm"; post prompt "a person's dm"; post answer "$1"; }
+reset; brief "$TD"; dm_turn "PRIVATE answer"; post answer "PRIVATE answer"
+eq "C13. a DM turn with two hooks: one send" 1 "$(nsends)"
+eq "C13. ... into the DM" "$TM HUM-9" "$(send_arg 0 --task) $(send_arg 0 --to)"
+reset; brief "$TD"; dm_turn "PRIVATE answer"; turn_notification "$FINDINGS from the DM's background job"
+eq "C13. a follow-up turn after a DM stays out of the channel" 1 "$(nsends)"
+has "C13. ... and the log says it" "a DM turn in the last hour" "$(tail -1 "$A/.mirror/mirror.log")"
+if grep -qF "from the DM's background job" "$A/.mirror/mirror.log"; then nok "C13. the log holds the text"; else ok "C13. ... which holds no text"; fi
+# The person's own channel post still answers in its thread.
+trig channel HUM-9 "$TD" "line one"; post prompt "line one"; post answer "$FINDINGS in the thread"
+eq "C13. a channel post during the hold answers there" "$TD" "$(send_arg 1 --task)"
+# The hour passes.
+reset; brief "$TD"; dm_turn "PRIVATE answer"
+python3 -c 'import json,sys,time; json.dump({"ts":time.time()-3700},open(sys.argv[1],"w"))' "$A/.mirror/dm-turn"
+turn_notification
+eq "C13. CONTROL: the hour passes, a notification turn posts" "$TD" "$(send_arg 1 --task)"
+# A hold it cannot read is a hold.
+reset; brief "$TD"; post prompt "$NOTIFICATION"; printf 'not json' >"$A/.mirror/dm-turn"; post answer "$FINDINGS"
+eq "C13. an unreadable hold: nothing" 0 "$(nsends)"
+# A hold on one seat holds the agent's other seat: a DM of t1 stays out of t2.
+reset; brief "$TX"; mkdir -p "$A2/inbox"; dm_turn "PRIVATE answer"; turn_notification
+eq "C13. a DM on one seat holds the other seat too" 1 "$(nsends)"
+eq "C13. ... whose workspace got nothing" "TENANT=t1" "$(tail -qn1 "$SENDS"/0)"
+reset; brief "$TD"; mkdir -p "$A2/inbox"
+trig dm HUM-5 "$TX" "a dm on the second seat" "$A2"; post prompt "a dm on the second seat"; post answer "PRIVATE answer"
+turn_notification
+eq "C13. a DM on the second seat holds the first too" "1 TENANT=t2" "$(nsends) $(tail -qn1 "$SENDS"/0)"
+
+# --- C14 a corrupt seen-list --------------------------------------------------
+reset; mkdir -p "$A/.mirror"; printf '{"x":"not a number"}' >"$A/.mirror/discussions"
+trig channel HUM-9 "$TD" "line one"
+printf '%s' "line one" | python3 "$MIRROR" post --agent "$ID" --event prompt --session "$S" >/dev/null 2>&1
+eq "C14. a corrupt seen-list does not fail the prompt" 0 "$?"
+if [ -f "$A/.mirror/turn" ]; then ok "C14. ... the turn is still recorded"; else nok "C14. the turn was lost"; fi
+has "C14. ... and the log says it" "discussion: FAIL" "$(cat "$A/.mirror/mirror.log")"
+
+# --- C15 the role-seat pin ----------------------------------------------------
+eq "C15. is_role_seat agrees with SPL_ROLE_SEAT_RX" "agree" "$(python3 - "$T_SCRIPTS/../lib" <<'PIN'
+import re, string, sys
+sys.path.insert(0, sys.argv[1])
+import spool_discussion as sd
+rx = next(l.split("'")[1] for l in open(sys.argv[1] + "/spool-env.inc.sh") if l.startswith("SPL_ROLE_SEAT_RX='"))
+ids = ["%s-%03d" % (c, n) for c in string.ascii_lowercase for n in range(0, 12)]
+bad = [i for i in ids if bool(re.fullmatch(rx, i)) != sd.is_role_seat(i)]
+print("agree" if not bad else "differ: " + " ".join(bad))
+PIN
+)"
 
 # --- C11 the rate cap ---------------------------------------------------------
 switch true 2; reset; brief "$TD"

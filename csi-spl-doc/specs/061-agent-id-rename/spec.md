@@ -249,7 +249,7 @@ global `~/.claude/CLAUDE.md`, and the seed prompts of live agents.
 |---|---|
 | FR-001 | One `agentid` unit per module (Go, bash, WUI) holds the grammar, the letter-to-kind map, the legacy grammar and the `LegacyUntil` constant. Every validation site calls it. No other file carries an id regex. |
 | FR-002 | Before `LegacyUntil`, every write path accepts BOTH forms. A legacy id is resolved to its new id through the alias table at the edge, and a legacy id with no alias row is accepted as itself. |
-| FR-003 | After `LegacyUntil`, a legacy id on a write path is refused with an error that names the new id when one exists: `CLE-77952 is retired as an id; use c-0NN`. |
+| FR-003 | After `LegacyUntil`, a legacy id on a write path is refused with an error that names the new id when one exists: `CLE-77952 is retired as an id; use c-0NN`. A box's hello or announce is the one exception to the error: its legacy ids are dropped with a WARN naming each and its other agents are seated (SPL-4926), so one stale mailbox dir does not take the box off the hub. |
 | FR-004 | The comparison against `LegacyUntil` reads an injectable clock (`agentid.Now`, `SPOOL_NOW`, a `now` parameter). Every test fixture that still carries a legacy literal pins that clock before the deadline. Without this, CI turns red at 21:00Z on a tree nobody touched. |
 | FR-005 | Gate test: the bash `SPOOL_LEGACY_ID_UNTIL` and the WUI `LEGACY_ID_UNTIL` equal the Go `agentid.LegacyUntil` (the same pinning pattern as the emoji list, SPL-1002). |
 | FR-006 | Stored rows stay valid. The rdb CHECKs are widened to accept both grammars permanently, because history keeps legacy ids. Only the hub's write path refuses legacy ids after the deadline. |

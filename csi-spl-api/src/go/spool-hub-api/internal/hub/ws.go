@@ -338,7 +338,7 @@ func (s *Server) seatSession(ctx context.Context, conn *websocket.Conn, tenant s
 	if f.Role != wire.RoleBox {
 		return x, true
 	}
-	agents, err := s.seatRoster(ctx, tenant, f.BoxID, f.Agents, now)
+	agents, err := s.seatRoster(ctx, tenant, f.BoxID, s.dropRetiredIDs(tenant, f.BoxID, f.Agents), now)
 	if err != nil {
 		conn.CloseNow() //nolint:errcheck
 		return nil, false
@@ -489,6 +489,7 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 		x.fail(ctx, "", "roster_duplicate", http.StatusConflict, "invalid or duplicate agent id in roster")
 		return
 	}
+	agents = s.dropRetiredIDs(x.tenant, x.box, agents)
 	before, _ := s.o.Store.Roster(ctx, x.tenant)
 	var capErr *store.VendorCapError
 	if err := s.o.Store.SetRoster(ctx, x.tenant, x.box, agents, s.o.Now()); errors.Is(err, store.ErrSeatQuota) {
@@ -1178,6 +1179,26 @@ func (s *Server) notifyTail(ctx context.Context, tenant, taskID, msgID, fromBox,
 		}
 		x.write(ctx, wire.Frame{Type: wire.TTailMsg, Env: env}) //nolint:errcheck
 	}
+}
+
+// dropRetiredIDs is agents minus the legacy ids, once they are past
+// agentid.LegacyUntil (spec 061 FR-003, SPL-4926). It drops the id and not the
+// frame: a box's mailbox scan lists every dir it still has, and refusing the
+// frame would take all its good agents off the hub for one stale dir.
+func (s *Server) dropRetiredIDs(tenant, box string, agents []string) []string {
+	if !agentid.Expired() {
+		return agents
+	}
+	kept := agents[:0:0]
+	for _, a := range agents {
+		if agentid.IsLegacy(a) {
+			s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Str("agent", a).
+				Msg("ws roster: legacy agent id past its deadline not seated")
+			continue
+		}
+		kept = append(kept, a)
+	}
+	return kept
 }
 
 func validRoster(agents []string) bool {

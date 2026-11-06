@@ -14,8 +14,10 @@
 # @description current vendor letter, or an orchestrator or dispatcher id of
 # @description lease.conf), an id with no seat row for that tenant and box, and
 # @description an id with a roster row on that box. A retired legacy id such as
-# @description CLE-001 is no role seat here: spec 061 ended that form, so no live
-# @description seat can hold it, and the roster refusal still covers it. Every
+# @description CLE-001 is no role seat here: spec 061 ended that form. A stale row
+# @description can still name it (the hub seated legacy ids past the deadline
+# @description until SPL-4926), but no agent runs as it, and the roster refusal
+# @description still covers it. Every
 # @description statement runs under SET LOCAL app.tenant_id (rdb 0107 RLS). The
 # @description delete re-checks the roster, is ONE transaction, and is rolled
 # @description back unless exactly the named number of rows went.

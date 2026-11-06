@@ -1,12 +1,15 @@
 package hub_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -49,11 +52,11 @@ type blockerRig struct {
 	otherTID string
 }
 
-func newBlockerRig(t *testing.T) *blockerRig {
+func newBlockerRig(t *testing.T, mut ...func(*hub.Options)) *blockerRig {
 	t.Helper()
 	base := time.Now().UTC().Truncate(time.Second).Add(-30 * time.Minute)
 	c := &blockerClock{t: base}
-	e := rbacEnv(t, func(o *hub.Options) { o.Now = c.now })
+	e := rbacEnv(t, append([]func(*hub.Options){func(o *hub.Options) { o.Now = c.now }}, mut...)...)
 	tid, _ := e.tenant()
 	other, _ := e.tenant()
 	r := &blockerRig{e: e, clock: c, base: base, tid: tid, otherTID: other, agent: "c-123",
@@ -473,4 +476,155 @@ func TestBlockerAnswerAfterADayResolvesOnLongTick(t *testing.T) {
 	if got := r.e.srv.SweepBlockerIssues(context.Background(), 24*time.Hour); got.Resolved != 0 {
 		t.Fatalf("a second long tick resolved %d again", got.Resolved)
 	}
+}
+
+// ---- a role id seated on two boxes (SPL-4924) -------------------------------
+//
+// c-001 is announced by box-a and box-b, so its bare id names nobody
+// (locateAgent: ambiguous_agent). to_box says which one a blocker asked.
+
+// logBuf is the hub's log in a test: the hub's goroutines write while it reads.
+type logBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *logBuf) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *logBuf) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+// twoBoxRoleRig seats c-001 on box-a and box-b, c-123 on box-b only, and
+// keeps the hub's log.
+func twoBoxRoleRig(t *testing.T) (*blockerRig, *logBuf) {
+	t.Helper()
+	l := &logBuf{}
+	r := newBlockerRig(t, func(o *hub.Options) { o.Log = zerolog.New(l) })
+	for box, ids := range map[string][]string{"box-a": {"c-001"}, "box-b": {"c-001", r.agent}} {
+		if err := r.e.st.SetRoster(context.Background(), r.tid, box, ids, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return r, l
+}
+
+func TestBlockerToTwoBoxRoleIDNamesTheAskedSeat(t *testing.T) {
+	for _, box := range []string{"box-a", "box-b"} {
+		t.Run(box, func(t *testing.T) {
+			r, _ := twoBoxRoleRig(t)
+			task := uid.New()
+			id := r.relay(t, task, r.agent+"@box-b", "c-001@"+box, "blocker", "Role seat, answer me", r.base)
+			if got := r.sweep(4 * time.Minute); got.Created != 1 {
+				t.Fatalf("a blocker to c-001 on %s: created %d, want 1", box, got.Created)
+			}
+			is := r.blockerIssues(t, r.tid)
+			if len(is) != 1 || is[0].Assignee != "c-001@"+box || is[0].TaskID != store.BlockerIssueTask(r.tid, id, "c-001") {
+				t.Fatalf("want 1 issue for c-001@%s on the bare id's topic, got %+v", box, is)
+			}
+			if got := r.sweep(5 * time.Minute); got.Created != 0 {
+				t.Fatalf("second tick created %d", got.Created)
+			}
+			r.relay(t, task, "c-001@"+box, r.agent+"@box-b", "result", "answered", r.base.Add(6*time.Minute))
+			if got := r.sweep(7 * time.Minute); got.Resolved != 1 || r.issueStatus(t, is[0].Number) != store.IssueDone {
+				t.Fatalf("the asked seat's answer: resolved %d", got.Resolved)
+			}
+		})
+	}
+}
+
+// The other seat of the role id is another agent: its post does not answer.
+func TestBlockerToTwoBoxRoleIDOtherSeatDoesNotAnswer(t *testing.T) {
+	r, _ := twoBoxRoleRig(t)
+	task := uid.New()
+	r.relay(t, task, r.agent+"@box-b", "c-001@box-a", "blocker", "Role seat, answer me", r.base)
+	r.sweep(4 * time.Minute)
+	is := r.blockerIssues(t, r.tid)
+	if len(is) != 1 {
+		t.Fatalf("want 1 issue, got %+v", is)
+	}
+	r.relay(t, task, "c-001@box-b", r.agent+"@box-b", "note", "status card", r.base.Add(6*time.Minute))
+	if r.sweep(7 * time.Minute); r.issueStatus(t, is[0].Number) != store.IssueTodo {
+		t.Fatalf("a post by c-001@box-b resolved the blocker to c-001@box-a")
+	}
+}
+
+// A bare @mention says no box: no issue, and the log says why. So does a
+// tagged one today: MentionedIDs drops the @box. An id on one box converts.
+func TestBlockerAmbiguousMentionIsLogged(t *testing.T) {
+	r, l := twoBoxRoleRig(t)
+	bare := r.post(t, r.tid, uid.New(), r.admin, "ALL-0", "blocker", "@c-001 which seat?", r.base)
+	if got := r.sweep(4 * time.Minute); got.Created != 0 {
+		t.Fatalf("a bare @c-001 on two boxes: created %d, want 0", got.Created)
+	}
+	line := ambiguousLine(l.String(), bare)
+	if !strings.Contains(line, `"level":"warn"`) || !strings.Contains(line, `"assignee":"c-001"`) {
+		t.Fatalf("no warn with msg_id %s and the id: %q in\n%s", bare, line, l.String())
+	}
+	tagged := r.post(t, r.tid, uid.New(), r.admin, "ALL-0", "blocker", "@c-001@box-b which seat?", r.base)
+	r.sweep(5 * time.Minute)
+	if ambiguousLine(l.String(), tagged) == "" {
+		t.Fatalf("no warn for the tagged mention %s in\n%s", tagged, l.String())
+	}
+	// CONTROL: the same sweep converts the id one box announces.
+	r.post(t, r.tid, uid.New(), r.admin, "ALL-0", "blocker", "@"+r.agent+" the build is red", r.base)
+	r.sweep(6 * time.Minute)
+	if is := r.blockerIssues(t, r.tid); len(is) != 1 || is[0].Assignee != r.agent {
+		t.Fatalf("CONTROL: want 1 issue for %s, got %+v", r.agent, is)
+	}
+}
+
+// A recipient whose to_box does not seat it (a browser DM carries box-wui)
+// stays ambiguous: no issue, logged.
+func TestBlockerRecipientToBoxNotSeatedIsLogged(t *testing.T) {
+	r, l := twoBoxRoleRig(t)
+	id := r.post(t, r.tid, uid.New(), r.admin, "c-001", "blocker", "which seat?", r.base)
+	if got := r.sweep(4 * time.Minute); got.Created != 0 {
+		t.Fatalf("to_box box-wui: created %d, want 0", got.Created)
+	}
+	if ambiguousLine(l.String(), id) == "" {
+		t.Fatalf("no warn for msg_id %s in\n%s", id, l.String())
+	}
+}
+
+// An id nobody announces stays quiet: a retired agent tagged is no alarm.
+func TestBlockerUnknownMentionIsNotLogged(t *testing.T) {
+	r, l := twoBoxRoleRig(t)
+	id := r.post(t, r.tid, uid.New(), r.admin, "ALL-0", "blocker", "@c-999 nobody here", r.base)
+	if got := r.sweep(4 * time.Minute); got.Created != 0 {
+		t.Fatalf("an unknown id: created %d, want 0", got.Created)
+	}
+	if line := ambiguousLine(l.String(), id); line != "" {
+		t.Fatalf("an unknown id was logged as ambiguous: %q", line)
+	}
+}
+
+// The owner's "Make an issue" takes the same path as the sweep.
+func TestOwnerMakesIssueOfBlockerToTwoBoxRoleID(t *testing.T) {
+	r, _ := twoBoxRoleRig(t)
+	owner := seat(t, r.e, r.tid, rbac.BizOwner)
+	id := r.relay(t, uid.New(), owner+"@box-wui", "c-001@box-a", "blocker", "Role seat, answer me", r.base)
+	code, out := call(t, r.e, r.tid, http.MethodPost, "/v1/messages/"+id+"/issue", owner, map[string]any{})
+	if code != http.StatusCreated {
+		t.Fatalf("make an issue: %d %v", code, out)
+	}
+	if is := r.blockerIssues(t, r.tid); len(is) != 1 || is[0].Assignee != "c-001@box-a" {
+		t.Fatalf("want 1 issue for c-001@box-a, got %+v", is)
+	}
+}
+
+// ambiguousLine is the log line that says msgID's assignee stayed ambiguous.
+func ambiguousLine(log, msgID string) string {
+	for _, line := range strings.Split(log, "\n") {
+		if strings.Contains(line, msgID) && strings.Contains(line, "ambiguous") {
+			return line
+		}
+	}
+	return ""
 }

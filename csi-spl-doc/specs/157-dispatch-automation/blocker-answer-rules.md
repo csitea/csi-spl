@@ -59,7 +59,27 @@ that message (`madeFor`), and looks for the answer with the rules above, one
 read of `messages_task_received` each. Before, an answer after a day never
 resolved its issue.
 
-## 4. Tests
+## 4. A bare id on two boxes (SPL-4924)
+
+A role id such as `c-001` is seated on several boxes, and an assignee's bare
+id must be announced by exactly one box (`locateAgent`, spec 061 section
+3.3.1). So a blocker to `c-001` was refused as `bad_assignee` and filed no
+issue, with no log line. `blockerSeat` (`internal/hub/blocker_issue.go`), on
+the path of both the sweep and the owner's "Make an issue":
+
+- the recipient's bare id, when two boxes announce it, becomes the seat the
+  post asked, `<id>@<to_box>`, and the issue is assigned to that;
+- an id still ambiguous (an @mention, whose `@box` `MentionedIDs` does not
+  keep, or a recipient whose `to_box` does not seat it, as a browser post's
+  `box-wui`) files no issue and logs a warn with `msg_id` and the id, on each
+  tick that reads the blocker;
+- an id on one box stays as written, and the issue's topic id uses the bare
+  id either way, so nothing already made changes or doubles.
+
+The answer rules of section 2 are unchanged: the other seat of the role id
+answers only with a reference to the blocker.
+
+## 5. Tests
 
 `internal/hub/blocker_issue_test.go` (memory, and Postgres under
 `SPOOL_TEST_PG_DSN`): `TestBlockerRelayedTitleAndAuthor`,
@@ -69,7 +89,13 @@ resolved its issue.
 same bare id on the other box, an unrelated post in a shared topic),
 `TestBlockerSharedTopicReferenceResolves`,
 `TestBlockerRotatedRoleAnswerWithReferenceResolves`,
-`TestBlockerAnswerAfterADayResolvesOnLongTick`; `internal/spool/fromagent_test.go`
+`TestBlockerAnswerAfterADayResolvesOnLongTick`,
+`TestBlockerToTwoBoxRoleIDNamesTheAskedSeat`,
+`TestBlockerToTwoBoxRoleIDOtherSeatDoesNotAnswer`,
+`TestBlockerAmbiguousMentionIsLogged`,
+`TestBlockerRecipientToBoxNotSeatedIsLogged`,
+`TestBlockerUnknownMentionIsNotLogged`,
+`TestOwnerMakesIssueOfBlockerToTwoBoxRoleID`; `internal/spool/fromagent_test.go`
 `TestFromAgentOf`.
 
 Not in this change: the alarm call sites' switch to `--kind note` (A1.3) and

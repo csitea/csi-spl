@@ -34,7 +34,8 @@ import (
 //   - Trigger: a live message of kind blocker; each id it tags (recipient or
 //     @mention, a member HUM-n or a roster agent, never its author) is one
 //     assignee. The workspace setting blocker.issue_after_minutes is N
-//     (default 3, 0 = off).
+//     (default 3, 0 = off). A bare id two boxes announce is the seat the post
+//     asked, <id>@<to_box> (blockerSeat, SPL-4924).
 //   - Answer: a post by that assignee in the blocker's topic after it (a
 //     reaction is not an answer; a reply by someone else is not theirs).
 //     The author is the real one: a relayed row's from_agent line, not its
@@ -245,7 +246,8 @@ func (s *Server) blockerOpenPass(ctx context.Context, bi store.BlockerIssues, te
 }
 
 // blockerCreate makes the issue; false when the assignee is nobody this
-// workspace knows, or another hub process made it first.
+// workspace knows (blockerSeat logs an ambiguous id), or another hub process
+// made it first.
 func (s *Server) blockerCreate(ctx context.Context, tenant string, p store.BlockerPost, a, task string, n int) bool {
 	out, ie := s.blockerIssueOn(ctx, tenant, p.FromID, p, a, task, blockerDescription(p, a, n))
 	if ie != nil {
@@ -263,6 +265,7 @@ func (s *Server) blockerCreate(ctx context.Context, tenant string, p store.Block
 // status todo, label blocker, desc linking back to the message. The sweep and
 // the owner's "Make an issue" both make it here, so both link the same way.
 func (s *Server) blockerIssueOn(ctx context.Context, tenant, actor string, p store.BlockerPost, a, task, desc string) (store.Issue, *issueErr) {
+	a = s.blockerSeat(ctx, tenant, p, a)
 	if ie := s.checkAssignee(ctx, tenant, a); ie != nil {
 		return store.Issue{}, ie
 	}
@@ -281,6 +284,35 @@ func (s *Server) blockerIssueOn(ctx context.Context, tenant, actor string, p sto
 	epic := strconv.Itoa(n)
 	return s.createIssueOn(ctx, tenant, actor, task, issueRequest{Title: &title, Description: &desc,
 		Status: &status, Assignee: &a, Labels: &labels, Epic: &epic, Discussions: &ds, trusted: true})
+}
+
+// blockerSeat is the id the issue of (p, a) is assigned to. A bare id that two
+// boxes announce names nobody (a role id such as c-001 is seated on several),
+// so it becomes the seat p asked: the box AssigneeBox reads for the recipient.
+// An id still ambiguous, an @mention (MentionedIDs keeps no @box) or a
+// recipient whose to_box does not seat it, is returned as it is for
+// checkAssignee to refuse, and logged here: the sweep files no issue for it.
+// Every other id is returned as written.
+func (s *Server) blockerSeat(ctx context.Context, tenant string, p store.BlockerPost, a string) string {
+	if humanIDRe.MatchString(a) {
+		return a
+	}
+	roster, err := s.o.Store.Roster(ctx, tenant)
+	if err != nil {
+		return a // checkAssignee reports the roster
+	}
+	if _, re := locateAgent(roster, a); re == nil || re.token != "ambiguous_agent" {
+		return a
+	}
+	if box := p.AssigneeBox(a); box != "" {
+		seat := a + "@" + box
+		if _, re := locateAgent(roster, seat); re == nil {
+			return seat
+		}
+	}
+	s.o.Log.Warn().Str("tenant", tenant).Str("msg_id", p.MsgID).Str("assignee", a).
+		Msg("blocker issues: ambiguous assignee, no issue")
+	return a
 }
 
 // workspaceOwner: a is a member HUM-n whose role is the workspace owner's.

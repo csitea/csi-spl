@@ -16,6 +16,11 @@ agent's poke, a task notification or the terminal posts nothing: the agent's
 real reply reaches the channel by do_spl_desk_reply / spool send. Prompts
 themselves are never posted (the echo kinds A-D of spec 067 section 2.1).
 
+Behind cnf env.box.discussion_mirror, off by default (SPL-4657, spec 067 section
+11): a turn that was NOT started by a DM may post its final text into the seated
+agent's channel discussion. lib/spool_discussion.py decides which one and
+whether; a DM never receives such a post, and no text crosses a workspace.
+
 Two halves, because the two sides run as two users:
 
   hook   runs as the AGENT user, from the CLI's own hooks (Claude Code and
@@ -82,6 +87,7 @@ import time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from spool_redact import redact  # noqa: E402
+import spool_discussion as sd  # noqa: E402
 
 # A participant id, as lib/spool-env.inc.sh SPOOL_ID_RE (specs/061): c-004, and
 # the legacy CLE-07 that readers keep accepting.
@@ -554,7 +560,7 @@ def turn_trigger(agent_dir, text, now):
     trigger and typed records are consumed; old ones expire."""
     typed = typed_lines(agent_dir, now)
     trig = triggers(agent_dir, now)
-    kinds, dm = [], None
+    kinds, dm, channel_task = [], None, ""
     for line in [text] + text.split("\n"):
         n = norm(line)
         if not n:
@@ -571,6 +577,10 @@ def turn_trigger(agent_dir, text, now):
             ):
                 dm = dm or {"kind": "dm", "to": rec["from"], "task": rec["task"]}
             else:
+                if rec.get("kind") == "channel" and UUID_RE.match(
+                    str(rec.get("task", ""))
+                ):
+                    channel_task = channel_task or rec["task"]
                 # a dm record naming no human or no topic is no DM to answer
                 kinds.append(
                     "task"
@@ -580,7 +590,10 @@ def turn_trigger(agent_dir, text, now):
     if dm:
         return dm
     if kinds:
-        return {"kind": kinds[0]}
+        turn = {"kind": kinds[0]}
+        if kinds[0] == "channel" and channel_task:
+            turn["task"] = channel_task
+        return turn
     if any(MACHINE_LINE.match(norm(ln)) for ln in text.split("\n")):
         return {"kind": "agent"}
     return {"kind": "terminal" if text.strip() else "cli"}
@@ -785,6 +798,14 @@ def quiesce_clear(seat, sleep=time.sleep):
     return waited == 0 or os.path.isdir(seat)
 
 
+def seat_spool(seat):
+    return os.environ.get("SPOOL_MIRROR_SPOOL") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(seat.rstrip("/")))),
+        "bin",
+        "spool",
+    )
+
+
 def post_one(seat, agent, event, text, session):
     adir = os.path.join(seat, "spool", agent)
     if not quiesce_clear(seat):
@@ -802,6 +823,9 @@ def post_one(seat, agent, event, text, session):
             )
             return "skipped"
         turn = turn_trigger(adir, text, now)
+        turn["ts"] = now
+        if turn.get("kind") == "channel":
+            sd.note_channel_post(adir, turn.get("task"), now)
         os.makedirs(os.path.join(adir, ".mirror"), exist_ok=True)
         with open(os.path.join(adir, ".mirror", "turn.tmp"), "w") as f:
             json.dump(turn, f)
@@ -863,11 +887,7 @@ def post_one(seat, agent, event, text, session):
     if "SPOOL_HUB_URL" not in env:
         log(adir, f"FAIL {event}: no live sidecar to read the hub url from")
         return "failed"
-    spool = os.environ.get("SPOOL_MIRROR_SPOOL") or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(seat.rstrip("/")))),
-        "bin",
-        "spool",
-    )
+    spool = seat_spool(seat)
     argv = [
         spool,
         "send",
@@ -915,6 +935,193 @@ def post_one(seat, agent, event, text, session):
     return "posted"
 
 
+# ── the discussion leg (SPL-4657, spec 067 section 11) ──────────────────────
+def discussion_text(text):
+    """The final text a person reads: injected blocks and status lines gone;
+    '' when nothing is left. A sealed envelope is never posted."""
+    if sealed_surface(text) is not None:
+        return ""
+    return answer_text(INJECTED_BLOCKS.sub("", str(text or "")))
+
+
+def discussion_rows(seat, task):
+    """The topic as THIS seat's tenant reads it; None when the hub did not answer."""
+    env = seat_env(seat)
+    if "SPOOL_HUB_URL" not in env:
+        return None
+    try:
+        r = subprocess.run(
+            [seat_spool(seat), "hub-tail", "--task", task, "--with-channel"],
+            env={**os.environ, **env},
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return sd.parse_rows(r.stdout) if r.returncode == 0 else None
+
+
+def discussion_plan(seat, agent, turn, now):
+    """-> (task, rows) when this seat may post, else None, with its one log line."""
+    adir = os.path.join(seat, "spool", agent)
+    task, why = sd.resolve(adir, agent, turn, now)
+    if not task:
+        log(adir, f"discussion: nothing posted: {why}")
+        return None
+    rows = discussion_rows(seat, task)
+    if rows is None:
+        log(
+            adir, f"discussion: nothing posted: the hub did not answer for topic {task}"
+        )
+        return None
+    if not sd.channel_of(rows):
+        # An empty read and a DM look alike here, and both must stop: this
+        # seat's workspace holds no channel topic with this id.
+        log(
+            adir,
+            f"discussion: nothing posted: {task} is not a channel discussion this seat can read",
+        )
+        return None
+    return task, rows
+
+
+def discussion_send(seat, agent, task, rows, turn, text, session, cnf, now):
+    """Post text into the channel topic task on seat, or log why not. The topic
+    was read on this seat just before. No --channel: that fans out to every seat
+    and each poke would start a turn that posts again. box-wui stores it in the
+    topic's channel (hub channelOf) and is never queued to another box."""
+    adir = os.path.join(seat, "spool", agent)
+    if session and not first_sighting(adir, session, "discussion", text, now):
+        log(adir, "discussion: skip: a second hook fired for the same answer")
+        return "skipped"
+    why = sd.already_posted(adir, agent, task, rows, text, turn.get("ts"))
+    if why:
+        log(adir, f"discussion: skip: {why}")
+        return "skipped"
+    allowed, skipped = sd.rate_take(
+        adir, cnf.get("max_posts_per_hour", sd.DEFAULT_MAX_PER_HOUR), now
+    )
+    if not allowed:
+        log(
+            adir,
+            f"discussion: rate cap: {skipped} turn(s) left in the terminal this hour",
+        )
+        return "skipped"
+    body, counts = redact(text)
+    if skipped:
+        body += (
+            f"\n\n_{skipped} turns before this one stayed in the terminal (rate cap)._"
+        )
+    body = clip_body(body)
+    argv = [
+        seat_spool(seat),
+        "send",
+        "--from",
+        agent,
+        "--to",
+        "ALL-0",
+        "--to-box",
+        "box-wui",
+        "--kind",
+        "note",
+        "--task",
+        task,
+        "--body",
+        body,
+    ]
+    if os.environ.get("SPOOL_MIRROR_DRY") == "1":
+        print(
+            json.dumps(
+                {"seat": seat, "argv": argv, "redactions": counts}, sort_keys=True
+            )
+        )
+        return "dry"
+    r = subprocess.run(
+        argv,
+        env={**os.environ, **seat_env(seat)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if r.returncode != 0:
+        # No output in the log: a refusal quotes the body (IsFiller's message).
+        log(
+            adir,
+            f"discussion: FAIL or refused: spool send rc {r.returncode} ({len(body)} chars)",
+        )
+        return "failed"
+    sd.rate_posted(adir, now)
+    log(
+        adir,
+        f"discussion: OK -> topic {task} ({len(body)} chars, redactions {counts or 'none'})",
+    )
+    return "posted"
+
+
+def discussion_log_no_seat(agent):
+    """No seat means no desk to post from: one line in the lane's fleet dir."""
+    if not (sd.settings("dev")["enabled"] or sd.settings("prd")["enabled"]):
+        return
+    d = os.path.join(sd.fleet_root(), agent)
+    if not os.path.isdir(d):
+        return
+    try:
+        with open(os.path.join(d, "mirror.log"), "a") as f:
+            f.write(
+                time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                + " discussion: nothing posted: this agent holds no desk seat\n"
+            )
+    except OSError:
+        pass
+
+
+def discussion_leg(ss, agent, text, session, turns):
+    """After the DM leg. Exactly one seat may post: each seat is a workspace, so
+    the text never chooses between them. A DM-started turn has had its answer."""
+    if sd.is_role_seat(agent) or any(t.get("kind") == "dm" for t in turns.values()):
+        return
+    if not ss:
+        discussion_log_no_seat(agent)
+        return
+    cnfs = {s: sd.settings(sd.seat_env_name(s)) for s in ss}
+    live = [s for s in ss if cnfs[s]["enabled"] and quiesce_clear(s)]
+    if not live:
+        return
+    body = discussion_text(text)
+    if not body:
+        for s in live:
+            log(
+                os.path.join(s, "spool", agent),
+                "discussion: skip: status only, or a sealed envelope",
+            )
+        return
+    now = time.time()
+    plans = {
+        s: p
+        for s in live
+        for p in [discussion_plan(s, agent, turns.get(s) or {}, now)]
+        if p
+    }
+    direct = [s for s in plans if turns.get(s, {}).get("kind") == "channel"]
+    targets = direct or list(plans)
+    if len(targets) > 1:
+        for s in targets:
+            log(
+                os.path.join(s, "spool", agent),
+                f"discussion: nothing posted: {len(targets)} seats qualify",
+            )
+        return
+    for s in targets:
+        task, rows = plans[s]
+        print(
+            discussion_send(
+                s, agent, task, rows, turns.get(s) or {}, body, session, cnfs[s], now
+            ),
+            s,
+        )
+
+
 def post_main(args):
     agent, event, session = "", "", ""
     i = 0
@@ -945,6 +1152,12 @@ def post_main(args):
     import concurrent.futures
 
     ss = seats(agent)
+    # Read before post_one consumes it: the discussion leg needs the same turn.
+    turns = (
+        {s: _read_json(os.path.join(s, "spool", agent, ".mirror", "turn")) for s in ss}
+        if event == "answer"
+        else {}
+    )
     rc = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(ss))) as ex:
         for seat, res in zip(
@@ -952,6 +1165,15 @@ def post_main(args):
         ):
             print(f"{res} {seat}")
             rc = rc or (1 if res == "failed" else 0)
+    if event == "answer":
+        try:
+            discussion_leg(ss, agent, text, session, turns)
+        except Exception as e:  # noqa: BLE001 - this leg must never fail the DM leg
+            for s in ss:
+                log(
+                    os.path.join(s, "spool", agent),
+                    f"discussion: FAIL: {type(e).__name__}",
+                )
     return rc
 
 

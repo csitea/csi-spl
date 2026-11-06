@@ -2,6 +2,7 @@
 
 Status: **draft, owner questions open** (section 9). Spec only; no code,
 workflow, gate or `CLAUDE.md` was touched. Draft 2026-10-03, c-120.
+Section 11 (SPL-4657, 2026-11-06) is built behind a switch that is off.
 Related: [036 terminal mirror](../036-spool-terminal-mirror/) (the biggest
 DM producer, section 2), [028 terminal delivery](../028-spool-terminal-delivery/),
 [062 flow per-user counts](../062-flow-per-user-counts/) (`flow_events`).
@@ -33,6 +34,9 @@ Follow-up, same topic, verbatim:
 2. **An agent contacts a person only when it actually replies to them**:
    a DM reply to the person's DM, or a channel reply that tags `@person`.
    Status lines, terminal echoes and "I'm on standby" are not contact.
+   (SPL-4657, section 11: an agent's final text in its own discussion is a
+   thread reply tagging nobody. It is not contact either, so this rule still
+   holds, and it reaches no DM and no Flow mention.)
 3. **A DM about a channel topic carries that topic's id** (asks about it,
    answers about it, pokes about it).
 4. **A person's answer given in such a DM is also seen in the channel**: the
@@ -309,3 +313,123 @@ for c-119 to land.
 **Q-C** Flow events vs the message's channel:
 
     select f.kind, coalesce(m.channel,'')<>'' in_channel, m.to_id=f.member_id addressed, count(*) from flow_events f left join messages m on m.msg_id=f.msg_id group by 1,2,3 order by 4 desc
+
+## 11. An agent's work reaches its discussion (SPL-4657)
+
+Status: **built behind a switch that is OFF** (`env.box.discussion_mirror`).
+Owner HUM-10, about 2026-11-02T16:15Z, relayed by c-615: "once an agent spanwed
+to be connected to the hup should replicate all of its input and output to the
+discussion - the human readable one , not the logs and the jibrish", and "we
+must ensure whit in the code somewhow ..". Report: t1 topic `bf2f0ab0`.
+
+### 11.1 What changes in this spec and in 036
+
+- **Rule 1 stays as it is.** A channel reply stays in its thread and no post
+  of this section reaches a DM. A DM-triggered turn still answers only in that
+  DM (3.1, L2).
+- **3.1's "post nothing" narrows.** A turn started by a channel post, a poke,
+  a task notification or the terminal still posts nothing to a DM. Its final
+  text may now go to the agent's channel discussion.
+- **Rule 2 stays.** The post tags nobody and is addressed to `ALL-0`, so it is
+  no contact and no Flow mention.
+- **The echoes stay gone.** Kinds A-D of 2.1 are prompts, and no prompt is
+  posted. The old mirror's failure was the wrong place and the wrong content.
+  This one posts only a final text, only into a discussion.
+
+### 11.2 The rules
+
+| question | what is built | why |
+|---|---|---|
+| who posts | a seated agent: `<seat>/spool/<id>` exists on a desk | only a seat has a desk's keys, tenant and hub session. Unseated lane: nothing posted, one line in `<fleet root>/<id>/mirror.log`. Open: 11.5 Q-1 |
+| dispatcher, orchestrator | role seats (001-003) never post | they carry many topics at once, and most of their turns are routing, so any choice of topic would be a guess |
+| which discussion, in order | 1. the channel post that started this turn. 2. the full uuid on the `Discussion:` line of the lane's brief. 3. the one topic this seat got a channel post on in the last 24 h | one answer or none |
+| two discussions | two topics at step 3 and no step 1 or 2: nothing posted, one log line | a wrong landing is worse than silence (c-615 has two) |
+| workspace | `hub-tail --with-channel` on THAT seat must return the topic, with a channel | the seat's tenant scopes the read. A topic of another workspace returns nothing |
+| agent on several seats | exactly one seat may qualify: the seat of step 1, else the only seat that can read the topic. More than one: nothing posted | each seat is a workspace, so text must not choose between them |
+| DM | a topic with an empty channel is never posted to. A DM-triggered turn posts nothing here | rule 1 |
+| content | the Stop hook's final text only, after `answer_text` (status and spinner lines), with injected blocks removed, redacted first, then clipped. A sealed envelope is not posted | "not the logs and the jibrish". Tool output never enters the hook's text |
+| filler | `answer_text` drops a status-only text. `spool send` refuses a filler body (`IsFiller`), logged as a skip | how-to-post rule 7 |
+| posted already | nothing when the agent's own row in the topic is newer than the turn's start (hub), or its seat outbox holds a send on that task since the turn's start. Nothing either when the same text is already in the topic | a closing summary rarely matches its post word for word, so the check is per turn and not per text. The hub is the truth for every vendor |
+| rate | `max_posts_per_hour` per seat (12). Over it: skipped and logged, and the next post says how many turns were left in the terminal | 11.3: p99 of a lane's hour is 10 |
+| no loop | sent with `--to-box box-wui` and no `--channel`: stored in the topic's channel, never queued to another box | a `--channel` post fans out to every seat, each poke starts a turn, and each turn would post. The hub routes a box reply by its signed tag (`internal/hub/ws.go`, the `routeChannel` call). `TestBoxReplyInheritsCardlessChannel` proves this send form is stored in the channel, and that on a genuine DM it stays a DM, which is why the channel check comes first |
+
+### 11.3 Measured before the build
+
+Claude transcripts of this box, 2026-11-03 to 2026-11-06: 1,964 session files,
+143 seats. Counts only, run with the script in the lane's scratchpad, on tree
+`67d283262`, n below. Its filler regex is narrower than `IsFiller`, so
+`would post` is an upper bound. "Posted itself" counts ANY send in the turn,
+including a send to another agent, so for lanes it is not proof that the
+discussion got the text.
+
+| seats | turns | no text | status-only | posted itself in the turn | would post |
+|---|---|---|---|---|---|
+| lanes | 2,486 | 59 | 25 | 518 | 1,884 |
+| role seats | 4,455 | 36 | 35 | 1,991 | 2,393 |
+
+| lane turns by what started them | turns | would post |
+|---|---|---|
+| poke line | 1,216 | 955 |
+| seed (a rotation restart counts again) | 718 | 600 |
+| task notification (the case of this bug) | 507 | 329 |
+| terminal | 6 | 0 |
+
+- Text length of a would-post: p50 587, p90 1,159, max 3,795 characters.
+- Lane posts per seat-hour, n = 695 hours: p50 2, p90 5, p99 10, max 17.
+- Seats whose tool calls name a uuid on a send, n = 136: 50 name one, 61 name
+  2-3, 25 name 4 or more. This overstates real discussions (a uuid can be a
+  file or a message), and it is the only read we have of how often the
+  two-discussions rule will stay silent.
+- **Lanes are the volume question.** 1,884 in 3 days is about 630 posts a day
+  if every lane posted. Seating decides it (11.5 Q-1).
+- **The workspace check stays silent on some real topics.** `hub-tail` serves
+  what the hub serves that box (`BoxTaskEnvelopes`), and only a channel-tagged
+  row carries a channel. A real reply reads `channel: ""`, and a box that does
+  not hold the root cannot tell a channel topic from a DM. So it posts nothing.
+  Read on prd t1, this box's desk, the 15 distinct uuid topics of its lanes in
+  the last 7 days: 13 have a tagged row, 1 has rows but no tag, 1 has no rows.
+  So about 2 in 15 stay silent and log it. That is the safe side of the rule,
+  and it is a real gap.
+- **The trigger's `terminal` kind cannot tell a person's typing.** Mirror logs
+  of this box (162,993 lines, all seats' history) hold 11,395 `turn: terminal`
+  lines, because seeds and kicks count as terminal, while the transcripts show
+  156 person-typed turns in 3 days. Posting that kind would post seeds. So
+  input is not built (11.5 Q-2).
+
+### 11.4 Every vendor
+
+All five reach the same `post --event answer`, so the rules above are one
+code path. What differs is what the hook gives it:
+
+| vendor | how it gets the text | state, and the gap |
+|---|---|---|
+| claude | Stop hook, `last_assistant_message` | measured above, tested end to end |
+| grok | same Stop payload, camelCase. A session-end Stop is skipped | fixture test only. The owner has grok off since 2026-11-04, so not measured live |
+| qwen | same Stop payload, from `~/.qwen/settings.json` | fixture test only, no qwen transcript on this box |
+| agy | Stop hook names `transcriptPath`, text is every `PLANNER_RESPONSE` after the last user input | fixture test only, no agy transcript readable here. **Gap: the text is the whole turn's narration, longer than a final text** |
+| mistral | `post_agent`, `vibe_extract` reads the session. `vibe_extract` on the 40 newest sessions: 36 prompt + answer, 4 prompt only | **Gap: the same narration as agy.** And a turn with no non-injected user message is not seen, so a notification-started turn can pair with an older prompt |
+
+### 11.5 Open owner questions
+
+Asked through the dispatch holder, with these recommendations. The build
+assumes the recommendation and stays OFF until the orchestrator's step.
+
+1. **Q-1 Unseated lanes.** A: seated agents only, today's build (the reported
+   case). B: every lane with a `Discussion:` line too, about 630 posts a day
+   and a change to the seed's "never post in an owner topic". Recommended: A,
+   then decide B from the dev measurement.
+2. **Q-2 Input.** The owner said "input and output". Only claude's transcript
+   marks a person's typing (`origin.kind`), and other vendors have no such
+   mark. A: output only for now. B: post person-typed input on claude only,
+   marked as typed in the terminal. Recommended: A, n = 156 such turns in 3
+   days against 4,277 outputs.
+
+### 11.6 Turning it on
+
+The orchestrator's step, after a dev measurement, never a lane's:
+`discussion_mirror: { enabled: true }` under `env.box` in
+`csi-spl-cnf/csi-spl/dev.env.yaml`, then the same in `prd.env.yaml`. `all.env.yaml`
+stays false. A missing key, or a file that does not parse, reads as off.
+Off for one seat: `touch <seat>/spool/<id>/.no-mirror`. Off for the box:
+`$SPOOL_ROOT/.mirror-off`. What to read during the measurement:
+`discussion:` lines in `<seat>/spool/<id>/.mirror/mirror.log`.

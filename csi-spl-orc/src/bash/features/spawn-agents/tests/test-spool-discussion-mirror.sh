@@ -1,0 +1,293 @@
+#!/usr/bin/env bash
+# test-spool-discussion-mirror.sh — an agent's work reaches its discussion
+# (SPL-4657, spec 067 section 11), behind cnf env.box.discussion_mirror.
+#
+#   R1  THE BUG: a turn started by a task notification, with findings in its
+#       final text, appears in the discussion
+#   R2  every vendor's hook payload reaches the same post (grok, qwen, agy,
+#       mistral)
+#   C1  the switch: off, missing and unparsable all post nothing, and the
+#       repo's default stays false
+#   C2  never posted: tool output, poke lines, task-notification text, a sealed
+#       envelope, a status-only answer
+#   C3  redaction runs first
+#   C4  no discussion: nothing posted and exactly one log line; the same for
+#       an unseated lane
+#   C5  two discussions: nothing, unless the turn's own channel post names one
+#   C6  no post crosses a workspace: a topic this seat cannot read, an agent
+#       on two seats
+#   C7  no post reaches a DM: a topic with no channel; a DM-triggered turn
+#       answers its DM only
+#   C8  role seats never post
+#   C9  nothing twice: the agent posted this turn (hub row, seat outbox), the
+#       same text is in the topic, two hooks for one answer
+#   C10 the send is the no-loop form: ALL-0, box-wui, no --channel
+#   C11 the rate cap skips, logs, and the next post counts what it skipped
+set -uo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
+t_sandbox
+unset SPOOL_AGENT_ID MCP_BOT_AGENT_ID SPOOL_MIRROR_TO SPOOL_MIRROR_POST SPOOL_MIRROR_SYNC SPOOL_MIRROR_DRY SPOOL_MIRROR_SPOOL SPOOL_BOX_USER
+
+MIRROR="$T_SCRIPTS/spool-mirror.py"
+ID=c-777
+SEAT="$T_TMP/cloud/dev/desk/t1/box-desk"
+SEAT2="$T_TMP/cloud/dev/desk/t2/box-desk"
+A="$SEAT/spool/$ID"
+A2="$SEAT2/spool/$ID"
+FLEET="$T_TMP/fleet"
+TD=11111111-1111-4111-8111-111111111111   # a discussion of t1
+TE=22222222-2222-4222-8222-222222222222   # another discussion of t1
+TM=33333333-3333-4333-8333-333333333333   # a DM topic of t1
+TX=44444444-4444-4444-8444-444444444444   # a discussion of t2 only
+mkdir -p "$A/inbox" "$SEAT/spool/.hub" "$SEAT/keys" "$T_TMP/cloud/dev/bin" "$FLEET/$ID/lifetime"
+mkdir -p "$SEAT2/spool/.hub" "$SEAT2/keys"
+
+env SPOOL_HUB_URL=https://hub.example.test SPOOL_TENANT=t1 SPOOL_BOX_ID=box-desk sleep 300 &
+SIDECAR=$!
+env SPOOL_HUB_URL=https://hub.example.test SPOOL_TENANT=t2 SPOOL_BOX_ID=box-desk sleep 300 &
+SIDECAR2=$!
+echo "$SIDECAR" >"$SEAT/spool/.hub/hub-run.pid"
+echo "$SIDECAR2" >"$SEAT2/spool/.hub/hub-run.pid"
+trap 'kill $SIDECAR $SIDECAR2 2>/dev/null; t_cleanup' EXIT
+
+# The spool stub: send records its argv; hub-tail prints <tails>/<tenant>/<task>.
+SENDS="$T_TMP/sends"; TAILS="$T_TMP/tails"; mkdir -p "$SENDS" "$TAILS/t1" "$TAILS/t2"
+cat >"$T_TMP/cloud/dev/bin/spool" <<STUB
+#!/usr/bin/env bash
+case "\$1" in
+  hub-tail)
+    prev=""; for a in "\$@"; do [ "\$prev" = --task ] && task="\$a"; prev="\$a"; done
+    [ -f "$TAILS/\$SPOOL_TENANT/\$task" ] && cat "$TAILS/\$SPOOL_TENANT/\$task"
+    exit 0 ;;
+  send)
+    n=\$(ls "$SENDS" | wc -l)
+    { printf '%s\n' "\$@"; echo "TENANT=\$SPOOL_TENANT"; } >"$SENDS/\$n"
+    printf '{"msg_id":"m-%s"}\n' "\$n" ;;
+esac
+STUB
+chmod +x "$T_TMP/cloud/dev/bin/spool"
+
+# A row of the hub's --with-channel NDJSON.
+row() {  # TENANT TASK CHANNEL FROM TS BODY
+  python3 -c 'import json,sys; print(json.dumps(dict(zip(("channel","from","ts","body"), sys.argv[3:]), task_id=sys.argv[2])))' "$@" >>"$TAILS/$1/$2"
+}
+HUMAN_TS=2026-01-01T00:00:00Z
+row t1 "$TD" spool-hub-bugs HUM-9 "$HUMAN_TS" "the opening card"
+row t1 "$TE" spool-hub-bugs HUM-9 "$HUMAN_TS" "another card"
+row t1 "$TM" "" HUM-9 "$HUMAN_TS" "a dm"
+row t2 "$TX" customer-channel HUM-5 "$HUMAN_TS" "a card of the other workspace"
+
+CNF="$T_TMP/cnf"; mkdir -p "$CNF"
+export SPOOL_DISCUSSION_MIRROR_CNF="$CNF" SPOOL_ROOT="$FLEET"
+export SPOOL_MIRROR_SEATS="$T_TMP/cloud/*/desk/*/*"
+switch() {  # true|false|absent [MAX_PER_HOUR]
+  case "$1" in
+    absent) printf 'env:\n  box: {}\n' >"$CNF/all.env.yaml" ;;
+    *) printf 'env:\n  box:\n    discussion_mirror:\n      enabled: false\n      max_posts_per_hour: %s\n' "${2:-12}" >"$CNF/all.env.yaml"
+       printf 'env:\n  box:\n    discussion_mirror:\n      enabled: %s\n' "$1" >"$CNF/dev.env.yaml" ;;
+  esac
+}
+reset() {  # wipe every record of the earlier case
+  rm -f "${SENDS:?}"/* "${FLEET:?}/$ID/lifetime/brief.md" "${FLEET:?}/$ID/mirror.log"
+  rm -rf "${A:?}/.mirror" "${A:?}/outbox" "${A2:?}"
+  N=$((${N:-0} + 1)); S="s$N"
+}
+post() {  # EVENT TEXT [ID]
+  printf '%s' "$2" | python3 "$MIRROR" post --agent "${3:-$ID}" --event "$1" --session "$S" >/dev/null 2>&1
+}
+nsends() { ls "$SENDS" | wc -l | tr -d ' '; }
+send_arg() {  # N FLAG -> the value after FLAG in send N
+  awk -v f="$2" 'p{print; exit} $0==f{p=1}' "$SENDS/$1"
+}
+send_body() {  # N -> everything between --body and the stub's TENANT line
+  awk '$0=="--body"{p=1; next} /^TENANT=/{p=0} p' "$SENDS/$1"
+}
+brief() { printf '# Lane brief\n\nDiscussion: https://hub.example.test/t/%s\n' "$1" >"$FLEET/$ID/lifetime/brief.md"; }
+trig() {  # KIND FROM TASK LINE [AGENT_DIR]
+  local d="${5:-$A}/.mirror/trigger"; mkdir -p "$d"
+  python3 -c 'import json,sys; print(json.dumps(dict(zip(("kind","from","task","msg","line"), sys.argv[1:]))))' \
+    "$1" "$2" "$3" "m-$RANDOM" "$4" >"$d/$(date +%s%N)-$RANDOM"
+}
+NOTIFICATION='<task-notification><task-id>x</task-id><status>completed</status><summary>Background command finished</summary></task-notification>'
+FINDINGS='Findings: the book build broke on my change, and three unit tests fail in the deploy suite. Fix committed as abc1234.'
+turn_notification() { post prompt "$NOTIFICATION"; post answer "${1:-$FINDINGS}"; }
+
+# --- R1 the bug ---------------------------------------------------------------
+switch true; reset; brief "$TD"
+turn_notification
+eq "R1. a task-notification turn's findings reach the discussion" 1 "$(nsends)"
+eq "R1. ... in the lane's discussion" "$TD" "$(send_arg 0 --task)"
+eq "R1. ... the final text is the body" "$FINDINGS" "$(send_body 0)"
+has "R1. ... and the log says it" "discussion: OK" "$(tail -1 "$A/.mirror/mirror.log")"
+
+# --- C10 the no-loop form -----------------------------------------------------
+eq "C10. addressed to no person" ALL-0 "$(send_arg 0 --to)"
+eq "C10. sent to the web UI's box, so no seat is poked" box-wui "$(send_arg 0 --to-box)"
+if grep -qx -- '--channel' "$SENDS/0"; then nok "C10. --channel would fan out to every seat"; else ok "C10. no --channel"; fi
+
+# --- C1 the switch ------------------------------------------------------------
+switch false; reset; brief "$TD"; turn_notification
+eq "C1. switch false: nothing" 0 "$(nsends)"
+rm -f "${CNF:?}/dev.env.yaml"; switch absent; reset; brief "$TD"; turn_notification
+eq "C1. key missing: nothing" 0 "$(nsends)"
+printf ': : not yaml [\n' >"$CNF/all.env.yaml"; reset; brief "$TD"; turn_notification
+eq "C1. a file that does not parse: nothing" 0 "$(nsends)"
+eq "C1. the repo's default stays false" "False" \
+  "$(python3 -c 'import yaml,sys; print(yaml.safe_load(open(sys.argv[1]))["env"]["box"]["discussion_mirror"]["enabled"])' "$T_REPO/csi-spl-cnf/csi-spl/all.env.yaml")"
+switch true
+
+# --- C2 never posted ----------------------------------------------------------
+reset; brief "$TD"; post prompt "$NOTIFICATION"
+eq "C2. task-notification text as a prompt: nothing" 0 "$(nsends)"
+post prompt ": 'SPOOL c-001 note: a poke line'"
+eq "C2. a poke line as a prompt: nothing" 0 "$(nsends)"
+post prompt "the seed: read your brief"
+eq "C2. a typed prompt: nothing" 0 "$(nsends)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; post answer "Still waiting for CI on the other lane."
+eq "C2. a status-only answer: nothing" 0 "$(nsends)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"
+post answer '{"v":3,"enc":true,"from":"HUM-9","kind":"note","task_id":"x","msg_id":"y","ct":"SEALED"}'
+eq "C2. a sealed envelope: nothing" 0 "$(nsends)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"
+post answer "$NOTIFICATION
+$FINDINGS"
+eq "C2. an injected block quoted in the answer is cut" "$FINDINGS" "$(send_body 0)"
+# End to end through the hook: tool events carry no post at all.
+reset; brief "$TD"
+export SPOOL_AGENT_ID=$ID SPOOL_MIRROR_POST="python3 $MIRROR" SPOOL_MIRROR_SYNC=1
+hook() { python3 "$MIRROR" hook "$@" >/dev/null 2>&1; }
+printf '{"hook_event_name":"PostToolUse","session_id":"%s","tool_name":"Bash","tool_response":{"stdout":"LOG LINE 123"}}' "$S" | hook
+printf '{"hook_event_name":"PreToolUse","session_id":"%s","tool_name":"Bash","tool_input":{"command":"ls"}}' "$S" | hook
+eq "C2. tool output through the hook: nothing" 0 "$(nsends)"
+
+# --- R2 every vendor ----------------------------------------------------------
+stop_payload() { python3 -c 'import json,sys; print(json.dumps({sys.argv[1]:"Stop",sys.argv[2]:sys.argv[3],sys.argv[4]:sys.argv[5]}))' "$@"; }
+reset; brief "$TD"
+stop_payload hook_event_name session_id "$S" last_assistant_message "$FINDINGS (claude and qwen shape)" | hook
+eq "R2. claude / qwen Stop payload posts" 1 "$(nsends)"
+reset; brief "$TD"
+stop_payload hookEventName sessionId "$S" lastAssistantMessage "$FINDINGS (grok shape)" | hook
+eq "R2. grok's camelCase Stop posts" 1 "$(nsends)"
+reset; brief "$TD"
+printf '{"hookEventName":"Stop","sessionId":"%s","reason":"session_end","lastAssistantMessage":"%s"}' "$S" "$FINDINGS" | hook
+eq "R2. grok's session-end Stop: nothing" 0 "$(nsends)"
+reset; brief "$TD"
+AGY="$T_TMP/agy.jsonl"
+python3 -c 'import json,sys
+for s in ({"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>go</USER_REQUEST>"},{"type":"TOOL","source":"MODEL","content":"TOOL OUTPUT"},{"type":"PLANNER_RESPONSE","source":"MODEL","content":sys.argv[1]}):
+    print(json.dumps(s))' "$FINDINGS (agy)" >"$AGY"
+printf '{"conversationId":"%s","transcriptPath":"%s"}' "$S" "$AGY" | hook --agy stop
+eq "R2. agy's Stop posts from its transcript" 1 "$(nsends)"
+if grep -q 'TOOL OUTPUT' "$SENDS/0"; then nok "R2. agy: a tool step leaked"; else ok "R2. agy: no tool step in the body"; fi
+reset; brief "$TD"
+VIBE="$T_TMP/vibe.jsonl"
+python3 -c 'import json,sys
+for s in ({"role":"user","content":"go"},{"role":"tool","content":"TOOL OUTPUT"},{"role":"assistant","content":sys.argv[1]}):
+    print(json.dumps(s))' "$FINDINGS (mistral)" >"$VIBE"
+printf '{"session_id":"%s","transcript_path":"%s"}' "$S" "$VIBE" | hook --vibe
+eq "R2. mistral's post_agent posts from its session" 1 "$(nsends)"
+if grep -q 'TOOL OUTPUT' "$SENDS/0"; then nok "R2. mistral: a tool message leaked"; else ok "R2. mistral: no tool message in the body"; fi
+unset SPOOL_AGENT_ID SPOOL_MIRROR_POST SPOOL_MIRROR_SYNC
+
+# --- C3 redaction -------------------------------------------------------------
+GH="ghp_$(printf 'a%.0s' {1..24})"
+reset; brief "$TD"; turn_notification "$FINDINGS The token was $GH and it is rotated."
+if grep -q "$GH" "$SENDS/0"; then nok "C3. a planted secret reached spool send"; else ok "C3. a planted secret is redacted"; fi
+has "C3. ... by the one redaction pass" "<redacted:github-token>" "$(send_body 0)"
+if grep -rq "$GH" "$A/.mirror"; then nok "C3. a planted secret reached the mirror's state"; else ok "C3. ... and the mirror's state holds no secret"; fi
+
+# --- C4 no discussion ---------------------------------------------------------
+reset; turn_notification
+eq "C4. no discussion: nothing" 0 "$(nsends)"
+eq "C4. ... and exactly one log line" 1 "$(grep -c 'discussion: nothing' "$A/.mirror/mirror.log")"
+if grep -qF "$FINDINGS" "$A/.mirror/mirror.log"; then nok "C4. the log holds the text"; else ok "C4. ... which holds no text"; fi
+reset; brief "$TD"; rm -rf "${A:?}"; turn_notification
+eq "C4. an unseated lane: nothing" 0 "$(nsends)"
+eq "C4. ... and one line in its fleet dir" 1 "$(grep -c 'discussion: nothing' "$FLEET/$ID/mirror.log")"
+mkdir -p "$A/inbox"
+# A relay id or a short hash on the brief is no discussion: full uuid only.
+reset; printf 'Discussion: https://hub.example.test/t/11111111\n' >"$FLEET/$ID/lifetime/brief.md"; turn_notification
+eq "C4. a brief with a short id: nothing" 0 "$(nsends)"
+
+# --- C5 two discussions -------------------------------------------------------
+reset
+trig channel HUM-9 "$TD" "line one"; post prompt "line one"; post answer "$FINDINGS one"
+eq "C5. a channel-started turn posts in its topic" "$TD" "$(send_arg 0 --task)"
+turn_notification "$FINDINGS two"
+eq "C5. one discussion seen: a notification turn lands there" "$TD" "$(send_arg 1 --task)"
+trig channel HUM-9 "$TE" "line two"; post prompt "line two"; post answer "$FINDINGS three"
+eq "C5. a channel post of the second discussion answers there" "$TE" "$(send_arg 2 --task)"
+n="$(nsends)"; turn_notification "$FINDINGS four"
+eq "C5. two discussions and no trigger: nothing (silence beats a wrong landing)" "$n" "$(nsends)"
+has "C5. ... and the log names it" "discussion: nothing" "$(tail -1 "$A/.mirror/mirror.log")"
+
+# --- C6 workspaces ------------------------------------------------------------
+reset; brief "$TX"; turn_notification
+eq "C6. a discussion of another workspace, seat t1 only: nothing" 0 "$(nsends)"
+reset; brief "$TD"; mkdir -p "$A2/inbox"; turn_notification
+eq "C6. two seats: the one that can read it posts, once" 1 "$(nsends)"
+has "C6. ... on its own workspace" "TENANT=t1" "$(cat "$SENDS/0")"
+# Each seat saw its own discussion: the text cannot choose between workspaces.
+reset; mkdir -p "$A2/inbox"
+trig channel HUM-9 "$TD" "line one"; post prompt "line one"; post answer "$FINDINGS a"
+trig channel HUM-5 "$TX" "line x" "$A2"; post prompt "line x"; post answer "$FINDINGS b"
+eq "C6. a channel post posts on its own seat only" "TENANT=t1 TENANT=t2" "$(tail -qn1 "$SENDS"/0 "$SENDS"/1 | tr '\n' ' ' | sed 's/ $//')"
+n="$(nsends)"; turn_notification "$FINDINGS c"
+eq "C6. seen on two seats, no trigger: nothing crosses" "$n" "$(nsends)"
+
+# --- C7 DMs -------------------------------------------------------------------
+reset; brief "$TM"; turn_notification
+eq "C7. a topic with no channel is never posted to" 0 "$(nsends)"
+has "C7. ... and the log says why" "not a channel discussion" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"
+trig dm HUM-9 "$TM" "a person's dm"; post prompt "a person's dm"; post answer "$FINDINGS to the dm"
+eq "C7. a DM-triggered turn sends one message" 1 "$(nsends)"
+eq "C7. ... into that DM, to that person" "$TM HUM-9" "$(send_arg 0 --task) $(send_arg 0 --to)"
+
+# --- C8 role seats ------------------------------------------------------------
+R=c-002; RA="$SEAT/spool/$R"; mkdir -p "$RA/inbox" "$FLEET/$R/lifetime"
+reset; printf 'Discussion: https://hub.example.test/t/%s\n' "$TD" >"$FLEET/$R/lifetime/brief.md"
+trig channel HUM-9 "$TD" "to the dispatcher" "$RA"
+post prompt "to the dispatcher" "$R"; post answer "$FINDINGS" "$R"
+eq "C8. a role seat never posts, even on its own channel post" 0 "$(nsends)"
+rm -rf "${RA:?}"
+
+# --- C9 nothing twice ---------------------------------------------------------
+reset; brief "$TD"
+post prompt "$NOTIFICATION"
+cp "$TAILS/t1/$TD" "$T_TMP/td.keep"
+row t1 "$TD" spool-hub-bugs "$ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "its own words, not the final text"
+post answer "$FINDINGS"
+eq "C9. the agent's own row since the turn began: nothing" 0 "$(nsends)"
+cp "$T_TMP/td.keep" "$TAILS/t1/$TD"
+reset; brief "$TD"; post prompt "$NOTIFICATION"
+mkdir -p "$A/outbox"; printf '{"task_id":"%s","from":"%s","body":"queued, not flushed"}\n' "$TD" "$ID" >"$A/outbox/20260101T000000Z--x.json"
+post answer "$FINDINGS"
+eq "C9. a send in the seat's outbox since the turn began: nothing" 0 "$(nsends)"
+# CONTROL: the same row BEFORE the turn does not count.
+reset; brief "$TD"
+row t1 "$TD" spool-hub-bugs "$ID" 2026-01-02T00:00:00Z "an older post"
+turn_notification
+eq "C9. CONTROL: the agent's older row does not stop this turn" 1 "$(nsends)"
+cp "$T_TMP/td.keep" "$TAILS/t1/$TD"
+reset; brief "$TD"
+row t1 "$TD" spool-hub-bugs "$ID" 2026-01-02T00:00:00Z "$FINDINGS"
+turn_notification
+eq "C9. the same text is already in the topic: nothing" 0 "$(nsends)"
+cp "$T_TMP/td.keep" "$TAILS/t1/$TD"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; post answer "$FINDINGS"; post answer "$FINDINGS"
+eq "C9. two hooks for one answer: one post" 1 "$(nsends)"
+
+# --- C11 the rate cap ---------------------------------------------------------
+switch true 2; reset; brief "$TD"
+for i in 1 2 3 4; do turn_notification "$FINDINGS number $i"; done
+eq "C11. the cap holds" 2 "$(nsends)"
+eq "C11. ... and logs each skip" 2 "$(grep -c 'discussion: rate cap' "$A/.mirror/mirror.log")"
+python3 -c 'import json,sys,time
+p=sys.argv[1]; d=json.load(open(p)); d["posts"]=[time.time()-3700 for _ in d["posts"]]; json.dump(d,open(p,"w"))' "$A/.mirror/discussion-rate"
+turn_notification "$FINDINGS number 5"
+eq "C11. the hour passes: it posts again" 3 "$(nsends)"
+has "C11. ... and says what it skipped" "2 turns" "$(send_body 2)"
+switch true
+
+t_done

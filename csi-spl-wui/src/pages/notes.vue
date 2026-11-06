@@ -1,7 +1,7 @@
 <!-- Spec 155 2.6 (SPL-2403, B5 SPL-4123): the Notes section, the person's
      own list (the realm, 2.2: the same list in every workspace). The sidebar
      keeps the icon rail only (ChannelSidebar notesRailOnly); this page is the
-     list: New note, the filter box, the Archived switch, the Pinned group,
+     list: the + (New note), the filter box, the Archived switch, the Pinned group,
      then the rest. A row is one line, the title alone (owner, t1 2a0b4d9e,
      SPL-4651) with its priority beside it (spec 155 2.9, SPL-4652; hidden on a
      phone, SPL-4893), and is /notes?note=<id>; B6 (SPL-4186) opens it:
@@ -18,16 +18,30 @@
         <UiIcon name="notes" :size="18" />
         <span>{{ t('notes.title') }}</span>
       </h2>
+      <!-- owner t1 2f4311d9 (msg b182efa5): "Use the standard plus button" - the
+           round + of Issues (issues-fab), Docs and Calendar; there is no shared
+           component, each page draws it. On a phone it floats 16 px
+           above the composer dock, right edge on the send button's (msg
+           7c54e6f7: "5 mm over the play / go button"), and hides under an open note -->
+      <button
+        v-if="store.state !== 'off'"
+        v-show="!(phone && openId)"
+        type="button"
+        class="notes-fab"
+        data-test="notes-new"
+        :disabled="creating"
+        :aria-label="t('notes.new')"
+        :title="t('notes.new')"
+        @click="newNote"
+      >
+        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+      </button>
       <SectionClose side="end" />
     </header>
     <div class="feed-body notes-body">
       <p v-if="store.state === 'off'" class="muted" data-test="notes-off">{{ t('notes.off') }}</p>
       <template v-else>
         <div class="notes-bar">
-          <button type="button" class="btn notes-bar__new" data-test="notes-new" :disabled="creating" @click="newNote">
-            <UiIcon name="plus" :size="16" />
-            <span>{{ t('notes.new') }}</span>
-          </button>
           <input
             v-model="query"
             type="search"
@@ -247,7 +261,35 @@ onUnmounted(() => {
 <style scoped>
 .notes-title { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
 .notes-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 0.75rem; }
-.notes-bar__new { display: inline-flex; align-items: center; gap: 6px; }
+/* the issues page's + (issues.vue .issues-fab, SPL-978), same size and look */
+.notes-fab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.notes-fab:hover {
+  background: var(--color-accent-pressed);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22);
+}
+.notes-fab:active { transform: scale(0.96); }
+.notes-fab:disabled { opacity: 0.6; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  .notes-fab { transition: none; }
+  .notes-fab:active { transform: none; }
+}
 .notes-bar__filter {
   flex: 1 1 12rem;
   min-width: 0;
@@ -299,6 +341,20 @@ onUnmounted(() => {
 }
 @media (max-width: 820px) {
   .notes-bar .btn, .notes-bar__filter, .notes-row__open { min-height: var(--tap, 44px); }
+  /* the phone +: over the composer dock, the send button's right edge */
+  .notes-fab {
+    position: fixed;
+    /* px, as issues-fab: the send button sits 16 px from the edge at every
+       root font size, and --spacing-md is 1rem (18 px on a phone) */
+    inset-inline-end: 16px;
+    bottom: calc(16px + max(var(--composer-dock-h, 0px), env(safe-area-inset-bottom, 0px)));
+    z-index: 15;
+    width: 56px;
+    height: 56px;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
+  }
+  /* the last row scrolls clear of the + */
+  .notes-body { padding-bottom: calc(56px + 32px); }
   /* owner t1 2f4311d9 (msg 65341de0, poll 1de5c599 PH): no P1..P5 on a phone */
   .notes-row__prio { display: none; }
 }

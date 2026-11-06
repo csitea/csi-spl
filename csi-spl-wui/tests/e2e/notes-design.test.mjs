@@ -12,6 +12,8 @@
 //   title row, long title: the chooser wraps to the next row, still right-aligned
 //   list: 1440 px the chip is right after the title (8 px), not at the far
 //     edge; 390 px the chip is not drawn
+//   plus: New note is the round +; 390 px it is 16..24 px above the composer's
+//     go button on its right edge, and hidden while a note is open
 // CONTROL: with the head row's flex-wrap / margin-inline-start: auto off, or
 // the list title back to flex: 1 1 auto, the checks of titleRow() and
 // listChip() FAIL.
@@ -125,6 +127,39 @@ async function listChip(browser, base, width, touch) {
   await p.close()
 }
 
+/* owner t1 2f4311d9 (msgs b182efa5, 7c54e6f7): New note is the standard round
+   +; on a phone it sits over the composer's go button, about 5 mm
+   (16 px over the dock, ~21 px to the button) above it, on the same right edge, and it is gone
+   while a note is open */
+async function plusButton(browser, base, width, touch) {
+  const tag = `${width}px plus`
+  const p = await openPage(browser, base, width, touch)
+  const shape = await p.evaluate(() => {
+    const r = (e) => e && e.getBoundingClientRect()
+    const fab = document.querySelector('[data-test=notes-new]')
+    const go = [...document.querySelectorAll('.composer-go')].find((e) => e.getClientRects().length > 0)
+    const f = r(fab), g = r(go)
+    return {
+      round: !!fab && getComputedStyle(fab).borderRadius === '50%' && Math.round(f.width) === Math.round(f.height),
+      icon: !!fab?.querySelector('svg') && !fab.textContent.trim(),
+      label: fab?.getAttribute('aria-label') || '',
+      gap: go ? Math.round(g.top - f.bottom) : null,
+      rightDiff: go ? Math.round(Math.abs(g.right - f.right)) : null,
+    }
+  })
+  check(`${tag}: New note is the round + with a label, no text`, shape.round && shape.icon && shape.label.length > 0, shape)
+  if (touch) {
+    check(`${tag}: it sits 16..24 px above the go button`, shape.gap !== null && shape.gap >= 16 && shape.gap <= 24, shape)
+    check(`${tag}: on the go button's right edge`, shape.rightDiff !== null && shape.rightDiff <= 1, shape)
+    await p.click('[data-note-id="mock-note-2"] [data-test=notes-open]')
+    await waitDetail(p, 'mock-note-2')
+    const hidden = await p.$eval('[data-test=notes-new]', (e) => e.getClientRects().length === 0)
+    check(`${tag}: no + while a note is open`, hidden)
+  }
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-plus-${width}.png` })
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -132,6 +167,7 @@ try {
   for (const [w, touch] of [[1440, false], [390, true]]) {
     await listChip(browser, server.base, w, touch)
     await titleRow(browser, server.base, w, touch)
+    await plusButton(browser, server.base, w, touch)
   }
 } catch (e) {
   console.error(e)

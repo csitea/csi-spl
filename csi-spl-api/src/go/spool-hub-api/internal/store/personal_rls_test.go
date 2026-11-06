@@ -274,7 +274,8 @@ func personRows(ctx context.Context, q interface {
 // realmSeedPG seeds P and Q with a row in every personal table: profile and
 // limits through the runtime store, a receipt and a receipt_due row as the
 // migrate login in the person's own scope, a note with its checklist line
-// and link (spec 155 B2), and a contact (spec 154 B1).
+// and link (spec 155 B2), and a contact (spec 154 B1) with its picture
+// (spec 154 v1.3 B13).
 func realmSeedPG(t *testing.T) (pg, rt *Postgres, p, q string) {
 	t.Helper()
 	f, pg, rt := pgRealmFix(t)
@@ -300,7 +301,11 @@ func realmSeedPG(t *testing.T) (pg, rt *Postgres, p, q string) {
 				return err
 			}
 			// spec 154 B1 (rdb 0226): one contact, raw, until B2's store.
-			_, err := tx.Exec(ctx, `INSERT INTO personal.contacts (person_id, first_name, last_name) VALUES ($1, 'FirstName', 'LastName')`, who)
+			if _, err := tx.Exec(ctx, `INSERT INTO personal.contacts (person_id, first_name, last_name) VALUES ($1, 'FirstName', 'LastName')`, who); err != nil {
+				return err
+			}
+			// spec 154 v1.3 B13 (rdb 0265): its picture, raw, until B14's store.
+			_, err := tx.Exec(ctx, seedContactPhotoSQL, who)
 			return err
 		})
 		if err != nil {

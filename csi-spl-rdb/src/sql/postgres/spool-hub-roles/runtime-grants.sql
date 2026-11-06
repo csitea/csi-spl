@@ -57,6 +57,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON personal.notes, personal.note_items, per
 -- spool_realm_contacts_purger, of which the runtime login is no member.
 GRANT SELECT, INSERT, UPDATE, DELETE ON personal.contacts TO :"runtime_role";
 GRANT EXECUTE ON FUNCTION personal.purge_deleted_contacts(timestamptz) TO :"runtime_role";
+-- spec 154 v1.3 (rdb 0265): a contact's picture, the person's own to read,
+-- replace and delete; the purge door's DELETE of a contact cascades to it.
+GRANT SELECT, INSERT, UPDATE, DELETE ON personal.contact_photos TO :"runtime_role";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role";

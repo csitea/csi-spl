@@ -16,10 +16,11 @@
 // archive, delete; and the order (Alt+Down) and the checklist on a desktop.
 //
 // Row B7 (SPL-4330), the links, at 1440 px and at 390 px: a url link opens in
-// a new tab with rel="noopener noreferrer" (C25, as served); a pasted
-// topic:<uuid> and SPL-12 become a topic and an issue link of this workspace
-// that open in this tab (C23); "hello" is "Not a link"; a remove takes one
-// link off and the list row's count follows.
+// a new tab with rel="noopener noreferrer" (C25, as served); a remove takes
+// one link off and the list row's count follows. SPL-4893 (owner t1 ba784026,
+// msg a9f94922): the stored links are a compact list with no heading and no
+// paste box (a link typed in the text is linked there, notes-design.test.mjs
+// editor()); a note with no links shows no links section.
 //
 // Row B9 (SPL-4579), C29: `/note Plan` typed in the Omnibox over an open
 // issue (390 px, the dock under the issue) makes a note "Plan" whose one link
@@ -160,15 +161,8 @@ const linkRows = (p) => p.$$eval('[data-test=note-link]', (els) => els.map((e) =
   const a = e.querySelector('[data-test=note-link-open]')
   return { kind: e.dataset.kind, href: a?.getAttribute('href') || '', target: a?.getAttribute('target') || '', rel: a?.getAttribute('rel') || '', text: (a || e).textContent.trim() }
 }))
-const TOPIC = '0b7f2c3e-1d2a-4b5c-8d9e-0f1a2b3c4d5e'
-async function paste(p, text) {
-  await p.$eval('[data-test=note-link-new]', (e) => { e.focus(); e.select() })
-  await p.type('[data-test=note-link-new]', text)
-  await p.click('[data-test=note-link-add]')
-  await sleep(400)
-}
 
-/* B7: the links of mock-note-1 (3 url links), add, refuse, remove */
+/* B7: the links of mock-note-1 (3 url links), compact, remove */
 async function links(browser, base, width, touch) {
   const tag = `${width}px B7`
   const p = await openPage(browser, base, width, touch)
@@ -177,16 +171,8 @@ async function links(browser, base, width, touch) {
   const first = await linkRows(p)
   check(`${tag}: the note shows its 3 links`, first.length === 3, first.length)
   check(`${tag} C25: a url link opens in a new tab, rel="noopener noreferrer"`, first[0]?.kind === 'url' && first[0].href === 'https://example.com/1' && first[0].target === '_blank' && first[0].rel === 'noopener noreferrer', first[0])
-  await paste(p, 'hello')
-  const err = await p.$eval('[data-test=note-link-error]', (e) => e.textContent.trim()).catch(() => '')
-  check(`${tag} C23: "hello" is refused as Not a link`, err === 'Not a link' && (await linkRows(p)).length === 3, err)
-  await paste(p, `topic:${TOPIC}`)
-  const topic = (await linkRows(p))[3]
-  check(`${tag} C23: topic:<uuid> becomes a topic link that opens /t/<uuid> in this tab`, topic?.kind === 'topic' && topic.href.endsWith(`/t/${TOPIC}`) && !topic.target, topic)
-  check(`${tag}: the error went with the good paste`, !(await p.$('[data-test=note-link-error]')))
-  await paste(p, 'SPL-12')
-  const issue = (await linkRows(p))[4]
-  check(`${tag} C23: SPL-12 becomes an issue link`, issue?.kind === 'issue' && issue.href.endsWith('/issues?issue=SPL-12') && issue.text === 'SPL-12', issue)
+  const compact = await p.$eval('[data-test=note-links]', (e) => ({ head: !!e.querySelector('h3'), paste: !!e.querySelector('[data-test=note-link-new], form') }))
+  check(`${tag} SPL-4893: the links are a compact list, no heading, no paste box`, !compact.head && !compact.paste, compact)
   if (touch) {
     const tap = await p.$eval('[data-test=note-link-remove]', (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] })
     check(`${tag}: the remove x is a 44 px tap target`, tap[0] >= 44 && tap[1] >= 44, tap)
@@ -196,15 +182,21 @@ async function links(browser, base, width, touch) {
   await p.click('[data-test=note-link]:first-child [data-test=note-link-remove]')
   await sleep(400)
   const left = await linkRows(p)
-  check(`${tag}: remove takes that one link off`, left.length === 4 && left[0].href === 'https://example.com/2', left.map((l) => l.href))
+  check(`${tag}: remove takes that one link off`, left.length === 2 && left[0].href === 'https://example.com/2', left.map((l) => l.href))
   if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
   else await p.keyboard.press('Escape')
   await waitGone(p)
   const counted = await summary(p, 'mock-note-1')
-  check(`${tag}: the list counts 4 links`, counted.link_count === 4, counted)
+  check(`${tag}: the list counts 2 links`, counted.link_count === 2, counted)
   await clickRow(p, 'mock-note-1')
   await waitDetail(p, 'mock-note-1')
-  check(`${tag}: reopened, the note keeps the 4 links`, (await linkRows(p)).length === 4)
+  check(`${tag}: reopened, the note keeps the 2 links`, (await linkRows(p)).length === 2)
+  if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
+  else await p.keyboard.press('Escape')
+  await waitGone(p)
+  await clickRow(p, 'mock-note-3')
+  await waitDetail(p, 'mock-note-3')
+  check(`${tag} SPL-4893: a note with no links shows no links section`, !(await p.$('[data-test=note-links]')))
   await p.close()
 }
 

@@ -18,6 +18,8 @@
 //     rows; Bold / Underline / Numbered / Bullets write **, ++, "1. ", "- "
 //     into the plain text (no HTML); View draws them (strong, u, ol, ul) and
 //     Wiki code shows the raw text again
+//   links (msg a9f94922): an address typed in the text is a link in View
+//     (the discussions' renderer)
 // CONTROL: with the head row's flex-wrap / margin-inline-start: auto off, or
 // the list title back to flex: 1 1 auto, the checks of titleRow() and
 // listChip() FAIL; with the box back at rows 8, editor() FAILS.
@@ -205,6 +207,12 @@ async function editor(browser, base, width, touch) {
   check(`${tag}: View draws bold, underline, numbers and bullets`, view.b === 'B' && view.u === 'U' && view.ol === 2 && view.ul === 2, view)
   await p.click('[data-test=note-ed-mode]')
   check(`${tag}: Wiki code shows the raw text`, (await val()).startsWith('**B** ++U++'))
+  await set('see https://example.com/z', 0, 0)
+  await p.click('[data-test=note-ed-mode]')
+  await p.waitForSelector('[data-test=note-body-view]', { visible: true, timeout: NAV })
+  const a = await p.waitForSelector('[data-test=note-body-view] a[href="https://example.com/z"]', { timeout: NAV }).then((e) => e.evaluate((x) => x.getAttribute('target')), () => null)
+  check(`${tag}: an address typed in the text is a link in View, new tab`, a === '_blank', a)
+  await p.click('[data-test=note-ed-mode]')
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-editor-${width}.png` })
   await p.close()
 }

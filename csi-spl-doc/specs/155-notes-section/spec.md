@@ -162,7 +162,8 @@ Three ways to add a link:
    person's notes, most recently changed first, a filter box, and "New
    note" on top. One click adds the link and shows a toast "Added to
    <title>" with Open. Default D3.
-2. **Paste into a note's link box**: a typed ref (`msg:<uuid>`,
+2. **Paste into a note's link box** (the WUI box is gone since SPL-4893;
+   the parser and the hub's `POST .../links` stay): a typed ref (`msg:<uuid>`,
    `topic:<uuid>`, rule 11), an issue key of the current workspace
    (`SPL-12`), or a Spool address on a workspace host the WUI knows
    (`/t/<uuid>`, `/m/<id>`, `/issues?issue=<KEY>`,
@@ -236,7 +237,10 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
   bookmark work. Inside: the title, the text (plain text with the same
   link rendering as a message; see **Editor** below), the checklist (tick, add, edit, delete,
   drag), the links (label, kind icon, the workspace's name when it is not
-  the current one, a remove ×), and the actions Pin, Archive, Delete.
+  the current one, a remove ×; SPL-4893, owner t1 ba784026 msg a9f94922: a
+  compact list under the text with no heading and no paste box, shown only
+  when the note has links; an address typed in the text is linked by View),
+  and the actions Pin, Archive, Delete.
 - **Editor** (owner HUM-10, t1 ba784026, msgs de86531f, e6a8148b; poll
   2fefe460 UP; SPL-4893): the text box is 6 rows, so the checklist starts
   two rows higher. A toolbar over it writes wiki marks into the plain-text

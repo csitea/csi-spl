@@ -50,12 +50,11 @@ or the phone's Back) takes you back to the list.
 - **Checklist**: tick a line, edit its text, remove it with the **x**, or add
   one with **Add a line**. Move a line with **Alt+Up** / **Alt+Down**, or drag
   it by its handle on a wide screen.
-- **Links**: paste into the link box and press **Add link**. It takes
-  `msg:<id>` or `topic:<id>`, an issue key of this workspace such as
-  `SPL-12`, the address of a Spool page (a topic, a message, an issue, a
-  calendar entry, a doc or a channel) or any other `https://` address. Any
-  other text is refused with **Not a link**. A link to a Spool page opens on
-  its own workspace's address, where that page decides what you may see; the
+- **Links**: a web address or a Spool address typed in the text is a link
+  when you press **View**, the same way as in a discussion. Links added with
+  **Add to note** show as a short list under the text, with no heading; a
+  note with none shows no list. A link to a Spool page opens on its own
+  workspace's address, where that page decides what you may see; the
   workspace's name shows beside a link into another of your workspaces. A web
   address opens in a new tab. The **x** removes a link. A link into a
   workspace you have left shows **Link to a workspace you left** and opens

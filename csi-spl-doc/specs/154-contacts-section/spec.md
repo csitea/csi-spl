@@ -1055,6 +1055,8 @@ dispatch holder).
 | 2026-11-05 | c-150 (editor claude) | N7-N9 folded (SPL-4896): `auth/handler.go:911` cited beside `:873`; `deleted_here` covers either `deleted_by`; a cleared birthday is not cleared at Google (accepted, no marker). Not signed |
 | 2026-11-05 | c-157 (seat claude) | PASS on `8fd704c35` (msg `fd04db1f`): N7-N9 checked, 0 W 0 N |
 | 2026-11-06 | c-150 (editor claude) | O6 answered A by the owner (msg `80cc6508`, poll `04beacf9`, relayed by c-002@sat msg `59cd7736`, landed v1.3 at `4e3f7c744`): sections 2.1, 6, 9, 11.3 and 11.8 record the answer; no other change (follow-up on the holder c-003@sat go, msg `afb59c95`) |
+| 2026-11-06 | c-444 (B13 builder claude) | 11.3 `birthday` CHECK corrected (SPL-4909, dispatch holder c-002@sat msg `61c86a6c`): the old `'^([0-9]{4}\|--)-[0-9]{2}-[0-9]{2}$'` refused `--MM-DD` and took `---MM-DD`; measured on postgres:16-alpine (hub-pg.tst.sh, n=1): `--01-31` -> 23514 `contacts_birthday_check`. Now `'^([0-9]{4}-\|--)[0-9]{2}-[0-9]{2}$'`, as rdb 0265 ships it; no other change |
+| 2026-11-06 | c-444 (B13 builder claude) | 11.4 FK now `(person_id, contact_id)`, with `UNIQUE (person_id, contact_id)` on `personal.contacts` (SPL-4909, R7 reviewer c-255@sat W1, msg `7b1ef4be`): FK checks skip row policies, so on `contact_id` alone P1 could stamp a picture on P2's contact and block P2's own; the form of `0225_personal_notes.sql`. C29 gains that case. B13 and C28 name the head as built, 0265 after 0264; no other change |
 
 ## 11. v1.3: import from a CSV file and from Google, with pictures and the main attributes
 
@@ -1214,7 +1216,7 @@ other email and phone at Google, so nothing is lost there either way.
 |---|---|---|---|
 | `company` | text NOT NULL DEFAULT '' , <= 200 | the primary `organizations[].name` (else the first) | `Organization Name` / `Organization 1 - Name`, or `company` |
 | `job_title` | text NOT NULL DEFAULT '' , <= 200 | the same organization's `title` | `Organization Title` / `Organization 1 - Title`, or `job_title` |
-| `birthday` | text NULL, CHECK `'^([0-9]{4}|--)-[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year; a birthday with only the deprecated free-form `text` and no `date` stores NULL (no guessing at a free-form date), and the Out half never sends `birthdays` while Spool's value is NULL, so Google's text is kept. B8 stores no marker for it, so clearing a birthday in Spool does not clear it at Google either (accepted: a cleared birthday is rare, and a marker column would cost more than it saves) | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
+| `birthday` | text NULL, CHECK `'^([0-9]{4}-\|--)[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year; a birthday with only the deprecated free-form `text` and no `date` stores NULL (no guessing at a free-form date), and the Out half never sends `birthdays` while Spool's value is NULL, so Google's text is kept. B8 stores no marker for it, so clearing a birthday in Spool does not clear it at Google either (accepted: a cleared birthday is rare, and a marker column would cost more than it saves) | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
 | `notes` | text NOT NULL DEFAULT '' , <= 8000 | `biographies[].value` (`contentType` `TEXT_PLAIN`; `TEXT_HTML` is stored as text with the tags removed) | `Notes`, or `notes` |
 | `in_only` | boolean NOT NULL DEFAULT false | true when a Google value was over a cap and stored cut | always false |
 
@@ -1252,14 +1254,15 @@ other email and phone at Google, so nothing is lost there either way.
 CREATE TABLE IF NOT EXISTS personal.contact_photos (
     person_id   text        NOT NULL REFERENCES public.humans (human_id) ON DELETE CASCADE
                             CHECK (person_id ~ '^HUM-[0-9]+$'),
-    contact_id  uuid        NOT NULL PRIMARY KEY
-                            REFERENCES personal.contacts (contact_id) ON DELETE CASCADE,
+    contact_id  uuid        NOT NULL PRIMARY KEY,
     mime        text        NOT NULL CHECK (mime IN ('image/png', 'image/jpeg', 'image/webp')),
     bytes       bytea       NOT NULL CHECK (octet_length(bytes) BETWEEN 1 AND 65536),
     sha256      text        NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
     source_url_hash text    NOT NULL CHECK (source_url_hash ~ '^[0-9a-f]{64}$'),
-    fetched_at  timestamptz NOT NULL DEFAULT now()
+    fetched_at  timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (person_id, contact_id) REFERENCES personal.contacts (person_id, contact_id) ON DELETE CASCADE
 );
+-- personal.contacts gains UNIQUE (person_id, contact_id), the FK's target.
 -- ENABLE + FORCE, the one policy person_scope (the exact text of 0168:142-148),
 -- the runtime grant by name in roles/runtime-grants.sql, no operator_scope.
 ```
@@ -1398,7 +1401,7 @@ kind (claude, grok; never qwen or agy), fixtures `FirstName LastName` and
 
 | row | area | files (only these) | after | cases | test |
 |---|---|---|---|---|---|
-| B13 data | rdb, api | new `rdb/0264_contacts_import.sql` (the five columns of 11.3, `personal.contact_photos` of 11.4, its policy; the number re-checked at build time); `roles/runtime-grants.sql` (the new table's grant by name); `store/personal_catalogue_test.go` (the table, policy and grant lists); `store/personal_rls_test.go` (one raw seed row per person); `store/contacts_rls_test.go` (C28-C30, C38) | B1 | C28-C30, C38 | `go test ./internal/store/ -run 'TestRLS'` on Postgres; full tier |
+| B13 data | rdb, api | new `rdb/0265_contacts_import.sql` (the five columns of 11.3, `personal.contact_photos` of 11.4, its policy; the number re-checked at build time); `roles/runtime-grants.sql` (the new table's grant by name); `store/personal_catalogue_test.go` (the table, policy and grant lists); `store/personal_rls_test.go` (one raw seed row per person); `store/contacts_rls_test.go` (C28-C30, C38) | B1 | C28-C30, C38 | `go test ./internal/store/ -run 'TestRLS'` on Postgres; full tier |
 | B14 store | api | `store/personal_contacts.go`, `_memory.go`, `_postgres.go`, `_test.go` (the five fields; `ImportContacts(ctx, person, rows)` in one `inPerson` transaction with the seed's match rule, under `pg_advisory_xact_lock(hashtext('contacts-import:' \|\| person))` as the seed locks (`spl-contacts-seed.func.sh:153`), so two tabs or an import beside the sync add a row once; `PutContactPhoto`, `ContactPhoto`, `DeleteContactPhoto`, `CountContactPhotos` under `inPerson`); `store/personal_scope_test.go` (`personCallers`) | B13 | C31-C33, C33b, C37b, C39 | the store test files, memory and Postgres; `-run TestPersonScopeCallers`; full tier |
 | B15 CSV import and fields | api, cnf | `hub/contacts.go` (the five fields, the export header, `photo` sha in the answers, `GET /v1/me/contacts/{id}/photo`, two route lines each for import and photo: the method and its `OPTIONS ... gcalPreflight`, as `hub/contacts.go:519-533`; a `text/csv` body is not a CORS-safelisted type, so the browser sends the preflight); new `hub/contacts_import.go` + `_test.go` (11.2.1: the two formats, the dry run, the caps, the skip codes); new `hub/testdata/contacts-google-export.csv` (a synthetic test account's real Google export header, `FirstName LastName` rows); `cnf/all.env.yaml` `contacts.photo_max_per_person: 2000`, `contacts.photo_hosts: []` and its tpl-gen output; `api/internal/config/config.go` | B14 | C34-C37, C40, C12 | `hub/contacts_import_test.go`; api tests; `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` |
 | B8 (amended) | api | as row B8, plus: the 11.3 mapping, `in_only`, the eight-value `sync_hash`, the wider `personFields` and `updatePersonFields`; `api/internal/gcal/fakegcal/people.go` gains the four fields and `photos` | B3, B7, B8a, B14, B15 (both edit `api/internal/config/config.go` and `cnf/all.env.yaml`) | as B8, plus C41-C43 | as B8 |
@@ -1414,7 +1417,7 @@ Every case is planned and red on `db36843f4` unless marked (C).
 
 | # | row | case | master today | expected | red control |
 |---|---|---|---|---|---|
-| C28 | B13 | the migration applies after `0263` | columns and table absent | the five columns, `personal.contact_photos` with `person_scope` | `\d personal.contact_photos` errors today |
+| C28 | B13 | the migration applies after `0264` | columns and table absent | the five columns, `personal.contact_photos` with `person_scope` | `\d personal.contact_photos` errors today |
 | C29 | B13 | P2's picture read under P1's `app.person_id`, under P2's with `app.tenant_id` set, under the operator scope | n/a | 0 rows each | twin: under P2's `app.person_id` alone it is read |
 | C30 | B13 | `TestRLSPersonalCatalogue` with the new table | pass | pass (C) | the old lists fail on the new catalogue |
 | C31 | B14 | P2 reads, writes or deletes P1's picture through the store | n/a | not found, nothing changed | twin: P1 does each |

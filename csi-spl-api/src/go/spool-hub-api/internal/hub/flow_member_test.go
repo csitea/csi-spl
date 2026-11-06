@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -118,7 +119,9 @@ func TestFlowMemberNeverAcrossWorkspaces(t *testing.T) {
 
 func TestFlowMemberGuestAndNonMemberRefused(t *testing.T) {
 	x := newFlowMemberEnv(t)
-	for _, v := range []string{"GST-1", "HUM-999999"} {
+	guest, _ := seatIdent(t, x.e, x.tid, rbac.ChannelGuest)
+	demo, _ := seatIdent(t, x.e, x.tid, rbac.DemoUser)
+	for _, v := range []string{"GST-1", "HUM-999999", guest, demo} {
 		if code, out := call(t, x.e, x.tid, http.MethodGet, "/v1/view/flow?member="+x.target, v, nil); code != http.StatusForbidden {
 			t.Errorf("viewer %s: %d %v, want 403", v, code, out)
 		}

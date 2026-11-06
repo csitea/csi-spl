@@ -3840,6 +3840,15 @@
     "title_label": "Tytuł",
     "body_label": "Tekst",
     "body_placeholder": "Napisz notatkę…",
+    "editor": {
+      "toolbar": "Formatowanie tekstu",
+      "bold": "Pogrubienie",
+      "underline": "Podkreślenie",
+      "numbered": "Lista numerowana",
+      "bullets": "Lista punktowana",
+      "view": "Podgląd",
+      "source": "Kod wiki"
+    },
     "checklist": "Lista kontrolna",
     "checklist_add": "Dodaj wiersz",
     "checklist_remove": "Usuń wiersz",

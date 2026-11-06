@@ -3840,6 +3840,15 @@
     "title_label": "Rubrik",
     "body_label": "Brödtext",
     "body_placeholder": "Skriv en anteckning…",
+    "editor": {
+      "toolbar": "Textformatering",
+      "bold": "Fetstil",
+      "underline": "Understruken",
+      "numbered": "Numrerad lista",
+      "bullets": "Punktlista",
+      "view": "Visa",
+      "source": "Wikikod"
+    },
     "checklist": "Checklista",
     "checklist_add": "Lägg till en rad",
     "checklist_remove": "Ta bort raden",

@@ -3840,6 +3840,15 @@
     "title_label": "Title",
     "body_label": "Text",
     "body_placeholder": "Write a note…",
+    "editor": {
+      "toolbar": "Text formatting",
+      "bold": "Bold",
+      "underline": "Underline",
+      "numbered": "Numbered list",
+      "bullets": "Bulleted list",
+      "view": "View",
+      "source": "Wiki code"
+    },
     "checklist": "Checklist",
     "checklist_add": "Add a line",
     "checklist_remove": "Remove line",

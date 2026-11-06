@@ -3840,6 +3840,15 @@
     "title_label": "Заглавие",
     "body_label": "Текст",
     "body_placeholder": "Напиши бележка…",
+    "editor": {
+      "toolbar": "Форматиране на текста",
+      "bold": "Удебелен",
+      "underline": "Подчертан",
+      "numbered": "Номериран списък",
+      "bullets": "Списък с точки",
+      "view": "Преглед",
+      "source": "Уики код"
+    },
     "checklist": "Списък със задачи",
     "checklist_add": "Добави ред",
     "checklist_remove": "Премахни реда",

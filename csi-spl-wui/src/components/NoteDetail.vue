@@ -2,7 +2,8 @@
      open issue (IssueDetailFrame: focus trap, Esc / X / backdrop close); on a
      phone the level-3 full screen with the Back chevron (MobileBack). Owner
      HUM-10 (t1 cb9d7bdc, msg cc1a052f): "I cannot edit notes on mobile."
-     Inside: title, the priority (NotePriorityChooser, saved at once), text, the
+     Inside: title, the priority (NotePriorityChooser, saved at once), the text
+     (NoteBodyEditor, SPL-4893: wiki toolbar, View / Wiki code, 6 rows), the
      checklist, the links (B7, NoteLinks: each link added or removed is its own
      POST / DELETE), and Pin, Archive, Move up / down,
      Delete. Each field saves 800 ms after the last key and on close; a failed
@@ -67,16 +68,7 @@
           >
           <NotePriorityChooser class="note-in__prio" :note-id="note.id" :priority="note.priority" @saved="note = $event" />
         </div>
-        <textarea
-          v-model="body"
-          class="note-in__body"
-          data-test="note-body"
-          maxlength="20000"
-          rows="8"
-          :placeholder="t('notes.body_placeholder')"
-          :aria-label="t('notes.body_label')"
-          @input="schedule('fields')"
-        />
+        <NoteBodyEditor v-model="body" @update:model-value="schedule('fields')" />
         <NoteChecklist :items="items" @change="onItems" />
         <NoteLinks :note-id="note.id" :links="note.links" @change="onLinks" />
         <p class="note-in__status" role="status" aria-live="polite">
@@ -254,16 +246,6 @@ onBeforeUnmount(() => { void flush() })
   font: inherit;
   font-size: 1.25rem;
   font-weight: 600;
-}
-.note-in__body {
-  min-width: 0;
-  min-height: 8rem;
-  padding: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-fg);
-  font: inherit;
-  resize: vertical;
 }
 .note-in__title:hover, .note-in__title:focus { border-color: var(--color-border); }
 .note-in__status { margin: 0; min-height: 1.5rem; }

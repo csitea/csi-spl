@@ -30,6 +30,7 @@
  *     by the component
  *   - a table's only class is a closed set of md-table--<hint> names
  *     (TABLE_HINTS, SPL-2466 row 02); any other hint or class is dropped
+ *   - ++text++ is underline (<u>), an inline rule of this file (SPL-4893)
  *   - task lists, footnotes and heading ids (spec 137 T018) are passes of
  *     this file over the tree, not markdown-it plugins; an id is always
  *     ANCHOR_PREFIX + a slug, never text copied as written
@@ -49,7 +50,7 @@ export const TAGS = new Set([
   'ul', 'ol', 'li', 'blockquote', 'hr', 'br',
   'pre', 'code', 'strong', 'em', 's',
   'table', 'thead', 'tbody', 'tfoot', 'caption', 'tr', 'th', 'td',
-  'a', 'sup',
+  'a', 'sup', 'u',
 ])
 
 /** Every attribute the tree may hold, per tag. */
@@ -104,8 +105,67 @@ function md(html = false) {
   // safeHref decides; markdown-it must not drop a link silently, so an
   // unsafe one still shows its text
   engine.validateLink = () => true
+  engine.inline.ruler.before('emphasis', 'underline', underlineRule.tokenize)
+  engine.inline.ruler2.before('emphasis', 'underline', underlineRule.postProcess)
+  underlineEndsLinks(engine.linkify)
   engines.set(html, engine)
   return engine
+}
+
+/* SPL-4893 (owner t1 ba784026, msg de86531f: "bolding underlying"): ++text++
+   is underline, the wiki mark the notes editor writes (markdown has none).
+   A delimiter rule, the same shape as markdown-it's own ~~strikethrough~~,
+   so it nests with **bold** and _em_: a "++" run opens only when the text
+   follows it and closes only when the text precedes it, so "C++ and C++"
+   or "a ++ b" stay text. A source with no "++" renders byte-equal to before
+   (tests/unit/markdown-underline.test.mjs). */
+const PLUS = 0x2B
+const underlineRule = {
+  tokenize(state, silent) {
+    if (silent || state.src.charCodeAt(state.pos) !== PLUS) return false
+    const scanned = state.scanDelims(state.pos, true)
+    let len = scanned.length
+    if (len < 2) return false
+    if (len % 2) {
+      state.push('text', '', 0).content = '+'
+      len--
+    }
+    for (let i = 0; i < len; i += 2) {
+      state.push('text', '', 0).content = '++'
+      state.delimiters.push({ marker: PLUS, length: 0, token: state.tokens.length - 1, end: -1, open: scanned.can_open, close: scanned.can_close })
+    }
+    state.pos += scanned.length
+    return true
+  },
+  postProcess(state) {
+    const pair = (delimiters) => {
+      for (const d of delimiters) {
+        if (d.marker !== PLUS || d.end === -1) continue
+        for (const [at, type, nesting] of [[d.token, 'u_open', 1], [delimiters[d.end].token, 'u_close', -1]]) {
+          Object.assign(state.tokens[at], { type, tag: 'u', nesting, markup: '++', content: '' })
+        }
+      }
+    }
+    pair(state.delimiters)
+    for (const meta of state.tokens_meta) if (meta?.delimiters) pair(meta.delimiters)
+    return false
+  },
+}
+
+/* "++see https://example.com/x++": "+" is a URL character, so linkify would
+   take the closing mark into the link. A "++" at a link's end is the mark,
+   as markdown-it itself trims a trailing "*" there. */
+function underlineEndsLinks(linkify) {
+  const trim = (m) => {
+    while (m && m.url.endsWith('++') && m.raw.endsWith('++')) {
+      Object.assign(m, { url: m.url.slice(0, -2), raw: m.raw.slice(0, -2), text: m.text.slice(0, -2), lastIndex: m.lastIndex - 2 })
+    }
+    return m
+  }
+  const atStart = linkify.matchAtStart.bind(linkify)
+  const all = linkify.match.bind(linkify)
+  linkify.matchAtStart = (text) => trim(atStart(text))
+  linkify.match = (text) => all(text)?.map(trim) ?? null
 }
 
 const el = (tag, attrs = {}, children = []) => ({ tag, attrs, children })

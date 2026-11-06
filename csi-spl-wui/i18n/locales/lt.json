@@ -3840,6 +3840,15 @@
     "title_label": "Pavadinimas",
     "body_label": "Tekstas",
     "body_placeholder": "Rašykite užrašą…",
+    "editor": {
+      "toolbar": "Teksto formatavimas",
+      "bold": "Paryškinti",
+      "underline": "Pabraukti",
+      "numbered": "Numeruotas sąrašas",
+      "bullets": "Ženklinimo sąrašas",
+      "view": "Peržiūra",
+      "source": "Wiki kodas"
+    },
     "checklist": "Kontrolinis sąrašas",
     "checklist_add": "Pridėti eilutę",
     "checklist_remove": "Pašalinti eilutę",

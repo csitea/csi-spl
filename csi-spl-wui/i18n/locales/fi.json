@@ -3840,6 +3840,15 @@
     "title_label": "Otsikko",
     "body_label": "Teksti",
     "body_placeholder": "Kirjoita muistiinpano…",
+    "editor": {
+      "toolbar": "Tekstin muotoilu",
+      "bold": "Lihavointi",
+      "underline": "Alleviivaus",
+      "numbered": "Numeroitu luettelo",
+      "bullets": "Luettelomerkit",
+      "view": "Näytä",
+      "source": "Wikikoodi"
+    },
     "checklist": "Tarkistuslista",
     "checklist_add": "Lisää rivi",
     "checklist_remove": "Poista rivi",

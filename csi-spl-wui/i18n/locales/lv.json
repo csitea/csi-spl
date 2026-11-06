@@ -3840,6 +3840,15 @@
     "title_label": "Nosaukums",
     "body_label": "Teksts",
     "body_placeholder": "Rakstiet piezīmi…",
+    "editor": {
+      "toolbar": "Teksta formatēšana",
+      "bold": "Treknraksts",
+      "underline": "Pasvītrot",
+      "numbered": "Numurēts saraksts",
+      "bullets": "Aizzīmju saraksts",
+      "view": "Skatīt",
+      "source": "Wiki kods"
+    },
     "checklist": "Kontrolsaraksts",
     "checklist_add": "Pievienot rindu",
     "checklist_remove": "Noņemt rindu",

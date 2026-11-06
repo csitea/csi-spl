@@ -3840,6 +3840,15 @@
     "title_label": "Titel",
     "body_label": "Tekst",
     "body_placeholder": "Schrijf een notitie…",
+    "editor": {
+      "toolbar": "Tekstopmaak",
+      "bold": "Vet",
+      "underline": "Onderstrepen",
+      "numbered": "Genummerde lijst",
+      "bullets": "Lijst met opsommingstekens",
+      "view": "Weergave",
+      "source": "Wikicode"
+    },
     "checklist": "Controlelijst",
     "checklist_add": "Regel toevoegen",
     "checklist_remove": "Regel verwijderen",

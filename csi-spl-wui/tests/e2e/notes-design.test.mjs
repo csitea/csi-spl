@@ -14,9 +14,13 @@
 //     edge; 390 px the chip is not drawn
 //   plus: New note is the round +; 390 px it is 16..24 px above the composer's
 //     go button on its right edge, and hidden while a note is open
+//   editor (msgs de86531f, e6a8148b; poll 2fefe460 UP): the text box is 6
+//     rows; Bold / Underline / Numbered / Bullets write **, ++, "1. ", "- "
+//     into the plain text (no HTML); View draws them (strong, u, ol, ul) and
+//     Wiki code shows the raw text again
 // CONTROL: with the head row's flex-wrap / margin-inline-start: auto off, or
 // the list title back to flex: 1 1 auto, the checks of titleRow() and
-// listChip() FAIL.
+// listChip() FAIL; with the box back at rows 8, editor() FAILS.
 //
 // Run:
 //   node tests/e2e/notes-design.test.mjs
@@ -160,6 +164,51 @@ async function plusButton(browser, base, width, touch) {
   await p.close()
 }
 
+/* SPL-4893: the note text editor, wiki marks in, formatted View out */
+async function editor(browser, base, width, touch) {
+  const tag = `${width}px editor`
+  const p = await openPage(browser, base, width, touch)
+  await p.click('[data-note-id="mock-note-2"] [data-test=notes-open]')
+  await waitDetail(p, 'mock-note-2')
+  if ((await p.$eval('[data-test=note-editor]', (e) => e.dataset.mode)) === 'view') await p.click('[data-test=note-ed-mode]')
+  await p.waitForSelector('[data-test=note-body]', { visible: true, timeout: NAV })
+  check(`${tag}: the text box is 6 rows`, (await p.$eval('[data-test=note-body]', (e) => e.rows)) === 6)
+  const set = (v, a, b) => p.$eval('[data-test=note-body]', (e, v, a, b) => {
+    e.value = v
+    e.dispatchEvent(new Event('input', { bubbles: true }))
+    e.focus()
+    e.setSelectionRange(a, b)
+  }, v, a, b)
+  const val = () => p.$eval('[data-test=note-body]', (e) => e.value)
+  await set('make it bold', 8, 12)
+  await p.click('[data-test=note-ed-bold]')
+  check(`${tag}: Bold writes **`, (await val()) === 'make it **bold**', await val())
+  await set('under', 0, 5)
+  await p.click('[data-test=note-ed-underline]')
+  check(`${tag}: Underline writes ++`, (await val()) === '++under++', await val())
+  await set('one\ntwo', 0, 7)
+  await p.click('[data-test=note-ed-number]')
+  check(`${tag}: Numbered writes 1. 2.`, (await val()) === '1. one\n2. two', await val())
+  await set('a\nb', 0, 3)
+  await p.click('[data-test=note-ed-bullet]')
+  check(`${tag}: Bullets write "- "`, (await val()) === '- a\n- b', await val())
+  await set('**B** ++U++\n\n1. one\n2. two\n\n- x\n- y', 0, 0)
+  check(`${tag}: the stored text has no HTML`, !/[<>]/.test(await val()))
+  await p.click('[data-test=note-ed-mode]')
+  await p.waitForSelector('[data-test=note-body-view]', { visible: true, timeout: NAV })
+  /* View draws through MessageBody's lazy MarkdownBlock: wait for its lists */
+  await p.waitForFunction(() => document.querySelectorAll('[data-test=note-body-view] .md-block ol li').length > 0, { timeout: NAV }).catch(() => {})
+  const view = await p.$eval('[data-test=note-body-view]', (e) => ({
+    b: e.querySelector('strong')?.textContent, u: e.querySelector('u')?.textContent,
+    ol: e.querySelectorAll('ol li').length, ul: e.querySelectorAll('ul li').length,
+  }))
+  check(`${tag}: View draws bold, underline, numbers and bullets`, view.b === 'B' && view.u === 'U' && view.ol === 2 && view.ul === 2, view)
+  await p.click('[data-test=note-ed-mode]')
+  check(`${tag}: Wiki code shows the raw text`, (await val()).startsWith('**B** ++U++'))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-editor-${width}.png` })
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -168,6 +217,7 @@ try {
     await listChip(browser, server.base, w, touch)
     await titleRow(browser, server.base, w, touch)
     await plusButton(browser, server.base, w, touch)
+    await editor(browser, server.base, w, touch)
   }
 } catch (e) {
   console.error(e)

@@ -3840,6 +3840,15 @@
     "title_label": "Pealkiri",
     "body_label": "Tekst",
     "body_placeholder": "Kirjuta märge…",
+    "editor": {
+      "toolbar": "Teksti vormindus",
+      "bold": "Paks kiri",
+      "underline": "Allajoonitud",
+      "numbered": "Nummerdatud loend",
+      "bullets": "Täpploend",
+      "view": "Vaade",
+      "source": "Wiki-kood"
+    },
     "checklist": "Kontrollnimekiri",
     "checklist_add": "Lisa rida",
     "checklist_remove": "Eemalda rida",

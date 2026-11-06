@@ -105,6 +105,13 @@ const countDeletes = (p) => p.evaluate(() => {
 })
 const deletes = (p) => p.evaluate(() => window.__noteDeletes)
 
+/* SPL-4893: a note with text opens in View; its Wiki code button shows the
+   raw text box */
+async function bodySource(p) {
+  if ((await p.$eval('[data-test=note-editor]', (e) => e.dataset.mode)) === 'view') await p.click('[data-test=note-ed-mode]')
+  await p.waitForSelector('[data-test=note-body]', { visible: true, timeout: 5000 })
+}
+
 async function openPage(browser, base, width, touch) {
   const p = await browser.newPage()
   await p.setViewport({ width, height: touch ? 844 : 900, isMobile: touch, hasTouch: touch })
@@ -336,6 +343,7 @@ async function phone(browser, base) {
   })
   check(`${tag}: full screen, not a modal`, box.modal === 'false' && !box.dialog && box.w === box.vw, box)
   check(`${tag}: it has a Back control`, Boolean(await p.$('[data-test=note-detail] [data-testid=mobile-back]')))
+  await bodySource(p)
   await p.$eval('[data-test=note-body]', (e) => { e.focus(); e.select() })
   await p.type('[data-test=note-body]', 'Edited on a phone')
   await p.waitForSelector('[data-test=note-saving]', { hidden: true, timeout: 5000 }).catch(() => {})
@@ -345,7 +353,9 @@ async function phone(browser, base) {
   const text = (await summary(p, 'mock-note-2')).snippet
   check(`${tag}: the edit is saved (the list holds the new text)`, text === 'Edited on a phone', text)
   await clickRow(p, 'mock-note-2')
-  check(`${tag}: it opens again with the edit`, (await waitDetail(p, 'mock-note-2')) && (await p.$eval('[data-test=note-body]', (e) => e.value)) === 'Edited on a phone')
+  const again = await waitDetail(p, 'mock-note-2')
+  await bodySource(p)
+  check(`${tag}: it opens again with the edit`, again && (await p.$eval('[data-test=note-body]', (e) => e.value)) === 'Edited on a phone')
   await p.click('[data-test=note-archive]')
   check(`${tag}: Archive closes the note`, await waitGone(p))
   check(`${tag}: the archived note leaves the list`, !(await rows(p)).includes('mock-note-2'), await rows(p))

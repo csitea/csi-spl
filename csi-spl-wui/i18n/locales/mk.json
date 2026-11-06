@@ -3840,6 +3840,15 @@
     "title_label": "Наслов",
     "body_label": "Текст",
     "body_placeholder": "Напиши белешка…",
+    "editor": {
+      "toolbar": "Форматирање на текстот",
+      "bold": "Задебелено",
+      "underline": "Подвлечено",
+      "numbered": "Нумерирана листа",
+      "bullets": "Листа со точки",
+      "view": "Преглед",
+      "source": "Вики код"
+    },
     "checklist": "Список за проверка",
     "checklist_add": "Додај ред",
     "checklist_remove": "Отстрани ред",

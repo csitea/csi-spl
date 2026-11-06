@@ -234,9 +234,20 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
   an issue (1.2 row 6), on a phone as a level-3 full screen (1.2 row 7).
   `/notes?note=<id>` opens it directly, so the browser's back and a
   bookmark work. Inside: the title, the text (plain text with the same
-  link rendering as a message), the checklist (tick, add, edit, delete,
+  link rendering as a message; see **Editor** below), the checklist (tick, add, edit, delete,
   drag), the links (label, kind icon, the workspace's name when it is not
   the current one, a remove ×), and the actions Pin, Archive, Delete.
+- **Editor** (owner HUM-10, t1 ba784026, msgs de86531f, e6a8148b; poll
+  2fefe460 UP; SPL-4893): the text box is 6 rows, so the checklist starts
+  two rows higher. A toolbar over it writes wiki marks into the plain-text
+  body, never HTML: **Bold** `**text**`, **Underline** `++text++`,
+  **Numbered list** `1. `, **Bulleted list** `- `
+  (`wui/utils/note-wiki.mjs`). **View** draws the text with the
+  discussions' own renderer (`MessageBody`, markdown mode; `++text++` is a
+  rule of the shared `wui/utils/markdown.mjs`); **Wiki code** shows the raw
+  text, edited directly. A note with text opens in View, an empty one in
+  Wiki code; a click on the text (not on a link) edits it. No storage or
+  API change: `body` stays text.
 - **Save**: each field saves 800 ms after the last key, and on close; a
   failed save keeps the text and shows "Not saved, retry".
 - **Delete**: default D2, delete at once with a 10 s Undo toast; the WUI

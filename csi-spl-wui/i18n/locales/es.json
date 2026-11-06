@@ -3840,6 +3840,15 @@
     "title_label": "Título",
     "body_label": "Texto",
     "body_placeholder": "Escribe una nota…",
+    "editor": {
+      "toolbar": "Formato del texto",
+      "bold": "Negrita",
+      "underline": "Subrayado",
+      "numbered": "Lista numerada",
+      "bullets": "Lista con viñetas",
+      "view": "Ver",
+      "source": "Código wiki"
+    },
     "checklist": "Lista de tareas",
     "checklist_add": "Añadir una línea",
     "checklist_remove": "Quitar línea",

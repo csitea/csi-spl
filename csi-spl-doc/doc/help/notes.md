@@ -41,6 +41,12 @@ or the phone's Back) takes you back to the list.
   after you stop typing, and again when you close the note. When a save
   fails, the note keeps what you typed and shows **Not saved, retry**; press
   it to try again.
+- **The text editor**: the buttons over the text make the selected text
+  **bold** or underlined, or turn the selected lines into a numbered or a
+  bulleted list. The note keeps plain wiki text: `**bold**`, `++underline++`,
+  `1. ` and `- ` at the start of a line. A note with text opens formatted;
+  click the text, or press **Wiki code**, to edit the raw text, and **View**
+  to see it formatted again.
 - **Checklist**: tick a line, edit its text, remove it with the **x**, or add
   one with **Add a line**. Move a line with **Alt+Up** / **Alt+Down**, or drag
   it by its handle on a wide screen.

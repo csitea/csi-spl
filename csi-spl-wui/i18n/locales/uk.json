@@ -3840,6 +3840,15 @@
     "title_label": "Назва",
     "body_label": "Текст",
     "body_placeholder": "Напишіть нотатку…",
+    "editor": {
+      "toolbar": "Форматування тексту",
+      "bold": "Жирний",
+      "underline": "Підкреслений",
+      "numbered": "Нумерований список",
+      "bullets": "Маркований список",
+      "view": "Перегляд",
+      "source": "Вікі-код"
+    },
     "checklist": "Чек-лист",
     "checklist_add": "Додати рядок",
     "checklist_remove": "Видалити рядок",

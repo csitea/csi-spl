@@ -3840,6 +3840,15 @@
     "title_label": "Názov",
     "body_label": "Obsah",
     "body_placeholder": "Napíšte poznámku…",
+    "editor": {
+      "toolbar": "Formátovanie textu",
+      "bold": "Tučné",
+      "underline": "Podčiarknuté",
+      "numbered": "Číslovaný zoznam",
+      "bullets": "Zoznam s odrážkami",
+      "view": "Zobraziť",
+      "source": "Wiki kód"
+    },
     "checklist": "Kontrolný zoznam",
     "checklist_add": "Pridať riadok",
     "checklist_remove": "Odstrániť riadok",

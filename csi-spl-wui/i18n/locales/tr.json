@@ -3840,6 +3840,15 @@
     "title_label": "Başlık",
     "body_label": "Metin",
     "body_placeholder": "Bir not yazın…",
+    "editor": {
+      "toolbar": "Metin biçimlendirme",
+      "bold": "Kalın",
+      "underline": "Altı çizili",
+      "numbered": "Numaralı liste",
+      "bullets": "Madde işaretli liste",
+      "view": "Görünüm",
+      "source": "Wiki kodu"
+    },
     "checklist": "Yapılacaklar listesi",
     "checklist_add": "Satır ekle",
     "checklist_remove": "Satırı kaldır",

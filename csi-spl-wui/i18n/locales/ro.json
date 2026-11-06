@@ -3840,6 +3840,15 @@
     "title_label": "Titlu",
     "body_label": "Conținut",
     "body_placeholder": "Scrie o notiță…",
+    "editor": {
+      "toolbar": "Formatarea textului",
+      "bold": "Aldin",
+      "underline": "Subliniat",
+      "numbered": "Listă numerotată",
+      "bullets": "Listă cu marcatori",
+      "view": "Vizualizare",
+      "source": "Cod wiki"
+    },
     "checklist": "Listă de verificare",
     "checklist_add": "Adaugă un rând",
     "checklist_remove": "Elimină rândul",

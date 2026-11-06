@@ -3840,6 +3840,15 @@
     "title_label": "Название",
     "body_label": "Текст",
     "body_placeholder": "Напишите заметку…",
+    "editor": {
+      "toolbar": "Форматирование текста",
+      "bold": "Жирный",
+      "underline": "Подчёркнутый",
+      "numbered": "Нумерованный список",
+      "bullets": "Маркированный список",
+      "view": "Просмотр",
+      "source": "Вики-код"
+    },
     "checklist": "Чек-лист",
     "checklist_add": "Добавить строку",
     "checklist_remove": "Удалить строку",

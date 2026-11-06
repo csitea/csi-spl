@@ -1,0 +1,158 @@
+[
+ {
+  "src": "# Plan\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n- one\n- two\n\n1. x\n\n**bold** _it_ ~~gone~~",
+  "opts": {},
+  "html": "<h1>Plan</h1><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table><ul><li>one</li><li>two</li></ul><ol><li>x</li></ol><p><strong>bold</strong> <em>it</em> <s>gone</s></p>"
+ },
+ {
+  "src": "# Plan\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n- one\n- two\n\n1. x\n\n**bold** _it_ ~~gone~~",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<h1>Plan</h1><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table><ul><li>one</li><li>two</li></ul><ol><li>x</li></ol><p><strong>bold</strong> <em>it</em> <s>gone</s></p>"
+ },
+ {
+  "src": "plain text with a link https://example.com/a?b=1 and mail a@example.com",
+  "opts": {},
+  "html": "<p>plain text with a link <a href=\"https://example.com/a?b=1\" title=\"https://example.com/a?b=1\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">https://example.com/a?b=1</a> and mail <a href=\"mailto:a@example.com\" title=\"mailto:a@example.com\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">a@example.com</a></p>"
+ },
+ {
+  "src": "plain text with a link https://example.com/a?b=1 and mail a@example.com",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<p>plain text with a link <a href=\"https://example.com/a?b=1\" title=\"https://example.com/a?b=1\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">https://example.com/a?b=1</a> and mail <a href=\"mailto:a@example.com\" title=\"mailto:a@example.com\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">a@example.com</a></p>"
+ },
+ {
+  "src": "C+ grade, a + b = c, +1 and i+=2",
+  "opts": {},
+  "html": "<p>C+ grade, a + b = c, +1 and i+=2</p>"
+ },
+ {
+  "src": "C+ grade, a + b = c, +1 and i+=2",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<p>C+ grade, a + b = c, +1 and i+=2</p>"
+ },
+ {
+  "src": "- [ ] task\n- [x] done\n\n> quote **strong**",
+  "opts": {},
+  "html": "<ul><li data-task=\"todo\">task</li><li data-task=\"done\">done</li></ul><blockquote><p>quote <strong>strong</strong></p></blockquote>"
+ },
+ {
+  "src": "- [ ] task\n- [x] done\n\n> quote **strong**",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<ul><li data-task=\"todo\">task</li><li data-task=\"done\">done</li></ul><blockquote><p>quote <strong>strong</strong></p></blockquote>"
+ },
+ {
+  "src": "```js\nconst a = 1 + 2\n```\n\ntext after",
+  "opts": {},
+  "html": "<pre data-lang=\"js\"><code>const a = 1 + 2</code></pre><p>text after</p>"
+ },
+ {
+  "src": "```js\nconst a = 1 + 2\n```\n\ntext after",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<pre data-lang=\"js\"><code>const a = 1 + 2</code></pre><p>text after</p>"
+ },
+ {
+  "src": "line one\nline two\n\n***\n\n`inline + code`",
+  "opts": {},
+  "html": "<p>line one\nline two</p><hr><p><code>inline + code</code></p>"
+ },
+ {
+  "src": "line one\nline two\n\n***\n\n`inline + code`",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<p>line one<br>line two</p><hr><p><code>inline + code</code></p>"
+ },
+ {
+  "src": "[link](https://example.com) ![pic](https://example.com/p.png)",
+  "opts": {},
+  "html": "<p><a href=\"https://example.com/\" title=\"https://example.com/\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">link</a> <a href=\"https://example.com/p.png\" title=\"https://example.com/p.png\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">pic</a></p>"
+ },
+ {
+  "src": "[link](https://example.com) ![pic](https://example.com/p.png)",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<p><a href=\"https://example.com/\" title=\"https://example.com/\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">link</a> <a href=\"https://example.com/p.png\" title=\"https://example.com/p.png\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">pic</a></p>"
+ },
+ {
+  "src": "Footnote here[^1].\n\n[^1]: the note",
+  "opts": {},
+  "html": "<p>Footnote here<sup>1</sup>.</p><hr><ol data-footnotes=\"true\"><li>the note</li></ol>"
+ },
+ {
+  "src": "Footnote here[^1].\n\n[^1]: the note",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<p>Footnote here<sup>1</sup>.</p><hr><ol data-footnotes=\"true\"><li>the note</li></ol>"
+ },
+ {
+  "src": "<table><tr><td>x</td></tr></table>\n\n<b>raw</b>",
+  "opts": {},
+  "html": "<p>&lt;table&gt;&lt;tr&gt;&lt;td&gt;x&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</p><p>&lt;b&gt;raw&lt;/b&gt;</p>"
+ },
+ {
+  "src": "<table><tr><td>x</td></tr></table>\n\n<b>raw</b>",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<table><tr><td>x</td></tr></table>\n<p>&lt;b&gt;raw&lt;/b&gt;</p>"
+ },
+ {
+  "src": "## Heading\n\n1. first\n2. second\n   - nested",
+  "opts": {},
+  "html": "<h2>Heading</h2><ol><li>first</li><li>second<ul><li>nested</li></ul></li></ol>"
+ },
+ {
+  "src": "## Heading\n\n1. first\n2. second\n   - nested",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<h2>Heading</h2><ol><li>first</li><li>second<ul><li>nested</li></ul></li></ol>"
+ },
+ {
+  "src": "emphasis *one* __two__ ***three*** ~one~",
+  "opts": {},
+  "html": "<p>emphasis <em>one</em> <strong>two</strong> <em><strong>three</strong></em> ~one~</p>"
+ },
+ {
+  "src": "emphasis *one* __two__ ***three*** ~one~",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<p>emphasis <em>one</em> <strong>two</strong> <em><strong>three</strong></em> ~one~</p>"
+ },
+ {
+  "src": "A phone +358 40 123 4567 and SPL-12 and #channel",
+  "opts": {},
+  "html": "<p>A phone <a href=\"tel:+358401234567\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">+358 40 123 4567</a> and SPL-12 and #channel</p>"
+ },
+ {
+  "src": "A phone +358 40 123 4567 and SPL-12 and #channel",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "html": "<p>A phone <a href=\"tel:+358401234567\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">+358 40 123 4567</a> and SPL-12 and #channel</p>"
+ }
+]

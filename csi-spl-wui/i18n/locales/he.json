@@ -3840,6 +3840,15 @@
     "title_label": "כותרת",
     "body_label": "טקסט",
     "body_placeholder": "כתבו פתק…",
+    "editor": {
+      "toolbar": "עיצוב טקסט",
+      "bold": "מודגש",
+      "underline": "קו תחתון",
+      "numbered": "רשימה ממוספרת",
+      "bullets": "רשימת תבליטים",
+      "view": "תצוגה",
+      "source": "קוד ויקי"
+    },
     "checklist": "רשימת משימות",
     "checklist_add": "הוספת שורה",
     "checklist_remove": "הסרת שורה",

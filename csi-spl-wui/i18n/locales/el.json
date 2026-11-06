@@ -3840,6 +3840,15 @@
     "title_label": "Τίτλος",
     "body_label": "Κείμενο",
     "body_placeholder": "Γράψτε μια σημείωση…",
+    "editor": {
+      "toolbar": "Μορφοποίηση κειμένου",
+      "bold": "Έντονα",
+      "underline": "Υπογράμμιση",
+      "numbered": "Αριθμημένη λίστα",
+      "bullets": "Λίστα με κουκκίδες",
+      "view": "Προβολή",
+      "source": "Κώδικας wiki"
+    },
     "checklist": "Λίστα ελέγχου",
     "checklist_add": "Προσθήκη γραμμής",
     "checklist_remove": "Αφαίρεση γραμμής",

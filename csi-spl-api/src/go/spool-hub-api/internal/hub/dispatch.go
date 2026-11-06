@@ -121,8 +121,17 @@ func isAgent(id string) bool {
 // dispatchCheck runs contract §3 steps 1-5 for a built message and returns
 // the target box and the tenant's box-wui pin, or an error frame triple.
 // want (specs/058) pins the box: the agent must be announced THERE, and the
-// same id on another box is then not ambiguous.
+// same id on another box is then not ambiguous. The post's channel is its
+// topic's (dispatchCheckIn).
 func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message, want string) (box string, pin ed25519.PublicKey, tok string, status int, detail string) {
+	return s.dispatchCheckIn(ctx, c, m, want, "")
+}
+
+// dispatchCheckIn is dispatchCheck for a post into channel; "" = the channel
+// of m's topic, if it has one. On a pinned channel the target box, and every
+// box an @<id>@<box> mention names, must be listed (spec 164 5.1, 403
+// channel_box_mismatch; unreadable pins or topic 503 channel_pins_unavailable).
+func (s *Server) dispatchCheckIn(ctx context.Context, c *wuiConn, m *msg.Message, want, channel string) (box string, pin ed25519.PublicKey, tok string, status int, detail string) {
 	if c.member == "" {
 		return "", nil, "dispatch_unauthenticated", http.StatusUnauthorized, "commanding an agent needs a signed-in member session"
 	}
@@ -156,6 +165,15 @@ func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message, 
 	// spec 025 B3 (box_lock.go): a locked box's agents take only its owners'
 	// commands; before the pin and the sender allow-lists, so no edit widens it.
 	if rf := s.boxLockRefusal(ctx, c.tenant, box, c.member, boxLockPathDispatch); rf != nil {
+		return "", nil, rf.token, rf.status, rf.detail
+	}
+	if channel == "" {
+		var err error
+		if channel, err = s.o.Store.TopicChannel(ctx, c.tenant, m.TaskID); err != nil {
+			return "", nil, CodeChannelPinsUnavailable, http.StatusServiceUnavailable, "the topic's channel is unavailable; nothing was sent"
+		}
+	}
+	if rf := s.channelBoxRefusal(ctx, c.tenant, channel, box, m.Body); rf != nil {
 		return "", nil, rf.token, rf.status, rf.detail
 	}
 	if _, err := s.o.Store.GetPin(ctx, c.tenant, box); err != nil {

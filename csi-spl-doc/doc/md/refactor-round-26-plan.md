@@ -261,7 +261,13 @@ blocks with count 0).
   the holder GOes by hand. Grok back also ends it. It does not make the rows
   compliant: rulebook 2.7.5 says an equal vendor pair fails 2.7.2 and the retro
   names the row. The retro lists each such row (c-001 ruling 9c9cc58b). Lines checked with
-  `do_spl_review_line_check`. A row with no reviewer for 15 minutes reports a
+  `do_spl_review_line_check`.
+- **c-274 is not a row reviewer:** ruling 9c9cc58b has a fresh session per row, a
+  departure from rulebook 2.7.2's panel seat as primary; 2.7.1 still keeps the seat
+  up until R6 shows all 10 rows. **Backup reviewer per row:** a second fresh claude
+  session on the same terms, tree only, its brief naming the waiver, queued by the
+  dispatch holder; no seat id exists before a row is queued.
+- Row reviewers, absent: A row with no reviewer for 15 minutes reports a
   blocker (2.7.3).
 - **P1, for the panel:** rows 01 and 02 add a test-only loader instead of editing
   `load-ts.mjs`. The probe behind them was n=1 on a scratch copy, in one file
@@ -317,7 +323,7 @@ blocks with count 0).
 - v0.1: first draft (c-267): 10 rows, slug `r52`, measured on `4e2b8d70e`.
 - v0.2: dated measurements added at the dispatch holder's request (sections 2, 3.2, 6). No row changed. None of them is reviewed yet.
 - v0.3: c-274's FAIL on v0.2 folded, W1-W5 and notes N1, N2, N3, N5. Row 04 gains pin (H), row 09's refusal is `lock.key.enc`, row 05 takes the map's e2e files, r51-10's landing and the `free` reading are dated. W6: c-001's ruling 9c9cc58b on the rows' R7 is written in sections 1 and 5.
-- v0.4: c-274's FAIL on v0.3 folded: row 05's hash covers all five mock scenarios. No other row changed.
+- v0.4: c-274's FAIL on v0.3 folded: row 05's hash covers all five mock scenarios. No other row changed. Section 5 says c-274 is not a row reviewer and names the backup.
 
 ## 9. Consensus
 

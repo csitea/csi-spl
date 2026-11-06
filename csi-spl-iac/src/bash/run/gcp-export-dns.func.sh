@@ -1,11 +1,11 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
-
 #------------------------------------------------------------------------------
 # @description export DNS zones and records from GCP Cloud DNS for all environments
 # @example ORG=csi APP=csi-spl ./run -a do_gcp_export_dns
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+
 do_gcp_export_dns() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

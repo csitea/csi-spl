@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description Copy the latest version of one Secret Manager secret into a
 # @description secret of this env's project (harvested from the 2026-09-19
@@ -20,6 +18,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd SRC_PROJECT=csi-rel-prd SRC_SECRET=csi-rel-smtp-pass TGT_SECRET=csi-spl-hub-mail-smtp-password ./run -a do_gcp_copy_secret
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_gcp_copy_secret() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

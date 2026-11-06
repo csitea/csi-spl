@@ -1,13 +1,13 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
-
 #------------------------------------------------------------------------------
 # @description Gcp import to cloudsql.
 # @example ENV=dev SERVICE_KEY_FILE=$HOME/.gcp/.csi/key-sa-ci-csi-spl-dev-rdb.json GS_UTIL_URI=gs://csi-spl-dev-backups/csi-spl_db_backup_20250121.sql ./run -a do_gcp_import_to_cloudsql
 # @example ENV=stg SERVICE_KEY_FILE=$HOME/.gcp/.csi/key-sa-ci-csi-spl-stg-rdb.json GS_UTIL_URI=gs://csi-spl-stg-backups/csi-spl_db_backup_20250121.sql ./run -a do_gcp_import_to_cloudsql
 # @example ENV=prd SERVICE_KEY_FILE=$HOME/.gcp/.csi/key-sa-ci-csi-spl-prd-rdb.json GS_UTIL_URI=gs://csi-spl-prd-backups/csi-spl_db_backup_20250121.sql ./run -a do_gcp_import_to_cloudsql
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+
 do_gcp_import_to_cloudsql() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

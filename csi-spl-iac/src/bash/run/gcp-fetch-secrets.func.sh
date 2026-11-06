@@ -1,7 +1,4 @@
 #!/bin/env bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
-
 #------------------------------------------------------------------------------
 # @description fetch secrets from GCP Secret Manager and export as environment variables
 # @param ENV - target environment (required: dev, tst — never prd)
@@ -10,6 +7,9 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=dev ./run -a do_gcp_fetch_secrets
 # @example ENV=dev SECRETS_FILTER=test ./run -a do_gcp_fetch_secrets
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+
 do_gcp_fetch_secrets() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

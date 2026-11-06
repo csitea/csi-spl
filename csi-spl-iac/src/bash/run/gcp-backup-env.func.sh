@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description READ-ONLY backup of one env's GCP estate to a 0700 local dir,
 # @description as the env's project service account in a private gcloud
@@ -28,6 +26,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=dev ./run -a do_gcp_backup_env
 # @example ENV=prd RESTORE_CHECK_PG_CONTAINER=csi-spl-lde-main-pg-1 ./run -a do_gcp_backup_env
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_gcp_backup_env() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

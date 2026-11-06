@@ -3864,8 +3864,6 @@
     "move_up": "Flytta upp",
     "move_down": "Flytta ned",
     "links_title": "Länkar",
-    "link_add": "Lägg till länk",
-    "link_paste": "Klistra in en länk, en msg:- eller topic:-referens eller en ärendenyckel",
     "link_remove": "Ta bort länken",
     "not_a_link": "Inte en länk",
     "link_left": "Länk till en arbetsyta du har lämnat",

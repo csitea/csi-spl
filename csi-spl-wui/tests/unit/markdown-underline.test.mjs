@@ -5,6 +5,10 @@
 // renders BYTE-EQUAL to before. The golden file holds the renders of that
 // corpus taken from the file as it was on origin/master a1330c318, before the
 // rule (both the fence options and the whole-message ones: html + breaks).
+// The entries marked "plus" (R7 c-232 W1, W2) DO hold "++" that is not
+// underline: intraword runs ("C++11 and C++14") and addresses ending in "++"
+// ("/wiki/C++"); their html is the render of the file at merge-base
+// 669e65de3, before the rule.
 // CONTROL: with 'u' out of TAGS, or with the rule as a nested inline.parse
 // (the first draft: it threw beside **bold**, so the editor's View fell back
 // to plain text), the cases below FAIL.
@@ -18,10 +22,19 @@ const ORIGIN = 'https://app.example.com'
 
 describe('++underline++ in the shared markdown renderer', () => {
   it('every golden source has no "++" and renders byte-equal to before', () => {
-    assert.ok(golden.length >= 20, `golden holds ${golden.length}`)
-    for (const g of golden) {
+    const plain = golden.filter((g) => !g.plus)
+    assert.ok(plain.length >= 20, `golden holds ${plain.length}`)
+    for (const g of plain) {
       assert.ok(!g.src.includes('++'), g.src)
       assert.equal(markdownToHtml(g.src, ORIGIN, g.opts), g.html, g.src)
+    }
+  })
+  it('a "++" that is no mark (inside a word, a 3+ run, an address end) renders byte-equal to before', () => {
+    const plus = golden.filter((g) => g.plus)
+    assert.ok(plus.length >= 14, `plus golden holds ${plus.length}`)
+    for (const g of plus) {
+      assert.ok(g.src.includes('++'), g.src)
+      assert.equal(markdownToHtml(g.src, ORIGIN, g.opts), g.html, JSON.stringify(g.src))
     }
   })
   it('++text++ is <u>', () => {
@@ -41,6 +54,11 @@ describe('++underline++ in the shared markdown renderer', () => {
     assert.equal(markdownToHtml('a ++ b ++ c'), '<p>a ++ b ++ c</p>')
     assert.equal(markdownToHtml('++++'), '<p>++++</p>')
     assert.equal(markdownToHtml('++open'), '<p>++open</p>')
+    assert.equal(markdownToHtml('+++x+++'), '<p>+++x+++</p>')
+  })
+  it('an address after an unclosed ++ ends before the mark; one after a closed pair keeps its ++', () => {
+    assert.match(markdownToHtml('++a++ then https://example.com/C++'), /<a href="https:\/\/example.com\/C\+\+"/)
+    assert.match(markdownToHtml('a ++see https://example.com/x++ b'), /<u>see <a href="https:\/\/example.com\/x"[^>]*>https:\/\/example.com\/x<\/a><\/u> b/)
   })
   it('raw <u> HTML is still text, never markup', () => {
     assert.equal(markdownToHtml('<u>x</u>'), '<p>&lt;u&gt;x&lt;/u&gt;</p>')

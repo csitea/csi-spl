@@ -44,7 +44,8 @@ or the phone's Back) takes you back to the list.
 - **The text editor**: the buttons over the text make the selected text
   **bold** or underlined, or turn the selected lines into a numbered or a
   bulleted list. The note keeps plain wiki text: `**bold**`, `++underline++`,
-  `1. ` and `- ` at the start of a line. A note with text opens formatted;
+  `1. ` and `- ` at the start of a line; a `++` inside a word, as in `C++11`,
+  stays plain text. A note with text opens formatted;
   click the text, or press **Wiki code**, to edit the raw text, and **View**
   to see it formatted again.
 - **Checklist**: tick a line, edit its text, remove it with the **x**, or add

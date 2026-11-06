@@ -3864,8 +3864,6 @@
     "move_up": "Przenieś w górę",
     "move_down": "Przenieś w dół",
     "links_title": "Linki",
-    "link_add": "Dodaj link",
-    "link_paste": "Wklej link, odwołanie msg: lub topic: albo klucz zgłoszenia",
     "link_remove": "Usuń link",
     "not_a_link": "To nie jest link",
     "link_left": "Link do obszaru roboczego, który opuszczono",

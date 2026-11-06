@@ -107,7 +107,8 @@ function md(html = false) {
   engine.validateLink = () => true
   engine.inline.ruler.before('emphasis', 'underline', underlineRule.tokenize)
   engine.inline.ruler2.before('emphasis', 'underline', underlineRule.postProcess)
-  underlineEndsLinks(engine.linkify)
+  engine.inline.ruler.before('linkify', 'underline_link_end', underlineLinkEnd.mark)
+  underlineLinkEnd.install(engine.linkify)
   engines.set(html, engine)
   return engine
 }
@@ -116,25 +117,21 @@ function md(html = false) {
    is underline, the wiki mark the notes editor writes (markdown has none).
    A delimiter rule, the same shape as markdown-it's own ~~strikethrough~~,
    so it nests with **bold** and _em_: a "++" run opens only when the text
-   follows it and closes only when the text precedes it, so "C++ and C++"
-   or "a ++ b" stay text. A source with no "++" renders byte-equal to before
+   follows it and closes only when the text precedes it, and never inside a
+   word (the "_" flank), so "C++ and C++", "C++11 and C++14", "a ++ b" or
+   "+++x+++" stay text. A source with no "++" renders byte-equal to before
    (tests/unit/markdown-underline.test.mjs). */
 const PLUS = 0x2B
 const underlineRule = {
   tokenize(state, silent) {
     if (silent || state.src.charCodeAt(state.pos) !== PLUS) return false
-    const scanned = state.scanDelims(state.pos, true)
-    let len = scanned.length
+    const scanned = state.scanDelims(state.pos, false)
+    const len = scanned.length
     if (len < 2) return false
-    if (len % 2) {
-      state.push('text', '', 0).content = '+'
-      len--
-    }
-    for (let i = 0; i < len; i += 2) {
-      state.push('text', '', 0).content = '++'
-      state.delimiters.push({ marker: PLUS, length: 0, token: state.tokens.length - 1, end: -1, open: scanned.can_open, close: scanned.can_close })
-    }
-    state.pos += scanned.length
+    // only a run of exactly two is the mark: "+++x+++" stays text
+    state.push('text', '', 0).content = '+'.repeat(len)
+    if (len === 2) state.delimiters.push({ marker: PLUS, length: 0, token: state.tokens.length - 1, end: -1, open: scanned.can_open, close: scanned.can_close })
+    state.pos += len
     return true
   },
   postProcess(state) {
@@ -153,19 +150,36 @@ const underlineRule = {
 }
 
 /* "++see https://example.com/x++": "+" is a URL character, so linkify would
-   take the closing mark into the link. A "++" at a link's end is the mark,
-   as markdown-it itself trims a trailing "*" there. */
-function underlineEndsLinks(linkify) {
-  const trim = (m) => {
-    while (m && m.url.endsWith('++') && m.raw.endsWith('++')) {
-      Object.assign(m, { url: m.url.slice(0, -2), raw: m.raw.slice(0, -2), text: m.text.slice(0, -2), lastIndex: m.lastIndex - 2 })
+   take the closing mark into the link. The trailing "++" is cut only while an
+   unclosed "++" opener precedes the link in the same inline run (c-232 W2):
+   "https://en.wikipedia.org/wiki/C++" keeps its "++". `mark` runs right
+   before markdown-it's inline linkify rule, at the same position; rendering
+   is synchronous, so one flag is enough. A bare address (core linkify) needs
+   no cut: a paired mark is its own token there, an unpaired one is text. */
+const underlineLinkEnd = {
+  open: false,
+  mark(state) {
+    if (state.src.charCodeAt(state.pos) !== 0x3A) return false
+    let depth = 0
+    for (const d of state.delimiters) {
+      if (d.marker !== PLUS) continue
+      if (d.close && depth > 0) depth--
+      else if (d.open) depth++
     }
-    return m
-  }
-  const atStart = linkify.matchAtStart.bind(linkify)
-  const all = linkify.match.bind(linkify)
-  linkify.matchAtStart = (text) => trim(atStart(text))
-  linkify.match = (text) => all(text)?.map(trim) ?? null
+    underlineLinkEnd.open = depth > 0
+    return false
+  },
+  install(linkify) {
+    const atStart = linkify.matchAtStart.bind(linkify)
+    linkify.matchAtStart = (text) => {
+      const m = atStart(text)
+      if (m && underlineLinkEnd.open && m.url.endsWith('++') && m.raw.endsWith('++')) {
+        Object.assign(m, { url: m.url.slice(0, -2), raw: m.raw.slice(0, -2), text: m.text.slice(0, -2), lastIndex: m.lastIndex - 2 })
+      }
+      underlineLinkEnd.open = false
+      return m
+    }
+  },
 }
 
 const el = (tag, attrs = {}, children = []) => ({ tag, attrs, children })

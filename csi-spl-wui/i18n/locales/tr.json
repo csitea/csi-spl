@@ -3864,8 +3864,6 @@
     "move_up": "Yukarı taşı",
     "move_down": "Aşağı taşı",
     "links_title": "Bağlantılar",
-    "link_add": "Bağlantı ekle",
-    "link_paste": "Bir bağlantı, msg: veya topic: başvurusu ya da bir konu anahtarı yapıştırın",
     "link_remove": "Bağlantıyı kaldır",
     "not_a_link": "Bu bir bağlantı değil",
     "link_left": "Ayrıldığınız bir çalışma alanına bağlantı",

@@ -3864,8 +3864,6 @@
     "move_up": "Mută în sus",
     "move_down": "Mută în jos",
     "links_title": "Linkuri",
-    "link_add": "Adaugă link",
-    "link_paste": "Lipește un link, o referință msg: sau topic:, sau o cheie de problemă",
     "link_remove": "Elimină linkul",
     "not_a_link": "Nu este un link",
     "link_left": "Link către un spațiu de lucru pe care l-ai părăsit",

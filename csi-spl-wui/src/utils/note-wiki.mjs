@@ -12,10 +12,14 @@
 /**
  * Wrap the selection in `mark`, or take the mark off when the selection (or
  * the text right around it) already carries it. No selection: the two marks
- * go in with the caret between them.
+ * go in with the caret between them. Whitespace at the selection's edges
+ * (a double-click takes the trailing space on some platforms) stays outside
+ * the marks: "**word **" would render as plain text (R7 c-232 N2).
  * @returns {Edit}
  */
 export function toggleMark(text, start, end, mark) {
+  while (start < end && /\s/.test(text[start])) start++
+  while (end > start && /\s/.test(text[end - 1])) end--
   const n = mark.length
   const sel = text.slice(start, end)
   if (sel.length >= 2 * n && sel.startsWith(mark) && sel.endsWith(mark)) {
@@ -34,7 +38,8 @@ const NUMBER = /^(\s*)\d+[.)] /
 /**
  * Make every line the selection touches a list item of `kind` ('bullet' or
  * 'number', numbered 1, 2, 3 ...), or plain lines again when they all already
- * are that kind. The selection grows to the whole lines.
+ * are that kind. Empty lines stay empty and are not counted (R7 c-232 N3).
+ * The selection grows to the whole lines.
  * @returns {Edit}
  */
 export function toggleList(text, start, end, kind) {
@@ -43,12 +48,15 @@ export function toggleList(text, start, end, kind) {
   const to = nl < 0 ? text.length : nl
   const lines = text.slice(from, to).split('\n')
   const same = kind === 'number' ? NUMBER : BULLET
-  const all = lines.every((l) => same.test(l))
-  const out = lines.map((l, i) => {
+  const blank = (l) => !l.trim()
+  const all = lines.every((l) => blank(l) || same.test(l))
+  let count = 0
+  const out = lines.map((l) => {
+    if (blank(l)) return l
     const bare = l.replace(BULLET, '$1').replace(NUMBER, '$1')
     if (all) return bare
     const lead = /^\s*/.exec(bare)[0]
-    return lead + (kind === 'number' ? `${i + 1}. ` : '- ') + bare.slice(lead.length)
+    return lead + (kind === 'number' ? `${++count}. ` : '- ') + bare.slice(lead.length)
   }).join('\n')
   return { text: text.slice(0, from) + out + text.slice(to), start: from, end: from + out.length }
 }

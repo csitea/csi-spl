@@ -154,5 +154,140 @@
    "breaks": true
   },
   "html": "<p>A phone <a href=\"tel:+358401234567\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">+358 40 123 4567</a> and SPL-12 and #channel</p>"
+ },
+ {
+  "src": "C++11 and C++14",
+  "opts": {},
+  "plus": true,
+  "html": "<p>C++11 and C++14</p>"
+ },
+ {
+  "src": "C++11 and C++14",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>C++11 and C++14</p>"
+ },
+ {
+  "src": "1++2 and 3++4",
+  "opts": {},
+  "plus": true,
+  "html": "<p>1++2 and 3++4</p>"
+ },
+ {
+  "src": "1++2 and 3++4",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>1++2 and 3++4</p>"
+ },
+ {
+  "src": "x++y++z",
+  "opts": {},
+  "plus": true,
+  "html": "<p>x++y++z</p>"
+ },
+ {
+  "src": "x++y++z",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>x++y++z</p>"
+ },
+ {
+  "src": "+++x+++",
+  "opts": {},
+  "plus": true,
+  "html": "<p>+++x+++</p>"
+ },
+ {
+  "src": "+++x+++",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>+++x+++</p>"
+ },
+ {
+  "src": "read https://en.wikipedia.org/wiki/C++ today",
+  "opts": {},
+  "plus": true,
+  "html": "<p>read <a href=\"https://en.wikipedia.org/wiki/C++\" title=\"https://en.wikipedia.org/wiki/C++\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">https://en.wikipedia.org/wiki/C++</a> today</p>"
+ },
+ {
+  "src": "read https://en.wikipedia.org/wiki/C++ today",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>read <a href=\"https://en.wikipedia.org/wiki/C++\" title=\"https://en.wikipedia.org/wiki/C++\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">https://en.wikipedia.org/wiki/C++</a> today</p>"
+ },
+ {
+  "src": "see https://example.com/a++b++ end",
+  "opts": {},
+  "plus": true,
+  "html": "<p>see <a href=\"https://example.com/a++b++\" title=\"https://example.com/a++b++\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">https://example.com/a++b++</a> end</p>"
+ },
+ {
+  "src": "see https://example.com/a++b++ end",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>see <a href=\"https://example.com/a++b++\" title=\"https://example.com/a++b++\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">https://example.com/a++b++</a> end</p>"
+ },
+ {
+  "src": "see example.com/x++ y",
+  "opts": {},
+  "plus": true,
+  "html": "<p>see <a href=\"http://example.com/x++\" title=\"http://example.com/x++\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">example.com/x++</a> y</p>"
+ },
+ {
+  "src": "see example.com/x++ y",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>see <a href=\"http://example.com/x++\" title=\"http://example.com/x++\" target=\"_blank\" rel=\"noopener noreferrer nofollow\">example.com/x++</a> y</p>"
+ },
+ {
+  "src": "i++ and ++j",
+  "opts": {},
+  "plus": true,
+  "html": "<p>i++ and ++j</p>"
+ },
+ {
+  "src": "i++ and ++j",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>i++ and ++j</p>"
+ },
+ {
+  "src": "g++ -O2 and clang++",
+  "opts": {},
+  "plus": true,
+  "html": "<p>g++ -O2 and clang++</p>"
+ },
+ {
+  "src": "g++ -O2 and clang++",
+  "opts": {
+   "html": true,
+   "breaks": true
+  },
+  "plus": true,
+  "html": "<p>g++ -O2 and clang++</p>"
  }
 ]

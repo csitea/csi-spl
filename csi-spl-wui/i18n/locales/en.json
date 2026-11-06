@@ -3864,8 +3864,6 @@
     "move_up": "Move up",
     "move_down": "Move down",
     "links_title": "Links",
-    "link_add": "Add link",
-    "link_paste": "Paste a link, a msg: or topic: reference, or an issue key",
     "link_remove": "Remove link",
     "not_a_link": "Not a link",
     "link_left": "Link to a workspace you left",

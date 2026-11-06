@@ -3864,8 +3864,6 @@
     "move_up": "Subir",
     "move_down": "Bajar",
     "links_title": "Enlaces",
-    "link_add": "Añadir enlace",
-    "link_paste": "Pega un enlace, una referencia msg: o topic:, o una clave de incidencia",
     "link_remove": "Quitar enlace",
     "not_a_link": "No es un enlace",
     "link_left": "Enlace a un espacio de trabajo que dejaste",

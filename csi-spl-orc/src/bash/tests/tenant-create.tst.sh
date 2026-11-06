@@ -2,7 +2,10 @@
 #------------------------------------------------------------------------------
 # Purpose: do_spl_tenant_create (006 T003) builds the tenant URL from cnf,
 #          never a baked hostname; DRY_RUN prints no private key; missing
-#          tenant id fails; the action source has no product domain literal.
+#          tenant id fails; the action source has no product domain literal;
+#          a DRY_RUN other than 0 or 1 is refused before anything runs; a
+#          hub-tenant refusal never prints the private key; an lde create
+#          returns 0 after its JSON and pins nothing (r51-02).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -82,6 +85,51 @@ if [[ $rc -ne 0 ]] && grep -q 'no project SA key' <<<"$out" && ! grep -qiE 'root
   pass "DRY_RUN=0 dev without DSN or GCP_ACCOUNT refused before keygen/proxy (rc=$rc)"
 else
   fail "DRY_RUN=0 dev without DSN or GCP_ACCOUNT: rc=$rc $out"
+fi
+
+# --- 6. DRY_RUN=0 lde with a stub CLI: the refusals and the lde stop (r51-02)
+# The stub logs its args to $STUB_LOG; root-keygen writes a fixed fake key to
+# its --out file (exits $KG_RC when set); hub-tenant fails with $HT_RC when set.
+cat >"$T/spool" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >>"$STUB_LOG"
+case "$1" in
+  root-keygen) [[ -n "${KG_RC:-}" ]] && exit "$KG_RC"; echo PRIVKEY-STUB >"$3"; echo PUBKEY-STUB ;;
+  hub-tenant) [[ -n "${HT_RC:-}" ]] && { echo "tenant exists" >&2; exit "$HT_RC"; } ;;
+esac
+exit 0
+STUB
+chmod +x "$T/spool"
+
+# (D) a DRY_RUN other than 0 or 1 is refused before the CLI runs
+: >"$T/d.log"
+out=$(SNIPPET='do_spl_tenant_create' in_orc TENANT_ID=acme DRY_RUN=yes SPOOL_BIN="$T/spool" STUB_LOG="$T/d.log" 2>&1); rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'FATAL DRY_RUN must be 0 or 1, got: yes' <<<"$out" && [[ ! -s "$T/d.log" ]]; then
+  pass "DRY_RUN=yes refused before anything runs (rc=2, CLI not called)"
+else
+  fail "DRY_RUN=yes: rc=$rc stub log: $(cat "$T/d.log") $out"
+fi
+
+# (K) a hub-tenant refusal never prints the private key
+: >"$T/k.log"
+out=$(SNIPPET='do_spl_tenant_create' in_orc TENANT_ID=acme DRY_RUN=0 HT_RC=1 SPOOL_BIN="$T/spool" STUB_LOG="$T/k.log" 2>&1); rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FATAL hub-tenant refused acme: tenant exists; the private key was NOT printed' <<<"$out" \
+    && ! grep -qE 'PRIVKEY-STUB|root_private_key' <<<"$out"; then
+  pass "hub-tenant refusal: rc=1, the private key is not printed"
+else
+  fail "hub-tenant refusal: rc=$rc $out"
+fi
+
+# (L) an lde create returns 0 after its JSON and pins nothing
+: >"$T/l.log"
+out=$(SNIPPET='do_spl_tenant_create' in_orc TENANT_ID=acme DRY_RUN=0 SPOOL_BIN="$T/spool" STUB_LOG="$T/l.log" 2>&1); rc=$?
+json=$(grep '^{' <<<"$out" | tail -1)
+if [[ $rc -eq 0 ]] && grep -qF '"root_private_key":"PRIVKEY-STUB"' <<<"$json" \
+    && grep -q '^hub-tenant --tenant acme --root-pubkey PUBKEY-STUB --billing-status manual --db postgres://.*@127.0.0.1:' "$T/l.log" \
+    && ! grep -qiE 'pin|box-wui' <<<"$out"; then
+  pass "lde create: rc=0 after the JSON, box-wui not pinned"
+else
+  fail "lde create: rc=$rc stub log: $(cat "$T/l.log") $out"
 fi
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }

@@ -44,7 +44,6 @@ var longFuncs = map[string]bool{
 var wideFuncs = map[string]bool{
 	"internal/auth/native_store.go (*MemoryCredStore).IssueToken":          true,
 	"internal/auth/native_store_postgres.go (PgCredStore).IssueToken":      true,
-	"internal/hub/box_lock_routes.go (*Server).lockStatementOK":            true,
 	"internal/hub/memberactivity.go (authActivityAdapter).RecordAuthEvent": true,
 	"internal/hub/merge.go (*Server).fanoutMerged":                         true,
 	"internal/hub/merge.go (*Server).mergePair":                            true,

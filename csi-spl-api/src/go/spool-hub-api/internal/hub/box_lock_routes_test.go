@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,9 +32,9 @@ type lockRig struct {
 	owner, admin string
 }
 
-func newLockRig(t *testing.T) *lockRig {
+func newLockRig(t *testing.T, mut ...func(*hub.Options)) *lockRig {
 	t.Helper()
-	e := rbacEnv(t)
+	e := rbacEnv(t, mut...)
 	tid, _ := e.tenant()
 	b := e.box(tid, "box-own", "CLE-01")
 	e.pin(tid, b)
@@ -268,6 +269,65 @@ func TestBoxLockRefusalsAudited(t *testing.T) {
 			t.Errorf("%s: %s count %d -> %d, want +1", c.name, key, before, got)
 		}
 	}
+}
+
+// TestBoxLockStatementRefusals pins three refusals of a change or lift
+// statement: a hub with no box-wui key, a lift's bad signature and a nonce
+// older than 300 s (section 6.2).
+func TestBoxLockStatementRefusals(t *testing.T) {
+	t.Run("no hub key answers 501 and audits nothing", func(t *testing.T) {
+		r := newLockRig(t, func(o *hub.Options) { o.WUIKey, o.WUIDispatch = nil, false })
+		if code, v := r.call(t, http.MethodPost, r.owner, r.createReq(r.body(1), r.kbox)); code != http.StatusCreated {
+			t.Fatalf("create as the owner: %d %v", code, v)
+		}
+		before := r.audits(t)
+		for _, c := range []struct {
+			method string
+			body   map[string]any
+		}{
+			{http.MethodPut, r.changeReq(r.body(2), "1.x", r.klock)},
+			{http.MethodDelete, r.liftReq(1, "1.x", r.klock)},
+		} {
+			if code, v := r.call(t, c.method, r.owner, c.body); code != http.StatusNotImplemented || v["error"] != "unsupported" {
+				t.Errorf("%s with no hub key: %d %v, want 501 unsupported", c.method, code, v)
+			}
+		}
+		after := r.audits(t)
+		for _, k := range []string{"lock_change/refused", "lock_lift/refused"} {
+			if after[k] != before[k] {
+				t.Errorf("%s: %d -> %d, want no refused row", k, before[k], after[k])
+			}
+		}
+	})
+	t.Run("a lift's bad signature is audited on the lift path", func(t *testing.T) {
+		r := newLockRig(t)
+		_, other, _ := ed25519.GenerateKey(nil)
+		if code, v := r.call(t, http.MethodPost, r.owner, r.createReq(r.body(1), r.kbox)); code != http.StatusCreated {
+			t.Fatalf("create as the owner: %d %v", code, v)
+		}
+		before := r.audits(t)
+		if code, v := r.call(t, http.MethodDelete, r.owner, r.liftReq(1, r.nonce(t), other)); code != http.StatusForbidden || v["error"] != "bad_sig" {
+			t.Fatalf("DELETE signed by another key: %d %v, want 403 bad_sig", code, v)
+		}
+		after := r.audits(t)
+		if after["lock_lift/refused"] != before["lock_lift/refused"]+1 || after["lock_change/refused"] != before["lock_change/refused"] {
+			t.Errorf("audits %v -> %v, want lock_lift/refused +1 and lock_change/refused +0", before, after)
+		}
+	})
+	t.Run("a nonce older than 300 s is stale", func(t *testing.T) {
+		var skew atomic.Int64
+		r := newLockRig(t, func(o *hub.Options) {
+			o.Now = func() time.Time { return time.Now().Add(time.Duration(skew.Load())) }
+		})
+		if code, v := r.call(t, http.MethodPost, r.owner, r.createReq(r.body(1), r.kbox)); code != http.StatusCreated {
+			t.Fatalf("create as the owner: %d %v", code, v)
+		}
+		nonce := r.nonce(t)
+		skew.Store(int64(301 * time.Second))
+		if code, v := r.call(t, http.MethodPut, r.owner, r.changeReq(r.body(2), nonce, r.klock)); code != http.StatusBadRequest || v["error"] != "stale_nonce" {
+			t.Fatalf("PUT with a 301 s old nonce: %d %v, want 400 stale_nonce", code, v)
+		}
+	})
 }
 
 // helloAs answers a raw role hello for the rig's box, edited by edit, and

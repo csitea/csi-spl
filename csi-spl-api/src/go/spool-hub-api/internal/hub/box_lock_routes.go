@@ -473,8 +473,8 @@ func (s *Server) handleChangeBoxLock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.lockStatementOK(w, r, c, prev, req.Nonce, req.NonceSignature,
-		BoxLockChangeStatement(c.tenant, c.box, req.Nonce, req.SignedBody), boxLockPathChange) {
+	if !s.lockStatementOK(w, r, c, prev, lockStatement{nonce: req.Nonce, sig: req.NonceSignature,
+		text: BoxLockChangeStatement(c.tenant, c.box, req.Nonce, req.SignedBody), path: boxLockPathChange}) {
 		return
 	}
 	raw, err := base64.StdEncoding.DecodeString(l.BoxPubKey) // VerifyBoxLock does not check it
@@ -512,8 +512,8 @@ func (s *Server) handleLiftBoxLock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.lockStatementOK(w, r, c, prev, req.Nonce, req.Signature,
-		BoxLockLiftStatement(c.tenant, c.box, prev.Version, req.Nonce), boxLockPathLift) {
+	if !s.lockStatementOK(w, r, c, prev, lockStatement{nonce: req.Nonce, sig: req.Signature,
+		text: BoxLockLiftStatement(c.tenant, c.box, prev.Version, req.Nonce), path: boxLockPathLift}) {
 		return
 	}
 	if err := c.ls.LiftBoxLock(r.Context(), c.tenant, c.box, c.hum, s.o.Now()); err != nil {
@@ -523,23 +523,29 @@ func (s *Server) handleLiftBoxLock(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// lockStatement is one change or lift statement: the hub nonce it carries,
+// K_lock's signature over text, and the audit path a refusal lands on.
+type lockStatement struct {
+	nonce, sig, text, path string
+}
+
 // lockStatementOK checks a change or lift statement: a fresh hub nonce for
 // this box, signed by the K_lock on file. A bad signature is 403 and one
 // refused audit row, and so is a stale or foreign nonce (400). ok=false: it
 // answered.
-func (s *Server) lockStatementOK(w http.ResponseWriter, r *http.Request, c boxLockCall, prev *store.BoxLock, nonce, sig, statement, path string) bool {
+func (s *Server) lockStatementOK(w http.ResponseWriter, r *http.Request, c boxLockCall, prev *store.BoxLock, st lockStatement) bool {
 	if len(s.o.WUIKey) != ed25519.PrivateKeySize {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub has no key to issue lock nonces")
 		return false
 	}
-	if !s.boxLockNonceOK(c.tenant, c.box, nonce) {
-		s.refuseLock(r.Context(), c, path)
+	if !s.boxLockNonceOK(c.tenant, c.box, st.nonce) {
+		s.refuseLock(r.Context(), c, st.path)
 		writeErr(w, http.StatusBadRequest, "stale_nonce", "nonce is not this hub's, or older than 300 s: GET the lock for a new one")
 		return false
 	}
 	pub, err := base64.StdEncoding.DecodeString(prev.LockPubKey)
-	if err != nil || len(pub) != ed25519.PublicKeySize || verify(ed25519.PublicKey(pub), []byte(statement), sig) != nil {
-		s.refuseLock(r.Context(), c, path)
+	if err != nil || len(pub) != ed25519.PublicKeySize || verify(ed25519.PublicKey(pub), []byte(st.text), st.sig) != nil {
+		s.refuseLock(r.Context(), c, st.path)
 		writeErr(w, http.StatusForbidden, "bad_sig", "the statement is not signed by this box's lock key")
 		return false
 	}

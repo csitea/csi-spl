@@ -199,25 +199,63 @@ home whose `.gemini/antigravity-cli` links the agent user's agy state dir
 | the agent user's real home, unchanged | no user rule at all: `"response":"NONE"`; 4 `Invalid rule trigger` lines, one per file of its rules dir | 1 |
 
 So the grok shape (a symlink named `*.md` in the rules dir) is dropped by
-agy: `MEMORY.md` has no frontmatter. The fix, spool-install step Y20
-(`steps/y20-agy-memory.sh`, `--fleet`, homes with `~/.gemini`), writes two
-rules into `~/.gemini/config/rules` and copies nothing:
+agy: `MEMORY.md` has no frontmatter.
 
-- `fleet-memory-0-where.md`: the same header as Y18, opening with
-  `trigger: always_on` frontmatter;
-- `AGENTS.md`: a symlink to the claude `MEMORY.md` itself, the one rules-dir
-  name agy loads without frontmatter. An `AGENTS.md` that is not a symlink to
-  a claude `MEMORY.md` is kept and named (`SPOOL_INSTALL_AGY_MEMORY_FORCE=1`
-  replaces it); nothing on the tree or in the agent user's home used that name
-  (`ls ~/.gemini/config/rules/AGENTS.md` -> no such file).
+**The data rule decides what agy gets.** Work that carries secrets or personal
+data (credentials, keys, customer data) goes only to claude, grok or mistral,
+never to agy, and a brief for those lanes never names a credential path (its
+one home: `spool-install/assets/claude/claude-md/20-spawn-an-agent.md`). The
+claude memory holds lessons on those subjects, so unlike Y18 agy never gets the
+whole index. A deny filter is refused: it cannot prove absence. The R7 review
+found this on the first shape of this step, a symlink to the whole index
+(SPL-4911, c-253); the orchestrator chose the allow-list (decision 79126d4f).
+
+The fix, spool-install step Y20 (`steps/y20-agy-memory.sh`, `--fleet`, homes
+with `~/.gemini`), writes two rules into `~/.gemini/config/rules`:
+
+- `fleet-memory-0-where.md`: an always_on header that names the allowed files
+  only and tells agy to read no other file of the memory dir and to follow no
+  link out of a listed file to a file not listed;
+- `AGENTS.md`: a file generated from `MEMORY.md`, the one rules-dir name agy
+  loads without frontmatter: only the index lines whose every link is a listed
+  file. A re-install regenerates it, so `MEMORY.md` stays the one source. An
+  `AGENTS.md` that is neither this file nor a symlink to a claude `MEMORY.md`
+  is kept and named (`SPOOL_INSTALL_AGY_MEMORY_FORCE=1` replaces it).
+
+The list is `agy-allow.list` beside `MEMORY.md`, one fact file a line, `#` starts
+a comment. It stays on the box, never in git: the repo is public and the memory
+stays off it.
+
+- **Default deny.** No list, an empty list or no line left = no index: the step
+  says so and removes what it wrote earlier, a symlink to `MEMORY.md` included.
+- **Who lists a file.** A claude seat, after reading that whole file and its
+  index line and finding no secret, credential path, customer or personal data.
+  A slug says nothing about the body. The finance, customer and key-store
+  lessons stay off.
+- **Named, not silent.** A listed file that is gone or has no index line is
+  dropped and named; so is a list entry that is no fact file name (`MEMORY.md`
+  or a path).
+
+**The list is not an access boundary.** agy runs as the agent user, who owns
+these files, so the list limits what the step loads and what agy is told to
+read; it does not stop an agy session reading the rest. Closing that is a
+separate question, not settled here.
+
+**A listing is not re-checked.** The list holds names: a listed file or index
+line edited later ships as it now reads at the next install, with no new read.
+
+**Not measured yet.** The table above measured `rules/AGENTS.md` as a symlink on
+agy 1.5.1. The generated regular file, which opens with an HTML comment, has no
+live reading: on 2026-11-06 `Y20_AGY_LIVE=1` on agy 1.5.2 answered "Individual
+quota reached" for both live checks (n=1 each). The rollout (`DRY_RUN=0`) waits
+for a live session that shows a listed lesson and not an unlisted one.
 
 Both users of a box: `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_agy_memory_install`.
 Test: `spool-install/tests/test-y20-agy-memory.sh` (red without the step;
 with `Y20_AGY_LIVE=1`, agy on PATH and an agy login it asks a sandbox-home
-session for the probe fact: `WORD=none TITLE=none` before the step,
-`WORD=y20-probe-alpha TITLE=Fleet memory: the lessons claude agents of this
-box keep` after it). The live part is opt-in because each check is a model
-call.
+session for the probe facts: none before the step, after it the listed
+`y20-probe-alpha` and the header title, and not `y20-probe-unlisted`). The live
+part is opt-in because each check is a model call.
 
 The same measurement shows that the lane rule, the exit rule (Y14), the git
 pager rule and the graft rule never reach an agy session: none carries the

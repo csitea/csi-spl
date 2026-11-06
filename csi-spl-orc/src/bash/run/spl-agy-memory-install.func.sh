@@ -1,11 +1,13 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description agy sessions load the fleet lessons claude keeps in its
-# @description auto-memory (spool-install step Y20, SPL-4911): two home rules
+# @description auto-memory, only those on the box's allow-list agy-allow.list
+# @description beside MEMORY.md, no list = no index (the data rule, spool-install
+# @description step Y20, SPL-4911, spec 048 section 5.3): two home rules
 # @description in ~/.gemini/config/rules of BOTH the box's agent user (SPOOL_AGENT_USER,
 # @description else $SPOOL_ROOT/box.env) and the box user (the user running
-# @description this), a header and a symlink to that user's claude MEMORY.md
-# @description of the repo. No memory text is copied. A user without ~/.gemini
+# @description this), a header and an index generated from that user's claude
+# @description MEMORY.md of the repo. A user without ~/.gemini
 # @description or without that memory is skipped and named. Another user's
 # @description home is written through sudo -n -u <user>. Idempotent. Dry run
 # @description unless DRY_RUN=0.

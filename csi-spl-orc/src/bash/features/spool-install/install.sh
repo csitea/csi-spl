@@ -98,8 +98,9 @@
 #      SPOOL_BOX_USER, else the box config); a file you cannot write is named
 #      (steps/y19-git-credential-store.sh)
 #   6i. only with --fleet, when ~/.gemini exists: agy loads the same claude
-#      memory - an always_on header rule plus rules/AGENTS.md, a symlink to
-#      the claude MEMORY.md of the repo, in ~/.gemini/config/rules, no copy
+#      memory on the box's allow-list - an always_on header rule plus
+#      rules/AGENTS.md, generated from the claude MEMORY.md of the repo and its
+#      agy-allow.list, in ~/.gemini/config/rules; no list = no index
 #      (steps/y20-agy-memory.sh; both users of a box:
 #      ./run -a do_spl_agy_memory_install)
 # Re-running it is safe: every step checks before it changes anything.
@@ -1108,7 +1109,7 @@ source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule |
 . "$_here/steps/y15-vibe-output-cap.sh" && spool_install_vibe_output_cap "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe output cap: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 [ "$FLEET" = 1 ] && { . "$_here/steps/y16-git-pager-off.sh" && spool_install_git_pager_off "$HOME" "$DRY" || die 7 "git pager: cannot set core.pager in $HOME's git config"; }
 [ "$FLEET" = 1 ] && { . "$_here/steps/y18-grok-memory.sh" && spool_install_grok_memory "$HOME" "$DRY" || die 7 "grok memory: cannot link the claude memory index into $HOME/.grok/rules"; }
-[ "$FLEET" = 1 ] && { . "$_here/steps/y20-agy-memory.sh" && spool_install_agy_memory "$HOME" "$DRY" || die 7 "agy memory: cannot link the claude memory index into $HOME/.gemini/config/rules"; }
+[ "$FLEET" = 1 ] && { . "$_here/steps/y20-agy-memory.sh" && spool_install_agy_memory "$HOME" "$DRY" || die 7 "agy memory: cannot write the allow-listed memory index into $HOME/.gemini/config/rules"; }
 [ "$FLEET" = 1 ] && { . "$_here/steps/y19-git-credential-store.sh" && spool_install_git_credential_store "$DRY" || die 7 "git credentials: cannot remove credential.helper=store or empty ~/.git-credentials"; }
 . "$_here/steps/y13-force-push-guard.sh" && spool_install_force_push_guard "$HOME" "$DATA" "$DRY" "$FLEET" || die 7 "force-push-guard: cannot wire the force-push block into the harness settings"
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y6-graft.sh" && y6_graft_install "$ORC" "$BIN" "$DRY" || die 6 "the graft step (spec 069 Y6) failed"; }

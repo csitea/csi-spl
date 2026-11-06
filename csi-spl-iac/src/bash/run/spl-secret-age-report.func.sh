@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description READ-ONLY age report of one env's secrets (security round 1
 # @description row 6, SPL-1967): every Secret Manager secret with its enabled
@@ -23,6 +21,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @param SECRET_AGE_NOW (optional) - the UTC instant ages count to (tests), default now
 # @example ENV=prd ./run -a do_spl_secret_age_report
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_spl_secret_age_report() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

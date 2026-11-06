@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description Disable every OLDER enabled version of one Secret Manager secret
 # @description and keep its newest enabled version (security round 1 row 6,
@@ -21,6 +19,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=prd SECRET=csi-spl-hub-stripe-secret-key ./run -a do_spl_secret_version_disable_old
 # @example ENV=prd SECRET=csi-spl-hub-stripe-secret-key DRY_RUN=0 ./run -a do_spl_secret_version_disable_old
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_spl_secret_version_disable_old() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

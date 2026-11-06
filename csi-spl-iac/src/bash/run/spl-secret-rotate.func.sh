@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description One rotation of one hub secret, step by step (SPL-2657, Cloud
 # @description Run radar step 6 part 2; the runbook: secret-rotation.md
@@ -26,6 +24,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=dev SECRET=csi-spl-hub-wui-key ./run -a do_spl_secret_rotate
 # @example ENV=dev SECRET=csi-spl-hub-wui-key ROTATE_STEP=pin DRY_RUN=0 ./run -a do_spl_secret_rotate
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_spl_secret_rotate() {
   local step="${ROTATE_STEP:-status}" dry="${DRY_RUN:-1}" secret="${SECRET:-}"
   [[ "$step" =~ ^(status|pin|verify|disable)$ ]] || { do_log "FATAL ROTATE_STEP must be status, pin, verify or disable, got: '$step'"; return 2; }

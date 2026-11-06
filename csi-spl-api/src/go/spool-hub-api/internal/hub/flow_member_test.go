@@ -125,6 +125,25 @@ func TestFlowMemberGuestAndNonMemberRefused(t *testing.T) {
 	}
 }
 
+// While a box of the workspace is locked to someone other than the reader,
+// every read of someone else's Flow is 403, folded or not: the unfolded
+// page's counts, unread and keys would still name the locked box's topics
+// (row B5). The lock's owner, hiding nothing, still reads others.
+func TestFlowMemberRefusedWhileABoxIsLocked(t *testing.T) {
+	r := newViewRig(t)
+	for _, q := range []string{"", "&fold=day", "&counts_only=true"} {
+		if code, out := call(t, r.e, r.tid, http.MethodGet, "/v1/view/flow?member="+r.owner+q, r.admin, nil); code != http.StatusForbidden {
+			t.Errorf("admin reads the lock owner's flow%s: %d %v, want 403", q, code, out)
+		}
+	}
+	if code, out := call(t, r.e, r.tid, http.MethodGet, "/v1/view/flow?member="+r.admin, r.owner, nil); code != http.StatusOK {
+		t.Errorf("CONTROL: the lock owner reads the admin's flow: %d %v", code, out)
+	}
+	if code, out := call(t, r.e, r.tid, http.MethodGet, "/v1/view/flow", r.admin, nil); code != http.StatusOK {
+		t.Errorf("CONTROL: the admin reads its own flow: %d %v", code, out)
+	}
+}
+
 // Reading another's Flow is read-only: neither the target's nor the
 // viewer's counts move, and the next read of the target answers the same.
 func TestFlowMemberReadMovesNoMarks(t *testing.T) {

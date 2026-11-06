@@ -29,7 +29,7 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
 | `before` | the `cursor` of the last event of the previous page (opaque) |
 | `kind` | `mention` (includes `poke`), `reply` or `dm`; absent = all |
 | `counts_only=true` | answer `{counts, unread, keys}` only |
-| `member` | additive (spec 130 section 3.1, Q3): the Flow of that HUM-* member or agent `<id>@<box>` of the session's workspace; absent or the reader = the reader's. 404 `not_member` for any other id; 403 for a guest or demo reader. Read-only: no mark moves. |
+| `member` | additive (spec 130 section 3.1, Q3): the Flow of that HUM-* member or agent `<id>@<box>` of the session's workspace; absent or the reader = the reader's. 404 `not_member` for any other id; 403 for a guest or demo reader, and for any read of someone else while a box of the workspace is locked to someone other than the reader. Read-only: no mark moves. |
 
 ```json
 {

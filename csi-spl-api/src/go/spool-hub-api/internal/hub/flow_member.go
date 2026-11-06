@@ -22,8 +22,8 @@ import (
 // flowTarget is whose Flow the request reads: the viewer when ?member= is
 // absent or names the viewer, else the checked target. It answers the
 // refusal itself (false): 403 for a viewer who may read only their own Flow
-// (a guest or a demo visitor) or when a box lock would leave the folded page
-// unfiltered, 404 for a target that is no member of this workspace.
+// (a guest or a demo visitor) or while a box of the workspace is locked to
+// someone other than the viewer, 404 for a target that is no member of this workspace.
 func (s *Server) flowTarget(w http.ResponseWriter, r *http.Request, tenant, viewer string) (string, bool) {
 	target := r.URL.Query().Get("member")
 	if target == "" || target == viewer {
@@ -52,9 +52,10 @@ func (s *Server) flowTarget(w http.ResponseWriter, r *http.Request, tenant, view
 	case !found:
 		writeErr(w, http.StatusNotFound, "not_member", "no member or agent of this workspace has that id")
 		return "", false
-	case lv.any() && r.URL.Query().Get("fold") == "day":
-		// A folded line names no box, so a box locked to someone else
-		// could not be cut out of the target's page (row B5).
+	case lv.any():
+		// Fail closed (row B5): a folded line names no box, and the
+		// target's counts, unread and keys are not cut per box either, so
+		// a box locked to someone else would leak its topics' ids.
 		writeForbidden(w, rbac.TopicsRead, "a box of this workspace is locked: only your own flow")
 		return "", false
 	}

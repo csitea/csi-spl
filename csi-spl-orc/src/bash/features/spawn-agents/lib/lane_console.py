@@ -6,7 +6,9 @@ Every FILE_STREAMS_CONSOLE_S the follower pulls the agents of THIS box whose
 console a reader watches now (lane op file_streams_console_demands, through
 the same push command and session as the file streams). For each one it
 finds the tmux window whose name is the agent id (an optional `<tag>: `
-prefix, then the id, then the title), captures its screen plus
+prefix, then the id, an optional `@<tag>`, then the title; the hub demands the
+bare id, and any `@<tag>` counts: this tmux server holds only this box's
+windows and the hub already scoped the demand to this box), captures its screen plus
 FILE_STREAMS_CONSOLE_LINES lines of scrollback as plain text, masks EVERY
 line (the follower's mask: spool_redact.redact() plus the PEM state, from
 the first captured line on), masks whole the lines a secret hard-wrapped by
@@ -16,6 +18,9 @@ watches: no demand, no tmux call.
 
 A screen that did not change is re-sent only every FILE_STREAMS_CONSOLE_KEEP_S,
 so the reader's "captured" age stays fresh without a write a tick.
+
+A demanded agent with no screen (no such window, or the capture failed) is
+counted in `missing`, and the follower's tick line shows it (consoles_missing=N).
 
 Env (set by do_spl_file_stream_follow):
   FILE_STREAMS_CONSOLE_TMUX   JSON argv that runs tmux on the agents' server,
@@ -33,8 +38,9 @@ import re
 import subprocess
 
 AGENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9-]{0,31}$")
-# a window name: an optional box tag "<tag>: ", then the agent id
-WINDOW_RE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*: )?(\S+)")
+# a window name: an optional box tag "<tag>: ", then the agent id, which stops
+# at the "@<tag>" of spec 061 ("c-036@abc title") or a space
+WINDOW_RE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*: )?([^\s@]+)")
 SCREEN_MAX_BYTES = 120 << 10  # under the hub's 128 KiB cap
 DEMANDS_OP = "file_streams_console_demands"
 PUSH_OP = "file_streams_console_push"
@@ -100,6 +106,7 @@ class LaneConsole:
         self.keep_s = env_int("FILE_STREAMS_CONSOLE_KEEP_S", 10)
         self.next_pull = 0.0
         self.agents = []
+        self.missing = 0  # demanded agents the last tick got no screen of
         self.sent = {}  # agent -> (sha256 of the masked screen, when sent)
 
     def pull(self, now):
@@ -246,6 +253,7 @@ class LaneConsole:
 
     def tick(self, now):
         """Pull when due, then capture and push each watched agent."""
+        self.missing = 0  # ctl:console-missing-reset
         self.pull(now)
         if not self.agents:
             return 0
@@ -254,6 +262,7 @@ class LaneConsole:
             wid = wins.get(agent)
             raw = self.capture(wid) if wid else None
             if raw is None:
+                self.missing += 1  # ctl:console-missing
                 continue
             text, n, red = self.masked(raw)
             sha = hashlib.sha256(text.encode("utf-8")).hexdigest()

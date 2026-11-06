@@ -41,10 +41,14 @@ Owner HUM-10, t1 topic `27162335-08ea-4a9b-8a27-aad17a920eef`:
    spec 160) runs `features/spawn-agents/lib/lane_console.py` on every tick.
    Every 5 s it pulls the agents of its own box with a demand on (lane op
    `file_streams_console_demands`). For each one it finds the tmux window
-   whose name is the agent id (an optional `<tag>: ` prefix allowed), runs
+   whose name is the agent id (an optional `<tag>: ` prefix and an optional
+   `@<tag>` suffix allowed, spec 061's `c-036@abc title`), runs
    `tmux capture-pane -p -J -S -200`, masks every line and pushes the text
    (lane op `file_streams_console_push`), at most once a tick, and an
    unchanged screen at most every 10 s. No demand: no tmux call, no push.
+   A demanded agent with no screen shows in the follower's tick line in
+   `cron.log` as `consoles_missing=N` (`consoles=N` counts the demands, not
+   the screens sent).
 3. **Read.** The dialog `GET`s the last capture every 2 s.
 
 The two lane ops ride the follower's existing push command (`spool

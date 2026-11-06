@@ -1141,7 +1141,7 @@ class Follower:
             f"tick streams={len(allow)} following={n['following']} missing={n['missing']} "
             f"refused={n['refused']} queued={len(self.queue)} pushed={self.pushed} push_rc={self.push_rc}"
             f" globs={len(self.globs)} glob_streams={len(self.gstreams)}{' stale' if self.stale else ''}"
-            f" consoles={len(self.console.agents)}"
+            f" consoles={len(self.console.agents)} consoles_missing={self.console.missing}"
         )
         # One line a change, else one every 300 ticks: the cron log of a
         # 2 s loop stays small.

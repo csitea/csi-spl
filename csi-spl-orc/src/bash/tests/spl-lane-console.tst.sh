@@ -31,6 +31,11 @@
 #      their tail lines too: a head line whose own mask runs to the line
 #      end is a wrap even when it matches alone; a complete token inside
 #      a line keeps the words after it (R7 c-164 r4)
+#  L11 every window name shape of spec 061 is found under the bare agent id
+#      the hub demands: "<id>@<tag>" (what the spawn writes), "<tag>: <id>@<tag>",
+#      "<id>@<tag> title", "<id> title", "<id>" (SPL-4925)
+#  L12 a demanded agent with no window is counted in the tick log
+#      (consoles_missing=N), not dropped silently (SPL-4925)
 # Each runs green on the module and red on a copy with one planted defect.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -136,6 +141,12 @@ open(pieces, "w").write("\n".join(bits) + "\n")
 EOF
 tmux -S "$SOCK" new-window -d -t lc -n "c-908 pat" "cat '$T/pat.txt'; sleep 600"
 tmux -S "$SOCK" new-window -d -t lc -n "c-907 nested" "cat '$T/nested.txt'; sleep 600"
+# one window per name shape of spec 061 (SPL-4925)
+tmux -S "$SOCK" new-window -d -t lc -n "c-911@box1" "echo shape-c-911-text; sleep 600"
+tmux -S "$SOCK" new-window -d -t lc -n "box1: c-912@box1" "echo shape-c-912-text; sleep 600"
+tmux -S "$SOCK" new-window -d -t lc -n "c-913@box1 some title" "echo shape-c-913-text; sleep 600"
+tmux -S "$SOCK" new-window -d -t lc -n "c-914 some title" "echo shape-c-914-text; sleep 600"
+tmux -S "$SOCK" new-window -d -t lc -n "c-915" "echo shape-c-915-text; sleep 600"
 sleep 1
 
 # tmux wrapper: logs every call, then runs the private server's tmux
@@ -314,6 +325,30 @@ l10() {
     { echo "  L10: screen: $(jq -c '{screen, redactions}' <<<"$s")"; return 1; }
 }
 
+l11() {
+  local d="$T/l11-$RANDOM" id
+  run "$1" "$d" '["c-911","c-912","c-913","c-914","c-915"]'
+  for id in c-911 c-912 c-913 c-914 c-915; do
+    screens "$d" "$id" | jq -e --arg w "shape-$id-text" '.screen | contains($w)' >/dev/null ||
+      { echo "  L11: no screen of $id: $(cat "$d/out")"; return 1; }
+  done
+}
+
+l12() {
+  local d="$T/l12-$RANDOM"
+  run "$1" "$d" '["c-911","c-999"]'
+  grep -q 'consoles=2 consoles_missing=1$' "$d/out" || { echo "  L12: one missing of two: $(cat "$d/out")"; return 1; }
+  [[ -n "$(screens "$d" c-911)" ]] || { echo "  L12: the agent with a window lost its push"; return 1; }
+  d="$T/l12-$RANDOM"
+  run "$1" "$d" '["c-911"]'
+  grep -q 'consoles=1 consoles_missing=0$' "$d/out" || { echo "  L12: none missing: $(cat "$d/out")"; return 1; }
+  # per tick, not a running total
+  d="$T/l12-$RANDOM"
+  run "$1" "$d" '["c-999"]' 3
+  grep -q 'consoles=1 consoles_missing=1$' "$d/out" && ! grep -qE 'consoles_missing=([2-9]|[0-9]{2})' "$d/out" ||
+    { echo "  L12: three ticks: $(cat "$d/out")"; return 1; }
+}
+
 # check <id> <what> <fn> [<control> <old> <new>]...: green on the module,
 # red on each planted defect.
 check() {
@@ -339,7 +374,7 @@ check L1 "a watched window: screen + 200 lines of scrollback, line 150's token a
 check L2 "nobody watches: no tmux call, no push" l2 \
   always-capture 'if not self.agents:' 'if not self.agents and False:'
 check L3 "a window named with a box tag is found" l3 \
-  no-tag 'WINDOW_RE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*: )?(\S+)")' 'WINDOW_RE = re.compile(r"^(\S+)")'
+  no-tag 'WINDOW_RE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*: )?([^\s@]+)")' 'WINDOW_RE = re.compile(r"^([^\s@]+)")'
 check L4 "an unchanged screen is not re-sent before keep_s" l4 \
   always-send 'if last and last[0] == sha and now - last[1] < self.keep_s:' 'if False:'
 check L5 "a token hard-wrapped by the TUI (2 lines at col 14, 4 lines at 12 cols) is masked" l5 \
@@ -358,6 +393,11 @@ check L10 "a long token wrapped at col 80, and one at col 0, is masked, its tail
   no-end 'self.at_end(run[0]) or ' '' \
   no-whole ' or not self.whole(run[0])' ' or True' \
   lo-falsy 'span(ln, text)[0] is not None' 'span(ln, text)[0]'
+check L11 "every window name shape of spec 061 is found under the bare agent id" l11 \
+  keeps-box '([^\s@]+)")' '(\S+)")'
+check L12 "a demanded agent with no window is counted in the tick log" l12 \
+  not-counted 'self.missing += 1  # ctl:console-missing' 'pass' \
+  never-reset 'self.missing = 0  # ctl:console-missing-reset' 'pass'
 
 [[ "$fails" == 0 ]] && echo "OK spl-lane-console: all passed" || echo "FAIL spl-lane-console: $fails failed"
 ((fails == 0))

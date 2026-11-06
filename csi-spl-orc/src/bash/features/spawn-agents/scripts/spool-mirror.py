@@ -507,7 +507,9 @@ def desk_root(home):
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
-def seats(agent):
+def seats(agent, muted=False):
+    """The agent's seats; muted=True keeps a seat with .no-mirror, for the reads
+    that keep a person's DM private, which a mute must not switch off."""
     pat = os.environ.get("SPOOL_MIRROR_SEATS")
     if not pat:
         root = desk_root(os.path.expanduser("~"))
@@ -517,7 +519,9 @@ def seats(agent):
     out = []
     for d in sorted(glob.glob(pat)):
         a = os.path.join(d, "spool", agent)
-        if os.path.isdir(a) and not os.path.exists(os.path.join(a, ".no-mirror")):
+        if os.path.isdir(a) and (
+            muted or not os.path.exists(os.path.join(a, ".no-mirror"))
+        ):
             out.append(d)
     return out
 
@@ -1084,7 +1088,8 @@ def discussion_log_no_seat(agent):
 def discussion_leg(ss, agent, text, session, turns):
     """After the DM leg. Exactly one seat may post: each seat is a workspace, so
     the text never chooses between them. A DM-started turn has had its answer,
-    and until the hold ends only a channel post's own turn may post."""
+    and until the hold ends only a channel post's own turn may post. A DM no
+    prompt has taken stops every post: this very text may be its answer."""
     if sd.is_role_seat(agent) or any(t.get("kind") == "dm" for t in turns.values()):
         return
     if not ss:
@@ -1103,7 +1108,15 @@ def discussion_leg(ss, agent, text, session, turns):
             )
         return
     now = time.time()
-    if any(sd.dm_hold(os.path.join(s, "spool", agent), now) for s in ss):
+    dirs = [os.path.join(s, "spool", agent) for s in seats(agent, muted=True)]
+    if any(sd.dm_waiting(d, now) for d in dirs):
+        for s in live:
+            log(
+                os.path.join(s, "spool", agent),
+                "discussion: nothing posted: a person's DM has no turn yet",
+            )
+        return
+    if any(sd.dm_hold(d, now) for d in dirs):
         direct = [s for s in live if turns.get(s, {}).get("kind") == "channel"]
         if not direct:
             for s in live:

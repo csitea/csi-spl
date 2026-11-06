@@ -29,6 +29,8 @@
 #       unreadable hold all stay out of the channel
 #   C14 a corrupt seen-list does not fail the prompt hook
 #   C15 is_role_seat agrees with SPL_ROLE_SEAT_RX
+#   C16 a DM no prompt has taken yet stops every post of the agent, on every
+#       seat, a muted one too
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -334,6 +336,11 @@ reset; brief "$TD"; dm_turn "PRIVATE answer"
 python3 -c 'import json,sys,time; json.dump({"ts":time.time()-3700},open(sys.argv[1],"w"))' "$A/.mirror/dm-turn"
 turn_notification
 eq "C13. CONTROL: the hour passes, a notification turn posts" "$TD" "$(send_arg 1 --task)"
+# The edge of the window, both sides: 3,700 s above posts, 3,500 s holds.
+reset; brief "$TD"; dm_turn "PRIVATE answer"
+python3 -c 'import json,sys,time; json.dump({"ts":time.time()-3500},open(sys.argv[1],"w"))' "$A/.mirror/dm-turn"
+turn_notification
+eq "C13. 3,500 s after the DM it still holds" 1 "$(nsends)"
 # A hold it cannot read is a hold.
 reset; brief "$TD"; post prompt "$NOTIFICATION"; printf 'not json' >"$A/.mirror/dm-turn"; post answer "$FINDINGS"
 eq "C13. an unreadable hold: nothing" 0 "$(nsends)"
@@ -345,6 +352,41 @@ reset; brief "$TD"; mkdir -p "$A2/inbox"
 trig dm HUM-5 "$TX" "a dm on the second seat" "$A2"; post prompt "a dm on the second seat"; post answer "PRIVATE answer"
 turn_notification
 eq "C13. a DM on the second seat holds the first too" "1 TENANT=t2" "$(nsends) $(tail -qn1 "$SENDS"/0)"
+
+# During a hold only the channel post's own seat may post. Its plan fails (t1
+# cannot read that topic), and the other seat, which can, stays silent.
+reset; brief "$TX"; mkdir -p "$A2/inbox"; dm_turn "PRIVATE answer"
+trig channel HUM-9 "$TX" "line one"; post prompt "line one"; post answer "$FINDINGS"
+eq "C13. during a hold another seat does not stand in for the channel seat" 1 "$(nsends)"
+
+# --- C16 a DM no prompt has taken --------------------------------------------
+# A line typed during a turn queues: no prompt hook takes its record, and the
+# turn's answer can already answer it.
+dm_pending() { trig dm HUM-9 "$TM" "a person's dm, typed mid-turn" "${1:-$A}"; }
+age_triggers() {  # SECONDS [AGENT_DIR]
+  find "${2:-$A}/.mirror/trigger" -type f -exec touch -d "@$(($(date +%s) - $1))" {} +
+}
+reset; brief "$TD"; trig channel HUM-9 "$TD" "line one"; post prompt "line one"; dm_pending; post answer "$FINDINGS"
+eq "C16. a DM typed during a channel turn: nothing" 0 "$(nsends)"
+has "C16. ... and the log says it" "a person's DM has no turn yet" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"; dm_pending; turn_notification
+eq "C16. a DM the prompt does not match: nothing" 0 "$(nsends)"
+reset; brief "$TD"; mkdir -p "$A2/inbox"; dm_pending "$A2"; turn_notification
+eq "C16. a DM waiting on the other seat: nothing" 0 "$(nsends)"
+reset; brief "$TD"; mkdir -p "$A2/inbox"; dm_pending; turn_notification
+eq "C16. a DM waiting on the first seat of two: nothing" 0 "$(nsends)"
+reset; brief "$TD"; mkdir -p "$A2/inbox"; touch "$A2/.no-mirror"; dm_pending "$A2"; turn_notification
+eq "C16. a DM waiting on a muted seat: nothing" 0 "$(nsends)"
+reset; brief "$TD"; mkdir -p "$A2/inbox"; touch "$A2/.no-mirror"; turn_notification
+eq "C16. CONTROL: a muted seat with no DM does not stop the post" 1 "$(nsends)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; dm_pending; age_triggers 3500; post answer "$FINDINGS"
+eq "C16. a waiting DM 3,500 s old still holds" 0 "$(nsends)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; dm_pending; age_triggers 3700; post answer "$FINDINGS"
+eq "C16. CONTROL: past the hour it no longer holds" 1 "$(nsends)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror/trigger"; printf 'not json' >"$A/.mirror/trigger/x"; post answer "$FINDINGS"
+eq "C16. a record that cannot be read: nothing" 0 "$(nsends)"
+reset; brief "$TD"; trig channel HUM-9 "$TE" "another line"; trig task c-001 "" "a task line"; turn_notification
+eq "C16. CONTROL: other waiting kinds do not stop the post" "1 $TD" "$(nsends) $(send_arg 0 --task)"
 
 # --- C14 a corrupt seen-list --------------------------------------------------
 reset; mkdir -p "$A/.mirror"; printf '{"x":"not a number"}' >"$A/.mirror/discussions"

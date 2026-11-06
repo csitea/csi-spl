@@ -347,7 +347,8 @@ must ensure whit in the code somewhow ..". Report: t1 topic `bf2f0ab0`.
 | workspace | `hub-tail --with-channel` on THAT seat must return the topic, with a channel | the seat's tenant scopes the read. A topic of another workspace returns nothing |
 | agent on several seats | exactly one seat may qualify: the seat of step 1, else the only seat that can read the topic. More than one: nothing posted | each seat is a workspace, so text must not choose between them |
 | DM | a topic with an empty channel is never posted to. A DM-triggered turn posts nothing here | rule 1 |
-| after a DM | for one hour after a DM started a turn on any of the agent's seats, only a turn started by a channel post may post, and only on that post's seat. Everything else: nothing posted, one log line. The record is written when the prompt arrives, and one that cannot be read counts as a hold | a background job started for a person's DM ends as one more notification turn, and its text can be as private as the answer (holder ruling, c-002 41304654). A second hook reads the turn already consumed, so the record cannot live in the turn. One hour is the longest a session runs, and its background jobs end with it |
+| after a DM | for one hour after a DM started a turn on any of the agent's seats, only a turn started by a channel post may post, and only on that post's seat. Everything else: nothing posted, one log line. The record is written when the prompt arrives, and one that cannot be read counts as a hold | a background job started for a person's DM ends as one more notification turn, and its text can be as private as the answer (holder ruling, c-002 41304654). A second hook reads the turn already consumed, so the record cannot live in the turn. One hour is the longest a session runs, and its background jobs end with it. That is the limit of any time window: a rotated session can carry the work on, the hold survives the rotation but ends at the hour whatever the successor is doing, so a successor's later text does not stay private |
+| a DM with no turn yet | a `dm` record under any seat's `.mirror/trigger`, a muted seat too, under one hour old and not taken by a prompt hook stops every post of the agent, a channel post's own turn too, with one log line. A record that cannot be read counts | a line typed during a turn queues and fires no prompt hook (`spool-notify.inc.sh`), so `dm-turn` is never written and the running turn's text may already answer it (R7 c-263 W7, its probes P21, P22). That no hook fires is inferred from the record left behind, not watched. Of 30 unconsumed trigger lines in one snapshot, 22 arrived as `queued_command`; none of the 30 was a DM, so a real DM on this path is not measured. Cost: such a record stops the agent's channel answers until it is an hour old. A DM on a muted seat holds too (N5), since no prompt hook runs for that seat |
 | content | the Stop hook's final text only, after `answer_text` (status and spinner lines), with injected blocks removed, redacted first, then clipped. A sealed envelope is not posted | "not the logs and the jibrish". Tool output never enters the hook's text |
 | filler | `answer_text` drops a status-only text. `spool send` refuses a filler body (`IsFiller`), logged as a skip | how-to-post rule 7 |
 | posted already | nothing when the agent's own row in the topic is newer than the turn's start (hub), or its seat outbox holds a send on that task since the turn's start. Nothing either when the same text is already in the topic | a closing summary rarely matches its post word for word, so the check is per turn and not per text. The hub is the truth for every vendor |
@@ -438,19 +439,31 @@ Off for one seat: `touch <seat>/spool/<id>/.no-mirror`. Off for the box:
 `$SPOOL_ROOT/.mirror-off`. What to read during the measurement:
 `discussion:` lines in `<seat>/spool/<id>/.mirror/mirror.log`.
 
-The measurement, all six before prd (R7, c-263):
+Before the switch goes on in dev, on the tree that will run it: read the lease
+gate (below). If a mirror post can lift the first-reply refusal, fix that first.
+
+The measurement, then, all six before prd (R7, c-263):
 
 1. A real send through the real CLI on dev: the stored channel is set, deliveries
    are `box-wui` only, and no seat starts a new turn in the window. So far this
    is proven on the in-memory hub only, not on the CLI, Postgres or a live hub.
-2. Every `discussion: OK` checked against any DM in that session: 0 expected.
+2. Every `discussion: OK` checked against the DMs to that agent, read from the
+   hub or from the `dm` records under `.mirror/trigger`: 0 expected within the
+   hold. The `turn: dm` lines cannot do this: a DM typed during a turn never
+   writes one.
 3. A person reads a sample: right topic, no logs, no customer data. `redact`
    knows secret shapes, not meaning, and a log pasted into a final text is
    posted. Report the rates.
 4. Posts per seat-hour and per topic against the cap (there is no cap per topic
    or per box), and `discussion: nothing` counted per reason.
 5. Duplicates: the agent's own post plus a mirror post in one turn.
-6. The lease gate and the off drill, below.
+6. The off drill: on one dev seat, set `enabled: false` in `dev.env.yaml` on the
+   checkout that seat's hook runs from (`readlink -f` of the script in its hook
+   command) and let one notification turn end: no new `discussion: OK` line and
+   no new row in the topic. Then, with the switch on again, `touch`
+   `<seat>/spool/<id>/.no-mirror` and the same check, then
+   `$SPOOL_ROOT/.mirror-off` and the same check, which also stops the DM mirror.
+   Each step is proven by the mirror log and the topic, not by the command's exit.
 
 Known, read but not run:
 
@@ -464,3 +477,11 @@ Known, read but not run:
 - **Lanes post little today.** Under Q-1 A, 4 non-role seated ids on this box,
   2 of them live, of the 21 ids in window names (c-263, other boxes not read).
 - **agy and mistral** are fixture-tested only; do not count them as covered.
+- **A quiesced desk.** A prompt during a desk's move window writes neither a
+  `dm-turn` nor a trigger record, so a DM in that window sets no hold (read, not
+  probed, c-263 N6). A seat stays silent while quiesced; a DM's follow-up after
+  the window is not held.
+- **Label lines not read.** 59 dispatch briefs and 2 lifetime briefs carry a
+  `Discussion:` line with a uuid in a form the anchored read skips, such as
+  `Discussion: t1 <uuid>`, about twice the 27 it reads (c-263 N9). They fall to
+  the seen topic. Count these at step 3 of the measurement.

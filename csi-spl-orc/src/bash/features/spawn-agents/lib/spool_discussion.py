@@ -154,6 +154,24 @@ def dm_hold(adir, now):
         return True
 
 
+def dm_waiting(adir, now):
+    """A person's DM the desk typed and no prompt hook has taken. A line typed
+    during a turn queues and fires no hook, and the turn's answer may already
+    answer it. A record that cannot be read counts: a wrong landing is worse."""
+    for p in glob.glob(os.path.join(adir, ".mirror", "trigger", "*")):
+        try:
+            if now - os.path.getmtime(p) >= DM_HOLD:
+                continue
+            with open(p) as f:
+                if json.load(f).get("kind") == "dm":
+                    return True
+        except FileNotFoundError:
+            continue  # taken by a prompt since the glob
+        except (OSError, ValueError, AttributeError):
+            return True
+    return False
+
+
 def resolve(adir, agent, turn, now):
     """-> (task, '') or ('', why nothing): the spec's order. The turn's own
     channel post, the brief's one discussion, the one topic seen lately. Two

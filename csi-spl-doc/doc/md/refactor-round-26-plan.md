@@ -47,7 +47,7 @@ one raises the five floors round 25 left; three put ten under-tested Go function
 under unit test. Batch 2 and 3 are the second WUI split, which reuses the first
 one's test loader, and the row that deletes the gate lines the others left.
 
-**Status: v0.1 DRAFT**, for the panel (section 9).
+**Status: v0.2 DRAFT**, for the panel (section 9).
 
 Editor: **c-267** (claude). Panel reviewer: named by the dispatch lease holder
 (another vendor than claude). Dispatch lease holder: the current holder of
@@ -134,7 +134,10 @@ blocks with count 0).
 | round 25 6 | `files` `PutDir` (74.1), `action` `React` (64.7), `lockkey` `writeFile` (55.6) | `go tool cover -func` | all three reproduce | **Round 27**: a 1-function row, the hub WebSocket call, or Write / Sync failures only |
 | round 25 6 | the 3 floors no row of round 25 raised: `mcp` 90.0 / 88.7, `invitemail` 87.8 / 85.3, `notify` 96.6 / 94.8 | as row 06 | read / floor, over by more than 1 point | **Round 27**: a row holds at most 5 sites |
 | round 25 6 | Go `longFuncs` (2) and the other 14 `wideFuncs` | `sed -n 45,58p go:internal/cleancode/cleancode_test.go \| wc -l` -> 14; `go test -count=1 -v ./internal/cleancode/ \| grep -c 'no longer'` -> 0 | 14 wide, 2 long, 0 stale | **Left out**: `store` (Postgres twins), `auth` and `hub` merge / search / view, as rounds 22-25 |
-| round 25 6 | `store`, `hub`, `auth`, `gcal`, `github`, `repodocs`, `blob`, `cmd/spool`; WUI raw text; gosec / semgrep; shellcheck WARNING baseline | **not re-measured** | none | **Left out**, as rounds 22-25. Named here so the gap is visible: the brief asks to re-measure each input, and these were carried over without it |
+| round 25 6 | `store`, `hub`, `auth`, `gcal`, `github`, `repodocs`, `blob`, `cmd/spool` | **not re-measured** | none | **Left out**, as rounds 22-25. Named here so the gap is visible: the brief asks to re-measure each input, and these were carried over without it |
+| round 25 6 | WUI raw text | `node tests/unit/i18n-no-raw-text.test.mjs` (`cd wui:`, tree `4e2b8d70e` plus this plan, about 22:00Z) | `# tests 5`, `# pass 5`, `# fail 0`; `i18n/i18n-raw-text-baseline.json` holds 12 files, 14 strings | **Left out**, as rounds 22-25 |
+| round 25 6 | shellcheck WARNING baseline | `./run -a do_sec_shellcheck` (`cd iac:`, same tree, ended 22:02:55Z) | rc 0, `shellcheck: no new findings (baseline holds)`, 2169 scripts; 95 lines in `.shellcheck-warning-baseline.txt` (`grep -vcE '^(#\|$)'`) | **Left out**, as rounds 22-25 |
+| round 25 6 | gosec / semgrep | `./run -a do_sec_gosec`, `./run -a do_sec_semgrep` (`cd iac:`, same tree) | **NOT measured.** gosec: stopped by this editor's 170 s timeout, rc 124, no verdict. semgrep: rc 1, `semgrep is not on PATH` under the user that ran it; not retried under another. Baselines only: `.gosec-baseline.txt` 4 lines, `.semgrep-baseline.txt` 1 | **Left out**, as rounds 22-25; the gap stays |
 
 ## 3. The 10 rows
 
@@ -178,6 +181,15 @@ blocks with count 0).
   repo). Their briefs are **unchecked** here, and exit 4 is not free: the dispatch
   holder asks them, or reads their briefs, before placing a row, and re-runs the
   check before each row's spawn.
+- **Later readings (v0.2, n=1 each):** the same `--check` on the same 24 paths
+  -> `free`, **rc 0** at 2026-11-06T22:06:47Z, not piped. The exit 4 above stays
+  as the reading of its own time; the five lanes' briefs stay unchecked. At
+  `origin/master` `2b9bbd097`, 1 commit past `4e2b8d70e`, `git diff --stat
+  4e2b8d70e origin/master` over the 13 existing site files and the `keyd` and
+  `lockkey` dirs printed nothing. `git show 4e2b8d70e:<file> | sed -n <N>p` holds
+  what the rows say at `useCardMove.ts` 68, 84, 89, 122; `useCardTopicActions.ts`
+  107, 140, 165, 181; `spl-secret-unused-list.func.sh` 59, 87, 117, 125. That
+  checks the lines only: no break has been planted.
 - **Live branches on this box:** for each of the 17 live lanes here,
   `git -C <its worktree> diff --name-only origin/master...HEAD` plus its
   `status --short`, grepped for the site basenames and packages -> 0 hits
@@ -193,7 +205,11 @@ blocks with count 0).
   through `internal/keydesk` only; `681aa63f` (`c001-doc-devguide-wui-75-lines`)
   quotes `cleancode.test.mjs:27-28` in a doc lane. 5 briefs name
   `bash-cleancode` only as a gate to run. **Not read: 2 briefs not on this box**
-  (asks `6ef7dec0`, `5ca30e73`).
+  (asks `6ef7dec0`, `5ca30e73`). By their ask summaries only, the briefs still
+  unread: `6ef7dec0` is an agy language review of
+  `monitoring.lanes.col_origin_issue` (SPL-4620); `5ca30e73` is a lane-map
+  dead-seat bug, its brief on the other box. Neither summary names a site here,
+  which proves nothing about the briefs.
   A grep can only find what it was told to look for, so the dispatch holder
   re-runs the check before each row's spawn.
 - **Open rows of earlier rounds:** r51-10 holds `action-header-tags-baseline.txt`
@@ -249,7 +265,8 @@ blocks with count 0).
 | rows 07-09's floor raises; `mcp`, `invitemail`, `notify` floors; `files` `PutDir`, `action` `React`, `lockkey` `writeFile`; 47 other `< 75%` functions (57 less this round's 10) | round full, or only I/O-failure gaps; **input for round 27** | `go tool cover -func` on `4e2b8d70e` |
 | the other 15 WUI `WIDE` functions | round full, not read one by one (two of them stay at 6 parameters after rows 01-02); **input for round 27** | section 2 |
 | Go `longFuncs` (2), `wideFuncs` (14), `store`, `hub`, `auth`, `gcal`, `github`, `repodocs`, `blob`, `cmd/spool` | as rounds 22-25 | section 2 |
-| WUI raw text, gosec / semgrep, shellcheck WARNING baseline | as rounds 22-25; **not re-measured** this round | none |
+| WUI raw text, shellcheck WARNING baseline | as rounds 22-25; both hold | section 2 |
+| gosec / semgrep | as rounds 22-25; **NOT measured** this round | section 2 |
 
 ## 7. Counts
 
@@ -270,10 +287,11 @@ blocks with count 0).
 ## 8. Changes
 
 - v0.1: first draft (c-267): 10 rows, slug `r52`, measured on `4e2b8d70e`.
+- v0.2: dated measurements added at the dispatch holder's request (sections 2, 3.2, 6). No row changed. None of them is reviewed yet.
 
 ## 9. Consensus
 
-Not signed. The plan is v0.1 until both seats sign its sha (rulebook 3.2).
+Not signed. The plan is a draft until both seats sign its sha (rulebook 3.2).
 
-- Editor seat: c-267 (claude): drafted v0.1.
+- Editor seat: c-267 (claude): drafted v0.1 and v0.2.
 - Panel reviewer seat: to be named by the dispatch lease holder.

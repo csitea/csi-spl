@@ -15,25 +15,31 @@
 # the log says "Invalid rule trigger" and the text never reaches the model),
 # but it loads rules/AGENTS.md with no frontmatter.
 #
-# agy-allow.list, beside MEMORY.md and never in git, names one fact file a line
-# ("#" starts a comment). A file goes on it only after a claude seat read that
-# whole file and its index line and found no secret, credential path, customer
-# or personal data. Default deny: no list, an empty list or no line left = no
+# agy-allow.list, beside MEMORY.md and never in git, holds one row per lesson
+# ("#" starts a comment): <sha256 of the file> <sha256 of its index line> <file>.
+# A row goes on it only after a claude seat read that whole file and that line
+# and found no secret, credential path, customer or personal data; then
+# spool_install_agy_memory_row <memdir> <file> prints the row. A file or a line
+# that no longer matches its row is dropped and named until a seat reads it again
+# (checked at each install). Default deny: no list, an empty list or no line left = no
 # index, the step says so and removes what it wrote earlier. This step writes:
 #   fleet-memory-0-where.md  an always_on header: where the lessons are, the
 #                            listed files only, follow no link out of them
 #   AGENTS.md                generated from MEMORY.md: only the lines whose every
-#                            link is a listed file; re-install regenerates it
+#                            link is a listed file with this line's hash in its
+#                            row; re-install regenerates it
 # The list limits what is loaded and what agy is told to read. It is no access
 # boundary: agy runs as the user who owns these files.
 #
 # A listed file that is gone, or has no index line, is dropped and named.
 # <repo> defaults to SPOOL_INSTALL_CLAUDE_MEMORY_REPO, else the main worktree
 # of the checkout this step lives in (claude keys a worktree's memory to it).
-# A home without .gemini, or a repo without a claude MEMORY.md, is skipped and
-# named. A same-named header without this step's marker, or an AGENTS.md that is
-# neither this step's file nor a symlink to a claude MEMORY.md, is left alone
-# and named (SPOOL_INSTALL_AGY_MEMORY_FORCE=1 replaces it). Idempotent.
+# A home without .gemini is skipped and named; a repo without a claude MEMORY.md
+# too, and what this step wrote earlier goes. A same-named header without this
+# step's marker, or an AGENTS.md that is neither this step's file nor a symlink to
+# a claude MEMORY.md, is left alone and named (SPOOL_INSTALL_AGY_MEMORY_FORCE=1
+# replaces it); the step's other file then goes too, so no stale or whole index
+# stays behind it. Idempotent.
 # SPOOL_INSTALL_AGY_MEMORY=0 skips the step.
 #------------------------------------------------------------------------------
 Y20_MARK='<!-- spool-install: y20 agy-memory header -->'
@@ -56,34 +62,71 @@ _y20_repo() {
   dirname "$common"
 }
 
-# The listed fact files that exist, sorted, one per line; the others are named.
-_y20_listed() {  # MEMDIR
-  local name
+_y20_sha() { sha256sum | cut -d' ' -f1; }
+
+# The rows of agy-allow.list a seat appends for a file it read whole: one per
+# index line that links it. Prints only; a row is one lesson as it reads now.
+spool_install_agy_memory_row() {  # MEMDIR FILE
+  local fh lines line
+  [ ! -L "$1/$2" ] || { _y20_say "$1/$2 is a symlink: no row"; return 1; }
+  [ -f "$1/$2" ] || { _y20_say "no $1/$2"; return 1; }
+  lines="$(grep -F "]($2)" "$1/MEMORY.md")" || { _y20_say "$2 has no index line in $1/MEMORY.md"; return 1; }
+  fh="$(_y20_sha <"$1/$2")"
+  while IFS= read -r line; do
+    printf '%s %s %s\n' "$fh" "$(printf '%s' "$line" | _y20_sha)" "$2"
+  done <<<"$lines"
+}
+
+# "<file> <line sha>" of each row whose file exists and matches, sorted, one per
+# line; the other rows are named.
+_y20_rows() {  # MEMDIR
+  local row fh lh name extra
   [ -f "$1/$Y20_LIST" ] || return 0
-  while IFS= read -r name || [ -n "$name" ]; do
-    name="${name%%#*}"
-    name="${name//[[:space:]]/}"
-    [ -n "$name" ] || continue
-    if [[ ! "$name" =~ ^[A-Za-z0-9._-]+\.md$ ]] || [ "$name" = MEMORY.md ]; then
+  while IFS= read -r row || [ -n "$row" ]; do
+    row="${row%%#*}"
+    fh="" lh="" name="" extra=""
+    read -r fh lh name extra <<<"$row"
+    [ -n "$fh" ] || continue
+    if [ -n "$extra" ] || [ -z "$name" ] || [[ ! "$fh" =~ ^[0-9a-f]{64}$ ]] || [[ ! "$lh" =~ ^[0-9a-f]{64}$ ]]; then
+      _y20_say "WARN $Y20_LIST: '$row' is no row <file sha256> <line sha256> <file>: dropped"
+    elif [[ ! "$name" =~ ^[A-Za-z0-9._-]+\.md$ ]] || [ "$name" = MEMORY.md ]; then
       _y20_say "WARN $Y20_LIST: $name is no fact file name: dropped"
+    elif [ -L "$1/$name" ]; then
+      _y20_say "WARN $Y20_LIST: $name is a symlink: dropped"
     elif [ ! -f "$1/$name" ]; then
       _y20_say "WARN $Y20_LIST: $name is gone from $1: dropped"
+    elif [ "$(_y20_sha <"$1/$name")" != "$fh" ]; then
+      _y20_say "WARN $Y20_LIST: $name changed since a claude seat read it: dropped until one reads it again"
     else
-      printf '%s\n' "$name"
+      printf '%s %s\n' "$name" "$lh"
     fi
   done <"$1/$Y20_LIST" | sort -u
 }
 
-# The MEMORY.md lines with a link, every link of them a listed file.
-_y20_index_lines() {  # MEMORY.md LISTED(non-empty, one per line)
-  awk 'NR == FNR { ok[$0] = 1; next }
+# The MEMORY.md lines with a link, every link a listed file whose row holds this
+# line's hash; a line of a listed file that does not match is named.
+_y20_index_lines() {  # MEMORY.md ROWS(non-empty, one per line)
+  local line h link ok
+  awk 'NR == FNR { ok[$1] = 1; next }
     { s = $0; n = 0; bad = 0
       while (match(s, /\]\([^)]*\)/)) {
         n++
         if (!(substr(s, RSTART + 2, RLENGTH - 3) in ok)) bad = 1
         s = substr(s, RSTART + RLENGTH)
       }
-      if (n > 0 && !bad) print }' <(printf '%s\n' "$2") "$1"
+      if (n > 0 && !bad) print }' <(printf '%s\n' "$2") "$1" |
+    while IFS= read -r line; do
+      h="$(printf '%s' "$line" | _y20_sha)"
+      ok=1
+      while IFS= read -r link; do
+        link="${link#](}"; link="${link%)}"
+        if [[ $'\n'"$2"$'\n' != *$'\n'"$link $h"$'\n'* ]]; then
+          ok=0
+          _y20_say "WARN $Y20_LIST: $link: its index line changed since a claude seat read it: dropped until one reads it again"
+        fi
+      done < <(grep -oE '\]\([^)]*\)' <<<"$line")
+      [ "$ok" = 0 ] || printf '%s\n' "$line"
+    done
 }
 
 _y20_header() {  # MEMDIR REPO LISTED
@@ -121,24 +164,23 @@ _y20_header_ours() { grep -qxF "$Y20_MARK" "$1" 2>/dev/null; }
 _y20_idx_ours() {
   { [ ! -e "$1" ] && [ ! -L "$1" ]; } && return 0
   if [ -L "$1" ]; then
-    [[ "$(readlink "$1")" == */.claude/projects/*/memory/MEMORY.md ]]
+    [[ "$(readlink "$1")" == */.claude/projects/*/memory/MEMORY.md ]] ||
+      [[ "$(readlink -f "$1")" == */.claude/projects/*/memory/MEMORY.md ]]
     return
   fi
   [ "$(head -1 "$1" 2>/dev/null)" = "$Y20_IDX_MARK" ]
 }
 
-# Default deny: no line may reach agy, so what this step wrote earlier goes too.
-_y20_deny() {  # RULES DRY MEMDIR
-  local hdr="$1/fleet-memory-0-where.md" idx="$1/AGENTS.md" f
-  _y20_say "no lesson on the allow-list $3/$Y20_LIST: agy gets no index"
-  { [ -e "$idx" ] || [ -L "$idx" ]; } && _y20_idx_ours "$idx" && f="$idx" || f=""
-  if [ -n "$f" ]; then
-    if [ "$2" = 1 ]; then echo "would: remove $f"; else rm -f "$f" || return 7; fi
-  fi
-  if [ -e "$hdr" ] && _y20_header_ours "$hdr"; then
-    if [ "$2" = 1 ]; then echo "would: remove $hdr"; else rm -f "$hdr" || return 7; fi
-  fi
-  return 0
+_y20_rm() {  # PATH DRY
+  if [ "$2" = 1 ]; then echo "would: remove $1"; else rm -f "$1" || return 7; fi
+}
+
+_y20_rm_idx() {  # IDX DRY
+  if { [ -e "$1" ] || [ -L "$1" ]; } && _y20_idx_ours "$1"; then _y20_rm "$1" "$2"; fi
+}
+
+_y20_rm_hdr() {  # HDR DRY
+  if [ -e "$1" ] && _y20_header_ours "$1"; then _y20_rm "$1" "$2"; fi
 }
 
 _y20_write() {  # PATH TEXT
@@ -146,28 +188,36 @@ _y20_write() {  # PATH TEXT
 }
 
 spool_install_agy_memory() {
-  local home="$1" dry="${2:-0}" repo="${3:-}" memdir rules hdr idx want want_idx lines listed name shown="" hdr_ok=0 idx_ok=0
+  local home="$1" dry="${2:-0}" repo="${3:-}" memdir rules hdr idx want want_idx lines rows name shown="" hdr_ok=0 idx_ok=0
   local force="${SPOOL_INSTALL_AGY_MEMORY_FORCE:-0}"
   if [ "${SPOOL_INSTALL_AGY_MEMORY:-1}" = 0 ]; then _y20_say "skipped (SPOOL_INSTALL_AGY_MEMORY=0)"; return 0; fi
   [ -d "$home/.gemini" ] || { _y20_say "no $home/.gemini (agy not installed for this user): skipped"; return 0; }
   [ -n "$repo" ] || repo="$(_y20_repo)" || { _y20_say "cannot tell the repo (set SPOOL_INSTALL_CLAUDE_MEMORY_REPO)"; return 7; }
   memdir="$home/.claude/projects/$(_y20_slug "$repo")/memory"
-  if [ ! -f "$memdir/MEMORY.md" ]; then
-    _y20_say "no claude memory index $memdir/MEMORY.md for $repo: skipped (SPOOL_INSTALL_CLAUDE_MEMORY_REPO names the repo)"
-    return 0
-  fi
   rules="$home/.gemini/config/rules"
   hdr="$rules/fleet-memory-0-where.md"
   idx="$rules/AGENTS.md"
-  listed="$(_y20_listed "$memdir")"
+  if [ ! -f "$memdir/MEMORY.md" ]; then
+    _y20_say "no claude memory index $memdir/MEMORY.md for $repo: skipped, agy gets no index (SPOOL_INSTALL_CLAUDE_MEMORY_REPO names the repo)"
+    _y20_rm_idx "$idx" "$dry" || return 7
+    _y20_rm_hdr "$hdr" "$dry" || return 7
+    return 0
+  fi
+  rows="$(_y20_rows "$memdir")"
   lines=""
-  [ -z "$listed" ] || lines="$(_y20_index_lines "$memdir/MEMORY.md" "$listed")"
+  [ -z "$rows" ] || lines="$(_y20_index_lines "$memdir/MEMORY.md" "$rows")"
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     if [[ "$lines" == *"]($name)"* ]]; then shown+="${shown:+$'\n'}$name"
-    else _y20_say "WARN $Y20_LIST: $name has no index line: dropped"; fi
-  done <<<"$listed"
-  if [ -z "$lines" ]; then _y20_deny "$rules" "$dry" "$memdir"; return; fi
+    else _y20_say "WARN $Y20_LIST: $name has no index line to load: dropped"; fi
+  done < <(cut -d' ' -f1 <<<"$rows" | sort -u)
+  if [ -z "$lines" ]; then
+    # Default deny: no line may reach agy, so what this step wrote earlier goes too.
+    _y20_say "no lesson on the allow-list $memdir/$Y20_LIST: agy gets no index"
+    _y20_rm_idx "$idx" "$dry" || return 7
+    _y20_rm_hdr "$hdr" "$dry" || return 7
+    return 0
+  fi
   want="$(_y20_header "$memdir" "$repo" "$shown")"
   want_idx="$Y20_IDX_MARK"$'\n'"$lines"
   [ -f "$hdr" ] && [ ! -L "$hdr" ] && [ "$(cat "$hdr")" = "$want" ] && hdr_ok=1
@@ -176,10 +226,12 @@ spool_install_agy_memory() {
   if [ "$force" != 1 ]; then
     if [ "$hdr_ok" = 0 ] && { [ -e "$hdr" ] || [ -L "$hdr" ]; } && ! _y20_header_ours "$hdr"; then
       _y20_say "WARN $hdr was not written by this step: kept, agy misses the memory (SPOOL_INSTALL_AGY_MEMORY_FORCE=1 replaces it)"
+      _y20_rm_idx "$idx" "$dry" || return 7
       return 0
     fi
     if [ "$idx_ok" = 0 ] && ! _y20_idx_ours "$idx"; then
       _y20_say "WARN $idx is not this step's file: kept, agy misses the memory (SPOOL_INSTALL_AGY_MEMORY_FORCE=1 replaces it)"
+      _y20_rm_hdr "$hdr" "$dry" || return 7
       return 0
     fi
   fi

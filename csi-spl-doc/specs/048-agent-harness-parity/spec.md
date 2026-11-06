@@ -220,29 +220,45 @@ with `~/.gemini`), writes two rules into `~/.gemini/config/rules`:
   loads without frontmatter: only the index lines whose every link is a listed
   file. A re-install regenerates it, so `MEMORY.md` stays the one source. An
   `AGENTS.md` that is neither this file nor a symlink to a claude `MEMORY.md`
-  is kept and named (`SPOOL_INSTALL_AGY_MEMORY_FORCE=1` replaces it).
+  is kept and named (`SPOOL_INSTALL_AGY_MEMORY_FORCE=1` replaces it). The step's
+  other file then goes too, a whole-index symlink included, so nothing stale
+  stays behind it.
 
-The list is `agy-allow.list` beside `MEMORY.md`, one fact file a line, `#` starts
-a comment. It stays on the box, never in git: the repo is public and the memory
-stays off it.
+The list is `agy-allow.list` beside `MEMORY.md`, one row per lesson,
+`<sha256 of the file> <sha256 of its index line> <file>`, `#` starts a comment.
+It stays on the box, never in git: the repo is public and the memory stays off
+it. `spool_install_agy_memory_row <memdir> <file>` prints the row of a file as
+it reads now, and writes nothing.
 
-- **Default deny.** No list, an empty list or no line left = no index: the step
-  says so and removes what it wrote earlier, a symlink to `MEMORY.md` included.
+- **Default deny.** No list, an empty list, no line left or no `MEMORY.md` = no
+  index: the step says so and removes what it wrote earlier, a symlink to
+  `MEMORY.md` included.
 - **Who lists a file.** A claude seat, after reading that whole file and its
   index line and finding no secret, credential path, customer or personal data.
   A slug says nothing about the body. The finance, customer and key-store
-  lessons stay off.
+  lessons stay off. Nothing in code proves the read: a row says only what the
+  file and the line were when it was written.
+- **The pin covers both.** The generated index copies the `MEMORY.md` line, and a
+  clean file can have an index line that names a path, so a row holds both
+  hashes. A file or a line that no longer matches is dropped and named until a
+  seat reads it again; the other lessons stay. A row without both hashes is
+  refused.
 - **Named, not silent.** A listed file that is gone or has no index line is
   dropped and named; so is a list entry that is no fact file name (`MEMORY.md`
-  or a path).
+  or a path) or that is a symlink.
+- **A bare mention passes the link filter.** A line is kept on its links only, so
+  a listed link beside the plain text of an unlisted file or a path stays in the
+  line. Only the seat's read of that line and its hash catch it.
 
 **The list is not an access boundary.** agy runs as the agent user, who owns
 these files, so the list limits what the step loads and what agy is told to
 read; it does not stop an agy session reading the rest. Closing that is a
 separate question, not settled here.
 
-**A listing is not re-checked.** The list holds names: a listed file or index
-line edited later ships as it now reads at the next install, with no new read.
+**The pin is checked at install only.** The generated index stays as written
+until the next install, but the header points agy at the fact files themselves:
+a listed file edited between installs is what agy reads until then. A revoke
+works the same way: a row taken off the list takes effect at the next install.
 
 **Not measured yet.** The table above measured `rules/AGENTS.md` as a symlink on
 agy 1.5.1. The generated regular file, which opens with an HTML comment, has no

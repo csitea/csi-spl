@@ -11,11 +11,16 @@
 #   5. the allow-list (default deny, the data rule): no list or an empty list =
 #      no index, also over an earlier install and over a symlink to MEMORY.md;
 #      a listed file gone = its line dropped and named; a name that is no fact
-#      file is refused; a line that also links an unlisted file is dropped
-#   6. a hand-written header and a hand-written AGENTS.md are kept and named;
-#      ..._FORCE=1 replaces them; a link to another repo's claude MEMORY.md is
-#      replaced; SPOOL_INSTALL_AGY_MEMORY=0 skips; no .gemini / no memory:
-#      skipped
+#      file is refused; a line that also links an unlisted file is dropped; the
+#      pin: a listed file edited, or only its index line edited, drops that
+#      lesson and names it until it is pinned again; a row without both hashes
+#      is refused; a symlink on the list is refused; a trailing "#" comment keeps
+#      its row
+#   6. a hand-written header and a hand-written AGENTS.md are kept and named, and
+#      the step's other file goes (a whole-index symlink too); ..._FORCE=1 replaces
+#      them; a link to another repo's claude MEMORY.md is replaced;
+#      SPOOL_INSTALL_AGY_MEMORY=0 skips; no .gemini / no memory: skipped, and a
+#      memory gone after an install removes the rules
 #   7. install.sh calls the step once, only with --fleet
 #   8. do_spl_agy_memory_install, DRY_RUN unset, this user, a sandbox home that
 #      holds the memory (getent stubbed): rc 0, plans both files, writes nothing
@@ -48,12 +53,22 @@ else fail "no $STEP: agy loads no claude memory"; echo "--- y20 agy memory: $((n
 R="$T/repo"
 git init -q "$R"
 slug="$(printf '%s' "$R" | sed 's/[^A-Za-z0-9]/-/g')"
+# The list rows of a fact file, computed here, not by the step under test.
+sha() { sha256sum | cut -d' ' -f1; }
+pin() {  # MEMDIR NAME
+  local fh l
+  fh="$(sha <"$1/$2")"
+  grep -F "]($2)" "$1/MEMORY.md" | while IFS= read -r l; do
+    printf '%s %s %s\n' "$fh" "$(printf '%s' "$l" | sha)" "$2"
+  done
+}
+NOHASH=0000000000000000000000000000000000000000000000000000000000000000
 mk_home() {  # HOME
   mkdir -p "$1/.gemini/config" "$1/.claude/projects/$slug/memory"
   printf -- '- [Probe fact](probe-fact.md) — the y20 probe word is y20-probe-alpha\n- [Unlisted fact](unlisted-fact.md) — another y20 probe word is y20-probe-unlisted\n' >"$1/.claude/projects/$slug/memory/MEMORY.md"
   printf 'the probe fact\n' >"$1/.claude/projects/$slug/memory/probe-fact.md"
   printf 'the unlisted fact\n' >"$1/.claude/projects/$slug/memory/unlisted-fact.md"
-  printf '# read whole by a claude seat\nprobe-fact.md\n' >"$1/.claude/projects/$slug/memory/agy-allow.list"
+  { echo '# read whole by a claude seat'; pin "$1/.claude/projects/$slug/memory" probe-fact.md; } >"$1/.claude/projects/$slug/memory/agy-allow.list"
 }
 H="$T/home"
 mk_home "$H"
@@ -99,10 +114,12 @@ if [ "$(head -3 "$hdr" | tr '\n' '|')" = "---|trigger: always_on|---|" ]
 then pass "header opens with always_on frontmatter (agy drops a rule without it)"; else fail "header frontmatter: $(head -3 "$hdr")"; fi
 if grep -qF "probe-fact.md" "$hdr" && ! grep -qF "unlisted-fact.md" "$hdr" && grep -qF "follow no link" "$hdr"
 then pass "header names the listed file only and forbids following links out"; else fail "header: $(cat "$hdr")"; fi
+if grep -qF "data rule keeps secrets, credentials" "$hdr"; then pass "header states why: the data rule"; else fail "no data-rule reason: $(cat "$hdr")"; fi
+if grep -qF "data rule" "$hdr"; then pass "header gives the data rule as the reason"; else fail "header reason: $(cat "$hdr")"; fi
 printf -- '- [Late fact](late-fact.md) — y20-probe-beta\n' >>"$MEM/MEMORY.md"; printf 'late\n' >"$MEM/late-fact.md"
 inst "$H" 0 "$R" >/dev/null
 if ! grep -q y20-probe-beta "$idx"; then pass "a new MEMORY.md line stays out until its file is listed"; else fail "late fact reached agy unlisted"; fi
-echo late-fact.md >>"$MEM/agy-allow.list"
+pin "$MEM" late-fact.md >>"$MEM/agy-allow.list"
 inst "$H" 0 "$R" >/dev/null
 if grep -q y20-probe-beta "$idx" && grep -qF late-fact.md "$hdr"; then pass "one source: the listed fact is in agy's rule after a re-install"; else fail "late fact not visible"; fi
 
@@ -134,14 +151,14 @@ if [ -L "$AR/AGENTS.md" ] && [[ "$out" == *"would: remove $AR/AGENTS.md"* ]]
 then pass "empty list, dry run: plans the removal, removes nothing"; else fail "deny dry run: $out"; fi
 out="$(inst "$A" 0 "$R")"
 if [ ! -e "$AR/AGENTS.md" ] && [ ! -L "$AR/AGENTS.md" ]; then pass "empty list: a symlink to the whole MEMORY.md is removed"; else fail "symlink kept: $out"; fi
-printf 'probe-fact.md\n' >"$AM/agy-allow.list"
+pin "$AM" probe-fact.md >"$AM/agy-allow.list"
 inst "$A" 0 "$R" >/dev/null
 rm "$AM/agy-allow.list"
 out="$(inst "$A" 0 "$R")"
 if [ ! -e "$AR/AGENTS.md" ] && [ ! -e "$AR/fleet-memory-0-where.md" ] && [[ "$out" == *"agy gets no index"* ]]
 then pass "list removed after an install: both rules go"; else fail "stale rules kept: $out"; fi
 B="$T/homeB"; mk_home "$B"; BM="$B/.claude/projects/$slug/memory"; BR="$B/.gemini/config/rules"
-printf 'probe-fact.md\nunlisted-fact.md\n' >"$BM/agy-allow.list"; rm "$BM/unlisted-fact.md"
+{ pin "$BM" probe-fact.md; pin "$BM" unlisted-fact.md; } >"$BM/agy-allow.list"; rm "$BM/unlisted-fact.md"
 out="$(inst "$B" 0 "$R")"
 if grep -q y20-probe-alpha "$BR/AGENTS.md" && ! grep -q y20-probe-unlisted "$BR/AGENTS.md" && ! grep -qF unlisted-fact.md "$BR/fleet-memory-0-where.md" &&
   [[ "$out" == *"unlisted-fact.md is gone"* ]]
@@ -151,19 +168,80 @@ out="$(inst "$B" 0 "$R")"
 if [ ! -e "$BR/AGENTS.md" ] && [[ "$out" == *"probe-fact.md is gone"* ]] && [[ "$out" == *"agy gets no index"* ]]
 then pass "every listed file gone: no index"; else fail "all gone: $out"; fi
 C="$T/homeC"; mk_home "$C"; CM="$C/.claude/projects/$slug/memory"; CR="$C/.gemini/config/rules"
-printf 'MEMORY.md\n../probe-fact.md\n' >"$CM/agy-allow.list"
+printf '%s %s MEMORY.md\n%s %s ../probe-fact.md\n' "$NOHASH" "$NOHASH" "$NOHASH" "$NOHASH" >"$CM/agy-allow.list"
 out="$(inst "$C" 0 "$R")"
 if [ ! -e "$CR/AGENTS.md" ] && [[ "$out" == *"MEMORY.md is no fact file name"* ]] && [[ "$out" == *"../probe-fact.md is no fact file name"* ]]
 then pass "MEMORY.md and a path on the list: refused and named"; else fail "bad names: $out"; fi
-printf 'probe-fact.md\n' >"$CM/agy-allow.list"
-printf -- '- [Both](probe-fact.md) and [Other](unlisted-fact.md) — y20-probe-both\nfree text y20-probe-free\n' >>"$CM/MEMORY.md"
-inst "$C" 0 "$R" >/dev/null
-if ! grep -qE 'y20-probe-(both|free)' "$CR/AGENTS.md"; then pass "a line that also links an unlisted file, and a line with no link: dropped"; else fail "index: $(cat "$CR/AGENTS.md")"; fi
-printf 'unlisted-fact.md\n' >"$CM/agy-allow.list"
+printf -- '- [Both](probe-fact.md) and [Other](unlisted-fact.md) — y20-probe-both\n- [Other](unlisted-fact.md) and [Both](probe-fact.md) — y20-probe-first\nfree text y20-probe-free\n' >>"$CM/MEMORY.md"
+pin "$CM" probe-fact.md >"$CM/agy-allow.list"
+out="$(inst "$C" 0 "$R")"
+if grep -q y20-probe-alpha "$CR/AGENTS.md" && ! grep -qE 'y20-probe-(both|first|free)' "$CR/AGENTS.md" && [[ "$out" != *unlisted-fact.md* ]]
+then pass "a line that also links an unlisted file, either order, and a line with no link: dropped"; else fail "index: $(cat "$CR/AGENTS.md") $out"; fi
+pin "$CM" unlisted-fact.md >"$CM/agy-allow.list"
 printf -- '' >"$CM/MEMORY.md"
 out="$(inst "$C" 0 "$R")"
 if [ ! -e "$CR/AGENTS.md" ] && [[ "$out" == *"unlisted-fact.md has no index line"* ]] && [[ "$out" == *"agy gets no index"* ]]
 then pass "a listed file with no index line: named, no index"; else fail "no line: $out"; fi
+
+# 5b. the pin: both hashes, any mismatch drops that lesson until it is read again
+P="$T/homeP"; mk_home "$P"; PM="$P/.claude/projects/$slug/memory"; PR="$P/.gemini/config/rules"
+pin "$PM" unlisted-fact.md >>"$PM/agy-allow.list"
+out="$(inst "$P" 0 "$R")"
+if grep -q y20-probe-alpha "$PR/AGENTS.md" && grep -q y20-probe-unlisted "$PR/AGENTS.md"
+then pass "pin: both pinned lessons load"; else fail "pin: $out"; fi
+want_rows="$(grep -v '^#' "$PM/agy-allow.list")"
+got_rows="$(bash -c '. "$1"; spool_install_agy_memory_row "$2" probe-fact.md; spool_install_agy_memory_row "$2" unlisted-fact.md' _ "$STEP" "$PM" 2>&1)"
+if [ "$got_rows" = "$want_rows" ]; then pass "spool_install_agy_memory_row prints the rows a seat appends"; else fail "rows: $got_rows"; fi
+cp "$PM/agy-allow.list" "$T/list.good"
+printf 'a credential path\n' >>"$PM/unlisted-fact.md"
+out="$(inst "$P" 0 "$R")"
+if grep -q y20-probe-alpha "$PR/AGENTS.md" && ! grep -q y20-probe-unlisted "$PR/AGENTS.md" && ! grep -qF unlisted-fact.md "$PR/fleet-memory-0-where.md" &&
+  [[ "$out" == *"unlisted-fact.md changed since"* ]]
+then pass "a listed file edited: that lesson dropped and named, the other kept"; else fail "file edit: $out"; fi
+printf 'the unlisted fact\n' >"$PM/unlisted-fact.md"
+inst "$P" 0 "$R" >/dev/null
+if grep -q y20-probe-unlisted "$PR/AGENTS.md"; then pass "the same file back: the lesson returns"; else fail "file restored"; fi
+sed -i 's|another y20 probe word is y20-probe-unlisted|y20-probe-unlisted lives at a credential path|' "$PM/MEMORY.md"
+out="$(inst "$P" 0 "$R")"
+if grep -q y20-probe-alpha "$PR/AGENTS.md" && ! grep -q y20-probe-unlisted "$PR/AGENTS.md" && ! grep -qF unlisted-fact.md "$PR/fleet-memory-0-where.md" &&
+  [[ "$out" == *"unlisted-fact.md: its index line changed since"* ]]
+then pass "only the index line edited: that lesson dropped and named, the other kept"; else fail "line edit: $out"; fi
+printf -- '- [Two](probe-fact.md) and [Files](unlisted-fact.md) — y20-probe-two\n' >>"$PM/MEMORY.md"
+printf '%s %s probe-fact.md\n' "$(sha <"$PM/probe-fact.md")" "$(tail -1 "$PM/MEMORY.md" | tr -d '\n' | sha)" >>"$PM/agy-allow.list"
+out="$(inst "$P" 0 "$R")"
+if ! grep -q y20-probe-two "$PR/AGENTS.md" && [[ "$out" == *"unlisted-fact.md: its index line changed since"* ]]
+then pass "a line of two listed files, pinned for one: dropped and the other named"; else fail "two links: $out"; fi
+printf -- '- [Second line](probe-fact.md) — y20-probe-secondline\n' >>"$PM/MEMORY.md"
+out="$(inst "$P" 0 "$R")"
+if grep -q y20-probe-alpha "$PR/AGENTS.md" && ! grep -q y20-probe-secondline "$PR/AGENTS.md" && [[ "$out" == *"probe-fact.md: its index line changed since"* ]]
+then pass "a second, unpinned line of a listed file: dropped and named, the pinned line kept"; else fail "second line: $out"; fi
+printf 'probe-fact.md\n%s probe-fact.md\n%s %s probe-fact.md extra\nnothex %s probe-fact.md\n' "$NOHASH" "$NOHASH" "$NOHASH" "$NOHASH" >"$PM/agy-allow.list"
+out="$(inst "$P" 0 "$R")"
+if [ ! -e "$PR/AGENTS.md" ] && [ "$(grep -c 'is no row' <<<"$out")" = 4 ] && [[ "$out" == *"agy gets no index"* ]]
+then pass "a row without both hashes is refused and named: no index"; else fail "bad rows: $out"; fi
+
+# 5c. the filter: any link decides, the header follows the lines, comments, symlinks
+Q="$T/homeQ"; mk_home "$Q"; QM="$Q/.claude/projects/$slug/memory"; QR="$Q/.gemini/config/rules"
+printf -- '- [Other](unlisted-fact.md) and [Both](probe-fact.md) — y20-probe-first\n' >>"$QM/MEMORY.md"
+printf 'no line\n' >"$QM/noline-fact.md"
+{ pin "$QM" probe-fact.md | sed 's/$/  # read by a seat/'; echo "# $NOHASH $NOHASH unlisted-fact.md"
+  printf '%s %s noline-fact.md\n' "$(sha <"$QM/noline-fact.md")" "$NOHASH"; } >"$QM/agy-allow.list"
+out="$(inst "$Q" 0 "$R")"
+if grep -q y20-probe-alpha "$QR/AGENTS.md" && ! grep -q y20-probe-first "$QR/AGENTS.md"
+then pass "a pinned line with an unlisted link first and a listed link last: dropped"; else fail "first link: $out"; fi
+if grep -qF probe-fact.md "$QR/fleet-memory-0-where.md" && ! grep -qF noline-fact.md "$QR/fleet-memory-0-where.md" && [[ "$out" == *"noline-fact.md has no index line"* ]]
+then pass "the header names only files with a line, the other is named"; else fail "header follows lines: $out"; fi
+if [[ "$out" != *"is no row"* ]] && ! grep -q y20-probe-unlisted "$QR/AGENTS.md"
+then pass "a comment after a row and a commented-out row are comments"; else fail "comments: $out"; fi
+L="$T/homeL"; mk_home "$L"; LM="$L/.claude/projects/$slug/memory"; LR="$L/.gemini/config/rules"
+ln -s "$LM/MEMORY.md" "$LM/alias.md"
+printf -- '- [Alias](alias.md) — y20-probe-alias\n' >>"$LM/MEMORY.md"
+pin "$LM" alias.md >>"$LM/agy-allow.list"
+out="$(inst "$L" 0 "$R")"
+if grep -q y20-probe-alpha "$LR/AGENTS.md" && ! grep -q y20-probe-alias "$LR/AGENTS.md" && ! grep -qF alias.md "$LR/fleet-memory-0-where.md" && [[ "$out" == *"alias.md is a symlink"* ]]
+then pass "a listed name that is a symlink: refused and named"; else fail "symlink name: $out"; fi
+out="$(bash -c '. "$1"; spool_install_agy_memory_row "$2" alias.md' _ "$STEP" "$LM" 2>&1)"; rc=$?
+if [ "$rc" != 0 ] && ! grep -qE '^[0-9a-f]{64} ' <<<"$out" && [[ "$out" == *"is a symlink"* ]]; then pass "the row helper refuses a symlink"; else fail "row of a symlink rc=$rc: $out"; fi
 
 # 6. hand-written files, force, another repo's link, skip, absent inputs
 H2="$T/home2"; mk_home "$H2"; mkdir -p "$H2/.gemini/config/rules"
@@ -184,6 +262,43 @@ ln -s "$H6/.claude/projects/-other-repo/memory/MEMORY.md" "$H6/.gemini/config/ru
 out="$(inst "$H6" 0 "$R")"
 if [ ! -L "$H6/.gemini/config/rules/AGENTS.md" ] && grep -q y20-probe-alpha "$H6/.gemini/config/rules/AGENTS.md"
 then pass "a link to another repo's claude MEMORY.md is replaced"; else fail "other-repo link: $out"; fi
+# A foreign file blocks the install: the step's other file goes, nothing of the
+# whole index or of an older listing stays behind it.
+F="$T/homeF"; mk_home "$F"; FM="$F/.claude/projects/$slug/memory"; FR="$F/.gemini/config/rules"; mkdir -p "$FR"
+echo "# mine" >"$FR/fleet-memory-0-where.md"
+ln -s "$FM/MEMORY.md" "$FR/AGENTS.md"
+out="$(inst "$F" 1 "$R")"
+if [ -L "$FR/AGENTS.md" ] && [[ "$out" == *"would: remove $FR/AGENTS.md"* ]]
+then pass "foreign header + whole-index symlink, dry run: plans the removal, removes nothing"; else fail "foreign header dry: $out"; fi
+out="$(inst "$F" 0 "$R")"
+if [ ! -e "$FR/AGENTS.md" ] && [ ! -L "$FR/AGENTS.md" ] && [ "$(cat "$FR/fleet-memory-0-where.md")" = "# mine" ] && [[ "$out" == *"was not written by this step: kept"* ]]
+then pass "foreign header + whole-index symlink: the symlink goes, the header stays"; else fail "foreign header: $out"; fi
+ln -s "$FR/whole-link" "$FR/AGENTS.md"; ln -s "$FM/MEMORY.md" "$FR/whole-link"
+inst "$F" 0 "$R" >/dev/null
+if [ ! -e "$FR/AGENTS.md" ] && [ ! -L "$FR/AGENTS.md" ]; then pass "a chain of links to the whole MEMORY.md goes too"; else fail "chain kept: $(readlink "$FR/AGENTS.md")"; fi
+rm -f "$FR/whole-link" "$FR/fleet-memory-0-where.md"
+inst "$F" 0 "$R" >/dev/null
+grep -q y20-probe-alpha "$FR/AGENTS.md" || fail "foreign header: no index once the header is gone"
+echo "# mine" >"$FR/fleet-memory-0-where.md"
+inst "$F" 0 "$R" >/dev/null
+if [ ! -e "$FR/AGENTS.md" ]; then pass "foreign header over an earlier generated index: the index goes"; else fail "stale index stays: $(cat "$FR/AGENTS.md")"; fi
+rm -f "$FR/fleet-memory-0-where.md"
+inst "$F" 0 "$R" >/dev/null
+echo "# my agents" >"$FR/AGENTS.md"
+: >"$FM/probe-fact.md"
+pin "$FM" probe-fact.md >"$FM/agy-allow.list"
+inst "$F" 0 "$R" >/dev/null
+if [ ! -e "$FR/fleet-memory-0-where.md" ] && [ "$(cat "$FR/AGENTS.md")" = "# my agents" ]
+then pass "hand-written AGENTS.md: the step's header goes, it names no file for an index it cannot write"; else fail "header stays: $(ls "$FR")"; fi
+G="$T/homeG"; mk_home "$G"; GM="$G/.claude/projects/$slug/memory"; GR="$G/.gemini/config/rules"
+inst "$G" 0 "$R" >/dev/null
+rm "$GM/MEMORY.md"
+out="$(inst "$G" 1 "$R")"
+if [ -f "$GR/AGENTS.md" ] && [[ "$out" == *"would: remove $GR/AGENTS.md"* ]]
+then pass "MEMORY.md gone, dry run: plans the removal, removes nothing"; else fail "memory gone dry: $out"; fi
+out="$(inst "$G" 0 "$R")"; rc=$?
+if [ "$rc" = 0 ] && [ ! -e "$GR/AGENTS.md" ] && [ ! -e "$GR/fleet-memory-0-where.md" ] && [[ "$out" == *"no claude memory index"* ]]
+then pass "MEMORY.md gone after an install: both rules go, and the step says so"; else fail "memory gone rc=$rc: $out"; fi
 H3="$T/home3"; mk_home "$H3"
 out="$(SPOOL_INSTALL_AGY_MEMORY=0 inst "$H3" 0 "$R")"
 if [[ "$out" == *"skipped"* ]] && [ ! -e "$H3/.gemini/config/rules" ]; then pass "SPOOL_INSTALL_AGY_MEMORY=0 skips"; else fail "skip: $out"; fi

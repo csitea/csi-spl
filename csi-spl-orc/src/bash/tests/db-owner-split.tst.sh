@@ -211,6 +211,8 @@ CREATE TABLE personal.notes (person_id text); CREATE TABLE personal.note_items (
 -- rdb 0226's contacts (spec 154): runtime-grants.sql grants on the table and its purge door by name
 CREATE TABLE personal.contacts (person_id text);
 CREATE FUNCTION personal.purge_deleted_contacts(before timestamptz) RETURNS SETOF text LANGUAGE sql AS 'SELECT NULL::text LIMIT 0';
+-- rdb 0265's contact pictures (spec 154 v1.3): runtime-grants.sql grants on the table by name
+CREATE TABLE personal.contact_photos (person_id text);
 EOF
   RPW="rt$RANDOM$RANDOM"
   real() { env PATH="$PATH" SPL_DB_USER=rt SPL_DB_OWNER_USER=own SPL_DB_ROLES_SQL="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles" \

@@ -162,8 +162,8 @@ SMS from Spool.
 
 **v1.3 (section 11) moves in:** a picture, company, job title, birthday
 and notes per contact, and an import from a CSV file. Several emails or
-phones, addresses and labels stay out unless the owner answers O6 B or C
-(section 9).
+phones, addresses and labels stay out: the owner answered O6 A (section 9,
+msg `80cc6508`, 2026-11-06).
 
 A contact needs at least one of the four values (CHECK in section 3).
 Without a Google connection the list works on its own: the sync is an
@@ -927,7 +927,7 @@ in order: B8a after B2.
 v1.3 adds rows B13-B18 and amends B8, B11 and B12: section 11.6.
 
 What waits on the owner: no build row (O1-O5 are answered); v1.3's
-attribute set waits on O6 (section 9). Switching the
+attribute set is O6 A, answered 2026-11-06 (section 9). Switching the
 Google part on waits on S1-S4: every row is tested on the fake (2.8) and
 lands behind `contacts.workspaces: []`.
 
@@ -1019,7 +1019,9 @@ O6. Which contact details should Spool keep, besides first name, last name, one 
 (C) As B, plus postal addresses
 ```
 
-Editor's recommendation: **A** (section 11.3). Answer: open.
+Editor's recommendation: **A** (section 11.3). Answer: **A** (owner HUM-10,
+t1 topic `b400601b`, msg `80cc6508`, 2026-11-06T07:15Z, relayed by the
+dispatch holder).
 
 ## 10. Panel record
 
@@ -1051,6 +1053,8 @@ Editor's recommendation: **A** (section 11.3). Answer: open.
 | 2026-11-05 | c-150 (editor claude) | seat fold (SPL-4896): W1 and W2 folded as c-157 proposed (11.2.1, 11.6, C33b, C37b); N1-N6 all taken (route preflights, `private, no-cache` + ETag, the advisory lock, `Birthday.text` stores NULL, the first-load wording, the case range and the fake's full path, `avatar.ts:295-300`). O6 still open. Not signed |
 | 2026-11-05 | c-157 (seat claude) | PASS on `c93aee52b` (msg `631800df`): W1, W2, N1-N6 checked; notes N7-N9 |
 | 2026-11-05 | c-150 (editor claude) | N7-N9 folded (SPL-4896): `auth/handler.go:911` cited beside `:873`; `deleted_here` covers either `deleted_by`; a cleared birthday is not cleared at Google (accepted, no marker). Not signed |
+| 2026-11-05 | c-157 (seat claude) | PASS on `8fd704c35` (msg `fd04db1f`): N7-N9 checked, 0 W 0 N |
+| 2026-11-06 | c-150 (editor claude) | O6 answered A by the owner (msg `80cc6508`, poll `04beacf9`, relayed by c-002@sat msg `59cd7736`, landed v1.3 at `4e3f7c744`): sections 2.1, 6, 9, 11.3 and 11.8 record the answer; no other change (follow-up on the holder c-003@sat go, msg `afb59c95`) |
 
 ## 11. v1.3: import from a CSV file and from Google, with pictures and the main attributes
 
@@ -1188,7 +1192,7 @@ three things in it:
 
 ### 11.3 The main attributes and how they are stored
 
-**Decision (recommended answer to O6, A):** besides the four, a contact
+**Decision (O6 A, the owner's answer of 2026-11-06):** besides the four, a contact
 keeps **company, job title, birthday, notes and a picture**. One email and
 one phone stay (the primary ones, as 2.5 and P4).
 
@@ -1200,7 +1204,7 @@ organization, as email and phone are from the primary entry. Several emails or p
 match over many addresses (B6), list-merge rules on write-back and a new
 export shape; addresses (O6 C) add a structured, multi-valued field. Both
 are a bigger change than the owner's "main attributes" needs to be read
-as, so they are offered, not chosen. 2.5's write-back already keeps every
+as, so they were offered, not chosen, and the owner chose A. 2.5's write-back already keeps every
 other email and phone at Google, so nothing is lost there either way.
 
 **Storage: columns, no new table** for the four text attributes, added to
@@ -1436,13 +1440,14 @@ Every case is planned and red on `db36843f4` unless marked (C).
 
 ### 11.8 Owner question and what the lane decided
 
-To the dispatch holder, for the owner: **O6** (section 9), recommendation
-A. Everything else above is decided here, each with its reason, and goes
+**O6** (section 9) went to the owner through the dispatch holder,
+recommendation A; the owner answered **A** (msg `80cc6508`, 2026-11-06), so
+no child table and no addresses. Everything else above is decided here, each with its reason, and goes
 to the review seat, not the owner: the online import is 2.5's sync (11.2),
 the CSV path's formats, caps and skip rule (11.2.1), columns and no new
 table for the attributes (11.3), pictures in a realm table, Google-only
-and read-only (11.4). If the owner answers O6 B or C, B13, B14, B15 and B8
-grow a child table `personal.contact_values` (kind, label, value,
-primary) and B6 matches every email; the rest of section 11 stands.
+and read-only (11.4). Had the owner answered B or C, B13, B14, B15 and B8
+would have grown a child table `personal.contact_values` (kind, label,
+value, primary) and B6 would match every email; that path is not taken.
 
-<!-- version: 1.3 draft · updated: 2026-11-05 -->
+<!-- version: 1.3 draft · updated: 2026-11-06 -->

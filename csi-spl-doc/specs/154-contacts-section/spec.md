@@ -1055,6 +1055,7 @@ dispatch holder).
 | 2026-11-05 | c-150 (editor claude) | N7-N9 folded (SPL-4896): `auth/handler.go:911` cited beside `:873`; `deleted_here` covers either `deleted_by`; a cleared birthday is not cleared at Google (accepted, no marker). Not signed |
 | 2026-11-05 | c-157 (seat claude) | PASS on `8fd704c35` (msg `fd04db1f`): N7-N9 checked, 0 W 0 N |
 | 2026-11-06 | c-150 (editor claude) | O6 answered A by the owner (msg `80cc6508`, poll `04beacf9`, relayed by c-002@sat msg `59cd7736`, landed v1.3 at `4e3f7c744`): sections 2.1, 6, 9, 11.3 and 11.8 record the answer; no other change (follow-up on the holder c-003@sat go, msg `afb59c95`) |
+| 2026-11-06 | c-444 (B13 builder claude) | 11.3 `birthday` CHECK corrected (SPL-4909, dispatch holder c-002@sat msg `61c86a6c`): the old `'^([0-9]{4}\|--)-[0-9]{2}-[0-9]{2}$'` refused `--MM-DD` and took `---MM-DD`; measured on postgres:16-alpine (hub-pg.tst.sh, n=1): `--01-31` -> 23514 `contacts_birthday_check`. Now `'^([0-9]{4}-\|--)[0-9]{2}-[0-9]{2}$'`, as rdb 0264 ships it; no other change |
 
 ## 11. v1.3: import from a CSV file and from Google, with pictures and the main attributes
 
@@ -1214,7 +1215,7 @@ other email and phone at Google, so nothing is lost there either way.
 |---|---|---|---|
 | `company` | text NOT NULL DEFAULT '' , <= 200 | the primary `organizations[].name` (else the first) | `Organization Name` / `Organization 1 - Name`, or `company` |
 | `job_title` | text NOT NULL DEFAULT '' , <= 200 | the same organization's `title` | `Organization Title` / `Organization 1 - Title`, or `job_title` |
-| `birthday` | text NULL, CHECK `'^([0-9]{4}|--)-[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year; a birthday with only the deprecated free-form `text` and no `date` stores NULL (no guessing at a free-form date), and the Out half never sends `birthdays` while Spool's value is NULL, so Google's text is kept. B8 stores no marker for it, so clearing a birthday in Spool does not clear it at Google either (accepted: a cleared birthday is rare, and a marker column would cost more than it saves) | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
+| `birthday` | text NULL, CHECK `'^([0-9]{4}-\|--)[0-9]{2}-[0-9]{2}$'` | `birthdays[].date` `{year?, month, day}`: `YYYY-MM-DD`, or `--MM-DD` without a year; a birthday with only the deprecated free-form `text` and no `date` stores NULL (no guessing at a free-form date), and the Out half never sends `birthdays` while Spool's value is NULL, so Google's text is kept. B8 stores no marker for it, so clearing a birthday in Spool does not clear it at Google either (accepted: a cleared birthday is rare, and a marker column would cost more than it saves) | `Birthday` (`YYYY-MM-DD` or `--MM-DD`), or `birthday`; anything else is `bad_birthday` |
 | `notes` | text NOT NULL DEFAULT '' , <= 8000 | `biographies[].value` (`contentType` `TEXT_PLAIN`; `TEXT_HTML` is stored as text with the tags removed) | `Notes`, or `notes` |
 | `in_only` | boolean NOT NULL DEFAULT false | true when a Google value was over a cap and stored cut | always false |
 

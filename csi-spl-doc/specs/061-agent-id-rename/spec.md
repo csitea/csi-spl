@@ -157,6 +157,15 @@ the reaper for an agent dead for more than `SPOOL_ID_REAP_H` (default 6):
 A message that arrives for a retired id inside the quarantine bounces to the
 sender as a `reject` ("c-004 retired at <ts>"). It does NOT queue.
 
+A seat row outlives the retire (rdb 0107 keeps it when the roster row goes), so
+the seat of a retired id stays. The roster view joins `agent_seats` from
+`roster`, so such a row is not shown; `do_spl_dedicated_bind` does read it. To
+remove named stale rows on a live box, `cd csi-spl-orc && ENV=<env>
+TENANT_ID=<ws> BOX_ID=<box> AGENT_IDS="<id> ..." ./run -a do_spl_agent_seats_prune`
+prints every seat of that box with a prune/keep column, and deletes only with
+`DRY_RUN=0`. It takes whole ids, never a pattern, and refuses a role seat, an id
+with no seat and an id with a roster row. Messages and history stay.
+
 ### 3.7 One name everywhere (L6, owner 2026-10-02, topic 07af027a)
 
 > "I want to have exactly the same names in the web interface and in the

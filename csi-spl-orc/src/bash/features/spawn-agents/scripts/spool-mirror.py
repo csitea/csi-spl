@@ -1109,6 +1109,13 @@ def discussion_leg(ss, agent, text, session, turns):
         return
     now = time.time()
     dirs = [os.path.join(s, "spool", agent) for s in seats(agent, muted=True)]
+    if not dirs:
+        for s in live:
+            log(
+                os.path.join(s, "spool", agent),
+                "discussion: nothing posted: the seats cannot be read",
+            )
+        return
     if any(sd.dm_waiting(d, now) for d in dirs):
         for s in live:
             log(

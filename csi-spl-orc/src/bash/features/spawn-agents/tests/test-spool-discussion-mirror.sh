@@ -31,6 +31,7 @@
 #   C15 is_role_seat agrees with SPL_ROLE_SEAT_RX
 #   C16 a DM no prompt has taken yet stops every post of the agent, on every
 #       seat, a muted one too
+#   C17 a second seat lookup that fails stops the post, it does not read as no DM
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -358,6 +359,11 @@ eq "C13. a DM on the second seat holds the first too" "1 TENANT=t2" "$(nsends) $
 reset; brief "$TX"; mkdir -p "$A2/inbox"; dm_turn "PRIVATE answer"
 trig channel HUM-9 "$TX" "line one"; post prompt "line one"; post answer "$FINDINGS"
 eq "C13. during a hold another seat does not stand in for the channel seat" 1 "$(nsends)"
+# The hold is read on every seat, so a seat muted after its DM still holds.
+reset; brief "$TD"; mkdir -p "$A2/inbox"
+trig dm HUM-5 "$TX" "a dm on the second seat" "$A2"; post prompt "a dm on the second seat"; post answer "PRIVATE answer"
+touch "$A2/.no-mirror"; turn_notification
+eq "C13. a seat muted after its DM still holds" "1 TENANT=t2" "$(nsends) $(tail -qn1 "$SENDS"/0)"
 
 # --- C16 a DM no prompt has taken --------------------------------------------
 # A line typed during a turn queues: no prompt hook takes its record, and the
@@ -387,6 +393,35 @@ reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror/trigger"; 
 eq "C16. a record that cannot be read: nothing" 0 "$(nsends)"
 reset; brief "$TD"; trig channel HUM-9 "$TE" "another line"; trig task c-001 "" "a task line"; turn_notification
 eq "C16. CONTROL: other waiting kinds do not stop the post" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+
+# --- C17 the seats cannot be read a second time ------------------------------
+# The DM reads look the seats up again, muted ones too. A lookup that fails there
+# has read no record at all, which is not the same as no record.
+cat >"$T_TMP/lookup.py" <<'WRAP'
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("spool_mirror", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+calls = {"n": 0}
+def desk_root(_home):
+    calls["n"] += 1
+    return "" if os.environ["LOOKUP_FAIL"] == "1" and calls["n"] >= 2 else os.environ["LOOKUP_ROOT"]
+m.desk_root = desk_root
+sys.exit(m.main(["spool-mirror.py"] + sys.argv[2:]))
+WRAP
+answer_lookup() {  # FAIL(0|1) TEXT: the Stop hook, desk_root stubbed, its second call failing on 1
+  printf '%s' "$2" | env -u SPOOL_MIRROR_SEATS LOOKUP_FAIL="$1" LOOKUP_ROOT="$T_TMP/cloud" \
+    python3 "$T_TMP/lookup.py" "$MIRROR" post --agent "$ID" --event answer --session "$S" >/dev/null 2>&1
+}
+reset; brief "$TD"; post prompt "$NOTIFICATION"; answer_lookup 0 "$FINDINGS"
+eq "C17. CONTROL: the lookup works and a notification turn posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; answer_lookup 1 "$FINDINGS"
+eq "C17. the second lookup fails: nothing" 0 "$(nsends)"
+has "C17. ... and the log says it" "the seats cannot be read" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"; dm_turn "PRIVATE answer"; post prompt "$NOTIFICATION"; answer_lookup 1 "$FINDINGS"
+eq "C17. a hold, the second lookup fails: only the DM answer" "1 $TM" "$(nsends) $(send_arg 0 --task)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; dm_pending; answer_lookup 1 "$FINDINGS"
+eq "C17. a waiting DM, the second lookup fails: nothing" 0 "$(nsends)"
 
 # --- C14 a corrupt seen-list --------------------------------------------------
 reset; mkdir -p "$A/.mirror"; printf '{"x":"not a number"}' >"$A/.mirror/discussions"

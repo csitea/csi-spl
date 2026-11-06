@@ -144,7 +144,7 @@ Measured 2026-10-20 on the two fleet boxes, as the agent user, n=1 each.
 |---|---|---|
 | claude | `~/.claude/CLAUDE.md`, the repo `CLAUDE.md`, and `~/.claude/projects/<slug>/memory/MEMORY.md` (the index; a fact file is read when a line points to it) | yes, its own |
 | grok 1.0.62 | `~/.claude/CLAUDE.md` (its claude-compat scan), the repo `CLAUDE.md` + `AGENTS.md`, every `*.md` in `~/.grok/rules/` (symlinks followed), its own memory only when `[memory] enabled` | no: `grok inspect` in a lane worktree lists 3 instruction files, none of them memory |
-| agy | `~/.gemini/config/rules/*.md` (the lane rule, the exit rule, graft) | no |
+| agy | `~/.gemini/config/rules/*.md` (the lane rule, the exit rule, graft); re-measured 2026-11-06, agy 1.5.1: only the files with `trigger: always_on` frontmatter, see 5.3 | no until SPL-4911 (5.3) |
 | mistral | `~/.vibe/AGENTS.md` | no |
 
 `<slug>` is the main checkout's absolute path with every non-alphanumeric
@@ -177,9 +177,51 @@ with grok on PATH it drives `grok inspect` on a sandbox home: no memory rule
 before, both rules after). The memory stays on the box, under the agent
 user's home; the repo holds only the step.
 
-agy has the same gap and the same kind of rules dir (every
-`~/.gemini/config/rules/*.md`); mistral loads only `~/.vibe/AGENTS.md`, so it
-needs a pointer line there. Neither is changed by SPL-2738.
+agy had the same gap; 5.3 is its fix (SPL-4911). mistral loads only
+`~/.vibe/AGENTS.md`, so it needs a pointer line there; it stays a finding.
+
+### 5.3 agy: the gap, re-measured, and the fix (SPL-4911, 2026-11-06)
+
+Owner, 2026-11-05 (t1 5471b31d, msg 1e100bf5): "tranfer this to an agy
+agent". Measured on box one, agy 1.5.1 (`agy --version`), with
+`agy -p '<name every probe word in your context, no tools>'` in a sandbox
+home whose `.gemini/antigravity-cli` links the agent user's agy state dir
+(its login); every answer took one turn (`--output-format json` ->
+`num_turns:1`), so no tool read a file.
+
+| what is in the home | the session sees it? | n |
+|---|---|---|
+| `config/rules/x.md`, no frontmatter (file or symlink) | no; the log has one `rules.go:479] Invalid rule trigger: CORTEX_MEMORY_TRIGGER_UNSPECIFIED` per such file | 2 |
+| `config/rules/x.md` opening with `---` / `trigger: always_on` / `---` | yes, also as a symlink to a file outside the home | 3 |
+| `config/rules/x.md` (always_on) with an `@/abs/path.md` import line | the rule yes, the imported file no | 1 |
+| `config/rules/AGENTS.md`, `config/AGENTS.md`, `config/GEMINI.md`, `~/.gemini/GEMINI.md`, each a symlink, no frontmatter | yes, all four | 1 |
+| `config/rules/<subdir>/AGENTS.md` or `GEMINI.md` | no | 1 |
+| the agent user's real home, unchanged | no user rule at all: `"response":"NONE"`; 4 `Invalid rule trigger` lines, one per file of its rules dir | 1 |
+
+So the grok shape (a symlink named `*.md` in the rules dir) is dropped by
+agy: `MEMORY.md` has no frontmatter. The fix, spool-install step Y20
+(`steps/y20-agy-memory.sh`, `--fleet`, homes with `~/.gemini`), writes two
+rules into `~/.gemini/config/rules` and copies nothing:
+
+- `fleet-memory-0-where.md`: the same header as Y18, opening with
+  `trigger: always_on` frontmatter;
+- `AGENTS.md`: a symlink to the claude `MEMORY.md` itself, the one rules-dir
+  name agy loads without frontmatter. An `AGENTS.md` that is not a symlink to
+  a claude `MEMORY.md` is kept and named (`SPOOL_INSTALL_AGY_MEMORY_FORCE=1`
+  replaces it); nothing on the tree or in the agent user's home used that name
+  (`ls ~/.gemini/config/rules/AGENTS.md` -> no such file).
+
+Both users of a box: `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_agy_memory_install`.
+Test: `spool-install/tests/test-y20-agy-memory.sh` (red without the step;
+with `Y20_AGY_LIVE=1`, agy on PATH and an agy login it asks a sandbox-home
+session for the probe fact: `WORD=none TITLE=none` before the step,
+`WORD=y20-probe-alpha TITLE=Fleet memory: the lessons claude agents of this
+box keep` after it). The live part is opt-in because each check is a model
+call.
+
+The same measurement shows that the lane rule, the exit rule (Y14), the git
+pager rule and the graft rule never reach an agy session: none carries the
+frontmatter. That is a finding for their owners, not changed by SPL-4911.
 
 ## 6. Seed parity and per-vendor blocks (SPL-2176, 2026-10-25)
 

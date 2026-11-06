@@ -25,7 +25,8 @@
 #     pick says so;
 #   - a banner shows only for a moment, so every read is kept (SPL-4608,
 #     spl_box_quota_keep): the pick and wk= answer from the last measured %
-#     until its reset passes (spl_box_quota_known).
+#     until its reset passes (spl_box_quota_known), or until a login or limit
+#     change says it no longer holds (SPL-4702 and SPL-4932, spl_box_quota_keep).
 # Settings: cnf env.box.quota.weekly_max_pct, env BOX_QUOTA_WEEKLY_MAX_PCT
 # overrides, default 90.
 #------------------------------------------------------------------------------
@@ -187,22 +188,28 @@ spl_box_quota_cache_read() {
 }
 
 # spl_box_quota_cache [NOW]: spl_box_quota_cache_read of the agent user's
-# ~/.claude.json, read as that user. Seam (tests): LANE_QUOTA_CLAUDE_JSON
-# reads that file as this user; a test that fakes the panes (LANE_PANES_CMD)
-# without it reads nothing.
+# ~/.claude.json.
 spl_box_quota_cache() {
   local now="${1:-$(date +%s)}"
+  spl_box_quota_claude_json | spl_box_quota_cache_read "$now"
+}
+
+# spl_box_quota_claude_json: the login and cached usage fields of the agent
+# user's ~/.claude.json, read as that user. Seam (tests): LANE_QUOTA_CLAUDE_JSON
+# reads that file as this user; a test that fakes the panes (LANE_PANES_CMD) or
+# the reading (LANE_QUOTA_CMD) without it reads nothing.
+spl_box_quota_claude_json() {
   if [[ -n "${LANE_QUOTA_CLAUDE_JSON:-}" ]]; then
-    spl_box_quota_cache_read "$now" <"$LANE_QUOTA_CLAUDE_JSON"; return 0
+    cat "$LANE_QUOTA_CLAUDE_JSON"; return 0
   fi
-  [[ -z "${LANE_PANES_CMD:-}" ]] || return 0
+  [[ -z "${LANE_PANES_CMD:-}${LANE_QUOTA_CMD:-}" ]] || return 0
   declare -F spool_agent_exec >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
   (
     [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
     SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
     spool_agent_exec 'jq -c "{cachedUsageUtilization: {accountUuid: .cachedUsageUtilization.accountUuid, fetchedAtMs: .cachedUsageUtilization.fetchedAtMs, utilization: {seven_day: .cachedUsageUtilization.utilization.seven_day}}, oauthAccount: {accountUuid: .oauthAccount.accountUuid}}" "$HOME/.claude.json"' </dev/null 2>/dev/null
-  ) | spl_box_quota_cache_read "$now"
+  )
 }
 
 # spl_box_quota_here: THIS box's weekly usage as it shows NOW, "claude:96,grok:4"
@@ -232,17 +239,51 @@ spl_box_quota_keep_file() {
   echo "${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/weekly-quota-reading.tsv"
 }
 
+# spl_box_quota_outdated PCT SEEN LOGIN ACCOUNT JSON NOW: exit 0 when a kept
+# claude row (PCT, read at SEEN, under LOGIN) no longer says anything about
+# ACCOUNT, the login now (SPL-4932: the owner raised the limit and swapped the
+# login, sat held new lanes for hours on a kept 97 until it was removed by
+# hand). JSON is spl_box_quota_claude_json's. Either
+#   - the row names another login: any %, that login's usage is not this one's;
+#   - a row that names none (kept before SPL-4932): the CLI fetched after the
+#     row was read, under another tag than oauthAccount. The CLI tags a fetch
+#     with its process's own account, so a process still on the old identity
+#     tags the new login's number with the old account (sat, 13:58:09Z), and
+#     spl_box_quota_cache_read rightly ignores that number;
+#   - the same login fetched LESS after the row was read and the row is under
+#     100: usage only climbs inside a week, so the limit moved. An old cache
+#     (fetched before SEEN) never gets here, and neither does a kept 100, which
+#     is the CLI's own limit banner: spl_box_quota_lifted answers for that one.
+# An unknown ACCOUNT (no ~/.claude.json, no login) lifts nothing.
+spl_box_quota_outdated() {
+  local pct="$1" seen="$2" login="$3" acct="$4" json="$5" now="$6" tag="" at="" cur
+  [[ -n "$pct" && -n "$acct" ]] || return 1
+  [[ -n "$login" && "$login" != "$acct" ]] && return 0
+  read -r tag at < <(jq -r '.cachedUsageUtilization | [(.accountUuid // "-"), ((.fetchedAtMs // 0) / 1000 | floor)] | @tsv' <<<"$json" 2>/dev/null) || true
+  [[ "$at" =~ ^[0-9]+$ ]] && (( at > seen )) || return 1
+  if [[ "$tag" != "$acct" ]]; then [[ -z "$login" && "$tag" != - ]]; return; fi
+  # no age limit here: a fetch newer than the row says so however old it is
+  cur="$(BOX_QUOTA_RESET=0 LANE_QUOTA_CACHE_MAX_S="$now" spl_box_quota_cache_read "$now" <<<"$json")"
+  [[ "$cur" =~ ^[0-9]+$ ]] && (( pct < 100 && cur < pct ))
+}
+
 # spl_box_quota_keep READING: merge READING into the kept file, print the
 # result as READING's form. Best effort: a file that cannot be written leaves
 # the answer of this call right and the next call starts from the old file.
 spl_box_quota_keep() {
-  local f rows now tmp seen lifted=""
+  local f rows now tmp lifted="" pct="" seen="" login="" json="" acct=""
   f="$(spl_box_quota_keep_file)"
   [[ -n "$f" ]] || { echo "$1"; return 0; }
   now="$(date +%s)"
-  seen="$(awk -F'\t' '$1 == "claude" && $2 >= 100 && $4 ~ /^[0-9]+$/ { print $4; exit }' "$f" 2>/dev/null)"
-  [[ -n "$seen" ]] && spl_box_quota_lifted "$seen" && lifted=claude
-  rows="$(cat "$f" 2>/dev/null | spl_box_quota_merge "$1" "$now" "${LANE_QUOTA_KEEP_S:-86400}" "$lifted" | sort)"
+  read -r pct seen login < <(awk -F'\t' '$1 == "claude" && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ { print $2, $4, $5; exit }' "$f" 2>/dev/null) || true
+  if [[ -n "$pct" || "$1" == *claude:* ]]; then
+    json="$(spl_box_quota_claude_json)"
+    acct="$(jq -r '.oauthAccount.accountUuid // empty' <<<"$json" 2>/dev/null)"
+  fi
+  if spl_box_quota_outdated "$pct" "$seen" "$login" "$acct" "$json" "$now"; then lifted=claude
+  elif [[ -n "$pct" ]] && (( pct >= 100 )) && spl_box_quota_lifted "$seen"; then lifted=claude
+  fi
+  rows="$(cat "$f" 2>/dev/null | spl_box_quota_merge "$1" "$now" "${LANE_QUOTA_KEEP_S:-86400}" "$lifted" "$acct" | sort)"
   tmp="$f.tmp.$$"
   if mkdir -p "$(dirname "$f")" 2>/dev/null && { [[ -z "$rows" ]] || printf '%s\n' "$rows"; } 2>/dev/null >"$tmp"; then
     mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
@@ -251,20 +292,21 @@ spl_box_quota_keep() {
   awk -F'\t' '{ printf "%s%s:%s%s", (NR > 1 ? "," : ""), $1, $2, ($3 != "" ? "@" $3 : "") } END { print "" }' <<<"$rows"
 }
 
-# spl_box_quota_merge READING NOW KEEP_S [LIFTED]: the kept rows on stdin (kind TAB pct
-# TAB reset epoch or empty TAB read at), the new rows on stdout. A reset that
+# spl_box_quota_merge READING NOW KEEP_S [LIFTED [ACCOUNT]]: the kept rows on stdin (kind
+# TAB pct TAB reset epoch or empty TAB read at, a claude row then TAB the login it was
+# read under: ACCOUNT, or its old one when ACCOUNT is unknown), the new rows on stdout. A reset that
 # passed drops its row; a row with no reset (grok names none) lasts KEEP_S,
 # since nothing says when its week ends and a box held on it would never be
 # measured again. A new reading replaces a kept one, except inside one reset
 # week (the two resets under a day apart, a banner rounds it): there usage only
 # climbs, so an older CLI cache read after a banner cannot lower it. LIFTED
-# (kinds, comma-separated; spl_box_quota_lifted) drops those kept rows first:
-# the login had quota after they were read, so the new reading stands alone.
+# (kinds, comma-separated; spl_box_quota_lifted, spl_box_quota_outdated) drops
+# those kept rows first: the new reading stands alone.
 spl_box_quota_merge() {
-  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" -v lifted="${4:-}" '
+  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" -v lifted="${4:-}" -v acct="${5:-}" '
     function gone(k) { return (at[k] != "" ? at[k] <= now : now - seen[k] >= keep) }
     NF >= 4 && $1 ~ /^[a-z]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]*$/ && $4 ~ /^[0-9]+$/ {
-      pct[$1] = $2; at[$1] = $3; seen[$1] = $4
+      pct[$1] = $2; at[$1] = $3; seen[$1] = $4; login[$1] = $5
     }
     END {
       for (k in pct) if (gone(k) || index("," lifted ",", "," k ",")) delete pct[k]
@@ -279,7 +321,11 @@ spl_box_quota_merge() {
         }
         pct[k] = p; at[k] = a; seen[k] = t
       }
-      for (k in pct) if (!gone(k)) print k, pct[k], at[k], seen[k]
+      if (acct != "") login["claude"] = acct
+      for (k in pct) if (!gone(k)) {
+        if (login[k] != "") print k, pct[k], at[k], seen[k], login[k]
+        else print k, pct[k], at[k], seen[k]
+      }
     }'
 }
 

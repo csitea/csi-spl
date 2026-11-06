@@ -599,6 +599,69 @@ printf 'claude\t95\t%s\t%s\n' "$FUT" $(( NOW - 7200 )) >"$KEPT"; ent "claude-x" 
   pass "16l. CONTROL a kept 95 is no limit: an answer since does not lower it (16h holds)" || fail "16l. 95: $(lk)"
 rm -rf "$T/projects" "$T/probe"
 rm -f "$KEPT"
+# 16m. a login or limit change lifts a kept claude reading of any %, an old
+#     cache never does (SPL-4932). The case, sat 2026-11-06: the credential
+#     changed at 13:57:05Z, the kept row read claude 97 at 13:58:08Z, the CLI
+#     fetched 0 % at 13:58:09Z under the old account's tag while oauthAccount
+#     names the new one, the probe said ok at 16:06:06Z, and new lanes stayed
+#     refused until the row was removed by hand at 16:12Z. Kept read 2 h ago.
+NOW=$(date +%s); KS=$(( NOW - 7200 )); A=old-login; B=new-login; CJ="$T/cj-kept.json"
+kept() { printf 'claude\t%s\t%s\t%s%s\n' "$1" "$FUT" "$KS" "${2:+$'\t'$2}" >"$KEPT"; }
+# cj OAUTH TAG FETCHED_AT PCT: the agent user's ~/.claude.json
+cj() {
+  jq -n --arg o "$1" --arg t "$2" --argjson f "$(( $3 * 1000 ))" --argjson p "$4" \
+    --arg r "$(date -u -d "@$FUT" +%Y-%m-%dT%H:%M:%S).652617+00:00" \
+    '{oauthAccount: {accountUuid: $o}, cachedUsageUtilization: {accountUuid: $t, fetchedAtMs: $f,
+      utilization: {seven_day: {utilization: $p, resets_at: $r}}}}' >"$CJ"
+}
+ck() { known LANE_QUOTA_CLAUDE_JSON="$CJ" "$@"; }
+kept 97; cj "$B" "$A" $(( KS + 1 )) 0
+[[ -z "$(ck)" ]] && ! grep -q '^claude' "$KEPT" &&
+  pass "16m. RED CONTROL the sat case: a row kept before the login change, 0 % fetched 1 s later under the old tag -> unknown, row dropped" || fail "16m. sat: $(kept 97; ck)"
+kept 97; out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_STATE="$KEPT" BOX_PICK_KIND=claude \
+  BOX_QUOTA_WEEKLY_MAX_PCT=90 LANE_QUOTA_CLAUDE_JSON="$CJ")"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16m. RED CONTROL the pick: box-a placed again (unknown), not held on the kept 97" || fail "16m. pick: $out"
+# the row names the login it was read under; another login lifts any %
+rm -f "$KEPT"; cj "$A" "$A" "$NOW" 95
+[[ "$(BOX_QUOTA_RESET=1 LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD="echo claude:95@$FUT" LANE_QUOTA_CLAUDE_JSON="$CJ" bash -c \
+  'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known')" == "claude:95@$FUT" ]] &&
+  [[ "$(cut -f5 "$KEPT")" == "$A" ]] && pass "16m. RED CONTROL a new row names its login" || fail "16m. stamp: $(cat "$KEPT")"
+for p in 95 100; do
+  kept "$p" "$A"; cj "$B" "$A" $(( KS - 60 )) "$p"
+  [[ -z "$(ck)" ]] && pass "16m. RED CONTROL kept $p under another login, no fresher fetch, no probe -> unknown" || fail "16m. login $p: $(kept "$p" "$A"; ck)"
+done
+kept 97 "$A"; cj "$B" "$A" $(( KS - 60 )) 0
+[[ "$(ck LANE_QUOTA_CMD="echo claude:4@$FUT")" == "claude:4@$FUT" ]] && [[ "$(cut -f5 "$KEPT")" == "$B" ]] &&
+  pass "16m. RED CONTROL another login: its own reading stands alone, the row names the new login" || fail "16m. new: $(cat "$KEPT")"
+# the same login: a fetch after the kept read that shows less = the limit moved
+kept 97 "$A"; cj "$A" "$A" $(( KS + 60 )) 30
+[[ "$(ck LANE_QUOTA_CMD="echo claude:30@$FUT")" == "claude:30@$FUT" ]] &&
+  pass "16m. RED CONTROL a raised limit: same login, 30 % fetched after the kept 97 -> 30" || fail "16m. raised: $(cat "$KEPT")"
+KS=$(( NOW - 7 * 3600 )); kept 97 "$A"; cj "$A" "$A" $(( NOW - 13 * 1800 )) 30
+[[ -z "$(ck)" ]] && pass "16m. RED CONTROL the fetch that lifts is over LANE_QUOTA_CACHE_MAX_S old: still newer than the row -> unknown" || fail "16m. aged: $(cat "$KEPT")"
+KS=$(( NOW - 7200 ))
+# what must not lift
+kept 97 "$A"; cj "$A" "$A" $(( KS - 60 )) 30
+[[ "$(ck LANE_QUOTA_CMD="echo claude:30@$FUT")" == "claude:97@$FUT" ]] &&
+  pass "16m. CONTROL an old cache (fetched before the kept read) does not lower it" || fail "16m. old cache: $(cat "$KEPT")"
+kept 97; cj "$A" "$A" $(( KS - 60 )) 30
+[[ "$(ck)" == "claude:97@$FUT" ]] && [[ "$(cut -f5 "$KEPT")" == "$A" ]] &&
+  pass "16m. CONTROL a row with no login, an old cache -> holds, and now names the login" || fail "16m. legacy: $(cat "$KEPT")"
+kept 97 "$A"; cj "$A" "$B" $(( KS + 60 )) 0
+[[ "$(ck)" == "claude:97@$FUT" ]] &&
+  pass "16m. CONTROL the row's own login still current, a fresher cache under another tag lifts nothing" || fail "16m. tag: $(cat "$KEPT")"
+kept 97 "$A"; cj "$A" "$A" $(( KS + 60 )) 98
+[[ "$(ck LANE_QUOTA_CMD="echo claude:98@$FUT")" == "claude:98@$FUT" ]] && pass "16m. CONTROL a fresher, higher reading climbs" || fail "16m. climb: $(cat "$KEPT")"
+kept 100 "$A"; cj "$A" "$A" $(( KS + 60 )) 30
+[[ "$(ck)" == "claude:100@$FUT" ]] &&
+  pass "16m. CONTROL a kept 100 of the same login: the banner's limit, a lower cache lifts nothing (the probe or an answer does, 16l)" || fail "16m. 100: $(cat "$KEPT")"
+kept 97 "$A"; echo 'not json' >"$CJ"
+[[ "$(ck)" == "claude:97@$FUT" ]] && [[ "$(cut -f5 "$KEPT")" == "$A" ]] &&
+  pass "16m. CONTROL an unreadable ~/.claude.json lifts nothing, the row keeps its login" || fail "16m. unreadable: $(cat "$KEPT")"
+rm -f "$KEPT"; here "grok:91" >/dev/null
+[[ "$(awk -F'\t' '{ print NF }' "$KEPT")" == 4 ]] && pass "16m. CONTROL a grok row carries no login" || fail "16m. grok: $(cat "$KEPT")"
+rm -f "$KEPT" "$CJ"
 
 # 17. sat alone panel row 01 (SPL-2629): a CORDONED box (do_spl_box_cordon,
 #     <spool root>/dispatch/cordon/<box> with until=<epoch>) is never picked,

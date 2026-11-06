@@ -20,7 +20,8 @@
 #      the step's other file goes (a whole-index symlink too); ..._FORCE=1 replaces
 #      them; a link to another repo's claude MEMORY.md is replaced;
 #      SPOOL_INSTALL_AGY_MEMORY=0 skips; no .gemini / no memory: skipped, and a
-#      memory gone after an install removes the rules
+#      memory gone after an install removes the rules; a foreign index that stays
+#      is named on every path, and the step then does not say "no index"
 #   7. install.sh calls the step once, only with --fleet
 #   8. do_spl_agy_memory_install, DRY_RUN unset, this user, a sandbox home that
 #      holds the memory (getent stubbed): rc 0, plans both files, writes nothing
@@ -192,6 +193,14 @@ then pass "pin: both pinned lessons load"; else fail "pin: $out"; fi
 want_rows="$(grep -v '^#' "$PM/agy-allow.list")"
 got_rows="$(bash -c '. "$1"; spool_install_agy_memory_row "$2" probe-fact.md; spool_install_agy_memory_row "$2" unlisted-fact.md' _ "$STEP" "$PM" 2>&1)"
 if [ "$got_rows" = "$want_rows" ]; then pass "spool_install_agy_memory_row prints the rows a seat appends"; else fail "rows: $got_rows"; fi
+W="$T/homeW"; mk_home "$W"; WM="$W/.claude/projects/$slug/memory"
+printf -- '- [Again](probe-fact.md) — y20-probe-again\n' >>"$WM/MEMORY.md"
+before="$(ls -A "$WM" | cksum; cat "$WM"/* | cksum)"
+got_rows="$(bash -c '. "$1"; spool_install_agy_memory_row "$2" probe-fact.md' _ "$STEP" "$WM" 2>&1)"
+if [ "$(ls -A "$WM" | cksum; cat "$WM"/* | cksum)" = "$before" ]
+then pass "the row helper writes nothing: a row goes on the list only by a seat's hand"; else fail "the row helper wrote: $(cat "$WM/agy-allow.list")"; fi
+if [ "$got_rows" = "$(pin "$WM" probe-fact.md)" ] && [ "$(wc -l <<<"$got_rows")" = 2 ]
+then pass "the row helper prints one row per index line of the file"; else fail "rows of two lines: $got_rows"; fi
 cp "$PM/agy-allow.list" "$T/list.good"
 printf 'a credential path\n' >>"$PM/unlisted-fact.md"
 out="$(inst "$P" 0 "$R")"
@@ -215,9 +224,9 @@ printf -- '- [Second line](probe-fact.md) — y20-probe-secondline\n' >>"$PM/MEM
 out="$(inst "$P" 0 "$R")"
 if grep -q y20-probe-alpha "$PR/AGENTS.md" && ! grep -q y20-probe-secondline "$PR/AGENTS.md" && [[ "$out" == *"probe-fact.md: its index line changed since"* ]]
 then pass "a second, unpinned line of a listed file: dropped and named, the pinned line kept"; else fail "second line: $out"; fi
-printf 'probe-fact.md\n%s probe-fact.md\n%s %s probe-fact.md extra\nnothex %s probe-fact.md\n' "$NOHASH" "$NOHASH" "$NOHASH" "$NOHASH" >"$PM/agy-allow.list"
+printf 'probe-fact.md\n%s probe-fact.md\n%s %s probe-fact.md extra\nnothex %s probe-fact.md\n%s nothex probe-fact.md\n' "$NOHASH" "$NOHASH" "$NOHASH" "$NOHASH" "$NOHASH" >"$PM/agy-allow.list"
 out="$(inst "$P" 0 "$R")"
-if [ ! -e "$PR/AGENTS.md" ] && [ "$(grep -c 'is no row' <<<"$out")" = 4 ] && [[ "$out" == *"agy gets no index"* ]]
+if [ ! -e "$PR/AGENTS.md" ] && [ "$(grep -c 'is no row' <<<"$out")" = 5 ] && [[ "$out" == *"agy gets no index"* ]]
 then pass "a row without both hashes is refused and named: no index"; else fail "bad rows: $out"; fi
 
 # 5c. the filter: any link decides, the header follows the lines, comments, symlinks
@@ -290,6 +299,27 @@ pin "$FM" probe-fact.md >"$FM/agy-allow.list"
 inst "$F" 0 "$R" >/dev/null
 if [ ! -e "$FR/fleet-memory-0-where.md" ] && [ "$(cat "$FR/AGENTS.md")" = "# my agents" ]
 then pass "hand-written AGENTS.md: the step's header goes, it names no file for an index it cannot write"; else fail "header stays: $(ls "$FR")"; fi
+# A foreign index stays on every path: it is named, and agy does load it, so the
+# step never says "no index" over it.
+N="$T/homeN"; mk_home "$N"; NM="$N/.claude/projects/$slug/memory"; NR="$N/.gemini/config/rules"; mkdir -p "$NR"
+cp "$NM/MEMORY.md" "$NR/AGENTS.md"; cp "$NM/agy-allow.list" "$T/list.N"; rm "$NM/agy-allow.list"
+for d in 1 0; do
+  out="$(inst "$N" "$d" "$R")"
+  if grep -q y20-probe-unlisted "$NR/AGENTS.md" && [[ "$out" == *"$NR/AGENTS.md is not this step's file: kept"* ]] && [[ "$out" != *"agy gets no index"* ]]
+  then pass "no list, a foreign AGENTS.md, dry=$d: kept, named, no claim of no index"; else fail "deny over a foreign index dry=$d: $out"; fi
+done
+echo "# mine" >"$NR/fleet-memory-0-where.md"
+out="$(inst "$N" 0 "$R")"
+if [ "$(cat "$NR/fleet-memory-0-where.md")" = "# mine" ] && [[ "$out" == *"fleet-memory-0-where.md was not written by this step: kept"* ]]
+then pass "no list, a foreign header: kept and named"; else fail "deny over a foreign header: $out"; fi
+cp "$T/list.N" "$NM/agy-allow.list"
+out="$(inst "$N" 0 "$R")"
+if [[ "$out" == *"fleet-memory-0-where.md was not written by this step: kept"* ]] && [[ "$out" == *"$NR/AGENTS.md is not this step's file: kept"* ]]
+then pass "a filled list, both files foreign: both named"; else fail "both foreign: $out"; fi
+rm "$NR/fleet-memory-0-where.md" "$NM/MEMORY.md"
+out="$(inst "$N" 0 "$R")"
+if grep -q y20-probe-unlisted "$NR/AGENTS.md" && [[ "$out" == *"no claude memory index"* ]] && [[ "$out" == *"$NR/AGENTS.md is not this step's file: kept"* ]] && [[ "$out" != *"agy gets no index"* ]]
+then pass "no MEMORY.md, a foreign AGENTS.md: kept, named, no claim of no index"; else fail "no memory over a foreign index: $out"; fi
 G="$T/homeG"; mk_home "$G"; GM="$G/.claude/projects/$slug/memory"; GR="$G/.gemini/config/rules"
 inst "$G" 0 "$R" >/dev/null
 rm "$GM/MEMORY.md"

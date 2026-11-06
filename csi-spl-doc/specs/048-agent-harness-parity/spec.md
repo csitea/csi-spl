@@ -232,7 +232,9 @@ it reads now, and writes nothing.
 
 - **Default deny.** No list, an empty list, no line left or no `MEMORY.md` = no
   index: the step says so and removes what it wrote earlier, a symlink to
-  `MEMORY.md` included.
+  `MEMORY.md` included. A foreign `AGENTS.md` stays and is named on these paths
+  too, and the step then does not say "no index": agy still loads that file, a
+  plain copy of `MEMORY.md` with all its lines included. Removing it is by hand.
 - **Who lists a file.** A claude seat, after reading that whole file and its
   index line and finding no secret, credential path, customer or personal data.
   A slug says nothing about the body. The finance, customer and key-store

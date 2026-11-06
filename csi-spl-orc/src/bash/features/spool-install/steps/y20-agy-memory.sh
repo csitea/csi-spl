@@ -39,7 +39,8 @@
 # step's marker, or an AGENTS.md that is neither this step's file nor a symlink to
 # a claude MEMORY.md, is left alone and named (SPOOL_INSTALL_AGY_MEMORY_FORCE=1
 # replaces it); the step's other file then goes too, so no stale or whole index
-# stays behind it. Idempotent.
+# stays behind it. Default deny names a foreign file the same way and then does not
+# say "no index", because agy still loads that file. Idempotent.
 # SPOOL_INSTALL_AGY_MEMORY=0 skips the step.
 #------------------------------------------------------------------------------
 Y20_MARK='<!-- spool-install: y20 agy-memory header -->'
@@ -183,6 +184,24 @@ _y20_rm_hdr() {  # HDR DRY
   if [ -e "$1" ] && _y20_header_ours "$1"; then _y20_rm "$1" "$2"; fi
 }
 
+_y20_idx_foreign() { { [ -e "$1" ] || [ -L "$1" ]; } && ! _y20_idx_ours "$1"; }
+_y20_hdr_foreign() { { [ -e "$1" ] || [ -L "$1" ]; } && ! _y20_header_ours "$1"; }
+
+# Names what stays; removes this step's own files.
+_y20_keep_foreign() {  # IDX HDR DRY HOW
+  _y20_hdr_foreign "$2" && _y20_say "WARN $2 was not written by this step: kept, agy still reads it ($4)"
+  _y20_idx_foreign "$1" && _y20_say "WARN $1 is not this step's file: kept, agy still loads it and no listed lesson ($4)"
+  _y20_rm_idx "$1" "$3" || return 7
+  _y20_rm_hdr "$2" "$3" || return 7
+}
+
+# Default deny: no line may reach agy, so what this step wrote earlier goes too;
+# "no index" is said only when no foreign index stays.
+_y20_deny() {  # IDX HDR DRY WHY
+  if _y20_idx_foreign "$1"; then _y20_say "$4"; else _y20_say "$4: agy gets no index"; fi
+  _y20_keep_foreign "$1" "$2" "$3" "remove it by hand"
+}
+
 _y20_write() {  # PATH TEXT
   rm -f "$1" && printf '%s\n' "$2" >"$1.tmp.$$" && mv -f "$1.tmp.$$" "$1"
 }
@@ -198,10 +217,8 @@ spool_install_agy_memory() {
   hdr="$rules/fleet-memory-0-where.md"
   idx="$rules/AGENTS.md"
   if [ ! -f "$memdir/MEMORY.md" ]; then
-    _y20_say "no claude memory index $memdir/MEMORY.md for $repo: skipped, agy gets no index (SPOOL_INSTALL_CLAUDE_MEMORY_REPO names the repo)"
-    _y20_rm_idx "$idx" "$dry" || return 7
-    _y20_rm_hdr "$hdr" "$dry" || return 7
-    return 0
+    _y20_deny "$idx" "$hdr" "$dry" "no claude memory index $memdir/MEMORY.md for $repo, skipped (SPOOL_INSTALL_CLAUDE_MEMORY_REPO names the repo)"
+    return
   fi
   rows="$(_y20_rows "$memdir")"
   lines=""
@@ -212,28 +229,17 @@ spool_install_agy_memory() {
     else _y20_say "WARN $Y20_LIST: $name has no index line to load: dropped"; fi
   done < <(cut -d' ' -f1 <<<"$rows" | sort -u)
   if [ -z "$lines" ]; then
-    # Default deny: no line may reach agy, so what this step wrote earlier goes too.
-    _y20_say "no lesson on the allow-list $memdir/$Y20_LIST: agy gets no index"
-    _y20_rm_idx "$idx" "$dry" || return 7
-    _y20_rm_hdr "$hdr" "$dry" || return 7
-    return 0
+    _y20_deny "$idx" "$hdr" "$dry" "no lesson on the allow-list $memdir/$Y20_LIST"
+    return
   fi
   want="$(_y20_header "$memdir" "$repo" "$shown")"
   want_idx="$Y20_IDX_MARK"$'\n'"$lines"
   [ -f "$hdr" ] && [ ! -L "$hdr" ] && [ "$(cat "$hdr")" = "$want" ] && hdr_ok=1
   [ -f "$idx" ] && [ ! -L "$idx" ] && [ "$(cat "$idx")" = "$want_idx" ] && idx_ok=1
   if [ "$hdr_ok" = 1 ] && [ "$idx_ok" = 1 ]; then _y20_say "$rules already current ($memdir)"; return 0; fi
-  if [ "$force" != 1 ]; then
-    if [ "$hdr_ok" = 0 ] && { [ -e "$hdr" ] || [ -L "$hdr" ]; } && ! _y20_header_ours "$hdr"; then
-      _y20_say "WARN $hdr was not written by this step: kept, agy misses the memory (SPOOL_INSTALL_AGY_MEMORY_FORCE=1 replaces it)"
-      _y20_rm_idx "$idx" "$dry" || return 7
-      return 0
-    fi
-    if [ "$idx_ok" = 0 ] && ! _y20_idx_ours "$idx"; then
-      _y20_say "WARN $idx is not this step's file: kept, agy misses the memory (SPOOL_INSTALL_AGY_MEMORY_FORCE=1 replaces it)"
-      _y20_rm_hdr "$hdr" "$dry" || return 7
-      return 0
-    fi
+  if [ "$force" != 1 ] && { _y20_hdr_foreign "$hdr" || _y20_idx_foreign "$idx"; }; then
+    _y20_keep_foreign "$idx" "$hdr" "$dry" "SPOOL_INSTALL_AGY_MEMORY_FORCE=1 replaces it"
+    return
   fi
   if [ "$dry" = 1 ]; then
     [ "$hdr_ok" = 1 ] || echo "would: write $hdr"

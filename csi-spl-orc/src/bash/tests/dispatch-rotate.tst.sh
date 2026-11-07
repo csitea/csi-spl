@@ -419,14 +419,22 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 
 # --- 7. T-DISP-ACK-SOURCE ----------------------------------------------------------------------
 world; echo no >"$T/ack.mode.c-902"
-( act DRY_RUN=0 ROTATE_ACK_TIMEOUT=5 ROTATE_TEST_REAL=1 >"$T/o" 2>&1 ) & sleep 3
-rid="$(ctx ROTATE_RID)"
-act ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=102 >"$T/a" 2>&1; rc=$?
-[[ $rc -eq 3 ]] && grep -q "caller pid '102' is not the new session 2902" "$T/a" && pass "7. an ack from the old pid: exit 3" || fail "7. pid rc=$rc $(cat "$T/a")"
-act ROTATE_CMD=ack ROTATE_ID=20000101T0000Z-master ROTATE_CALLER_PID=2902 >"$T/a" 2>&1; rc=$?
-[[ $rc -eq 3 ]] && pass "7. an unknown rid: exit 3" || fail "7. rid rc=$rc $(cat "$T/a")"
-wait
-! grep -q "result dispatch-rotate-$rid" "$T/send.log" && [[ -d "$T/proc/102" ]] && pass "7. ... nothing was sent, the old M kept" || fail "7. a forged ack counted"
+# in flight once the ctx holds both: the rid comes at GATE, the pid the ack is
+# checked against only at SPAWN. 15 s: the rotation's real ack wait outlasts
+# the two acks below under load.
+( act DRY_RUN=0 ROTATE_ACK_TIMEOUT=15 ROTATE_TEST_REAL=1 >"$T/o" 2>&1 ) &
+rid="" t0=$SECONDS
+while [[ -z "$rid" || -z "$(ctx ROTATE_NEW_PID)" ]] && (( SECONDS - t0 < 120 )); do rid="$(ctx ROTATE_RID)"; sleep 0.2; done
+if [[ -z "$rid" || -z "$(ctx ROTATE_NEW_PID)" ]]; then
+  fail "7. wait timeout: no ROTATE_RID and ROTATE_NEW_PID in the ctx within 120 s (rid='$rid')"; wait
+else
+  act ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=102 >"$T/a" 2>&1; rc=$?
+  [[ $rc -eq 3 ]] && grep -q "caller pid '102' is not the new session 2902" "$T/a" && pass "7. an ack from the old pid: exit 3" || fail "7. pid rc=$rc $(cat "$T/a")"
+  act ROTATE_CMD=ack ROTATE_ID=20000101T0000Z-master ROTATE_CALLER_PID=2902 >"$T/a" 2>&1; rc=$?
+  [[ $rc -eq 3 ]] && pass "7. an unknown rid: exit 3" || fail "7. rid rc=$rc $(cat "$T/a")"
+  wait
+  ! grep -q "result dispatch-rotate-$rid" "$T/send.log" && [[ -d "$T/proc/102" ]] && pass "7. ... nothing was sent, the old M kept" || fail "7. a forged ack counted"
+fi
 
 # --- 8. T-DISP-HOLD-STALE ------------------------------------------------------------------------
 world

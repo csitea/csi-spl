@@ -64,6 +64,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.expenses-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+/* top and sides only: the shell's padding-bottom keeps the last row clear of the phone's composer dock (main.css, .spool-shell .feed-body) */
+.expenses-body { padding-block-start: 16px; padding-inline: 16px; display: flex; flex-direction: column; gap: 12px; }
 .tk-lazy { display: contents; }
 </style>

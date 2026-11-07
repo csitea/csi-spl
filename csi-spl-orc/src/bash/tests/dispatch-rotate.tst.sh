@@ -256,7 +256,9 @@ EOF
 # clock. While a fake session's ack is in flight ($T/ack.pending.<id>) the
 # clock stands still (0.05 s real ticks), as for a session that answers at
 # once; at most 500 such ticks per process. ROTATE_TEST_REAL=1: real
-# seconds, for a case racing a real-time peer (7, 11 confirm).
+# seconds, for a case racing a real-time peer (7). at-sleep.<n> (armed by a
+# case): runs once at the first `sleep <n>`, a peer acting during that wait, so
+# the order is an event and not a race against the action's start (11 confirm).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
@@ -264,6 +266,7 @@ trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
 VCLOCK_MS=0 VCLOCK_HELD=0
 sleep() {
   local n="${1:-1}" ms int frac tick="${ROTATE_TEST_TICK:-0.01}" p
+  if [[ -f "$T/at-sleep.$n" ]]; then mv "$T/at-sleep.$n" "$T/at-sleep.ran"; . "$T/at-sleep.ran"; fi
   [[ "${ROTATE_TEST_REAL:-0}" == 1 ]] && { command sleep "$n"; return 0; }
   [[ "${ROTATE_CMD:-}" == ack ]] && tick=0.1
   if [[ "${ROTATE_CMD:-}" != ack ]] && (( VCLOCK_HELD < 500 )); then
@@ -607,11 +610,12 @@ world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/scr
 heal LEASE_PANE_CMD="$T/bin/footer" >"$T/o" 2>&1
 [[ "$(nsetup)" == 0 && -d "$T/proc/102" && ! -e "$T/proc/202" ]] && grep -q ' HEAL SKIP both alive' "$T/o" &&
   pass "11. a live master on a usage-limit pane: untouched (no second process on its id)" || fail "11. stalled: $(cat "$T/o")"
-world; rm -rf "$T/proc/103"
-( sleep 1; "$T/bin/proc" 103 c-903 7200 ) &
-heal ROTATE_HEAL_CONFIRM=3 ROTATE_TEST_REAL=1 >"$T/o" 2>&1; wait
-[[ "$(nsetup)" == 0 && ! -d "$T/proc/203" ]] && grep -q ' HEAL SKIP back within 3s' "$T/o" &&
+world; rm -rf "$T/proc/103" "$T/at-sleep.ran"
+echo '"$T/bin/proc" 103 c-903 7200' >"$T/at-sleep.3"
+heal ROTATE_HEAL_CONFIRM=3 >"$T/o" 2>&1
+[[ "$(nsetup)" == 0 && ! -d "$T/proc/203" && -e "$T/at-sleep.ran" && ! -e "$T/at-sleep.3" ]] && grep -q ' HEAL SKIP back within 3s' "$T/o" &&
   pass "11. dead at one look, back within ROTATE_HEAL_CONFIRM: untouched" || fail "11. confirm: $(cat "$T/o")"
+rm -f "$T/at-sleep.3"
 world; rm -rf "$T/proc/103"
 heal SETUP_SLEEP=3 >"$T/o1" 2>&1 & sleep 0.5
 heal SETUP_SLEEP=3 >"$T/o2" 2>&1; wait

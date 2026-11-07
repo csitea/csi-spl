@@ -149,8 +149,9 @@
 # @description      99), not at weekly_max_pct. At that mark, at 100%, and on every
 # @description      other hold (window ceiling, load, disk, cordon, pin, agy out) it
 # @description      stays queued like any lane; held SPAWN_PLACE_SEAT_ALARM_MIN (30)
-# @description      or more in line, the dispatch lease holder gets ONE blocker and
-# @description      #alerts one post naming the hold (spl_spawn_place_seat_alarm)
+# @description      or more in line, the dispatch lease holder gets ONE blocker naming
+# @description      the seat and the hold, #alerts one post with neither
+# @description      (spl_spawn_place_seat_alarm)
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_SEAT_ALARM_MIN (optional) - minutes in line after which a held logged review seat alarms, default 30
 # @param SPAWN_PLACE_SEAT_ALARM_GAP_MIN (optional) - minutes between two such alarms at least; a seat due meanwhile goes in the next one, default 30
@@ -424,6 +425,9 @@ spl_spawn_place_seat_pass() {  # BRIEF
 # what-broke-20261106 3.2). A seat SPAWN_PLACE_SEAT_ALARM_MIN (30) or more in line
 # (wait_s: enqueued_at, kept across a re-queue) that a hold stops alarms ONCE per
 # ask: one blocker to the dispatch lease holder (none: HOLDER), one #alerts post.
+# The post is ask id8, minutes and count, nothing read from a row or a hold: every
+# human of the tenant reads #alerts, a slug can name a customer, and a hold line can
+# hold the slug, a brief path or a box (spl_spawn_place_away_hold, _pin_hold).
 # The hold is its .place.wait line (a launcher HOLD, a pin, agy out, a brief on
 # another box), else the room check without its gap: the gap is a pace, no hold.
 # Time in line alone is no alarm: 209 of 412 logged seats since 10-31 took 30 min
@@ -431,7 +435,7 @@ spl_spawn_place_seat_pass() {  # BRIEF
 # alarm per SPAWN_PLACE_SEAT_ALARM_GAP_MIN; a seat due meanwhile goes in the next.
 # Neither channel took it: retried next tick. Never stops the tick.
 spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
-  local d f now gap=$(( ${SPAWN_PLACE_SEAT_ALARM_GAP_MIN:-30} * 60 )) id place min why room="" to text ok=0 lines="" fired=() out
+  local d f now gap=$(( ${SPAWN_PLACE_SEAT_ALARM_GAP_MIN:-30} * 60 )) id place min why room="" to text post tail ok=0 lines="" plines="" fired=() out
   d="$(spool_asks_dir)"; f="$d/.place.seat-alarm"; now="$(date +%s)"
   (( now - $(stat -c %Y "$f.last" 2>/dev/null || echo 0) >= gap )) || return 0
   [[ -e "$f" ]] || : >"$f"
@@ -445,18 +449,25 @@ spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
     fi
     lines+=$'
 '"- ask ${id:0:8} ($place), $min min in line: $why"
+    plines+=$'
+'"- ask ${id:0:8}, $min min in line"
     fired+=("$id")
   done < <(spl_spawn_place_seats "$2" | jq -r --argjson s "$(( ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} * 60 ))" --rawfile seen "$f" '
     ($seen | split("
 ")) as $d | .[] | select((.wait_s // 0) >= $s and (.ask_id as $a | $d | index($a) | not))
     | "\(.ask_id)	\(.placement)	\(.wait_s / 60 | floor)"')
   (( ${#fired[@]} > 0 )) || return 0
-  text="**SPAWN QUEUE: ${#fired[@]} review seat(s) held ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} min or more, and their authors wait on them.**$lines"$'
+  tail="A logged seat passes a weekly hold below env.box.quota.review_seat_max_pct, never at 100%; no other hold is passed. The queue: \`./run -a do_spl_spawn_queue\`."
+  text="**SPAWN QUEUE: ${#fired[@]} review seat(s) held ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} min or more, and their authors wait on them.**"
+  post="$text$plines"$'
 
-'"A logged seat passes a weekly hold below env.box.quota.review_seat_max_pct, never at 100%; no other hold is passed. The queue: \`./run -a do_spl_spawn_queue\`."
+'"The dispatch lease holder has the seat and the hold in a blocker. $tail"
+  text+="$lines"$'
+
+'"$tail"
   to="$(spl_spawn_place_dispatch)"
   spl_spawn_q_send "$1" "${to:-$1}" blocker spawn-queue "$text" && ok=1
-  if out="$(spl_asks_alert_post "${1%@*}" "$text" 6>&-)"; then ok=1; else do_log "WARN the review-seat alarm did not post in #alerts: ${out:0:200}"; fi
+  if out="$(spl_asks_alert_post "${1%@*}" "$post" 6>&-)"; then ok=1; else do_log "WARN the review-seat alarm did not post in #alerts: ${out:0:200}"; fi
   (( ok == 1 )) || { do_log "WARN the review-seat alarm reached nobody: retried next tick"; return 0; }
   printf '%s
 ' "${fired[@]}" >>"$f"

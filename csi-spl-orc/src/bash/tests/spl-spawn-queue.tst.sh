@@ -1572,7 +1572,8 @@ cron DRY_RUN=0 SPAWN_PLACE_CRON_ACTION=remove >/dev/null 2>&1
 
 # 40. SPL-4966 (spec 146, what-broke-20261106 section 7 item 3). A logged review
 # seat's launch carries the review-seat mark, any other row's does not; a seat
-# a hold stops 30 min alarms once, through both channels, naming the hold.
+# a hold stops 30 min alarms once, through both channels: the blocker names the
+# seat and the hold, the #alerts post neither.
 AS="$T/asks-seat.log"; printf '#!/usr/bin/env bash\ncat >>"%s"; echo seat-alert-1\n' "$AS" >"$T/bin/alert"; chmod +x "$T/bin/alert"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$T/bin/alert-no"; printf '#!/usr/bin/env bash\nexit 11\n' >"$T/bin/send-no"; chmod +x "$T/bin/alert-no" "$T/bin/send-no"
 Q40="$T/pc/spool/asks"
@@ -1609,7 +1610,7 @@ out="$(tick40 LAUNCH_HOLD_SLUG=k1-reviewer)"
 [[ "$(alarms)" == 0 ]] && grep -q 'back in line' <<<"$out" && pass "40b. first HOLD of a seat 31 min in line: no hold was known at the check, nothing yet" || fail "40b. first: $(sends) | $out"
 tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "c-001 c-002 blocker spawn-queue .*ask ${K1:0:8} (claude:k1-reviewer), 3[0-9] min in line: waiting: grok weekly >= 90% on box-a" "$T/send.log" &&
-  grep -q "ask ${K1:0:8} (claude:k1-reviewer)" "$AS" && pass "40c. the next tick: one blocker to the dispatch holder and one #alerts post, naming the hold" || fail "40c. $(sends) | $(cat "$AS" 2>/dev/null)"
+  grep -q "^- ask ${K1:0:8}, 3[0-9] min in line$" "$AS" && pass "40c. the next tick: one blocker to the dispatch holder naming the hold, and one #alerts post" || fail "40c. $(sends) | $(cat "$AS" 2>/dev/null)"
 rm -f "$Q40/.place.seat-alarm.last"
 tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && pass "40d. the same seat, still held, past the alarm gap: no second alarm" || fail "40d. $(sends)"
@@ -1652,6 +1653,17 @@ tick40 WINDOWS=40 SPAWN_QUEUE_SEND="$T/bin/send-no" >/dev/null
 seat_clear; seat_q "$K1" k1-reviewer 31
 out="$(tick40 WINDOWS=40 ASKS_ALERT_CMD="$T/bin/alert-no")"
 [[ "$(alarms)" == 1 ]] && grep -q 'WARN the review-seat alarm did not post in #alerts' <<<"$out" && pass "40k. #alerts failed, the blocker went: fired, with a WARN" || fail "40k. alert: $(sends) | $out"
+# A customer-style slug, and a hold line that names it, its brief path and a box:
+# the blocker has them, the post has none. The post's seat lines are an allow-list:
+# a ban list only finds what it guessed.
+seat_clear; seat_q "$K1" acme-corp-portal-reviewer 31
+printf '%s\t%s\t%s\n' "$K1" "$(date +%s)" "the launcher says acme-corp-portal-reviewer.md under /briefs/acme is held on box-acme" >"$Q40/.place.wait"
+tick40 WINDOWS=40 >/dev/null
+[[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "(claude:acme-corp-portal-reviewer), 3[0-9] min in line: the launcher says acme-corp-portal-reviewer.md under /briefs/acme" "$T/send.log" &&
+  pass "40l. a customer-style slug and a hold line naming it reach the blocker" || fail "40l. blocker: $(sends)"
+if grep -qiE 'acme|box-|/briefs' "$AS"; then fail "40l. the #alerts post carries the slug or the hold: $(cat "$AS")"
+elif [[ "$(grep '^- ' "$AS" | grep -cvE "^- ask ${K1:0:8}, [0-9]+ min in line$")" != 0 || "$(grep -c '^- ' "$AS")" != 1 ]]; then fail "40l. a seat line of the post is more than id8 and minutes: $(cat "$AS")"
+else pass "40l. ... and not the #alerts post: its seat line is id8 and minutes only"; fi
 seat_clear
 
 echo

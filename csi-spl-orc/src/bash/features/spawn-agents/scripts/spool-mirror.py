@@ -74,12 +74,14 @@ Environment (hook):
   SPOOL_MIRROR_SYNC   1 = run post in the foreground (tests)
 """
 
+import fnmatch
 import glob
 import hashlib
 import json
 import os
 import pwd
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -507,23 +509,64 @@ def desk_root(home):
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
-def seats(agent, muted=False):
-    """The agent's seats; muted=True keeps a seat with .no-mirror, for the reads
-    that keep a person's DM private, which a mute must not switch off."""
+def seat_glob():
+    """The pattern of every seat dir on this box; "" when it cannot tell."""
     pat = os.environ.get("SPOOL_MIRROR_SEATS")
     if not pat:
         root = desk_root(os.path.expanduser("~"))
         if not root:
-            return []
+            return ""
         pat = os.path.join(root, "*/desk/*/*")
+    return os.path.normpath(pat)
+
+
+def seats(agent):
+    """The agent's seats, without a seat muted by .no-mirror."""
+    pat = seat_glob()
     out = []
-    for d in sorted(glob.glob(pat)):
+    for d in sorted(glob.glob(pat) if pat else []):
         a = os.path.join(d, "spool", agent)
-        if os.path.isdir(a) and (
-            muted or not os.path.exists(os.path.join(a, ".no-mirror"))
-        ):
+        if os.path.isdir(a) and not os.path.exists(os.path.join(a, ".no-mirror")):
             out.append(d)
     return out
+
+
+def seats_to_hold(agent):
+    """-> (seats, unread) for the reads that keep a person's DM private: every
+    seat of the agent, a muted one too, which a mute must not switch off, and
+    the paths that could not be read. Walks the pattern by hand because glob
+    reads a dir it cannot list as empty, and a seat behind one holds its DM."""
+    found, unread = [], []
+
+    def walk(base, parts):
+        if not parts:
+            a = os.path.join(base, "spool", agent)
+            try:
+                if stat.S_ISDIR(os.stat(a).st_mode):
+                    found.append(base)
+            except (FileNotFoundError, NotADirectoryError):
+                pass
+            except OSError:
+                unread.append(a)
+            return
+        if not glob.has_magic(parts[0]):
+            walk(os.path.join(base, parts[0]), parts[1:])
+            return
+        try:
+            names = os.listdir(base)
+        except (FileNotFoundError, NotADirectoryError):
+            return
+        except OSError:
+            unread.append(base)
+            return
+        # Hidden names are skipped as glob skips them: seats() never finds one.
+        for n in fnmatch.filter([n for n in names if not n.startswith(".")], parts[0]):
+            walk(os.path.join(base, n), parts[1:])
+
+    pat = seat_glob()
+    if pat:
+        walk(os.sep, pat.strip(os.sep).split(os.sep))
+    return found, unread
 
 
 def typed_lines(agent_dir, now):
@@ -1108,8 +1151,11 @@ def discussion_leg(ss, agent, text, session, turns):
             )
         return
     now = time.time()
-    dirs = [os.path.join(s, "spool", agent) for s in seats(agent, muted=True)]
-    if not dirs:
+    # Not "any": a lookup that answers with other seats, or misses one of ours,
+    # has not read the records of the seats in hand.
+    held, unread = seats_to_hold(agent)
+    dirs = [os.path.join(s, "spool", agent) for s in held]
+    if unread or not set(ss) <= set(held):
         for s in live:
             log(
                 os.path.join(s, "spool", agent),

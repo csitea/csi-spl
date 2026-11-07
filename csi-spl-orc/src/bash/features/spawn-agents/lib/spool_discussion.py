@@ -157,8 +157,19 @@ def dm_hold(adir, now):
 def dm_waiting(adir, now):
     """A person's DM the desk typed and no prompt hook has taken. A line typed
     during a turn queues and fires no hook, and the turn's answer may already
-    answer it. A record that cannot be read counts: a wrong landing is worse."""
-    for p in glob.glob(os.path.join(adir, ".mirror", "trigger", "*")):
+    answer it. A record or a dir that cannot be read counts: a wrong landing is
+    worse. An absent dir is no record, or no agent would ever post."""
+    trigger = os.path.join(adir, ".mirror", "trigger")
+    try:
+        names = os.listdir(trigger)  # glob reads an unlistable dir as empty
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    for name in names:
+        if name.startswith("."):
+            continue
+        p = os.path.join(trigger, name)
         try:
             if now - os.path.getmtime(p) >= DM_HOLD:
                 continue
@@ -166,7 +177,7 @@ def dm_waiting(adir, now):
                 if json.load(f).get("kind") == "dm":
                     return True
         except FileNotFoundError:
-            continue  # taken by a prompt since the glob
+            continue  # taken by a prompt since the listing
         except (OSError, ValueError, AttributeError):
             return True
     return False

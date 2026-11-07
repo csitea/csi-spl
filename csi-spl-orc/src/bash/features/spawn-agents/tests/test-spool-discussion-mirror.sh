@@ -32,6 +32,9 @@
 #   C16 a DM no prompt has taken yet stops every post of the agent, on every
 #       seat, a muted one too
 #   C17 a second seat lookup that fails stops the post, it does not read as no DM
+#   C18 a second seat lookup that does not cover the agent's seats stops the post
+#   C19 a seat that cannot be listed counts as a hold; an absent dir does not
+#   C20 a trigger dir that cannot be read counts as a hold; an absent one does not
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -57,7 +60,7 @@ env SPOOL_HUB_URL=https://hub.example.test SPOOL_TENANT=t2 SPOOL_BOX_ID=box-desk
 SIDECAR2=$!
 echo "$SIDECAR" >"$SEAT/spool/.hub/hub-run.pid"
 echo "$SIDECAR2" >"$SEAT2/spool/.hub/hub-run.pid"
-trap 'kill $SIDECAR $SIDECAR2 2>/dev/null; t_cleanup' EXIT
+trap 'kill $SIDECAR $SIDECAR2 2>/dev/null; chmod -R u+rwX "$T_TMP" 2>/dev/null; t_cleanup' EXIT
 
 # The spool stub: send records its argv; hub-tail prints <tails>/<tenant>/<task>.
 SENDS="$T_TMP/sends"; TAILS="$T_TMP/tails"; mkdir -p "$SENDS" "$TAILS/t1" "$TAILS/t2"
@@ -405,6 +408,10 @@ spec.loader.exec_module(m)
 calls = {"n": 0}
 def desk_root(_home):
     calls["n"] += 1
+    if calls["n"] >= 2 and os.environ.get("LOOKUP_GONE"):
+        os.rename(os.environ["LOOKUP_GONE"], os.environ["LOOKUP_GONE"] + ".gone")
+    if calls["n"] >= 2 and os.environ.get("LOOKUP_ROOT2"):
+        return os.environ["LOOKUP_ROOT2"]
     return "" if os.environ["LOOKUP_FAIL"] == "1" and calls["n"] >= 2 else os.environ["LOOKUP_ROOT"]
 m.desk_root = desk_root
 sys.exit(m.main(["spool-mirror.py"] + sys.argv[2:]))
@@ -422,6 +429,90 @@ reset; brief "$TD"; dm_turn "PRIVATE answer"; post prompt "$NOTIFICATION"; answe
 eq "C17. a hold, the second lookup fails: only the DM answer" "1 $TM" "$(nsends) $(send_arg 0 --task)"
 reset; brief "$TD"; post prompt "$NOTIFICATION"; dm_pending; answer_lookup 1 "$FINDINGS"
 eq "C17. a waiting DM, the second lookup fails: nothing" 0 "$(nsends)"
+
+# --- C18 the second lookup answers, wrongly --------------------------------------
+# Another root holding the same agent id reads no record of the seats in hand.
+OTHER="$T_TMP/other"; mkdir -p "$OTHER/dev/desk/t1/box-desk/spool/$ID"
+reset; brief "$TD"; dm_turn "PRIVATE answer"; post prompt "$NOTIFICATION"; LOOKUP_ROOT2="$OTHER" answer_lookup 0 "$FINDINGS"
+eq "C18. a hold, the second lookup names another root: only the DM answer" "1 $TM" "$(nsends) $(send_arg 0 --task)"
+has "C18. ... and the log says it" "the seats cannot be read" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; dm_pending; LOOKUP_ROOT2="$OTHER" answer_lookup 0 "$FINDINGS"
+eq "C18. a waiting DM, the second lookup names another root: nothing" 0 "$(nsends)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; LOOKUP_ROOT2="$T_TMP/cloud" answer_lookup 0 "$FINDINGS"
+eq "C18. CONTROL: the second lookup names the same root: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+reset; brief "$TD"; dm_turn "PRIVATE answer"; post prompt "$NOTIFICATION"; LOOKUP_ROOT2="$T_TMP/cloud" answer_lookup 0 "$FINDINGS"
+eq "C18. CONTROL: the same root, a hold: only the DM answer" "1 $TM" "$(nsends) $(send_arg 0 --task)"
+# A seat whose env is off is not live, and its DM holds all the same.
+OFF="$T_TMP/cloud/prd/desk/t9/box-desk"; mkdir -p "$OFF/spool/$ID/inbox"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; LOOKUP_GONE="$OFF" answer_lookup 0 "$FINDINGS"
+eq "C18. the second lookup misses a seat that is not live: nothing" 0 "$(nsends)"
+rm -rf "${OFF:?}.gone" "$T_TMP/cloud/prd"
+
+# Mode bits do not stop root: name the gap rather than pass on a lock that held nothing.
+LOCKS=1; mkdir "$T_TMP/lock-probe"; chmod 000 "$T_TMP/lock-probe"
+if ls "$T_TMP/lock-probe" >/dev/null 2>&1; then LOCKS=0; echo "skip - C19, C20: mode bits do not bind this user ($(id -u))"; fi
+chmod 755 "$T_TMP/lock-probe"
+locked() {  # MODE PATH CMD...: run CMD with PATH at MODE, and put it back
+  local mode="$1" path="$2"; shift 2
+  chmod "$mode" "$path"; "$@"; chmod 755 "$path"
+}
+hold_on_a2() { mkdir -p "$A2/inbox" "$A2/.mirror"; python3 -c 'import json,sys,time; json.dump({"ts":time.time()},open(sys.argv[1],"w"))' "$A2/.mirror/dm-turn"; }
+
+if [ "$LOCKS" = 1 ]; then
+# --- C19 a seat that cannot be listed ------------------------------------------
+for lock in "$T_TMP/cloud/dev/desk/t2" "$SEAT2" "$SEAT2/spool"; do
+  name="${lock#"$T_TMP"/cloud/dev/desk/}"
+  reset; brief "$TD"; hold_on_a2; locked 000 "$lock" turn_notification
+  eq "C19. a dm-turn behind $name at mode 000: nothing" 0 "$(nsends)"
+  has "C19. ... and the log says it" "the seats cannot be read" "$(tail -1 "$A/.mirror/mirror.log")"
+  reset; brief "$TD"; mkdir -p "$A2/inbox"; locked 000 "$lock" turn_notification
+  eq "C19. no record, $name still cannot be listed: nothing" 0 "$(nsends)"
+done
+reset; brief "$TD"; hold_on_a2; turn_notification
+eq "C19. CONTROL: the same dm-turn, listable: the hold reads it" 0 "$(nsends)"
+has "C19. CONTROL: ... as a hold" "a DM turn in the last hour" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"; mkdir -p "$A2/inbox"; turn_notification
+eq "C19. CONTROL: no record, listable: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+reset; brief "$TD"; mkdir -p "$A2/inbox"
+chmod 000 "$T_TMP/cloud/dev/desk/t2"; dm_turn "PRIVATE answer"; chmod 755 "$T_TMP/cloud/dev/desk/t2"
+eq "C19. a DM answer still goes out past an unlistable seat" "1 $TM" "$(nsends) $(send_arg 0 --task)"
+# What the lookup never needed: none of these can hold a seat of this agent.
+reset; brief "$TD"; printf 'x' >"$T_TMP/cloud/a-file"; mkdir -p "$T_TMP/cloud/nodesk" "$T_TMP/cloud/dev/desk/empty"
+mkdir -p "$T_TMP/cloud/.hidden"; chmod 000 "$T_TMP/cloud/.hidden"; turn_notification
+eq "C19. CONTROL: a file, a dir with no desk, an empty workspace, a hidden dir: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+chmod 755 "$T_TMP/cloud/.hidden"; rm -rf "$T_TMP/cloud/a-file" "$T_TMP/cloud/nodesk" "$T_TMP/cloud/dev/desk/empty" "$T_TMP/cloud/.hidden"
+
+# --- C20 a trigger dir that cannot be read -------------------------------------
+for m in 000 300; do
+  reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror/trigger"; locked "$m" "$A/.mirror/trigger" post answer "$FINDINGS"
+  eq "C20. the trigger dir at mode $m: nothing" 0 "$(nsends)"
+  has "C20. ... and the log says it" "a person's DM has no turn yet" "$(tail -1 "$A/.mirror/mirror.log")"
+done
+reset; brief "$TD"; mkdir -p "$A2/.mirror/trigger"; locked 000 "$A2/.mirror/trigger" turn_notification
+eq "C20. the other seat's trigger dir cannot be read: nothing" 0 "$(nsends)"
+reset; brief "$TD"; trig dm HUM-9 "$TM" "a person's dm"; chmod 000 "$A/.mirror/trigger"
+post prompt "a person's dm"; post answer "PRIVATE answer"; chmod 755 "$A/.mirror/trigger"
+eq "C20. a DM behind that dir, which no prompt can take: nothing reaches the channel" 0 "$(grep -l -- "$TD" "$SENDS"/* 2>/dev/null | wc -l | tr -d ' ')"
+fi
+reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror/trigger"; post answer "$FINDINGS"
+eq "C20. CONTROL: an empty trigger dir: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; rm -rf "$A/.mirror/trigger"; post answer "$FINDINGS"
+eq "C20. CONTROL: an absent trigger dir is no hold: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+eq "C20. CONTROL: an absent agent dir is no hold" "False" "$(python3 -c 'import sys,time; sys.path.insert(0,sys.argv[1]); import spool_discussion as sd; print(sd.dm_waiting(sys.argv[2],time.time()))' "$T_SCRIPTS/../lib" "$T_TMP/no-such-agent")"
+# A record a prompt takes between the listing and the read is gone, not unread.
+reset; mkdir -p "$A/.mirror/trigger"; printf '{"kind":"dm"}' >"$A/.mirror/trigger/taken"
+eq "C20. CONTROL: a record taken since the listing is no hold" "False" "$(python3 - "$T_SCRIPTS/../lib" "$A" <<'TAKEN'
+import os, sys, time
+sys.path.insert(0, sys.argv[1])
+import spool_discussion as sd
+real = os.path.getmtime
+def taken(p):
+    os.unlink(p)
+    return real(p)
+os.path.getmtime = taken
+print(sd.dm_waiting(sys.argv[2], time.time()))
+TAKEN
+)"
 
 # --- C14 a corrupt seen-list --------------------------------------------------
 reset; mkdir -p "$A/.mirror"; printf '{"x":"not a number"}' >"$A/.mirror/discussions"

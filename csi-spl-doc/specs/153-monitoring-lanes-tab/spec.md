@@ -3,10 +3,10 @@
 Addendum (2026-11-07, SPL-4940): section 3.22 (a Queue tab next to Lanes:
 requests and plans, a priority on a request, a plan or a lane, a request
 dragged to an exact position, what priority does to resources, and a measured
-view of why throughput changes), cases C102-C125, rows Q1-Q11. Owner HUM-10,
+view of why throughput changes), cases C102-C126, rows Q1-Q12. Owner HUM-10,
 t1 topics `c1400bbb` and `906c1b28`. Placed by the dispatch holder as one lane
-brief, not a panel version. Design only: none of it is built. Questions O2 and
-O3 wait on the owner.
+brief, not a panel version. Design only: none of it is built. The owner answered
+O2 and O3 (section 7): A and A.
 
 Addendum (2026-11-04, SPL-4798): section 3.19 (a lane row's discussion,
 issue and `dispatch-<topic8>` task render as links on their workspace's
@@ -1699,12 +1699,22 @@ yet. Read from the tree and the hub, there are four places:
 | spec rows | `specs/*/tasks.md`, spec section 5 tables | 171 spec folders, 107 with a `tasks.md` | no |
 | work groups | `<spool root>/dispatch/groups/<EPIC>.json` on the orch box | 14 files; rows carry class, placement and issue key (`do_spl_spawn_group_put`) | no; a width instead |
 
-**The source is the owner's choice: O2 (section 7).** Recommended: open issues,
-and a planner files an issue for each round and spec row when its plan is
-signed. Issues are the one place with a priority, a UI door, a discussion link
-and tenant isolation, and "every lane carries an issue" means a row needs a key
-before it lands anyway. Everything below assumes the recommendation and is redone
-if O2 goes another way. Rows Q7-Q8 wait on O2.
+**The source is decided: open issues (O2 = A, section 7).** A planner files an
+issue for each round and spec row when its plan is signed. Issues are the one place
+with a priority, a UI door, a discussion link and tenant isolation, and "every lane
+carries an issue" means a row needs a key before it lands anyway.
+
+**Filing a signed plan (row Q12).** `do_spl_spec_import_issues` files the entries
+of a `tasks.md` (or a `cases.tsv`), idempotent on the `[NNN <id>]` title prefix
+(`orc/run/spl-spec-import-issues.func.sh:3-12`). It reads neither a round plan's
+table nor a spec's section 5 table, so nothing files those rows today. Q12 adds
+`SPEC_IMPORT_PLAN=<file>` and `SPEC_IMPORT_PLAN_TABLE=<heading>`: one issue per
+row of that table, status `eval`, under the plan's epic, linking its discussion (a
+plan's `Epic:` and `Topic:` lines, or the run's `ISSUE_DISCUSSIONS` for a spec). A
+row that already names an `SPL-n` is not filed again; a plan with no epic or no
+discussion is refused. The planner runs it as the last step of signing, a step
+`lane-issue-and-docs.md` will name. Nothing detects a signed plan whose planner
+skipped that step: its rows stay out of Plans until someone runs it.
 
 **How it shows.** A second table under Requests, same page, sorted by priority
 then age, 50 rows and a "show more". Columns: Prio, Kind (`plan`), Class (from
@@ -1807,6 +1817,7 @@ pick changes (3.22.8, row Q1): a head with a `rank_by` is taken as it is.
 | a hold (vendor quota, a pinned box past overflow, weekly limit) | it keeps its place and the next row is tried, as today (`spl_spawn_place_take_next`, SPL-4265), and Waits on names the hold. A dragged row never stops the line |
 | no room (ceiling 40, the gap after a launch, the load target) | it waits at its place: no row is placed, as today. Neither drag nor priority 1 makes room |
 | a new arrival | it goes after every ranked row of its priority. An arrival of **higher** priority goes ahead of them, by rule 1, so a dragged row's number can grow; its place among its own priority does not |
+| a new arrival behind a held row | the held row keeps its place in the line. A row behind it, a new arrival included, may be placed first while the hold lasts, as today, within `SPAWN_PLACE_HOLD_TRIES` tries a tick (default 5, `spl-spawn-place.func.sh:216`). The line's order does not change |
 | its priority changing (set on the row, or its discussion's newer) | `queue_rank` and `rank_by` are cleared: a new decision, and it joins the new priority by rule 3. Other rows keep theirs |
 | a stalled placement back in line | keeps its rank (the column is not touched, as `enqueued_at` is set once) |
 | closing | the rank goes with the row; no renumbering, the gaps are harmless |
@@ -1907,10 +1918,9 @@ ticks is marked partial, as the holder's box moves and its files stay behind.
 
 #### 3.22.9 Resources: what priority gives a lane
 
-The owner's "lower priority would mean using more resources" may mean a lower
-**number**, since prio 1 is the highest today (3.14). **O3 (section 7) asks; this
-spec does not guess.** The table below assumes (A), the closer to 1 the more, only
-to show the shape. Q9 waits on O3.
+**Decided (O3 = A, section 7): a lower number gets more.** The owner's "lower
+priority would mean using more resources" means the number: priority 1, the highest
+today (3.14), gets the most agents.
 
 **What can be given,** read from the code:
 
@@ -1962,11 +1972,11 @@ named.
   link, no sideways page scroll at 1440 and 390 px. e2e; red: page absent.
 - **C107** (Q4) no Queue code in the initial download. `perf-budget.py` and the
   e2e chunk check. Red control: a planted static import.
-- **C108** (Q7, waits O2) the Plans route lists a `todo` and an `eval` issue
+- **C108** (Q7) the Plans route lists a `todo` and an `eval` issue
   by priority, then age. Red: no route.
-- **C109** (Q7, waits O2) a `needs-owner`, an `epic` and a human-assigned
+- **C109** (Q7) a `needs-owner`, an `epic` and a human-assigned
   issue are absent. Red control: the filter taken out.
-- **C110** (Q7, waits O2) an issue an ask holds is in Requests only, an issue
+- **C110** (Q7) an issue an ask holds is in Requests only, an issue
   a live lane holds in neither; each row in one table. Red control: as C109.
 - **C111** (Q2) effective priority on the memory store and Postgres: own only, 2;
   discussion only, 4; both, the newer; neither, 3, with each `priority_source`.
@@ -2004,11 +2014,15 @@ named.
   changes nothing. Red control: a tick counted twice.
 - **C124** (Q11) the flow table on the mock: 30 rows, a partial day marked, no
   sentence of cause. Red: page absent.
-- **C125** (Q9, waits O3) `SPAWN_PARENT_LANE` at allowance is refused with a
+- **C125** (Q9) `SPAWN_PARENT_LANE` at allowance is refused with a
   named reason, one under is queued with the parent's discussion; a lane raised
   from 4 to 1 may then queue 3. Red: no check.
+- **C126** (Q12) a fixture plan of two rows, one already naming an `SPL-n`: a run
+  files one issue, status `eval`, under the plan's epic and linking its discussion;
+  a second run files none; a plan with no `Epic:` is refused. Red: the plan's rows
+  are not read.
 
-#### 3.22.11 Rows Q1-Q11
+#### 3.22.11 Rows Q1-Q12
 
 Disjoint where the order allows. Every row with web UI text carries: "agy language
 review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer,
@@ -2022,15 +2036,16 @@ land only after its PASS".
 | Q4 the tab, read only | `complex_coding` | `wui/utils/monitoring-tabs.mjs`; new `wui/pages/monitoring/queue/index.vue`, new `wui/utils/monitoring-queue.mjs`; the client call; `csi-spl-wui/i18n/locales/*.json` (new keys only); `tests/unit/monitoring-tabs.test.mjs`, new `tests/unit/monitoring-queue.test.mjs`; `tests/e2e/monitoring-costs.test.mjs`. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | e2e and unit; red: page absent, C107's planted import | Q3 | C105-C107 |
 | Q5 chooser on request and lane | `complex_coding` | `wui/pages/monitoring/queue/index.vue`, `wui/pages/monitoring/lanes/index.vue` (the Prio cell), `wui/utils/monitoring-queue.mjs`; the client call; new `hub/fleet_lane_priority.go` + `_test.go`; one line in `hub/server.go`; `hub/openapi.json`; locale keys. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | Go and e2e; red: no route, no chooser | Q4 | C114 |
 | Q6 drag | `complex_coding` | `wui/pages/monitoring/queue/index.vue`; `wui/utils/monitoring-queue.mjs` (the move's two neighbours, `stale_position`); locale keys; `tests/e2e/monitoring-costs.test.mjs`. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | e2e, with the mouse and with Move to position, at 1440 and 390 px; red: no handle | Q5 | C115 through the page |
-| Q7 Plans read (waits O2) | `complex_coding` | new `hub/fleet_queue_plans.go` + `_test.go`; `wui/pages/monitoring/queue/index.vue`; locale keys. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | Go and e2e; red: C109's filter taken out | Q4, O2 | C108-C110 |
-| Q8 a set plan passes the filler (waits O2) | `simple_coding` | `orc/run/spl-spawn-fill.func.sh` (the gate at :72); `orc/tests/spl-spawn-fill.tst.sh`; `csi-spl-doc/doc/md/fleet-rules-index.md` (filler row) | the filler test: prio 2 with a queue queues one, prio 3 none; red on master: none | O2 | - |
+| Q7 Plans read | `complex_coding` | new `hub/fleet_queue_plans.go` + `_test.go`; `wui/pages/monitoring/queue/index.vue`; locale keys. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | Go and e2e; red: C109's filter taken out | Q4 | C108-C110 |
+| Q8 a set plan passes the filler | `simple_coding` | `orc/run/spl-spawn-fill.func.sh` (the gate at :72); `orc/tests/spl-spawn-fill.tst.sh`; `csi-spl-doc/doc/md/fleet-rules-index.md` (filler row) | the filler test: prio 2 with a queue queues one, prio 3 none; red on master: none | - | - |
 | Q8b workspace readers | `complex_coding` | new `hub/workspace_queue_view.go` + `_test.go`; `wui/utils/monitoring-tabs.mjs`; `wui/pages/monitoring/queue/index.vue`. No new text key | Go, as C25/C26; red: a member of w2 reads w1's row | Q4 | - |
-| Q9 helpers by priority (waits O3) | `complex_coding` | `orc/run/spl-spawn-enqueue.func.sh`; `orc/tests/spl-spawn-queue.tst.sh`; `csi-spl-cnf/csi-spl/all.env.yaml` (`prio_helpers`); `csi-spl-doc/doc/md/fleet-rules-index.md`. No UI text | the enqueue test; red: no check | O3 | C125 |
+| Q9 helpers by priority | `complex_coding` | `orc/run/spl-spawn-enqueue.func.sh`; `orc/tests/spl-spawn-queue.tst.sh`; `csi-spl-cnf/csi-spl/all.env.yaml` (`prio_helpers`); `csi-spl-doc/doc/md/fleet-rules-index.md`. No UI text | the enqueue test; red: no check | - | C125 |
 | Q10 flow record | `complex_coding` | `orc/run/spl-spawn-place.func.sh` (one line per tick, `fleet_place_state`); `orc/run/spl-push-master.func.sh` (one line per push); new `orc/run/spl-flow-daily.func.sh` + `orc/tests/spl-flow-daily.tst.sh`; new `rdb/<next>_fleet_flow_daily.sql`; new `hub/fleet_flow.go` + `_test.go`; `orc/cnf/box-crons/box-crons.manifest`. `PRE_PUSH_TIER=full` | the fixture; red: a tick counted twice | Q3 | C123 |
 | Q11 flow view | `simple_coding` | `wui/pages/monitoring/queue/index.vue` or a new child component; `wui/utils/monitoring-queue.mjs`; locale keys. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | e2e; red: no table | Q10, Q4 | C124 |
+| Q12 a signed plan files its issues | `simple_coding` | `orc/run/spl-spec-import-issues.func.sh`; `orc/scripts/spec-import-issues.py`; `orc/tests/spec-import-issues.tst.sh`; `csi-spl-doc/doc/md/lane-issue-and-docs.md` (the signing step). No UI text | the import test; red: the plan's rows are not read | - | C126 |
 
 Order: Q1 at once and alone. Q2, then Q3, Q4, Q5, Q6. Q10 after Q3 (both touch the
-placer) and Q11 after it. Q7, Q8 on O2, Q9 on O3. Q4, Q5, Q6, Q7 and Q11 touch one
+placer) and Q11 after it. Q7 after Q4. Q8, Q9 and Q12 at any time. Q4, Q5, Q6, Q7 and Q11 touch one
 page and the locale files, so they land one after another.
 
 ## 4. Cases
@@ -2171,8 +2186,7 @@ So: an operator admin sees every lane (3.3, as built); each workspace's
 owners (`TenantOwner`) and admins (`admin`) see only the lanes working on
 that workspace's own topics (3.6, row B6). B1-B5 are unchanged.
 
-**O2 and O3 (3.22), open.** They go to the owner as a form through the dispatch
-holder. Nothing else in 3.22 waits on them; rows Q7, Q8 and Q9 do.
+**O2 and O3 (3.22).** Asked as one form through the dispatch holder:
 
 ```poll
 O2. Where do the Queue tab's plans come from?
@@ -2187,6 +2201,15 @@ O3. "Lower priority would mean using more resources": which way?
 (A) A lower NUMBER gets more: prio 1, the highest today, gets the most agents
 (B) A lower IMPORTANCE gets more: prio 5 gets the most agents
 ```
+
+**O2 and O3 answered: A and A.** Owner HUM-10, t1 topic `c1400bbb`, poll `ea4fd300`:
+
+| msg | text |
+|---|---|
+| `9d3f3f35` | "Answer 1: A — Open issues; a planner files an issue for each round and spec row when its plan is signed (recommended) Answer 2: A — A lower NUMBER gets more: priority 1, the highest today, gets the most agents" |
+
+So: plans are open issues (3.22.5, rows Q7, Q8), and the filing is row Q12. A lower
+number gets more agents (3.22.9, row Q9). No row waits on the owner now.
 
 ## 8. Panel record
 

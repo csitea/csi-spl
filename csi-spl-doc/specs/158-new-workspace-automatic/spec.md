@@ -522,6 +522,9 @@ The holder puts these to the owner; each has a recommendation.
 | OD2 | A fine-grained token (this repo, `secrets: write`) on the overlay's master box, for the reserve cron? | Yes, the owner mints it once. | Without a secret write, wf 40 cannot learn a new placeholder and a person stays in the loop. Which token the master box holds today is not read. |
 | OD3 | Delete the wf 40 job logs that hold a hidden slug? | Yes, once row H1 is live. | M20. The holder has the run ids; this public spec does not list them. A deleted log does not come back. |
 
+Answered: owner HUM-10, t1 d6c53e6f, msg 3fa530a7, poll d1118c17, 2026-11-07 15:11Z, verbatim: "Answer 1: A — Yes, on like every other create Answer 2: Y — Yes, I mint it when asked". OD1 = yes: a paid checkout's workspace gets `fleet_seating` true.
+OD2 = yes: the owner mints the fine-grained token when row H4 is ready, not before.
+
 ### 10.10 Rollout
 
 In the order of `tasks.md` section 6. H1 goes first because the log is written on

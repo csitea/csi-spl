@@ -80,3 +80,6 @@ needs; `-` needs none beyond the review and landing rules.
 Status of the earlier rows: T1, T2, T3, T4, T5 (with its fix), T6, T7 landed. T8,
 T9, T10, T10b are S1, S2, S4, S5 above. T11 is replaced by E1. T3b is dropped once
 S3 lands, unless the holder objects.
+
+N1: `spl-private-cnf.func.sh` is at `csi-spl-iac/lib/bash/funcs/`, so row H4 touches iac too.
+N2: rows H1 and H2 are bound to the queued asks c3f1f4c1 and 5d3eeae2: no duplicate lanes.

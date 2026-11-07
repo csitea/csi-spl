@@ -361,6 +361,7 @@ const anyTopicArchivedSQL = `WITH asked AS (SELECT unnest($2::uuid[]) AS id),
 			AND (z.msg_id IN (SELECT id FROM named)
 				OR (z.task_id IN (SELECT id FROM named) AND z.task_id::text <> $3::text)))`
 
+// AnyTopicArchived implements the store method of that name in one query.
 func (s *Postgres) AnyTopicArchived(ctx context.Context, tenant, lobby string, ids []string) (bool, error) {
 	asked := make([]string, 0, len(ids))
 	for _, id := range ids {

@@ -301,6 +301,7 @@ func (s *Memory) archivedHiddenLocked(tenant string, m *Message, lobby string) b
 	return false
 }
 
+// AnyTopicArchived implements the store method of that name on the map rows.
 func (s *Memory) AnyTopicArchived(_ context.Context, tenant, lobby string, ids []string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -60,7 +60,7 @@ export function useSpoolEvents() {
     if (!import.meta.client) return
     if (api.mock) {
       timer = setInterval(() => {
-        void channel.refresh()
+        void channel.refresh({ background: true })
         void roster.refresh()
       }, 4000)
       void boot.start()

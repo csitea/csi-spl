@@ -357,8 +357,11 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
     await refresh()
   }
 
-  async function refresh() {
-    loading.value = true
+  /* SPL-5037: `background` is the mock tenant's poll. It re-reads a feed already
+     on screen, so it leaves `loading` alone: both empty states are gated on it,
+     and a flip unmounts their buttons for the length of the read. */
+  async function refresh({ background = false } = {}) {
+    if (!background) loading.value = true
     error.value = null
     const where = { channel: active.value || undefined, peer: peer.value || undefined }
     try {
@@ -376,7 +379,7 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
       /* SPL-2149: no network - the copy of this feed this device read last */
       if (!(await offlineFeed((m) => m.showKept(s, (rows: unknown[]) => withHeld(s, queue, rows), e, where)))) error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_failed')
     } finally {
-      loading.value = false
+      if (!background) loading.value = false
     }
   }
 

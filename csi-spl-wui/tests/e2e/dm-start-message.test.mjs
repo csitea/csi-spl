@@ -31,6 +31,17 @@
 //            so the form had no .omnibox--called and no outline
 //   live     the first line sent there takes the empty state away
 //
+// SPL-5037 (c-216, msg 07f8dce4: wf 10 run 42338524374 red on two clicks here,
+// the same sha green on the next run). The mock bundle's 4 s poll set `loading`,
+// which unmounted both empty states for 7..67 ms each beat, and a click in that
+// gap threw:
+//
+//   beat     a start button stays mounted over a poll, and a click after it
+//            lands. A remount is too short to hit on demand, so heldBeat holds
+//            it open: only if the button was really removed does it keep
+//            `loading` up until the click has been tried. CONTROL: before the
+//            fix this click threw "No element found" (commit body)
+//
 //   BASE_URL=<generated bundle> node tests/e2e/dm-start-message.test.mjs
 import { createRequire } from 'node:module'
 import { mkdirSync } from 'node:fs'
@@ -122,6 +133,32 @@ const channelEmpty = (p) => p.evaluate(() => {
   }
 })
 
+/* SPL-5037: one real poll beat with `sel` on screen; a removal is held open
+   until the click has been tried. reads 0 = no poll ran, so the check proves nothing and fails. */
+async function heldBeat(p, sel, tag) {
+  await p.evaluate((sel) => {
+    const el = document.querySelector(sel)
+    const store = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
+    const w = window.__beat = { reads: 0, removed: false }
+    let held = false
+    const offAction = store.$onAction(({ name }) => { if (name === 'refresh') w.reads++ })
+    const offState = store.$subscribe(() => { if (held && !store.loading) store.loading = true }, { flush: 'sync' })
+    const seen = new MutationObserver(() => {
+      if (el.isConnected || held) return
+      held = true
+      w.removed = true
+      store.loading = true
+    })
+    seen.observe(document.body, { subtree: true, childList: true })
+    w.release = () => { held = false; seen.disconnect(); offAction(); offState(); store.loading = false }
+  }, sel)
+  await p.waitForFunction(() => window.__beat.reads > 0, { timeout: 6000 }).catch(() => {})
+  await sleep(150)
+  const clicked = await p.click(sel).then(() => 'ok', (e) => String(e.message).split('\n')[0])
+  const w = await p.evaluate(() => { window.__beat.release(); return { reads: window.__beat.reads, removed: window.__beat.removed } })
+  check(`${tag}: its button stays mounted over a poll, and a click lands`, clicked === 'ok' && !w.removed && w.reads > 0, { clicked, ...w })
+}
+
 async function channelStart(p, width, theme) {
   const tag = `${width} ${theme} #feedback`
   await p.evaluate((theme) => document.documentElement.setAttribute('data-theme', theme), theme)
@@ -142,6 +179,7 @@ async function channelStart(p, width, theme) {
   await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel').setSearch(''))
   await sleep(600)
   if (!e || !e.button) return
+  if (theme === 'dark') await heldBeat(p, '[data-testid=feed-empty-start]', tag)
   /* a mark left by the DM steps clears first, so the one read below is this click's */
   await p.waitForFunction(() => !document.querySelector('form.omnibox--called'), { timeout: 5000 }).catch(() => {})
   await p.click('[data-testid=feed-empty-start]')
@@ -194,6 +232,7 @@ async function run(browser, base, width) {
     check(`${width} ${id}: an empty DM shows a Message button, in view`, Boolean(btn && btn.visible && btn.text === 'Message'), btn)
     if (SHOT_DIR) { mkdirSync(SHOT_DIR, { recursive: true }); await p.screenshot({ path: `${SHOT_DIR}/dm-start-${width}-${id}.png` }) }
     if (!btn) continue
+    if (peer === PEERS[0]) await heldBeat(p, '[data-test=dm-start-message]', `${width} ${id}`)
     await p.click('[data-test=dm-start-message]')
     await sleep(200)
     const focused = await p.evaluate((sel) => document.activeElement === document.querySelector(sel), OMNI)

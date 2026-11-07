@@ -12,6 +12,9 @@
 //      the exception: a /_nuxt/** rewrite to a missing sentinel answers 404
 //      first (SPL-2770), so an old tab's lost chunk is a 404, not the shell.
 //      A missing picture, font or manifest 404s the same way (SPL-5012).
+//      The one stand-in: a blog picture its index names. do_copy_blog_media
+//      brings those at deploy and refuses a missing one, and no bundle holds
+//      them, so they answer a placeholder. Any other /blog/img/ path 404s.
 //   2. DIRECTORY INDEXES. `nuxt generate` writes `<route>/index.html`.
 //   3. A SAME-ORIGIN /api/** and /v1/**. `--api <origin>` proxies them to a
 //      hub (lde: the auth-demo or the spool hub), the way the Hosting rewrite
@@ -56,6 +59,26 @@ const TYPES = {
  *  `/_nuxt/**` and a missing media file go to a missing sentinel (404) before it. */
 const MEDIA_PATH = /\.(?:avif|webp|png|jpg|jpeg|gif|svg|ico|woff2|webmanifest)$/
 const SPA_FALLBACK = [/^\/(?!_nuxt\/)/]
+const BLOG_IMG = '/blog/img/'
+const PICTURE_PLACEHOLDER = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#888"/></svg>'
+
+/** The file names do_copy_blog_media copies: each entry's image, its -og crop
+ *  and its gallery. No index: an empty set, so every picture is a 404. */
+async function indexedPictures() {
+  const names = new Set()
+  let locales
+  try {
+    locales = JSON.parse(await readFile(join(ROOT, 'blog-md/index.json'), 'utf8')).locales
+  } catch {
+    return names
+  }
+  for (const entry of Object.values(locales || {}).flat()) {
+    if (entry.image) names.add(entry.image).add(entry.image.replace(/\.(webp|jpg)$/, '-og.$1'))
+    for (const g of entry.gallery || []) if (g.image) names.add(g.image)
+  }
+  return names
+}
+const PICTURES = await indexedPictures()
 
 async function readIfFile(p) {
   try {
@@ -106,6 +129,11 @@ createServer(async (req, res) => {
       res.end(body)
       return
     }
+  }
+  if (path.startsWith(BLOG_IMG) && PICTURES.has(path.slice(BLOG_IMG.length))) {
+    res.writeHead(200, { 'Content-Type': TYPES['.svg'] })
+    res.end(PICTURE_PLACEHOLDER)
+    return
   }
   if (!MEDIA_PATH.test(path) && SPA_FALLBACK.some((re) => re.test(path))) {
     const shell = await readIfFile(join(ROOT, '200.html'))

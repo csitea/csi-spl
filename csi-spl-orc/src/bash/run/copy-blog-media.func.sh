@@ -120,7 +120,7 @@ spl_blog_media_check() {
 # lacks, then the total and how to put it.
 spl_blog_media_missing() {
   local b="$1" n; shift
-  for n in "$@"; do do_log "FATAL gs://$b holds no $n: its post would serve the site's HTML as that picture"; done
+  for n in "$@"; do do_log "FATAL gs://$b holds no $n: its post would have no picture to serve (a 404)"; done
   do_log "FATAL $# blog picture(s) missing: nothing copied; put each with ENV=$ENV ./run -a do_spl_blog_media_put"
 }
 

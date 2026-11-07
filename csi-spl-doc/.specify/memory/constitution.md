@@ -112,9 +112,9 @@ Enforced by: review only.
 ### 2.2 Code structure and clean code limits
 
 <a id="ws-doc-50d05a54-fd19-4488-bb86-2f0db161ee34"></a>
-#### 2.2.1 Small functions: 80 lines
+#### 2.2.1 Small functions: 75 lines
 
-A function is at most 80 lines in Go, TypeScript / Vue and Bash. A function
+A function is at most 75 lines in Go, TypeScript / Vue and Bash. A function
 already over it is listed with its ceiling in the gate's own list, which may
 only shrink; a new long one fails.
 
@@ -125,11 +125,14 @@ Enforced by: `csi-spl-api/src/go/spool-hub-api/internal/cleancode/cleancode_test
 <a id="ws-doc-86d17eb3-3950-48f6-96e7-b98d77bf5b78"></a>
 #### 2.2.2 Nesting depth and parameters
 
-Nesting depth at most 4; at most 8 parameters in Go and 6 in TypeScript /
-Vue (pass a struct or an object instead). Bash has a line cap only.
+Nesting depth at most 4; at most 7 parameters in Go and 5 in TypeScript /
+Vue (pass a struct or an object instead). A function already over the
+parameter limit is listed in the gate's own list, which may only shrink, and
+takes at most 8 in Go and 6 in TypeScript / Vue. Bash has a line cap only.
 
-Enforced by: `cleancode_test.go` (`maxDepth`, `maxParams`) and
-`cleancode.test.mjs` (`MAX_DEPTH`, `MAX_PARAMS`).
+Enforced by: `cleancode_test.go` (`maxDepth`, `maxParams`, `wideFuncs`,
+`maxParamsListed`) and `cleancode.test.mjs` (`MAX_DEPTH`, `MAX_PARAMS`,
+`WIDE`, `WIDE_CAP`).
 
 <a id="ws-doc-1f4f276c-4f3e-4a7e-ad30-3bd4ff5e4c60"></a>
 #### 2.2.3 Name the columns, never SELECT *
@@ -627,6 +630,6 @@ date, and a re-run of `/speckit-analyze` on every in-flight spec. Complexity
 that deviates from a principle must be justified inline (`# WHY:`) and
 acknowledged in the spec's Clarifications section.
 
-**Version**: 0.3.0 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-05 (Coding Standards exported from developer-guide.md)
+**Version**: 0.3.1 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-07 (Coding Standards exported from developer-guide.md)
 
-<!-- version: 0.3.0 · updated: 2026-11-05 · last-edit: 2026-11-05T04:08:36Z -->
+<!-- version: 0.3.1 · updated: 2026-11-07 · last-edit: 2026-11-07T16:19:36Z -->

@@ -1,5 +1,13 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-07, SPL-4940): section 3.22 (a Queue tab next to Lanes:
+requests and plans, a priority on a request, a plan or a lane, a request
+dragged to an exact position, what priority does to resources, and a measured
+view of why throughput changes), cases C102-C125, rows Q1-Q11. Owner HUM-10,
+t1 topics `c1400bbb` and `906c1b28`. Placed by the dispatch holder as one lane
+brief, not a panel version. Design only: none of it is built. Questions O2 and
+O3 wait on the owner.
+
 Addendum (2026-11-04, SPL-4798): section 3.19 (a lane row's discussion,
 issue and `dispatch-<topic8>` task render as links on their workspace's
 host, through the one `type:id` renderer), cases C88-C89. Owner HUM-10, t1
@@ -1547,6 +1555,484 @@ Cases:
   (refused, `ErrLaneUnlinked`); C100 with 0221's CHECK still in place (the
   UPDATE failed on the first empty `issue_key`).
 
+### 3.22 The Queue tab: requests and plans, priority, drag, resources, and why it slows (SPL-4940)
+
+Design only. Nothing here is built; every "today" below is what was read.
+
+#### 3.22.1 The owner's words, verbatim
+
+| topic, msg | time (UTC) | text |
+|---|---|---|
+| t1 `c1400bbb`, `973a1643` | 2026-11-06 19:12:26 | "we need a way to visualize them , aka this whole pipeline and how do they turn into lanes .." |
+| t1 `c1400bbb`, `5cbb2061` | 2026-11-06 19:13:36 | "or does it have it's now attributes - aka it needs to be a separate tab - the aim is to be able the change the priority on what things will go into the pipeline and become lanes" |
+| t1 `c1400bbb`, `3270dbae` (form `cbf26da2`) | 2026-11-06 19:17:51 | "Answer 1: A — A separate Queue tab next to Lanes (recommended) Answer 2: B — Requests and plans together from the start Answer 3: B — Also drag a request to an exact position" |
+| t1 `906c1b28`, `fdff1189` | 2026-11-06 23:50:25 | "the priority of the lanes and the future plans and request must be setable via the ui" |
+| t1 `906c1b28`, `9543b6cb` | 2026-11-06 23:50:50 | "and lower priority would mean using more resources - aka more resource allocation for the lanes" |
+| t1 `906c1b28`, `f4f10fd4` | 2026-11-06 23:51:03 | "even if that would require spawning new agents for subtasks" |
+| t1 `c1400bbb`, `3ced3a4f` | 2026-11-07 00:07:39 | "put this one ahead of the queue" |
+| t1 `c1400bbb`, `469bc55e` | 2026-11-07 00:08:07 | "I want to be able to see thtat queue and why things are getting slower and slower every day" |
+
+The brief also quotes t1 `6a7d0160`, msg `c2d9f809`: "plans queue". Not
+confirmed: on prd `messages` holds no row with that msg prefix and no owner row
+on that topic prefix (2026-11-07 00:3xZ, n = 1 read each, 0 rows), so these
+words are second-hand.
+
+**Should this split?** Yes, in the build, not in the design: four tracks land
+apart. The placer rule (Q1) is one function and fixes a bug the owner already
+hit, so it goes first. Requests and drag (Q2-Q6), plans (Q7-Q8), resources (Q9)
+and the throughput view (Q10-Q11) do not wait for each other, except where
+3.22.11 says so.
+
+#### 3.22.2 What was read
+
+Code on origin/master `fe0455e48`. Every prd count: `ENV=prd SQL="..."
+./run -a do_spl_db_query` (csi-spl-orc), read-only, 2026-11-07 00:17-00:40Z,
+n = 1 read each. The brief's second-hand claims, re-checked:
+
+| claim (c-002, 19:13Z) | read | verdict |
+|---|---|---|
+| 129 queued rows | `count(*) filter (where state='queued')` -> 123 at 00:17Z, 120 at about 00:30Z | the table moves; re-read before quoting |
+| order is priority, class, time in line | `askPositions`, `store/fleet_ask.go:293` | yes |
+| a request's priority is its discussion's, else 3 | `askPrio`, `store/fleet_ask.go:253`; `TopicPriorityDefault = 3`, `store/topic_priority.go`. The comments in rdb 0214 and 0241 still say "no row = 5" | yes; the two comments are stale |
+| plans are not in that table | `fleet_asks` has 37 columns, no plan row kind; no table named `%plan%` but `hours_plan` | yes |
+| no per-request position | no such column among the 37; the position is computed on read | yes |
+
+More facts the design rests on:
+
+- **Most queued rows cannot carry a priority.** Of 122 queued at 00:2xZ, 93
+  have `discussion` NULL: 89 name a topic that is not `dispatch-<topic8>`
+  (`spawn-share` 15, the rest other tasks) and 4 are `dispatch-<topic8>` that
+  resolved to no topic. `askDiscussion` (`hub/box_ask.go:292`) looks only in the
+  ask's own workspace, and `askListPriorities`
+  (`store/fleet_ask_postgres.go:172`) reads only that workspace's
+  `topic_priorities`. Whether those 4 are other workspaces' topics: not checked.
+- **Every priority set in t1 is the owner's.** `select set_by, priority,
+  count(*) from topic_priorities where tenant_id='t1'` -> HUM-10 on all 48 rows
+  (13 at 1, 16 at 2, 15 at 4, 4 at 5). Agents have no door to it (the PUT takes
+  a member session, `hub/topic_priority.go`).
+- **The band pick ranks queue position last.** `spl-spawn-place.func.sh:366`:
+  `sort_by(._t, -._s, ._o, .position)`; only a `ci` or flagged head skips it
+  (`spl_spawn_place_band`, :349). So a priority 1 row is not safe at position 1.
+- **The feature issue, read in the placer log** (`cron.out` on the holder's box,
+  lines 67945-67950). This lane's ask `369f326d` got priority 1 at 00:07:22
+  (`topic_priorities`). The next pick read "band pick: ask 881adc37 (bug at 37%,
+  queue position 2)": a bug row still under its band beat position 1, whose
+  feature class sorts with `_s` 0. `881adc37` was placed at 00:13:30. The next
+  pick read "band pick: ask 369f326d (feature at 47%, queue position 1)", placed
+  00:16:51. c-002 set the bypass flag at 00:15:05, but that line is the path
+  only an unflagged head takes, so the flag did not decide that pick: bug had
+  gone OVER (41%) once `881adc37` was placed. The row got through on the
+  arithmetic.
+- **The band pick reaches far down.** The same log, one pick earlier: "band pick:
+  ask 892699a7 (feature at 46%, queue position 117)", placed 00:08:32.
+- **The hub never hears why a row waits.** The placer's hold reason goes to
+  `<asks dir>/.place.wait` on its own box (`spl_spawn_place_wait`, :1093), and
+  the placer sends the hub no reason (`grep -nE 'ASK_REASON|--reason'
+  spl-spawn-place.func.sh` -> 0). The Lanes table's `wait` is the ask's own
+  reason field (`hub/lanes_queued.go:62`), so a held row reads "waiting for room"
+  whatever holds it.
+- **The placer log has no time on its lines**, so a hold cannot be counted per
+  day from it. Over its last 14,000 lines, per row per tick, so not comparable
+  with each other: agy out of quota 5309, pinned to a box past its overflow or
+  cordoned 3635, claude weekly limit 977, fleet load target 944, the gap after a
+  launch 188.
+- **Plans cannot become requests while a queue exists.** The idle filler is on
+  (`all.env.yaml:1190`), and it stops at any queued row
+  (`spl-spawn-fill.func.sh:72`).
+
+#### 3.22.3 The tab
+
+A tab **Queue** right after Lanes: `MONITORING_TABS` gets
+`{ id: 'queue', path: '/monitoring/queue', labelKey: 'monitoring.tab.queue' }`,
+its own chunk (C20's budget rule holds). Who reads it:
+
+- **An operator admin** reads and changes every row (`operatorActor`, as
+  `GET /v1/operator/fleet-lanes`).
+- **A workspace's owners and admins** read the requests on their own topics, as
+  3.8 already shows them on Lanes (C40), and set the priority of their own
+  discussion through the door that exists. They do not drag: a position orders
+  other workspaces' work. Row Q8b; the first build is operator only.
+
+The page reads one route, every 60 s as Lanes does (P4):
+`GET /v1/operator/fleet-queue`. Three blocks, top to bottom: the line "what the
+placer did last" (3.22.8), the **Requests** table, then the **Plans** table
+(3.22.5). The flow table of 3.22.8 sits under them, collapsed by default.
+
+The Requests columns, in this order:
+
+| column | value | source |
+|---|---|---|
+| Position | `n/total`, or `placing` | `askPositions`; state `acked` |
+| Prio | 1..5, with a mark for where it came from: own, discussion, default | 3.22.6 |
+| Class | ci, refactor, bug, feature, plus urgent / bypass | `class`, `flag` |
+| Summary | the ask's summary | `summary` |
+| Discussion | `type:id` link (3.19), a dash for none | `discussion` |
+| Issue | the key as a link, a dash for none | `issue_key` |
+| Vendor | before the `:` of the placement | `placement` |
+| In line | since `enqueued_at` | hub clock |
+| Waits on | the hold reason, or "room" | new, 3.22.8 |
+| Lane | empty until placed, then the lane link | below |
+
+**How a request links to its lane.** The placer closes an ask with reason
+`placed: <ID>@<box>` (`spl-spawn-place.func.sh`, TAKE). The route parses that
+one form and sends `lane: "<ID>@<box>"`. A **Placed** filter (off by default)
+lists the closed rows, which the hub keeps a week (rdb 0097). The cell links to
+`/monitoring/lanes?lane=<ID>@<box>` (`laneDeepLink`, 3.9); a lane no longer
+active reads "ended" with its agent id as text. A reason of any other shape is
+no link, and is never guessed from the summary.
+
+#### 3.22.4 Which rows it lists
+
+Only `role = 'orch'` rows in state `queued`, or `acked` with an `enqueued_at`,
+exactly as `spl_spawn_q_rows` reads them, so the tab and `do_spl_spawn_queue`
+agree (C103).
+
+#### 3.22.5 Plans
+
+**What a plan is:** a piece of work someone decided on that has no spawn request
+yet. Read from the tree and the hub, there are four places:
+
+| where | what it holds | measured | priority today |
+|---|---|---|---|
+| open issues | status `todo` or `eval`, kind `issue` | t1: 276 open and not archived; `spec_path` set on 0 of them; 94 of 299 (no archive filter) carry the `[NNN id]` spec import prefix | yes, 1..5, settable, follows the discussion (spec 150 3.4 item 4) |
+| round plan rows | `doc/md/*-round-*-plan.md` tables | rounds 20-26 among others, each plan's own table form | no |
+| spec rows | `specs/*/tasks.md`, spec section 5 tables | 171 spec folders, 107 with a `tasks.md` | no |
+| work groups | `<spool root>/dispatch/groups/<EPIC>.json` on the orch box | 14 files; rows carry class, placement and issue key (`do_spl_spawn_group_put`) | no; a width instead |
+
+**The source is the owner's choice: O2 (section 7).** Recommended: open issues,
+and a planner files an issue for each round and spec row when its plan is
+signed. Issues are the one place with a priority, a UI door, a discussion link
+and tenant isolation, and "every lane carries an issue" means a row needs a key
+before it lands anyway. Everything below assumes the recommendation and is redone
+if O2 goes another way. Rows Q7-Q8 wait on O2.
+
+**How it shows.** A second table under Requests, same page, sorted by priority
+then age, 50 rows and a "show more". Columns: Prio, Kind (`plan`), Class (from
+the label `bug`, `feature` or `refactor`; none is shown as none, never guessed),
+Title, Issue, Discussion, Epic, Age. It leaves out what the filler's own rule
+leaves out (`spl-spawn-fill.func.sh:184`): an issue a live lane or an ask already
+holds, a label `needs-owner`, `blocker` or `epic`, a human assignee. So a row is
+in one table only, the rule C110 pins.
+
+**Priority on a plan** is the issue's priority, set through the issue door that
+exists. If the issue follows a set discussion, the 5-minute sync
+(`do_spl_topic_prio_sync`) would put the discussion's value back, so the chooser
+sets the discussion instead and says so.
+
+**How a plan becomes a request** ("what things will go into the pipeline").
+Today it cannot while the queue is non-empty (3.22.2). New in Q8: an issue the
+owner set to priority 1 or 2 passes the filler's "queue is empty" gate, still one
+per tick (`SPAWN_FILL_MAX`), still with the filler's brief and class rules, and
+still never one with no class label. A plan at 3..5 waits for an empty queue, as
+today. No drag on a plan: answer 3 names a request, and a plan has no place in a
+line until it is a request.
+
+#### 3.22.6 Priority: on a request, on a plan, on a lane
+
+**On a request.** New nullable `fleet_asks.priority` (1..5) with `priority_by`
+and `priority_at`. The effective priority, which `askPrio` returns and the row
+carries with its `priority_source`:
+
+1. the ask's own and the discussion's are both set: **the newer write wins**
+   (`priority_at` against `topic_priorities.set_at`). Setting a discussion later
+   overrides an older setting on one request of it, and the reverse;
+2. only one is set: that one;
+3. neither: 3, as today.
+
+This keeps the owner's rule that discussion, issue and lane agree (spec 150 3.4
+item 4) for everything that has a discussion, and gives a handle to the 93 rows
+that have none. Setting 3 stores a 3; there is no clear, as for a topic. The ask's
+own priority does not move its issue or discussion: it is about this request.
+
+`PUT /v1/operator/fleet-asks/{ask_id}/priority`, body `{"priority": 1..5}`:
+operator admin only, else 403; 404 for no such ask; 409 `not_queued` once placed;
+400 outside 1..5. A change is logged in the hub's event log with who and the old
+and new value.
+
+**Across workspaces.** `askDiscussion` and `askListPriorities` also read the
+other workspaces' topics from the operator workspace, as `followTopicPriority`
+already does, so a priority set on another workspace's discussion reaches its
+ask. One match or none, never guessed (panel F3 stands). Row Q2.
+
+**On a lane.** The Prio cell of the Lanes table (3.14) becomes the same 1..5
+chooser for whoever may set it. A lane has no priority of its own (3.14: the
+highest of its issues), so:
+
+| the lane has | the chooser writes | so |
+|---|---|---|
+| a discussion | that topic's priority, in the workspace that holds it | its issues follow at once, and every lane and queued ask of that discussion with them (spec 150 3.4 item 4). The cell says so in its hint: this changes the discussion |
+| only its own issue (topic `unknown`) | that issue's priority | that lane only |
+| neither (a role seat, a `BOX-n` row) | nothing; a dash, no chooser | as 3.14 |
+
+`PUT /v1/operator/fleet-lanes/{agent_id}@{agent_box}/priority`, operator admin,
+because the plain topic PUT cannot reach a topic of another workspace from the
+operator's session (its read door answers 404). A workspace's own staff use the
+topic PUT, with its policy "Who can archive topics" (spec 150 D8).
+
+Raising a running lane does nothing to the lane's work except what 3.22.9 gives it.
+
+#### 3.22.7 Drag: a request's exact position
+
+**What is stored.** New nullable `fleet_asks.queue_rank` (bigint), plus `rank_by`
+and `rank_at`, which name who dragged **this** row. Order, `askPositions`:
+
+1. effective priority (poll Q5 A stands: priority first);
+2. `queue_rank`, ranked rows first, lower first;
+3. the class rank, then `enqueued_at`, then `ask_id`, as today.
+
+**The move.** `PUT /v1/operator/fleet-asks/{ask_id}/position`, body
+`{"before": "<ask_id>"|null, "after": "<ask_id>"|null}`, the row's two neighbours
+as the page saw them. In one transaction, with the role's queued rows locked:
+
+- a neighbour that is no longer adjacent, or no longer queued: 409
+  `stale_position`, nothing changes, the page re-reads and says so;
+- the moved row **takes the priority of the row it now sits directly above**
+  (of the row above it, when it lands last), written as its own priority, so a
+  drop across a priority line is what it looks like;
+- it gets a rank between its neighbours. Every unranked row of that priority above
+  it gets a rank in its current order, because a rank cannot sit below an unranked
+  row. Those rows get no `rank_by`: nobody dragged them, and their order has not
+  changed;
+- ranks use gaps of 1024; when a gap runs out, that priority's ranks are renumbered
+  in the same transaction.
+
+**How the placer honours it.** It already reads the hub's order. Only the band
+pick changes (3.22.8, row Q1): a head with a `rank_by` is taken as it is.
+
+**Against each thing the row can meet:**
+
+| it meets | what happens |
+|---|---|
+| a band | a head that was dragged, or has priority 1, is taken past the bands. A dragged row that is **not** the head does not stop the band pick while the head has neither. So the position is exact in the line, and a band may still take a row out of the line below an undragged head. The owner's bands stay binding on everything he did not touch (msg `8cb6cc7d`) |
+| a hold (vendor quota, a pinned box past overflow, weekly limit) | it keeps its place and the next row is tried, as today (`spl_spawn_place_take_next`, SPL-4265), and Waits on names the hold. A dragged row never stops the line |
+| no room (ceiling 40, the gap after a launch, the load target) | it waits at its place: no row is placed, as today. Neither drag nor priority 1 makes room |
+| a new arrival | it goes after every ranked row of its priority. An arrival of **higher** priority goes ahead of them, by rule 1, so a dragged row's number can grow; its place among its own priority does not |
+| its priority changing (set on the row, or its discussion's newer) | `queue_rank` and `rank_by` are cleared: a new decision, and it joins the new priority by rule 3. Other rows keep theirs |
+| a stalled placement back in line | keeps its rank (the column is not touched, as `enqueued_at` is set once) |
+| closing | the rank goes with the row; no renumbering, the gaps are harmless |
+
+**Who may drag.** An operator admin, in the page. An agent has no drag door. When
+the owner asks in words ("put this one ahead"), the dispatch holder uses the same
+op through `ask_op position`, with the owner's msg id required and recorded in
+`rank_by`, as `SPAWN_BYPASS` does today.
+
+**Not only a mouse.** HTML drag does not fire on a phone and has no keyboard. Each
+row also has Move up, Move down and "Move to position" (a number), all the same
+PUT.
+
+#### 3.22.8 The band pick, and why things slow
+
+**An owner's top priority beats the band pick.** `spl_spawn_place_band` gets one
+more early return, beside `ci` and flagged: a head with effective **priority 1**,
+or with a `rank_by`, is returned as it is. All 48 t1 priorities are the owner's
+(3.22.2), and he said a bypass is his to make explicitly (msg `8cb6cc7d`), so
+setting 1 or dragging is that act. How often: of the 896 asks with an `enqueued_at`
+the hub still keeps, 44 sit on a priority 1 discussion, about 5%. The bands keep
+the rest. Priority 2 stays under the bands.
+
+- A `ci` row ranks as priority 1 in `askPrio`, first by its class rank: trunk red
+  must not wait behind the owner's priority 1 rows. The rules row says the placer
+  "takes a `ci` row first"; priority first changed that without saying so. This is
+  a choice this spec adds; the holder may ask the owner.
+- "You have to keep track for me" (msg `8cb6cc7d`): each such pick writes a line to
+  `bypass.tsv` (time, ask id, `prio1:<set_by>` or `drag:<rank_by>`, the holder)
+  and one log line; `do_spl_spawn_share` counts it.
+- The rule's one home is `fleet-rules-index.md` (the spawn queue row); Q1 changes it.
+
+**A hold the hub can read.** One new column `fleet_asks.hold_reason`, written by a
+new op `ask_op holds` with the whole map of asks to reasons, only when that map
+changed since the last tick, so a quiet tick writes nothing. The Waits on column
+reads it; empty means room.
+
+**The last tick.** One row per fleet, overwritten: `fleet_place_state` (`at`, the
+outcome class below, the free text of the log line, the ask). It is the line on top
+of the page, "at 00:16:51Z the placer placed 369f326d", or "held: ...". It is
+written at most once a minute by the tick that already runs.
+
+**Why it slows: only what was measured.** What the tables can say today, the first
+reading (all prd unless named; "placed" = `state='done'`, reason `placed:%`, by
+`updated_at`; landed = `git log origin/master`, committer date, UTC, on
+`fe0455e48`; load = mean of `load5 / cpus`, `box_stats`; CI = workflow 10 on
+master, `gh api`, success and failure runs, median minutes, read for 11-03, 11-05
+and 11-06 here, and 20 on 10-30):
+
+| day | landed | enqueued | placed | median wait, min | p90 wait, min | load % sat | load % box-a | CI |
+|---|---|---|---|---|---|---|---|---|
+| 10-31 | 103 | 126 | 131 | 49 | 795 | 294 | 203 | - |
+| 11-01 | 87 | 98 | 88 | 40 | 202 | 136 | 129 | - |
+| 11-02 | 99 | 156 | 110 | 40 | 270 | 185 | 145 | - |
+| 11-03 | 72 | 96 | 76 | 99 | 1815 | 119 | 162 | 19 |
+| 11-04 | 113 | 162 | 128 | 167 | 2672 | 231 | 204 | - |
+| 11-05 | 161 | 151 | 161 | 54 | 1264 | 212 | 169 | 21 |
+| 11-06 | 35 | 71 | 52 | 119 | 1225 | 190 | 88 | 20 |
+
+What this shows and does not:
+
+- **More goes in than comes out:** 860 enqueued against 746 placed over those 7
+  days, and 120 wait, 52 of them over 3 days.
+- **The p90 wait rose,** from 202-795 min to 1225-2672 min from 11-03 on. The
+  median did not rise steadily.
+- **Landings did not fall day by day.** They swing from 72 to 161; 11-06 is the one
+  low day, with no landing from 09 to 17Z. Its cause was not measured. box-a wrote
+  112 `box_stats` samples that day against about 280 on most others, but 99 on 11-01
+  with 87 landed, so that is no explanation. "Slower every day" is not shown over
+  this week, and one week cannot prove or disprove a longer trend.
+- **The CI gate did not slow:** median 19-21 min on the 4 days read (n = 44..78 runs
+  a day). The pre-push hook's time is not stored anywhere, so it is **unknown**.
+- **Load is high.** A daily mean of 88-294% of cores; box-a's high mark read 90% in
+  the placer log, sat's was not read. What that costs in wait is not measured: the
+  log has no time (3.22.2). That gap is the point of Q10.
+- The wait counts only rows that were placed, so the 120 still waiting are left out
+  and it reads low. Closed rows are pruned after a week, so 10-31 is partial.
+
+**The view.** A flow table on the Queue tab, one row per day, 30 days, numbers and
+no written cause: the page never says "because". Its reader compares columns. What
+each column needs:
+
+| column | source | exists today |
+|---|---|---|
+| enqueued, placed, waiting at day's end, wait p50 and p90 | `fleet_asks`, by a daily rollup before the week's prune | yes |
+| landed | `git rev-list --count` on origin/master | yes |
+| CI p50, p90 and reds, workflow 10 | `gh api`, once an hour at most (the shared token's limit) | yes |
+| box load, per box | `box_stats` | yes |
+| tick minutes per outcome: placed, ceiling, gap, load target, vendor limit, agy quota, pinned box, one at a time, empty | a new line per tick, with its time, in `<asks dir>/place-ticks.tsv` | **no** |
+| pre-push minutes, p50 and p90 | a new line per push from `do_spl_push_master`, `<spool root>/push-times.tsv` | **no** |
+
+`do_spl_flow_daily` (csi-spl-orc, hourly on the dispatch holder's box) reads them and
+upserts `fleet_flow_daily` (fleet, day, metric, box, value, n), one row per metric
+per day. It is a rollup, so the hub adds no per-tick writes. The tick outcome is the
+one reason that tick took no row or placed one: exactly one per tick, so a day's
+minutes add up and the row says how many ticks it saw. A day with fewer than 1000
+ticks is marked partial, as the holder's box moves and its files stay behind.
+
+#### 3.22.9 Resources: what priority gives a lane
+
+The owner's "lower priority would mean using more resources" may mean a lower
+**number**, since prio 1 is the highest today (3.14). **O3 (section 7) asks; this
+spec does not guess.** The table below assumes (A), the closer to 1 the more, only
+to show the shape. Q9 waits on O3.
+
+**What can be given,** read from the code:
+
+| lever | today | with priority |
+|---|---|---|
+| place in line | priority first | as now, and 3.22.8 for priority 1 |
+| agents for subtasks | a lane may ask for a spawn; nothing ties it to priority | new, below |
+| width of a work group | `GROUP_WIDTH` 1..9 per epic, by hand | not tied in this spec: a group's rows run at their own priority |
+| box room, the 40 ceiling, the load target | hard stops | **unchanged.** Priority takes room from other lanes; it never makes any |
+| vendor quota, the data rule, the language rule | hard stops | unchanged |
+| a running lane of another priority | runs on | unchanged: no lane is stopped to free room, because a stopped lane can lose its unpushed work |
+
+**Agents for subtasks** ("even if that would require spawning new agents"). A lane
+may queue helper lanes up to an allowance by its current priority, cnf
+`env.box.prio_helpers` (starting values, for the owner to change):
+
+| prio | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| helpers at once | 3 | 2 | 1 | 0 | 0 |
+
+In code, not in a brief (the owner's rule: orchestration is if-else, not
+judgement): `do_spl_spawn_enqueue` with `SPAWN_PARENT_LANE=<id>` reads the parent's
+priority, counts its open helpers and refuses above the allowance. A helper is a
+normal request: its own brief, issue and lane, `Kind:` and vendor by
+`do_spl_lane_mix`, with the parent's discussion, so it follows the parent's
+priority; the data, language and scope rules apply as to any lane. A row in the
+Queue table shows its parent. Raising a lane changes its allowance on its next
+enqueue; the lane is told once, by a spool note, that it now may. Lowering it stops
+no helper already running.
+
+What this costs: helpers count against the 40 and against the load target, so with
+the queue full they slow everything else. Nothing here measures whether a helper
+shortens a lane; Q11's table shows only the total.
+
+#### 3.22.10 Cases
+
+All planned. A red control is the check that fails on master today, or the plant
+named.
+
+- **C102** (Q3) `GET /v1/operator/fleet-queue` as an operator admin lists the rows;
+  a member, or an admin of another workspace, 403. Red: no route.
+- **C103** (Q3) the rows' order and count equal `do_spl_spawn_queue`'s
+  on one seeded queue. Red control: a planted filter on `class` makes them differ.
+- **C104** (Q3) an ask closed `placed: c-101@box-a` sends `lane`; a reason `dead:
+  c-101@box-a` and `placed: nonsense` send none. Red: no field.
+- **C105** (Q4) `MONITORING_TABS` has `queue` right after `lanes`; a plain member
+  has no Queue tab. Red: `monitoring-tabs.test.mjs` order.
+- **C106** (Q4) mock fleet: the columns in 3.22.3's order, a discussion and lane
+  link, no sideways page scroll at 1440 and 390 px. e2e; red: page absent.
+- **C107** (Q4) no Queue code in the initial download. `perf-budget.py` and the
+  e2e chunk check. Red control: a planted static import.
+- **C108** (Q7, waits O2) the Plans route lists a `todo` and an `eval` issue
+  by priority, then age. Red: no route.
+- **C109** (Q7, waits O2) a `needs-owner`, an `epic` and a human-assigned
+  issue are absent. Red control: the filter taken out.
+- **C110** (Q7, waits O2) an issue an ask holds is in Requests only, an issue
+  a live lane holds in neither; each row in one table. Red control: as C109.
+- **C111** (Q2) effective priority on the memory store and Postgres: own only, 2;
+  discussion only, 4; both, the newer; neither, 3, with each `priority_source`.
+  Red: the own column absent.
+- **C112** (Q2) the priority PUT: 1..5 stored with who; 0 and 6 are 400; a placed
+  ask 409; a member 403. Red: no route.
+- **C113** (Q2) an ask on `dispatch-<8 hex>` of another workspace's topic gets that
+  discussion, and its priority reaches the queue; a prefix of two topics, none. Red
+  on master: `discussion` NULL.
+- **C114** (Q5) a lane on a discussion: the chooser writes the topic's priority, its
+  issues and a queued ask of the topic follow; a lane on `unknown` with an issue
+  writes the issue; a role seat shows no chooser. Red: no route.
+- **C115** (Q2) a move: rows A B C D with no rank, D dropped between A and B: order A
+  D B C, A has a rank and no `rank_by`, D has both; B and C unranked. Red: no route.
+- **C116** (Q2) drop across a line: a prio 4 row dropped directly above a prio 2 row
+  reads 2 with the source own. Red control: without the write it snaps back on read.
+- **C117** (Q2) a stale neighbour is 409 and changes nothing; two moves at once both
+  end in a valid order. Postgres. Red control: the lock taken out, the race test.
+- **C118** (Q2) a new arrival of the same priority lands after the ranked rows; a
+  higher one ahead; a priority change clears the rank; a stall back in line keeps it.
+  Red: no ranks.
+- **C119** (Q1) the band pick, `spl-spawn-place-argmax.tst.sh`: 3.22.2's two rows, a
+  bug under its band at position 2 and a priority 1 feature at position 1: picks the
+  feature. The same with priority 3: picks the bug, unchanged. Red on master: picks
+  the bug, as the log of 00:13Z. A `bypass.tsv` line is written.
+- **C120** (Q1) a dragged head is taken; a dragged row at position 3 under a plain
+  head does not stop the band pick. The test stubs the row until Q2 lands. Red
+  control: the early return taken out.
+- **C121** (Q2) a `ci` row at no priority is position 1 ahead of a priority 1
+  feature. Red on master: priority first puts the feature ahead.
+- **C122** (Q3) `ask_op holds`: a map sets `hold_reason`, a second same map writes
+  nothing (a counting store), a row left out is cleared. Red: no op.
+- **C123** (Q10) a fixture of 3 days of `place-ticks.tsv`, `push-times.tsv`, a queue
+  and `box_stats`: the rollup's metrics equal hand-counted values; a second run
+  changes nothing. Red control: a tick counted twice.
+- **C124** (Q11) the flow table on the mock: 30 rows, a partial day marked, no
+  sentence of cause. Red: page absent.
+- **C125** (Q9, waits O3) `SPAWN_PARENT_LANE` at allowance is refused with a
+  named reason, one under is queued with the parent's discussion; a lane raised
+  from 4 to 1 may then queue 3. Red: no check.
+
+#### 3.22.11 Rows Q1-Q11
+
+Disjoint where the order allows. Every row with web UI text carries: "agy language
+review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer,
+land only after its PASS".
+
+| row | kind | files (only these) | tests and red control | after | cases |
+|---|---|---|---|---|---|
+| Q1 prio 1 beats the band | `simple_coding`, class bug | `orc/run/spl-spawn-place.func.sh` (`spl_spawn_place_band`); `orc/tests/spl-spawn-place-argmax.tst.sh`; `csi-spl-doc/doc/md/fleet-rules-index.md` (spawn queue row) | the argmax test; red on master: picks the bug | - | C119, C120 |
+| Q2 store: priority and rank | `complex_coding` | new `rdb/<next>_fleet_ask_queue_order.sql` (`priority`, `priority_by`, `priority_at`, `queue_rank`, `rank_by`, `rank_at`, `hold_reason`, all nullable); `store/fleet_ask.go`, `store/fleet_ask_postgres.go`, the memory store; `hub/box_ask.go` (`askDiscussion`, `ask_op position`); new `hub/fleet_ask_order.go` + `_test.go`; one line in `hub/server.go`; `hub/openapi.json`. `PRE_PUSH_TIER=full` | Go, memory and Postgres; red: C111-C118's | - | C111-C113, C115-C118, C121 |
+| Q3 the queue route, holds | `complex_coding` | new `hub/fleet_queue_view.go` + `_test.go`; one line in `hub/server.go`; `hub/openapi.json`; `hub/box_ask.go` (`ask_op holds`); `orc/run/spl-spawn-place.func.sh` (the holds send only); `orc/tests/spl-spawn-queue.tst.sh` | Go; red: no route, C103's planted filter | Q2 | C102-C104, C122 |
+| Q4 the tab, read only | `complex_coding` | `wui/utils/monitoring-tabs.mjs`; new `wui/pages/monitoring/queue/index.vue`, new `wui/utils/monitoring-queue.mjs`; the client call; `csi-spl-wui/i18n/locales/*.json` (new keys only); `tests/unit/monitoring-tabs.test.mjs`, new `tests/unit/monitoring-queue.test.mjs`; `tests/e2e/monitoring-costs.test.mjs`. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | e2e and unit; red: page absent, C107's planted import | Q3 | C105-C107 |
+| Q5 chooser on request and lane | `complex_coding` | `wui/pages/monitoring/queue/index.vue`, `wui/pages/monitoring/lanes/index.vue` (the Prio cell), `wui/utils/monitoring-queue.mjs`; the client call; new `hub/fleet_lane_priority.go` + `_test.go`; one line in `hub/server.go`; `hub/openapi.json`; locale keys. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | Go and e2e; red: no route, no chooser | Q4 | C114 |
+| Q6 drag | `complex_coding` | `wui/pages/monitoring/queue/index.vue`; `wui/utils/monitoring-queue.mjs` (the move's two neighbours, `stale_position`); locale keys; `tests/e2e/monitoring-costs.test.mjs`. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | e2e, with the mouse and with Move to position, at 1440 and 390 px; red: no handle | Q5 | C115 through the page |
+| Q7 Plans read (waits O2) | `complex_coding` | new `hub/fleet_queue_plans.go` + `_test.go`; `wui/pages/monitoring/queue/index.vue`; locale keys. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | Go and e2e; red: C109's filter taken out | Q4, O2 | C108-C110 |
+| Q8 a set plan passes the filler (waits O2) | `simple_coding` | `orc/run/spl-spawn-fill.func.sh` (the gate at :72); `orc/tests/spl-spawn-fill.tst.sh`; `csi-spl-doc/doc/md/fleet-rules-index.md` (filler row) | the filler test: prio 2 with a queue queues one, prio 3 none; red on master: none | O2 | - |
+| Q8b workspace readers | `complex_coding` | new `hub/workspace_queue_view.go` + `_test.go`; `wui/utils/monitoring-tabs.mjs`; `wui/pages/monitoring/queue/index.vue`. No new text key | Go, as C25/C26; red: a member of w2 reads w1's row | Q4 | - |
+| Q9 helpers by priority (waits O3) | `complex_coding` | `orc/run/spl-spawn-enqueue.func.sh`; `orc/tests/spl-spawn-queue.tst.sh`; `csi-spl-cnf/csi-spl/all.env.yaml` (`prio_helpers`); `csi-spl-doc/doc/md/fleet-rules-index.md`. No UI text | the enqueue test; red: no check | O3 | C125 |
+| Q10 flow record | `complex_coding` | `orc/run/spl-spawn-place.func.sh` (one line per tick, `fleet_place_state`); `orc/run/spl-push-master.func.sh` (one line per push); new `orc/run/spl-flow-daily.func.sh` + `orc/tests/spl-flow-daily.tst.sh`; new `rdb/<next>_fleet_flow_daily.sql`; new `hub/fleet_flow.go` + `_test.go`; `orc/cnf/box-crons/box-crons.manifest`. `PRE_PUSH_TIER=full` | the fixture; red: a tick counted twice | Q3 | C123 |
+| Q11 flow view | `simple_coding` | `wui/pages/monitoring/queue/index.vue` or a new child component; `wui/utils/monitoring-queue.mjs`; locale keys. agy language review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer, land only after its PASS | e2e; red: no table | Q10, Q4 | C124 |
+
+Order: Q1 at once and alone. Q2, then Q3, Q4, Q5, Q6. Q10 after Q3 (both touch the
+placer) and Q11 after it. Q7, Q8 on O2, Q9 on O3. Q4, Q5, Q6, Q7 and Q11 touch one
+page and the locale files, so they land one after another.
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on
@@ -1684,6 +2170,23 @@ O1. Who may see the Monitoring Lanes tab?
 So: an operator admin sees every lane (3.3, as built); each workspace's
 owners (`TenantOwner`) and admins (`admin`) see only the lanes working on
 that workspace's own topics (3.6, row B6). B1-B5 are unchanged.
+
+**O2 and O3 (3.22), open.** They go to the owner as a form through the dispatch
+holder. Nothing else in 3.22 waits on them; rows Q7, Q8 and Q9 do.
+
+```poll
+O2. Where do the Queue tab's plans come from?
+(A) Open issues; a planner files an issue for each round and spec row when its plan is signed (recommended: the one place that already has a priority and a UI)
+(B) Read the plan files in git as they are; no priority can be stored on those rows
+(C) A new plans table, with its own priority beside the issues'
+(D) Only the work groups' waiting rows
+```
+
+```poll
+O3. "Lower priority would mean using more resources": which way?
+(A) A lower NUMBER gets more: prio 1, the highest today, gets the most agents
+(B) A lower IMPORTANCE gets more: prio 5 gets the most agents
+```
 
 ## 8. Panel record
 

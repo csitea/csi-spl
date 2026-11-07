@@ -20,7 +20,8 @@
 #     with the real do_spl_desk_post on the same dirs; a desk only under another
 #     user's root runs the real commands as that user (W1)
 #  11 a row declined after the post is added to that discussion, once (W4)
-#  12 (with AFU_TEST_PG_DSN) the real statement joins a row by every binding form
+#  12 the real statement joins a row by every binding form, on AFU_TEST_PG_DSN or
+#     a throwaway Postgres (CI caches the image; an unlisted SKIP fails its job)
 #  13 a channel the box map holds, a workspace's * row, a sole seat, a map that
 #     cannot be read, a malformed column 7: no post, reply or link, one blocker
 #     naming what was left, even after an earlier blocker of the topic;
@@ -272,6 +273,18 @@ cp "$T/map13" "$SP/channel-rules.tsv"; : >"$LOG"; out="$(ROWS="$T/rows13" run DR
 [[ "$first" == 1 && "$(count '^send .*--kind blocker')" == 1 && "$out" == *"no desk for c-002 on box-a in t2"* ]] && pass "13n CONTROL: the hold, then no desk: the desk blocker is still sent" || fail "13n $first: $out // $(cat "$LOG")"
 
 # 12. the real statement, on a scratch schema
+PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"
+if [[ -z "${AFU_TEST_PG_DSN:-}" ]] && command -v docker >/dev/null && command -v psql >/dev/null && docker image inspect "$PG_IMAGE" >/dev/null 2>&1; then
+  PG_CTR="spl-archived-followup-pg-$$"
+  trap 'docker rm -fv "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"' EXIT
+  docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
+    -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
+  # shellcheck source=pg-throwaway.inc.sh
+  source "$TEST_DIR/pg-throwaway.inc.sh"
+  PGPORT="$(pg_throwaway_port "$PG_CTR")" || exit 1
+  for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
+  AFU_TEST_PG_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
+fi
 if [[ -n "${AFU_TEST_PG_DSN:-}" ]]; then
   SCH="afu_$$"
   psql -X -q "$AFU_TEST_PG_DSN" -v ON_ERROR_STOP=1 >/dev/null <<SQL
@@ -296,7 +309,7 @@ SQL
     pass "12 the real statement: a row by all 4 binding forms, not another topic's; sorted roster; last human" || fail "12: $(cat "$T/sql.log") // $(cat "$T/sql.out" 2>&1)"
   psql -X -q "$AFU_TEST_PG_DSN" -c "DROP SCHEMA $SCH CASCADE" >/dev/null 2>&1
 else
-  echo "SKIP: 12 needs AFU_TEST_PG_DSN"
+  echo "SKIP: 12 needs AFU_TEST_PG_DSN, or docker, psql and a cached $PG_IMAGE image"
 fi
 
 echo "spl-archived-followup: $fails failure(s)"

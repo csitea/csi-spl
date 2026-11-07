@@ -106,10 +106,15 @@ valid_args() {  # KIND TITLE WORKDIR SLUG ; the reason on stderr
 # both sides. The scope and files are data: never evaluated, one header line.
 valid_lane_fields() {  # TOPIC SCOPE FILES ; the reason on stderr
   [[ -z "$1" || "$1" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || { say "bad topic '$1' ([A-Za-z0-9_-], up to 64)"; return 1; }
-  [ "${#2}" -le 500 ] || { say "bad scope (over 500 bytes)"; return 1; }
+  [ "$(printf '%s' "$2" | wc -c)" -le 500 ] || { say "bad scope (over 500 bytes)"; return 1; }
   [[ "$2$3" != *[[:cntrl:]]* ]] || { say "bad scope or files (a control character)"; return 1; }
 }
 one_line() { printf '%s' "$1" | tr '\t\r\n' '   ' | tr -d '\000-\037\177'; }
+# Bytes, in any locale, and never half a character: the JSON step turns a broken
+# byte into 3 bytes of U+FFFD, which would put the scope back over the limit.
+cut_bytes() {  # MAX ; stdin to stdout
+  python3 -c 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read()[:int(sys.argv[1])].decode("utf-8", "ignore").encode("utf-8"))' "$1"
+}
 
 # ---- request ---------------------------------------------------------------
 request() {
@@ -133,7 +138,7 @@ request() {
   spl_is_participant_id "$from" && spl_is_participant_id "$to" || { say "bad --from '$from' or --to '$to'"; exit 2; }
   valid_args "$kind" "$title" "$workdir" "$slug" || exit 2
   local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" scope files
-  scope="$(one_line "${SPAWN_LANE_SCOPE:-}" | cut -b 1-500)"
+  scope="$(one_line "${SPAWN_LANE_SCOPE:-}" | cut_bytes 500)"
   files="$(one_line "${SPAWN_LANE_FILES:-}")"
   valid_lane_fields "$topic" "$scope" "$files" || exit 2
   if [ -n "$brief" ]; then

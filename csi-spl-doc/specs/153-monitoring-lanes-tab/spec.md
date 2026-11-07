@@ -2065,9 +2065,11 @@ row to 3.21 while the spawn reply still said ok.
 - **The request carries them**: optional header lines `topic:` (from
   `SPAWN_LANE_TOPIC`, else `LANE_ISSUE_TOPIC`, the order `_spawn_lane_put` uses),
   `scope:` and `files:`, each only when set. A scope or a file list is flattened
-  to one line, so it cannot add a header or end the header block, and a scope is
-  cut to the hub's 500 bytes. Both sides refuse a topic outside the hub's
-  `[A-Za-z0-9_-]`, up to 64, and a control character in the other two.
+  to one line, so it cannot add a header or end the header block, and the sender
+  cuts a scope to the hub's 500 bytes on a character boundary, in any locale.
+  Both sides refuse a topic outside the hub's `[A-Za-z0-9_-]`, up to 64, a scope
+  over 500 bytes (the receiver's case is a request made by hand), and a control
+  character in the other two.
 - **Older ends keep working**: a request with none of the lines launches as
   before, and a receiver from before this ignores them. A sender's fix does
   nothing until the far box runs this code too.

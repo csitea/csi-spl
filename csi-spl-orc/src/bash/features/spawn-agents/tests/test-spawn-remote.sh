@@ -216,6 +216,18 @@ has "10. ... and cannot rewrite the request's slug" " row-flat" "$(tail -1 "$T_T
 has "10. ... nor its kind" "claude auto $WORK" "$(tail -1 "$T_TMP/spawn.calls")"
 SPAWN_LANE_SCOPE="$(printf 'x%.0s' $(seq 1 600))" req_b "$T_TMP/r10f" claude auto "$WORK" "$T_TMP/nolink.md" row-long
 eq "10. a long scope is cut to the hub's 500 bytes" 500 "$(sed -E 's/.*scope=([^|]*).*/\1/' "$T_TMP/spawn.env" | tr -d '\n' | wc -c)"
+# The hub counts bytes (len()). A cut through a character came back from the JSON
+# step as U+FFFD, 3 bytes: 502 at the far launcher, and the row lost.
+got_scope() { LC_ALL=C sed -E 's/.*scope=([^|]*).*/\1/' "$T_TMP/spawn.env" | tr -d '\n'; }
+x498="$(printf 'x%.0s' $(seq 1 498))"
+LC_ALL=C.UTF-8 SPAWN_LANE_SCOPE="${x498}xé" req_b "$T_TMP/r10m" claude auto "$WORK" "$T_TMP/nolink.md" row-mb
+eq "10. a cut through a character, UTF-8: launched" 0 "$(cat "$T_TMP/r10m.rc")"
+eq "10. ... and the whole broken character is dropped, no U+FFFD" "${x498}x" "$(got_scope)"
+LC_ALL=C SPAWN_LANE_SCOPE="${x498}xé" req_b "$T_TMP/r10n" claude auto "$WORK" "$T_TMP/nolink.md" row-mb-c
+eq "10. the same cut, LC_ALL=C: launched" 0 "$(cat "$T_TMP/r10n.rc")"
+eq "10. ... with the same scope" "${x498}x" "$(got_scope)"
+LC_ALL=C.UTF-8 SPAWN_LANE_SCOPE="${x498}é" req_b "$T_TMP/r10o" claude auto "$WORK" "$T_TMP/nolink.md" row-mb-fit
+eq "10. CONTROL a character that fits in the 500 is kept" "${x498}é" "$(got_scope)"
 before="$(calls)"
 out="$(on "$B" sat env SPAWN_LANE_TOPIC='x;id' bash "$SR" --box home --wait 0 claude auto "$WORK" 2>&1)"; rc=$?
 eq "10. a topic the hub would refuse never leaves: exit 2" 2 "$rc"
@@ -227,6 +239,13 @@ for bad in "topic: x;id" "$(printf 'scope: a\033[2Jb')" "$(printf 'files: a\033[
   eq "10. a hand-made hostile ${bad%%:*} line: never spawned" "$before" "$(calls)"
   has "10. ... logged REJECTED" "REJECTED" "$(tail -1 "$A/spawn-remote/serve.log")"
 done
+# By hand, past the sender's cut: 300 characters, 600 bytes.
+before="$(calls)"
+body="$(printf 'spawn-request v1\nkind: claude\ntitle: auto\nworkdir: %s\nslug: hand-long\nscope: %s\n---\n' "$WORK" "$(printf 'é%.0s' $(seq 1 300))")"
+on "$B" sat bash "$T_SCRIPTS/spool-send.sh" --from c-001 --to c-001@home --kind task --no-ask --no-poke --body "$body" >/dev/null 2>&1
+LC_ALL=C.UTF-8 serve_a
+eq "10. a hand-made scope of 300 characters, 600 bytes: never spawned" "$before" "$(calls)"
+has "10. ... logged REJECTED, counted in bytes" "over 500 bytes" "$(tail -1 "$A/spawn-remote/serve.log")"
 
 # The real launcher behind serve, dry: what it would send the hub. spawn-claude.sh
 # is the code that fills the row; spawn-window.sh hands it these env vars (its

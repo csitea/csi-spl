@@ -10,17 +10,12 @@
 [missing]
 csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh
 csi-spl-iac/src/bash/run/gcp-alert-snooze.func.sh
-csi-spl-iac/src/bash/run/gcp-audit-iam.func.sh
-csi-spl-iac/src/bash/run/gcp-audit-wsdoc-buckets.func.sh
 csi-spl-iac/src/bash/run/gcp-compute-lb-cleanup.func.sh
-csi-spl-iac/src/bash/run/gcp-compute-lb-list.func.sh
 csi-spl-iac/src/bash/run/gcp-delete-service-account.func.sh
 csi-spl-iac/src/bash/run/gcp-export-dns-settings.func.sh
-csi-spl-iac/src/bash/run/gcp-hub-instance-health.func.sh
 csi-spl-iac/src/bash/run/gcp-hub-restart.func.sh
 csi-spl-iac/src/bash/run/gcp-project-delete.func.sh
 csi-spl-iac/src/bash/run/gcp-purge-wsdoc-prefix.func.sh
-csi-spl-iac/src/bash/run/gcp-report-sa-usage.func.sh
 csi-spl-iac/src/bash/run/gcp-sync-src-s3-to-tgt-s3-silent.func.sh
 csi-spl-iac/src/bash/run/gcp-tail-logs.func.sh
 csi-spl-iac/src/bash/run/spl-compute-sa-editor-drop.func.sh

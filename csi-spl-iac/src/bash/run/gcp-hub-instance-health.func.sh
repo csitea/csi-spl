@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description READ-ONLY: health of every hub Cloud Run instance, per
 # @description (revision, instance), from Cloud Logging (SPL-2412, spec 146).
@@ -23,6 +21,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=prd ./run -a do_gcp_hub_instance_health
 # @example ENV=prd SINCE=2026-10-16T19:00:00Z UNTIL=2026-10-16T19:30:00Z ./run -a do_gcp_hub_instance_health
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_gcp_hub_instance_health() {
   local _spl_sdk_saved _spl_sdk_dir
   local warn_min="${WARN_MIN_WS:-5}" limit="${HUB_HEALTH_LIMIT:-50000}" since until=""

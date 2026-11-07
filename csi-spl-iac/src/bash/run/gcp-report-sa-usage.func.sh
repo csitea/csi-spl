@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description READ-ONLY: what one service account really did in one env's
 # @description project, from Cloud Audit Logs (security round 1 row 1, the
@@ -27,6 +25,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=prd ./run -a do_gcp_report_sa_usage
 # @example ENV=dev SA_USAGE_DAYS=7 ./run -a do_gcp_report_sa_usage
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_gcp_report_sa_usage() {
   local _spl_sdk_saved _spl_sdk_dir
   local days="${SA_USAGE_DAYS:-30}"

@@ -1,7 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
-
 #------------------------------------------------------------------------------
 # @description List GCP Load Balancer resources for an environment. Read-only:
 # @description lists the <org>-<app>-<env>-wui-* parts and the site bucket as the
@@ -9,6 +6,9 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @description ENV is refused before any gcloud call.
 # @example ORG_APP=csi-spl ENV=dev ./run -a do_gcp_compute_lb_list
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+
 do_gcp_compute_lb_list() {
   local org_app="${ORG_APP:?ORG_APP is required}"
   local env="${ENV:?ENV is required (dev/tst/prd)}"

@@ -143,6 +143,7 @@ spl_weekly_alert_disagree() {  # STATE_FILE DRY NOW
 
 # The lapse alarm: one post per hold that lapsed (spl_box_quota_note_lapsed).
 # A post that fails stays in the file: retried next tick.
+# One lapse noted with different current %: the highest stands, an empty one last.
 spl_weekly_alert_lapsed() {  # DRY NOW
   local f claim k p src at cur said out left=""
   f="$(spl_box_quota_keep_file)"
@@ -160,7 +161,7 @@ spl_weekly_alert_lapsed() {  # DRY NOW
     else
       left+="$k"$'\t'"$p"$'\t'"$src"$'\t'"$at"$'\t'"$cur"$'\n'; do_log "WARN the $k lapse alarm did not post; retried next tick"
     fi
-  done < <(sort -u -t $'\t' -k1,4 "$claim")
+  done < <(sort -t $'\t' -k1,4 -k5,5nr -k5,5r "$claim" | sort -u -t $'\t' -k1,4)
   [[ "$1" == 1 ]] && return 0
   rm -f "$claim"
   [[ -z "$left" ]] || printf '%s' "$left" 2>/dev/null >>"$f.lapsed"

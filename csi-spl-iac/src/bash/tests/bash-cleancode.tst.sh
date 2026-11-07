@@ -24,7 +24,6 @@ MAX_LINES=75
 # list may only shrink: split a function into named steps and delete its line.
 LONG="
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns 169
-  csi-spl-iac/src/bash/run/spl-secret-unused-list.func.sh spl_secret_unused_table 76
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh _spawn_worktree 79
   csi-spl-orc/src/bash/run/spl-agent-identity-restore.func.sh do_spl_agent_identity_restore 80
   csi-spl-orc/src/bash/run/spl-desk-reply.func.sh spl_desk_pick 80

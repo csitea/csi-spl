@@ -17,6 +17,9 @@
 #      the stubbed secret, and the leak check of 2 catches it (fails when
 #      the leak check cannot see a value)
 #   6. a list that fails -> non-zero, no table
+#   7. PINS: a disabled key's row of every verdict ends (disabled), a backup
+#      named *trust-lock is not listed, a backup with no live file reads
+#      live file MISSING
 # gcloud and gh are stubs on PATH. No network, no GCP, no GitHub.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -54,7 +57,7 @@ cat >"$T/stub/gcloud" <<'EOF_G'
 #!/usr/bin/env bash
 echo "${CLOUDSDK_CONFIG-<unset>}|$*" >>"$STUB_LOG"
 arg() { local a; for a in "${@:2}"; do [[ "$a" == "$1="* ]] && { echo "${a#*=}"; return; }; done; }
-k() { printf '{"name":"projects/p/serviceAccounts/%s/keys/%s","validAfterTime":"%s","validBeforeTime":"9999-12-31T23:59:59Z","disabled":false,"privateKeyData":"STUB-SECRET-VALUE-7f3a"}' "$1" "$2" "$3"; }
+k() { printf '{"name":"projects/p/serviceAccounts/%s/keys/%s","validAfterTime":"%s","validBeforeTime":"9999-12-31T23:59:59Z","disabled":%s,"privateKeyData":"STUB-SECRET-VALUE-7f3a"}' "$1" "$2" "$3" "${STUB_DISABLED:-false}"; }
 case "$*" in
   "auth activate-service-account"*) jq -r .client_email "$(arg --key-file "$@")" >"$CLOUDSDK_CONFIG/active" ;;
   "auth list"*) cat "$CLOUDSDK_CONFIG/active" 2>/dev/null ;;
@@ -137,6 +140,21 @@ act "$T/leaky.func.sh"; l="$(leaks "$T/out")"
 act STUB_FAIL=1; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'cannot list the secrets' "$T/out" && ! grep -q '^| # |' "$T/out" \
   && pass "6. a failing secrets list -> non-zero, no table" || fail "6. rc=$rc $(cat "$T/out")"
+
+# --- 7. PINS: the disabled mark, the trust-lock skip, the missing live file --------------
+act STUB_DISABLED=true
+[[ "$(row 'key 1111aaaa')" == *"| IN-USE | the project key file do_gcp_account reads (disabled) |" ]] \
+  && [[ "$(row 'key 3333cccc')" == *"| UNUSED | code naming the file "*"-> 0 (disabled) |" ]] \
+  && [[ "$(row 'key 5555eeee')" == *"| CHECK | no key file on this box holds it"*"last use not read (disabled) |" ]] \
+  && pass "7. a disabled key's row ends (disabled), whatever its verdict" || fail "7. disabled: $(grep -F '| sa-key |' "$T/out")"
+
+mkdir -p "$H/.mistral"
+echo '{"accessToken":"x"}' >"$H/.claude/.credentials.json.bak-trust-lock"
+echo "MISTRAL_API""_KEY=$(stub MISTRAL-KEY 2d6f)" >"$H/.mistral/crs.bak"
+act
+! grep -q 'trust-lock' "$T/out" && pass "7. a backup named *trust-lock holding a credential field is not listed" || fail "7. trust-lock: $(row 'trust-lock')"
+[[ "$(row '.mistral/crs.bak')" == *"| BACKUP | a copy of ~/.mistral/crs (live file MISSING, the seat reads only that)"* ]] \
+  && pass "7. a backup with no live file reads live file MISSING" || fail "7. missing: $(row '.mistral/crs.bak')"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

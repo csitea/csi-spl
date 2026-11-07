@@ -57,7 +57,14 @@ do_spl_secret_unused_list() {
 # spl_secret_unused_table <dump dir> <project> <project key file, relative to
 # $HOME> <repo> <box> - the markdown table from the dump and this box's files
 spl_secret_unused_table() {
-  python3 - "$1" "$2" "$HOME" "$3" "$4" "$5" "${SECRET_UNUSED_NOW:-}" "$ORG" <<'PY'
+  { _spl_secret_unused_py_project; _spl_secret_unused_py_box; } \
+    | python3 - "$1" "$2" "$HOME" "$3" "$4" "$5" "${SECRET_UNUSED_NOW:-}" "$ORG"
+}
+
+# _spl_secret_unused_py_project - the program's first half: its arguments and
+# helpers, then the scans of the env project (SA keys, empty secrets)
+_spl_secret_unused_py_project() {
+  cat <<'PY'
 import datetime as dt, glob, json, os, re, subprocess, sys
 d, proj, home, pkey, repo, box, now, org = sys.argv[1:]
 now = dt.datetime.fromisoformat(now.replace("Z", "+00:00")) if now else dt.datetime.now(dt.timezone.utc)
@@ -101,7 +108,13 @@ for s in sorted(ld("secrets.json"), key=lambda s: s["name"]):
     hits, why = code(esc(sid))
     row("secret-empty", f"{proj} / Secret Manager {sid}", age(s.get("createTime", "")), "EMPTY",
         "0 enabled versions: no value to read; code naming it " + why)
+PY
+}
 
+# _spl_secret_unused_py_box - the program's second half: the scans of this box
+# (token files, seat backups), then the table and the counts line
+_spl_secret_unused_py_box() {
+  cat <<'PY'
 for rel in (".github/token", ".github/.csi/rcs"):
     f = os.path.join(home, rel)
     if not os.path.isfile(f): continue

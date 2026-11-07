@@ -560,7 +560,7 @@ rm -f "$SEAT2/spool/c-778"
 # --- C22 a dm-turn whose ts is no time -------------------------------------------
 dm_turn_ts() { mkdir -p "$A2/inbox" "$A2/.mirror"; printf '{"ts":%s}' "$1" >"$A2/.mirror/dm-turn"; }
 BIG_TS="1$(printf '0%.0s' $(seq 1 400))"
-for ts in NaN '"nan"' Infinity -Infinity '"inf"' 1e999 true "$BIG_TS"; do
+for ts in NaN '"nan"' Infinity -Infinity '"inf"' 1e999 true "$BIG_TS" '"1"' '"0"' '"1_000"' '" 5 "'; do
   reset; brief "$TD"; dm_turn_ts "$ts"; turn_notification
   eq "C22. a dm-turn with ts ${ts:0:12}: nothing" 0 "$(nsends)"
   has "C22. ... a hold, not a crash" "a DM turn in the last hour" "$(tail -1 "$A/.mirror/mirror.log")"

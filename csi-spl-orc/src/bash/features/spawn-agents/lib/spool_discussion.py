@@ -160,9 +160,9 @@ def dm_hold(adir, now):
     try:
         with open(path) as f:
             ts = json.load(f)["ts"]
-        if isinstance(ts, bool) or not math.isfinite(float(ts)):
+        if type(ts) not in (int, float) or not math.isfinite(ts):
             return True
-        return now - float(ts) < DM_HOLD
+        return now - ts < DM_HOLD
     except FileNotFoundError:
         return dangling(path)
     except (OSError, ValueError, KeyError, TypeError, OverflowError):

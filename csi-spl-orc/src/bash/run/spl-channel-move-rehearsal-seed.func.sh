@@ -5,8 +5,8 @@
 # @description refused before any cnf, gcloud or psql call, and the slugs are
 # @description fixed here (seed-move-src, seed-move-dst, channel rehearsal-move),
 # @description so this can never touch a real workspace.
-# @description <SRC> gets the channel with REHEARSAL_MSGS posts over 100 topics
-# @description (every 50th post a thread of its own), a reaction, a revision and
+# @description <SRC> gets the channel with REHEARSAL_MSGS posts over 98 topics
+# @description (every 50th post a thread of its own, under topics 49 and 99), a reaction, a revision and
 # @description a queued delivery on the first posts, one issue, two blobs, and a
 # @description staying channel with what must stay: a post that links a moved
 # @description topic (5.4), a post moved out of the channel (M6b), a DM about a
@@ -54,7 +54,7 @@ do_spl_channel_move_rehearsal_seed() {
   [[ -n "$bucket" && "$bucket" != null ]] || { do_log "FATAL cnf steps.050-gcs-files.files_bucket_name is empty for $ENV"; return 1; }
   if [[ "$REHEARSAL_CMD" == purge ]]; then
     spl_via_proxy _spl_cmr_psql_purge || return 1
-    spl_cmr_blobs_rm "$bucket"
+    spl_cmr_blobs_rm "$bucket" || return 1
     do_log "OK removed $SPL_CMR_SRC and $SPL_CMR_DST from $ENV"
     return 0
   fi
@@ -94,18 +94,25 @@ spl_cmr_blobs_put() {
   return "$rc"
 }
 
-# spl_cmr_blobs_rm: a blob that is already gone (P6 moved it) is no failure.
+# spl_cmr_blobs_rm: a blob that is already gone (P6 moved it) is no failure; any
+# other failure of the rm is.
 spl_cmr_blobs_rm() {
-  local t
+  local t err rc=0
   for t in "$SPL_CMR_SRC" "$SPL_CMR_DST"; do
-    gcloud storage rm -r "gs://$1/t/$t/" --account="$GCP_ACCOUNT" --project="$SPL_PROJECT" --quiet 2>/dev/null ||
+    err="$(gcloud storage rm -r "gs://$1/t/$t/" --account="$GCP_ACCOUNT" --project="$SPL_PROJECT" --quiet 2>&1)" && continue
+    if grep -qi 'matched no objects' <<<"$err"; then
       do_log "INFO no blobs left under t/$t/"
+    else
+      do_log "FATAL the blobs under gs://$1/t/$t/ were not removed: $err"
+      rc=1
+    fi
   done
-  return 0
+  return "$rc"
 }
 
 # spl_cmr_seed_sql prints the seed script. Every value is a constant above or a
 # validated integer. Ids are md5 of a fixed text, so a re-run hits ON CONFLICT.
+# messages.msg holds the body as a real row does, so the scan reads both columns.
 spl_cmr_seed_sql() {
   local s="$SPL_CMR_SRC" d="$SPL_CMR_DST" c="$SPL_CMR_CH" y="$SPL_CMR_STAY" moved shared
   moved="$(spl_cmr_file_json moved)"; shared="$(spl_cmr_file_json shared)"
@@ -135,7 +142,7 @@ SELECT '$s', md5('$s-m-' || i)::uuid,
     now() - (i::float8 / $REHEARSAL_MSGS) * interval '7 days', 'box-seed', 'c-100', 'box-wui', 'ALL-0', 'note',
     'rehearsal post ' || i,
     CASE i WHEN 0 THEN '[$moved]'::jsonb WHEN 1 THEN '[$shared]'::jsonb ELSE '[]'::jsonb END,
-    '{}'::jsonb, 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$c'
+    jsonb_build_object('body', 'rehearsal post ' || i), 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$c'
   FROM generate_series(0, $REHEARSAL_MSGS - 1) i
   ON CONFLICT (tenant_id, msg_id) DO NOTHING;
 INSERT INTO message_reactions (tenant_id, msg_id, actor, emoji)
@@ -152,13 +159,13 @@ INSERT INTO messages (tenant_id, msg_id, task_id, ts, from_box, from_id, to_box,
     received_at, expires_at, channel, ref_task_id, moved_from_channel)
   VALUES
   ('$s', md5('$s-stay-link')::uuid, md5('$s-stay-t1')::uuid, now(), 'box-seed', 'c-100', 'box-wui', 'ALL-0', 'note',
-    'see /t/' || md5('$s-t-1')::uuid, '[]'::jsonb, '{}'::jsonb, 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$y', NULL, NULL),
+    'see /t/' || md5('$s-t-1')::uuid, '[]'::jsonb, jsonb_build_object('body', 'see /t/' || md5('$s-t-1')::uuid), 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$y', NULL, NULL),
   ('$s', md5('$s-stay-out')::uuid, md5('$s-stay-t2')::uuid, now(), 'box-seed', 'c-100', 'box-wui', 'ALL-0', 'note',
-    'a post moved out of the channel', '[]'::jsonb, '{}'::jsonb, 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$y', NULL, '$c'),
+    'a post moved out of the channel', '[]'::jsonb, jsonb_build_object('body', 'a post moved out of the channel'), 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$y', NULL, '$c'),
   ('$s', md5('$s-stay-file')::uuid, md5('$s-stay-t3')::uuid, now(), 'box-seed', 'c-100', 'box-wui', 'ALL-0', 'note',
-    'a staying post with the shared file', '[$shared]'::jsonb, '{}'::jsonb, 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$y', NULL, NULL),
+    'a staying post with the shared file', '[$shared]'::jsonb, jsonb_build_object('body', 'a staying post with the shared file'), 'seed', '\\x00'::bytea, now(), now() + interval '14 days', '$y', NULL, NULL),
   ('$s', md5('$s-dm')::uuid, md5('$s-dm-t')::uuid, now(), 'box-seed', 'c-100', 'box-seed', 'c-101', 'note',
-    'a DM about a moved topic', '[]'::jsonb, '{}'::jsonb, 'seed', '\\x00'::bytea, now(), now() + interval '14 days', NULL, md5('$s-t-2')::uuid, NULL)
+    'a DM about a moved topic', '[]'::jsonb, jsonb_build_object('body', 'a DM about a moved topic'), 'seed', '\\x00'::bytea, now(), now() + interval '14 days', NULL, md5('$s-t-2')::uuid, NULL)
   ON CONFLICT (tenant_id, msg_id) DO NOTHING;
 COMMIT;
 SELECT count(*) AS seeded FROM messages WHERE tenant_id = '$s' AND channel = '$c';
@@ -184,9 +191,25 @@ BEGIN;
 DELETE FROM tenants WHERE tenant_id IN ('$SPL_CMR_SRC', '$SPL_CMR_DST') AND tenant_id LIKE 'seed-move-%';
 $(spl_cmr_close_hosts_sql)
 COMMIT;
-SELECT count(*) AS left_after FROM tenants WHERE tenant_id IN ('$SPL_CMR_SRC', '$SPL_CMR_DST');
+SQL
+}
+
+spl_cmr_purge_after_sql() {
+  cat <<SQL
+SET app.rls_scope = 'operator';
+SELECT 'after', (SELECT count(*) FROM tenants WHERE tenant_id IN ('$SPL_CMR_SRC', '$SPL_CMR_DST')),
+       (SELECT count(*) FROM tenant_hosts WHERE tenant_id IN ('$SPL_CMR_SRC', '$SPL_CMR_DST') AND status <> 'removed');
 SQL
 }
 
 _spl_cmr_psql_seed() { spl_cmr_seed_sql | spl_pg_env "$SPL_PROXY_DSN" psql -X -q -v ON_ERROR_STOP=1 -P pager=off -f -; }
-_spl_cmr_psql_purge() { spl_cmr_purge_sql | spl_pg_env "$SPL_PROXY_DSN" psql -X -q -v ON_ERROR_STOP=1 -P pager=off -f -; }
+
+# _spl_cmr_psql_purge: the DELETE, then a read of what it left, as
+# do_spl_tenant_test_purge does: rows that remain fail the action.
+_spl_cmr_psql_purge() {
+  spl_cmr_purge_sql | spl_pg_env "$SPL_PROXY_DSN" psql -X -q -v ON_ERROR_STOP=1 -P pager=off -f - || return 1
+  local after t host
+  after="$(spl_cmr_purge_after_sql | spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -F ' ' -v ON_ERROR_STOP=1 -P pager=off -f -)" || return 1
+  read -r _ t host < <(grep '^after ' <<<"$after")
+  [[ "$t" == 0 && "$host" == 0 ]] || { do_log "FATAL after the purge: ${t:-?} tenant(s) and ${host:-?} open host row(s) remain"; return 1; }
+}

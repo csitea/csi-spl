@@ -10,10 +10,11 @@ whole channel from one workspace into another.
 > moved topic (T7), and a box re-routes that post (T7b).
 >
 > **The dev rehearsal (T13) moved 3650 posts in one run; it is not passed:** P7 failed
-> `proof scan messages.body 1`, on a staying post that links a moved topic. So today **any channel
-> another post links stops at P7**, after its rows have moved (spec R7, row T13b). P4 took 4.42 s
-> and P7 about 9 s, under the box's 30 s cap (n=1). It did not exercise a real `<DST>` desk, Qto
-> docs, hours rows or the old link over HTTP. Record:
+> `proof scan messages.body 1`, on a staying post that links a moved topic (n=1). So today **a channel
+> stops at P7, after its rows have moved, when a row left in `<SRC>` holds a full task or msg UUID of the set, or the channel's id or name as a whole word, in a column the scan reads; the fleet topic ids are excepted** (spec R7, row T13b). P4 took 4.42 s, under the box's
+> 30 s cap (n=1). P7 took about 9 s with 5 messages in `<SRC>`: on a populated `<SRC>` it is not
+> measured. It did not exercise a real `<DST>` desk, Qto docs, hours rows or the old link over HTTP.
+> Record:
 > [dev-rehearsal.md](../../specs/169-channel-workspace-move/dev-rehearsal.md).
 >
 > What still waits:

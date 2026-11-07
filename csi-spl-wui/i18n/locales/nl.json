@@ -3535,7 +3535,7 @@
         "reason": "Reden: {reason}",
         "unavailable": "De bestandspatronen konden niet worden geladen.",
         "audit_title": "Wijzigingen in patronen en bestanden",
-        "audit_none": "Nog geen wijzigingen in patronen.",
+        "audit_none": "Nog geen wijzigingen.",
         "state": {
           "pending": "Opgeslagen, nog niet gevolgd: de hostmachine heeft het nog niet gemeld",
           "following": "Wordt gevolgd",

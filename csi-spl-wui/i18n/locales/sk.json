@@ -3535,7 +3535,7 @@
         "reason": "Dôvod: {reason}",
         "unavailable": "Vzory súborov sa nepodarilo načítať.",
         "audit_title": "Zmeny vzorov a súborov",
-        "audit_none": "Zatiaľ žiadne zmeny vzorov.",
+        "audit_none": "Zatiaľ žiadne zmeny.",
         "state": {
           "pending": "Uložený, zatiaľ nesledovaný: stroj ho ešte nenahlásil",
           "following": "Sleduje sa",

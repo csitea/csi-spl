@@ -3535,7 +3535,7 @@
         "reason": "Põhjus: {reason}",
         "unavailable": "Failimustreid ei õnnestunud laadida.",
         "audit_title": "Mustrite ja failide muudatused",
-        "audit_none": "Mustrite muudatusi veel pole.",
+        "audit_none": "Muudatusi veel pole.",
         "state": {
           "pending": "Salvestatud, veel ei jälgita: kast pole sellest teatanud",
           "following": "Jälgitakse",

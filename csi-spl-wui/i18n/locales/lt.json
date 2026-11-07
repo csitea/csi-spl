@@ -3535,7 +3535,7 @@
         "reason": "Priežastis: {reason}",
         "unavailable": "Nepavyko įkelti failų šablonų.",
         "audit_title": "Šablonų ir failų pakeitimai",
-        "audit_none": "Šablonų pakeitimų dar nėra.",
+        "audit_none": "Pakeitimų dar nėra.",
         "state": {
           "pending": "Išsaugota, dar nesekama: mašina apie jį dar nepranešė",
           "following": "Sekama",

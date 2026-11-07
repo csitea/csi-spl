@@ -3535,7 +3535,7 @@
         "reason": "Motiv: {reason}",
         "unavailable": "Șabloanele de fișiere nu au putut fi încărcate.",
         "audit_title": "Modificări ale șabloanelor și fișierelor",
-        "audit_none": "Încă nu există modificări ale șabloanelor.",
+        "audit_none": "Încă nu există modificări.",
         "state": {
           "pending": "Salvat, încă neurmărit: mașina nu l-a raportat",
           "following": "Urmărit",

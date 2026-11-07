@@ -3535,7 +3535,7 @@
         "reason": "Orsak: {reason}",
         "unavailable": "Filmönstren kunde inte läsas in.",
         "audit_title": "Ändringar av mönster och filer",
-        "audit_none": "Inga ändringar av mönster än.",
+        "audit_none": "Inga ändringar än.",
         "state": {
           "pending": "Sparat, följs inte än: maskinen har inte rapporterat det",
           "following": "Följs",

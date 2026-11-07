@@ -3535,7 +3535,7 @@
         "reason": "Powód: {reason}",
         "unavailable": "Nie udało się wczytać wzorców plików.",
         "audit_title": "Zmiany wzorców i plików",
-        "audit_none": "Nie ma jeszcze zmian wzorców.",
+        "audit_none": "Nie ma jeszcze zmian.",
         "state": {
           "pending": "Zapisany, jeszcze nieśledzony: maszyna go nie zgłosiła",
           "following": "Śledzony",

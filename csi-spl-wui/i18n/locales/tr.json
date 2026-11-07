@@ -3535,7 +3535,7 @@
         "reason": "Neden: {reason}",
         "unavailable": "Dosya desenleri yüklenemedi.",
         "audit_title": "Desen ve dosya değişiklikleri",
-        "audit_none": "Henüz desen değişikliği yok.",
+        "audit_none": "Henüz değişiklik yok.",
         "state": {
           "pending": "Kaydedildi, henüz izlenmiyor: kutu henüz bildirmedi",
           "following": "İzleniyor",

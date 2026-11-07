@@ -179,7 +179,7 @@ tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
 # R7 N6 (c-992): overlapping reads each note the lapse, the alarm is still one line
 : >"$T/posts"; rm -f "$KP.lapsed"; kp12 12; printf 'claude\t97\tcache\t%s\n' "$(( NOW - 12 * 3600 ))"{,,} >"$KP.lapsed"
 tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
-[ "$(nlap)" = 1 ] && pass "11. RED CONTROL N6: one lapse in rows that differ only in the current % -> one alarm" || fail "11. rows ($(nlap): $(cat "$T/posts"))"
+[ "$(nlap)" = 1 ] && pass "11. RED CONTROL N6: one lapse in repeated rows -> one alarm" || fail "11. rows ($(nlap): $(cat "$T/posts"))"
 : >"$T/posts"; rm -f "$KP.lapsed"; kp12 12; printf '#!/bin/sh\necho\n' >"$T/quota"
 for _ in 1 2 3 4 5 6; do SNIPPET='spl_box_quota_known' in_orc LANE_QUOTA_CMD="$T/quota" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null BOX_QUOTA_WEEKLY_MAX_PCT=90 >/dev/null 2>&1 & done; wait
 rows="$(grep -c . "$KP.lapsed")"; tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
@@ -192,6 +192,13 @@ grep -qF "the hold read 100% (log read 11h" "$T/posts" && grep -qF "and this box
   && pass "11. RED CONTROL N7: kept 100, a fetch 40 -> names the 40, never \"nothing re-read it\"" || fail "11. N7 text: $(cat "$T/posts")"
 : >"$T/posts"; rm -f "$KP.lapsed"; kp12 12; tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
 grep -qF "and nothing re-read it, so this box takes new claude lanes again" "$T/posts" && pass "11. CONTROL N7: no reading at all -> \"nothing re-read it\" stays" || fail "11. N7 none: $(cat "$T/posts")"
+# R7 N11 + N12 (c-992): rows of one lapse with different current %: one alarm that names a reading, in any row order
+lapn11() { : >"$T/posts"; rm -f "$KP" "$KP.lapsed"; local c; for c in "$@"; do printf 'claude\t97\tcache\t%s\t%s\n' "$(( NOW - 12 * 3600 ))" "$c" >>"$KP.lapsed"; done
+  tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null; }
+lapn11 "" 40; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 40%" "$T/posts" && pass "11. RED CONTROL N11: an empty row, then a 40 -> names the 40" || fail "11. N11 empty first ($(nlap): $(cat "$T/posts"))"
+lapn11 40 ""; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 40%" "$T/posts" && pass "11. N11: a 40, then an empty row -> names the 40" || fail "11. N11 40 first ($(nlap): $(cat "$T/posts"))"
+lapn11 "" 0; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 0%" "$T/posts" && pass "11. RED CONTROL N11: an empty row, then a 0 -> names the 0" || fail "11. N11 zero ($(nlap): $(cat "$T/posts"))"
+lapn11 9 40; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 40%" "$T/posts" && pass "11. RED CONTROL N12: two different current % -> one alarm, the higher, as a number" || fail "11. N12 two readings ($(nlap): $(cat "$T/posts"))"
 
 # 8. the cron row
 grep -qE "^weekly-limit-alert +\| \*/5 \* \* \* \* +\| src/bash/scripts/weekly-limit-alert-cron.sh +\| weekly-limit-alert/cron.log" "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" \

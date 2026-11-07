@@ -101,6 +101,8 @@ func TestHarnessRedControls(t *testing.T) {
 		{"chat redeem with the old token", "chat.html", `{ code: code }, true)`, `{ code: code })`},
 		{"chat 410 not shown", "chat.html", `if (r.status === 410) { say(T.gone); return; }`, ``},
 		{"chat 409 not shown", "chat.html", `else if (r.status === 409) say(T.noAnswer);`, ``},
+		{"chat closed topic says try again", "chat.html", `if (r.status === 409) { say(T.closed); return false; }`, ``},
+		{"chat closed topic empties the box", "chat.html", `if (sent === false) return;`, ``},
 		{"chat offers e-mail before an answer", "chat.html", `var answered = latest.some(function (m) { return !m.mine; });`, `var answered = true;`},
 		{"chat ask without locale", "chat.html", `email: askEmail.value.trim(), locale: locale }`, `email: askEmail.value.trim() }`},
 	}

@@ -63,6 +63,7 @@ section 5.1, on the task or parent named, or on the topic of the message named):
 | `PATCH /v1/messages/{msg_id}` | `409 topic_archived` |
 | `PUT /v1/messages/{msg_id}/reactions` | `409 topic_archived`, except the report emoji |
 | `POST /v1/messages/{msg_id}/move` `{to_task}`, `POST .../merge-topic` `{to_task}` | `409 topic_archived` when `to_task` is archived |
+| `POST /v1/embed/{embed_id}/messages` (a visitor; its topic is the visitor id) | `409 topic_archived`, nothing stored; the chat frame says the conversation is closed |
 
 - A `send` whose `msg_id` is already stored still acks: a resend adds nothing.
 - A DM naming an archived topic in `ref_task_id` is stored without the claim, so

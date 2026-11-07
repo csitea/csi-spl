@@ -124,11 +124,15 @@ export function useComposerDock(opts: DockOpts) {
     }
     setDockHeight(el.getBoundingClientRect().height)
     if (typeof ResizeObserver !== 'undefined') {
-      dockObserver = new ResizeObserver(() => {
+      /* a frame later: the height is the panes' padding, and resizing an observed
+         pane inside this callback raises "ResizeObserver loop completed" (the
+         box leaves and comes back on an archived topic, SPL-4954) */
+      dockObserver = new ResizeObserver(() => requestAnimationFrame(() => {
+        if (!dockObserver) return
         setDockHeight(el.getBoundingClientRect().height)
         /* a file chip or the prefix row changes the box around the field */
         updateFieldMax()
-      })
+      }))
       dockObserver.observe(el)
     }
   }

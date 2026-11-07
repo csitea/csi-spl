@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Wysłano do wątku: {retired} nie jest już aktywny.",
     "open_channel": "Otworzyć #{name}?",
     "post_anyway": "Wyślij mimo to",
-    "send_failed_box_locked": "Nie wysłano — box tego agenta jest zablokowany dla jego właścicieli i tylko oni mogą pisać do jego agentów. Twój tekst nadal tu jest."
+    "send_failed_box_locked": "Nie wysłano — box tego agenta jest zablokowany dla jego właścicieli i tylko oni mogą pisać do jego agentów. Twój tekst nadal tu jest.",
+    "send_failed_archived": "Nie wysłano — ten temat jest zarchiwizowany. Przywróć go z archiwum, aby coś dodać. Twój tekst jest nadal tutaj.",
+    "topic_archived": "Ten temat jest zarchiwizowany. Przywróć go z archiwum, aby coś dodać."
   },
   "await_reply": {
     "spin": "Odebrano — czeka na odpowiedź agenta",

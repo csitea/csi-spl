@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Naar het onderwerp verzonden: {retired} is niet meer actief.",
     "open_channel": "#{name} openen?",
     "post_anyway": "Toch plaatsen",
-    "send_failed_box_locked": "Niet verzonden — de box van deze agent is vergrendeld voor zijn eigenaren, en alleen zij kunnen de agents ervan berichten sturen. Je tekst staat er nog."
+    "send_failed_box_locked": "Niet verzonden — de box van deze agent is vergrendeld voor zijn eigenaren, en alleen zij kunnen de agents ervan berichten sturen. Je tekst staat er nog.",
+    "send_failed_archived": "Niet verzonden — dit onderwerp is gearchiveerd. Haal het uit het archief om iets toe te voegen. Je tekst staat er nog.",
+    "topic_archived": "Dit onderwerp is gearchiveerd. Haal het uit het archief om iets toe te voegen."
   },
   "await_reply": {
     "spin": "Ontvangen — wacht op antwoord van een agent",

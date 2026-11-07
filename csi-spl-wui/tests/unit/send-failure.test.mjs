@@ -25,6 +25,10 @@ const closed = Object.assign(new Error('socket closed'), { token: 'closed' })
 const timeout = Object.assign(new Error('send timed out'), { token: 'timeout' })
 
 describe('classifying a failed send', () => {
+  it('SPL-4954: an archived topic is named, the text stays', () => {
+    assert.equal(sendFailureKey(Object.assign(new Error('refused'), { token: 'topic_archived' })), 'composer.send_failed_archived')
+    assert.equal(shouldAutoResend(Object.assign(new Error('refused'), { token: 'topic_archived' })), false)
+  })
   it('reads the token live-ws sets, and nothing else', () => {
     assert.equal(failureToken(closed), 'closed')
     assert.equal(failureToken(timeout), 'timeout')

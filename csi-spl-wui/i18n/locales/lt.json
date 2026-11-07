@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Išsiųsta į temą: {retired} nebeaktyvus.",
     "open_channel": "Atverti #{name}?",
     "post_anyway": "Vis tiek skelbti",
-    "send_failed_box_locked": "Neišsiųsta — šio agento dėžė užrakinta jos savininkams, ir tik jie gali rašyti jos agentams. Jūsų tekstas išsaugotas."
+    "send_failed_box_locked": "Neišsiųsta — šio agento dėžė užrakinta jos savininkams, ir tik jie gali rašyti jos agentams. Jūsų tekstas išsaugotas.",
+    "send_failed_archived": "Neišsiųsta — ši tema archyvuota. Norėdami ją papildyti, grąžinkite ją iš archyvo. Jūsų tekstas išsaugotas.",
+    "topic_archived": "Ši tema archyvuota. Norėdami ją papildyti, grąžinkite ją iš archyvo."
   },
   "await_reply": {
     "spin": "Gauta — laukiama agento atsakymo",

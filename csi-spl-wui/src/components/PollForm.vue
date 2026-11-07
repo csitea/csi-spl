@@ -79,6 +79,7 @@
 <script setup lang="ts">
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
+import { useOmniboxStore } from '~/stores/omnibox'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useLive } from '~/composables/useLive'
@@ -109,7 +110,10 @@ const host = inject<Host | null>(POLL_HOST, null)
 const paneRows = inject<(() => SpoolMessage[]) | null>(POLL_ROWS, null)
 const msg = computed(() => host?.msg() || null)
 const msgId = computed(() => String(msg.value?.msg_id || ''))
-const canAnswer = computed(() => Boolean(msgId.value && msg.value?.task_id))
+const omnibox = useOmniboxStore()
+/* SPL-4954: a poll in an archived topic shows its answers and takes no new one */
+const inArchived = computed(() => Boolean(omnibox.archivedTopic) && [msgId.value, String(msg.value?.task_id || '')].includes(omnibox.archivedTopic))
+const canAnswer = computed(() => Boolean(msgId.value && msg.value?.task_id) && !inArchived.value)
 
 const channel = useChannelStore()
 const pane = useLiveFeed('pane')

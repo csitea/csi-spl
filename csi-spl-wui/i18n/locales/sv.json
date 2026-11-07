@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Skickat till ämnet: {retired} är inte längre aktiv.",
     "open_channel": "Öppna #{name}?",
     "post_anyway": "Skicka ändå",
-    "send_failed_box_locked": "Inte skickat — den här agentens maskin är låst för sina ägare, och bara de kan skriva till dess agenter. Din text finns kvar."
+    "send_failed_box_locked": "Inte skickat — den här agentens maskin är låst för sina ägare, och bara de kan skriva till dess agenter. Din text finns kvar.",
+    "send_failed_archived": "Inte skickat — det här ämnet är arkiverat. Återställ det från arkivet för att lägga till något. Din text finns kvar.",
+    "topic_archived": "Det här ämnet är arkiverat. Återställ det från arkivet för att lägga till något."
   },
   "await_reply": {
     "spin": "Mottaget — väntar på svar från en agent",

@@ -60,6 +60,7 @@
       @input="onBoxInput"
     >
       <MessageComposer
+        v-show="!composerHidden"
         ref="composer"
         omnibox
         global
@@ -74,6 +75,8 @@
         @results="omnibox.focusResults++"
         @ready="onComposerReady"
       />
+      <!-- SPL-4954: an archived topic takes no input; its header's badge unarchives -->
+      <p v-if="composerHidden" class="top-bar__send-note" role="status" data-test="omnibox-topic-archived">{{ t('composer.topic_archived') }}</p>
       <p :id="slashHintId" class="sr-only" data-test="slash-shortcut-hint">{{ t('search.slash_shortcut') }}</p>
       <!-- a send that did not land says so HERE, next to the box
            that still holds the text, and offers the one action that helps -->
@@ -176,13 +179,16 @@ const stack = useMobileStack()
 const dockSelector = `#${DOCK_ID}`
 /* SPL-4905 (owner msg 3b5c61d9 "does not work on desktop"): at the top the
    box itself was the only search, its "?" only the operator help */
-const barSearch = computed(() => atBottom.value || (!phone.value && sectionSearchType(route.path) !== ''))
+const barSearch = computed(() => atBottom.value || Boolean(omnibox.archivedTopic) || (!phone.value && sectionSearchType(route.path) !== ''))
+/* SPL-4954: the search line still opens over an archived topic, the box does nothing else there */
+const composerHidden = computed(() => Boolean(omnibox.archivedTopic) && !omnibox.searchOpen)
 /* the bar's search button: the box is at the bottom now, `/search ` goes in it.
    SPL-4901: on the section's type (utils/section-search.mjs): Calendar and
    Notes open their own search, docs `/search type:doc ` */
 function openSearch() {
   const type = sectionSearchType(route.path)
   if (omnibox.openOwnSearch(type)) return
+  if (composerHidden.value) return omnibox.openSearch(sectionSearchLine(type))
   composer.value?.setText(sectionSearchLine(type))
   composer.value?.focus()
 }
@@ -200,7 +206,8 @@ function onDocKey(ev: KeyboardEvent) {
     ev.preventDefault()
     const prev = document.activeElement
     restoreEl.value = prev instanceof HTMLElement ? prev : null
-    composer.value?.focus()
+    if (composerHidden.value) omnibox.openSearch()
+    else composer.value?.focus()
     return
   }
   if (act === 'restore') {

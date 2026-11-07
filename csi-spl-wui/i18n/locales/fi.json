@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Lähetetty aiheeseen: {retired} ei ole enää aktiivinen.",
     "open_channel": "Avataanko #{name}?",
     "post_anyway": "Lähetä silti",
-    "send_failed_box_locked": "Ei lähetetty — tämän agentin kone on lukittu omistajilleen, ja vain he voivat lähettää viestejä sen agenteille. Tekstisi on yhä tallessa."
+    "send_failed_box_locked": "Ei lähetetty — tämän agentin kone on lukittu omistajilleen, ja vain he voivat lähettää viestejä sen agenteille. Tekstisi on yhä tallessa.",
+    "send_failed_archived": "Ei lähetetty — tämä aihe on arkistoitu. Palauta se arkistosta, jos haluat lisätä siihen. Tekstisi on yhä tallessa.",
+    "topic_archived": "Tämä aihe on arkistoitu. Palauta se arkistosta, jos haluat lisätä siihen."
   },
   "await_reply": {
     "spin": "Vastaanotettu — odotetaan agentin vastausta",

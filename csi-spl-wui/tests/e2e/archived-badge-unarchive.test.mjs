@@ -11,6 +11,10 @@
 //   tap       tap it: the badge leaves the header and the card is back in
 //             the #lobby feed (live again)
 //   control   a live topic's header has no badge at all
+//   composer  SPL-4954: while the archived topic is open the box is gone and a
+//             short line says why; the search button still opens the search
+//             line, and leaving that line hides the box again; Unarchive and a
+//             live topic bring the box back
 //
 // A full page load resets the mock, so everything stays on one document.
 //
@@ -107,6 +111,36 @@ const snap = () => {
   }
 }
 
+/* SPL-4954: what the Omnibox slot shows */
+const omnibox = () => {
+  const slot = document.querySelector('[data-test=top-bar-omnibox]')
+  const form = slot && slot.querySelector('form.composer')
+  const line = slot && slot.querySelector('[data-test=omnibox-topic-archived]')
+  return {
+    box: Boolean(form && form.getClientRects().length),
+    line: line ? line.textContent.trim() : '',
+    text: slot?.querySelector('textarea')?.value || '',
+  }
+}
+
+/* SPL-4954: the archived topic is open here, its Archived badge still up */
+async function checkNoComposer(p, tag) {
+  const closed = await p.evaluate(omnibox)
+  check(`${tag}: an archived topic has no composer, a line says why`,
+    !closed.box && /archived/i.test(closed.line), closed)
+  await p.evaluate(() => document.querySelector('[data-test=top-bar-search]')?.click())
+  const opened = await until(p, () => /^\/search/.test(document.querySelector('[data-test=top-bar-omnibox] textarea')?.value || ''), 4000)
+  const search = await p.evaluate(omnibox)
+  check(`${tag}: the search line still opens over it`, opened && search.box && !search.line, search)
+  await p.evaluate(() => {
+    const ta = document.querySelector('[data-test=top-bar-omnibox] textarea')
+    ta.value = ''
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const hidden = await until(p, () => Boolean(document.querySelector('[data-test=omnibox-topic-archived]')), 4000)
+  check(`${tag}: leaving the search line hides the box again`, hidden && !(await p.evaluate(omnibox)).box, await p.evaluate(omnibox))
+}
+
 async function run(browser, base, width) {
   const p = await browser.newPage()
   const phone = width < 600
@@ -151,6 +185,8 @@ async function run(browser, base, width) {
       before.hitMid && before.hitUp && before.hitDown, before)
   }
 
+  await checkNoComposer(p, tag)
+
   /* tap (phone) / click (desktop) the label */
   const sel = '[data-test=topic-section] header [data-test=archived-badge]'
   if (phone) await p.tap(sel)
@@ -159,6 +195,8 @@ async function run(browser, base, width) {
   await sleep(300)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `archived-badge-${width}-after.png`) })
   check(`${tag}: after the tap the badge is gone from the topic header`, gone, await p.evaluate(snap))
+  const again = await p.evaluate(omnibox)
+  check(`${tag}: Unarchive brings the composer back`, again.box && !again.line, again)
 
   await open('/lobby')
   const back = await until(p, (id) => Boolean(document.querySelector(`.spool-main article.msg[data-msg-id="${id}"]`)), 8000, ARCH_CARD)
@@ -170,6 +208,8 @@ async function run(browser, base, width) {
   await sleep(400)
   const live = await p.evaluate(snap)
   check(`${tag}: control - a live topic header has no badge, no button`, !live.tag, live)
+  const liveBox = await p.evaluate(omnibox)
+  check(`${tag}: control - a live topic has its composer`, liveBox.box && !liveBox.line, liveBox)
 
   const errs = (await p.evaluate(() => window.__errs || [])).filter((e) => !/dynamically imported module/.test(e))
   check(`${tag}: no window error`, errs.length === 0, { errs })

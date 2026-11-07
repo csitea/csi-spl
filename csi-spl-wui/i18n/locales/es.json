@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Enviado al tema: {retired} ya no está activo.",
     "open_channel": "¿Abrir #{name}?",
     "post_anyway": "Publicar de todos modos",
-    "send_failed_box_locked": "No enviado: el equipo de este agente está bloqueado para sus propietarios, y solo ellos pueden escribir a sus agentes. Tu texto sigue aquí."
+    "send_failed_box_locked": "No enviado: el equipo de este agente está bloqueado para sus propietarios, y solo ellos pueden escribir a sus agentes. Tu texto sigue aquí.",
+    "send_failed_archived": "No enviado: este tema está archivado. Desarchívalo para añadir algo. Tu texto sigue aquí.",
+    "topic_archived": "Este tema está archivado. Desarchívalo para añadir algo."
   },
   "await_reply": {
     "spin": "Recibido — esperando la respuesta de un agente",

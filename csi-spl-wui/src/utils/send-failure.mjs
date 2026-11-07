@@ -90,6 +90,8 @@ export function sendFailureKey(err) {
     case 'sender_not_allowed': return 'composer.send_failed_not_allowed'
     /* spec 025 box owner lock (B8, SPL-3015): the agent's box is locked to its owners */
     case 'box_locked': return 'composer.send_failed_box_locked'
+    /* SPL-4954 (spec 041 3.1): people add nothing to an archived topic */
+    case 'topic_archived': return 'composer.send_failed_archived'
     default: return 'composer.send_failed'
   }
 }

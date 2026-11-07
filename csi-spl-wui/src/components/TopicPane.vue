@@ -72,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import { useArchivedTopicMark } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
@@ -110,6 +111,7 @@ const {
   liveRows, loadError, loadErr, retryTick, loading, search, lastLive,
   loadingOlder, oldestRow, archivedAt, hasOlder, catchUp, loadOlder,
 } = useTopicPaneRead({ topic, api, t })
+useArchivedTopicMark(() => (topic.open && archivedAt.value ? String(topic.parentTaskId || '') : ''))
 /* A reply with is_parent 0 lives in the channel store as well as here.
    Keep it on this pane after the send stops being pending. */
 const paneRows = computed(() => {

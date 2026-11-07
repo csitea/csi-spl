@@ -19,15 +19,23 @@
 --   issue_tenant            the rows no ingest has re-sent yet name t1.
 --   the version and component CHECKs  another repo tags and deploys in its own
 --                           shape; the Go side narrows them until B-2.
---   release_notes_release_key  rebuilt with the key guarded, or a tag like
---                           'v1.2.' fails its int[] cast and refuses the row.
+--   release_notes_release_key  NOT touched: rdb 0114's index is what the old
+--                           hub's list reads, and without it each list is a seq
+--                           scan (R7 on 9,348 notes, n=7: about 6 ms to 592 ms).
+--                           Row B-2's migration rebuilds it guarded. Until then
+--                           a tag like 'v1.2.', which the new CHECK admits,
+--                           fails that index's int[] cast, and no writer sends
+--                           one before B-2 (releaseVersionRe).
 --
--- Live-data safety: ADD COLUMN with constant defaults does not rewrite; the
--- UPDATE, the index builds and the CHECK scans hold their locks for this one
--- transaction, on tables of one row per commit and per deploy.
+-- Live-data safety: ADD COLUMN with constant defaults does not rewrite. But the
+-- ACCESS EXCLUSIVE lock on both tables lasts this whole transaction, through
+-- the UPDATE, the index builds and the CHECK scans, so every read waits too:
+-- the old hub's upsert and the Flow views that touch release_notes. A Flow view
+-- holds a pool connection while it waits, so expect a few seconds of failed
+-- views at each env's migrate (R7 N2, inferred, not measured on a running hub).
+-- Land away from the owner's busy hours.
 -- DEPLOY ORDER: apply BEFORE the hub of row B-2 (the CI order: migrate, then
--- the new revision). The old hub is unaffected except its release key order no
--- longer matches the rebuilt index: it sorts those rows itself.
+-- the new revision).
 
 ALTER TABLE release_notes
     ADD COLUMN tenant_id text NOT NULL DEFAULT 't1',
@@ -43,20 +51,6 @@ ALTER TABLE release_notes DROP CONSTRAINT release_notes_version_check;
 ALTER TABLE release_notes ADD CONSTRAINT release_notes_version_check
     CHECK (version IS NULL OR (length(version) BETWEEN 1 AND 64 AND version ~ '^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'));
 
-DROP INDEX IF EXISTS release_notes_release_key;
-CREATE INDEX release_notes_release_key ON release_notes (
-    tenant_id,
-    (CASE
-        WHEN version ~ '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$'
-        THEN array_prepend(
-            coalesce(substring(version from '-c([0-9]+)$')::int, 1),
-            string_to_array(substring(version from '^v([0-9.]+)'), '.')::int[]
-        )
-    END) DESC NULLS LAST,
-    coalesce(released_at, committed_at) DESC,
-    committed_at DESC,
-    sha
-) WHERE version IS NOT NULL;
 CREATE INDEX release_notes_tenant_released_idx ON release_notes (
     tenant_id,
     coalesce(released_at, committed_at) DESC,

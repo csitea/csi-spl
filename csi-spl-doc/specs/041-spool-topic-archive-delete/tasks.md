@@ -62,5 +62,6 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       confirm -> row gone, hub 404. `do_spl_db_query` (by id / structural / archived): 5 / 5 / 0 -> 0 / 0 / 0
       on dev and on prd
 - [x] T015 report on SPL-986 and in topic 8f58f802
+- [x] T016 SPL-4954: a person's input to an archived topic is refused (hub `topic_archived`, contract 5.2); no composer on it in the WUI
 
 <!-- version: 0.3.0 · updated: 2026-09-27 -->

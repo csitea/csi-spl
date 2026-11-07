@@ -96,6 +96,9 @@ func (s *Server) mergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow, 
 		writeRefusal(w, "lobby")
 		return
 	}
+	if !s.topicOpenDoor(w, r, c.t.ID, task) { // SPL-4954
+		return
+	}
 	now := s.o.Now()
 	card, ok := s.moveTarget(w, r, mr, task, now, "merge")
 	if !ok {

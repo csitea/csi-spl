@@ -189,6 +189,9 @@ func (s *Server) editTarget(w http.ResponseWriter, r *http.Request, tenant, hum,
 		writeErr(w, http.StatusForbidden, "not_author", "only the author, the tenant owner or an admin may edit this message")
 		return m, nil, false
 	}
+	if !s.topicOpenDoor(w, r, tenant, m.MsgID, m.TaskID) { // SPL-4954
+		return m, nil, false
+	}
 	// Rule 7. A from_box other than box-wui is that box's envelope: the hub
 	// holds no key that could re-sign for it, so the body stays as signed.
 	// A box-wui envelope with a signature was signed by this hub — channel

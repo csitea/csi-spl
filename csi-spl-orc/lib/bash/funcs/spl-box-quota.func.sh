@@ -395,8 +395,10 @@ spl_box_quota_lapse_s() {
 # spl_box_quota_note_lapsed FILE OLD_ROWS NEW_ROWS NOW LIFTED: a kept row at or
 # over the threshold that lapsed with its reset still ahead, and that nothing at
 # or over the threshold replaced, goes to FILE.lapsed (kind TAB pct TAB source
-# TAB read at) for do_spl_weekly_limit_alert: that box now takes lanes on a hold
-# nobody disproved, and the alarm is what makes that visible.
+# TAB read at TAB the % this box reads now, if any) for do_spl_weekly_limit_alert:
+# that box now takes lanes on a hold nobody disproved, and the alarm is what makes
+# that visible. Unlocked: overlapping reads can each add the lapse, the alarm reads
+# them as one by its first four fields.
 spl_box_quota_note_lapsed() {
   local lapse
   lapse="$(spl_box_quota_lapse_s)"
@@ -404,7 +406,7 @@ spl_box_quota_note_lapsed() {
   awk -F'\t' -v OFS='\t' -v max="$(spl_box_quota_max "${SPL_CNF:-}")" -v now="$4" -v lapse="$lapse" -v lifted=",$5," '
     FNR == NR { if (NF) cur[$1] = $2; next }
     $2 + 0 >= max && $3 + 0 > now && now - $4 >= lapse && !index(lifted, "," $1 ",") && cur[$1] + 0 < max {
-      print $1, $2, ($6 != "" ? $6 : "kept"), $4 }' <(printf '%s\n' "$3") <(printf '%s\n' "$2") 2>/dev/null >>"$1.lapsed" || true
+      print $1, $2, ($6 != "" ? $6 : "kept"), $4, cur[$1] }' <(printf '%s\n' "$3") <(printf '%s\n' "$2") 2>/dev/null >>"$1.lapsed" || true
   [[ -s "$1.lapsed" ]] || rm -f "$1.lapsed" 2>/dev/null
   return 0
 }

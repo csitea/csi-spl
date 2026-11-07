@@ -144,22 +144,23 @@ spl_weekly_alert_disagree() {  # STATE_FILE DRY NOW
 # The lapse alarm: one post per hold that lapsed (spl_box_quota_note_lapsed).
 # A post that fails stays in the file: retried next tick.
 spl_weekly_alert_lapsed() {  # DRY NOW
-  local f claim k p src at out left=""
+  local f claim k p src at cur said out left=""
   f="$(spl_box_quota_keep_file)"
   [[ -n "$f" && -s "$f.lapsed" ]] || return 0
   claim="$f.lapsed"
   if [[ "$1" != 1 ]]; then claim="$f.lapsed.$$"; mv -f "$f.lapsed" "$claim" 2>/dev/null || return 0; fi
-  while IFS=$'\t' read -r k p src at; do
+  while IFS=$'\t' read -r k p src at cur; do
     [[ -n "$k" ]] || continue
-    out="$(printf '**WEEKLY HOLD LAPSED** %s on %s: the hold read %s%% (%s read %s ago) and nothing re-read it, so this box takes new %s lanes again. If the limit is real they burn what is left of the week; check the login.' \
-      "$k" "$LANE_BOX" "$p" "$src" "$(spl_box_quota_ago "$at" "$2")" "$k")"
+    said="nothing re-read it, so this box takes"; [[ -z "$cur" ]] || said="this box now reads $cur%, so it takes"
+    out="$(printf '**WEEKLY HOLD LAPSED** %s on %s: the hold read %s%% (%s read %s ago) and %s new %s lanes again. If the limit is real they burn what is left of the week; check the login.' \
+      "$k" "$LANE_BOX" "$p" "$src" "$(spl_box_quota_ago "$at" "$2")" "$said" "$k")"
     if [[ "$1" == 1 ]]; then echo "PLAN post in #alerts: $out"; continue; fi
     if spl_weekly_alert_post "$out"; then
       posted=$(( posted + 1 )); do_log "ALERT posted in #alerts: $out"
     else
-      left+="$k"$'\t'"$p"$'\t'"$src"$'\t'"$at"$'\n'; do_log "WARN the $k lapse alarm did not post; retried next tick"
+      left+="$k"$'\t'"$p"$'\t'"$src"$'\t'"$at"$'\t'"$cur"$'\n'; do_log "WARN the $k lapse alarm did not post; retried next tick"
     fi
-  done <"$claim"
+  done < <(sort -u -t $'\t' -k1,4 "$claim")
   [[ "$1" == 1 ]] && return 0
   rm -f "$claim"
   [[ -z "$left" ]] || printf '%s' "$left" 2>/dev/null >>"$f.lapsed"

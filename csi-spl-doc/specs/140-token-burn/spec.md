@@ -804,7 +804,8 @@ non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
   over the threshold is re-read by the login probe saying `limited`, whichever
   limit the probe hit: a lane placed on a limited login stalls anyway. A hold
   that lapses with its reset still ahead posts one `WEEKLY HOLD LAPSED` line in
-  #alerts (`<kept file>.lapsed`). The limit of this: nothing asks for the %,
+  #alerts (`<kept file>.lapsed`, one lapse noted by overlapping reads counts
+  once), naming the % the box reads now if a lower reading replaced it. The limit of this: nothing asks for the %,
   re-reads are passive, so a real 90..99 % that nothing re-reads for 10 h lets
   lanes through until the next reading, with that one line as the only warning.
   The hold line names each box's

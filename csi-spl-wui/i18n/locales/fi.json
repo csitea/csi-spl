@@ -3540,7 +3540,7 @@
         "over_cap": "Ei seurata, koneen virtojen raja on täynnä: {n}",
         "reason": "Syy: {reason}",
         "unavailable": "Tiedostomalleja ei voitu ladata.",
-        "audit_title": "Mallien muutokset",
+        "audit_title": "Mallien ja tiedostojen muutokset",
         "audit_none": "Malleihin ei ole vielä tehty muutoksia.",
         "state": {
           "pending": "Tallennettu, ei vielä seurannassa: kone ei ole ilmoittanut siitä",
@@ -3552,7 +3552,9 @@
         "audit": {
           "add": "Lisätty",
           "remove": "Poistettu",
-          "refused": "Hylätty"
+          "refused": "Hylätty",
+          "file_remove": "Tiedosto poistettu",
+          "file_restore": "Tiedosto palautettu"
         },
         "err": {
           "bad_glob": "Virheellinen malli: absoluuttinen polku tai polku $HOME/-kansion alla, * ja ? vain tiedostonimessä, ei hakasulkeita, aaltosulkeita, ** eikä osia . tai ..",
@@ -3564,6 +3566,16 @@
           "not_found": "Konetta tai mallia ei enää ole. Lataa sivu uudelleen.",
           "forbidden": "Vain työtilan omistaja ja ylläpitäjät voivat muuttaa tiedostomalleja.",
           "other": "Muutosta ei voitu tallentaa. Yritä uudelleen."
+        }
+      },
+      "file": {
+        "remove_ask": "Poistetaanko {key} tästä näkymästä? Kone lopettaa sen seuraamisen. Jo tallennetut rivit säilyvät, kunnes ne vanhenevat.",
+        "removed_title": "Poistetut tiedostot",
+        "put_back": "Palauta",
+        "err": {
+          "box_locked": "Tämä kone on lukittu: vain lukituksen omistajat voivat palauttaa tiedoston.",
+          "not_found": "Tätä tiedostoa ei enää ole. Lataa sivu uudelleen.",
+          "forbidden": "Vain työtilan omistaja ja ylläpitäjät voivat muuttaa tiedostoluetteloa."
         }
       }
     }

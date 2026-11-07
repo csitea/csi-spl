@@ -3540,7 +3540,7 @@
         "over_cap": "Ei jälgita, kasti voogude piir on täis: {n}",
         "reason": "Põhjus: {reason}",
         "unavailable": "Failimustreid ei õnnestunud laadida.",
-        "audit_title": "Mustrite muudatused",
+        "audit_title": "Mustrite ja failide muudatused",
         "audit_none": "Mustrite muudatusi veel pole.",
         "state": {
           "pending": "Salvestatud, veel ei jälgita: kast pole sellest teatanud",
@@ -3552,7 +3552,9 @@
         "audit": {
           "add": "Lisatud",
           "remove": "Eemaldatud",
-          "refused": "Keeldutud"
+          "refused": "Keeldutud",
+          "file_remove": "Fail eemaldatud",
+          "file_restore": "Fail taastatud"
         },
         "err": {
           "bad_glob": "Vigane muster: absoluutne tee või tee kausta $HOME/ all, * ja ? ainult failinimes, ilma nurk- ja looksulgudeta, ** ning osadeta . ja ..",
@@ -3564,6 +3566,16 @@
           "not_found": "Kasti või mustrit enam pole. Laadi leht uuesti.",
           "forbidden": "Failimustreid saavad muuta ainult tööruumi omanik ja administraatorid.",
           "other": "Muudatust ei õnnestunud salvestada. Proovi uuesti."
+        }
+      },
+      "file": {
+        "remove_ask": "Kas eemaldada {key} sellest vaatest? Kast lõpetab selle jälgimise. Juba salvestatud read jäävad alles, kuni nende aeg täis saab.",
+        "removed_title": "Eemaldatud failid",
+        "put_back": "Taasta",
+        "err": {
+          "box_locked": "See kast on lukus: faili saavad taastada ainult luku omanikud.",
+          "not_found": "Seda faili enam ei ole. Laadi leht uuesti.",
+          "forbidden": "Failide loendit saavad muuta ainult tööruumi omanik ja administraatorid."
         }
       }
     }

@@ -3540,7 +3540,7 @@
         "over_cap": "Not followed, the box's stream cap is full: {n}",
         "reason": "Reason: {reason}",
         "unavailable": "The file globs could not be loaded.",
-        "audit_title": "Glob changes",
+        "audit_title": "Glob and file changes",
         "audit_none": "No glob changes yet.",
         "state": {
           "pending": "Stored, not followed yet: the box has not reported it",
@@ -3552,7 +3552,9 @@
         "audit": {
           "add": "Added",
           "remove": "Removed",
-          "refused": "Refused"
+          "refused": "Refused",
+          "file_remove": "File removed",
+          "file_restore": "File put back"
         },
         "err": {
           "bad_glob": "Not a valid glob: an absolute path or one under $HOME/, * and ? in the file name only, no brackets, braces, ** or . and .. parts.",
@@ -3564,6 +3566,16 @@
           "not_found": "The box or the glob is no longer there. Reload the page.",
           "forbidden": "Only the workspace owner and admins can change file globs.",
           "other": "The change could not be saved. Try again."
+        }
+      },
+      "file": {
+        "remove_ask": "Remove {key} from this view? This box stops following it. The lines already stored stay until they expire.",
+        "removed_title": "Removed files",
+        "put_back": "Put back",
+        "err": {
+          "box_locked": "This box is locked: only its lock owners can put a file back.",
+          "not_found": "This file is no longer there. Reload the page.",
+          "forbidden": "Only the workspace owner and admins can change the file list."
         }
       }
     }

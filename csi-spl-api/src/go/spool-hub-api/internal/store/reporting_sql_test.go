@@ -174,6 +174,7 @@ func TestSQLExecutorRefusesRelations(t *testing.T) {
 		`SELECT * FROM workspace_vendor_keys`:                                   "workspace_vendor_keys",
 		`SELECT * FROM hours_entries`:                                           "hours_entries",
 		`SELECT * FROM release_notes`:                                           "release_notes",
+		`SELECT * FROM estate_deploys`:                                          "estate_deploys",
 		`SELECT * FROM netvisor_forecast_items`:                                 "netvisor_forecast_items",
 		`SELECT invoice_no, payer, total FROM income_invoices`:                  "income_invoices",
 	} {
@@ -183,7 +184,9 @@ func TestSQLExecutorRefusesRelations(t *testing.T) {
 			t.Errorf("%s: %v, want forbidden_relation %s", q, err, rel)
 		}
 	}
-	for _, q := range []string{`SELECT * FROM messages`, `SELECT c.channel_id, count(m.*) FROM channels c LEFT JOIN messages m ON m.channel = c.channel_id GROUP BY 1`} {
+	// software_projects, workspace_repos are open on purpose: a workspace's own
+	// rows, no secret column (spec 143 releases-projects.md 4.3).
+	for _, q := range []string{`SELECT * FROM messages`, `SELECT * FROM software_projects`, `SELECT * FROM workspace_repos`, `SELECT c.channel_id, count(m.*) FROM channels c LEFT JOIN messages m ON m.channel = c.channel_id GROUP BY 1`} {
 		if _, err := runSQL(t, pg, a, q); err != nil {
 			t.Errorf("an open table %q: %v", q, err)
 		}

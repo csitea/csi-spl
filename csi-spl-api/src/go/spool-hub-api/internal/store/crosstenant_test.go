@@ -341,6 +341,20 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		AgentCapActor{Tenant: "op-seed", Hum: hum}, now); err != nil {
 		t.Fatal(err)
 	}
+	// software_projects, workspace_repos (rdb 0266, spec 143 row B-1): one of
+	// each, written by the operator. The slug is per tenant: it is unique
+	// across workspaces.
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO software_projects (tenant_id, project_slug, name, is_default)
+			VALUES ($1, 'web-shop', 'Web shop', true)`, s.tenant); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO workspace_repos (tenant_id, repo_slug, project_slug, repo_web_url)
+			VALUES ($1, $2, 'web-shop', 'https://example.com/repo')`, s.tenant, "csitea/repo-"+s.tenant)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// box_locks, box_lock_audit (rdb 0213, spec 025 box owner lock): one
 	// signed lock of the seeded member, and its created audit row.
 	if err := pg.CreateBoxLock(ctx, newBoxLock(s.tenant, "box-a", testLockKey(t), hum), hum, now); err != nil {
@@ -697,8 +711,13 @@ func tenantTables(t *testing.T, pg *Postgres) []string {
 	}
 	if err := scanRows(rows, func(r pgx.Rows) error {
 		var n string
-		out = append(out, n)
-		return r.Scan(&out[len(out)-1])
+		if err := r.Scan(&n); err != nil {
+			return err
+		}
+		if !spl4808ExpandTables[n] {
+			out = append(out, n)
+		}
+		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -772,9 +791,9 @@ var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": 
 
 // tenantReadOnlyTables are read in a tenant's scope and written only in the
 // operator scope: their tenant_scope policy is FOR SELECT (rdb 0212
-// tenant_agent_caps, spec 147 P2). A's unscoped UPDATE / DELETE reaches NONE
+// tenant_agent_caps, spec 147 P2; rdb 0266 software_projects, workspace_repos). A's unscoped UPDATE / DELETE reaches NONE
 // of its own rows: stronger than reaching only A's.
-var tenantReadOnlyTables = map[string]bool{"tenant_agent_caps": true}
+var tenantReadOnlyTables = map[string]bool{"tenant_agent_caps": true, "software_projects": true, "workspace_repos": true}
 
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /

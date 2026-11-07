@@ -157,6 +157,8 @@ var notChannelTables = concat(
 		"tenant_agent_split_kind", "agent_lifecycle_config", "embed_customers",
 		"demo_bans", "workspace_vendor_keys", "workspace_vendor_key_boxes", "workspace_vendor_key_settings",
 		"workspace_vendor_key_audit", "member_activity", "member_clones"),
+	notChannel("a workspace's repo, its commits and deploys; names no spool channel",
+		"software_projects", "workspace_repos", "release_notes", "estate_deploys"),
 	notChannel("workspace membership and roles; channel membership is channel_humans",
 		"tenant_invites", "tenant_invite_roles", "tenant_member_roles", "tenant_role_grants", "rbac_roles",
 		"human_status", "agent_sender_lists", "agent_sender_allow"),

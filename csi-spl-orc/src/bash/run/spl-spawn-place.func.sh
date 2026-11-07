@@ -787,30 +787,65 @@ spl_spawn_place_review() {  # BRIEF
 # lane stay on disk, and one stale banner held every agy row for 3 days while
 # agy answered): live = listed in a fresh agent-run.tsv
 # (spl_spawn_place_agy_live). A record not newer than agy's last answered
-# probe (<probe-dir>/agy.ok, its mtime) is dropped too.
+# probe (<probe-dir>/agy.ok, its mtime) is dropped too. The watchdog rewrites its
+# capture and its verdict each pass, so their mtime is no read time: a static
+# banner rolled "until" forward for as long as it stayed on screen (SPL-4965).
+# A record counts from its first sighting (spl_spawn_place_agy_first), and the
+# line says how long ago that was.
 spl_spawn_place_agy_out() {
-  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" now f line t best=0 ev="" hit live since=0 id
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" now f line t best=0 bestat=0 ev="" hit live since=0 id at
+  local -a seen=()
   local ok="${SPAWN_PLACE_PROBE_DIR:-$SPOOL_ROOT/dispatch/vendor-probe}/agy.ok"
   now="$(date +%s)"
   live="$(spl_spawn_place_agy_live)"
   [[ -e "$ok" ]] && since="$(stat -c %Y "$ok" 2>/dev/null || echo 0)"
   declare -F _spl_lane_mix_limit >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   hit="$(_spl_lane_mix_limit agy "$SPOOL_ROOT" "${LANE_MIX_REGISTRY:-$SPOOL_ROOT/registry.tsv}" "$since" "$live")"
-  [[ -z "$hit" ]] || best=$(( ${hit%%$'\t'*} + ${LANE_MIX_LIMIT_FRESH:-21600} )) ev="${hit#*$'\t'}"
+  if [[ -n "$hit" ]]; then
+    id="${hit#*$'\t'}" id="${id%% *}"
+    at="$(spl_spawn_place_agy_first "$id S2" "${hit%%$'\t'*}")"
+    seen+=("$id S2")
+    (( at > since )) && bestat="$at" best=$(( at + ${LANE_MIX_LIMIT_FRESH:-21600} )) ev="${hit#*$'\t'}"
+  fi
   for f in "$wd"/ctx*/a-*/pane; do
     id="$(basename "$(dirname "$f")")"
     [[ -z "$live" || "$live" == *"|$id|"* ]] || continue
     line="$(grep -aoE 'Individual quota reached.*Resets in ([0-9]+h)?([0-9]+m)?([0-9]+s)?' "$f" 2>/dev/null | tail -n 1)"
     [[ "$line" =~ Resets\ in\ (([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?$ ]] || continue
-    t="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
-    (( t > since )) || continue
-    t=$(( t + 10#${BASH_REMATCH[2]:-0} * 3600 + 10#${BASH_REMATCH[4]:-0} * 60 + 10#${BASH_REMATCH[6]:-0} ))
-    (( t > best )) && best="$t" ev="$id banner, Resets in ${line##*Resets in }"
+    t=$(( 10#${BASH_REMATCH[2]:-0} * 3600 + 10#${BASH_REMATCH[4]:-0} * 60 + 10#${BASH_REMATCH[6]:-0} ))
+    at="$(spl_spawn_place_agy_first "Resets in ${line##*Resets in }" "$(stat -c %Y "$f" 2>/dev/null || echo 0)")"
+    seen+=("Resets in ${line##*Resets in }")
+    (( at > since )) || continue
+    t=$(( at + t ))
+    (( t > best )) && best="$t" bestat="$at" ev="$id banner, Resets in ${line##*Resets in }"
   done
+  spl_spawn_place_agy_first_keep "${seen[@]}"
   hit="$(spl_spawn_place_agy_remote "$since" "$now")"
   [[ -z "$hit" ]] || (( ${hit%%$'\t'*} <= best )) || best="${hit%%$'\t'*}" ev="${hit#*$'\t'}"
   (( best > now )) || return 0
+  (( bestat > 0 )) && ev+=", read $(( (now - bestat) / 60 ))m ago"
   printf 'agy is out of quota until %s (%s)\n' "$(date -u -d "@$best" +%FT%TZ)" "$ev"
+}
+
+# The first sighting of agy limit record KEY (a banner's own text, "<id> S2" for
+# a verdict), else WHEN, recorded: <probe-dir>/agy-limit-seen.tsv, KEY TAB epoch.
+# Best effort: a file that cannot be written answers WHEN, the old behaviour.
+spl_spawn_place_agy_first() {  # KEY WHEN
+  local f="${SPAWN_PLACE_PROBE_DIR:-$SPOOL_ROOT/dispatch/vendor-probe}/agy-limit-seen.tsv" at
+  at="$(awk -F'\t' -v k="$1" '$1 == k { print $2; exit }' "$f" 2>/dev/null)"
+  if [[ "$at" =~ ^[0-9]+$ ]]; then echo "$at"; return 0; fi
+  mkdir -p "$(dirname "$f")" 2>/dev/null && printf '%s\t%s\n' "$1" "$2" >>"$f" 2>/dev/null
+  echo "$2"
+}
+
+# Forgets every first sighting but KEYS: a record gone from the watchdog's dir
+# is over, and the same text coming back later is a new reading.
+spl_spawn_place_agy_first_keep() {  # KEY...
+  local f="${SPAWN_PLACE_PROBE_DIR:-$SPOOL_ROOT/dispatch/vendor-probe}/agy-limit-seen.tsv" k
+  [[ -s "$f" ]] || return 0
+  { for k in "$@"; do printf '%s\n' "$k"; done; } | awk -F'\t' 'NR == FNR { w[$0] = 1; next } $1 in w' - "$f" >"$f.$$" 2>/dev/null &&
+    mv -f "$f.$$" "$f" 2>/dev/null || rm -f "$f.$$" 2>/dev/null
+  return 0
 }
 
 # agy out of quota on ANOTHER box (SPL-3998): "<reset epoch>\t<evidence>" for

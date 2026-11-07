@@ -8,10 +8,10 @@ import {
   normalizeTopicRow,
   normalizeViewMessage,
   rosterFromView,
-} from './view-api.mjs'
+} from './view-api-core.mjs'
 import { storageGetJson } from './prefs.mjs'
 import { MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
-import { noteLastData } from './last-data.mjs'
+import { noteLastData } from './last-data-core.mjs'
 import { isOffline, offlineError } from './offline-queue.mjs'
 
 /**

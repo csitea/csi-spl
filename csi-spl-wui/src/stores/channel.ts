@@ -32,10 +32,10 @@ import {
 } from '~/utils/channel-feed-core.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
 import { useNotificationStore } from '~/stores/notification'
-import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
+import { pendingRow, withoutMsg } from '~/utils/feed-core.mjs'
 import { applyEdit } from '~/utils/msg-apply.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji-core.mjs'
-import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { withSessionRetry } from '~/utils/live-follow-core.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
 
 export type { ChannelRow }

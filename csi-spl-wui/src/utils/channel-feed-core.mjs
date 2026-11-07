@@ -10,7 +10,7 @@
 
 import { stripBidiControls } from './bidi.mjs'
 import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
-import { activityOf, matchesSearch, newestActivityFirst, windowed } from './feed.mjs'
+import { activityOf, matchesSearch, newestActivityFirst, windowed } from './feed-core.mjs'
 import { isUnread } from './read-cursor.mjs'
 import { isViewersOwn } from './typed-by.mjs'
 

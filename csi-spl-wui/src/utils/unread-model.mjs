@@ -19,7 +19,7 @@
 
 import { rowUnread, sectionTotal } from './flow-keys.mjs'
 import { countUnread, topicKey, topicUnread } from './read-cursor.mjs'
-import { unreadTotal } from './tab-title.mjs'
+import { unreadTotal } from './tab-title-core.mjs'
 
 const PREFIX = { channels: 'ch:', dms: 'dm:', topics: 't:' }
 

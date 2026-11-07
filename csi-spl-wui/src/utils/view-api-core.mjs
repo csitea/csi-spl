@@ -1,0 +1,269 @@
+/**
+ * Pure helpers for the 003 read-only viewer API (specs/003 contracts/view-v1.md):
+ * the half the entry chunk needs. Topic-list titles and the mock's grouping are
+ * in view-api.mjs.
+ *
+ * Topic = task_id (v:1, 002). `channel` / `parent_task_id` are hub-envelope
+ * fields (channels-v1 §0, §2), never v:1 fields: the normalisers below lift
+ * them off the envelope / topic row onto the flat message (null when absent,
+ * spec 005 FR-005). The mock tenant still carries parent_task_id, so mock
+ * grouping folds a reply into its root task.
+ */
+
+import { normalizeReactions } from './emoji-core.mjs'
+
+/** channels-v1 §2: absent, null and "" all mean absent → null. */
+export function hubField(v) {
+  return typeof v === 'string' && v ? v : null
+}
+
+const SUBJECT_MAX = 140
+
+export function subjectOf(body) {
+  const line = String(body || '').split('\n')[0].trim()
+  return line.length > SUBJECT_MAX ? line.slice(0, SUBJECT_MAX) : line
+}
+
+function label(id, box) {
+  if (!id) return ''
+  return box ? `${id}@${box}` : String(id)
+}
+
+/**
+ * One §4.3 row → the shape the viewer renders. Also accepts the flat
+ * first-message row of the earlier branch API (ts / updated_at / from / body).
+ */
+export function normalizeTopicRow(row) {
+  const r = row || {}
+  if (r.first_ts !== undefined || r.subject !== undefined) {
+    return {
+      task_id: String(r.task_id || ''),
+      parent_task_id: hubField(r.parent_task_id),
+      channel: hubField(r.channel),
+      first_ts: r.first_ts || '',
+      last_ts: r.last_ts || r.first_ts || '',
+      count: Number(r.count) || 0,
+      kinds: r.kinds || {},
+      participants: Array.isArray(r.participants) ? r.participants : [],
+      subject: String(r.subject || ''),
+    }
+  }
+  const participants = [label(r.from, r.from_box), label(r.to, r.to_box)]
+    .filter((p) => p && !p.startsWith('@'))
+  return {
+    task_id: String(r.task_id || ''),
+    parent_task_id: hubField(r.parent_task_id),
+    channel: hubField(r.channel),
+    first_ts: r.ts || '',
+    last_ts: r.updated_at || r.ts || '',
+    count: Number(r.count) || 0,
+    kinds: r.kind ? { [r.kind]: 1 } : {},
+    participants,
+    subject: subjectOf(r.body),
+  }
+}
+
+/**
+ * DB payload cut 4: the one delivery of a WUI post nobody else receives. A
+ * view element leaves it out; the list normaliser puts it back.
+ */
+export const DEFAULT_DELIVERY = Object.freeze({ to_box: 'box-wui', state: 'sent' })
+
+/**
+ * One §4.4 element ({ cursor, received_at, env: { from_box, to_box, channel?,
+ * parent_task_id?, msg }, deliveries?, reactions? }) → a flat v:1 message
+ * plus from_box / to_box / channel / parent_task_id. A flat element (already
+ * v:1 + boxes) passes through. An envelope sig, if any, is dropped.
+ *
+ * `topic` (a string) says the element came from a view LIST read under that
+ * topic (§4.4 / per_topic inline: the topic's task_id; archive cards: '').
+ * DB payload cut 4 trims such elements (view.go viewMsgsIn), so a list
+ * element gets back what the hub left out: `files: []`, `reactions: []`,
+ * `deliveries: [DEFAULT_DELIVERY]` and `task_id: topic`. Without `topic`
+ * (an edit / kind / merge answer) nothing is defaulted: those carry no
+ * reactions, and applyEdit spreads the answer over the held row, so a
+ * defaulted `reactions: []` would wipe the row's emoji.
+ */
+export function normalizeViewMessage(el, topic) {
+  const out = flattenViewMessage(el)
+  if (typeof topic === 'string') defaultListFields(out, topic)
+  return out
+}
+
+/** The fields a cut-4 list element omits when they hold their default. */
+function defaultListFields(out, topic) {
+  if (!Array.isArray(out.files)) out.files = []
+  if (!Array.isArray(out.reactions)) out.reactions = []
+  if (!Array.isArray(out.deliveries)) out.deliveries = [{ ...DEFAULT_DELIVERY }]
+  if (topic && !out.task_id) out.task_id = topic
+  return out
+}
+
+function flattenViewMessage(el) {
+  const e = el || {}
+  if (e.env && typeof e.env === 'object') {
+    const inner = e.env.msg && typeof e.env.msg === 'object' ? e.env.msg : {}
+    const out = {
+      ...inner,
+      from_box: e.env.from_box,
+      to_box: e.env.to_box,
+      channel: hubField(e.env.channel),
+      parent_task_id: hubField(e.env.parent_task_id),
+    }
+    if (e.cursor !== undefined) out.cursor = e.cursor
+    if (e.received_at !== undefined) out.received_at = e.received_at
+    if (Array.isArray(e.deliveries)) out.deliveries = e.deliveries
+    copyEditFields(e, out)
+    /* specs/036 FR-011: hub metadata beside the envelope, omitted when absent */
+    if (typeof e.typed_by === 'string' && e.typed_by) out.typed_by = e.typed_by
+    /* spec 068: the responsible seat <id>@<box>, omitted while nobody is */
+    if (typeof e.responsible === 'string' && e.responsible) out.responsible = e.responsible
+    /* spec 067: the topic a DM is about, the DM a channel copy came from */
+    if (typeof e.ref_task_id === 'string' && e.ref_task_id) out.ref_task_id = e.ref_task_id
+    if (typeof e.mirror_of === 'string' && e.mirror_of) out.mirror_of = e.mirror_of
+    if (e.is_parent === 0 || e.is_parent === 1) out.is_parent = e.is_parent
+    if (Array.isArray(e.reactions)) out.reactions = normalizeReactions(e.reactions)
+    delete out.sig
+    return out
+  }
+  const out = { ...e }
+  delete out.sig
+  if (Array.isArray(out.reactions)) out.reactions = normalizeReactions(out.reactions)
+  return out
+}
+
+/**
+ * message-edit-v1 §6 — the edit marker rides BESIDE the envelope, at the
+ * element's top level next to `cursor` and `received_at`, NOT inside
+ * `env.msg`. This function is allow-listed like its neighbours, so without
+ * this call the three keys are dropped on the floor and the "(edited)" marker
+ * never renders. The keys are omitted entirely until a message has been
+ * edited (§2), so each one is copied only when present — writing
+ * `out.edited_at = undefined` would turn "never edited" into a key that
+ * exists, which is the very thing the marker tests for.
+ */
+export function copyEditFields(src, out) {
+  const e = src || {}
+  if (e.edited_at !== undefined) out.edited_at = e.edited_at
+  if (e.edited_by !== undefined) out.edited_by = e.edited_by
+  if (e.revision !== undefined) out.revision = e.revision
+  /* SPL-952: a kind set after sending is hub metadata beside the envelope,
+     omitted until someone changed it; it wins over env.msg.kind */
+  if (typeof e.kind === 'string' && e.kind) out.kind = e.kind
+  if (e.kind_set_by !== undefined) out.kind_set_by = e.kind_set_by
+  if (e.kind_set_at !== undefined) out.kind_set_at = e.kind_set_at
+  copyMoveFields(e, out)
+  return out
+}
+
+/**
+ * SPL-1024 move-v1 §5: a moved row carries where it IS beside the envelope
+ * (the signed envelope keeps where it was sent). Present only while the row
+ * is not at home; each wins over env.channel / env.msg.task_id /
+ * env.parent_task_id. `parent_task_id: ""` means none.
+ */
+export function copyMoveFields(src, out) {
+  const e = src || {}
+  if (typeof e.moved_at === 'string' && e.moved_at) out.moved_at = e.moved_at
+  if (typeof e.moved_by === 'string' && e.moved_by) out.moved_by = e.moved_by
+  if (typeof e.moved_from_channel === 'string' && e.moved_from_channel) out.moved_from_channel = e.moved_from_channel
+  if (typeof e.moved_from_task === 'string' && e.moved_from_task) out.moved_from_task = e.moved_from_task
+  if (typeof e.channel === 'string' && e.channel) out.channel = e.channel
+  if (typeof e.task_id === 'string' && e.task_id) out.task_id = e.task_id
+  if (typeof e.parent_task_id === 'string') out.parent_task_id = e.parent_task_id || null
+  return out
+}
+
+/** wui-live-ws §1: the browser's virtual box — every human is an agent of it. */
+export const BROWSER_BOX = 'box-wui'
+
+const MEMBER_ID_RE = /^HUM-[0-9]+$/
+
+/**
+ * Map view-v1 §4.1 roster rows onto the roster store's { roster, online, idle }.
+ *
+ * `humans` (§4.1, the tenant's members) is folded into the browser box, so a
+ * member is a peer whether or not they happen to hold a socket right now.
+ * dropping it meant the people pane could only ever show a human
+ * a live `presence` frame had just announced — and a reader who is the only
+ * human signed in is exactly the one no frame announces to anybody else.
+ *
+ * Their ONLINE state is not ours to say: `/v1/view/roster` reports `online`
+ * per BOX, and box-wui is never a live box session (it holds no key), so it
+ * always reads `online: false`. Presence for a human comes from the socket
+ * alone (wui-live-ws §3.2) and so is never put in `online` here.
+ */
+export function rosterFromView(data) {
+  const roster = {}
+  const online = []
+  /* t1 bc1a43e1 (fix A): an agent whose online box says it does not run
+     (agent_presence state not_running) is not online but `idle`: grey dot,
+     "machine online, agent not running". */
+  const idle = []
+  for (const b of (data && data.boxes) || []) {
+    if (b.revoked) continue
+    const agents = Array.isArray(b.agents) ? b.agents.slice() : []
+    roster[b.box_id] = agents
+    if (!b.online) continue
+    const presence = (b.agent_presence && typeof b.agent_presence === 'object') ? b.agent_presence : {}
+    for (const a of agents) {
+      const st = presence[a] && presence[a].state
+      if (st === 'not_running') idle.push(`${a}@${b.box_id}`)
+      else online.push(`${a}@${b.box_id}`)
+    }
+  }
+  const humans = ((data && data.humans) || [])
+    .map((h) => String((h && h.human_id) || ''))
+    .filter((id) => MEMBER_ID_RE.test(id))
+  if (humans.length) roster[BROWSER_BOX] = [...new Set([...(roster[BROWSER_BOX] || []), ...humans])]
+  // view-v1 §4.1: owner:true marks a biz_owner - #feedback offers them to @.
+  const owners = ((data && data.humans) || [])
+    .filter((h) => h && h.owner === true)
+    .map((h) => String(h.human_id || ''))
+    .filter((id) => MEMBER_ID_RE.test(id))
+  return { roster, online, owners, idle }
+}
+
+/**
+ * Map view-v1 §4.2 / channels-v1 §5.2 rows onto ChannelRow, keeping the hub's
+ * unread / last_cursor / retention_days (the sidebar derives badges from them).
+ */
+export function channelsFromView(data) {
+  return ((data && data.channels) || [])
+    .filter((c) => c && c.channel)
+    .map((c) => {
+      const row = { channel_id: String(c.channel), name: String(c.name || c.channel) }
+      if (c.description) row.description = String(c.description)
+      if (c.created_by) row.created_by = String(c.created_by)
+      if (c.created_at) row.created_at = String(c.created_at)
+      if (c.default !== undefined) row.default = Boolean(c.default)
+      if (typeof c.retention_days === 'number') row.retention_days = c.retention_days
+      if (typeof c.count === 'number') row.count = c.count
+      if (typeof c.unread === 'number') row.unread = c.unread
+      if (c.last_ts !== undefined) row.last_ts = hubField(c.last_ts)
+      if (c.last_cursor !== undefined) row.last_cursor = hubField(c.last_cursor)
+      if (c.members && typeof c.members === 'object') {
+        row.members = {
+          agents: Number(c.members.agents) || 0,
+          boxes: Number(c.members.boxes) || 0,
+          posters: Number(c.members.posters) || 0,
+        }
+      }
+      return row
+    })
+}
+
+/**
+ * channels-v1 §5.2 `read=<channel>~<cursor>` values from { channel: cursor }
+ * (read state is client-held, OQ-CH2). Empty cursors are skipped.
+ */
+export function channelReadQuery(read) {
+  const out = []
+  for (const [ch, cur] of Object.entries(read || {})) {
+    if (ch && cur) out.push(`${ch}~${cur}`)
+  }
+  return out
+}
+
+/** `id@box`, or the bare id; '' without an id. view-api.mjs's half groups by it. */
+export { label as viewPeerLabel }

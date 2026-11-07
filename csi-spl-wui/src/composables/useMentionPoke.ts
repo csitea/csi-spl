@@ -12,7 +12,7 @@ import { noteError } from '@/composables/errorJournal.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
-import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { withSessionRetry } from '~/utils/live-follow-core.mjs'
 import { sendWithResend } from '~/utils/send-failure.mjs'
 import type { MentionAccess } from '~/utils/mention-poke.mjs'
 

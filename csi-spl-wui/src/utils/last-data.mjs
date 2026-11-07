@@ -1,9 +1,6 @@
 /**
- * When the hub last returned data, for the top-bar clock.
- *
- * The shared client and the live socket call noteLastData(). It stores
- * one number (Date.now()) and asks for at most one paint per frame.
- * It does not tick, and it does not write a store.
+ * When the hub last returned data, for the top-bar clock: the formats, and the
+ * rest from last-data-core.mjs.
  *
  * SPL-2144: it prints in the viewer's zone (Settings -> Appearance, else the
  * browser's) through date-iso.mjs, like every other clock of the WUI.
@@ -11,30 +8,9 @@
 
 import { isoDateTimeSec } from './date-iso.mjs'
 
+export { lastDataAt, noteLastData, onLastData, resetLastData } from './last-data-core.mjs'
+
 const PLACEHOLDER = '--:--:--'
-
-let at = 0
-let scheduled = false
-let epoch = 0
-const listeners = new Set()
-
-function schedule(fn) {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(fn)
-    return
-  }
-  const t = setTimeout(fn, 0)
-  if (t && typeof t.unref === 'function') t.unref()
-}
-
-function flush(gen) {
-  if (gen !== epoch) return
-  scheduled = false
-  const stamp = at
-  for (const fn of listeners) {
-    try { fn(stamp) } catch { /* the clock must not break the response that stamped it */ }
-  }
-}
 
 /** HH:mm:ss in the viewer's zone, zero-padded, 24-hour. No instant yet: `--:--:--`. */
 export function formatLastDataClock(ms) {
@@ -45,40 +21,4 @@ export function formatLastDataClock(ms) {
 export function formatLastDataDate(ms) {
   if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return ''
   return isoDateTimeSec(ms)
-}
-
-/** Latest stamp in ms, or 0 before the first successful response. */
-export function lastDataAt() {
-  return at
-}
-
-/**
- * Record that the hub just returned data. One number, no object.
- * Listeners run once per frame with the latest stamp, even when many
- * responses land together.
- */
-export function noteLastData(when) {
-  const n = when === undefined ? Date.now() : Number(when)
-  if (!Number.isFinite(n) || n <= 0) return at
-  at = n
-  if (!scheduled) {
-    scheduled = true
-    const gen = epoch
-    schedule(() => flush(gen))
-  }
-  return at
-}
-
-/** Subscribe. Returns an unsubscribe. The callback receives the ms stamp. */
-export function onLastData(fn) {
-  listeners.add(fn)
-  return () => listeners.delete(fn)
-}
-
-/** Tests only: drop the stamp and every listener. */
-export function resetLastData() {
-  at = 0
-  listeners.clear()
-  epoch += 1
-  scheduled = false
 }

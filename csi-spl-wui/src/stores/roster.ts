@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { applyIdle, applyPresence, mergeSnapshotOnline, peopleRows, withSessionRetry } from '~/utils/live-follow.mjs'
-import { BROWSER_BOX } from '~/utils/view-api.mjs'
+import { applyIdle, applyPresence, mergeSnapshotOnline, peopleRows, withSessionRetry } from '~/utils/live-follow-core.mjs'
+import { BROWSER_BOX } from '~/utils/view-api-core.mjs'
 
 
 export const useRosterStore = defineStore('roster', () => {

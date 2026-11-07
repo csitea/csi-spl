@@ -12,10 +12,10 @@
 
 import { normalizeId, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 
-import { copyEditFields } from './view-api.mjs'
+import { copyEditFields } from './view-api-core.mjs'
 
-import { perfMark } from './perf-mark.mjs'
-import { noteLastData } from './last-data.mjs'
+import { perfMark } from './perf-mark-core.mjs'
+import { noteLastData } from './last-data-core.mjs'
 
 export const FRAMES = {
   hello: 'hello',

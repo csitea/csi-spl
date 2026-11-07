@@ -5,7 +5,7 @@
  * Such a row is shown as the HUMAN (avatar and name), with a small
  * "via terminal <agent>" badge; every other row keeps its sender.
  */
-import { BROWSER_BOX } from './view-api.mjs'
+import { BROWSER_BOX } from './view-api-core.mjs'
 import { isParticipantId } from './agent-id.mjs'
 
 const HUMAN_ID = /^HUM-[0-9]+$/

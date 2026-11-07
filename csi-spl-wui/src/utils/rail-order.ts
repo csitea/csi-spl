@@ -111,7 +111,7 @@ export const RAIL_TABS: readonly RailTab[] = Object.freeze([
      Reporting -> Costs only reports them. Last here, so a stored order from
      before it is drawn with Expenses appended before Archive
      (parseRailOrder). The hub admits it since SPL-4382 (auth.RailTabs, rdb
-     0267). */
+     0268). */
   Object.freeze({ id: 'expenses', icon: 'receipt', labelKey: 'sidebar.expenses' }),
 ].filter((t) => !RAIL_SWITCHED_OFF.includes(t.id)))
 

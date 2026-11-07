@@ -372,7 +372,7 @@ heading.
 
 | part | as built |
 |---|---|
-| rail entry | `expenses` (`wui/utils/rail-order.ts` RAIL_TABS, icon `receipt`), after Reporting, before Archive by default; a stored order from before it gets it appended before Archive. The hub admits it in a saved order: `auth.RailTabs`, rdb `0267_human_rail_order_expenses.sql` (15 ids) |
+| rail entry | `expenses` (`wui/utils/rail-order.ts` RAIL_TABS, icon `receipt`), after Reporting, before Archive by default; a stored order from before it gets it appended before Archive. The hub admits it in a saved order: `auth.RailTabs`, rdb `0268_human_rail_order_expenses.sql` (15 ids) |
 | page | `/expenses` (`wui/pages/expenses/[[tab]].vue`, one route so one router record in the entry chunk): the sidebar keeps the icon rail only, the page is a tab bar (the Reporting bar's look) and the open tab; `/expenses` itself lands on AI costs |
 | who | operator admins only (the operator pane's probe; hiding only, the hub's 403 on `/v1/operator/*` is the control), as the Paid card was; anyone else has no rail entry, and opening the address reads the operators-only line and no tab |
 

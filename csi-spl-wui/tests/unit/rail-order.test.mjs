@@ -100,7 +100,7 @@ describe('rail ids', () => {
        (rdb 0209), and spec 155 B1 notes, so the saved order keeps them */
     assert.deepEqual([...RAIL_HUB_PENDING], [])
     assert.deepEqual(wire, ['calendar', 'people', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'notes', 'expenses', 'topics', 'agents', 'boxes', 'events', 'archive'])
-    assert.equal(wire.length, 15, 'the hub CHECK (rdb 0267, SPL-4382) admits fifteen ids')
+    assert.equal(wire.length, 15, 'the hub CHECK (rdb 0268, SPL-4382) admits fifteen ids')
     assert.deepEqual(wireRailOrder(wire), wire, 'idempotent: each retired id once, never twice')
     assert.deepEqual(parseRailOrder(wire), drawn, 'read back, it draws the same order (Reporting appended before Archive)')
     assert.ok(isRailOrder(parseRailOrder(wire)))
@@ -315,7 +315,7 @@ describe('spec 155: the Notes rail tab, on as shipped (msg b75fb3d3), and the on
     assert.equal(hidden.at(-1), 'archive')
     assert.equal(stored.includes('notes'), true, 'the stored order is not changed')
     const saved = wireRailOrder(parseRailOrder(hidden))
-    assert.equal(saved.length, 15, 'the hub CHECK (rdb 0267) admits fifteen ids')
+    assert.equal(saved.length, 15, 'the hub CHECK (rdb 0268) admits fifteen ids')
     assert.equal(saved.filter((id) => id === 'notes').length, 1)
     assert.equal(saved.at(-1), 'archive')
   })
@@ -332,7 +332,7 @@ describe('spec 155: the Notes rail tab, on as shipped (msg b75fb3d3), and the on
   it('a save still carries Notes for the hub (fifteen ids with Expenses), once, and reads back without it', async () => {
     const drawn = ['calendar', 'people', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'expenses', 'archive']
     const wire = off.wireRailOrder(drawn)
-    assert.equal(wire.length, 15, 'the hub CHECK (rdb 0267) admits fifteen ids')
+    assert.equal(wire.length, 15, 'the hub CHECK (rdb 0268) admits fifteen ids')
     assert.equal(wire.filter((id) => id === 'notes').length, 1)
     assert.equal(wire.at(-1), 'archive')
     assert.deepEqual(off.wireRailOrder(wire), wire, 'idempotent')

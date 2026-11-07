@@ -89,7 +89,7 @@ func TestIsRailOrderNotes(t *testing.T) {
 
 // SPL-4382 (spec 143 costs-redesign.md 3.8): Expenses is a rail entry. A
 // 15-id order holding it is admitted, every order stored before it still is,
-// and a set the DB check (rdb 0267) refuses is refused here too. Red control:
+// and a set the DB check (rdb 0268) refuses is refused here too. Red control:
 // on the RailTabs before SPL-4382 the "fifteen with expenses" row fails.
 func TestIsRailOrderExpenses(t *testing.T) {
 	fourteen := []string{"notes", "reporting", "monitoring", "calendar", "boxes", "agents", "people", "events", "archive", "flow", "topics", "issues", "channels", "dm"}

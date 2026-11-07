@@ -17,8 +17,8 @@
 # @description owner HUM-10 topic 1a494e58). No index, or no post with a
 # @description picture: an INFO and rc 0. Reads only; changes nothing.
 # @description On a failure (SPL-4968) each line carries the answer's UTC time,
-# @description host, CDN node, x-cache and last-modified, and each failing URL
-# @description is re-asked as evidence, 10 s apart, 2 times. The check still
+# @description host, CDN node, x-cache and last-modified, and the first failing
+# @description URLs are re-asked as evidence, 10 s apart, 2 times. The check still
 # @description fails whatever the re-asks say. It cannot read the `release
 # @description complete` time: that line is earlier in the same job log.
 # @param BLOG_SITE_URL - required: the served site, e.g. https://<site>.web.app (no default)
@@ -40,6 +40,7 @@ do_check_blog_media_served() {
   while IFS=$'\t' read -r id img; do
     og="$(spl_blog_served_og "$site/blog/$id")" ||
       { bad+=("$id: $site/blog/$id names no og:image, answers $og"); ask+=("og $site/blog/$id"); og=""; }
+    og="${og%%, page *}"
     for u in "$site/blog/img/$img" ${og:+"$og"}; do
       n=$((n + 1))
       why="$(spl_blog_served_image "$u")" || { bad+=("$id: $u answers $why, not an image"); ask+=("image $u"); }
@@ -75,15 +76,15 @@ spl_blog_served_answer() {
   echo "$(tail -n 1 <<<"$raw") (at $at, host $host$extra)"
 }
 
-# spl_blog_served_og <page url>: rc 0 and the page's og:image URL; else rc 1 and
-# the page's answer.
+# spl_blog_served_og <page url>: rc 0 and "<og:image URL>, page <answer>"; else
+# rc 1 and the page's answer.
 spl_blog_served_og() {
   local body got meta
   body="$(mktemp)"
   got="$(spl_blog_served_answer "$1" "$body")"
   meta="$(grep -m 1 -oE '<meta[^>]*property="og:image"[^>]*>' "$body" || true)"
   rm -f "$body"
-  if [[ "$got" =~ ^200\  && "$meta" =~ content=\"([^\"]+)\" ]]; then echo "${BASH_REMATCH[1]}"; return 0; fi
+  if [[ "$got" =~ ^200\  && "$meta" =~ content=\"([^\"]+)\" ]]; then echo "${BASH_REMATCH[1]}, page $got"; return 0; fi
   echo "$got"
   return 1
 }

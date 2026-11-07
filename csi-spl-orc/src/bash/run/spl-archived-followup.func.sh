@@ -26,10 +26,13 @@
 # @description Test workspaces are skipped.
 # @description One box acts for a topic: the holder's, when the hub's roster has the
 # @description holder's id on it in that workspace, else the first box by name that
-# @description has (a desk is seated with the workspace's root key, so this run
-# @description cannot seat one; measured 2026-11-07: sat has 4 workspaces, tnk 11).
-# @description With no such box, or no desk on the box the roster names, the
-# @description holder's machine or that box names it in ONE blocker and posts nothing.
+# @description has. The desk may be under another user's state root of that box, 0700
+# @description (measured 2026-11-07 on one box: t1 under the box user's, two others
+# @description only under the agent user's): the box finds the user whose root holds
+# @description the seat and runs the post, the reply and the links as that user.
+# @description With no such box, or no desk on the box the roster names under any
+# @description user, the holder's machine or that box names it in ONE blocker and
+# @description posts nothing (a desk is seated with the workspace's root key).
 # @description Dry run unless DRY_RUN=0: the plan, nothing posted or linked.
 # @param ENV (optional) - dev or prd, default lease.conf LEASE_ENV
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -40,6 +43,7 @@
 # @param ARCHIVED_FOLLOWUP_REPLY_CMD (optional, tests) - replaces do_spl_desk_reply: TENANT_ID, DESK_AGENT, DESK_TASK, DESK_TO, DESK_BODY_FILE in its env
 # @param ARCHIVED_FOLLOWUP_LINK_CMD (optional, tests) - replaces do_spl_issue_link: TENANT_ID, DESK_AGENT, ISSUE_REF, ISSUE_DISCUSSION, MODE in its env
 # @param ARCHIVED_FOLLOWUP_SEND (optional, tests) - the sender script, default spool-send.sh
+# @param SPL_DESK_AS_CMD (optional, tests) - replaces `sudo -n -u`, as in spl_desk_moved_to
 # @example ./run -a do_spl_archived_followup
 # @example DRY_RUN=0 ./run -a do_spl_archived_followup
 #------------------------------------------------------------------------------
@@ -97,18 +101,18 @@ spl_afu_topic() {
   seated="$(cut -f9 "$tmp/keep" | sed -n 1p)"
   poster="$(spl_afu_poster_box "$seated")"
   if [[ "$poster" != "$AFU_BOX" ]]; then
-    do_log "INFO $tenant topic $topic: box $poster follows it up, the one with $AFU_AGENT's desk in $tenant"
+    do_log "INFO $tenant topic $topic: box $poster follows it up (roster of $AFU_AGENT in $tenant: ${seated:-no box})"
     return 0
   fi
   if ! spl_afu_desk_seated "$tenant"; then
-    why="no desk for $AFU_AGENT on $AFU_BOX in $tenant (roster: ${seated:-no box}): do_spl_desk_up seats one with the workspace's root key"
+    why="no desk for $AFU_AGENT on $AFU_BOX in $tenant under any user of this box (roster: ${seated:-no box}): do_spl_desk_up seats one with the workspace's root key"
     if ((dry)); then do_log "WOULD name $tenant topic $topic in a blocker: $why"; return 0; fi
     spl_afu_blocker "$tenant" "$topic" "$dir" "$why"
     return 0
   fi
   new="$(awk -F'\t' -v t="$tenant" -v k="$topic" '$1 == t && $2 == k { n = $3 } END { print n }' "$dir/journal.tsv" 2>/dev/null)"
   if ((dry)); then
-    do_log "WOULD follow up $tenant topic $topic from $AFU_BOX in ${new:-a new discussion}:"$'\n'"$(cut -f1,6-8 "$tmp/keep")"
+    do_log "WOULD follow up $tenant topic $topic from $AFU_BOX${AFU_DESK_USER:+ as $AFU_DESK_USER} in ${new:-a new discussion}:"$'\n'"$(cut -f1,6-8 "$tmp/keep")"
     return 0
   fi
   if [[ -z "$new" ]]; then
@@ -139,13 +143,43 @@ spl_afu_poster_box() {
   else printf '%s' "${1%%,*}"; fi
 }
 
-# spl_afu_desk_seated TENANT: 0 when this box has the holder's desk there, the
-# check do_spl_desk_post makes before it sends. Its link and reply need it too.
+# spl_afu_desk_seated TENANT: 0 when a user of this box has the holder's desk
+# there, the check do_spl_desk_post makes before it sends, in every root of
+# spl_desk_roots. AFU_DESK_USER: that user when it is not this one; a root the
+# caller cannot enter is read as in spl_desk_moved_to.
 spl_afu_desk_seated() {
-  local d
+  local me l u p
+  local -a as=() roots=()
+  AFU_DESK_USER=""
+  me="$(id -un)"
   [[ -n "${SPL_STATE_DIR:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
-  d="$(spl_desk_dir "$1" "$AFU_BOX")" || return 1
-  [[ -d "$d/spool/$AFU_AGENT" ]]
+  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  mapfile -t roots < <(spl_desk_roots)
+  for l in "${roots[@]}"; do
+    u="${l%%$'\t'*}" p="${l#*$'\t'}/desk/$1/$AFU_BOX/spool/$AFU_AGENT"
+    if [[ "$u" == "$me" ]]; then
+      [[ -d "$p" ]] && return 0
+    elif [[ -d "$p" ]] || "${as[@]}" "$u" test -d "$p" </dev/null 2>/dev/null; then
+      AFU_DESK_USER="$u"; return 0
+    fi
+  done
+  return 1
+}
+
+# spl_afu_run ACTION VAR=value...: a desk action, as the user who has the desk.
+spl_afu_run() {
+  local action="$1" k
+  shift
+  if [[ -z "${AFU_DESK_USER:-}" ]]; then
+    ( cd "$PROJ_PATH" && env "$@" DRY_RUN=0 timeout 120 ./run -a "$action" </dev/null )
+    return
+  fi
+  local -a as=() pass=(HOME="$(getent passwd "$AFU_DESK_USER" 2>/dev/null | cut -d: -f6)" PATH="$PATH" ENV="$ENV")
+  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  for k in SPOOL_ROOT SPOOL_TEST SPOOL_BOX_ENV SPL_PRIVATE_CNF; do
+    [[ -n "${!k:-}" ]] && pass+=("$k=${!k}")
+  done
+  "${as[@]}" "$AFU_DESK_USER" -- env "${pass[@]}" "$@" DRY_RUN=0 bash -c 'cd "$1" && exec timeout 120 ./run -a "$2"' _ "$PROJ_PATH" "$action" </dev/null
 }
 
 # spl_afu_rows_seen ROWS DIR: its queue rows are listed in the new discussion.
@@ -168,8 +202,7 @@ spl_afu_late_rows() {
   if [[ -n "${ARCHIVED_FOLLOWUP_REPLY_CMD:-}" ]]; then
     TENANT_ID="$tenant" DESK_AGENT="$AFU_AGENT" DESK_TASK="$new" DESK_TO="$human" DESK_BODY_FILE="$tmp/reply.md" $ARCHIVED_FOLLOWUP_REPLY_CMD >/dev/null 2>&1
   else
-    ( cd "$PROJ_PATH" && TENANT_ID="$tenant" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" DESK_TASK="$new" DESK_TO="$human" DESK_BODY_FILE="$tmp/reply.md" DESK_KIND=note DRY_RUN=0 \
-        timeout 120 ./run -a do_spl_desk_reply </dev/null >/dev/null 2>&1 )
+    spl_afu_run do_spl_desk_reply TENANT_ID="$tenant" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" DESK_TASK="$new" DESK_TO="$human" DESK_BODY="$(cat "$tmp/reply.md")" DESK_KIND=note >/dev/null 2>&1
   fi || { do_log "WARN $tenant topic $topic: its late row was not added to $new: the next run tries again"; return 1; }
   spl_afu_rows_seen "$tmp/keep" "$dir"
   do_log "OK $tenant topic $topic: its late row is added to $new"
@@ -185,8 +218,7 @@ spl_afu_post() {
   if [[ -n "${ARCHIVED_FOLLOWUP_POST_CMD:-}" ]]; then
     out="$(TENANT_ID="$tenant" DESK_AGENT="$AFU_AGENT" DESK_CHANNEL="$channel" DESK_BODY_FILE="$tmp/body.md" $ARCHIVED_FOLLOWUP_POST_CMD 2>&1)"
   else
-    out="$(cd "$PROJ_PATH" && TENANT_ID="$tenant" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" DESK_CHANNEL="$channel" DESK_BODY_FILE="$tmp/body.md" DESK_KIND=note DRY_RUN=0 \
-      timeout 120 ./run -a do_spl_desk_post </dev/null 2>&1)"
+    out="$(spl_afu_run do_spl_desk_post TENANT_ID="$tenant" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" DESK_CHANNEL="$channel" DESK_BODY="$(cat "$tmp/body.md")" DESK_KIND=note 2>&1)"
   fi
   new="$(grep -E '^\{' <<<"$out" | tail -1 | jq -r '.send.task_id // empty' 2>/dev/null)"
   [[ "$new" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] || { tail -1 <<<"$out" | cut -c1-200; return 1; }
@@ -217,8 +249,7 @@ spl_afu_link() {
     TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" $ARCHIVED_FOLLOWUP_LINK_CMD >/dev/null 2>&1
     return
   fi
-  ( cd "$PROJ_PATH" && TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" DRY_RUN=0 \
-      timeout 120 ./run -a do_spl_issue_link </dev/null >/dev/null 2>&1 )
+  spl_afu_run do_spl_issue_link TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" >/dev/null 2>&1
 }
 
 # spl_afu_blocker TENANT TOPIC DIR WHY: ONE blocker to the orchestrator per

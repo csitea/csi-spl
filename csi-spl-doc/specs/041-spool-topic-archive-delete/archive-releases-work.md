@@ -37,7 +37,10 @@ archived discussion is another lane's work and is not described here.
   posts twice. A post that fails sends one blocker to the orchestrator, and is retried every run.
 - **One box posts for a topic.** The holder's box when the hub's roster has the holder's id on
   it in that workspace, else the first such box by name, so every box reads the same answer. A
-  desk is seated with the workspace's root key, so this run never seats one. No box in the roster
+  box's desk may be under another user's state root, 0700 (measured 2026-11-07 on one box: t1 under the box user's,
+  two others only under the agent user's), so the box finds the user whose root holds the seat
+  and runs the post, the reply and the links as that user. A desk is seated with the workspace's
+  root key, so this run never seats one. No box in the roster
   and no desk here, or no desk on the box the roster names: no post, one blocker, and the run
   stays green.
 - **"Unfinished" means** an issue linked to the topic with status `eval`, `todo`, `wip`,

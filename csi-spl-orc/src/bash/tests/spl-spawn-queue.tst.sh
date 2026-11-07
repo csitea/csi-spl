@@ -1576,7 +1576,7 @@ cron DRY_RUN=0 SPAWN_PLACE_CRON_ACTION=remove >/dev/null 2>&1
 # H1 launches and the first check fails.
 H1=71111111-0000-4000-8000-000000000001 H2=72222222-0000-4000-8000-000000000002 H3=73333333-0000-4000-8000-000000000003 H4=74444444-0000-4000-8000-000000000004
 printf '#!/usr/bin/env bash\nif [ "$1" = aaaaaaaa ]; then echo "{\\"lanes\\":[],\\"topic_archived_at\\":\\"2026-11-01T08:59:43Z\\"}"; else echo "{\\"lanes\\":[]}"; fi\n' >"$T/bin/archived"; chmod +x "$T/bin/archived"
-printf 'Kind: simple_coding\nEpic: SPL-8\nSpec: csi-spl-doc/specs/135-work-process\nbrief\n' | tee "$T/briefs/arch-a.md" "$T/briefs/arch-b.md" "$T/briefs/arch-c.md" >/dev/null
+printf 'Kind: simple_coding\nEpic: SPL-8\nSpec: csi-spl-doc/specs/135-work-process\nbrief\n' | tee "$T/briefs/arch-a.md" "$T/briefs/arch-b.md" "$T/briefs/arch-c.md" "$T/briefs/arch-d.md" >/dev/null
 archq() {  # ASK_ID TOPIC SLUG
   put "$1" c-002@box-desk "$2" "SPAWN REQUEST $3"
   on pc do_spl_spawn_enqueue "${EH2[@]}" ASK_ID="$1" SPAWN_CLASS=feature SPAWN_PLACE="claude:$3" >>"$T/enq.log" 2>&1

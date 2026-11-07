@@ -17,13 +17,15 @@
 #   9 a reviewer seat's issue is not work left (W3)
 #  10 the box that acts: the holder's when it has the seat, else the first box of
 #     the roster; nowhere = no post, one blocker, rc 0; the real desk check agrees
-#     with the real do_spl_desk_post on the same dirs (W1)
+#     with the real do_spl_desk_post on the same dirs; a desk only under another
+#     user's root runs the real commands as that user (W1)
 #  11 a row declined after the post is added to that discussion, once (W4)
 #  12 (with AFU_TEST_PG_DSN) the real statement joins a row by every binding form
 # RED CONTROLS: without the action file every case fails; without the journal
 # read case 4 posts twice; without the poster check case 5 posts; without
 # spl_afu_work_left case 9 posts; without spl_afu_desk_seated case 10d posts;
-# without spl_afu_late_rows case 11 replies nothing.
+# without spl_afu_late_rows case 11 replies nothing; without the other roots of
+# spl_afu_desk_seated case 10g posts nothing and sends a blocker.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -154,6 +156,28 @@ out="$(real_post t2)"; rc=$?
 if [[ $rc -ne 0 && "$out" == *"FATAL no desk for c-002 on box-a in t2"* ]] && ! seat_check t2; then pass "10e the real post is FATAL where the check says no desk"; else fail "10e rc $rc: $out"; fi
 out="$(real_post t1)"; rc=$?
 if [[ $rc -eq 0 && "$out" == *"$NEW"* ]] && seat_check t1; then pass "10f CONTROL: the real post sends where the check says a desk"; else fail "10f rc $rc: $out"; fi
+
+# a desk only under another user's root (measured 2026-11-07 on a real box). This user's real post refuses; the run goes as that user.
+mkdir -p "$T/other-root/desk/t3/box-a/spool/c-002"
+cat >"$T/bin/as" <<EOF
+#!/usr/bin/env bash
+u="\$1"; shift; [[ "\$1" == "--" ]] && shift
+[[ "\$1" == test ]] && exec "\$@"
+a=" \$* "
+echo "as \$u \${*: -1} \$(grep -oE '(TENANT_ID=|DESK_BOX=|DESK_AGENT=|ISSUE_REF=|MODE=|DRY_RUN=)[^ ]*' <<<"\$a" | tr '\n' ' ')" >>"$LOG"
+[[ "\$a" == *" do_spl_desk_post "* ]] && printf '%s\n' "\$*" | grep -q 'the second job' && echo "{\"send\":{\"task_id\":\"$NEW\"}}"
+exit 0
+EOF
+chmod +x "$T/bin/as"
+ROOTS="spl_desk_roots() { printf '%s\t%s\n' \"\$(id -un)\" \"\$SPL_STATE_DIR\"; printf 'desk-u\t%s\n' '$T/other-root'; }"
+fresh; echo "c-002@box-a $(date +%s)" >"$SP/dispatch/lease"
+printf 'issue\tt3\t%s\tdev\t%s\tSPL-8\twip\tthe second job\tbox-a\tHUM-1\n' "$OLD" "$AT" >"$T/rows10g"
+out="$(real_post t3)"; rc=$?
+[[ $rc -ne 0 && "$out" == *"FATAL no desk for c-002 on box-a in t3"* ]] && pass "10g CONTROL: the real post as this user refuses a desk under another user's root" || fail "10g rc $rc: $out"
+out="$(SNIPPET="$ROOTS; spl_test_workspace() { return 1; }; do_spl_archived_followup" in_orc SPOOL_ROOT="$SP" LEASE_MACHINE=box-a ARCHIVED_FOLLOWUP_STATE_DIR="$ST" ARCHIVED_FOLLOWUP_ROWS_FILE="$T/rows10g" ARCHIVED_FOLLOWUP_SEND="$T/bin/send" SPL_DESK_AS_CMD="$T/bin/as" DRY_RUN=0 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(count '^as desk-u do_spl_desk_post TENANT_ID=t3 DESK_BOX=box-a DESK_AGENT=c-002\|^as desk-u do_spl_desk_post TENANT_ID=t3 DESK_AGENT=c-002 DESK_BOX=box-a')" == 1 && "$(count '^as desk-u do_spl_issue_link .*ISSUE_REF=SPL-8 MODE=link')" == 1 && "$(count '^as desk-u do_spl_issue_link .*MODE=unlink')" == 1 && "$(count '^send ')" == 0 ]] && pass "10h the post and both links run as the desk's user, no blocker" || fail "10h rc $rc: $out // $(cat "$LOG")"
+out="$(SNIPPET="$ROOTS; AFU_BOX=box-a AFU_AGENT=c-002; spl_afu_desk_seated t3 && echo \"user=\$AFU_DESK_USER\"; spl_afu_desk_seated t1 && echo \"user=[\$AFU_DESK_USER]\"; spl_afu_desk_seated t2 || echo none" in_orc SPOOL_ROOT="$SP" SPL_DESK_AS_CMD="$T/bin/as" 2>&1)"
+[[ "$out" == *"user=desk-u"* && "$out" == *"user=[]"* && "$out" == *none* ]] && pass "10i the check names the other user, none for its own desk, and refuses where no root has it" || fail "10i: $out"
 
 # 11. a row declined after the follow-up was posted
 fresh

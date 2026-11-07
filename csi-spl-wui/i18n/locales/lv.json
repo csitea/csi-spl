@@ -3541,7 +3541,7 @@
         "reason": "Iemesls: {reason}",
         "unavailable": "Failu šablonus neizdevās ielādēt.",
         "audit_title": "Šablonu un failu izmaiņas",
-        "audit_none": "Šablonu izmaiņu vēl nav.",
+        "audit_none": "Izmaiņu vēl nav.",
         "state": {
           "pending": "Saglabāts, vēl neseko: mašīna par to vēl nav ziņojusi",
           "following": "Seko",

@@ -3541,7 +3541,7 @@
         "reason": "Reason: {reason}",
         "unavailable": "The file globs could not be loaded.",
         "audit_title": "Glob and file changes",
-        "audit_none": "No glob changes yet.",
+        "audit_none": "No changes yet.",
         "state": {
           "pending": "Stored, not followed yet: the box has not reported it",
           "following": "Following",

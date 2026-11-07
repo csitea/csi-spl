@@ -3541,7 +3541,7 @@
         "reason": "Motivo: {reason}",
         "unavailable": "No se pudieron cargar los patrones de archivo.",
         "audit_title": "Cambios de patrones y archivos",
-        "audit_none": "Aún no hay cambios de patrones.",
+        "audit_none": "Aún no hay cambios.",
         "state": {
           "pending": "Guardado, aún sin seguir: el equipo no lo ha notificado",
           "following": "Siguiendo",

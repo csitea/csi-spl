@@ -4,7 +4,9 @@ Editor c-758, issue SPL-4945, epic SPL-2364, owner order 9e9cc212. Tree
 origin/master 04a51b255 for the seats' measurements. All times UTC. Everything
 here was read only; no seat stopped or changed anything.
 
-**Status: release candidate 3, folds claude-3 and the disputes on the first candidate; signatures in section 8.**
+**Status: signed by all five seats at candidate 3 (e2e2447f8), final. Applied after
+that: claude-1's three corrections and agy's withdrawal, as those seats wrote them.
+Signatures in section 8.**
 
 Seat files, on their review branches: `claude-1.md` (the machine),
 `claude-2.md` (the path to land), `claude-3.md` (the agent and placement),
@@ -91,7 +93,7 @@ Over 7 days they track commits, r = 0.97, a correlation and not proof (claude-3)
 Counts re-read by the editor, the same in every bin; the split is claude-3's.
 The hold's bin is direct, because the placer says so. The laptop's are inferred
 from timing. Sat lost nothing after 16Z. In the first bin it was not idle: sar
-load means 25-34 in 00-06Z and 67 in 07Z on 16 cores, peak 87.5, and claude-3
+load means 25-37 in 00-07Z, and 67 in 05Z, on 16 cores, peak 87.5, and claude-3
 reads its overflow and disk holds in 02:24-06:48. So sat alone did not cover for
 the laptop that night.
 
@@ -138,7 +140,7 @@ their author lanes sat waiting on them (claude-2, n=5, read by hand).
 - SPL-4932 (fe0455e48, 11-06 23:41) lifts a kept row on a login or limit change.
   Its commit names one gap left: a pane showing an old banner re-keeps its %.
 
-**Disagreement on how much was stale: section 5.**
+**How much was stale, once disputed and now agreed: section 5.**
 
 **Not established: what used the limit so fast.** Token tables were not read.
 The bigger messages of 3.4 did not use it: they begin after the 97% reading (sat
@@ -172,8 +174,11 @@ p50 by day matches claude-3 within 1 char where compared: 11-01 302, 11-02 799,
 11-03 272, 11-05 250. The onset is there too: 13Z 307 tokens per message and 226
 chars (n 238), 14Z 716 and 640 (n 90).
 
-**Who it does and does not settle:** claude-1's and claude-2's "the work did not
-slow" holds for the day's medians, and not for the sat evening. A step 1.4 times
+**Who it does and does not settle:** claude-1's reading holds for fixed gate parts,
+including the sat evening (api +10%, n=5,5; small). claude-2's and claude-1's
+reading does not cover agent steps: on the sat evening those were longer, 1.4 times
+at p50, with larger commands. How much of Bash p50 0.8 to 3.5 s is command mix and
+how much the machine is not established. A step 1.4 times
 longer does not explain a 3-times fall, and 11-02 had the same state with 99
 commits, so claude-3 ranks it second. It would burn a weekly limit faster.
 
@@ -222,11 +227,11 @@ asks, the editor 41-80 for QUEUE rows only: different sets, same direction.
 
 | question | positions | editor's reading |
 |---|---|---|
-| Was the hold stale for all of it? | agy: stale 97% from about 09:20. Editor, claude-3, and claude-1 and claude-2 after reading the alert log (both withdrew at signing; claude-1's file keeps the old wording): true to about 13:57, stale after, 2 h 15 | Dated evidence favours true to 13:57: alert log 90% at 09:00 and 97% at 13:55, holders' posts, `cred.log`. **The 0% at 14:00 could lag a change by up to the 6 h CLI cache, but the credential change is at 13:57.** When the owner first said it was raised is not read |
+| Was the hold stale for all of it? | All now agree: true to about 13:57, stale after, 2 h 15. claude-1, claude-2 and agy first read stale from about 09:20, from the brief and the commit text, and withdrew at signing; their files keep the old wording | Dated evidence favours true to 13:57: alert log 90% at 09:00 and 97% at 13:55, holders' posts, `cred.log`. **The 0% at 14:00 could lag a change by up to the 6 h CLI cache, but the credential change is at 13:57.** When the owner first said it was raised is not read |
 | When did the hold start? | 09:20 (brief, claude-1, agy); 09:05 (editor, claude-2, which withdrew its proxy 09:00); 09:12 (claude-3, any lane) | Both hold: 09:05:24 is the placer's last, 09:12:08 the last of any lane, c-001 by hand. The 90% reading is 09:00:01 |
 | When was the laptop back? | about 23:04 (brief, agy); 22:55:44 (journal) | 22:55:44 |
 | **Root cause: resource exhaustion?** | **mistral: a load spike of 44.3 at 00:05 caused a 13-hour outage, 00:20-13:30. Everyone else: no** | Not supported, see below |
-| Do gates stack and amplify load? | agy: SPL-4820, new per-push checks and re-runs stack gates on sat. claude-1: gate parts within about 15%, no shift, 11-05 to 11-06. claude-2: part p50s moved both ways, -57% to +34%, no consistent rise, small n on the laptop; it did not test stacking. claude-1 also reports a sat step on 11-04 (wui 405 to 583 s, e2e 510 to 807, iac 253 to 394, n=3-18; not re-measured by the editor): it predates the good day, and it bears on this question | Open for the night of 11-07 (load 55, hour-long gates, unfinished, so not in the figures). Not the cause of 11-06. agy could not read the gate logs. claude-2 measures commit-links at 5-7 s |
+| Do gates stack and amplify load? | agy: SPL-4820, new per-push checks and re-runs stack gates on sat. claude-1: gate parts within about 15%, no shift, 11-05 to 11-06. claude-2: part p50s moved both ways, -57% to +34%, no consistent rise, small n on the laptop; it did not test stacking. claude-1 also reports a sat step on 11-04 (wui 405 to 583 s, e2e 510 to 807, iac 253 to 394, n=7-18; not re-measured by the editor): it predates the good day, and it bears on this question | Open for the night of 11-07 (load 55, hour-long gates, unfinished, so not in the figures). Not the cause of 11-06. agy could not read the gate logs. claude-2 measures commit-links at 5-7 s |
 | Is the slower sat what felt like 3 times? | claude-1: gate p50 839 s on sat, 206 s on the laptop, suggested. Editor's run grouping: sat median about 1 min | Different groupings, claude-1 counts runs of 8+ parts. Open |
 
 **Checked claims not carried forward:**
@@ -249,6 +254,8 @@ asks, the editor 41-80 for QUEUE rows only: different sets, same direction.
 
 **The editor's own errors, corrected:**
 
+- Section 3.0's first load hours were the box's local time, read as UTC: the 67 and
+  the peak are 05Z, not 07Z (claude-1; `sadf -U` re-read, n=6 samples an hour).
 - "0 placed" from 09:05 held for the placer only. Two lanes were placed by c-001
   at 09:09:42 and 09:12:08 (claude-3).
 - Section 3.4's first cut read the credential link as not supported, from the
@@ -271,7 +278,7 @@ All with numbers in the seat files.
 | Time to first block | p50 3.1 to 3.2 s, n=16429, 4240. The whole step is not ruled out, section 3.4 | claude-2, claude-3 |
 | CI | `10_ci-quality` p50 21.1 to 20.9 min, n=81, 44 | agy |
 | CLI version, hooks, rotation, compaction, vendor latency, queue depth, the 3-minute floor | section 6 of `claude-3.md`, tree 8011a451e | claude-3 |
-| Reboot, memory, disk | up 5 d 22 h; 34-41 GiB available; sat iowait 0.43% as the day's average, 4.90% the highest 10-minute sar sample (`sa06`). claude-1 saw one 45.6% sample in another sampler and did not chase it | claude-1, editor |
+| Reboot, memory, disk | up 5 d 22 h; 34-41 GiB available; sat iowait 0.43% as the day's average; the highest 10-minute sample of 11-06 is 4.90%; of 10-28..11-07 45.6% on 10-31 11:14Z, not this day | claude-1, editor |
 | System time near 40% on sat | real but old, every day since 10-28, r=0.78 with forks, n=1455 | claude-1 |
 | 32 processes means 32 gates | 5 trees at 5-6 processes each, n=1 | editor |
 | Holder GO wait | p50 under 2 min, n=2-7: suggested only | claude-2 |
@@ -332,8 +339,8 @@ Each seat signs this text or states what it disputes; a dispute goes in section 
 
 | seat | agent | seat file | signature |
 |---|---|---|---|
-| claude-1 | c-761 | `review/what-broke-claude-1` 97d6d2d92 | signed the first candidate; withdrew its stale row (section 5) |
-| claude-2 | c-763 | `review/what-broke-claude-2` 2a152a0a3 | pending |
-| claude-3 | c-772 | `review/what-broke-claude-3` 7bc9e7a3a | pending |
-| agy | a-769 | `review/what-broke-agy` dcf7e42a1 | signed the first candidate, accepted both section 5 corrections |
-| mistral | m-779 | `review/what-broke-mistral` 3ee11ea07 | signed the first candidate, no dispute |
+| claude-1 | c-761 | `review/what-broke-claude-1` 97d6d2d92 | signed candidate 3 with three corrections, applied |
+| claude-2 | c-763 | `review/what-broke-claude-2` 2a152a0a3 | signed candidate 3 |
+| claude-3 | c-772 | `review/what-broke-claude-3` 7bc9e7a3a | signed candidate 3; its section 9 says three off-cycle rows, four is right |
+| agy | a-769 | `review/what-broke-agy` dcf7e42a1 | signed candidate 3, withdrew stale from 09:20 |
+| mistral | m-779 | `review/what-broke-mistral` 3ee11ea07 | signed candidate 3, no dispute |

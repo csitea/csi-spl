@@ -517,9 +517,10 @@ spl_lane_issue_close() {
       do_log "OK $key is already $st${cur#"$st"}: nothing to change, the end is recorded" >&2
       return 0
     fi
-    # SPL-4955: a hold never reopens an issue whose work landed meanwhile
-    if [[ "$st" == onhold && "${cur%% *}" == "done" ]]; then
-      do_log "OK $key is already done: a hold changes nothing, the end is recorded" >&2
+    # SPL-4955: a hold never reopens an issue whose work landed or was
+    # discarded meanwhile, nor takes one out of review
+    if [[ "$st" == onhold && " done diss qas " == *" ${cur%% *} "* ]]; then
+      do_log "OK $key is already ${cur%% *}: a hold changes nothing, the end is recorded" >&2
       return 0
     fi
   fi

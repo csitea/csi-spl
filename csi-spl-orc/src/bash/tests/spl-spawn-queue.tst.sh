@@ -1574,7 +1574,7 @@ cron DRY_RUN=0 SPAWN_PLACE_CRON_ACTION=remove >/dev/null 2>&1
 # placed 11-06 as c-702): a row whose topic is archived is not placed; the next
 # row is placed in the same tick. RED CONTROL: without spl_spawn_place_drop_archived
 # H1 launches and the first check fails.
-H1=71111111-0000-4000-8000-000000000001 H2=72222222-0000-4000-8000-000000000002 H3=73333333-0000-4000-8000-000000000003
+H1=71111111-0000-4000-8000-000000000001 H2=72222222-0000-4000-8000-000000000002 H3=73333333-0000-4000-8000-000000000003 H4=74444444-0000-4000-8000-000000000004
 printf '#!/usr/bin/env bash\nif [ "$1" = aaaaaaaa ]; then echo "{\\"lanes\\":[],\\"topic_archived_at\\":\\"2026-11-01T08:59:43Z\\"}"; else echo "{\\"lanes\\":[]}"; fi\n' >"$T/bin/archived"; chmod +x "$T/bin/archived"
 printf 'Kind: simple_coding\nEpic: SPL-8\nSpec: csi-spl-doc/specs/135-work-process\nbrief\n' | tee "$T/briefs/arch-a.md" "$T/briefs/arch-b.md" "$T/briefs/arch-c.md" >/dev/null
 archq() {  # ASK_ID TOPIC SLUG
@@ -1602,6 +1602,13 @@ rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place "${EH2[@]}" SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-old" LAUNCH_ID=c-732 2>&1)"
 grep -q arch-c "$T/launch.log" && grep -q "the archive state of topic aaaaaaaa could not be read" <<<"$out" &&
   pass "SPL-4955 a failed read places as before, one WARN" || fail "SPL-4955 failed read: $out | $(cat "$T/launch.log")"
+# N1: an older binary or hub ignores --topic and answers the fleet's lanes, no stamp
+printf '#!/usr/bin/env bash\necho "{\\"lanes\\":[{\\"agent\\":\\"c-9\\"}]}"\n' >"$T/bin/archived-older"; chmod +x "$T/bin/archived-older"
+archq "$H4" dispatch-aaaaaaaa arch-d
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place "${EH2[@]}" SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-older" LAUNCH_ID=c-733 2>&1)"
+grep -q arch-d "$T/launch.log" && grep -q "too old to read the archive state of topic aaaaaaaa" <<<"$out" &&
+  pass "SPL-4955 lanes with no stamp prove old code: placed as before, one WARN" || fail "SPL-4955 old code: $out | $(cat "$T/launch.log")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

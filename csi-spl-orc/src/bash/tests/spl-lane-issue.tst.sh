@@ -235,13 +235,20 @@ run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='files-only task' DRY_RUN
   pass "end of an issue already diss + archived: one OK line, no hub write, issue-end written" ||
   fail "end idempotent (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
 # SPL-4955: the archived-seats run holds a lane's issue; a hold never reopens one
-# whose work landed meanwhile. RED CONTROL: without the done guard the first
-# check fails (comment + update onhold). The second proves a hold still writes.
+# whose work landed or was discarded, nor moves one out of review. RED CONTROL:
+# without the guard the first three checks fail (comment + update onhold). The second proves a hold still writes.
 rm -f "$S/c-123/lifetime/issue-end"
 run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=onhold LANE_ISSUE_REASON='discussion archived' DRY_RUN=0 \
   ISSUE_GET='{"op": "get", "result": {"issue": {"key": "SPL-42", "status": "done", "archived": false}}}'
 [[ $rc -eq 0 ]] && ! grep -qE '^(comment|update)\|' "$T/calls.log" && grep -q 'SPL-42 is already done: a hold changes nothing' "$T/o" &&
   pass "SPL-4955 a hold of an issue already done: no hub write" || fail "hold of done (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+for st in diss qas; do
+  rm -f "$S/c-123/lifetime/issue-end"
+  run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=onhold LANE_ISSUE_REASON='discussion archived' DRY_RUN=0 \
+    ISSUE_GET="{\"op\": \"get\", \"result\": {\"issue\": {\"key\": \"SPL-42\", \"status\": \"$st\", \"archived\": false}}}"
+  [[ $rc -eq 0 ]] && ! grep -qE '^(comment|update)\|' "$T/calls.log" && grep -q "SPL-42 is already $st: a hold changes nothing" "$T/o" &&
+    pass "SPL-4955 a hold of an issue already $st: no hub write" || fail "hold of $st (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+done
 rm -f "$S/c-123/lifetime/issue-end"
 run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=onhold LANE_ISSUE_REASON='discussion archived' DRY_RUN=0 \
   ISSUE_GET='{"op": "get", "result": {"issue": {"key": "SPL-42", "status": "wip", "archived": false}}}'

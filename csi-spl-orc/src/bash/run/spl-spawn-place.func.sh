@@ -623,7 +623,13 @@ spl_spawn_place_drop_archived() {  # HOLDER ROW
     return 1
   fi
   at="$(jq -r '.topic_archived_at // ""' <<<"$out")"
-  [[ -n "$at" ]] || return 1
+  if [[ -z "$at" ]]; then
+    # a topic read always answers no lanes on a hub with SPL-4955: lanes prove
+    # that an older binary or hub ignored --topic
+    jq -e '.lanes | length > 0' >/dev/null 2>&1 <<<"$out" &&
+      do_log "WARN ask $id8: the spool binary or hub is too old to read the archive state of topic $topic: placed as before" >&2
+    return 1
+  fi
   why="discussion archived: topic $topic was archived at $at, so this row is not placed (SPL-4955)"
   if ! row="$(spl_spawn_q_op decline "$(jq -r '.ask_id' <<<"$2")" "$1" "$why")"; then
     do_log "WARN ask $id8: not placed, its topic $topic is archived, but the decline failed: the next tick tries again" >&2

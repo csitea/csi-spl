@@ -2398,9 +2398,9 @@
       "persons": "Personas",
       "agents": "Agentes",
       "none": "Nadie coincide",
-      "viewing": "Estás leyendo el Flujo de otra persona. Abrir una línea aquí no marca nada como leído.",
-      "refused": "Ese Flujo no se puede leer. Se muestra el tuyo.",
-      "empty": "Todavía no hay nada en este Flujo."
+      "viewing": "Estás leyendo el flujo de otra persona. Abrir una línea aquí no marca nada como leído.",
+      "refused": "Ese flujo no se puede leer. Se muestra el tuyo.",
+      "empty": "Todavía no hay nada en este flujo."
     }
   },
   "release_notes": {

@@ -2398,8 +2398,8 @@
       "persons": "Ľudia",
       "agents": "Agenti",
       "none": "Nič sa nezhoduje",
-      "viewing": "Čítaš tok niekoho iného. Otvorenie riadku tu nič neoznačí ako prečítané.",
-      "refused": "Tento tok sa nedá prečítať. Zobrazuje sa tvoj.",
+      "viewing": "Čítate tok niekoho iného. Otvorenie riadku tu nič neoznačí ako prečítané.",
+      "refused": "Tento tok sa nedá prečítať. Zobrazuje sa váš.",
       "empty": "V tomto toku zatiaľ nič nie je."
     }
   },

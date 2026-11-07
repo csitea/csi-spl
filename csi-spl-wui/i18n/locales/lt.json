@@ -2398,8 +2398,8 @@
       "persons": "Žmonės",
       "agents": "Agentai",
       "none": "Niekas neatitinka",
-      "viewing": "Skaitai kito žmogaus srautą. Atidarius eilutę čia niekas nepažymima kaip perskaityta.",
-      "refused": "Šio srauto perskaityti negalima. Rodomas tavo.",
+      "viewing": "Skaitote kito žmogaus srautą. Atidarius eilutę čia niekas nepažymima kaip perskaityta.",
+      "refused": "Šio srauto perskaityti negalima. Rodomas jūsų.",
       "empty": "Šiame sraute dar nieko nėra."
     }
   },

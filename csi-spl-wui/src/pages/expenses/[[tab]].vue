@@ -15,20 +15,22 @@
     <header class="feed-header">
       <MobileBack />
       <SectionClose side="start" />
-      <h2 data-test="expenses-heading">{{ t('sidebar.expenses') }}</h2>
+      <h2 class="section-title" data-test="expenses-heading">{{ t('sidebar.expenses') }}</h2>
+      <!-- the tab bar on the heading's row, as Reporting's (SPL-4811, main.css .section-title-sep) -->
+      <span class="section-title-sep" aria-hidden="true" data-test="expenses-title-sep">{{ '  >>  ' }}</span>
+      <nav class="reporting-tabs" :aria-label="t('expenses.tabs_label')" data-test="expenses-tabs">
+        <NuxtLink
+          v-for="tab in tabs"
+          :key="tab.id"
+          :to="localePath(tab.path)"
+          class="reporting-tab"
+          :class="{ 'reporting-tab--active': active === tab.id }"
+          :aria-current="active === tab.id ? 'page' : undefined"
+          :data-test="'expenses-tab-' + tab.id"
+        >{{ t(tab.labelKey) }}</NuxtLink>
+      </nav>
       <SectionClose side="end" />
     </header>
-    <nav class="reporting-tabs" :aria-label="t('expenses.tabs_label')" data-test="expenses-tabs">
-      <NuxtLink
-        v-for="tab in tabs"
-        :key="tab.id"
-        :to="localePath(tab.path)"
-        class="reporting-tab"
-        :class="{ 'reporting-tab--active': active === tab.id }"
-        :aria-current="active === tab.id ? 'page' : undefined"
-        :data-test="'expenses-tab-' + tab.id"
-      >{{ t(tab.labelKey) }}</NuxtLink>
-    </nav>
     <div class="feed-body expenses-body">
       <p v-if="!operator.visible" class="muted" data-test="expenses-operators-only">{{ t('expenses.operators_only') }}</p>
       <section v-else-if="active === 'ai'" data-test="expenses-ai">
@@ -64,6 +66,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.expenses-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+/* top and sides only: the shell's padding-bottom keeps the last row clear of the phone's composer dock (main.css, .spool-shell .feed-body) */
+.expenses-body { padding-block-start: 16px; padding-inline: 16px; display: flex; flex-direction: column; gap: 12px; }
 .tk-lazy { display: contents; }
 </style>

@@ -19,6 +19,10 @@
 # @description posts nor re-arms. Every tick ends with one summary line naming
 # @description every kind. Dry run unless DRY_RUN=0 (prints the line, writes no
 # @description state). A post that fails is not recorded: retried next tick.
+# @description Readings that disagree (SPL-4965): a kept reading at or over the
+# @description hold's weekly_max_pct that a NEWER reading under it contradicts
+# @description (spl_box_quota_disagree) posts ONE line naming both, their sources
+# @description and ages, until they agree again (state <WEEKLY_ALERT_STATE>.disagree).
 # @param WEEKLY_ALERT_PCTS (optional) - the thresholds, ascending, space-separated, default "90 95 99"
 # @param WEEKLY_ALERT_KINDS (optional) - the kinds named in the summary, default "claude grok mistral agy qwen"
 # @param WEEKLY_ALERT_STATE (optional) - the state file, default $XDG_STATE_HOME/csi-spl/weekly-limit-alert.tsv
@@ -75,6 +79,7 @@ do_spl_weekly_limit_alert() {
       do_log "WARN the $k ${v}% alert did not post; retried next tick"
     fi
   done
+  spl_weekly_alert_disagree "$st.disagree" "$dry" "$now"
   do_log "INFO ${line%;} ($posted posted)"
   [[ "$dry" == 1 ]] && { do_log "OK DRY_RUN no post, no state written. Re-run with DRY_RUN=0."; return 0; }
   spl_weekly_alert_save "$st"
@@ -109,6 +114,30 @@ spl_weekly_alert_text() {  # KIND PCT THRESHOLD RESET_EPOCH
   [[ "$4" =~ ^[0-9]+$ ]] && when="resets $(date -u -d "@$4" +%Y-%m-%dT%H:%MZ)"
   printf '**WEEKLY LIMIT** %s on %s: %s%% of its weekly limit used (crossed %s%%), %s. New %s lanes skip a box at %s%%+ (env.box.quota.weekly_max_pct).' \
     "$1" "$LANE_BOX" "$2" "$3" "$when" "$1" "$(spl_box_quota_max "${SPL_CNF:-}")"
+}
+
+# The disagree alarm: one post per kind and kept %, again only after the two
+# readings agreed. A post that fails is not recorded: retried next tick.
+spl_weekly_alert_disagree() {  # STATE_FILE DRY NOW
+  local k p src at lp lsrc lat keep="" was="" out
+  was="$(cat "$1" 2>/dev/null)"
+  while IFS=$'\t' read -r k p src at lp lsrc lat; do
+    [[ -n "$k" ]] || continue
+    if grep -qxF "$k"$'\t'"$p" <<<"$was"; then keep+="$k"$'\t'"$p"$'\n'; continue; fi
+    out="$(printf '**WEEKLY READINGS DISAGREE** %s on %s: the hold reads %s%% (%s read %s ago), a newer reading says %s%% (%s read %s ago). New %s lanes stay held on the %s%% until it is re-read or it lapses at %s; if the limit moved, check the login.' \
+      "$k" "$LANE_BOX" "$p" "$src" "$(spl_box_quota_ago "$at" "$3")" "$lp" "$lsrc" "$(spl_box_quota_ago "$lat" "$3")" "$k" "$p" \
+      "$(date -u -d "@$(( at + $(spl_box_quota_lapse_s) ))" +%Y-%m-%dT%H:%MZ)")"
+    if [[ "$2" == 1 ]]; then echo "PLAN post in #alerts: $out"; continue; fi
+    if spl_weekly_alert_post "$out"; then
+      keep+="$k"$'\t'"$p"$'\n'; posted=$(( posted + 1 ))
+      do_log "ALERT posted in #alerts: $out"
+    else
+      do_log "WARN the $k disagree alarm did not post; retried next tick"
+    fi
+  done < <(spl_box_quota_disagree "$(spl_box_quota_max "${SPL_CNF:-}")")
+  [[ "$2" == 1 ]] && return 0
+  printf '%s' "$keep" >"$1.tmp.$$" 2>/dev/null && mv -f "$1.tmp.$$" "$1" 2>/dev/null || rm -f "$1.tmp.$$"
+  return 0
 }
 
 # The #alerts post (do_spl_desk_post, kind note, as the asks timer posts):

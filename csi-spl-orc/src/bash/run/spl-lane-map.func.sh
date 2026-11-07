@@ -456,7 +456,7 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
 # stderr, never the map's exit code.
 spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   [[ "$LANE_MODE" == hub && "$LANE_HUB_STATE" == ok && "${2:-null}" != null ]] || return 0
-  local age was ci scope out id wk cordon wascordon
+  local age was ci scope out id wk wkr cordon wascordon
   ci="$(spl_box_ci_jobs)"
   cordon="$(jq -r --arg b "$LANE_BOX" '.[] | select(.box == $b) | .cordon // {} | to_entries | map("\(.key):\(.value)") | join(",")' <<<"$3")"
   read -r age was wascordon < <(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
@@ -466,13 +466,14 @@ spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   declare -F spl_box_quota_here >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-quota.func.sh"
   wk="$(spl_box_quota_known)"
+  wkr="$(spl_box_quota_wkr)"
   # ci=<N> only while N > 0, cli=<kinds> ("-" none, left out when unknown)
   # wk=<kind>:<pct>[@<reset>],... (left out when never measured) and cordon=<box>:<until>,...
-  # (left out when none), before live=: the cut below never drops them
-  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" --arg wk "$wk" --arg cordon "$cordon" \
+  # (left out when none), wkr=<kind>:<source>:<read at>,... with wk=, before live=: the cut below never drops them
+  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" --arg wk "$wk" --arg wkr "$wkr" --arg cordon "$cordon" \
     '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?")\(if $ci == "0" then "" else " ci=\($ci)" end)\(
       if .clis == null then "" elif (.clis | length) == 0 then " cli=-" else " cli=\(.clis | join(","))" end)\(
-      if $wk == "" then "" else " wk=\($wk)" end)\(if $cordon == "" then "" else " cordon=\($cordon)" end) live=\($ids | join(","))"' <<<"$3")"
+      if $wk == "" then "" else " wk=\($wk)" end)\(if $wk == "" or $wkr == "" then "" else " wkr=\($wkr)" end)\(if $cordon == "" then "" else " cordon=\($cordon)" end) live=\($ids | join(","))"' <<<"$3")"
   scope="${scope:0:500}"
   # whole ids only: a cut one could name a shorter id that is not clean
   for id in $(spl_lane_clean_here "$1" "$2"); do

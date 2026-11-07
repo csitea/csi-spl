@@ -788,6 +788,29 @@ non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
   `LANE_QUOTA_KEEP_S`, default 1 day: nothing says when its week ends, and a box
   held on it would never be measured again. Unknown now means never measured,
   the reading expired, or a BOX-0 row an hour old with no reset ahead.
+- **A kept reading states its source and age, and lapses unless re-read**
+  (SPL-4965, 2026-11-06: the placer held on a kept 97 % for 2 h 15 while the
+  alert read 0 %). A row carries its source (`cache`, `log`, `banner`, `probe`)
+  and the time it was really read: a fetch's own time, a transcript entry's, a
+  banner's first sighting (`<kept file>.banners`), since a banner has no time
+  and a pane keeps showing it. So a banner still on screen is no re-read, and it
+  never re-keeps a % that a newer fetch or answer overruled. A row with a reset
+  lapses `LANE_QUOTA_LAPSE_S` (default 8 h) after that read; then the box is
+  unknown and placed, the same as never measured. Measured on the box that
+  places, 10-27..11-07: after a reading at 90 % or over, the next same or higher
+  one came 0.83..5.92 h later (n=6), the longest inside a real hold. A kept 100
+  is re-read by the login probe saying `limited`. The limit of this: nothing asks
+  for the %, re-reads are passive, so a real 90..99 % that nothing re-reads for
+  8 h lets lanes through until the next reading. The hold line names each box's
+  %, source and age, from the kept file and the BOX-0 row's
+  `wkr=<kind>:<source>:<read at>` (`waiting: claude weekly >= 90% on a, b [a 97%
+  cache read 2h15m ago; b 96% source not stated]`). A kept reading at or over
+  the threshold that a NEWER reading under it contradicts posts one
+  `WEEKLY READINGS DISAGREE` line in #alerts until they agree
+  (`do_spl_weekly_limit_alert`): usage only climbs inside a week. agy's "until"
+  counts from a record's first sighting
+  (`<probe dir>/agy-limit-seen.tsv`): the watchdog rewrites its capture each
+  pass, and a static banner rolled it forward.
 - **One line per crossing**, kind `note` in `#alerts` (as the asks timer
   posts): `**WEEKLY LIMIT** <kind> on <box>: <pct>% of its weekly limit used
   (crossed <threshold>%), resets <UTC time>` (or `reset time unknown`). A jump

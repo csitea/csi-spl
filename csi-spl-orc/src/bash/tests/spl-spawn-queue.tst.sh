@@ -950,7 +950,25 @@ grep -q "agy is out of quota until 20[0-9-]*T[0-9:]*Z (a-338 banner, Resets in 9
 runrep "c-001 a-900" "$(( $(date +%s) - 900 ))"
 out="$(agyout)"
 [[ -n "$out" ]] && pass "SPL-3846 control: a stale agent-run.tsv = liveness unknown, the banner holds as before" || fail "stale report: $out"
-rm -rf "$WD13/ctx.3"; mkdir -p "$WD13/ctx.1/a-665"
+# SPL-4965: the watchdog rewrites its capture each pass, so the mtime is no read
+# time: "until" rolled forward for as long as a static banner stayed on screen.
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 1h0m0s.\n' >"$WD13/ctx.3/a-338/pane"
+touch -d '3 hours ago' "$WD13/ctx.3/a-338/pane"; rm -f "$T/pc/spool/dispatch/vendor-probe/agy-limit-seen.tsv"; runrep "c-001 a-338"
+out="$(agyout)"
+[[ -z "$out" ]] && pass "SPL-4965: a 1 h banner read 3 h ago holds nothing" || fail "old banner: $out"
+touch "$WD13/ctx.3/a-338/pane"
+out="$(agyout)"
+[[ -z "$out" ]] && pass "SPL-4965 RED CONTROL: the same banner recaptured now does not roll until forward (FAILs before: until = mtime + 1 h)" || fail "rolled: $out"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 2h0m0s.\n' >"$WD13/ctx.3/a-338/pane"
+out="$(agyout)"
+grep -qE "agy is out of quota until 20[0-9-]*T[0-9:]*Z \(a-338 banner, Resets in 2h0m0s, read 0m ago\)" <<<"$out" &&
+  pass "SPL-4965 control: a real limit, a NEW banner, holds, and the line says how old the read is" || fail "new banner: $out"
+sed -i "s/^\(Resets in 2h0m0s\t\).*/\1$(( $(date +%s) - 1800 ))/" "$T/pc/spool/dispatch/vendor-probe/agy-limit-seen.tsv"; touch "$WD13/ctx.3/a-338/pane"
+out="$(agyout)"
+grep -q "read 30m ago)" <<<"$out" && pass "SPL-4965 control: inside its own reset the banner still holds, its age from the first sighting" || fail "aged banner: $out"
+rm -rf "$WD13/ctx.3"; agyout >/dev/null
+[[ ! -s "$T/pc/spool/dispatch/vendor-probe/agy-limit-seen.tsv" ]] && pass "SPL-4965: a record gone from the watchdog dir is forgotten" || fail "forget: $(cat "$T/pc/spool/dispatch/vendor-probe/agy-limit-seen.tsv")"
+mkdir -p "$WD13/ctx.1/a-665"
 echo 'HIT S2 kind=limit pane: quota' >"$WD13/ctx.1/a-665/out.s2"
 runrep "c-001"
 out="$(agyout)"

@@ -1,9 +1,14 @@
 package store
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -411,7 +416,13 @@ func TestContactsRefuseBeforeSQL(t *testing.T) {
 			e10 := st.MarkContactsSyncDue(ctx, "ws-1", p, now)
 			_, e11 := st.ContactsSyncOf(ctx, p)
 			_, e12 := st.MarkContactsPurgePending(ctx, []string{p}, now)
-			for i, err := range []error{e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12} {
+			_, e13 := st.ImportContacts(ctx, p, []Contact{ffContact()}, now)
+			_, e14 := st.PreviewContactsImport(ctx, p, []Contact{ffContact()})
+			_, e15 := st.PutContactPhoto(ctx, p, id, testContactPhoto("a"), now)
+			_, e16 := st.ContactPhoto(ctx, p, id)
+			e17 := st.DeleteContactPhoto(ctx, p, id)
+			_, e18 := st.CountContactPhotos(ctx, p)
+			for i, err := range []error{e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18} {
 				if !errors.Is(err, ErrNoPerson) {
 					t.Errorf("%s call %d (%q): %v, want ErrNoPerson", name, i+1, p, err)
 				}
@@ -542,4 +553,448 @@ func c23gScopes(t *testing.T, rt *Postgres, person string, want int) {
 	if err := rt.inPerson(ctx, person, func(tx pgx.Tx) error { return tx.QueryRow(ctx, q, person).Scan(&asPerson) }); err != nil || asPerson != want {
 		t.Errorf("C23g twin: inPerson reads %d contact(s) (%v), want %d", asPerson, err, want)
 	}
+}
+
+// TestContactsMainAttributes is spec 11.3: the four text values are stored,
+// read back everywhere and patched ("" clears, nil keeps); each cap and the
+// birthday rule are refused before the CHECK; a company alone is not a contact.
+func TestContactsMainAttributes(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		c := ffContact()
+		c.Company, c.JobTitle, c.Birthday, c.Notes = " Example Org ", "Engineer", "1990-01-31", "first line\nsecond line"
+		c.InOnly = true
+		got, err := f.st.CreateContact(ctx, p1, c, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Company != "Example Org" || got.JobTitle != "Engineer" || got.Birthday != "1990-01-31" ||
+			got.Notes != "first line\nsecond line" || got.InOnly || got.PhotoSHA256 != "" {
+			t.Errorf("the created values: %+v", got)
+		}
+		read, err := f.st.ContactOf(ctx, p1, got.ID)
+		if err != nil || read != got {
+			t.Errorf("ContactOf: %+v (%v), want %+v", read, err, got)
+		}
+		if l := listAll(t, f.st, p1, ""); len(l) != 1 || l[0] != got {
+			t.Errorf("ListContacts: %+v, want the one created", l)
+		}
+		exp, err := f.st.ExportContacts(ctx, p1)
+		if err != nil || len(exp) != 1 || exp[0] != got {
+			t.Errorf("ExportContacts: %+v (%v), want the one created", exp, err)
+		}
+		empty, title, noYear := "", "Manager", "--02-29"
+		patched, err := f.st.PatchContact(ctx, p1, got.ID, ContactPatch{JobTitle: &title, Birthday: &noYear, Notes: &empty}, now)
+		if err != nil || patched.JobTitle != "Manager" || patched.Birthday != "--02-29" || patched.Notes != "" ||
+			patched.Company != "Example Org" {
+			t.Errorf("a patch: %+v (%v)", patched, err)
+		}
+		cleared, err := f.st.PatchContact(ctx, p1, got.ID, ContactPatch{Birthday: &empty}, now)
+		if err != nil || cleared.Birthday != "" {
+			t.Errorf("clearing the birthday: %+v (%v)", cleared, err)
+		}
+		for name, tc := range map[string]struct {
+			c    Contact
+			want error
+		}{
+			"long company":  {Contact{LastName: "L", Company: strings.Repeat("é", ContactCompanyMax+1)}, ErrContactTooLong},
+			"long title":    {Contact{LastName: "L", JobTitle: strings.Repeat("a", ContactJobTitleMax+1)}, ErrContactTooLong},
+			"long notes":    {Contact{LastName: "L", Notes: strings.Repeat("a", ContactNotesMax+1)}, ErrContactTooLong},
+			"long name":     {Contact{LastName: strings.Repeat("a", ContactNameMax+1)}, ErrContactTooLong},
+			"month 13":      {Contact{LastName: "L", Birthday: "1990-13-01"}, ErrContactBadBirthday},
+			"no year 02-30": {Contact{LastName: "L", Birthday: "--02-30"}, ErrContactBadBirthday},
+			"three dashes":  {Contact{LastName: "L", Birthday: "---02-01"}, ErrContactBadBirthday},
+			"free text":     {Contact{LastName: "L", Birthday: "in May"}, ErrContactBadBirthday},
+			"company alone": {Contact{Company: "Example Org"}, ErrContactEmpty},
+		} {
+			if _, err := f.st.CreateContact(ctx, p1, tc.c, now); !errors.Is(err, tc.want) || !errors.Is(err, ErrRealmBad) {
+				t.Errorf("%s: %v, want %v (an ErrRealmBad)", name, err, tc.want)
+			}
+		}
+		for name, c := range map[string]Contact{
+			"caps": {LastName: "L", Company: strings.Repeat("é", ContactCompanyMax),
+				JobTitle: strings.Repeat("a", ContactJobTitleMax), Notes: strings.Repeat("a", ContactNotesMax)},
+			"a leap day": {LastName: "L", Birthday: "2000-02-29"},
+		} {
+			if _, err := f.st.CreateContact(ctx, p1, c, now); err != nil {
+				t.Errorf("twin, %s: %v", name, err)
+			}
+		}
+	})
+}
+
+// wantImport compares the counts of an import or a preview.
+func wantImport(t *testing.T, name string, got ContactImportCounts, err error, want ContactImportCounts) {
+	t.Helper()
+	if err != nil || got != want {
+		t.Errorf("%s: %+v (%v), want %+v", name, got, err, want)
+	}
+}
+
+// TestContactsC32ImportMatch is C32: of 3 rows, 1 matches a live contact by
+// email and 1 by name (no email), so 1 is added and nothing overwritten; the
+// preview answers the same and writes nothing. Twin: an empty list adds 3.
+func TestContactsC32ImportMatch(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, p2, c := contactsPair(t, f, now)
+		if _, err := f.st.CreateContact(ctx, p1, Contact{FirstName: "Only", LastName: "Name"}, now); err != nil {
+			t.Fatal(err)
+		}
+		rows := []Contact{
+			{FirstName: "Other", LastName: "Words", Email: " FIRST.LAST@example.com", Company: "Example Org"},
+			{FirstName: "Only", LastName: "Name", Phone: "+1 555 010 0009"},
+			{FirstName: "New", LastName: "Row", Email: "new.row@example.com", Company: "Example Org", Birthday: "--03-04", Notes: "n"},
+		}
+		want := ContactImportCounts{Add: 1, AlreadyThere: 2}
+		got, err := f.st.PreviewContactsImport(ctx, p1, rows)
+		wantImport(t, "the preview", got, err, want)
+		if l := listAll(t, f.st, p1, ""); len(l) != 2 {
+			t.Fatalf("the preview wrote: %d contacts, want 2", len(l))
+		}
+		got, err = f.st.ImportContacts(ctx, p1, rows, now)
+		wantImport(t, "C32", got, err, want)
+		l := listAll(t, f.st, p1, "")
+		if len(l) != 3 {
+			t.Fatalf("C32 the list: %d contacts, want 3", len(l))
+		}
+		for _, x := range l {
+			if x.ID == c.ID && (x.FirstName != "FirstName" || x.Company != "") {
+				t.Errorf("C32 a match was overwritten: %+v", x)
+			}
+			if x.Email == "new.row@example.com" && (x.Company != "Example Org" || x.Birthday != "--03-04" || x.Notes != "n") {
+				t.Errorf("C32 the added row: %+v", x)
+			}
+		}
+		got, err = f.st.ImportContacts(ctx, p1, rows, now)
+		wantImport(t, "the same rows again", got, err, ContactImportCounts{AlreadyThere: 3})
+		got, err = f.st.ImportContacts(ctx, p2, rows, now)
+		wantImport(t, "C32 twin, an empty list", got, err, ContactImportCounts{Add: 3})
+		got, err = f.st.ImportContacts(ctx, p2, nil, now)
+		wantImport(t, "no rows", got, err, ContactImportCounts{})
+		dup := []Contact{{Email: "twice@example.com"}, {Email: "TWICE@example.com"}, {LastName: "Twice"}, {LastName: "Twice"}}
+		got, err = f.st.ImportContacts(ctx, p2, dup, now)
+		wantImport(t, "duplicates inside the file", got, err, ContactImportCounts{Add: 2, FileDuplicates: 2})
+		if _, err := f.st.ImportContacts(ctx, "HUM-7000000002", rows, now); !errors.Is(err, ErrNotFound) {
+			t.Errorf("no such human: %v, want ErrNotFound", err)
+		}
+	})
+}
+
+// TestContactsC32bPhoneOnlyRows is C32b: rows with no email and no name match
+// on the phone's digits. Twin: two different phones both add; on the name
+// rule alone the second would read as already there.
+func TestContactsC32bPhoneOnlyRows(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, _, _ := contactsPair(t, f, now) // holds +1 555 010 0000, with a name and an email
+		got, err := f.st.ImportContacts(ctx, p1, []Contact{{Phone: "+1 555 010 0001"}, {Phone: "+1 555 010 0002"}}, now)
+		wantImport(t, "C32b twin, two different phones", got, err, ContactImportCounts{Add: 2})
+		got, err = f.st.ImportContacts(ctx, p1, []Contact{{Phone: "15550100001"}}, now)
+		wantImport(t, "C32b one number written two ways", got, err, ContactImportCounts{AlreadyThere: 1})
+		got, err = f.st.ImportContacts(ctx, p1, []Contact{{Phone: "(1) 555-010-0000"}}, now)
+		wantImport(t, "C32b the phone of a named contact", got, err, ContactImportCounts{AlreadyThere: 1})
+		got, err = f.st.ImportContacts(ctx, p1, []Contact{{Phone: "+1 555 010 0003"}, {Phone: "1 555 010 0003"}}, now)
+		wantImport(t, "C32b a file duplicate", got, err, ContactImportCounts{Add: 1, FileDuplicates: 1})
+		got, err = f.st.ImportContacts(ctx, p1, []Contact{{LastName: "Named", Phone: "+1 555 010 0001"}}, now)
+		wantImport(t, "a named row keeps the seed's rule", got, err, ContactImportCounts{Add: 1})
+		gone := listAll(t, f.st, p1, "5550100002")
+		if len(gone) != 1 {
+			t.Fatalf("the phone search: %d, want 1", len(gone))
+		}
+		if err := f.st.DeleteContact(ctx, p1, gone[0].ID, ContactDeletedByMember, now); err != nil {
+			t.Fatal(err)
+		}
+		got, err = f.st.ImportContacts(ctx, p1, []Contact{{Phone: "15550100002"}}, now)
+		wantImport(t, "C32b a soft-deleted one", got, err, ContactImportCounts{DeletedHere: 1})
+	})
+}
+
+// TestContactsC33ImportAllOrNone is C33: a third row that is bad adds nothing,
+// through the public call on both stores and, on Postgres, past the cleaning
+// so that a real CHECK fires inside the transaction. Twin: without it, 3.
+func TestContactsC33ImportAllOrNone(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		good := []Contact{{Email: "one@example.com"}, {Email: "two@example.com"}}
+		bad := append(append([]Contact{}, good...), Contact{Phone: "call me"})
+		if _, err := f.st.ImportContacts(ctx, p1, bad, now); !errors.Is(err, ErrContactBadPhone) {
+			t.Errorf("C33 the public call: %v, want ErrContactBadPhone", err)
+		}
+		if _, err := f.st.PreviewContactsImport(ctx, p1, bad); !errors.Is(err, ErrContactBadPhone) {
+			t.Errorf("C33 the preview: %v, want ErrContactBadPhone", err)
+		}
+		if rt, ok := f.st.(*Postgres); ok {
+			err := rt.inPerson(ctx, p1, func(tx pgx.Tx) error {
+				_, err := importContactsTx(ctx, tx, p1, bad, now)
+				return err
+			})
+			if got := sqlState(err); got != "23514" {
+				t.Errorf("C33 past the cleaning: %v (state %q), want the CHECK's 23514", err, got)
+			}
+		}
+		if l := listAll(t, f.st, p1, ""); len(l) != 0 {
+			t.Errorf("C33 rows after the refusal: %d, want 0", len(l))
+		}
+		got, err := f.st.ImportContacts(ctx, p1, append(good, Contact{Email: "three@example.com"}), now)
+		wantImport(t, "C33 twin", got, err, ContactImportCounts{Add: 3})
+	})
+}
+
+// TestContactsC33bImportRace is C33b: two imports of the same new rows at once
+// add each row once. The red control is the commit's: without the advisory
+// lock this test adds the rows twice.
+func TestContactsC33bImportRace(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		const rounds, perRound = 10, 30
+		for round := 0; round < rounds; round++ {
+			rows := make([]Contact, perRound)
+			for i := range rows {
+				rows[i] = Contact{Email: fmt.Sprintf("r%d.n%d@example.com", round, i)}
+			}
+			var wg sync.WaitGroup
+			start := make(chan struct{})
+			counts := make([]ContactImportCounts, 2)
+			errs := make([]error, 2)
+			for w := range counts {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					<-start
+					counts[w], errs[w] = f.st.ImportContacts(ctx, p1, rows, now)
+				}()
+			}
+			close(start)
+			wg.Wait()
+			if errs[0] != nil || errs[1] != nil {
+				t.Fatalf("round %d: %v, %v", round, errs[0], errs[1])
+			}
+			if added := counts[0].Add + counts[1].Add; added != perRound {
+				t.Errorf("C33b round %d: %d added in all, want %d", round, added, perRound)
+			}
+		}
+		exp, err := f.st.ExportContacts(ctx, p1)
+		if err != nil || len(exp) != rounds*perRound {
+			t.Errorf("C33b the list: %d contacts (%v), want %d", len(exp), err, rounds*perRound)
+		}
+	})
+}
+
+// TestContactsC37bImportSoftDeleted is C37b, the store's half: a row matching
+// a soft-deleted contact, by either deleter, is deleted_here and adds nothing;
+// a live match wins. Twin: after the purge the row adds.
+func TestContactsC37bImportSoftDeleted(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		old := now.Add(-40 * 24 * time.Hour)
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		for _, by := range []string{ContactDeletedByMember, ContactDeletedByGoogle} {
+			row := Contact{Email: by + "@example.com"}
+			c, err := f.st.CreateContact(ctx, p1, row, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.st.DeleteContact(ctx, p1, c.ID, by, old); err != nil {
+				t.Fatal(err)
+			}
+			got, err := f.st.ImportContacts(ctx, p1, []Contact{row}, now)
+			wantImport(t, "C37b deleted by "+by, got, err, ContactImportCounts{DeletedHere: 1})
+		}
+		if l := listAll(t, f.st, p1, ""); len(l) != 0 {
+			t.Errorf("C37b an import resurrected: %d live, want 0", len(l))
+		}
+		both := Contact{LastName: "Both"}
+		first, err := f.st.CreateContact(ctx, p1, both, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.st.DeleteContact(ctx, p1, first.ID, ContactDeletedByMember, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.st.CreateContact(ctx, p1, both, now); err != nil {
+			t.Fatal(err)
+		}
+		got, err := f.st.ImportContacts(ctx, p1, []Contact{both}, now)
+		wantImport(t, "a live match beside a soft-deleted one", got, err, ContactImportCounts{AlreadyThere: 1})
+		if _, err := f.st.PurgeDeletedContacts(ctx, now.Add(-39*24*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		got, err = f.st.ImportContacts(ctx, p1, []Contact{{Email: ContactDeletedByMember + "@example.com"}}, now)
+		wantImport(t, "C37b twin, after the purge", got, err, ContactImportCounts{Add: 1})
+	})
+}
+
+// testContactPhoto is a picture whose source URL hash is 64 times hexChar.
+func testContactPhoto(hexChar string) ContactPhoto {
+	return ContactPhoto{Mime: "image/png", Bytes: []byte("\x89PNG" + hexChar), SourceURLHash: strings.Repeat(hexChar, 64)}
+}
+
+// wantPhotos is CountContactPhotos of person.
+func wantPhotos(t *testing.T, st PersonalContacts, name, person string, want int) {
+	t.Helper()
+	if n, err := st.CountContactPhotos(context.Background(), person); err != nil || n != want {
+		t.Errorf("%s: %d picture(s) of %s (%v), want %d", name, n, person, err, want)
+	}
+}
+
+// TestContactsC31PhotoOtherPerson is C31: P2 reads, writes or deletes P1's
+// picture through the store: not found, nothing changed, and not the primary
+// key's duplicate that a plain INSERT answers (B13's reviewer, N5). Twin: P1
+// does each.
+func TestContactsC31PhotoOtherPerson(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, p2, c := contactsPair(t, f, now)
+		if _, err := f.st.ContactPhoto(ctx, p1, c.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("no picture yet: %v, want ErrNotFound", err)
+		}
+		if err := f.st.DeleteContactPhoto(ctx, p1, c.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("deleting no picture: %v, want ErrNotFound", err)
+		}
+		in := testContactPhoto("a")
+		put, err := f.st.PutContactPhoto(ctx, p1, c.ID, in, now)
+		sum := sha256.Sum256(in.Bytes)
+		if err != nil || put.SHA256 != hex.EncodeToString(sum[:]) || !bytes.Equal(put.Bytes, in.Bytes) || put.FetchedAt.IsZero() {
+			t.Fatalf("C31 twin, P1 writes: %+v (%v)", put, err)
+		}
+		if _, err := f.st.PutContactPhoto(ctx, p2, c.ID, testContactPhoto("b"), now); !errors.Is(err, ErrNotFound) {
+			t.Errorf("C31 P2 writes: %v, want ErrNotFound", err)
+		}
+		if _, err := f.st.ContactPhoto(ctx, p2, c.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("C31 P2 reads: %v, want ErrNotFound", err)
+		}
+		if err := f.st.DeleteContactPhoto(ctx, p2, c.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("C31 P2 deletes: %v, want ErrNotFound", err)
+		}
+		wantPhotos(t, f.st, "C31 P2 after its tries", p2, 0)
+		got, err := f.st.ContactPhoto(ctx, p1, c.ID)
+		if err != nil || got.SHA256 != put.SHA256 || got.SourceURLHash != in.SourceURLHash || got.Mime != in.Mime ||
+			!bytes.Equal(got.Bytes, in.Bytes) {
+			t.Errorf("C31 twin, P1 reads what it wrote: %+v (%v)", got, err)
+		}
+		read, err := f.st.ContactOf(ctx, p1, c.ID)
+		if err != nil || read.PhotoSHA256 != put.SHA256 || !read.UpdatedAt.Equal(c.UpdatedAt) {
+			t.Errorf("the contact after a picture: %+v (%v), want its hash and the same updated_at", read, err)
+		}
+		if l := listAll(t, f.st, p1, ""); len(l) != 1 || l[0].PhotoSHA256 != put.SHA256 {
+			t.Errorf("the list after a picture: %+v", l)
+		}
+		next, err := f.st.PutContactPhoto(ctx, p1, c.ID, testContactPhoto("b"), now)
+		if err != nil || next.SHA256 == put.SHA256 {
+			t.Errorf("a new picture: %+v (%v), want a new hash", next, err)
+		}
+		wantPhotos(t, f.st, "a replaced picture is one", p1, 1)
+		if err := f.st.DeleteContactPhoto(ctx, p1, c.ID); err != nil {
+			t.Errorf("C31 twin, P1 deletes: %v", err)
+		}
+		wantPhotos(t, f.st, "C31 twin, after P1's delete", p1, 0)
+		if read, err := f.st.ContactOf(ctx, p1, c.ID); err != nil || read.PhotoSHA256 != "" {
+			t.Errorf("the contact after the delete: %+v (%v), want no hash", read, err)
+		}
+	})
+}
+
+// TestContactsPhotoValues is rdb 0265's picture CHECKs before any SQL, and a
+// soft-deleted contact's picture gone from reads though its row still counts.
+func TestContactsPhotoValues(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, _, c := contactsPair(t, f, now)
+		ok := testContactPhoto("a")
+		for name, mutate := range map[string]func(p *ContactPhoto){
+			"a gif":          func(p *ContactPhoto) { p.Mime = "image/gif" },
+			"no bytes":       func(p *ContactPhoto) { p.Bytes = nil },
+			"one byte over":  func(p *ContactPhoto) { p.Bytes = make([]byte, ContactPhotoMax+1) },
+			"a bad URL hash": func(p *ContactPhoto) { p.SourceURLHash = "abc" },
+		} {
+			p := ok
+			mutate(&p)
+			if _, err := f.st.PutContactPhoto(ctx, p1, c.ID, p, now); !errors.Is(err, ErrContactPhotoBad) || !errors.Is(err, ErrRealmBad) {
+				t.Errorf("%s: %v, want ErrContactPhotoBad", name, err)
+			}
+		}
+		wantPhotos(t, f.st, "after the refusals", p1, 0)
+		atCap := ok
+		atCap.Bytes = make([]byte, ContactPhotoMax)
+		if _, err := f.st.PutContactPhoto(ctx, p1, c.ID, atCap, now); err != nil {
+			t.Errorf("twin, at the cap: %v", err)
+		}
+		if err := f.st.DeleteContact(ctx, p1, c.ID, ContactDeletedByMember, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.st.ContactPhoto(ctx, p1, c.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("a soft-deleted contact's picture reads %v, want ErrNotFound", err)
+		}
+		if _, err := f.st.PutContactPhoto(ctx, p1, c.ID, ok, now); !errors.Is(err, ErrNotFound) {
+			t.Errorf("a picture on a soft-deleted contact: %v, want ErrNotFound", err)
+		}
+		wantPhotos(t, f.st, "a soft-deleted contact's picture still counts", p1, 1)
+	})
+}
+
+// TestContactsC39PhotosGoWithTheList is C39: erase all, on both stores, leaves
+// 0 pictures of that person; twin: P2's stay. A human delete is Postgres only:
+// Memory's human paths hold no contact, and the FK's cascade is the thing tested.
+func TestContactsC39PhotosGoWithTheList(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, p2, c := contactsPair(t, f, now)
+		c2, err := f.st.CreateContact(ctx, p2, ffContact(), now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		soft, err := f.st.CreateContact(ctx, p1, Contact{LastName: "Soft"}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, x := range []struct{ person, id string }{{p1, c.ID}, {p1, soft.ID}, {p2, c2.ID}} {
+			if _, err := f.st.PutContactPhoto(ctx, x.person, x.id, testContactPhoto("a"), now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := f.st.DeleteContact(ctx, p1, soft.ID, ContactDeletedByMember, now); err != nil {
+			t.Fatal(err)
+		}
+		wantPhotos(t, f.st, "before the erase", p1, 2)
+		if _, err := f.st.EraseContacts(ctx, p1); err != nil {
+			t.Fatal(err)
+		}
+		wantPhotos(t, f.st, "C39 after P1's erase", p1, 0)
+		wantPhotos(t, f.st, "C39 twin, P2's after P1's erase", p2, 1)
+		if f.pg == nil {
+			return
+		}
+		p3, _ := realmPersons()
+		f.addHuman(t, p3)
+		c3, err := f.st.CreateContact(ctx, p3, ffContact(), now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.st.PutContactPhoto(ctx, p3, c3.ID, testContactPhoto("a"), now); err != nil {
+			t.Fatal(err)
+		}
+		wantPhotos(t, f.st, "before the human delete", p3, 1)
+		if _, err := f.pg.pool.Exec(ctx, `DELETE FROM humans WHERE human_id = $1`, p3); err != nil {
+			t.Fatal(err)
+		}
+		wantPhotos(t, f.st, "C39 after the human delete", p3, 0)
+		wantPhotos(t, f.st, "C39 twin, P2's after the human delete", p2, 1)
+	})
 }

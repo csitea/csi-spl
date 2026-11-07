@@ -16,8 +16,9 @@ type memContact struct {
 	Contact
 	deletedAt *time.Time
 	deletedBy string
-	etag      string // google_etag
-	syncHash  string // sync_hash, "" = NULL
+	etag      string        // google_etag
+	syncHash  string        // sync_hash, "" = NULL
+	photo     *ContactPhoto // personal.contact_photos: goes with the row, as the FK's cascade
 }
 
 // memContacts is rdb 0226 on Memory.
@@ -112,15 +113,21 @@ func (s *Memory) CreateContact(_ context.Context, person string, c Contact, now 
 	if err := s.realmLocked(person, true); err != nil {
 		return Contact{}, err
 	}
+	return s.addContactLocked(person, c, now), nil
+}
+
+// addContactLocked stores a cleaned contact as a new row; s.mu is held.
+func (s *Memory) addContactLocked(person string, c Contact, now time.Time) Contact {
 	now = contactTime(now)
 	row := &memContact{Contact: Contact{ID: memUUID(), FirstName: c.FirstName, LastName: c.LastName,
-		Email: c.Email, Phone: c.Phone, CreatedAt: now, UpdatedAt: now}}
+		Email: c.Email, Phone: c.Phone, Company: c.Company, JobTitle: c.JobTitle, Birthday: c.Birthday, Notes: c.Notes,
+		CreatedAt: now, UpdatedAt: now}}
 	cs := s.contactsLocked()
 	if cs.byPerson[person] == nil {
 		cs.byPerson[person] = map[string]*memContact{}
 	}
 	cs.byPerson[person][row.ID] = row
-	return row.Contact, nil
+	return row.Contact
 }
 
 // PatchContact is PersonalContacts.PatchContact.
@@ -278,4 +285,124 @@ func (s *Memory) DropDeletedContact(_ context.Context, person, contactID string)
 	}
 	delete(rows, c.ID)
 	return nil
+}
+
+// contactsHeldLocked is the person's keys, soft-deleted rows included; s.mu is held.
+func (s *Memory) contactsHeldLocked(person string) contactsHeld {
+	held := contactsHeld{}
+	for _, c := range s.contactsLocked().byPerson[person] {
+		held.add(c.Contact, c.deletedAt == nil)
+	}
+	return held
+}
+
+// ImportContacts is PersonalContacts.ImportContacts.
+func (s *Memory) ImportContacts(_ context.Context, person string, rows []Contact, now time.Time) (ContactImportCounts, error) {
+	if err := checkPerson(person); err != nil {
+		return ContactImportCounts{}, err
+	}
+	rows, err := cleanContactRows(rows)
+	if err != nil {
+		return ContactImportCounts{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	add, n := matchContactImport(rows, s.contactsHeldLocked(person))
+	if len(add) == 0 {
+		return n, nil
+	}
+	if err := s.realmLocked(person, true); err != nil {
+		return ContactImportCounts{}, err
+	}
+	for _, c := range add {
+		s.addContactLocked(person, c, now)
+	}
+	return n, nil
+}
+
+// PreviewContactsImport is PersonalContacts.PreviewContactsImport.
+func (s *Memory) PreviewContactsImport(_ context.Context, person string, rows []Contact) (ContactImportCounts, error) {
+	if err := checkPerson(person); err != nil {
+		return ContactImportCounts{}, err
+	}
+	rows, err := cleanContactRows(rows)
+	if err != nil {
+		return ContactImportCounts{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, n := matchContactImport(rows, s.contactsHeldLocked(person))
+	return n, nil
+}
+
+// copyContactPhoto is p with bytes the caller cannot change under the store.
+func copyContactPhoto(p ContactPhoto) ContactPhoto {
+	p.Bytes = append([]byte(nil), p.Bytes...)
+	return p
+}
+
+// PutContactPhoto is PersonalContacts.PutContactPhoto.
+func (s *Memory) PutContactPhoto(_ context.Context, person, contactID string, p ContactPhoto, now time.Time) (ContactPhoto, error) {
+	if err := checkContactIDs(person, contactID); err != nil {
+		return ContactPhoto{}, err
+	}
+	p, err := cleanContactPhoto(p)
+	if err != nil {
+		return ContactPhoto{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.liveContactLocked(person, contactID)
+	if err != nil {
+		return ContactPhoto{}, err
+	}
+	p.FetchedAt = contactTime(now)
+	held := copyContactPhoto(p)
+	c.photo, c.PhotoSHA256 = &held, p.SHA256
+	return copyContactPhoto(p), nil
+}
+
+// ContactPhoto is PersonalContacts.ContactPhoto.
+func (s *Memory) ContactPhoto(_ context.Context, person, contactID string) (ContactPhoto, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.liveContactLocked(person, contactID)
+	if err != nil {
+		return ContactPhoto{}, err
+	}
+	if c.photo == nil {
+		return ContactPhoto{}, ErrNotFound
+	}
+	return copyContactPhoto(*c.photo), nil
+}
+
+// DeleteContactPhoto is PersonalContacts.DeleteContactPhoto.
+func (s *Memory) DeleteContactPhoto(_ context.Context, person, contactID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.liveContactLocked(person, contactID)
+	if err != nil {
+		return err
+	}
+	if c.photo == nil {
+		return ErrNotFound
+	}
+	c.photo, c.PhotoSHA256 = nil, ""
+	return nil
+}
+
+// CountContactPhotos is PersonalContacts.CountContactPhotos.
+func (s *Memory) CountContactPhotos(_ context.Context, person string) (int, error) {
+	if err := checkPerson(person); err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, c := range s.contactsLocked().byPerson[person] {
+		if c.photo != nil {
+			n++
+		}
+	}
+	return n, nil
 }

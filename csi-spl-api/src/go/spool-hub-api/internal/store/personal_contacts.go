@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -38,6 +40,14 @@ const (
 	contactWordsMax = 8   // the words of a query that count
 )
 
+// The limits of rdb 0265's CHECKs (spec 154 v1.3 sections 11.3, 11.4).
+const (
+	ContactCompanyMax  = 200 // company, in characters
+	ContactJobTitleMax = 200 // job_title, in characters
+	ContactNotesMax    = 8000
+	ContactPhotoMax    = 64 << 10 // one picture, in bytes
+)
+
 // The deleted_by values of rdb 0226.
 const (
 	ContactDeletedByMember = "member"
@@ -45,11 +55,14 @@ const (
 )
 
 // The value errors, each an ErrRealmBad; the hub answers contact_empty,
-// bad_email and bad_phone (spec 4).
+// bad_email, bad_phone, too_long and bad_birthday (spec 4, 11.3).
 var (
-	ErrContactEmpty    = fmt.Errorf("%w: a contact needs a name, an email or a phone", ErrRealmBad)
-	ErrContactBadEmail = fmt.Errorf("%w: the email is not an address", ErrRealmBad)
-	ErrContactBadPhone = fmt.Errorf("%w: the phone is not a phone number", ErrRealmBad)
+	ErrContactTooLong     = fmt.Errorf("%w: a value is over its cap", ErrRealmBad)
+	ErrContactBadBirthday = fmt.Errorf("%w: the birthday is not a date", ErrRealmBad)
+	ErrContactPhotoBad    = fmt.Errorf("%w: a bad picture", ErrRealmBad)
+	ErrContactEmpty       = fmt.Errorf("%w: a contact needs a name, an email or a phone", ErrRealmBad)
+	ErrContactBadEmail    = fmt.Errorf("%w: the email is not an address", ErrRealmBad)
+	ErrContactBadPhone    = fmt.Errorf("%w: the phone is not a phone number", ErrRealmBad)
 )
 
 // contactPhoneRe is rdb 0226's phone CHECK: what people type, not E.164.
@@ -59,9 +72,14 @@ var contactPhoneRe = regexp.MustCompile(`^[+0-9 ().-]{3,40}$`)
 // with its spaces and punctuation removed (spec 2.3, C10b).
 var contactDigitsRe = regexp.MustCompile(`^[0-9]+$`)
 
-// Contact is one live personal.contacts row. Email and Phone "" = NULL.
-// GoogleAccount and GoogleResource are both set or both "" (linked to
-// Google under that account, spec 2.5).
+// contactBirthdayRe is rdb 0265's birthday CHECK: YYYY-MM-DD or --MM-DD.
+var contactBirthdayRe = regexp.MustCompile(`^([0-9]{4}-|--)[0-9]{2}-[0-9]{2}$`)
+
+// Contact is one live personal.contacts row. Email, Phone and Birthday "" =
+// NULL. GoogleAccount and GoogleResource are both set or both "" (linked to
+// Google under that account, spec 2.5). InOnly (spec 11.3) is the sync's to
+// set, never a write here's. PhotoSHA256 is its picture's hash, "" for none;
+// the bytes are read only by ContactPhoto (spec 11.4).
 type Contact struct {
 	ID             string
 	FirstName      string
@@ -72,6 +90,12 @@ type Contact struct {
 	GoogleResource string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	Company        string
+	JobTitle       string
+	Birthday       string
+	Notes          string
+	InOnly         bool
+	PhotoSHA256    string
 }
 
 // ContactPatch is a PATCH of a contact: nil fields are kept; "" clears one.
@@ -80,6 +104,29 @@ type ContactPatch struct {
 	LastName  *string
 	Email     *string
 	Phone     *string
+	Company   *string
+	JobTitle  *string
+	Birthday  *string
+	Notes     *string
+}
+
+// ContactPhoto is one personal.contact_photos row. PutContactPhoto takes Mime,
+// Bytes and SourceURLHash and computes the rest.
+type ContactPhoto struct {
+	Mime          string
+	Bytes         []byte
+	SHA256        string
+	SourceURLHash string
+	FetchedAt     time.Time
+}
+
+// ContactImportCounts is what became of an import's rows (spec 11.2.1). Add
+// is the rows added by ImportContacts, or that PreviewContactsImport would add.
+type ContactImportCounts struct {
+	Add            int
+	AlreadyThere   int
+	DeletedHere    int
+	FileDuplicates int
 }
 
 // ContactQuery is one ListContacts call. Q "" lists every contact; After is
@@ -190,7 +237,7 @@ type PersonalContacts interface {
 	ListContacts(ctx context.Context, person string, q ContactQuery) (ContactPage, error)
 	// ContactOf is one live contact.
 	ContactOf(ctx context.Context, person, contactID string) (Contact, error)
-	// CreateContact adds c's four values (the rest is ignored).
+	// CreateContact adds c's values (the link, InOnly and the picture are ignored).
 	// ErrContactEmpty with none; ErrNotFound: no such human.
 	CreateContact(ctx context.Context, person string, c Contact, now time.Time) (Contact, error)
 	// PatchContact changes the values p sets; ErrContactEmpty when none
@@ -208,6 +255,23 @@ type PersonalContacts interface {
 	// PurgeDeletedContacts deletes every person's rows soft-deleted before
 	// before and names each such person once (spec 2.6 W4, C2e).
 	PurgeDeletedContacts(ctx context.Context, before time.Time) ([]ContactPurged, error)
+	// ImportContacts adds the rows that match nothing the person holds, all
+	// or none (spec 11.2): a row that fails CleanContact refuses the whole
+	// call, so the caller drops and reports those first. Two imports at once
+	// add a row once. The match rule is contactImportKey.
+	ImportContacts(ctx context.Context, person string, rows []Contact, now time.Time) (ContactImportCounts, error)
+	// PreviewContactsImport is ImportContacts' counts, writing nothing.
+	PreviewContactsImport(ctx context.Context, person string, rows []Contact) (ContactImportCounts, error)
+	// PutContactPhoto stores or replaces a live contact's picture, never its
+	// updated_at (a picture is not sent to Google, spec 11.4).
+	PutContactPhoto(ctx context.Context, person, contactID string, p ContactPhoto, now time.Time) (ContactPhoto, error)
+	// ContactPhoto is a live contact's picture; ErrNotFound for none.
+	ContactPhoto(ctx context.Context, person, contactID string) (ContactPhoto, error)
+	// DeleteContactPhoto removes a live contact's picture; ErrNotFound for none.
+	DeleteContactPhoto(ctx context.Context, person, contactID string) error
+	// CountContactPhotos is every picture the person's rows hold, those of
+	// soft-deleted contacts too: what contacts.photo_max_per_person caps.
+	CountContactPhotos(ctx context.Context, person string) (int, error)
 }
 
 var (
@@ -215,13 +279,30 @@ var (
 	_ PersonalContacts = (*Postgres)(nil)
 )
 
-// checkContactName is a name within ContactNameMax characters of text.
-func checkContactName(field, s string) error {
-	if utf8.RuneCountInString(s) > ContactNameMax {
-		return fmt.Errorf("%w: %s above %d characters", ErrRealmBad, field, ContactNameMax)
+// checkContactText is text within max characters.
+func checkContactText(field, s string, max int) error {
+	if utf8.RuneCountInString(s) > max {
+		return fmt.Errorf("%w: %s above %d characters", ErrContactTooLong, field, max)
 	}
 	if !utf8.ValidString(s) || strings.ContainsRune(s, 0) {
 		return fmt.Errorf("%w: %s is not valid text", ErrRealmBad, field)
+	}
+	return nil
+}
+
+// checkContactBirthday is a real date, YYYY-MM-DD or --MM-DD, or "".
+func checkContactBirthday(b string) error {
+	if b == "" {
+		return nil
+	}
+	if !contactBirthdayRe.MatchString(b) {
+		return ErrContactBadBirthday
+	}
+	if strings.HasPrefix(b, "--") {
+		b = "2000" + b[1:] // a leap year: --02-29 is a birthday
+	}
+	if _, err := time.Parse("2006-01-02", b); err != nil {
+		return ErrContactBadBirthday
 	}
 	return nil
 }
@@ -237,15 +318,33 @@ func checkContactEmail(e string) error {
 	return nil
 }
 
-// cleanContact trims the four values, lowercases the email (rdb 0226 holds
-// it lowercased) and checks each, then that one is left.
+// CleanContact is what every write does to a contact's values: B15's import
+// sorts a file's rows with it, by the error, before ImportContacts.
+func CleanContact(c Contact) (Contact, error) { return cleanContact(c) }
+
+// cleanContact trims the values, lowercases the email (rdb 0226 holds it
+// lowercased) and checks each, then that one of the four is left (a company
+// alone is not a contact, spec 11.3).
 func cleanContact(c Contact) (Contact, error) {
 	c.FirstName, c.LastName = strings.TrimSpace(c.FirstName), strings.TrimSpace(c.LastName)
 	c.Email, c.Phone = strings.ToLower(strings.TrimSpace(c.Email)), strings.TrimSpace(c.Phone)
-	if err := checkContactName("first name", c.FirstName); err != nil {
-		return c, err
+	c.Company, c.JobTitle = strings.TrimSpace(c.Company), strings.TrimSpace(c.JobTitle)
+	c.Birthday, c.Notes = strings.TrimSpace(c.Birthday), strings.TrimSpace(c.Notes)
+	for _, f := range []struct {
+		field, value string
+		max          int
+	}{
+		{"first name", c.FirstName, ContactNameMax},
+		{"last name", c.LastName, ContactNameMax},
+		{"company", c.Company, ContactCompanyMax},
+		{"job title", c.JobTitle, ContactJobTitleMax},
+		{"notes", c.Notes, ContactNotesMax},
+	} {
+		if err := checkContactText(f.field, f.value, f.max); err != nil {
+			return c, err
+		}
 	}
-	if err := checkContactName("last name", c.LastName); err != nil {
+	if err := checkContactBirthday(c.Birthday); err != nil {
 		return c, err
 	}
 	if c.Email != "" {
@@ -266,12 +365,108 @@ func cleanContact(c Contact) (Contact, error) {
 func patchedContact(c Contact, p ContactPatch) (Contact, error) {
 	for _, f := range []struct{ to, from *string }{
 		{&c.FirstName, p.FirstName}, {&c.LastName, p.LastName}, {&c.Email, p.Email}, {&c.Phone, p.Phone},
+		{&c.Company, p.Company}, {&c.JobTitle, p.JobTitle}, {&c.Birthday, p.Birthday}, {&c.Notes, p.Notes},
 	} {
 		if f.from != nil {
 			*f.to = *f.from
 		}
 	}
 	return cleanContact(c)
+}
+
+// cleanContactRows is cleanContact of every row of an import; the error names
+// the row, never a value.
+func cleanContactRows(rows []Contact) ([]Contact, error) {
+	out := make([]Contact, 0, len(rows))
+	for i, r := range rows {
+		c, err := cleanContact(r)
+		if err != nil {
+			return nil, fmt.Errorf("row %d: %w", i+1, err)
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// contactPhoneKey is a phone's key in the import's match: its digits, so one
+// number written two ways is one number; the text when it has no digit.
+func contactPhoneKey(phone string) string {
+	if d := contactPhoneDigits(phone); d != "" {
+		return "p\x00" + d
+	}
+	return "p\x00" + phone
+}
+
+// contactImportKey is the import's match rule (spec 11.2) on a cleaned
+// contact: the email; else with no email the first and last name, as the
+// operator's seed; else with neither the phone.
+func contactImportKey(c Contact) string {
+	switch {
+	case c.Email != "":
+		return "e\x00" + c.Email
+	case c.FirstName != "" || c.LastName != "":
+		return "n\x00" + c.FirstName + "\x00" + c.LastName
+	}
+	return contactPhoneKey(c.Phone)
+}
+
+// contactsHeld is every key a person's rows answer to, true when a live
+// contact holds it, false when only a soft-deleted one does.
+type contactsHeld map[string]bool
+
+// add records c's keys: contactImportKey, and its phone too, because a row
+// with only a phone matches any contact with that number.
+func (h contactsHeld) add(c Contact, live bool) {
+	k := contactImportKey(c)
+	h[k] = h[k] || live
+	if c.Phone != "" {
+		p := contactPhoneKey(c.Phone)
+		h[p] = h[p] || live
+	}
+}
+
+// matchContactImport is both stores' one matcher: the rows to add and the
+// counts. A row repeating an earlier row of the file is a file duplicate
+// first; a live match wins over a soft-deleted one.
+func matchContactImport(rows []Contact, held contactsHeld) ([]Contact, ContactImportCounts) {
+	var n ContactImportCounts
+	add := []Contact{}
+	seen := contactsHeld{}
+	for _, r := range rows {
+		k := contactImportKey(r)
+		if _, dup := seen[k]; dup {
+			n.FileDuplicates++
+			continue
+		}
+		seen.add(r, true)
+		live, there := held[k]
+		switch {
+		case there && live:
+			n.AlreadyThere++
+		case there:
+			n.DeletedHere++
+		default:
+			add = append(add, r)
+		}
+	}
+	n.Add = len(add)
+	return add, n
+}
+
+// cleanContactPhoto checks p against rdb 0265 and computes its hash. The
+// magic bytes are the fetcher's (B16): mime here is only the column's rule.
+func cleanContactPhoto(p ContactPhoto) (ContactPhoto, error) {
+	switch p.Mime {
+	case "image/png", "image/jpeg", "image/webp":
+	default:
+		return p, ErrContactPhotoBad
+	}
+	if len(p.Bytes) < 1 || len(p.Bytes) > ContactPhotoMax || !contactSyncHashRe.MatchString(p.SourceURLHash) {
+		return p, ErrContactPhotoBad
+	}
+	sum := sha256.Sum256(p.Bytes)
+	p.SHA256 = hex.EncodeToString(sum[:])
+	return p, nil
 }
 
 // checkContactIDs is checkPerson plus every id a uuid: a malformed id is a

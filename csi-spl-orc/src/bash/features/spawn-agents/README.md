@@ -423,6 +423,14 @@ worktrees, which is the one-machine behaviour. The read always adds this
 machine's own worktrees too: a lane the hub has no row for shows as `src
 local`. A hub that does not answer prints a WARN and falls back to them.
 
+A hub `done` row does not hide a lane still running here (SPL-5003): with a
+live tmux pane on this box the local row replaces it, `src local`, in the
+default map too, and `--check` reads its worktree, so a path it changed is exit
+3. A worktree with no pane stays `done`: it is kept 24 h after the close and is
+no lane, and an unreadable tmux measures no pane. Only the box of that pane
+sees this: another box has just the `done` row, so its `--check` still says
+`free`.
+
 #### 3.11.1 Read it (live lanes; `--all` adds done, `--json` for scripts)
 
 ```bash

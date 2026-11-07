@@ -1003,6 +1003,9 @@ and 5 dev desks, none with a live sidecar.
   `spl_lane_desk_spool` signs there as its owner, with its binary. The unmarked
   box-user rows that reach `spl_lane_init` (`box-stats`, the unanswered sweep's
   link check, `agent-id-reap`, `spawn-remote`) rely on it.
+- **The fleet loop stays the box user's.** `spl_lease_ensure` runs as the owner
+  of `fleet.run` (`spl_lease_ensure_as_owner`), so moving the reconcile cron does
+  not strand a loop on old code, and a boot does not seat it under another user.
 - **The window and the lease.** The lease demotes after `LEASE_STALE` (180 s)
   with no good hub call. On 2026-11-01 the desk came up in 35 s but the hub calls
   never came back: orch fell at 10:24:49Z. With SPL-4942 they hop, so a window
@@ -1010,7 +1013,7 @@ and 5 dev desks, none with a live sidecar.
   desk: that is the move itself.
 
 Tests: `desk-move.tst.sh` case 14, `desk-user-hops.tst.sh` cases 7 and 8,
-`dispatch-lease-moved-desk.tst.sh` case 10.
+`dispatch-lease-moved-desk.tst.sh` cases 10 and 11.
 
 ### 8.5 Build rows
 

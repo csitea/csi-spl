@@ -964,6 +964,7 @@ spl_lease_detach() {
 
 spl_lease_ensure() {
   [[ -f "$LEASE_CONF" ]] || { do_log "INFO no $LEASE_CONF - this box runs no dispatch lease"; return 0; }
+  spl_lease_ensure_as_owner && return "$SPL_LEASE_OWNER_RC"
   spl_lease_ids master failover orch || return 1
   spl_lease_trunk_check || return 1
   local verb out ver verbs=(renew watch)
@@ -1002,6 +1003,28 @@ spl_lease_ensure() {
     do_log "INFO lease $verb loop started (log $out)"
     spl_lease_log "ensure started $verb"
   done
+  return 0
+}
+
+# spl_lease_ensure_as_owner: 0 when the fleet loop's lock belongs to another
+# user and this ensure ran as that user (its rc in SPL_LEASE_OWNER_RC); 1 when
+# it runs here. Step 4 of spec 069 8.4 moves the reconcile cron, the caller of
+# ensure, to the desk user, while the loop stays the box user's. Run as the desk
+# user, ensure cannot signal that loop: a new code version ends in "did not stop"
+# on every tick and the old loop runs on, and a boot would seat the loop under an
+# untried user. So the loop's owner decides (SPL-4985). SPL_LEASE_OWNER_HOPPED:
+# one hop, never a loop. Under SPOOL_TEST=1 only a test's SPL_DESK_AS_CMD hops.
+spl_lease_ensure_as_owner() {
+  local u; local -a as=()
+  [[ -z "${SPL_LEASE_OWNER_HOPPED:-}" && -n "${LEASE_FLEET:-}" ]] || return 1
+  [[ "${SPOOL_TEST:-}" != 1 || -n "${SPL_DESK_AS_CMD:-}" ]] || return 1
+  u="$(stat -c %U "$LEASE_DIR/fleet.run" 2>/dev/null)"
+  [[ -n "$u" && "$u" != UNKNOWN && "$u" != "$(id -un)" ]] || return 1
+  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  do_log "INFO the fleet loop is $u's: this ensure runs as $u"
+  SPL_LEASE_OWNER_RC=0
+  timeout -k 1 "${LEASE_OWNER_TIMEOUT:-120}" "${as[@]}" "$u" -- env HOME="$(getent passwd "$u" | cut -d: -f6)" SPOOL_ROOT="${SPOOL_ROOT:-}" \
+    LEASE_CMD=ensure SPL_LEASE_OWNER_HOPPED="$(id -un)" "${LEASE_RUN:-$PROJ_PATH/run}" -a do_spl_dispatch_lease 7>&- 8>&- || SPL_LEASE_OWNER_RC=$?
   return 0
 }
 

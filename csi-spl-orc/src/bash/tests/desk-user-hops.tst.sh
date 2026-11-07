@@ -355,5 +355,47 @@ has "8. poll ack: the hopped run's rc" "rc=7" "$(ack8 hop-g AS_RC=7)"
 ack8 hop-h >/dev/null
 eq "8. poll ack: the fleet desk is the caller's: no hop" "0" "$(hop6)"
 
+# 9. do_spl_lane_issue re-runs as the owner of a moved desk (SPL-4985, R7 W2).
+# The taught end line is `sudo -u <box user> env AGENT_ID=... LANE_ISSUE_OP=end`:
+# no TENANT_ID and no DESK_AGENT, so the workspace comes from lease.conf, as here.
+# RED on 0c2b65bc2: 13 FAILED, no hop. This sandbox's roots are enterable, so the
+# refusal is not the one a real 0700 root gives; R7's control D read that one.
+LI9="$T/li9"
+mkdir -p "$LI9/dispatch" "$LI9/c-777/lifetime"
+printf 'LEASE_ENV=dev\nLEASE_TENANT=hop-g\nLEASE_MASTER=c-002\n' >"$LI9/dispatch/lease.conf"
+echo SPL-77 >"$LI9/c-777/lifetime/issue"
+# li9 [VAR=value]...: the action as the taught line calls it
+li9() {
+  : >"$T/as.log"
+  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; spl_desk_box_default() { echo box-x; }; do_spl_lane_issue; echo "rc=$?"' \
+    in_orc SPOOL_ROOT="$LI9" AGENT_ID=c-777 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=diss LANE_ISSUE_REASON='gate dropped it' \
+    DRY_RUN=0 SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" "$@" 2>&1
+}
+out="$(li9)"; log="$(cat "$T/as.log")"
+eq "9. lane issue: the lease's desk moved: one hop" "1" "$(hop6)"
+has "9. lane issue: the agent user's HOME" "HOP env HOME=$DH " "$log"
+has "9. lane issue: the hop runs the action" "$PROJ_ROOT/run -a do_spl_lane_issue" "$log"
+has "9. lane issue: the hop carries the lane" " AGENT_ID=c-777" "$log"
+has "9. lane issue: the hop carries the op" " LANE_ISSUE_OP=end" "$log"
+has "9. lane issue: the hop carries the reason" " LANE_ISSUE_REASON=gate dropped it" "$log"
+has "9. lane issue: the workspace from lease.conf goes along" " TENANT_ID=hop-g" "$log"
+has "9. lane issue: the spool root goes along" " SPOOL_ROOT=$LI9" "$log"
+hasnt "9. lane issue: no FATAL in the caller" "FATAL" "$out"
+has "9. lane issue: the hopped run's rc" "rc=7" "$(li9 AS_RC=7)"
+out="$(li9 SPOOL_DESK_USER="$DU")"
+eq "9. lane issue: a switched box hops too" "1" "$(hop6)"
+hasnt "9. lane issue: a switched box has no refusal" "FATAL" "$out"
+li9 BRIEF="$T/no-brief.md" LANE_ISSUE_OP=place >/dev/null
+has "9. lane issue: a place carries its brief" " BRIEF=$T/no-brief.md" "$(cat "$T/as.log")"
+li9 SPL_DESK_HOPPED="$BU" >/dev/null
+eq "9. lane issue: one hop, never a loop" "0" "$(hop6)"
+li9 SPL_DESK_AS_CMD= >/dev/null
+eq "9. lane issue: SPOOL_TEST=1 with no SPL_DESK_AS_CMD never hops to a real user" "0" "$(hop6)"
+li9 TENANT_ID=hop-h DESK_AGENT=c-002 DRY_RUN=1 >/dev/null
+eq "9. lane issue: the caller's own pinned desk: no hop" "0" "$(hop6)"
+li9 AGENT_ID=bad >/dev/null
+eq "9. lane issue: a bad AGENT_ID is refused here, no hop" "0" "$(hop6)"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

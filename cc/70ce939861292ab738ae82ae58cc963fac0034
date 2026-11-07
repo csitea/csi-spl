@@ -1,0 +1,6 @@
+Lay-What: The notes on the release lag alert now say plainly when it can miss something.
+Lay-How: The missed cases were written into the design text and a figure was corrected; the program itself is unchanged.
+Lay-Why: The text claimed an old result could never hide a new outage, and a review showed that it can.
+Tech-What: Spec 065 section 12.1 lists three limits of the lag alarm; the action and test comments cite the 101.2 min maximum.
+Tech-How: Text edit of spec.md and two comment blocks, no code; 93.3 stays with its n=300 sample, 101.2 is added with its n=1533.
+Tech-Why: A stale verdict is dropped only on a tick the box runs, so a box with no tick during another box's hold can still stay silent.

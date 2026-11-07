@@ -168,9 +168,9 @@ Enforced by: review only.
 ### 2.2 Code structure and clean code limits
 
 <a id="ws-doc-50d05a54-fd19-4488-bb86-2f0db161ee34"></a>
-#### 2.2.1 Small functions: 80 lines
+#### 2.2.1 Small functions: 75 lines
 
-A function is at most 80 lines in Go, TypeScript / Vue and Bash. A function
+A function is at most 75 lines in Go, TypeScript / Vue and Bash. A function
 already over it is listed with its ceiling in the gate's own list, which may
 only shrink; a new long one fails.
 

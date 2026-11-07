@@ -55,12 +55,14 @@ export function isExemptScreen(input) {
  * the early script's roots (utils/signed-out-redirect-script.mjs).
  * /docs is not here: a doc marked public is read signed out, so the docs page
  * is its own door (pages/docs.vue, owner HUM-10 e3ce4c34). /releases waits for
- * the owner (SPL-4509 row 7).
+ * the owner (SPL-4509 row 7). /calendar and /goals are not here either (SPL-4937):
+ * /calendar sends a visitor to /public-calendar (pages/calendar.vue) and a goal
+ * page reads a public roadmap signed out (composables/useRoadmapGoals.ts).
  */
 export const PRODUCT_ROOTS = Object.freeze([
   '/channel', '/dm', '/t', '/settings',
   '/monitoring', '/reporting', '/notes', '/issues', '/archive', '/workspace/docs',
-  '/agents', '/boxes', '/events',
+  '/agents', '/boxes', '/events', '/people', '/users', '/tenant-settings',
 ])
 
 /** Product screens that replace themselves with /login once the session is 'out'. */

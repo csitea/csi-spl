@@ -1,7 +1,8 @@
 // SPL-4513 (round 2 of the console errors, SPL-4509 rows 1-6): a signed-out
 // visitor on a member-only page goes to /login and reads nothing. Before it,
 // /monitoring and /issues mounted for a visitor: 401 /v1/view/me (twice, the
-// session retry) and a hub socket the hub refused.
+// session retry) and a hub socket the hub refused. SPL-4937 adds /people,
+// /users and /tenant-settings.
 //
 // The mock bundle never signs out (the middleware skips the mock tenant), so
 // each document served here is the same bundle with its baked `useMock:1`
@@ -14,6 +15,9 @@
 // flip is live (the session probe reached the stub, which the mock never
 // asks); without it the checks above would pass vacuously.
 //
+// OWN_DOOR: pages that must NOT end on /login. /calendar goes to the public
+// calendar; a goal page and the public calendar stay where they are.
+//
 //   BASE_URL=http://127.0.0.1:4321 node tests/e2e/signed-out-member-pages.test.mjs
 //
 // Needs BASE_URL serving the generated bundle with --api (the CI recipe,
@@ -24,7 +28,12 @@ import { startServer } from './lib/server.mjs'
 
 const CHROME = process.env.CHROME_PATH ?? '/usr/bin/google-chrome'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 30000)
-const PATHS = ['/monitoring', '/issues']
+const PATHS = ['/monitoring', '/issues', '/people', '/users', '/tenant-settings']
+const OWN_DOOR = [
+  { path: '/calendar', end: '/public-calendar' },
+  { path: '/public-calendar', end: '/public-calendar' },
+  { path: '/goals/G01-x', end: '/goals/G01-x' },
+]
 
 let failed = 0
 const ok = (name, cond, ev) => {
@@ -50,7 +59,7 @@ async function realTenantDocs(page) {
   })
 }
 
-async function visit(browser, base, path) {
+async function visit(browser, base, path, end = '/login') {
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 800 })
   await page.setBypassServiceWorker(true)
@@ -65,7 +74,7 @@ async function visit(browser, base, path) {
   cdp.on('Network.webSocketCreated', (p) => rec.sockets.push(p.url))
   await realTenantDocs(page)
   await page.goto(base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await page.waitForFunction(() => location.pathname.endsWith('/login'), { timeout: 15000 }).catch(() => {})
+  await page.waitForFunction((want) => location.pathname.endsWith(want), { timeout: 15000 }, end).catch(() => {})
   await new Promise((r) => setTimeout(r, 1500))
   const at = new URL(page.url())
   await page.close()
@@ -79,6 +88,12 @@ try {
     const r = await visit(browser, server.base, path)
     ok(`CONTROL ${path}: the real tenant path probed the session (the flip is live)`, r.probes.length > 0, { probes: r.probes.length })
     ok(`signed out ${path} goes to /login?redirect=${path}`, r.at.pathname.endsWith('/login') && r.at.searchParams.get('redirect') === path, r.at.href)
+    ok(`signed out ${path}: 0 /v1/view/me reads`, r.me.length === 0, { n: r.me.length })
+    ok(`signed out ${path}: 0 webSocketCreated`, r.sockets.length === 0, { n: r.sockets.length, urls: r.sockets.slice(0, 3) })
+  }
+  for (const { path, end } of OWN_DOOR) {
+    const r = await visit(browser, server.base, path, end)
+    ok(`signed out ${path} ends on ${end}, not /login`, r.at.pathname === end, r.at.href)
     ok(`signed out ${path}: 0 /v1/view/me reads`, r.me.length === 0, { n: r.me.length })
     ok(`signed out ${path}: 0 webSocketCreated`, r.sockets.length === 0, { n: r.sockets.length, urls: r.sockets.slice(0, 3) })
   }

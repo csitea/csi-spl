@@ -594,7 +594,8 @@
     "your_status_offline": "Starea ta: offline",
     "monitoring": "Monitorizare",
     "reporting": "Rapoarte",
-    "notes": "Notițe"
+    "notes": "Notițe",
+    "expenses": "Cheltuieli"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -3974,5 +3975,33 @@
     "notice_connected": "Calendarul Google este conectat.",
     "notice_error": "Calendarul Google nu a fost conectat. Încearcă din nou.",
     "untitled_event": "(Fără titlu)"
+  },
+  "expenses": {
+    "tabs_label": "File de cheltuieli",
+    "tab": {
+      "ai": "Costuri IA",
+      "cloud": "Costuri de infrastructură cloud",
+      "hr": "Costuri de personal"
+    },
+    "entries": {
+      "add": "Adaugă un cost",
+      "intro_cloud": "Costuri de infrastructură cloud introduse manual, de exemplu o factură, câte un rând pe lună. Rapoarte → Costuri le numără la Cloud.",
+      "intro_hr": "Costuri de resurse umane introduse manual, câte un rând pe lună. Rapoarte → Costuri le afișează la Personal, nu la Cheltuieli.",
+      "col_label_cloud": "Descriere",
+      "col_label_hr": "Rol sau contract",
+      "col_amount": "Sumă fără TVA",
+      "col_period": "Lună",
+      "loading": "Se încarcă costurile…",
+      "error": "Costurile nu au putut fi încărcate.",
+      "empty": "Niciun cost introdus încă.",
+      "confirm_delete": "Ștergi acest cost?",
+      "err_label": "Introdu un nume de cel mult 100 de caractere.",
+      "err_amount": "Introdu o sumă mai mare de 0.",
+      "err_currency": "Alege o monedă.",
+      "err_period": "Alege o lună.",
+      "err_note": "Nota este prea lungă: cel mult 2000 de caractere."
+    },
+    "operators_only": "Cheltuielile sunt doar pentru administratorii operatorului.",
+    "tokens_link": "Abonamentele și reîncărcările plătite se introduc la Cheltuieli → Costuri IA."
   }
 }

@@ -30,7 +30,7 @@
 //     the stale marker (amber after 45 s, red after 90 s, cleared by
 //     Refresh), the empty state. For anyone else: no card, no tab, and the
 //     direct URL is the 403 sentence. No Tokens code in the initial download.
-//   - spec 140 3.8 (SPL-2567): the Tokens tab's Paid card for an operator
+//   - spec 140 3.8 (SPL-2567): the Paid card (Expenses -> AI costs since SPL-4382) for an operator
 //     admin: empty -> the form refuses a 0 price and an end before the start
 //     -> add one item -> it shows, the effective price for its vendor ->
 //     edit -> the hub's refusal text shows as it came -> delete -> empty.
@@ -82,6 +82,14 @@
 //   - SPL-4824: Cloud level 1 also lists the month's hand-entered cloud
 //     costs (mock scenario 'entries'), no drill; an unpriced one is a dash
 //     with its "no rate" title, the total names how many it leaves out.
+//   - SPL-4382 (spec 143 costs-redesign.md 3.8): the Expenses section. Costs
+//     loses its Paid items page (an operator admin's bar is Spend, Cloud, AI
+//     tokens, Human, Price); /reporting/costs/paid?month=2026-09 lands on
+//     /expenses/ai?month=2026-09. The rail's Expenses tab opens /expenses ->
+//     AI costs, the bar AI costs, Cloud infra costs, HR costs, each its own
+//     path (Back walks them), Cloud and HR enter their cost entries; the Paid card
+//     (its whole round above) lives on AI costs; Monitoring -> Tokens links
+//     there. Anyone else: the operators-only line, no tab, no Paid card.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -160,7 +168,8 @@ async function costsPage(browser, base, { width, height }, { me = null, scenario
 
 async function open(p, base, path) {
   const res = await p.goto(base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  const bar = /^\/(?:[a-z]{2}\/)?reporting\//.test(path) ? 'reporting-tabs' : 'monitoring-tabs'
+  const bar = /^\/(?:[a-z]{2}\/)?(?:expenses|reporting\/costs\/paid)(?:[/?]|$)/.test(path) ? 'expenses-page'
+    : /^\/(?:[a-z]{2}\/)?reporting\//.test(path) ? 'reporting-tabs' : 'monitoring-tabs'
   await p.waitForSelector(`[data-test=${bar}]`, { visible: true, timeout: 20000 }).catch(() => null)
   return res
 }
@@ -208,22 +217,87 @@ async function costsS1(browser, base, size) {
   {
     const { ctx, p } = await costsPage(browser, base, size, { operator: true })
     await open(p, base, SPEND)
-    await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 6, { timeout: 15000 }).catch(() => null)
-    ok('S1 bar: an operator admin sees all six pages', (await costsPageIds(p)).join(',') === 'spend,cloud,tokens,human,price,paid', await costsPageIds(p))
-    for (const id of ['price', 'paid']) {
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 5, { timeout: 15000 }).catch(() => null)
+    ok('S1 bar: an operator admin sees all five pages, no Paid items (SPL-4382)', (await costsPageIds(p)).join(',') === 'spend,cloud,tokens,human,price', await costsPageIds(p))
+    for (const id of ['price']) {
       await p.click(`[data-test=costs-page-${id}]`)
       ok(`S1 ${id}: the shell for an operator admin`, await waitFor(p, `[data-test=costs-shell-${id}] [data-test=costs-shell-coming]`))
     }
     await ctx.close()
   }
   {
-    /* CONTROL: a non-operator opening Paid items directly gets the operators-only line, no shell */
+    /* CONTROL: a non-operator following the old Paid items link lands on Expenses' operators-only line, no tab, no card */
     const { ctx, p } = await costsPage(browser, base, size)
     await open(p, base, '/reporting/costs/paid')
-    ok('S1 control: Paid items direct URL, not an operator admin: operators only', await waitFor(p, '[data-test=costs-shell-paid] [data-test=reporting-operators-only]')
-      && (await count(p, '[data-test=costs-shell-coming]')) === 0)
+    ok('SPL-4382 control: /reporting/costs/paid, not an operator admin: Expenses says operators only', await waitWhere(p, '/expenses/ai')
+      && await waitFor(p, '[data-test=expenses-operators-only]'), where(p))
+    ok('SPL-4382 control: no Expenses tab, no rail entry and no Paid card', (await count(p, '[data-test^=expenses-tab-]')) === 0 && (await count(p, '[data-testid=sidebar-tab-expenses]')) === 0 && (await count(p, '[data-test=paid-card]')) === 0)
     await ctx.close()
   }
+}
+
+/** SPL-4382 (spec 143 costs-redesign.md 3.8): the Expenses section. CONTROL: on master before it there is no sidebar-tab-expenses and /reporting/costs/paid is a shell, so every check here FAILS there. */
+async function expensesSection(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+  await open(p, base, '/reporting/costs/paid?month=2026-09')
+  ok('SPL-4382 redirect: /reporting/costs/paid?month=2026-09 -> /expenses/ai?month=2026-09', await waitWhere(p, '/expenses/ai?month=2026-09'), where(p))
+  ok('SPL-4382 AI costs: the Paid card (subscriptions and top-ups)', await waitFor(p, '[data-test=expenses-ai] [data-test=paid-card]'))
+  await open(p, base, '/monitoring/tokens')
+  await waitFor(p, '[data-test=tokens-paid-link]')
+  ok('SPL-4382 Tokens: no Paid card, a link to AI costs', (await count(p, '[data-test=paid-card]')) === 0 && (await count(p, '[data-test=tokens-paid-link]')) === 1)
+  await p.click('[data-test=tokens-paid-link]')
+  ok('SPL-4382 Tokens: the link opens /expenses/ai', await waitWhere(p, '/expenses/ai'), where(p))
+  await open(p, base, '/reporting/releases')
+  const railTab = '[data-testid=sidebar-tab-expenses]'
+  ok('SPL-4382 rail: an Expenses tab', await waitFor(p, railTab))
+  await p.click(railTab)
+  ok('SPL-4382 rail: Expenses opens /expenses -> AI costs', await waitWhere(p, '/expenses/ai'), where(p))
+  ok('SPL-4382 rail: the Expenses tab is selected', (await p.$eval(railTab, (e) => e.getAttribute('aria-selected')).catch(() => '')) === 'true')
+  await waitFor(p, '[data-test=expenses-tab-ai]')
+  const tabs = await p.$$eval('[data-test^=expenses-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('expenses-tab-'.length)))
+  ok('SPL-4382 bar: AI costs, Cloud infra costs, HR costs', tabs.join(',') === 'ai,cloud,hr', tabs)
+  ok('SPL-4382 bar: AI costs is the active tab', (await p.$eval('[data-test=expenses-tab-ai]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page')
+  if (process.env.SHOT_DIR) {
+    await waitFor(p, '[data-test=paid-card]')
+    await p.screenshot({ path: `${process.env.SHOT_DIR}/expenses-ai-${size.width}.png`, fullPage: true })
+  }
+  for (const id of ['cloud', 'hr']) {
+    await p.click(`[data-test=expenses-tab-${id}]`)
+    ok(`SPL-4382 ${id}: its own path, its empty list, no Paid card`, await waitWhere(p, `/expenses/${id}`)
+      && await waitFor(p, `[data-test=expenses-${id}] [data-test=cost-empty]`) && (await count(p, '[data-test=paid-card]')) === 0, where(p))
+    await costEntryRound(p, id, size)
+  }
+  await p.goBack()
+  ok('SPL-4382 back: Cloud infra costs again', await waitWhere(p, '/expenses/cloud'), where(p))
+  if (size.width < 600) ok('SPL-4382: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
+  await ctx.close()
+}
+
+/** SPL-4382: one tab's insert: a bad form is named and not sent, the hub's refusal shows, an entry lands in THIS tab's list only, delete asks first. CONTROL: on the shell before the forms there is no cost-add, so every check here FAILS. */
+async function costEntryRound(p, id, size) {
+  const other = id === 'cloud' ? 'hr' : 'cloud'
+  const rows = () => count(p, '[data-test=cost-row]')
+  await p.click('[data-test=cost-add]')
+  ok(`SPL-4382 ${id}: Add opens the form`, await waitFor(p, '[data-test=cost-form]'))
+  await p.click('[data-test=cost-save]')
+  ok(`SPL-4382 ${id}: an empty form is named, nothing stored`, await waitFor(p, '[data-test=cost-form-error]') && (await rows()) === 0)
+  await setField(p, '[data-test=cost-f-label]', `E2E ${id}`)
+  await setField(p, '[data-test=cost-f-amount]', '64.8')
+  await p.evaluate((k) => localStorage.setItem(k, 'label must be 1..100 characters'), 'spool.mock.cost_entries_refuse')
+  await p.click('[data-test=cost-save]')
+  ok(`SPL-4382 ${id}: the hub's refusal shows as it came`, await waitFor(p, '[data-test=cost-form-refused]'))
+  await p.click('[data-test=cost-save]')
+  ok(`SPL-4382 ${id}: Save lists the entry`, await waitFor(p, '[data-test=cost-row]') && (await p.$eval('[data-test=cost-row-label]', (e) => e.textContent)) === `E2E ${id}`)
+  ok(`SPL-4382 ${id}: stored with this tab's type`, await p.evaluate((k, t) => JSON.parse(localStorage.getItem(k)).every((e) => e.type === t), 'spool.mock.cost_entries', id))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/expenses-${id}-${size.width}.png`, fullPage: true })
+  await p.click(`[data-test=expenses-tab-${other}]`)
+  ok(`SPL-4382 ${id}: the other tab does not list it`, await waitFor(p, `[data-test=expenses-${other}] [data-test=cost-empty]`))
+  await p.click(`[data-test=expenses-tab-${id}]`)
+  await waitFor(p, '[data-test=cost-row]')
+  await p.click('[data-test=cost-delete]')
+  ok(`SPL-4382 ${id}: Delete asks first`, await waitFor(p, '[data-test=cost-delete-yes]') && (await rows()) === 1)
+  await p.click('[data-test=cost-delete-yes]')
+  ok(`SPL-4382 ${id}: deleted, the list is empty again`, await waitFor(p, '[data-test=cost-empty]'))
 }
 
 /** SPL-4187: the three sections. CONTROL: on master before it there is no Cloud or Human page, so every check here FAILS there. */
@@ -341,9 +415,9 @@ const setField = (p, sel, value) => p.$eval(sel, (e, v) => {
 const isoDay = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10)
 const waitText = (p, sel, want) => p.waitForFunction((s, w) => (document.querySelector(s)?.textContent || '').replace(/\s+/g, ' ').trim() === w, { timeout: 10000 }, sel, want).then(() => true, () => false)
 
-/** SPL-2567: the Paid card's whole round on the Tokens tab: empty, add, edit, a refusal, delete, empty. */
+/** SPL-2567: the Paid card's whole round, on Expenses -> AI costs since SPL-4382: empty, add, edit, a refusal, delete, empty. */
 async function paidRound(p, base, size) {
-  await open(p, base, '/monitoring/tokens')
+  await open(p, base, '/expenses/ai')
   ok('paid: the Paid card shows for an operator admin', await waitFor(p, '[data-test=paid-card]'))
   ok('paid: no item yet', await waitFor(p, '[data-test=paid-empty]'))
   ok('paid: the effective table lists five kinds', await waitFor(p, '[data-test=paid-effective]') && (await count(p, '[data-test=paid-effective-row]')) === 5)
@@ -396,7 +470,7 @@ async function paidRound(p, base, size) {
   ok('paid: agy paid but unmetered says "Not metered", its daily share $1.00', (await text(p, '[data-test=paid-effective-row][data-vendor=agy] [data-test=paid-eff-value]')) === 'Not metered'
     && (await text(p, '[data-test=paid-effective-row][data-vendor=agy] [data-test=paid-eff-day]')) === '$1.00', await text(p, '[data-test=paid-effective-row][data-vendor=agy]'))
   if (size.width < 600) ok('paid: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
-  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-tokens-paid-${size.width}.png`, fullPage: true })
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/expenses-ai-paid-${size.width}.png`, fullPage: true })
   for (let i = 0; i < 2; i++) {
     const left = await count(p, '[data-test=paid-item-row]')
     await p.click('[data-test=paid-delete]')
@@ -789,6 +863,7 @@ try {
     await lanesSortFilter(browser, server.base, size)
     await costsS1(browser, server.base, size)
     await costsSections(browser, server.base, size)
+    await expensesSection(browser, server.base, size)
 
     /* a full month, the mock's default me (unrestricted) */
     {

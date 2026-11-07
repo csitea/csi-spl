@@ -594,7 +594,8 @@
     "your_status_offline": "Jouw status: offline",
     "monitoring": "Systeembewaking",
     "reporting": "Rapportage",
-    "notes": "Notities"
+    "notes": "Notities",
+    "expenses": "Uitgaven"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -3974,5 +3975,33 @@
     "notice_connected": "Google Agenda is gekoppeld.",
     "notice_error": "Google Agenda is niet gekoppeld. Probeer het opnieuw.",
     "untitled_event": "(Geen titel)"
+  },
+  "expenses": {
+    "tabs_label": "Uitgaventabbladen",
+    "tab": {
+      "ai": "AI-kosten",
+      "cloud": "Kosten cloudinfrastructuur",
+      "hr": "Personeelskosten"
+    },
+    "entries": {
+      "add": "Kosten toevoegen",
+      "intro_cloud": "Handmatig ingevoerde kosten voor cloudinfrastructuur, zoals een factuur, één rij per maand. Rapportage → Kosten telt ze onder Cloud.",
+      "intro_hr": "Handmatig ingevoerde personeelskosten, één rij per maand. Rapportage → Kosten toont ze onder Personeel, niet onder Uitgaven.",
+      "col_label_cloud": "Omschrijving",
+      "col_label_hr": "Rol of contract",
+      "col_amount": "Bedrag excl. btw",
+      "col_period": "Maand",
+      "loading": "De kosten worden geladen…",
+      "error": "De kosten konden niet worden geladen.",
+      "empty": "Nog geen kosten ingevoerd.",
+      "confirm_delete": "Deze kosten verwijderen?",
+      "err_label": "Vul een naam in van maximaal 100 tekens.",
+      "err_amount": "Vul een bedrag boven 0 in.",
+      "err_currency": "Kies een valuta.",
+      "err_period": "Kies een maand.",
+      "err_note": "De notitie is te lang: maximaal 2000 tekens."
+    },
+    "operators_only": "Uitgaven zijn alleen voor beheerders van de operator.",
+    "tokens_link": "Betaalde abonnementen en opwaarderingen voer je in onder Uitgaven → AI-kosten."
   }
 }

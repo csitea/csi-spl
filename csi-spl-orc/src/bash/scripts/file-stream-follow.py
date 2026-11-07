@@ -75,6 +75,13 @@ its own stream, `<key>-<6 hex of sha256(real path)>`, opened through
 open_checked like a cnf entry plus a folder check on the fd's real path.
 Slots (FILE_STREAMS_MAX): the cnf entries, then the globs oldest first, the
 newest match first; a followed match keeps its slot while it exists.
+
+A file removed in the web page (spec 160 3.10, SPL-4979): the same pull's ack
+names the removed stream keys (removed_keys; absent from an older hub or
+`spool` binary: none). Such a key frees its slot, leaves the announce, its queued
+lines go and no new line is read; off the list it starts as a first sight with
+its seq still rising. The list lives in memory only, a failed pull keeps it, and
+the hub discards a removed key's lines whatever this box does.
 """
 
 import fcntl
@@ -233,8 +240,9 @@ def entry_problem(e):
     return ""
 
 
-def read_allow():
-    """-> [(id, path, problem)], one entry per id, in cnf order."""
+def read_allow(removed=()):
+    """-> [(id, path, problem)], one entry per id, in cnf order; a key removed
+    in the web page (3.10) is left out before the slots are counted."""
     try:
         raw = json.loads(os.environ.get("FILE_STREAMS_ALLOW") or "[]")
     except ValueError:
@@ -244,6 +252,8 @@ def read_allow():
     for e in raw if isinstance(raw, list) else []:
         why = entry_problem(e)
         sid = str(e.get("id", "")) if isinstance(e, dict) else ""
+        if not why and sid in removed:  # ctl:removed-entry
+            continue
         if not why and sid in seen:
             continue
         if not why and len(seen) >= limit:
@@ -646,6 +656,7 @@ class Follower:
         self.folder_rep = []
         self.glob_rep = {}  # glob id -> its report (3.8.5)
         self.gstreams = {}  # stream key -> {gid, leaf, name, path}
+        self.removed = set()  # stream keys removed in the web page (3.10)
         self.report_seen = None
         # a lane's live console (spec 153 3.20, lane_console.py): captured
         # and masked only while a reader watches it
@@ -902,6 +913,26 @@ class Follower:
             del self.gstreams[k]
             self.announce_pending = True
         self.glob_rep = {i: r for i, r in self.glob_rep.items() if i in ids}
+        self.set_removed(ack.get("removed_keys"))
+
+    def set_removed(self, keys):
+        """The removed keys of a good pull (3.10). A key new on the list leaves
+        the queue and the glob streams, and forgets its place in the file but
+        not its seq (the hub keys on it), so a put back is a first sight."""
+        new = (
+            {k for k in keys if isinstance(k, str)} if isinstance(keys, list) else set()
+        )
+        if new == self.removed:
+            return
+        for k in new - self.removed:
+            self.queue = [q for q in self.queue if q["k"] != k]  # ctl:removed-queue
+            self.gstreams.pop(k, None)
+            st = self.state["streams"].get(k)
+            if st is not None:
+                st.pop("ident", None)  # ctl:removed-ident
+                st.pop("status", None)
+                st["dropped"] = 0
+        self.removed, self.next_scan, self.announce_pending = new, 0.0, True
 
     def go_stale(self):
         """Past globs_stale_s with no good pull: every web-glob stream stops,
@@ -984,7 +1015,7 @@ class Follower:
             return used
         kept = {i["leaf"] for i in keep.values() if i["gid"] == g["id"]}
         shown = glob_dir(g["glob"])[0].rstrip("/")
-        refused = []
+        refused, skipped = [], 0
         for _, leaf in found:
             if leaf in kept:
                 rep["followed"] += 1
@@ -1003,6 +1034,9 @@ class Follower:
                 refused.append(str(r))
                 continue
             key = match_key(g["key"], info["real"])
+            if key in self.removed:  # ctl:removed-match
+                skipped += 1
+                continue
             if key in cnf_ids or key in new:
                 refused.append("key taken")
                 continue
@@ -1014,17 +1048,18 @@ class Follower:
             }
             used += 1
             rep["followed"] += 1
-        rep["matched"] = len(found)
-        if not found:
+        rep["matched"] = len(found) - skipped
+        if not rep["matched"]:
             rep["state"] = "none"
         else:
-            rep["state"] = "following" if rep["followed"] == len(found) else "partial"
+            rep["state"] = (
+                "following" if rep["followed"] == rep["matched"] else "partial"
+            )
         if refused:
             rep["reason"] = f"{len(refused)} refused: {refused[0]}"
         return used
 
     def globs_tick(self, allow, now):
-        self.pull_globs(now)
         if (
             not self.stale
             and self.globs_ok_at is not None
@@ -1115,10 +1150,11 @@ class Follower:
                 self.pushed += len(batch)
 
     def tick(self):
-        allow = read_allow()
         now = time.time()
         minute = int(now) // 60
         self.pushed, self.push_rc = 0, 0
+        self.pull_globs(now)
+        allow = read_allow(self.removed)  # ctl:removed-slot
         self.globs_tick(allow, now)
         for sid, path, why in allow:
             if why:

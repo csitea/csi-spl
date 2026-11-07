@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import { ref } from 'vue'
 import { importTs } from './lib/load-ts.mjs'
-const { aboutChannelDescription, aboutChannelName, canAddChannelMember, canEditOpenInvite, channelAgentCandidates, channelAgentRows, channelAgentState, channelFallbackLine, channelInviteCandidates, defaultChannelRows, filterAgentsContains, filterPeopleContains, signedInHuman, viewerHumanId } = await importTs('src/utils/channel-members.ts')
+const { aboutChannelDescription, aboutChannelName, canAddChannelMember, canEditOpenInvite, channelAgentCandidates, channelAgentKindRows, channelAgentRows, channelAgentState, channelFallbackLine, channelInviteCandidates, defaultChannelRows, filterAgentsContains, filterPeopleContains, signedInHuman, viewerHumanId } = await importTs('src/utils/channel-members.ts')
 const { channelAgentsLive } = await importTs('src/utils/channel-agents-live.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -154,6 +154,32 @@ describe('People offers humans, Agents offers boxes', () => {
       { id: 'CLE-07', box: 'box-desk' },
       { id: 'GRK-03', box: 'box-a' },
     ])
+  })
+})
+
+describe('SPL-5000: every usable kind can be added', () => {
+  const kinds = [{ kind: 'claude', online: true }, { kind: 'agy', online: false }, { kind: 'codex', online: false }]
+
+  it('a usable kind with no agent to pick is offered as a new agent, whatever its name', () => {
+    assert.deepEqual(channelAgentKindRows(kinds), [{ kind: 'agy', key: 'kind:agy' }, { kind: 'codex', key: 'kind:codex' }])
+    assert.deepEqual(channelAgentKindRows([{ kind: 'neverheardof', online: false }]), [{ kind: 'neverheardof', key: 'kind:neverheardof' }])
+  })
+
+  it('the typed text narrows the kinds, ignoring case', () => {
+    assert.deepEqual(channelAgentKindRows(kinds, ' AG '), [{ kind: 'agy', key: 'kind:agy' }])
+    assert.deepEqual(channelAgentKindRows(kinds, 'zzz'), [])
+  })
+
+  it('no answer offers nothing, and a row with no kind is dropped', () => {
+    assert.deepEqual(channelAgentKindRows(null), [])
+    assert.deepEqual(channelAgentKindRows([{ online: false }]), [])
+  })
+
+  it('the list names no kind: the hub is the one source', () => {
+    const rx = /['"`](claude|grok|agy|qwen|mistral|codex|cursor)['"`]/
+    for (const f of ['src/components/ChannelPropertiesDialog.vue', 'src/composables/useChannelAgentPick.ts', 'src/utils/channel-members.ts']) {
+      assert.equal(rx.exec(src(f))?.[0], undefined, f)
+    }
   })
 })
 
@@ -521,13 +547,18 @@ describe('the agent pick', async () => {
         calls.push(['list', id])
         return { agents: [{ id: 'CLE-1', box: 'box-a', online: true }] }
       },
+      channelAgentKinds: async (...a) => {
+        calls.push(['kinds', ...a])
+        return a[1] ? { created: true } : { kinds: [{ kind: 'agy', online: false }] }
+      },
     }
     const r = {
       busy: ref(false), canAdd: ref(true), error: ref(''), fallback: ref(null),
       agents: ref([{ id: 'CLE-2', box: 'box-b' }]), chosenAgent: ref(null), agentQuery: ref(''),
+      agentKinds: ref([]), askedKind: ref(''),
     }
     let channel = 'one'
-    const fn = useChannelAgentPick({ api, channelId: () => channel, ...r })
+    const fn = useChannelAgentPick({ api, channelId: () => channel, kindLabel: (k) => 'new ' + k, ...r })
     return { calls, r, fn, move: (id) => { channel = id } }
   }
 
@@ -538,11 +569,36 @@ describe('the agent pick', async () => {
     r.agentQuery.value = 'cle'
     await fn.addChosenAgent()
     await new Promise((res) => setTimeout(res, 0))
-    assert.deepEqual(calls, [['add', 'two', 'CLE-1', 'box-a'], ['list', 'two']])
+    assert.deepEqual(calls, [['add', 'two', 'CLE-1', 'box-a'], ['list', 'two'], ['kinds', 'two']])
     assert.deepEqual(r.agents.value, [{ id: 'CLE-2', box: 'box-b' }, { id: 'CLE-1', box: 'box-a', online: true }])
     assert.equal(r.chosenAgent.value, null)
     assert.equal(r.agentQuery.value, '')
     assert.equal(r.busy.value, false)
+  })
+
+  it('SPL-5000: choosing a kind asks for it, adds no row, and says so', async () => {
+    const { calls, r, fn } = setup()
+    r.chosenAgent.value = { kind: 'agy', key: 'kind:agy' }
+    assert.equal(fn.agentLabel(r.chosenAgent.value), 'new agy')
+    await fn.addChosenAgent()
+    assert.deepEqual(calls, [['kinds', 'one', 'agy']])
+    assert.deepEqual(r.agents.value, [{ id: 'CLE-2', box: 'box-b' }])
+    assert.equal(r.askedKind.value, 'agy')
+    assert.equal(r.chosenAgent.value, null)
+    assert.equal(r.busy.value, false)
+  })
+
+  it('SPL-5000: a refused ask shows the token and says nothing was asked', async () => {
+    const { r, fn } = setup()
+    const kinds = () => { throw Object.assign(new Error('x'), { token: 'kind_not_usable' }) }
+    const fail = useChannelAgentPick({ api: { channelAgentKinds: kinds }, channelId: () => 'one', kindLabel: (k) => k, ...r })
+    r.chosenAgent.value = { kind: 'grok', key: 'kind:grok' }
+    await fail.addChosenAgent()
+    assert.equal(r.error.value, 'kind_not_usable')
+    assert.equal(r.askedKind.value, '')
+    await fail.loadAgentKinds()
+    assert.deepEqual(r.agentKinds.value, [])
+    assert.ok(fn)
   })
 
   it('a remove drops only that row', async () => {

@@ -1246,6 +1246,8 @@
       "people_no_matches": "Ei tuloksia",
       "agents_search": "Etsi agentteja",
       "agents_no_matches": "Ei tuloksia",
+      "agent_kind_new": "Uusi {kind}-agentti",
+      "agent_kind_asked": "Orkestroijalta pyydettiin uutta {kind}-agenttia. Se liittyy tälle kanavalle, kun se on käynnistynyt.",
       "agent_online": "paikalla",
       "agent_offline": "laatikko offline",
       "agent_unseated": "ei paikalla",

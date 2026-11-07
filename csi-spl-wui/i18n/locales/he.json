@@ -1246,6 +1246,8 @@
       "people_no_matches": "אין תוצאות תואמות",
       "agents_search": "חיפוש סוכנים",
       "agents_no_matches": "אין תוצאות תואמות",
+      "agent_kind_new": "סוכן {kind} חדש",
+      "agent_kind_asked": "התבקש מהמתזמר סוכן {kind} חדש. הוא יצטרף לערוץ הזה לאחר שיופעל.",
       "agent_online": "מחובר",
       "agent_offline": "התיבה לא מחוברת",
       "agent_unseated": "לא משובץ",

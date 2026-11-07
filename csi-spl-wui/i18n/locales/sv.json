@@ -1246,6 +1246,8 @@
       "people_no_matches": "Inga träffar",
       "agents_search": "Sök agenter",
       "agents_no_matches": "Inga träffar",
+      "agent_kind_new": "Ny {kind}-agent",
+      "agent_kind_asked": "Orkestreraren har ombetts starta en ny {kind}-agent. Den ansluter till den här kanalen när den har startat.",
       "agent_online": "ansluten",
       "agent_offline": "boxen offline",
       "agent_unseated": "inte placerad",

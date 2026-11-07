@@ -1246,6 +1246,8 @@
       "people_no_matches": "Brak wyników",
       "agents_search": "Szukaj agentów",
       "agents_no_matches": "Brak wyników",
+      "agent_kind_new": "Nowy agent {kind}",
+      "agent_kind_asked": "Poproszono orkiestratora o nowego agenta {kind}. Dołączy do tego kanału po uruchomieniu.",
       "agent_online": "dostępny",
       "agent_offline": "skrzynka offline",
       "agent_unseated": "nieosadzony",

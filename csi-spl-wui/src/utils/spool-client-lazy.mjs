@@ -1441,6 +1441,18 @@ async function addChannelAgent(ctx, channel, agentId, box) {
   return data || { channel: String(channel || ''), id, box: boxId }
 }
 
+/**
+ * SPL-5000: no kind: the agent kinds usable now, {channel, kinds: [{kind, online}]}.
+ * A kind: ask the orchestrator for a new agent of it, seated in the channel.
+ */
+async function channelAgentKinds(ctx, channel, kind) {
+  const { live, mock, state } = ctx
+  if (mock) return kind ? { channel, kind, created: true } : { channel, kinds: state.agentKinds || [] }
+  const path = `/v1/channels/${encodeURIComponent(String(channel || ''))}/agent-kinds`
+  if (!kind) return live(path)
+  return live(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind }) })
+}
+
 /** Take one human out of the channel. Leaving yourself needs no extra permission. */
 async function removeChannelMember(ctx, channel, humanId) {
   const { live, mock } = ctx
@@ -2308,6 +2320,7 @@ export const lazySpoolMethods = {
   addChannelMember,
   addChannelInvitee,
   addChannelAgent,
+  channelAgentKinds,
   removeChannelMember,
   removeChannelAgent,
   setMembersOpenInvite,

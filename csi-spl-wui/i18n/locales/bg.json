@@ -1246,6 +1246,8 @@
       "people_no_matches": "Няма съвпадения",
       "agents_search": "Търсене на агенти",
       "agents_no_matches": "Няма съвпадения",
+      "agent_kind_new": "Нов агент {kind}",
+      "agent_kind_asked": "Оркестраторът е помолен за нов агент {kind}. Той ще се присъедини към този канал, след като стартира.",
       "agent_online": "на линия",
       "agent_offline": "кутията е офлайн",
       "agent_unseated": "не е настанен",

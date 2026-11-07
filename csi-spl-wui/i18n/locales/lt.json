@@ -1246,6 +1246,8 @@
       "people_no_matches": "Atitikmenų nėra",
       "agents_search": "Ieškoti agentų",
       "agents_no_matches": "Atitikmenų nėra",
+      "agent_kind_new": "Naujas {kind} agentas",
+      "agent_kind_asked": "Orkestratoriaus paprašyta naujo {kind} agento. Jis prisijungs prie šio kanalo, kai pasileis.",
       "agent_online": "prisijungęs",
       "agent_offline": "dėžė atsijungusi",
       "agent_unseated": "neužregistruotas",

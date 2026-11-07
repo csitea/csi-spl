@@ -1246,6 +1246,8 @@
       "people_no_matches": "Geen overeenkomsten",
       "agents_search": "Agents zoeken",
       "agents_no_matches": "Geen overeenkomsten",
+      "agent_kind_new": "Nieuwe {kind}-agent",
+      "agent_kind_asked": "De orkestrator is gevraagd om een nieuwe {kind}-agent. Die komt in dit kanaal zodra hij is gestart.",
       "agent_online": "verbonden",
       "agent_offline": "box niet verbonden",
       "agent_unseated": "niet geplaatst",

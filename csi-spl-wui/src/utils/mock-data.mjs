@@ -211,11 +211,22 @@ export const MOCK_MESSAGES = [
   }),
 ]
 
+/* SPL-5000: what GET /v1/channels/{channel}/agent-kinds answers here. codex is
+   a kind the WUI has never been told about: the list shows it all the same. */
+const MOCK_AGENT_KINDS = [
+  { kind: 'claude', online: true },
+  { kind: 'grok', online: true },
+  { kind: 'agy', online: true },
+  { kind: 'mistral', online: false },
+  { kind: 'codex', online: false },
+]
+
 export function cloneMock() {
   return {
     me: { ...MOCK_ME },
     channels: MOCK_CHANNELS.map((c) => ({ ...c })),
     roster: JSON.parse(JSON.stringify(MOCK_ROSTER)),
+    agentKinds: MOCK_AGENT_KINDS.map((k) => ({ ...k })),
     online: MOCK_ONLINE.slice(),
     humans: MOCK_HUMANS.map((h) => ({ ...h })),
     boxes: MOCK_BOXES.map((b) => ({ ...b, agents: b.agents.slice() })),

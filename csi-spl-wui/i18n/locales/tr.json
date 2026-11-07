@@ -1246,6 +1246,8 @@
       "people_no_matches": "Eşleşme yok",
       "agents_search": "Ajanları ara",
       "agents_no_matches": "Eşleşme yok",
+      "agent_kind_new": "Yeni {kind} aracısı",
+      "agent_kind_asked": "Orkestratörden yeni bir {kind} aracısı istendi. Başlatıldığında bu kanala katılacak.",
       "agent_online": "çevrimiçi",
       "agent_offline": "kutu çevrimdışı",
       "agent_unseated": "yerleşik değil",

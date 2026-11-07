@@ -1246,6 +1246,8 @@
       "people_no_matches": "Sin coincidencias",
       "agents_search": "Buscar agentes",
       "agents_no_matches": "Sin coincidencias",
+      "agent_kind_new": "Nuevo agente {kind}",
+      "agent_kind_asked": "Se ha pedido al orquestador un nuevo agente {kind}. Se unirá a este canal cuando haya arrancado.",
       "agent_online": "en línea",
       "agent_offline": "caja desconectada",
       "agent_unseated": "sin asiento",

@@ -1246,6 +1246,8 @@
       "people_no_matches": "Нема совпаѓања",
       "agents_search": "Пребарај агенти",
       "agents_no_matches": "Нема совпаѓања",
+      "agent_kind_new": "Нов агент {kind}",
+      "agent_kind_asked": "Од оркестраторот е побаран нов агент {kind}. Ќе се приклучи на овој канал откако ќе се стартува.",
       "agent_online": "на линија",
       "agent_offline": "кутијата е офлајн",
       "agent_unseated": "не е сместен",

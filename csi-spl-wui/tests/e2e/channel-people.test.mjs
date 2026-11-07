@@ -145,6 +145,21 @@ try {
   await page.keyboard.press('Escape')
   await sleep(200)
 
+  /* SPL-5000: every kind the hub calls usable can be added. An online kind is
+     picked by its agent; the others (mistral, and codex, a kind the WUI has
+     never been told about) are offered as a new agent, and asking says so. */
+  await page.click('[data-testid=channel-agent-search-button]').catch(() => {})
+  await sleep(300)
+  const shownKinds = await page.evaluate(() => [...document.querySelectorAll('[data-testid^=channel-agent-kind-]')].map((e) => e.getAttribute('data-testid').slice('channel-agent-kind-'.length)))
+  ok('each usable kind with no agent to pick is offered, and only those', shownKinds.join() === 'mistral,codex', { shownKinds })
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/channel-add-any-usable-agent.png` })
+  await page.click('[data-testid=channel-agent-kind-codex]').catch(() => {})
+  await sleep(200)
+  await page.click('[data-testid=channel-agent-add]').catch(() => {})
+  const asked = await page.waitForSelector('[data-testid=channel-agent-kind-asked]', { timeout: 5000 }).catch(() => null)
+  const askedText = asked ? await page.evaluate((e) => e.textContent, asked) : ''
+  ok('choosing one asks the orchestrator and says so', askedText.includes('codex'), { askedText })
+
   /* SPL-3717 (lessons-learnt row 8): an agent's badge reads the roster
      store's presence, the source of every other dot, and stays live while
      the dialog is open. Pre-fix it read only the members answer of the

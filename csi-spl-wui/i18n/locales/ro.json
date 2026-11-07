@@ -1246,6 +1246,8 @@
       "people_no_matches": "Nicio potrivire",
       "agents_search": "Caută agenți",
       "agents_no_matches": "Nicio potrivire",
+      "agent_kind_new": "Agent {kind} nou",
+      "agent_kind_asked": "Orchestratorului i s-a cerut un agent {kind} nou. Va intra în acest canal după ce pornește.",
       "agent_online": "conectat",
       "agent_offline": "cutie offline",
       "agent_unseated": "neînscris",

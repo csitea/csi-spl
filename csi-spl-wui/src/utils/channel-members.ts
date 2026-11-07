@@ -155,6 +155,28 @@ export function channelAgentCandidates(roster: Record<string, readonly string[]>
   return out
 }
 
+/** A usable agent kind as the hub says it; online = an agent of it can be picked here already. */
+export type AgentKind = { kind: string, online: boolean }
+
+/** A combobox row that asks the orchestrator for a new agent of a kind. */
+export type AgentKindRow = { kind: string, key: string }
+
+/**
+ * SPL-5000: the kinds offered as a new agent: the hub's usable kinds with no
+ * agent to pick here, for the text typed so far. The hub decides what is
+ * usable; no kind is named on this side, so a new one needs no change here.
+ */
+export function channelAgentKindRows(kinds: readonly AgentKind[] | null | undefined, query?: string): AgentKindRow[] {
+  const q = String(query || '').trim().toLowerCase()
+  const out: AgentKindRow[] = []
+  for (const row of kinds || []) {
+    const kind = String((row && row.kind) || '')
+    if (!kind || row.online === true) continue
+    if (!q || kind.toLowerCase().includes(q)) out.push({ kind, key: 'kind:' + kind })
+  }
+  return out
+}
+
 /** The Settings checkbox is enabled only for the channel owner. */
 export function canEditOpenInvite({ selfId, createdBy }: { selfId?: string, createdBy?: string } = {}): boolean {
   const self = String(selfId || '')

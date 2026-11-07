@@ -1246,6 +1246,8 @@
       "people_no_matches": "Vasteid pole",
       "agents_search": "Otsi agente",
       "agents_no_matches": "Vasteid pole",
+      "agent_kind_new": "Uus {kind}-agent",
+      "agent_kind_asked": "Orkestraatorilt küsiti uut {kind}-agenti. See liitub selle kanaliga, kui on käivitunud.",
       "agent_online": "võrgus",
       "agent_offline": "kast võrguühenduseta",
       "agent_unseated": "pole istet",

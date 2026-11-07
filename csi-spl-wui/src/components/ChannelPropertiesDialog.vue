@@ -190,7 +190,7 @@
                 </div>
                 <ComboboxOptions class="invite-add__options" data-testid="channel-agent-options">
                   <li
-                    v-if="agentChoices.length === 0"
+                    v-if="agentChoices.length === 0 && kindChoices.length === 0"
                     class="invite-add__empty muted"
                     data-testid="channel-agent-invite-empty"
                   >{{ agentQuery.trim() ? t('channels.properties.agents_no_matches') : t('channels.properties.agents_invite_empty') }}</li>
@@ -207,6 +207,19 @@
                       :data-testid="'channel-agent-invite-' + row.id"
                     ><SpoolAvatar :id="row.id" :box="row.box" :size="22" /> <span class="member-rows__name">{{ row.id }}</span> <span class="muted">{{ row.box }}</span></li>
                   </ComboboxOption>
+                  <ComboboxOption
+                    v-for="row in kindChoices"
+                    :key="row.key"
+                    :value="row"
+                    as="template"
+                    v-slot="{ active, selected }"
+                  >
+                    <li
+                      class="invite-add__option"
+                      :class="{ 'is-active': active, 'is-selected': selected }"
+                      :data-testid="'channel-agent-kind-' + row.kind"
+                    >{{ kindLabel(row.kind) }}</li>
+                  </ComboboxOption>
                 </ComboboxOptions>
               </Combobox>
             </div>
@@ -218,6 +231,7 @@
               @click="addChosenAgent"
             >{{ t('channels.properties.add') }}</button>
           </div>
+          <p v-if="askedKind" class="muted" data-testid="channel-agent-kind-asked">{{ t('channels.properties.agent_kind_asked', { kind: askedKind }) }}</p>
           <p v-if="agentRows.length === 0" class="muted" data-testid="channel-people-agents-none">{{ t('channels.properties.agents_none') }}</p>
           <ul v-else class="member-rows" data-testid="channel-agents-list">
             <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-agent-' + row.id">
@@ -345,6 +359,7 @@ import {
   canAddChannelMember,
   canEditOpenInvite,
   channelAgentCandidates,
+  channelAgentKindRows,
   channelAgentRows,
   channelFallbackLine,
   channelInviteCandidates,
@@ -355,6 +370,7 @@ import {
   inviteErrorToken,
   viewerHumanId,
 } from '~/utils/channel-members'
+import type { AgentKind } from '~/utils/channel-members'
 import { channelAgentsLive } from '~/utils/channel-agents-live'
 import { rosterHumanIds } from '~/utils/spool-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
@@ -410,8 +426,10 @@ const createdByLive = ref('')
 const agents = ref<{ id: string, box: string, online?: boolean, seated?: boolean, state?: string }[]>([])
 const chosenPerson = ref<string | null>(null)
 const personQuery = ref('')
-const chosenAgent = ref<{ id: string, box: string, key: string } | null>(null)
+const chosenAgent = ref<{ id?: string, box?: string, kind?: string, key: string } | null>(null)
 const agentQuery = ref('')
+const agentKinds = ref<AgentKind[]>([])
+const askedKind = ref('')
 const root = ref<HTMLElement | null>(null)
 let ticket = 0
 
@@ -479,8 +497,10 @@ const agentChoices = computed(() => filterAgentsContains(agentCandidates.value, 
   ...row,
   key: row.id + '@' + row.box,
 })))
-const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent } = useChannelAgentPick({
-  api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback,
+const kindChoices = computed(() => channelAgentKindRows(agentKinds.value, agentQuery.value))
+const kindLabel = (kind: string) => t('channels.properties.agent_kind_new', { kind })
+const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent, loadAgentKinds } = useChannelAgentPick({
+  api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback, agentKinds, askedKind, kindLabel,
 })
 const { personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson } = useChannelPersonPick({
   api, props, people, busy, canAdd, error, selfId, localMembers, localInvited, chosenPerson, personQuery,
@@ -513,6 +533,9 @@ watch(() => props.open, async (isOpen) => {
   personQuery.value = ''
   chosenAgent.value = null
   agentQuery.value = ''
+  agentKinds.value = []
+  askedKind.value = ''
+  void loadAgentKinds()
   try {
     // SPL-3717: the roster is read into the shared store, so its presence is
     // fresh on open and the badges below stay live with the socket's frames.

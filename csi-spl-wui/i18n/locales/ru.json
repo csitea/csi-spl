@@ -1246,6 +1246,8 @@
       "people_no_matches": "Нет совпадений",
       "agents_search": "Поиск агентов",
       "agents_no_matches": "Нет совпадений",
+      "agent_kind_new": "Новый агент {kind}",
+      "agent_kind_asked": "Оркестратора попросили запустить нового агента {kind}. Он присоединится к этому каналу после запуска.",
       "agent_online": "в сети",
       "agent_offline": "ящик не в сети",
       "agent_unseated": "не размещён",

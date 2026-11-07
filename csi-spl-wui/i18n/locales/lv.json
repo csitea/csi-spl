@@ -1246,6 +1246,8 @@
       "people_no_matches": "Nav atbilstību",
       "agents_search": "Meklēt aģentus",
       "agents_no_matches": "Nav atbilstību",
+      "agent_kind_new": "Jauns {kind} aģents",
+      "agent_kind_asked": "Orķestrētājam ir lūgts jauns {kind} aģents. Tas pievienosies šim kanālam, kad būs startējis.",
       "agent_online": "tiešsaistē",
       "agent_offline": "kaste bezsaistē",
       "agent_unseated": "nav reģistrēts",

@@ -1246,6 +1246,8 @@
       "people_no_matches": "Žiadne zhody",
       "agents_search": "Hľadať agentov",
       "agents_no_matches": "Žiadne zhody",
+      "agent_kind_new": "Nový agent {kind}",
+      "agent_kind_asked": "Orchestrátora sme požiadali o nového agenta {kind}. Pripojí sa k tomuto kanálu po spustení.",
       "agent_online": "pripojený",
       "agent_offline": "box odpojený",
       "agent_unseated": "neusadený",

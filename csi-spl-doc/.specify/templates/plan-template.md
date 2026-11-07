@@ -40,7 +40,7 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- [ ] **2.1–2.2 Core principles & clean code limits** — truth first, stay in lane, dev equals or leads prd; functions <= 80 lines, depth <= 4, params <= 8 (Go) / 6 (TS/Vue), no `SELECT *`, folded helpers used once
+- [ ] **2.1–2.2 Core principles & clean code limits** — truth first, stay in lane, dev equals or leads prd; functions <= 75 lines, depth <= 4, params <= 7 (Go) / 5 (TS/Vue), no `SELECT *`, folded helpers used once
 - [ ] **2.3.1 Canonical path layout** — no hard-coded `BASE_PATH` / `ORG` / `APP` or box paths; derive from the tree
 - [ ] **2.3.2 Fail fast, no default host** — every external URL/host/bucket/account is read from an env var or cnf (`BASE_DOMAIN`); missing required vars fail fast
 - [ ] **2.3.3 Cnf single source of truth** — no hardcoded runtime values in source. New settings

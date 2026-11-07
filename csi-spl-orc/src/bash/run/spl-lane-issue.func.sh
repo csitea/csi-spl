@@ -131,6 +131,16 @@ do_spl_lane_issue() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   SLI_LIFE="$(spl_lane_issue_life "$root" "$id")"
   spl_lane_issue_ws "$root" "$id" "$op" || return 1
+  spl_lane_issue_where "$root" || return 1
+  # A desk that moved is 0700 under its owner: the seat scan below sees nothing
+  # and the hub leg says "no desk for" (spec 069 8.4, R7 W2 of SPL-4985). The
+  # taught end line runs as the box user, so the whole action re-runs as the owner.
+  local box="${DESK_BOX:-$(spl_desk_box_default)}" hop_to v
+  local -a vars=(AGENT_ID BRIEF SPOOL_LANDED_REPOS_FILE SPOOL_WORKSPACE_REPOS_MAP)
+  if hop_to="$(spl_desk_action_hop_to "$TENANT_ID" "$box")"; then
+    while read -r v; do vars+=("$v"); done < <(compgen -v LANE_)
+    spl_desk_action_hop do_spl_lane_issue "$hop_to" "$TENANT_ID" "$box" "${DESK_AGENT:-}" "${vars[@]}"; return $?
+  fi
   spl_lane_issue_desk "$root" "$dry" || return 1
   "spl_lane_issue_$op" "$root" "$id" "$dry"
 }
@@ -182,14 +192,20 @@ spl_lane_issue_ws() {
   export ENV TENANT_ID DESK_AGENT DESK_BOX
 }
 
-# spl_lane_issue_desk ROOT DRY: ENV, TENANT_ID and DESK_AGENT from the fleet
-# lease when unset; the desk must be seated on this box (a live run only).
-spl_lane_issue_desk() {
-  local conf="$1/dispatch/lease.conf" a box
+# spl_lane_issue_where ROOT: ENV and TENANT_ID from the fleet lease when unset.
+spl_lane_issue_where() {
+  local conf="$1/dispatch/lease.conf"
   _sli_conf() { sed -n "s/^$1=\([A-Za-z0-9_.-]*\)\$/\1/p" "$conf" 2>/dev/null | tail -1; }
   ENV="${ENV:-$(_sli_conf LEASE_ENV)}"; TENANT_ID="${TENANT_ID:-$(_sli_conf LEASE_TENANT)}"
   [[ -n "$ENV" && -n "$TENANT_ID" ]] || { do_log "FATAL set ENV and TENANT_ID (no LEASE_ENV / LEASE_TENANT in $conf)"; return 1; }
   export ENV TENANT_ID
+}
+
+# spl_lane_issue_desk ROOT DRY: spl_lane_issue_where, then DESK_AGENT from the
+# fleet lease when unset; the desk must be seated on this box (a live run only).
+spl_lane_issue_desk() {
+  local conf="$1/dispatch/lease.conf" a box
+  spl_lane_issue_where "$1" || return 1
   SLI_BOX="${DESK_BOX:-$(spl_desk_box_default)}"
   if [[ -z "${DESK_AGENT:-}" ]]; then
     do_spl_desk_cnf >/dev/null || return 1

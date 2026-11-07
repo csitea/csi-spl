@@ -494,6 +494,11 @@ type Hub struct {
 	// empty until the owner step S2.
 	ContactsWorkspaces []string `env:"SPOOL_HUB_CONTACTS_WORKSPACES" envSeparator:","`
 	ContactsScopes     string   `env:"SPOOL_HUB_CONTACTS_SCOPES"`
+	// The pictures of contacts (spec 154 11.4, cnf contacts, read by B16): the
+	// most a person keeps, and the https hosts a picture may be fetched from,
+	// none until the owner step S2.
+	ContactsPhotoMaxPerPerson int      `env:"SPOOL_HUB_CONTACTS_PHOTO_MAX_PER_PERSON" envDefault:"2000"`
+	ContactsPhotoHosts        []string `env:"SPOOL_HUB_CONTACTS_PHOTO_HOSTS" envSeparator:","`
 	// A workspace's own vendor keys (spec 127 H1, spec 159 T1): the KMS key
 	// that wraps each key's data key (cnf vendor_keys.kms_key, the full
 	// CryptoKey resource name of step 057) and the file holding the fingerprint

@@ -84,6 +84,13 @@ func TestContactsAnswersGolden(t *testing.T) {
 	}
 	ask("member_patch", http.MethodPatch, contactsBase+"/"+mineID, map[string]any{"first_name": ctFirst})
 
+	// The import's two steps (B15), for the file a person picks.
+	file := "first_name,last_name,email,phone,google_resource\nFirstNameB,LastNameB,,,\n,,no-at-sign,,\n"
+	for _, step := range [][2]string{{"import_dry_run", contactsDryRun}, {"import", contactsImportPath}} {
+		code, out := c.importCSV(t, step[1], file)
+		answers[step[0]] = contactsAnswer{Status: code, Body: out}
+	}
+
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetIndent("", "  ")

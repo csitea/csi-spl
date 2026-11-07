@@ -19,10 +19,12 @@ import (
 //	GET    /v1/me/contacts?q=&cursor=   a page of the list, {contacts, next}
 //	POST   /v1/me/contacts              a new contact, 201
 //	DELETE /v1/me/contacts?scope=spool  erase the whole list (C8e)
-//	GET    /v1/me/contacts/export       the list as CSV (C7)
+//	GET    /v1/me/contacts/export       the list as CSV (C7, C40)
+//	POST   /v1/me/contacts/import       a CSV file, ?dry_run=1 first (contacts_import.go)
 //	GET    /v1/me/contacts/{id}         one contact
 //	PATCH  /v1/me/contacts/{id}         change its values
 //	DELETE /v1/me/contacts/{id}         erase it: soft while a Google delete is due (C7b)
+//	GET    /v1/me/contacts/{id}/photo   its picture's bytes, 404 for none (spec 11.4)
 //	PUT    /v1/me/contacts/sync         the Contacts switch {enabled} (C7d)
 //	POST   /v1/me/contacts/sync         "Sync now", 202
 //
@@ -42,13 +44,18 @@ import (
 // an error body; a log line carries the op, the person and the contact id.
 
 const (
-	// contactsBodyMax holds the four values at their CHECK limits, at up to
-	// 4 bytes a character, plus the JSON around them.
+	// contactsBodyMax is the sync switch's small body.
 	contactsBodyMax = 4 << 10
+	// contactsValuesMax is a create or a patch: every value at its CHECK limit,
+	// the 8000 characters of notes at up to 12 bytes each as JSON escapes,
+	// plus the JSON around them (spec 11.2.1).
+	contactsValuesMax = 128 << 10
 	// contactsPurgeAfter is how long a member's soft delete waits for its
 	// Google delete before the purge door removes it (2.6, C7c).
 	contactsPurgeAfter = 30 * 24 * time.Hour
-	contactsCSVHeader  = "first_name,last_name,email,phone,google_resource"
+	// contactsCSVHeaderV12 is the export before B15, which the import still reads.
+	contactsCSVHeaderV12 = "first_name,last_name,email,phone,google_resource"
+	contactsCSVHeader    = contactsCSVHeaderV12 + ",company,job_title,birthday,notes"
 )
 
 // contactsMe is the caller of a contacts route: the person, the session's
@@ -133,6 +140,10 @@ func (s *Server) contactsFail(w http.ResponseWriter, op string, c contactsMe, co
 		writeErr(w, http.StatusBadRequest, "bad_email", "the email is not an address")
 	case errors.Is(err, store.ErrContactBadPhone):
 		writeErr(w, http.StatusBadRequest, "bad_phone", "the phone is not a phone number")
+	case errors.Is(err, store.ErrContactTooLong):
+		writeErr(w, http.StatusBadRequest, "too_long", "a value is over its limit")
+	case errors.Is(err, store.ErrContactBadBirthday):
+		writeErr(w, http.StatusBadRequest, "bad_birthday", "the birthday is not a date")
 	case errors.Is(err, store.ErrRealmBad):
 		writeErr(w, http.StatusBadRequest, "bad_contact", strings.TrimPrefix(err.Error(), "store: "))
 	case errors.Is(err, store.ErrNoPerson):
@@ -143,10 +154,11 @@ func (s *Server) contactsFail(w http.ResponseWriter, op string, c contactsMe, co
 	}
 }
 
-// contactOut is one contact as every route answers it. Email and phone are
-// null when unset; google = linked to Google; member_id is the member match
-// of the session's workspace (B6, contacts_match.go) on the list and the
-// card, null on the other routes and when nothing matches.
+// contactOut is one contact as every route answers it. Email, phone and
+// birthday are null when unset; google = linked to Google; member_id is the
+// member match of the session's workspace (B6, contacts_match.go) on the list
+// and the card, null on the other routes and when nothing matches; in_only =
+// too long to sync back (spec 11.3); photo is its picture's sha256, or null.
 type contactOut struct {
 	ID        string  `json:"contact_id"`
 	FirstName string  `json:"first_name"`
@@ -157,6 +169,12 @@ type contactOut struct {
 	MemberID  *string `json:"member_id"`
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
+	Company   string  `json:"company"`
+	JobTitle  string  `json:"job_title"`
+	Birthday  *string `json:"birthday"`
+	Notes     string  `json:"notes"`
+	InOnly    bool    `json:"in_only"`
+	Photo     *string `json:"photo"`
 }
 
 func contactJSON(c store.Contact) contactOut {
@@ -168,7 +186,8 @@ func contactJSON(c store.Contact) contactOut {
 	}
 	return contactOut{ID: c.ID, FirstName: c.FirstName, LastName: c.LastName, Email: opt(c.Email), Phone: opt(c.Phone),
 		Google: c.GoogleResource != "", CreatedAt: c.CreatedAt.UTC().Format(time.RFC3339Nano),
-		UpdatedAt: c.UpdatedAt.UTC().Format(time.RFC3339Nano)}
+		UpdatedAt: c.UpdatedAt.UTC().Format(time.RFC3339Nano), Company: c.Company, JobTitle: c.JobTitle,
+		Birthday: opt(c.Birthday), Notes: c.Notes, InOnly: c.InOnly, Photo: opt(c.PhotoSHA256)}
 }
 
 // contactIn is the body of a create (every field) and of a patch (the
@@ -178,10 +197,14 @@ type contactIn struct {
 	LastName  *string `json:"last_name"`
 	Email     *string `json:"email"`
 	Phone     *string `json:"phone"`
+	Company   *string `json:"company"`
+	JobTitle  *string `json:"job_title"`
+	Birthday  *string `json:"birthday"`
+	Notes     *string `json:"notes"`
 }
 
 func readContactJSON(w http.ResponseWriter, r *http.Request, v *contactIn) bool {
-	return readJSONStrict(w, r, v, contactsBodyMax, "invalid JSON body for a contact")
+	return readJSONStrict(w, r, v, contactsValuesMax, "invalid JSON body for a contact")
 }
 
 // GET /v1/me/contacts?q=&cursor=: a page of the person's list.
@@ -228,7 +251,8 @@ func (s *Server) handleCreateContact(w http.ResponseWriter, r *http.Request) {
 		return *p
 	}
 	ct, err := c.st.CreateContact(r.Context(), c.person, store.Contact{FirstName: val(in.FirstName), LastName: val(in.LastName),
-		Email: val(in.Email), Phone: val(in.Phone)}, s.o.Now())
+		Email: val(in.Email), Phone: val(in.Phone), Company: val(in.Company), JobTitle: val(in.JobTitle),
+		Birthday: val(in.Birthday), Notes: val(in.Notes)}, s.o.Now())
 	if err != nil {
 		s.contactsFail(w, "contacts_create", c, "", err)
 		return
@@ -269,7 +293,8 @@ func (s *Server) handlePatchContact(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	ct, err := c.st.PatchContact(r.Context(), c.person, id,
-		store.ContactPatch{FirstName: in.FirstName, LastName: in.LastName, Email: in.Email, Phone: in.Phone}, s.o.Now())
+		store.ContactPatch{FirstName: in.FirstName, LastName: in.LastName, Email: in.Email, Phone: in.Phone,
+			Company: in.Company, JobTitle: in.JobTitle, Birthday: in.Birthday, Notes: in.Notes}, s.o.Now())
 	if err != nil {
 		s.contactsFail(w, "contacts_patch", c, id, err)
 		return
@@ -385,8 +410,35 @@ func (s *Server) contactsSyncOff(ctx context.Context, person string) error {
 	return err
 }
 
-// GET /v1/me/contacts/export: the person's list as CSV, the four values and
-// the Google link (2.6 "Export", C7).
+// GET /v1/me/contacts/{id}/photo: the contact's picture, 404 for none or for
+// another person's id (spec 11.4). As the person's own avatar route: revalidated
+// each time, so an erased picture is not kept in the browser's cache.
+func (s *Server) handleContactPhoto(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.contactsCaller(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("id")
+	p, err := c.st.ContactPhoto(r.Context(), c.person, id)
+	if err != nil {
+		s.contactsFail(w, "contacts_photo", c, id, err)
+		return
+	}
+	etag := `"` + p.SHA256 + `"`
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("ETag", etag)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", p.Mime)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(p.Bytes)
+}
+
+// GET /v1/me/contacts/export: the person's list as CSV, the four values, the
+// Google link and the attributes of 11.3 (2.6 "Export", C7, C40); no picture.
 func (s *Server) handleExportContacts(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.contactsCaller(w, r)
 	if !ok {
@@ -405,7 +457,8 @@ func (s *Server) handleExportContacts(w http.ResponseWriter, r *http.Request) {
 	// csvSafe (hours_export.go): a cell that starts with = + - @ is quoted, so a
 	// spreadsheet never runs it as a formula; a +phone reads back with a leading '.
 	for _, ct := range all {
-		_ = cw.Write([]string{csvSafe(ct.FirstName), csvSafe(ct.LastName), csvSafe(ct.Email), csvSafe(ct.Phone), csvSafe(ct.GoogleResource)})
+		_ = cw.Write([]string{csvSafe(ct.FirstName), csvSafe(ct.LastName), csvSafe(ct.Email), csvSafe(ct.Phone), csvSafe(ct.GoogleResource),
+			csvSafe(ct.Company), csvSafe(ct.JobTitle), csvSafe(ct.Birthday), csvSafe(ct.Notes)})
 	}
 	cw.Flush()
 	s.o.Log.Info().Str("op", "contacts_export").Str("person", c.person).Int("rows", len(all)).Msg("contacts")
@@ -524,6 +577,10 @@ func (s *Server) routeContacts(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/me/contacts", s.gcalPreflight("GET, POST, DELETE"))
 	mux.HandleFunc("GET /v1/me/contacts/export", s.handleExportContacts)
 	mux.HandleFunc("OPTIONS /v1/me/contacts/export", s.gcalPreflight("GET"))
+	mux.HandleFunc("POST /v1/me/contacts/import", s.handleImportContacts)
+	mux.HandleFunc("OPTIONS /v1/me/contacts/import", s.gcalPreflight("POST"))
+	mux.HandleFunc("GET /v1/me/contacts/{id}/photo", s.handleContactPhoto)
+	mux.HandleFunc("OPTIONS /v1/me/contacts/{id}/photo", s.gcalPreflight("GET"))
 	mux.HandleFunc("PUT /v1/me/contacts/sync", s.handlePutContactsSync)
 	mux.HandleFunc("POST /v1/me/contacts/sync", s.handleContactsSyncNow)
 	mux.HandleFunc("OPTIONS /v1/me/contacts/sync", s.gcalPreflight("PUT, POST"))

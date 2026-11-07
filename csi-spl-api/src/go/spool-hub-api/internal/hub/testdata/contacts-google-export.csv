@@ -1,0 +1,6 @@
+First Name,Middle Name,Last Name,Phonetic First Name,Phonetic Middle Name,Phonetic Last Name,Name Prefix,Name Suffix,Nickname,File As,Organization Name,Organization Title,Organization Department,Birthday,Notes,Photo,Labels,E-mail 1 - Label,E-mail 1 - Value,Phone 1 - Label,Phone 1 - Value
+FirstName,,LastName,,,,,,,,Example Company,Example Title,,1990-03-14,HAND-WRITTEN FIXTURE: not a real Google export; the header is unproven against Google,https://photos.example.com/a,* myContacts,* Work,first.last@example.com ::: second.last@example.com,Mobile,+1 555 010 0001 ::: +1 555 010 0002
+FirstNameB,,LastNameB,,,,,,,,,,,--07-02,"A note on
+two lines",,* myContacts,,firstb.lastb@example.com,,
+FirstNameC,,LastNameC,,,,,,,,,,,,,,* myContacts,,,Home,+1 555 010 0003
+,,,,,,,,,,Example Company,,,,only a phone,,* myContacts,,,Mobile,+1 555 010 0004

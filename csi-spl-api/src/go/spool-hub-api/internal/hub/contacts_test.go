@@ -418,14 +418,14 @@ func TestContactsExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export is no CSV: %v: %s", err, raw)
 	}
-	if len(rows) != 3 || strings.Join(rows[0], ",") != "first_name,last_name,email,phone,google_resource" {
+	if len(rows) != 3 || strings.Join(rows[0], ",") != "first_name,last_name,email,phone,google_resource,company,job_title,birthday,notes" {
 		t.Fatalf("export = %q, want the header and 2 rows", rows)
 	}
-	if strings.Join(rows[1], ",") != ctFirst+","+ctLast+","+ctEmail+",'"+ctPhone+"," {
+	if strings.Join(rows[1], ",") != ctFirst+","+ctLast+","+ctEmail+",'"+ctPhone+",,,,," {
 		t.Errorf("first row = %q, want the +phone quoted", rows[1])
 	}
 	// W1: no cell starts with a formula character (= + - @), csvSafe quotes it.
-	if want := []string{`'=HYPERLINK("x")`, "'@SUM(A1)", "'-x@example.com", "", ""}; strings.Join(rows[2], "|") != strings.Join(want, "|") {
+	if want := []string{`'=HYPERLINK("x")`, "'@SUM(A1)", "'-x@example.com", "", "", "", "", "", ""}; strings.Join(rows[2], "|") != strings.Join(want, "|") {
 		t.Errorf("formula row = %q, want %q", rows[2], want)
 	}
 	if strings.Contains(string(raw), "Stranger") || strings.Contains(string(raw), "stranger@example.com") {

@@ -2,14 +2,20 @@
   "create": {
     "status": 201,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": "first.last@example.com",
       "first_name": "FirstName",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "LastName",
       "member_id": null,
+      "notes": "",
       "phone": "+1 555 010 0000",
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
@@ -20,14 +26,20 @@
   "get": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": "first.last@example.com",
       "first_name": "FirstName",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "LastName",
       "member_id": null,
+      "notes": "",
       "phone": "+1 555 010 0000",
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
@@ -38,129 +50,221 @@
       "error": "not_found"
     }
   },
+  "import": {
+    "status": 200,
+    "body": {
+      "added": 1,
+      "already_there": 0,
+      "already_there_by_phone": 0,
+      "deleted_here": 0,
+      "file_duplicates": 0,
+      "format": "spool",
+      "photos_ignored": 0,
+      "rows": 2,
+      "skipped": [
+        {
+          "code": "bad_email",
+          "line": 3
+        }
+      ]
+    }
+  },
+  "import_dry_run": {
+    "status": 200,
+    "body": {
+      "already_there": 0,
+      "already_there_by_phone": 0,
+      "deleted_here": 0,
+      "file_duplicates": 0,
+      "format": "spool",
+      "photos_ignored": 0,
+      "rows": 2,
+      "skipped": [
+        {
+          "code": "bad_email",
+          "line": 3
+        }
+      ],
+      "would_add": 1
+    }
+  },
   "member_create": {
     "status": 201,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": "member@example.com",
       "first_name": "",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "",
       "member_id": null,
+      "notes": "",
       "phone": null,
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "member_get": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": "member@example.com",
       "first_name": "",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "",
       "member_id": "\u003cmember_id\u003e",
+      "notes": "",
       "phone": null,
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "member_patch": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": "member@example.com",
       "first_name": "FirstName",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "",
       "member_id": null,
+      "notes": "",
       "phone": null,
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "patch": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": "first.last@example.com",
       "first_name": "Changed",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "LastName",
       "member_id": null,
+      "notes": "",
       "phone": "+1 555 010 0000",
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "patch_email_empty": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": null,
       "first_name": "Changed",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "LastName",
       "member_id": null,
+      "notes": "",
       "phone": "+1 555 010 0000",
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "patch_email_null": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": "first.last@example.com",
       "first_name": "Changed",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "LastName",
       "member_id": null,
+      "notes": "",
       "phone": "+1 555 010 0000",
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "patch_first_empty": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": null,
       "first_name": "",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "LastName",
       "member_id": null,
+      "notes": "",
       "phone": null,
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "patch_last_empty": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": null,
       "first_name": "Changed",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "",
       "member_id": null,
+      "notes": "",
       "phone": null,
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },
   "patch_phone_empty": {
     "status": 200,
     "body": {
+      "birthday": null,
+      "company": "",
       "contact_id": "\u003ccontact_id\u003e",
       "created_at": "\u003ctime\u003e",
       "email": null,
       "first_name": "Changed",
       "google": false,
+      "in_only": false,
+      "job_title": "",
       "last_name": "LastName",
       "member_id": null,
+      "notes": "",
       "phone": null,
+      "photo": null,
       "updated_at": "\u003ctime\u003e"
     }
   },

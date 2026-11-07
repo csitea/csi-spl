@@ -6510,7 +6510,7 @@
                 }
               }
             },
-            "description": "OK: {contacts: [contact], next}, next null on the last page; a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+            "description": "OK: {contacts: [contact], next}, next null on the last page; a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at, company, job_title, birthday, notes, in_only, photo}; email, phone, birthday and photo null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -6531,7 +6531,7 @@
         ]
       },
       "post": {
-        "description": "A new contact of the four values; at least one is needed (400 contact_empty), bad_email and bad_phone on a bad value. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "description": "A new contact: the four values, at least one is needed (400 contact_empty), and company, job_title, birthday and notes; bad_email, bad_phone, too_long and bad_birthday on a bad value. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
         "operationId": "createMeContact",
         "requestBody": {
           "content": {
@@ -6567,7 +6567,7 @@
                 }
               }
             },
-            "description": "Created: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+            "description": "Created: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at, company, job_title, birthday, notes, in_only, photo}; email, phone, birthday and photo null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -6590,7 +6590,7 @@
     },
     "/v1/me/contacts/export": {
       "get": {
-        "description": "The person's contacts as CSV, header first_name,last_name,email,phone,google_resource, Content-Disposition attachment. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "description": "The person's contacts as CSV, header first_name,last_name,email,phone,google_resource,company,job_title,birthday,notes, Content-Disposition attachment. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
         "operationId": "exportMeContacts",
         "responses": {
           "200": {
@@ -6617,6 +6617,70 @@
           }
         },
         "summary": "Export my contacts",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/contacts/import": {
+      "post": {
+        "description": "Imports a CSV file, the body itself, as text/csv (any other type is 415): a Google Contacts export or the Spool export, told apart by the header. ?dry_run=1 writes nothing and answers would_add; the import writes the new rows in one transaction and answers added. A bad row is skipped and reported by line and code; a row matching a contact is never merged. Refused whole: 400 csv_unknown_format, csv_bad_encoding, csv_malformed; 413 csv_too_large over 5 MiB or 25,000 rows. Spec 154 B15. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "importMeContacts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "text/csv": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "the file",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: {format, rows, would_add or added, already_there, already_there_by_phone, deleted_here, file_duplicates, skipped: [{line, code}], photos_ignored}; code is row_empty, bad_email, bad_phone, too_long or bad_birthday; no contact value. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 11.2.1."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "csv_too_large: over 5 MiB or 25,000 rows, nothing read. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 11.2.1."
+          },
+          "415": {
+            "description": "unsupported_media_type: the body is not text/csv. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 11.2.1."
+          }
+        },
+        "summary": "Import contacts from a CSV file",
         "tags": [
           "me"
         ]
@@ -6761,7 +6825,7 @@
                 }
               }
             },
-            "description": "OK: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+            "description": "OK: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at, company, job_title, birthday, notes, in_only, photo}; email, phone, birthday and photo null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -6830,7 +6894,7 @@
                 }
               }
             },
-            "description": "OK: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+            "description": "OK: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at, company, job_title, birthday, notes, in_only, photo}; email, phone, birthday and photo null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -6846,6 +6910,68 @@
           }
         },
         "summary": "Change a contact",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/contacts/{id}/photo": {
+      "get": {
+        "description": "The contact's picture bytes with their type, Cache-Control: private, no-cache, ETag the sha256, X-Content-Type-Options: nosniff; 304 on If-None-Match; 404 for none or another person's id. Spec 154 B15. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "getMeContactPhoto",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK: the picture. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 11.4."
+          },
+          "304": {
+            "description": "Not Modified: the If-None-Match is its ETag. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 11.4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Get a contact's picture",
         "tags": [
           "me"
         ]

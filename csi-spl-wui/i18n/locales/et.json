@@ -1537,7 +1537,7 @@
     "empty": "Arhiivis pole midagi.",
     "hint": "Arhiveeritud teemad on kanalites, otsesõnumites ja otsingus peidetud. Taasta arhiivist toob teema tagasi.",
     "topics_empty": "Arhiveeritud teemasid pole.",
-    "note_error": "Märget ei õnnestunud muuta. Proovige uuesti.",
+    "note_error": "Märget ei õnnestunud muuta. Proovi uuesti.",
     "archived_at": "Arhiveeritud {when}",
     "badge": "Arhiveeritud",
     "load_failed": "Arhiivi ei saanud laadida.",

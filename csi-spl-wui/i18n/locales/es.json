@@ -1537,7 +1537,7 @@
     "empty": "No hay nada archivado.",
     "hint": "Los temas archivados se ocultan en canales, mensajes directos y búsqueda. Desarchivar recupera un tema.",
     "topics_empty": "No hay temas archivados.",
-    "note_error": "No se pudo cambiar la nota. Inténtelo de nuevo.",
+    "note_error": "No se pudo cambiar la nota. Inténtalo de nuevo.",
     "archived_at": "Archivado {when}",
     "badge": "Archivado",
     "load_failed": "No se pudo cargar el archivo.",

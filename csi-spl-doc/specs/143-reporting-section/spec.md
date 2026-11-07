@@ -403,7 +403,7 @@ Response payload:
 
 ### 2.5 Software projects of a workspace, the project drop box (Draft, SPL-4963)
 
-Owner HUM-10, t1 93b73456 (msgs ae60a8d9, 8262d099, cd72fcbd): each workspace has 1..n software projects, each project 1..n repos, and the tab shows the commits per project from a drop box. The design, its changes to [spec 171](../171-workspace-own-repo/spec.md), the build rows and the open questions: [releases-projects.md](releases-projects.md). Not built: sections 2.1 to 2.4 describe what runs today.
+Owner HUM-10, t1 93b73456 (msgs ae60a8d9, 8262d099, cd72fcbd): each workspace has 1..n software projects, each project 1..n repos, and the tab shows the commits per project from a drop box. The design, its changes to [spec 171](../171-workspace-own-repo/spec.md), the build rows and the owner's answers: [releases-projects.md](releases-projects.md). Not built: sections 2.1 to 2.4 describe what runs today.
 
 ---
 

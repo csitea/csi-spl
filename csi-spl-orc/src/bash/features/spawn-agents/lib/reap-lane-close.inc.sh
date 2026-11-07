@@ -7,7 +7,8 @@
 #   $SPOOL_ROOT/.reap/lane-close.tsv      id<TAB>first failed (UTC)<TAB>why: a
 #                                         close the hub did not take; the reaper
 #                                         retries REAP_LANE_RETRY_MAX (20) a tick,
-#                                         a failed one goes to the back
+#                                         a failed one goes to the back; an id
+#                                         with no hub row on this box just leaves
 #   $SPOOL_ROOT/.reap/lane-close.alerted  epoch of the last alert
 #   $SPOOL_ROOT/.reap/topic-tell.tsv      id<TAB>topic: a note the send did not take
 #
@@ -75,15 +76,37 @@ rlc_tell() {
   case "$rc" in 0|5|6|7) return 0 ;; *) return 1 ;; esac
 }
 
-# rlc_seat_topic ID: into RLC_TOPIC the topic of the id's live row on this box,
-# "?" when the hub did not answer. The map is read once per tick, only on a reap.
+# rlc_map_read: RLC_MAP is the lane map, "" when the hub did not answer. Read
+# once per tick, only on a reap or with a queue to drain.
 RLC_MAP="" RLC_MAP_READ=0 RLC_TOPIC=""
+rlc_map_read() {
+  [ "$RLC_MAP_READ" = 0 ] || return 0
+  RLC_MAP_READ=1
+  RLC_MAP="$(timeout 60 bash "$_here/lane-map.sh" list --all --json 2>/dev/null </dev/null | grep '^{' | tail -1)"
+  [ "$(jq -r '.hub // ""' <<<"$RLC_MAP" 2>/dev/null)" = ok ] || RLC_MAP=""
+}
+
+# rlc_box: the box whose row a close writes, as do_spl_lane_put reads it.
+rlc_box() { printf '%s' "${LANE_BOX:-$(spl_desk_box_default)}"; }
+
+# rlc_no_row ID: true only when the hub answered with rows and none of them is
+# the id's on this box (SPL-4987). A close then has nothing to close: its write
+# would mint a row with no topic, which the hub refuses for good (rdb 0264). The
+# map also lists this box's worktrees as src local, state live: those are no hub
+# row. No answer, or one with no hub row at all, is "cannot tell": the close is
+# tried, and a failure alerts.
+rlc_no_row() {
+  rlc_map_read
+  [ -n "$RLC_MAP" ] || return 1
+  jq -e --arg a "$1" --arg b "$(rlc_box)" \
+    '[.lanes[]? | select(.src != "local")] | length > 0 and (any(.agent_id == $a and .agent_box == $b) | not)' \
+    <<<"$RLC_MAP" >/dev/null 2>&1
+}
+
+# rlc_seat_topic ID: into RLC_TOPIC the topic of the id's live row on this box,
+# "?" when the hub did not answer.
 rlc_seat_topic() {
-  if [ "$RLC_MAP_READ" = 0 ]; then
-    RLC_MAP_READ=1
-    RLC_MAP="$(timeout 60 bash "$_here/lane-map.sh" list --all --json 2>/dev/null </dev/null | grep '^{' | tail -1)"
-    [ "$(jq -r '.hub // ""' <<<"$RLC_MAP" 2>/dev/null)" = ok ] || RLC_MAP=""
-  fi
+  rlc_map_read
   RLC_TOPIC='?'
   [ -n "$RLC_MAP" ] || return 0
   RLC_TOPIC="$(jq -r --arg a "$1" --arg b "$(spl_desk_box_default)" \
@@ -164,7 +187,8 @@ rlc_alert() {
 # rlc_drain: retry the queued closes, at most REAP_LANE_RETRY_MAX (20) a tick;
 # the rest are counted and wait, and the failed ones go behind them.
 # An id in use again (re-issued after its quarantine) leaves the queue unclosed:
-# its row is a new lane's now.
+# its row is a new lane's now. So does an id with no hub row on this box: nothing
+# to close, no retry and no alert.
 rlc_drain() {
   local q n=0 waiting=0 max="${REAP_LANE_RETRY_MAX:-20}" id first why out rc last_why=""
   local -a gone=() failed=()
@@ -175,6 +199,15 @@ rlc_drain() {
     if has_window "$id" || has_reg_row "$id" || ai_alive_fast "$id" >/dev/null 2>&1; then
       say "INFO lane-close ${id}: the id is in use again, the row is not the retired seat's; off the queue"
       gone+=("$id"); continue
+    fi
+    if rlc_no_row "$id"; then
+      if [ "$APPLY" = 1 ]; then
+        say "INFO lane-close ${id}: no hub row on $(rlc_box), nothing to close; off the queue"
+        gone+=("$id")
+      else
+        say "PLAN lane-close ${id}: no hub row on $(rlc_box), nothing to close; would leave the queue"
+      fi
+      continue
     fi
     n=$((n + 1)); [ "$n" -le "$max" ] || { waiting=$((waiting + 1)); continue; }
     if [ "$APPLY" != 1 ]; then say "PLAN lane-close ${id}: lane-map.sh done (failing since ${first}: ${why})"; continue; fi

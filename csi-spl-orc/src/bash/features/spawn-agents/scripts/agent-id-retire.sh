@@ -16,7 +16,8 @@
 #       -> agents/retired/<ID>.<spawned-utc>.json; index.json re-hashed
 #   hub lane row -> state done (lane-map.sh done). A close the hub did not take
 #                  says why and queues in .reap/lane-close.tsv: the reaper's next
-#                  tick retries it and alerts the dispatch holder (SPL-4650)
+#                  tick retries it and alerts the dispatch holder (SPL-4650), or
+#                  drops it when this box has no hub row of the id (SPL-4987)
 #   pending     -> $SPOOL_ROOT/.retired/.pending.<ID> while --apply runs: the
 #                  generation, the alias row and "registry" once the rows
 #                  moved. A run stopped half-way leaves it, and the re-run

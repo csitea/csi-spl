@@ -534,8 +534,9 @@ def seats(agent):
 def seats_to_hold(agent):
     """-> (seats, unread) for the reads that keep a person's DM private: every
     seat of the agent, a muted one too, which a mute must not switch off, and
-    the paths that could not be read. Walks the pattern by hand because glob
-    reads a dir it cannot list as empty, and a seat behind one holds its DM."""
+    the paths that could not be read, a link that points at nothing too. Walks
+    the pattern by hand because glob reads a dir it cannot list as empty, and a
+    seat behind one holds its DM."""
     found, unread = [], []
 
     def walk(base, parts):
@@ -545,7 +546,8 @@ def seats_to_hold(agent):
                 if stat.S_ISDIR(os.stat(a).st_mode):
                     found.append(base)
             except (FileNotFoundError, NotADirectoryError):
-                pass
+                if sd.dangling(a):
+                    unread.append(a)
             except OSError:
                 unread.append(a)
             return
@@ -555,6 +557,8 @@ def seats_to_hold(agent):
         try:
             names = os.listdir(base)
         except (FileNotFoundError, NotADirectoryError):
+            if sd.dangling(base):
+                unread.append(base)
             return
         except OSError:
             unread.append(base)

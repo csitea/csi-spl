@@ -35,6 +35,9 @@
 #   C18 a second seat lookup that does not cover the agent's seats stops the post
 #   C19 a seat that cannot be listed counts as a hold; an absent dir does not
 #   C20 a trigger dir that cannot be read counts as a hold; an absent one does not
+#   C21 a link that points at nothing has read nothing: it holds, a live link reads through
+#   C22 a dm-turn whose ts is no time holds
+#   C23 a trigger record that names no kind the writer writes holds
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -513,6 +516,68 @@ os.path.getmtime = taken
 print(sd.dm_waiting(sys.argv[2], time.time()))
 TAKEN
 )"
+
+# --- C21 a link that points at nothing ------------------------------------------
+dangle() { mkdir -p "$(dirname "$1")"; ln -s "$T_TMP/no-such-target" "$1"; }
+reset; brief "$TD"; dangle "$A2"; turn_notification
+eq "C21. the agent dir of another seat is a dangling link: nothing" 0 "$(nsends)"
+has "C21. ... and the log says it" "the seats cannot be read" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"; dangle "$T_TMP/cloud/dev/desk/t2/gone"; turn_notification
+eq "C21. a seat is a dangling link: nothing" 0 "$(nsends)"
+rm -f "$T_TMP/cloud/dev/desk/t2/gone"
+reset; brief "$TD"; dangle "$T_TMP/cloud/dev/desk/t4"; turn_notification
+eq "C21. a workspace, a level the lookup lists, is a dangling link: nothing" 0 "$(nsends)"
+has "C21. ... and the log says it" "the seats cannot be read" "$(tail -1 "$A/.mirror/mirror.log")"
+rm -f "$T_TMP/cloud/dev/desk/t4"
+reset; brief "$TD"; dangle "$T_TMP/cloud/dev/desk/t3/box-desk/spool"; turn_notification
+eq "C21. a seat's spool dir, above the agent dir, is a dangling link: nothing" 0 "$(nsends)"
+rm -rf "$T_TMP/cloud/dev/desk/t3"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror"; dangle "$A/.mirror/trigger"; post answer "$FINDINGS"
+eq "C21. the trigger dir is a dangling link: nothing" 0 "$(nsends)"
+has "C21. ... and the log says it" "a person's DM has no turn yet" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror/trigger"; dangle "$A/.mirror/trigger/x"; post answer "$FINDINGS"
+eq "C21. a trigger record is a dangling link: nothing" 0 "$(nsends)"
+reset; brief "$TD"; mkdir -p "$A2/inbox" "$A2/.mirror"; dangle "$A2/.mirror/dm-turn"; turn_notification
+eq "C21. the dm-turn is a dangling link: nothing" 0 "$(nsends)"
+has "C21. ... and the log says it" "a DM turn in the last hour" "$(tail -1 "$A/.mirror/mirror.log")"
+reset; brief "$TD"; mkdir -p "$A2/inbox"; dangle "$A2/.mirror"; turn_notification
+# Silent through first_sighting's traceback on that seat, before the hold is read.
+eq "C21. another seat's .mirror is a dangling link: nothing" 0 "$(nsends)"
+reset; brief "$TD"; dangle "$A2"; dm_turn "PRIVATE answer"
+eq "C21. a DM answer still goes out past a dangling link" "1 $TM" "$(nsends) $(send_arg 0 --task)"
+# A live link is the layout some boxes have, and a record behind it is read.
+reset; brief "$TD"; mkdir -p "$T_TMP/real-a2/inbox" "$(dirname "$A2")"; ln -s "$T_TMP/real-a2" "$A2"; turn_notification
+eq "C21. CONTROL: a live link to the agent dir, no record: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+rm -rf "$T_TMP/real-a2"; reset; brief "$TD"; mkdir -p "$T_TMP/real-a2/inbox" "$T_TMP/real-a2/.mirror" "$(dirname "$A2")"; ln -s "$T_TMP/real-a2" "$A2"
+python3 -c 'import json,sys,time; json.dump({"ts":time.time()},open(sys.argv[1],"w"))' "$T_TMP/real-a2/.mirror/dm-turn"; turn_notification
+eq "C21. CONTROL: a live link, a dm-turn behind it: the hold reads it" 0 "$(nsends)"
+has "C21. CONTROL: ... as a hold" "a DM turn in the last hour" "$(tail -1 "$A/.mirror/mirror.log")"
+rm -rf "$T_TMP/real-a2"
+reset; brief "$TD"; dangle "$SEAT2/spool/c-778"; turn_notification
+eq "C21. CONTROL: another agent's dangling link: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+rm -f "$SEAT2/spool/c-778"
+
+# --- C22 a dm-turn whose ts is no time -------------------------------------------
+dm_turn_ts() { mkdir -p "$A2/inbox" "$A2/.mirror"; printf '{"ts":%s}' "$1" >"$A2/.mirror/dm-turn"; }
+BIG_TS="1$(printf '0%.0s' $(seq 1 400))"
+for ts in NaN '"nan"' Infinity -Infinity '"inf"' 1e999 true "$BIG_TS"; do
+  reset; brief "$TD"; dm_turn_ts "$ts"; turn_notification
+  eq "C22. a dm-turn with ts ${ts:0:12}: nothing" 0 "$(nsends)"
+  has "C22. ... a hold, not a crash" "a DM turn in the last hour" "$(tail -1 "$A/.mirror/mirror.log")"
+done
+reset; brief "$TD"; dm_turn_ts "$(($(date +%s) - 3700))"; turn_notification
+eq "C22. CONTROL: a dm-turn past the hour: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
+reset; brief "$TD"; dm_turn_ts "$(($(date +%s) - 3500))"; turn_notification
+eq "C22. CONTROL: a dm-turn inside the hour holds" 0 "$(nsends)"
+
+# --- C23 a trigger record with no usable kind --------------------------------------
+for rec in '{}' '{"kind":null}' '{"kind":"DM"}' '{"kind":""}' '{"kind":["dm"]}' '{"kind":7}'; do
+  reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror/trigger"; printf '%s' "$rec" >"$A/.mirror/trigger/x"; post answer "$FINDINGS"
+  eq "C23. a trigger record $rec: nothing" 0 "$(nsends)"
+  has "C23. ... and the log says it" "a person's DM has no turn yet" "$(tail -1 "$A/.mirror/mirror.log")"
+done
+reset; brief "$TD"; post prompt "$NOTIFICATION"; mkdir -p "$A/.mirror/trigger"; printf '{}' >"$A/.mirror/trigger/x"; age_triggers 3700; post answer "$FINDINGS"
+eq "C23. CONTROL: such a record past the hour: it posts" "1 $TD" "$(nsends) $(send_arg 0 --task)"
 
 # --- C14 a corrupt seen-list --------------------------------------------------
 reset; mkdir -p "$A/.mirror"; printf '{"x":"not a number"}' >"$A/.mirror/discussions"

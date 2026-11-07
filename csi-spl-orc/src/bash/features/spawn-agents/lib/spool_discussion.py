@@ -13,6 +13,7 @@ or a file that does not parse reads as OFF.
 import datetime
 import glob
 import json
+import math
 import os
 import re
 
@@ -142,28 +143,43 @@ def note_dm_turn(adir, now):
     _write_json(_dm_turn_path(adir), {"ts": now})
 
 
+def dangling(path):
+    """A link on the way to path points at nothing. What it held was not read,
+    which is not the same as absent."""
+    while path != os.path.dirname(path):
+        if os.path.islink(path) and not os.path.exists(path):
+            return True
+        path = os.path.dirname(path)
+    return False
+
+
 def dm_hold(adir, now):
     """A DM turn began on this seat within DM_HOLD. A record that cannot be read
-    is a hold: a wrong landing is worse than silence."""
+    or holds no time is a hold: a wrong landing is worse than silence."""
+    path = _dm_turn_path(adir)
     try:
-        with open(_dm_turn_path(adir)) as f:
-            return now - float(json.load(f)["ts"]) < DM_HOLD
+        with open(path) as f:
+            ts = json.load(f)["ts"]
+        if isinstance(ts, bool) or not math.isfinite(float(ts)):
+            return True
+        return now - float(ts) < DM_HOLD
     except FileNotFoundError:
-        return False
-    except (OSError, ValueError, KeyError, TypeError):
+        return dangling(path)
+    except (OSError, ValueError, KeyError, TypeError, OverflowError):
         return True
 
 
 def dm_waiting(adir, now):
     """A person's DM the desk typed and no prompt hook has taken. A line typed
     during a turn queues and fires no hook, and the turn's answer may already
-    answer it. A record or a dir that cannot be read counts: a wrong landing is
-    worse. An absent dir is no record, or no agent would ever post."""
+    answer it. A record or a dir that cannot be read counts, and so does a record
+    of no kind the writer writes: a wrong landing is worse. An absent dir is no
+    record, or no agent would ever post."""
     trigger = os.path.join(adir, ".mirror", "trigger")
     try:
         names = os.listdir(trigger)  # glob reads an unlistable dir as empty
     except FileNotFoundError:
-        return False
+        return dangling(trigger)
     except OSError:
         return True
     for name in names:
@@ -174,9 +190,11 @@ def dm_waiting(adir, now):
             if now - os.path.getmtime(p) >= DM_HOLD:
                 continue
             with open(p) as f:
-                if json.load(f).get("kind") == "dm":
+                if json.load(f).get("kind") not in ("channel", "task"):
                     return True
         except FileNotFoundError:
+            if dangling(p):
+                return True
             continue  # taken by a prompt since the listing
         except (OSError, ValueError, AttributeError):
             return True

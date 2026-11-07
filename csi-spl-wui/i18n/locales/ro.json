@@ -3554,7 +3554,7 @@
           "remove": "Eliminat",
           "refused": "Refuzat",
           "file_remove": "Fișier eliminat",
-          "file_restore": "Fișier readus"
+          "file_restore": "Fișier restaurat"
         },
         "err": {
           "bad_glob": "Șablon nevalid: o cale absolută sau sub $HOME/, * și ? doar în numele fișierului, fără paranteze drepte sau acolade, ** ori părți . și ..",
@@ -3569,11 +3569,11 @@
         }
       },
       "file": {
-        "remove_ask": "Elimini {key} din această vizualizare? Mașina nu îl mai urmărește. Liniile deja stocate rămân până expiră.",
+        "remove_ask": "Elimini {key} din această vizualizare? Mașina nu îl mai urmărește. Rândurile deja salvate rămân până expiră.",
         "removed_title": "Fișiere eliminate",
-        "put_back": "Readu",
+        "put_back": "Restaurează",
         "err": {
-          "box_locked": "Această mașină este blocată: doar proprietarii blocării pot readuce un fișier.",
+          "box_locked": "Această mașină este blocată: doar proprietarii blocării pot restaura un fișier.",
           "not_found": "Acest fișier nu mai există. Reîncarcă pagina.",
           "forbidden": "Doar proprietarul și administratorii spațiului de lucru pot modifica lista de fișiere."
         }

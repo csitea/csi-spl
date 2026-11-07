@@ -3541,7 +3541,7 @@
         "reason": "Syy: {reason}",
         "unavailable": "Tiedostomalleja ei voitu ladata.",
         "audit_title": "Mallien ja tiedostojen muutokset",
-        "audit_none": "Muutoksia ei ole vielä.",
+        "audit_none": "Ei vielä muutoksia.",
         "state": {
           "pending": "Tallennettu, ei vielä seurannassa: kone ei ole ilmoittanut siitä",
           "following": "Seurannassa",

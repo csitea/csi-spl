@@ -3554,7 +3554,7 @@
           "remove": "Kaldırıldı",
           "refused": "Reddedildi",
           "file_remove": "Dosya kaldırıldı",
-          "file_restore": "Dosya geri kondu"
+          "file_restore": "Dosya geri konuldu"
         },
         "err": {
           "bad_glob": "Geçersiz desen: mutlak bir yol veya $HOME/ altında bir yol; * ve ? yalnızca dosya adında; köşeli ve süslü parantez, ** veya . ve .. bölümleri yok.",

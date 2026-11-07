@@ -14,6 +14,9 @@
 #      URL is re-asked 2 times, 10 s apart, as evidence; a picture that clears
 #      on the re-ask still reds the check. CONTROL: a copy that turns the
 #      cleared re-ask into a pass goes green (red)
+#   7. a page cut off after its og:image (curl fails on a 200) still reds the
+#      check, as `curl -f` did, with curl's rc logged. CONTROL: a copy that
+#      ignores the rc goes green (red)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +33,8 @@ mkdir -p "$T/stub" "$T/body"
 # stub curl: the last argument is the URL; its $MAP line "<url> <code> <type>
 # [body]" answers, or from its 2nd ask on its "$MAP.then" line if it has one.
 # -w prints "<code> <type>" after the -D headers ($MAP.node "<url> <node>"), and
-# the body goes to -o; otherwise the body ($T/body/<n>) on a 200 goes to stdout,
+# the body goes to -o, and curl exits with its "$MAP.crc" line "<url> <rc>";
+# otherwise the body ($T/body/<n>) on a 200 goes to stdout,
 # exit 22 (as -f) on anything else.
 cat >"$T/stub/curl" <<'SH'
 #!/bin/bash
@@ -54,7 +58,8 @@ if ((w)); then
   [[ -n "$node" ]] && printf 'HTTP/2 %s\r\nX-Served-By: %s\r\nx-cache: MISS\r\n\r\n' "$code" "$node"
   [[ "$out" != /dev/null && -n "$out" && -n "${body:-}" ]] && cat "$BODY_DIR/$body" >"$out"
   printf '%s %s' "$code" "$type"
-  exit 0
+  crc="$(awk -v u="$url" '$1 == u { print $2; exit }' "$MAP.crc" 2>/dev/null)"
+  exit "${crc:-0}"
 fi
 [[ "$code" == 200 ]] || exit 22
 [[ -n "${body:-}" ]] && cat "$BODY_DIR/$body"
@@ -72,7 +77,7 @@ site() {
   echo "{\"locales\":{\"en\":[{\"id\":\"$ID\",\"image\":\"$ID.webp\"}]}}" >"$T/body/index"
   if [[ "$og" == - ]]; then echo '<html><head><title>t</title></head></html>' >"$T/body/page"
   else echo "<html><head><meta property=\"og:image\" content=\"$og\"></head></html>" >"$T/body/page"; fi
-  rm -f "$MAP.then" "$MAP.node"
+  rm -f "$MAP.then" "$MAP.node" "$MAP.crc"
   cat >"$MAP" <<EOF
 $SITE/blog-md/index.json 200 application/json index
 $SITE/blog/$ID 200 text/html page
@@ -156,6 +161,18 @@ echo "<html><head><meta property=\"og:image\" content=\"$OG\"></head></html>" >"
 echo "$SITE/blog/$ID 200 text/html page2" >"$MAP.then"; cs
 ((rc == 1)) && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG, page 200 text/html (at " "$T/o" && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html" "$T/o" &&
   pass "a page with no og:image that clears on the re-ask still reds the check" || fail "page cleared: rc=$rc $(cat "$T/o")"
+
+# --- 7. a page cut off mid-body (R7 W1) ---------------------------------------
+for crc in 18 28; do
+  site "$OG" 200 image/webp 200 image/webp; echo "$SITE/blog/$ID $crc" >"$MAP.crc"; cs
+  ((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html.*curl rc $crc" "$T/o" &&
+    pass "a page with its og:image, cut off with curl rc $crc: rc 1, the rc logged" || fail "cut off $crc: rc=$rc $(cat "$T/o")"
+done
+sed 's/ && "$got" != \*", curl rc "\*//' "$ACTION" >"$T/m-crc.sh"
+if cmp -s "$ACTION" "$T/m-crc.sh"; then fail "CONTROL cut off: the sed changed nothing"; else
+  cs "$T/m-crc.sh"
+  ((rc == 0)) && pass "CONTROL: a copy that ignores curl's rc passes the cut-off page (red)" || fail "CONTROL cut off: still rc=$rc"
+fi
 
 site "$OG" 200 'text/html;charset=utf-8' 200 'text/html;charset=utf-8'; cs "" "$SITE" BLOG_SERVED_REASK_URLS=1
 ((rc == 1)) && grep -q "re-asking the first 1 of the 2 failing URLs" "$T/o" && [[ "$(asks "$OG")" == 1 && "$(asks "$SITE/blog/img/$ID.webp")" == 3 ]] &&

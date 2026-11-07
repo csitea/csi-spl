@@ -63,28 +63,30 @@ spl_blog_served_get() {
 }
 
 # spl_blog_served_answer <url> [body file]: asks once; prints "<status> <type>
-# (at <utc>, host <host>[, node <x-served-by>][, x-cache <v>][, last-modified <v>])".
+# (at <utc>, host <host>[, node <x-served-by>][, x-cache <v>][, last-modified <v>][, curl rc <n>])".
 spl_blog_served_answer() {
-  local raw at host h v extra=""
-  raw="$(curl -sS -o "${2:-/dev/null}" -D - --max-time "${BLOG_SERVED_MAX_TIME:-20}" -w '%{http_code} %{content_type}' "$1" 2>/dev/null)" || true
+  local raw at host h v extra="" crc=0
+  raw="$(curl -sS -o "${2:-/dev/null}" -D - --max-time "${BLOG_SERVED_MAX_TIME:-20}" -w '%{http_code} %{content_type}' "$1" 2>/dev/null)" || crc=$?
   at="$(date -u +%FT%TZ)"
   host="${1#*://}"; host="${host%%/*}"
   for h in x-served-by x-cache last-modified; do
     v="$(awk -v h="$h:" 'tolower($1) == h { sub(/^[^:]*:[ \t]*/, ""); sub(/\r$/, ""); print; exit }' <<<"$raw")"
     [[ -n "$v" ]] && extra+=", ${h/x-served-by/node} $v"
   done
+  ((crc == 0)) || extra+=", curl rc $crc"
   echo "$(tail -n 1 <<<"$raw") (at $at, host $host$extra)"
 }
 
 # spl_blog_served_og <page url>: rc 0 and "<og:image URL>, page <answer>"; else
-# rc 1 and the page's answer.
+# rc 1 and the page's answer. A page curl failed on is no page, even with the
+# og:image in the part that arrived.
 spl_blog_served_og() {
   local body got meta
   body="$(mktemp)"
   got="$(spl_blog_served_answer "$1" "$body")"
   meta="$(grep -m 1 -oE '<meta[^>]*property="og:image"[^>]*>' "$body" || true)"
   rm -f "$body"
-  if [[ "$got" =~ ^200\  && "$meta" =~ content=\"([^\"]+)\" ]]; then echo "${BASH_REMATCH[1]}, page $got"; return 0; fi
+  if [[ "$got" =~ ^200\  && "$got" != *", curl rc "* && "$meta" =~ content=\"([^\"]+)\" ]]; then echo "${BASH_REMATCH[1]}, page $got"; return 0; fi
   echo "$got"
   return 1
 }

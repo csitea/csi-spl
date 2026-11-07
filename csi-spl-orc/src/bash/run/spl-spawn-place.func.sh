@@ -150,7 +150,8 @@
 # @description         the token rollup by category; a brief without them
 # @description         places as before, a refused path is one WARN line
 # @description   2a. REVIEW SEATS (SPL-4966, spec 146) - a logged review seat
-# @description      (spl_spawn_place_seats) finishes work already written, so its
+# @description      (spl_spawn_place_seats) whose brief's first heading says review
+# @description      (spl_spawn_place_seat_pass) finishes work already written, so its
 # @description      launch carries BOX_PICK_REVIEW_SEAT=1: do_spl_box_pick then
 # @description      holds it at cnf env.box.quota.review_seat_max_pct (95, at most
 # @description      99), not at weekly_max_pct. At that mark, at 100%, and on every
@@ -416,6 +417,15 @@ spl_spawn_place_seats() {  # ROWS
   jq -c --slurpfile ids <(awk -F'\t' -v m="$SPL_SPAWN_REVIEW_SEAT_GO" '$3 == m { print $2 }' "$f" | jq -R -s -c 'split("\n") | map(select(length > 0))') \
     '$ids[0] as $ids | [.[] | select(.state == "queued" and ((.placement // "") | sub("^[^:]*:"; "") | test("-reviewer$"))
     and (.ask_id as $a | $ids | index($a)))] | sort_by(.position)' <<<"$1"
+}
+
+# 2a. May this logged seat pass the weekly hold? Its first "# " heading says review,
+# reviewer or R7. The slug alone logs a row by itself (spl_spawn_q_enqueue), so a
+# coding lane named -reviewer would pass. All 984 *-reviewer.md briefs on sat say it
+# (11-07). "Kind:" cannot be the check: 3 of them carry review, 171 complex_coding.
+# This stops a wrong name, not a forged heading: nothing proves a lane only reads.
+spl_spawn_place_seat_pass() {  # BRIEF
+  grep -qiE '\b(review|reviewer|R7)\b' <<<"$(grep -m1 '^# ' "$1" 2>/dev/null)"
 }
 
 # 2a. A logged review seat under a hold: on 11-06 three R7 seats waited 320-406
@@ -1184,8 +1194,12 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   id="$(jq -r '.ask_id' <<<"$2")"
   err="$(mktemp)" || return 1
   if [[ "$(spl_spawn_place_seats "[$2]")" != '[]' ]]; then
-    seat=1
-    do_log "INFO ask ${id:0:8} is a logged review seat: it launches on the review-seat weekly mark (env.box.quota.review_seat_max_pct)"
+    if spl_spawn_place_seat_pass "$5"; then
+      seat=1
+      do_log "INFO ask ${id:0:8} is a logged review seat: it launches on the review-seat weekly mark (env.box.quota.review_seat_max_pct)"
+    else
+      do_log "WARN ask ${id:0:8} is logged as a review seat by its slug ($4), but its brief's first heading does not say review: it launches on the weekly mark"
+    fi
   fi
   # The lane row's topic (spec 153 3.4): the ask's topic, set once for both
   # launch lines, when it is a full hub uuid, or the 8 hex of a dispatch-<topic8>

@@ -19,7 +19,8 @@
 #      ignores the rc goes green (red)
 #   8. R7 on 2116b7c1c: an og:image URL holding ", page " is asked whole; a header
 #      holding it is a false red, never a green; a page answering anything but
-#      200 fails even with its og:image; no ask carries --retry. CONTROL for each
+#      200 fails even with its og:image; no ask carries --retry; a page answering
+#      503 first and 200 right after fails on its first answer. CONTROL for each
 #      (red)
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -205,6 +206,17 @@ sed 's/"$got" =~ ^200\\  && //' "$ACTION" >"$T/m-status.sh"
 if cmp -s "$ACTION" "$T/m-status.sh"; then fail "CONTROL page status: the sed changed nothing"; else
   cs "$T/m-status.sh"
   ((rc == 0)) && pass "CONTROL: a copy that accepts any page status passes the 500 page (red)" || fail "CONTROL page status: still rc=$rc"
+fi
+
+site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$SITE/blog/$ID 200 |$SITE/blog/$ID 503 |" "$MAP"
+echo "$SITE/blog/$ID 200 text/html page" >"$MAP.then"; cs
+((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers 503 text/html" "$T/o" && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG, page 200 text/html (at " "$T/o" && [[ "$(asks "$SITE/blog/$ID")" == 3 ]] &&
+  pass "a page answering 503 first and 200 right after: rc 1, its first answer decides" || fail "page 503 then 200: rc=$rc asks $(asks "$SITE/blog/$ID") $(cat "$T/o")"
+sed 's/^  got="$(spl_blog_served_answer "$1" "$body")"$/&\n  [[ "$got" =~ ^200\\  ]] || got="$(spl_blog_served_answer "$1" "$body")"/' "$ACTION" >"$T/m-pageretry.sh"
+if cmp -s "$ACTION" "$T/m-pageretry.sh"; then fail "CONTROL page retry: the sed changed nothing"; else
+  site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$SITE/blog/$ID 200 |$SITE/blog/$ID 503 |" "$MAP"
+  echo "$SITE/blog/$ID 200 text/html page" >"$MAP.then"; cs "$T/m-pageretry.sh"
+  ((rc == 0)) && pass "CONTROL: a copy with a bash retry inside the page ask passes that page (red)" || fail "CONTROL page retry: still rc=$rc"
 fi
 
 curls() { grep -c '^curl ' "$T/calls.log"; }

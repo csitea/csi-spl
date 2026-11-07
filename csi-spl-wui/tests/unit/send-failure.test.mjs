@@ -17,7 +17,8 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { parseMention } from '../../src/utils/channel-feed.mjs'
 import { fileURLToPath } from 'node:url'
-import { emptySendError, failureToken, isEmptySend, sendFailureKey, shouldAutoResend } from '../../src/utils/send-failure.mjs'
+import { emptySendError, failureToken, isEmptySend, shouldAutoResend } from '../../src/utils/send-failure.mjs'
+import { sendFailureKey } from '../../src/utils/send-failure-key.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -96,6 +97,13 @@ describe('an empty send never reaches the hub', () => {
     assert.ok(guard < live.indexOf('pendingRow('), 'guard runs after the optimistic row')
     assert.ok(guard < live.indexOf('client.send(frame)'), 'guard runs after the send')
     assert.match(live.slice(guard - 80, guard + 80), /throw emptySendError\(\)/)
+  })
+})
+
+describe('the chunk rule (ci_initial_gzip_kb)', () => {
+  it('the refusal map stays out of the file the eager stores import', () => {
+    assert.doesNotMatch(src('src/utils/send-failure.mjs'), /sendFailureKey|sendFailureParams/)
+    assert.match(src('src/components/TopBar.vue'), /from '~\/utils\/send-failure-key\.mjs'/)
   })
 })
 

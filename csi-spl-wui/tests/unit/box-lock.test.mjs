@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { sendFailureKey } from '../../src/utils/send-failure.mjs'
+import { sendFailureKey } from '../../src/utils/send-failure-key.mjs'
 import {
   BOX_LOCK_MOCK_KEY, createMockBoxLock, lockLoadOf, lockRefusalKey, lockViewOf, mockBoxSendRefusal, parseLockCreate,
 } from '../../src/utils/box-lock.mjs'

@@ -14,7 +14,7 @@
  *     aborted -> 'hub_down', never an endless "sending";
  *   - a transport failure (the browser's "Failed to fetch") is 'hub_down', and
  *     a 4xx / 5xx answer is an upload error naming its status and token.
- * The composer shows either with its Retry (send-failure.mjs, TopBar.vue).
+ * The composer shows either with its Retry (send-failure-key.mjs, TopBar.vue).
  */
 
 /* Off the first screen (ci_initial_gzip_kb) and off `/` (ci_home_gzip_kb):

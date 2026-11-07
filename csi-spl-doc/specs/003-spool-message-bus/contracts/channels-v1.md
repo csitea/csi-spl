@@ -381,7 +381,17 @@ false and a human owner exists.
 - `GET /v1/channels/{channel}/agent-kinds` (SPL-5000) — members only. The
   agent kinds a box may start now, `{channel, kinds: [{kind, online}]}`: every
   kind of the hub's list minus the instance's kinds off and running pauses, the
-  setting `do_spl_lane_mix` obeys. `online` says an agent of the kind can be
+  setting `do_spl_lane_mix` obeys, and only a kind some box has installed:
+  named in the `cli=` of a live `BOX-0@<box>` lane-map row of the operator's
+  orch fleet (the CLIs that box measured, `spool_vendor_clis`, SPL-1649).
+  Live = state live and written within an hour, the lane map's
+  `LANE_BOX_ROW_MAX_S`, past which `spawn-window.sh` stops reading that box
+  too; a box rewrites its row every 300 s. When no live row carries a `cli=`
+  at all, nothing filters: `spawn-window.sh` treats an unmeasured box as a
+  candidate, and an empty list would hide every kind on a fleet that never
+  published one. A live row with an empty `cli=` is measured, none (holder
+  ruling 15040649 W2). POST refuses a kind outside this list with
+  `kind_not_usable`. `online` says an agent of the kind can be
   picked here: its box is online and it is not in the channel. The add-agents
   list offers each other kind as a new agent, and holds no list of its own.
   Only the operator workspace lists kinds: any other workspace gets

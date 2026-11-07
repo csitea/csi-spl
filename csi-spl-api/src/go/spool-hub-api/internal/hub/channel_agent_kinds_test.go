@@ -255,3 +255,45 @@ func TestChannelAgentKindsShowsSeatAsks(t *testing.T) {
 		t.Fatalf("the new ask replaces the decline: %q", got)
 	}
 }
+
+// boxRow writes a box's BOX-0 lane-map load row in the main fleet, as written
+// at "at"; scope is what spl_lane_box_report publishes.
+func boxRow(t *testing.T, e *env, op, box, scope, state string, at time.Time) {
+	t.Helper()
+	l := store.FleetLane{Fleet: "main", AgentID: "BOX-0", AgentBox: box, Scope: scope, State: state}
+	if _, err := e.st.PutFleetLane(context.Background(), op, l, box, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Holder ruling 15040649 W2: a kind is listed only when some live box measured
+// its CLI (the cli= of its BOX-0 row). Live = state live, written within an
+// hour (the lane map's LANE_BOX_ROW_MAX_S); a stale or done row does not count.
+// No live row with a cli= at all: nothing filters (spawn-window.sh's rule).
+func TestChannelAgentKindsInstalledOnABox(t *testing.T) {
+	e, op, human := kindsEnv(t, true)
+	all := strings.Join(store.AgentKinds, ",")
+	boxRow(t, e, op, "box-old", "mem_kb=1 live=", "live", time.Now())
+	if got := kindsOf(t, e, op, human); got != all {
+		t.Fatalf("no box published cli=: want today's list %q, got %q", all, got)
+	}
+	boxRow(t, e, op, "box-a", "mem_kb=1 cli=claude,agy live=c-001", "live", time.Now())
+	boxRow(t, e, op, "box-b", "mem_kb=1 cli=grok live=", "live", time.Now().Add(-2*time.Hour))
+	boxRow(t, e, op, "box-c", "mem_kb=1 cli=mistral live=", "done", time.Now())
+	if got := kindsOf(t, e, op, human); got != "claude,agy" {
+		t.Fatalf("only box-a is live with cli=: got %q", got)
+	}
+	code, out := call(t, e, op, http.MethodPost, "/v1/channels/room/agent-kinds", human, map[string]any{"kind": "grok"})
+	if tok, _ := out["error"].(string); code != http.StatusConflict || tok != "kind_not_usable" {
+		t.Fatalf("POST a kind on no live box: %d %s, want 409 kind_not_usable", code, tok)
+	}
+	boxRow(t, e, op, "box-b", "mem_kb=1 cli=grok,qwen live=", "live", time.Now().Add(-50*time.Minute))
+	if got := kindsOf(t, e, op, human); got != "claude,grok,agy,qwen" {
+		t.Fatalf("box-b written 50 min ago is live: got %q", got)
+	}
+	boxRow(t, e, op, "box-a", "mem_kb=1 cli= live=", "live", time.Now())
+	boxRow(t, e, op, "box-b", "mem_kb=1 cli= live=", "live", time.Now())
+	if got := kindsOf(t, e, op, human); got != "" {
+		t.Fatalf("every live box measured none: got %q", got)
+	}
+}

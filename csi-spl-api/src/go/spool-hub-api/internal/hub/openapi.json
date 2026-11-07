@@ -2677,7 +2677,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "The agent kinds a box may start now (SPL-5000): every kind minus the instance's kinds off and running pauses; none outside the operator workspace.",
+                  "description": "The agent kinds a box may start now (SPL-5000): every kind minus the instance's kinds off and running pauses, and only a kind named in the cli= of a live BOX-0 lane-map row (written within an hour; no such row with a cli= at all: no filter); none outside the operator workspace.",
                   "properties": {
                     "asks": {
                       "description": "the newest seat ask per kind for this channel, open or closed in the last week: a declined one carries the reason",

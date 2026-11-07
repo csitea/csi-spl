@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
@@ -20,7 +21,8 @@ import (
 // and 9089e3fe: "if the orchestrator can spawn a new AJY agent, I should be
 // able to add it as an agent of a channel"). Usable is the setting every
 // box's do_spl_lane_mix obeys: store.AgentKinds minus the instance's kinds off
-// and running pauses. There is no other rule, and the WUI holds no list.
+// and running pauses, and (holder ruling 15040649 W2) only a kind whose CLI
+// some live box has measured: installedKinds below. The WUI holds no list.
 //
 //	GET  /v1/channels/{channel}/agent-kinds  {channel, kinds: [{kind, online}], asks: [{kind, state, reason}]}
 //	POST /v1/channels/{channel}/agent-kinds  {kind} -> 202 {channel, kind, ask_id, created}
@@ -40,6 +42,15 @@ import (
 // workspace's member would spend the operator's fleet. Any other workspace
 // lists no kinds and gets 403 operator_only, until spec 147 P5 caps the
 // seating paths.
+
+// boxRowID is the lane map's reserved load-row id (LANE_BOX_ROW_ID).
+const boxRowID = "BOX-0"
+
+// boxRowMaxAge is how old a box's BOX-0@<box> lane-map row may be and still
+// count: the lane map's LANE_BOX_ROW_MAX_S (3600 s), past which spawn-window.sh
+// no longer reads that box either. A box rewrites its row every 300 s while
+// its map runs, so a row this old is a box that stopped.
+const boxRowMaxAge = time.Hour
 
 // channelSeatAskTopic is the ask's task id; the holder's action lists by it.
 const channelSeatAskTopic = "channel-seat"
@@ -78,13 +89,57 @@ func (s *Server) usableAgentKinds(ctx context.Context, tenant string) ([]string,
 	if ie != nil {
 		return nil, ie
 	}
+	installed, measured := s.installedKinds(ctx, op)
 	out := []string{}
 	for _, k := range store.AgentKinds {
-		if _, paused := fl.Paused[k]; !paused && !slices.Contains(fl.AgentKindsOff, k) {
+		if _, paused := fl.Paused[k]; paused || slices.Contains(fl.AgentKindsOff, k) {
+			continue
+		}
+		if !measured || installed[k] {
 			out = append(out, k)
 		}
 	}
 	return out, nil
+}
+
+// installedKinds is the kinds named in the cli= of a live BOX-0@<box> row of
+// the operator's orch fleet: the CLIs each box measured as its agent user
+// (spool_vendor_clis, SPL-1649) and published in its lane-map load row. Live =
+// state live and written within boxRowMaxAge. measured is false when no live
+// row carries a cli= at all (no fleet, no box row, or only boxes older than
+// the cli= field): then nothing filters, as spawn-window.sh treats an
+// unmeasured box as a candidate; listing nothing would hide every kind on a
+// fleet that never published one. A failed read is the same.
+func (s *Server) installedKinds(ctx context.Context, op string) (map[string]bool, bool) {
+	out := map[string]bool{}
+	fleet, err := s.orchFleet(ctx, op)
+	if err != nil || fleet == "" {
+		return out, false
+	}
+	ls, err := s.o.Store.ListFleetLanes(ctx, op, fleet, s.o.Now())
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", op).Msg("box rows for channel agent kinds")
+		return out, false
+	}
+	measured := false
+	for _, l := range ls {
+		if l.AgentID != boxRowID || l.State != "live" || l.Age > boxRowMaxAge {
+			continue
+		}
+		for _, tok := range strings.Fields(l.Scope) {
+			list, ok := strings.CutPrefix(tok, "cli=")
+			if !ok {
+				continue
+			}
+			measured = true
+			for _, k := range strings.Split(list, ",") {
+				if k != "" {
+					out[k] = true
+				}
+			}
+		}
+	}
+	return out, measured
 }
 
 // pickableKinds is the kinds with an agent the channel can still pick: on an

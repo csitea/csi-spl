@@ -14,7 +14,9 @@
 # @description pin of box-seed under another key (F10) and c-001 on its roster
 # @description (W2, P2's orchestrator seat). No person is seated: nobody is added
 # @description to either workspace. No agent seat either, so P2b sends no probe:
-# @description the record of the run says so.
+# @description the record of the run says so. No host either: both statements
+# @description close the tenant_hosts row the triggers open, so the host
+# @description reconcile (wf 40) neither adds nor removes one.
 # @description Runs as the hub's runtime login under the operator RLS scope, as
 # @description do_spl_search_seed does; re-running resumes (ON CONFLICT DO
 # @description NOTHING). Rows expire after 14 days. REHEARSAL_CMD=purge deletes
@@ -115,6 +117,7 @@ INSERT INTO tenants (tenant_id, root_pubkey, display_name) VALUES
   ('$s', decode(repeat('00', 32), 'hex'), 'Channel move rehearsal, source (throwaway)'),
   ('$d', decode(repeat('00', 32), 'hex'), 'Channel move rehearsal, target (throwaway)')
   ON CONFLICT (tenant_id) DO NOTHING;
+$(spl_cmr_close_hosts_sql)
 INSERT INTO boxes (tenant_id, box_id) VALUES ('$s', 'box-seed'), ('$d', 'box-seed') ON CONFLICT DO NOTHING;
 INSERT INTO pins (tenant_id, box_id, pubkey) VALUES
   ('$s', 'box-seed', decode(md5('$s-pin') || md5('$s-pin2'), 'hex')),
@@ -162,11 +165,25 @@ SELECT count(*) AS seeded FROM messages WHERE tenant_id = '$s' AND channel = '$c
 SQL
 }
 
+# spl_cmr_close_hosts_sql: these workspaces never get a host. The triggers on
+# tenants open a tenant_hosts row on insert (pending) and on delete (removing),
+# and the reconcile (wf 40) reads an open row as a host to add or to remove, so
+# each statement closes it in the same transaction, as do_spl_tenant_test_purge does.
+spl_cmr_close_hosts_sql() {
+  cat <<SQL
+UPDATE tenant_hosts SET status = 'removed', detail = 'throwaway rehearsal workspace, no host (spec 169 T13)', updated_at = now()
+  WHERE tenant_id IN ('$SPL_CMR_SRC', '$SPL_CMR_DST') AND status IN ('pending', 'failed', 'removing');
+SQL
+}
+
 spl_cmr_purge_sql() {
   cat <<SQL
 SET statement_timeout = 0;
 SELECT set_config('app.rls_scope', 'operator', false);
+BEGIN;
 DELETE FROM tenants WHERE tenant_id IN ('$SPL_CMR_SRC', '$SPL_CMR_DST') AND tenant_id LIKE 'seed-move-%';
+$(spl_cmr_close_hosts_sql)
+COMMIT;
 SELECT count(*) AS left_after FROM tenants WHERE tenant_id IN ('$SPL_CMR_SRC', '$SPL_CMR_DST');
 SQL
 }

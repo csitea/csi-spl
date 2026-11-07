@@ -63,6 +63,17 @@ sql=$(SNIPPET='spl_cmr_purge_sql' in_orc ENV=dev 2>&1)
 [[ $(grep -c '^DELETE' <<<"$sql") == 1 ]] && grep -q "tenant_id IN ('seed-move-src', 'seed-move-dst') AND tenant_id LIKE 'seed-move-%'" <<<"$sql" &&
   pass "purge deletes only the two seed-move- rows" || fail "purge SQL: $sql"
 
+# --- 5. no open tenant_hosts row for the reconcile (wf 40) -------------------------
+# <first> before <then> before COMMIT, in the SQL on stdin
+in_order() {
+  awk -v a="$1" -v b="$2" 'index($0, a) && !x { x = NR } index($0, b) && x && !y { y = NR } /^COMMIT;/ && y && !z { z = NR } END { exit !z }'
+}
+sql=$(SNIPPET='spl_cmr_args && spl_cmr_seed_sql' in_orc ENV=dev 2>&1)
+in_order 'INSERT INTO tenants' 'UPDATE tenant_hosts' <<<"$sql" && pass "seed closes the host row after the insert, inside its transaction" || fail "seed host row: $sql"
+sql=$(SNIPPET='spl_cmr_purge_sql' in_orc ENV=dev 2>&1)
+in_order 'DELETE FROM tenants' 'UPDATE tenant_hosts' <<<"$sql" && pass "purge closes the host row after the delete, inside its transaction" || fail "purge host row: $sql"
+grep -q "status IN ('pending', 'failed', 'removing')" <<<"$sql" && pass "every open status is closed" || fail "statuses: $sql"
+
 echo
 ((fails == 0)) && { echo "PASS: all spl-channel-move-rehearsal-seed.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails assertion(s)"; exit 1

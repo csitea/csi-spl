@@ -97,6 +97,10 @@
         "destination": "/__stale-nuxt-build-404__"
       },
       {
+        "source": "**/*.@(avif|webp|png|jpg|jpeg|gif|svg|ico|woff2|webmanifest)",
+        "destination": "/__missing-media-404__"
+      },
+      {
         "source": "**",
         "destination": "/200.html"
       }

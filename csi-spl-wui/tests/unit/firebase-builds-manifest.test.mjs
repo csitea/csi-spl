@@ -42,23 +42,23 @@ const scratchDirs = []
 const scratch = (prefix) => { const d = mkdtempSync(join(tmpdir(), prefix)); scratchDirs.push(d); return d }
 after(() => { for (const d of scratchDirs) rmSync(d, { recursive: true, force: true }) })
 
-/** Hosting glob -> RegExp: `**` and `*`. */
+/** Hosting glob -> RegExp: `**`, `*` and the extglob `@(a|b)`. */
 function globRe(glob) {
   let re = ''
   for (let i = 0; i < glob.length; i++) {
-    if (glob.startsWith('**', i)) { re += '.*'; i += 1 } else if (glob[i] === '*') re += '[^/]*'
-    else re += glob[i].replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    if (glob.startsWith('**/', i)) { re += '(?:.*/)?'; i += 2 } else if (glob.startsWith('**', i)) { re += '.*'; i += 1 } else if (glob[i] === '*') re += '[^/]*'
+    else if (glob.startsWith('@(', i)) { const end = glob.indexOf(')', i); re += '(?:' + glob.slice(i + 2, end) + ')'; i = end } else re += glob[i].replace(/[.+?^${}()|[\]\\]/g, '\\$&')
   }
   return new RegExp('^' + re + '$')
 }
 
 /** The bundle files that exist in this probe (the current build). */
-const FILES = new Set(['/200.html', '/404.html', '/_nuxt/Bx9a1.js', '/_nuxt/entry.CFbJyYrE.css', '/_nuxt/builds/latest.json', '/_nuxt/builds/meta/b1.json'])
+const FILES = new Set(['/200.html', '/404.html', '/_nuxt/Bx9a1.js', '/_nuxt/entry.CFbJyYrE.css', '/_nuxt/builds/latest.json', '/_nuxt/builds/meta/b1.json', '/logo.webp', '/icons/favicon-64.png', '/manifest.webmanifest', '/blog/img/2026-10-09-x.webp'])
 
 /** What Hosting answers for a path: [status, what]. A file first, then the first matching rewrite. */
 function resolve(doc, path) {
   if (FILES.has(path)) return [200, path]
-  const r = doc.hosting.rewrites.find((x) => globRe(x.source).test(path))
+  const r = doc.hosting.rewrites.find((x) => globRe(x.source.startsWith('/') ? x.source : '/' + x.source).test(path))
   if (!r) return [404, '/404.html']
   if (r.run) return [200, 'run']
   return FILES.has(r.destination) ? [200, r.destination] : [404, '/404.html']
@@ -100,6 +100,27 @@ for (const [label, load] of Object.entries(DOCS)) {
       const last = doc.hosting.rewrites.at(-1)
       assert.equal(last.source, '**')
       assert.equal(last.destination, SPA)
+    })
+    it('SPL-5012: a missing picture, font or manifest answers 404, never the SPA page', () => {
+      for (const p of ['/blog/img/no-such.webp', '/no-such.png', '/favicon.ico', '/a/b/c.avif', '/x.jpg', '/x.jpeg', '/x.gif', '/x.svg', '/x.woff2', '/x.webmanifest']) {
+        assert.deepEqual(resolve(doc, p), [404, '/404.html'], p)
+      }
+    })
+    it('SPL-5012: a picture that exists is served, and the header rule keeps its hour of caching', () => {
+      for (const p of ['/logo.webp', '/icons/favicon-64.png', '/manifest.webmanifest', '/blog/img/2026-10-09-x.webp']) {
+        assert.deepEqual(resolve(doc, p), [200, p])
+      }
+      const media = doc.hosting.headers.filter((h) => h.headers.some((x) => x.value === 'public, max-age=3600, stale-while-revalidate=86400'))
+      assert.equal(media.length, 1)
+      assert.ok(doc.hosting.rewrites.some((x) => x.source === media[0].source), 'every type with the hour of caching must have the 404 rewrite')
+    })
+    it('SPL-5012 CONTROL: real routes keep the SPA page, a dotted one and a look-alike too', () => {
+      for (const p of ['/', '/lobby', '/t/abc', '/channel/general', '/blog/2026-10-09-x', '/releases/v1.2.3', '/logo.webpx', '/logo.webp/x']) {
+        assert.deepEqual(resolve(doc, p), [200, SPA], p)
+      }
+    })
+    it('SPL-5012: a hub path that ends like a picture still reaches the hub', () => {
+      assert.deepEqual(resolve(doc, '/api/v1/auth/x.png'), [200, 'run'])
     })
   })
 }

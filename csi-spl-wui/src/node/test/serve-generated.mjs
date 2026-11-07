@@ -11,6 +11,7 @@
 //      Nuxt's error page renders a client-side 404. A missing /_nuxt/ file is
 //      the exception: a /_nuxt/** rewrite to a missing sentinel answers 404
 //      first (SPL-2770), so an old tab's lost chunk is a 404, not the shell.
+//      A missing picture, font or manifest 404s the same way (SPL-5012).
 //   2. DIRECTORY INDEXES. `nuxt generate` writes `<route>/index.html`.
 //   3. A SAME-ORIGIN /api/** and /v1/**. `--api <origin>` proxies them to a
 //      hub (lde: the auth-demo or the spool hub), the way the Hosting rewrite
@@ -52,7 +53,8 @@ const TYPES = {
 }
 
 /** render-wui-firebase-json.sh ends with `"source": "**" -> /200.html`;
- *  `/_nuxt/**` goes to a missing sentinel (404) before it. */
+ *  `/_nuxt/**` and a missing media file go to a missing sentinel (404) before it. */
+const MEDIA_PATH = /\.(?:avif|webp|png|jpg|jpeg|gif|svg|ico|woff2|webmanifest)$/
 const SPA_FALLBACK = [/^\/(?!_nuxt\/)/]
 
 async function readIfFile(p) {
@@ -105,7 +107,7 @@ createServer(async (req, res) => {
       return
     }
   }
-  if (SPA_FALLBACK.some((re) => re.test(path))) {
+  if (!MEDIA_PATH.test(path) && SPA_FALLBACK.some((re) => re.test(path))) {
     const shell = await readIfFile(join(ROOT, '200.html'))
     if (shell) {
       res.writeHead(200, { 'Content-Type': TYPES['.html'] })

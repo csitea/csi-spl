@@ -237,6 +237,9 @@ csp = "; ".join([
     "form-action 'self'",
     "object-src 'none'",
 ])
+# One list for the media cache header and the missing-media rewrite below: a
+# type that gets the hour of caching can never be answered with the HTML page.
+MEDIA_GLOB = "**/*.@(avif|webp|png|jpg|jpeg|gif|svg|ico|woff2|webmanifest)"
 doc = {
   "hosting": {
     "site": site_id,
@@ -277,7 +280,7 @@ doc = {
       # _nuxt rule, so a hashed /_nuxt/ image keeps `immutable` (the later
       # matching rule wins).
       {
-        "source": "**/*.@(avif|webp|png|jpg|jpeg|gif|svg|ico|woff2|webmanifest)",
+        "source": MEDIA_GLOB,
         "headers": [{"key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400"}],
       },
       {
@@ -321,6 +324,12 @@ doc = {
       # so its import failed as a MIME error instead of a 404 and the tab went
       # white (owner saw it twice, 2026-10-20). So the whole of /_nuxt/ 404s.
       {"source": "/_nuxt/**", "destination": "/__stale-nuxt-build-404__"},
+      # SPL-5012: a missing picture took the SPA catch-all below: 200 text/html
+      # under the media rule's path-matched hour of caching, so a browser or a
+      # link-preview crawler could keep the page as the picture. It 404s the
+      # same way as /_nuxt/ above. A file that exists is served before any
+      # rewrite. No app route ends in one of these types.
+      {"source": MEDIA_GLOB, "destination": "/__missing-media-404__"},
       {"source": "**", "destination": "/200.html"},
     ],
   }

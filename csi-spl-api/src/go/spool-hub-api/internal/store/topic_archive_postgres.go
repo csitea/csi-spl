@@ -346,6 +346,36 @@ func (s *Postgres) TopicArchived(ctx context.Context, tenant, task, lobby string
 	return *at, deref(by), nil
 }
 
+// anyTopicArchivedSQL is topicArchivedSQL's rule over a set ($1 tenant, $2 ids,
+// $3 lobby or ""): the ids themselves and the task and parent task of any
+// message they name. The named rows come by primary key, and messages_archived
+// holds only archived rows, so this reads a handful.
+const anyTopicArchivedSQL = `WITH asked AS (SELECT unnest($2::uuid[]) AS id),
+	named AS (
+		SELECT id FROM asked
+		UNION SELECT m.task_id FROM messages m JOIN asked a ON m.msg_id = a.id WHERE m.tenant_id = $1
+		UNION SELECT m.parent_task_id FROM messages m JOIN asked a ON m.msg_id = a.id
+			WHERE m.tenant_id = $1 AND m.parent_task_id IS NOT NULL)
+	SELECT EXISTS (SELECT 1 FROM messages z
+		WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+			AND (z.msg_id IN (SELECT id FROM named)
+				OR (z.task_id IN (SELECT id FROM named) AND z.task_id::text <> $3::text)))`
+
+func (s *Postgres) AnyTopicArchived(ctx context.Context, tenant, lobby string, ids []string) (bool, error) {
+	asked := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if canonUUIDRe.MatchString(id) {
+			asked = append(asked, id)
+		}
+	}
+	if len(asked) == 0 {
+		return false, nil
+	}
+	var hit bool
+	err := s.queryRowTenant(ctx, tenant, anyTopicArchivedSQL, []any{tenant, asked, lobby}, &hit)
+	return hit, err
+}
+
 // archivedHideSQL is the list filter on alias a (a messages row): none of
 // its own card, its task's card, its parent task's card (the lobby's
 // excepted in both) or the lobby card whose thread it is in is archived. lobby is a bound $n ("" = no lobby).

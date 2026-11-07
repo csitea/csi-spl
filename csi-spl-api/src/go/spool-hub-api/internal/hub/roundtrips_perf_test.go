@@ -171,7 +171,11 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// Spec 169 C8: 5. This frame opens a NEW topic, and only that reads the
 		// redirect (channel_move_redirects): a task that left has no root here.
 		// A reply into a rooted topic reads none (TestChannelMoveSendReadsCounted).
-		{"WS wui send (#perf-room) -> ack", 5, func() error {
+		//
+		// SPL-4954: 6. A person's send reads the archive stamp, one statement
+		// for the task, the parent and a named message's topic; no read before
+		// it carries the stamp. A top-level lobby post reads none (budget above).
+		{"WS wui send (#perf-room) -> ack", 6, func() error {
 			channelFrame(t, c, uuid4(), uuid4(), "perf-room", "probe")
 			return nil
 		}},

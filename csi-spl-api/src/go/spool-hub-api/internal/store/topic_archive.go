@@ -107,6 +107,10 @@ type TopicArchive interface {
 	// = live. A topic read by its id answers while archived, so the WUI
 	// needs this to MARK it (t1 8fb802cd).
 	TopicArchived(ctx context.Context, tenantID, taskID, lobby string) (time.Time, string, error)
+	// AnyTopicArchived answers, in one read, whether any of ids is an
+	// archived topic by TopicArchived's rule, or a message of one: its task
+	// or its parent task is (SPL-4954, a person's input stops at the archive).
+	AnyTopicArchived(ctx context.Context, tenantID, lobby string, ids []string) (bool, error)
 }
 
 // walkTopic is the walk both drivers share. next answers, for a set of task
@@ -295,6 +299,25 @@ func (s *Memory) archivedHiddenLocked(tenant string, m *Message, lobby string) b
 		}
 	}
 	return false
+}
+
+func (s *Memory) AnyTopicArchived(_ context.Context, tenant, lobby string, ids []string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, id := range ids {
+		if s.topicArchivedLocked(tenant, id, lobby) {
+			return true, nil
+		}
+		m, ok := s.messages[[2]string{tenant, id}]
+		if !ok {
+			continue
+		}
+		if s.topicArchivedLocked(tenant, m.TaskID, lobby) ||
+			(m.ParentTaskID != "" && s.topicArchivedLocked(tenant, m.ParentTaskID, lobby)) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // topicArchivedLocked: task is archived (its card is), or it is the thread

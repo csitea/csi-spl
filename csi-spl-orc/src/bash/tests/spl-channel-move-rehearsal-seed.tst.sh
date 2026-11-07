@@ -16,6 +16,8 @@
 #      objects" passes as nothing to remove
 #   7. the purge command runs the purge SQL, its read and the blob rm; a failure
 #      of any step fails it and prints no OK
+#   8. the seed command writes the blobs, then runs the seed SQL; a failure of
+#      either fails it and prints no OK
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -82,8 +84,9 @@ grep -q "INSERT INTO roster (tenant_id, box_id, agent_id) VALUES ('seed-move-dst
 [[ $(grep -c "jsonb_build_object('body', " <<<"$sql") == 5 ]] && pass "every post's msg holds its body" || fail "msg bodies: $sql"
 grep -q "'see /t/' || md5('seed-move-src-t-1')::uuid, '\[\]'::jsonb, jsonb_build_object('body', 'see /t/' || md5('seed-move-src-t-1')::uuid)" <<<"$sql" &&
   pass "the staying link is in body and msg" || fail "link msg: $sql"
-# Every statement starts at column 0 and its other lines are indented: the list of
-# them is the script's shape, so a statement added, dropped or moved is red.
+# Every statement starts at column 0 and its other lines are indented: this is the
+# list of the lines at column 0, so one added, dropped or moved there is red. It does
+# not read an indented line, so a statement hidden in one stays green.
 shape=$(grep -E '^[^ ]' <<<"$sql" | cut -d' ' -f1-3)
 want_shape=$(cat <<'TXT'
 SET statement_timeout =
@@ -170,8 +173,8 @@ out=$(blobs_rm 'STUB_ERR=ERROR: 403 does not have storage.objects.delete access'
 grep -q 'FATAL the blobs' <<<"$out" && grep -q 'rc=1' <<<"$out" && pass "a permission failure fails" || fail "403: $out"
 
 # --- 7. the purge command, live mode, on fakes: the DB step, then the blob step --------
-# The fake spl_pg_env logs each script; PG_FAIL fails one call: the DELETE or the -At read.
-purge_action() { # <env assignments...> -> the action's output and its rc
+# The fake spl_pg_env logs each script; PG_FAIL fails one call: the first script or the -At read.
+live_action() { # <env assignments...> -> the action's output and its rc
   : >"$T/calls.log"; : >"$T/sql.log"
   SNIPPET='SPL_CNF=x GCP_ACCOUNT=a SPL_PROJECT=p SPL_PROXY_DSN=x
     do_spl_cloud_cnf() { :; }; do_gcp_pin_account() { :; }; do_gcp_require_live_account() { :; }; yq() { echo bkt; }
@@ -182,8 +185,9 @@ purge_action() { # <env assignments...> -> the action's output and its rc
       [[ "${PG_FAIL:-}" != delete ]]
     }
     do_spl_channel_move_rehearsal_seed; echo rc=$?' \
-    in_orc ENV=dev REHEARSAL_CMD=purge DRY_RUN=0 SQL_LOG="$T/sql.log" "AFTER_LINE=after 0 0" STUB_RC=0 "$@" 2>&1
+    in_orc ENV=dev DRY_RUN=0 SQL_LOG="$T/sql.log" "AFTER_LINE=after 0 0" STUB_RC=0 "$@" 2>&1
 }
+purge_action() { live_action REHEARSAL_CMD=purge "$@"; }
 out=$(purge_action)
 grep -q 'rc=0' <<<"$out" && grep -q 'OK removed' <<<"$out" && pass "purge action: all steps pass" || fail "purge action: $out"
 [[ "$(cat "$T/sql.log")" == "$want"$'\n'"$want_after" ]] && pass "purge action: the DB step is the purge, then its read" || fail "purge action SQL: $(cat "$T/sql.log")"
@@ -195,6 +199,21 @@ for bad in PG_FAIL=delete PG_FAIL=after 'AFTER_LINE=after 1 0' 'STUB_RC=1'; do
 done
 purge_action PG_FAIL=delete >/dev/null
 [[ ! -s "$T/calls.log" ]] && pass "purge action: no blob is touched after a failed DB step" || fail "blobs after a failed DB step: $(cat "$T/calls.log")"
+
+# --- 8. the seed command, live mode, on the same fakes: the blobs, then the DB step ----
+seed_action() { live_action REHEARSAL_CMD=seed "$@"; }
+want_seed=$(SNIPPET='spl_cmr_args && spl_cmr_seed_sql' in_orc ENV=dev 2>/dev/null)
+out=$(seed_action)
+grep -q 'rc=0' <<<"$out" && grep -q 'OK seeded' <<<"$out" && pass "seed action: all steps pass" || fail "seed action: $out"
+[[ "$(cat "$T/sql.log")" == "$want_seed" ]] && pass "seed action: the DB step is the seed, once" || fail "seed action SQL: $(cat "$T/sql.log")"
+urls=$(grep -E '^gcloud storage cp ' "$T/calls.log" | grep -oE 'gs://bkt/t/seed-move-src/files/' | tr '\n' ' ')
+[[ "$urls" == "gs://bkt/t/seed-move-src/files/ gs://bkt/t/seed-move-src/files/ " ]] && pass "seed action: both blobs are written to <SRC>" || fail "seed action blobs: $(cat "$T/calls.log")"
+out=$(seed_action PG_FAIL=delete)
+grep -q 'rc=1' <<<"$out" && ! grep -q 'OK seeded' <<<"$out" && pass "seed action: a failed DB step fails, no OK" || fail "seed action DB: $out"
+out=$(seed_action STUB_RC=1)
+grep -q 'FATAL a rehearsal blob' <<<"$out" && grep -q 'rc=1' <<<"$out" && ! grep -q 'OK seeded' <<<"$out" &&
+  pass "seed action: a failed blob write fails, no OK" || fail "seed action blob write: $out"
+[[ ! -s "$T/sql.log" ]] && pass "seed action: no SQL after a failed blob write" || fail "SQL after a failed blob write: $(cat "$T/sql.log")"
 
 echo
 ((fails == 0)) && { echo "PASS: all spl-channel-move-rehearsal-seed.tst.sh assertions"; exit 0; }

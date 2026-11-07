@@ -83,8 +83,9 @@ workspace. The issue is `MVD-1` in `<DST>`.
 - **A real `<DST>` desk:** the seed has no seat, so P2b sent nothing.
 - **Other parts of the set:** Qto docs, hours rows, calendar events, members and invites.
 - **The closing step of P7:** `CloseChannelMove` did not run, because P7 failed.
-- **The purge:** its DELETE has not run anywhere, and whether `spool_hub_rt` may DELETE on `tenants`
-  is not checked. Its test stubs psql and gcloud.
+- **The purge:** its DELETE has not run anywhere; its test stubs psql and gcloud. `runtime-grants.sql:16`
+  grants `spool_hub_rt` DELETE on `tenants`, and a local role given those grants ran a DELETE and the
+  close on its own slug (R7 review read, n=1). Dev's real grants are not read.
 
 ## 6. Other findings
 

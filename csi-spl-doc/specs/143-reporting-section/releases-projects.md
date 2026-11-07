@@ -1,6 +1,6 @@
 # Releases: software projects of a workspace, the project drop box (SPL-4963)
 
-Status: **Draft v0.2.1**. Row B-1 (the schema) is built, SPL-4983; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
+Status: **Draft v0.2.2**. Row B-1 (the schema) is built, SPL-4983; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
 Amends: [spec.md](spec.md) sections 2 and 6.1, and [spec 171](../171-workspace-own-repo/spec.md) where section 3 says so.
 Topic: `93b73456-c662-4785-85ea-00986338a550` (HUM-10, prd t1).
 
@@ -103,6 +103,7 @@ No archive column in v1: a later forward-only migration can add it when a projec
   - Step A adds `CREATE UNIQUE INDEX release_notes_tenant_repo_sha ON release_notes (tenant_id, repo_slug, sha)` in place of spec 171's `release_notes_tenant_sha`, and Step C makes it the primary key. It must be an index and not a `UNIQUE` constraint: `ADD PRIMARY KEY USING INDEX` refuses a constraint's index with `index "..." is already associated with a constraint`;
   - add `body text NOT NULL DEFAULT '' CHECK (length(body) <= 2000)` (A6);
   - add `CREATE INDEX release_notes_tenant_repo_time ON release_notes (tenant_id, repo_slug, committed_at DESC)` for the report's window.
+  - Step A does not rebuild `release_notes_release_key`: B-2's migration does, as amended in spec 171 section 3.3.1 step 4, because the old hub's list needs the old index until then.
 - `commit_token_burn`: `repo_slug` joins its primary key and its foreign key (A2).
 - No foreign key from `release_notes` or `estate_deploys` to `workspace_repos`, as in spec 171. The ingest refuses a `repo_slug` the workspace has not registered, extending spec 171's `409 repo_not_registered`.
 - Reporting's SQL tab admits `software_projects` and `workspace_repos`, a recorded choice: they hold a workspace's own rows and no secret column, so an admin there can read that workspace's `auth_mode`, `github_installation_id`, `live_url` and `sync_error`, which the member-facing projects answer (section 6.1) leaves out. `estate_deploys` stays refused there until B-3: from B-1 it has a `tenant_id` but its read policy is still `USING (true)`.
@@ -246,7 +247,7 @@ One row, one lane, in this order. Rows B-1 to B-3 and B-6 are spec 171's Lanes 1
 | ID | Area | Summary | Test | Red control |
 |---|---|---|---|---|
 | B-1 | `rdb` | Spec 171 Lane 1 plus `software_projects`, the columns and indexes of 4.3, and the `t1` project seed | `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; the RLS and catalogue gates name the new table; deleting a workspace with a project and a repo succeeds | A second default project in one workspace, and one repo slug registered in two workspaces, each fail on their unique index |
-| B-2 | `api` | Spec 171 Lane 2: store and hub scoped by workspace, upserting on `(tenant_id, repo_slug, sha)` | Spec 171 Lane 2's list, plus the same sha stored in two repos of one workspace keeps two rows | With spec 171's two-column key, the shared-sha test reads one row |
+| B-2 | `api` | Spec 171 Lane 2: store and hub scoped by workspace, upserting on `(tenant_id, repo_slug, sha)`; its migration rebuilds `release_notes_release_key` guarded | Spec 171 Lane 2's list, plus the same sha stored in two repos of one workspace keeps two rows | With spec 171's two-column key, the shared-sha test reads one row |
 | B-3 | `rdb` | Spec 171 Lane 2b: contract, the three-column primary key | Spec 171 Lane 2b's list; the shared-sha rows survive the swap | A second row with the same workspace, repo and sha fails on the primary key |
 | B-4 | `api` | Store: `ReleaseProjects`, `Repos` on the filter, the unreleased count, per-repo day counts, versions counted per repo, in the Postgres and Memory drivers | Store tests: one project's report excludes the other's commits; two repos' `v1.0.0` count as 2 | An empty `Repos` must return an error; a store that reads everything on it fails the test |
 | B-5 | `api` | Hub: the projects route, `project` and `repo` params, `repo_slug` on commits, `notes_public` on anonymous reads, `repo` on `{ref}`, primary-only modal and Flow, operator project route, `openapi.json` | Hub tests per section 6, including a member of workspace A asking for B's project gets 404 | An anonymous read of a private repo's note must be empty; returning it fails the test |
@@ -281,4 +282,4 @@ No build row changes, and neither does the path in section 4.5; each answer is t
 - **Answer 6**: B-7's Unreleased card and repo pills are what the answer lists, and no row builds open work.
 - **Answer 4 with msg `cf6a27b3`**: no row builds a per-repo list. B-5's `notes_public` row stands, and section 6.4 names what it must read.
 
-<!-- version: 0.2.1 · updated: 2026-11-07 -->
+<!-- version: 0.2.2 · updated: 2026-11-07 -->

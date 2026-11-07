@@ -257,10 +257,11 @@ ALTER TABLE estate_deploys DROP COLUMN tenant_id, DROP COLUMN repo_slug`
 
 // GATE (spec 171 Step A with 4.3), one transaction that rolls back: rows of the
 // old shape survive and land on t1's one repo, the old hub's insert and upsert
-// still run, tags of another repo's shape store under the guarded key index,
-// and row B-3's key swap is possible. RED CONTROLS: a body over 2000, a tag no
-// shape admits and a bad component are each refused, and the old key would have
-// refused 'v1.2.'.
+// still run, tags of another repo's shape store, the old hub's list keeps rdb
+// 0114's key index, and row B-3's key swap is possible. RED CONTROLS: a body
+// over 2000, a tag no shape admits and a bad component are each refused. Row
+// B-2's migration rebuilds that index guarded: 'v1.2.', refused by its int[]
+// cast until then, stores from there on, and the plan check goes with it.
 func TestReleaseNotesDeploysExpand(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -326,7 +327,7 @@ func TestReleaseNotesDeploysExpand(t *testing.T) {
 	}
 
 	for _, w := range []struct{ version, want string }{
-		{"v1.2.", ""}, {"2026.11.05", ""}, {"v8.2.6-c3", ""}, {"v0.4.2-beta.1", ""},
+		{"v1.2.", "22P02/"}, {"2026.11.05", ""}, {"v8.2.6-c3", ""}, {"v0.4.2-beta.1", ""},
 		{"v1.0.0-cool", ""}, {"-v1", "23514/release_notes_version_check"},
 		{"v 1", "23514/release_notes_version_check"}, {strings.Repeat("v", 65), "23514/release_notes_version_check"},
 	} {
@@ -348,6 +349,20 @@ func TestReleaseNotesDeploysExpand(t *testing.T) {
 	}
 	if got := try(`UPDATE release_notes SET body = $1 WHERE sha = $2`, strings.Repeat("b", 2001), old); got != "23514/release_notes_body_check" {
 		t.Errorf("a body of 2001: %q", got)
+	}
+	// The old hub's list: seq scans cost it about 100x when this index went (R7).
+	exec("no seq scan", `SET LOCAL enable_seqscan = off`)
+	vk := releaseKeySQL("version")
+	rows, err := tx.Query(ctx, `EXPLAIN SELECT DISTINCT `+vk+` AS k FROM release_notes WHERE version IS NOT NULL ORDER BY k DESC LIMIT 10`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(plan, "\n"), "release_notes_release_key") {
+		t.Errorf("the old hub's list no longer reads release_notes_release_key:\n%s", strings.Join(plan, "\n"))
 	}
 	// Row B-3's swap: refused on an index that belongs to a constraint.
 	if got := try(`ALTER TABLE release_notes DROP CONSTRAINT release_notes_pkey,

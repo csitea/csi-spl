@@ -398,11 +398,37 @@ so the migration was `0106` or the next free number at build time; 0106 and
 | L13b | the same, versions 35..67 | `refs/notes/release-notes-backfill-b` only | as L13a | as L13a |
 | L13c | the same, versions 68..100 | `refs/notes/release-notes-backfill-c` only | as L13a | as L13a |
 | L14 | ingest on every push to master, without a deploy (SPL-4961): a push of docs or orc alone runs neither 20 nor 30, so the table fell behind master until the next deploy (owner HUM-10, t1 `8bb3f993`). 20 and 30 keep their step, which brings the version right after the mint | `.github/workflows/26_release-notes-ingest.yml` (new), `csi-spl-orc/src/bash/tests/release-notes-ingest-wf26.tst.sh` (new) | its `.tst.sh`: every push, no deploy line, no new secret, per-env concurrency, the real step; a replaced pending run loses no commit | L5 |
+| L15 | the lag alarm (SPL-4988): a master commit older than 120 min with no row posts in #alerts, see 12.1 | `csi-spl-orc/src/bash/run/spl-release-notes-lag-alarm.func.sh`, box cron `release-notes-lag-alarm` | `csi-spl-orc/src/bash/tests/spl-release-notes-lag-alarm.tst.sh` | L14 |
 
 L13a..c are disjoint because each pushes only its own notes ref; the ranges
 are fixed as version lists once L2 is live, before the three lanes start.
 The owner accepts lower quality for a backfilled note (Q6), so these lanes
 write from the diff and the subject without asking the original lane.
+
+### 12.1 The lag alarm (SPL-4988)
+
+L14 keeps a failed ingest green, so a lasting break would let the list fall
+behind with every run green. GitHub reports a failed `continue-on-error` step
+as `conclusion=success` in the jobs API (run 42371501011, n=1, a planted
+`exit 1` on a throwaway branch: `outcome=failure`, `conclusion=success`), so
+the alarm reads the outcome, never a run: `do_spl_release_notes_lag_alarm`
+compares the newest 500 master commits with `release_notes` in prd and dev,
+through the read-only `do_spl_db_query`, every 15 min, on the dispatch lease
+holder's box.
+
+- **The limit is 120 min from the committer date.** A rebase stamps that date
+  before the land, so the limit has to cover the land gap and not only the
+  ingest. Measured 2026-11-07, tree `48dc6c573`: committer date to push, wf 10
+  push runs on master, n=300: median 3.6, p90 26.6, p99 72.9, max 93.3 min.
+  Push to row, wf 26, n=13: about 1 min.
+- **One post per episode**, and one recovery. A failed read is no verdict; one
+  lasting past the limit posts once.
+- **Measured at build:** 0 of the newest 500 commits lacked a row, in prd and
+  in dev (tree `48dc6c573`).
+- **Limits:** a land later than the limit can fire once if a tick hits the
+  minute before its row, and the next tick recovers. The state is per box, so a
+  lease move during an episode posts it once more. A commit the hub rejects has
+  no row, so it holds the episode open until someone looks.
 
 Not built: the daily digest (Q8 no); deploy workflows posting links (Q14
 no).

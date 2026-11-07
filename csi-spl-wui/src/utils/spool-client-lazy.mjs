@@ -1442,12 +1442,14 @@ async function addChannelAgent(ctx, channel, agentId, box) {
 }
 
 /**
- * SPL-5000: no kind: the agent kinds usable now, {channel, kinds: [{kind, online}]}.
+ * SPL-5000: no kind: the agent kinds usable now and the newest seat ask per
+ * kind, {channel, kinds: [{kind, online}], asks: [{kind, state, reason}]}.
  * A kind: ask the orchestrator for a new agent of it, seated in the channel.
  */
 async function channelAgentKinds(ctx, channel, kind) {
   const { live, mock, state } = ctx
-  if (mock) return kind ? { channel, kind, created: true } : { channel, kinds: state.agentKinds || [] }
+  if (mock && kind) state.agentAsks = [...(state.agentAsks || []).filter((a) => a.kind !== kind), { kind, state: 'open', reason: '' }]
+  if (mock) return kind ? { channel, kind, created: true } : { channel, kinds: state.agentKinds || [], asks: state.agentAsks || [] }
   const path = `/v1/channels/${encodeURIComponent(String(channel || ''))}/agent-kinds`
   if (!kind) return live(path)
   return live(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind }) })

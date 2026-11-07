@@ -220,6 +220,11 @@ const MOCK_AGENT_KINDS = [
   { kind: 'mistral', online: false },
   { kind: 'codex', online: false },
 ]
+/* R7 W2: a refused ask shows its reason (here the launcher found no box with
+   the kind's CLI); asking again replaces it. */
+const MOCK_AGENT_ASKS = [
+  { kind: 'mistral', state: 'declined', reason: 'a new mistral lane (mistral) on box-a: mistral is on no box it may use (measured there: claude grok); nothing was spawned' },
+]
 
 export function cloneMock() {
   return {
@@ -227,6 +232,7 @@ export function cloneMock() {
     channels: MOCK_CHANNELS.map((c) => ({ ...c })),
     roster: JSON.parse(JSON.stringify(MOCK_ROSTER)),
     agentKinds: MOCK_AGENT_KINDS.map((k) => ({ ...k })),
+    agentAsks: MOCK_AGENT_ASKS.map((a) => ({ ...a })),
     online: MOCK_ONLINE.slice(),
     humans: MOCK_HUMANS.map((h) => ({ ...h })),
     boxes: MOCK_BOXES.map((b) => ({ ...b, agents: b.agents.slice() })),

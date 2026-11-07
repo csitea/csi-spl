@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import { ref } from 'vue'
 import { importTs } from './lib/load-ts.mjs'
-const { aboutChannelDescription, aboutChannelName, canAddChannelMember, canEditOpenInvite, channelAgentCandidates, channelAgentKindRows, channelAgentRows, channelAgentState, channelFallbackLine, channelInviteCandidates, defaultChannelRows, filterAgentsContains, filterPeopleContains, signedInHuman, viewerHumanId } = await importTs('src/utils/channel-members.ts')
+const { aboutChannelDescription, aboutChannelName, canAddChannelMember, canEditOpenInvite, channelAgentAskLines, channelAgentCandidates, channelAgentKindRows, channelAgentRows, channelAgentState, channelFallbackLine, channelInviteCandidates, defaultChannelRows, filterAgentsContains, filterPeopleContains, signedInHuman, viewerHumanId } = await importTs('src/utils/channel-members.ts')
 const { channelAgentsLive } = await importTs('src/utils/channel-agents-live.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -173,6 +173,27 @@ describe('SPL-5000: every usable kind can be added', () => {
   it('no answer offers nothing, and a row with no kind is dropped', () => {
     assert.deepEqual(channelAgentKindRows(null), [])
     assert.deepEqual(channelAgentKindRows([{ online: false }]), [])
+  })
+
+  it('R7 W2: an ask that waits says so, a declined one carries its reason, a done one shows nothing', () => {
+    const asks = [
+      { kind: 'agy', state: 'open' }, { kind: 'grok', state: 'acked' },
+      { kind: 'codex', state: 'declined', reason: 'codex is on no box it may use' },
+      { kind: 'claude', state: 'done' }, { kind: 'qwen', state: 'dead' }, { state: 'open' },
+    ]
+    assert.deepEqual(channelAgentAskLines(asks), [
+      { kind: 'agy', declined: false, reason: '' }, { kind: 'grok', declined: false, reason: '' },
+      { kind: 'codex', declined: true, reason: 'codex is on no box it may use' },
+    ])
+    assert.deepEqual(channelAgentAskLines(null), [])
+  })
+
+  it('R7 W2: no text promises that the agent joins', () => {
+    for (const f of readdirSync(join(WUI, 'i18n/locales'))) {
+      const props = JSON.parse(readFileSync(join(WUI, 'i18n/locales', f), 'utf8')).channels.properties
+      assert.equal(props.agent_kind_asked, undefined, f)
+      assert.ok(props.agent_kind_waiting.includes('{kind}') && props.agent_kind_declined.includes('{reason}'), f)
+    }
   })
 
   it('the list names no kind: the hub is the one source', () => {
@@ -549,13 +570,15 @@ describe('the agent pick', async () => {
       },
       channelAgentKinds: async (...a) => {
         calls.push(['kinds', ...a])
-        return a[1] ? { created: true } : { kinds: [{ kind: 'agy', online: false }] }
+        if (!a[1] && a[0] === 'three') throw new Error('offline')
+        const asks = { one: [{ kind: 'agy', state: 'declined', reason: 'no box' }], two: [{ kind: 'agy', state: 'acked' }] }
+        return a[1] ? { created: true } : { kinds: [{ kind: 'agy', online: false }], asks: asks[a[0]] || [] }
       },
     }
     const r = {
       busy: ref(false), canAdd: ref(true), error: ref(''), fallback: ref(null),
       agents: ref([{ id: 'CLE-2', box: 'box-b' }]), chosenAgent: ref(null), agentQuery: ref(''),
-      agentKinds: ref([]), askedKind: ref(''),
+      agentKinds: ref([]), agentAsks: ref([]),
     }
     let channel = 'one'
     const fn = useChannelAgentPick({ api, channelId: () => channel, kindLabel: (k) => 'new ' + k, ...r })
@@ -576,14 +599,21 @@ describe('the agent pick', async () => {
     assert.equal(r.busy.value, false)
   })
 
-  it('SPL-5000: choosing a kind asks for it, adds no row, and says so', async () => {
-    const { calls, r, fn } = setup()
+  it('SPL-5000: choosing a kind asks for it, adds no row, shows it waiting, then reads the hub\'s state', async () => {
+    const { calls, r, fn, move } = setup()
+    move('two')
     r.chosenAgent.value = { kind: 'agy', key: 'kind:agy' }
     assert.equal(fn.agentLabel(r.chosenAgent.value), 'new agy')
     await fn.addChosenAgent()
-    assert.deepEqual(calls, [['kinds', 'one', 'agy']])
+    await new Promise((res) => setTimeout(res, 0))
+    assert.deepEqual(calls, [['kinds', 'two', 'agy'], ['kinds', 'two']])
     assert.deepEqual(r.agents.value, [{ id: 'CLE-2', box: 'box-b' }])
-    assert.equal(r.askedKind.value, 'agy')
+    assert.deepEqual(r.agentAsks.value, [{ kind: 'agy', state: 'acked' }])
+    move('three')
+    r.chosenAgent.value = { kind: 'agy', key: 'kind:agy' }
+    await fn.addChosenAgent()
+    await new Promise((res) => setTimeout(res, 0))
+    assert.deepEqual(r.agentAsks.value, [{ kind: 'agy', state: 'open' }], 'a failed reload still shows the ask waiting')
     assert.equal(r.chosenAgent.value, null)
     assert.equal(r.busy.value, false)
   })
@@ -595,9 +625,11 @@ describe('the agent pick', async () => {
     r.chosenAgent.value = { kind: 'grok', key: 'kind:grok' }
     await fail.addChosenAgent()
     assert.equal(r.error.value, 'kind_not_usable')
-    assert.equal(r.askedKind.value, '')
+    assert.deepEqual(r.agentAsks.value, [])
     await fail.loadAgentKinds()
     assert.deepEqual(r.agentKinds.value, [])
+    await fn.loadAgentKinds()
+    assert.deepEqual(r.agentAsks.value, [{ kind: 'agy', state: 'declined', reason: 'no box' }])
     assert.ok(fn)
   })
 

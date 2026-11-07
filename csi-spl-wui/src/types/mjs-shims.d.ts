@@ -164,7 +164,7 @@ declare module '~/utils/spool-client.mjs' {
     /** spec 025 section 11: add by address; pending until the person accepts their workspace invite. */
     addChannelInvitee(channel: string, email: string): Promise<{ channel: string, human_id?: string, email?: string, pending?: boolean, invite?: 'existing' | 'created', added_by?: string }>
     addChannelAgent(channel: string, agentId: string, box: string): Promise<{ channel: string, id: string, box: string }>
-    channelAgentKinds(channel: string): Promise<{ channel: string, kinds: { kind: string, online: boolean }[] }>
+    channelAgentKinds(channel: string): Promise<{ channel: string, kinds: { kind: string, online: boolean }[], asks?: { kind: string, state: string, reason?: string }[] }>
     channelAgentKinds(channel: string, kind: string): Promise<{ channel: string, kind: string, created: boolean, ask_id?: string }>
     removeChannelMember(channel: string, humanId: string): Promise<null>
     removeChannelAgent(channel: string, agentId: string, box: string): Promise<null>

@@ -5,7 +5,7 @@
 // fills them, and the people functions share busy and error. The channel id
 // is a getter so a changed prop is read on the next call.
 import type { Ref } from 'vue'
-import { channelFallbackLine, inviteErrorToken, type AgentKind } from '~/utils/channel-members'
+import { channelFallbackLine, inviteErrorToken, type AgentAsk, type AgentKind } from '~/utils/channel-members'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { useSpoolApi } from '~/composables/useSpoolApi'
 
@@ -24,7 +24,7 @@ interface AgentPickOpts {
   agentQuery: Ref<string>
   fallback: Ref<ReturnType<typeof channelFallbackLine>>
   agentKinds: Ref<AgentKind[]>
-  askedKind: Ref<string>
+  agentAsks: Ref<AgentAsk[]>
   kindLabel: (kind: string) => string
 }
 
@@ -70,18 +70,20 @@ function agentEditSteps(o: AgentPickOpts) {
 
 // SPL-5000: the kinds the list offers, and the ask for a new agent of one.
 function agentKindSteps(o: AgentPickOpts) {
-  const { api, channelId, busy, error, chosenAgent, agentQuery, agentKinds, askedKind } = o
+  const { api, channelId, busy, error, chosenAgent, agentQuery, agentKinds, agentAsks } = o
 
   // No agent of the kind to pick, so the orchestrator is asked to start one and
-  // seat it here. The row appears when the hub lists the seat.
+  // seat it here. The ask shows as waiting until the hub answers its state:
+  // the row appears when the hub lists the seat, a refusal shows its reason.
   async function askForKind(kind: string) {
     busy.value = true
     error.value = ''
     try {
       await withSessionRetry(api, () => api.channelAgentKinds(channelId(), kind))
-      askedKind.value = kind
+      agentAsks.value = [...agentAsks.value.filter((a) => a.kind !== kind), { kind, state: 'open' }]
       chosenAgent.value = null
       agentQuery.value = ''
+      void loadAgentKinds()
     } catch (e) {
       error.value = inviteErrorToken(e)
     } finally {
@@ -89,11 +91,13 @@ function agentKindSteps(o: AgentPickOpts) {
     }
   }
 
-  // Which kinds the list offers: a failure offers none, the dialog still works.
+  // Which kinds the list offers, and the newest ask per kind: a failure offers
+  // none and keeps the asks shown, the dialog still works.
   async function loadAgentKinds() {
     try {
       const got = await withSessionRetry(api, () => api.channelAgentKinds(channelId()))
       agentKinds.value = Array.isArray(got.kinds) ? got.kinds : []
+      if (Array.isArray(got.asks)) agentAsks.value = got.asks
     } catch {
       agentKinds.value = []
     }

@@ -152,13 +152,17 @@ try {
   await sleep(300)
   const shownKinds = await page.evaluate(() => [...document.querySelectorAll('[data-testid^=channel-agent-kind-]')].map((e) => e.getAttribute('data-testid').slice('channel-agent-kind-'.length)))
   ok('each usable kind with no agent to pick is offered, and only those', shownKinds.join() === 'mistral,codex', { shownKinds })
+  /* R7 W2: the mock's mistral ask was declined; the dialog shows the reason. */
+  const declinedText = await page.evaluate(() => document.querySelector('[data-testid=channel-agent-ask-mistral]')?.textContent || '')
+  ok('a refused ask shows the launcher\'s reason', declinedText.includes('mistral is on no box it may use'), { declinedText })
   if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/channel-add-any-usable-agent.png` })
   await page.click('[data-testid=channel-agent-kind-codex]').catch(() => {})
   await sleep(200)
   await page.click('[data-testid=channel-agent-add]').catch(() => {})
-  const asked = await page.waitForSelector('[data-testid=channel-agent-kind-asked]', { timeout: 5000 }).catch(() => null)
+  const asked = await page.waitForSelector('[data-testid=channel-agent-ask-codex]', { timeout: 5000 }).catch(() => null)
   const askedText = asked ? await page.evaluate((e) => e.textContent, asked) : ''
-  ok('choosing one asks the orchestrator and says so', askedText.includes('codex'), { askedText })
+  ok('choosing one asks the orchestrator, says it waits, and promises no join', askedText.includes('codex') && !/join/i.test(askedText), { askedText })
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/channel-agent-asks.png` })
 
   /* SPL-3717 (lessons-learnt row 8): an agent's badge reads the roster
      store's presence, the source of every other dot, and stays live while

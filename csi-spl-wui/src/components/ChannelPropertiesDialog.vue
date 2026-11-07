@@ -231,7 +231,12 @@
               @click="addChosenAgent"
             >{{ t('channels.properties.add') }}</button>
           </div>
-          <p v-if="askedKind" class="muted" data-testid="channel-agent-kind-asked">{{ t('channels.properties.agent_kind_asked', { kind: askedKind }) }}</p>
+          <p
+            v-for="ask in askLines"
+            :key="'ask:' + ask.kind"
+            class="muted"
+            :data-testid="'channel-agent-ask-' + ask.kind"
+          >{{ ask.declined ? t('channels.properties.agent_kind_declined', { kind: ask.kind, reason: ask.reason }) : t('channels.properties.agent_kind_waiting', { kind: ask.kind }) }}</p>
           <p v-if="agentRows.length === 0" class="muted" data-testid="channel-people-agents-none">{{ t('channels.properties.agents_none') }}</p>
           <ul v-else class="member-rows" data-testid="channel-agents-list">
             <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-agent-' + row.id">
@@ -359,6 +364,7 @@ import {
   canAddChannelMember,
   canEditOpenInvite,
   channelAgentCandidates,
+  channelAgentAskLines,
   channelAgentKindRows,
   channelAgentRows,
   channelFallbackLine,
@@ -370,7 +376,7 @@ import {
   inviteErrorToken,
   viewerHumanId,
 } from '~/utils/channel-members'
-import type { AgentKind } from '~/utils/channel-members'
+import type { AgentAsk, AgentKind } from '~/utils/channel-members'
 import { channelAgentsLive } from '~/utils/channel-agents-live'
 import { rosterHumanIds } from '~/utils/spool-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
@@ -429,7 +435,7 @@ const personQuery = ref('')
 const chosenAgent = ref<{ id?: string, box?: string, kind?: string, key: string } | null>(null)
 const agentQuery = ref('')
 const agentKinds = ref<AgentKind[]>([])
-const askedKind = ref('')
+const agentAsks = ref<AgentAsk[]>([])
 const root = ref<HTMLElement | null>(null)
 let ticket = 0
 
@@ -498,9 +504,10 @@ const agentChoices = computed(() => filterAgentsContains(agentCandidates.value, 
   key: row.id + '@' + row.box,
 })))
 const kindChoices = computed(() => channelAgentKindRows(agentKinds.value, agentQuery.value))
+const askLines = computed(() => channelAgentAskLines(agentAsks.value))
 const kindLabel = (kind: string) => t('channels.properties.agent_kind_new', { kind })
 const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent, loadAgentKinds } = useChannelAgentPick({
-  api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback, agentKinds, askedKind, kindLabel,
+  api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback, agentKinds, agentAsks, kindLabel,
 })
 const { personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson } = useChannelPersonPick({
   api, props, people, busy, canAdd, error, selfId, localMembers, localInvited, chosenPerson, personQuery,
@@ -534,7 +541,7 @@ watch(() => props.open, async (isOpen) => {
   chosenAgent.value = null
   agentQuery.value = ''
   agentKinds.value = []
-  askedKind.value = ''
+  agentAsks.value = []
   void loadAgentKinds()
   try {
     // SPL-3717: the roster is read into the shared store, so its presence is

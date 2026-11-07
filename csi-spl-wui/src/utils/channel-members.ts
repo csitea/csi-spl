@@ -177,6 +177,27 @@ export function channelAgentKindRows(kinds: readonly AgentKind[] | null | undefi
   return out
 }
 
+/** The newest seat ask for a kind in this channel, as the hub says it (R7 W2). */
+export type AgentAsk = { kind: string, state: string, reason?: string }
+
+/** A line under the add-agents list: an ask that waits, or one the launcher refused. */
+export type AgentAskLine = { kind: string, declined: boolean, reason: string }
+
+/**
+ * SPL-5000: what the dialog says about the asks: open or acked waits, declined
+ * shows the launcher's reason. A done ask shows its agent in the list instead.
+ */
+export function channelAgentAskLines(asks: readonly AgentAsk[] | null | undefined): AgentAskLine[] {
+  const out: AgentAskLine[] = []
+  for (const a of asks || []) {
+    const kind = String((a && a.kind) || '')
+    const state = String((a && a.state) || '')
+    if (!kind || !/^(open|acked|declined)$/.test(state)) continue
+    out.push({ kind, declined: state === 'declined', reason: String(a.reason || '') })
+  }
+  return out
+}
+
 /** The Settings checkbox is enabled only for the channel owner. */
 export function canEditOpenInvite({ selfId, createdBy }: { selfId?: string, createdBy?: string } = {}): boolean {
   const self = String(selfId || '')

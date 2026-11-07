@@ -44,7 +44,8 @@
 # The hub lane row (SPL-4650). A close the retire could not make is queued in
 # .reap/lane-close.tsv; every tick retries REAP_LANE_RETRY_MAX of it, and one that fails again
 # alerts the dispatch lease holder (at most once per REAP_ALERT_GAP_S), so a
-# retired id's row cannot stay live unseen. --close-lanes puts ids on that queue
+# retired id's row cannot stay live unseen. An id with no hub row on this box has
+# nothing to close and just leaves the queue (SPL-4987). --close-lanes puts ids on that queue
 # by hand and drains it: rows an old reap left live. A reaped seat whose live row
 # names an owner topic, or whose row the hub would not show, is one note to the
 # holder naming the topic. It keeps no seat alive. lib/reap-lane-close.inc.sh.

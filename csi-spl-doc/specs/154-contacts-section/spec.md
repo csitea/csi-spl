@@ -1132,22 +1132,46 @@ seed's (row 42).
      `Organization 1 - Title`, `Birthday`, `Notes`, `Photo`. Both spellings
      of each are accepted. A cell holding several values separated by
      ` ::: ` (unchecked, I believe, that Google writes them so) gives its
-     first value. The B15 builder exports a test Google account's synthetic
-     contacts once and pins that real header as the test fixture.
+     first value: in the email, phone, company and job title cells; notes
+     are the person's own text, so ` ::: ` in them stays. **The fixture is
+     hand-written, not a real export** (holder's ruling, msg `b3e76fe6`: no
+     real Google login, and no synthetic test account exists on the tree).
+     `hub/testdata/contacts-google-export.csv` is built from the names
+     above, so `format: google` stays **unproven against Google**, an open
+     check until a real header replaces it.
   2. **Spool's own export** (row 41's header, plus 11.3's four columns at
      the end once B15 lands), so a person can move a list between
      environments. `google_resource` is ignored on import: a link to Google
-     is made only by the sync.
+     is made only by the sync. The exact header only, of today or of v1.2.
+     The export's formula guard is undone on this format only: one leading
+     `'` goes when the next character is one `csvSafe` guards
+     (`= + - @`, tab, carriage return). Why: `csvSafe` writes `+358...` as
+     `'+358...`, which the phone CHECK refuses, so without this every +phone
+     of a person's own export would be `bad_phone`. A `'` before anything
+     else is the person's own and stays. Accepted: a value that really began
+     `'=` loses its `'` on a round trip.
   3. Anything else: 400 `csv_unknown_format`, nothing read. Outlook and
      vCard stay out (2.1).
 - **Encoding**: UTF-8, a leading byte order mark dropped; RFC 4180 quoting
-  (Go `encoding/csv`, `LazyQuotes` off). A file that is not valid UTF-8 is
-  refused whole: 400 `csv_bad_encoding`.
+  (Go `encoding/csv`, `LazyQuotes` off). A file that is not valid UTF-8, or
+  that holds a NUL byte anywhere, is refused whole: 400 `csv_bad_encoding`.
+  A NUL is valid UTF-8 but no text: it is what a UTF-16 file with no byte
+  order mark looks like. So the store's "not valid text"
+  (`store/personal_contacts.go` `checkContactText`, which has no sentinel)
+  cannot reach a row, and the skip codes stay the five below.
+- **Malformed quoting**: a quote the reader refuses is a whole-file 400
+  `csv_malformed` naming the line, nothing read: past a broken quote the
+  reader cannot say where the next row starts. A row with too few or too many
+  cells is not malformed: it is read by column, a missing cell has no value.
+- **Type**: a body that is not `text/csv` is 415 `unsupported_media_type`, as
+  the JSON routes refuse theirs. Why: it is what forces the preflight, so a
+  form on another site cannot post a file with the person's session.
 - **Size**: at most 5 MiB and 25,000 data rows (Google's cap per account,
   unchecked, I believe; the same number as 2.3). Over either: 413
   `csv_too_large`, nothing read. The cap is the route's own
-  `http.MaxBytesReader`; `contactsBodyMax` (4 KiB, row 41) stays for the
-  other routes.
+  `http.MaxBytesReader`. `contactsBodyMax` (4 KiB, row 41) stays for the sync
+  switch; create and patch take 128 KiB (`contactsValuesMax`), because notes
+  of 8000 characters do not fit 4 KiB and `too_long` could not be reached.
 - **A bad row** (no value of the four, an email that is not one, a phone
   that `rdb/0226_contacts.sql:71` would refuse, a value over a length cap,
   a birthday that is not a date): the row is **skipped and reported**, the
@@ -1171,13 +1195,22 @@ seed's (row 42).
   no trace, so such a row imports as new; that is the person's explicit
   choice of file.
 - **Two steps.** `?dry_run=1` parses and matches, writes nothing, and
-  answers `{format, rows, would_add, already_there, deleted_here,
-  file_duplicates, skipped:[{line, code}], photos_ignored}`; `line` is the file's line
-  number and `code` one of `row_empty`, `bad_email`, `bad_phone`,
-  `too_long`, `bad_birthday`. The answer carries no contact value: the
-  person has the file. The import (no `dry_run`) runs the same parse and
-  writes the `would_add` rows in **one** `inPerson` transaction, so a
-  failure adds nothing, and answers the same counts with `added`.
+  answers `{format, rows, would_add, already_there, already_there_by_phone,
+  deleted_here, file_duplicates, skipped:[{line, code}], photos_ignored}`;
+  `line` is the file's line number and `code` one of `row_empty`, `bad_email`,
+  `bad_phone`, `too_long`, `bad_birthday`. The answer carries no contact
+  value: the person has the file. The import (no `dry_run`) runs the same
+  parse and writes the `would_add` rows in **one** `inPerson` transaction, so
+  a failure adds nothing, and answers the same counts with `added` in place
+  of `would_add`. Any `dry_run` value but `1` is 400, never read as a write.
+- **`already_there_by_phone` is its own number** (D1, holder's ruling): the
+  rows with a phone and no email and no name whose number a live contact
+  holds. Such a row counts as already there; its company and notes are not
+  added, only counted here: an import adds rows, it does not merge. There is
+  no per-line code. It comes from a second read of the phone-only rows, before
+  the write, only for a file that has any. It is not strictly a part of
+  `already_there`: a phone-only row repeating an earlier row of the same file
+  is a `file_duplicates` there and can still count here.
 - **Never logged** (C12): a log line carries the counts and codes only.
 
 #### 11.2.2 The online path
@@ -1384,8 +1417,8 @@ page's life.
   or per-day numbers. The numbers are read in the project's Cloud console
   Quotas page at owner step S1. Not found in public pages: unchecked.
 - **CSV header**: no Google page found that lists the export header; two
-  third-party pages disagree (`First Name` vs `Given Name`). Unchecked;
-  B15 pins a real export of a test account (11.2.1).
+  third-party pages disagree (`First Name` vs `Given Name`). Unchecked; B15's
+  fixture is hand-written, so this stays open (11.2.1).
 - **Not tested**: no call was made. The fake of 2.8 (`api/internal/gcal/fakegcal/people.go`,
   B8) gains `organizations`, `birthdays`, `biographies`, `photos` and a
   photo URL it serves itself.
@@ -1456,4 +1489,4 @@ and read-only (11.4). Had the owner answered B or C, B13, B14, B15 and B8
 would have grown a child table `personal.contact_values` (kind, label,
 value, primary) and B6 would match every email; that path is not taken.
 
-<!-- version: 1.3 draft · updated: 2026-11-06 -->
+<!-- version: 1.3 draft · updated: 2026-11-07 -->

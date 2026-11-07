@@ -313,11 +313,13 @@ has "11. a sidecar that died after its start is named as not up" "is back on dis
 QLIB="$PROJ_ROOT/src/bash/features/spawn-agents/lib/desk-quiesce.inc.sh"
 QR="$SRC_P/desk/ws-a/box-a/spool" QM="$SRC_P/desk/ws-a/box-a.quiesce"
 # writer: a local writer of the desk ws-a/box-a; one new inbox file per 0.1 s
-# for 4 s. It honours the quiesce lib when the tree has one: a wait ends it.
+# until the marker, up to 2 min: a start slower than a fixed 4 s (a loaded box)
+# used to end it before the marker, leaving an empty writer.log.
+# It honours the quiesce lib when the tree has one: a wait ends it.
 writer() {
   # shellcheck source=../features/spawn-agents/lib/desk-quiesce.inc.sh
   ( [[ -f "$QLIB" ]] && source "$QLIB"
-    for i in $(seq 40); do
+    for i in $(seq 1200); do
       if declare -F desk_quiesce_wait >/dev/null; then
         o="$(DESK_QUIESCE_WAIT_SECS=20 desk_quiesce_wait "$QR" 2>&1)" || { echo "refused $o" >>"$T/writer.log"; exit 0; }
         [[ -n "$o" ]] && { echo "waited $o" >>"$T/writer.log"; exit 0; }

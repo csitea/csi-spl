@@ -456,7 +456,7 @@ has "11. alert tick: the workspace from lease.conf goes along" " TENANT_ID=hop-g
 has "11. alert tick: the env goes along" " ENV=dev " "$log"
 has "11. alert tick: a live tick stays live" " DRY_RUN=0" "$log"
 has "11. alert tick: the hopped run's rc" "rc=7" "$(tick11 AS_RC=7)"
-[[ ! -e "$LI11/dispatch/alert-issue" ]]; eq "11. alert tick: nothing ran in the caller (no state dir)" "0" "$?"
+eq "11. alert tick: nothing ran in the caller (no state dir)" "absent" "$([[ -e "$LI11/dispatch/alert-issue" ]] && echo present || echo absent)"
 tick11 ALERT_ISSUE_HOLDER=c-002@box-y >/dev/null
 eq "11. alert tick: another box holds the orch role: no hop" "0" "$(hop6)"
 tick11 SPL_DESK_HOPPED="$BU" >/dev/null

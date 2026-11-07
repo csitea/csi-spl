@@ -425,7 +425,9 @@ page with a `<script` in a post body, an `on*=` attribute or a
   change the verdict: the check fails even when every one answers right.** It
   adds at most 260 s (2 waits + 2 rounds x 6 URLs x the 20 s request limit),
   which only a failing run pays. The check cannot read the `release complete`
-  time; that line is earlier in the same job log.
+  time; that line is earlier in the same job log. A failing curl's rc is logged
+  too (`curl rc <n>`), and a page curl failed on stays a failure even when its
+  `og:image` arrived before the cut.
 - **Rejected:** a public bucket or a CDN host. It would add an `img-src`
   host to both CSP lists.
 

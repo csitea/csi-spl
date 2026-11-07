@@ -7,8 +7,9 @@
 # @description journals by hand 4 times in round 10; this is that read, named.
 # @description A FAIL line names its defects: no `W<n>` anywhere in REVIEW_LINE
 # @description is `SYNTAX FAIL`, exit 1 (spec 157 Rule 1, SPL-4251).
-# @description Every test the `ran:` part names (`*.tst.sh`, `*.test.mjs`,
-# @description `*_test.go` by basename, `go test <pkg>`, `pnpm run <script>`)
+# @description Every test the `ran:` part names (`*.tst.sh`, `test-*.sh` but
+# @description not a `*.inc.sh` helper, `*.test.mjs`, `*_test.go` by basename,
+# @description `go test <pkg>`, `pnpm run <script>`)
 # @description needs a `"command"` value in the `log:` file that names it: a
 # @description claude `.jsonl`, a vibe journal file or session dir or a grok
 # @description `chat_history.jsonl` or an agy `transcript.jsonl` /
@@ -39,7 +40,7 @@
 # @description reviewer <id>`, exit 1. No rule matches (another repo's worktree,
 # @description a seat outside a worktree): only the commands are checked.
 # @description Prints `MISSING <name>` per test not run (exit 3), else
-# @description `OK <n> of <n>`. Exit 2: the log is on another box (named),
+# @description `OK <n> of <n>`, the names counted at its end. Exit 2: the log is on another box (named),
 # @description with the exact command to run there. REVIEW_LINE_SYNTAX=1 then
 # @description checks here what needs no log: the section 1 format, a 40-hex
 # @description sha, reviewer = log: owner, the vendor is the id's and any
@@ -83,7 +84,7 @@ do_spl_review_line_check() {
   [[ "$ran" != "$line" ]] || { echo "FATAL the line has no ' ran: '"; return 1; }
   ran="${ran%% | read: *}" ran="${ran%% | log: *}"
   names="$(_spl_review_line_names "$ran")"
-  [[ -n "$names" ]] || { echo "MISSING ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run): '$ran'"; return 3; }
+  [[ -n "$names" ]] || { echo "MISSING ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run): '$ran'"; return 3; }
   local e2e=0
   _spl_review_line_e2e "$line" "$names"
   case $? in 0) ;; 1) e2e=3 ;; *) return 1 ;; esac
@@ -201,7 +202,7 @@ _spl_review_line_syntax() {
   local names out
   names="$(_spl_review_line_names "${1#* ran: }")"
   [[ -n "$names" ]] ||
-    { echo "SYNTAX FAIL ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run)"; return 1; }
+    { echo "SYNTAX FAIL ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run)"; return 1; }
   out="$(_spl_review_line_e2e "$1" "$names")"
   case $? in
     0) ;;
@@ -256,6 +257,7 @@ _spl_review_line_vibe_session() {
 _spl_review_line_names() {
   {
     grep -oE '[A-Za-z0-9._/-]+(\.tst\.sh|\.test\.mjs|_test\.go)' <<<"$1" | sed 's#.*/##; s/^/file /'
+    grep -oE '[A-Za-z0-9._/-]+\.sh' <<<"$1" | sed -nE '/\.inc\.sh$/!s#^(.*/)?(test-[^/]*)$#file \2#p'
     grep -oE 'go test( +-[^ ]+)* +[^ ;|&)'\''"]+' <<<"$1" | awk '{print "go " $NF}'
     grep -oE 'pnpm( +[^ ;|&]+)* +run +[A-Za-z0-9:_.-]+' <<<"$1" | awk '{print "pnpm " $NF}'
   } | awk '!seen[$0]++'
@@ -398,6 +400,7 @@ miss = [label.get(k, "") + n for k, n in names if not found(k, n)]
 for m in miss:
     print("MISSING %s" % m)
 n = len(names)
-print("%s %d of %d named in ran: are commands in %s (%d commands read)" % ("FAIL" if miss else "OK", n - len(miss), n, path, len(cmds)))
+counted = ", ".join(label.get(k, "") + x for k, x in names)
+print("%s %d of %d named in ran: are commands in %s (%d commands read): %s" % ("FAIL" if miss else "OK", n - len(miss), n, path, len(cmds), counted))
 sys.exit(3 if miss else 0)
 '

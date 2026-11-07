@@ -238,7 +238,7 @@ red8 'a 39-char sha' "review: m-999@sat mistral PASS ${RS:0:39} $TAIL" "sha '${R
 red8 'an unresolvable 40-char sha' "review: m-999@sat mistral PASS $(printf 'f%.0s' $(seq 40)) $TAIL" "sha $(printf 'f%.0s' $(seq 40)) does not resolve (fetched review/r99-01)"
 red8 'no log:' "review: m-999@sat mistral PASS $RS ran: tests | read: diff" "no '| log: <id>@<box>:<path>'"
 red8 'a brace-token ran: (c-585, SPL-4066)' "review: m-999@sat mistral PASS $RS $BRACE" \
-  'checker: ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run)'
+  'checker: ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run)'
 # The checker itself, on the same two lines: the gate refuses what it refuses.
 chk8() { SNIPPET='do_spl_review_line_check' in_orc REVIEW_LINE="review: m-999@sat mistral PASS $RS $1" REVIEW_LINE_SYNTAX=1 \
   REVIEW_LINE_BOX=other REVIEW_LINE_REPO="$L" SPOOL_ROOT="$T/spool" 2>&1; }

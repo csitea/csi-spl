@@ -52,6 +52,11 @@
 #      header naming W1 -> OK on this box and SYNTAX OK from box-b (was
 #      SYNTAX FAIL); control: a FAIL naming no W<n> defect, or a verdict
 #      that is neither PASS nor FAIL -> SYNTAX FAIL, rc 1
+#  14. a `test-*.sh` suite named in ran: is a test name (g-153's SPL-4570 line:
+#      its test-pre-push-review-line.sh was never looked for). Red control: the
+#      log lacks test-x.sh -> MISSING, exit 3; the log ran it -> OK; controls:
+#      latest-x.sh, a test-dir/ parent and a test-lib.inc.sh helper are no test
+#      names; test-z.tst.sh counts once; the OK/FAIL line lists the names
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -322,6 +327,33 @@ out="$(syn "review: m-159@box-b mistral FAIL $SHA ran: bash $TST | read: 1 FAIL 
 [[ $rc -eq 1 && "$out" == "SYNTAX FAIL"*"W<n>"* ]] && pass "13. the same from box-b -> SYNTAX FAIL, rc 1" || fail "13. fail no W syntax (rc $rc: $out)"
 out="$(chk REVIEW_LINE="${F13/ FAIL $SHA/ HOLD $SHA}")"; rc=$?
 [[ $rc -eq 1 && "$out" == "SYNTAX FAIL"* ]] && pass "13. a verdict neither PASS nor FAIL -> SYNTAX FAIL, rc 1" || fail "13. other verdict (rc $rc: $out)"
+
+# 14. a test-*.sh suite is a test name ------------------------------------------
+J14="$T/j14.jsonl" S14=csi-spl-orc/src/bash/features/spawn-agents/tests/test-x.sh
+printf '%s\n' '{"input":{"command":"bash '"$TST"'"}}' >"$J14"
+printf '%s\n' '{"role":"tool","content":"'"$S14"' | 40 +++"}' >>"$J14"
+out="$(chk REVIEW_LINE="$(line "bash $TST; bash $S14" "$J14")")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING test-x.sh"* && "$out" == *"FAIL 1 of 2"* ]] \
+  && pass "14. RED CONTROL: ran: names test-x.sh, only tool output has it -> MISSING, exit 3" || fail "14. test-x.sh not run (rc $rc: $out)"
+printf '%s\n' '{"input":{"command":"cd /x && bash '"$S14"'"}}' >>"$J14"
+out="$(chk REVIEW_LINE="$(line "bash $TST; bash $S14" "$J14")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 2 of 2"* ]] && pass "14. the log ran test-x.sh -> OK 2 of 2" || fail "14. test-x.sh run (rc $rc: $out)"
+[[ "$out" == *"git-prune-round-branches.tst.sh, test-x.sh"* && $(grep -c ' of 2 named' <<<"$out") -eq 1 ]] \
+  && pass "14. the OK line lists the counted names, on one line" || fail "14. names listed ($out)"
+out="$(chk REVIEW_LINE="$(line "bash ./test-x.sh" "$J14")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "14. a relative ./test-x.sh is the same name" || fail "14. relative (rc $rc: $out)"
+printf '%s\n' '{"input":{"command":"bash xtest-y.sh"}}' >"$J14"
+out="$(chk REVIEW_LINE="$(line "bash test-y.sh" "$J14")")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING test-y.sh"* ]] && pass "14. xtest-y.sh in the log is not test-y.sh" || fail "14. whole name (rc $rc: $out)"
+for r in "bash latest-x.sh" "bash test-dir/x.sh" "source tests/test-lib.inc.sh"; do
+  out="$(chk REVIEW_LINE="$(line "$r" "$J14")")"; rc=$?
+  [[ $rc -eq 3 && "$out" == *"names no test"* ]] && pass "14. '$r' names no test" || fail "14. '$r' (rc $rc: $out)"
+done
+out="$(syn "review: m-159@box-b mistral PASS $SHA ran: bash $S14 | read: 9 PASS | log: m-159@box-b:/r/j.jsonl")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "14. box-b, REVIEW_LINE_SYNTAX=1: ran: naming only test-x.sh -> SYNTAX OK" || fail "14. syntax (rc $rc: $out)"
+printf '%s\n' '{"input":{"command":"bash test-z.tst.sh"}}' >"$J14"
+out="$(chk REVIEW_LINE="$(line "bash test-z.tst.sh" "$J14")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "14. test-z.tst.sh fits both forms and counts once" || fail "14. dedupe (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

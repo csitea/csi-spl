@@ -13,7 +13,7 @@
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 export PATH
-FLEET_STOPPED_TOOLS="${FLEET_STOPPED_TOOLS:-jq tmux flock}"
+FLEET_STOPPED_TOOLS="${FLEET_STOPPED_TOOLS:-jq yq git tmux flock}"
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 

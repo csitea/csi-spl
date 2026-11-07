@@ -43,9 +43,27 @@ stopped. `do_spl_fleet_stopped_alarm` (box-crons row `fleet-stopped-alarm`, ever
 - nothing landed for `env.ops_alarms.fleet_stopped.quiet_min`. Landed is the
   later of the head's committer time and when this box first saw that head.
 
+**The ceiling** (dispatch holder c-002, msg c8f2e34a). Past
+`env.ops_alarms.fleet_stopped.quiet_max_min` (180) with nothing landed and the
+queue above 0, it posts whatever the load, also with no fresh sample. One box
+steadily at 41% would otherwise silence it for ever, and on 11-06 one box was at
+or over 40% in 51 of its 88 samples. The post says it fired on the ceiling, with
+a box still busy. Master had 4 gaps that long in the 14 days from 10-24 (first
+parent, 1656 commits, the queue not joined, so false alarms are not measured).
+
 **One post per episode.** An episode ends only when master moves or the queue
 empties, never when the load moves. Only the orch holder's machine posts; a new
-holder reads #alerts first, so a move of the role does not post again.
+holder reads #alerts first, so a move of the role does not post again. A FLEET
+STOPPED topic counts as told when it is newer than the last landing and the last
+empty queue; every machine tracks both, whoever holds the role. With no holder,
+the seat is the one this box's desk announces. After
+`env.ops_alarms.fleet_stopped.read_fail_max_min` (30) of failed reads of #alerts
+it posts unread: an extra post is cheaper than silence.
+
+Limits: with no holder, two machines on one tick can both post (a stub, n=6,
+c-990's FAIL). The told check reads the topic's last message, so a reply in an
+old alarm topic after the next landing can hide that episode (a stub only). If no
+seat on the box is announced, the post is refused and only the cron log says so.
 
 **Why 40% and not the consensus's 25%** (dispatch holder c-003, msg 11e3b858).
 The consensus asks for 25% and for a fire by about 11:30Z; on the real samples

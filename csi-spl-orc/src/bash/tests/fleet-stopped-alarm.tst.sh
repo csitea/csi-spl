@@ -10,22 +10,26 @@
 #      "one" is the episode rule's doing. The bound is 12:00Z and not one minute
 #      because tick alignment alone moves the first fire by 5 min (seen
 #      11:35Z and 11:40Z on the same samples).
-#   2. The same replay at the consensus's 25%: no post at all. It is why the cnf
-#      says 40 (holder c-003, msg 11e3b858).
+#   2. The same replay at the consensus's 25%, ceiling off: no post at all. It is
+#      why the cnf says 40 (holder c-003, msg 11e3b858). With the ceiling: one.
 #   RED CONTROL: the same replay with the state file removed after every tick
 #   posts many times, so case 1's "exactly one" is the state's doing.
 #   3. An empty queue: no post through the whole replay.
 #   4. A landing ends the episode: no post inside quiet_min, a second post after.
-#   5. An emptied queue re-arms; a load bounce alone does not (case 1).
+#   5. An emptied queue re-arms, on a channel that remembers the first post and
+#      when another machine held the role while it emptied; a load bounce alone
+#      does not (case 1).
 #   6. One box at or over the mark holds the alarm; a box with a stale sample
 #      does not count.
+#      Past the ceiling a busy box no longer holds it: one post, which says so.
 #   7. No fresh sample on any box: no verdict, no post (an empty set must not
-#      read as "every box idle").
+#      read as "every box idle"), until the ceiling.
 #   8. The hub or master not answering: no verdict, no post.
 #   9. Another machine's post newer than the landing: no second post, recorded;
-#      one older than the landing does not count; an unreadable channel waits.
+#      one older than the landing does not count; an unreadable channel waits,
+#      for read_fail_max_min, then one post.
 #  10. Not the orch holder's machine: no post, the head still tracked. Nobody
-#      holding the role: the post says so.
+#      holding the role: the post says so, and the seat is the desk's announced one.
 #  11. DRY_RUN=1 (the default) prints the post, posts nothing, writes no state.
 #  12. A failed post is not recorded: the next tick posts it.
 #  13. A commit that waited in the gate: its old committer time does not read as
@@ -46,11 +50,20 @@ HEAD_CT=$(epoch 2026-11-06T09:30:08Z)
 mkdir -p "$T/spool/asks" "$T/spool/dispatch"
 printf '#!/bin/sh\ncat >>%q\n' "$T/posts" >"$T/post-ok"; chmod +x "$T/post-ok"
 printf '#!/bin/sh\ncat >/dev/null\nexit 1\n' >"$T/post-fail"; chmod +x "$T/post-fail"
+# A post the channel remembers, as the real one does.
+cat >"$T/post-mem" <<E
+#!/bin/bash
+cat >>"$T/posts"
+ts="\$(date -u -d "@\$(cat "$T/now")" +%FT%TZ)"
+jq --arg ts "\$ts" '.topics += [{task_id: "x", subject: "**FLEET STOPPED** asks", last_ts: \$ts}]' "$T/topics.json" >"$T/topics.tmp" && mv "$T/topics.tmp" "$T/topics.json"
+E
+chmod +x "$T/post-mem"
 # The hub: the queue from $T/queue.json, samples from $T/samples.tsv up to the
 # clock in $T/now, the channel from $T/topics.json; $T/down fails every call.
 cat >"$T/hub" <<E
 #!/bin/bash
 [ -e "$T/down" ] && exit 1
+echo "\$*" >>"$T/hub.log"
 case "\$1" in
   ask) cat "$T/queue.json" ;;
   box-stats)
@@ -72,7 +85,7 @@ queue() {  # N
   jq -n --argjson n "$1" '{asks: [range($n) | {ask_id: "a\(.)", state: "queued", position: (. + 1), enqueued_at: "2026-11-06T08:00:00Z"}]}' >"$T/queue.json"
 }
 reset_case() {
-  : >"$T/posts"; rm -f "$T/st" "$T/down" "$T/topics-down" "$T/land-down"
+  : >"$T/posts"; : >"$T/hub.log"; rm -f "$T/st" "$T/st2" "$T/down" "$T/topics-down" "$T/land-down"
   echo '{"topics":[]}' >"$T/topics.json"
   printf '%s %s\n' "$HEAD_SHA" "$HEAD_CT" >"$T/head"
   cp "$FIX" "$T/samples.tsv"; queue 124
@@ -80,6 +93,7 @@ reset_case() {
 }
 n() { [ -s "$T/posts" ] && grep -c . "$T/posts" || echo 0; }
 
+OFF=FLEET_STOPPED_QUIET_MAX_MIN=100000
 COMMON=(SPOOL_ROOT="$T/spool" ASKS_HUB_CMD="$T/hub" ASKS_FLEET=main ASKS_ENV=dev ASKS_TENANT=t1 ASKS_DESK_BOX=box-a
   LANE_BOX=box-a ASKS_HOLDER=c-901@box-a FLEET_STOPPED_LAND_CMD="$T/land" FLEET_STOPPED_CMD="$T/post-ok"
   FLEET_STOPPED_STATE="$T/st" DRY_RUN=0 T_DIR="$T")
@@ -107,14 +121,15 @@ replay() {
 reset_case; replay
 first="$(head -1 "$T/fires")"
 [ "$(n)" = 1 ] && [[ -n "$first" && ! "$first" > "12:00" ]] \
-  && pass "1. replay of 11-06: exactly one post, by 12:00Z (at ${first}Z)" || fail "1. replay ($(n) posts at: $(tr '\n' ' ' <"$T/fires"))"
+  && grep -q 'every box is under 40%' "$T/posts" && pass "1. replay of 11-06: exactly one post, by 12:00Z, on the load (at ${first}Z)" || fail "1. replay ($(n) posts at: $(tr '\n' ' ' <"$T/fires"))"
 grep -qF "The hold: $HOLD_TEXT" "$T/posts" && grep -q '^\*\*FLEET STOPPED\*\* 124 asks queued' "$T/posts" \
   && pass "1. the post names the hold and the queue" || fail "1. text: $(cat "$T/posts")"
 [[ ! "$first" < "10:00" ]] && pass "1. no post before the gap's 30 min passed" || fail "1. early fire $first"
-
 # 2. the consensus's 25%
-reset_case; replay FLEET_STOPPED_LOAD_PCT=25
+reset_case; replay FLEET_STOPPED_LOAD_PCT=25 "$OFF"
 [ "$(n)" = 0 ] && pass "2. the replay at 25% never posts: why the cnf is not 25" || fail "2. 25% posted $(n): $(tr '\n' ' ' <"$T/fires")"
+reset_case; replay FLEET_STOPPED_LOAD_PCT=25
+[ "$(n)" = 1 ] && grep -q 'fired on the 180 min ceiling, with a box still at or over 25%' "$T/posts" && pass "2. ...with the ceiling it fires once, whatever the load (at $(head -1 "$T/fires")Z)" || fail "2. ceiling ($(n))"
 
 # RED CONTROL: the state is what keeps it to one post
 reset_case; replay REPLAY_RM_STATE=1
@@ -142,11 +157,26 @@ tick 2026-11-06T12:06:00Z >/dev/null
 [ "$(n)" = 1 ] && pass "5. stays stopped: still one post" || fail "5. repeat ($(n))"
 queue 0; tick 2026-11-06T12:07:00Z >/dev/null; queue 3; tick 2026-11-06T12:08:00Z >/dev/null
 [ "$(n)" = 2 ] && pass "5. the queue emptied and refilled: a new episode" || fail "5. re-arm ($(n))"
+reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
+tick 2026-11-06T12:05:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null
+queue 0; tick 2026-11-06T12:07:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null; queue 3
+tick 2026-11-06T12:08:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null
+tick 2026-11-06T12:09:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null
+[ "$(n)" = 2 ] && pass "5. a channel that remembers: the refill posts again, once" || fail "5. remembers ($(n))"
+reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
+echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** 9 asks","last_ts":"2026-11-06T12:05:00Z"}]}' >"$T/topics.json"
+queue 0; tick 2026-11-06T12:07:00Z ASKS_HOLDER=c-901@box-b >/dev/null; queue 3
+tick 2026-11-06T12:08:00Z >/dev/null
+[ "$(n)" = 1 ] && pass "5. emptied while the role was elsewhere: the new holder posts" || fail "5. moved ($(n))"
 
 # 6. one busy box holds it; a stale box does not count
-reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n2026-11-06T12:00:00Z\tbox-b\t16\t6.4\n' >"$T/samples.tsv"
+reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n2026-11-06T12:00:00Z\tbox-b\t16\t6.4\n2026-11-06T12:35:00Z\tbox-a\t16\t1\n2026-11-06T12:35:00Z\tbox-b\t16\t6.4\n' >"$T/samples.tsv"
 out="$(tick 2026-11-06T12:05:00Z)"
 [ "$(n)" = 0 ] && grep -q 'at or over 40%' <<<"$out" && pass "6. a box at exactly 40% holds the alarm" || fail "6. busy ($(n): $out)"
+tick 2026-11-06T12:40:00Z >/dev/null
+tick 2026-11-07T01:00:00Z >/dev/null
+[ "$(n)" = 1 ] && grep -q 'fired on the 180 min ceiling, with a box still at or over 40% of its cores (box-a 6%, box-b 40%)' "$T/posts" \
+  && pass "6. past the ceiling the busy box no longer holds it: one post" || fail "6. ceiling ($(n): $(cat "$T/posts"))"
 printf '2026-11-06T11:00:00Z\tbox-b\t16\t16\n2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
 tick 2026-11-06T12:05:00Z >/dev/null
 [ "$(n)" = 1 ] && pass "6. a box with a stale sample (away) does not hold it" || fail "6. stale ($(n))"
@@ -157,6 +187,8 @@ out="$(tick 2026-11-06T12:05:00Z)"
 [ "$(n)" = 0 ] && grep -q 'no fresh box sample' <<<"$out" && pass "7. no fresh sample: no verdict, no post" || fail "7. ($(n): $out)"
 : >"$T/samples.tsv"; out="$(tick 2026-11-06T12:05:00Z)"
 [ "$(n)" = 0 ] && grep -q 'no fresh box sample' <<<"$out" && pass "7. no sample at all: no verdict, no post" || fail "7. empty ($(n): $out)"
+tick 2026-11-06T12:35:00Z >/dev/null
+[ "$(n)" = 1 ] && grep -q 'with no box reporting a fresh load sample' "$T/posts" && pass "7. no sample, past the ceiling: the post says so" || fail "7. ceiling ($(n))"
 
 # 8. the hub or master down
 reset_case; touch "$T/down"; out="$(tick 2026-11-06T12:05:00Z)"
@@ -173,9 +205,13 @@ reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
 echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** 9 asks","last_ts":"2026-11-06T09:00:00Z"}]}' >"$T/topics.json"
 tick 2026-11-06T12:05:00Z >/dev/null
 [ "$(n)" = 1 ] && pass "9. a post older than the landing is another episode" || fail "9. older ($(n))"
-reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"; touch "$T/topics-down"
-tick 2026-11-06T12:05:00Z >/dev/null
+reset_case; printf '2026-11-06T10:30:00Z\tbox-a\t16\t1\n2026-11-06T11:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"; touch "$T/topics-down"
+tick 2026-11-06T10:35:00Z >/dev/null
 [ "$(n)" = 0 ] && [ "$(cut -f3 "$T/st")" = 0 ] && pass "9. an unreadable channel: no post, retried" || fail "9. unreadable ($(n))"
+tick 2026-11-06T11:04:00Z >/dev/null
+[ "$(n)" = 0 ] && pass "9. ...29 min of failed reads: still held" || fail "9. held ($(n))"
+tick 2026-11-06T11:05:00Z >/dev/null; tick 2026-11-06T11:10:00Z >/dev/null
+[ "$(n)" = 1 ] && pass "9. ...30 min of failed reads: posted unread, once" || fail "9. bound ($(n))"
 
 # 10. not the placing machine; nobody placing
 reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
@@ -193,6 +229,12 @@ rm -f "$T/spool/dispatch/lease.conf"
 reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
 out="$(tick 2026-11-06T12:05:00Z ASKS_HOLDER=none@box-a)"
 [ "$(n)" = 0 ] && grep -q 'channel could not be read' <<<"$out" && pass "10. ...and with no lease.conf either: no author, no post, retried" || fail "10. no conf ($(n): $out)"
+reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
+echo 'LEASE_ORCH=c-001' >"$T/spool/dispatch/lease.conf"
+SNIPPET='spl_lane_issue_desk() { DESK_AGENT=c-777; }; do_spl_fleet_stopped_alarm' in_orc "${COMMON[@]}" ASKS_HOLDER=none@box-a \
+  FLEET_STOPPED_NOW="$(epoch 2026-11-06T12:05:00Z)" >/dev/null 2>&1
+rm -f "$T/spool/dispatch/lease.conf"
+[ "$(n)" = 1 ] && grep -q '^topics --as c-777 ' "$T/hub.log" && pass "10. no holder: the desk's announced seat reads, not the role seat" || fail "10. seat ($(n): $(grep topics "$T/hub.log"))"
 
 # 11. the dry run
 reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"

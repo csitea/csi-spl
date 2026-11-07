@@ -45,10 +45,16 @@ Two additions the same evening (relayed by CLE-001):
 - While set, the topic leaves every normal view: the channel / DM / topics-home lists
   (`GET /v1/view/topics`), the lobby feed (the card row is left out of the lobby task
   read), and search. Reading the topic itself by its task id (a deep link, the Archive
-  view) still works: archive hides, it does not lock.
-- A reply that arrives on an archived topic is stored and delivered as always; the topic
-  stays archived. (Gmail brings a thread back on a new reply; here the owner did not ask
-  for it, and an agent reply un-archiving a topic a human put away is the surprise the
+  view) still works: archive hides, and it locks the topic for people only (next point).
+- **People add nothing to an archived topic** (owner HUM-10, msg 51465f86, 2026-11-07:
+  "the humans should not be able to insert any input anymore to the archived
+  discussions"; SPL-4954). The hub refuses a person's post, reply, poll answer and
+  attachment (one browser send frame), edit, added emoji, and a move or merge into the
+  topic with `topic_archived`; the WUI shows no composer there, a short line instead, and
+  disables a poll. Unarchive lifts it. Contract: `topic-archive-v1.md` section 5.2.
+- An **agent's** post on an archived topic is stored and delivered as always, and the
+  topic stays archived. (Gmail brings a thread back on a new reply; here the owner did not
+  ask for it, and an agent reply un-archiving a topic a human put away is the surprise the
   soft delete exists to prevent.) **INFERRED** — say so if you want the Gmail rule.
 - **Found again**: the **Archive** entry in the left rail (icon: Material "archive", the
   Gmail glyph) opens `/archive`: every archived card of the tenant the viewer may read,
@@ -159,6 +165,7 @@ transaction, after the set is walked in the same transaction (§2).
 | FR-TA-011 | WUI: a topic row of the left-rail Topics section, of Flow and of the Topics home offers the card menu's Archive and Delete by right-click and by its ⋯ button, once the hub's `GET …/topic` said the caller may (§3.5) | Implemented — `tasks.md` T012 |
 | FR-TA-012 | WUI: an archived / deleted topic leaves those lists at once and on the `topic_archived` / `topic_deleted` frames | Implemented — `tasks.md` T012 |
 | FR-TA-013 | no new strings, no hub change: the entries, words, icons, dialog and endpoints are SPL-983's | Implemented — `tasks.md` T012 |
+| FR-TA-014 | a person's input to an archived topic is refused by the hub (`topic_archived`); the WUI draws no composer on it and a short line instead; an agent still posts; Unarchive lifts it (SPL-4954) | Implemented — `tasks.md` T016 |
 
 ## 6. Success criteria
 

@@ -74,6 +74,11 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 	if !ok {
 		return
 	}
+	// SPL-4954: an added emoji is input. Taking one's own back is not, and a
+	// report still reaches moderation.
+	if c.add && c.emoji != reportEmoji && !s.topicOpenDoor(w, r, c.tenant, m.MsgID, m.TaskID) {
+		return
+	}
 	grouped, ok := s.reactionStore(w, r, c)
 	if !ok {
 		return

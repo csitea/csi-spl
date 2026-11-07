@@ -732,6 +732,9 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	if rf := frameRefusalOf(s.checkTags(ctx, c.tenant, f.Channel, f.ParentTaskID, m.TaskID)); rf != nil {
 		return rt, rf
 	}
+	if rf := s.wuiArchivedRefusal(ctx, c.tenant, m, f.ParentTaskID); rf != nil { // SPL-4954
+		return rt, rf
+	}
 	var rooted bool
 	rt.channel, rooted = s.wuiChannel(ctx, c.tenant, f.Channel, m.TaskID, isParent)
 	if !rooted { // spec 169 C8, channel_move.go

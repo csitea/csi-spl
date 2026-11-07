@@ -53,11 +53,24 @@ func (s *Server) wuiDMRef(ctx context.Context, c *wuiConn, claimed string) conte
 		case err != nil:
 			s.o.Log.Error().Err(err).Str("ref_task_id", task).Msg("dm ref door")
 		case ok:
-			r.task = task
+			r.task = s.wuiOpenRef(ctx, c.tenant, task)
 		}
 	}
 	s.logDroppedRef(c.tenant, claimed, r.task)
 	return context.WithValue(ctx, dmRefKey{}, r)
+}
+
+// wuiOpenRef is task, or "" when it is archived (SPL-4954): the person's DM
+// is still stored, but its mirror would be a person's row in that topic.
+func (s *Server) wuiOpenRef(ctx context.Context, tenant, task string) string {
+	closed, err := s.topicClosed(ctx, tenant, task)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("ref_task_id", task).Msg("dm ref archive check")
+	}
+	if err != nil || closed {
+		return ""
+	}
+	return task
 }
 
 // boxDMRef is a box send's dmRef: the claim is kept when the sending agent

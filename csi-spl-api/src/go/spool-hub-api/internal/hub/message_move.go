@@ -293,6 +293,9 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 		writeRefusal(w, "lobby")
 		return
 	}
+	if !s.topicOpenDoor(w, r, c.t.ID, task) { // SPL-4954
+		return
+	}
 	now := s.o.Now()
 	var card store.TaskCard
 	var ok bool

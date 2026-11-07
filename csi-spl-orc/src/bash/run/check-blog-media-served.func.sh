@@ -10,8 +10,9 @@
 # @description      link preview such as LinkedIn shows)
 # @description Each must answer 200 with an image/* content type. Fails (rc 1)
 # @description naming each post, URL, status and type otherwise, or when a page
-# @description names no og:image. Why: the site answers any unknown path with
-# @description its HTML (200 text/html), so a picture that never reached
+# @description names no og:image. Why: the site then answered any unknown path
+# @description with its HTML (200 text/html; a missing picture is a 404 since
+# @description SPL-5012), so a picture that never reached
 # @description blog/img still answered 200 and a link preview showed no
 # @description picture (2026-10-25-the-ai-software-making-machine, dev + prd,
 # @description owner HUM-10 topic 1a494e58). No index, or no post with a

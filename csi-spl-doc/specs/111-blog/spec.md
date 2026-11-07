@@ -423,7 +423,10 @@ page with a `<script` in a post body, an `on*=` attribute or a
   rule's hour of caching, which matches by path, so a browser or a crawler
   could keep the page as the picture. A file that exists is served before any
   rewrite and keeps that header; a route without such an ending still gets the
-  SPA page. An app route must never end in one of these types.
+  SPA page. An app route must never end in one of these types. The local test
+  server `serve-generated.mjs` has no pictures, so it answers a placeholder for
+  a picture the blog index names and a 404 for any other: a page asking for a
+  picture that does not exist stays red in `console-errors`.
 - **Rejected:** a public bucket or a CDN host. It would add an `img-src`
   host to both CSP lists.
 

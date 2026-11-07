@@ -591,7 +591,7 @@ jobs:
 
       # SPL-3546: every post's picture and the og:image its page names must
       # answer 200 image/* on the deployed site. A picture that never reached
-      # blog/img answers 200 with the site's HTML, so the post and its link
+      # blog/img answers 404 (200 with the site's HTML before SPL-5012), so the post and its link
       # preview (LinkedIn) show none; that shipped green for
       # 2026-10-25-the-ai-software-making-machine. Reads only.
       - name: Check the served blog pictures (do_check_blog_media_served)

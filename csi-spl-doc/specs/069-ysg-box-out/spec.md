@@ -978,6 +978,40 @@ re-seated by hand between 02:42Z and 02:45Z.
 
 Test: `csi-spl-orc/src/bash/tests/desk-reseat-dead.tst.sh`, cases (a) to (d).
 
+#### 8.4.4 The fleet desk: what must hold before it moves (SPL-4985)
+
+Measured on sat 2026-11-07 with the plan of `do_spl_desk_move` (read-only):
+`prd/t1/sat` is the one live desk left under `<box-user>`, 508M, 15 seats. The
+full plan lists 9 more: 3 stubs of desks already under `<agent-user>`, `prd/demo`
+and 5 dev desks, none with a live sidecar.
+
+- **`MOVE_CMD=switch` writes `SPOOL_DESK_USER`, no desk moves.** A full move run
+  stops at its first stub (`already exists: not overwritten`) and would move
+  every other desk, so on such a box step 4 had no path through the action.
+  `switch` refuses unless the fleet desk is pinned and live under the desk user
+  and no desk under the box user has a live sidecar; it names each desk that
+  stays. `MOVE_CMD=unswitch` is its reverse, before a `MOVE_DESKS` rollback.
+  Acceptance 8.6 item 2 stays unmet for the desks left behind.
+- **A box-user `./run` reaches a moved desk through its owner.**
+  `spl_desk_action_hop_to` / `spl_desk_action_hop`
+  (`lib/bash/funcs/spl-desk-moved.func.sh`) re-run `do_spl_desk_post`,
+  `do_spl_topic_archive` and `do_spl_desk_poll_ack` once as the desk's owner,
+  with or without `SPOOL_DESK_USER`. `do_spl_desk_poll_ack` hops once the fleet
+  desk moved, so its scan sees every moved workspace. `do_spl_desk_reply` keeps
+  its own rule (8.3.1): it hops only with no `SPOOL_DESK_USER`.
+- **The lane map and the ask book.** `spl_lane_desk_at` locates a moved desk and
+  `spl_lane_desk_spool` signs there as its owner, with its binary. The unmarked
+  box-user rows that reach `spl_lane_init` (`box-stats`, the unanswered sweep's
+  link check, `agent-id-reap`, `spawn-remote`) rely on it.
+- **The window and the lease.** The lease demotes after `LEASE_STALE` (180 s)
+  with no good hub call. On 2026-11-01 the desk came up in 35 s but the hub calls
+  never came back: orch fell at 10:24:49Z. With SPL-4942 they hop, so a window
+  under `MOVE_MAX_SECS` (120 s) stays inside it. Not yet measured on the fleet
+  desk: that is the move itself.
+
+Tests: `desk-move.tst.sh` case 14, `desk-user-hops.tst.sh` cases 7 and 8,
+`dispatch-lease-moved-desk.tst.sh` case 10.
+
 ### 8.5 Build rows
 
 Rounds-rulebook rows. Disjoint files; batch 1 lands first, batch 2 rows in

@@ -300,5 +300,60 @@ eq "6. do_spl_take: its reply hops once" "1" "$(hop6)"
 has "6. do_spl_take: the hop carries the take line" "DESK_BODY=Taken by c-002@box-x: I read the logs" "$(cat "$T/as.log")"
 has "6. do_spl_take: recorded as taken, rc 0" "rc=0" "$out"
 
+# 7. do_spl_desk_post and do_spl_topic_archive follow a moved desk, half-moved
+# box or switched (SPL-4985). RED on 48dc6c573: FATAL no desk, no hop.
+# act7 <action snippet> <workspace> [VAR=value]...
+act7() {
+  local snip="$1" ws="$2"; shift 2
+  : >"$T/as.log"
+  SNIPPET="do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; $snip; echo \"rc=\$?\"" \
+    in_orc TENANT_ID="$ws" DESK_BOX=box-x DESK_AGENT=c-002 DESK_CHANNEL=alerts DESK_KIND=note DESK_BODY=hello \
+    TOPIC="$TOPIC6" MODE=archive DRY_RUN=0 SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" "$@" 2>&1
+}
+desk6 "$ROOT6" hop-g pinned
+out="$(act7 do_spl_desk_post hop-g)"; log="$(cat "$T/as.log")"
+eq "7. post: one hop" "1" "$(hop6)"
+has "7. post: the agent user's HOME" "HOP env HOME=$DH " "$log"
+has "7. post: the hop carries the post" " DESK_CHANNEL=alerts" "$log"
+has "7. post: the hop runs the post" "$PROJ_ROOT/run -a do_spl_desk_post" "$log"
+hasnt "7. post: no FATAL in the caller" "no desk for" "$out"
+has "7. post: the hopped run's rc" "rc=7" "$(act7 do_spl_desk_post hop-g AS_RC=7)"
+out="$(act7 do_spl_desk_post hop-g SPOOL_DESK_USER="$DU")"
+eq "7. post: a switched box hops too" "1" "$(hop6)"
+hasnt "7. post: a switched box has no refusal" "FATAL" "$out"
+act7 do_spl_desk_post hop-g SPL_DESK_HOPPED="$BU" >/dev/null
+eq "7. post: one hop, never a loop" "0" "$(hop6)"
+act7 do_spl_desk_post hop-g SPL_DESK_AS_CMD= >/dev/null
+eq "7. post: SPOOL_TEST=1 with no SPL_DESK_AS_CMD never hops to a real user" "0" "$(hop6)"
+desk6 "$SELF6" hop-h pinned
+act7 do_spl_desk_post hop-h DRY_RUN=1 >/dev/null
+eq "7. post: the caller's own pinned desk: no hop" "0" "$(hop6)"
+# ./run's do_log sets these globals; the stub of in_orc does not, and a local of
+# the same name in the hop was rewritten live (-a desk) with this suite green.
+act7 'do_log() { type_of_msg=x action=desk rest_of_msg=x msg=x log_dir=x log_file=x; }; do_spl_desk_post' hop-g >/dev/null
+has "7. post: do_log's globals leave the hop's action alone" "$PROJ_ROOT/run -a do_spl_desk_post" "$(cat "$T/as.log")"
+out="$(act7 do_spl_topic_archive hop-g)"; log="$(cat "$T/as.log")"
+eq "7. archive: one hop" "1" "$(hop6)"
+has "7. archive: the hop carries the topic" " TOPIC=$TOPIC6" "$log"
+has "7. archive: the hop carries the mode" " MODE=archive" "$log"
+has "7. archive: the hop runs the archive" "$PROJ_ROOT/run -a do_spl_topic_archive" "$log"
+hasnt "7. archive: no FATAL in the caller" "no desk for" "$out"
+
+# 8. do_spl_desk_poll_ack scans as the owner once the fleet desk moved (SPL-4985).
+# RED on 48dc6c573: no hop, the box user sees no moved workspace.
+ack8() {
+  local ws="$1"; shift
+  act7 "_spl_poll_ack_holder() { echo c-002; }; spl_lease_init() { :; }; spl_lease_conf() { LEASE_TENANT=$ws; LEASE_DESK_BOX=box-x; LEASE_DIR='$T/pa8'; }; do_spl_desk_poll_ack" "$ws" DESK_BOX=box-x POLL_ACK_MAX_AGE=45 "$@"
+}
+mkdir -p "$T/pa8"
+out="$(ack8 hop-g)"; log="$(cat "$T/as.log")"
+eq "8. poll ack: the fleet desk moved: one hop" "1" "$(hop6)"
+has "8. poll ack: the hop runs the scan" "$PROJ_ROOT/run -a do_spl_desk_poll_ack" "$log"
+has "8. poll ack: the hop carries its inputs" " POLL_ACK_MAX_AGE=45" "$log"
+has "8. poll ack: the hopped run's rc" "rc=7" "$(ack8 hop-g AS_RC=7)"
+ack8 hop-h >/dev/null
+eq "8. poll ack: the fleet desk is the caller's: no hop" "0" "$(hop6)"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

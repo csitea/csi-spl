@@ -30,8 +30,8 @@ flock -n 9 || { say "OK another archived-seats-free run holds $lock"; exit 0; }
 say "START archived-seats-free"
 ( cd "$ORC" && SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" DRY_RUN="${ARCHIVED_SEATS_DRY_RUN:-0}" timeout 900 ./run -a do_spl_archived_seats_free ); rc=$?
 say "STOP archived-seats-free rc=$rc"
-# SPL-4955: what the archived discussions left goes on in new ones (the dispatch
-# lease holder's machine acts). A failure here does not hide the free's verdict.
+# SPL-4955: what the archived discussions left goes on in new ones (one box per
+# topic, read from the hub's roster). A failure here does not hide the free's verdict.
 ( cd "$ORC" && SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" DRY_RUN="${ARCHIVED_SEATS_DRY_RUN:-0}" timeout 900 ./run -a do_spl_archived_followup ); fu=$?
 say "STOP archived-followup rc=$fu"
 [ "$rc" = 0 ] && [ "$fu" = 0 ] || exit 1

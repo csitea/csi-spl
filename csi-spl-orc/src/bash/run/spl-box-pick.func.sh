@@ -86,7 +86,7 @@
 # @param BOX_QUOTA_WEEKLY_MAX_PCT (optional) - overrides cnf env.box.quota.weekly_max_pct, default 90
 # @param BOX_PICK_REVIEW_SEAT (optional) - 1: a logged review seat, the weekly mark is the review seats', default 0
 # @param BOX_QUOTA_REVIEW_SEAT_MAX_PCT (optional) - overrides cnf env.box.quota.review_seat_max_pct; unset everywhere = weekly_max_pct, no pass
-# @param LANE_QUOTA_LAPSE_S (optional) - s a kept reading with a reset stands with no re-read, default 28800 (0 = until its reset)
+# @param LANE_QUOTA_LAPSE_S (optional) - s a kept reading with a reset stands with no re-read, default 36000 (0 = until its reset)
 # @param BOX_PICK_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param BOX_PICK_DISK_MOUNTS (optional) - the agent data mount candidates, first listed wins, default "/mnt/data /"
 # @param DISK_HEADROOM_BLOCK_PCT (optional) - the disk mark, as the headroom guard reads it, default 85

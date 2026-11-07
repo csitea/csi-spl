@@ -447,7 +447,7 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if err := h.SetRailOrder(ctx, hum, append([]string{"gauges"}, fourteen...)); err == nil {
 				t.Fatal("SetRailOrder accepted an unknown fifteenth tab")
 			}
-			// SPL-4382 (rdb 0267): the fifteen with expenses store and read back;
+			// SPL-4382 (rdb 0268): the fifteen with expenses store and read back;
 			// expenses without notes and a 16th unknown id are refused
 			fifteen := append([]string{"expenses"}, fourteen...)
 			if err := h.SetRailOrder(ctx, hum, fifteen); err != nil {

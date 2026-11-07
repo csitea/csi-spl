@@ -1023,7 +1023,7 @@ func IsViewPref(key, value string) bool {
 // Calendar, spec 155 D5) and Expenses last (spec 143 costs-redesign.md 3.8;
 // SPL-4382) (the admin-only Users tab stays last and is not one of them). The
 // DB check humans_rail_order_check (rdb 0063, 0064, 0087, 0090, 0133, 0151,
-// 0198, 0209, 0224, 0267) admits their permutations and the legacy ones of the
+// 0198, 0209, 0224, 0268) admits their permutations and the legacy ones of the
 // first six, seven, nine, ten, eleven, twelve, thirteen or fourteen.
 var RailTabs = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents", "boxes", "calendar", "monitoring", "reporting", "notes", "expenses"}
 

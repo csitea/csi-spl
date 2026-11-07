@@ -295,7 +295,7 @@ func TestHoursWidenings(t *testing.T) {
 		{"14 with monitoring, reporting and notes (rdb 0224)", append([]string{"notes", "reporting", "monitoring"}, eleven...), true},
 		{"14 with notes, no reporting", append([]string{"notes", "hours", "monitoring"}, eleven...), false},
 		{"15 with notes and an unknown", append([]string{"gauges", "notes", "reporting", "monitoring"}, eleven...), false},
-		{"15 with notes and expenses (rdb 0267)", append([]string{"expenses", "notes", "reporting", "monitoring"}, eleven...), true},
+		{"15 with notes and expenses (rdb 0268)", append([]string{"expenses", "notes", "reporting", "monitoring"}, eleven...), true},
 		{"15 with expenses, no notes", append([]string{"expenses", "hours", "reporting", "monitoring"}, eleven...), false},
 		{"16 with expenses and an unknown", append([]string{"gauges", "expenses", "notes", "reporting", "monitoring"}, eleven...), false},
 	} {

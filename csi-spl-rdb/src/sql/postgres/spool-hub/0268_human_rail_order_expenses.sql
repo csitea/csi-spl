@@ -1,4 +1,4 @@
--- 0267_human_rail_order_expenses.sql - the left rail gets one more entry,
+-- 0268_human_rail_order_expenses.sql - the left rail gets one more entry,
 -- Expenses (spec 143 costs-redesign.md 3.8; SPL-4382; owner HUM-10, t1
 -- 4f48f878, msg 4cea9710), reorderable like the other fourteen (SPL-979, spec
 -- 023 3.8). Forward-only. Widens the 0224 check (the 0133 pattern); does not

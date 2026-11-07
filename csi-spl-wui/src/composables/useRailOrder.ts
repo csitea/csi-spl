@@ -4,6 +4,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAddToNote } from '~/composables/useAddToNote'
+import { useOperatorPane } from '~/stores/operator-pane'
 import { perfWhenIdle } from '~/utils/perf-idle.mjs'
 import { applyRailOrder, parseRailOrder, pinRailOrder, railOrderDrawn, type RailId } from '~/utils/rail-order'
 
@@ -11,7 +12,8 @@ export function useRailOrder() {
   const session = useSessionStore()
   const auth = useAuthClient()
   const notes = useAddToNote()
-  const order = computed<RailId[]>(() => railOrderDrawn(parseRailOrder(session.claims?.rail_order), notes.offered.value))
+  const operator = useOperatorPane()
+  const order = computed<RailId[]>(() => railOrderDrawn(parseRailOrder(session.claims?.rail_order), notes.offered.value, operator.visible))
   const custom = computed(() => Array.isArray(session.claims?.rail_order) && session.claims.rail_order.length > 0)
   const saving = ref(false)
 
@@ -26,7 +28,7 @@ export function useRailOrder() {
     if (session.state !== 'in') return { ok: false, value: null as string[] | null }
     saving.value = true
     try {
-      /* a drag while Notes is hidden: parseRailOrder puts it back for the hub */
+      /* a drag while Notes or Expenses is hidden: parseRailOrder puts it back for the hub */
       return await applyRailOrder(next && parseRailOrder(next), {
         current: session.claims?.rail_order,
         apply: (o) => session.setRailOrder(o),

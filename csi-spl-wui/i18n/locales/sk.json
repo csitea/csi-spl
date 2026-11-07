@@ -594,7 +594,8 @@
     "your_status_offline": "Váš stav: offline",
     "monitoring": "Monitorovanie",
     "reporting": "Prehľady",
-    "notes": "Poznámky"
+    "notes": "Poznámky",
+    "expenses": "Výdavky"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -3986,5 +3987,33 @@
     "notice_connected": "Kalendár Google je pripojený.",
     "notice_error": "Kalendár Google nebol pripojený. Skúste to znova.",
     "untitled_event": "(Bez názvu)"
+  },
+  "expenses": {
+    "tabs_label": "Karty výdavkov",
+    "tab": {
+      "ai": "Náklady na AI",
+      "cloud": "Náklady na cloudovú infraštruktúru",
+      "hr": "Personálne náklady"
+    },
+    "entries": {
+      "add": "Pridať náklad",
+      "intro_cloud": "Ručne zadané náklady na cloudovú infraštruktúru, napríklad faktúra, jeden riadok za mesiac. Prehľady → Náklady ich počítajú v časti Cloud.",
+      "intro_hr": "Ručne zadané personálne náklady, jeden riadok za mesiac. Prehľady → Náklady ich zobrazujú v časti Ľudia, nie vo Výdavkoch.",
+      "col_label_cloud": "Popis",
+      "col_label_hr": "Rola alebo zmluva",
+      "col_amount": "Suma bez DPH",
+      "col_period": "Mesiac",
+      "loading": "Načítavajú sa náklady…",
+      "error": "Náklady sa nepodarilo načítať.",
+      "empty": "Zatiaľ nie je zadaný žiadny náklad.",
+      "confirm_delete": "Odstrániť tento náklad?",
+      "err_label": "Zadajte názov s najviac 100 znakmi.",
+      "err_amount": "Zadajte sumu vyššiu ako 0.",
+      "err_currency": "Vyberte menu.",
+      "err_period": "Vyberte mesiac.",
+      "err_note": "Poznámka je príliš dlhá: najviac 2000 znakov."
+    },
+    "operators_only": "Výdavky sú len pre administrátorov operátora.",
+    "tokens_link": "Zaplatené predplatné a dobitia sa zadávajú v časti Výdavky → Náklady na AI."
   }
 }

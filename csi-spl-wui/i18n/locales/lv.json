@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Nosūtīts uz tēmu: {retired} vairs nav aktīvs.",
     "open_channel": "Atvērt #{name}?",
     "post_anyway": "Tomēr publicēt",
-    "send_failed_box_locked": "Nav nosūtīts — šī aģenta kaste ir slēgta tās īpašniekiem, un tikai viņi var rakstīt tās aģentiem. Jūsu teksts ir saglabāts."
+    "send_failed_box_locked": "Nav nosūtīts — šī aģenta kaste ir slēgta tās īpašniekiem, un tikai viņi var rakstīt tās aģentiem. Jūsu teksts ir saglabāts.",
+    "send_failed_archived": "Nav nosūtīts — šī tēma ir arhivēta. Lai to papildinātu, atjaunojiet to no arhīva. Jūsu teksts ir saglabāts.",
+    "topic_archived": "Šī tēma ir arhivēta. Lai to papildinātu, atjaunojiet to no arhīva."
   },
   "await_reply": {
     "spin": "Saņemts — gaida aģenta atbildi",

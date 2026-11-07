@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Konuya gönderildi: {retired} artık etkin değil.",
     "open_channel": "#{name} açılsın mı?",
     "post_anyway": "Yine de gönder",
-    "send_failed_box_locked": "Gönderilmedi — bu ajanın kutusu sahiplerine kilitli ve ajanlarına yalnızca onlar mesaj gönderebilir. Metniniz hâlâ burada."
+    "send_failed_box_locked": "Gönderilmedi — bu ajanın kutusu sahiplerine kilitli ve ajanlarına yalnızca onlar mesaj gönderebilir. Metniniz hâlâ burada.",
+    "send_failed_archived": "Gönderilmedi — bu konu arşivlendi. Bir şey eklemek için konuyu arşivden çıkarın. Metniniz hâlâ burada.",
+    "topic_archived": "Bu konu arşivlendi. Bir şey eklemek için konuyu arşivden çıkarın."
   },
   "await_reply": {
     "spin": "Alındı — bir ajanın yanıtı bekleniyor",

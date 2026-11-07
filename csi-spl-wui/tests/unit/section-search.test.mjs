@@ -91,7 +91,7 @@ describe('the wiring reads the one map', () => {
   it('SPL-4905: the top bar button also shows on a desktop with the box at the top, on a section with a type', () => {
     const s = read('components/TopBar.vue')
     assert.match(s, /v-if="barSearch"/)
-    assert.match(s, /const barSearch = computed\(\(\) => atBottom\.value \|\| \(!phone\.value && sectionSearchType\(route\.path\) !== ''\)\)/)
+    assert.match(s, /const barSearch = computed\(\(\) => atBottom\.value \|\| Boolean\(omnibox\.archivedTopic\) \|\| \(!phone\.value && sectionSearchType\(route\.path\) !== ''\)\)/)
   })
   it('SPL-4905: an operator picked outside search mode starts the section line', () => {
     const s = read('composables/useComposerSyntax.ts')

@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Trimis în subiect: {retired} nu mai este activ.",
     "open_channel": "Deschideți #{name}?",
     "post_anyway": "Postează oricum",
-    "send_failed_box_locked": "Netrimis — boxul acestui agent este blocat pentru proprietarii săi și doar ei pot scrie agenților lui. Textul tău este încă aici."
+    "send_failed_box_locked": "Netrimis — boxul acestui agent este blocat pentru proprietarii săi și doar ei pot scrie agenților lui. Textul tău este încă aici.",
+    "send_failed_archived": "Netrimis — această temă este arhivată. Scoate-o din arhivă pentru a adăuga ceva. Textul tău este încă aici.",
+    "topic_archived": "Această temă este arhivată. Scoate-o din arhivă pentru a adăuga ceva."
   },
   "await_reply": {
     "spin": "Primit — se așteaptă răspunsul unui agent",

@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { useLiveFeed } from '~/stores/live'
+import { useArchivedTopicMark } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
 import { useNotificationStore } from '~/stores/notification'
 import { topicKey } from '~/utils/read-cursor.mjs'
@@ -84,6 +85,7 @@ import type { SpoolMessage } from '~/types/spool'
 
 /* Messages prepend at the top. The newest row is first; an older one sits below it. */
 const pane = useLiveFeed('pane')
+useArchivedTopicMark(() => (pane.archivedAt ? String(pane.taskId || '') : ''))
 const { t } = useI18n({ useScope: 'global' })
 const sinceMs = useNowTick(() => Boolean(pane.taskId))
 const topic = useTopicStore()

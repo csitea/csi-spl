@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Saadetud teemasse: {retired} pole enam aktiivne.",
     "open_channel": "Kas avada #{name}?",
     "post_anyway": "Postita ikkagi",
-    "send_failed_box_locked": "Ei saadetud — selle agendi kast on lukustatud omanikele ja ainult nemad saavad selle agentidele kirjutada. Sinu tekst on alles."
+    "send_failed_box_locked": "Ei saadetud — selle agendi kast on lukustatud omanikele ja ainult nemad saavad selle agentidele kirjutada. Sinu tekst on alles.",
+    "send_failed_archived": "Saatmata — see teema on arhiveeritud. Sellele lisamiseks taasta see arhiivist. Sinu tekst on alles.",
+    "topic_archived": "See teema on arhiveeritud. Sellele lisamiseks taasta see arhiivist."
   },
   "await_reply": {
     "spin": "Kätte saadud — ootab agendi vastust",

@@ -80,6 +80,14 @@ export const useOmniboxStore = defineStore('omnibox', () => {
     searchOpen.value = false
   }
 
+  /**
+   * SPL-4954: the open topic's task when that topic is archived, '' otherwise.
+   * People add nothing to an archived topic (spec 041 3.1), so the composer
+   * and a poll in it stand down while it is open. Set by the panes
+   * (useArchivedTopicMark); Unarchive clears their stamp and so this.
+   */
+  const archivedTopic = ref('')
+
   function register(t: OmniboxTarget) {
     target.value = t
   }
@@ -87,7 +95,7 @@ export const useOmniboxStore = defineStore('omnibox', () => {
     if (target.value && target.value.owner === owner) target.value = null
   }
   return {
-    target, focusResults, searchOpen, searchAsk, searchLine, calendarSearchAsk,
+    target, archivedTopic, focusResults, searchOpen, searchAsk, searchLine, calendarSearchAsk,
     openSearch, openOwnSearch, openSectionSearch, closeSearch, register, unregister,
   }
 })
@@ -98,6 +106,13 @@ export const useOmniboxStore = defineStore('omnibox', () => {
  */
 export function isDocsReadingPath(path: string): boolean {
   return sectionSearchType(productPath(path)) === 'doc'
+}
+
+/** Pane helper: `task` is the open topic while it is archived, else ''. */
+export function useArchivedTopicMark(task: () => string) {
+  const store = useOmniboxStore()
+  watch(task, (id) => { store.archivedTopic = id }, { immediate: true })
+  onBeforeUnmount(() => { store.archivedTopic = '' })
 }
 
 /** Page helper: register a send target for this page's lifetime. */

@@ -655,7 +655,9 @@
     "sent_to_topic_retired": "Odoslané do témy: {retired} už nie je aktívny.",
     "open_channel": "Otvoriť #{name}?",
     "post_anyway": "Napriek tomu odoslať",
-    "send_failed_box_locked": "Neodoslané — box tohto agenta je uzamknutý pre jeho vlastníkov a len oni môžu písať jeho agentom. Váš text je stále tu."
+    "send_failed_box_locked": "Neodoslané — box tohto agenta je uzamknutý pre jeho vlastníkov a len oni môžu písať jeho agentom. Váš text je stále tu.",
+    "send_failed_archived": "Neodoslané — táto téma je archivovaná. Ak do nej chcete niečo pridať, obnovte ju z archívu. Váš text tu zostal.",
+    "topic_archived": "Táto téma je archivovaná. Ak do nej chcete niečo pridať, obnovte ju z archívu."
   },
   "await_reply": {
     "spin": "Prijaté — čaká sa na odpoveď agenta",

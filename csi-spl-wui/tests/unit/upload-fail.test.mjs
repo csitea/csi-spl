@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 
 import { hubDownError, linkDown, linkUp, mockUploadFetch, postWithStall, uploadStallMs, UPLOAD_LINK_WAIT_MS } from '../../src/utils/upload-fail.mjs'
 import { uploadWithFreshToken } from '../../src/utils/upload-retry.mjs'
-import { sendFailureKey, sendFailureParams } from '../../src/utils/send-failure.mjs'
+import { sendFailureKey, sendFailureParams } from '../../src/utils/send-failure-key.mjs'
 import { createSpoolClient } from '../../src/utils/spool-client.mjs'
 
 const BASE = 'http://t1.localhost:58080'

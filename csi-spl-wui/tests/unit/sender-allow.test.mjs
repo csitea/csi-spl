@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { sendFailureKey, sendFailureParams } from '../../src/utils/send-failure.mjs'
+import { sendFailureKey, sendFailureParams } from '../../src/utils/send-failure-key.mjs'
 import { senderAgents, senderListsOf, senderSave, senderSummary } from '../../src/utils/sender-allow.mjs'
 import { createMockSenderAllow } from '../../src/utils/sender-allow-mock.mjs'
 

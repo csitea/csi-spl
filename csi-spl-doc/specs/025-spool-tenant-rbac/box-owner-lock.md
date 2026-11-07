@@ -497,7 +497,7 @@ Postgres), `TestHubStartRefusesExpectedBoxWithoutLock`, `TestExpectBoxLocksRefus
 Code: `csi-spl-wui/src/components/BoxLockPane.vue` (lazy, last on the box's Monitoring
 card `/monitoring/boxes/<box>`, below the resources and the seats: above them it pushed the resource rows
 under the phone's docked composer), `csi-spl-wui/src/utils/box-lock.mjs` (the pasted-output check, the lock route
-refusal map, the mock), `sendFailureKey` in `csi-spl-wui/src/utils/send-failure.mjs` (the refusal map), the
+refusal map, the mock), `sendFailureKey` in `csi-spl-wui/src/utils/send-failure-key.mjs` (the refusal map), the
 client methods `getBoxLock` / `createBoxLock` (`spool-client-lazy.mjs`), and the keys `box_lock.*` and
 `composer.send_failed_box_locked` in every `i18n/locales/*.json`. Tests: `tests/unit/box-lock.test.mjs`, the
 box lock cases in `tests/e2e/agent-senders.test.mjs`.

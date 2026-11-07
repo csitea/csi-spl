@@ -3,7 +3,7 @@
  * Workspace settings -> Agents -> "Who may message each agent". A workspace
  * admin keeps, per agent, the members who may DM or @mention it; an agent
  * with no list takes messages from every member (decision 2). The hub
- * refuses anyone else with 403 sender_not_allowed (send-failure.mjs).
+ * refuses anyone else with 403 sender_not_allowed (send-failure-key.mjs).
  */
 
 const str = (v) => (typeof v === 'string' ? v : '')

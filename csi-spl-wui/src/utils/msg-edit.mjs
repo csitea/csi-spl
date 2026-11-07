@@ -52,7 +52,8 @@
  * client-side author predicate are that document's, quoted where they are used.
  */
 import { closeOpenFence } from './code-blocks.mjs'
-import { emptySendError, isEmptySend, sendFailureKey } from './send-failure.mjs'
+import { emptySendError, isEmptySend } from './send-failure.mjs'
+import { sendFailureKey } from './send-failure-key.mjs'
 import { BROWSER_BOX } from './view-api.mjs'
 
 /** The one key that opens the editor on the focused row. */

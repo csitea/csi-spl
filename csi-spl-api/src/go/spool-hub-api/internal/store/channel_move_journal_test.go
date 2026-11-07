@@ -96,3 +96,33 @@ func TestTaskMoveState(t *testing.T) {
 		})
 	}
 }
+
+// P7 compares two reads (5.4), so ChannelMoveProofRead is one snapshot: a row
+// committed between them is not seen. CONTROL: asOperator's second read sees it.
+func TestChannelMoveProofReadIsOneSnapshot(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	count := func(tx pgx.Tx) (n int64) {
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM tenants`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	moved := func(read func(context.Context, func(pgx.Tx) error) error) (first, second int64) {
+		if err := read(ctx, func(tx pgx.Tx) error {
+			first = count(tx)
+			newTenant(t, pg)
+			second = count(tx)
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return first, second
+	}
+	if a, b := moved(pg.ChannelMoveProofRead); a != b {
+		t.Errorf("ChannelMoveProofRead saw a later commit: %d then %d", a, b)
+	}
+	if a, b := moved(pg.asOperator); a == b {
+		t.Errorf("CONTROL: asOperator should see the later commit: %d then %d", a, b)
+	}
+}

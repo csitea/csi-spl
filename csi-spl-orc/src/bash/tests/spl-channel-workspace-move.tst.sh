@@ -127,6 +127,9 @@ case "$*" in
   "logging buckets list "*)
     [ -n "${STUB_LOG_DENY:-}" ] && { echo "ERROR: (gcloud.logging.buckets.list) PERMISSION_DENIED: logging.buckets.list" >&2; exit 1; }
     if [ -n "${STUB_LOG_JSON:-}" ]; then echo "$STUB_LOG_JSON"; else cat "$STUB_DIR/log.json"; fi ;;
+  "logging read "*)
+    [ -n "${STUB_READ_DENY:-}" ] && { echo "ERROR: (gcloud.logging.read) PERMISSION_DENIED: logging.views.access" >&2; exit 1; }
+    if [ -n "${STUB_READ_EMPTY:-}" ]; then echo '[]'; else echo '[{"timestamp":"2026-11-07T00:00:00Z"}]'; fi ;;
   *) echo "ERROR: unexpected gcloud call" >&2; exit 9 ;;
 esac
 EOF
@@ -401,13 +404,34 @@ in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= GCP
 p7d() { jq -c '.retention_days' "$T/p7.detail" 2>/dev/null; }
 reset_state; rm -f "$RULES" "$T/p7.detail"
 in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}"; rc=$?
-want='{"daily DB dumps":37,"off-project copy of the dumps":150,"Qto daily export":44,"box-state copy":37,"Cloud SQL automated backups":7}'
+want='{"daily DB dumps":37,"off-project copy of the dumps":150,"Qto daily export":44,"box-state copy":37,"Cloud SQL automated backups":7,"hub logs":30}'
 [[ $rc -eq 0 && "$(p7d | jq -S .)" == "$(jq -S . <<<"$want")" ]] && [[ "$(grep -c '^hub step P7' "$T/calls.log")" -eq 1 ]] \
-  && pass "13. P7 sends retention_days in days for the five copies it can read" || fail "13. detail: rc=$rc '$(p7d)' $(cat "$T/out")"
+  && pass "13. P7 sends retention_days in days for all six copies" || fail "13. detail: rc=$rc '$(p7d)' $(cat "$T/out")"
 grep -qx 'RETENTION Cloud SQL automated backups: 7 days (7 backups kept, one a day at 01:00; point-in-time logs 6 days)' "$T/out" \
   && grep -qx 'RETENTION daily DB dumps: 37 days (045 backup_max_age_days + soft delete)' "$T/out" \
-  && grep -q '^RETENTION hub logs: not read: no cnf value names the log bucket' "$T/out" && [[ "$(p7d | jq 'has("hub logs")')" == false ]] \
-  && pass "13. each copy's days and how, hub logs not read and not sent" || fail "13. lines: $(grep RETENTION "$T/out")"
+  && grep -qx 'RETENTION hub logs: 30 days (log bucket _Default, read back a line of csi-spl-hub-prd)' "$T/out" \
+  && pass "13. each copy's days and how, the hub logs' from the cnf's bucket" || fail "13. lines: $(grep RETENTION "$T/out")"
+grep -q -- '^gcloud logging read resource.type="cloud_run_revision" AND resource.labels.service_name="csi-spl-hub-prd" --project=csi-spl-prd --account=pinned@example.com --bucket=_Default --location=global ' "$T/gcloud.log" \
+  && pass "13. the hub's line is read back from that bucket, as the pinned account" || fail "13. read: $(grep 'logging' "$T/gcloud.log")"
+# RED CONTROLS: a bucket that holds no line of the hub, a denied read, and a cnf
+# bucket the project does not have are each not sent, never a guessed date.
+hub_logs_refused() { # <what> <why> <stub env...>
+  local what="$1" why="$2"; shift 2
+  reset_state; rm -f "$RULES" "$T/p7.detail"
+  in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" "$@"; rc=$?
+  [[ $rc -eq 0 && "$(p7d | jq 'has("hub logs")')" == false ]] && grep -qF "RETENTION hub logs: not read: $why" "$T/out" \
+    && pass "13. hub logs, $what: not sent, said why" || fail "13. hub logs $what: rc=$rc '$(p7d)' $(grep RETENTION "$T/out")"
+}
+hub_logs_refused "no line of the hub in the bucket" "no line of csi-spl-hub-prd in log bucket _Default" STUB_READ_EMPTY=1
+hub_logs_refused "the read denied" "ERROR: (gcloud.logging.read) PERMISSION_DENIED" STUB_READ_DENY=1
+hub_logs_refused "the bucket list denied" "ERROR: (gcloud.logging.buckets.list) PERMISSION_DENIED" STUB_LOG_DENY=1
+hub_logs_refused "the bucket not in the project" "no retention for log bucket _Default" 'STUB_LOG_JSON=[{"name":"projects/p/locations/global/buckets/other","retentionDays":30}]'
+# 5.4: P7 prints the mentions it left, by class and by id, and they do not fail it
+reset_state; rm -f "$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" 'STUB_P7={"ok":true,"proofs":[{"name":"scan messages.body (known 2 of 2, kept: 5.4)","count":0}],"mentions":{"uuid_with_redirect":1,"name_or_channel_id":1,"rows":[{"kind":"post","msg_id":"m-1","class":"uuid with redirect"},{"kind":"qto item","doc_id":"d-1","item_id":"i-1","class":"name or channel id"}]}}'; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'MENTIONS uuid with redirect 1, name or channel id 1' "$T/out" && grep -qx 'MENTION post m-1: uuid with redirect' "$T/out" \
+  && grep -qx 'MENTION qto item d-1 i-1: name or channel id' "$T/out" && grep -qx 'proof scan messages.body (known 2 of 2, kept: 5.4) 0' "$T/out" \
+  && pass "13. P7 prints the mentions left in place and holds" || fail "13. mentions: rc=$rc $(grep -E 'MENTION|proof' "$T/out")"
 [[ "$(grep -c -- "^gcloud sql instances describe csi-spl-prd[-a-z]* --project=csi-spl-prd --account=pinned@example.com " "$T/gcloud.log")" -eq 1 ]] \
   && pass "13. Cloud SQL read once, as the pinned account" || fail "13. gcloud: $(cat "$T/gcloud.log")"
 reset_state; rm -f "$RULES"

@@ -52,8 +52,9 @@ type ProofSet struct {
 	Src     string           // the <SRC> tenant slug
 	Channel string           // the channel id
 	Name    string           // the channel name
+	MoveID  string           // the journal's move id: only its redirect rows cover a mention (5.4)
 	Binds   pgx.NamedArgs    // the Binds lists by name; a missing one is empty
-	Known   map[string]int64 // proof name -> rows kept: by the owner's word (5.6, 5.1a), or the fleet topic ids when <SRC> holds the fleet rows (5.2)
+	Known   map[string]int64 // proof name -> rows kept: by the owner's word (5.6, 5.1a), the fleet topic ids when <SRC> holds the fleet rows (5.2), or the mentions left in place (5.4)
 	Skip    []string         // tables the scan does not read (by design they hold the ids, e.g. the redirect table)
 }
 
@@ -108,7 +109,7 @@ func (s ProofSet) args() pgx.NamedArgs {
 	for k, v := range s.Binds {
 		a[k] = v
 	}
-	a["src"], a["channel"] = s.Src, s.Channel
+	a["src"], a["channel"], a["move_id"] = s.Src, s.Channel, s.MoveID
 	a["w_channel"], a["w_name"] = wordRx(s.Channel), wordRx(s.Name)
 	a["uuid_rx"], a["uuids"], a["uuid_texts"] = uuidRx, s.uuids(), s.uuids()
 	return a

@@ -231,8 +231,10 @@ func (s *Postgres) ChannelMoveLanes(ctx context.Context, src string, keys []stri
 
 // ChannelMoveProofRead implements ChannelMoveJournals. The scan reads every
 // column of every table: the runtime login's 30 s ceiling (SPL-984) is P4's too.
+// One snapshot: P7 compares the scan's counts with the mentions it read (5.4), so
+// a post landing between the two reads can neither hide a hit nor fail P7.
 func (s *Postgres) ChannelMoveProofRead(ctx context.Context, fn func(pgx.Tx) error) error {
-	return s.asOperator(ctx, func(tx pgx.Tx) error {
+	return s.asOperatorSnapshot(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `SET LOCAL statement_timeout = '`+channelMoveTimeout+`'`); err != nil {
 			return err
 		}

@@ -340,12 +340,15 @@ _spl_cwm_step() {
   do_log "OK $1 of move $CWM_MOVE done"
 }
 
-# _spl_cwm_report <step> <answer>: P4's and P7's .report lines, P7's .kept
+# _spl_cwm_report <step> <answer>: P4's and P7's .report lines, P7's mentions
+# left in place (5.4, by class and by id, never their text), P7's .kept
 # list with each copy's date (.expires, T8b: a date or "not read: <why>") and
 # .kept_until, the last of them (section 8.4, T8c); they only print, a proof is
 # what fails P7.
 _spl_cwm_report() {
   jq -r --arg s "$1" '(.report // [] | .[] | "REPORT \($s) \(.)"),
+    (.mentions // empty | "MENTIONS uuid with redirect \(.uuid_with_redirect), name or channel id \(.name_or_channel_id)"),
+    (.mentions.rows // [] | .[] | "MENTION \(.kind) \(.msg_id // "\(.doc_id) \(.item_id)"): \(.class)"),
     (.kept // [] | .[] | "KEPT \(.store) until \(.expires // .gone_by // "?")"),
     (.kept_until // empty | "KEPT_UNTIL \(.)")' <<<"$2"
 }
@@ -383,10 +386,42 @@ _spl_cwm_retention_days() (
   [[ "$log" == /dev/null ]] || rm -f "$log"
   _spl_cwm_retention_cnf_days
   _spl_cwm_retention_sql_days
-  # The cnf and the terraform name no log bucket for the hub's lines (T9b
-  # prints every bucket of the project): a guessed bucket is not a date.
-  printf '%s\t\t%s\n' "hub logs" "no cnf value names the log bucket that holds the hub's lines (plan prints every bucket)"
+  _spl_cwm_retention_log_days
 )
+
+# _spl_cwm_retention_log_days: the hub logs' days, from the bucket the cnf names
+# (hub.log_bucket). A guessed bucket is not a date, so every run also reads one
+# line of the hub's service back from that bucket; none, and the copy is not read.
+_spl_cwm_retention_log_days() {
+  local c="hub logs" bucket svc row location days
+  bucket="$(yq -r '.env.hub.log_bucket // ""' "$SPL_CNF" 2>/dev/null)"
+  svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF" 2>/dev/null)"
+  if [[ -z "$bucket" || -z "$svc" ]]; then
+    printf '%s\t\t%s\n' "$c" "the cnf has no hub.log_bucket or hub.service_name"
+    return 0
+  fi
+  if ! _spl_cwm_read gcloud logging buckets list --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --format=json; then
+    printf '%s\t\t%s\n' "$c" "${CWM_WHY:-gcloud failed}"
+    return 0
+  fi
+  row="$(jq -r --arg b "$bucket" '.[] | (.name | split("/")) as $n | select($n[-1] == $b) | "\($n[3]) \(.retentionDays // "")"' <<<"$CWM_READ" 2>/dev/null)"
+  read -r location days <<<"$row"
+  if [[ -z "${days:-}" ]]; then
+    printf '%s\t\t%s\n' "$c" "no retention for log bucket $bucket in the answer"
+    return 0
+  fi
+  if ! _spl_cwm_read gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$svc\"" \
+    --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --bucket="$bucket" --location="$location" --view=_AllLogs \
+    --limit=1 --freshness=1d --format=json; then
+    printf '%s\t\t%s\n' "$c" "${CWM_WHY:-gcloud failed}"
+    return 0
+  fi
+  if [[ "$(jq -r 'length' <<<"$CWM_READ" 2>/dev/null)" == 0 || -z "$CWM_READ" ]]; then
+    printf '%s\t\t%s\n' "$c" "no line of $svc in log bucket $bucket in the last day"
+    return 0
+  fi
+  _spl_cwm_days_capped <<<"$c"$'\t'"$days"$'\t'"log bucket $bucket, read back a line of $svc"
+}
 
 # _spl_cwm_retention_cnf_days: the four bucket copies, from the cnf the
 # terraform steps are rendered from. Per step: its lifecycle Delete age; plus

@@ -29,6 +29,7 @@
 #      closes it and tells the sender
 #   7. the launcher's HOLD (exit 10) puts it back at position 1
 #   8. do_spl_spawn_queue lists POS, PRIO, sender and summary
+#  SPL-4955: a row of an archived topic is declined, not placed (near the end)
 #  21. spec 150 row B10b: ASK_DISCUSSION at enqueue fills the row's discussion
 #      while NULL, never overwrites; a bad id is refused
 #  10. SPL-1817 (rdb 0195, owner t1 3209f8b8 msg 8cb6cc7d): an enqueue with
@@ -1568,6 +1569,39 @@ cron SPAWN_PLACE_CRON_ACTION=check >"$T/o" 2>&1 && grep -q 'OK the spawn placer 
   pass "cron: check says installed" || fail "cron check: $(cat "$T/o")"
 cron DRY_RUN=0 SPAWN_PLACE_CRON_ACTION=remove >/dev/null 2>&1
 ! grep -q 'spawn-place' "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" && pass "cron: remove takes only its line" || fail "cron remove: $(cat "$T/crontab")"
+
+# SPL-4955 (owner HUM-10, msg 51465f86; t1 2e46fcb6: archived 11-01, row 1bd6c305
+# placed 11-06 as c-702): a row whose topic is archived is not placed; the next
+# row is placed in the same tick. RED CONTROL: without spl_spawn_place_drop_archived
+# H1 launches and the first check fails.
+H1=71111111-0000-4000-8000-000000000001 H2=72222222-0000-4000-8000-000000000002 H3=73333333-0000-4000-8000-000000000003
+printf '#!/usr/bin/env bash\nif [ "$1" = aaaaaaaa ]; then echo "{\\"lanes\\":[],\\"topic_archived_at\\":\\"2026-11-01T08:59:43Z\\"}"; else echo "{\\"lanes\\":[]}"; fi\n' >"$T/bin/archived"; chmod +x "$T/bin/archived"
+printf 'Kind: simple_coding\nEpic: SPL-8\nSpec: csi-spl-doc/specs/135-work-process\nbrief\n' | tee "$T/briefs/arch-a.md" "$T/briefs/arch-b.md" "$T/briefs/arch-c.md" >/dev/null
+archq() {  # ASK_ID TOPIC SLUG
+  put "$1" c-002@box-desk "$2" "SPAWN REQUEST $3"
+  on pc do_spl_spawn_enqueue "${EH2[@]}" ASK_ID="$1" SPAWN_CLASS=feature SPAWN_PLACE="claude:$3" >>"$T/enq.log" 2>&1
+}
+jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+printf 'SPL-8\twip\n' >"$T/epics.tsv"
+archq "$H1" dispatch-aaaaaaaa arch-a
+archq "$H2" dispatch-bbbbbbbb arch-b
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
+out="$(on pc do_spl_spawn_place "${EH2[@]}" SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived" LAUNCH_ID=c-731 2>&1)"
+r="$(hubrow "$H1")"
+[[ "$(jq -r .state <<<"$r")" == declined && "$(jq -r .reason <<<"$r")" == "discussion archived: topic aaaaaaaa was archived at 2026-11-01T08:59:43Z"* ]] && ! grep -q arch-a "$T/launch.log" &&
+  pass "SPL-4955 a row of an archived topic is declined with the reason, not launched" || fail "SPL-4955 archived row: $(tail -3 "$T/enq.log") | $out | $r | $(cat "$T/launch.log")"
+grep -q "arch-b" "$T/launch.log" && [[ "$(jq -r .reason <<<"$(hubrow "$H2")")" == "placed: c-731@box-desk" ]] &&
+  pass "SPL-4955 CONTROL: the live row behind it is placed in the same tick" || fail "SPL-4955 live row: $out | $(hubrow "$H2") | $(cat "$T/launch.log")"
+grep -q "c-001 c-002 note .*not placed: discussion archived" "$T/send.log" && grep -q "c-001 c-001 note spawn-queue .*ask ${H1:0:8} not placed" "$T/send.log" &&
+  pass "SPL-4955 its sender and the holder are told" || fail "SPL-4955 told: $(sends)"
+grep -qx 'Ask-Topic: bbbbbbbb' "$T/briefs/arch-b.md" && pass "SPL-4955 a launch writes the row's topic as the brief's Ask-Topic line" || fail "SPL-4955 Ask-Topic: $(cat "$T/briefs/arch-b.md")"
+# a failed read places as before, one WARN
+printf '#!/usr/bin/env bash\necho "flag provided but not defined: -topic"; exit 2\n' >"$T/bin/archived-old"; chmod +x "$T/bin/archived-old"
+archq "$H3" dispatch-aaaaaaaa arch-c
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place "${EH2[@]}" SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-old" LAUNCH_ID=c-732 2>&1)"
+grep -q arch-c "$T/launch.log" && grep -q "the archive state of topic aaaaaaaa could not be read" <<<"$out" &&
+  pass "SPL-4955 a failed read places as before, one WARN" || fail "SPL-4955 failed read: $out | $(cat "$T/launch.log")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

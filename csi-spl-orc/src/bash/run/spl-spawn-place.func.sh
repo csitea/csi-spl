@@ -136,6 +136,14 @@
 # @description         the brief needs judgement) the holder gets ONE blocker
 # @description         "place ask X now" with the summary and the close command
 # @description         (do_spl_spawn_placed); 1 brings it back if it is not placed
+# @description      ARCHIVED DISCUSSION (SPL-4955, owner HUM-10 msg 51465f86): a row
+# @description         whose discussion or dispatch-<topic8> topic is archived
+# @description         on the hub is not placed: declined with the reason, its
+# @description         sender and the holder told, the next row taken in the same
+# @description         tick. do_spl_archived_followup lists it in the new
+# @description         discussion. A failed read places as before, one WARN.
+# @description         A launch writes `Ask-Topic: <topic>` into the brief, the
+# @description         lane's binding for do_spl_archived_seats_free
 # @description      CATEGORY (spec 143 4.4, SPL-2790): before a launch (4a) the
 # @description         brief's "Kind:" and "Category: <path>" are recorded on
 # @description         the request (fleet_asks work_kind, category_path) for
@@ -147,6 +155,7 @@
 # @param SPAWN_PLACE_HOLD_TRIES (optional) - rows one tick tries while the launcher answers HOLD (SPL-4265), default 5
 # @param SPAWN_PLACE_GAP_FLOOR_MIN (optional) - minutes between two placements at least, when the placed lane shows progress, default 3
 # @param TOKEN_BURN_STATE_DIR (optional) - the token burn collector's state dir, whose buckets.tsv shows a lane's progress on this box, default /var/csi/csi-spl/token-burn
+# @param SPAWN_PLACE_ARCHIVED_CMD (optional, tests) - gets a topic id, prints the hub's `lane --archived --topic` answer
 # @param SPAWN_PLACE_BURN_CMD (optional, tests) - prints the hub's fleet-tokens answer ({by_agent: [...]}) instead of GET /v1/operator/fleet-tokens
 # @param SPOOL_AGENT_CEILING (optional) - the agent window ceiling, default 40
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where <slug>.md (or c001-<slug>.md) is, default <spool root>/dispatch/briefs
@@ -556,6 +565,7 @@ spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
 # burns no gap slot (SPL-4265).
 spl_spawn_place_take() {  # HOLDER HEAD
   local holder="$1" id place brief vendor closed="" ps=() last prev rc=0
+  spl_spawn_place_drop_archived "$holder" "$2" && return 10
   id="$(jq -r '.ask_id' <<<"$2")"
   place="$(jq -r '.placement // ""' <<<"$2")"
   mapfile -t ps < <(spl_spawn_place_slug "${place#*:}")
@@ -578,6 +588,65 @@ spl_spawn_place_take() {  # HOLDER HEAD
   else
     spl_spawn_place_hand "$holder" "$2" "$(if [[ -n "$closed" ]]; then echo "$closed"; elif [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
+}
+
+# The topic a row works for, for the archive read: its discussion (a full or
+# an 8-hex id), else its topic when that is a full id or dispatch-<topic8>;
+# nothing for any other task name.
+spl_spawn_place_row_topic() {  # ROW
+  local t
+  t="$(jq -r '.discussion // ""' <<<"$1")"
+  [[ "$t" =~ ^[0-9a-f]{8}((-[0-9a-f]{4}){3}-[0-9a-f]{12})?$ ]] && { printf '%s' "$t"; return 0; }
+  t="$(jq -r '.topic // ""' <<<"$1")"
+  if [[ "$t" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]]; then printf '%s' "$t"
+  elif [[ "$t" =~ ^dispatch-([0-9a-f]{8})$ ]]; then printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
+# SPL-4955: 0 when ROW's discussion is archived, so it must not be placed. The
+# row is declined with the reason and its sender and the holder told; a decline
+# the hub refused still returns 0 and the next tick tries again. A row with no
+# topic, a live topic or a failed read returns 1 (t1 2e46fcb6: archived
+# 11-01 08:59Z, its queued row 1bd6c305 placed 11-06 23:42Z as c-702).
+spl_spawn_place_drop_archived() {  # HOLDER ROW
+  local topic out at id8 why row
+  topic="$(spl_spawn_place_row_topic "$2")"
+  [[ -n "$topic" ]] || return 1
+  if [[ -n "${SPAWN_PLACE_ARCHIVED_CMD:-}" ]]; then
+    out="$($SPAWN_PLACE_ARCHIVED_CMD "$topic" 2>&1)"
+  else
+    out="$(spl_lane_hub --fleet "$LANE_FLEET" --archived --topic "$topic" 2>&1)"
+  fi
+  id8="$(jq -r '.ask_id[0:8]' <<<"$2")"
+  if ! jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
+    do_log "WARN ask $id8: the archive state of topic $topic could not be read: placed as before. $(tail -1 <<<"$out" | cut -c1-160)" >&2
+    return 1
+  fi
+  at="$(jq -r '.topic_archived_at // ""' <<<"$out")"
+  [[ -n "$at" ]] || return 1
+  why="discussion archived: topic $topic was archived at $at, so this row is not placed (SPL-4955)"
+  if ! row="$(spl_spawn_q_op decline "$(jq -r '.ask_id' <<<"$2")" "$1" "$why")"; then
+    do_log "WARN ask $id8: not placed, its topic $topic is archived, but the decline failed: the next tick tries again" >&2
+    return 0
+  fi
+  spl_spawn_q_reply "$row" "$1" "not placed: $why" || do_log "WARN ask $id8 is declined but its sender was not told" >&2
+  spl_spawn_q_send "$1" "$1" note spawn-queue "**SPAWN QUEUE: ask $id8 not placed.** $why. Its summary: $(jq -r '.summary // ""' <<<"$2" | cut -c1-300)" ||
+    do_log "WARN ask $id8 is declined but the holder was not told" >&2
+  do_log "OK ask $id8 not placed: $why" >&2
+  return 0
+}
+
+# Writes the row's topic into BRIEF as its one `Ask-Topic:` line, the lane's
+# binding when its discussion is archived (do_spl_archived_seats_free): it
+# travels with the brief to another box and to lifetime/brief.md. A brief that
+# cannot be written is one WARN line: the lane falls back to its own lines.
+spl_spawn_place_ask_topic() {  # BRIEF TOPIC
+  [[ -n "$2" ]] || return 0
+  local body
+  if ! { [[ -w "$1" ]] && body="$(grep -v '^Ask-Topic:' "$1")" && printf '%s\n\nAsk-Topic: %s\n' "$body" "$2" >"$1"; } 2>/dev/null; then
+    do_log "WARN brief $1 takes no Ask-Topic line: its lane binds by its own lines only" >&2
+  fi
+  return 0
 }
 
 # The brief's work kind and category on the hub's request (spec 143 4.4,
@@ -1058,6 +1127,7 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   elif [[ "$ask_disc" =~ ^[0-9a-f]{8}((-[0-9a-f]{4}){3}-[0-9a-f]{12})?$ ]]; then
     local -x SPAWN_LANE_TOPIC="${BASH_REMATCH[0]}"
   fi
+  spl_spawn_place_ask_topic "$5" "${SPAWN_LANE_TOPIC:-}"
   # stdout is the launcher's "<ID>[@<box>] <PANE>"; its stderr names other ids
   if [[ -n "${SPAWN_PLACE_LAUNCH_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose

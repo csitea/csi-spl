@@ -9,6 +9,10 @@
 # @description                      + WUI probe (DNS, TLS, HTTP 200) -> ready
 # @description                      / failed, no terraform (dispatch c7b6e8db:
 # @description                      ws-c sat pending for a week)
+# @description   pending / failed, already mapped, its apply never finished
+# @description                      (SPL-5008, one read: no custom domain, or
+# @description                      host / ownership not active) -> an add: the
+# @description                      apply, with the cnf already declaring it
 # @description   pending / failed, not mapped -> add to env.dns.mapped_tenants
 # @description                      + steps.052 workspaces (its Docs bucket)
 # @description   removing         -> drop from both
@@ -68,8 +72,9 @@ do_spl_tenant_host_reconcile() {
       del+=("$t")
     elif [[ "$act" == off ]]; then off+=("$t")
     elif [[ "$bill" == unpaid ]]; then held+=("$t")
-    elif spl_th_cnf_has "$cnf" "$t" || spl_th_is_apex "$cnf" "$t"; then chk+=("$t")
-    else add+=("$t"); fi
+    elif spl_th_is_apex "$cnf" "$t"; then chk+=("$t")
+    elif ! spl_th_cnf_has "$cnf" "$t" || spl_th_apply_unfinished "$t"; then add+=("$t")
+    else chk+=("$t"); fi
   done <<<"$rows"
   local open=$(( ${#add[@]} + ${#chk[@]} + ${#del[@]} )) apply=$(( ${#add[@]} + ${#del[@]} ))
   [[ "${CHECK_ONLY:-0}" == 1 ]] && apply=0
@@ -97,12 +102,33 @@ do_spl_tenant_host_reconcile() {
   do_log "OK $ENV tenant hosts reconciled: check [${chk[*]}] add [${add[*]}] remove [${del[*]}]"
 }
 
+# spl_th_apply_unfinished <tenant> (SPL-5008) -> 0 when a mapped tenant's apply
+# never finished, read once from Firebase: the cnf is pushed BEFORE the apply,
+# so a refused or dead apply leaves a mapped host with no custom domain, or (a
+# run that died before 025) one whose host or ownership is not active. Such a
+# row waited out the cert timeout on every run and never healed. A live host
+# stays check-only (dispatch c7b6e8db), and an unreadable state is no proof of
+# anything: it gets the check, which reports it.
+spl_th_apply_unfinished() {
+  local state
+  state="$( (DOMAIN="$1.$SPL_FQDN" DOMAIN_READ_ONCE=1 do_spl_wait_for_firebase_domain) 2>/dev/null | sed -n 's/^DOMAIN_STATE //p' | tail -1)"
+  case "$state" in
+    "HOST_ACTIVE OWNERSHIP_ACTIVE "*) return 1 ;;
+    absent | HOST_*) ;;
+    *) do_log "WARN $(spl_th_mask "$1"): custom domain state unreadable, checked only"; return 1 ;;
+  esac
+  do_log "WARN $(spl_th_mask "$1") is mapped but its apply never finished (custom domain: $state): back to the apply"
+  return 0
+}
+
 # spl_th_reconcile_apply <cnf>: the caller's add / del through cnf, the trunk,
 # terraform and the finish; adds to the caller's fails.
 spl_th_reconcile_apply() {
   local cnf="$1" t
   spl_th_lock || return 1
-  for t in "${add[@]}"; do spl_th_tenant_set "$cnf" add "$t" || return 1; done
+  # a row back from spl_th_apply_unfinished is mapped already: no cnf edit, which
+  # would read a mapped public slug as a new hidden workspace
+  for t in "${add[@]}"; do spl_th_cnf_has "$cnf" "$t" || spl_th_tenant_set "$cnf" add "$t" || return 1; done
   for t in "${del[@]}"; do spl_th_tenant_set "$cnf" del "$t" || return 1; done
   spl_th_render || return 1
   spl_th_cnf_publish "cnf(024): $ENV tenant hosts${add[*]:+ +${add[*]}}${del[*]:+ -${del[*]}} (do_spl_tenant_host_reconcile)" || {

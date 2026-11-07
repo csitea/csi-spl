@@ -20,6 +20,9 @@
 # @param   n=3: 60+ min in that state while every edge already served the
 # @param   verified cert). The caller must then prove TLS itself
 # @param   (do_spl_probe_wui_host does). Default 0: CERT_ACTIVE only.
+# @param DOMAIN_READ_ONCE (optional) - 1: no wait: one GET, one line
+# @param   `DOMAIN_STATE absent` (404), `unknown` (no answer, or another error)
+# @param   or `DOMAIN_STATE <host> <ownership> <cert>`; exits 0
 # @example ENV=dev DOMAIN=acme.dev.example.test ./run -a do_spl_wait_for_firebase_domain
 #------------------------------------------------------------------------------
 do_spl_wait_for_firebase_domain() {
@@ -47,6 +50,10 @@ do_spl_wait_for_firebase_domain() {
     local account
     account="$(do_gcp_isolated_active_account)" || exit 1
     do_gcp_log_identity "$SPL_PROJECT" "$account" "do_spl_wait_for_firebase_domain"
+    if [[ "${DOMAIN_READ_ONCE:-0}" == 1 ]]; then
+      echo "DOMAIN_STATE $(spl_firebase_domain_read "$domain" "$SPL_PROJECT" "$site" "$account")"
+      exit 0
+    fi
     spl_firebase_domain_poll "$domain" "$SPL_PROJECT" "$site" "$account" \
       "${TIMEOUT_SECONDS:-3600}" "${POLL_SECONDS:-30}"
   )
@@ -59,17 +66,34 @@ spl_firebase_domain_state() {
   jq -r '"\(.hostState // "absent") \(.ownershipState // "absent") \(.cert.state // "absent")"' 2>/dev/null <<<"$1"
 }
 
+# spl_firebase_domain_get <domain> <project> <site> <account> -> the customDomain
+# json of one GET, {} when nothing answered
+spl_firebase_domain_get() {
+  local domain="$1" project="$2" site="$3" account="$4" tok js
+  local url="https://firebasehosting.googleapis.com/v1beta1/projects/$project/sites/$site/customDomains/$domain"
+  tok="$(gcloud auth print-access-token --account="$account" 2>/dev/null)"
+  # The bearer rides on stdin (-K -), never on curl's argv where ps shows it.
+  js="$(curl -sS --connect-timeout 10 --max-time 30 -K - -H "x-goog-user-project: $project" "$url" 2>/dev/null <<<"header = \"Authorization: Bearer $tok\"")"
+  printf '%s\n' "${js:-{\}}"
+}
+
+# spl_firebase_domain_read <domain> <project> <site> <account> -> absent (the
+# API says 404), unknown (no answer, or any other error) or the three states
+spl_firebase_domain_read() {
+  local js
+  js="$(spl_firebase_domain_get "$@")"
+  if jq -e '.error.code == 404' >/dev/null 2>&1 <<<"$js"; then echo absent; return 0; fi
+  if ! jq -e '.hostState' >/dev/null 2>&1 <<<"$js"; then echo unknown; return 0; fi
+  spl_firebase_domain_state "$js"
+}
+
 # spl_firebase_domain_poll <domain> <project> <site> <account> <timeout> <poll>
 spl_firebase_domain_poll() {
   local domain="$1" project="$2" site="$3" account="$4" timeout="$5" poll="$6"
-  local deadline=$(($(date +%s) + timeout)) attempt=0 js state tok asks
-  local url="https://firebasehosting.googleapis.com/v1beta1/projects/$project/sites/$site/customDomains/$domain"
+  local deadline=$(($(date +%s) + timeout)) attempt=0 js state asks
   while :; do
     attempt=$((attempt + 1))
-    tok="$(gcloud auth print-access-token --account="$account" 2>/dev/null)"
-    # The bearer rides on stdin (-K -), never on curl's argv where ps shows it.
-    js="$(curl -sS --connect-timeout 10 --max-time 30 -K - -H "x-goog-user-project: $project" "$url" 2>/dev/null <<<"header = \"Authorization: Bearer $tok\"")"
-    [[ -n "$js" ]] || js='{}'
+    js="$(spl_firebase_domain_get "$domain" "$project" "$site" "$account")"
     state="$(spl_firebase_domain_state "$js")"
     if [[ $attempt == 1 ]]; then
       jq -e '.error' >/dev/null 2>&1 <<<"$js" && do_log "WARN $domain: $(jq -c '.error | {code, status, message}' <<<"$js")"

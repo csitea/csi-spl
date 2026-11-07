@@ -109,6 +109,13 @@ Actions schedule"**, and gave a standing go for these applies.
 - **FR-007** Idempotent: a tenant that is already mapped re-runs as a no-op
   plan, a cert check and a probe.
 - **FR-008** Nothing ad hoc: every step is a named action with a test.
+- **FR-009** (SPL-5008) A row whose apply never finished is completed by a later
+  run. The cnf is pushed before the apply, so mapped does not prove applied: the
+  reconcile reads the custom domain once, and a mapped row with no custom domain,
+  or with host or ownership not active, goes back to the apply with no cnf edit
+  and no cert wait first. A live host stays check-only (dispatch c7b6e8db), and so
+  does an unreadable state. Workflow 40's prd job writes the dev key too: the
+  order gate (SPL-1947) plans dev from inside the prd apply, read-only.
 
 ## 3. Design
 
@@ -204,4 +211,4 @@ being up; (3) a human go per tenant, where latency is a human.
 - The M2 claim mail still says "Tenant URL" with no "being prepared" note
   (the mail lane can add one; the page covers the buyer meanwhile).
 
-<!-- version: 1.0.2 · updated: 2026-09-25 · last-edit: 2026-09-25T19:39:29Z -->
+<!-- version: 1.0.3 · updated: 2026-11-07 · last-edit: 2026-11-07T18:23:05Z -->

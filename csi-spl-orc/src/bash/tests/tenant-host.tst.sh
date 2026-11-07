@@ -19,6 +19,10 @@
 #      open -> no make call at all; DRY_RUN touches nothing
 #   5a. reconcile: a pending row already mapped is CHECKED only (no make,
 #      no cnf) -> ready (ws-c); CHECK_ONLY never applies an unmapped one
+#   5a2. SPL-5008: a mapped row whose apply never finished (Firebase: no custom
+#      domain, or host / ownership not active) goes back to the apply, at once,
+#      without a cert wait, and stays retryable after a refused apply; a live
+#      or unreadable domain stays check-only (CONTROLS), the real one-shot read
 #   5b. every WUI entry point (052 workspaces, the enabled demo) must be
 #      mapped: the reconcile fails naming the missing one (CONTROL: an
 #      unmapped demo is caught); LIVE_ENVS="dev prd" also checks the live cnf
@@ -133,7 +137,7 @@ in_orc() {
     spl_th_mark_one() { echo "MARK $1 $2" >>'"$T"'/mark.log; SPL_TH_PREV="${STUB_PREV:-pending}"; }
     [[ "${REAL_PUSH:-0}" == 1 ]] || spl_th_cnf_push() { echo "PUSH $1" >>'"$T"'/mark.log; [[ "${STUB_PUSH_RC:-0}" == 0 ]]; }
     stub_notify() { echo "NOTIFY $ENV $TENANT_ID $DESK_AGENT #$DESK_CHANNEL $DESK_BODY" >>'"$T"'/mark.log; echo "NOTIFY-ENV state=${SPL_STATE_DIR:-} cnf=${SPL_CNF:-} acct=${GCP_ACCOUNT:-}" >>'"$T"'/notify-env.log; }
-    do_spl_wait_for_firebase_domain() { echo "CERT $DOMAIN" >>'"$T"'/mark.log; }
+    do_spl_wait_for_firebase_domain() { [[ "${DOMAIN_READ_ONCE:-0}" == 1 ]] && { echo "INFO proxy noise"; echo "DOMAIN_STATE ${STUB_DOMAIN_STATE:-HOST_ACTIVE OWNERSHIP_ACTIVE CERT_ACTIVE}"; return 0; }; echo "CERT $DOMAIN" >>'"$T"'/mark.log; }
     do_spl_probe_wui_host() { echo "PROBE $HOST" >>'"$T"'/mark.log; }
     eval "$SNIPPET"'
 }
@@ -354,6 +358,70 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 CHECK_ONLY=1 STUB_
 [[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && grep -q '^apply=0$' <<<"$out" && grep -q 'MARK t1 ready' "$T/mark.log" &&
   ! grep -q 'newt' "$T/mark.log" && grep -q 'add \[newt\]' <<<"$out" &&
   pass "reconcile CHECK_ONLY: the unmapped newt is listed, never applied; t1 checked -> ready" || fail "CHECK_ONLY rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
+
+# --- 5a2. a mapped row whose apply never finished (SPL-5008) ---------------------
+P_ONE='Plan: 1 to add, 0 to change, 0 to destroy.'
+# the state wf 40 run 42379025089 waited an hour on: mapped, no custom domain
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_DOMAIN_STATE=absent STUB_ROWS=$'row t1 failed manual on' 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" && ! -s "$T/mark.log" ]] && grep -q '^open=1$' <<<"$out" && grep -q '^apply=1$' <<<"$out" && grep -q 'add \[t1\]' <<<"$out" &&
+  pass "SPL-5008 DRY_RUN: mapped, custom domain absent -> apply=1 (the job builds the tf stack), nothing touched" || fail "absent dry rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_DOMAIN_STATE=absent STUB_PLAN_052="$P_ONE" STUB_ROWS=$'row t1 failed manual on' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'do-provision 052' "$STUB_LOG" && cmp -s "$ORIG" "$CNF" &&
+  [[ "$(grep -v -e NOTIFY -e PUSH "$T/mark.log")" == $'CERT t1.dev.example.test\nPROBE t1.dev.example.test\nMARK t1 ready' ]] &&
+  pass "SPL-5008: the row goes through plan + provision with the cnf unchanged, then cert + probe -> ready" || fail "absent apply rc=$rc make=[$(cat "$STUB_LOG")] marks=[$(cat "$T/mark.log")] :: $out"
+# a mapped PUBLIC slug in CI: an edit through the "new tenant" path would refuse it as a new hidden workspace
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 TENANT_VISIBLE=0 GITHUB_ACTIONS=true STUB_DOMAIN_STATE=absent STUB_PLAN_052="$P_ONE" STUB_ROWS=$'row t1 failed manual on' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'do-provision 052' "$STUB_LOG" && cmp -s "$ORIG" "$CNF" && grep -q 'MARK t1 ready' "$T/mark.log" &&
+  pass "SPL-5008: a mapped public slug is not re-added: never read as a new hidden workspace" || fail "public slug rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+# died between 019 and 025: the domain exists, its records do not
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_DOMAIN_STATE='HOST_UNHOSTED OWNERSHIP_MISSING CERT_PENDING' STUB_ROWS=$'row t1 pending manual on' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q '^apply=1$' <<<"$out" && pass "SPL-5008: a run that died before 025 (host and ownership not active) goes back to the apply" || fail "partial rc=$rc :: $out"
+# refused, then retried: the failed row is still an apply, run after run
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_DOMAIN_STATE=absent STUB_PLAN_052='Error: refused' STUB_ROWS=$'row t1 pending manual on' 2>&1); rc=$?
+[[ $rc != 0 ]] && grep -q 'MARK t1 failed' "$T/mark.log" && ! grep -q do-provision "$STUB_LOG" && ! grep -q CERT "$T/mark.log" &&
+  pass "SPL-5008: a refused apply marks it failed, with no cert wait" || fail "refused rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_DOMAIN_STATE=absent STUB_PLAN_052="$P_ONE" STUB_ROWS=$'row t1 failed manual on' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'do-provision 052' "$STUB_LOG" && grep -q 'MARK t1 ready' "$T/mark.log" &&
+  pass "SPL-5008: the next run completes the failed row" || fail "retry rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+# CHECK_ONLY never applies and never waits on a domain that is not there
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 CHECK_ONLY=1 STUB_DOMAIN_STATE=absent STUB_ROWS=$'row t1 failed manual on' 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" && ! -s "$T/mark.log" ]] && grep -q '^apply=0$' <<<"$out" && grep -q 'add \[t1\] .*left for a full run' <<<"$out" &&
+  pass "SPL-5008 CHECK_ONLY: an absent domain is said at once, no cert wait, no apply" || fail "absent check-only rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+# CONTROLS: c7b6e8db's reason stands: a live or unreadable domain gets no terraform
+for st in 'HOST_ACTIVE OWNERSHIP_ACTIVE CERT_ACTIVE' 'HOST_ACTIVE OWNERSHIP_ACTIVE CERT_PENDING' unknown ''; do
+  reset
+  out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_DOMAIN_STATE="${st:-garbage line}" STUB_ROWS=$'row t1 pending manual on' 2>&1); rc=$?
+  [[ $rc == 0 ]] && grep -q '^apply=0$' <<<"$out" && pass "CONTROL c7b6e8db: mapped, domain '${st:-garbage}' -> check only, apply=0" || fail "control '$st' rc=$rc :: $out"
+done
+# the apex has no custom domain: its row is never read as absent
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_DOMAIN_STATE=absent STUB_ROWS=$'row apex0 pending manual on' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q '^apply=0$' <<<"$out" && pass "the apex tenant stays check-only" || fail "apex rc=$rc :: $out"
+
+# the real one-shot read: one GET (curl stubbed at the network), one DOMAIN_STATE line
+mkdir -p "$T/read-bin"; echo '{}' >"$T/sa.json"
+printf '#!/usr/bin/env bash\necho "$*" >>"$CURL_LOG"\nprintf "%%s" "$STUB_CURL"\n' >"$T/read-bin/curl"
+printf '#!/usr/bin/env bash\necho tok\n' >"$T/read-bin/gcloud"
+chmod +x "$T/read-bin/curl" "$T/read-bin/gcloud"
+read_once() {
+  : >"$T/curl.log"
+  SNIPPET='source "$WAIT_SRC"; spl_require_cloud_env() { :; }; do_gcp_isolated_active_account() { echo sa@example.test; }; do_gcp_log_identity() { :; }
+    DOMAIN=t1.dev.example.test DOMAIN_READ_ONCE=1 do_spl_wait_for_firebase_domain' \
+    in_orc PATH="$T/read-bin:$T/bin:$PATH" WAIT_SRC="$PROJ_ROOT/src/bash/run/spl-wait-for-firebase-domain.func.sh" CURL_LOG="$T/curl.log" SPL_PROJECT=csi-spl-dev SPL_SA_KEY="$T/sa.json" TIMEOUT_SECONDS=0 POLL_SECONDS=0 STUB_CURL="$1" 2>&1 | sed -n 's/^DOMAIN_STATE //p'
+}
+for c in '{"error":{"code":404,"status":"NOT_FOUND"}}|absent' '{"error":{"code":403,"status":"PERMISSION_DENIED"}}|unknown' '|unknown' \
+  '{"hostState":"HOST_UNHOSTED","ownershipState":"OWNERSHIP_MISSING"}|HOST_UNHOSTED OWNERSHIP_MISSING absent' \
+  '{"hostState":"HOST_ACTIVE","ownershipState":"OWNERSHIP_ACTIVE","cert":{"state":"CERT_ACTIVE"}}|HOST_ACTIVE OWNERSHIP_ACTIVE CERT_ACTIVE'; do
+  got="$(read_once "${c%|*}")"
+  [[ "$got" == "${c##*|}" && "$(wc -l <"$T/curl.log")" == 1 ]] && pass "the read of '${c%|*}' -> '${c##*|}', one GET" || fail "read '${c%|*}': got '$got', $(wc -l <"$T/curl.log") GETs"
+done
 
 # --- 5b. every WUI entry point is mapped ------------------------------------------
 # opt-in (I6, SPL-3463): a live cnf check turns a cnf edit into an orc

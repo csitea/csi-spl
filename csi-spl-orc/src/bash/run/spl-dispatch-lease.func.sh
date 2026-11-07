@@ -1016,6 +1016,7 @@ spl_lease_ensure() {
 # one hop, never a loop. Under SPOOL_TEST=1 only a test's SPL_DESK_AS_CMD hops.
 spl_lease_ensure_as_owner() {
   local u; local -a as=()
+  spl_lease_conf # the real caller passes only LEASE_CMD: LEASE_FLEET is in lease.conf
   [[ -z "${SPL_LEASE_OWNER_HOPPED:-}" && -n "${LEASE_FLEET:-}" ]] || return 1
   [[ "${SPOOL_TEST:-}" != 1 || -n "${SPL_DESK_AS_CMD:-}" ]] || return 1
   u="$(stat -c %U "$LEASE_DIR/fleet.run" 2>/dev/null)"

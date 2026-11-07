@@ -1944,6 +1944,9 @@ async function getFileStreamLines(ctx, id, q = {}) {
  *   'add', {boxId, key, glob}    POST   /v1/file-streams/globs {box_id, key, glob}
  *   'remove', id                 DELETE /v1/file-streams/globs/{id}
  *   'audit', {before?, limit?}   GET    /v1/view/file-streams/globs/audit
+ * Spec 160 3.10 (SPL-4979), a followed file out of the view, the same gate:
+ *   'file_remove', id            DELETE /v1/file-streams/{id}
+ *   'file_restore', id           POST   /v1/file-streams/{id}/restore
  * The mock answers from monitoring-file-streams.mjs with the hub's checks.
  */
 async function fileStreamGlobs(ctx, op, arg) {
@@ -1951,18 +1954,22 @@ async function fileStreamGlobs(ctx, op, arg) {
   const fs = await import('./monitoring-file-streams.mjs')
   const a = /** @type {any} */ (arg || {})
   const body = op === 'add' ? JSON.stringify(fs.fileStreamGlobBody(a.boxId, a.key, a.glob)) : ''
-  const id = op === 'remove' ? encodeURIComponent(String(arg || '')) : ''
+  const id = op === 'remove' || op === 'file_remove' || op === 'file_restore' ? encodeURIComponent(String(arg || '')) : ''
   if (mock) {
     mockFileStreamsStaff(op === 'audit' ? '/v1/view/file-streams/globs/audit' : '/v1/view/file-streams/globs')
     if (op === 'list') return fs.mockFileStreamGlobs()
     if (op === 'add') return fs.mockAddFileStreamGlob(body)
     if (op === 'remove') return fs.mockRemoveFileStreamGlob(decodeURIComponent(id))
+    if (op === 'file_remove') return fs.mockRemoveFileStream(decodeURIComponent(id))
+    if (op === 'file_restore') return fs.mockRestoreFileStream(decodeURIComponent(id))
     if (op === 'audit') return fs.mockFileStreamGlobAudit(a)
     throw new Error('fileStreamGlobs: unknown op ' + op)
   }
   if (op === 'list') return live('/v1/view/file-streams/globs')
   if (op === 'add') return live('/v1/file-streams/globs', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
   if (op === 'remove') return live('/v1/file-streams/globs/' + id, { method: 'DELETE' })
+  if (op === 'file_remove') return live('/v1/file-streams/' + id, { method: 'DELETE' })
+  if (op === 'file_restore') return live('/v1/file-streams/' + id + '/restore', { method: 'POST' })
   if (op === 'audit') return live('/v1/view/file-streams/globs/audit' + fs.fileStreamGlobAuditQuery(a))
   throw new Error('fileStreamGlobs: unknown op ' + op)
 }

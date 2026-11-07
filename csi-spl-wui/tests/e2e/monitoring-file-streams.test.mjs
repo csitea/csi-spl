@@ -16,6 +16,10 @@
 //       glob} only; a hub 400 shows its code's sentence; a glob row shows
 //       its state (pending until the box reports it) and "N of M matches
 //       followed"; Remove asks first, then calls DELETE.
+// Spec 160 3.10 (SPL-4979), a file out of the view, at 1440 and 390 px:
+//   C64 Remove asks first, Keep keeps the row, Remove moves it to "Removed
+//       files" and closes it when open, audited; a refused Put back shows its
+//       sentence, the row stays removed; Put back returns it; no sideways scroll.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-file-streams
@@ -209,6 +213,46 @@ try {
   const gone = !(await p.$(sel))
   const top = await p.$eval('[data-test=fs-audit-row]', (x) => ({ action: x.getAttribute('data-action'), text: x.textContent || '' })).catch(() => null)
   ok('C55 Remove asks first, Keep keeps it; Remove then deletes it, audited', asked && kept && gone && Boolean(top && top.action === 'remove' && top.text.includes('app-logs')), { asked, kept, gone, top })
+
+  // C64 a file out of the view, at both widths (a reload is a fresh mock)
+  const FILE = JSON.parse(readFileSync(new URL('../../i18n/locales/en.json', import.meta.url), 'utf8')).monitoring.file_streams.file
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await p.setViewport({ width, height })
+    await p.goto(server.base + '/monitoring/file-streams', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    const row = '[data-test=fs-row][data-stream=cron]'
+    const gone = '[data-test=fs-removed-row][data-stream=cron]'
+    await p.waitForSelector(row, { visible: true, timeout: 20000 }).catch(() => null)
+    await p.click(`${row} [data-test=fs-tail]`).catch(() => null)
+    await p.waitForSelector(`${row} [data-test=fs-view]`, { visible: true, timeout: 10000 }).catch(() => null)
+    await p.click(`${row} [data-test=fs-remove]`).catch(() => null)
+    await p.waitForSelector(`${row} [data-test=fs-remove-confirm]`, { visible: true, timeout: 10000 }).catch(() => null)
+    const askedFile = (await text(p, `${row} [data-test=fs-remove-confirm] span`)) === FILE.remove_ask.replace('{key}', 'cron')
+    const notYet = !(await p.$(gone))
+    await p.click(`${row} [data-test=fs-remove-no]`).catch(() => null)
+    await sleep(300)
+    const keptFile = Boolean(await p.$(row)) && !(await p.$(`${row} [data-test=fs-remove-confirm]`))
+    ok(`C64 ${width}px: Remove asks first, Keep keeps the row`, askedFile && notYet && keptFile)
+    await p.click(`${row} [data-test=fs-remove]`).catch(() => null)
+    await p.waitForSelector(`${row} [data-test=fs-remove-yes]`, { visible: true, timeout: 10000 }).catch(() => null)
+    await p.click(`${row} [data-test=fs-remove-yes]`).catch(() => null)
+    await p.waitForSelector(gone, { visible: true, timeout: 10000 }).catch(() => null)
+    await p.waitForFunction(() => !location.search.includes('stream='), { timeout: 10000 }).catch(() => null)
+    const auditTop = () => p.$eval('[data-test=fs-audit-row]', (x) => x.getAttribute('data-action')).catch(() => '')
+    const others = await p.$$eval('[data-test=fs-row]', (xs) => xs.map((x) => x.getAttribute('data-stream')).sort().join())
+    ok(`C64 ${width}px: Remove moves it to Removed files, closes it, other rows stay, audited`, Boolean(await p.$(gone)) && !(await p.$(row)) &&
+      !(await p.$('[data-test=fs-view]')) && !(await p.evaluate(() => location.search.includes('stream='))) && others === 'app,web' && (await auditTop()) === 'file_remove', { others })
+    await p.evaluate(() => { globalThis.SPOOL_MOCK_FS_LOCKED_BOXES = ['box-a'] })
+    await p.click(`${gone} [data-test=fs-put-back]`).catch(() => null)
+    await p.waitForSelector(`${gone} [data-test=fs-row-error]`, { visible: true, timeout: 10000 }).catch(() => null)
+    ok(`C64 ${width}px: a refused Put back shows its sentence, the row stays removed`, (await text(p, `${gone} [data-test=fs-row-error]`)) === FILE.err.box_locked && Boolean(await p.$(gone)) && !(await p.$(row)))
+    const sideways = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+    ok(`C64 ${width}px: no sideways scroll with the removed list`, sideways <= 0, { sideways })
+    await p.evaluate(() => { globalThis.SPOOL_MOCK_FS_LOCKED_BOXES = [] })
+    await p.click(`${gone} [data-test=fs-put-back]`).catch(() => null)
+    await p.waitForSelector(row, { visible: true, timeout: 10000 }).catch(() => null)
+    ok(`C64 ${width}px: Put back returns the row, audited`, Boolean(await p.$(row)) && !(await p.$(gone)) && (await auditTop()) === 'file_restore')
+  }
+  await p.setViewport({ width: 1280, height: 800 })
 
   // C18 a developer reaching the URL: one line, no view
   await p.evaluate((dev) => localStorage.setItem('spool.mock.me', JSON.stringify(dev)), DEV)

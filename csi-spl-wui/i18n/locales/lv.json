@@ -3534,7 +3534,7 @@
         "over_cap": "Neseko, mašīnas plūsmu limits ir pilns: {n}",
         "reason": "Iemesls: {reason}",
         "unavailable": "Failu šablonus neizdevās ielādēt.",
-        "audit_title": "Šablonu izmaiņas",
+        "audit_title": "Šablonu un failu izmaiņas",
         "audit_none": "Šablonu izmaiņu vēl nav.",
         "state": {
           "pending": "Saglabāts, vēl neseko: mašīna par to vēl nav ziņojusi",
@@ -3546,7 +3546,9 @@
         "audit": {
           "add": "Pievienots",
           "remove": "Noņemts",
-          "refused": "Noraidīts"
+          "refused": "Noraidīts",
+          "file_remove": "Fails noņemts",
+          "file_restore": "Fails atjaunots"
         },
         "err": {
           "bad_glob": "Nederīgs šablons: absolūts ceļš vai ceļš zem $HOME/, * un ? tikai faila nosaukumā, bez kvadrātiekavām, figūriekavām, ** vai daļām . un ..",
@@ -3558,6 +3560,16 @@
           "not_found": "Mašīnas vai šablona vairs nav. Pārlādējiet lapu.",
           "forbidden": "Failu šablonus var mainīt tikai darbvietas īpašnieks un administratori.",
           "other": "Izmaiņas neizdevās saglabāt. Mēģiniet vēlreiz."
+        }
+      },
+      "file": {
+        "remove_ask": "Noņemt {key} no šī skata? Mašīna pārtrauks tam sekot. Jau saglabātās rindas paliks, līdz beigsies to derīgums.",
+        "removed_title": "Noņemtie faili",
+        "put_back": "Atjaunot",
+        "err": {
+          "box_locked": "Šī mašīna ir bloķēta: failu atjaunot var tikai bloķēšanas īpašnieki.",
+          "not_found": "Šī faila vairs nav. Pārlādējiet lapu.",
+          "forbidden": "Failu sarakstu var mainīt tikai darbvietas īpašnieks un administratori."
         }
       }
     }

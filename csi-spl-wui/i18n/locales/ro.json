@@ -3534,7 +3534,7 @@
         "over_cap": "Neurmărite, limita de fluxuri a mașinii este plină: {n}",
         "reason": "Motiv: {reason}",
         "unavailable": "Șabloanele de fișiere nu au putut fi încărcate.",
-        "audit_title": "Modificări ale șabloanelor",
+        "audit_title": "Modificări ale șabloanelor și fișierelor",
         "audit_none": "Încă nu există modificări ale șabloanelor.",
         "state": {
           "pending": "Salvat, încă neurmărit: mașina nu l-a raportat",
@@ -3546,7 +3546,9 @@
         "audit": {
           "add": "Adăugat",
           "remove": "Eliminat",
-          "refused": "Refuzat"
+          "refused": "Refuzat",
+          "file_remove": "Fișier eliminat",
+          "file_restore": "Fișier readus"
         },
         "err": {
           "bad_glob": "Șablon nevalid: o cale absolută sau sub $HOME/, * și ? doar în numele fișierului, fără paranteze drepte sau acolade, ** ori părți . și ..",
@@ -3558,6 +3560,16 @@
           "not_found": "Mașina sau șablonul nu mai există. Reîncarcă pagina.",
           "forbidden": "Doar proprietarul și administratorii spațiului de lucru pot modifica șabloanele de fișiere.",
           "other": "Modificarea nu a putut fi salvată. Încearcă din nou."
+        }
+      },
+      "file": {
+        "remove_ask": "Elimini {key} din această vizualizare? Mașina nu îl mai urmărește. Liniile deja stocate rămân până expiră.",
+        "removed_title": "Fișiere eliminate",
+        "put_back": "Readu",
+        "err": {
+          "box_locked": "Această mașină este blocată: doar proprietarii blocării pot readuce un fișier.",
+          "not_found": "Acest fișier nu mai există. Reîncarcă pagina.",
+          "forbidden": "Doar proprietarul și administratorii spațiului de lucru pot modifica lista de fișiere."
         }
       }
     }

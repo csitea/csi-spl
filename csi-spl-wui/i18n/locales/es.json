@@ -3534,7 +3534,7 @@
         "over_cap": "Sin seguir, el límite de flujos del equipo está lleno: {n}",
         "reason": "Motivo: {reason}",
         "unavailable": "No se pudieron cargar los patrones de archivo.",
-        "audit_title": "Cambios de patrones",
+        "audit_title": "Cambios de patrones y archivos",
         "audit_none": "Aún no hay cambios de patrones.",
         "state": {
           "pending": "Guardado, aún sin seguir: el equipo no lo ha notificado",
@@ -3546,7 +3546,9 @@
         "audit": {
           "add": "Añadido",
           "remove": "Quitado",
-          "refused": "Rechazado"
+          "refused": "Rechazado",
+          "file_remove": "Archivo quitado",
+          "file_restore": "Archivo restaurado"
         },
         "err": {
           "bad_glob": "Patrón no válido: una ruta absoluta o bajo $HOME/, * y ? solo en el nombre del archivo, sin corchetes, llaves, ** ni partes . o ..",
@@ -3558,6 +3560,16 @@
           "not_found": "El equipo o el patrón ya no existe. Recarga la página.",
           "forbidden": "Solo el propietario y los administradores del espacio de trabajo pueden cambiar los patrones de archivo.",
           "other": "No se pudo guardar el cambio. Inténtalo de nuevo."
+        }
+      },
+      "file": {
+        "remove_ask": "¿Quitar {key} de esta vista? El equipo deja de seguirlo. Las líneas ya guardadas se conservan hasta que caduquen.",
+        "removed_title": "Archivos quitados",
+        "put_back": "Restaurar",
+        "err": {
+          "box_locked": "Este equipo está bloqueado: solo los dueños del bloqueo pueden restaurar un archivo.",
+          "not_found": "Este archivo ya no está. Recarga la página.",
+          "forbidden": "Solo el propietario y los administradores del espacio de trabajo pueden cambiar la lista de archivos."
         }
       }
     }

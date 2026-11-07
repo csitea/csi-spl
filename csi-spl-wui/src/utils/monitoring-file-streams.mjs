@@ -28,7 +28,21 @@ const KEY_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
  * @returns {{ id: string, boxId: string, streamKey: string, path: string, state: string, reason: string, lastSeq: number, lastLineAt: string, linesTotal: number, linesKept: number }[]}
  */
 export function fileStreamsOf(body) {
-  const rows = body && typeof body === 'object' && Array.isArray(/** @type {any} */ (body).streams) ? /** @type {any} */ (body).streams : []
+  return fileStreamRowsOf(body, 'streams')
+}
+
+/**
+ * The same answer's `removed` (spec 160 3.10, SPL-4979): the files taken out of
+ * the view, which a Put back returns; an older hub sends none.
+ * @param {unknown} body
+ */
+export function fileStreamsRemovedOf(body) {
+  return fileStreamRowsOf(body, 'removed')
+}
+
+/** One list of GET /v1/view/file-streams, parsed and sorted. */
+function fileStreamRowsOf(body, list) {
+  const rows = body && typeof body === 'object' && Array.isArray(/** @type {any} */ (body)[list]) ? /** @type {any} */ (body)[list] : []
   return rows
     .filter((r) => r && typeof r.id === 'string' && r.id && BOX_RE.test(String(r.box_id || '')) && KEY_RE.test(String(r.stream_key || '')))
     .map((r) => ({
@@ -54,18 +68,21 @@ export function fileStreamBoxes(streams) {
 /**
  * The list (C39): one group per box, in order, its streams by key. With the
  * glob list (3.8, row B12) a box that has only globs or announced folders
- * is a group too, and each group carries its globs and folders.
+ * is a group too, and each group carries its globs and folders. So is a box
+ * with only removed files (3.10), each group carrying them too.
  * @param {ReturnType<typeof fileStreamsOf>} streams
  * @param {ReturnType<typeof fileStreamGlobsOf>} [globs]
+ * @param {ReturnType<typeof fileStreamsOf>} [removed]
  */
-export function fileStreamGroupsOf(streams, globs = { globs: [], folders: [] }) {
+export function fileStreamGroupsOf(streams, globs = { globs: [], folders: [] }, removed = []) {
   const gl = globs || { globs: [], folders: [] }
-  const boxes = [...new Set([...fileStreamBoxes(streams), ...gl.globs.map((g) => g.boxId), ...gl.folders.map((f) => f.boxId)])].sort()
+  const boxes = [...new Set([...fileStreamBoxes(streams), ...fileStreamBoxes(removed), ...gl.globs.map((g) => g.boxId), ...gl.folders.map((f) => f.boxId)])].sort()
   return boxes.map((boxId) => ({
     boxId,
     streams: (streams || []).filter((s) => s.boxId === boxId),
     globs: gl.globs.filter((g) => g.boxId === boxId),
     folders: gl.folders.filter((f) => f.boxId === boxId),
+    removed: (removed || []).filter((s) => s.boxId === boxId),
   }))
 }
 
@@ -82,8 +99,8 @@ export function fileStreamGroupsOf(streams, globs = { globs: [], folders: [] }) 
 export const FS_GLOB_STATES = Object.freeze(['pending', 'following', 'partial', 'none', 'refused'])
 /** The hub's refusal codes of an add or a remove that have their own sentence (3.8.3, 3.8.8). */
 export const FS_GLOB_ERRORS = Object.freeze(['bad_glob', 'bad_key', 'outside_folders', 'glob_key_taken', 'too_many_globs', 'box_locked', 'not_found', 'forbidden'])
-/** The audit actions (3.8.9). */
-export const FS_GLOB_ACTIONS = Object.freeze(['add', 'remove', 'refused'])
+/** The audit actions (3.8.9, and a file's remove and put back, 3.10). */
+export const FS_GLOB_ACTIONS = Object.freeze(['add', 'remove', 'refused', 'file_remove', 'file_restore'])
 /** A glob's key (3.8.3): 24 at most, so a match key fits 3.2's 32. */
 const FS_GLOB_KEY_RE = /^[a-z0-9][a-z0-9-]{0,23}$/
 /** The audit rows the page shows (3.8.9: the newest 50). */
@@ -146,6 +163,15 @@ export function fileStreamGlobErrorKey(err) {
   const e = /** @type {any} */ (err || {})
   const code = typeof e.token === 'string' && FS_GLOB_ERRORS.includes(e.token) ? e.token : e.status === 403 ? 'forbidden' : e.status === 404 ? 'not_found' : 'other'
   return 'monitoring.file_streams.glob.err.' + code
+}
+
+/** The text key of a refused remove or put back of a file (3.10); the generic sentence is the globs'. */
+export function fileStreamRowErrorKey(err) {
+  const e = /** @type {any} */ (err || {})
+  if (e.token === 'box_locked') return 'monitoring.file_streams.file.err.box_locked'
+  if (e.status === 404) return 'monitoring.file_streams.file.err.not_found'
+  if (e.status === 403) return 'monitoring.file_streams.file.err.forbidden'
+  return 'monitoring.file_streams.glob.err.other'
 }
 
 /**
@@ -263,15 +289,20 @@ export const FS_MOCK_IDS = Object.freeze({ app: '0f5a2c1e-6b7d-4e8f-9a0b-1c2d3e4
 const FS_MOCK_BASE = 60
 let mockStart = 0
 
-/** The mock streams (GET /v1/view/file-streams). */
+/** The mock streams (GET /v1/view/file-streams): a removed one (3.10) moves to `removed`. */
 export function mockFileStreams(now = Date.now()) {
   const at = new Date(now).toISOString()
-  return {
+  const all = {
     streams: [
       { id: FS_MOCK_IDS.app, box_id: 'box-a', stream_key: 'app', path: '/var/log/app.log', state: 'following', reason: '', last_line_at: at, last_seq: mockLast(FS_MOCK_IDS.app, now), lines_total: mockLast(FS_MOCK_IDS.app, now), lines_dropped: 0, lines_kept: 0 },
       { id: FS_MOCK_IDS.cron, box_id: 'box-a', stream_key: 'cron', path: '/var/log/cron.log', state: 'following', reason: '', last_line_at: at, last_seq: mockLast(FS_MOCK_IDS.cron, now), lines_total: mockLast(FS_MOCK_IDS.cron, now), lines_dropped: 0, lines_kept: 0 },
       { id: FS_MOCK_IDS.web, box_id: 'box-b', stream_key: 'web', path: '/var/log/web.log', state: 'missing', reason: 'not_found', last_line_at: null, last_seq: 0, lines_total: 0, lines_dropped: 0, lines_kept: 0 },
     ],
+  }
+  const gone = mockGlobState(now).removedFiles
+  return {
+    streams: all.streams.filter((s) => !gone[s.id]),
+    removed: all.streams.filter((s) => gone[s.id]).map((s) => ({ ...s, state: 'gone', reason: '', removed_at: gone[s.id] })),
   }
 }
 
@@ -333,6 +364,7 @@ function mockGlobState(now) {
         state: 'pending', reason: '', matched: 0, followed: 0, over_cap: 0, reported_at: null, removed: false },
     ],
     audit: [],
+    removedFiles: /** @type {Record<string, string>} */ ({}),
   }
   for (const g of mockGlobs.globs) mockAudit(mockGlobs, { glob_id: g.id, box_id: g.box_id, action: 'add', key: g.key, glob: g.glob, reason: '' }, now - 60000)
   return mockGlobs
@@ -432,6 +464,40 @@ export function mockRemoveFileStreamGlob(id, now = Date.now()) {
   if (!g) throw mockErr(404, 'not_found', 'no such file glob')
   g.removed = true
   mockAudit(st, { glob_id: g.id, box_id: g.box_id, action: 'remove', key: g.key, glob: g.glob, reason: '' }, now)
+  return null
+}
+
+/** A mock stream by id: the rows mockFileStreams builds, removed or not. */
+function mockStreamRow(id, now) {
+  const b = mockFileStreams(now)
+  return [...b.streams, ...b.removed].find((s) => s.id === String(id))
+}
+
+/** The mock's DELETE /v1/file-streams/{id} (3.10): 404 for a row not listed, with no audit row. */
+export function mockRemoveFileStream(id, now = Date.now()) {
+  const st = mockGlobState(now)
+  const s = mockStreamRow(id, now)
+  if (!s || st.removedFiles[s.id]) throw mockErr(404, 'not_found', 'no such file stream')
+  st.removedFiles[s.id] = new Date(now).toISOString()
+  mockAudit(st, { box_id: s.box_id, action: 'file_remove', key: s.stream_key, glob: s.path, reason: '' }, now)
+  return null
+}
+
+/**
+ * The mock's POST /v1/file-streams/{id}/restore (3.10): 404 for a row not
+ * removed; on a box in globalThis.SPOOL_MOCK_FS_LOCKED_BOXES 403 box_locked,
+ * one refused audit row.
+ */
+export function mockRestoreFileStream(id, now = Date.now()) {
+  const st = mockGlobState(now)
+  const s = mockStreamRow(id, now)
+  if (!s || !st.removedFiles[s.id]) throw mockErr(404, 'not_found', 'no such file stream')
+  if ((/** @type {any} */ (globalThis).SPOOL_MOCK_FS_LOCKED_BOXES || []).includes(s.box_id)) {
+    mockAudit(st, { box_id: s.box_id, action: 'refused', key: s.stream_key, glob: s.path, reason: 'box_locked' }, now)
+    throw mockErr(403, 'box_locked', 'the box is locked: only its lock owners put a file back on it')
+  }
+  delete st.removedFiles[s.id]
+  mockAudit(st, { box_id: s.box_id, action: 'file_restore', key: s.stream_key, glob: s.path, reason: '' }, now)
   return null
 }
 

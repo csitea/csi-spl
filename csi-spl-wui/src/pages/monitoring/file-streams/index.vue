@@ -24,7 +24,11 @@
      box announced, and "Add a file glob" (key and glob; the hub's refusal
      shown as its code's sentence). Below the boxes, the newest 50 glob
      changes. Drawn for the workspace's owner or an admin only (the routes'
-     gate), never on operator status. -->
+     gate), never on operator status.
+     A file out of the view (3.10, SPL-4979, owner msg 5bb5d078): each row has
+     a Remove that asks first; the hub keeps the removal and the box stops
+     following it. Under the box "Removed files" lists them, each with a Put
+     back. -->
 <template>
   <div class="monitoring-file-streams" data-test="fs-page">
     <p v-if="state === 'loading'" class="muted" data-test="fs-loading">{{ t('monitoring.file_streams.loading') }}</p>
@@ -53,7 +57,14 @@
               </span>
               <span class="fs-meta muted" data-test="fs-total">{{ t('monitoring.file_streams.lines_total', { n: s.linesTotal }, s.linesTotal) }}</span>
               <button type="button" class="btn fs-tail" :aria-pressed="s.id === pick.id ? 'true' : 'false'" :title="t('monitoring.file_streams.tail_title', { file: s.streamKey })" data-test="fs-tail" @click="onTail(s)">{{ t('monitoring.file_streams.tail') }}</button>
+              <button v-if="asking !== s.id" type="button" class="btn" data-test="fs-remove" @click="askRemove(s.id)">{{ t('monitoring.file_streams.glob.remove') }}</button>
             </div>
+            <div v-if="asking === s.id" class="fs-ask" role="alertdialog" :aria-label="t('monitoring.file_streams.file.remove_ask', { key: s.streamKey })" data-test="fs-remove-confirm">
+              <span>{{ t('monitoring.file_streams.file.remove_ask', { key: s.streamKey }) }}</span>
+              <button type="button" class="btn" :disabled="busy" data-test="fs-remove-yes" @click="removeFile(s)">{{ t('monitoring.file_streams.glob.remove') }}</button>
+              <button type="button" class="btn" data-test="fs-remove-no" @click="asking = ''">{{ t('monitoring.file_streams.glob.keep') }}</button>
+            </div>
+            <p v-if="rowErr.id === s.id" class="fs-error" :data-code="rowErr.code" data-test="fs-row-error">{{ t(rowErr.key) }}</p>
 
             <div v-if="s.id === pick.id" class="fs-open">
               <div class="fs-bar">
@@ -82,6 +93,22 @@
             </div>
           </li>
         </ul>
+
+        <div v-if="g.removed.length" class="fs-globs" data-test="fs-removed">
+          <h4 class="fs-globs-title">{{ t('monitoring.file_streams.file.removed_title') }}</h4>
+          <ul class="fs-rows">
+            <li v-for="s in g.removed" :key="s.id" class="fs-row" :data-stream="s.streamKey" data-test="fs-removed-row">
+              <div class="fs-row-head">
+                <div class="fs-name">
+                  <span class="fs-key">{{ s.streamKey }}</span>
+                  <span class="fs-path muted">{{ s.path }}</span>
+                </div>
+                <button type="button" class="btn" :disabled="busy" data-test="fs-put-back" @click="putBack(s)">{{ t('monitoring.file_streams.file.put_back') }}</button>
+              </div>
+              <p v-if="rowErr.id === s.id" class="fs-error" :data-code="rowErr.code" data-test="fs-row-error">{{ t(rowErr.key) }}</p>
+            </li>
+          </ul>
+        </div>
 
         <div v-if="canGlob" class="fs-globs" data-test="fs-globs">
           <h4 class="fs-globs-title">{{ t('monitoring.file_streams.glob.title') }}</h4>
@@ -160,14 +187,14 @@ import { gateMe, staffReadable } from '~/utils/read-gates.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
   FS_FIRST, FS_GLOB_AUDIT_PAGE, FS_PAGE, atBottom, fileStreamGlobAuditOf, fileStreamGlobCounted, fileStreamGlobErrorKey, fileStreamGlobStateKey,
-  fileStreamGlobsOf, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery, fileStreamsOf,
+  fileStreamGlobsOf, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery, fileStreamRowErrorKey, fileStreamsOf, fileStreamsRemovedOf,
   filterFileStreamLines, lastSeqOf, mergeFileStreamLines, startFileStreamPoll,
 } from '~/utils/monitoring-file-streams.mjs'
 
 type FsApi = {
   getFileStreams: () => Promise<unknown>
   getFileStreamLines: (id: string, q?: { after?: number, before?: number, limit?: number }) => Promise<unknown>
-  fileStreamGlobs: (op: 'list' | 'add' | 'remove' | 'audit', arg?: unknown) => Promise<unknown>
+  fileStreamGlobs: (op: 'list' | 'add' | 'remove' | 'audit' | 'file_remove' | 'file_restore', arg?: unknown) => Promise<unknown>
 }
 type Stream = ReturnType<typeof fileStreamsOf>[number]
 type Line = ReturnType<typeof fileStreamLinesOf>[number]
@@ -182,6 +209,7 @@ const api = () => useSpoolApi() as unknown as FsApi
 
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const streams = ref<Stream[]>([])
+const removed = ref<Stream[]>([])
 const pick = ref({ box: '', stream: '', id: '', seq: 0 })
 const lines = ref<Line[]>([])
 const follow = ref(true)
@@ -204,7 +232,7 @@ const formErr = ref({ key: '', code: '' })
 const rowErr = ref({ id: '', key: '', code: '' })
 /* the glob form: only once the globs route answered this owner or admin (3.8.3's gate), never on operator status (C55) */
 const canGlob = computed(() => state.value === 'ok' && globsState.value === 'ok')
-const groups = computed(() => fileStreamGroupsOf(streams.value, globs.value))
+const groups = computed(() => fileStreamGroupsOf(streams.value, globs.value, removed.value))
 const shown = computed(() => filterFileStreamLines(lines.value, find.value))
 
 /* a stale answer (the pick changed meanwhile) is dropped */
@@ -222,13 +250,20 @@ async function loadStreams() {
       state.value = 'forbidden'
       return
     }
-    streams.value = fileStreamsOf(await api().getFileStreams())
+    await readStreams()
     await loadGlobs()
     state.value = 'ok'
     await openPick(fileStreamOpenOf(route.query, streams.value))
   } catch (e) {
     failed(e)
   }
+}
+
+/** Both lists of the one read route: the files in the view, and those removed from it. */
+async function readStreams() {
+  const body = await api().getFileStreams()
+  streams.value = fileStreamsOf(body)
+  removed.value = fileStreamsRemovedOf(body)
 }
 
 /** The globs, the boxes' folders and the newest audit rows; a failure hides the form and says so, the streams stay. */
@@ -289,6 +324,35 @@ async function removeGlob(id: string) {
     busy.value = false
   }
   await loadGlobs()
+}
+
+/** A file's remove or put back, then both lists and the audit again; a refusal shows its sentence on the row. */
+async function changeFile(op: 'file_remove' | 'file_restore', s: Stream) {
+  if (busy.value) return
+  busy.value = true
+  rowErr.value = { id: '', key: '', code: '' }
+  try {
+    await api().fileStreamGlobs(op, s.id)
+    asking.value = ''
+  } catch (e) {
+    rowErr.value = { id: s.id, key: fileStreamRowErrorKey(e), code: codeOf(e) }
+  } finally {
+    busy.value = false
+  }
+  try {
+    await readStreams()
+  } catch { /* the rows stay as they were, the next visit reads them */ }
+  await loadGlobs()
+}
+
+/** Remove a file after the reader said yes; the open file closes when it is this one. */
+async function removeFile(s: Stream) {
+  await changeFile('file_remove', s)
+  if (s.id === pick.value.id && !streams.value.some((x) => x.id === s.id)) void router.push({ query: {} })
+}
+
+async function putBack(s: Stream) {
+  await changeFile('file_restore', s)
 }
 
 /** Open a file: the newest lines, or (a search hit) the lines up to and after seq with Follow off. */

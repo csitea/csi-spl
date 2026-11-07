@@ -55,6 +55,7 @@
 do_spl_spawn_fill() {
   local dry="${DRY_RUN:-1}" on holder rows pick n share phase classes issues chosen
   spl_spawn_fill_check || return 1
+  spl_spawn_fill_moved && return "$SPAWN_FILL_HOP_RC"
   spl_spawn_fill_epic_stall
   on="$(spl_spawn_fill_switch)"
   if [[ "$dry" == 0 && "$on" != on ]]; then
@@ -94,6 +95,21 @@ spl_spawn_fill_check() {
   [[ "${SPAWN_FILL_STATUS:-todo,eval}" =~ ^(todo|eval)(,(todo|eval))?$ ]] ||
     { do_log "FATAL SPAWN_FILL_STATUS must be todo, eval or both (comma list), got '${SPAWN_FILL_STATUS:-}'"; return 1; }
   [[ "${SPAWN_FILL_KIND:-complex_coding}" =~ ^[a-z_]{2,32}$ ]] || { do_log "FATAL SPAWN_FILL_KIND must be a do_spl_lane_mix kind"; return 1; }
+}
+
+# spl_spawn_fill_moved: 0 when the lease's desk moved and the whole action just
+# re-ran as its owner, whose rc is in SPAWN_FILL_HOP_RC; 1 when it runs here. The
+# cron row stays in the box user's crontab (no manifest row, so step 4 of spec
+# 069 8.4 does not move it), and the stall check and the issue read need the desk.
+spl_spawn_fill_moved() {
+  local ENV="${ENV:-}" TENANT_ID="${TENANT_ID:-}" box hop_to v
+  local -a vars=()
+  spl_lane_issue_where "${SPOOL_ROOT:-/var/spool-hub}" >/dev/null 2>&1 || return 1
+  box="${DESK_BOX:-$(spl_desk_box_default)}"
+  hop_to="$(spl_desk_action_hop_to "$TENANT_ID" "$box")" || return 1
+  while read -r v; do vars+=("$v"); done < <(compgen -v SPAWN_; compgen -v ASKS_)
+  SPAWN_FILL_HOP_RC=0
+  spl_desk_action_hop do_spl_spawn_fill "$hop_to" "$TENANT_ID" "$box" "${DESK_AGENT:-}" "${vars[@]}" || SPAWN_FILL_HOP_RC=$?
 }
 
 spl_spawn_fill_max() { printf '%s' "${SPAWN_FILL_MAX:-1}"; }

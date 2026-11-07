@@ -397,5 +397,34 @@ eq "9. lane issue: the caller's own pinned desk: no hop" "0" "$(hop6)"
 li9 AGENT_ID=bad >/dev/null
 eq "9. lane issue: a bad AGENT_ID is refused here, no hop" "0" "$(hop6)"
 
+# 10. do_spl_spawn_fill re-runs as the owner of the moved lease desk (SPL-4985).
+# Its cron row has its own install action and no manifest row, so step 4 of 8.4
+# leaves it in the box user's crontab, where every tick's stall check and issue
+# read hit the moved desk. RED before the hop: no hop.
+# fill10 [VAR=value]...: the action as its cron row calls it
+fill10() {
+  : >"$T/as.log"
+  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; spl_desk_box_default() { echo box-x; }; spl_spawn_fill_switch() { echo off; }; spl_spawn_fill_epic_stall() { :; }; do_spl_spawn_fill; echo "rc=$?"' \
+    in_orc SPOOL_ROOT="$LI9" DRY_RUN=0 SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" "$@" 2>&1
+}
+out="$(fill10 SPAWN_FILL_MAX=3)"; log="$(cat "$T/as.log")"
+eq "10. fill: the lease's desk moved: one hop" "1" "$(hop6)"
+has "10. fill: the hop runs the fill" "$PROJ_ROOT/run -a do_spl_spawn_fill" "$log"
+has "10. fill: the hop carries its inputs" " SPAWN_FILL_MAX=3" "$log"
+has "10. fill: the workspace from lease.conf goes along" " TENANT_ID=hop-g" "$log"
+has "10. fill: a live tick stays live" " DRY_RUN=0" "$log"
+has "10. fill: the hopped run's rc" "rc=7" "$(fill10 AS_RC=7)"
+hasnt "10. fill: nothing ran in the caller" "the idle filler is off" "$out"
+out="$(fill10 SPL_DESK_HOPPED="$BU")"
+eq "10. fill: one hop, never a loop" "0" "$(hop6)"
+has "10. fill: the hopped run does the work" "the idle filler is off" "$out"
+out="$(fill10 TENANT_ID=hop-h)"
+eq "10. fill: the caller's own pinned desk: no hop" "0" "$(hop6)"
+has "10. fill: the caller's own desk: the work runs here" "the idle filler is off" "$out"
+out="$(fill10 SPOOL_ROOT="$T/no-such-root" ENV= TENANT_ID=)"
+eq "10. fill: no lease.conf: no hop" "0" "$(hop6)"
+has "10. fill: no lease.conf: the tick goes on as before" "the idle filler is off" "$out"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

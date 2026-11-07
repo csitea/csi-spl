@@ -21,12 +21,53 @@ automated msgs should go to the alerts channel and not t othe ops channel".
 | `do_spl_fleet_notice`: orchestrator failover, ROTATION FAILED, recovered, a hung watchdog | `env.fleet_notices.channel` | `alerts` |
 | `do_spl_deploy_lag_alarm`, `do_spl_deploy_failure_post` / `_poll` (`spl-ops-alarm-cron.sh`) | `env.ops_alarms.channel` | `alerts` |
 | NO-LOCAL-AGENT, box benched / back, weekly limit (`spl_fleet_alert_post`) | none, already `alerts` | `alerts` |
+| `do_spl_fleet_stopped_alarm` (`fleet-stopped-alarm-cron.sh`), section below | `env.ops_alarms.channel` | `alerts` |
 | weekly full scan, a missed week's blocker (`weekly-full-scan-cron.sh`) | `env.ops_alarms.channel` | `alerts` |
 | weekly full scan summary (`weekly-full-scan-cron.sh`) | `--channel` | `spool-hub-ops`, kept: a weekly report, not an alarm |
 
 Both keys live in `csi-spl-cnf/csi-spl/all.env.yaml`. #alerts keeps a post 7
 days (`SPOOL_HUB_RETENTION_ALERTS`), other channels 30. Test:
 `csi-spl-orc/src/bash/tests/ops-alarm-channel.tst.sh`.
+
+## An alarm when the fleet has stopped with work waiting (SPL-4964)
+
+[What broke on 2026-11-06](what-broke-20261106/consensus.md), section 7 item 1:
+the placer held every new lane from 09:05Z and nothing said the whole fleet had
+stopped. `do_spl_fleet_stopped_alarm` (box-crons row `fleet-stopped-alarm`, every
+5 min) posts ONE blocker in #alerts, naming the hold, when all three are true:
+
+- the spawn queue is above 0;
+- every box with a fresh sample (15 min) is under
+  `env.ops_alarms.fleet_stopped.load_max_pct` of its cores, by load5 / cpus. No
+  fresh sample on any box is no verdict, never "all idle";
+- nothing landed for `env.ops_alarms.fleet_stopped.quiet_min`. Landed is the
+  later of the head's committer time and when this box first saw that head.
+
+**One post per episode.** An episode ends only when master moves or the queue
+empties, never when the load moves. Only the orch holder's machine posts; a new
+holder reads #alerts first, so a move of the role does not post again.
+
+**Why 40% and not the consensus's 25%** (dispatch holder c-003, msg 11e3b858).
+The consensus asks for 25% and for a fire by about 11:30Z; on the real samples
+those cannot both hold. Replaying `box_stats` from 2026-11-03T03:50Z (n=2106
+samples, 16 cores on both boxes, committer dates as the landing, the queue
+assumed above 0):
+
+| each box under, load5 | first fire on 11-06 | other fires |
+|---|---|---|
+| 25% | never, 0 of 108 ticks 09:30-18:30Z | 11-03 05:40, 07:40 |
+| 30% | 12:25Z | 11-03 05:40, 07:30 |
+| 40% | 11:35Z | 11-03 05:30, 07:10 |
+| 50% | 10:50Z | 11-03 04:45, 05:20, 07:05 |
+| 75% | 10:40Z | those of 50%, moved, and 11-04 23:40 |
+
+The other fires at 40% fall inside the claude hold dated 11-02 22Z to 11-03 08Z.
+Limit: 4 days is thin evidence against false alarms; a longer read
+(`SINCE=7d`, 14d) failed with `hub unreachable: socket closed`, cause not read.
+
+An alarm also files its prio 1 issue and one read-only lane, like any #alerts
+post (next section). Test, with the replay of 11-06 and its red control:
+`csi-spl-orc/src/bash/tests/fleet-stopped-alarm.tst.sh`.
 
 ## An alert files its issue and one lane (SPL-4828)
 

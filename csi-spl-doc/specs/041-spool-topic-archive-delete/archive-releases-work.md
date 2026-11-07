@@ -29,6 +29,8 @@ archived discussion is another lane's work and is not described here.
   (001-003), a brief whose heading says "standing ... seat", an id seated on desks of 2+
   workspaces, or on a desk box other than this box's own. One desk dir on this box's own desk
   is a plain lane, and is freed.
+  The desk walk reads every user's root of the box: a root the cron's user cannot enter (0700) is
+  read as its owner, and one it cannot read at all gets a WARN.
 - **What is left goes on in one new discussion.** `do_spl_archived_followup` runs in the same
   cron on every box, for topics archived after that box's first run (forward-only). Per topic
   it posts one new discussion in the archived topic's channel, under the dispatch lease holder's

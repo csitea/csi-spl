@@ -131,7 +131,7 @@ EOF
 chmod +x "$T/bin/"*
 
 run() {
-  SNIPPET="do_spl_archived_seats_free" in_orc SPOOL_ROOT="$SP" LANE_FLEET=main LANE_BOX=box-a \
+  SNIPPET="${SNIPPET:-do_spl_archived_seats_free}" in_orc SPOOL_ROOT="$SP" LANE_FLEET=main LANE_BOX=box-a \
     LANE_HUB_CMD="$T/bin/hub" LANE_PANES_CMD="$T/bin/panes" ARCHIVED_SEATS_CLOSE_CMD="$T/bin/close" \
     ARCHIVED_SEATS_DESKS_CMD="$T/bin/desks" ARCHIVED_SEATS_ISSUE_CMD="$T/bin/issue" ARCHIVED_SEATS_SEND="$T/bin/send" ARCHIVED_SEATS_FROM=c-001 \
     ARCHIVED_SEATS_STATE_DIR="$T/state" "$@" 2>&1
@@ -219,6 +219,30 @@ n_close="$(grep -c '^close ' "$LOG")"
 out="$(run DRY_RUN=0 LANE_HUB_CMD=false)"; rc=$?
 [[ $rc -eq 1 && "$(grep -c '^close ' "$LOG")" == "$n_close" && "$out" == *FATAL* ]] &&
   pass "5 a failed hub read frees nothing, rc 1" || fail "5 hub down (rc $rc): $out"
+
+# 6. a workspace seat whose desks are only under another user's 0700 root: the
+# real desk walk, no desks stub. RED CONTROL: without spl_archived_seat_desks_closed
+# 6a frees it.
+mkdir -p "$T/closed/desk/w1/box-a/spool/c-730" "$T/closed/desk/w2/box-a/spool/c-730"
+chmod 000 "$T/closed/desk"
+cat >"$T/bin/as" <<EOF
+#!/usr/bin/env bash
+shift; [[ "\$1" == "--" ]] && shift
+chmod 755 "$T/closed/desk"; "\$@"; rc=\$?; chmod 000 "$T/closed/desk"; exit \$rc
+EOF
+chmod +x "$T/bin/as"
+echo c-730 >>"$T/archived.ids" && echo c-730 >>"$T/windows"
+brief c-730 $'# Lane\n\nAsk-Topic: aaaaaaaa'
+real_walk() {
+  SNIPPET="spl_desk_roots() { printf '%s\t%s\n' \"\$(id -un)\" \"\$SPL_STATE_DIR\"; printf 'desk-u\t%s\n' '$T/closed'; }; do_spl_archived_seats_free" run ARCHIVED_SEATS_DESKS_CMD= "$@"
+}
+out="$(real_walk SPL_DESK_AS_CMD="$T/bin/as" DRY_RUN=0)"
+[[ "$(closed c-730)" == 0 && "$out" == *"c-730: it answers a whole workspace (w1/box-a w2/box-a)"* ]] &&
+  pass "6a a seat on 2 workspaces under another user's closed root is not freed" || fail "6a: $out"
+out="$(real_walk SPL_DESK_AS_CMD=false DRY_RUN=1)"
+[[ "$out" == *"WARN c-730: cannot read desk-u's desks"* && "$out" == *"WOULD free c-730"* ]] &&
+  pass "6b CONTROL: a root it cannot read warns, and the guard alone would not hold" || fail "6b: $out"
+chmod 755 "$T/closed/desk"
 
 echo "spl-archived-seats-free: $fails failure(s)"
 [[ $fails -eq 0 ]]

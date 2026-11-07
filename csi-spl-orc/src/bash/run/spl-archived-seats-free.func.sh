@@ -32,7 +32,7 @@
 # @description the blocker): a role seat (001-003), a seat that answers a whole
 # @description workspace (SPL-4955: its brief's heading says "standing ... seat",
 # @description or it is on desks of 2+ workspaces, or on a desk box other than
-# @description this box's own; a plain lane's one desk dir is not one), a lane whose brief binds it
+# @description this box's own, in every user's root of the box; a plain lane's one desk dir is not one), a lane whose brief binds it
 # @description to another topic or to none, and a lane not running on this box.
 # @description A re-run frees nothing
 # @description more: a freed lane's row is done and its window gone.
@@ -46,6 +46,7 @@
 # @param ARCHIVED_SEATS_CLOSE_CMD (optional, tests) - replaces tmux-close-window.sh: gets `--agent <id> --retire`
 # @param ARCHIVED_SEATS_ISSUE_CMD (optional, tests) - replaces `./run -a do_spl_lane_issue` for the issue end: AGENT_ID, LANE_ISSUE_OP=end, LANE_ISSUE_REASON in its env
 # @param ARCHIVED_SEATS_SEND (optional, tests) - the sender script, default spool-send.sh
+# @param SPL_DESK_AS_CMD (optional, tests) - replaces `sudo -n -u`, as in spl_desk_moved_to
 # @param ARCHIVED_SEATS_FROM (optional) - the blocker's sender, default the orch role seat (lease.conf LEASE_ORCH)
 # @param ARCHIVED_SEATS_STATE_DIR (optional) - where the last blocker's keys live, default $XDG_STATE_HOME/csi-spl/archived-seats-free
 # @example ./run -a do_spl_archived_seats_free
@@ -122,7 +123,33 @@ spl_archived_seat_desks() {
     # shellcheck disable=SC2086 # a command line, split on purpose
     $ARCHIVED_SEATS_DESKS_CMD "$1" 2>/dev/null; return 0
   fi
-  spl_desk_glob "*/*/spool/$1" "${LANE_ENV:-}" 2>/dev/null | sed -E 's#^.*/desk/([^/]+/[^/]+)/spool/.*$#\1#' | sort -u
+  { spl_desk_glob "*/*/spool/$1" "${LANE_ENV:-}" 2>/dev/null; spl_archived_seat_desks_closed "$1"; } |
+    sed -E 's#^.*/desk/([^/]+/[^/]+)/spool/.*$#\1#' | sort -u
+}
+
+# spl_archived_seat_desks_closed ID -> ID's mailboxes under the roots
+# spl_desk_glob skips: another user's, 0700 (measured 2026-11-07 on one box: 11
+# workspaces under the agent user's, 4 under the box user's, which runs this
+# cron). Read as that user, as in spl_desk_moved_to. A root left unread hides a
+# workspace seat from the check above, so it would be freed: one WARN.
+spl_archived_seat_desks_closed() {
+  local me l u r
+  local -a as=() roots=()
+  me="$(id -un)"
+  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  mapfile -t roots < <(spl_desk_roots "${LANE_ENV:-}")
+  for l in "${roots[@]}"; do
+    u="${l%%$'\t'*}" r="${l#*$'\t'}"
+    [[ "$u" != "$me" && -n "$r" ]] || continue
+    spl_desk_root_enterable "$r/desk" && continue
+    if "${as[@]}" "$u" -- true </dev/null 2>/dev/null; then
+      # shellcheck disable=SC2016 # expanded by the inner bash
+      "${as[@]}" "$u" -- bash -c 'ls -d "$1"/desk/*/*/spool/"$2" 2>/dev/null' _ "$r" "$1" </dev/null
+    else
+      do_log "WARN $1: cannot read $u's desks as $me (no sudo -n rule to $u): a seat there is not seen" >&2
+    fi
+  done
+  return 0
 }
 
 # spl_archived_seat_workspace_wide DESKS: 0 when the seat answers a workspace

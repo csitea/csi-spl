@@ -55,9 +55,11 @@
 #  26. SPL-3982: another session of the id starts after GATE in its own pane
 #      (a hand restore): retired by its own pid, its window closed; control:
 #      a process of the id in the NEW pane is left and counted
-#  27. SPL-4358: one tick reads each vendor's limit once (a slow fake read,
-#      8 claude lanes = 1 read, the tick under 8 x the read); the wd scan of
-#      300 verdict files runs no awk and one stat, and still finds the limit
+#  27. SPL-4358: one tick reads each vendor's limit once (counted, at the
+#      wrapper and at all 4 readers: 8 claude lanes = 1 read, 2 mistral = 1,
+#      grok and agy 0); it no longer bounds a tick's per-lane cost outside the
+#      limit read, e.g. spl_lane_rotate_accepted; the wd scan of 300 verdict
+#      files runs no awk and one stat, and still finds the limit
 #  28. SPL-4590: a SPAWN stopped on a vendor limit dialog with no S2 verdict on
 #      the box (the old session still writes clean ones): ONE spawn, ONE FAIL,
 #      then SKIP until the window ends or a seat started after the record runs
@@ -557,8 +559,10 @@ rm -f "$T/at-spawn.extra"
 # --- 27. SPL-4358: one tick reads each vendor's limit once, not once per lane ------------
 # sat 2026-10-30: one tick held tick.lock from <=05:56Z to ~06:58Z; the
 # claude limit read took 63..90 s a lane on a loaded box (n=1, a box at load 14),
-# so 3 starts an hour and lanes at 177 min. A slow fake read (2 s, counted):
-# 8 claude lanes past WARN = ONE read and a tick far under 8 x 2 s.
+# so 3 starts an hour and lanes at 177 min. The reads are counted, never timed:
+# a tick's wall clock measures the box (SPL-5011: 23..26 s of wall for 1.8 s of
+# CPU, the test pinned to one cpu beside 8 burners). 8 claude lanes past WARN =
+# ONE read, at the wrapper and at all 4 readers.
 cat >"$T/bin/act-slow" <<'SLOW'
 #!/usr/bin/env bash
 set -E
@@ -569,16 +573,22 @@ source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
 source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
 source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
 eval "$(declare -f spl_lane_rotate_limit | sed '1s/^spl_lane_rotate_limit/_lr_limit_real/')"
-spl_lane_rotate_limit() { echo "$2" >>"$T/limit.calls"; sleep 2; _lr_limit_real "$@"; }
+spl_lane_rotate_limit() { echo "$2" >>"$T/limit.calls"; _lr_limit_real "$@"; }
+# all 4 readers under it: a per-lane read through one that skips the wrapper is
+# counted too
+for f in spl_rotate_claude_out spl_rotate_grok_out spl_spawn_place_agy_out _spl_lane_mix_limit; do
+  eval "$(declare -f "$f" | sed "1s/^$f/_real$f/")"
+  eval "$f() { echo $f >>\"\$T/reader.calls\"; _real$f \"\$@\"; }"
+done
 do_spl_lane_rotate
 SLOW
 chmod +x "$T/bin/act-slow"
-reset; rm -f "$T/limit.calls"
+reset; rm -f "$T/limit.calls" "$T/reader.calls"
 for i in 1 2 3 4 5 6 7 8; do lane "c-27$i" 50; done
-lane m-279 50 mistral
-t0=$(date +%s); DRY_RUN=1 ROTATE_CLAUDE_BIN=/bin/true "$T/bin/act-slow" >>"$T/tick.out" 2>&1; t1=$(date +%s)
-check "27. 8 claude lanes + 1 mistral: the limit read once per kind (claude 1, mistral 1)" '[ "$(n "$T/limit.calls" "^claude$")" = 1 ] && [ "$(n "$T/limit.calls" "^mistral$")" = 1 ]'
-check "27. the slow read does not scale with the lanes: tick $((t1 - t0)) s < 16 s (8 x 2 s)" '(( t1 - t0 < 16 ))'
+lane m-279 50 mistral; lane m-280 50 mistral
+DRY_RUN=1 ROTATE_CLAUDE_BIN=/bin/true "$T/bin/act-slow" >>"$T/tick.out" 2>&1
+check "27. 8 claude lanes + 2 mistral: the limit read once per kind (claude 1, mistral 1)" '[ "$(n "$T/limit.calls" "^claude$")" = 1 ] && [ "$(n "$T/limit.calls" "^mistral$")" = 1 ]'
+check "27. each reader ran once for its kind, the wrapper or not (claude 1, mistral 1, grok 0, agy 0)" '[ "$(n "$T/reader.calls" "^spl_rotate_claude_out$")" = 1 ] && [ "$(n "$T/reader.calls" "^_spl_lane_mix_limit$")" = 1 ] && [ "$(n "$T/reader.calls" "^spl_rotate_grok_out$")" = 0 ] && [ "$(n "$T/reader.calls" "^spl_spawn_place_agy_out$")" = 0 ]'
 check "27. every lane still judged: 3 claude PLAN rotate + 5 DEFER cap" '[ "$(grep -cE "c-27[1-8] PLAN rotate" "$T/tick.out")" = 3 ] && [ "$(grep -cE "c-27[1-8] DEFER cap" "$T/tick.out")" = 5 ]'
 check "27. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 # the scan itself: 300 verdict files = no awk and one stat per call (it was an

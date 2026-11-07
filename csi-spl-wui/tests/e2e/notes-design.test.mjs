@@ -12,8 +12,9 @@
 //   title row, long title: the chooser wraps to the next row, still right-aligned
 //   list: 1440 px the chip is right after the title (8 px), not at the far
 //     edge; 390 px the chip is not drawn
-//   plus: New note is the round +; 390 px it is 16..24 px above the composer's
-//     go button on its right edge, and hidden while a note is open
+//   plus: New note is the round +; 390 px the dock is collapsed (SPL-4901), so
+//     it is 16 px from the bottom and right edges, clear of the search button,
+//     and hidden while a note is open
 //   editor (msgs de86531f, e6a8148b; poll 2fefe460 UP): the text box is 6
 //     rows; Bold / Underline / Numbered / Bullets write **, ++, "1. ", "- "
 //     into the plain text (no HTML); View draws them (strong, u, ol, ul) and
@@ -133,10 +134,10 @@ async function listChip(browser, base, width, touch) {
   await p.close()
 }
 
-/* owner t1 2f4311d9 (msgs b182efa5, 7c54e6f7): New note is the standard round
-   +; on a phone it sits over the composer's go button, about 5 mm
-   (16 px over the dock, ~21 px to the button) above it, on the same right edge, and it is gone
-   while a note is open */
+/* owner t1 2f4311d9 (msg b182efa5): New note is the standard round +; on a
+   phone SPL-4901 hides the dock on Notes, so msg 7c54e6f7's go button is not
+   there to sit over: the + is 16 px from the bottom and right edges, on the far side from the search
+   button, and it is gone while a note is open */
 async function plusButton(browser, base, width, touch) {
   const tag = `${width}px plus`
   const p = await openPage(browser, base, width, touch)
@@ -144,19 +145,24 @@ async function plusButton(browser, base, width, touch) {
     const r = (e) => e && e.getBoundingClientRect()
     const fab = document.querySelector('[data-test=notes-new]')
     const go = [...document.querySelectorAll('.composer-go')].find((e) => e.getClientRects().length > 0)
-    const f = r(fab), g = r(go)
+    const search = document.querySelector('[data-test=docs-search-open]')
+    const f = r(fab), s = r(search)
     return {
       round: !!fab && getComputedStyle(fab).borderRadius === '50%' && Math.round(f.width) === Math.round(f.height),
       icon: !!fab?.querySelector('svg') && !fab.textContent.trim(),
       label: fab?.getAttribute('aria-label') || '',
-      gap: go ? Math.round(g.top - f.bottom) : null,
-      rightDiff: go ? Math.round(Math.abs(g.right - f.right)) : null,
+      go: !!go,
+      bottom: Math.round(innerHeight - f.bottom),
+      right: Math.round(document.documentElement.clientWidth - f.right),
+      clearOfSearch: s ? Math.round(f.left - s.right) : null,
     }
   })
   check(`${tag}: New note is the round + with a label, no text`, shape.round && shape.icon && shape.label.length > 0, shape)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-list-plus-${width}.png` })
   if (touch) {
-    check(`${tag}: it sits 16..24 px above the go button`, shape.gap !== null && shape.gap >= 16 && shape.gap <= 24, shape)
-    check(`${tag}: on the go button's right edge`, shape.rightDiff !== null && shape.rightDiff <= 1, shape)
+    check(`${tag}: no go button on Notes, the dock is collapsed`, !shape.go, shape)
+    check(`${tag}: 16 px from the bottom and right edges`, shape.bottom === 16 && shape.right === 16, shape)
+    check(`${tag}: clear of the search button on the other side`, shape.clearOfSearch !== null && shape.clearOfSearch > 0, shape)
     await p.click('[data-note-id="mock-note-2"] [data-test=notes-open]')
     await waitDetail(p, 'mock-note-2')
     const hidden = await p.$eval('[data-test=notes-new]', (e) => e.getClientRects().length === 0)

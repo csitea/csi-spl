@@ -20,9 +20,9 @@
       </h2>
       <!-- owner t1 2f4311d9 (msg b182efa5): "Use the standard plus button" - the
            round + of Issues (issues-fab), Docs and Calendar; there is no shared
-           component, each page draws it. On a phone it floats 16 px
-           above the composer dock, right edge on the send button's (msg
-           7c54e6f7: "5 mm over the play / go button"), and hides under an open note -->
+           component, each page draws it. On a phone it floats 16 px over the dock
+           (--composer-dock-h, 0 on Notes: SPL-4901 hides the dock there, so no
+           go button for msg 7c54e6f7's 5 mm), and hides under an open note -->
       <button
         v-if="store.state !== 'off'"
         v-show="!(phone && openId)"
@@ -341,7 +341,7 @@ onUnmounted(() => {
 }
 @media (max-width: 820px) {
   .notes-bar .btn, .notes-bar__filter, .notes-row__open { min-height: var(--tap, 44px); }
-  /* the phone +: over the composer dock, the send button's right edge */
+  /* the phone +: over the dock, if any, on the bottom right */
   .notes-fab {
     position: fixed;
     /* px, as issues-fab: the send button sits 16 px from the edge at every

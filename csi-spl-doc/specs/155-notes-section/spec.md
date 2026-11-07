@@ -220,9 +220,10 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
 - **The list** (`/notes`): "New note" on top, then the filter box, the
   Pinned group, then the rest. "New note" is the standard round + of Issues,
   Docs and Calendar (owner t1 2f4311d9, msg b182efa5, SPL-4893), beside the
-  heading; on a phone it floats over the composer, on the go button's right
-  edge, 16 px above the dock (about 5 mm to the button, msg 7c54e6f7), and is
-  gone while a note is open. Each row is one line, cut with an ellipsis
+  heading; on a phone it floats 16 px from the bottom and right edges, across
+  from the search button (SPL-4901 hides the dock on Notes there, so msg
+  7c54e6f7's 5 mm over the go button has nothing to measure from), and
+  is gone while a note is open. Each row is one line, cut with an ellipsis
   at every width: the title (or the first line of the text when there is no
   title), nothing more (owner HUM-10, t1 2a0b4d9e, msg a4c630a8, SPL-4651: "only
   the titles should be visible in the listings"), but for the priority beside

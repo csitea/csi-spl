@@ -21,6 +21,13 @@
 // msg a9f94922): the stored links are a compact list with no heading and no
 // paste box (a link typed in the text is linked there, notes-design.test.mjs
 // editor()); a note with no links shows no links section.
+// SPL-5005: the no-links check reads only once mock-note-3 is up and ready, and
+// says so; a wait that timed out used to fall through to it. CONTROL: with the
+// click on mock-note-3 taken out, the absence check alone stays OK on an empty
+// page, and "the note with no links opens" FAILS. A click on a row while the
+// Esc's Back is still under way opens that note and keeps it (history.go held by
+// the test). CONTROL: with open() not waiting for that Back
+// (composables/useNoteOpen.ts), the checks of clickDuringBack() FAIL.
 // Esc before the open's ?note= push commits (the router held by the test) stays
 // closed, on the entry it was opened from. CONTROL: with close() not cancelling
 // the push (composables/useNoteOpen.ts), the checks of escDuringPush() FAIL.
@@ -196,9 +203,9 @@ async function links(browser, base, width, touch) {
   check(`${tag}: reopened, the note keeps the 2 links`, (await linkRows(p)).length === 2)
   if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
   else await p.keyboard.press('Escape')
-  await waitGone(p)
+  check(`${tag}: closed again, no note is up`, await waitGone(p))
   await clickRow(p, 'mock-note-3')
-  await waitDetail(p, 'mock-note-3')
+  check(`${tag} SPL-4893: the note with no links opens`, await waitDetail(p, 'mock-note-3'))
   /* which note is up and the url say whose links these are when it fails */
   const noLinks = await p.evaluate(() => ({ section: !!document.querySelector('[data-test=note-links]'), note: document.querySelector('[data-test=note-detail]')?.dataset.noteId || '', url: location.search }))
   check(`${tag} SPL-4893: a note with no links shows no links section`, !noLinks.section, noLinks)
@@ -228,6 +235,50 @@ async function escDuringPush(browser, base) {
   check(`${tag}: no history entry was left behind`, (await p.evaluate(() => history.length)) === entries)
   await clickRow(p, 'mock-note-3')
   check(`${tag}: the next note opens`, await waitDetail(p, 'mock-note-3'))
+  await p.close()
+}
+
+/* SPL-5005: Esc on a pushed note is a router.back(), and a row clicked before it
+   lands had its push cancelled by that Back: the clicked note closed itself */
+async function clickDuringBack(browser, base, id) {
+  const tag = `1440px SPL-5005 click ${id} during the Back`
+  const p = await openPage(browser, base, 1440, false)
+  await clickRow(p, 'mock-note-1')
+  await waitDetail(p, 'mock-note-1')
+  await p.waitForFunction(() => new URL(location.href).searchParams.get('note') === 'mock-note-1', { timeout: 15000 })
+  /* holds the Back itself, so no timing decides this */
+  await p.evaluate(() => { const go = history.go.bind(history); history.go = (n) => { setTimeout(() => go(n), 400) } })
+  await p.keyboard.press('Escape')
+  check(`${tag}: Esc closes it`, await waitGone(p))
+  await clickRow(p, id)
+  check(`${tag}: the clicked note opens`, await waitDetail(p, id))
+  await sleep(1000)
+  check(`${tag}: it is still up once the Back landed`, Boolean(await p.$(`[data-test=note-detail][data-note-id="${id}"][data-state=ready]`)))
+  check(`${tag}: the address holds its ?note=`, (await noteQuery(p)) === id, await noteQuery(p))
+  await p.evaluate(() => { delete history.go })
+  await p.goBack()
+  check(`${tag}: browser Back closes it`, await waitGone(p))
+  check(`${tag}: and drops ?note=`, (await noteQuery(p)) === '', await noteQuery(p))
+  await p.close()
+}
+
+/* SPL-5005: a second Esc while that Back is under way drops the queued note */
+async function escDuringBack(browser, base) {
+  const tag = '1440px SPL-5005 Esc again during the Back'
+  const p = await openPage(browser, base, 1440, false)
+  await clickRow(p, 'mock-note-1')
+  await waitDetail(p, 'mock-note-1')
+  await p.waitForFunction(() => new URL(location.href).searchParams.get('note') === 'mock-note-1', { timeout: 15000 })
+  await p.evaluate(() => { const go = history.go.bind(history); history.go = (n) => { setTimeout(() => go(n), 400) } })
+  await p.keyboard.press('Escape')
+  await waitGone(p)
+  await clickRow(p, 'mock-note-3')
+  await waitDetail(p, 'mock-note-3')
+  await p.keyboard.press('Escape')
+  check(`${tag}: Esc closes it`, await waitGone(p))
+  await sleep(1000)
+  check(`${tag}: nothing opens when the Back lands`, !(await p.$('[data-test=note-detail]')))
+  check(`${tag}: the url has no ?note=`, (await noteQuery(p)) === '', await noteQuery(p))
   await p.close()
 }
 
@@ -615,6 +666,9 @@ try {
   await links(browser, server.base, 1440, false)
   await links(browser, server.base, 390, true)
   await escDuringPush(browser, server.base)
+  await clickDuringBack(browser, server.base, 'mock-note-3')
+  await clickDuringBack(browser, server.base, 'mock-note-1')
+  await escDuringBack(browser, server.base)
   await omnibox(browser, server.base, 1440, false)
   await omnibox(browser, server.base, 390, true)
 } catch (e) {

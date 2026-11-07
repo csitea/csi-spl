@@ -2,6 +2,21 @@ import type { ComputedRef } from 'vue'
 import type { Router, RouteLocationNormalizedLoaded } from 'vue-router'
 import { useMobileStack } from '~/composables/useMobileStack'
 
+function urlQuery(note: string): Record<string, string> {
+  const query: Record<string, string> = {}
+  new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
+  if (note) query.note = note
+  else delete query.note
+  return query
+}
+
+function writeInPlace(note: string) {
+  const url = new URL(window.location.href)
+  if (note) url.searchParams.set('note', note)
+  else url.searchParams.delete('note')
+  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+}
+
 /**
  * Spec 155 2.6 (B6, SPL-4186): which note is open, and its ?note=<id> entry,
  * so a bookmark and a reload open it again (C20). The issues page's model
@@ -17,24 +32,15 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
   const stack = useMobileStack()
   const openId = ref('')
   let pushed = false
+  /* SPL-5005: a close's router.back() is still under way, and it would cancel a
+     push started now and close the note just opened; that open waits for it */
+  let backing = false
+  let queued = ''
 
   const queryNote = () => {
     const q = o.route.query.note
     const raw = Array.isArray(q) ? q[0] : q
     return typeof raw === 'string' ? raw.trim() : ''
-  }
-  function urlQuery(note: string): Record<string, string> {
-    const query: Record<string, string> = {}
-    new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
-    if (note) query.note = note
-    else delete query.note
-    return query
-  }
-  function writeInPlace(note: string) {
-    const url = new URL(window.location.href)
-    if (note) url.searchParams.set('note', note)
-    else url.searchParams.delete('note')
-    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
   }
 
   function open(id: string) {
@@ -46,7 +52,12 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
       void nextTick(() => { if (openId.value === id) writeInPlace(id) })
       return
     }
+    if (backing) { queued = id; return }
     if (wasOpen || queryNote() === id) { void o.router.replace({ query: urlQuery(id) }); return }
+    pushNote(id)
+  }
+
+  function pushNote(id: string) {
     pushed = true
     void o.router.push({ query: urlQuery(id) })
   }
@@ -55,7 +66,8 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
     if (!openId.value) return
     openId.value = ''
     if (o.phone.value) { writeInPlace(''); return }
-    if (pushed && queryNote()) { pushed = false; o.router.back(); return }
+    if (backing) { queued = ''; return }
+    if (pushed && queryNote()) { pushed = false; backing = true; o.router.back(); return }
     /* SPL-4893: pushed with no ?note= yet is a push still under way, and when
        it commits the watch below opens the note again: a newer navigation
        cancels it, even one to where the page already is */
@@ -71,7 +83,11 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
     first = false
     if (!id) pushed = false
     if (o.phone.value && !deepLink) return
-    openId.value = id
+    const next = queued
+    backing = false
+    queued = ''
+    openId.value = next || id
+    if (next) pushNote(next)
   }, { immediate: true })
   stack.rightPanel(() => o.phone.value && Boolean(openId.value), close)
 

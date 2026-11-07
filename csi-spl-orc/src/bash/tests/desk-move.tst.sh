@@ -427,6 +427,8 @@ out="$(mv_run MOVE_CMD=unswitch MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
 [[ "$(tree)" == "$before" ]] && pass "14. unswitch moved no desk" || fail "14. unswitch changed the tree"
 out="$(mv_run MOVE_CMD=switch MOVE_DESKS=prd/ws-a/box-a MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
 [[ $rc -ne 0 ]] && has "14. MOVE_DESKS would hide a live desk: refused" "MOVE_DESKS must be unset" "$out" || fail "14. MOVE_DESKS rc=$rc"
+out="$(mv_run MOVE_CMD=switch MOVE_ENVS=prd MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "14. MOVE_ENVS would hide a live desk of the other env: refused" "MOVE_ENVS must be unset" "$out" || fail "14. MOVE_ENVS rc=$rc"
 reset_box
 out="$(mv_run MOVE_CMD=switch MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
 [[ $rc -ne 0 ]] && has "14. RED CONTROL: fleet desk not moved: refused" "the fleet desk prd/ws-fleet/box-x is not pinned under $DU" "$out" || fail "14. unmoved fleet rc=$rc"

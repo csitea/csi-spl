@@ -77,7 +77,7 @@
 # @example MOVE_CMD=move MOVE_DESK_USER=<agent-user> DRY_RUN=0 ./run -a do_spl_desk_move
 # @example MOVE_CMD=back DRY_RUN=0 ./run -a do_spl_desk_move
 # @example MOVE_CMD=prune DRY_RUN=0 ./run -a do_spl_desk_move
-# @example MOVE_CMD=switch MOVE_ENVS=prd MOVE_DESK_USER=<agent-user> DRY_RUN=0 ./run -a do_spl_desk_move
+# @example MOVE_CMD=switch MOVE_DESK_USER=<agent-user> DRY_RUN=0 ./run -a do_spl_desk_move
 #------------------------------------------------------------------------------
 do_spl_desk_move() {
   local cmd="${MOVE_CMD:-plan}"
@@ -280,6 +280,7 @@ _spl_dm_box_env() {
 _spl_dm_switch() {
   local cmd="$1" dry="$2" x e ws id d bad=0 fenv fws fid
   [[ -z "${MOVE_DESKS:-}" ]] || { do_log "FATAL $cmd looks at every desk: MOVE_DESKS must be unset"; return 1; }
+  [[ -z "${MOVE_ENVS:-}" ]] || { do_log "FATAL $cmd looks at every desk of both envs: MOVE_ENVS must be unset"; return 1; }
   if [[ "$cmd" == unswitch ]]; then
     (( dry )) && { do_log "OK DRY_RUN box.env would lose SPOOL_DESK_USER; no desk moves"; return 0; }
     _spl_dm_box_env ""; return $?

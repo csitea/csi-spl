@@ -90,7 +90,7 @@ function mockFound(list, id) {
 function mockWrite(values, id) {
   const list = mockRead()
   const now = new Date().toISOString()
-  const was = id ? mockFound(list, id) : { contact_id: 'mock-' + Date.now().toString(36), first_name: '', last_name: '', email: null, phone: null, google: false, member_id: null, created_at: now }
+  const was = id ? mockFound(list, id) : { contact_id: 'mock-' + Date.now().toString(36), first_name: '', last_name: '', email: null, phone: null, google: false, member_id: null, created_at: now, company: '', job_title: '', birthday: null, notes: '', in_only: false, photo: null }
   const next = { ...was, ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== null)), updated_at: now }
   const row = mockChecked({ ...next, email: next.email || null, phone: next.phone || null })
   mockKeep(id ? list.map((c) => (c.contact_id === id ? row : c)) : [...list, row])

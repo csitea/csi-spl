@@ -27,6 +27,9 @@
 #      finds it, spl_lane_spool and spl_asks_hub sign with B's key through B's
 #      spool; a stub under A changes nothing; a desk that has not moved runs no
 #      hop; no sudo rule: "not pinned", as before. RED on 48dc6c573: "not pinned"
+#  11. ensure run by a user who does not own the fleet loop runs as its owner,
+#      once, with that run's rc; its owner, or no loop yet: no hop. RED on
+#      48dc6c573: no hop, the old loop is never replaced
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -293,6 +296,41 @@ fresh; desk "$RA"; sidecar
 out="$(in_orc "$T/box.env.half" as "$LANE10"'; spl_lane_spool lane list')"
 has "10d. a desk that has not moved: A's key" "\"keys\":\"$RA/desk/t1/sat/keys\"" "$out"
 eq "10d. a desk that has not moved: no hop" "0" "$(hops)"
+
+# --- 11. ensure and the loop's owner ------------------------------------------
+cat >"$T/stub/stat" <<STUB
+#!/usr/bin/env bash
+[[ -n "\${LOOP_OWNER:-}" && "\$*" == *fleet.run ]] && { echo "\$LOOP_OWNER"; exit 0; }
+PATH="\${PATH#*:}" exec stat "\$@"
+STUB
+cat >"$T/stub/as-ens" <<STUB
+#!/usr/bin/env bash
+echo "\$*" >>"$T/hops"
+exit "\${ENS_RC:-0}"
+STUB
+chmod +x "$T/stub/stat" "$T/stub/as-ens"
+ENS11='LEASE_CONF="$T11/conf"; LEASE_FLEET=main; spl_lease_ids() { return 0; }; spl_lease_trunk_check() { echo REACHED-HERE; return 1; }; spl_lease_ensure; echo "ens_rc=$?"'
+fresh; touch "$T/conf"
+out="$(T11="$T" LOOP_OWNER="$DU" in_orc "$T/box.env.half" as-ens "$ENS11")"; log="$(cat "$T/hops")"
+eq "11a. the loop is another user's: one hop" "1" "$(hops)"
+has "11a. to that user, with its HOME" "$DU -- env HOME=$HB " "$log"
+has "11a. the same action" "LEASE_CMD=ensure" "$log"
+has "11a. one hop only" "SPL_LEASE_OWNER_HOPPED=$ME" "$log"
+hasnt "11a. nothing runs here" "REACHED-HERE" "$out"
+has "11a. rc 0" "ens_rc=0" "$out"
+fresh; touch "$T/conf"
+out="$(T11="$T" LOOP_OWNER="$DU" ENS_RC=7 in_orc "$T/box.env.half" as-ens "$ENS11")"
+has "11b. the hopped run's rc" "ens_rc=7" "$out"
+fresh; touch "$T/conf"
+out="$(T11="$T" LOOP_OWNER="$ME" in_orc "$T/box.env.half" as-ens "$ENS11")"
+eq "11c. the loop is this user's: no hop" "0" "$(hops)"
+has "11c. it runs here" "REACHED-HERE" "$out"
+fresh; touch "$T/conf"
+out="$(T11="$T" in_orc "$T/box.env.half" as-ens "$ENS11")"
+eq "11d. no loop yet: no hop" "0" "$(hops)"
+fresh; touch "$T/conf"
+out="$(T11="$T" LOOP_OWNER="$DU" SPL_LEASE_OWNER_HOPPED=x in_orc "$T/box.env.half" as-ens "$ENS11")"
+eq "11e. already hopped: no second hop" "0" "$(hops)"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

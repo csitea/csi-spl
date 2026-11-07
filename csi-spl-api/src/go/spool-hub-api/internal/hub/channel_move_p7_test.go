@@ -4,6 +4,7 @@ package hub_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -130,4 +131,119 @@ func TestChannelMoveP7ObjectLeftInSource(t *testing.T) {
 		}
 	}
 	t.Logf("red control: objects M4 files bucket: left in <SRC> %v", proofsByName(out)["objects M4 files bucket: left in <SRC>"])
+}
+
+// p7Stay posts into another <SRC> channel through movePost, so the row has a
+// real post's shape: its text in body and again in msg.
+func (f *moveFix) p7Stay(t *testing.T, body string) string {
+	t.Helper()
+	id := uuid4()
+	movePost(t, f.e, f.src, id, uuid4(), "stay-"+f.ch, f.admin, body, time.Now().UTC().Truncate(time.Second))
+	return id
+}
+
+func p7Mentions(out map[string]any) (uuid, name float64, ids string) {
+	m, _ := out["mentions"].(map[string]any)
+	uuid, _ = m["uuid_with_redirect"].(float64)
+	name, _ = m["name_or_channel_id"].(float64)
+	rows, _ := m["rows"].([]any)
+	for _, r := range rows {
+		ids += " " + r.(map[string]any)["msg_id"].(string) + "=" + r.(map[string]any)["class"].(string)
+	}
+	return uuid, name, ids
+}
+
+// Q4 = A (5.4): a staying post that links or names the moved channel is left
+// and listed. P7 holds, and prints the two classes and the rows by id, never
+// their text.
+func TestChannelMoveP7StayingPostIsListed(t *testing.T) {
+	f := moveFixture(t, true)
+	link := f.p7Stay(t, "see /t/"+f.task)
+	name := f.p7Stay(t, "the #"+f.ch+" room")
+	f.toP6(t)
+	out := f.must(t, "step", "P7", nil)
+	for n, c := range proofsByName(out) {
+		if c != 0 {
+			t.Errorf("proof %q = %v, want 0: %v", n, c, out["proofs"])
+		}
+	}
+	if s := steps(f.must(t, "journal", "", nil))["P7"]; s != "done" {
+		t.Errorf("P7 %v, want done", s)
+	}
+	u, n, ids := p7Mentions(out)
+	if u != 1 || n != 1 || !strings.Contains(ids, link+"=uuid with redirect") || !strings.Contains(ids, name+"=name or channel id") {
+		t.Errorf("mentions: uuid %v name %v rows%s, want 1, 1 and both ids", u, n, ids)
+	}
+	raw, _ := json.Marshal(out["mentions"])
+	if strings.Contains(string(raw), "see /t/") {
+		t.Errorf("a mention carries the post's text: %s", raw)
+	}
+	lines := ""
+	for name := range proofsByName(out) {
+		lines += name + "\n"
+	}
+	for _, want := range []string{"scan messages.body (known 2 of 2, kept: 5.4)", "scan messages.msg (known 2 of 2, kept: 5.4)"} {
+		if !strings.Contains(lines, want) {
+			t.Errorf("no proof line %q in:\n%s", want, lines)
+		}
+	}
+}
+
+// RED CONTROLS: each leaves P7 not done, with the listed post still listed.
+func TestChannelMoveP7StillRefuses(t *testing.T) {
+	cases := []struct {
+		name, want string
+		plant      func(t *testing.T, f *moveFix)
+	}{
+		{"a moved row left behind", "scan messages.body", func(t *testing.T, f *moveFix) {
+			movePost(t, f.e, f.src, uuid4(), f.task, f.ch, f.admin, "left /t/"+f.task, time.Now().UTC())
+		}},
+		{"a set UUID with no redirect row", "scan messages.body", func(t *testing.T, f *moveFix) {
+			moveExec(t, f.e, `DELETE FROM channel_move_redirects WHERE src_tenant_id = $1 AND old_ref = $2`, f.src, f.task)
+		}},
+		{"an expired redirect row", "scan messages.body", func(t *testing.T, f *moveFix) {
+			moveExec(t, f.e, `UPDATE channel_move_redirects SET created_at = now() - interval '2 days', expires_at = now() - interval '1 day'
+				WHERE src_tenant_id = $1 AND old_ref = $2`, f.src, f.task)
+		}},
+		{"another column", "scan workspace_events.message", func(t *testing.T, f *moveFix) {
+			moveExec(t, f.e, `INSERT INTO workspace_events (tenant_id, kind, message) VALUES ($1, 'tenant.note', $2)`, f.src, "see "+f.task)
+		}},
+		{"a revision's old text", "scan message_revisions.body", func(t *testing.T, f *moveFix) {
+			id := f.p7Stay(t, "no link any more")
+			moveExec(t, f.e, `INSERT INTO message_revisions (tenant_id, msg_id, revision, body, edited_by, edited_at)
+				VALUES ($1, $2, 1, $3, 'c-100', now())`, f.src, id, "see /t/"+f.task)
+		}},
+		{"the msg copy says more than the post", "scan messages.msg", func(t *testing.T, f *moveFix) {
+			moveExec(t, f.e, `UPDATE messages SET msg = msg || jsonb_build_object('title', $2::text) WHERE tenant_id = $1 AND body LIKE 'see /t/%'`, f.src, f.task)
+		}},
+		{"a set UUID in the msg copy's files", "scan messages.msg", func(t *testing.T, f *moveFix) {
+			moveExec(t, f.e, `UPDATE messages SET msg = jsonb_set(msg, '{files}', jsonb_build_array($2::text)) WHERE tenant_id = $1 AND body LIKE 'see /t/%'`, f.src, f.task)
+		}},
+		{"an edited post whose msg keeps the old link", "scan messages.msg", func(t *testing.T, f *moveFix) {
+			moveExec(t, f.e, `UPDATE messages SET body = 'no link any more' WHERE tenant_id = $1 AND body LIKE 'see /t/%'`, f.src)
+		}},
+		{"an edited post whose msg differs from its body", "scan messages.msg", func(t *testing.T, f *moveFix) {
+			moveExec(t, f.e, `UPDATE messages SET body = body || ' edited' WHERE tenant_id = $1 AND body LIKE 'see /t/%'`, f.src)
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := moveFixture(t, true)
+			f.p7Stay(t, "see /t/"+f.task)
+			f.toP6(t)
+			c.plant(t, f)
+			out := f.must(t, "step", "P7", nil)
+			hit := false
+			for n, v := range proofsByName(out) {
+				hit = hit || (strings.HasPrefix(n, c.want) && v != 0)
+			}
+			if !hit {
+				t.Errorf("no failing %q: %v", c.want, out["proofs"])
+			}
+			if s := steps(f.must(t, "journal", "", nil))["P7"]; s != "started" {
+				t.Errorf("P7 %v, want started", s)
+			}
+			t.Logf("red: %v", out["proofs"])
+		})
+	}
 }

@@ -345,6 +345,17 @@ func (s *Postgres) asOperator(ctx context.Context, fn func(pgx.Tx) error) error 
 	})
 }
 
+// asOperatorSnapshot is asOperator in one REPEATABLE READ snapshot, for reads
+// that compare with each other and so must see the same rows.
+func (s *Postgres) asOperatorSnapshot(ctx context.Context, fn func(pgx.Tx) error) error {
+	return pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeOperator)); err != nil {
+			return err
+		}
+		return fn(tx)
+	})
+}
+
 // asOperatorQuery is asOperator for ONE read: the operator scope and the read
 // go as a single batch, one round trip, where asOperator paid BEGIN + scope +
 // the read + COMMIT. The batch is one implicit transaction, so the scope ends

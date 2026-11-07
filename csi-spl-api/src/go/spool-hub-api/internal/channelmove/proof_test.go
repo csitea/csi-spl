@@ -578,6 +578,72 @@ func TestC14FreeTextScanPostgres(t *testing.T) {
 	}
 }
 
+// TestMentionsPostgres is 5.4 on the rows: a staying Qto item is known like a
+// staying post, and each RED CONTROL is not.
+func TestMentionsPostgres(t *testing.T) {
+	ctx, tx := pgTx(t)
+	seedSource(t, ctx, tx)
+	runMove(t, ctx, tx)
+	const move, other = "16900000-0000-4000-8000-0000000000d0", "16900000-0000-4000-8000-0000000000d1"
+	const movedDoc, stayDoc = "16900000-0000-4000-8000-0000000000e0", "16900000-0000-4000-8000-0000000000e1"
+	s := pfSet()
+	s.MoveID = move
+	s.Skip = []string{"channel_move_redirects"} // as P7: by design it holds the ids
+	s.Binds["docs"] = []string{movedDoc}
+	mustExec(t, ctx, tx, `INSERT INTO channel_move_redirects (src_tenant_id, kind, old_ref, dst_tenant_id, new_ref, move_id)
+		VALUES ($1, 'task', $2, $3, $2, $4)`, pfSrc, pfTask, pfDst, move)
+	mustExec(t, ctx, tx, `INSERT INTO workspace_doc (id, tenant_id, title) VALUES ($1, $3, 'moved'), ($2, $3, 'stays')`, movedDoc, stayDoc, pfSrc)
+	item := func(doc, title, body string) string {
+		var id string
+		if err := tx.QueryRow(ctx, `INSERT INTO workspace_doc_item (tenant_id, doc_id, ord, title, body) VALUES ($1, $2, 1, $3, $4) RETURNING id::text`,
+			pfSrc, doc, title, body).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	stay := item(stayDoc, "", "see /t/"+pfTask)
+	m, err := ReadMentions(ctx, tx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.UUIDWithRedirect != 1 || m.NameOrChannelID != 0 || m.Known[scanItemBody] != 1 || len(m.Rows) != 1 ||
+		m.Rows[0].DocID != stayDoc || m.Rows[0].ItemID != stay || m.Rows[0].Kind != "qto item" {
+		t.Fatalf("a staying Qto item: %+v", m)
+	}
+	plants := []struct{ name, sql, want string }{
+		{"a Qto item in a moved doc", `INSERT INTO workspace_doc_item (tenant_id, doc_id, ord, parent_id, body)
+			SELECT '` + pfSrc + `', '` + movedDoc + `', 1, NULL, 'see /t/` + pfTask + `'`, "scan workspace_doc_item.body=2"},
+		{"a staying item with a set UUID no redirect covers", `UPDATE workspace_doc_item SET body = body || ' ` + pfMsg1 + `' WHERE doc_id = '` + stayDoc + `'`, "scan workspace_doc_item.body=1"},
+		{"the redirect belongs to another move", `UPDATE channel_move_redirects SET move_id = '` + other + `' WHERE src_tenant_id = '` + pfSrc + `'`, "scan workspace_doc_item.body=1"},
+		{"the Qto item's title", `UPDATE workspace_doc_item SET title = 'see ` + pfTask + `' WHERE doc_id = '` + stayDoc + `'`, "scan workspace_doc_item.title=1"},
+	}
+	for _, p := range plants {
+		t.Run(p.name, func(t *testing.T) {
+			mustExec(t, ctx, tx, `SAVEPOINT plant`)
+			defer mustExec(t, ctx, tx, `ROLLBACK TO SAVEPOINT plant`)
+			mustExec(t, ctx, tx, p.sql)
+			k, err := ReadMentions(ctx, tx, s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			q := s
+			q.Known = k.Known
+			if got := scanFailures(t, ctx, tx, q); got != p.want {
+				t.Errorf("RED CONTROL: scan = %q, want %q, known %v", got, p.want, k.Known)
+			}
+		})
+	}
+	// A name is known with no redirect row: none can cover it (5.4, D2).
+	mustExec(t, ctx, tx, `UPDATE messages SET body = 'the #`+pfMove+` room' WHERE tenant_id = '`+pfSrc+`' AND msg_id = '`+pfDMMsg+`'`)
+	mustExec(t, ctx, tx, `UPDATE workspace_doc_item SET body = 'a word' WHERE doc_id = '`+stayDoc+`'`)
+	if m, err = ReadMentions(ctx, tx, s); err != nil || m.NameOrChannelID != 1 || m.UUIDWithRedirect != 0 || m.Rows[0].MsgID != pfDMMsg {
+		t.Errorf("a name in a staying post: %+v %v", m, err)
+	}
+	if got := scanFailures(t, ctx, tx, ProofSet{Src: s.Src, Channel: s.Channel, Name: s.Name, Binds: s.Binds, Skip: s.Skip, Known: m.Known}); got != "" {
+		t.Errorf("a named post is known, the scan says %s", got)
+	}
+}
+
 func scanFailures(t *testing.T, ctx context.Context, tx pgx.Tx, s ProofSet) string {
 	t.Helper()
 	ps, err := Scan(ctx, tx, s)

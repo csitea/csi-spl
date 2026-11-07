@@ -374,10 +374,13 @@ T8c), counted to the day the last copy made before P4 is gone for good:
   days of a versioned bucket (046, 052), plus the soft delete in whole days;
 - Cloud SQL's automated backups: their COUNT read as days at one backup a day
   (the `startTime` window), or the point-in-time log days when those are longer,
-  read as the per-env service account.
+  read as the per-env service account;
+- the hub logs: the retention of the log bucket the cnf names (`hub.log_bucket`),
+  sent only after the action reads a line of the hub's service back from that
+  bucket, as the per-env service account.
 
-A copy it cannot read is not sent: the hub logs always (no cnf value names their
-bucket), and any value that fails to read. Its `RETENTION` line says why, its
+A copy it cannot read is not sent: any value that fails to read, and the hub logs
+when that bucket holds no line of the hub in the last day. Its `RETENTION` line says why, its
 `KEPT` line ends `not read: no retention_days in P7's detail`, and `KEPT_UNTIL`
 says which rows have no date. They are kept until they expire on their own
 (owner, Q3 = A).
@@ -418,9 +421,30 @@ count that is not 0 stops the run with `FATAL P7: a proof of section 5 is not 0`
 1: the move is not done and P7 stays not done, so a re-run runs the proofs again. Send
 the move id and the proof lines to the orchestrator.
 
-The one exception to the scan's 0: when `<SRC>` holds the fleet rows, hits on
+Two exceptions to the scan's 0. When `<SRC>` holds the fleet rows, hits on
 `fleet_lanes.topic` and `fleet_asks.topic` are known. They print as
 `proof <name> (known <n> of <m>, kept: 5.2) 0`, never as a failure (spec 5.2).
+
+And a staying post or Qto item that links or names the moved channel stays where
+it is (owner, Q4 = A), and P7 lists it (spec 5.2, 5.4). It prints `proof scan
+messages.body (known <n> of <m>, kept: 5.4) 0`, likewise for `messages.msg`, the
+post's stored copy, and `workspace_doc_item.body`, then:
+
+```text
+MENTIONS uuid with redirect <n>, name or channel id <m>
+MENTION post <msg id>: uuid with redirect
+MENTION qto item <doc id> <item id>: name or channel id
+```
+
+Ids and counts only, never the text. Each row counts once. A large name count means
+the channel's name is a common word: the scan hits the plain word, so P7 can list
+rows the plan did not.
+
+A UUID of the set in such a row needs a live redirect row of this move, or the hit
+is not known and P7 stops. So does every other hit, for example a moved row left
+behind, a Qto item in a moved doc, or a stored copy holding more than the post. An
+edited post's old text also stops P7: `proof scan message_revisions.body <n>`,
+because the plan does not list revisions. Send those proof lines to the orchestrator.
 
 P7 also proves the bucket objects of spec 5.3 in the buckets themselves, not
 from P6's counts: for the files bucket (M4) and the Qto pictures (M8) it prints

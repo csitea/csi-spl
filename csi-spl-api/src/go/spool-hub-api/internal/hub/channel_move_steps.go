@@ -551,7 +551,8 @@ func channelMoveProofSet(src, channel, name string, frozen json.RawMessage) (cha
 }
 
 // channelMoveFleetTopics are the fleet tables' topic ids the move keeps (5.1,
-// 5.2): Scan's only known hits, counted here so that any other is a failure.
+// 5.2), one of Scan's two kinds of known hit (the other: mentions, 5.4), counted
+// here so that any other is a failure.
 func channelMoveFleetTopics(ctx context.Context, q channelmove.Querier, src string, tasks []string) (map[string]int64, error) {
 	known := map[string]int64{}
 	for _, table := range []string{"fleet_lanes", "fleet_asks"} {
@@ -581,12 +582,20 @@ func (run *channelMoveRun) p7(ctx context.Context) (map[string]any, store.Channe
 	if err != nil {
 		return nil, none, err
 	}
+	set.MoveID = run.j.MoveID
 	var proofs []channelmove.Proof
+	var mentions channelmove.Mentions
 	err = run.jr.ChannelMoveProofRead(ctx, func(tx pgx.Tx) error {
 		tasks, _ := set.Binds["tasks"].([]string)
 		var err error
 		if set.Known, err = channelMoveFleetTopics(ctx, tx, run.q.Src, tasks); err != nil {
 			return err
+		}
+		if mentions, err = channelmove.ReadMentions(ctx, tx, set); err != nil {
+			return err
+		}
+		for name, n := range mentions.Known {
+			set.Known[name] = n
 		}
 		if proofs, err = channelmove.SetProofs(ctx, tx, set); err != nil {
 			return err
@@ -604,14 +613,14 @@ func (run *channelMoveRun) p7(ctx context.Context) (map[string]any, store.Channe
 	}
 	proofs = append(proofs, objs...)
 	kept, until := channelMoveKeptDates(run.j.Steps["P4"], run.q.in.RetentionDays)
-	answer := map[string]any{"proofs": channelMoveProofLines(proofs), "kept": kept, "kept_until": until, "report": run.report()}
+	answer := map[string]any{"proofs": channelMoveProofLines(proofs), "mentions": mentions, "kept": kept, "kept_until": until, "report": run.report()}
 	if len(channelmove.Failed(proofs)) > 0 {
 		return answer, none, channelMoveProofsFailed{answer}
 	}
 	if err := run.jr.CloseChannelMove(ctx, run.q.Dst, run.j.MoveID); err != nil {
 		return nil, none, err
 	}
-	return answer, store.ChannelMoveStepDone{Proofs: map[string]any{"proofs": proofs}}, nil
+	return answer, store.ChannelMoveStepDone{Proofs: map[string]any{"proofs": proofs, "mentions": mentions}}, nil
 }
 
 // objectProofs are 5.3's proofs (T8b): each object P6 moved, read in both
@@ -700,6 +709,8 @@ func channelMoveProofLines(ps []channelmove.Proof) []channelmove.Proof {
 			kept := "5.2"
 			if strings.HasPrefix(p.Name, "objects ") {
 				kept = "5.5" // a shared object a staying <SRC> row lists
+			} else if channelmove.IsMentionProof(p.Name) {
+				kept = "5.4" // a staying post or Qto item, left and listed (Q4)
 			}
 			p.Name += " (known " + strconv.FormatInt(p.Count, 10) + " of " + strconv.FormatInt(p.Known, 10) + ", kept: " + kept + ")"
 			p.Count = 0

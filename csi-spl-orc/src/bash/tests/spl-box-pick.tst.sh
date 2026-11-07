@@ -461,6 +461,17 @@ wk "box-a:claude:91:60" "box-b:claude:91:60"
 out="$(sq BOX_QUOTA_REVIEW_SEAT_MAX_PCT=50)"
 [[ "$(pick "$out")" == hold ]] && grep -q 'waiting: claude weekly >= 90% on' <<<"$out" &&
   pass "16d. a mark under weekly_max_pct: raised to it, a seat is never stricter" || fail "16d. low: $out"
+wk "box-a:claude:100:60" "box-b:claude:100:60"
+out="$(sq BOX_QUOTA_REVIEW_SEAT_MAX_PCT=18446744073709551711)"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: claude weekly >= 90% on' <<<"$out" &&
+  pass "16d. a mark that wraps in bash arithmetic (2^64+95): no pass" || fail "16d. wrap: $out"
+out="$(sq BOX_QUOTA_WEEKLY_MAX_PCT=120)"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: claude weekly >= 99% on' <<<"$out" &&
+  pass "16d. weekly_max_pct 120: the seat's mark is still 99, at 100% it holds" || fail "16d. wk120: $out"
+wk "box-a:claude:94:60" "box-b:claude:94:60"
+out="$(sq BOX_QUOTA_REVIEW_SEAT_MAX_PCT=095 2>&1)"
+[[ "$(pick "$out")" == box-a ]] && ! grep -q 'value too great' <<<"$out" &&
+  pass "16d. a mark with a leading zero reads in base 10" || fail "16d. 095: $out"
 wk "box-a:claude:96:60" "box-b:claude:40:60"
 # 16. the reading: the banner as a pane footer shows it (spl_box_quota_parse)
 parse() { bash -c 'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_parse "$@"' _ "$@"; }

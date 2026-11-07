@@ -112,7 +112,12 @@ section 3.2, section 7 item 3). All three asks are in the bypass log:
 
 - **Who**: a logged review seat: placement slug ending in `-reviewer`, its ask
   in the local bypass log on the standing review-seat GO
-  (`spl_spawn_place_seats`). A row with neither is an ordinary lane.
+  (`spl_spawn_place_seats`). A row with neither is an ordinary lane. The slug
+  alone earns that log row, so the pass also needs the brief's first heading to
+  say review, reviewer or R7 (`spl_spawn_place_seat_pass`): all 984 `*-reviewer.md`
+  briefs on sat do (11-07). A logged seat without it keeps its place in the line
+  and its alarm, and launches on `weekly_max_pct`. This stops a wrong name, not a
+  forged heading: nothing proves a seat only reads.
 - **The pass, and its limit**: such a seat holds on the vendor's weekly usage
   only at cnf `env.box.quota.review_seat_max_pct` (95), not at `weekly_max_pct`
   (90). Why 95: usage rose 1.4 points an hour on 11-06 (81 at 02:25, 97 at 13:55,
@@ -124,8 +129,9 @@ section 3.2, section 7 item 3). All three asks are in the bypass log:
   0.83, 1.25, 2.75, 3.67, 4.92 and 5.92 h later (sat, 10-27..11-07, n=6), so 3.5 h
   fits 3 of the 6, and a seat can reach the limit on an old reading. What seats burn
   is not measured.
-- **At 100%**: nothing is placed. The code clamps the mark to at most 99
-  whatever the cnf says (`spl_box_quota_seat_max`), so a seat never starts on a
+- **At 100%**: nothing is placed by a pick; a pin (`SPAWN_BOX`) skips the pick, for
+  every lane. The code clamps the mark to at most 99 whatever the cnf says, also
+  when `weekly_max_pct` is higher (`spl_box_quota_seat_max`), so a seat never starts on a
   login that answers no turn. It stays queued, with the reason in `.place.wait`.
   A seat already running when the limit comes stalls like any lane (the watchdog's
   S2 kind=limit). An unset mark means no pass.

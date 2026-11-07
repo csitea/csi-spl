@@ -1582,8 +1582,8 @@ seat_clear() {  # no other queued row in the way, no alarm or wait state
   N40=$((N40 + 1))  # the stub takes an ask id once: each case its own
   K1="$(printf '40%06d-0000-4000-8000-000000000001' "$N40")"; K2="$(printf '40%06d-0000-4000-8000-000000000002' "$N40")"; K3="$(printf '40%06d-0000-4000-8000-000000000003' "$N40")"
 }
-seat_q() {  # ASK SLUG MIN_IN_LINE: queue SLUG as enqueue does, MIN minutes ago
-  printf 'Class: bug\n%s\n' "$ES" >"$T/briefs/$2.md"
+seat_q() {  # ASK SLUG MIN_IN_LINE [HEADING]: queue SLUG as enqueue does, MIN minutes ago
+  printf '# Lane brief: %s\nClass: bug\n%s\n' "${4:-R7 reviewer, review only}" "$ES" >"$T/briefs/$2.md"
   put "$1" c-002@box-desk "dispatch-$2" "SPAWN REQUEST $2"
   on pc do_spl_spawn_enqueue ASK_ID="$1" SPAWN_CLASS=bug SPAWN_PLACE="claude:$2" >/dev/null 2>&1
   jq --arg i "$1" --argjson t "$(( $(date +%s) - $3 * 60 ))" 'map(if .ask_id == $i then .q = $t else . end)' "$T/hub/main.json" >"$T/h.$$" && mv "$T/h.$$" "$T/hub/main.json"
@@ -1596,6 +1596,10 @@ N40=0
 seat_clear; seat_q "$K1" k1-reviewer 0
 tick40 LAUNCH_ID=c-541 >/dev/null
 grep -q '^k1-reviewer BOX_PICK_REVIEW_SEAT=1$' "$T/launch.log.seat" && pass "40a. a logged review seat launches on the review-seat mark" || fail "40a. $(cat "$T/launch.log.seat")"
+seat_clear; seat_q "$K1" k1-parser-reviewer 0 "fix the parser, commit and push"
+out="$(tick40 LAUNCH_ID=c-541)"
+grep -q '^k1-parser-reviewer BOX_PICK_REVIEW_SEAT=0$' "$T/launch.log.seat" && grep -q "first heading does not say review" <<<"$out" &&
+  pass "40a. a coding lane named -reviewer is logged, and launches on the weekly mark" || fail "40a. forge: $(cat "$T/launch.log.seat") $out"
 seat_clear; seat_q "$K2" k2-plain-fix 0
 tick40 LAUNCH_ID=c-542 >/dev/null
 grep -q '^k2-plain-fix BOX_PICK_REVIEW_SEAT=0$' "$T/launch.log.seat" && pass "40a. CONTROL any other row launches on the weekly mark" || fail "40a. control: $(cat "$T/launch.log.seat")"

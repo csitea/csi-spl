@@ -104,25 +104,16 @@ export function useCardTopicActions(
   return { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete }
 }
 
-export function useCardMessageActions(
-  props: { msg: SpoolMessage, mergePrev?: SpoolMessage | null, mergeNext?: SpoolMessage | null },
-  emit: CardEmit,
-  busy: CardBusy,
-  editing: Ref<boolean>,
-  menu: CardMenu,
-  msgEdit: MsgEdit,
+type MessageRowProps = { msg: SpoolMessage, mergePrev?: SpoolMessage | null, mergeNext?: SpoolMessage | null }
+
+/** Merge and delete: both act on this row, and on the card's busy state. */
+function messageRowSteps(
+  { props, emit, busy, editing, menu, msgEdit }:
+  { props: MessageRowProps, emit: CardEmit, busy: CardBusy, editing: Ref<boolean>, menu: CardMenu, msgEdit: MsgEdit },
 ) {
   const { removing, editError } = busy
   const { canEdit, removeMessage, mergeInto } = msgEdit
   const { close: closeMenu } = menu
-  const parentDeps = { api: useSpoolApi(), router: useRouter() }
-  const localePath = useLocalePath()
-  /* t1 b6c742f0 (HUM-10): MessageMenu runs a person's message's AI actions;
-     a failure is shown here, under the card */
-  const aiError = ref('')
-  function onAiFail(key: string) {
-    aiError.value = key
-  }
 
   /**
    * Fold this message into the neighbor. The neighbor keeps both bodies, older
@@ -167,6 +158,20 @@ export function useCardMessageActions(
     }
   }
 
+  return { onMerge, remove }
+}
+
+/** The AI actions' failure line, and Make an issue, which shows its refusal there. */
+function messageIssueSteps(props: MessageRowProps, closeMenu: CardMenu['close']) {
+  const parentDeps = { api: useSpoolApi(), router: useRouter() }
+  const localePath = useLocalePath()
+  /* t1 b6c742f0 (HUM-10): MessageMenu runs a person's message's AI actions;
+     a failure is shown here, under the card */
+  const aiError = ref('')
+  function onAiFail(key: string) {
+    aiError.value = key
+  }
+
   /* t1 5ea2e615 (owner db5ed497): "An owner question should not become an
      issue until the owner decides that." A workspace owner makes an issue of a
      message that carries the blocker mark; the hub re-checks both, and the new
@@ -182,6 +187,19 @@ export function useCardMessageActions(
     }
   }
 
+  return { aiError, onAiFail, onMakeIssue }
+}
+
+export function useCardMessageActions(
+  props: MessageRowProps,
+  emit: CardEmit,
+  busy: CardBusy,
+  editing: Ref<boolean>,
+  menu: CardMenu,
+  msgEdit: MsgEdit,
+) {
+  const { onMerge, remove } = messageRowSteps({ props, emit, busy, editing, menu, msgEdit })
+  const { aiError, onAiFail, onMakeIssue } = messageIssueSteps(props, menu.close)
   return { aiError, onAiFail, onMerge, remove, onMakeIssue }
 }
 

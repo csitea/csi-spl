@@ -44,7 +44,7 @@ before(async () => {
   real = { useRouter: globalThis.useRouter, useLocalePath: globalThis.useLocalePath }
   /* Nuxt auto-imports: the composable names them without an import */
   globalThis.useRouter = () => ({ push: async (to) => { pushes.push(to) } })
-  globalThis.useLocalePath = () => (to) => to
+  globalThis.useLocalePath = () => (to) => ({ localized: to })
   mod = await importTsStubbed('src/composables/useCardTopicActions.ts', {
     '~/composables/useArchiveUndo': { useArchiveUndo: () => ({}) },
     '~/composables/useSpoolApi': { useSpoolApi: () => ({ makeBlockerIssue: (id) => makeBlockerIssue(id) }) },
@@ -78,6 +78,39 @@ describe('useCardMessageActions: (M) a merge', () => {
     assert.deepEqual(merges, [[ROW.msg_id, OTHER.msg_id]])
     assert.deepEqual(emitted, [['edited', MERGED], ['deleted', ROW]])
   })
+  it('that is refused leaves removing false and the failure key in editError, and reports nothing', async () => {
+    const { actions, busy, emitted } = card({ mergeNext: OTHER }, {
+      mergeInto: async () => { throw Object.assign(new Error('refused'), { token: 'not_allowed' }) },
+    })
+    await actions.onMerge('next')
+    assert.equal(busy.removing.value, false)
+    assert.equal(busy.editError.value, 'feed.edit.failed_not_author')
+    assert.deepEqual(emitted, [])
+  })
+})
+
+describe('useCardMessageActions: (D) a delete that goes through', () => {
+  it('sends removeMessage(id) once and the card reports the row', async () => {
+    const removed = []
+    const { actions, emitted } = card({}, { removeMessage: async (id) => { removed.push(id) } })
+    await actions.remove()
+    assert.deepEqual(removed, [ROW.msg_id])
+    assert.deepEqual(emitted, [['deleted', ROW]])
+  })
+})
+
+describe('useCardMessageActions: (L) a delete of a row the viewer may not edit', () => {
+  it('sends nothing, stays idle and reports nothing', async () => {
+    const removed = []
+    const { actions, busy, emitted } = card({}, {
+      canEdit: () => false,
+      removeMessage: async (id) => { removed.push(id) },
+    })
+    await actions.remove()
+    assert.deepEqual(removed, [])
+    assert.equal(busy.removing.value, false)
+    assert.deepEqual(emitted, [])
+  })
 })
 
 describe('useCardMessageActions: (R) a refused delete', () => {
@@ -89,6 +122,26 @@ describe('useCardMessageActions: (R) a refused delete', () => {
     assert.equal(busy.removing.value, false)
     assert.equal(busy.editError.value, 'feed.edit.failed_not_author')
     assert.deepEqual(emitted, [])
+  })
+})
+
+describe('useCardMessageActions: (A) an AI action that fails', () => {
+  it('shows its key in aiError', () => {
+    const { actions } = card({})
+    actions.onAiFail('feed.msg_menu.some_failure')
+    assert.equal(actions.aiError.value, 'feed.msg_menu.some_failure')
+  })
+})
+
+describe('useCardMessageActions: (S) a Make an issue that goes through', () => {
+  it('asks for this row and opens the new issue on the localized issues sheet', async () => {
+    const asked = []
+    makeBlockerIssue = async (id) => { asked.push(id); return { issue: { key: 'SPL-7' } } }
+    const { actions } = card({})
+    await actions.onMakeIssue()
+    assert.deepEqual(asked, [ROW.msg_id])
+    assert.deepEqual(pushes, [{ localized: { path: '/issues', query: { issue: 'SPL-7' } } }])
+    assert.equal(actions.aiError.value, '')
   })
 })
 

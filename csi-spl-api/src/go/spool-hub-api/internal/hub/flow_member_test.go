@@ -74,7 +74,7 @@ func newFlowMemberEnv(t *testing.T) flowMemberEnv {
 	return x
 }
 
-func TestFlowMemberReadsAnothersFlow(t *testing.T) {
+func TestFlowMemberReadsAnotherMembersFlow(t *testing.T) {
 	x := newFlowMemberEnv(t)
 	if code, out, n := flowOf(t, x.e, x.tid, "/v1/view/flow?member="+x.target, x.viewer); code != http.StatusOK || n != 1 {
 		t.Fatalf("viewer reads target's flow: %d %v", code, out)

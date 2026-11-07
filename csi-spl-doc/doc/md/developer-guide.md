@@ -168,9 +168,9 @@ Enforced by: review only.
 ### 2.2 Code structure and clean code limits
 
 <a id="ws-doc-50d05a54-fd19-4488-bb86-2f0db161ee34"></a>
-#### 2.2.1 Small functions: 80 lines
+#### 2.2.1 Small functions: 75 lines
 
-A function is at most 80 lines in Go, TypeScript / Vue and Bash. A function
+A function is at most 75 lines in Go, TypeScript / Vue and Bash. A function
 already over it is listed with its ceiling in the gate's own list, which may
 only shrink; a new long one fails.
 
@@ -181,8 +181,10 @@ Enforced by: `csi-spl-api/src/go/spool-hub-api/internal/cleancode/cleancode_test
 <a id="ws-doc-86d17eb3-3950-48f6-96e7-b98d77bf5b78"></a>
 #### 2.2.2 Nesting depth and parameters
 
-Nesting depth at most 4; at most 8 parameters in Go and 6 in TypeScript /
-Vue (pass a struct or an object instead). Bash has a line cap only.
+Nesting depth at most 4; at most 7 parameters in Go and 5 in TypeScript /
+Vue (pass a struct or an object instead). A function already over it is
+listed in the gate's own list, which may only shrink, and takes at most 8 in
+Go and 6 in TypeScript / Vue. Bash has a line cap only.
 
 Enforced by: `cleancode_test.go` (`maxDepth`, `maxParams`) and
 `cleancode.test.mjs` (`MAX_DEPTH`, `MAX_PARAMS`).

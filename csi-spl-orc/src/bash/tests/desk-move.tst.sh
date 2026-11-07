@@ -48,6 +48,10 @@
 #      re-creates the source makes the rollback refuse its rename (FATAL),
 #      never nest the desk into it. RED CONTROL: d91a4ebea's
 #      spl-desk-move.func.sh and desk-quiesce.inc.sh fail A and B
+#  14. switch and unswitch (SPL-4985): box.env alone, no desk moves. Refused
+#      while the fleet desk is not live under the desk user, or a desk under
+#      the box user has a live sidecar. The full run they replace stops at the
+#      first stub. RED CONTROL: 48dc6c573 refuses the command
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -395,6 +399,39 @@ wait "$WPID" 2>/dev/null; rm -f "$T/tar-slow"
 [[ ! -e "$QD/box-a" ]] && ls "$SRC_P"/desk.moved-*/ws-a/box-a/keys/box-box-a.key >/dev/null 2>&1 &&
   pass "13C. nothing nests: the desk stays aside with its keys" || fail "13C. nested or lost: $(find "$SRC_P" -name 'box-box-a.key' | tr '\n' ' ')"
 [[ ! -e "$QM" ]] && pass "13C. the marker is gone after the refusal" || fail "13C. marker left"
+
+# --- 14. switch / unswitch ---------------------------------------------------
+reset_box
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a prd/ws-fleet/box-x" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && pass "14. the two live desks moved, MOVE_DESKS" || fail "14. move rc=$rc $(tail -n 4 <<<"$out")"
+hasnt "14. MOVE_DESKS left box.env alone" "SPOOL_DESK_USER" "$(cat "$T/box.env")"
+mkdir -p "$SRC_P/desk/ws-a/box-a/spool/c-002/.mirror"
+before="$(tree)"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "14. the full run stops at the stub: why switch exists" "already exists: not overwritten" "$out" || fail "14. full run rc=$rc"
+hasnt "14. so the full run never writes box.env" "SPOOL_DESK_USER" "$(cat "$T/box.env")"
+reset_box
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a prd/ws-fleet/box-x" DRY_RUN=0)"
+mkdir -p "$SRC_P/desk/ws-a/box-a/spool/c-002/.mirror"
+before="$(tree)"; : >"$T/side.log"
+out="$(mv_run MOVE_CMD=switch MOVE_DESK_USER="$DU")"; rc=$?
+[[ $rc -eq 0 ]] && has "14. dry run says so" "OK DRY_RUN box.env would get SPOOL_DESK_USER=$DU" "$out" || fail "14. dry rc=$rc $out"
+hasnt "14. dry run writes nothing" "SPOOL_DESK_USER" "$(cat "$T/box.env")"
+out="$(mv_run MOVE_CMD=switch MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && has "14. switch writes box.env" "SPOOL_DESK_USER=$DU" "$(cat "$T/box.env")" || fail "14. switch rc=$rc $out"
+has "14. a stub is named and stays" "INFO switch: prd ws-a/box-a stays under $ME" "$out"
+has "14. a sidecar-less desk is named and stays" "INFO switch: dev ws-b/box-b stays under $ME" "$out"
+[[ "$(tree)" == "$before" && ! -s "$T/side.log" ]] && pass "14. switch moved no desk, touched no sidecar" || fail "14. switch changed the tree or a sidecar"
+out="$(mv_run MOVE_CMD=unswitch MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && hasnt "14. unswitch removes it" "SPOOL_DESK_USER" "$(cat "$T/box.env")" || fail "14. unswitch rc=$rc $out"
+[[ "$(tree)" == "$before" ]] && pass "14. unswitch moved no desk" || fail "14. unswitch changed the tree"
+out="$(mv_run MOVE_CMD=switch MOVE_DESKS=prd/ws-a/box-a MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "14. MOVE_DESKS would hide a live desk: refused" "MOVE_DESKS must be unset" "$out" || fail "14. MOVE_DESKS rc=$rc"
+reset_box
+out="$(mv_run MOVE_CMD=switch MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "14. RED CONTROL: fleet desk not moved: refused" "the fleet desk prd/ws-fleet/box-x is not pinned under $DU" "$out" || fail "14. unmoved fleet rc=$rc"
+has "14. RED CONTROL: a live sidecar under the box user is named" "prd ws-a/box-a has a live sidecar under $ME" "$out"
+hasnt "14. RED CONTROL: box.env unchanged" "SPOOL_DESK_USER" "$(cat "$T/box.env")"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

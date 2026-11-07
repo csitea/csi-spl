@@ -29,6 +29,13 @@
 # @description         SPOOL_DESK_USER
 # @description   prune removes the desk.moved-* copies of both users that are
 # @description         older than MOVE_PRUNE_DAYS
+# @description   switch box.env gets SPOOL_DESK_USER and no desk moves (8.4 step
+# @description         4 on a box with desks left behind). Refused unless the
+# @description         fleet desk is pinned and live under the desk user and no
+# @description         desk under the box user has a live sidecar. Stubs and
+# @description         sidecar-less desks stay where they are, one line each
+# @description   unswitch box.env loses SPOOL_DESK_USER and no desk moves: the
+# @description         reverse of switch, before a MOVE_DESKS rollback
 # @description move and back hold the reconcile pause of each env
 # @description (<spool root>/.desk-reconcile.<env>.pause, refreshed before
 # @description every desk) and leave it: the reconcile cron lines move to
@@ -49,7 +56,7 @@
 # @description starts DESK_QUIESCE_SETTLE_SECS (2) after the marker, so a
 # @description write already under way ends first. The verify stays exact.
 # @description Dry run unless DRY_RUN=0 (plan always is one).
-# @param MOVE_CMD (optional) - plan (default) | move | back | prune
+# @param MOVE_CMD (optional) - plan (default) | move | back | prune | switch | unswitch
 # @param MOVE_DESK_USER (optional) - the desk user (<agent-user>); default
 # @param   SPOOL_DESK_USER (environment, else box.env). Unset: refused
 # @param MOVE_BOX_USER (optional) - the box user whose home held the desks;
@@ -70,13 +77,14 @@
 # @example MOVE_CMD=move MOVE_DESK_USER=<agent-user> DRY_RUN=0 ./run -a do_spl_desk_move
 # @example MOVE_CMD=back DRY_RUN=0 ./run -a do_spl_desk_move
 # @example MOVE_CMD=prune DRY_RUN=0 ./run -a do_spl_desk_move
+# @example MOVE_CMD=switch MOVE_ENVS=prd MOVE_DESK_USER=<agent-user> DRY_RUN=0 ./run -a do_spl_desk_move
 #------------------------------------------------------------------------------
 do_spl_desk_move() {
   local cmd="${MOVE_CMD:-plan}"
   case "$cmd" in
     _stop | _start | _proof) _spl_dm_side "${cmd#_}"; return $? ;;
-    plan | move | back | prune) ;;
-    *) do_log "FATAL MOVE_CMD must be plan, move, back or prune, got: '$cmd'"; return 1 ;;
+    plan | move | back | prune | switch | unswitch) ;;
+    *) do_log "FATAL MOVE_CMD must be plan, move, back, prune, switch or unswitch, got: '$cmd'"; return 1 ;;
   esac
   do_require_bin tar sha256sum flock || return 1
   local dry=1
@@ -84,6 +92,7 @@ do_spl_desk_move() {
   [[ "$cmd" == plan ]] && dry=1
   _spl_dm_ctx "$cmd" || return 1
   [[ "$cmd" == prune ]] && { _spl_dm_prune "$dry"; return $?; }
+  [[ "$cmd" == switch || "$cmd" == unswitch ]] && { _spl_dm_switch "$cmd" "$dry"; return $?; }
   local -a desks=()
   mapfile -t desks < <(_spl_dm_list)
   _spl_dm_plan "${desks[@]}"
@@ -247,18 +256,47 @@ _spl_dm_quiesce_off() {
 # box.env follows (move: SPOOL_DESK_USER=<desk user>; back: removed), then
 # the steps left to the operator are printed.
 _spl_dm_finish() {
-  local cmd="$1" bc
-  bc="$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/scripts/box-config.sh"
+  local cmd="$1"
   if [[ -n "${MOVE_DESKS:-}" ]]; then
     do_log "INFO MOVE_DESKS was set: box.env is left alone"
-  elif [[ "$cmd" == move ]]; then
-    bash "$bc" "SPOOL_DESK_USER=$DM_DESK" >/dev/null || { do_log "FAIL box.env: cannot set SPOOL_DESK_USER=$DM_DESK"; return 1; }
-    do_log "OK box.env: SPOOL_DESK_USER=$DM_DESK"
   else
-    bash "$bc" "SPOOL_DESK_USER=" >/dev/null || { do_log "FAIL box.env: cannot remove SPOOL_DESK_USER"; return 1; }
-    do_log "OK box.env: SPOOL_DESK_USER removed"
+    _spl_dm_box_env "$([[ "$cmd" == move ]] && echo "$DM_DESK")" || return 1
   fi
   do_log "OK $cmd done: $2 of $3 desk(s). The reconcile pause stays until the reconcile cron lines run as $DM_TO (do_spl_desk_install_service) and the agents' MCP follows (do_spl_agent_mcp_install); it is ignored after DESK_PAUSE_MAX_SECS (default 1800 s)"
+}
+
+# _spl_dm_box_env <desk user>: SPOOL_DESK_USER of box.env set to it; empty removes it.
+_spl_dm_box_env() {
+  local bc
+  bc="$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/scripts/box-config.sh"
+  bash "$bc" "SPOOL_DESK_USER=$1" >/dev/null || { do_log "FAIL box.env: cannot write SPOOL_DESK_USER=$1"; return 1; }
+  if [[ -n "$1" ]]; then do_log "OK box.env: SPOOL_DESK_USER=$1"; else do_log "OK box.env: SPOOL_DESK_USER removed"; fi
+}
+
+# _spl_dm_switch <switch|unswitch> <dry>: box.env alone, no desk moves. A full
+# move run is no way to write it on a box with desks left behind: its first stub
+# (a desk already under the desk user) stops the run, and it moves every other
+# desk (sat 2026-11-07: 9 such desks, 3 of them stubs, in the full plan).
+_spl_dm_switch() {
+  local cmd="$1" dry="$2" x e ws id d bad=0 fenv fws fid
+  [[ -z "${MOVE_DESKS:-}" ]] || { do_log "FATAL $cmd looks at every desk: MOVE_DESKS must be unset"; return 1; }
+  if [[ "$cmd" == unswitch ]]; then
+    (( dry )) && { do_log "OK DRY_RUN box.env would lose SPOOL_DESK_USER; no desk moves"; return 0; }
+    _spl_dm_box_env ""; return $?
+  fi
+  IFS=/ read -r fenv fws fid <<<"$DM_FLEET"
+  d="$(_spl_dm_root "$DM_DESK" "$fenv")/desk/$fws/$fid"
+  _spl_dm_as "$DM_DESK" test -s "$d/pinned" || { do_log "FAIL switch: the fleet desk $DM_FLEET is not pinned under $DM_DESK"; bad=1; }
+  [[ -n "$(_spl_dm_pid "$DM_DESK" "$d")" ]] || { do_log "FAIL switch: the fleet desk $DM_FLEET has no live sidecar under $DM_DESK"; bad=1; }
+  while read -r e ws id; do
+    [[ -n "$e" ]] || continue
+    d="$(_spl_dm_root "$DM_BOX" "$e")/desk/$ws/$id"
+    if [[ -n "$(_spl_dm_pid "$DM_BOX" "$d")" ]]; then do_log "FAIL switch: $e $ws/$id has a live sidecar under $DM_BOX"; bad=1
+    else do_log "INFO switch: $e $ws/$id stays under $DM_BOX, no live sidecar"; fi
+  done < <(_spl_dm_list)
+  (( bad == 0 )) || { do_log "FAIL switch refused: box.env is unchanged"; return 1; }
+  (( dry )) && { do_log "OK DRY_RUN box.env would get SPOOL_DESK_USER=$DM_DESK; no desk moves"; return 0; }
+  _spl_dm_box_env "$DM_DESK"
 }
 
 # _spl_dm_one <env> <ws> <id>: one desk, steps 2 and 3 of spec 069 8.4. Sets

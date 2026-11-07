@@ -24,9 +24,9 @@
 # @description Any failed check fails the action (rc 1), names each bad file
 # @description and copies NOTHING. So does a named picture, or its <id>-og
 # @description crop, that the bucket does not hold, and a bucket that cannot
-# @description be listed (SPL-3546): the site answers a missing blog/img file
-# @description with its HTML, so the post and its link preview show no
-# @description picture. Until 2026-10-26 that was a WARN with rc 0, and
+# @description be listed (SPL-3546): the site has no picture to answer with
+# @description (a 404 since SPL-5012, its HTML before), so the post and its
+# @description link preview show no picture. Until 2026-10-26 that was a WARN with rc 0, and
 # @description 2026-10-25-the-ai-software-making-machine shipped without its
 # @description picture on dev and prd. Put it first: do_spl_blog_media_put.
 # @description A post that names no picture still ships (spec 111 5.4).

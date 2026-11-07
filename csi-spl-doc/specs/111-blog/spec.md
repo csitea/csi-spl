@@ -411,7 +411,7 @@ page with a `<script` in a post body, an `on*=` attribute or a
   copied); so does a bucket it cannot list. After `firebase deploy`,
   `do_check_blog_media_served` fails the job when a post's picture or the
   `og:image` its page names does not answer 200 with an `image/*` type.
-  Why: the site answers an unknown path with its HTML (200 `text/html`).
+  Why: the site then answered an unknown path with its HTML (200 `text/html`).
   `2026-10-25-the-ai-software-making-machine` named a picture nobody made;
   the copy step only warned, the deploy stayed green, and on dev and prd
   the picture and the `og:image` were the HTML, so LinkedIn showed none.
@@ -428,6 +428,14 @@ page with a `<script` in a post body, an `on*=` attribute or a
   time; that line is earlier in the same job log. A failing curl's rc is logged
   too (`curl rc <n>`), and a page curl failed on stays a failure even when its
   `og:image` arrived before the cut.
+- **A missing picture is a 404** (SPL-5012). A path that ends in a media type
+  of the hosting cache rule (`MEDIA_GLOB` in `render-wui-firebase-json.sh`) and
+  matches no file answers 404, by a rewrite to a file that does not exist,
+  before the SPA catch-all. Before this it answered 200 `text/html` under the
+  rule's hour of caching, which matches by path, so a browser or a crawler
+  could keep the page as the picture. A file that exists is served before any
+  rewrite and keeps that header; a route without such an ending still gets the
+  SPA page. An app route must never end in one of these types.
 - **Rejected:** a public bucket or a CDN host. It would add an `img-src`
   host to both CSP lists.
 

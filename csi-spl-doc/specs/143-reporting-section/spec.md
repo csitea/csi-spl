@@ -401,6 +401,10 @@ Response payload:
 }
 ```
 
+### 2.5 Software projects of a workspace, the project drop box (Draft, SPL-4963)
+
+Owner HUM-10, t1 93b73456 (msgs ae60a8d9, 8262d099, cd72fcbd): each workspace has 1..n software projects, each project 1..n repos, and the tab shows the commits per project from a drop box. The design, its changes to [spec 171](../171-workspace-own-repo/spec.md), the build rows and the open questions: [releases-projects.md](releases-projects.md). Not built: sections 2.1 to 2.4 describe what runs today.
+
 ---
 
 ## 3. Tab 2: SQL Tab (Read-Only Query Engine)
@@ -781,6 +785,8 @@ The remaining tabs defined in poll `1dd28b0e` are phased for subsequent implemen
 | `POST /v1/reporting/sql` | Workspace Admins (`admin`) | Member session + RBAC check | Transaction READ ONLY, workspace RLS |
 | `POST /v1/operator/deploys` | CI Deployment SA | Google ID Token (`operatorAuth`) | Operator scope |
 | `POST /v1/operator/categories` | Operator Admins | Google ID Token (`operatorAuth`) | Operator scope |
+| `GET /v1/reporting/releases/projects` (Draft, [releases-projects.md](releases-projects.md)) | All signed-in members | Member session (`humanTenant`) | Workspace RLS; another workspace's project answers 404 |
+| `PUT /v1/operator/workspaces/{id}/projects/{project}` (Draft, [releases-projects.md](releases-projects.md)) | Operator | Google ID Token (`operatorAuth`) | Operator scope |
 
 ### 6.2 Data protection & hygiene rules
 
@@ -1107,4 +1113,4 @@ Q3 How should untracked commits (human commits, legacy commits before token trac
 
 ---
 
-<!-- version: 0.4.0 · updated: 2026-10-29 · last-edit: 2026-10-29T08:00:00Z -->
+<!-- version: 0.4.1 · updated: 2026-11-07 · last-edit: 2026-11-07T06:00:00Z -->

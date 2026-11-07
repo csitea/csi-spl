@@ -23,6 +23,10 @@
 #      256f79290: "outer limit" on 8a..8g
 #   9. a hop that fails reads not able and says it was the hop: a failed stat
 #      must not pass a sidecar with no session since its restart (R7 N1, N2)
+#  10. the lane map and the ask book on a moved desk (SPL-4985): spl_lane_init
+#      finds it, spl_lane_spool and spl_asks_hub sign with B's key through B's
+#      spool; a stub under A changes nothing; a desk that has not moved runs no
+#      hop; no sudo rule: "not pinned", as before. RED on 48dc6c573: "not pinned"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -264,6 +268,31 @@ out="$(HOP_FAIL="cat " in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; ech
 has "9c. a healthy desk, the pid hop fails: not able" "able_rc=1" "$out"
 has "9d. ...and the text names the hop, not only a dead sidecar" "the hop to its owner failed" "$out"
 chmod 700 "$RB"
+
+# --- 10. the lane map and the ask book --------------------------------------
+LANE10='LANE_FLEET=main LANE_ENV=prd LANE_TENANT=t1 LANE_DESK_BOX=sat LANE_BOX=sat; spl_lane_init; echo "init_rc=$?"'
+for box in half moved; do
+  fresh; desk "$RB"; sidecar; lock
+  out="$(in_orc "$T/box.env.$box" as "$LANE10"'; spl_lane_spool lane list; echo "lane_rc=$?"; spl_asks_hub list; echo "ask_rc=$?"')"
+  has "10a. $box: spl_lane_init finds the moved desk" "init_rc=0" "$out"
+  has "10a. $box: the lane call signs with B's key" "\"keys\":\"$RB/desk/t1/sat/keys\",\"verb\":\"lane\"" "$out"
+  has "10a. $box: the ask call signs with B's key" "\"keys\":\"$RB/desk/t1/sat/keys\",\"verb\":\"ask\"" "$out"
+  has "10a. $box: B's spool" "\"bin\":\"$RB/bin/spool\"" "$out"
+  has "10a. $box: the lane call's rc" "lane_rc=0" "$out"
+  has "10a. $box: the ask call's rc" "ask_rc=0" "$out"
+  hasnt "10a. $box: no 'not pinned'" "not pinned" "$out"
+  fresh; desk "$RB"; sidecar; mkdir -p "$RA/desk/t1/sat/spool/c-002/.mirror" "$RA/desk/t1/sat/keys"; lock
+  out="$(in_orc "$T/box.env.$box" as "$LANE10"'; spl_lane_spool lane list')"
+  has "10b. $box: a stub under A changes nothing" "\"keys\":\"$RB/desk/t1/sat/keys\"" "$out"
+  fresh; desk "$RB"; sidecar; lock
+  out="$(in_orc "$T/box.env.$box" as-refused "$LANE10")"
+  hasnt "10c. $box: no sudo rule: not found" "init_rc=0" "$out"
+done
+chmod 700 "$RB"
+fresh; desk "$RA"; sidecar
+out="$(in_orc "$T/box.env.half" as "$LANE10"'; spl_lane_spool lane list')"
+has "10d. a desk that has not moved: A's key" "\"keys\":\"$RA/desk/t1/sat/keys\"" "$out"
+eq "10d. a desk that has not moved: no hop" "0" "$(hops)"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

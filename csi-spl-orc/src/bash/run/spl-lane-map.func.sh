@@ -113,9 +113,31 @@ spl_lane_init() {
   [[ "$LANE_ENV" =~ ^(dev|prd|self)$ ]] || { do_log "FATAL LANE_ENV must be dev, prd or self (env, or LEASE_ENV in lease.conf)"; return 1; }
   ENV="$LANE_ENV" do_spl_desk_cnf || return 1
   spl_host_spool || return 1
+  spl_lane_desk_at && return 0
   LANE_DESK_DIR="$(spl_desk_dir "$LANE_TENANT" "$LANE_DESK_BOX")" || [[ $? -eq 1 ]] || return 1
   [[ -s "$LANE_DESK_DIR/pinned" ]] ||
     { do_log "FATAL $LANE_DESK_BOX is not pinned in $LANE_TENANT ($LANE_DESK_DIR): seat a desk there first (do_spl_desk_up)"; return 1; }
+}
+
+# spl_lane_desk_at: 0 when the desk moved under another user's 0700 root (spec
+# 069 8.3.1, SPL-4985): LANE_DESK_DIR is that user's, and LANE_DESK_AS and
+# LANE_SPOOL make spl_lane_desk_spool sign there as that user, with its binary.
+# 1 when the desk is the caller's or not found: spl_lane_init goes on as before.
+# Why: on 2026-11-01 the fleet desk moved and every box-user reader of this map
+# (box-stats, the sweep's link check, the reap, the box pick) read "not pinned".
+# The locate has a limit, the way the lease's has: a hung sudo must not stop a
+# cron. Under SPOOL_TEST=1 only a test's own SPL_DESK_AS_CMD hops.
+spl_lane_desk_at() {
+  local mv u r h
+  LANE_DESK_AS=() LANE_SPOOL=""
+  [[ "${SPOOL_TEST:-}" != 1 || -n "${SPL_DESK_AS_CMD:-}" ]] || return 1
+  mv="$(SPL_DESK_AS_CMD="timeout -k 1 ${LANE_HOP_TIMEOUT:-5} ${SPL_DESK_AS_CMD:-sudo -n -u}" spl_desk_moved_to "$LANE_TENANT" "$LANE_DESK_BOX" "$LANE_ENV")" || return 1
+  u="${mv%%$'\t'*}"
+  r="$(SPOOL_DESK_USER="$u" spl_desk_state_root "$LANE_ENV")" || return 1
+  h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
+  LANE_DESK_DIR="$r/desk/$LANE_TENANT/$LANE_DESK_BOX" LANE_SPOOL="$r/bin/spool"
+  read -r -a LANE_DESK_AS <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  LANE_DESK_AS+=("$u" -- env "HOME=$h")
 }
 
 # The fleet settings from the dispatch lease.conf (CLE-77911) for the keys
@@ -226,8 +248,16 @@ spl_lane_hub() { spl_lane_spool lane "$@"; }
 # `spool <verb> <args>` as this machine's desk box, under a timeout.
 spl_lane_spool() {
   if [[ -n "${LANE_HUB_CMD:-}" ]]; then "$LANE_HUB_CMD" "$@"; return; fi
-  SPOOL_ROOT="$LANE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LANE_DESK_DIR/keys" SPOOL_BOX_ID="$LANE_DESK_BOX" \
-    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LANE_TENANT" timeout "${LANE_TIMEOUT:-30}" "$SPL_SPOOL" "$@"
+  spl_lane_desk_spool "${LANE_TIMEOUT:-30}" "$@"
+}
+
+# spl_lane_desk_spool <timeout> <args...>: the spool binary on the map's desk,
+# through its owner when the desk moved (spl_lane_desk_at). env, because sudo
+# drops the environment.
+spl_lane_desk_spool() {
+  local t="$1"; shift
+  timeout "$t" "${LANE_DESK_AS[@]+"${LANE_DESK_AS[@]}"}" env SPOOL_ROOT="$LANE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LANE_DESK_DIR/keys" SPOOL_BOX_ID="$LANE_DESK_BOX" \
+    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LANE_TENANT" "${LANE_SPOOL:-$SPL_SPOOL}" "$@"
 }
 
 # The main checkouts of the repos in LANE_REPO_DIRS (default the repo holding

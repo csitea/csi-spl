@@ -95,8 +95,7 @@ spl_asks_conf() {
 # `spool ask <op> <args>` through the lane map's hub call (same desk, same timeout).
 spl_asks_hub() {
   if [[ -n "${ASKS_HUB_CMD:-}" ]]; then "$ASKS_HUB_CMD" ask "$@"; return; fi
-  SPOOL_ROOT="$LANE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LANE_DESK_DIR/keys" SPOOL_BOX_ID="$LANE_DESK_BOX" \
-    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LANE_TENANT" timeout "${ASKS_TIMEOUT:-30}" "$SPL_SPOOL" ask "$@"
+  spl_lane_desk_spool "${ASKS_TIMEOUT:-30}" ask "$@"
 }
 
 # The hub's asks (all states) as a JSON array, or exit 1 when it does not answer.

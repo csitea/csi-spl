@@ -31,7 +31,7 @@ async function refusal(r, what) {
 
 const eventPath = (id) => `/v1/calendar/events/${encodeURIComponent(id)}`
 
-async function send(api, method, path, body, what, ifMatch = '') {
+async function send(api, { method, path, body, what, ifMatch = '' }) {
   const r = await fetch(`${String((api && api.base) || '')}${path}`, {
     method, credentials: api && api.credentials, headers: headers(api, ifMatch), body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
@@ -61,7 +61,7 @@ export async function calendarUpdate(api, id, patch, todayIso, ifMatch = '') {
     }
     return mockCalendarUpdate(id, patch, todayIso)
   }
-  return send(api, 'PATCH', eventPath(id), patch, 'update', ifMatch)
+  return send(api, { method: 'PATCH', path: eventPath(id), body: patch, what: 'update', ifMatch })
 }
 
 /** DELETE /v1/calendar/events/{id}: the event as it was. */
@@ -70,7 +70,7 @@ export async function calendarDelete(api, id, todayIso) {
     const { mockCalendarDelete } = await import('./calendar-mock.mjs')
     return mockCalendarDelete(id, todayIso)
   }
-  return send(api, 'DELETE', eventPath(id), null, 'delete')
+  return send(api, { method: 'DELETE', path: eventPath(id), what: 'delete' })
 }
 
 /** POST /v1/calendar/events/{id}/restore: the deleted event back, same id. */
@@ -79,7 +79,7 @@ export async function calendarRestore(api, id, todayIso) {
     const { mockCalendarRestore } = await import('./calendar-mock.mjs')
     return mockCalendarRestore(id, todayIso)
   }
-  return send(api, 'POST', `${eventPath(id)}/restore`, null, 'restore')
+  return send(api, { method: 'POST', path: `${eventPath(id)}/restore`, what: 'restore' })
 }
 
 /** GET /v1/calendar/trash: the events the caller deleted in the last 30 days, newest first. */

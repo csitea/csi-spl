@@ -4,7 +4,7 @@
 import { beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { mockCalendarDelete, mockCalendarItems, mockCalendarRestore, mockCalendarTrash } from '../../src/utils/calendar-mock.mjs'
-import { calendarRestore, calendarTrash } from '../../src/utils/calendar-events-api.mjs'
+import { calendarDelete, calendarRestore, calendarTrash, calendarUpdate } from '../../src/utils/calendar-events-api.mjs'
 
 const TODAY = '2026-10-07'
 const RELEASE = '00000000-0000-4000-8000-000000000101'
@@ -83,6 +83,28 @@ describe('calendar api: restore and trash on the hub', () => {
     const list = await calendarTrash({ base: 'https://hub' })
     assert.deepEqual(list.map((x) => x.id), [RELEASE])
     assert.deepEqual(seen, [['https://hub/v1/calendar/trash', 'GET']])
+  })
+
+  it('delete is DELETE .../{id} with no body, and a refusal throws the status', async () => {
+    const seen = []
+    globalThis.fetch = async (url, init) => {
+      seen.push([url, init.method, init.body])
+      return new Response(JSON.stringify({ event: { id: RELEASE } }), { status: 200 })
+    }
+    assert.equal((await calendarDelete({ base: 'https://hub' }, RELEASE, TODAY)).id, RELEASE)
+    assert.deepEqual(seen, [[`https://hub/v1/calendar/events/${RELEASE}`, 'DELETE', undefined]])
+    globalThis.fetch = async () => new Response('{}', { status: 403 })
+    await assert.rejects(calendarDelete({ base: 'https://hub' }, RELEASE, TODAY), (e) => e.status === 403)
+  })
+
+  it('an update on the hub sends If-Match with the quoted updated_at', async () => {
+    const seen = []
+    globalThis.fetch = async (url, init) => {
+      seen.push(init.headers['if-match'])
+      return new Response(JSON.stringify({ event: { id: RELEASE } }), { status: 200 })
+    }
+    await calendarUpdate({ base: 'https://hub' }, RELEASE, { title: 'x' }, TODAY, 'T1')
+    assert.deepEqual(seen, ['"T1"'])
   })
 
   it('the mock workspace answers from the mock', async () => {

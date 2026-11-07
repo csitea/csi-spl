@@ -21,7 +21,9 @@
 #        fails when a WUI entry point in cnf is not in env.dns.mapped_tenants
 #     2. open rows whose host is already mapped are only CHECKED (custom
 #        domain + WUI probe -> ready / failed, no terraform): apply=0 skips
-#        the stack. Otherwise: tpl-gen at the pin, the tf infra stack (make
+#        the stack, unless Firebase shows that row's apply never finished
+#        (SPL-5008: no custom domain, or host / ownership not active): that row
+#        goes back to the apply. Otherwise: tpl-gen at the pin, the tf infra stack (make
 #        do-setup-app-inf: tf-runner, tpl-gen, conf-validator), then
 #        DRY_RUN=0 CNF_PUSH=1: cnf env.dns.mapped_tenants + the rendered 019 /
 #        025 tfvars are pushed to master FIRST (from a throwaway worktree; a
@@ -34,8 +36,9 @@
 # Auth: ONLY the existing per-env project key secrets GCP_KEY_CSI_SPL_<ENV>
 # (published by iac 120), written to the key path the actions resolve; no new
 # credential. dev's 025 also writes its subzone delegation into the prd apex
-# zone with the prd key (as it does from the operator box), so the dev job
-# carries both keys. A key without the rights shows up as a failed step, and
+# zone with the prd key (as it does from the operator box), and a prd apply
+# plans dev first with the dev key (the order gate, SPL-1947; read-only), so
+# each job carries both keys. A key without the rights shows up as a failed step, and
 # is reported, never widened here.
 # Concurrency: one run per env (group tenant-host-<env>), never cancelled
 # mid-apply; dev and prd run one after the other (max-parallel 1).
@@ -123,7 +126,8 @@ jobs:
           mkdir -p "$HOME/.gcp/.csi"
           [[ -n "$PRIVATE_CNF" ]] || { echo "::error::no secret SPL_PRIVATE_CNF_YAML: the hidden workspaces cannot resolve"; exit 1; }
           printf '%s\n' "$PRIVATE_CNF" >"$HOME/.gcp/.csi/csi-spl-private.yaml"
-          if [[ "$ENV" == dev ]]; then printf '%s' "$KEY_DEV" >"$HOME/.gcp/.csi/key-csi-spl-dev.json"; fi
+          # dev's key: the dev job, and the prd job's order gate, which plans dev from inside the prd apply (SPL-5008)
+          if [[ -n "$KEY_DEV" ]]; then printf '%s' "$KEY_DEV" >"$HOME/.gcp/.csi/key-csi-spl-dev.json"; fi
           # prd's key: the prd job, and dev's 025 delegation record in the prd apex zone
           if [[ -n "$KEY_PRD" ]]; then printf '%s' "$KEY_PRD" >"$HOME/.gcp/.csi/key-csi-spl-prd.json"; fi
           jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-$ENV.json" >/dev/null

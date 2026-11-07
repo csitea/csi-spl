@@ -91,6 +91,10 @@
 # @description @-mentions people and no agent (SPL-3967,
 # @description lib/bash/funcs/spl-desk-human-gate.func.sh). A later human post
 # @description for everyone opens the topic again.
+# @description On a half-moved box (no SPOOL_DESK_USER, spec 069 8.3.1) a desk
+# @description pinned under another user's root and not under the caller's
+# @description re-runs this action once as that user (SPL-4938), so the exit
+# @description codes and the output are that run's; do_spl_take gets it too.
 # @description Exit 3 when nothing newer than this desk's last answer is
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
@@ -142,9 +146,13 @@ do_spl_desk_reply() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" to="${DESK_TO:-}" task="${DESK_TASK:-}"
+  spl_desk_validate "$tenant" "$box" "$agent" || return 1
+  local hop_to
+  if hop_to="$(_spl_desk_reply_hop_to "$tenant" "$box")"; then
+    _spl_desk_reply_hop "$hop_to" "$tenant" "$box" "$agent"; return $?
+  fi
   _spl_desk_reply_body_file || return 1
   spl_post_time_apply body || return 1
-  spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' f files=()
   read -r -a files <<<"${DESK_FILES:-}"
   _spl_desk_reply_check_args "$body" "$kind" "$to" "$task" "${files[@]}" || return 1
@@ -193,6 +201,39 @@ do_spl_desk_reply() {
       do_log "WARN could not archive $agent's inbox after the answer"
   fi
   do_log "OK $agent answered $ans_to in topic $sent_task ($kind${ans_ref:+, $route}); the sidecar flushes it to $hub"
+}
+
+# _spl_desk_reply_hop_to <tenant> <box>: the user to re-run this action as, 0;
+# 1 when it runs here. A half-moved box (spec 069 8.3.1) holds desks under the
+# box user and the agent user before box.env names SPOOL_DESK_USER, so no fixed
+# prefix in a dispatcher's brief fits every workspace (SPL-4938: FATAL no desk
+# on sat's csi-rel, every hourly rotation). spl_desk_moved_to, not "the first
+# root that holds the dir": sat's box user keeps unpinned stubs with a mailbox
+# (two workspaces, 2026-11-07), where a reply would be written and no
+# sidecar would flush it. SPL_DESK_HOPPED: one hop, never a loop. Under
+# SPOOL_TEST=1 only a test's own SPL_DESK_AS_CMD hops: never to a real user.
+_spl_desk_reply_hop_to() {
+  local mv
+  [[ -z "${SPL_DESK_HOPPED:-}" && -z "$(spl_desk_user)" ]] || return 1
+  [[ "${SPOOL_TEST:-}" != 1 || -n "${SPL_DESK_AS_CMD:-}" ]] || return 1
+  mv="$(spl_desk_moved_to "$1" "$2")" || return 1
+  printf '%s' "${mv%%$'\t'*}"
+}
+
+# _spl_desk_reply_hop <user> <tenant> <box> <agent>: this action again as <user>
+# with its HOME; returns that run's rc. sudo drops the environment, so every
+# DESK_* input goes by name (compgen -v: a caller's subshell may not export
+# them). SPL_STATE_DIR stays behind: it is the caller's state. A DESK_BODY_FILE
+# or DESK_FILES path must be readable by <user>; its FATAL names it.
+_spl_desk_reply_hop() {
+  local u="$1" v
+  local -a as=() vars=()
+  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  while read -r v; do vars+=("$v=${!v:-}"); done < <(compgen -v DESK_)
+  do_log "INFO desk $3 of $2 ($ENV) lives under $u's state root (spec 069 8.3.1): this reply re-runs as $u" >&2
+  "${as[@]}" "$u" -- env HOME="$(getent passwd "$u" | cut -d: -f6)" "${vars[@]}" ENV="$ENV" TENANT_ID="$2" DESK_BOX="$3" DESK_AGENT="$4" \
+    DRY_RUN="${DRY_RUN:-1}" SPOOL_ROOT="${SPOOL_ROOT:-}" SPOOL_BOX_ENV="${SPOOL_BOX_ENV:-}" RUN_STDOUT_IS_DATA="${RUN_STDOUT_IS_DATA:-}" \
+    SPL_DESK_HOPPED="$(id -un)" "$PROJ_PATH/run" -a do_spl_desk_reply 9>&-
 }
 
 # _spl_desk_reply_choose: the conversation to answer, into the caller's

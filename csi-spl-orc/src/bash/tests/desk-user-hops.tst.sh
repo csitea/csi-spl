@@ -21,6 +21,14 @@
 #      the desk. RED CONTROL: before SPL-4560 the hop went to SPOOL_BOX_USER,
 #      whose root has no such desk (do_spl_lane_issue "FATAL no desk for").
 #      The desk nowhere, or SPOOL_DESK_USER set: the hop as before
+#   6. do_spl_desk_reply on a half-moved box (SPL-4938): no SPOOL_DESK_USER and
+#      the desk pinned under another root re-runs the action once as that
+#      root's user, also over the caller's unpinned stub (sat 2026-11-07: two
+#      workspaces), whose post no sidecar would ever flush. The
+#      caller's pinned desk, the desk nowhere, an unpinned copy elsewhere,
+#      SPOOL_DESK_USER set and a run already hopped: no hop. do_spl_take posts
+#      through the reply, so it gets the same hop. RED CONTROL: before SPL-4938
+#      the first case read "FATAL no desk" and the stub case hopped nowhere
 # The scripts run from a sandbox copy of the feature tree, so their default
 # orc (<copy>/run, a stub that logs its user and HOME) is the one called and
 # the hop is the real one. sudo is a stub that logs its arguments and exits 99;
@@ -190,6 +198,107 @@ EOF2
 chmod +x "$T/stub2/sudo" "$T/stub2/getent"
 eq "5. the agent user's root not enterable: its sudo test -d finds the desk -> the agent user" \
   "sudo|-n|-u|$DU|env|HOME=$T/hidden|" "$(hop5 "$T/box.env.agent" PATH="$T/stub2:$T/stub:$PATH" -- 'li_desk_hop h prd ws-a box-x')"
+
+# 6. do_spl_desk_reply follows a desk moved under another root (SPL-4938). The
+# real action in in_orc; SPL_DESK_AS_CMD is a stub that runs a root's probe and
+# logs the hop instead of running it.
+AS6="$T/as6"
+cat >"$AS6" <<'EOF2'
+#!/usr/bin/env bash
+[ "$3" = env ] || { shift 2; [ -z "${AS_HIDDEN:-}" ] || set -- "${@//$AS_HIDDEN/$AS_SEEN}"; exec "$@"; }
+shift 2
+printf 'HOP %s\n' "$*" >>"$AS_LOG"
+exit "${AS_RC:-0}"
+EOF2
+chmod +x "$AS6"
+ROOT6="$DH/.local/share/t-app/cloud/dev"
+SELF6="$T/state/dev"
+TOPIC6=b280b0e8-1111-4222-8333-444455556666
+echo 'the answer' >"$T/body6"
+# desk6 <root> <workspace> [pinned]: a desk with c-002's mailbox dir; a stub has no pinned
+desk6() {
+  mkdir -p "$1/desk/$2/box-x/spool/c-002"
+  [ -z "${3:-}" ] || echo key >"$1/desk/$2/box-x/pinned"
+}
+# reply6 <workspace> [VAR=value]...: the action's output, then rc=<its rc>
+reply6() {
+  local ws="$1"; shift
+  : >"$T/as.log"
+  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; do_spl_desk_reply; echo "rc=$?"' \
+    in_orc TENANT_ID="$ws" DESK_BOX=box-x DESK_AGENT=c-002 DESK_TO=HUM-10 DESK_TASK="$TOPIC6" \
+    DESK_BODY_FILE="$T/body6" DRY_RUN=0 SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" "$@" 2>&1
+}
+hop6() { grep -c '^HOP ' "$T/as.log"; }
+
+desk6 "$ROOT6" hop-a pinned
+out="$(reply6 hop-a)"; log="$(cat "$T/as.log")"
+has "6. moved: the desk pinned only under the agent root -> one hop to the agent user, with its HOME" "HOP env HOME=$DH " "$log"
+eq "6. moved: exactly one hop" "1" "$(hop6)"
+for v in ENV=dev TENANT_ID=hop-a DESK_AGENT=c-002 DESK_BOX=box-x DESK_TO=HUM-10 "DESK_TASK=$TOPIC6" "DESK_BODY_FILE=$T/body6" DRY_RUN=0 SPOOL_ROOT= "SPL_DESK_HOPPED=$ME"; do
+  has "6. moved: the hop carries $v" " $v" "$log"
+done
+has "6. moved: the hop runs this checkout's action" "$PROJ_ROOT/run -a do_spl_desk_reply" "$log"
+hasnt "6. moved: the caller's SPL_STATE_DIR stays behind" "SPL_STATE_DIR" "$log"
+hasnt "6. moved: no FATAL in the caller" "no desk for" "$out"
+has "6. moved: the hopped run's rc is the action's rc" "rc=7" "$(reply6 hop-a AS_RC=7)"
+
+# the live defect: the agent user's root is 0700, only its sudo sees the desk
+mkdir -p "$T/stub6" "$T/hidden6"
+cat >"$T/stub6/getent" <<EOF2
+#!/bin/sh
+case "\$2" in $DU) echo "$DU:x:5002:5002::$T/hidden6:/bin/sh" ;; *) exec "$T/stub/getent" "\$@" ;; esac
+EOF2
+chmod +x "$T/stub6/getent"
+chmod 000 "$T/hidden6"
+out="$(reply6 hop-a PATH="$T/stub6:$T/stub:$PATH" AS_HIDDEN="$T/hidden6" AS_SEEN="$DH")"; log="$(cat "$T/as.log")"
+chmod 755 "$T/hidden6"
+has "6. moved, the root not enterable: its sudo finds the desk, the hop goes there (RED before SPL-4938: FATAL no desk)" "HOP env HOME=$T/hidden6 " "$log"
+hasnt "6. moved, the root not enterable: no FATAL in the caller" "no desk for" "$out"
+
+desk6 "$SELF6" hop-b; desk6 "$ROOT6" hop-b pinned
+reply6 hop-b >/dev/null
+eq "6. the caller's unpinned stub, the desk pinned under the agent root (as measured on sat): one hop" "1" "$(hop6)"
+reply6 hop-b DRY_RUN=1 >/dev/null
+has "6. a dry run hops too, so it reads the real desk" "DRY_RUN=1" "$(cat "$T/as.log")"
+
+desk6 "$SELF6" hop-c pinned; desk6 "$ROOT6" hop-c
+out="$(reply6 hop-c DRY_RUN=1)"
+eq "6. the desk under the caller's root: no hop" "0" "$(hop6)"
+has "6. the desk under the caller's root: the dry run runs here" "OK DRY_RUN nothing was sent" "$out"
+
+out="$(reply6 hop-none)"
+eq "6. no root holds it: no hop" "0" "$(hop6)"
+has "6. no root holds it: the FATAL as today" "FATAL no desk for c-002 on box-x in hop-none" "$out"
+
+desk6 "$ROOT6" hop-d
+reply6 hop-d DRY_RUN=1 >/dev/null
+eq "6. only an unpinned copy under the other root: not a desk to hop to" "0" "$(hop6)"
+
+desk6 "$ROOT6" hop-e pinned
+reply6 hop-e DRY_RUN=1 SPOOL_DESK_USER="$DU" >/dev/null
+eq "6. SPOOL_DESK_USER set: no hop, as before" "0" "$(hop6)"
+reply6 hop-e DRY_RUN=1 SPL_DESK_HOPPED="$BU" >/dev/null
+eq "6. a run that already hopped does not hop again" "0" "$(hop6)"
+reply6 hop-e DRY_RUN=1 SPL_DESK_AS_CMD= >/dev/null
+eq "6. SPOOL_TEST=1 with no SPL_DESK_AS_CMD never hops to a real user" "0" "$(hop6)"
+
+# do_spl_take posts through do_spl_desk_reply: the same hop, the ledger written.
+cat >"$T/reply6" <<'EOF2'
+#!/usr/bin/env bash
+do_log() { echo "$*"; }
+do_require_bin() { return 0; }
+for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
+do_spl_desk_reply
+EOF2
+chmod +x "$T/reply6"
+out="$(: >"$T/as.log"; SNIPPET='do_spl_take; echo "rc=$?"' in_orc TENANT_ID=hop-a DESK_BOX=box-x TAKE_BOX=box-x DESK_AGENT=c-002 DESK_TO=HUM-10 \
+  DESK_TASK="$TOPIC6" TAKE_PLAN='I read the logs' DRY_RUN=0 SPOOL_ROOT="$T/spool" SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" \
+  SPOOL_BOX_USER="$BU" SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" TAKE_REPLY_CMD="$T/reply6" 2>&1)"
+eq "6. do_spl_take: its reply hops once" "1" "$(hop6)"
+has "6. do_spl_take: the hop carries the take line" "DESK_BODY=Taken by c-002@box-x: I read the logs" "$(cat "$T/as.log")"
+has "6. do_spl_take: recorded as taken, rc 0" "rc=0" "$out"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

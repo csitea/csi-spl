@@ -731,6 +731,19 @@ box user, as before. With `SPOOL_DESK_USER` set nothing changes. On
 `<agent-user>`, the action ran as `<box-user>`. Test:
 `csi-spl-orc/src/bash/tests/desk-user-hops.tst.sh` case 5.
 
+`do_spl_desk_reply` hops for itself on such a box, because the command a
+dispatcher's brief teaches names `<workspace>` as a placeholder, so no fixed
+`sudo -u` prefix fits every workspace (SPL-4938). With no `SPOOL_DESK_USER`,
+when `spl_desk_moved_to` reads the desk pinned under another root and not under
+the caller's, the action re-runs once as that root's user with its HOME; its
+exit code and output are that run's. `do_spl_take` posts through the reply, so
+it needs no hop of its own, and the taught commands stay as they are. It reads
+`pinned`, not "a root holds the dir": on 2026-11-07 sat's `<box-user>` root
+held unpinned stubs of two workspaces' desks with a mailbox, where a
+reply would be written and no sidecar would flush it. An unpinned copy under
+another root gets no hop. With `SPOOL_DESK_USER` set nothing changes. Test:
+`desk-user-hops.tst.sh` case 6.
+
 So a desk under `<agent-user>` is **readable only by `<agent-user>`**: a
 `<box-user>` cron that reads or posts through a moved desk keeps failing,
 now with that refusal instead of a bare `no desk for`, until it runs as the

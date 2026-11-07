@@ -22,7 +22,8 @@
 #  11 a row declined after the post is added to that discussion, once (W4)
 #  12 (with AFU_TEST_PG_DSN) the real statement joins a row by every binding form
 #  13 a channel the box map holds, a workspace's * row, a sole seat, a map that
-#     cannot be read: no post, reply or link, one blocker naming what was left;
+#     cannot be read, a malformed column 7: no post, reply or link, one blocker
+#     naming what was left, even after an earlier blocker of the topic;
 #     CONTROL: another channel of the same workspace still posts
 # RED CONTROLS: without the action file every case fails; without the journal
 # read case 4 posts twice; without the poster check case 5 posts; without
@@ -30,7 +31,9 @@
 # without spl_afu_late_rows case 11 replies nothing; without the other roots of
 # spl_afu_desk_seated case 10g posts nothing and sends a blocker; without the
 # pinned check case 10j reads the stub as this user's desk; without
-# spl_afu_channel_held every case of 13 but its control posts.
+# spl_afu_channel_held every case of 13 but its controls posts; reading only the
+# word in column 7, 13i..k post; with one failed.keys key per topic, 13m and 13n
+# send no second blocker.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -214,6 +217,11 @@ DOC="11111111-0000-4000-8000-000000000001"
   printf 'ws-held\t*\t-\t-\t-\t-\tno-auto-post\n'
   printf 't1\tsolo\t%s\tprd\tc-001\tc-900@box-z\n' "$DOC"
   printf 't1\tmine\t%s\tprd\tc-001\tc-002@box-a\n' "$DOC"
+  printf 't1\tcrlf\t%s\tprd\tc-001\t-\tno-auto-post\r\n' "$DOC"
+  printf 't1\ttypo\t%s\tprd\tc-001\t-\tno_auto_post\n' "$DOC"
+  printf 'ws-typo\t*\t-\t-\t-\t-\tbogus\n'
+  printf 't1\tdash\t%s\tprd\tc-001\t-\t-\n' "$DOC"
+  printf 't1\tblank\t%s\tprd\tc-001\t-\t\n' "$DOC"
 } >"$SP/channel-rules.tsv"
 held() { printf 'issue\t%s\t%s\t%s\t%s\tSPL-9\twip\tthe left job\tbox-a\tHUM-1\n' "$1" "$OLD" "$2" "$AT" >"$T/rows13"; }
 mkdir -p "$T/state/dev/desk/ws-held/box-a/spool/c-002"; echo key >"$T/state/dev/desk/ws-held/box-a/pinned"
@@ -244,6 +252,24 @@ mv "$SP/channel-rules.tsv" "$T/map13"; fresh; held t1 elsewhere
 out="$(ROWS="$T/rows13" run DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$(count '^post ')" == 0 && "$(count '^send .*--kind blocker')" == 1 ]] && pass "13h no map on this box: no post, one blocker" || fail "13h rc $rc: $out // $(cat "$LOG")"
 mv "$T/map13" "$SP/channel-rules.tsv"
+# column 7 is the word, empty or "-": anything else holds, it cannot be told apart from a hold
+check_held t1 crlf i "a CRLF column 7"
+check_held t1 typo j "a misspelt column 7"
+check_held ws-typo any-channel k "a malformed column 7 on a workspace's * row"
+for c in dash blank; do
+  fresh; held t1 "$c"; out="$(ROWS="$T/rows13" run DRY_RUN=0)"
+  [[ "$(count "^post t1 c-002 $c\$")" == 1 && "$(count '^send ')" == 0 ]] && pass "13l CONTROL: column 7 $c posts, no blocker" || fail "13l $c: $out // $(cat "$LOG")"
+done
+# a held blocker has its own key: an earlier blocker of the topic does not swallow it, nor the reverse
+cp "$SP/channel-rules.tsv" "$T/map13"
+fresh; held t2 late; out="$(ROWS="$T/rows13" run DRY_RUN=0)"; first="$(count '^send .*--kind blocker')"
+printf 't2\tlate\t%s\tprd\tc-001\t-\tno-auto-post\n' "$DOC" >>"$SP/channel-rules.tsv"
+: >"$LOG"; out="$(ROWS="$T/rows13" run DRY_RUN=0)"; second="$(count '^send .*--kind blocker')"; named="$(count 'SPL-9 (wip): the left job')"
+out2="$(ROWS="$T/rows13" run DRY_RUN=0)"
+[[ "$first" == 1 && "$second" == 1 && "$named" == 1 && "$(count '^send .*--kind blocker')" == 1 ]] && pass "13m a desk blocker, then the hold: one more blocker naming the work, not repeated" || fail "13m $first $second $named: $out // $out2 // $(cat "$LOG")"
+fresh; out="$(ROWS="$T/rows13" run DRY_RUN=0)"; first="$(count '^send .*--kind blocker')"
+cp "$T/map13" "$SP/channel-rules.tsv"; : >"$LOG"; out="$(ROWS="$T/rows13" run DRY_RUN=0)"
+[[ "$first" == 1 && "$(count '^send .*--kind blocker')" == 1 && "$out" == *"no desk for c-002 on box-a in t2"* ]] && pass "13n CONTROL: the hold, then no desk: the desk blocker is still sent" || fail "13n $first: $out // $(cat "$LOG")"
 
 # 12. the real statement, on a scratch schema
 if [[ -n "${AFU_TEST_PG_DSN:-}" ]]; then

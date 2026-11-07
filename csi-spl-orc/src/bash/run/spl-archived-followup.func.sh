@@ -36,8 +36,10 @@
 # @description posts nothing (a desk is seated with the workspace's root key).
 # @description A channel the box map holds (channel-rules.tsv: no-auto-post, also a
 # @description workspace's * row, or a sole seat that is not the holder here, or a map
-# @description that cannot be read): no post, no reply, no link change, ONE blocker
-# @description that lists what was left (SPL-4955; nothing posts on its own there).
+# @description that cannot be read, or a malformed column 7): no post, no reply, no
+# @description link change, ONE blocker that lists what was left, with its own key, so
+# @description an earlier blocker of the topic does not swallow it (SPL-4955; nothing
+# @description posts on its own there).
 # @description Dry run unless DRY_RUN=0: the plan, nothing posted or linked.
 # @param ENV (optional) - dev or prd, default lease.conf LEASE_ENV
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -162,7 +164,7 @@ spl_afu_channel_held() {
     { echo "the channel rules lib cannot be read"; return 0; }
   rc=0; cr_no_auto_post "$1" "$2" || rc=$?
   (( rc == 0 )) && { echo "the box map holds #$2 of $1 from automatic posts"; return 0; }
-  (( rc == 2 )) && { echo "this box cannot read its channel rules map, $(cr_map)"; return 0; }
+  (( rc == 2 )) && { echo "this box cannot tell the rule of #$2 of $1 from its channel rules map, $(cr_map)"; return 0; }
   rc=0; seat="$(cr_sole_seat "$1" "$2" 2>/dev/null)" || rc=$?
   (( rc == 2 )) && { echo "cannot tell the sole seat of #$2 of $1"; return 0; }
   (( rc == 0 )) && [[ "$seat" != "$AFU_AGENT@$AFU_BOX" ]] && { echo "#$2 of $1 has a sole seat, $seat"; return 0; }
@@ -286,9 +288,11 @@ spl_afu_link() {
 }
 
 # spl_afu_blocker TENANT TOPIC DIR WHY [BODY]: ONE blocker to the orchestrator per
-# topic (failed.keys), so a topic that keeps failing does not repeat every run.
+# topic (failed.keys), so a topic that keeps failing does not repeat every run. A
+# BODY is the held one: it lists what was left, so it has its own key.
 spl_afu_blocker() {
   local k="$1"$'\t'"$2" send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+  [[ -z "${5:-}" ]] || k+=$'\theld'
   do_log "WARN $1 topic $2: no follow-up discussion: $4"
   grep -qxF "$k" "$3/failed.keys" 2>/dev/null && return 0
   if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$(spl_role_seat 1)" --to orchestrator --kind blocker --task archived-followup \

@@ -39,9 +39,11 @@ archived discussion is another lane's work and is not described here.
   posts twice. A post that fails sends one blocker to the orchestrator, and is retried every run.
 - **A held channel gets no follow-up.** Where nothing may post on its own, the code does not:
   a channel with `no-auto-post` in column 7 of the box map `<spool root>/channel-rules.tsv`, every
-  channel of a workspace with a `*` row, a sole seat that is not the holder here, or a box whose
-  map is missing or unreadable. No post, no reply, no link change: one blocker to the orchestrator
-  names the workspace, the topic and what was left, once per topic (`failed.keys`). The map is
+  channel of a workspace with a `*` row, a sole seat that is not the holder here, a box whose
+  map is missing or unreadable, or a column 7 other than that word, empty or `-`. No post, no
+  reply, no link change: one blocker to the orchestrator names the workspace, the topic and what
+  was left, once per topic, under its own key in `failed.keys`, so an earlier blocker of the topic
+  does not swallow it. The map is
   box-side, never in git: a channel name can be a customer's. A row declined later on such a topic
   stays with its sender and the holder.
 - **One box posts for a topic.** The holder's box when the hub's roster has the holder's id on

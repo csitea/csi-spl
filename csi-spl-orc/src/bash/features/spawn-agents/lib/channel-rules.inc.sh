@@ -88,14 +88,17 @@ cr_sole_seat() {
 
 # cr_no_auto_post TENANT CHANNEL: 0 = the map holds this channel (its row or the
 # workspace's * row has no-auto-post in column 7). 1 = it does not. 2 = cannot
-# tell: no map, or a map that cannot be read. Unlike a sole seat, no map is not
+# tell: no map, a map that cannot be read, or a column 7 of those rows other than
+# the word, empty or "-" (a FATAL on stderr). Unlike a sole seat, no map is not
 # "no rule": the name of a held channel lives only in the map, so a box without
 # one cannot know. A caller treats 2 as held.
 cr_no_auto_post() {
-  local m
+  local m rc=0
   m="$(cr_map)"
   [ -r "$m" ] || return 2
-  awk -F'\t' -v t="$1" -v c="$2" '$1 !~ /^#/ && $1 == t && ($2 == c || $2 == "*") && $7 == "no-auto-post" { f = 1 } END { exit !f }' "$m"
+  awk -F'\t' -v t="$1" -v c="$2" '$1 !~ /^#/ && $1 == t && ($2 == c || $2 == "*") { if ($7 == "no-auto-post") f = 1; else if ($7 != "" && $7 != "-") bad = 1 } END { exit bad ? 2 : !f }' "$m" || rc=$?
+  (( rc == 2 )) && echo "FATAL channel rules: a row for $1 #$2 in $m has a column 7 that is not 'no-auto-post', '-' or empty" >&2
+  return "$rc"
 }
 
 # The export through the desk (do_spl_desk_doctree, a read). The caller is the

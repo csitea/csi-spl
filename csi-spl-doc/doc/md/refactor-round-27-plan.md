@@ -45,10 +45,10 @@ action headers where `./run` help reads them; three take WUI functions off the
 wide list; five put 14 under-tested Go functions under unit test. Batch 2 is the
 second header row, because both edit one baseline file.
 
-**Status: v0.1 DRAFT**, not reviewed. No panel seat has read it.
+**Status: v0.2 DRAFT**, not reviewed. No panel seat has read it.
 
-Editor: **c-265** (claude). Panel reviewer: seated by the dispatch lease holder
-(section 5).
+Editor: **c-265** (claude). Panel reviewer: an agy seat, queued by the dispatch
+lease holder, not placed yet (section 5).
 
 **One sha:** every count is measured on **`0b2f05cb1`** (`origin/master`
 0b2f05cb1b54b727f7bac841a7546e0de1375004, 2026-11-07T16:24:43+01:00 / 15:24:43Z),
@@ -77,8 +77,8 @@ and lane readings are live state, so they carry their own time, not this sha.
   `run/` = `src/bash/run/`, `t/` = `src/bash/tests/` of the sub-project named.
   Lines as of `0b2f05cb1`; a function's site is its first line.
 - **Box:** `either` for every row (no pin).
-- **Vendor:** claude for every row. **R7 reviewer:** named per row by the dispatch
-  holder at placement, under the R7 rule in force then. This plan names none.
+- **Vendor:** claude for every row. **R7 reviewer:** a fresh claude session per row, under
+  the holder's ruling in section 5; no seat is named before a row is queued.
 - **Subject** (R6 reads it): `<type>(r53-NN-<slug>, SPL-<row issue>): ...`.
 - **Topic:** every row brief carries the `Topic:` line above; rows report there,
   never on an archived topic.
@@ -214,11 +214,17 @@ and lane readings are live state, so they carry their own time, not this sha.
 
 ## 5. Panel and reviewers (R7)
 
-- Editor: c-265 (claude). Panel reviewer: seated by the dispatch lease holder on
-  this plan's review sha; both sign the plan sha (rulebook 3.2).
-- Row reviewers: named per row by the holder at placement, under the R7 rule in
-  force then. An equal vendor pair fails rulebook 2.7.2 unless a waiver covers it,
-  and the retro names the row.
+- Editor: c-265 (claude). Panel reviewer: agy, cross-vendor as rulebook 3.2 asks:
+  ask 785ea06b, placement `c002-refactor-round-27-agy-panel-reviewer`, queued and not
+  placed at the holder's note d15dfe65. Its verdict goes to the editor and the holder
+  on task `dispatch-refactor-r27`. Both seats sign the plan sha.
+- **Row reviewers (holder's ruling, note d15dfe65):** claude author, a fresh claude
+  reviewer under waiver 1a7c70da, the holder's GO by hand. The note's reasons, quoted
+  from it and not read at their source: grok is off by the owner's order (5902b924),
+  mistral reviews are paused (cf7a7ee5), and agy gets no code R7. The ruling lapses on
+  the owner's post that grok is back. As in round 26, the waiver does not make a row
+  compliant: rulebook 2.7.5 fails an equal vendor pair, and the retro names each such row.
+- **No land** of this plan before the panel's signature and the holder's GO (same note).
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
 - **P1, for the panel:** rows 03 and 04 name pins not fully probed (see each row);
   row 05 has no pin at all, only typecheck and source readers, because the store did
@@ -274,10 +280,11 @@ and lane readings are live state, so they carry their own time, not this sha.
 ## 8. Changes
 
 - v0.1: first draft (c-265): 10 rows, slug `r53`, measured on `0b2f05cb1`.
+- v0.2: the holder's panel seat and R7 ruling (note d15dfe65) in sections 1 and 5. No row changed.
 
 ## 9. Consensus
 
 Both seats sign this sha (rulebook 3.2). Neither has yet.
 
-- Editor seat: c-265 (claude): drafted v0.1. **Not signed.**
-- Panel reviewer seat: to be seated by the dispatch holder.
+- Editor seat: c-265 (claude): drafted v0.1 and v0.2. **Not signed.**
+- Panel reviewer seat: agy, ask 785ea06b, queued, not placed.

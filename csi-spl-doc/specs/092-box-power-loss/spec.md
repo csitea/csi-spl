@@ -38,6 +38,32 @@ needs, so the review is not required reading.
 | FR-008 | Every freshness check reads the fleet's state (the holder's last delivery), never only its own box's. |
 | FR-009 | Each box class runs the same crons, or the difference is declared; a check reports drift. |
 
+
+## FR-002 on a desk moved to its desk user (spec 069 8.3, SPL-4942)
+
+The lease loop stays a box-user process (the tmux server is that user's), and
+a moved desk stays 0700 under the desk user. `spl_fleet_desk_at`
+(`spl-dispatch-lease.func.sh`) locates the desk: pinned under the caller, no fork
+and no sudo; else `spl_desk_moved_to` names the owner, and the gate
+(`spl_fleet_desk_able`), the signed hub calls (`spl_fleet_hub_once`,
+`spl_fleet_beats`) and the actions the loop starts (the `#alerts` post, the ops
+notice, `do_spl_asks_tick`) run through
+`sudo -n -u <owner> -- env HOME=<its home>`, with the owner's `bin/spool`.
+
+A hop, not a status file: the hub calls sign with the desk's 0600 key, so a
+status file could serve the gate only and would still need the hop, plus a new
+writer and a staleness rule. With no way in (no sudo rule, `spl_desk_dir` rc 3)
+the gate reads not able and the calls fail, as before.
+
+Measured on sat 2026-11-07 at load ~55 (n=3 reads, n=5 gates): a desk not moved,
+gate 333 -> 167 ms and hub read 368 -> 201 ms (the walk of the roots is gone); a
+moved desk, gate 544 ms and hub read 567 ms.
+
+Known gap: `spl_fleet_mirror_tenants` walks only the roots the caller can enter,
+so a tenant whose desk moved gets no lease copy.
+
+Test: `csi-spl-orc/src/bash/tests/dispatch-lease-moved-desk.tst.sh`.
+
 ## 2. User stories
 
 One story per fix of the review's section 8, in its rank order. Each is one

@@ -594,7 +594,8 @@
     "your_status_offline": "Tilasi: offline",
     "monitoring": "Valvonta",
     "reporting": "Raportit",
-    "notes": "Muistiinpanot"
+    "notes": "Muistiinpanot",
+    "expenses": "Kulut"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -3974,5 +3975,33 @@
     "notice_connected": "Google-kalenteri on yhdistetty.",
     "notice_error": "Google-kalenteria ei yhdistetty. Yritä uudelleen.",
     "untitled_event": "(Ei otsikkoa)"
+  },
+  "expenses": {
+    "tabs_label": "Kulujen välilehdet",
+    "tab": {
+      "ai": "Tekoälykulut",
+      "cloud": "Pilvi-infrastruktuurin kulut",
+      "hr": "Henkilöstökulut"
+    },
+    "entries": {
+      "add": "Lisää kulu",
+      "intro_cloud": "Käsin kirjatut pilvi-infrastruktuurin kulut, esimerkiksi lasku, yksi rivi kuukaudessa. Raportit → Kulut laskee ne kohtaan Pilvi.",
+      "intro_hr": "Käsin kirjatut henkilöstökulut, yksi rivi kuukaudessa. Raportit → Kulut näyttää ne kohdassa Henkilöstö, ei kohdassa Menot.",
+      "col_label_cloud": "Kuvaus",
+      "col_label_hr": "Rooli tai sopimus",
+      "col_amount": "Summa ilman arvonlisäveroa",
+      "col_period": "Kuukausi",
+      "loading": "Ladataan kuluja…",
+      "error": "Kuluja ei voitu ladata.",
+      "empty": "Kuluja ei ole vielä kirjattu.",
+      "confirm_delete": "Poistetaanko tämä kulu?",
+      "err_label": "Anna enintään 100 merkin nimi.",
+      "err_amount": "Anna summa, joka on yli 0.",
+      "err_currency": "Valitse valuutta.",
+      "err_period": "Valitse kuukausi.",
+      "err_note": "Huomautus on liian pitkä: enintään 2000 merkkiä."
+    },
+    "operators_only": "Kulut ovat vain operaattorin ylläpitäjille.",
+    "tokens_link": "Maksetut tilaukset ja lisäostot kirjataan kohdassa Kulut → Tekoälykulut."
   }
 }

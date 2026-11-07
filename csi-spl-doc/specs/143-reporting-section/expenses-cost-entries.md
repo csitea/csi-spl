@@ -8,8 +8,8 @@ page" (msg 50d84663); the page is named **Expenses** (poll 9fbea87a, A).
 Step A (SPL-4382) puts the page at `/expenses` with three tabs: `/expenses/ai`
 (the paid AI items of rdb 0205, `/v1/operator/fleet-tokens/paid`),
 `/expenses/cloud` and `/expenses/hr`. Step B, this page, is the storage and the
-hub routes behind the Cloud and HR tabs; their entry forms follow once step A
-has landed.
+hub routes behind the Cloud and HR tabs; their entry forms landed with step A
+(section 7).
 
 ## 1. Storage: rdb 0245 `cost_entries`
 
@@ -139,3 +139,21 @@ case 6 fails).
   `entries` block).
 
 <!-- version: 0.7.0 · updated: 2026-11-05 -->
+
+## 7. Web UI: Expenses -> Cloud infra costs and HR costs (SPL-4382)
+
+`csi-spl-wui/src/components/expenses/CostEntriesCard.vue`, mounted by
+`pages/expenses/[[tab]].vue` with the open tab's type: the list (newest month
+first), **Add a cost** and delete with a confirmation. There is no edit route:
+a wrong entry is deleted and entered again. The amount is the net of VAT
+(section 5).
+
+- `utils/cost-entries.mjs` holds the form's checks, `store.CheckCostEntry`'s
+  rules counted in bytes as the hub does, plus a currency the hub quotes; the
+  hub's refusal shows as it came.
+- The client calls are ops of `fleetPaid` (`entries`, `entry_create`,
+  `entry_delete`, `utils/spool-client-lazy.mjs`), so the initial chunk gains no
+  stub name; the card and the util load with their tab.
+- Tests: `tests/unit/cost-entries.test.mjs` (the checks and the body per type), `costEntryRound` in
+  `tests/e2e/monitoring-costs.test.mjs` (1400 + 390 px: insert per type, the
+  other tab does not list it, delete).

@@ -2017,14 +2017,25 @@ async function reportingSql(ctx, query) {
  *   'patch', id, body     PATCH  /v1/operator/fleet-tokens/paid/{id}
  *   'delete', id          DELETE /v1/operator/fleet-tokens/paid/{id}
  *   'effective'           GET    /v1/operator/fleet-tokens/effective (the hub's default range)
+ *   'entries', type       GET    /v1/operator/cost-entries?type= (SPL-4382, Expenses)
+ *   'entry_create', body  POST   /v1/operator/cost-entries
+ *   'entry_delete', id    DELETE /v1/operator/cost-entries/{id}
  * Operator admin only, as getFleetTokens. The mock answers from
- * monitoring-paid.mjs, which loads only here and on the Paid card.
+ * monitoring-paid.mjs and cost-entries.mjs, which load only here and on their
+ * cards.
  */
 async function fleetPaid(ctx, op, a, b) {
   const { live, mock } = ctx
   const base = '/v1/operator/fleet-tokens/paid'
   const one = (id) => base + '/' + encodeURIComponent(id)
   const json = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const entries = '/v1/operator/cost-entries'
+  if (mock && op.startsWith('entr')) {
+    const c = await import('./cost-entries.mjs')
+    const ops = { entries: () => c.mockCostEntryList(a), entry_create: () => c.mockCostEntryCreate(a), entry_delete: () => c.mockCostEntryDelete(a) }
+    if (!ops[op]) throw new Error('fleetPaid: unknown op ' + op)
+    return ops[op]()
+  }
   if (mock) {
     const m = await import('./monitoring-paid.mjs')
     const ops = { list: () => m.mockPaidList(), create: () => m.mockPaidCreate(a), patch: () => m.mockPaidPatch(a, b), delete: () => m.mockPaidDelete(a), effective: () => m.mockPaidEffective() }
@@ -2036,6 +2047,9 @@ async function fleetPaid(ctx, op, a, b) {
   if (op === 'patch') return live(one(a), json('PATCH', b))
   if (op === 'delete') return live(one(a), { method: 'DELETE' })
   if (op === 'effective') return live('/v1/operator/fleet-tokens/effective')
+  if (op === 'entries') return live(entries + '?type=' + encodeURIComponent(a))
+  if (op === 'entry_create') return live(entries, json('POST', a))
+  if (op === 'entry_delete') return live(entries + '/' + encodeURIComponent(a), { method: 'DELETE' })
   throw new Error('fleetPaid: unknown op ' + op)
 }
 

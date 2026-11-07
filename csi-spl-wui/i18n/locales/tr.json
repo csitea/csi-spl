@@ -594,7 +594,8 @@
     "your_status_offline": "Durumunuz: çevrimdışı",
     "monitoring": "İzleme",
     "reporting": "Raporlama",
-    "notes": "Notlar"
+    "notes": "Notlar",
+    "expenses": "Giderler"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -3974,5 +3975,33 @@
     "notice_connected": "Google Takvim bağlandı.",
     "notice_error": "Google Takvim bağlanmadı. Tekrar deneyin.",
     "untitled_event": "(Başlıksız)"
+  },
+  "expenses": {
+    "tabs_label": "Gider sekmeleri",
+    "tab": {
+      "ai": "Yapay zekâ maliyetleri",
+      "cloud": "Bulut altyapı maliyetleri",
+      "hr": "Personel maliyetleri"
+    },
+    "entries": {
+      "add": "Maliyet ekle",
+      "intro_cloud": "Elle girilen bulut altyapısı maliyetleri, örneğin bir fatura, ay başına bir satır. Raporlama → Maliyetler bunları Bulut altında sayar.",
+      "intro_hr": "Elle girilen insan kaynakları maliyetleri, ay başına bir satır. Raporlama → Maliyetler bunları Harcama’da değil, Personel altında gösterir.",
+      "col_label_cloud": "Açıklama",
+      "col_label_hr": "Rol veya sözleşme",
+      "col_amount": "KDV hariç tutar",
+      "col_period": "Ay",
+      "loading": "Maliyetler yükleniyor…",
+      "error": "Maliyetler yüklenemedi.",
+      "empty": "Henüz maliyet girilmedi.",
+      "confirm_delete": "Bu maliyet silinsin mi?",
+      "err_label": "En fazla 100 karakterlik bir ad girin.",
+      "err_amount": "0’dan büyük bir tutar girin.",
+      "err_currency": "Bir para birimi seçin.",
+      "err_period": "Bir ay seçin.",
+      "err_note": "Not çok uzun: en fazla 2000 karakter."
+    },
+    "operators_only": "Giderler yalnızca operatör yöneticileri içindir.",
+    "tokens_link": "Ödenen abonelikler ve yüklemeler Giderler → Yapay zekâ maliyetleri altında girilir."
   }
 }

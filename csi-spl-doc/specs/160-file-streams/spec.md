@@ -1,8 +1,8 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
 Version v0.8 (2026-11-07): 3.10, removing a file from the view (SPL-4979, owner
-msg `5bb5d078`); cases C57-C64, rows B13-B15, D8. B13 and B14 are built on the
-review branch (5.14), not landed; B15 is next.
+msg `5bb5d078`); cases C57-C65, rows B13-B15, D8. B13..B15 are built on the
+review branch (5.14), not landed.
 v0.6 (2026-10-30): folds the owner's answers to Q5..Q7 (poll
 `900699dd`, msg `369e7bfa`, 7.1): Q5 B, the default folders are the fleet's
 box log folder and `/var/log`, minus the security files (3.8.2); Q6 A, every
@@ -1049,7 +1049,8 @@ lands.
 | C61 | B13 | `in:file-streams` finds a line of a row until it is removed, not after, and again after its put back | no filter: a hit that opens nothing |
 | C62 | B13 | a put back on a locked box by a non-owner of the lock: 403 `box_locked`; its remove: 204 | the lock skipped on restore: a file is read again against the lock |
 | C63 | B14 | the follower, stub hub: a key in `removed_keys` leaves the announce within `globs_s` plus one tick, its queued lines go, no new line is read, its slot goes to the next entry; a removed glob match takes no slot; off the list, it is followed from the last `start_lines` lines with `seq` still rising; a pull with no `removed_keys` changes nothing | the skip after the slot count: the entry past the cap stays refused; `seq` reset: the hub drops every new line as already stored |
-| C64 | B15 | e2e on the mock at 1440 and 390 px: Remove asks first, No keeps the row, Yes moves it to "Removed files", Put back returns it; a removed open file closes; a refusal shows its sentence | the DELETE sent on the first click: no ask |
+| C64 | B15 | e2e on the mock at 1440 and 390 px: Remove asks first, Keep keeps the row, Remove moves it to "Removed files", Put back returns it; a removed open file closes; a refusal shows its sentence | the DELETE sent on the first click: no ask |
+| C65 | B13 | the CORS preflight with an allowed Origin, on both routes: 204, that Origin allowed, DELETE on the remove route and POST on the put back route allowed. The e2e runs on the mock with no network, so it cannot see this | the OPTIONS route left out: 405, and a browser refuses the DELETE before it is sent (R7 W1, c-228) |
 
 ## 5. Build rows
 
@@ -1552,11 +1553,17 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
 The rows of 3.10 (dispatcher's GO, msg `f3a48167`; Put back kept by its ruling).
 B13: `store/file_streams_remove_{postgres,memory}.go`, `hub/file_streams_remove.go`,
 rdb `0266_file_stream_removed.sql`, tests `store/file_streams_remove_test.go`,
-`hub/file_streams_remove_test.go`, `TestSearchFileLinesRemoved`. A refused put back
+`hub/file_streams_remove_test.go`, `TestSearchFileLinesRemoved`. Both routes have an
+`OPTIONS` route, for the WUI calls the hub from another origin (C65). A refused put back
 on a locked box writes one `refused` audit row with reason `box_locked`, as a
 refused glob add does. B14: `file-stream-follow.py`, `pull_globs` now runs before
 `read_allow` in the tick, so a removal frees its slot in the same tick; C63 in
 `spl-file-stream-follow.tst.sh`.
+B15: `pages/monitoring/file-streams/index.vue` has Remove with its ask on each row,
+"Removed files" with Put back under the box, and closes a removed open file;
+`utils/monitoring-file-streams.mjs` keeps the two lists and the mock's remove and put
+back; `utils/spool-client-lazy.mjs` calls the routes; the text is in the 19 locales and
+`help-md/monitoring.md`; C64 in `tests/e2e/monitoring-file-streams.test.mjs`.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

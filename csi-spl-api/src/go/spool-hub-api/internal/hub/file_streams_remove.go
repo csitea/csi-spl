@@ -24,6 +24,20 @@ import (
 func (s *Server) routeFileStreamRemove(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/file-streams/{id}", s.handleFileStreamRemove)
 	mux.HandleFunc("POST /v1/file-streams/{id}/restore", s.handleFileStreamRestore)
+	mux.HandleFunc("OPTIONS /v1/file-streams/{id}", s.fileStreamRemovePreflight)
+	mux.HandleFunc("OPTIONS /v1/file-streams/{id}/restore", s.fileStreamRemovePreflight)
+}
+
+// fileStreamRemovePreflight: the WUI calls the hub from another origin, so a
+// browser sends this before the DELETE and refuses the call without it.
+func (s *Server) fileStreamRemovePreflight(w http.ResponseWriter, r *http.Request) {
+	if s.allowOrigin(w, r) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Methods", "DELETE, POST")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+		h.Set("Access-Control-Max-Age", corsMaxAge)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleFileStreamRemove is DELETE /v1/file-streams/{id}.

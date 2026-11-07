@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -207,5 +208,50 @@ func TestChannelAgentRequestOtherWorkspace(t *testing.T) {
 	}
 	if len(asks) != 0 {
 		t.Fatalf("asks in the operator fleet: %d, want 0: %+v", len(asks), asks)
+	}
+}
+
+// R7 W2: the person sees what became of the ask: open while it waits, and a
+// decline with its reason (a kind the launcher refused); a new ask replaces it.
+func TestChannelAgentKindsShowsSeatAsks(t *testing.T) {
+	e, op, human := kindsEnv(t, true)
+	ctx := context.Background()
+	asksOf := func() string {
+		code, out := call(t, e, op, http.MethodGet, "/v1/channels/room/agent-kinds", human, nil)
+		if code != http.StatusOK {
+			t.Fatalf("GET agent-kinds: %d %v", code, out)
+		}
+		rows, _ := out["asks"].([]any)
+		got := make([]string, 0, len(rows))
+		for _, r := range rows {
+			m, _ := r.(map[string]any)
+			got = append(got, fmt.Sprintf("%v %v %v", m["kind"], m["state"], m["reason"]))
+		}
+		return strings.Join(got, ";")
+	}
+	if got := asksOf(); got != "" {
+		t.Fatalf("no ask yet: %q", got)
+	}
+	code, out := call(t, e, op, http.MethodPost, "/v1/channels/room/agent-kinds", human, map[string]any{"kind": "agy"})
+	if code != http.StatusAccepted {
+		t.Fatalf("ask: %d %v", code, out)
+	}
+	if got := asksOf(); got != "agy open " {
+		t.Fatalf("open ask: %q", got)
+	}
+	id, _ := out["ask_id"].(string)
+	if _, err := e.st.UpdateFleetAsk(ctx, op, store.AskUpdate{Fleet: "main", AskID: id, Op: store.AskDecline, By: "c-001@box-a",
+		Reason: "agy is installed on no box"}, "box-a", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := asksOf(); got != "agy declined agy is installed on no box" {
+		t.Fatalf("declined ask: %q", got)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if code, out := call(t, e, op, http.MethodPost, "/v1/channels/room/agent-kinds", human, map[string]any{"kind": "agy"}); code != http.StatusAccepted || out["created"] != true {
+		t.Fatalf("ask again: %d %v", code, out)
+	}
+	if got := asksOf(); got != "agy open " {
+		t.Fatalf("the new ask replaces the decline: %q", got)
 	}
 }

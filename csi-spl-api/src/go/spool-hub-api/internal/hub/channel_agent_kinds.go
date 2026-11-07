@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -21,7 +22,7 @@ import (
 // box's do_spl_lane_mix obeys: store.AgentKinds minus the instance's kinds off
 // and running pauses. There is no other rule, and the WUI holds no list.
 //
-//	GET  /v1/channels/{channel}/agent-kinds  {channel, kinds: [{kind, online}]}
+//	GET  /v1/channels/{channel}/agent-kinds  {channel, kinds: [{kind, online}], asks: [{kind, state, reason}]}
 //	POST /v1/channels/{channel}/agent-kinds  {kind} -> 202 {channel, kind, ask_id, created}
 //
 // online: an agent of the kind can be picked here already, its box online and
@@ -30,7 +31,9 @@ import (
 // workspace (the one the fleet's lease lives in), which the asks tick raises
 // to the holder and do_spl_channel_seat_place carries out. The same people may
 // ask as may invite an agent. A second ask while one is open answers the open
-// one with created false.
+// one with created false. asks is the newest seat ask per kind for this
+// channel, open or closed in the last week, so the person sees a refusal
+// (R7 W2: a kind installed on no box is declined with the launcher's reason).
 //
 // Only the operator workspace may ask (SPL-5000 R7 W1): the ask lands in the
 // operator's fleet and the seat is an operator box's agent, so another
@@ -45,6 +48,13 @@ const channelSeatAskTopic = "channel-seat"
 type agentKindRow struct {
 	Kind   string `json:"kind"`
 	Online bool   `json:"online"`
+}
+
+// seatAskRow is the newest seat ask of one kind for the channel.
+type seatAskRow struct {
+	Kind   string `json:"kind"`
+	State  string `json:"state"`
+	Reason string `json:"reason"`
 }
 
 func (s *Server) routeChannelAgentKinds(mux *http.ServeMux) {
@@ -121,7 +131,42 @@ func (s *Server) handleChannelAgentKinds(w http.ResponseWriter, r *http.Request)
 	for _, k := range kinds {
 		rows = append(rows, agentKindRow{Kind: k, Online: pickable[k]})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "kinds": rows})
+	asks := []seatAskRow{}
+	if len(kinds) > 0 {
+		asks = s.channelSeatAsks(r.Context(), t.ID, ch)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "kinds": rows, "asks": asks})
+}
+
+// channelSeatAsks is the newest seat ask per kind for the channel, in the
+// order they were made. A failed read answers none: the list still works.
+func (s *Server) channelSeatAsks(ctx context.Context, tenant, ch string) []seatAskRow {
+	out := []seatAskRow{}
+	fleet, err := s.orchFleet(ctx, tenant)
+	if err != nil || fleet == "" {
+		return out
+	}
+	all, err := s.o.Store.ListFleetAsks(ctx, tenant, fleet, "orch", true, s.o.Now())
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("seat asks for channel agent kinds")
+		return out
+	}
+	rx := regexp.MustCompile(`^channel seat: kind=([a-z0-9]+) tenant=` + regexp.QuoteMeta(tenant) + ` channel=` + regexp.QuoteMeta(ch) + ` `)
+	newest := map[string]store.FleetAsk{}
+	for _, a := range all {
+		m := rx.FindStringSubmatch(a.Summary)
+		if a.Topic != channelSeatAskTopic || m == nil {
+			continue
+		}
+		if prev, ok := newest[m[1]]; !ok || a.CreatedAt.After(prev.CreatedAt) {
+			newest[m[1]] = a
+		}
+	}
+	for k, a := range newest {
+		out = append(out, seatAskRow{Kind: k, State: a.State, Reason: a.Reason})
+	}
+	slices.SortFunc(out, func(x, y seatAskRow) int { return newest[x.Kind].CreatedAt.Compare(newest[y.Kind].CreatedAt) })
+	return out
 }
 
 // orchFleet is the fleet whose orch lease the operator workspace holds; "" when

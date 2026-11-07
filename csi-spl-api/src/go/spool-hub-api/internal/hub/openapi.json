@@ -2677,8 +2677,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "The agent kinds a box may start now (SPL-5000): every kind minus the instance's kinds off and running pauses.",
+                  "description": "The agent kinds a box may start now (SPL-5000): every kind minus the instance's kinds off and running pauses; none outside the operator workspace.",
                   "properties": {
+                    "asks": {
+                      "description": "the newest seat ask per kind for this channel, open or closed in the last week: a declined one carries the reason",
+                      "items": {
+                        "properties": {
+                          "kind": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "state",
+                          "reason"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "channel": {
                       "type": "string"
                     },
@@ -2703,6 +2726,7 @@
                     }
                   },
                   "required": [
+                    "asks",
                     "channel",
                     "kinds"
                   ],

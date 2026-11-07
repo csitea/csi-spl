@@ -385,7 +385,10 @@ false and a human owner exists.
   picked here: its box is online and it is not in the channel. The add-agents
   list offers each other kind as a new agent, and holds no list of its own.
   Only the operator workspace lists kinds: any other workspace gets
-  `kinds: []` (R7 W1, below).
+  `kinds: []` (R7 W1, below). `asks: [{kind, state, reason}]` is the newest
+  seat ask per kind for this channel, open or closed in the last week, so the
+  dialog shows a request that waits and a refusal with its reason (a kind the
+  launcher would not start, R7 W2); a new POST replaces it.
 - `POST /v1/channels/{channel}/agent-kinds` `{"kind": "<kind>"}` (SPL-5000) —
   the people who may invite an agent. It asks the orchestrator for a new agent
   of the kind, seated in this channel: one role `orch` ask with topic

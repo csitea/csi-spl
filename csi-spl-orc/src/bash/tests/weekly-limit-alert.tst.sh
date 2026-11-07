@@ -16,6 +16,8 @@
 #   8. the manifest row weekly-limit-alert runs the cron script every 5 min
 #   9. the claude CLI's cached usage is read below the banner (93 -> a line);
 #      another login's cache, a 6 h old one or a passed reset is no reading
+#  10. (SPL-4965) a kept reading at or over the threshold that a newer reading
+#      under it contradicts posts ONE alarm naming both, until they agree
 #   RED CONTROL: the same "90 again" tick with the state file gone posts a
 #   second line, so case 1's "nothing" is the state's doing.
 #------------------------------------------------------------------------------
@@ -136,6 +138,28 @@ out="$(SNIPPET='do_spl_weekly_limit_alert' in_orc SPOOL_ROOT="$T/spool" LANE_BOX
   LANE_QUOTA_CLAUDE_JSON="$T/cj-ok.json" WEEKLY_ALERT_CMD="$T/post-ok" WEEKLY_ALERT_STATE="$T/st.tsv" DRY_RUN=0 2>&1)"
 [ "$(n)" = 1 ] && grep -qF "claude on box-a: 93% of its weekly limit used (crossed 90%), resets 2099-12-31T08:59Z" "$T/posts" \
   && pass "9. the alert posts from the cached usage" || fail "9. alert ($(n): $out)"
+
+# 10. readings that disagree: the kept row of 2026-11-06, read 2 h 15 ago
+KP="$T/kept.tsv"; NOW=$(date +%s); RD=$(( NOW - 8100 )); : >"$T/posts"; rm -f "$T/st.tsv" "$T/st.tsv.disagree"
+kp() { printf 'claude\t97\t%s\t%s\t\tbanner\n' "$FUT" "$RD" >"$KP"; }
+ndis() { grep -c 'WEEKLY READINGS DISAGREE' "$T/posts"; }
+kp; out="$(tick "claude:0@$FUT~cache~$(( NOW - 120 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null)"
+[ "$(n)" = 1 ] && grep -qF "**WEEKLY READINGS DISAGREE** claude on box-a: the hold reads 97% (banner read 2h15m ago), a newer reading says 0% (cache read 2m ago)." "$T/posts" \
+  && pass "10. RED CONTROL the 11-06 case: hold on 97, a newer 0 -> one alarm with both sources and ages" || fail "10. alarm ($(n): $(cat "$T/posts"); $out)"
+grep -qF "or it lapses at $(date -u -d "@$(( RD + 28800 ))" +%Y-%m-%dT%H:%MZ)" "$T/posts" && pass "10. the alarm says when the reading lapses" || fail "10. lapse: $(cat "$T/posts")"
+tick "claude:0@$FUT~cache~$(( NOW - 60 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(n)" = 1 ] && pass "10. the same disagreement next tick -> nothing" || fail "10. again ($(n))"
+tick "claude:97@$FUT~banner~$NOW" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(ndis)" = 1 ] && [ ! -s "$T/st.tsv.disagree" ] && pass "10. a fresh re-read of the 97: they agree, the alarm re-arms" || fail "10. agree ($(n): $(cat "$T/st.tsv.disagree"))"
+kp; tick "claude:0@$FUT~cache~$(( NOW - 30 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(ndis)" = 2 ] && pass "10. a new disagreement after that posts again" || fail "10. re-arm ($(n))"
+: >"$T/posts"; rm -f "$T/st.tsv.disagree"
+kp; tick "claude:0@$FUT~cache~$(( RD - 60 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(n)" = 0 ] && pass "10. CONTROL the lower reading is older than the kept one: lag, no alarm" || fail "10. lag ($(n): $(cat "$T/posts"))"
+kp; out="$(tick "claude:0@$FUT~cache~$(( NOW - 30 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null WEEKLY_ALERT_CMD="$T/post-fail")"
+[ ! -s "$T/st.tsv.disagree" ] && grep -q "disagree alarm did not post" <<<"$out" && pass "10. a failed post is not recorded" || fail "10. fail: $out"
+kp; out="$(tick "claude:0@$FUT~cache~$(( NOW - 30 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null DRY_RUN=1)"
+[ "$(n)" = 0 ] && grep -q "PLAN post in #alerts: \*\*WEEKLY READINGS DISAGREE" <<<"$out" && pass "10. DRY_RUN prints it, posts nothing" || fail "10. dry ($(n): $out)"
 
 # 8. the cron row
 grep -qE "^weekly-limit-alert +\| \*/5 \* \* \* \* +\| src/bash/scripts/weekly-limit-alert-cron.sh +\| weekly-limit-alert/cron.log" "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" \

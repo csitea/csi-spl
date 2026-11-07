@@ -522,7 +522,7 @@ QP="$TEST_DIR/fixtures/wd-situations/s2-agy-quota.pane"
 banner() { mkdir -p "$D/wd/ctx.1/$1"; sed 's/Resets in [0-9hms]*\./Resets in 2h./' "$QP" >"$D/wd/ctx.1/$1/pane"; }
 reset; lane a-971 70 agy; banner a-972
 tick; tick
-check "24. banner on an a- pane: the agy lane SKIPped, the reset named" 'grep -qE "a-971 SKIP a-971: agy is on its limit until [0-9-]+T[0-9:]+Z \(a-972 banner, Resets in 2h\)" "$T/tick.out"'
+check "24. banner on an a- pane: the agy lane SKIPped, the reset named" 'grep -qE "a-971 SKIP a-971: agy is on its limit until [0-9-]+T[0-9:]+Z \(a-972 banner, Resets in 2h, read [0-9]+m ago\)" "$T/tick.out"'
 check "24. banner: ONE skip line for two ticks, nothing spawned, no note, no fail stamp" '[ "$(n "$D/lane-rotate/lane-rotate.log" "a-971 SKIP")" = 1 ] && [ "$(n "$T/spawn.log")" = 0 ] && [ "$(n "$T/send.log")" = 0 ] && [ ! -e "$S/a-971/lifetime/rotate.lane.last" ]'
 reset; lane a-973 70 agy
 tick

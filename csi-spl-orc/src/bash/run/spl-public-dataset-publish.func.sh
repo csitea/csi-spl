@@ -120,6 +120,14 @@ spl_pd_buckets_check() {
 # take-down, pinned. Its stderr stays out of a public CI log.
 spl_pd_gs() { gcloud storage "$@" --account="$GCP_ACCOUNT" 2>/dev/null; }
 
+# spl_pd_gs_none <uri>: 0 only when gcloud answers that nothing is there. An
+# outage or a refused listing is not that answer.
+spl_pd_gs_none() {
+  local rc=0 err
+  err="$(gcloud storage ls "$1" --account="$GCP_ACCOUNT" 2>&1 >/dev/null)" || rc=$?
+  (( rc != 0 )) && [[ "$err" == *"matched no objects"* ]]
+}
+
 # spl_pd_publish_candidates <assoc name> <scratch>: drops every candidate past
 # the ttl, then settles P[cand]: the one asked for, else the newest left. A
 # failed drop is reported through P[droprc]: it never blocks a good candidate.
@@ -148,10 +156,12 @@ spl_pd_publish_candidates() {
 }
 
 # spl_pd_publish_drop <assoc name> <candidate> <sha256 or ""> : the candidate,
-# its name lists and its verdicts leave staging.
+# its name lists and its verdicts leave staging. A published candidate stays in
+# staging until here, so the note first asks the public bucket: routine cleanup
+# of a published one posts nothing, and only a real "no" says not published.
 spl_pd_publish_drop() {
   local -n _r="$1"
-  local rc=0 c="$2" sha="$3"
+  local rc=0 c="$2" sha="$3" f="gs://${_r[public]}/daily/spool-hub-public-$2.sql.gz"
   spl_pd_gs rm --recursive "gs://${_r[staging]}/candidates/$c/" >/dev/null || rc=1
   [[ ! "$sha" =~ ^[0-9a-f]{64}$ ]] || spl_pd_gs rm --recursive "gs://${_r[staging]}/verdicts/$sha/" >/dev/null || rc=1
   if (( rc )); then
@@ -159,7 +169,13 @@ spl_pd_publish_drop() {
     return 1
   fi
   do_log "INFO candidate $c is past candidate_ttl_hours: dropped with its name lists and verdicts"
-  spl_pd_publish_note "$1" "public dataset candidate $c ($ENV): dropped, older than candidate_ttl_hours and not published"
+  if spl_pd_gs ls "$f" >/dev/null; then
+    do_log "INFO $c stays public at $f: only its staged copy went"
+  elif spl_pd_gs_none "$f"; then
+    spl_pd_publish_note "$1" "public dataset candidate $c ($ENV): dropped, older than candidate_ttl_hours and not published"
+  else
+    spl_pd_publish_note "$1" "public dataset candidate $c ($ENV): dropped, older than candidate_ttl_hours; whether it was published could not be read"
+  fi
 }
 
 # spl_pd_publish_note <assoc name> <text>: a note on the dataset topic. A note
@@ -273,13 +289,17 @@ EOF_PY
 # below is the check on that, not the reason for it.
 spl_pd_publish_copy() {
   local -n _o="$1"
-  local h="$2" name="spool-hub-public-${_o[cand]}" k src ptr sha at
+  local h="$2" name="spool-hub-public-${_o[cand]}" k src ptr sha at crc_src crc_pub
   local pub="gs://${_o[public]}/daily/$name" base="gs://${_o[staging]}"
   sha="$(jq -r .sha256 "$h/manifest.json")" at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   _o[name]="$name" _o[sha]="$sha"
   src="$base/candidates/${_o[cand]}/$name.sql.gz"
   spl_pd_gs cp --no-clobber "$src" "$pub.sql.gz" >/dev/null || { do_log "FATAL cannot copy the file to $pub.sql.gz: latest.json not touched"; return 1; }
-  [[ "$(spl_pd_gs objects describe "$src" --format='value(crc32c_hash)')" == "$(spl_pd_gs objects describe "$pub.sql.gz" --format='value(crc32c_hash)')" ]] ||
+  crc_src="$(spl_pd_gs objects describe "$src" --format='value(crc32c_hash)')"
+  crc_pub="$(spl_pd_gs objects describe "$pub.sql.gz" --format='value(crc32c_hash)')"
+  [[ -n "$crc_src" && -n "$crc_pub" ]] ||
+    { do_log "FATAL no crc32c to compare for $pub.sql.gz, so it is not proved the verified file: latest.json not touched"; return 1; }
+  [[ "$crc_src" == "$crc_pub" ]] ||
     { do_log "FATAL $pub.sql.gz is not the verified file (a different file holds that name): latest.json not touched"; return 1; }
   for k in agy claude grok; do
     spl_pd_gs cp --no-clobber "$base/verdicts/$sha/$k.json" "$pub.verdicts/$k.json" >/dev/null ||
@@ -324,10 +344,9 @@ spl_pd_latest_write() {
 # after the publish, so a failure here says the file IS public.
 spl_pd_publish_drop_names() {
   local -n _g="$1"
-  local dir="gs://${_g[staging]}/candidates/${_g[cand]}/names" f rc=0 err
+  local dir="gs://${_g[staging]}/candidates/${_g[cand]}/names" f
   for f in names.tsv names.sha256; do spl_pd_gs rm "$dir/$f" >/dev/null; done
-  err="$(gcloud storage ls "$dir/" --account="$GCP_ACCOUNT" 2>&1 >/dev/null)" || rc=$?
-  if (( rc != 0 )) && [[ "$err" == *"matched no objects"* ]]; then return 0; fi
+  spl_pd_gs_none "$dir/" && return 0
   do_log "FATAL ${_g[name]} IS published, but its name lists could not be proved gone from $dir/ (does ${_g[sa]} hold objects.delete there?): the bucket's lifecycle rule is the backstop"
   return 1
 }

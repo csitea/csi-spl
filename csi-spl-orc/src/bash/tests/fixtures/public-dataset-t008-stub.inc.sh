@@ -6,6 +6,9 @@
 # The fake enforces what step 053 grants the publish SA on a real bucket: an
 # existing public object is never overwritten but latest.json. With
 # STUB_IAM=t007 it also refuses every delete, as that SA's roles do today.
+# One failure injected: STUB_DESCRIBE=empty|fail (describe prints nothing, exit 0
+# or 1), STUB_RM_DENY=<uri prefix> (rm refused there), STUB_LS_DOWN=<uri prefix>
+# (ls answers an outage there).
 #------------------------------------------------------------------------------
 TOPIC=0f8fad5b-d9cb-469f-a165-70867728950e
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
@@ -37,9 +40,14 @@ path() { printf '%s/%s' "$GS" "${1#gs://}"; }
 none() { echo "ERROR: (gcloud.storage.ls) One or more URLs matched no objects." >&2; exit 1; }
 case "$verb" in
   cat) [[ -f "$(path "${uris[0]}")" ]] && cat "$(path "${uris[0]}")" ;;
-  describe) [[ -f "$(path "${uris[0]}")" ]] && md5sum <"$(path "${uris[0]}")" | cut -d' ' -f1 ;;
+  describe)
+    [[ "${STUB_DESCRIBE:-}" == empty ]] && exit 0
+    [[ "${STUB_DESCRIBE:-}" == fail ]] && exit 1
+    [[ -f "$(path "${uris[0]}")" ]] && md5sum <"$(path "${uris[0]}")" | cut -d' ' -f1 ;;
   ls)
     u="${uris[0]}"
+    [[ -n "${STUB_LS_DOWN:-}" && "$u" == "$STUB_LS_DOWN"* ]] && { echo "ERROR: 503 backend unavailable" >&2; exit 1; }
+    [[ -f "$(path "$u")" ]] && { echo "$u"; exit 0; }
     if [[ "$u" == *'/**' ]]; then
       d="$(path "${u%/\*\*}")"; [[ -d "$d" ]] || none
       out="$(cd "$d" && find . -type f | sed "s|^\./|${u%\*\*}|" | sort)"
@@ -51,6 +59,7 @@ case "$verb" in
     fi ;;
   rm)
     [[ "${STUB_IAM:-}" == t007 ]] && { echo "ERROR: 403 lacks storage.objects.delete" >&2; exit 1; }
+    [[ -n "${STUB_RM_DENY:-}" && "${uris[0]}" == "$STUB_RM_DENY"* ]] && { echo "ERROR: 403 lacks storage.objects.delete" >&2; exit 1; }
     d="$(path "${uris[0]}")"; [[ -e "$d" ]] || { echo "ERROR: One or more URLs matched no objects." >&2; exit 1; }
     rm -rf "$d"; find "$GS" -mindepth 1 -type d -empty -delete ;;
   cp)

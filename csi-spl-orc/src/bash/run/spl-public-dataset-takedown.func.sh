@@ -1,15 +1,21 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description The public dataset TAKE-DOWN (spec 091 T008; section 10). A
-# @description delete, so it refuses without TAKEDOWN_GO=<the same file name>,
-# @description set only after the orchestrator relays the owner's go; the check
-# @description comes first, dry run or not. For one published file it:
+# @description delete, so it refuses without TAKEDOWN_GO=<the same file name>
+# @description and TAKEDOWN_OWNER_MSG=<the owner's message id>, set only after
+# @description the orchestrator relays the owner's go; the id is checked for
+# @description form and logged, not looked up. The check comes first, dry run or
+# @description not. For one published file it:
 # @description   1. points latest.json at the newest other published file with
 # @description      three PASS verdicts when latest.json names this file or
 # @description      cannot be read; with none left, at {file: null}. This comes
 # @description      first, so latest.json never names a deleted file
 # @description   2. removes the candidate and its verdicts from staging, so the
-# @description      next publish cannot put the same file back
+# @description      next publish cannot put the same file back. If that fails the
+# @description      public delete still goes on, exit 1, and a re-run finishes
+# @description      staging: a file only in staging is still worked on, the
+# @description      refusal needs it gone from both. Until that re-run the next
+# @description      publish COULD put it back
 # @description   3. deletes the file, its manifest and its verdicts wherever
 # @description      they sit in the public bucket (daily/ and stable/) and
 # @description      proves them gone
@@ -20,9 +26,10 @@
 # @param ENV - required: dev or prd
 # @param TAKEDOWN_FILE - required: spool-hub-public-<YYYY-MM-DD>-v<X.Y.Z>.sql.gz
 # @param TAKEDOWN_GO - required: the same file name, set only after the orchestrator relays the owner's go
+# @param TAKEDOWN_OWNER_MSG - required: the id of the owner's message giving the go (8+ hex)
 # @param DRY_RUN (optional) - 1 (default): name what would go, no cloud. 0: delete.
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)
-# @example ENV=dev TAKEDOWN_FILE=spool-hub-public-2026-11-03-v1.5.0.sql.gz TAKEDOWN_GO=spool-hub-public-2026-11-03-v1.5.0.sql.gz ./run -a do_spl_public_dataset_takedown
+# @example ENV=dev TAKEDOWN_FILE=spool-hub-public-2026-11-03-v1.5.0.sql.gz TAKEDOWN_GO=spool-hub-public-2026-11-03-v1.5.0.sql.gz TAKEDOWN_OWNER_MSG=<owner msg id> ./run -a do_spl_public_dataset_takedown
 #------------------------------------------------------------------------------
 do_spl_public_dataset_takedown() {
   do_require_bin yq jq || return 1
@@ -31,6 +38,8 @@ do_spl_public_dataset_takedown() {
     { do_log "FATAL TAKEDOWN_FILE must be spool-hub-public-<YYYY-MM-DD>-v<X.Y.Z>.sql.gz"; return 1; }
   [[ "${TAKEDOWN_GO:-}" == "$file" ]] ||
     { do_log "FATAL take-down refused: a delete needs the owner's go, relayed by the orchestrator, as TAKEDOWN_GO=$file"; return 1; }
+  [[ "${TAKEDOWN_OWNER_MSG:-}" =~ ^[0-9a-f]{8}[0-9a-f-]*$ ]] ||
+    { do_log "FATAL take-down refused: a delete needs the id of the owner's message as TAKEDOWN_OWNER_MSG (8+ hex)"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   do_spl_cloud_cnf || return 1
   local staging public
@@ -49,20 +58,22 @@ do_spl_public_dataset_takedown() {
   do_require_bin gcloud || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   local h all objs u rc=0 sha
+  do_log "INFO take-down of $file on the owner's message $TAKEDOWN_OWNER_MSG, as $GCP_ACCOUNT"
   h="$(mktemp -d)" && chmod 700 "$h" || return 1
   # shellcheck disable=SC2064
   trap "rm -rf '$h'; trap - RETURN" RETURN
   all="$(spl_pd_gs ls "gs://$public/**")" || { do_log "FATAL cannot list gs://$public: nothing deleted"; return 1; }
   objs="$(spl_pd_takedown_objects "$name" <<<"$all")"
-  [[ -n "$objs" ]] || { do_log "FATAL $file is not in gs://$public: nothing deleted"; return 1; }
+  if [[ -z "$objs" ]] && spl_pd_gs_none "gs://$staging/candidates/$cand/"; then
+    do_log "FATAL $file is not in gs://$public and not staged in gs://$staging: nothing deleted"
+    return 1
+  fi
   sha="$(spl_pd_gs cat "gs://$public/daily/$name.manifest.json" | jq -r '.sha256 // ""' 2>/dev/null)"
   spl_pd_takedown_repoint "$public" "$h" "$file" "$all" || return 1
-  spl_pd_gs rm --recursive "gs://$staging/candidates/$cand/" >/dev/null || spl_pd_takedown_staged_gone "gs://$staging/candidates/$cand/" || rc=1
-  if [[ "$sha" =~ ^[0-9a-f]{64}$ ]]; then
-    spl_pd_gs rm --recursive "gs://$staging/verdicts/$sha/" >/dev/null || spl_pd_takedown_staged_gone "gs://$staging/verdicts/$sha/" || rc=1
-  fi
-  (( rc == 0 )) || do_log "FATAL $cand could not be removed from gs://$staging: the next publish could put it back. The public delete goes on."
+  spl_pd_takedown_unstage "$staging" "$cand" "$name" "$sha" ||
+    { rc=1; do_log "FATAL $cand could not be removed from gs://$staging: the next publish could put it back until a re-run finishes it. The public delete goes on."; }
   while IFS= read -r u; do
+    [[ -n "$u" ]] || continue
     spl_pd_gs rm "$u" >/dev/null || { do_log "FATAL cannot delete $u"; rc=1; }
   done <<<"$objs"
   # latest.json always stays, so a listing that fails or comes back empty is no proof
@@ -78,12 +89,19 @@ spl_pd_takedown_objects() {
   grep -F -e "/$1.sql.gz" -e "/$1.manifest.json" -e "/$1.verdicts/"
 }
 
-# spl_pd_takedown_staged_gone <uri>: 0 when staging holds nothing under it (a
-# re-run after an earlier take-down, or a candidate the lifecycle already took).
-spl_pd_takedown_staged_gone() {
-  local rc=0 err
-  err="$(gcloud storage ls "$1" --account="$GCP_ACCOUNT" 2>&1 >/dev/null)" || rc=$?
-  (( rc != 0 )) && [[ "$err" == *"matched no objects"* ]]
+# spl_pd_takedown_unstage <staging> <candidate> <name> <public sha256 or "">: the
+# verdicts first, then the candidate, stopping at a failure: its manifest is what
+# tells a re-run the sha256 once the public one is gone. Already gone is fine (a
+# re-run, or a candidate the lifecycle already took).
+spl_pd_takedown_unstage() {
+  local uri="gs://$1/candidates/$2/" sha staged
+  staged="$(spl_pd_gs cat "$uri$3.manifest.json" | jq -r '.sha256 // ""' 2>/dev/null)"
+  [[ "$staged" != "$4" ]] || staged=""
+  for sha in "$4" "$staged"; do
+    [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || continue
+    spl_pd_gs rm --recursive "gs://$1/verdicts/$sha/" >/dev/null || spl_pd_gs_none "gs://$1/verdicts/$sha/" || return 1
+  done
+  spl_pd_gs rm --recursive "$uri" >/dev/null || spl_pd_gs_none "$uri"
 }
 
 # spl_pd_takedown_repoint <public bucket> <scratch> <file> <listing>: nothing to

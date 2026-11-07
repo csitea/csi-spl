@@ -2,7 +2,7 @@
 
 **Answer.** The owner is right about the output: 11-06 landed 36 commits and 22 issues, against 161 and 65 on 11-05 and a 10-day median of 108 and 57.5 (about 3x lower than a normal day, 4.5x lower in commits than 11-05).
 **The path to land did not get slower.** Spawn to land stayed flat (p50 85 -> 89 min, n=91 and 29), and so did first commit to land (95 -> 91 min). No gate, push worker or review commit lines up with the drop.
-**The fleet lost working hours instead.** The PC box was gone for 14 h 44 min (Wi-Fi down 00:20-07:14Z, lid closed 14:32-18:50Z and 19:25-22:55Z), and a stale 97% Claude reading stopped new lanes until 16:12Z from about 09:20Z, including three R7 reviewer seats that then waited 320-406 min.
+**The fleet lost working hours instead.** The PC box was gone for 14 h 44 min (Wi-Fi down 00:20-07:14Z, lid closed 14:32-18:50Z and 19:25-22:55Z), and the Claude weekly hold stopped new lanes from about 09:05Z to 16:12Z, including three R7 reviewer seats that then waited 320-406 min. The reading was true until the credential change at 13:57Z and stale only after it (corrected, section 8).
 **Only review push to land grew** (p50 66 -> 132 min), and outside those windows it is back to 70 min (n=24). Load fell to 5-9 on 16 cores at 11-16Z: lanes were waiting, not computing.
 **"3 times slower" is true of the output, not of the speed of the work.** Not established: why the Wi-Fi dropped, and how much of 11-05's high count was a backlog being released.
 
@@ -201,15 +201,19 @@ From `spool-send` commands in transcripts, matched by issue key, PASS -> GO p50:
 
 ### 4.4 Refused pushes: no
 
-Real `REFUSE` lines (trees under `/tmp` removed): 38 on 11-05, 18 on 11-06. 54 of the 56 read "deploy-gate FAILED", 1 non-fast-forward, 1 guide ack. Fewer refusals, not more.
+Corrected, section 8. Pushes retried by the worker (`try N/4: push` with N of 2 or more, in each lane's `push-master/log`, by file date, `.retired` included): 11-05 8 in 65 logs, 11-06 2 in 22. Each log holds its lane's last push only, so this undercounts.
+
+Gate refusals are a different number: real `REFUSE` lines (trees under `/tmp` removed) 38 on 11-05, 18 on 11-06, 54 of the 56 reading "deploy-gate FAILED". The count fell with the work; per whole-gate pass it rose, 38/263 = 0.14 to 18/85 = 0.21. That is suggested at most, and it is not a cause of this drop.
 
 ### 4.5 Model or box speed: no
 
 From transcripts, tool result or message -> next assistant line, seconds, p50 / p90: PC 11-05 3.1 / 6.9 (n=16429), 11-06 3.2 / 7.6 (n=4240); sat 11-05 3.1 / 6.7 (n=16718), 11-06 3.0 / 7.4 (n=11311). The p90 is up about 10%, far too small for this. Sessions are binned by the day they started. The `Read` tool median stayed 0.3-0.4 s. This does not contradict the overload seen on sat at 00:40Z on 11-07: load 55-61 is real, and it is the hours after the drop.
 
-### 4.6 A real Claude limit or a lost login on sat: no
+### 4.6 A lost login on sat: no. A real limit: yes, until 13:57Z
 
-API error lines on sat since 11-05: 4, all on 11-05. PC box: "Login expired" 22 on 11-06, 19 of them in the 22Z hour, as the box woke. By `fe0455e48` the owner had raised the limit and the 97% refusal came from the kept row, not from a live stop.
+API error lines on sat since 11-05: 4, all on 11-05. PC box: "Login expired" 22 on 11-06, 19 of them in the 22Z hour, as the box woke.
+
+Corrected, section 8: the limit was real for most of the hold. I had read `fe0455e48` alone and called all of it a stale row.
 
 ## 5. Other findings, not causes of this drop
 
@@ -223,7 +227,7 @@ API error lines on sat since 11-05: 4, all on 11-05. PC box: "Login expired" 22 
 - **Why the Wi-Fi dropped at 00:20Z.** The PC box's system journal has nothing between 11-05 evening and 04:01Z on 11-06 (about 511 MB kept, older entries gone). Not established.
 - **Why the lid closed** is not in a log. The journal says only `Lid closed`, twice.
 - **The hold's start.** 09:20 is from the brief. The placer's log has no timestamps, and my clock proxy (`until` minus `Resets in`) puts the first line at about 09:00, with an error I cannot bound. Hourly counts from that proxy are coarse, so I use them for no duration above. The end, 16:12, is in `fe0455e48` and agrees with c-253 starting at 16:12.
-- **The push worker's own logs.** They go with a lane: only 8 `pushes.log` files changed since 11-05 remain on the two boxes, so I could not time worker retries per lane. A text marker I first used for "landed" disagreed with master on 6 of 24 lanes, so I dropped it, and every land time above comes from git.
+- **The push worker's own logs.** Corrected, section 8: they survive under `.retired`, which my search depth missed. A text marker I first used for "landed" disagreed with master on 6 of 24 lanes, so I dropped it, and every land time above comes from git.
 - **Reviewer start to verdict.** `messages.body` matched nothing for my pattern in the hub DB, so verdict times come only from `spool-send` text, which is thin.
 - **The READY step.** Lanes do not send a uniform READY (1 match in 3 days), so it has no number.
 - **How much of 11-05 was backlog.** 27 commits landed in 06Z alone. Commits per issue was 2.5 on 11-05 and 1.6 on 11-06. So the commit ratio overstates the drop, and the issue ratio (3.0x) is the better one.
@@ -235,7 +239,13 @@ These are proposals; this seat changed nothing.
 
 1. **The laptop is not a server.** The PC box had a lane on 58 of the 91 box-counted issues on 11-05 and went away twice for ordinary laptop reasons. Either keep it awake with the lid closed and give it a wired or failover link, which is the owner's call and an `/etc` change, or move the steady load off it. I found nothing that tells the fleet a box is asleep on purpose; that search was not exhaustive.
 2. **Alarm on the outcome, not on the parts.** "Queue above 0, load below 25% of cores, 0 landed for 30 min" would have fired by about 11:30Z. Both boxes sat at load 5-9 with 100+ queued for hours, and the owner found it by hand.
-3. **A reading that blocks work must carry its age and expire.** The 97% row and the agy `until` are the same defect: a past screen stopped future work. Rule: a hold states its source and age, and lapses unless re-read. `fe0455e48` fixes one path and names what it leaves open.
+3. **A reading that blocks work must carry its age and expire.** The 97% row after 13:57Z and the agy `until` are the same defect: a past screen stopped future work. Rule: a hold states its source and age, and lapses unless re-read. `fe0455e48` fixes one path and names what it leaves open.
 4. **A review seat should not queue with new work.** R7 seats finish work already written: 3 reviewers held 5-7 h stopped lanes that had already paid for their gates. Let a review seat pass a capacity hold, or at least alarm at 30 min of wait.
 5. **Keep the push worker's log after a lane ends** (`pushes.log`, `log`), so the next such question can be measured.
 6. **Separately:** the gate's orc p90 of 50-75 min and the backlog of 100+ since 11-02 are real and older. They are not what broke on 11-06, and should not be fixed under this banner.
+
+## 8. Corrections after the editor's check (2026-11-07)
+
+1. **"Stale 97% from about 09:20" was wrong.** Sat's `weekly-limit-alert/cron.log` reads claude 81, 84, 90, 96, 97, then 0%, in that order; the clock times (90% at 09:00, 97% at 13:55) are the editor's. The kept row's own read time, 1793973488, decodes to 13:58:08Z (`date -u -d @1793973488`), just after the credential change at 13:57Z (`agent-login-check/cred.log`). So the hold was true for about 4 h 50 and stale for about 2 h 15. The step tables are unchanged: they remove the whole hold window either way.
+2. **"Only 8 `pushes.log` remain" was wrong.** `find /var/spool-hub -name pushes.log -newermt 2026-11-05` -> 60 on the PC box (54 under `.retired`), 36 on sat (32). My search stopped at `-maxdepth 4`.
+3. **"Fewer refusals" answered the wrong question.** Those lines are gate failures, and I gave a raw count. Section 4.4 now holds the worker's retries, and the rate.

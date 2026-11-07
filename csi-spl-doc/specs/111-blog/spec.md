@@ -416,6 +416,16 @@ page with a `<script` in a post body, an `on*=` attribute or a
   the copy step only warned, the deploy stayed green, and on dev and prd
   the picture and the `og:image` were the HTML, so LinkedIn showed none.
   A post that names no `image` still ships (5.4 fallback).
+- **A failing answer is logged as evidence** (SPL-4968, 2026-11-07). WUI run
+  42328329666 failed this check once in 465 jobs: the apex answered
+  `200 text/html` for 2 pictures both releases held, cause unproven. So each
+  failing line now carries the answer's UTC time, host, CDN node
+  (`x-served-by`), `x-cache` and `last-modified`, and the first 6 failing URLs
+  are re-asked 2 times, 10 s apart, each answer logged. **The re-asks never
+  change the verdict: the check fails even when every one answers right.** It
+  adds at most 260 s (2 waits + 2 rounds x 6 URLs x the 20 s request limit),
+  which only a failing run pays. The check cannot read the `release complete`
+  time; that line is earlier in the same job log.
 - **Rejected:** a public bucket or a CDN host. It would add an `img-src`
   host to both CSP lists.
 

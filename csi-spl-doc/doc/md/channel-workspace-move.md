@@ -5,18 +5,26 @@ T12; written from spec v0.17 and the code on master at `15789e9ea`). The
 operator page for moving or copying a
 whole channel from one workspace into another.
 
-> **Built on master, not yet run.** The hub answers the plan of a move, every
-> step P1 to P7, the journal, the owner's GO check and the refusal of a post into
-> a moved topic (T7), and a box re-routes that post (T7b). The spec folder holds
-> no dev rehearsal record yet (T13). What still waits:
+> **Built on master, rehearsed once on dev, never run on prd.** The hub answers the plan of a
+> move, every step P1 to P7, the journal, the owner's GO check and the refusal of a post into a
+> moved topic (T7), and a box re-routes that post (T7b).
 >
+> **The dev rehearsal (T13) moved 3650 posts in one run; it is not passed:** P7 failed
+> `proof scan messages.body 1`, on a staying post that links a moved topic. So today **any channel
+> another post links stops at P7**, after its rows have moved (spec R7, row T13b). P4 took 4.42 s
+> and P7 about 9 s, under the box's 30 s cap (n=1). It did not exercise a real `<DST>` desk, Qto
+> docs, hours rows or the old link over HTTP. Record:
+> [dev-rehearsal.md](../../specs/169-channel-workspace-move/dev-rehearsal.md).
+>
+> What still waits:
+>
+> - **The menu entry:** there is none yet; this action is the only door (spec section 8.5).
 > - **Copy:** every `op` of a copy answers 501 `not_built` (T11).
-> - **The owner's exceptions:** a step reads no `detail`, so "leave these hours
->   rows" and "keep this invite" have no input (section 2.4).
-> - **Gaps no row owns:** no proof of the bucket objects (section 5.1) and the
->   web app's redirect (section 5.2).
+> - **The owner's exceptions:** the hub reads them from a step's `detail` (T7d), but this action does
+>   not send them (section 2.4).
+> - **The last date:** `KEPT_UNTIL` always prints `not read: no date for hub logs` (row T13c).
 >
-> Every part below that waits says **[pending <row>]**, or says no row owns it.
+Every part below that waits says **[pending <row>]**, or says no row owns it.
 
 The `OK` and `FATAL` lines quoted below are the action's log text; `./run`
 shows them with its own level prefix (`[OK]`, `[FATAL]`).
@@ -75,10 +83,10 @@ the owner and waits.
 
 The first prd move (owner, Q7, spec 11.1): `<SRC>` = csitea, `<CHANNEL>` =
 the csitea channel named like the workspace `ws-hidden-17`, `<DST>` =
-`ws-hidden-17`. It runs only after the dev rehearsal (spec T13): on dev,
+`ws-hidden-17`. It runs only after a dev rehearsal (spec T13) passes: on dev,
 `plan` then `DRY_RUN=0` of a seeded channel between two dev test
 workspaces, with the owner's GO msg id, P7 printing 0 and the journal read
-back. The calendar half of case C18 comes before both the rehearsal and that
+back. The first one did not pass (the box above). The calendar half of case C18 comes before both the rehearsal and that
 move (spec row T7c) **[pending T7c]**. The box re-route (T7b), also a prerequisite,
 is on master.
 

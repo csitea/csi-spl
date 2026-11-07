@@ -611,7 +611,7 @@ heal LEASE_PANE_CMD="$T/bin/footer" >"$T/o" 2>&1
 [[ "$(nsetup)" == 0 && -d "$T/proc/102" && ! -e "$T/proc/202" ]] && grep -q ' HEAL SKIP both alive' "$T/o" &&
   pass "11. a live master on a usage-limit pane: untouched (no second process on its id)" || fail "11. stalled: $(cat "$T/o")"
 world; rm -rf "$T/proc/103" "$T/at-sleep.ran"
-echo '"$T/bin/proc" 103 c-903 7200' >"$T/at-sleep.3"
+echo 'command sleep 0.2; "$T/bin/proc" 103 c-903 7200' >"$T/at-sleep.3"
 heal ROTATE_HEAL_CONFIRM=3 >"$T/o" 2>&1
 [[ "$(nsetup)" == 0 && ! -d "$T/proc/203" && -e "$T/at-sleep.ran" && ! -e "$T/at-sleep.3" ]] && grep -q ' HEAL SKIP back within 3s' "$T/o" &&
   pass "11. dead at one look, back within ROTATE_HEAL_CONFIRM: untouched" || fail "11. confirm: $(cat "$T/o")"

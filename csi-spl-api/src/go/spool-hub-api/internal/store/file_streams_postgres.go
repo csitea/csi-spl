@@ -20,13 +20,13 @@ import (
 // stream (operatorCallers), read inside the announce's own transaction.
 
 const fileStreamCols = `id::text, tenant_id, box_id, stream_key, path, state, reason, first_seen_at, announced_at,
-	last_line_at, last_seq, lines_total, lines_dropped, lines_kept, bytes_kept, redactions`
+	last_line_at, last_seq, lines_total, lines_dropped, lines_kept, bytes_kept, redactions, removed_at`
 
 func scanFileStream(r pgx.Row) (FileStream, error) {
 	var f FileStream
 	var red []byte
 	err := r.Scan(&f.ID, &f.Tenant, &f.Box, &f.StreamKey, &f.Path, &f.State, &f.Reason, &f.FirstSeenAt, &f.AnnouncedAt,
-		&f.LastLineAt, &f.LastSeq, &f.LinesTotal, &f.LinesDropped, &f.LinesKept, &f.BytesKept, &red)
+		&f.LastLineAt, &f.LastSeq, &f.LinesTotal, &f.LinesDropped, &f.LinesKept, &f.BytesKept, &red, &f.RemovedAt)
 	if err == nil {
 		f.Redactions = map[string]int64{}
 		err = json.Unmarshal(red, &f.Redactions)
@@ -35,11 +35,15 @@ func scanFileStream(r pgx.Row) (FileStream, error) {
 }
 
 // fileStreamUpsert writes one announced key; a new row takes the id the
-// hub minted.
+// hub minted. It never touches removed_at, and a removed row stays gone
+// whatever the box says (spec 160 3.10); it answers the state it kept.
 const fileStreamUpsert = `INSERT INTO file_streams (tenant_id, id, box_id, stream_key, path, state, reason, first_seen_at, announced_at)
 	VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $8)
-	ON CONFLICT (tenant_id, box_id, stream_key) DO UPDATE SET path = EXCLUDED.path, state = EXCLUDED.state,
-		reason = EXCLUDED.reason, announced_at = EXCLUDED.announced_at`
+	ON CONFLICT (tenant_id, box_id, stream_key) DO UPDATE SET path = EXCLUDED.path,
+		state = CASE WHEN file_streams.removed_at IS NULL THEN EXCLUDED.state ELSE 'gone' END,
+		reason = CASE WHEN file_streams.removed_at IS NULL THEN EXCLUDED.reason ELSE '' END,
+		announced_at = EXCLUDED.announced_at
+	RETURNING state, reason`
 
 // fileStreamWorkspaces answers whether tenant may stream: it already does,
 // or fewer than max workspaces do. A count across workspaces, inside the
@@ -74,7 +78,7 @@ func (s *Postgres) AnnounceFileStreams(ctx context.Context, tenant, box string, 
 		keys := make([]string, len(plan))
 		for i, a := range plan {
 			keys[i] = a.StreamKey
-			if _, err := tx.Exec(ctx, fileStreamUpsert, tenant, uuid.New(), box, a.StreamKey, in[i].Path, a.State, a.Reason, now); err != nil {
+			if err := tx.QueryRow(ctx, fileStreamUpsert, tenant, uuid.New(), box, a.StreamKey, in[i].Path, a.State, a.Reason, now).Scan(&plan[i].State, &plan[i].Reason); err != nil {
 				return err
 			}
 		}
@@ -125,13 +129,16 @@ func (s *Postgres) RecordFileStreamLines(ctx context.Context, tenant, box string
 	res := FileStreamPushResult{Expired: expired, AckedSeq: acked}
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var reason string
-		err := tx.QueryRow(ctx, `SELECT id::text, reason FROM file_streams
-			WHERE tenant_id = $1 AND box_id = $2 AND stream_key = $3 FOR UPDATE`, tenant, box, p.StreamKey).Scan(&res.StreamID, &reason)
+		var removed *time.Time
+		err := tx.QueryRow(ctx, `SELECT id::text, reason, removed_at FROM file_streams
+			WHERE tenant_id = $1 AND box_id = $2 AND stream_key = $3 FOR UPDATE`, tenant, box, p.StreamKey).Scan(&res.StreamID, &reason, &removed)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			return ErrFileStreamUnknown
 		case err != nil:
 			return err
+		case removed != nil: // acked, not stored (spec 160 3.10): a refusal would stay in the box's queue
+			return nil
 		case reason != "":
 			return ErrFileStreamRefused
 		}

@@ -1,8 +1,8 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
 Version v0.8 (2026-11-07): 3.10, removing a file from the view (SPL-4979, owner
-msg `5bb5d078`); cases C57-C64, rows B13-B15, D8; not built, it waits for the
-dispatcher's GO.
+msg `5bb5d078`); cases C57-C64, rows B13-B15, D8. B13 and B14 are built on the
+review branch (5.14), not landed; B15 is next.
 v0.6 (2026-10-30): folds the owner's answers to Q5..Q7 (poll
 `900699dd`, msg `369e7bfa`, 7.1): Q5 B, the default folders are the fleet's
 box log folder and `/var/log`, minus the security files (3.8.2); Q6 A, every
@@ -937,8 +937,9 @@ a box still reads the file and its lines are discarded at the hub. A current
 box also stops reading, within `globs_s` plus one tick:
 
 - `read_allow` skips a removed key before it counts the slots, so the entry
-  frees its slot (`FILE_STREAMS_MAX`), and a removed glob match is skipped
-  without taking a slot or counting in its glob's `matched`.
+  frees its slot (`FILE_STREAMS_MAX`). A removed glob match takes no slot and
+  leaves its glob's `matched`; its key needs its real path, so a removed match
+  below the last free slot still reads as `over_cap` until a slot is free.
 - Its queued lines are dropped, and its state's `ident` is cleared while `seq`
   is kept: `seq` must keep rising (the hub keys on it), and a put back starts
   as a first sight (3.1), the last `start_lines` lines, never the whole gap.
@@ -1545,6 +1546,17 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
   C56 in `tests/unit/monitoring-file-streams.test.mjs` (every key in every
   locale, not English) beside `i18n-parity.test.mjs`. Each case's planted
   defect and its red run are in the commit body.
+
+### 5.14 Rows B13..B15 as built (SPL-4979)
+
+The rows of 3.10 (dispatcher's GO, msg `f3a48167`; Put back kept by its ruling).
+B13: `store/file_streams_remove_{postgres,memory}.go`, `hub/file_streams_remove.go`,
+rdb `0266_file_stream_removed.sql`, tests `store/file_streams_remove_test.go`,
+`hub/file_streams_remove_test.go`, `TestSearchFileLinesRemoved`. A refused put back
+on a locked box writes one `refused` audit row with reason `box_locked`, as a
+refused glob add does. B14: `file-stream-follow.py`, `pull_globs` now runs before
+`read_allow` in the tick, so a removal frees its slot in the same tick; C63 in
+`spl-file-stream-follow.tst.sh`.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

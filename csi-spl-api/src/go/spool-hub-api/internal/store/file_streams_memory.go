@@ -68,7 +68,10 @@ func (s *Memory) AnnounceFileStreams(_ context.Context, tenant, box string, in [
 			f = &FileStream{ID: uuid.New(), Tenant: tenant, Box: box, StreamKey: a.StreamKey, FirstSeenAt: now, Redactions: map[string]int64{}}
 			m.byID[f.ID] = f
 		}
-		f.Path, f.State, f.Reason, f.AnnouncedAt = in[i].Path, a.State, a.Reason, now
+		if f.RemovedAt != nil { // stays gone whatever the box says (spec 160 3.10)
+			plan[i].State, plan[i].Reason = wire.FileStreamGone, ""
+		}
+		f.Path, f.State, f.Reason, f.AnnouncedAt = in[i].Path, plan[i].State, plan[i].Reason, now
 	}
 	for _, f := range m.byID {
 		if f.Tenant == tenant && f.Box == box && !listed[f.StreamKey] {
@@ -91,6 +94,9 @@ func (s *Memory) RecordFileStreamLines(_ context.Context, tenant, box string, p 
 	switch {
 	case f == nil:
 		return FileStreamPushResult{}, ErrFileStreamUnknown
+	case f.RemovedAt != nil: // acked, not stored (spec 160 3.10): a refusal would stay in the box's queue
+		_, expired, acked := fileStreamPrepare(p.Lines, now)
+		return FileStreamPushResult{StreamID: f.ID, Expired: expired, AckedSeq: acked}, nil
 	case f.Reason != "":
 		return FileStreamPushResult{}, ErrFileStreamRefused
 	}

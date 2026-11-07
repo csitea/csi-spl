@@ -1,0 +1,6 @@
+Lay-What: The check on a reviewer's statement now also covers one more common kind of test it used to skip.
+Lay-How: Any test of that kind named in the statement must now really appear in the reviewer's work record, or the check fails.
+Lay-Why: A reviewer could claim to have run such a test without running it, and the claim still passed.
+Tech-What: do_spl_review_line_check counts a test-*.sh path in ran: as a test name; the OK/FAIL line lists the counted names.
+Tech-How: _spl_review_line_names matches a test-*.sh basename with the same boundary as *.tst.sh and excludes *.inc.sh helpers.
+Tech-Why: The name collector only knew *.tst.sh, *.test.mjs, *_test.go, go test and pnpm run, so these suites were never looked up in the log.

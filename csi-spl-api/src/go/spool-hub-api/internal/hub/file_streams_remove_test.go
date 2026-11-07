@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -127,6 +128,44 @@ func TestFileStreamRemoveSurvivesReannounce(t *testing.T) {
 			if x.State != wire.FileStreamGone || x.RemovedAt == nil {
 				t.Errorf("removed row = %+v, want gone with removed_at", x)
 			}
+		}
+	}
+}
+
+// TestFileStreamRemovePreflight (case C65): the WUI is on another origin, so a
+// browser sends OPTIONS before the DELETE and refuses the call if it fails. The
+// e2e runs on the mock with no network and cannot see this. CONTROL: the OPTIONS
+// routes left out give 405.
+func TestFileStreamRemovePreflight(t *testing.T) {
+	r := newFSRig(t, store.FileStreamLimits{})
+	for _, c := range []struct{ path, method string }{
+		{fsRemovePath("00000000-0000-4000-8000-000000000001"), http.MethodDelete},
+		{fsRestorePath("00000000-0000-4000-8000-000000000001"), http.MethodPost},
+	} {
+		req, err := http.NewRequest(http.MethodOptions, r.e.url(r.w)+c.path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Origin", wuiOrigin)
+		req.Header.Set("Access-Control-Request-Method", c.method)
+		req.Header.Set("Access-Control-Request-Headers", "authorization,x-locale")
+		resp, err := r.e.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			t.Fatalf("OPTIONS %s = %d, want 204", c.path, resp.StatusCode)
+		}
+		h := resp.Header
+		if h.Get("Access-Control-Allow-Origin") != wuiOrigin {
+			t.Fatalf("OPTIONS %s: origin not allowed: %v", c.path, h)
+		}
+		if !strings.Contains(h.Get("Access-Control-Allow-Methods"), c.method) {
+			t.Fatalf("OPTIONS %s: %s not allowed: %v", c.path, c.method, h)
+		}
+		if !strings.Contains(h.Get("Access-Control-Allow-Headers"), "Authorization") {
+			t.Fatalf("OPTIONS %s: Authorization not allowed: %v", c.path, h)
 		}
 	}
 }

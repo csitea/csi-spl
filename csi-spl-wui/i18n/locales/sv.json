@@ -594,7 +594,8 @@
     "your_status_offline": "Din status: offline",
     "monitoring": "Övervakning",
     "reporting": "Rapporter",
-    "notes": "Anteckningar"
+    "notes": "Anteckningar",
+    "expenses": "Utgifter"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -3986,5 +3987,33 @@
     "notice_connected": "Google Kalender är ansluten.",
     "notice_error": "Google Kalender anslöts inte. Försök igen.",
     "untitled_event": "(Ingen titel)"
+  },
+  "expenses": {
+    "tabs_label": "Utgiftsflikar",
+    "tab": {
+      "ai": "AI-kostnader",
+      "cloud": "Kostnader för molninfrastruktur",
+      "hr": "Personalkostnader"
+    },
+    "entries": {
+      "add": "Lägg till en kostnad",
+      "intro_cloud": "Handinmatade kostnader för molninfrastruktur, till exempel en faktura, en rad per månad. Rapporter → Kostnader räknar dem under Moln.",
+      "intro_hr": "Handinmatade personalkostnader, en rad per månad. Rapporter → Kostnader visar dem under Personal, inte under Utgifter.",
+      "col_label_cloud": "Beskrivning",
+      "col_label_hr": "Roll eller avtal",
+      "col_amount": "Belopp exkl. moms",
+      "col_period": "Månad",
+      "loading": "Läser in kostnaderna…",
+      "error": "Det gick inte att läsa in kostnaderna.",
+      "empty": "Ingen kostnad inmatad än.",
+      "confirm_delete": "Ta bort den här kostnaden?",
+      "err_label": "Ange ett namn på högst 100 tecken.",
+      "err_amount": "Ange ett belopp över 0.",
+      "err_currency": "Välj en valuta.",
+      "err_period": "Välj en månad.",
+      "err_note": "Anteckningen är för lång: högst 2000 tecken."
+    },
+    "operators_only": "Utgifter är bara för operatörens administratörer.",
+    "tokens_link": "Betalda abonnemang och påfyllningar förs in under Utgifter → AI-kostnader."
   }
 }

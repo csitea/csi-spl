@@ -594,7 +594,8 @@
     "your_status_offline": "Tu estado: sin conexión",
     "monitoring": "Monitorización",
     "reporting": "Informes",
-    "notes": "Notas"
+    "notes": "Notas",
+    "expenses": "Gastos"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -3986,5 +3987,33 @@
     "notice_connected": "Calendario de Google está conectado.",
     "notice_error": "Calendario de Google no se conectó. Inténtalo de nuevo.",
     "untitled_event": "(Sin título)"
+  },
+  "expenses": {
+    "tabs_label": "Pestañas de gastos",
+    "tab": {
+      "ai": "Costes de IA",
+      "cloud": "Costes de infraestructura en la nube",
+      "hr": "Costes de personal"
+    },
+    "entries": {
+      "add": "Añadir un coste",
+      "intro_cloud": "Costes de infraestructura en la nube introducidos a mano, como una factura, una fila por mes. Informes → Costes los cuenta en Nube.",
+      "intro_hr": "Costes de recursos humanos introducidos a mano, una fila por mes. Informes → Costes los muestra en Personal, no en Gasto.",
+      "col_label_cloud": "Descripción",
+      "col_label_hr": "Función o contrato",
+      "col_amount": "Importe sin IVA",
+      "col_period": "Mes",
+      "loading": "Cargando los costes…",
+      "error": "No se han podido cargar los costes.",
+      "empty": "Aún no hay ningún coste introducido.",
+      "confirm_delete": "¿Eliminar este coste?",
+      "err_label": "Introduce un nombre de 100 caracteres como máximo.",
+      "err_amount": "Introduce un importe superior a 0.",
+      "err_currency": "Elige una moneda.",
+      "err_period": "Elige un mes.",
+      "err_note": "La nota es demasiado larga: 2000 caracteres como máximo."
+    },
+    "operators_only": "Los gastos son solo para administradores del operador.",
+    "tokens_link": "Las suscripciones y recargas pagadas se introducen en Gastos → Costes de IA."
   }
 }

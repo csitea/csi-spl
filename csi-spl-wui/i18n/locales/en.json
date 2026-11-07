@@ -594,7 +594,8 @@
     "your_status_offline": "Your status: offline",
     "monitoring": "Monitoring",
     "reporting": "Reporting",
-    "notes": "Notes"
+    "notes": "Notes",
+    "expenses": "Expenses"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -3986,5 +3987,33 @@
     "notice_connected": "Google Calendar is connected.",
     "notice_error": "Google Calendar was not connected. Try again.",
     "untitled_event": "(No title)"
+  },
+  "expenses": {
+    "tabs_label": "Expenses tabs",
+    "tab": {
+      "ai": "AI costs",
+      "cloud": "Cloud infra costs",
+      "hr": "HR costs"
+    },
+    "entries": {
+      "add": "Add a cost",
+      "intro_cloud": "Cloud infrastructure costs entered by hand, such as an invoice, one row per month. Reporting → Costs counts them under Cloud.",
+      "intro_hr": "Human resources costs entered by hand, one row per month. Reporting → Costs shows them under Human, not in Spend.",
+      "col_label_cloud": "Description",
+      "col_label_hr": "Role or contract",
+      "col_amount": "Amount, net of VAT",
+      "col_period": "Month",
+      "loading": "Loading the costs…",
+      "error": "Could not load the costs.",
+      "empty": "No cost entered yet.",
+      "confirm_delete": "Delete this cost?",
+      "err_label": "Enter a name of at most 100 characters.",
+      "err_amount": "Enter an amount above 0.",
+      "err_currency": "Pick a currency.",
+      "err_period": "Pick a month.",
+      "err_note": "The note is too long: at most 2000 characters."
+    },
+    "operators_only": "Expenses are for operator admins only.",
+    "tokens_link": "Paid subscriptions and top-ups are entered under Expenses → AI costs."
   }
 }

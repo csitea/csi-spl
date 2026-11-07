@@ -3568,7 +3568,7 @@
         "put_back": "Przywróć",
         "err": {
           "box_locked": "Ta maszyna jest zablokowana: plik mogą przywrócić tylko właściciele blokady.",
-          "not_found": "Tego pliku już nie ma. Załaduj stronę ponownie.",
+          "not_found": "Tego pliku już nie ma. Odśwież stronę.",
           "forbidden": "Listę plików mogą zmieniać tylko właściciel i administratorzy obszaru roboczego."
         }
       }

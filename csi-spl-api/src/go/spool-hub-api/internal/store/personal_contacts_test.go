@@ -701,6 +701,8 @@ func TestContactsC32bPhoneOnlyRows(t *testing.T) {
 		wantImport(t, "C32b the phone of a named contact", got, err, ContactImportCounts{AlreadyThere: 1})
 		got, err = f.st.ImportContacts(ctx, p1, []Contact{{Phone: "+1 555 010 0003"}, {Phone: "1 555 010 0003"}}, now)
 		wantImport(t, "C32b a file duplicate", got, err, ContactImportCounts{Add: 1, FileDuplicates: 1})
+		got, err = f.st.ImportContacts(ctx, p1, []Contact{{LastName: "Earlier", Phone: "+1 555 010 0004"}, {Phone: "15550100004"}}, now)
+		wantImport(t, "C32b an earlier named row's phone", got, err, ContactImportCounts{Add: 1, FileDuplicates: 1})
 		got, err = f.st.ImportContacts(ctx, p1, []Contact{{LastName: "Named", Phone: "+1 555 010 0001"}}, now)
 		wantImport(t, "a named row keeps the seed's rule", got, err, ContactImportCounts{Add: 1})
 		gone := listAll(t, f.st, p1, "5550100002")
@@ -836,6 +838,31 @@ func TestContactsC37bImportSoftDeleted(t *testing.T) {
 		got, err = f.st.ImportContacts(ctx, p1, []Contact{{Email: ContactDeletedByMember + "@example.com"}}, now)
 		wantImport(t, "C37b twin, after the purge", got, err, ContactImportCounts{Add: 1})
 	})
+}
+
+// TestContactsHeldLiveWins pins "a live match wins" without a store: each order,
+// because the order a store's rows arrive in is the store's.
+func TestContactsHeldLiveWins(t *testing.T) {
+	c := Contact{LastName: "Both", Phone: "+1 555 010 0005"}
+	for _, order := range [][]bool{{true, false}, {false, true}} {
+		h := contactsHeld{}
+		h.add(c, order[0])
+		h.add(c, order[1])
+		if !h[contactImportKey(c)] || !h[contactPhoneKey(c.Phone)] {
+			t.Fatalf("order %v: %v, want live on both keys", order, h)
+		}
+	}
+}
+
+// TestContactsCleanContactIsTheWritesClean pins the export B15 sorts rows with.
+func TestContactsCleanContactIsTheWritesClean(t *testing.T) {
+	got, err := CleanContact(Contact{Email: " First.Last@Example.com "})
+	if err != nil || got.Email != "first.last@example.com" {
+		t.Fatalf("got %q, %v", got.Email, err)
+	}
+	if _, err := CleanContact(Contact{LastName: "Last", Birthday: "2026-13-01"}); !errors.Is(err, ErrContactBadBirthday) {
+		t.Fatalf("bad birthday: %v", err)
+	}
 }
 
 // testContactPhoto is a picture whose source URL hash is 64 times hexChar.

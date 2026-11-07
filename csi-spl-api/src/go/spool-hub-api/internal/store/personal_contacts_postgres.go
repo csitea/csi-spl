@@ -330,8 +330,9 @@ func contactsHeldTx(ctx context.Context, tx pgx.Tx, person string) (contactsHeld
 }
 
 // importContactsTx is the import inside the caller's transaction, on cleaned
-// rows: the lock (the seed's form, spl-contacts-seed.func.sh), the match, one
-// INSERT of every new row.
+// rows: the lock (the form of spl-contacts-seed.func.sh, not its key, so a seed
+// run beside an import is not serialised), the match, one INSERT of every new
+// row.
 func importContactsTx(ctx context.Context, tx pgx.Tx, person string, rows []Contact, now time.Time) (ContactImportCounts, error) {
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('contacts-import:' || $1::text))`, person); err != nil {
 		return ContactImportCounts{}, err

@@ -347,15 +347,19 @@ func (s *Postgres) TopicArchived(ctx context.Context, tenant, task, lobby string
 }
 
 // anyTopicArchivedSQL is topicArchivedSQL's rule over a set ($1 tenant, $2 ids,
-// $3 lobby or ""): the ids themselves and the task and parent task of any
-// message they name. The named rows come by primary key, and messages_archived
-// holds only archived rows, so this reads a handful.
-const anyTopicArchivedSQL = `WITH asked AS (SELECT unnest($2::uuid[]) AS id),
-	named AS (
-		SELECT id FROM asked
-		UNION SELECT m.task_id FROM messages m JOIN asked a ON m.msg_id = a.id WHERE m.tenant_id = $1
-		UNION SELECT m.parent_task_id FROM messages m JOIN asked a ON m.msg_id = a.id
-			WHERE m.tenant_id = $1 AND m.parent_task_id IS NOT NULL)
+// $3 lobby or ""): the ids and every task above them, walkTopic's edges read
+// upward (a message to its task, a task to the parent task of its rows). The
+// lobby ends the climb: it is every top-level card's task, and its rows are
+// no one's topic. The levels are few and messages_archived holds only archived
+// rows, so this reads a handful.
+const anyTopicArchivedSQL = `WITH RECURSIVE named(id) AS (
+		SELECT unnest($2::uuid[])
+		UNION
+		SELECT up.id FROM named n CROSS JOIN LATERAL (
+			SELECT m.task_id AS id FROM messages m WHERE m.tenant_id = $1 AND m.msg_id = n.id
+			UNION SELECT m.parent_task_id FROM messages m
+				WHERE m.tenant_id = $1 AND m.task_id = n.id AND m.parent_task_id IS NOT NULL) up
+		WHERE n.id::text <> $3::text)
 	SELECT EXISTS (SELECT 1 FROM messages z
 		WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
 			AND (z.msg_id IN (SELECT id FROM named)

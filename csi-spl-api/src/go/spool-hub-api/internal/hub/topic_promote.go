@@ -120,7 +120,10 @@ func (s *Server) demoteTopic(w http.ResponseWriter, r *http.Request, mr moveRow,
 	if !ok {
 		return
 	}
-	home := c.m.Move.FromTask // the topic the message came from (recorded by the promote)
+	home := c.m.Move.FromTask                 // the topic the message came from (recorded by the promote)
+	if !s.topicOpenDoor(w, r, c.t.ID, home) { // SPL-4954
+		return
+	}
 	if err := s.o.Store.DemoteTopic(r.Context(), c.t.ID, c.m.MsgID, ids); !s.moveStored(w, err, c.m.MsgID) {
 		return
 	}

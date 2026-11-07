@@ -11,8 +11,8 @@ import (
 // HUM-10, msg 51465f86: "the humans should not be able to insert any input
 // anymore to the archived discussions"). The refusal sits on the human routes
 // only: a browser send (post, reply, poll answer, attachment: all one frame),
-// an edit, an added emoji, a move or a merge into the topic, a visitor's embed
-// post. A box send never comes here, so an agent that finishes after the
+// an edit, an added emoji, a move or a merge into the topic, the undo of a
+// promote back into it, a visitor's embed post. A box send never comes here, so an agent that finishes after the
 // archive still reports, and Unarchive lifts the refusal with the stamp.
 
 const (
@@ -21,9 +21,10 @@ const (
 )
 
 // topicClosed answers whether any of ids names an archived topic, a card or
-// its thread, or a message of one: a thread opened on a reply has that reply's
-// msg_id for its task. One read for all of them; a top-level post in the lobby
-// reads nothing, because the lobby itself never carries the stamp.
+// its thread, or anything under one, at any depth: a thread opened on a reply
+// has that reply's msg_id for its task, and a child task has the topic for its
+// parent. One read for all of them; a top-level post in the lobby reads
+// nothing, because the lobby itself never carries the stamp.
 func (s *Server) topicClosed(ctx context.Context, tenant string, ids ...string) (bool, error) {
 	asked := make([]string, 0, len(ids))
 	for _, id := range ids {

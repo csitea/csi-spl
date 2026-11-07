@@ -49,8 +49,8 @@ Two additions the same evening (relayed by CLE-001):
 - **People add nothing to an archived topic** (owner HUM-10, msg 51465f86, 2026-11-07:
   "the humans should not be able to insert any input anymore to the archived
   discussions"; SPL-4954). The hub refuses a person's post, reply, poll answer and
-  attachment (one browser send frame), edit, added emoji, and a move or merge into the
-  topic with `topic_archived`; the WUI shows no composer there, a short line instead, and
+  attachment (one browser send frame), edit, added emoji, a move or merge into the topic
+  and the undo of a promote back into it with `topic_archived`, at any depth of the topic; the WUI shows no composer there, a short line instead, and
   disables a poll. Unarchive lifts it. Contract: `topic-archive-v1.md` section 5.2.
   Archiving a visitor topic ends that visitor's chat from that browser, until unarchive.
 - An **agent's** post on an archived topic is stored and delivered as always, and the

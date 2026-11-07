@@ -286,3 +286,100 @@ func TestVisitorPostToArchivedTopicIsRefused(t *testing.T) {
 		t.Fatalf("unarchived: got %d %s, want 201", code, raw)
 	}
 }
+
+// c-022's W1: the refusal reaches as far down as the topic's own walk. The rows
+// come from a browser's frames, which name no parent; the child tasks from a box.
+func TestHumanInputDeepInArchivedTopicIsRefused(t *testing.T) {
+	e := archiveEnv(t)
+	tid, _ := e.tenant()
+	w := dialWUI(t, e, tid, "HUM-1")
+	a := archivedTopic{e: e, tid: tid, w: w}
+	task := uuidV4()
+	card := a.post(map[string]any{"task_id": task, "is_parent": 1, "body": "card"})
+	reply := a.post(map[string]any{"task_id": task, "body": "reply"})
+	s1 := a.post(map[string]any{"task_id": reply.MsgID, "body": "a thread on the reply"})
+	s2 := a.post(map[string]any{"task_id": s1.MsgID, "body": "a thread on that line"})
+	now := time.Now().UTC()
+	child, grand := uuidV4(), uuidV4()
+	c1 := putCard(t, e, tid, child, task, "HUM-1", hub.WUIBox, 0, now)
+	g1 := putCard(t, e, tid, grand, child, "HUM-1", hub.WUIBox, 0, now.Add(time.Second))
+	if code, out := call(t, e, tid, http.MethodPut, "/v1/messages/"+card.MsgID+"/archive", "HUM-1", nil); code != http.StatusOK {
+		t.Fatalf("archive: %d %v", code, out)
+	}
+	deep := map[string]string{"reply": reply.MsgID, "s1": s1.MsgID, "s2": s2.MsgID, "child": child, "c1": c1, "grand": grand, "g1": g1}
+	for name, id := range deep {
+		if f := a.post(map[string]any{"task_id": id}); f.Error != "topic_archived" {
+			t.Errorf("send to %s: %+v, want topic_archived", name, f)
+		}
+	}
+	for name, id := range map[string]string{"s2": s2.MsgID, "g1": g1} {
+		if code, _ := call(t, e, tid, http.MethodPatch, "/v1/messages/"+id, "HUM-1", map[string]any{"body": "edited"}); code != http.StatusConflict {
+			t.Errorf("edit of %s: %d, want 409", name, code)
+		}
+		if code, _ := call(t, e, tid, http.MethodPut, "/v1/messages/"+id+"/reactions", "HUM-1", map[string]any{"emoji": "👍"}); code != http.StatusConflict {
+			t.Errorf("emoji on %s: %d, want 409", name, code)
+		}
+	}
+	if code, out := call(t, e, tid, http.MethodDelete, "/v1/messages/"+card.MsgID+"/archive", "HUM-1", nil); code != http.StatusOK {
+		t.Fatalf("unarchive: %d %v", code, out)
+	}
+	for name, id := range deep {
+		if f := a.post(map[string]any{"task_id": id}); f.Type != "ack" {
+			t.Errorf("after unarchive, send to %s: %+v, want ack", name, f)
+		}
+	}
+}
+
+// The climb stops where the topic stops: a live topic beside an archived one
+// takes input, through the lobby and after a promote out of it.
+func TestLiveTopicBesideArchivedOneStillTakesInput(t *testing.T) {
+	a := newArchivedTopic(t)
+	now := time.Now().UTC()
+	lobbyCard := putCard(t, a.e, a.tid, lobby, "", "HUM-1", hub.WUIBox, 1, now)
+	lobbyLine := putCard(t, a.e, a.tid, lobby, a.task, "HUM-1", hub.WUIBox, 0, now.Add(time.Second))
+	for name, id := range map[string]string{"lobby card": lobbyCard, "lobby line": lobbyLine} {
+		if f := a.post(map[string]any{"task_id": id}); f.Type != "ack" {
+			t.Errorf("send to %s: %+v, want ack: the lobby is no one's topic", name, f)
+		}
+	}
+	g := moveEnv(t)
+	code, out := call(t, g.e, g.tid, http.MethodPost, "/v1/messages/"+g.r3+"/promote-topic", "HUM-1", map[string]any{})
+	if code != http.StatusOK {
+		t.Fatalf("promote: %d %v", code, out)
+	}
+	if code, o := call(t, g.e, g.tid, http.MethodPut, "/v1/messages/"+g.card+"/archive", "HUM-2", nil); code != http.StatusOK {
+		t.Fatalf("archive the home: %d %v", code, o)
+	}
+	p := archivedTopic{e: g.e, tid: g.tid, w: dialWUI(t, g.e, g.tid, "HUM-1")}
+	if f := p.post(map[string]any{"task_id": out["task_id"]}); f.Type != "ack" {
+		t.Errorf("send to the promoted topic: %+v, want ack: it left the archived one", f)
+	}
+}
+
+// c-022's W2: the undo of a promote moves a row into its old topic, so a closed
+// one refuses it, and the row stays where it is.
+func TestPromoteUndoIntoArchivedTopicIsRefused(t *testing.T) {
+	g := moveEnv(t)
+	code, out := call(t, g.e, g.tid, http.MethodPost, "/v1/messages/"+g.r3+"/promote-topic", "HUM-1", map[string]any{})
+	if code != http.StatusOK {
+		t.Fatalf("promote: %d %v", code, out)
+	}
+	if code, o := call(t, g.e, g.tid, http.MethodPut, "/v1/messages/"+g.card+"/archive", "HUM-2", nil); code != http.StatusOK {
+		t.Fatalf("archive the home: %d %v", code, o)
+	}
+	undo := map[string]any{"undo": out["undo"]}
+	code, o := call(t, g.e, g.tid, http.MethodPost, "/v1/messages/"+g.r3+"/promote-topic", "HUM-1", undo)
+	if code != http.StatusConflict || o["error"] != "topic_archived" {
+		t.Fatalf("undo into the archived home: %d %v, want 409 topic_archived", code, o)
+	}
+	row, err := g.e.st.GetEditable(context.Background(), g.tid, g.r3, time.Now())
+	if err != nil || row.TaskID != out["task_id"] {
+		t.Fatalf("row after the refused undo: task %s, err %v, want %v", row.TaskID, err, out["task_id"])
+	}
+	if code, o := call(t, g.e, g.tid, http.MethodDelete, "/v1/messages/"+g.card+"/archive", "HUM-2", nil); code != http.StatusOK {
+		t.Fatalf("unarchive: %d %v", code, o)
+	}
+	if code, o := call(t, g.e, g.tid, http.MethodPost, "/v1/messages/"+g.r3+"/promote-topic", "HUM-1", undo); code != http.StatusOK {
+		t.Fatalf("undo after unarchive: %d %v", code, o)
+	}
+}

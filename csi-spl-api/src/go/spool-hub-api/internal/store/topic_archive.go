@@ -108,8 +108,10 @@ type TopicArchive interface {
 	// needs this to MARK it (t1 8fb802cd).
 	TopicArchived(ctx context.Context, tenantID, taskID, lobby string) (time.Time, string, error)
 	// AnyTopicArchived answers, in one read, whether any of ids is an
-	// archived topic by TopicArchived's rule, or a message of one: its task
-	// or its parent task is (SPL-4954, a person's input stops at the archive).
+	// archived topic by TopicArchived's rule, or sits anywhere under one: it
+	// climbs walkTopic's edges, a message to its task and a task to the parent
+	// task of its rows, up to the lobby (SPL-4954, a person's input stops at
+	// the archive).
 	AnyTopicArchived(ctx context.Context, tenantID, lobby string, ids []string) (bool, error)
 }
 
@@ -305,20 +307,39 @@ func (s *Memory) archivedHiddenLocked(tenant string, m *Message, lobby string) b
 func (s *Memory) AnyTopicArchived(_ context.Context, tenant, lobby string, ids []string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, id := range ids {
-		if s.topicArchivedLocked(tenant, id, lobby) {
-			return true, nil
+	seen := map[string]bool{}
+	for frontier := ids; len(frontier) > 0; {
+		var above []string
+		for _, id := range frontier {
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			if s.topicArchivedLocked(tenant, id, lobby) {
+				return true, nil
+			}
+			if id != lobby {
+				above = append(above, s.tasksAboveLocked(tenant, id)...)
+			}
 		}
-		m, ok := s.messages[[2]string{tenant, id}]
-		if !ok {
-			continue
-		}
-		if s.topicArchivedLocked(tenant, m.TaskID, lobby) ||
-			(m.ParentTaskID != "" && s.topicArchivedLocked(tenant, m.ParentTaskID, lobby)) {
-			return true, nil
-		}
+		frontier = above
 	}
 	return false, nil
+}
+
+// tasksAboveLocked is one step up walkTopic's edges: the task of the message
+// id names, and the parent task of the rows of the task id names.
+func (s *Memory) tasksAboveLocked(tenant, id string) []string {
+	var above []string
+	if m, ok := s.messages[[2]string{tenant, id}]; ok {
+		above = append(above, m.TaskID)
+	}
+	for k, m := range s.messages {
+		if k[0] == tenant && m.TaskID == id && m.ParentTaskID != "" {
+			above = append(above, m.ParentTaskID)
+		}
+	}
+	return above
 }
 
 // topicArchivedLocked: task is archived (its card is), or it is the thread

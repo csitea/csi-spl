@@ -55,7 +55,9 @@ WUI marks the topic with it (the Archived badge, t1 8fb802cd).
 ## 5.2 A person's input to an archived topic
 
 Owner HUM-10, msg 51465f86 (SPL-4954). While the topic is archived (the stamp of
-section 5.1, on the task or parent named, or on the topic of the message named):
+section 5.1, on anything named or on any task above it: a message climbs to its task, a
+task to the parent task of its rows, as far as the topic's own walk goes down, and the
+lobby ends the climb):
 
 | route | answer |
 |---|---|
@@ -63,6 +65,7 @@ section 5.1, on the task or parent named, or on the topic of the message named):
 | `PATCH /v1/messages/{msg_id}` | `409 topic_archived` |
 | `PUT /v1/messages/{msg_id}/reactions` | `409 topic_archived`, except the report emoji |
 | `POST /v1/messages/{msg_id}/move` `{to_task}`, `POST .../merge-topic` `{to_task}` | `409 topic_archived` when `to_task` is archived |
+| `POST .../promote-topic` `{undo}` | `409 topic_archived` when the topic the row came from is archived; the row stays where it is |
 | `POST /v1/embed/{embed_id}/messages` (a visitor; its topic is the visitor id) | `409 topic_archived`, nothing stored; the chat frame says the conversation is closed |
 
 - A `send` whose `msg_id` is already stored still acks: a resend adds nothing.

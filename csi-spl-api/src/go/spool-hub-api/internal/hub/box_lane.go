@@ -57,6 +57,10 @@ type LaneRow struct {
 type laneAnswer struct {
 	Fleet string    `json:"fleet"`
 	Lanes []LaneRow `json:"lanes"`
+	// Topic and TopicArchivedAt answer a lane_op archived that names a topic
+	// (SPL-4955): the full id it resolved to, and its stamp when it is archived.
+	Topic           string `json:"topic,omitempty"`
+	TopicArchivedAt string `json:"topic_archived_at,omitempty"`
 }
 
 func laneRow(l store.FleetLane) LaneRow {

@@ -12,7 +12,8 @@ import (
 // cmdLane lists the fleet-wide lane map or, with --agent, writes that agent's
 // row (CLE-77920): the primitive do_spl_lane_map / do_spl_lane_put build on.
 // Prints the hub's answer {fleet, lanes}. --archived lists the live rows
-// whose topic is archived, --box's only (SPL-3983), and writes nothing.
+// whose topic is archived, --box's only (SPL-3983), or with --topic only that
+// topic's stamp (SPL-4955), and writes nothing.
 func cmdLane(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("lane", flag.ContinueOnError)
 	fleet := fs.String("fleet", "", "the fleet (a lowercase slug)")
@@ -22,7 +23,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 	branch := fs.String("branch", "", "write: its branch")
 	scope := fs.String("scope", "", "write: its scope, one line")
 	files := fs.String("files", "", "write: the paths it owns, comma-separated")
-	topic := fs.String("topic", "", "write: its topic (task id)")
+	topic := fs.String("topic", "", "write: its topic (task id); with --archived: the topic to read (full or 8-hex id)")
 	issue := fs.String("issue", "", "write: its issue key, e.g. SPL-12")
 	origin := fs.String("origin-issue", "", "write: the issue it came from, e.g. SPL-12")
 	state := fs.String("state", "live", "write: live or done")

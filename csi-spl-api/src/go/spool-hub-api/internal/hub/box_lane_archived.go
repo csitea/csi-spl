@@ -23,16 +23,26 @@ import (
 // (laneTopicElsewhere). Each answered row carries topic_archived_at, the
 // stamp that hides the topic from every list (store.TopicArchived). A live,
 // deleted or non-uuid topic answers nothing, so a doubt never frees a lane.
+//
+// The frame's lane object may name topic instead (SPL-4955; owner HUM-10, msg
+// 51465f86): no rows, only that topic's stamp in the answer, so the placer can
+// refuse a queued row of an archived discussion. A full id or a short id the
+// put would resolve (laneTopic); none or two answers no stamp, so a doubt
+// never drops a row.
 
 // laneArchived answers the live lanes whose topic is archived.
 func (s *Server) laneArchived(ctx context.Context, x *session, f wire.Frame, now time.Time) (laneAnswer, *issueErr) {
 	var want struct {
 		AgentBox string `json:"agent_box"`
+		Topic    string `json:"topic"`
 	}
 	if len(f.Lane) > 0 && string(f.Lane) != "null" {
 		if err := json.Unmarshal(f.Lane, &want); err != nil {
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane must be an object, e.g. {\"agent_box\": \"<box>\"}"}
 		}
+	}
+	if want.Topic != "" {
+		return s.laneOneTopicArchived(ctx, x, f.Fleet, want.Topic)
 	}
 	ls, err := s.o.Store.ListFleetLanes(ctx, x.tenant, f.Fleet, now)
 	if err != nil {
@@ -59,6 +69,29 @@ func (s *Server) laneArchived(ctx context.Context, x *session, f wire.Frame, now
 		r := laneRow(l)
 		r.TopicArchivedAt = at.UTC().Format(time.RFC3339)
 		out.Lanes = append(out.Lanes, r)
+	}
+	return out, nil
+}
+
+// laneOneTopicArchived answers the stamp of one topic, none when it is live or
+// names no single topic.
+func (s *Server) laneOneTopicArchived(ctx context.Context, x *session, fleet, topic string) (laneAnswer, *issueErr) {
+	out := laneAnswer{Fleet: fleet, Lanes: []LaneRow{}}
+	full, ae := s.laneTopic(ctx, x.tenant, topic)
+	if ae != nil {
+		return laneAnswer{}, ae
+	}
+	if !uuidRe.MatchString(full) {
+		return out, nil
+	}
+	at, err := s.laneTopicArchivedAt(ctx, x.tenant, full)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("fleet", fleet).Msg("fleet topic archive read")
+		return laneAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}
+	}
+	out.Topic = full
+	if !at.IsZero() {
+		out.TopicArchivedAt = at.UTC().Format(time.RFC3339)
 	}
 	return out, nil
 }

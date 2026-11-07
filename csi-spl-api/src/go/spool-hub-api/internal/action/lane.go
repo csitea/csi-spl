@@ -29,7 +29,8 @@ type LaneArgs struct {
 	Hub         *hubclient.Client `json:"-"` // nil = hubclient.New(cfg)
 
 	// Archived reads the live rows whose topic is archived (SPL-3983), Box's
-	// only when Box is set; nothing is written.
+	// only when Box is set; with Topic set, that topic's stamp and no rows
+	// (SPL-4955). Nothing is written.
 	Archived bool `json:"-"`
 }
 
@@ -48,7 +49,7 @@ func Lane(ctx context.Context, cfg *config.Config, in LaneArgs) (json.RawMessage
 		hc = hubclient.New(cfg)
 	}
 	if in.Archived {
-		row, err := json.Marshal(map[string]string{"agent_box": in.Box})
+		row, err := json.Marshal(map[string]string{"agent_box": in.Box, "topic": in.Topic})
 		if err != nil {
 			return nil, err
 		}

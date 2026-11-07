@@ -349,7 +349,7 @@ function mockEntryPart(label, amount, currency, kind = 'cloud') {
   const rate = MOCK_FX_RATES[currency]
   const usd = rate ? amount / rate : 0
   return {
-    ...mockPart('cost_entry', label, kind, 'hand', usd),
+    ...mockPart('cost_entry', label, kind, 'hand', { usd }),
     eur_micros: currency === 'EUR' ? toMicros(amount) : toMicros(usd * MOCK_EUR_PER_USD),
     entry_micros: toMicros(amount),
     entry_currency: currency,
@@ -357,7 +357,7 @@ function mockEntryPart(label, amount, currency, kind = 'cloud') {
   }
 }
 
-function mockPart(source, pov, kind, origin, usd, extra = {}) {
+function mockPart(source, pov, kind, origin, { usd, ...extra }) {
   return {
     estate: true,
     source,
@@ -412,19 +412,19 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
   const n = w.ended
   const parts = scenario === 'empty'
     ? [
-        mockPart('fleet_tokens', 'llm-vendor', 'tokens', 'transcript', 0, { units: 2.6e9, days: n }),
-        mockPart('agent_hours', 'fleet', 'agent_seconds', 'agent_run', 0, { units: 9.1e5, days: n }),
+        mockPart('fleet_tokens', 'llm-vendor', 'tokens', 'transcript', { usd: 0, units: 2.6e9, days: n }),
+        mockPart('agent_hours', 'fleet', 'agent_seconds', 'agent_run', { usd: 0, units: 9.1e5, days: n }),
       ]
     : [
-        mockPart('gcp', 'project-prd', 'cloud_sql', 'estimate', 63.5, { days: n }),
-        mockPart('gcp', 'project-all', 'compute', 'estimate', 55, { days: n }),
-        mockPart('gcp', 'project-prd', 'cloud_run', 'estimate', 41.2, { days: n }),
-        mockPart('gcp', 'project-dev', 'cloud_run', 'estimate', 8.1, { days: n }),
-        mockPart('gcp', 'project-prd', 'network', 'estimate', 0.4, { days: n }),
-        mockPart('gcp', 'project-dev', 'firebase_hosting', 'estimate', 0.2, { days: n }),
-        mockPart('hand', 'llm-vendor', 'subscription', 'invoice', 200, { list: 1450, days: 1 }),
-        mockPart('fleet_tokens', 'llm-vendor', 'tokens', 'transcript', 0, { units: 2.6e9, list: 1200, days: n }),
-        mockPart('agent_hours', 'fleet', 'agent_seconds', 'agent_run', 0, { units: 9.1e5, days: n }),
+        mockPart('gcp', 'project-prd', 'cloud_sql', 'estimate', { usd: 63.5, days: n }),
+        mockPart('gcp', 'project-all', 'compute', 'estimate', { usd: 55, days: n }),
+        mockPart('gcp', 'project-prd', 'cloud_run', 'estimate', { usd: 41.2, days: n }),
+        mockPart('gcp', 'project-dev', 'cloud_run', 'estimate', { usd: 8.1, days: n }),
+        mockPart('gcp', 'project-prd', 'network', 'estimate', { usd: 0.4, days: n }),
+        mockPart('gcp', 'project-dev', 'firebase_hosting', 'estimate', { usd: 0.2, days: n }),
+        mockPart('hand', 'llm-vendor', 'subscription', 'invoice', { usd: 200, list: 1450, days: 1 }),
+        mockPart('fleet_tokens', 'llm-vendor', 'tokens', 'transcript', { usd: 0, units: 2.6e9, list: 1200, days: n }),
+        mockPart('agent_hours', 'fleet', 'agent_seconds', 'agent_run', { usd: 0, units: 9.1e5, days: n }),
       ]
   if (scenario === 'entries') parts.push(mockEntryPart('Workspace suite', 64.8, 'EUR'), mockEntryPart('Domain suite', 11.5, 'CHF'))
   const human = scenario === 'entries' ? [mockEntryPart('Design contract', 1200, 'EUR', 'hr'), mockEntryPart('Support contract', 300, 'CHF', 'hr')] : []
@@ -471,10 +471,10 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
 function mockShareBody(m, w, scenario, currency) {
   const n = w.ended
   const share = scenario === 'share' && n >= 3
-  const parts = [mockPart('fleet_tokens', 'claude', 'tokens', 'transcript', 0, { units: 3.5e6, list: 21.4, days: 1 })]
+  const parts = [mockPart('fleet_tokens', 'claude', 'tokens', 'transcript', { usd: 0, units: 3.5e6, list: 21.4, days: 1 })]
   if (share) {
-    parts.push(mockPart('ai_share', 'agy', 'share', 'paid_item', 6.73, { days: n - 2 }),
-      mockPart('ai_share', 'claude', 'share', 'paid_item', 4.12, { days: n - 2 }))
+    parts.push(mockPart('ai_share', 'agy', 'share', 'paid_item', { usd: 6.73, days: n - 2 }),
+      mockPart('ai_share', 'claude', 'share', 'paid_item', { usd: 4.12, days: n - 2 }))
   }
   const usd = parts.reduce((s, p) => s + p.usd_micros, 0)
   for (const p of parts) {

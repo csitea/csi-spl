@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url'
 import {
   FS_GLOB_ACTIONS, FS_GLOB_ERRORS, FS_GLOB_STATES, FS_MOCK_GLOB_IDS, FS_MOCK_IDS, FS_PAGE, FS_POLL_MS, FS_VIEW_MAX, atBottom,
   fileStreamBoxes, fileStreamGlobAuditOf, fileStreamGlobAuditQuery, fileStreamGlobBody, fileStreamGlobCounted, fileStreamGlobErrorKey,
-  fileStreamGlobStateKey, fileStreamGlobsOf, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery,
-  fileStreamsOf, filterFileStreamLines, lastSeqOf, mergeFileStreamLines, mockAddFileStreamGlob, mockFileStreamGlobAudit, mockFileStreamGlobs,
-  mockFileStreamGlobsReset, mockFileStreamLines, mockFileStreams, mockGlobSyntax, mockRemoveFileStreamGlob, startFileStreamPoll,
+  fileStreamGlobStateKey, fileStreamGlobsOf, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery, fileStreamRowErrorKey,
+  fileStreamsOf, fileStreamsRemovedOf, filterFileStreamLines, lastSeqOf, mergeFileStreamLines, mockAddFileStreamGlob, mockFileStreamGlobAudit, mockFileStreamGlobs,
+  mockFileStreamGlobsReset, mockFileStreamLines, mockFileStreams, mockGlobSyntax, mockRemoveFileStream, mockRemoveFileStreamGlob, mockRestoreFileStream, startFileStreamPoll,
 } from '../../src/utils/monitoring-file-streams.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -125,6 +125,44 @@ describe('file streams helpers (spec 160 3.5)', () => {
     assert.doesNotMatch(page, /:style=|style="/)
     assert.doesNotMatch(read('src/utils/spool-client.mjs'), /monitoring-file-streams/, 'the eager client never imports it')
     assert.match(read('src/utils/spool-client-lazy.mjs'), /await import\('\.\/monitoring-file-streams\.mjs'\)/)
+  })
+})
+
+describe('a file out of the view (spec 160 3.10, SPL-4979)', () => {
+  it('the removed list: parsed apart from streams, an older hub sends none; a box with only removed files is a group', () => {
+    const row = { id: 'x', box_id: 'box-a', stream_key: 'app', path: '/a', state: 'gone', removed_at: 'now' }
+    assert.deepEqual(fileStreamsRemovedOf({ streams: [] }), [])
+    assert.deepEqual(fileStreamsOf({ removed: [row] }), [])
+    const removed = fileStreamsRemovedOf({ removed: [row] })
+    assert.equal(removed[0].streamKey, 'app')
+    const g = fileStreamGroupsOf([], { globs: [], folders: [] }, removed)
+    assert.deepEqual(g.map((x) => [x.boxId, x.streams.length, x.removed.length]), [['box-a', 0, 1]])
+  })
+  it('a refusal has its own sentence, box_locked by token, the rest by status', () => {
+    assert.equal(fileStreamRowErrorKey({ status: 403, token: 'box_locked' }), 'monitoring.file_streams.file.err.box_locked')
+    assert.equal(fileStreamRowErrorKey({ status: 403 }), 'monitoring.file_streams.file.err.forbidden')
+    assert.equal(fileStreamRowErrorKey({ status: 404 }), 'monitoring.file_streams.file.err.not_found')
+    assert.equal(fileStreamRowErrorKey({ status: 500 }), 'monitoring.file_streams.glob.err.other')
+  })
+  it('the mock: remove, a second remove 404, a locked put back 403 with a refused audit row, put back; each audited once', () => {
+    mockFileStreamGlobsReset()
+    const id = FS_MOCK_IDS.cron
+    const before = mockFileStreamGlobAudit().audit.length
+    assert.equal(fileStreamsOf(mockFileStreams()).length, 3)
+    assert.throws(() => mockRestoreFileStream(id), (e) => e.status === 404)
+    assert.equal(mockRemoveFileStream(id), null)
+    assert.throws(() => mockRemoveFileStream(id), (e) => e.status === 404)
+    const b = mockFileStreams()
+    assert.deepEqual(fileStreamsOf(b).map((s) => s.streamKey), ['app', 'web'])
+    assert.deepEqual(fileStreamsRemovedOf(b).map((s) => [s.streamKey, s.state]), [['cron', 'gone']])
+    globalThis.SPOOL_MOCK_FS_LOCKED_BOXES = ['box-a']
+    assert.throws(() => mockRestoreFileStream(id), (e) => e.status === 403 && e.token === 'box_locked')
+    globalThis.SPOOL_MOCK_FS_LOCKED_BOXES = []
+    assert.equal(mockRestoreFileStream(id), null)
+    assert.equal(fileStreamsOf(mockFileStreams()).length, 3)
+    assert.equal(mockFileStreamGlobAudit().audit.length, before + 3)
+    delete globalThis.SPOOL_MOCK_FS_LOCKED_BOXES
+    mockFileStreamGlobsReset()
   })
 })
 

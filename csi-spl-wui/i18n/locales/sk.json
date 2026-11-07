@@ -3522,7 +3522,7 @@
         "over_cap": "Nesledované, limit tokov stroja je plný: {n}",
         "reason": "Dôvod: {reason}",
         "unavailable": "Vzory súborov sa nepodarilo načítať.",
-        "audit_title": "Zmeny vzorov",
+        "audit_title": "Zmeny vzorov a súborov",
         "audit_none": "Zatiaľ žiadne zmeny vzorov.",
         "state": {
           "pending": "Uložený, zatiaľ nesledovaný: stroj ho ešte nenahlásil",
@@ -3534,7 +3534,9 @@
         "audit": {
           "add": "Pridaný",
           "remove": "Odstránený",
-          "refused": "Odmietnutý"
+          "refused": "Odmietnutý",
+          "file_remove": "Súbor odstránený",
+          "file_restore": "Súbor vrátený"
         },
         "err": {
           "bad_glob": "Neplatný vzor: absolútna cesta alebo pod $HOME/, * a ? iba v názve súboru, bez hranatých a zložených zátvoriek, ** ani častí . a ..",
@@ -3546,6 +3548,16 @@
           "not_found": "Stroj alebo vzor už neexistuje. Znova načítajte stránku.",
           "forbidden": "Vzory súborov môžu meniť iba vlastník a správcovia pracovného priestoru.",
           "other": "Zmenu sa nepodarilo uložiť. Skúste to znova."
+        }
+      },
+      "file": {
+        "remove_ask": "Odstrániť {key} z tohto zobrazenia? Stroj ho prestane sledovať. Už uložené riadky zostanú, kým nevypršia.",
+        "removed_title": "Odstránené súbory",
+        "put_back": "Vrátiť späť",
+        "err": {
+          "box_locked": "Tento stroj je zamknutý: súbor môžu vrátiť iba vlastníci zámku.",
+          "not_found": "Tento súbor už neexistuje. Znova načítajte stránku.",
+          "forbidden": "Zoznam súborov môžu meniť iba vlastník a správcovia pracovného priestoru."
         }
       }
     }

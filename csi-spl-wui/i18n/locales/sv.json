@@ -3522,7 +3522,7 @@
         "over_cap": "Följs inte, maskinens gräns för strömmar är nådd: {n}",
         "reason": "Orsak: {reason}",
         "unavailable": "Filmönstren kunde inte läsas in.",
-        "audit_title": "Ändringar av mönster",
+        "audit_title": "Ändringar av mönster och filer",
         "audit_none": "Inga ändringar av mönster än.",
         "state": {
           "pending": "Sparat, följs inte än: maskinen har inte rapporterat det",
@@ -3534,7 +3534,9 @@
         "audit": {
           "add": "Tillagt",
           "remove": "Borttaget",
-          "refused": "Avvisat"
+          "refused": "Avvisat",
+          "file_remove": "Filen togs bort",
+          "file_restore": "Filen lades tillbaka"
         },
         "err": {
           "bad_glob": "Ogiltigt mönster: en absolut sökväg eller en under $HOME/, * och ? bara i filnamnet, inga hakparenteser, klammerparenteser, ** eller delar . och ..",
@@ -3546,6 +3548,16 @@
           "not_found": "Maskinen eller mönstret finns inte längre. Läs in sidan igen.",
           "forbidden": "Bara arbetsytans ägare och administratörer kan ändra filmönster.",
           "other": "Ändringen kunde inte sparas. Försök igen."
+        }
+      },
+      "file": {
+        "remove_ask": "Ta bort {key} från den här vyn? Maskinen slutar följa filen. Rader som redan är sparade finns kvar tills de löper ut.",
+        "removed_title": "Borttagna filer",
+        "put_back": "Lägg tillbaka",
+        "err": {
+          "box_locked": "Den här maskinen är låst: bara låsets ägare kan lägga tillbaka en fil.",
+          "not_found": "Den här filen finns inte längre. Läs in sidan igen.",
+          "forbidden": "Bara arbetsytans ägare och administratörer kan ändra fillistan."
         }
       }
     }

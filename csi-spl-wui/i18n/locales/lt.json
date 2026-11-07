@@ -3522,7 +3522,7 @@
         "over_cap": "Nesekama, mašinos srautų riba pilna: {n}",
         "reason": "Priežastis: {reason}",
         "unavailable": "Nepavyko įkelti failų šablonų.",
-        "audit_title": "Šablonų pakeitimai",
+        "audit_title": "Šablonų ir failų pakeitimai",
         "audit_none": "Šablonų pakeitimų dar nėra.",
         "state": {
           "pending": "Išsaugota, dar nesekama: mašina apie jį dar nepranešė",
@@ -3534,7 +3534,9 @@
         "audit": {
           "add": "Pridėta",
           "remove": "Pašalinta",
-          "refused": "Atmesta"
+          "refused": "Atmesta",
+          "file_remove": "Failas pašalintas",
+          "file_restore": "Failas grąžintas"
         },
         "err": {
           "bad_glob": "Netinkamas šablonas: absoliutus kelias arba kelias po $HOME/, * ir ? tik failo pavadinime, be laužtinių ir riestinių skliaustų, ** ar dalių . ir ..",
@@ -3546,6 +3548,16 @@
           "not_found": "Mašinos ar šablono nebėra. Įkelkite puslapį iš naujo.",
           "forbidden": "Failų šablonus gali keisti tik darbo srities savininkas ir administratoriai.",
           "other": "Nepavyko išsaugoti pakeitimo. Bandykite dar kartą."
+        }
+      },
+      "file": {
+        "remove_ask": "Pašalinti {key} iš šio rodinio? Mašina nustos jį sekti. Jau išsaugotos eilutės liks, kol baigsis jų galiojimas.",
+        "removed_title": "Pašalinti failai",
+        "put_back": "Grąžinti",
+        "err": {
+          "box_locked": "Ši mašina užrakinta: failą grąžinti gali tik užrakto savininkai.",
+          "not_found": "Šio failo nebėra. Įkelkite puslapį iš naujo.",
+          "forbidden": "Failų sąrašą gali keisti tik darbo srities savininkas ir administratoriai."
         }
       }
     }

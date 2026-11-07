@@ -3522,7 +3522,7 @@
         "over_cap": "Nieśledzone, limit strumieni maszyny jest pełny: {n}",
         "reason": "Powód: {reason}",
         "unavailable": "Nie udało się wczytać wzorców plików.",
-        "audit_title": "Zmiany wzorców",
+        "audit_title": "Zmiany wzorców i plików",
         "audit_none": "Nie ma jeszcze zmian wzorców.",
         "state": {
           "pending": "Zapisany, jeszcze nieśledzony: maszyna go nie zgłosiła",
@@ -3534,7 +3534,9 @@
         "audit": {
           "add": "Dodany",
           "remove": "Usunięty",
-          "refused": "Odrzucony"
+          "refused": "Odrzucony",
+          "file_remove": "Plik usunięty",
+          "file_restore": "Plik przywrócony"
         },
         "err": {
           "bad_glob": "Nieprawidłowy wzorzec: ścieżka bezwzględna lub pod $HOME/, * i ? tylko w nazwie pliku, bez nawiasów kwadratowych i klamrowych, ** ani części . i ..",
@@ -3546,6 +3548,16 @@
           "not_found": "Maszyny lub wzorca już nie ma. Odśwież stronę.",
           "forbidden": "Wzorce plików mogą zmieniać tylko właściciel i administratorzy obszaru roboczego.",
           "other": "Nie udało się zapisać zmiany. Spróbuj ponownie."
+        }
+      },
+      "file": {
+        "remove_ask": "Usunąć {key} z tego widoku? Maszyna przestanie go śledzić. Zapisane już wiersze zostaną do czasu wygaśnięcia.",
+        "removed_title": "Usunięte pliki",
+        "put_back": "Przywróć",
+        "err": {
+          "box_locked": "Ta maszyna jest zablokowana: plik mogą przywrócić tylko właściciele blokady.",
+          "not_found": "Tego pliku już nie ma. Załaduj stronę ponownie.",
+          "forbidden": "Listę plików mogą zmieniać tylko właściciel i administratorzy obszaru roboczego."
         }
       }
     }

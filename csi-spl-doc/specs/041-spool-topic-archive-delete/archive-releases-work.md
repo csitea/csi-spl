@@ -17,30 +17,38 @@ archived discussion is another lane's work and is not described here.
   archived one declines the row with the reason `discussion archived: ...`, tells its sender
   and the holder, and takes the next row in the same tick. The sender requeues a row that
   should live on. A failed read places as before, with one WARN; a binary or hub older than
-  this answers no stamp, and places as before with no WARN.
+  this ignores the topic and answers lanes with no stamp: placed as before, with one WARN.
 - **A placed lane carries its binding.** A launch writes `Ask-Topic: <topic>` into the brief,
   so a brief that names the topic only in prose still binds (t1 2e46fcb6: c-702's brief said
   "t1 topic 2e46fcb6", and the 5-minute run skipped it).
 - **A bound lane is released.** `do_spl_archived_seats_free` reads `Ask-Topic:`, then a
   `Task:`, `Topic:` or `Discussion:` line. A freed lane's open issue goes `onhold`, no longer
-  `diss`: it is work left over, not work thrown away. An issue already `done` stays `done`.
+  `diss`: it is work left over, not work thrown away. An issue already `done`, `diss` or `qas`
+  stays as it is: a hold neither reopens finished or discarded work nor takes it out of review.
 - **A seat that answers a whole workspace is never closed by one topic.** Skipped: role seats
   (001-003), a brief whose heading says "standing ... seat", an id seated on desks of 2+
   workspaces, or on a desk box other than this box's own. One desk dir on this box's own desk
   is a plain lane, and is freed.
 - **What is left goes on in one new discussion.** `do_spl_archived_followup` runs in the same
-  cron, on the dispatch lease holder's machine only, for topics archived after that box's first
-  run (forward-only). Per topic it posts one new discussion in the archived topic's channel, as
-  the holder, naming the old topic and listing the work; each issue is linked there, then
-  unlinked from the old one. `journal.tsv` keeps old -> new, so a crash between the post and the
-  links never posts twice. A post that fails sends one blocker to the orchestrator, and is
-  retried every run.
+  cron on every box, for topics archived after that box's first run (forward-only). Per topic
+  it posts one new discussion in the archived topic's channel, under the dispatch lease holder's
+  id, naming the old topic and listing the work; each issue is linked there, then unlinked from
+  the old one. `journal.tsv` keeps old -> new, so a crash between the post and the links never
+  posts twice. A post that fails sends one blocker to the orchestrator, and is retried every run.
+- **One box posts for a topic.** The holder's box when the hub's roster has the holder's id on
+  it in that workspace, else the first such box by name, so every box reads the same answer. A
+  desk is seated with the workspace's root key, so this run never seats one. No box in the roster
+  and no desk here, or no desk on the box the roster names: no post, one blocker, and the run
+  stays green.
 - **"Unfinished" means** an issue linked to the topic with status `eval`, `todo`, `wip`,
   `blocked` or `onhold`; not archived; not an epic or feature; no `answer` label; title not a
-  standing seat's; every other discussion it links is archived too. Also a row declined for the
-  archive in the last hour, when the topic has no follow-up yet; a later one reaches only its
-  sender and the holder. A workspace's default discussion is never followed up. Test workspaces
-  are skipped. A lane kept for uncommitted work is named in the blocker, not listed.
+  standing seat's, nor a reviewer seat's (`Seat brief: R7 review ...`, `Lane brief: R7 review ...`:
+  the work it reviews has its own issue); every other discussion it links is archived too. Also a
+  row declined for the archive in the last hour, bound by its discussion or its topic, in full, as
+  8 hex or as `dispatch-<topic8>`. A row declined after the follow-up was posted is added to that
+  discussion once (`rows.seen`), answering the archived topic's last human; a topic with no human
+  leaves it with its sender and the holder. A workspace's default discussion is never followed up.
+  Test workspaces are skipped. A lane kept for uncommitted work is named in the blocker, not listed.
 
 ## Requirements
 
@@ -50,4 +58,4 @@ archived discussion is another lane's work and is not described here.
 | FR-AW-002 | a lane bound to an archived topic by `Ask-Topic:`, `Task:`, `Topic:` or `Discussion:` is released, its open issue `onhold`; a seat that answers a whole workspace is never closed by one topic | Implemented — SPL-4955 |
 | FR-AW-003 | an archived topic with unfinished work gets one new discussion in its channel, listing that work; its issues move there | Implemented — SPL-4955 |
 
-<!-- version: 0.1.0 · updated: 2026-11-07 -->
+<!-- version: 0.2.0 · updated: 2026-11-07 -->

@@ -48,6 +48,7 @@ func (s *Server) routeChannelMembers(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agents", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agents/{box}/{id}", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}", s.channelInvitePreflight)
+	s.routeChannelAgentKinds(mux)
 }
 
 // isAgentID is an agent id in either grammar (spec 061, agentid: c-004,

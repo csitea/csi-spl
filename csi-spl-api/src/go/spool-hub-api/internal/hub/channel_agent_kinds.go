@@ -1,0 +1,222 @@
+package hub
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"slices"
+	"strings"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
+)
+
+// The agent kinds a channel can be given (SPL-5000, owner HUM-10 msgs de2fdb16
+// and 9089e3fe: "if the orchestrator can spawn a new AJY agent, I should be
+// able to add it as an agent of a channel"). Usable is the setting every
+// box's do_spl_lane_mix obeys: store.AgentKinds minus the instance's kinds off
+// and running pauses. There is no other rule, and the WUI holds no list.
+//
+//	GET  /v1/channels/{channel}/agent-kinds  {channel, kinds: [{kind, online}]}
+//	POST /v1/channels/{channel}/agent-kinds  {kind} -> 202 {channel, kind, ask_id, created}
+//
+// online: an agent of the kind can be picked here already, its box online and
+// the agent not yet in the channel. POST asks the orchestrator for a new agent
+// of the kind, seated in this channel: one role orch ask in the operator
+// workspace (the one the fleet's lease lives in), which the asks tick raises
+// to the holder and do_spl_channel_seat_place carries out. The same people may
+// ask as may invite an agent. A second ask while one is open answers the open
+// one with created false.
+
+// channelSeatAskTopic is the ask's task id; the holder's action lists by it.
+const channelSeatAskTopic = "channel-seat"
+
+// agentKindRow is one usable kind on GET /v1/channels/{channel}/agent-kinds.
+type agentKindRow struct {
+	Kind   string `json:"kind"`
+	Online bool   `json:"online"`
+}
+
+func (s *Server) routeChannelAgentKinds(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/channels/{channel}/agent-kinds", s.handleChannelAgentKinds)
+	mux.HandleFunc("POST /v1/channels/{channel}/agent-kinds", s.handleRequestChannelAgent)
+	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agent-kinds", s.channelMembersPreflight)
+}
+
+// usableAgentKinds is the kinds a box may start a lane of now, in AgentKinds
+// order. A hub with no operator workspace has no orchestrator: none.
+func (s *Server) usableAgentKinds(ctx context.Context) ([]string, *issueErr) {
+	op, err := s.operatorTenant(ctx)
+	if err != nil {
+		return nil, &issueErr{http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read"}
+	}
+	if op == "" {
+		return []string{}, nil
+	}
+	fl, ie := s.fleetLoadInForce(ctx)
+	if ie != nil {
+		return nil, ie
+	}
+	out := []string{}
+	for _, k := range store.AgentKinds {
+		if _, paused := fl.Paused[k]; !paused && !slices.Contains(fl.AgentKindsOff, k) {
+			out = append(out, k)
+		}
+	}
+	return out, nil
+}
+
+// pickableKinds is the kinds with an agent the channel can still pick: on an
+// online box of the tenant and not in the channel. A failed read answers none,
+// so the kind is offered as a new agent rather than the dialog failing.
+func (s *Server) pickableKinds(ctx context.Context, tenant, ch string) map[string]bool {
+	out := map[string]bool{}
+	roster, err := s.o.Store.Roster(ctx, tenant)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("roster for channel agent kinds")
+		return out
+	}
+	members, err := s.o.Store.ChannelMembers(ctx, tenant, ch)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("members for channel agent kinds")
+		return out
+	}
+	online := s.boxesOnline(ctx, tenant)
+	for box, ids := range roster {
+		if box == "box-wui" || !(online[box] || s.boxSession(tenant, box) != nil) {
+			continue
+		}
+		for _, id := range ids {
+			if !contains(members[box], id) {
+				out[agentid.Kind(id)] = true
+			}
+		}
+	}
+	return out
+}
+
+func (s *Server) handleChannelAgentKinds(w http.ResponseWriter, r *http.Request) {
+	t, ch, _, ok := s.channelDoor(w, r)
+	if !ok {
+		return
+	}
+	kinds, ie := s.usableAgentKinds(r.Context())
+	if ie != nil {
+		writeErr(w, ie.status, ie.token, ie.detail)
+		return
+	}
+	pickable := s.pickableKinds(r.Context(), t.ID, ch)
+	rows := make([]agentKindRow, 0, len(kinds))
+	for _, k := range kinds {
+		rows = append(rows, agentKindRow{Kind: k, Online: pickable[k]})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "kinds": rows})
+}
+
+// orchFleet is the fleet whose orch lease the operator workspace holds; "" when
+// no fleet has one (nobody would ever read the ask).
+func (s *Server) orchFleet(ctx context.Context, op string) (string, error) {
+	leases, err := s.o.Store.FleetLeases(ctx, op, s.o.Now())
+	if err != nil {
+		return "", err
+	}
+	for _, l := range leases {
+		if l.Role == "orch" {
+			return l.Fleet, nil
+		}
+	}
+	return "", nil
+}
+
+func (s *Server) handleRequestChannelAgent(w http.ResponseWriter, r *http.Request) {
+	t, ch, hum, ok := s.channelDoor(w, r)
+	if !ok {
+		return
+	}
+	row, ok := s.channelRecord(w, r, t.ID, ch)
+	if !ok {
+		return
+	}
+	if !mayInviteChannel(row.CreatedBy, hum, row.MembersOpenInvite) || hum == "" {
+		writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may add members")
+		return
+	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		writeUnpaid(w)
+		return
+	}
+	var body struct {
+		Kind string `json:"kind"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMemberJSONBody))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil || body.Kind == "" {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {kind}")
+		return
+	}
+	kinds, ie := s.usableAgentKinds(r.Context())
+	if ie != nil {
+		writeErr(w, ie.status, ie.token, ie.detail)
+		return
+	}
+	if !slices.Contains(kinds, body.Kind) {
+		writeErr(w, http.StatusConflict, "kind_not_usable", body.Kind+" cannot be started now")
+		return
+	}
+	got, created, err := s.putChannelSeatAsk(r.Context(), t.ID, ch, body.Kind, hum)
+	switch {
+	case errors.Is(err, errNoOrchestrator):
+		writeErr(w, http.StatusConflict, "no_orchestrator", "this instance has no orchestrator")
+		return
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("channel", ch).Msg("channel seat ask")
+		writeErr(w, http.StatusInternalServerError, "internal", "the ask was not stored")
+		return
+	}
+	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("kind", body.Kind).Str("by", hum).
+		Str("ask", got.AskID).Bool("created", created).Msg("channel agent asked of the orchestrator")
+	writeJSON(w, http.StatusAccepted, map[string]any{"channel": ch, "kind": body.Kind, "ask_id": got.AskID, "created": created})
+}
+
+var errNoOrchestrator = errors.New("no orchestrator")
+
+// putChannelSeatAsk records the ask, or finds the open one for the same seat.
+// The summary is the hand-over: do_spl_channel_seat_place reads its fields.
+func (s *Server) putChannelSeatAsk(ctx context.Context, tenant, ch, kind, hum string) (store.FleetAsk, bool, error) {
+	op, err := s.operatorTenant(ctx)
+	if err != nil {
+		return store.FleetAsk{}, false, err
+	}
+	if op == "" {
+		return store.FleetAsk{}, false, errNoOrchestrator
+	}
+	fleet, err := s.orchFleet(ctx, op)
+	if err != nil {
+		return store.FleetAsk{}, false, err
+	}
+	if fleet == "" {
+		return store.FleetAsk{}, false, errNoOrchestrator
+	}
+	now := s.o.Now()
+	seat := fmt.Sprintf("channel seat: kind=%s tenant=%s channel=%s", kind, tenant, ch)
+	open, err := s.o.Store.ListFleetAsks(ctx, op, fleet, "orch", false, now)
+	if err != nil {
+		return store.FleetAsk{}, false, err
+	}
+	for _, a := range open {
+		if a.Topic == channelSeatAskTopic && strings.HasPrefix(a.Summary, seat+" ") {
+			return a, false, nil
+		}
+	}
+	id := uid.New()
+	a := store.FleetAsk{Fleet: fleet, AskID: id, Role: "orch", Kind: "task", From: hum, Topic: channelSeatAskTopic,
+		Summary: fmt.Sprintf("%s by=%s; run: ASK_ID=%s DRY_RUN=0 ./run -a do_spl_channel_seat_place", seat, hum, id[:8])}
+	if why := store.CheckFleetAsk(a); why != "" {
+		return store.FleetAsk{}, false, errors.New(why)
+	}
+	return s.o.Store.PutFleetAsk(ctx, op, a, "box-wui", now)
+}

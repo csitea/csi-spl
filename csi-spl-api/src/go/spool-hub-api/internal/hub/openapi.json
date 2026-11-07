@@ -2656,6 +2656,162 @@
         ]
       }
     },
+    "/v1/channels/{channel}/agent-kinds": {
+      "get": {
+        "operationId": "getChannelsByChannelAgentKinds",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The agent kinds a box may start now (SPL-5000): every kind minus the instance's kinds off and running pauses.",
+                  "properties": {
+                    "channel": {
+                      "type": "string"
+                    },
+                    "kinds": {
+                      "items": {
+                        "properties": {
+                          "kind": {
+                            "type": "string"
+                          },
+                          "online": {
+                            "description": "an agent of the kind can be picked here: its box is online and it is not in the channel",
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "online"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "kinds"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read channels agent-kinds",
+        "tags": [
+          "channels"
+        ]
+      },
+      "post": {
+        "operationId": "postChannelsByChannelAgentKinds",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The orchestrator was asked for a new agent of the kind, seated in this channel. created false: an ask for the same seat is open already.",
+                  "properties": {
+                    "ask_id": {
+                      "type": "string"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "kind": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ask_id",
+                    "channel",
+                    "created",
+                    "kind"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "kind_not_usable: the kind cannot be started now; no_orchestrator: this instance has none"
+          }
+        },
+        "summary": "Create or act on channels agent-kinds",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
     "/v1/channels/{channel}/agents": {
       "post": {
         "operationId": "postChannelsByChannelAgents",

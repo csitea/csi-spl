@@ -270,6 +270,13 @@ async function expensesSection(browser, base, size) {
   await p.goBack()
   ok('SPL-4382 back: Cloud infra costs again', await waitWhere(p, '/expenses/cloud'), where(p))
   if (size.width < 600) ok('SPL-4382: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
+  if (size.width < 600) {
+    /* CONTROL: red with a page padding that overrides the shell's dock padding (.spool-shell .feed-body): the last row stays under the composer */
+    await open(p, base, '/expenses/ai')
+    await waitFor(p, '[data-test=paid-effective]')
+    const end = await endOfPageClear(p, '.expenses-body')
+    ok('SPL-4382 phone: at the end of the page its last row clears the composer', end.clear && end.atEnd, end)
+  }
   await ctx.close()
 }
 
@@ -415,6 +422,41 @@ const setField = (p, sel, value) => p.$eval(sel, (e, v) => {
 const isoDay = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10)
 const waitText = (p, sel, want) => p.waitForFunction((s, w) => (document.querySelector(s)?.textContent || '').replace(/\s+/g, ' ').trim() === w, { timeout: 10000 }, sel, want).then(() => true, () => false)
 
+/** Press as a person does, wheel then a press where they see it: on a phone Save opens under the fixed composer and
+ *  status bar, and puppeteer's own scroll stops as soon as the button is inside the viewport, so its click fell on the
+ *  bar's bell (measured). No script scrolling, so a button no scroll can bring clear throws. */
+async function tap(p, sel) {
+  await p.mouse.move(p.viewport().width / 2, p.viewport().height / 2)
+  for (let i = 0; i < 40; i++) {
+    const at = await p.$eval(sel, (e) => {
+      const r = e.getBoundingClientRect()
+      const x = r.left + r.width / 2, y = r.top + r.height / 2
+      const hit = document.elementFromPoint(x, y)
+      return { x, y, onTop: e === hit || e.contains(hit), below: y > innerHeight / 2 }
+    })
+    if (at.onTop) return p.mouse.click(at.x, at.y)
+    await p.mouse.wheel({ deltaY: at.below ? 60 : -60 })
+    await new Promise((r) => setTimeout(r, 60))
+  }
+  throw new Error(`${sel}: no scroll brings it clear, nobody can press it`)
+}
+
+/** SPL-4382: the page's lowest text at the end of its scroll: is it on top, or under the phone's composer dock? */
+async function endOfPageClear(p, body) {
+  await p.mouse.move(p.viewport().width / 2, p.viewport().height / 2)
+  for (let i = 0; i < 40; i++) {
+    await p.mouse.wheel({ deltaY: 400 })
+    await new Promise((r) => setTimeout(r, 40))
+  }
+  return p.$eval(body, (s) => {
+    const leaves = [...s.querySelectorAll('*')].filter((e) => !e.children.length && e.getBoundingClientRect().height > 0)
+    const last = leaves.reduce((a, e) => (e.getBoundingClientRect().bottom > a.getBoundingClientRect().bottom ? e : a))
+    const r = last.getBoundingClientRect()
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.bottom - 2)
+    return { clear: Boolean(hit) && s.contains(hit), at: Math.round(r.bottom), hit: hit && hit.tagName, atEnd: s.scrollHeight - s.clientHeight - s.scrollTop <= 1 }
+  })
+}
+
 /** SPL-2567: the Paid card's whole round, on Expenses -> AI costs since SPL-4382: empty, add, edit, a refusal, delete, empty. */
 async function paidRound(p, base, size) {
   await open(p, base, '/expenses/ai')
@@ -423,19 +465,19 @@ async function paidRound(p, base, size) {
   ok('paid: the effective table lists five kinds', await waitFor(p, '[data-test=paid-effective]') && (await count(p, '[data-test=paid-effective-row]')) === 5)
   const claudeStatus = () => p.$eval('[data-test=paid-effective-row][data-vendor=claude]', (e) => e.getAttribute('data-status')).catch(() => '')
   ok('paid: claude has the list price only', (await claudeStatus()) === 'list_only', await claudeStatus())
-  await p.click('[data-test=paid-add]')
+  await tap(p, '[data-test=paid-add]')
   ok('paid: Add opens the form', await waitFor(p, '[data-test=paid-form]'))
   await setField(p, '[data-test=paid-f-plan]', 'E2E fixture')
   await setField(p, '[data-test=paid-f-amount]', '0')
-  await p.click('[data-test=paid-save]')
+  await tap(p, '[data-test=paid-save]')
   ok('paid: a 0 price is refused before sending', await waitText(p, '[data-test=paid-form-error]', 'The price must be a number above 0.'), await text(p, '[data-test=paid-form-error]'))
   await setField(p, '[data-test=paid-f-amount]', '300')
   await setField(p, '[data-test=paid-f-start]', isoDay(-10))
   await setField(p, '[data-test=paid-f-end]', isoDay(-10))
-  await p.click('[data-test=paid-save]')
+  await tap(p, '[data-test=paid-save]')
   ok('paid: an end not after the start is refused', await waitText(p, '[data-test=paid-form-error]', 'The first day not paid must come after the first day paid.'), await text(p, '[data-test=paid-form-error]'))
   await setField(p, '[data-test=paid-f-end]', isoDay(20))
-  await p.click('[data-test=paid-save]')
+  await tap(p, '[data-test=paid-save]')
   ok('paid: the added item shows', await waitFor(p, '[data-test=paid-item-row]') && (await count(p, '[data-test=paid-item-row]')) === 1)
   ok('paid: the form closes on save', (await count(p, '[data-test=paid-form]')) === 0)
   ok('paid: its plan and price', (await text(p, '[data-test=paid-item-plan]')) === 'E2E fixture' && (await text(p, '[data-test=paid-item-amount]')) === '$300.00', [await text(p, '[data-test=paid-item-plan]'), await text(p, '[data-test=paid-item-amount]')])
@@ -444,27 +486,27 @@ async function paidRound(p, base, size) {
   ok('paid: claude now has an effective price per 1M tokens', (await claudeStatus()) === 'effective' && /^\$\d+\.\d{2,4}$/.test(eff), [await claudeStatus(), eff])
   ok('paid: 10 of its 30 days in the range: $100.00 paid', (await text(p, '[data-test=paid-effective-row][data-vendor=claude] [data-test=paid-eff-paid]')) === '$100.00')
   ok('paid: grok (no price held) says "not priced" for its list price, never $0.00', (await text(p, '[data-test=paid-effective-row][data-vendor=grok] [data-test=paid-eff-list]')) === 'not priced')
-    await p.click('[data-test=paid-edit]')
+    await tap(p, '[data-test=paid-edit]')
   ok('paid: Edit opens the form with the item', await waitFor(p, '[data-test=paid-form]') && (await p.$eval('[data-test=paid-f-plan]', (e) => e.value)) === 'E2E fixture')
   await setField(p, '[data-test=paid-f-plan]', 'E2E fixture edited')
   await setField(p, '[data-test=paid-f-amount]', '150')
-  await p.click('[data-test=paid-save]')
+  await tap(p, '[data-test=paid-save]')
   ok('paid: the edit shows', await waitText(p, '[data-test=paid-item-plan]', 'E2E fixture edited') && (await text(p, '[data-test=paid-item-amount]')) === '$150.00', await text(p, '[data-test=paid-item-amount]'))
   await p.evaluate((k) => localStorage.setItem(k, 'currency must be USD or one the hub holds an exchange rate for'), PAID_MOCK_REFUSE_KEY)
-  await p.click('[data-test=paid-edit]')
+  await tap(p, '[data-test=paid-edit]')
   await waitFor(p, '[data-test=paid-form]')
-  await p.click('[data-test=paid-save]')
+  await tap(p, '[data-test=paid-save]')
   ok('paid: the hub refusal shows its own text', await waitText(p, '[data-test=paid-form-refused]', 'The hub refused it: currency must be USD or one the hub holds an exchange rate for'), await text(p, '[data-test=paid-form-refused]'))
-  await p.click('[data-test=paid-cancel]')
+  await tap(p, '[data-test=paid-cancel]')
   /* agy is paid but logs no tokens: the hub's not_metered, shown as such with its daily share */
-  await p.click('[data-test=paid-add]')
+  await tap(p, '[data-test=paid-add]')
   await waitFor(p, '[data-test=paid-form]')
   await setField(p, '[data-test=paid-f-vendor]', 'agy')
   await setField(p, '[data-test=paid-f-plan]', 'E2E fixture agy')
   await setField(p, '[data-test=paid-f-amount]', '30')
   await setField(p, '[data-test=paid-f-start]', isoDay(-30))
   await setField(p, '[data-test=paid-f-end]', isoDay(0))
-  await p.click('[data-test=paid-save]')
+  await tap(p, '[data-test=paid-save]')
   ok('paid: a second item shows', await p.waitForFunction(() => document.querySelectorAll('[data-test=paid-item-row]').length === 2, { timeout: 10000 }).then(() => true, () => false))
   await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=agy]')?.getAttribute('data-status') === 'not_metered', { timeout: 10000 }).catch(() => null)
   ok('paid: agy paid but unmetered says "Not metered", its daily share $1.00', (await text(p, '[data-test=paid-effective-row][data-vendor=agy] [data-test=paid-eff-value]')) === 'Not metered'
@@ -473,9 +515,9 @@ async function paidRound(p, base, size) {
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/expenses-ai-paid-${size.width}.png`, fullPage: true })
   for (let i = 0; i < 2; i++) {
     const left = await count(p, '[data-test=paid-item-row]')
-    await p.click('[data-test=paid-delete]')
+    await tap(p, '[data-test=paid-delete]')
     ok('paid: Delete asks first', await waitFor(p, '[data-test=paid-delete-yes]'))
-    await p.click('[data-test=paid-delete-yes]')
+    await tap(p, '[data-test=paid-delete-yes]')
     await p.waitForFunction((n) => document.querySelectorAll('[data-test=paid-item-row]').length < n, { timeout: 10000 }, left).catch(() => null)
   }
   ok('paid: deleted, the card is empty again', await waitFor(p, '[data-test=paid-empty]') && (await count(p, '[data-test=paid-item-row]')) === 0)

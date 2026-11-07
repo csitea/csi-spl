@@ -23,7 +23,10 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
    keeps its place and the tabs added since (people, agents) are appended, so the
    expected order tracks RAIL_IDS instead of a hardcoded list. */
 import { importTs } from '../unit/lib/load-ts.mjs'
-const { parseRailOrder, NOTES_RAIL_ON } = await importTs('src/utils/rail-order.ts')
+const { parseRailOrder, railOrderDrawn, NOTES_RAIL_ON } = await importTs('src/utils/rail-order.ts')
+/* this reader is no operator admin, so the rail hides Expenses (SPL-4382);
+   monitoring-costs.test.mjs signs one in and clicks the tab */
+const drawnOf = (order) => railOrderDrawn(parseRailOrder(order), NOTES_RAIL_ON, false)
 
 const results = []
 function check(name, pass, ev) {
@@ -123,7 +126,7 @@ async function run(browser, base, width, touch) {
     const tag = `${width}px ${who}`
     /* the rail draws parseRailOrder(claim): the 9-tab default for a fresh user,
        the stored order with people + agents appended for a legacy claim. */
-    const want = parseRailOrder(order)
+    const want = drawnOf(order)
     /* phones: / is the sidebar level (the rail); desktop draws it on every page */
     await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
     await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
@@ -333,7 +336,7 @@ async function railDividerLabels(browser, base) {
   const tabs = seq.filter((x) => x !== '|')
   const changes = tabs.filter((id, i) => i > 0 && WORKSPACE.has(id) !== WORKSPACE.has(tabs[i - 1])).length
   const dividers = seq.filter((x) => x === '|').length
-  check('1440px T015: a saved mixed order keeps its own order and its own lines', same(tabs, parseRailOrder(STORED)) && changes > 1 && dividers === changes, { seq })
+  check('1440px T015: a saved mixed order keeps its own order and its own lines', same(tabs, drawnOf(STORED)) && changes > 1 && dividers === changes, { seq })
   await p.close()
 }
 

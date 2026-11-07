@@ -11,13 +11,20 @@
 # @description ask. The seating is done here and not by the new lane: agy and
 # @description qwen are never handed a credential path (the data rule).
 # @description The launcher's lane issue gate is not changed: the generated
-# @description brief carries an Epic and a Spec line. A launcher HOLD (exit 10)
-# @description or a failure leaves the ask acked, and the asks tick re-raises it
-# @description when its lock runs out. A seat step that fails after the launch
-# @description names the id: re-run with CHANNEL_SEAT_AGENT=<id>, which launches
-# @description nothing. Dry run unless DRY_RUN=0.
+# @description brief carries an Issue line, CHANNEL_SEAT_ISSUE (one standing
+# @description issue for every seat, required for DRY_RUN=0), and the launch
+# @description runs with SPAWN_ISSUE_CREATE=0, so a seat never files an issue
+# @description (R7 W4). The launcher's stderr goes to this log. A REFUSED launch
+# @description (exit 12: no issue placed, 13: the kind's CLI is on no box it
+# @description may use) declines the ask with the launcher's reason, which the
+# @description channel's add-agents list then shows (R7 W2). A HOLD (exit 10)
+# @description or another failure leaves the ask acked, and the asks tick
+# @description re-raises it when its lock runs out. A seat step that fails after
+# @description the launch names the id: re-run with CHANNEL_SEAT_AGENT=<id>,
+# @description which launches nothing. Dry run unless DRY_RUN=0.
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits
 # @param CHANNEL_SEAT_AGENT (optional) - an id already started for this ask: skip the launch
+# @param CHANNEL_SEAT_ISSUE (required for DRY_RUN=0 with a launch) - the standing issue every seat lane carries, e.g. SPL-123
 # @param CHANNEL_SEAT_EPIC (optional) - the seat lane's epic, default SPL-2163
 # @param CHANNEL_SEAT_SPEC (optional) - the seat lane's spec folder, default csi-spl-doc/specs/005-spool-wui
 # @param CHANNEL_SEAT_BRIEF_DIR (optional) - where the brief goes, default <spool root>/dispatch/briefs
@@ -37,16 +44,27 @@ do_spl_channel_seat_place() {
   row="$(jq -c --arg id "$id" '.[] | select(.ask_id == $id)' <<<"$ASKS_ROWS")"
   _spl_channel_seat_parse "$row" || return 1
   local kind="$_CS_KIND" tenant="$_CS_TENANT" channel="$_CS_CHANNEL"
+  local issue="${CHANNEL_SEAT_ISSUE:-}"
+  if [[ -z "${CHANNEL_SEAT_AGENT:-}" && ! "$issue" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]]; then
+    (( dry )) || { do_log "FATAL CHANNEL_SEAT_ISSUE=<KEY> is required: the standing issue every seat lane carries, so a seat files none (got '$issue')"; return 1; }
+    issue='<CHANNEL_SEAT_ISSUE>'
+  fi
   if (( dry )); then
-    do_log "OK DRY_RUN would start a $kind agent on $ASKS_BOX, seat it in $tenant and add it to #$channel on $LANE_ENV (ask ${id:0:8}). Re-run with DRY_RUN=0."
+    do_log "OK DRY_RUN would start a $kind agent on $ASKS_BOX under issue $issue, seat it in $tenant and add it to #$channel on $LANE_ENV (ask ${id:0:8}). Re-run with DRY_RUN=0."
     return 0
   fi
   ASK_ID="$id" do_spl_ask_ack || return 1
   local agent="${CHANNEL_SEAT_AGENT:-}" brief rc=0
   if [[ -z "$agent" ]]; then
-    brief="$(_spl_channel_seat_brief "$id" "$kind" "$tenant" "$channel")" || return 1
+    brief="$(_spl_channel_seat_brief "$id" "$kind" "$tenant" "$channel" "$issue")" || return 1
+    _CS_REFUSED_FILE="$(mktemp)" || return 1
     agent="$(_spl_channel_seat_launch "$kind" "$brief" "$channel")" || rc=$?
-    if (( rc != 0 )); then
+    _CS_REFUSED="$(cat "$_CS_REFUSED_FILE")"; rm -f "$_CS_REFUSED_FILE"
+    if (( rc == 12 || rc == 13 )); then
+      ASK_ID="$id" ASK_STATE=declined ASK_REASON="${_CS_REFUSED:-the launcher refused a $kind agent (exit $rc)}" do_spl_ask_close || return 1
+      do_log "WARN ask ${id:0:8}: the launcher refused a $kind agent (exit $rc); the ask is declined with its reason, which #$channel's add-agents list shows"
+      return "$rc"
+    elif (( rc != 0 )); then
       do_log "WARN ask ${id:0:8}: the launcher did not start a $kind agent (exit $rc); the ask stays acked and is re-raised when its lock runs out"
       return "$rc"
     fi
@@ -71,7 +89,7 @@ _spl_channel_seat_parse() {
   [[ "$state" =~ ^(open|acked)$ ]] || { do_log "FATAL this ask is already $state"; return 1; }
 }
 
-# _spl_channel_seat_brief <ask id> <kind> <tenant> <channel> -> the brief's path.
+# _spl_channel_seat_brief <ask id> <kind> <tenant> <channel> <issue> -> the brief's path.
 _spl_channel_seat_brief() {
   local dir="${CHANNEL_SEAT_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}" f
   mkdir -p "$dir" || return 1
@@ -79,6 +97,7 @@ _spl_channel_seat_brief() {
   cat >"$f" <<BRIEF || return 1
 # Channel seat: a $2 agent for #$4 in workspace $3
 
+Issue: $5
 Epic: ${CHANNEL_SEAT_EPIC:-SPL-2163}
 Spec: ${CHANNEL_SEAT_SPEC:-csi-spl-doc/specs/005-spool-wui}
 Class: feature
@@ -92,14 +111,21 @@ BRIEF
 
 # _spl_channel_seat_launch <kind> <brief> <channel> -> the new id on stdout. On
 # this box: the desk and the add below run here. Exit 10 is the launcher's HOLD.
+# Its stderr goes to this log, line by line; the first REFUSED line, without
+# the launcher's prefix, is left in _CS_REFUSED for the decline. The caller
+# runs it in $(...), so _CS_REFUSED is read back from a file.
 _spl_channel_seat_launch() {
-  local out rc=0 agent slug="channel-seat-$1-${3:0:32}"
+  local out rc=0 agent err line slug="channel-seat-$1-${3:0:32}"
+  err="$(mktemp)" || return 1
   if [[ -n "${CHANNEL_SEAT_LAUNCH_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    out="$(SPAWN_BOX="$ASKS_BOX" $CHANNEL_SEAT_LAUNCH_CMD "$1" auto "${APP_PATH:-}" "$2" "$slug" 2>/dev/null)" || rc=$?
+    out="$(SPAWN_BOX="$ASKS_BOX" SPAWN_ISSUE_CREATE=0 $CHANNEL_SEAT_LAUNCH_CMD "$1" auto "${APP_PATH:-}" "$2" "$slug" 2>"$err")" || rc=$?
   else
-    out="$(SPAWN_BOX="$ASKS_BOX" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" "$1" auto "$APP_PATH" "$2" "$slug" 2>/dev/null 6>&-)" || rc=$?
+    out="$(SPAWN_BOX="$ASKS_BOX" SPAWN_ISSUE_CREATE=0 bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" "$1" auto "$APP_PATH" "$2" "$slug" 2>"$err" 6>&-)" || rc=$?
   fi
+  while IFS= read -r line; do do_log "INFO launcher: ${line:0:500}" >&2; done <"$err"
+  sed -n 's/^.*REFUSED //p' "$err" | sed -n 1p | cut -c1-400 >"$_CS_REFUSED_FILE"
+  rm -f "$err"
   (( rc == 0 )) || return "$rc"
   # shellcheck disable=SC2153 # SPOOL_AGENT_ID_NEW_RX comes from spool-env.inc.sh
   [[ "${out%% *}" =~ ^(${SPOOL_AGENT_ID_NEW_RX})(@|$) ]] && agent="${BASH_REMATCH[1]}"

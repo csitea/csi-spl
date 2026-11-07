@@ -393,7 +393,12 @@ false and a human owner exists.
   the people who may invite an agent. It asks the orchestrator for a new agent
   of the kind, seated in this channel: one role `orch` ask with topic
   `channel-seat` in the operator workspace, carried out by
-  `do_spl_channel_seat_place`. 202 `{channel, kind, ask_id, created}`; `created`
+  `do_spl_channel_seat_place`. That action starts the kind under one standing
+  issue (`CHANNEL_SEAT_ISSUE`, required for a real run, launched with
+  `SPAWN_ISSUE_CREATE=0`), so a seat files no issue of its own (R7 W4). A
+  launcher REFUSED (exit 12 or 13) declines the ask with the launcher's own
+  reason, which `asks` above carries back to the dialog; the launcher's
+  stderr goes to the action's log. 202 `{channel, kind, ask_id, created}`; `created`
   is false while an ask for the same seat is open. 409 `kind_not_usable` or
   `no_orchestrator`. 403 `operator_only` from any workspace but the operator
   workspace: the ask spends the operator's fleet and seats an operator box's

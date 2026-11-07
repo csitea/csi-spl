@@ -6,8 +6,15 @@ SPL-4945, epic SPL-2364. Tree: origin/master 04a51b255, read 2026-11-07
 00:49-01:03Z. All times UTC. Read only: nothing was stopped, restarted or
 changed, and no gate or suite was run.
 
-"Pushes" are lines of `pushes.log`, one per landed push, on each box. A log
-removed by a sweep would undercount a day.
+**Corrected after first landing (8011a451e), from later checks:**
+- Section 3 counted `review/` pushes as landed: 102 and 36. On master it is 80
+  and 22.
+- The hold's true reading ended at the credential change, 13:57:05Z, so the stale
+  part is 2 h 15, not the 2 h 12 of sections 1 and 4.2.
+- The "90% in 24 h" inference in 4.2 is retracted: the 09:05Z post gives a reset of
+  11-11T17:00Z.
+
+A log removed by a sweep would undercount a day.
 
 ## 1. Short answer
 
@@ -45,23 +52,24 @@ reading that it was very low holds: 11-05 to 11-06 is a fall of 4.5 times.
 
 ## 3. Where the drop came from
 
-| day | laptop pushes | sat pushes | both |
+Landed pushes: `pushes.log` lines whose sha is on master.
+
+| day | laptop | sat | both |
 |---|---|---|---|
-| 11-02 | 37 | 45 | 82 |
-| 11-03 | 38 | 18 | 56 |
-| 11-04 | 59 | 30 | 89 |
-| 11-05 | 66 | 36 | 102 |
-| **11-06** | **11** | **25** | **36** |
+| 11-02 | 28 | 35 | 63 |
+| 11-03 | 32 | 13 | 45 |
+| 11-04 | 43 | 17 | 60 |
+| 11-05 | 55 | 25 | 80 |
+| **11-06** | **8** | **14** | **22** |
 
-Of the fall of 66 pushes from 11-05, the laptop is 55 and sat 11.
+Of the fall of 58 from 11-05, the laptop is 47 and sat 11.
 
-Pushes per hour on 11-06, both boxes: 00-06 at 1-2 an hour, 07 3, 08 5, 09 4,
-**10-15 none**, 16 2, 17 3, 18 2, 19 2, 20 1, 21 0, 22 1, 23 2.
+Landed pushes per hour on 11-06: 03-06 at 1 an hour, 07 3, 08 4, 09 3, **10-17
+none**, 18 2, 19 2, 20 1, 22 1, 23 2.
 
-In 07-09Z, the longest stretch with both boxes up, pushes ran at 4 an hour
-against 4.25 an hour across 11-05. Master commits in those hours ran at 4 an
-hour against 6.7. n=3 hours, and the hold began 5 minutes into hour 09, so this
-suggests the rate was normal. It does not prove it.
+In 07-09Z, the longest stretch with both boxes up, they ran at 3.3 an hour, the
+same as 11-05's 80 / 24. n=3 hours, and the hold began 5 minutes into hour 09, so
+this suggests the rate was normal. It does not prove it.
 
 ## 4. The three windows
 

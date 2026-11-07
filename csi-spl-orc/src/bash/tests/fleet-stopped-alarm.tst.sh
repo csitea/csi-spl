@@ -26,7 +26,9 @@
 #      read as "every box idle"), until the ceiling.
 #   8. The hub or master not answering: no verdict, no post.
 #   9. Another machine's post newer than the landing: no second post, recorded;
-#      one older than the landing does not count; an unreadable channel waits,
+#      one older than the landing does not count, whatever replies it has since
+#      had; a newer title that only holds the words does not count; the post's
+#      own title, at the hub's 140 cut, tells another machine; an unreadable channel waits,
 #      for read_fail_max_min, then one post.
 #  10. Not the orch holder's machine: no post, the head still tracked. Nobody
 #      holding the role: the post says so, and the seat is the desk's announced one.
@@ -53,9 +55,10 @@ printf '#!/bin/sh\ncat >/dev/null\nexit 1\n' >"$T/post-fail"; chmod +x "$T/post-
 # A post the channel remembers, as the real one does.
 cat >"$T/post-mem" <<E
 #!/bin/bash
-cat >>"$T/posts"
+body="\$(cat)"
+printf '%s\n' "\$body" >>"$T/posts"
 ts="\$(date -u -d "@\$(cat "$T/now")" +%FT%TZ)"
-jq --arg ts "\$ts" '.topics += [{task_id: "x", subject: "**FLEET STOPPED** asks", last_ts: \$ts}]' "$T/topics.json" >"$T/topics.tmp" && mv "$T/topics.tmp" "$T/topics.json"
+jq --arg ts "\$ts" --arg sub "\$(head -1 <<<"\$body" | cut -c1-140)" '.topics += [{task_id: "x", subject: \$sub, last_ts: \$ts}]' "$T/topics.json" >"$T/topics.tmp" && mv "$T/topics.tmp" "$T/topics.json"
 E
 chmod +x "$T/post-mem"
 # The hub: the queue from $T/queue.json, samples from $T/samples.tsv up to the
@@ -122,7 +125,7 @@ reset_case; replay
 first="$(head -1 "$T/fires")"
 [ "$(n)" = 1 ] && [[ -n "$first" && ! "$first" > "12:00" ]] \
   && grep -q 'every box is under 40%' "$T/posts" && pass "1. replay of 11-06: exactly one post, by 12:00Z, on the load (at ${first}Z)" || fail "1. replay ($(n) posts at: $(tr '\n' ' ' <"$T/fires"))"
-grep -qF "The hold: $HOLD_TEXT" "$T/posts" && grep -q '^\*\*FLEET STOPPED\*\* 124 asks queued' "$T/posts" \
+grep -qF "The hold: $HOLD_TEXT" "$T/posts" && grep -q '^\*\*FLEET STOPPED\*\* at 2026-11-06T[0-9:]*Z: 124 asks queued' "$T/posts" \
   && pass "1. the post names the hold and the queue" || fail "1. text: $(cat "$T/posts")"
 [[ ! "$first" < "10:00" ]] && pass "1. no post before the gap's 30 min passed" || fail "1. early fire $first"
 # 2. the consensus's 25%
@@ -164,7 +167,7 @@ tick 2026-11-06T12:08:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null
 tick 2026-11-06T12:09:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null
 [ "$(n)" = 2 ] && pass "5. a channel that remembers: the refill posts again, once" || fail "5. remembers ($(n))"
 reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
-echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** 9 asks","last_ts":"2026-11-06T12:05:00Z"}]}' >"$T/topics.json"
+echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** at 2026-11-06T12:05:00Z: 9 asks","last_ts":"2026-11-06T12:05:00Z"}]}' >"$T/topics.json"
 queue 0; tick 2026-11-06T12:07:00Z ASKS_HOLDER=c-901@box-b >/dev/null; queue 3
 tick 2026-11-06T12:08:00Z >/dev/null
 [ "$(n)" = 1 ] && pass "5. emptied while the role was elsewhere: the new holder posts" || fail "5. moved ($(n))"
@@ -198,13 +201,38 @@ reset_case; touch "$T/land-down"; out="$(tick 2026-11-06T12:05:00Z)"
 
 # 9. another machine's post
 reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
-echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** 9 asks","last_ts":"2026-11-06T11:00:00.123Z"}]}' >"$T/topics.json"
+echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** at 2026-11-06T11:00:00Z: 9 asks","last_ts":"2026-11-06T11:00:00.123Z"}]}' >"$T/topics.json"
 tick 2026-11-06T12:05:00Z >/dev/null
 [ "$(n)" = 0 ] && [ "$(cut -f3 "$T/st")" = 1 ] && pass "9. a post newer than the landing: none here, recorded" || fail "9. told ($(n): $(cat "$T/st"))"
 reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
-echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** 9 asks","last_ts":"2026-11-06T09:00:00Z"}]}' >"$T/topics.json"
+echo '{"topics":[{"task_id":"x","subject":"**FLEET STOPPED** at 2026-11-06T09:00:00Z: 9 asks","last_ts":"2026-11-06T09:00:00Z"}]}' >"$T/topics.json"
 tick 2026-11-06T12:05:00Z >/dev/null
 [ "$(n)" = 1 ] && pass "9. a post older than the landing is another episode" || fail "9. older ($(n))"
+# topic_case SUBJECT LAST_TS: a fresh case whose channel holds that one topic.
+topic_case() {
+  reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
+  jq -n --arg s "$1" --arg t "$2" '{topics: [{task_id: "x", subject: $s, last_ts: $t}]}' >"$T/topics.json"
+}
+topic_case '**FLEET STOPPED** at 2026-11-06T09:00:00Z: 9 asks' 2026-11-06T12:00:00Z
+tick 2026-11-06T12:05:00Z >/dev/null
+[ "$(n)" = 1 ] && pass "9. a reply today in a topic older than the landing does not tell this episode" || fail "9. reply after a landing ($(n))"
+topic_case '**FLEET STOPPED** at 2026-11-06T11:00:00Z: 9 asks' 2026-11-06T12:07:30Z
+queue 0; tick 2026-11-06T12:07:00Z >/dev/null; queue 3; tick 2026-11-06T12:08:00Z >/dev/null
+[ "$(n)" = 1 ] && pass "9. same head, a reply after the empty queue does not tell the new episode" || fail "9. reply after an empty queue ($(n))"
+topic_case 'Why did the FLEET STOPPED alarm fire yesterday?' 2026-11-06T12:00:00Z
+tick 2026-11-06T12:05:00Z >/dev/null
+[ "$(n)" = 1 ] && pass "9. a newer title that only holds the words does not count" || fail "9. loose title ($(n))"
+topic_case 'Re: **FLEET STOPPED** at 2026-11-06T11:00:00Z: 9 asks' 2026-11-06T12:00:00Z
+tick 2026-11-06T12:05:00Z >/dev/null
+[ "$(n)" = 1 ] && pass "9. the prefix counts only at the start of the title" || fail "9. unanchored ($(n))"
+topic_case '**FLEET STOPPED** at 2026-13-45T11:00:00Z: 9 asks' 2026-11-06T12:00:00Z
+jq '.topics += [{task_id: "y", subject: "**FLEET STOPPED** at 2026-11-06T11:00:00Z: 9 asks", last_ts: "2026-11-06T11:00:00Z"}]' "$T/topics.json" >"$T/topics.tmp" && mv "$T/topics.tmp" "$T/topics.json"
+tick 2026-11-06T12:05:00Z >/dev/null
+[ "$(n)" = 0 ] && pass "9. a title with a bad time does not hide the real one beside it" || fail "9. bad time ($(n))"
+reset_case; printf '2026-11-06T12:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"
+tick 2026-11-06T12:05:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null; rm -f "$T/st"
+tick 2026-11-06T12:10:00Z FLEET_STOPPED_CMD="$T/post-mem" >/dev/null
+[ "$(n)" = 1 ] && [ "$(jq -r '.topics[0].subject | length' "$T/topics.json")" = 140 ] && pass "9. the post's own title, cut at 140, tells a machine with no state" || fail "9. own title ($(n): $(jq -r '.topics[0].subject' "$T/topics.json"))"
 reset_case; printf '2026-11-06T10:30:00Z\tbox-a\t16\t1\n2026-11-06T11:00:00Z\tbox-a\t16\t1\n' >"$T/samples.tsv"; touch "$T/topics-down"
 tick 2026-11-06T10:35:00Z >/dev/null
 [ "$(n)" = 0 ] && [ "$(cut -f3 "$T/st")" = 0 ] && pass "9. an unreadable channel: no post, retried" || fail "9. unreadable ($(n))"

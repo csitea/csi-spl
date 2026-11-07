@@ -53,16 +53,18 @@ parent, 1656 commits, the queue not joined, so false alarms are not measured).
 
 **One post per episode.** An episode ends only when master moves or the queue
 empties, never when the load moves. Only the orch holder's machine posts; a new
-holder reads #alerts first, so a move of the role does not post again. A FLEET
-STOPPED topic counts as told when it is newer than the last landing and the last
-empty queue; every machine tracks both, whoever holds the role. With no holder,
+holder reads #alerts first, so a move of the role does not post again. A post
+opens `**FLEET STOPPED** at <ISO time>:`, and a topic counts as told when its title
+opens that way at a time newer than the last landing and the last empty queue. The
+title is the topic's first line, so a reply cannot move it, and a title that only
+holds the words does not count. Every machine tracks both, whoever holds the role.
+With no holder,
 the seat is the one this box's desk announces. After
 `env.ops_alarms.fleet_stopped.read_fail_max_min` (30) of failed reads of #alerts
 it posts unread: an extra post is cheaper than silence.
 
 Limits: with no holder, two machines on one tick can both post (a stub, n=6,
-c-990's FAIL). The told check reads the topic's last message, so a reply in an
-old alarm topic after the next landing can hide that episode (a stub only). If no
+c-990's FAIL). If no
 seat on the box is announced, the post is refused and only the cron log says so.
 
 **Why 40% and not the consensus's 25%** (dispatch holder c-003, msg 11e3b858).

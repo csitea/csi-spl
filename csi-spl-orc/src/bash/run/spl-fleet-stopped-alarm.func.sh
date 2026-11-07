@@ -13,9 +13,9 @@
 # @description reasons). One post per episode: an episode ends only when master
 # @description moves or the queue empties, never when the load moves, so a load
 # @description around the mark does not post twice. Across boxes the channel
-# @description itself is the memory: a FLEET STOPPED topic newer than the last
-# @description landing and the last empty queue means the episode was already
-# @description told; after read_fail_max_min of failed reads a channel no longer
+# @description itself is the memory: a topic titled FLEET STOPPED at a time newer
+# @description than the last landing and the last empty queue means the episode
+# @description was already told; after read_fail_max_min of failed reads a channel no longer
 # @description holds the post. "Landed" is the later
 # @description of the head's committer time and when this box first saw that
 # @description head, since a commit waits in the gate after its last rebase.
@@ -159,7 +159,7 @@ spl_fsa_hold() {
 # One post, unless the channel already holds this episode's.
 spl_fsa_fire() {  # WHY
   local text chan
-  text="**FLEET STOPPED** $1 (head ${FSA_HEAD:0:9}). The hold: $(spl_fsa_hold). Check: \`./run -a do_spl_spawn_queue\`."
+  text="**FLEET STOPPED** at $(date -u -d "@$FSA_NOW" +%FT%TZ): $1 (head ${FSA_HEAD:0:9}). The hold: $(spl_fsa_hold). Check: \`./run -a do_spl_spawn_queue\`."
   if [[ "$FSA_DRY" == 1 ]]; then
     echo "PLAN post: $text"
     do_log "OK DRY_RUN no post, no state written. Re-run with DRY_RUN=0."
@@ -188,16 +188,19 @@ spl_fsa_read_failed() {
   do_log "WARN the channel could not be read for ${FSA_READ_MAX} min: posting unread"
 }
 
-# Exit 0: a FLEET STOPPED topic newer than the last landing and the last empty
-# queue is in CHAN (another machine told it, before the lease moved). 1: none.
+# Exit 0: a topic in CHAN opens with the post's own prefix at a time newer than
+# the last landing and the last empty queue (another machine told it, before the
+# lease moved). 1: none. The time comes from the title, the topic's first line,
+# which a reply cannot move; a title that only holds the words does not count.
 # 2: the read failed.
 spl_fsa_told() {  # CHAN
   local out mark=$(( FSA_LAND > FSA_EMPTIED ? FSA_LAND : FSA_EMPTIED ))
   [[ -n "$FSA_WHO" ]] || return 2
   out="$(spl_lane_spool topics --as "$FSA_WHO" --channel "$1" --limit 100 --json 2>/dev/null)" || return 2
   jq -e '.topics | type == "array"' >/dev/null 2>&1 <<<"$out" || return 2
-  jq -e --argjson mark "$mark" 'any(.topics[]; (.subject | contains("FLEET STOPPED"))
-      and ((.last_ts | sub("\\.[0-9]+"; "") | fromdateiso8601) > $mark))' >/dev/null 2>&1 <<<"$out"
+  jq -e --argjson mark "$mark" 'any(.topics[];
+      (.subject | capture("^\\*\\*FLEET STOPPED\\*\\* at (?<t>[^ ]+Z):")? | .t | try fromdateiso8601 catch 0) > $mark)' \
+    >/dev/null 2>&1 <<<"$out"
 }
 
 # The author and reader. A role seat with no holder is dropped from the desk's

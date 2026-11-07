@@ -270,6 +270,9 @@ async function widthDuringBack(p, tag, id) {
   const hold = () => p.evaluate(() => { const go = history.go.bind(history); window.__gos = []; history.go = (n) => { window.__gos.push(() => go(n)) } })
   const land = async () => {
     await p.setViewport({ width: 390, height: 900 })
+    /* the stack sees the phone first: with a note up it pushes its level entry */
+    await p.waitForFunction(() => matchMedia('(max-width: 820px)').matches)
+    await sleep(200)
     await p.evaluate(() => { delete history.go; for (const g of window.__gos) g() })
     await sleep(1000)
   }
@@ -301,6 +304,14 @@ async function widthDuringBack(p, tag, id) {
   await land()
   check(`${tag}: a row clicked before narrowing is dropped on the phone`, !(await p.$('[data-test=note-detail]')))
   check(`${tag}: and the url has no ?note=`, (await noteQuery(p)) === '', await noteQuery(p))
+  /* that Back landed on the level entry's url (?note=): the router kept the
+     note the url lost, and the wait had no route change to end it */
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.waitForFunction(() => !matchMedia('(max-width: 820px)').matches)
+  await clickRow(p, 'mock-note-1')
+  check(`${tag}: back on desktop the row the route still names opens`, await waitDetail(p, 'mock-note-1'))
+  await sleep(500)
+  check(`${tag}: and that row writes its ?note=`, (await noteQuery(p)) === 'mock-note-1', await noteQuery(p))
 }
 
 /* SPL-5005: a second Esc while that Back is under way drops the queued note */

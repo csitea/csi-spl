@@ -17,6 +17,10 @@ function writeInPlace(note: string) {
   window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
 }
 
+function onPopOnce(f: () => void) {
+  window.addEventListener('popstate', f, { once: true, capture: true })
+}
+
 /**
  * Spec 155 2.6 (B6, SPL-4186): which note is open, and its ?note=<id> entry,
  * so a bookmark and a reload open it again (C20). The issues page's model
@@ -36,6 +40,10 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
      push started now and close the note just opened; that open waits for it, and
      whichever note is up when the Back lands (openId) is the one to write */
   let backing = false
+  /* the next popstate ends it, also one the router never reads (a phone's level
+     entry, pushed during the Back, has the same url: the watch below never runs) */
+  let landed = false
+  const waiting = () => (backing = backing && !landed)
 
   const queryNote = () => {
     const q = o.route.query.note
@@ -52,8 +60,9 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
       void nextTick(() => { if (openId.value === id) writeInPlace(id) })
       return
     }
-    if (backing) return
-    if (wasOpen || queryNote() === id) { void o.router.replace({ query: urlQuery(id) }); return }
+    if (waiting()) return
+    /* force: a phone writes ?note= in place, so the route can hold a note the url lost */
+    if (wasOpen || queryNote() === id) { void o.router.replace({ query: urlQuery(id), force: true }); return }
     pushNote(id)
   }
 
@@ -66,8 +75,8 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
     if (!openId.value) return
     openId.value = ''
     if (o.phone.value) { writeInPlace(''); return }
-    if (backing) return
-    if (pushed && queryNote()) { pushed = false; backing = true; o.router.back(); return }
+    if (waiting()) return
+    if (pushed && queryNote()) { pushed = false; backing = true; landed = false; onPopOnce(() => { landed = true }); o.router.back(); return }
     /* SPL-4893: pushed with no ?note= yet is a push still under way, and when
        it commits the watch below opens the note again: a newer navigation
        cancels it, even one to where the page already is */

@@ -8,7 +8,13 @@
 # worktrees are throwaway git repos. The hub answers only archived lanes, so a
 # lane on a live topic is absent from it; c-706 is the lane row that names
 # the archived topic while its brief binds it to another one.
-#   c-701 seat, `Task: dispatch-<topic8>`, issue open    -> freed, issue ended
+#   c-701 seat, `Task: dispatch-<topic8>`, issue open    -> freed, issue on hold
+#   c-720 `Ask-Topic:` line, the topic only in prose     -> freed (SPL-4955)
+#   c-721 bound by `Discussion:`                         -> freed (SPL-4955)
+#   c-722 bound, seated on 2 workspaces' desks           -> skipped (SPL-4955)
+#   c-723 bound, seated on another desk box              -> skipped (SPL-4955)
+#   c-725 bound, brief heading "standing seat"           -> skipped (SPL-4955)
+#   c-724 bound, one desk dir on this box's own desk     -> freed: the red control of c-722/c-723
 #   c-708 lane, `Topic: prd t1 <uuid>`, clean worktree  -> freed, no issue
 #   c-702 lane on a live topic (not in the hub answer)  -> untouched
 #   c-703 bound, uncommitted file                       -> kept, "1 changed"
@@ -24,7 +30,8 @@
 # `skip` line of the run's own output. Then: a second run frees nothing and
 # sends no second blocker; a new kept lane sends it again; a dry run calls
 # nothing. RED CONTROL: without the action file every case fails
-# (`do_spl_archived_seats_free: command not found`).
+# (`do_spl_archived_seats_free: command not found`). SPL-4955, without the desk
+# check c-722 and c-723 are closed, without the heading check c-725; without the Ask-Topic read c-720 is skipped.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -70,14 +77,21 @@ brief c-709 $'# Lane\n\nTask: dispatch-aaaaaaaa'
 touch "$SP/c-709/lifetime/brief.md"
 brief c-707 $'Task: dispatch-aaaaaaaa'
 
+brief c-720 $'# Lane\n\nThe owner decided (t1 topic aaaaaaaa, msg 1).\n\nAsk-Topic: '"$ARCH"
+brief c-721 $'# Lane\n\nDiscussion: '"$ARCH"
+brief c-722 $'# Seat\n\nTask: dispatch-aaaaaaaa'
+brief c-723 $'# Seat\n\nTask: dispatch-aaaaaaaa'
+brief c-724 $'# Lane\n\nTask: dispatch-aaaaaaaa'
+brief c-725 $'# Seat brief: a workspace, channel #alerts - answer the posts there (standing seat, runs here)\n\nTask: dispatch-aaaaaaaa'
+
 {
-  for id in c-701 c-702 c-705 c-706 c-709 c-707 c-001; do printf '%s\tclaude\t%%1\t/opt\t20261026T000000Z\n' "$id"; done
+  for id in c-701 c-702 c-705 c-706 c-709 c-707 c-001 c-720 c-721 c-722 c-723 c-724 c-725; do printf '%s\tclaude\t%%1\t/opt\t20261026T000000Z\n' "$id"; done
   for id in c-703 c-708 c-710; do printf '%s\tclaude\t%%1\t%s\t20261026T000000Z\n' "$id" "$T/wt/$id"; done
 } >"$SP/registry.tsv"
 
 # The hub answers the archived lanes of box-a; c-702's live topic is absent.
-printf '%s\n' c-701 c-708 c-703 c-710 c-001 c-705 c-706 c-709 c-707 >"$T/archived.ids"
-printf '%s\n' c-701 c-702 c-708 c-703 c-710 c-001 c-705 c-706 c-709 >"$T/windows"
+printf '%s\n' c-701 c-708 c-703 c-710 c-001 c-705 c-706 c-709 c-707 c-720 c-721 c-722 c-723 c-724 c-725 >"$T/archived.ids"
+printf '%s\n' c-701 c-702 c-708 c-703 c-710 c-001 c-705 c-706 c-709 c-720 c-721 c-722 c-723 c-724 c-725 >"$T/windows"
 cat >"$T/bin/hub" <<EOF
 #!/usr/bin/env bash
 echo "hub \$*" >>"$LOG"
@@ -105,12 +119,21 @@ cat >"$T/bin/send" <<EOF
 a=(); while [ \$# -gt 0 ]; do case "\$1" in --body) printf '%s\\n' "\$2" >"$T/last-body"; shift 2 ;; *) a+=("\$1"); shift ;; esac; done
 echo "send \${a[*]}" >>"$LOG"
 EOF
+# the desks: c-722 on two workspaces, c-723 on a responder box, c-724 one plain dir
+cat >"$T/bin/desks" <<EOF
+#!/usr/bin/env bash
+case "\$1" in
+  c-722) printf 't1/box-a\\nws2/box-a\\n' ;;
+  c-723) echo t1/box-rsp ;;
+  c-724) echo t1/box-a ;;
+esac
+EOF
 chmod +x "$T/bin/"*
 
 run() {
   SNIPPET="do_spl_archived_seats_free" in_orc SPOOL_ROOT="$SP" LANE_FLEET=main LANE_BOX=box-a \
     LANE_HUB_CMD="$T/bin/hub" LANE_PANES_CMD="$T/bin/panes" ARCHIVED_SEATS_CLOSE_CMD="$T/bin/close" \
-    ARCHIVED_SEATS_ISSUE_CMD="$T/bin/issue" ARCHIVED_SEATS_SEND="$T/bin/send" ARCHIVED_SEATS_FROM=c-001 \
+    ARCHIVED_SEATS_DESKS_CMD="$T/bin/desks" ARCHIVED_SEATS_ISSUE_CMD="$T/bin/issue" ARCHIVED_SEATS_SEND="$T/bin/send" ARCHIVED_SEATS_FROM=c-001 \
     ARCHIVED_SEATS_STATE_DIR="$T/state" "$@" 2>&1
 }
 closed() { grep -c "^close --agent $1 --retire$" "$LOG"; }
@@ -139,10 +162,17 @@ out="$(run DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 ]] && pass "2 rc 0" || fail "2 rc $rc: $out"
 skipped "$out" "2i live run:"
 [[ "$(closed c-701)" == 1 ]] && pass "2a archived topic, Task: line -> c-701 freed" || fail "2a c-701 closed $(closed c-701)x: $out"
-grep -q '^issue c-701 end diss discussion archived by the owner' "$LOG" && pass "2b c-701's open issue ended with the reason" ||
+grep -q '^issue c-701 end onhold discussion archived by the owner' "$LOG" && pass "2b c-701's open issue on hold with the reason, never diss (SPL-4955)" ||
   fail "2b issue end: $(grep '^issue' "$LOG")"
 [[ "$(closed c-708)" == 1 ]] && ! grep -q '^issue c-708' "$LOG" && pass "2c Topic: line, clean pushed worktree -> c-708 freed, no issue to end" ||
   fail "2c c-708: $(closed c-708) // $(grep c-708 "$LOG")"
+for id in c-720 c-721 c-724; do
+  [[ "$(closed "$id")" == 1 ]] && pass "2c2 $id bound and no workspace seat -> freed" || fail "2c2 $id closed $(closed "$id")x: $out"
+done
+for id in c-722 c-723 c-725; do
+  if [[ "$(closed "$id")" == 0 ]] && grep -qE "INFO $id: (it answers a whole workspace|its brief makes it a standing seat)" <<<"$out"; then pass "2c3 $id a whole-workspace seat: a skip line, not closed"
+  else fail "2c3 $id closed $(closed "$id")x: $(grep -- "$id" <<<"$out")"; fi
+done
 [[ "$(closed c-702)" == 0 ]] && pass "2d a live topic -> c-702 untouched" || fail "2d c-702 closed"
 for id in c-703 c-710 c-001 c-705 c-706 c-709 c-707; do
   [[ "$(closed "$id")" == 0 ]] || fail "2e $id was closed"
@@ -159,7 +189,7 @@ for id in "${!want[@]}"; do
   else fail "2g blocker lacks $id (${want[$id]}): $b"; fi
 done
 named=""
-for id in c-707 c-701 c-708 c-702 c-001 c-705 c-706; do grep -q -- "- $id," <<<"$b" && named+=" $id"; done
+for id in c-707 c-701 c-708 c-702 c-001 c-705 c-706 c-722 c-723 c-725; do grep -q -- "- $id," <<<"$b" && named+=" $id"; done
 [[ -z "$named" && "$b" == *"- c-703,"* ]] && pass "2h the blocker names no freed, live-topic, absent, role or unbound lane" ||
   fail "2h blocker names:${named:- (no blocker)}"
 

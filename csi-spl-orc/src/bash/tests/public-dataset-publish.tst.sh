@@ -8,9 +8,10 @@
 #   3. anything less than 3/3 publishes nothing and notes the class, content free
 #   4. 3/3: the exact objects, the consolidated manifest the loader accepts,
 #      latest.json last and no-cache, no name list public, both gone from staging
-#   5. the candidate past the ttl is dropped with its name lists
-#   6. a planted name list and a taken name refuse before latest.json; a re-run
-#      is safe; a newer latest.json is kept
+#   5. the candidate past the ttl is dropped with its name lists; the note never
+#      says "not published" about a public file
+#   6. a planted name list, a taken name and a crc that cannot be read refuse
+#      before latest.json; a re-run is safe; a newer latest.json is kept
 #   7. under the IAM step 053 grants today, the name lists stay and it says so
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -108,7 +109,7 @@ no_content && pass "4. the output names no row and no name" || fail "4. leak: $(
 # --- 5. the ttl drop ----------------------------------------------------------
 reset_gs; stage 2026-11-01-v1.4.0 "$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)"; OLD=$CAND OLDSHA=$SHA; pub "${GO[@]}"; rc=$?
 [[ $rc -eq 0 && -z "$(public_files)" && ! -e "$GS/$STAGING/candidates/$OLD" && ! -e "$GS/$STAGING/verdicts/$OLDSHA" ]] &&
-  grep -q 'past candidate_ttl_hours: dropped with its name lists' "$T/out" && grep -q 'spool|send .*dropped, older than candidate_ttl_hours' "$T/calls.log" \
+  grep -q 'past candidate_ttl_hours: dropped with its name lists' "$T/out" && grep -q 'spool|send .*dropped, older than candidate_ttl_hours and not published' "$T/calls.log" \
   && pass "5. a candidate of 25 h is dropped with its name lists, even with three good verdicts; nothing published" || fail "5. drop: rc=$rc $(cat "$T/out") $(find "$GS" -type f)"
 reset_gs; stage 2026-11-01-v1.4.0 "$(date -u -d '23 hours ago' +%Y-%m-%dT%H:%M:%SZ)"; pub "${GO[@]}"; rc=$?
 [[ $rc -eq 0 && -f "$GS/$PUBLIC/daily/$NAME.sql.gz" ]] && pass "5. control: a candidate of 23 h publishes" || fail "5. control: rc=$rc $(cat "$T/out")"
@@ -116,6 +117,12 @@ reset_gs; stage 2026-11-01-v1.4.0 "$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%
 [[ $rc -ne 0 && -z "$(public_files)" ]] && grep -q 'Missing: candidate-expired' "$T/out" && pass "5. the named candidate past the ttl: dropped, exit 1" || fail "5. named: rc=$rc $(cat "$T/out")"
 reset_gs; stage 2026-11-01-v1.4.0 "$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)"; OLD=$CAND; stage 2026-11-03-v1.5.0; pub "${GO[@]}"; rc=$?
 [[ $rc -eq 0 && -f "$GS/$PUBLIC/daily/$NAME.sql.gz" && ! -e "$GS/$STAGING/candidates/$OLD" ]] && pass "5. the old one drops, the newest publishes" || fail "5. both: rc=$rc $(cat "$T/out")"
+fresh; pub "${GO[@]}" >/dev/null; S="$GS/$STAGING/candidates/$CAND/$NAME.manifest.json"; jq --arg at "$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)" '.exported_at = $at' "$S" >"$T/x"; cp "$T/x" "$S"; pub "${GO[@]}"; rc=$?
+[[ $rc -eq 0 && ! -e "$GS/$STAGING/candidates/$CAND" && -f "$GS/$PUBLIC/daily/$NAME.sql.gz" && -f "$GS/$PUBLIC/latest.json" ]] && grep -q 'stays public' "$T/out" && ! grep -q 'spool|send' "$T/calls.log" \
+  && pass "5. a published candidate past the ttl: its staged copy goes, the file stays, no note says not published" || fail "5. published drop: rc=$rc $(cat "$T/out") $(grep 'spool|send' "$T/calls.log")"
+reset_gs; stage 2026-11-01-v1.4.0 "$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)"; pub "${GO[@]}" STUB_LS_DOWN="gs://$PUBLIC/daily/"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'spool|send .*whether it was published could not be read' "$T/calls.log" && ! grep -q 'spool|send .*not published' "$T/calls.log" \
+  && pass "5. the public bucket not answering: the note says it could not be read, never not published" || fail "5. unknown: rc=$rc $(cat "$T/out") $(grep 'spool|send' "$T/calls.log")"
 
 # --- 6. refusals at the copy, re-run ------------------------------------------
 fresh; mkdir -p "$GS/$PUBLIC/daily"; printf 'x\n' >"$GS/$PUBLIC/daily/names.tsv"; pub "${GO[@]}"; rc=$?
@@ -124,6 +131,13 @@ fresh; mkdir -p "$GS/$PUBLIC/daily"; printf 'x\n' >"$GS/$PUBLIC/daily/names.tsv"
 fresh; mkdir -p "$GS/$PUBLIC/daily"; printf 'x\n' >"$GS/$PUBLIC/daily/$NAME.sql.gz"; pub "${GO[@]}"; rc=$?
 [[ $rc -ne 0 && ! -e "$GS/$PUBLIC/latest.json" && ! -e "$GS/$PUBLIC/daily/$NAME.manifest.json" ]] && grep -q 'a different file holds that name' "$T/out" \
   && pass "6. another file under the name: FATAL, no manifest, latest.json not written" || fail "6. taken: rc=$rc $(cat "$T/out")"
+for d in empty fail; do
+  fresh; mkdir -p "$GS/$PUBLIC/daily"; printf 'x\n' >"$GS/$PUBLIC/daily/$NAME.sql.gz"; pub "${GO[@]}" STUB_DESCRIBE=$d; rc=$?
+  [[ $rc -ne 0 && ! -e "$GS/$PUBLIC/latest.json" && ! -e "$GS/$PUBLIC/daily/$NAME.manifest.json" ]] && grep -q 'no crc32c to compare' "$T/out" \
+    && pass "6. another file under the name, describe $d on both sides: FATAL, latest.json not written" || fail "6. describe $d: rc=$rc $(cat "$T/out")"
+done
+fresh; pub "${GO[@]}" STUB_DESCRIBE=empty; rc=$?
+[[ $rc -ne 0 && ! -e "$GS/$PUBLIC/latest.json" ]] && grep -q 'no crc32c to compare' "$T/out" && pass "6. no other file, describe empty: still no proof, latest.json not written" || fail "6. describe empty alone: rc=$rc $(cat "$T/out")"
 fresh; mkdir -p "$GS/$PUBLIC/daily"; printf 'x\n' >"$GS/$PUBLIC/daily/$NAME.extra"; pub "${GO[@]}"; rc=$?
 [[ $rc -ne 0 && ! -e "$GS/$PUBLIC/latest.json" ]] && grep -q 'class public-object-set' "$T/out" \
   && pass "6. an object it did not copy under the name: FATAL, latest.json not written" || fail "6. extra: rc=$rc $(cat "$T/out")"

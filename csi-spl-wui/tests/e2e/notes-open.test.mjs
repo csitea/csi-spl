@@ -259,7 +259,48 @@ async function clickDuringBack(browser, base, id) {
   await p.goBack()
   check(`${tag}: browser Back closes it`, await waitGone(p))
   check(`${tag}: and drops ?note=`, (await noteQuery(p)) === '', await noteQuery(p))
+  await widthDuringBack(p, tag, id)
   await p.close()
+}
+
+/* SPL-5005 (W1): the window narrows to a phone while the Back is under way. Its
+   landing there has to end the wait: else, back on desktop, no row wrote ?note=
+   again until a reload. Every history.go is held until the test lets it go */
+async function widthDuringBack(p, tag, id) {
+  const hold = () => p.evaluate(() => { const go = history.go.bind(history); window.__gos = []; history.go = (n) => { window.__gos.push(() => go(n)) } })
+  const land = async () => {
+    await p.setViewport({ width: 390, height: 900 })
+    await p.evaluate(() => { delete history.go; for (const g of window.__gos) g() })
+    await sleep(1000)
+  }
+  const upWithQuery = async (note) => {
+    await clickRow(p, note)
+    await waitDetail(p, note)
+    await p.waitForFunction((n) => new URL(location.href).searchParams.get('note') === n, { timeout: 15000 }, note)
+  }
+  await upWithQuery('mock-note-1')
+  await hold()
+  await p.keyboard.press('Escape')
+  await waitGone(p)
+  await land()
+  check(`${tag}: narrowed during the Back: no note is up`, !(await p.$('[data-test=note-detail]')))
+  await p.setViewport({ width: 1440, height: 900 })
+  await clickRow(p, id)
+  check(`${tag}: back on desktop the next row opens`, await waitDetail(p, id))
+  await sleep(500)
+  check(`${tag}: and writes its ?note=`, (await noteQuery(p)) === id, await noteQuery(p))
+  await p.keyboard.press('Escape')
+  await waitGone(p)
+  await sleep(500)
+  await upWithQuery('mock-note-1')
+  await hold()
+  await p.keyboard.press('Escape')
+  await waitGone(p)
+  await clickRow(p, id)
+  await waitDetail(p, id)
+  await land()
+  check(`${tag}: a row clicked before narrowing is dropped on the phone`, !(await p.$('[data-test=note-detail]')))
+  check(`${tag}: and the url has no ?note=`, (await noteQuery(p)) === '', await noteQuery(p))
 }
 
 /* SPL-5005: a second Esc while that Back is under way drops the queued note */

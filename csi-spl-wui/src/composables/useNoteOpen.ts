@@ -33,9 +33,9 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
   const openId = ref('')
   let pushed = false
   /* SPL-5005: a close's router.back() is still under way, and it would cancel a
-     push started now and close the note just opened; that open waits for it */
+     push started now and close the note just opened; that open waits for it, and
+     whichever note is up when the Back lands (openId) is the one to write */
   let backing = false
-  let queued = ''
 
   const queryNote = () => {
     const q = o.route.query.note
@@ -52,7 +52,7 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
       void nextTick(() => { if (openId.value === id) writeInPlace(id) })
       return
     }
-    if (backing) { queued = id; return }
+    if (backing) return
     if (wasOpen || queryNote() === id) { void o.router.replace({ query: urlQuery(id) }); return }
     pushNote(id)
   }
@@ -66,7 +66,7 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
     if (!openId.value) return
     openId.value = ''
     if (o.phone.value) { writeInPlace(''); return }
-    if (backing) { queued = ''; return }
+    if (backing) return
     if (pushed && queryNote()) { pushed = false; backing = true; o.router.back(); return }
     /* SPL-4893: pushed with no ?note= yet is a push still under way, and when
        it commits the watch below opens the note again: a newer navigation
@@ -82,10 +82,15 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
     const deepLink = first
     first = false
     if (!id) pushed = false
-    if (o.phone.value && !deepLink) return
-    const next = queued
+    /* cleared at any width: the window can narrow to a phone during the Back */
+    const next = backing ? openId.value : ''
     backing = false
-    queued = ''
+    if (o.phone.value && !deepLink) {
+      /* the stack reads that popstate as a Back off level 3: a note queued
+         then is dropped with it, so the page and the url agree */
+      if (next) close()
+      return
+    }
     openId.value = next || id
     if (next) pushNote(next)
   }, { immediate: true })

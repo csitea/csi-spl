@@ -10,7 +10,7 @@
  */
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, mayPromoteMessage, type MoveDrag } from '~/utils/move.mjs'
-import { createHandleDrag, type HandleDrag } from '~/utils/move-drag'
+import { createHandleDrag } from '~/utils/move-drag'
 import { topicMenuLocks } from '~/utils/topic-menu.mjs'
 import { useMove } from '~/composables/useMove'
 import { useLive } from '~/composables/useLive'
@@ -76,12 +76,32 @@ export function useCardMove(
   const { move, canMoveTopic, movable } = flags
   const { close: closeMenu } = menu
   const mobile = useMobileStack().isMobile
+  const dragging = ref(false)
   const { movePicker, openMovePicker, onPromote } = useMovePickers(props, move, closeMenu)
-  const cancelDrag = () => {
+
+  function moveDrag(): MoveDrag {
+    const m = props.msg
+    return canMoveTopic.value
+      ? { kind: 'topic', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(m.task_id || ''), channel: String(m.channel || ''), title: title.value || String(m.body || '').slice(0, 60) }
+      : { kind: 'message', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(props.moveCtx?.topic || ''), channel: String(m.channel || props.moveCtx?.channel || '') }
+  }
+  function onMoveKey(ev: KeyboardEvent) {
+    if (ev.key !== 'Escape') return
+    ev.preventDefault()
     handle.cancel()
     peer.cancelRowDrag()
   }
-  const { dragging, liftCard, endDrag } = useCardLift({ props, move, canMoveTopic, title, cancelDrag })
+  function endDrag() {
+    dragging.value = false
+    window.removeEventListener('keydown', onMoveKey, true)
+  }
+  /** a drag lifts this card: the ghost follows the pointer, Escape drops it */
+  function liftCard(x: number, y: number) {
+    dragging.value = true
+    window.addEventListener('keydown', onMoveKey, true)
+    move.lift(moveDrag(), title.value || String(props.msg.body || '').slice(0, 60))
+    move.track(x, y)
+  }
   const handle = createHandleDrag({
     onStart: (x, y) => {
       closeMenu()
@@ -105,49 +125,6 @@ export function useCardMove(
       return false
     },
   })
-  const { onHandleDown, onHandleUp } = cardHandlePointer(handle, movable, peer)
-  onBeforeUnmount(() => handle.cancel())
-  return { flags, dragging, movePicker, liftCard, endDrag, handle, onHandleDown, onHandleUp, openMovePicker, onPromote }
-}
-
-/** The lift of one card: what it carries, and the Escape that drops it (`cancelDrag`). */
-function useCardLift(c: {
-  props: CardMoveProps,
-  move: ReturnType<typeof useMove>,
-  canMoveTopic: Ref<boolean>,
-  title: Ref<string>,
-  cancelDrag: () => void,
-}) {
-  const { props, move, canMoveTopic, title, cancelDrag } = c
-  const dragging = ref(false)
-
-  function moveDrag(): MoveDrag {
-    const m = props.msg
-    return canMoveTopic.value
-      ? { kind: 'topic', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(m.task_id || ''), channel: String(m.channel || ''), title: title.value || String(m.body || '').slice(0, 60) }
-      : { kind: 'message', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(props.moveCtx?.topic || ''), channel: String(m.channel || props.moveCtx?.channel || '') }
-  }
-  function onMoveKey(ev: KeyboardEvent) {
-    if (ev.key !== 'Escape') return
-    ev.preventDefault()
-    cancelDrag()
-  }
-  function endDrag() {
-    dragging.value = false
-    window.removeEventListener('keydown', onMoveKey, true)
-  }
-  /** a drag lifts this card: the ghost follows the pointer, Escape drops it */
-  function liftCard(x: number, y: number) {
-    dragging.value = true
-    window.addEventListener('keydown', onMoveKey, true)
-    move.lift(moveDrag(), title.value || String(props.msg.body || '').slice(0, 60))
-    move.track(x, y)
-  }
-  return { dragging, liftCard, endDrag }
-}
-
-/** The handle strip's pointer events, fed to its gesture. */
-function cardHandlePointer(handle: HandleDrag, movable: Ref<boolean>, peer: { swipeDown: (ev: PointerEvent) => void }) {
   function onHandleDown(ev: PointerEvent) {
     /* CLE-77906: a thumb's swipe often starts on the card's edge, which is this
        handle; the handle stops the row's pointerdown, so start it here. A finger
@@ -165,7 +142,8 @@ function cardHandlePointer(handle: HandleDrag, movable: Ref<boolean>, peer: { sw
     handle.up(ev)
     handle.takeClick()
   }
-  return { onHandleDown, onHandleUp }
+  onBeforeUnmount(() => handle.cancel())
+  return { flags, dragging, movePicker, liftCard, endDrag, handle, onHandleDown, onHandleUp, openMovePicker, onPromote }
 }
 
 /** Move to channel… / Move to topic… / Merge into topic…, and Make it a topic. */

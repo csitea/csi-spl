@@ -4028,6 +4028,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "description": "topic_archived: the visitor's topic is archived, nothing was stored"
+          },
           "413": {
             "description": "body over the byte limit"
           },

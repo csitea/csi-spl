@@ -11,9 +11,9 @@ import (
 // HUM-10, msg 51465f86: "the humans should not be able to insert any input
 // anymore to the archived discussions"). The refusal sits on the human routes
 // only: a browser send (post, reply, poll answer, attachment: all one frame),
-// an edit, an added emoji, a move or a merge into the topic. A box send never
-// comes here, so an agent that finishes after the archive still reports, and
-// Unarchive lifts the refusal with the stamp.
+// an edit, an added emoji, a move or a merge into the topic, a visitor's embed
+// post. A box send never comes here, so an agent that finishes after the
+// archive still reports, and Unarchive lifts the refusal with the stamp.
 
 const (
 	topicArchivedToken  = "topic_archived"
@@ -55,7 +55,7 @@ func (s *Server) wuiArchivedRefusal(ctx context.Context, tenant string, m *msg.M
 	return &frameRefusal{topicArchivedToken, http.StatusConflict, topicArchivedDetail}
 }
 
-// topicOpenDoor is the same check on a member's HTTP route. false means it
+// topicOpenDoor is the same check on a person's HTTP route. false means it
 // answered: 409 topic_archived, or 500 when the stamp cannot be read.
 func (s *Server) topicOpenDoor(w http.ResponseWriter, r *http.Request, tenant string, ids ...string) bool {
 	closed, err := s.topicClosed(r.Context(), tenant, ids...)

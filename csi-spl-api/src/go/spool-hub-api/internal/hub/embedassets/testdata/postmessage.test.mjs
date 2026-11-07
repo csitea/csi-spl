@@ -25,6 +25,7 @@ const CODE_USED = "CODEMARKused";
 const TOKEN_NEW = "tok-1";
 const GONE = "This link has expired or was already used. Ask for a new one below.";
 const NO_ANSWER = "You can leave your e-mail after our first answer.";
+const CLOSED = "This conversation is closed.";
 
 const flush = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); };
 
@@ -97,6 +98,7 @@ function chatWindow(search, ancestor, opts = {}) {
       return init.body.includes("@") ? ok(204, null) : ok(400, { error: "bad_request" });
     }
     if (url.endsWith("/messages") && init.method === "POST") {
+      if (opts.closed) return ok(409, { error: "topic_archived" });
       staff.push({ msg_id: "m" + n, body: JSON.parse(init.body).body, mine: true, received_at: `2026-10-11T00:00:${String(n++).padStart(2, "0")}Z` });
       return ok(201, { msg_id: "m", received_at: "x" });
     }
@@ -211,6 +213,18 @@ async function chatAsk() {
   assert.deepEqual(JSON.parse(ask[0].body), { email: "visitor@example.com", locale: "en" });
   assert.equal(ask[0].headers.Authorization, undefined, "relink ask carried a token");
   assert.match(c.els.status.textContent, /link is on its way/);
+}
+
+// chatClosed (SPL-4954): a post to an archived topic says the conversation is
+// closed, never "try again", and the visitor's text stays in the box.
+async function chatClosed() {
+  const c = chatWindow(`?e=shop&o=${encodeURIComponent(SHOP)}`, SHOP, { closed: true });
+  await flush();
+  c.els.text.value = TEXT_MINE;
+  c.els.form.fire("submit");
+  await flush();
+  assert.equal(c.els.status.textContent, CLOSED, "a closed topic not said plainly");
+  assert.equal(c.els.text.value, TEXT_MINE, "a refused line left the box");
 }
 
 async function chatScenario() {
@@ -335,4 +349,5 @@ await chatRelink();
 await chatRelinkGone();
 await chatEmail();
 await chatAsk();
+await chatClosed();
 console.log(`ok chat posts=${chatPosts} loader posts=${loaderPosts} relink email ask`);

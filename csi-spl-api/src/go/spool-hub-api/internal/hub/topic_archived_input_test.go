@@ -9,6 +9,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 // SPL-4954 (owner HUM-10, msg 51465f86: "the humans should not be able to
@@ -243,5 +244,45 @@ func TestAgentPostToArchivedTopicIsStored(t *testing.T) {
 	at, _, err := a.e.st.TopicArchived(ctx, a.tid, a.task, lobby)
 	if err != nil || at.IsZero() {
 		t.Fatalf("the topic left the archive: at=%v err=%v", at, err)
+	}
+}
+
+// A visitor's post is a person's input too (c-001 8b4fea18 on the owner's
+// msg 51465f86): the embed route refuses the visitor's archived topic, nothing
+// is stored, and Unarchive takes the next line.
+func TestVisitorPostToArchivedTopicIsRefused(t *testing.T) {
+	e := embedEnv(t, true, hub.ViewDoorOff)
+	pg := pgOnly(t, e)
+	tid, _ := e.tenant()
+	embed := seedEmbed(t, pg, tid, true)
+	owner := seat(t, e, tid, rbac.BizOwner) // before the mint: a new channel seats the staff there are
+	tok, _ := mint(t, e, tid, embed)
+	path := "/v1/embed/" + embed + "/messages"
+	post := func(body string) (int, []byte) {
+		return embedCall(t, e, tid, http.MethodPost, path, tok, solvedPost(t, e, tid, embed, tok, body))
+	}
+	if code, raw := post("first line"); code != http.StatusCreated {
+		t.Fatalf("CONTROL: a live topic: %d %s", code, raw)
+	}
+	lines := readLines(t, e, tid, embed, tok)
+	if len(lines.Messages) != 1 {
+		t.Fatalf("after the first post: %+v", lines)
+	}
+	archive := "/v1/messages/" + lines.Messages[0].MsgID + "/archive"
+	if code, out := call(t, e, tid, http.MethodPut, archive, owner, nil); code != http.StatusOK || out["archived"] != true {
+		t.Fatalf("archive: %d %v", code, out)
+	}
+	code, raw := post("after the archive")
+	if code != http.StatusConflict || !strings.Contains(string(raw), "topic_archived") {
+		t.Fatalf("archived: got %d %s, want 409 topic_archived", code, raw)
+	}
+	if got := readLines(t, e, tid, embed, tok); len(got.Messages) != 1 {
+		t.Fatalf("the refused line was stored: %+v", got)
+	}
+	if code, out := call(t, e, tid, http.MethodDelete, archive, owner, nil); code != http.StatusOK {
+		t.Fatalf("unarchive: %d %v", code, out)
+	}
+	if code, raw := post("after the unarchive"); code != http.StatusCreated {
+		t.Fatalf("unarchived: got %d %s, want 201", code, raw)
 	}
 }

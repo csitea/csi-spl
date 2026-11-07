@@ -212,6 +212,11 @@ func (s *Server) handleEmbedPost(w http.ResponseWriter, r *http.Request) {
 	if !s.embedPostGate(w, r, es, v, in) {
 		return
 	}
+	// SPL-4954: the visitor's one topic (task_id = visitor_id), past the gate
+	// so a closed chat cannot read the database faster than the limits allow.
+	if !s.topicOpenDoor(w, r, v.TenantID, v.VisitorID) {
+		return
+	}
 	p, err := s.embedPost(v, in.Body)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", err.Error())

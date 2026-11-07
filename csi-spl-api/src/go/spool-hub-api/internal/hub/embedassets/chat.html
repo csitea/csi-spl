@@ -130,6 +130,7 @@
     badEmail: "Please enter one e-mail address, like name@example.com.",
     saved: "Saved. From another device, ask for a link with this e-mail.",
     asked: "If that e-mail is on file, a link is on its way. It works for 15 minutes.",
+    closed: "This conversation is closed.",
     failed: "Not sent. Please try again."
   };
 
@@ -232,6 +233,7 @@
     var first = store.get(TOKEN) ? Promise.resolve() : mint();
     return first.then(function () { return call("POST", "/messages", { body: body }); }).then(function (r) {
       if (r.status === 401 && retry) { store.del(TOKEN); return post(body, false); }
+      if (r.status === 409) { say(T.closed); return false; }
       if (r.status !== 201) throw new Error("post " + r.status);
     });
   }
@@ -241,7 +243,8 @@
     var body = text.value;
     if (!body.trim() || !embed) return;
     say("Sending…");
-    post(body, true).then(function () {
+    post(body, true).then(function (sent) {
+      if (sent === false) return;
       text.value = "";
       say("");
       return load();

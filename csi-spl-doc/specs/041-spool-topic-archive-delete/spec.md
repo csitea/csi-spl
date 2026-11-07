@@ -52,6 +52,7 @@ Two additions the same evening (relayed by CLE-001):
   attachment (one browser send frame), edit, added emoji, and a move or merge into the
   topic with `topic_archived`; the WUI shows no composer there, a short line instead, and
   disables a poll. Unarchive lifts it. Contract: `topic-archive-v1.md` section 5.2.
+  Archiving a visitor topic ends that visitor's chat from that browser, until unarchive.
 - An **agent's** post on an archived topic is stored and delivered as always, and the
   topic stays archived. (Gmail brings a thread back on a new reply; here the owner did not
   ask for it, and an agent reply un-archiving a topic a human put away is the surprise the

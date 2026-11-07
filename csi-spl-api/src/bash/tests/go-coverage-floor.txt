@@ -33,10 +33,15 @@ cmd/spool 77.8
 # hours 99.0, lockkey 79.3, mail 93.7, marketing 86.5, search 98.1, spool
 # 93.2, wire 91.3. Before: 82.9, 86.7, 98.0, 78.7, 91.2, 84.2, 95.6, 86.4,
 # 90.1.
+# r52-06 (refactor round 26, SPL-4997): five floors raised to the lowest of
+# n=3 readings, go test -count=1 -cover ./internal/<pkg>/, go1.26.10, on
+# 0b2f05cb1 (rows r52-07 and r52-09 landed) each read: action 91.6, channelmove
+# 96.3, hubclient 87.8, lockkey 83.6, payments 84.3. Before: 90.8, 83.3, 85.9,
+# 79.3, 83.6. hubclient: n=3 -race read 87.8 too.
 # internal/action: 80.8 with r15-06's edit_test.go and issue_test.go (edit.go
 # and issue.go 0 -> 100%), 75.6 without on ef6adfcf3; go test -count=1 -cover
 # ./internal/action/, go1.26.9, n=3 read 80.8 each.
-internal/action 90.8
+internal/action 91.6
 internal/agentid 97.0
 # r01-04 (test round 1, SPL-2052): five packages ratcheted off 0.0 to about one
 # point under what they read; go test -count=1 -cover, go1.26.9, n=3 read
@@ -60,7 +65,7 @@ internal/calrecur 98.8
 # hygiene 90.0, keydesk 79.1, keyexec 79.7, pollform 100.0, secretfile 100.0,
 # vendorkey 82.4. internal/keyd gets its floor in r42-08; gcal/fakegcal (a test
 # fake, 0.0) has none.
-internal/channelmove 83.3
+internal/channelmove 96.3
 # internal/cicdlogs: 89.0 with r16-02's github_test.go (scrub 0 -> 100%, the
 # FetchLogs error paths, hasRealToken, runIDOK, writeVersion/now), 81.5
 # without on 593f2e41d; go test -count=1 -cover ./internal/cicdlogs/,
@@ -85,7 +90,7 @@ internal/hours 99.0
 # -cover ./internal/hubclient, go1.26.9, load 14..38, plain and -race, n=10
 # read 82.2 every run; without that file n=5 read 81.5..81.7, which fails.
 # r48-09: 85.9, n=3 plain and n=3 -race on 6bce8cfb1 read 85.9 all six.
-internal/hubclient 85.9
+internal/hubclient 87.8
 internal/hygiene 90.0
 internal/i18n 97.2
 internal/invitemail 85.3
@@ -104,7 +109,7 @@ internal/keyexec 81.7
 # pidAlive on each pid file; writeFile errors), 76.7 without on e8e02f87e;
 # go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 78.7 each.
 # Before: 76.4 on its first commit (spec 025 row B4, SPL-2956); n=3 read 76.4.
-internal/lockkey 79.3
+internal/lockkey 83.6
 internal/logging 99.0
 internal/mail 93.7
 internal/marketing 86.5
@@ -115,7 +120,7 @@ internal/notify 94.8
 # without; paypal_payments_test.go (r14-06) took it 72.4 -> 78.6 (637 -> 692
 # of 880); go test -count=1 -cover ./internal/payments/, go1.26.10, n=3 read
 # 80.9 each.
-internal/payments 83.6
+internal/payments 84.3
 internal/pollform 100.0
 internal/quiesce 96.8
 internal/rbac 98.9

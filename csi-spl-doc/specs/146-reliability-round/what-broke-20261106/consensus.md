@@ -4,7 +4,7 @@ Editor c-758, issue SPL-4945, epic SPL-2364, owner order 9e9cc212. Tree
 origin/master 04a51b255 for the seats' measurements. All times UTC. Everything
 here was read only; no seat stopped or changed anything.
 
-**Status: release candidate 2, folds claude-3; signatures in section 8.**
+**Status: release candidate 3, folds claude-3 and the disputes on the first candidate; signatures in section 8.**
 
 Seat files, on their review branches: `claude-1.md` (the machine),
 `claude-2.md` (the path to land), `claude-3.md` (the agent and placement),
@@ -50,9 +50,9 @@ The queue-wait jump of 11-03 is a separate, older thing (section 4).
 | 02:25, 06:15 | claude weekly reads 81%, then 84% | sat's weekly-limit-alert log |
 | 07:14:43 | laptop wifi associates; uplink back at 07:15:10 | kernel log, probe |
 | 09:00:01 | claude weekly reads 90%; the alert posts | alert log |
-| 09:05:24 | last lane the placer log itself shows placed (c-456) | placer log, dated by chain |
+| 09:05:24 | last lane placed by the placer (c-456) | placer log, dated by chain |
 | 09:05:28 | c-001 tells c-002 no new claude lane will be placed | spool message |
-| 09:09:42, 09:12:08 | c-459 and c-460 placed, the last before the gap; sat's placer finds c-460's ask already closed by c-001 | ask journal, placer log; claude-3 |
+| 09:09:42, 09:12:08 | c-459 and c-460 placed by c-001, not the placer (asks created 09:06:09 and 09:09:31), the last before the gap | ask journal `closed_by`, n=2; placer log; claude-3 |
 | 09:26, 10:12, 11:00 | R7 reviewer asks for SPL-4911, 4912, 4909 are raised | claude-2 |
 | about 09:30 | last commit by committer date before the gap (67d283262) | agy, git |
 | 10:00-17:59 | no landed push on either box | `pushes.log` against master |
@@ -121,7 +121,7 @@ not established.**
 **Why the network dropped is not established.** The journal has nothing before
 about 04:00Z that day. The journal says only `Lid closed`, not why.
 
-### 3.2 The claude weekly hold: 09:12-16:12, n=977 hold lines, 0 placed
+### 3.2 The claude weekly hold: 09:05-16:12 for the placer, 09:12 for any lane; n=977 hold lines, 0 placed by the placer, 2 by c-001
 
 Agreed by all seats except mistral that it happened and stopped the fleet. Both
 boxes fell idle: load 10-15Z was sat 4-7 and laptop 3-12, against 18-49 the same
@@ -140,9 +140,10 @@ their author lanes sat waiting on them (claude-2, n=5, read by hand).
 
 **Disagreement on how much was stale: section 5.**
 
-**Not established: what used the limit so fast.** Token tables were not read;
-claude-3's transcript count has 12.7 M output tokens on 11-04 and 14.5 M on 11-05,
-the highest of 10-28..11-06, not re-measured. It
+**Not established: what used the limit so fast.** Token tables were not read.
+The bigger messages of 3.4 did not use it: they begin after the 97% reading (sat
+274-418 tokens per message by hour, 00-13Z, claude-3). claude-3 withdrew its
+token-volume reading, since transcript retention is unchecked. It
 went from 81% to 90% in under 7 h on 11-06. agy argues SPL-4826 (11-05) moved
 share onto claude; that is unmeasured, though claude-2 finds 120 of 124 queued
 asks are claude.
@@ -159,6 +160,7 @@ Found by claude-3, tree 8011a451e. Sat 16-24Z, 11-05 against 11-06:
 | | 11-05 | 11-06 |
 |---|---|---|
 | messages | 5694 | 4143 |
+| output tokens per message | 398 | 915 |
 | output tokens | 2.27 M | 3.79 M |
 | step p50, p90 | 3.8, 8.4 s (n 5557) | 5.4, 16.9 s (n 4448) |
 | Bash p50 | 0.8 s (n 4791) | 3.5 s (n 3551) |
@@ -175,17 +177,27 @@ slow" holds for the day's medians, and not for the sat evening. A step 1.4 times
 longer does not explain a 3-times fall, and 11-02 had the same state with 99
 commits, so claude-3 ranks it second. It would burn a weekly limit faster.
 
-**The caveat on 11-02:** transcripts thin out with age. The laptop has 1113
-messages for 11-02 and 17240 for 11-04, so that comparison rests on survivors.
+**The caveat on 11-02:** transcripts thin out with age on the laptop, 1113 messages
+for 11-02 and 17240 for 11-04. Sat's hours hold n 116-397, so the flips below rest
+on sat.
 
-**Tested and not supported: a credential change as the trigger.** `cred.log` steps
-every 7 h 55 or so on both boxes, with 4 off-cycle changes in the period: 10-31
-about 10:00, 11-01 18:23, 11-03 08:58, 11-06 13:57. Only the last lines up. On the
-laptop 11-01 18-21Z stays at 253-307 tokens and 253-352 chars, and 11-03 is back
-down by 06Z, before its change. n=4, thin hours, read on one box. Unchanged across
-the onset (claude-3): model id, CLI per box, `settings.json`, global `CLAUDE.md`,
-service tier, effort value. An account tier has no readable history, so it can be
-neither shown nor excluded.
+**The state flips, and credential changes.** `cred.log` steps about every 7 h 55 on
+both boxes; four rows fall off that cycle, one of them on 10-31 and one on 11-01.
+Sat, by hour, tokens per message and Bash chars, re-read by the editor (4383 files):
+
+| flip | before | after | off-cycle row |
+|---|---|---|---|
+| on, 11-02 01Z | 00Z 383, 293 (n 298) | 01Z 571, 549, 02Z 680, 615 | none; 11-01 18:23 is 7 h before, and flat on the laptop to 21Z |
+| off, 11-03 09-11Z | 08Z 595, 687 (n 196) | 09Z 547, 362, 11Z 388, 308 | 11-03 08:58:55 |
+| on, 11-06 14Z | 13Z 274, 255 (n 263) | 14Z 604, 572 (n 397) | 11-06 13:57:05 |
+
+**Two of three flips fall within minutes of an off-cycle change, in opposite
+directions, and the third has none.** Suggestive only, n=3, hashes only: claude-3's
+reading, and the editor's. The editor first read this as not supported, on the
+laptop's thin hours (n 7-35 in 11-03 06-08Z). Unchanged across the onset
+(claude-3): model id, CLI per box, `settings.json`, global `CLAUDE.md`, service
+tier, effort value. An account tier has no readable history, so it can be neither
+shown nor excluded.
 
 ## 4. A separate thing: the queue-wait jump of 11-03
 
@@ -210,11 +222,11 @@ asks, the editor 41-80 for QUEUE rows only: different sets, same direction.
 
 | question | positions | editor's reading |
 |---|---|---|
-| Was the hold stale for all of it? | claude-2, agy: stale 97% from about 09:20. Editor, claude-3, and claude-1 after reading the alert log (its seat file keeps the old wording, withdrawn at signing): true to about 13:57, stale after; claude-3 bounds stale at 2 h 14 from the row's 13:58:08 | Dated evidence favours true to 13:57: alert log 90% at 09:00 and 97% at 13:55, holders' posts, `cred.log`. **The 0% at 14:00 could lag a change by up to the 6 h CLI cache, but the credential change is at 13:57.** When the owner first said it was raised is not read |
-| When did the hold start? | 09:20 (brief, claude-1, agy); about 09:00 (claude-2, proxy); 09:05 (editor's first reading); 09:12 (claude-3) | 09:12:08 is the last placement in the ask journal, and the 90% reading is 09:00:01. Editor corrected to claude-3's |
+| Was the hold stale for all of it? | agy: stale 97% from about 09:20. Editor, claude-3, and claude-1 and claude-2 after reading the alert log (both withdrew at signing; claude-1's file keeps the old wording): true to about 13:57, stale after, 2 h 15 | Dated evidence favours true to 13:57: alert log 90% at 09:00 and 97% at 13:55, holders' posts, `cred.log`. **The 0% at 14:00 could lag a change by up to the 6 h CLI cache, but the credential change is at 13:57.** When the owner first said it was raised is not read |
+| When did the hold start? | 09:20 (brief, claude-1, agy); 09:05 (editor, claude-2, which withdrew its proxy 09:00); 09:12 (claude-3, any lane) | Both hold: 09:05:24 is the placer's last, 09:12:08 the last of any lane, c-001 by hand. The 90% reading is 09:00:01 |
 | When was the laptop back? | about 23:04 (brief, agy); 22:55:44 (journal) | 22:55:44 |
 | **Root cause: resource exhaustion?** | **mistral: a load spike of 44.3 at 00:05 caused a 13-hour outage, 00:20-13:30. Everyone else: no** | Not supported, see below |
-| Do gates stack and amplify load? | agy: SPL-4820, new per-push checks and re-runs stack gates on sat. claude-1, claude-2: gate parts within about 15%, no shift, 11-05 to 11-06. claude-1 also reports a sat step on 11-04 (wui 405 to 583 s, e2e 510 to 807, iac 253 to 394, n=3-18; not re-measured by the editor): it predates the good day, and it bears on this question | Open for the night of 11-07 (load 55, hour-long gates, unfinished, so not in the figures). Not the cause of 11-06. agy could not read the gate logs. claude-2 measures commit-links at 5-7 s |
+| Do gates stack and amplify load? | agy: SPL-4820, new per-push checks and re-runs stack gates on sat. claude-1: gate parts within about 15%, no shift, 11-05 to 11-06. claude-2: part p50s moved both ways, -57% to +34%, no consistent rise, small n on the laptop; it did not test stacking. claude-1 also reports a sat step on 11-04 (wui 405 to 583 s, e2e 510 to 807, iac 253 to 394, n=3-18; not re-measured by the editor): it predates the good day, and it bears on this question | Open for the night of 11-07 (load 55, hour-long gates, unfinished, so not in the figures). Not the cause of 11-06. agy could not read the gate logs. claude-2 measures commit-links at 5-7 s |
 | Is the slower sat what felt like 3 times? | claude-1: gate p50 839 s on sat, 206 s on the laptop, suggested. Editor's run grouping: sat median about 1 min | Different groupings, claude-1 counts runs of 8+ parts. Open |
 
 **Checked claims not carried forward:**
@@ -231,13 +243,16 @@ asks, the editor 41-80 for QUEUE rows only: different sets, same direction.
   such lines on 7 rows, none dated after 10-30.
 - **agy's quoted fix.** `kp >= max_pct` is not in fe0455e48: `git show fe0455e48 |
   grep -c kp` finds no added line. The fix adds `spl_box_quota_outdated`.
-- **claude-2's "only 8 pushes.log remain".** 59 changed since 11-05 survive on the
-  laptop, 53 under `.retired`. Its step tables do not depend on this.
+- **claude-2's "only 8 pushes.log remain", withdrawn by claude-2.** It recounts 60
+  on the laptop (54 under `.retired`) and 36 on sat (32). Its step tables do not
+  depend on this.
 
 **The editor's own errors, corrected:**
 
-- The hold's start, 09:05, took the placer log's last line. The ask journal has
-  two later placements, 09:09:42 and 09:12:08 (claude-3).
+- "0 placed" from 09:05 held for the placer only. Two lanes were placed by c-001
+  at 09:09:42 and 09:12:08 (claude-3).
+- Section 3.4's first cut read the credential link as not supported, from the
+  laptop's thin hours. Sat's hours put it as suggestive.
 - `pushes.log` also records `review/` pushes. The first table counted them as
   landed: 102 and 36. On master it is 80 and 22.
 - "90% in 24 h" was inferred from the wrong reset. The 09:05 post gives 11-11T17:00.
@@ -252,8 +267,8 @@ All with numbers in the seat files.
 | Lanes slower | spawn to land p50 85 to 89 min (n=91, 29); start to first push 100 to 134 min (n=58, 22), inside the 99-134 range of the week. Landed lanes only | claude-2, editor |
 | Review push to land | grew 66 to 132 min, and is 70 once the windows are removed (n=24) | claude-2 |
 | Gate parts slower | -11% to +12% on sat, n=3-23 per part | claude-1 |
-| Refused pushes | fewer: 38 to 18 | claude-2 |
-| Model reply time | p50 3.1 to 3.2 s, n=16429, 4240 | claude-2 |
+| Pushes retried by the worker | 8 in 65 logs to 2 in 22 (push-master/log by file date, `.retired` included; each log holds the lane's last push only, so an undercount). Gate failures per pass 0.14 to 0.21, suggested at most | claude-2 |
+| Time to first block | p50 3.1 to 3.2 s, n=16429, 4240. The whole step is not ruled out, section 3.4 | claude-2, claude-3 |
 | CI | `10_ci-quality` p50 21.1 to 20.9 min, n=81, 44 | agy |
 | CLI version, hooks, rotation, compaction, vendor latency, queue depth, the 3-minute floor | section 6 of `claude-3.md`, tree 8011a451e | claude-3 |
 | Reboot, memory, disk | up 5 d 22 h; 34-41 GiB available; sat iowait 0.43% as the day's average, 4.90% the highest 10-minute sar sample (`sa06`). claude-1 saw one 45.6% sample in another sampler and did not chase it | claude-1, editor |
@@ -297,7 +312,7 @@ All with numbers in the seat files.
     the owner the day, not the hour. (claude-3)
 13. **Track the fingerprint daily and find what the state of 11-02 and 11-06 14:00
     is.** Bash chars, tokens per message, tokens per second in fixed sizes, per box.
-    Ask whether the account changed. Also explain the two resets, 11-11T17:00 and
+    Ask whether the account changed around 11-03 08:58 and 11-06 13:57. Also explain the two resets, 11-11T17:00 and
     11-12T08:59:59, 15 h 59 apart. (claude-3)
 
 **The owner's decisions:**
@@ -318,7 +333,7 @@ Each seat signs this text or states what it disputes; a dispute goes in section 
 | seat | agent | seat file | signature |
 |---|---|---|---|
 | claude-1 | c-761 | `review/what-broke-claude-1` 97d6d2d92 | signed the first candidate; withdrew its stale row (section 5) |
-| claude-2 | c-763 | `review/what-broke-claude-2` 0e01f1b5c | pending |
-| claude-3 | c-772 | `review/what-broke-claude-3` b083fc6da | pending |
+| claude-2 | c-763 | `review/what-broke-claude-2` 2a152a0a3 | pending |
+| claude-3 | c-772 | `review/what-broke-claude-3` 7bc9e7a3a | pending |
 | agy | a-769 | `review/what-broke-agy` dcf7e42a1 | signed the first candidate, accepted both section 5 corrections |
 | mistral | m-779 | `review/what-broke-mistral` 3ee11ea07 | signed the first candidate, no dispute |

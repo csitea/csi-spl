@@ -70,6 +70,7 @@
 # @param LEASE_DESK_GATE / LEASE_DESK_DIR (optional) - fleet mode: 0 turns off the desk gate of the dispatch role (spec 092 FR-002); LEASE_DESK_DIR replaces the desk dir it reads (default <state>/desk/LEASE_TENANT/LEASE_DESK_BOX)
 # @param LEASE_HEALTH (optional) - fleet mode: 0 turns off the beat-health demotion (t1 3cfc236e): a box whose hub beats are degraded, or were within the hold-down (cnf env.box.health, lib/bash/funcs/spl-box-health.func.sh), ranks last for both roles; LEASE_HEALTH_TTL (default 60 s) is how often the beats are read; LEASE_BEATS_CMD (tests) replaces the read (with the LEASE_HUB_CMD stub and no LEASE_BEATS_CMD there is none)
 # @param SPL_DESK_AS_CMD (optional) - fleet mode: the hop to the owner of a moved lease desk (default sudo -n -u; spl_desk_moved_to reads it too)
+# @param LEASE_HOP_TIMEOUT (optional) - fleet mode: seconds one locate or read through that hop may take (default 5; a good one takes 36..550 ms)
 # @param LEASE_ALERT (optional) - fleet mode: 0 turns off the bench alert (t1 3cfc236e): one line in LEASE_TENANT's #alerts when a box is benched (beats degraded) or back (healthy for the hold-down), posted by one box only (the first healthy box of the orch order that is not the box itself); LEASE_ALERT_CMD (tests) replaces the post, the text on stdin
 # @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
@@ -1076,7 +1077,7 @@ spl_fleet_hub_init() {
   spl_host_spool || return 1
   local LD LB; local -a LAS=()
   spl_fleet_desk_at "$LEASE_TENANT" || return 1
-  "${LAS[@]}" test -s "$LD/pinned" ||
+  spl_fleet_hop test -s "$LD/pinned" ||
     { do_log "FATAL $LEASE_DESK_BOX is not pinned in $LEASE_TENANT ($LD): seat a desk there first (do_spl_desk_up)"; return 1; }
 }
 
@@ -1091,13 +1092,17 @@ spl_fleet_hub_init() {
 # The owner's copy wins over a stub under this user (spl_desk_moved_to: a
 # pinned desk there, none here); LB is the owner's too, this user's .local may
 # be closed to it. Non-zero: the desk is under a root nobody here can reach.
+# The loop is one thread and holds both roles, so every hop has a limit (R7 W1):
+# the locate and spl_fleet_hop here, the calls their own timeout. -k because a
+# plain timeout waits as long as a sudo that ignores TERM (2026-11-07, n=1: 32 s
+# on a limit of 2). Cut = the desk reads as not reachable for that call.
 spl_fleet_desk_at() {
   local t="$1" mv u r h
   LD="" LB="${SPL_SPOOL:-}" LAS=()
   # pinned here = this user's desk, first of spl_desk_roots: no fork, this runs per dial
   LD="${SPL_STATE_DIR:-}/desk/$t/$LEASE_DESK_BOX"
   [[ -n "${SPL_STATE_DIR:-}" && -s "$LD/pinned" ]] && return 0
-  if mv="$(spl_desk_moved_to "$t" "$LEASE_DESK_BOX")"; then
+  if mv="$(SPL_DESK_AS_CMD="timeout -k 1 ${LEASE_HOP_TIMEOUT:-5} ${SPL_DESK_AS_CMD:-sudo -n -u}" spl_desk_moved_to "$t" "$LEASE_DESK_BOX")"; then
     u="${mv%%$'\t'*}"
     r="$(SPOOL_DESK_USER="$u" spl_desk_state_root)" || return 1
     h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
@@ -1107,6 +1112,13 @@ spl_fleet_desk_at() {
     return 0
   fi
   LD="$(spl_desk_dir "$t" "$LEASE_DESK_BOX")" || [[ $? -eq 1 ]]
+}
+
+# spl_fleet_hop <cmd...>: a short read through the caller's LAS, under the hop's
+# limit; no hop (this user's own desk) = the command itself, no extra fork.
+spl_fleet_hop() {
+  (( ${#LAS[@]} )) || { "$@"; return; }
+  timeout -k 1 "${LEASE_HOP_TIMEOUT:-5}" "${LAS[@]}" "$@"
 }
 
 # spl_fleet_action_as: LAS for a ./run action that goes through LEASE_TENANT's
@@ -1153,7 +1165,7 @@ spl_fleet_hub_once() {
   local LD LB; local -a LAS=()
   spl_fleet_desk_at "$t" || return 1
   # spl_desk_spool's environment, under a timeout: a hung dial must not stall the tick
-  timeout "${LEASE_HUB_TIMEOUT:-12}" "${LAS[@]}" env SPOOL_ROOT="$LD/spool" SPOOL_KEYS_DIR="$LD/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
+  timeout -k 1 "${LEASE_HUB_TIMEOUT:-12}" "${LAS[@]}" env SPOOL_ROOT="$LD/spool" SPOOL_KEYS_DIR="$LD/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
     SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$t" "$LB" lease "$@"
 }
 
@@ -1345,7 +1357,7 @@ spl_fleet_beats() {
   if [[ -n "${LEASE_BEATS_CMD:-}" ]]; then $LEASE_BEATS_CMD box-beat list "$@"; return; fi
   local LD LB; local -a LAS=()
   spl_fleet_desk_at "$LEASE_TENANT" || return 1
-  timeout "${LEASE_HUB_TIMEOUT:-30}" "${LAS[@]}" env SPOOL_ROOT="$LD/spool" SPOOL_KEYS_DIR="$LD/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
+  timeout -k 1 "${LEASE_HUB_TIMEOUT:-30}" "${LAS[@]}" env SPOOL_ROOT="$LD/spool" SPOOL_KEYS_DIR="$LD/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
     SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LEASE_TENANT" "$LB" box-beat list "$@"
 }
 
@@ -1631,7 +1643,7 @@ spl_fleet_alert_post() {
   spl_lease_log "ALERT #alerts: $text"
   (
     local LD LB; local -a LAS=(); spl_fleet_action_as
-    if timeout "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="$LEASE_ORCH" DESK_CHANNEL=alerts \
+    if timeout -k 1 "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="$LEASE_ORCH" DESK_CHANNEL=alerts \
         DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" \
         -a do_spl_desk_post </dev/null >>"$LEASE_DIR/alert-post.out" 2>&1 7>&- 8>&-; then
       [[ -n "$box" && -n "$since" ]] && spl_fleet_bench_sent_ok "$box" "$since"
@@ -1956,11 +1968,13 @@ spl_fleet_tier() {
 # LEASE_DESK_GATE=0 or when no desk dir is known (the tests' stub hub). A moved
 # desk is read through the hop to its owner (spl_fleet_desk_at, SPL-4942); under
 # a root with no way in (spl_desk_dir rc 3) it is not able: it fails closed,
-# never "no desk dir known" (SPL-4536), and so does a hop that stops working
-# (no pid read = no sidecar). The pid's cmdline is world-readable: no hop.
+# never "no desk dir known" (SPL-4536), and so does a hop that stops working or
+# hangs (spl_fleet_hop: each read has a limit; a read lost on the hop = not
+# able, and an mtime read lost there too, it cannot be taken for an unstamped
+# line). The pid's cmdline is world-readable: no hop.
 spl_fleet_desk_able() {
   [[ "${LEASE_DESK_GATE:-1}" == 0 ]] && return 0
-  local d="${LEASE_DESK_DIR:-}" h pid line ts at started LD LB; local -a LAS=()
+  local d="${LEASE_DESK_DIR:-}" h pid line ts at started rc LD LB; local -a LAS=()
   if [[ -z "$d" && -n "${SPL_STATE_DIR:-}" && -n "${LEASE_TENANT:-}" && -n "${LEASE_DESK_BOX:-}" ]]; then
     spl_fleet_desk_at "$LEASE_TENANT" ||
       { echo "desk: $LEASE_DESK_BOX of $LEASE_TENANT is under a desk root this user cannot read"; return 1; }
@@ -1968,14 +1982,15 @@ spl_fleet_desk_able() {
   fi
   [[ -n "$d" ]] || return 0
   h="$d/spool/.hub"
-  pid="$("${LAS[@]}" cat "$h/hub-run.pid" 2>/dev/null)"
+  pid="$(spl_fleet_hop cat "$h/hub-run.pid" 2>/dev/null)"; rc=$?
   [[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${LEASE_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null ||
-    { echo "desk: no hub-run sidecar in $d"; return 1; }
-  line="$("${LAS[@]}" tail -n "${LEASE_DESK_LOG_TAIL:-5000}" "$h/hub-run.log" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' |
+    { echo "desk: no hub-run sidecar in $d${LAS:+, or the hop to its owner failed (rc=$rc)}"; return 1; }
+  line="$(spl_fleet_hop tail -n "${LEASE_DESK_LOG_TAIL:-5000}" "$h/hub-run.log" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' |
     grep -aE 'hub session (up|down)|so the session reconnects' | tail -1)"
   [[ "$line" == *"hub session up"* ]] || { echo "desk: session not up (last: ${line:-none})"; return 1; }
   ts="$(grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})' <<<"$line" | sed -n 1p)"
-  started="$("${LAS[@]}" stat -c %Y "$h/hub-run.pid" 2>/dev/null)"
+  started="$(spl_fleet_hop stat -c %Y "$h/hub-run.pid" 2>/dev/null)"
+  [[ -z "$started" && -n "${LAS:-}" ]] && { echo "desk: the hop to its owner failed reading the sidecar's start"; return 1; }
   # an unstamped line cannot be dated: the order check above stands alone
   [[ -n "$ts" && -n "$started" ]] && at="$(date -d "$ts" +%s 2>/dev/null)" && (( at < started )) &&
     { echo "desk: sidecar pid=$pid (re)started, no session up since"; return 1; }
@@ -2161,7 +2176,7 @@ spl_fleet_owner_dm() {
     spl_lease_log "OPS-NOTICE orch take-over: $who"; return 0
   fi
   local LD LB; local -a LAS=(); spl_fleet_action_as
-  ( timeout "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" env ENV="${LEASE_ENV:-}" TENANT_ID="${LEASE_TENANT:-}" DESK_BOX="${LEASE_DESK_BOX:-}" DESK_AGENT="${who%@*}" \
+  ( timeout -k 1 "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" env ENV="${LEASE_ENV:-}" TENANT_ID="${LEASE_TENANT:-}" DESK_BOX="${LEASE_DESK_BOX:-}" DESK_AGENT="${who%@*}" \
       DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 \
       "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" -a do_spl_fleet_notice \
       >>"$LEASE_DIR/owner-dm.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
@@ -2628,7 +2643,7 @@ spl_lease_asks_tick() {
   [[ "${SPOOL_TEST:-0}" == 1 ]] && on="${LEASE_ASKS:-0}"
   [[ "$on" == 1 ]] || return 0
   local LD LB; local -a LAS=(); spl_fleet_action_as
-  ( timeout "${LEASE_ASKS_TIMEOUT:-120}" "${LAS[@]}" env SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" \
+  ( timeout -k 1 "${LEASE_ASKS_TIMEOUT:-120}" "${LAS[@]}" env SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" \
       -a do_spl_asks_tick >>"$LEASE_DIR/asks.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
   return 0
 }

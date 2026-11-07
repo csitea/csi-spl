@@ -18,6 +18,11 @@
 #   5. the post, the notice and the asks tick run as B with B's HOME
 #   6. a desk that has not moved: no hop at all, A's binary (a counting guard)
 #   7. the hops per call on a moved desk stay counted: the lease ticks every 60 s
+#   8. a hop that hangs, at any step, is cut at LEASE_HOP_TIMEOUT and reads not
+#      able: the loop is one thread and holds both roles (R7 W1, c799). RED on
+#      256f79290: "outer limit" on 8a..8g
+#   9. a hop that fails reads not able and says it was the hop: a failed stat
+#      must not pass a sidecar with no session since its restart (R7 N1, N2)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -60,6 +65,17 @@ cat >"$T/stub/run" <<STUB
 #!/usr/bin/env bash
 echo "RUN HOME=\$HOME \$*" >>"$T/runs"
 STUB
+# the hop with one step broken; the pattern matches the command: HOP_HANG hangs,
+# HOP_DEAF also ignores TERM with stdout closed (a sudo stuck before it runs the
+# command), HOP_FAIL exits 1. Anything else goes through the plain hop.
+cat >"$T/stub/as-sel" <<STUB
+#!/usr/bin/env bash
+c="\$*"
+[[ -n "\${HOP_HANG:-}" && "\$c" == *"\$HOP_HANG"* ]] && exec sleep 20
+[[ -n "\${HOP_DEAF:-}" && "\$c" == *"\$HOP_DEAF"* ]] && { exec >/dev/null 2>&1; trap '' TERM; sleep 18; exit 0; }
+[[ -n "\${HOP_FAIL:-}" && "\$c" == *"\$HOP_FAIL"* ]] && exit 1
+exec "$T/stub/as" "\$@"
+STUB
 chmod +x "$T/stub/"*
 printf 'SPOOL_AGENT_USER=%s\n' "$DU" >"$T/box.env.half"
 printf 'SPOOL_AGENT_USER=%s\nSPOOL_DESK_USER=%s\n' "$DU" "$DU" >"$T/box.env.moved"
@@ -86,8 +102,10 @@ dead() { rm -rf "$T/proc/4242"; }
 lock() { chmod 000 "$RB"; }
 
 # in_orc BOXENV ASCMD CODE: CODE with every orc func file sourced, as caller A.
+# PRE: what the call runs under (the outer limit of cases 8).
+PRE=()
 in_orc() {
-  env -u SPOOL_DESK_USER -u SPOOL_AGENT_USER -u SPOOL_BOX_USER -u LEASE_DESK_DIR -u LEASE_HUB_CMD \
+  "${PRE[@]}" env -u SPOOL_DESK_USER -u SPOOL_AGENT_USER -u SPOOL_BOX_USER -u LEASE_DESK_DIR -u LEASE_HUB_CMD \
     PATH="$T/stub:$PATH" HOME="$HA" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_ORG_APP="$OA" ENV=prd \
     SPL_STATE_DIR="$RA" SPL_SPOOL="$RA/bin/spool" SPL_HUB_URL=http://hub.invalid SPL_DESK_AS_CMD="$2" SPOOL_BOX_ENV="$1" \
     LEASE_ENV=prd LEASE_TENANT=t1 LEASE_DESK_BOX=sat LEASE_PROC_ROOT="$T/proc" SPOOL_ROOT="$T/spool" LEASE_DIR="$T/spool/dispatch" LEASE_LOG="$T/spool/dispatch/lease.log" \
@@ -199,6 +217,52 @@ in_orc "$T/box.env.half" as 'spl_fleet_desk_able' >/dev/null; gate="$(hops)"
 in_orc "$T/box.env.half" as 'spl_fleet_hub_once --fleet main --role dispatch' >/dev/null; hub="$(hops)"
 (( gate <= 4 )) && pass "7a. the gate costs at most 4 hops (locate + pid + log + mtime), got $gate" || fail "7a. gate hops $gate"
 (( hub <= 2 )) && pass "7b. a hub call costs at most 2 hops (locate + call), got $hub" || fail "7b. hub hops $hub"
+chmod 700 "$RB"
+
+# --- 8. a hung hop is cut, at every step: the outer limit is never what ends it --
+# limited RC-NAME OUT: "outer limit" when the 15 s limit ended the call (no rc line).
+export LEASE_HOP_TIMEOUT=2
+limited() { [[ "$2" == *"$1="* ]] && printf '%s\n' "$2" || echo "outer limit: $2"; }
+PRE=(timeout 15)
+for step in "8a. every hop hangs, from the locate|HOP_HANG|--" "8b. the pid read hangs|HOP_HANG|cat " "8c. the log read hangs|HOP_HANG|tail " \
+  "8d. the mtime read hangs|HOP_HANG|stat " "8e. a hop deaf to TERM|HOP_DEAF|cat "; do
+  IFS='|' read -r name var pat <<<"$step"
+  fresh; desk "$RB"; sidecar; lock
+  out="$(limited able_rc "$(export "$var=$pat"; in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')")"
+  unset "$var"
+  has "$name: not able, within the limit" "able_rc=1" "$out"
+done
+fresh; desk "$RB"; sidecar; lock
+out="$(limited hub_rc "$(HOP_HANG=-- LEASE_HUB_TIMEOUT=2 in_orc "$T/box.env.half" as-sel 'spl_fleet_hub_once --fleet main --role dispatch; echo "hub_rc=$?"')")"
+has "8f. a hub call whose locate hangs: returns" "hub_rc=" "$out"
+hasnt "8f. ...and is no success" "hub_rc=0" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(limited asks_rc "$(HOP_HANG=-- LEASE_ASKS=1 in_orc "$T/box.env.half" as-sel 'spl_lease_asks_tick; echo "asks_rc=$?"')")"
+eq "8g. the asks starter whose locate hangs: returns" "asks_rc=0" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(limited able_rc "$(in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')")"
+eq "8h. control: the same hop, not broken: able" "able_rc=0" "$out"
+fresh; desk "$RA"; sidecar
+out="$(limited able_rc "$(HOP_HANG=-- in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')")"
+eq "8i. a desk that has not moved: no hop, so nothing to cut" "able_rc=0 0" "$out $(hops)"
+PRE=()
+chmod 700 "$RB"
+
+# --- 9. a hop that fails says so, and never passes the gate ---------------------
+stale_up() { # the sidecar restarted after its only "up" line
+  touch "$RB/desk/t1/sat/spool/.hub/hub-run.pid"
+  printf '%s hub session up\n' "$(date -u -d '-1 hour' +%FT%TZ)" >"$RB/desk/t1/sat/spool/.hub/hub-run.log"
+}
+fresh; desk "$RB"; stale_up; sidecar; lock
+out="$(in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')"
+has "9a. control: a stale up line, working hop: not able" "able_rc=1" "$out"
+fresh; desk "$RB"; stale_up; sidecar; lock
+out="$(HOP_FAIL="stat " in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')"
+has "9b. the same, only the mtime hop fails: not able" "able_rc=1" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(HOP_FAIL="cat " in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')"
+has "9c. a healthy desk, the pid hop fails: not able" "able_rc=1" "$out"
+has "9d. ...and the text names the hop, not only a dead sidecar" "the hop to its owner failed" "$out"
 chmod 700 "$RB"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

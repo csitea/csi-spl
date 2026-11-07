@@ -55,6 +55,16 @@ status file could serve the gate only and would still need the hop, plus a new
 writer and a staleness rule. With no way in (no sudo rule, `spl_desk_dir` rc 3)
 the gate reads not able and the calls fail, as before.
 
+Every hop has a limit, because the loop is one thread holding both roles and a
+stall stops renewal for both while its flock keeps `spl_lease_ensure` reporting
+"loop running". The locate and each gate read get `LEASE_HOP_TIMEOUT` (5 s), the
+signed calls and the actions their existing timeouts, all with `timeout -k 1`: a
+plain `timeout` waits as long as a sudo that ignores TERM. A hop that is cut or
+fails reads not able for that call, and the gate's text names the hop. What no
+limit can cut: a child stuck in the kernel keeps the output pipe open, so `$(...)`
+waits for it; the direct read before the move had the same exposure. A desk that
+has not moved runs no `timeout`.
+
 Measured on sat 2026-11-07 at load ~55 (n=3 reads, n=5 gates): a desk not moved,
 gate 333 -> 167 ms and hub read 368 -> 201 ms (the walk of the roots is gone); a
 moved desk, gate 544 ms and hub read 567 ms.

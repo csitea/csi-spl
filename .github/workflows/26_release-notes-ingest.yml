@@ -1,0 +1,102 @@
+# 26 ops: the release notes follow master on EVERY push, dev and prd (SPL-4961).
+#
+# Owner HUM-10, t1 8bb3f993: "WHY TODAY THERE ARE NO COMMITS !!!???". The only
+# ingest steps sat in 20 and 30, and those run only when their inputs changed,
+# so a push of docs or orc alone reached Reporting -> Releases at the next hub
+# or WUI deploy, hours later. This workflow deploys nothing: it runs one action,
+# csi-spl-orc do_release_note_ingest, which POSTs the newest 500 commits to the
+# env's hub. 20 and 30 keep their step: it is what brings a version right after
+# the mint.
+#
+# A commit that no v-tag contains yet goes in without a version and gains it at
+# a later ingest (the hub keeps the first version it is given). Until then
+# Reporting -> Releases lists it with no version chip, /releases/<sha> opens its
+# note, and the release notes modal's list leaves it out: that list is per
+# version (spec 065 section 7.2).
+#
+# Concurrency: one run per env at a time, and GitHub replaces a pending run with
+# a newer one. Nothing is lost by that: the run that does start re-sends the
+# window of its own commit, and the upsert by sha makes the overlap harmless. A
+# failed run is repaired the same way by the next push, up to 500 commits later.
+#
+# Auth: ONLY the per-env project key secrets GCP_KEY_CSI_SPL_<ENV> (iac 120), as
+# 25 and 45..48; an env without its key is SKIPPED with a notice. A red run is
+# the alert.
+#
+# Local equivalent:
+#   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_release_note_ingest
+
+name: "26 ops: release notes ingest"
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    name: "ingest ${{ matrix.environment }}"
+    # Estate guard (spec 072 A34): it writes OUR live hubs, so it runs only where
+    # SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it. A dispatch
+    # from another branch skips too: only master's commits are release notes.
+    if: (vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl') && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: release-notes-ingest-${{ matrix.environment }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prd]
+    env:
+      ENV: ${{ matrix.environment }}
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-orc
+    steps:
+      - name: Selected?
+        id: sel
+        working-directory: .
+        run: |
+          if [[ "$HAS_KEY" == true ]]; then echo "go=1" >>"$GITHUB_OUTPUT"
+          else echo "go=0" >>"$GITHUB_OUTPUT"; echo "::notice::$ENV skipped: no secret GCP_KEY_CSI_SPL_${ENV^^} (iac 120)"; fi
+
+      # fetch-depth 0: the window is 500 commits and each one's version is read
+      # from the v-tags that contain it
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.sel.outputs.go == '1'
+        with:
+          path: csi/csi-spl
+          fetch-depth: 0
+          persist-credentials: false
+
+      # no auth here: the action activates the env key in its own private
+      # CLOUDSDK_CONFIG and pins --account on every call
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        if: steps.sel.outputs.go == '1'
+
+      - name: SA key to the path the action resolves
+        if: steps.sel.outputs.go == '1'
+        working-directory: .
+        env:
+          KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          printf '%s' "$KEY" >"$HOME/.gcp/.csi/key-csi-spl-$ENV.json"
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-$ENV.json" >/dev/null
+
+      - name: Ingest the release notes (do_release_note_ingest)
+        if: steps.sel.outputs.go == '1'
+        run: DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./run -a do_release_note_ingest
+
+      - name: Drop the key
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

@@ -1,6 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description The deploy-time release-note ingest (spec 065 L5): read the
+# @description The release-note ingest (spec 065 L5), run on every master push
+# @description (workflow 26, SPL-4961) and by the deploys 20 and 30: read the
 # @description newest trunk commits and POST them to the hub's
 # @description /v1/operator/release-notes, the rows the release notes modal
 # @description (the version pop-up's "Release notes") lists. Without this
@@ -15,7 +16,7 @@
 # @description after it on the first-parent line); a commit no tag carries
 # @description yet goes without one and gains it on a later ingest (the hub
 # @description keeps the first version it is given). Idempotent: the hub
-# @description upserts by sha, so every deploy re-sends its window.
+# @description upserts by sha, so every run re-sends its window.
 # @description A missing note never fails it (the row is state=missing); a
 # @description row the hub rejects is a WARN; only no HTTP 200 is FATAL.
 # @description Every batch names the workspace whose issues the messages

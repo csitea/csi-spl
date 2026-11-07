@@ -98,7 +98,7 @@ Rules for the agent:
 | column | from |
 |---|---|
 | `sha` | the commit (primary key) |
-| `version` | the first release tag that contains the commit (filled by the deploy that minted it): its full name, `v<X.Y.Z>` in cycle 1, `v<X.Y.Z>-c<N>` from cycle 2 on (rdb 0114, 4.2.1) |
+| `version` | the first release tag that contains the commit (empty until a tag contains the commit, then filled by the next ingest, and kept from then on): its full name, `v<X.Y.Z>` in cycle 1, `v<X.Y.Z>-c<N>` from cycle 2 on (rdb 0114, 4.2.1) |
 | `committed_at` | commit date, ISO 8601 UTC |
 | `kind` | the subject prefix (`fix`, `feat`, `perf`, ...) |
 | `area` | the subject scope `(wui)`, else the top-level dir touched (`csi-spl-api`, ...) |
@@ -258,9 +258,15 @@ https://<<run-time>>.csitea.net/releases/<sha>
   that version's list.
 - The route loads the app and opens `ReleaseNotesDialog` on that note, so
   the link and the footer button show the same modal, not two pages.
-- The link exists the moment the commit is on trunk: the row is ingested on
-  deploy, and until then the modal shows the trailers read straight from
-  the commit with "not deployed yet".
+- The link exists within minutes of the commit landing on trunk: workflow
+  `26_release-notes-ingest.yml` ingests the row on every push to master, dev
+  and prd, with no deploy (L14, SPL-4961). The earlier wording here, trailers
+  read straight from the commit with "not deployed yet", was never built.
+- A row no version tag contains yet has no version. Its note opens by sha,
+  with no version chip; Reporting -> Releases lists it with no version chip,
+  in its day; the modal's list, which is grouped by version, leaves it out
+  until the next ingest after the mint gives it one
+  (`store.ListReleaseNotes`: `version IS NOT NULL`).
 - The dev WUI and the prd WUI each serve the link; a post names the one the
   commit was released to.
 
@@ -387,6 +393,7 @@ so the migration was `0106` or the next free number at build time; 0106 and
 | L13a | write backfill notes, versions 1..34 of the 100 before the version where L2 went live (newest first) | git notes on its own ref `refs/notes/release-notes-backfill-a` only; no file in the tree | `check-release-note.func.sh` (L2) over every note in the range: six trailers or a 5.2 form; the ingest hygiene filter on the note text | L2; Q6 scope confirmed |
 | L13b | the same, versions 35..67 | `refs/notes/release-notes-backfill-b` only | as L13a | as L13a |
 | L13c | the same, versions 68..100 | `refs/notes/release-notes-backfill-c` only | as L13a | as L13a |
+| L14 | ingest on every push to master, without a deploy (SPL-4961): a push of docs or orc alone runs neither 20 nor 30, so the table fell behind master until the next deploy (owner HUM-10, t1 `8bb3f993`). 20 and 30 keep their step, which brings the version right after the mint | `.github/workflows/26_release-notes-ingest.yml` (new), `csi-spl-orc/src/bash/tests/release-notes-ingest-wf26.tst.sh` (new) | its `.tst.sh`: every push, no deploy line, no new secret, per-env concurrency, the real step; a replaced pending run loses no commit | L5 |
 
 L13a..c are disjoint because each pushes only its own notes ref; the ranges
 are fixed as version lists once L2 is live, before the three lanes start.

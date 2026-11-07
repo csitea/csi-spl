@@ -104,8 +104,12 @@ nothing (SPL-4513, round 2 of the console errors, SPL-4509 rows 1-6). The
 product screens are `/`, `/lobby`, `/search` and every path under
 `PRODUCT_ROOTS` (`csi-spl-wui/src/utils/signed-out-redirect.mjs`): channel, dm,
 t, settings, monitoring (all tabs), reporting (all tabs), notes, issues,
-archive, workspace/docs, agents, boxes and events; the early head script
-(`signed-out-redirect-script.mjs`) lists the same roots. Public, checked:
+archive, workspace/docs, agents, boxes, events, people, users and
+tenant-settings (SPL-4937); the early head script
+(`signed-out-redirect-script.mjs`) lists the same roots. Not `/login`, each by
+its own code: `/calendar` sends a visitor to `/public-calendar`
+(`pages/calendar.vue`), and `/goals/<id>` reads a public roadmap of the page
+host (`useRoadmapGoals`). Public, checked:
 `/releases` (row 7 waits for the owner), `/docs` (its own door), `/login`,
 `/reset-password`, `/verify-email`, `/checkout`, `/embed`, `/blog`, `/help`,
 `/roadmap`, `/public-calendar`, `/m/<id>`. While the session is `'out'`,
@@ -119,7 +123,8 @@ Tests: `tests/unit/signed-out-member-pages.test.mjs`,
 `tests/unit/signed-out-socket-close.test.mjs` (the sign-out close path,
 and no upload-token redial while out),
 `tests/e2e/signed-out-member-pages.test.mjs` (0 `view/me`, 0
-`webSocketCreated` on /monitoring and /issues).
+`webSocketCreated` on /monitoring, /issues, /people, /users, /tenant-settings,
+and /calendar and /goals/<id> staying off `/login`).
 
 ### US6 — Thread verbosity (P5) — Partial
 

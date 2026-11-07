@@ -3,6 +3,8 @@
 // pages used to mount for a visitor and read member endpoints: 170 of 202
 // console lines in c-743's crawl (401 /v1/view/me, reporting, notes, archive,
 // fleet lanes, and the hub socket). Public pages stay where they are.
+// SPL-4937: /people, /users and /tenant-settings joined them; /calendar and
+// /goals/<id> were checked and each keep their own signed-out path.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -19,7 +21,7 @@ const early = (path) => earlyLoginHref({
   cookieKey: SIGNED_OUT_HINT_COOKIE, locales: [...SIGNED_OUT_LOCALE_CODES], defaultLocale: 'en',
 })
 
-/* every route added by SPL-4513, with a tab or an id below it */
+/* every route added by SPL-4513 and SPL-4937, with a tab or an id below it */
 const MEMBER = [
   '/monitoring', '/monitoring/agents', '/monitoring/boxes', '/monitoring/costs', '/monitoring/events',
   '/monitoring/file-streams', '/monitoring/lanes', '/monitoring/tokens', '/monitoring/topics',
@@ -29,7 +31,10 @@ const MEMBER = [
   '/workspace/docs', '/workspace/docs?doc=x',
   '/agents', '/agents/c-001', '/boxes', '/boxes/sat',
   '/events',
+  '/people', '/people/HUM-1', '/people/contact/new', '/users', '/users?edit=x',
+  '/tenant-settings', '/tenant-settings/members', '/tenant-settings/agent-keys',
   '/fi/monitoring/lanes', '/fi/issues', '/he/reporting/releases', '/monitoring/',
+  '/fi/people', '/fi/tenant-settings/general',
 ]
 
 /* checked to stay public: /releases waits for the owner (row 7), the docs
@@ -40,7 +45,14 @@ const PUBLIC = [
   '/verify-email', '/reset-password', '/checkout', '/embed', '/blog', '/blog/a-post',
   '/help', '/help/getting-started', '/roadmap', '/public-calendar', '/m/abc',
   '/monitoringx', '/reportingx', '/issuesx', '/workspace', '/workspace/other', '/agentsx', '/eventsx',
+  '/peoplex', '/usersx', '/tenant-settingsx',
 ]
+
+/* not /login, each by its own code, so never in PRODUCT_ROOTS: a visitor of
+   /calendar goes to the public calendar (HUM-10 ef57739c, pages/calendar.vue,
+   signedOutCalendarTarget), and a goal page reads a public roadmap of the page
+   host signed out (spec 112 WUI-3, useRoadmapGoals) */
+const OWN_DOOR = ['/calendar', '/fi/calendar', '/goals/G01-x', '/fi/goals/G01-x']
 
 describe('member-only pages send a signed-out visitor to /login', () => {
   for (const path of MEMBER) {
@@ -60,6 +72,21 @@ describe('member-only pages send a signed-out visitor to /login', () => {
       assert.equal(early(path), '', `early ${path}`)
     })
   }
+
+  for (const path of OWN_DOOR) {
+    it(`${path} keeps its own signed-out path, not /login`, () => {
+      assert.equal(isProductScreen(path), false, path)
+      assert.equal(signedOutLoginTarget(path, 'out', false), null, path)
+      assert.equal(early(path), '', `early ${path}`)
+    })
+  }
+
+  it('/public-calendar is not caught by a /calendar root', () => {
+    for (const path of ['/public-calendar', '/fi/public-calendar', '/public-calendar/']) {
+      assert.equal(isProductScreen(path), false, path)
+      assert.equal(early(path), '', `early ${path}`)
+    }
+  })
 })
 
 describe("no member read while the session is 'out'", () => {

@@ -154,7 +154,7 @@ site "$OG" 200 image/webp 200 'text/html;charset=utf-8'; cs
 site - 200 image/webp 200 image/webp
 echo "<html><head><meta property=\"og:image\" content=\"$OG\"></head></html>" >"$T/body/page2"
 echo "$SITE/blog/$ID 200 text/html page2" >"$MAP.then"; cs
-((rc == 1)) && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG" "$T/o" && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html" "$T/o" &&
+((rc == 1)) && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG, page 200 text/html (at " "$T/o" && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html" "$T/o" &&
   pass "a page with no og:image that clears on the re-ask still reds the check" || fail "page cleared: rc=$rc $(cat "$T/o")"
 
 site "$OG" 200 'text/html;charset=utf-8' 200 'text/html;charset=utf-8'; cs "" "$SITE" BLOG_SERVED_REASK_URLS=1

@@ -60,6 +60,8 @@ box-link-watch      | * * * * *       | src/bash/scripts/box-link-watch-cron.sh 
 zombie-topics     | */15 * * * *    | src/bash/scripts/zombie-topics-cron.sh                  | zombie-topics/cron.log | | desk
 # spec 166 row B8: the night's reflection, gathered and queued once a night on the dispatch holder's box
 reflection        | */15 * * * *    | src/bash/scripts/reflection-cron.sh                     | reflection/cron.log   | | desk
+# SPL-4988 (spec 065 L15): a master commit older than the limit has no release note row; posts from the dispatch holder's box
+release-notes-lag-alarm | */15 * * * * | src/bash/scripts/release-notes-lag-alarm-cron.sh | release-notes-lag-alarm/cron.log | | desk
 # reliability round (spec 146, SPL-4064): one row per box check; row 10 runs
 # in workflow 45_db-backup.yml. Cadences: csi-spl-doc/specs/146-reliability-round/tasks.md section 4.
 rel-systemd-unit    | */5 * * * *        | src/bash/scripts/rel-systemd-unit-cron.sh | rel/systemd-unit.log |

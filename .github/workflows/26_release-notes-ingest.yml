@@ -22,8 +22,13 @@
 #
 # A failed ingest does not turn the run red (continue-on-error, as in 20 and 30):
 # a red run would hold the close of the lane that pushed, and that lane cannot
-# fix a hub 5xx. So NOTHING alerts on a failed ingest: the failure shows only on
-# the step, and do_spl_deploy_failure_poll watches 20 and 30, not this workflow.
+# fix a hub 5xx. GitHub reports such a failed step as conclusion=success in the
+# jobs API, run 42371501011 (n=1, a planted exit 1 on a throwaway branch: outcome
+# failure, conclusion success); only the step's log and annotation show it. So a
+# green run or step here says nothing about the ingest, no run alerts on it, and
+# do_spl_deploy_failure_poll watches 20 and 30, not this workflow. What alerts is
+# the outcome: do_spl_release_notes_lag_alarm (SPL-4988, box cron) posts in #alerts
+# when a master commit older than its limit has no row, whatever the runs say.
 #
 # Auth: ONLY the per-env project key secrets GCP_KEY_CSI_SPL_<ENV> (iac 120), as
 # 25 and 45..48; an env without its key is SKIPPED with a notice.

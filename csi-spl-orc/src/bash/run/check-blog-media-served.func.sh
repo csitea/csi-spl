@@ -40,7 +40,9 @@ do_check_blog_media_served() {
   while IFS=$'\t' read -r id img; do
     og="$(spl_blog_served_og "$site/blog/$id")" ||
       { bad+=("$id: $site/blog/$id names no og:image, answers $og"); ask+=("og $site/blog/$id"); og=""; }
-    og="${og%%, page *}"
+    # The last separator: a URL holding ", page " stays whole and is asked as named.
+    # A header holding it gives a false red, never a false green.
+    og="${og%, page *}"
     for u in "$site/blog/img/$img" ${og:+"$og"}; do
       n=$((n + 1))
       why="$(spl_blog_served_image "$u")" || { bad+=("$id: $u answers $why, not an image"); ask+=("image $u"); }

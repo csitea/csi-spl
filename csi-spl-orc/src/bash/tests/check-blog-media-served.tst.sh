@@ -17,6 +17,10 @@
 #   7. a page cut off after its og:image (curl fails on a 200) still reds the
 #      check, as `curl -f` did, with curl's rc logged. CONTROL: a copy that
 #      ignores the rc goes green (red)
+#   8. R7 on 2116b7c1c: an og:image URL holding ", page " is asked whole; a header
+#      holding it is a false red, never a green; a page answering anything but
+#      200 fails even with its og:image; no ask carries --retry. CONTROL for each
+#      (red)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -51,10 +55,10 @@ if ((asks > 1)) && [[ -f "$MAP.then" ]]; then
   then_line="$(awk -v u="$url" '$1 == u { print; exit }' "$MAP.then")"
   [[ -n "$then_line" ]] && line="$then_line"
 fi
-[[ -n "$line" ]] || line="$url 200 text/html;charset=utf-8"
+[[ -n "$line" ]] || line="- 200 text/html;charset=utf-8"
 read -r _ code type body <<<"$line"
 if ((w)); then
-  node="$(awk -v u="$url" '$1 == u { print $2; exit }' "$MAP.node" 2>/dev/null)"
+  node="$(awk -v u="$url" '$1 == u { sub(/^[^ ]+ /, ""); print; exit }' "$MAP.node" 2>/dev/null)"
   [[ -n "$node" ]] && printf 'HTTP/2 %s\r\nX-Served-By: %s\r\nx-cache: MISS\r\n\r\n' "$code" "$node"
   [[ "$out" != /dev/null && -n "$out" && -n "${body:-}" ]] && cat "$BODY_DIR/$body" >"$out"
   printf '%s %s' "$code" "$type"
@@ -177,6 +181,43 @@ fi
 site "$OG" 200 'text/html;charset=utf-8' 200 'text/html;charset=utf-8'; cs "" "$SITE" BLOG_SERVED_REASK_URLS=1
 ((rc == 1)) && grep -q "re-asking the first 1 of the 2 failing URLs" "$T/o" && [[ "$(asks "$OG")" == 1 && "$(asks "$SITE/blog/img/$ID.webp")" == 3 ]] &&
   pass "only the first BLOG_SERVED_REASK_URLS failing URLs are re-asked: the wait stays bounded" || fail "cap: rc=$rc $(cat "$T/o")"
+
+# --- 8. the og URL, the page's status, no retry inside an ask (R7 c-318) ------
+site "$OG, page 2" 200 image/webp 200 image/webp; cs
+((rc == 1)) && grep -q "$ID: $OG, page 2 answers 200 text/html" "$T/o" &&
+  pass "an og:image URL holding ', page ' is asked whole, only its shorter URL exists: rc 1" || fail "og sep: rc=$rc $(cat "$T/o")"
+sed 's/og="${og%, page \*}"/og="${og%%, page *}"/' "$ACTION" >"$T/m-sep.sh"
+if cmp -s "$ACTION" "$T/m-sep.sh"; then fail "CONTROL og sep: the sed changed nothing"; else
+  cs "$T/m-sep.sh"
+  ((rc == 0)) && pass "CONTROL: a copy cutting at the first separator passes that page (red)" || fail "CONTROL og sep: still rc=$rc"
+fi
+
+site "$OG" 200 image/webp 200 image/webp; echo "$SITE/blog/$ID cache, page 9" >"$MAP.node"; cs
+((rc == 1)) && grep -qF "$OG, page 200 text/html (at " "$T/o" &&
+  pass "the known limit: a page header holding ', page ' is a false red, never a false green" || fail "header limit: rc=$rc $(cat "$T/o")"
+
+for code in 201 302 404 500; do
+  site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$SITE/blog/$ID 200 |$SITE/blog/$ID $code |" "$MAP"; cs
+  ((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers $code text/html" "$T/o" &&
+    pass "a page answering $code with its og:image: rc 1" || fail "page $code: rc=$rc $(cat "$T/o")"
+done
+sed 's/"$got" =~ ^200\\  && //' "$ACTION" >"$T/m-status.sh"
+if cmp -s "$ACTION" "$T/m-status.sh"; then fail "CONTROL page status: the sed changed nothing"; else
+  cs "$T/m-status.sh"
+  ((rc == 0)) && pass "CONTROL: a copy that accepts any page status passes the 500 page (red)" || fail "CONTROL page status: still rc=$rc"
+fi
+
+curls() { grep -c '^curl ' "$T/calls.log"; }
+retries() { grep -cE '^curl .*--retry' "$T/calls.log"; }
+site "$OG" 200 image/webp 200 image/webp; cs
+[[ "$(curls)" == 4 && "$(retries)" == 0 ]] && pass "a good site: none of its 4 asks carries --retry" || fail "retry good: $(curls) asks, $(retries) retries"
+site "$OG" 200 'text/html;charset=utf-8' 200 'text/html;charset=utf-8'; cs
+[[ "$(curls)" == 8 && "$(retries)" == 0 ]] && pass "a failing site: none of its 8 asks and re-asks carries --retry" || fail "retry failing: $(curls) asks, $(retries) retries"
+sed 's/curl -/curl --retry 3 --retry-all-errors -/' "$ACTION" >"$T/m-retry.sh"
+if cmp -s "$ACTION" "$T/m-retry.sh"; then fail "CONTROL retry: the sed changed nothing"; else
+  site "$OG" 200 image/webp 200 image/webp; cs "$T/m-retry.sh"
+  [[ "$(retries)" == 4 ]] && pass "CONTROL: a copy with a retry inside its curl is seen on all 4 asks (red)" || fail "CONTROL retry: $(retries) of $(curls)"
+fi
 
 # --- 5. wf 30 wiring ----------------------------------------------------------
 if command -v yq >/dev/null; then

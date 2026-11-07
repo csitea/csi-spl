@@ -258,3 +258,23 @@ func TestCursorCodexSeats(t *testing.T) {
 		t.Errorf("x-001 / d-002 are no role seats: no such letter")
 	}
 }
+
+// TestRetired: a legacy agent id past the deadline, and nothing else.
+func TestRetired(t *testing.T) {
+	pin(t, LegacyUntil.Add(time.Second))
+	for _, c := range []struct {
+		id   string
+		want bool
+	}{
+		{"CLE-100006", true}, {"AGY-4444", true}, {"GRK-1", true}, {"QWN-04", true},
+		{"c-004", false}, {"HUM-10", false}, {"BOX-0", false}, {"ORC-1", false}, {"CLE-1@box-b", false}, {"", false},
+	} {
+		if got := Retired(c.id); got != c.want {
+			t.Errorf("Retired(%q) = %v past the deadline, want %v", c.id, got, c.want)
+		}
+	}
+	pin(t, LegacyUntil) // CONTROL: the same id is not retired yet
+	if Retired("CLE-100006") {
+		t.Error("Retired(CLE-100006) = true at the deadline, want false")
+	}
+}

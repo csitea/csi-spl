@@ -154,6 +154,11 @@ func Normalize(s string) string {
 // Expired reports whether legacy ids are past LegacyUntil on clock Now.
 func Expired() bool { return Now().After(LegacyUntil) }
 
+// Retired reports whether s is a bare legacy agent id past LegacyUntil. It
+// names history only: the one write it still takes is closing the lane row it
+// left behind (SPL-4962), and that write keeps the id, never its alias.
+func Retired(s string) bool { return Expired() && IsLegacy(Normalize(s)) }
+
 // RetiredError is the FR-003 refusal of a legacy id after the deadline.
 type RetiredError struct {
 	ID  string // the legacy id refused

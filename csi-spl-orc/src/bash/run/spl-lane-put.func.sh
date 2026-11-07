@@ -6,7 +6,9 @@
 # @description given. Without a fleet (no LANE_FLEET / lease.conf LEASE_FLEET)
 # @description there is no shared map: it logs that and exits 0. A hub that does
 # @description not answer is exit 2 (the callers treat the write as best effort).
-# @param LANE_AGENT (required) - the agent id, e.g. CLE-77920; its box is LANE_BOX (default spl_desk_box_default)
+# @description A retired id (spec 061) takes one write past its cutoff: LANE_STATE=done
+# @description on a row it already has (SPL-4962). Live stays refused.
+# @param LANE_AGENT (required) - the agent id, e.g. c-042; its box is LANE_BOX (default spl_desk_box_default)
 # @param LANE_STATE (optional) - live (default) or done
 # @param LANE_REPO / LANE_BRANCH / LANE_SCOPE / LANE_TOPIC (optional) - the row's fields; the scope is cut to one line of 500 bytes
 # @param LANE_ISSUE (optional) - the lane's issue key, e.g. SPL-12 (spec 153 3.4); a done write keeps the row's key
@@ -20,10 +22,15 @@ declare -F spl_lane_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
 
 do_spl_lane_put() {
-  local state="${LANE_STATE:-live}" cur="" scope files
+  local state="${LANE_STATE:-live}" cur="" scope files retired=0
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  spl_is_participant_id "${LANE_AGENT:-}" || { do_log "FATAL LANE_AGENT must be an agent id like c-042, got '${LANE_AGENT:-}'"; return 1; }
   [[ "$state" =~ ^(live|done)$ ]] || { do_log "FATAL LANE_STATE must be live or done"; return 1; }
+  # Same grammar as the Go agentid.Retired: the hub and `spool lane` take this write too
+  if [[ "$state" == "done" && "${LANE_AGENT:-}" =~ ^(CLE|AGY|GRK|QWN)-[0-9]+$ ]] && ! spl_legacy_id_ok; then
+    retired=1
+  else
+    spl_is_participant_id "${LANE_AGENT:-}" || { do_log "FATAL LANE_AGENT must be an agent id like c-042, got '${LANE_AGENT:-}'"; return 1; }
+  fi
   spl_lane_init || return 1
   if [[ "$LANE_MODE" != hub ]]; then
     do_log "INFO no fleet (LANE_FLEET / LEASE_FLEET in lease.conf): the lane map is this machine's worktrees, nothing to write"
@@ -35,6 +42,10 @@ do_spl_lane_put() {
     # the box field comes back as two lines ("sat box-desk")
     cur="$(spl_lane_hub --fleet "$LANE_FLEET" 2>/dev/null | jq -c --arg a "$LANE_AGENT" --arg b "$LANE_BOX" \
       '[.lanes[]? | select(.agent_id == $a and .agent_box == $b)] | first // empty' 2>/dev/null)"
+    if (( retired )) && [[ -z "$cur" ]]; then
+      do_log "FATAL no row of $LANE_AGENT@$LANE_BOX read from the hub: a retired id only closes a row it has"
+      return 1
+    fi
   fi
   # lane_was <field>: that field of the hub row read above ("" without one);
   # a LANE_* set in the environment, even empty, wins over it

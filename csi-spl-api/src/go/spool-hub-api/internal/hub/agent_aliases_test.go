@@ -75,3 +75,49 @@ func TestAgentIDRenameAccept(t *testing.T) {
 	}
 	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "c-005", Box: "box-b", Topic: "t-1", Issue: "SPL-1", State: "done"})
 }
+
+// SPL-4962: past the deadline a retired id's lane row can still be closed,
+// and only closed. The done write keeps the id it was given: its alias is
+// another lane's row, and the row being closed is under the old id.
+func TestLaneRetiredIDDoneOnly(t *testing.T) {
+	e, tid, _, _, home, sat := boxArchiveRig(t)
+	ctx := context.Background()
+	pinAgentClock(t, agentid.LegacyUntil.Add(-time.Minute))
+	for _, b := range []string{"box-b", "box-c"} { // no alias yet: the rows stay under the old id
+		laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "CLE-77952", Box: b, Topic: "unknown", Issue: "unknown"})
+	}
+	laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: "c-004", Box: "box-b", Topic: "t-1", Issue: "SPL-1"})
+	if _, _, err := e.st.PutAgentAlias(ctx, tid, store.AgentAlias{OldID: "CLE-77952", NewID: "c-004", Kind: "claude", BoxID: "box-b"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	pinAgentClock(t, agentid.LegacyUntil.Add(time.Second))
+
+	// CONTROL: live past the deadline stays refused, an explicit state or none
+	for _, row := range []string{`{"agent_id":"CLE-77952","agent_box":"box-b","topic":"unknown","issue_key":"unknown","state":"live"}`,
+		`{"agent_id":"CLE-77952","agent_box":"box-b","topic":"unknown","issue_key":"unknown"}`} {
+		if _, err := home.c.Lane(ctx, "put", "main", json.RawMessage(row)); err == nil ||
+			!strings.Contains(err.Error(), "CLE-77952 is retired as an id; use c-004") {
+			t.Fatalf("%s: %v", row, err)
+		}
+	}
+	// a done write closes that row under the old id, from any box of the tenant
+	got := laneCall(t, sat, action.LaneArgs{Fleet: "main", Agent: "CLE-77952", Box: "box-b", Topic: "unknown", Issue: "unknown", State: "done"})
+	if len(got.Lanes) != 1 || got.Lanes[0].AgentID != "CLE-77952" || got.Lanes[0].State != "done" {
+		t.Fatalf("done on a retired id: %+v", got)
+	}
+	ls, err := e.st.ListFleetLanes(ctx, tid, "main", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := map[string]string{}
+	for _, l := range ls {
+		s[l.AgentID+"@"+l.AgentBox] = l.State
+	}
+	if len(s) != 3 || s["CLE-77952@box-b"] != "done" || s["CLE-77952@box-c"] != "live" || s["c-004@box-b"] != "live" {
+		t.Fatalf("rows after the close: %v (the alias's row and the other box's stay live)", s)
+	}
+	// a done write in the <id>@<box> form stays refused: a row carries a bare id
+	if _, err := home.c.Lane(ctx, "put", "main", json.RawMessage(`{"agent_id":"CLE-77952@box-c","agent_box":"box-c","topic":"unknown","issue_key":"unknown","state":"done"}`)); err == nil {
+		t.Fatal("accepted a done write with a box in the id")
+	}
+}

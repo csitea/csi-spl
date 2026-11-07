@@ -581,6 +581,26 @@ out="$(on pc do_spl_lane_put "${F[@]}" SPOOL_NOW=2026-10-04T00:00:00Z LANE_AGENT
 out="$(on pc do_spl_lane_put "${F[@]}" SPOOL_NOW=2026-10-03T12:00:00Z LANE_AGENT=CLE-77920)"; rc=$?
 [[ $rc -eq 0 ]] && pass "control: the same legacy id before the cutoff is accepted" || fail "legacy before cutoff (rc=$rc): $out"
 
+# SPL-4962: a retired id takes one write past its cutoff, closing the row it
+# left. Rows seeded before the cutoff; the same id on two boxes closes one.
+PAST=SPOOL_NOW=2026-10-04T00:00:00Z; BEFORE=SPOOL_NOW=2026-10-03T12:00:00Z
+row_state() { jq -r --arg a "$1" --arg b "$2" '[.lanes[] | select(.agent_id == $a and .agent_box == $b)][0] | "\(.state // "none") \(.scope // "")"' "$T/hub/main.json"; }
+on pc do_spl_lane_put "${F[@]}" "$BEFORE" LANE_AGENT=CLE-77921 LANE_BOX=box-desk LANE_SCOPE='old lane' LANE_TOPIC=unknown LANE_ISSUE=unknown >/dev/null
+on pc do_spl_lane_put "${F[@]}" "$BEFORE" LANE_AGENT=CLE-77921 LANE_BOX=sat LANE_SCOPE='old lane' LANE_TOPIC=unknown LANE_ISSUE=unknown >/dev/null
+out="$(on pc do_spl_lane_put "${F[@]}" "$PAST" LANE_AGENT=CLE-77921 LANE_BOX=sat LANE_STATE=live)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"got 'CLE-77921'"* && "$(row_state CLE-77921 sat)" == "live old lane" ]] &&
+  pass "control: a retired id stays refused on a live write, its row untouched" || fail "retired live (rc=$rc): $out / $(row_state CLE-77921 sat)"
+out="$(on pc do_spl_lane_put "${F[@]}" "$PAST" LANE_AGENT=CLE-77921 LANE_BOX=sat LANE_STATE=done)"; rc=$?
+[[ $rc -eq 0 && "$(row_state CLE-77921 sat)" == "done old lane" && "$(row_state CLE-77921 box-desk)" == "live old lane" ]] &&
+  pass "a retired id's row closes past the cutoff, keeps its fields, its other box's row stays live" ||
+  fail "retired done (rc=$rc): $out / sat $(row_state CLE-77921 sat) / box-desk $(row_state CLE-77921 box-desk)"
+out="$(on pc do_spl_lane_put "${F[@]}" "$PAST" LANE_AGENT=CLE-77999 LANE_BOX=sat LANE_STATE=done)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"no row of CLE-77999@sat"* && "$(row_state CLE-77999 sat)" == "none " ]] &&
+  pass "a retired id with no row is refused, a done write mints none" || fail "retired no row (rc=$rc): $out / $(row_state CLE-77999 sat)"
+out="$(on pc do_spl_lane_put "${F[@]}" "$PAST" LANE_AGENT=ORC-1 LANE_BOX=sat LANE_STATE=done)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"got 'ORC-1'"* ]] &&
+  pass "control: only a legacy agent id gets the close, ORC-1 is still refused" || fail "ORC-1 done (rc=$rc): $out"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "lane-map: all passed"; exit 0; fi
 echo "lane-map: $fails FAILED"; exit 1

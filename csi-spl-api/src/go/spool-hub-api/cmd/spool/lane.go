@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
@@ -31,8 +32,10 @@ func cmdLane(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if err := edgeIDs(cfg, map[string]*string{"agent": agent}); err != nil {
-		return fail(err)
+	if *state != "done" || !agentid.Retired(*agent) { // a retired id may only close its row (SPL-4962)
+		if err := edgeIDs(cfg, map[string]*string{"agent": agent}); err != nil {
+			return fail(err)
+		}
 	}
 	var fl []string
 	for _, p := range strings.Split(*files, ",") {

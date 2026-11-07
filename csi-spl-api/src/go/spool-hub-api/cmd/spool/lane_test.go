@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 )
 
 // TestLanePutCarriesIssue: `spool lane --issue SPL-1` puts a row carrying
@@ -40,5 +43,34 @@ func TestLanePutCarriesIssue(t *testing.T) {
 	rc, _, errOut := capture(t, "", func() int { return cmdLane(cfg, bad) })
 	if rc != 1 || !strings.Contains(errOut, "issue_key must be an issue key") || len(h.Frames()) != n {
 		t.Errorf("bad key: rc %d %q, %d frames sent, want rc 1 refused locally", rc, errOut, len(h.Frames())-n)
+	}
+}
+
+// TestLaneRetiredIDDoneOnly (SPL-4962): past the spec 061 deadline `spool lane`
+// sends a done write on a retired id as written; live stays refused before
+// anything is sent (CONTROL).
+func TestLaneRetiredIDDoneOnly(t *testing.T) {
+	old := agentid.Now
+	t.Cleanup(func() { agentid.Now = old })
+	agentid.Now = func() time.Time { return agentid.LegacyUntil.Add(time.Second) }
+	h := newScriptHub(t, laneAnswer(map[string]string{"put": `{"fleet":"main","lanes":[]}`}), nil)
+	cfg := hubCfg(t, h.URL)
+	base := []string{"--fleet", "main", "--agent", "CLE-100006", "--box", "box-a", "--topic", "unknown", "--issue", "unknown"}
+
+	rc, _, errOut := capture(t, "", func() int { return cmdLane(cfg, append(append([]string{}, base...), "--state", "live")) })
+	if rc != 1 || !strings.Contains(errOut, "CLE-100006 is retired as an id") || len(h.Frames()) != 0 {
+		t.Fatalf("live: rc %d %q, %d frames, want rc 1 refused locally", rc, errOut, len(h.Frames()))
+	}
+	rc, _, errOut = capture(t, "", func() int { return cmdLane(cfg, append(append([]string{}, base...), "--state", "done")) })
+	if rc != 0 {
+		t.Fatalf("done: rc %d %q", rc, errOut)
+	}
+	fr := h.Frames()
+	var row map[string]any
+	if err := json.Unmarshal(fr[len(fr)-1].Lane, &row); err != nil {
+		t.Fatal(err)
+	}
+	if row["agent_id"] != "CLE-100006" || row["state"] != "done" {
+		t.Errorf("done row %v, want CLE-100006 done", row)
 	}
 }

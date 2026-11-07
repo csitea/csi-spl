@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -134,7 +135,7 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 		if err := json.Unmarshal(f.Lane, &in); err != nil {
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane must be a lane row object"}
 		}
-		agent, ae := s.resolveAgent(ctx, x.tenant, in.AgentID, in.AgentBox)
+		agent, ae := s.laneAgent(ctx, x.tenant, in)
 		if ae != nil {
 			return laneAnswer{}, ae
 		}
@@ -176,6 +177,16 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 		return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be put, list or archived"}
 	}
 	return out, nil
+}
+
+// laneAgent is the agent id a put stores: the edge rule (resolveAgent), except
+// that a done write on a retired id keeps that id. Closing the row is the one
+// write a retired id takes (SPL-4962), and its alias's row is another lane's.
+func (s *Server) laneAgent(ctx context.Context, tenant string, in LaneRow) (string, *issueErr) {
+	if in.State == "done" && agentid.Retired(in.AgentID) {
+		return agentid.Normalize(in.AgentID), nil
+	}
+	return s.resolveAgent(ctx, tenant, in.AgentID, in.AgentBox)
 }
 
 // laneTopic is the topic a put stores: an 8-hex short id becomes the one

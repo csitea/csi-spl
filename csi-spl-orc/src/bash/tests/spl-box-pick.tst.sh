@@ -427,6 +427,41 @@ out="$(q BOX_PICK_KIND=claude)"
 out="$(q BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90)"
 [[ "$(pick "$out")" == box-b ]] && pass "16. BOX_QUOTA_WEEKLY_MAX_PCT overrides the cnf" || fail "16. env: $out"
 
+# 16d. a logged review seat (SPL-4966): BOX_PICK_REVIEW_SEAT=1 holds at
+# review_seat_max_pct, clamped to weekly_max_pct..99, so 100% always holds
+sq() { q BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90 BOX_PICK_REVIEW_SEAT=1 "$@"; }
+wk "box-a:claude:96:60" "box-b:claude:91:60"
+out="$(sq)"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: claude weekly >= 90% on box-a, box-b' <<<"$out" &&
+  pass "16d. seat, no review_seat_max_pct anywhere: the weekly mark, no pass" || fail "16d. unset: $out"
+out="$(sq BOX_QUOTA_REVIEW_SEAT_MAX_PCT=nonsense)"
+[[ "$(pick "$out")" == hold ]] && pass "16d. seat, a mark that is no number: no pass" || fail "16d. nonsense: $out"
+printf '      review_seat_max_pct: 97\n' >>"$T/cnf.yaml"
+out="$(q BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90)"
+[[ "$(pick "$out")" == hold ]] && pass "16d. CONTROL the cnf key set, no seat: an ordinary lane still holds at 90" || fail "16d. control: $out"
+out="$(sq)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^BOX box-a .*  claude weekly 96%  <- pick$' <<<"$out" &&
+  pass "16d. seat, cnf mark 97: box-a at 96% is picked" || fail "16d. pass: $out"
+wk "box-a:claude:97:60" "box-b:claude:91:60"
+out="$(sq)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  claude weekly 97% >= 97%: not picked$' <<<"$out" &&
+  pass "16d. seat: a box AT the mark is skipped, the next one under it is picked" || fail "16d. at mark: $out"
+wk "box-a:claude:97:60" "box-b:claude:100:60"
+out="$(sq)"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: claude weekly >= 97% on box-a, box-b' <<<"$out" &&
+  pass "16d. seat: every box at or over the mark -> hold" || fail "16d. all over: $out"
+wk "box-a:claude:100:60" "box-b:claude:100:60"
+out="$(sq BOX_QUOTA_REVIEW_SEAT_MAX_PCT=100)"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: claude weekly >= 99% on' <<<"$out" &&
+  pass "16d. seat at 100%, the mark set to 100: clamped to 99, it holds" || fail "16d. 100: $out"
+wk "box-a:claude:99:60" "box-b:claude:99:60"
+out="$(sq BOX_QUOTA_REVIEW_SEAT_MAX_PCT=500)"
+[[ "$(pick "$out")" == hold ]] && pass "16d. seat at 99%, the mark set to 500: clamped to 99, it holds" || fail "16d. 500: $out"
+wk "box-a:claude:91:60" "box-b:claude:91:60"
+out="$(sq BOX_QUOTA_REVIEW_SEAT_MAX_PCT=50)"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: claude weekly >= 90% on' <<<"$out" &&
+  pass "16d. a mark under weekly_max_pct: raised to it, a seat is never stricter" || fail "16d. low: $out"
+wk "box-a:claude:96:60" "box-b:claude:40:60"
 # 16. the reading: the banner as a pane footer shows it (spl_box_quota_parse)
 parse() { bash -c 'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_parse "$@"' _ "$@"; }
 N=$(date -u -d 2026-10-15T19:00:00Z +%s)

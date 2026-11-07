@@ -61,6 +61,10 @@
 # @description reset that passed, or a row an hour old with no reset ahead is
 # @description unknown, not 0: the box stays in and an INFO line names the picked
 # @description box's unknown usage.
+# @description BOX_PICK_REVIEW_SEAT=1 (the placer, for a logged review seat,
+# @description SPL-4966): the weekly mark is cnf env.box.quota.review_seat_max_pct
+# @description (95, at most 99, spl_box_quota_seat_max), so at 100% it holds too.
+# @description No other rule of the pick changes.
 # @description A CORDONED box is never picked (sat alone panel row 01, SPL-2629):
 # @description do_spl_box_cordon's live marker <spool root>/dispatch/cordon/<box>
 # @description (spl-box-cordon.func.sh). Its line says "CORDONED (until <UTC>)";
@@ -78,6 +82,8 @@
 # @param BOX_PICK_OVERFLOW (optional) - the overflow mark as % of each box's high mark, default 200 (100 = hold at high)
 # @param BOX_PICK_KIND (optional) - claude|grok|agy|qwen|mistral: leave out the boxes measured without its CLI or at its weekly limit
 # @param BOX_QUOTA_WEEKLY_MAX_PCT (optional) - overrides cnf env.box.quota.weekly_max_pct, default 90
+# @param BOX_PICK_REVIEW_SEAT (optional) - 1: a logged review seat, the weekly mark is the review seats', default 0
+# @param BOX_QUOTA_REVIEW_SEAT_MAX_PCT (optional) - overrides cnf env.box.quota.review_seat_max_pct; unset everywhere = weekly_max_pct, no pass
 # @param BOX_PICK_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param BOX_PICK_DISK_MOUNTS (optional) - the agent data mount candidates, first listed wins, default "/mnt/data /"
 # @param DISK_HEADROOM_BLOCK_PCT (optional) - the disk mark, as the headroom guard reads it, default 85
@@ -137,8 +143,14 @@ do_spl_box_pick() {
     "$(jq -r .max_age_s <<<"$cicnf")" "$LANE_BOX" "$(spl_box_ci_jobs)")"
   spl_box_pick_decide "$target" "$stats" "$seed" "$since" "$overflow" "$health" "$ci" "$cicnf" \
     "$(spl_box_pick_nokind "$rows" "${BOX_PICK_KIND:-}")" "${BOX_PICK_KIND:-}" \
-    "$(spl_box_pick_quota "$rows" "${BOX_PICK_KIND:-}")" "$(spl_box_quota_max "$cnf")" "$(spl_box_cordon_active)" \
+    "$(spl_box_pick_quota "$rows" "${BOX_PICK_KIND:-}")" "$(spl_box_pick_wkmax "$cnf")" "$(spl_box_cordon_active)" \
     "$(spl_box_disk_from_stats "$stats")" "$(spl_box_disk_marks | cut -d' ' -f1)"
+}
+
+# spl_box_pick_wkmax CNF -> this pick's weekly mark: the review seats' for a
+# logged review seat (BOX_PICK_REVIEW_SEAT=1), else weekly_max_pct.
+spl_box_pick_wkmax() {
+  if [[ "${BOX_PICK_REVIEW_SEAT:-0}" == 1 ]]; then spl_box_quota_seat_max "$1"; else spl_box_quota_max "$1"; fi
 }
 
 # spl_box_pick_quota ROWS KIND -> KIND's weekly usage per box, {"<box>": pct}

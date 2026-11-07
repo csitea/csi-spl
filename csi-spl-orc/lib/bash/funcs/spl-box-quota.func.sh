@@ -371,6 +371,27 @@ spl_box_quota_max() {
   echo "$v"
 }
 
+# spl_box_quota_seat_max [CNF]: the weekly mark of a logged review seat (SPL-4966;
+# spec 146, what-broke-20261106 section 7 item 3), a whole %: cnf
+# env.box.quota.review_seat_max_pct, env BOX_QUOTA_REVIEW_SEAT_MAX_PCT overrides.
+# A seat is read only and finishes work already written, so it passes the hold
+# between weekly_max_pct and this mark. Why 95: usage rose 1.4 points an hour on
+# 11-06 (81 at 02:25, 97 at 13:55; n=1 day), so 95 leaves about 3.5 h. That is no
+# guarantee: after a reading of 90+ the next one came 0.83..5.92 h later (sat, n=6),
+# so 3 of those 6 gaps fit and a seat can still reach the limit. Then the vendor
+# refuses the turn, the CLI's banner reads 100, nothing more is placed and the seat
+# stalls like any lane. Never over 99, whatever the cnf says: a login at 100 answers
+# no turn. Never under weekly_max_pct; unset or not a number = weekly_max_pct: no pass.
+spl_box_quota_seat_max() {
+  local v="${BOX_QUOTA_REVIEW_SEAT_MAX_PCT:-}" max
+  max="$(spl_box_quota_max "${1:-}")"
+  [[ -z "$v" && -r "${1:-}" ]] && command -v yq >/dev/null && v="$(yq '.env.box.quota.review_seat_max_pct // ""' "$1" 2>/dev/null)"
+  [[ "$v" =~ ^[0-9]+$ ]] || v="$max"
+  (( v > 99 )) && v=99
+  (( v < max )) && v="$max"
+  echo "$v"
+}
+
 # spl_box_quota_from_rows LANES_JSON ROW_ID MAX_AGE_S KIND [HERE HERE_WK]:
 # KIND's weekly usage per box as {"<box>": pct}, from each box's freshest live
 # BOX-0 row, scope field wk=<kind>:<pct>[@<reset epoch>],...; HERE_WK (this

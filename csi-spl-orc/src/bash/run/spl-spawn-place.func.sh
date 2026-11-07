@@ -149,7 +149,18 @@
 # @description         the request (fleet_asks work_kind, category_path) for
 # @description         the token rollup by category; a brief without them
 # @description         places as before, a refused path is one WARN line
+# @description   2a. REVIEW SEATS (SPL-4966, spec 146) - a logged review seat
+# @description      (spl_spawn_place_seats) finishes work already written, so its
+# @description      launch carries BOX_PICK_REVIEW_SEAT=1: do_spl_box_pick then
+# @description      holds it at cnf env.box.quota.review_seat_max_pct (95, at most
+# @description      99), not at weekly_max_pct. At that mark, at 100%, and on every
+# @description      other hold (window ceiling, load, disk, cordon, pin, agy out) it
+# @description      stays queued like any lane; held SPAWN_PLACE_SEAT_ALARM_MIN (30)
+# @description      or more in line, the dispatch lease holder gets ONE blocker and
+# @description      #alerts one post naming the hold (spl_spawn_place_seat_alarm)
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
+# @param SPAWN_PLACE_SEAT_ALARM_MIN (optional) - minutes in line after which a held logged review seat alarms, default 30
+# @param SPAWN_PLACE_SEAT_ALARM_GAP_MIN (optional) - minutes between two such alarms at least; a seat due meanwhile goes in the next one, default 30
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements at most (the ceiling), default 10
 # @param SPAWN_PLACE_HOLD_TRIES (optional) - rows one tick tries while the launcher answers HOLD (SPL-4265), default 5
@@ -193,6 +204,7 @@ do_spl_spawn_place() {
   fi
   spl_spawn_place_supply "$holder" "$rows"
   rows="$(spl_spawn_place_mark "$rows")"
+  spl_spawn_place_seat_alarm "$holder" "$rows"
   if jq -e 'any(.[]; .state == "acked" and ._l and (._h | not))' >/dev/null <<<"$rows"; then
     do_log "INFO placing $(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$rows"): one at a time, $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued"
     return 0
@@ -386,19 +398,70 @@ spl_spawn_place_band_sample() {
   return 0
 }
 
-# 3b. The queued review seat (placement slug ending in -reviewer) whose ask the
-# local bypass log holds on the review-seat GO, first by position; nothing
-# when none. The hub keeps such a row unflagged (a bypass is a feature flag
-# there, rdb 0195), so the log is its record (spl_spawn_q_enqueue). The ids
-# go to jq as a file: the log only grows (SPL-4156).
+# 3b. The first logged review seat of ROWS by position, nothing when none.
 spl_spawn_place_seat() {  # ROWS
+  jq -c '.[0] // empty' <<<"$(spl_spawn_place_seats "$1")"
+}
+
+# The logged review seats of ROWS by position, a JSON array: queued, placement
+# slug ending in -reviewer, ask in the local bypass log on the review-seat GO.
+# The hub keeps such a row unflagged (a bypass is a feature flag there, rdb
+# 0195), so the log is its record (spl_spawn_q_enqueue). The ids go to jq as a
+# file: the log only grows (SPL-4156).
+spl_spawn_place_seats() {  # ROWS
   local f
   f="$(spool_asks_dir)/bypass.tsv"
-  [[ -s "$f" ]] || return 0
+  [[ -s "$f" ]] || { echo '[]'; return 0; }
   declare -F spl_spawn_q_review_seat_go >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-enqueue.func.sh"
   jq -c --slurpfile ids <(awk -F'\t' -v m="$SPL_SPAWN_REVIEW_SEAT_GO" '$3 == m { print $2 }' "$f" | jq -R -s -c 'split("\n") | map(select(length > 0))') \
     '$ids[0] as $ids | [.[] | select(.state == "queued" and ((.placement // "") | sub("^[^:]*:"; "") | test("-reviewer$"))
-    and (.ask_id as $a | $ids | index($a)))] | sort_by(.position) | .[0] // empty' <<<"$1"
+    and (.ask_id as $a | $ids | index($a)))] | sort_by(.position)' <<<"$1"
+}
+
+# 2a. A logged review seat under a hold: on 11-06 three R7 seats waited 320-406
+# min under the weekly hold and their authors sat on written work (spec 146,
+# what-broke-20261106 3.2). A seat SPAWN_PLACE_SEAT_ALARM_MIN (30) or more in line
+# (wait_s: enqueued_at, kept across a re-queue) that a hold stops alarms ONCE per
+# ask: one blocker to the dispatch lease holder (none: HOLDER), one #alerts post.
+# The hold is its .place.wait line (a launcher HOLD, a pin, agy out, a brief on
+# another box), else the room check without its gap: the gap is a pace, no hold.
+# Time in line alone is no alarm: 209 of 412 logged seats since 10-31 took 30 min
+# or more from log to close (journal updated_at, an upper bound). At most one
+# alarm per SPAWN_PLACE_SEAT_ALARM_GAP_MIN; a seat due meanwhile goes in the next.
+# Neither channel took it: retried next tick. Never stops the tick.
+spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
+  local d f now gap=$(( ${SPAWN_PLACE_SEAT_ALARM_GAP_MIN:-30} * 60 )) id place min why room="" to text ok=0 lines="" fired=() out
+  d="$(spool_asks_dir)"; f="$d/.place.seat-alarm"; now="$(date +%s)"
+  (( now - $(stat -c %Y "$f.last" 2>/dev/null || echo 0) >= gap )) || return 0
+  [[ -e "$f" ]] || : >"$f"
+  grep -xF -f <(jq -r '.[].ask_id' <<<"$2") "$f" 2>/dev/null | sort -u >"$f.$$"; mv -f "$f.$$" "$f"
+  while IFS=$'	' read -r id place min; do
+    why="$(awk -F'	' -v i="$id" '$1 == i { print $3; exit }' "$d/.place.wait" 2>/dev/null)"
+    if [[ -z "$why" ]]; then
+      [[ -n "$room" ]] || room="$(SPAWN_PLACE_GAP_MIN=0 spl_spawn_place_no_room)" || room="-"
+      [[ "$room" != - ]] || continue
+      why="$room"
+    fi
+    lines+=$'
+'"- ask ${id:0:8} ($place), $min min in line: $why"
+    fired+=("$id")
+  done < <(spl_spawn_place_seats "$2" | jq -r --argjson s "$(( ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} * 60 ))" --rawfile seen "$f" '
+    ($seen | split("
+")) as $d | .[] | select((.wait_s // 0) >= $s and (.ask_id as $a | $d | index($a) | not))
+    | "\(.ask_id)	\(.placement)	\(.wait_s / 60 | floor)"')
+  (( ${#fired[@]} > 0 )) || return 0
+  text="**SPAWN QUEUE: ${#fired[@]} review seat(s) held ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} min or more, and their authors wait on them.**$lines"$'
+
+'"A logged seat passes a weekly hold below env.box.quota.review_seat_max_pct, never at 100%; no other hold is passed. The queue: \`./run -a do_spl_spawn_queue\`."
+  to="$(spl_spawn_place_dispatch)"
+  spl_spawn_q_send "$1" "${to:-$1}" blocker spawn-queue "$text" && ok=1
+  if out="$(spl_asks_alert_post "${1%@*}" "$text" 6>&-)"; then ok=1; else do_log "WARN the review-seat alarm did not post in #alerts: ${out:0:200}"; fi
+  (( ok == 1 )) || { do_log "WARN the review-seat alarm reached nobody: retried next tick"; return 0; }
+  printf '%s
+' "${fired[@]}" >>"$f"
+  touch "$f.last"
+  do_log "ALERT review seat(s) held:$(tr '
+' ' ' <<<"$lines")"
 }
 
 # 1. Placing requests quiet SPAWN_PLACE_LOCK_MIN go back in line. 0 = one did.
@@ -1117,9 +1180,13 @@ spl_spawn_place_brief() {  # SLUG
 # a failure puts it back in line. PIN (a hand-pinned slug's box) is its
 # SPAWN_BOX.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
-  local holder="$1" id out err rc=0 agent why
+  local holder="$1" id out err rc=0 agent why seat=0
   id="$(jq -r '.ask_id' <<<"$2")"
   err="$(mktemp)" || return 1
+  if [[ "$(spl_spawn_place_seats "[$2]")" != '[]' ]]; then
+    seat=1
+    do_log "INFO ask ${id:0:8} is a logged review seat: it launches on the review-seat weekly mark (env.box.quota.review_seat_max_pct)"
+  fi
   # The lane row's topic (spec 153 3.4): the ask's topic, set once for both
   # launch lines, when it is a full hub uuid, or the 8 hex of a dispatch-<topic8>
   # task, which the hub resolves to the full uuid at put (3.12); any other
@@ -1137,9 +1204,9 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   # stdout is the launcher's "<ID>[@<box>] <PANE>"; its stderr names other ids
   if [[ -n "${SPAWN_PLACE_LAUNCH_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    out="$(SPAWN_BOX="${6:-}" $SPAWN_PLACE_LAUNCH_CMD "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err")" || rc=$?
+    out="$(SPAWN_BOX="${6:-}" BOX_PICK_REVIEW_SEAT="$seat" $SPAWN_PLACE_LAUNCH_CMD "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err")" || rc=$?
   else
-    out="$(SPAWN_BOX="${6:-}" SPOOL_AGENT_ID="${holder%@*}" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
+    out="$(SPAWN_BOX="${6:-}" BOX_PICK_REVIEW_SEAT="$seat" SPOOL_AGENT_ID="${holder%@*}" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
       "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err" 6>&-)" || rc=$?
   fi
   out="$out"$'\n'"$(tail -3 "$err")"; rm -f "$err"

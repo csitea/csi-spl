@@ -115,6 +115,9 @@ DESK_ENV=(SPOOL_DESK_USER="$DESK_USER")
 agent_spawn "$(id -un)"
 has "6b. desk user set, box user = the spawner: the pick runs as the desk user" "$DESK_USER env HOME=$DESK_HOME SPOOL_ROOT=$SPOOL_ROOT" "$(cat "$T_TMP/hop.calls" 2>/dev/null)"
 has "6b. ... and is used" "placing auto on $OTHER" "$OUT"
+DESK_ENV=(SPOOL_DESK_USER="$DESK_USER" BOX_PICK_REVIEW_SEAT=1)
+agent_spawn "$(id -un)"
+has "6c. a logged review seat: the hop carries its weekly mark to the pick (SPL-4966)" "BOX_PICK_REVIEW_SEAT=1" "$(cat "$T_TMP/hop.calls" 2>/dev/null)"
 DESK_ENV=(SPOOL_DESK_USER="$(id -un)")
 agent_spawn "$DESK_USER"
 check "6b. desk user = the spawner, box user another: no hop" test ! -e "$T_TMP/hop.calls"

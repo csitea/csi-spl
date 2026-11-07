@@ -101,3 +101,48 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
   gap is SPL-4632).
 
 Test: `csi-spl-orc/src/bash/tests/alert-issue-tick.tst.sh`.
+
+## A review seat under a capacity hold (SPL-4966)
+
+On 11-06 three R7 seats waited 320-406 min under the claude weekly hold (n=3)
+and their authors sat on written work (`what-broke-20261106/consensus.md`
+section 3.2, section 7 item 3). All three asks are in the bypass log:
+`grep -E 'SPL-49(09|11|12)' <asks dir>/bypass.tsv` -> `41de5270`, `d68a50cf`,
+`5ef12b51`. The rule, in `do_spl_spawn_place` and `do_spl_box_pick`:
+
+- **Who**: a logged review seat: placement slug ending in `-reviewer`, its ask
+  in the local bypass log on the standing review-seat GO
+  (`spl_spawn_place_seats`). A row with neither is an ordinary lane.
+- **The pass, and its limit**: such a seat holds on the vendor's weekly usage
+  only at cnf `env.box.quota.review_seat_max_pct` (95), not at `weekly_max_pct`
+  (90). Why 95: usage rose 1.4 points an hour on 11-06 (81 at 02:25, 97 at 13:55,
+  n=1 day, the weekly-limit-alert cron log), so 95 leaves about 3.5 h. The three
+  asks of 11-06 were raised at 09:26, 10:12 and 11:00, while the reading was 90 (it
+  stood at 90 from 09:00 to 12:40): they would have passed. Under the kept 97 from
+  13:58 they would not; the alarm covers that case.
+- **The mark is no guarantee**: after a reading of 90 or more the next one came
+  0.83, 1.25, 2.75, 3.67, 4.92 and 5.92 h later (sat, 10-27..11-07, n=6), so 3.5 h
+  fits 3 of the 6, and a seat can reach the limit on an old reading. What seats burn
+  is not measured.
+- **At 100%**: nothing is placed. The code clamps the mark to at most 99
+  whatever the cnf says (`spl_box_quota_seat_max`), so a seat never starts on a
+  login that answers no turn. It stays queued, with the reason in `.place.wait`.
+  A seat already running when the limit comes stalls like any lane (the watchdog's
+  S2 kind=limit). An unset mark means no pass.
+- **What is not passed**: every other hold: the window ceiling, the load mark,
+  disk, a cordon, a pin to a full box, agy out of quota. Those protect a real
+  limit too.
+- **The alarm**: a logged seat 30 min or more in line (`enqueued_at`) that a
+  hold stops gets ONE alarm per ask, whatever the hold: a blocker to the dispatch
+  lease holder and a post in #alerts, naming the seat and the hold. The gap between
+  launches is a pace, no hold. At most one alarm per 30 min; a seat due meanwhile
+  goes in the next. `SPAWN_PLACE_SEAT_ALARM_MIN`, `SPAWN_PLACE_SEAT_ALARM_GAP_MIN`.
+- **Limit of the alarm**: it needs the placer's tick, so it runs on the box
+  holding the orch role, and the bypass log is local to the box where the seat was
+  queued: a seat queued on another box is no logged seat here, neither for the
+  pass nor the alarm. A launcher hold is known only after one launch try, so the
+  alarm can come one tick after 30 min.
+
+Test: `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` (case 40),
+`spl-box-pick.tst.sh` (case 16d), `spawn-agents/tests/test-spawn-load-target.sh`
+(case 6c).

@@ -64,6 +64,7 @@ do_spl_alert_issue_tick() {
     return 1
   fi
   spl_ai_holder_here || return 0
+  spl_ai_moved && return "$AI_HOP_RC"
   mkdir -p "$dir" || return 1
   exec 6>>"$dir/.lock"
   flock -n 6 || { exec 6>&-; return 0; }
@@ -105,6 +106,22 @@ spl_ai_conf() {
     [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v"
   done < <(grep -E '^ALERT_ISSUE(_DISCUSSION|_EPIC|_DRY_RUN|_LANES_PER_DAY)?=[A-Za-z0-9-]+$' "$f")
   return 0
+}
+
+# spl_ai_moved: 0 when the lease's desk moved and the whole tick just re-ran
+# as its owner, whose rc is in AI_HOP_RC; 1 when it runs here. The asks tick
+# starts this tick from the fleet lease loop, which stays the box user's, and
+# spl_ai_desk, the status reads and every filing need the desk (spec 069 8.4,
+# R7 W1 of SPL-4985 by c-369). The owner reads the GCP source with its own HOME.
+spl_ai_moved() {
+  local ENV="${ENV:-}" TENANT_ID="${TENANT_ID:-}" box hop_to v
+  local -a vars=(APP_PATH ORG APP)
+  spl_lane_issue_where "$root" >/dev/null 2>&1 || return 1
+  box="${DESK_BOX:-$(spl_desk_box_default)}"
+  hop_to="$(spl_desk_action_hop_to "$TENANT_ID" "$box")" || return 1
+  while read -r v; do vars+=("$v"); done < <(compgen -v ALERT_ISSUE)
+  AI_HOP_RC=0
+  spl_desk_action_hop do_spl_alert_issue_tick "$hop_to" "$TENANT_ID" "$box" "${DESK_AGENT:-}" "${vars[@]}" || AI_HOP_RC=$?
 }
 
 # 0 when this machine's agent holds the orch role. AI_HOLDER = <ID>@<box>.

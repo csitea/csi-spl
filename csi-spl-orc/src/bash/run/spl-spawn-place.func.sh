@@ -802,8 +802,9 @@ spl_spawn_place_no_links() {  # ROW BRIEF
   [[ -z "$why" ]] || printf 'lane refused, %s\n' "$why"
 }
 
-# Reopen the auto-closed epic BRIEF names (li_epic_reopen) as the lease's desk
-# (spl_lane_issue_desk, in a subshell: its ENV / DESK_AGENT stay there).
+# Reopen the auto-closed epic BRIEF names (do_spl_epic_reopen) as the lease's
+# desk, in a subshell: its ENV / DESK_AGENT stay there. A moved desk re-runs it
+# as the desk's owner (spec 069 8.4, R7 W1 of SPL-4985).
 # Prints nothing when it reopened, else WHY with the failure for the hand-off.
 # COMMENT (optional) replaces the placer's comment on the epic (the enqueue's).
 spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
@@ -812,9 +813,10 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
     . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || { printf '%s\n' "$3"; return 0; }
   epic="$(li_brief_epic_spec "$1" 2>/dev/null)"; epic="${epic#*$'\t'}"
   if out="$(
-    declare -F spl_lane_issue_desk >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-issue.func.sh"
-    spl_lane_issue_desk "${SPOOL_ROOT:-/var/spool-hub}" 0 &&
-      li_epic_reopen "$epic" "${4:-Reopened by do_spl_spawn_place: auto-closed (SPL-1729), head brief $2 names it on its Epic: line, and its lane files its issue under it (SPL-2558).}" 2>&1
+    declare -F do_spl_epic_reopen >/dev/null || source "$PROJ_PATH/src/bash/run/spl-epic-reopen.func.sh"
+    EPIC_KEY="$epic" DRY_RUN=0 \
+      EPIC_COMMENT="${4:-Reopened by do_spl_spawn_place: auto-closed (SPL-1729), head brief $2 names it on its Epic: line, and its lane files its issue under it (SPL-2558).}" \
+      do_spl_epic_reopen 2>&1
   )"; then
     do_log "OK $epic reopened: it was auto-closed and brief $2 names it (SPL-2558)" >&2
     return 0

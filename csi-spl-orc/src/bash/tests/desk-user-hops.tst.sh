@@ -317,6 +317,7 @@ eq "7. post: one hop" "1" "$(hop6)"
 has "7. post: the agent user's HOME" "HOP env HOME=$DH " "$log"
 has "7. post: the hop carries the post" " DESK_CHANNEL=alerts" "$log"
 has "7. post: the hop runs the post" "$PROJ_ROOT/run -a do_spl_desk_post" "$log"
+has "7. post: the env goes along" " ENV=dev " "$log"
 hasnt "7. post: no FATAL in the caller" "no desk for" "$out"
 has "7. post: the hopped run's rc" "rc=7" "$(act7 do_spl_desk_post hop-g AS_RC=7)"
 out="$(act7 do_spl_desk_post hop-g SPOOL_DESK_USER="$DU")"
@@ -350,6 +351,7 @@ mkdir -p "$T/pa8"
 out="$(ack8 hop-g)"; log="$(cat "$T/as.log")"
 eq "8. poll ack: the fleet desk moved: one hop" "1" "$(hop6)"
 has "8. poll ack: the hop runs the scan" "$PROJ_ROOT/run -a do_spl_desk_poll_ack" "$log"
+has "8. poll ack: the env goes along" " ENV=dev " "$log"
 has "8. poll ack: the hop carries its inputs" " POLL_ACK_MAX_AGE=45" "$log"
 has "8. poll ack: the hopped run's rc" "rc=7" "$(ack8 hop-g AS_RC=7)"
 ack8 hop-h >/dev/null
@@ -376,6 +378,7 @@ out="$(li9)"; log="$(cat "$T/as.log")"
 eq "9. lane issue: the lease's desk moved: one hop" "1" "$(hop6)"
 has "9. lane issue: the agent user's HOME" "HOP env HOME=$DH " "$log"
 has "9. lane issue: the hop runs the action" "$PROJ_ROOT/run -a do_spl_lane_issue" "$log"
+has "9. lane issue: the env goes along" " ENV=dev " "$log"
 has "9. lane issue: the hop carries the lane" " AGENT_ID=c-777" "$log"
 has "9. lane issue: the hop carries the op" " LANE_ISSUE_OP=end" "$log"
 has "9. lane issue: the hop carries the reason" " LANE_ISSUE_REASON=gate dropped it" "$log"
@@ -411,6 +414,7 @@ fill10() {
 out="$(fill10 SPAWN_FILL_MAX=3)"; log="$(cat "$T/as.log")"
 eq "10. fill: the lease's desk moved: one hop" "1" "$(hop6)"
 has "10. fill: the hop runs the fill" "$PROJ_ROOT/run -a do_spl_spawn_fill" "$log"
+has "10. fill: the env goes along" " ENV=dev " "$log"
 has "10. fill: the hop carries its inputs" " SPAWN_FILL_MAX=3" "$log"
 has "10. fill: the workspace from lease.conf goes along" " TENANT_ID=hop-g" "$log"
 has "10. fill: a live tick stays live" " DRY_RUN=0" "$log"
@@ -425,6 +429,76 @@ has "10. fill: the caller's own desk: the work runs here" "the idle filler is of
 out="$(fill10 SPOOL_ROOT="$T/no-such-root" ENV= TENANT_ID=)"
 eq "10. fill: no lease.conf: no hop" "0" "$(hop6)"
 has "10. fill: no lease.conf: the tick goes on as before" "the idle filler is off" "$out"
+
+# 11. do_spl_alert_issue_tick re-runs as the owner of the moved lease desk
+# (SPL-4985, R7 W1 by c-369). The asks tick starts it from the fleet lease loop,
+# which stays the box user's, and its desk pick, status reads and filings all
+# need the desk. RED before the hop: no hop, the tick runs in the caller.
+LI11="$T/li11"
+mkdir -p "$LI11/dispatch"
+cp "$LI9/dispatch/lease.conf" "$LI11/dispatch/lease.conf"
+# tick11 [VAR=value]...: the tick as the asks tick starts it on the holder's box
+tick11() {
+  : >"$T/as.log"
+  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; spl_desk_box_default() { echo box-x; }; do_spl_alert_issue_tick; echo "rc=$?"' \
+    in_orc SPOOL_ROOT="$LI11" DRY_RUN=0 ALERT_ISSUE_DISCUSSION=6c9aa54b-f876-4ff5-951a-a74f17166904 \
+    ALERT_ISSUE_HOLDER=c-002@box-x ALERT_ISSUE_BOX=box-x ALERT_ISSUE_GCP=0 ALERT_ISSUE_ALERTS_CMD=true ALERT_ISSUE_DISK_CMD=true \
+    SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" "$@" 2>&1
+}
+out="$(tick11)"; log="$(cat "$T/as.log")"
+eq "11. alert tick: the lease's desk moved: one hop" "1" "$(hop6)"
+has "11. alert tick: the agent user's HOME" "HOP env HOME=$DH " "$log"
+has "11. alert tick: the hop runs the tick" "$PROJ_ROOT/run -a do_spl_alert_issue_tick" "$log"
+has "11. alert tick: the hop carries the holder" " ALERT_ISSUE_HOLDER=c-002@box-x" "$log"
+has "11. alert tick: the hop carries the topic" " ALERT_ISSUE_DISCUSSION=6c9aa54b-f876-4ff5-951a-a74f17166904" "$log"
+has "11. alert tick: the workspace from lease.conf goes along" " TENANT_ID=hop-g" "$log"
+has "11. alert tick: the env goes along" " ENV=dev " "$log"
+has "11. alert tick: a live tick stays live" " DRY_RUN=0" "$log"
+has "11. alert tick: the hopped run's rc" "rc=7" "$(tick11 AS_RC=7)"
+[[ ! -e "$LI11/dispatch/alert-issue" ]]; eq "11. alert tick: nothing ran in the caller (no state dir)" "0" "$?"
+tick11 ALERT_ISSUE_HOLDER=c-002@box-y >/dev/null
+eq "11. alert tick: another box holds the orch role: no hop" "0" "$(hop6)"
+tick11 SPL_DESK_HOPPED="$BU" >/dev/null
+eq "11. alert tick: one hop, never a loop" "0" "$(hop6)"
+tick11 TENANT_ID=hop-h >/dev/null
+eq "11. alert tick: the caller's own pinned desk: no hop" "0" "$(hop6)"
+rm -rf "$LI11/dispatch/alert-issue"
+tick11 SPOOL_ROOT="$T/no-such-root" ENV= TENANT_ID= >/dev/null
+eq "11. alert tick: no lease.conf: no hop" "0" "$(hop6)"
+
+# 12. The placer's epic reopen (spl_spawn_place_reopen, SPL-2558) re-runs as the
+# owner of the moved lease desk through do_spl_epic_reopen (SPL-4985, R7 W1 by
+# c-369): its cron row has no manifest row, so it stays the box user's. RED
+# before the hop: no hop, spl_lane_issue_desk in the caller.
+# reopen12 [VAR=value]...: the placer's call, its brief naming epic SPL-55
+reopen12() {
+  : >"$T/as.log"
+  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; spl_desk_box_default() { echo box-x; }
+    . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh"
+    li_brief_epic_spec() { printf "specs/x\tSPL-55\n"; }
+    li_epic_reopen() { echo "REOPENED-HERE $*" >>"$AS_LOG"; }
+    spl_spawn_place_reopen brief12.md c002-x "epic SPL-55 is auto-closed"; echo "rc=$?"' \
+    in_orc SPOOL_ROOT="$LI9" SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" "$@" 2>&1
+}
+out="$(reopen12)"; log="$(cat "$T/as.log")"
+eq "12. epic reopen: the lease's desk moved: one hop" "1" "$(hop6)"
+has "12. epic reopen: the agent user's HOME" "HOP env HOME=$DH " "$log"
+has "12. epic reopen: the hop runs the reopen" "$PROJ_ROOT/run -a do_spl_epic_reopen" "$log"
+has "12. epic reopen: the hop carries the epic" " EPIC_KEY=SPL-55" "$log"
+has "12. epic reopen: the hop carries the placer's comment" " EPIC_COMMENT=Reopened by do_spl_spawn_place" "$log"
+has "12. epic reopen: the workspace from lease.conf goes along" " TENANT_ID=hop-g" "$log"
+has "12. epic reopen: the env goes along" " ENV=dev " "$log"
+has "12. epic reopen: a live reopen stays live" " DRY_RUN=0" "$log"
+hasnt "12. epic reopen: nothing reopened in the caller" "REOPENED-HERE" "$log"
+hasnt "12. epic reopen: the hop's success is no failure" "reopening it failed" "$out"
+has "12. epic reopen: a failed hop is the placer's failure" "reopening it failed" "$(reopen12 AS_RC=7)"
+out="$(reopen12 SPL_DESK_HOPPED="$BU")"
+eq "12. epic reopen: one hop, never a loop" "0" "$(hop6)"
+out="$(reopen12 TENANT_ID=hop-h DESK_AGENT=c-002)"
+eq "12. epic reopen: the caller's own pinned desk: no hop" "0" "$(hop6)"
+has "12. epic reopen: the caller's own desk: reopened here" "REOPENED-HERE SPL-55" "$(cat "$T/as.log")"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

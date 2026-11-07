@@ -1002,12 +1002,17 @@ and 5 dev desks, none with a live sidecar.
 - **A box-user `./run` reaches a moved desk through its owner.**
   `spl_desk_action_hop_to` / `spl_desk_action_hop`
   (`lib/bash/funcs/spl-desk-moved.func.sh`) re-run `do_spl_desk_post`,
-  `do_spl_topic_archive`, `do_spl_desk_poll_ack`, `do_spl_lane_issue` and
-  `do_spl_spawn_fill` once as the desk's owner, with or without
-  `SPOOL_DESK_USER`. `do_spl_desk_poll_ack` hops once the fleet desk moved, so its
+  `do_spl_topic_archive`, `do_spl_desk_poll_ack`, `do_spl_lane_issue`,
+  `do_spl_spawn_fill`, `do_spl_alert_issue_tick` and `do_spl_epic_reopen` once as
+  the desk's owner, with or without `SPOOL_DESK_USER`. `do_spl_desk_poll_ack` hops once the fleet desk moved, so its
   scan sees every moved workspace. `do_spl_lane_issue` is the end line every lane
   is taught to run as the box user; `do_spl_spawn_fill` has its own cron row, no
   manifest row, so step 4 leaves it in the box user's crontab.
+  `do_spl_alert_issue_tick` is started by the asks tick of the fleet loop, which
+  stays the box user's; the hopped tick reads the GCP source with the owner's
+  HOME, so the owner needs the project key there. `do_spl_epic_reopen` is the
+  placer's and the enqueue's reopen of an auto-closed epic (SPL-2558); the
+  placer's cron row, like the filler's, has no manifest row.
   `do_spl_desk_reply` keeps its own rule (8.3.1): it hops only with no
   `SPOOL_DESK_USER`. The other actions that reach `spl_desk_issue_run` do not hop:
   run them as the desk's owner.

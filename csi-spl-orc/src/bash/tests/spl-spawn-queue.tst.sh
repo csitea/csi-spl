@@ -249,6 +249,7 @@ cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
 echo "$*${SPAWN_BOX:+ SPAWN_BOX=$SPAWN_BOX}" >>"$LAUNCH_LOG"
 echo "$5 SPAWN_LANE_TOPIC=${SPAWN_LANE_TOPIC-<unset>}" >>"$LAUNCH_LOG.env"
+echo "$5 BOX_PICK_REVIEW_SEAT=${BOX_PICK_REVIEW_SEAT-<unset>}" >>"$LAUNCH_LOG.seat"
 echo "spawn-window: c-001 asked for $2" >&2
 [ -z "${LAUNCH_ERR:-}" ] || echo "$LAUNCH_ERR" >&2
 if [ -n "${LAUNCH_HOLD_SLUG:-}" ] && [ "$5" = "$LAUNCH_HOLD_SLUG" ]; then
@@ -1568,6 +1569,86 @@ cron SPAWN_PLACE_CRON_ACTION=check >"$T/o" 2>&1 && grep -q 'OK the spawn placer 
   pass "cron: check says installed" || fail "cron check: $(cat "$T/o")"
 cron DRY_RUN=0 SPAWN_PLACE_CRON_ACTION=remove >/dev/null 2>&1
 ! grep -q 'spawn-place' "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" && pass "cron: remove takes only its line" || fail "cron remove: $(cat "$T/crontab")"
+
+# 40. SPL-4966 (spec 146, what-broke-20261106 section 7 item 3). A logged review
+# seat's launch carries the review-seat mark, any other row's does not; a seat
+# a hold stops 30 min alarms once, through both channels, naming the hold.
+AS="$T/asks-seat.log"; printf '#!/usr/bin/env bash\ncat >>"%s"; echo seat-alert-1\n' "$AS" >"$T/bin/alert"; chmod +x "$T/bin/alert"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$T/bin/alert-no"; printf '#!/usr/bin/env bash\nexit 11\n' >"$T/bin/send-no"; chmod +x "$T/bin/alert-no" "$T/bin/send-no"
+Q40="$T/pc/spool/asks"
+seat_clear() {  # no other queued row in the way, no alarm or wait state
+  jq 'map(if .state == "queued" or .state == "acked" then .state = "done" else . end)' "$T/hub/main.json" >"$T/h.$$" && mv "$T/h.$$" "$T/hub/main.json"
+  rm -f "$Q40/.place.seat-alarm" "$Q40/.place.seat-alarm.last" "$Q40/.place.wait" "$Q40/.place.last" "$AS" "$T/send.log" "$T/launch.log.seat"
+  N40=$((N40 + 1))  # the stub takes an ask id once: each case its own
+  K1="$(printf '40%06d-0000-4000-8000-000000000001' "$N40")"; K2="$(printf '40%06d-0000-4000-8000-000000000002' "$N40")"; K3="$(printf '40%06d-0000-4000-8000-000000000003' "$N40")"
+}
+seat_q() {  # ASK SLUG MIN_IN_LINE: queue SLUG as enqueue does, MIN minutes ago
+  printf 'Class: bug\n%s\n' "$ES" >"$T/briefs/$2.md"
+  put "$1" c-002@box-desk "dispatch-$2" "SPAWN REQUEST $2"
+  on pc do_spl_spawn_enqueue ASK_ID="$1" SPAWN_CLASS=bug SPAWN_PLACE="claude:$2" >/dev/null 2>&1
+  jq --arg i "$1" --argjson t "$(( $(date +%s) - $3 * 60 ))" 'map(if .ask_id == $i then .q = $t else . end)' "$T/hub/main.json" >"$T/h.$$" && mv "$T/h.$$" "$T/hub/main.json"
+}
+tick40() { on pc do_spl_spawn_place ASKS_ALERT_CMD="$T/bin/alert" LANES='[]' "$@" 2>&1; }
+alarms() { grep -c 'review seat(s) held' "$T/send.log" 2>/dev/null; }
+posts() { cat "$AS" 2>/dev/null | grep -c 'review seat(s) held'; }
+N40=0
+
+seat_clear; seat_q "$K1" k1-reviewer 0
+tick40 LAUNCH_ID=c-541 >/dev/null
+grep -q '^k1-reviewer BOX_PICK_REVIEW_SEAT=1$' "$T/launch.log.seat" && pass "40a. a logged review seat launches on the review-seat mark" || fail "40a. $(cat "$T/launch.log.seat")"
+seat_clear; seat_q "$K2" k2-plain-fix 0
+tick40 LAUNCH_ID=c-542 >/dev/null
+grep -q '^k2-plain-fix BOX_PICK_REVIEW_SEAT=0$' "$T/launch.log.seat" && pass "40a. CONTROL any other row launches on the weekly mark" || fail "40a. control: $(cat "$T/launch.log.seat")"
+
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick40 LAUNCH_HOLD_SLUG=k1-reviewer)"
+[[ "$(alarms)" == 0 ]] && grep -q 'back in line' <<<"$out" && pass "40b. first HOLD of a seat 31 min in line: no hold was known at the check, nothing yet" || fail "40b. first: $(sends) | $out"
+tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
+[[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "c-001 c-002 blocker spawn-queue .*ask ${K1:0:8} (claude:k1-reviewer), 3[0-9] min in line: waiting: grok weekly >= 90% on box-a" "$T/send.log" &&
+  grep -q "ask ${K1:0:8} (claude:k1-reviewer)" "$AS" && pass "40c. the next tick: one blocker to the dispatch holder and one #alerts post, naming the hold" || fail "40c. $(sends) | $(cat "$AS" 2>/dev/null)"
+rm -f "$Q40/.place.seat-alarm.last"
+tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
+[[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && pass "40d. the same seat, still held, past the alarm gap: no second alarm" || fail "40d. $(sends)"
+
+seat_clear; seat_q "$K1" k1-reviewer 29
+tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null; tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
+[[ "$(alarms)" == 0 && "$(posts)" == 0 ]] && pass "40e. CONTROL held but 29 min in line: no alarm" || fail "40e. $(sends)"
+seat_clear; seat_q "$K2" k2-plain-fix 45
+tick40 LAUNCH_HOLD_SLUG=k2-plain-fix >/dev/null; tick40 LAUNCH_HOLD_SLUG=k2-plain-fix >/dev/null
+[[ "$(alarms)" == 0 ]] && pass "40e. CONTROL a row that is no logged seat, held 45 min: no alarm" || fail "40e. plain: $(sends)"
+
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick40 WINDOWS=40)"
+[[ "$(alarms)" == 1 ]] && grep -q 'agent windows 40 >= the ceiling 40' "$T/send.log" && pass "40f. no launcher line, the window ceiling holds it: the alarm names the ceiling" || fail "40f. $(sends) | $out"
+seat_clear; seat_q "$K1" k1-reviewer 31
+touch "$Q40/.place.last"
+out="$(tick40 SPAWN_PLACE_GAP_MIN=10)"
+[[ "$(alarms)" == 0 ]] && grep -q 'hold: the last placement started' <<<"$out" && pass "40g. CONTROL only the gap between launches holds it: a pace, no alarm" || fail "40g. $(sends) | $out"
+
+seat_clear; seat_q "$K1" k1-reviewer 31; seat_q "$K3" k3-reviewer 33
+tick40 WINDOWS=40 >/dev/null
+[[ "$(alarms)" == 1 ]] && grep -q 'SPAWN QUEUE: 2 review seat(s) held' "$T/send.log" && pass "40h. two seats due in one tick: one alarm naming both" || fail "40h. $(sends)"
+seat_clear; seat_q "$K1" k1-reviewer 31
+tick40 WINDOWS=40 >/dev/null
+seat_q "$K3" k3-reviewer 33
+tick40 WINDOWS=40 >/dev/null
+[[ "$(alarms)" == 1 ]] && pass "40i. a seat due inside the alarm gap waits for the next alarm" || fail "40i. $(sends)"
+touch -d '31 minutes ago' "$Q40/.place.seat-alarm.last"
+tick40 WINDOWS=40 >/dev/null
+[[ "$(alarms)" == 2 ]] && grep -q "SPAWN QUEUE: 1 review seat(s) held.*ask ${K3:0:8}" "$T/send.log" && pass "40i. past the gap: it alarms, alone" || fail "40i. next: $(sends)"
+
+seat_clear; seat_q "$K1" k1-reviewer 31
+tick40 WINDOWS=40 SPAWN_QUEUE_SEND="$T/bin/send-no" ASKS_ALERT_CMD="$T/bin/alert-no" >/dev/null
+[[ ! -s "$Q40/.place.seat-alarm" ]] && pass "40j. neither channel took it: not recorded" || fail "40j. $(cat "$Q40/.place.seat-alarm")"
+tick40 WINDOWS=40 >/dev/null
+[[ "$(alarms)" == 1 ]] && pass "40j. ... and the next tick retries it" || fail "40j. retry: $(sends)"
+seat_clear; seat_q "$K1" k1-reviewer 31
+tick40 WINDOWS=40 SPAWN_QUEUE_SEND="$T/bin/send-no" >/dev/null
+[[ "$(posts)" == 1 && -s "$Q40/.place.seat-alarm" ]] && pass "40k. the blocker failed, #alerts took it: fired, recorded" || fail "40k. $(cat "$AS" 2>/dev/null)"
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick40 WINDOWS=40 ASKS_ALERT_CMD="$T/bin/alert-no")"
+[[ "$(alarms)" == 1 ]] && grep -q 'WARN the review-seat alarm did not post in #alerts' <<<"$out" && pass "40k. #alerts failed, the blocker went: fired, with a WARN" || fail "40k. alert: $(sends) | $out"
+seat_clear
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

@@ -339,7 +339,7 @@ place_box() {
     if [ "$(id -un)" != "$desk_user" ]; then
       # shellcheck disable=SC2206 # a command prefix, split on purpose
       pick_hop=(${SPAWN_PICK_HOP_CMD:-sudo -n -u} "$desk_user" env HOME="$(_spool_home_of "$desk_user")" "SPOOL_ROOT=$SPOOL_ROOT")
-      for k in ENV BOX_PICK_SINCE BOX_PICK_OVERFLOW BOX_PICK_CNF BOX_PICK_KIND LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX SPOOL_BOX_ENV; do
+      for k in ENV BOX_PICK_SINCE BOX_PICK_OVERFLOW BOX_PICK_CNF BOX_PICK_KIND BOX_PICK_REVIEW_SEAT LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX SPOOL_BOX_ENV; do
         [ -n "${!k:-}" ] && pick_hop+=("$k=${!k}")
       done
     fi

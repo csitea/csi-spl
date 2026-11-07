@@ -115,7 +115,8 @@ P7's `left in <SRC>` proof is a move's only.
 v0.27 specifies the "Move to workspace" menu entry (SPL-4999; owner HUM-10, t1
 035cb09e, msg a37901f1): section 8.5, cases C29-C35, rows T14-T20, risks R7 and
 R8, the open questions Q9-Q11 (11.3). No row asked for it until now; the entry
-is not built.
+is not built. T13 ran once on dev: [dev-rehearsal.md](dev-rehearsal.md). The move works, P7 failed
+one proof, so T13 is not passed; R3 and R7 are measured, rows T13b and T13c are new.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -803,6 +804,8 @@ Each row is one small task; files named are where it lands.
 | T11b | `spl_issue_owner_go_from` refuses a copy and a reply that does not say whether it is one; `hub-tail` does not return `copied_from` today. Control: remove the check -> the test goes red. c-001 writes its brief after T11 lands; no prd copy until T11b lands | built (SPL-4838): `spl_issue_owner_go_copy` in `orc/run/spl-issue-create.func.sh` reads the go's messages row through `spl_lane_issue_hub_row` (as the env's service account, in the desk's tenant) once `hub-tail` found it in a linked discussion and its sender is a HUM-<n>; a copy, a row that does not say and a failed read are refused; the T11b cases of `orc/tests/desk-actions.tst.sh`. The check needs a database read: with `DRY_RUN=0`, once `hub-tail` found the go and its sender is a HUM-<n> (a non-human sender is refused first and reads nothing), `do_spl_db_message_show` reads its `messages` row in the `ENV` hub's Postgres. So `ENV` is `dev` or `prd` (`ENV=self` has no cnf and no database: the read is refused, so is the go), and, on the gcp provider (the default), the box needs gcloud, psql, python3 and jq on PATH, the env's service-account key `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (or `SPL_SA_KEY`) that can read the hub DSN secret, and the Cloud SQL Auth Proxy (`cloud-sql-proxy` on PATH, else docker with the cnf proxy image); with `env.cloud.provider: none`, psql, python3, jq and `SPOOL_HUB_DB_DSN`. Any of them missing: the read fails and nothing is filed (SPL-4871) |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
 | T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 on the seeded 3,650-post channel against the box's 30 s client cap (`curl -m 30`, `spl_hub_operator_call`; the hub's Cloud Run request timeout is 600 s); over 30 s means a bug row before the first prd move; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
+| T13b | Decide and build what P7's free-text scan does with a mention left in place by Q4: T13 measured `proof scan messages.body 1` on one staying post that links a moved topic, so any channel another post links fails P7. Then T13 runs again | `api/hub/channel_move_steps.go`, `api/channelmove/proof.go`, their tests |
+| T13c | `KEPT_UNTIL` always prints `not read: no date for hub logs` (T13): Q3's last date never prints. Name the log bucket in the cnf, or print the last date of the copies that have one and say which has none | `orc/run/spl-channel-workspace-move.func.sh`, `api/hub/channel_move_steps.go` (`channelMoveKeptDates`), their tests |
 | T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31. Waits for Q10, Q11 | `api/hub/channel_move_browser.go`, `_test.go`, `openapi.json` |
 | T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33. Waits for Q9 | `api/hub/channel_move_confirm.go`, `_test.go`, `api/hub/channel_move_steps.go`, `openapi.json` |
 | T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
@@ -815,7 +818,7 @@ Note under row T11 (T8c, R7 c-666 N1): P7's `left in <SRC>` proof is a move's on
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8
-before T7; T7 before T9; T9, T10, T7, T7c and T7d before T13; T5 before T7c; T4b, T4d, T9b and T9c before T13. T13 before T14; T14 before T15 and T18; T15 and
+before T7; T7 before T9; T9, T10, T7, T7c and T7d before T13; T5 before T7c; T4b, T4d, T9b and T9c before T13. T13b before T13's second run, and that before T14; T14 before T15 and T18; T15 and
 T17 before T16 and T19; T18 and T19 before T20.
 
 ### 10.1 Lanes
@@ -838,6 +841,8 @@ owner's weekend deadline: lanes with no files in common.
 | L11 | T9b |
 | L12 | T9c |
 | L13 | T4d |
+| L13b | T13b (claude) |
+| L13c | T13c (claude) |
 | L14 | T14 (claude; waits for Q10, Q11) |
 | L15 | T15 (claude; waits for Q9) |
 | L16 | T16 (claude) |
@@ -943,9 +948,9 @@ Q11 Who sees "Move to workspace"? I recommend A.
 |---|---|---|
 | R1 | The pins (`pins`, per workspace) hold the box keys that signed and encrypted the posts (F10). A row moved to a workspace can be stored but not verified unless its box's pin there is the key that signed it, which is normally not so (F10), pinned or not. | `plan` checks each `from_box` is pinned in `<DST>` and refuses, naming the missing ones (T4b); that does not make its rows verify. The hub withholds them from a new seat and counts them (T4c) |
 | R2 | Encrypted posts (`enc`, `for`) are readable only by the boxes named in `for`; a move does not change that. | stated in the operator page (T12) |
-| R3 | A move of the largest channel inside one transaction locks its rows for the length of P4. Not measured. | a T5 timing test on a 3,650-post seeded channel before the first prd run, recorded by T13 (10) |
+| R3 | A move of the largest channel inside one transaction locks its rows for the length of P4. Not measured. | measured by T13 on dev, n=1: P4 4.42 s on 3,650 posts, P7 about 9 s, under the 30 s client cap ([dev-rehearsal.md](dev-rehearsal.md)) |
 | R4 | Not checked here: Cloud SQL backup retention and the hub log bucket's retention (5.6). | `plan` reads both and prints them (T9b) |
 | R5 | Spec 167 moves a channel's work between boxes; a move between workspaces that is also a move between boxes runs 167 first, then this. | operator page (T12) |
 | R6 | The free-text scan (5.2) proves absence of exact strings only. | stated; not claimed further |
-| R7 | Q4 leaves mentions in place, and the free-text scan (5.2) must print 0 for every task UUID, with the fleet topic ids as its only known hits (`channelMoveFleetTopics`): so a staying post that links a moved topic looks like a P7 failure on every real move. Read from the code, not measured when this was written. | T13: its seed holds such a post; the record says what P7 printed. A failure becomes its own bug row |
+| R7 | Q4 leaves mentions in place, and the free-text scan (5.2) must print 0 for every task UUID, with the fleet topic ids as its only known hits (`channelMoveFleetTopics`): so a staying post that links a moved topic fails P7. Measured by T13: `proof scan messages.body 1`. | row T13b |
 | R8 | The GO's form names `<SRC>/<CHANNEL>` and lives in the operator workspace (8.1). When `<SRC>` IS the operator workspace, the form is a trace the scan reads, and it cannot be deleted without losing the GO's record. Read from the code; not measured: T13's `<SRC>` is not the operator workspace. | Until a row decides it, T14 refuses `<SRC>` = the operator workspace, naming why |

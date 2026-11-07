@@ -152,3 +152,38 @@ func TestSearchFileLinesChannelOfThatName(t *testing.T) {
 		}
 	}
 }
+
+// TestSearchFileLinesRemoved (case C61, Postgres; spec 160 3.10, SPL-4979):
+// in:file-streams finds a row's line until it is removed, not after, its lines
+// still readable by id, and again after its put back. CONTROL: without the
+// filter the removed row's hit stays, and opens nothing on the page.
+func TestSearchFileLinesRemoved(t *testing.T) {
+	r := fsSearchRig(t, "zqremoved")
+	if _, ok := r.e.st.(store.FileLineSearcher); !ok {
+		t.Skip("the file_line section is Postgres only (SPOOL_TEST_PG_DSN)")
+	}
+	admin := seat(t, r.e, r.w, rbac.Admin)
+	hits := func() int {
+		t.Helper()
+		return len(fsSearch(t, r, r.w, "in:file-streams zqremoved", admin).Groups["file_lines"].Results)
+	}
+	if n := hits(); n != 2 {
+		t.Fatalf("CONTROL before the remove: %d hits, want 2", n)
+	}
+	id := fsRowID(t, r, "box-a", "app")
+	if code := fsRemove(t, r, id, admin); code != http.StatusNoContent {
+		t.Fatal(code)
+	}
+	if n := hits(); n != 0 {
+		t.Errorf("after the remove: %d hits, want 0", n)
+	}
+	if code, body := get(t, r.e, r.w, fsLinesPath(id, "?after=0"), admin); code != http.StatusOK || len(fsSeqs(t, body)) != 3 {
+		t.Errorf("lines by id after the remove = %d %s, want the 3 stored", code, body)
+	}
+	if code := fsRestore(t, r, id, admin); code != http.StatusNoContent {
+		t.Fatal(code)
+	}
+	if n := hits(); n != 2 {
+		t.Errorf("after the put back: %d hits, want 2", n)
+	}
+}

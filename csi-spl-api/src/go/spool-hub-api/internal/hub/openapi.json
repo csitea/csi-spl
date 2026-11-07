@@ -4575,6 +4575,84 @@
         ]
       }
     },
+    "/v1/file-streams/{id}": {
+      "delete": {
+        "operationId": "deleteFileStreamsById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: the file is out of the view (removed_at set, state gone) and one file_remove audit row is written; every later announce keeps it so, a push for its key is acked and not stored, the box stops following it after its next pull, and its stored lines stay until retention (spec 160 3.10)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "no stream of this workspace not yet removed has that id (another workspace's, or removed already: no audit row)"
+          },
+          "501": {
+            "description": "this hub's store keeps no file streams"
+          }
+        },
+        "summary": "Remove a file from the File streams view (owner or admin, member session, not act-as)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
+    "/v1/file-streams/{id}/restore": {
+      "post": {
+        "operationId": "postFileStreamsByIdRestore",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: the file is back in the view and one file_restore audit row is written; its state stays gone until the box's next announce (spec 160 3.10)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "not an owner or admin in a member session, or box_locked: the box is locked and the caller is not one of its lock owners (one refused audit row)"
+          },
+          "404": {
+            "description": "no removed stream of this workspace has that id (no audit row)"
+          },
+          "501": {
+            "description": "this hub's store keeps no file streams or file globs"
+          }
+        },
+        "summary": "Put a removed file back in the File streams view (owner or admin, member session, not act-as, the box's lock owners on a locked box)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
     "/v1/files": {
       "post": {
         "operationId": "postFiles",
@@ -17238,7 +17316,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: the workspace's file streams (spec 160 3.4): streams, each with id, box_id, stream_key, path, state, reason, last_line_at, last_seq and the lines_total, lines_dropped and lines_kept counters"
+            "description": "OK: the workspace's file streams (spec 160 3.4): streams, each with id, box_id, stream_key, path, state, reason, last_line_at, last_seq and the lines_total, lines_dropped and lines_kept counters; removed, the same with removed_at, for the rows out of the view (3.10)"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

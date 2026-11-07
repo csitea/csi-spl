@@ -18,7 +18,7 @@ import (
 // A stream of another workspace is 404, never 403: the read is in the
 // caller's tenant scope, so another workspace's id names no row.
 //
-//	GET /v1/view/file-streams                                  the workspace's streams
+//	GET /v1/view/file-streams                                  the workspace's streams, and those removed from the view (3.10)
 //	GET /v1/view/file-streams/{id}/lines?after=<seq>&limit=<n>  the lines after seq, oldest first
 //	GET /v1/view/file-streams/{id}/lines?before=<seq>&limit=<n> the lines before seq (scrolling up)
 //
@@ -36,7 +36,8 @@ const (
 func (s *Server) routeFileStreams(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/file-streams", s.handleFileStreams)
 	mux.HandleFunc("GET /v1/view/file-streams/{id}/lines", s.handleFileStreamLines)
-	s.routeFileStreamGlobs(mux) // spec 160 3.8.3, row B9: the web globs, file_stream_globs.go
+	s.routeFileStreamGlobs(mux)  // spec 160 3.8.3, row B9: the web globs, file_stream_globs.go
+	s.routeFileStreamRemove(mux) // spec 160 3.10: a file out of the view, file_streams_remove.go
 }
 
 // fileStreamsCaller is the caller's workspace and human id when it is a
@@ -99,6 +100,7 @@ type fileStreamBody struct {
 	LinesTotal   int64   `json:"lines_total"`
 	LinesDropped int64   `json:"lines_dropped"`
 	LinesKept    int64   `json:"lines_kept"`
+	RemovedAt    *string `json:"removed_at,omitempty"`
 }
 
 func (s *Server) handleFileStreams(w http.ResponseWriter, r *http.Request) {
@@ -112,16 +114,23 @@ func (s *Server) handleFileStreams(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "file streams unavailable")
 		return
 	}
-	out := make([]fileStreamBody, len(all))
-	for i, f := range all {
-		out[i] = fileStreamBody{ID: f.ID, BoxID: f.Box, StreamKey: f.StreamKey, Path: f.Path, State: f.State, Reason: f.Reason,
+	out, removed := []fileStreamBody{}, []fileStreamBody{}
+	for _, f := range all {
+		b := fileStreamBody{ID: f.ID, BoxID: f.Box, StreamKey: f.StreamKey, Path: f.Path, State: f.State, Reason: f.Reason,
 			LastSeq: f.LastSeq, LinesTotal: f.LinesTotal, LinesDropped: f.LinesDropped, LinesKept: f.LinesKept}
 		if f.LastLineAt != nil {
 			at := f.LastLineAt.UTC().Format(time.RFC3339Nano)
-			out[i].LastLineAt = &at
+			b.LastLineAt = &at
 		}
+		if f.RemovedAt != nil {
+			at := f.RemovedAt.UTC().Format(time.RFC3339Nano)
+			b.RemovedAt = &at
+			removed = append(removed, b)
+			continue
+		}
+		out = append(out, b)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"streams": out})
+	writeJSON(w, http.StatusOK, map[string]any{"streams": out, "removed": removed})
 }
 
 // fileStreamLineBody is one line as the tab shows it.

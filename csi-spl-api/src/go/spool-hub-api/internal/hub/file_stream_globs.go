@@ -318,7 +318,8 @@ func (s *Server) handleFileStreamGlobAudit(w http.ResponseWriter, r *http.Reques
 
 // fileStreamsGlobsPull answers the box's lane op file_streams_globs (3.8.5,
 // case C46): the live globs of the session's box in the session's
-// workspace; the frame names neither.
+// workspace, and its stream keys removed from the view (3.10); the frame names
+// neither.
 func (s *Server) fileStreamsGlobsPull(ctx context.Context, x *session, f wire.Frame, now time.Time) (*wire.FileStreamsAckFrame, *issueErr) {
 	if err := wire.DecodeFileStreamsGlobsPull(f.Lane); err != nil {
 		return nil, &issueErr{http.StatusBadRequest, "bad_file_stream", err.Error()}
@@ -336,7 +337,14 @@ func (s *Server) fileStreamsGlobsPull(ctx context.Context, x *session, f wire.Fr
 	for i, g := range globs {
 		live[i] = wire.FileStreamGlobLive{ID: g.ID, Key: g.Key, Glob: g.Glob}
 	}
-	return &wire.FileStreamsAckFrame{Type: "ack", LaneOp: wire.FileStreamsGlobsOp, Globs: &live, At: now.Format(time.RFC3339)}, nil
+	removed := []string{}
+	if fs, ok := s.o.Store.(store.FileStreamStore); ok {
+		if removed, err = fs.RemovedFileStreamKeys(ctx, x.tenant, x.box); err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("file stream removed keys pull")
+			return nil, &issueErr{http.StatusInternalServerError, "internal", "file globs unavailable"}
+		}
+	}
+	return &wire.FileStreamsAckFrame{Type: "ack", LaneOp: wire.FileStreamsGlobsOp, Globs: &live, RemovedKeys: &removed, At: now.Format(time.RFC3339)}, nil
 }
 
 // fileStreamsReport stores an announce's folders and glob states (3.8.5);

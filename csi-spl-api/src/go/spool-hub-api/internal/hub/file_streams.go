@@ -22,7 +22,7 @@ import (
 //	lane_op file_streams_push      {stream_key, lines, dropped, redactions}
 //	                               -> wire.FileStreamsAckFrame {type: ack, stream_key, inserted, acked_seq, pruned}
 //	lane_op file_streams_globs     {} (spec 160 3.8.5, row B9: the box's pull)
-//	                               -> wire.FileStreamsAckFrame {type: ack, globs: [{id, key, glob}]}
+//	                               -> wire.FileStreamsAckFrame {type: ack, globs: [{id, key, glob}], removed_keys: [key]}
 //
 // A refused push stores nothing (spec 160 C23): 413 too_large over 1000
 // lines or the byte cap, 429 rate_limited over twice the line rate, 409

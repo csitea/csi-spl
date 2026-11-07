@@ -22,6 +22,10 @@ const (
 	FileStreamGlobAuditAdd     = "add"
 	FileStreamGlobAuditRemove  = "remove"
 	FileStreamGlobAuditRefused = "refused"
+	// A file removed from the view and put back (3.10, rdb 0266): the stream
+	// key as Key, its path as Glob, no GlobID.
+	FileStreamAuditFileRemove  = "file_remove"
+	FileStreamAuditFileRestore = "file_restore"
 )
 
 // FileStreamGlobAuditRetention is 3.8.9's 365 days
@@ -69,7 +73,7 @@ type FileStreamFolder struct {
 }
 
 // FileStreamGlobAuditRow is one file_stream_glob_audit row. GlobID is ""
-// for a refused add.
+// for a refused add and for a file's remove or put back.
 type FileStreamGlobAuditRow struct {
 	ID     string
 	GlobID string

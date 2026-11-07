@@ -594,7 +594,8 @@
     "your_status_offline": "Sinu olek: võrguühenduseta",
     "monitoring": "Seire",
     "reporting": "Aruanded",
-    "notes": "Märkmed"
+    "notes": "Märkmed",
+    "expenses": "Kulud"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -3986,5 +3987,33 @@
     "notice_connected": "Google'i kalender on ühendatud.",
     "notice_error": "Google'i kalendrit ei ühendatud. Proovige uuesti.",
     "untitled_event": "(Pealkirjata)"
+  },
+  "expenses": {
+    "tabs_label": "Kulude vahelehed",
+    "tab": {
+      "ai": "Tehisintellekti kulud",
+      "cloud": "Pilveinfrastruktuuri kulud",
+      "hr": "Personalikulud"
+    },
+    "entries": {
+      "add": "Lisa kulu",
+      "intro_cloud": "Käsitsi sisestatud pilvetaristu kulud, näiteks arve, üks rida kuus. Aruanded → Kulud arvestab neid jaotises Pilv.",
+      "intro_hr": "Käsitsi sisestatud personalikulud, üks rida kuus. Aruanded → Kulud näitab neid jaotises Inimesed, mitte jaotises Kulutused.",
+      "col_label_cloud": "Kirjeldus",
+      "col_label_hr": "Roll või leping",
+      "col_amount": "Summa ilma käibemaksuta",
+      "col_period": "Kuu",
+      "loading": "Kulude laadimine…",
+      "error": "Kulusid ei õnnestunud laadida.",
+      "empty": "Ühtegi kulu pole veel sisestatud.",
+      "confirm_delete": "Kas kustutada see kulu?",
+      "err_label": "Sisesta nimi, kuni 100 tähemärki.",
+      "err_amount": "Sisesta summa üle 0.",
+      "err_currency": "Vali valuuta.",
+      "err_period": "Vali kuu.",
+      "err_note": "Märkus on liiga pikk: kuni 2000 tähemärki."
+    },
+    "operators_only": "Kulud on ainult operaatori administraatoritele.",
+    "tokens_link": "Makstud tellimused ja laadimised sisestatakse jaotises Kulud → Tehisintellekti kulud."
   }
 }

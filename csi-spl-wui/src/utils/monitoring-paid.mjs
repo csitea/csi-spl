@@ -159,15 +159,18 @@ const HUB_TEXT = Object.freeze({
   err_note: 'note must be at most 2000 characters',
 })
 
-function mockError(status, token, detail) {
+/** An Error shaped like the hub's refusal. */
+export function mockError(status, token, detail) {
   return Object.assign(new Error(detail), { status, token, detail })
 }
 
-function mockStore() {
+/** The mock's localStorage, null where there is none. */
+export function mockStore() {
   try { return typeof localStorage === 'undefined' ? null : localStorage } catch { return null }
 }
 
-function mockGate(store) {
+/** Throws the hub's 403 unless the e2e opt-in says operator admin. */
+export function mockGate(store) {
   let op = null
   try { op = store ? store.getItem(TOKENS_MOCK_OPERATOR_KEY) : null } catch { /* none */ }
   if (op !== '1') throw Object.assign(mockError(403, 'forbidden', 'only an admin of the operator workspace reads the fleet'), { permission: 'operator.workspaces' })

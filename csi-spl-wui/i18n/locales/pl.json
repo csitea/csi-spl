@@ -594,7 +594,8 @@
     "your_status_offline": "Twój status: offline",
     "monitoring": "Monitorowanie",
     "reporting": "Raporty",
-    "notes": "Notatki"
+    "notes": "Notatki",
+    "expenses": "Wydatki"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -3986,5 +3987,33 @@
     "notice_connected": "Kalendarz Google jest połączony.",
     "notice_error": "Kalendarz Google nie został połączony. Spróbuj ponownie.",
     "untitled_event": "(Bez tytułu)"
+  },
+  "expenses": {
+    "tabs_label": "Karty wydatków",
+    "tab": {
+      "ai": "Koszty AI",
+      "cloud": "Koszty infrastruktury chmurowej",
+      "hr": "Koszty personelu"
+    },
+    "entries": {
+      "add": "Dodaj koszt",
+      "intro_cloud": "Koszty infrastruktury chmurowej wprowadzone ręcznie, np. faktura, jeden wiersz na miesiąc. Raporty → Koszty liczą je w sekcji Chmura.",
+      "intro_hr": "Koszty kadrowe wprowadzone ręcznie, jeden wiersz na miesiąc. Raporty → Koszty pokazują je w sekcji Personel, a nie w Wydatkach.",
+      "col_label_cloud": "Opis",
+      "col_label_hr": "Rola lub umowa",
+      "col_amount": "Kwota netto",
+      "col_period": "Miesiąc",
+      "loading": "Wczytywanie kosztów…",
+      "error": "Nie udało się wczytać kosztów.",
+      "empty": "Nie wprowadzono jeszcze żadnego kosztu.",
+      "confirm_delete": "Usunąć ten koszt?",
+      "err_label": "Wpisz nazwę, maksymalnie 100 znaków.",
+      "err_amount": "Wpisz kwotę większą od 0.",
+      "err_currency": "Wybierz walutę.",
+      "err_period": "Wybierz miesiąc.",
+      "err_note": "Notatka jest za długa: maksymalnie 2000 znaków."
+    },
+    "operators_only": "Wydatki są tylko dla administratorów operatora.",
+    "tokens_link": "Opłacone subskrypcje i doładowania wprowadza się w Wydatki → Koszty AI."
   }
 }

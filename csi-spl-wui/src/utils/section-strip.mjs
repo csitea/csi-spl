@@ -6,15 +6,17 @@
 // channel, a person's card, a settings section) keeps its own header and Back.
 import { productPath } from './signed-out-redirect.mjs'
 import { TAB_ROUTE_PATHS } from './sidebar-tabs.mjs'
-import { COSTS_PAGES } from './reporting-costs.mjs'
+import { COSTS_PAGES, legacyCostsPath } from './reporting-costs.mjs'
 
 /* SPL-3785 (owner HUM-10, t1 c3e53990: the strip must not "jump on and off
    based on the tab"): a section's own page is read off the route, never a
    hand-kept list - the list missed 8 Monitoring and Reporting tabs added
    after it. A tab is one segment under its section (/monitoring/costs), a
    drill-down two (/monitoring/agents/<id>). A tab with a page bar of its own
-   (Reporting -> Costs, SPL-3798) has its pages read off that bar's list. */
-const TAB_SECTION_PAGE = /^\/(monitoring|reporting)(\/[^/]+)?$/
+   (Reporting -> Costs, SPL-3798) has its pages read off that bar's list.
+   SPL-4382: Expenses (/expenses/ai, ...) is built the same way, and an old
+   Costs link (/reporting/costs/paid) is the section page it lands on. */
+const TAB_SECTION_PAGE = /^\/(monitoring|reporting|expenses)(\/[^/]+)?$/
 /* the rail links' own pages; their deeper paths are documents and sections */
 const RAIL_LINK_ROOTS = new Set(['/help', '/docs', '/tenant-settings'])
 
@@ -22,7 +24,7 @@ const RAIL_LINK_ROOTS = new Set(['/help', '/docs', '/tenant-settings'])
 export function isSectionPage(path) {
   const p = productPath(path)
   return p === '/' || RAIL_LINK_ROOTS.has(p) || TAB_SECTION_PAGE.test(p) || TAB_ROUTE_PATHS.includes(p) ||
-    COSTS_PAGES.some((c) => c.path === p)
+    COSTS_PAGES.some((c) => c.path === p) || legacyCostsPath(p) !== null
 }
 
 /** the rail links (not tabs) a section page may be: Help, Docs, Workspace settings */

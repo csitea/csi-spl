@@ -14,7 +14,7 @@ the tabs you opened. Opening `/reporting` on its own goes to the Releases tab.
 |---|---|---|---|
 | **Releases** | `/reporting/releases` | every member | Delivery report over the release notes: KPI summary, filter bar (range, kinds, areas, search), and daily commit list with release notes. |
 | **SQL** | `/reporting/sql` | workspace admins | Read-only SQL query editor for workspace tables returning up to 2,000 rows, with Copy, CSV and JSON export. |
-| **Costs** | `/reporting/costs` | workspace owners and admins (permission to read costs) | What the workspace costs: six pages under one month and currency header (below). |
+| **Costs** | `/reporting/costs` | workspace owners and admins (permission to read costs) | What the workspace costs: five pages under one month and currency header (below). |
 | **Marketing** | `/reporting/marketing` | the workspace owner and its admins | One card per marketing stage; its numbers appear once a source is connected. Attribution: last touch, 28 days. |
 | **Incomes** | `/reporting/incomes` | the workspace owner only | The chosen year's income from invoices: one row per month, the year's totals per currency below. |
 | **Finance** | `/reporting/finance` | every person of the Netvisor workspace | The newest Netvisor snapshot: the month-end cash forecast and its items, the newest bank voucher date, and card costs. Only the Netvisor owner can ask for a refresh. |
@@ -23,7 +23,7 @@ More tabs come later: **Issues**, **Posts** and **Lanes** (admins of the
 operator workspace). A tab is drawn only once its page exists, and only for
 a reader who may open it.
 
-## Costs: one month, one currency, six pages
+## Costs: one month, one currency, five pages
 
 The **Costs** tab opens on its **Spend** page. A bar under the tab names its
 pages, each with its own address. The bar draws a page only for a reader who
@@ -36,7 +36,10 @@ may open it:
 | **AI tokens** | `/reporting/costs/tokens` | everyone who sees Costs | The month's AI token costs: the tokens, what was paid in the header's currency, and the list price beside it. Admins of the operator workspace also see today's live fleet tokens. |
 | **Human** | `/reporting/costs/human` | everyone who sees Costs | Admins of the operator workspace see the month's hand-entered hr costs: one row per entry in the header's currency, with the amount as entered, and a total. Any other reader, or a month without hr entries, sees "Not tracked yet". |
 | **Price per token** | `/reporting/costs/price` | admins of the operator workspace | Coming in a later step. |
-| **Paid items** | `/reporting/costs/paid` | admins of the operator workspace | Coming in a later step. |
+
+Costs only reports. The costs themselves are entered in the **Expenses**
+section of the left rail (see [Expenses](./expenses.md)): the paid
+subscriptions and top-ups under its **AI costs** tab.
 
 Opening a page you may not see by its address shows "This report is for
 operator admins only." in place of its content.
@@ -45,7 +48,7 @@ On Cloud and Human, an entry with no exchange rate to USD shows a dash, and
 the total says how many entries it leaves out.
 
 The header above the pages holds one **month** and one **currency** for all
-six pages:
+five pages:
 
 - **Month**: the current month (marked "so far") back to October 2026, the
   first month with cost lines. Never a future month.
@@ -71,13 +74,15 @@ switch and the Back button keep them.
   labelled under its name.
 
 Old links land here and keep their query: `/monitoring/costs` opens Spend,
-`/reporting/tokens` opens AI tokens, and `/reporting/costs` opens Spend. The
+`/reporting/tokens` opens AI tokens, and `/reporting/costs` opens Spend.
+`/reporting/costs/paid`, the old Paid items page, opens Expenses -> AI costs
+(`/expenses/ai`). The
 fleet's live token burn stays at Monitoring -> Tokens (`/monitoring/tokens`).
 
 ## Left panel order
 
-Reporting reorders and collapses like the other rail sections, and ends before
-Archive by default.
+Reporting reorders and collapses like the other rail sections, and sits before
+Expenses and Archive by default.
 
 ## On a phone
 

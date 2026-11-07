@@ -45,7 +45,7 @@ action headers where `./run` help reads them; three take WUI functions off the
 wide list; five put 14 under-tested Go functions under unit test. Batch 2 is the
 second header row, because both edit one baseline file.
 
-**Status: v0.3 DRAFT**. The panel seat a-304 (agy) failed v0.2; this folds its findings and waits for its delta. Not signed.
+**Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9). Landing waits for the holder's GO.
 
 Editor: **c-265** (claude). Panel reviewer: a-304 (agy), placed by the dispatch
 lease holder (section 5).
@@ -299,10 +299,13 @@ and lane readings are live state, so they carry their own time, not this sha.
   not list them for any of the 10 sites, and no test holds the moved comment line.
   **W2:** row 05 gets four pins, slug `r53-05-wui-pin-alert-steps-object`. **N1:** section
   5. **N2:** row 08. P1 and P3 rewritten, the rulings added, section 7 updated.
+- v1.0: a-304's PASS on `b9e39b99b` (verdict b865556a), which read the W1.2 differences
+  above and confirmed them. Status and section 9 only; no row changed.
 
 ## 9. Consensus
 
-Both seats sign this sha (rulebook 3.2). Neither has yet.
+Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-265 (claude): drafted v0.1, v0.2, v0.3. **Not signed.**
-- Panel reviewer seat: a-304 (agy): FAIL on `547383cca`; v0.3 waits for its delta. **Not signed.**
+- Editor seat: c-265 (claude): drafted v0.1, v0.2, v0.3. **Signed v1.0.**
+- Panel reviewer seat: a-304 (agy): FAIL on `547383cca`, PASS on `b9e39b99b` (verdict
+  b865556a). **Signed v1.0.**

@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.26 (2026-11-05). Status: **Draft** (part built: section 8.4's hub
+Version: v0.27 (2026-11-07). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -111,6 +111,11 @@ v0.26 adds and ticks row T8c (SPL-4888, R7 c-666 N1, N4, N5 on SPL-4837):
 the shell sends P7's `retention_days` in days and prints each kept copy's
 date and `.kept_until`; two more `bad_detail` tests; the note under T11 that
 P7's `left in <SRC>` proof is a move's only.
+
+v0.27 specifies the "Move to workspace" menu entry (SPL-4999; owner HUM-10, t1
+035cb09e, msg a37901f1): section 8.5, cases C29-C35, rows T14-T20, risks R7 and
+R8, the open questions Q9-Q11 (11.3). No row asked for it until now; the entry
+is not built.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -589,6 +594,136 @@ deleted, every hours stop stands. P2 records the detail in its step, and P4
 refuses a detail that is not the one P2 checked. A mark's `detail` stays its own
 (the probes). The shell does not send this detail yet.
 
+### 8.5 The "Move to workspace" menu entry
+
+The owner's words (t1 035cb09e, 2026-11-07), a37901f1: "There is no "move to
+workspace" option in the menu for the "enable whole channel movement to another
+workspace" option". Read on origin/master `0b2f05cb1`:
+`git grep -ciE 'move.to.workspace|channel-moves|moveToWorkspace' -- csi-spl-wui/src`
+finds nothing, and no row of section 10 asked for it before this version. Today the
+only door is the shell action, called as the env's service account.
+
+Not built yet: everything in this section. Q9-Q11 (11.3) are open, and the text
+below follows the recommended answers.
+
+#### 8.5.1 Where it sits
+
+One item, `Move to workspace`, in the channel row's menu of the sidebar:
+`rowMenuItems` in `csi-spl-wui/src/utils/sidebar-row-menu.mjs`, inside its channel
+branch, after `properties` and before `archive-channel`, emitted through
+`SidebarRowMenu.vue` and handled in `ChannelSidebar.vue`, as `archive-channel` is.
+A default channel never shows it (`store.ChannelPublic`: the hub answers 400
+`bad_channel`). Its dialog loads lazily, like `LazyChannelConfirmDialog`, so it
+stays off the initial script. The dialog offers no copy (the hub answers 501
+`not_built`, T11) and no new name (`TO_NAME` answers 501 on a step, P2).
+
+#### 8.5.2 Who sees it
+
+A person, never the service account, and only the person whose click is a GO:
+
+- signed in, a member of `<SRC>`, and the **biz owner of the operator workspace**:
+  the same test the GO check already makes (`channelMoveOwner`,
+  `api/hub/channel_move.go:361`, `MemberRole(from, op) == rbac.BizOwner`). The
+  operator console's test is a different one, `Admin` (`operatorActor`,
+  `api/hub/operator_workspaces.go:103`), and is not reused: an admin who is not
+  the biz owner could press a button whose answer the hub then refuses;
+- the WUI cannot read that role, so the item shows only after the hub said so
+  (8.5.3), the way the operator console shows only after its list answered
+  (`stores/operator-pane.ts`). A failed or refused probe hides the item. The probe
+  runs when the channel's menu opens, as `note.probe()` does, not at page load;
+- the hub remains the gate. A hidden item is a convenience, not the check, and every
+  route below checks again.
+
+Targets: only the workspaces where this person is a member (Q10). A hidden workspace
+the person is not in is never listed, the same reason as W5.
+
+#### 8.5.3 What browser auth the hub needs
+
+`POST /v1/operator/channel-moves` cannot serve a browser, and does not change: it
+takes a Google ID token on the operator allow-list (`operatorAuth`,
+`api/hub/operator.go:43`), which a browser does not hold. New routes, on the member
+session, in `<SRC>`'s host:
+
+| route | what it does | answers |
+|---|---|---|
+| `GET /v1/channels/{channel}/workspace-move` | the probe and the targets (T14) | 200 `{allowed: true, targets: [{slug, name}]}`; 403 `channel_move_owner` for anyone else |
+| `POST /v1/channels/{channel}/workspace-move/plan` | `{dst, keep, keep_emails, leave_hours}`: the plan, and the stops P2 adds (T14) | 200 the plan with `.blocked`; never writes |
+| `POST /v1/channels/{channel}/workspace-move` | the confirm: writes the GO, runs P1 (T15) | 200 `{move_id, topic}`; 403; 409 with the stops |
+| `GET /v1/channel-moves/{move_id}` | where a move stands (T17), read in `<DST>` | 200 the steps and the reason; 404 to anyone who is not the biz owner of the operator workspace |
+
+Each takes `humanTenant`, then the owner test of 8.5.2, then `channelMoveValid`'s
+checks, and a CORS preflight like `channelArchivePreflight`
+(`api/hub/channel_members.go:90`). None of them takes a `step` or a `mark`: the browser
+never drives P2 to P7 (8.5.5). A service account has no member session, so it cannot
+reach them, and a person cannot reach the operator route: neither door opens the other.
+
+#### 8.5.4 The steps shown
+
+Three screens in one dialog:
+
+1. **Plan.** The target (a list from 8.5.2), then the plan as the shell prints it
+   (`channelMovePlanAnswer`): the counts in words, the mentions left in place (Q4), the
+   shared files, the kept list (5.6). Each person in `.members_lost` has a checkbox "add
+   to `<DST>`", which is T7d's `keep` (Q5); each channel invite's email likewise is
+   `keep_emails` (5.1b).
+2. **Blocked.** Shown instead of a confirm while anything stops the move, each line with
+   what clears it (the table in the operator page's section 2.3): a seat with no desk, a
+   box with no pin, a shared item, a name taken in `<DST>`, hours rows. An hours stop has
+   a "leave these rows" choice, T7d's `leave_hours` (5.1a). This list must include what
+   the plan answer leaves out today: **the orchestrator seat and the file quota are only
+   checked at P2** (`dstHasOrchestrator` and `fileUsage.over`,
+   `api/hub/channel_move_steps.go:251`), so T14 runs both and adds them to `.blocked`.
+   One stop it cannot show: the box rule (T9c, C25) lives on a box and the hub cannot read
+   it, so that one can only appear as a stuck move (8.5.6).
+3. **Confirm.** The channel, the target, the counts, the people who lose access, and "this
+   cannot be undone once the rows have moved" (8.2: P4 has no undo after it commits). One
+   button, enabled only with nothing blocked. No typed name: the owner's rule is one click
+   (how-to-post section 7).
+
+#### 8.5.5 What the confirm does
+
+The hub cannot run the whole move: **P2b and P5 are box steps** (the desks and
+`channel-rules.tsv` live on a box, W2, F14; `_spl_cwm_probe_all`, `_spl_cwm_box_p5`). So
+the click only records the GO and starts the journal, and a box does the rest:
+
+1. On the click the hub writes, in a new topic of the operator workspace, a poll form that
+   names `<SRC>/<CHANNEL>` and `<DST>` as whole slugs, and the person's answer `Poll: <form>`
+   / `Answer: GO`, as that person from `box-wui`. Then `channelMoveGo` checks it like any
+   other, so the check stays in one place, and the answer's msg id goes in the journal (8.3)
+   (Q9). The click is the person's own, on their own session; no agent and no service
+   account can write this answer, because the route needs the session.
+2. The hub runs P1 with the dialog's `detail`, and keeps that detail for P2 (8.4: P4 refuses
+   a detail other than the one P2 checked).
+3. A box action, `do_spl_channel_move_pickup`, from cron every 5 minutes on the box holding
+   the orch lease (T16), reads the open journals through a new operator op, `open`, and runs
+   `do_spl_channel_workspace_move` for each with the journal's GO, its detail and
+   `MOVE_CALLER` = `<DST>`'s orchestrator seat. It sends the `detail` the shell does not send
+   yet (8.4; the operator page's section 2.4 lists what waits on this).
+
+A named limit: P2b probes only the desks of the machine that runs the move, so a seat whose
+`<DST>` desk is on another box stops that move before P3, and it shows as stuck. Spec 167
+first (R5). Choosing the box per move is not built here.
+
+#### 8.5.6 What a stuck move shows
+
+`channelMoveFail` answers a refusal to its caller and stores nothing, so today only the
+shell's log knows why a move stopped. T17 stores the last refusal in the step's row in
+`<DST>` (`channel_move_steps.detail`), never in a hub-wide log (C13). The status has one home
+that survives the move: the topic of the GO in the operator workspace, because after P4 the
+channel has left `<SRC>`'s sidebar and its menu with it. The hub posts one line there on each
+change of state. The dialog, reopened from the menu before P4, reads the same route.
+
+| state read from the journal | what the person sees |
+|---|---|
+| P1 done, no step started for 15 minutes | "Waiting for a box to pick this up. Nothing has moved." Also one `#alerts` line |
+| a step of P2 to P3, or P4, refused | "Not moved. Nothing of the channel changed." The reason, and that a re-run comes with the next pick-up |
+| P4 done, P5 or P6 refused | "The channel is in `<DST>`, the clean-up did not finish." A link to it, the reason |
+| P7: a proof that is not 0 | "The channel is in `<DST>`, but `<SRC>` still holds traces." Each proof's name and count. Never "done" |
+| `.done_at` set | "Moved." The link, and the kept list with its dates (P7's `.kept`) |
+
+Nothing is shown as done before `channel_move_journal.done_at` is set. The browser has no retry
+and no cancel: before P4 a re-run comes with the pick-up, after it there is nothing to cancel.
+
 ## 9. Cases (each lands with its red control)
 
 | # | case | red control |
@@ -623,6 +758,13 @@ refuses a detail that is not the one P2 checked. A mark's `detail` stays its own
 | C25 | Box rule (W2, F14): a move whose `<SRC>` rule row on this box names a desk agent with no `<DST>` desk on this box makes `plan` and `MOVE_CMD=run` refuse, exit 3, naming the agent and the box; seating the desk clears it. A map that exists but cannot be read, or a malformed row, also refuses: unread is not "no row". Shell test on a sandboxed `SPOOL_ROOT` | drop the check -> `plan` passes and the move stops only at P2b, or goes on with a row whose agent has no `<DST>` desk |
 | C26 | Box rule, what does not refuse and what is said: no row, no map, a row for another env, and a copy (no seat moves, section 7) each pass; every `plan` prints the box and the file it read and that other boxes are not read, and names the seats' other boxes; `plan` leaves the rule file byte-equal with no lock or temp file beside it. Shell test | refuse on an absent row -> a channel with no rule row can never move; drop the printed box -> a clean `plan` on the wrong box reads as a clean move |
 | C27 | Seats: `plan` lists a seat that HAS its `<DST>` desk and it refuses nothing; a seat by invite and as a dedicated agent is one seat; the list is sorted; a removed seat and a seat of a staying channel are not listed; an old `announce` row on a default channel is no seat, on a created channel it is one; it marshals as `.seats[].agent` and `.seats[].box`, and as `[]` on a channel with no seat; `plan` has no mode (a copy lists them too) | list only the seats with no desk -> T9c's line never prints and T7 probes no desk; drop the announce predicate -> the default channel lists the old row; drop every announce row -> the created channel loses its seat; drop the json tags -> jq reads no seat; a mode field on the request -> the no-mode test fails until a copy's seats are decided |
+| C29 | Who (8.5.2): the probe, the plan and the confirm answer 403 to a member of `<SRC>` who is not the operator workspace's biz owner, an admin included, and to no session at all | answer `Admin` too -> the admin gets a button whose GO the hub refuses |
+| C30 | Targets: the probe lists only the person's own workspaces, never a hidden one they are not in | list every workspace -> a hidden slug in the answer |
+| C31 | Blocked (8.5.4): no orchestrator seat in `<DST>`, and a file total over its quota, are both in `.blocked` before the confirm | plan's stops alone -> the confirm passes and the move stops only at P2 |
+| C32 | The confirm's GO (8.5.5): the form and the answer it writes pass `channelMoveGo` unchanged, the answer's author is the session's person, the journal holds that msg id; a replay with another `dst` is refused | a form that does not name `<DST>` -> 403 `go_required` |
+| C33 | The browser has no step: every route of 8.5.3 refuses a body with `step` or `mark`; a service-account token is refused on all of them, and a member session on the operator route | accept `step` -> a browser drives P4 |
+| C34 | Pick-up: an open journal runs once, under the lock, with its GO and detail; a lease it does not hold runs nothing; a done journal is not read; a refusal is stored (8.5.6) and a re-run resumes | drop the lease check -> two boxes pick up one move and the second stops on the lock, read as stuck |
+| C35 | Stuck (8.5.6): each row of the table, from a seeded journal; nothing says "Moved" before `done_at`; P4 done with P7 failed shows the proof names, in Chrome | show "Moved" on P4 done -> a move with traces reads as done |
 
 All cases run on PostgreSQL (`PRE_PUSH_TIER=full`), with two test workspaces
 on the hub's test database; none touches dev or prd. C24, C25 and C26 are the
@@ -661,12 +803,20 @@ Each row is one small task; files named are where it lands.
 | T11b | `spl_issue_owner_go_from` refuses a copy and a reply that does not say whether it is one; `hub-tail` does not return `copied_from` today. Control: remove the check -> the test goes red. c-001 writes its brief after T11 lands; no prd copy until T11b lands | built (SPL-4838): `spl_issue_owner_go_copy` in `orc/run/spl-issue-create.func.sh` reads the go's messages row through `spl_lane_issue_hub_row` (as the env's service account, in the desk's tenant) once `hub-tail` found it in a linked discussion and its sender is a HUM-<n>; a copy, a row that does not say and a failed read are refused; the T11b cases of `orc/tests/desk-actions.tst.sh`. The check needs a database read: with `DRY_RUN=0`, once `hub-tail` found the go and its sender is a HUM-<n> (a non-human sender is refused first and reads nothing), `do_spl_db_message_show` reads its `messages` row in the `ENV` hub's Postgres. So `ENV` is `dev` or `prd` (`ENV=self` has no cnf and no database: the read is refused, so is the go), and, on the gcp provider (the default), the box needs gcloud, psql, python3 and jq on PATH, the env's service-account key `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (or `SPL_SA_KEY`) that can read the hub DSN secret, and the Cloud SQL Auth Proxy (`cloud-sql-proxy` on PATH, else docker with the cnf proxy image); with `env.cloud.provider: none`, psql, python3, jq and `SPOOL_HUB_DB_DSN`. Any of them missing: the read fails and nothing is filed (SPL-4871) |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
 | T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 on the seeded 3,650-post channel against the box's 30 s client cap (`curl -m 30`, `spl_hub_operator_call`; the hub's Cloud Run request timeout is 600 s); over 30 s means a bug row before the first prd move; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
+| T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31. Waits for Q10, Q11 | `api/hub/channel_move_browser.go`, `_test.go`, `openapi.json` |
+| T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33. Waits for Q9 | `api/hub/channel_move_confirm.go`, `_test.go`, `api/hub/channel_move_steps.go`, `openapi.json` |
+| T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
+| T17 | Hub: the stored refusal and `GET /v1/channel-moves/{move_id}`, the status line in the GO's topic, the `#alerts` line (8.5.6). Test C35's store and hub half | `api/hub/channel_move_status.go`, `_test.go`, `api/store/channel_move_journal*.go` |
+| T18 | WUI: the menu item and its probe (8.5.1, 8.5.2), keys in every locale | `src/utils/sidebar-row-menu.mjs`, `src/components/SidebarRowMenu.vue`, `ChannelSidebar.vue`, `tests/unit/`, `i18n/locales/*` |
+| T19 | WUI: the dialog's three screens and the stuck table (8.5.4, 8.5.6), lazy, proven in Chrome on phone and desktop. Test C35's browser half | `src/components/ChannelWorkspaceMoveDialog.vue`, `tests/e2e/channel-workspace-move.test.mjs`, `i18n/locales/*`, a help page |
+| T20 | agy's final language review of T18's and T19's strings in every locale, before they ship (the language rule) | `i18n/locales/*` |
 
 Note under row T11 (T8c, R7 c-666 N1): P7's `left in <SRC>` proof is a move's only; a copy (T11) runs only `missing in <DST>`.
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8
-before T7; T7 before T9; T9, T10, T7, T7c and T7d before T13; T5 before T7c; T4b, T4d, T9b and T9c before T13.
+before T7; T7 before T9; T9, T10, T7, T7c and T7d before T13; T5 before T7c; T4b, T4d, T9b and T9c before T13. T13 before T14; T14 before T15 and T18; T15 and
+T17 before T16 and T19; T18 and T19 before T20.
 
 ### 10.1 Lanes
 
@@ -688,6 +838,13 @@ owner's weekend deadline: lanes with no files in common.
 | L11 | T9b |
 | L12 | T9c |
 | L13 | T4d |
+| L14 | T14 (claude; waits for Q10, Q11) |
+| L15 | T15 (claude; waits for Q9) |
+| L16 | T16 (claude) |
+| L17 | T17 (claude) |
+| L18 | T18 (claude, then agy reviews its strings in T20) |
+| L19 | T19 (claude, then agy reviews its strings in T20) |
+| L20 | T20 (agy) |
 
 L8's stub is the plan-only path of T9 (`MOVE_CMD=plan`, journal resume
 skeleton), so it can land before T7; its wiring to the T7 endpoint and T10
@@ -756,6 +913,30 @@ Q8 Hours that members logged on the moved channel inside a time sheet already ap
 (C) Leave them in the old workspace; they keep naming the channel
 ```
 
+### 11.3 Open: the menu entry (8.5)
+
+Not answered yet. The holder puts them to the owner as one form. The text of 8.5 follows the
+recommended answer of each.
+
+```poll
+Q9 "Move to workspace": what should your click on the dialog's Confirm do? I recommend A.
+(A) That click is your Go: the hub records it in the operator workspace and a box starts the move
+(B) It opens a separate form in the operator workspace, and you click Go there too
+Q10 Which workspaces can you pick as the target? I recommend A.
+(A) Only workspaces you are a member of
+(B) Every workspace on this hub
+Q11 Who sees "Move to workspace"? I recommend A.
+(A) Only you, the owner of the operator workspace, on any channel of a workspace you are in
+(B) Also each workspace's own owner, for that workspace's channels (a customer could then move their own channels; the Go rule has to change first)
+```
+
+- Q9: A keeps the one GO check (C32) and asks for one click, the owner's own rule (how-to-post
+  section 7). B needs no new form-writing code, but asks twice for one decision.
+- Q10: B would list hidden workspaces in a dialog, and could move a channel somewhere the owner
+  cannot read it.
+- Q11: B is a change to the rule of 8.1, "`DRY_RUN=0` needs the owner", so it is a decision, not a
+  detail of this row.
+
 ## 12. Risks and open checks
 
 | # | risk / open check | what settles it |
@@ -766,3 +947,5 @@ Q8 Hours that members logged on the moved channel inside a time sheet already ap
 | R4 | Not checked here: Cloud SQL backup retention and the hub log bucket's retention (5.6). | `plan` reads both and prints them (T9b) |
 | R5 | Spec 167 moves a channel's work between boxes; a move between workspaces that is also a move between boxes runs 167 first, then this. | operator page (T12) |
 | R6 | The free-text scan (5.2) proves absence of exact strings only. | stated; not claimed further |
+| R7 | Q4 leaves mentions in place, and the free-text scan (5.2) must print 0 for every task UUID, with the fleet topic ids as its only known hits (`channelMoveFleetTopics`): so a staying post that links a moved topic looks like a P7 failure on every real move. Read from the code, not measured when this was written. | T13: its seed holds such a post; the record says what P7 printed. A failure becomes its own bug row |
+| R8 | The GO's form names `<SRC>/<CHANNEL>` and lives in the operator workspace (8.1). When `<SRC>` IS the operator workspace, the form is a trace the scan reads, and it cannot be deleted without losing the GO's record. Read from the code; not measured: T13's `<SRC>` is not the operator workspace. | Until a row decides it, T14 refuses `<SRC>` = the operator workspace, naming why |

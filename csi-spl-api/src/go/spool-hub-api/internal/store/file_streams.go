@@ -113,6 +113,8 @@ type FileStream struct {
 	LinesKept    int64
 	BytesKept    int64
 	Redactions   map[string]int64
+	// RemovedAt set: removed from the view (spec 160 3.10, rdb 0266).
+	RemovedAt *time.Time
 }
 
 // FileStreamLine is one stored line.
@@ -140,17 +142,19 @@ type FileStreamPushResult struct {
 type FileStreamStore interface {
 	// AnnounceFileStreams stores box's current list in tenant: an upsert per
 	// key, the keys past lim.PerBox refused, every key refused when tenant
-	// would be a workspace past lim.MaxWorkspaces, and the box's stored keys
-	// not in the list set gone. It answers each listed key's kept state;
+	// would be a workspace past lim.MaxWorkspaces, a removed key stays removed
+	// and gone (3.10), and the box's stored keys not in the list set gone. It
+	// answers each listed key's kept state;
 	// ErrNotFound when box never said hello in tenant (no boxes row).
 	AnnounceFileStreams(ctx context.Context, tenant, box string, in []wire.FileStreamAnnounced, lim FileStreamLimits, now time.Time) ([]wire.FileStreamAckState, error)
 	// RecordFileStreamLines stores one push (checked by
 	// wire.DecodeFileStreamsPush) of box's stream in tenant, in one
 	// transaction: the insert, the rate check (over it, nothing is kept),
 	// the counts, then tenant's own oldest lines pruned until the workspace
-	// is within lim.
+	// is within lim. A removed key's push (3.10) is acked and changes nothing.
 	RecordFileStreamLines(ctx context.Context, tenant, box string, p wire.FileStreamsPushFrame, lim FileStreamLimits, now time.Time) (FileStreamPushResult, error)
-	// ListFileStreams is tenant's streams, by box then key.
+	// ListFileStreams is tenant's streams, removed ones too (RemovedAt set),
+	// by box then key.
 	ListFileStreams(ctx context.Context, tenant string) ([]FileStream, error)
 	// FileStreamLines is up to q.Limit lines of stream id in tenant, oldest
 	// first: those after q.After, or the newest before q.Before, or with
@@ -164,6 +168,19 @@ type FileStreamStore interface {
 	// until it is within lim. The only cross-workspace read is the list of
 	// those workspaces' ids.
 	SweepFileStreams(ctx context.Context, now time.Time, lim FileStreamLimits) (FileStreamSweep, error)
+	// RemoveFileStream takes stream id out of the view (3.10): removed_at set,
+	// state gone, one file_remove audit row, its lines left to the retention.
+	// ErrNotFound for an id that is not a stream of tenant not yet removed (no
+	// audit row).
+	RemoveFileStream(ctx context.Context, tenant, id, actor string, now time.Time) (FileStream, error)
+	// RestoreFileStream is a removed stream's put back (3.10): removed_at
+	// cleared, one file_restore audit row; the state stays until the box's next
+	// announce. ErrNotFound for an id that is not a removed stream of tenant
+	// (no audit row).
+	RestoreFileStream(ctx context.Context, tenant, id, actor string, now time.Time) (FileStream, error)
+	// RemovedFileStreamKeys is box's removed stream keys in tenant, sorted:
+	// what the box's pull answers (3.10).
+	RemovedFileStreamKeys(ctx context.Context, tenant, box string) ([]string, error)
 }
 
 // FileStreamSweep is what one SweepFileStreams did: the lines past the

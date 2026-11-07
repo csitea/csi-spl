@@ -116,6 +116,9 @@ type FileStreamsAckFrame struct {
 	LaneOp  string                `json:"lane_op"`
 	Streams []FileStreamAckState  `json:"streams,omitempty"`
 	Globs   *[]FileStreamGlobLive `json:"globs,omitempty"`
+	// RemovedKeys answers the same pull: the box's stream keys removed from
+	// the view (spec 160 3.10), which the box stops following.
+	RemovedKeys *[]string `json:"removed_keys,omitempty"`
 	// Agents answers a console demands pull (lane_console.go, spec 153 3.20)
 	Agents    *[]string `json:"agents,omitempty"`
 	StreamKey string    `json:"stream_key,omitempty"`

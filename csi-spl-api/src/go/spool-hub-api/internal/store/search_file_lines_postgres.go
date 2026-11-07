@@ -77,7 +77,7 @@ func searchFileLinesSQL(tenant string, q SearchQuery) (string, []any) {
 	sql := `SELECT l.stream_id::text, s.box_id, s.stream_key, l.seq, l.at, l.text
 		FROM file_stream_lines l
 		JOIN file_streams s ON s.tenant_id = l.tenant_id AND s.id = l.stream_id
-		WHERE l.tenant_id = ` + t + ` AND s.tenant_id = ` + t + ` AND NOT l.marker AND ` + where + page + `
+		WHERE l.tenant_id = ` + t + ` AND s.tenant_id = ` + t + ` AND s.removed_at IS NULL AND NOT l.marker AND ` + where + page + `
 		ORDER BY l.at DESC, l.stream_id::text DESC, l.seq DESC LIMIT ` + c.arg(pgLimit(q.Limit))
 	return sql, c.args
 }

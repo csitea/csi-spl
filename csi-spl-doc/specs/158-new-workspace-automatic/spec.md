@@ -1,8 +1,11 @@
 # Spec 158: a new workspace works automatically
 
-**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.5 (for R7) ·
-**Epic**: SPL-2398 · **Issue**: SPL-3504 · **Created**: 2026-10-26 · **Lead**: c-456 ·
+**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.6 (for R7) ·
+**Epic**: SPL-2398 · **Issue**: SPL-3504, v0.6 SPL-4990 · **Created**: 2026-10-26 · **Lead**: c-456 ·
 **Placement slug**: `c002-s158-new-workspace-automatic`
+
+v0.6 adds section 10: a workspace created in the UI reaches usable with no
+agent step (the web address, the box-wui pin, the seats, the proof).
 
 Related: [spec 074 operator workspace](../074-operator-workspace/),
 [spec 108 workspace-owned boxes](../108-workspace-owned-boxes/spec.md),
@@ -281,4 +284,250 @@ new or after an hour, sent only from the lease holder's machine,
 - Spec 108 dedicated boxes and their join tokens (unchanged).
 - Agent quality of the first answer: R4 measures time to the first agent
   message, not its content.
+
+## 10. Amendment v0.6: created in the UI, usable with no agent step
+
+Owner HUM-10, t1 topic d6c53e6f, msg 72a94e67, 2026-11-07, verbatim, the
+workspace name replaced: "I created manually via the ui the `<drill workspace>`
+workspace ... what is the status for it ... want to ensure that workspaces
+could be created up till usability without any agents interventions".
+
+Two real cases, by placeholder (a hidden workspace is never named here):
+`<drill workspace>`, the owner's live drill, read only; and `<older gap
+workspace>`, an older workspace with the same pin gap.
+
+### 10.1 Usable, as testable rows
+
+| id | usable means | test |
+|---|---|---|
+| U1 | The create answers 201 and the first admin's invite is stored and mailed. | The 201 body's `invite.status` is `invited` and its `invite.mail` is neither `not_sent`, `not_configured` nor `send_failed`. |
+| U2 | That person accepts the invite. | `tenant_invites.accepted_at` is set. |
+| U3 | They log in on the web address `https://<workspace>.<fqdn>`, with no hop to another host. | `tenant_hosts.status` = `ready`, and a browser signs in there. Target 60 min from the create (unmeasured: the WUI text says 15-30 min; row E1 measures it, then this target is set). |
+| U4 | Docs works on that address. | The workspace's Docs answers 200, not 503 (its 052 bucket exists). |
+| U5 | They post, and the post is signed for the boxes. | The stored post has a non-empty `env_sig`, so a box can receive it. |
+| U6 | An agent answers. | An agent message lands in that topic within 180 s of the post (R4). Seats arrive within R1's 5 minutes of the create. |
+| U7 | A stuck step shows with no agent looking. | The operator page shows each of U1..U6's states for the workspace (row V2). |
+
+### 10.2 What was measured (2026-11-07, 13:5xZ)
+
+Read only; nothing in a live workspace changed. Tree: origin/master
+`a27e25136`. n=1 per row unless it says otherwise.
+
+| # | fact | where |
+|---|---|---|
+| M15 | `<drill workspace>`: invite stored about 11:19Z (its expiry less 7 days), 1 mail, accepted 11:44Z; one admin member. U1 and U2 hold. | `do_spl_hub_member_list` |
+| M16 | `<drill workspace>`: no host. `tenant_hosts` stayed `pending` with no detail, then went `failed` once a run got past M18. U3 and U4 fail: the plan of that run still had its docs bucket to create. | `do_spl_tenant_host_reconcile` (dry run); job log |
+| M17 | wf 40 is enabled and on schedule, against `private-overlay.md` section 5, which says it is disabled. All 10 finished runs from 11:23Z to 13:38Z failed; the 5 before them were green. | `gh workflow list`; `gh run list` |
+| M18 | One new hidden workspace fails the whole env's run, confirmed in code. `spl_th_token ... new` refuses it in CI. `spl_th_reconcile_apply` runs `spl_th_tenant_set ... \|\| return 1` in its add loop, before the render. So every other add and every remove of that env waits, and that path marks no row, so its detail stays empty. Rows that only need a check run first and are not held. dev and prd do not hold each other (`fail-fast: false`). What moved it: the overlay line was written on this box at 13:24Z and the secret at 13:25Z; by whom is not read. | `spl-tenant-host-provision.func.sh:166-180`; `spl-tenant-host-reconcile.func.sh:89-118`; `gh secret list`; the overlay's mtime |
+| M19 | **A second stop, not known before this read:** with the overlay line in place, the prd run pushed its cnf (`a27e25136`), and the apply of the first step was REFUSED by the order gate: `the dev plan of 052-gcs-workspace-docs failed, so dev's state is unknown`. The workflow writes the dev key only in the dev job (line 126), so the prd job likely cannot plan dev. **Likely, not proven:** the plan's own error is in a log file the job never prints. Since the gate landed (`aa7664339`, 10-15), every prd host but this one came from the box action: `git log --since=2026-10-15` -> 1 `cnf(024): prd` (this one), 4 `cnf(orc): prd tenant host`. So wf 40 may never have added a prd host under the gate. | job log; `40_tenant-host-reconcile.yml:126`; `check-dev-leads-prd.func.sh:45-52` |
+| M20 | **The hidden slug reaches the wf 40 job log.** The prd job's log held the drill's slug on 3 lines in two failed runs, and on 5 in the run past the overlay (`reconcile: ... add [...]`, the FATAL, the plan's resource addresses, `tenant_hosts ... ->`). So it still prints with its line in the secret. The repo is public: `gh repo view` -> PUBLIC. An anonymous API read of the log answers 403, and of the run's metadata 200; I believe, unchecked, that any signed-in GitHub account can read the log. `private-overlay.md` section 5 made clean logs the condition for enabling the workflow. | `grep -c` on the job logs of 4 runs: 3 prd failures, 1 green run with 0 |
+| M21 | Box-wui pin: prd 23 workspaces, 3 gaps: both real cases, each with 0 unsigned human posts in 7 days, and `system`, also 0. dev 28 workspaces, 23 gaps (their kinds not read). The other 20 prd workspaces hold the same hub key, so one key across workspaces is accepted. | `do_spl_check_box_wui_pins` |
+| M22 | Only `do_spl_tenant_create` pins box-wui. The UI create does not, and no workflow or cron calls the pin (`grep` on `.github` and `csi-spl-orc/src/bash/scripts`: 0). Spec 014 2.2 has the tenant operator pin it with the root key. | `spl-tenant-create.func.sh:231-243`; `specs/014-*/contracts/wui-dispatch.md` |
+| M23 | The hub's pin route needs the root signature, and accepts for box-wui only the hub's own key (`wui_key_mismatch`). What boxes read has no root signature to check: `wire.PinEntry` is the box id and the key (plus a sealing flag on the POST answer), so a box already trusts the hub's list. | `hub/rest.go:443-470`; `wire/wire.go:1130` |
+| M24 | The paid checkout is a separate create: `paidTx` inserts into `tenants` with no `fleet_seating`, so it takes the column default false (rdb 0230). T5's "every create path" does not hold for it. Whether checkout is in use on prd: not read. | `store/payments_postgres.go:184`; `grep -c fleet_seating` on that file -> 0 |
+| M25 | Seats: `fleet_desk_boxes` is empty on dev and on prd. `spool fleet-workspaces`, `spool fleet-enrol`, `do_spl_desk_fleet_seat`, `DESK_PIN_MODE`, `do_spl_workspace_drift`: 0 non-test files. No action file for `do_spl_dispatch_tenants`, `do_spl_fleet_seating_switch`, `do_spl_desk_store_seat`. T8..T10b, T12, T15, T16 and T3b are unbuilt. | `do_spl_fleet_desk_box`; `git grep`; `ls csi-spl-orc/src/bash/run` |
+| M26 | The operator page cannot show a stuck step: `workspaceBody` is id, display name, billing, plan, created / suspended / archived and the operator flag. Read in the code; the live page was not opened. | `hub/operator_workspaces.go`; `OperatorPane.vue` |
+| M27 | The overlay has no cron: `crontab -l \| grep -c private_overlay` -> 0 for the box owner user on this box, `git grep` in `scripts` and `features` -> 0. A box whose overlay lacks a placeholder the cnf names FATALs on resolve (`spl_private_resolve`, SPL-2677). | `spl-private-cnf.func.sh` |
+| M28 | Not read: first login on the address (it does not exist yet), the mail's text, the live operator page, the master box's token and crontab. | |
+
+### 10.3 Why the build stopped at T7
+
+No decision to stop was found. Nothing queued the next row.
+
+- Landed: T1-T3 and T4 on 10-26, T5 on 10-28, T6 on 10-29, T7 and the T5 fix
+  on 10-30 (ACCEPTED about 07:50Z).
+- This box's lane briefs: those naming T8 are the T4, T5 and T7 ones, as a next
+  step; none builds it (titles read). c-001's critical path of 10-26 and 10-28
+  names T8 as next. A c-001 note of 10-31 still says "until spec 158 fleet seating
+  lands".
+- Likely cause, inferred, the issue's own record not read: `SPL-3504` was closed
+  by its first `fix(api, SPL-3504)` commits on 10-26 (the landing rule), and T4..T7
+  each got an issue only when a lane was placed. So T8 onward had no open issue,
+  and nothing in the tracker said work was left.
+- Not read: the other box's message archive.
+
+The fix is in the process, not the code: every row of `tasks.md` section 6 gets
+its issue under SPL-2398 when this amendment lands, status `todo`, not when a
+lane starts. `tasks.md` carries a status column.
+
+### 10.4 Host: address and placeholder with no person
+
+**Design: a small reserve action on the overlay's master box; wf 40 stays the
+only thing that applies.**
+
+1. `do_spl_tenant_host_reserve` (orc, new, cron every 5 minutes, refuses on any
+   other box through `spl_th_overlay_box_ok`). It reads the open `tenant_hosts`
+   rows of dev and prd, with the reconcile's own filters (not unpaid, not
+   suspended or archived, not an `e2e*` slug). For each new hidden slug, under a
+   lock, in this order: `spl_private_add`, `do_spl_private_overlay_sync`,
+   `gh secret set SPL_PRIVATE_CNF_YAML`, read the secret's `updated_at` back, then
+   write the row's `detail` as `placeholder reserved <ts>`. The master stays the
+   one writer, so no copy loses a line.
+2. A pull cron on every other box (`do_spl_private_overlay_pull`, every 5
+   minutes), so no box FATALs on a placeholder (M27).
+3. wf 40 changes only in what it does with such a row (10.5). It takes a
+   reserved row once the reservation is 10 minutes old, so the pull has run
+   before the cnf names the placeholder. A box that was off longer FATALs until
+   its first pull, with today's message.
+
+Rejected: writing the line in CI (the copy is a secret: the master never gets
+it, which is the reason for the refusal today); `do_spl_tenant_host_provision`
+from a cron on the box (a second applier beside wf 40, one infra stack per box,
+and the owner's standing go covers the workflow only); public by default
+(against owner poll 6c701ac9); moving the overlay into the hub DB (the gates and
+every box read it, and dev and prd have separate DBs).
+
+**The order gate (M19).** First step of its row: print the failed dev plan's
+error, and measure. Expected fix: the prd job also writes the dev key, as the
+dev job already carries both, and a prd-only change plans clean on dev, so the
+gate passes with no override. The gate itself stays as it is.
+
+**Logs (M20).** Before its first log line, under `GITHUB_ACTIONS=true`, the
+reconcile emits `::add-mask::` for every overlay slug and every open row's slug
+that is not visible, so later lines of the job print `***`, the terraform plan's
+addresses included. Control: a planted hidden slug is absent from a test run's
+output. **What has already been logged stays:** deleting those logs is the owner's
+choice (10.9, OD3).
+
+Threat model:
+
+| threat | answer |
+|---|---|
+| A hostile slug reaches the overlay or a shell. | Slugs pass the DB's `CHECK` and `spl_private_add`'s regex: lowercase, digits, dashes. |
+| Anyone with a create floods the overlay. | Only an operator admin or a paid checkout can create; unpaid rows are left alone. Placeholder numbers are cheap. |
+| The token that writes the secret is stolen from the master box. | That box already holds the overlay and SA keys, so the slugs add nothing, but a broad token would add much. So: a fine-grained token, this repo, `secrets: write` only (OD2). |
+| Two writers race on the overlay (the cron and a person). | Both go through `spl_private_add`, which gets a lock in this row. A hand edit outside it is still possible; the sync already refuses a newer differing target. |
+| The hidden name reaches git. | Unchanged: commits and cnf carry only the placeholder (`git show a27e25136 \| grep -c` of the slug -> 0). |
+| The master box is down. | Rows wait in `pending` with their reason, wf 40 stays green, and V2 and the 10.5 limit show it. Nothing else is held. |
+
+### 10.5 One stuck workspace holds up no other
+
+Today it does (M18). It should not: the reconcile classifies a new hidden row
+with no placeholder, or one reserved under 10 minutes ago, into a new `wait` list
+before anything is edited.
+
+- A `wait` row is not an add: it stays `pending` with `detail` saying what it
+  waits for, it does not count in `apply` (no infra stack built for it), and the
+  run stays green with its adds and removes done.
+- Past `HOST_WAIT_LIMIT` (default 30 minutes) it is marked `failed` with that
+  reason, and the run reports it as it does a failed check. Red is then earned:
+  the master box's cron is not working.
+- A failed apply still marks every add of that run failed and retries: terraform
+  applies them together, so one bad row can hold others for one run. The detail
+  says so. Splitting the apply per tenant is not worth its cost.
+
+### 10.6 Pin: the hub pins its own key
+
+**Design: the hub writes the box-wui pin itself, with no root signature.** No
+create path then needs a root key, and an operator-supplied public key (where
+the hub holds no private key) is the same case.
+
+1. `ensureWUIPin(ctx, tenant)` (hub, new): when the workspace has **no pin row**
+   for box-wui and the hub has a key, `PutPin` it with the hub's own key, not
+   forced, and write one `operator_audit` row. It never touches a live pin of
+   another key or a revoked pin.
+2. The operator create calls it, and reports `box_wui_pin` in the 201 body; a
+   failure there does not fail the create, as with the invite (the root key is
+   answered only once).
+3. A sweep beside `PostPublicNotices` (same shape) pins every workspace with no
+   box-wui pin row, except `system`, suspended, archived and unpaid. Its switch is
+   cnf `hub.box_wui_pin_sweep`, default false.
+4. `do_spl_check_box_wui_pins` exempts `system` (no fleet seats, 0 unsigned
+   posts, M21), so its GAP count means something.
+
+| create path | today | with this |
+|---|---|---|
+| Operator route, key generated (the WUI) | no pin | pinned in the create |
+| Operator route, operator's public key | no pin | pinned in the create; no private key needed |
+| Paid checkout (`paidTx`) | no pin, `fleet_seating` false (M24) | pinned by the sweep; `fleet_seating` by row P3, OD1 |
+| `spool hub-tenant` / `do_spl_tenant_create` | pinned with the root key | unchanged; the sweep catches a failed pin. `TENANT_PIN_WUI=0` is used only by its own test (`git grep`) |
+| `auth-demo` | a local demo | not in scope |
+
+**Old gaps.** Switching the sweep on repairs them: `<older gap workspace>`, the
+drill, and dev's rows. It changes pins in live workspaces, so on prd it is the
+owner's go (row P2, on dev first). `do_spl_check_box_wui_pins` must then read 0
+gaps. Then `do_spl_replay_unsigned` for any workspace with unsigned posts in the
+window (both real cases read 0 in 7 days, M21). A pin revoked or not the hub's
+key stays a reported GAP: re-keying needs the root key or an operator's decision,
+and a key rotation (014 2.3) is not changed here.
+
+Threat model:
+
+| threat | answer |
+|---|---|
+| The pin no longer carries the root key's consent. | True, and the change to spec 014 2.2. It adds no power: boxes read their pins from the hub with no root signature (M23), so a hostile hub could already list a key. The key is only ever the hub's own, and box-wui keeps its role (`task` and `note`). |
+| A customer holding its own root key does not want browser posts to reach its boxes. | It revokes the pin with its root key; the hub never re-pins a revoked row (a row exists). |
+| A sealed workspace (spec 136). | Not read. Row P1's first step reads whether a hub-written pin changes anything there, and says so in the commit body. |
+| An attacker makes the hub pin another key. | `ensureWUIPin` takes no key input: only the loaded hub key. |
+| The sweep overwrites something. | It writes only where no pin row exists, not forced. Control: a revoked row and a foreign key both stay as they are. |
+| A silent failure. | `box_wui_pin` in the 201 body, the audit row, V2, and the dispatch tick's existing `UNSIGNED` report. |
+
+### 10.7 Seats: T8..T11 against today's code
+
+The hub half is landed and still fits: `routeFleet` and the store rules are as
+4.2 says (T7, `688f46ad7`). The box half is unbuilt (M25) and needs these changes,
+all read from code landed after the spec:
+
+| row | still fits? | change |
+|---|---|---|
+| T8 | Yes. | None. Payloads are in `wire/fleet_enrol.go`. |
+| T9 | Yes, with three additions. | (a) `spl_desk_moved_to` (SPL-4699): a desk moved to the desk user belongs to that user, so the seat runs as the OS user holding the operator-workspace key and skips a moved desk. (b) `spl_box_ws_claim`: a box enrolled in one workspace seats nothing. (c) A new desk dir has no seated agents, and `DESK_SEATED_ONLY=1` would seat none, so the action names the role seats itself (`spl_role_seat`, lease.conf). The enrol's box id must be the id pinned in the operator workspace. |
+| T10 | Yes. | `spl-dispatch-subscribe` works from the pinned workspaces; a test is all it needs. |
+| T10b | Yes. | `do_spl_dispatch_setup` still renders the list once (M13). |
+| T11 | Replaced. | Row E1 is its superset. |
+| T3b | Not needed. | Unbuilt, interim, and on its own GO. Dropped once S3 lands, unless the holder objects. |
+
+Two corrections to the text above:
+
+- R1 says every listed desk box is seated; 4.3.4 says one box enrols the role
+  seats and the rest stand by. Read together: **every listed box holds a desk dir
+  and a live pin; the role seats follow the lease holder's box.** E1 tests that.
+- Section 8 item 4 says the 10-26 workspace "stays blocked on the owner's root
+  key". Section 1 says it was seated by hand. T13 is then only the switch for
+  that workspace.
+
+**What lists a desk box:** `FLEET_DESK_CMD=add BOX_ID=<box> DRY_RUN=0 ./run -a
+do_spl_fleet_desk_box` (`PUT /v1/operator/fleet-desks/{box}`), refused 409
+`no_live_pin` without a live pin in the operator workspace, one audit row. It is
+per box and once, never per workspace, so "no agent step per workspace" holds. It
+stays a decision on trust: the orchestrator runs it with the owner's go, on dev,
+then prd. Both lists are empty today (M25), so T9 does nothing until then.
+
+### 10.8 The proof
+
+**E1, one e2e on dev**, from the create to an answered post, through the operator
+route: U1..U6 in order, each with its time in the commit body. Its workspace is a
+non-`e2e*` hidden slug, or it would skip the reserve path; it deprovisions its host
+and its overlay line at the end. It needs the secret write, so it runs on the
+master box. Red control: the same run with the reserve cron off stops at U3 and V2
+names it.
+
+**V1 + V2, the operator page.** `GET /v1/operator/workspaces/{id}/readiness`
+answers each step's state and its detail: `invite` (not sent, sent, accepted),
+`host` (waiting with the reason, ready, failed with the reason, from
+`tenant_hosts`), `docs` (with the host), `pin` (ok, missing, revoked, other key),
+`seats` (listed boxes pinned of listed, role seats in the roster) and `first_answer`
+(no member post yet, waiting since, answered). It is read-only and operator admin
+only. The row shows them as one line of states with the reason for a stuck one, in
+every locale, in the rem and focus rules, with agy's final word on the text. A stuck
+step then reads in the page, with no agent.
+
+### 10.9 Choices for the owner
+
+The holder puts these to the owner; each has a recommendation.
+
+| id | choice | recommended | why |
+|---|---|---|---|
+| OD1 | A paid checkout's workspace gets `fleet_seating` true, like every other create? | Yes. | Section 1's order names no exception, and `fleet_seating` is a PATCH away. The other answer: a customer who bought it gets the fleet only on request. |
+| OD2 | A fine-grained token (this repo, `secrets: write`) on the overlay's master box, for the reserve cron? | Yes, the owner mints it once. | Without a secret write, wf 40 cannot learn a new placeholder and a person stays in the loop. Which token the master box holds today is not read. |
+| OD3 | Delete the wf 40 job logs that hold a hidden slug? | Yes, once row H1 is live. | M20. The holder has the run ids; this public spec does not list them. A deleted log does not come back. |
+
+### 10.10 Rollout
+
+In the order of `tasks.md` section 6. H1 goes first because the log is written on
+every run. Named owner's go, each for its one call: the token (OD2), listing a real
+desk box on dev and on prd, the sweep on prd, the seat backfill T12 on prd, T13.
+wf 40's applies keep the standing go they have. None of these rows touches the drill
+workspace by hand: after H2 its host should finish by itself, and after the prd
+sweep and S6 its pin and seats. That is the owner's own test.
 

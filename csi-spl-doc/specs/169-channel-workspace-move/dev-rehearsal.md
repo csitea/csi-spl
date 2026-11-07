@@ -46,7 +46,7 @@ as `spool_hub_rt`, which has TEMP. Its `CREATE TEMP TABLE` and the audit door pa
 `FATAL P7: a proof of section 5 is not 0`; P7 is not done and the journal has no `done_at`.
 
 This is risk R7 measured, n=1, one full link: Q4 leaves such posts in place and lists them (5.4), and
-the scan's only known hits are the fleet topic ids (5.2). A channel stops at P7 when a row left in `<SRC>` holds a full task or msg UUID of the set, or the channel's id or name as a whole word, in a column the scan reads; the fleet topic ids are excepted. Row T13b.
+the scan's only known hits are the fleet topic ids (5.2). A channel stops at P7 when a row left in `<SRC>`, or in a hub-wide table (one with no `tenant_id`, read unfiltered), holds a full task or msg UUID of the set, or the channel's id or name as a whole word, in a column the scan reads; the fleet topic ids are excepted. Row T13b.
 
 Read from the scan and probed by the R7 review on a throwaway local Postgres, not on dev:
 

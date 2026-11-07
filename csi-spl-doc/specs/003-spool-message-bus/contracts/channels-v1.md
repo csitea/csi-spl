@@ -384,13 +384,17 @@ false and a human owner exists.
   setting `do_spl_lane_mix` obeys. `online` says an agent of the kind can be
   picked here: its box is online and it is not in the channel. The add-agents
   list offers each other kind as a new agent, and holds no list of its own.
+  Only the operator workspace lists kinds: any other workspace gets
+  `kinds: []` (R7 W1, below).
 - `POST /v1/channels/{channel}/agent-kinds` `{"kind": "<kind>"}` (SPL-5000) —
   the people who may invite an agent. It asks the orchestrator for a new agent
   of the kind, seated in this channel: one role `orch` ask with topic
   `channel-seat` in the operator workspace, carried out by
   `do_spl_channel_seat_place`. 202 `{channel, kind, ask_id, created}`; `created`
   is false while an ask for the same seat is open. 409 `kind_not_usable` or
-  `no_orchestrator`.
+  `no_orchestrator`. 403 `operator_only` from any workspace but the operator
+  workspace: the ask spends the operator's fleet and seats an operator box's
+  agent, so it stays the operator's until spec 147 P5 caps the seating paths.
 - `PATCH /v1/channels/{channel}` `{"members_open_invite": true}` or `false`,
   and no other fields. The caller must already be in the channel: a
   non-member gets 404 `unknown_channel`, the same as a missing channel. A

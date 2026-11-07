@@ -175,3 +175,37 @@ func TestChannelAgentRequestRefusals(t *testing.T) {
 		t.Fatalf("no orch lease: %d %s", code, tok)
 	}
 }
+
+// R7 W1: the ask spends the operator's fleet, so the owner of a channel in any
+// other workspace is offered no kind and may not ask; nothing is stored.
+func TestChannelAgentRequestOtherWorkspace(t *testing.T) {
+	e, op, _ := kindsEnv(t, true)
+	ctx := context.Background()
+	other := newTenantID("other")
+	pub, _, _ := ed25519.GenerateKey(nil)
+	if err := e.st.CreateTenant(ctx, store.Tenant{ID: other, RootPubKey: pub}); err != nil {
+		t.Fatal(err)
+	}
+	owner := "HUM-1@" + other
+	now := time.Now()
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: other, ChannelID: "room", Name: "room", CreatedBy: owner, CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.AddChannelHumans(ctx, other, "room", []string{owner}, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if got := kindsOf(t, e, other, owner); got != "" {
+		t.Fatalf("another workspace is offered kinds: %q", got)
+	}
+	code, out := call(t, e, other, http.MethodPost, "/v1/channels/room/agent-kinds", owner, map[string]any{"kind": "agy"})
+	if tok, _ := out["error"].(string); code != http.StatusForbidden || tok != "operator_only" {
+		t.Fatalf("another workspace asks: %d %v", code, out)
+	}
+	asks, err := e.st.ListFleetAsks(ctx, op, "main", "orch", false, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(asks) != 0 {
+		t.Fatalf("asks in the operator fleet: %d, want 0: %+v", len(asks), asks)
+	}
+}

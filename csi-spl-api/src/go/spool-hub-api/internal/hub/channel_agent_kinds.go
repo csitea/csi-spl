@@ -31,6 +31,12 @@ import (
 // to the holder and do_spl_channel_seat_place carries out. The same people may
 // ask as may invite an agent. A second ask while one is open answers the open
 // one with created false.
+//
+// Only the operator workspace may ask (SPL-5000 R7 W1): the ask lands in the
+// operator's fleet and the seat is an operator box's agent, so another
+// workspace's member would spend the operator's fleet. Any other workspace
+// lists no kinds and gets 403 operator_only, until spec 147 P5 caps the
+// seating paths.
 
 // channelSeatAskTopic is the ask's task id; the holder's action lists by it.
 const channelSeatAskTopic = "channel-seat"
@@ -47,14 +53,15 @@ func (s *Server) routeChannelAgentKinds(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agent-kinds", s.channelMembersPreflight)
 }
 
-// usableAgentKinds is the kinds a box may start a lane of now, in AgentKinds
-// order. A hub with no operator workspace has no orchestrator: none.
-func (s *Server) usableAgentKinds(ctx context.Context) ([]string, *issueErr) {
+// usableAgentKinds is the kinds a box may start a lane of now for tenant, in
+// AgentKinds order. A hub with no operator workspace has no orchestrator, and
+// a workspace that is not the operator's may not ask it: none.
+func (s *Server) usableAgentKinds(ctx context.Context, tenant string) ([]string, *issueErr) {
 	op, err := s.operatorTenant(ctx)
 	if err != nil {
 		return nil, &issueErr{http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read"}
 	}
-	if op == "" {
+	if op == "" || tenant != op {
 		return []string{}, nil
 	}
 	fl, ie := s.fleetLoadInForce(ctx)
@@ -104,7 +111,7 @@ func (s *Server) handleChannelAgentKinds(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	kinds, ie := s.usableAgentKinds(r.Context())
+	kinds, ie := s.usableAgentKinds(r.Context(), t.ID)
 	if ie != nil {
 		writeErr(w, ie.status, ie.token, ie.detail)
 		return
@@ -158,7 +165,16 @@ func (s *Server) handleRequestChannelAgent(w http.ResponseWriter, r *http.Reques
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {kind}")
 		return
 	}
-	kinds, ie := s.usableAgentKinds(r.Context())
+	op, err := s.operatorTenant(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read")
+		return
+	}
+	if op != "" && t.ID != op {
+		writeErr(w, http.StatusForbidden, "operator_only", "only the operator workspace may ask for a new agent")
+		return
+	}
+	kinds, ie := s.usableAgentKinds(r.Context(), t.ID)
 	if ie != nil {
 		writeErr(w, ie.status, ie.token, ie.detail)
 		return

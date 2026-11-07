@@ -285,6 +285,27 @@ _ppe_generate() {
     "$(_pp_pnpm)" run generate
 }
 
+# _ppe_budget_margin <report> <budgets> - refuse a bundle this box reads within
+# 0.3 KB under ci_initial_gzip_kb. Not a ceiling edit: CI's ceiling stays, this
+# only stops a tree that passes here and reddens trunk. CI read 155.1 on a source
+# this box read 154.8 (n=1, SPL-4978), so a reading of 154.8 is refused and 154.7
+# passes. Tenths, as perf-budget.py rounds them.
+_ppe_budget_margin() {
+  python3 - "$1" "$2" <<'PY'
+import json
+import sys
+
+MARGIN_TENTHS = 3
+with open(sys.argv[1], encoding="utf-8") as f:
+    got = json.load(f)["metrics"]["ci_initial_gzip_kb"]
+with open(sys.argv[2], encoding="utf-8") as f:
+    cap = json.load(f)["ceilings"]["ci_initial_gzip_kb"]
+if round(got * 10) + MARGIN_TENTHS > round(cap * 10):
+    print(f"FAIL ci_initial_gzip_kb {got:g} is within the local margin {MARGIN_TENTHS / 10:g} of the ceiling {cap:g}: CI reads above this box")
+    sys.exit(1)
+PY
+}
+
 # _ppe_bundle_hold <dir> - hold the bundle <dir> for the rest of the calling
 # shell: a shared flock on <cache>/.locks/<key>, on an fd the shell keeps open
 # until it exits, so its children (the runner, Chrome) hold it too and a
@@ -329,7 +350,7 @@ _pp_part_wui_e2e() {
   local files="$_PPE_FILES" t missing=""
   for t in $files; do [[ -f "$tree/csi-spl-wui/$t" ]] || missing+=" $t"; done
   [[ -z "$missing" ]] || echo "wui-e2e: not in this tree (new in the push?):$missing"
-  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune
+  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin
   timeout -k 10 "${PRE_PUSH_E2E_TIMEOUT:-600}" bash -c '
     set -uo pipefail
     tree="$1" files="$2"
@@ -372,9 +393,12 @@ _pp_part_wui_e2e() {
     # wf 10 step "Initial JS gzip stays within the performance budget", same
     # script, same budgets, same bundle: a budget only CI measured made 8 red
     # runs on 10-27 (ci-panel-20261028 3.3, SPL-4129)
+    budgets="$tree/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json"
     python3 "$tree/csi-spl-orc/src/bash/scripts/perf-budget.py" bundle --pub .output/public \
-      --budgets "$tree/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json" ||
+      --budgets "$budgets" --out "$run_dir/perf-budget.json" ||
       { echo "FAIL: wui-e2e: the bundle is over perf-budgets.json (wf 10 measures the same)"; exit 1; }
+    _ppe_budget_margin "$run_dir/perf-budget.json" "$budgets" ||
+      { echo "FAIL: wui-e2e: the bundle is inside the local margin under perf-budgets.json"; exit 1; }
     export CHROME_PATH="${CHROME_PATH:-$(command -v google-chrome || command -v chromium || command -v chromium-browser)}"
     export TMPDIR="$run_dir" SHOT_DIR="$run_dir/shots"; mkdir -p "$SHOT_DIR"
     # shellcheck disable=SC2086 # files: one word each

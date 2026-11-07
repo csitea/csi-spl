@@ -52,6 +52,7 @@ Reused-connection view TTFB, n=12, warmup=1, 2026-09-25T19:50:48Z, hub `143229e5
 
 - Dev (or prd) numbers: `ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_perf_budget` from `csi-spl-orc`. Dry run makes no request. `PERF_REQUIRE=none` records without comparing.
 - CI: workflow 10, job `wui-e2e`, after the mock `nuxt generate`, runs `perf-budget.py bundle` and fails when `ci_initial_gzip_kb` is over 210. The quality gate stays offline, so the live timings are not part of that job.
+- Locally: the pre-push `wui-e2e` part runs the same `perf-budget.py bundle` and also refuses a reading within 0.3 KB under `ci_initial_gzip_kb` (`_ppe_budget_margin`, SPL-4978), since CI has read up to 0.3 KB above this box on one source. The ceiling stays as it is; only the local refusal comes early.
 
 ## Control
 

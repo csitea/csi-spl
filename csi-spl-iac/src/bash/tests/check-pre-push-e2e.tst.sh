@@ -29,6 +29,9 @@
 #  12. the bundle budget (SPL-4129): the part runs wf 10's perf-budget.py
 #      bundle on the bundle it built; over perf-budgets.json -> rc 1, the
 #      FAIL line, no file runs (check 7's small bundle prints PASS)
+#  18. the local margin (SPL-4978): a bundle under the ceiling but within 0.3 KB
+#      of it -> rc 1, wf 10's PASS and the margin FAIL, no file runs; 0.3 KB
+#      under the ceiling runs (the control: same bundle, the ceiling alone moved)
 #  13. the shell's data-* state attributes (SPL-4139), on 46afd70ba's tree:
 #      A main.css alone selects a test reading one; B the 4 files of that
 #      commit score mobile-stack above master's 22; C still <= MAX files
@@ -242,6 +245,34 @@ if [[ "$r" == 1 && ! -s "$T/ran" ]] && grep -q '^FAIL ci_initial_gzip_kb [0-9.]*
 else
   fail "12. over budget: rc $r, ran '$(cat "$T/ran")'"; sed 's/^/    | /' "$T/out"
 fi
+
+# --- 18. the local margin ------------------------------------------------------------------
+budgets="$R/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json"
+budgets_kept="$(cat "$budgets")"
+reading="$(sed -n 's/^FAIL ci_initial_gzip_kb \([0-9.]*\) > 2$/\1/p' "$T/out" | sed -n 1p)"
+margin_run() {
+  python3 -c 'import sys; print("{\"ceilings\": {\"ci_initial_gzip_kb\": %.1f, \"ci_home_gzip_kb\": 999}}" % (float(sys.argv[1]) + float(sys.argv[2])))' \
+    "$reading" "$1" >"$budgets"
+  : >"$T/out"; : >"$T/ran"
+  ( export PPE_T="$T" PRE_PUSH_E2E_GENERATE="$T/gen" PRE_PUSH_E2E_RUNNER="$T/run" PRE_PUSH_E2E_BUNDLES="$T/bundles-big" \
+      CHROME_PATH=/bin/true TMPDIR="$T" PPE_JS_BYTES=4096
+    _ppe_plan "csi-spl-wui/src/components/FooBar.vue" "$R" && _pp_part_wui_e2e "$R" ) >>"$T/out" 2>&1
+}
+margin_run 0.2; r=$?
+if [[ "$r" == 1 && ! -s "$T/ran" ]] && grep -q '^PASS ci_initial_gzip_kb ' "$T/out" \
+   && grep -q '^FAIL ci_initial_gzip_kb .* is within the local margin 0.3 of the ceiling' "$T/out" \
+   && grep -q '^FAIL: wui-e2e: the bundle is inside the local margin' "$T/out"; then
+  pass "18a. 0.2 KB under the ceiling: rc 1, wf 10's check passed, the margin refused, no file ran"
+else
+  fail "18a. inside the margin: rc $r, ran '$(cat "$T/ran")'"; sed 's/^/    | /' "$T/out"
+fi
+margin_run 0.3; r=$?
+if [[ "$r" == 0 && -s "$T/ran" ]] && ! grep -q 'local margin' "$T/out"; then
+  pass "18b. the control, 0.3 KB under the ceiling: rc 0, the files ran"
+else
+  fail "18b. outside the margin: rc $r, ran '$(cat "$T/ran")'"; sed 's/^/    | /' "$T/out"
+fi
+printf '%s\n' "$budgets_kept" >"$budgets"
 
 # --- 9. the stamp -----------------------------------------------------------------------------
 cat >"$T/pnpm" <<'EOF2'

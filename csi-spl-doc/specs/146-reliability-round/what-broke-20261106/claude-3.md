@@ -124,7 +124,7 @@ Contamination: from about 00:30Z on 11-07 this panel's seats (this one included)
 
 - Lanes per hour: 11-05 peaks at 13; 11-06 is 0 for 00, 01, 05, 07, 10-15, 17. The 3-minute floor allows 20 per hour and did not bind.
 - During the gap, by count of hold lines in sat's `spawn-place/cron.out` (4721 lines between the last `OK ask` before the gap, 09:05:31, and the first after it): 977 weekly hold (8 asks), 267 "pinned to the PC box: past its overflow mark" and 153 "pinned to the PC box: CORDONED" (10 asks together), the rest mostly `placed as agy` noise (6 asks) and pick lines. Lines count retries, not lanes.
-- Not found: 9ce3e998 (c-460, 09:12:08) in the sat log. The gap's end points come from the DB. Which process placed c-459 and c-460 is not established.
+- The placer itself stopped at 09:05 (c-456). c-459 (09:09:42) and c-460 (09:12:08) were asks created at 09:06:09 and 09:09:31 and closed by c-001, so placed by hand, not by the placer: `fleet_asks` `closed_by`, and the placer's own "already done by c-001@sat" line (n = 2). So the gap is 7h07m for the placer and 7h00m for any lane.
 - Asks pinned to the PC box: the placer reports it at 120-191% of a 60% high mark during the gap, while `box_stats` hour means for 11-13Z are load1 5-6 on 16 cores. I did not read how that % is computed, so I do not call it stale. It did not decide the day: the weekly hold covered sat as well.
 - The hold is not the queue. Depth is 109-130 at every 6 h sample from 11-05 00Z to 11-07 00Z, so the backlog is not new. p90 wait did jump on 11-03 (270 -> 1815 min, confirming the brief), but the best day, 11-05, ran at p90 1264 min.
 - Cordon: `dispatch/cordon/` on sat is empty now (dir mtime 11-07 01:06Z). The marker existed at some point in the gap (153 lines). Its time and author are not established.
@@ -133,7 +133,8 @@ Contamination: from about 00:30Z on 11-07 this panel's seats (this one included)
 
 - 11-03: both boxes hit it ("resets Nov 7"; 36 messages on the PC box, 26 on sat). 11-04 is at full volume again; how is not established.
 - 11-06: 90% posted 09:00 and 09:05, 96% at 12:40, reset named 11-11T17:00Z. The kept row names reset 11-12T08:59:59Z. They differ by 15h59; I cannot explain it.
-- Output tokens per day, both boxes: 11-04 12.7 M, 11-05 14.5 M, the highest in my 10-28..11-06 counts. How much of the weekly limit a token is worth I cannot read.
+- Output tokens per day, both boxes, from transcripts: 11-04 12.7 M, 11-05 14.5 M. These two days are well above my counts for 10-28..11-03, but I did not check transcript retention, so the older days may be undercounted (10-31 reads 6369 messages for 103 commits, 11-04 reads 31822 for 113). Do not read this as a measured rise; the token tables, which I did not read, can settle it. How much of the weekly limit a token is worth I cannot read.
+- The agent's fingerprint did not use up this limit: it began at 14:00Z, after the 97% reading. Before it, on 11-06, sat's tokens per message were 274-418 per hour.
 - The bound on "stale": at 13:58:08 the row is read at 97. The owner's first matching post is 16:09, and it says the owner had informed earlier (keyword search of `messages` by `from_id`, 3 rows; a keyword search cannot prove there is no earlier post). So the hold ran on a stale reading for at most 2h14m, and on a true reading for at least 4h46m. That the row came from the cache is itself inferred in fe0455e48 ("no log holds the read").
 - `weekly-limit-alert` on sat reads "no reading" for all vendors in the 8 tail lines I read, while the hold says 90%. I did not read its 11-06 lines; flagged for whoever owns that alert.
 
@@ -171,4 +172,20 @@ Proposals only; this lane changes nothing.
 3. **Keep fe0455e48 (SPL-4932) and watch its stated gap:** a pane still showing an old banner re-keeps its %. A hold over N hours should re-read at the source and state the reading's age in the hold line.
 4. **One box's bad day must not take 41% + 26% of the placements.** With the PC box gone, sat took 11 lanes in 8 h at its load and disk holds, and asks pinned to the PC box waited for it. On a box dark for more than N minutes: alert, unpin what can move, and measure what sat can really carry. Whether sat can carry both is another lens's question.
 5. **Track the agent's fingerprint daily:** Bash command p50 chars, tokens per message, tokens per second inside fixed sizes, per box. It costs a cheap transcript read (under 20 s on sat here). The state of 11-02 went unseen until this panel, and it changes the quota burn.
-6. **Find out what the 11-02 and 11-06 14:00Z state is.** Look for a boundary on 11-02 by the hour, and ask whether anything on the account changed then. Not done here; this is the open question of this seat.
+6. **Find out what the 11-02 and 11-06 14:00Z state is.** Section 9 is a first test; the question stays open.
+
+## 9. Addendum, after reading the editor's RC: the fingerprint against credential changes
+
+Written after this seat's first push (b083fc6da), so it is not independent of the RC, which named sat's `agent-login-check/cred.log` and its change at 13:57:05.
+
+That log's rows are about 7h55 apart, the regular refresh. Three rows from 10-31 to 11-06 fall off that cycle. Hourly fingerprint on sat, Bash command p50 chars and tokens per message, 11-01 12Z to 11-03 13Z:
+
+| fingerprint flip | evidence, sat (PC box agrees where it has n) | off-cycle credential change |
+|---|---|---|
+| ON, 11-02 01Z | 00Z 293, 392; 01Z 554, 594; 02Z 615, 712 | none near it; nearest off-cycle row 11-01 18:23, about 7 h before; regular row 02:17, after |
+| OFF, 11-03 about 09Z | 08Z 688, 715; 09Z 362, 574; 11Z 309, 402 | **11-03 08:58:55** (6h55 after the last row) |
+| ON, 11-06 14:00Z | 13:30 bin 285 tokens; 14:00 bin 691 | **11-06 13:57:05** (5h44 after the last row) |
+
+Two of 3 flips fall within minutes of an off-cycle credential change; the third has none, and 1 of the 3 off-cycle rows has no flip near it. They also go in opposite directions, so "a new login turns it on" does not fit. **Suggestive only, n = 3. Cause still not established.** The log holds hashes, so it does not say what changed on the account, and I read only sat's copy.
+
+Corrections to my first push: the placed gap (section 4), and the token-volume reading (section 5). The RC's 13:57:05 also dates the limit change better than my 13:58:08; the stale bound becomes 2h15m.

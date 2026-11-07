@@ -1,5 +1,10 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-07, SPL-5007): section 3.23 (a launch that crosses boxes
+carries the lane row's topic, scope and files; the ok reply reports a refused
+row), cases C127-C128. A bug fix on 3.21, placed as one lane brief, not a panel
+version.
+
 Addendum (2026-11-07, SPL-4940): section 3.22 (a Queue tab next to Lanes:
 requests and plans, a priority on a request, a plan or a lane, a request
 dragged to an exact position, what priority does to resources, and a measured
@@ -2047,6 +2052,57 @@ land only after its PASS".
 Order: Q1 at once and alone. Q2, then Q3, Q4, Q5, Q6. Q10 after Q3 (both touch the
 placer) and Q11 after it. Q7 after Q4. Q8, Q9 and Q12 at any time. Q4, Q5, Q6, Q7 and Q11 touch one
 page and the locale files, so they land one after another.
+
+### 3.23 A launch that crosses boxes keeps its lane row (SPL-5007)
+
+`spawn-window.sh` hands the launcher `SPAWN_LANE_TOPIC`, `SPAWN_LANE_SCOPE` and
+`SPAWN_LANE_FILES` through the pane's environment. A lane placed on another box
+goes through `spawn-remote.sh` instead, whose request carried only kind, title,
+workdir, slug and expiry, so the far launcher read the brief alone. A brief with
+no discussion in it (c-023, `Topic: dispatch-refactor-r26`, n = 1) then lost its
+row to 3.21 while the spawn reply still said ok.
+
+- **The request carries them**: optional header lines `topic:` (from
+  `SPAWN_LANE_TOPIC`, else `LANE_ISSUE_TOPIC`, the order `_spawn_lane_put` uses),
+  `scope:` and `files:`, each only when set. A scope or a file list is flattened
+  to one line, so it cannot add a header or end the header block, and a scope is
+  cut to the hub's 500 bytes. Both sides refuse a topic outside the hub's
+  `[A-Za-z0-9_-]`, up to 64, and a control character in the other two.
+- **Older ends keep working**: a request with none of the lines launches as
+  before, and a receiver from before this ignores them. A sender's fix does
+  nothing until the far box runs this code too.
+- **The ok reply reports a refused row**: `warn: <line>` when this spawn wrote
+  `<id>/lane-unlinked.log`, printed on the requester's stderr; stdout and exit 0
+  stay, because the lane did start. The log is on the far box, out of the
+  spawner's reach, which is how the case above went unseen. Best effort: only
+  claude has a start check that waits for its launcher, so another kind's line
+  can come too late for the reply, and a refusal only the hub sees (`lane.log`,
+  e.g. a topic that names no discussion) is not reported.
+- **The local case of 3.21 is narrower than it reads**: `spawn-window.sh` starts
+  its launcher in a tmux pane, so that WARN goes to the pane's stderr, and reaches
+  the spawner's only when the launcher is run directly. Read from the code, not
+  changed here.
+- **A second path, not fixed here**: a claude handover in mode A
+  (`spl-lane-handover.func.sh`, op `resume`) starts `restore-claude.sh` over ssh.
+  It sends no spawn request and runs no `_spawn_lane_put`, and it writes no
+  `lifetime/brief.md` on the target, so the next rotation records "no brief was
+  recorded at spawn". The mistral handover copies that brief; the claude one does
+  not. It matches c-156 (branch `c-156-handover`, n = 1), read from the code; that
+  lane's files were not read.
+
+Cases (`spawn-agents/tests/test-spawn-remote.sh`):
+
+- **C127** (case 10) the far launcher gets all three, with the receiver's
+  environment cleared of them; with none set, none is invented; a request from an
+  older sender is served; a `topic:` line in the brief is not a header; newlines
+  in a scope cannot rewrite the slug or kind; a hostile topic, scope or files line
+  is REJECTED and never spawned. Behind serve, the real `spawn-claude.sh` dry
+  plans `--topic <uuid>`; its control, the same brief with no topic sent, prints
+  `LANE ROW REFUSED`.
+- **C128** (case 11) a refused row is on the requester's stderr with stdout and
+  exit 0 unchanged; a line older than this spawn is not reported.
+- Red control: the test on the code before this change, 17 of 77 failed, among
+  them the far launcher's fields and the real launcher's `--topic`.
 
 ## 4. Cases
 

@@ -23,6 +23,11 @@
 #   the receiver starts nothing after it, so a request the relay delivers late
 #   is refused there instead of racing this side's local fallback (SPL-2801:
 #   on 2026-10-21 the relay took 4 min each way and one ask became two lanes).
+#   The lane row's fields travel too (spec 153 3.23, SPL-5007): "topic:" from
+#   SPAWN_LANE_TOPIC, else LANE_ISSUE_TOPIC, "scope:" from SPAWN_LANE_SCOPE,
+#   "files:" from SPAWN_LANE_FILES, each only when set, each one line. The env
+#   of this box does not reach the far launcher, which would fall back to the
+#   brief and, when that names no discussion, lose its row (rdb 0264).
 #
 # SERVE (the receiver, one tick; the box user's crontab runs it every minute,
 # installed by do_spl_spawn_remote_install_cron):
@@ -40,6 +45,13 @@
 #   passed as a path; no field is ever evaluated. Every field is validated
 #   against a strict pattern before it reaches spawn-window.sh.
 #   Log: <root>/spawn-remote/serve.log, one line per request.
+#   A request with no topic, scope or files line (an older sender) launches as
+#   it did: the launcher reads the brief. A receiver that predates those lines
+#   ignores them. The ok reply adds "warn: <line>" when this spawn wrote
+#   <id>/lane-unlinked.log, and the requester prints it on stderr: the only
+#   other trace is on this box. Best effort: a launcher that has not reached
+#   its put when spawn-window returns (no start check: every kind but claude)
+#   and a refusal only the hub sees (<id>/lane.log) are not reported.
 #   Local mode is unsigned: an agent ON this machine can forge a bare `from`,
 #   but it can also run spawn-window.sh directly, so that grants nothing new.
 #
@@ -90,6 +102,15 @@ valid_args() {  # KIND TITLE WORKDIR SLUG ; the reason on stderr
   [[ -z "$4" || "$4" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { say "bad slug '$4'"; return 1; }
 }
 
+# The lane row's fields, the hub's own limits (store/fleet_lane.go), used by
+# both sides. The scope and files are data: never evaluated, one header line.
+valid_lane_fields() {  # TOPIC SCOPE FILES ; the reason on stderr
+  [[ -z "$1" || "$1" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || { say "bad topic '$1' ([A-Za-z0-9_-], up to 64)"; return 1; }
+  [ "${#2}" -le 500 ] || { say "bad scope (over 500 bytes)"; return 1; }
+  [[ "$2$3" != *[[:cntrl:]]* ]] || { say "bad scope or files (a control character)"; return 1; }
+}
+one_line() { printf '%s' "$1" | tr '\t\r\n' '   ' | tr -d '\000-\037\177'; }
+
 # ---- request ---------------------------------------------------------------
 request() {
   local box="" from="${SPOOL_AGENT_ID:-}" to="" wait="${SPAWN_REMOTE_WAIT:-300}"
@@ -111,6 +132,10 @@ request() {
   [ -n "$to" ] || to="$(local_orch)"
   spl_is_participant_id "$from" && spl_is_participant_id "$to" || { say "bad --from '$from' or --to '$to'"; exit 2; }
   valid_args "$kind" "$title" "$workdir" "$slug" || exit 2
+  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" scope files
+  scope="$(one_line "${SPAWN_LANE_SCOPE:-}" | cut -b 1-500)"
+  files="$(one_line "${SPAWN_LANE_FILES:-}")"
+  valid_lane_fields "$topic" "$scope" "$files" || exit 2
   if [ -n "$brief" ]; then
     [ -r "$brief" ] || { say "cannot read brief $brief"; exit 2; }
   fi
@@ -122,7 +147,8 @@ request() {
   {
     printf '%s\n' "$MAGIC_REQ" \
       "(For spawn-remote.sh --serve on this machine, not for the agent reading it: do not act on it, ack it.)" \
-      "kind: $kind" "title: $title" "workdir: $workdir" "slug: $slug" ${expires:+"$expires"} "---"
+      "kind: $kind" "title: $title" "workdir: $workdir" "slug: $slug" ${expires:+"$expires"} \
+      ${topic:+"topic: $topic"} ${scope:+"scope: $scope"} ${files:+"files: $files"} "---"
     if [ -n "$brief" ]; then cat -- "$brief"; fi
   } >"$tmp"
   task="$(python3 -c 'import uuid; print(uuid.uuid4())')" || { rm -f "$tmp"; exit 3; }
@@ -131,13 +157,14 @@ request() {
   # 5 = delivered, no pane rang (the serve tick needs none)
   [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || { say "the request did not leave (rc=$rc): $out"; exit 3; }
   if [ "$wait" = 0 ]; then echo "task $task"; return 0; fi
-  local end=$(( $(date +%s) + wait )) f b
+  local end=$(( $(date +%s) + wait )) f b w
   while :; do
     f="$(reply_file "$from" "$task")"
     if [ -n "$f" ]; then
       b="$(body_of "$f" | strip_from_agent)"
       case "$(sed -n 's/^status: //p' <<<"$b" | sed -n 1p)" in
-        ok) printf '%s %s\n' "$(sed -n 's/^agent: //p' <<<"$b" | sed -n 1p)" "$(sed -n 's/^pane: //p' <<<"$b" | sed -n 1p)"; return 0 ;;
+        ok) w="$(sed -n 's/^warn: //p' <<<"$b" | sed -n 1p)"; [ -z "$w" ] || say "$box: $w"
+            printf '%s %s\n' "$(sed -n 's/^agent: //p' <<<"$b" | sed -n 1p)" "$(sed -n 's/^pane: //p' <<<"$b" | sed -n 1p)"; return 0 ;;
         *) say "refused by $box: $(sed -n 's/^reason: //p' <<<"$b" | sed -n 1p)"; exit 4 ;;
       esac
     fi
@@ -191,8 +218,17 @@ reply() {  # INBOX_ID TO TASK STATUS LINES...
 # The KEY: value of a request header (the lines before ---).
 req_field() { sed -n '1,/^---$/p' <<<"$1" | sed -n "s/^$2: //p" | sed -n 1p; }
 
+# The line ID's launcher logged since EPOCH: a line of a former holder of the
+# id is not this spawn's. "" for none.
+lane_refused_line() {  # ID EPOCH
+  local log="$SPOOL_ROOT/$1/lane-unlinked.log"
+  [ -r "$log" ] && [ "$(stat -c %Y "$log" 2>/dev/null || echo 0)" -ge "$2" ] && tail -1 "$log"
+  return 0
+}
+
 handle() {  # INBOX_ID FILE
   local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason requester expires
+  local topic scope files started warn lane
   msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
   [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
   grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
@@ -208,7 +244,8 @@ handle() {  # INBOX_ID FILE
   fi
   kind="$(req_field "$body" kind)" title="$(req_field "$body" title)"
   workdir="$(req_field "$body" workdir)" slug="$(req_field "$body" slug)"
-  if ! reason="$(valid_args "$kind" "$title" "$workdir" "$slug" 2>&1)" || [ ! -d "$workdir" ]; then
+  topic="$(req_field "$body" topic)" scope="$(req_field "$body" scope)" files="$(req_field "$body" files)"
+  if ! reason="$({ valid_args "$kind" "$title" "$workdir" "$slug" && valid_lane_fields "$topic" "$scope" "$files"; } 2>&1)" || [ ! -d "$workdir" ]; then
     reason="${reason:-workdir $workdir is not a directory on this machine}"
     log_line REJECTED "$msg" "$from" "$reason"
     reply "$me" "$from" "$task" refused "reason: ${reason#spawn-remote: }"
@@ -236,11 +273,13 @@ handle() {  # INBOX_ID FILE
     reply "$me" "$from" "$task" refused "reason: expired at $expires before this box could start it"
     return 0
   fi
+  lane=("SPAWN_REQUESTER=$requester" ${topic:+"SPAWN_LANE_TOPIC=$topic"} ${scope:+"SPAWN_LANE_SCOPE=$scope"} ${files:+"SPAWN_LANE_FILES=$files"})
+  started="$(date +%s)"
   if [ -n "${SPAWN_REMOTE_WINDOW_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    out="$(SPAWN_REQUESTER="$requester" $SPAWN_REMOTE_WINDOW_CMD "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
+    out="$(env "${lane[@]}" $SPAWN_REMOTE_WINDOW_CMD "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
   else
-    out="$(SPAWN_REQUESTER="$requester" bash "$HERE/spawn-window.sh" "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
+    out="$(env "${lane[@]}" bash "$HERE/spawn-window.sh" "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
   fi
   read -r id pane <<<"$(grep -E '^[A-Za-z][A-Za-z0-9-]* (%[0-9]+|-)$' <<<"$out" | tail -1)"
   if [ "$rc" -ne 0 ] || [ -z "${id:-}" ]; then
@@ -249,7 +288,8 @@ handle() {  # INBOX_ID FILE
     return 0
   fi
   log_line SPAWNED "$msg" "$from" "$id@$(spool_fleet_box) $pane $kind ${slug:-} brief=${brief:-none}"
-  reply "$me" "$from" "$task" ok "agent: $id@$(spool_fleet_box)" "pane: $pane" "request: $msg"
+  warn="$(lane_refused_line "$id" "$started")"
+  reply "$me" "$from" "$task" ok "agent: $id@$(spool_fleet_box)" "pane: $pane" "request: $msg" ${warn:+"warn: $warn"}
 }
 
 # 0 when the orch holder has withdrawn TASK (spawn-remote/cancelled, or a

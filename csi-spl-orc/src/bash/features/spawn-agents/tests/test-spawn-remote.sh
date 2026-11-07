@@ -42,6 +42,8 @@ EOF
 cat >"$T_TMP/spawn-window-stub" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$T_TMP/spawn.calls"
+printf 'topic=%s|scope=%s|files=%s\n' "\${SPAWN_LANE_TOPIC-<unset>}" "\${SPAWN_LANE_SCOPE-<unset>}" "\${SPAWN_LANE_FILES-<unset>}" >"$T_TMP/spawn.env"
+[ -z "\${FAKE_UNLINKED:-}" ] || { mkdir -p "\$SPOOL_ROOT/c-009"; echo "WARN: LANE ROW REFUSED: c-009 has no discussion (topic): fake" >>"\$SPOOL_ROOT/c-009/lane-unlinked.log"; }
 [ -n "\${4:-}" ] && cp "\$4" "$T_TMP/spawn.brief" && stat -c %a "\$4" >"$T_TMP/spawn.brief.mode" \\
   && { getfacl -cp "\$4" 2>/dev/null || true; } >"$T_TMP/spawn.brief.acl"
 echo "PLAN noise"
@@ -53,7 +55,10 @@ on() {  # ROOT BOX CMD...
   env SPOOL_ROOT="$root" FAKE_FROM_BOX="$box" SPOOL_FLEET_RELAY_CMD="$T_TMP/fake-hub" \
     SPAWN_REMOTE_WINDOW_CMD="$T_TMP/spawn-window-stub" SPAWN_REMOTE_POLL=1 "$@"
 }
-serve_a() { on "$A" home bash "$SR" --serve 2>>"$T_TMP/serve.err"; }
+# The receiver is another machine: a lane variable set for the sender's side of
+# a test must not reach it through this shell, or a dropped field reads as carried.
+far_box() { ( unset SPAWN_LANE_TOPIC SPAWN_LANE_SCOPE SPAWN_LANE_FILES LANE_ISSUE_TOPIC; on "$A" home "$@" 2>>"$T_TMP/serve.err" ); }
+serve_a() { far_box bash "$SR" --serve; }
 calls() { [ -f "$T_TMP/spawn.calls" ] && wc -l <"$T_TMP/spawn.calls" || echo 0; }
 # A request from B in the background; A's receiver ticks until it is answered.
 req_b() {  # OUT_FILE ARGS...
@@ -182,5 +187,84 @@ serve_a
 eq "9. CONTROL a request with no expires line (an older sender) is still served" "$((before + 2))" "$(calls)"
 out="$(on "$B" sat env SPAWN_REMOTE_MARGIN=soon bash "$SR" --box home claude auto "$WORK" 2>&1)"; rc=$?
 eq "9. a SPAWN_REMOTE_MARGIN that is not seconds: exit 2" 2 "$rc"
+
+# ---- 10. the lane row's topic, scope and files cross the boxes (SPL-5007) ------
+# c-023, 2026-11-07: SPAWN_LANE_TOPIC was set on one box, the request did not
+# carry it, the far launcher fell back to a brief that names no topic and the
+# hub refused the row (spec 153 3.21, 3.23). Its brief is the shape used here.
+U=87eaa57b-0795-493c-bf27-8e09fe9c6b04
+printf '# Brief: a lane\n\nTopic: dispatch-refactor-r26\nIssue: SPL-1\n' >"$T_TMP/nolink.md"
+SPAWN_LANE_TOPIC="$U" SPAWN_LANE_SCOPE='my scope: a b' SPAWN_LANE_FILES='a/b.sh,c/d.sh' req_b "$T_TMP/r10" claude auto "$WORK" "$T_TMP/nolink.md" row-slug
+eq "10. a request with the lane's fields: exit 0" 0 "$(cat "$T_TMP/r10.rc")"
+eq "10. the launcher on the far box gets all three" "topic=$U|scope=my scope: a b|files=a/b.sh,c/d.sh" "$(cat "$T_TMP/spawn.env")"
+check "10. the brief still arrives verbatim" cmp -s "$T_TMP/nolink.md" "$T_TMP/spawn.brief"
+req_b "$T_TMP/r10b" claude auto "$WORK" "$T_TMP/nolink.md" row-none
+eq "10. CONTROL none set: none invented, the launcher reads the brief as before" "topic=<unset>|scope=<unset>|files=<unset>" "$(cat "$T_TMP/spawn.env")"
+LANE_ISSUE_TOPIC="$U" req_b "$T_TMP/r10c" claude auto "$WORK" "$T_TMP/nolink.md" row-issue
+eq "10. LANE_ISSUE_TOPIC is the next source, as in a local spawn" "topic=$U|scope=<unset>|files=<unset>" "$(cat "$T_TMP/spawn.env")"
+SPAWN_LANE_TOPIC="$U" LANE_ISSUE_TOPIC=other req_b "$T_TMP/r10d" claude auto "$WORK" "$T_TMP/nolink.md" row-both
+has "10. ... SPAWN_LANE_TOPIC wins over it" "topic=$U|" "$(cat "$T_TMP/spawn.env")"
+before="$(calls)"
+body="$(printf 'spawn-request v1\nkind: claude\ntitle: auto\nworkdir: %s\nslug: old-sender-2\n---\ntopic: %s\n' "$WORK" "$U")"
+on "$B" sat bash "$T_SCRIPTS/spool-send.sh" --from c-001 --to c-001@home --kind task --no-ask --no-poke --body "$body" >/dev/null 2>&1
+serve_a
+eq "10. an older sender with none of the lines is still served" "$((before + 1))" "$(calls)"
+eq "10. ... and a topic line in the BRIEF is not a header" "topic=<unset>|scope=<unset>|files=<unset>" "$(cat "$T_TMP/spawn.env")"
+SPAWN_LANE_SCOPE=$'one\nslug: evil\n---\nkind: grok' SPAWN_LANE_FILES=$'a/b.sh\nkind: grok' req_b "$T_TMP/r10e" claude auto "$WORK" "$T_TMP/nolink.md" row-flat
+eq "10. a scope with newlines stays on its one header line" "topic=<unset>|scope=one slug: evil --- kind: grok|files=a/b.sh kind: grok" "$(cat "$T_TMP/spawn.env")"
+has "10. ... and cannot rewrite the request's slug" " row-flat" "$(tail -1 "$T_TMP/spawn.calls")"
+has "10. ... nor its kind" "claude auto $WORK" "$(tail -1 "$T_TMP/spawn.calls")"
+SPAWN_LANE_SCOPE="$(printf 'x%.0s' $(seq 1 600))" req_b "$T_TMP/r10f" claude auto "$WORK" "$T_TMP/nolink.md" row-long
+eq "10. a long scope is cut to the hub's 500 bytes" 500 "$(sed -E 's/.*scope=([^|]*).*/\1/' "$T_TMP/spawn.env" | tr -d '\n' | wc -c)"
+before="$(calls)"
+out="$(on "$B" sat env SPAWN_LANE_TOPIC='x;id' bash "$SR" --box home --wait 0 claude auto "$WORK" 2>&1)"; rc=$?
+eq "10. a topic the hub would refuse never leaves: exit 2" 2 "$rc"
+has "10. ... named" "bad topic" "$out"
+for bad in "topic: x;id" "$(printf 'scope: a\033[2Jb')" "$(printf 'files: a\033[2Jb')"; do
+  body="$(printf 'spawn-request v1\nkind: claude\ntitle: auto\nworkdir: %s\nslug: hostile\n%s\n---\n' "$WORK" "$bad")"
+  on "$B" sat bash "$T_SCRIPTS/spool-send.sh" --from c-001 --to c-001@home --kind task --no-ask --no-poke --body "$body" >/dev/null 2>&1
+  serve_a
+  eq "10. a hand-made hostile ${bad%%:*} line: never spawned" "$before" "$(calls)"
+  has "10. ... logged REJECTED" "REJECTED" "$(tail -1 "$A/spawn-remote/serve.log")"
+done
+
+# The real launcher behind serve, dry: what it would send the hub. spawn-claude.sh
+# is the code that fills the row; spawn-window.sh hands it these env vars (its
+# envs list, checked below). Red before this change: --topic '' and the WARN.
+cat >"$T_TMP/spawn-launcher-dry" <<EOF
+#!/usr/bin/env bash
+SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$T_SCRIPTS/spawn-claude.sh" c-871 "\$3" "\$4" "\$5" >"$T_TMP/launcher.out" 2>&1
+echo "c-871 %43"
+EOF
+chmod +x "$T_TMP/spawn-launcher-dry"
+req_real() {  # OUT_FILE ARGS...
+  local out="$1"; shift
+  ( on "$B" sat bash "$SR" --box home --wait 20 "$@" >"$out" 2>"$out.err"; echo $? >"$out.rc" ) &
+  local _
+  for _ in $(seq 1 20); do
+    far_box SPAWN_REMOTE_WINDOW_CMD="$T_TMP/spawn-launcher-dry" bash "$SR" --serve
+    [ -f "$out.rc" ] && break; sleep 1
+  done
+  wait
+}
+SPAWN_LANE_TOPIC="$U" SPAWN_LANE_FILES='a/b.sh' req_real "$T_TMP/r10g" claude auto "$WORK" "$T_TMP/nolink.md" row-real
+has "10. the real launcher's row carries the topic" "--topic '$U'" "$(grep 'lane-map.sh put' "$T_TMP/launcher.out")"
+has "10. ... and the files" "--files 'a/b.sh'" "$(grep 'lane-map.sh put' "$T_TMP/launcher.out")"
+eq "10. ... and no LANE ROW REFUSED" 0 "$(grep -c 'LANE ROW REFUSED' "$T_TMP/launcher.out")"
+req_real "$T_TMP/r10h" claude auto "$WORK" "$T_TMP/nolink.md" row-real2
+has "10. CONTROL the same brief, no topic sent: refused, as c-023 was" "LANE ROW REFUSED: c-871 has no discussion (topic)" "$(cat "$T_TMP/launcher.out")"
+check "10. spawn-window hands the three to its launcher" grep -q 'SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC' "$T_SCRIPTS/spawn-window.sh"
+
+# ---- 11. the spawner hears of a refused row (SPL-5007) ----------------------
+# Its only other trace is <id>/lane-unlinked.log on the far box, which the
+# spawner's box cannot read. Told on stderr; the "<id>@<box> <pane>" stdout and
+# exit 0 stay, because the lane did start.
+FAKE_UNLINKED=1 req_b "$T_TMP/r11" claude auto "$WORK" "$T_TMP/brief.md" warn-slug
+eq "11. a refused row: still exit 0" 0 "$(cat "$T_TMP/r11.rc")"
+eq "11. ... stdout unchanged" "c-009@home %42" "$(cat "$T_TMP/r11")"
+has "11. ... and the spawner's stderr says it" "LANE ROW REFUSED: c-009" "$(cat "$T_TMP/r11.err")"
+touch -d '2 hours ago' "$A/c-009/lane-unlinked.log"
+req_b "$T_TMP/r11b" claude auto "$WORK" "$T_TMP/brief.md" warn-old
+eq "11. CONTROL an old line of a former c-009 is not this spawn's" 0 "$(grep -c 'LANE ROW REFUSED' "$T_TMP/r11b.err")"
 
 t_done

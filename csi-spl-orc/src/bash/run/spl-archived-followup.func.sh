@@ -34,6 +34,10 @@
 # @description With no such box, or no desk on the box the roster names under any
 # @description user, the holder's machine or that box names it in ONE blocker and
 # @description posts nothing (a desk is seated with the workspace's root key).
+# @description A channel the box map holds (channel-rules.tsv: no-auto-post, also a
+# @description workspace's * row, or a sole seat that is not the holder here, or a map
+# @description that cannot be read): no post, no reply, no link change, ONE blocker
+# @description that lists what was left (SPL-4955; nothing posts on its own there).
 # @description Dry run unless DRY_RUN=0: the plan, nothing posted or linked.
 # @param ENV (optional) - dev or prd, default lease.conf LEASE_ENV
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -81,7 +85,7 @@ do_spl_archived_followup() {
     spl_afu_topic "$tmp" "$tenant" "$topic" "$dir" "$dry" || rc=1
   done < <(cut -f2,3 "$tmp/rows" | sort -u)
   key="$(cut -f2,3 "$tmp/rows" | sort -u | grep -c .)"
-  do_log "OK $key archived topic(s) with work left since $since"
+  do_log "OK $key archived topic(s) read since $since"
   rm -rf "$tmp"
   return "$rc"
 }
@@ -103,6 +107,11 @@ spl_afu_topic() {
   poster="$(spl_afu_poster_box "$seated")"
   if [[ "$poster" != "$AFU_BOX" ]]; then
     do_log "INFO $tenant topic $topic: box $poster follows it up (roster of $AFU_AGENT in $tenant: ${seated:-no box})"
+    return 0
+  fi
+  if why="$(spl_afu_channel_held "$tenant" "$(cut -f4 "$tmp/keep" | sed -n 1p)")"; then
+    if ((dry)); then do_log "WOULD name $tenant topic $topic in a blocker, no post: $why"; return 0; fi
+    spl_afu_blocker "$tenant" "$topic" "$dir" "$why" "**BLOCKER** archived discussion /t/$topic ($tenant) left work, and no follow-up is posted: $why. Nothing was posted or linked, and this is not repeated. What was left, for a person or the channel's seat to carry: $(spl_afu_left "$tmp/keep"). Action do_spl_archived_followup (SPL-4955)."
     return 0
   fi
   if ! spl_afu_desk_seated "$tenant"; then
@@ -142,6 +151,27 @@ spl_afu_topic() {
 spl_afu_poster_box() {
   if [[ -z "$1" || ",$1," == *",$AFU_HOLDER_BOX,"* ]]; then printf '%s' "$AFU_HOLDER_BOX"
   else printf '%s' "${1%%,*}"; fi
+}
+
+# spl_afu_channel_held TENANT CHANNEL: 0 and why, when nothing posts on its own in
+# that channel (the box map, channel-rules.inc.sh). 1 = free. Fails closed.
+spl_afu_channel_held() {
+  local rc seat
+  declare -F cr_no_auto_post >/dev/null ||
+    source "$PROJ_PATH/src/bash/features/spawn-agents/lib/channel-rules.inc.sh" ||
+    { echo "the channel rules lib cannot be read"; return 0; }
+  rc=0; cr_no_auto_post "$1" "$2" || rc=$?
+  (( rc == 0 )) && { echo "the box map holds #$2 of $1 from automatic posts"; return 0; }
+  (( rc == 2 )) && { echo "this box cannot read its channel rules map, $(cr_map)"; return 0; }
+  rc=0; seat="$(cr_sole_seat "$1" "$2" 2>/dev/null)" || rc=$?
+  (( rc == 2 )) && { echo "cannot tell the sole seat of #$2 of $1"; return 0; }
+  (( rc == 0 )) && [[ "$seat" != "$AFU_AGENT@$AFU_BOX" ]] && { echo "#$2 of $1 has a sole seat, $seat"; return 0; }
+  return 1
+}
+
+# spl_afu_left ROWS: what a topic left, on one line, at most 20 items.
+spl_afu_left() {
+  awk -F'\t' 'NR <= 20 { printf "%s%s (%s): %s", (NR > 1 ? "; " : ""), $6, $7, substr($8, 1, 120) } END { if (NR > 20) printf "; and %d more", NR - 20 }' "$1"
 }
 
 # spl_afu_desk_seated TENANT: 0 when a user of this box has the holder's desk
@@ -255,14 +285,14 @@ spl_afu_link() {
   spl_afu_run do_spl_issue_link TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" >/dev/null 2>&1
 }
 
-# spl_afu_blocker TENANT TOPIC DIR WHY: ONE blocker to the orchestrator per
+# spl_afu_blocker TENANT TOPIC DIR WHY [BODY]: ONE blocker to the orchestrator per
 # topic (failed.keys), so a topic that keeps failing does not repeat every run.
 spl_afu_blocker() {
   local k="$1"$'\t'"$2" send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   do_log "WARN $1 topic $2: no follow-up discussion: $4"
   grep -qxF "$k" "$3/failed.keys" 2>/dev/null && return 0
   if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$(spl_role_seat 1)" --to orchestrator --kind blocker --task archived-followup \
-      --body "**BLOCKER** archived discussion /t/$2 ($1) left work, and its follow-up discussion could not be posted as $AFU_AGENT: $4. The next run tries again; action do_spl_archived_followup (SPL-4955)." >/dev/null 2>&1 8>&- 9>&-; then
+      --body "${5:-**BLOCKER** archived discussion /t/$2 ($1) left work, and its follow-up discussion could not be posted as $AFU_AGENT: $4. The next run tries again; action do_spl_archived_followup (SPL-4955).}" >/dev/null 2>&1 8>&- 9>&-; then
     printf '%s\n' "$k" >>"$3/failed.keys"
   else
     do_log "WARN the blocker to the orchestrator was not sent; the next run tries again"

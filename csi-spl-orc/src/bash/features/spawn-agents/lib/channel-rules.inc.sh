@@ -8,11 +8,15 @@
 # The box map ($SPOOL_CHANNEL_RULES_MAP, default $SPOOL_ROOT/channel-rules.tsv,
 # never in git: a channel name can be a customer's) gives that channel its
 # qto doc, one TAB-separated row per channel:
-#   <tenant> <channel> <doc id> <env dev|prd> <desk agent the export runs as> [<sole seat>]
+#   <tenant> <channel> <doc id> <env dev|prd> <desk agent the export runs as> [<sole seat>] [<no-auto-post>]
 # The optional 6th column names the channel's SOLE SEAT, <agent id>@<box>:
 # the only seat that may post there (a channel's owner rule, e.g. "only one
 # named seat posts in this channel"). Code that posts on its own reads it with
 # cr_sole_seat (do_spl_take_auto, SPL-3542); empty or "-" = no sole seat.
+# The optional 7th column, the word no-auto-post: code that carries work on its
+# own posts nothing there, and names it to the orchestrator (cr_no_auto_post,
+# do_spl_archived_followup, SPL-4955). A row with channel * holds every channel
+# of its workspace; columns 3-6 of such a row are "-".
 # The seed generator (spawn-core for a first, rotation or restart seed;
 # do_spl_lane_restart for its distil) exports the doc to a file next to the
 # seed, readable by the agent user, and the seed names that file. The doc
@@ -80,6 +84,18 @@ cr_sole_seat() {
     return 2
   fi
   printf '%s\n' "$seat"
+}
+
+# cr_no_auto_post TENANT CHANNEL: 0 = the map holds this channel (its row or the
+# workspace's * row has no-auto-post in column 7). 1 = it does not. 2 = cannot
+# tell: no map, or a map that cannot be read. Unlike a sole seat, no map is not
+# "no rule": the name of a held channel lives only in the map, so a box without
+# one cannot know. A caller treats 2 as held.
+cr_no_auto_post() {
+  local m
+  m="$(cr_map)"
+  [ -r "$m" ] || return 2
+  awk -F'\t' -v t="$1" -v c="$2" '$1 !~ /^#/ && $1 == t && ($2 == c || $2 == "*") && $7 == "no-auto-post" { f = 1 } END { exit !f }' "$m"
 }
 
 # The export through the desk (do_spl_desk_doctree, a read). The caller is the

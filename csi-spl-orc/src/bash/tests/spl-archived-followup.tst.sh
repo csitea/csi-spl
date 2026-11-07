@@ -21,12 +21,16 @@
 #     user's root runs the real commands as that user (W1)
 #  11 a row declined after the post is added to that discussion, once (W4)
 #  12 (with AFU_TEST_PG_DSN) the real statement joins a row by every binding form
+#  13 a channel the box map holds, a workspace's * row, a sole seat, a map that
+#     cannot be read: no post, reply or link, one blocker naming what was left;
+#     CONTROL: another channel of the same workspace still posts
 # RED CONTROLS: without the action file every case fails; without the journal
 # read case 4 posts twice; without the poster check case 5 posts; without
 # spl_afu_work_left case 9 posts; without spl_afu_desk_seated case 10d posts;
 # without spl_afu_late_rows case 11 replies nothing; without the other roots of
 # spl_afu_desk_seated case 10g posts nothing and sends a blocker; without the
-# pinned check case 10j reads the stub as this user's desk.
+# pinned check case 10j reads the stub as this user's desk; without
+# spl_afu_channel_held every case of 13 but its control posts.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,6 +45,7 @@ mkdir -p "$SP/dispatch" "$T/bin" "$T/state/dev/desk/t1/box-a/spool/c-002" && : >
 echo key >"$T/state/dev/desk/t1/box-a/pinned"
 printf 'LEASE_ENV=dev\nLEASE_MACHINE=box-a\nLEASE_MASTER=c-002\nLEASE_ORCH=c-001\n' >"$SP/dispatch/lease.conf"
 echo "c-002@box-a $(date +%s)" >"$SP/dispatch/lease"
+: >"$SP/channel-rules.tsv"
 {
   printf 'issue\tt1\t%s\tdev\t%s\tSPL-1\twip\tthe first job\tbox-a\tHUM-1\n' "$OLD" "$AT"
   printf 'issue\tt1\t%s\tdev\t%s\tSPL-2\ttodo\tthe second job\tbox-a\tHUM-1\n' "$OLD" "$AT"
@@ -201,6 +206,44 @@ fresh
 printf 'row\tt1\t%s\tdev\t%s\tfeed0002\tdeclined\ta first job\tbox-a\tHUM-1\n' "$OLD" "$AT" >"$T/rows11c"
 out="$(ROWS="$T/rows11c" run DRY_RUN=0)"; out="$(ROWS="$T/rows11c" run DRY_RUN=0)"
 [[ "$(count '^post ')" == 1 && "$(count '^reply ')" == 0 ]] && pass "11c a row listed in the first post is not added again" || fail "11c: $out // $(cat "$LOG")"
+
+# 13. a channel the box map holds
+DOC="11111111-0000-4000-8000-000000000001"
+{
+  printf 't1\theld\t%s\tprd\tc-001\t-\tno-auto-post\n' "$DOC"
+  printf 'ws-held\t*\t-\t-\t-\t-\tno-auto-post\n'
+  printf 't1\tsolo\t%s\tprd\tc-001\tc-900@box-z\n' "$DOC"
+  printf 't1\tmine\t%s\tprd\tc-001\tc-002@box-a\n' "$DOC"
+} >"$SP/channel-rules.tsv"
+held() { printf 'issue\t%s\t%s\t%s\t%s\tSPL-9\twip\tthe left job\tbox-a\tHUM-1\n' "$1" "$OLD" "$2" "$AT" >"$T/rows13"; }
+mkdir -p "$T/state/dev/desk/ws-held/box-a/spool/c-002"; echo key >"$T/state/dev/desk/ws-held/box-a/pinned"
+moved() { grep -cE '^(post|reply|link|unlink) ' "$LOG"; }
+# TENANT CHANNEL NAME WHY: two runs, nothing moves, one blocker that lists the work
+check_held() {
+  fresh; held "$1" "$2"
+  out="$(ROWS="$T/rows13" run DRY_RUN=0)"; rc=$?
+  out2="$(ROWS="$T/rows13" run DRY_RUN=0)"; rc2=$?
+  if [[ $rc -eq 0 && $rc2 -eq 0 && "$(moved)" == 0 && "$(count '^send .*--kind blocker')" == 1 ]] && grep -q 'SPL-9 (wip): the left job' "$LOG"; then pass "13$3 $4: nothing moves, one blocker naming the work"
+  else fail "13$3 rc $rc/$rc2: $out // $out2 // $(cat "$LOG")"; fi
+}
+check_held t1 held a "a channel row"
+check_held ws-held any-channel b "a workspace's * row"
+check_held t1 solo c "another seat's sole-seat channel"
+fresh; held t1 elsewhere; out="$(ROWS="$T/rows13" run DRY_RUN=0)"
+[[ "$(count '^post t1 c-002 elsewhere$')" == 1 && "$(count '^send ')" == 0 ]] && pass "13d CONTROL: another channel of the same workspace posts, no blocker" || fail "13d: $out // $(cat "$LOG")"
+fresh; held t1 mine; out="$(ROWS="$T/rows13" run DRY_RUN=0)"
+[[ "$(count '^post t1 c-002 mine$')" == 1 ]] && pass "13e CONTROL: the holder here is the channel's sole seat: it posts" || fail "13e: $out // $(cat "$LOG")"
+# a late row and a left link, with the journal already there: still nothing moves
+fresh; printf 't1\t%s\t%s\n' "$OLD" "$NEW" >"$ST/journal.tsv"
+{ held t1 held; cat "$T/rows13"; printf 'row\tt1\t%s\theld\t%s\tabcd1234\tdeclined\ta late job\tbox-a\tHUM-1\n' "$OLD" "$AT"; } >"$T/rows13f"
+out="$(ROWS="$T/rows13f" run DRY_RUN=0)"
+[[ "$(moved)" == 0 ]] && pass "13f a topic posted before the hold: no reply, no link" || fail "13f: $out // $(cat "$LOG")"
+fresh; held t1 held; out="$(ROWS="$T/rows13" run DRY_RUN=1)"
+[[ ! -s "$LOG" && "$out" == *"WOULD name t1 topic $OLD in a blocker, no post"* ]] && pass "13g a dry run says so and sends nothing" || fail "13g: $out // $(cat "$LOG")"
+mv "$SP/channel-rules.tsv" "$T/map13"; fresh; held t1 elsewhere
+out="$(ROWS="$T/rows13" run DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$(count '^post ')" == 0 && "$(count '^send .*--kind blocker')" == 1 ]] && pass "13h no map on this box: no post, one blocker" || fail "13h rc $rc: $out // $(cat "$LOG")"
+mv "$T/map13" "$SP/channel-rules.tsv"
 
 # 12. the real statement, on a scratch schema
 if [[ -n "${AFU_TEST_PG_DSN:-}" ]]; then

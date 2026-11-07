@@ -21,6 +21,9 @@
 // msg a9f94922): the stored links are a compact list with no heading and no
 // paste box (a link typed in the text is linked there, notes-design.test.mjs
 // editor()); a note with no links shows no links section.
+// Esc before the open's ?note= push commits (the router held by the test) stays
+// closed, on the entry it was opened from. CONTROL: with close() not cancelling
+// the push (composables/useNoteOpen.ts), the checks of escDuringPush() FAIL.
 //
 // Row B9 (SPL-4579), C29: `/note Plan` typed in the Omnibox over an open
 // issue (390 px, the dock under the issue) makes a note "Plan" whose one link
@@ -196,7 +199,35 @@ async function links(browser, base, width, touch) {
   await waitGone(p)
   await clickRow(p, 'mock-note-3')
   await waitDetail(p, 'mock-note-3')
-  check(`${tag} SPL-4893: a note with no links shows no links section`, !(await p.$('[data-test=note-links]')))
+  /* which note is up and the url say whose links these are when it fails */
+  const noLinks = await p.evaluate(() => ({ section: !!document.querySelector('[data-test=note-links]'), note: document.querySelector('[data-test=note-detail]')?.dataset.noteId || '', url: location.search }))
+  check(`${tag} SPL-4893: a note with no links shows no links section`, !noLinks.section, noLinks)
+  await p.close()
+}
+
+/* SPL-4893 (wf 10 run 42338524374): the mock note is ready before the push
+   commits, and an Esc in that gap had the commit open the note again */
+async function escDuringPush(browser, base) {
+  const tag = '1440px SPL-4893 Esc during the push'
+  const p = await openPage(browser, base, 1440, false)
+  const entries = await p.evaluate(() => history.length)
+  /* holds every navigation until the test lets it go, so no timing decides this */
+  await p.evaluate(() => {
+    window.__hold = true
+    document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.beforeEach(() => (window.__hold ? new Promise((r) => { window.__let = r }) : undefined))
+  })
+  await clickRow(p, 'mock-note-1')
+  await waitDetail(p, 'mock-note-1')
+  check(`${tag}: the note is up before ?note= is written`, (await noteQuery(p)) === '')
+  await p.keyboard.press('Escape')
+  check(`${tag}: Esc closes it`, await waitGone(p))
+  await p.evaluate(() => { window.__hold = false; window.__let?.() })
+  await sleep(500)
+  check(`${tag}: it stays closed once the push is let go`, !(await p.$('[data-test=note-detail]')))
+  check(`${tag}: the url has no ?note=`, (await noteQuery(p)) === '')
+  check(`${tag}: no history entry was left behind`, (await p.evaluate(() => history.length)) === entries)
+  await clickRow(p, 'mock-note-3')
+  check(`${tag}: the next note opens`, await waitDetail(p, 'mock-note-3'))
   await p.close()
 }
 
@@ -585,6 +616,7 @@ try {
   await phone(browser, server.base)
   await links(browser, server.base, 1440, false)
   await links(browser, server.base, 390, true)
+  await escDuringPush(browser, server.base)
   await omnibox(browser, server.base, 1440, false)
   await omnibox(browser, server.base, 390, true)
 } catch (e) {

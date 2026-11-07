@@ -56,8 +56,12 @@ export function useNoteOpen(o: { route: RouteLocationNormalizedLoaded, router: R
     openId.value = ''
     if (o.phone.value) { writeInPlace(''); return }
     if (pushed && queryNote()) { pushed = false; o.router.back(); return }
+    /* SPL-4893: pushed with no ?note= yet is a push still under way, and when
+       it commits the watch below opens the note again: a newer navigation
+       cancels it, even one to where the page already is */
+    const inFlight = pushed
     pushed = false
-    if (queryNote()) void o.router.replace({ query: urlQuery('') })
+    if (inFlight || queryNote()) void o.router.replace({ query: urlQuery('') })
   }
 
   /* a deep link, browser Back / Forward over a ?note= entry */

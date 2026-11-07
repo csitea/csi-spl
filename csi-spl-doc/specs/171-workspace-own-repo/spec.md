@@ -1,6 +1,6 @@
 # Spec 171: Per-Workspace Git Repository for Reporting, Commits, Release Notes, and Commit Analysis
 
-- **Status:** Draft — Q2..Q5 decided by owner (`HUM-10`, 2026-11-04, topic `f38888e7-27eb-4aad-b2fe-1736ffbb2f0e`); Q1 (`4b5869d5`, repos per workspace) awaiting owner answer
+- **Status:** Draft — Q2..Q5 decided by owner (`HUM-10`, 2026-11-04, topic `f38888e7-27eb-4aad-b2fe-1736ffbb2f0e`); Q1 (repos per workspace) decided 2026-11-07 (msg `24e35756`, topic `93b73456-c662-4785-85ea-00986338a550`)
 - **Date:** 2026-11-04
 - **Track:** `SPL-4808` (epic `SPL-2400`)
 - **Depends on:**
@@ -539,10 +539,11 @@ In the `spool-hub` workspace (`t1`), commit history powers seven distinct analys
 
 ## 5. Owner Decisions & Open Questions (A/B/C Options)
 
-On 2026-11-04 (`HUM-10`, topic `f38888e7-27eb-4aad-b2fe-1736ffbb2f0e`), the owner answered **Q2, Q3, Q4, and Q5**. **Q1** (poll in msg `4b5869d5`) remains open.
+On 2026-11-04 (`HUM-10`, topic `f38888e7-27eb-4aad-b2fe-1736ffbb2f0e`), the owner answered **Q2, Q3, Q4, and Q5**. **Q1** (poll in msg `4b5869d5`) closed on 2026-11-07, see below.
 
-### Q1 — Repository cardinality per workspace (`workspace_repos`) — **OPEN (poll in msg `4b5869d5`, awaiting owner answer)**
-- **A (Recommended):** Allow multiple repos in the schema (`PRIMARY KEY (tenant_id, repo_slug)` with one `is_primary = true`), UI/Reporting defaults to the primary repo with an optional repo switcher when `count > 1`.
+### Q1 — Repository cardinality per workspace (`workspace_repos`) — **DECIDED: several repos, grouped by project (`HUM-10` msg `24e35756`, 2026-11-07T06:39:23Z, poll `baeb59f7`, topic `93b73456-c662-4785-85ea-00986338a550`)**
+- **Decision verbatim:** *"A — Yes: several repos per workspace, grouped by project, one primary repo for chat commit links"*. The answer came on spec 143's poll `baeb59f7`, not on `4b5869d5`. It selects A below with a project between workspace and repo: [releases-projects.md](../143-reporting-section/releases-projects.md) sections 3 and 4, which amend this spec.
+- **A (Selected, as amended there):** Allow multiple repos in the schema (`PRIMARY KEY (tenant_id, repo_slug)` with one `is_primary = true`), UI/Reporting defaults to the primary repo with an optional repo switcher when `count > 1`.
 - **B:** Strictly one git repository per workspace (`PRIMARY KEY (tenant_id)` on `workspace_repos`).
 - **C (Not recommended — breaks Spec 098 §7 trigger 3 because the sync loop and webhook router query across workspaces by repo slug):** Store a single `repo_url` string inside `tenants.settings` JSONB with no relational table.
 
@@ -572,9 +573,9 @@ On 2026-11-04 (`HUM-10`, topic `f38888e7-27eb-4aad-b2fe-1736ffbb2f0e`), the owne
 
 ---
 
-## 6. Phased Implementation Plan (Q2..Q5 Decided; Q1 `4b5869d5` Open)
+## 6. Phased Implementation Plan (Q1..Q5 Decided)
 
-Q2..Q5 are decided (`bbad7ba3`, `d5b1366a`, `ab74f79d`, `331b339b`); only Q1 (`4b5869d5`, repos per workspace cardinality on `workspace_repos`) remains open. Once Q1 is answered, the work executes in **ordered expand → hub deploy → contract phases** (§3.3.0) so `prd` never experiences an `ON CONFLICT (sha)` or RLS outage during rollout:
+Q1..Q5 are decided (`24e35756`, `bbad7ba3`, `d5b1366a`, `ab74f79d`, `331b339b`). The work executes in **ordered expand → hub deploy → contract phases** (§3.3.0) so `prd` never experiences an `ON CONFLICT (sha)` or RLS outage during rollout:
 
 | Phase | Order & Dependency | Scope | Files touched | Verification |
 |---|---|---|---|---|

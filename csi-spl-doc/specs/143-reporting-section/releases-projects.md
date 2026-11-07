@@ -1,6 +1,6 @@
 # Releases: software projects of a workspace, the project drop box (SPL-4963)
 
-Status: **Draft v0.1.0**. Nothing here is built. Open questions: section 9. Epic SPL-2389.
+Status: **Draft v0.2.0**. Nothing here is built. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
 Amends: [spec.md](spec.md) sections 2 and 6.1, and [spec 171](../171-workspace-own-repo/spec.md) where section 3 says so.
 Topic: `93b73456-c662-4785-85ea-00986338a550` (HUM-10, prd t1).
 
@@ -33,11 +33,11 @@ Read on the tree at `7f5c87f35`:
 
 Spec 171 is **not built**: `git grep -c workspace_repos origin/master -- csi-spl-rdb csi-spl-api csi-spl-wui csi-spl-orc` prints nothing on 2026-11-07, and `git log origin/master --grep=SPL-4808` shows only `docs(` commits. So this amendment changes its design on paper, with no migration to undo.
 
-Spec 171 stops at workspace -> repo. The owner's ER model puts a project between them. Its Q1 (repos per workspace, poll `4b5869d5`) was still open, and msg `8262d099` answers it: many repos, grouped by project (section 9, Q1).
+Spec 171 stops at workspace -> repo. The owner's ER model puts a project between them. Its Q1 (repos per workspace, poll `4b5869d5`) closed with the owner's answer in msg `24e35756`: many repos, grouped by project, one primary (section 9, Q1).
 
 ## 3. What changes in spec 171
 
-Spec 171 stays the authority except for these points. Its own text is not edited by this lane; the report asks the dispatch holder to add a pointer here.
+Spec 171 stays the authority except for these points. Its Q1 records the answer and points here; the rest of its text is not edited.
 
 | # | Spec 171 says | This file says | Why |
 |---|---|---|---|
@@ -115,7 +115,7 @@ No archive column in v1: a later forward-only migration can add it when a projec
 
 ### 4.5 How a project is pre-configured
 
-Recommended: **the operator registers, workspace admins do not** (section 9, Q2).
+Decided: **the operator registers, workspace admins do not** (section 9, Q2).
 
 - Not cnf: `csi-spl-cnf` is in this public repo, and a customer's repo name must not ship in it (`lane-issue-and-docs.md` section 5).
 - Not a workspace admin form in v1: the fleet GitHub App can read every repo it is installed on, so a free-typed slug could point one workspace at another's private repo. Spec 171 made `repo_slug` operator-only for this reason.
@@ -202,7 +202,13 @@ These stay single-repo in v1, which keeps the change small: the modal list, `GET
 
 ### 6.4 Access (spec.md 6.1)
 
-Every signed-in member of the workspace reads the projects and both reports, as the Releases tab admits today (`humanTenant`). v1 has no per-project restriction. Cost fields follow Q5. Registration is operator scope only.
+Access comes through the workspace (owner, msg `cf6a27b3`, section 9, Q4): a member of a workspace reads the releases of every repo of that workspace's software projects. There is no per-repo or per-project access list.
+
+- **Member**: reads the projects and both reports, as the Releases tab admits today (`humanTenant`, `hub/reporting_releases.go:47`), and the release notes of every repo of the workspace (section 6.3).
+- **Reader with no login**: sees only repos flagged `notes_public`, and only through the release-note reads of section 6.3. The projects route and both reports refuse them, as the reports do today (`hub/reporting_releases.go:52`). A session of someone who is not a member of this workspace counts as no login.
+- **Cost fields** follow spec 171's Q5. **Registration** is operator scope only (section 9, Q2).
+
+B-5 must change one thing for this to hold: today `releaseReader` reads no session when the page names a workspace, and every visitor gets the member's answer (`hub/release_notes.go:181`). It has to read the session on such a page, or it cannot tell a member from a reader with no login.
 
 ## 7. WUI
 
@@ -252,15 +258,26 @@ Keys B-7 adds: `reporting.releases.project_label`, `repo_label`, `kpi_unreleased
 
 If agy is still out of quota when B-7 is ready (the brief for this amendment puts its return at about 2026-11-10), B-7 waits on its review branch and does not land.
 
-## 9. Open questions for the owner
+## 9. The owner's answers
 
-None blocks this draft. Each carries a recommendation.
+Form `baeb59f7`, complete in msg `24e35756` (HUM-10, 2026-11-07 06:39:23Z): all six A, the recommended answer of v0.1.0. Nothing stays open. "Section 9, Qn" means this list; a bare Q2..Q5 in sections 2, 3 and 5 is spec 171's.
 
-1. **Does your ER message close spec 171's open Q1 (repos per workspace)?** Recommended: yes. Several repos per workspace, grouped by project, one repo primary for chat commit links.
-2. **Who registers a project and its repos?** Recommended: the operator only in v1 (you or an agent, through a named action). A workspace admin form comes later, since a free-typed repo name could reach another workspace's private repo through the shared GitHub App.
-3. **Which workspace holds csi-spl?** Recommended: `t1` only, and each repo in exactly one workspace. Your link was on another workspace's host, and that workspace gets its own projects. The alternative, csi-spl shown in two workspaces, means storing its commits twice.
-4. **May anyone without a login read a private repo's release notes?** Recommended: no. Release notes stay public only for a repo flagged public (csi-spl is). This narrows your SPL-4530 "release notes are public" for private customer repos.
-5. **Should the drop box have an "All projects" entry?** Recommended: not in v1. It would mix unrelated versions and deploys, and each project is one pick away.
-6. **Should v1 show open work?** Recommended: not yet. v1 shows commits per day, unreleased commits and commits per repo. Open work needs issues to name their project, which is a separate small change once you want it.
+1. **Does your ER message close spec 171's open Q1 (repos per workspace)?** Yes, msg `24e35756`: "A — Yes: several repos per workspace, grouped by project, one primary repo for chat commit links". Spec 171 section 5 records it.
+2. **Who registers a project and its repos?** The operator, msg `24e35756`: "A — Only the operator in v1 (you or an agent); a workspace admin form later, since a typed repo name could reach another workspace's private repo". See section 4.5.
+3. **Which workspace holds csi-spl?** `t1`, msg `24e35756`: "A — t1 only, and each repo in exactly one workspace". The workspace of the owner's link gets its own projects. See sections 4.3 and 4.4.
+4. **May anyone without a login read a private repo's release notes?** No, msg `24e35756`: "A — No: public only for a repo flagged public, as csi-spl is. This narrows your SPL-4530 \"release notes are public\" for private customer repos". See section 6.3.
+   **Which members may read them?** Every member of the workspace, msg `cf6a27b3`: "well if the person does have access to the workspace and the the workspace does have access to the repos of this software project , than the members will have access to the repos of this software project". This is the later word: it replaces the note in msg `01bbead4` (06:38:29Z), which spoke of members "having access to that repo". See section 6.4.
+5. **Should the drop box have an "All projects" entry?** No, msg `24e35756`: "A — Not in v1: it mixes unrelated versions and deploys". See sections 6.2 and 7.1.
+6. **Should v1 show open work?** No, msg `24e35756`: "A — Not yet: v1 shows commits per day, unreleased commits and commits per repo". See section 7.3.
 
-<!-- version: 0.1.0 · updated: 2026-11-07 -->
+### 9.1 What the answers change in sections 4.5 and 8
+
+No build row changes, and neither does the path in section 4.5; each answer is the recommendation they were drafted on.
+
+- **Answer 2**: section 4.5 and rows B-5, B-6 and B-9 already register through the operator route only.
+- **Answer 3**: the seed of section 4.4 and B-1's red control (one repo slug in two workspaces fails) already hold it.
+- **Answer 5**: no row builds an "All projects" entry, and B-4's empty `Repos` refusal stands.
+- **Answer 6**: B-7's Unreleased card and repo pills are what the answer lists, and no row builds open work.
+- **Answer 4 with msg `cf6a27b3`**: no row builds a per-repo list. B-5's `notes_public` row stands, and section 6.4 names what it must read.
+
+<!-- version: 0.2.0 · updated: 2026-11-07 -->

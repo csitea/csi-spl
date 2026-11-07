@@ -25,6 +25,7 @@ on:
       - "15 sec: deps and secrets"
       - "20 ci-cd: spool hub build + deploy"
       - "23 ci-cd: agent join check"
+      - "26 ops: release notes ingest"
       - "30 ci-cd: spool WUI build + deploy"
       - "32 ci-cd: docs publish"
       - "50 oss-standalone"

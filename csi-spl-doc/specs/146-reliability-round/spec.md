@@ -140,8 +140,11 @@ section 3.2, section 7 item 3). All three asks are in the bypass log:
   limit too.
 - **The alarm**: a logged seat 30 min or more in line (`enqueued_at`) that a
   hold stops gets ONE alarm per ask, whatever the hold: a blocker to the dispatch
-  lease holder and a post in #alerts, naming the seat and the hold. The gap between
-  launches is a pace, no hold. At most one alarm per 30 min; a seat due meanwhile
+  lease holder naming the seat and the hold, and a post in #alerts with ask id8,
+  minutes and count only. Every human of the tenant reads #alerts (t1 has a
+  `biz_customer`), a slug can name a customer, and a hold line can hold the slug, a
+  brief path or a box, so neither goes there. The gap between launches is a pace,
+  no hold. At most one alarm per 30 min; a seat due meanwhile
   goes in the next. `SPAWN_PLACE_SEAT_ALARM_MIN`, `SPAWN_PLACE_SEAT_ALARM_GAP_MIN`.
 - **Limit of the alarm**: it needs the placer's tick, so it runs on the box
   holding the orch role, and the bypass log is local to the box where the seat was

@@ -90,6 +90,7 @@ do_spl_desk_move() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   [[ "$cmd" == plan ]] && dry=1
+  [[ "$cmd" == unswitch && -z "${MOVE_DESK_USER:-}$(spl_desk_user)" ]] && { do_log "OK box.env has no SPOOL_DESK_USER: nothing to unswitch"; return 0; }
   _spl_dm_ctx "$cmd" || return 1
   [[ "$cmd" == prune ]] && { _spl_dm_prune "$dry"; return $?; }
   [[ "$cmd" == switch || "$cmd" == unswitch ]] && { _spl_dm_switch "$cmd" "$dry"; return $?; }

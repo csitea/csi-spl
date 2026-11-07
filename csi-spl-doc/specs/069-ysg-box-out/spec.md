@@ -990,15 +990,27 @@ and 5 dev desks, none with a live sidecar.
   every other desk, so on such a box step 4 had no path through the action.
   `switch` refuses unless the fleet desk is pinned and live under the desk user
   and no desk under the box user has a live sidecar; it names each desk that
-  stays. `MOVE_CMD=unswitch` is its reverse, before a `MOVE_DESKS` rollback.
-  Acceptance 8.6 item 2 stays unmet for the desks left behind.
+  stays. It looks at every desk of both envs, so it refuses `MOVE_DESKS` and
+  `MOVE_ENVS`, and it writes no reconcile pause: it leans on what is left of the
+  move's 30 min. Acceptance 8.6 item 2 stays unmet for the desks left behind.
+- **`MOVE_CMD=unswitch` is its reverse, AFTER a `MOVE_DESKS` rollback.** `back`
+  reads the desk user from box.env. In the other order it needs `MOVE_DESK_USER`,
+  and a stub at the target refuses it (`already exists`) with box.env already
+  reversed and no action that clears the stub. Whether this order stops a stub
+  from appearing is not shown: start and proof are stubs in `desk-move.tst.sh`, so
+  read the target before `back`. A second `unswitch` is a no-op.
 - **A box-user `./run` reaches a moved desk through its owner.**
   `spl_desk_action_hop_to` / `spl_desk_action_hop`
   (`lib/bash/funcs/spl-desk-moved.func.sh`) re-run `do_spl_desk_post`,
-  `do_spl_topic_archive` and `do_spl_desk_poll_ack` once as the desk's owner,
-  with or without `SPOOL_DESK_USER`. `do_spl_desk_poll_ack` hops once the fleet
-  desk moved, so its scan sees every moved workspace. `do_spl_desk_reply` keeps
-  its own rule (8.3.1): it hops only with no `SPOOL_DESK_USER`.
+  `do_spl_topic_archive`, `do_spl_desk_poll_ack`, `do_spl_lane_issue` and
+  `do_spl_spawn_fill` once as the desk's owner, with or without
+  `SPOOL_DESK_USER`. `do_spl_desk_poll_ack` hops once the fleet desk moved, so its
+  scan sees every moved workspace. `do_spl_lane_issue` is the end line every lane
+  is taught to run as the box user; `do_spl_spawn_fill` has its own cron row, no
+  manifest row, so step 4 leaves it in the box user's crontab.
+  `do_spl_desk_reply` keeps its own rule (8.3.1): it hops only with no
+  `SPOOL_DESK_USER`. The other actions that reach `spl_desk_issue_run` do not hop:
+  run them as the desk's owner.
 - **The lane map and the ask book.** `spl_lane_desk_at` locates a moved desk and
   `spl_lane_desk_spool` signs there as its owner, with its binary. The unmarked
   box-user rows that reach `spl_lane_init` (`box-stats`, the unanswered sweep's
@@ -1012,8 +1024,9 @@ and 5 dev desks, none with a live sidecar.
   under `MOVE_MAX_SECS` (120 s) stays inside it. Not yet measured on the fleet
   desk: that is the move itself.
 
-Tests: `desk-move.tst.sh` case 14, `desk-user-hops.tst.sh` cases 7 and 8,
-`dispatch-lease-moved-desk.tst.sh` cases 10 and 11.
+Tests: `desk-move.tst.sh` cases 14 and 15, `desk-user-hops.tst.sh` cases 7 to 10,
+`dispatch-lease-moved-desk.tst.sh` cases 10 and 11, and for the cron rows going
+back `install-box-crons.tst.sh` case 9.
 
 ### 8.5 Build rows
 

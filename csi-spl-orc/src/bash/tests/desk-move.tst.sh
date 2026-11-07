@@ -52,6 +52,8 @@
 #      while the fleet desk is not live under the desk user, or a desk under
 #      the box user has a live sidecar. The full run they replace stops at the
 #      first stub. RED CONTROL: 48dc6c573 refuses the command
+#  15. back, the rollback (SPL-4985, R7 question 3): with MOVE_DESKS, after
+#      unswitch, over a stub, a failed verify and a failed proof; unswitch twice
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -434,6 +436,59 @@ out="$(mv_run MOVE_CMD=switch MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
 [[ $rc -ne 0 ]] && has "14. RED CONTROL: fleet desk not moved: refused" "the fleet desk prd/ws-fleet/box-x is not pinned under $DU" "$out" || fail "14. unmoved fleet rc=$rc"
 has "14. RED CONTROL: a live sidecar under the box user is named" "prd ws-a/box-a has a live sidecar under $ME" "$out"
 hasnt "14. RED CONTROL: box.env unchanged" "SPOOL_DESK_USER" "$(cat "$T/box.env")"
+
+# --- 15. back, the rollback of 8.4 (SPL-4985, R7 question 3 and N1..N3) -------------
+# 15.1 back with MOVE_DESKS on a switched box: that one desk, box.env alone
+reset_box
+mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a prd/ws-fleet/box-x" DRY_RUN=0 >/dev/null
+mv_run MOVE_CMD=switch MOVE_DESK_USER="$DU" DRY_RUN=0 >/dev/null
+out="$(mv_run MOVE_CMD=back MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && pass "15.1 back of one desk needs no MOVE_DESK_USER on a switched box" || fail "15.1 back rc=$rc $(tail -n 4 <<<"$out")"
+[[ -d "$SRC_P/desk/ws-a/box-a/keys" && ! -e "$DST_P/desk/ws-a/box-a" ]] && pass "15.1 the desk is back" || fail "15.1 not back"
+[[ -d "$DST_P/desk/ws-fleet/box-x/keys" ]] && pass "15.1 the other desk stays" || fail "15.1 the other desk moved"
+has "15.1 MOVE_DESKS leaves box.env alone" "SPOOL_DESK_USER=$DU" "$(cat "$T/box.env")"
+# 15.2 the plan's order: back, then unswitch, with no stub and no MOVE_DESK_USER
+out="$(mv_run MOVE_CMD=unswitch DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && hasnt "15.2 unswitch after back clears box.env" "SPOOL_DESK_USER" "$(cat "$T/box.env")" || fail "15.2 unswitch rc=$rc $out"
+# 15.3 unswitch twice: the second has nothing to do (R7 N3)
+out="$(mv_run MOVE_CMD=unswitch DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && has "15.3 a second unswitch is a no-op" "nothing to unswitch" "$out" || fail "15.3 second unswitch rc=$rc $out"
+# 15.4 back after unswitch: the only default is gone (R7 N1)
+reset_box
+mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0 >/dev/null
+before="$(tree)"
+out="$(mv_run MOVE_CMD=back MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "15.4 back with no desk user names the input" "MOVE_DESK_USER" "$out" || fail "15.4 back rc=$rc"
+[[ "$(tree)" == "$before" ]] && pass "15.4 nothing moved" || fail "15.4 the tree changed"
+# 15.5 a stub at the target refuses, with the desk still served (R7 N2)
+mkdir -p "$SRC_P/desk/ws-a/box-a/spool/c-002"
+out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "15.5 a stub at the target refuses" "already exists: not overwritten" "$out" || fail "15.5 back rc=$rc"
+[[ -d "$DST_P/desk/ws-a/box-a/keys" ]] && pass "15.5 the desk stays with the desk user" || fail "15.5 the desk left"
+rm -rf "$SRC_P/desk/ws-a/box-a"
+# 15.6 a back whose verify fails rolls back, and a second back passes (R7 N5: the
+# aside base is the one thing a failed back may leave changed, the second repairs it)
+echo '{"m":1}' >"$DST_P/desk/ws-a/box-a/spool/c-101/inbox/since.json"
+chmod 0644 "$DST_P/desk/ws-a/box-a/keys/box-box-a.key"; : >"$T/side.log"
+out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "15.6 a failed verify stops the back" "key mode 644" "$out" || fail "15.6 back rc=$rc"
+[[ -d "$DST_P/desk/ws-a/box-a/keys" && ! -e "$SRC_P/desk/ws-a/box-a" ]] && pass "15.6 the desk stays with the desk user" || fail "15.6 not rolled back"
+grep -q '^start ws-a/box-a seat=c-101 home='"$DH" "$T/side.log" && pass "15.6 its sidecar restarted as the desk user" || fail "15.6 restart: $(tr '\n' '|' <"$T/side.log")"
+[[ -z "$(find "$DST_P/desk/ws-a" "$SRC_P/desk/ws-a" -name '*.quiesce' 2>/dev/null)" ]] && pass "15.6 no quiesce marker left" || fail "15.6 a marker stayed"
+chmod 0600 "$DST_P/desk/ws-a/box-a/keys/box-box-a.key"
+out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && pass "15.6 the second back passes" || fail "15.6 second back rc=$rc $(tail -n 4 <<<"$out")"
+[[ -f "$SRC_P/desk/ws-a/box-a/spool/c-101/inbox/since.json" ]] && pass "15.6 it keeps the message received since the move" || fail "15.6 the message is lost"
+[[ "$(stat -c %a "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key")" == 600 ]] && pass "15.6 the key is 600 again" || fail "15.6 key mode $(stat -c %a "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key")"
+# 15.7 a back whose proof fails restores the desk and its sidecar
+reset_box
+mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0 >/dev/null
+echo stranded >"$T/verdict"; : >"$T/side.log"
+out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && pass "15.7 a failed proof stops the back" || fail "15.7 proof failure ignored"
+[[ -f "$DST_P/desk/ws-a/box-a/keys/box-box-a.key" && ! -e "$SRC_P/desk/ws-a/box-a" ]] && pass "15.7 the desk is the desk user's again" || fail "15.7 not rolled back"
+grep -q '^start ws-a/box-a seat=c-101 home='"$DH" "$T/side.log" && pass "15.7 its sidecar restarted as the desk user" || fail "15.7 restart: $(tr '\n' '|' <"$T/side.log")"
+rm -f "$T/verdict"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

@@ -670,7 +670,7 @@ rm -f "$KEPT" "$CJ"
 #     (SPL-4965). 2026-11-06: a kept 97 % held the placer for 2 h 15 while the
 #     alert read 0 %. SPL-4608 kept the reading because lanes were placed past
 #     the limit, so both directions: a stale row goes, a real limit holds.
-#     LAPSE is the default 8 h, 2 h either side of it.
+#     LAPSE is the default 10 h, 12 h past it and 6 h and 9 h under it.
 NOW=$(date +%s); H=3600; BAN="$T/banners"; CJ="$T/cj-lapse.json"; A=one-login
 keptn() { printf 'claude\t%s\t%s\t%s\t%s\t%s\n' "$1" "$FUT" "$(( NOW - $2 * H ))" "$A" "${3:-cache}" >"$KEPT"; }
 banners() { printf 'cat %s' "$BAN"; }
@@ -679,22 +679,24 @@ sighted() { printf 'claude/c-001\t%s\t%s\n' "$1" "$(( NOW - $2 * H ))" >"$KEPT.b
 lapk() { known LANE_QUOTA_CMD= LANE_PANES_CMD=true LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$CJ" \
   LANE_QUOTA_PROBE_FILE="$T/probe" LANE_QUOTA_BANNERS_CMD="$(banners)" "$@"; }
 rm -f "$T/probe"; cj "$A" "$A" 1000 0; scr
-keptn 97 10; [[ -z "$(lapk)" ]] && ! grep -q '^claude' "$KEPT" &&
-  pass "16n. RED CONTROL a kept 97 not re-read for 10 h -> unknown, row dropped (FAILs before SPL-4965: claude:97)" || fail "16n. lapse: $(cat "$KEPT")"
+keptn 97 12; [[ -z "$(lapk)" ]] && ! grep -q '^claude' "$KEPT" &&
+  pass "16n. RED CONTROL a kept 97 not re-read for 12 h -> unknown, row dropped (FAILs before SPL-4965: claude:97)" || fail "16n. lapse: $(cat "$KEPT")"
 keptn 97 6; [[ "$(lapk)" == "claude:97@$FUT" ]] &&
   pass "16n. CONTROL a real limit: kept 97, 6 h old, no re-read yet -> still holds" || fail "16n. 6 h: $(cat "$KEPT")"
-keptn 97 10; [[ "$(lapk LANE_QUOTA_LAPSE_S=0)" == "claude:97@$FUT" ]] &&
+keptn 97 9; [[ "$(lapk)" == "claude:97@$FUT" ]] &&
+  pass "16n. CONTROL a real limit: kept 97, 9 h old -> holds (a real climb on the main box took 8.33 h, n=6)" || fail "16n. 9 h: $(cat "$KEPT")"
+keptn 97 12; [[ "$(lapk LANE_QUOTA_LAPSE_S=0)" == "claude:97@$FUT" ]] &&
   pass "16n. CONTROL LANE_QUOTA_LAPSE_S=0 keeps it to the reset" || fail "16n. off: $(cat "$KEPT")"
 # a real limit that goes on being read holds past the lapse
-keptn 97 10; cj "$A" "$A" $(( NOW - H )) 97; [[ "$(lapk)" == "claude:97@$FUT" ]] && [[ "$(cut -f4,6 "$KEPT")" == "$(( NOW - H ))"$'\t'cache ]] &&
+keptn 97 12; cj "$A" "$A" $(( NOW - H )) 97; [[ "$(lapk)" == "claude:97@$FUT" ]] && [[ "$(cut -f4,6 "$KEPT")" == "$(( NOW - H ))"$'\t'cache ]] &&
   pass "16n. CONTROL a real limit re-read: the CLI fetched the same 97 an hour ago -> holds, read time is the fetch's" || fail "16n. re-read: $(cat "$KEPT")"
 cj "$A" "$A" 1000 0
 # a banner still on screen is not a re-read (the gap SPL-4932 named)
-scr "97@$FUT"; sighted "97@$FUT" 10; keptn 97 10 banner; [[ -z "$(lapk)" ]] && ! grep -q '^claude' "$KEPT" &&
-  pass "16n. RED CONTROL the same banner on screen, first seen 10 h ago -> no re-read, unknown (FAILs before SPL-4965: refreshed every tick)" || fail "16n. static: $(cat "$KEPT")"
+scr "97@$FUT"; sighted "97@$FUT" 12; keptn 97 12 banner; [[ -z "$(lapk)" ]] && ! grep -q '^claude' "$KEPT" &&
+  pass "16n. RED CONTROL the same banner on screen, first seen 12 h ago -> no re-read, unknown (FAILs before SPL-4965: refreshed every tick)" || fail "16n. static: $(cat "$KEPT")"
 scr "97@$FUT"; sighted "97@$FUT" 2; keptn 97 2 banner; [[ "$(lapk)" == "claude:97@$FUT" ]] && [[ "$(cut -f4 "$KEPT")" == "$(( NOW - 2 * H ))" ]] &&
   pass "16n. CONTROL the same banner, first seen 2 h ago -> holds, and its read time stays 2 h ago" || fail "16n. static 2 h: $(cat "$KEPT")"
-scr "98@$FUT"; sighted "97@$FUT" 10; keptn 97 10 banner; [[ "$(lapk)" == "claude:98@$FUT" ]] && [[ "$(cut -f6 "$KEPT")" == banner ]] && (( $(cut -f4 "$KEPT") >= NOW )) &&
+scr "98@$FUT"; sighted "97@$FUT" 12; keptn 97 12 banner; [[ "$(lapk)" == "claude:98@$FUT" ]] && [[ "$(cut -f6 "$KEPT")" == banner ]] && (( $(cut -f4 "$KEPT") >= NOW )) &&
   pass "16n. CONTROL a real limit: a NEW banner (98 %) on that pane is a fresh read -> holds at 98" || fail "16n. new banner: $(cat "$KEPT")"
 rm -f "$KEPT"; scr "97@$FUT"; [[ "$(lapk)" == "claude:97@$FUT" ]] && [[ "$(cut -f1,3 "$KEPT.banners")" == "claude/c-001"$'\t'* ]] &&
   pass "16n. CONTROL a banner first seen now, no state before -> kept, its first sighting recorded" || fail "16n. first: $(cat "$KEPT" "$KEPT.banners")"
@@ -710,10 +712,55 @@ keptn 97 2 banner; scr "97@$FUT"; sighted "97@$FUT" 0; cj "$A" "$A" $(( NOW - H 
 cj "$A" "$A" 1000 0; scr
 # a kept 100 shows on no screen: the login probe is its re-read
 keptfull() { printf 'claude\t100\t%s\t%s\t%s\tlog\n' "$FUT" "$(( NOW - $1 * H ))" "$A" >"$KEPT"; }
-keptfull 10; printf '%s limited limited\n' "$(( NOW - 120 ))" >"$T/probe"; [[ "$(lapk)" == "claude:100@$FUT" ]] && [[ "$(cut -f6 "$KEPT")" == probe ]] &&
-  pass "16n. CONTROL a real limit: a kept 100, 10 h old, the probe says limited now -> holds, source probe" || fail "16n. probe: $(cat "$KEPT")"
-rm -f "$T/probe"; keptfull 10; [[ -z "$(lapk)" ]] &&
-  pass "16n. RED CONTROL a kept 100, 10 h old, nothing re-reads it -> unknown (FAILs before SPL-4965)" || fail "16n. 100: $(cat "$KEPT")"
+keptfull 12; printf '%s limited limited\n' "$(( NOW - 120 ))" >"$T/probe"; [[ "$(lapk)" == "claude:100@$FUT" ]] && [[ "$(cut -f6 "$KEPT")" == probe ]] &&
+  pass "16n. CONTROL a real limit: a kept 100, 12 h old, the probe says limited now -> holds, source probe" || fail "16n. probe: $(cat "$KEPT")"
+rm -f "$T/probe"; keptfull 12; [[ -z "$(lapk)" ]] &&
+  pass "16n. RED CONTROL a kept 100, 12 h old, nothing re-reads it -> unknown (FAILs before SPL-4965)" || fail "16n. 100: $(cat "$KEPT")"
+# R7 W2 (c-992): the climb from under 100 with no screen, the probe says limited
+printf '%s limited limited\n' "$(( NOW - 60 ))" >"$T/probe"
+keptn 97 12; [[ "$(lapk)" == "claude:97@$FUT" ]] && [[ "$(cut -f4,6 "$KEPT")" == "$(( NOW - 60 ))"$'\t'probe ]] &&
+  pass "16n. RED CONTROL W2: a kept 97, 12 h old, the probe says limited -> holds, source probe" || fail "16n. W2: $(cat "$KEPT")"
+keptn 97 12; [[ "$(lapk LANE_QUOTA_CMD="echo claude:98@$FUT~banner~$(( NOW - H ))")" == "claude:98@$FUT" ]] &&
+  pass "16n. CONTROL W2: a higher live reading is not read as lower than the probe's" || fail "16n. W2 higher: $(cat "$KEPT")"
+keptn 80 12; [[ -z "$(lapk)" ]] &&
+  pass "16n. CONTROL W2: a kept 80 is no hold, limited does not re-keep it" || fail "16n. W2 80: $(cat "$KEPT")"
+keptn 97 12; printf '%s limited limited\n' "$(( NOW - 13 * H ))" >"$T/probe"; [[ -z "$(lapk)" ]] &&
+  pass "16n. CONTROL W2: a limited older than the row re-reads nothing" || fail "16n. W2 old: $(cat "$KEPT")"
+keptn 97 12; printf '%s ok ok\n' "$(( NOW - 60 ))" >"$T/probe"; [[ -z "$(lapk)" ]] &&
+  pass "16n. CONTROL W2: a probe that says ok re-reads nothing" || fail "16n. W2 ok: $(cat "$KEPT")"
+printf 'claude\t97\t%s\t%s\t%s\tcache\n' "$PAST" "$(( NOW - 2 * H ))" "$A" >"$KEPT"; printf '%s limited limited\n' "$(( NOW - 60 ))" >"$T/probe"; [[ -z "$(lapk)" ]] &&
+  pass "16n. CONTROL W2: a kept 97 past its reset is no hold, a short limit does not carry it into the new week" || fail "16n. W2 reset: $(cat "$KEPT")"
+rm -f "$T/probe"
+# R7 W1 (c-992): a lapsed highest token must not take the fresh one with it
+rm -f "$KEPT"; [[ "$(lapk LANE_QUOTA_CMD="echo claude:100@$FUT~log~$(( NOW - 12 * H )),claude:99@$FUT~cache~$(( NOW - H ))")" == "claude:99@$FUT" ]] && [[ "$(cut -f6 "$KEPT")" == cache ]] &&
+  pass "16n. RED CONTROL W1: a limit entry 12 h old and a fetch of 99 an hour old -> holds on the 99" || fail "16n. W1: $(cat "$KEPT")"
+rm -f "$KEPT"; [[ "$(lapk LANE_QUOTA_CMD="echo claude:100@$FUT~log~$(( NOW - 12 * H )),claude:96@$FUT~banner~$NOW")" == "claude:96@$FUT" ]] &&
+  pass "16n. RED CONTROL W1: a new banner 96 behind a lapsed 100 -> holds on the 96" || fail "16n. W1 banner: $(cat "$KEPT")"
+rm -f "$KEPT"; [[ "$(lapk LANE_QUOTA_CMD="echo claude:100@$FUT~log~$(( NOW - 7 * H )),claude:99@$FUT~cache~$(( NOW - H ))")" == "claude:100@$FUT" ]] &&
+  pass "16n. CONTROL W1: a limit entry 7 h old still is the reading" || fail "16n. W1 7 h: $(cat "$KEPT")"
+rm -f "$KEPT"; [[ -z "$(lapk LANE_QUOTA_CMD="echo claude:100@$FUT~log~$(( NOW - 12 * H ))")" ]] &&
+  pass "16n. CONTROL W1: a lapsed limit entry alone -> unknown" || fail "16n. W1 alone: $(cat "$KEPT")"
+keptn 97 12; [[ "$(lapk LANE_QUOTA_CMD="echo claude:100@$FUT~log~$(( NOW - 12 * H )),claude:5@$FUT~cache~$(( NOW - 60 ))")" == "claude:5@$FUT" ]] &&
+  pass "16n. CONTROL W1: both lapsed, a fresh 5 -> reads 5, no hold" || fail "16n. W1 5: $(cat "$KEPT")"
+# R7 W1 through the real read: a real transcript entry and a real cache
+LW="$T/l-w1"; mkdir -p "$LW"; ent "<synthetic>" "You've hit your weekly limit · resets $RS" $(( 12 * H )) >"$LW/s.jsonl"; touch "$LW/s.jsonl"
+rm -f "$KEPT"; cj "$A" "$A" $(( NOW - H )) 99; v="$(lapk LANE_QUOTA_LOG_DIR="$LW")"; [[ "$v" == "claude:99@"* ]] && [[ "$(cut -f6 "$KEPT")" == cache ]] &&
+  pass "16n. RED CONTROL W1 end to end: limit entry 12 h old, CLI fetch 99 an hour old -> holds on the 99, not unknown" || fail "16n. W1 real: $v, $(cat "$KEPT")"
+rm -rf "$LW"; cj "$A" "$A" 1000 0
+# R7 N2 (c-992): a hold that lapses says so, once
+lapsed() { [[ -s "$KEPT.lapsed" ]] && cut -f1-3 "$KEPT.lapsed" | tr '\t' ' '; }
+rm -f "$KEPT.lapsed"; keptn 97 12; lapk >/dev/null; [[ "$(lapsed)" == "claude 97 cache" ]] &&
+  pass "16n. RED CONTROL N2: a hold that lapses leaves its row for the alarm" || fail "16n. N2: $(lapsed)"
+lapk >/dev/null; [[ "$(grep -c . "$KEPT.lapsed")" == 1 ]] && pass "16n. N2: the next tick adds nothing" || fail "16n. N2 again: $(cat "$KEPT.lapsed")"
+n2_none() { [[ ! -s "$KEPT.lapsed" ]] && pass "16n. CONTROL N2: $1" || fail "16n. N2 $1: $(cat "$KEPT.lapsed")"; rm -f "$KEPT.lapsed"; }
+rm -f "$KEPT.lapsed"; keptn 97 6; lapk >/dev/null; n2_none "6 h old, still holding"
+keptn 80 12; lapk >/dev/null; n2_none "a kept 80 was no hold"
+keptn 97 12; lapk LANE_QUOTA_LAPSE_S=0 >/dev/null; n2_none "no lapse configured"
+keptn 97 12; lapk LANE_QUOTA_CMD="echo claude:95@$FUT~cache~$(( NOW - H ))" >/dev/null; n2_none "a reading over the threshold replaced it"
+printf 'claude\t97\t%s\t%s\t%s\tcache\n' "$PAST" "$(( NOW - 12 * H ))" "$A" >"$KEPT"; lapk >/dev/null; n2_none "its reset passed"
+keptn 97 12; cj other other $(( NOW - 60 )) 0; lapk >/dev/null; n2_none "the login changed: a lift, not a lapse"; cj "$A" "$A" 1000 0
+keptn 97 12; lapk LANE_QUOTA_CMD="echo claude:40@$FUT~cache~$(( NOW - H ))" >/dev/null; [[ "$(lapsed)" == "claude 97 cache" ]] &&
+  pass "16n. N2: a reading under the threshold after it: the hold still lapsed, alarm" || fail "16n. N2 40: $(lapsed)"; rm -f "$KEPT.lapsed"
 # two readings that disagree
 dis() { env LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD=echo bash -c 'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_disagree 90'; }
 keptfull 2; lapk LANE_QUOTA_CMD="echo claude:5@$FUT~cache~$(( NOW - 60 ))" >/dev/null
@@ -733,10 +780,10 @@ jq --arg s "mem_kb=1 wk=claude:96@$FUT wkr=claude:banner:$(( NOW - 300 )) live="
 out="$(run LANES="$T/lanes2.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD=echo LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CLAUDE_JSON="$CJ" BOX_QUOTA_WEEKLY_MAX_PCT=90 BOX_PICK_KIND=claude)"
 grep -q "^pick=hold reason=waiting: claude weekly >= 90% on box-a, box-b \[box-a 97% cache read 2h1[45]m ago; box-b 96% banner read [45]m ago\]: queue the lane" <<<"$out" &&
   pass "16n. RED CONTROL the hold line states each box's %, source and age (FAILs before SPL-4965)" || fail "16n. line: $out"
-keptn 97 10; out="$(run LANES="$T/lanes2.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD=echo LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CLAUDE_JSON="$CJ" BOX_QUOTA_WEEKLY_MAX_PCT=90 BOX_PICK_KIND=claude)"
+keptn 97 12; out="$(run LANES="$T/lanes2.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD=echo LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CLAUDE_JSON="$CJ" BOX_QUOTA_WEEKLY_MAX_PCT=90 BOX_PICK_KIND=claude)"
 [[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown .*it lapsed with no re-read' <<<"$out" &&
   pass "16n. the pick: a lapsed row -> box-a placed again, the INFO line says it may have lapsed" || fail "16n. pick: $out"
-rm -f "$KEPT" "$KEPT.banners" "$CJ" "$BAN"
+rm -f "$KEPT" "$KEPT.banners" "$KEPT.lapsed" "$CJ" "$BAN"
 
 # 17. sat alone panel row 01 (SPL-2629): a CORDONED box (do_spl_box_cordon,
 #     <spool root>/dispatch/cordon/<box> with until=<epoch>) is never picked,

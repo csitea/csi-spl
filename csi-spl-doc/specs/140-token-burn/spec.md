@@ -795,13 +795,19 @@ non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
   banner's first sighting (`<kept file>.banners`), since a banner has no time
   and a pane keeps showing it. So a banner still on screen is no re-read, and it
   never re-keeps a % that a newer fetch or answer overruled. A row with a reset
-  lapses `LANE_QUOTA_LAPSE_S` (default 8 h) after that read; then the box is
-  unknown and placed, the same as never measured. Measured on the box that
-  places, 10-27..11-07: after a reading at 90 % or over, the next same or higher
-  one came 0.83..5.92 h later (n=6), the longest inside a real hold. A kept 100
-  is re-read by the login probe saying `limited`. The limit of this: nothing asks
-  for the %, re-reads are passive, so a real 90..99 % that nothing re-reads for
-  8 h lets lanes through until the next reading. The hold line names each box's
+  lapses `LANE_QUOTA_LAPSE_S` (default 10 h) after that read; then the box is
+  unknown and placed, the same as never measured. Measured 10-27..11-07: after a
+  reading at 90 % or over, the next same or higher one came 0.83..5.92 h later on
+  the box that places (n=6) and 0.83..8.33 h later on the main box (n=6, a real
+  climb from 94 to 100). A reading past that age is no reading: a fresh one under
+  it stands, so an old limit entry cannot take a new fetch with it. A hold at or
+  over the threshold is re-read by the login probe saying `limited`, whichever
+  limit the probe hit: a lane placed on a limited login stalls anyway. A hold
+  that lapses with its reset still ahead posts one `WEEKLY HOLD LAPSED` line in
+  #alerts (`<kept file>.lapsed`). The limit of this: nothing asks for the %,
+  re-reads are passive, so a real 90..99 % that nothing re-reads for 10 h lets
+  lanes through until the next reading, with that one line as the only warning.
+  The hold line names each box's
   %, source and age, from the kept file and the BOX-0 row's
   `wkr=<kind>:<source>:<read at>` (`waiting: claude weekly >= 90% on a, b [a 97%
   cache read 2h15m ago; b 96% source not stated]`). A kept reading at or over
@@ -809,8 +815,8 @@ non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
   `WEEKLY READINGS DISAGREE` line in #alerts until they agree
   (`do_spl_weekly_limit_alert`): usage only climbs inside a week. agy's "until"
   counts from a record's first sighting
-  (`<probe dir>/agy-limit-seen.tsv`): the watchdog rewrites its capture each
-  pass, and a static banner rolled it forward.
+  (`<probe dir>/agy-limit-seen.tsv`): the watchdog rewrites its
+  capture each pass, and a static banner rolled it forward.
 - **One line per crossing**, kind `note` in `#alerts` (as the asks timer
   posts): `**WEEKLY LIMIT** <kind> on <box>: <pct>% of its weekly limit used
   (crossed <threshold>%), resets <UTC time>` (or `reset time unknown`). A jump

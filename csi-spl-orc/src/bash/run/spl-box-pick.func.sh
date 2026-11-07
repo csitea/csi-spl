@@ -80,7 +80,7 @@
 # @param BOX_PICK_OVERFLOW (optional) - the overflow mark as % of each box's high mark, default 200 (100 = hold at high)
 # @param BOX_PICK_KIND (optional) - claude|grok|agy|qwen|mistral: leave out the boxes measured without its CLI or at its weekly limit
 # @param BOX_QUOTA_WEEKLY_MAX_PCT (optional) - overrides cnf env.box.quota.weekly_max_pct, default 90
-# @param LANE_QUOTA_LAPSE_S (optional) - s a kept reading with a reset stands with no re-read, default 28800 (0 = until its reset)
+# @param LANE_QUOTA_LAPSE_S (optional) - s a kept reading with a reset stands with no re-read, default 36000 (0 = until its reset)
 # @param BOX_PICK_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param BOX_PICK_DISK_MOUNTS (optional) - the agent data mount candidates, first listed wins, default "/mnt/data /"
 # @param DISK_HEADROOM_BLOCK_PCT (optional) - the disk mark, as the headroom guard reads it, default 85

@@ -292,24 +292,31 @@ spl_box_quota_outdated() {
 # result as READING's form. Best effort: a file that cannot be written leaves
 # the answer of this call right and the next call starts from the old file.
 spl_box_quota_keep() {
-  local f rows now tmp lifted="" pct="" seen="" login="" json="" acct="" reading="$1" at
+  local f rows old now tmp lifted="" pct="" rst="" seen="" login="" json="" acct="" reading="$1" at top
   f="$(spl_box_quota_keep_file)"
   [[ -n "$f" ]] || { spl_box_quota_top "$1"; return 0; }
   now="$(date +%s)"
-  read -r pct seen login < <(awk -F'\t' '$1 == "claude" && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ { print $2, $4, $5; exit }' "$f" 2>/dev/null) || true
+  read -r pct rst seen login < <(awk -F'\t' '$1 == "claude" && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ { print $2, $3 + 0, $4, $5; exit }' "$f" 2>/dev/null) || true
   if [[ -n "$pct" || "$1" == *claude:* ]]; then
     json="$(spl_box_quota_claude_json)"
     acct="$(jq -r '.oauthAccount.accountUuid // empty' <<<"$json" 2>/dev/null)"
   fi
   if spl_box_quota_outdated "$pct" "$seen" "$login" "$acct" "$json" "$now"; then lifted=claude
   elif [[ -n "$pct" ]] && (( pct >= 100 )) && spl_box_quota_lifted "$seen"; then lifted=claude
-  elif [[ -n "$pct" ]] && (( pct >= 100 )); then
-    # a kept 100 shows on no screen; the probe saying limited is its re-read
+  elif [[ -n "$pct" ]] && (( pct >= $(spl_box_quota_max "${SPL_CNF:-}") && rst > now )); then
+    # a hold shows on no screen once a seat stops; the probe saying limited is
+    # its re-read. Any limit counts, not only the weekly one (LC_LIMITED_RE):
+    # a lane placed on a limited login stalls anyway, and the hold still ends
+    # at the reset, on a lower fetch, or LAPSE_S after the last limited.
     at="$(spl_box_quota_probe_at limited)"
-    [[ -n "$at" ]] && (( at > seen )) && reading="claude:100~probe~$at${reading:+,$reading}"
+    top="$(spl_box_quota_top "$reading")"
+    [[ ",$top" =~ ,claude:([0-9]+) ]] && (( BASH_REMATCH[1] > pct )) && pct="${BASH_REMATCH[1]}"
+    [[ -n "$at" ]] && (( at > seen )) && reading="claude:$pct@$rst~probe~$at${reading:+,$reading}"
   fi
   reading="$(spl_box_quota_drop_stale "$reading" "$acct" "$json" "$now")"
-  rows="$(cat "$f" 2>/dev/null | spl_box_quota_merge "$reading" "$now" "${LANE_QUOTA_KEEP_S:-86400}" "$lifted" "$acct" "$(spl_box_quota_lapse_s)" | sort)"
+  old="$(cat "$f" 2>/dev/null)"
+  rows="$(spl_box_quota_merge "$reading" "$now" "${LANE_QUOTA_KEEP_S:-86400}" "$lifted" "$acct" "$(spl_box_quota_lapse_s)" <<<"$old" | sort)"
+  spl_box_quota_note_lapsed "$f" "$old" "$rows" "$now" "$lifted"
   tmp="$f.tmp.$$"
   if mkdir -p "$(dirname "$f")" 2>/dev/null && { [[ -z "$rows" ]] || printf '%s\n' "$rows"; } 2>/dev/null >"$tmp"; then
     mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
@@ -331,9 +338,11 @@ spl_box_quota_keep() {
 # (kinds, comma-separated; spl_box_quota_lifted, spl_box_quota_outdated) drops
 # those kept rows first: the new reading stands alone. READING is
 # spl_box_quota_read's: "read at" is the token's own time, never this tick's,
-# and a later token of a kind only counts as that kind's lower reading.
+# and a later token of a kind only counts as that kind's lower reading. A token
+# already past its reset or LAPSE_S is no reading at all: the next one of its
+# kind is then the reading, so an old limit entry cannot take a fresh fetch with it.
 spl_box_quota_merge() {
-  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" -v lifted="${4:-}" -v acct="${5:-}" -v lapse="${6:-28800}" '
+  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" -v lifted="${4:-}" -v acct="${5:-}" -v lapse="${6:-36000}" '
     function gone(k) {
       if (at[k] == "") return now - seen[k] >= keep
       return at[k] <= now || (lapse > 0 && now - seen[k] >= lapse)
@@ -349,9 +358,10 @@ spl_box_quota_merge() {
         if (v[i] !~ /^[a-z]+:[0-9]+(@[0-9]+)?(~[a-z]+~[0-9]+)?$/) continue
         m = split(v[i], tk, "~"); s = (m > 1 ? tk[2] : ""); t = (m > 1 ? tk[3] + 0 : now)
         split(tk[1], kv, ":"); k = kv[1]; m = split(kv[2], pa, "@"); p = pa[1]; a = (m > 1 ? pa[2] : "")
+        if (a == "" && at[k] + 0 > now) a = at[k]
+        if (a != "" && (a <= now || (lapse > 0 && now - t >= lapse))) continue
         if (k in first) { lower(k, p, t, s); continue }
         first[k] = 1
-        if (a == "" && at[k] + 0 > now) a = at[k]
         if (k in pct && at[k] != "") {
           d = (a == "" ? 0 : a - at[k]); if (d < 0) d = -d
           if (d < 86400) {
@@ -372,13 +382,31 @@ spl_box_quota_merge() {
 }
 
 # spl_box_quota_lapse_s: how long a kept reading with a reset stands with no
-# re-read, LANE_QUOTA_LAPSE_S, default 8 h. Measured on sat 10-27..11-07: after
-# a reading at 90 % or over, the next same or higher one came within 0.83..5.92 h
-# (n=6), the longest inside a real hold; under that a real limit would lapse.
+# re-read, LANE_QUOTA_LAPSE_S, default 10 h. Measured 10-27..11-07: after a
+# reading at 90 % or over, the next same or higher one came within 0.83..5.92 h
+# on sat (n=6) and 0.83..8.33 h on the main box (n=6, the longest a real climb to 100); under
+# that a real limit would lapse.
 spl_box_quota_lapse_s() {
-  local v="${LANE_QUOTA_LAPSE_S:-28800}"
-  [[ "$v" =~ ^[0-9]+$ ]] || v=28800
+  local v="${LANE_QUOTA_LAPSE_S:-36000}"
+  [[ "$v" =~ ^[0-9]+$ ]] || v=36000
   echo "$v"
+}
+
+# spl_box_quota_note_lapsed FILE OLD_ROWS NEW_ROWS NOW LIFTED: a kept row at or
+# over the threshold that lapsed with its reset still ahead, and that nothing at
+# or over the threshold replaced, goes to FILE.lapsed (kind TAB pct TAB source
+# TAB read at) for do_spl_weekly_limit_alert: that box now takes lanes on a hold
+# nobody disproved, and the alarm is what makes that visible.
+spl_box_quota_note_lapsed() {
+  local lapse
+  lapse="$(spl_box_quota_lapse_s)"
+  (( lapse > 0 )) || return 0
+  awk -F'\t' -v OFS='\t' -v max="$(spl_box_quota_max "${SPL_CNF:-}")" -v now="$4" -v lapse="$lapse" -v lifted=",$5," '
+    FNR == NR { if (NF) cur[$1] = $2; next }
+    $2 + 0 >= max && $3 + 0 > now && now - $4 >= lapse && !index(lifted, "," $1 ",") && cur[$1] + 0 < max {
+      print $1, $2, ($6 != "" ? $6 : "kept"), $4 }' <(printf '%s\n' "$3") <(printf '%s\n' "$2") 2>/dev/null >>"$1.lapsed" || true
+  [[ -s "$1.lapsed" ]] || rm -f "$1.lapsed" 2>/dev/null
+  return 0
 }
 
 # spl_box_quota_drop_stale READING ACCOUNT JSON NOW: READING without a claude

@@ -146,7 +146,7 @@ ndis() { grep -c 'WEEKLY READINGS DISAGREE' "$T/posts"; }
 kp; out="$(tick "claude:0@$FUT~cache~$(( NOW - 120 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null)"
 [ "$(n)" = 1 ] && grep -qF "**WEEKLY READINGS DISAGREE** claude on box-a: the hold reads 97% (banner read 2h15m ago), a newer reading says 0% (cache read 2m ago)." "$T/posts" \
   && pass "10. RED CONTROL the 11-06 case: hold on 97, a newer 0 -> one alarm with both sources and ages" || fail "10. alarm ($(n): $(cat "$T/posts"); $out)"
-grep -qF "or it lapses at $(date -u -d "@$(( RD + 28800 ))" +%Y-%m-%dT%H:%MZ)" "$T/posts" && pass "10. the alarm says when the reading lapses" || fail "10. lapse: $(cat "$T/posts")"
+grep -qF "or it lapses at $(date -u -d "@$(( RD + 36000 ))" +%Y-%m-%dT%H:%MZ)" "$T/posts" && pass "10. the alarm says when the reading lapses" || fail "10. lapse: $(cat "$T/posts")"
 tick "claude:0@$FUT~cache~$(( NOW - 60 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
 [ "$(n)" = 1 ] && pass "10. the same disagreement next tick -> nothing" || fail "10. again ($(n))"
 tick "claude:97@$FUT~banner~$NOW" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
@@ -160,6 +160,22 @@ kp; out="$(tick "claude:0@$FUT~cache~$(( NOW - 30 ))" LANE_QUOTA_STATE="$KP" LAN
 [ ! -s "$T/st.tsv.disagree" ] && grep -q "disagree alarm did not post" <<<"$out" && pass "10. a failed post is not recorded" || fail "10. fail: $out"
 kp; out="$(tick "claude:0@$FUT~cache~$(( NOW - 30 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null DRY_RUN=1)"
 [ "$(n)" = 0 ] && grep -q "PLAN post in #alerts: \*\*WEEKLY READINGS DISAGREE" <<<"$out" && pass "10. DRY_RUN prints it, posts nothing" || fail "10. dry ($(n): $out)"
+
+# 11. a hold that lapses (R7 N2, c-992): one line, retried until it posts
+: >"$T/posts"; rm -f "$T/st.tsv" "$T/st.tsv.disagree" "$KP.lapsed"
+kp12() { printf 'claude\t97\t%s\t%s\t\tcache\n' "$FUT" "$(( NOW - $1 * 3600 ))" >"$KP"; }
+nlap() { grep -c 'WEEKLY HOLD LAPSED' "$T/posts"; }
+kp12 12; out="$(tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null WEEKLY_ALERT_CMD="$T/post-fail")"
+[ "$(nlap)" = 0 ] && [ -s "$KP.lapsed" ] && grep -q "lapse alarm did not post" <<<"$out" && pass "11. a failed post stays for the next tick" || fail "11. fail ($(n): $out)"
+out="$(tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null DRY_RUN=1)"
+[ "$(nlap)" = 0 ] && [ -s "$KP.lapsed" ] && grep -q "PLAN post in #alerts: \*\*WEEKLY HOLD LAPSED" <<<"$out" && pass "11. DRY_RUN prints it, posts nothing, keeps it" || fail "11. dry ($(n): $out)"
+out="$(tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null)"
+[ "$(nlap)" = 1 ] && [ ! -s "$KP.lapsed" ] && grep -qF "**WEEKLY HOLD LAPSED** claude on box-a: the hold read 97% (cache read 12h" "$T/posts" \
+  && pass "11. RED CONTROL a hold that lapsed -> one alarm with its %, source and age" || fail "11. alarm ($(n): $(cat "$T/posts"); $out)"
+tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(nlap)" = 1 ] && pass "11. the next tick posts nothing" || fail "11. again ($(n))"
+: >"$T/posts"; kp12 6; tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(nlap)" = 0 ] && pass "11. CONTROL a hold 6 h old has not lapsed: no alarm" || fail "11. 6 h ($(n): $(cat "$T/posts"))"
 
 # 8. the cron row
 grep -qE "^weekly-limit-alert +\| \*/5 \* \* \* \* +\| src/bash/scripts/weekly-limit-alert-cron.sh +\| weekly-limit-alert/cron.log" "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" \

@@ -71,8 +71,11 @@
 #      live is one row hub+local; hub done + no local is the done row, src hub;
 #      a worktree with no pane, and an unreadable tmux, leave the done row (a
 #      closed lane's worktree stays 24 h: no pane is no lane); a done row of
-#      another box stays beside the local row. Known limit, pinned: another
-#      box reads only the done row and still says free
+#      another box stays beside the local row. The rows that count are this
+#      box's: done here or no row here, with the same id live on another box, is
+#      still the local row and exit 3 (R7 W1); CONTROL live here, done there
+#      stays hub+local. Known limit, pinned: another box reads only the done row
+#      and still says free
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -611,14 +614,19 @@ out="$(on pc do_spl_lane_put "${F[@]}" "$PAST" LANE_AGENT=ORC-1 LANE_BOX=sat LAN
 
 # 17. a hub done row over a lane running here (SPL-5003)
 D=(LANE_FLEET=dn LANE_MEMINFO="$T/meminfo")
-for id in c-741 c-742 c-743 c-744 c-746; do lane pc "$id" dn; done
-mkdir -p "$T/pc/csi-spl-wt/c-742/d"
+for id in c-741 c-742 c-743 c-744 c-746 c-748 c-749 c-750; do lane pc "$id" dn; done
+mkdir -p "$T/pc/csi-spl-wt/c-742/d" "$T/pc/csi-spl-wt/c-748/w" "$T/pc/csi-spl-wt/c-749/w"
 echo z >"$T/pc/csi-spl-wt/c-742/d/z.txt"
+echo z >"$T/pc/csi-spl-wt/c-748/w/done-here.txt"
+echo z >"$T/pc/csi-spl-wt/c-749/w/no-row-here.txt"
 jq -n -c '{agent_box: "box-desk", repo: "csi-spl", branch: "from-hub", scope: "s", files: ["e/landed.txt"], topic: "t", state: "done", age_s: 60} as $r
   | {lanes: [($r + {agent_id: "c-741"}), ($r + {agent_id: "c-742"}), ($r + {agent_id: "c-743"}),
              ($r + {agent_id: "c-744", state: "live", files: ["q/own.txt"]}), ($r + {agent_id: "c-745"}),
-             ($r + {agent_id: "c-746", agent_box: "sat"})]}' >"$T/hub/dn.json"
-printf '0 c-741@box-desk\n0 c-742@box-desk\n1 c-743@box-desk\n0 c-744@box-desk\n0 c-745@box-desk\n0 c-746@box-desk\n' >"$T/panes-d"
+             ($r + {agent_id: "c-746", agent_box: "sat"}),
+             ($r + {agent_id: "c-748"}), ($r + {agent_id: "c-748", agent_box: "sat", state: "live", files: ["q/sat.txt"]}),
+             ($r + {agent_id: "c-749", agent_box: "sat", state: "live", files: ["q/sat.txt"]}),
+             ($r + {agent_id: "c-750", state: "live", files: ["q/own.txt"]}), ($r + {agent_id: "c-750", agent_box: "sat"})]}' >"$T/hub/dn.json"
+printf '0 c-741@box-desk\n0 c-742@box-desk\n1 c-743@box-desk\n0 c-744@box-desk\n0 c-745@box-desk\n0 c-746@box-desk\n0 c-748@box-desk\n0 c-749@box-desk\n0 c-750@box-desk\n' >"$T/panes-d"
 dn_row() {
   local a="$1"; shift
   on pc 'LANE_FORMAT=json LANE_ALL=1 do_spl_lane_map' "${D[@]}" "$@" | tail -1 |
@@ -636,6 +644,12 @@ out="$(dn_row c-741 LANE_PANES_CMD=false)"
 [[ "$out" == '["box-desk done hub+local"]' ]] && pass "tmux unreadable: no pane measured, the done row wins" || fail "no tmux: $out"
 out="$(dn_row c-746 LANE_PANES_CMD="cat $T/panes-d")"
 [[ "$out" == '["sat done hub+local","box-desk live local"]' ]] && pass "a done row of another box stays, beside the local row of this one" || fail "other box: $out"
+out="$(dn_row c-748 LANE_PANES_CMD="cat $T/panes-d")"
+[[ "$out" == '["sat live hub+local","box-desk live local"]' ]] && pass "done here, live on another box: this box's row is the local one, the other box's stays" || fail "done here, live there: $out"
+out="$(dn_row c-749 LANE_PANES_CMD="cat $T/panes-d")"
+[[ "$out" == '["sat live hub+local","box-desk live local"]' ]] && pass "no row here, live on another box: the local row shows too" || fail "no row here: $out"
+out="$(dn_row c-750 LANE_PANES_CMD="cat $T/panes-d")"
+[[ "$out" == '["box-desk live hub+local","sat done hub+local"]' ]] && pass "control: live here, done on another box: both hub rows stay, no local row" || fail "live here, done there: $out"
 out="$(on pc do_spl_lane_map "${D[@]}" LANE_PANES_CMD="cat $T/panes-d")"
 grep -E '^c-741@box-desk +live .* local$' <<<"$out" >/dev/null && [[ "$out" != *c-743@* ]] &&
   pass "the default map shows the running lane, though it has no age, and not the idle one" || fail "default map: $out"
@@ -643,6 +657,12 @@ dchk() { on "$1" "LANE_CHECK=$2 LANE_AGENT=c-747 do_spl_lane_map" "${D[@]}" LANE
 out="$(dchk pc d/z.txt "cat $T/panes-d")"; rc=$?
 [[ $rc -eq 3 && "$(head -1 <<<"$out")" == "d/z.txt owned by c-742@box-desk c-742-dn (changed in its worktree; no files recorded)" ]] &&
   pass "--check on a path the running lane changed: exit 3, not free" || fail "check changed path (rc=$rc): $out"
+out="$(dchk pc w/done-here.txt "cat $T/panes-d")"; rc=$?
+[[ $rc -eq 3 && "$(head -1 <<<"$out")" == "w/done-here.txt owned by c-748@box-desk c-748-dn (changed in its worktree; no files recorded)" ]] &&
+  pass "--check with the same id live on another box, done here: exit 3, not free" || fail "check done here (rc=$rc): $out"
+out="$(dchk pc w/no-row-here.txt "cat $T/panes-d")"; rc=$?
+[[ $rc -eq 3 && "$(head -1 <<<"$out")" == "w/no-row-here.txt owned by c-749@box-desk c-749-dn (changed in its worktree; no files recorded)" ]] &&
+  pass "--check with no row here, live on another box: exit 3, not free" || fail "check no row here (rc=$rc): $out"
 out="$(dchk pc e/landed.txt "cat $T/panes-d")"; rc=$?
 [[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] &&
   pass "--check on a file only the done row names: free, the worktree is what is measured" || fail "check done files (rc=$rc): $out"

@@ -28,8 +28,8 @@
 # @description The default table hides the rows 2 h old or older, and those with
 # @description no age while the hub answered, behind a footer
 # @description `N older rows hidden (--all)`; LANE_ALL=1 shows every row.
-# @description A hub done row does not hide a lane running here (SPL-5003): with
-# @description a live pane on this box the local row replaces it (src local, shown
+# @description A hub row of another box, or a done one here, does not hide a lane
+# @description with a live pane on this box (SPL-5003): the local row shows (src local, shown
 # @description by default, --check reads its worktree). With no pane, or tmux
 # @description unreadable, the done row wins: a closed lane's worktree stays 24 h.
 # @param LANE_FLEET (optional) - the fleet; default LEASE_FLEET (env, then <spool root>/dispatch/lease.conf)
@@ -275,10 +275,12 @@ spl_lane_local_row() {
 }
 
 # Hub rows win for an agent the hub knows; a local worktree the hub has no
-# row for is kept, marked src local. So is one whose every hub row says done
-# while its pane is live here (LIVE_HERE, spl_lane_live_here; SPL-5003): it
-# replaces the done row of this box, a done row of another box stays, and
-# hub_done marks it for the default table. A worktree alone is no lane: it
+# row for is kept, marked src local. So is one with no live hub row on its own
+# box while its pane is live here (LIVE_HERE, spl_lane_live_here; SPL-5003): it
+# replaces the done row of this box, the rows of other boxes stay (an id can
+# have a row on two boxes), and pane_here marks it for the default table. A
+# live pane is an open window, not proof of a running agent (the notice strip is
+# a pane too), which fails safe: a clean tree reads free. A worktree alone is no lane: it
 # stays 24 h after the close, every one reads state live, so with no pane or no
 # LIVE_HERE (null: tmux unreadable) the done row wins, as a closed lane should.
 # The local row keeps files: [], not the done row's: --check reads its worktree.
@@ -295,9 +297,9 @@ spl_lane_merge() {  # HUB_JSON LOCAL_ROWS [LIVE_HERE (JSON array or null)]
     jq -c -n --slurpfile hub "$hubf" --slurpfile loc "$locf" --argjson up "${3:-null}" '
       ($hub[0].lanes // [] | map(. + {src: "hub"})) as $h
       | ($h | map({key: .agent_id, value: .}) | from_entries) as $byid
-      | ($h | map(select(.state != "done") | {key: .agent_id, value: true}) | from_entries) as $open
-      | [ $loc[0][] | select($byid[.agent_id] != null and $open[.agent_id] == null)
-          | select(.agent_id as $a | ($up // []) | index($a) != null) | . + {hub_done: true} ] as $over
+      | ($h | map(select(.state != "done") | {key: "\(.agent_id)@\(.agent_box)", value: true}) | from_entries) as $open
+      | [ $loc[0][] | select($byid[.agent_id] != null and $open["\(.agent_id)@\(.agent_box)"] == null)
+          | select(.agent_id as $a | ($up // []) | index($a) != null) | . + {pane_here: true} ] as $over
       | [ $h[] | select(. as $r | any($over[]; .agent_id == $r.agent_id and .agent_box == $r.agent_box) | not) ]
         + [ $loc[0][] | select(($byid[.agent_id] // null) == null) ] + $over
       | ([$loc[0][] | .agent_id]) as $here
@@ -320,8 +322,8 @@ spl_lane_table() {
 
 # The default table: rows younger than LANE_RECENT_S (2 h), plus the rows
 # with no age when the hub did not answer (then they are the whole map), the
-# lanes running over a hub done row (hub_done, spl_lane_merge: their pane is
-# live, they just have no age), and a footer counting the rest. LANE_ALL=1
+# lanes whose pane outranks the hub rows (pane_here, spl_lane_merge: their pane
+# is live, they just have no age), and a footer counting the rest. LANE_ALL=1
 # prints every row, as before.
 # A live role seat stays too, on every box. The id is bare (c-001, c-002,
 # c-003, the same three spool_spawn_is_seat tests); the box is agent_box.
@@ -334,7 +336,7 @@ spl_lane_table_recent() {
   shown="$(jq -c --argjson max "${LANE_RECENT_S:-7200}" --arg h "$LANE_HUB_STATE" --arg seat "^${SPL_ROLE_SEAT_RX}$" \
     '[.[] | select(
         (.state == "live" and (.agent_id | test($seat)))
-        or .hub_done == true
+        or .pane_here == true
         or (.age_s >= 0 and .age_s < $max)
         or (.age_s < 0 and $h != "ok"))]' <<<"$1")"
   spl_lane_table "$shown"

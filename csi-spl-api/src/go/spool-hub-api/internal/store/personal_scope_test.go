@@ -53,6 +53,14 @@ var personCallers = map[string]string{
 	"DeleteContact":  "personal.contacts of the session's own person, hard or soft (154 2.6 erase one)",
 	"ExportContacts": "personal.contacts of the session's own person (154 2.6 export)",
 	"EraseContacts":  "personal.contacts of the session's own person (154 2.6 erase all, C8e)",
+	// spec 154 v1.3 B14: the import and the picture; the session's own person,
+	// except that the sync's picture fetch (B16) takes the claimed binding's human.
+	"ImportContacts":        "personal.contacts of the session's own person, one transaction under the advisory lock (154 11.2.1, C32, C33, C33b)",
+	"PreviewContactsImport": "personal.contacts of the session's own person, read only: the dry run (154 11.2.1)",
+	"PutContactPhoto":       "personal.contacts, personal.contact_photos of the person: one live contact's picture (154 11.4, C31)",
+	"ContactPhoto":          "personal.contacts, personal.contact_photos of the person: one live contact's picture (154 11.4, C31)",
+	"DeleteContactPhoto":    "personal.contacts, personal.contact_photos of the person: one live contact's picture (154 11.4, C31)",
+	"CountContactPhotos":    "personal.contact_photos of the person: the count photo_max_per_person caps (154 11.4)",
 	// spec 154 v1.2 B8a (seat note N1): the sync cycle's calls. Their person
 	// is NOT a session's: it is the binding's contacts_sync.human_id that
 	// ClaimContactsSync (operator scope) returned, as appendRealmReceipts

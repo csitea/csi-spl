@@ -491,8 +491,12 @@ const photoSQL = `INSERT INTO personal.contact_photos (person_id, contact_id, mi
 // read under P2's own person scope alone (the twin), and under P1's person,
 // P2's person with a workspace set, and the operator scope it reads 0 rows.
 // P1 writing a picture stamped P2 is refused by WITH CHECK. P1 stamping itself
-// on P2's contact is refused by the FK, with the same error as on a contact
-// that does not exist, so it blocks nothing and tells P1 nothing.
+// on P2's contact with no picture is refused by the FK, with the same error as
+// on a contact that does not exist, so it blocks nothing. On a contact with a
+// picture P1's plain INSERT gets a contact_photos_pkey duplicate (23505)
+// instead, so P1 can learn that a contact id it already holds has a picture;
+// the store's PutContactPhoto reads the contact first and answers not found
+// (C31).
 func TestRLSContactPhotosPersonScope(t *testing.T) {
 	pg := rlsStore(t)
 	_, rt := runtimeSession(t)

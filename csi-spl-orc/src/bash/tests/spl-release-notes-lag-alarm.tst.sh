@@ -4,8 +4,8 @@
 # (bare origin + clone, committer dates set), a stub row reader and a stub
 # #alerts post:
 #   1. GREEN: every old commit has its row -> nothing
-#   2. GREEN: the normal lag: no row at 1 min and at 94 min (the measured
-#      land gap, 93.3 + 1) -> nothing
+#   2. GREEN: the normal lag: no row at 1 min and at 94 min (inside the
+#      measured land gap, max 101.2 + 1) -> nothing
 #   3. RED: no row at 121 min -> one post naming the env, count and sha
 #   4. the same again -> nothing; RED CONTROL: with the state gone -> a second
 #      post, so "nothing" is the state's doing

@@ -428,9 +428,11 @@ holder's box.
   in dev (tree `48dc6c573`).
 - **Limits:** a land later than the limit can fire once if a tick hits the
   minute before its row, and the next tick recovers. The state is per box, and
-  a box drops it on a tick with the lease on another box, so a stale verdict
-  cannot silence a new outage: a lease move during an episode posts it once
-  more. A commit the hub rejects has no row and holds the episode open until
+  a box drops it on a tick with the lease on another box, and a lease move
+  during an episode posts it once more. A stale verdict can still silence a new
+  outage on a box that ran no tick while another box held the lease. An episode
+  can end with no recovery post when the row arrives across a lease move. A
+  lease move restarts the blind clock. A commit the hub rejects has no row and holds the episode open until
   the row is accepted or the commit leaves the newest 500, and a later outage
   in that time posts nothing. Recovered means the newest 500: an outage longer
   than that leaves rows no re-send restores.

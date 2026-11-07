@@ -14,9 +14,10 @@
 # @description rebase stamps BEFORE the land, so it covers the land gap and not
 # @description only the ingest. Measured 2026-11-07, tree 48dc6c573: committer
 # @description date to push, wf 10 push runs on master, n=300: median 3.6, p90
-# @description 26.6, p99 72.9, max 93.3 min; push to row, wf 26, n=13: about
-# @description 1 min. 120 covers 93.3 + 1 with room, so the normal lag cannot
-# @description fire it. A land later than the limit fires only if a tick hits the
+# @description 26.6, p99 72.9, max 93.3 min; every commit of 2026-10-25..11-07,
+# @description n=1533: max 101.2 min; push to row, wf 26, n=13: about 1 min. 120
+# @description covers 101.2 + 1 with room, so the normal lag cannot fire it.
+# @description A land later than the limit fires only if a tick hits the
 # @description minute before its row, and the next tick posts the recovery.
 # @description Runs on the dispatch lease holder's box only (one post per
 # @description episode); a dry run reads and prints from any box, and touches no

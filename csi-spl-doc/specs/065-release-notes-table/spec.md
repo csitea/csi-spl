@@ -262,6 +262,10 @@ https://<<run-time>>.csitea.net/releases/<sha>
   `26_release-notes-ingest.yml` ingests the row on every push to master, dev
   and prd, with no deploy (L14, SPL-4961). The earlier wording here, trailers
   read straight from the commit with "not deployed yet", was never built.
+  A failed ingest leaves that run green, as in 20 and 30, so it holds no lane's
+  close, and nothing alerts on it (the failure poll watches 20 and 30 only). Its
+  commits are delayed until the next push re-sends the window; with no next
+  push, until someone dispatches the workflow from master.
 - A row no version tag contains yet has no version. Its note opens by sha,
   with no version chip; Reporting -> Releases lists it with no version chip,
   in its day; the modal's list, which is grouped by version, leaves it out

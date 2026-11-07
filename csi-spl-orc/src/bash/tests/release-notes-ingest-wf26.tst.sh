@@ -14,6 +14,8 @@
 #      against a stub ./run: DRY_RUN=0, RELEASE_SHA = the pushed commit
 #   7. a run that never started loses nothing: the next one's window carries
 #      the commits of the runs before it
+#   8. a failed ingest leaves the run green, as in 20 and 30: a red run holds the
+#      close of the lane that pushed (accepted-close rc 7, nothing supersedes it)
 # Every shape check has its RED control: the same check on a planted copy.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -40,6 +42,7 @@ wf_findings() {
   [[ "$(yq -r "$j.concurrency[\"cancel-in-progress\"]" "$f")" == false ]] || echo "concurrency: cancels a running ingest"
   [[ "$(yq -r "$j.steps[] | select(.uses // \"\" | test(\"actions/checkout\")) | .with[\"fetch-depth\"]" "$f")" == 0 ]] || echo "checkout: not the whole history"
   [[ "$(yq -r "$j.if" "$f")" == *"github.ref == 'refs/heads/master'"* ]] || echo "guard: another branch could ingest"
+  [[ "$(yq -r "$j.steps[] | select(.name == \"Ingest the release notes (do_release_note_ingest)\") | .[\"continue-on-error\"]" "$f")" == true ]] || echo "ingest: a failure reds the run"
 }
 
 out=$(wf_findings "$wf")
@@ -64,6 +67,7 @@ ctl "one group for both"   "concurrency: not per env"          "s|group: release
 ctl "cancel in progress"   "concurrency: cancels"              "s|cancel-in-progress: false|cancel-in-progress: true|"
 ctl "a shallow checkout"   "checkout: not the whole history"   "s|fetch-depth: 0|fetch-depth: 1|"
 ctl "any branch dispatch"  "guard: another branch"             "s/ && github.ref == 'refs\/heads\/master'//"
+ctl "a failure reds"       "ingest: a failure reds the run"    "/^        continue-on-error: true$/d"
 
 # --- 6. the ingest step's real script ----------------------------------------
 yq -r '.jobs.ingest.steps[] | select(.name == "Ingest the release notes (do_release_note_ingest)") | .run' "$wf" >"$T/step.sh"

@@ -15,13 +15,18 @@
 # version (spec 065 section 7.2).
 #
 # Concurrency: one run per env at a time, and GitHub replaces a pending run with
-# a newer one. Nothing is lost by that: the run that does start re-sends the
-# window of its own commit, and the upsert by sha makes the overlap harmless. A
-# failed run is repaired the same way by the next push, up to 500 commits later.
+# a newer one. The commits of a replaced or failed run are DELAYED until the next
+# push, not lost: that push's run re-sends the window of its own commit, up to
+# 500 commits, and the upsert by sha makes the overlap harmless. With no next
+# push they stay out until someone dispatches this workflow from master.
+#
+# A failed ingest does not turn the run red (continue-on-error, as in 20 and 30):
+# a red run would hold the close of the lane that pushed, and that lane cannot
+# fix a hub 5xx. So NOTHING alerts on a failed ingest: the failure shows only on
+# the step, and do_spl_deploy_failure_poll watches 20 and 30, not this workflow.
 #
 # Auth: ONLY the per-env project key secrets GCP_KEY_CSI_SPL_<ENV> (iac 120), as
-# 25 and 45..48; an env without its key is SKIPPED with a notice. A red run is
-# the alert.
+# 25 and 45..48; an env without its key is SKIPPED with a notice.
 #
 # Local equivalent:
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_release_note_ingest
@@ -94,6 +99,7 @@ jobs:
 
       - name: Ingest the release notes (do_release_note_ingest)
         if: steps.sel.outputs.go == '1'
+        continue-on-error: true
         run: DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./run -a do_release_note_ingest
 
       - name: Drop the key

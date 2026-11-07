@@ -66,6 +66,12 @@ it posts unread: an extra post is cheaper than silence.
 Limits: with no holder, two machines on one tick can both post (a stub, n=6,
 c-990's FAIL). If no
 seat on the box is announced, the post is refused and only the cron log says so.
+A new #alerts topic typed by hand with the post's exact prefix and a current time
+counts as told, so it silences the episode, the ceiling included, until the next
+landing or empty queue (a stub, c-990's N7). The time in the title is the posting
+box's clock: a clock ahead hides an episode whose start falls inside the skew, and
+a clock behind gives an extra post (a stub, 6 min; c-990's N8, the real skew between
+the boxes not measured).
 
 **Why 40% and not the consensus's 25%** (dispatch holder c-003, msg 11e3b858).
 The consensus asks for 25% and for a fire by about 11:30Z; on the real samples

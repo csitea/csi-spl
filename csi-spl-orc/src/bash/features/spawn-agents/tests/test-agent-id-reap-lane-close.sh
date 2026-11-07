@@ -275,4 +275,34 @@ eq "...it stays queued" "c-406 " "$(ids)"
 has "...and alerts" "ALERT told c-002@tbox: hub lane rows not closed: c-406" "$out"
 cp "$T_TMP/rows.keep" "$T_TMP/rows.json"; rm -f "$Q"
 
+# The line the box really queues: the retire's own failed close, with the hub's
+# refusal in it, on a tick that reaped a seat. The same tick drops it.
+agent c-407; : >"$SENDS"; : >"$HUBLOG"; rm -f "$R/.reap/lane-close.alerted"
+out="$(reap 2026-10-02T19:00:00Z --apply)"
+has "a seat with no row is reaped" "REAP c-407" "$out"
+has "...the retire tried and warned" "the hub lane row of c-407 was not closed" "$out"
+has "...the same tick drops the id" "lane-close c-407: no hub row on tbox, nothing to close; off the queue" "$out"
+hasnt "...no alert" ALERT "$out"
+check "...the queue is empty" test ! -s "$Q"
+eq "...nothing sent" 0 "$(wc -l <"$SENDS")"
+
+# Cron sets no LANE_BOX: the box comes from the desk default, or every id would
+# read as having no row here.
+printf 'c-408\t2026-10-02T00:00:00Z\tplanted\nc-301\t2026-10-02T00:00:00Z\tplanted\n' >"$Q"; : >"$HUBLOG"
+out="$(SPOOL_NOW=2026-10-02T19:15:00Z env -u LANE_BOX bash "$REAP" --apply 2>&1)"
+has "with no LANE_BOX an id with no row drops, named by the desk box" "lane-close c-408: no hub row on tbox" "$out"
+has "...and a row on the desk box is closed" "LANE c-301: the hub row is closed" "$out"
+has "...through a done write" "--agent c-301" "$(grep -- '--state done' "$HUBLOG")"
+check "...the queue is empty" test ! -s "$Q"
+
+# A box name the hub holds no row of (a renamed box, a wrong setting) is "cannot
+# tell": c-401 has a row, on obox, and this queue line must not vanish silently.
+printf 'c-401\t2026-10-02T00:00:00Z\tplanted\n' >"$Q"; : >"$SENDS"; rm -f "$R/.reap/lane-close.alerted"
+out="$(LANE_BOX=newbox SPOOL_DESK_BOX=newbox reap 2026-10-02T19:30:00Z --apply)"
+hasnt "CONTROL a box with no hub row is no 'no row'" "no hub row" "$out"
+has "...the close is tried and fails" "WARN lane-close c-401: not closed" "$out"
+eq "...it stays queued" "c-401 " "$(ids)"
+has "...and alerts" "ALERT told c-002@tbox: hub lane rows not closed: c-401" "$out"
+rm -f "$Q"
+
 t_done

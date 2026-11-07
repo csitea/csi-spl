@@ -2,11 +2,9 @@ package hub
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
-	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // A person's input stops at the archive (SPL-4954, spec 041 §3.1; owner
@@ -23,45 +21,20 @@ const (
 )
 
 // topicClosed answers whether any of ids names an archived topic, a card or
-// its thread (store.TopicArchived, the stamp the WUI marks), or a message of
-// one: a thread opened on a reply has that reply's msg_id for its task.
+// its thread, or a message of one: a thread opened on a reply has that reply's
+// msg_id for its task. One read for all of them; a top-level post in the lobby
+// reads nothing, because the lobby itself never carries the stamp.
 func (s *Server) topicClosed(ctx context.Context, tenant string, ids ...string) (bool, error) {
+	asked := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if id == "" {
-			continue
-		}
-		if closed, err := s.topicStamped(ctx, tenant, id); closed || err != nil {
-			return closed, err
-		}
-		m, err := s.o.Store.GetEditable(ctx, tenant, id, s.o.Now())
-		if errors.Is(err, store.ErrNotFound) { // a task id, not a message
-			continue
-		}
-		if err != nil {
-			return false, err
-		}
-		if closed, err := s.topicStamped(ctx, tenant, m.TaskID, m.ParentTaskID); closed || err != nil {
-			return closed, err
+		if id != "" && id != s.o.LobbyTaskID {
+			asked = append(asked, id)
 		}
 	}
-	return false, nil
-}
-
-// topicStamped answers whether any of tasks carries the archive stamp.
-func (s *Server) topicStamped(ctx context.Context, tenant string, tasks ...string) (bool, error) {
-	for _, task := range tasks {
-		if task == "" {
-			continue
-		}
-		at, _, err := s.o.Store.TopicArchived(ctx, tenant, task, s.o.LobbyTaskID)
-		if err != nil {
-			return false, err
-		}
-		if !at.IsZero() {
-			return true, nil
-		}
+	if len(asked) == 0 {
+		return false, nil
 	}
-	return false, nil
+	return s.o.Store.AnyTopicArchived(ctx, tenant, s.o.LobbyTaskID, asked)
 }
 
 // wuiArchivedRefusal refuses a browser send into an archived topic, before

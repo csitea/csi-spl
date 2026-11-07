@@ -40,6 +40,9 @@
 #       trimmed to the slots left, the newest glob's oldest match first
 #   C51 a removed glob leaves the announce; a stale list stops web globs only
 #   C52 a scan reads at most 10 000 entries; a compressed name is skipped
+#   C63 a key the hub names removed (spec 160 3.10): out of the announce, its
+#       queued lines gone, nothing new read, its slot free; a removed glob match
+#       takes no slot and no count; off the list a first sight, seq still rising
 #   C54 a folder `/`, of one segment or denied is refused, no glob under it
 #   C53 every row of 3.8.10's table (and each /var/log security file) is a
 #       `security file`; /etc/passwd and /etc/group as cnf entries: refused;
@@ -562,6 +565,7 @@ c37() {
 # pull (lane op file_streams_globs) is answered from <dir>/globs.json, as
 # GLOBS_PLAN says call by call (ok | empty | fail; the last word repeats);
 # GLOBS_ON2 runs before the 2nd answer. Every other frame as newcase's stub.
+# <dir>/globs.json.removed, when it exists, is the answer's removed_keys (3.10).
 gcase() {
   local d="$1"
   cat >"$d/gpush" <<'EOF'
@@ -575,7 +579,7 @@ case "$f" in
   case "$p" in
   fail) exit 1 ;;
   empty) echo '{"type":"ack","lane_op":"file_streams_globs","globs":[]}' ;;
-  *) printf '{"type":"ack","lane_op":"file_streams_globs","globs":%s}\n' "$(cat "$GLOBS_FILE")" ;;
+  *) printf '{"type":"ack","lane_op":"file_streams_globs","globs":%s%s}\n' "$(cat "$GLOBS_FILE")" "$(cat "$GLOBS_FILE.removed" 2>/dev/null)" ;;
   esac
   exit 0 ;;
 esac
@@ -751,6 +755,69 @@ c51() {
   [[ "$(grep1 "$d" 1)" == *'"state":"refused"'*'"reason":"glob list stale"'* ]] || { echo "  C51: report $(grep1 "$d" 1)"; return 1; }
 }
 
+# removed <dir> [<key>]...: the stub hub's removed_keys; none: the field is gone.
+removed() {
+  local d="$1"; shift
+  rm -f "$d/globs.json.removed"
+  (($# == 0)) || python3 -c 'import json, sys; print(",\"removed_keys\":" + json.dumps(sys.argv[1:]))' "$@" >"$d/globs.json.removed"
+}
+annkeys() { lastann "$1" | jq -r '[.streams[].stream_key] | sort | join(" ")'; }
+
+# C63, a cnf entry. FILE_STREAMS_MAX=2 of 3 entries: c waits for a slot.
+c63() {
+  local d last n
+  d="$(newcase)"; gcase "$d"
+  printf 'a1\n' >"$d/logs/a.log"; printf 'b1\n' >"$d/logs/b.log"; printf 'c1\n' >"$d/logs/c.log"
+  allow "$d" a "$d/logs/a.log" b "$d/logs/b.log" c "$d/logs/c.log"
+  gfs "$1" "$d" 1 FILE_STREAMS_MAX=2
+  texts "$d" | grep -x c1 >/dev/null && { echo "  C63: c was followed past the cap"; return 1; }
+  texts "$d" | grep -x a1 >/dev/null || { echo "  C63: no removed_keys in the ack stopped a"; return 1; }
+  # a line queued with the hub down, then the key removed
+  echo a2 >>"$d/logs/a.log"; touch "$d/push.fail"
+  gfs "$1" "$d" 1 FILE_STREAMS_MAX=2
+  qtexts "$d" | grep -x a2 >/dev/null || { echo "  C63: a2 was not queued"; return 1; }
+  rm -f "$d/push.fail"
+  removed "$d" a
+  echo a3 >>"$d/logs/a.log"
+  gfs "$1" "$d" 1 FILE_STREAMS_MAX=2
+  texts "$d" | grep -xE 'a2|a3' >/dev/null && { echo "  C63: a removed key's line was pushed"; return 1; }
+  qtexts "$d" | grep -xE 'a2|a3' >/dev/null && { echo "  C63: a removed key's line is queued"; return 1; }
+  [[ "$(annkeys "$d")" == "b c" ]] || { echo "  C63: announce '$(annkeys "$d")', want 'b c'"; return 1; }
+  texts "$d" | grep -x c1 >/dev/null || { echo "  C63: the freed slot did not reach c"; return 1; }
+  # put back: from the last start_lines lines, seq above the last one pushed
+  last="$(jq -r 'select(.stream_key == "a") | .lines[].seq' "$d/pushed" | sort -n | tail -n 1)"
+  removed "$d"
+  printf 'gap1\ngap2\nnew1\nnew2\n' >>"$d/logs/a.log"
+  gfs "$1" "$d" 1 FILE_STREAMS_MAX=2 FILE_STREAMS_START_LINES=2
+  [[ "$(jq -r 'select(.stream_key == "a") | .lines[].text' "$d/pushed" | paste -sd' ')" == "a1 new1 new2" ]] ||
+    { echo "  C63: a's lines '$(jq -r 'select(.stream_key == "a") | .lines[].text' "$d/pushed" | paste -sd' ')', want 'a1 new1 new2'"; return 1; }
+  n="$(jq -r 'select(.stream_key == "a") | .lines[].seq' "$d/pushed" | sort -n | sed -n 2p)"
+  ((n > last)) || { echo "  C63: seq $n after a put back, last pushed $last: the hub would drop it"; return 1; }
+  [[ "$(annkeys "$d")" == *a* ]] || { echo "  C63: a is not back in the announce"; return 1; }
+}
+
+# C63, a glob match: 3 matches, 2 slots; the newest removed: the next takes
+# its slot and the glob counts 2 matches.
+c63glob() {
+  local d r key
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a"
+  echo x1 >"$d/a/x.log"; echo y1 >"$d/a/y.log"; echo z1 >"$d/a/z.log"
+  touch -d '2026-01-03' "$d/a/x.log"; touch -d '2026-01-02' "$d/a/y.log"; touch -d '2026-01-01' "$d/a/z.log"
+  folders "$d" "$d/a"; globs "$d" gx "$d/a/*.log"
+  gfs "$1" "$d" 1 FILE_STREAMS_MAX=2
+  r="$(grep1 "$d" 1)"
+  [[ "$r" == '{"state":"partial","matched":3,"followed":2,"over_cap":1,"reason":null}' ]] || { echo "  C63 glob: first $r"; return 1; }
+  key="gx-$(printf '%s' "$(realpath "$d/a/x.log")" | sha256sum | cut -c1-6)"
+  [[ "$(annkeys "$d")" == *"$key"* ]] || { echo "  C63 glob: $key not in '$(annkeys "$d")'"; return 1; }
+  removed "$d" "$key"
+  gfs "$1" "$d" 1 FILE_STREAMS_MAX=2
+  [[ "$(annkeys "$d")" != *"$key"* ]] || { echo "  C63 glob: the removed match is announced"; return 1; }
+  [[ "$(gpaths "$d")" == "$d/a/y.log $d/a/z.log" ]] || { echo "  C63 glob: paths '$(gpaths "$d")'"; return 1; }
+  r="$(grep1 "$d" 1)"
+  [[ "$r" == '{"state":"following","matched":2,"followed":2,"over_cap":0,"reason":null}' ]] || { echo "  C63 glob: after $r"; return 1; }
+}
+
 c52() {
   local d r t0 ms
   d="$(newcase)"; gcase "$d"
@@ -868,6 +935,14 @@ check C50 "more cnf entries in a run: the followed matches trimmed to the slots 
 check C51 "a removed glob leaves the announce; a stale list stops web globs only" c51 \
   keep-the-list 'globs = globs[:GLOBS_MAX]' 'globs = globs[:GLOBS_MAX] or self.globs' \
   never-stale 'self.go_stale()  # ctl:stale' 'pass'
+check C63 "a removed key leaves the announce, its queue and its slot; put back, a first sight with seq rising" c63 \
+  still-followed 'if not why and sid in removed:  # ctl:removed-entry' 'if False:' \
+  no-free-slot 'allow = read_allow(self.removed)  # ctl:removed-slot' 'allow = [x for x in read_allow() if x[0] not in self.removed]' \
+  queue-kept 'self.queue = [q for q in self.queue if q["k"] != k]  # ctl:removed-queue' 'pass' \
+  whole-gap 'st.pop("ident", None)  # ctl:removed-ident' 'pass' \
+  seq-reset 'st.pop("ident", None)  # ctl:removed-ident' 'st.clear()'
+check C63 "a removed glob match takes no slot and no count" c63glob \
+  match-followed 'if key in self.removed:  # ctl:removed-match' 'if False:'
 check C52 "a scan reads at most 10 000 entries; a compressed name is skipped" c52 \
   no-scan-cap 'if n >= scan_max:  # ctl:scan-max' 'if False:' \
   gz-as-text 'if e.name.endswith(COMPRESSED):  # ctl:compressed' 'if False:'

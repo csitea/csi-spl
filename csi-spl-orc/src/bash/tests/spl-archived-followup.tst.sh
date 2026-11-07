@@ -25,7 +25,8 @@
 # read case 4 posts twice; without the poster check case 5 posts; without
 # spl_afu_work_left case 9 posts; without spl_afu_desk_seated case 10d posts;
 # without spl_afu_late_rows case 11 replies nothing; without the other roots of
-# spl_afu_desk_seated case 10g posts nothing and sends a blocker.
+# spl_afu_desk_seated case 10g posts nothing and sends a blocker; without the
+# pinned check case 10j reads the stub as this user's desk.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -37,6 +38,7 @@ OLD="aaaaaaaa-0000-4000-8000-000000000001" OLD2="bbbbbbbb-0000-4000-8000-0000000
 NEW="dddddddd-0000-4000-8000-000000000004"
 AT="2026-11-07T01:00:00Z"
 mkdir -p "$SP/dispatch" "$T/bin" "$T/state/dev/desk/t1/box-a/spool/c-002" && : >"$LOG"
+echo key >"$T/state/dev/desk/t1/box-a/pinned"
 printf 'LEASE_ENV=dev\nLEASE_MACHINE=box-a\nLEASE_MASTER=c-002\nLEASE_ORCH=c-001\n' >"$SP/dispatch/lease.conf"
 echo "c-002@box-a $(date +%s)" >"$SP/dispatch/lease"
 {
@@ -159,6 +161,11 @@ if [[ $rc -eq 0 && "$out" == *"$NEW"* ]] && seat_check t1; then pass "10f CONTRO
 
 # a desk only under another user's root (measured 2026-11-07 on a real box). This user's real post refuses; the run goes as that user.
 mkdir -p "$T/other-root/desk/t3/box-a/spool/c-002"
+echo key >"$T/other-root/desk/t3/box-a/pinned"
+# a stub in this user's root (seat dir, empty pinned): t4 has the live desk under
+# the other user, t5 only the stub
+mkdir -p "$T/other-root/desk/t4/box-a/spool/c-002" "$T/state/dev/desk/t4/box-a/spool/c-002" "$T/state/dev/desk/t5/box-a/spool/c-002"
+echo key >"$T/other-root/desk/t4/box-a/pinned"; : >"$T/state/dev/desk/t4/box-a/pinned"; : >"$T/state/dev/desk/t5/box-a/pinned"
 cat >"$T/bin/as" <<EOF
 #!/usr/bin/env bash
 u="\$1"; shift; [[ "\$1" == "--" ]] && shift
@@ -178,6 +185,8 @@ out="$(SNIPPET="$ROOTS; spl_test_workspace() { return 1; }; do_spl_archived_foll
 [[ $rc -eq 0 && "$(count '^as desk-u do_spl_desk_post TENANT_ID=t3 DESK_BOX=box-a DESK_AGENT=c-002\|^as desk-u do_spl_desk_post TENANT_ID=t3 DESK_AGENT=c-002 DESK_BOX=box-a')" == 1 && "$(count '^as desk-u do_spl_issue_link .*ISSUE_REF=SPL-8 MODE=link')" == 1 && "$(count '^as desk-u do_spl_issue_link .*MODE=unlink')" == 1 && "$(count '^send ')" == 0 ]] && pass "10h the post and both links run as the desk's user, no blocker" || fail "10h rc $rc: $out // $(cat "$LOG")"
 out="$(SNIPPET="$ROOTS; AFU_BOX=box-a AFU_AGENT=c-002; spl_afu_desk_seated t3 && echo \"user=\$AFU_DESK_USER\"; spl_afu_desk_seated t1 && echo \"user=[\$AFU_DESK_USER]\"; spl_afu_desk_seated t2 || echo none" in_orc SPOOL_ROOT="$SP" SPL_DESK_AS_CMD="$T/bin/as" 2>&1)"
 [[ "$out" == *"user=desk-u"* && "$out" == *"user=[]"* && "$out" == *none* ]] && pass "10i the check names the other user, none for its own desk, and refuses where no root has it" || fail "10i: $out"
+out="$(SNIPPET="$ROOTS; AFU_BOX=box-a AFU_AGENT=c-002; spl_afu_desk_seated t4 && echo \"user=\$AFU_DESK_USER\"; spl_afu_desk_seated t5 || echo stub-is-none" in_orc SPOOL_ROOT="$SP" SPL_DESK_AS_CMD="$T/bin/as" 2>&1)"
+[[ "$out" == *"user=desk-u"* && "$out" == *stub-is-none* ]] && pass "10j a stub in this user's root loses to the other user's live desk; a stub alone is no desk" || fail "10j: $out"
 
 # 11. a row declined after the follow-up was posted
 fresh

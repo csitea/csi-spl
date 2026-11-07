@@ -29,7 +29,8 @@
 # @description has. The desk may be under another user's state root of that box, 0700
 # @description (measured 2026-11-07 on one box: t1 under the box user's, two others
 # @description only under the agent user's): the box finds the user whose root holds
-# @description the seat and runs the post, the reply and the links as that user.
+# @description the live seat (a non-empty pinned, not a stub) and runs the post, the
+# @description reply and the links as that user.
 # @description With no such box, or no desk on the box the roster names under any
 # @description user, the holder's machine or that box names it in ONE blocker and
 # @description posts nothing (a desk is seated with the workspace's root key).
@@ -105,7 +106,7 @@ spl_afu_topic() {
     return 0
   fi
   if ! spl_afu_desk_seated "$tenant"; then
-    why="no desk for $AFU_AGENT on $AFU_BOX in $tenant under any user of this box (roster: ${seated:-no box}): do_spl_desk_up seats one with the workspace's root key"
+    why="no desk for $AFU_AGENT on $AFU_BOX in $tenant under any user of this box, a stub with no pinned key is none (roster: ${seated:-no box}): do_spl_desk_up seats one with the workspace's root key"
     if ((dry)); then do_log "WOULD name $tenant topic $topic in a blocker: $why"; return 0; fi
     spl_afu_blocker "$tenant" "$topic" "$dir" "$why"
     return 0
@@ -144,22 +145,24 @@ spl_afu_poster_box() {
 }
 
 # spl_afu_desk_seated TENANT: 0 when a user of this box has the holder's desk
-# there, the check do_spl_desk_post makes before it sends, in every root of
-# spl_desk_roots. AFU_DESK_USER: that user when it is not this one; a root the
-# caller cannot enter is read as in spl_desk_moved_to.
+# there, in every root of spl_desk_roots. A seat with no pinned key is a stub
+# (SPL-4699), the hub refuses it: bad_sig, so it is no desk. AFU_DESK_USER: that
+# user when it is not this one; a root the caller cannot enter is read as in
+# spl_desk_moved_to.
 spl_afu_desk_seated() {
-  local me l u p
-  local -a as=() roots=()
+  local me l u d
+  local -a as=() roots=() live=()
   AFU_DESK_USER=""
   me="$(id -un)"
   [[ -n "${SPL_STATE_DIR:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
   read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
   mapfile -t roots < <(spl_desk_roots)
   for l in "${roots[@]}"; do
-    u="${l%%$'\t'*}" p="${l#*$'\t'}/desk/$1/$AFU_BOX/spool/$AFU_AGENT"
+    u="${l%%$'\t'*}" d="${l#*$'\t'}/desk/$1/$AFU_BOX"
+    live=(test -s "$d/pinned" -a -d "$d/spool/$AFU_AGENT")
     if [[ "$u" == "$me" ]]; then
-      [[ -d "$p" ]] && return 0
-    elif [[ -d "$p" ]] || "${as[@]}" "$u" test -d "$p" </dev/null 2>/dev/null; then
+      "${live[@]}" && return 0
+    elif "${live[@]}" 2>/dev/null || "${as[@]}" "$u" "${live[@]}" </dev/null 2>/dev/null; then
       AFU_DESK_USER="$u"; return 0
     fi
   done

@@ -22,6 +22,8 @@
 #      200 fails even with its og:image; no ask carries --retry; a page answering
 #      503 first and 200 right after fails on its first answer. CONTROL for each
 #      (red)
+#   9. every failing-page case asks the page exactly 3 times, its first answer and
+#      2 re-asks, so an extra ask goes red whatever fires it. CONTROL (red)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -99,6 +101,8 @@ cs() {
 }
 export -f in_orc
 OG="$SITE/blog/img/$ID-og.webp"
+asks() { awk -v u="$1" '$1 == "curl" && $NF == u { n++ } END { print n + 0 }' "$T/calls.log"; }
+page_asks() { asks "$SITE/blog/$ID"; }
 
 # --- 1. good ----------------------------------------------------------------
 site "$OG" 200 image/webp 200 image/webp; cs
@@ -115,7 +119,7 @@ site "$OG" 200 image/webp 200 'text/html;charset=utf-8'; cs
 site "$OG" 404 text/html 200 image/webp; cs
 ((rc == 1)) && grep -q "img/$ID.webp answers 404" "$T/o" && pass "a 404 picture: rc 1" || fail "404: rc=$rc $(cat "$T/o")"
 site - 200 image/webp 200 image/webp; cs
-((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image" "$T/o" && pass "a page with no og:image: rc 1" || fail "no og: rc=$rc $(cat "$T/o")"
+((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image" "$T/o" && [[ "$(page_asks)" == 3 ]] && pass "a page with no og:image: rc 1, asked 3 times" || fail "no og: rc=$rc asks $(page_asks) $(cat "$T/o")"
 
 # --- 3. nothing to check / refused ------------------------------------------
 : >"$MAP"; echo '<html>' >"$T/body/index"; echo "$SITE/blog-md/index.json 404 text/html" >"$MAP"; cs
@@ -134,7 +138,6 @@ if cmp -s "$ACTION" "$T/m-type.sh"; then fail "CONTROL type: the sed changed not
 fi
 
 # --- 6. evidence on a failure; the verdict stays red (SPL-4968) ---------------
-asks() { awk -v u="$1" '$1 == "curl" && $NF == u { n++ } END { print n + 0 }' "$T/calls.log"; }
 sleeps() { grep -c '^sleep 10$' "$T/calls.log"; }
 site "$OG" 200 image/webp 200 image/webp; cs
 [[ "$(asks "$OG")" == 1 && "$(sleeps)" == 0 ]] && pass "a good site: one ask per URL, no re-ask, no wait" ||
@@ -164,14 +167,14 @@ site "$OG" 200 image/webp 200 'text/html;charset=utf-8'; cs
 site - 200 image/webp 200 image/webp
 echo "<html><head><meta property=\"og:image\" content=\"$OG\"></head></html>" >"$T/body/page2"
 echo "$SITE/blog/$ID 200 text/html page2" >"$MAP.then"; cs
-((rc == 1)) && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG, page 200 text/html (at " "$T/o" && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html" "$T/o" &&
-  pass "a page with no og:image that clears on the re-ask still reds the check" || fail "page cleared: rc=$rc $(cat "$T/o")"
+((rc == 1)) && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG, page 200 text/html (at " "$T/o" && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html" "$T/o" && [[ "$(page_asks)" == 3 ]] &&
+  pass "a page with no og:image that clears on the re-ask still reds the check, asked 3 times" || fail "page cleared: rc=$rc asks $(page_asks) $(cat "$T/o")"
 
 # --- 7. a page cut off mid-body (R7 W1) ---------------------------------------
 for crc in 18 28; do
   site "$OG" 200 image/webp 200 image/webp; echo "$SITE/blog/$ID $crc" >"$MAP.crc"; cs
-  ((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html.*curl rc $crc" "$T/o" &&
-    pass "a page with its og:image, cut off with curl rc $crc: rc 1, the rc logged" || fail "cut off $crc: rc=$rc $(cat "$T/o")"
+  ((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html.*curl rc $crc" "$T/o" && [[ "$(page_asks)" == 3 ]] &&
+    pass "a page with its og:image, cut off with curl rc $crc: rc 1, the rc logged, asked 3 times" || fail "cut off $crc: rc=$rc asks $(page_asks) $(cat "$T/o")"
 done
 sed 's/ && "$got" != \*", curl rc "\*//' "$ACTION" >"$T/m-crc.sh"
 if cmp -s "$ACTION" "$T/m-crc.sh"; then fail "CONTROL cut off: the sed changed nothing"; else
@@ -199,8 +202,8 @@ site "$OG" 200 image/webp 200 image/webp; echo "$SITE/blog/$ID cache, page 9" >"
 
 for code in 201 302 404 500; do
   site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$SITE/blog/$ID 200 |$SITE/blog/$ID $code |" "$MAP"; cs
-  ((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers $code text/html" "$T/o" &&
-    pass "a page answering $code with its og:image: rc 1" || fail "page $code: rc=$rc $(cat "$T/o")"
+  ((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers $code text/html" "$T/o" && [[ "$(page_asks)" == 3 ]] &&
+    pass "a page answering $code with its og:image: rc 1, asked 3 times" || fail "page $code: rc=$rc asks $(page_asks) $(cat "$T/o")"
 done
 sed 's/"$got" =~ ^200\\  && //' "$ACTION" >"$T/m-status.sh"
 if cmp -s "$ACTION" "$T/m-status.sh"; then fail "CONTROL page status: the sed changed nothing"; else
@@ -210,13 +213,20 @@ fi
 
 site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$SITE/blog/$ID 200 |$SITE/blog/$ID 503 |" "$MAP"
 echo "$SITE/blog/$ID 200 text/html page" >"$MAP.then"; cs
-((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers 503 text/html" "$T/o" && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG, page 200 text/html (at " "$T/o" && [[ "$(asks "$SITE/blog/$ID")" == 3 ]] &&
-  pass "a page answering 503 first and 200 right after: rc 1, its first answer decides" || fail "page 503 then 200: rc=$rc asks $(asks "$SITE/blog/$ID") $(cat "$T/o")"
+((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers 503 text/html" "$T/o" && grep -q "INFO re-ask 1 of 2: $SITE/blog/$ID right: $OG, page 200 text/html (at " "$T/o" && [[ "$(page_asks)" == 3 ]] &&
+  pass "a page answering 503 first and 200 right after: rc 1, its first answer decides, asked 3 times" || fail "page 503 then 200: rc=$rc asks $(page_asks) $(cat "$T/o")"
 sed 's/^  got="$(spl_blog_served_answer "$1" "$body")"$/&\n  [[ "$got" =~ ^200\\  ]] || got="$(spl_blog_served_answer "$1" "$body")"/' "$ACTION" >"$T/m-pageretry.sh"
 if cmp -s "$ACTION" "$T/m-pageretry.sh"; then fail "CONTROL page retry: the sed changed nothing"; else
   site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$SITE/blog/$ID 200 |$SITE/blog/$ID 503 |" "$MAP"
   echo "$SITE/blog/$ID 200 text/html page" >"$MAP.then"; cs "$T/m-pageretry.sh"
   ((rc == 0)) && pass "CONTROL: a copy with a bash retry inside the page ask passes that page (red)" || fail "CONTROL page retry: still rc=$rc"
+fi
+
+# --- 9. the page's ask count holds on a failure, whatever would fire an extra ask ---
+sed 's/^  got="$(spl_blog_served_answer "$1" "$body")"$/&\n  [[ "$got" != *", curl rc "* ]] || got="$(spl_blog_served_answer "$1" "$body")"/' "$ACTION" >"$T/m-pagecount.sh"
+if cmp -s "$ACTION" "$T/m-pagecount.sh"; then fail "CONTROL page count: the sed changed nothing"; else
+  site "$OG" 200 image/webp 200 image/webp; echo "$SITE/blog/$ID 18" >"$MAP.crc"; cs "$T/m-pagecount.sh"
+  ((rc == 1)) && [[ "$(page_asks)" == 6 ]] && pass "CONTROL: a copy with a second page ask on a curl failure is counted, 6 asks not 3 (red)" || fail "CONTROL page count: rc=$rc asks $(page_asks)"
 fi
 
 curls() { grep -c '^curl ' "$T/calls.log"; }

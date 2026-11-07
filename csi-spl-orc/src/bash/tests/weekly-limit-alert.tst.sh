@@ -176,6 +176,22 @@ tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
 [ "$(nlap)" = 1 ] && pass "11. the next tick posts nothing" || fail "11. again ($(n))"
 : >"$T/posts"; kp12 6; tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
 [ "$(nlap)" = 0 ] && pass "11. CONTROL a hold 6 h old has not lapsed: no alarm" || fail "11. 6 h ($(n): $(cat "$T/posts"))"
+# R7 N6 (c-992): overlapping reads each note the lapse, the alarm is still one line
+: >"$T/posts"; rm -f "$KP.lapsed"; kp12 12; printf 'claude\t97\tcache\t%s\n' "$(( NOW - 12 * 3600 ))"{,,} >"$KP.lapsed"
+tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(nlap)" = 1 ] && pass "11. RED CONTROL N6: one lapse in rows that differ only in the current % -> one alarm" || fail "11. rows ($(nlap): $(cat "$T/posts"))"
+: >"$T/posts"; rm -f "$KP.lapsed"; kp12 12; printf '#!/bin/sh\necho\n' >"$T/quota"
+for _ in 1 2 3 4 5 6; do SNIPPET='spl_box_quota_known' in_orc LANE_QUOTA_CMD="$T/quota" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null BOX_QUOTA_WEEKLY_MAX_PCT=90 >/dev/null 2>&1 & done; wait
+rows="$(grep -c . "$KP.lapsed")"; tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+[ "$(nlap)" = 1 ] && pass "11. N6: six overlapping reads ($rows rows) -> one alarm" || fail "11. overlap ($rows rows, $(nlap): $(cat "$T/posts"))"
+# R7 N7 (c-992): a lower reading did re-read it, so the text says that one
+: >"$T/posts"; rm -f "$KP.lapsed"; printf 'claude\t100\t%s\t%s\t\tlog\n' "$FUT" "$(( NOW - 11 * 3600 ))" >"$KP"
+tick "claude:40@$FUT~cache~$(( NOW - 3600 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null WEEKLY_ALERT_CMD="$T/post-fail" >/dev/null; [ -s "$KP.lapsed" ] && pass "11. N7: a failed post keeps the reading" || fail "11. N7 kept: $(cat "$KP" 2>/dev/null)"
+tick "claude:40@$FUT~cache~$(( NOW - 3600 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+grep -qF "the hold read 100% (log read 11h" "$T/posts" && grep -qF "and this box now reads 40%, so it takes new claude lanes again" "$T/posts" && ! grep -q "nothing re-read" "$T/posts" \
+  && pass "11. RED CONTROL N7: kept 100, a fetch 40 -> names the 40, never \"nothing re-read it\"" || fail "11. N7 text: $(cat "$T/posts")"
+: >"$T/posts"; rm -f "$KP.lapsed"; kp12 12; tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null >/dev/null
+grep -qF "and nothing re-read it, so this box takes new claude lanes again" "$T/posts" && pass "11. CONTROL N7: no reading at all -> \"nothing re-read it\" stays" || fail "11. N7 none: $(cat "$T/posts")"
 
 # 8. the cron row
 grep -qE "^weekly-limit-alert +\| \*/5 \* \* \* \* +\| src/bash/scripts/weekly-limit-alert-cron.sh +\| weekly-limit-alert/cron.log" "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" \

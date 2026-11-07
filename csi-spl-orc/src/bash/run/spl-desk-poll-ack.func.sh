@@ -79,6 +79,13 @@ do_spl_desk_poll_ack() {
   agent="$(_spl_poll_ack_holder)" || return 0
   box="${DESK_BOX:-${LEASE_DESK_BOX:-$(spl_desk_box_default)}}"
   do_spl_desk_cnf || return 1
+  # The scan walks the desk roots this user can enter, so a box-user run sees
+  # no moved workspace (sat 2026-11-07: "4 workspace(s) read" of 12). Once the
+  # fleet desk has moved, every live desk is its owner's: scan as that user.
+  local hop_to
+  if [[ -n "${LEASE_TENANT:-}" ]] && hop_to="$(spl_desk_action_hop_to "$LEASE_TENANT" "$box")"; then
+    spl_desk_action_hop do_spl_desk_poll_ack "$hop_to" "$LEASE_TENANT" "$box" "$agent" POLL_ACK_MAX_AGE POLL_ACK_FROM POLL_ACK_SEND SPOOL_CHANNEL_RULES_MAP; return $?
+  fi
   local log="$LEASE_DIR/automation.log"
   if [[ "$dry" == 0 ]]; then
     if ! { mkdir -p "$LEASE_DIR" && touch "$log"; }; then do_log "FATAL cannot write $log"; return 1; fi

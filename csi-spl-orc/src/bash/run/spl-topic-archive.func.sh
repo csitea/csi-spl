@@ -35,6 +35,10 @@ do_spl_topic_archive() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
+  local hop_to
+  if hop_to="$(spl_desk_action_hop_to "$tenant" "$box")"; then
+    spl_desk_action_hop do_spl_topic_archive "$hop_to" "$tenant" "$box" "$agent" TOPIC MODE; return $?
+  fi
   local topic="${TOPIC:-}" mode="${MODE:-archive}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||

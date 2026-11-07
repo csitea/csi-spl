@@ -149,7 +149,7 @@ do_spl_desk_reply() {
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local hop_to
   if hop_to="$(_spl_desk_reply_hop_to "$tenant" "$box")"; then
-    _spl_desk_reply_hop "$hop_to" "$tenant" "$box" "$agent"; return $?
+    spl_desk_action_hop do_spl_desk_reply "$hop_to" "$tenant" "$box" "$agent"; return $?
   fi
   _spl_desk_reply_body_file || return 1
   spl_post_time_apply body || return 1
@@ -213,27 +213,8 @@ do_spl_desk_reply() {
 # sidecar would flush it. SPL_DESK_HOPPED: one hop, never a loop. Under
 # SPOOL_TEST=1 only a test's own SPL_DESK_AS_CMD hops: never to a real user.
 _spl_desk_reply_hop_to() {
-  local mv
-  [[ -z "${SPL_DESK_HOPPED:-}" && -z "$(spl_desk_user)" ]] || return 1
-  [[ "${SPOOL_TEST:-}" != 1 || -n "${SPL_DESK_AS_CMD:-}" ]] || return 1
-  mv="$(spl_desk_moved_to "$1" "$2")" || return 1
-  printf '%s' "${mv%%$'\t'*}"
-}
-
-# _spl_desk_reply_hop <user> <tenant> <box> <agent>: this action again as <user>
-# with its HOME; returns that run's rc. sudo drops the environment, so every
-# DESK_* input goes by name (compgen -v: a caller's subshell may not export
-# them). SPL_STATE_DIR stays behind: it is the caller's state. A DESK_BODY_FILE
-# or DESK_FILES path must be readable by <user>; its FATAL names it.
-_spl_desk_reply_hop() {
-  local u="$1" v
-  local -a as=() vars=()
-  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
-  while read -r v; do vars+=("$v=${!v:-}"); done < <(compgen -v DESK_)
-  do_log "INFO desk $3 of $2 ($ENV) lives under $u's state root (spec 069 8.3.1): this reply re-runs as $u" >&2
-  "${as[@]}" "$u" -- env HOME="$(getent passwd "$u" | cut -d: -f6)" "${vars[@]}" ENV="$ENV" TENANT_ID="$2" DESK_BOX="$3" DESK_AGENT="$4" \
-    DRY_RUN="${DRY_RUN:-1}" SPOOL_ROOT="${SPOOL_ROOT:-}" SPOOL_BOX_ENV="${SPOOL_BOX_ENV:-}" RUN_STDOUT_IS_DATA="${RUN_STDOUT_IS_DATA:-}" \
-    SPL_DESK_HOPPED="$(id -un)" "$PROJ_PATH/run" -a do_spl_desk_reply 9>&-
+  [[ -z "$(spl_desk_user)" ]] || return 1
+  spl_desk_action_hop_to "$1" "$2"
 }
 
 # _spl_desk_reply_choose: the conversation to answer, into the caller's

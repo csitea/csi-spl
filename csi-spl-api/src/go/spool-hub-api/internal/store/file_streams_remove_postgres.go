@@ -9,7 +9,7 @@ import (
 )
 
 // The Postgres removal of a file from the view (file_streams.go, spec 160
-// 3.10, rdb 0266). Every statement runs in the tenant's scope and names
+// 3.10, rdb 0268). Every statement runs in the tenant's scope and names
 // tenant_id in its WHERE.
 
 // setFileStreamRemoved runs update ($1 the tenant, $2 the id, then args; it

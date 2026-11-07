@@ -7,7 +7,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// Removing a file from the view (spec 160 section 3.10, SPL-4979, rdb 0266;
+// Removing a file from the view (spec 160 section 3.10, SPL-4979, rdb 0268;
 // owner HUM-10, t1 3331b0e6, msg 5bb5d078). The gate is the read routes' one
 // (fileStreamsCaller): a member session of the workspace, not an act-as clone,
 // owner or admin; else 403. Another workspace's id, a second remove and a put

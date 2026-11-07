@@ -16,7 +16,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// Spec 160 3.10 row B13 (SPL-4979, rdb 0266): a file removed from the view,
+// Spec 160 3.10 row B13 (SPL-4979, rdb 0268): a file removed from the view,
 // cases C57..C62. Memory always, Postgres with a DSN (hub-pg.tst.sh). Red on
 // origin/master before SPL-4979: no DELETE /v1/file-streams/{id} route, so the
 // admin's 204 fails (405) and a removed row returns on every announce. Each

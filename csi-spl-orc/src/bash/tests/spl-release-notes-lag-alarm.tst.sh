@@ -17,6 +17,9 @@
 #   9. origin gone: the same no-verdict path, and no false lag
 #  10. DRY_RUN=1 prints the post, posts nothing, writes no state
 #  11. only the dispatch holder's box acts
+#  11b. the lease leaves and returns: the verdict and .since are dropped, so a
+#      new outage posts and no stale recovery does; a lease gap keeps them;
+#      a good read clears .since
 #  12. a post that fails moves no state: the next tick posts it
 #  13. the default reader asks do_spl_db_query for ENV and parses psql's table
 #  14. a bad limit is refused; the manifest row, the cron script, and wf 12
@@ -86,7 +89,7 @@ tick RELEASE_LAG_STATE="$T/st-gone-$RANDOM" >/dev/null
 [ "$(n)" = 2 ] && pass "4. RED CONTROL: with the state gone the same tick posts again" || fail "4. RED CONTROL ($(n))"
 
 reset; tick >/dev/null; echo "$OLD3" >>"$T/rows-prd"; : >"$T/posts"; tick >/dev/null
-[ "$(n)" = 1 ] && grep -qF "prd recovered" "$T/posts" && pass "5. the row arrives -> one recovery" || fail "5. ($(n): $(cat "$T/posts"))"
+[ "$(n)" = 1 ] && grep -qF "prd recovered: of the newest 500 master commits" "$T/posts" && pass "5. the row arrives -> one recovery, worded to what was read" || fail "5. ($(n): $(cat "$T/posts"))"
 recovery="$(cat "$T/posts")"
 tick >/dev/null
 [ "$(n)" = 1 ] && pass "5. still ok -> nothing more" || fail "5. after ($(n))"
@@ -139,6 +142,23 @@ reset; out="$(tick)"; rc=$?
 out="$(tick DRY_RUN=1)"
 grep -q "PLAN post" <<<"$out" && pass "11. a dry run still reads from any box" || fail "11. dry ($out)"
 echo "box-a@box-a 1" >"$T/spool/dispatch/lease"
+
+# 11b. R7 c-248 W1: the lease leaves and comes back; no verdict survives the trip
+lease_away() { echo "box-b@box-b 1" >"$T/spool/dispatch/lease"; tick >/dev/null; echo "box-a@box-a 1" >"$T/spool/dispatch/lease"; }
+reset; tick >/dev/null; lease_away; [ ! -e "$T/st" ] && pass "11b. a tick with the lease on another box drops the state" || fail "11b. state kept ($(cat "$T/st"))"
+tick >/dev/null
+[ "$(n)" = 2 ] && grep -q '^prd=lag$' "$T/st" && pass "11b. the lease returns during an outage: it posts, never silent" || fail "11b. return ($(n): $(cat "$T/st"))"
+cp "$T/rows-prd" "$T/rows-prd.lag"; git -C "$T/repo" log --format=%H origin/master >>"$T/rows-prd"
+reset; printf 'prd=lag\n' >"$T/st"; lease_away; tick >/dev/null
+[ "$(n)" = 0 ] && pass "11b. the lease returns while current: no stale recovery" || fail "11b. stale recovery ($(n): $(cat "$T/posts"))"
+cp "$T/rows-prd.lag" "$T/rows-prd"
+reset; printf 'prd.since=%s\n' "$(( $(date +%s) - 3 * 86400 ))" >"$T/st"; lease_away; touch "$T/rows-fail"; tick >/dev/null; rm -f "$T/rows-fail"
+[ "$(n)" = 0 ] && pass "11b. a 3 day old .since does not post on the first failed read after the return" || fail "11b. since ($(n): $(cat "$T/posts"))"
+reset; printf 'prd=lag\n' >"$T/st"; : >"$T/spool/dispatch/lease"; out="$(tick)"; echo "box-a@box-a 1" >"$T/spool/dispatch/lease"
+grep -q '^prd=lag$' "$T/st" && grep -q "no dispatch lease holder" <<<"$out" && pass "11b. no holder at all keeps the state: a lease gap is not a move" || fail "11b. gap ($(cat "$T/st"): $out)"
+# R7 c-248 N4 (M14): a good read clears .since, so a later blip starts its own clock
+reset; printf 'prd.since=%s\n' "$(( $(date +%s) - 121 * 60 ))" >"$T/st"; tick >/dev/null; touch "$T/rows-fail"; tick >/dev/null; rm -f "$T/rows-fail"
+[ "$(n)" = 1 ] && ! grep -qF "this alarm cannot read" "$T/posts" && pass "11b. a good read clears .since: the next failed read does not post" || fail "11b. since kept ($(n): $(cat "$T/posts"))"
 
 reset; out="$(tick RELEASE_LAG_POST_CMD="$T/post-fail")"; rc=$?
 [ "$rc" = 1 ] && ! grep -q '^prd=' "$T/st" && pass "12. a failed post moves no state, rc 1" || fail "12. (rc $rc: $(cat "$T/st"))"

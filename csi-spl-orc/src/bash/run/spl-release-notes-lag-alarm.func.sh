@@ -41,7 +41,15 @@ do_spl_release_notes_lag_alarm() {
   [[ "$depth" =~ ^[1-9][0-9]{0,4}$ ]] || { do_log "FATAL RELEASE_LAG_DEPTH must be 1..99999, got: '$depth'"; return 1; }
   if [[ "$dry" == 0 ]]; then
     spl_lane_init || return 1
-    spl_release_lag_holder_here || return 0
+    # Another box holds the lease: this box's verdict goes stale from here on
+    # (read back later it silences a new outage, or posts a stale recovery), so
+    # drop it. No holder at all is a gap in the lease: the state stays.
+    local hrc=0
+    spl_release_lag_holder_here || hrc=$?
+    if ((hrc)); then
+      ((hrc != 2)) || rm -f "$st"
+      return 0
+    fi
   fi
   mkdir -p "$(dirname "$st")" || { do_log "FATAL cannot create the dir of $st"; return 1; }
   [[ -f "$st" ]] || : >"$st"
@@ -68,14 +76,15 @@ do_spl_release_notes_lag_alarm() {
   return "$rc"
 }
 
-# Only the box of the dispatch lease holder posts. Silent success = this box.
+# Only the box of the dispatch lease holder posts. Silent success = this box;
+# 1 = no holder; 2 = the holder is on another box.
 spl_release_lag_holder_here() {
   local root="${SPOOL_ROOT:-/var/spool-hub}" holder box hbox
   read -r holder _ <"$root/dispatch/lease" 2>/dev/null || holder=""
   [[ -n "$holder" ]] || { do_log "OK release notes lag: no dispatch lease holder, nothing this tick"; return 1; }
   box="$(spl_owner_digest_box "$root")"
   hbox="${holder#*@}"; [[ "$holder" == *@* ]] || hbox="$box"
-  [[ "$hbox" == "$box" ]] || { do_log "OK release notes lag: the dispatch holder $holder is not on this box ($box)"; return 1; }
+  [[ "$hbox" == "$box" ]] || { do_log "OK release notes lag: the dispatch holder $holder is not on this box ($box)"; return 2; }
 }
 
 # spl_release_lag_old_commits REPO DEPTH LIMIT_MIN -> the first-parent master
@@ -131,7 +140,7 @@ spl_release_lag_edge() {
     if [[ "$v" == lag ]]; then
       text="**RELEASE NOTES LAG** $e: master commits older than the limit have no release note row, so Reporting -> Releases is behind (limit $lim min, $(grep -c . "$3") commit(s), newest $(sed -n 1p "$3" | cut -c1-8), oldest $(tail -1 "$3" | cut -c1-8)). wf 26 stays green on a failed ingest: read its ingest step, then re-send with gh workflow run 26_release-notes-ingest.yml --ref master."
     else
-      text="**RELEASE NOTES LAG** $e recovered: every master commit older than the limit has its release note row, and this alarm reads them again."
+      text="**RELEASE NOTES LAG** $e recovered: of the newest $depth master commits, every one older than the limit has its release note row, and this alarm reads them again."
     fi
   fi
   if [[ "$dry" == 1 ]]; then echo "PLAN post in #alerts: $text"; return 0; fi

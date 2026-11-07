@@ -4,8 +4,9 @@
 # commit older than the limit has no release_notes row, one when it recovers.
 # Installed by do_install_box_crons as the manifest row release-notes-lag-alarm
 # (cnf/box-crons/box-crons.manifest), tagged
-# `# csi-spl:box-cron:release-notes-lag-alarm`. Every box runs it; only the
-# dispatch lease holder's box reads and posts (the action checks).
+# `# csi-spl:box-cron:release-notes-lag-alarm`. Install it on EVERY box that can
+# hold the dispatch lease: only the holder's box reads and posts (the action
+# checks), and a holder without the row is silent, with no log and no post.
 #
 #   release-notes-lag-alarm-cron.sh [--check-tools]
 #

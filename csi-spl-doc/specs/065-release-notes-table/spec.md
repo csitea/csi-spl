@@ -420,15 +420,23 @@ holder's box.
   before the land, so the limit has to cover the land gap and not only the
   ingest. Measured 2026-11-07, tree `48dc6c573`: committer date to push, wf 10
   push runs on master, n=300: median 3.6, p90 26.6, p99 72.9, max 93.3 min.
-  Push to row, wf 26, n=13: about 1 min.
+  Push to row, wf 26, n=13: about 1 min. The R7 read every commit of
+  2026-10-25..11-07 (n=1533): max 101.2 min, 0 over 120.
 - **One post per episode**, and one recovery. A failed read is no verdict; one
   lasting past the limit posts once.
 - **Measured at build:** 0 of the newest 500 commits lacked a row, in prd and
   in dev (tree `48dc6c573`).
 - **Limits:** a land later than the limit can fire once if a tick hits the
-  minute before its row, and the next tick recovers. The state is per box, so a
-  lease move during an episode posts it once more. A commit the hub rejects has
-  no row, so it holds the episode open until someone looks.
+  minute before its row, and the next tick recovers. The state is per box, and
+  a box drops it on a tick with the lease on another box, so a stale verdict
+  cannot silence a new outage: a lease move during an episode posts it once
+  more. A commit the hub rejects has no row and holds the episode open until
+  the row is accepted or the commit leaves the newest 500, and a later outage
+  in that time posts nothing. Recovered means the newest 500: an outage longer
+  than that leaves rows no re-send restores.
+- **Install on every box that can hold the dispatch lease**
+  (`LEASE_PRIORITY_DISPATCH`), with `BOX_CRONS_ONLY=release-notes-lag-alarm`. A
+  holder without the row is silent: no log and no post.
 
 Not built: the daily digest (Q8 no); deploy workflows posting links (Q14
 no).

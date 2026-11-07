@@ -89,17 +89,17 @@ rlc_map_read() {
 # rlc_box: the box whose row a close writes, as do_spl_lane_put reads it.
 rlc_box() { printf '%s' "${LANE_BOX:-$(spl_desk_box_default)}"; }
 
-# rlc_no_row ID: true only when the hub answered with rows and none of them is
-# the id's on this box (SPL-4987). A close then has nothing to close: its write
+# rlc_no_row ID: true only when the hub answered with rows of this box and none
+# of them is the id's (SPL-4987). A close then has nothing to close: its write
 # would mint a row with no topic, which the hub refuses for good (rdb 0264). The
 # map also lists this box's worktrees as src local, state live: those are no hub
-# row. No answer, or one with no hub row at all, is "cannot tell": the close is
-# tried, and a failure alerts.
+# row. No answer, or one with no hub row on this box (a wrong or renamed box name
+# reads the same), is "cannot tell": the close is tried, and a failure alerts.
 rlc_no_row() {
   rlc_map_read
   [ -n "$RLC_MAP" ] || return 1
   jq -e --arg a "$1" --arg b "$(rlc_box)" \
-    '[.lanes[]? | select(.src != "local")] | length > 0 and (any(.agent_id == $a and .agent_box == $b) | not)' \
+    '[.lanes[]? | select(.src != "local" and .agent_box == $b)] | length > 0 and (any(.agent_id == $a) | not)' \
     <<<"$RLC_MAP" >/dev/null 2>&1
 }
 

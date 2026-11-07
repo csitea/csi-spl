@@ -1,6 +1,9 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.6 (2026-10-30): folds the owner's answers to Q5..Q7 (poll
+Version v0.8 (2026-11-07): 3.10, removing a file from the view (SPL-4979, owner
+msg `5bb5d078`); cases C57-C64, rows B13-B15, D8; not built, it waits for the
+dispatcher's GO.
+v0.6 (2026-10-30): folds the owner's answers to Q5..Q7 (poll
 `900699dd`, msg `369e7bfa`, 7.1): Q5 B, the default folders are the fleet's
 box log folder and `/var/log`, minus the security files (3.8.2); Q6 A, every
 match its own stream (3.8.7); Q7 A, no cnf key lifts a security file
@@ -900,6 +903,80 @@ cron starts it again. A new allow entry is followed once that checkout holds
 the commit, and the running follower has exited (at most `run_s`) or was
 stopped by its pid.
 
+### 3.10 Removing a file from the view (SPL-4979)
+
+Owner HUM-10, t1 `3331b0e6`, msg `5bb5d078`: "it should be possible to remove
+files from the this view". Told (msg `9022b7eb`): each row gets a Remove that
+asks first, takes the file out of the view and stops that box following it;
+stored lines stay to the 7-day retention.
+
+**The problem.** A row is `(tenant, box, stream_key)`, and every announce
+upserts it (3.3). A key comes from the box's cnf allow list, or from a web glob
+match (3.8.6). So deleting or hiding a row with no memory brings it back on
+the next announce: at the follower's start, at most `run_s` (1 h) later, or on
+any change of state.
+
+**The rule: the hub remembers the removal, on the row.** New column
+`file_streams.removed_at` (next free rdb number). The hub, not the box and not
+the cnf, is the one record, for a cnf row, a seen agent stream and a glob match
+alike:
+
+| step | what happens to a removed row |
+|---|---|
+| announce | the upsert keeps `removed_at` and writes `state = 'gone'`, `reason = ''` whatever the box said, so the row never counts as streaming (`fileStreamWorkspaces`) |
+| push | answered with an ack, `inserted: 0`, `acked_seq` the push's highest; nothing stored and no count moved. Not a refusal: a refused push stays in the box's queue (`ctl:keep-on-fail`) |
+| box pull | the `file_streams_globs` ack gains `removed_keys`, the session's box's removed keys in the session's workspace |
+| `GET /v1/view/file-streams` | the row moves from `streams` to a new `removed` list |
+| search `in:file-streams` | its lines are left out: a hit could not open, `fileStreamOpenOf` opens only a listed row |
+| retention | unchanged: its lines go at 7 days or by the caps (3.7) as any line, and the row stays, so the removal outlives them |
+
+**Two layers, on purpose.** The hub's rules above hold alone, with any box
+code: an older follower, or an older `spool` binary, which re-encodes the ack
+through `wire.FileStreamsAckFrame` and so drops a field it does not know. Such
+a box still reads the file and its lines are discarded at the hub. A current
+box also stops reading, within `globs_s` plus one tick:
+
+- `read_allow` skips a removed key before it counts the slots, so the entry
+  frees its slot (`FILE_STREAMS_MAX`), and a removed glob match is skipped
+  without taking a slot or counting in its glob's `matched`.
+- Its queued lines are dropped, and its state's `ident` is cleared while `seq`
+  is kept: `seq` must keep rising (the hub keys on it), and a put back starts
+  as a first sight (3.1), the last `start_lines` lines, never the whole gap.
+- The list lives in memory, as the globs do (3.8.5). A failed pull keeps the
+  last list; after a restart with the hub down the box may read the file until
+  its first good pull, and the hub discards those lines.
+
+**Routes.** The gate of 3.4 and 3.8.3 (`fileStreamsCaller`): a member session
+of the workspace, owner or admin, not an act-as clone; anyone else 403. Another
+workspace's id, a second remove, and a put back of a row not removed: 404, no
+audit row.
+
+- `DELETE /v1/file-streams/{id}` -> 204: sets `removed_at`, `state = 'gone'`.
+  No box lock check, as a glob's remove (D7): it only narrows what is read.
+- `POST /v1/file-streams/{id}/restore` -> 204: clears `removed_at`. The box
+  lock check of a glob add (3.8.3, `box_locked`): it starts reading a file on
+  that box again. The state stays `gone` until the box's next announce.
+
+**The audit.** Two more actions in `file_stream_glob_audit` (3.8.9):
+`file_remove`, `file_restore`, with the stream key as `key`, the path as `glob`
+and no `glob_id`; the same retention, the same list on the page.
+
+**The page (3.5).** Every row gets a Remove that asks first, in the glob's
+`.fs-ask` form; the open file closes when it is the row removed. Under the box,
+"Removed files" lists each removed row with a Put back. All text is translation
+keys, in every locale, reviewed by agy before it ships.
+
+**What it does not do.**
+
+- A box feeds each hub from its own follower (`FILE_STREAMS_HUBS`), so a removal
+  on one hub leaves the other hub's row and follower alone. Each hub's view is
+  its own.
+- It leaves the cnf alone: the allow entry stays, so the row stays removed
+  only on the hub that removed it, and `do_spl_agent_log_pipe` keeps writing
+  the agent's log file. A file taken off the box for good is a cnf commit.
+- A key stays removed until its Put back, also when the cnf points that key at
+  a new path or a glob with the same key is added again.
+
 ## 4. Cases
 
 Every case is planned; none is built. Each red control is what FAILS on
@@ -964,6 +1041,14 @@ lands.
 | C54 | B10 | folder entries `/`, `/etc`, `/etc/ssh`, `$HOME/.config` and `/proc/x` are each announced `refused`, and no glob under them is followed | no folder check: a glob `/etc/ssh/*` reaches `open_checked` and only the per-file list stands between it and the file |
 | C55 | B12 | e2e on the mock: an owner or admin sees "Add a file glob" under each box and no operator who is neither does (C18's rule); the form sends `{box_id, key, glob}` only; a hub 400 shows its code's text key; a glob row shows its state and "N of M matches followed"; Remove asks first, then calls DELETE | the form drawn on `who.operator`: the operator sees a form the hub answers 403 |
 | C56 | B12 | every new text key is in `en.json` and every locale (`i18n-parity`), and agy reviewed them before they ship (language rule) | a key in `en.json` only: `i18n-parity.test.mjs` fails |
+| C57 | B13 | a row removed, then the box announces its key again (a cnf row, and a glob match with `glob_id`): the row stays out of `streams`, in `removed`, state `gone` | the upsert clears or ignores `removed_at`: the row returns on the next announce |
+| C58 | B13 | a member, an act-as clone, the operator service account: 403 on DELETE and restore; another workspace's id, a second remove: 404 and no audit row; an admin and the owner: 204 and one audit row | the gate left off the DELETE: the member removes the row |
+| C59 | B13 | stored lines of a removed row: still in `GET .../{id}/lines` and in `lines_kept`, gone only by the retention sweep; a push after the removal stores nothing, its ack carries `acked_seq`; after a put back the lines list again | the remove deletes the lines, or a late push is 403 and stays in the box's queue |
+| C60 | B13 | the same key on boxes A and B: removing A's leaves B's row listed and B's pull `removed_keys` empty; A's pull names the key | the removal keyed on `stream_key` alone: B's row goes too |
+| C61 | B13 | `in:file-streams` finds a line of a row until it is removed, not after, and again after its put back | no filter: a hit that opens nothing |
+| C62 | B13 | a put back on a locked box by a non-owner of the lock: 403 `box_locked`; its remove: 204 | the lock skipped on restore: a file is read again against the lock |
+| C63 | B14 | the follower, stub hub: a key in `removed_keys` leaves the announce within `globs_s` plus one tick, its queued lines go, no new line is read, its slot goes to the next entry; a removed glob match takes no slot; off the list, it is followed from the last `start_lines` lines with `seq` still rising; a pull with no `removed_keys` changes nothing | the skip after the slot count: the entry past the cap stays refused; `seq` reset: the hub drops every new line as already stored |
+| C64 | B15 | e2e on the mock at 1440 and 390 px: Remove asks first, No keeps the row, Yes moves it to "Removed files", Put back returns it; a removed open file closes; a refusal shows its sentence | the DELETE sent on the first click: no ask |
 
 ## 5. Build rows
 
@@ -982,6 +1067,9 @@ contract); B3, B4 and B6 after B2; B5 after B3; B7 after B4 and B6.
 | B6 | the retention sweep | `store/file_streams_postgres.go`, `hub/file_streams.go` | C22 |
 | B7 | measure the limits on dev, set the defaults in cnf | cnf `env.hub.file_streams`, this spec 3.7 | C24 |
 | B8 | the File streams page as a list per box, a `tail -f` button per file (3.5 List) | `wui/pages/monitoring/file-streams/index.vue`, `wui/utils/monitoring-file-streams.mjs`, i18n locales, `i18n-keep-english.json`, e2e | C39, C40 |
+| B13 | hub: `removed_at` (3.10), the announce and push rules, the pull's `removed_keys`, two routes, the list's `removed`, the search filter, the audit actions, openapi | `store/file_streams*.go`, `store/search_file_lines*.go`, `store/file_stream_globs*.go`, `hub/file_streams*.go`, `hub/file_stream_globs.go`, `wire/file_streams.go`, `hub/openapi.json`, `rdb/<next>_file_stream_removed.sql` | C57-C62 |
+| B14 | box: stop following a removed key | `orc/scripts/file-stream-follow.py`, `orc/tests/spl-file-stream-follow.tst.sh` | C63 |
+| B15 | WUI: Remove, "Removed files", Put back, audit text, help line | `wui/pages/monitoring/file-streams/index.vue`, `wui/utils/monitoring-file-streams.mjs`, `wui/utils/spool-client-lazy.mjs`, i18n locales, `wui/public/help-md/monitoring.md`, e2e | C64 |
 
 Docs: each row updates this spec's status line; B5 adds the tab to the
 Monitoring help page and B4 the syntax to the search help
@@ -1483,6 +1571,10 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
   workspace: each box has its own folders and its own 8 slots.
 - **D7 Any owner or admin of W may remove any glob of W** (3.8.8), not only
   its author: the audit row keeps who did what.
+- **D8 A removal lives on the hub's row, not on the box or in the cnf**
+  (3.10). The view is the hub's and the remover has no box access; a box-side
+  list would need a hub push, and a cnf commit per click would bring every box
+  the same list. The discard at the hub also holds for a box on older code.
 
 ## 7. Owner questions
 
@@ -1623,3 +1715,4 @@ v0.3, by c-319, folds c-317's N1-N4 on v0.2 (line numbers are v0.3's):
 | v0.5 | 2026-10-29 | c-601 | review of v0.4 (grok g-746 FAIL on `7814f50a4`): W1 3.8.5 and row B9 cite the announce frame at `wire/file_streams.go:71-73` (`folders`, `globs`), the stream entry at `:64-68` (`glob_id`), the strict decoder at `:132` / `:122-126`; W2 section 1's asks-list sentence points at 3.8; W3 the 32-character key bound is 3.2's, not 3.3's; note: 3.8.7 and C50 say they hold only if Q6 = A |
 | v0.6 | 2026-10-30 | c-563 | folds the owner's answers to Q5..Q7 (poll `900699dd`, msg `369e7bfa`, 7.1): 3.8.2 sets the default folders, `/var/csi/csi-spl` and `/var/log` minus the 3.8.10 security files (Q5 B); 3.8.7 and C50 drop the "if Q6 = A" condition (Q6 A); 3.8.10 states Q7 A; 3.8.11 answered |
 | v0.7 | 2026-11-03 | c-016 | 3.9: an agent's progress as two file streams, the tmux screen and the steps of its claude session (`do_spl_agent_steps_log`, SPL-4693; owner msg `b6d118ef`, poll `78311346` answer C) |
+| v0.8 | 2026-11-07 | c-302 | 3.10: removing a file from the view, a removal the hub keeps across re-announces (SPL-4979, owner msg `5bb5d078`); C57-C64; B13-B15; D8 |

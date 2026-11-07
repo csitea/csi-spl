@@ -6,7 +6,8 @@
 # blocker to the orchestrator. Every 5 min from the box user's crontab;
 # installed by do_install_box_crons as the row archived-seats-free of
 # cnf/box-crons/box-crons.manifest (`# csi-spl:box-cron:archived-seats-free`),
-# on every box. A cron job reads no profile: the PATH is set here.
+# on every box. A cron job reads no profile: the PATH is set here. The same run
+# then does do_spl_archived_followup (SPL-4955).
 #
 # Exit: 0 ran (or another run held the lock), 1 the action failed, 2 a refusal
 # (worktree, no ./run).
@@ -29,4 +30,8 @@ flock -n 9 || { say "OK another archived-seats-free run holds $lock"; exit 0; }
 say "START archived-seats-free"
 ( cd "$ORC" && SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" DRY_RUN="${ARCHIVED_SEATS_DRY_RUN:-0}" timeout 900 ./run -a do_spl_archived_seats_free ); rc=$?
 say "STOP archived-seats-free rc=$rc"
-[ "$rc" = 0 ] || exit 1
+# SPL-4955: what the archived discussions left goes on in new ones (the dispatch
+# lease holder's machine acts). A failure here does not hide the free's verdict.
+( cd "$ORC" && SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" DRY_RUN="${ARCHIVED_SEATS_DRY_RUN:-0}" timeout 900 ./run -a do_spl_archived_followup ); fu=$?
+say "STOP archived-followup rc=$fu"
+[ "$rc" = 0 ] && [ "$fu" = 0 ] || exit 1

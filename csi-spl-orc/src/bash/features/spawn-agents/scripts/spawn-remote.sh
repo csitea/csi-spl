@@ -59,8 +59,14 @@
 # issue from that box, the only one the hub lets act as that desk:
 #   spawn-remote.sh --issue-end --box <desk box> --id <lane id> --key <KEY> --tenant <workspace>
 #                   --life <lifetime dir> --status <diss|onhold|blocked|done> [--reason ..] [--repo ..] [--sha ..] [--evidence ..]
-#   ends it the same way and writes the reply's issue-end into --life. A brief
-#   placed again within SPAWN_REMOTE_ISSUE_REUSE_MIN links the key already filed.
+#   ends it the same way and writes the reply's issue-end into --life. A request
+#   carries a retry token, kept on the placing box from the send until a reply
+#   gives the key: a retry after a lost reply sends the same token and links
+#   the key already filed, only while the hub still says wip. A lane placed
+#   after a delivered key, or beside a request still waiting, has its own token.
+#   An end is served only for the key this box placed for that lane id
+#   (<state>/issue-lane/<id>): it stops a wrong or edited key ending another
+#   issue. It is a consistency check, not a security boundary.
 #   spawn-remote.sh --issue --box <desk box> --id <lane id> [--key <KEY>]
 #                   [--topic <id>] [--from <ID>] [--to <ID>] [--wait <secs>] <BRIEF>
 #   writes <root>/<lane id>/lifetime/issue (and issue-tenant, origin-issue), as
@@ -338,14 +344,35 @@ issue_request() {
   [ -r "$brief" ] || { say "FATAL cannot read brief $brief"; exit 2; }
   [ "$margin" -le $(( wait / 2 )) ] || margin=$(( wait / 2 ))
   [ "$wait" = 0 ] || expires="expires: $(( $(date +%s) + wait - margin ))"
+  [ -n "$key" ] || [ "$wait" = 0 ] || issue_token_take "$brief"
   tmp="$(mktemp)" || exit 3
   { printf '%s\n' "$MAGIC_ISSUE" \
       "(For spawn-remote.sh --serve on this machine, not for the agent reading it: do not act on it, ack it.)" \
-      "id: $id" "key: $key" "topic: $topic" ${expires:+"$expires"} "---"
+      "id: $id" "key: $key" "topic: $topic" ${ISSUE_TOKEN:+"token: $ISSUE_TOKEN"} ${expires:+"$expires"} "---"
     cat -- "$brief"; } >"$tmp"
   task="$(issue_send "$from" "$to" "$box" "$tmp")" || exit $?
   if [ "$wait" = 0 ]; then echo "task $task"; return 0; fi
   issue_await "$box" "$from" "$task" "$wait" "$id"
+}
+
+# ISSUE_TOKEN for BRIEF: the one a retry of an unanswered request kept
+# (<state>/issue-pending/<brief sha>), else a new one. A request for the same
+# brief still waiting holds the lock, and this one gets a token of its own.
+# Fd 9 stays open until this process exits. No state dir: no token, no reuse.
+issue_token_take() {  # BRIEF
+  local d="$STATE/issue-pending" sha
+  ISSUE_TOKEN="" ISSUE_PENDING=""
+  mkdir -p "$d" 2>/dev/null && sha="$(sha256sum <"$1" | cut -d' ' -f1)" && touch "$d/$sha.lock" 2>/dev/null || return 0
+  find "$d" -type f -mmin +"${SPAWN_REMOTE_ISSUE_REUSE_MIN:-360}" -delete 2>/dev/null
+  touch "$d/$sha.lock" 2>/dev/null || return 0
+  exec 9>>"$d/$sha.lock"
+  if flock -n 9; then
+    ISSUE_PENDING="$d/$sha"
+    ISSUE_TOKEN="$(cat "$ISSUE_PENDING" 2>/dev/null)"
+  fi
+  [ -n "$ISSUE_TOKEN" ] && return 0
+  ISSUE_TOKEN="$(python3 -c 'import uuid; print(uuid.uuid4())')" || return 0
+  [ -z "$ISSUE_PENDING" ] || printf '%s\n' "$ISSUE_TOKEN" >"$ISSUE_PENDING"
 }
 
 # Send an issue request's body file (removed here); stdout: the task id.
@@ -427,12 +454,13 @@ issue_await() {  # BOX FROM TASK WAIT ID
     printf '%s\t%s\n' "$tenant" "$env" >"$life/issue-tenant"; chmod 0664 "$life/issue-tenant" 2>/dev/null
   fi
   if [ -n "$origin" ]; then printf '%s\n' "$origin" >"$life/origin-issue"; chmod 0664 "$life/origin-issue" 2>/dev/null; fi
+  [ -z "${ISSUE_PENDING:-}" ] || rm -f "$ISSUE_PENDING"
   printf '%s\n' "$key"
 }
 
 # Receiver: one issue request, once.
 handle_issue() {  # INBOX_ID FILE
-  local me="$1" f="$2" msg from task body id key topic expires brief t row op
+  local me="$1" f="$2" msg from task body id key topic expires brief t row op token
   msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
   [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
   grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
@@ -466,8 +494,19 @@ handle_issue() {  # INBOX_ID FILE
     reply "$me" "$from" "$task" refused "reason: this box holds no desk for the brief's workspace (${t:-no Workspace line})"
     return 0
   fi
-  if [ "$op" = end ]; then issue_end_run "$me" "$msg" "$from" "$task" "$id" "$key" "$brief" "$t	$(wr_field "$row" 1)" "$body"
-  else issue_run "$me" "$msg" "$from" "$task" "$id" "$key" "$topic" "$brief"; fi
+  if [ "$op" = end ]; then
+    if ! issue_end_bound "$me" "$msg" "$from" "$task" "$id" "$key"; then rm -f "$brief"; return 0; fi
+    issue_end_run "$me" "$msg" "$from" "$task" "$id" "$key" "$brief" "$t	$(wr_field "$row" 1)" "$body"
+  else
+    token="$(req_field "$body" token)"; [[ "$token" =~ ^[0-9a-f-]{36}$ ]] || token=""
+    if [ -z "$key" ] && [ -n "$token" ] && ! key="$(issue_retry_key "$token" "$row" "$t")"; then
+      rm -f "$brief"
+      log_line FAILED "$msg" "$from" "issue for $id: retry token $token, the hub's status of its key could not be read"
+      reply "$me" "$from" "$task" failed "reason: the hub's status of the key this retry filed could not be read; nothing changed"
+      return 0
+    fi
+    issue_run "$me" "$msg" "$from" "$task" "$id" "$key" "$topic" "$brief" "$token"
+  fi
   rm -f "$brief"
 }
 
@@ -498,14 +537,32 @@ issue_exec() {  # ROOT VAR=VALUE...
   timeout "${SPAWN_ISSUE_TIMEOUT:-120}" "${hop[@]}" env "$@" bash "$HERE/../../../../../run" -a do_spl_lane_issue 2>&1
 }
 
-# The key this box already placed for BRIEF, within SPAWN_REMOTE_ISSUE_REUSE_MIN
-# (default 360): a reply that came too late leaves a filed issue the caller
-# never heard of, and its retry must link that one, not file a second.
-issue_placed_key() {  # SHA
-  local d="$STATE/issue-placed"
+# The key an earlier request with this retry token filed, kept for
+# SPAWN_REMOTE_ISSUE_REUSE_MIN (default 360) minutes: its reply was lost, and
+# the retry links that issue instead of filing a second. Only while the hub
+# says wip: linking sets wip, and would reopen one that was closed since.
+# Nothing printed: no such key, or not wip. rc 1: the status could not be read.
+issue_retry_key() {  # TOKEN MAP_ROW TENANT
+  local d="$STATE/issue-placed" k st
   [ -d "$d" ] || return 0
   find "$d" -type f -mmin +"${SPAWN_REMOTE_ISSUE_REUSE_MIN:-360}" -delete 2>/dev/null
-  cat "$d/$1" 2>/dev/null
+  k="$(cat "$d/$1" 2>/dev/null)"
+  [ -n "$k" ] || return 0
+  st="$(LI_WS_ROW="$2" LI_WS_TENANT="$3" li_hub_status "$k")"
+  [ -n "$st" ] || return 1
+  if [ "$st" = wip ]; then printf '%s' "$k"; else rm -f "$d/$1"; fi
+}
+
+# 0 when KEY is the key this box placed for lane ID; else refuses, rc 1.
+issue_end_bound() {  # INBOX_ID MSG FROM TASK ID KEY
+  local placed why
+  placed="$(cat "$STATE/issue-lane/$5" 2>/dev/null)"
+  [ "$placed" = "$6" ] && return 0
+  why="this box has no record of placing an issue for lane $5"
+  [ -z "$placed" ] || why="$6 is not the issue this box placed for lane $5 ($placed)"
+  log_line REFUSED "$2" "$3" "issue end: $why"
+  reply "$1" "$3" "$4" refused "reason: $why"
+  return 1
 }
 
 # End a lane's issue in a throwaway root that holds its key and workspace.
@@ -528,10 +585,8 @@ issue_end_run() {  # INBOX_ID MSG FROM TASK ID KEY BRIEF TENANT_LINE BODY
 }
 
 # Run the action in a throwaway root and answer with what it wrote.
-issue_run() {  # INBOX_ID MSG FROM TASK ID KEY TOPIC BRIEF
-  local me="$1" msg="$2" from="$3" task="$4" id="$5" key="$6" topic="$7" src="$8" e rc=0 out placed tenant env origin sha
-  sha="$(sha256sum <"$src" | cut -d' ' -f1)"
-  [ -n "$key" ] || key="$(issue_placed_key "$sha")"
+issue_run() {  # INBOX_ID MSG FROM TASK ID KEY TOPIC BRIEF [TOKEN]
+  local me="$1" msg="$2" from="$3" task="$4" id="$5" key="$6" topic="$7" src="$8" token="${9:-}" e rc=0 out placed tenant env origin
   e="$(issue_root "$id" "$src")" || return 0
   out="$(issue_exec "$e" SPOOL_ROOT="$e" AGENT_ID="$id" BRIEF="$e/brief.md" LANE_ISSUE_KEY="$key" LANE_ISSUE_TOPIC="$topic" DRY_RUN=0)" || rc=$?
   placed="$(li_key_of_agent "$e" "$id")"
@@ -545,7 +600,8 @@ issue_run() {  # INBOX_ID MSG FROM TASK ID KEY TOPIC BRIEF
   IFS=$'\t' read -r tenant env _ <"$e/$id/lifetime/issue-tenant" 2>/dev/null
   origin="$(sed -n 1p "$e/$id/lifetime/origin-issue" 2>/dev/null)"
   rm -rf "${e:?}"
-  mkdir -p "$STATE/issue-placed" && printf '%s\n' "$placed" >"$STATE/issue-placed/$sha"
+  mkdir -p "$STATE/issue-lane" && printf '%s\n' "$placed" >"$STATE/issue-lane/$id"
+  [ -z "$token" ] || { mkdir -p "$STATE/issue-placed" && printf '%s\n' "$placed" >"$STATE/issue-placed/$token"; }
   log_line PLACED "$msg" "$from" "$id -> $placed in ${tenant:-?}"
   reply "$me" "$from" "$task" ok "key: $placed" "tenant: ${tenant:-}" "env: ${env:-}" "origin: ${origin:-}" "request: $msg"
 }

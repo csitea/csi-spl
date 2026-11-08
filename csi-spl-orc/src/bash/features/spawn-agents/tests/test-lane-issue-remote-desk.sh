@@ -38,6 +38,7 @@ while [ "\$#" -gt 0 ]; do
   esac
   shift 2
 done
+[ -z "\${FAKE_DROP:-}" ] || [ "\$tobox" != home ] || { echo '{"delivery":"sent","msg_id":"m","task_id":"t","ts":"x"}'; exit 0; }
 case "\$tobox" in home) root="$A" ;; sat) root="$B" ;; *) echo "cannot resolve to_box" >&2; exit 3 ;; esac
 id="\$(python3 -c 'import uuid; print(uuid.uuid4())')"
 jq -n --arg m "\$id" --arg t "\${task:-\$id}" --arg f "\$from@\$FAKE_FROM_BOX" --arg to "\$to" \
@@ -61,13 +62,16 @@ printf 'acme\tprd\n' >"\$SPOOL_ROOT/\$AGENT_ID/lifetime/issue-tenant"
 EOF
 # What today's do_spl_lane_issue says on the placing box.
 printf '#!/usr/bin/env bash\necho "FATAL no desk for c-005 on sat in acme: run do_spl_desk_up first"; exit 1\n' >"$T_TMP/run-no-desk"
+# The hub's status of a key on the desk's box; FAKE_STATUS=none: the read fails.
+printf '#!/usr/bin/env bash\n[ "${FAKE_STATUS:-wip}" = none ] || printf "issue-status\\t%%s\\t%%s\\n" "$1" "${FAKE_STATUS:-wip}"\n' >"$T_TMP/status-stub"
+chmod +x "$T_TMP/status-stub"
 chmod +x "$T_TMP/fake-hub" "$T_TMP/issue-stub" "$T_TMP/run-no-desk"
 on() {  # ROOT BOX CMD...
   local root="$1" box="$2"; shift 2
   env SPOOL_ROOT="$root" SPOOL_BOX_ENV="$root/box.env" SPOOL_DESK_BOX="$box" FAKE_FROM_BOX="$box" \
     SPOOL_FLEET_RELAY_CMD="$T_TMP/fake-hub" SPAWN_REMOTE_POLL=1 SPAWN_ORC_RUN="$T_TMP/run-no-desk" "$@"
 }
-serve_b() { on "$B" sat SPAWN_REMOTE_ISSUE_CMD="$T_TMP/issue-stub" ${1:+"$1"} bash "$SR" --serve 2>>"$T_TMP/serve.err"; }
+serve_b() { on "$B" sat SPAWN_REMOTE_ISSUE_CMD="$T_TMP/issue-stub" LI_HUB_STATUS_CMD="$T_TMP/status-stub" ${1:+"$1"} bash "$SR" --serve 2>>"$T_TMP/serve.err"; }
 # spawn-window on A in the background; B's receiver ticks until it returns.
 spawn_a() {  # TITLE [SERVE_ENV] ; rc in RC, output in $T_TMP/o
   rm -f "$T_TMP/rc"
@@ -128,26 +132,54 @@ eq "5 the desk's box is this box: the local refusal stands, exit 12" 12 "$RC"
 has "5 ... the local action's own FATAL" "no desk for c-005" "$(cat "$T_TMP/o")"
 check "5 ... and no request left for another box" test ! -e "$T_TMP/issue.calls"
 
-# 6. R7 W2: a reply that came too late must not file a second issue on the retry.
+# 6. R7 W2 + W4: only a retry after a lost reply links the key already filed.
 printf 'acme\tprd\tacme-site\t%s\t-\thttps://site.example.com\tc-005\tsat\n' "$R" >"$A/workspace-repos.tsv"
+issue_a() {  # TITLE BRIEF WAIT [SERVE_ENV] ; rc in RC
+  rm -f "$T_TMP/rc"
+  ( on "$A" home SPAWN_REMOTE_MARGIN=0 bash "$SR" --issue --box sat --from c-001 --id "$1" --wait "$3" "$2" >"$T_TMP/o" 2>&1; echo $? >"$T_TMP/rc" ) &
+  local _
+  for _ in $(seq 1 20); do sleep 1; [ -f "$T_TMP/rc" ] && break; serve_b "${4:-}"; done
+  wait; RC="$(cat "$T_TMP/rc" 2>/dev/null || echo none)"
+}
+calls() { cat "$T_TMP/issue.calls" 2>/dev/null; }
 printf '# Brief: once only\n\nWorkspace: acme\n' >"$T_TMP/once.md"
 rm -f "$T_TMP/issue.calls"
-req home c-001 c-070 "$T_TMP/once.md" >/dev/null
-req home c-001 c-071 "$T_TMP/once.md" >/dev/null
-has "6 the first request files one (no key)" "id=c-070 key= " "$(cat "$T_TMP/issue.calls")"
-has "6 the retry links the key already filed" "id=c-071 key=ACME-7 " "$(cat "$T_TMP/issue.calls")"
-printf '# Brief: another\n\nWorkspace: acme\n' >"$T_TMP/other.md"
-req home c-001 c-072 "$T_TMP/other.md" >/dev/null
-has "6 control: another brief files its own" "id=c-072 key= " "$(cat "$T_TMP/issue.calls")"
+issue_a c-070 "$T_TMP/once.md" 3 FAKE_DROP=1
+eq "6 the reply is lost: the caller times out" 5 "$RC"
+has "6 ... after the far box filed one" "id=c-070 key= " "$(calls)"
+issue_a c-071 "$T_TMP/once.md" 15
+eq "6 the retry: rc 0" 0 "$RC"
+has "6 ... links the key already filed" "id=c-071 key=ACME-7 " "$(calls)"
+issue_a c-072 "$T_TMP/once.md" 15
+has "6 a second lane after a delivered key files its own (W4)" "id=c-072 key= " "$(calls)"
+printf '# Brief: closed meanwhile\n\nWorkspace: acme\n' >"$T_TMP/closed.md"
+issue_a c-073 "$T_TMP/closed.md" 3 FAKE_DROP=1
+issue_a c-074 "$T_TMP/closed.md" 15 FAKE_STATUS=done
+has "6 the key went done since: not reopened, a new one is filed (W4)" "id=c-074 key= " "$(calls)"
+printf '# Brief: unreadable\n\nWorkspace: acme\n' >"$T_TMP/unread.md"
+issue_a c-075 "$T_TMP/unread.md" 3 FAKE_DROP=1
+n1="$(calls | wc -l)"
+issue_a c-076 "$T_TMP/unread.md" 15 FAKE_STATUS=none
+eq "6 the hub cannot be read: refused" 4 "$RC"
+eq "6 ... the action does not run" "$n1" "$(calls | wc -l)"
+printf '# Brief: side by side\n\nWorkspace: acme\n' >"$T_TMP/both.md"
+for i in 77 78; do
+  ( on "$A" home SPAWN_REMOTE_MARGIN=0 bash "$SR" --issue --box sat --from c-001 --id "c-0$i" --wait 5 "$T_TMP/both.md" >/dev/null 2>&1 ) &
+  for _ in $(seq 1 50); do [ "$(grep -l "Brief: side by side" "$B"/c-001/inbox/*.json 2>/dev/null | wc -l)" = "$(( i - 76 ))" ] && break; sleep 0.2; done
+done
+eq "6 two requests waiting at once carry different tokens (W4)" 2 "$(jq -r 'select(.body|contains("Brief: side by side")).body' "$B"/c-001/inbox/*.json | sed -n 's/^token: //p' | sort -u | wc -l)"
+wait
 
 # 7. R7 W1: a lane on the placing box ends its issue through the desk's box.
 end_a() {  # ID STATUS REASON [SERVE_ENV]; rc in RC
   local life="$A/$1/lifetime"; mkdir -p "$life"; rm -f "$T_TMP/rc" "$life/issue-end"
-  ( on "$A" home SPOOL_AGENT_ID= SPAWN_ISSUE_REMOTE_WAIT=15 bash "$SR" --issue-end --box sat --id "$1" --key ACME-7 --tenant acme --life "$life" --status "$2" --reason "$3" >"$T_TMP/o" 2>&1; echo $? >"$T_TMP/rc" ) &
+  ( on "$A" home SPOOL_AGENT_ID= SPAWN_ISSUE_REMOTE_WAIT=15 bash "$SR" --issue-end --box sat --id "$1" --key "${END_KEY:-ACME-7}" --tenant acme --life "$life" --status "$2" --reason "$3" >"$T_TMP/o" 2>&1; echo $? >"$T_TMP/rc" ) &
   local _
   for _ in $(seq 1 20); do [ -f "$T_TMP/rc" ] && break; serve_b "${4:-}"; sleep 1; done
   wait; RC="$(cat "$T_TMP/rc" 2>/dev/null || echo none)"
 }
+# A real placement on the desk's box binds each lane to its key.
+for i in 80 82 84 86; do req home c-001 "c-0$i" >/dev/null; done
 end_a c-080 diss 'superseded by c-081'
 eq "7 the end through the desk's box: rc 0" 0 "$RC"
 has "7 ... the far action got the key, workspace, status and reason" "end id=c-080 key=ACME-7 tenant=acme status=diss reason=superseded by c-081" "$(cat "$T_TMP/issue.ends" 2>/dev/null)"
@@ -157,6 +189,17 @@ eq "7 the far action fails: refused" 4 "$RC"
 check "7 ... and no issue-end" test ! -e "$A/c-082/lifetime/issue-end"
 on "$A" home bash "$SR" --issue-end --box sat --id c-083 --key ACME-7 --tenant acme --life "$A/c-080/lifetime" --status 'x;y' --reason r >/dev/null 2>&1; RC=$?
 eq "7 a bad status never leaves" 2 "$RC"
+
+n2="$(wc -l <"$T_TMP/issue.ends")"
+END_KEY=ACME-999 end_a c-086 diss 'a wrong key'
+eq "7 W5 an end with another key than the lane's: refused" 4 "$RC"
+has "7 W5 ... naming both keys" "ACME-999 is not the issue this box placed for lane c-086 (ACME-7)" "$(cat "$T_TMP/o")"
+eq "7 W5 ... the action does not run" "$n2" "$(wc -l <"$T_TMP/issue.ends")"
+end_a c-099 diss 'never placed'
+eq "7 W5 an end for a lane this box never placed: refused" 4 "$RC"
+has "7 W5 ... with the reason" "no record of placing an issue for lane c-099" "$(cat "$T_TMP/o")"
+eq "7 W5 ... the action does not run" "$n2" "$(wc -l <"$T_TMP/issue.ends")"
+check "7 W5 ... and no issue-end" test ! -e "$A/c-099/lifetime/issue-end"
 
 # 7b. The real action on the placing box takes that path (R7's probe: FATAL no desk).
 life="$A/c-084/lifetime"; mkdir -p "$life"; printf 'ACME-7\n' >"$life/issue"; printf 'acme\tprd\n' >"$life/issue-tenant"

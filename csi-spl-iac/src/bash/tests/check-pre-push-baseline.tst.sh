@@ -160,6 +160,29 @@ eq "8d. real e2e log lines -> e2e-file + e2e <check>" \
   "e2e K4 1440;e2e K4 390x844;e2e-file tests/e2e/issues-crud-modal.test.mjs" \
   "$(_pp_sig "$f8" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
 
+# 10. (SPL-5094) the wui unit runner's lines are signature items: an indented
+#     FAIL with no ': ' and the runner's file line read 0 items before, and a
+#     check name cut at its first ': ' merged every 'mock: ...' into one, so a
+#     NEW unit failure on a red trunk read as pre-existing. Flag lines are the
+#     part's output, verbatim. Red control: PP_SIG_FROM=<the old _pp_sig>
+#     (10b, 10c, 10d and 10f FAIL there).
+_unit_part() { grep -q '^good$' "$1/flag" && return 0; cat "$1/flag"; return 1; }
+h1='──[1/2] a.test.mjs'; h2='──[2/2] agent-split-kinds.test.mjs'; sum='unit runner: 1 of 2 file(s) FAILED'
+a="$h1\n  FAIL mock: a row reads"
+new="  FAIL the tests default is the cnf row"
+eq "10a. identical unit red on HEAD and base -> WARN" "0|WARN" "$(names "$a\n$sum\n  FAIL a.test.mjs (exit 1)" "$a\n$sum\n  FAIL a.test.mjs (exit 1)" _unit_part | cut -d'|' -f1,2)"
+out10b="$(names "$a\n$sum\n  FAIL a.test.mjs (exit 1)" "$a\n$h2\n$new\n$sum\n  FAIL a.test.mjs (exit 1)\n  FAIL agent-split-kinds.test.mjs (exit 1)" _unit_part)"
+eq "10b. HEAD adds a failing file and a no-colon check -> FAIL" "1|FAIL" "$(cut -d'|' -f1,2 <<<"$out10b")"
+case "$out10b" in *"unit agent-split-kinds.test.mjs › the tests default is the cnf row"*"unit-file agent-split-kinds.test.mjs"*) pass "10b. ... naming the check and the file as NEW" ;; *) fail "10b. ... naming the check and the file as NEW" "$out10b" ;; esac
+eq "10c. a second 'mock: ...' check in the same file -> FAIL" "1|FAIL" "$(names "$a" "$a\n  FAIL mock: another row writes" _unit_part | cut -d'|' -f1,2)"
+eq "10d. the same check, another JSON detail -> WARN" "0|WARN" "$(names "$h1\n  FAIL box stays {\"h\":58}" "$h1\n  FAIL box stays {\"h\":61}" _unit_part | cut -d'|' -f1,2)"
+eq "10e. the same check name in another file -> FAIL" "1|FAIL" "$(names "$h1\n$new" "$h1\n$new\n$h2\n$new" _unit_part | cut -d'|' -f1,2)"
+f10="$ROOT/unit-10f.log"
+printf '%b\n' "$a\n$h2\n$new\n$sum\n  FAIL agent-split-kinds.test.mjs (exit 1)\n  FAIL a.test.mjs (signal SIGKILL)" >"$f10"
+eq "10f. the runner's lines -> unit <file> › <check> + unit-file <file>" \
+  "unit a.test.mjs › mock: a row reads;unit agent-split-kinds.test.mjs › the tests default is the cnf row;unit-file a.test.mjs;unit-file agent-split-kinds.test.mjs" \
+  "$(_pp_sig "$f10" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
+
 # 4. the per-part timeout kills a hanging suite (the tf-steps hang) instead of
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.
 FT="$ROOT/faketree"; mkdir -p "$FT/csi-spl-iac/src/bash/tests"

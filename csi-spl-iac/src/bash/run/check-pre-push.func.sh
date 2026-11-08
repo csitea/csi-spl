@@ -118,7 +118,7 @@ declare -F _ppx_parts >/dev/null 2>&1 \
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
-_PP_CACHE_V=6
+_PP_CACHE_V=7
 # Where this gate's own code lives: its content is part of the tree-pass key.
 _PP_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -1100,6 +1100,12 @@ _pp_orphans_reap() {  # <tee pid>
 #   e2e-file <path>        wui e2e runner '  FAIL tests/e2e/<file>.test.mjs (exit ...)'
 #   e2e <check>            wui e2e check '  FAIL <check>: <detail>' (detail dropped:
 #                          its JSON boxes and px numbers differ per run and font)
+#   unit-file <file>       wui unit runner '  FAIL <file>.test.mjs (exit|signal ...)'
+#   unit <file> › <check>  wui unit check '  FAIL <check> <why>' under the runner's
+#                          '──[i/n] <file>.test.mjs' header: the whole text, as
+#                          ': ' is inside check names ('mock: ...'); a trailing
+#                          JSON token is dropped (SPL-5094)
+#   check <text>           any other indented 'FAIL <text>' with no ': '
 #   lint <line>            'SYNTAX ...:', 'COMPOSE schema:', 'HCL parse:',
 #                          'LOCKFILE', 'GO MOD:', 'terraform fmt:'
 #   panic <msg>            'panic: <msg>'
@@ -1123,6 +1129,7 @@ _pp_sig() {  # <output-file> <tree-root>
       gsub(/[ \t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
       return s }
     function emit(kind, s) { s = norm(s); if (s != "") print kind " " s }
+    function nojson(s) { sub(/[ \t]+[[{][^ \t]*[ \t]*$/, "", s); return s }
     function after(s, re) { if (match(s, re)) return substr(s, RSTART + RLENGTH); return s }
     { line = $0; gsub(/\033\[[0-9;]*[A-Za-z]/, "", line) }
     fmt && line ~ /^[ \t]*[^ \t]+\.go[ \t]*$/ { emit("gofmt", line); next }
@@ -1131,7 +1138,12 @@ _pp_sig() {  # <output-file> <tree-root>
     line ~ /--- FAIL: / { s = after(line, "--- FAIL: "); sub(/ .*/, "", s); emit("go-test", s); next }
     line ~ /^[ \t]*FAIL(:| -) / { s = after(line, "FAIL(:| -) "); sub(/ -- .*/, "", s); emit("fail", s); next }
     line ~ /^[ \t]*FAIL tests\/e2e\/[^ ]+\.test\.mjs/ { s = after(line, "FAIL "); sub(/ .*/, "", s); emit("e2e-file", s); next }
+    line ~ /^──\[[0-9]+\/[0-9]+\] [^ \/]+\.test\.mjs[ \t]*$/ { ufile = line; sub(/^[^\]]*\] /, "", ufile); next }
+    line ~ /^unit runner: / { ufile = ""; next }
+    line ~ /^[ \t]+FAIL [^ \t:\/]+\.test\.mjs \((exit|signal) / { s = after(line, "FAIL "); sub(/ .*/, "", s); emit("unit-file", s); next }
+    ufile != "" && line ~ /^[ \t]+FAIL [^ \t]/ { emit("unit", ufile " › " nojson(after(line, "FAIL "))); next }
     line ~ /^[ \t]+FAIL [^ \t]/ && index(line, ": ") { s = after(line, "FAIL "); s = substr(s, 1, index(s, ": ") - 1); emit("e2e", s); next }
+    line ~ /^[ \t]+FAIL [^ \t]/ { emit("check", nojson(after(line, "FAIL "))); next }
     line ~ /^FAIL[ \t]+[^ \t]+/ { split(line, f, /[ \t]+/); emit("go-pkg", f[2]); next }
     line ~ /^FAILED: / { s = after(line, "^FAILED: "); sub(/ .*/, "", s); emit("suite", s); next }
     line ~ /TIMED OUT .*killed: / { s = after(line, "killed: "); emit("timeout", s); next }

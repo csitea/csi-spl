@@ -39,6 +39,23 @@ func (s *Server) routeFileStreamGlobs(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/file-streams/globs", s.handleFileStreamGlobs)
 	mux.HandleFunc("DELETE /v1/file-streams/globs/{id}", s.handleFileStreamGlobRemove)
 	mux.HandleFunc("GET /v1/view/file-streams/globs/audit", s.handleFileStreamGlobAudit)
+	// The WUI calls from another origin: a browser sends these preflights
+	// before the add and the Remove (SPL-5047). Remove's is {kind}/{id}, not
+	// globs/{id}: that literal form conflicts (a ServeMux panic) with an
+	// OPTIONS /v1/file-streams/{id}/<verb> route, which stays the more
+	// specific one for its own paths.
+	mux.HandleFunc("OPTIONS /v1/file-streams/globs", s.fileStreamGlobsPreflight)
+	mux.HandleFunc("OPTIONS /v1/file-streams/{kind}/{id}", s.fileStreamGlobsPreflight)
+}
+
+func (s *Server) fileStreamGlobsPreflight(w http.ResponseWriter, r *http.Request) {
+	if s.allowOrigin(w, r) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Methods", "POST, DELETE")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+		h.Set("Access-Control-Max-Age", corsMaxAge)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // fileStreamGlobsStaff is fileStreamsCaller plus the glob store; false after

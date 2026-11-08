@@ -20,7 +20,8 @@ import (
 // session:
 //
 //	lane_op put  - upsert the row of lane.agent_id (spawn: live, exit: done)
-//	lane_op list - every row of the fleet, live first
+//	lane_op list - every row of the fleet, live first; a lane {"state": "live"}
+//	               (or "done") lists that state's rows only (SPL-4630)
 //	lane_op archived - the live rows whose topic is archived (box_lane_archived.go)
 //
 // A put's topic given as an 8-hex short id is stored as the one topic of the
@@ -163,13 +164,19 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 			Str("agent_box", got.AgentBox).Str("state", got.State).Msg("fleet lane put")
 		out.Lanes = append(out.Lanes, laneRow(got))
 	case "list":
+		state, ae := laneListState(f.Lane)
+		if ae != nil {
+			return laneAnswer{}, ae
+		}
 		ls, err := s.o.Store.ListFleetLanes(ctx, x.tenant, f.Fleet, now)
 		if err != nil {
 			s.o.Log.Error().Err(err).Str("fleet", f.Fleet).Msg("fleet lane list")
 			return laneAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}
 		}
 		for _, l := range ls {
-			out.Lanes = append(out.Lanes, laneRow(l))
+			if state == "" || l.State == state {
+				out.Lanes = append(out.Lanes, laneRow(l))
+			}
 		}
 	case "archived":
 		return s.laneArchived(ctx, x, f, now)
@@ -177,6 +184,25 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 		return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be put, list or archived"}
 	}
 	return out, nil
+}
+
+// laneListState is the state a list keeps, "" for every row: the list
+// frame's lane {"state": "live"|"done"}, none for all. Done rows were 88 % of
+// a fleet's read (SPL-4630, 603 KB on a slow link), so the map asks live.
+func laneListState(raw json.RawMessage) (string, *issueErr) {
+	var in struct {
+		State string `json:"state"`
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", nil
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return "", &issueErr{http.StatusBadRequest, "bad_frame", "a list's lane must be an object {state}"}
+	}
+	if in.State != "" && in.State != "live" && in.State != "done" {
+		return "", &issueErr{http.StatusBadRequest, "bad_frame", "a list's state must be live or done"}
+	}
+	return in.State, nil
 }
 
 // laneAgent is the agent id a put stores: the edge rule (resolveAgent), except

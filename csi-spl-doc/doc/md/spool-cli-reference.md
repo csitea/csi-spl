@@ -558,7 +558,7 @@ Query fleet lane allocations or register an agent's active workspace assignment.
 | `--scope <scope>` | none | Single-line work scope summary |
 | `--files <paths>` | none | Comma-separated paths owned by the lane |
 | `--topic <uuid>` | none | Assigned topic task UUID |
-| `--state <state>` | `live` | Lane lifecycle state: `live` or `done` |
+| `--state <state>` | `live` | Lane lifecycle state: `live` or `done`. On a list (no `--agent`) only the rows in that state; without it every row (SPL-4630) |
 
 ```bash
 spool lane --fleet default

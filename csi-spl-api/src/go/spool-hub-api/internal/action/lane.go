@@ -32,6 +32,10 @@ type LaneArgs struct {
 	// only when Box is set; with Topic set, that topic's stamp and no rows
 	// (SPL-4955). Nothing is written.
 	Archived bool `json:"-"`
+
+	// ListState lists that state's rows only (live or done), "" every row
+	// (SPL-4630). A list only: a put's state is State.
+	ListState string `json:"-"`
 }
 
 // Lane writes one row or lists the map and returns the hub's answer
@@ -56,7 +60,7 @@ func Lane(ctx context.Context, cfg *config.Config, in LaneArgs) (json.RawMessage
 		return hc.Lane(ctx, "archived", in.Fleet, row)
 	}
 	if in.Agent == "" {
-		return hc.Lane(ctx, "list", in.Fleet, nil)
+		return laneList(ctx, hc, in)
 	}
 	if in.State == "" {
 		in.State = "live"
@@ -76,4 +80,21 @@ func Lane(ctx context.Context, cfg *config.Config, in LaneArgs) (json.RawMessage
 		return nil, err
 	}
 	return hc.Lane(ctx, "put", in.Fleet, row)
+}
+
+// laneList lists the map, ListState's rows only when it is set: the filter
+// rides the frame's lane object, which a hub before SPL-4630 ignores (it then
+// answers every row, as before).
+func laneList(ctx context.Context, hc *hubclient.Client, in LaneArgs) (json.RawMessage, error) {
+	if in.ListState == "" {
+		return hc.Lane(ctx, "list", in.Fleet, nil)
+	}
+	if in.ListState != "live" && in.ListState != "done" {
+		return nil, fmt.Errorf("lane: --state must be live or done")
+	}
+	row, err := json.Marshal(map[string]string{"state": in.ListState})
+	if err != nil {
+		return nil, err
+	}
+	return hc.Lane(ctx, "list", in.Fleet, row)
 }

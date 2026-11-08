@@ -67,6 +67,7 @@ func TestLaneRefusals(t *testing.T) {
 		{"bad state", false, bad(func(a *LaneArgs) { a.State = "gone" }), "lane: state must be live or done"},
 		{"bad issue", false, bad(func(a *LaneArgs) { a.Issue = "spl one" }), "lane: issue_key must be an issue key like SPL-12"},
 		{"empty file", false, bad(func(a *LaneArgs) { a.Files = []string{""} }), "lane: each file must be a path of up to 300 bytes"},
+		{"bad list state", false, LaneArgs{Fleet: "csi", ListState: "gone"}, "lane: --state must be live or done"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -93,6 +94,7 @@ func TestLaneOps(t *testing.T) {
 		row      map[string]any // nil = no row on the frame
 	}{
 		{"list", "list", LaneArgs{Fleet: "csi"}, nil},
+		{"list live", "list", LaneArgs{Fleet: "csi", ListState: "live"}, map[string]any{"state": "live"}}, // SPL-4630
 		{"archived", "archived", LaneArgs{Fleet: "csi", Box: "box-b", Archived: true}, map[string]any{"agent_box": "box-b"}},
 		{"put", "put", LaneArgs{Fleet: "csi", Agent: "CLE-07", Box: "box-a", Repo: "csi-spl", Branch: "b", Topic: "t1", Issue: "SPL-1"},
 			map[string]any{"agent_id": "CLE-07", "agent_box": "box-a", "state": "live", "files": []any{}, "issue_key": "SPL-1"}},

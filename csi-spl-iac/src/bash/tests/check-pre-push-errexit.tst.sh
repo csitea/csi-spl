@@ -17,6 +17,7 @@
 #   STUB parts (pass iff <tree>/<dir>/flag says 'good'), so nothing heavy runs.
 #------------------------------------------------------------------------------
 set -uo pipefail
+unset PRE_PUSH_NO_CACHE PRE_PUSH_MODE PRE_PUSH_SKIP_PASSED PRE_PUSH_ONLY PRE_PUSH_LINT PRE_PUSH_LINT_ONLY PRE_PUSH_CROSS PRE_PUSH_E2E PRE_PUSH_FEATURES 2>/dev/null || true  # SPL-5063: the caller's gate switches must not change these verdicts; a case sets its own
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 RUN_DIR=$(cd "$TEST_DIR/../run" && pwd)

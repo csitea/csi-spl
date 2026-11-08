@@ -59,6 +59,7 @@
 #              11's slot for dock-chip comes from the pin
 #------------------------------------------------------------------------------
 set -uo pipefail
+unset PRE_PUSH_NO_CACHE PRE_PUSH_MODE PRE_PUSH_SKIP_PASSED PRE_PUSH_ONLY PRE_PUSH_LINT PRE_PUSH_LINT_ONLY PRE_PUSH_CROSS PRE_PUSH_E2E PRE_PUSH_FEATURES 2>/dev/null || true  # SPL-5063: the caller's gate switches must not change these verdicts; a case sets its own
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 FUNC="$PROJ_ROOT/src/bash/run/check-pre-push.func.sh"

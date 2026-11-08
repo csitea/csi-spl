@@ -113,7 +113,7 @@ type FileStream struct {
 	LinesKept    int64
 	BytesKept    int64
 	Redactions   map[string]int64
-	// RemovedAt set: removed from the view (spec 160 3.10, rdb 0266).
+	// RemovedAt set: removed from the view (spec 160 3.10, rdb 0269).
 	RemovedAt *time.Time
 }
 

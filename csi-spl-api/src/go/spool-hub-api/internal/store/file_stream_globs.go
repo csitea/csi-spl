@@ -22,7 +22,7 @@ const (
 	FileStreamGlobAuditAdd     = "add"
 	FileStreamGlobAuditRemove  = "remove"
 	FileStreamGlobAuditRefused = "refused"
-	// A file removed from the view and put back (3.10, rdb 0266): the stream
+	// A file removed from the view and put back (3.10, rdb 0269): the stream
 	// key as Key, its path as Glob, no GlobID.
 	FileStreamAuditFileRemove  = "file_remove"
 	FileStreamAuditFileRestore = "file_restore"

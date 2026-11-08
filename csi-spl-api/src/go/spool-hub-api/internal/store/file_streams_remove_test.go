@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// Spec 160 3.10 row B13 (SPL-4979, rdb 0266): a file removed from the view, the
+// Spec 160 3.10 row B13 (SPL-4979, rdb 0269): a file removed from the view, the
 // store half. Memory always, Postgres with a DSN (hub-pg.tst.sh,
 // PRE_PUSH_TIER=full). Red before SPL-4979: no RemoveFileStream, the package
 // does not compile. The planted defects are named on each test; the red runs

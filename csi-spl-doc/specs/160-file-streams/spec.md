@@ -1559,7 +1559,7 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
 
 The rows of 3.10 (dispatcher's GO, msg `f3a48167`; Put back kept by its ruling).
 B13: `store/file_streams_remove_{postgres,memory}.go`, `hub/file_streams_remove.go`,
-rdb `0266_file_stream_removed.sql`, tests `store/file_streams_remove_test.go`,
+rdb `0269_file_stream_removed.sql`, tests `store/file_streams_remove_test.go`,
 `hub/file_streams_remove_test.go`, `TestSearchFileLinesRemoved`. Both routes have an
 `OPTIONS` route, for the WUI calls the hub from another origin (C65). A refused put back
 on a locked box writes one `refused` audit row with reason `box_locked`, as a

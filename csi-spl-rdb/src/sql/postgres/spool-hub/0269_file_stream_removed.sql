@@ -1,4 +1,4 @@
--- 0266_file_stream_removed.sql - spec 160 section 3.10 row B13 (SPL-4979; owner
+-- 0269_file_stream_removed.sql - spec 160 section 3.10 row B13 (SPL-4979; owner
 -- HUM-10, t1 3331b0e6, msg 5bb5d078): a file removed from Monitoring -> File
 -- streams stays removed. Forward-only, additive, idempotent. The spec names "the
 -- next free number at build time": the next prefix on master when it lands

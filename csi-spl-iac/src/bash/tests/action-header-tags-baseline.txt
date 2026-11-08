@@ -11,13 +11,8 @@
 csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh
 csi-spl-iac/src/bash/run/gcp-export-dns-settings.func.sh
 csi-spl-iac/src/bash/run/gcp-project-delete.func.sh
-csi-spl-iac/src/bash/run/gcp-sync-src-s3-to-tgt-s3-silent.func.sh
 csi-spl-iac/src/bash/run/gcp-tail-logs.func.sh
-csi-spl-iac/src/bash/run/spl-compute-sa-editor-drop.func.sh
-csi-spl-iac/src/bash/run/spl-gh-app-key-put.func.sh
 csi-spl-iac/src/bash/run/spl-secret-unused-list.func.sh
-csi-spl-iac/src/bash/run/spl-vendor-key-grant-check.func.sh
-csi-spl-iac/src/bash/run/spl-vendor-key-pepper-put.func.sh
 csi-spl-orc/src/bash/run/spl-ask-ack.func.sh
 csi-spl-orc/src/bash/run/spl-ask-close.func.sh
 csi-spl-orc/src/bash/run/spl-ask-put.func.sh

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description Put the Docs GitHub App private key (spec 075 §9) into this env's
 # @description Secret Manager secret GH_APP_SECRET (default
@@ -18,6 +16,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev KEY_FILE=$HOME/.github/.csi/<app-slug>.pem DRY_RUN=0 ./run -a do_spl_gh_app_key_put
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_spl_gh_app_key_put() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

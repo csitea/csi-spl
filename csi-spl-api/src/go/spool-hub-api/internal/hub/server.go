@@ -504,7 +504,8 @@ func (s *Server) Handler() http.Handler {
 }
 
 // routeSections mounts the self-contained sections, one routeX each, so
-// Handler stays within the clean-code gate's 80 lines (SPL-1036).
+// Handler stays within its 80-line longFuncs ceiling (maxFuncLinesListed in the
+// clean-code gate; any function not listed gets 75) (SPL-1036).
 func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routePerfIngest(mux)    // spec 066 L2: POST /v1/perf/samples, fire-and-forget
 	s.routePerfSummary(mux)   // spec 066 L3: GET /v1/admin/perf/summary

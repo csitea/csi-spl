@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description PURGE every workspace doc under one path prefix from one
 # @description workspace's docs bucket (iac step 052, spec 075): the docs
@@ -30,6 +28,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=prd TENANT_ID=t1 WSDOC_PREFIX='<prefix>/' ./run -a do_gcp_purge_wsdoc_prefix
 # @example ENV=prd TENANT_ID=t1 WSDOC_PREFIX='<prefix>/' DRY_RUN=0 ./run -a do_gcp_purge_wsdoc_prefix
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_gcp_purge_wsdoc_prefix() {
   local dry_run="${DRY_RUN:-1}" tenant="${TENANT_ID:-}" prefix="${WSDOC_PREFIX:-}"
   local seg='[A-Za-z0-9_-][A-Za-z0-9._-]*'

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
-
 #------------------------------------------------------------------------------
 # @description Delete the service account SA_HEAD@<ORG>-<APP>-<ENV>.iam.gserviceaccount.com
 # @description from the project <ORG>-<APP>-<ENV>, as that project's SA. Destructive,
@@ -12,6 +9,9 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ORG=csi APP=spl ENV=dev SA_HEAD=sa-ci-csi-spl-dev ./run -a do_gcp_delete_service_account
 # @example ORG=csi APP=spl ENV=dev SA_HEAD=sa-ci-csi-spl-dev DRY_RUN=0 ./run -a do_gcp_delete_service_account
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+
 do_gcp_delete_service_account(){
   : "${ORG:?ORG is required}" "${APP:?APP is required}" "${ENV:?ENV is required (dev/prd)}" "${SA_HEAD:?SA_HEAD is required}"
   local dry_run="${DRY_RUN:-1}"

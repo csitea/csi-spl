@@ -1,6 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description Snooze the hub error-log and database-down alerts around a
 # @description planned database apply (SPL-3457, alerts fix round row 03 part A,
@@ -32,6 +30,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ENV=dev SNOOZE_CMD=start ./run -a do_gcp_alert_snooze
 # @example ENV=prd SNOOZE_CMD=end DRY_RUN=0 ./run -a do_gcp_alert_snooze
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 do_gcp_alert_snooze() {
   local cmd="${SNOOZE_CMD:-}" dry="${DRY_RUN:-1}"
   local max_min="${ALERT_SNOOZE_MAX_MIN:-60}" after_min="${ALERT_SNOOZE_AFTER_MIN:-15}"

@@ -1,7 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
-
 #------------------------------------------------------------------------------
 # @description Cleanup GCP Load Balancer resources that may be orphaned. Deletes
 # @description the load balancer parts in dependency order: 1. forwarding rules
@@ -16,6 +13,9 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @example ORG_APP=csi-spl ENV=dev ./run -a do_gcp_compute_lb_cleanup
 # @example ORG_APP=csi-spl ENV=dev DRY_RUN=0 ./run -a do_gcp_compute_lb_cleanup
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+
 do_gcp_compute_lb_cleanup() {
   local org_app="${ORG_APP:?ORG_APP is required}"
   local env="${ENV:?ENV is required (dev/tst/prd)}"

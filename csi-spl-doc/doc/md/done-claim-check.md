@@ -172,7 +172,14 @@ dry run unless `DRY_RUN=0`): it adds one GitHub-only row as the spool root's
 owner, mode 0644, by a temp file and `mv`. A re-run is a no-op, and it refuses
 a name a cnf or workspace map row has, the file's name with other values, and
 a file the check above would not trust or `yq` cannot parse. All four values
-are required, and they stay out of git.
+are required, and it prints none of them.
+
+The refusals of `spl_landed_repo` and the GitHub checks, and the reason and
+issue text of `do_spl_lane_issue` (end done), call such a row `a workspace
+repo`. The name still sits in the lane's own `lifetime/issue-end` file, and
+the **Live** proof's missing-line repeats the `LIVE_REPO` its caller gave. A
+GitHub-only row adds nothing to this check, which skips it (above): only
+`do_spl_lane_issue` and the **Live** proof read a sha in that repo.
 
 - The repos read for a result also include the sender lane's OWN repo:
   its worktree from `registry.tsv` (column 4), else its newest

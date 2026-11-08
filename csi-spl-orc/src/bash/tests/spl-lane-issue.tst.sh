@@ -437,6 +437,17 @@ done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/l
 [[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"far-hub"$'\t'"$GH_ON" ]] &&
   pass "landed_repos: the box-side SPOOL_LANDED_REPOS_FILE adds a GitHub-only row to the cnf's: done" ||
   fail "landed_repos: box-side file row refused (rc=$rc): $(cat "$T/o")"
+[[ "$(cut -f2 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "landed in a workspace repo ${GH_ON:0:12} on origin/master" ]] && ! grep -q far-hub "$T/o" "$T/calls.log" &&
+  pass "landed_repos: a box-side row is 'a workspace repo' in the reason, the issue text and the log" || fail "box row named (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA=0123456789abcdef LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/lr/box-landed.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos: a box-side row's unknown sha is refused" "is no commit of a workspace repo on GitHub"
+! grep -qE 'far-hub' "$T/o" && pass "landed_repos: ... and the refusal names neither its name nor its owner/repo" || fail "box row in refusal: $(cat "$T/o")"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_OFF" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/lr/box-landed.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos: RED CONTROL a box-side row's sha off the trunk is refused, unnamed" "a workspace repo ${GH_OFF:0:12} is not on origin/master"
+! grep -q far-hub "$T/o" && pass "landed_repos: ... that refusal does not name it either" || fail "box row in off-trunk refusal: $(cat "$T/o")"
+done_run LANE_LANDED_REPO=typo-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/lr/box-landed.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos: an unknown name's refusal counts the box-side row" "(src_dir names: cust-rel far-rel lost-rel and 1 workspace repo(s))"
+! grep -q far-hub "$T/o" && pass "landed_repos: ... without naming it" || fail "box row in unknown-name refusal: $(cat "$T/o")"
 chmod 664 "$T/lr/box-landed.yaml"
 done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/lr/box-landed.yaml" "${GH[@]}" DRY_RUN=0
 refused "landed_repos: RED CONTROL a group-writable box-side file adds no row" "'far-hub' is no repo the cnf knows (src_dir names: cust-rel far-rel lost-rel)"

@@ -66,6 +66,10 @@ no_temp && pass "no temp file is left behind" || fail "temp left: $(ls -a "$S")"
 [[ "$(resolve far-hub)" == $'gh:example-org/far-hub\tmaster' ]] &&
   pass "spl_landed_repo resolves the row to gh:<owner>/<repo>" || fail "resolve: $(resolve far-hub)"
 
+o="$(resolve typo-name)"
+[[ "$o" != *far-hub* && "$o" == *"(src_dir names: cnf-hub and 2 workspace repo(s))"* ]] &&
+  pass "a mistyped name's refusal counts a box-side row and does not name it" || fail "refusal list: $o"
+
 before="$(sum_f)"; ino="$(stat -c %i "$F" 2>/dev/null)"
 put "${ROW[@]}" DRY_RUN=0
 [[ $rc -eq 0 && "$(sum_f)" == "$before" && "$(stat -c %i "$F" 2>/dev/null)" == "$ino" ]] && grep -q 'already has this row' "$T/o" &&

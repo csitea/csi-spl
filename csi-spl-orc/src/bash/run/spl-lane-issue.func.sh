@@ -580,7 +580,7 @@ spl_lane_issue_act() {
 # spl_lane_issue_landed ROOT ID: end done, the work landed in another repo
 # (SPL-2229). The check runs first, also in a dry run; a refusal changes nothing.
 spl_lane_issue_landed() {
-  local root="$1" id="$2" repo="${LANE_LANDED_REPO:-}" sha="${LANE_LANDED_SHA:-}" key clone out full trunk why
+  local root="$1" id="$2" repo="${LANE_LANDED_REPO:-}" sha="${LANE_LANDED_SHA:-}" key clone out full trunk why label
   key="$(spl_lane_issue_key "$SLI_LIFE")" || { do_log "FATAL $id carries no issue key ($SLI_LIFE/issue)"; return 1; }
   if [[ -n "${SLI_WS:-}" && "$repo" == "$(wr_field "$SLI_WS_ROW" 2)" ]]; then
     trunk="$(wr_field "$SLI_WS_ROW" 4)"; [[ "$trunk" == - ]] && trunk=""
@@ -591,7 +591,9 @@ spl_lane_issue_landed() {
   [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] || { do_log "FATAL LANE_LANDED_SHA must be a commit sha (7-40 lower-case hex), got: '$sha'"; return 1; }
   out="$(spl_lane_issue_on_trunk "$repo" "${clone%%$'\t'*}" "$sha" "${clone#*$'\t'}")" || return 1
   full="${out%%$'\t'*}"; trunk="${out#*$'\t'}"
-  why="landed in $repo ${full:0:12} on origin/$trunk"
+  label="$repo"
+  spl_landed_repo_is_box_row "${clone%%$'\t'*}" && label="a workspace repo"
+  why="landed in $label ${full:0:12} on origin/$trunk"
   [[ -n "${LANE_ISSUE_REASON:-}" ]] && why+=": $(printf '%s' "$LANE_ISSUE_REASON" | tr '\t\n\r' '   ')"
   spl_lane_issue_actor "$root" "$id"
   spl_lane_issue_close "$key" "done" "Lane $id $why (another repo, no csi-spl commit). Landed, not live: the dispatcher's ACCEPTED checks the served build." || return 1
@@ -602,7 +604,7 @@ spl_lane_issue_landed() {
 }
 
 # spl_landed_repo_rows -> "name<TAB>src_dir<TAB>trunk<TAB>box<TAB>src"
-# ("-" = unset: read collapses an empty tab field; src = cnf or map) per repo
+# ("-" = unset: read collapses an empty tab field; src = cnf, map, gh or box) per repo
 # the fleet knows (SPL-2420): each env.box.landed_repos entry, and each other
 # map with an absolute `src_dir` (a hosted site, named by its basename), from
 # all.env.yaml then <ENV>.env.yaml (a later row wins), after the rows of the
@@ -614,7 +616,8 @@ spl_lane_issue_landed() {
 # git, the cnf's env.box.landed_repos shape): a repo whose name the tree must
 # not carry. That file is read only when spl_landed_repo_box_file_ok, and a
 # row of it never takes a name an earlier row has (one WARN, row dropped): a
-# lane must not point a known name at a repo it controls. A test sandbox
+# lane must not point a known name at a repo it controls. Its rows keep src
+# box, so no message has to name them (SPL-5083). A test sandbox
 # (SPOOL_TEST=1) reads LANE_LANDED_CNF and a set SPOOL_LANDED_REPOS_FILE only,
 # else no cnf: never the live clones.
 spl_landed_repo_rows() {
@@ -638,10 +641,7 @@ spl_landed_repo_rows() {
     fi
   } | awk -F'\t' -v OFS='\t' '($2 ~ /^\// || ($5 ~ /^(gh|box)$/ && $2 ~ /^gh:[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/)) &&
     $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ && $2 !~ /\.\./ {
-    if ($5 == "box") {
-      if ($1 in seen) { print "WARN a row of the box-side landed-repos file takes a name an earlier row has: dropped" > "/dev/stderr"; next }
-      $5 = "gh"
-    }
+    if ($5 == "box" && ($1 in seen)) { print "WARN a row of the box-side landed-repos file takes a name an earlier row has: dropped" > "/dev/stderr"; next }
     seen[$1] = 1
     if ($3 == "") $3 = "-"; if ($4 == "") $4 = "-"; print }'
 }
@@ -682,13 +682,26 @@ spl_landed_repo_map_rows() {
 
 # spl_landed_repo_shown NAME CLONE [clone] -> how a message names the repo:
 # NAME (with " (CLONE)" for "clone"), or "a workspace repo" when CLONE is a
-# clone of the workspace box map: a refusal never prints a customer's repo
-# name or path (SPL-3794).
+# clone of the workspace box map or a box-side row: a refusal never prints a
+# customer's repo name or path (SPL-3794, SPL-5083).
 spl_landed_repo_shown() {
-  if spl_landed_repo_map_rows 2>/dev/null | awk -F'\t' -v c="$2" '$2 == c { f = 1 } END { exit !f }'; then
+  if spl_landed_repo_map_rows 2>/dev/null | awk -F'\t' -v c="$2" '$2 == c { f = 1 } END { exit !f }' || spl_landed_repo_is_box_row "$2"; then
     printf 'a workspace repo'
   elif [[ "${3:-}" == clone ]]; then printf '%s (%s)' "$1" "$2"
   else printf '%s' "$1"; fi
+}
+
+# spl_landed_repo_is_box_row CLONE: true when CLONE (gh:<owner>/<repo>) comes
+# from the box-side landed-repos file, whose rows the tree must not name.
+spl_landed_repo_is_box_row() {
+  spl_landed_repo_rows 2>/dev/null | awk -F'\t' -v c="$1" '$2 == c && $5 == "box" { f = 1 } END { exit !f }'
+}
+
+# spl_landed_repo_gh_shown NAME REPO -> how a GitHub refusal names the repo:
+# "NAME on GitHub (REPO)", or no name and no owner for a box-side row.
+spl_landed_repo_gh_shown() {
+  if spl_landed_repo_is_box_row "gh:$2"; then printf 'a workspace repo on GitHub'
+  else printf '%s on GitHub (%s)' "$1" "$2"; fi
 }
 
 # spl_landed_repo_box -> this box's tag: SPOOL_BOX_TAG, else the spool
@@ -705,20 +718,21 @@ spl_landed_repo_box() {
 # (LIVE_REPO) and do_spl_done_claim_check. A path, a URL, an unknown name and
 # a clone that is not on this box are refused, one FATAL line on stderr: a
 # lane must not point the check at a repo it controls. The refusal lists the
-# public names only, and counts the map's (SPL-3794).
+# public names only, and counts the map's and the box-side file's (SPL-3794,
+# SPL-5083).
 spl_landed_repo() {
   local name="$1" n p t b s hit="" known="" nws=0 where
   [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$name" != *..* ]] ||
     { do_log "FATAL LANE_LANDED_REPO must be a repo NAME the cnf knows, not a path or URL, got: '$name'" >&2; return 1; }
   while IFS=$'\t' read -r n p t b s; do
-    if [[ "$s" == map ]]; then nws=$((nws + 1)); else known+=" $n"; fi
+    if [[ "$s" == map || "$s" == box ]]; then nws=$((nws + 1)); else known+=" $n"; fi
     [[ "$n" == "$name" ]] && hit="$p"$'\t'"$t"$'\t'"$b"$'\t'"$s"
   done < <(spl_landed_repo_rows)
   (( nws )) && known="${known:- none} and $nws workspace repo(s)"
   [[ -n "$hit" ]] || { do_log "FATAL LANE_LANDED_REPO '$name' is no repo the cnf knows (src_dir names:${known:- none}): refused, nothing changed" >&2; return 1; }
   IFS=$'\t' read -r p t b s <<<"$hit"
   [[ "$t" == - ]] && t=""
-  [[ "$s" == gh ]] && { printf '%s\t%s\n' "$p" "$t"; return 0; }
+  [[ "$s" == gh || "$s" == box ]] && { printf '%s\t%s\n' "$p" "$t"; return 0; }
   if [[ ! -d "$p/.git" ]]; then
     if [[ "$s" == map ]]; then
       do_log "FATAL the workspace box map's clone of that repo is not a git repo on this box ($(spl_landed_repo_box)); its desk is on box $b: run it there: refused, nothing changed" >&2
@@ -776,9 +790,9 @@ spl_landed_repo_gh_trunk() {
   local t="${3:-}"
   [[ -n "$t" ]] || t="$(spl_landed_repo_gh "$2" "" .default_branch)"
   [[ -n "$t" ]] ||
-    { do_log "FATAL cannot read $1 on GitHub (gh api repos/$2): not checked, refused, nothing changed" >&2; return 1; }
+    { do_log "FATAL cannot read $(spl_landed_repo_gh_shown "$1" "$2"): not checked, refused, nothing changed" >&2; return 1; }
   [[ "$(spl_landed_repo_gh "$2" "branches/$t" .name)" == "$t" ]] ||
-    { do_log "FATAL cannot read origin/$t of $1 on GitHub ($2): no such branch, or gh refused (auth, rate limit): refused, nothing changed" >&2; return 1; }
+    { do_log "FATAL cannot read origin/$t of $(spl_landed_repo_gh_shown "$1" "$2"): no such branch, or gh refused (auth, rate limit): refused, nothing changed" >&2; return 1; }
   printf '%s\n' "$t"
 }
 
@@ -805,9 +819,9 @@ spl_lane_issue_on_trunk() {
   t="$(spl_landed_repo_trunk "$name" "$c" "${4:-}")" || return 1
   if [[ "$c" == gh:* ]]; then
     full="$(spl_landed_repo_gh_commit "${c#gh:}" "$sha")" ||
-      { do_log "FATAL $sha is no commit of $name on GitHub (${c#gh:}): refused, nothing changed" >&2; return 1; }
+      { do_log "FATAL $sha is no commit of $(spl_landed_repo_gh_shown "$name" "${c#gh:}"): refused, nothing changed" >&2; return 1; }
     spl_landed_repo_gh_on "${c#gh:}" "$full" "$t" ||
-      { do_log "FATAL $name ${full:0:12} is not on origin/$t (a branch only?): not landed, refused, nothing changed" >&2; return 1; }
+      { do_log "FATAL $(spl_landed_repo_shown "$name" "$c") ${full:0:12} is not on origin/$t (a branch only?): not landed, refused, nothing changed" >&2; return 1; }
     printf '%s\t%s\n' "$full" "$t"
     return 0
   fi

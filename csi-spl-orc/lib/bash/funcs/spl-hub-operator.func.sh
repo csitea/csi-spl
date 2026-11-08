@@ -43,7 +43,7 @@ spl_hub_operator_call() {
   ( umask 077; printf 'header = "Authorization: Bearer %s"\n' "$tok" >"$hdr"; )
   local -a args=(-sS -m "$max" -o "$out" -w '%{http_code}' -K "$hdr" -X "$method")
   [[ -n "$body" ]] && args+=(-H 'Content-Type: application/json' --data "$body")
-  code="$(curl "${args[@]}" "$SPL_HUB_URL$path" 2>/dev/null)"
+  code="$(umask 077; curl "${args[@]}" "$SPL_HUB_URL$path" 2>/dev/null)"
   local rc=$?
   rm -f "$hdr"
   if (( rc != 0 )) || [[ -z "$code" ]]; then

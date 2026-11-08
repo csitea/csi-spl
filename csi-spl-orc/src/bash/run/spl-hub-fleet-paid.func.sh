@@ -74,14 +74,14 @@ do_spl_hub_fleet_paid() {
 _spl_hub_fleet_paid_index() {
   local err
   if [[ "$SPL_HUB_OP_STATUS" != 200 ]]; then
-    err="$(jq -r '.error // empty' <<<"$SPL_HUB_OP_BODY" 2>/dev/null | grep -xE '[a-z_]{1,40}')"
+    err="$(jq -r '.error | strings | select(test("^[a-z_]{1,40}$"))' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
     do_log "FATAL the hub answered $SPL_HUB_OP_STATUS${err:+ ($err)} to the paid item index"
     return 1
   fi
-  jq -e '.items | type == "array"' <<<"$SPL_HUB_OP_BODY" >/dev/null 2>&1 ||
+  jq -e '(.items | type == "array") and all(.items[]; type == "object")' <<<"$SPL_HUB_OP_BODY" >/dev/null 2>&1 ||
     { do_log "FATAL the paid item list is not {items: [...]}; nothing printed"; return 1; }
   do_log "OK $ENV paid items: $(jq -r '.items | length' <<<"$SPL_HUB_OP_BODY") (index: no amount, currency, quantity, note or plan label)"
-  jq -r '.items[] | "  \(.id) \(.vendor) \(.kind) [\(.period_start), \(.period_end))"' <<<"$SPL_HUB_OP_BODY"
+  jq -r '.items[] | [.id, .vendor, .kind, .period_start, .period_end] | map(if type == "string" then . else "?" end) | "  \(.[0]) \(.[1]) \(.[2]) [\(.[3]), \(.[4]))"' <<<"$SPL_HUB_OP_BODY"
 }
 
 # _spl_hub_fleet_paid_fx_counts -> per vendor of the effective read just made,

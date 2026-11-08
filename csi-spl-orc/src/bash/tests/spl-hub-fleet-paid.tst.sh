@@ -17,6 +17,9 @@
 #      period days only; no amount, currency, quantity, note or plan label on
 #      stdout, stderr or in any file the run wrote, a refusal included; red
 #      control: the same check finds list's figures
+#   9. index when the hub breaks its contract (SPL-5084): a multi-line error
+#      stays out of the log line, a non-string field prints "?", a non-object
+#      item is refused before any OK line; the body file is written 0600
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -144,7 +147,7 @@ cat >"$T/real/stub/curl" <<'STUB'
 #!/usr/bin/env bash
 out=""; url=""
 while (( $# )); do case "$1" in -o) out="$2"; shift ;; -X) echo "curl $2" >>"$STUB_CALLS"; shift ;; http*) url="$1" ;; esac; shift; done
-echo "url $url" >>"$STUB_CALLS"; cp "$STUB_BODY_FILE" "$out"; printf '%s' "${STUB_CODE:-200}"
+echo "url $url" >>"$STUB_CALLS"; cp "$STUB_BODY_FILE" "$out"; echo "mode $(stat -c %a "$out")" >>"$STUB_CALLS"; printf '%s' "${STUB_CODE:-200}"
 STUB
 chmod +x "$T/real/stub/gcloud" "$T/real/stub/curl"
 SECRET_ITEM='{"id":"'$ID'","vendor":"agy","kind":"topup","plan_label":"LABEL-SENTINEL","quantity":4321,"amount":98765.4321,"currency":"XTS","note":"NOTE-SENTINEL","period_start":"2020-01-01","period_end":"2020-01-02","created_by":"sa@example.iam.gserviceaccount.com"}'
@@ -179,6 +182,30 @@ found=$(leaks "$T/real/list")
 [[ $rc -eq 0 ]] && grep -qxF "$T/real/list/out" <<<"$found" \
   && pass "8. red control: the same check finds PAID_CMD=list's figures ($(wc -l <<<"$found") files)" \
   || fail "8. red control: rc=$rc, list showed no sentinel, so the check proves nothing"
+
+# --- 9. index when the hub breaks its contract (SPL-5084) ---------------------------
+echo '{"error":"line_one\nline_two","detail":"98765.4321 XTS"}' >"$T/real/multiline.json"
+run_real multiline index "$T/real/multiline.json" STUB_CODE=403; rc=$?
+d="$T/real/multiline"; found=$(leaks "$d")
+[[ $rc -ne 0 && -z "$found" ]] && grep -q 'FATAL the hub answered 403 to the paid item index' "$d/out" && ! grep -q 'line_' "$d/out" \
+  && pass "9. a multi-line error is left out, the log line stays whole" \
+  || fail "9. multi-line: rc=$rc leaks=$found"
+echo '{"items":[{"id":{"amount":98765.4321},"vendor":"agy","kind":"topup","period_start":"2020-01-01","period_end":"2020-01-02"}]}' >"$T/real/objfield.json"
+run_real objfield index "$T/real/objfield.json"; rc=$?
+d="$T/real/objfield"; found=$(leaks "$d")
+[[ $rc -eq 0 && -z "$found" ]] && grep -qxF "  ? agy topup [2020-01-01, 2020-01-02)" "$d/out" \
+  && pass "9. an object-valued field prints ?, its amount nowhere" \
+  || fail "9. object field: rc=$rc leaks=$found"
+echo "{\"items\":[$SECRET_ITEM,5]}" >"$T/real/nonobj.json"
+run_real nonobj index "$T/real/nonobj.json"; rc=$?
+d="$T/real/nonobj"
+[[ $rc -ne 0 ]] && grep -q 'FATAL the paid item list is not' "$d/out" && ! grep -q 'paid items:' "$d/out" && ! grep -qF "$ID" "$d/out" \
+  && pass "9. a non-object item is refused before any OK line or item" \
+  || fail "9. non-object item: rc=$rc"
+( umask 022; run_real mode index "$T/real/items.json" ); rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'mode 600' "$T/real/mode/calls" \
+  && pass "9. the body file is written 0600 under a caller's umask 022" \
+  || fail "9. body mode: rc=$rc $(grep '^mode' "$T/real/mode/calls")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

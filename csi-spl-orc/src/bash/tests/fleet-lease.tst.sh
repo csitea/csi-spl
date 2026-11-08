@@ -171,12 +171,13 @@ STUB
 # cas, as another machine winning the race would. A call to another tenant
 # (LEASE_HUB_TENANT, the copies of section 16) has its own file
 # <tenant>.<fleet>.<role>, is logged to calls, and HUB_DOWN_TENANT=<tenant>
-# fails it.
+# fails it. HUB_SLOW_TENANT=<tenant> delays it HUB_SLOW_S (6) s.
 cat >"$T/bin/hub" <<'STUB'
 #!/bin/sh
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
 [ -s "${HUB_FAILS:-/nonexistent}" ] && n=$(cat "$HUB_FAILS") && [ "$n" -gt 0 ] && { echo $((n - 1)) >"$HUB_FAILS"; echo "dial: lookup hub: no such host" >&2; exit 1; }
 [ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_DOWN_TENANT:-}" ] && { echo "dial: i/o timeout" >&2; exit 1; }
+[ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_SLOW_TENANT:-}" ] && sleep "${HUB_SLOW_S:-6}"
 [ -n "${LEASE_HUB_TENANT:-}" ] && echo "$LEASE_HUB_TENANT" >>"$HUB_DIR/calls"
 shift
 fleet="" role="" holder="" ifgen=""
@@ -487,7 +488,8 @@ for _ in $(seq 1 50); do grep -q failover "$T/asksrun.log" 2>/dev/null && break;
 rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane"
 agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
 agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
-T16=(LEASE_MIRROR_TENANTS="csitea ws-a")
+# LEASE_MIRROR_WAIT=1: the checks read the copies right after the tick
+T16=(LEASE_MIRROR_TENANTS="csitea ws-a" LEASE_MIRROR_WAIT=1)
 copy() { cut -d' ' -f"${3:-1}" "$T/hub/$1.main.$2" 2>/dev/null; }
 tick pc 40000 "${T16[@]}"; tick sat 40000 "${T16[@]}"
 [[ "$(hubh dispatch)" == CLE-002@pc && "$(copy csitea dispatch)" == CLE-002@pc && "$(copy ws-a dispatch)" == CLE-002@pc &&
@@ -518,6 +520,28 @@ got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" SPL_STATE_DIR="$S" LEA
   do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; spl_fleet_mirror_tenants')
 [[ "$got" == "csitea " ]] &&
   pass "16. served tenants = this box's desk pins, minus the lease tenant, test workspaces and empty pins" || fail "16. tenants: '$got'"
+
+# --- 16b. a slow tenant cannot delay the role's own write (SPL-5120) -----------------------
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+T16B=(LEASE_MIRROR_TENANTS="csitea" HUB_SLOW_TENANT=csitea HUB_SLOW_S=6)
+t0=$SECONDS; tick pc 40000 "${T16B[@]}"; took=$((SECONDS - t0))
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc && "$took" -lt 5 ]] &&
+  pass "16b. a tenant answering in 6 s: the tick is back in ${took}s with both own writes done" ||
+  fail "16b. slow tenant: ${took}s, hub $(hubh dispatch)/$(hubh orch)"
+for _ in $(seq 1 100); do [[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy csitea orch)" == CLE-001@pc ]] && break; sleep 0.2; done
+[[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy csitea orch)" == CLE-001@pc ]] &&
+  pass "16b. the copies still land, behind the tick" || fail "16b. copies: $(copy csitea dispatch)/$(copy csitea orch)"
+: >"$T/hub/calls"
+exec 7>"$T/pc/spool/dispatch/fleet.dispatch.mirror.lock"; flock -n 7
+tick pc 40060 LEASE_MIRROR_TENANTS=csitea
+for _ in $(seq 1 50); do [[ "$(copy csitea orch 3)" == 40060 ]] && break; sleep 0.1; done
+exec 7>&-
+[[ "$(copy csitea dispatch 3)" == 40000 && "$(copy csitea orch 3)" == 40060 && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 40060 ]] &&
+  pass "16b. a pass still running: the next one for that role is skipped, the own write and the other role are not" ||
+  fail "16b. single flight: dispatch copy at $(copy csitea dispatch 3), orch copy at $(copy csitea orch 3), own at $(cut -d' ' -f3 "$T/hub/main.dispatch")"
+t0=$SECONDS; tick pc 40120 "${T16B[@]}" LEASE_MIRROR_WAIT=1; took=$((SECONDS - t0))
+(( took >= 6 )) && pass "16b. control: copies waited for on the loop thread take the tick ${took}s" || fail "16b. control: ${took}s"
 
 # --- 17. a stuck dispatch seat is no candidate --------------------------------------------
 rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/act"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane" "$T/act"

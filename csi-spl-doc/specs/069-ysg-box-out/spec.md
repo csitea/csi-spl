@@ -765,6 +765,18 @@ leg, `spl-desk-issue.func.sh`), `archived-seats-free`, `weekly-limit-alert`,
 or hopping them with `sudo -n -u <agent-user>`, is a separate row and an
 owner decision; this row moves no crontab.
 
+**The fleet lease's tenant copies (SPL-5120).** The loop runs as the box user,
+so `spl_desk_glob` cannot see a desk under the desk user's `0700` root and the
+copies had stopped for every moved tenant (sat 2026-11-08, read-only: 0 of
+21072 dial lines for any tenant but t1). `spl_fleet_mirror_pins` lists such a
+root through its owner, one hop per root under `LEASE_HOP_TIMEOUT`. A pass runs
+off the loop thread (`spl_fleet_mirror_bg`, one per role by `flock`), after the
+role's own write, so a slow or hung tenant cannot delay that write
+(`LEASE_STALE` is 180 s). A pass still running skips the next; the next won
+write makes it up. Measured on sat at 82cea0a5e: read through the hop p50 258
+ms (n=20) to 540 ms (n=60, the same dial under `./run`), a located dial 137 ms
+(n=20), the locate 94 ms (n=20), a real write 114..131 ms (n=3).
+
 #### 8.3.2 Desk rows run in the desk user's crontab (SPL-4558)
 
 A row of `cnf/box-crons/box-crons.manifest` carries a sixth field, `as`:

@@ -1223,18 +1223,50 @@ spl_fleet_dial_log() {
 
 # The tenants copied to: LEASE_MIRROR_TENANTS (space-separated; set = exact
 # list), else every tenant where this machine's desk box is pinned, minus
-# LEASE_TENANT and the test workspaces.
+# LEASE_TENANT and the test workspaces. A tenant pinned under two roots is
+# copied once.
 spl_fleet_mirror_tenants() {
   if [[ -n "${LEASE_MIRROR_TENANTS+x}" ]]; then echo "$LEASE_MIRROR_TENANTS"; return 0; fi
   [[ -n "${SPL_STATE_DIR:-}" && -n "${LEASE_DESK_BOX:-}" ]] || return 0
-  local p t
+  local p t seen=" "
   while IFS= read -r -u 9 p; do
-    [[ -s "$p" ]] || continue
     t="${p%/"$LEASE_DESK_BOX"/pinned}"; t="${t##*/}"
-    [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$t" != "${LEASE_TENANT:-}" ]] || continue
+    [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$t" != "${LEASE_TENANT:-}" && "$seen" != *" $t "* ]] || continue
     spl_test_workspace "$t" && continue
-    printf '%s ' "$t"
-  done 9< <(spl_desk_glob "*/$LEASE_DESK_BOX/pinned")
+    seen+="$t "; printf '%s ' "$t"
+  done 9< <(spl_fleet_mirror_pins)
+}
+
+# spl_fleet_mirror_pins: every non-empty pin of this desk box, one path per
+# line. spl_desk_glob walks the roots this user can enter; a root closed to it
+# (a moved desk, 0700 under the desk user, SPL-5120) is listed through its
+# owner, one hop per root under the hop's limit. No sudo rule or a cut hop: that
+# root lists nothing and this pass copies the rest.
+spl_fleet_mirror_pins() {
+  local p u r
+  local -a as=()
+  while IFS= read -r p; do [[ -s "$p" ]] && printf '%s\n' "$p"; done < <(spl_desk_glob "*/$LEASE_DESK_BOX/pinned")
+  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  while IFS=$'\t' read -r u r; do
+    [[ -n "$r" ]] && ! spl_desk_root_enterable "$r/desk" || continue
+    timeout -k 1 "${LEASE_HOP_TIMEOUT:-5}" "${as[@]}" "$u" -- find "$r/desk" -mindepth 3 -maxdepth 3 -type f -size +0 \
+      -path "*/$LEASE_DESK_BOX/pinned" 2>/dev/null
+  done < <(spl_desk_roots)
+  return 0
+}
+
+# spl_fleet_mirror_bg <role> <holder>: the copies of one won write, off the loop
+# thread (SPL-5120): 2 dials per tenant through the hop are 258..540 ms each, 10
+# tenants and 2 roles about 11..22 s a tick, and a slow tenant must not delay
+# the role's own write (LEASE_STALE 180). The own write is already done here. One
+# pass per role at a time (flock): a pass still running skips the next one, which
+# the next won write makes up. The loop's lock fds are closed, so a pass outliving
+# the loop cannot hold "is it running". LEASE_MIRROR_WAIT=1 keeps it in front.
+spl_fleet_mirror_bg() {
+  local role="$1" holder="$2"
+  if [[ "${LEASE_MIRROR_WAIT:-0}" == 1 ]]; then spl_fleet_mirror_out "$role" "$holder"; return 0; fi
+  ( ( flock -n 9 || exit 0; spl_fleet_mirror_out "$role" "$holder" ) 9>"$LEASE_DIR/fleet.$role.mirror.lock" 7>&- 8>&- & ) 2>/dev/null
+  return 0
 }
 
 # spl_fleet_mirror_out <role> <holder>: write <holder> into every copy (read
@@ -2302,7 +2334,7 @@ spl_fleet_role_tick() {
   [[ "$won" == true && "$handback" == true ]] && spl_fleet_handback_start "$role" "$want" "$before" "$now"
   spl_fleet_apply "$role" "$(spl_fleet_shown "$role" "$now")" "$now"
   # the holder (this machine, just written) copies it into every served tenant
-  [[ "$won" == true ]] && spl_fleet_mirror_out "$role" "$FH"
+  [[ "$won" == true ]] && spl_fleet_mirror_bg "$role" "$FH"
   return 0
 }
 

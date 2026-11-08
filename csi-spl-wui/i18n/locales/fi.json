@@ -3708,6 +3708,7 @@
         "query_error": "Kyselyvirhe",
         "bad_query": "Hylätty: kysely ei kelpaa tässä",
         "result_too_large": "Hylätty: tulos on liian suuri",
+        "temp_space_exceeded": "Hylätty: kysely käytti liikaa väliaikaista tilaa. Rajaa kyselyä tai lisää LIMIT.",
         "admin_required": "Vain työtilan ylläpitäjät voivat suorittaa kyselyitä",
         "query_timeout": "Kysely kesti yli 10 sekuntia ja keskeytettiin",
         "other": "Kyselyä ei suoritettu"

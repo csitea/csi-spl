@@ -3708,6 +3708,7 @@
         "query_error": "Päringu viga",
         "bad_query": "Keeldutud: päring pole siin kehtiv",
         "result_too_large": "Keeldutud: tulemus on liiga suur",
+        "temp_space_exceeded": "Keeldutud: päring kasutas liiga palju ajutist ruumi. Kitsendage seda või lisage LIMIT.",
         "admin_required": "Päringuid võivad käivitada ainult tööruumi administraatorid",
         "query_timeout": "Päring kestis üle 10 sekundi ja peatati",
         "other": "Päringut ei käivitatud"

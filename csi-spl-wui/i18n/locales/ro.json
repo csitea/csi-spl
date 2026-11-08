@@ -3708,6 +3708,7 @@
         "query_error": "Eroare de interogare",
         "bad_query": "Refuzat: interogarea nu este validă aici",
         "result_too_large": "Refuzat: rezultatul este prea mare",
+        "temp_space_exceeded": "Refuzat: interogarea a folosit prea mult spațiu temporar. Restrângeți-o sau adăugați LIMIT.",
         "admin_required": "Doar administratorii spațiului de lucru pot rula interogări",
         "query_timeout": "Interogarea a durat mai mult de 10 secunde și a fost oprită",
         "other": "Interogarea nu a rulat"

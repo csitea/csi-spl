@@ -3708,6 +3708,7 @@
         "query_error": "Fel i frågan",
         "bad_query": "Nekad: frågan är inte giltig här",
         "result_too_large": "Nekad: resultatet är för stort",
+        "temp_space_exceeded": "Nekad: frågan använde för mycket tillfälligt utrymme. Begränsa den eller lägg till LIMIT.",
         "admin_required": "Endast arbetsytans administratörer får köra frågor",
         "query_timeout": "Frågan tog mer än 10 sekunder och stoppades",
         "other": "Frågan kördes inte"

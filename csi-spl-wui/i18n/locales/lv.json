@@ -3708,6 +3708,7 @@
         "query_error": "Vaicājuma kļūda",
         "bad_query": "Atteikts: vaicājums šeit nav derīgs",
         "result_too_large": "Atteikts: rezultāts ir pārāk liels",
+        "temp_space_exceeded": "Atteikts: vaicājums izmantoja pārāk daudz pagaidu vietas. Sašauriniet to vai pievienojiet LIMIT.",
         "admin_required": "Vaicājumus var izpildīt tikai darbvietas administratori",
         "query_timeout": "Vaicājums ilga vairāk nekā 10 sekundes un tika apturēts",
         "other": "Vaicājums netika izpildīts"

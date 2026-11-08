@@ -3708,6 +3708,7 @@
         "query_error": "Queryfout",
         "bad_query": "Geweigerd: de query is hier niet geldig",
         "result_too_large": "Geweigerd: het resultaat is te groot",
+        "temp_space_exceeded": "Geweigerd: de query gebruikte te veel tijdelijke ruimte. Beperk de query of voeg een LIMIT toe.",
         "admin_required": "Alleen beheerders van de werkruimte mogen query's uitvoeren",
         "query_timeout": "De query duurde langer dan 10 seconden en is gestopt",
         "other": "De query is niet uitgevoerd"

@@ -3708,6 +3708,7 @@
         "query_error": "Błąd zapytania",
         "bad_query": "Odrzucono: zapytanie jest tu nieprawidłowe",
         "result_too_large": "Odrzucono: wynik jest zbyt duży",
+        "temp_space_exceeded": "Odrzucono: zapytanie użyło zbyt dużo miejsca tymczasowego. Zawęź je lub dodaj LIMIT.",
         "admin_required": "Zapytania mogą uruchamiać tylko administratorzy przestrzeni roboczej",
         "query_timeout": "Zapytanie trwało dłużej niż 10 sekund i zostało zatrzymane",
         "other": "Zapytanie nie zostało wykonane"

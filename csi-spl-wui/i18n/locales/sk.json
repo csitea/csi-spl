@@ -3708,6 +3708,7 @@
         "query_error": "Chyba dopytu",
         "bad_query": "Odmietnuté: dopyt tu nie je platný",
         "result_too_large": "Odmietnuté: výsledok je príliš veľký",
+        "temp_space_exceeded": "Odmietnuté: dopyt použil príliš veľa dočasného miesta. Zúžte ho alebo pridajte LIMIT.",
         "admin_required": "Dopyty môžu spúšťať iba správcovia pracovného priestoru",
         "query_timeout": "Dopyt trval dlhšie ako 10 sekúnd a bol zastavený",
         "other": "Dopyt sa nespustil"

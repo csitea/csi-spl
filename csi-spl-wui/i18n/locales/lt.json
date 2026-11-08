@@ -3708,6 +3708,7 @@
         "query_error": "Užklausos klaida",
         "bad_query": "Atmesta: užklausa čia negalioja",
         "result_too_large": "Atmesta: rezultatas per didelis",
+        "temp_space_exceeded": "Atmesta: užklausa panaudojo per daug laikinos vietos. Susiaurinkite ją arba pridėkite LIMIT.",
         "admin_required": "Užklausas gali vykdyti tik darbo srities administratoriai",
         "query_timeout": "Užklausa truko ilgiau nei 10 sekundžių ir buvo sustabdyta",
         "other": "Užklausa nebuvo įvykdyta"

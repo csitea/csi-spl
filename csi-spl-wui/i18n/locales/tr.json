@@ -3708,6 +3708,7 @@
         "query_error": "Sorgu hatası",
         "bad_query": "Reddedildi: sorgu burada geçerli değil",
         "result_too_large": "Reddedildi: sonuç çok büyük",
+        "temp_space_exceeded": "Reddedildi: sorgu çok fazla geçici alan kullandı. Sorguyu daraltın veya LIMIT ekleyin.",
         "admin_required": "Yalnızca çalışma alanı yöneticileri sorgu çalıştırabilir",
         "query_timeout": "Sorgu 10 saniyeden uzun sürdü ve durduruldu",
         "other": "Sorgu çalıştırılmadı"

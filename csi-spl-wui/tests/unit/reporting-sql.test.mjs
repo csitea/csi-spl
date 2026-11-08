@@ -127,6 +127,7 @@ describe('T033 Download .json', () => {
 describe('T033 errors and the mock hub', () => {
   it('each hub refusal token has its own key, anything else the generic one', () => {
     for (const tk of SQL_ERROR_TOKENS) assert.equal(sqlErrorKey(tk), 'reporting.sql.error.' + tk)
+    assert.equal(sqlErrorKey('temp_space_exceeded'), 'reporting.sql.error.temp_space_exceeded')
     assert.equal(sqlErrorKey('nope'), 'reporting.sql.error.other')
     assert.equal(sqlErrorKey(undefined), 'reporting.sql.error.other')
     const en = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8'))

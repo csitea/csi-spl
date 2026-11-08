@@ -88,6 +88,7 @@ export function sqlExportName(ext: 'csv' | 'json', at: Date = new Date()): strin
 export const SQL_ERROR_TOKENS = Object.freeze([
   'read_only_violation', 'single_statement_only', 'forbidden_function', 'forbidden_relation', 'syntax_error',
   'query_error', 'bad_query', 'result_too_large', 'admin_required', 'query_timeout',
+  'temp_space_exceeded',
 ])
 export function sqlErrorKey(token: string | undefined): string {
   return SQL_ERROR_TOKENS.includes(String(token)) ? `reporting.sql.error.${token}` : 'reporting.sql.error.other'

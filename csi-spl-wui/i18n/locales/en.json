@@ -3708,6 +3708,7 @@
         "query_error": "Query error",
         "bad_query": "Refused: the query is not valid here",
         "result_too_large": "Refused: the result is too large",
+        "temp_space_exceeded": "Refused: the query used too much temporary space. Narrow it or add a LIMIT.",
         "admin_required": "Only workspace admins may run queries",
         "query_timeout": "The query took longer than 10 seconds and was stopped",
         "other": "The query did not run"

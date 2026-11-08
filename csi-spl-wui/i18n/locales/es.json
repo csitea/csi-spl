@@ -3708,6 +3708,7 @@
         "query_error": "Error en la consulta",
         "bad_query": "Rechazado: la consulta no es válida aquí",
         "result_too_large": "Rechazado: el resultado es demasiado grande",
+        "temp_space_exceeded": "Rechazado: la consulta usó demasiado espacio temporal. Acótela o añada un LIMIT.",
         "admin_required": "Solo los administradores del espacio de trabajo pueden ejecutar consultas",
         "query_timeout": "La consulta tardó más de 10 segundos y se detuvo",
         "other": "La consulta no se ejecutó"

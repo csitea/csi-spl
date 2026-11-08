@@ -581,7 +581,7 @@ Error responses:
 - `HTTP 400 Bad Request` (`code: "read_only_violation"`): Query contains forbidden write or DDL statement.
 - `HTTP 400 Bad Request` (`code: "single_statement_only"`): Multiple statements separated by semicolon detected.
 - `HTTP 400 Bad Request` (`code: "syntax_error"`): PostgreSQL query syntax error.
-- `HTTP 400 Bad Request` (`code: "temp_space_exceeded"`): Postgres ended the query for its temp files (SQLSTATE 53400 over `temp_file_limit`, or 53100 disk full); the message is "query used too much temp space: narrow it or add a LIMIT". A 4xx, not a 5xx: the query is too big, the server is fine (SPL-4757). Audited like the other refusals. Postgres caps one query's temp files at `temp_file_limit` per backend; on dev it is the Cloud SQL default, 1021877 kB (measured as the runtime role, n=1), and the hub cannot lower it per transaction (a superuser-only setting).
+- `HTTP 400 Bad Request` (`code: "temp_space_exceeded"`): Postgres ended the query for its temp files (SQLSTATE 53400 over `temp_file_limit`, or 53100 disk full); the message is "query used too much temp space: narrow it or add a LIMIT". A 4xx, not a 5xx: the query is too big, the server is fine (SPL-4757). Audited like the other refusals. Postgres caps one query's temp files at `temp_file_limit` per backend; on dev it is the Cloud SQL default, 1021877 kB (measured as the runtime role, n=1), and the hub cannot lower it per transaction (a superuser-only setting). The SQL tab names it in the user's language, `reporting.sql.error.temp_space_exceeded` (SPL-5061).
 - `HTTP 403 Forbidden` (`code: "admin_required"`): Caller is not a workspace admin.
 - `HTTP 408 Request Timeout` (`code: "query_timeout"`): Query exceeded 10-second statement budget.
 

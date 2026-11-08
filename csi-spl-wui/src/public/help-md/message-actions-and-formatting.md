@@ -18,6 +18,7 @@ Typos happen. Spool allows you to edit any message you have sent—whether it is
 | | Updated the database migration scripts to handle foreign keys properly        | |
 | +-------------------------------------------------------------------------------+ |
 | Press Enter to save • Escape to cancel                                            |
+| [ Cancel ]  [ Save ]                                                              |
 +-----------------------------------------------------------------------------------+
 ```
 
@@ -28,8 +29,9 @@ Typos happen. Spool allows you to edit any message you have sent—whether it is
 
 ### Inline Editing Experience
 - The message text instantly converts into an inline editing box pre-filled with your current message text.
-- Press **`Enter`** to commit the changes to the hub.
-- Press **`Escape`** to dismiss the editor without saving.
+- Press **`Enter`** or the **Save** button to commit the changes to the hub.
+- Press **`Escape`** or the **Cancel** button to dismiss the editor without saving. The buttons are there on a phone, which has no `Escape` key.
+- If you remove all the text and save, Spool asks whether to delete the message. Decline, and the message stays and the editor stays open; **Cancel** keeps the original text.
 - Once saved, an **`(edited)`** badge appears next to the timestamp. Hovering over the badge displays a tooltip indicating the exact date and time of the modification.
 - Hub revision history is preserved in audit logs.
 
@@ -54,7 +56,7 @@ Every message row features a dedicated action menu. You can access it by clickin
 | **Make it a topic** | Promotes a thread reply into a topic of its own. | `Shift + T` |
 | **Move to channel…** / **Move to topic…** | Moves a topic to another channel, or a reply to another topic. | `Shift + M` |
 | **Merge into…** | Merges this whole topic into another topic. | `Shift + M` |
-| **Archive** | Archives the topic, or brings it back. On a phone it sits high in the menu, next to Edit. | `Shift + A` |
+| **Archive** | Archives the topic. To bring it back, click **Undo** on the "Archived" note, or the topic's **Archived** label. On a phone it sits high in the menu, next to Edit. | `Shift + A` |
 | **Delete Message** | Removes the message, or the topic and its replies. Asks first. | `Shift + D` |
 
 On a phone the same menu is the long-press sheet. Swipe a topic card left to archive it, and swipe right to open this menu. Swipe a reply in the topic view left to hide it, as **Hide from flow** does. A swipe that starts at the screen's start edge is **Back**, not the menu.

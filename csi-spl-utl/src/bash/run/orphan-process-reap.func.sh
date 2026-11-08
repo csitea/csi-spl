@@ -14,7 +14,9 @@
 # @description Identifies detached runner processes using positive provenance:
 # @description   1. Process environment contains AGENT_ID that is present in
 # @description      registry.retired.tsv AND NOT currently active in registry.tsv
-# @description      or live tmux window (agent ID reuse guard), OR
+# @description      or live tmux window (agent ID reuse guard), and the process
+# @description      did not start after that id's latest retire (a reused id's
+# @description      spawn has no registry row yet, SPL-5060), OR
 # @description   2. Process working directory (/proc/<pid>/cwd) points to a
 # @description      removed worktree (/opt/csi/csi-spl-wt/* (deleted)), AND
 # @description   3. Process is NOT on the explicit never-list:
@@ -189,25 +191,53 @@ orphan_process_active_ids() {
 }
 
 # 2. Load retired agent IDs into hash set (excluding currently active lanes)
-# Fills the caller's retired_agents set; reads active_agents.
+# Fills the caller's retired_agents map: id -> its latest retired-utc (column 6),
+# 0 when no row has one; reads active_agents. awk cuts the columns because read
+# would collapse the empty pane and worktree columns of a synthesized row.
 orphan_process_retired_ids() {
   local retired_tsv="$1"
   if [[ -f "$retired_tsv" ]]; then
-    local r_id
-    while IFS=$'\t' read -r r_id _rest; do
+    local r_id r_ts
+    while IFS=$'\t' read -r r_id r_ts; do
       [[ -z "$r_id" || "$r_id" == \#* ]] && continue
       r_id="${r_id%@*}"
       # If this agent ID is currently active (reused id with live row/window), it is NOT retired
       [[ -n "${active_agents[$r_id]:-}" ]] && continue
-      retired_agents["$r_id"]=1
-    done < "$retired_tsv"
+      [[ "$r_ts" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || r_ts=0
+      if [[ "$r_ts" > "${retired_agents[$r_id]:-}" ]]; then
+        retired_agents["$r_id"]="$r_ts"
+      fi
+    done < <(awk -F'\t' '{print $1 "\t" $6}' "$retired_tsv")
   fi
+}
+
+# True when the pid started after the retire: it cannot be that retired lane's
+# process, it is a new spawn of the reused id that has no registry row yet.
+# Unknown start or retire time -> false, so the process stays flagged.
+# Reads proc_dir, boot_s, clk_tck; caches in the caller's retired_epoch.
+orphan_process_started_after_retire() {
+  local pid="$1" r_ts="$2" stat_content start_ticks
+  local -a stat_fields
+  [[ "$boot_s" =~ ^[0-9]+$ && "$r_ts" != 0 && -r "$proc_dir/$pid/stat" ]] || return 1
+  stat_content="$(<"$proc_dir/$pid/stat")" 2>/dev/null || return 1
+  # After the comm's closing paren the state is field 3, so starttime (22) is index 19
+  read -ra stat_fields <<<"${stat_content##*)}"
+  start_ticks="${stat_fields[19]:-}"
+  [[ "$start_ticks" =~ ^[0-9]+$ ]] || return 1
+  if [[ -z "${retired_epoch[$r_ts]:-}" ]]; then
+    retired_epoch["$r_ts"]="$(date -u -d "${r_ts:0:4}-${r_ts:4:2}-${r_ts:6:2}T${r_ts:9:2}:${r_ts:11:2}:${r_ts:13:2}Z" +%s 2>/dev/null)" || return 1
+  fi
+  ((boot_s + start_ticks / clk_tck > retired_epoch[$r_ts]))
 }
 
 # Provenance 1: Process environ contains AGENT_ID in registry.retired.tsv (and not active)
 # Reads the p_dirs of orphan_process_dirs; fills candidate_provenance / candidate_agent.
 orphan_process_environ_candidates() {
-  local env_line p_file p_pid a_id a_clean
+  local env_line p_file p_pid a_id a_clean boot_s clk_tck
+  local -A retired_epoch=()
+  boot_s="$(awk '$1 == "btime" { print $2; exit }' "$proc_dir/stat" 2>/dev/null)"
+  clk_tck="$(getconf CLK_TCK 2>/dev/null)"
+  [[ "$clk_tck" =~ ^[1-9][0-9]*$ ]] || clk_tck=100
   while IFS= read -r env_line; do
     [[ -z "$env_line" ]] && continue
     p_file="${env_line%%:AGENT_ID=*}"
@@ -222,6 +252,7 @@ orphan_process_environ_candidates() {
     [[ -n "${active_agents[$a_clean]:-}" ]] && continue
 
     if [[ -n "${retired_agents[$a_clean]:-}" ]]; then
+      orphan_process_started_after_retire "$p_pid" "${retired_agents[$a_clean]}" && continue
       candidate_provenance["$p_pid"]="retired-agent:$a_id"
       candidate_agent["$p_pid"]="$a_id"
     fi

@@ -35,6 +35,10 @@
 #  22. Red controls -> simulated regressions turn gates red: retired gate flags active lane,
 #      dropped never-list flags tmux, external sender triggers LIVE GUARD intercept,
 #      and never-list substring argument (tmux-health-guard.tst.sh) does not false-spare.
+#  23. Spawn race (SPL-5060): process started after the id's retire -> not flagged
+#  24. Process of the same id started before the retire -> still flagged
+#  25. Several retires of one id, rows out of time order -> the latest counts
+#  26. Retired row with empty pane/worktree columns -> its retire time is still read
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -497,6 +501,69 @@ if ((rc_red_ret == 1 && rc_red_tmux == 1 && guard_intercepted == 1 && rc_sub == 
   pass "22. Red controls: retired gate flags active lane (exit 1), dropped never-list flags tmux (exit 1), external sender triggers LIVE GUARD intercept (exit 97), and never-list substring in arguments does not spare orphan (exit 1)"
 else
   fail "22. Red controls failed (rc_red_ret=$rc_red_ret rc_red_tmux=$rc_red_tmux guard_intercepted=$guard_intercepted rc_sub=$rc_sub)"
+fi
+
+# ---- 23-26. Spawn race: start time against the id's latest retire (SPL-5060) --
+# Rewrites a planted process's stat with a real starttime (field 22) and plants
+# the procfs btime; boot is 2026-10-01T00:00:00Z for every case below.
+RACE_BOOT=$(date -u -d '2026-10-01T00:00:00Z' +%s)
+RACE_TCK=$(getconf CLK_TCK)
+plant_started() {
+  local pid="$1" comm="$2" iso="$3" ticks
+  ticks=$(( ($(date -u -d "$iso" +%s) - RACE_BOOT) * RACE_TCK ))
+  printf '%s (%s) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %s\n' "$pid" "$comm" "$ticks" >"$PROC/$pid/stat"
+  echo "btime $RACE_BOOT" >"$PROC/stat"
+}
+
+# 23: c-004 retired 2026-10-02T12:00Z; the id's new launcher started an hour later
+clear_procs
+plant_proc 601 "tee" "tee /dev/fd/62" "c-004" "/opt/csi/csi-spl-wt/c-004" 1
+plant_started 601 "tee" "2026-10-02T13:00:00Z"
+out=$(run_check 1 2>&1); rc=$?
+if ((rc == 0)) && [[ "$out" == *"orphan-process OK: 0 orphan processes found"* ]]; then
+  pass "23. Spawn race: a process started after the id's retire is not flagged"
+else
+  fail "23. Spawn race (rc=$rc out=$out)"
+fi
+
+# 24: the same id, a process older than the retire: a true leftover
+clear_procs
+plant_proc 602 "node" "node serve.js" "c-004" "/tmp/test" 1
+plant_started 602 "node" "2026-10-02T11:00:00Z"
+out=$(run_check 1 2>&1); rc=$?
+if ((rc == 1)) && [[ "$out" == *"orphan pid=602"*"provenance=retired-agent:c-004"* ]]; then
+  pass "24. A process started before the retire is still flagged"
+else
+  fail "24. True leftover (rc=$rc out=$out)"
+fi
+
+# 25: several retires of one id, the file not in time order: the latest wins
+printf 'c-004\tclaude\t%%9\t/w\t20261003T080000Z\t20261003T120000Z\n' >>"$RETIRED_TSV"
+printf 'c-004\tclaude\t%%8\t/w\t20261001T080000Z\t20261001T120000Z\n' >>"$RETIRED_TSV"
+clear_procs
+plant_proc 603 "node" "node serve.js" "c-004" "/tmp/test" 1
+plant_started 603 "node" "2026-10-02T13:00:00Z"
+out=$(run_check 1 2>&1); rc=$?
+sed -i -e '/20261003T120000Z/d' -e '/20261001T120000Z/d' "$RETIRED_TSV"
+if ((rc == 1)) && [[ "$out" == *"orphan pid=603"* ]]; then
+  pass "25. Several retires of one id: the latest counts, whatever the row order"
+else
+  fail "25. Latest retire (rc=$rc out=$out)"
+fi
+
+# 26: a real synthesized row has empty pane and worktree columns
+printf 'c-435\tclaude\t\t\t20261002T080000Z\t20261002T120000Z\n' >>"$RETIRED_TSV"
+clear_procs
+plant_proc 604 "tee" "tee /dev/fd/62" "c-435" "/opt/csi/csi-spl-wt/c-435" 1
+plant_started 604 "tee" "2026-10-02T13:00:00Z"
+plant_proc 605 "node" "node serve.js" "c-435" "/tmp/test" 1
+plant_started 605 "node" "2026-10-02T11:00:00Z"
+out=$(run_check 1 2>&1); rc=$?
+sed -i '/^c-435/d' "$RETIRED_TSV"
+if ((rc == 1)) && [[ "$out" == *"orphan pid=605"* && "$out" != *"orphan pid=604"* ]]; then
+  pass "26. A retired row with empty columns: its retire time is still read"
+else
+  fail "26. Empty columns (rc=$rc out=$out)"
 fi
 
 echo "=========================================="

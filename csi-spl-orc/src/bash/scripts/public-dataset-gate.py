@@ -48,6 +48,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from urllib.parse import unquote
 
 KEYS = {
     "tenants": "tenant_id",
@@ -125,11 +126,12 @@ NAME_EDGE = r"A-Za-z0-9_-"
 # the id in every other column, are still matched.
 BODY_WORD_IDS = ("system",)
 # customer_strings entry kind -> (the value's shape, its pattern): a key matches
-# every number of the project, a domain every host under it, a server whole.
+# the prefix and any dash, or a number after at most one separator ("any such
+# string", owner 294d0522), a domain every host under it, a server whole.
 CUSTOMER_KINDS = {
     "key": (
         re.compile(r"^[A-Z][A-Z0-9]{1,19}$"),
-        r"(?<![A-Za-z0-9])%s-[0-9]+(?![A-Za-z0-9])",
+        r"(?<![A-Za-z0-9])%s(?:[-\u2010-\u2015\u2212]|[\s_:./]?[0-9])",
     ),
     "domain": (
         re.compile(r"^[a-z0-9-]+(?:\.[a-z0-9-]+)+$"),
@@ -156,6 +158,21 @@ def unescape(v):
             out.append(v[i])
             i += 1
     return "".join(out)
+
+
+def customer_text(v):
+    """v with a link's disguises undone: percent encoding (nested too), a
+    literal \\n or \\/, and a defanged dot."""
+    for _ in range(3):
+        plain = unquote(v)
+        if plain == v:
+            break
+        v = plain
+    return re.sub(r"\\[nrt/]", " ", re.sub(r"\[\.\]|\(\.\)|\\\.", ".", v))
+
+
+def customer_hit(rx, v):
+    return bool(rx.search(v) or rx.search(customer_text(v)))
 
 
 def customer_regex(lines):
@@ -233,7 +250,11 @@ class Gate:
         body skips the BODY_WORD_IDS ids."""
         out = [cls for cls, rx in PATTERNS if rx.search(v)]
         names = [rx for rx, word in self.names if not (body and word)]
-        cust = ["customer-string"] if self.customer and self.customer.search(v) else []
+        cust = (
+            ["customer-string"]
+            if self.customer and customer_hit(self.customer, v)
+            else []
+        )
         return (
             out
             + (["other-workspace"] if any(rx.search(v) for rx in names) else [])

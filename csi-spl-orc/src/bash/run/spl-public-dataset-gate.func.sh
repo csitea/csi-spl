@@ -115,13 +115,15 @@ spl_pd_gate_args() {
 }
 
 # spl_pd_gate_customer_list <out>: the overlay's customer_strings, one entry per
-# line (spec 091 5.5). No overlay, no section or no entry is FATAL: a gate
-# without the list proves nothing.
+# line (spec 091 5.5). No overlay, no section, no entry or one malformed line is
+# FATAL: a gate without the whole list proves nothing.
 spl_pd_gate_customer_list() {
   # shellcheck source=/dev/null
   source "$APP_PATH/csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh" || return 1
-  spl_private_list customer_strings >"$1" 2>/dev/null ||
-    { do_log "FATAL no private overlay: the gate needs its customer_strings (fail closed)"; return 1; }
+  local rc=0
+  spl_private_list_strict customer_strings >"$1" 2>/dev/null || rc=$?
+  (( rc != 2 )) || { do_log "FATAL a customer_strings line of the private overlay is not in the form '  - entry' (fail closed)"; return 1; }
+  (( rc == 0 )) || { do_log "FATAL no private overlay: the gate needs its customer_strings (fail closed)"; return 1; }
   [[ -s "$1" ]] || { do_log "FATAL the private overlay has no customer_strings entry (fail closed)"; return 1; }
 }
 

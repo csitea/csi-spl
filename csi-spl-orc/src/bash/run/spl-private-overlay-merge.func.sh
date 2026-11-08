@@ -30,7 +30,7 @@ do_spl_private_overlay_merge() {
   source "$APP_PATH/csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh" || return 1
   spl_private_require 2>/dev/null || { do_log "FATAL no private overlay here: nothing merged"; return 1; }
   local f sec n h
-  f="$(spl_private_cnf_path)"
+  f="$(readlink -f "$(spl_private_cnf_path)")"
   sec="$(spl_pom_section_name "$src")" || return 1
   n="$(yq -r ".$sec | length" "$src")"
   h="$(mktemp -d)" && chmod 700 "$h" || return 1
@@ -53,12 +53,14 @@ spl_pom_section_name() {
   sec="$(yq -r 'keys | .[0]' "$1" 2>/dev/null)"
   [[ "$sec" =~ ^[a-z_]+$ ]] || { do_log "FATAL the section name is not [a-z_]+: nothing merged" >&2; return 1; }
   case "$sec" in
+    customer_strings|customer_ignore|customer_channels) ;;
     workspaces|forms_only|orgs|deny) do_log "FATAL section $sec has its own owner (private-overlay.md section 2): nothing merged" >&2; return 1 ;;
+    *) do_log "FATAL section $sec is not one of the three customer sections ruled for this action: nothing merged" >&2; return 1 ;;
   esac
   [[ "$(yq -r ".$sec | tag" "$1" 2>/dev/null)" == '!!seq' && "$(yq -r ".$sec | length" "$1" 2>/dev/null)" -gt 0 &&
      "$(yq -r "[.${sec}[] | select(tag != \"!!str\" or . == \"\")] | length" "$1" 2>/dev/null)" == 0 ]] ||
     { do_log "FATAL section $sec is not a non-empty list of strings: nothing merged" >&2; return 1; }
-  bad="$(awk -v s="$sec:" '/^[[:space:]]*(#|$)/ { next } $0 == s && !h { h = 1; next } !/^  - [^[:space:]]/ { n++ } END { print n + 0 }' "$1")"
+  bad="$(awk -v s="$sec:" '/^[[:space:]]*(#|$)/ { next } $0 == s && !h { h = 1; next } !/^  - [^[:space:]]/ || /[[:space:]]#/ { n++ } END { print n + 0 }' "$1")"
   [[ "$bad" == 0 ]] || { do_log "FATAL $bad line(s) of the section file are not in the form '  - item': nothing merged" >&2; return 1; }
   printf '%s\n' "$sec"
 }

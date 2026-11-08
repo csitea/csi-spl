@@ -67,6 +67,17 @@ spl_private_list() {
   ' "$(spl_private_cnf_path)"
 }
 
+# spl_private_list_strict <section> -> spl_private_list, or rc 2 when a line of
+# the section is not '  - item' (spl_private_list drops such a line silently)
+spl_private_list_strict() {
+  spl_private_require || return 1
+  awk -v want="$1" '
+    /^[^[:space:]#]/ { sec = $0; sub(/:.*/, "", sec); next }
+    sec == want && !/^[[:space:]]*(#|$)/ && !/^  - [^[:space:]]/ { exit 2 }
+  ' "$(spl_private_cnf_path)" || return 2
+  spl_private_list "$1"
+}
+
 # spl_private_has_tokens <file> -> 0 when the file holds a placeholder
 spl_private_has_tokens() {
   grep -qE "(^|[^a-z0-9-])$SPL_PRIVATE_TOKEN_RE\b" "$1"

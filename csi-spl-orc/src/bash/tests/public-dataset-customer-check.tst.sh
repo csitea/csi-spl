@@ -52,6 +52,16 @@ printf 'customer_channels:\n  - wsa/chan-x\n' >"$T/o.yaml"; run nolist; [[ "$(ca
 printf 'customer_strings:\n  - key:QZX\n' >"$T/o.yaml"; run nochan; [[ "$(cat "$T/nochan.rc")" != 0 ]] && grep -q 'no customer_channels' "$T/nochan.log" && pass "4. no customer_channels is FATAL" || fail "4. no channels: $(cat "$T/nochan.log")"
 printf "customer_strings:\n  - key:QZX\ncustomer_channels:\n  - wsa/x');drop\n" >"$T/o.yaml"; run badc; [[ "$(cat "$T/badc.rc")" != 0 ]] && grep -q 'not <workspace>/<channel>' "$T/badc.log" && pass "4. a bad channel entry is FATAL" || fail "4. bad channel: $(cat "$T/badc.log")"
 
+ok_overlay
+for h in 'new1.example.net?x=1' 'new2.example.net#a' 'new3.example.net]' 'user@new4.example.net' 'New5.Example.NET' 'newserver'; do
+  printf 'host|%s\n' "$h" >"$T/rows"; run form
+  [[ "$(cat "$T/form.rc")" == 1 ]] && grep -q '1 host(s), 0 key' "$T/form.log" && pass "2b. a host in a URL form is read ($h)" || fail "2b. $h: $(cat "$T/form.log")"
+done
+ok_rows; run lim; grep -q 'a server name outside a URL is not detected' "$T/lim.log" && grep -q '2 read as no host' "$T/lim.log" && pass "2b. the OK line says what it does not prove" || fail "2b. lim: $(cat "$T/lim.log")"
+printf 'customer_strings:\n  - key:QZX\n    - key:LOST\ncustomer_channels:\n  - wsa/chan-x\n' >"$T/o.yaml"; run badl; [[ "$(cat "$T/badl.rc")" != 0 ]] && grep -q 'not in the form' "$T/badl.log" && pass "4. a malformed list line is FATAL" || fail "4. bad line: $(cat "$T/badl.log")"
+grep -q "'gi'" "$T/good.sql" && grep -q '@' "$T/good.sql" && pass "5. the host read ignores case and skips a user part" || fail "5. sql flags: $(cat "$T/good.sql")"
+ok_overlay; ok_rows
+
 mkdir -p "$T/mut"; cp "$PROJ_ROOT/src/bash/scripts/public-dataset-gate.py" "$T/mut/"
 sed 's/if not (cover.search(probe) or (ignore and ignore.search(probe))):/if False:/' "$PROJ_ROOT/src/bash/scripts/public-dataset-customer-check.py" >"$T/mut/c.py"
 cmp -s "$T/mut/c.py" "$PROJ_ROOT/src/bash/scripts/public-dataset-customer-check.py" && fail "6. the mutant was not built"

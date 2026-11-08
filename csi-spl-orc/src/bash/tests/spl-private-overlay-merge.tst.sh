@@ -55,10 +55,12 @@ ln -s "$T/sec.yaml" "$T/lnk.yaml"; refused "a symlink" lnk 'symlink' OVERLAY_SEC
 sec notyaml 'a: [\n'; refused "not YAML" ny 'exactly one top-level' OVERLAY_SECTION_FILE="$T/notyaml.yaml"
 sec two 'a_s:\n  - x\nb_s:\n  - y\n'; refused "two keys" two 'exactly one top-level' OVERLAY_SECTION_FILE="$T/two.yaml"
 for s in workspaces forms_only orgs deny; do sec "own-$s" "$s:\n  - x\n"; refused "owned section $s" "own-$s" 'has its own owner' OVERLAY_SECTION_FILE="$T/own-$s.yaml"; done
-sec map 'a_s:\n  k: v\n'; refused "a map" map 'not a non-empty list' OVERLAY_SECTION_FILE="$T/map.yaml"
-sec empty 'a_s: []\n'; refused "an empty list" empty 'not a non-empty list' OVERLAY_SECTION_FILE="$T/empty.yaml"
-sec nums 'a_s:\n  - 12\n'; refused "a non-string item" nums 'not a non-empty list' OVERLAY_SECTION_FILE="$T/nums.yaml"
-sec flow 'a_s: [x, y]\n'; refused "a flow list" flow "in the form" OVERLAY_SECTION_FILE="$T/flow.yaml"
+sec map 'customer_ignore:\n  k: v\n'; refused "a map" map 'not a non-empty list' OVERLAY_SECTION_FILE="$T/map.yaml"
+sec empty 'customer_ignore: []\n'; refused "an empty list" empty 'not a non-empty list' OVERLAY_SECTION_FILE="$T/empty.yaml"
+sec nums 'customer_ignore:\n  - 12\n'; refused "a non-string item" nums 'not a non-empty list' OVERLAY_SECTION_FILE="$T/nums.yaml"
+sec flow 'customer_ignore: [x, y]\n'; refused "a flow list" flow "in the form" OVERLAY_SECTION_FILE="$T/flow.yaml"
+sec unruled 'unruled_section:\n  - x\n'; refused "a section outside the ruling" unruled 'not one of the three' OVERLAY_SECTION_FILE="$T/unruled.yaml"
+sec cmt 'customer_ignore:\n  - key:OKK # note\n'; refused "an item with a trailing comment" cmt "in the form" OVERLAY_SECTION_FILE="$T/cmt.yaml"
 cp "$O" "$T/keep"; printf 'a: [\n' >"$O"; cp "$O" "$T/orig"; refused "an invalid overlay" badov 'not valid YAML'; cp "$T/keep" "$O"; cp "$O" "$T/orig"
 
 run dry
@@ -79,6 +81,9 @@ printf 'customer_strings:\n  - server:zz-planted1\n' >"$T/sec2.yaml"; run repl D
 r="$(SPL_PRIVATE_CNF="$O" bash -c 'source "$1/csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh"; spl_private_list customer_strings; spl_private_map' _ "$APP_ROOT" 2>&1 | paste -sd,)"
 [[ "$r" == $'server:zz-planted1,ws-hidden-01\tplant-slug' ]] && pass "5. the overlay's readers read the merged file" || fail "5. readers: $r"
 
+base; mv "$O" "$T/real.yaml"; ln -s "$T/real.yaml" "$O"; run vialn DRY_RUN=0
+[[ "$(cat "$T/vialn.rc")" == 0 && -L "$O" && "$(yq -r '.customer_strings | length' "$T/real.yaml")" == 2 ]] && pass "3. an overlay that is a symlink is written through, the link stays" || fail "3. symlink: $(cat "$T/vialn.log")"
+rm -f "$O" "$T"/real.yaml*
 base; cp "$O" "$T/orig"; MUT=1 refused "red control: a merge that eats another section is refused" mut 'would change another section'
 
 grep -lE 'QZX|planted-customer|zz-planted1|plant-slug|plant-word' "$T"/*.log >/dev/null && fail "7. a value reached the output" || pass "7. no section or overlay value in any output"

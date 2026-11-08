@@ -23,7 +23,8 @@ do_spl_public_dataset_customer_check() {
   # shellcheck disable=SC2064
   trap "rm -rf '$h'; trap - RETURN" RETURN
   spl_private_require 2>/dev/null || { do_log "FATAL no private overlay: the customer check needs it"; return 1; }
-  spl_private_list customer_strings >"$h/list" && spl_private_list customer_ignore >"$h/ignore" || return 1
+  spl_private_list_strict customer_strings >"$h/list" && spl_private_list_strict customer_ignore >"$h/ignore" ||
+    { do_log "FATAL a customer list line of the private overlay is not in the form '  - entry'"; return 1; }
   [[ -s "$h/list" ]] || { do_log "FATAL the private overlay has no customer_strings entry"; return 1; }
   where="$(spl_pd_cc_where)" || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
@@ -38,21 +39,23 @@ do_spl_public_dataset_customer_check() {
 
 # spl_pd_cc_where -> the SQL (tenant_id, channel) IN list of customer_channels.
 spl_pd_cc_where() {
-  local c w ch out=""
+  local c w ch out="" list
+  list="$(spl_private_list_strict customer_channels)" ||
+    { do_log "FATAL a customer_channels line of the private overlay is not in the form '  - entry'" >&2; return 1; }
+  [[ -n "$list" ]] || { do_log "FATAL the private overlay has no customer_channels entry" >&2; return 1; }
   while IFS= read -r c; do
     w="${c%%/*}"; ch="${c#*/}"
     [[ "$c" == */* && "$w" =~ ^[a-z0-9][a-z0-9-]*$ && "$ch" =~ ^[a-z0-9][a-z0-9_-]*$ ]] ||
       { do_log "FATAL a customer_channels entry is not <workspace>/<channel>" >&2; return 1; }
     out+="${out:+,}('$w','$ch')"
-  done < <(spl_private_list customer_channels)
-  [[ -n "$out" ]] || { do_log "FATAL the private overlay has no customer_channels entry" >&2; return 1; }
+  done <<<"$list"
   printf '%s\n' "$out"
 }
 
 # spl_pd_cc_sql <where>: one statement, the distinct hosts and key prefixes.
 spl_pd_cc_sql() {
   cat <<EOF_SQL
-SELECT 'host', lower((regexp_matches(body, 'https?://([^/[:space:]:)>"''|\`]+)', 'g'))[1]) FROM messages WHERE (tenant_id, channel) IN ($1)
+SELECT 'host', lower((regexp_matches(body, 'https?://(?:[^/[:space:]@]*@)?([^/[:space:]:)>"''|\`?#\]]+)', 'gi'))[1]) FROM messages WHERE (tenant_id, channel) IN ($1)
 UNION
 SELECT 'key', (regexp_matches(body, '\\m([A-Z][A-Z0-9]{1,9})-[0-9]+\\M', 'g'))[1] FROM messages WHERE (tenant_id, channel) IN ($1)
 EOF_SQL

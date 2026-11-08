@@ -246,16 +246,18 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
    be clean (§11 Q3: drop or fail).
 
    **Customer strings (owner HUM-10, csitea topic b996e0e5, msgs 294d0522 and bac75a85; SPL-5124).** The C4 scan also
-   matches the customer list, class `customer-string`: ticket-key prefixes (`key:`, every number of the project, any
-   case), domains (`domain:`, every host under it) and server names (`server:`, whole words). The list is the
+   matches the customer list, class `customer-string`: ticket-key prefixes (`key:`, the prefix and any dash whatever follows it, or a
+   number after at most one separator, any case), domains (`domain:`, every host under it) and server names (`server:`, whole words). The list is the
    `customer_strings` section of the private overlay (`csi-spl-doc/doc/md/private-overlay.md`), never in git; the
-   runner reads it from the overlay file written from the secret `SPL_PRIVATE_CNF_YAML`. A missing or empty section,
-   or one malformed line, fails the day. A body hit drops the message as above and counts against
+   runner reads it from the overlay file written from the secret `SPL_PRIVATE_CNF_YAML`. The scan also reads each value with
+   percent encoding, literal `\n` or `\/`, and defanged dots undone. A missing or empty section,
+   or one malformed line (the reader's form check, not only a bad entry), fails the day. A body hit drops the message as above and counts against
    `body_drop_cap_pct`; a hit anywhere else = FATAL. Output names the class and the row key, never the value (§5.6).
    A ban list proves only what it names, so `do_spl_public_dataset_customer_check` (read-only) reads the channels of
    the overlay's `customer_channels` for URL hosts and ticket prefixes and fails, with counts only, on one that is in
-   neither `customer_strings` nor `customer_ignore`. `do_spl_private_overlay_merge` writes one such section into the
-   overlay on its master box.
+   neither `customer_strings` nor `customer_ignore`; it does not detect a server name outside a URL, and its OK line
+   says so. `do_spl_private_overlay_merge` writes one of the three sections `customer_strings`, `customer_ignore`,
+   `customer_channels` into the overlay on its master box, and refuses any other.
 4. **Canaries (C5, CI)**: the CI fixture (§9.3) plants a unique marker string in each of: a second workspace with a
    channel of the SAME `channel_id` as a public one; a private channel; a DM; a reply in an archived task; an
    archived channel; a message revision; the `msg`, `env`, `env_sig` and `files` of a public message; the e-mail of

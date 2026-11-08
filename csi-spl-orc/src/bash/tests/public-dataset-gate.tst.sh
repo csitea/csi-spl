@@ -237,14 +237,22 @@ mk two 'body:9:P(email)' 'body:10:P(ipv4)'; gate two
 fatal "3. 2 of 100 bodies hit (2 %, above the 1 % cap) fails the day" two 'FATAL C4 messages 2 of 100 messages dropped (2.00%), above the 1.0% cap'
 
 # --- 3b. the customer list (invented values, spec 091 5.5) -----------------------------
-for p in 'see QZX-1234 today' 'ticket qzx-77 lowercase' 'at https://jira.sub.planted-customer.example.invalid/browse' 'on zz-planted1 now'; do
+for p in 'see QZX-1234 today' 'ticket qzx-77 lowercase' 'at https://jira.sub.planted-customer.example.invalid/browse' 'on zz-planted1 now' 'dangling QZX- here' 'word QZX-abc' 'mixed QZX-12a' 'link browse%2FQZX-12' 'encoded QZX%2D12' 'under QZX_12' 'space QZX 12' 'colon QZX:12' 'dot QZX.12' 'slash QZX/12' 'glued QZX12' 'url https%3A%2F%2Fplanted-customer%2Eexample%2Einvalid' 'defanged planted-customer[.]example[.]invalid'; do
   n="b-cust-$((++cust_i))"; mk "$n" "body:5:$p"; gate "$n"
   dropped "3b. a customer string in a body drops the message ($n)" "$n" customer-string 1
   grep -qiE 'qzx|planted-customer|zz-planted1' "$T/$n.log" "$T/$n.report.json" && fail "3b. $n: the value reached the output" || pass "3b. $n: the class and key only in the output"
 done
-mk c-word 'body:5:QZX alone, QZX-12a, notplanted-customer.example.invalid, zz-planted12'; gate c-word
+mk c-word 'body:5:QZX alone, QZX word, xQZX-12, notplanted-customer.example.invalid, zz-planted12'; gate c-word
 [[ "$(rc_of c-word)" == 0 && "$(jq -r .messages_dropped "$T/c-word.report.json")" == 0 ]] \
   && pass "3b. only a whole key, host or server matches" || fail "3b. edges: $(cat "$T/c-word.log")"
+python3 - "$CORE" <<'PY_PROBE' && pass "3b. a literal backslash-n and a unicode dash before a key number are seen" || fail "3b. a literal backslash-n or unicode dash form was missed"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("g", sys.argv[1]); g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
+rx, bad = g.customer_regex(["key:QZX"])
+if not g.customer_hit(rx, "dash QZX\u201312") or not g.customer_hit(rx, "nb QZX\u201112"):
+    sys.exit(1)
+sys.exit(0 if g.customer_hit(rx, "line one\\nQZX-12 x") and not rx.search("line one\\nQZX-12 x") else 1)
+PY_PROBE
 mk c-col 'set:channels:1:description:see QZX-1234'; gate c-col
 fatal "3b. a customer string outside a body is FATAL" c-col 'FATAL C4 channels channel_id=dev-talk: column description: customer-string hit'
 mk c-key 'set:channels:1:channel_id:zz-planted1' 'set:channels:1:name:zz-planted1'; gate c-key
@@ -262,8 +270,8 @@ done
 python3 - "$CORE" "$T/mutant.py" <<'MUT' || fail "3b. the red control could not build its mutant"
 import sys
 s = open(sys.argv[1]).read()
-assert s.count("self.customer.search(v)") == 1
-open(sys.argv[2], "w").write(s.replace("self.customer.search(v)", "False"))
+assert s.count("customer_hit(self.customer, v)") == 1
+open(sys.argv[2], "w").write(s.replace("customer_hit(self.customer, v)", "False"))
 MUT
 mk c-red 'body:5:see QZX-1234 today'; CORE_RUN="$T/mutant.py" gate c-red
 [[ "$(jq -r .messages_dropped "$T/c-red.report.json")" == 0 ]] \
@@ -488,6 +496,10 @@ cp "$T/m-two.sql" "$T/d-two1.sql"; act d-two1 "$EXPORT_DSN"
 cp "$FIX/clean.sql" "$T/d-nolist.sql"; OVERLAY="$T/overlay-none.yaml" act d-nolist "$EXPORT_DSN"
 [[ "$(cat "$T/d-nolist.act.rc")" == 1 && ! -e "$T/d-nolist.act.sql" ]] && grep -q 'no customer_strings entry' "$T/d-nolist.act.log" \
   && pass "13. an overlay with no customer_strings fails the action" || fail "13. no list: $(cat "$T/d-nolist.act.log")"
+printf 'customer_strings:\n  - key:QZX\n    - key:LOST\n' >"$T/overlay-bad.yaml"
+cp "$FIX/clean.sql" "$T/d-badl.sql"; OVERLAY="$T/overlay-bad.yaml" act d-badl "$EXPORT_DSN"
+[[ "$(cat "$T/d-badl.act.rc")" == 1 && ! -e "$T/d-badl.act.sql" ]] && grep -q 'not in the form' "$T/d-badl.act.log" \
+  && pass "13. one malformed customer_strings line fails the action" || fail "13. bad line: $(cat "$T/d-badl.act.log")"
 cp "$FIX/clean.sql" "$T/d-noover.sql"; OVERLAY="$T/no-such-overlay.yaml" act d-noover "$EXPORT_DSN"
 [[ "$(cat "$T/d-noover.act.rc")" == 1 ]] && grep -q 'no private overlay' "$T/d-noover.act.log" \
   && pass "13. no overlay at all fails the action" || fail "13. no overlay: $(cat "$T/d-noover.act.log")"

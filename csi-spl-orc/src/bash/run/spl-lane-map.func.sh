@@ -441,7 +441,8 @@ spl_lane_live_here() {
 }
 
 # The vendor kinds this box can start (spool_vendor_clis: the agent user's
-# `command -v` of each *_BIN), as a JSON array; null = could not measure.
+# `command -v` of each *_BIN, plus the login marker for codex and agy), as a
+# JSON array; null = could not measure.
 spl_lane_clis_here() {
   local out
   declare -F spool_vendor_clis >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"

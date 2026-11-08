@@ -91,16 +91,17 @@
 # @description         stays mistral (SPL-3954, owner msg 594d77e1: mistral may
 # @description         review UI work read-only); on a mistral author it is
 # @description         refused, handed back to the holder (SPL-3776)
-# @description      AGY OUT (SPL-3018): while agy is out of quota on this box
-# @description         (agy's banner in the watchdog's pane capture, or an S2
-# @description         kind=limit verdict on an a- lane), a row swapped to agy
+# @description      AGY OUT (SPL-3018): while agy is out on every box (this
+# @description         box: agy's banner in the watchdog's pane capture, or an
+# @description         S2 kind=limit verdict on an a- lane), a row swapped to agy
 # @description         HOLDS when it is a review (brief Kind: review, or
 # @description         "review" in its file name or first heading): queued, out
 # @description         of the line, the reset in .place.wait; any other such
 # @description         row launches claude. A row placed directly as agy:<slug>
 # @description         HOLDS too, review or not (SPL-3024): agy was picked on
 # @description         purpose, claude would change the vendor. Each box's agy
-# @description         is judged alone (SPL-5078): quota, or the program or its
+# @description         is judged alone (SPL-5078): quota (another box's only
+# @description         while its lane is live there), or the program or its
 # @description         login missing there (spool_vendor_clis). A row holds
 # @description         only while every box is out, the line naming each box
 # @description      AGY TARGET BOX (SPL-4020, SPL-5078): while any box's agy is
@@ -1017,9 +1018,10 @@ spl_spawn_place_agy_load() {
   fi
 }
 
-# Each box's agy, one "<box>\t<in|out>\t<why>" line (SPL-5078): quota is per
-# box, not one for the fleet as SPL-3998 read it (2026-11-04: every agy row
-# waited on a sat banner while a-122 and a-236 answered on the main box). The
+# Each box's agy, one "<box>\t<in|out>\t<why>" line (SPL-5078): judged per
+# box, not as one for the fleet as SPL-3998 read it (2026-11-04: every agy row
+# waited on a sat banner while a-122 and a-236 answered on the main box; which
+# login each box uses is not measured, so two boxes may still share one). The
 # boxes are this one and the lane map's live ones. This box is out on
 # spl_spawn_place_agy_out, another on its watchdog blocker
 # (spl_spawn_place_agy_boxes); either is out when measured without the agy
@@ -1030,9 +1032,9 @@ spl_spawn_place_agy_load() {
 spl_spawn_place_agy_state() {
   local outs load here clis box line
   declare -F spool_vendor_clis >/dev/null || source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
-  outs="$(spl_spawn_place_agy_boxes)"
   load="$(spl_spawn_place_agy_load)"
   [[ -n "$load" ]] || load='{}'
+  outs="$(spl_spawn_place_agy_boxes "$load")"
   here="$(spl_spawn_place_agy_out)"
   clis="$(spool_vendor_clis 2>/dev/null)" || clis="?"
   [[ "$clis" == "?" || ",$clis," == *,agy,* ]] || here="${here:-the agy program or its login is missing on $ASKS_BOX}"
@@ -1073,14 +1075,21 @@ spl_spawn_place_agy_recs() {  # SINCE NOW
 }
 
 # The other boxes whose agy login is on its limit (SPL-4020), one
-# "<box>\t<UTC> (<evidence>)" line per box, its latest reset. Every blocker
-# whose reset is ahead counts, live lane or not and whatever this box's
-# agy.ok says: a closed seat leaves its box's login on the limit, and a probe
-# here proves nothing about another box's login.
-spl_spawn_place_agy_boxes() {
-  local id box u m
+# "<box>\t<UTC> (<evidence>)" line per box, its latest reset. A blocker counts
+# while its reset is ahead and its lane is live on its box (SPL-5078, the
+# check SPL-3846 set; replaces SPL-4020's "live lane or not"): in that box's
+# busy_ids of LOAD, the lane map's JSON, read from its BOX-0 row. A banner from
+# a lane with no window proves nothing either way, and with agy.ok unwritten
+# nothing else would clear it before its reset. No load for that box, or only
+# its lane rows (src rows): liveness unknown, the blocker counts. A probe here
+# proves nothing about another box's login, so agy.ok is not read.
+spl_spawn_place_agy_boxes() {  # LOAD
+  local load="$1" id box u m
+  [[ -n "$load" ]] || load='{}'
   while IFS=$'\t' read -r id box u m; do
-    [[ -n "$id" ]] && printf '%s\t%s\t%s (%s@%s S2 kind=limit, its watchdog'"'"'s blocker %s)\n' \
+    [[ -n "$id" ]] || continue
+    jq -e --arg b "$box" --arg i "$id" 'any(.load[]?; .box == $b and .src != "rows" and ((.busy_ids // []) | index($i) == null))' <<<"$load" >/dev/null 2>&1 && continue
+    printf '%s\t%s\t%s (%s@%s S2 kind=limit, its watchdog'"'"'s blocker %s)\n' \
       "$box" "$u" "$(date -u -d "@$u" +%FT%TZ)" "$id" "$box" "$m"
   done <<<"$(spl_spawn_place_agy_recs 0 "$(date +%s)")" | sort -t $'\t' -k1,1 -k2,2nr | awk -F'\t' '!s[$1]++ { print $1 "\t" $3 }'
 }
@@ -1193,10 +1202,15 @@ spl_spawn_place_pin_hold() {  # MARKED ROWS
 # goes to a box that is in and not full (spl_spawn_place_pin_full), this box
 # first; else it HOLDS, queued, out of this tick's line, the why in .place.wait. Target in:
 # the row carries it as _b, the launch's SPAWN_BOX, so the launch goes where
-# it was judged. Prints ROWS minus the held ones.
+# it was judged. With no row placed as agy or mistral it returns before the
+# state, which runs the lane map (10.6 s on sat, n=1, on a 1-min cron).
+# Prints ROWS minus the held ones.
 spl_spawn_place_agy_box_hold() {  # MARKED ROWS
   local st outs alt id vendor slug brief pin box pout="" lout="" why full held=() to='{}'
   local rx="^(agy on [a-z0-9-]+ is at its quota limit until |agy is out of quota until |the agy program or its login is missing on )"
+  jq -e 'any(.[]; .state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))' <<<"$1" >/dev/null 2>&1 || {
+    spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0
+  }
   st="$(spl_spawn_place_agy_state)"
   outs="$(awk -F'\t' '$2 == "out"' <<<"$st")"
   [[ -n "$outs" ]] || { spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0; }

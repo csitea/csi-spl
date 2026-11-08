@@ -525,12 +525,14 @@ spool_agy_auth_marker() { printf '%s' "${SPOOL_AGY_AUTH_MARKER:-.gemini/antigrav
 # The vendor kinds THIS box can start (SPL-1649): one comma-separated line of
 # claude grok agy qwen mistral codex, each whose *_BIN `command -v` finds as the
 # agent user in its login shell - the way spool-harness.sh execs it, so a CLI
-# only the box user has does not count. "" = measured, none. Exit 1 = the hop
+# only the box user has does not count; codex and agy also need their login
+# marker. "" = measured, none. Exit 1 = the hop
 # to the agent user failed: unknown, never "none". Before it, a lane placed on
 # a box without agy ended in `agent command 'agy' not found` and three
 # watchdog restarts. SPOOL_VENDOR_CLIS_CMD replaces the probe (tests). Read by
-# spawn-window.sh (placement) and the lane map's BOX-0 load row (cli=), which
-# tells the other boxes.
+# spawn-window.sh (placement), do_spl_box_pick, gc-session.sh (without the
+# vendor, its fallback), the placer's agy hold and the lane map's BOX-0 load
+# row (cli=), which tells the other boxes.
 spool_vendor_clis() {
   if [ -n "${SPOOL_VENDOR_CLIS_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose

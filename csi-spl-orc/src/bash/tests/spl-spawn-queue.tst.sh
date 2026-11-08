@@ -65,13 +65,14 @@
 #      dead a- id hold nothing (CONTROL: a live id's still hold; no fresh
 #      report = liveness unknown, they hold); an answered agy probe newer
 #      than the S2 drops it (CONTROL: a probe older than it does not)
-#  13b3. SPL-3998: the other box's watchdog blocker (S2 kind=limit on a live
-#      a- lane there) holds (CONTROLS: no lane map or rows only = unknown,
-#      holds; a dead remote lane, a blocker older than agy.ok, past its
-#      reset, or from this box hold nothing)
+#  13b3. SPL-3998/SPL-5078: the other box's watchdog blocker (S2 kind=limit
+#      on a live a- lane there) puts that box out, and a row waits only with
+#      every box out (CONTROLS: the other box alone is not out everywhere; a
+#      dead remote lane or a blocker past its reset leaves that box in; no
+#      lane map or rows only = unknown, the blocker counts)
 #  13b4. SPL-4020: an agy row is judged against the box it launches on: the
-#      pick names sat, sat's watchdog blocker (its lane closed, so SPL-3998
-#      holds nothing) -> launched on this box (SPAWN_BOX), and HOLDS with the
+#      pick names sat, sat's watchdog blocker (its lane live there, SPL-5078)
+#      -> launched on this box (SPAWN_BOX), and HOLDS with the
 #      reset when this box is full or the row is pinned to sat (CONTROLS: the
 #      pick names this box -> launched here; no blocker -> as before, no
 #      SPAWN_BOX)
@@ -1009,6 +1010,12 @@ printf '⚠ Individual quota reached. Please upgrade your subscription to increa
 out="$(agyr "$(load '["a-958"]')")"
 grep -q "^agy is out of quota until .*(a-860 banner.*; agy on sat is at its quota limit until $(date -u -d "@$(( NOW + 155 * 3600 ))" +%FT%TZ) (a-958@sat S2 kind=limit" <<<"$out" &&
   pass "SPL-3998/SPL-5078: both boxes out: out everywhere, each box's why named" || fail "both out: $out"
+out="$(agyr "$(load '["c-394"]')")"
+[[ -z "$out" ]] && pass "SPL-5078: this box out, the other box's only blocker from a dead lane: that box is in, not out everywhere" || fail "dead lane: $out"
+out="$(agyr "$(load '["c-394"]' rows)")"
+grep -q "agy on sat is at its quota limit until" <<<"$out" && pass "SPL-5078 control: rows only = liveness unknown: the blocker counts, out everywhere" || fail "rows only: $out"
+out="$(agyr "")"
+grep -q "agy on sat is at its quota limit until" <<<"$out" && pass "SPL-5078 control: no lane map = liveness unknown: the blocker counts, out everywhere" || fail "no load: $out"
 rm -f "$WDM"/*; wdmsg a-958 sat $(( NOW - 60 )) $(( NOW - 600 ))
 out="$(agyr "$(load '["a-958"]')")"
 [[ -z "$out" ]] && pass "SPL-5078 control: this box out, the other box's blocker past its reset: the other box is in" || fail "remote past: $out"
@@ -1018,7 +1025,8 @@ rm -rf "$WDM" "$T/pc/spool/dispatch/vendor-probe" "$T/pc/spool/dispatch/wd/ctx.3
 # launched ask 0224b02b as a-097 onto the main box, whose agy seats had all
 # shown "Individual quota reached" (reset 11-03) and been closed: the
 # SPL-3998 hold reads live lanes only, so nothing held, and the box pick took
-# the main box. Here the pick names sat, sat's blocker is for a closed a-958.
+# the main box. Here the pick names sat, sat's blocker is for a live a-958: a
+# closed lane's blocker no longer counts (SPL-5078, 13b3).
 B1=bbbb0041-0000-4000-8000-000000000041; B2=bbbb0042-0000-4000-8000-000000000042
 mkdir -p "$WDM"; wdmsg a-958 sat $(( NOW + 155 * 3600 )) $(( NOW - 60 ))
 RESET13=$(date -u -d "@$(( NOW + 155 * 3600 ))" +%FT%TZ)
@@ -1026,13 +1034,13 @@ printf 'Kind: specs_and_docs\nReview csi-spl-doc/doc/md/agy-target.md\n%s\n' "$E
 put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy target"
 on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-target >/dev/null 2>&1
 DESK_FULL="BOX box-desk  load5 28.8  cpus 16  180%  full  band 50..85 (box)"
-agyp() { on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON="$(load '["c-394"]')" "$@" 2>&1; }
+agyp() { on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON="$(load '["a-958","c-394"]')" "$@" 2>&1; }
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(agyp "PICK=sat reason=below its low mark" "PICK_BOXES=$DESK_FULL")"
 [[ "$(jq -r .state <<<"$(hubrow "$B1")")" == queued && ! -s "$T/launch.log" && ! -e "$T/pc/spool/asks/.place.last" ]] &&
   grep -q "INFO hold: ask ${B1:0:8}: agy on sat is at its quota limit until $RESET13 (a-958@sat S2 kind=limit, its watchdog's blocker 330da055), and box box-desk at 180% is past its overflow mark" <<<"$out" &&
   [[ "$(grep "^$B1"$'\t' "$T/pc/spool/asks/.place.wait" | cut -f3)" == "agy on sat is at its quota limit until $RESET13 "* ]] &&
-  pass "13b4. SPL-4020: the pick names sat, sat's agy on its limit (lane closed), this box full: HOLD, queued, the reset in .place.wait" ||
+  pass "13b4. SPL-4020: the pick names sat, sat's agy on its limit (lane live), this box full: HOLD, queued, the reset in .place.wait" ||
   fail "13b4. target out, here full: $out | $(hubrow "$B1") | $(cat "$T/launch.log")"
 out="$(agyp "PICK=sat reason=below its low mark" LAUNCH_ID=a-541)"
 [[ "$(jq -r .reason <<<"$(hubrow "$B1")")" == "placed: a-541@box-desk" ]] &&
@@ -1074,7 +1082,7 @@ rm -rf "$WDM"
 # 13b5. SPL-5078: an agy hold names its box. On 2026-11-04 every agy row waited
 # on a banner of one box while agy answered on the other; on 2026-11-06 one box
 # lost the agy program and its login, and a launch there would fail and retry.
-loadc() { printf '{"hub":"ok","load":[{"box":"sat","here":false,"live":true,"busy_ids":[],"clis":%s,"src":"box"}]}' "$1"; }
+loadc() { printf '{"hub":"ok","load":[{"box":"sat","here":false,"live":true,"busy_ids":["a-958"],"clis":%s,"src":"box"}]}' "$1"; }
 C1=bbbb0051-0000-4000-8000-000000000051
 printf 'Kind: specs_and_docs\nReview csi-spl-doc/doc/md/agy-box.md\n%s\n' "$ES" >"$T/briefs/agy-box.md"
 agyb() { on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/load" "$@" 2>&1; }
@@ -1113,6 +1121,26 @@ out="$(agyb LOAD_JSON="$(loadc '["claude","agy"]')" "PICK=sat reason=below its l
   grep -qx "agy auto $T $T/briefs/agy-box.md agy-box" "$T/launch.log" &&
   pass "13b5. SPL-5078 control: no banner, agy measured on every box: placed as before" ||
   fail "13b5. all in: $out | $(cat "$T/launch.log")"
+# W2: no row placed as agy or mistral = no lane map this tick, by count.
+printf '#!/usr/bin/env bash\necho x >>"$LOAD_COUNT"\nprintf "%%s\\n" "${LOAD_JSON:-}"\n' >"$T/bin/loadn"; chmod +x "$T/bin/loadn"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$C1" --by c-001@box-desk --reason "next case" >/dev/null 2>&1
+printf 'Kind: simple_coding\nFix a line\n%s\n' "$ES" >"$T/briefs/no-agy.md"
+D1=bbbb0061-0000-4000-8000-000000000061
+put "$D1" c-002@box-desk dispatch-placer-no-agy "SPAWN REQUEST no agy"
+on pc do_spl_spawn_enqueue ASK_ID="$D1" SPAWN_CLASS=bug SPAWN_PLACE=claude:no-agy >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last" "$T/loadn.count"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/loadn" LOAD_COUNT="$T/loadn.count" LOAD_JSON="" "PICK=box-desk reason=below its low mark" LAUNCH_ID=c-561 2>&1)"
+[[ ! -e "$T/loadn.count" && "$(jq -r .reason <<<"$(hubrow "$D1")")" == "placed: c-561@box-desk" ]] &&
+  pass "SPL-5078: no row placed as agy or mistral: the row launches and the lane map is not called" ||
+  fail "no agy row: count $(wc -l <"$T/loadn.count" 2>/dev/null) | $out | $(hubrow "$D1")"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$D1" --by c-001@box-desk --reason "next case" >/dev/null 2>&1
+D2=bbbb0062-0000-4000-8000-000000000062
+put "$D2" c-002@box-desk dispatch-placer-agy-count "SPAWN REQUEST agy count"
+on pc do_spl_spawn_enqueue ASK_ID="$D2" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-box >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last" "$T/loadn.count"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/loadn" LOAD_COUNT="$T/loadn.count" LOAD_JSON="" "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-562 2>&1)"
+[[ -s "$T/loadn.count" ]] && pass "SPL-5078 control: a row placed as agy: the lane map is called" || fail "agy row, no lane map: $out | $(hubrow "$D2")"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$D2" --by c-001@box-desk --reason "next case" >/dev/null 2>&1
 # The login half of the program-or-login hold, on the real spool_vendor_clis.
 clis5078() { env -u SPOOL_VENDOR_CLIS_CMD HOME="$T/agyhome" SPOOL_AGENT_USER=x SPOOL_AGY_AUTH_MARKER=.agy-login AGY_BIN=true bash -c '
   source "'"$PROJ_ROOT"'/src/bash/features/spawn-agents/lib/spool-env.inc.sh"

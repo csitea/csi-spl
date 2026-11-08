@@ -235,7 +235,15 @@ the other. `spl_spawn_place_agy_state` lists each box in or out: this box by
 `spl_spawn_place_agy_out`, another by its watchdog blocker, and either when
 measured without the agy program or its login (`spool_vendor_clis`, which
 counts agy only with its login marker, as it does codex; so `spawn-window.sh`
-and `do_spl_box_pick` also leave such a box out). A row holds only while every
+and `do_spl_box_pick` also leave such a box out, `gc-session.sh` takes its
+fallback vendor there, and the lane map's `clis` drops agy for that box). Which
+login each box uses is not measured: the judgement is per box, and two boxes
+may still share one. Another box's blocker counts only while its lane is live
+there (in that box's `busy_ids`; no load or rows only: unknown, it counts),
+because a banner from a lane with no window proves nothing either way; this
+replaces SPL-4020's "live lane or not" below. `spl_lane_rotate_limit` now sees
+this box's agy only. With no row placed as agy or mistral the placer skips this
+judgement, so a tick runs no lane map for it. A row holds only while every
 box is out, and the hold line names each box's reason; otherwise it launches on
 a box that is in. `dispatch/vendor-probe/agy.ok` has no writer on the tree
 (`git grep` finds only its readers and tests), so no probe clears a record

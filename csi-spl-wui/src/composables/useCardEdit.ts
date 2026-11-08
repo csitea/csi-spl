@@ -113,18 +113,15 @@ export function useCardEdit(
   }
 
   const box = { edit, editing, saving, editHintId, draft, editMp, startEdit, closeEdit }
-  return { ...box, ...useEditKeys(props, emit, editEl, editError, msgEdit, box) }
+  return { ...box, ...useEditKeys({ props, emit, editEl, editError, msgEdit }, box) }
 }
 
 /** The edit box's keys and its one await: Enter saves, Esc cancels. */
 function useEditKeys(
-  props: { msg: SpoolMessage },
-  emit: (e: 'edited', msg: SpoolMessage) => void,
-  editEl: Ref<HTMLTextAreaElement | null>,
-  editError: Ref<string>,
-  msgEdit: MsgEdit,
+  card: { props: { msg: SpoolMessage }, emit: (e: 'edited', msg: SpoolMessage) => void, editEl: Ref<HTMLTextAreaElement | null>, editError: Ref<string>, msgEdit: MsgEdit },
   box: { edit: Ref<ReturnType<typeof beginEdit>>, saving: Ref<boolean>, draft: Ref<string>, editMp: ReturnType<typeof useMentionPicker>, closeEdit: () => void },
 ) {
+  const { props, emit, editEl, editError, msgEdit } = card
   const { edit, saving, draft, editMp, closeEdit } = box
   const { commit } = msgEdit
   const { poke } = useMentionPoke()

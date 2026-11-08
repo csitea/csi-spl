@@ -66,6 +66,7 @@
 # @param ROTATE_LANE_ACK_TIMEOUT / ROTATE_LANE_EXIT_WAIT (optional) - seconds, default 600 / 120
 # @param ROTATE_LANE_TMUX_TIMEOUT (optional) - seconds each tmux call of RETIRE may take, default 15 (0 = no bound)
 # @param ROTATE_LANE_LIMIT_PROOF (optional) - seconds a seat started after a recorded limit dialog must run clean to lift it, default 300
+# @param ROTATE_LANE_RUN_PROC (optional) - the proc root the run files are checked against, default /proc
 # @param ROTATE_LANE_GATE_MAX_AGE (optional) - seconds a gate may run before the deadline cuts it anyway, default 7200
 # @param ROTATE_LANE_GATE_RE (optional) - the gate commands the deadline waits for, default do_check_pre_push and git push
 # @example ./run -a do_spl_lane_rotate
@@ -140,6 +141,7 @@ spl_lane_rotate_tick() {
   local -A LR_LIMIT=()
   scan="$(spl_lane_rotate_scan)"
   LR_SCAN="$scan"
+  spl_lane_rotate_run_sweep
   LR_ROLE_ROT="$(spl_lane_rotate_role_inflight)"
   LR_ROLES=" $(spl_lane_rotate_role_ids | tr '\n' ' ') " LR_INFLIGHT=" $(spl_lane_rotate_inflight | tr '\n' ' ') "
   LR_SLOTS=$(( ROTATE_LANE_CAP - $(wc -w <<<"$LR_INFLIGHT") )) LR_K=0 LR_STARTED=0 LR_STARTED_IDS=" " LR_DEFER=0 LR_LOGIN="" LR_LOGIN_HELD=""
@@ -388,14 +390,67 @@ spl_lane_rotate_holder_to() {
   echo "$h"
 }
 
-# The ids whose worker runs now (<lane dir>/run.<id> names a live pid).
+# 0 when run file $1 names its worker, alive: "<pid> <start time>" as
+# spl_lane_rotate_run_record wrote them. A pid alone proves nothing: a pid is
+# reused, and three run files of retired lanes on chrome and npm pids held
+# every slot of a box (SPL-5076). A process's start time survives its exec.
+spl_lane_rotate_run_live() {
+  local p="" s="" root="${ROTATE_LANE_RUN_PROC:-/proc}"
+  [[ -s "$1" ]] || return 1
+  read -r p s _ < "$1" || true
+  [[ "$p" =~ ^[0-9]+$ && "$s" =~ ^[0-9]+$ && -r "$root/$p/stat" ]] || return 1
+  [[ "$(LEASE_PROC_ROOT="$root" spl_rotate_start "$p")" == "$s" ]]
+}
+
+# spl_lane_rotate_run_record ID PID: the run file of ID's worker, replaced in
+# one step so the tick never reads half of it. Nothing when PID is gone.
+spl_lane_rotate_run_record() {
+  local s tmp="$ROTATE_LANE_DIR/.run.$1.$2" root="${ROTATE_LANE_RUN_PROC:-/proc}"
+  s="$(LEASE_PROC_ROOT="$root" spl_rotate_start "$2")"
+  [[ -n "$s" ]] || return 0
+  { echo "$2 $s" > "$tmp" && mv -f "$tmp" "$ROTATE_LANE_DIR/run.$1"; } 2>/dev/null || true
+}
+
+# spl_lane_rotate_run_mine ID: this worker records itself and drops the file
+# on exit, ahead of the EXIT trap ./run set (it waits for the log tees).
+spl_lane_rotate_run_mine() {
+  local prev me="$BASHPID"
+  spl_lane_rotate_run_record "$1" "$me"
+  prev="$(trap -p EXIT)"; prev="${prev#"trap -- '"}"; prev="${prev%"' EXIT"}"
+  # shellcheck disable=SC2064 # the id and the pid are this worker's, now
+  trap "spl_lane_rotate_run_drop '$1' '$me'; $prev" EXIT
+}
+
+# spl_lane_rotate_run_drop ID PID: remove ID's run file while it still names PID.
+spl_lane_rotate_run_drop() {
+  local f="$ROTATE_LANE_DIR/run.$1" p=""
+  read -r p _ < "$f" 2>/dev/null || true
+  [[ "$p" != "$2" ]] || rm -f "$f" 2>/dev/null || true
+}
+
+# The ids whose worker runs now: an exact run.<agent id> name (run.<id>.stale-*
+# is no run file), spl_lane_rotate_run_live.
 spl_lane_rotate_inflight() {
-  local f p
+  local f id
   for f in "$ROTATE_LANE_DIR"/run.*; do
-    [[ -s "$f" ]] || continue
-    read -r p < "$f" || true
-    [[ "$p" =~ ^[0-9]+$ ]] && kill -0 "$p" 2>/dev/null && echo "${f##*/run.}"
+    id="${f##*/run.}"
+    spl_is_agent_id "$id" || continue
+    if spl_lane_rotate_run_live "$f"; then echo "$id"; fi
   done
+  return 0
+}
+
+# Remove the run files whose worker is gone (a killed worker never drops its
+# own); any other name under run.* is left alone. Not on a dry run.
+spl_lane_rotate_run_sweep() {
+  local f id n=0
+  [[ "${DRY_RUN:-1}" != 1 ]] || return 0
+  for f in "$ROTATE_LANE_DIR"/run.*; do
+    id="${f##*/run.}"
+    [[ -e "$f" ]] && spl_is_agent_id "$id" || continue
+    if ! spl_lane_rotate_run_live "$f"; then rm -f "$f" 2>/dev/null || true; n=$((n + 1)); fi
+  done
+  (( n == 0 )) || echo "lane-rotate: swept $n stale run file(s)"
   return 0
 }
 
@@ -627,7 +682,7 @@ spl_lane_rotate_start() {
   [[ -n "${ROTATE_LANE_WORKER:-}" ]] && worker=("$ROTATE_LANE_WORKER")
   env ROTATE_CMD=one DRY_RUN=0 ID="$id" LANE_ROTATE_KIND="$2" LANE_ROTATE_PID="$3" LANE_ROTATE_FORCED="$4" LANE_ROTATE_WHY="$5" \
     setsid "${worker[@]}" >> "$out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&- &
-  echo "$!" > "$ROTATE_LANE_DIR/run.$id"
+  spl_lane_rotate_run_record "$id" "$!"
   return 0
 }
 
@@ -636,7 +691,7 @@ spl_lane_rotate_one() {
   local id="${ID:-}" rid pid age pane idl=0 why
   spl_lane_rotate_seat "$id" || return 1
   [[ "${DRY_RUN:-1}" == 1 ]] && { spl_rotate_log "lane-$id" GATE SKIP "DRY_RUN=1: no rotation"; return 0; }
-  echo "$BASHPID" > "$ROTATE_LANE_DIR/run.$id" 2>/dev/null || true
+  spl_lane_rotate_run_mine "$id"
   rid="$(date -u +%Y%m%dT%H%MZ)-lane-$id"
   spl_agent_id_lock "$id" do_spl_lane_rotate "$rid" || idl=$?
   (( idl == 0 )) || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return 0; }

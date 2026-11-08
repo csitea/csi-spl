@@ -76,6 +76,11 @@
 #      c-294's live gate is a grandchild, so a first-match BFS meets the hung
 #      push first (red control deterministic).
 #      Red control (origin/master 599a1d393 + this case): rotated mid-gate.
+#  30. SPL-5076: a run file counts only as the exact run.<id> of its own live
+#      worker (pid + /proc start time, ROTATE_LANE_RUN_PROC is the fake root):
+#      a reused pid, a pid-only file and a suffixed name count 0; a dead one
+#      is swept (not on a dry run); a worker drops its own file on exit; 3
+#      stale files leave the slots to a 4th lane. Red control: origin/master.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -308,7 +313,7 @@ check "5. cap 3: 3 workers of 5" '[ "$(n "$T/worker.log")" = 3 ] && [ "$(n "$T/t
 ROTATE_LANE_SYNC=0 ROTATE_LANE_WORKER="$T/bin/worker" tick
 sleep 1
 check "5. next tick while 3 run: 0 more" '[ "$(n "$T/worker.log")" = 3 ]'
-cat "$D/lane-rotate/run."* >"$T/sleepers" 2>/dev/null; xargs -r kill <"$T/sleepers" 2>/dev/null; : >"$T/sleepers"
+cut -d' ' -f1 "$D/lane-rotate/run."* >"$T/sleepers" 2>/dev/null; xargs -r kill <"$T/sleepers" 2>/dev/null; : >"$T/sleepers"
 
 # --- 6. a dead login --------------------------------------------------------------
 reset; lane c-961 70
@@ -722,6 +727,52 @@ reset; lane c-296 70
 tick
 check "29. a gate past the cap with a younger subshell of its own: rotated, the handoff names it" 'grep -q "lane-c-296 DONE OK" "$D/rotate.log" && grep -q "deadline while: running .bash ./run -a do_check_pre_push . (gate past ROTATE_LANE_GATE_MAX_AGE, 121 min" "$D/handoff/"*-lane-c-296.md'
 check "29. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+
+# --- 30. a run file counts only while it is its own worker (SPL-5076) ------------
+# inflight <proc root>: the ids the tick would count
+inflight() {
+  ROTATE_LANE_RUN_PROC="$1" bash -c 'do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
+    spl_rotate_conf && spl_lane_rotate_conf && spl_lane_rotate_inflight'
+}
+# runproc <pid> <start ticks> [comm]: a process in the fake root of the run
+# files; the stale ones name $$, alive for kill -0, so a pid check alone counts them
+runproc() { mkdir -p "$T/rp/$1"; echo "$1 (${3:-bash}) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $2" >"$T/rp/$1/stat"; }
+L="$D/lane-rotate"
+reset; rm -rf "$T/rp"; mkdir -p "$L" "$T/rp"
+runproc $$ 500 chrome; echo "$$ 111" >"$L/run.c-301"
+check "30a. a live pid that is another process: not in flight" '[ -z "$(inflight "$T/rp")" ]'
+runproc 7002 222; echo "7002 222" >"$L/run.c-302"
+check "30b. its own live worker: in flight" '[ "$(inflight "$T/rp")" = c-302 ]'
+echo "7003 333" >"$L/run.c-303"
+check "30c. a dead pid: not in flight" '[ "$(inflight "$T/rp")" = c-302 ]'
+echo "$$ 500" >"$L/run.c-304.stale-1762300000"
+check "30e. a suffixed name on a live pid: counts 0" '[ "$(inflight "$T/rp")" = c-302 ]'
+echo "$$" >"$L/run.c-305"
+check "30f. a pid-only file on a live non-rotate pid: counts 0" '[ "$(inflight "$T/rp")" = c-302 ]'
+ROTATE_LANE_RUN_PROC="$T/rp" DRY=1 tick
+check "30g. a dry run deletes nothing" '[ -f "$L/run.c-303" ] && [ -f "$L/run.c-301" ]'
+ROTATE_LANE_RUN_PROC="$T/rp" tick
+check "30c. the sweep removes the stale files" '[ ! -e "$L/run.c-303" ] && [ ! -e "$L/run.c-301" ] && [ ! -e "$L/run.c-305" ]'
+check "30b. the sweep keeps a live worker file" '[ -f "$L/run.c-302" ]'
+check "30e. the sweep leaves a suffixed name alone" '[ -f "$L/run.c-304.stale-1762300000" ]'
+check "30. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# d: stale files (pid-only as on the box, suffixed, a reused pid) leave the cap of 3 free
+reset; rm -rf "$T/rp"; mkdir -p "$L" "$T/rp"
+runproc $$ 900 chrome; echo "$$" >"$L/run.c-311"; echo "$$" >"$L/run.c-312"
+echo "$$" >"$L/run.c-313.stale-1762300000"; echo "$$ 1" >"$L/run.c-316"
+lane c-314 70
+ROTATE_LANE_RUN_PROC="$T/rp" tick
+check "30d. 3 stale files: a 4th lane rotates" 'grep -q "lane-c-314 DONE OK" "$D/rotate.log" && ! grep -q "DEFER cap" "$T/tick.out"'
+check "30h. the worker removed its own run file" '[ ! -e "$L/run.c-314" ]'
+# a started worker on the real /proc: recorded as pid + start time, counted
+reset; lane c-315 70
+ROTATE_LANE_SYNC=0 ROTATE_LANE_WORKER="$T/bin/worker" tick
+sleep 1
+read -r wp ws <"$L/run.c-315"
+check "30i. a started worker records its pid and /proc start time" '[ -n "$ws" ] && [ "$ws" = "$(sed "s/^.*) //" "/proc/$wp/stat" | cut -d" " -f20)" ]'
+check "30i. the started worker is in flight" '[ "$(inflight /proc)" = c-315 ]'
+kill "$wp" 2>/dev/null
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

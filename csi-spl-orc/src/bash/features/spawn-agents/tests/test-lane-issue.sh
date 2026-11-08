@@ -437,4 +437,45 @@ accepted c-082; echo ZED-1 >"$SPOOL_ROOT/c-082/lifetime/issue"; printf 'zed\tdev
 wsgate "$T_SCRIPTS" c-082 "done"
 eq "W5 a workspace with no map row on this box: refused" 3 "$RC"
 has "W5 ... naming the map" "lives in workspace zed, which has no valid row in $SPOOL_ROOT/workspace-repos.tsv" "$(cat "$T_TMP/e")"
+
+# ---- X. the brief's discussion: its Discussion: line, never a relay hash ------
+# SPL-5099: a reviewer brief's `Topic: <author task>` is a relay hash (a
+# version-5 uuid); it won over the Discussion: line below it, so every rotation
+# blanked the lane's discussion.
+V4=7582fd3c-e334-4fd3-886e-25a6d6059edc; V4B=62d5b922-1f3a-4c11-9a77-0c4e8f2b6d10
+V5=330acf9f-9d2c-5e9f-8a11-4b7d2e90c6f3
+disc() {  # NAME BODY: the brief's discussion in DISC, the rc in RC
+  printf '%b' "$2" >"$T_TMP/disc-$1.md"
+  DISC="$(bash -c 'do_log() { :; }; . "$1"; li_discussion_from_brief "$2"' _ "$T_FEAT/lib/lane-issue.inc.sh" "$T_TMP/disc-$1.md" 2>/dev/null)"; RC=$?
+}
+disc x1 "# b\nTopic: $V5\nDiscussion: $V4\n"
+eq "X1 Topic: <v5> above Discussion: <v4> -> the v4" "$V4" "$DISC"
+disc x2 "# b\nTopic: $V5\nDiscussion: t1 #refactoring $V4 (HUM-10)\n"
+eq "X2 ... words before the uuid on the Discussion: line" "$V4" "$DISC"
+disc x3 "# b\nTopic: $V5\n"
+eq "X3 only Topic: <v5> -> nothing" "" "$DISC"
+eq "X3 ... rc 1" 1 "$RC"
+disc x4 "# b\nTopic: $V4B\nDiscussion: $V4\n"
+eq "X4 a Discussion: line beats a real Topic: above it" "$V4" "$DISC"
+disc x5 "# b\nDiscussion: task dispatch-r49\nTopic: $V4\n"
+eq "X5 a Discussion: line with no id falls through to Topic:" "$V4" "$DISC"
+disc x6 "# b\nTopic: $V5\nSee /t/$V4 for it.\n"
+eq "X6 a v5 Topic: is skipped, the /t/ link after it is read" "$V4" "$DISC"
+disc x7 "# b\nTopic: $V5\nReport on dispatch-1be0e370.\n"
+eq "X7 a v5 Topic: is skipped, dispatch-<topic8> is read" 1be0e370 "$DISC"
+disc x8 "# b\nTopic: $V4B\nDiscussion: 7582fd3c (t1)\n"
+eq "X8 the short id on a Discussion: line" 7582fd3c "$DISC"
+disc x9 "# b\nDiscussion: $V5\n"
+eq "X9 a v5 on the Discussion: line -> nothing" "" "$DISC"
+disc x10 "# b\nDiscussion: t1 (owner msg 1f5e074b)\n"
+eq "X10 a message id on a Discussion: line is no discussion" "" "$DISC"
+disc x11 "# b\nTopic: $V5\n- **Discussion:** \`$V4\`\n"
+eq "X11 a bold, listed Discussion: line" "$V4" "$DISC"
+disc x12 "# b\nTopic: $V4\n"
+eq "X12 a real Topic: still reads" "$V4" "$DISC"
+disc x13 "# b\nSpool uuid $V4, no topic named.\n"
+eq "X13 a bare uuid still reads nothing" "" "$DISC"
+disc x14 "# b\nTopic: $V5\nOne message on task \`$V5\`.\n"
+out="$(. "$T_SCRIPTS/spawn-core.inc.sh" 2>/dev/null; printf 'topic=[%s] hash=[%s]' "$(_spawn_lane_topic "$T_TMP/disc-x14.md")" "$(_spawn_lane_relay_hash "$T_TMP/disc-x14.md")")"
+eq "X14 the relay hash stays the put's last source only" "topic=[] hash=[$V5]" "$out"
 t_done

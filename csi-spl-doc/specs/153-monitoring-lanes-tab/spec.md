@@ -1418,8 +1418,11 @@ What changes:
   (`spl_spawn_place_no_links`, `spl-spawn-place.func.sh`): no discussion = the
   ask's topic is neither a hub uuid nor `dispatch-<topic8>`, the ask has no
   `discussion` and the brief names none (`li_discussion_from_brief`,
-  `lane-issue.inc.sh`: `Topic:` / `topic <id>` / `Discussion:` / `/t/<id>`,
-  else a `dispatch-<topic8>` task); no issue = no `Issue:` key and no
+  `lane-issue.inc.sh`: a `Discussion:` line wherever it is, words before its
+  uuid allowed, then `Topic:` / `topic <id>` / `Discussion:` / `/t/<id>`,
+  else a `dispatch-<topic8>` task, never a version-5 uuid, a relay task's
+  hash (SPL-5099: a reviewer brief's `Topic: <author task>` beat its
+  `Discussion:` line and blanked the row at every rotation); no issue = no `Issue:` key and no
   `Epic:` + `Spec:` pair the placer files one under. The row goes to the
   holder as a SPAWN QUEUE blocker naming the line to add; nothing launches.
 - **What the placer accepts is what the row gets** (R7 c-343 W1). The

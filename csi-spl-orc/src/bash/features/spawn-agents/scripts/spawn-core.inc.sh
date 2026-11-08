@@ -343,7 +343,8 @@ _spawn_lane_unlinked_warn() {  # SCOPE TOPIC ISSUE
 # would blank the row (spec 153 v1.3 3.8). The issue is lifetime/issue (written
 # before this put), else SPAWN_ISSUE, else the brief's `Issue:` line; a key
 # the hub would refuse is left out so the row still lands. Last for the topic,
-# a report task's relay hash (_spawn_lane_relay_hash). The origin issue is
+# a report task's relay hash (_spawn_lane_relay_hash), the only way a version-5
+# uuid reaches the row: _spawn_lane_topic reads none (SPL-5099). The origin issue is
 # lifetime/origin-issue (spec 153 3.12, do_spl_lane_issue wrote it).
 _spawn_lane_put() {
   local scope="${SPAWN_LANE_SCOPE:-}" repo="" log

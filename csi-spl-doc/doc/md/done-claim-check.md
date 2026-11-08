@@ -165,6 +165,15 @@ spool root is group-writable for every agent); else one WARN and no rows. A
 row of it never takes a name the cnf or the workspace box map already has
 (one WARN, row dropped), so no lane can point a known repo at a fork.
 
+That file's one writer is `cd csi-spl-orc && LANDED_REPO_NAME=<name>
+LANDED_REPO_GITHUB=<owner>/<repo> LANDED_REPO_TRUNK=<trunk>
+LANDED_REPO_BOX=<box> DRY_RUN=0 ./run -a do_spl_landed_repo_put` (SPL-5083; a
+dry run unless `DRY_RUN=0`): it adds one GitHub-only row as the spool root's
+owner, mode 0644, by a temp file and `mv`. A re-run is a no-op, and it refuses
+a name a cnf or workspace map row has, the file's name with other values, and
+a file the check above would not trust or `yq` cannot parse. All four values
+are required, and they stay out of git.
+
 - The repos read for a result also include the sender lane's OWN repo:
   its worktree from `registry.tsv` (column 4), else its newest
   `workdirs.tsv` worktree row that still exists, then

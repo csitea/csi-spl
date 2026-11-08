@@ -26,7 +26,8 @@
 # @description fetch (+ `landed_rc=` of `git-fetch-fresh.sh --landed`), else GAVE-UP;
 # @description a HEAD that moved during the push is logged whatever the verdict;
 # @description `REFUSED <reason>` (+ the tail of the push/hook output),
-# @description `GAVE-UP <reason>` or `NOTHING-TO-PUSH <sha>`: 0 commits ahead of
+# @description `GAVE-UP <reason>` (a git that died with no refusal in its output names its exit code and whether the hook passed, SPL-5114)
+# @description or `NOTHING-TO-PUSH <sha>`: 0 commits ahead of
 # @description origin/<branch> after the rebase, so nothing landed (SPL-2312).
 # @description Each PUSHED also appends `<iso time> <base>..<sha>` to the
 # @description append-only <state>/pushes.log (<base> = origin/<branch> right
@@ -245,9 +246,30 @@ _spl_push_master_record() {
 }
 
 # _spl_push_master_moved <push output file> - 0 when the push was refused only
-# because the branch moved (retry), 1 otherwise (a hook or a rule said no).
+# because the branch moved (retry), 1 otherwise (_spl_push_master_failed says why).
 _spl_push_master_moved() {
   grep -qE '\[rejected\].*\((fetch first|non-fast-forward)\)|\[remote rejected\].*(cannot lock ref|incorrect old value|failed to update ref|but expected)' "$1"
+}
+
+# _spl_push_master_hook_passed <push output file> - 0 when the output carries
+# the gate's own PASS line (do_check_pre_push: a full run or a cached tree).
+_spl_push_master_hook_passed() {
+  grep -qE 'pre-push: (all parts PASSED|PASS -- this exact tree)' "$1"
+}
+
+# _spl_push_master_failed <sha> <git rc> <push output file> - prints the verdict
+# of a push that failed and not because the branch moved. REFUSED only when the
+# output shows a refusal: every other failure read as one, though `git push`
+# had died after a green hook (c-723, c-727, SPL-5114). A green hook's output
+# can hold a failing test's text, so its PASS line outranks a `pre-push:
+# REFUSED` line; git's own [rejected] comes after the hook and outranks both.
+_spl_push_master_failed() {
+  local refused=1 hook="the hook's verdict is not in the output"
+  _spl_push_master_hook_passed "$3" && hook="the hook passed"
+  if grep -qE '\[(remote )?rejected\]' "$3"; then refused=0
+  elif [[ "$hook" != "the hook passed" ]] && grep -q '^pre-push: REFUSED' "$3"; then refused=0; fi
+  if (( refused == 0 )); then echo "REFUSED push of $1 (the hook or a rule said no)"; return 0; fi
+  echo "GAVE-UP push of $1: git exited $2 with no hook or rule refusal in its output; $hook"
 }
 
 # _spl_push_master_unreviewed <range> [remote] - prints `<short sha> review line:
@@ -368,7 +390,7 @@ _spl_push_master_fetch() {
 
 _spl_push_master_worker() {
   local remote="${PUSH_REMOTE:-origin}" branch="${PUSH_BRANCH:-master}" max="${PUSH_RETRIES:-4}"
-  local try=0 out="$PUSH_STATE/push.out" sha base bad landed_rc moved onto
+  local try=0 out="$PUSH_STATE/push.out" sha base bad landed_rc moved onto rc
   local -a G=(-c "user.name=$PUSH_NAME" -c "user.email=$PUSH_EMAIL") force
   # The hook must see the env of a hand push: no override, and no AGENT_ID
   # (SPL-1583: the lane's id leaked into the orc tests the hook runs). The
@@ -412,7 +434,8 @@ _spl_push_master_worker() {
     fi
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"
     base="$(git rev-parse "$onto")"
-    if _spl_push_master_git_push "$remote" "$branch" "$out" "$sha"; then
+    rc=0; _spl_push_master_git_push "$remote" "$branch" "$out" "$sha" || rc=$?
+    if (( rc == 0 )); then
       _spl_push_master_follow
       cat "$out"
       moved=""; _spl_push_master_head_moved "$sha" && moved=" (HEAD moved during the push)"
@@ -429,7 +452,7 @@ tries=$try"; return 0
     _spl_push_master_follow
     cat "$out"
     _spl_push_master_head_moved "$sha"
-    _spl_push_master_moved "$out" || { _spl_push_master_end "REFUSED push of $sha (the hook or a rule said no)" "$out"; return 1; }
+    _spl_push_master_moved "$out" || { _spl_push_master_end "$(_spl_push_master_failed "$sha" "$rc" "$out")" "$out"; return 1; }
     echo "$(date -u +%TZ) try $try/$max: $remote/$branch moved during the push; rebase and retry"
   done
   _spl_push_master_end "GAVE-UP $remote/$branch moved during each of $max pushes" "$out"; return 1

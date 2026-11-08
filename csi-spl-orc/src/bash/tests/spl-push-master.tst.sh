@@ -85,6 +85,14 @@
 #      <sha> review line: none ...`, so round authors pushed review/ by hand);
 #      the same commit to master and to a non-review branch -> still REFUSED
 #      with the same reason, neither ref moved
+#  19. git dies after the hook and no output shows a refusal (c-723 msg
+#      e2cd80e9, c-727, SPL-5114), a `git` wrapper exits 41: after the gate's
+#      PASS line, either wording -> GAVE-UP naming rc 41 and `the hook passed`;
+#      with no hook line at all -> `the hook's verdict is not in the output`.
+#      One push each, nothing on origin, never `said no` (the red: every one
+#      read REFUSED ... the hook or a rule said no). Controls: a
+#      `pre-push: REFUSED` line, and a `[remote rejected]` after the gate's
+#      PASS -> still REFUSED ... said no
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -122,10 +130,10 @@ case "\$mode" in
     echo "\$n" >"$O/o-\$n.txt"
     git -C "$O" add "o-\$n.txt" && git -C "$O" ${G[*]} commit -qm "other \$n" && git -C "$O" pull -q --rebase origin master 2>/dev/null
     git -C "$O" push -q origin HEAD:master || { echo "STUB: the other push failed"; exit 1; } ;;
-  red) echo "deploy-gate FAILED: lint-shellcheck GATE-RED-MARKER"; exit 1 ;;
+  red) echo "deploy-gate FAILED: lint-shellcheck GATE-RED-MARKER"; echo "pre-push: REFUSED -- the deploy-gate failed above."; exit 1 ;;
   retire-red|retire-ok)
     sleep 2; mv "$S" "\$(cat "$T/retire.to")"
-    [ "\$mode" = retire-red ] && { echo "deploy-gate FAILED: RETIRE-RED-MARKER"; exit 1; } ;;
+    [ "\$mode" = retire-red ] && { echo "deploy-gate FAILED: RETIRE-RED-MARKER"; echo "pre-push: REFUSED -- the deploy-gate failed above."; exit 1; } ;;
   agent-red) [ -n "\${AGENT_ID:-}" ] && { echo "STUB: AGENT_ID=\$AGENT_ID reached the hook"; exit 1; } ;;
   knob-red) env | grep -E '^PUSH_(REMOTE|BRANCH|RETRIES|CMD|WORKTREE|STATE_DIR|GIT_NAME|GIT_EMAIL|FETCH_SCRIPT)=' && { echo "STUB: a PUSH_* knob reached the hook"; exit 1; } ;;
 esac
@@ -319,6 +327,12 @@ if [ "\$1" = push ]; then
   case "\$(cat "$T/git.mode" 2>/dev/null)" in
     switch) "$REAL_GIT" checkout -q -B "moved-\$\$" origin/master ;;
     noop) echo "Everything up-to-date"; exit 0 ;;
+    dead-*) echo x >>"$T/git.pushes" ;;&
+    dead-green) echo "2026-11-08 INFO pre-push: all parts PASSED -- safe to push" >&2; exit 41 ;;
+    dead-cached) echo "2026-11-08 INFO pre-push: PASS -- this exact tree (abc) already passed every part above (key k); nothing re-run" >&2; exit 41 ;;
+    dead-silent) exit 41 ;;
+    dead-refused) echo "pre-push: REFUSED -- the deploy-gate failed above." >&2; exit 1 ;;
+    dead-remote) echo "2026-11-08 INFO pre-push: all parts PASSED -- safe to push" >&2; echo " ! [remote rejected] x -> master (push declined due to repository rule violations)" >&2; exit 1 ;;
   esac
 fi
 exec "$REAL_GIT" "\$@"
@@ -455,6 +469,26 @@ for tgt in master feat-s18; do
     && { [ "$tgt" = master ] || ! git --git-dir="$B" rev-parse -q --verify "refs/heads/$tgt" >/dev/null; } \
     && pass "18. the same commit to $tgt -> still REFUSED, review line: none" || fail "18. $tgt target (rc $vrc: $v)"
 done
+
+# 19 git exits non-zero after the hook; only an output that shows a refusal says so
+git -C "$L" reset -q --hard "$(git --git-dir="$B" rev-parse master)"
+echo ok >"$T/hook.mode"; commit nineteen
+sha="$(git -C "$L" rev-parse HEAD)"
+PASSED="GAVE-UP push of $sha: git exited 41 with no hook or rule refusal in its output; the hook passed"
+UNSEEN="GAVE-UP push of $sha: git exited 41 with no hook or rule refusal in its output; the hook's verdict is not in the output"
+SAIDNO="REFUSED push of $sha (the hook or a rule said no)"
+check19() {  # <git.mode> <exact first status line>
+  echo "$1" >"$T/git.mode"; : >"$T/git.pushes"
+  run PATH="$T/gitwrap:$PATH" >/dev/null; v="$(verdict)"; vrc=$?
+  [ "$vrc" -eq 1 ] && [ "$(head -n 1 <<<"$v")" = "$2" ] && [ "$(wc -l <"$T/git.pushes")" -eq 1 ] && ! on_origin "$sha" \
+    && pass "19. $1 -> $2" || fail "19. $1 (rc $vrc, pushes $(wc -l <"$T/git.pushes"): $v)"
+}
+check19 dead-green "$PASSED"
+check19 dead-cached "$PASSED"
+check19 dead-silent "$UNSEEN"
+check19 dead-refused "$SAIDNO"
+check19 dead-remote "$SAIDNO"
+echo ok >"$T/git.mode"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

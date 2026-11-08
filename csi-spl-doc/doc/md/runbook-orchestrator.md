@@ -258,7 +258,9 @@ No line means no live hang. `ScheduleWakeup` is a wait the seat asked for, so it
    (`spool_vendor_clis`) and publishes it as `cli=` in its BOX-0 lane-map
    row (`lane-map.sh --json`, `.load[].clis`). Exit 13 = no box with room
    has that CLI, or `SPAWN_BOX` names one without it; nothing was spawned:
-   pick another vendor or install the CLI there.
+   pick another vendor or install the CLI there. agy counts only with its
+   login on that box, as codex does (SPL-5078), so a box with no agy login
+   reads as having no agy CLI; the placer's hold line says "program or login".
 7. Prove it: the window is listed, the seat is up, it runs as the agent user.
    Read every new pane at +2 min for a login screen, a usage-limit menu, a
    trust prompt or a vendor quota error. A grok or agy seat at quota 0 is

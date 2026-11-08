@@ -287,7 +287,7 @@ on() {  # <machine> <action> [env...]
   local m="$1" a="$2"; shift 2
   local -a e; mapfile -t e < <(menv "$m")
   # shellcheck disable=SC2016 # the action runs in the child shell
-  env "${e[@]}" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" "$@" bash -c '
+  env "${e[@]}" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" SPOOL_VENDOR_CLIS_CMD="echo claude,grok,agy,qwen,mistral" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     # DO_LOG_REAL=1: the run'"'"'s own do_log, which sets the GLOBAL msg (SPL-3762)
@@ -999,30 +999,20 @@ wdmsg() {  # ID BOX RESET-EPOCH TS-EPOCH
 }
 printf '#!/usr/bin/env bash\nprintf "%%s\\n" "${LOAD_JSON:-}"\n' >"$T/bin/load"; chmod +x "$T/bin/load"
 load() { printf '{"hub":"ok","load":[{"box":"sat","here":false,"live":true,"busy_ids":%s,"src":"%s"}]}' "$1" "${2:-box}"; }
-agyr() { on pc 'spl_spawn_place_agy_out' SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON="$1" 2>&1; }
+agyr() { on pc 'spl_asks_init; spl_spawn_place_agy_all_out' SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON="$1" 2>&1; }
 NOW=$(date +%s)
 wdmsg a-958 sat $(( NOW + 155 * 3600 )) $(( NOW - 60 ))
-touch -d '1 hour ago' "$T/pc/spool/dispatch/vendor-probe/agy.ok"
 out="$(agyr "$(load '["a-958","c-394"]')")"
-grep -q "^agy is out of quota until $(date -u -d "@$(( NOW + 155 * 3600 ))" +%FT%TZ) (a-958@sat S2 kind=limit, its watchdog's blocker 330da055)$" <<<"$out" &&
-  pass "SPL-3998: the other box's S2 kind=limit blocker on a live a- lane holds, its reset named" || fail "remote limit: $out"
-out="$(agyr "")"
-[[ -n "$out" ]] && pass "SPL-3998 control: no lane map (hub down) = liveness unknown, the blocker holds" || fail "remote no load: $out"
-out="$(agyr "$(load '["a-958"]' rows)")"
-[[ -n "$out" ]] && pass "SPL-3998 control: the box's lane rows only (src rows) = liveness unknown, the blocker holds" || fail "remote rows: $out"
-out="$(agyr "$(load '["c-394"]')")"
-[[ -z "$out" ]] && pass "SPL-3998 control: a dead remote lane (not in its box's busy_ids) holds nothing" || fail "remote dead: $out"
-touch "$T/pc/spool/dispatch/vendor-probe/agy.ok"
+[[ -z "$out" ]] && pass "SPL-5078: the other box's limit blocker alone is not out everywhere: this box is in" || fail "remote only: $out"
+WDB="$T/pc/spool/dispatch/wd/ctx.3/a-860"; mkdir -p "$WDB"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\n' >"$WDB/pane"
 out="$(agyr "$(load '["a-958"]')")"
-[[ -z "$out" ]] && pass "SPL-3998 control: a blocker older than agy.ok holds nothing" || fail "remote probe: $out"
-rm -f "$WDM"/*; touch -d '1 hour ago' "$T/pc/spool/dispatch/vendor-probe/agy.ok"
-wdmsg a-958 sat $(( NOW - 60 )) $(( NOW - 600 ))
+grep -q "^agy is out of quota until .*(a-860 banner.*; agy on sat is at its quota limit until $(date -u -d "@$(( NOW + 155 * 3600 ))" +%FT%TZ) (a-958@sat S2 kind=limit" <<<"$out" &&
+  pass "SPL-3998/SPL-5078: both boxes out: out everywhere, each box's why named" || fail "both out: $out"
+rm -f "$WDM"/*; wdmsg a-958 sat $(( NOW - 60 )) $(( NOW - 600 ))
 out="$(agyr "$(load '["a-958"]')")"
-[[ -z "$out" ]] && pass "SPL-3998 control: a blocker past its reset holds nothing" || fail "remote past: $out"
-rm -f "$WDM"/*; wdmsg a-958 box-desk $(( NOW + 3600 )) $(( NOW - 60 ))
-out="$(agyr "$(load '["a-958"]')")"
-[[ -z "$out" ]] && pass "SPL-3998 control: this box's own blocker is not read here (its out.s2 and pane are, under SPL-3846)" || fail "remote own box: $out"
-rm -rf "$WDM" "$T/pc/spool/dispatch/vendor-probe"
+[[ -z "$out" ]] && pass "SPL-5078 control: this box out, the other box's blocker past its reset: the other box is in" || fail "remote past: $out"
+rm -rf "$WDM" "$T/pc/spool/dispatch/vendor-probe" "$T/pc/spool/dispatch/wd/ctx.3"
 
 # 13b4. SPL-4020: the agy row's TARGET box. On 2026-10-28 08:10Z sat's placer
 # launched ask 0224b02b as a-097 onto the main box, whose agy seats had all
@@ -1080,6 +1070,58 @@ out="$(agyp "PICK=sat reason=below its low mark" LAUNCH_ID=a-543)"
   pass "13b4. control: no blocker on any box: launched as before, no SPAWN_BOX (spawn-window picks)" ||
   fail "13b4. control no blocker: $out | $(cat "$T/launch.log")"
 rm -rf "$WDM"
+
+# 13b5. SPL-5078: an agy hold names its box. On 2026-11-04 every agy row waited
+# on a banner of one box while agy answered on the other; on 2026-11-06 one box
+# lost the agy program and its login, and a launch there would fail and retry.
+loadc() { printf '{"hub":"ok","load":[{"box":"sat","here":false,"live":true,"busy_ids":[],"clis":%s,"src":"box"}]}' "$1"; }
+C1=bbbb0051-0000-4000-8000-000000000051
+printf 'Kind: specs_and_docs\nReview csi-spl-doc/doc/md/agy-box.md\n%s\n' "$ES" >"$T/briefs/agy-box.md"
+agyb() { on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/load" "$@" 2>&1; }
+newc() { HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$C1" --by c-001@box-desk --reason "next case" >/dev/null 2>&1; C1="bbbb00$1-0000-4000-8000-0000000000$1"; put "$C1" c-002@box-desk dispatch-placer-agy-box "SPAWN REQUEST agy box $1"; on pc do_spl_spawn_enqueue ASK_ID="$C1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-box >/dev/null 2>&1; rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; }
+newc 52
+WDC="$T/pc/spool/dispatch/wd/ctx.3/a-860"; mkdir -p "$WDC"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\n' >"$WDC/pane"
+out="$(agyb LOAD_JSON="$(loadc '["claude","agy"]')" "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-551)"
+[[ "$(jq -r .reason <<<"$(hubrow "$C1")")" == "placed: a-551@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-box.md agy-box SPAWN_BOX=sat" "$T/launch.log" &&
+  pass "13b5. SPL-5078: this box out of quota, the other box in: the row launches on the other box" ||
+  fail "13b5. out here, in there: $out | $(hubrow "$C1") | $(cat "$T/launch.log")"
+newc 53
+mkdir -p "$WDM"; wdmsg a-958 sat $(( NOW + 155 * 3600 )) $(( NOW - 60 ))
+out="$(agyb LOAD_JSON="$(loadc '["claude","agy"]')" "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-552)"
+[[ "$(jq -r .state <<<"$(hubrow "$C1")")" == queued && ! -s "$T/launch.log" ]] &&
+  grep -q "INFO hold: ask ${C1:0:8}: placed as agy, and agy is out of quota until .*; agy on sat is at its quota limit until" <<<"$out" &&
+  pass "13b5. SPL-5078: both boxes out: the row waits, no launch, each box named" ||
+  fail "13b5. both out: $out | $(hubrow "$C1") | $(cat "$T/launch.log")"
+rm -rf "$WDM" "$T/pc/spool/dispatch/wd/ctx.3"
+out="$(agyb LOAD_JSON="" SPOOL_VENDOR_CLIS_CMD="echo claude,grok" "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-553)"
+[[ "$(jq -r .state <<<"$(hubrow "$C1")")" == queued && ! -s "$T/launch.log" ]] &&
+  grep -q "INFO hold: ask ${C1:0:8}: placed as agy, and the agy program or its login is missing on box-desk" <<<"$out" &&
+  grep -q "^$C1"$'\t'".*the agy program or its login is missing on box-desk" "$T/pc/spool/asks/.place.wait" &&
+  pass "13b5. SPL-5078: agy program or login missing on the only box, no banner: the row waits, no launch, the hold line says so" ||
+  fail "13b5. missing here: $out | $(hubrow "$C1") | $(cat "$T/launch.log")"
+out="$(agyb LOAD_JSON="$(loadc '["claude","grok"]')" "PICK=sat reason=below its low mark" LAUNCH_ID=a-554)"
+[[ "$(jq -r .reason <<<"$(hubrow "$C1")")" == "placed: a-554@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-box.md agy-box SPAWN_BOX=box-desk" "$T/launch.log" &&
+  ! grep -q "^$C1"$'\t' "$T/pc/spool/asks/.place.wait" &&
+  pass "13b5. SPL-5078: the target measured without agy: the row launches on the box that has it, its wait line gone" ||
+  fail "13b5. missing there: $out | $(hubrow "$C1") | $(cat "$T/launch.log")"
+newc 55
+out="$(agyb LOAD_JSON="$(loadc '["claude","agy"]')" "PICK=sat reason=below its low mark" LAUNCH_ID=a-555)"
+[[ "$(jq -r .reason <<<"$(hubrow "$C1")")" == "placed: a-555@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-box.md agy-box" "$T/launch.log" &&
+  pass "13b5. SPL-5078 control: no banner, agy measured on every box: placed as before" ||
+  fail "13b5. all in: $out | $(cat "$T/launch.log")"
+# The login half of the program-or-login hold, on the real spool_vendor_clis.
+clis5078() { env -u SPOOL_VENDOR_CLIS_CMD HOME="$T/agyhome" SPOOL_AGENT_USER=x SPOOL_AGY_AUTH_MARKER=.agy-login AGY_BIN=true bash -c '
+  source "'"$PROJ_ROOT"'/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+  spool_resolve_bins() { :; }; spool_agent_exec() { bash -c "$1"; }; AGY_BIN=true
+  spool_vendor_clis' 2>/dev/null; }
+mkdir -p "$T/agyhome"; rm -f "$T/agyhome/.agy-login"
+[[ ",$(clis5078)," != *,agy,* ]] && pass "13b5. SPL-5078: agy program but no login marker: agy does not count (so spawn-window and do_spl_box_pick leave the box out)" || fail "13b5. no login: $(clis5078)"
+: >"$T/agyhome/.agy-login"
+[[ ",$(clis5078)," == *,agy,* ]] && pass "13b5. SPL-5078 control: agy program and its login marker: agy counts" || fail "13b5. login: $(clis5078)"
 
 # 13c. SPL-3024: a row placed directly as agy:<slug> (agy chosen on purpose,
 # no swap) HOLDS while agy is out of quota, review or not: launching claude

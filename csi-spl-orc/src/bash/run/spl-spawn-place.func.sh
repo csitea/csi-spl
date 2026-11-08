@@ -99,17 +99,17 @@
 # @description         of the line, the reset in .place.wait; any other such
 # @description         row launches claude. A row placed directly as agy:<slug>
 # @description         HOLDS too, review or not (SPL-3024): agy was picked on
-# @description         purpose, claude would change the vendor. The quota is
-# @description         one for the fleet (SPL-3998): the other box's watchdog
-# @description         blocker for a live a- lane there holds too
-# @description      AGY TARGET BOX (SPL-4020): while another box's watchdog
-# @description         limit blocker has its reset ahead (live lane or not),
-# @description         an agy row is judged against the box it launches on (a
-# @description         pinned slug's box, else do_spl_box_pick's pick with
-# @description         BOX_PICK_KIND=agy): that box out -> this box when it is
-# @description         not full, else HOLD (queued, out of the line, the
-# @description         reset in .place.wait); the box judged is the launch's
-# @description         SPAWN_BOX
+# @description         purpose, claude would change the vendor. Each box's agy
+# @description         is judged alone (SPL-5078): quota, or the program or its
+# @description         login missing there (spool_vendor_clis). A row holds
+# @description         only while every box is out, the line naming each box
+# @description      AGY TARGET BOX (SPL-4020, SPL-5078): while any box's agy is
+# @description         out (live lane or not), an agy row is judged against the
+# @description         box it launches on (a pinned slug's box, else
+# @description         do_spl_box_pick's pick with BOX_PICK_KIND=agy): that box
+# @description         out -> a box that is in and not full (this box first),
+# @description         else HOLD (queued, out of the line, the reason in
+# @description         .place.wait); the box judged is the launch's SPAWN_BOX
 # @description      BRIEF ON ANOTHER BOX (SPL-3470): a placed row whose brief
 # @description         file is not here and whose hub row was last written on
 # @description         another box (writer_box: the dispatcher queued it there,
@@ -180,7 +180,7 @@
 # @param SPAWN_SUPPLY_LEAD_MIN (optional) - minutes before the night the supply lead asks for its refactor rows, default 120; 0 = no lead
 # @param SPAWN_SHARE_DISPATCH (optional) - the dispatch lease holder <ID>@<box>; default the lease file <spool root>/dispatch/lease
 # @param SPAWN_SHARE_LANES_CMD (optional, tests) - as do_spl_spawn_share
-# @param SPAWN_PLACE_LOAD_CMD (optional, tests) - prints the lane map's JSON ({load: [...]}) the other box's agy limit reads liveness from, instead of do_spl_lane_map
+# @param SPAWN_PLACE_LOAD_CMD (optional, tests) - prints the lane map's JSON ({load: [...]}) the per-box agy state reads the live boxes and their CLIs from, instead of do_spl_lane_map
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER (optional) - as do_spl_asks_tick
 # @param SPAWN_GROUP_DIR SPAWN_GROUP_POLL_MIN SPAWN_GROUP_GRACE_MIN (optional) - as do_spl_spawn_group_put
 # @example ./run -a do_spl_spawn_place
@@ -905,7 +905,7 @@ spl_spawn_place_data_rule() {  # BRIEF KIND
 }
 
 # The vendor to launch (spl_spawn_place_swap). A swap to agy while agy is out
-# of quota here (spl_spawn_place_agy_out, SPL-3018) launches claude instead,
+# on every box (spl_spawn_place_agy_all_out, SPL-3018) launches claude instead,
 # unless the row is a review: spl_spawn_place_agy_hold keeps those queued.
 # A row queued before the enqueue refused it is launched, not dropped. A
 # refused swap (a mistral review seat on a mistral author, SPL-3776) is one WARN
@@ -919,7 +919,7 @@ spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
     printf '%s\n' "$why"
     return 1
   fi
-  if [[ "$to" == agy ]] && ! spl_spawn_place_review "$2" && out="$(spl_spawn_place_agy_out)" && [[ -n "$out" ]]; then
+  if [[ "$to" == agy ]] && ! spl_spawn_place_review "$2" && out="$(spl_spawn_place_agy_all_out)" && [[ -n "$out" ]]; then
     to=claude why="$why; $out"
   fi
   do_log "INFO ask ${3:0:8}: placed as mistral, launched as $to: $why" >&2
@@ -981,8 +981,6 @@ spl_spawn_place_agy_out() {
     (( t > best )) && best="$t" bestat="$at" ev="$id banner, Resets in ${line##*Resets in }"
   done
   spl_spawn_place_agy_first_keep "${seen[@]}"
-  hit="$(spl_spawn_place_agy_remote "$since" "$now")"
-  [[ -z "$hit" ]] || (( ${hit%%$'\t'*} <= best )) || best="${hit%%$'\t'*}" ev="${hit#*$'\t'}"
   (( best > now )) || return 0
   (( bestat > 0 )) && ev+=", read $(( (now - bestat) / 60 ))m ago"
   printf 'agy is out of quota until %s (%s)\n' "$(date -u -d "@$best" +%FT%TZ)" "$ev"
@@ -1009,36 +1007,54 @@ spl_spawn_place_agy_first_keep() {  # KEY...
   return 0
 }
 
-# agy out of quota on ANOTHER box (SPL-3998): "<reset epoch>\t<evidence>" for
-# the latest reset, else nothing. The records above are this box's watchdog's
-# only, so a limit on the other box never held a row placed from here (sat
-# launched a-963 onto the main box 2026-10-28 00:45Z, 5 min after a-958 and
-# a-960 hit it there). agy's quota is one for the fleet, not one per box: on 2026-10-27
-# the a- lanes of both boxes hit it within 35 min and 8 of the 9 blockers named
-# the same reset (2026-10-30T22:01..22:04Z), so the hold is fleet-wide. The
-# record is the other box's watchdog blocker to the orchestrator
-# ("WATCHDOG (093 S2 kind=limit): <id> is on its usage limit until <UTC>...
-# box <box>,"), which the hub relays into an inbox here and the ack archives:
-# $SPOOL_ROOT/*/{inbox,archive}/*--watchdog-093-s2-kind-limit-a-*.json. It
-# counts while its reset is ahead, it is newer than <since> (agy.ok) and the
-# lane is live on its box (SPL-3846): in that box's busy_ids of the lane map
-# load, read from its BOX-0 row (src box). No load for that box, or only its
-# lane rows (src rows): liveness unknown, the record counts.
-spl_spawn_place_agy_remote() {  # SINCE NOW
-  local recs load="" id box u f
-  recs="$(spl_spawn_place_agy_recs "$1" "$2")"
-  [[ -n "$recs" ]] || return 0
+# The lane map's JSON ({load: [...]}), or nothing when the hub is silent.
+spl_spawn_place_agy_load() {
   if [[ -n "${SPAWN_PLACE_LOAD_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    load="$($SPAWN_PLACE_LOAD_CMD 2>/dev/null)"
+    $SPAWN_PLACE_LOAD_CMD 2>/dev/null
   else
-    load="$(LANE_FORMAT=json timeout "${SPAWN_SHARE_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
+    LANE_FORMAT=json timeout "${SPAWN_SHARE_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1
   fi
+}
+
+# Each box's agy, one "<box>\t<in|out>\t<why>" line (SPL-5078): quota is per
+# box, not one for the fleet as SPL-3998 read it (2026-11-04: every agy row
+# waited on a sat banner while a-122 and a-236 answered on the main box). The
+# boxes are this one and the lane map's live ones. This box is out on
+# spl_spawn_place_agy_out, another on its watchdog blocker
+# (spl_spawn_place_agy_boxes); either is out when measured without the agy
+# program or its login (spool_vendor_clis, the lane map's clis; 2026-11-06:
+# sat lost both, and a launch there fails and returns to position 1). No
+# measurement = unknown = not out; a hub that is silent lists this box and
+# the boxes with a blocker only.
+spl_spawn_place_agy_state() {
+  local outs load here clis box line
+  declare -F spool_vendor_clis >/dev/null || source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+  outs="$(spl_spawn_place_agy_boxes)"
+  load="$(spl_spawn_place_agy_load)"
   [[ -n "$load" ]] || load='{}'
-  while IFS=$'\t' read -r id box u f; do
-    jq -e --arg b "$box" --arg i "$id" 'any(.load[]?; .box == $b and .src != "rows" and ((.busy_ids // []) | index($i) == null))' <<<"$load" >/dev/null 2>&1 && continue
-    printf '%s\t%s\n' "$u" "$id@$box S2 kind=limit, its watchdog's blocker $f"
-  done <<<"$recs" | sort -n | tail -n 1
+  here="$(spl_spawn_place_agy_out)"
+  clis="$(spool_vendor_clis 2>/dev/null)" || clis="?"
+  [[ "$clis" == "?" || ",$clis," == *,agy,* ]] || here="${here:-the agy program or its login is missing on $ASKS_BOX}"
+  printf '%s\t%s\t%s\n' "$ASKS_BOX" "$([[ -n "$here" ]] && echo out || echo in)" "$here"
+  while IFS= read -r box; do
+    [[ -n "$box" && "$box" != "$ASKS_BOX" ]] || continue
+    line="$(awk -F'\t' -v b="$box" '$1 == b { print $2; exit }' <<<"$outs")"
+    if [[ -n "$line" ]]; then
+      printf '%s\tout\tagy on %s is at its quota limit until %s\n' "$box" "$box" "$line"
+    elif jq -e --arg b "$box" 'any(.load[]?; .box == $b and .clis != null and ((.clis | index("agy")) == null))' <<<"$load" >/dev/null 2>&1; then
+      printf '%s\tout\tthe agy program or its login is missing on %s\n' "$box" "$box"
+    else
+      printf '%s\tin\t\n' "$box"
+    fi
+  done < <({ jq -r '.load[]? | select(.live) | .box' <<<"$load" 2>/dev/null; cut -f1 <<<"$outs"; } | sort -u)
+}
+
+# Every box's why, joined, when no box's agy is in; else nothing.
+spl_spawn_place_agy_all_out() {  # [STATE]
+  local st="${1:-$(spl_spawn_place_agy_state)}"
+  awk -F'\t' '$2 == "in" { exit 1 }' <<<"$st" || return 0
+  cut -f3 <<<"$st" | paste -sd ';' - | sed 's/;/; /g'
 }
 
 # The other boxes' watchdog limit blockers (SPL-3998) as
@@ -1086,7 +1102,7 @@ spl_spawn_place_agy_live() {
   echo "$ids"
 }
 
-# 2c. While agy is out of quota here (spl_spawn_place_agy_out), a queued row
+# 2c. While agy is out on every box (spl_spawn_place_agy_all_out), a queued row
 # the placer launches HOLDS when it is placed as agy (SPL-3024: agy was picked
 # on purpose, review or not), or when its swap is to agy (spl_spawn_place_swap)
 # and it is a review (spl_spawn_place_review, SPL-3018): claude would break
@@ -1107,7 +1123,7 @@ spl_spawn_place_agy_hold() {  # MARKED ROWS
       spl_spawn_place_review "$brief" || continue
       why="a review row stays cross-vendor (SPL-2942)"
     fi
-    [[ -n "$out" ]] || out="$(spl_spawn_place_agy_out)"
+    [[ -n "$out" ]] || out="$(spl_spawn_place_agy_all_out)"
     [[ -n "$out" ]] || break
     why="$why, and $out"
     spl_spawn_place_wait "$id" "$why"
@@ -1115,7 +1131,7 @@ spl_spawn_place_agy_hold() {  # MARKED ROWS
     held+=("$id")
   done < <(jq -r '.[] | select(.state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))
     | "\(.ask_id)\t\(.placement | sub(":.*$"; ""))\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
-  spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")"
+  spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "(placed as agy|stays cross-vendor \\(SPL-2942\\)), and "
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
 }
 
@@ -1168,29 +1184,30 @@ spl_spawn_place_pin_hold() {  # MARKED ROWS
 
 # 2f. A queued row the placer would launch as agy (placed as agy, or swapped
 # to agy and not turned to claude by spl_spawn_place_vendor) is judged
-# against the box it goes to (SPL-4020): each box's agy login has its own
+# against the box it goes to (SPL-4020, SPL-5078): each box's agy login has its own
 # quota (2026-10-28: agy answered on sat while every a- seat on the main box
 # showed "Individual quota reached" until 11-03), and once those seats were
-# closed no record held, so sat launched a-097 onto the main box. While
-# another box's watchdog limit blocker has its reset ahead
-# (spl_spawn_place_agy_boxes), the target is the pinned slug's box, else
-# do_spl_box_pick's pick (BOX_PICK_KIND=agy). Target out: an unpinned row
-# goes to this box when it is not full (spl_spawn_place_pin_full); else it
-# HOLDS, queued, out of this tick's line, the reset in .place.wait. Target in:
+# closed no record held, so sat launched a-097 onto the main box. While any
+# box is out (spl_spawn_place_agy_state), the target is the pinned slug's box,
+# else do_spl_box_pick's pick (BOX_PICK_KIND=agy). Target out: an unpinned row
+# goes to a box that is in and not full (spl_spawn_place_pin_full), this box
+# first; else it HOLDS, queued, out of this tick's line, the why in .place.wait. Target in:
 # the row carries it as _b, the launch's SPAWN_BOX, so the launch goes where
 # it was judged. Prints ROWS minus the held ones.
 spl_spawn_place_agy_box_hold() {  # MARKED ROWS
-  local outs id vendor slug brief pin box pout="" lout="" line why full held=() to='{}'
-  local rx="^agy on [a-z0-9-]+ is at its quota limit until "
-  outs="$(spl_spawn_place_agy_boxes)"
+  local st outs alt id vendor slug brief pin box pout="" lout="" why full held=() to='{}'
+  local rx="^(agy on [a-z0-9-]+ is at its quota limit until |agy is out of quota until |the agy program or its login is missing on )"
+  st="$(spl_spawn_place_agy_state)"
+  outs="$(awk -F'\t' '$2 == "out"' <<<"$st")"
   [[ -n "$outs" ]] || { spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0; }
+  alt="$(awk -F'\t' -v h="$ASKS_BOX" '$2 == "in" { if ($1 == h) { print; f = 1; exit } if (!a) a = $0 } END { if (!f && a) print a }' <<<"$st" | cut -f1)"
   while IFS=$'\t' read -r id vendor slug; do
     brief="$(spl_spawn_place_brief "$slug")"
     [[ -n "$brief" ]] || continue
     if [[ "$vendor" == mistral ]]; then
       [[ "$(spl_spawn_place_swap mistral "$brief" | cut -f1)" == agy ]] || continue
       if ! spl_spawn_place_review "$brief"; then
-        [[ -n "$lout" ]] || lout="$(spl_spawn_place_agy_out)" lout="${lout:--}"
+        [[ -n "$lout" ]] || lout="$(spl_spawn_place_agy_all_out "$st")" lout="${lout:--}"
         [[ "$lout" == - ]] || continue
       fi
     fi
@@ -1200,15 +1217,15 @@ spl_spawn_place_agy_box_hold() {  # MARKED ROWS
       box="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\).*$/\1/p' <<<"$pout" | tail -1)"
       [[ -n "$box" && "$box" != hold && "$box" != nokind ]] || continue
     fi
-    line="$(awk -F'\t' -v b="$box" '$1 == b { print $2; exit }' <<<"$outs")"
-    if [[ -z "$line" ]]; then
+    why="$(awk -F'\t' -v b="$box" '$1 == b { print $3; exit }' <<<"$outs")"
+    if [[ -z "$why" ]]; then
       [[ -n "$pin" ]] || to="$(jq -c --arg i "$id" --arg b "$box" '.[$i] = $b' <<<"$to")"
       continue
     fi
-    why="agy on $box is at its quota limit until $line" full=""
-    if [[ -z "$pin" ]] && ! full="$(spl_spawn_place_pin_full "$ASKS_BOX" "$pout")"; then
-      do_log "INFO ask ${id:0:8}: $why: it launches on $ASKS_BOX" >&2
-      to="$(jq -c --arg i "$id" --arg b "$ASKS_BOX" '.[$i] = $b' <<<"$to")"
+    full=""
+    if [[ -z "$pin" && -n "$alt" ]] && ! full="$(spl_spawn_place_pin_full "$alt" "$pout")"; then
+      do_log "INFO ask ${id:0:8}: $why: it launches on $alt" >&2
+      to="$(jq -c --arg i "$id" --arg b "$alt" '.[$i] = $b' <<<"$to")"
       continue
     fi
     why="$why, and ${full:-the row is pinned there}"

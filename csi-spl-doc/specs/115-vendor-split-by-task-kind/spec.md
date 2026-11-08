@@ -229,6 +229,18 @@ answered probe (`dispatch/vendor-probe/agy.ok`, its mtime). On 2026-10-27
 the captures of dead a-338 and a-665 held every agy row for three days while
 agy answered on both boxes.
 
+**Each box is judged alone (SPL-5078, replaces the fleet-wide hold below).**
+On 2026-11-04 every agy row waited on one box's banner while agy answered on
+the other. `spl_spawn_place_agy_state` lists each box in or out: this box by
+`spl_spawn_place_agy_out`, another by its watchdog blocker, and either when
+measured without the agy program or its login (`spool_vendor_clis`, which
+counts agy only with its login marker, as it does codex; so `spawn-window.sh`
+and `do_spl_box_pick` also leave such a box out). A row holds only while every
+box is out, and the hold line names each box's reason; otherwise it launches on
+a box that is in. `dispatch/vendor-probe/agy.ok` has no writer on the tree
+(`git grep` finds only its readers and tests), so no probe clears a record
+today. The paragraph below is the history of SPL-3998.
+
 The hold is fleet-wide (SPL-3998): agy's quota is one for the fleet, not one
 per box (on 2026-10-27 the a- lanes of both boxes hit it within 35 min, and 8
 of the 9 watchdog blockers named the same reset, 2026-10-30T22:01..22:04Z).

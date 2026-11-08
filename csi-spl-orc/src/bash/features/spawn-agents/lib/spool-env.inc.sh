@@ -517,6 +517,11 @@ spool_codex_auth_marker() {
   printf '%s' "${m:-.codex/auth.json}"
 }
 
+# The agy login marker, relative to the agent user's home (SPL-5078):
+# SPOOL_AGY_AUTH_MARKER, else the file agy writes when signed in. Without it a
+# lane sits at agy's login screen, so agy does not count on that box.
+spool_agy_auth_marker() { printf '%s' "${SPOOL_AGY_AUTH_MARKER:-.gemini/antigravity-cli/antigravity-oauth-token}"; }
+
 # The vendor kinds THIS box can start (SPL-1649): one comma-separated line of
 # claude grok agy qwen mistral codex, each whose *_BIN `command -v` finds as the
 # agent user in its login shell - the way spool-harness.sh execs it, so a CLI
@@ -541,6 +546,8 @@ spool_vendor_clis() {
       probe+="command -v $(printf '%q' "${!var}") >/dev/null 2>&1 "
       # codex counts only with its subscription login (spool_codex_auth_marker).
       [ "$kind" != codex ] || probe+="&& test -f \"\$HOME\"/$(printf '%q' "$(spool_codex_auth_marker)") "
+      # agy counts only with its login too (SPL-5078).
+      [ "$kind" != agy ] || probe+="&& test -f \"\$HOME\"/$(printf '%q' "$(spool_agy_auth_marker)") "
       probe+="&& echo $kind; "
     done
     out="$(spool_agent_exec "${probe}echo spool-clis-end" </dev/null 2>/dev/null)" || true

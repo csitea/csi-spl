@@ -19,6 +19,8 @@
 #  15. The record keeps its newest lines (W5)
 #  16. A du that cannot start is unmeasured
 #  17. Time left over goes to the dir that was cut
+#  18. A trim does not lose what another mount appends meanwhile
+#  19. A record lock that stays held is FATAL, nothing recorded
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -191,7 +193,7 @@ out="$(run DRY_RUN=0 bash "$SCRIPT" 2>&1)"; rc=$?
 TSV="$T/15/sizes.tsv"
 run DRY_RUN=0 DISK_CROSSING_TRIGGER=first DISK_CROSSING_CHILDREN=0 bash "$SCRIPT" >/dev/null 2>&1
 run DRY_RUN=0 DISK_CROSSING_TRIGGER=second DISK_CROSSING_CHILDREN=0 DISK_CROSSING_KEEP_LINES=2 bash "$SCRIPT" >/dev/null 2>&1
-[[ "$(wc -l <"$TSV")" == 2 && "$(cut -f4 "$TSV" | sort -u)" == second && ! -e "$TSV.tmp" ]] \
+[[ "$(wc -l <"$TSV")" == 2 && "$(cut -f4 "$TSV" | sort -u)" == second && -z "$(compgen -G "$TSV.tmp*")" ]] \
   && pass "15. the record keeps its newest lines" || fail "15. $(cat "$TSV")"
 
 # 16. a du that cannot start
@@ -212,6 +214,35 @@ TSV="$T/17/sizes.tsv"
 run DISK_CROSSING_DU="$T/du-once" DISK_CROSSING_BUDGET_S=4 DRY_RUN=0 bash "$SCRIPT" >/dev/null 2>&1
 [[ "$(top_row "$TSV" "$M/big")" == "5000 complete -" ]] \
   && pass "17. time left over finishes the dir that was cut" || fail "17. $(cat "$TSV")"
+
+# 18. mount A trims slowly (a tail that sleeps after reading), mount B appends
+mkdir -p "$T/tailbin" "$T/m2/d"
+real_tail="$(command -v tail)"
+cat >"$T/tailbin/tail" <<EOF
+#!/bin/bash
+"$real_tail" "\$@"
+: >"$T/tail.started"
+sleep 3
+EOF
+chmod +x "$T/tailbin/tail"
+TSV="$T/18/sizes.tsv"
+run DRY_RUN=0 DISK_CROSSING_CHILDREN=0 DISK_CROSSING_KEEP_LINES=1 DISK_CROSSING_TRIGGER=A PATH="$T/tailbin:$PATH" bash "$SCRIPT" >/dev/null 2>&1 &
+a_pid=$!
+for _ in $(seq 1 50); do [[ -e "$T/tail.started" ]] && break; sleep 0.1; done
+env DISK_CROSSING_MOUNT="$T/m2" DISK_CROSSING_BOX=fixture DISK_CROSSING_TSV="$TSV" DISK_CROSSING_CHILDREN=0 DISK_CROSSING_TRIGGER=B DRY_RUN=0 bash "$SCRIPT" >/dev/null 2>&1
+wait "$a_pid"
+[[ -e "$T/tail.started" ]] && awk -F'\t' '$4 == "B" { f = 1 } END { exit !f }' "$TSV" \
+  && pass "18. a trim keeps what another mount appended meanwhile" || fail "18. $(cat "$TSV" 2>/dev/null)"
+
+# 19. the record's lock stays held
+TSV="$T/19/sizes.tsv"
+mkdir -p "$T/19"
+exec 7>>"$TSV.lock"
+flock -n 7
+out="$(run DRY_RUN=0 DISK_CROSSING_RECORD_WAIT_S=1 bash "$SCRIPT" 7>&- 2>&1)"; rc=$?
+exec 7>&-
+[[ $rc -eq 1 && "$out" == *"FATAL cannot lock the record"* && ! -s "$TSV" ]] \
+  && pass "19. a held record lock is FATAL, nothing recorded" || fail "19. rc=$rc out=$out"
 
 echo
 if (( fails == 0 )); then echo "OK: disk-crossing-sizes"; exit 0; fi

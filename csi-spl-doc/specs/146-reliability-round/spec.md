@@ -268,10 +268,11 @@ a dry run unless `DRY_RUN=0`.
 - Each top dir of the mount gets a niced `du -x --max-depth=1` under a timeout,
   an equal share of what is left of the 60 s budget (`DISK_CROSSING_BUDGET_S`);
   time left over goes to the dirs that were cut. A mountpoint inside the mount
-  is skipped. The run ends within the budget + 2 s.
+  is skipped. The run ends about 2 s past the budget at worst.
 - The record is `/var/<org>/<org>-<app>/disk-crossing-sizes/sizes.tsv`: one `top`
   row per dir and its 10 biggest `child` rows. It keeps its newest 20000 lines
-  (`DISK_CROSSING_KEEP_LINES`), because it lives on the disk it measures.
+  (`DISK_CROSSING_KEEP_LINES`), because it lives on the disk it measures, so its
+  oldest crossing may be cut short: a dir missing from it may not be gone.
 - Read a row by its state. `complete`: the size. `partial`: a lower bound
   (`timeout`, the children that finished; `du-error`, part of the dir was
   unreadable to the cron's user, so its child rows are lower bounds too).
@@ -279,6 +280,8 @@ a dry run unless `DRY_RUN=0`.
   itself (`find-timeout`, `find-error`) means the top dirs could not be listed.
 - A root-only dir such as `docker` reads `du-error` for the cron's user: this
   record cannot name a job inside it (sat, one dry run, review msg 2fb4c42a).
+  A dir too big for its share can read `timeout` or `unmeasured` the same way
+  (`home`, `opt` on sat, 4 of 9 complete at the default budget, n=1).
 - Compare two crossings' rows of the same dir to name the job.
 
 Tests: `csi-spl-utl/src/bash/tests/disk-crossing-sizes.tst.sh` (fixture tree),

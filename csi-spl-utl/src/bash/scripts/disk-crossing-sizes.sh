@@ -16,7 +16,7 @@
 #               du-not-run: du could not start; find-timeout or find-error: the
 #               row is the mount itself, its top dirs could not be listed
 # Loose files directly in the mount are not sized, only its dirs. A mountpoint
-# inside the mount is skipped. The whole run ends within the budget + 2 s: a du
+# inside the mount is skipped. The whole run ends about 2 s past the budget: a du
 # that ignores TERM gets KILL 2 s after its cut.
 #
 # One line per top dir, biggest first, then one summary line. With DRY_RUN=0 the
@@ -34,6 +34,7 @@
 #   DISK_CROSSING_DU          the du to run (tests), default du
 #   DISK_CROSSING_STAT        the stat to run (tests), default stat
 #   DISK_CROSSING_FIND        the find to run (tests), default find
+#   DISK_CROSSING_RECORD_WAIT_S  wait for the record's lock, default 10
 #
 # Exit: 0 sized, even partly (a partial run is a result), or another run holds
 # this mount's lock; 1 the mount or the record is unusable; 2 usage.
@@ -55,6 +56,7 @@ tsv="${DISK_CROSSING_TSV:-/var/${oa%%-*}/$oa/disk-crossing-sizes/sizes.tsv}"
 du_bin="${DISK_CROSSING_DU:-du}"
 stat_bin="${DISK_CROSSING_STAT:-stat}"
 find_bin="${DISK_CROSSING_FIND:-find}"
+record_wait="${DISK_CROSSING_RECORD_WAIT_S:-10}"
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || { say "FATAL DRY_RUN must be 0 or 1, got '$dry'" >&2; exit 2; }
 [[ -n "$mount" ]] || { say "FATAL DISK_CROSSING_MOUNT must be set" >&2; exit 2; }
@@ -180,11 +182,16 @@ done < <(printf '%s' "$rows" | sort -t$'\t' -k1,1nr)
 (( list_rc == 0 && n == complete )) && verdict=complete || verdict=partial
 summary="sizes $mount: $verdict, $complete of $n dirs complete in $(( $(date +%s) - start ))s (budget ${budget}s)"
 if [[ "$dry" == 0 ]]; then
+  # the record is shared by every mount, the lock above is per mount: one
+  # writer here, or a trim's mv loses what another mount just appended
+  { exec 7>>"$tsv.lock"; } 2>/dev/null && flock -w "$record_wait" 7 ||
+    { say "FATAL cannot lock the record $tsv.lock: nothing recorded" >&2; exit 1; }
   printf '%s' "$record" >>"$tsv" || { say "FATAL cannot append to $tsv" >&2; exit 1; }
   # the record lives on the disk it measures: keep its newest lines only
   if (( $(wc -l <"$tsv") > keep )); then
-    if tail -n "$keep" "$tsv" >"$tsv.tmp" 2>/dev/null; then mv -f "$tsv.tmp" "$tsv"; else rm -f "$tsv.tmp"; fi
+    if tail -n "$keep" "$tsv" >"$tsv.tmp.$$" 2>/dev/null; then mv -f "$tsv.tmp.$$" "$tsv"; else rm -f "$tsv.tmp.$$"; fi
   fi
+  exec 7>&-
   say "$summary; recorded in $tsv"
 else
   say "$summary; dry run, nothing recorded"

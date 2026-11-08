@@ -138,7 +138,11 @@
 # @description     (one absolute path per line, under the spool root, in no
 # @description     repo) is a repo for every message when it sets
 # @description     spool.landedOnAnyBranch or spool.localTrunk; read as it
-# @description     is, never fetched. A box file, not the lane's brief or
+# @description     is, never fetched. SPL-4836 (c-001 msg 3cfe4047: a live
+# @description     checkout whose local master lags its origin/master): an
+# @description     optional second column, "<path> <ref>", judges that clone
+# @description     on <ref> with or without a marker; a ref that resolves to
+# @description     no commit is a WARN and the clone is skipped. A box file, not the lane's brief or
 # @description     workdir: neither names the clone (the lane's workdir was
 # @description     a csi-spl worktree), and git must name no customer path
 # @description   - SPL-4085 (c-002 msg 60b5dc28): a hex token that is no
@@ -156,7 +160,7 @@
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
 # @param DONE_CLAIM_DAYS_H (optional) - hours of results read, default 24
 # @param DONE_CLAIM_REPO_DIRS (optional) - space-separated clones whose trunks count; default the repo holding this tree; the cnf's customer repos (env.box.landed_repos, SPL-2420) whose clone is on this box always count too, and each sender lane's own repo (SPL-2930)
-# @param DONE_CLAIM_LOCAL_REPOS (optional) - the box-local list of clones read unfetched (SPL-4085), default $SPOOL_ROOT/done-claim-local-repos.txt; a missing file lists none
+# @param DONE_CLAIM_LOCAL_REPOS (optional) - the box-local list of clones read unfetched (SPL-4085), one "<abs path> [<trunk ref>]" per line (SPL-4836), default $SPOOL_ROOT/done-claim-local-repos.txt; a missing file lists none
 # @param DONE_CLAIM_FETCH (optional) - 1 (default) fetches each repo before the check
 # @param DONE_CLAIM_STATE_DIR (optional) - the ledger's dir, default $XDG_STATE_HOME/csi-spl/done-claim-check
 # @param DONE_CLAIM_BOX (optional) - this box's id (a lane <id>@<other box> is skipped); default the desk box
@@ -553,16 +557,23 @@ spl_done_claim_named() {
 # else origin/master|main, else its local master|main, else HEAD (the
 # any-branch rule judges its branches). Read only, never fetched: such a
 # clone may never touch its remote. A listed clone with neither marker is
-# skipped with a WARN (it would need a fetch).
+# skipped with a WARN (it would need a fetch). SPL-4836: a line's second
+# column names <ref> itself, marker or not; one that resolves to no commit
+# is a WARN and the clone is skipped.
 spl_done_claim_listed() {
-  local p top c have="" ref
+  local p want top c have="" ref
   [[ -f "$1" ]] || return 0
   while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$2"
-  while read -r p _; do
+  while read -r p want _; do
     [[ "$p" == /* ]] || continue
     top="$(git -C "$p" rev-parse --show-toplevel 2>/dev/null)" || { do_log "WARN $1 lists $p, no git clone: skipped" >&2; continue; }
     c="$(spl_done_claim_common "$top")" && ! grep -qxF -- "$c" <<<"$have" || continue
     have+="$c"$'\n'
+    if [[ -n "$want" ]]; then
+      if git -C "$top" rev-parse -q --verify "$want^{commit}" >/dev/null 2>&1; then echo "$top $want"
+      else do_log "WARN $1 names $want for $top, no commit: skipped" >&2; fi
+      continue
+    fi
     if ref="$(spl_done_claim_local_trunk "$top")"; then echo "$top $ref"; continue; fi
     if [[ "$(git -C "$top" config --bool --get spool.landedOnAnyBranch 2>/dev/null)" != true ]]; then
       do_log "WARN $1 lists $top, which sets neither spool.landedOnAnyBranch nor spool.localTrunk: skipped" >&2; continue

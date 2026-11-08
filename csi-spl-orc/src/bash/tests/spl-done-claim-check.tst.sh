@@ -897,4 +897,53 @@ run DONE_CLAIM_STATE_DIR="$T/st23"; rc=$?
   pass "23. the lane retired: its review request alerts again (SPL-3116); one that says it is not landed is review, the same-patch sha 'on review branch <name> (same patch as <sha>)'" ||
   fail "23. retired (rc $rc): $(cat "$T/o")"
 
+# 24. SPL-4836 (c-001 msg 3cfe4047, n=1 on another box; synthetic here): a
+# listed clone is a live checkout whose local master lags until a redeploy,
+# while a lane's sha lands on its origin/master. A list line "<path> <ref>"
+# judges the clone on <ref>, spool.localTrunk or not; a bad ref is a WARN and
+# the clone is skipped; a one-column line stays on its local trunk. The clone
+# is never written: a commit pushed after its last fetch stays unknown to it.
+SP="$T/spool24"
+mkdir -p "$SP"
+mkrepo lv
+git clone -q "$T/lv.git" "$T/lv-push" 2>/dev/null
+rg lv-push commit -q --allow-empty -m "on origin only" && lettered lv-push 12 "on origin only" && rg lv-push push -q origin HEAD:master
+ORIG24=$(rg lv-push rev-parse HEAD)
+rg lv fetch -q origin
+rg lv checkout -q -b side24 && echo off >"$T/lv/off24" && rg lv add off24 && rg lv commit -q -m "off every trunk" && lettered lv 12 "off every trunk"
+OFF24=$(rg lv rev-parse HEAD)
+rg lv checkout -q master
+git -C "$T/lv" config spool.localTrunk master
+rg lv-push commit -q --allow-empty -m "after the last fetch" && rg lv-push push -q origin HEAD:master
+NEW24=$(rg lv-push rev-parse HEAD)
+REFS24=$(rg lv for-each-ref)
+mkrepo bd
+rg bd commit -q --allow-empty -m "local trunk, bad ref" && lettered bd 12 "local trunk, bad ref"
+BD24=$(rg bd rev-parse HEAD)
+git -C "$T/bd" config spool.localTrunk master
+printf 'c-931\tclaude\t%%9\t%s\t-\nc-932\tclaude\t%%9\t%s\t-\nc-933\tclaude\t%%9\t%s\t-\n' "$T/wt/c-563" "$T/wt/c-563" "$T/wt/c-563" >"$SP/registry.tsv"
+msg c-002/archive orig24 c-931 c-002 30 "- sha: ${ORIG24:0:12}"
+msg c-002/archive off24 c-932 c-002 30 "- sha: ${OFF24:0:12}"
+msg c-002/archive bad24 c-933 c-002 30 "- sha: ${BD24:0:12}"
+! rg lv merge-base --is-ancestor "$ORIG24" master && rg lv merge-base --is-ancestor "$ORIG24" refs/remotes/origin/master &&
+  ! rg lv cat-file -e "$NEW24^{object}" 2>/dev/null &&
+  pass "24. control: ${ORIG24:0:12} is on the live clone's origin/master, not on its local master; ${NEW24:0:12} is not in the clone yet" ||
+  fail "24. control: fixture"
+printf '# box-local\n%s  # one column\n%s\n' "$T/lv" "$T/bd" >"$SP/done-claim-local-repos.txt"
+run DONE_CLAIM_STATE_DIR="$T/st24"; rc=$?
+v="$(for k in orig24 off24 bad24; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "orig24=would-alert off24=would-alert bad24=landed " ] &&
+  pass "24. a one-column line keeps today's rule: spool.localTrunk judges on the local branch" ||
+  fail "24. one column (rc $rc) got '$v': $(cat "$T/o")"
+printf '# box-local\n%s origin/master  # the live checkout\n%s refs/heads/nope24\n' "$T/lv" "$T/bd" >"$SP/done-claim-local-repos.txt"
+run DONE_CLAIM_STATE_DIR="$T/st24"; rc=$?
+v="$(for k in orig24 off24 bad24; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "orig24=landed off24=would-alert bad24=would-alert " ] &&
+  grep -q "WARN .*refs/heads/nope24.*skipped" "$T/o" && ! grep -q FATAL "$T/o" &&
+  pass "24. SPL-4836: a sha on the ref a list line names is landed though the clone's localTrunk lags; a sha off that ref alerts; a bad ref is a WARN and the clone is skipped, never a FATAL" ||
+  fail "24. listed ref (rc $rc) got '$v': $(cat "$T/o")"
+[ "$(rg lv for-each-ref)" = "$REFS24" ] && ! rg lv cat-file -e "$NEW24^{object}" 2>/dev/null &&
+  pass "24. the listed clone is read unfetched: its refs are unchanged and the commit pushed after its last fetch is still unknown to it" ||
+  fail "24. the listed clone was written: $(rg lv for-each-ref)"
+
 exit "$fails"

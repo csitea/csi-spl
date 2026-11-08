@@ -102,6 +102,11 @@ func (h *verbHub) answer(f wire.Frame) wire.Frame {
 		return wire.Frame{Type: wire.TAsk, MsgID: f.MsgID, Ask: echo(map[string]any{"op": f.AskOp, "fleet": f.Fleet, "body": f.Ask})}
 	case wire.TClaim:
 		return wire.Frame{Type: wire.TClaim, MsgID: f.MsgID, Claim: echo(map[string]any{"op": f.ClaimOp, "body": f.Claim})}
+	case wire.TReact: // r53-09: echoes the op, or refuses refuseTask
+		if f.TaskID == refuseTask {
+			return wire.Frame{Type: wire.TError, Error: "not_found", Status: http.StatusNotFound, Detail: "no such topic"}
+		}
+		return wire.Frame{Type: wire.TReact, MsgID: f.MsgID, Reaction: echo(map[string]string{"task_id": f.TaskID, "op": f.ReactOp, "emoji": f.Emoji})}
 	case wire.TTail: // SPL-2112: an empty tail, or a refusal of refuseTask
 		if f.TaskID == refuseTask {
 			return wire.Frame{Type: wire.TError, Error: "forbidden", Status: http.StatusForbidden}

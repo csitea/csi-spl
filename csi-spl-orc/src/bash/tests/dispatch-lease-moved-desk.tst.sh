@@ -30,6 +30,9 @@
 #  11. ensure run by a user who does not own the fleet loop runs as its owner,
 #      once, with that run's rc; its owner, or no loop yet: no hop. RED on
 #      48dc6c573: no hop, the old loop is never replaced
+#  12. a log read cut after partial output is not able, by its rc and not its
+#      text; a cut locate names the hop and uses no stub under A; -k on the
+#      locate and the signed call, the limit on hub init's pin read (SPL-5119)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -74,13 +77,19 @@ echo "RUN HOME=\$HOME \$*" >>"$T/runs"
 STUB
 # the hop with one step broken; the pattern matches the command: HOP_HANG hangs,
 # HOP_DEAF also ignores TERM with stdout closed (a sudo stuck before it runs the
-# command), HOP_FAIL exits 1. Anything else goes through the plain hop.
+# command), HOP_FAIL exits 1. HOP_CUT=fail|hang: the log read prints the log's
+# first line, then fails or hangs. Anything else goes through the plain hop.
 cat >"$T/stub/as-sel" <<STUB
 #!/usr/bin/env bash
 c="\$*"
 [[ -n "\${HOP_HANG:-}" && "\$c" == *"\$HOP_HANG"* ]] && exec sleep 20
 [[ -n "\${HOP_DEAF:-}" && "\$c" == *"\$HOP_DEAF"* ]] && { exec >/dev/null 2>&1; trap '' TERM; sleep 18; exit 0; }
 [[ -n "\${HOP_FAIL:-}" && "\$c" == *"\$HOP_FAIL"* ]] && exit 1
+if [[ -n "\${HOP_CUT:-}" && "\$c" == *"tail "* ]]; then
+  chmod 700 "$RB"; head -1 "\${!#}"; chmod 000 "$RB"
+  [[ "\$HOP_CUT" == hang ]] && exec sleep 20
+  exit 1
+fi
 exec "$T/stub/as" "\$@"
 STUB
 chmod +x "$T/stub/"*
@@ -331,6 +340,60 @@ eq "11d. no loop yet: no hop" "0" "$(hops)"
 fresh; echo LEASE_FLEET=main >"$T/conf"
 out="$(T11="$T" LOOP_OWNER="$DU" SPL_LEASE_OWNER_HOPPED=x in_orc "$T/box.env.half" as-ens "$ENS11")"
 eq "11e. already hopped: no second hop" "0" "$(hops)"
+
+# --- 12. a read cut part way, and the limits nothing else pins (SPL-5119) -------
+# up_then_down ROOT: the session's last word is down, an earlier up is this session's.
+up_then_down() {
+  printf '%s hub session up\n%s hub session down\n' "$(date -u +%FT%TZ)" "$(date -u +%FT%TZ)" >"$1/desk/t1/sat/spool/.hub/hub-run.log"
+}
+PRE=(timeout 15)
+fresh; desk "$RB"; up_then_down "$RB"; sidecar; lock
+out="$(limited able_rc "$(in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')")"
+has "12a. control: the session's last word is down, working hop: not able" "able_rc=1" "$out"
+for how in fail hang; do
+  fresh; desk "$RB"; up_then_down "$RB"; sidecar; lock
+  out="$(limited able_rc "$(HOP_CUT=$how in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')")"
+  has "12b. the log hop prints an old up, then $how: not able" "able_rc=1" "$out"
+  has "12b. $how: the text names the hop" "the hop to its owner failed reading the session log" "$out"
+done
+fresh; desk "$RA"; up_then_down "$RA"; sidecar
+out="$(in_orc "$T/box.env.half" as-sel 'tail() { [[ "$1" == -n ]] || { command tail "$@"; return; }; command head -1 "$3"; return 1; }; spl_fleet_desk_able; echo "able_rc=$?"')"
+has "12c. the direct read prints an old up, then fails: not able" "able_rc=1" "$out"
+hasnt "12c. no hop to name" "the hop to its owner" "$out"
+# A cut locate: a stub under A, with a minted key, must not stand in for B's desk.
+stub_a() { mkdir -p "$RA/desk/t1/sat/spool/c-002" "$RA/desk/t1/sat/keys"; echo minted >"$RA/desk/t1/sat/keys/box-sat.key"; }
+fresh; desk "$RB"; sidecar; stub_a; lock
+out="$(limited able_rc "$(HOP_HANG="test -s" in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')")"
+has "12d. the locate cut: not able" "able_rc=1" "$out"
+has "12d. the text says the hop was cut" "the hop to its owner was cut" "$out"
+hasnt "12d. no false 'no sudo rule'" "no sudo -n rule" "$out"
+hasnt "12d. the reader is not sent to the stub" "$RA/desk" "$out"
+fresh; desk "$RB"; sidecar; stub_a; lock
+out="$(limited hub_rc "$(HOP_HANG="test -s" in_orc "$T/box.env.half" as-sel 'spl_fleet_hub_once --fleet main --role dispatch; echo "hub_rc=$?"')")"
+hasnt "12e. a call whose locate is cut never signs with the stub's key" "\"keys\":" "$out"
+has "12e. ...it is no success, and names the hop" "the hop to its owner was cut" "$out"
+hasnt "12e. ...rc" "hub_rc=0" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(limited init_rc "$(HOP_HANG="test -s" in_orc "$T/box.env.half" as-sel 'spl_fleet_hub_init; echo "init_rc=$?"')")"
+has "12f. hub init whose locate is cut: refuses" "init_rc=1" "$out"
+has "12f. ...and names the hop, not the pin" "the hop to its owner was cut" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(in_orc "$T/box.env.half" as-refused 'spl_fleet_desk_able; echo "able_rc=$?"')"
+hasnt "12g. control: a real refusal is not called a cut" "was cut" "$out"
+has "12g. ...and keeps its own warning" "no sudo -n rule" "$out"
+# The three limits: each stub outlives the 15 s outer limit if its limit is gone.
+fresh; desk "$RB"; sidecar; lock
+out="$(limited able_rc "$(HOP_DEAF="test -s" in_orc "$T/box.env.half" as-sel 'spl_fleet_desk_able; echo "able_rc=$?"')")"
+has "12h. a locate deaf to TERM is killed (-k): not able, within the limit" "able_rc=1" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(limited hub_rc "$(HOP_DEAF="SPOOL_KEYS_DIR=" LEASE_HUB_TIMEOUT=2 in_orc "$T/box.env.half" as-sel 'spl_fleet_hub_once --fleet main --role dispatch; echo "hub_rc=$?"')")"
+has "12i. a signed call deaf to TERM is killed (-k): returns" "hub_rc=" "$out"
+hasnt "12i. ...and is no success" "hub_rc=0" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(limited init_rc "$(HOP_HANG="env HOME=" in_orc "$T/box.env.half" as-sel 'spl_fleet_hub_init; echo "init_rc=$?"')")"
+has "12j. hub init's pin read hangs: cut at the limit" "init_rc=1" "$out"
+PRE=()
+chmod 700 "$RB"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

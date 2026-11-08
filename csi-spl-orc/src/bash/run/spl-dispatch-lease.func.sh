@@ -1100,7 +1100,7 @@ spl_fleet_hub_init() {
   ENV="$LEASE_ENV" do_spl_desk_cnf || return 1
   spl_host_spool || return 1
   local LD LB; local -a LAS=()
-  spl_fleet_desk_at "$LEASE_TENANT" || return 1
+  spl_fleet_desk_at "$LEASE_TENANT" || { [[ $? -eq 2 ]] && do_log "FATAL $(spl_fleet_locate_cut "$LEASE_TENANT")"; return 1; }
   spl_fleet_hop test -s "$LD/pinned" ||
     { do_log "FATAL $LEASE_DESK_BOX is not pinned in $LEASE_TENANT ($LD): seat a desk there first (do_spl_desk_up)"; return 1; }
 }
@@ -1115,18 +1115,21 @@ spl_fleet_hub_init() {
 # LAS (the hop, empty for this user's own desk; the caller declares all three).
 # The owner's copy wins over a stub under this user (spl_desk_moved_to: a
 # pinned desk there, none here); LB is the owner's too, this user's .local may
-# be closed to it. Non-zero: the desk is under a root nobody here can reach.
+# be closed to it. Non-zero: the desk is under a root nobody here can reach;
+# 2: the locate was cut, so nothing is known and no stub here may stand in for
+# the desk (its key is not the pinned one, SPL-4699; SPL-5119).
 # The loop is one thread and holds both roles, so every hop has a limit (R7 W1):
 # the locate and spl_fleet_hop here, the calls their own timeout. -k because a
 # plain timeout waits as long as a sudo that ignores TERM (2026-11-07, n=1: 32 s
 # on a limit of 2). Cut = the desk reads as not reachable for that call.
 spl_fleet_desk_at() {
-  local t="$1" mv u r h
+  local t="$1" mv u r h rc
   LD="" LB="${SPL_SPOOL:-}" LAS=()
   # pinned here = this user's desk, first of spl_desk_roots: no fork, this runs per dial
   LD="${SPL_STATE_DIR:-}/desk/$t/$LEASE_DESK_BOX"
   [[ -n "${SPL_STATE_DIR:-}" && -s "$LD/pinned" ]] && return 0
-  if mv="$(SPL_DESK_AS_CMD="timeout -k 1 ${LEASE_HOP_TIMEOUT:-5} ${SPL_DESK_AS_CMD:-sudo -n -u}" spl_desk_moved_to "$t" "$LEASE_DESK_BOX")"; then
+  mv="$(SPL_DESK_AS_CMD="timeout -k 1 ${LEASE_HOP_TIMEOUT:-5} ${SPL_DESK_AS_CMD:-sudo -n -u}" spl_desk_moved_to "$t" "$LEASE_DESK_BOX")"; rc=$?
+  if (( rc == 0 )); then
     u="${mv%%$'\t'*}"
     r="$(SPOOL_DESK_USER="$u" spl_desk_state_root)" || return 1
     h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
@@ -1135,7 +1138,13 @@ spl_fleet_desk_at() {
     LAS+=("$u" -- env "HOME=$h")
     return 0
   fi
+  (( rc != 2 )) || { LD=""; return 2; }
   LD="$(spl_desk_dir "$t" "$LEASE_DESK_BOX")" || [[ $? -eq 1 ]]
+}
+
+# spl_fleet_locate_cut <tenant>: what a cut locate (spl_fleet_desk_at rc 2) says.
+spl_fleet_locate_cut() {
+  echo "the hop to its owner was cut locating $LEASE_DESK_BOX of $1 (no answer in ${LEASE_HOP_TIMEOUT:-5} s)"
 }
 
 # spl_fleet_hop <cmd...>: a short read through the caller's LAS, under the hop's
@@ -1187,7 +1196,7 @@ spl_fleet_hub_once() {
   local t="${LEASE_AT_TENANT:-${LEASE_TENANT:-}}"
   if [[ -n "${LEASE_HUB_CMD:-}" ]]; then LEASE_HUB_TENANT="${LEASE_AT_TENANT:-}" "$LEASE_HUB_CMD" lease "$@"; return; fi
   local LD LB; local -a LAS=()
-  spl_fleet_desk_at "$t" || return 1
+  spl_fleet_desk_at "$t" || { [[ $? -eq 2 ]] && spl_fleet_locate_cut "$t"; return 1; }
   # spl_desk_spool's environment, under a timeout: a hung dial must not stall the tick
   timeout -k 1 "${LEASE_HUB_TIMEOUT:-12}" "${LAS[@]}" env SPOOL_ROOT="$LD/spool" SPOOL_KEYS_DIR="$LD/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
     SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$t" "$LB" lease "$@"
@@ -1995,13 +2004,16 @@ spl_fleet_tier() {
 # never "no desk dir known" (SPL-4536), and so does a hop that stops working or
 # hangs (spl_fleet_hop: each read has a limit; a read lost on the hop = not
 # able, and an mtime read lost there too, it cannot be taken for an unstamped
-# line). The pid's cmdline is world-readable: no hop.
+# line; a log read that printed some lines and then failed or was cut is judged
+# by its rc, never by those lines, SPL-5119). The pid's cmdline is world-readable:
+# no hop.
 spl_fleet_desk_able() {
   [[ "${LEASE_DESK_GATE:-1}" == 0 ]] && return 0
   local d="${LEASE_DESK_DIR:-}" h pid line ts at started rc LD LB; local -a LAS=()
   if [[ -z "$d" && -n "${SPL_STATE_DIR:-}" && -n "${LEASE_TENANT:-}" && -n "${LEASE_DESK_BOX:-}" ]]; then
-    spl_fleet_desk_at "$LEASE_TENANT" ||
-      { echo "desk: $LEASE_DESK_BOX of $LEASE_TENANT is under a desk root this user cannot read"; return 1; }
+    spl_fleet_desk_at "$LEASE_TENANT"; rc=$?
+    (( rc != 2 )) || { echo "desk: $(spl_fleet_locate_cut "$LEASE_TENANT")"; return 1; }
+    (( rc == 0 )) || { echo "desk: $LEASE_DESK_BOX of $LEASE_TENANT is under a desk root this user cannot read"; return 1; }
     d="$LD"
   fi
   [[ -n "$d" ]] || return 0
@@ -2010,7 +2022,12 @@ spl_fleet_desk_able() {
   [[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${LEASE_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null ||
     { echo "desk: no hub-run sidecar in $d${LAS:+, or the hop to its owner failed (rc=$rc)}"; return 1; }
   line="$(spl_fleet_hop tail -n "${LEASE_DESK_LOG_TAIL:-5000}" "$h/hub-run.log" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' |
-    grep -aE 'hub session (up|down)|so the session reconnects' | tail -1)"
+    grep -aE 'hub session (up|down)|so the session reconnects' | tail -1; exit "${PIPESTATUS[0]}")"; rc=$?
+  if (( rc )); then
+    if (( ${#LAS[@]} )); then echo "desk: the hop to its owner failed reading the session log (rc=$rc)"
+    else echo "desk: session not up (the log read failed, rc=$rc)"; fi
+    return 1
+  fi
   [[ "$line" == *"hub session up"* ]] || { echo "desk: session not up (last: ${line:-none})"; return 1; }
   ts="$(grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})' <<<"$line" | sed -n 1p)"
   started="$(spl_fleet_hop stat -c %Y "$h/hub-run.pid" 2>/dev/null)"

@@ -12,6 +12,13 @@
 #   8. Another run holding the mount's lock: SKIP, nothing recorded
 #   9. Invocation via the csi-spl-utl ./run harness
 #  10. A top dir on another device (a mountpoint) is not sized
+#  11. Top dirs that cannot be listed read partial with a row, not complete (W1)
+#  12. Child rows of a du error are partial (W2)
+#  13. A hanging find counts against the budget (W3)
+#  14. A lock that cannot be opened is FATAL, not a SKIP (W4)
+#  15. The record keeps its newest lines (W5)
+#  16. A du that cannot start is unmeasured
+#  17. Time left over goes to the dir that was cut
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -98,7 +105,7 @@ run DISK_CROSSING_DU="$T/du-denied" DRY_RUN=0 bash "$SCRIPT" >/dev/null 2>&1
   && pass "5. a du error is partial, not complete" || fail "5. $(cat "$TSV")"
 
 # 6. red control: the planted defect must fail the check of case 3
-sed 's/124|137) reason=timeout; if \[\[ -n "\$out" \]\]; then state=partial; else state=unmeasured; fi ;;/124|137) reason=-; state=complete ;;/' \
+sed 's/124|137)  *reason=timeout; if \[\[ -n "\$out" \]\]; then state=partial; else state=unmeasured; fi ;;/124|137) reason=-; state=complete ;;/' \
   "$SCRIPT" >"$T/planted.sh"
 if cmp -s "$SCRIPT" "$T/planted.sh"; then
   fail "6. the planted defect did not change the script"
@@ -140,6 +147,71 @@ TSV="$T/10/sizes.tsv"
 out="$(run DISK_CROSSING_STAT="$T/stat-mp" bash "$SCRIPT" 2>&1)"
 [[ "$out" == *"complete, 1 of 1 dirs"* && "$out" != *"$M/small"* ]] \
   && pass "10. a top dir on another device is not sized" || fail "10. $out"
+
+# 11. a mount that cannot be listed
+mkdir -p "$T/locked"
+chmod 000 "$T/locked"
+TSV="$T/11/sizes.tsv"
+out="$(env DISK_CROSSING_MOUNT="$T/locked" DISK_CROSSING_BOX=fixture DISK_CROSSING_TSV="$TSV" DRY_RUN=0 bash "$SCRIPT" 2>&1)"; rc=$?
+chmod 755 "$T/locked"
+[[ $rc -eq 0 && "$out" == *"partial, 0 of 0 dirs"* && "$(top_row "$TSV" "$T/locked")" == "0 unmeasured find-error" ]] \
+  && pass "11. an unlistable mount reads partial, with a row" || fail "11. rc=$rc out=$out"
+
+# 12. child rows of a du error
+cat >"$T/du-kid-denied" <<'EOF'
+#!/bin/bash
+d="${!#}"
+printf '8192\t%s/kid\n12288\t%s\n' "$d" "$d"
+exit 1
+EOF
+chmod +x "$T/du-kid-denied"
+TSV="$T/12/sizes.tsv"
+run DISK_CROSSING_DU="$T/du-kid-denied" DRY_RUN=0 bash "$SCRIPT" >/dev/null 2>&1
+awk -F'\t' -v p="$M/big/kid" '$5 == "child" && $6 == p && $8 == "partial" && $9 == "du-error" { f = 1 } END { exit !f }' "$TSV" \
+  && pass "12. a du error marks its child rows partial" || fail "12. $(cat "$TSV")"
+
+# 13. a hanging find
+printf '#!/bin/bash\nexec sleep 30\n' >"$T/find-hang"
+chmod +x "$T/find-hang"
+TSV="$T/13/sizes.tsv"
+s0=$SECONDS
+out="$(run DISK_CROSSING_FIND="$T/find-hang" DISK_CROSSING_BUDGET_S=2 DRY_RUN=0 bash "$SCRIPT" 2>&1)"
+elapsed=$(( SECONDS - s0 ))
+[[ $elapsed -le 4 && "$out" == *"partial, 0 of 0 dirs"* && "$(top_row "$TSV" "$M")" == "0 unmeasured find-timeout" ]] \
+  && pass "13. a hanging find ends inside the budget + 2 s (${elapsed}s)" || fail "13. ${elapsed}s out=$out"
+
+# 14. a lock that cannot be opened
+TSV="$T/14/sizes.tsv"
+mkdir -p "$T/14/lock.${M//\//_}"
+out="$(run DRY_RUN=0 bash "$SCRIPT" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL cannot open the lock"* && "$out" != *SKIP* ]] \
+  && pass "14. an unopenable lock is FATAL, not a SKIP" || fail "14. rc=$rc out=$out"
+
+# 15. the record's cap
+TSV="$T/15/sizes.tsv"
+run DRY_RUN=0 DISK_CROSSING_TRIGGER=first DISK_CROSSING_CHILDREN=0 bash "$SCRIPT" >/dev/null 2>&1
+run DRY_RUN=0 DISK_CROSSING_TRIGGER=second DISK_CROSSING_CHILDREN=0 DISK_CROSSING_KEEP_LINES=2 bash "$SCRIPT" >/dev/null 2>&1
+[[ "$(wc -l <"$TSV")" == 2 && "$(cut -f4 "$TSV" | sort -u)" == second && ! -e "$TSV.tmp" ]] \
+  && pass "15. the record keeps its newest lines" || fail "15. $(cat "$TSV")"
+
+# 16. a du that cannot start
+TSV="$T/16/sizes.tsv"
+run DISK_CROSSING_DU="$T/no-such-du" DRY_RUN=0 bash "$SCRIPT" >/dev/null 2>&1
+[[ "$(top_row "$TSV" "$M/big")" == "0 unmeasured du-not-run" ]] \
+  && pass "16. a du that cannot start is unmeasured" || fail "16. $(cat "$TSV")"
+
+# 17. a du of big that hangs the first time only, small finishes at once
+cat >"$T/du-once" <<EOF
+#!/bin/bash
+d="\${!#}"
+if [[ "\$d" == */big && ! -e "$T/du-once.flag" ]]; then : >"$T/du-once.flag"; exec sleep 30; fi
+printf '5000\t%s\n' "\$d"
+EOF
+chmod +x "$T/du-once"
+TSV="$T/17/sizes.tsv"
+run DISK_CROSSING_DU="$T/du-once" DISK_CROSSING_BUDGET_S=4 DRY_RUN=0 bash "$SCRIPT" >/dev/null 2>&1
+[[ "$(top_row "$TSV" "$M/big")" == "5000 complete -" ]] \
+  && pass "17. time left over finishes the dir that was cut" || fail "17. $(cat "$TSV")"
 
 echo
 if (( fails == 0 )); then echo "OK: disk-crossing-sizes"; exit 0; fi

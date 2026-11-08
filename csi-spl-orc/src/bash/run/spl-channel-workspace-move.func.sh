@@ -144,9 +144,14 @@ _spl_cwm_hub_wire() {
 }
 
 # _spl_cwm_hub_post: the default seam, POST /v1/operator/channel-moves with the
-# request on stdin. The answer on stdout; any code but 200 is a refusal.
+# request on stdin. The answer on stdout; any code but 200 is a refusal. It
+# waits as long as Cloud Run lets the hub run (SPL-5067): a client that leaves
+# cancels the request, so a P4 longer than the cap rolls back on every re-run.
 _spl_cwm_hub_post() {
-  spl_hub_operator_call POST /v1/operator/channel-moves "$(cat)" || return 1
+  local max
+  max="$(yq -r '.env.hub.cloud_run.timeout_seconds // ""' "$SPL_CNF")"
+  [[ "$max" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL env.hub.cloud_run.timeout_seconds is not whole seconds in $SPL_CNF: '$max'" >&2; return 1; }
+  SPL_HUB_OP_MAX_TIME="$max" spl_hub_operator_call POST /v1/operator/channel-moves "$(cat)" || return 1
   printf '%s\n' "$SPL_HUB_OP_BODY"
   [[ "$SPL_HUB_OP_STATUS" == 200 ]] || { do_log "FATAL POST /v1/operator/channel-moves answered HTTP $SPL_HUB_OP_STATUS" >&2; return 1; }
 }

@@ -375,7 +375,7 @@ in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" STUB_FAIL_STEP=P3; rc=$
 # --- 12. the default seam: the T7 endpoint ------------------------------------------------
 # spl_hub_operator_call is the only stub: it records the call and hands the body
 # to the hub stub; STUB_HTTP sets the code it answers with.
-OPS='spl_hub_operator_call() { echo "op $1 $2 url=$SPL_HUB_URL as=$GCP_ACCOUNT" >>"$STUB_LOG"
+OPS='spl_hub_operator_call() { echo "op $1 $2 url=$SPL_HUB_URL as=$GCP_ACCOUNT" >>"$STUB_LOG"; echo "cap ${SPL_HUB_OP_MAX_TIME:-unset}" >>"$STUB_LOG"
   SPL_HUB_OP_BODY="$("$STUB_DIR/hub" <<<"$3")"; SPL_HUB_OP_STATUS="${STUB_HTTP:-200}"; }'
 reset_state; rm -f "$RULES"
 in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD=; rc=$?
@@ -391,6 +391,15 @@ in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= STU
 in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" "${R[@]}" CHANNEL_MOVE_HUB_CMD=; rc=$?
 [[ $rc -eq 0 && "$(ops)" == "P1 P2 P2b P3 P4 P5 P6 P7" && "$(grep -c '^op POST /v1/operator/channel-moves ' "$T/calls.log")" -eq "$(grep -c '^hub ' "$T/calls.log")" ]] \
   && grep -qx 'REPORT P4 deliveries: 2 expired' "$T/out" && pass "12. a whole move through the default seam, every hub op a POST" || fail "12. default run: rc=$rc '$(ops)' $(cat "$T/out")"
+# SPL-5067: a step longer than curl's default 30 s must not hang up on the hub
+# (a client that leaves rolls P4 back, every re-run); the cap is the cnf's Cloud
+# Run request timeout, the hub's own limit.
+CAP="$(yq -r '.env.hub.cloud_run.timeout_seconds' "$PROJ_ROOT/../csi-spl-cnf/csi-spl/all.env.yaml")"
+[[ "$CAP" =~ ^[1-9][0-9]*$ && "$(grep '^cap ' "$T/calls.log" | sort -u)" == "cap $CAP" ]] \
+  && pass "12. SPL-5067 every hub op waits the cnf's Cloud Run request timeout ($CAP s)" || fail "12. cap: '$CAP' $(grep '^cap ' "$T/calls.log" | sort | uniq -c)"
+in_orc "$OPS; yq() { case \"\$2\" in *timeout_seconds*) echo ;; *) command yq \"\$@\" ;; esac; }; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD=; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'FATAL.*timeout_seconds' "$T/out" \
+  && pass "12. SPL-5067 no request timeout in the cnf: FATAL, no hub call" || fail "12. no cap: rc=$rc $(cat "$T/out" "$T/calls.log")"
 in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= STUB_HTTP=409; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'answered HTTP 409' "$T/out" && grep -q 'FATAL the hub refused plan for src1/proj -> dst1 (exit 1): {"counts"' "$T/out" \
   && pass "12. a non-200 answer is a refusal: the code and the answer, exit 1" || fail "12. 409: rc=$rc $(cat "$T/out")"

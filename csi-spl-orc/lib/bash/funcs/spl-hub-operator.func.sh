@@ -26,11 +26,13 @@ spl_hub_operator_url() {
 # response body) and returns 0 even for an HTTP 4xx/5xx — the caller reads the
 # code. Returns non-zero only when no token could be minted or no HTTP response
 # came back. The id token never rides argv (a -K config file, 0600), like the
-# relay password never did.
+# relay password never did. SPL_HUB_OP_MAX_TIME (optional, default 30): curl's
+# cap in whole seconds, for the one caller whose request may run longer.
 # @output SPL_HUB_OP_STATUS — the HTTP code
 # @output SPL_HUB_OP_BODY — the response body
 spl_hub_operator_call() {
-  local method="$1" path="$2" body="${3:-}"
+  local method="$1" path="$2" body="${3:-}" max="${SPL_HUB_OP_MAX_TIME:-30}"
+  [[ "$max" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL SPL_HUB_OP_MAX_TIME must be whole seconds, got: '$max'"; return 1; }
   [[ -n "${SPL_HUB_URL:-}" ]] || { do_log "FATAL SPL_HUB_URL is empty (do_spl_cloud_cnf did not run)"; return 1; }
   [[ -n "${GCP_ACCOUNT:-}" ]] || { do_log "FATAL GCP_ACCOUNT is empty (do_gcp_pin_account did not run)"; return 1; }
   [[ -n "${SPL_STATE_DIR:-}" ]] || { do_log "FATAL SPL_STATE_DIR is empty"; return 1; }
@@ -39,7 +41,7 @@ spl_hub_operator_call() {
   [[ -n "$tok" ]] || { do_log "FATAL could not mint an id token as $GCP_ACCOUNT for audience $SPL_HUB_URL"; return 1; }
   local hdr="$SPL_STATE_DIR/hub-op.hdr" out="$SPL_STATE_DIR/hub-op.body" code
   ( umask 077; printf 'header = "Authorization: Bearer %s"\n' "$tok" >"$hdr"; )
-  local -a args=(-sS -m 30 -o "$out" -w '%{http_code}' -K "$hdr" -X "$method")
+  local -a args=(-sS -m "$max" -o "$out" -w '%{http_code}' -K "$hdr" -X "$method")
   [[ -n "$body" ]] && args+=(-H 'Content-Type: application/json' --data "$body")
   code="$(curl "${args[@]}" "$SPL_HUB_URL$path" 2>/dev/null)"
   local rc=$?

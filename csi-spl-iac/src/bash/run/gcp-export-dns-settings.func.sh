@@ -1,10 +1,11 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
+# @description Gcp export dns settings.
+# @example ORG=csi APP=csi-spl ENV=dev ./run -a do_gcp_export_dns_settings
+#------------------------------------------------------------------------------
 # shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
 declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 
-#------------------------------------------------------------------------------
-# @description Gcp export dns settings.
-#------------------------------------------------------------------------------
 do_gcp_export_dns_settings() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

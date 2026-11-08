@@ -8,11 +8,8 @@
 # Measured on 4a863a155 (2026-11-01, SPL-4572): 765 action files, 55 missing,
 # 4 long-example.
 [missing]
-csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh
-csi-spl-iac/src/bash/run/gcp-export-dns-settings.func.sh
 csi-spl-iac/src/bash/run/gcp-project-delete.func.sh
 csi-spl-iac/src/bash/run/gcp-tail-logs.func.sh
-csi-spl-iac/src/bash/run/spl-secret-unused-list.func.sh
 csi-spl-orc/src/bash/run/spl-ask-ack.func.sh
 csi-spl-orc/src/bash/run/spl-ask-close.func.sh
 csi-spl-orc/src/bash/run/spl-ask-put.func.sh

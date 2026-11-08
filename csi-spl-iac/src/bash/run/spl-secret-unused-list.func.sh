@@ -1,11 +1,4 @@
 #!/bin/bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
-# shellcheck source=spl-secret-age-report.func.sh
-declare -F spl_secret_age_dump >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-secret-age-report.func.sh"
-# spl_box_name: the box name from the config, never the hostname (SPL-4201)
-declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
-
 #------------------------------------------------------------------------------
 # @description READ-ONLY dry-run list of the unused credentials of one env and
 # @description of this box (SPL-1945 row 2, owner Q3: the list is shown to the
@@ -39,6 +32,13 @@ declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../
 # @param SECRET_UNUSED_NOW (optional) - the UTC instant ages count to (tests), default now
 # @example ENV=prd ./run -a do_spl_secret_unused_list
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+# shellcheck source=spl-secret-age-report.func.sh
+declare -F spl_secret_age_dump >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-secret-age-report.func.sh"
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 do_spl_secret_unused_list() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1

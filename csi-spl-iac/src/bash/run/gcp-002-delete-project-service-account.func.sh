@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
-declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description Gcp 002 delete project service account.
+# @example ORG=csi APP=csi-spl ENV=dev ./run -a do_gcp_002_delete_project_service_account
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 # The steps below read the caller's locals by bash dynamic scope:
 #   account (re-pinned by _gcp002del_authenticate) PROJ_ID SA_NAME SA_EMAIL KEY_FILE
 do_gcp_002_delete_project_service_account() {

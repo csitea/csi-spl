@@ -43,10 +43,10 @@ clear the gate lines rounds 26 and 27 left stale; two put 7 under-tested key
 functions under unit test; three take WUI functions off the wide list, one per
 batch, because all three edit `MessageCard.vue`.
 
-**Status: v0.1 DRAFT**, awaiting the panel seat (section 5).
+**Status: v0.2 DRAFT**, awaiting the panel seat (section 5).
 
-Editor: **c-393** (claude). Panel reviewer: placed by the dispatch lease holder
-(section 5).
+Editor: **c-393** (claude). Panel reviewer: an agy seat, queued by the dispatch
+lease holder, not launched yet (section 5).
 
 **One sha:** every count is measured on **`681cf8c63`** (`origin/master`
 681cf8c63971208963f71442006cf32fcd3f99b9, 2026-11-08T18:21:10+02:00 / 16:21:10Z),
@@ -72,7 +72,8 @@ Queue and lane readings are live state, so they carry their own time, not this s
   `run/` = `src/bash/run/`, `t/` = `src/bash/tests/` of the sub-project named.
   Lines as of `681cf8c63`; a function's site is its first line.
 - **Box:** `either` for every row (no pin).
-- **Vendor:** claude for every row. **R7 reviewer:** as the holder rules (section 5).
+- **Vendor:** claude for every row. **R7 reviewer:** a fresh claude session per row, under
+  waiver 1a7c70da (section 5); no seat is named before a row is queued.
 - **Subject** (R6 reads it): `<type>(r54-NN-<slug>, SPL-<row issue>): ...`.
 - **Topic:** every row brief carries the `Topic:` line above.
 - **R7 line:** `review: <id>@<box> <vendor> PASS <40-char sha> ran: <commands> | read: <output> | log: <id>@<box>:<path>`.
@@ -198,9 +199,18 @@ Queue and lane readings are live state, so they carry their own time, not this s
 
 ## 5. Panel and reviewers (R7)
 
-- Editor: c-393 (claude). Panel reviewer and each row's R7 reviewer: as the dispatch
-  lease holder rules on this plan's review sha; this draft names none. Both seats
-  sign the plan sha (rulebook 3.2).
+- Editor: c-393 (claude). Both seats sign the plan sha (rulebook 3.2).
+- **Panel seat (holder's note f331206e):** agy, cross-vendor as in round 27, ask
+  a3765117, queued on `5a8802f09`, not launched when the note was written: its box has
+  no agy cli, so it waits for the placer to find agy on another box. If agy cannot
+  seat, section 9 records a same-vendor panel under waiver 1a7c70da and c-001's ruling,
+  on the holder's word; this plan does not assume that.
+- **Row reviewers (same note):** claude author, a fresh claude reviewer per row, under
+  **same-vendor waiver 1a7c70da**, until the owner says grok is back. The note's
+  reading, quoted from it and not re-run here: the last search at 16:32Z found no post
+  lifting it, and `do_spl_lane_mix` at 16:5xZ reads grok off. The waiver does not make a
+  row compliant: rulebook 2.7.5 fails an equal vendor pair, and the retro names each
+  such row. A row's backup reviewer is a second fresh claude session on the same terms.
 - **No land** of this plan before the panel's signature and the holder's GO.
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
 - **P1, for the panel:** rows 08-10 leave their `WIDE` lines to round 29, as rows
@@ -247,10 +257,12 @@ Queue and lane readings are live state, so they carry their own time, not this s
 ## 8. Changes
 
 - v0.1: first draft (c-393): 10 rows, slug `r54`, measured on `681cf8c63`.
+- v0.2: the holder's note f331206e in the head, section 1 and section 5: the agy panel
+  seat and the R7 waiver 1a7c70da. No row changed.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-393 (claude): drafted v0.1. **Not yet signed.**
-- Panel reviewer seat: not yet placed.
+- Editor seat: c-393 (claude): drafted v0.1, v0.2. **Not yet signed.**
+- Panel reviewer seat: agy, queued (ask a3765117), not launched.

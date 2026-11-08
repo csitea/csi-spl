@@ -22,6 +22,11 @@
 # @description `chunks/*.json` and deletes the journal file a line named: such a
 # @description gone `<session>/journal/<n>.jsonl` is read as its session dir. Tool OUTPUT never counts:
 # @description a `git diff --stat` that lists a test file is not its run.
+# @description Nor does the review line's own text (SPL-5116): a `REVIEW_LINE=`
+# @description value and `review: ... | log: ...` text are cut from each command
+# @description before the match, so re-running this check clears nothing. What
+# @description is proven is that the name is in a command, not that it ran: a
+# @description name inside another command (an echo, a grep, a cat) still counts.
 # @description Never fetches a log from another box: run it on the reviewer's,
 # @description as a user who can read the reviewer's home, or as any user that
 # @description may `sudo -n -u` the log's owner (the passwd user whose home the
@@ -386,6 +391,9 @@ try:
 except OSError as e:
     print("FATAL cannot read the log: %s" % e)
     sys.exit(1)
+REVIEW_VAR = r"\bREVIEW_LINE=(?:\x27[^\x27]*\x27|\"(?:\\.|[^\"\\])*\"|\S+)"
+REVIEW_TEXT = r"\breview:\s+\S+@\S+\s+[a-z]+\s+(?:PASS|FAIL)\s[^\n]*?\bran:(?:[^\n]*?\|\s*log:\s*[^\s\x27\"\\]+|[^\x27\"\n]*)"
+runs = [re.sub(REVIEW_TEXT, " ", re.sub(REVIEW_VAR, " ", c)) for c in cmds]
 def found(kind, name):
     n = re.escape(name)
     if kind == "file":
@@ -394,7 +402,7 @@ def found(kind, name):
         rx = r"\bgo\s+test\b.*(?<!\S)" + n + r"(?!\S)"
     else:
         rx = r"\bpnpm\b.*\brun\s+" + n + r"(?![\w:.-])"
-    return any(re.search(rx, c, re.S) for c in cmds)
+    return any(re.search(rx, c, re.S) for c in runs)
 label = {"go": "go test ", "pnpm": "pnpm run "}
 miss = [label.get(k, "") + n for k, n in names if not found(k, n)]
 for m in miss:

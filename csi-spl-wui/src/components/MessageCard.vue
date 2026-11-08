@@ -376,6 +376,11 @@
       <p v-if="editing" :id="editHintId" class="muted msg-edit-hint">
         {{ saving ? t('feed.edit.saving') : t('feed.edit.hint') }}
       </p>
+      <!-- SPL-5057: a way out that needs no Esc key (a phone has none) -->
+      <div v-if="editing" class="msg-edit-actions">
+        <button type="button" class="btn ghost" data-test="msg-edit-cancel" :disabled="saving" @click.stop="cancelEdit">{{ t('common.cancel') }}</button>
+        <button type="button" class="btn" data-test="msg-edit-save" :disabled="saving" @click.stop="save">{{ t('docs.ws.save') }}</button>
+      </div>
       <p v-if="editError" class="msg-edit-error" role="alert" data-test="msg-edit-error">
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ t(editError) }}</span>
@@ -461,7 +466,7 @@
     <MessageDeleteDialog
       v-if="msgDeleteOpen"
       v-model:open="msgDeleteOpen"
-      @confirm="remove"
+      @confirm="onMsgDeleteConfirm"
     />
     <!-- mounted only while open (CLE-35075): a closed picker per card cost an
          overlay registration, a watcher and a Teleport on every card -->
@@ -650,7 +655,7 @@ const editError = ref('')
 const localePath = useLocalePath()
 const msgEdit = useMessageEdit()
 const { canEdit, viewerId: editorId, removeAttachment } = msgEdit
-const { editing, saving, editHintId, draft, editMp, startEdit, onEditKey } = useCardEdit(props, emit, rowEl, editEl, editError, msgEdit)
+const { editing, saving, emptyAsk, editHintId, draft, editMp, startEdit, closeEdit, onEditKey, save, cancel: cancelEdit } = useCardEdit(props, emit, rowEl, editEl, editError, msgEdit)
 /* The same message can sit in the middle list and the topic pane at once.
    The menu id has to be this card, not the msg_id, or both menus open. */
 const menuKey = useId()
@@ -715,6 +720,17 @@ const { clipOn, userPx, clipped, clipStyle, startGrip, onGripClick, onGripKey } 
 const busyState = { removing, editError }
 const { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete } = useCardTopicActions(props, emit, rowEl, busyState, menu, msgEdit)
 const { aiError, onAiFail, onMerge, remove, onMakeIssue } = useCardMessageActions(props, emit, busyState, editing, menu, msgEdit)
+/* SPL-5057: Save on an emptied box asks the Delete key's confirm for this row */
+watch(emptyAsk, (asked) => {
+  if (!asked) return
+  emptyAsk.value = false
+  if (showTopicDelete.value) void onMenuDeleteTopic()
+  else msgDeleteOpen.value = true
+})
+function onMsgDeleteConfirm() {
+  if (editing.value) closeEdit()
+  void remove()
+}
 const { onMakeTask } = useCardMakeTask(props, menu, msgEdit, aiError)
 const { showParent, parentKind, onMenuParent, copyMessageLink, copyBody, onMenuOpen, onMenuReply, onMenuKind } = useCardMenuActions(props, viewerId, rowEl, menu, openReplies)
 
@@ -761,6 +777,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.msg-edit-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
 /* t1 b921518d: the selected topic card has no left bracket bar. A 1px
    soft-grey border frames all four sides, and a small grey drop shadow
    lifts it. The card is not translated: scroll-to-top reads the border

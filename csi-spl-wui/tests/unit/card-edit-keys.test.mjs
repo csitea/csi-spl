@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { ref } from 'vue'
 import { importTsStubbed } from './lib/load-ts-stubbed.mjs'
 
-const RETURNED = ['closeEdit', 'draft', 'edit', 'editHintId', 'editMp', 'editing', 'onEditKey', 'save', 'saving', 'startEdit']
+const RETURNED = ['cancel', 'closeEdit', 'draft', 'edit', 'editHintId', 'editMp', 'editing', 'emptyAsk', 'onEditKey', 'save', 'saving', 'startEdit']
 
 let mod
 let saved

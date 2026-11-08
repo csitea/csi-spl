@@ -8,7 +8,8 @@
 #   40-git-no-pager         git output is never paged; --no-pager if a pager
 #                           appears (SPL-2432: agy's shell has a tty)
 #
-# The source is spool-install/assets/agy/rules/<part>.md. Each rendered file is
+# The source is spool-install/assets/agy/rules/<part>.md and opens with the
+# "trigger: always_on" frontmatter agy needs to load it (SPL-5106). Each rendered file is
 # that text plus one marker line "<!-- spool-install: sha256=<hex> -->" (the
 # sha of the text above it): a re-run rewrites the file only while it is
 # untouched (its text still hashes to its marker); a hand-edited file, or a

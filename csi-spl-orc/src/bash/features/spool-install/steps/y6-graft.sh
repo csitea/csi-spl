@@ -7,7 +7,8 @@
 #                                    it; the raw launcher it names is kept)
 #   L4  ~/.claude/skills/graft       -> <feature>/assets/skills/graft
 #   L5  ~/.gemini/config/rules/graft.md -> <feature>/assets/agy-rules/graft.md
-#                                    (only where ~/.gemini exists)
+#                                    (only where ~/.gemini exists; the asset
+#                                    opens with agy's always_on frontmatter)
 #
 # A link is (re)pointed only when it is missing, broken, or points at another
 # graft feature's assets (an older checkout, the retired engine copy); a real

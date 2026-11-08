@@ -279,6 +279,14 @@ The same measurement shows that the lane rule, the exit rule (Y14), the git
 pager rule and the graft rule never reach an agy session: none carries the
 frontmatter. That is a finding for their owners, not changed by SPL-4911.
 
+**The fleet's own agy rules (SPL-5106).** Every other file spool-install puts in
+`~/.gemini/config/rules` now opens with the same frontmatter: the y14 sources
+(`assets/agy/rules/*.md`), y6's `graft.md` and y9's lane rule (y8's `Y8_HEAD`, which
+also upgrades a file from before the frontmatter, the old one backed up). Gate:
+`spool-install/tests/test-agy-rules-always-on.sh`. Measured with agy 1.5.3 in sandbox
+homes: n=2 listed all four rules with no `Invalid rule trigger` line, a control
+with the frontmatter stripped (n=1) answered `NONE` with four such lines.
+
 ## 6. Seed parity and per-vendor blocks (SPL-2176, 2026-10-25)
 
 Every kind renders claude's seed, sentence for sentence, at most

@@ -12,6 +12,9 @@ FRAG = re.compile(r"^(\d{2})-[a-z0-9][a-z0-9-]*\.md$")
 # lane rule into agy's and qwen's own rules files); unset = every part, agents-md.
 ONLY = os.environ.get("Y8_ONLY", "")
 TAG = os.environ.get("Y8_TAG", "agents-md")
+# Y8_HEAD=<text> must open the file, before the block (y9: agy's always_on
+# frontmatter, without it agy drops the rule); unset = nothing above the block.
+HEAD = os.environ.get("Y8_HEAD", "")
 if ONLY:
     BEGIN = (
         "<!-- spool-install: begin %s (csi-spl fleet rule %s, the same part as in "
@@ -111,6 +114,8 @@ else:
     else:
         # someone else's AGENTS.md: ours goes first, theirs is kept after it
         new = block + ("\n" + cur if cur else "")
+if HEAD and not new.startswith(HEAD):
+    new = HEAD + new
 if new == cur:
     say("%s: already current" % md)
     sys.exit(0)

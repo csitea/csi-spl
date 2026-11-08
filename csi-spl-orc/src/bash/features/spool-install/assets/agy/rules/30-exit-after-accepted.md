@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # A lane exits only after ACCEPTED (agy)
 
 > Generated from qto doc `4c7cc22c-91d1-40ec-a024-ae672166e3ff`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.

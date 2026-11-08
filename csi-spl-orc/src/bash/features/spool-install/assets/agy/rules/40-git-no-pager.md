@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Git output is never paged (agy)
 
 Your shell has a tty, so a git command that pages waits for a key nobody

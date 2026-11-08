@@ -6,7 +6,7 @@
 #   claude  ~/.claude/CLAUDE.md                  step y4 (every part)
 #   grok    ~/.claude/CLAUDE.md                  grok's compat.claude scan (default on)
 #   mistral ~/.vibe/AGENTS.md                    step y8 (every part)
-#   agy     ~/.gemini/config/rules/<part>.md     this step (agy loads every rules/*.md, as y6's graft.md)
+#   agy     ~/.gemini/config/rules/<part>.md     this step (agy loads a rules/*.md only under "trigger: always_on" frontmatter, SPL-5106)
 #   qwen    ~/.qwen/QWEN.md                      this step (qwen's global context; its save_memory
 #                                                appends there, so it is qwen's memory file too)
 #
@@ -23,10 +23,10 @@ spool_install_vendor_lane_rule() {
   local here assets part=25-stay-in-your-lane rc=0
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   assets="${SPOOL_INSTALL_CLAUDE_ASSETS:-$here/../assets/claude}"
-  _y9_one() {  # TARGET
-    Y8_ONLY="$part" Y8_TAG=lane-rule python3 "$here/y8-vibe-agents.py" "$assets/claude-md" "$1" "${DRY:-0}" "${FORCE_SKILLS:-0}" || rc=1
+  _y9_one() {  # TARGET [HEAD]
+    Y8_HEAD="${2:-}" Y8_ONLY="$part" Y8_TAG=lane-rule python3 "$here/y8-vibe-agents.py" "$assets/claude-md" "$1" "${DRY:-0}" "${FORCE_SKILLS:-0}" || rc=1
   }
-  [ -d "$HOME/.gemini" ] && _y9_one "$HOME/.gemini/config/rules/$part.md"
+  [ -d "$HOME/.gemini" ] && _y9_one "$HOME/.gemini/config/rules/$part.md" $'---\ntrigger: always_on\n---\n'
   [ -d "$HOME/.qwen" ] && _y9_one "$HOME/.qwen/QWEN.md"
   return "$rc"
 }

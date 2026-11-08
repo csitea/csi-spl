@@ -22,7 +22,10 @@ Postgres text format (spec 5.7). Each class fails closed:
           member (Q1b)
   C4      content scan: the patterns below, gitleaks with the repo's config,
           every other workspace's id and display name as whole words (in a
-          body not an id of BODY_WORD_IDS, a plain word there). A hit
+          body not an id of BODY_WORD_IDS, a plain word there), and the
+          customer list (--customer-list, the private overlay's
+          customer_strings: key:, domain:, server: entries; a missing,
+          empty or malformed list fails the day). A hit
           in messages.body (or in msg, the v:1 object rebuilt from it) drops
           that message and counts it by class (Q3); a hit anywhere else is
           FATAL. The scan runs again on what is left and must be clean; more
@@ -121,6 +124,22 @@ NAME_EDGE = r"A-Za-z0-9_-"
 # (owner answer A, SPL-3671): the built-in docs workspace. Its display name, and
 # the id in every other column, are still matched.
 BODY_WORD_IDS = ("system",)
+# customer_strings entry kind -> (the value's shape, its pattern): a key matches
+# every number of the project, a domain every host under it, a server whole.
+CUSTOMER_KINDS = {
+    "key": (
+        re.compile(r"^[A-Z][A-Z0-9]{1,19}$"),
+        r"(?<![A-Za-z0-9])%s-[0-9]+(?![A-Za-z0-9])",
+    ),
+    "domain": (
+        re.compile(r"^[a-z0-9-]+(?:\.[a-z0-9-]+)+$"),
+        r"(?<![A-Za-z0-9-])%s(?![A-Za-z0-9-])",
+    ),
+    "server": (
+        re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,}$"),
+        r"(?<![A-Za-z0-9_-])%s(?![A-Za-z0-9_-])",
+    ),
+}
 
 
 def unescape(v):
@@ -137,6 +156,23 @@ def unescape(v):
             out.append(v[i])
             i += 1
     return "".join(out)
+
+
+def customer_regex(lines):
+    """-> (one case-insensitive pattern or None, [bad line numbers]). None when
+    there is no entry or any line is bad: the gate never runs on part of a list."""
+    alts, bad = [], []
+    for i, raw in enumerate(lines, 1):
+        s = raw.strip()
+        if not s:
+            continue
+        kind, _, v = s.partition(":")
+        shape = CUSTOMER_KINDS.get(kind)
+        if shape is None or not shape[0].match(v):
+            bad.append(i)
+        else:
+            alts.append(shape[1] % re.escape(v))
+    return (re.compile("|".join(alts), re.I) if alts and not bad else None), bad
 
 
 def constant_ok(kind, v, r):
@@ -174,6 +210,7 @@ class Gate:
         self.blocks = {}  # table -> {"cols": [...], "rows": [(line_no, [values])]}
         self.comments = []  # (line_no, text)
         self.names = self.name_patterns()
+        self.customer = self.customer_pattern()
 
     def fail(self, cls, table, where):
         msg = "FATAL %s %s %s" % (cls, table, where)
@@ -196,7 +233,12 @@ class Gate:
         body skips the BODY_WORD_IDS ids."""
         out = [cls for cls, rx in PATTERNS if rx.search(v)]
         names = [rx for rx, word in self.names if not (body and word)]
-        return out + (["other-workspace"] if any(rx.search(v) for rx in names) else [])
+        cust = ["customer-string"] if self.customer and self.customer.search(v) else []
+        return (
+            out
+            + (["other-workspace"] if any(rx.search(v) for rx in names) else [])
+            + cust
+        )
 
     def rows(self, table):
         b = self.blocks.get(table)
@@ -444,6 +486,22 @@ class Gate:
                         pats.append((rx, i == 0 and w.strip() in BODY_WORD_IDS))
         return pats
 
+    def customer_pattern(self):
+        """The customer list's pattern; a FATAL (line numbers only) without one."""
+        try:
+            with open(self.a.customer_list, encoding="utf-8") as fh:
+                rx, bad = customer_regex(fh.read().split("\n"))
+        except OSError:
+            rx, bad = None, []
+        if rx is None:
+            self.fail(
+                "C4",
+                "customer-list",
+                "missing, empty or malformed (bad lines: %s): the day fails"
+                % (",".join(map(str, bad)) or "none"),
+            )
+        return rx
+
     def cells(self, dropped):
         """[(table, n, row, col, text)] for every comment and non-empty value."""
         out = [("comment", i, None, None, text) for i, text in self.comments]
@@ -648,6 +706,7 @@ def main():
         "catalog",
         "reread",
         "names",
+        "customer-list",
         "workspace",
         "out",
         "report",

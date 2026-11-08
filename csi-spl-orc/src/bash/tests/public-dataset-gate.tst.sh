@@ -26,6 +26,9 @@
 #        allow-list version skips it; a table in the previous counts and
 #        gone from the file counts as 0 rows
 #     7. log capture: no planted string appears in any gate output or report
+#     7b. the customer list (invented values): a key, a host under a domain and
+#        a server drop a body and are FATAL elsewhere; a missing, empty or
+#        malformed list fails the day; the red control (rule removed -> no drop)
 #   Part 2 (a REAL throwaway Postgres migrated by the repo's migrations, the
 #   action do_spl_public_dataset_gate as the real spool_public_export login):
 #     8. the clean candidate passes through the action
@@ -41,6 +44,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
+cust_i=0
 for b in yq jq python3; do command -v "$b" >/dev/null || { echo "SKIP: no $b"; exit 0; }; done
 
 FIX="$TEST_DIR/fixtures/public-dataset/gate"
@@ -154,8 +158,8 @@ PY
 gate() {
   local name="$1"; shift
   [[ -s "$T/$name.reread.json" ]] || reread_of "$T/$name.sql" "$T/$name.reread.json"
-  python3 "$CORE" --file "$T/$name.sql" --allow-list "${ALLOW:-$T/allow.json}" --catalog "${CATALOG:-$T/catalog.json}" \
-    --reread "$T/$name.reread.json" --names "$FIX/names.tsv" --workspace "${WSL:-$WS}" --out "$T/$name.out.sql" \
+  python3 "${CORE_RUN:-$CORE}" --file "$T/$name.sql" --allow-list "${ALLOW:-$T/allow.json}" --catalog "${CATALOG:-$T/catalog.json}" \
+    --reread "$T/$name.reread.json" --names "$FIX/names.tsv" --customer-list "${CUST:-$T/customer.txt}" --workspace "${WSL:-$WS}" --out "$T/$name.out.sql" \
     --report "$T/$name.report.json" --drop-cap-pct 1 --size-tol-pct 50 --gitleaks "$GL" \
     --gitleaks-config "$APP_ROOT/.gitleaks.toml" "$@" >"$T/$name.log" 2>&1
   echo $? >"$T/$name.rc"
@@ -174,6 +178,8 @@ dropped() {
      "$(grep -c '^00000000-0000-4000-8000' "$T/$2.out.sql")" == "$((100 - $4))" ]] \
     && pass "$1" || fail "$1: rc=$(rc_of "$2") $(cat "$T/$2.log") $(cat "$T/$2.report.json" 2>/dev/null)"
 }
+
+printf 'key:QZX\ndomain:planted-customer.example.invalid\nserver:zz-planted1\n' >"$T/customer.txt"
 
 # --- 1. clean ----------------------------------------------------------------------
 cp "$FIX/clean.sql" "$T/clean.sql"; gate clean
@@ -229,6 +235,39 @@ mk one 'body:9:P(email)'; gate one
 dropped "3. 1 of 100 bodies hit (1 %, the cap) passes" one email 1
 mk two 'body:9:P(email)' 'body:10:P(ipv4)'; gate two
 fatal "3. 2 of 100 bodies hit (2 %, above the 1 % cap) fails the day" two 'FATAL C4 messages 2 of 100 messages dropped (2.00%), above the 1.0% cap'
+
+# --- 3b. the customer list (invented values, spec 091 5.5) -----------------------------
+for p in 'see QZX-1234 today' 'ticket qzx-77 lowercase' 'at https://jira.sub.planted-customer.example.invalid/browse' 'on zz-planted1 now'; do
+  n="b-cust-$((++cust_i))"; mk "$n" "body:5:$p"; gate "$n"
+  dropped "3b. a customer string in a body drops the message ($n)" "$n" customer-string 1
+  grep -qiE 'qzx|planted-customer|zz-planted1' "$T/$n.log" "$T/$n.report.json" && fail "3b. $n: the value reached the output" || pass "3b. $n: the class and key only in the output"
+done
+mk c-word 'body:5:QZX alone, QZX-12a, notplanted-customer.example.invalid, zz-planted12'; gate c-word
+[[ "$(rc_of c-word)" == 0 && "$(jq -r .messages_dropped "$T/c-word.report.json")" == 0 ]] \
+  && pass "3b. only a whole key, host or server matches" || fail "3b. edges: $(cat "$T/c-word.log")"
+mk c-col 'set:channels:1:description:see QZX-1234'; gate c-col
+fatal "3b. a customer string outside a body is FATAL" c-col 'FATAL C4 channels channel_id=dev-talk: column description: customer-string hit'
+mk c-key 'set:channels:1:channel_id:zz-planted1' 'set:channels:1:name:zz-planted1'; gate c-key
+fatal "3b. a hit IN a key column names the row number, not the key" c-key 'FATAL C4 channels row 1: column channel_id: customer-string hit'
+for bad in missing empty malformed partial; do
+  case $bad in
+    missing) CF="$T/no-such-list.txt" ;;
+    empty) CF="$T/cl-empty.txt"; : >"$CF" ;;
+    malformed) CF="$T/cl-bad.txt"; printf 'nonsense\n' >"$CF" ;;
+    partial) CF="$T/cl-part.txt"; printf 'key:QZX\nhost:zz\n' >"$CF" ;;
+  esac
+  cp "$FIX/clean.sql" "$T/cl-$bad.sql"; CUST="$CF" gate "cl-$bad"
+  fatal "3b. a $bad customer list fails the day" "cl-$bad" 'FATAL C4 customer-list'
+done
+python3 - "$CORE" "$T/mutant.py" <<'MUT' || fail "3b. the red control could not build its mutant"
+import sys
+s = open(sys.argv[1]).read()
+assert s.count("self.customer.search(v)") == 1
+open(sys.argv[2], "w").write(s.replace("self.customer.search(v)", "False"))
+MUT
+mk c-red 'body:5:see QZX-1234 today'; CORE_RUN="$T/mutant.py" gate c-red
+[[ "$(jq -r .messages_dropped "$T/c-red.report.json")" == 0 ]] \
+  && pass "3b. red control: with the rule removed the planted key is NOT dropped" || fail "3b. red control: $(cat "$T/c-red.log")"
 
 # --- 4. C3 shape -------------------------------------------------------------------------
 mk xcol 'col:messages:files:[]'; gate xcol
@@ -402,7 +441,7 @@ print(json.dumps(a))' "$T/allow.json" >"$T/proj/cnf/public-dataset/allow-list.v1
 printf 'env:\n  public_dataset:\n    workspace_ids: [%s]\n    body_drop_cap_pct: 1\n    size_tolerance_pct: 50\n    allow_list_version: 1\n' "$WS" >"$T/cnf.yaml"
 # act <name> <dsn>: the ACTION on $T/<name>.sql as the given login
 act() {
-  env PROJ_PATH="$T/proj" APP_PATH="$APP_ROOT" PATH="$T/bin:$PATH" ENV=dev SPL_CNF_STUB="$T/cnf.yaml" \
+  env PROJ_PATH="$T/proj" APP_PATH="$APP_ROOT" PATH="$T/bin:$PATH" ENV=dev SPL_CNF_STUB="$T/cnf.yaml" SPL_PRIVATE_CNF="${OVERLAY:-$T/overlay.yaml}" \
     PD_GATE_FILE="$T/$1.sql" PD_GATE_OUT="$T/$1.act.sql" PD_GATE_REPORT="$T/$1.act.json" PD_NAMES_FILE="$FIX/names.tsv" \
     PD_EXPORT_DSN="$2" bash -c '
     set -uo pipefail
@@ -412,6 +451,8 @@ act() {
     do_spl_public_dataset_gate' >"$T/$1.act.log" 2>&1 </dev/null
   echo $? >"$T/$1.act.rc"
 }
+printf 'customer_strings:\n  - key:QZX\n' >"$T/overlay.yaml"
+printf 'workspaces:\n' >"$T/overlay-none.yaml"
 cp "$FIX/clean.sql" "$T/d-clean.sql"; act d-clean "$EXPORT_DSN"
 [[ "$(cat "$T/d-clean.act.rc")" == 0 ]] && grep -q '^OK public dataset gate (dev)' "$T/d-clean.act.log" && cmp -s "$T/d-clean.act.sql" "$FIX/clean.sql" \
   && pass "8. the action passes the clean candidate as spool_public_export (live catalog, RLS re-read)" || fail "8. action clean: $(cat "$T/d-clean.act.log")"
@@ -443,6 +484,13 @@ printf 'env:\n  public_dataset:\n    workspace_ids: [%s]\n    body_drop_cap_pct:
 cp "$T/m-two.sql" "$T/d-two1.sql"; act d-two1 "$EXPORT_DSN"
 [[ "$(cat "$T/d-two1.act.rc")" == 1 ]] && grep -q 'FATAL C1 tenants the file must hold exactly one row per listed workspace (1), it holds 2' "$T/d-two1.act.log" \
   && pass "12. the same file with the cnf listing one workspace fails C1" || fail "12. one listed: $(cat "$T/d-two1.act.log")"
+
+cp "$FIX/clean.sql" "$T/d-nolist.sql"; OVERLAY="$T/overlay-none.yaml" act d-nolist "$EXPORT_DSN"
+[[ "$(cat "$T/d-nolist.act.rc")" == 1 && ! -e "$T/d-nolist.act.sql" ]] && grep -q 'no customer_strings entry' "$T/d-nolist.act.log" \
+  && pass "13. an overlay with no customer_strings fails the action" || fail "13. no list: $(cat "$T/d-nolist.act.log")"
+cp "$FIX/clean.sql" "$T/d-noover.sql"; OVERLAY="$T/no-such-overlay.yaml" act d-noover "$EXPORT_DSN"
+[[ "$(cat "$T/d-noover.act.rc")" == 1 ]] && grep -q 'no private overlay' "$T/d-noover.act.log" \
+  && pass "13. no overlay at all fails the action" || fail "13. no overlay: $(cat "$T/d-noover.act.log")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s)"; exit 1

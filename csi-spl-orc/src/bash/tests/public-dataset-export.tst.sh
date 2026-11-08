@@ -318,7 +318,8 @@ if [[ -z "$GL" ]]; then
   chmod +x "$T/stub/gitleaks"; echo "INFO: no gitleaks on this runner: a stub stands in for the gate's gitleaks scan"
 fi
 mkdir -m 700 "$T/pg" "$T/pg/raw"
-env PROJ_PATH="$T/proj" APP_PATH="$APP_ROOT" PATH="$T/stub:$PATH" ENV=dev SPL_CNF_STUB="$T/cnf.yaml" H="$T/pg" \
+printf 'customer_strings:\n  - key:QZX\n' >"$T/overlay.yaml"
+env PROJ_PATH="$T/proj" APP_PATH="$APP_ROOT" PATH="$T/stub:$PATH" ENV=dev SPL_CNF_STUB="$T/cnf.yaml" SPL_PRIVATE_CNF="$T/overlay.yaml" H="$T/pg" \
   PD_GATE_FILE="$T/pg/candidate.sql" PD_GATE_OUT="$T/pg/clean.sql" PD_GATE_REPORT="$T/pg/gate.json" PD_NAMES_FILE="$T/names.tsv" \
   PD_EXPORT_DSN="$EXPORT_DSN" bash -c '
   set -uo pipefail

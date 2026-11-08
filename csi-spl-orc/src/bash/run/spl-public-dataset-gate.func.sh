@@ -19,7 +19,9 @@
 # @description   C4     e-mail, IPv4/IPv6, JWT, PEM, cloud / Slack / GitHub
 # @description          tokens, iam.gserviceaccount.com, gitleaks with the
 # @description          repo's .gitleaks.toml, every other workspace's id and
-# @description          display name (the names step's list) as whole words.
+# @description          display name (the names step's list) as whole words,
+# @description          the customer list (the private overlay's customer_strings;
+# @description          missing or empty = the day fails).
 # @description          A hit in a message body drops that message and counts
 # @description          it by class (Q3), then the scan runs again and must be
 # @description          clean; above public_dataset.body_drop_cap_pct dropped,
@@ -63,6 +65,7 @@ do_spl_public_dataset_gate() {
   # shellcheck disable=SC2064
   trap "rm -rf '$h'; trap - RETURN" RETURN
   yq -o=json '.' "$allow" >"$h/allow.json" || { do_log "FATAL cannot read $allow"; return 1; }
+  spl_pd_gate_customer_list "$h/customer.txt" || return 1
   spl_pd_gate_unpack "$PD_GATE_FILE" "$h/candidate.sql" || return 1
   spl_pd_gate_catalog "$PD_EXPORT_DSN" "$h/allow.json" "$h/catalog.json" || return 1
   spl_pd_gate_reread "$PD_EXPORT_DSN" "$ws" "$h/reread.json" || return 1
@@ -70,7 +73,7 @@ do_spl_public_dataset_gate() {
   local rc=0 line
   python3 "$PROJ_PATH/src/bash/scripts/public-dataset-gate.py" --file "$h/candidate.sql" \
     --allow-list "$h/allow.json" --catalog "$h/catalog.json" --reread "$h/reread.json" \
-    --names "$PD_NAMES_FILE" --workspace "$ws" --out "$PD_GATE_OUT" --report "$PD_GATE_REPORT" \
+    --names "$PD_NAMES_FILE" --customer-list "$h/customer.txt" --workspace "$ws" --out "$PD_GATE_OUT" --report "$PD_GATE_REPORT" \
     --prev-manifest "${PD_PREV_MANIFEST:-}" --drop-cap-pct "$cap" --size-tol-pct "$tol" \
     --gitleaks "$(command -v gitleaks)" --gitleaks-config "$APP_PATH/.gitleaks.toml" >"$h/gate.log" 2>&1 || rc=$?
   while IFS= read -r line; do do_log "$line"; done <"$h/gate.log"
@@ -109,6 +112,17 @@ spl_pd_gate_args() {
   [[ ! -e "$PD_GATE_OUT" ]] || { do_log "FATAL $PD_GATE_OUT exists: the gate never overwrites a cleaned file"; return 1; }
   [[ -z "${PD_PREV_MANIFEST:-}" || -r "$PD_PREV_MANIFEST" ]] || { do_log "FATAL no previous manifest $PD_PREV_MANIFEST"; return 1; }
   [[ -r "$APP_PATH/.gitleaks.toml" ]] || { do_log "FATAL no $APP_PATH/.gitleaks.toml (the repo's gitleaks config)"; return 1; }
+}
+
+# spl_pd_gate_customer_list <out>: the overlay's customer_strings, one entry per
+# line (spec 091 5.5). No overlay, no section or no entry is FATAL: a gate
+# without the list proves nothing.
+spl_pd_gate_customer_list() {
+  # shellcheck source=/dev/null
+  source "$APP_PATH/csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh" || return 1
+  spl_private_list customer_strings >"$1" 2>/dev/null ||
+    { do_log "FATAL no private overlay: the gate needs its customer_strings (fail closed)"; return 1; }
+  [[ -s "$1" ]] || { do_log "FATAL the private overlay has no customer_strings entry (fail closed)"; return 1; }
 }
 
 spl_pd_gate_unpack() {

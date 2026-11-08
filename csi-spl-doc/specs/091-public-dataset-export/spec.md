@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.5.1)
+**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.5.2)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -244,6 +244,18 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
    candidate is published or dropped, and the publish step proves they were not copied. A hit in a **message body** removes that message
    and counts it in the manifest by class; a hit anywhere else = FATAL. After removal the scan runs again and must
    be clean (§11 Q3: drop or fail).
+
+   **Customer strings (owner HUM-10, csitea topic b996e0e5, msgs 294d0522 and bac75a85; SPL-5124).** The C4 scan also
+   matches the customer list, class `customer-string`: ticket-key prefixes (`key:`, every number of the project, any
+   case), domains (`domain:`, every host under it) and server names (`server:`, whole words). The list is the
+   `customer_strings` section of the private overlay (`csi-spl-doc/doc/md/private-overlay.md`), never in git; the
+   runner reads it from the overlay file written from the secret `SPL_PRIVATE_CNF_YAML`. A missing or empty section,
+   or one malformed line, fails the day. A body hit drops the message as above and counts against
+   `body_drop_cap_pct`; a hit anywhere else = FATAL. Output names the class and the row key, never the value (§5.6).
+   A ban list proves only what it names, so `do_spl_public_dataset_customer_check` (read-only) reads the channels of
+   the overlay's `customer_channels` for URL hosts and ticket prefixes and fails, with counts only, on one that is in
+   neither `customer_strings` nor `customer_ignore`. `do_spl_private_overlay_merge` writes one such section into the
+   overlay on its master box.
 4. **Canaries (C5, CI)**: the CI fixture (§9.3) plants a unique marker string in each of: a second workspace with a
    channel of the SAME `channel_id` as a public one; a private channel; a DM; a reply in an archived task; an
    archived channel; a message revision; the `msg`, `env`, `env_sig` and `files` of a public message; the e-mail of
@@ -446,6 +458,7 @@ panel's daily lanes); Q1 consent (a-287 suggests a notice plus an opt-out).
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.5.2 | 2026-11-08 | §5.5 item 3: the customer list, a C4 class fed by the private overlay, fail closed, with its completeness check (SPL-5124, owner msgs 294d0522, bac75a85) |
 | v0.5.1 | 2026-11-03 | §5.1 filter columns: §5.3 could not be written under §5.1, because the login held no `tenant_id` or row-rule flag on `channels` / `messages`. The allow-list gets `filter` lists, granted; only `tenant_id` of them is emitted, §5.5 item 2 (SPL-4704, c-001 ruling 875d406b) |
 | v0.5.0 | 2026-10-27 | owner HUM-10 (t1 e2c0e6b4, msgs c72b919b, c68e6073, poll answer afb3d81d): the export holds the workspaces t1, spool and demo, a cnf list; fence 2 reads a set (rdb 0239); the gate keys rows by (workspace, key); §4.2 unchanged (SPL-3808) |
 | v0.4.1 | 2026-10-05 | §13 consensus recorded; no requirement changed |

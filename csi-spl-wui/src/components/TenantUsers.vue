@@ -285,15 +285,16 @@ watch(() => session.state, (st) => {
 }
 .users-status--sent { color: var(--color-fg); border-color: var(--color-accent); }
 .users-status--expired { color: var(--color-danger); border-color: var(--color-danger); }
-/* SPL-5056: several roles wrap inside their share of the row */
+/* SPL-5056: several roles wrap inside their share of the row, between words:
+   min-content, because a flex item at min-width 0 shrinks below its longest word. */
 .users-role {
   flex: 0 1 auto;
-  min-width: 0;
+  min-width: min-content;
   max-width: 50%;
   font-size: 0.8125rem;
   color: var(--color-muted);
   text-align: end;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .users-empty { margin: var(--spacing-xs) 20px; }
 .users-load-error { margin: var(--spacing-md) 20px; color: var(--color-danger); }

@@ -213,6 +213,20 @@ try {
     return { text: e.textContent.trim(), visible: e.getBoundingClientRect().width > 0, inRow: e.getBoundingClientRect().right <= rowEl.getBoundingClientRect().right + 0.5, noScroll: rowEl.scrollWidth <= rowEl.clientWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1 }
   }).catch(() => null)
   ok('7a 390 px: a several-roles row stays inside the list row', Boolean(phoneRow && phoneRow.visible && phoneRow.inRow && phoneRow.noScroll && phoneRow.text.includes(',')), phoneRow)
+  // Every row, invite rows too: a word on two lines is a mid-word break.
+  const splitRoles = await p.$$eval('[data-test=users-row-role]', (els) => els.flatMap((e) => {
+    const node = e.firstChild
+    const out = []
+    for (const m of (node?.textContent || '').matchAll(/\S+/g)) {
+      const r = document.createRange()
+      r.setStart(node, m.index)
+      r.setEnd(node, m.index + m[0].length)
+      if (new Set([...r.getClientRects()].map((c) => Math.round(c.top))).size > 1) out.push(m[0])
+    }
+    return out
+  }))
+  const roleCount = await p.$$eval('[data-test=users-row-role]', (els) => els.length)
+  ok('7a 390 px: no role breaks mid-word, invite rows too', roleCount > 1 && splitRoles.length === 0, { roleCount, splitRoles })
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/users-roles-list-390.png` })
   await p.setViewport({ width: 1400, height: 900 })
   await sleep(400)

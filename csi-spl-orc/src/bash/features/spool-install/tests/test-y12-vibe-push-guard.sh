@@ -65,8 +65,12 @@ FORBID=(
   'git -c user.name=x push --force-with-lease origin HEAD:master'
   'sudo -u agentusr git -C /opt/x push -f origin master'
   'cd /opt/x && git push origin HEAD:master --force'
+  'git config --global credential.helper store'
+  'GIT_ASKPASS=/bin/echo git push origin HEAD:master'
 )
-ALLOW=('git push origin HEAD:master' 'git status' 'git push origin c-766-branch')
+ALLOW=('git push origin HEAD:master' 'git status' 'git push origin c-766-branch'
+  'cd csi-spl-orc && sudo -u agentusr env AGENT_ID=c-901 ./run -a do_spl_push_master'
+  'git config --global --get credential.helper')
 
 # 1. install
 out="$(inst "$H" 1)"

@@ -92,15 +92,9 @@ def main():
                 if res.stderr.strip()
                 else "force-push-guard: refused"
             )
-            print(
-                json.dumps(
-                    {
-                        "decision": "deny",
-                        "reason": reason
-                        + " (owner order: no force push to master without the owner's explicit approval)",
-                    }
-                )
-            )
+            if "never worked around" not in reason:
+                reason += " (owner order: no force push to master without the owner's explicit approval)"
+            print(json.dumps({"decision": "deny", "reason": reason}))
             return 0
         if res.returncode != 0:
             print(

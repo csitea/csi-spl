@@ -286,3 +286,36 @@ a dry run unless `DRY_RUN=0`.
 
 Tests: `csi-spl-utl/src/bash/tests/disk-crossing-sizes.tst.sh` (fixture tree),
 `csi-spl-orc/src/bash/tests/check-disk-headroom.tst.sh` section 4.
+
+## A failed push is reported, never worked around (SPL-5113)
+
+Seen twice in vibe session journals: after a plain `git push` failed, the seat
+climbed one ladder: `git remote set-url` to ssh, `GIT_ASKPASS` with a token read
+from a file, `git config --global credential.helper store` plus a write to
+`~/.git-credentials`, and last `sudo -u <box user> git push`. A global helper
+reaches every lane of that OS user. The settings check and spool-install step
+Y19 find and repair it afterwards; nothing refused it.
+
+The refusal lives in the shared matcher
+`csi-spl-orc/src/bash/features/spawn-agents/lib/force-push-guard.inc.sh`, so
+every harness gets it through its pre-tool hook (steps Y12 and Y13). Refused:
+
+- writing `credential.helper`, `credential.<url>.helper` or `core.askPass`
+  (`git config`, `git -c`, `GIT_CONFIG_KEY_<n>`, `GIT_CONFIG_PARAMETERS`)
+- a non-empty `GIT_ASKPASS` or `SSH_ASKPASS`
+- `git credential`, `git credential-store`, `git credential-cache`
+- an http(s) url with a user in it, on a push or on `git remote set-url` / `add`
+- a `.git-credentials` file as an argument or a redirect target, except for a
+  search, `echo`, `printf`, `ls`, `stat`, `test` or `rm`
+
+Still allowed: `do_spl_push_master`, a plain `git push`, reading, unsetting or
+emptying a helper, and `git remote set-url` to a url with no credentials.
+
+What it does not stop: reading a token from a file with any other name, a
+command that reaches git only through a variable or a script file, and
+`sudo -u <box user> git push`. The hooks are installed copies, so a box has the
+refusal only after `install.sh --fleet` or `./run -a do_install_force_push_guard`
+and `./run -a do_spl_vibe_push_guard_install` has run for that user.
+
+Test: `csi-spl-orc/src/bash/tests/force-push-guard.tst.sh`; the path through
+vibe's own hook manager: `spool-install/tests/test-y12-vibe-push-guard.sh`.

@@ -27,6 +27,14 @@
 #   - SPL_PREPUSH_OVERRIDE assigned anything but empty or 0 (a prefix
 #     assignment, env, export / declare / typeset / readonly / local); a
 #     command that only NAMES it (a grep pattern, an echo) is not refused
+#   - improvised git auth (SPL-5113: a failed push is reported, never worked
+#     around): writing credential.helper / credential.<url>.helper /
+#     core.askPass (git config, git -c, GIT_CONFIG_KEY_<n>), a non-empty
+#     GIT_ASKPASS / SSH_ASKPASS, git credential[-store|-cache], an http(s) url
+#     with a user in it on a push or a remote, and any use of a .git-credentials
+#     file (a search, echo, ls, stat, test or rm of one passes). Reading,
+#     unsetting or emptying a helper stays allowed. Reading a token from a file
+#     of any other name is not recognised here.
 # A plain `git push origin HEAD:master` is allowed. A command that only reaches
 # git through a variable or a script file is not read (the pre-push hook and
 # the GitHub ruleset are the layers behind this one).
@@ -70,6 +78,16 @@ GIT_ARG_OPTS = {"-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", 
 PUSH_ARG_OPTS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 MASTER = {"master", "refs/heads/master"}
 APPROVAL = "forbidden without the owner\x27s explicit approval"
+NO_AUTH = "a failed push is reported to your spawner, never worked around"
+CRED_KEY = re.compile(r"^(credential\.(.*\.)?helper|core\.askpass)$")
+CRED_URL = re.compile(r"^https?://[^/@]+@", re.I)
+CRED_FILE = ".git-credentials"
+CRED_FILE_OK = {"grep", "egrep", "fgrep", "rg", "echo", "printf", "ls", "stat", "test", "[", "rm"}
+ASKPASS = {"GIT_ASKPASS", "SSH_ASKPASS"}
+CONFIG_NO_WRITE = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--unset",
+                   "--unset-all", "--remove-section", "--rename-section", "--edit", "-e"}
+CONFIG_NO_WRITE_VERB = {"get", "list", "unset", "remove-section", "rename-section", "edit"}
+CONFIG_ARG_OPTS = {"--file", "-f", "--blob", "--type", "--default", "--comment", "--value", "--url"}
 
 
 class Refuse(Exception):
@@ -191,11 +209,13 @@ def segment(toks, depth):
         b = t.rsplit("/", 1)[-1]
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
             override(t)
+            auth_env(t)
             hooks = hooks or hooks_env(t)
             i += 1
         elif b in DECLARE:
             for a in toks[i + 1:]:
                 override(a)
+                auth_env(a)
             return
         elif b in WRAP:
             i = skip_wrapper(b, toks, i + 1, depth)
@@ -223,7 +243,55 @@ def segment(toks, depth):
         else:
             if b == "git":
                 git(toks[i + 1:], depth, hooks)
+            elif VISIT is None and b not in CRED_FILE_OK:
+                cred_file(toks[i:])
             return
+
+
+def auth_env(tok):
+    """Refuse an askpass program or a credential helper set in the environment."""
+    if VISIT is not None:
+        return
+    name, _, val = tok.partition("=")
+    low = val.lower()
+    if name in ASKPASS and val:
+        raise Refuse("%s improvises git auth; %s" % (name, NO_AUTH))
+    if re.match(r"^GIT_CONFIG_KEY_[0-9]+$", name) and CRED_KEY.match(low.strip()):
+        raise Refuse("%s=%s improvises git auth; %s" % (name, val, NO_AUTH))
+    if name == "GIT_CONFIG_PARAMETERS" and ("credential." in low or "core.askpass" in low):
+        raise Refuse("GIT_CONFIG_PARAMETERS sets a git credential; " + NO_AUTH)
+
+
+def cred_file(toks):
+    """Refuse a .git-credentials file as an argument or a redirect target."""
+    if any(t.rsplit("/", 1)[-1] == CRED_FILE for t in toks):
+        raise Refuse("%s holds clear-text tokens; %s" % (CRED_FILE, NO_AUTH))
+
+
+def cred_url(args):
+    """Refuse an http(s) url that carries a user or a token."""
+    if any(CRED_URL.match(a) for a in args):
+        raise Refuse("a url with embedded credentials improvises git auth; " + NO_AUTH)
+
+
+def config(args):
+    """Refuse git config writing a credential helper or an askpass program."""
+    pos, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a in CONFIG_NO_WRITE:
+            return
+        if a.startswith("-"):
+            i += 2 if a in CONFIG_ARG_OPTS else 1
+            continue
+        pos.append(a)
+        i += 1
+    if pos[:1] == ["set"]:
+        pos = pos[1:]
+    elif pos[:1] and pos[0] in CONFIG_NO_WRITE_VERB:
+        return
+    if len(pos) >= 2 and pos[1] and CRED_KEY.match(pos[0].lower()):
+        raise Refuse("git config %s improvises git auth; %s" % (pos[0], NO_AUTH))
 
 
 def hooks_env(tok):
@@ -256,11 +324,20 @@ def git(args, depth, hooks=False):
         if hooks:
             raise Refuse("git core.hooksPath on a push skips the pre-push hook; " + APPROVAL)
         push(args[i + 1:])
+        cred_url(args[i + 1:])
+    elif i < len(args) and args[i] == "config":
+        config(args[i + 1:])
+    elif i < len(args) and args[i] in ("credential", "credential-store", "credential-cache"):
+        raise Refuse("git %s handles stored tokens; %s" % (args[i], NO_AUTH))
+    elif args[i:i + 2] in (["remote", "set-url"], ["remote", "add"]):
+        cred_url(args[i + 2:])
 
 
 def gitcfg(kv, depth):
     k, _, v = kv.partition("=")
     k = k.lower()
+    if v and CRED_KEY.match(k):
+        raise Refuse("git -c %s improvises git auth; %s" % (k, NO_AUTH))
     if re.match(r"^remote\..+\.push$", k) and v.startswith("+"):
         raise Refuse("git -c %s=+... is a forced push refspec; %s" % (k, APPROVAL))
     if re.match(r"^remote\..+\.mirror$", k):

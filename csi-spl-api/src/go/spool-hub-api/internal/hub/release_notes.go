@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -75,6 +74,9 @@ func (s *Server) routeReleaseNotes(mux *http.ServeMux) {
 // releaseIngestBody is the ingest request: at most store.ReleaseBatchMax rows.
 type releaseIngestBody struct {
 	Notes []releaseNoteIn `json:"notes"`
+	// Tenant and RepoSlug place the rows (ingestScope); both are optional.
+	Tenant   string `json:"tenant,omitempty"`
+	RepoSlug string `json:"repo_slug,omitempty"`
 	// IssueTenant is the workspace whose issues the messages cite (cnf
 	// hub.commit_issue_tenant, SPL-4789); "" keeps the rows' stored keys.
 	IssueTenant string `json:"issue_tenant,omitempty"`
@@ -120,13 +122,17 @@ func (rn *releaseNotes) handleIngest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "at most "+strconv.Itoa(store.ReleaseBatchMax)+" notes per request")
 		return
 	}
+	tenant, repo, ok := rn.s.ingestScope(w, r, body.Tenant, body.RepoSlug)
+	if !ok {
+		return
+	}
 	prefix, err := rn.issuePrefix(r.Context(), body.IssueTenant)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", err.Error())
 		return
 	}
 	rows, res := rn.buildRows(body.Notes, body.IssueTenant, prefix)
-	if err := rs.PutReleaseNotes(r.Context(), rows, rn.s.o.Now()); err != nil {
+	if err := rs.PutReleaseNotes(r.Context(), tenant, repo, rows, rn.s.o.Now()); err != nil {
 		rn.s.o.Log.Error().Err(err).Int("rows", len(rows)).Msg("release notes ingest")
 		writeErr(w, http.StatusServiceUnavailable, "internal", "release notes not stored")
 		return
@@ -183,27 +189,27 @@ func (rn *releaseNotes) buildRows(in []releaseNoteIn, tenant, prefix string) ([]
 // request that names no workspace needs a member session, as before. A
 // visitor gets the member's answer, every field: nothing in a note is
 // withheld (see the header).
-func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (store.ReleaseNotes, bool) {
+func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (store.ReleaseNotes, string, bool) {
 	s := rn.s
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
 	if id := s.webCalendarTenant(r); id != "" {
 		if _, ok := s.loadTenant(w, r, id); !ok {
-			return nil, false
+			return nil, "", false
 		}
 		rs, _ := s.o.Store.(store.ReleaseNotes)
-		return rs, true
+		return rs, id, true
 	}
-	_, hum, ok := s.humanTenant(w, r)
+	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	if hum == "" {
 		writeForbidden(w, rbac.TopicsRead, "release notes need a signed-in member session")
-		return nil, false
+		return nil, "", false
 	}
 	rs, _ := s.o.Store.(store.ReleaseNotes)
-	return rs, true
+	return rs, t.ID, true
 }
 
 // releaseVersion is one version's notes, newest commit first. Version is the
@@ -223,7 +229,7 @@ type releaseListBody struct {
 }
 
 func (rn *releaseNotes) handleList(w http.ResponseWriter, r *http.Request) {
-	rs, ok := rn.releaseReader(w, r)
+	rs, tenant, ok := rn.releaseReader(w, r)
 	if !ok {
 		return
 	}
@@ -241,7 +247,7 @@ func (rn *releaseNotes) handleList(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, releaseListBody{Off: true, Versions: []releaseVersion{}})
 		return
 	}
-	rows, err := rs.ListReleaseNotes(r.Context(), q.Get("before"), limit)
+	rows, err := rs.ListReleaseNotes(r.Context(), tenant, q.Get("before"), limit)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_query", err.Error())
 		return
@@ -267,7 +273,7 @@ func groupReleaseNotes(rows []store.ReleaseNote) []releaseVersion {
 }
 
 func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
-	rs, ok := rn.releaseReader(w, r)
+	rs, tenant, ok := rn.releaseReader(w, r)
 	if !ok {
 		return
 	}
@@ -275,20 +281,22 @@ func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "not_found", "this hub's store keeps no release notes")
 		return
 	}
+	// A stored version wins, so a hex-like tag or 2026.11.05 opens its version.
 	ref := r.PathValue("ref")
-	if strings.HasPrefix(ref, "v") {
-		rows, err := rs.ReleaseNotesOfVersion(r.Context(), ref)
-		switch {
-		case err != nil:
-			writeErr(w, http.StatusBadRequest, "bad_ref", err.Error())
-		case len(rows) == 0:
-			writeErr(w, http.StatusNotFound, "not_found", "no release notes for "+ref)
-		default:
-			writeJSON(w, http.StatusOK, releaseVersionLinks{Version: ref, Display: store.ReleaseDisplay(ref), Notes: rn.s.withReleaseLinks(r, rows)})
-		}
+	rows, err := rs.ReleaseNotesOfVersion(r.Context(), tenant, ref)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_ref", err.Error())
 		return
 	}
-	n, err := rs.ReleaseNote(r.Context(), ref)
+	if len(rows) > 0 {
+		writeJSON(w, http.StatusOK, releaseVersionLinks{Version: ref, Display: store.ReleaseDisplay(ref), Notes: rn.s.withReleaseLinks(r, rows)})
+		return
+	}
+	if _, err := store.CheckReleaseRef(ref); err != nil {
+		writeErr(w, http.StatusNotFound, "not_found", "no release notes for "+ref)
+		return
+	}
+	n, err := rs.ReleaseNote(r.Context(), tenant, ref)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no release note for that sha")

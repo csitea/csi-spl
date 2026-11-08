@@ -49,23 +49,16 @@ func TestReleaseNotesPinRdbChecks(t *testing.T) {
 	}
 }
 
-// TestReleaseNotesPinRdbCycle pins rdb 0114 (the release key: v<X.Y.Z> in
-// cycle 1, v<X.Y.Z>-c<N> after the 9.9.9 wrap) to releaseVersionRe and
+// TestReleaseNotesPinRdbCycle pins rdb 0270 (the guarded release key: v<X.Y.Z>
+// in cycle 1, v<X.Y.Z>-c<N> after the 9.9.9 wrap) to releaseKeyRe and
 // releaseKeySQL: a shape or sort key changed on one side only turns this red.
 func TestReleaseNotesPinRdbCycle(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(sqlDir(t), "0114_release_note_cycle.sql"))
-	if err != nil {
-		t.Fatal(err)
+	sql := strings.Join(strings.Fields(sqlFileGlob(t, "release_notes_release_key_guarded.sql")), " ")
+	if want := `^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(?:-c([2-9]|[1-9][0-9]{1,3}))?$`; releaseKeyRe.String() != want {
+		t.Errorf("Go version shape drifted from 0270: %s", releaseKeyRe)
 	}
-	sql := strings.Join(strings.Fields(string(raw)), " ")
-	if want := `CHECK (version ~ '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$')`; !strings.Contains(sql, want) {
-		t.Errorf("0114 lacks %s", want)
-	}
-	if want := `^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(?:-c([2-9]|[1-9][0-9]{1,3}))?$`; releaseVersionRe.String() != want {
-		t.Errorf("Go version shape drifted from 0114: %s", releaseVersionRe)
-	}
-	if want := "((" + strings.Join(strings.Fields(releaseKeySQL("version")), " ") + ") DESC"; !strings.Contains(sql, want) {
-		t.Errorf("0114's index is not on releaseKeySQL: want %s", want)
+	if want := "(" + strings.Join(strings.Fields(releaseKeySQL("version")), " ") + ") DESC NULLS LAST"; !strings.Contains(sql, want) {
+		t.Errorf("0270's index is not on releaseKeySQL: want %s", want)
 	}
 }
 
@@ -133,46 +126,46 @@ func TestReleaseNotes(t *testing.T) {
 					t.Fatalf("CheckReleaseNote(%s): %s", n.SHA, why)
 				}
 			}
-			if err := rs.PutReleaseNotes(ctx, []ReleaseNote{ra, rb, rc, rd}, now); err != nil {
+			if err := rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{ra, rb, rc, rd}, now); err != nil {
 				t.Fatal(err)
 			}
 
-			got, err := rs.ReleaseNote(ctx, a)
+			got, err := rs.ReleaseNote(ctx, relTenant, a)
 			if err != nil || got.Version != v(9, 0) || got.LayWhat != ra.LayWhat || got.State != "ok" ||
 				!got.CommittedAt.Equal(t0) || !got.IngestedAt.Equal(now) || got.Link != ra.Link || got.Reverts != "" {
 				t.Fatalf("get by sha: %+v %v", got, err)
 			}
-			if got, err = rs.ReleaseNote(ctx, strings.ToUpper(c[:7])); err != nil || got.SHA != c || got.Reverts != a || got.State != "revert" {
+			if got, err = rs.ReleaseNote(ctx, relTenant, strings.ToUpper(c[:7])); err != nil || got.SHA != c || got.Reverts != a || got.State != "revert" {
 				t.Fatalf("get by prefix: %+v %v", got, err)
 			}
-			if got, err = rs.ReleaseNote(ctx, d); err != nil || got.Version != "" || got.State != "missing" {
+			if got, err = rs.ReleaseNote(ctx, relTenant, d); err != nil || got.Version != "" || got.State != "missing" {
 				t.Fatalf("undeployed row: %+v %v", got, err)
 			}
-			if _, err = rs.ReleaseNote(ctx, randSHA()); !errors.Is(err, ErrNotFound) {
+			if _, err = rs.ReleaseNote(ctx, relTenant, randSHA()); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unknown sha: %v", err)
 			}
-			if _, err = rs.ReleaseNote(ctx, "abc"); err == nil {
+			if _, err = rs.ReleaseNote(ctx, relTenant, "abc"); err == nil {
 				t.Fatal("a 3-char ref was accepted")
 			}
 
 			// newest first, versions compared as numbers; the undeployed row is not listed
-			ls, err := rs.ListReleaseNotes(ctx, top, 0)
+			ls, err := rs.ListReleaseNotes(ctx, relTenant, top, 0)
 			if err != nil || len(ls) != 3 || ls[0].SHA != c || ls[1].SHA != b || ls[2].SHA != a {
 				t.Fatalf("list: %+v %v", ls, err)
 			}
-			if ls, _ = rs.ListReleaseNotes(ctx, top, 1); len(ls) != 2 || ls[0].Version != v(10, 0) || ls[1].Version != v(10, 0) {
+			if ls, _ = rs.ListReleaseNotes(ctx, relTenant, top, 1); len(ls) != 2 || ls[0].Version != v(10, 0) || ls[1].Version != v(10, 0) {
 				t.Fatalf("one version page: %+v", ls)
 			}
-			if ls, _ = rs.ListReleaseNotes(ctx, v(10, 0), 1); len(ls) != 1 || ls[0].SHA != a {
+			if ls, _ = rs.ListReleaseNotes(ctx, relTenant, v(10, 0), 1); len(ls) != 1 || ls[0].SHA != a {
 				t.Fatalf("next page: %+v", ls)
 			}
-			if ls, _ = rs.ListReleaseNotes(ctx, v(9, 0), 5); len(ls) != 0 {
+			if ls, _ = rs.ListReleaseNotes(ctx, relTenant, v(9, 0), 5); len(ls) != 0 {
 				t.Fatalf("past the oldest: %+v", ls)
 			}
-			if _, err = rs.ListReleaseNotes(ctx, "7.4.1", 5); err == nil {
-				t.Fatal("a before without v was accepted")
+			if _, err = rs.ListReleaseNotes(ctx, relTenant, "-7.4.1", 5); err == nil {
+				t.Fatal("a before no tag shape admits was accepted")
 			}
-			if ls, err = rs.ReleaseNotesOfVersion(ctx, v(10, 0)); err != nil || len(ls) != 2 || ls[0].SHA != c {
+			if ls, err = rs.ReleaseNotesOfVersion(ctx, relTenant, v(10, 0)); err != nil || len(ls) != 2 || ls[0].SHA != c {
 				t.Fatalf("of version: %+v %v", ls, err)
 			}
 
@@ -181,20 +174,20 @@ func TestReleaseNotes(t *testing.T) {
 			rd.Version = v(11, 0)
 			ra2 := ra
 			ra2.Version, ra2.LayWhat = v(11, 0), "Corrected."
-			if err = rs.PutReleaseNotes(ctx, []ReleaseNote{rd, ra2}, now.Add(time.Minute)); err != nil {
+			if err = rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{rd, ra2}, now.Add(time.Minute)); err != nil {
 				t.Fatal(err)
 			}
 			rd.Version = v(12, 0)
-			if err = rs.PutReleaseNotes(ctx, []ReleaseNote{rd}, now.Add(2*time.Minute)); err != nil {
+			if err = rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{rd}, now.Add(2*time.Minute)); err != nil {
 				t.Fatal(err)
 			}
-			if got, _ = rs.ReleaseNote(ctx, d); got.Version != v(11, 0) {
+			if got, _ = rs.ReleaseNote(ctx, relTenant, d); got.Version != v(11, 0) {
 				t.Fatalf("first version not kept: %+v", got)
 			}
-			if got, _ = rs.ReleaseNote(ctx, a); got.Version != v(9, 0) || got.LayWhat != "Corrected." || !got.IngestedAt.Equal(now.Add(time.Minute)) {
+			if got, _ = rs.ReleaseNote(ctx, relTenant, a); got.Version != v(9, 0) || got.LayWhat != "Corrected." || !got.IngestedAt.Equal(now.Add(time.Minute)) {
 				t.Fatalf("correction: %+v", got)
 			}
-			if ls, _ = rs.ListReleaseNotes(ctx, top, 1); len(ls) != 1 || ls[0].SHA != d {
+			if ls, _ = rs.ListReleaseNotes(ctx, relTenant, top, 1); len(ls) != 1 || ls[0].SHA != d {
 				t.Fatalf("tagged row listed: %+v", ls)
 			}
 
@@ -202,10 +195,10 @@ func TestReleaseNotes(t *testing.T) {
 			e := randSHA()
 			e1, e2 := noteOK(e, v(1, 0), t0), noteOK(e, v(1, 0), t0)
 			e2.LayWhat = "second"
-			if err = rs.PutReleaseNotes(ctx, []ReleaseNote{e1, e2}, now); err != nil {
+			if err = rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{e1, e2}, now); err != nil {
 				t.Fatal(err)
 			}
-			if got, _ = rs.ReleaseNote(ctx, e); got.LayWhat != "second" {
+			if got, _ = rs.ReleaseNote(ctx, relTenant, e); got.LayWhat != "second" {
 				t.Fatalf("duplicate in batch: %+v", got)
 			}
 		})
@@ -232,10 +225,10 @@ func TestReleaseNotesSeq(t *testing.T) {
 			a, b, c, d := randSHA(), randSHA(), randSHA(), randSHA()
 			untagged := noteOK(d, "", t0.Add(3*time.Minute))
 			batch := []ReleaseNote{noteOK(a, v(9), t0), noteOK(b, v(10), t0.Add(time.Minute)), noteOK(c, v(10), t0.Add(2*time.Minute)), untagged}
-			if err := rs.PutReleaseNotes(ctx, batch, t0.Add(time.Hour)); err != nil {
+			if err := rs.PutReleaseNotes(ctx, relTenant, relRepo, batch, t0.Add(time.Hour)); err != nil {
 				t.Fatal(err)
 			}
-			ls, err := rs.ListReleaseNotes(ctx, top, 2)
+			ls, err := rs.ListReleaseNotes(ctx, relTenant, top, 2)
 			if err != nil || len(ls) != 3 || ls[0].SHA != c || ls[2].SHA != a {
 				t.Fatalf("list: %+v %v", ls, err)
 			}
@@ -245,16 +238,16 @@ func TestReleaseNotesSeq(t *testing.T) {
 			if name == "memory" && ls[2].Seq != 1 {
 				t.Fatalf("the oldest row is %d, want 1", ls[2].Seq)
 			}
-			of, err := rs.ReleaseNotesOfVersion(ctx, v(10))
+			of, err := rs.ReleaseNotesOfVersion(ctx, relTenant, v(10))
 			if err != nil || len(of) != 2 || of[0].Seq != ls[0].Seq || of[1].Seq != ls[1].Seq {
 				t.Fatalf("of version seq: %+v %v", of, err)
 			}
 			// the deploy that tags d gives it the next number; the others keep theirs
 			untagged.Version = v(11)
-			if err = rs.PutReleaseNotes(ctx, []ReleaseNote{untagged}, t0.Add(2*time.Hour)); err != nil {
+			if err = rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{untagged}, t0.Add(2*time.Hour)); err != nil {
 				t.Fatal(err)
 			}
-			ls2, err := rs.ListReleaseNotes(ctx, top, 3)
+			ls2, err := rs.ListReleaseNotes(ctx, relTenant, top, 3)
 			if err != nil || len(ls2) != 4 || ls2[0].SHA != d || ls2[0].Seq != ls[0].Seq+1 || ls2[3].Seq != ls[2].Seq {
 				t.Fatalf("tagged row seq: %+v %v", ls2, err)
 			}
@@ -290,30 +283,27 @@ func TestReleaseNotesCycles(t *testing.T) {
 					t.Fatalf("CheckReleaseNote(%s): %s", n.Version, why)
 				}
 			}
-			if err := rs.PutReleaseNotes(ctx, batch, t0.Add(time.Hour)); err != nil {
+			if err := rs.PutReleaseNotes(ctx, relTenant, relRepo, batch, t0.Add(time.Hour)); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := rs.ReleaseNote(ctx, c); err != nil || got.Version != c2 || ReleaseDisplay(got.Version) != c1 {
+			if got, err := rs.ReleaseNote(ctx, relTenant, c); err != nil || got.Version != c2 || ReleaseDisplay(got.Version) != c1 {
 				t.Fatalf("cycle-2 row: %+v %v", got, err)
 			}
 			// the cycle-2 version pages first; its rows stay apart from cycle 1's
-			ls, err := rs.ListReleaseNotes(ctx, top, 1)
+			ls, err := rs.ListReleaseNotes(ctx, relTenant, top, 1)
 			if err != nil || len(ls) != 2 || ls[0].SHA != d || ls[1].SHA != c || ls[0].Version != c2 {
 				t.Fatalf("cycle-2 page: %+v %v", ls, err)
 			}
 			// cycle 1 of this major alone: its two versions, never the cycle-2 rows
-			ls, err = rs.ListReleaseNotes(ctx, fmt.Sprintf("v%d.0.0", major+1), 2)
+			ls, err = rs.ListReleaseNotes(ctx, relTenant, fmt.Sprintf("v%d.0.0", major+1), 2)
 			if err != nil || len(ls) != 2 || ls[0].SHA != b || ls[1].SHA != a {
 				t.Fatalf("cycle-1 page: %+v %v", ls, err)
 			}
-			if ls, err = rs.ReleaseNotesOfVersion(ctx, c2); err != nil || len(ls) != 2 || ls[0].SHA != d || ls[1].SHA != c {
+			if ls, err = rs.ReleaseNotesOfVersion(ctx, relTenant, c2); err != nil || len(ls) != 2 || ls[0].SHA != d || ls[1].SHA != c {
 				t.Fatalf("of cycle-2 version: %+v %v", ls, err)
 			}
-			if ls, err = rs.ReleaseNotesOfVersion(ctx, c1); err != nil || len(ls) != 1 || ls[0].SHA != a {
+			if ls, err = rs.ReleaseNotesOfVersion(ctx, relTenant, c1); err != nil || len(ls) != 1 || ls[0].SHA != a {
 				t.Fatalf("of cycle-1 version: %+v %v", ls, err)
-			}
-			if _, err = rs.ListReleaseNotes(ctx, fmt.Sprintf("v%d.0.1-c1", major), 1); err == nil {
-				t.Fatal("a -c1 cursor was accepted")
 			}
 		})
 	}
@@ -331,9 +321,9 @@ func TestCheckReleaseNote(t *testing.T) {
 	for _, bad := range []func(*ReleaseNote){
 		func(n *ReleaseNote) { n.SHA = strings.ToUpper(n.SHA) },
 		func(n *ReleaseNote) { n.SHA = n.SHA[:7] },
-		func(n *ReleaseNote) { n.Version = "7.4.1" },
-		func(n *ReleaseNote) { n.Version = "v7.4.1-c1" },
-		func(n *ReleaseNote) { n.Version = "v7.4.1-c" },
+		func(n *ReleaseNote) { n.Version = "-7.4.1" },
+		func(n *ReleaseNote) { n.Version = "v7.4.1 c" },
+		func(n *ReleaseNote) { n.Version = strings.Repeat("v", 65) },
 		func(n *ReleaseNote) { n.CommittedAt = time.Time{} },
 		func(n *ReleaseNote) { n.Kind = "Fix" },
 		func(n *ReleaseNote) { n.Area = strings.Repeat("a", ReleaseAreaMax+1) },
@@ -354,3 +344,10 @@ func TestCheckReleaseNote(t *testing.T) {
 		}
 	}
 }
+
+// relTenant and relRepo are the workspace and repo the release note tests
+// write to: t1's seeded repo, so a row reads as the ones rdb 0267 backfilled.
+const (
+	relTenant = "t1"
+	relRepo   = "csitea/csi-spl"
+)

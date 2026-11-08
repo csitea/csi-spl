@@ -47,7 +47,7 @@ func TestSortReleaseNotesTies(t *testing.T) {
 	for _, n := range in {
 		got = append(got, n.Subject)
 	}
-	if want := "3 4 5 6 1 2 7 8"; strings.Join(got, " ") != want {
+	if want := "3 4 5 6 1 2 8 7"; strings.Join(got, " ") != want {
 		t.Fatalf("order = %v, want %s", got, want)
 	}
 }

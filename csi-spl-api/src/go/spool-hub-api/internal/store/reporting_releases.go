@@ -14,7 +14,7 @@ import (
 
 // The Releases report of the Reporting section (spec 143 section 2.4, tasks
 // T020 and T021): two reads over release_notes (rdb 0108) and estate_deploys
-// (rdb 0202). Both tables are estate-wide, so no call takes a tenant id.
+// (rdb 0202), each filtered to the workspace the filter names (rdb 0267).
 // estate_deploys is written by spec 143 row 4 (T025, T027); until then it is
 // empty and every day answers with no deploys, never an error.
 
@@ -33,6 +33,7 @@ var releaseAreaRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 // committed_at < To, of one of Kinds and Areas when set, matching Search.
 // Limit and Offset page ReleaseCommits only.
 type ReleaseReportFilter struct {
+	Tenant        string
 	From, To      time.Time
 	Kinds, Areas  []string
 	Search        string
@@ -41,6 +42,7 @@ type ReleaseReportFilter struct {
 
 // ReleaseDeploy is one estate_deploys row as the report shows it (EstateDeploy less its run and writer fields).
 type ReleaseDeploy struct {
+	TenantID   string    `json:"-"`
 	Env        string    `json:"env"`
 	Component  string    `json:"component"`
 	Version    string    `json:"version"`
@@ -94,6 +96,8 @@ const releaseAreaSQL = `regexp_replace(lower(btrim(split_part(area, ',', 1))), '
 // CheckReleaseReportFilter names the first thing the filter may not carry.
 func CheckReleaseReportFilter(f ReleaseReportFilter) error {
 	switch {
+	case strings.TrimSpace(f.Tenant) == "":
+		return ErrNoTenant
 	case f.From.IsZero() || f.To.IsZero() || !f.From.Before(f.To):
 		return fmt.Errorf("from must be before to")
 	case f.Limit < 0 || f.Limit > ReleaseReportLimitMax:
@@ -131,7 +135,7 @@ func releaseMatch(f ReleaseReportFilter, n ReleaseNote) bool {
 }
 
 // releaseReportWhere is the filter as a WHERE clause over release_notes, its
-// arguments numbered from $1.
+// arguments numbered from $1 ($1 the tenant).
 func releaseReportWhere(f ReleaseReportFilter) (string, []any) {
 	kinds, areas := f.Kinds, f.Areas
 	if kinds == nil {
@@ -140,12 +144,12 @@ func releaseReportWhere(f ReleaseReportFilter) (string, []any) {
 	if areas == nil {
 		areas = []string{}
 	}
-	return `committed_at >= $1 AND committed_at < $2
-		AND (cardinality($3::text[]) = 0 OR kind = ANY($3::text[]))
-		AND (cardinality($4::text[]) = 0 OR ` + releaseAreaSQL + ` = ANY($4::text[]))
-		AND ($5::text = '' OR starts_with(sha, lower($5::text)) OR strpos(lower(concat_ws(chr(10), subject, version,
-			lay_what, lay_how, lay_why, tech_what, tech_how, tech_why)), lower($5::text)) > 0)`,
-		[]any{f.From.UTC(), f.To.UTC(), kinds, areas, f.Search}
+	return `tenant_id = $1 AND committed_at >= $2 AND committed_at < $3
+		AND (cardinality($4::text[]) = 0 OR kind = ANY($4::text[]))
+		AND (cardinality($5::text[]) = 0 OR ` + releaseAreaSQL + ` = ANY($5::text[]))
+		AND ($6::text = '' OR starts_with(sha, lower($6::text)) OR strpos(lower(concat_ws(chr(10), subject, version,
+			lay_what, lay_how, lay_why, tech_what, tech_how, tech_why)), lower($6::text)) > 0)`,
+		[]any{f.Tenant, f.From.UTC(), f.To.UTC(), kinds, areas, f.Search}
 }
 
 // releaseDayOf is a time's UTC day, the key both drivers group by.
@@ -213,41 +217,38 @@ func (s *Postgres) ReleaseDaily(ctx context.Context, f ReleaseReportFilter) (Rel
 		return ReleaseDaily{}, err
 	}
 	where, args := releaseReportWhere(f)
-	rows, err := s.pool.Query(ctx, `SELECT to_char(committed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'), kind,
-		`+releaseAreaSQL+`, coalesce(version, ''), count(*)
-		FROM release_notes WHERE `+where+` GROUP BY 1, 2, 3, 4`, args...)
-	if err != nil {
-		return ReleaseDaily{}, err
-	}
 	days := newReleaseDays()
 	var date, kind, area, version string
 	var n int
-	_, err = pgx.ForEachRow(rows, []any{&date, &kind, &area, &version, &n}, func() error {
+	err := s.queryTenant(ctx, f.Tenant, `SELECT to_char(committed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'), kind,
+		`+releaseAreaSQL+`, coalesce(version, ''), count(*)
+		FROM release_notes WHERE `+where+` GROUP BY 1, 2, 3, 4`, args, func(r pgx.Rows) error {
+		if err := r.Scan(&date, &kind, &area, &version, &n); err != nil {
+			return err
+		}
 		days.add(date, kind, area, version, n)
 		return nil
 	})
 	if err != nil {
 		return ReleaseDaily{}, err
 	}
-	deploys, err := s.estateDeploys(ctx, f.From, f.To)
+	deploys, err := s.estateDeploys(ctx, f.Tenant, f.From, f.To)
 	if err != nil {
 		return ReleaseDaily{}, err
 	}
 	return days.result(deploys), nil
 }
 
-// estateDeploys reads the deploys of [from, to), newest first. The read
-// policy of rdb 0202 lets every scope see them, so it runs on the pool.
-func (s *Postgres) estateDeploys(ctx context.Context, from, to time.Time) ([]ReleaseDeploy, error) {
-	rows, err := s.pool.Query(ctx, `SELECT env, component, version, commit_sha, deployed_at, status, source
-		FROM estate_deploys WHERE deployed_at >= $1 AND deployed_at < $2
-		ORDER BY deployed_at DESC LIMIT $3`, from.UTC(), to.UTC(), ReleaseReportDeploysMax)
-	if err != nil {
-		return nil, err
-	}
+// estateDeploys reads tenant's deploys of [from, to), newest first.
+func (s *Postgres) estateDeploys(ctx context.Context, tenant string, from, to time.Time) ([]ReleaseDeploy, error) {
 	out := []ReleaseDeploy{}
-	var d ReleaseDeploy
-	_, err = pgx.ForEachRow(rows, []any{&d.Env, &d.Component, &d.Version, &d.CommitSHA, &d.DeployedAt, &d.Status, &d.Source}, func() error {
+	err := s.queryTenant(ctx, tenant, `SELECT env, component, version, commit_sha, deployed_at, status, source
+		FROM estate_deploys WHERE tenant_id = $1 AND deployed_at >= $2 AND deployed_at < $3
+		ORDER BY deployed_at DESC LIMIT $4`, []any{tenant, from.UTC(), to.UTC(), ReleaseReportDeploysMax}, func(r pgx.Rows) error {
+		var d ReleaseDeploy
+		if err := r.Scan(&d.Env, &d.Component, &d.Version, &d.CommitSHA, &d.DeployedAt, &d.Status, &d.Source); err != nil {
+			return err
+		}
 		d.DeployedAt = d.DeployedAt.UTC()
 		out = append(out, d)
 		return nil
@@ -262,11 +263,11 @@ func (s *Postgres) ReleaseCommits(ctx context.Context, f ReleaseReportFilter) ([
 	}
 	where, args := releaseReportWhere(f)
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM release_notes WHERE `+where, args...).Scan(&total); err != nil {
+	if err := s.queryRowTenant(ctx, f.Tenant, `SELECT count(*) FROM release_notes WHERE `+where, args, &total); err != nil {
 		return nil, 0, err
 	}
-	out, err := s.queryReleaseNotes(ctx, false, `SELECT `+releaseNoteCols+` FROM release_notes WHERE `+where+`
-		ORDER BY committed_at DESC, sha LIMIT $6 OFFSET $7`, append(args, releaseReportLimit(f.Limit), f.Offset)...)
+	out, err := s.queryReleaseNotes(ctx, f.Tenant, false, `SELECT `+releaseNoteCols+` FROM release_notes WHERE `+where+`
+		ORDER BY committed_at DESC, sha LIMIT $7 OFFSET $8`, append(args, releaseReportLimit(f.Limit), f.Offset)...)
 	return out, total, err
 }
 
@@ -292,7 +293,7 @@ func (s *Memory) ReleaseDaily(_ context.Context, f ReleaseReportFilter) (Release
 	}
 	days := newReleaseDays()
 	memReleaseMu.Lock()
-	for _, n := range s.releases() {
+	for _, n := range s.tenantReleases(f.Tenant) {
 		if releaseMatch(f, n) {
 			days.add(releaseDayOf(n.CommittedAt), n.Kind, ReleaseArea(n.Area), n.Version, 1)
 		}
@@ -301,7 +302,7 @@ func (s *Memory) ReleaseDaily(_ context.Context, f ReleaseReportFilter) (Release
 	memDeployMu.Lock()
 	deploys := []ReleaseDeploy{}
 	for _, d := range memDeploys[s] {
-		if !d.DeployedAt.Before(f.From) && d.DeployedAt.Before(f.To) {
+		if d.TenantID == f.Tenant && !d.DeployedAt.Before(f.From) && d.DeployedAt.Before(f.To) {
 			deploys = append(deploys, d)
 		}
 	}
@@ -317,7 +318,7 @@ func (s *Memory) ReleaseCommits(_ context.Context, f ReleaseReportFilter) ([]Rel
 	}
 	memReleaseMu.Lock()
 	hit := []ReleaseNote{}
-	for _, n := range s.releases() {
+	for _, n := range s.tenantReleases(f.Tenant) {
 		if releaseMatch(f, n) {
 			hit = append(hit, n)
 		}

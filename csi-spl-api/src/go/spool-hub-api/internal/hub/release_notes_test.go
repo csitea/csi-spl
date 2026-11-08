@@ -2,6 +2,8 @@ package hub_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -32,10 +34,21 @@ func releaseEnv(t *testing.T, mut ...func(*hub.Options)) (*env, string, string) 
 		}
 	}}, mut...)...)
 	tid, _ := e.tenant()
+	registerRepo(t, e, tid, repoOf(tid, "main"), true)
+	salt := make([]byte, 3)
+	if _, err := rand.Read(salt); err != nil {
+		t.Fatal(err)
+	}
+	releaseSalt = hex.EncodeToString(salt)
 	return e, tid, seat(t, e, tid, rbac.Developer)
 }
 
-func releaseSHA(c string) string { return strings.Repeat(c, 40) }
+// releaseSalt is the current releaseEnv's: the hub tests share one Postgres
+// database, whose release_notes_pkey (sha) holds until row B-3, so a sha one
+// test's workspace stored would refuse another test's.
+var releaseSalt = "000000"
+
+func releaseSHA(c string) string { return c + releaseSalt + strings.Repeat(c, 33) }
 
 const releaseFullMsg = `fix(wui): the unread badge stays after a channel is read
 
@@ -153,11 +166,9 @@ func TestReleaseNotesCycleTwoSameVersion(t *testing.T) {
 		releaseRow(releaseSHA("4"), "v8.0.1-c2", releaseFullMsg),
 		releaseRow(releaseSHA("5"), "v8.0.1-c1", releaseFullMsg),
 	)
-	if code != http.StatusOK || out["stored"].(float64) != 3 {
+	// A -c1 tag has no cycle key, so it stores as any other repo's tag does.
+	if code != http.StatusOK || out["stored"].(float64) != 4 {
 		t.Fatalf("ingest: %d %v", code, out)
-	}
-	if rej := out["rejected"].([]any); len(rej) != 1 || rej[0].(map[string]any)["sha"] != releaseSHA("5") {
-		t.Fatalf("a -c1 tag must be refused (cycle 1 has no suffix): %v", rej)
 	}
 	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes?limit=3&before=v8.0.2-c2", hum, nil)
 	vs := out["versions"].([]any)
@@ -303,8 +314,9 @@ func TestReleaseNotesAuth(t *testing.T) {
 	}
 	for path, want := range map[string]int{
 		"/v1/release-notes?limit=0":            http.StatusBadRequest,
-		"/v1/release-notes?before=x":           http.StatusBadRequest,
-		"/v1/release-notes/zz":                 http.StatusBadRequest,
+		"/v1/release-notes?before=-x":          http.StatusBadRequest,
+		"/v1/release-notes/zz":                 http.StatusNotFound,
+		"/v1/release-notes/-zz":                http.StatusBadRequest,
 		"/v1/release-notes/" + releaseSHA("9"): http.StatusNotFound,
 		"/v1/release-notes/v9.9.9":             http.StatusNotFound,
 	} {

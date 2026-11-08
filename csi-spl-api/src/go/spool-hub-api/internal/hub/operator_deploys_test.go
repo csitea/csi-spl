@@ -46,31 +46,31 @@ func (d *deployRecorder) PutEstateDeploy(_ context.Context, r store.EstateDeploy
 	return d.add(r, time.Now()), true, nil
 }
 
-func (d *deployRecorder) latest(env, component string) (store.EstateDeploy, bool) {
+func (d *deployRecorder) latest(tenant, env, component string) (store.EstateDeploy, bool) {
 	var best store.EstateDeploy
 	ok := false
 	for _, x := range d.rows {
-		if x.Env == env && x.Component == component && x.Status == "success" && (!ok || x.DeployedAt.After(best.DeployedAt)) {
+		if x.TenantID == tenant && x.Env == env && x.Component == component && x.Status == "success" && (!ok || x.DeployedAt.After(best.DeployedAt)) {
 			best, ok = x, true
 		}
 	}
 	return best, ok
 }
 
-func (d *deployRecorder) LatestEstateDeploy(_ context.Context, env, component string) (store.EstateDeploy, bool, error) {
+func (d *deployRecorder) LatestEstateDeploy(_ context.Context, tenant, env, component string) (store.EstateDeploy, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	r, ok := d.latest(env, component)
+	r, ok := d.latest(tenant, env, component)
 	return r, ok, nil
 }
 
-func (d *deployRecorder) FillEstateDeploy(_ context.Context, env, component, version, sha string) (bool, error) {
+func (d *deployRecorder) FillEstateDeploy(_ context.Context, tenant, env, component, version, sha string) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if r, ok := d.latest(env, component); ok && r.CommitSHA == sha {
+	if r, ok := d.latest(tenant, env, component); ok && r.CommitSHA == sha {
 		return false, nil
 	}
-	d.add(store.EstateDeploy{Env: env, Component: component, Version: version, CommitSHA: sha, Status: "success",
+	d.add(store.EstateDeploy{TenantID: tenant, Env: env, Component: component, Version: version, CommitSHA: sha, Status: "success",
 		Source: "reconcile", WorkflowRunID: store.EstateDeployReconcileRun, DeployedBy: store.EstateDeployReconcileBy}, time.Now())
 	return true, nil
 }
@@ -91,9 +91,25 @@ func (c *deployClock) add(d time.Duration) {
 // memory store, the Postgres store itself under SPOOL_TEST_PG_DSN).
 func deployEnv(t *testing.T) (*env, string, store.EstateDeploys, *deployClock) {
 	t.Helper()
+	tid := presetTenant()
+	e, _, ed, clk := deployEnvOf(t, tid)
+	createTenant(t, e, tid)
+	registerRepo(t, e, tid, repoOf(tid, "main"), true)
+	return e, tid, ed, clk
+}
+
+// deployEnvNoOperator is deployEnv on a hub with no operator workspace.
+func deployEnvNoOperator(t *testing.T) (*env, string, store.EstateDeploys, *deployClock) {
+	t.Helper()
+	return deployEnvOf(t, "")
+}
+
+func deployEnvOf(t *testing.T, operator string) (*env, string, store.EstateDeploys, *deployClock) {
+	t.Helper()
 	clk := &deployClock{now: time.Now()}
 	var ed store.EstateDeploys
 	e := rbacEnv(t, func(o *hub.Options) {
+		o.OperatorTenant = operator
 		if m, ok := o.Store.(*store.Memory); ok {
 			o.Store = &deployRecorder{Memory: m}
 		}
@@ -112,8 +128,7 @@ func deployEnv(t *testing.T) (*env, string, store.EstateDeploys, *deployClock) {
 			return "", errors.New("token rejected")
 		}
 	})
-	tid, _ := e.tenant()
-	return e, tid, ed, clk
+	return e, operator, ed, clk
 }
 
 func randSHA(t *testing.T) string {
@@ -150,7 +165,7 @@ func TestOperatorDeploysIngest(t *testing.T) {
 			t.Errorf("RED CONTROL %s: %d %v, want %d", c.name, code, out, c.want)
 		}
 	}
-	if r, ok, _ := ed.LatestEstateDeploy(context.Background(), "dev", "hub"); ok && r.CommitSHA == sha {
+	if r, ok, _ := ed.LatestEstateDeploy(context.Background(), tid, "dev", "hub"); ok && r.CommitSHA == sha {
 		t.Fatalf("a refused request wrote a row: %+v", r)
 	}
 	code, out := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", body)
@@ -159,7 +174,7 @@ func TestOperatorDeploysIngest(t *testing.T) {
 		row["source"] != "ci" || row["status"] != "success" || row["deployed_by"] != operatorSA {
 		t.Fatalf("GATE: the operator's report: %d %v", code, out)
 	}
-	r, ok, err := ed.LatestEstateDeploy(context.Background(), "dev", "hub")
+	r, ok, err := ed.LatestEstateDeploy(context.Background(), tid, "dev", "hub")
 	if err != nil || !ok || r.CommitSHA != sha || r.DeployID != row["deploy_id"] {
 		t.Fatalf("GATE: the stored row: %+v %v %v", r, ok, err)
 	}
@@ -183,7 +198,7 @@ func TestOperatorDeploysOtherEnv(t *testing.T) {
 	if row, _ := out["deploy"].(map[string]any); code != http.StatusOK || out["stored"] != true || row["env"] != "prd" || row["source"] != "ci" {
 		t.Fatalf("RED CONTROL: the dev hub refused the prd deploy, so the other env's count stays 0: %d %v", code, out)
 	}
-	if r, ok, err := ed.LatestEstateDeploy(ctx, "prd", "wui"); err != nil || !ok || r.CommitSHA != sha {
+	if r, ok, err := ed.LatestEstateDeploy(ctx, tid, "prd", "wui"); err != nil || !ok || r.CommitSHA != sha {
 		t.Fatalf("GATE: the prd row on the dev hub: %+v %v %v", r, ok, err)
 	}
 	if code, again := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", body); code != http.StatusOK || again["stored"] != false {
@@ -200,7 +215,7 @@ func TestOperatorDeploysOtherEnv(t *testing.T) {
 	r.Tick(ctx)
 	clk.add(time.Minute)
 	r.Tick(ctx)
-	if p, ok, _ := ed.LatestEstateDeploy(ctx, "prd", "wui"); !ok || p.CommitSHA != sha || p.Source != "ci" {
+	if p, ok, _ := ed.LatestEstateDeploy(ctx, tid, "prd", "wui"); !ok || p.CommitSHA != sha || p.Source != "ci" {
 		t.Fatalf("RED CONTROL: the dev hub's reconcile check wrote a prd row: %+v", p)
 	}
 }
@@ -241,7 +256,7 @@ func TestDeployReconcileProbe(t *testing.T) {
 		return s, nil
 	}
 	wuiLatest := func() (store.EstateDeploy, bool) {
-		w, ok, err := ed.LatestEstateDeploy(ctx, "dev", "wui")
+		w, ok, err := ed.LatestEstateDeploy(ctx, tid, "dev", "wui")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -276,7 +291,7 @@ func TestDeployReconcileProbe(t *testing.T) {
 	if res := r.Tick(ctx); res.Filled != 0 || res.Matched != 2 {
 		t.Fatalf("RED CONTROL: a second tick: %+v, want both matched and nothing written", res)
 	}
-	if h, ok, _ := ed.LatestEstateDeploy(ctx, "dev", "hub"); !ok || h.DeployID != ciRow["deploy_id"] || h.Source != "ci" {
+	if h, ok, _ := ed.LatestEstateDeploy(ctx, tid, "dev", "hub"); !ok || h.DeployID != ciRow["deploy_id"] || h.Source != "ci" {
 		t.Fatalf("RED CONTROL: the ci row was overwritten: %+v", h)
 	}
 	if code, again := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", ciBody); code != http.StatusOK ||

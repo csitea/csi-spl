@@ -69,6 +69,8 @@ export function useCardEdit(
   const edit = ref<ReturnType<typeof beginEdit>>(null)
   const editing = computed(() => edit.value !== null)
   const saving = ref(false)
+  /* SPL-5057: Save on an emptied box raises this; the card asks to delete */
+  const emptyAsk = ref(false)
   const editHintId = useId()
   const draft = computed({
     get: () => edit.value?.draft ?? '',
@@ -112,7 +114,7 @@ export function useCardEdit(
     nextTick(() => rowEl.value?.focus({ preventScroll: true }))
   }
 
-  const box = { edit, editing, saving, editHintId, draft, editMp, startEdit, closeEdit }
+  const box = { edit, editing, saving, emptyAsk, editHintId, draft, editMp, startEdit, closeEdit }
   return { ...box, ...useEditKeys(props, emit, editEl, editError, msgEdit, box) }
 }
 
@@ -123,9 +125,9 @@ function useEditKeys(
   editEl: Ref<HTMLTextAreaElement | null>,
   editError: Ref<string>,
   msgEdit: MsgEdit,
-  box: { edit: Ref<ReturnType<typeof beginEdit>>, saving: Ref<boolean>, draft: Ref<string>, editMp: ReturnType<typeof useMentionPicker>, closeEdit: () => void },
+  box: { edit: Ref<ReturnType<typeof beginEdit>>, saving: Ref<boolean>, emptyAsk: Ref<boolean>, draft: Ref<string>, editMp: ReturnType<typeof useMentionPicker>, closeEdit: () => void },
 ) {
-  const { edit, saving, draft, editMp, closeEdit } = box
+  const { edit, saving, emptyAsk, draft, editMp, closeEdit } = box
   const { commit } = msgEdit
   const { poke } = useMentionPoke()
   const editWhere = (): PokeWhere => editWhereOf(props.msg)
@@ -143,8 +145,7 @@ function useEditKeys(
     if (act === 'cancel') {
       ev.preventDefault()
       ev.stopPropagation()
-      editError.value = ''
-      closeEdit()
+      cancel()
       return
     }
     if (act !== 'commit') return
@@ -152,19 +153,26 @@ function useEditKeys(
     void save()
   }
 
+  /** Esc and the Cancel button: the stored body was never touched. */
+  function cancel() {
+    if (saving.value) return
+    editError.value = ''
+    closeEdit()
+  }
+
   async function save() {
     const state = edit.value
     if (!state) return
-    const { action, body, error } = commitEdit(withDraft(state, editMp.encode(state.draft)))
+    const { action, body } = commitEdit(withDraft(state, editMp.encode(state.draft)))
     if (action === 'unchanged') {
       editError.value = ''
       closeEdit()
       return
     }
     if (action === 'empty') {
-      /* an emptied box is a delete, and nobody has asked for one: the editor
-         stays open holding what was typed */
-      editError.value = editFailureKey(error)
+      /* SPL-5057: the hub refuses an empty body; the card asks to delete instead */
+      editError.value = ''
+      emptyAsk.value = true
       return
     }
     saving.value = true
@@ -184,5 +192,5 @@ function useEditKeys(
     }
   }
 
-  return { onEditKey, save }
+  return { onEditKey, save, cancel }
 }

@@ -45,6 +45,8 @@
 #------------------------------------------------------------------------------
 do_spl_tenant_host_reconcile() {
   do_require_bin yq psql flock || return 1
+  # SPL-5015: in Actions the overlay's slugs are masked before any line
+  spl_th_ci_mask "" || return 1
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
@@ -56,6 +58,10 @@ do_spl_tenant_host_reconcile() {
 
   local rows
   rows="$(spl_via_proxy _spl_th_open_rows)" || { do_log "FATAL cannot read tenant_hosts in $ENV"; return 1; }
+  # ... and each open row's new hidden slug, before the first line names it
+  local -a row_ids=()
+  mapfile -t row_ids < <(awk '$1 == "row" { print $2 }' <<<"$rows")
+  spl_th_ci_mask "$cnf" "${row_ids[@]}" || return 1
   local -a add=() chk=() del=() held=()
   local -a off=()
   local tag t st bill act

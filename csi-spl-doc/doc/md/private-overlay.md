@@ -109,5 +109,12 @@ the hub's migrate).
 - It does not rewrite history: commits before SPL-1874 still hold the names.
 - It cannot prove absence (a deny list only finds what it names): a slug that
   is not in the overlay is not swept.
-- The 40 reconcile workflow is disabled. Its job logs on a public repo are
-  public: enable it only once its logs name placeholders, not slugs.
+- The 40 reconcile workflow is enabled and runs on its schedule (state
+  `active`, a run every 15 min). Its job logs on a public repo are public, so
+  in Actions `spl_th_ci_mask` registers every hidden slug as a runner mask
+  (`::add-mask::`) before any line can name it: each slug of the overlay, and
+  each open `tenant_hosts` row that would be a new hidden workspace. The log
+  shows `***` in its place, terraform's plan lines included, and the FATAL for
+  a new hidden workspace names no slug at all (SPL-5015). Logs written before
+  SPL-5015 may still name one; they are not rewritten here. A slug in neither
+  the overlay nor an open row is not masked.

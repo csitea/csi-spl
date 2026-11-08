@@ -8,6 +8,11 @@
 #      for the 052 workspaces line (docs buckets)
 #   2c. SPL-2278: a new hidden tenant only on the overlay master box (two fake
 #      box roots): another box refuses before any write, naming the commands
+#   2d. SPL-5015: in GitHub Actions (public logs) every hidden slug is a
+#      runner mask before its first line, run through the REAL do_log and
+#      tenant_hosts write: an unlisted new one (the CI FATAL names no slug)
+#      and a listed one (the reconcile line, the terraform plan lines, the
+#      pending -> failed line); a public slug stays readable (CONTROLS)
 #   3. the plan gate: no-op / add pass; an Error, a replace, no summary and
 #      an in-place update and ANY destroy outside the allow list are refused (CONTROL: the same
 #      destroy passes once it is on the allow list)
@@ -126,15 +131,17 @@ export STUB_LOG="$T/make.log" STUB_CNF="$CNF" STUB_TFV="$FAKE/csi-spl-cnf/csi-sp
 in_orc() {
   env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify GITHUB_ACTIONS= SPOOL_DESK_BOX=sat "$@" bash -c '
     set -uo pipefail
-    do_log() { msg="clobbered by do_log"; echo "$*"; }  # the real do_log sets a global msg
+    # REAL_LOG=1: run.sh'"'"'s own do_log (2d: a stub hid what a real line prints)
+    if [[ "${REAL_LOG:-0}" == 1 ]]; then eval "$(sed -n "/^do_log() {/,/^}/p; /^_do_log_[a-z_]*() {/,/^}/p" '"$PROJ_ROOT"'/src/bash/run/run.sh)"
+    else do_log() { msg="clobbered by do_log"; echo "$*"; }; fi  # the real do_log sets a global msg
     for f in '"$PROJ_ROOT"'/lib/bash/funcs/*.func.sh '"$PROJ_ROOT"'/src/bash/run/*.func.sh; do source "$f"; done
     do_spl_cloud_cnf() { SPL_ORG_APP=csi-spl SPL_FQDN=dev.example.test SPL_CNF=/dev/null SPL_STATE_DIR='"$T"'; mkdir -p "$SPL_STATE_DIR"; }
     do_gcp_pin_account() { GCP_ACCOUNT=sa@example.test; }
     do_gcp_require_live_account() { :; }
     do_require_bin() { :; }
-    spl_via_proxy() { case "$1" in _spl_th_open_rows) printf "%s" "${STUB_ROWS:-}" ;; _spl_th_tenant_exists) if [[ -n "${STUB_EXISTS_RAW:-}" ]]; then printf "%s\n" "$STUB_EXISTS_RAW"; else printf "INFO Cloud SQL proxy up\nexists %s\n" "${STUB_EXISTS:-0}"; fi ;; _spl_th_owners_sql) printf "INFO proxy up\n%s" "${STUB_OWNERS-owner HUM-3
+    spl_via_proxy() { case "$1" in _spl_th_open_rows) printf "%s" "${STUB_ROWS:-}" ;; _spl_th_tenant_exists) if [[ -n "${STUB_EXISTS_RAW:-}" ]]; then printf "%s\n" "$STUB_EXISTS_RAW"; else printf "INFO Cloud SQL proxy up\nexists %s\n" "${STUB_EXISTS:-0}"; fi ;; _spl_th_mark_sql) printf "prev %s 1\n" "${STUB_PREV:-pending}" ;; _spl_th_owners_sql) printf "INFO proxy up\n%s" "${STUB_OWNERS-owner HUM-3
 }" ;; esac; }
-    spl_th_mark_one() { echo "MARK $1 $2" >>'"$T"'/mark.log; SPL_TH_PREV="${STUB_PREV:-pending}"; }
+    [[ "${REAL_MARK:-0}" == 1 ]] || spl_th_mark_one() { echo "MARK $1 $2" >>'"$T"'/mark.log; SPL_TH_PREV="${STUB_PREV:-pending}"; }
     [[ "${REAL_PUSH:-0}" == 1 ]] || spl_th_cnf_push() { echo "PUSH $1" >>'"$T"'/mark.log; [[ "${STUB_PUSH_RC:-0}" == 0 ]]; }
     stub_notify() { echo "NOTIFY $ENV $TENANT_ID $DESK_AGENT #$DESK_CHANNEL $DESK_BODY" >>'"$T"'/mark.log; echo "NOTIFY-ENV state=${SPL_STATE_DIR:-} cnf=${SPL_CNF:-} acct=${GCP_ACCOUNT:-}" >>'"$T"'/notify-env.log; }
     do_spl_wait_for_firebase_domain() { [[ "${DOMAIN_READ_ONCE:-0}" == 1 ]] && { echo "INFO proxy noise"; echo "DOMAIN_STATE ${STUB_DOMAIN_STATE:-HOST_ACTIVE OWNERSHIP_ACTIVE CERT_ACTIVE}"; return 0; }; echo "CERT $DOMAIN" >>'"$T"'/mark.log; }
@@ -181,6 +188,55 @@ out=$(SNIPPET='spl_th_cnf_set "$C" add newci' in_orc C="$CNF" TENANT_VISIBLE=0 G
 out=$(SNIPPET='spl_th_cnf_set "$C" add newno' in_orc C="$CNF" TENANT_VISIBLE=0 2>&1); rc=$?
 [[ $rc -ne 0 ]] && ! grep -q newno "$CNF" && grep -q 'private overlay is missing' <<<"$out" &&
   pass "2b. CONTROL: no overlay -> a new tenant is refused, never listed publicly" || fail "2b. no overlay rc=$rc: $out"
+# --- 2d. SPL-5015: a hidden slug never reaches the public Actions log ---------
+# runner <file>: what the Actions log shows of a step's output - a
+# `::add-mask::<v>` line is consumed and hides <v> as *** on every LATER line
+# (never on an earlier one), as the runner does
+runner() {
+  awk 'index($0, "::add-mask::") == 1 { m[++n] = substr($0, 13); next }
+       { for (i = 1; i <= n; i++) if (m[i] != "") { while ((p = index($0, m[i])) > 0) $0 = substr($0, 1, p - 1) "***" substr($0, p + length(m[i])) } print }' "$1"
+}
+# the made-up hidden slugs: zq-hidnew is in no overlay yet, zq-hidold is
+# ws-hidden-01; t1 is public and mapped (it must stay readable)
+printf 'workspaces:\n  ws-hidden-01: zq-hidold\n' >"$T/ovl-ci.yaml"
+ci_rec() { in_orc REAL_LOG=1 REAL_MARK=1 LOG_DIR="$T/log" DRY_RUN=0 TENANT_VISIBLE=0 GITHUB_ACTIONS=true SPL_PRIVATE_CNF="$T/ovl-ci.yaml" "$@"; }
+reset
+SNIPPET='do_spl_tenant_host_reconcile' ci_rec STUB_ROWS=$'row zq-hidnew pending active on\nrow t1 pending active on' >"$T/ci1.raw" 2>&1; rc=$?
+runner "$T/ci1.raw" >"$T/ci1.log"
+[[ $rc -ne 0 ]] && grep -q 'would be a new HIDDEN workspace' "$T/ci1.log" && ! grep -q zq-hidnew "$CNF" "$T/ovl-ci.yaml" &&
+  pass "2d. CI: an unlisted new hidden tenant is refused (the FATAL ran)" || fail "2d. unlisted rc=$rc: $(cat "$T/ci1.log")"
+grep -q zq-hidnew <<<"$(grep 'would be a new HIDDEN workspace' "$T/ci1.raw")" &&
+  fail "2d. the CI FATAL itself names the unlisted slug: $(grep 'HIDDEN' "$T/ci1.raw")" ||
+  pass "2d. the CI FATAL names no slug, even before the runner masks it (the overlay cannot list it)"
+grep -q 'TENANT_VISIBLE=1' <<<"$(grep 'would be a new HIDDEN workspace' "$T/ci1.raw")" &&
+  pass "2d. the CI FATAL keeps the operator's instruction" || fail "2d. the CI FATAL lost its instruction: $(grep HIDDEN "$T/ci1.raw")"
+grep -n zq-hidnew "$T/ci1.log" && fail "2d. the Actions log shows the unlisted hidden slug (above)" ||
+  pass "2d. the Actions log never shows the unlisted hidden slug ($(grep -c . "$T/ci1.log") lines, the reconcile and tenant_hosts lines included)"
+grep -q 'add \[\*\*\*\]' "$T/ci1.log" && grep -q 'tenant_hosts t1 pending -> ready' "$T/ci1.log" &&
+  pass "2d. its reconcile line ran, masked; t1's tenant_hosts line ran in the clear" || fail "2d. the reconcile lines did not run: $(cat "$T/ci1.log")"
+grep -q 'check \[t1\]' "$T/ci1.log" && pass "2d. CONTROL: the public t1 stays readable" || fail "2d. t1 was masked too: $(cat "$T/ci1.log")"
+# listed: the overlay maps it, the cnf does not list it yet; 052 applies and
+# names its buckets, 019 is refused (its lines and summary printed), the row fails
+reset
+P52=$'  # google_storage_bucket.workspace_docs["zq-hidold"] will be created\n  # google_storage_bucket_iam_member.hub_workspace_docs_object_admin["zq-hidold"] will be created\nPlan: 2 to add, 0 to change, 0 to destroy.'
+P19=$'  # google_firebase_hosting_custom_domain.additional["zq-hidold.dev.example.test"] will be created\n│ Error: refused\nPlan: 1 to add, 0 to change, 0 to destroy.'
+SNIPPET='do_spl_tenant_host_reconcile' ci_rec STUB_ROWS=$'row zq-hidold pending active on' STUB_PLAN_052="$P52" STUB_PLAN_019="$P19" >"$T/ci2.raw" 2>&1; rc=$?
+runner "$T/ci2.raw" >"$T/ci2.log"
+[[ $rc -ne 0 ]] && grep -q 'do-provision 052' "$STUB_LOG" && grep -q 'workspace_docs\["\*\*\*"\] will be created' "$T/ci2.log" &&
+  grep -q 'hub_workspace_docs_object_admin\["\*\*\*"\]' "$T/ci2.log" && grep -q '^Plan: 1 to add, 0 to change, 0 to destroy\.$' "$T/ci2.log" &&
+  grep -q 'tenant_hosts \*\*\* pending -> failed' "$T/ci2.log" && grep -q 'add \[\*\*\*\]' "$T/ci2.log" &&
+  pass "2d. CI, listed slug: the reconcile line, the 052 plan lines, the 019 plan + summary and pending -> failed all ran, masked" ||
+  fail "2d. listed rc=$rc make=[$(cat "$STUB_LOG")]: $(cat "$T/ci2.log")"
+grep -n zq-hidold "$T/ci2.log" && fail "2d. the Actions log shows the listed hidden slug (above)" ||
+  pass "2d. the Actions log never shows the listed hidden slug ($(grep -c . "$T/ci2.log") lines)"
+grep -q zq-hidold "$CNF" && fail "2d. the public cnf names the listed slug" || pass "2d. the cnf carries ws-hidden-01, never the slug"
+# CONTROL: the same run outside Actions registers no mask, and the slug shows
+reset
+SNIPPET='do_spl_tenant_host_reconcile' ci_rec GITHUB_ACTIONS= STUB_ROWS=$'row zq-hidold pending active on' STUB_PLAN_052="$P52" STUB_PLAN_019="$P19" >"$T/ci3.raw" 2>&1
+! grep -q '^::add-mask::' "$T/ci3.raw" && grep -q zq-hidold "$T/ci3.raw" &&
+  pass "2d. CONTROL: outside Actions no mask is registered and the operator's log names the slug" || fail "2d. control: $(head -5 "$T/ci3.raw")"
+rm -f "$T/tenant-host.lock"  # 2c asserts no lock
+
 # --- 2c. SPL-2278: a new hidden tenant only on the overlay's master box ------
 # two fake box roots: sat holds the master overlay, pc a pulled copy of it
 mkdir -p "$T/box/sat" "$T/box/pc"

@@ -53,6 +53,7 @@ do_spl_tenant_host_provision() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local host="$tenant.$SPL_FQDN" cnf
   cnf="$(spl_th_cnf_file)" || return 1
+  spl_th_ci_mask "$cnf" "$tenant" || return 1
   # The apex tenant (steps.019 wui_default_tenant, t1) IS https://<fqdn>: no
   # cnf, no terraform. Probe the apex and record it (SPL-959).
   if spl_th_is_apex "$cnf" "$tenant"; then
@@ -169,8 +170,10 @@ spl_th_token() {
   [[ "$t" =~ ^$SPL_PRIVATE_TOKEN_RE$ ]] && { printf '%s\n' "$t"; return 0; }
   tok="$(spl_private_token "$t")" || return 1
   if [[ "${2:-}" == new && "$tok" == "$t" && "${TENANT_VISIBLE:-0}" != 1 && "$t" != e2e* ]]; then
+    # no slug in this line (SPL-5015): the job log is public, and the slug is
+    # in no overlay yet, so no mask can know it; the operator box lists it
     [[ "${GITHUB_ACTIONS:-}" != true ]] ||
-      { do_log "FATAL $(spl_th_mask "$t") would be a new HIDDEN workspace: add it on the operator box (overlay $(spl_private_cnf_path)), or TENANT_VISIBLE=1" >&2; return 1; }
+      { do_log "FATAL an open tenant_hosts row would be a new HIDDEN workspace, which CI never adds (its name stays out of this public log): list the open rows on the operator box (cd csi-spl-orc && ENV=$ENV ./run -a do_spl_tenant_host_reconcile), then add it there (overlay $(spl_private_cnf_path)), or TENANT_VISIBLE=1" >&2; return 1; }
     spl_th_overlay_box_ok "$t" || return 1
     tok="$(spl_private_add "$t")" || return 1
     do_log "INFO a new hidden workspace: $tok in the private overlay (TENANT_VISIBLE=1 to list the slug publicly)" >&2
@@ -227,6 +230,37 @@ spl_th_mask() {
     [[ -n "$v" ]] && txt="$(sed -E "s/(^|[^a-z0-9-])$v([^a-z0-9-]|\$)/\1$k\2/g" <<<"$txt")"
   done < <(spl_private_map)
   printf '%s\n' "$txt"
+}
+
+# spl_th_ci_mask <cnf|""> [tenant...] (SPL-5015): in GitHub Actions, where a
+# public repo's job log is public, registers every hidden slug as a runner
+# mask BEFORE any line can print it: each slug of the overlay, and each given
+# tenant that would be a NEW hidden one (spl_th_new_hidden) and is not listed
+# as itself in <cnf> (a public tenant stays readable). The runner then shows
+# *** for it on every later line of the job, terraform's plan lines included,
+# which spl_th_mask (listed slugs, our own lines only) never reaches. Written
+# to stdout AND stderr: ./run tees each stream on its own, and the runner
+# keeps the order within a stream, not across them. Outside Actions: nothing.
+SPL_TH_MASKED=" "
+spl_th_ci_mask() {
+  [[ "${GITHUB_ACTIONS:-}" == true ]] || return 0
+  local cnf="$1" map="" t
+  shift
+  spl_th_private_lib || return 1
+  if [[ -s "$(spl_private_cnf_path)" ]]; then map="$(spl_private_map | cut -f2)" || return 1; fi
+  local -a v=()
+  mapfile -t v <<<"$map"
+  for t in "$@"; do
+    [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] && spl_th_new_hidden "$t" || continue
+    [[ -n "$cnf" ]] && { spl_th_is_apex "$cnf" "$t" || spl_th_cnf_has "$cnf" "$t" || spl_th_docs_has "$cnf" "$t"; } && continue
+    v+=("$t")
+  done
+  for t in "${v[@]}"; do
+    [[ -n "$t" && "$SPL_TH_MASKED" != *" $t "* ]] || continue
+    SPL_TH_MASKED+="$t "
+    printf '::add-mask::%s\n' "$t"
+    printf '::add-mask::%s\n' "$t" >&2
+  done
 }
 
 # spl_th_tenant_set <file> <add|del> <tenant>: a tenant's host AND its

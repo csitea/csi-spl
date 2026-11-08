@@ -995,7 +995,8 @@ def post_seat(seat, agent, event, text, session):
     """post_one, but a seat's failure stays that seat's (SPL-5044): an error
     reads "failed" for it. Raised, it ended Executor.map's iteration, which
     cancels the seats not started yet: a healthy seat sorted after a broken
-    .mirror lost its DM answer about half the time."""
+    .mirror lost its DM answer about half the time. "failed" is not "not
+    delivered": an error after the send (topic, watermark) reads it too."""
     try:
         return post_one(seat, agent, event, text, session)
     except Exception as e:  # noqa: BLE001 - never at another seat's cost

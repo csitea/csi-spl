@@ -159,7 +159,10 @@ post as any agent id. FR-010 checks it for `typed_by` sends only.
 - **FR-016 speed and robustness.** Every seat (dev, prd) is posted in parallel,
   and one seat's failure (a dangling or unreadable `.mirror`) reads `failed`
   for that seat only: it never stops another seat's answer or prompt record
-  (SPL-5044; it had cancelled the seats sorted after it); the hook finds the box user from the checkout root, not the file owner (a
+  (SPL-5044; it had cancelled the seats sorted after it). `failed` is not
+  "not delivered": an error after the send (the topic or watermark write)
+  also reads `failed`. The hook finds the box user from the checkout root,
+  not the file owner (a
   file rewritten by an agent-side git op stopped every post on the box,
   16:43-16:58Z).
 

@@ -41,11 +41,11 @@
 #      arrives in the DM, the prompt and tool output (PreToolUse/PostToolUse)
 #      do not, a password in the answer is redacted; $SPOOL_ROOT/.mirror-off
 #      stops every post, live sessions included
+#  11. two hook configs reaching one session (shared settings + a wrapper's
+#      --settings) record one prompt and post one answer once
 #  18. one seat's failure (a dangling or unreadable .mirror) never costs
 #      another seat its DM answer or its prompt record, repeated 20 times to
 #      beat the race; CONTROL: two healthy seats both answer
-#  11. two hook configs reaching one session (shared settings + a wrapper's
-#      --settings) record one prompt and post one answer once
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -415,6 +415,7 @@ rm -f "$G18/turn"; mkdir -p "$G18/trigger"
 printf '{"kind":"dm","from":"HUM-3","task":"%s","msg":"m-1","line":"q18"}' "$T1" >"$G18/trigger/1"
 out18="$(printf 'q18' | SPOOL_MIRROR_SEATS="$C18/*/desk/*/*" python3 "$MIRROR" post --agent CLE-7 --event prompt --session s18p 2>&1)"; rc18=$?
 has "18. the prompt still records the healthy seat's DM turn" '"kind": "dm"' "$(cat "$G18/turn" 2>/dev/null)"
+has "18. the healthy seat's prompt is recorded, printed after the broken one (deterministic)" "recorded $C18/dev/desk/t1/b-good" "$out18"
 eq "18. the broken seat reads failed, exit 1, no traceback" "1 0 failed" "$rc18 $(grep -c Traceback <<<"$out18") $(awk '$2 ~ /a-broken$/{print $1}' <<<"$out18")"
 
 t_done

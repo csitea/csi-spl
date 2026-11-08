@@ -991,6 +991,20 @@ def post_one(seat, agent, event, text, session):
     return "posted"
 
 
+def post_seat(seat, agent, event, text, session):
+    """post_one, but a seat's failure stays that seat's (SPL-5044): an error
+    reads "failed" for it. Raised, it ended Executor.map's iteration, which
+    cancels the seats not started yet: a healthy seat sorted after a broken
+    .mirror lost its DM answer about half the time."""
+    try:
+        return post_one(seat, agent, event, text, session)
+    except Exception as e:  # noqa: BLE001 - never at another seat's cost
+        msg = f"FAIL {event}: {type(e).__name__}: {e}"
+        log(os.path.join(seat, "spool", agent), msg)
+        print(f"{seat}: {msg}", file=sys.stderr)
+        return "failed"
+
+
 # ── the discussion leg (SPL-4657, spec 067 section 11) ──────────────────────
 def discussion_text(text):
     """The final text a person reads: injected blocks and status lines gone;
@@ -1247,7 +1261,7 @@ def post_main(args):
     rc = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(ss))) as ex:
         for seat, res in zip(
-            ss, ex.map(lambda st: post_one(st, agent, event, text, session), ss)
+            ss, ex.map(lambda st: post_seat(st, agent, event, text, session), ss)
         ):
             print(f"{res} {seat}")
             rc = rc or (1 if res == "failed" else 0)

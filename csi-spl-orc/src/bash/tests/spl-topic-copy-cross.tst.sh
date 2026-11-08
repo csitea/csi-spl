@@ -34,6 +34,7 @@ TOPIC=22222222-2222-4222-8222-222222222222
 FID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 for b in box-desk box-two; do mkdir -p "$T/state/dev/desk/src/$b/spool/$AGENT"; done
 mkdir -p "$T/state/dev/desk/dst/box-desk/spool/$AGENT"
+for d in src/box-desk src/box-two dst/box-desk; do echo pub >"$T/state/dev/desk/$d/pinned"; done
 printf '{"HUM-10": "FirstName LastName", "HUM-11": "someone@example.com"}\n' >"$T/names.json"
 
 # seed: the source topic, out of order, msg 3 carrying one blob attachment

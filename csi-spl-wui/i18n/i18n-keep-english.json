@@ -29,6 +29,7 @@
     "monitoring.tab.tokens": "LLM term kept as English 'Tokens' in el, es, nl: agy language review SPL-2322 (a-351, msg 66006252)",
     "monitoring.costs.col_tokens": "the same word as monitoring.tab.tokens in every locale (SPL-3565)",
     "reporting.incomes.col.net": "short column header 'Net' kept as is in ro, tr: agy language review SPL-4697 (a-023, msg 6e701647)",
+    "users.roles": "plural of Rol is spelled Roles in es: agy language review SPL-5056 (a-880, msg 6e112ecb)",
     "reporting.incomes.col.vat": "short column header 'VAT' kept as is in pl: agy language review SPL-4697 (a-023, msg 6e701647)",
     "reporting.incomes.col.total": "short column header 'Total' kept as is in es, ro: agy language review SPL-4697 (a-023, msg 6e701647)",
     "monitoring.tokens.col_box": "ro keeps 'Box' to match its 'Boxuri' tab: agy language review SPL-2322 (a-351, msg 66006252)",

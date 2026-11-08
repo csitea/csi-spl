@@ -1282,7 +1282,7 @@
     "name": "Nombre",
     "member_id": "ID de miembro",
     "since": "Miembro desde",
-    "roles": "Roles asignados",
+    "roles": "Roles",
     "role_primary": "Principal",
     "save_roles": "Guardar roles",
     "roles_saved": "Roles cambiados.",

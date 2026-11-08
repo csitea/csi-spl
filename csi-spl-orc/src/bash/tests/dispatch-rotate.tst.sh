@@ -154,8 +154,10 @@ case "$cmd" in
   display-message) grep -q "^$tgt	" "$P" || exit 1
     case "${args[0]}" in *window_name*) field 4 ;; *session_id*) field 3 ;; *pane_id*) echo "$tgt" ;; esac ;;
   capture-pane) grep -q "^$tgt	" "$P" || exit 1
-    # hook.armed (armed by the lane-mix stub): runs once at the next capture, a verdict filed mid-run
-    if [ -f "$T/tmux/hook.armed" ]; then mv "$T/tmux/hook.armed" "$T/tmux/hook.ran"; . "$T/tmux/hook.ran"; fi
+    # hook.armed (armed by the lane-mix stub): runs once at the next capture, a verdict filed mid-run;
+    # under bash -eu, so any failing line is a hook failure in hook-fail.log (SPL-5043 N2)
+    if [ -f "$T/tmux/hook.armed" ]; then mv "$T/tmux/hook.armed" "$T/tmux/hook.ran"
+      bash -eu "$T/tmux/hook.ran" || echo "HOOK FAIL tmux/hook exit $?" >>"$T/hook-fail.log"; fi
     if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'routed the t1 post\n❯ \n'; fi
     if [ "$esc" = 1 ]; then printf '────────\n❯ %s\n────────\n' "$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; fi ;;
   rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
@@ -275,11 +277,15 @@ set -E
 # pipefail on a pane with no spinner; that one line only, every other stray
 # still leaves its ERRTRAP line
 trap '[[ $BASH_COMMAND == return* || "${BASH_SOURCE[0]##*/}:$LINENO" == spl-dispatch-lease.func.sh:557 ]] ||
+# Both hooks (at-sleep, tmux/hook) run under bash -eu: a failing line, even
+# one followed by a good line, is a HOOK FAIL line in $T/hook-fail.log, which
+# the case reads, never a stray of the action or a silent no-op (SPL-5043 N2).
   echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 VCLOCK_MS=0 VCLOCK_HELD=0
 sleep() {
   local n="${1:-1}" ms int frac tick="${ROTATE_TEST_TICK:-0.01}" p
-  if [[ -f "$T/at-sleep.$n" ]]; then mv "$T/at-sleep.$n" "$T/at-sleep.ran"; . "$T/at-sleep.ran"; fi
+  if [[ -f "$T/at-sleep.$n" ]]; then mv "$T/at-sleep.$n" "$T/at-sleep.ran"
+    bash -eu "$T/at-sleep.ran" || echo "HOOK FAIL at-sleep.$n exit $?" >>"$T/hook-fail.log"; fi
   [[ "${ROTATE_TEST_REAL:-0}" == 1 ]] && { command sleep "$n"; return 0; }
   [[ "${ROTATE_CMD:-}" == ack ]] && tick=0.1
   if [[ "${ROTATE_CMD:-}" != ack ]] && (( VCLOCK_HELD < 500 )); then
@@ -645,8 +651,14 @@ heal LEASE_PANE_CMD="$T/bin/footer" >"$T/o" 2>&1
 world; rm -rf "$T/proc/103" "$T/at-sleep.ran"
 echo 'command sleep 0.2; "$T/bin/proc" 103 c-903 7200' >"$T/at-sleep.3"
 heal ROTATE_HEAL_CONFIRM=3 >"$T/o" 2>&1
-[[ "$(nsetup)" == 0 && ! -d "$T/proc/203" && -e "$T/at-sleep.ran" && ! -e "$T/at-sleep.3" ]] && grep -q ' HEAL SKIP back within 3s' "$T/o" &&
-  pass "11. dead at one look, back within ROTATE_HEAL_CONFIRM: untouched" || fail "11. confirm: $(cat "$T/o")"
+[[ "$(nsetup)" == 0 && ! -d "$T/proc/203" && -e "$T/at-sleep.ran" && ! -e "$T/at-sleep.3" && ! -e "$T/hook-fail.log" ]] && grep -q ' HEAL SKIP back within 3s' "$T/o" &&
+  pass "11. dead at one look, back within ROTATE_HEAL_CONFIRM: untouched" || fail "11. confirm: $(cat "$T/hook-fail.log" "$T/o" 2>&1)"
+# control (N2): a failing hook line before the good one reads as a hook failure
+world; rm -rf "$T/proc/103" "$T/at-sleep.ran"
+echo 'false; "$T/bin/proc" 103 c-903 7200' >"$T/at-sleep.3"
+heal ROTATE_HEAL_CONFIRM=3 >"$T/o" 2>&1
+grep -qx 'HOOK FAIL at-sleep.3 exit 1' "$T/hook-fail.log" 2>/dev/null && ! grep -q ERRTRAP "$T/o" &&
+  pass "11. control: a hook's failing line is a HOOK FAIL, not a stray or a silent no-op" || fail "11. hook control: $(cat "$T/hook-fail.log" "$T/o" 2>&1)"
 rm -f "$T/at-sleep.3"
 world; rm -rf "$T/proc/103"
 heal SETUP_SLEEP=3 >"$T/o1" 2>&1 & sleep 0.5
@@ -959,18 +971,18 @@ rm -f "$T/mix.then" "$T/mix.asked"
 # the old seat keeps the role, nothing spawns; control: a clean grok
 # verdict filed then = grok is spawned.
 sb4728() {
-  sbc; rm -f "$T/spawn.log"
+  sbc; rm -f "$T/spawn.log" "$T/hook-fail.log"
   printf 'mkdir -p "$SPOOL_ROOT/dispatch/wd/ctx.1/g-009"; printf "%%s\\n" "%s" >"$SPOOL_ROOT/dispatch/wd/ctx.1/g-009/out.s2"; touch -d "@$(( $(date +%%s) + 1 ))" "$SPOOL_ROOT/dispatch/wd/ctx.1/g-009/out.s2"\n' "$1" >"$T/tmux/hook"
   act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli" >"$T/o" 2>&1; rc=$?
 }
 sb4728 "HIT S2 kind=limit pane: You hit your weekly limit"
 [[ -e "$T/tmux/hook.ran" && ! -e "$T/spawn.log" ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && [[ ! -e "$S/g-002" ]] &&
   grep -q -- "-master FAIL FAIL SPAWN: the decided vendor grok went on its limit after the decision (g-009 S2 kind=limit 0m ago: pane: You hit your weekly limit): no spawn; the old session (pid 102) keeps the role" "$D/rotate.log" &&
-  [[ "$(grep -c 'LANE_MIX_SPLIT_KIND=claude=0 grok=100' "$T/mix.log")" == 1 ]] && ! grep -q ERRTRAP "$T/o" &&
+  [[ "$(grep -c 'LANE_MIX_SPLIT_KIND=claude=0 grok=100' "$T/mix.log")" == 1 && ! -e "$T/hook-fail.log" ]] && ! grep -q ERRTRAP "$T/o" &&
   pass "19. SPL-4728 grok's limit filed after the swap decided grok: FAIL SPAWN, no seat switch, no spawn, c-002 keeps the seat" ||
   fail "19. SPL-4728 stale rc=$rc: $(cat "$T/spawn.log" 2>/dev/null) $(grep -E 'FAIL|SPAWN' "$D/rotate.log" 2>/dev/null) $(cat "$T/o")"
 sb4728 "S2 ok"
-[[ -e "$T/tmux/hook.ran" ]] && grep -q "^spawn grok g-002 " "$T/spawn.log" && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" && ! grep -q 'went on its limit' "$D/rotate.log" &&
+[[ -e "$T/tmux/hook.ran" && ! -e "$T/hook-fail.log" ]] && grep -q "^spawn grok g-002 " "$T/spawn.log" && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" && ! grep -q 'went on its limit' "$D/rotate.log" &&
   pass "19. SPL-4728 control: a clean grok verdict filed after the decision -> grok g-002 is spawned" ||
   fail "19. SPL-4728 control rc=$rc: $(cat "$T/spawn.log" 2>/dev/null) $(grep -E 'FAIL|SPAWN' "$D/rotate.log" 2>/dev/null)"
 rm -f "$T/tmux/hook" "$T/tmux/hook.armed" "$T/tmux/hook.ran"

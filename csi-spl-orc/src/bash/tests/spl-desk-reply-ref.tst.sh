@@ -28,6 +28,7 @@ AGENT=c-001
 DM=11111111-1111-4111-8111-111111111111
 TOPIC=22222222-2222-4222-8222-222222222222
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/$AGENT"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 
 # inbox <to> <body> [ref] - one human message from HUM-10 in the DM thread
 inbox() {

@@ -29,6 +29,7 @@ TOPIC=157b1000-0000-4000-8000-000000000001
 EPOCH=1761412530 # 2025-10-25T17:15:30Z
 
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 STUBS='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
 spl_host_spool() { :; }
 spl_desk_lease_gate() { :; }

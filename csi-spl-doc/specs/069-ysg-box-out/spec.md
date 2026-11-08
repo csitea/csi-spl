@@ -745,6 +745,14 @@ another root gets no hop. It hops with `SPOOL_DESK_USER` set too (SPL-4985,
 8.4.4): the fleet loop's owner page runs it as `<box-user>` after
 `MOVE_CMD=switch`. Test: `desk-user-hops.tst.sh` cases 6 and 13.
 
+A post with nowhere to go is refused (SPL-5115): when the caller's copy is an
+unpinned stub with no live sidecar and no pinned copy can be hopped to,
+`do_spl_desk_reply` and `do_spl_desk_post` (so `do_spl_fleet_notice` too) end
+FATAL, rc 1, nothing sent, in a dry run as well (`spl_desk_undelivered_refuse`).
+`spool send` only writes the outbox, so the post used to sit there with rc 0.
+A pinned desk with its sidecar down is still accepted: the reconcile restarts
+it. Test: `desk-user-hops.tst.sh` case 14.
+
 So a desk under `<agent-user>` is **readable only by `<agent-user>`**: a
 `<box-user>` cron that reads or posts through a moved desk keeps failing,
 now with that refusal instead of a bare `no desk for`, until it runs as the

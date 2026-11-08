@@ -56,6 +56,7 @@ TK=44444444-4444-4444-8444-444444444444
 R="$T/root"
 mkdir -p "$R/dispatch"
 for a in c-002 g-001 c-001 c-423; do mkdir -p "$T/state/dev/desk/t1/box-desk/spool/$a"; done
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 HUMPOST='{"v":1,"msg_id":"h-1","task_id":"'"$TK"'","ts":"2026-10-26T08:00:00Z","from":"HUM-10","to":"ALL-0","kind":"note","body":"the menu is gone","files":[]}'
 python3 - "$T/inbox.json" "$TK" <<'EOF_PY'
 import json, sys
@@ -163,6 +164,7 @@ reply c-423
 refused && pass "a channel seat of ANOTHER workspace is refused" || fail "other-workspace channel seat not refused: $(show)"
 mkdir -p "$T/ws/t1"; echo t1 >"$T/ws/claim"
 mkdir -p "$T/ws/t1/state/dev/desk/t1/box-desk/spool/g-001"
+echo pub >"$T/ws/t1/state/dev/desk/t1/box-desk/pinned"
 reply g-001 SPL_WS_BASE="$T/ws" SPL_STATE_DIR="$T/ws/t1/state/dev"
 ok_sent && pass "a workspace seat on a box claimed by the workspace posts the first reply" || fail "workspace seat refused: $(show)"
 

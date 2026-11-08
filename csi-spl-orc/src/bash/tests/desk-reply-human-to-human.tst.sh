@@ -29,6 +29,7 @@ orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 TK=55555555-5555-4555-8555-555555555555
 R="$T/root"
 mkdir -p "$R/dispatch" "$T/state/dev/desk/t1/box-desk/spool/c-002"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 
 # post <msg_id> <ts> <from> <to> <body> - one hub-tail NDJSON line
 post() {

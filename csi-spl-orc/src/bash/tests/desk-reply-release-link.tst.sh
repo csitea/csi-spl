@@ -63,6 +63,7 @@ fi
 # --- 5. never dropped: DRY_RUN=0, the post is sent unchanged -----------------------
 BODY="Released to prd: $SHA1 - footer fix."
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
 spl_host_spool() { :; }
 spl_desk_spool() {

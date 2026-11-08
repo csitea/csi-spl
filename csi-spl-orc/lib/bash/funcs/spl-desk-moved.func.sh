@@ -79,6 +79,24 @@ spl_desk_moved_refuse() {
   return 0
 }
 
+# spl_desk_undelivered_refuse <state dir> <desk id> <workspace> <agent>: 0 (and
+# one FATAL) when a post through this desk would never reach the hub, so the
+# action must stop, dry run included. 1 when it may go on, or when <agent> has
+# no mailbox here (the action's own "no desk" handling).
+# Why (SPL-5115): `spool send` only writes the outbox and the sidecar flushes
+# it. A stub left by a move (spl_desk_moved_to) with no pinned copy to hop to
+# has no sidecar, and none will ever start on an unpinned desk, so the post sat
+# there with rc 0 and an OK line (c-283, R7 of SPL-4938, sat 2026-11-07). A
+# pinned desk whose sidecar is down is not refused: the reconcile restarts it.
+spl_desk_undelivered_refuse() {
+  local d="$1" box="$2" ws="$3" agent="$4"
+  [[ -d "$d/spool/$agent" ]] || return 1
+  [[ -s "$d/pinned" ]] && return 1
+  spl_desk_alive "$d/spool/.hub/hub-run.pid" && return 1
+  do_log "FATAL nothing would deliver this post: desk $box of $ws (${ENV:-?}) at $d is not pinned, has no live sidecar and no pinned copy this user can hop to (a stub). Nothing was sent. Run the action as the user who holds the pinned desk, or seat this one: do_spl_desk_up"
+  return 0
+}
+
 # spl_desk_action_hop_to <workspace> <desk id>: the user a ./run action on this
 # desk must re-run as, 0; 1 when it runs here. A desk that moved (see
 # spl_desk_moved_to) is 0700 under its owner, with or without SPOOL_DESK_USER,

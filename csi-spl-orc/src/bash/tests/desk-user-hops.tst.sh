@@ -543,5 +543,60 @@ eq "13. the alert clear: the caller's own pinned desk: no hop" "0" "$(hop6)"
 asks13 "spl_asks_owner_page '$ALERT13'" LANE_TENANT=hop-h DRY_RUN=1 >/dev/null
 eq "13. the owner page: the caller's own pinned desk: no hop" "0" "$(hop6)"
 
+# 14. A desk nothing serves (SPL-5115): the caller's copy is an unpinned stub,
+# no sidecar runs on it and no pinned copy elsewhere to hop to. `spool send`
+# only writes its outbox, so the post would sit there with rc 0 and an OK line
+# saying the sidecar flushes it (c-283, R7 of SPL-4938). Reply and post, live
+# and dry, refuse it and send nothing; the sibling healthy shapes do not.
+# RED before SPL-5115: rc=0, the OK line, one send.
+stub14() { # <action> <workspace> <dry> [spl_desk_alive body]
+  : >"$T/send14"
+  SNIPPET="do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; spl_host_spool() { :; }
+    spl_desk_lease_gate() { :; }; spl_desk_human_gate() { :; }
+    spl_desk_spool() { [[ \" \$* \" != *' send '* ]] || echo send >>'$T/send14'; echo '{\"msg_id\":\"m-1\"}'; }
+    spl_desk_alive() { ${4:-return 1}; }
+    $1; echo \"rc=\$?\"" \
+    in_orc TENANT_ID="$2" DESK_BOX=box-x DESK_AGENT=c-002 DESK_TO=HUM-10 DESK_TASK="$TOPIC6" DESK_CHANNEL=alerts \
+    DESK_BODY=hello DRY_RUN="$3" SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" 2>&1
+}
+desk6 "$SELF6" stub-a; mkdir -p "$SELF6/desk/stub-a/box-x/keys"
+for act in do_spl_desk_reply do_spl_desk_post; do
+  for dry in 0 1; do
+    out="$(stub14 "$act" stub-a "$dry")"
+    has "14. $act DRY_RUN=$dry on a keyed unpinned stub: non-zero rc" "rc=1" "$out"
+    has "14. $act DRY_RUN=$dry on the stub: says why" "FATAL nothing would deliver this post" "$out"
+    hasnt "14. $act DRY_RUN=$dry on the stub: no OK line" "OK " "$out"
+    eq "14. $act DRY_RUN=$dry on the stub: nothing sent" "0" "$(wc -l <"$T/send14")"
+  done
+  out="$(stub14 "$act" stub-a 0 '[[ "$1" == */spool/.hub/hub-run.pid ]]')"
+  has "14. $act: unpinned with a live sidecar: as today" "rc=0" "$out"
+  eq "14. $act: unpinned with a live sidecar: one send" "1" "$(wc -l <"$T/send14")"
+  out="$(stub14 "$act" hop-c 0)"
+  has "14. $act: the caller's pinned desk, sidecar down: as today" "rc=0" "$out"
+  eq "14. $act: the caller's pinned desk, sidecar down: one send" "1" "$(wc -l <"$T/send14")"
+  out="$(stub14 "$act" hop-none 1)"
+  has "14. $act: no desk at all, dry run: as today" "rc=0" "$out"
+done
+desk6 "$SELF6" stub-b; desk6 "$ROOT6" stub-b pinned
+out="$(stub14 do_spl_desk_reply stub-b 0)"
+eq "14. a stub with a pinned copy elsewhere: the hop, not the refusal" "1" "$(hop6)"
+hasnt "14. a stub with a pinned copy elsewhere: no refusal" "nothing would deliver" "$out"
+# The no-sudo-rule branch of spl_desk_moved_to: no hop can be made, same end.
+AS14="$T/as14"; printf '#!/bin/sh\nexit 1\n' >"$AS14"; chmod +x "$AS14"
+mkdir -p "$T/stub14"
+cat >"$T/stub14/getent" <<EOF2
+#!/bin/sh
+case "\$2" in $DU) echo "$DU:x:5002:5002::$T/hidden14:/bin/sh" ;; *) exec "$T/stub/getent" "\$@" ;; esac
+EOF2
+chmod +x "$T/stub14/getent"; mkdir -p "$T/hidden14"; chmod 000 "$T/hidden14"
+out2="$(SNIPPET="do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; do_spl_desk_reply; echo \"rc=\$?\"" \
+  in_orc PATH="$T/stub14:$T/stub:$PATH" TENANT_ID=stub-a DESK_BOX=box-x DESK_AGENT=c-002 DESK_TO=HUM-10 DESK_TASK="$TOPIC6" \
+  DESK_BODY=hello DRY_RUN=1 SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+  SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS14" 2>&1)"
+chmod 755 "$T/hidden14"
+has "14. no sudo rule to the other root: the WARN as today" "no sudo -n rule" "$out2"
+has "14. no sudo rule to the other root: the refusal, rc 1" "rc=1" "$out2"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

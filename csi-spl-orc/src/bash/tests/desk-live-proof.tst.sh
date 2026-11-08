@@ -65,6 +65,7 @@ commit_sha_word off
 OFF="$(g rev-parse HEAD)"
 
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 STUBS='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
 spl_host_spool() { :; }
 spl_desk_spool() {

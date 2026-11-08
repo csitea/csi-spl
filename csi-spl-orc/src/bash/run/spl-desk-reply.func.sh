@@ -95,6 +95,9 @@
 # @description pinned under another user's root and not under the caller's
 # @description re-runs this action once as that user (SPL-4938), so the exit
 # @description codes and the output are that run's; do_spl_take gets it too.
+# @description A desk nothing serves (the caller's unpinned stub, no live sidecar
+# @description and no pinned copy to hop to) is refused, dry run too (FATAL, rc 1,
+# @description nothing sent; spl_desk_undelivered_refuse, SPL-5115).
 # @description Exit 3 when nothing newer than this desk's last answer is
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
@@ -165,6 +168,7 @@ do_spl_desk_reply() {
   local hub d
   hub="$SPL_HUB_URL"
   d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
+  spl_desk_undelivered_refuse "$d" "$box" "$tenant" "$agent" && return 1
   if (( dry )); then
     do_log "INFO DRY_RUN would: read $agent's inbox on $box and answer the newest human${to:+ $to}${task:+ in task $task} with a $kind${files[*]:+ and ${#files[@]} file(s)}; a DM about a topic is answered in that topic (spec 067)"
     [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"

@@ -583,6 +583,7 @@ done
 # desk no longer calls it, SPL-1776; kept so a regression is logged), send
 # answers a delivery - or, with FAKE_REFUSE, the hub's non-member refusal.
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 cat >"$T/fakespool" <<'FAKE'
 #!/bin/sh
 echo "$*" >>"$FAKE_LOG"
@@ -765,6 +766,7 @@ es_create ISSUE_EPIC=SPL-1 ISSUE_DESCRIPTION_FILE="$dfile"
 # is still needed, no csi-spl spec.
 printf 'acme\tdev\tacme-site\t/srv/acme\t-\thttps://site.example.com\tCLE-00\tbox-desk\n' >"$T/ws-map.tsv"
 mkdir -p "$T/state/dev/desk/acme/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/acme/box-desk/pinned"
 es_create TENANT_ID=acme SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv" ISSUE_EPIC=ACME-1
 [[ $rc -eq 0 ]] && grep -q -- '|--epic|ACME-1|' "$T/issue.log" && pass "a workspace of the box map: its epic, no csi-spl spec, files it" || fail "ws create (rc=$rc): $(cat "$T/o")"
 es_create TENANT_ID=acme SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv"
@@ -789,6 +791,7 @@ FAKE
 chmod +x "$T/fakego"
 GO_TOPIC=0f8fad5b-d9cb-469f-a165-70867728950e GO_HUM=06f343a5-1111-4222-8333-444455556666 GO_AGT=b8d3641e-1111-4222-8333-444455556666
 mkdir -p "$T/tails" "$T/state/dev/desk/csitea/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/csitea/box-desk/pinned"
 printf '%s\n' '{"v":1,"msg_id":"'"$GO_TOPIC"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"opener"}' \
   '{"v":1,"msg_id":"'"$GO_HUM"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"file it"}' \
   '{"v":1,"msg_id":"'"$GO_AGT"'","task_id":"'"$GO_TOPIC"'","from":"c-001","kind":"note","body":"me too"}' >"$T/tails/$GO_TOPIC"
@@ -874,6 +877,7 @@ go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_AGT" ISSUE_DESCRIPTION=card DRY_R
   ! grep -q "check is skipped" "$T/o" && [[ ! -s "$T/db.log" ]] && pass "a dry run reads no hub and says the go would be checked, not that it was" || fail "dry go (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log") / $(cat "$T/db.log")"
 : >"$T/issue.log"
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_TITLE='Rotate the key' ISSUE_DESCRIPTION="$SPEC_LINE" ISSUE_DISCUSSIONS=0f8fad5b-d9cb-469f-a165-70867728950e ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_LEVEL=2 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"key": "SPL-7"'* && "$out" == *'"op": "create"'* ]] && pass "do_spl_issue_create files through the desk's spool" ||
@@ -1037,6 +1041,7 @@ echo '{"msg_id":"0f8fad5b-d9cb-469f-a165-70867728950e","task_id":"e2c3fbad-c8df-
 FAKE
 chmod +x "$T/fakearchive"; : >"$T/archive.log"
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 ARC='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_topic_archive'
 out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$ARC_TOPIC 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *DRY_RUN*"archive topic $ARC_TOPIC"* && ! -s "$T/archive.log" ]] &&

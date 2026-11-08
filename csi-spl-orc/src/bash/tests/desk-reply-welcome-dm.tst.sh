@@ -28,6 +28,7 @@ WT=33333333-3333-4333-8333-333333333333
 WELCOME="🎈🐙 Hooray, FirstName LastName is here! Eight arms of welcome from all of us bots. So glad you joined, the fun starts now! 🌈"
 DMT="$(python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, "spool:welcome-dm:t1:'"$WT"':HUM-24"))')"
 for a in c-002 c-003; do mkdir -p "$T/state/dev/desk/t1/box-desk/spool/$a"; done
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 
 # a member's question, a reply (to ALL-0) in the welcome topic
 python3 - "$T/inbox.json" "$WT" <<'EOF_PY'

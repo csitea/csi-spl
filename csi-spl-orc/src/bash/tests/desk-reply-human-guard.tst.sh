@@ -27,6 +27,7 @@ orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 DM=44444444-4444-4444-8444-444444444444
 TOPIC=55555555-5555-4555-8555-555555555555
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/c-002"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 printf 'env:\n  fleet_notices:\n    channel: spool-hub-ops\n' >"$T/cnf.yaml"
 # a person's DM to the desk about a channel topic (spec 067 ref_task_id)
 python3 - "$T/inbox.json" "$DM" "$TOPIC" <<'EOF_PY'

@@ -22,6 +22,9 @@ TOPIC=b280b0e8-1111-4222-8333-444455556666
 SENT_ID=4f0c2a10-aaaa-4bbb-8ccc-0123456789ab
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00" "$T/state/dev/desk/csitea/box-desk/spool/CLE-00" \
   "$T/state/dev/desk/w9/box-desk/spool/CLE-00"
+echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
+echo pub >"$T/state/dev/desk/csitea/box-desk/pinned"
+echo pub >"$T/state/dev/desk/w9/box-desk/pinned"
 # cnf <tenant hosts on?>: the merged cnf the resolver reads (prd's shape)
 cnf() {
   printf 'env:\n  dns:\n    mapped_tenants: [ws-a, csitea]\n  steps:\n    019-firebase-static-site:\n      wui_default_tenant: "t1"\n      wui_tenant_hosts: %s\n' "$1" >"$T/cnf.yaml"

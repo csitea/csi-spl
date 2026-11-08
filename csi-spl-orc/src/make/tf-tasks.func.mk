@@ -4,7 +4,7 @@ tf-new-step: demand_var-STEP
 
 .PHONY: tf-remove-step ## @-> 03.00 removes framework for terraform step
 tf-remove-step: demand_var-STEP
-	./run -a do_tf_remove_step
+	cd ../csi-spl-iac && STEP=$(STEP) ./run -a do_tf_remove_step
 
 .PHONY: no-plan-ref
 no-plan-ref:

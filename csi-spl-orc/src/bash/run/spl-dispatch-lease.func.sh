@@ -1241,16 +1241,23 @@ spl_fleet_mirror_tenants() {
 # line. spl_desk_glob walks the roots this user can enter; a root closed to it
 # (a moved desk, 0700 under the desk user, SPL-5120) is listed through its
 # owner, one hop per root under the hop's limit. No sudo rule or a cut hop: that
-# root lists nothing and this pass copies the rest.
+# root lists nothing, this pass copies the rest, and the log says so once until
+# the root lists again: its tenants are in no list a COPY-FAILED could name.
 spl_fleet_mirror_pins() {
-  local p u r
+  local p u r mark rc
   local -a as=()
   while IFS= read -r p; do [[ -s "$p" ]] && printf '%s\n' "$p"; done < <(spl_desk_glob "*/$LEASE_DESK_BOX/pinned")
   read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
   while IFS=$'\t' read -r u r; do
     [[ -n "$r" ]] && ! spl_desk_root_enterable "$r/desk" || continue
+    mark="mirror-root.${r//[^A-Za-z0-9]/_}"; rc=0
     timeout -k 1 "${LEASE_HOP_TIMEOUT:-5}" "${as[@]}" "$u" -- find "$r/desk" -mindepth 3 -maxdepth 3 -type f -size +0 \
-      -path "*/$LEASE_DESK_BOX/pinned" 2>/dev/null
+      -path "*/$LEASE_DESK_BOX/pinned" 2>/dev/null || rc=$?
+    if (( rc != 0 )); then
+      spl_fleet_once "$mark" "COPY-ROOT-UNREAD $r: the hop to $u failed (rc $rc), its tenants get no copy"
+    elif [[ -f "$LEASE_DIR/fleet.$mark" ]]; then
+      rm -f "$LEASE_DIR/fleet.$mark"; spl_lease_log "COPY-ROOT $r: listed again"
+    fi
   done < <(spl_desk_roots)
   return 0
 }
@@ -1265,14 +1272,15 @@ spl_fleet_mirror_pins() {
 spl_fleet_mirror_bg() {
   local role="$1" holder="$2"
   if [[ "${LEASE_MIRROR_WAIT:-0}" == 1 ]]; then spl_fleet_mirror_out "$role" "$holder"; return 0; fi
-  ( ( flock -n 9 || exit 0; spl_fleet_mirror_out "$role" "$holder" ) 9>"$LEASE_DIR/fleet.$role.mirror.lock" 7>&- 8>&- & ) 2>/dev/null
+  ( ( flock -n 9 || { spl_lease_log "COPY-SKIPPED $role: the previous pass still runs"; exit 0; }; spl_fleet_mirror_out "$role" "$holder" ) 9>"$LEASE_DIR/fleet.$role.mirror.lock" 7>&- 8>&- & ) 2>/dev/null
   return 0
 }
 
 # spl_fleet_mirror_out <role> <holder>: write <holder> into every copy (read
 # its gen, then compare-and-set). A failure is logged once per tenant until it
-# clears and ends this tick's copies, so a hung hub stalls the tick by ONE
-# timeout (LEASE_MIRROR_TIMEOUT, 10 s), never once per tenant.
+# clears and costs only that tenant its copy: a pass is off the loop thread, so
+# a hung tenant spends its own limit (LEASE_MIRROR_TIMEOUT, 10 s) and the ones
+# after it are still served.
 spl_fleet_mirror_out() {
   local role="$1" holder="$2" t out FH FG FA FW
   for t in $(spl_fleet_mirror_tenants); do
@@ -1284,7 +1292,6 @@ spl_fleet_mirror_out() {
       continue
     fi
     spl_fleet_once "$role.copy.$t" "COPY-FAILED $role in $t: $(tr '\n' ' ' <<<"$out" | cut -c1-200)"
-    return 0
   done
   return 0
 }

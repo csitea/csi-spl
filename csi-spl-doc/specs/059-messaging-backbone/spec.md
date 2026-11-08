@@ -305,7 +305,7 @@ Decision: the lease stays **fleet-wide**, one decision made in the lease tenant 
 | who writes a copy | only the machine that just won the lease write, with its own desk key pinned in that tenant (read gen, then CAS) |
 | a dead holder | its copies stop being renewed and go stale with it (180 s): fan-out as before S5, as for the lease tenant |
 | a take-over | the new holder overwrites every copy on its first won write |
-| a failing tenant | logged once (`COPY-FAILED`) until it clears; it ends that tick's copies, so a hung hub costs one 10 s timeout per tick, and the lease tenant's row has already been renewed |
+| a failing tenant | logged once (`COPY-FAILED`) until it clears; the tenants after it are still served (SPL-5120: the pass runs off the loop thread, so a hung hub costs its own 10 s limit there), and the lease tenant's row has already been renewed |
 | hub change | none: no cross-tenant read; each tenant's route is still read from its own rows |
 
 The other option, one row applied to every tenant by the hub, would need an operator-scope read across tenants on every channel post, and any tenant could then write a dispatch row that narrows another tenant's routing. Per-tenant copies keep the 0021 isolation.

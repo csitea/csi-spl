@@ -7,7 +7,8 @@
 #   1. tenants pinned under B's 0700 root are served, through the hop
 #   2. t1 (the lease tenant), a test workspace, an empty pin and another box's
 #      pin are not; a tenant in both roots is listed once
-#   3. no sudo rule, or a hop that hangs: the caller's own tenants only, in time
+#   3. no sudo rule, or a hop that hangs: the caller's own tenants only, in
+#      time, the root named in the log once until it lists again
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -73,6 +74,13 @@ got="$(tenants "$T/stub/as-refused")"
 [[ "$got" == "both own-a " ]] && pass "3. no sudo rule: this user's own tenants, as before" || fail "3. refused: '$got'"
 t0=$SECONDS; got="$(tenants "$T/stub/as-hang")"; took=$((SECONDS - t0))
 [[ "$got" == "both own-a " && "$took" -lt 8 ]] && pass "3. a hop that hangs is cut at its limit (${took}s)" || fail "3. hang: '$got' ${took}s"
+
+lines() { grep -c "$1" "$T/spool/dispatch/lease.log" 2>/dev/null; }
+[[ "$(lines 'COPY-ROOT-UNREAD .*the hop to t-desk-user failed (rc 1)')" == 1 && "$(lines 'COPY-ROOT-UNREAD')" == 1 ]] &&
+  pass "3. a refused hop names the root in the log, once across refused and hung" || fail "3. log: $(cat "$T/spool/dispatch/lease.log" 2>&1)"
+got="$(tenants "$T/stub/as")"
+[[ "$got" == "both csitea own-a ws-b " && "$(lines 'COPY-ROOT .*listed again')" == 1 ]] &&
+  pass "3. the hop back: the tenants return, logged once" || fail "3. back: '$got' $(cat "$T/spool/dispatch/lease.log" 2>&1)"
 
 chmod 700 "$RB"
 [[ "$fails" == 0 ]]

@@ -769,7 +769,8 @@ owner decision; this row moves no crontab.
 so `spl_desk_glob` cannot see a desk under the desk user's `0700` root and the
 copies had stopped for every moved tenant (sat 2026-11-08, read-only: 0 of
 21072 dial lines for any tenant but t1). `spl_fleet_mirror_pins` lists such a
-root through its owner, one hop per root under `LEASE_HOP_TIMEOUT`. A pass runs
+root through its owner, one hop per root under `LEASE_HOP_TIMEOUT`; a hop that
+fails is logged once per root (`COPY-ROOT-UNREAD`) until it lists again. A pass runs
 off the loop thread (`spl_fleet_mirror_bg`, one per role by `flock`), after the
 role's own write, so a slow or hung tenant cannot delay that write
 (`LEASE_STALE` is 180 s). A pass still running skips the next; the next won

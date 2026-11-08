@@ -507,8 +507,8 @@ tick sat 40241 "${T16[@]}"
 : >"$T/hub/calls"
 tick sat 40300 "${T16[@]}" HUB_DOWN_TENANT=csitea; tick sat 40360 "${T16[@]}" HUB_DOWN_TENANT=csitea
 [[ "$(hubh dispatch)" == CLE-002@sat && "$(hubh dispatch | wc -l)" == 1 && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 40360 &&
-   "$(logc sat 'COPY-FAILED dispatch in csitea: dial: i/o timeout')" == 1 && "$(grep -c ws-a "$T/hub/calls")" == 0 ]] &&
-  pass "16. a failing tenant: logged once, ends the tick's copies, the lease itself still renews" ||
+   "$(logc sat 'COPY-FAILED dispatch in csitea: dial: i/o timeout')" == 1 && "$(copy ws-a dispatch 3)" == 40360 ]] &&
+  pass "16. a failing tenant: logged once, the tenants after it still served, the lease itself still renews" ||
   fail "16. down: calls $(tr '\n' ' ' <"$T/hub/calls") log: $(grep COPY "$T/sat/spool/dispatch/lease.log")"
 tick sat 40420 "${T16[@]}"
 [[ "$(copy csitea dispatch 3)" == 40420 && "$(copy ws-a dispatch 3)" == 40420 && "$(logc sat 'COPY dispatch in csitea: written again')" == 1 ]] &&
@@ -540,6 +540,15 @@ exec 7>&-
 [[ "$(copy csitea dispatch 3)" == 40000 && "$(copy csitea orch 3)" == 40060 && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 40060 ]] &&
   pass "16b. a pass still running: the next one for that role is skipped, the own write and the other role are not" ||
   fail "16b. single flight: dispatch copy at $(copy csitea dispatch 3), orch copy at $(copy csitea orch 3), own at $(cut -d' ' -f3 "$T/hub/main.dispatch")"
+[[ "$(logc pc 'COPY-SKIPPED dispatch: the previous pass still runs')" == 1 ]] &&
+  pass "16b. a skipped pass says so in the log" || fail "16b. skip log: $(grep COPY "$T/pc/spool/dispatch/lease.log")"
+got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" bash -c '
+  do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init
+  spl_fleet_mirror_out() { sleep 3; }
+  for n in 7 8; do eval "exec $n>\"\$LEASE_DIR/held.$n\""; flock "$n"; done
+  spl_fleet_mirror_bg fd-role CLE-002@pc; sleep 0.5; exec 7>&- 8>&-
+  for n in 7 8; do flock -n "$LEASE_DIR/held.$n" true && echo -n "free " || echo -n "held "; done' 2>&1)
+[[ "$got" == "free free " ]] && pass "16b. a running pass does not keep the loop's lock fds" || fail "16b. lock fds: '$got'"
 t0=$SECONDS; tick pc 40120 "${T16B[@]}" LEASE_MIRROR_WAIT=1; took=$((SECONDS - t0))
 (( took >= 6 )) && pass "16b. control: copies waited for on the loop thread take the tick ${took}s" || fail "16b. control: ${took}s"
 

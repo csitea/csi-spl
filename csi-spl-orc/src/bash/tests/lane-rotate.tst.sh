@@ -55,9 +55,9 @@
 #  26. SPL-3982: another session of the id starts after GATE in its own pane
 #      (a hand restore): retired by its own pid, its window closed; control:
 #      a process of the id in the NEW pane is left and counted
-#  27. SPL-4358: one tick reads each vendor's limit once (counted, at the
-#      wrapper and at all 4 readers: 8 claude lanes = 1 read, 2 mistral = 1,
-#      grok and agy 0); it no longer bounds a tick's per-lane cost outside the
+#  27. SPL-4358: one tick reads each vendor's limit once (counted at the
+#      wrapper and at each of the 4 readers: 8 claude lanes = 1 read, 2
+#      mistral = 1; the grok and agy readers 0, no lane of theirs); it no longer bounds a tick's per-lane cost outside the
 #      limit read, e.g. spl_lane_rotate_accepted; the wd scan of 300 verdict
 #      files runs no awk and one stat, and still finds the limit
 #  28. SPL-4590: a SPAWN stopped on a vendor limit dialog with no S2 verdict on
@@ -562,7 +562,8 @@ rm -f "$T/at-spawn.extra"
 # so 3 starts an hour and lanes at 177 min. The reads are counted, never timed:
 # a tick's wall clock measures the box (SPL-5011: 23..26 s of wall for 1.8 s of
 # CPU, the test pinned to one cpu beside 8 burners). 8 claude lanes past WARN =
-# ONE read, at the wrapper and at all 4 readers.
+# ONE read, counted at the wrapper and at each of the 4 readers (the grok and
+# agy readers read 0: no lane of theirs).
 cat >"$T/bin/act-slow" <<'SLOW'
 #!/usr/bin/env bash
 set -E
@@ -574,8 +575,8 @@ source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
 source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
 eval "$(declare -f spl_lane_rotate_limit | sed '1s/^spl_lane_rotate_limit/_lr_limit_real/')"
 spl_lane_rotate_limit() { echo "$2" >>"$T/limit.calls"; _lr_limit_real "$@"; }
-# all 4 readers under it: a per-lane read through one that skips the wrapper is
-# counted too
+# each of the 4 readers under it is spied too: a per-lane read through one
+# that skips the wrapper is counted
 for f in spl_rotate_claude_out spl_rotate_grok_out spl_spawn_place_agy_out _spl_lane_mix_limit; do
   eval "$(declare -f "$f" | sed "1s/^$f/_real$f/")"
   eval "$f() { echo $f >>\"\$T/reader.calls\"; _real$f \"\$@\"; }"

@@ -56,7 +56,7 @@ type SwipeProps = { msg: SpoolMessage, topicMenu?: boolean, moveCtx?: { opener?:
 
 /** Which way this card may swipe, and what a left swipe does. `mayArchive`
     is the topic-view rule for a card that is neither a topic card nor in a pane. */
-export function useCardSwipeFlags(props: SwipeProps, editing: Ref<boolean>, rowEl: Ref<HTMLElement | null>, inPane: Ref<boolean>, showTopicArchive: Ref<boolean>, mayArchive: () => boolean) {
+export function useCardSwipeFlags(props: SwipeProps, { editing, rowEl, inPane, showTopicArchive }: { editing: Ref<boolean>; rowEl: Ref<HTMLElement | null>; inPane: Ref<boolean>; showTopicArchive: Ref<boolean> }, mayArchive: () => boolean) {
   const mobile = useMobileStack().isMobile
   const touchUi = ref(false)
   /* the topic view (the right pane, channel or DM): its level-1 row is the

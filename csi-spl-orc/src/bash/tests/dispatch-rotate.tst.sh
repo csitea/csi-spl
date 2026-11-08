@@ -247,7 +247,15 @@ cat >"$T/bin/footer" <<'EOF'
 #!/usr/bin/env bash
 printf '❯ \n'
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run.
+# the action under set -E and an ERR trap that RECORDS a stray failing
+# command (one ERRTRAP line, on stderr: a `$(...)` must not capture it) and
+# lets the run go on, as ./run does (run.sh `trap - ERR` around the action):
+# the "no stray failing command" asserts grep for it. The action runs as a
+# plain command, never in a `||` / `&&` list: in one, bash suppresses ERR for
+# the whole call and no ERRTRAP line can appear (SPL-5043). A `return N` is a code passed up the callers, not a stray: the
+# command that failed first already left its line. ROTATE_TEST_STRAY=<fn>:
+# the action's function <fn> starts with a failing command and then does its
+# work, the planted stray of the red control.
 # The clock seam (test round 1 row 05, as row 01 in orch-rotate.tst.sh): every
 # wait loop of the rotate libs reads $SECONDS and sleeps, so `sleep N` here
 # adds N to $SECONDS and to the ledger $T/vclock (one line of ms per sleep,
@@ -262,7 +270,12 @@ EOF
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+# SPL-5043 skip, fixed by bug row dispatch-lease-stall-spin-pipefail:
+# spl-dispatch-lease.func.sh:557 (spl_lease_stall's spin= pipe) fails under
+# pipefail on a pane with no spinner; that one line only, every other stray
+# still leaves its ERRTRAP line
+trap '[[ $BASH_COMMAND == return* || "${BASH_SOURCE[0]##*/}:$LINENO" == spl-dispatch-lease.func.sh:557 ]] ||
+  echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 VCLOCK_MS=0 VCLOCK_HELD=0
 sleep() {
   local n="${1:-1}" ms int frac tick="${ROTATE_TEST_TICK:-0.01}" p
@@ -283,7 +296,11 @@ sleep() {
 do_log() { echo "$*"; }
 do_require_bin() { return 0; }
 source "$PROJ_PATH/src/bash/run/spl-dispatch-rotate.func.sh"
-do_spl_dispatch_rotate || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+do_spl_dispatch_rotate
 EOF
 chmod +x "$T/bin/"*
 
@@ -316,6 +333,13 @@ n=0; for p in GATE HOLD QUIESCE HANDOFF SPAWN ACK RETIRE RELEASE REFRESH DONE; d
   pass "1. dry run: one PLAN line per step" || fail "1. dry: rc=$rc n=$n $(cat "$T/o")"
 [[ ! -e "$D/rotate.log" && ! -e "$D/rotate.hold" && ! -e "$D/rotate.dispatch.ctx" && ! -e "$T/spawn.log" && ! -e "$T/tmux/log" ]] &&
   pass "1. dry run: nothing written, held, renamed or spawned" || fail "1. the dry run touched something"
+# SPL-5043, the red control of every "no stray failing command" assert below: a
+# planted stray (every spl_rotate_log call starts with a failing command)
+# leaves its ERRTRAP lines and the run goes on to DONE PLAN; the same run
+# unplanted leaves none
+world; act ROTATE_TEST_STRAY=spl_rotate_log >"$T/o" 2>&1; act >"$T/o1" 2>&1
+grep -q '^ERRTRAP: command false' "$T/o" && grep -q ' DONE PLAN ' "$T/o" && ! grep -q ERRTRAP "$T/o1" &&
+  pass "1. control: a planted stray failing command shows as ERRTRAP, the unplanted run has none" || fail "1. stray control: $(cat "$T/o")"
 
 # --- 2. gates ---------------------------------------------------------------------------
 gate() {  # <want> <label> [env...]

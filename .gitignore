@@ -63,3 +63,6 @@ csi-spl-iac/src/bash/scripts/run-ansible-*.sh
 
 # the private overlay (SPL-1874) lives in ~/.gcp/.csi, never in a tree
 **/csi-spl-private.yaml
+
+# scanner release assets restored by CI (SPL-5050)
+.release-asset-cache/

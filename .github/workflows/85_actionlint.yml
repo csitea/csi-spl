@@ -38,17 +38,31 @@ jobs:
 
       # Pinned binary + sha256. A download that does not match the pin fails
       # closed rather than running an unknown tool.
+      - name: Cache actionlint 1.7.7 release asset
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/actionlint-1.7.7
+          key: release-asset-actionlint-1.7.7-023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
+
       - name: Install actionlint 1.7.7
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/actionlint-1.7.7
         run: |
           set -euo pipefail
           v=1.7.7; dir="$RUNNER_TOOL_CACHE/actionlint/$v"
           sha=023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
           if [[ ! -x "$dir/actionlint" ]]; then
             mkdir -p "$dir"
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
-              -o "$RUNNER_TEMP/actionlint.tgz" \
-              "https://github.com/rhysd/actionlint/releases/download/v$v/actionlint_${v}_linux_amd64.tar.gz"
+            url="https://github.com/rhysd/actionlint/releases/download/v$v/actionlint_${v}_linux_amd64.tar.gz"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/actionlint.tgz"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$RUNNER_TEMP/actionlint.tgz"
+            else
+              curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/actionlint.tgz" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the scan cannot run"; exit 1; }
+            fi
             echo "$sha  $RUNNER_TEMP/actionlint.tgz" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$RUNNER_TEMP/actionlint.tgz" "$cached"
             tar -xzf "$RUNNER_TEMP/actionlint.tgz" -C "$dir" actionlint
             chmod +x "$dir/actionlint"
           fi

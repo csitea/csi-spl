@@ -43,17 +43,31 @@ jobs:
 
       # Pinned binary + sha256. A download that does not match the pin fails
       # closed rather than running an unknown tool.
+      - name: Cache hadolint 2.12.0 release asset
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/hadolint-2.12.0
+          key: release-asset-hadolint-2.12.0-56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010
+
       - name: Install hadolint 2.12.0
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/hadolint-2.12.0
         run: |
           set -euo pipefail
           v=2.12.0; dir="$RUNNER_TOOL_CACHE/hadolint/$v"
           sha=56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010
           if [[ ! -x "$dir/hadolint" ]]; then
             mkdir -p "$dir"
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
-              -o "$dir/hadolint" \
-              "https://github.com/hadolint/hadolint/releases/download/v$v/hadolint-Linux-x86_64"
+            url="https://github.com/hadolint/hadolint/releases/download/v$v/hadolint-Linux-x86_64"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/hadolint"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$dir/hadolint"
+            else
+              curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$dir/hadolint" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the scan cannot run"; exit 1; }
+            fi
             echo "$sha  $dir/hadolint" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$dir/hadolint" "$cached"
             chmod +x "$dir/hadolint"
           fi
           "$dir/hadolint" --version

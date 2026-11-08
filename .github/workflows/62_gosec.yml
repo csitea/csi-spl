@@ -49,7 +49,15 @@ jobs:
 
       # Pinned prebuilt binary + sha256. A download that does not match the pin
       # fails closed rather than running an unknown tool.
+      - name: Cache gosec 2.22.4 release asset
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/gosec-2.22.4
+          key: release-asset-gosec-2.22.4-2a7f67f720c20cb6922857fb474c095872ce4ec0364d1783347800bf0d5f22bf
+
       - name: Install gosec 2.22.4
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/gosec-2.22.4
         run: |
           set -euo pipefail
           v=2.22.4; dir="$RUNNER_TOOL_CACHE/gosec/$v"
@@ -57,10 +65,16 @@ jobs:
           if [[ ! -x "$dir/gosec" ]]; then
             mkdir -p "$dir"
             tgz="$RUNNER_TEMP/gosec.tar.gz"
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
-              -o "$tgz" \
-              "https://github.com/securego/gosec/releases/download/v$v/gosec_${v}_linux_amd64.tar.gz"
+            url="https://github.com/securego/gosec/releases/download/v$v/gosec_${v}_linux_amd64.tar.gz"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/gosec.tar.gz"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$tgz"
+            else
+              curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$tgz" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the scan cannot run"; exit 1; }
+            fi
             echo "$sha  $tgz" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$tgz" "$cached"
             tar -xzf "$tgz" -C "$dir" gosec
             chmod +x "$dir/gosec"
           fi

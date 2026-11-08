@@ -39,7 +39,15 @@ jobs:
 
       # Pinned tarball + sha256. A download that does not match the pin fails
       # closed rather than running an unknown tool.
+      - name: Cache shellcheck 0.10.0 release asset
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/shellcheck-0.10.0
+          key: release-asset-shellcheck-0.10.0-6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87
+
       - name: Install shellcheck 0.10.0
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/shellcheck-0.10.0
         run: |
           set -euo pipefail
           v=0.10.0; dir="$RUNNER_TOOL_CACHE/shellcheck/$v"
@@ -47,10 +55,16 @@ jobs:
           if [[ ! -x "$dir/shellcheck" ]]; then
             mkdir -p "$dir"
             tgz="$RUNNER_TEMP/shellcheck.tar.xz"
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
-              -o "$tgz" \
-              "https://github.com/koalaman/shellcheck/releases/download/v$v/shellcheck-v$v.linux.x86_64.tar.xz"
+            url="https://github.com/koalaman/shellcheck/releases/download/v$v/shellcheck-v$v.linux.x86_64.tar.xz"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/shellcheck.tar.xz"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$tgz"
+            else
+              curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$tgz" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the scan cannot run"; exit 1; }
+            fi
             echo "$sha  $tgz" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$tgz" "$cached"
             tar -xJf "$tgz" -C "$RUNNER_TEMP" "shellcheck-v$v/shellcheck"
             mv "$RUNNER_TEMP/shellcheck-v$v/shellcheck" "$dir/shellcheck"
             chmod +x "$dir/shellcheck"

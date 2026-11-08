@@ -35,7 +35,18 @@ jobs:
 
       # Pinned tarball + sha256. A download that does not match the pin fails
       # closed rather than running an unknown tool.
+      # Restore and save apart from actions/cache: this scan reads the whole
+      # checkout, so the tarball must be gone before it starts.
+      - name: Restore trufflehog 3.90.8 release asset
+        id: asset
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/trufflehog-3.90.8
+          key: release-asset-trufflehog-3.90.8-aa2258dc4e76d93518730331e69ca01a638c365ab862a828c566e025f6c8150c
+
       - name: Install trufflehog 3.90.8
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/trufflehog-3.90.8
         run: |
           set -euo pipefail
           v=3.90.8; dir="$RUNNER_TOOL_CACHE/trufflehog/$v"
@@ -43,15 +54,31 @@ jobs:
           if [[ ! -x "$dir/trufflehog" ]]; then
             mkdir -p "$dir"
             tgz="$RUNNER_TEMP/trufflehog.tar.gz"
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
-              -o "$tgz" \
-              "https://github.com/trufflesecurity/trufflehog/releases/download/v$v/trufflehog_${v}_linux_amd64.tar.gz"
+            url="https://github.com/trufflesecurity/trufflehog/releases/download/v$v/trufflehog_${v}_linux_amd64.tar.gz"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/trufflehog.tar.gz"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$tgz"
+            else
+              curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$tgz" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the scan cannot run"; exit 1; }
+            fi
             echo "$sha  $tgz" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$tgz" "$cached"
             tar -xzf "$tgz" -C "$dir" trufflehog
             chmod +x "$dir/trufflehog"
           fi
           "$dir/trufflehog" --version 2>&1 | head -2
           echo "$dir" >> "$GITHUB_PATH"
+
+      - name: Save trufflehog 3.90.8 release asset
+        if: steps.asset.outputs.cache-hit != 'true' && hashFiles('.release-asset-cache/trufflehog-3.90.8/*') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/trufflehog-3.90.8
+          key: release-asset-trufflehog-3.90.8-aa2258dc4e76d93518730331e69ca01a638c365ab862a828c566e025f6c8150c
+
+      - name: Remove the release asset from the checkout
+        run: rm -rf .release-asset-cache
 
       - name: trufflehog (control + verified scan)
         working-directory: csi-spl-iac

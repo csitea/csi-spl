@@ -52,7 +52,15 @@ jobs:
       # from the release's checksums file AND the asset's GitHub digest
       # (`gh api repos/aquasecurity/trivy/releases/tags/v<v> --jq .assets[].digest`)
       # and pin it only when both agree.
+      - name: Cache trivy 0.74.0 release asset
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/trivy-0.74.0
+          key: release-asset-trivy-0.74.0-2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+
       - name: Install trivy 0.74.0
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/trivy-0.74.0
         run: |
           set -euo pipefail
           v=0.74.0; dir="$RUNNER_TOOL_CACHE/trivy/$v"
@@ -60,9 +68,16 @@ jobs:
           if [[ ! -x "$dir/trivy" ]]; then
             base="https://github.com/aquasecurity/trivy/releases/download/v$v"
             tgz="trivy_0.74.0_Linux-64bit.tar.gz"
-            get() { curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$2" "$1"; }
-            get "$base/$tgz" "$RUNNER_TEMP/$tgz"
+            url="$base/$tgz"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/$tgz"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$RUNNER_TEMP/$tgz"
+            else
+              curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/$tgz" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the scan cannot run"; exit 1; }
+            fi
             echo "$sha  $RUNNER_TEMP/$tgz" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$RUNNER_TEMP/$tgz" "$cached"
             mkdir -p "$dir.tmp.$$" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$dir.tmp.$$" trivy
             mkdir -p "$(dirname "$dir")" && mv -T "$dir.tmp.$$" "$dir" 2>/dev/null || rm -rf "$dir.tmp.$$"
           fi
@@ -77,16 +92,31 @@ jobs:
       # before it is cached (same fail-closed pattern and bump rule as trivy
       # above; the release's osv-scanner_SHA256SUMS is a source for the pin,
       # never the check).
+      - name: Cache osv-scanner 2.6.0 release asset
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/osv-scanner-2.6.0
+          key: release-asset-osv-scanner-2.6.0-ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
+
       - name: Install osv-scanner 2.6.0
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/osv-scanner-2.6.0
         run: |
           set -euo pipefail
           v=2.6.0; dir="$RUNNER_TOOL_CACHE/osv-scanner/$v"
           sha=ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
           if [[ ! -x "$dir/osv-scanner" ]]; then
             base="https://github.com/google/osv-scanner/releases/download/v$v"
-            get() { curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$2" "$1"; }
-            get "$base/osv-scanner_linux_amd64" "$RUNNER_TEMP/osv-scanner"
+            url="$base/osv-scanner_linux_amd64"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/osv-scanner"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$RUNNER_TEMP/osv-scanner"
+            else
+              curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/osv-scanner" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the scan cannot run"; exit 1; }
+            fi
             echo "$sha  $RUNNER_TEMP/osv-scanner" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$RUNNER_TEMP/osv-scanner" "$cached"
             chmod +x "$RUNNER_TEMP/osv-scanner"
             mkdir -p "$dir.tmp.$$" && mv "$RUNNER_TEMP/osv-scanner" "$dir.tmp.$$/osv-scanner"
             mkdir -p "$(dirname "$dir")" && mv -T "$dir.tmp.$$" "$dir" 2>/dev/null || rm -rf "$dir.tmp.$$"

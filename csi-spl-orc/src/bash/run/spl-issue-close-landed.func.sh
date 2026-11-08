@@ -59,6 +59,8 @@
 # @description the issue list and git even with DRY_RUN=1; writes the hub, the
 # @description ledger and the cursor only with DRY_RUN=0.
 # @param ENV - required: dev or prd, the hub of the issues
+# @description A workspace whose map row names a desk on another box is skipped
+# @description with one WARN and rc 0: that box closes its issues (SPL-5093).
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent that comments and moves
 # @param DESK_BOX (optional) - default the box's desk (spl_desk_box_default)
@@ -89,7 +91,10 @@ do_spl_issue_close_landed() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   ICL_REPO="$APP_PATH" ICL_WS="" ICL_WS_ROW=""
   if [[ -n "${ISSUE_CLOSE_WORKSPACE:-}" ]]; then
-    spl_icl_ws || return 1
+    local wrc=0
+    spl_icl_ws || wrc=$?
+    (( wrc == 3 )) && return 0
+    (( wrc == 0 )) || return 1
     ref="$ICL_WS_REF"
   fi
   dir="$(spl_icl_state_dir)" || return 1
@@ -191,6 +196,11 @@ spl_icl_ws() {
   declare -F wr_row >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh" || return 1
   row="$(wr_row "$t")" || rc=$?
   (( rc == 0 )) || { (( rc == 1 )) && do_log "FATAL ISSUE_CLOSE_WORKSPACE=$t has no row in the box map $(wr_map)"; return 1; }
+  declare -F li_desk_elsewhere >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" || return 1
+  if li_desk_elsewhere "${ENV:-$(wr_field "$row" 1)}" "$t" "${DESK_BOX:-$(wr_field "$row" 7)}"; then
+    do_log "WARN workspace $t: its desk is on box ${DESK_BOX:-$(wr_field "$row" 7)}, not here: that box's closer closes its issues, this tick skips it (SPL-5093)"
+    return 3
+  fi
   ICL_WS="$t" ICL_WS_ROW="$row" ICL_REPO="$(wr_field "$row" 3)"
   [[ -d "$ICL_REPO/.git" ]] || { do_log "FATAL the clone of workspace $t, $ICL_REPO, is not a git repo on this box"; return 1; }
   b="$(wr_field "$row" 4)"

@@ -339,7 +339,7 @@ WS_STUBS='spl_issue_list_fetch() { echo "list $TENANT_ID $*" >>"$STUB_LOG"; cat 
 wsrun() {
   : >"$T/calls.log"
   SNIPPET="${STUBS}${WS_STUBS}
-do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= \
+do_spl_issue_close_landed" in_orc SPOOL_DESK_BOX=box-a APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= \
     SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv" ISSUE_CLOSE_STATE_DIR="$T/ws-state" "$@" >"$T/o" 2>&1
 }
 # Red case (SPL-3528): a key cited at the trunk head before the first
@@ -388,7 +388,7 @@ printf 'acme\tdev\tacme-site\t%s\t-\thttps://site.example.com\tc-001\tbox-a\n' "
 printf 'LEASE_ORCH=g-001\n' >"$T/lease19.conf"
 WS19_STUBS='spl_issue_list_fetch() { echo "list $TENANT_ID as $DESK_AGENT@$DESK_BOX" >>"$STUB_LOG"; cat "$LIST"; }'
 ws19() { : >"$T/calls.log"; SNIPPET="${STUBS}${WS19_STUBS}
-do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= LEASE_ORCH= \
+do_spl_issue_close_landed" in_orc SPOOL_DESK_BOX=box-a APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= LEASE_ORCH= \
   SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map19.tsv" LEASE_CONF="$T/lease19.conf" ISSUE_CLOSE_STATE_DIR="$T/ws-state19" "$@" >"$T/o" 2>&1; }
 ws19 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
 [ "$rc" = 0 ] && grep -q '^list acme as g-001@box-a$' "$T/calls.log" &&
@@ -398,6 +398,19 @@ ws19 ISSUE_CLOSE_WORKSPACE=acme DESK_AGENT=c-001; rc=$?
 [ "$rc" = 0 ] && grep -q '^list acme as c-001@box-a$' "$T/calls.log" &&
   pass "19. control: a DESK_AGENT the caller sets is used as given" || fail "19. ws caller desk (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# 19b. Red case (SPL-5093): a map row whose desk is on another box failed the
+# whole tick here (6 ticks rc=1, "FATAL no desk for"): one WARN, no hub call, rc 0.
+ws5093() { : >"$T/calls.log"; SNIPPET="${STUBS}${WS_STUBS}
+do_spl_issue_close_landed" in_orc SPOOL_DESK_BOX=box-a APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= \
+    SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv" ISSUE_CLOSE_STATE_DIR="$T/ws-state5093" ISSUE_CLOSE_WORKSPACE=acme DRY_RUN=0 "$@" >"$T/o" 2>&1; }
+ws5093 SPOOL_DESK_BOX=box-other; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c 'its desk is on box box-a, not here' "$T/o")" = 1 ] && ! grep -q '^hub\|^list' "$T/calls.log" && ! grep -q FATAL "$T/o" &&
+  pass "19b. a workspace whose desk is on another box: one WARN, no hub call, the tick stays green" ||
+  fail "19b. desk elsewhere (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+ws5093 SPOOL_DESK_BOX=box-a; rc=$?
+grep -q '^list acme' "$T/calls.log" && ! grep -q 'not here' "$T/o" &&
+  pass "19b. control: the desk's own box still reads the workspace" || fail "19b. control (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
 # 20. Red case (SPL-3865): the orch lease moved to another box; the role seat
 # c-001 is still seated on this box's desk, but the hub ties it to the other
 # box and refused every workspace tick here "c-001 is not an agent announced
@@ -406,7 +419,7 @@ printf 'LEASE_ORCH=c-001\n' >"$T/lease20.conf"
 DK="$T/state/dev/desk/acme/box-a/spool"; mkdir -p "$DK/.hub" "$DK/c-001" "$DK/c-684"
 printf '{"box-a":["c-684"],"box-b":["c-001"]}' >"$DK/.hub/roster.json"
 ws20() { : >"$T/calls.log"; SNIPPET="${STUBS}${WS19_STUBS}
-do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= LEASE_ORCH= \
+do_spl_issue_close_landed" in_orc SPOOL_DESK_BOX=box-a APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= LEASE_ORCH= \
   SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map19.tsv" LEASE_CONF="$T/lease20.conf" ISSUE_CLOSE_STATE_DIR="$T/ws-state20" "$@" >"$T/o" 2>&1; }
 ws20 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
 [ "$rc" = 0 ] && grep -q '^list acme as c-684@box-a$' "$T/calls.log" && grep -q 'c-001 is not in the announce of box-a' "$T/o" &&

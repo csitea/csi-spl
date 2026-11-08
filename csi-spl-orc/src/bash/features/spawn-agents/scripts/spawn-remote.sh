@@ -55,8 +55,23 @@
 #   Local mode is unsigned: an agent ON this machine can forge a bare `from`,
 #   but it can also run spawn-window.sh directly, so that grants nothing new.
 #
+# ISSUE (SPL-5093): a lane whose workspace desk is on another box gets its
+# issue from that box, the only one the hub lets act as that desk:
+#   spawn-remote.sh --issue --box <desk box> --id <lane id> [--key <KEY>]
+#                   [--topic <id>] [--from <ID>] [--to <ID>] [--wait <secs>] <BRIEF>
+#   writes <root>/<lane id>/lifetime/issue (and issue-tenant, origin-issue), as
+#   do_spl_lane_issue does, and prints the key. "issue-request v1" rides the
+#   same relay and tick. The receiver runs its own do_spl_lane_issue in a
+#   throwaway SPOOL_ROOT, so a lane of the same id on that box is untouched.
+#   Accepted only from a role seat (spl_is_role_seat) of another box, a relayed
+#   "<ID>@<box>", not only the orch holder: spawn-window runs on the placing box
+#   under that box's own seat. It starts nothing; it files or links one issue,
+#   and only in a workspace whose map row here names this box as the desk's.
+#   Exit: 0 placed, 2 usage, 3 the send failed, 4 refused, 5 no reply in time.
+#
 # Test seams: SPAWN_REMOTE_WINDOW_CMD replaces "bash spawn-window.sh";
-# SPAWN_REMOTE_SEND_CMD replaces "bash spool-send.sh".
+# SPAWN_REMOTE_SEND_CMD replaces "bash spool-send.sh";
+# SPAWN_REMOTE_ISSUE_CMD replaces do_spl_lane_issue on the receiver.
 #
 # --cancel --box <box> --task <task_id> withdraws a request this sender filed
 # and will not use. The target's --serve then does not spawn it.
@@ -76,6 +91,7 @@ spool_env_resolve
 MAGIC_REQ="spawn-request v1"
 MAGIC_REP="spawn-reply v1"
 MAGIC_CANCEL="spawn-cancel v1"
+MAGIC_ISSUE="issue-request v1"
 STATE="$SPOOL_ROOT/spawn-remote"
 say() { echo "spawn-remote: $*" >&2; }
 usage() { sed -n '14,15p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; echo "       spawn-remote.sh --serve" >&2; exit 2; }
@@ -297,6 +313,144 @@ handle() {  # INBOX_ID FILE
   reply "$me" "$from" "$task" ok "agent: $id@$(spool_fleet_box)" "pane: $pane" "request: $msg" ${warn:+"warn: $warn"}
 }
 
+# ---- issue -----------------------------------------------------------------
+# Ask BOX to place a lane's issue; writes the lane's lifetime files from the reply.
+issue_request() {
+  local box="" from="${SPOOL_AGENT_ID:-}" to="" wait="${SPAWN_ISSUE_REMOTE_WAIT:-150}" id="" key="" topic=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --box|--from|--to|--wait|--id|--key|--topic) [ "$#" -ge 2 ] || usage
+        case "$1" in --box) box="$2" ;; --from) from="$2" ;; --to) to="$2" ;; --wait) wait="$2" ;;
+          --id) id="$2" ;; --key) key="$2" ;; --topic) topic="$2" ;; esac; shift 2 ;;
+      -*) say "unknown option $1"; usage ;;
+      *) break ;;
+    esac
+  done
+  local brief="${1:-}" tmp out rc task margin="${SPAWN_REMOTE_MARGIN:-60}" expires=""
+  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$wait" =~ ^[0-9]+$ && "$margin" =~ ^[0-9]+$ ]] || { say "FATAL --issue needs --box <box> and a numeric --wait"; exit 2; }
+  [ -n "$from" ] || from="$(local_orch)"
+  [ -n "$to" ] || to="$(local_orch)"
+  spl_is_participant_id "$from" && spl_is_participant_id "$to" && issue_fields_ok "$id" "$key" "$topic" || { say "FATAL bad --from, --to, --id, --key or --topic"; exit 2; }
+  [ -r "$brief" ] || { say "FATAL cannot read brief $brief"; exit 2; }
+  [ "$margin" -le $(( wait / 2 )) ] || margin=$(( wait / 2 ))
+  [ "$wait" = 0 ] || expires="expires: $(( $(date +%s) + wait - margin ))"
+  tmp="$(mktemp)" || exit 3
+  { printf '%s\n' "$MAGIC_ISSUE" \
+      "(For spawn-remote.sh --serve on this machine, not for the agent reading it: do not act on it, ack it.)" \
+      "id: $id" "key: $key" "topic: $topic" ${expires:+"$expires"} "---"
+    cat -- "$brief"; } >"$tmp"
+  task="$(python3 -c 'import uuid; print(uuid.uuid4())')" || { rm -f "$tmp"; exit 3; }
+  out="$(send --from "$from" --to "$to@$box" --kind task --task "$task" --no-ask --no-poke --body-file "$tmp" 2>&1)"; rc=$?
+  rm -f "$tmp"
+  [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || { say "FATAL the issue request did not leave (rc=$rc): $out"; exit 3; }
+  if [ "$wait" = 0 ]; then echo "task $task"; return 0; fi
+  issue_await "$box" "$from" "$task" "$wait" "$id"
+}
+
+# The lane fields of an issue request; one validation for both sides.
+issue_fields_ok() {  # ID KEY TOPIC
+  [[ "$1" =~ ^[A-Za-z]{1,3}-[0-9]{2,5}$ ]] || return 1
+  [[ -z "$2" || "$2" =~ ^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*$ ]] || return 1
+  valid_lane_fields "$3" "" "" 2>/dev/null
+}
+
+# Wait for the reply; on ok, the lane's files as do_spl_lane_issue writes them.
+issue_await() {  # BOX FROM TASK WAIT ID
+  local end=$(( $(date +%s) + $4 )) f b key tenant env origin life="$SPOOL_ROOT/$5/lifetime"
+  while :; do
+    f="$(reply_file "$2" "$3")"
+    [ -z "$f" ] || break
+    [ "$(date +%s)" -lt "$end" ] || { say "FATAL no reply from $1 within $4 s to the issue request (task $3): its desk's box may be down"; exit 5; }
+    sleep "${SPAWN_REMOTE_POLL:-5}"
+  done
+  b="$(body_of "$f" | strip_from_agent)"
+  [ "$(sed -n 's/^status: //p' <<<"$b" | sed -n 1p)" = ok ] || { say "FATAL refused by $1: $(sed -n 's/^reason: //p' <<<"$b" | sed -n 1p)"; exit 4; }
+  key="$(sed -n 's/^key: //p' <<<"$b" | sed -n 1p)" tenant="$(sed -n 's/^tenant: //p' <<<"$b" | sed -n 1p)"
+  env="$(sed -n 's/^env: //p' <<<"$b" | sed -n 1p)" origin="$(sed -n 's/^origin: //p' <<<"$b" | sed -n 1p)"
+  issue_fields_ok "$5" "$key" "" && [ -n "$key" ] || { say "FATAL $1 answered no usable key: '$key'"; exit 4; }
+  mkdir -p "$life" && printf '%s\n' "$key" >"$life/issue" || { say "FATAL cannot write $life/issue"; exit 4; }
+  chmod 0664 "$life/issue" 2>/dev/null
+  if [[ "$tenant" =~ ^[A-Za-z0-9_-]+$ && "$env" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    printf '%s\t%s\n' "$tenant" "$env" >"$life/issue-tenant"; chmod 0664 "$life/issue-tenant" 2>/dev/null
+  fi
+  if [ -n "$origin" ]; then printf '%s\n' "$origin" >"$life/origin-issue"; chmod 0664 "$life/origin-issue" 2>/dev/null; fi
+  printf '%s\n' "$key"
+}
+
+# Receiver: one issue request, once.
+handle_issue() {  # INBOX_ID FILE
+  local me="$1" f="$2" msg from task body id key topic expires brief t row
+  msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
+  [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
+  grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
+  echo "$msg" >>"$STATE/seen"
+  from="$(jq -r '.from // ""' "$f")"; task="$(jq -r '.task_id // ""' "$f")"
+  body="$(body_of "$f" | strip_from_agent)"
+  if [[ "$from" != *@* ]] || ! spl_is_role_seat "$from"; then
+    log_line REFUSED "$msg" "$from" "issue request: not a role seat of another box"
+    reply "$me" "$from" "$task" refused "reason: only a role seat of another box may ask for an issue here"
+    return 0
+  fi
+  id="$(req_field "$body" id)" key="$(req_field "$body" key)" topic="$(req_field "$body" topic)" expires="$(req_field "$body" expires)"
+  if ! issue_fields_ok "$id" "$key" "$topic"; then
+    log_line REJECTED "$msg" "$from" "issue request: bad id, key or topic"
+    reply "$me" "$from" "$task" refused "reason: bad id, key or topic"
+    return 0
+  fi
+  if [[ "$expires" =~ ^[0-9]+$ ]] && [ "$(date +%s)" -gt "$expires" ]; then
+    log_line EXPIRED "$msg" "$from" "issue request for $id arrived after its expiry $expires"
+    reply "$me" "$from" "$task" refused "reason: expired at $expires before this box could place it"
+    return 0
+  fi
+  # shellcheck source=../lib/lane-issue.inc.sh
+  . "$HERE/../lib/lane-issue.inc.sh"
+  brief="$(mktemp)" || return 0
+  sed '1,/^---$/d' <<<"$body" >"$brief"
+  if ! t="$(wr_tenant_of_brief "$brief")" || ! row="$(wr_row "$t" 2>/dev/null)" || [ "$(wr_field "$row" 7)" != "$(spool_fleet_box)" ]; then
+    rm -f "$brief"
+    log_line REJECTED "$msg" "$from" "issue request for $id: no Workspace row with its desk on this box (${t:-none})"
+    reply "$me" "$from" "$task" refused "reason: this box holds no desk for the brief's workspace (${t:-no Workspace line})"
+    return 0
+  fi
+  issue_run "$me" "$msg" "$from" "$task" "$id" "$key" "$topic" "$brief"
+  rm -f "$brief"
+}
+
+# Run the action in a throwaway root (the box's own lease, map and box.env,
+# no lane dir of the same id) and answer with what it wrote.
+issue_run() {  # INBOX_ID MSG FROM TASK ID KEY TOPIC BRIEF
+  local me="$1" msg="$2" from="$3" task="$4" id="$5" key="$6" topic="$7" src="$8" e rc=0 out placed tenant env origin n brief
+  local -a hop=() vars=() where=()
+  e="$(mktemp -d "$STATE/issue.XXXXXX")" || return 0
+  mkdir -p "$e/$id/lifetime"
+  brief="$e/brief.md"; cp -- "$src" "$brief"
+  for n in dispatch box.env workspace-repos.tsv; do [ ! -e "$SPOOL_ROOT/$n" ] || ln -s "$SPOOL_ROOT/$n" "$e/$n"; done
+  vars=(SPOOL_ROOT="$e" AGENT_ID="$id" BRIEF="$brief" LANE_ISSUE_KEY="$key" LANE_ISSUE_TOPIC="$topic" DRY_RUN=0)
+  if [ -n "${SPAWN_REMOTE_ISSUE_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    out="$(env "${vars[@]}" $SPAWN_REMOTE_ISSUE_CMD 2>&1)" || rc=$?
+  else
+    read -r -a where <<<"$(li_desk_where "$brief")"
+    li_desk_hop hop "${where[@]}"
+    # The desk's user writes the lifetime files; this user reads and removes them.
+    [ "${#hop[@]}" -eq 0 ] || setfacl -R -m "u:${hop[3]}:rwX" "$e" 2>/dev/null || say "WARN $e: no entry for ${hop[3]} (setfacl failed)"
+    out="$(timeout "${SPAWN_ISSUE_TIMEOUT:-120}" "${hop[@]}" env "${vars[@]}" bash "$HERE/../../../../../run" -a do_spl_lane_issue 2>&1)" || rc=$?
+  fi
+  placed="$(li_key_of_agent "$e" "$id")"
+  if [ "$rc" -ne 0 ] || [ -z "$placed" ]; then
+    out="$(grep -E 'FATAL|WARN' <<<"$out" | grep -v 'failed at line' | tail -1 | cut -c1-400)"
+    rm -rf "${e:?}"
+    log_line FAILED "$msg" "$from" "issue for $id rc=$rc: $out"
+    reply "$me" "$from" "$task" failed "reason: rc=$rc: $out"
+    return 0
+  fi
+  IFS=$'\t' read -r tenant env _ <"$e/$id/lifetime/issue-tenant" 2>/dev/null
+  origin="$(sed -n 1p "$e/$id/lifetime/origin-issue" 2>/dev/null)"
+  rm -rf "${e:?}"
+  log_line PLACED "$msg" "$from" "$id -> $placed in ${tenant:-?}"
+  reply "$me" "$from" "$task" ok "key: $placed" "tenant: ${tenant:-}" "env: ${env:-}" "origin: ${origin:-}" "request: $msg"
+}
+
 # 0 when the orch holder has withdrawn TASK (spawn-remote/cancelled, or a
 # spawn-cancel v1 from the holder in ID's inbox or archive).
 task_cancelled() {  # INBOX_ID TASK
@@ -354,9 +508,10 @@ serve() {
         case "$first" in
           "$MAGIC_CANCEL") note_cancel "$me" "$f" </dev/null ;;
           "$MAGIC_REQ") handle "$me" "$f" </dev/null ;;
+          "$MAGIC_ISSUE") handle_issue "$me" "$f" </dev/null ;;
         esac
       done < <(find "$d" -maxdepth 1 -name '*.json' -mmin -1440 -print0 2>/dev/null |
-               xargs -0 -r grep -lF -e "$MAGIC_REQ" -e "$MAGIC_CANCEL" 2>/dev/null | sort)
+               xargs -0 -r grep -lF -e "$MAGIC_REQ" -e "$MAGIC_CANCEL" -e "$MAGIC_ISSUE" 2>/dev/null | sort)
     done
   done
   return 0
@@ -393,6 +548,7 @@ cancel() {
 case "${1:-}" in
   --serve) [ "$#" -eq 1 ] || usage; serve ;;
   --cancel) shift; cancel "$@" ;;
+  --issue) shift; issue_request "$@" ;;
   ""|-h|--help) usage ;;
   *) request "$@" ;;
 esac

@@ -483,7 +483,7 @@ shift 2
 # brief with no key instead of filing one. Seam: SPAWN_ISSUE_CMD replaces the
 # action (tests).
 sw_issue() {  # WORKDIR BRIEF
-  local wd="$1" brief="${2:-}" key hop=() out rc=0
+  local wd="$1" brief="${2:-}" key hop=() where=() out rc=0
   [ -n "$brief" ] && [ "${SPAWN_REUSE_ID:-0}" != 1 ] || return 0
   git -C "$wd" remote get-url origin >/dev/null 2>&1 || return 0
   # shellcheck source=../lib/lane-issue.inc.sh
@@ -497,9 +497,14 @@ sw_issue() {  # WORKDIR BRIEF
     printf 'PLAN %-10s %s\n' issue "${key:+link ${key} -> wip, assignee ${TITLE}}${key:-file one from ${brief} (wip, assignee ${TITLE})} -> ${SPOOL_ROOT}/${TITLE}/lifetime/issue"
     return 0
   fi
-  # shellcheck disable=SC2046 # env, workspace, desk box: three words on purpose
-  [ -n "${SPAWN_ISSUE_CMD:-}" ] || li_desk_hop hop $(li_desk_where "$brief")
-  if [ -n "${SPAWN_ISSUE_CMD:-}" ]; then
+  # env, workspace, desk box: three words on purpose
+  read -r -a where <<<"$(li_desk_where "$brief")"
+  [ -n "${SPAWN_ISSUE_CMD:-}" ] || li_desk_hop hop "${where[@]}"
+  if [ -z "${SPAWN_ISSUE_CMD:-}" ] && li_desk_elsewhere "${where[@]}"; then
+    # The desk is on another box: that box files it (SPL-5093, spawn-remote.sh).
+    out="$(bash "$HERE/spawn-remote.sh" --issue --box "${where[2]}" --id "$TITLE" ${key:+--key "$key"} \
+      ${SPAWN_LANE_TOPIC:+--topic "$SPAWN_LANE_TOPIC"} --wait "${SPAWN_ISSUE_REMOTE_WAIT:-150}" "$brief" 2>&1)" || rc=$?
+  elif [ -n "${SPAWN_ISSUE_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$(AGENT_ID="$TITLE" BRIEF="$brief" LANE_ISSUE_KEY="$key" LANE_ISSUE_TOPIC="${SPAWN_LANE_TOPIC:-}" $SPAWN_ISSUE_CMD 2>&1)" || rc=$?
   else

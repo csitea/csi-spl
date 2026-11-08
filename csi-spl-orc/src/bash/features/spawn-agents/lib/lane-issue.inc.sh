@@ -326,6 +326,17 @@ li_desk_root_user() {
   return 1
 }
 
+# li_desk_elsewhere ENV WORKSPACE BOX: 0 when the desk named lives on another
+# box of the fleet: BOX is not this box and no local root holds it (SPL-5093).
+# The one check of both callers of a map row's desk box: spawn-window.sh
+# (sw_issue places through that box) and do_spl_issue_close_landed (skips it).
+li_desk_elsewhere() {
+  [ -n "${3:-}" ] || return 1
+  declare -F spl_desk_box_default >/dev/null || . "$LI_ORC/lib/bash/funcs/spl-desk-box.func.sh" || return 1
+  [ "$3" != "$(spl_desk_box_default)" ] || return 1
+  ! li_desk_root_user "$1" "$2" "$3"
+}
+
 # li_desk_where BRIEF -> "<env> <workspace> <desk box>" of the desk
 # do_spl_lane_issue places with: the brief's `Workspace:` map row (its env,
 # tenant and desk box; spl_lane_issue_ws), else ENV / TENANT_ID or the lease's

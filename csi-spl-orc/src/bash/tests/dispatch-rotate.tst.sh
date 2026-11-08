@@ -207,7 +207,9 @@ echo "$a ASK_ID=${ASK_ID:-} ASK_STATE=${ASK_STATE:-} DESK_TASK=${DESK_TASK:-} DE
 case "$a" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
-  do_spl_dispatch_setup) sleep "${SETUP_SLEEP:-0}"; [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
+  # SETUP_HOLD=1: setup.in once inside (the heal holds the lock), then wait for setup.go (SPL-5043 N3)
+  do_spl_dispatch_setup) if [ "${SETUP_HOLD:-0}" = 1 ]; then touch "$T/setup.in"; "$T/bin/waitfor" "$T/setup.go"; fi
+    [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
   do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice) exit 0 ;;
   do_spl_ask_close) exit "$(cat "$T/askclose.rc" 2>/dev/null || echo 0)" ;;
   do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix.log"
@@ -229,6 +231,12 @@ j="$(jq -n -c --arg i "$id" --arg f "$from" --arg t "$to" --arg k "$kind" --arg 
 mkdir -p "$SPOOL_ROOT/$to/inbox" "$SPOOL_ROOT/$from/outbox"
 echo "$j" >"$SPOOL_ROOT/$to/inbox/$id.json"; echo "$j" >"$SPOOL_ROOT/$from/outbox/$id.json"
 echo "send $from -> $to $kind $task [lease=$(cut -d' ' -f1 "$SPOOL_ROOT/dispatch/lease" 2>/dev/null) hold=$(cut -d' ' -f1 "$SPOOL_ROOT/dispatch/rotate.hold" 2>/dev/null)]: $body" >>"$T/send.log"
+EOF
+# waitfor <file>: real 0.05 s ticks until it exists, at most 60 s (then exit 1, the case fails)
+cat >"$T/bin/waitfor" <<'EOF'
+#!/usr/bin/env bash
+for _ in $(seq 1200); do [ -e "$1" ] && exit 0; sleep 0.05; done
+echo "waitfor: no $1 after 60 s" >&2; exit 1
 EOF
 cat >"$T/bin/kill" <<'EOF'
 #!/usr/bin/env bash
@@ -269,6 +277,9 @@ EOF
 # seconds, for a case racing a real-time peer (7). at-sleep.<n> (armed by a
 # case): runs once at the first `sleep <n>`, a peer acting during that wait, so
 # the order is an event and not a race against the action's start (11 confirm).
+# Both hooks (at-sleep, tmux/hook) run under bash -eu: a failing line, even
+# one followed by a good line, is a HOOK FAIL line in $T/hook-fail.log, which
+# the case reads, never a stray of the action or a silent no-op (SPL-5043 N2).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
@@ -277,9 +288,6 @@ set -E
 # pipefail on a pane with no spinner; that one line only, every other stray
 # still leaves its ERRTRAP line
 trap '[[ $BASH_COMMAND == return* || "${BASH_SOURCE[0]##*/}:$LINENO" == spl-dispatch-lease.func.sh:557 ]] ||
-# Both hooks (at-sleep, tmux/hook) run under bash -eu: a failing line, even
-# one followed by a good line, is a HOOK FAIL line in $T/hook-fail.log, which
-# the case reads, never a stray of the action or a silent no-op (SPL-5043 N2).
   echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 VCLOCK_MS=0 VCLOCK_HELD=0
 sleep() {
@@ -329,6 +337,15 @@ world() {
 }
 act() { env "$@" "$T/bin/act"; }
 ctx() { sed -n "s/^$1=//p" "$D/rotate.dispatch.ctx" 2>/dev/null; }
+# lockhold / unlock (SPL-5043 N3): a peer holds the rotation lock from the
+# moment lockhold returns until unlock, the order an event and not a
+# `& sleep 0.5` race against the peer's start (or a fixed `sleep 3` hold)
+lockhold() {
+  rm -f "$T/lock.held" "$T/lock.go"
+  ( flock 9; touch "$T/lock.held"; "$T/bin/waitfor" "$T/lock.go" ) 9>>"$D/rotate.dispatch.lock" & LOCKPID=$!
+  "$T/bin/waitfor" "$T/lock.held"
+}
+unlock() { touch "$T/lock.go"; wait "$LOCKPID"; }
 holder() { cut -d' ' -f1 "$D/lease"; }
 
 # --- 1. dry run --------------------------------------------------------------------------
@@ -363,7 +380,7 @@ world; date +%s >"$D/rotate.dispatch.last"; gate "young: the last rotation" "a r
 world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/screen.%2"; gate "stalled Usage limit reached" "a stalled master: SKIP stalled (FR-022)"
 grep -q 'send c-900 -> c-900 note dispatch-rotate .*ROTATION SKIP stalled' "$T/send.log" && pass "2. ... the orchestrator gets one note" || fail "2. stall note: $(cat "$T/send.log" 2>&1)"
 world; "$T/bin/proc" 112 c-902 7200; gate "duplicate: c-902 pids 102 112" "two processes on one id: SKIP duplicate"
-world; ( flock 9; sleep 3 ) 9>>"$D/rotate.dispatch.lock" & sleep 0.5; gate "locked" "the lock held: SKIP locked"; wait
+world; lockhold; gate "locked" "the lock held: SKIP locked"; unlock
 # spec 061 L6: c-002 / c-003 pass the id gate (they read "no master + failover pair" before)
 world; act DRY_RUN=0 LEASE_MASTER=c-002 LEASE_FAILOVER=c-003 >"$T/o" 2>&1
 ! grep -q 'no master + failover pair' "$T/o" && pass "2. LEASE_MASTER=c-002 LEASE_FAILOVER=c-003 pass the id gate" || fail "2. c-002/c-003: $(cat "$T/o")"
@@ -661,12 +678,13 @@ grep -qx 'HOOK FAIL at-sleep.3 exit 1' "$T/hook-fail.log" 2>/dev/null && ! grep 
   pass "11. control: a hook's failing line is a HOOK FAIL, not a stray or a silent no-op" || fail "11. hook control: $(cat "$T/hook-fail.log" "$T/o" 2>&1)"
 rm -f "$T/at-sleep.3"
 world; rm -rf "$T/proc/103"
-heal SETUP_SLEEP=3 >"$T/o1" 2>&1 & sleep 0.5
-heal SETUP_SLEEP=3 >"$T/o2" 2>&1; wait
+rm -f "$T/setup.in" "$T/setup.go"
+heal SETUP_HOLD=1 >"$T/o1" 2>&1 & h1=$!
+"$T/bin/waitfor" "$T/setup.in"; heal >"$T/o2" 2>&1; touch "$T/setup.go"; wait "$h1"
 [[ "$(nsetup)" == 1 && "$(grep -c 'HEAL OK' "$D/rotate.log")" == 1 ]] && grep -q ' HEAL SKIP locked' "$T/o2" &&
   pass "11. two heals at once: one heals, the other SKIP locked" || fail "11. concurrent: $(nsetup) $(cat "$T/o1" "$T/o2")"
-world; rm -rf "$T/proc/103"; ( flock 9; sleep 3 ) 9>>"$D/rotate.dispatch.lock" & sleep 0.5
-heal >"$T/o" 2>&1; wait
+world; rm -rf "$T/proc/103"; lockhold
+heal >"$T/o" 2>&1; unlock
 [[ "$(nsetup)" == 0 ]] && grep -q ' HEAL SKIP locked' "$T/o" && pass "11. a rotation holding the lock: no heal" || fail "11. rotation lock: $(cat "$T/o")"
 world; rm -rf "$T/proc/103"; printf 'ROTATE_RID=20261002T1100Z-master\nROTATE_PHASE=ACK\n' >"$D/rotate.dispatch.ctx"
 heal >"$T/o" 2>&1

@@ -197,8 +197,11 @@ function permissionSteps(prefs: Prefs) {
 
 type Permission = ReturnType<typeof permissionSteps>
 
+/** What an alert reads: the bell's state, the app's locale paths, the translations and the member names. */
+type AlertInputs = { alertsOn: ComputedRef<boolean>, nuxtApp: NuxtApp, i18n: I18n, humanNames: HumanNames }
+
 /** The bell, the Settings test alert, and the ping a message raises. */
-function alertSteps(prefs: Prefs, alertsOn: ComputedRef<boolean>, nuxtApp: NuxtApp, i18n: I18n, humanNames: HumanNames, steps: Permission) {
+function alertSteps(prefs: Prefs, steps: Permission, { alertsOn, nuxtApp, i18n, humanNames }: AlertInputs) {
   const [permission, chime, sound, alertsEnabled] = prefs
   const [readPermission, requestPush] = steps
 
@@ -531,7 +534,7 @@ export const useNotificationStore = defineStore('notification', () => {
   const humanNames = useHumanNames()
   const steps = permissionSteps(prefs)
   const [, requestPush, hydrate] = steps
-  const [toggleAlerts, testAlert, ping, pingFor] = alertSteps(prefs, alertsOn, nuxtApp, i18n, humanNames, steps)
+  const [toggleAlerts, testAlert, ping, pingFor] = alertSteps(prefs, steps, { alertsOn, nuxtApp, i18n, humanNames })
   /** CLE-77804: each feed's read cursor as it was opened (readSteps) */
   const boundary = ref<Record<string, { ts: string, id: string } | null>>({})
   const [topicRead, topicUnread, markTopicRead, ownReplyRead, seedTopics] = topicSteps(boundary)

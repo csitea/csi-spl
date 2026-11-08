@@ -251,24 +251,27 @@ _spl_push_master_moved() {
   grep -qE '\[rejected\].*\((fetch first|non-fast-forward)\)|\[remote rejected\].*(cannot lock ref|incorrect old value|failed to update ref|but expected)' "$1"
 }
 
-# _spl_push_master_hook_passed <push output file> - 0 when the output carries
-# the gate's own PASS line (do_check_pre_push: a full run or a cached tree).
-_spl_push_master_hook_passed() {
-  grep -qE 'pre-push: (all parts PASSED|PASS -- this exact tree)' "$1"
+# _spl_push_master_last_line <ERE> <push output file> - prints the number of the
+# last line matching <ERE>, 0 for none.
+_spl_push_master_last_line() {
+  awk -v re="$1" '$0 ~ re { n = NR } END { print n + 0 }' "$2"
 }
 
 # _spl_push_master_failed <sha> <git rc> <push output file> - prints the verdict
 # of a push that failed and not because the branch moved. REFUSED only when the
 # output shows a refusal: every other failure read as one, though `git push`
-# had died after a green hook (c-723, c-727, SPL-5114). A green hook's output
-# can hold a failing test's text, so its PASS line outranks a `pre-push:
-# REFUSED` line; git's own [rejected] comes after the hook and outranks both.
+# had died after a green hook (c-723, c-727, SPL-5114). A failing test's text
+# reaches the output and can hold either verdict of the gate (full run or
+# cached tree), so the last one wins; only git's own status line is a
+# [rejected], and it outranks both.
 _spl_push_master_failed() {
-  local refused=1 hook="the hook's verdict is not in the output"
-  _spl_push_master_hook_passed "$3" && hook="the hook passed"
-  if grep -qE '\[(remote )?rejected\]' "$3"; then refused=0
-  elif [[ "$hook" != "the hook passed" ]] && grep -q '^pre-push: REFUSED' "$3"; then refused=0; fi
-  if (( refused == 0 )); then echo "REFUSED push of $1 (the hook or a rule said no)"; return 0; fi
+  local passed refused hook="the hook's verdict is not in the output"
+  passed="$(_spl_push_master_last_line 'pre-push: (all parts PASSED|PASS -- this exact tree)' "$3")"
+  refused="$(_spl_push_master_last_line '^pre-push: REFUSED' "$3")"
+  (( passed > 0 )) && hook="the hook passed"
+  if grep -qE '^ ! \[(remote )?rejected\]' "$3" || (( refused > passed )); then
+    echo "REFUSED push of $1 (the hook or a rule said no)"; return 0
+  fi
   echo "GAVE-UP push of $1: git exited $2 with no hook or rule refusal in its output; $hook"
 }
 

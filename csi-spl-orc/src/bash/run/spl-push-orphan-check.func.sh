@@ -130,7 +130,7 @@ _po_verdict() {
 _po_sha() {
   local s
   s="$(grep -oE 'push [0-9a-f]{7,40} -> ' "$1/log" 2>/dev/null | tail -n 1 | awk '{print $2}')"
-  [[ -n "$s" ]] || s="$(sed -n '1s/^\(PUSHED\|REFUSED push of\) \([0-9a-f]\{7,40\}\).*/\2/p' "$1/status" 2>/dev/null)"
+  [[ -n "$s" ]] || s="$(sed -n '1s/^\(PUSHED\|REFUSED push of\|GAVE-UP push of\) \([0-9a-f]\{7,40\}\).*/\2/p' "$1/status" 2>/dev/null)"
   echo "${s:--}"
 }
 

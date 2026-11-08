@@ -93,6 +93,10 @@
 #      read REFUSED ... the hook or a rule said no). Controls: a
 #      `pre-push: REFUSED` line, and a `[remote rejected]` after the gate's
 #      PASS -> still REFUSED ... said no
+#      The last verdict line wins, a failing test's text can hold either (c-404
+#      W1): PASS text, then the gate's REFUSED -> REFUSED; REFUSED text, then
+#      the gate's PASS -> GAVE-UP, `the hook passed`; a quoted `[rejected]`
+#      that is not git's own status line -> GAVE-UP
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -332,6 +336,9 @@ if [ "\$1" = push ]; then
     dead-cached) echo "2026-11-08 INFO pre-push: PASS -- this exact tree (abc) already passed every part above (key k); nothing re-run" >&2; exit 41 ;;
     dead-silent) exit 41 ;;
     dead-refused) echo "pre-push: REFUSED -- the deploy-gate failed above." >&2; exit 1 ;;
+    dead-nested) printf '%s\n' "2026-11-08 INFO pre-push: all parts PASSED -- safe to push" "FATAL pre-push: 1 part(s) FAILED" "pre-push: REFUSED -- the deploy-gate failed above." >&2; exit 1 ;;
+    dead-late-pass) printf '%s\n' "pre-push: REFUSED -- quoted by a failing test" "2026-11-08 INFO pre-push: all parts PASSED -- safe to push" >&2; exit 41 ;;
+    dead-quoted) printf '%s\n' "a test said: [rejected] x -> master (quoted)" "2026-11-08 INFO pre-push: all parts PASSED -- safe to push" >&2; exit 41 ;;
     dead-remote) echo "2026-11-08 INFO pre-push: all parts PASSED -- safe to push" >&2; echo " ! [remote rejected] x -> master (push declined due to repository rule violations)" >&2; exit 1 ;;
   esac
 fi
@@ -488,6 +495,9 @@ check19 dead-cached "$PASSED"
 check19 dead-silent "$UNSEEN"
 check19 dead-refused "$SAIDNO"
 check19 dead-remote "$SAIDNO"
+check19 dead-nested "$SAIDNO"
+check19 dead-late-pass "$PASSED"
+check19 dead-quoted "$PASSED"
 echo ok >"$T/git.mode"
 
 echo "spl-push-master: $fails failure(s)"

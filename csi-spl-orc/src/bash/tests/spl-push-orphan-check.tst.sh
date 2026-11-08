@@ -189,5 +189,12 @@ printf 'RUNNING\nsince=%s\n' "$(date -u -d '10 minutes ago' +%FT%TZ)" >"$R/c-700
 out="$(check)"
 [ "$(sends)" = 1 ] && grep -q "ALERT c-700 REFUSED" <<<"$out" && pass "10. control: the same, since 10 min ago -> alerts" || fail "10. control ($out)"
 
+# 11 the sha of a GAVE-UP status, the log without a push line (c-404 N1)
+rm -f "$T/sends"
+lane "$R/c-701" "GAVE-UP push of $SHA: git exited 41 with no hook or rule refusal in its output; the hook passed" ""
+printf '01:34:50Z END GAVE-UP push of %s: git exited 41\n' "$SHA" >"$R/c-701/lifetime/push-master/log"
+out="$(check)"
+[ "$(sends)" = 1 ] && grep -q "ALERT c-701 GAVE-UP $SHA" <<<"$out" && pass "11. GAVE-UP status, no push line in the log -> alerts with its sha" || fail "11. GAVE-UP sha ($out)"
+
 echo "spl-push-orphan-check: $fails failure(s)"
 [ "$fails" -eq 0 ]

@@ -254,3 +254,26 @@ Tests: `csi-spl-orc/src/bash/tests/lane-map.tst.sh` case 18 (stub with stderr
 and rc 124; a spool that ignores TERM), `TestCloseAfterCancelSkipsHandshake`
 in `internal/hubclient/close_cancel_test.go` (a hub that never answers the
 close: under 1 s after cancel; control: about 5 s with a live context).
+
+## Sizing a mount at each headroom crossing (SPL-4629)
+
+The headroom guard's daily growers cannot name a job that swings a disk 5-6 GB
+in 15 min and gives it back the same day (sat `/mnt/data`, 79..92 %, n=97,
+triage msg 26188f25). So a new blocks or CRITICAL crossing whose note went out
+starts `csi-spl-utl/src/bash/scripts/disk-crossing-sizes.sh` in the background
+(`check-disk-headroom.sh`, `size_crossing`); by hand it is
+`cd csi-spl-utl && DISK_CROSSING_MOUNT=<mount> ./run -a do_disk_crossing_sizes`,
+a dry run unless `DRY_RUN=0`.
+
+- Each top dir of the mount gets a niced `du -x --max-depth=1` under a timeout,
+  an equal share of what is left of the 60 s budget (`DISK_CROSSING_BUDGET_S`).
+  A mountpoint inside the mount is skipped.
+- The record is `/var/<org>/<org>-<app>/disk-crossing-sizes/sizes.tsv`: one `top`
+  row per dir and its 10 biggest `child` rows. It only appends; nothing trims it.
+- Read a row by its state. `complete`: the size. `partial`: a lower bound
+  (`timeout`, the children that finished; `du-error`, part of the dir was
+  unreadable to the cron's user). `unmeasured`: no size, the `0` means nothing.
+- Compare two crossings' rows of the same dir to name the job.
+
+Tests: `csi-spl-utl/src/bash/tests/disk-crossing-sizes.tst.sh` (fixture tree),
+`csi-spl-orc/src/bash/tests/check-disk-headroom.tst.sh` section 4.

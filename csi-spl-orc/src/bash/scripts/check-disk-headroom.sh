@@ -52,6 +52,11 @@
 #                                 CRITICAL note ends with its one line (the top
 #                                 3 growers of the last 7 days, from the daily
 #                                 growth record)
+#   DISK_HEADROOM_SIZES           the sizing script (SPL-4629), default
+#                                 <org>-<app>-utl disk-crossing-sizes.sh: a new
+#                                 blocks or CRITICAL crossing whose note went out
+#                                 starts it in the background, so the check is
+#                                 not held up; DRY_RUN=1 starts nothing
 #
 # Exit: 0 all under the limits; 1 a mount is over a limit or a check failed;
 # 2 usage.
@@ -82,6 +87,7 @@ task="${DISK_HEADROOM_TASK:-disk-headroom}"
 df_bin="${DISK_HEADROOM_DF:-df}"
 send="${DISK_HEADROOM_SEND:-$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh}"
 growers_sh="${DISK_HEADROOM_GROWERS:-$ORC/../$app-utl/src/bash/scripts/disk-growers.sh}"
+sizes_sh="${DISK_HEADROOM_SIZES:-$ORC/../$app-utl/src/bash/scripts/disk-crossing-sizes.sh}"
 # The fleet box id (<DEV_BOX>), as spool-send.sh names this machine.
 # shellcheck source=/dev/null
 SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" source "$ORC/src/bash/features/spawn-agents/lib/spool-fleet.inc.sh" 2>/dev/null &&
@@ -113,6 +119,14 @@ growers() {
   [[ -r "$growers_sh" ]] && g="$(bash "$growers_sh" 2>/dev/null | sed -n 1p)" && [[ -n "$g" ]] && printf '; %s' "$g"
   return 0
 }
+# size_crossing <key>: a blocks key only. 9>&- so the sizing never holds this
+# check's lock; a WARN and a CRITICAL together are one run, by the script's lock.
+size_crossing() {
+  local m="${1#crit:}"
+  [[ "$m" == blocks:* && -r "$sizes_sh" ]] || return 0
+  DRY_RUN=0 DISK_CROSSING_MOUNT="${m#blocks:}" DISK_CROSSING_TRIGGER="$1" bash "$sizes_sh" </dev/null >/dev/null 2>&1 9>&- &
+  return 0
+}
 note() {
   local key="$1" text="$2"
   rc=1; now["$key"]=1
@@ -122,6 +136,7 @@ note() {
   if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$from" --to "$to" --kind note --task "$task" \
       --body "DISK HEADROOM $box ($who): $text" >/dev/null 2>&1; then
     say "INFO told $to: $key"
+    size_crossing "$key"
   else
     say "WARN could not tell $to about $key: retried next tick"; unset 'now[$key]'
   fi

@@ -40,8 +40,9 @@ rows() {  # <data blocks%> <tmp inodes%>
 }
 printf '#!/bin/sh\n[ -e %q ] && { echo "df: boom" >&2; exit 1; }\ncat %q\n' "$T/df.fail" "$DF" >"$T/df"
 printf '#!/bin/sh\n[ -e %q ] && exit 1\necho "$*" >>%q\n' "$T/send.fail" "$SENT" >"$T/send"
-chmod +x "$T/df" "$T/send"
-chk() { SNIPPET='do_check_disk_headroom' in_orc DISK_HEADROOM_DF="$T/df" DISK_HEADROOM_SEND="$T/send" DISK_HEADROOM_STATE_DIR="$ST" DISK_GROWERS_TSV="$T/growth.tsv" "$@" 2>&1; }
+printf '#!/bin/sh\necho "$DISK_CROSSING_MOUNT $DISK_CROSSING_TRIGGER $DRY_RUN" >>%q\n' "$T/sizes.log" >"$T/sizes"
+chmod +x "$T/df" "$T/send" "$T/sizes"
+chk() { SNIPPET='do_check_disk_headroom' in_orc DISK_HEADROOM_DF="$T/df" DISK_HEADROOM_SEND="$T/send" DISK_HEADROOM_STATE_DIR="$ST" DISK_GROWERS_TSV="$T/growth.tsv" DISK_HEADROOM_SIZES="$T/sizes" "$@" 2>&1; }
 sends() { [ -f "$SENT" ] && grep -c . "$SENT" || echo 0; }
 
 rows 50% 20%
@@ -194,6 +195,30 @@ chk DRY_RUN=0 >/dev/null
 grep -qE 'blocks 90% >= 85%; top growers 7d: planted \+2\.[0-9]MB/d' "$SENT" \
   && pass "3. the 85% note names the planted grower with its growth per day" || fail "3. growers ($(cat "$SENT" 2>/dev/null) / $(cat "$T/growth.tsv"))"
 ! grep -q "$G" "$SENT" && pass "3. ...by its row name, never a path or file name" || fail "3. path leaked: $(cat "$SENT")"
+
+# 4. the sizing at a crossing (SPL-4629) ----------------------------------------
+sized() { local _; for _ in $(seq 1 50); do [ -s "$T/sizes.log" ] && return 0; sleep 0.1; done; return 1; }
+rm -rf "$ST" "$SENT" "$T/sizes.log"; rows 90% 20%
+chk DISK_HEADROOM_SIZES="$T/no-such-script" DRY_RUN=0 >/dev/null
+[ "$(sends)" = 1 ] && ! sized \
+  && pass "4. RED CONTROL: with no sizing script the note goes out and nothing is sized" || fail "4. missing script ($(cat "$T/sizes.log" 2>/dev/null))"
+rm -rf "$ST" "$SENT" "$T/sizes.log"
+chk DRY_RUN=1 >/dev/null
+! sized && pass "4. a dry run sizes nothing" || fail "4. dry run: $(cat "$T/sizes.log")"
+chk DRY_RUN=0 >/dev/null
+sized && [ "$(cat "$T/sizes.log")" = "/data blocks:/data 0" ] \
+  && pass "4. a new blocks crossing sizes that mount, with DRY_RUN=0" || fail "4. sizes: $(cat "$T/sizes.log" 2>/dev/null)"
+: >"$T/sizes.log"
+chk DRY_RUN=0 >/dev/null
+! sized && pass "4. the next tick of the same crossing sizes nothing" || fail "4. repeat: $(cat "$T/sizes.log")"
+rm -rf "$ST" "$SENT" "$T/sizes.log"; rows 95% 20%
+chk DRY_RUN=0 >/dev/null
+sized; sleep 0.3
+grep -qx '/data crit:blocks:/data 0' "$T/sizes.log" \
+  && pass "4. a CRITICAL crossing sizes the mount too" || fail "4. crit: $(cat "$T/sizes.log" 2>/dev/null)"
+rm -rf "$ST" "$SENT" "$T/sizes.log"; rows 50% 90%
+chk DRY_RUN=0 >/dev/null
+! sized && pass "4. an inode crossing sizes nothing" || fail "4. inodes: $(cat "$T/sizes.log")"
 
 echo "check-disk-headroom: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -18,6 +18,7 @@
 # @description The box-disk-sweep line is byte for byte the one SPL-2053
 # @description hand-installed; the SPL-2053 disk-headroom line (no lock) reads
 # @description "differs" until an install replaces it.
+# @description A BOX_SWEEP_JOURNAL_MAX already on the box-disk-sweep line is kept.
 # @description Idempotent: a tagged line is replaced in place, a missing one is
 # @description appended. --check prints installed / missing / differs per line
 # @description and exits 1 unless all three are installed. Dry run unless DRY_RUN=0.
@@ -40,12 +41,24 @@ declare -F spl_desk_cron_update_pre >/dev/null || {
   unset _dg_utl
 }
 
+# disk_guard_journal_max <crontab> <tag> - "BOX_SWEEP_JOURNAL_MAX=<size> " from
+# the tagged line, empty when it has none
+disk_guard_journal_max() {
+  local l
+  while IFS= read -r l; do
+    if [[ "$l" == *" # $2" && "$l" =~ [[:space:]](BOX_SWEEP_JOURNAL_MAX=[0-9]+[KMGT]?)[[:space:]] ]]; then
+      printf '%s ' "${BASH_REMATCH[1]}"; return 0
+    fi
+  done <<<"$1"
+  return 0
+}
+
 # disk_guard_lines: the three wanted lines, one per row, in tag order
 disk_guard_lines() {
-  local app="$1" src="$2" desk="$3" var="$4" trunk="$5"
+  local app="$1" src="$2" desk="$3" var="$4" trunk="$5" jm="$6"
   printf '%s\n' \
     "7-59/15 * * * * $(spl_desk_cron_update_pre "$desk" "$trunk")DRY_RUN=0 $(spl_cron_no_stack_pre "$desk/$app-orc" "$var/disk-headroom/cron.lock")$desk/$app-orc/src/bash/scripts/check-disk-headroom.sh >> $var/disk-headroom/cron.out 2>&1 # $app:disk-headroom" \
-    "11-59/15 * * * * DRY_RUN=0 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=$var/box-disk-sweep/box-disk-sweep.lock bash $src/$app-orc/src/bash/scripts/box-disk-sweep.sh >> $var/box-disk-sweep/box-disk-sweep.log 2>&1 # $app:box-disk-sweep" \
+    "11-59/15 * * * * DRY_RUN=0 ${jm}BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=$var/box-disk-sweep/box-disk-sweep.lock bash $src/$app-orc/src/bash/scripts/box-disk-sweep.sh >> $var/box-disk-sweep/box-disk-sweep.log 2>&1 # $app:box-disk-sweep" \
     "23 3 * * * cd $desk/$app-utl && DRY_RUN=0 ./run -a do_box_disk_inventory >> $var/box-disk-sweep/growth.cron.out 2>&1 # $app:disk-growth"
 }
 
@@ -106,7 +119,7 @@ do_box_disk_guard_install() {
 
   local cur want=() tags=() l
   cur="$("$cron" -l 2>/dev/null || true)"
-  mapfile -t want < <(disk_guard_lines "$app" "$src" "$desk" "$var" "$trunk")
+  mapfile -t want < <(disk_guard_lines "$app" "$src" "$desk" "$var" "$trunk" "$(disk_guard_journal_max "$cur" "$app:box-disk-sweep")")
   for l in "${want[@]}"; do tags+=("${l##* # }"); done
 
   local bad

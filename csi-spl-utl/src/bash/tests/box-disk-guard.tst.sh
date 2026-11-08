@@ -105,6 +105,18 @@ out="$(inst DISK_GUARD_ACTION=bogus)"; rc=$?
 out="$(cd "$UTL_ROOT" && env PATH="$T/bin:$PATH" FAKE_CRONTAB="$CT" ./run -a do_box_disk_guard_install --check 2>&1)"; rc=$?
 [ "$rc" = 1 ] && grep -q '^missing   csi-spl:disk-growth' <<<"$out" && pass "1. ./run -a do_box_disk_guard_install --check maps the flag" || fail "1. ./run (rc $rc): $out"
 
+# the per-box journal size on the tagged line survives an install (SPL-5129)
+: >"$CT"; inst DRY_RUN=0 >/dev/null
+! grep -q BOX_SWEEP_JOURNAL_MAX "$CT" && pass "1. CONTROL: a fresh install writes no BOX_SWEEP_JOURNAL_MAX" || fail "1. value invented: $(cat "$CT")"
+sed -i 's/ DRY_RUN=0 BOX_SWEEP_GATE=1/ DRY_RUN=0 BOX_SWEEP_JOURNAL_MAX=2G BOX_SWEEP_GATE=1/' "$CT"; cp "$CT" "$T/crontab.raised"
+out="$(inst DISK_GUARD_CHECK=true)"; rc=$?
+[ "$rc" = 0 ] && grep -q '^installed csi-spl:box-disk-sweep' <<<"$out" && pass "1. --check reads a line with the value as installed" || fail "1. check raised (rc $rc): $out"
+inst DRY_RUN=0 >/dev/null
+cmp -s "$CT" "$T/crontab.raised" && pass "1. an install keeps the line's BOX_SWEEP_JOURNAL_MAX" || fail "1. journal max lost: $(cat "$CT")"
+sed -i 's/ BOX_SWEEP_JOURNAL_MAX=2G / BOX_SWEEP_JOURNAL_MAX=$(id) /' "$CT"; inst DRY_RUN=0 >/dev/null
+! grep -q BOX_SWEEP_JOURNAL_MAX "$CT" && pass "1. CONTROL: a value that is no size is not carried over" || fail "1. bad value carried: $(cat "$CT")"
+inst DRY_RUN=0 DISK_GUARD_ACTION=remove >/dev/null
+
 # 2. the inventory -------------------------------------------------------------
 INV="$UTL_ROOT/src/bash/scripts/box-disk-inventory.sh"
 mkdir -p "$T/d/sub"

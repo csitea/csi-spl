@@ -381,5 +381,21 @@ grep -q 'OK cron: nothing to change' <<<"$out" && pass "4. a second install is a
 inst DRY_RUN=0 BOX_SWEEP_CRON_ACTION=remove >/dev/null
 cmp -s "$CT" "$T/crontab.orig" && pass "4. remove restores the crontab byte for byte" || fail "4. remove ($(cat "$CT"))"
 
+# the per-box journal size on the tagged line survives an install (SPL-5129)
+printf '%s\n' '1 * * * * BOX_SWEEP_JOURNAL_MAX=9G bash /x/b.sh # csi-spl:box-disk-sweep-other' '11-59/15 * * * * DRY_RUN=0 BOX_SWEEP_JOURNAL_MAX=2G bash /old/box-disk-sweep.sh # csi-spl:box-disk-sweep' >"$CT"
+inst DRY_RUN=0 >/dev/null
+line="$(grep ' # csi-spl:box-disk-sweep$' "$CT")"
+[ "$(grep -c ' # csi-spl:box-disk-sweep$' "$CT")" = 1 ] && grep -q ' BOX_SWEEP_GATE=1 ' <<<"$line" && [ "$(grep -o 'BOX_SWEEP_JOURNAL_MAX=[^ ]*' <<<"$line")" = BOX_SWEEP_JOURNAL_MAX=2G ] \
+  && pass "4. an install keeps the line's BOX_SWEEP_JOURNAL_MAX" || fail "4. journal max lost ($(cat "$CT"))"
+out="$(inst DRY_RUN=0)"
+grep -q 'OK cron: nothing to change' <<<"$out" && pass "4. ...and a second install is a no-op" || fail "4. keep second install ($out)"
+printf '%s\n' '1 * * * * BOX_SWEEP_JOURNAL_MAX=9G bash /x/b.sh # csi-spl:box-disk-sweep-other' '11-59/15 * * * * DRY_RUN=0 bash /old/box-disk-sweep.sh # csi-spl:box-disk-sweep' >"$CT"
+inst DRY_RUN=0 >/dev/null
+! grep ' # csi-spl:box-disk-sweep$' "$CT" | grep BOX_SWEEP_JOURNAL_MAX >/dev/null \
+  && pass "4. CONTROL: a line without it gets none, another tag's value stays out" || fail "4. value invented ($(cat "$CT"))"
+printf '%s\n' '11-59/15 * * * * BOX_SWEEP_JOURNAL_MAX=$(id) bash /old/box-disk-sweep.sh # csi-spl:box-disk-sweep' >"$CT"
+inst DRY_RUN=0 >/dev/null
+! grep -q 'BOX_SWEEP_JOURNAL_MAX' "$CT" && pass "4. CONTROL: a value that is no size is not carried over" || fail "4. bad value carried ($(cat "$CT"))"
+
 echo "box-disk-sweep: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

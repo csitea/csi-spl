@@ -739,7 +739,7 @@ const { movedFrom, movedText, dmRef, dmRefText, dmRefTip, pointerText, pointerTi
 const longPress = useCardLongPress(editing, pickerOpen, menu)
 const { inTopicPane, swipeOn, swipeArchive, swipeLeft, menuHide } = useCardSwipeFlags(props, { editing, rowEl, inPane, showTopicArchive },
   () => mayArchiveTopic(props.msg, editorId.value, access.me))
-const { swipe, swipeDx, swipeDir, swipeArmed, swipeSettle, onMenuHide } = useCardSwipe(props, rowEl, swipeLeft, pickerOpen, menu, {
+const { swipe, swipeDx, swipeDir, swipeArmed, swipeSettle, onMenuHide } = useCardSwipe({ props, rowEl, swipeLeft, pickerOpen }, menu, {
   stop: () => { longPress.cancel(); rowDrag.cancel() },
   archive: onMenuArchive,
 })

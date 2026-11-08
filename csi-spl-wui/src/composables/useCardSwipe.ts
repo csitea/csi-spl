@@ -122,10 +122,12 @@ function useSwipeSlide() {
 /** `peer.stop` cancels the card's other gestures (long press, touch lift);
     `peer.archive` is the menu's Archive topic, true when it archived. */
 export function useCardSwipe(
-  props: { msg: SpoolMessage, topicMenu?: boolean },
-  rowEl: Ref<HTMLElement | null>,
-  swipeLeft: Ref<ReturnType<typeof swipeLeftAction> | null>,
-  pickerOpen: Ref<boolean>,
+  { props, rowEl, swipeLeft, pickerOpen }: {
+    props: { msg: SpoolMessage, topicMenu?: boolean },
+    rowEl: Ref<HTMLElement | null>,
+    swipeLeft: Ref<ReturnType<typeof swipeLeftAction> | null>,
+    pickerOpen: Ref<boolean>,
+  },
   menu: CardMenu,
   peer: { stop: () => void, archive: () => Promise<boolean> },
 ) {

@@ -222,3 +222,35 @@ section 3.2, section 7 item 3). All three asks are in the bypass log:
 Test: `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` (case 40),
 `spl-box-pick.tst.sh` (case 16d), `spawn-agents/tests/test-spawn-load-target.sh`
 (case 6c).
+
+## The lane map alert says what failed (SPL-4626, SPL-4631)
+
+Three lane map alerts from one Wi-Fi box on 2026-11-01..02 said "the hub did not answer"; the
+hub log of the 06:56Z one has the whole 607806-byte body written twice (c-581,
+SPL-4622). Each try's stderr went to `/dev/null`, so nothing said why.
+
+- `spl_lane_hub_read` (`csi-spl-orc/src/bash/run/spl-lane-map.func.sh`) logs
+  every failed try: `WARN the hub read try <n>/<tries>: <what>`, where
+  `<what>` is `timed out after <cut> s, rc 124` (137 after `-k`), `failed, rc
+  <rc>` or `rc 0 but no lane list in the answer`, then the try's last stderr
+  line (200 chars).
+- The fallback WARN and the #alerts note say `no complete answer from the hub
+  in <N> s, <tries> tries (last try <what>; fleet <F>)`. The detail is in
+  parentheses, which the alert fold strips, so one fingerprint whatever the
+  error.
+- A stalled try cost 9 s, not its 4 s cut (n=6): `timeout` sent TERM, and the
+  CLI's deferred `Session.Close` then ran the websocket close handshake,
+  5 s to write the close frame and 5 s for the hub's (coder/websocket
+  `close.go`). `Session.Close` (`csi-spl-api/.../internal/hubclient/hubclient.go`)
+  now closes at once when the caller's context is cancelled, and
+  `spl_lane_desk_spool` (under `spl_lane_spool`) runs `timeout -k 1`, so a
+  try costs at most its cut + 1 s.
+- The run that gave up after one try (21:27Z) needs that try to take 14 s:
+  14 = the 4 s cut + both 5 s handshake waits, the upper bound of `Close`.
+  Not reproduced (the 9 s one was), so this is the likely cause, not a
+  proven one.
+
+Tests: `csi-spl-orc/src/bash/tests/lane-map.tst.sh` case 18 (stub with stderr
+and rc 124; a spool that ignores TERM), `TestCloseAfterCancelSkipsHandshake`
+in `internal/hubclient/close_cancel_test.go` (a hub that never answers the
+close: under 1 s after cancel; control: about 5 s with a live context).

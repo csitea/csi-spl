@@ -57,7 +57,8 @@
 #      a process of the id in the NEW pane is left and counted
 #  27. SPL-4358: one tick reads each vendor's limit once (counted at the
 #      wrapper and at each of the 4 readers: 8 claude lanes = 1 read, 2
-#      mistral = 1; the grok and agy readers 0, no lane of theirs); it no longer bounds a tick's per-lane cost outside the
+#      mistral = 1; the grok and agy readers 0, no lane of theirs); with claude on its limit, 4 claude lanes = 1 read and
+#      4 SKIPs on that verdict; it no longer bounds a tick's per-lane cost outside the
 #      limit read, e.g. spl_lane_rotate_accepted; the wd scan of 300 verdict
 #      files runs no awk and one stat, and still finds the limit
 #  28. SPL-4590: a SPAWN stopped on a vendor limit dialog with no S2 verdict on
@@ -592,6 +593,18 @@ check "27. 8 claude lanes + 2 mistral: the limit read once per kind (claude 1, m
 check "27. each reader ran once for its kind, the wrapper or not (claude 1, mistral 1, grok 0, agy 0)" '[ "$(n "$T/reader.calls" "^spl_rotate_claude_out$")" = 1 ] && [ "$(n "$T/reader.calls" "^_spl_lane_mix_limit$")" = 1 ] && [ "$(n "$T/reader.calls" "^spl_rotate_grok_out$")" = 0 ] && [ "$(n "$T/reader.calls" "^spl_spawn_place_agy_out$")" = 0 ]'
 check "27. every lane still judged: 3 claude PLAN rotate + 5 DEFER cap" '[ "$(grep -cE "c-27[1-8] PLAN rotate" "$T/tick.out")" = 3 ] && [ "$(grep -cE "c-27[1-8] DEFER cap" "$T/tick.out")" = 5 ]'
 check "27. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# the memo with a limit active: the verdict line is memoised too, not only the
+# empty one (SPL-5043): 4 claude lanes, claude on its limit = 1 read, 4 SKIPs
+# with that line; the mistral lane beside them still judged
+reset; rm -f "$T/limit.calls" "$T/reader.calls"
+for i in 1 2 3 4; do lane "c-28$i" 50; done
+lane m-285 50 mistral
+mkdir -p "$D/wd/ctx.1/c-281"; echo 'HIT S2 kind=limit pane: You have hit your limit' >"$D/wd/ctx.1/c-281/out.s2"
+DRY_RUN=1 ROTATE_CLAUDE_BIN=/bin/true "$T/bin/act-slow" >>"$T/tick.out" 2>&1
+check "27. claude on its limit, 4 lanes: the limit read once (wrapper 1, reader 1)" '[ "$(n "$T/limit.calls" "^claude$")" = 1 ] && [ "$(n "$T/reader.calls" "^spl_rotate_claude_out$")" = 1 ]'
+check "27. claude on its limit: all 4 lanes SKIP on the one verdict" '[ "$(grep -cE "c-28[1-4] SKIP c-28[1-4]: claude is on its limit until [0-9-]+T[0-9:]+Z \(c-281 S2 kind=limit" "$T/tick.out")" = 4 ]'
+check "27. claude on its limit: the mistral lane still judged (PLAN rotate)" '[ "$(n "$T/limit.calls" "^mistral$")" = 1 ] && grep -q "m-285 PLAN rotate" "$T/tick.out"'
+check "27. claude on its limit: no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 # the scan itself: 300 verdict files = no awk and one stat per call (it was an
 # awk + a stat per file: 3,222 files = 63 s); a limit in the newest still found
 rm -rf "$T/wd27"; mkdir -p "$T/cnt"

@@ -227,4 +227,73 @@ RETIRE_SERVERS=0 bash "$RET" --apply c-809 >"$T_TMP/o" 2>&1
 check "11. without the step the server keeps running" alive "$p11"
 check "11. ...and its scratch stays (KEEP in-use)" grep -qF "KEEP in-use $S/$(slug c-809) " "$T_TMP/o"
 
+# 12. SPL-5065: a private clone a lane made as the box user, /tmp/<id>[-*] or
+#     /var/tmp/<id>[-*], places its server to that lane, and the default
+#     users list holds the box user. Defect: on sat 6 such servers ran 8 h to
+#     1.6 d, each pinning its clone.
+VT="$T_TMP/vartmp"
+export RETIRE_VARTMP_ROOT="$VT"
+# retired_nowt ID: a retired row with no worktree, as a lane's clone has
+retired_nowt() { printf '%s\tclaude\t%%9\t-\t20261101T000000Z\t20261101T040000Z\t-\n' "$1" >>"$R/registry.retired.tsv"; }
+# as_box: this user is the box user, the agent user is someone else
+as_box() { env -u LANE_TEST_SERVER_USERS SPOOL_AGENT_USER=nobody SPOOL_BOX_USER="$(id -un)" "$@"; }
+retired_nowt g-973; retired_nowt c-057; retired_nowt g-958; retired_nowt g-962
+p12a="$(serve "$TR/g-973-review" "$TR/g-973-review/csi-spl-wui/src/node/test/serve-generated.mjs" --port 50001)"
+p12b="$(serve "$VT/c-057-review/csi-spl-wui" "$VT/c-057-review/csi-spl-wui/src/node/test/serve-generated.mjs")"
+p12c="$(serve "$T_TMP" "$T_TMP/s12/serve-generated.mjs" --root="$TR/g-958-scratch-1/bundle")"
+p12d="$(serve "$TR/g-962" "$T_TMP/s12d/serve-generated.mjs")"
+out="$(as_box bash "$REAP" --retired 2>&1)"
+has "12. the dry run plans the box user's server in a /tmp clone" "PLAN stop pid=$p12a lane=g-973 user=$(id -un)" "$out"
+check "12. ...and signals nothing" alive "$p12a"
+out="$(as_box bash "$REAP" --apply --retired 2>&1)"; rc=$?
+eq "12. the apply exits 0" 0 "$rc"
+check "12. a server in /tmp/<retired-id>-review is stopped" gone "$p12a"
+has "12. ...DO stop names the lane and the box user" "DO stop pid=$p12a lane=g-973 user=$(id -un)" "$out"
+check "12. a server in /var/tmp/<retired-id>-review is stopped" gone "$p12b"
+check "12. one placed by an --opt=value path is stopped" gone "$p12c"
+check "12. one in /tmp/<retired-id> exactly is stopped" gone "$p12d"
+
+# 13. CONTROLS: everything else stays, with its reason.
+retired_nowt c-830; printf '%s\tclaude\t%%9\t-\t20261102T000000Z\n' c-831 >>"$R/registry.tsv"
+retired_nowt c-832
+p13a="$(serve "$TR/c-831-review" "$TR/c-831-review/serve-generated.mjs")"
+p13b="$(serve "$TR/not-an-id-review" "$TR/not-an-id-review/serve-generated.mjs")"
+p13c="$(serve "$TR/c-8300-review" "$TR/c-8300-review/serve-generated.mjs")"
+p13d="$(serve "$TR/c-833-review" "$TR/c-833-review/serve-generated.mjs")"
+p13e="$(serve "$TR/c-830-review" "$TR/c-830-review/serve-generated.mjs")"
+p13f="$(serve "$TR/c-832-review" "$TR/c-832-review/serve-generated.mjs" --root "$TR/c-831-review/bundle")"
+p13g="$(serve "$T_TMP" "$T_TMP/s13g/serve-generated.mjs" --root "$TR/c-832-x/../not-an-id-review/bundle")"
+out="$(LANE_TEST_SERVER_USERS="nobody daemon" bash "$REAP" --apply --retired 2>&1)"
+check "13. a third user's server in a retired clone keeps running" alive "$p13e"
+has "13. ...KEEP not-agent-user names it" "KEEP not-agent-user pid=$p13e lane=c-830" "$out"
+out="$(as_box bash "$REAP" --apply c-832 2>&1)"
+check "13. a one-id run leaves another retired lane's clone" alive "$p13e"
+check "13. a clone server that also names a live lane's clone keeps running" alive "$p13f"
+has "13. ...KEEP clone-not-retired names why" "KEEP clone-not-retired pid=$p13f user=$(id -un) (other-lane c-831" "$out"
+out="$(as_box bash "$REAP" --apply --retired 2>&1)"
+check "13. a live lane's clone server keeps running" alive "$p13a"
+has "13. ...KEEP clone-not-retired names the registry row" "KEEP clone-not-retired pid=$p13a user=$(id -un) (live-lane c-831 (a row in" "$out"
+check "13. --retired keeps the server naming a live clone too" alive "$p13f"
+check "13. a clone not named for an agent id keeps running" alive "$p13b"
+has "13. ...KEEP no-retired-lane" "KEEP no-retired-lane pid=$p13b " "$out"
+check "13. a name that only starts like an id (c-8300) keeps running" alive "$p13c"
+check "13. an id with no registry row keeps running" alive "$p13d"
+has "13. ...KEEP clone-not-retired not-retired" "KEEP clone-not-retired pid=$p13d user=$(id -un) (not-retired c-833" "$out"
+check "13. a path that climbs out with .. does not place the server" alive "$p13g"
+check "13. (the clone with only a retired id goes)" gone "$p13e"
+
+# 14. fail closed: an unread registry stops nothing in a clone either.
+retired_nowt c-834
+p14="$(serve "$TR/c-834-review" "$TR/c-834-review/serve-generated.mjs")"
+chmod 000 "$R/registry.retired.tsv"
+out="$(as_box bash "$REAP" --apply --retired 2>&1)"; rc=$?
+chmod 644 "$R/registry.retired.tsv"
+eq "14. an unreadable registry.retired.tsv refuses (exit 4)" 4 "$rc"
+check "14. ...and the clone's server keeps running" alive "$p14"
+: >"$SPOOL_TMUX_SOCKET"
+out="$(as_box bash "$REAP" --apply --retired 2>&1)"; rc=$?
+rm -f "$SPOOL_TMUX_SOCKET"
+eq "14. an unread tmux window list refuses (exit 4)" 4 "$rc"
+check "14. ...and the clone's server keeps running" alive "$p14"
+
 t_done

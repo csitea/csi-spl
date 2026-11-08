@@ -18,7 +18,10 @@
 #     (agent-id-retire.sh wrote it; --retiring, a dry run only, skips the
 #     two registry checks: the retire's own plan runs before it moves rows)
 #   - its cwd, or an argument (or an --opt=value's value), is under the lane's
-#     worktree or its Claude Code scratch (/tmp/claude-<uid>/<slug>[-*]/)
+#     worktree or its Claude Code scratch (/tmp/claude-<uid>/<slug>[-*]/), or
+#     under a private clone named for its id: /tmp/<id>[-*] or /var/tmp/<id>[-*]
+#     (SPL-5065). Every such clone a server names must be proven retired, or
+#     the server is kept (KEEP clone-not-retired)
 #   - it is a known test server: an interpreter (node, python3, ...) running a
 #     script whose name is in LANE_TEST_SERVER_SCRIPTS; never a name alone
 #   - it runs as an agent user (LANE_TEST_SERVER_USERS)
@@ -34,7 +37,8 @@
 #   --retired   every id in registry.retired.tsv; a known test server under
 #               no retired lane is named KEEP no-retired-lane
 # Env: SPOOL_ROOT, SPOOL_TMUX_SOCKET, LANE_SCRATCH_TMP (default /tmp),
-#   LANE_TEST_SERVER_USERS (default SPOOL_AGENT_USER),
+#   RETIRE_VARTMP_ROOT (default /var/tmp),
+#   LANE_TEST_SERVER_USERS (default SPOOL_AGENT_USER and SPOOL_BOX_USER),
 #   LANE_TEST_SERVER_SCRIPTS (default serve-generated.mjs serve-hosting-h2.mjs
 #   wui-e2e-mock-api.py), LANE_TEST_SERVER_GRACE_S (default 5),
 #   LANE_TEST_SERVER_SUDO=1|0 (0: only this user's processes; tests),
@@ -72,7 +76,8 @@ spool_env_resolve
 R="$SPOOL_ROOT"
 _tmuxerr="$(mktemp)"; trap 'rm -f "$_tmuxerr"' EXIT
 tmp="${LANE_SCRATCH_TMP:-/tmp}"
-users=" ${LANE_TEST_SERVER_USERS:-$SPOOL_AGENT_USER} "
+vartmp="${RETIRE_VARTMP_ROOT:-/var/tmp}"
+users=" ${LANE_TEST_SERVER_USERS:-$SPOOL_AGENT_USER $SPOOL_BOX_USER} "
 scripts=" ${LANE_TEST_SERVER_SCRIPTS:-serve-generated.mjs serve-hosting-h2.mjs wui-e2e-mock-api.py} "
 grace="${LANE_TEST_SERVER_GRACE_S:-5}"
 [[ "$grace" =~ ^[0-9]+$ ]] || { echo "lane-test-server-reap: LANE_TEST_SERVER_GRACE_S must be whole seconds, got '${grace}'" >&2; exit 2; }
@@ -133,7 +138,7 @@ live_why() {
   if [ -n "${LIVE[$1]:-}" ]; then echo "live-lane $1 (a row in $R/registry.tsv)"; return; fi
   [ -n "${RET[$1]+x}" ] || echo "not-retired $1 (no row in $R/registry.retired.tsv)"
 }
-L_ID=() L_WT=() L_SLUG=() skipped=0
+L_ID=() L_WT=() L_SLUG=() skipped=0 proven_nowt=0
 add_lane() {  # ID [WORKTREE]
   local id="$1" wt="${2:-}" why
   [ -n "$wt" ] || wt="${RET[$id]:-}"
@@ -145,7 +150,8 @@ add_lane() {  # ID [WORKTREE]
   if [ -n "$why" ]; then say "KEEP $why"; return 0; fi
   if [ -z "$wt" ]; then
     [ "$ALL" = 1 ] && { skipped=$((skipped + 1)); return 0; }
-    say "KEEP no-worktree $id (no worktree known: its servers cannot be placed)"; return 0
+    say "KEEP no-worktree $id (no worktree known: only a private clone can place its servers)"
+    proven_nowt=1; return 0
   fi
   L_ID+=("$id"); L_WT+=("$wt"); L_SLUG+=("${wt//[^A-Za-z0-9]/-}")
 }
@@ -193,6 +199,26 @@ lane_of() {
   done
   return 1
 }
+# clone_ids PATH... -> the agent id of each private clone a path lies under,
+# one per line: the top dir of the tmp roots, <id> or <id>-*. A path with a ..
+# component names no clone: where it lands is not what it says
+clone_ids() {
+  local p root top
+  for p in "$@"; do
+    [[ "$p" == /* && "/$p/" != */../* ]] || continue
+    for root in "$tmp" "$vartmp"; do
+      [[ "$p" == "$root"/* ]] || continue
+      top="${p#"$root"/}"; top="${top%%/*}"
+      [[ "$top" =~ ^${SPOOL_AGENT_ID_RX}(-.*)?$ ]] && echo "${BASH_REMATCH[1]}"
+    done
+  done
+  return 0
+}
+# clone_why ID -> why this run may not stop a server in its clone (nothing: it may)
+clone_why() {
+  if [ "$ALL" = 0 ] && [ "$1" != "$ID" ]; then echo "other-lane $1 (this run reaps $ID)"; return; fi
+  live_why "$1"
+}
 stat_of() {  # PID -> "<state> <starttime>"
   local s f; s="$(cat "/proc/$1/stat" 2>/dev/null)" || return 1
   read -ra f <<<"${s##*) }"; printf '%s %s' "${f[0]}" "${f[19]}"
@@ -225,12 +251,23 @@ scan_one() {
   cwd="$(as_owner "$u" readlink "/proc/$pid/cwd" 2>/dev/null || true)"
   # a swept worktree still places the process: its cwd reads "<dir> (deleted)"
   paths=("${cwd% (deleted)}" "${argv[@]}" "${argv[@]#*=}")
-  local args="${argv[*]}" what
-  if ! i="$(lane_of "${paths[@]}")"; then
+  local args="${argv[*]}" what lane="" clone="" blocked="" c why
+  while read -r c; do
+    why="$(clone_why "$c")"
+    if [ -n "$why" ]; then blocked="${blocked:-$why}"; else clone="${clone:-$c}"; fi
+  done < <(clone_ids "${paths[@]}")
+  if [ -n "$blocked" ]; then
+    if [ "$ALL" = 1 ] || i="$(lane_of "${paths[@]}")" || [ -n "$clone" ]; then
+      say "KEEP clone-not-retired pid=$pid user=$u ($blocked) cwd=${cwd:--} args=$args"
+    fi
+    return 0
+  fi
+  if i="$(lane_of "${paths[@]}")"; then lane="${L_ID[$i]}"; else lane="$clone"; fi
+  if [ -z "$lane" ]; then
     [ "$ALL" = 1 ] && say "KEEP no-retired-lane pid=$pid user=$u cwd=${cwd:--} args=$args"
     return 0
   fi
-  what="pid=$pid lane=${L_ID[$i]} user=$u"
+  what="pid=$pid lane=$lane user=$u"
   if [ -n "$cwd" ] && in_live_wt "${cwd% (deleted)}"; then
     say "KEEP cwd-in-live-lane $what cwd=$cwd args=$args"; return 0
   fi
@@ -248,7 +285,7 @@ scan_one() {
 }
 
 rc=0
-if [ "${#L_ID[@]}" -gt 0 ]; then
+if [ "${#L_ID[@]}" -gt 0 ] || [ "$ALL" = 1 ] || [ "$proven_nowt" = 1 ]; then
   for d in /proc/[0-9]*; do scan_one "${d#/proc/}"; done
 fi
 [ "$ALL" = 1 ] && say "OK ${#L_ID[@]} retired lane(s) in scope; ${skipped} skipped (no worktree, or one not named for the id)"

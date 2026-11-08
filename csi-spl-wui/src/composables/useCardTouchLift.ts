@@ -56,7 +56,7 @@ function useEdgeScroll(move: Move) {
 }
 
 /** `stopOthers` cancels the card's long press and swipe when the card lifts. */
-export function useCardTouchLift(rowEl: Ref<HTMLElement | null>, editing: Ref<boolean>, mv: ReturnType<typeof useCardMove>, stopOthers: () => void, pickerOpen: Ref<boolean>, menu: CardMenu) {
+export function useCardTouchLift({ rowEl, editing, pickerOpen }: { rowEl: Ref<HTMLElement | null>; editing: Ref<boolean>; pickerOpen: Ref<boolean> }, mv: ReturnType<typeof useCardMove>, stopOthers: () => void, menu: CardMenu) {
   const { move, canMoveTopic } = mv.flags
   const { close: closeMenu, openAt: openMenuAt } = menu
   const stack = useMobileStack()

@@ -47,7 +47,7 @@ import { importTs } from '../unit/lib/load-ts.mjs'
 import { EVENT_COLUMNS } from '../../src/utils/event-sheet.mjs'
 /* spec 162 B7: each row also carries its select box, the first cell */
 const EVENT_CELLS = EVENT_COLUMNS.length + 1
-const { wireRailOrder, settingsSectionListed } = await importTs('src/utils/rail-order.ts')
+const { wireRailOrder, parseRailOrder, settingsSectionListed } = await importTs('src/utils/rail-order.ts')
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const WIDTHS = [
@@ -365,8 +365,10 @@ async function checkRailTouch(browser, base, vp) {
     const moved = before[0]
     ok(`${tag} a finger drag moves the first row to the third place`, after.indexOf(moved) === 2 && after.length === before.length, { before, after })
     const put = puts.slice(n0)
-    /* the hub still stores the retired Topics id (rail-order.ts RAIL_RETIRED): the PUT is the drawn order plus it */
-    ok(`${tag} the new order is PUT once`, put.length === 1 && JSON.stringify(put[0]?.rail_order) === JSON.stringify(wireRailOrder(after)), { put })
+    /* the hub still stores the retired Topics id (rail-order.ts RAIL_RETIRED), and a
+       tab hidden here (Expenses for a non-operator, SPL-4382) keeps its stored place:
+       the PUT is the drawn order put back whole (useRailOrder save) plus them */
+    ok(`${tag} the new order is PUT once`, put.length === 1 && JSON.stringify(put[0]?.rail_order) === JSON.stringify(wireRailOrder(parseRailOrder(after))), { put })
     const x = await noXScroll(p)
     ok(`${tag} no horizontal page scroll`, x.ok, x)
   } catch (e) {

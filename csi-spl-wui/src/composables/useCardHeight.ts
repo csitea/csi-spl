@@ -115,11 +115,14 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, clipEl: R
      a refetch) closed a card the reader had just opened. */
   watch([() => props.clipMode, () => String(props.msg?.msg_id || '')], () => { userPx.value = null })
 
-  return { clipOn, userPx, clipped, clipStyle, ...useCardGrip(clipEl, clipPx, clipped, userPx, m, measure) }
+  return { clipOn, userPx, clipped, clipStyle, ...useCardGrip({ clipEl, clipPx, clipped, userPx }, m, measure) }
 }
 
+/** The card's box and its heights, as useCardHeight holds them. */
+interface GripBox { clipEl: Ref<HTMLElement | null>, clipPx: Ref<number | null>, clipped: Ref<boolean>, userPx: Ref<number | null> }
+
 /** The grip under a clipped card: drag it, click it, or step it by keys. */
-function useCardGrip(clipEl: Ref<HTMLElement | null>, clipPx: Ref<number | null>, clipped: Ref<boolean>, userPx: Ref<number | null>, m: Measured, measure: () => void) {
+function useCardGrip({ clipEl, clipPx, clipped, userPx }: GripBox, m: Measured, measure: () => void) {
   const { lineHeightPx, contentPx } = m
   let gripDragged = false
   function startGrip(ev: PointerEvent) {

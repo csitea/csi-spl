@@ -19,6 +19,8 @@
 #   E. li_brief_epic_spec (the enqueue's check): no issue without an epic
 #      and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6): a brief that
 #      files an issue names a spec folder on origin/master and its epic.
+#   R. a review lane on the author's open issue exits on its ACCEPTED, the
+#      issue untouched (SPL-5096); each of the three marks missing: refused.
 #   W. a workspace lane (workspace-repo.inc.sh; owner HUM-10 msgs ca8a036d,
 #      dbead7a1): the brief's `Workspace: <tenant>` line passes the brief
 #      check with no csi-spl spec; the exit gate reads the workspace repo's
@@ -437,4 +439,52 @@ accepted c-082; echo ZED-1 >"$SPOOL_ROOT/c-082/lifetime/issue"; printf 'zed\tdev
 wsgate "$T_SCRIPTS" c-082 "done"
 eq "W5 a workspace with no map row on this box: refused" 3 "$RC"
 has "W5 ... naming the map" "lives in workspace zed, which has no valid row in $SPOOL_ROOT/workspace-repos.tsv" "$(cat "$T_TMP/e")"
+# SPL-5096: a review lane placed on the author's open issue. The hub stub logs
+# any read; the exit must not make one, nor write an end record.
+rv() {  # ID KEY ORIGIN HEADING AUTHOR-LINE: a lane with that record
+  accepted "$1"; echo "$2" >"$SPOOL_ROOT/$1/lifetime/issue"
+  [ -z "$3" ] || echo "$3" >"$SPOOL_ROOT/$1/lifetime/origin-issue"
+  printf '# %s\n\nSpawner: c-928\nIssue: %s\n%s\n' "$4" "$2" "$5" >"$SPOOL_ROOT/$1/lifetime/brief.md"
+}
+RV_LOG="$T_TMP/rv-hub.log"; : >"$RV_LOG"
+RV_STUB="$T_TMP/rv-hub.sh"; printf '#!/bin/sh\necho "$@" >>"%s"\nprintf "issue-status\\t%%s\\twip\\n" "$1"\n' "$RV_LOG" >"$RV_STUB"; chmod +x "$RV_STUB"
+export LI_HUB_STATUS_CMD="$RV_STUB"
+RV_H='SPL-90 language review of the new texts'
+rv c-090 SPL-90 SPL-90 "$RV_H" 'Author: c-172@sat (claude)'
+gate "$T_SCRIPTS" c-090
+eq "R1 a review lane on the author's open issue: exits" 0 "$RC"
+has "R1 ... the line names the author and that it only reviews" "issue gate: SPL-90 is c-172's, this lane only reviews it" "$(cat "$T_TMP/e")"
+eq "R1 ... the issue is untouched: no hub call" 0 "$(wc -l <"$RV_LOG")"
+check "R1 ... and no end record" test ! -e "$SPOOL_ROOT/c-090/lifetime/issue-end"
+CTL_RV="$T_TMP/ctl-rv/spawn-agents"; mkdir -p "$CTL_RV"; cp -r "$T_FEAT/scripts" "$T_FEAT/lib" "$CTL_RV/"
+sed -i 's/^  if v="\$(li_review_lane "\$root" "\$id" "\$key")"; then$/  if false; then/' "$CTL_RV/lib/lane-issue.inc.sh"
+check "control: the copy has no review step" sh -c "! grep -q 'if v=\"\$(li_review_lane' '$CTL_RV/lib/lane-issue.inc.sh'"
+gate "$CTL_RV/scripts" c-090
+eq "R1 control (no review step): the same lane is refused" 3 "$RC"
+has "R1 control ... as wip" "issue SPL-90 is still wip" "$(cat "$T_TMP/e")"
+rv c-091 SPL-91 SPL-91 'SPL-91 fix the widget' ''
+gate "$T_SCRIPTS" c-091
+eq "R2 a normal lane on its own open issue: refused" 3 "$RC"
+has "R2 ... by the issue gate" "issue SPL-91 is still wip" "$(cat "$T_TMP/e")"
+rv c-092 SPL-92 '' "$RV_H" 'Author: c-172@sat'
+gate "$T_SCRIPTS" c-092
+eq "R3 heading + Author: but the lane filed the issue (no origin): refused" 3 "$RC"
+has "R3 ... by the issue gate" "issue SPL-92 is still wip" "$(cat "$T_TMP/e")"
+rv c-093 SPL-93 SPL-93 'SPL-93 apply the R7 FAIL findings' ''
+gate "$T_SCRIPTS" c-093
+eq "R4 placed key + R7 heading, no Author: (a fix lane): refused" 3 "$RC"
+has "R4 ... by the issue gate" "issue SPL-93 is still wip" "$(cat "$T_TMP/e")"
+rv c-094 SPL-94 SPL-94 'SPL-94 widget work' 'Author: c-172@sat'
+gate "$T_SCRIPTS" c-094
+eq "R5 placed key + Author:, heading is no review: refused" 3 "$RC"
+has "R5 ... by the issue gate" "issue SPL-94 is still wip" "$(cat "$T_TMP/e")"
+rv c-095 SPL-95 SPL-95 "$RV_H" 'Author: c-095@sat'
+gate "$T_SCRIPTS" c-095
+eq "R6 the Author: is the lane itself: refused" 3 "$RC"
+has "R6 ... by the issue gate" "issue SPL-95 is still wip" "$(cat "$T_TMP/e")"
+rv c-096 SPL-96 SPL-7 "$RV_H" 'Author: c-172@sat'
+gate "$T_SCRIPTS" c-096
+eq "R7 the origin is another key: refused" 3 "$RC"
+has "R7 ... by the issue gate" "issue SPL-96 is still wip" "$(cat "$T_TMP/e")"
+unset LI_HUB_STATUS_CMD
 t_done

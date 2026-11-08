@@ -13,7 +13,8 @@ import { accessDateOf, accessUntilOfDate } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember } from '~/utils/tenant-users.mjs'
 
 interface EditForm {
-  memberRole: Ref<string>
+  memberRoles: Ref<string[]>
+  memberPrimary: Ref<string>
   profileName: Ref<string>
   profileLocale: Ref<string>
   accessDay: Ref<string>
@@ -42,9 +43,9 @@ function memberSaves(o: EditOpts, t: Translate) {
     const m = member.value
     if (!m) return
     void run(async () => {
-      await api.setTenantUserRole(m.humanId, form.memberRole.value, m.role)
+      await api.setTenantUserRoles(m.humanId, form.memberRoles.value, form.memberPrimary.value, m.roles)
       changed(m.key)
-      notice.value = t('users.role_saved')
+      notice.value = t('users.roles_saved')
     })
   }
 

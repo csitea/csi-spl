@@ -79,20 +79,19 @@
           {{ member.you ? t('users.not_manageable_self') : t('users.not_manageable_role') }}
         </p>
         <form class="users-form" @submit.prevent="saveRole">
-          <label class="users-field">
-            <span>{{ t('users.role') }}</span>
-            <select v-model="memberRole" :disabled="!member.manageable || busy" data-test="users-pane-role">
-              <option v-if="!roleKnown(member.role)" :value="member.role">{{ roleName(member.role) }}</option>
-              <option v-for="r in roles" :key="r.id" :value="r.id" :disabled="!r.grantable">{{ roleName(r.id) }}</option>
-            </select>
-          </label>
+          <UserRolesField
+            v-model:roles="memberRoles"
+            v-model:primary="memberPrimary"
+            :options="roleChoices"
+            :disabled="!member.manageable || busy"
+          />
           <button
             type="submit"
             class="btn"
-            :disabled="!member.manageable || busy || memberRole === member.role"
+            :disabled="!member.manageable || busy || !rolesDirty(member, { roles: memberRoles, primary: memberPrimary })"
             data-test="users-pane-save-role"
           >
-            {{ t('users.save_role') }}
+            {{ t('users.save_roles') }}
           </button>
         </form>
         <!-- specs/046: the profile of an account that is in this tenant alone
@@ -293,6 +292,8 @@ import UiDialog from '~/components/UiDialog.vue'
 /* t1 f265541a: its own chunk, fetched when a member's pane opens */
 const SignInEmailsPanel = defineAsyncComponent(() => import('~/components/SignInEmailsPanel.vue'))
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
+import UserRolesField from '~/components/UserRolesField.vue'
+import { roleOptions, rolesDirty } from '~/utils/member-roles.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAccessStore } from '~/stores/access'
@@ -340,7 +341,9 @@ const title = computed(() => {
 
 const email = ref('')
 const inviteRole = ref('developer')
-const memberRole = ref('')
+const memberRoles = ref<string[]>([])
+const memberPrimary = ref('')
+const roleChoices = computed(() => roleOptions(props.roles, member.value?.roles || []))
 const profileName = ref('')
 const profileLocale = ref('')
 const accessDay = ref('')
@@ -367,17 +370,15 @@ let carry = ''
 // 'copied' before initialization" on setup, so the member-edit pane never
 // opened (pre-054; the e2e that catches it, users-admin, only runs in the
 // often-cancelled quality gate).
-watch(() => [props.row?.key, props.creating], () => {
+// SPL-5056: two sources, not one getter answering a new array: that fired on
+// every reload of the same row and wiped the line saying what just happened.
+watch([() => props.row?.key, () => props.creating], () => {
   error.value = ''
   notice.value = carry
   carry = ''
   confirmOpen.value = false
   resetOpen.value = false
   copied.value = false
-  memberRole.value = member.value?.role || ''
-  profileName.value = member.value?.displayName || ''
-  profileLocale.value = ''
-  accessDay.value = accessDateOf(member.value?.accessUntil || '')
   if (props.creating) {
     email.value = ''
     const ids = grantable.value.map((r) => r.id)
@@ -386,10 +387,19 @@ watch(() => [props.row?.key, props.creating], () => {
   }
 }, { immediate: true })
 
+// The form follows the row, also on a reload that keeps its key (a save, a stale 409).
+watch(() => props.row, () => {
+  memberRoles.value = [...(member.value?.roles || [])]
+  memberPrimary.value = member.value?.role || ''
+  profileName.value = member.value?.displayName || ''
+  profileLocale.value = ''
+  accessDay.value = accessDateOf(member.value?.accessUntil || '')
+}, { immediate: true })
+
 // Below the reset watch: its immediate run sets the refs these actions read.
 const { saveRole, actAs, saveProfile, toggleSuspend, saveAccess, clearAccess, destroy } = useUserEditActions({
   api, auth, member, invite, run, notice,
-  form: { memberRole, profileName, profileLocale, accessDay, confirmOpen },
+  form: { memberRoles, memberPrimary, profileName, profileLocale, accessDay, confirmOpen },
   changed: (key) => emit('changed', key),
 })
 
@@ -403,9 +413,6 @@ async function copyLink(i: UserInvite | null) {
   copied.value = await writeClipboard(link)
 }
 
-function roleKnown(id: string) {
-  return props.roles.some((r) => r.id === id)
-}
 function when(iso: string) {
   return isoDateTime(iso) || '—'
 }

@@ -328,7 +328,8 @@ store shapes; SPL-2203); **R2 built** (the hub checks of §10.4 A5-A18 and
 A20 read the set; the members API reads and writes it, `PUT
 /v1/members/{human_id}/roles`; SPL-2293), except an invite's `roles[]` on
 `POST /v1/members/invites`, which needs the store to keep invite sets (it
-keeps one role per invite, so `invites[].roles` is `{role}`); R3-R7 planned,
+keeps one role per invite, so `invites[].roles` is `{role}`); the Edit user
+half of R5's picker built (item 7 below, SPL-5056); R3-R7 otherwise planned,
 not built yet. Tables, migrations and shapes:
 [`data-model.md`](data-model.md). The operator-workspace side:
 [074 §12](../074-operator-workspace/spec.md#12-devops-and-operator-who-holds-the-operator-routes-spl-2192).
@@ -391,6 +392,13 @@ Measured by c-001 on prd, n=1, and re-read in the code here:
    a multi-select (checkboxes) with a "primary" pick; a role the actor may not
    grant is shown disabled, as today (`grantable`). The user menu shows every
    role, the primary first.
+   **Built (SPL-5056), Edit user only:** `UserRolesField.vue` sets 1..* roles
+   through `PUT .../roles` with `from_roles`; a role the actor may not grant is
+   not offered unless the member holds it, then it shows ticked and locked. The
+   members list shows every role; the People card too, for a reader with
+   `members.invite` (only `GET /v1/members` carries the set). The invite form
+   keeps one role until the store keeps invite sets. Client against the hub's
+   real answers: `member_roles_answers.golden.json`.
 8. Operator tooling: `do_spl_tenant_member_role MEMBER_ROLES=a,b[,c]`
    (`MEMBER_ROLE=` stays, one role), `do_spl_hub_invite INVITE_ROLES=`,
    `spool hub-invite --role a,b`. `SPL_ROLE_IDS`

@@ -400,15 +400,15 @@ async function inviteTenantUser(ctx, { email, role, locale, noMail } = {}) {
   })
 }
 
-/** PUT /v1/members/{id}/role; `fromRole` makes a stale page answer 409 role_changed. */
-async function setTenantUserRole(ctx, humanId, role, fromRole = '') {
+/** PUT /v1/members/{id}/roles: the whole set; `fromRoles` makes a stale page answer 409 role_changed. */
+async function setTenantUserRoles(ctx, humanId, roles, primary, fromRoles) {
   const { live, mock, dir } = ctx
   const id = String(humanId || '')
-  if (mock) return (await dir()).setRole(id, String(role || ''))
-  return live(`/v1/members/${encodeURIComponent(id)}/role`, {
+  if (mock) return (await dir()).setRoles(id, roles, primary, fromRoles)
+  return live(`/v1/members/${encodeURIComponent(id)}/roles`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ role: String(role || ''), ...(fromRole ? { from_role: String(fromRole) } : {}) }),
+    body: JSON.stringify({ roles, primary, from_roles: fromRoles }),
   })
 }
 
@@ -2238,7 +2238,7 @@ export const lazySpoolMethods = {
   removeMember,
   listTenantUsers,
   inviteTenantUser,
-  setTenantUserRole,
+  setTenantUserRoles,
   removeTenantUser,
   resetTenantUserPassword,
   auditClones,

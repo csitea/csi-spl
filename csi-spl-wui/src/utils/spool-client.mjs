@@ -28,7 +28,7 @@ const LAZY_METHODS = [
   'removeMember',
   'listTenantUsers',
   'inviteTenantUser',
-  'setTenantUserRole',
+  'setTenantUserRoles',
   'removeTenantUser',
   'resetTenantUserPassword',
   'auditClones',

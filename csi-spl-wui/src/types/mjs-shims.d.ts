@@ -88,7 +88,7 @@ declare module '~/utils/spool-client.mjs' {
     removeMember(humanId: string): Promise<null>
     listTenantUsers(): Promise<unknown>
     inviteTenantUser(opts: { email: string, role?: string, locale?: string, noMail?: boolean }): Promise<{ email?: string, role?: string, mail?: string } | null>
-    setTenantUserRole(humanId: string, role: string, fromRole?: string): Promise<unknown>
+    setTenantUserRoles(humanId: string, roles: string[], primary: string, fromRoles: string[]): Promise<{ human_id: string, role: string, roles: string[] }>
     removeTenantUser(humanId: string): Promise<null>
     resetTenantUserPassword(humanId: string, opts?: { signOut?: boolean, locale?: string }): Promise<{ human_id: string, email: string, signed_out: boolean }>
     auditClones(): Promise<Array<{ clone_hum?: string, target_hum?: string, created_by?: string, role?: string, created_at?: string, expires_at?: string, ended_at?: string | null, end_reason?: string }>>
@@ -1461,7 +1461,7 @@ declare module '~/utils/access.mjs' {
 }
 
 declare module '~/utils/tenant-users.mjs' {
-  export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, since: string, disabled: boolean, suspended: boolean, lastSeen: string, accessUntil: string, accessEnded: boolean, you: boolean, manageable: boolean, orderedBy: string, orderedByName: string, orderedVia: string, invitedOn: string, signIn: string[] | null }
+  export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, roles: string[], since: string, disabled: boolean, suspended: boolean, lastSeen: string, accessUntil: string, accessEnded: boolean, you: boolean, manageable: boolean, orderedBy: string, orderedByName: string, orderedVia: string, invitedOn: string, signIn: string[] | null }
   export type UserInvite = { kind: 'invite', key: string, email: string, role: string, invitedBy: string, createdAt: string, expiresAt: string, expired: boolean, mailCount: number, mailedAt: string, orderedBy: string, orderedByName: string, orderedVia: string, tenant: string }
   export type UserRow = UserMember | UserInvite
   export const USERS_PERMISSION: string

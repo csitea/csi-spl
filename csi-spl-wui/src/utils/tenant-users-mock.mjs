@@ -42,7 +42,7 @@ function mockMembers() {
     { human_id: 'HUM-1', display_name: 'Admin (you)', email: 'admin@example.com', role: 'admin', since: t0, sign_in: ['password'] },
     { human_id: 'HUM-2', display_name: 'Owner', email: 'owner@example.com', role: 'biz_owner', since: t0, sign_in: ['google'] },
     { human_id: 'HUM-3', display_name: 'Dev One', email: 'dev1@example.com', role: 'developer', since: '2026-09-21T10:00:00Z', sign_in: ['password'] },
-    { human_id: 'HUM-12', display_name: 'Tess Tester', email: 'tester@example.com', role: 'tester', since: '2026-09-22T11:00:00Z', sign_in: ['google'] },
+    { human_id: 'HUM-12', display_name: 'Tess Tester', email: 'tester@example.com', role: 'tester', roles: ['tester', 'regular_user'], since: '2026-09-22T11:00:00Z', sign_in: ['google'] },
   ]
 }
 
@@ -67,6 +67,41 @@ function mockPasswordReset(find, you, now) {
 }
 
 /**
+ * What another admin did meanwhile, for the e2e's controls: a one-shot
+ * localStorage row { human, roles } changes that member before the call,
+ * { refuse: token } makes the hub refuse it with 409.
+ */
+function takeMockNext() {
+  try {
+    const raw = globalThis.localStorage?.getItem('spool.mock.members.next')
+    if (!raw) return null
+    globalThis.localStorage.removeItem('spool.mock.members.next')
+    return JSON.parse(raw)
+  } catch { return null }
+}
+
+/** PUT /v1/members/{id}/roles over the mock members, in the order the hub checks. */
+function mockSetRoles({ find, holds, setOf, admins }) {
+  return (id, roles, primary, from) => {
+    const next = takeMockNext()
+    if (next?.refuse) throw mockErr(409, next.refuse)
+    if (next?.human) Object.assign(find(next.human), { role: next.roles[0], roles: next.roles })
+    if (!roles.length || roles.some((r) => !MOCK_ROLES.includes(r))) throw mockErr(400, 'bad_role')
+    if (roles.includes('biz_owner')) throw mockErr(403, 'forbidden')
+    if (primary && !roles.includes(primary)) throw mockErr(400, 'bad_role')
+    const m = find(id)
+    if (!m) throw mockErr(404, 'not_found')
+    if (holds(m, 'biz_owner')) throw mockErr(403, 'forbidden')
+    const held = setOf(m)
+    if (from && (from.length !== held.length || from.some((r) => !held.includes(r)))) throw mockErr(409, 'role_changed')
+    if (holds(m, 'admin') && !roles.includes('admin') && admins(id) === 0) throw mockErr(409, 'last_admin')
+    m.role = primary || (roles.includes(m.role) ? m.role : roles[0])
+    m.roles = [m.role, ...roles.filter((r) => r !== m.role)]
+    return { tenant_id: 'mock', human_id: id, role: m.role, roles: m.roles }
+  }
+}
+
+/**
  * The hub's rules in memory: the viewer (HUM-1) is an admin; a biz_owner is
  * beyond the admin's reach; nobody removes themselves; the last admin stays.
  * `now` is the one clock: it drives an invite's `mailed_at` and `expired`, the
@@ -76,14 +111,16 @@ export function createMockDirectory(now = () => new Date()) {
   const members = mockMembers()
   let invites = [{ email: 'pending@example.com', role: 'developer', invited_by: 'HUM-1', created_at: '2026-09-24T08:00:00Z', expires_at: '2026-10-01T08:00:00Z' }]
   const you = 'HUM-1'
-  const admins = (except) => members.filter((m) => m.human_id !== except && m.role === 'admin').length
+  const setOf = (m) => m.roles || [m.role]
+  const holds = (m, role) => setOf(m).includes(role)
+  const admins = (except) => members.filter((m) => m.human_id !== except && holds(m, 'admin')).length
   const find = (id) => members.find((m) => m.human_id === id)
   return {
     list() {
       return {
         tenant_id: 'mock',
         you,
-        members: members.map((m) => ({ ...m, you: m.human_id === you, manageable: m.human_id !== you && m.role !== 'biz_owner' })),
+        members: members.map((m) => ({ ...m, roles: setOf(m), you: m.human_id === you, manageable: m.human_id !== you && !holds(m, 'biz_owner') })),
         invites: invites.map((i) => ({ ...i, expired: new Date(i.expires_at) <= now() })),
         roles: MOCK_ROLES.map((id) => ({ id, grantable: id !== 'biz_owner' })),
       }
@@ -100,15 +137,7 @@ export function createMockDirectory(now = () => new Date()) {
       invites.push({ email: e, role: r, invited_by: you, created_at: at.toISOString(), expires_at: new Date(at.getTime() + 7 * 864e5).toISOString(), mail_count: mailCount, mailed_at: mailedAt })
       return { email: e, role: r, mail }
     },
-    setRole(id, role) {
-      const m = find(id)
-      if (!m) throw mockErr(404, 'not_found')
-      if (!MOCK_ROLES.includes(role)) throw mockErr(400, 'bad_role')
-      if (m.role === 'biz_owner' || role === 'biz_owner') throw mockErr(403, 'forbidden')
-      if (m.role === 'admin' && role !== 'admin' && admins(id) === 0) throw mockErr(409, 'last_admin')
-      m.role = role
-      return { human_id: id, role }
-    },
+    setRoles: mockSetRoles({ find, holds, setOf, admins }),
     patch(id, p = {}) {
       const m = find(id)
       if (!m) throw mockErr(404, 'not_found')

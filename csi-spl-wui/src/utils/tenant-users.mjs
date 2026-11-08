@@ -1,6 +1,6 @@
 /**
  * The admin's Users page (specs/025 FR-012): GET /v1/members,
- * POST /v1/members/invites, PUT /v1/members/{id}/role, DELETE
+ * POST /v1/members/invites, PUT /v1/members/{id}/roles, DELETE
  * /v1/members/{id}, DELETE /v1/members/invites?email=.
  *
  * Unlike access.mjs this gate does NOT fail open: the entry shows only when
@@ -31,6 +31,12 @@ export function usersEntryVisible(me, { mock = false } = {}) {
 
 const str = (v) => (typeof v === 'string' ? v : '')
 
+/** SPL-5056: a row's whole role set, the primary first; an old hub sends `role` alone. */
+function roleSetOf(m) {
+  const set = (Array.isArray(m.roles) ? m.roles : []).filter((r) => str(r))
+  return [...new Set([str(m.role), ...set].filter(Boolean))]
+}
+
 /** A GET /v1/members body → { you, members[], invites[], roles[] } with safe types. */
 export function normalizeDirectory(body) {
   const b = body && typeof body === 'object' ? body : {}
@@ -41,6 +47,7 @@ export function normalizeDirectory(body) {
     displayName: str(m.display_name),
     email: str(m.email),
     role: str(m.role),
+    roles: roleSetOf(m),
     since: str(m.since),
     disabled: m.disabled === true,
     suspended: m.suspended === true,

@@ -1,0 +1,89 @@
+{
+  "empty_set": {
+    "status": 400,
+    "body": {
+      "detail": "roles must name 1..32 roles",
+      "error": "bad_role"
+    }
+  },
+  "last_owner": {
+    "status": 409,
+    "body": {
+      "detail": "the tenant's last owner cannot be removed or demoted",
+      "error": "last_owner"
+    }
+  },
+  "list_roles": {
+    "status": 200,
+    "body": [
+      {
+        "grantable": false,
+        "id": "biz_owner"
+      },
+      {
+        "grantable": true,
+        "id": "developer"
+      }
+    ]
+  },
+  "list_row": {
+    "status": 200,
+    "body": {
+      "access_ended": false,
+      "access_until": null,
+      "disabled": false,
+      "display_name": "<display_name>",
+      "email": "member@example.com",
+      "human_id": "<human_id>",
+      "invited_on": "<time>",
+      "last_seen": null,
+      "manageable": true,
+      "ordered_by": "",
+      "ordered_by_name": "",
+      "ordered_via": "",
+      "role": "tester",
+      "roles": [
+        "tester",
+        "developer"
+      ],
+      "sign_in": [
+        "google"
+      ],
+      "since": "<time>",
+      "suspended": false,
+      "you": false
+    }
+  },
+  "not_grantable": {
+    "status": 403,
+    "body": {
+      "detail": "your role cannot grant biz_owner (it grants permissions yours lacks)",
+      "error": "forbidden"
+    }
+  },
+  "role_not_in_tenant": {
+    "status": 400,
+    "body": {
+      "detail": "role demo_user is not a role of this tenant",
+      "error": "bad_role"
+    }
+  },
+  "set": {
+    "status": 200,
+    "body": {
+      "human_id": "<human_id>",
+      "role": "tester",
+      "roles": [
+        "tester",
+        "developer"
+      ]
+    }
+  },
+  "stale_from_roles": {
+    "status": 409,
+    "body": {
+      "detail": "the member's role changed; reload and retry",
+      "error": "role_changed"
+    }
+  }
+}

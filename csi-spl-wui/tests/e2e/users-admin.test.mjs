@@ -73,6 +73,8 @@ const statusOf = (p, key) => p.$eval(`${row(key)} [data-test=users-invite-status
   }
 }).catch(() => null)
 
+const checkRole = (p, id) => p.click(`[data-test=users-pane-role-${id}]`)
+
 async function confirm(p, yes) {
   await p.waitForSelector('[data-test=users-confirm-ok]', { visible: true, timeout: 5000 })
   await p.click(yes ? '[data-test=users-confirm-ok]' : '[data-test=users-confirm-cancel]')
@@ -158,10 +160,65 @@ try {
     adminEmails.pending === 1 && adminEmails.confirm === 0 && /works once the member signs in with it/.test(adminEmails.notice), adminEmails)
 
   // 3. change role
-  await p.select('[data-test=users-pane-role]', 'tester')
+  await checkRole(p, 'tester')
+  await p.click('[data-test=users-pane-primary-tester]')
   await p.click('[data-test=users-pane-save-role]')
   await sleep(500)
-  ok('7 change role lands in the list', /tester/i.test(await rowRole(p, 'm:HUM-3')), await rowRole(p, 'm:HUM-3'))
+  const both = await rowRole(p, 'm:HUM-3')
+  ok('7 two roles land in the list, the primary first (SPL-5056)', /^Tester, Developer$/.test(both) && /Roles changed/.test(await text(p, '[data-test=users-pane-notice]')), { both, notice: await text(p, '[data-test=users-pane-notice]') })
+  // CONTROLS: what is not grantable is not offered; a set is never empty
+  ok('7a CONTROL a role the admin cannot grant is not offered', !(await p.$('[data-test=users-pane-role-biz_owner]')) && Boolean(await p.$('[data-test=users-pane-role-product_owner]')))
+  await checkRole(p, 'developer')
+  await checkRole(p, 'tester')
+  const empty = await p.$eval('[data-test=users-pane-save-role]', (b) => b.disabled)
+  ok('7a CONTROL no role picked: Save is off, in words', empty && /at least one/.test(await text(p, '[data-test=users-pane-roles-empty]')), { empty })
+  await checkRole(p, 'tester')
+  // CONTROL: another admin changed the member meanwhile: 409 role_changed, in words, the list reloads
+  await p.evaluate(() => localStorage.setItem('spool.mock.members.next', JSON.stringify({ human: 'HUM-3', roles: ['regular_user'] })))
+  await p.click('[data-test=users-pane-save-role]')
+  await sleep(500)
+  const stale = await text(p, '[data-test=users-pane-error]')
+  ok('7a CONTROL a stale from_roles is refused, said in words, the row reloads', /changed this user meanwhile/.test(stale) && /Regular user/.test(await rowRole(p, 'm:HUM-3')), { stale, row: await rowRole(p, 'm:HUM-3') })
+  // CONTROL: the hub's last-owner refusal, in words
+  await checkRole(p, 'tester')
+  await p.evaluate(() => localStorage.setItem('spool.mock.members.next', JSON.stringify({ refuse: 'last_owner' })))
+  await p.click('[data-test=users-pane-save-role]')
+  await sleep(500)
+  const lastOwner = await text(p, '[data-test=users-pane-error]')
+  ok('7a CONTROL the last-owner refusal is said in words', /last business owner/.test(lastOwner), { lastOwner })
+  // a held role the admin cannot grant: shown ticked and locked, on a member it cannot manage
+  await p.click(row('m:HUM-2'))
+  await sleep(300)
+  const held = await p.$eval('[data-test=users-pane-role-biz_owner]', (e) => ({ checked: e.checked, disabled: e.disabled })).catch(() => null)
+  ok('7a a held role the actor cannot grant shows locked', Boolean(held && held.checked && held.disabled) && Boolean(await p.$('[data-test=users-pane-role-locked-biz_owner]')), held)
+  // the phone: no sideways scroll with several roles, in the list and the pane
+  await p.click(row('m:HUM-3'))
+  await sleep(300)
+  await checkRole(p, 'developer')
+  await p.click('[data-test=users-pane-save-role]')
+  await sleep(500)
+  await p.setViewport({ width: 390, height: 844 })
+  await sleep(400)
+  const phonePane = await p.evaluate(() => ({ docFits: document.documentElement.scrollWidth <= window.innerWidth + 1, field: document.querySelector('[data-test=users-pane-roles]')?.getBoundingClientRect().right <= window.innerWidth + 1 }))
+  ok('7a 390 px: the role picker fits, no sideways scroll', phonePane.docFits && phonePane.field, phonePane)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/users-roles-pane-390.png` })
+  await p.setViewport({ width: 1400, height: 900 })
+  await sleep(400)
+  await p.click('[data-test=users-pane-close]').catch(() => null)
+  await sleep(300)
+  await p.setViewport({ width: 390, height: 844 })
+  await sleep(400)
+  const phoneRow = await p.$eval(`${row('m:HUM-3')} [data-test=users-row-role]`, (e) => {
+    const rowEl = e.closest('[data-test=users-row]')
+    return { text: e.textContent.trim(), visible: e.getBoundingClientRect().width > 0, inRow: e.getBoundingClientRect().right <= rowEl.getBoundingClientRect().right + 0.5, noScroll: rowEl.scrollWidth <= rowEl.clientWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1 }
+  }).catch(() => null)
+  ok('7a 390 px: a several-roles row stays inside the list row', Boolean(phoneRow && phoneRow.visible && phoneRow.inRow && phoneRow.noScroll && phoneRow.text.includes(',')), phoneRow)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/users-roles-list-390.png` })
+  await p.setViewport({ width: 1400, height: 900 })
+  await sleep(400)
+  await p.click(row('m:HUM-3'))
+  await p.waitForSelector('[data-test=users-pane]', { visible: true, timeout: 5000 })
+  await sleep(300)
 
   // 3b. t1 ea0af569: Reset password. A password member: the confirmation
   // names the member and the address, "sign them out everywhere" is on by
@@ -280,6 +337,12 @@ try {
   await p.click('[data-test=users-pane-revoke]')
   await confirm(p, true)
   ok('11 revoke (after the confirmation) takes the invite out', !(await rowKeys(p)).includes('i:e2e-invitee@example.com'))
+  // SPL-5056: the People card names the whole set for a reader who may list members
+  await p.goto(server.base + '/people/HUM-12', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=person-role]', { visible: true, timeout: 10000 }).catch(() => null)
+  await sleep(500)
+  const personRole = await text(p, '[data-test=person-role]')
+  ok('11b the People card shows every role, the primary first', personRole === 'Tester, Regular user', { personRole })
   ok('12 no page errors', errors.length === 0, errors)
 } finally {
   await browser.close()

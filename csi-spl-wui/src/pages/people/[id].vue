@@ -27,7 +27,7 @@
         </div>
         <dl class="person-card__facts">
           <dt>{{ t('people.role') }}</dt>
-          <dd data-test="person-role">{{ isOwner ? t('people.owner') : t('people.member') }}</dd>
+          <dd data-test="person-role">{{ roleSet.length ? roleSet.map(roleName).join(', ') : (isOwner ? t('people.owner') : t('people.member')) }}</dd>
           <dt>{{ t('people.last_seen') }}</dt>
           <dd data-test="person-last-seen">{{ lastSeen }}</dd>
           <dt>{{ t('settings.member_id') }}</dt>
@@ -89,7 +89,8 @@ import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { canRemoveMember } from '~/utils/access.mjs'
-import { userErrorKey } from '~/utils/tenant-users.mjs'
+import { normalizeDirectory, USERS_PERMISSION, userErrorKey } from '~/utils/tenant-users.mjs'
+import { useRoleName } from '~/composables/useRoleName'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { CHANGE_PASSWORD_PATH, changePasswordOffered } from '~/utils/user-menu'
 import { useSessionStore } from '~/stores/session'
@@ -150,6 +151,17 @@ watch([humanId, () => access.contacts && !access.me?.actAs], async ([member, on]
   if (!on) return
   const list = await contactsList(api, String(session.claims?.hum || '')).catch(() => [])
   if (member === humanId.value) myContactId.value = list.find((c: { member_id?: string | null }) => c.member_id === member)?.contact_id || ''
+}, { immediate: true })
+
+/* SPL-5056: the member's whole role set. Only GET /v1/members carries it
+   (members.invite): another reader keeps Owner / Member, and so does a failed read. */
+const roleName = useRoleName()
+const roleSet = ref<string[]>([])
+watch([humanId, () => access.can(USERS_PERMISSION)], async ([member, may]) => {
+  roleSet.value = []
+  if (!may) return
+  const dir = normalizeDirectory(await api.listTenantUsers().catch(() => null))
+  if (member === humanId.value) roleSet.value = dir.members.find((m: { humanId: string }) => m.humanId === member)?.roles || []
 }, { immediate: true })
 
 function message() {

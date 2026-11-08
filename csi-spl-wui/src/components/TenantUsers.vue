@@ -58,7 +58,7 @@
                     </span>
                     <span v-if="m.email && m.email !== memberLabel(m)" class="users-row__sub muted">{{ m.email }}</span>
                   </span>
-                  <span class="users-role" data-test="users-row-role">{{ roleName(m.role) }}</span>
+                  <span class="users-role" data-test="users-row-role">{{ m.roles.map(roleName).join(', ') }}</span>
                 </button>
               </li>
             </ul>
@@ -285,10 +285,15 @@ watch(() => session.state, (st) => {
 }
 .users-status--sent { color: var(--color-fg); border-color: var(--color-accent); }
 .users-status--expired { color: var(--color-danger); border-color: var(--color-danger); }
+/* SPL-5056: several roles wrap inside their share of the row */
 .users-role {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
   font-size: 0.8125rem;
   color: var(--color-muted);
+  text-align: end;
+  overflow-wrap: anywhere;
 }
 .users-empty { margin: var(--spacing-xs) 20px; }
 .users-load-error { margin: var(--spacing-md) 20px; color: var(--color-danger); }

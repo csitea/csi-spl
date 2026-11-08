@@ -93,6 +93,12 @@ async function openOld(p, base, hash = '') {
 
 const server = await startServer()
 const browser = await launch()
+
+/* still at the old workspace: its origin too, /t/<id> alone is also true on another host */
+const onOldLink = (p) => {
+  const u = new URL(p.url())
+  return u.origin === new URL(server.base).origin && u.pathname.endsWith(`/t/${TASK}`)
+}
 try {
   for (const size of SIZES) {
     const tag = `${size.width}`
@@ -112,7 +118,7 @@ try {
     {
       const { ctx, p, errors, dst } = await fresh(browser, size, null)
       await openOld(p, server.base)
-      ok(`${tag} expired: the page stays on the old /t/<id>`, new URL(p.url()).pathname.endsWith(`/t/${TASK}`), p.url())
+      ok(`${tag} expired: the page stays on the old /t/<id>`, onOldLink(p), p.url())
       ok(`${tag} expired: nothing is asked of another host`, dst.length === 0, dst)
       ok(`${tag} expired: no page error`, pageErrors(errors).length === 0, errors)
       await ctx.close()
@@ -122,7 +128,7 @@ try {
     {
       const { ctx, p, dst } = await fresh(browser, size, { [TASK]: `http://dst.example.com/t/${TASK}` })
       await openOld(p, server.base)
-      ok(`${tag} not https: the page stays on the old /t/<id>`, new URL(p.url()).pathname.endsWith(`/t/${TASK}`), p.url())
+      ok(`${tag} not https: the page stays on the old /t/<id>`, onOldLink(p), p.url())
       ok(`${tag} not https: nothing is asked of another host`, dst.length === 0, dst)
       await ctx.close()
     }
@@ -131,7 +137,7 @@ try {
     {
       const { ctx, p, dst } = await fresh(browser, size, { [TASK]: `https://${OFFSITE}/t/${TASK}` })
       await openOld(p, server.base)
-      ok(`${tag} off-site: the page stays on the old /t/<id>`, new URL(p.url()).pathname.endsWith(`/t/${TASK}`), p.url())
+      ok(`${tag} off-site: the page stays on the old /t/<id>`, onOldLink(p), p.url())
       ok(`${tag} off-site: nothing is asked of another host`, dst.length === 0, dst)
       await ctx.close()
     }
@@ -140,7 +146,7 @@ try {
     {
       const { ctx, p, dst } = await fresh(browser, size, { [TASK]: LINK })
       await openOld(p, server.base, '#moved')
-      ok(`${tag} second hop: the page stays on the old /t/<id>`, new URL(p.url()).pathname.endsWith(`/t/${TASK}`), p.url())
+      ok(`${tag} second hop: the page stays on the old /t/<id>`, onOldLink(p), p.url())
       ok(`${tag} second hop: nothing is asked of another host`, dst.length === 0, dst)
       ok(`${tag} second hop: the hop mark is dropped from the address`, new URL(p.url()).hash === '', p.url())
       await ctx.close()

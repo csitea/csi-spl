@@ -17,7 +17,7 @@ import { isTenantHostOf } from './tenant-host-core.mjs'
 /** The hash a followed link carries: the page it opens follows no further. */
 export const MOVED_HOP = '#moved'
 
-const TOPIC_PATH_RE = /^\/t\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const TOPIC_PATH_RE = /^\/t\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /**
  * Where the reader goes for the hub's `moved_to`, or null: only a topic link
@@ -40,5 +40,6 @@ export function movedTopicTarget(movedTo, origin, siteUrl) {
   const sameOrigin = u.origin === origin
   if (!sameOrigin && !isTenantHostOf(u.href, siteUrl)) return null
   if (u.username || u.password || u.search || u.hash || !TOPIC_PATH_RE.test(u.pathname)) return null
-  return { href: u.href + MOVED_HOP, path: u.pathname, sameOrigin }
+  /* from parts: u.href keeps an empty `#` or `?`, and `...##moved` is not MOVED_HOP */
+  return { href: u.origin + u.pathname + MOVED_HOP, path: u.pathname, sameOrigin }
 }

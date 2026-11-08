@@ -10,6 +10,17 @@ const HERE = 'https://src.example.com'
 const SITE = 'https://example.com'
 
 describe('movedTopicTarget', () => {
+  it('SPL-5077: an empty hash or query on the link does not survive into href, so the hop mark holds', () => {
+    for (const tail of ['#', '?', '?#']) {
+      const href = movedTopicTarget(`https://dst.example.com/t/${ID}${tail}`, HERE, SITE)?.href
+      assert.equal(href, `https://dst.example.com/t/${ID}${MOVED_HOP}`, tail)
+      assert.equal(new URL(href).hash, MOVED_HOP, tail)
+    }
+  })
+  it('SPL-5077: a topic link is lowercase only', () => {
+    assert.equal(movedTopicTarget(`https://dst.example.com/t/${ID.toUpperCase()}`, HERE, SITE), null)
+    assert.equal(movedTopicTarget(`https://dst.example.com/T/${ID}`, HERE, SITE), null)
+  })
   it('follows the hub link to the topic in another workspace', () => {
     assert.deepEqual(movedTopicTarget(`https://dst.example.com/t/${ID}`, HERE, SITE),
       { href: `https://dst.example.com/t/${ID}${MOVED_HOP}`, path: `/t/${ID}`, sameOrigin: false })

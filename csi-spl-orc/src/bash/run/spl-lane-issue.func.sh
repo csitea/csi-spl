@@ -135,6 +135,9 @@ do_spl_lane_issue() {
   # A desk that moved is 0700 under its owner: the seat scan below sees nothing
   # and the hub leg says "no desk for" (spec 069 8.4, R7 W2 of SPL-4985). The
   # taught end line runs as the box user, so the whole action re-runs as the owner.
+  if [[ "$op" == end && -n "$SLI_WS" ]] && li_desk_elsewhere "$ENV" "$TENANT_ID" "$DESK_BOX"; then
+    spl_lane_issue_end_far "$root" "$id" "$dry"; return
+  fi
   local box="${DESK_BOX:-$(spl_desk_box_default)}" hop_to v
   local -a vars=(AGENT_ID BRIEF SPOOL_LANDED_REPOS_FILE SPOOL_WORKSPACE_REPOS_MAP)
   if hop_to="$(spl_desk_action_hop_to "$TENANT_ID" "$box")"; then
@@ -475,6 +478,21 @@ spl_lane_issue_discussion() {
   if (( SLI_DRY )); then do_log "OK DRY_RUN topic $topic -> a new issue (eval); nothing filed. Re-run with DRY_RUN=0."; return 0; fi
   printf '%s\n' "$key"
   do_log "OK topic $topic -> issue $key (eval, $id)" >&2
+}
+
+# spl_lane_issue_end_far ROOT ID DRY: a workspace lane whose desk is on another
+# box ends its issue through that box (SPL-5093, spawn-remote.sh --issue-end),
+# the only one the hub lets act as that desk. The reply's issue-end is written
+# to SLI_LIFE here, where li_gate reads it.
+spl_lane_issue_end_far() {
+  local root="$1" id="$2" dry="$3" key out
+  key="$(spl_lane_issue_key "$SLI_LIFE")" || { do_log "FATAL $id carries no issue key ($SLI_LIFE/issue)"; return 1; }
+  if (( dry )); then do_log "OK DRY_RUN $key -> ${LANE_ISSUE_STATUS:-diss} through box $DESK_BOX; nothing sent. Re-run with DRY_RUN=0."; return 0; fi
+  out="$(SPOOL_ROOT="$root" SPOOL_AGENT_ID='' bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-remote.sh" --issue-end \
+    --box "$DESK_BOX" --id "$id" --key "$key" --tenant "$SLI_WS" --life "$SLI_LIFE" --status "${LANE_ISSUE_STATUS:-diss}" \
+    --reason "${LANE_ISSUE_REASON:-}" --repo "${LANE_LANDED_REPO:-}" --sha "${LANE_LANDED_SHA:-}" --evidence "${LANE_APPLIED_EVIDENCE:-}" 2>&1)" ||
+    { do_log "FATAL $key was not ended through box $DESK_BOX: $(tail -1 <<<"$out")"; return 1; }
+  do_log "OK $key -> ${LANE_ISSUE_STATUS:-diss} through box $DESK_BOX"
 }
 
 spl_lane_issue_end() {

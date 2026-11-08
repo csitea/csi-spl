@@ -198,7 +198,7 @@ spl_icl_ws() {
   (( rc == 0 )) || { (( rc == 1 )) && do_log "FATAL ISSUE_CLOSE_WORKSPACE=$t has no row in the box map $(wr_map)"; return 1; }
   declare -F li_desk_elsewhere >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" || return 1
   if li_desk_elsewhere "${ENV:-$(wr_field "$row" 1)}" "$t" "${DESK_BOX:-$(wr_field "$row" 7)}"; then
-    do_log "WARN workspace $t: its desk is on box ${DESK_BOX:-$(wr_field "$row" 7)}, not here: that box's closer closes its issues, this tick skips it (SPL-5093)"
+    do_log "WARN workspace $t: its desk is on box ${DESK_BOX:-$(wr_field "$row" 7)}, not here: this tick skips it, only a closer on that box can close its issues (SPL-5093)"
     return 3
   fi
   ICL_WS="$t" ICL_WS_ROW="$row" ICL_REPO="$(wr_field "$row" 3)"

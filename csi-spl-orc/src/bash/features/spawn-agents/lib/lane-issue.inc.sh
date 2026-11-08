@@ -312,29 +312,37 @@ li_box_key() {
 # in spl_desk_dir's order (spl_desk_roots: the caller's, the desk user's, the
 # agent user's, the box user's). A root the caller cannot enter (the agent
 # user's 0700 desk dir) is asked through `sudo -n -u <its user> test -d`.
-# rc 1, nothing printed: no root holds it.
+# rc 1, nothing printed: no root holds it. rc 2: it could not be told (no cnf
+# library, or a root whose user sudo refuses).
 li_desk_root_user() {
-  local e="$1" ws="$2" box="$3" u r me
-  [ -n "$e" ] && [ -n "$ws" ] && [ -n "$box" ] && li_cnf_lib || return 1
+  local e="$1" ws="$2" box="$3" u r me unk=0
+  [ -n "$e" ] && [ -n "$ws" ] && [ -n "$box" ] && li_cnf_lib || return 2
   me="$(id -un)"
   while IFS=$'\t' read -r u r; do
     [ -n "$r" ] || continue
     if [ -d "$r/desk/$ws/$box" ] || { [ "$u" != "$me" ] && sudo -n -u "$u" test -d "$r/desk/$ws/$box" 2>/dev/null </dev/null; }; then
       printf '%s' "$u"; return 0
     fi
+    [ "$u" = "$me" ] || sudo -n -u "$u" true 2>/dev/null </dev/null || unk=1
   done < <(PROJ_PATH="${PROJ_PATH:-$LI_ORC}" spl_desk_roots "$e" 2>/dev/null)
-  return 1
+  return $(( unk ? 2 : 1 ))
 }
 
 # li_desk_elsewhere ENV WORKSPACE BOX: 0 when the desk named lives on another
 # box of the fleet: BOX is not this box and no local root holds it (SPL-5093).
 # The one check of both callers of a map row's desk box: spawn-window.sh
-# (sw_issue places through that box) and do_spl_issue_close_landed (skips it).
+# (sw_issue places through that box), do_spl_lane_issue (ends through it) and
+# do_spl_issue_close_landed (skips it). A box that does not know its own name
+# (the box-desk default), or roots that could not be read, answer 1: the
+# caller's own "no desk" failure stays loud instead of a quiet skip.
 li_desk_elsewhere() {
+  local d rc=0
   [ -n "${3:-}" ] || return 1
   declare -F spl_desk_box_default >/dev/null || . "$LI_ORC/lib/bash/funcs/spl-desk-box.func.sh" || return 1
-  [ "$3" != "$(spl_desk_box_default)" ] || return 1
-  ! li_desk_root_user "$1" "$2" "$3"
+  d="$(spl_desk_box_default)"
+  [ "$d" != box-desk ] && [ "$3" != "$d" ] || return 1
+  li_desk_root_user "$1" "$2" "$3" >/dev/null || rc=$?
+  [ "$rc" -eq 1 ]
 }
 
 # li_desk_where BRIEF -> "<env> <workspace> <desk box>" of the desk

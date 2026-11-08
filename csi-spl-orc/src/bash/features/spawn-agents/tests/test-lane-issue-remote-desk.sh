@@ -50,6 +50,11 @@ cat >"$T_TMP/issue-stub" <<EOF
 #!/usr/bin/env bash
 printf 'root=%s id=%s key=%s topic=%s brief=%s\n' "\$SPOOL_ROOT" "\$AGENT_ID" "\${LANE_ISSUE_KEY:-}" "\${LANE_ISSUE_TOPIC:-}" "\$(cat "\$BRIEF" | head -1)" >>"$T_TMP/issue.calls"
 [ -z "\${FAKE_ISSUE_FAIL:-}" ] || { echo "FATAL no desk for c-005 on sat in acme: run do_spl_desk_up first" >&2; exit 1; }
+if [ "\${LANE_ISSUE_OP:-}" = end ]; then
+  printf 'end id=%s key=%s tenant=%s status=%s reason=%s\n' "\$AGENT_ID" "\$(cat "\$SPOOL_ROOT/\$AGENT_ID/lifetime/issue")" "\$(cut -f1 "\$SPOOL_ROOT/\$AGENT_ID/lifetime/issue-tenant")" "\$LANE_ISSUE_STATUS" "\$LANE_ISSUE_REASON" >>"$T_TMP/issue.ends"
+  printf '%s\t%s\t2026-10-01T00:00:00Z\n' "\$LANE_ISSUE_STATUS" "\$LANE_ISSUE_REASON" >"\$SPOOL_ROOT/\$AGENT_ID/lifetime/issue-end"
+  exit 0
+fi
 mkdir -p "\$SPOOL_ROOT/\$AGENT_ID/lifetime"
 printf 'ACME-7\n' >"\$SPOOL_ROOT/\$AGENT_ID/lifetime/issue"
 printf 'acme\tprd\n' >"\$SPOOL_ROOT/\$AGENT_ID/lifetime/issue-tenant"
@@ -122,4 +127,57 @@ on "$A" home bash "$T_SCRIPTS/spawn-window.sh" claude c-053 "$R" "$T_TMP/ws.md" 
 eq "5 the desk's box is this box: the local refusal stands, exit 12" 12 "$RC"
 has "5 ... the local action's own FATAL" "no desk for c-005" "$(cat "$T_TMP/o")"
 check "5 ... and no request left for another box" test ! -e "$T_TMP/issue.calls"
+
+# 6. R7 W2: a reply that came too late must not file a second issue on the retry.
+printf 'acme\tprd\tacme-site\t%s\t-\thttps://site.example.com\tc-005\tsat\n' "$R" >"$A/workspace-repos.tsv"
+printf '# Brief: once only\n\nWorkspace: acme\n' >"$T_TMP/once.md"
+rm -f "$T_TMP/issue.calls"
+req home c-001 c-070 "$T_TMP/once.md" >/dev/null
+req home c-001 c-071 "$T_TMP/once.md" >/dev/null
+has "6 the first request files one (no key)" "id=c-070 key= " "$(cat "$T_TMP/issue.calls")"
+has "6 the retry links the key already filed" "id=c-071 key=ACME-7 " "$(cat "$T_TMP/issue.calls")"
+printf '# Brief: another\n\nWorkspace: acme\n' >"$T_TMP/other.md"
+req home c-001 c-072 "$T_TMP/other.md" >/dev/null
+has "6 control: another brief files its own" "id=c-072 key= " "$(cat "$T_TMP/issue.calls")"
+
+# 7. R7 W1: a lane on the placing box ends its issue through the desk's box.
+end_a() {  # ID STATUS REASON [SERVE_ENV]; rc in RC
+  local life="$A/$1/lifetime"; mkdir -p "$life"; rm -f "$T_TMP/rc" "$life/issue-end"
+  ( on "$A" home SPOOL_AGENT_ID= SPAWN_ISSUE_REMOTE_WAIT=15 bash "$SR" --issue-end --box sat --id "$1" --key ACME-7 --tenant acme --life "$life" --status "$2" --reason "$3" >"$T_TMP/o" 2>&1; echo $? >"$T_TMP/rc" ) &
+  local _
+  for _ in $(seq 1 20); do [ -f "$T_TMP/rc" ] && break; serve_b "${4:-}"; sleep 1; done
+  wait; RC="$(cat "$T_TMP/rc" 2>/dev/null || echo none)"
+}
+end_a c-080 diss 'superseded by c-081'
+eq "7 the end through the desk's box: rc 0" 0 "$RC"
+has "7 ... the far action got the key, workspace, status and reason" "end id=c-080 key=ACME-7 tenant=acme status=diss reason=superseded by c-081" "$(cat "$T_TMP/issue.ends" 2>/dev/null)"
+eq "7 ... li_gate's issue-end is on the placing box" "diss	superseded by c-081	2026-10-01T00:00:00Z" "$(cat "$A/c-080/lifetime/issue-end" 2>/dev/null)"
+end_a c-082 diss why FAKE_ISSUE_FAIL=1
+eq "7 the far action fails: refused" 4 "$RC"
+check "7 ... and no issue-end" test ! -e "$A/c-082/lifetime/issue-end"
+on "$A" home bash "$SR" --issue-end --box sat --id c-083 --key ACME-7 --tenant acme --life "$A/c-080/lifetime" --status 'x;y' --reason r >/dev/null 2>&1; RC=$?
+eq "7 a bad status never leaves" 2 "$RC"
+
+# 7b. The real action on the placing box takes that path (R7's probe: FATAL no desk).
+life="$A/c-084/lifetime"; mkdir -p "$life"; printf 'ACME-7\n' >"$life/issue"; printf 'acme\tprd\n' >"$life/issue-tenant"
+rm -f "$T_TMP/rc"
+( on "$A" home SPOOL_AGENT_ID= SPOOL_TEST=1 SPAWN_ISSUE_REMOTE_WAIT=15 AGENT_ID=c-084 LANE_ISSUE_OP=end LANE_ISSUE_REASON='dropped by its gate' DRY_RUN=0 \
+    bash "$T_SCRIPTS/../../../../../run" -a do_spl_lane_issue >"$T_TMP/o" 2>&1; echo $? >"$T_TMP/rc" ) &
+for _ in $(seq 1 25); do [ -f "$T_TMP/rc" ] && break; serve_b; sleep 1; done
+wait; RC="$(cat "$T_TMP/rc" 2>/dev/null || echo none)"
+eq "7b do_spl_lane_issue end with the desk on another box: rc 0" 0 "$RC"
+hasnt "7b ... no 'no desk for'" "no desk for" "$(cat "$T_TMP/o")"
+eq "7b ... issue-end written where li_gate reads it" "diss	dropped by its gate	2026-10-01T00:00:00Z" "$(cat "$life/issue-end" 2>/dev/null)"
+
+# 8. R7 W3: li_desk_elsewhere stays quiet on stdout and does not guess.
+elsewhere() { ( SPOOL_DESK_BOX="$1" SPOOL_BOX_ENV=/nonexistent; export SPOOL_DESK_BOX SPOOL_BOX_ENV; . "$T_SCRIPTS/../lib/lane-issue.inc.sh"; [ -n "${2:-}" ] && eval "$2"; li_desk_elsewhere prd acme "${3:-sat}" ); }
+OUT="$(elsewhere home 'li_desk_root_user() { return 1; }')"; rc=$?
+eq "8 another box, no local root: elsewhere" 0 "$rc"
+OUT="$(elsewhere home 'li_desk_root_user() { printf deskuser; return 0; }')"; rc=$?
+eq "8 a local root holds it: not elsewhere" 1 "$rc"
+eq "8 ... and prints nothing" "" "$OUT"
+elsewhere home 'li_desk_root_user() { return 2; }' >/dev/null; rc=$?
+eq "8 the roots could not be read: not elsewhere" 1 "$rc"
+elsewhere '' 'li_desk_root_user() { return 1; }' >/dev/null; rc=$?
+eq "8 a box with no name of its own (box-desk): not elsewhere" 1 "$rc"
 t_done

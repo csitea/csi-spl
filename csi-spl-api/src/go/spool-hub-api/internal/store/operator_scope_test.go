@@ -109,9 +109,10 @@ var operatorCallers = map[string]string{
 	"FXCurrencies":  "the second-currency setting's check and GET /v1/tenant/fx/currencies (SPL-2108): the quotes of the hub-wide rates (rdb 0200, no tenant column); reads no tenant's row",
 
 	// spec 143 T025 + T027 (SPL-2788): the deploy record, rdb 0202 estate_deploys (no tenant column).
-	"PutEstateDeploy":    "POST /v1/operator/deploys (spec 143 2.3.2): an estate deploy row (no tenant column); only the operator service account (operatorAuth) reaches it",
-	"LatestEstateDeploy": "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): the newest estate deploy row of (env, component), no tenant column; no route",
-	"FillEstateDeploy":   "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): writes the estate deploy row the workflow missed, no tenant column; no route",
+	"PutEstateDeploy":    "POST /v1/operator/deploys (spec 143 2.3.2): one workspace's deploy row (rdb 0267), written only by the operator scope; only the operator service account (operatorAuth) reaches it",
+	"PutReleaseNotes":    "POST /v1/operator/release-notes (spec 171 Lane 2, SPL-5108): release_notes rows of the one workspace and repo the hub resolved (rdb 0267), written only by the operator scope once row B-3 adds RLS; only the operator service account (operatorAuth) reaches it",
+	"LatestEstateDeploy": "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): the newest deploy row of (tenant, env, component), WHERE tenant_id names the operator workspace; no route",
+	"FillEstateDeploy":   "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): writes the operator workspace's deploy row the workflow missed, resolving its primary repo in the same transaction; no route",
 
 	// spec 121 T102: the visitor's request names no workspace until one row is read.
 	"EmbedCustomer":       "/v1/embed/<embed-id>/*, /embed/v1/chat?e= (spec 121 4.1, 5): the embed id in the URL, unique hub-wide, names its workspace; that one embed row",

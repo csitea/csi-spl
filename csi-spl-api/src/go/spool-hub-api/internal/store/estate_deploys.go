@@ -19,10 +19,13 @@ import (
 //	reconcile  the hub's 2-minute check, which found a served version no
 //	           row named (deployed_by 'hub-reconcile', run id 'reconcile')
 //
-// Estate rows, no tenant: every scope reads, the operator scope writes.
+// Each row names its workspace and repo (rdb 0267). The operator scope writes;
+// every read filters on tenant_id, and row B-3 adds the read policy.
 
 // EstateDeploy is one estate_deploys row.
 type EstateDeploy struct {
+	TenantID      string    `json:"tenant_id"`
+	RepoSlug      string    `json:"repo_slug"`
 	DeployID      string    `json:"deploy_id"`
 	Env           string    `json:"env"`
 	Component     string    `json:"component"`
@@ -40,7 +43,7 @@ var (
 	EstateDeployEnvs       = []string{"dev", "prd"}
 	EstateDeployComponents = []string{"hub", "wui", "inf"}
 	EstateDeployStatuses   = []string{"success", "failed"}
-	estateDeployVersionRe  = regexp.MustCompile(`^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c[0-9]+)?$`)
+	estateDeployVersionRe  = releaseVersionRe
 	estateDeploySHARe      = regexp.MustCompile(`^[0-9a-f]{40}$`)
 )
 
@@ -58,14 +61,15 @@ type EstateDeploys interface {
 	// sha, status and non-empty workflow_run_id returns the first row and
 	// stored=false, so a re-run step never doubles a deploy.
 	PutEstateDeploy(ctx context.Context, d EstateDeploy) (row EstateDeploy, stored bool, err error)
-	// LatestEstateDeploy is the newest successful row of (env, component);
-	// ok=false when there is none.
-	LatestEstateDeploy(ctx context.Context, env, component string) (row EstateDeploy, ok bool, err error)
-	// FillEstateDeploy writes a reconcile row for what (env, component)
-	// serves, only while the newest successful row names another sha (or
-	// none): under a per-(env, component) lock, so hub instances checking
-	// at once write it once. stored=false when a row already names it.
-	FillEstateDeploy(ctx context.Context, env, component, version, sha string) (stored bool, err error)
+	// LatestEstateDeploy is the newest successful row of (tenant, env,
+	// component); ok=false when there is none.
+	LatestEstateDeploy(ctx context.Context, tenant, env, component string) (row EstateDeploy, ok bool, err error)
+	// FillEstateDeploy writes a reconcile row, on tenant's primary repo, for
+	// what (env, component) serves, only while the newest successful row
+	// names another sha (or none): under a per-(tenant, env, component) lock,
+	// so hub instances checking at once write it once. stored=false when a
+	// row already names it; ErrRepoNotRegistered when tenant has no primary.
+	FillEstateDeploy(ctx context.Context, tenant, env, component, version, sha string) (stored bool, err error)
 }
 
 // CheckEstateDeploy names the first value rdb 0202 would refuse ("" = fine),
@@ -76,8 +80,8 @@ func CheckEstateDeploy(d EstateDeploy) string {
 		return "env must be dev or prd"
 	case !slices.Contains(EstateDeployComponents, d.Component):
 		return "component must be hub, wui or inf"
-	case !estateDeployVersionRe.MatchString(d.Version):
-		return "version must look like v1.7.1 or v1.7.1-c3"
+	case d.Version != "" && !estateDeployVersionRe.MatchString(d.Version):
+		return "version must be a tag of up to 64 letters, digits or . _ + -, or empty"
 	case !estateDeploySHARe.MatchString(d.CommitSHA):
 		return "commit_sha must be a full 40-character lowercase sha"
 	case !slices.Contains(EstateDeployStatuses, d.Status):
@@ -92,31 +96,31 @@ func CheckEstateDeploy(d EstateDeploy) string {
 
 var _ EstateDeploys = (*Postgres)(nil)
 
-const estateDeployCols = `deploy_id, env, component, version, commit_sha, deployed_at, status, source, workflow_run_id, deployed_by`
+const estateDeployCols = `tenant_id, repo_slug, deploy_id, env, component, version, commit_sha, deployed_at, status, source, workflow_run_id, deployed_by`
 
 // estateDeployPut inserts the ci row unless the same run already reported
 // it; the second SELECT returns the earlier row then.
 const estateDeployPut = `WITH hit AS (
 	SELECT ` + estateDeployCols + `, false AS stored FROM estate_deploys
-	WHERE $7 <> '' AND source = 'ci' AND env = $2 AND component = $3 AND commit_sha = $5
+	WHERE $7 <> '' AND tenant_id = $9 AND repo_slug = $10 AND source = 'ci' AND env = $2 AND component = $3 AND commit_sha = $5
 		AND status = $6 AND workflow_run_id = $7
 	ORDER BY deployed_at LIMIT 1
 ), ins AS (
-	INSERT INTO estate_deploys (deploy_id, env, component, version, commit_sha, status, source, workflow_run_id, deployed_by)
-	SELECT $1, $2, $3, $4, $5, $6, 'ci', $7, $8 WHERE NOT EXISTS (SELECT 1 FROM hit)
+	INSERT INTO estate_deploys (tenant_id, repo_slug, deploy_id, env, component, version, commit_sha, status, source, workflow_run_id, deployed_by)
+	SELECT $9, $10, $1, $2, $3, $4, $5, $6, 'ci', $7, $8 WHERE NOT EXISTS (SELECT 1 FROM hit)
 	RETURNING ` + estateDeployCols + `, true AS stored
 )
 SELECT ` + estateDeployCols + `, stored FROM ins UNION ALL SELECT ` + estateDeployCols + `, stored FROM hit`
 
 // estateDeployFill is the reconcile insert; the caller holds the lock.
-const estateDeployFill = `INSERT INTO estate_deploys (deploy_id, env, component, version, commit_sha, status, source, workflow_run_id, deployed_by)
-SELECT $1, $2, $3, $4, $5, 'success', 'reconcile', $6, $7
-WHERE (SELECT commit_sha FROM estate_deploys WHERE env = $2 AND component = $3 AND status = 'success'
+const estateDeployFill = `INSERT INTO estate_deploys (tenant_id, repo_slug, deploy_id, env, component, version, commit_sha, status, source, workflow_run_id, deployed_by)
+SELECT $8, $9, $1, $2, $3, $4, $5, 'success', 'reconcile', $6, $7
+WHERE (SELECT commit_sha FROM estate_deploys WHERE tenant_id = $8 AND env = $2 AND component = $3 AND status = 'success'
 	ORDER BY deployed_at DESC LIMIT 1) IS DISTINCT FROM $5`
 
 func scanEstateDeploy(row pgx.Row, extra ...any) (EstateDeploy, error) {
 	var d EstateDeploy
-	err := row.Scan(append([]any{&d.DeployID, &d.Env, &d.Component, &d.Version, &d.CommitSHA, &d.DeployedAt,
+	err := row.Scan(append([]any{&d.TenantID, &d.RepoSlug, &d.DeployID, &d.Env, &d.Component, &d.Version, &d.CommitSHA, &d.DeployedAt,
 		&d.Status, &d.Source, &d.WorkflowRunID, &d.DeployedBy}, extra...)...)
 	return d, err
 }
@@ -126,12 +130,15 @@ func (s *Postgres) PutEstateDeploy(ctx context.Context, d EstateDeploy) (EstateD
 	if why := CheckEstateDeploy(d); why != "" {
 		return EstateDeploy{}, false, errors.New("estate deploy: " + why)
 	}
+	if err := checkReleaseScope(d.TenantID, d.RepoSlug); err != nil {
+		return EstateDeploy{}, false, err
+	}
 	var row EstateDeploy
 	var stored bool
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		var err error
 		row, err = scanEstateDeploy(tx.QueryRow(ctx, estateDeployPut, uuid.NewString(), d.Env, d.Component,
-			d.Version, d.CommitSHA, d.Status, d.WorkflowRunID, d.DeployedBy), &stored)
+			d.Version, d.CommitSHA, d.Status, d.WorkflowRunID, d.DeployedBy, d.TenantID, d.RepoSlug), &stored)
 		return err
 	})
 	if err != nil {
@@ -141,12 +148,12 @@ func (s *Postgres) PutEstateDeploy(ctx context.Context, d EstateDeploy) (EstateD
 }
 
 // LatestEstateDeploy is EstateDeploys on Postgres (see the interface).
-func (s *Postgres) LatestEstateDeploy(ctx context.Context, env, component string) (EstateDeploy, bool, error) {
+func (s *Postgres) LatestEstateDeploy(ctx context.Context, tenant, env, component string) (EstateDeploy, bool, error) {
 	var row EstateDeploy
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		var err error
 		row, err = scanEstateDeploy(tx.QueryRow(ctx, `SELECT `+estateDeployCols+` FROM estate_deploys
-			WHERE env = $1 AND component = $2 AND status = 'success' ORDER BY deployed_at DESC LIMIT 1`, env, component))
+			WHERE tenant_id = $3 AND env = $1 AND component = $2 AND status = 'success' ORDER BY deployed_at DESC LIMIT 1`, env, component, tenant))
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -159,7 +166,10 @@ func (s *Postgres) LatestEstateDeploy(ctx context.Context, env, component string
 }
 
 // FillEstateDeploy is EstateDeploys on Postgres (see the interface).
-func (s *Postgres) FillEstateDeploy(ctx context.Context, env, component, version, sha string) (bool, error) {
+func (s *Postgres) FillEstateDeploy(ctx context.Context, tenant, env, component, version, sha string) (bool, error) {
+	if err := checkTenant(tenant); err != nil {
+		return false, err
+	}
 	d := EstateDeploy{Env: env, Component: component, Version: version, CommitSHA: sha, Status: "success",
 		WorkflowRunID: EstateDeployReconcileRun, DeployedBy: EstateDeployReconcileBy}
 	if why := CheckEstateDeploy(d); why != "" {
@@ -167,10 +177,18 @@ func (s *Postgres) FillEstateDeploy(ctx context.Context, env, component, version
 	}
 	var stored bool
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('estate_deploys:' || $1 || ':' || $2))`, env, component); err != nil {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('estate_deploys:' || $3 || ':' || $1 || ':' || $2))`, env, component, tenant); err != nil {
 			return err
 		}
-		tag, err := tx.Exec(ctx, estateDeployFill, uuid.NewString(), env, component, version, sha, d.WorkflowRunID, d.DeployedBy)
+		var repo string
+		err := tx.QueryRow(ctx, `SELECT repo_slug FROM workspace_repos WHERE tenant_id = $1 AND is_primary`, tenant).Scan(&repo)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrRepoNotRegistered
+		}
+		if err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx, estateDeployFill, uuid.NewString(), env, component, version, sha, d.WorkflowRunID, d.DeployedBy, tenant, repo)
 		stored = err == nil && tag.RowsAffected() == 1
 		return err
 	})

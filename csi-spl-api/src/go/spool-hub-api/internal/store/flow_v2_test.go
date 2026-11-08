@@ -181,17 +181,17 @@ func TestFlowReleaseLines(t *testing.T) {
 				})
 			}
 			// a is ingested before it has a version, then gets v..1 at base.
-			if err := rn.PutReleaseNotes(ctx, []ReleaseNote{note(a, "")}, base.Add(-time.Hour)); err != nil {
+			if err := rn.PutReleaseNotes(ctx, tid, relRepo, []ReleaseNote{note(a, "")}, base.Add(-time.Hour)); err != nil {
 				t.Fatal(err)
 			}
-			if err := rn.PutReleaseNotes(ctx, []ReleaseNote{note(a, v(1)), note(b, v(2))}, base); err != nil {
+			if err := rn.PutReleaseNotes(ctx, tid, relRepo, []ReleaseNote{note(a, v(1)), note(b, v(2))}, base); err != nil {
 				t.Fatal(err)
 			}
 			// A re-send an hour later must not restamp them; c is v..3 the next day.
-			if err := rn.PutReleaseNotes(ctx, []ReleaseNote{note(a, v(1)), note(b, v(2))}, base.Add(time.Hour)); err != nil {
+			if err := rn.PutReleaseNotes(ctx, tid, relRepo, []ReleaseNote{note(a, v(1)), note(b, v(2))}, base.Add(time.Hour)); err != nil {
 				t.Fatal(err)
 			}
-			if err := rn.PutReleaseNotes(ctx, []ReleaseNote{note(c, v(3))}, base.Add(24*time.Hour)); err != nil {
+			if err := rn.PutReleaseNotes(ctx, tid, relRepo, []ReleaseNote{note(c, v(3))}, base.Add(24*time.Hour)); err != nil {
 				t.Fatal(err)
 			}
 			f, err := ff.FlowFoldRead(ctx, FlowQuery{Tenant: tid, Member: "HUM-1", Limit: 30, Now: base.Add(25 * time.Hour), Kind: FlowRelease})
@@ -229,12 +229,12 @@ func TestFlowReleaseLines(t *testing.T) {
 
 // f:rel:<version> is a read mark for exactly the release versions.
 func TestFlowReleaseMarkKey(t *testing.T) {
-	for _, v := range []string{"v1.3.400", "v1.0.1-c2", "v999999.0.0"} {
+	for _, v := range []string{"v1.3.400", "v1.0.1-c2", "v999999.0.0", "2026.11.05", "v0.4.2-beta.1"} {
 		if !releaseVersionRe.MatchString(v) || !ValidReadMarkKey(FlowReleaseMarkKey(v)) {
 			t.Errorf("%s: release %v, mark %v", v, releaseVersionRe.MatchString(v), ValidReadMarkKey(FlowReleaseMarkKey(v)))
 		}
 	}
-	for _, v := range []string{"1.3.400", "v1.3", "v1.0.1-c1", "v1.3.400 ", "vX.1.2"} {
+	for _, v := range []string{"v1.3.400 ", "-v1", "", "a b"} {
 		if releaseVersionRe.MatchString(v) || ValidReadMarkKey(FlowReleaseMarkKey(v)) {
 			t.Errorf("%s accepted", v)
 		}
@@ -257,7 +257,7 @@ func TestFlowReleaseBadgeAndAssigneeWatch(t *testing.T) {
 				for i, at := range []time.Time{base.Add(-time.Hour), base.Add(time.Hour), base.Add(2 * time.Hour), base.Add(25 * time.Hour)} {
 					sha := strings.Repeat(uuid4()[:8], 5)
 					shas = append(shas, sha)
-					if err := rn.PutReleaseNotes(ctx, []ReleaseNote{{SHA: sha, Version: fmt.Sprintf("v%d.1.%d", major, i), CommittedAt: base, Subject: "x", State: "ok"}}, at); err != nil {
+					if err := rn.PutReleaseNotes(ctx, tid, relRepo, []ReleaseNote{{SHA: sha, Version: fmt.Sprintf("v%d.1.%d", major, i), CommittedAt: base, Subject: "x", State: "ok"}}, at); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -357,7 +357,7 @@ func TestFlowReleaseOneDeployOneLine(t *testing.T) {
 					pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = ANY($1)`, shas) //nolint:errcheck
 				})
 			}
-			if err := rn.PutReleaseNotes(ctx, window, hist); err != nil {
+			if err := rn.PutReleaseNotes(ctx, tid, relRepo, window, hist); err != nil {
 				t.Fatal(err)
 			}
 			// The deploy: the newest 500, so 499 of them re-sent plus the one new
@@ -366,7 +366,7 @@ func TestFlowReleaseOneDeployOneLine(t *testing.T) {
 			shas = append(shas, fresh)
 			window = append(window, ReleaseNote{SHA: fresh, Version: fmt.Sprintf("v%d.0.%d", major, depth+1),
 				CommittedAt: deploy.Add(-time.Minute), Subject: "x", State: "ok"})
-			if err := rn.PutReleaseNotes(ctx, window[1:], deploy); err != nil {
+			if err := rn.PutReleaseNotes(ctx, tid, relRepo, window[1:], deploy); err != nil {
 				t.Fatal(err)
 			}
 			f, err := s.(FlowFolder).FlowFoldRead(ctx, FlowQuery{Tenant: tid, Member: "HUM-1", Limit: 30, Now: deploy.Add(time.Hour), Kind: FlowRelease})

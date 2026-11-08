@@ -52,12 +52,12 @@ func TestReleaseNotesPageSeqOracle(t *testing.T) {
 			t.Errorf("cleanup: %v", err)
 		}
 	})
-	if err := pg.PutReleaseNotes(ctx, batch, t0.Add(time.Hour)); err != nil {
+	if err := pg.PutReleaseNotes(ctx, relTenant, relRepo, batch, t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	oracle := func(versions []string) map[string]int {
 		t.Helper()
-		rows, err := pg.pool.Query(ctx, `SELECT sha, seq FROM (`+releaseNumberedSQL()+`) n WHERE version = ANY($1)`, versions)
+		rows, err := pg.pool.Query(ctx, `SELECT sha, seq FROM (`+releaseNumberedSQL()+`) n WHERE version = ANY($2)`, relTenant, versions)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,7 +80,7 @@ func TestReleaseNotesPageSeqOracle(t *testing.T) {
 	}{{top, 2, 6}, {top, 5, 15}, {v(4), 1, 3}, {v(4), 2, 6}, {v(2), 1, 3}} {
 		ok := false
 		for try := 0; try < 5 && !ok; try++ {
-			ls, err := pg.ListReleaseNotes(ctx, c.before, c.versions)
+			ls, err := pg.ListReleaseNotes(ctx, relTenant, c.before, c.versions)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +100,7 @@ func TestReleaseNotesPageSeqOracle(t *testing.T) {
 				t.Fatalf("before %s, %d versions: %d own rows over %v", c.before, c.versions, own, vs)
 			}
 			o1 := oracle(vs)
-			ls2, _ := pg.ListReleaseNotes(ctx, c.before, c.versions)
+			ls2, _ := pg.ListReleaseNotes(ctx, relTenant, c.before, c.versions)
 			if o2 := oracle(vs); !maps.Equal(o1, o2) || len(ls2) != len(ls) {
 				continue // another test wrote release notes meanwhile
 			}

@@ -253,7 +253,7 @@ func (s *Memory) FlowFoldRead(_ context.Context, q FlowQuery) (FlowFold, error) 
 	marked := func(version string) bool { return relMarks[FlowReleaseMarkKey(version)] }
 	s.mu.Unlock()
 	f, err := finishFold(q, window, func(from, to time.Time) ([]FlowLine, error) {
-		return foldReleases(s.flowReleases(from, to), q.Limit, func(newest time.Time, v string) bool {
+		return foldReleases(s.flowReleases(q.Tenant, from, to), q.Limit, func(newest time.Time, v string) bool {
 			return (!hasSeen || newest.After(seen.At)) && !marked(v)
 		}), nil
 	})
@@ -285,13 +285,13 @@ func (s *Memory) flowTopicLocked(tenant, task string) (string, int) {
 
 // flowReleases is the versioned release rows released in [from, to),
 // newest first.
-func (s *Memory) flowReleases(from, to time.Time) []flowRelease {
+func (s *Memory) flowReleases(tenant string, from, to time.Time) []flowRelease {
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
 	var out []flowRelease
-	for sha, at := range memReleased[s] {
-		if !at.Before(from) && at.Before(to) {
-			out = append(out, flowRelease{version: s.releases()[sha].Version, sha: sha, at: at})
+	for k, at := range memReleased[s] {
+		if k.tenant == tenant && !at.Before(from) && at.Before(to) {
+			out = append(out, flowRelease{version: s.releases()[k].Version, sha: k.sha, at: at})
 		}
 	}
 	slices.SortFunc(out, func(a, b flowRelease) int {
@@ -353,7 +353,7 @@ const flowReleasesSQL = `SELECT r.version, r.sha, r.released_at,
 		EXISTS (SELECT 1 FROM read_marks k WHERE k.tenant_id = $3 AND k.member_id = $4 AND k.mark_key = 'f:rel:' || r.version),
 		coalesce((SELECT s.at FROM read_marks s WHERE s.tenant_id = $3 AND s.member_id = $4 AND s.mark_key = 'f:seen'), 'epoch'::timestamptz)
 	FROM release_notes r
-	WHERE r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at >= $1 AND r.released_at < $2
+	WHERE r.tenant_id = $3 AND r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at >= $1 AND r.released_at < $2
 	ORDER BY r.released_at DESC, r.sha DESC`
 
 func (s *Postgres) FlowFoldRead(ctx context.Context, q FlowQuery) (FlowFold, error) {

@@ -57,11 +57,24 @@ func mintSession(h *auth.Handler, exp time.Time) *http.Cookie {
 		Email: "person@example.com", IssuedAt: exp.Add(-time.Hour).Unix(), Exp: exp.Unix()})
 }
 
+// tamperMAC changes one character in the middle of the signature. Every bit
+// of that character is data, so the MAC bytes always change; the last
+// character carries 2 spare bits a decoder ignores (SPL-5100).
+func tamperMAC(value string) string {
+	dot := strings.LastIndexByte(value, '.')
+	mid := dot + (len(value)-dot)/2
+	repl := "A"
+	if value[mid] == 'A' {
+		repl = "B"
+	}
+	return value[:mid] + repl + value[mid+1:]
+}
+
 func TestSessionProbeSignedOutIs200(t *testing.T) {
 	h := signedOutHandler(t)
 	live := mintSession(h, time.Now().Add(time.Hour))
 	tampered := *live
-	tampered.Value = live.Value[:len(live.Value)-2] + "xx"
+	tampered.Value = tamperMAC(live.Value)
 	cases := map[string]*http.Cookie{
 		"no cookie":       nil,
 		"expired cookie":  mintSession(h, time.Now().Add(-time.Minute)),
@@ -88,6 +101,30 @@ func TestSessionProbeSignedOutIs200(t *testing.T) {
 				t.Fatalf("plain probe = %d %s, want 401", rec.Code, rec.Body)
 			}
 		})
+	}
+}
+
+// SPL-5100: overwriting the last two characters with "xx" left the MAC valid
+// for a signature ending in "xw", about 1 mint in 1024. A fixed far-future
+// expiry per mint makes the walk over those cookies the same on every run.
+func TestTamperMACAlwaysInvalidates(t *testing.T) {
+	h := signedOutHandler(t)
+	base := time.Unix(4102444800, 0)
+	xw := 0
+	for i := range 20000 {
+		ck := mintSession(h, base.Add(time.Duration(i)*time.Second))
+		if !strings.HasSuffix(ck.Value, "xw") {
+			continue
+		}
+		xw++
+		tampered := *ck
+		tampered.Value = tamperMAC(ck.Value)
+		if rec := sessionCall(h, "/api/v1/auth/session", &tampered); rec.Code != http.StatusUnauthorized {
+			t.Fatalf("mint %d: tampered cookie = %d, want 401", i, rec.Code)
+		}
+	}
+	if xw == 0 {
+		t.Fatal("no mint ended in xw: this walk proves nothing")
 	}
 }
 

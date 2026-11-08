@@ -751,7 +751,7 @@ const moveFlags = useCardMoveFlags(props, editing, inTopicPane, editorId, access
 const { move, canMoveTopic, canMoveMsg, canPromoteMsg, movable, menuLocks, dropTarget, dropOver } = moveFlags
 const mv = useCardMove(props, moveFlags, title, pickerOpen, menu, { swipeDown, cancelRowDrag: () => rowDrag.cancel() })
 const { dragging, movePicker, handle, onHandleDown, onHandleUp, openMovePicker, onPromote } = mv
-const { touchLift, rowDrag } = useCardTouchLift(rowEl, editing, mv, () => { longPress.cancel(); swipe.cancel() }, pickerOpen, menu)
+const { touchLift, rowDrag } = useCardTouchLift({ rowEl, editing, pickerOpen }, mv, () => { longPress.cancel(); swipe.cancel() }, menu)
 const deleteUndo = useDeleteUndo()
 
 const { onContextMenu, onRowDown, onRowMove, onRowUp, onRowCancel } = useCardRowPointer({ rowEl, editing, menu, longPress, swipe, rowDrag, touchLift, swipeDown })

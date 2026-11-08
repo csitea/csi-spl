@@ -367,3 +367,31 @@ func TestFileStreamGlobPull(t *testing.T) {
 		t.Errorf("list after box-a's report = %v, want mine partial/6, theirs (box-b's) still pending, 2 folders a box", list)
 	}
 }
+
+// SPL-5047: the WUI calls the hub from another origin, so a browser sends a
+// CORS preflight before the glob add (POST) and the glob Remove (DELETE), and
+// refuses the call when the preflight fails. Red on origin/master e8369723d:
+// no OPTIONS route on either path, 405 on both. CONTROL: the list's GET, which
+// the /v1/view/ catch-all already answers.
+func TestFileStreamGlobsPreflight(t *testing.T) {
+	r, _ := fsGlobRig(t)
+	for _, c := range []struct{ path, method string }{
+		{fsGlobsPath, http.MethodPost},
+		{fsGlobsPath + "/00000000-0000-4000-8000-000000000000", http.MethodDelete},
+		{fsGlobsViewPath, http.MethodGet},
+	} {
+		req, _ := http.NewRequest(http.MethodOptions, r.e.url(r.w)+c.path, nil)
+		req.Header.Set("Origin", wuiOrigin)
+		req.Header.Set("Access-Control-Request-Method", c.method)
+		resp, err := r.e.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		h := resp.Header
+		if resp.StatusCode != http.StatusNoContent || h.Get("Access-Control-Allow-Origin") != wuiOrigin ||
+			!strings.Contains(h.Get("Access-Control-Allow-Methods"), c.method) || !strings.Contains(h.Get("Access-Control-Allow-Headers"), "Authorization") {
+			t.Errorf("OPTIONS %s: %d %v, want 204 allowing %s from the WUI", c.path, resp.StatusCode, h, c.method)
+		}
+	}
+}

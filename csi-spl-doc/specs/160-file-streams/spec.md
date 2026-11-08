@@ -1350,6 +1350,13 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
   `TestFileStreamGlobAudit`; C46 `TestFileStreamGlobPull`,
   `TestFileStreamGlobPullFrame`. Each case's planted defect and its red run
   are in the commit body.
+- CORS (SPL-5047): the WUI calls the hub from another origin, so a browser
+  preflights the add and the Remove. `OPTIONS /v1/file-streams/globs` and
+  `OPTIONS /v1/file-streams/{kind}/{id}` answer 204 with an allowed Origin,
+  methods `POST, DELETE`. Remove's route is `{kind}/{id}`, not `globs/{id}`:
+  the literal form and an `OPTIONS /v1/file-streams/{id}/<verb>` route both
+  match `globs/<verb>` and neither is more specific, a ServeMux panic at
+  start. Test `TestFileStreamGlobsPreflight`; red before it: 405 on both.
 
 ### 5.11 Row B11 as built (SPL-4321)
 

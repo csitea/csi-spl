@@ -169,6 +169,44 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
 
 Test: `csi-spl-orc/src/bash/tests/alert-issue-tick.tst.sh`.
 
+## The lane map reads the live rows only (SPL-4630)
+
+Done rows were 88 % of every lane map read (c-581, SPL-4622): a 603 KB
+answer against a 4 s cut per try, on a box whose link has slow moments.
+
+- `spool lane --fleet <F> --state live` lists that state's rows only: the
+  list frame carries the lane object `{"state": "live"}` and the hub
+  (`csi-spl-api/.../internal/hub/box_lane.go`, `laneListState`) filters on
+  it; any other state is `bad_frame`. With no `--state` a list reads every
+  row, as before. A hub before this ignores the object and answers every row.
+- The map's read (`spl_lane_hub_read`, `csi-spl-orc/src/bash/run/spl-lane-map.func.sh`)
+  passes `--state live`; `LANE_ALL=1` reads every row. Callers that pass
+  `LANE_ALL=1` (the review cron's read, `_spl_review_go_lanes` and its
+  fallback; the spawn share; the epic stall check) read as before: a
+  reviewer that ended has a done row only (R7 W1).
+- The merge used a lane's done row to drop its worktree, which stays 24 h
+  after the close. On a live read a worktree with no live hub row counts
+  only while its pane is live here; a pane read and not live drops it, and
+  with tmux unreadable it stays (src local): unsure is not free.
+- Known limit (R7 W2): a worktree with no hub row at all and a dead pane
+  (spawned while the hub was down, or crashed before its put) drops from the
+  live map like a closed one; only a done row tells them apart, and reading
+  every row for it would make most reads on a box with closed worktrees a
+  live read plus a full one (sat, 11-08: 98 of 108 worktrees had no live
+  pane). `LANE_ALL=1` shows it, src local.
+- So the limit costs a map row, no verdict: `--check` reads that worktree's
+  changed path free with either read, as before (it counts busy lanes only,
+  `spl_lane_check`).
+- Known effect: the load subtracts done rows written since a box's BOX-0
+  row (rewritten every 5 min); on a live read a lane closed in that window
+  counts busy until the next one.
+
+Tests: `TestBoxFleetLaneListState` (`internal/hub/box_lane_test.go`, 2 done +
+1 live, Memory and Postgres), `TestLaneListState` (`cmd/spool/lane_test.go`),
+`csi-spl-orc/src/bash/tests/lane-map.tst.sh` cases 19 and 20,
+`csi-spl-orc/src/bash/tests/spl-review-go.tst.sh` case 18 (its hub stub filters
+on `--state` as the hub does).
+
 ## A review seat under a capacity hold (SPL-4966)
 
 On 11-06 three R7 seats waited 320-406 min under the claude weekly hold (n=3)

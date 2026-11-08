@@ -84,6 +84,20 @@
 #      timeout's TERM is killed 1 s later (`timeout -k 1` in spl_lane_desk_spool),
 #      not after its own 20 s. RED on the action before it: the errors went
 #      to /dev/null, the alert said "the hub did not answer", the kill waited
+#  19. the read asks the live rows only (SPL-4630): the map's hub call carries
+#      `--state live`, LANE_ALL=1's does not; a closed lane's worktree with a
+#      dead pane, whose done row the live read no longer returns, is not in
+#      the map, the running one is (RED without the merge's pane rule: the
+#      closed one comes back live); the running lane's changed path is exit 3;
+#      with tmux unreadable the same worktree stays in the map (src local:
+#      unsure, as a lane spawned while the hub was down), and LANE_ALL=1
+#      reads its done row, which wins as before: free
+#  20. known limit, pinned (SPL-4630 R7 W2): a worktree with NO hub row at all
+#      and a dead pane (spawned while the hub was down, or crashed before its
+#      put) is dropped from the live map like a closed one, which only a done
+#      row could tell apart; LANE_ALL=1 shows it, src local. --check reads its
+#      changed path free with either read, as before SPL-4630 (a dead pane is
+#      not busy, spl_lane_check), so the live read costs a map row, no verdict
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -119,11 +133,11 @@ esac
 [ "$1" = box-stats ] && { echo "the lane map posts no box stats: $*" >>"$HUB_DIR/stats.calls"; exit 1; }
 shift
 echo "$*" >>"$HUB_DIR/calls"
-fleet="" agent="" box="" repo="" branch="" scope="" files="" topic="" issue="" origin="" state=live
+fleet="" agent="" box="" repo="" branch="" scope="" files="" topic="" issue="" origin="" state=live liststate=""
 [ "${HUB_NO_ORIGIN_FLAG:-0}" = 1 ] && [[ " $* " == *" --origin-issue "* ]] && { echo "flag provided but not defined: -origin-issue" >&2; exit 2; }
 while [ $# -gt 0 ]; do case "$1" in
   --fleet) fleet="$2";; --agent) agent="$2";; --box) box="$2";; --repo) repo="$2";; --branch) branch="$2";;
-  --scope) scope="$2";; --files) files="$2";; --topic) topic="$2";; --issue) issue="$2";; --origin-issue) origin="$2";; --state) state="$2";; esac; shift 2; done
+  --scope) scope="$2";; --files) files="$2";; --topic) topic="$2";; --issue) issue="$2";; --origin-issue) origin="$2";; --state) state="$2" liststate="$2";; esac; shift 2; done
 f="$HUB_DIR/$fleet.json"; [ -s "$f" ] || echo '{"lanes":[]}' >"$f"
 if [ -n "$agent" ]; then
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "box must be the agent's desk box id" >&2; exit 1; }
@@ -134,7 +148,8 @@ if [ -n "$agent" ]; then
   jq -c --argjson row "$row" '.lanes = ([.lanes[] | select(.agent_id != $row.agent_id or .agent_box != $row.agent_box)] + [$row])' "$f" >"$f.new" && mv "$f.new" "$f"
   jq -c --arg f "$fleet" --argjson row "$row" '{fleet:$f, lanes:[$row]}' <<<'{}'
 else
-  jq -c --arg f "$fleet" '{fleet:$f, lanes:.lanes}' "$f"
+  # a list with --state answers that state's rows only, as the hub (SPL-4630)
+  jq -c --arg f "$fleet" --arg st "$liststate" '{fleet:$f, lanes:[.lanes[] | select($st == "" or .state == $st)]}' "$f"
 fi
 STUB
 chmod +x "$T/bin/hub"
@@ -661,7 +676,7 @@ out="$(dn_row c-750 LANE_PANES_CMD="cat $T/panes-d")"
 out="$(on pc do_spl_lane_map "${D[@]}" LANE_PANES_CMD="cat $T/panes-d")"
 grep -E '^c-741@box-desk +live .* local$' <<<"$out" >/dev/null && [[ "$out" != *c-743@* ]] &&
   pass "the default map shows the running lane, though it has no age, and not the idle one" || fail "default map: $out"
-dchk() { on "$1" "LANE_CHECK=$2 LANE_AGENT=c-747 do_spl_lane_map" "${D[@]}" LANE_PANES_CMD="${3:-false}" 2>&1; }
+dchk() { on "$1" "LANE_CHECK=$2 LANE_AGENT=c-747 do_spl_lane_map" "${D[@]}" LANE_PANES_CMD="${3:-false}" "${@:4}" 2>&1; }
 out="$(dchk pc d/z.txt "cat $T/panes-d")"; rc=$?
 [[ $rc -eq 3 && "$(head -1 <<<"$out")" == "d/z.txt owned by c-742@box-desk c-742-dn (changed in its worktree; no files recorded)" ]] &&
   pass "--check on a path the running lane changed: exit 3, not free" || fail "check changed path (rc=$rc): $out"
@@ -674,8 +689,8 @@ out="$(dchk pc w/no-row-here.txt "cat $T/panes-d")"; rc=$?
 out="$(dchk pc e/landed.txt "cat $T/panes-d")"; rc=$?
 [[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] &&
   pass "--check on a file only the done row names: free, the worktree is what is measured" || fail "check done files (rc=$rc): $out"
-out="$(dchk pc d/z.txt)"; rc=$?
-[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "control: no pane read, the same path reads free" || fail "check no panes (rc=$rc): $out"
+out="$(dchk pc d/z.txt false LANE_ALL=1)"; rc=$?
+[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "control: no pane read, every row read, the same path reads free" || fail "check no panes (rc=$rc): $out"
 out="$(dchk sat d/z.txt)"; rc=$?
 [[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "known limit: another box has only the done row and says free" || fail "check other box (rc=$rc): $out"
 
@@ -719,6 +734,37 @@ on pc 'spl_lane_spool lane --fleet main' LANE_HUB_CMD= SPL_SPOOL="$T/bin/spool-d
 el=$(( SECONDS - s0 ))
 [[ $rc -eq 137 && $el -le 5 ]] && pass "a spool that ignores TERM is killed 1 s after its cut: rc 137 in ${el} s, not 20" ||
   fail "timeout -k (rc=$rc, ${el} s)"
+
+# 19. the read asks the live rows only (SPL-4630)
+: >"$T/hub/calls"
+on pc do_spl_lane_map "${D[@]}" >/dev/null
+grep -qx -- '--fleet dn --state live' "$T/hub/calls" && pass "the map's hub read asks --state live" || fail "live read: $(cat "$T/hub/calls")"
+: >"$T/hub/calls"
+on pc do_spl_lane_map "${D[@]}" LANE_ALL=1 >/dev/null
+grep -qx -- '--fleet dn' "$T/hub/calls" && ! grep -q -- '--state' "$T/hub/calls" &&
+  pass "LANE_ALL=1 reads every row: no --state" || fail "all read: $(cat "$T/hub/calls")"
+out="$(on pc 'LANE_FORMAT=json do_spl_lane_map' "${D[@]}" LANE_PANES_CMD="cat $T/panes-d" | tail -1 |
+  jq -c '[.lanes[] | select(.agent_id == "c-741" or .agent_id == "c-743") | "\(.agent_id) \(.state) \(.src)"]')"
+[[ "$out" == '["c-741 live local"]' ]] &&
+  pass "a live read: the running lane's worktree is live, the closed one (pane dead, no done row read) is gone" || fail "worktrees on a live read: $out"
+out="$(dchk pc d/z.txt "cat $T/panes-d")"; rc=$?
+[[ $rc -eq 3 ]] && pass "control: the running lane's changed path, no done row read: exit 3" || fail "running lane on a live read (rc=$rc): $out"
+out="$(on pc 'LANE_FORMAT=json do_spl_lane_map' "${D[@]}" | tail -1 | jq -c '[.lanes[] | select(.agent_id == "c-743") | "\(.agent_box) \(.state) \(.src)"]')"
+[[ "$out" == '["box-desk live local"]' ]] && pass "tmux unreadable on a live read: the worktree with no live row stays, src local" || fail "no panes, live read: $out"
+
+# 20. known limit, pinned: a worktree with no hub row at all and a dead pane (SPL-4630 R7 W2)
+lane pc c-751 dn
+mkdir -p "$T/pc/csi-spl-wt/c-751/n" && echo z >"$T/pc/csi-spl-wt/c-751/n/no-row.txt"
+cp "$T/panes-d" "$T/panes-n" && echo '1 c-751@box-desk' >>"$T/panes-n"
+out="$(on pc 'LANE_FORMAT=json do_spl_lane_map' "${D[@]}" LANE_PANES_CMD="cat $T/panes-n" | tail -1 |
+  jq -c '[.lanes[] | select(.agent_id == "c-751") | "\(.state) \(.src)"]')"
+[[ "$out" == '[]' ]] && pass "known limit: the live map drops a no-row worktree whose pane is dead" || fail "no row, dead pane, live read: $out"
+out="$(dn_row c-751 LANE_PANES_CMD="cat $T/panes-n")"
+[[ "$out" == '["box-desk live local"]' ]] && pass "control: LANE_ALL=1 shows it, src local" || fail "no row, dead pane, every row: $out"
+out="$(dchk pc n/no-row.txt "cat $T/panes-n")"; rc=$?
+out2="$(dchk pc n/no-row.txt "cat $T/panes-n" LANE_ALL=1)"; rc2=$?
+[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free && $rc2 -eq 0 && "$(head -1 <<<"$out2")" == free ]] &&
+  pass "--check on its changed path: free with the live read and with every row, as before SPL-4630" || fail "check parity (rc=$rc/$rc2): $out / $out2"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "lane-map: all passed"; exit 0; fi

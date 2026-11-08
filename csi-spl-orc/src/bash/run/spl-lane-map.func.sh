@@ -32,6 +32,11 @@
 # @description with a live pane on this box (SPL-5003): the local row shows (src local, shown
 # @description by default, --check reads its worktree). With no pane, or tmux
 # @description unreadable, the done row wins: a closed lane's worktree stays 24 h.
+# @description The read asks the hub for the live rows only (`--state live`,
+# @description SPL-4630: done rows were 88 % of the answer); LANE_ALL=1 reads
+# @description every row. A worktree here with no live hub row then counts only
+# @description while its pane is live (a closed lane's done row is not read),
+# @description and stays when tmux is unreadable: unsure is not free.
 # @param LANE_FLEET (optional) - the fleet; default LEASE_FLEET (env, then <spool root>/dispatch/lease.conf)
 # @param LANE_ENV / LANE_TENANT (optional) - the hub env (dev|prd|self) and the tenant holding the map; default LEASE_ENV / LEASE_TENANT
 # @param LANE_DESK_BOX (optional) - the pinned desk box whose key signs the calls; default LEASE_DESK_BOX, then spl_desk_box_default
@@ -169,10 +174,12 @@ spl_lane_conf() {
 # try did (its rc and its last stderr line). Each failed try is logged with its
 # rc and error: the tries used to go to /dev/null, so an alert could not say
 # whether the hub refused, timed out or sent a partial answer (SPL-4626).
+# LANE_HUB_LIVE=1: the read that answered asked the live rows only (no
+# LANE_ALL=1, SPL-4630); 0 when no try answered, so the local map stays whole.
 spl_lane_hub_read() {
   local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-15}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
   local share waits=0 w cut rc errf
-  local -a back
+  local -a back st=()
   read -r -a back <<<"${LANE_HUB_BACKOFF:-1 2}"
   [[ "$tries" =~ ^[1-9][0-9]*$ ]] || tries=3
   [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=15
@@ -185,15 +192,16 @@ spl_lane_hub_read() {
   share=$(( (budget - waits) / tries ))
   (( share >= 1 )) || share=1
   (( share <= max )) || share=$max
-  LANE_HUB_JSON="" LANE_HUB_TRY=0 LANE_HUB_TRIED=0 LANE_HUB_SECS=0 LANE_HUB_WHY="no try made"
+  LANE_HUB_JSON="" LANE_HUB_TRY=0 LANE_HUB_TRIED=0 LANE_HUB_SECS=0 LANE_HUB_WHY="no try made" LANE_HUB_LIVE=0
+  [[ "${LANE_ALL:-0}" == 1 ]] || st=(--state live)
   errf="$(mktemp)" || errf=/dev/null
   for (( n = 1; n <= tries; n++ )); do
     left=$(( budget - (SECONDS - start) ))
     (( left > 0 )) || break
     LANE_HUB_TRIED=$n cut=$(( left < share ? left : share )) rc=0
-    out="$(LANE_TIMEOUT=$cut spl_lane_hub --fleet "$LANE_FLEET" 2>"$errf")" || rc=$?
+    out="$(LANE_TIMEOUT=$cut spl_lane_hub --fleet "$LANE_FLEET" "${st[@]}" 2>"$errf")" || rc=$?
     if (( rc == 0 )) && jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
-      LANE_HUB_JSON="$out" LANE_HUB_TRY=$n LANE_HUB_SECS=$(( SECONDS - start ))
+      LANE_HUB_JSON="$out" LANE_HUB_TRY=$n LANE_HUB_SECS=$(( SECONDS - start )) LANE_HUB_LIVE=$(( ${#st[@]} > 0 ))
       [[ "$errf" == /dev/null ]] || rm -f "$errf"
       return 0
     fi
@@ -341,6 +349,13 @@ spl_lane_local_row() {
 # stays 24 h after the close, every one reads state live, so with no pane or no
 # LIVE_HERE (null: tmux unreadable) the done row wins, as a closed lane should.
 # The local row keeps files: [], not the done row's: --check reads its worktree.
+# A read of the live rows only (LANE_HUB_LIVE=1, SPL-4630) has no done row to
+# win: a worktree with no live hub row then counts only while its pane is live
+# here (pane_here); with its pane read and not live it is dropped, as the done
+# row used to drop it. With tmux unreadable (LIVE_HERE null) it stays, src
+# local: a lane spawned while the hub was down has no row either, and unsure is
+# not free. A hub that ignores the filter answers done rows too: those still
+# win as above.
 # Both values are files, not --argjson. One argument longer than
 # MAX_ARG_STRLEN (32 pages; 131072 bytes when the page is 4096) makes the
 # kernel refuse the exec ("Argument list too long") and the map dies before
@@ -351,14 +366,16 @@ spl_lane_merge() {  # HUB_JSON LOCAL_ROWS [LIVE_HERE (JSON array or null)]
   locf="$(mktemp)" || { rm -f "$hubf"; return 1; }
   # slurpfile yields a one-element array of the JSON value in the file.
   if printf '%s\n' "$1" >"$hubf" && printf '%s\n' "$2" >"$locf" &&
-    jq -c -n --slurpfile hub "$hubf" --slurpfile loc "$locf" --argjson up "${3:-null}" '
+    jq -c -n --slurpfile hub "$hubf" --slurpfile loc "$locf" --argjson up "${3:-null}" --argjson liveonly "$([[ "${LANE_HUB_LIVE:-0}" == 1 ]] && echo true || echo false)" '
       ($hub[0].lanes // [] | map(. + {src: "hub"})) as $h
       | ($h | map({key: .agent_id, value: .}) | from_entries) as $byid
       | ($h | map(select(.state != "done") | {key: "\(.agent_id)@\(.agent_box)", value: true}) | from_entries) as $open
       | [ $loc[0][] | select($byid[.agent_id] != null and $open["\(.agent_id)@\(.agent_box)"] == null)
           | select(.agent_id as $a | ($up // []) | index($a) != null) | . + {pane_here: true} ] as $over
       | [ $h[] | select(. as $r | any($over[]; .agent_id == $r.agent_id and .agent_box == $r.agent_box) | not) ]
-        + [ $loc[0][] | select(($byid[.agent_id] // null) == null) ] + $over
+        + [ $loc[0][] | select(($byid[.agent_id] // null) == null)
+            | if $liveonly and $up != null then select(.agent_id as $a | $up | index($a) != null) | . + {pane_here: true} else . end ]
+        + $over
       | ([$loc[0][] | .agent_id]) as $here
       | map(. as $r | if $r.src == "hub" and ($here | index($r.agent_id)) != null then .src = "hub+local" else . end)'; then
     rc=0

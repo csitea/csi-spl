@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -94,5 +95,40 @@ func TestBoxFleetLaneMap(t *testing.T) {
 	}
 	if ls, _ := e.st.ListFleetLanes(context.Background(), tid, "main", time.Now()); len(ls) != 2 {
 		t.Fatalf("a refusal wrote: %+v", ls)
+	}
+}
+
+// TestBoxFleetLaneListState (SPL-4630): done rows were 88 % of a fleet's
+// lane read, so the map asks the live rows only. 2 done + 1 live: a list with
+// state live answers the 1 live row, state done the 2, no state all 3 (a hub
+// before this, and LANE_ALL=1); a state other than live or done is refused.
+// Memory, and Postgres under SPOOL_TEST_PG_DSN (PRE_PUSH_TIER=full).
+func TestBoxFleetLaneListState(t *testing.T) {
+	_, _, _, _, home, _ := boxArchiveRig(t)
+	for _, l := range []struct{ id, state string }{{"c-101", "done"}, {"c-102", "live"}, {"c-103", "done"}} {
+		laneCall(t, home, action.LaneArgs{Fleet: "main", Agent: l.id, Box: "box-b", Repo: "csi-spl", Topic: "t-" + l.id,
+			Issue: "SPL-1", State: l.state})
+	}
+	for _, c := range []struct {
+		state string
+		want  []string
+	}{{"live", []string{"c-102"}}, {"done", []string{"c-101", "c-103"}}, {"", []string{"c-101", "c-102", "c-103"}}} {
+		m := laneCall(t, home, action.LaneArgs{Fleet: "main", ListState: c.state})
+		got := []string{}
+		for _, l := range m.Lanes {
+			if c.state != "" && l.State != c.state {
+				t.Errorf("state %q listed a %s row: %+v", c.state, l.State, l)
+			}
+			got = append(got, l.AgentID)
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, c.want) {
+			t.Errorf("state %q listed %v, want %v", c.state, got, c.want)
+		}
+	}
+	for _, raw := range []string{`{"state":"gone"}`, `"live"`} {
+		if out, err := home.c.Lane(context.Background(), "list", "main", json.RawMessage(raw)); err == nil {
+			t.Errorf("hub listed with lane %s: %s", raw, out)
+		}
 	}
 }

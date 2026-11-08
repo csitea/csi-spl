@@ -9,7 +9,8 @@ import (
 )
 
 // Lane writes one row (op "put", row = the lane object) or lists every row
-// (op "list", row nil) of the fleet-wide lane map over a one-shot role=cli
+// (op "list", row nil; row {"state": "live"} lists that state's only,
+// SPL-4630) of the fleet-wide lane map over a one-shot role=cli
 // session (CLE-77920). It returns the hub's answer {fleet, lanes}. A refusal
 // is a *HubError.
 func (c *Client) Lane(ctx context.Context, op, fleet string, row json.RawMessage) (json.RawMessage, error) {

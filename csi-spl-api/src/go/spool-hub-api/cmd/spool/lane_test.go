@@ -74,3 +74,30 @@ func TestLaneRetiredIDDoneOnly(t *testing.T) {
 		t.Errorf("done row %v, want CLE-100006 done", row)
 	}
 }
+
+// TestLaneListState (SPL-4630): `spool lane --fleet main --state live` lists
+// with the lane {"state":"live"}, which the hub filters on; a list with no
+// --state sends no lane object, so it reads every row (CONTROL: the write's
+// default state live does not leak into the list).
+func TestLaneListState(t *testing.T) {
+	h := newScriptHub(t, laneAnswer(map[string]string{"list": `{"fleet":"main","lanes":[]}`}), nil)
+	cfg := hubCfg(t, h.URL)
+	for _, c := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"--state live", []string{"--fleet", "main", "--state", "live"}, `{"state":"live"}`},
+		{"--state done", []string{"--fleet", "main", "--state", "done"}, `{"state":"done"}`},
+		{"control: no --state", []string{"--fleet", "main"}, ""},
+	} {
+		rc, _, errOut := capture(t, "", func() int { return cmdLane(cfg, c.args) })
+		if rc != 0 {
+			t.Fatalf("%s: rc %d err %q", c.name, rc, errOut)
+		}
+		fr := h.Frames()
+		if last := fr[len(fr)-1]; last.LaneOp != "list" || string(last.Lane) != c.want {
+			t.Errorf("%s: op %s lane %s, want list %s", c.name, last.LaneOp, last.Lane, c.want)
+		}
+	}
+}

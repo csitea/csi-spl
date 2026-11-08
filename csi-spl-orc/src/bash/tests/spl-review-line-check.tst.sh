@@ -57,6 +57,11 @@
 #      log lacks test-x.sh -> MISSING, exit 3; the log ran it -> OK; controls:
 #      latest-x.sh, a test-dir/ parent and a test-lib.inc.sh helper are no test
 #      names; test-z.tst.sh counts once; the OK/FAIL line lists the names
+#  15. the check's own command is no run (SPL-5116, c-785 N1). Red controls: a
+#      repeated check, and a log whose only command is the check -> MISSING;
+#      the line posted, committed or partial -> MISSING; controls: a real run
+#      beside the line in one command or one bash -c -> OK; the documented
+#      limit: a name inside another command (grep, cat, echo) still counts
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -354,6 +359,75 @@ out="$(syn "review: m-159@box-b mistral PASS $SHA ran: bash $S14 | read: 9 PASS 
 printf '%s\n' '{"input":{"command":"bash test-z.tst.sh"}}' >"$J14"
 out="$(chk REVIEW_LINE="$(line "bash test-z.tst.sh" "$J14")")"; rc=$?
 [[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "14. test-z.tst.sh fits both forms and counts once" || fail "14. dedupe (rc $rc: $out)"
+
+# 15. the check's own command is no run of a test (SPL-5116, c-785 N1) ----------
+J15="$T/j15.jsonl" N15=test-never-run-by-c785.sh
+cmd15() { python3 -c 'import json,sys; print(json.dumps({"input":{"command":sys.argv[1]}}))' "$1"; }
+L15="$(line "bash $N15" "$J15")"
+printf '%s\n' '{"input":{"command":"git diff --stat"}}' >"$J15"
+out="$(chk REVIEW_LINE="$L15")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING $N15"* ]] && pass "15. the first check of a test never run -> MISSING, exit 3" || fail "15. first check (rc $rc: $out)"
+cmd15 "cd csi-spl-orc && REVIEW_LINE='$L15' ./run -a do_spl_review_line_check" >>"$J15"
+out="$(chk REVIEW_LINE="$L15")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING $N15"* ]] && pass "15. RED CONTROL: the same check repeated, its command now in the log -> still MISSING, exit 3" || fail "15. repeat clears itself (rc $rc: $out)"
+L15T="$(line "bash $TST" "$J15")"
+cmd15 "REVIEW_LINE='$L15T' ./run -a do_spl_review_line_check" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING git-prune-round-branches.tst.sh"* ]] && pass "15. RED CONTROL: a log whose only command is the check -> MISSING, exit 3" || fail "15. only the check (rc $rc: $out)"
+L15K="$(line "go test ./cmd/spool/; pnpm run typecheck" "$J15")"
+cmd15 "sudo -u u env REVIEW_LINE=\"$L15K\" ./run -a do_spl_review_line_check" >"$J15"
+out="$(chk REVIEW_LINE="$L15K")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING go test ./cmd/spool/"* && "$out" == *"MISSING pnpm run typecheck"* ]] \
+  && pass "15. go test and pnpm run named only in the check's own line -> MISSING" || fail "15. go/pnpm in the line (rc $rc: $out)"
+cmd15 "spool-send.sh --kind result --body \"$L15T\"" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 3 ]] && pass "15. the review line posted as a message body is no run -> MISSING" || fail "15. posted line (rc $rc: $out)"
+cmd15 "git commit -m 'subject
+
+$L15T'" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 3 ]] && pass "15. the review line in a commit message is no run -> MISSING" || fail "15. commit message (rc $rc: $out)"
+cmd15 "REVIEW_LINE='ran: bash $TST' ./run -a do_spl_review_line_check" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 3 ]] && pass "15. a partial REVIEW_LINE= value (no review: head) is no run -> MISSING" || fail "15. partial value (rc $rc: $out)"
+# W1 of the R7 (c-084): every way to quote the value; the names must not survive the cut
+miss15() { # <label> <command>: the log's only command is the check, in this shape
+  cmd15 "$2" >"$J15"
+  out="$(chk REVIEW_LINE="$3")"; rc=$?
+  [[ $rc -eq 3 ]] && pass "15. RED CONTROL: $1 -> MISSING, exit 3" || fail "15. $1 (rc $rc: $out)"
+}
+miss15 "value in bash -c with escaped quotes" "bash -c \"REVIEW_LINE=\\\"$L15T\\\" ./run -a x\"" "$L15T"
+miss15 "env with the assignment double-quoted" "env \"REVIEW_LINE=$L15T\" ./run -a x" "$L15T"
+miss15 "env with the assignment single-quoted" "env 'REVIEW_LINE=$L15T' ./run -a x" "$L15T"
+miss15 "ANSI-C quoted value" "REVIEW_LINE=\$'$L15T' ./run -a x" "$L15T"
+miss15 "unquoted value" "REVIEW_LINE=$L15T" "$L15T"
+miss15 "backslash-newline inside a double-quoted value" "REVIEW_LINE=\"${L15T/ ran:/ \\
+ran:}\" ./run -a x" "$L15T"
+L15Q="$(line "echo it's; bash $TST" "$J15")"
+miss15 "the \${line@Q} form, a quote in ran: before the name" "REVIEW_LINE=${L15Q@Q} ./run -a x" "$L15Q"
+# W2 of the R7 (c-084): the cut must not join what a refused command kept apart
+for c15 in "go REVIEW_LINE=x test ./cmd/spool/ ; pnpm run typecheck" \
+  "go test ./cmd/spool/ ; pnpm run REVIEW_LINE=x typecheck" \
+  "go test REVIEW_LINE='a'./cmd/spool/ ; pnpm run typecheck" \
+  "go test ./cmd/spool/REVIEW_LINE=x ; pnpm run typecheck" \
+  "go review: m-1@b claude PASS abc ran: x | log: z test ./cmd/spool/ ; pnpm run typecheck"; do
+  miss15 "the cut joins no words: $c15" "$c15" "$L15K"
+done
+cmd15 "bash $TST; REVIEW_LINE='$L15T' ./run -a do_spl_review_line_check" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "15. control: a real run before the check in one command -> OK 1 of 1" || fail "15. run then check (rc $rc: $out)"
+cmd15 "sudo -u u bash -c 'cd /x && bash $TST && REVIEW_LINE=\"$L15T\" ./run -a do_spl_review_line_check'" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "15. control: the run and the check inside one bash -c string -> OK 1 of 1" || fail "15. bash -c (rc $rc: $out)"
+cmd15 "echo 'review: m-159@box-a mistral PASS $SHA ran: x | read: y'; bash $TST" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "15. control: a line with no log: part stops at its quote, the run after it counts" || fail "15. no log: part (rc $rc: $out)"
+cmd15 "REVIEW_LINE_BOX=box-a bash $TST" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 0 ]] && pass "15. control: REVIEW_LINE_BOX= before a real run is not the line" || fail "15. other var (rc $rc: $out)"
+cmd15 "grep -c x $TST" >"$J15"
+out="$(chk REVIEW_LINE="$L15T")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "15. documented limit: a name inside another command (grep, cat, echo) still counts" || fail "15. documented limit (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

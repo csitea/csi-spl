@@ -32,6 +32,7 @@
 # @param COMMIT_LINKS_TENANT (optional) - the issue workspace, default cnf env.hub.commit_issue_tenant
 # @param COMMIT_LINKS_PREFIX (optional) - its key prefix, default cnf env.hub.commit_issue_prefix
 # @param COMMIT_LINKS_HARD (optional) - 1 (default) a failed hub read fails the check; 0 it WARNs and checks the form only
+# @param COMMIT_LINKS_REFUSE_RELAY_HASH (optional) - 1 refuses an issue whose only non-default links are relay hashes (version-5 uuids), 0 does not; default cnf env.hub.commit_links_refuse_relay_hash (false)
 # @example ./run -a do_spl_commit_links_check
 # @example COMMIT_LINKS_RANGE=HEAD~5..HEAD COMMIT_LINKS_HUB=none ./run -a do_spl_commit_links_check
 #------------------------------------------------------------------------------
@@ -65,12 +66,16 @@ do_spl_commit_links_check() {
          do_log "WARN the $hub hub did not answer (rc $rc): the form only, CI checks the links"; hub=none links='{}' ;;
     esac
   fi
+  local refuse_hash="${COMMIT_LINKS_REFUSE_RELAY_HASH:-$(_spl_cl_cnf "$repo" commit_links_refuse_relay_hash)}"
+  [[ "$refuse_hash" == true ]] && refuse_hash=1
+  [[ "$refuse_hash" == 1 && "$hub" != none ]] && jq -e 'any(.[]; has("relay_hash_only") | not)' <<<"$links" >/dev/null &&
+    do_log "WARN the $hub hub answers no relay_hash_only (older revision): relay hashes are not refused on this run"
   _spl_cl_verdicts "$repo" "$hub" "$tenant" "$prefix" "$range" "$links" "${shas[@]}"
 }
 
 # _spl_cl_verdicts <repo> <hub> <tenant> <prefix> <range> <links json> <sha...>:
 # one FATAL per refused commit, the summary line; rc 0 or 3. Reads the
-# caller's keys map.
+# caller's keys map and refuse_hash.
 _spl_cl_verdicts() {
   local repo="$1" hub="$2" tenant="$3" prefix="$4" range="$5" links="$6" s why ok=0 bad=0
   shift 6
@@ -93,20 +98,22 @@ _spl_cl_verdicts() {
 # _spl_cl_why <hub> <tenant> <prefix> <keys> <links json>: rc 0 the commit
 # passes; else the reason and the fix on stdout, rc 1.
 _spl_cl_why() {
-  local hub="$1" tenant="$2" prefix="$3" ks="$4" links="$5" k f n miss="" nod=""
+  local hub="$1" tenant="$2" prefix="$3" ks="$4" links="$5" k f n h miss="" nod="" hash=""
   if [[ -z "$ks" ]]; then
     echo "names no $prefix-<n> issue key. Cite the issue that justifies it in the subject scope, 'feat(<area>, $prefix-<n>): ...', or a 'Closes: $prefix-<n>' trailer; with no issue yet, file one linked to its discussion: spool issue create --title <t> --discussions <topic id> --epic $prefix-<epic>"
     return 1
   fi
   [[ "$hub" == none ]] && return 0
   for k in $ks; do
-    read -r f n < <(jq -r --arg k "$k" '.[$k] // {} | "\(.found // false) \(.discussions // 0)"' <<<"$links")
+    read -r f n h < <(jq -r --arg k "$k" '.[$k] // {} | "\(.found // false) \(.discussions // 0) \(.relay_hash_only // false)"' <<<"$links")
+    if [[ "$f" == true && "$n" -gt 0 && "$h" == true && "${refuse_hash:-}" == 1 ]]; then hash+=" $k"; continue; fi
     [[ "$f" == true && "$n" -gt 0 ]] && return 0
     if [[ "$f" == true ]]; then nod+=" $k"; else miss+=" $k"; fi
   done
   [[ -n "$miss" ]] && echo -n "names${miss} that $tenant has no issue for. "
   [[ -n "$nod" ]] && echo -n "${nod# } links no discussion of its own (only the $tenant backlog topic): spool issue link --ref ${nod##* } --discussion <topic id where it came from>. "
-  [[ -z "$nod" ]] && echo -n "Cite an existing $tenant issue, or file one linked to its discussion: spool issue create --title <t> --discussions <topic id> --epic $prefix-<epic>"
+  [[ -n "$hash" ]] && echo -n "${hash# } links only a relay hash (a version-5 uuid of a task name, not a discussion): spool issue link --ref ${hash##* } --discussion <topic id where it came from>. "
+  [[ -z "$nod$hash" ]] && echo -n "Cite an existing $tenant issue, or file one linked to its discussion: spool issue create --title <t> --discussions <topic id> --epic $prefix-<epic>"
   echo
   return 1
 }

@@ -61,8 +61,30 @@ Each FATAL names the short sha, the subject, what is missing and the fix:
 - **its issue links only the backlog topic**: link the discussion it came
   from: `spool issue link --ref SPL-<n> --discussion <topic id>`.
 
+- **its issue links only a relay hash** (only with the switch of section 3.1
+  on): link the discussion it came from, with the same command.
+
 Reword a commit that is not pushed yet with `git commit --amend`, or with
 `git rebase -i` for older ones. Never force-push master.
+
+### 3.1 A relay hash is not a discussion (SPL-5126)
+
+A version-5 uuid is the hash `spool-fleet-relay.sh` makes of a task name
+(`store.RelayTaskHashRe`). The gate counted it as a discussion. For each key
+the hub now also answers `relay_hash_only`: true when the issue has links
+other than the default and all of those are version-5 uuids. `discussions`
+still counts them.
+
+The switch is cnf `env.hub.commit_links_refuse_relay_hash`, **false on master
+today**; `COMMIT_LINKS_REFUSE_RELAY_HASH=1` or `0` overrides it for one run.
+Off, nothing changes. On, a commit whose issues pass only through such a link
+is refused with a FATAL naming the fix. A hub that does not send the field
+yields a WARN and no refusal. The uuid form is all the check reads: it does
+not prove a given link is a relay hash.
+
+Turning it on is the dispatch holder's and the orchestrator's decision: it
+refuses commits on every open issue linked that way until each has a real
+origin.
 
 ## 4. The cut-over and older commits
 

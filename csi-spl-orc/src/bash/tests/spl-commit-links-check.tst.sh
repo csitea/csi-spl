@@ -20,6 +20,9 @@
 #      INFO lines inside the hub read: they must not reach the parsed answer
 #      (the gate read every key as "no issue"); an answer it cannot parse is
 #      a FATAL that says so, rc 1, never "no issue"
+#   7. SPL-5126: the relay-hash switch. Off (the default, cnf absent or false)
+#      an issue linking only a relay hash passes; on, it is refused with the
+#      fix; a real discussion still passes; a hub without the field WARNs
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -62,8 +65,9 @@ act() {
       SPL_HUB_OP_STATUS="${STUB_CODE:-200}"
       [[ -n "${STUB_RAW:-}" ]] && { SPL_HUB_OP_BODY="$STUB_RAW"; return 0; }
       [[ "${STUB_CODE:-200}" == 404 ]] && { SPL_HUB_OP_BODY="${STUB_BODY:-404 page not found}"; return 0; }
-      SPL_HUB_OP_BODY="$(jq -c "{keys: [.keys[] | {key: ., found: (. == \"SPL-10\" or . == \"SPL-20\"),
-        discussions: (if . == \"SPL-10\" then 1 else 0 end), default_only: (. == \"SPL-20\")}]}" <<<"$3")"
+      SPL_HUB_OP_BODY="$(jq -c "{keys: [.keys[] | {key: ., found: (. == \"SPL-10\" or . == \"SPL-20\" or . == \"SPL-30\"),
+        discussions: (if . == \"SPL-10\" or . == \"SPL-30\" then 1 else 0 end), default_only: (. == \"SPL-20\")}
+        + (if env.STUB_NO_FIELD == \"1\" then {} else {relay_hash_only: (. == \"SPL-30\")} end)]}" <<<"$3")"
     }
     do_spl_commit_links_check' 2>"$T/err"
 }
@@ -150,6 +154,36 @@ out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_HARD=0 STUB_RAW='INFO not json' COMM
 [[ $rc == 0 && "$out" == *"hub=none"*"(NOT hub-checked"* ]] && grep -q 'prd hub did not answer' "$T/err" &&
   pass "an answer that does not parse, COMMIT_LINKS_HARD=0 (the hook) -> WARN, the form only" ||
   fail "soft unparsable: rc $rc out '$out' err '$(cat "$T/err")'"
+
+# --- 7. SPL-5126: the relay-hash switch ------------------------------------------
+HASH=$(commit "feat(orc, SPL-30): an issue whose only link is a relay hash")
+REAL=$(commit "feat(orc, SPL-10): a real discussion after it")
+PRE="$MERGE"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_RANGE="$PRE..$HASH"); rc=$?
+[[ $rc == 0 && "$out" == *"ok=1 fail=0"* ]] && pass "switch unset: a relay-hash-only issue passes, as on master" ||
+  fail "off: rc $rc out '$out' err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_REFUSE_RELAY_HASH=0 COMMIT_LINKS_RANGE="$PRE..$HASH"); rc=$?
+[[ $rc == 0 ]] && pass "switch 0: passes" || fail "off 0: rc $rc err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_REFUSE_RELAY_HASH=1 COMMIT_LINKS_RANGE="$PRE..$HASH"); rc=$?
+[[ $rc == 3 && "$out" == *"ok=0 fail=1"* ]] &&
+  grep -q "FATAL commit ${HASH:0:9} .*SPL-30 links only a relay hash.*spool issue link --ref SPL-30" "$T/err" &&
+  pass "RED CONTROL switch on: refused, the FATAL names the issue and the fix" ||
+  fail "on: rc $rc out '$out' err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_REFUSE_RELAY_HASH=1 COMMIT_LINKS_RANGE="$HASH..$REAL"); rc=$?
+[[ $rc == 0 && "$out" == *"ok=1 fail=0"* ]] && pass "switch on: a real discussion passes" ||
+  fail "on real: rc $rc out '$out' err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_REFUSE_RELAY_HASH=1 STUB_NO_FIELD=1 COMMIT_LINKS_RANGE="$PRE..$HASH"); rc=$?
+[[ $rc == 0 ]] && grep -q 'WARN .*relay_hash_only' "$T/err" && pass "switch on, a hub without the field: WARN, not a silent pass" ||
+  fail "no field: rc $rc err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=none COMMIT_LINKS_REFUSE_RELAY_HASH=1 COMMIT_LINKS_RANGE="$PRE..$HASH"); rc=$?
+[[ $rc == 0 && "$out" == *"NOT hub-checked"* ]] && pass "switch on, hub none: the form only" || fail "none: rc $rc out '$out'"
+mkdir -p "$REPO/csi-spl-cnf/csi-spl"
+echo '{"env":{"hub":{"commit_links_refuse_relay_hash":true}}}' >"$REPO/csi-spl-cnf/csi-spl/prd.env.json"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_RANGE="$PRE..$HASH"); rc=$?
+[[ $rc == 3 ]] && pass "cnf true turns it on" || fail "cnf on: rc $rc out '$out'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_REFUSE_RELAY_HASH=0 COMMIT_LINKS_RANGE="$PRE..$HASH"); rc=$?
+[[ $rc == 0 ]] && pass "the env var beats the cnf" || fail "env over cnf: rc $rc out '$out'"
+rm -rf "$REPO/csi-spl-cnf"
 
 echo "spl-commit-links-check: $fails failure(s)"
 ((fails == 0))

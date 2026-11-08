@@ -159,6 +159,10 @@ type commitLinkJSON struct {
 	Found       bool   `json:"found"`
 	Discussions int    `json:"discussions"`
 	DefaultOnly bool   `json:"default_only"`
+	// RelayHashOnly: every link other than the default is a version-5 uuid
+	// (store.RelayTaskHashRe), the hash of a task name, not a discussion
+	// (SPL-5126). Discussions still counts them; the check decides.
+	RelayHashOnly bool `json:"relay_hash_only"`
 }
 
 func (s *Server) handleCommitLinks(w http.ResponseWriter, r *http.Request) {
@@ -202,16 +206,21 @@ func commitLinks(tenant string, keys []string, links map[int][]store.IssueDiscus
 	def := store.IssueDiscussionDefault(tenant)
 	out := make([]commitLinkJSON, 0, len(keys))
 	for _, k := range keys {
-		j := commitLinkJSON{Key: k}
+		j, hashes := commitLinkJSON{Key: k}, 0
 		if n, ok := store.ParseIssueRef(k); ok {
 			for _, l := range links[n] {
 				j.Found = true
-				if l.TaskID != def {
-					j.Discussions++
+				if l.TaskID == def {
+					continue
+				}
+				j.Discussions++
+				if store.RelayTaskHashRe.MatchString(l.TaskID) {
+					hashes++
 				}
 			}
 		}
 		j.DefaultOnly = j.Found && j.Discussions == 0
+		j.RelayHashOnly = j.Discussions > 0 && hashes == j.Discussions
 		out = append(out, j)
 	}
 	return out

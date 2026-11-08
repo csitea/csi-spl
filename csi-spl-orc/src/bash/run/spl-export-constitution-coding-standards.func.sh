@@ -28,7 +28,7 @@ _ECS_END='<!-- END CODING STANDARDS -->'
 #   repeated, END before BEGIN, a body or footer version line missing or
 #   repeated.
 # @param DRY_RUN (optional) - 1: compare only, exit 1 with the diff when the
-#   block differs (drift fact 8 runs it so); default 0 writes
+#   block differs (drift fact 9 runs it so); default 0 writes
 # @param EXPORT_CS_TREE (optional) - default: $APP_PATH, the checkout
 # @param EXPORT_CS_GUIDE (optional) - default
 #   <tree>/csi-spl-doc/doc/md/developer-guide.md

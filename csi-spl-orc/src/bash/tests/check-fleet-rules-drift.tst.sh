@@ -6,7 +6,8 @@
 #          language-rule pins, commit address, a path / action / make target /
 #          spec folder / terraform step named in the repo-root CLAUDE.md or
 #          AGENTS.md that is not on the tree, a csi-spl-* dir with no row in
-#          the CLAUDE.md dir table), in the tree and in a box's installed copies. Every
+#          the CLAUDE.md dir table, a constitution block that differs from
+#          the developer guide), in the tree and in a box's installed copies. Every
 #          control names the fact that broke. The sources are copied into a
 #          throwaway tree; nothing outside it is written.
 #------------------------------------------------------------------------------
@@ -35,6 +36,7 @@ mk_tree() {  # <dir>
   local d="$1"
   mkdir -p "$d"
   (cd "$APP_ROOT" && cp --parents CLAUDE.md AGENTS.md .gitignore csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md \
+     csi-spl-doc/doc/md/developer-guide.md csi-spl-doc/.specify/memory/constitution.md \
      csi-spl-doc/doc/md/fleet-rules-index.md csi-spl-doc/doc/md/lane-integration-rules.md \
      csi-spl-doc/doc/help/how-to-post.md csi-spl-orc/src/bash/scripts/spl-session-prune.sh \
      csi-spl-orc/src/bash/run/spl-orch-load-report.func.sh csi-spl-orc/src/bash/run/spl-lane-mix.func.sh \
@@ -173,6 +175,35 @@ plant; rm -rf "$T/p/.git"
 run "$T/p"; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'SKIP commit-address' "$T/out" && pass "11: no history = SKIP commit-address, named" \
   || { fail "11: no-history tree"; sed 's/^/    /' "$T/out"; }
+
+# 13. constitution: equal is green; a block that differs, or a check that cannot run, is red.
+CON=csi-spl-doc/.specify/memory/constitution.md GUIDE=csi-spl-doc/doc/md/developer-guide.md
+in_block() { sed -i "/^<!-- BEGIN CODING STANDARDS/,/^<!-- END CODING STANDARDS/ $1" "$T/p/$CON"; }
+run "$T/base"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'OK constitution' "$T/out" && pass "13a: an equal constitution block is green" \
+  || { fail "13a: equal block"; sed 's/^/    /' "$T/out"; }
+plant; in_block 's/at most 75 lines/at most 99 lines/'
+if grep -q 'at most 99 lines' "$T/p/$CON"; then pass "13b: the plant changed the block"; else fail "13b: the plant did not change the block"; fi
+run "$T/p"; rc=$?; control "13c constitution changed block" "constitution: the Coding Standards export check"
+grep -q '^+.*at most 75 lines' "$T/out" && pass "13d: the red prints the diff" || fail "13d: no diff in the red output"
+# 13e. the guide moved on and the constitution did not: the case the fact exists for.
+plant; sed -i 's/A function is at most 75 lines/A function is at most 70 lines/' "$T/p/$GUIDE"
+run "$T/p"; rc=$?; control "13e guide changed alone" "constitution: the Coding Standards export check"
+# 13f. the caller's DRY_RUN=0 never turns the check into a write.
+plant; in_block 's/at most 75 lines/at most 99 lines/'; before=$(sha256sum <"$T/p/$CON")
+DRY_RUN=0 run "$T/p"; rc=$?; control "13f DRY_RUN=0 is still a check" "constitution: the Coding Standards export check"
+[[ "$(sha256sum <"$T/p/$CON")" == "$before" ]] && pass "13g: the check wrote nothing" || fail "13g: the check rewrote the constitution"
+# 13h. a caller's EXPORT_CS_CONSTITUTION cannot point the check at an equal copy.
+plant; cp "$T/p/$CON" "$T/equal.md"; in_block 's/at most 75 lines/at most 99 lines/'
+EXPORT_CS_CONSTITUTION="$T/equal.md" run "$T/p"; rc=$?; control "13h caller's EXPORT_CS_* ignored" "constitution: the Coding Standards export check"
+# 13i..k. a check that cannot run is red, never equal.
+plant; rm -f "$T/p/$GUIDE"
+run "$T/p"; rc=$?; control "13i no guide" "constitution: the Coding Standards export check"
+plant; sed -i '/^<!-- END CODING STANDARDS/d' "$T/p/$CON"
+run "$T/p"; rc=$?; control "13j lost marker" "constitution: the Coding Standards export check"
+saved="$_FRD_EXPORTER"; _FRD_EXPORTER="$T/no-such-exporter.sh"
+run "$T/base"; rc=$?; control "13k exporter missing" "constitution: the Coding Standards export check"
+_FRD_EXPORTER="$saved"
 
 echo "== $passes/$((passes + fails)) passed"
 exit "$fails"

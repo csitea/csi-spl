@@ -34,6 +34,10 @@
 #                     steps NNN, NNN") csi-spl-iac/src/terraform/NNN-*; and
 #                     the CLAUDE.md dir table has a row per top-level
 #                     csi-spl-* dir of the tree
+#   9 constitution    the constitution's Coding Standards block = the developer
+#                     guide's section: do_spl_export_constitution_coding_standards
+#                     with DRY_RUN=1, so it never writes; an export that cannot
+#                     run is red, never equal
 #   It runs in the pre-push hygiene part (do_check_pre_push) and in the orc
 #   suite (tests/check-fleet-rules-drift.tst.sh). Read-only.
 # @param FLEET_RULES_TREE (optional) - default: $APP_PATH, the checkout to read
@@ -57,12 +61,13 @@ do_check_fleet_rules_drift() {
   _frd_per_kind_main "$tree" "$home" || rc=1
   _frd_commit_address "$tree" || rc=1
   _frd_repo_refs "$tree" || rc=1
+  _frd_constitution "$tree" || rc=1
 
   if (( rc )); then
     _frd_log "FAIL fleet rules drift: two sources disagree, or an agent doc names what is not on the tree (above); fix the copy that is not the home named in fleet-rules-index.md"
     return 1
   fi
-  _frd_log "OK fleet rules: no drift over 8 pinned facts in $tree${home:+ and the installed copies under $home/.claude}"
+  _frd_log "OK fleet rules: no drift over 9 pinned facts in $tree${home:+ and the installed copies under $home/.claude}"
 }
 
 _frd_log() { if declare -F do_log >/dev/null; then do_log "$*"; else echo "$*"; fi; }
@@ -324,4 +329,26 @@ _frd_repo_refs() {  # <tree>
   (( n )) || { _frd_log "FAIL repo-refs: no reference found in $_FRD_AGENT_DOCS"; return 1; }
   (( bad )) || _frd_log "OK repo-refs: $n references in $_FRD_AGENT_DOCS are on the tree ($ign git-ignored, skipped)"
   return "$bad"
+}
+
+# The pre-push part sources this file alone, so the exporter is loaded here. It
+# comes from this checkout and reads the tree under check. Any non-zero exit is
+# red: a difference, a refusal (no guide, a lost marker) or an exporter that
+# did not load. The caller's DRY_RUN and EXPORT_CS_* never reach it.
+_FRD_EXPORTER="$(dirname "${BASH_SOURCE[0]}")/spl-export-constitution-coding-standards.func.sh"
+_frd_constitution() {  # <tree>
+  local t="$1" out rc=0
+  out="$(
+    declare -F do_log >/dev/null || do_log() { echo "$*"; }
+    # shellcheck source=/dev/null
+    source "$_FRD_EXPORTER" || exit 1
+    DRY_RUN=1 EXPORT_CS_TREE="$t" EXPORT_CS_GUIDE="" EXPORT_CS_CONSTITUTION="" EXPORT_CS_NODE="" EXPORT_CS_NOW="" \
+      do_spl_export_constitution_coding_standards
+  )" 2>&1 || rc=$?
+  if (( rc )); then
+    printf '%s\n' "$out"
+    _frd_log "FAIL constitution: the Coding Standards export check is not clean (rc $rc), see above"
+    return 1
+  fi
+  _frd_log "OK constitution: the Coding Standards block = the developer guide's section"
 }

@@ -69,19 +69,22 @@ do_spl_hub_fleet_paid() {
 
 # _spl_hub_fleet_paid_index -> the item list without a figure (SPL-4843):
 # one line per item, id vendor kind [period_start, period_end), projected
-# before anything reaches stdout or a log line. A refusal names its HTTP code
-# and the hub's error code only, never the body or its detail.
+# before anything reaches stdout or a log line; a field off its format prints
+# "?" and a body that is not one JSON document is refused (SPL-5084). A refusal
+# names its HTTP code and the hub's error code only, never the body or its detail.
 _spl_hub_fleet_paid_index() {
   local err
   if [[ "$SPL_HUB_OP_STATUS" != 200 ]]; then
-    err="$(jq -r '.error | strings | select(test("^[a-z_]{1,40}$"))' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
+    err="$(jq -rs 'select(length == 1) | .[0].error | strings | select(test("^[a-z_]{1,40}\\z"))' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
     do_log "FATAL the hub answered $SPL_HUB_OP_STATUS${err:+ ($err)} to the paid item index"
     return 1
   fi
-  jq -e '(.items | type == "array") and all(.items[]; type == "object")' <<<"$SPL_HUB_OP_BODY" >/dev/null 2>&1 ||
+  jq -se 'length == 1 and (.[0].items | type == "array") and all(.[0].items[]; type == "object")' <<<"$SPL_HUB_OP_BODY" >/dev/null 2>&1 ||
     { do_log "FATAL the paid item list is not {items: [...]}; nothing printed"; return 1; }
   do_log "OK $ENV paid items: $(jq -r '.items | length' <<<"$SPL_HUB_OP_BODY") (index: no amount, currency, quantity, note or plan label)"
-  jq -r '.items[] | [.id, .vendor, .kind, .period_start, .period_end] | map(if type == "string" then . else "?" end) | "  \(.[0]) \(.[1]) \(.[2]) [\(.[3]), \(.[4]))"' <<<"$SPL_HUB_OP_BODY"
+  jq -r 'def f($re): if type == "string" and test($re) then . else "?" end;
+    "^[a-z_]{1,40}\\z" as $word | "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\z" as $day
+    | .items[] | "  \(.id | f("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\z")) \(.vendor | f($word)) \(.kind | f($word)) [\(.period_start | f($day)), \(.period_end | f($day)))"' <<<"$SPL_HUB_OP_BODY"
 }
 
 # _spl_hub_fleet_paid_fx_counts -> per vendor of the effective read just made,

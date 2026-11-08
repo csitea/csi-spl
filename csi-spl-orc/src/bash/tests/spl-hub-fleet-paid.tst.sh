@@ -18,8 +18,9 @@
 #      stdout, stderr or in any file the run wrote, a refusal included; red
 #      control: the same check finds list's figures
 #   9. index when the hub breaks its contract (SPL-5084): a multi-line error
-#      stays out of the log line, a non-string field prints "?", a non-object
-#      item is refused before any OK line; the body file is written 0600
+#      stays out of the log line, a field off its format prints "?", a
+#      non-object item or a second JSON document is refused before any OK line;
+#      the body file is written 0600
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -206,6 +207,29 @@ d="$T/real/nonobj"
 [[ $rc -eq 0 ]] && grep -qx 'mode 600' "$T/real/mode/calls" \
   && pass "9. the body file is written 0600 under a caller's umask 022" \
   || fail "9. body mode: rc=$rc $(grep '^mode' "$T/real/mode/calls")"
+strid() { printf '{"items":[{"id":%s,"vendor":"agy","kind":"topup","period_start":"2020-01-01","period_end":"2020-01-02"}]}\n' "$1"; }
+strid '"98765.4321 XTS"' >"$T/real/strfield.json"
+run_real strfield index "$T/real/strfield.json"; rc=$?
+d="$T/real/strfield"; found=$(leaks "$d")
+[[ $rc -eq 0 && -z "$found" ]] && grep -qxF "  ? agy topup [2020-01-01, 2020-01-02)" "$d/out" \
+  && pass "9. a string field off its format prints ?, its amount nowhere" \
+  || fail "9. string field: rc=$rc leaks=$found"
+strid '"a\nFORGED line"' >"$T/real/forge.json"
+run_real forge index "$T/real/forge.json"; rc=$?
+d="$T/real/forge"
+[[ $rc -eq 0 ]] && ! grep -q 'FORGED' "$d/out" && pass "9. a newline in a field forges no line" || fail "9. forged line: rc=$rc"
+printf '{"items":98765.4321}\n{"items":[]}\n' >"$T/real/twodocs.json"
+run_real twodocs index "$T/real/twodocs.json"; rc=$?
+d="$T/real/twodocs"; found=$(leaks "$d")
+[[ $rc -ne 0 && -z "$found" ]] && grep -q 'FATAL the paid item list is not' "$d/out" && ! grep -q 'paid items:' "$d/out" \
+  && pass "9. two JSON documents are refused, the figure in the first nowhere" \
+  || fail "9. two documents: rc=$rc leaks=$found"
+printf '{"error":"first_doc"}\n{"error":"second_doc"}\n' >"$T/real/twoerrs.json"
+run_real twoerrs index "$T/real/twoerrs.json" STUB_CODE=403; rc=$?
+d="$T/real/twoerrs"
+[[ $rc -ne 0 ]] && grep -q 'FATAL the hub answered 403 to the paid item index' "$d/out" && ! grep -q '_doc' "$d/out" \
+  && pass "9. a two-document refusal names its code only, the log line stays whole" \
+  || fail "9. two-document refusal: rc=$rc"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

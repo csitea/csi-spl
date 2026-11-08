@@ -64,6 +64,10 @@ var hostProbes = []struct {
 // "2.1.3 (Claude Code)".
 var versionRe = regexp.MustCompile(`\d+(\.\d+)+([-+][0-9A-Za-z.]+)?`)
 
+// bootSecRe is the whole sec field of kern.boottime, never the tail of usec:
+// "{ sec = 1696000000, usec = 0 } Fri Sep 29 15:06:40 2023".
+var bootSecRe = regexp.MustCompile(`\bsec = (\d+)`)
+
 // hostRunner runs one probe and answers the first line of its stdout.
 type hostRunner func(ctx context.Context, argv []string) (string, error)
 
@@ -285,7 +289,7 @@ func hostSystem(ctx context.Context, env hostEnv) *wire.HostSystem {
 			}
 		}
 		if out, err := probe(ctx, env, "sysctl", "-n", "kern.boottime"); err == nil { // { sec = 1696000000, usec = 0 } ...
-			if m := regexp.MustCompile(`sec = (\d+)`).FindStringSubmatch(out); m != nil {
+			if m := bootSecRe.FindStringSubmatch(out); m != nil {
 				if n, err := strconv.ParseInt(m[1], 10, 64); err == nil {
 					s.BootAt = time.Unix(n, 0).UTC().Format(time.RFC3339)
 				}

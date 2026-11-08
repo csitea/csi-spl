@@ -62,6 +62,10 @@
 #        pin under any user -> rc 3 / rc 7 saying "lane map unreadable" with
 #        the init's FATAL, not "names no copy"; the pin user's hub read
 #        failing -> rc 3 naming that user
+#    20. a delta re-review (SPL-5128): RED CONTROLS a brief with one author and
+#        a PASS on a sha and task it does not name -> rc 3 saying so and
+#        naming the author, not "author not assigned"; the sha only outside
+#        the table -> "in no author row"; control: no author -> the old reason
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -169,7 +173,7 @@ run REVIEW_GO_MSG="$f"; refused "2. RED CONTROL: same vendor (claude reviews cla
 reset
 rbrief g-111 "c-999@boxa" "0123456789ab" 99999999-0000-4000-8000-000000000000
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 03000000-0000-4000-8000-000000000003)
-run REVIEW_GO_MSG="$f"; refused "3. RED CONTROL: a brief whose row is neither the sha nor the task refused" $? 3 "author not assigned"
+run REVIEW_GO_MSG="$f"; refused "3. RED CONTROL: a brief whose row is neither the sha nor the task refused" $? 3 "are not in $S/g-111/lifetime/brief.md; its author is c-999"
 reset
 rm -rf "$S/g-111/lifetime"
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 03000000-0000-4000-8000-000000000004)
@@ -379,7 +383,7 @@ f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000
 run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: a prose brief naming two authors" $? 3 "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
 reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude). Branch \`review/c002-x\` at \`0123456789abcdef\`, task 0f0f0f0f."
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000004)
-run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: a prose brief naming neither the sha nor the task (an id reused for another seat)" $? 3 "author not assigned"
+run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: a prose brief naming neither the sha nor the task (an id reused for another seat)" $? 3 "are not in $S/dispatch/briefs/c002-x-grok-reviewer.md; its author is c-222"
 reset14; rm -f "$S/agents/retired/"*.json
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000005)
 run REVIEW_GO_MSG="$f"; refused "14. a retired reviewer with no identity record" $? 3 "author not assigned in $S/g-111/lifetime/brief.md"
@@ -604,6 +608,29 @@ f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 19000000-0000-4000
 run19 PIN_USERS= SUDO_HUB=ok REVIEW_GO_MSG="$f"
 refused "19. RED CONTROL: the author on boxb, no pin: rc 7 says the lane map is unreadable" $? 7 \
   "author c-222 has no brief on this box boxa (author box boxb), and the lane map unreadable: FATAL boxa is not pinned in t1"
+
+# --- 20. the hold says why: the brief has an author, the PASS is on another sha (SPL-5128) --------------------
+# the delta re-review of msgs f1872749, f5b74f0e: the brief names the first sha, the PASS is on a later one
+# nonamed <where> <brief>: the true reason
+nonamed() { printf 'reviewed sha %s and task %s are %s %s; its author is c-222' "${SHA:0:12}" "$TASK" "$1" "$2"; }
+# hold20 <case> <rc> <reason>: refused on that reason, and not on the old one
+hold20() {
+  refused "$1" "$2" 3 "$3"
+  grep -q 'author not assigned' "$LOG" && fail "$1: still says author not assigned: $(cat "$LOG")" || pass "$1: not 'author not assigned'"
+}
+reset14; pbrief c002-x-grok-reviewer "Author: c-222@boxa (claude). Branch \`review/c002-x\` at \`0123456789abcdef\`."
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 20000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; hold20 "20. RED CONTROL: Author: line, PASS on a sha and task the brief does not name" $? \
+  "$(nonamed 'not in' "$S/dispatch/briefs/c002-x-grok-reviewer.md")"
+reset; rbrief g-111 "c-222@boxa (claude)" "0123456789ab" 99999999-0000-4000-8000-000000000000
+echo "An earlier delta was ${SHA:0:12}." >>"$S/g-111/lifetime/brief.md"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 20000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; hold20 "20. RED CONTROL: the table's one author, the sha only in the text: no row, and it says so" $? \
+  "$(nonamed 'in no author row of' "$S/g-111/lifetime/brief.md")"
+reset14; pbrief c002-x-grok-reviewer "Branch \`review/c002-x\` at \`0123456789abcdef\`."
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 20000000-0000-4000-8000-000000000003)
+run REVIEW_GO_MSG="$f"; refused "20. control: a brief with no author keeps the old reason" $? 3 \
+  "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

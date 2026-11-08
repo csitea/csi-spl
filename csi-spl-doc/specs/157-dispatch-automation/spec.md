@@ -174,6 +174,7 @@ sequenceDiagram
    - **Threat Model**: Because the brief file is mode `0664` and writable by group `spool-agents`, it provides reliable seat evidence against misconfigurations, stale sessions, and unassigned reviews, rather than cryptographic immunity against same-UID tampering. (The hub queue DB record `placed: <ID>@<box>` provides the secondary canonical placement record).
    - Rule 1 verifies that `$SPOOL_ROOT/<reviewer-id>/lifetime/brief.md` exists, is non-empty, and contains the author `<author-id>` in its target review table row (`| author | branch | sha | task |`).
    - If the file is missing or the author is not listed, REFUSE: `REFUSED: unplaced reviewer or author not assigned in reviewer brief` and escalate.
+   - If the brief has one author but names neither the reviewed sha nor the task (a delta re-review on a later sha, SPL-5128), it is still REFUSED, rc 3, with the true reason: `reviewed sha <sha> and task <task> are not in <brief>; its author is <id>`. A sha the brief does not name never gets the GO.
 4. **Owner-Go Keyword Scan & Verification (Resolves N5, X1, Y5, Z2)**:
    - In the fleet, `spl-spawn-enqueue.func.sh:60` strictly restricts classes to `^(ci|refactor|bug|feature)$`. Real tasks that touch infrastructure, apply Terraform steps, or mutate production are classified under `bug`, `feature`, or `refactor` (measured on sat: 129 briefs mentioning `terraform apply` or `ENV=prd` belong to classes `bug`, `feature`, or `refactor`).
    - **Empirical Measurement & False Positive / False Negative Elimination (Y5, Z2)**:

@@ -32,7 +32,8 @@
 # @description       briefs/<slug of the row's <id>-<slug> branch>.md, else
 # @description       the briefs whose first heading the row's scope opens;
 # @description       the first whose row matches. None: rc 3 naming both
-# @description       boxes
+# @description       boxes. A brief that has one author but neither the sha
+# @description       nor the task (a delta re-review) is held on that reason
 # @description   [2] the reviewer's vendor differs from the author's
 # @description       (rounds-rulebook 2.7.2; the vendor is the id letter)
 # @description   [7] the author's own brief ($SPOOL_ROOT/<author>/lifetime/
@@ -448,11 +449,13 @@ _spl_review_go_tied() {
 # <task>. No such row: the prose form placement briefs use (`Author
 # c-805@<box> (claude)`, `Branch `review/<slug>``), only when the brief names
 # one author and holds an abbreviation of <sha> or <task>. Nothing printed,
-# rc 1, when neither matches.
+# rc 1, when neither matches. With a 4th argument, for a brief where neither
+# matched: its one author and where the sha and task are missing from
+# (_spl_review_go_unplaced); never a row, so it cannot place a reviewer.
 _spl_review_go_row() {
-  python3 - "$1" "$2" "$3" <<'EOF_PY'
+  python3 - "$1" "$2" "$3" "${4:-}" <<'EOF_PY'
 import re, sys
-brief, sha, task = sys.argv[1:4]
+brief, sha, task, why = sys.argv[1:5]
 def cells(l):
     return [c.strip() for c in l.strip().strip("|").split("|")]
 try:
@@ -481,13 +484,32 @@ for r in sorted(rows, key=lambda r: not hit(r)):
         sys.exit(0)
 text = "\n".join(lines)
 named = re.findall(r"(?i)\bauthor:?[ \t]+([acgmq]-[0-9]{3,})(?:@([A-Za-z0-9._-]+))?", text)
-if len({i for i, _ in named}) != 1:
-    sys.exit(1)
-if task not in text and not any(sha.startswith(h) for h in re.findall(r"\b[0-9a-f]{7,40}\b", text)):
+said = task in text or any(sha.startswith(h) for h in re.findall(r"\b[0-9a-f]{7,40}\b", text))
+if why:
+    table = (re.match(r"[acgmq]-[0-9]{3,}", col(r, "author")) for r in rows)
+    ids = {i for i, _ in named} | {a.group(0) for a in table if a}
+    if len(ids) != 1:
+        sys.exit(1)
+    print("\t".join((ids.pop(), "in no author row of" if said else "not in")))
+    sys.exit(0)
+if len({i for i, _ in named}) != 1 or not said:
     sys.exit(1)
 br = re.search(r"(?i)\bbranch[ \t]+`([A-Za-z0-9._/-]+)`", text) or re.search(r"\b(review/[A-Za-z0-9._/-]*[A-Za-z0-9_-])", text)
 print("\t".join((named[0][0], next((b for _, b in named if b), ""), br.group(1) if br else "", task)))
 EOF_PY
+}
+
+# _spl_review_go_unplaced <brief> <sha> <task>: the reason of an rc 3 hold, for
+# a brief no row of which matched (SPL-5128: two delta re-reviews read
+# "author not assigned" though their briefs name the author).
+_spl_review_go_unplaced() {
+  local a where
+  IFS=$'\t' read -r a where < <(_spl_review_go_row "$1" "$2" "$3" why)
+  if [[ -n "${a:-}" ]]; then
+    echo "reviewed sha ${2:0:12} and task $3 are $where $1; its author is $a"
+  else
+    echo "unplaced reviewer or author not assigned in $1"
+  fi
 }
 
 # _spl_review_go_owner_go <author brief> <holder>: 0 when the brief needs no
@@ -540,7 +562,7 @@ _spl_review_go_one() {
   (( rc == 0 )) ||
     { _spl_review_go_hold "$@" 3 "reviewer $rid@$mbox runs on box $mbox: no brief for it on this box $here (its records here are not read for another box's seat; the lane map names no dispatch/briefs copy): brief on another box, not judged"; return 3; }
   IFS=$'\t' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task")
-  [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "unplaced reviewer or author not assigned in $brief"; return 3; }
+  [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "$(_spl_review_go_unplaced "$brief" "$sha" "$task")"; return 3; }
   [[ "${author%%-*}" != "${rid%%-*}" ]] || { _spl_review_go_hold "$@" 2 "reviewer $rid ($rven) shares the vendor of author $author"; return 2; }
   abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox" "$branch" "$sha")"; rc=$?
   (( rc == 2 )) && { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}), and the $abrief: not verified"; return 7; }

@@ -1421,8 +1421,8 @@ What changes:
   `lane-issue.inc.sh`: a `Discussion:` line wherever it is, words before its
   uuid allowed, then `Topic:` / `topic <id>` / `Discussion:` / `/t/<id>`,
   else a `dispatch-<topic8>` task. A version-5 uuid counts only on a
-  `Discussion:` line (a customer workspace's topic can be one); on `Topic:`
-  and `/t/` it is skipped, a relay task's hash (SPL-5099: a reviewer brief's `Topic: <author task>` beat its
+  `Discussion:` line (a customer workspace's topic can be one), unless the
+  word before it is `task`; there and on `Topic:` and `/t/` it is skipped, a relay task's hash (SPL-5099: a reviewer brief's `Topic: <author task>` beat its
   `Discussion:` line and blanked the row at every rotation); no issue = no `Issue:` key and no
   `Epic:` + `Spec:` pair the placer files one under. The row goes to the
   holder as a SPAWN QUEUE blocker naming the line to add; nothing launches.

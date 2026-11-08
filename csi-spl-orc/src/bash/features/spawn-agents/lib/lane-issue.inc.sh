@@ -45,9 +45,10 @@ li_key_from_brief() {
 # `/t/<id>` (a full uuid or its 8 hex), else the 8 hex of its first
 # `dispatch-<topic8>` task. A version-5 uuid counts only on a `Discussion:`
 # line (a customer workspace's topic can be one; the hub stores nothing for
-# any other, laneTopic); on `Topic:` and `/t/` it is skipped: there it is a
-# relay task's hash of its name, and a reviewer brief's `Topic:` line names
-# one above its Discussion: line (SPL-5099). The ONE
+# any other, laneTopic), unless the word before it is `task`; on `Topic:` and
+# `/t/` it is skipped: there, and after `task`, it is a relay task's hash of
+# its name, and a reviewer brief's `Topic:` line names one above its
+# Discussion: line (SPL-5099). The ONE
 # reader: the spawn's lane row (_spawn_lane_topic) calls it, then tries its
 # last resort, a report task's bare uuid, which may be a relay task's (R7 c-343
 # W1: two readers had drifted, so a `Discussion:` brief passed the placer and
@@ -57,6 +58,7 @@ li_discussion_from_brief() {
   local rest='-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' end='([^0-9A-Za-z-]|$)' t
   local uuid="[0-9a-f]{8}${rest}" id="[0-9a-f]{8}(${rest})?"
   t="$(sed -nE 's/^[-*_ >]*[Dd]iscussion[*_ ]*:[*_ ]*//p' "$1" |
+    sed -E 's/(^|[^0-9A-Za-z-])-?-?task[ =]+`?[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}//g' |
     grep -oE "^\`?[0-9a-f]{8}${end}|(^|[^0-9A-Za-z-])${uuid}${end}" |
     grep -oE "$id" | sed -n 1p)"
   [ -n "$t" ] || t="$(grep -oE "([Tt]opic[*_: ]+\`?|[Dd]iscussion[*_: ]+\`?|/t/)${id}${end}" "$1" |

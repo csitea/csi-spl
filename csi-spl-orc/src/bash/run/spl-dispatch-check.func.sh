@@ -33,7 +33,7 @@
 # @param DISPATCH_MASTER / DISPATCH_FAILOVER / DISPATCH_ORCH (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_TENANTS (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_MODEL (optional) - when set, a dispatcher on another model is a GAP
-# @param DISPATCH_UNREAD_MAX (optional) - more unread than this is a GAP, default 20
+# @param DISPATCH_UNREAD_MAX (optional) - more unread than this is a GAP, default 20; rotation churn is not unread (SPL-5097)
 # @param DISPATCH_CHECK_SUBS (optional) - 0 skips the channel rows (no DB read)
 # @param DISPATCH_SWEEP (optional) - 0 skips the sweep row
 # @param DISPATCH_SWEEP_STALE (optional) - seconds, default 1800 (three missed 10-min ticks)
@@ -73,7 +73,7 @@ do_spl_dispatch_check() {
     done
     [[ -z "$miss" ]] && row "$id desks" "$seats/$(wc -w <<<"$DISPATCH_TENANTS") workspaces" ok ||
       row "$id desks" "$seats/$(wc -w <<<"$DISPATCH_TENANTS"), missing:$miss" "GAP seat it"
-    n="$(find "${SPOOL_ROOT:-/var/spool-hub}/$id/inbox" -maxdepth 1 -type f 2>/dev/null | wc -l)"
+    n="$(spl_dispatch_unread "$id")"
     (( n > max )) && row "$id unread" "$n" "GAP over $max" || row "$id unread" "$n" ok
   done
   # the inbound rows judge the desk against the lease holder's box
@@ -108,6 +108,19 @@ do_spl_dispatch_check() {
   echo
   if (( gaps )); then echo "dispatch check: $gaps gap(s)"; return 1; fi
   echo "dispatch check: no gap"
+}
+
+# How many messages in seat <id>'s inbox someone must act on (SPL-5097). A
+# dispatch-rotate-* message and one the seat sent itself are rotation churn a
+# standby seat never archives; a file jq cannot judge counts as unread. The
+# from == to match is exact: c-003@sat writing to c-003 is a real message.
+spl_dispatch_unread() {
+  local id="$1" f n=0
+  while IFS= read -r -d '' f; do
+    jq -e '((.task_id // "") | startswith("dispatch-rotate-")) or (.from != null and .from == .to)' \
+      "$f" >/dev/null 2>&1 || n=$((n + 1))
+  done < <(find "${SPOOL_ROOT:-/var/spool-hub}/$id/inbox" -maxdepth 1 -type f -print0 2>/dev/null)
+  echo "$n"
 }
 
 # The permission mode row of seat <id> (process <pid>, <vendor>): a claude

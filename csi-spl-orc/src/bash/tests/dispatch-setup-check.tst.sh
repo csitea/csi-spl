@@ -289,6 +289,24 @@ agent 100 c-002 skip claude-other-1; gap "model mismatch" 'c-002 model \| claude
 rm -rf "$ST/desk/w2/box-desk/spool/c-002"; gap "missing seat" 'c-002 desks \| 1/2, missing: w2'; seat c-002 w2
 mkdir -p "$S/c-003/inbox"; for i in 1 2 3; do touch "$S/c-003/inbox/m$i.json"; done
 gap "unread over the max" 'c-003 unread \| 3 \| GAP' DISPATCH_UNREAD_MAX=2; rm -rf "$S/c-003/inbox"
+# SPL-5097: rotation churn is not unread; <file> <task_id> <from>
+inbox_msg() { printf '{"task_id":"%s","from":"%s","to":"c-003"}\n' "$2" "$3" >"$S/c-003/inbox/$1.json"; }
+unread_row() { check DISPATCH_CHECK_SUBS=0 DISPATCH_SWEEP=0 DISPATCH_DEPLOY_LAG=0 >"$T/o" 2>&1; grep -F '| c-003 unread |' "$T/o"; }
+mkdir -p "$S/c-003/inbox"
+for i in {1..13}; do inbox_msg "r$i" "dispatch-rotate-20261105T1645Z-$i" c-001; done
+for i in {1..12}; do inbox_msg "s$i" "dispatch-rotate-20261105T1645Z-$i" c-003; done
+inbox_msg real dispatch-946827fa c-910
+[[ "$(unread_row)" == '| c-003 unread | 1 | ok |' ]] &&
+  pass "7. 25 rotation messages + 1 real is no gap" || fail "7. rotation churn: $(grep unread "$T/o")"
+rm -rf "$S/c-003/inbox"; mkdir -p "$S/c-003/inbox"
+inbox_msg self dispatch-946827fa c-003
+inbox_msg sat dispatch-946827fa c-003@sat
+touch "$S/c-003/inbox/corrupt.json"
+[[ "$(unread_row)" == '| c-003 unread | 2 | ok |' ]] &&
+  pass "7. a self-sent message is churn; the other box's seat and a corrupt file count" || fail "7. self: $(grep unread "$T/o")"
+rm -rf "$S/c-003/inbox"; mkdir -p "$S/c-003/inbox"
+for i in {1..21}; do inbox_msg "m$i" "dispatch-946827fa-$i" c-910; done
+gap "21 real messages are over the default max" 'c-003 unread \| 21 \| GAP over 20'; rm -rf "$S/c-003/inbox"
 echo "c-002 $(( $(date +%s) - 500 ))" >"$S/dispatch/lease"; gap "stale lease" 'lease \| c-002, 50[0-9]s old \| GAP stale'
 echo "CLE-77 $(date +%s)" >"$S/dispatch/lease"; gap "holder not a dispatcher" 'GAP holder is not a dispatcher'
 echo "c-002 $(date +%s)" >"$S/dispatch/lease"

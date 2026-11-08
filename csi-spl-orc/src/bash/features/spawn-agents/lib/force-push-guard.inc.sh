@@ -66,7 +66,8 @@ HOOKS = "core.hookspath"
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish", "busybox"}
 WRAP = {"env", "command", "exec", "nohup", "time", "nice", "ionice", "setsid",
         "stdbuf", "timeout", "xargs", "builtin", "chronic", "unbuffer", "flock",
-        "doas", "sudo", "then", "do", "else", "!", "watch", "parallel", "strace"}
+        "doas", "sudo", "if", "elif", "while", "until", "then", "do", "else", "!",
+        "watch", "parallel", "strace"}
 ARG_OPTS = {"sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T"},
             "env": {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
             "nice": {"-n", "--adjustment"}, "ionice": {"-c", "-n", "-t"},
@@ -82,7 +83,7 @@ NO_AUTH = "a failed push is reported to your spawner, never worked around"
 CRED_KEY = re.compile(r"^(credential\.(.*\.)?helper|core\.askpass)$")
 CRED_URL = re.compile(r"^https?://[^/@]+@", re.I)
 CRED_FILE = ".git-credentials"
-CRED_FILE_OK = {"grep", "egrep", "fgrep", "rg", "echo", "printf", "ls", "stat", "test", "[", "rm"}
+CRED_FILE_OK = {"grep", "egrep", "fgrep", "rg", "echo", "printf", "ls", "stat", "test", "[", "[[", "for", "wc", "du", "rm"}
 ASKPASS = {"GIT_ASKPASS", "SSH_ASKPASS"}
 CONFIG_NO_WRITE = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--unset",
                    "--unset-all", "--remove-section", "--rename-section", "--edit", "-e"}
@@ -122,12 +123,22 @@ def split(cmd):
     lx = shlex.shlex(s, posix=True, punctuation_chars=";&|()<>")
     lx.whitespace_split = True
     lx.commenters = ""
-    segs, cur = [], []
+    segs, cur, target = [], [], False
     for t in lx:
+        if t and all(c in "<>&" for c in t) and ("<" in t or ">" in t):
+            # A redirect does not end the command; its target is its own segment.
+            if cur and cur[-1].isdigit():
+                cur.pop()
+            target = True
+            continue
         if t and all(c in ";&|()<>" for c in t):
             if cur:
                 segs.append(cur)
-            cur = []
+            cur, target = [], False
+            continue
+        if target:
+            segs.append([t])
+            target = False
             continue
         cur.append(t)
     if cur:
@@ -243,7 +254,7 @@ def segment(toks, depth):
         else:
             if b == "git":
                 git(toks[i + 1:], depth, hooks)
-            elif VISIT is None and b not in CRED_FILE_OK:
+            elif VISIT is None and not cred_file_ok(b, toks[i + 1:]):
                 cred_file(toks[i:])
             return
 
@@ -262,9 +273,15 @@ def auth_env(tok):
         raise Refuse("GIT_CONFIG_PARAMETERS sets a git credential; " + NO_AUTH)
 
 
+def cred_file_ok(b, args):
+    """A search or a check of the file; find only while it runs nothing."""
+    return b in CRED_FILE_OK or (b == "find" and not any(a.startswith(("-exec", "-ok")) for a in args))
+
+
 def cred_file(toks):
-    """Refuse a .git-credentials file as an argument or a redirect target."""
-    if any(t.rsplit("/", 1)[-1] == CRED_FILE for t in toks):
+    """Refuse a .git-credentials file as an argument or a redirect target; an
+    argument with whitespace in it is text that names the path."""
+    if any(t.rsplit("/", 1)[-1] == CRED_FILE and not re.search(r"\s", t) for t in toks):
         raise Refuse("%s holds clear-text tokens; %s" % (CRED_FILE, NO_AUTH))
 
 

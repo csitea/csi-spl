@@ -240,6 +240,27 @@ allow 'grep -n "git-credentials" /x/.git-credentials-notes'
 allow 'rg .git-credentials csi-spl-doc/'
 allow 'echo "see ~/.git-credentials"'
 allow 'echo .git-credentials'
+# a check of the file, whatever keyword or redirect surrounds it (SPL-5113, W1)
+allow 'find ~ -name .git-credentials'
+allow 'if [ -s ~/.git-credentials ]; then echo yes; fi'
+allow '[[ -s ~/.git-credentials ]] && echo yes'
+allow 'for f in /scratch/a/.git-credentials /scratch/b/.git-credentials; do ls -l "$f"; done'
+allow 'wc -c ~/.git-credentials'
+allow 'du -b ~/.git-credentials'
+allow 'grep foo 2>/dev/null ~/.git-credentials'
+# text that only names the path (W2)
+allow 'gh issue comment 1 --body "truncate ~/.git-credentials"'
+allow "./spool-send.sh --body 'in ~/.git-credentials'"
+allow "python3 x.py --msg 'in ~/.git-credentials'"
+# the same keywords and redirects do not open a way to the file
+refuse 'find ~ -name .git-credentials -exec cat {} +'
+refuse 'if cat ~/.git-credentials; then echo yes; fi'
+refuse 'while cat ~/.git-credentials; do break; done'
+refuse 'cat 2>/dev/null ~/.git-credentials'
+refuse 'grep foo x 2>/dev/null > ~/.git-credentials'
+refuse 'cp /a/b "/scratch/.git-credentials"'
+refuse 'git push >/dev/null -f origin master'
+refuse 'if git push -f origin master; then echo x; fi'
 
 # 3. the CLI form
 bash "$G" --check 'git push -f origin master' 2>/dev/null; rc=$?

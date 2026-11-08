@@ -306,14 +306,33 @@ every harness gets it through its pre-tool hook (steps Y12 and Y13). Refused:
 - `git credential`, `git credential-store`, `git credential-cache`
 - an http(s) url with a user in it, on a push or on `git remote set-url` / `add`
 - a `.git-credentials` file as an argument or a redirect target, except for a
-  search, `echo`, `printf`, `ls`, `stat`, `test` or `rm`
+  search (`grep`, `rg`, a `find` that runs nothing), `echo`, `printf`, `ls`,
+  `stat`, `test`, `[`, `[[`, a `for` list, `wc`, `du` or `rm`; an argument with
+  whitespace in it is text that names the path, not the file
 
-Still allowed: `do_spl_push_master`, a plain `git push`, reading, unsetting or
-emptying a helper, and `git remote set-url` to a url with no credentials.
+Still allowed: `do_spl_push_master`, a plain `git push`, reading or unsetting a
+helper, emptying one with `git config` or `git -c` (a `GIT_CONFIG_KEY_<n>` that
+names a helper is refused whatever its value), and `git remote set-url` to a url
+with no credentials.
 
-What it does not stop: reading a token from a file with any other name, a
-command that reaches git only through a variable or a script file, and
-`sudo -u <box user> git push`. The hooks are installed copies, so a box has the
+What it does not stop:
+
+- reading a token from a file with any other name, a command that reaches git
+  only through a variable or a script file, `$(...)` inside double quotes, and
+  `sudo -u <box user> git push`
+- `git --config-env=credential.helper=<var>`, `GIT_CONFIG_GLOBAL=<file>`, or a
+  helper appended to a git config file by a redirect
+- `git-credential-store` and the other helper programs called directly
+- `gh auth setup-git` and `gh auth login --with-token`
+- a write to `~/.config/git/credentials`
+- printing `.git-credentials` under the search exemption (`grep . <file>`)
+- a user in a url set through `url.<base>.insteadOf`, `remote.<name>.url` or
+  `pushurl`, given to `git push --repo=`, or used by `git fetch`, `pull` or
+  `clone`
+- `http.extraHeader` with an Authorization value
+- a key through `GIT_SSH_COMMAND` or `core.sshCommand`
+
+The hooks are installed copies, so a box has the
 refusal only after `install.sh --fleet` or `./run -a do_install_force_push_guard`
 and `./run -a do_spl_vibe_push_guard_install` has run for that user.
 

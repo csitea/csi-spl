@@ -461,7 +461,7 @@ func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent, now ti
 		}
 	}
 	if hasSeen {
-		counts.Release = s.flowReleaseDaysAfter(seen.At)
+		counts.Release = s.flowReleaseDaysAfter(tenant, seen.At)
 	}
 	s.flowChannelKeysLocked(tenant, member, keys, now, lobby)
 	return counts, unread, keys
@@ -489,13 +489,13 @@ func (s *Memory) flowChannelKeysLocked(tenant, member string, keys map[string]in
 	}
 }
 
-// flowReleaseDaysAfter is the UTC days with a release after t.
-func (s *Memory) flowReleaseDaysAfter(t time.Time) int {
+// flowReleaseDaysAfter is the UTC days with a release of tenant after t.
+func (s *Memory) flowReleaseDaysAfter(tenant string, t time.Time) int {
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
 	days := map[string]bool{}
-	for sha, at := range memReleased[s] {
-		if at.After(t) && s.releases()[sha].Version != "" {
+	for k, at := range memReleased[s] {
+		if k.tenant == tenant && at.After(t) && s.releases()[k].Version != "" {
 			days[flowDay(at)] = true
 		}
 	}

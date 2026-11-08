@@ -72,6 +72,7 @@ func TestReleaseLinksMemberAndStranger(t *testing.T) {
 	e, member := linksEnv(t)
 	owner, _ := e.tenant()
 	viewer, _ := e.tenant()
+	registerRepo(t, e, owner, repoOf(owner, "main"), true)
 	dev := seat(t, e, owner, rbac.Developer)
 	inViewer := seat(t, e, viewer, rbac.Developer)
 	member[dev] = []string{owner}
@@ -105,6 +106,10 @@ func TestReleaseLinksMemberAndStranger(t *testing.T) {
 
 	// A stranger to the owning workspace: the key and the count, never the
 	// topic id or its title.
+	registerRepo(t, e, viewer, repoOf(viewer, "main"), true)
+	if code, out := ingestFor(t, e, viewer, owner, reportRow(reportSHA(t), "", msg, day.Add(time.Hour))); code != http.StatusOK || out["stored"].(float64) != 1 {
+		t.Fatalf("ingest in the viewer's workspace: %d %v", code, out)
+	}
 	is = commitIssues(t, e, viewer, inViewer, day)
 	d0 = is[0]["discussions"].([]any)[0].(map[string]any)
 	if is[0]["found"] != true || is[0]["member"] != false || d0["can_open"] != false || d0["task_id"] != nil || d0["title"] != nil {
@@ -128,6 +133,7 @@ func TestReleaseLinksMemberAndStranger(t *testing.T) {
 func TestReleaseLinksRefusals(t *testing.T) {
 	e, _ := linksEnv(t)
 	tid, _ := e.tenant()
+	registerRepo(t, e, tid, repoOf(tid, "main"), true)
 	// CONTROL: an issue workspace this hub does not have is a 400, not
 	// keys stored for nobody.
 	code, out := ingestFor(t, e, tid, "no-such-ws", reportRow(reportSHA(t), "", "feat(x, SPL-1): y", reportDay(t)))

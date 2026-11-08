@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +43,8 @@ const (
 )
 
 type operatorDeployBody struct {
+	Tenant        string `json:"tenant"`
+	RepoSlug      string `json:"repo_slug"`
 	Env           string `json:"env"`
 	Component     string `json:"component"`
 	Version       string `json:"version"`
@@ -91,7 +94,11 @@ func (s *Server) handleOperatorDeploy(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {env, component, version, commit_sha, status?, workflow_run_id?, deployed_by?}: "+err.Error())
 		return
 	}
-	d := store.EstateDeploy{Env: strings.TrimSpace(body.Env), Component: strings.TrimSpace(body.Component),
+	tenant, repo, ok := s.ingestScope(w, r, body.Tenant, body.RepoSlug)
+	if !ok {
+		return
+	}
+	d := store.EstateDeploy{TenantID: tenant, RepoSlug: repo, Env: strings.TrimSpace(body.Env), Component: strings.TrimSpace(body.Component),
 		Version: deployVersion(body.Version), CommitSHA: strings.TrimSpace(body.CommitSHA),
 		Status: strings.TrimSpace(body.Status), WorkflowRunID: strings.TrimSpace(body.WorkflowRunID),
 		DeployedBy: strings.TrimSpace(body.DeployedBy)}
@@ -221,13 +228,24 @@ func (r *DeployReconciler) Tick(ctx context.Context) DeployReconcileResult {
 		return res
 	}
 	now := r.s.o.Now()
-	for _, t := range r.s.deployProbeTargets() {
-		r.tickOne(ctx, ed, env, t, now, &res)
+	targets := r.s.deployProbeTargets()
+	tenant, err := r.s.operatorTenant(ctx)
+	if err != nil {
+		res.Errors += len(targets)
+		r.s.o.Log.Error().Err(err).Msg("deploy.reconcile_tenant_failed")
+		return res
+	}
+	if tenant == "" {
+		res.Skipped += len(targets)
+		return res
+	}
+	for _, t := range targets {
+		r.tickOne(ctx, ed, tenant, env, t, now, &res)
 	}
 	return res
 }
 
-func (r *DeployReconciler) tickOne(ctx context.Context, ed store.EstateDeploys, env string, t deployProbeTarget, now time.Time, res *DeployReconcileResult) {
+func (r *DeployReconciler) tickOne(ctx context.Context, ed store.EstateDeploys, tenant, env string, t deployProbeTarget, now time.Time, res *DeployReconcileResult) {
 	log := r.s.o.Log.With().Str("env", env).Str("component", t.component).Logger()
 	served, err := r.Probe(ctx, t.url)
 	if err != nil {
@@ -237,12 +255,16 @@ func (r *DeployReconciler) tickOne(ctx context.Context, ed store.EstateDeploys, 
 	}
 	served.Version = deployVersion(served.Version)
 	d := store.EstateDeploy{Env: env, Component: t.component, Version: served.Version, CommitSHA: served.Commit, Status: "success"}
-	if why := store.CheckEstateDeploy(d); why != "" {
+	why := store.CheckEstateDeploy(d)
+	if served.Version == "" {
+		why = "the endpoint serves no version"
+	}
+	if why != "" {
 		res.Skipped++
 		log.Warn().Str("version", served.Version).Str("sha", served.Commit).Str("why", why).Msg("deploy.reconcile_unreadable")
 		return
 	}
-	latest, ok, err := ed.LatestEstateDeploy(ctx, env, t.component)
+	latest, ok, err := ed.LatestEstateDeploy(ctx, tenant, env, t.component)
 	if err != nil {
 		res.Errors++
 		log.Error().Err(err).Msg("deploy.reconcile_read_failed")
@@ -263,7 +285,12 @@ func (r *DeployReconciler) tickOne(ctx context.Context, ed store.EstateDeploys, 
 		res.Pending++
 		return
 	}
-	stored, err := ed.FillEstateDeploy(ctx, env, t.component, served.Version, served.Commit)
+	stored, err := ed.FillEstateDeploy(ctx, tenant, env, t.component, served.Version, served.Commit)
+	if errors.Is(err, store.ErrRepoNotRegistered) {
+		res.Skipped++
+		log.Warn().Str("tenant", tenant).Msg("deploy.reconcile_no_repo")
+		return
+	}
 	if err != nil {
 		res.Errors++
 		log.Error().Err(err).Msg("deploy.reconcile_fill_failed")

@@ -68,12 +68,12 @@ func TestReleaseNotesIssueKeys(t *testing.T) {
 			sha := randSHA()
 			n := noteOK(sha, "", now)
 			n.IssueTenant, n.IssueKeys = "t1", []string{"SPL-5", "SPL-9"}
-			if err := rs.PutReleaseNotes(ctx, []ReleaseNote{n}, now); err != nil {
+			if err := rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{n}, now); err != nil {
 				t.Fatal(err)
 			}
 			read := func() ReleaseNote {
 				t.Helper()
-				got, err := rs.ReleaseNote(ctx, sha)
+				got, err := rs.ReleaseNote(ctx, relTenant, sha)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -83,14 +83,14 @@ func TestReleaseNotesIssueKeys(t *testing.T) {
 				t.Fatalf("stored %q %v", got.IssueTenant, got.IssueKeys)
 			}
 			plain := noteOK(sha, "", now)
-			if err := rs.PutReleaseNotes(ctx, []ReleaseNote{plain}, now); err != nil {
+			if err := rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{plain}, now); err != nil {
 				t.Fatal(err)
 			}
 			if got := read(); got.IssueTenant != "t1" || len(got.IssueKeys) != 2 {
 				t.Fatalf("a re-send with no tenant dropped the keys: %q %v", got.IssueTenant, got.IssueKeys)
 			}
 			plain.IssueTenant, plain.IssueKeys = "t1", nil
-			if err := rs.PutReleaseNotes(ctx, []ReleaseNote{plain}, now); err != nil {
+			if err := rs.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{plain}, now); err != nil {
 				t.Fatal(err)
 			}
 			if got := read(); got.IssueKeys == nil || len(got.IssueKeys) != 0 {

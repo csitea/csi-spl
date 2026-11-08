@@ -32,7 +32,10 @@ func seedDeploys(t *testing.T, st Store, ds ...ReleaseDeploy) {
 	switch s := st.(type) {
 	case *Memory:
 		memDeployMu.Lock()
-		memDeploys[s] = append(memDeploys[s], ds...)
+		for _, d := range ds {
+			d.TenantID = relTenant
+			memDeploys[s] = append(memDeploys[s], d)
+		}
 		memDeployMu.Unlock()
 	case *Postgres:
 		ctx := context.Background()
@@ -77,10 +80,10 @@ func TestReportingReleasesDaily(t *testing.T) {
 				reportNote("v1.2.4", "docs", "doc", "docs(doc): four", d1.Add(5*time.Hour)),
 				reportNote("v1.2.4", "feat", "orc", "feat(orc): outside", d1.AddDate(0, 0, 1)), // To is exclusive
 			}
-			if err := st.(ReleaseNotes).PutReleaseNotes(ctx, notes, d1); err != nil {
+			if err := st.(ReleaseNotes).PutReleaseNotes(ctx, relTenant, relRepo, notes, d1); err != nil {
 				t.Fatal(err)
 			}
-			f := ReleaseReportFilter{From: d0, To: d1.AddDate(0, 0, 1)}
+			f := ReleaseReportFilter{Tenant: relTenant, From: d0, To: d1.AddDate(0, 0, 1)}
 
 			// With no deploy recorded (row 4 not landed) every day has an
 			// empty deploys list, never nil and never an error.
@@ -140,10 +143,10 @@ func TestReportingReleasesCommits(t *testing.T) {
 			b := reportNote("v3.1.1", "fix", "api", "fix(api): the daily route", d0.Add(2*time.Hour))
 			b.TechHow = "Groups by the UTC day of committed_at"
 			c := reportNote("", "docs", "doc", "docs(doc): a page", d0.Add(3*time.Hour))
-			if err := st.(ReleaseNotes).PutReleaseNotes(ctx, []ReleaseNote{a, b, c}, d0); err != nil {
+			if err := st.(ReleaseNotes).PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{a, b, c}, d0); err != nil {
 				t.Fatal(err)
 			}
-			f := ReleaseReportFilter{From: d0, To: d0.AddDate(0, 0, 1)}
+			f := ReleaseReportFilter{Tenant: relTenant, From: d0, To: d0.AddDate(0, 0, 1)}
 			shas := func(f ReleaseReportFilter) ([]string, int) {
 				t.Helper()
 				ns, total, err := rr.ReleaseCommits(ctx, f)

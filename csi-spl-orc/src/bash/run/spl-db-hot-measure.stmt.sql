@@ -161,7 +161,7 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 				OR (dp.from_id = da.b_id AND dp.from_box = da.b_box AND dp.to_id = da.a_id AND dp.to_box = da.a_box))))))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=0c2067112609b841ccdc21d12d9e90d3ba64019bdeea0c91de15e2017b2a7730 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=efefc295d4d50761c29576d731e4575e335eb5fb9b924694957964ea6788427f scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 SELECT q.cm, q.cr, q.cd, q.cc, q.cdm, q.um, q.ur, q.ud, q.uc, q.udm, q.rel,
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, sum(x.n)::int AS n FROM (
@@ -272,7 +272,7 @@ SELECT q.cm, q.cr, q.cd, q.cc, q.cdm, q.um, q.ur, q.ud, q.uc, q.udm, q.rel,
 			count(*) FILTER (WHERE fc.in_ch),
 			count(*) FILTER (WHERE NOT fc.in_ch),
 			(SELECT count(DISTINCT (r.released_at AT TIME ZONE 'UTC')::date) FROM release_notes r
-				WHERE r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at <= $3
+				WHERE r.tenant_id = $1 AND r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at <= $3
 				  AND r.released_at > (SELECT s.at FROM read_marks s WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.mark_key = 'f:seen')),
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, count(*) AS n
 				FROM fc f2 CROSS JOIN LATERAL (VALUES (f2.place_key), (f2.topic_key)) x(key) GROUP BY x.key) k)

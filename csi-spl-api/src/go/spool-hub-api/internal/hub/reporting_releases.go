@@ -41,25 +41,25 @@ func (s *Server) routeReportingReleases(mux *http.ServeMux) {
 }
 
 // releaseReportReader admits every signed-in member of the host's tenant.
-func (s *Server) releaseReportReader(w http.ResponseWriter, r *http.Request) (store.ReleaseReports, bool) {
+func (s *Server) releaseReportReader(w http.ResponseWriter, r *http.Request) (store.ReleaseReports, string, bool) {
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
-	_, hum, ok := s.humanTenant(w, r)
+	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	if hum == "" {
 		writeForbidden(w, rbac.TopicsRead, "the reporting section needs a signed-in member session")
-		return nil, false
+		return nil, "", false
 	}
 	rr, _ := s.o.Store.(store.ReleaseReports)
-	return rr, true
+	return rr, t.ID, true
 }
 
 // releaseReportFilter reads the shared query parameters.
-func (s *Server) releaseReportFilter(q url.Values) (store.ReleaseReportFilter, error) {
+func (s *Server) releaseReportFilter(tenant string, q url.Values) (store.ReleaseReportFilter, error) {
 	now := s.o.Now().UTC()
-	f := store.ReleaseReportFilter{From: now.AddDate(0, 0, -releaseReportDefaultDays), To: now, Search: q.Get("search")}
+	f := store.ReleaseReportFilter{Tenant: tenant, From: now.AddDate(0, 0, -releaseReportDefaultDays), To: now, Search: q.Get("search")}
 	var err error
 	if v := q.Get("from"); v != "" {
 		if f.From, err = parseReportTime(v, false); err != nil {
@@ -114,11 +114,11 @@ type releaseDailyBody struct {
 }
 
 func (s *Server) handleReleasesDaily(w http.ResponseWriter, r *http.Request) {
-	rr, ok := s.releaseReportReader(w, r)
+	rr, tenant, ok := s.releaseReportReader(w, r)
 	if !ok {
 		return
 	}
-	f, err := s.releaseReportFilter(r.URL.Query())
+	f, err := s.releaseReportFilter(tenant, r.URL.Query())
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_query", err.Error())
 		return
@@ -145,12 +145,12 @@ type releaseCommitsBody struct {
 }
 
 func (s *Server) handleReleasesCommits(w http.ResponseWriter, r *http.Request) {
-	rr, ok := s.releaseReportReader(w, r)
+	rr, tenant, ok := s.releaseReportReader(w, r)
 	if !ok {
 		return
 	}
 	q := r.URL.Query()
-	f, err := s.releaseReportFilter(q)
+	f, err := s.releaseReportFilter(tenant, q)
 	if err == nil {
 		f.Limit, f.Offset, err = releasePage(q)
 	}

@@ -238,10 +238,10 @@ retired_nowt() { printf '%s\tclaude\t%%9\t-\t20261101T000000Z\t20261101T040000Z\
 # as_box: this user is the box user, the agent user is someone else
 as_box() { env -u LANE_TEST_SERVER_USERS SPOOL_AGENT_USER=nobody SPOOL_BOX_USER="$(id -un)" "$@"; }
 retired_nowt g-973; retired_nowt c-057; retired_nowt g-958; retired_nowt g-962
-p12a="$(serve "$TR/g-973-review" "$TR/g-973-review/csi-spl-wui/src/node/test/serve-generated.mjs" --port 50001)"
-p12b="$(serve "$VT/c-057-review/csi-spl-wui" "$VT/c-057-review/csi-spl-wui/src/node/test/serve-generated.mjs")"
-p12c="$(serve "$T_TMP" "$T_TMP/s12/serve-generated.mjs" --root="$TR/g-958-scratch-1/bundle")"
-p12d="$(serve "$TR/g-962" "$T_TMP/s12d/serve-generated.mjs")"
+p12a="$(SPOOL_AGENT_ID=g-973 serve "$TR/g-973-review" "$TR/g-973-review/csi-spl-wui/src/node/test/serve-generated.mjs" --port 50001)"
+p12b="$(SPOOL_AGENT_ID=c-057 serve "$VT/c-057-review/csi-spl-wui" "$VT/c-057-review/csi-spl-wui/src/node/test/serve-generated.mjs")"
+p12c="$(SPOOL_AGENT_ID=g-958 serve "$T_TMP" "$T_TMP/s12/serve-generated.mjs" --root="$TR/g-958-scratch-1/bundle")"
+p12d="$(SPOOL_AGENT_ID=g-962 serve "$TR/g-962" "$T_TMP/s12d/serve-generated.mjs")"
 out="$(as_box bash "$REAP" --retired 2>&1)"
 has "12. the dry run plans the box user's server in a /tmp clone" "PLAN stop pid=$p12a lane=g-973 user=$(id -un)" "$out"
 check "12. ...and signals nothing" alive "$p12a"
@@ -260,7 +260,7 @@ p13a="$(serve "$TR/c-831-review" "$TR/c-831-review/serve-generated.mjs")"
 p13b="$(serve "$TR/not-an-id-review" "$TR/not-an-id-review/serve-generated.mjs")"
 p13c="$(serve "$TR/c-8300-review" "$TR/c-8300-review/serve-generated.mjs")"
 p13d="$(serve "$TR/c-833-review" "$TR/c-833-review/serve-generated.mjs")"
-p13e="$(serve "$TR/c-830-review" "$TR/c-830-review/serve-generated.mjs")"
+p13e="$(SPOOL_AGENT_ID=c-830 serve "$TR/c-830-review" "$TR/c-830-review/serve-generated.mjs")"
 p13f="$(serve "$TR/c-832-review" "$TR/c-832-review/serve-generated.mjs" --root "$TR/c-831-review/bundle")"
 p13g="$(serve "$T_TMP" "$T_TMP/s13g/serve-generated.mjs" --root "$TR/c-832-x/../not-an-id-review/bundle")"
 out="$(LANE_TEST_SERVER_USERS="nobody daemon" bash "$REAP" --apply --retired 2>&1)"
@@ -295,5 +295,39 @@ out="$(as_box bash "$REAP" --apply --retired 2>&1)"; rc=$?
 rm -f "$SPOOL_TMUX_SOCKET"
 eq "14. an unread tmux window list refuses (exit 4)" 4 "$rc"
 check "14. ...and the clone's server keeps running" alive "$p14"
+
+# 15. R7 c-847 probes: any tie to a live lane keeps the server, and a clone
+#     named for a retired id proves no owner by itself. c-831 is live (13).
+retired_nowt c-840; retired_nowt c-842; live c-841
+own() { SPOOL_AGENT_ID=c-842 serve "$@"; }
+# a: a live lane's reviewer serving from a clone of a retired author's work
+p15a="$(SPOOL_AGENT_ID=c-831 serve "$TR/c-840-review" "$TR/c-840-review/serve-generated.mjs")"
+# a2: the same clone, no agent id in the server's environment
+p15a2="$(serve "$TR/c-840-other" "$TR/c-840-other/serve-generated.mjs")"
+# b, c: placed by a retired clone, --root in a live worktree / live scratch
+p15b="$(own "$T_TMP" "$TR/c-842-b/serve-generated.mjs" --root "$(wt c-841)/bundle")"
+p15c="$(own "$T_TMP" "$TR/c-842-c/serve-generated.mjs" --root "$S/$(slug c-841)/sess-1/scratchpad/bundle-head")"
+# d: a relative path climbing into a live clone
+p15d="$(own "$TR/c-842-d" "$TR/c-842-d/serve-generated.mjs" --root ../c-831-review/bundle)"
+# g: a live clone as the second element of a path list
+p15g="$(own "$T_TMP" "$T_TMP/s15g/serve-generated.mjs" "--roots=$TR/c-842-g/a:$TR/c-831-review/b")"
+# control: proven retired owner in a retired clone still goes
+p15z="$(own "$TR/c-842-z" "$TR/c-842-z/serve-generated.mjs")"
+out="$(as_box bash "$REAP" --apply --retired 2>&1)"
+check "15a. a live lane's server in a retired id's clone keeps running" alive "$p15a"
+has "15a. ...KEEP owner-not-retired names the live owner" "KEEP owner-not-retired pid=$p15a lane=c-840 user=$(id -un) (live-lane c-831" "$out"
+check "15a. a clone server with no agent id keeps running" alive "$p15a2"
+has "15a. ...KEEP owner-unproven" "KEEP owner-unproven pid=$p15a2 lane=c-840" "$out"
+check "15b. a --root in a live worktree keeps it" alive "$p15b"
+has "15b. ...KEEP path-in-live-lane" "KEEP path-in-live-lane pid=$p15b " "$out"
+check "15c. a --root in a live lane's scratch keeps it" alive "$p15c"
+has "15c. ...KEEP path-in-live-lane" "KEEP path-in-live-lane pid=$p15c " "$out"
+check "15d. a relative .. path into a live clone keeps it" alive "$p15d"
+has "15d. ...KEEP clone-not-retired" "KEEP clone-not-retired pid=$p15d user=$(id -un) (live-lane c-831" "$out"
+check "15g. a live clone inside a path list keeps it" alive "$p15g"
+has "15g. ...KEEP clone-not-retired" "KEEP clone-not-retired pid=$p15g user=$(id -un) (live-lane c-831" "$out"
+check "15. CONTROL: a retired owner in its retired clone is stopped" gone "$p15z"
+out="$(as_box bash "$REAP" --apply c-840 2>&1)"
+check "15a. a one-id run keeps the live lane's server too" alive "$p15a"
 
 t_done

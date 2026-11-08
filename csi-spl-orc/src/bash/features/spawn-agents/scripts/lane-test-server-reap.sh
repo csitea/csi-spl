@@ -21,7 +21,9 @@
 #     worktree or its Claude Code scratch (/tmp/claude-<uid>/<slug>[-*]/), or
 #     under a private clone named for its id: /tmp/<id>[-*] or /var/tmp/<id>[-*]
 #     (SPL-5065). Every such clone a server names must be proven retired, or
-#     the server is kept (KEEP clone-not-retired)
+#     the server is kept (KEEP clone-not-retired). A clone's name proves no
+#     owner: its server needs SPOOL_AGENT_ID in its environment naming a proven
+#     retired lane (else KEEP owner-unproven)
 #   - it is a known test server: an interpreter (node, python3, ...) running a
 #     script whose name is in LANE_TEST_SERVER_SCRIPTS; never a name alone
 #   - it runs as an agent user (LANE_TEST_SERVER_USERS)
@@ -46,7 +48,10 @@
 #   <app>/lane-test-server-reap.log; "" = no log file)
 #   LANE_TEST_SERVER_START_OVERRIDE (tests only: the start time compared, as
 #   a reused pid would show it)
-# A server whose cwd is under a LIVE lane's worktree is kept. A tmux window
+# A server tied to a LIVE lane is kept, however it is placed: a cwd or path
+# value (relative, climbing with .., or one element of a : or , list) under a
+# live worktree, a live lane's scratch or a clone not proven retired, or a
+# SPOOL_AGENT_ID naming a lane not proven retired. A tmux window
 # list or a registry that cannot be read refuses the run (exit 4).
 # Exit 0 done (kept servers included); 2 usage or a worktree not named for
 # its id; 3 a server did not stop; 4 refused, a read failed.
@@ -118,13 +123,15 @@ done
 # The registries, read once (registry.retired.tsv: 16252 rows, 2687 ids on
 # one box, 2026-11-04): LIVE[id] = 1 per registry.tsv row, RET[id] = the
 # worktree of its last retired row ("" when that row names none).
-# LIVE_WT: the live rows' worktrees named for their id (c-001's /opt is not)
+# LIVE_WT: the live rows' worktrees named for their id (c-001's /opt is not);
+# --retiring leaves out the lane being retired, whose row has not moved yet
 declare -A LIVE=() RET=()
-LIVE_WT=()
+LIVE_WT=() LIVE_SLUG=()
 while IFS=$'\t' read -r k _ _ w _; do
   [ -n "$k" ] || continue
   LIVE["${k%%@*}"]=1
-  w="${w%/}"; [[ "$w" == /?* && "${w##*/}" == "${k%%@*}" ]] && LIVE_WT+=("$w")
+  [ "$RETIRING" = 1 ] && [ "${k%%@*}" = "$ID" ] && continue
+  w="${w%/}"; [[ "$w" == /?* && "${w##*/}" == "${k%%@*}" ]] && { LIVE_WT+=("$w"); LIVE_SLUG+=("${w//[^A-Za-z0-9]/-}"); }
 done \
   < <([ -r "$R/registry.tsv" ] && cat "$R/registry.tsv")
 while IFS=$'\t' read -r k _ _ w _; do
@@ -184,6 +191,18 @@ in_live_wt() {
   for w in "${LIVE_WT[@]}"; do [[ "$1" == "$w" || "$1" == "$w"/* ]] && return 0; done
   return 1
 }
+# in_live_lane PATH...: one is under a live lane's worktree or Claude scratch
+in_live_lane() {
+  local p s rest top
+  for p in "$@"; do
+    in_live_wt "$p" && return 0
+    rest="${p#"$tmp"/claude-}"
+    if [ "$rest" = "$p" ] || [[ ! "${rest%%/*}" =~ ^[0-9]+$ || "$rest" != */* ]]; then continue; fi
+    top="${rest#*/}"; top="${top%%/*}"
+    for s in "${LIVE_SLUG[@]}"; do [[ "$top" == "$s" || "$top" == "$s"-* ]] && return 0; done
+  done
+  return 1
+}
 # lane_of PATH... -> the index of the lane whose worktree or scratch holds one
 lane_of() {
   local p i rest top
@@ -213,6 +232,35 @@ clone_ids() {
     done
   done
   return 0
+}
+# tie_paths CWD VALUE... -> every path a value may name, absolute with no ..,
+# as written and with symlinks resolved. Only ever keeps a server, never places
+# one: a relative value resolves against CWD, a : or , list is split
+tie_paths() {
+  local cwd="$1" v t parts; shift
+  for v in "$@"; do
+    IFS=$':,\n' read -r -d '' -a parts <<<"$v"
+    for t in "${parts[@]}"; do
+      case "$t" in ""|-*) continue ;; esac
+      [[ "$t" == /* ]] || t="$cwd/$t"
+      realpath -m -s -- "$t"; realpath -m -- "$t"
+    done
+  done
+  return 0
+}
+# owner_of USER PID -> the agent id in the process's environment (nothing:
+# unread, absent or not an id)
+owner_of() {
+  local v
+  v="$(as_owner "$1" cat "/proc/$2/environ" 2>/dev/null | tr '\0' '\n' | sed -n 's/^SPOOL_AGENT_ID=//p')"
+  v="${v%%@*}"
+  [[ "$v" =~ ^${SPOOL_AGENT_ID_RX}$ ]] && echo "$v"
+  return 0
+}
+# owner_why ID -> why the owner is not proven retired. --retiring skips the
+# registry checks for the lane being retired only
+owner_why() {
+  if [ "$1" = "$ID" ]; then live_why "$1"; else RETIRING=0 live_why "$1"; fi
 }
 # clone_why ID -> why this run may not stop a server in its clone (nothing: it may)
 clone_why() {
@@ -251,18 +299,23 @@ scan_one() {
   cwd="$(as_owner "$u" readlink "/proc/$pid/cwd" 2>/dev/null || true)"
   # a swept worktree still places the process: its cwd reads "<dir> (deleted)"
   paths=("${cwd% (deleted)}" "${argv[@]}" "${argv[@]#*=}")
-  local args="${argv[*]}" what lane="" clone="" blocked="" c why
+  local args="${argv[*]}" what lane="" clone="" blocked="" c why ties=() owner
+  mapfile -t ties < <([ -z "$cwd" ] || tie_paths "${cwd% (deleted)}" "${paths[@]}")
   while read -r c; do
     why="$(clone_why "$c")"
     if [ -n "$why" ]; then blocked="${blocked:-$why}"; else clone="${clone:-$c}"; fi
-  done < <(clone_ids "${paths[@]}")
+  done < <(clone_ids "${paths[@]}" "${ties[@]}")
   if [ -n "$blocked" ]; then
     if [ "$ALL" = 1 ] || i="$(lane_of "${paths[@]}")" || [ -n "$clone" ]; then
       say "KEEP clone-not-retired pid=$pid user=$u ($blocked) cwd=${cwd:--} args=$args"
     fi
     return 0
   fi
-  if i="$(lane_of "${paths[@]}")"; then lane="${L_ID[$i]}"; else lane="$clone"; fi
+  # a tie path never places: only a clone named by a plain absolute path does
+  clone=""
+  while read -r c; do clone="$c"; break; done < <(clone_ids "${paths[@]}")
+  local by_name=0
+  if i="$(lane_of "${paths[@]}")"; then lane="${L_ID[$i]}"; else lane="$clone"; by_name=1; fi
   if [ -z "$lane" ]; then
     [ "$ALL" = 1 ] && say "KEEP no-retired-lane pid=$pid user=$u cwd=${cwd:--} args=$args"
     return 0
@@ -271,7 +324,17 @@ scan_one() {
   if [ -n "$cwd" ] && in_live_wt "${cwd% (deleted)}"; then
     say "KEEP cwd-in-live-lane $what cwd=$cwd args=$args"; return 0
   fi
+  if in_live_lane "${ties[@]}"; then
+    say "KEEP path-in-live-lane $what cwd=${cwd:--} args=$args"; return 0
+  fi
   case "$users" in *" $u "*) ;; *) say "KEEP not-agent-user $what (agent users:${users% }) cwd=${cwd:--} args=$args"; return 0 ;; esac
+  if [ -z "$cwd" ]; then say "KEEP cwd-unread $what (its relative paths cannot be resolved) args=$args"; return 0; fi
+  owner="$(owner_of "$u" "$pid")"
+  why=""; [ -z "$owner" ] || why="$(owner_why "$owner")"
+  if [ -n "$why" ]; then say "KEEP owner-not-retired $what ($why) cwd=$cwd args=$args"; return 0; fi
+  if [ -z "$owner" ] && [ "$by_name" = 1 ]; then
+    say "KEEP owner-unproven $what (no SPOOL_AGENT_ID: a clone's name proves no owner) cwd=$cwd args=$args"; return 0
+  fi
   if [ "$APPLY" = 0 ]; then say "PLAN stop $what cwd=${cwd:--} args=$args"; return 0; fi
   if [ "$u" != "$me" ] && [ "$(id -u)" != 0 ] && { [ "$use_sudo" != 1 ] || ! sudo -n -u "$u" true 2>/dev/null; }; then
     say "KEEP no-sudo $what (cannot signal as $u) cwd=${cwd:--} args=$args"; return 0

@@ -60,9 +60,12 @@ stall stops renewal for both while its flock keeps `spl_lease_ensure` reporting
 "loop running". The locate and each gate read get `LEASE_HOP_TIMEOUT` (5 s), the
 signed calls and the actions their existing timeouts, all with `timeout -k 1`: a
 plain `timeout` waits as long as a sudo that ignores TERM. A hop that is cut or
-fails reads not able for that call, and the gate's text names the hop. What no
-limit can cut: a child stuck in the kernel keeps the output pipe open, so `$(...)`
-waits for it; the direct read before the move had the same exposure. A desk that
+fails reads not able for that call, and the gate's text names the hop. A log
+read that printed some lines and then failed or was cut is judged by its rc, not
+by those lines; a locate that was cut uses no stub under the caller, and the
+signed call fails instead (SPL-5119). What no limit can cut: any child that
+survives TERM, not only one stuck in the kernel, keeps the output pipe open, so
+`$(...)` waits for it; the direct read before the move had the same exposure. A desk that
 has not moved runs no `timeout`.
 
 Measured on sat 2026-11-07 at load ~55 (n=3 reads, n=5 gates): a desk not moved,

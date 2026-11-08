@@ -5,6 +5,8 @@
 # caller must not seat it, mint a key for it or offer a pin for it. Prints
 # "<user>\t<how>" (how: entered | sudo, the way the other root was read).
 # 1 when the desk is the caller's, or nowhere else, or cannot be checked.
+# 2 when a limit in SPL_DESK_AS_CMD cut a probe (rc 124, 137) and no other root
+# had it: nothing is known, and it is no missing sudo rule (SPL-5119).
 #
 # Why (SPL-4699): on sat 2026-11-03 the prd reconcile ran as the box user
 # while 11 of 12 desks had moved to the agent user. A writer had left a stub
@@ -30,7 +32,7 @@
 # prune of 8.4 step 6 removes it after 7 days and the stub stays.
 # The caller's own copy also wins while its sidecar is live (hub-run.pid).
 spl_desk_moved_to() {
-  local ws="$1" box="$2" e="${3:-$(spl_desk_env)}" me l u r p
+  local ws="$1" box="$2" e="${3:-$(spl_desk_env)}" me l u r p rc cut=1
   [[ -n "$ws" && -n "$box" && -n "$e" ]] || return 1
   me="$(id -un)"
   local -a roots=() as=() others=()
@@ -50,11 +52,16 @@ spl_desk_moved_to() {
       [[ -s "$p/pinned" ]] && { printf '%s\tentered\n' "$u"; return 0; }
     elif "${as[@]}" "$u" -- test -s "$p/pinned" 2>/dev/null; then
       printf '%s\tsudo\n' "$u"; return 0
-    elif ! "${as[@]}" "$u" -- true 2>/dev/null; then
-      do_log "WARN desk $box of $ws ($e): cannot check $u's root as $me (no sudo -n rule to $u): not known as moved, reconciled as before" >&2
+    else
+      rc=$?
+      if [[ $rc != 124 && $rc != 137 ]]; then "${as[@]}" "$u" -- true 2>/dev/null; rc=$?; fi
+      if [[ $rc == 124 || $rc == 137 ]]; then cut=2
+      elif (( rc )); then
+        do_log "WARN desk $box of $ws ($e): cannot check $u's root as $me (no sudo -n rule to $u): not known as moved, reconciled as before" >&2
+      fi
     fi
   done
-  return 1
+  return "$cut"
 }
 
 # spl_desk_moved_note <workspace> <desk id> <user> <how>: the one INFO line a

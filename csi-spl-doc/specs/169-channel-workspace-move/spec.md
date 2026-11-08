@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.28 (2026-11-07). Status: **Draft** (part built: section 8.4's hub
+Version: v0.29 (2026-11-08). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -122,6 +122,11 @@ v0.28 applies Q4 = A to the scan and dates the hub logs (SPL-5010, the
 dispatch holder's rulings f9be5b57 and d7adb5e1, on T13's `proof scan
 messages.body 1`): rows T13b and T13c, 5.2's second exception, 5.4, C14,
 section 8.4's P7 notes, T8c's hub logs.
+
+v0.29 folds the owner's answers to Q9, Q10 and Q11 (SPL-5046; owner HUM-10, t1
+035cb09e, msg a271ca2c, poll 9ac73227): A to each, the recommended answers 8.5 already
+followed. They move from 11.3 to the 11.1 table; 8.5 states them as decided; T14, T15,
+L14 and L15 wait for no answer. The order of section 10 does not change.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -632,8 +637,8 @@ workspace" option". Read on origin/master `0b2f05cb1`:
 finds nothing, and no row of section 10 asked for it before this version. Today the
 only door is the shell action, called as the env's service account.
 
-Not built yet: everything in this section. Q9-Q11 (11.3) are open, and the text
-below follows the recommended answers.
+Not built yet: everything in this section. The owner decided Q9, Q10 and Q11 (11.1,
+msg a271ca2c): A to each, the answers the text below was written for.
 
 #### 8.5.1 Where it sits
 
@@ -647,6 +652,9 @@ stays off the initial script. The dialog offers no copy (the hub answers 501
 `not_built`, T11) and no new name (`TO_NAME` answers 501 on a step, P2).
 
 #### 8.5.2 Who sees it
+
+Decided (Q11 A, 11.1): only the owner of the operator workspace sees it, on any channel of a
+workspace the owner is in.
 
 A person, never the service account, and only the person whose click is a GO:
 
@@ -663,8 +671,8 @@ A person, never the service account, and only the person whose click is a GO:
 - the hub remains the gate. A hidden item is a convenience, not the check, and every
   route below checks again.
 
-Targets: only the workspaces where this person is a member (Q10). A hidden workspace
-the person is not in is never listed, the same reason as W5.
+Targets: only the workspaces where this person is a member (Q10 A, decided, 11.1). A
+hidden workspace the person is not in is never listed, the same reason as W5.
 
 #### 8.5.3 What browser auth the hub needs
 
@@ -719,8 +727,9 @@ the click only records the GO and starts the journal, and a box does the rest:
    names `<SRC>/<CHANNEL>` and `<DST>` as whole slugs, and the person's answer `Poll: <form>`
    / `Answer: GO`, as that person from `box-wui`. Then `channelMoveGo` checks it like any
    other, so the check stays in one place, and the answer's msg id goes in the journal (8.3)
-   (Q9). The click is the person's own, on their own session; no agent and no service
-   account can write this answer, because the route needs the session.
+   (Q9 A, decided, 11.1: the confirm click is the GO). The click is the person's own, on
+   their own session; no agent and no service account can write this answer, because the
+   route needs the session.
 2. The hub runs P1 with the dialog's `detail`, and keeps that detail for P2 (8.4: P4 refuses
    a detail other than the one P2 checked).
 3. A box action, `do_spl_channel_move_pickup`, from cron every 5 minutes on the box holding
@@ -834,8 +843,8 @@ Each row is one small task; files named are where it lands.
 | T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 on the seeded 3,650-post channel against the box's 30 s client cap (`curl -m 30`, `spl_hub_operator_call`; the hub's Cloud Run request timeout is 600 s); over 30 s means a bug row before the first prd move; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 | T13b | P7's free-text scan and Q4's mentions: T13 measured `proof scan messages.body 1` on one staying post that links a moved topic | built (SPL-5010): `api/channelmove/mentions.go` (`ReadMentions`), `api/hub/channel_move_steps.go` (`p7`), `api/store/rls.go` (`asOperatorSnapshot`), `orc/run/spl-channel-workspace-move.func.sh` (`MENTIONS`, `MENTION` lines); tests `api/channelmove/proof_test.go` (`TestMentionsPostgres`), `api/hub/channel_move_p7_test.go`, `api/store/channel_move_journal_test.go`. Not re-run on dev: a second T13 needs the owner's new GO |
 | T13c | `KEPT_UNTIL` printed `not read: no date for hub logs` (T13), so Q3's last date never printed | built (SPL-5010): cnf `hub.log_bucket`; `_spl_cwm_retention_log_days` sends that bucket's days only after it reads a line of the hub's service back from it (dev read 2026-11-07: two sinks, `_Default` 30 days, the hub's `requests` and `stderr` lines there; prd not read), else `not read: <why>`; case 13 of `orc/tests/spl-channel-workspace-move.tst.sh` |
-| T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31. Waits for Q10, Q11 | `api/hub/channel_move_browser.go`, `_test.go`, `openapi.json` |
-| T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33. Waits for Q9 | `api/hub/channel_move_confirm.go`, `_test.go`, `api/hub/channel_move_steps.go`, `openapi.json` |
+| T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31 | `api/hub/channel_move_browser.go`, `_test.go`, `openapi.json` |
+| T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | `api/hub/channel_move_confirm.go`, `_test.go`, `api/hub/channel_move_steps.go`, `openapi.json` |
 | T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
 | T17 | Hub: the stored refusal and `GET /v1/channel-moves/{move_id}`, the status line in the GO's topic, the `#alerts` line (8.5.6). Test C35's store and hub half | `api/hub/channel_move_status.go`, `_test.go`, `api/store/channel_move_journal*.go` |
 | T18 | WUI: the menu item and its probe (8.5.1, 8.5.2), keys in every locale | `src/utils/sidebar-row-menu.mjs`, `src/components/SidebarRowMenu.vue`, `ChannelSidebar.vue`, `tests/unit/`, `i18n/locales/*` |
@@ -870,8 +879,8 @@ owner's weekend deadline: lanes with no files in common.
 | L12 | T9c |
 | L13 | T4d |
 | L13b | T13b, T13c (claude) |
-| L14 | T14 (claude; waits for Q10, Q11) |
-| L15 | T15 (claude; waits for Q9) |
+| L14 | T14 (claude) |
+| L15 | T15 (claude) |
 | L16 | T16 (claude) |
 | L17 | T17 (claude) |
 | L18 | T18 (claude, then agy reviews its strings in T20) |
@@ -905,6 +914,9 @@ Read from the owner's own answers in prd t1 topic
 | Q6 | A, stop and list | `d2c97186` | 5.5, C7: `plan` refuses on a shared item |
 | Q7 | J (`f6f94c97`): the csitea channel named like `ws-hidden-17`; destination (`e4cc2662`): `ws-hidden-17` | `f6f94c97` and `e4cc2662` (poll `c5dc7cea`) | the first move: `<SRC>` = csitea, `<CHANNEL>` = the csitea channel named like `ws-hidden-17`, `<DST>` = `ws-hidden-17` (the slug stays in the overlay); the first prd run waits only for the build (10.1 critical path, T13 the dev rehearsal last), no longer for a name |
 | Q8 | A, stop and list | `85eb389c` (poll `53f98bf8`) | 5.1a, C19 |
+| Q9 | A, that click is your Go: the hub records it and a box starts the move | `a271ca2c` (poll `9ac73227`, t1 `035cb09e`) | 8.5.5: the dialog's confirm writes the form and the owner's `Answer: GO` in the operator workspace, `channelMoveGo` checks it (C32), a box picks the move up (T16); no second form, T15 |
+| Q10 | A, only workspaces you are a member of | `a271ca2c` (poll `9ac73227`) | 8.5.2: the targets are the person's own workspaces; a hidden workspace the person is not in is never listed (W5), T14 |
+| Q11 | A, only you, the owner of the operator workspace | `a271ca2c` (poll `9ac73227`) | 8.5.2: the item shows only to the biz owner of the operator workspace (`channelMoveOwner`), on any channel of a workspace the owner is in; the GO rule of 8.1 does not change, T14 |
 
 ### 11.2 The polls as asked
 
@@ -945,10 +957,10 @@ Q8 Hours that members logged on the moved channel inside a time sheet already ap
 (C) Leave them in the old workspace; they keep naming the channel
 ```
 
-### 11.3 Open: the menu entry (8.5)
+### 11.3 The menu entry's questions (8.5), as asked
 
-Not answered yet. The holder puts them to the owner as one form. The text of 8.5 follows the
-recommended answer of each.
+No question is open for 8.5: the owner answered A to Q9, Q10 and Q11 on 2026-11-08
+(msg a271ca2c, poll 9ac73227; 11.1). As asked, by c-002 in t1 035cb09e on 2026-11-07:
 
 ```poll
 Q9 "Move to workspace": what should your click on the dialog's Confirm do? I recommend A.

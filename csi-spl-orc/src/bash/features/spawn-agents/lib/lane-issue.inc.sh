@@ -489,6 +489,21 @@ li_end_record() {
   return 3
 }
 
+# li_review_lane ROOT ID KEY -> the author it reviews for, 0 when the lane only
+# reviews KEY (SPL-5096; c-207 on csi-rel SPL-17, c-906, c-244): KEY is the
+# issue the lane was placed on, never one it filed (lifetime/origin-issue), its
+# brief's Author: line names another lane, and its heading says review. All
+# three, because each alone also matches a coding lane: heading + Author: c-897
+# (filed its own issue), heading + placed key: c-140 (applies R7 findings).
+# Measured on the 345 lanes with an issue, 2026-11-08: 129 match, all reviewers.
+li_review_lane() {
+  local life="$1/$2/lifetime" a
+  [ "$(li_origin_of_agent "$1" "$2")" = "$3" ] || return 1
+  grep -m1 '^# ' "$life/brief.md" 2>/dev/null | grep -qiE '\b(R7|re-?review(er)?|reviewer|language review|review seat|review only)\b' || return 1
+  a="$(grep -m1 -iE '^Author:' "$life/brief.md" | grep -oE '\b[acgmq]-[0-9]{3}\b' | grep -vx "$2" | sed -n 1p)"
+  [ -n "$a" ] && printf '%s\n' "$a"
+}
+
 # li_gate SPOOL_ROOT ID WORKDIR: 0 = the lane may exit; 3 = refused, one line
 # on stderr naming what is missing and the command that fixes it. With no
 # landed commit and no end reason it asks the hub last: an issue the
@@ -501,6 +516,11 @@ li_gate() {
   # No key: a lane placed before the rule; not checked, and silent (the
   # ACCEPTED line stays the gate's one line).
   [ -n "$key" ] || return 0
+  # A reviewer's exit reads and writes nothing of the author's issue.
+  if v="$(li_review_lane "$root" "$id" "$key")"; then
+    echo "issue gate: $key is $v's, this lane only reviews it: not checked, left as it is" >&2
+    return 0
+  fi
   li_gate_ws "$root" "$id" || return 3
   [ -n "${LI_WS_CLONE:-}" ] && w="$LI_WS_CLONE"
   end="$root/$id/lifetime/issue-end"

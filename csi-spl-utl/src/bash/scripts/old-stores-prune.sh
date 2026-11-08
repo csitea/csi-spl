@@ -15,6 +15,16 @@
 # and the push orphan check read young retired dirs: AGE_DAYS keeps those.
 # Each removed dir's inbox/*.json count is reported: mail nobody acked.
 #
+# OLD_STORE_TARGET=transcripts: Claude Code sessions, <OLD_PROJECTS>/<slug>/
+# <uuid>.jsonl and its <uuid>/ dir, the two sets do_spl_session_prune keeps for
+# good. OLD_TRANSCRIPT_SET picks one: human (project dir is no agent worktree;
+# can hold the owner's own chats) or role-seat (earlier rotations of a role
+# seat). Each needs the owner's yes for that set (SPL-5064, poll b1f4285d). A
+# seat's record says alive for as long as it serves, so alive keeps nothing
+# here. Stays when: outside the set, an agent record names it (restorable), a
+# running session or command line names it (live), a process holds a file of
+# it (open), or anything changed in AGE_DAYS (recent).
+#
 # Exit: 0 done; 2 usage or a refusal (nothing removed).
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
@@ -24,6 +34,9 @@ age_d="${AGE_DAYS:-7}"
 target="${OLD_STORE_TARGET:-}"
 spool="${SPOOL_ROOT:-/var/spool-hub}"
 grok_root="${GROK_SESSIONS:-$HOME/.grok/sessions}"
+projects="${OLD_PROJECTS:-$HOME/.claude/projects}"
+sessions="${OLD_SESSIONS:-$HOME/.claude/sessions}"
+tset="${OLD_TRANSCRIPT_SET:-}"
 active="${GROK_ACTIVE:-$(dirname "$grok_root")/active_sessions.json}"
 self="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=../../../../csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh
@@ -81,17 +94,40 @@ PY
     < <(cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\0' '\n' | grep -oE "$uuid_ere")
 }
 
-# settle <path> <why>: one KEEP / PLAN / REMOVE line and the counts.
+# load_claude_live: a session whose registry entry has a running pid is live.
+load_claude_live() {
+  local sid
+  while IFS= read -r sid; do [[ -n "$sid" ]] && keep["$sid"]=live; done < <(python3 - "$sessions" <<'PY2'
+import glob, json, os, sys
+for f in glob.glob(os.path.join(sys.argv[1], "*.json")):
+    try:
+        d = json.load(open(f))
+        pid = int(d["pid"])
+    except Exception:
+        continue
+    if pid > 0 and os.path.isdir("/proc/%d" % pid):
+        print(d.get("sessionId", ""))
+PY2
+)
+}
+
+# settle <path> <why> [more paths of the same item]: one KEEP / PLAN / REMOVE
+# line and the counts.
 settle() {
-  local p="$1" why="$2" kb mail=0
-  [[ -z "$why" && ! -O "$p" ]] && why="not-ours"
-  [[ -z "$why" && -n "$(find "$p" -newermt "-${age_d} days" -print -quit 2>/dev/null)" ]] && why="recent"
+  local p="$1" why="$2" kb mail=0 x
+  shift 2
+  local parts=("$p" "$@")
+  for x in "${parts[@]}"; do
+    [[ -z "$why" && -L "$x" ]] && why="symlink"
+    [[ -z "$why" && ! -O "$x" ]] && why="not-ours"
+  done
+  [[ -z "$why" && -n "$(find "${parts[@]}" -newermt "-${age_d} days" -print -quit 2>/dev/null)" ]] && why="recent"
   if [[ -n "$why" ]]; then say "KEEP $why $p"; n_keep=$((n_keep + 1)); return; fi
-  kb="$(du -sk -- "$p" 2>/dev/null | cut -f1)"; kb="${kb:-0}"
+  kb="$(du -sck -- "${parts[@]}" 2>/dev/null | tail -1 | cut -f1)"; kb="${kb:-0}"
   [[ "$target" == retired ]] && mail="$(find "$p/inbox" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l)"
   if [[ "$dry" == 1 ]]; then
     say "PLAN remove ${kb}KB unread=$mail $p"
-  elif rm -rf -- "$p" 2>/dev/null && [[ ! -e "$p" ]]; then
+  elif rm -rf -- "${parts[@]}" 2>/dev/null && [[ ! -e "$p" && ! -e "${parts[-1]}" ]]; then
     say "REMOVE ${kb}KB unread=$mail $p"
   else
     say "WARN could not remove $p"; return
@@ -142,9 +178,40 @@ prune_retired() {
   done < <(find "$root" -mindepth 1 -maxdepth 1 -type d -print0)
 }
 
+transcript_why() {
+  local slug="$1" sid="$2" set=human
+  if [[ "$slug" =~ -wt[0-9]*-($id_ere)$ ]]; then
+    if [[ "${BASH_REMATCH[1]}" =~ $role_re ]]; then set=role-seat; else set=agent; fi
+  fi
+  if [[ "$set" != "$tset" ]]; then printf 'set-%s' "$set"
+  elif [[ -n "${keep[$sid]:-}" ]]; then printf '%s' "${keep[$sid]}"
+  elif [[ -n "${held[$slug/$sid]:-}${held[$slug/$sid.jsonl]:-}" ]]; then printf open
+  fi
+}
+
+prune_transcripts() {
+  [[ "$tset" == human || "$tset" == role-seat ]] || refuse "OLD_TRANSCRIPT_SET must be human or role-seat, got '$tset'"
+  [[ -d "$projects" && ! -L "$projects" ]] || { say "OK no transcripts at $projects"; return; }
+  [[ -d "$spool/agents" && -r "$spool/agents" && -x "$spool/agents" ]] || refuse "cannot read the agent records in $spool/agents"
+  [[ -d "$sessions" && -r "$sessions" && -x "$sessions" ]] || refuse "cannot read the live sessions in $sessions"
+  local root p base sid stem slug x parts
+  root="$(readlink -f "$projects")"
+  load_agents; load_claude_live; load_held "$root" 2
+  while IFS= read -r -d '' p; do
+    base="${p##*/}"; sid="${base%.jsonl}"
+    [[ "$sid" =~ ^${uuid_ere}$ ]] || continue
+    [[ "$base" != *.jsonl && -e "$p.jsonl" ]] && continue
+    stem="${p%.jsonl}"; parts=()
+    for x in "$stem.jsonl" "$stem"; do [[ -e "$x" || -L "$x" ]] && parts+=("$x"); done
+    (( ${#parts[@]} )) || continue
+    slug="${stem%/*}"; slug="${slug##*/}"
+    settle "${parts[0]}" "$(transcript_why "$slug" "$sid")" "${parts[@]:1}"
+  done < <(find "$root" -mindepth 2 -maxdepth 2 \( -name '*.jsonl' -o -type d \) -print0)
+}
+
 [[ "$dry" == 0 || "$dry" == 1 ]] || refuse "DRY_RUN must be 0 or 1, got '$dry'"
 [[ "$age_d" =~ ^[0-9]+$ ]] && (( age_d >= 1 )) || refuse "AGE_DAYS must be a whole number >= 1, got '$age_d'"
-[[ "$target" == grok || "$target" == retired ]] || refuse "OLD_STORE_TARGET must be grok or retired, got '$target'"
+[[ "$target" == grok || "$target" == retired || "$target" == transcripts ]] || refuse "OLD_STORE_TARGET must be grok, retired or transcripts, got '$target'"
 [[ "${SPOOL_TEST:-0}" == 1 ]] || sudo -n true 2>/dev/null || refuse "no sudo -n: other users' open files cannot be read"
 
 say "START user=$(id -un) target=$target dry_run=$dry age_days=$age_d"

@@ -353,6 +353,11 @@ type Session struct {
 	// and the work can never keep a dead session looking alive.
 	ctx    context.Context
 	cancel context.CancelFunc
+	// dialCtx is the caller's context the session was dialled under. Once it
+	// is cancelled (SIGTERM from `timeout`, Ctrl-C) Close skips the close
+	// handshake: on a stalled link that handshake costs up to 10 s more
+	// (SPL-4631).
+	dialCtx context.Context
 	// pinConflict is a local pin the hub has rotated and this box refused to
 	// overwrite. The daemon logs it and stays connected; hub-sync still
 	// returns it (exit 78).
@@ -406,7 +411,7 @@ func (c *Client) dial(ctx context.Context, role string, retries int) (*Session, 
 	s := &Session{
 		c: c, conn: conn, box: box, priv: priv, role: role,
 		token: wel.UploadToken, replies: make(chan wire.Frame, 64), queueEnd: make(chan int, 1),
-		done: make(chan struct{}),
+		done: make(chan struct{}), dialCtx: ctx,
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	// A stamp that fails to parse leaves the zero time: uploadToken then
@@ -632,9 +637,17 @@ func (s *Session) readLoop() {
 	}
 }
 
-// Close ends the session normally.
+// Close ends the session normally, with the close handshake: up to 5 s to
+// write the close frame and 5 s for the hub's (coder/websocket close.go).
+// When the caller's context is already cancelled nobody waits for that, so
+// the socket is closed at once: a `timeout 4 spool lane` on a stalled link
+// took 9 s to exit instead of 4, n=6 (SPL-4631).
 func (s *Session) Close() {
 	s.cancel()
+	if s.dialCtx != nil && s.dialCtx.Err() != nil {
+		s.conn.CloseNow() //nolint:errcheck
+		return
+	}
 	s.conn.Close(websocket.StatusNormalClosure, "") //nolint:errcheck
 }
 

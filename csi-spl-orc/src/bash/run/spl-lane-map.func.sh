@@ -75,7 +75,7 @@ do_spl_lane_map() {
       (( LANE_HUB_TRY > 1 )) && do_log "INFO the hub answered on try $LANE_HUB_TRY"
     else
       LANE_HUB_STATE=unreachable hub_json=""
-      do_log "WARN the hub did not answer ($LANE_HUB_TRIED tries): this map shows only this machine's lanes (local worktrees)"
+      do_log "WARN no complete answer from the hub in $LANE_HUB_SECS s ($LANE_HUB_TRIED tries, last: $LANE_HUB_WHY): this map shows only this machine's lanes (local worktrees)"
       spl_lane_hub_down_alert
     fi
   fi
@@ -169,12 +169,16 @@ spl_lane_conf() {
 # 1 s, at most LANE_TIMEOUT and what is left, so a HUNG try leaves room for
 # the next ones (SPL-3503: the whole budget on try 1 was "1 tries"). The default 15 s
 # gives 4 s a try: the real read took 1.1..2.2 s on a fleet box (n=32, 2026-10-26).
-# LANE_HUB_TRY: the try that answered (0: none); LANE_HUB_TRIED: the tries made.
+# LANE_HUB_TRY: the try that answered (0: none); LANE_HUB_TRIED: the tries made;
+# LANE_HUB_SECS: the seconds the read took; LANE_HUB_WHY: what the last failed
+# try did (its rc and its last stderr line). Each failed try is logged with its
+# rc and error: the tries used to go to /dev/null, so an alert could not say
+# whether the hub refused, timed out or sent a partial answer (SPL-4626).
 # LANE_HUB_LIVE=1: the read that answered asked the live rows only (no
 # LANE_ALL=1, SPL-4630); 0 when no try answered, so the local map stays whole.
 spl_lane_hub_read() {
   local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-15}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
-  local share waits=0 w
+  local share waits=0 w cut rc errf
   local -a back st=()
   read -r -a back <<<"${LANE_HUB_BACKOFF:-1 2}"
   [[ "$tries" =~ ^[1-9][0-9]*$ ]] || tries=3
@@ -188,24 +192,46 @@ spl_lane_hub_read() {
   share=$(( (budget - waits) / tries ))
   (( share >= 1 )) || share=1
   (( share <= max )) || share=$max
-  LANE_HUB_JSON="" LANE_HUB_TRY=0 LANE_HUB_TRIED=0 LANE_HUB_LIVE=0
+  LANE_HUB_JSON="" LANE_HUB_TRY=0 LANE_HUB_TRIED=0 LANE_HUB_SECS=0 LANE_HUB_WHY="no try made" LANE_HUB_LIVE=0
   [[ "${LANE_ALL:-0}" == 1 ]] || st=(--state live)
+  errf="$(mktemp)" || errf=/dev/null
   for (( n = 1; n <= tries; n++ )); do
     left=$(( budget - (SECONDS - start) ))
     (( left > 0 )) || break
-    LANE_HUB_TRIED=$n
-    if out="$(LANE_TIMEOUT=$(( left < share ? left : share )) spl_lane_hub --fleet "$LANE_FLEET" "${st[@]}" 2>"${LANE_ERR:-/dev/null}")" &&
-      jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
-      LANE_HUB_JSON="$out" LANE_HUB_TRY=$n LANE_HUB_LIVE=$(( ${#st[@]} > 0 ))
+    LANE_HUB_TRIED=$n cut=$(( left < share ? left : share )) rc=0
+    out="$(LANE_TIMEOUT=$cut spl_lane_hub --fleet "$LANE_FLEET" "${st[@]}" 2>"$errf")" || rc=$?
+    if (( rc == 0 )) && jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
+      LANE_HUB_JSON="$out" LANE_HUB_TRY=$n LANE_HUB_SECS=$(( SECONDS - start )) LANE_HUB_LIVE=$(( ${#st[@]} > 0 ))
+      [[ "$errf" == /dev/null ]] || rm -f "$errf"
       return 0
     fi
+    LANE_HUB_WHY="$(spl_lane_hub_why "$rc" "$cut" "$errf")"
+    do_log "WARN the hub read try $n/$tries: $LANE_HUB_WHY"
     (( n < tries )) || break
     wait="${back[n - 1]:-${back[${#back[@]} - 1]:-1}}"
     [[ "$wait" =~ ^[0-9]+$ ]] || wait=1
     (( wait < budget - (SECONDS - start) )) || break
     sleep "$wait"
   done
+  LANE_HUB_SECS=$(( SECONDS - start ))
+  [[ "$errf" == /dev/null ]] || rm -f "$errf"
   return 1
+}
+
+# spl_lane_hub_why <rc> <cut s> <stderr file>: one line, what a failed try did:
+# a timeout (rc 124, or 137 when `timeout -k` had to kill), any other rc, or
+# rc 0 with no lane list, then the try's last stderr line, at most 200 chars.
+# Brackets stand in for parentheses: the alert puts this line in parentheses,
+# which the alert fold strips from the fingerprint (alert-issue-fold.py norm).
+spl_lane_hub_why() {
+  local rc="$1" cut="$2" err why
+  err="$(grep -v '^[[:space:]]*$' "$3" 2>/dev/null | tail -n 1 | tr -d '\000-\037' | tr '()' '[]' | cut -c1-200)"
+  case "$rc" in
+    0) why="rc 0 but no lane list in the answer" ;;
+    124 | 137) why="timed out after $cut s, rc $rc" ;;
+    *) why="failed, rc $rc" ;;
+  esac
+  echo "$why${err:+: $err}"
 }
 
 # The marker of a one-box map: the first line of the table, and of the
@@ -238,7 +264,7 @@ spl_lane_hub_down_alert() {
     do_log "WARN cannot write $f: the hub-down alert is not raised"
     return 0
   fi
-  text="**ALERT** lane map on $LANE_BOX: the hub did not answer $LANE_HUB_TRIED tries in a row (fleet $LANE_FLEET), so the lane map and \`lane-map.sh --check\` there see that machine only and say LOCAL-ONLY (exit 5, not free). Do: check the hub (\`./run -a do_check_hub_deploy\`) and the desk of $LANE_BOX. At most one such alert per box per $(( gap / 60 )) min."
+  text="**ALERT** lane map on $LANE_BOX: no complete answer from the hub in ${LANE_HUB_SECS:-?} s, $LANE_HUB_TRIED tries (last try ${LANE_HUB_WHY:-unknown}; fleet $LANE_FLEET), so the lane map and \`lane-map.sh --check\` there see that machine only and say LOCAL-ONLY (exit 5, not free). Do: check the hub (\`./run -a do_check_hub_deploy\`) and the desk of $LANE_BOX. At most one such alert per box per $(( gap / 60 )) min."
   who="${LANE_ALERT_AGENT:-${LEASE_ORCH:-}}"
   if [[ -n "${LANE_ALERT_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
@@ -265,10 +291,11 @@ spl_lane_spool() {
 
 # spl_lane_desk_spool <timeout> <args...>: the spool binary on the map's desk,
 # through its owner when the desk moved (spl_lane_desk_at). env, because sudo
-# drops the environment.
+# drops the environment. -k 1: a try that ignores the TERM (a stalled close
+# handshake) is killed 1 s later, not after its own 10 s (SPL-4631).
 spl_lane_desk_spool() {
   local t="$1"; shift
-  timeout "$t" "${LANE_DESK_AS[@]+"${LANE_DESK_AS[@]}"}" env SPOOL_ROOT="$LANE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LANE_DESK_DIR/keys" SPOOL_BOX_ID="$LANE_DESK_BOX" \
+  timeout -k 1 "$t" "${LANE_DESK_AS[@]+"${LANE_DESK_AS[@]}"}" env SPOOL_ROOT="$LANE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LANE_DESK_DIR/keys" SPOOL_BOX_ID="$LANE_DESK_BOX" \
     SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LANE_TENANT" "${LANE_SPOOL:-$SPL_SPOOL}" "$@"
 }
 

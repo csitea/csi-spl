@@ -61,6 +61,31 @@ instances), `update` (self-update), `ps`, `tmux` (the tmux lists), `agents`
 part of it), `boot`, `orch` (the orchestrator outcome), `judge` (every agent
 judged, the parallel jobs) and `log` (`wd.log` written and trimmed).
 
+### 1.3 gap.log: one kept line per tick gap over 10 min
+
+`beat.log` holds about 5.5 h and `wd.log` rotates daily, so a long gap left
+no line on the box a day later (one box 2026-11-01, a 56033 s gap, SPL-4628).
+A tick that finds its instance's previous tick more than `WD_GAP_KEEP_S`
+(600 s) old appends one line to `<WD_DIR>/gap.log`, kept to its last
+`WD_GAP_LOG_MAX` lines (default 500). Each instance writes its own line, so
+a gap of the whole box shows once per instance. The code is `spl_wd_resume`
+in `spl-watchdog.func.sh`, the same check that writes `RESUME` to `wd.log`.
+
+```text
+GAP 2 from=2027-01-14T16:26:07.000Z to=2027-01-15T08:00:00.000Z s=56033 boot=0f8e2a1c-...: no tick ran
+```
+
+| field | meaning |
+|---|---|
+| `2` | the watchdog instance, `-` when there is a single one |
+| `from=` | the previous tick of that instance |
+| `to=` | the tick that saw the gap |
+| `s=` | the gap in seconds |
+| `boot=` | the kernel boot id at `to=` (`/proc/sys/kernel/random/boot_id`), to compare with one read before the gap: the same id rules a reboot out |
+
+The line says that no tick ran, not why: a suspend, a freeze, a hung step or
+a stopped watchdog all leave the same line.
+
 ## 2. How to read a gap
 
 1. Find the gap. Consecutive `BEAT` lines with an ack are the beats the hub
@@ -74,7 +99,7 @@ judged, the parallel jobs) and `log` (`wd.log` written and trimmed).
    - `sent=` far after `tick=`: the steps before the fence were slow. The
      `TICK` line of that tick names the step.
    - no `BEAT` line at all for a while: no tick ran (a hung step, the watchdog
-     down, or a box that slept: see `RESUME` in `wd.log`). The next `TICK`
+     down, or a box that slept: see `RESUME` in `wd.log`, and `gap.log` (1.3) once `beat.log` has rotated). The next `TICK`
      line, if the tick finished late, shows which step held it.
 3. Compare the instances. All three gapping at the same time points to the
    box or the hub. One instance alone points to that instance's own tick.

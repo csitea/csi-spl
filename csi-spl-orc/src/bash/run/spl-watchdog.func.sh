@@ -175,13 +175,7 @@ spl_wd_tick() {
   spl_wd_tick_t0
   now="$(spl_lease_now)"
   last="$(spl_wd_upd_last "$(cat "$WD_DIR/last.tick$WD_SFX" 2>/dev/null || true)")"
-  # a box back from suspend or power loss: every age looks huge (6.2). The
-  # debounces reset per agent, in its skip, under its judge lock (10.4.1).
-  if [[ "$last" =~ ^[0-9]+$ ]] && (( now - last > 3 * WD_TICK )); then
-    echo "$now" > "$WD_DIR/resume$WD_SFX"
-    echo "$((now - last))" > "$WD_DIR/resume$WD_SFX.gap"
-    spl_wd_log "RESUME${WD_INST:+ instance $WD_INST} tick gap $((now - last))s: debounces and graces reset"
-  fi
+  spl_wd_resume "$now" "$last"
   echo "$now" > "$WD_DIR/last.tick$WD_SFX"
   if [[ -n "${WD_KEEPER_HELD:-}" ]]; then echo "$now" > "$WD_DIR/last.tick"; fi
   WD_TICK_SEQ=$((WD_TICK_SEQ + 1))
@@ -231,6 +225,24 @@ spl_wd_tick() {
   return 0
 }
 
+# spl_wd_resume NOW LAST: a box back from suspend or power loss: every age
+# looks huge (6.2). The debounces reset per agent, in its skip, under its
+# judge lock (10.4.1). A gap over WD_GAP_KEEP_S (600) also appends one line
+# to <WD_DIR>/gap.log, kept to its last WD_GAP_LOG_MAX (500) lines: wd.log
+# rotates daily and beat.log holds about 5.5 h, so a long freeze left no
+# record a day later (SPL-4628). The line names no cause: none is known here.
+spl_wd_resume() {
+  local now="$1" last="$2" boot
+  [[ "$last" =~ ^[0-9]+$ ]] && (( now - last > 3 * WD_TICK )) || return 0
+  echo "$now" > "$WD_DIR/resume$WD_SFX"
+  echo "$((now - last))" > "$WD_DIR/resume$WD_SFX.gap"
+  spl_wd_log "RESUME${WD_INST:+ instance $WD_INST} tick gap $((now - last))s: debounces and graces reset"
+  (( now - last > ${WD_GAP_KEEP_S:-600} )) || return 0
+  boot="$(cat "${WD_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}" 2>/dev/null)" || boot=""
+  spl_wd_kept_log "$WD_DIR/gap.log" "${WD_GAP_LOG_MAX:-500}" \
+    "GAP ${WD_INST:--} from=$(spl_wd_iso "$last") to=$(spl_wd_iso "$now") s=$((now - last)) boot=${boot:--}: no tick ran"
+}
+
 # ---- beat.log: the beat and slow-tick record (SPL-3197, diagnostic only) --------
 # <WD_DIR>/beat.log, kept to its last WD_BEAT_LOG_MAX (2000) lines, one line
 # per beat and per tick that ran past WD_TICK; how to read a gap:
@@ -242,9 +254,12 @@ spl_wd_us() { local t="${EPOCHREALTIME/,/.}"; WD_US="${t/./}"; }
 # spl_wd_iso EPOCH[.FRACTION]: UTC, milliseconds.
 spl_wd_iso() { date -u -d "@${1/,/.}" +%FT%T.%3NZ; }
 
-spl_wd_beat_log() {
-  local f="$WD_DIR/beat.log" max="${WD_BEAT_LOG_MAX:-2000}" n tmp
-  echo "$*" >> "$f" 2>/dev/null || return 0
+spl_wd_beat_log() { spl_wd_kept_log "$WD_DIR/beat.log" "${WD_BEAT_LOG_MAX:-2000}" "$*"; }
+
+# spl_wd_kept_log FILE MAX LINE: LINE appended, FILE kept to its last MAX lines.
+spl_wd_kept_log() {
+  local f="$1" max="$2" n tmp
+  echo "$3" >> "$f" 2>/dev/null || return 0
   n="$(wc -l < "$f" 2>/dev/null)" || return 0
   (( n > max )) || return 0
   # named here: a $BASHPID in tail's redirection expands in tail's own fork

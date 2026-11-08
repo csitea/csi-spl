@@ -75,6 +75,13 @@
 #      hourly limit. Controls: the seat and a done lane get none; nothing
 #      while still fenced; a DRY_RUN=1 pass writes none (R7 c-773 W1).
 #      RED control: origin/master writes no marker
+#  16. SPL-4628: one box 2026-11-01 had a 56033 s beat gap and a day later
+#      no line of it was left (wd.log rotates, beat.log keeps ~5.5 h). A
+#      tick after a planted old last.tick (spl_wd_resume, the tick's gap
+#      check) over WD_GAP_KEEP_S (600 s) appends ONE line to <wd>/gap.log
+#      (GAP <inst> from= to= s= boot=), naming no cause; a 540 s gap gets
+#      RESUME and no line; the file keeps its last WD_GAP_LOG_MAX lines.
+#      RED control: origin/master writes no gap.log (the commit body has the run)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -533,6 +540,36 @@ if compgen -G "$T/wd/fence.restart.*" >/dev/null; then fail "15. marker before U
 reset; DRY=1 ticks 0 0 ok; DRY=1 ticks 30 120 silent; DRY=1 ticks 150 150 ok
 if compgen -G "$T/wd/fence.restart.*" >/dev/null; then fail "15. DRY_RUN=1 wrote a marker: $(echo "$T"/wd/fence.restart.*)"
 else pass "15. control: a DRY_RUN=1 pass that sees the fence lift writes no marker"; fi
+
+# ---- 16. a tick gap over 10 min leaves one kept line (SPL-4628) ----------------
+# gap16 LAST NOW [INST]: last.tick planted at LAST, the tick at NOW sees the gap
+gap16() {
+  local sfx="${3:+.$3}"
+  echo "$1" > "$T/wd/last.tick$sfx"
+  WD_TICK=30 WD_INST="${3:-}" WD_SFX="$sfx" WD_BOOT_ID_FILE="$T/boot_id" \
+    wd spl_wd_resume "$2" "$(cat "$T/wd/last.tick$sfx")"
+}
+reset; echo 0f8e2a1c-boot > "$T/boot_id"
+gap16 $(( T0 - 56033 )) "$T0" 2
+[[ "$(n wd/gap.log .)" == 1 ]] &&
+  grep -qx "GAP 2 from=2027-01-14T16:26:07.000Z to=2027-01-15T08:00:00.000Z s=56033 boot=0f8e2a1c-boot: no tick ran" "$T/wd/gap.log" &&
+  pass "16. a planted tick 56033 s old: one GAP line in gap.log (instance, from, to, s, boot)" ||
+  fail "16. gap.log: $(cat "$T/wd/gap.log" 2>&1)"
+[[ "$(n wd.log 'RESUME instance 2 tick gap 56033s')" == 1 && "$(cat "$T/wd/resume.2.gap")" == 56033 ]] &&
+  pass "16. the RESUME line and resume.gap as before" || fail "16. resume: $(cat "$T/wd.log" 2>&1)"
+! grep -qiE 'suspend|freeze|sleep' "$T/wd/gap.log" &&
+  pass "16. the line names no cause" || fail "16. a cause in: $(cat "$T/wd/gap.log")"
+reset
+gap16 $(( T0 - 540 )) "$T0"
+[[ ! -e "$T/wd/gap.log" && "$(n wd.log 'RESUME tick gap 540s')" == 1 ]] &&
+  pass "16. control: a 540 s gap gets RESUME and no kept line" || fail "16. 540 s: $(cat "$T/wd/gap.log" 2>&1)"
+gap16 $(( T0 - 30 )) "$T0"
+[[ ! -e "$T/wd/gap.log" && "$(n wd.log RESUME)" == 1 ]] &&
+  pass "16. control: a 30 s tick: no RESUME, no line" || fail "16. 30 s: $(cat "$T/wd.log" 2>&1)"
+reset
+for g in 601 700 800; do WD_GAP_LOG_MAX=2 gap16 $(( T0 - g )) "$T0"; done
+[[ "$(n wd/gap.log .)" == 2 && "$(head -n 1 "$T/wd/gap.log")" == *" s=700 "* ]] &&
+  pass "16. 3 gaps with WD_GAP_LOG_MAX=2: the last 2 kept" || fail "16. trim: $(cat "$T/wd/gap.log" 2>&1)"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

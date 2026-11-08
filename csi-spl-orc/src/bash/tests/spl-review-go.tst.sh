@@ -475,8 +475,15 @@ run; rc=$?
   pass "17. the retired seat's PASS in the same tick (grok first): one WAIT, one GO" || fail "17. one tick rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
 
 # --- 18. a seat placed on another box (SPL-4427) ----------------------------------------------------------
-# the hub stub prints the lane map rows of $LANES_JSON; the lane read is do_spl_lane_map's (spl_lane_hub_read)
-printf '#!/bin/sh\ncat "$LANES_JSON"\n' >"$T/hub.sh" && chmod +x "$T/hub.sh"
+# the hub stub prints the lane map rows of $LANES_JSON; the lane read is do_spl_lane_map's (spl_lane_hub_read);
+# a list with --state answers that state's rows only, as the hub (SPL-4630): the rows below are done, so a
+# live-only read finds no reviewer (RED without LANE_ALL=1 on the cron's read, W1)
+cat >"$T/hub.sh" <<'HUB'
+#!/bin/sh
+st=""; while [ $# -gt 0 ]; do [ "$1" = --state ] && st="$2"; shift; done
+jq -c --arg st "$st" '{lanes: [.lanes[] | select($st == "" or .state == $st)]}' "$LANES_JSON"
+HUB
+chmod +x "$T/hub.sh"
 # lanes <id@box|branch|scope>...: the lane map's rows
 lanes() {
   local r rows=() id box br sc

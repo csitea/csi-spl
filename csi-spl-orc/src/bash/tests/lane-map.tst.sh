@@ -84,6 +84,12 @@
 #      with tmux unreadable the same worktree stays in the map (src local:
 #      unsure, as a lane spawned while the hub was down), and LANE_ALL=1
 #      reads its done row, which wins as before: free
+#  20. known limit, pinned (SPL-4630 R7 W2): a worktree with NO hub row at all
+#      and a dead pane (spawned while the hub was down, or crashed before its
+#      put) is dropped from the live map like a closed one, which only a done
+#      row could tell apart; LANE_ALL=1 shows it, src local. --check reads its
+#      changed path free with either read, as before SPL-4630 (a dead pane is
+#      not busy, spl_lane_check), so the live read costs a map row, no verdict
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -696,6 +702,20 @@ out="$(dchk pc d/z.txt "cat $T/panes-d")"; rc=$?
 [[ $rc -eq 3 ]] && pass "control: the running lane's changed path, no done row read: exit 3" || fail "running lane on a live read (rc=$rc): $out"
 out="$(on pc 'LANE_FORMAT=json do_spl_lane_map' "${D[@]}" | tail -1 | jq -c '[.lanes[] | select(.agent_id == "c-743") | "\(.agent_box) \(.state) \(.src)"]')"
 [[ "$out" == '["box-desk live local"]' ]] && pass "tmux unreadable on a live read: the worktree with no live row stays, src local" || fail "no panes, live read: $out"
+
+# 20. known limit, pinned: a worktree with no hub row at all and a dead pane (SPL-4630 R7 W2)
+lane pc c-751 dn
+mkdir -p "$T/pc/csi-spl-wt/c-751/n" && echo z >"$T/pc/csi-spl-wt/c-751/n/no-row.txt"
+cp "$T/panes-d" "$T/panes-n" && echo '1 c-751@box-desk' >>"$T/panes-n"
+out="$(on pc 'LANE_FORMAT=json do_spl_lane_map' "${D[@]}" LANE_PANES_CMD="cat $T/panes-n" | tail -1 |
+  jq -c '[.lanes[] | select(.agent_id == "c-751") | "\(.state) \(.src)"]')"
+[[ "$out" == '[]' ]] && pass "known limit: the live map drops a no-row worktree whose pane is dead" || fail "no row, dead pane, live read: $out"
+out="$(dn_row c-751 LANE_PANES_CMD="cat $T/panes-n")"
+[[ "$out" == '["box-desk live local"]' ]] && pass "control: LANE_ALL=1 shows it, src local" || fail "no row, dead pane, every row: $out"
+out="$(dchk pc n/no-row.txt "cat $T/panes-n")"; rc=$?
+out2="$(dchk pc n/no-row.txt "cat $T/panes-n" LANE_ALL=1)"; rc2=$?
+[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free && $rc2 -eq 0 && "$(head -1 <<<"$out2")" == free ]] &&
+  pass "--check on its changed path: free with the live read and with every row, as before SPL-4630" || fail "check parity (rc=$rc/$rc2): $out / $out2"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "lane-map: all passed"; exit 0; fi

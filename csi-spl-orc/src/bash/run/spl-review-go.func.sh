@@ -229,7 +229,8 @@ _spl_review_go_brief() {
 
 # _spl_review_go_lanes: the fleet lane map's hub rows (JSON, `.lanes`), read
 # as do_spl_lane_map reads them (spl_lane_init, spl_lane_hub_read), in a
-# subshell. rc 1: no fleet (no lane map). rc 2: the lane map is unreadable,
+# subshell. Every row, LANE_ALL=1: a reviewer that ended has a done row only
+# (SPL-4630 W1). rc 1: no fleet (no lane map). rc 2: the lane map is unreadable,
 # its reason on stderr. The desk that signs the read may be pinned under
 # another user (SPL-4563: on sat the cron runs as the agent user, which reads
 # the reviewers' 0700 session logs, and the t1 desk is the box user's, 0700):
@@ -240,7 +241,7 @@ _spl_review_go_lanes() {
     trap 'rm -f "$e"' EXIT
     spl_lane_init >"$e" 2>&1 || { _spl_review_go_lanes_as "$(grep -m1 FATAL "$e" || tail -n1 "$e")"; exit; }
     [[ "$LANE_MODE" == hub ]] || exit 1
-    spl_lane_hub_read >/dev/null 2>&1 || { echo "the hub did not answer (${LANE_HUB_TRIED:-0} tries)" >&2; exit 2; }
+    LANE_ALL=1 spl_lane_hub_read >/dev/null 2>&1 || { echo "the hub did not answer (${LANE_HUB_TRIED:-0} tries)" >&2; exit 2; }
     printf '%s' "$LANE_HUB_JSON"
   )
 }

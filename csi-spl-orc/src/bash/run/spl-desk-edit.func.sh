@@ -17,6 +17,10 @@
 # @description on one tenant shares the desk box (box-desk), so DESK_AGENT may
 # @description name an agent whose pane is closed, as long as its desk dir
 # @description is still on this host.
+# @description A desk that moved under another user's root (spec 069 8.4) re-runs
+# @description this action once as that user (spl_desk_action_hop): the fleet
+# @description loop's asks tick clears its alerts through it as the box user
+# @description (SPL-4985). A DESK_BODY_FILE must then be readable by that user.
 # @description Prints one JSON line (env, tenant, box, agent, the edit result:
 # @description msg_id, task_id, from, revision). No secret is read.
 # @description Dry run unless DRY_RUN=0.
@@ -39,6 +43,10 @@ do_spl_desk_edit() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local id="${MSG_ID:-}" body="${DESK_BODY:-}" body_file="${DESK_BODY_FILE:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
+  local hop_to
+  if hop_to="$(spl_desk_action_hop_to "$tenant" "$box")"; then
+    spl_desk_action_hop do_spl_desk_edit "$hop_to" "$tenant" "$box" "$agent" MSG_ID; return $?
+  fi
   [[ "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
     { do_log "FATAL MSG_ID must be the message's lowercase UUID, got: '$id'"; return 1; }
   if [[ -n "$body" && -n "$body_file" ]]; then

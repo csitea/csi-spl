@@ -25,8 +25,9 @@
 #      the desk pinned under another root re-runs the action once as that
 #      root's user, also over the caller's unpinned stub (sat 2026-11-07: two
 #      workspaces), whose post no sidecar would ever flush. The
-#      caller's pinned desk, the desk nowhere, an unpinned copy elsewhere,
-#      SPOOL_DESK_USER set and a run already hopped: no hop. do_spl_take posts
+#      caller's pinned desk, the desk nowhere, an unpinned copy elsewhere
+#      and a run already hopped: no hop. SPOOL_DESK_USER set: the hop too
+#      (SPL-4985, case 13). do_spl_take posts
 #      through the reply, so it gets the same hop. RED CONTROL: before SPL-4938
 #      the first case read "FATAL no desk" and the stub case hopped nowhere
 # The scripts run from a sandbox copy of the feature tree, so their default
@@ -277,7 +278,7 @@ eq "6. only an unpinned copy under the other root: not a desk to hop to" "0" "$(
 
 desk6 "$ROOT6" hop-e pinned
 reply6 hop-e DRY_RUN=1 SPOOL_DESK_USER="$DU" >/dev/null
-eq "6. SPOOL_DESK_USER set: no hop, as before" "0" "$(hop6)"
+eq "6. SPOOL_DESK_USER set: one hop too (SPL-4985, the asks tick's owner page after switch)" "1" "$(hop6)"
 reply6 hop-e DRY_RUN=1 SPL_DESK_HOPPED="$BU" >/dev/null
 eq "6. a run that already hopped does not hop again" "0" "$(hop6)"
 reply6 hop-e DRY_RUN=1 SPL_DESK_AS_CMD= >/dev/null
@@ -499,6 +500,48 @@ eq "12. epic reopen: one hop, never a loop" "0" "$(hop6)"
 out="$(reopen12 TENANT_ID=hop-h DESK_AGENT=c-002)"
 eq "12. epic reopen: the caller's own pinned desk: no hop" "0" "$(hop6)"
 has "12. epic reopen: the caller's own desk: reopened here" "REOPENED-HERE SPL-55" "$(cat "$T/as.log")"
+
+# 13. The asks tick's owner page (spl_asks_owner_page -> do_spl_desk_reply) and
+# its alert clear (spl_asks_alert_clear -> do_spl_desk_edit) reach the moved
+# fleet desk through its owner (SPL-4985, R7 W1 by c-340). The fleet lease loop
+# runs the asks tick as the box user, before and after MOVE_CMD=switch. RED on
+# 026e60c30: the page with SPOOL_DESK_USER set and the clear at all: no hop.
+ALERT13="$T/alert13"
+printf '%s\n%s\n%s\n%s\n' 7c1e2d3f-1111-4222-8333-444455556666 c-002 '**ALERT** @HUM-10: no orch' 1 >"$ALERT13"
+# asks13 <snippet> [VAR=value]...: an asks tick function on the lease's desk hop-g
+asks13() {
+  local snip="$1"; shift
+  : >"$T/as.log"; rm -f "$ALERT13.paged"
+  SNIPPET="do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }; $snip; echo \"rc=\$?\"" \
+    in_orc LANE_MODE=hub LANE_ENV=dev LANE_TENANT=hop-g LANE_DESK_BOX=box-x ASKS_OWNER=HUM-10 ASKS_ORCH_PAGE_MIN=1 \
+    SPOOL_DESK_USER= SPOOL_BOX_ENV="$T/box.env.agent" SPOOL_BOX_USER="$BU" \
+    SPL_ORG_APP=t-app SPL_DESK_AS_CMD="$AS6" AS_LOG="$T/as.log" "$@" 2>&1
+}
+for su in "" "$DU"; do
+  w="half-moved"; [ -z "$su" ] || w="switched"
+  out="$(asks13 "spl_asks_owner_page '$ALERT13'" SPOOL_DESK_USER="$su")"; log="$(cat "$T/as.log")"
+  eq "13. $w: the owner page: one hop" "1" "$(hop6)"
+  has "13. $w: the owner page: the agent user's HOME" "HOP env HOME=$DH " "$log"
+  has "13. $w: the owner page runs the reply" "$PROJ_ROOT/run -a do_spl_desk_reply" "$log"
+  has "13. $w: the owner page goes to the owner" " DESK_TO=HUM-10" "$log"
+  has "13. $w: the owner page is a blocker" " DESK_KIND=blocker" "$log"
+  has "13. $w: the owner page is live" " DRY_RUN=0" "$log"
+  hasnt "13. $w: the owner page: no failure in the caller" "page failed" "$out"
+  out="$(asks13 "spl_asks_alert_clear c-002 7c1e2d3f-1111-4222-8333-444455556666 'was this' 1" SPOOL_DESK_USER="$su")"; log="$(cat "$T/as.log")"
+  eq "13. $w: the alert clear: one hop" "1" "$(hop6)"
+  has "13. $w: the alert clear runs the edit" "$PROJ_ROOT/run -a do_spl_desk_edit" "$log"
+  has "13. $w: the alert clear carries the post's id" " MSG_ID=7c1e2d3f-1111-4222-8333-444455556666" "$log"
+  has "13. $w: the alert clear carries the new text" " DESK_BODY=Cleared " "$log"
+  has "13. $w: the alert clear is by the post's author" " DESK_AGENT=c-002" "$log"
+  has "13. $w: the alert clear is live" " DRY_RUN=0" "$log"
+  has "13. $w: the alert clear: the hopped run's rc" "rc=7" "$(asks13 "spl_asks_alert_clear c-002 7c1e2d3f-1111-4222-8333-444455556666 'was this' 1" SPOOL_DESK_USER="$su" AS_RC=7)"
+done
+asks13 "spl_asks_alert_clear c-002 7c1e2d3f-1111-4222-8333-444455556666 'was this' 1" SPL_DESK_HOPPED="$BU" >/dev/null
+eq "13. the alert clear: one hop, never a loop" "0" "$(hop6)"
+asks13 "spl_asks_alert_clear c-002 7c1e2d3f-1111-4222-8333-444455556666 'was this' 1" LANE_TENANT=hop-h >/dev/null
+eq "13. the alert clear: the caller's own pinned desk: no hop" "0" "$(hop6)"
+asks13 "spl_asks_owner_page '$ALERT13'" LANE_TENANT=hop-h DRY_RUN=1 >/dev/null
+eq "13. the owner page: the caller's own pinned desk: no hop" "0" "$(hop6)"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

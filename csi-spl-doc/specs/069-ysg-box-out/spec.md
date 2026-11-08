@@ -741,8 +741,9 @@ it needs no hop of its own, and the taught commands stay as they are. It reads
 `pinned`, not "a root holds the dir": on 2026-11-07 sat's `<box-user>` root
 held unpinned stubs of two workspaces' desks with a mailbox, where a
 reply would be written and no sidecar would flush it. An unpinned copy under
-another root gets no hop. With `SPOOL_DESK_USER` set nothing changes. Test:
-`desk-user-hops.tst.sh` case 6.
+another root gets no hop. It hops with `SPOOL_DESK_USER` set too (SPL-4985,
+8.4.4): the fleet loop's owner page runs it as `<box-user>` after
+`MOVE_CMD=switch`. Test: `desk-user-hops.tst.sh` cases 6 and 13.
 
 So a desk under `<agent-user>` is **readable only by `<agent-user>`**: a
 `<box-user>` cron that reads or posts through a moved desk keeps failing,
@@ -1003,8 +1004,9 @@ and 5 dev desks, none with a live sidecar.
   `spl_desk_action_hop_to` / `spl_desk_action_hop`
   (`lib/bash/funcs/spl-desk-moved.func.sh`) re-run `do_spl_desk_post`,
   `do_spl_topic_archive`, `do_spl_desk_poll_ack`, `do_spl_lane_issue`,
-  `do_spl_spawn_fill`, `do_spl_alert_issue_tick` and `do_spl_epic_reopen` once as
-  the desk's owner, with or without `SPOOL_DESK_USER`. `do_spl_desk_poll_ack` hops once the fleet desk moved, so its
+  `do_spl_spawn_fill`, `do_spl_alert_issue_tick`, `do_spl_epic_reopen`,
+  `do_spl_desk_reply` and `do_spl_desk_edit` once as the desk's owner, with or
+  without `SPOOL_DESK_USER`. `do_spl_desk_poll_ack` hops once the fleet desk moved, so its
   scan sees every moved workspace. `do_spl_lane_issue` is the end line every lane
   is taught to run as the box user; `do_spl_spawn_fill` has its own cron row, no
   manifest row, so step 4 leaves it in the box user's crontab.
@@ -1013,8 +1015,10 @@ and 5 dev desks, none with a live sidecar.
   HOME, so the owner needs the project key there. `do_spl_epic_reopen` is the
   placer's and the enqueue's reopen of an auto-closed epic (SPL-2558); the
   placer's cron row, like the filler's, has no manifest row.
-  `do_spl_desk_reply` keeps its own rule (8.3.1): it hops only with no
-  `SPOOL_DESK_USER`. The other actions that reach `spl_desk_issue_run` do not hop:
+  The asks tick of the fleet loop pages the owner through `do_spl_desk_reply`
+  (the no-orchestrator DM) and clears its `#alerts` posts through
+  `do_spl_desk_edit`; without these hops each alert cause posted once and never
+  cleared, and the page failed every tick after `switch`. The other actions that reach `spl_desk_issue_run` do not hop:
   run them as the desk's owner.
 - **The lane map and the ask book.** `spl_lane_desk_at` locates a moved desk and
   `spl_lane_desk_spool` signs there as its owner, with its binary. The unmarked
@@ -1029,7 +1033,7 @@ and 5 dev desks, none with a live sidecar.
   under `MOVE_MAX_SECS` (120 s) stays inside it. Not yet measured on the fleet
   desk: that is the move itself.
 
-Tests: `desk-move.tst.sh` cases 14 and 15, `desk-user-hops.tst.sh` cases 7 to 10,
+Tests: `desk-move.tst.sh` cases 14 and 15, `desk-user-hops.tst.sh` cases 6 to 13,
 `dispatch-lease-moved-desk.tst.sh` cases 10 and 11, and for the cron rows going
 back `install-box-crons.tst.sh` case 9.
 

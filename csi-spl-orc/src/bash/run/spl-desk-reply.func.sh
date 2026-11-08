@@ -148,7 +148,7 @@ do_spl_desk_reply() {
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" to="${DESK_TO:-}" task="${DESK_TASK:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local hop_to
-  if hop_to="$(_spl_desk_reply_hop_to "$tenant" "$box")"; then
+  if hop_to="$(spl_desk_action_hop_to "$tenant" "$box")"; then
     spl_desk_action_hop do_spl_desk_reply "$hop_to" "$tenant" "$box" "$agent"; return $?
   fi
   _spl_desk_reply_body_file || return 1
@@ -203,19 +203,13 @@ do_spl_desk_reply() {
   do_log "OK $agent answered $ans_to in topic $sent_task ($kind${ans_ref:+, $route}); the sidecar flushes it to $hub"
 }
 
-# _spl_desk_reply_hop_to <tenant> <box>: the user to re-run this action as, 0;
-# 1 when it runs here. A half-moved box (spec 069 8.3.1) holds desks under the
-# box user and the agent user before box.env names SPOOL_DESK_USER, so no fixed
-# prefix in a dispatcher's brief fits every workspace (SPL-4938: FATAL no desk
-# on sat's csi-rel, every hourly rotation). spl_desk_moved_to, not "the first
-# root that holds the dir": sat's box user keeps unpinned stubs with a mailbox
-# (two workspaces, 2026-11-07), where a reply would be written and no
-# sidecar would flush it. SPL_DESK_HOPPED: one hop, never a loop. Under
-# SPOOL_TEST=1 only a test's own SPL_DESK_AS_CMD hops: never to a real user.
-_spl_desk_reply_hop_to() {
-  [[ -z "$(spl_desk_user)" ]] || return 1
-  spl_desk_action_hop_to "$1" "$2"
-}
+# The hop above (spl_desk_action_hop_to): a desk pinned under another user's
+# root re-runs the reply once as that user. A half-moved box (spec 069 8.3.1)
+# holds desks under the box user and the agent user before box.env names
+# SPOOL_DESK_USER (SPL-4938: FATAL no desk on sat's csi-rel, every hourly
+# rotation). It hops also with SPOOL_DESK_USER set (SPL-4985, R7 W1 by c-340):
+# the fleet loop's asks tick pages the owner through this reply as the box
+# user, before and after MOVE_CMD=switch, and the agent user's root is 0700.
 
 # _spl_desk_reply_choose: the conversation to answer, into the caller's
 # ans_to / ans_task / ans_msg / ans_head / ans_ref (do_spl_desk_reply's locals;

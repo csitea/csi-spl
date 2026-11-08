@@ -68,6 +68,7 @@ func srFiles(t *testing.T, root string) []string {
 	return out
 }
 
+// srNotAnnounced is the hub's refusal of a sender it has not seen announce.
 func srNotAnnounced() *wire.Frame {
 	return &wire.Frame{Type: wire.TError, Error: wire.TokenFromNotAnnounced, Status: http.StatusConflict}
 }
@@ -217,7 +218,7 @@ func TestSRCopyBlobs(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := &msg.Message{Files: []msg.Attachment{
-		{Mode: "path", Path: "/no/such/file", Name: "p.txt"},
+		{Mode: "path", FileID: "sr-path", Path: "/no/such/file", Name: "p.txt"},
 		{Mode: "blob", FileID: held, Name: "h.txt"},
 	}}
 	if err := src.copyBlobs(dst, m); err != nil {

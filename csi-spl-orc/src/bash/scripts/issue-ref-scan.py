@@ -8,13 +8,17 @@ so `SPL-44` may be either. This decides, per key, without writing anything:
 
   rewrite  the key is the workspace's own:
              link   inside (or the label of) an issues link on the
-                    workspace's own host, or a relative /issues?issue= link
+                    workspace's own host, or a relative /issues?issue= link,
+                    with n within the workspace's counter
              named  the line names the workspace and no other one
              plain  n is a live issue number of the workspace, the text
                     holds no key above the workspace's range and the line
                     names no other workspace
   keep     the key is not the workspace's:
              other-link   an issues link on another host
+             foreign-link an issues link on the workspace's own host, but n is
+                          above its counter: rewritten it would be a dead
+                          link (SPL-5073); every one is listed
              not-ours     n is above the workspace's counter (no such issue)
   ambiguous  listed apart, never rewritten:
              mixed        n is the workspace's, but the same text also holds
@@ -37,7 +41,7 @@ stdin: JSON lines. One {"src":"meta","tenant","prefix","last_number",
   issue-ref-scan.py --old SPL [--samples 10] [--plan <file>]
 
 stdout: the report (counts per source and class, samples per class, every
-ambiguous hit). --plan: JSON, per field the rewrite offsets, for the writer.
+ambiguous, archived and foreign-link hit). --plan: JSON, per field the rewrite offsets, for the writer.
 Exit 0; exit 2 on bad input (no meta row, bad prefix).
 """
 
@@ -134,7 +138,9 @@ def decide(text, pos, n, c, facts):
     links, commits, mixed = facts
     for a, b, ln, own in links:
         if a <= pos < b and ln == n:
-            return ("rewrite", "link") if own else ("keep", "other-link")
+            if not own:
+                return ("keep", "other-link")
+            return ("keep", "foreign-link") if n > c.last else ("rewrite", "link")
     if n > c.last:
         return ("keep", "not-ours")
     if any(a <= pos < b for a, b in commits):
@@ -195,7 +201,7 @@ def scan(c, rows, nsamples):
             }
             if len(samples.setdefault(cls, [])) < nsamples:
                 samples[cls].append(item)
-            if cls in ("ambiguous", "archived"):
+            if cls in ("ambiguous", "archived") or why == "foreign-link":
                 ambiguous.append(item)
             if cls == "rewrite":
                 edits.append(

@@ -20,6 +20,9 @@
 #   7. an archived or deleted issue is route archived: reported, never in
 #      work.tsv, never sent to do_spl_issue_update (the hub answered
 #      not_found for csitea's archived CSI-20); the SQL flags both fields
+#   8. a hand-made plan with a key above the workspace's last_number is refused
+#      whole (SPL-5073), a key at last_number passes, and a meta row with no
+#      last_number is refused; the SQL reads the counter
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -37,7 +40,7 @@ row() { python3 -c 'import json,sys; r={"src":sys.argv[1],"id":sys.argv[2],"fiel
 if len(sys.argv) > 5: r["box"], r["from"] = sys.argv[5], sys.argv[6]
 print(json.dumps(r, ensure_ascii=False))' "$@"; }
 {
-  echo '{"src":"meta","tenant":"csitea","prefix":"CSI","pins":["box-wui","box-b","box-a"]}'
+  echo '{"src":"meta","tenant":"csitea","prefix":"CSI","last_number":49,"pins":["box-wui","box-b","box-a"]}'
   row msg $U1 body "$T1_TEXT" box-a c-002
   row msg $U2 body 'Готово: SPL-3 в Issues' box-b c-003
   row msg $U3 body 'Please look at SPL-40' box-wui HUM-10
@@ -120,7 +123,7 @@ o=$(act 'do_spl_issue_ref_rewrite' TENANT_ID=t1 SCAN_PLAN="$T/plan.json"); rc=$?
 [[ ! -s "$T/calls.log" ]] && pass "CONTROL: no cloud call before the refusals" || fail "calls: $(cat "$T/calls.log")"
 sql=$(act "spl_issue_ref_rewrite_sql csitea $T/plan.json")
 grep -qiE '\b(insert|update|delete|truncate|drop|alter|grant|create)\b' <<<"$sql" && fail "the SQL holds a write verb: $sql" || pass "the SQL holds no write verb"
-[[ $(grep -c "tenant_id = 'csitea'" <<<"$sql") == 5 ]] && pass "every read is scoped to the tenant" || fail "tenant scope: $sql"
+[[ $(grep -c "tenant_id = 'csitea'" <<<"$sql") == 6 ]] && pass "every read is scoped to the tenant" || fail "tenant scope: $sql"
 grep -q "msg_id IN ('$U1','$U2'," <<<"$sql" && grep -q "number IN (45,46)" <<<"$sql" && pass "the SQL reads the plan's ids" || fail "ids: $sql"
 [[ $(grep -c "'archived', archived_at IS NOT NULL OR deleted_at IS NOT NULL" <<<"$sql") == 2 ]] \
   && pass "the SQL flags archived and deleted issues" || fail "archived flag: $sql"
@@ -145,5 +148,22 @@ o=$(act "$STUBS; do_spl_issue_ref_rewrite" TENANT_ID=csitea ROWS="$T/rows.jsonl"
 
 grep -q "CSI-46" "$T/calls.log" && fail "the archived issue was sent to do_spl_issue_update: $(cat "$T/calls.log")" \
   || pass "the archived issue is never sent to do_spl_issue_update"
+
+# --- 8. a key above the counter ---------------------------------------------------
+planned() { python3 - "$T/$1" "$2" <<'EOF_PY'
+import json, sys
+json.dump({"tenant": "csitea", "old": "SPL", "new": "CSI", "fields": [{"src": "msg", "id": "x", "field": "body", "text_len": 8,
+  "edits": [{"offset": 0, "old": sys.argv[2], "new": sys.argv[2].replace("SPL", "CSI"), "reason": "link"}]}]}, open(sys.argv[1], "w"))
+EOF_PY
+}
+planned over.json SPL-50
+o=$(python3 "$PY" --plan "$T/over.json" --box box-a --out "$T/out" <"$T/rows.jsonl"); rc=$?
+[[ $rc == 2 && "$o" == *"FATAL the plan holds keys above last_number 49: SPL-50"* ]] && pass "a key above last_number is refused" || fail "over rc=$rc: $o"
+planned at.json SPL-49
+o=$(python3 "$PY" --plan "$T/at.json" --box box-a --out "$T/out" <"$T/rows.jsonl"); rc=$?
+[[ $rc == 0 ]] && pass "a key at last_number passes" || fail "at rc=$rc: $o"
+o=$(sed 's/"last_number":49,//' "$T/rows.jsonl" | python3 "$PY" --plan "$T/at.json" --box box-a --out "$T/out"); rc=$?
+[[ $rc == 2 && "$o" == *"FATAL no meta row"* ]] && pass "a meta row with no last_number is refused" || fail "no last rc=$rc: $o"
+grep -q "'last_number', (SELECT last_number FROM issue_counters WHERE tenant_id = 'csitea')" <<<"$sql" && pass "the SQL reads last_number" || fail "last_number: $sql"
 
 [[ $fails == 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAIL"; exit 1; }

@@ -20,7 +20,8 @@
 # @description   archived  an archived or deleted issue: the hub's update path
 # @description             answers not_found for it, so its keys stay; reported
 # @description Only the plan's keys change; the ambiguous and t1 keys were never
-# @description in it. Dry run unless DRY_RUN=0.
+# @description in it. A plan with a key above the workspace's last_number is
+# @description refused whole. Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the workspace slug (e.g. csitea)
 # @param SCAN_PLAN - required: the plan file do_spl_issue_ref_scan wrote
@@ -99,6 +100,7 @@ spl_issue_ref_rewrite_sql() {
   cat <<EOF_SQL
 SELECT json_build_object('src', 'meta', 'tenant', '$t',
   'prefix', (SELECT prefix FROM issue_counters WHERE tenant_id = '$t'),
+  'last_number', (SELECT last_number FROM issue_counters WHERE tenant_id = '$t'),
   'pins', (SELECT coalesce(json_agg(box_id ORDER BY box_id), '[]'::json) FROM pins WHERE tenant_id = '$t' AND revoked_at IS NULL))
 UNION ALL SELECT json_build_object('src', 'msg', 'id', msg_id, 'field', 'body', 'text', body, 'box', from_box, 'from', from_id)
   FROM messages WHERE tenant_id = '$t' AND msg_id IN ($msgs)

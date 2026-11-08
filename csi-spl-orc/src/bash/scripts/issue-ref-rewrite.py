@@ -22,9 +22,11 @@ every edit, and sorts each field into one route:
             live issues (not_found), so its keys stay as they are; reported
 
 Only the plan's offsets change: every other byte, every other key (t1's
-SPL-n, the ambiguous ones) stays as it is.
+SPL-n, the ambiguous ones) stays as it is. A plan holding a key above the
+workspace's last_number is refused whole: no such issue exists, so the new key
+would be a dead link (SPL-5073).
 
-stdin: JSON lines. One {"src":"meta","prefix","pins":[live box ids]} row,
+stdin: JSON lines. One {"src":"meta","prefix","last_number","pins":[live box ids]} row,
 then one row per field: {"src":"msg|issue","id","field","text"[,"box","from"]
 [,"archived"]}; "archived" is true for an archived or deleted issue.
 
@@ -38,6 +40,7 @@ field; <dir>/<n>.txt holds that field's new text. Exit 0; 2 on bad input.
 import argparse, json, os, re, sys
 
 PREFIX_RE = re.compile(r"[A-Z][A-Z0-9]{0,9}")
+NUMBER_RE = re.compile(r"[1-9][0-9]{0,8}")
 ROUTES = (
     "edit",
     "issue",
@@ -138,6 +141,17 @@ def plan_ok(plan, prefix):
     return True
 
 
+def above_last(plan, last):
+    """-> the plan's keys that are not a number within the workspace's counter."""
+    bad = []
+    for f in plan["fields"]:
+        for e in f["edits"]:
+            n = e["old"][len(plan["old"]) + 1 :]
+            if not NUMBER_RE.fullmatch(n) or int(n) > last:
+                bad.append(e["old"])
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", required=True)
@@ -146,13 +160,24 @@ def main():
     a = ap.parse_args()
     plan = json.load(open(a.plan))
     meta, rows = read_rows(sys.stdin)
-    if not meta or not PREFIX_RE.fullmatch(meta.get("prefix") or ""):
-        print("FATAL no meta row with the workspace's prefix on stdin")
+    if (
+        not meta
+        or not PREFIX_RE.fullmatch(meta.get("prefix") or "")
+        or not isinstance(meta.get("last_number"), int)
+    ):
+        print("FATAL no meta row with the workspace's prefix and last_number on stdin")
         return 2
     if not plan_ok(plan, meta["prefix"]):
         print(
             "FATAL the plan does not rewrite %s-n to the workspace's prefix %s-n (or holds a field it cannot edit)"
             % (plan.get("old"), meta["prefix"])
+        )
+        return 2
+    foreign = above_last(plan, meta["last_number"])
+    if foreign:
+        print(
+            "FATAL the plan holds keys above last_number %d: %s"
+            % (meta["last_number"], " ".join(foreign))
         )
         return 2
     pins = set(meta.get("pins") or [])

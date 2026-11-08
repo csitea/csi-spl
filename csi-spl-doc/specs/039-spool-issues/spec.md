@@ -275,12 +275,12 @@ sorts each old key into one of three classes, rules in
 
 | class | when | reasons |
 |---|---|---|
-| rewrite | the key is the workspace's own | `link` (an issues link on its own host, or its markdown label), `named` (the line names the workspace), `plain` (a live number, and no key above the workspace's range in that text) |
-| keep | not the workspace's | `other-link` (an issues link on another host), `not-ours` (n above the workspace's counter) |
+| rewrite | the key is the workspace's own | `link` (an issues link on its own host, or its markdown label, n within the workspace's counter), `named` (the line names the workspace), `plain` (a live number, and no key above the workspace's range in that text) |
+| keep | not the workspace's | `other-link` (an issues link on another host), `foreign-link` (an issues link on its own host, n above the counter: rewritten it would be a dead link, SPL-5073; every one is listed), `not-ours` (n above the workspace's counter) |
 | ambiguous | listed apart, never rewritten | `mixed` (the text also holds a t1-range key), `names-other` (t1, the spool-hub project, "on dev"), `commit` (a commit scope or `Closes:` trailer), `deleted` |
 | archived | a would-be rewrite key in the title or description of an archived or deleted issue: listed apart, never in the plan | the hub's update path finds only live issues and answers `not_found` (csitea CSI-20, SPL-3821) |
 
-It prints the counts per source, samples per class and every ambiguous and archived hit,
+It prints the counts per source, samples per class and every ambiguous, archived and foreign-link hit,
 and writes a plan (ids and offsets, no text) for a writer. It writes nothing:
 the owner OKs the scan before anything is changed, and the change then goes
 through the hub's own edit paths (a message edit keeps its revision), never
@@ -305,7 +305,8 @@ at its offset, prints before/after per key and routes the field
 | done / stale / gone | already new / changed since the scan / deleted | skipped; scan again for stale |
 | archived | an archived or deleted issue | nothing: its keys stay (the owner's choice for csitea's CSI-20, archived on 2026-10-12) |
 
-Only the planned keys change; every other byte stays. Dry run unless
+Only the planned keys change; every other byte stays. A plan holding a key
+above the workspace's `last_number` is refused whole (exit 2, SPL-5073). Dry run unless
 `DRY_RUN=0`. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-rewrite.tst.sh`.
 
-<!-- version: 0.10.1 · updated: 2026-10-27 · last-edit: 2026-10-27T13:30:00Z -->
+<!-- version: 0.10.2 · updated: 2026-11-08 · last-edit: 2026-11-08T13:20:00Z -->

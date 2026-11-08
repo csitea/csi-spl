@@ -24,6 +24,10 @@
 #      listed apart and NOT in the plan (SPL-3821: the hub answers not_found
 #      for csitea's archived CSI-20); a live issue's same key is rewrite.
 #      The scan SQL flags archived_at / deleted_at on both issue fields
+#  10. an issues link on the workspace's own host to a key above its
+#      last_number is keep/foreign-link, listed in full and NOT in the plan
+#      (SPL-5073: it would become a dead link); a link at last_number stays
+#      rewrite/link
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -147,5 +151,20 @@ EOF_PY
 # --- 8. still on the old prefix ---------------------------------------------------
 o=$(sed 's/"prefix":"CSI"/"prefix":"SPL"/' "$T/rows.jsonl" | python3 "$PY" --old SPL); rc=$?
 [[ $rc == 2 && "$o" == *"still uses prefix SPL"* ]] && pass "a workspace still on the old prefix is refused" || fail "same prefix rc=$rc: $o"
+
+# --- 10. an own-host link above the counter ---------------------------------------
+{
+  echo '{"src":"meta","tenant":"csitea","prefix":"CSI","last_number":14,"numbers":[1,2,3,4,5,6,7,8,9,10,11,12,13,14]}'
+  row msg m-own body 'See [SPL-14](https://csitea.example.test/issues?issue=SPL-14) and /issues?issue=SPL-15'
+  row msg m-far body '[SPL-2043](https://csitea.example.test/issues?issue=SPL-2043) and https://csitea.example.test/issues?issue=SPL-4778'
+} >"$T/foreign.jsonl"
+out=$(python3 "$PY" --old SPL --samples 1 --plan "$T/foreign.json" <"$T/foreign.jsonl"); rc=$?
+[[ $rc == 0 ]] && pass "foreign fixture: classifier exit 0" || fail "foreign rc=$rc: $out"
+[[ $(grep -c '^KEEP foreign-link SPL-2043 msg:m-far' <<<"$out") == 2 ]] && pass "both copies of a foreign own-host key are listed" || fail "foreign list: $out"
+has "KEEP foreign-link SPL-4778 msg:m-far" "a second foreign key is listed past the sample cap"
+has "KEEP foreign-link SPL-15 msg:m-own" "the first key above last_number is foreign"
+has "COUNT total 2 4 0 0" "foreign totals: 2 rewrite (label + url at last_number), 4 keep"
+plan_keys=$(python3 -c 'import json,sys; print(" ".join(e["old"] for f in json.load(open(sys.argv[1]))["fields"] for e in f["edits"]))' "$T/foreign.json")
+[[ "$plan_keys" == "SPL-14 SPL-14" ]] && pass "the plan holds only the keys at or below last_number" || fail "plan keys: $plan_keys"
 
 [[ $fails == 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAIL"; exit 1; }

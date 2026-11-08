@@ -10,7 +10,9 @@
 # @description into rewrite / keep / ambiguous / archived
 # @description (src/bash/scripts/issue-ref-scan.py says how). Another workspace
 # @description (t1) uses the same old prefix with its own numbers: its keys are
-# @description never in the rewrite class. An archived or deleted issue's keys
+# @description never in the rewrite class, and a key above the workspace's
+# @description last_number never is, even as a link on its own host (listed as
+# @description KEEP foreign-link). An archived or deleted issue's keys
 # @description are archived: the hub cannot update that issue.
 # @description Prints counts per source and class, SCAN_SAMPLES samples per
 # @description class and every ambiguous and archived hit; writes the rewrite plan (ids and

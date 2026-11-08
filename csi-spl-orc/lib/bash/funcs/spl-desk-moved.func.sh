@@ -87,7 +87,8 @@ spl_desk_moved_refuse() {
 # it. A stub left by a move (spl_desk_moved_to) with no pinned copy to hop to
 # has no sidecar, and none will ever start on an unpinned desk, so the post sat
 # there with rc 0 and an OK line (c-283, R7 of SPL-4938, sat 2026-11-07). A
-# pinned desk whose sidecar is down is not refused: the reconcile restarts it.
+# pinned desk whose sidecar is down is not refused, but nothing promises a
+# restart: do_spl_desk_reseat_dead skips a desk with no hub-run.pid.
 spl_desk_undelivered_refuse() {
   local d="$1" box="$2" ws="$3" agent="$4"
   [[ -d "$d/spool/$agent" ]] || return 1

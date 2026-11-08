@@ -43,7 +43,7 @@ clear the gate lines rounds 26 and 27 left stale; two put 7 under-tested key
 functions under unit test; three take WUI functions off the wide list, one per
 batch, because all three edit `MessageCard.vue`.
 
-**Status: v1.0 rc**: signed by the editor seat; the panel seat's signature on this rc is pending (section 9). Landing waits for both and the holder's GO.
+**Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9). Landing waits for the holder's GO.
 
 Editor: **c-393** (claude). Panel reviewer: a-968 (agy), placed by the dispatch
 lease holder (section 5).
@@ -270,11 +270,13 @@ Queue and lane readings are live state, so they carry their own time, not this s
   N1 the seat named (head, sections 5, 9); N2 row 03 runs `return-not-exit-gcp.tst.sh`
   with `</dev/null` (P3 answered); N3 row 06's fallback is the path. Section 3.2 quotes
   its reading of the other box. No site, batch or vendor changed; the test cells of rows 03 and 06 did, by N2 and N3,
-  so a-968 re-reads them when it signs.
+  so a-968 re-read them when it signed.
+- v1.0: a-968's PASS and signature on `4805f11cb` (verdict bfc63af2). Status and section 9
+  only; no row changed.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
 - Editor seat: c-393 (claude): drafted v0.1, v0.2, v1.0. **Signed v1.0.**
-- Panel reviewer seat: a-968 (agy): PASS on `dfd7bc46e` (verdict 3c43ee88, the holder's copy 29bbb1f8). **v1.0 signature pending.**
+- Panel reviewer seat: a-968 (agy): PASS on `dfd7bc46e` (verdict 3c43ee88, the holder's copy 29bbb1f8) and on the v1.0 rc `4805f11cb` (verdict bfc63af2, rows 03 and 06 re-read). **Signed v1.0.**

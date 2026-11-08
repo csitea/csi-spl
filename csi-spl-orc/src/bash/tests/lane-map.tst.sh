@@ -76,6 +76,14 @@
 #      still the local row and exit 3 (R7 W1); CONTROL live here, done there
 #      stays hub+local. Known limit, pinned: another box reads only the done row
 #      and still says free
+#  18. what failed (SPL-4626, SPL-4631): a hub stub that prints an error and
+#      exits 124 every try: each try's rc and error are in the log, and the
+#      alert names them ("no complete answer ... in N s", last try timed out,
+#      the error), inside parentheses the alert fold strips; a hub that
+#      answers without a lane list says so. A spool that ignores the
+#      timeout's TERM is killed 1 s later (`timeout -k 1` in spl_lane_desk_spool),
+#      not after its own 20 s. RED on the action before it: the errors went
+#      to /dev/null, the alert said "the hub did not answer", the kill waited
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -301,7 +309,7 @@ on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-943 LANE_STATE="done" >/dev/null
 
 # 6. the hub down
 out="$(on pc do_spl_lane_map "${F[@]}" HUB_DOWN=1)"; rc=$?
-[[ $rc -eq 0 && "$out" == *"WARN the hub did not answer"* && "$out" == *c-930@box-desk* && "$out" != *c-101* ]] &&
+[[ $rc -eq 0 && "$out" == *"WARN no complete answer from the hub"* && "$out" == *c-930@box-desk* && "$out" != *c-101* ]] &&
   pass "hub down: WARN, the map falls back to this machine's worktrees" || fail "hub down map (rc=$rc): $out"
 out="$(on pc do_spl_lane_put "${F[@]}" HUB_DOWN=1 LANE_AGENT=c-930)"; rc=$?
 [[ $rc -eq 2 && "$out" == *"not written"* ]] && pass "hub down: a put is exit 2" || fail "hub down put (rc=$rc): $out"
@@ -555,7 +563,7 @@ out="$(on pc 'LANE_CHECK=z/nobody-owns-this do_spl_lane_map' "${F[@]}" "${H[@]}"
 el=$(( SECONDS - s0 ))
 read -r -a c <<<"$(cuts)"
 [[ $rc -eq 5 && "$out" == *"LOCAL-ONLY: the hub did not answer after 3 tries"* && "$(grep -cx free <<<"$out")" -eq 0 && "$(reads)" -eq 3 &&
-  "$(grep -c 'did not answer 3 tries in a row' "$T/alerts-hang")" -eq 1 && ${#c[@]} -eq 3 && "${c[0]}" -eq 4 &&
+  "$(grep -c ', 3 tries (last try timed out after ' "$T/alerts-hang")" -eq 1 && ${#c[@]} -eq 3 && "${c[0]}" -eq 4 &&
   "${c[1]}" -ge 1 && "${c[1]}" -le 4 && "${c[2]}" -ge 1 && "${c[2]}" -le 4 && $el -lt 45 ]] &&
   pass "a hub that hangs every try, bound by tries and cuts not the wall clock: 3 tries cut at most 4 s each ((15 s budget - backoff 1 2) / 3), LOCAL-ONLY, exit 5 (cuts $(cuts), ${el} s)" ||
   fail "hang always (rc=$rc, reads=$(reads), cuts=$(cuts), ${el} s, alerts=$(cat "$T/alerts-hang" 2>/dev/null)): $out"
@@ -670,6 +678,47 @@ out="$(dchk pc d/z.txt)"; rc=$?
 [[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "control: no pane read, the same path reads free" || fail "check no panes (rc=$rc): $out"
 out="$(dchk sat d/z.txt)"; rc=$?
 [[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "known limit: another box has only the done row and says free" || fail "check other box (rc=$rc): $out"
+
+# 18. what failed: each try's rc and error reach the log and the alert. The
+# harness runs with LANE_HUB_BACKOFF=0, so a try's cut is 15 s / 3 = 5 s
+cat >"$T/bin/hub-124" <<'STUB'
+#!/usr/bin/env bash
+case " $* " in *" --agent "*) exit 0 ;; esac
+echo "read lanes: websocket: failed to read frame (stalled after 102400 bytes)" >&2
+exit 124
+STUB
+printf '#!/usr/bin/env bash\necho "{\\"fleet\\":\\"main\\"}"\n' >"$T/bin/hub-nolist"
+chmod +x "$T/bin/hub-124" "$T/bin/hub-nolist"
+E=(LANE_ALERT_CMD="tee -a $T/alerts-err" LANE_ALERT_DIR="$T/alert-dir-err")
+rm -rf "$T/alerts-err" "$T/alert-dir-err"
+out="$(on pc do_spl_lane_map "${F[@]}" "${E[@]}" LANE_HUB_CMD="$T/bin/hub-124" 2>&1)"; rc=$?
+err='read lanes: websocket: failed to read frame [stalled after 102400 bytes]'
+tries="$(grep '^WARN the hub read try [123]/3: ' <<<"$out")"
+[[ $rc -eq 0 && "$(wc -l <<<"$tries")" -eq 3 && "$(grep -cF "/3: timed out after 5 s, rc 124: $err" <<<"$tries")" -eq 3 &&
+  "$out" == *"WARN no complete answer from the hub in "*" s (3 tries, last: timed out after 5 s, rc 124: $err)"* ]] &&
+  pass "each try's rc and error are in the log (3 WARN lines), the fallback line names the last one" ||
+  fail "try log (rc=$rc): $out"
+a="$(cat "$T/alerts-err" 2>/dev/null)"
+[[ "$(grep -c '^\*\*ALERT' <<<"$a")" -eq 1 && "$a" == *"no complete answer from the hub in "*" s, 3 tries (last try timed out after 5 s, rc 124: $err; fleet main), so"* &&
+  "$a" != *"did not answer"* ]] &&
+  pass "the alert says what failed: no complete answer in N s, the last try timed out, its error" || fail "alert text: $a"
+fp="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import importlib.util as u
+s = u.spec_from_file_location("f", sys.argv[1] + "/alert-issue-fold.py"); m = u.module_from_spec(s); s.loader.exec_module(m)
+print(m.norm(sys.stdin.read()))' "$PROJ_ROOT/src/bash/scripts" <<<"$a" 2>&1)"
+[[ "$fp" != *stalled* && "$fp" != *websocket* && "$fp" == "lane map on box-desk: no complete answer from the hub in s tries so the lane map"* ]] &&
+  pass "the error sits in the parentheses the alert fold strips: one fingerprint whatever the error ('$fp')" || fail "fingerprint: $fp"
+rm -rf "$T/alert-dir-err"
+out="$(on pc do_spl_lane_map "${F[@]}" "${E[@]}" LANE_HUB_CMD="$T/bin/hub-nolist" 2>&1)"
+[[ "$(grep -c '^WARN the hub read try [123]/3: rc 0 but no lane list in the answer$' <<<"$out")" -eq 3 ]] &&
+  pass "a hub answer with no lane list: rc 0 but no lane list, each try" || fail "no lane list: $out"
+printf '#!/usr/bin/env bash\ntrap "" TERM\nexec sleep 20\n' >"$T/bin/spool-deaf"
+chmod +x "$T/bin/spool-deaf"
+s0=$SECONDS
+on pc 'spl_lane_spool lane --fleet main' LANE_HUB_CMD= SPL_SPOOL="$T/bin/spool-deaf" LANE_TIMEOUT=1 LANE_DESK_DIR="$T" \
+  LANE_DESK_BOX=box-desk SPL_HUB_URL=http://127.0.0.1:9 LANE_TENANT=t1 >/dev/null 2>&1; rc=$?
+el=$(( SECONDS - s0 ))
+[[ $rc -eq 137 && $el -le 5 ]] && pass "a spool that ignores TERM is killed 1 s after its cut: rc 137 in ${el} s, not 20" ||
+  fail "timeout -k (rc=$rc, ${el} s)"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "lane-map: all passed"; exit 0; fi

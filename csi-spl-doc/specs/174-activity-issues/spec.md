@@ -1,13 +1,14 @@
 # 174 Issues of kind `activity`: what each role seat is there to do
 
-Version: v0.1 rc (2026-11-09), spec only: nothing below is built and no issue
-is filed. Epic SPL-2398 · Issue SPL-5170 · Class feature · Kind specs_and_docs ·
+Version: v0.2 rc (2026-11-09, folds R7 review W1-W10 and N1-N7 of c-573), spec
+only: nothing below is built and no issue is filed. Epic SPL-2398 · Issue SPL-5170 · Class feature · Kind specs_and_docs ·
 Topic ab86c60e · Task `dispatch-ab86c60e` · Author c-562.
 
 Builds on [spec 060](../060-role-rotation/spec.md) (rotation),
 [spec 153](../153-monitoring-lanes-tab/spec.md) section 3.11 (the role seat
-mark) and [fleet roles](../../doc/md/SPEC-spool-fleet-roles.md). It changes
-none of them.
+mark) and [fleet roles](../../doc/md/SPEC-spool-fleet-roles.md). When built it
+amends 153 section 3.11 (C51), 060 FR-040 (the seed gains a list) and fleet
+roles section 1 (row C4).
 
 ## 0. The owner's words (HUM-10, t1 ab86c60e, 2026-11-09)
 
@@ -23,13 +24,15 @@ none of them.
 
 ## 1. What is there today
 
-Tree for every file citation: `819870ce6` (origin/master when read).
+Tree for the file citations: `819870ce6` (origin/master when first read); the
+R7 review re-printed 21 of them at `53befd522`, and the one that had moved is
+corrected below.
 
 | fact | check |
 |---|---|
 | The kinds are `epic`, `feature`, `issue`; no later migration changes them | `csi-spl-rdb/src/sql/postgres/spool-hub/0053_issue_kinds.sql:17`; a grep for `issues_kind` and `kind_check` over the migrations finds no other issue kind constraint |
 | The statuses are `eval, todo, wip, diss, blocked, onhold, qas, done` plus legacy ones | `0061_issue_blocked_onhold.sql:14-16`, the last migration that adds `issues_status_check` |
-| `Role seat` in the lanes view is a fixed label | `csi-spl-wui/src/pages/monitoring/lanes/index.vue:162,166`; `csi-spl-wui/i18n/locales/en.json:3462` |
+| `Role seat` in the lanes view is a fixed label | `csi-spl-wui/src/pages/monitoring/lanes/index.vue:162,166`; `csi-spl-wui/i18n/locales/en.json:3485` |
 | `unknown` is the topic cell of a seat: rdb 0264 stored the word, and the template tests `l.topicId` before `l.roleSeat`, so the word wins | `store/fleet_lane.go:42`, `index.vue:161-162` |
 | A seat is recognised by its number or its scope | `hub/lanes_registration.go:29`; `store/fleet_lane.go:52`; the rotation writes the scope at `spl-rotate-lib.func.sh:1130` |
 | The hub already knows who holds each fleet lease | `store/fleet_lease.go` (`FleetLeases`), `0094_fleet_leases.sql:16` |
@@ -43,9 +46,9 @@ Window: the 7 days up to 2026-11-09 about 12:30Z.
 
 | source | n | limit |
 |---|---|---|
-| Outbox of the seats on one standby box (`<spool root>/<id>/outbox`) | c-001 5,477; c-002 496; c-003 611 | This box held neither lease when read. The holders' outboxes were not read: the box has no ssh alias for the holder's box |
+| Outbox of the seats on one standby box (`<spool root>/<id>/outbox`) | c-001 5,477; c-002 496; c-003 611 | This box held neither lease when read. The holders' outboxes were not read: the box has no ssh alias for the holder's box. The c-001 and c-003 directories also hold messages sent as `g-001` / `g-003` |
 | Hub `messages`, read-only (`do_spl_db_query`, prd), `from_id` a seat, by `from_box` | holder's box: c-001 1,586; c-002 3,360; c-003 439. Standby box: c-001 3,121; c-002 550; c-003 278 | Counts of a 26-character normalised opener; what a message means is my reading of the opener, not a classification by anyone who sent it. Openers under 12 messages are not listed |
-| Seat transcripts, `./run -a do_*` in Bash calls, standby box | c-002: 171 sessions, 2,166 Bash calls; c-003: 225 sessions, 3,824 Bash calls | One count per command per action. Standby-box sessions only. The orchestrator's transcripts were not counted: its working directory is not per-seat |
+| Seat transcripts, `./run -a do_*` in Bash calls, standby box, each call filtered by its own time (2026-11-02 12:30Z to 11-09 12:30Z) | c-002: 139 sessions, 1,682 Bash calls; c-003: 192 sessions, 2,412 Bash calls | One count per command per action. Claude sessions on the standby box only, so a `D` row's transcript count shows what a seat did there, including while it was not the holder. The orchestrator's transcripts were not counted: its working directory is not per-seat |
 | GC | `<spool root>/dispatch/gc/` state and logs; c-001 outbox openers | One box |
 
 Three results shape the design:
@@ -56,7 +59,8 @@ Three results shape the design:
    492 (`spawn-remote.sh`), `FLEET LEASE` 436 (`spl-dispatch-lease.func.sh`),
    GC bodies 455 (`spl-gc.func.sh`), `WATCHDOG RESTART` 131
    (`spl-agent-restart.func.sh`), login check 67, done-claim check 48. The
-   number counts only the openers whose sender a grep found, so it is a floor.
+   number counts only the openers whose sender a grep found, and only the 22
+   most common openers, so it is a floor.
 2. **A seat's work depends on the lease, not only on its number.** The seats
    exist on every box. The most run action on the standby seats is the lease
    check (2.5), and most of their outbox is rotation acks and forwards to the
@@ -71,30 +75,32 @@ Three results shape the design:
 | key | activity | source | evidence, 7 days |
 |---|---|---|---|
 | O1 | Answer the asks raised to it and close them | `runbook-orchestrator.md` section 2.2; `spl-wd-orch-outcome.func.sh` counts `asks_closed` | not counted separately |
-| O2 | Spawn, re-seat, restart and close agents | `runbook-orchestrator.md` sections 1, 2.3, 5 | holder's box openers, relayed spawn traffic: `spaw` 552, `plac` 62, `queu` 28, `lane` 24 |
+| O2 | Spawn, re-seat, restart and close agents | `runbook-orchestrator.md` sections 1, 2.3, 5 | not counted: the `spaw` openers on the holder's box (552) are likely the `spawn-remote.sh` reply, so script traffic (2.1 result 1) |
 | O3 | Keep the hanging-agent roster, at least every 5 minutes | `runbook-orchestrator.md` section 2.4 | not counted |
 | O4 | Run the prd operations the other seats' harnesses refuse | `runbook-orchestrator.md` section 6 | not counted |
 | O5 | Verify "live" claims before they reach a human | `runbook-orchestrator.md` section 1 | not counted |
-| O6 | Backstop: take a post unanswered after 2 minutes, and a post that names it | `runbook-orchestrator.md` section 1; `brief-dispatcher.tpl.md` section "The owner's rule" | hub `Taken by` notes from c-001: 1 |
+| O6 | Backstop: take a post unanswered after 2 minutes, and a post that names it | `runbook-orchestrator.md` section 1; `brief-dispatcher.tpl.md` section "The owner's rule" | hub take-line notes from c-001: 1 |
 | O7 | Decide what is not the owner's: placement, priority, close or keep | `runbook-orchestrator.md` section 1 | `Your` 202, `revi` 67 (openers; meaning not checked) |
 
 ### 2.3 Dispatcher, while it holds the dispatch lease (master or failover)
 
 Master and failover do the same work; only the lease differs
-(`SPEC-spool-fleet-roles.md` section 1).
+(`SPEC-spool-fleet-roles.md` section 1). Every `transcripts` count in this table
+comes from the standby box (2.1), so it shows less of this work than a holder
+does.
 
 | key | activity | source | evidence, 7 days |
 |---|---|---|---|
-| D1 | Take every new post within 3 minutes (`do_spl_take`) | `brief-dispatcher.tpl.md` section "The owner's rule"; `runbook-dispatcher.md` section 1 | hub take-line notes: c-002 75, c-003 29; transcripts `do_spl_take` 3 |
-| D2 | Answer in the topics it owns (`do_spl_desk_reply`) | `runbook-dispatcher.md` section 1 | transcripts: c-002 29, c-003 86 |
-| D3 | Spawn a new lane for real lane work (`do_spl_spawn_enqueue`) | `brief-dispatcher.tpl.md` section "What to do with each message" | `Lane <id> placed on SPL-` c-002 161; transcripts `do_spl_spawn_enqueue` c-003 34, `do_spl_spawn_queue` 16 + 34 |
-| D4 | Accept lane results and give the GO on reviews (`do_spl_review_line_check`) | not in the role table (section 2.1, result 3); `ACCEPTED` as the close signal in the seed's lane rule | holder's box openers: `ACCE` c-002 423, c-003 62; `GO` c-002 139; transcripts `do_spl_review_line_check` 5 + 8 |
+| D1 | Take every new post within 3 minutes (`do_spl_take`) | `brief-dispatcher.tpl.md` section "The owner's rule"; `runbook-dispatcher.md` section 1 | hub take-line notes: c-002 75, c-003 29; transcripts (standby box) `do_spl_take` 2 + 3 |
+| D2 | Answer in the topics it owns (`do_spl_desk_reply`) | `runbook-dispatcher.md` section 1 | transcripts (standby box): c-002 20, c-003 58 |
+| D3 | Spawn a new lane for real lane work (`do_spl_spawn_enqueue`) | `brief-dispatcher.tpl.md` section "What to do with each message" | `Lane <id> placed on SPL-` c-002 161; transcripts (standby box) `do_spl_spawn_queue` 12 + 0, `do_spl_spawn_enqueue` 0 |
+| D4 | Accept lane results and give the GO on reviews (`do_spl_review_line_check`) | `runbook-dispatcher.md:139` defines `ACCEPTED`; not in the role table (2.1 result 3) | holder's box openers: `ACCE` c-002 423, c-003 62; `GO` c-002 139; transcripts (standby box) `do_spl_review_line_check` 4 + 0 |
 | D5 | Route a follow-up to the lane that owns it | `brief-dispatcher.tpl.md` section "What to do with each message" | openers starting with a lane id: c-002 1,727, c-003 192 (my reading of the opener) |
-| D6 | Check every "done / live" claim before posting it (`do_check_deploy_lag`) | `brief-dispatcher.tpl.md` section "Verify"; `runbook-dispatcher.md` section 4 | transcripts: c-002 2, c-003 12 |
+| D6 | Check every "done / live" claim before posting it (`do_check_deploy_lag`) | `brief-dispatcher.tpl.md` section "Verify"; `runbook-dispatcher.md` section 4 | transcripts (standby box): c-002 1, c-003 1 |
 | D7 | Keep the owner's topics current: status card, planned, in progress | `runbook-dispatcher.md` section 2.2 | `Status card` 67, `Planned` 79, `In progress` 39 |
 | D8 | Escalate decisions and refused prd operations to the orchestrator | `brief-dispatcher.tpl.md`; `runbook-dispatcher.md` section 8 | not counted |
-| D9 | Act on the unanswered sweep (`do_spl_unanswered_sweep`; the cron runs every minute) | `SPEC-spool-fleet-roles.md` section 3.2; cron tag `csi-spl:unanswered-sweep` | transcripts: c-002 8, c-003 23 |
-| D10 | Work the open asks (`do_spl_asks_open`, `do_spl_ask_close`) | `SPEC-spool-fleet-roles.md` section 4.3 | transcripts `do_spl_asks_open` 2 + 20, `do_spl_ask_close` c-003 17 |
+| D9 | Act on the unanswered sweep (`do_spl_unanswered_sweep`; the cron runs every minute) | `SPEC-spool-fleet-roles.md` section 3.2; crontab tag `csi-spl:unanswered-sweep`, `* * * * *` | transcripts (standby box): c-002 5, c-003 1 |
+| D10 | Work the open asks (`do_spl_asks_open`, `do_spl_ask_close`) | `SPEC-spool-fleet-roles.md` section 4.3 | transcripts (standby box) `do_spl_asks_open` 2 + 8, `do_spl_ask_close` 0 + 6 |
 
 ### 2.4 Garbage collector, per box, one pass per slot
 
@@ -110,7 +116,7 @@ Master and failover do the same work; only the lease differs
 
 | key | activity | source | evidence, 7 days |
 |---|---|---|---|
-| S1 | Check the lease; stay ready; do not route | `brief-dispatcher.tpl.md` section "Master / failover" | transcripts `do_spl_dispatch_lease`: c-002 446, c-003 601 (the top action of both) |
+| S1 | Check the lease; stay ready; do not route | `brief-dispatcher.tpl.md` section "Master / failover"; `runbook-orchestrator.md` section 4 | transcripts `do_spl_dispatch_lease`: c-002 259, c-003 321 (the top action of both) |
 | S2 | Forward to the holder what reached only this seat | `SPEC-spool-fleet-roles.md` section 4.2 | c-002 outbox with a `(standby)` opener: at least 100 |
 
 ### 2.6 Every seat
@@ -127,7 +133,8 @@ Master and failover do the same work; only the lease differs
 - **The night's reflection** is a lane with its own brief and issue
   (`brief-reflection.tpl.md`), not a seat.
 - **The watcher seat** (`spl-watcher-feed.func.sh`, spec 165 row B5): the feed
-  exists; whether a seat is running today was not checked. Question 7.3.
+  exists; no window named `watch*` runs on the standby box, the other box was
+  not read. Question 7.3.
 - `do_spl_rhythm_phase` (spec 166) ran twice in c-002's transcripts. Too thin
   to call an activity from this data; whoever reviews this may say otherwise.
 
@@ -161,7 +168,7 @@ bug the GC finds) is an ordinary issue.
 
 | column | example |
 |---|---|
-| `slug` | `dispatcher.accept-results`, stable, never reused |
+| `slug` | `dispatcher-accept-results`: `[a-z0-9-]`, at most 31 characters, stable, never reused |
 | `role` | `orchestrator`, `dispatcher`, `gc`, `standby`, `seat` |
 | `title` | shown in the lanes view |
 | `body` | one paragraph, becomes the issue description |
@@ -171,25 +178,33 @@ bug the GC finds) is an ordinary issue.
 
 The issue rows are its projection. `do_spl_activity_sync` (dry run unless
 `DRY_RUN=0`) creates, updates and retires them, matching on the label
-`activity:<slug>`, so no new column is needed and a key never changes. The
-role goes on the label `role:<role>`. A row edited by hand is put back on the
+`activity-<slug>`, so no new column is needed and a key never changes. The
+role goes on the label `role-<role>`. Labels are `^[a-z0-9][a-z0-9-]{0,39}$`
+(`store/issues.go:120`) and must exist in the workspace's label catalogue
+(`store/issues.go:689`), so the sync creates them first. An activity is exempt
+from the rule "no issue without an epic and a git spec" and from the `Source:`
+card: the catalog row's `source` is its reference. A row edited by hand is put back on the
 next sync, which logs that it did (question 7.2).
 
 ### 3.3 How a seat binds
 
-A seat stores no binding. Its activities are derived, so a rotation, a vendor
-switch (`c-002` -> `g-002`) or a lease flip cannot leave them stale:
+A seat stores no binding. The view derives its activities from the seat number
+and the hub's lease, so a rotation, a vendor switch (`c-002` -> `g-002`) or a
+lease flip cannot leave the view stale. A stale lease (older than 180 s,
+`runbook-orchestrator.md` section 4) reads as `standby`:
 
 | seat | lease on this seat | role | activities |
 |---|---|---|---|
 | 001 | holds orch | `orchestrator` | O1-O7, R1 |
 | 002, 003 | holds dispatch | `dispatcher` | D1-D10, R1 |
 | 001-003 | does not hold | `standby` | S1, S2, R1 |
-| `gc@<box>` | none | `gc` | G1-G5 |
+| `GC-0@<box>` | none | `gc` | G1-G5 |
 
-Every start reads the same set, so a new session is told what it is for:
-`do_spl_activity_brief ROLE=<role>` prints keys and titles, and each of these
-includes it: the orchestrator seed (`spl_orch_rotate_seed`,
+Every start reads the same set, so a new session is told what it is for.
+`do_spl_activity_brief ROLE=<orchestrator|dispatcher|gc>` prints keys and
+titles. For a seat it prints the role's list and the standby list, and says
+which applies follows the lease, because a seed is written once and a lease
+flips later. Each of these includes it: the orchestrator seed (`spl_orch_rotate_seed`,
 `spl-orch-rotate.func.sh:642`), the dispatcher brief
 (`brief-dispatcher.tpl.md`), the standby refresh, the restore path and the GC's
 first prompt. If the hub cannot be read it prints the catalog without keys and
@@ -210,9 +225,12 @@ row and returns an empty topic for a seat. `Role seat` stays only as the
 fallback when the set cannot be read. The new label strings are translation
 keys in every locale, and agy has the final word on them.
 
-The GC needs a row it does not have today: `do_spl_gc` writes one on
-`GC_CMD=start` and clears it on `done`, using the precedent of the `BOX-0` row
-(`spl-lane-map.func.sh:427`, `LaneIsNotLane`). See question 7.4.
+The GC needs a row it does not have today. `do_spl_gc` writes `GC-0@<box>` on
+`GC_CMD=start` and clears it on `done`. The id passes the column check (rdb
+0238, `[A-Z]{2,4}-[0-9]{1,9}`), but today nothing would show it:
+`hub/fleet_lanes_view.go:207` keeps only `laneIDRe` ids and `LaneIsNotLane`
+(`store/fleet_lane.go:60`) knows only `BOX-`. Row C2 changes both. The GC still
+has no agent id: `GC-0` is a row name, like `BOX-0`. See question 7.4.
 
 ### 3.5 What a seat is doing right now
 
@@ -226,7 +244,11 @@ What can be known, without a model:
   tools a session ran. Matching those `do_*` actions against the `signal`
   column gives one time per activity, shown as `last seen 4 min ago`, never
   `doing`. An activity with no `signal` shows a dash, and a dash does not mean
-  the work did not happen.
+  the work did not happen. **This has no data source today:** the log is off
+  (`env.box.agent_steps_log.agents` is `[]`, `all.env.yaml:1272`), it matches
+  only `-wt*-<id>` claude directories, so the orchestrator and non-claude seats
+  get none, and nothing carries it to the hub. Row C3 builds the path for
+  claude dispatchers; every other seat shows a dash until its source exists.
 - **The GC** is exactly known: its `BEGIN <id>` / `END <id>` log lines.
 - **A rotation in progress** is exactly known from `dispatch/rotate.log`.
 
@@ -239,8 +261,10 @@ stays with the outcome checks (`spl-wd-orch-outcome.func.sh`).
    one change (`Spec:` or the role runbook cited). A row is never deleted: a
    retired one stays with `status=retired` in the file, and the sync sets
    `diss`.
-2. The sync runs on deploy of the catalog, then the next start of each seat
-   picks up the new list. The lanes view changes at the sync.
+2. A box cron row `role-activity-sync` runs the sync on the dispatch holder's
+   box every 15 minutes, as the other holder-box rows do, and does nothing while
+   the catalog hash is unchanged. The next start of each seat picks up the new
+   list. The lanes view changes at the sync.
 3. A test checks every `source` path and `signal` action still exists, and
    every role has at least one row. It cannot see an activity nobody wrote
    down, so completeness stays a review item when a runbook changes.
@@ -251,17 +275,18 @@ Each is one small lane. A1 lands first; B and C need A1 deployed.
 
 | row | scope | test |
 |---|---|---|
-| A1 store | Next free migration (head today `0270`): add `activity` to the kind check. Store validation at `store/issues.go:504`; refuse any status but `wip`/`diss`; level 1, no parent | Store tests on Postgres and memory: accepted, bad status refused, parent refused, kind change refused. `PRE_PUSH_TIER=full` |
+| A1 store | Next free migration (head today `0270`): add `activity` to the kind check. Store validation at `store/issues.go:504`; refuse any status but `wip`/`diss`; a `treeLevel` case (`store/issues.go:258`) gives level 1 without touching `IsEpic`, so an activity cannot be a parent | Store tests on Postgres and memory: accepted, level 1, bad status refused, parent refused, used as a parent refused, kind change refused. `PRE_PUSH_TIER=full` |
 | A2 hub issues | `hub/issues.go:222` (input), `:657` (filter), `treeKind`; excluded from the default list | Hub tests: `kind=activity` lists it, the default does not, `done` refused 4xx |
 | A3 closer | `issue-close-landed.py:163-164` and the epic cascade skip activities | Closer test with a citing `feat(x, SPL-n)` commit: stays `wip`; red control without the skip |
-| B1 catalog | `activities.tsv` from section 2, and its validity test | Each `source` and `signal` exists; red control with a bad path |
-| B2 sync | `do_spl_activity_sync`, dry run by default | Run twice = one set of rows; a hand edit is restored and logged; a retired row goes `diss` |
-| B3 hub lanes | `role`, `activities`, empty topic for a seat in `fleet_lanes_view.go`; role from `FleetLeases` | Hub tests: holder, standby, a lease flip changes the set with no write, vendor letter `g-002` |
+| A4 orc readers | Skip activities in `issue-epic-backfill.py:119,240` (level 1 reads as an epic), `issue-discard-select.py:66` (no kind test) and every open-status reader in `csi-spl-orc/src/bash` | Each reader's test with an activity row; red control without the skip |
+| B1 catalog | `activities.tsv` from section 2, and its validity test | Each `source` and `signal` exists, every role has a row, a slug fits the label rule; red control with a bad path |
+| B2 sync | `do_spl_activity_sync`, dry run by default; creates the catalogue labels first; the box cron row `role-activity-sync` (3.6) | Run twice = one set of rows; a hand edit is restored and logged; a retired row goes `diss`; a too-long slug is refused; the cron does nothing on an unchanged hash and off the holder's box |
+| B3 hub lanes | `role`, `activities`, empty topic for a seat in `fleet_lanes_view.go`; role from `FleetLeases` | Hub tests: holder, standby, a stale lease reads standby, a lease flip changes the set with no write, vendor letter `g-002` |
 | B4 WUI issues | `ISSUE_KINDS`, `isTopKind` and normalisers in `csi-spl-wui/src/utils/issues.mjs:13-14,32,251,339`; hidden from board and count | Unit tests, `pnpm run typecheck`, e2e |
-| B5 WUI lanes | Topic and Issues cells at `index.vue:158-172`, locale keys; agy reviews the text last | Unit tests, e2e in Chrome against the generated bundle: no `unknown` on a seat row |
-| C1 seat start | `do_spl_activity_brief` and its includes (3.3) | `orch-rotate.tst.sh`, `dispatch-rotate.tst.sh`: the seed carries the keys; hub down still rotates |
-| C2 GC row | Row on `start`, cleared on `done`, per 3.4 | `gc-agent.tst.sh`: a row during the pass, none after; a dead pass ages out |
-| C3 last seen | Steps log and `signal` to `last_seen` | One action maps to one activity; no signal gives a dash; red control with an unmapped action |
+| B5 WUI lanes | Topic and Issues cells at `index.vue:158-172`, locale keys; agy reviews the text last; amends spec 153 C51 | `monitoring-lanes.test.mjs:52` (C51) rewritten to the new cells; unit tests; e2e in Chrome against the generated bundle: no `unknown` on a seat row |
+| C1 seat start | `do_spl_activity_brief` and its includes (3.3) | `orch-rotate.tst.sh`, `dispatch-rotate.tst.sh`: the seed carries the role's and the standby keys; hub down still rotates |
+| C2 GC row | `GC-0@<box>` on `start`, cleared on `done`; a read path past `laneIDRe`; `LaneIsNotLane` extended (3.4) | `gc-agent.tst.sh`: a row during the pass, none after, a dead pass ages out; hub test that the row is returned and is no lane |
+| C3 last seen | Turn the steps log on for claude dispatcher seats; a new `fleet_lanes` field carries each activity's time with the seat's lane row write (the build confirms that write can take it); other seats stay a dash (3.5) | One action maps to one activity; no signal gives a dash; `c-001` and `g-002` give a dash; red control with an unmapped action |
 | C4 docs | Fleet roles and both runbooks point to the catalog, and D4 enters the role table | `do_check_fleet_rules_drift` |
 
 ## 5. Not in scope
@@ -275,15 +300,16 @@ per activity; activities for lane agents (a lane has its one issue).
   section 3.6's test catches only broken references.
 - **A signal reads as proof of work.** 3.5 fixes the wording to `last seen`.
 - **Kind switches are scattered.** Section 4 lists the ones found by grep over
-  `epic` and `IssueKind*`; A2 and B4 must re-grep at build time.
+  `epic`, `level` and `IssueKind*`; A1, A2, A3, A4 and B4 must re-grep at build
+  time.
 
 ## 7. Open questions for the owner
 
 | # | question | recommendation |
 |---|---|---|
 | 7.1 | Show a standby seat with its own short list (S1, S2, R1), or the same list as the holder, greyed? | **Own short list.** It is what the standby seats actually do (2.5), and a greyed D1-D10 would say it might route |
-| 7.2 | May someone edit an activity in the web UI, or only through git? | **Git only**, one home; the sync restores a hand edit. Comments on the issue stay open for anyone |
-| 7.3 | Is the watcher a standing seat that needs activities? | **Not yet.** Add it to the catalog when it runs as a seat |
-| 7.4 | The GC exists only during its pass. Show a row only while it runs, or always, with the last pass? | **Only while it runs**, with the last pass's time in the box row; a row that says live when nothing runs is the same lie as `unknown` |
+| 7.2 | May someone edit an activity in the web UI, or only through git? | **Git only**: it follows from the one-home rule, the sync restores a hand edit, and comments stay open. No owner answer needed unless this is wrong |
+| 7.3 | Is the watcher a standing seat that needs activities? | **Not yet**: no such window on the standby box (other box unread). A fact to check at build, not a decision; add it to the catalog if it runs as a seat |
+| 7.4 | The GC exists only during its pass. Show a `GC-0` row only while it runs, or always, with the last pass? | **Only while it runs**, with the last pass's time in the box row; a row that says live when nothing runs is the same lie as `unknown` |
 | 7.5 | Which workspace holds the activity issues? Seats serve the whole fleet | **One: the workspace of the fleet's own work** (`t1`, prefix `SPL`). Other workspaces see the role and titles with no link |
-| 7.6 | Should D4 (accept results, give GO) be written into the dispatcher's role? It is what the seat does most after routing, and the role table does not name it | **Yes**, through row C4, as a change to the role text for you to confirm |
+| 7.6 | Should D4 (accept results, give GO) be written into the dispatcher's role table? The runbook already defines `ACCEPTED`; the table does not name it | **Yes**, through row C4: it aligns the table with the runbook |

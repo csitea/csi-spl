@@ -35,8 +35,10 @@ the parameter's letter. Test: `spawn-agents/tests/test-role-seat-vendor-param.sh
 | `c-003` | failover dispatcher | the same as `c-002`, but only while it holds the lease (section 4) | dispatches while on standby |
 | `c-NNN` | lane agents | one brief each: build, test, land, prove live, report to `c-001` | route other lanes' traffic |
 
-Every agent runs in **auto** permission mode on the current default model. The
-spawner sets `--dangerously-skip-permissions`; the model comes from the agent user's
+Every agent runs on the current default model, in the one permission mode the
+fleet allows: its one home is
+`csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/07-permission-mode-bypass.md`
+(row 1.1 of the [fleet rules index](fleet-rules-index.md)). The spawner sets `--dangerously-skip-permissions`; the model comes from the agent user's
 settings, and a relaunch (`restore-claude-plain.sh`) passes it explicitly
 because `--resume` keeps the session's old model.
 
@@ -892,9 +894,10 @@ work classes and bands".
 <a id="ws-doc-718510f3-4b5e-4a96-a6e7-07855f5b6079"></a>
 ### 4.4 Hourly rotation: a fresh session per role (spec 060)
 
-Every role gets a FRESH session under the SAME id once an hour, so no
+Every role gets a FRESH session under the SAME id on a fixed clock, so no
 orchestrator or dispatcher carries an ever larger context: the orchestrator
-at `:05` (`do_spl_orch_rotate`), the dispatchers at `:15`
+once an hour at `:05` (`do_spl_orch_rotate`), the dispatchers every 30 minutes
+at `:15` and `:45`
 (`do_spl_dispatch_rotate`: the master while the failover covers it under
 `<spool root>/dispatch/rotate.hold`, then the failover). The ids never swap
 roles, a new session that does not start or ack leaves the old one in the

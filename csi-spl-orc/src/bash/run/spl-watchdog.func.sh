@@ -11,7 +11,8 @@
 # @description <spool root>/dispatch/wd.<id> ("HIT <code> <epoch>" or "OK <epoch>")
 # @description for the able check, prints one verdict line per agent and
 # @description acts: S1 rings at 120 s and takes over at 240 s, S2 never
-# @description restarts (a login: ONE blocker to the orchestrator; kind=auth:
+# @description restarts (a login: ONE note while login-check can restore the
+# @description seat, ONE blocker to the orchestrator once it failed; kind=auth:
 # @description ONE blocker to the dispatcher, "login required (agy)" for agy
 # @description and "API key refused" for the others; a usage
 # @description limit: ONE blocker to the orchestrator naming the reset, ONE
@@ -66,6 +67,9 @@
 # @param WD_SITUATIONS (optional) - the situation scripts dir (tests)
 # @param WD_ONLY (optional) - space-separated ids: check only these (a drill on scratch ids next to the live loop)
 # @param WD_STATE_DIR (optional) - the state dir (lock, debounces, ctx), default <spool root>/dispatch/wd; another one runs beside the live loop
+# @param WD_LOGIN_HEAL_GRACE (optional) - s login-check gets to restore a seat on a login screen, default 900
+# @param WD_LOGIN_RELAPSE (optional) - s after a restore in which the same screen means the restore did not hold, default 3600
+# @param LOGIN_STATE_DIR (optional) - login-check's state dir, default /var/csi/csi-spl/agent-login-check
 # @param WD_PS_CMD / WD_SEND / WD_TAKEOVER_CMD / ROTATE_TMUX (optional) - seams for the tests: ps, spool-send.sh, the restart, tmux
 # @example WD_TICKS=1 ./run -a do_spl_watchdog
 # @example DRY_RUN=0 ./run -a do_spl_watchdog
@@ -80,6 +84,8 @@ declare -F spl_wd_log_rotate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-ensure.func.sh"
 declare -F spl_wd_peers >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-peers.func.sh"
+declare -F _lc_foot >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-agent-login-check.func.sh"
 declare -F spl_wd_self_update >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-self-update.func.sh"
 declare -F spl_wd_orch_outcome >/dev/null ||
@@ -1242,8 +1248,7 @@ spl_wd_act() {
           spl_wd_once "$id" S2 auth "$now" "$ctx" spl_wd_send "$(spl_wd_dispatcher)" alarm "$id" \
             "$(spl_wd_auth_body "$id" "$ev" "$pane" "$ctx")"
         elif [[ "$ev" == kind=login* ]]; then
-          spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator alarm "$id" \
-            "WATCHDOG (093 S2): $id cannot act, a login or access screen: ${ev#kind=login }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. A restart does not fix a login: a human runs /login in that pane."
+          spl_wd_s2_login "$id" "$ev" "$pane" "$now" "$ctx"
         else spl_wd_s2_limit "$id" "$ev" "$pane" "$now" "$ctx"; fi ;;
     S3) spl_wd_once "$id" S3 takeover "$now" "$ctx" spl_wd_takeover "$id" S3 "$ev" ;;
     S4) spl_wd_s4 "$id" "$ev" "$pane" "$now" "$ctx" ;;
@@ -1258,6 +1263,47 @@ spl_wd_act() {
           "WATCHDOG (093 S8): GAP $id - its hook is silent ($ev). Progress is read from its transcript until spool-agent-hook.sh runs for it." ;;
   esac
   return 0
+}
+
+# S2 kind=login (SPL-5153): login-check (do_spl_agent_login_check) restores a
+# stuck claude seat by itself, so ONE note says it is on it; ONE blocker asks
+# for a human only when spl_wd_login_human finds it failed or gave up. Two
+# tags, so the note of an episode does not use up its blocker.
+spl_wd_s2_login() {
+  local id="$1" ev="$2" pane="$3" now="$4" ctx="$5" why head
+  head="WATCHDOG (093 S2): $id cannot act, a login or access screen: ${ev#kind=login }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}."
+  if why="$(spl_wd_login_human "$id" "$ev" "$now")"; then
+    spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator alarm "$id" \
+      "$head A restart does not fix a login: a human runs /login in that pane. Why a human: $why."
+  else
+    spl_wd_once "$id" S2 lc "$now" "$ctx" spl_wd_send orchestrator note "$id" \
+      "$head login-check is on it: it restores this seat by itself. No human needed unless a blocker follows (at the latest in ${WD_LOGIN_HEAL_GRACE:-900}s)."
+  fi
+}
+
+# spl_wd_login_human ID EV NOW: prints why this login screen needs a human,
+# and returns 0; non-zero while login-check can still heal it. Read from
+# login-check's own state: <state>/probe ("<epoch> <verdict>", rewritten every
+# tick while a pane is stuck) and <state>/restored.<id> (its last restore).
+# Anything unproven calls the human: a real expired login is never hidden.
+spl_wd_login_human() {
+  local id="$1" ev="$2" now="$3" dir="${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}" grace="${WD_LOGIN_HEAL_GRACE:-900}"
+  local h at="" verdict="" f="$WD_DIR/$1.ep.S2.lc_since" since
+  h="$(spl_wd_harness "$id")"
+  [[ "$h" == claude || "$h" == unknown ]] || { echo "login-check covers claude seats only (this one is $h)"; return 0; }
+  grep -qiE "$LC_FOOT_LOGIN_RE" <<<"$ev" || { echo "login-check does not act on this screen"; return 0; }
+  read -r at verdict _ < "$dir/probe" 2>/dev/null || true
+  [[ "$at" =~ ^[0-9]+$ ]] || { echo "login-check has not run on this box"; return 0; }
+  (( now - at <= grace )) || { echo "login-check last ran $(( now - at ))s ago"; return 0; }
+  [[ "$verdict" == ok ]] || { echo "this box's login is ${verdict:-unknown}: login-check leaves the seat as it is"; return 0; }
+  at="$(cat "$dir/restored.$id" 2>/dev/null || true)"
+  if [[ "$at" =~ ^[0-9]+$ ]] && (( now - at >= grace && now - at < ${WD_LOGIN_RELAPSE:-3600} )); then
+    echo "login-check restored it $(( now - at ))s ago and that did not hold"; return 0
+  fi
+  [[ -e "$f" ]] || echo "$now" > "$f"
+  since="$(cat "$f" 2>/dev/null || true)"; [[ "$since" =~ ^[0-9]+$ ]] || since="$now"
+  (( now - since >= grace )) || return 1
+  echo "login-check did not restore it in $(( now - since ))s"
 }
 
 # S2 kind=limit (093 S2: "out until the reset + 120 s, then back by

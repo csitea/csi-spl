@@ -73,7 +73,7 @@ agent() {
 # owner <window id|-> <s ago>: the owner's client in session $1, showing that window
 owner() { if [[ "$1" == - ]]; then echo "\$1 $((T0 - $2))"; else echo "\$1 $((T0 - $2)) $1"; fi > "$T/tmux/clients"; }
 wd() {
-  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" \
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" LOGIN_STATE_DIR="$T/no-login-check" \
     WD_PS_CMD="$T/bin/ps" ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" WD_TAKEOVER_CMD="$T/bin/takeover" \
     LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_NOW="${NOW:-$T0}" WD_TICKS=1 WD_TICK=100 DRY_RUN=0 bash -c '
     set -E; trap "echo ERR-TRAP: \$BASH_COMMAND; exit 9" ERR

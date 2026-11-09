@@ -150,6 +150,14 @@ EOF_K'
   refuse "a \$( ) pane inside sudo bash -c double quotes" 'sudo -u owner bash -c "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
   refuse "a \$( ) pane inside eval double quotes" 'eval "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
   refuse "a \$( ) pane after a message that quotes one" 'spool-send.sh --body "tmux send-keys -t $(cat p) /exit"; tmux send-keys -t $(cat /tmp/p) /exit Enter'
+  refuse "an apostrophe in double quotes before a live \$( ) pane" "echo \"don't\"; tmux send-keys -t \$(cat p) /exit Enter"
+  refuse "a message with an apostrophe before a live \$( ) pane" "spool-send.sh --body \"it's ok\" && tmux send-keys -t \$(cat p) /exit Enter"
+  refuse "a \$( ) pane inside bash -lc double quotes" 'bash -lc "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
+  refuse "a \$( ) pane inside env -S double quotes" 'env -S "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
+  refuse "send-keys /exit-clean; on another box" "ssh box2 'tmux send-keys -t %4 /exit-clean; true'"
+  refuse "send-keys /exit; on another box" "ssh box2 'tmux send-keys -t %4 /exit; true'"
+  refuse "a \$( ) pane inside sudo su -c double quotes" 'sudo su -c "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
+  refuse "a \$( ) pane inside sh -c single quotes" "sh -c 'tmux send-keys -t \$(cat /tmp/p) /exit Enter'"
   refuse "a \$( ) pane inside a double-quoted \$( )" 'echo "$(tmux send-keys -t $(cat /tmp/p) /exit Enter)"'
 }
 run_refusals
@@ -180,6 +188,12 @@ allow "a message that quotes the send-keys" 'spool-send.sh --body "tmux send-key
 allow "a path that holds /exit" 'tmux send-keys -t %2 /exits/of/town Enter'
 allow "a message that quotes a \$( ) pane" 'spool-send.sh --body "never tmux send-keys -t $(cat p) /exit Enter"'
 allow "a single-quoted message with a \$( ) pane" "spool-send.sh --body 'never tmux send-keys -t \$(cat p) /exit Enter'"
+allow "bash spool-send.sh with a message quoting a \$( ) pane" 'bash /h/scripts/spool-send.sh --from c-1 --to c-2 --kind result --body "never tmux send-keys -t $(cat p) /exit Enter"'
+allow "bash spool-send.sh with a single-quoted message" "bash /h/scripts/spool-send.sh --from c-1 --to c-2 --kind result --body 'never tmux send-keys -t \$(cat p) /exit Enter'"
+allow "env spool-send.sh with a message quoting a \$( ) pane" 'sudo -u owner env A=1 /h/spool-send.sh --body "never tmux send-keys -t $(cat p) /exit Enter"'
+allow "a script argument quoting a \$( ) pane" 'bash scripts/x.sh "tmux send-keys -t $(cat p) /exit"'
+allow "git log --grep quoting a \$( ) pane" 'git log --grep "tmux send-keys -t $(cat p) /exit"'
+allow "grep -F quoting a \$( ) pane" "grep -F 'tmux send-keys -t \$(cat p) /exit' /tmp/a"
 
 # 3. through the shared hook (claude / agy contracts)
 hook() {  # <hook> <harness> <command> -> "rc|stdout"

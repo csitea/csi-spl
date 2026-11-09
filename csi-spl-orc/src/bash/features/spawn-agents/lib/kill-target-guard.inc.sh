@@ -77,11 +77,13 @@ KEY_NAME = re.compile(r"^(Enter|KPEnter|Escape|Tab|BSpace|[CMS]-.+)$")
 OWN_PANE = {"$TMUX_PANE", "${TMUX_PANE}"}
 TMUX_ARG = {"-S", "-L", "-f", "-c", "-T"}
 EXIT_RULE = "never type an exit command into another agent\x27s pane; ask it through the spool"
-REMOTE_EXIT = re.compile(r"\btmux\s.*\bsend(-keys)?\s.*/(exit|exit-clean|kill-your-self)(\s|$|[\"\x27])")
+REMOTE_EXIT = re.compile(r"\btmux\s.*\bsend(-keys)?\s.*/(exit|exit-clean|kill-your-self)(\s|$|[\"\x27;&|])")
 RAW_EXIT = re.compile(r"(^|[\s;&|(`/])tmux\s.*\bsend(-keys)?\s.*/(exit|kill-your-self)")
 COMPUTED_PANE = re.compile(r"(^|[\s;&|(`/\"\x27])tmux\s[^;&|\n]*\bsend(-keys)?\s[^;&|\n]*-t\s*(\$\(|`)[^\n]*/(exit|kill-your-self)")
 TMUX_WORD = re.compile(r"(^|[\s;&|(`/\"\x27])tmux\s")
-RUNNERS = SHELLS | {"eval", "ssh", "screen", "su", "runuser", "env", "flock", "watch"}
+RUNNERS = {"eval", "ssh", "screen", "su", "runuser", "flock", "watch"}
+SHELL_C = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+ENV_S = re.compile(r"^(-[A-Za-z]*S|--split-string)")
 RUN_AS = None  # the user a sudo / su around the tmux runs it as
 SOCK = []  # the -S / -L of the tmux, kept for the next command of a chain
 
@@ -152,10 +154,22 @@ def open_quote(cmd, end):
             stack.pop()
         elif c in "\"`" and top == c:
             stack.pop()
+        elif c == "\x27" and top == "\"":
+            pass
         elif c in "\"`\x27":
             stack.append((c, i))
         i += 1
     return stack[-1][1] if stack and stack[-1][0] in "\"\x27" else None
+
+
+def runs_text(words):
+    """A runner runs its text; a shell only with -c, env only with -S: the arguments of a script are data."""
+    for i, w in enumerate(words):
+        b, rest = w.rsplit("/", 1)[-1], words[i + 1:]
+        if b in RUNNERS or (b in SHELLS and any(SHELL_C.match(x) for x in rest)) \
+                or (b == "env" and any(ENV_S.match(x) for x in rest)):
+            return True
+    return False
 
 
 def is_data(cmd, pos):
@@ -164,7 +178,7 @@ def is_data(cmd, pos):
     if q is None:
         return False
     words = re.split(r"[;&|(\n]", cmd[:q])[-1].split()
-    return not any(w.rsplit("/", 1)[-1] in RUNNERS for w in words)
+    return not runs_text(words)
 
 
 def check(cmd, depth=0):

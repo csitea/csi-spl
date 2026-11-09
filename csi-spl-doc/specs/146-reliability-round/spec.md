@@ -385,8 +385,9 @@ process in the target pane. The own pane and a pane with no agent pass. A pane
 the guard cannot resolve (computed, no tmux answer, over ssh) is refused.
 
 Quoted text is data, so a message body that quotes the pattern passes. It is
-judged only when a shell-like runner on its command (a shell, `eval`, `ssh`,
-`screen`, `su`, `runuser`, `env`, `flock`, `watch`) runs it.
+judged only when a runner on its command runs it: a shell with `-c`, `env` with
+`-S`, `eval`, `ssh`, `screen`, `su`, `runuser`, `flock` or `watch`. The arguments
+of a script are data, so `bash /path/spool-send.sh --body "..."` passes.
 
 Known limits, none of them judged by the guard:
 
@@ -401,6 +402,8 @@ Known limits, none of them judged by the guard:
   closed), which includes `spool-send.sh`.
 - An ssh command is matched on its raw text, so `grep` for the pattern over ssh,
   or `/exit` as a path later on the line, is refused.
+- A script run by a shell with its own `-c` option counts as `bash -c`, so a
+  quoted computed-pane send-keys among its arguments is refused.
 - A message body inside a `bash -c '...'` that quotes a computed-pane send-keys
   is refused: the outer text is run by the shell.
 

@@ -76,7 +76,7 @@
 # @description         <slug>.md (the full slug's file wins when it exists), the
 # @description         launch is `SPAWN_BOX=<box> spawn-window.sh ... <slug>`;
 # @description         <box> at or past its overflow mark (do_spl_box_pick's BOX
-# @description         line: load% >= high * BOX_PICK_OVERFLOW / 100), DEGRADED
+# @description         line: load% >= high * BOX_PICK_OVERFLOW / 100), DEGRADED, RECOVERING
 # @description         or AT CAP -> HOLD: it stays queued, the reason in
 # @description         .place.wait, nothing acked; out of the tick's line
 # @description         before the head and the band pick, so it blocks no
@@ -624,7 +624,7 @@ spl_spawn_place_slug() {  # SLUG
 }
 
 # Prints why the pinned BOX takes no lane now and returns 0: its BOX line is at
-# or past its overflow mark, CORDONED, DEGRADED or AT CAP. No line for it: returns 1
+# or past its overflow mark, CORDONED, DEGRADED, RECOVERING or AT CAP. No line for it: returns 1
 # (spawn-window judges it). PICK_OUT is do_spl_box_pick's output when the caller
 # already read it.
 spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
@@ -639,6 +639,7 @@ spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
     }
     if (/  CORDONED /) { printf "box %s is CORDONED (do_spl_box_cordon)", b; exit 0 }
     if (/DEGRADED/) { printf "box %s is DEGRADED", b; exit 0 }
+    if (match($0, /RECOVERING \([^)]*\)/)) { printf "box %s is %s: no new lanes until its hold ends", b, substr($0, RSTART, RLENGTH); exit 0 }
     if (/AT CAP/) { printf "box %s is at its CI-busy agent cap", b; exit 0 }
     if (seen && hi > 0 && p >= hi * over / 100) { printf "box %s at %d%% is past its overflow mark (%d%%, %d%% of its high %d%%)", b, p, hi * over / 100, over, hi; exit 0 }
     exit 1 }' <<<"$line"
@@ -1168,7 +1169,7 @@ spl_spawn_place_away_hold() {  # MARKED ROWS
 }
 
 # 2e. A queued row the placer can launch whose slug is hand-pinned to a box
-# at or past its overflow mark, CORDONED, DEGRADED or AT CAP
+# at or past its overflow mark, CORDONED, DEGRADED, RECOVERING or AT CAP
 # (spl_spawn_place_pin_full) HOLDS (SPL-4009): it stays queued, out of this
 # tick's line, so it blocks no other row; one INFO line and its .place.wait
 # line say why. Before, the hold was judged on the head only, and one row

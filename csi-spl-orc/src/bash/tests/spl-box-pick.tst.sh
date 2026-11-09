@@ -47,6 +47,10 @@
 #          (spl_lane_box_disks) is df's Capacity.
 #          19. the AIM (t1 f456ecd5): a box past its aim, below its high,
 #          takes a lane only when no box is under its aim; no aim = high.
+#          20. a box in its RECOVERING hold (SPL-5138) is benched: not picked,
+#          review seats included; a row pinned to it waits and says why; both
+#          are released when the hold ends; every box recovering -> the
+#          fallback places with its WARN, a recovering box before a degraded one.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -253,11 +257,11 @@ bad=0 good=0 seq12=""
 for i in $(seq 4 38); do
   now=$((B0 + i * 600)); out="$(run BEATS="$T/beats.json" HUB_NOW=$now)"; p="$(pick "$out")"
   seq12+="${p#box-}"
-  # the 10 min before 02:00..05:30Z held under 30 beats: degraded
-  if (( i >= 9 && i <= 30 )); then [[ "$p" == box-b ]] || bad=$((bad + 1)); else [[ "$p" == box-a ]] || good=$((good + 1)); fi
+  # the 10 min before 02:00..05:30Z held under 30 beats: degraded; then the hold (SPL-5138)
+  if (( i >= 9 && i <= 33 )); then [[ "$p" == box-b ]] || bad=$((bad + 1)); else [[ "$p" == box-a ]] || good=$((good + 1)); fi
 done
-[[ $bad == 0 && $good == 0 && "$seq12" == aaaaabbbbbbbbbbbbbbbbbbbbbbaaaaaaaa ]] &&
-  pass "12. replay of 2026-10-11 (n = 35 picks): the PC box never picked 02:00..05:30Z (22 picks), picked again from 05:40Z ($seq12)" ||
+[[ $bad == 0 && $good == 0 && "$seq12" == aaaaabbbbbbbbbbbbbbbbbbbbbbbbbaaaaa ]] &&
+  pass "12. replay of 2026-10-11 (n = 35 picks): the PC box never picked 02:00..06:00Z (25 picks: 22 degraded, 3 in its hold), picked again from 06:10Z ($seq12)" ||
   fail "12. replay: $bad pick(s) on the degraded box, $good healthy pick(s) missed: $seq12"
 out="$(run BEATS="$T/beats.json" HUB_NOW=$((B0 + 15 * 600)))"
 grep -q '^BOX box-a .*DEGRADED (3 beats in 10m < 30, last beat [0-9]*s ago)$' <<<"$out" &&
@@ -953,6 +957,58 @@ stats "box-a:6.8:8" "box-b:4:8"
 out="$(run)"
 [[ "$(pick "$out")" == box-a ]] && grep -q 'band 70..90 (box)  <- pick$' <<<"$out" &&
   pass "19. CONTROL: the same loads with no aim -> box-a, first below its high, as before" || fail "19. no aim: $out"
+
+# 20. SPL-5138 (ruling c1e9bd5f): a box in its RECOVERING hold is benched like
+#     a degraded one. boxa's beats stop for 200 s (> max_gap_s 120) and resume
+#     at G1, boxb beats on; both idle, boxa first. Beats every 10 s, so the
+#     read's newest beat is HUB_NOW. Names without a dash: a hand-<box>- slug
+#     takes [a-z0-9]+ only.
+G1=1791700000
+# hbeats BOX LAST_BEAT GAP(0|1): every 10 s from G1 - 4000 to LAST_BEAT, GAP
+# leaves out (G1 - 200, G1)
+hbeats() { jq -nc --arg b "$1" --argjson g "$G1" --argjson l "$2" --argjson gap "$3" \
+  '[range($g - 4000; $l + 1; 10) | select($gap == 0 or . <= $g - 200 or . >= $g) | {box: $b, e: .}]'; }
+END20=$((G1 + 4000))
+jq -s add <(hbeats boxa $END20 1) <(hbeats boxb $END20 0) >"$T/rec1.json"
+jq -s add <(hbeats boxa $END20 1) <(hbeats boxb $END20 1) >"$T/rec2.json"
+jq -s add <(hbeats boxa $((G1 + 250)) 0) <(hbeats boxb $END20 1) >"$T/deg1.json"
+target 50 75 '["boxa","boxb"]'
+stats "boxa:1:8" "boxb:1:8"
+out20="$(run BEATS="$T/rec1.json" HUB_NOW=$((G1 + 400)))"
+[[ "$(pick "$out20")" == boxb ]] && grep -q '^BOX boxa .*  RECOVERING (healthy for 400s < hold 1800s)' <<<"$out20" &&
+  pass "20. a box 400 s into its hold is not picked and its line says why (pick=boxb)" || fail "20. recovering: $out20"
+out="$(run BEATS="$T/rec1.json" HUB_NOW=$((G1 + 400)) BOX_PICK_REVIEW_SEAT=1)"
+[[ "$(pick "$out")" == boxb ]] && pass "20. a review seat (BOX_PICK_REVIEW_SEAT=1) is not placed on it either" || fail "20. review seat: $out"
+out="$(run BEATS="$T/rec1.json" HUB_NOW=$((G1 + 1790)))"
+[[ "$(pick "$out")" == boxb ]] && pass "20. still benched 10 s before the hold ends (+1790 s)" || fail "20. +1790: $out"
+out21="$(run BEATS="$T/rec1.json" HUB_NOW=$((G1 + 1800)))"
+[[ "$(pick "$out21")" == boxa ]] && ! grep -q 'RECOVERING' <<<"$out21" &&
+  pass "20. released when the hold ends (+1800 s): pick=boxa, no RECOVERING" || fail "20. release: $out21"
+out="$(run BEATS="$T/rec2.json" HUB_NOW=$((G1 + 400)))"
+[[ "$(pick "$out")" == boxa ]] && grep -q '^WARN every box with a load sample is degraded or recovering' <<<"$out" &&
+  pass "20. every box recovering (a hub stall): the fallback still places (boxa), with its WARN" || fail "20. all recovering: $out"
+out="$(run BEATS="$T/deg1.json" HUB_NOW=$((G1 + 400)))"
+[[ "$(pick "$out")" == boxb ]] && grep -q '^BOX boxa .*DEGRADED' <<<"$out" && grep -q '^WARN every box' <<<"$out" &&
+  pass "20. boxa degraded, boxb recovering: the fallback takes the recovering box, not the first in order" || fail "20. mixed: $out"
+
+# 20. the placer: a row pinned to the box waits, says why, and is released.
+# pin20 PICK_OUT -> the rows left after spl_spawn_place_pin_hold
+mkdir -p "$T/asks"
+pin20() {
+  printf '%s\n' "$1" >"$T/pick.out"
+  ASKS="$T/asks" SPAWN_PLACE_PICK_CMD="cat $T/pick.out" bash -c '
+    do_log() { :; }
+    source "'"$PROJ_ROOT"'/src/bash/run/spl-spawn-place.func.sh"
+    spool_asks_dir() { echo "$ASKS"; }
+    spl_spawn_place_pin_hold "[{\"ask_id\":\"aaaaaaaa-0001\",\"state\":\"queued\",\"_l\":true,\"placement\":\"claude:hand-boxa-fix\"}]"'
+}
+left="$(pin20 "$out20")"
+wait20="$(cat "$T/asks/.place.wait" 2>/dev/null)"
+[[ "$left" == "[]" && "$wait20" == *"pinned to boxa: box boxa is RECOVERING (healthy for 400s < hold 1800s): no new lanes until its hold ends"* ]] &&
+  pass "20. a hand-boxa row waits in the hold, its .place.wait line says why" || fail "20. pin hold: left=$left wait=$wait20"
+left="$(pin20 "$out21")"
+[[ "$(jq -r '.[0].ask_id' <<<"$left")" == aaaaaaaa-0001 && ! -s "$T/asks/.place.wait" ]] &&
+  pass "20. the same row is released when the hold ends, its wait line gone" || fail "20. pin release: left=$left wait=$(cat "$T/asks/.place.wait")"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

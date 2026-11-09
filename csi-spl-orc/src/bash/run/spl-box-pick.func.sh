@@ -31,9 +31,12 @@
 # @description lesson): its hub beats in the last window_min are under
 # @description min_beat_pct % of the expected 1 per beat_s, or its last beat is
 # @description over max_gap_s old (cnf env.box.health, the rule and its numbers
-# @description in lib/bash/funcs/spl-box-health.func.sh). Every box with a load
-# @description sample degraded -> the pick as before, with a WARN. No beats
-# @description answer -> no box is judged, with a WARN.
+# @description in lib/bash/funcs/spl-box-health.func.sh). A RECOVERING box, good
+# @description now but bad within the last hold_min, is benched the same way
+# @description (SPL-5138, ruling c1e9bd5f): no new lanes until its hold ends. Its
+# @description line says "RECOVERING (healthy for Ns < hold Ms)". Every box with
+# @description a load sample benched -> a recovering box before a degraded one,
+# @description with a WARN. No beats answer -> no box is judged, with a WARN.
 # @description A box running CI takes FEWER lanes (owner HUM-10, t1 f67e3656 msg
 # @description 565d9bbb): with a runner job active (its BOX-0 row's ci=<N>, this
 # @description box's own Runner.Worker count) its band is the lower cnf
@@ -138,7 +141,7 @@ do_spl_box_pick() {
   jq -e '.rows | type == "array"' >/dev/null 2>&1 <<<"$stats" ||
     { do_log "FATAL the hub did not answer the box stats read: $(tail -1 <<<"$stats" | head -c 200)"; return 1; }
   spl_box_health_cnf "$cnf"
-  health="$(spl_box_health_verdicts "$(spl_lane_spool box-beat list --since "$(spl_box_health_since)" 2>&1)" 0)" || {
+  health="$(spl_box_health_verdicts "$(spl_lane_spool box-beat list --since "$(spl_box_health_since)" 2>&1)")" || {
     do_log "WARN the hub did not answer the box beats read: no box is judged unhealthy" >&2; health='{}'; }
   cicnf="$(spl_box_ci_cnf "$cnf")"
   rows="$(spl_lane_hub --fleet "$LANE_FLEET" 2>/dev/null)"
@@ -194,7 +197,9 @@ spl_box_pick_nokind() {
 # spl_box_pick_decide TARGET STATS SEED SINCE [OVERFLOW] [HEALTH] [CI] [CICNF] [NOKIND] [KIND] [QUOTA] [WKMAX] [CORDON] [DISK] [DISKMAX] [WKWHY]
 # -> the band line, one line per box in fill order, a WARN per box with no
 # sample, then the pick line. HEALTH is spl_box_health_verdicts' object: a
-# "degraded" box is left out of the pick unless every box with a sample is. CI
+# "degraded" or "recovering" box is left out of the pick unless every box with
+# a sample is; then the recovering ones go first (a box that is bad now is the
+# last choice, SPL-5138). CI
 # is {"<box>": jobs} (spl_box_ci_from_rows), CICNF spl_box_ci_cnf's settings:
 # a box with jobs > 0 gets the lower band, and at or over max_agents live
 # agents (its sample's agents_live) it is left out of the pick. NOKIND
@@ -232,7 +237,8 @@ spl_box_pick_decide() {
              state: (if $p >= $band.high then "full" elif $p >= $band.low then "in band" else "under" end),
              cord: ($cd[$b] != null), until: $cd[$b],
              disk: $dk[$b], dfull: ($dk[$b] != null and $dk[$b].pct >= $dmax),
-             sick: ($hl[$b].state == "degraded"), why: ($hl[$b].why // ""),
+             down: ($hl[$b].state == "degraded"), sick: ($hl[$b].state == "degraded" or $hl[$b].state == "recovering"),
+             why: ($hl[$b].why // ""),
              jobs: $jobs, agents: $r.agents_live, capped: ($jobs > 0 and ($r.agents_live // 0) >= $cc.max_agents),
              nokind: ($nk | index($b) != null), wk: $wq[$b],
              wkover: ($kind != "" and $wq[$b] != null and $wq[$b] >= $wmax)}
@@ -240,7 +246,7 @@ spl_box_pick_decide() {
     | ([$rows[] | select(.miss | not)]) as $all
     | [$all[] | select(.cord | not)] as $uncord
     | [$uncord[] | select(.dfull | not)] as $open
-    | ([$open[] | select(.sick | not)] | if length == 0 then $open else . end | map(select(.capped | not))) as $seen0
+    | ([$open[] | select(.sick | not)] | if length == 0 then [$open[] | select(.down | not)] else . end | if length == 0 then $open else . end | map(select(.capped | not))) as $seen0
     | [$seen0[] | select(.nokind | not)] as $kinded
     | [$kinded[] | select(.wkover | not)] as $seen
     | ((first($seen[] | select(.pct < .band.low)) | . + {why: "low"})
@@ -250,9 +256,9 @@ spl_box_pick_decide() {
        // null) as $pick
     | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), \(($t.boxes // {}) | length) per-box band(s), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
       ($rows[] | if .miss then "WARN box \(.box): no load sample in the last \($since), skipped"
-        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high)\(if .band.aim < .band.high then " aim \(.band.aim)" else "" end) (\(.band.src))\(if .cord then "  CORDONED (until \(.until | todate))" else "" end)\(if .dfull then "  DISK \(.disk.mount) \(.disk.pct)% >= \($dmax)%: not picked" else "" end)\(if .sick then "  DEGRADED (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if .nokind then "  no \($kind) CLI: not picked" else "" end)\(
+        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high)\(if .band.aim < .band.high then " aim \(.band.aim)" else "" end) (\(.band.src))\(if .cord then "  CORDONED (until \(.until | todate))" else "" end)\(if .dfull then "  DISK \(.disk.mount) \(.disk.pct)% >= \($dmax)%: not picked" else "" end)\(if .down then "  DEGRADED (\(.why))" elif .sick then "  RECOVERING (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if .nokind then "  no \($kind) CLI: not picked" else "" end)\(
           if $kind == "" or .nokind then "" elif .wk == null then "  \($kind) weekly unknown" elif .wkover then "  \($kind) weekly \(.wk)% >= \($wmax)%: not picked" else "  \($kind) weekly \(.wk)%" end)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
-      (if ($open | length) > 0 and all($open[]; .sick) then "WARN every box with a load sample is degraded: the pick ignores the beats" else empty end),
+      (if ($open | length) > 0 and all($open[]; .sick) then "WARN every box with a load sample is degraded or recovering: the pick ignores the bench" else empty end),
       (if $pick != null and $kind != "" and $pick.wk == null then "INFO \($pick.box): \($kind) weekly usage unknown (never measured, its reset passed, it lapsed with no re-read, or its BOX-0 row is an hour old): placed anyway" else empty end),
       (if $pick == null and ($all | length) > 0 and ($uncord | length) == 0 then
          "pick=hold reason=every box with a sample is CORDONED (\([$all[].box] | join(" "))): queue the lane, spawn nothing"

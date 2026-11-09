@@ -4,7 +4,8 @@
 # load balancing of t1 3cfc236e, from the lessons of 2026-10-11 (one box's
 # uplink degraded 01:50-05:20Z, 1-3 s RTT: its beats fell from 60 to 1..23 per
 # 10 min while the other box held 59..62). Two readers, ONE rule:
-#   - do_spl_box_pick never places a lane on a DEGRADED box;
+#   - do_spl_box_pick places no new lane on a DEGRADED or RECOVERING box
+#     (SPL-5138) unless every box is one, and then a recovering one first;
 #   - the fleet lease (spl_fleet_role_tick) ranks a degraded or RECOVERING box
 #     last for both roles, and gives it its configured rank back only after
 #     the hold-down.

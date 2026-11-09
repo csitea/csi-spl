@@ -12,7 +12,9 @@
 #           2. the hold ends 30 min after the gap: recovering at +1799 s,
 #              healthy at +1800 s.
 #           3. a box with no gap over max_gap stays healthy on every tick.
-#           4. hold 0 (do_spl_box_pick) judges now only: healthy after the gap.
+#           4. hold 0 judges now only: healthy after the gap. The default hold
+#              reads recovering at that instant: since SPL-5138 do_spl_box_pick
+#              uses it, so a box in its hold takes no new lanes.
 #           5. SPL-2257: the checkpoints sit on whole minutes, so two reads a
 #              few seconds apart (two boxes, or one box's next tick) reach the
 #              same verdict. A box whose 10-min count dips to 29 < 30 for 10 s
@@ -93,8 +95,12 @@ done
 
 # 4. hold 0 judges now only
 s4="$(state box-a $((G1 + 60)) 0)" d4="$(state box-a $((G0 + 150)) 0)"
-[[ "$s4" == healthy && "$d4" == degraded ]] && pass "4. hold 0: degraded inside the gap, healthy after it (no hold)" ||
-  fail "4. hold 0: in gap $d4, after $s4"
+h4="$(state box-a $((G1 + 60)))"
+[[ "$s4" == healthy && "$d4" == degraded && "$h4" == recovering ]] &&
+  pass "4. hold 0: degraded inside the gap, healthy after it; the default hold (the pick and the lease): recovering" ||
+  fail "4. hold 0: in gap $d4, after $s4; default hold $h4"
+grep -q 'spl_box_health_since)" 2>&1)")" || {' "$PROJ_ROOT/src/bash/run/spl-box-pick.func.sh" &&
+  pass "4. do_spl_box_pick reads the verdicts with the default hold (SPL-5138)" || fail "4. do_spl_box_pick passes its own hold"
 
 # 5. a 10 s count dip: box-c beats every 10 s, then every 20 s from A (30 of
 # 30 in each 10-min window), one beat 10 s late at B+30 instead of B+20: the

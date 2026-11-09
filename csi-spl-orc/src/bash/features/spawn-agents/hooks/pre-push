@@ -40,17 +40,21 @@ _pp_t0="$(date +%s 2>/dev/null || echo 0)"
 _pp_secs() { echo "$(( $(date +%s 2>/dev/null || echo 0) - _pp_t0 ))s"; }
 
 _pp_override="${SPL_PREPUSH_OVERRIDE:-0}"
-_pp_refs="$(cat)"  # git's ref lines, read once: the non-ff guard and the wip skip both use them
+# On a push to a URL, $1 is that URL as typed: its userinfo (a token) never
+# reaches the log (SPL-5163).
+_pp_remote="${1:-?}"
+if [[ "$_pp_remote" =~ ^([A-Za-z][A-Za-z0-9+.-]*://)[^/]*@(.*)$ ]]; then _pp_remote="${BASH_REMATCH[1]}***@${BASH_REMATCH[2]}"; fi
+_pp_read_rc=0; _pp_refs="$(cat)" || _pp_read_rc=$?  # git's ref lines, read once: the non-ff guard and the wip skip both use them
 
 # The ref lines as git sent them (SPL-5163), so a later "why was this gated" is
 # provable from the log: remote ref plus 12 chars of each sha. "none" is a real
 # case, git runs this hook after dropping every ref (stale lease, up to date).
 _pp_seen=""
-while read -r _ _pp_lsha _pp_rref _pp_rsha; do
-  [ -n "${_pp_rref:-}" ] || continue
-  _pp_seen+="$_pp_rref ${_pp_rsha:0:12}..${_pp_lsha:0:12}; "
+while read -r _pp_lref _pp_lsha _pp_rref _pp_rsha; do
+  [ -n "${_pp_lref:-}" ] || continue
+  _pp_seen+="${_pp_rref:-?} ${_pp_rsha:0:12}..${_pp_lsha:0:12}; "
 done <<<"$_pp_refs"
-_pp_logline "REFS $PWD HEAD=$head remote=${1:-?} -- ${_pp_seen:-none}"
+_pp_logline "REFS $PWD HEAD=$head remote=$_pp_remote -- ${_pp_seen:-none}"
 
 # A watcher seat pushes nothing (spec 165 3.3 (3), SPL-4344) -- FIRST, any
 # ref, SPL_PREPUSH_OVERRIDE included. The caller is read from the process
@@ -62,7 +66,7 @@ if [ -r "$_pp_wl" ]; then
   # shellcheck source=/dev/null
   . "$_pp_wl"
   if ! _pp_wmsg="$(spl_watcher_refuse "git push" 2>&1)"; then
-    _pp_logline "REFUSE $PWD remote=${1:-?} override=$_pp_override -- $_pp_wmsg"
+    _pp_logline "REFUSE $PWD remote=$_pp_remote override=$_pp_override -- $_pp_wmsg"
     echo "$_pp_wmsg" >&2
     echo "pre-push: REFUSED -- a watcher seat is read-only; SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
     exit 1
@@ -91,7 +95,7 @@ while read -r _ _pp_lsha _pp_rref _pp_rsha; do
     fi
   fi
   [ -n "$_pp_why" ] || continue
-  _pp_logline "REFUSE $PWD remote=${1:-?} $_pp_rref ${_pp_rsha:0:9}..${_pp_lsha:0:9} override=$_pp_override -- non-fast-forward ($_pp_why)"
+  _pp_logline "REFUSE $PWD remote=$_pp_remote $_pp_rref ${_pp_rsha:0:9}..${_pp_lsha:0:9} override=$_pp_override -- non-fast-forward ($_pp_why)"
   echo "pre-push: REFUSED -- non-fast-forward push to $_pp_b (${_pp_why% }). Fetch, rebase onto origin/$_pp_b, push again; never --force. SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
   exit 1
 done <<<"$_pp_refs"
@@ -110,7 +114,7 @@ if [ -r "$_pp_rl" ]; then
     if _pp_zero "$_pp_lsha" || _pp_zero "$_pp_rsha"; then continue; fi
     _pp_bad="$(_spl_push_master_unreviewed "$_pp_rsha..$_pp_lsha" "${1:-origin}")"
     [ -n "$_pp_bad" ] || continue
-    _pp_logline "REFUSE $PWD remote=${1:-?} $_pp_rref override=$_pp_override -- round row $(head -n 1 <<<"$_pp_bad")"
+    _pp_logline "REFUSE $PWD remote=$_pp_remote $_pp_rref override=$_pp_override -- round row $(head -n 1 <<<"$_pp_bad")"
     echo "pre-push: REFUSED -- a round row commit has no valid R7 review line (rounds-rulebook.md 2.7.4); SPL_PREPUSH_OVERRIDE=1 does not skip this:" >&2
     echo "$_pp_bad" >&2
     exit 1
@@ -133,7 +137,7 @@ if [ -r "$_pp_oo" ]; then
   # shellcheck source=/dev/null
   . "$_pp_oo"
   if ! _pp_oomsg="$(oog_pre_push "$(git rev-parse --show-toplevel 2>/dev/null)" "${1:-origin}" <<<"$_pp_refs")"; then
-    _pp_logline "REFUSE $PWD remote=${1:-?} override=$_pp_override -- owner order: $(grep -m1 REFUSED <<<"$_pp_oomsg")"
+    _pp_logline "REFUSE $PWD remote=$_pp_remote override=$_pp_override -- owner order: $(grep -m1 REFUSED <<<"$_pp_oomsg")"
     printf '%s\n' "$_pp_oomsg" >&2
     echo "pre-push: REFUSED -- a pushed commit changes a path an owner order covers, with no Owner-go trailer for it (spec 168 section 5). SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
     exit 1
@@ -141,13 +145,13 @@ if [ -r "$_pp_oo" ]; then
   # A pass on form only (no hub on this box) is said and logged (R7 c-718 W1)
   if grep -q 'NOT hub-checked' <<<"$_pp_oomsg"; then
     grep -E 'NOT hub-checked|^owner-orders: NOTE' <<<"$_pp_oomsg" >&2
-    _pp_logline "PASS-UNCHECKED $PWD remote=${1:-?} override=$_pp_override -- owner order go NOT hub-checked: $(grep -m1 'NOT hub-checked' <<<"$_pp_oomsg")"
+    _pp_logline "PASS-UNCHECKED $PWD remote=$_pp_remote override=$_pp_override -- owner order go NOT hub-checked: $(grep -m1 'NOT hub-checked' <<<"$_pp_oomsg")"
   fi
   # A pass under a ledger dir or a gate action the caller swapped, with or
   # without a ledger found, is said and logged too (R7 c-718 W3)
   if grep -q '^owner-orders: NOTE' <<<"$_pp_oomsg"; then
     grep -q 'NOT hub-checked' <<<"$_pp_oomsg" || grep '^owner-orders: NOTE' <<<"$_pp_oomsg" >&2
-    _pp_logline "PASS-SEAM $PWD remote=${1:-?} override=$_pp_override -- owner orders under a caller's seam: $(grep '^owner-orders: NOTE' <<<"$_pp_oomsg" | sed 's/^owner-orders: NOTE //' | paste -sd ';' -)"
+    _pp_logline "PASS-SEAM $PWD remote=$_pp_remote override=$_pp_override -- owner orders under a caller's seam: $(grep '^owner-orders: NOTE' <<<"$_pp_oomsg" | sed 's/^owner-orders: NOTE //' | paste -sd ';' -)"
   fi
 fi
 
@@ -186,7 +190,7 @@ _pp_gate() {  # <PRE_PUSH_ONLY> <PRE_PUSH_SKIP_PASSED>
 common="$(git rev-parse --git-common-dir 2>/dev/null)"
 if [ "$_pp_override" = 1 ] && { { [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; } \
      || [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; }; then
-  _pp_logline "OVERRIDE $PWD HEAD=$head remote=${1:-?} -- SPL_PREPUSH_OVERRIDE=1 on a broken git config, gate SKIPPED"
+  _pp_logline "OVERRIDE $PWD HEAD=$head remote=$_pp_remote -- SPL_PREPUSH_OVERRIDE=1 on a broken git config, gate SKIPPED"
   echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- git config is broken here, deploy-gate SKIPPED (audited in $_pp_log)" >&2
   exit 0
 fi
@@ -207,19 +211,21 @@ fi
 # scoped to those refs only; a mixed push (wip + any other ref) is gated as usual.
 # No ref line at all (SPL-5163): git dropped every ref (a stale lease, an up to
 # date ref) and will send nothing, so there is nothing to gate; it ran the whole
-# gate for 19+ min. A line with no remote ref is not that case: it stays gated.
+# gate for 19+ min. A line with no remote ref is not that case: it stays gated,
+# and so does stdin that failed to read or holds only blanks: not git's empty.
 _pp_wip=0
+if [ "$_pp_read_rc" != 0 ] || [ -n "$_pp_refs" ]; then _pp_wip=2; fi
 while read -r _pp_lref _ _pp_rref _; do
   [ -n "${_pp_lref:-}" ] || continue
   case "${_pp_rref:-}" in refs/heads/wip/?*) _pp_wip=1 ;; *) _pp_wip=2; break ;; esac
 done <<<"$_pp_refs"
 if [ "$_pp_wip" = 0 ]; then
-  _pp_logline "SKIP-NOREFS $PWD HEAD=$head remote=${1:-?} -- no ref line on stdin, git sends nothing"
+  _pp_logline "SKIP-NOREFS $PWD HEAD=$head remote=$_pp_remote -- no ref line on stdin, git sends nothing"
   echo "pre-push: no ref to send (rejected or up to date) -- the deploy-gate is skipped" >&2
   exit 0
 fi
 if [ "$_pp_wip" = 1 ]; then
-  _pp_logline "SKIP-WIP $PWD HEAD=$head remote=${1:-?} -- every ref is refs/heads/wip/*"
+  _pp_logline "SKIP-WIP $PWD HEAD=$head remote=$_pp_remote -- every ref is refs/heads/wip/*"
   echo "pre-push: every ref is refs/heads/wip/* -- the deploy-gate is skipped (spec 102 5.4)" >&2
   exit 0
 fi
@@ -255,7 +261,7 @@ fi
 # are not (seconds; their verdicts are cached like the full gate's).
 if [ "$_pp_override" = 1 ]; then
   if _pp_gate override 0; then
-    _pp_logline "OVERRIDE $top HEAD=$head remote=${1:-?} secs=$(_pp_secs) -- SPL_PREPUSH_OVERRIDE=1, slow parts SKIPPED, hygiene + lint-migration PASSED"
+    _pp_logline "OVERRIDE $top HEAD=$head remote=$_pp_remote secs=$(_pp_secs) -- SPL_PREPUSH_OVERRIDE=1, slow parts SKIPPED, hygiene + lint-migration PASSED"
     echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- slow parts SKIPPED, hygiene + lint-migration passed (audited in $_pp_log)" >&2
     exit 0
   fi

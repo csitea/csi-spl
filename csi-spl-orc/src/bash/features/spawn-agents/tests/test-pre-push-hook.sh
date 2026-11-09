@@ -328,6 +328,10 @@ hook16() {  # <hook> <logdir> <stdin> [env...] -> the hook's rc
 }
 L="$ROOT/l16g"; hook16 "$HOOK" "$L" "garbage"$'\n'; eq "16g. a line with no remote ref -> exit 0 from the gate" 0 "$?"
 eq "16g. ... GATED, never read as no refs" gated "$(gated16 "$L")"; eq "16g. ... no SKIP line" 0 "$(logged16 "$L" ' SKIP-')"
+eq "16g. ... REFS shows the line, not none" 0 "$(logged16 "$L" 'REFS .* -- none$')"
+L="$ROOT/l16l"; hook16 "$HOOK" "$L" "   "$'\n'; eq "16l. blank stdin -> exit 0 from the gate" 0 "$?"; eq "16l. ... GATED" gated "$(gated16 "$L")"
+unread16() { mkdir -p "$2"; ( cd "$R16G" && GATE="$2/gate" SPL_PREPUSH_LOG_DIR="$2" bash "$1" origin file://x </ >/dev/null 2>&1 ); }
+L="$ROOT/l16m"; unread16 "$HOOK" "$L"; eq "16m. unreadable stdin -> exit 0 from the gate" 0 "$?"; eq "16m. ... GATED" gated "$(gated16 "$L")"
 NF16="refs/heads/master $G0 refs/heads/master $G1"$'\n'"refs/heads/w $G1 refs/heads/wip/x $ZERO"$'\n'
 R716="refs/heads/master $G1 refs/heads/master $G0"$'\n'"refs/heads/w $G1 refs/heads/wip/x $ZERO"$'\n'
 OO16="refs/heads/w $G1 refs/heads/wip/x $ZERO"$'\n'
@@ -335,6 +339,15 @@ L="$ROOT/l16h"; hook16 "$HOOK" "$L" "$NF16"; eq "16h. non-ff guard still refuses
 L="$ROOT/l16i"; hook16 "$HOOK" "$L" "$R716" STUB_R7=1; eq "16i. R7 line check still refuses" 1 "$?"; eq "16i. ... before the gate" no "$(gated16 "$L")"
 L="$ROOT/l16j"; hook16 "$HOOK" "$L" "$OO16" STUB_OOG=1; eq "16j. owner-order guard still refuses a wip-only push, before the skip" 1 "$?"
 grep -q 'REFUSE .*owner order' "$L/pre-push.log" && pass "16j. ... logged" || fail "16j. ... logged" "$(cat "$L/pre-push.log")"
+
+U16="https://x-access-token:SECRET16@example.invalid/o.git"
+pushurl16() {  # <hook> <logdir> <dst ref>: a push to a credentialed URL, rewritten to the bare remote
+  mkdir -p "$2"; install -m 0755 "$1" "$R16/hk/pre-push"
+  GATE="$2/gate" SPL_PREPUSH_LOG_DIR="$2" git -C "$R16/c" -c "url.$R16/o.git.insteadOf=$U16" push -q "$U16" "$A16:$3" >/dev/null 2>&1
+}
+L="$ROOT/l16k"; pushurl16 "$HOOK" "$L" refs/heads/lane16k; eq "16k. push to a credentialed URL -> pushed" 0 "$?"
+eq "16k. ... the token is in no log line" 0 "$(logged16 "$L" SECRET16)"
+eq "16k. ... REFS keeps the masked URL" 1 "$(logged16 "$L" 'REFS .* remote=https://\*\*\*@example.invalid/o.git ')"
 
 # Red controls: each planted defect must change the verdict asserted above.
 mut16() {  # <out> <old> <new> -> a copy of the hook with the one edit; fails when <old> is absent
@@ -346,14 +359,26 @@ if old not in s: sys.exit("mutation target absent: " + old)
 open(sys.argv[2], "w", encoding="utf-8").write(s.replace(old, os.environ["NEW16"]))
 PY16
 }
+M="$ROOT/m16tk"; mut16 "$M" '_pp_remote="${BASH_REMATCH[1]}***@${BASH_REMATCH[2]}"' ':' || fail "16 control: the url mask mutation applies"
+L="$ROOT/l16ck"; pushurl16 "$M" "$L" refs/heads/lane16ck; eq "16 control: without the mask the token IS logged" 1 "$(logged16 "$L" 'REFS .*SECRET16')"
+STDINLINE='if [ "$_pp_read_rc" != 0 ] || [ -n "$_pp_refs" ]; then _pp_wip=2; fi'
+M="$ROOT/m16bl"; mut16 "$M" "$STDINLINE" 'if [ "$_pp_read_rc" != 0 ]; then _pp_wip=2; fi' || fail "16 control: the blank stdin mutation applies"
+L="$ROOT/l16cl"; hook16 "$M" "$L" "   "$'\n'; eq "16 control: blank stdin read as no refs is ungated" no "$(gated16 "$L")"
+M="$ROOT/m16ur"; mut16 "$M" "$STDINLINE" 'if [ -n "$_pp_refs" ]; then _pp_wip=2; fi' || fail "16 control: the unreadable stdin mutation applies"
+L="$ROOT/l16cm"; unread16 "$M" "$L"; eq "16 control: a failed read taken as no refs is ungated" no "$(gated16 "$L")"
+M="$ROOT/m16n2"; mut16 "$M" '[ -n "${_pp_lref:-}" ] || continue
+  _pp_seen' '[ -n "${_pp_rref:-}" ] || continue
+  _pp_seen' || fail "16 control: the REFS mutation applies"
+L="$ROOT/l16cn"; hook16 "$M" "$L" "garbage"$'\n'; eq "16 control: REFS skipping a malformed line says none" 1 "$(logged16 "$L" 'REFS .* -- none$')"
 SKIPLINE='if [ "$_pp_wip" = 0 ]; then'
 M="$ROOT/m16nr"; mut16 "$M" "$SKIPLINE" 'if false; then' || fail "16 control: the no-ref mutation applies"
 L="$ROOT/l16cc"; push16 "$M" "$L" --force-with-lease="$W16:$B16" "$B16:$W16"; eq "16 control: without the no-ref skip, the up to date wip push IS gated" gated "$(gated16 "$L")"
 M="$ROOT/m16mix"; mut16 "$M" '*) _pp_wip=2; break ;; esac' '*) _pp_wip=1 ;; esac' || fail "16 control: the mixed mutation applies"
 L="$ROOT/l16ce"; push16 "$M" "$L" "$A16:refs/heads/lane16b" "$A16:refs/heads/wip/c-999-z"; eq "16 control: a skip that ignores the other ref leaves the mixed push ungated" no "$(gated16 "$L")"
 L="$ROOT/l16cf"; push16 "$M" "$L" "$C16:refs/heads/master"; eq "16 control: ... and the master push ungated" no "$(gated16 "$L")"
-M="$ROOT/m16g"; mut16 "$M" 'read -r _pp_lref _ _pp_rref _; do
-  [ -n "${_pp_lref:-}" ] || continue' 'read -r _pp_lref _ _pp_rref _; do
+M="$ROOT/m16g"; mut16 "$M" "$STDINLINE"'
+while read -r _pp_lref _ _pp_rref _; do
+  [ -n "${_pp_lref:-}" ] || continue' 'while read -r _pp_lref _ _pp_rref _; do
   [ -n "${_pp_rref:-}" ] || continue' || fail "16 control: the malformed mutation applies"
 L="$ROOT/l16cg"; hook16 "$M" "$L" "garbage"$'\n'; eq "16 control: reading a malformed line as no refs leaves it ungated" no "$(gated16 "$L")"
 M="$ROOT/m16nf"; mut16 "$M" 'elif ! git merge-base --is-ancestor "$_pp_rsha" "$_pp_lsha" 2>/dev/null; then' 'elif false; then' || fail "16 control: the non-ff mutation applies"

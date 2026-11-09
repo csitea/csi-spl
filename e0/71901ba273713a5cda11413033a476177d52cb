@@ -1,0 +1,11 @@
+Lay-What: When a finished review waits for approval, the message now gives the true reason it is waiting.
+
+Lay-How: The system checks whether the work order mentions the reviewed version, and says so, naming the person who did the work.
+
+Lay-Why: The old message blamed a missing author when the author was known, which sent people looking in the wrong place.
+
+Tech-What: The review-go rc 3 hold reports a reviewed sha and task absent from the brief, and names the brief's author.
+
+Tech-How: _spl_review_go_row takes an optional fourth argument for the reason, used only by _spl_review_go_unplaced after an empty row.
+
+Tech-Why: A delta re-review's sha is not in the brief; the old reason read that as no author. The GO condition is unchanged.

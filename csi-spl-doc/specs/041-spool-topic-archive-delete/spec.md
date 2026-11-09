@@ -160,7 +160,7 @@ transaction, after the set is walked in the same transaction (§2).
 | FR-TA-005 | `GET /v1/view/messages/{msg_id}/topic` answers the topic size (replies) for the confirm dialog | Implemented — `tasks.md` |
 | FR-TA-006 | `DELETE /v1/messages/{msg_id}/topic` deletes card + children in one transaction; answers the ids removed | Implemented — `tasks.md` |
 | FR-TA-007 | live frames `topic_archived` / `topic_deleted` (§3.4) | Implemented — `tasks.md` |
-| FR-TA-008 | WUI: a card's menu shows Archive and Delete (Archive icon left of the label) to those §3.3 allows; Delete opens a confirm dialog naming the reply count | Implemented — `tasks.md` |
+| FR-TA-008 | WUI: a card's menu shows Archive and Delete (Archive icon left of the label) to those §3.3 allows; Delete opens a confirm dialog naming the reply count. In a topic pane the menu of every stored message, opening card or reply, offers Archive for the whole topic, on the opening card's permission (owner, t1 bb0091f1 msg 83355f04); the left swipe stays on the latest message | Implemented — `tasks.md` |
 | FR-TA-009 | WUI: `/archive` view and the left-rail Archive entry (rail entry: CLE-35017, SPL-979) | Implemented — `tasks.md` |
 | FR-TA-010 | every new string in all 19 locales | Implemented — `7325032b` |
 | FR-TA-011 | WUI: a topic row of the left-rail Topics section, of Flow and of the Topics home offers the card menu's Archive and Delete by right-click and by its ⋯ button, once the hub's `GET …/topic` said the caller may (§3.5) | Implemented — `tasks.md` T012 |

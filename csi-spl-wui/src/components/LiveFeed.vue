@@ -427,7 +427,7 @@ function topicMenuFor(m: SpoolMessage) {
   return !openerId.value || String(m.msg_id) === openerId.value
 }
 /* HUM-10 (owner, t1 7de82b71): in a thread pane only its latest message
-   offers Archive topic, on the opener's permission (MessageCard). An opener
+   swipes to archive, on the opener's permission (MessageCard). An opener
    past the loaded page is named by id alone (no level = a card). */
 const paneLatestId = computed(() => (props.topicCardMenu ? props.lastMsgId || latestMessageId(props.rows) : ''))
 const paneOpener = computed<SpoolMessage | null | undefined>(() => {

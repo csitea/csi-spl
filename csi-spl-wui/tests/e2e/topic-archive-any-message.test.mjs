@@ -1,21 +1,25 @@
-// HUM-10 (owner, t1 7de82b71 msg 8d5822b2): "Only the latest message of a
-// topic should have the option to archive the whole topic within it. That is
-// the latest reply message." Redo of 397d67142, which gated only a swipe on
-// the opener (owner, t1 3b755aef: "it does not exist").
+// HUM-10 (owner, t1 bb0091f1 msg 83355f04): "It should be possible to archive
+// with any topic for roles which do have that permission: any topic from any
+// message within that topic, from the right menu of that message." This replaces
+// the menu half of t1 7de82b71 msg 8d5822b2 (latest message only). The left
+// swipe stays latest-message only.
 //
 // Runs against the lde mock (no hub). One own topic card with two replies,
 // opened in the topic pane:
-//   D  desktop 1440x900: the LATEST reply's menu offers Archive topic, the
-//      older reply's and the opening card's do not; Archive topic from the
-//      latest reply archives the topic (its card leaves the middle pane)
+//   D  desktop 1440x900: the latest reply's, the older reply's and the opening
+//      card's menus each offer Archive topic; Archive topic from the OLDER
+//      reply archives the topic (its card leaves the middle pane)
+//   R  a developer under the setting "admins": neither reply's menu has Archive
+//      topic, and the opening card's is listed disabled, its reason given
+//      (CLE-77891), never enabled
 //   P  phone 390x844 with touch: the latest reply offers the left-swipe
 //      archive, the older reply and the opener do not; a long LEFT slide on
 //      the latest reply archives the topic ("Archived · Undo" shows)
 //   S  a topic with no replies: its opening card offers Archive topic
 //
 // Run:
-//   node tests/e2e/topic-archive-latest-only.test.mjs
-//   BASE_URL=<generated bundle> node tests/e2e/topic-archive-latest-only.test.mjs   # what CI does
+//   node tests/e2e/topic-archive-any-message.test.mjs
+//   BASE_URL=<generated bundle> node tests/e2e/topic-archive-any-message.test.mjs   # what CI does
 //   OUT=<dir> ... also writes a screenshot per step
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -149,14 +153,14 @@ const strips = (sel) => (p) => p.evaluate((sel) => {
   return e && { archive: Boolean(e.querySelector('[data-testid=swipe-archive-reveal]')), hide: Boolean(e.querySelector('[data-testid=swipe-hide-reveal]')) }
 }, sel)
 
-async function page(browser, viewport) {
+async function page(browser, viewport, mock = {}) {
   const p = await browser.newPage()
   p.errors = []
   p.on('pageerror', (e) => p.errors.push(String(e).slice(0, 200)))
   p.setDefaultNavigationTimeout(NAV_TIMEOUT)
-  await p.evaluateOnNewDocument(() => {
-    try { localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* private mode */ }
-  })
+  await p.evaluateOnNewDocument((mock) => {
+    try { localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' })); for (const k of ['spool.mock.archive_policy', 'spool.mock.role']) localStorage.removeItem(k); for (const [k, v] of Object.entries(mock)) localStorage.setItem(k, v) } catch { /* private mode */ }
+  }, mock)
   await p.setViewport(viewport)
   /* warm a throwaway load: a cold nuxi dev drops the first dynamic import */
   await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
@@ -177,19 +181,20 @@ try {
   ok('D the topic pane opens on the topic', await openTopic(d, s, latest))
   await sleep(500)
   const lm = await menuItems(d, inPane(latest))
-  ok('D the LATEST reply\'s menu offers Archive topic', lm.includes('msg-menu-archive'), lm)
+  ok('D the latest reply\'s menu offers Archive topic', lm.includes('msg-menu-archive'), lm)
   await shot(d, 'd-latest-menu')
   await closeMenu(d)
   const om = await menuItems(d, inPane(older))
-  ok('D an older reply\'s menu has no Archive topic', om.length > 0 && !om.includes('msg-menu-archive'), om)
+  ok('D an older reply\'s menu offers Archive topic', om.includes('msg-menu-archive'), om)
+  ok('D ... and keeps its own Delete, not Delete topic', om.includes('msg-menu-delete') && !om.includes('msg-menu-delete-topic'), om)
   await shot(d, 'd-older-menu')
   await closeMenu(d)
   const tm = await menuItems(d, inPane(s.top))
-  ok('D the opening card\'s menu (it has replies) has no Archive topic', tm.length > 0 && !tm.includes('msg-menu-archive'), tm)
+  ok('D the opening card\'s menu (it has replies) offers Archive topic', tm.includes('msg-menu-archive'), tm)
   await closeMenu(d)
-  await menuItems(d, inPane(latest))
+  await menuItems(d, inPane(older))
   await d.evaluate(() => document.querySelector('[data-testid=msg-menu-archive]')?.click())
-  ok('D Archive topic on the latest reply archives the topic: "Archived · Undo" shows', await until(d, (t) => Boolean(document.querySelector(t)), toast, 4000))
+  ok('D Archive topic on an OLDER reply archives the topic: "Archived · Undo" shows', await until(d, (t) => Boolean(document.querySelector(t)), toast, 4000))
   ok('D ... and the topic\'s card leaves the middle pane',
     await until(d, (sel) => ![...document.querySelectorAll(sel)].some((e) => !e.closest('.topic') && e.getClientRects().length), card(s.top), 5000))
 
@@ -202,6 +207,25 @@ try {
   await closeMenu(d)
   ok('no unexpected page errors (desktop)', d.errors.filter((e) => !benign(e)).length === 0, d.errors)
   await d.close()
+
+  /* ---- R. a viewer the setting refuses --------------------------------- */
+  const r = await page(browser, { width: 1440, height: 900 }, { 'spool.mock.archive_policy': 'admins', 'spool.mock.role': 'developer' })
+  const rs = await seed(r, 'R', 2)
+  const [rOlder, rLatest] = rs.replies
+  ok('R the topic pane opens', await openTopic(r, rs, rLatest))
+  await sleep(500)
+  const rl = await menuItems(r, inPane(rLatest))
+  ok('R the latest reply\'s menu has no Archive topic', rl.length > 0 && !rl.includes('msg-menu-archive'), rl)
+  await closeMenu(r)
+  const ro = await menuItems(r, inPane(rOlder))
+  ok('R an older reply\'s menu has no Archive topic', ro.length > 0 && !ro.includes('msg-menu-archive'), ro)
+  await closeMenu(r)
+  await menuItems(r, inPane(rs.top))
+  const rt = await r.evaluate(() => { const e = document.querySelector('[data-testid=msg-menu-archive]'); return e ? { disabled: e.disabled === true || e.getAttribute('aria-disabled') === 'true' } : null })
+  ok('R the opening card never has it enabled', !rt || rt.disabled, rt)
+  await closeMenu(r)
+  ok('no unexpected page errors (refused)', r.errors.filter((e) => !benign(e)).length === 0, r.errors)
+  await r.close()
 
   /* ---- P. phone: the left swipe ----------------------------------------- */
   const p = await page(browser, { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
@@ -229,5 +253,5 @@ try {
 }
 
 const failed = results.filter((r) => !r.ok)
-console.log(`\ntopic-archive-latest-only: ${results.length - failed.length}/${results.length} passed`)
+console.log(`\ntopic-archive-any-message: ${results.length - failed.length}/${results.length} passed`)
 process.exit(failed.length ? 1 : 0)

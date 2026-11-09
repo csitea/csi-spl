@@ -133,16 +133,23 @@ function latestMessageId(rows) {
 }
 
 /**
- * HUM-10 (owner, t1 7de82b71 msg 8d5822b2): "Only the latest message of a
- * topic should have the option to archive the whole topic within it. That is
- * the latest reply message." In a topic pane, `msg` offers Archive topic (menu
- * and left swipe) when it is the pane's latest message AND the viewer may
- * archive the topic - decided on the topic's OPENING card, never on the reply.
+ * HUM-10 (owner, t1 bb0091f1 msg 83355f04): "any topic from any message within
+ * that topic, from the right menu of that message." In a topic pane, every
+ * stored `msg` offers Archive topic in its menu when the viewer may archive the
+ * topic - decided on the topic's OPENING card, never on the reply.
  */
-function paneArchiveOffer(msg, latestId, opener, viewerId, me) {
-  if (!msg || typeof msg !== 'object' || msg.pending) return false
-  if (!latestId || !isLatestMessage(msg, latestId)) return false
+function paneArchiveOffer(msg, opener, viewerId, me) {
+  if (!msg || typeof msg !== 'object' || msg.pending || !msg.msg_id) return false
   return mayArchiveTopic(opener, viewerId, me)
+}
+
+/**
+ * The left swipe stays on the pane's latest message (t1 7de82b71 msg 8d5822b2):
+ * the post that widened the menu names the menu only.
+ */
+function paneArchiveSwipe(msg, latestId, opener, viewerId, me) {
+  if (!latestId || !isLatestMessage(msg, latestId)) return false
+  return paneArchiveOffer(msg, opener, viewerId, me)
 }
 
 /**
@@ -313,6 +320,7 @@ export {
   isLatestMessage,
   latestMessageId,
   paneArchiveOffer,
+  paneArchiveSwipe,
   isTopicCard,
   mayArchiveTopic,
   mayChangeTopic,

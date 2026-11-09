@@ -46,7 +46,7 @@ const props = defineProps<{
   topic?: boolean
   /** SPL-983 / CLE-77819: offer Archive (author, addressee, owner or admin) */
   topicArchive?: boolean
-  /** HUM-10 (t1 7de82b71): Archive is the topic pane's latest reply's; its message Delete stays */
+  /** HUM-10 (t1 bb0091f1): a topic pane's reply offers Archive; its message Delete stays */
   paneArchive?: boolean
   /** SPL-983: offer Delete the topic (author, owner or admin) */
   topicDelete?: boolean

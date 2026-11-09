@@ -14,7 +14,7 @@
 //      window); Undo brings it back, selected; a RIGHT swipe from the left
 //      edge is still Back (level 2 -> 1), no menu, no archive
 //   B  topic view: only the LATEST reply offers the archive (HUM-10, owner
-//      t1 7de82b71; the rest: topic-archive-latest-only.test.mjs). A RIGHT
+//      t1 7de82b71; the rest: topic-archive-any-message.test.mjs). A RIGHT
 //      slide on a reply opens the reply's menu; a short LEFT slide on an older
 //      reply shows the HIDE strip, never the archive one (the hide itself:
 //      swipe-hide.test.mjs); a short LEFT slide on the latest reply cancels; a

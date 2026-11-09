@@ -256,7 +256,7 @@ tests/e2e/thread-dock-target.test.mjs 20
 tests/e2e/thread-jump.test.mjs 6
 tests/e2e/top-bar-mobile.test.mjs 13
 tests/e2e/top-bar-tenant.test.mjs 7
-tests/e2e/topic-archive-latest-only.test.mjs 11
+tests/e2e/topic-archive-any-message.test.mjs 11
 tests/e2e/topic-archive-policy.test.mjs 13
 tests/e2e/topic-archived-state.test.mjs 12
 tests/e2e/topic-menu-open-pane.test.mjs 7

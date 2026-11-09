@@ -494,7 +494,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useDrafts } from '~/composables/useDrafts'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
-import { mayArchiveTopic, mayChangeTopic, paneArchiveOffer } from '~/utils/topic-archive.mjs'
+import { mayArchiveTopic, mayChangeTopic, paneArchiveOffer, paneArchiveSwipe } from '~/utils/topic-archive.mjs'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canMakeTask as mayMakeTask, canSetKind } from '~/utils/msg-kind.mjs'
@@ -557,7 +557,7 @@ const props = defineProps<{
       was opened on (never movable), `topic` the pane's task. */
   moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null,
   /** HUM-10 (owner, t1 7de82b71): a topic pane's latest message, the one
-      that offers Archive topic. Set only in a topic pane, with paneOpener. */
+      whose left swipe archives the topic. Set only in a topic pane, with paneOpener. */
   lastMsgId?: string
   /** ... and that pane's opening card: the archive permission is the topic's,
       read on it, never on the reply. undefined outside a topic pane. */
@@ -701,12 +701,16 @@ async function removeFile(f: FileRef) {
    re-checks; this only decides what the menu offers. */
 const access = useAccessStore()
 const showTopicDelete = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
-/* HUM-10 (owner, t1 7de82b71): in a topic pane only the LATEST message offers
+/* HUM-10 (owner, t1 bb0091f1): in a topic pane every message's menu offers
    Archive topic, on the opener's permission; elsewhere the topic card does */
 const inPane = computed(() => props.paneOpener !== undefined)
 const showTopicArchive = computed(() => (inPane.value
-  ? paneArchiveOffer(props.msg, props.lastMsgId || '', props.paneOpener, editorId.value, access.me)
+  ? paneArchiveOffer(props.msg, props.paneOpener, editorId.value, access.me)
   : Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me)))
+/* ... the left swipe stays on the pane's latest message (t1 7de82b71) */
+const swipeTopicArchive = computed(() => (inPane.value
+  ? paneArchiveSwipe(props.msg, props.lastMsgId || '', props.paneOpener, editorId.value, access.me)
+  : showTopicArchive.value))
 /* ... on a reply (not the topic card) it keeps the message's own Delete */
 const paneArchiveReply = computed(() => inPane.value && !props.topicMenu && showTopicArchive.value)
 const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access.me?.role ?? null))
@@ -737,7 +741,7 @@ const { showParent, parentKind, onMenuParent, copyMessageLink, copyBody, onMenuO
 const { movedFrom, movedText, dmRef, dmRefText, dmRefTip, pointerText, pointerTip } = useCardNotes(props)
 
 const longPress = useCardLongPress(editing, pickerOpen, menu)
-const { inTopicPane, swipeOn, swipeArchive, swipeLeft, menuHide } = useCardSwipeFlags(props, { editing, rowEl, inPane, showTopicArchive },
+const { inTopicPane, swipeOn, swipeArchive, swipeLeft, menuHide } = useCardSwipeFlags(props, { editing, rowEl, inPane, showTopicArchive: swipeTopicArchive },
   () => mayArchiveTopic(props.msg, editorId.value, access.me))
 const { swipe, swipeDx, swipeDir, swipeArmed, swipeSettle, onMenuHide } = useCardSwipe({ props, rowEl, swipeLeft, pickerOpen }, menu, {
   stop: () => { longPress.cancel(); rowDrag.cancel() },

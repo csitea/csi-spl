@@ -9,7 +9,7 @@
 //
 // Against the lde mock (no hub), a 390x844 phone with touch, raw CDP touch:
 //   - the starter offers no hide; a short LEFT slide on it shows no strip
-//     (HUM-10, owner t1 7de82b71: Archive topic is on the latest reply only)
+//     (HUM-10, owner t1 7de82b71: the archive swipe is on the latest reply only)
 //   - a long LEFT slide on a reply shows the eye-off (hide) strip, armed; on
 //     release the card is gone and ONE thicker line stands between the cards
 //     before and after it; nothing is archived

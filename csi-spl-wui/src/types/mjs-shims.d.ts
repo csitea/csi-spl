@@ -931,7 +931,8 @@ declare module '~/utils/topic-archive.mjs' {
   export function mayArchiveTopic(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
   export function isLatestMessage(msg: unknown, lastMsgId: string): boolean
   export function latestMessageId(rows: unknown): string
-  export function paneArchiveOffer(msg: unknown, latestId: string, opener: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
+  export function paneArchiveOffer(msg: unknown, opener: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
+  export function paneArchiveSwipe(msg: unknown, latestId: string, opener: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
   export function topicFrameDrops(frame: unknown): string[]
   export function topicFrameTasks(frame: unknown, lobbyTaskId?: string): string[]
   export function topicErrorKey(e: unknown, scope?: string): string

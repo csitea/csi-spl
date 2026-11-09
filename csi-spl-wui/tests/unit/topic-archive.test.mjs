@@ -15,6 +15,7 @@ import {
   mayChangeTopic,
   openingCardId,
   paneArchiveOffer,
+  paneArchiveSwipe,
   topicErrorKey,
   topicFrameDrops,
   topicFrameTasks,
@@ -81,12 +82,13 @@ describe('isLatestMessage', () => {
   })
 })
 
-describe('HUM-10: in a topic pane only the LATEST message offers Archive topic (owner, t1 7de82b71)', () => {
+describe('HUM-10: every stored message of a topic pane offers Archive topic in its menu; the left swipe stays on the latest (owner, t1 bb0091f1 msg 83355f04)', () => {
   const opener = { msg_id: 'o1', task_id: 't1', from: 'HUM-1', is_parent: 1, ts: '2026-10-10T10:00:00Z' }
   const older = { msg_id: 'r1', task_id: 't1', from: 'HUM-2', is_parent: 0, ts: '2026-10-10T10:01:00Z' }
   const newest = { msg_id: 'r2', task_id: 't1', from: 'HUM-2', is_parent: 0, ts: '2026-10-10T10:02:00Z' }
   const everyone = { role: 'developer', tenantOwner: false, topicArchivePolicy: 'everyone' }
   const starter = { role: 'developer', tenantOwner: false, topicArchivePolicy: 'starter' }
+  const admins = { role: 'developer', tenantOwner: false, topicArchivePolicy: 'admins' }
 
   it('the latest message is the newest stored row, whatever order the pane shows', () => {
     assert.equal(latestMessageId([newest, older, opener]), 'r2')
@@ -95,34 +97,37 @@ describe('HUM-10: in a topic pane only the LATEST message offers Archive topic (
     assert.equal(latestMessageId([opener, { msg_id: 'p', pending: true, ts: '2026-10-10T11:00:00Z' }]), 'o1', 'a pending echo is not stored yet')
     assert.equal(latestMessageId([]), '')
   })
-  it('the latest reply: yes', () => {
-    assert.equal(paneArchiveOffer(newest, 'r2', opener, 'HUM-2', everyone), true)
+  it('the menu: the latest reply, an older reply and the opening card all offer it', () => {
+    for (const m of [newest, older, opener]) assert.equal(paneArchiveOffer(m, opener, 'HUM-2', everyone), true, m.msg_id)
   })
-  it('an older reply: no', () => {
-    assert.equal(paneArchiveOffer(older, 'r2', opener, 'HUM-2', everyone), false)
-  })
-  it('the opener alone (no replies): yes', () => {
-    assert.equal(paneArchiveOffer(opener, latestMessageId([opener]), opener, 'HUM-1', everyone), true)
-  })
-  it('the opener of a topic with replies: no', () => {
-    assert.equal(paneArchiveOffer(opener, 'r2', opener, 'HUM-1', everyone), false)
+  it('the menu: a viewer the setting refuses is offered it on none', () => {
+    for (const m of [newest, older, opener]) assert.equal(paneArchiveOffer(m, opener, 'HUM-2', admins), false, m.msg_id)
   })
   it('the permission is read on the opener, never on the reply', () => {
-    // starter policy: HUM-2 wrote the latest reply but did not start the topic
-    assert.equal(paneArchiveOffer(newest, 'r2', opener, 'HUM-2', starter), false)
-    // HUM-1 started it: the latest reply (someone else's) offers it to them
-    assert.equal(paneArchiveOffer(newest, 'r2', opener, 'HUM-1', starter), true)
+    // starter policy: HUM-2 wrote the replies but did not start the topic
+    for (const m of [newest, older]) assert.equal(paneArchiveOffer(m, opener, 'HUM-2', starter), false, m.msg_id)
+    // HUM-1 started it: someone else's replies offer it to them
+    for (const m of [newest, older]) assert.equal(paneArchiveOffer(m, opener, 'HUM-1', starter), true, m.msg_id)
     // no opener known: nothing is offered
-    assert.equal(paneArchiveOffer(newest, 'r2', null, 'HUM-1', everyone), false)
+    assert.equal(paneArchiveOffer(older, null, 'HUM-1', everyone), false)
   })
-  it('never on a pending echo or with no latest id', () => {
-    assert.equal(paneArchiveOffer({ ...newest, pending: true }, 'r2', opener, 'HUM-1', everyone), false)
-    assert.equal(paneArchiveOffer(newest, '', opener, 'HUM-1', everyone), false)
+  it('the menu: never on a pending echo', () => {
+    assert.equal(paneArchiveOffer({ ...older, pending: true }, opener, 'HUM-1', everyone), false)
   })
-  it('MessageCard gates the menu item and the left swipe on it; the pane passes the opener', () => {
+  it('the left swipe: only the latest message, on the same permission', () => {
+    assert.equal(paneArchiveSwipe(newest, 'r2', opener, 'HUM-2', everyone), true)
+    assert.equal(paneArchiveSwipe(older, 'r2', opener, 'HUM-2', everyone), false)
+    assert.equal(paneArchiveSwipe(opener, 'r2', opener, 'HUM-1', everyone), false, 'the opener of a topic with replies')
+    assert.equal(paneArchiveSwipe(opener, latestMessageId([opener]), opener, 'HUM-1', everyone), true, 'the opener alone')
+    assert.equal(paneArchiveSwipe(newest, 'r2', opener, 'HUM-2', admins), false)
+    assert.equal(paneArchiveSwipe({ ...newest, pending: true }, 'r2', opener, 'HUM-1', everyone), false)
+    assert.equal(paneArchiveSwipe(newest, '', opener, 'HUM-1', everyone), false)
+  })
+  it('MessageCard gates the menu on the pane offer and hands the swipe its own latest-only flag', () => {
     const mc = messageCardSrc()
-    assert.match(mc, /paneArchiveOffer\(props\.msg, props\.lastMsgId \|\| '', props\.paneOpener/)
-    assert.match(mc, /if \(props\.topicMenu \|\| inPane\.value\) return showTopicArchive\.value/)
+    assert.match(mc, /paneArchiveOffer\(props\.msg, props\.paneOpener, editorId\.value, access\.me\)/)
+    assert.match(mc, /paneArchiveSwipe\(props\.msg, props\.lastMsgId \|\| '', props\.paneOpener, editorId\.value, access\.me\)/)
+    assert.match(mc, /showTopicArchive: swipeTopicArchive/)
     assert.match(src('src/components/LiveFeed.vue'), /:pane-opener="paneOpener"/)
   })
 })
@@ -181,7 +186,7 @@ describe('the card menu', () => {
     // Both flags = the author / owner / admin card, as `topic` shorthand does.
     assert.deepEqual(msgMenuItems({ topicArchive: true, topicDelete: true }).map((i) => i.id), ['open', 'copy', 'archive', 'delete-topic'])
   })
-  it('HUM-10 (t1 7de82b71): a topic pane\'s latest reply offers Archive AND keeps its message Delete', () => {
+  it('HUM-10 (t1 7de82b71, bb0091f1): a topic pane\'s reply offers Archive AND keeps its message Delete', () => {
     assert.deepEqual(msgMenuItems({ editable: true, topicArchive: true, paneArchive: true }).map((i) => i.id), ['open', 'copy', 'edit', 'archive', 'delete'])
     // not the viewer's to delete: Archive alone
     assert.deepEqual(msgMenuItems({ editable: false, topicArchive: true, paneArchive: true }).map((i) => i.id), ['open', 'copy', 'archive'])

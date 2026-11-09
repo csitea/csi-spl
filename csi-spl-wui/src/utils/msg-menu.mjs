@@ -124,7 +124,7 @@ export function msgMenuItems(opts = {}) {
   if (o.promoteTopic) items.push({ id: 'promote-topic', icon: 'move', labelKey: 'feed.msg_menu.promote_topic' })
   if (!touch) archive()
   if (wantDelete || locks.delete) gated(wantDelete, { id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' }, locks.delete)
-  // HUM-10 (t1 7de82b71): a topic pane's latest REPLY offers Archive topic
+  // HUM-10 (t1 bb0091f1): a topic pane's REPLY offers Archive topic
   // (`paneArchive`) and keeps its own message Delete, as before that rule.
   else if (editable && (!wantArchive || o.paneArchive)) items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
   return items

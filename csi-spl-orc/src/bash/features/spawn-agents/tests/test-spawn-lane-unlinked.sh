@@ -45,4 +45,12 @@ eq "a relay hash from the ask yields to the brief's discussion" "$D" "$(sent c-8
 eq "...also when it came as LANE_ISSUE_TOPIC" "$D" "$(sent c-879 "$T_TMP/brief-disc.md" LANE_ISSUE_TOPIC="$H")"
 eq "control: with no discussion in the brief the hash is still sent (the hub may resolve it)" "$H" "$(sent c-880 "$T_TMP/brief-nodisc.md" SPAWN_LANE_TOPIC="$H")"
 eq "control: a topic uuid from the ask wins over the brief's" "$U" "$(sent c-881 "$T_TMP/brief-disc.md" SPAWN_LANE_TOPIC="$U")"
+# A v5 from the ask can be a real topic: a dispatch-<8hex> the brief merely
+# mentions must not beat it (SPL-5144, R7 c-437 W1); only a named discussion does.
+printf '# Brief: review\n\nIssue: SPL-1\nSee the task dispatch-1234abcd for the history.\n' >"$T_TMP/brief-stray.md"
+printf '# Brief: review\n\nIssue: SPL-1\nDiscussion: %s\nSee the task dispatch-1234abcd.\n' "$D" >"$T_TMP/brief-stray-disc.md"
+eq "a stray dispatch-<8hex> in the brief does not beat a v5 from the ask" "$H" "$(sent c-882 "$T_TMP/brief-stray.md" SPAWN_LANE_TOPIC="$H")"
+eq "...nor as LANE_ISSUE_TOPIC" "$H" "$(sent c-883 "$T_TMP/brief-stray.md" LANE_ISSUE_TOPIC="$H")"
+eq "control: a named Discussion: still beats the v5, stray dispatch or not" "$D" "$(sent c-884 "$T_TMP/brief-stray-disc.md" SPAWN_LANE_TOPIC="$H")"
+eq "control: with no topic in the ask the dispatch-<8hex> read still works" "1234abcd" "$(sent c-885 "$T_TMP/brief-stray.md")"
 t_done

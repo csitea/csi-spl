@@ -296,6 +296,17 @@ _spawn_lane_topic() {
   printf '%s' "$t"
 }
 
+# _spawn_lane_named_topic FILE: only the discussion FILE names outright, on a
+# `Discussion:` / `Topic:` line or a `/t/` link. The one read that may beat a
+# version-5 uuid from the ask (SPL-5144, R7 c-437 W1). Nothing for no file.
+_spawn_lane_named_topic() {
+  local f="${1:-}"
+  [ -n "$f" ] && [ -r "$f" ] || return 0
+  declare -F li_discussion_named_in_brief >/dev/null ||
+    . "$(dirname "${BASH_SOURCE[0]}")/../lib/lane-issue.inc.sh" 2>/dev/null || return 0
+  li_discussion_named_in_brief "$f" 2>/dev/null
+}
+
 # _spawn_lane_relay_hash FILE: the version-5 uuid of the first report task
 # FILE names (`task `<uuid>`` / `--task <uuid>`), a relay task's hash of its
 # name. It is sent as the row's topic only when nothing else names one: the hub
@@ -345,18 +356,24 @@ _spawn_lane_unlinked_warn() {  # SCOPE TOPIC ISSUE
 # the hub would refuse is left out so the row still lands. Last for the topic,
 # a report task's relay hash (_spawn_lane_relay_hash); the only other way a
 # version-5 uuid reaches the row is a `Discussion:` line that names it (SPL-5099).
-# A version-5 uuid in those two variables is a relay task's hash and waits
-# until the brief has been read: the hub refuses the hash of a task that is no
-# topic (dispatch-refactor-r27), and the seat then has no row (SPL-5144).
+# A version-5 uuid in those two variables can be a relay task's hash, and the
+# hub refuses the hash of a task that is no topic (dispatch-refactor-r27): the
+# seat then has no row (SPL-5144). It can also be a real topic, so only a
+# discussion the brief names outright (_spawn_lane_named_topic) beats it, never
+# a stray `dispatch-<8hex>` or a report task.
 # The origin issue is
 # lifetime/origin-issue (spec 153 3.12, do_spl_lane_issue wrote it).
 _spawn_lane_put() {
   local scope="${SPAWN_LANE_SCOPE:-}" repo="" log
-  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue="" origin="" asked_hash=""
-  if [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then asked_hash="$topic"; topic=""; fi
+  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue="" origin="" asked_hash
+  if [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+    asked_hash="$topic"
+    topic="$(_spawn_lane_named_topic "$BRIEF")"
+    [ -n "$topic" ] || topic="$(_spawn_lane_named_topic "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
+    [ -n "$topic" ] || topic="$asked_hash"
+  fi
   [ -n "$topic" ] || topic="$(_spawn_lane_topic "$BRIEF")"
   [ -n "$topic" ] || topic="$(_spawn_lane_topic "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
-  [ -n "$topic" ] || topic="$asked_hash"
   [ -n "$topic" ] || topic="$(_spawn_lane_relay_hash "$BRIEF")"
   [ -n "$topic" ] || topic="$(_spawn_lane_relay_hash "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
   if [ -n "$BRIEF" ] && . "${_SP_DIR}/../lib/lane-issue.inc.sh" 2>/dev/null; then

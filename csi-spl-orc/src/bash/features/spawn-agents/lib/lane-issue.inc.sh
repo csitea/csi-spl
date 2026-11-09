@@ -55,6 +55,18 @@ li_key_from_brief() {
 # landed with no topic). Nothing = no discussion.
 li_discussion_from_brief() {
   [ -r "${1:-}" ] || return 1
+  local t
+  t="$(li_discussion_named_in_brief "$1")"
+  [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$1" | head -1 | grep -oE '[0-9a-f]{8}' | head -1)"
+  [ -n "$t" ] && printf '%s\n' "$t"
+}
+
+# li_discussion_named_in_brief FILE -> li_discussion_from_brief without its last
+# resort: only what a `Discussion:` / `Topic:` line or a `/t/` link names. A
+# `dispatch-<8hex>` can be any task the brief mentions, so it is too weak to beat
+# a topic the ask carried (SPL-5144, R7 c-437 W1).
+li_discussion_named_in_brief() {
+  [ -r "${1:-}" ] || return 1
   local rest='-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' end='([^0-9A-Za-z-]|$)' t
   local uuid="[0-9a-f]{8}${rest}" id="[0-9a-f]{8}(${rest})?"
   t="$(sed -nE 's/^[-*_ >]*[Dd]iscussion[*_ ]*:[*_ ]*//p' "$1" |
@@ -63,7 +75,6 @@ li_discussion_from_brief() {
     grep -oE "$id" | sed -n 1p)"
   [ -n "$t" ] || t="$(grep -oE "([Tt]opic[*_: ]+\`?|[Dd]iscussion[*_: ]+\`?|/t/)${id}${end}" "$1" |
     grep -oE "$id" | grep -vE '^[0-9a-f]{8}-[0-9a-f]{4}-5' | sed -n 1p)"
-  [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$1" | head -1 | grep -oE '[0-9a-f]{8}' | head -1)"
   [ -n "$t" ] && printf '%s\n' "$t"
 }
 

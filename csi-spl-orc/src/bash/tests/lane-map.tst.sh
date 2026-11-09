@@ -350,8 +350,9 @@ row="$(jq -c '.lanes[] | select(.agent_id == "c-109" and .agent_box == "sat")' "
   pass "...and no row with a two-word box was made" || fail "rows: $(cat "$T/hub/main.json")"
 # 8b. one id live on two boxes (SPL-5144): a row per box, and each box's done
 # closes its own row from that row's fields. A box with no row of its own still
-# fails its done: the reaper reads that failure as "cannot tell" and alerts (a
-# wrong box name looks the same). The stub refuses no topic, as the hub does.
+# fails its done. The reaper skips that done when the hub listed this box's rows
+# without the id; it tries it, and alerts on the failure, only when it cannot
+# tell (no answer, or a wrong box name). The stub refuses no topic, as the hub does.
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_BRANCH=on-pc LANE_TOPIC=t-pc LANE_ISSUE=SPL-11 >/dev/null
 on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_BRANCH=on-sat LANE_TOPIC=t-sat LANE_ISSUE=SPL-12 >/dev/null
 [[ "$(jq -r '[.lanes[] | select(.agent_id == "c-111" and .state == "live") | .agent_box + ":" + .topic] | sort | join(",")' "$T/hub/main.json")" == box-desk:t-pc,sat:t-sat ]] &&
@@ -363,7 +364,7 @@ on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_STATE=done >/dev/null
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_BRANCH=on-pc LANE_TOPIC=t-pc LANE_ISSUE=SPL-13 >/dev/null
 out="$(on sat do_spl_lane_put "${F[@]}" HUB_REQUIRE_LINKS=1 LANE_AGENT=c-112 LANE_STATE=done 2>&1)"; rc=$?
 [[ $rc -eq 2 && "$out" == *"topic is required"* ]] &&
-  pass "pin: a done with no row on this box is still refused, exit 2 (the reaper's alert)" || fail "no-row done (rc=$rc): $out"
+  pass "pin: a done with no row on this box is still refused, exit 2" || fail "no-row done (rc=$rc): $out"
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_STATE=done >/dev/null
 out="$(on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-110 'LANE_BOX=sat box-desk')"; rc=$?
 [[ $rc -eq 1 && "$out" == *"LANE_BOX must be"* ]] && pass "the action refuses a two-word LANE_BOX" || fail "two-word LANE_BOX (rc=$rc): $out"

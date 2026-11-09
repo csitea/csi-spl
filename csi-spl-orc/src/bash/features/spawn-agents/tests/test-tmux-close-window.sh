@@ -183,6 +183,8 @@ in_agy_session() {  # run CMD... the way agy runs a command: own session, killed
   setsid -f -w bash -c '"$@"; kill -KILL -- -$$' _ "$@" >/dev/null 2>&1; return 0
 }
 got_exit() { for _ in $(seq 1 "$2"); do grep -q CLAUDE-EXITED "$1" 2>/dev/null && return 0; sleep 0.5; done; return 1; }
+# The close log has a line matching ERE within N half-seconds (log14 is defined below).
+logged() { for _ in $(seq 1 "$2"); do log14 | grep -E "$1" >/dev/null && return 0; sleep 0.5; done; return 1; }
 spliced() {  # DIR: an empty copy dir beside a lib/ link (the SUT loads lib/ relative to itself)
   mkdir -p "$1/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$1/lib"
 }
@@ -772,7 +774,10 @@ s17c() {  # --defer never closes another window of its id that still runs an age
   drawn "$P17L" 'esc to interrupt' >/dev/null
   CLE_TMUX_PANE="$P17D" bash "$SUT" --agent c-434 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1
   check "17. --defer: the lane's own window closes" wait_gone "$P17D" 60
-  sleep 2
+  # The closer kills its own window FIRST, then walks every window of the id
+  # (a ps tree per pane) and only then logs "left open" and "done": a fixed
+  # sleep raced that walk under load. Wait for its "done" line instead.
+  logged 'Z done$' 120 || :
   check "17. --defer: ... a window of c-434 that runs an agent CLI stays" alive "$P17L"
   check "17. --defer: ... and c-434 is not retired" grep -q "^c-434	" "$SPOOL_ROOT/registry.tsv"
   has "17. --defer: ... the log names the window it left open" "still runs an agent CLI; left open" "$(log14)"

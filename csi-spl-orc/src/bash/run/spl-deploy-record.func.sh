@@ -41,6 +41,7 @@ do_spl_deploy_record() {
   [[ "$component" == hub || "$component" == wui ]] || { do_log "FATAL DEPLOY_COMPONENT must be hub or wui, got: '$component'"; return 1; }
   [[ "$version" =~ ^v?[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c[0-9]+)?$ ]] ||
     { do_log "FATAL DEPLOY_VERSION must look like 3.2.5 or v1.0.1-c2, got: '$version'"; return 1; }
+  [[ "$version" == v* ]] || version="v$version" # the hub stores a tag as sent; csi-spl's rows carry v
   [[ "$status" == success || "$status" == failed ]] || { do_log "FATAL DEPLOY_STATUS must be success or failed, got: '$status'"; return 1; }
   [[ "$run_id" =~ ^[A-Za-z0-9._-]{0,64}$ ]] || { do_log "FATAL DEPLOY_RUN_ID must be up to 64 of [A-Za-z0-9._-], got: '$run_id'"; return 1; }
   [[ -n "$sha" ]] || sha="$(git -C "${APP_PATH:-.}" rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null)"

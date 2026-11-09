@@ -811,7 +811,7 @@ dark_row() {  # ID SLUG
 }
 dark_tick() {  # [env...]: a tick once the 10 min gap has passed
   [[ ! -e "$T/pc/spool/asks/.place.last" ]] || touch -d "@$(( $(date +%s) - 11 * 60 ))" "$T/pc/spool/asks/.place.last"
-  on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_DARK_SLUG=dark-pin "$@" 2>&1
+  on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 SPAWN_PLACE_DARK_RETRY_MIN=0 LAUNCH_DARK_SLUG=dark-pin "$@" 2>&1
 }
 dark_placed() { local i n=0; for i in "$@"; do [[ "$(jq -r .reason <<<"$(hubrow "$i")")" == placed:* ]] && n=$((n + 1)); done; echo "$n"; }
 dark_row "$D1" hand-sat-dark-pin; dark_row "$D2" dark-behind; dark_row "$D3" dark-behind; dark_row "$D4" dark-behind
@@ -843,6 +843,58 @@ out="$(dark_tick LAUNCH_DARK_SLUG= LAUNCH_RC=8 "LAUNCH_ERR=spawn-window: the spa
   pass "12d. CONTROL: a box that refused (remote exit 4) still fails: gap armed, the holder told" ||
   fail "12d. control: $out | $(sends)"
 for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
+
+# 12e. SPL-5143, R7 W1/W2/N1: a box that gave no reply is tried once per
+# SPAWN_PLACE_DARK_RETRY_MIN and its rows leave the line meanwhile, so they
+# use none of a tick's SPAWN_PLACE_HOLD_TRIES. A row dark for
+# SPAWN_PLACE_DARK_ALARM_MIN gets one blocker; its wait line keeps the start.
+rm -f "$T/pc/spool/asks/.place.dark"
+E0=e0e0e0e0-0000-4000-8000-00000000000; E1=e8e8e8e8-0000-4000-8000-00000000000; E7=e7e7e7e7-0000-4000-8000-00000000000
+DF="$T/pc/spool/asks/.place.dark"
+for n in 1 2 3 4 5 6; do printf 'brief text\n%s\n' "$ES" >"$T/briefs/dk$n.md"; done
+dk_tick() { dark_tick SPAWN_PLACE_DARK_RETRY_MIN=30 "LAUNCH_DARK_SLUG=dk1 dk2 dk3 dk4 dk5" "$@"; }
+dk_clean() { for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done; rm -f "$DF" "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"; }
+dk_clean
+for n in 1 2 3 4 5; do dark_row "${E0}$n" "hand-sat-dk$n"; done; dark_row "${E0}6" dk6
+out="$(dk_tick LAUNCH_ID=c-510)"
+[[ "$(grep -c ' dk[1-5] SPAWN_BOX=sat$' "$T/launch.log")" == 1 && "$(dark_placed "${E0}6")" == 1 ]] &&
+  pass "12e. five rows on one silent box: one launch tried, the row behind them placed in the same tick" ||
+  fail "12e. one box: placed $(dark_placed "${E0}6"): $(cat "$T/launch.log")"
+[[ "$(jq -r .state <<<"$(hubrow "${E0}1")")" == queued && "$(jq -r .state <<<"$(hubrow "${E0}5")")" == queued ]] &&
+  pass "12e. the rows pinned to the silent box stay queued" || fail "12e. rows: $(hubrow "${E0}1")"
+: >"$T/launch.log"; dark_row "${E1}1" dk6
+out="$(dk_tick LAUNCH_ID=c-511)"
+[[ "$(grep -c ' dk[1-5] SPAWN_BOX=' "$T/launch.log")" == 0 && "$(dark_placed "${E1}1")" == 1 && "$(grep -c "ask ${E0:0:8}" <<<"$out")" -ge 1 ]] &&
+  grep -q "^${E0}1"$'\t'".*no reply from sat since " "$T/pc/spool/asks/.place.wait" &&
+  pass "12e. inside the retry window the silent box costs no launch, the wait line carries its start" ||
+  fail "12e. window: $out | $(cat "$T/launch.log")"
+awk -F'\t' -v OFS='\t' -v o="$(( $(date +%s) - 3 * 3600 ))" '{ $3 = o; print }' "$DF" >"$DF.t" && mv "$DF.t" "$DF"
+: >"$T/send.log"; dark_row "${E1}2" dk6; dk_tick LAUNCH_ID=c-512 >/dev/null
+first="$(grep -c "${E0:0:8}" "$T/send.log")"
+dark_row "${E1}3" dk6; dk_tick LAUNCH_ID=c-513 >/dev/null
+[[ "$first" -ge 1 && "$(grep -c "${E0:0:8}" "$T/send.log")" == "$first" ]] && grep -q 'no reply' "$T/send.log" &&
+  pass "12e. a row dark past the alarm mark tells the holder once, not per tick" ||
+  fail "12e. alarm: first=$first $(sends)"
+awk -F'\t' -v OFS='\t' -v o="$(( $(date +%s) - 31 * 60 ))" '{ $4 = o; print }' "$DF" >"$DF.t" && mv "$DF.t" "$DF"
+: >"$T/launch.log"; dark_row "${E1}4" dk6; dk_tick LAUNCH_ID=c-514 >/dev/null
+[[ "$(grep -c ' dk[1-5] SPAWN_BOX=sat$' "$T/launch.log")" == 1 && "$(dark_placed "${E1}4")" == 1 ]] &&
+  pass "12e. the retry window over: one row of the box is tried again, one only" ||
+  fail "12e. retry: $(cat "$T/launch.log")"
+awk -F'\t' -v OFS='\t' -v o="$(( $(date +%s) - 31 * 60 ))" '{ $4 = o; print }' "$DF" >"$DF.t" && mv "$DF.t" "$DF"
+dark_tick SPAWN_PLACE_DARK_RETRY_MIN=30 LAUNCH_DARK_SLUG= LAUNCH_ID=c-515 >/dev/null
+[[ "$(grep -c $'\tsat\t' "$DF")" == 0 ]] && pass "12e. a launch that starts on the box clears its dark state" || fail "12e. clear: $(cat "$DF")"
+dk_clean
+for n in 1 2 3 4 5; do dark_row "${E7}$n" "hand-bx$n-dk$n"; done; dark_row "${E7}6" dk6
+dk_tick LAUNCH_ID=c-516 >/dev/null; dk_tick LAUNCH_ID=c-517 >/dev/null
+[[ "$(grep -c ' dk[1-5] SPAWN_BOX=' "$T/launch.log")" == 5 && "$(dark_placed "${E7}6")" == 1 ]] &&
+  pass "12e. five silent boxes: five tries once, the next tick places the row behind them" ||
+  fail "12e. five boxes: $(cat "$T/launch.log")"
+dk_clean
+# N1: the placer matches spawn-window's own line, so the real text is pinned
+grep -qF 'did not start (spawn-remote exit ${rc})" >&2; exit 8' "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" &&
+  grep -qF "'did not start (spawn-remote exit 5)\$'" "$PROJ_ROOT/src/bash/run/spl-spawn-place.func.sh" &&
+  pass "12e. spawn-window's pinned exit 8 line is the text the placer matches" ||
+  fail "12e. the launcher's line and the placer's match differ"
 
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true

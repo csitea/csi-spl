@@ -429,12 +429,22 @@ HOLD, like a full box:
 The other exit 8 causes (the box refused, the request did not leave) still
 fail as before: gap armed and the holder told.
 
-Each try still waits for the reply (300 s by default) inside the tick, under
-the placer's lock. The request carries an expiry, so a box that wakes late
-refuses it and a retry starts nothing twice.
+Each try waits for the reply (300 s by default) inside the tick, under the
+placer's lock, so a box that gave no reply is tried again only once per
+`SPAWN_PLACE_DARK_RETRY_MIN` (30). Until then its rows leave the line
+(`spl_spawn_place_dark_hold`, state in `.place.dark`) and use none of the
+tick's tries. A launch that starts on the box clears the state.
+
+A row dark for `SPAWN_PLACE_DARK_ALARM_MIN` (120) or more gets one blocker to
+the holder, and its `.place.wait` line carries the time the wait began.
+
+Known limit: no reply is not proof that nothing started. The request expires,
+but a box can take it just before the expiry and finish late, or start the
+lane and lose the reply; the pinned path has no slug check, so a retry can then
+start the lane twice. The retry window limits how often that can happen.
 
 The alternative, skipping a row whose launch failed within the last gap, was
 not taken: the failed launch would still burn a gap slot on every try.
 
-Test: `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` case 12d, with its
-control (a refusing box still fails).
+Test: `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` cases 12d, with its
+control (a refusing box still fails), and 12e.

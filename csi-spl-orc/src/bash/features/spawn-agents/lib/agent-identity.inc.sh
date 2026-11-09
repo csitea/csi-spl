@@ -34,12 +34,24 @@ AI_PY="$AI_LIB_DIR/../scripts/agent-identity.py"
 
 ai_dir() { printf '%s/agents' "${SPOOL_ROOT:-/var/spool-hub}"; }
 
+# The user who owns tmux socket SOCK, nothing when none can be read. A socket
+# in another user's tmux-<uid> dir cannot be statted (mode 0700), but that dir
+# is tmux's own per-user one: its owner is the server's.
+ai_socket_owner() {  # SOCK
+  local owner
+  owner="$(stat -c %U "$1" 2>/dev/null || true)"
+  if [ -z "$owner" ]; then
+    case "$1" in */tmux-[0-9]*/*) owner="$(stat -c %U "${1%/*}" 2>/dev/null || true)" ;; esac
+  fi
+  printf '%s' "$owner"
+}
+
 # tmux on the box's server, as the user who owns its socket.
 ai_tmux() {
   local sock="${SPOOL_TMUX_SOCKET:-}" owner
   [ -n "$sock" ] || { sock="${TMUX:-}"; sock="${sock%%,*}"; }
   [ -n "$sock" ] || sock="/tmp/tmux-$(id -u)/default"
-  owner="$(stat -c %U "$sock" 2>/dev/null || true)"
+  owner="$(ai_socket_owner "$sock")"
   if [ -n "$owner" ] && [ "$owner" != "$(id -un)" ]; then sudo -n -u "$owner" tmux -u -S "$sock" "$@"
   else tmux -u -S "$sock" "$@"; fi
 }

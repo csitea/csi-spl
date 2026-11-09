@@ -26,7 +26,7 @@ set -uo pipefail
 t_sandbox
 unset TMUX TMUX_PANE SPOOL_BOX_TAG BOX_TAG SPOOL_AGENT_ID MCP_BOT_AGENT_ID SPOOL_AGENT_USER
 BX="boxu-$$"; AG="agentu-$$"; ME="$(id -un)"
-export SPOOL_BOX_USER="$BX"
+export SPOOL_BOX_USER="$BX" IDENTITY_SOCKET_OWNER="$BX"
 HB="$T_TMP/home-box"; HA="$T_TMP/home-agent"; W="$T_TMP/wt"; A="$T_TMP/adapters"; B="$T_TMP/bin"
 mkdir -p "$HB/.claude/sessions" "$HA/.claude" "$W/CLE-61" "$A" "$B" "$SPOOL_ROOT/agents"
 t_box_env "SPOOL_AGENT_USER=$AG" || exit 1

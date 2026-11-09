@@ -111,8 +111,12 @@ agent the restart killed:
 A record is REFUSED, named and skipped, when its session is unknown, is on two
 records, or is already running; when its worktree is gone; or when its
 transcript is not under that worktree's project dir or belongs to another
-agent. Tests: `tests/test-agent-identity-restore.sh`,
-`tests/test-agent-identity-restore-user.sh`. The box engine's boot job
+agent. The run uses the box tmux socket whichever user runs it, through the
+socket's owner, and prints it, the dry run too; a socket another user owns, or
+one with no owner to read when the caller is not the box user, refuses the run
+(SPL-5139). Tests: `tests/test-agent-identity-restore.sh`,
+`tests/test-agent-identity-restore-user.sh`,
+`tests/test-agent-identity-restore-box-socket.sh`. The box engine's boot job
 calls this action instead of inferring agent sessions from window names.
 
 4.5 A box with no such boot job (the satellite) runs

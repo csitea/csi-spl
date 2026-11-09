@@ -56,7 +56,13 @@
 # @description IDENTITY_RESTORE_IDS is a restore by hand, the admin's act that
 # @description clears a 6.1 hold (<id>/lifetime/heldout, restore-core.inc.sh);
 # @description without it the adapters run with RESTORE_KEEP_HOLD=1.
-# @description Dry run unless DRY_RUN=0: prints the plan (RESTORE / REFUSE / SKIP / FALLBACK).
+# @description The run goes to the BOX tmux socket whichever user runs it,
+# @description through that socket's owner, never the caller's own socket or
+# @description $TMUX (SPL-5139: a run as the agent user started a private server
+# @description no poke reaches). A socket another user owns, or one with no
+# @description owner to read when the caller is not the box user, is a REFUSE
+# @description of the whole run, the dry run too.
+# @description Dry run unless DRY_RUN=0: prints the socket and the plan (RESTORE / REFUSE / SKIP / FALLBACK).
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param IDENTITY_RESTORE_IDS (optional) - only these ids ("CLE-07 CLE-12"); the since rule is not applied, and each id not started is named with why (SKIP: no record on this box, already running (pid N); REFUSE ...)
 # @param IDENTITY_RESTORE_SINCE (optional) - UTC (2026-10-01T03:33:00Z); default the boot time
@@ -69,7 +75,9 @@
 # @param IDENTITY_RESTORE_USER (optional) - the user to start agents as, default the box's SPOOL_AGENT_USER
 # @param IDENTITY_COPY_OWNER (optional) - the owner a copied transcript gets, default that user (tests only)
 # @param IDENTITY_COPY_SUDO (optional) - the prefix that runs the copy, default "sudo -n" unless root (tests only)
+# @param IDENTITY_SOCKET_OWNER (optional) - the owner the socket check reads, default the socket's own (tests only)
 # @param GROK_BIN (optional) - the grok cli a grok seat restarts with, default grok on the agent user's login PATH
+# @param SPOOL_TMUX_SOCKET (optional) - default the box user's socket, /tmp/tmux-<uid>/default
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_identity_restore
 # @example DRY_RUN=0 ./run -a do_spl_agent_identity_restore
@@ -87,15 +95,15 @@ do_spl_agent_identity_restore() {
   source "$feat/lib/agent-identity.inc.sh" || return 1
   # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
   source "$feat/lib/spool-env.inc.sh" || return 1
-  local agent_user box_user
-  read -r box_user agent_user < <(SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1; printf '%s %s\n' "$SPOOL_BOX_USER" "$SPOOL_AGENT_USER")
+  local agent_user box_user box_sock
+  read -r box_user agent_user box_sock < <(SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1; printf '%s %s %s\n' "$SPOOL_BOX_USER" "$SPOOL_AGENT_USER" "$SPOOL_TMUX_SOCKET")
   agent_user="${IDENTITY_RESTORE_USER:-$agent_user}"
   [[ -n "$agent_user" ]] || { do_log "FATAL no agent user: set SPOOL_AGENT_USER in \$SPOOL_ROOT/box.env (or IDENTITY_RESTORE_USER)"; return 1; }
+  local -x SPOOL_TMUX_SOCKET="$box_sock"
+  _ai_restore_socket "$box_user" || return 1
   local win="${IDENTITY_RESTORE_WINDOW:-15}" until
   [[ "$win" =~ ^[0-9]+$ ]] || { do_log "FATAL IDENTITY_RESTORE_WINDOW must be minutes, got: '$win'"; return 1; }
-  if [[ -z "$since" ]]; then
-    since="$(date -u -d "@$(awk '/^btime/{print $2}' /proc/stat)" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
-  fi
+  [[ -n "$since" ]] || since="$(_ai_boot_time)"
   until="$(date -u -d "$since + $win minutes" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   local plan line kind id user sid wt sess title from adapter brief pane dead rid why reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
   local n=0 refused=0 failed=0 now started=() tag keep=1
@@ -157,6 +165,25 @@ do_spl_agent_identity_restore() {
     failed=$((failed + 1))
   fi
   (( failed == 0 ))
+}
+
+# The box socket this run uses, or a REFUSE (1) when a start there would not
+# land on the box's server: another user owns it, or no owner can be read and
+# the caller is not the box user, so a start would make a server of its own.
+_ai_restore_socket() {  # BOX-USER
+  local owner me
+  owner="${IDENTITY_SOCKET_OWNER:-$(ai_socket_owner "$SPOOL_TMUX_SOCKET")}"; me="$(id -un)"
+  if [[ -n "$owner" && "$owner" != "$1" ]]; then
+    echo "REFUSE  tmux socket $SPOOL_TMUX_SOCKET belongs to $owner, not the box user $1: nothing started"; return 1
+  fi
+  if [[ -z "$owner" && "$me" != "$1" ]]; then
+    echo "REFUSE  tmux socket $SPOOL_TMUX_SOCKET has no owner to read and $me is not the box user $1: nothing started"; return 1
+  fi
+  echo "restore: tmux socket $SPOOL_TMUX_SOCKET, owner ${owner:-none yet}, run by $me"
+}
+
+_ai_boot_time() {
+  date -u -d "@$(awk '/^btime/{print $2}' /proc/stat)" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null
 }
 
 # The run's first line: what it restores. A restore by id applies no since

@@ -16,7 +16,8 @@
 # The optional 7th column, the word no-auto-post: code that carries work on its
 # own posts nothing there, and names it to the orchestrator (cr_no_auto_post,
 # do_spl_archived_followup, SPL-4955). A row with channel * holds every channel
-# of its workspace; columns 3-6 of such a row are "-".
+# of its workspace; columns 3-6 of such a row are "-" and column 7 is the word.
+# A row is written and a map is checked by do_spl_channel_rule (SPL-5146).
 # The seed generator (spawn-core for a first, rotation or restart seed;
 # do_spl_lane_restart for its distil) exports the doc to a file next to the
 # seed, readable by the agent user, and the seed names that file. The doc
@@ -86,19 +87,38 @@ cr_sole_seat() {
   printf '%s\n' "$seat"
 }
 
+# cr_map_fault: "missing" or "unreadable" when the map cannot be read, else
+# nothing. Not a regular file is unreadable: awks differ on a directory.
+cr_map_fault() {
+  local m
+  m="$(cr_map)"
+  if [ ! -e "$m" ]; then echo missing
+  elif [ ! -f "$m" ] || [ ! -r "$m" ]; then echo unreadable
+  fi
+}
+
 # cr_no_auto_post TENANT CHANNEL: 0 = the map holds this channel (its row or the
 # workspace's * row has no-auto-post in column 7). 1 = it does not. 2 = cannot
-# tell: no map, a map that cannot be read, or a column 7 of those rows other than
-# the word, empty or "-" (a FATAL on stderr). Unlike a sole seat, no map is not
-# "no rule": the name of a held channel lives only in the map, so a box without
-# one cannot know. A caller treats 2 as held.
+# tell: an ALARM on stderr for no map, a map that cannot be read or an awk that
+# failed; a FATAL for a column 7 of those rows other than the word, empty or "-",
+# or a * row without the word (such a row exists only to hold). Unlike a sole
+# seat, no map is not "no rule": the name of a held channel lives only in the
+# map, so a box without one cannot know. A caller treats 2 as held.
 cr_no_auto_post() {
-  local m rc=0
+  local m fault rc=0
   m="$(cr_map)"
-  [ -r "$m" ] || return 2
-  awk -F'\t' -v t="$1" -v c="$2" '$1 !~ /^#/ && $1 == t && ($2 == c || $2 == "*") { if ($7 == "no-auto-post") f = 1; else if ($7 != "" && $7 != "-") bad = 1 } END { exit bad ? 2 : !f }' "$m" || rc=$?
-  (( rc == 2 )) && echo "FATAL channel rules: a row for $1 #$2 in $m has a column 7 that is not 'no-auto-post', '-' or empty" >&2
-  return "$rc"
+  fault="$(cr_map_fault)"
+  if [ -n "$fault" ]; then
+    echo "ALARM channel rules: the map $m is $fault: #$2 of $1 reads as held" >&2
+    return 2
+  fi
+  awk -F'\t' -v t="$1" -v c="$2" '$1 !~ /^#/ && $1 == t && ($2 == c || $2 == "*") { if ($7 == "no-auto-post") f = 1; else if ($2 == "*" || ($7 != "" && $7 != "-")) bad = 1 } END { exit bad ? 3 : !f }' "$m" || rc=$?
+  case "$rc" in
+    0|1) return "$rc" ;;
+    3) echo "FATAL channel rules: a row for $1 #$2 in $m has a column 7 that is not 'no-auto-post', '-' or empty, or is a * row without the word" >&2 ;;
+    *) echo "ALARM channel rules: awk failed with $rc on $m: #$2 of $1 reads as held" >&2 ;;
+  esac
+  return 2
 }
 
 # The export through the desk (do_spl_desk_doctree, a read). The caller is the

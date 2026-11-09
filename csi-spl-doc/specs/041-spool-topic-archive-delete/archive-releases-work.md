@@ -46,6 +46,17 @@ archived discussion is another lane's work and is not described here.
   does not swallow it. The map is
   box-side, never in git: a channel name can be a customer's. A row declined later on such a topic
   stays with its sender and the holder.
+- **The map has a named action** (SPL-5146), `do_spl_channel_rule`, never a hand edit. Check, the
+  default, reads and changes nothing: `cd csi-spl-orc && ./run -a do_spl_channel_rule`, on each
+  box. Exit 0 is fine; 2 is a map that is missing, unreadable or has a bad row; 3 is a stale map:
+  older than `CHANNEL_RULE_CHECK_NOT_BEFORE` (default 2026-11-07T05:58:00Z, when the first holds
+  were written), holding nothing, or without a hold named in `CHANNEL_RULE_CHECK_WANT`
+  (`<tenant> <channel>,...`, from env so that no name reaches git). A map restored with a new
+  mtime that still holds something is seen only through `CHANNEL_RULE_CHECK_WANT`.
+  `CHANNEL_RULE_CMD=set` writes one row from env, a dry run unless `DRY_RUN=0`.
+- **A map that cannot be read holds, with an alarm.** Missing or unreadable: every channel reads
+  as held, and the log and the blocker say `ALARM`. A map with no row for a channel leaves it
+  free. A `*` row without the word in column 7 is malformed, so it holds too.
 - **One box posts for a topic.** The holder's box when the hub's roster has the holder's id on
   it in that workspace, else the first such box by name, so every box reads the same answer. A
   box's desk may be under another user's state root, 0700 (measured 2026-11-07 on one box: t1 under the box user's,

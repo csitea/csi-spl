@@ -34,7 +34,8 @@
 # pinned check case 10j reads the stub as this user's desk; without
 # spl_afu_channel_held every case of 13 but its controls posts; reading only the
 # word in column 7, 13i..k post; with one failed.keys key per topic, 13m and 13n
-# send no second blocker.
+# send no second blocker. Without the alarm 13h2..h4 fail; a * row read like a
+# channel row posts in 13k2 and 13k3; the old held text fails 13f2.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -221,6 +222,8 @@ DOC="11111111-0000-4000-8000-000000000001"
   printf 't1\tcrlf\t%s\tprd\tc-001\t-\tno-auto-post\r\n' "$DOC"
   printf 't1\ttypo\t%s\tprd\tc-001\t-\tno_auto_post\n' "$DOC"
   printf 'ws-typo\t*\t-\t-\t-\t-\tbogus\n'
+  printf 'ws-short\t*\t-\t-\t-\tno-auto-post\n'
+  printf 'ws-dash\t*\t-\t-\t-\t-\t-\n'
   printf 't1\tdash\t%s\tprd\tc-001\t-\t-\n' "$DOC"
   printf 't1\tblank\t%s\tprd\tc-001\t-\t\n' "$DOC"
 } >"$SP/channel-rules.tsv"
@@ -247,16 +250,29 @@ fresh; printf 't1\t%s\t%s\n' "$OLD" "$NEW" >"$ST/journal.tsv"
 { held t1 held; cat "$T/rows13"; printf 'row\tt1\t%s\theld\t%s\tabcd1234\tdeclined\ta late job\tbox-a\tHUM-1\n' "$OLD" "$AT"; } >"$T/rows13f"
 out="$(ROWS="$T/rows13f" run DRY_RUN=0)"
 [[ "$(moved)" == 0 ]] && pass "13f a topic posted before the hold: no reply, no link" || fail "13f: $out // $(cat "$LOG")"
+[[ "$(count "already has its follow-up, /t/$NEW")" == 1 && "$(count 'no follow-up is posted')" == 0 && "$out" != *"no follow-up discussion"* ]] && pass "13f2 its blocker names the follow-up it already has" || fail "13f2: $out // $(cat "$LOG")"
 fresh; held t1 held; out="$(ROWS="$T/rows13" run DRY_RUN=1)"
 [[ ! -s "$LOG" && "$out" == *"WOULD name t1 topic $OLD in a blocker, no post"* ]] && pass "13g a dry run says so and sends nothing" || fail "13g: $out // $(cat "$LOG")"
 mv "$SP/channel-rules.tsv" "$T/map13"; fresh; held t1 elsewhere
 out="$(ROWS="$T/rows13" run DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$(count '^post ')" == 0 && "$(count '^send .*--kind blocker')" == 1 ]] && pass "13h no map on this box: no post, one blocker" || fail "13h rc $rc: $out // $(cat "$LOG")"
+[[ "$out" == *"ALARM"*"is missing"* && "$(count 'ALARM.*is missing')" == 1 ]] && pass "13h2 no map on this box: an alarm in the log and the blocker" || fail "13h2: $out // $(cat "$LOG")"
+mkdir "$SP/channel-rules.tsv"; fresh; held t1 elsewhere
+out="$(ROWS="$T/rows13" run DRY_RUN=0)"
+[[ "$(count '^post ')" == 0 && "$out" == *"ALARM"*"is unreadable"* && "$(count 'ALARM.*is unreadable')" == 1 && "$out" != *"column 7"* ]] && pass "13h3 a map that cannot be read: held, an alarm, no column 7 story" || fail "13h3: $out // $(cat "$LOG")"
+rmdir "$SP/channel-rules.tsv"
+: >"$SP/channel-rules.tsv"; chmod 000 "$SP/channel-rules.tsv"
+if [[ -r "$SP/channel-rules.tsv" ]]; then pass "13h4 a mode 000 map (skipped: this user reads mode 000)"
+else fresh; held t1 elsewhere; out="$(ROWS="$T/rows13" run DRY_RUN=0)"
+  [[ "$(count '^post ')" == 0 && "$out" == *"ALARM"*"is unreadable"* ]] && pass "13h4 a mode 000 map: held, an alarm" || fail "13h4: $out // $(cat "$LOG")"; fi
+rm -f "$SP/channel-rules.tsv"
 mv "$T/map13" "$SP/channel-rules.tsv"
 # column 7 is the word, empty or "-": anything else holds, it cannot be told apart from a hold
 check_held t1 crlf i "a CRLF column 7"
 check_held t1 typo j "a misspelt column 7"
 check_held ws-typo any-channel k "a malformed column 7 on a workspace's * row"
+check_held ws-short any-channel k2 "a * row with the word in the wrong column"
+check_held ws-dash any-channel k3 "a * row with - in column 7"
 for c in dash blank; do
   fresh; held t1 "$c"; out="$(ROWS="$T/rows13" run DRY_RUN=0)"
   [[ "$(count "^post t1 c-002 $c\$")" == 1 && "$(count '^send ')" == 0 ]] && pass "13l CONTROL: column 7 $c posts, no blocker" || fail "13l $c: $out // $(cat "$LOG")"

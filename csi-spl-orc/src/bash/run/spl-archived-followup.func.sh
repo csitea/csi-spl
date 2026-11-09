@@ -39,7 +39,9 @@
 # @description that cannot be read, or a malformed column 7): no post, no reply, no
 # @description link change, ONE blocker that lists what was left, with its own key, so
 # @description an earlier blocker of the topic does not swallow it (SPL-4955; nothing
-# @description posts on its own there).
+# @description posts on its own there). A map that is missing or cannot be read is
+# @description an ALARM in the log and in the blocker (SPL-5146). A topic already
+# @description followed up has a blocker that names its follow-up.
 # @description Dry run unless DRY_RUN=0: the plan, nothing posted or linked.
 # @param ENV (optional) - dev or prd, default lease.conf LEASE_ENV
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -111,9 +113,10 @@ spl_afu_topic() {
     do_log "INFO $tenant topic $topic: box $poster follows it up (roster of $AFU_AGENT in $tenant: ${seated:-no box})"
     return 0
   fi
+  new="$(awk -F'\t' -v t="$tenant" -v k="$topic" '$1 == t && $2 == k { n = $3 } END { print n }' "$dir/journal.tsv" 2>/dev/null)"
   if why="$(spl_afu_channel_held "$tenant" "$(cut -f4 "$tmp/keep" | sed -n 1p)")"; then
     if ((dry)); then do_log "WOULD name $tenant topic $topic in a blocker, no post: $why"; return 0; fi
-    spl_afu_blocker "$tenant" "$topic" "$dir" "$why" "**BLOCKER** archived discussion /t/$topic ($tenant) left work, and no follow-up is posted: $why. Nothing was posted or linked, and this is not repeated. What was left, for a person or the channel's seat to carry: $(spl_afu_left "$tmp/keep"). Action do_spl_archived_followup (SPL-4955)."
+    spl_afu_blocker "$tenant" "$topic" "$dir" "$why" "$(spl_afu_held_body "$tenant" "$topic" "$new" "$why" "$tmp/keep")"
     return 0
   fi
   if ! spl_afu_desk_seated "$tenant"; then
@@ -122,7 +125,6 @@ spl_afu_topic() {
     spl_afu_blocker "$tenant" "$topic" "$dir" "$why"
     return 0
   fi
-  new="$(awk -F'\t' -v t="$tenant" -v k="$topic" '$1 == t && $2 == k { n = $3 } END { print n }' "$dir/journal.tsv" 2>/dev/null)"
   if ((dry)); then
     do_log "WOULD follow up $tenant topic $topic from $AFU_BOX${AFU_DESK_USER:+ as $AFU_DESK_USER} in ${new:-a new discussion}:"$'\n'"$(cut -f1,6-8 "$tmp/keep")"
     return 0
@@ -158,17 +160,30 @@ spl_afu_poster_box() {
 # spl_afu_channel_held TENANT CHANNEL: 0 and why, when nothing posts on its own in
 # that channel (the box map, channel-rules.inc.sh). 1 = free. Fails closed.
 spl_afu_channel_held() {
-  local rc seat
+  local rc seat fault
   declare -F cr_no_auto_post >/dev/null ||
     source "$PROJ_PATH/src/bash/features/spawn-agents/lib/channel-rules.inc.sh" ||
     { echo "the channel rules lib cannot be read"; return 0; }
   rc=0; cr_no_auto_post "$1" "$2" || rc=$?
   (( rc == 0 )) && { echo "the box map holds #$2 of $1 from automatic posts"; return 0; }
-  (( rc == 2 )) && { echo "this box cannot tell the rule of #$2 of $1 from its channel rules map, $(cr_map)"; return 0; }
+  if (( rc == 2 )); then
+    fault="$(cr_map_fault)"
+    if [[ -n "$fault" ]]; then echo "ALARM this box's channel rules map, $(cr_map), is $fault, so #$2 of $1 reads as held"
+    else echo "this box cannot tell the rule of #$2 of $1 from its channel rules map, $(cr_map)"; fi
+    return 0
+  fi
   rc=0; seat="$(cr_sole_seat "$1" "$2" 2>/dev/null)" || rc=$?
   (( rc == 2 )) && { echo "cannot tell the sole seat of #$2 of $1"; return 0; }
   (( rc == 0 )) && [[ "$seat" != "$AFU_AGENT@$AFU_BOX" ]] && { echo "#$2 of $1 has a sole seat, $seat"; return 0; }
   return 1
+}
+
+# spl_afu_held_body TENANT TOPIC NEW WHY ROWS: the blocker of a held topic. NEW:
+# the follow-up it already has, which gets nothing more.
+spl_afu_held_body() {
+  local head="left work, and no follow-up is posted"
+  [[ -z "$3" ]] || head="already has its follow-up, /t/$3, and what it left since is not added there"
+  printf '%s' "**BLOCKER** archived discussion /t/$2 ($1) $head: $4. Nothing was posted or linked, and this is not repeated. What was left, for a person or the channel's seat to carry: $(spl_afu_left "$5"). Action do_spl_archived_followup (SPL-4955)."
 }
 
 # spl_afu_left ROWS: what a topic left, on one line, at most 20 items.
@@ -293,7 +308,8 @@ spl_afu_link() {
 spl_afu_blocker() {
   local k="$1"$'\t'"$2" send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   [[ -z "${5:-}" ]] || k+=$'\theld'
-  do_log "WARN $1 topic $2: no follow-up discussion: $4"
+  if [[ -n "${5:-}" ]]; then do_log "WARN $1 topic $2: held, nothing posted or linked: $4"
+  else do_log "WARN $1 topic $2: no follow-up discussion: $4"; fi
   grep -qxF "$k" "$3/failed.keys" 2>/dev/null && return 0
   if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$(spl_role_seat 1)" --to orchestrator --kind blocker --task archived-followup \
       --body "${5:-**BLOCKER** archived discussion /t/$2 ($1) left work, and its follow-up discussion could not be posted as $AFU_AGENT: $4. The next run tries again; action do_spl_archived_followup (SPL-4955).}" >/dev/null 2>&1 8>&- 9>&-; then

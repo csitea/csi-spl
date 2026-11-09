@@ -10,7 +10,9 @@
 # @description restored with a new mtime that still holds something shows only
 # @description through CHANNEL_RULE_CHECK_WANT.
 # @description CHANNEL_RULE_CMD=set writes one row, a dry run unless DRY_RUN=0. It
-# @description keeps the other rows, the mode and the ACL. Exit 1 a bad value; 2 no
+# @description keeps the other rows, the mode and the ACL, and takes <map>.lock, the
+# @description lock of the map's other writer. Exit 1 a bad value, the lock still
+# @description held after the wait, or a user who is not the owner of the map; 2 no
 # @description map, and CHANNEL_RULE_CREATE=1 not set (a new map of one row would
 # @description free every other channel); 3 the channel has another row, and
 # @description CHANNEL_RULE_REPLACE=1 not set.
@@ -24,6 +26,7 @@
 # @param CHANNEL_RULE_NO_AUTO_POST (optional) - 1: column 7 is no-auto-post; a * row always is
 # @param CHANNEL_RULE_REPLACE (optional) - 1 replaces the channel's row
 # @param CHANNEL_RULE_CREATE (optional) - 1 creates a missing map
+# @param CHANNEL_RULE_LOCK_WAIT (optional) - seconds set waits for <map>.lock, default 30
 # @param CHANNEL_RULE_CHECK_NOT_BEFORE (optional) - a map older is stale, default 2026-11-07T05:58:00Z
 # @param CHANNEL_RULE_CHECK_WANT (optional) - holds that must be there: <tenant> <channel>,...
 # @param DRY_RUN (optional) - set only: 1 (default) or 0
@@ -59,7 +62,7 @@ spl_cr_row_why() {
   [[ "${7:--}" == - || "${7:-}" == no-auto-post ]] || echo "column 7 is not no-auto-post, - or empty"
 }
 
-# spl_cr_rows MAP: SPL_CR_ROWS, SPL_CR_HOLDS and the count of bad rows, one
+# spl_cr_rows MAP: SPL_CR_ROWS, SPL_CR_HOLDS and rc 1 for any bad row, one
 # FATAL per bad row, by line number: a row's values stay out of the log.
 spl_cr_rows() {
   local l n=0 bad=0 why k
@@ -78,7 +81,7 @@ spl_cr_rows() {
     if [[ -n "${seen[$k]:-}" ]]; then do_log "FATAL $1 line $n: a second row for the channel of line ${seen[$k]}"; bad=$((bad + 1)); fi
     seen[$k]="$n"
   done <"$1"
-  return "$bad"
+  (( bad == 0 ))
 }
 
 spl_cr_check() {
@@ -110,7 +113,7 @@ spl_cr_columns() {
 }
 
 spl_cr_set() {
-  local dry=1 drc m fault why row old src tmp t c
+  local dry=1 drc m why row t c
   local -a SPL_CR_COL=()
   if spl_dry_run; then :; else drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_cr_columns
@@ -119,6 +122,18 @@ spl_cr_set() {
   t="${SPL_CR_COL[0]}" c="${SPL_CR_COL[1]}"
   row="$(IFS=$'\t'; printf '%s' "${SPL_CR_COL[*]}")"
   m="$(cr_map)"
+  if ((dry)); then spl_cr_write "$m" "$t" "$c" "$row" 1; return; fi
+  (
+    exec 9>>"$m.lock" || { do_log "FATAL cannot open $m.lock"; exit 1; }
+    flock -w "${CHANNEL_RULE_LOCK_WAIT:-30}" 9 || { do_log "FATAL $m.lock is held by another writer"; exit 1; }
+    spl_cr_write "$m" "$t" "$c" "$row" 0
+  )
+}
+
+# spl_cr_write MAP TENANT CHANNEL ROW DRY: the read and the rename, under the
+# lock of the caller when DRY is 0.
+spl_cr_write() {
+  local m="$1" t="$2" c="$3" row="$4" dry="$5" fault old src tmp
   fault="$(cr_map_fault)"
   src="$m"
   if [[ "$fault" == missing && "${CHANNEL_RULE_CREATE:-}" == 1 ]]; then src=/dev/null
@@ -128,7 +143,10 @@ spl_cr_set() {
   if [[ -n "$old" && "${CHANNEL_RULE_REPLACE:-}" != 1 ]]; then do_log "FATAL $t #$c has another row in $m; CHANNEL_RULE_REPLACE=1 replaces it"; return 3; fi
   if ((dry)); then do_log "PLAN $m gets: $row"; return 0; fi
   tmp="$(mktemp "$m.XXXXXX")" || { do_log "FATAL cannot write next to $m"; return 1; }
-  if [[ "$src" == "$m" ]]; then cp -p "$m" "$tmp"; else chmod 0664 "$tmp"; fi &&
+  if [[ "$src" == "$m" ]]; then
+    cp -p "$m" "$tmp" && chown --reference="$m" "$tmp" 2>/dev/null ||
+      { rm -f "$tmp"; do_log "FATAL only the owner of $m can replace it and keep its owner"; return 1; }
+  else chmod 0664 "$tmp"; fi &&
     awk -F'\t' -v t="$t" -v c="$c" -v r="$row" '$1 == t && $2 == c { if (!d++) print r; next } { print } END { if (!d) print r }' "$src" >"$tmp" &&
     mv -f "$tmp" "$m" || { rm -f "$tmp"; do_log "FATAL cannot replace $m"; return 1; }
   do_log "OK $m: $t #$c written"

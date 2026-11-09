@@ -3,11 +3,13 @@
 # Purpose: do_spl_channel_rule (SPL-5146) writes one row of the box map from env
 #          and checks a map without changing it; cr_no_auto_post reads a map it
 #          cannot read as held, with an alarm. A sandbox: its own SPOOL_ROOT.
-# Cases: 1-6 the reader, 7-14 set, 15-21 check.
+# Cases: 1-6 the reader, 7-14 and 22-24 set, 15-21 and 25 check.
 # RED CONTROLS: without the alarm of cr_no_auto_post 1..3 fail; a * row read
 # like a channel row frees 4; awk's rc taken for the column 7 verdict fails 5; a
 # set that writes in a dry run fails 7; a set that does not keep the file's mode
-# fails 8; with no floor, 18 reads a restored map as fine.
+# fails 8; with no floor, 18 reads a restored map as fine; a set without the
+# lock of <map>.lock fails 22 and 23; a set without the chown fails 24; the
+# count of bad rows as the rc fails 25.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -91,6 +93,30 @@ out="$(act CHANNEL_RULE_CHECK_WANT='t1 ops')"; rc=$?
 [[ $rc -eq 0 ]] && pass "20b CONTROL: every wanted hold there is 0" || fail "20b rc $rc: $out"
 out="$(act CHANNEL_RULE_CHECK_NOT_BEFORE=yesterday-ish)"; rc=$?
 [[ $rc -eq 1 ]] && same && pass "21 check: a floor that is no date is refused" || fail "21 rc $rc: $out"
+
+# --- set against another writer
+map; rcs="$T/rcs"; : >"$rcs"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  ( act "${SET[@]}" CHANNEL_RULE_CHANNEL="par$i" CHANNEL_RULE_LOCK_WAIT=120 DRY_RUN=0 >/dev/null; echo "$?" >>"$rcs" ) &
+done
+wait
+[[ "$(grep -cx 0 "$rcs")" == 12 && "$(grep -c $'^t2\tpar[0-9]*\t' "$M")" == 12 && "$(grep -c '^t1' "$M")" == 2 ]] && pass "22 twelve writers at once: every row is kept" || fail "22 rcs $(tr '\n' ' ' <"$rcs") // $(cat "$M")"
+map; keep; flock "$M.lock" sleep 20 & holder=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do flock -n "$M.lock" true || break; sleep 0.2; done
+out="$(act "${SET[@]}" CHANNEL_RULE_LOCK_WAIT=1 DRY_RUN=0)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"held by another writer"* ]] && same && pass "23 the lock of another writer held: refused, the map unchanged" || fail "23 rc $rc: $out"
+out="$(act "${SET[@]}")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"PLAN"* ]] && same && pass "23b CONTROL: a dry run reads under a held lock" || fail "23b rc $rc: $out"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+
+# --- set by a user who is not the owner: chown --reference is what refuses it
+mkdir -p "$T/bin"; printf '#!/bin/sh\nexit 1\n' >"$T/bin/chown"; chmod +x "$T/bin/chown"
+map; keep; out="$(act "${SET[@]}" PATH="$T/bin:$PATH" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"only the owner"* ]] && same && [[ -z "$(ls "$M".?????? 2>/dev/null)" ]] && pass "24 a set that cannot keep the owner: refused, no temp left" || fail "24 rc $rc: $out"
+
+# --- a count of bad rows that wraps at 256
+map; for ((i = 0; i < 256; i++)); do printf 't1\tb%d\tnot-a-doc\tprd\tc-001\n' "$i"; done >>"$M"; touch -t "$NEW_AT" "$M"; out="$(act)"; rc=$?
+[[ $rc -eq 2 ]] && pass "25 check: 256 bad rows are 2, the count does not wrap" || fail "25 rc $rc: $(tail -1 <<<"$out")"
 
 echo "spl-channel-rule: $fails failure(s)"
 [[ $fails -eq 0 ]]

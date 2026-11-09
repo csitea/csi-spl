@@ -54,6 +54,9 @@ archived discussion is another lane's work and is not described here.
   (`<tenant> <channel>,...`, from env so that no name reaches git). A map restored with a new
   mtime that still holds something is seen only through `CHANNEL_RULE_CHECK_WANT`.
   `CHANNEL_RULE_CMD=set` writes one row from env, a dry run unless `DRY_RUN=0`.
+  It takes `<map>.lock`, the lock of the map's other writer, around the read and the rename,
+  waits `CHANNEL_RULE_LOCK_WAIT` seconds (default 30), and exits 1 if the lock is still held. It
+  also exits 1, the map unchanged, for a user who could not keep the file's owner: run it as the owner.
 - **A map that cannot be read holds, with an alarm.** Missing or unreadable: every channel reads
   as held, and the log and the blocker say `ALARM`. A map with no row for a channel leaves it
   free. A `*` row without the word in column 7 is malformed, so it holds too.

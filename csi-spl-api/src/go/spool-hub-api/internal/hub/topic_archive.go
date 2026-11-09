@@ -244,7 +244,7 @@ func withType(typ string, m store.EditableMessage, body map[string]any) map[stri
 func (s *Server) handleDeleteTopic(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	c, ok := s.resolveCard(w, r, capDelete)
-	if !ok || !s.topicOpenDoor(w, r, c.t.ID, c.m.MsgID, c.m.TaskID) { // SPL-4993
+	if !ok || !s.topicTreeOpenDoor(w, r, c.t.ID, c.m, c.ownTask) { // SPL-4993
 		return
 	}
 	set, err := s.o.Store.DeleteTopic(r.Context(), c.t.ID, c.m.MsgID, c.ownTask)
@@ -283,8 +283,14 @@ func (s *Server) handleViewTopicSize(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
 	}
+	closed, err := s.topicClosed(r.Context(), c.t.ID, append([]string{c.m.MsgID, c.m.TaskID}, set.TaskIDs...)...)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("msg_id", c.m.MsgID).Msg("topic size archive check")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return
+	}
 	out := archivedBody(c.m, c.st)
-	out["replies"], out["task_ids"], out["can_delete"], out["can_archive"] = set.Replies(), set.TaskIDs, c.may && c.st.ArchivedAt.IsZero(), c.mayArchive
+	out["replies"], out["task_ids"], out["can_delete"], out["can_archive"] = set.Replies(), set.TaskIDs, c.may && !closed, c.mayArchive
 	writeJSON(w, http.StatusOK, out)
 }
 

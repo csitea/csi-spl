@@ -113,7 +113,8 @@ type TopicArchive interface {
 	// task of its opening row, up to the lobby (SPL-4954, a person's input
 	// stops at the archive). The opening row alone: one stray row naming a
 	// parent does not close a live topic, and the climb stays one index probe
-	// per step (SPL-4992).
+	// per step (SPL-4992). A row moved in from another task is never the
+	// opening row (SPL-4993).
 	AnyTopicArchived(ctx context.Context, tenantID, lobby string, ids []string) (bool, error)
 }
 
@@ -330,7 +331,9 @@ func (s *Memory) AnyTopicArchived(_ context.Context, tenant, lobby string, ids [
 }
 
 // tasksAboveLocked is one step up walkTopic's edges: the task of the message
-// id names, and the parent task of the opening row of the task id names.
+// id names, and the parent task of the opening row of the task id names. A
+// row merged in from another task keeps its older received_at and has no
+// parent, so it is not the task's opening row.
 func (s *Memory) tasksAboveLocked(tenant, id string) []string {
 	var above []string
 	if m, ok := s.messages[[2]string{tenant, id}]; ok {
@@ -338,7 +341,7 @@ func (s *Memory) tasksAboveLocked(tenant, id string) []string {
 	}
 	var first *Message
 	for k, m := range s.messages {
-		if k[0] == tenant && m.TaskID == id && (first == nil || m.ReceivedAt.Before(first.ReceivedAt) ||
+		if k[0] == tenant && m.TaskID == id && (m.Move.FromTask == "" || m.Move.FromTask == m.TaskID) && (first == nil || m.ReceivedAt.Before(first.ReceivedAt) ||
 			(m.ReceivedAt.Equal(first.ReceivedAt) && m.MsgID < first.MsgID)) {
 			first = m
 		}

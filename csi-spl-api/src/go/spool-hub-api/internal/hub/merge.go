@@ -168,7 +168,7 @@ func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, 
 		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may merge these messages")
 		return src, keep, nil, false
 	}
-	if !s.topicOpenDoor(w, r, tenant, src.MsgID, src.TaskID) { // SPL-4993
+	if !s.topicOpenDoor(w, r, tenant, src.MsgID, src.TaskID, keep.MsgID) { // SPL-4993; keep too: an archived lobby card shares the live lobby task
 		return src, keep, nil, false
 	}
 	pub = s.wuiPub()

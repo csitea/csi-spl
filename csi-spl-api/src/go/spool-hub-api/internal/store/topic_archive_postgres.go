@@ -359,6 +359,7 @@ const anyTopicArchivedSQL = `WITH RECURSIVE named(id) AS (
 			SELECT m.task_id AS id FROM messages m WHERE m.tenant_id = $1 AND m.msg_id = n.id
 			UNION SELECT f.parent_task_id FROM (SELECT m.parent_task_id FROM messages m
 				WHERE m.tenant_id = $1 AND m.task_id = n.id
+					AND (m.moved_from_task IS NULL OR m.moved_from_task = m.task_id)
 				ORDER BY m.received_at, m.msg_id LIMIT 1) f WHERE f.parent_task_id IS NOT NULL) up
 		WHERE n.id::text <> $3::text)
 	SELECT EXISTS (SELECT 1 FROM messages z

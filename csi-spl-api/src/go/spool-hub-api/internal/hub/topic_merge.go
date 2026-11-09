@@ -96,7 +96,7 @@ func (s *Server) mergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow, 
 		writeRefusal(w, "lobby")
 		return
 	}
-	if !s.topicOpenDoor(w, r, c.t.ID, task, c.m.TaskID, c.m.MsgID) { // SPL-4954; the source too, SPL-4992
+	if !s.topicOpenDoor(w, r, c.t.ID, task) || !s.topicTreeOpenDoor(w, r, c.t.ID, c.m, c.ownTask) { // SPL-4954; the source and its children too, SPL-4992, SPL-4993
 		return
 	}
 	now := s.o.Now()

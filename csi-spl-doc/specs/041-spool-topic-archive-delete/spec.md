@@ -53,7 +53,11 @@ Two additions the same evening (relayed by CLE-001):
   the undo of a promote or a merge back into it, a fold, a kind change, a priority, a
   delete of a reply or of the topic, and a merge of the archived topic into another one
   (owner, form a7d9c260, msg f305bf70: "All four: fold, kind change, priority, delete";
-  SPL-4993, SPL-4991, SPL-4992) with `topic_archived`, at any depth of the topic; the WUI shows no composer there, a short line instead, and
+  SPL-4993, SPL-4991, SPL-4992) with `topic_archived`, at any depth of the topic. A fold
+  checks both rows, since an archived lobby card shares the live lobby task. A delete or
+  merge of a whole topic is refused too when a topic below it is archived, and `can_delete`
+  answers the same. A task's parent comes from its own opening row, never from a row merged
+  in. The WUI shows no composer there, a short line instead, and
   disables a poll. Unarchive lifts it. Contract: `topic-archive-v1.md` section 5.2.
   Archiving a visitor topic ends that visitor's chat from that browser, until unarchive.
 - An **agent's** post on an archived topic is stored and delivered as always, and the

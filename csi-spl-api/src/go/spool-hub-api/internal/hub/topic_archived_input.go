@@ -2,9 +2,11 @@ package hub
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // A person's input stops at the archive (SPL-4954, spec 041 §3.1; owner
@@ -56,6 +58,19 @@ func (s *Server) wuiArchivedRefusal(ctx context.Context, tenant string, m *msg.M
 		return nil
 	}
 	return &frameRefusal{topicArchivedToken, http.StatusConflict, topicArchivedDetail}
+}
+
+// topicTreeOpenDoor is topicOpenDoor for a write that takes the card's whole
+// topic with it: an archived child below the card closes it too. No such card
+// passes, for the write to answer 404. false means it answered.
+func (s *Server) topicTreeOpenDoor(w http.ResponseWriter, r *http.Request, tenant string, card store.EditableMessage, ownTask string) bool {
+	set, err := s.o.Store.TopicOf(r.Context(), tenant, card.MsgID, ownTask)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		s.o.Log.Error().Err(err).Str("msg_id", card.MsgID).Msg("topic tree archive check")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return false
+	}
+	return s.topicOpenDoor(w, r, tenant, append([]string{card.MsgID, card.TaskID}, set.TaskIDs...)...)
 }
 
 // topicOpenDoor is the same check on a person's HTTP route. false means it

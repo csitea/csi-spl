@@ -200,7 +200,6 @@ onUnmounted(() => offTopic())
 .archive-row__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.8125rem; min-width: 0; }
 .archive-row__actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .archive-row__btn { display: inline-flex; align-items: center; gap: 6px; }
-.archive-row__btn--danger { color: var(--color-danger); border-color: var(--color-danger); }
 /* SPL-993: touch screens get 44 px buttons; a phone gives the row's actions
    their own full-width line under the title. */
 @media (max-width: 820px) {

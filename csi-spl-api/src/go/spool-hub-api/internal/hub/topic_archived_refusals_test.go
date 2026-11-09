@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // SPL-4993, SPL-4991, SPL-4992 (owner HUM-10, msg f305bf70: "All four: fold,
@@ -200,5 +201,97 @@ func TestStrayParentRowDoesNotCloseLiveTopic(t *testing.T) {
 	}
 	if !g.anyArchived(t, child) {
 		t.Error("control: a topic opened under the archived parent reads live")
+	}
+}
+
+// W1: a live lobby message folded into an archived lobby card adds to the
+// archive: both rows share the lobby task, so the kept row is its own door.
+func TestFoldIntoArchivedLobbyCardIsRefused(t *testing.T) {
+	e := archiveEnv(t)
+	tid, _ := e.tenant()
+	c := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	older, _ := postNote(t, c, "archived card")["msg_id"].(string)
+	newer, _ := postNote(t, c, "live card")["msg_id"].(string)
+	if code, out := call(t, e, tid, http.MethodPut, "/v1/messages/"+older+"/archive", "HUM-1", nil); code != http.StatusOK {
+		t.Fatalf("archive: %d %v", code, out)
+	}
+	if code, out := merge(t, e, tid, newer, older, "HUM-1"); code != http.StatusConflict || out["error"] != "topic_archived" {
+		t.Errorf("fold into archived: %d %v, want 409 topic_archived", code, out)
+	}
+	if !has(t, e, tid, newer) {
+		t.Error("the refused fold removed its source")
+	}
+}
+
+// W2: a topic merged into a child keeps its older received_at and has no
+// parent; the child's own opening row still says whose child it is.
+func TestChildWithOlderMergedRowStaysUnderArchivedParent(t *testing.T) {
+	g := moveEnv(t)
+	child, at := uuidV4(), time.Now().UTC().Add(time.Minute)
+	id := uuidV4()
+	if _, err := g.e.st.InsertMessage(context.Background(), store.Message{TenantID: g.tid, MsgID: id, TaskID: child, ParentTaskID: g.T, Channel: "devel", IsParent: 1,
+		TS: at, FromBox: hub.WUIBox, FromID: "HUM-1", ToBox: hub.WUIBox, ToID: "ALL-0", Kind: "note", Body: "child " + id,
+		Files: []byte(`[]`), Msg: []byte(`{"v":1}`), Env: []byte(`{"id":"` + id + `"}`),
+		ReceivedAt: at, ExpiresAt: at.Add(30 * 24 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := call(t, g.e, g.tid, http.MethodPost, "/v1/messages/"+g.uCard+"/merge-topic", "HUM-2", map[string]any{"to_task": child}); code != http.StatusOK {
+		t.Fatalf("merge: %d %v", code, out)
+	}
+	if g.row(t, g.uCard).TaskID != child {
+		t.Fatal("control: the older topic did not move into the child")
+	}
+	g.archiveCard(t, g.card)
+	if !g.anyArchived(t, child) {
+		t.Error("a child with an older merged row reads live under its archived parent")
+	}
+}
+
+// archivedChild is a live parent g.card with an archived child topic.
+func (g moveRig) archivedChild(t *testing.T) (childCard string) {
+	t.Helper()
+	child := uuidV4()
+	childCard = g.putIn(t, child, g.T, 1)
+	g.archiveCard(t, childCard)
+	return childCard
+}
+
+// W3: taking a live parent's whole topic takes its archived child with it.
+func TestTopicWritesRefuseAnArchivedChild(t *testing.T) {
+	g := moveEnv(t)
+	childCard := g.archivedChild(t)
+	if code, out := call(t, g.e, g.tid, http.MethodDelete, "/v1/messages/"+g.card+"/topic", "HUM-1", nil); code != http.StatusConflict || out["error"] != "topic_archived" {
+		t.Errorf("delete over an archived child: %d %v, want 409 topic_archived", code, out)
+	}
+	if !has(t, g.e, g.tid, childCard) {
+		t.Error("the refused delete removed the archived child")
+	}
+	if code, out := g.mergeTopic(t, g.card, map[string]any{"to_task": g.U}); code != http.StatusConflict || out["error"] != "topic_archived" {
+		t.Errorf("merge over an archived child: %d %v, want 409 topic_archived", code, out)
+	}
+}
+
+// W4: can_delete says what DELETE will answer, in both directions.
+func TestCanDeleteReadsTheWholeTopic(t *testing.T) {
+	g := moveEnv(t)
+	size := func(card string) any {
+		_, out := call(t, g.e, g.tid, http.MethodGet, "/v1/view/messages/"+card+"/topic", "HUM-1", nil)
+		return out["can_delete"]
+	}
+	if size(g.card) != true {
+		t.Fatal("control: a live topic is not offered delete")
+	}
+	child := uuidV4()
+	childCard := g.putIn(t, child, g.T, 1)
+	g.archiveCard(t, childCard)
+	if size(g.card) != false {
+		t.Error("a parent over an archived child is offered delete")
+	}
+	h := moveEnv(t)
+	liveChild := h.putIn(t, uuidV4(), h.T, 1)
+	h.archiveCard(t, h.card)
+	_, out := call(t, h.e, h.tid, http.MethodGet, "/v1/view/messages/"+liveChild+"/topic", "HUM-1", nil)
+	if out["can_delete"] != false {
+		t.Errorf("a child under an archived parent: %v, want no can_delete", out)
 	}
 }

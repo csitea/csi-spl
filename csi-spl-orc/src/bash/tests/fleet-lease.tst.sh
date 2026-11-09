@@ -533,9 +533,13 @@ for _ in $(seq 1 100); do [[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy 
 [[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy csitea orch)" == CLE-001@pc ]] &&
   pass "16b. the copies still land, behind the tick" || fail "16b. copies: $(copy csitea dispatch)/$(copy csitea orch)"
 : >"$T/hub/calls"
-exec 7>"$T/pc/spool/dispatch/fleet.dispatch.mirror.lock"; flock -n 7
-tick pc 40060 LEASE_MIRROR_TENANTS=csitea
-for _ in $(seq 1 50); do [[ "$(copy csitea orch 3)" == 40060 ]] && break; sleep 0.1; done
+# The passes of the tick above may still be exiting: wait them out, or this lock is not ours.
+flock -w 30 "$T/pc/spool/dispatch/fleet.orch.mirror.lock" true
+exec 7>"$T/pc/spool/dispatch/fleet.dispatch.mirror.lock"; flock -w 30 7
+# Each pass of this tick inherits fd 6, so EOF on it = every pass has ended, skip
+# logged or not. Released earlier, a late dispatch pass finds the lock free (SPL-5185).
+tick pc 40060 LEASE_MIRROR_TENANTS=csitea 6> >(exec 7>&-; cat >/dev/null; : >"$T/tick.ended")
+for _ in $(seq 1 300); do [[ -e "$T/tick.ended" ]] && break; sleep 0.1; done
 exec 7>&-
 [[ "$(copy csitea dispatch 3)" == 40000 && "$(copy csitea orch 3)" == 40060 && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 40060 ]] &&
   pass "16b. a pass still running: the next one for that role is skipped, the own write and the other role are not" ||

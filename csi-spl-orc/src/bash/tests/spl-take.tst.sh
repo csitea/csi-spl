@@ -15,8 +15,14 @@
 #      SPOOL_TEST=1 without TAKE_REPLY_CMD
 #   7. wiring: the dispatcher brief teaches the take command and it matches
 #      a dispatcher allow rule
+#   8. one take per human POST (SPL-5141, TAKE_POST_CMD): an old take and a new
+#      post -> a new line, keyed on the post; the same post again -> none; an
+#      id-less row covers only a post older than it; an unread or answered
+#      topic keeps one line per (topic, taker)
+#   9. spl_take_post_parse: the newest human post no agent has answered
 #   control: with the ledger check removed (a planted copy), the second take
 #      posts again -> the idempotency assertion would turn red
+#   control: with the post key dropped (a planted copy), case 8 stays silent
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,7 +47,14 @@ cat >"$T/send.sh" <<'EOF'
 [ -e "$SEND_LOG.fail" ] && exit 11
 echo "$*" >>"$SEND_LOG"
 EOF
-chmod +x "$T/reply.sh" "$T/send.sh"
+# the fake topic read: prints $POST_FILE; fails while that file is missing
+cat >"$T/post.sh" <<'EOF'
+#!/usr/bin/env bash
+[ -e "$POST_FILE" ] || exit 9
+echo "a log line the run prints first"
+cat "$POST_FILE"
+EOF
+chmod +x "$T/reply.sh" "$T/send.sh" "$T/post.sh"
 export REPLY_LOG="$T/reply.log" SEND_LOG="$T/send.log"
 
 # take [VAR=VAL ...]: run do_spl_take in a clean shell with the stubs
@@ -122,8 +135,59 @@ env -i PATH="$PATH" PROJ_PATH="$PROJ_ROOT" DISPATCH_BOX_USER=box ENV=prd T="$T" 
   [[ "$cmd" == *"./run -a do_spl_take" ]] && spl_dispatch_rule_allows "$T/settings.json" "$cmd"' 2>"$T/o" &&
   pass "7. the taught take command matches a dispatcher allow rule" || fail "7. take command not allowed: $(cat "$T/o")"
 
+# 8. one take per human post. old_take <topic> <epoch>: a row from before the key
+L="$S/dispatch/take.log" P="$T/post"
+old_take() { printf '%s\t%s\tc-002@box-a\tI read your post now\n' "$2" "$1" >>"$L"; }
+tp() { take DRY_RUN=0 TAKE_POST_CMD="$T/post.sh" POST_FILE="$P" "$@" >"$T/o" 2>&1; }
+A=00000000-0000-4000-8000-0000000000d1
+old_take "$A" 1000
+echo "TAKE-POST post-two 2000" >"$P"; b="$(n "$REPLY_LOG")"
+tp DESK_TASK="$A"
+[[ "$(n "$REPLY_LOG")" == $((b + 1)) ]] && pass "8. an old take and a new human post: a new take line" || fail "8. new post took no line: $(cat "$T/o")"
+[[ "$(tail -n 1 "$L" | cut -f2,5)" == "$A"$'\tpost-two' ]] && pass "8. the row names the post" || fail "8. row: $(tail -n 1 "$L")"
+tp DESK_TASK="$A"
+[[ "$(n "$REPLY_LOG")" == $((b + 1)) ]] && grep -q TAKEN-ALREADY "$T/o" && pass "8. the same post again posts nothing" || fail "8. re-run posted: $(cat "$T/o")"
+echo "TAKE-POST post-three 3000" >"$P"
+tp DESK_TASK="$A"
+[[ "$(n "$REPLY_LOG")" == $((b + 2)) ]] && pass "8. the next human post takes its own line" || fail "8. third post: $(cat "$T/o")"
+B=00000000-0000-4000-8000-0000000000d2
+old_take "$B" 5000
+echo "TAKE-POST post-four 4000" >"$P"; b="$(n "$REPLY_LOG")"
+tp DESK_TASK="$B"
+[[ "$(n "$REPLY_LOG")" == "$b" ]] && pass "8. an id-less row newer than the post covers it" || fail "8. id-less row: $(cat "$T/o")"
+: >"$P"
+tp DESK_TASK="$B"
+[[ "$(n "$REPLY_LOG")" == "$b" ]] && pass "8. nothing unanswered: an existing take still holds" || fail "8. answered topic posted"
+tp DESK_TASK="$B" POST_FILE="$T/no-such-file"
+[[ "$(n "$REPLY_LOG")" == "$b" ]] && grep -q TAKEN-ALREADY "$T/o" && pass "8. an unread topic: an existing take still holds" || fail "8. unread topic posted: $(cat "$T/o")"
+tp DESK_TASK=00000000-0000-4000-8000-0000000000d3 POST_FILE="$T/no-such-file"
+[[ "$(n "$REPLY_LOG")" == $((b + 1)) ]] && pass "8. an unread topic with no take still gets its line" || fail "8. unread, no take: $(cat "$T/o")"
+
+# 9. the parser. row <from> <to> <id> <ts> <body>: one hub-tail line
+row() { jq -cn --arg f "$1" --arg t "$2" --arg i "$3" --arg s "$4" --arg b "$5" '{from:$f,to:$t,msg_id:$i,ts:$s,body:$b}'; }
+parse() { env -i PATH="$PATH" PROJ_PATH="$PROJ_ROOT" bash -c 'source "$PROJ_PATH/src/bash/run/spl-take-post.func.sh"; spl_take_post_parse'; }
+H1="$(row HUM-10 ALL-0 m1 2026-11-07T20:50:06Z 'Status ?!')"
+TK="$(row c-002 HUM-10 m2 2026-11-07T20:50:40Z 'Taken by c-002@box-a: I read your post now. I post the result here.')"
+AN="$(row c-002 HUM-10 m3 2026-11-07T20:54:21Z 'The answer')"
+H2="$(row HUM-10 c-002@box-a m4 2026-11-07T21:00:00Z 'And now?')"
+NOTE="$(row c-002 c-001 m5 2026-11-07T21:00:30Z 'a relay')"
+[[ "$(printf '%s\n' "$H1" | parse)" == "TAKE-POST m1 1794084606" ]] && pass "9. a lone human post, with its epoch" || fail "9. lone post: $(printf '%s\n' "$H1" | parse)"
+[[ "$(printf '%s\n' "$H1" "$TK" | parse)" == "TAKE-POST m1 "* ]] && pass "9. a take line is not an answer" || fail "9. take counted as an answer"
+[[ -z "$(printf '%s\n' "$H1" "$TK" "$AN" | parse)" ]] && pass "9. an agent's answer ends it: nothing printed" || fail "9. answered: $(printf '%s\n' "$H1" "$TK" "$AN" | parse)"
+[[ "$(printf '%s\n' "$H1" "$TK" "$AN" "$H2" "$NOTE" | parse)" == "TAKE-POST m4 "* ]] && pass "9. the follow-up post is the key; an agent-to-agent note answers nothing" || fail "9. follow-up: $(printf '%s\n' "$H1" "$AN" "$H2" "$NOTE" | parse)"
+[[ "$(printf '%s\n' "$H2" "$AN" | parse)" == "TAKE-POST m4 "* ]] && pass "9. rows sort by ts, not by line" || fail "9. order: $(printf '%s\n' "$H2" "$AN" | parse)"
+
+# control: without the post key the new post of case 8 takes no line
+sed 's/ "\$post" "\$post_at"//' "$PROJ_ROOT/src/bash/run/spl-take.func.sh" >"$T/nokey.func.sh"
+C2=00000000-0000-4000-8000-0000000000c2 N="$T/nokey.log"
+old_take "$C2" 1000
+echo "TAKE-POST post-c 2000" >"$P"
+REPLY_LOG="$N" tp TAKE_FUNC="$T/nokey.func.sh" DESK_TASK="$C2"
+[[ "$(n "$N")" == 0 ]] && pass "control: without the post key a new post takes no line" ||
+  fail "control: the planted copy posted $(n "$N") (case 8 would not see a regression)"
+
 # control: the same second take without the ledger check posts twice
-sed 's/if spl_take_seen "\$f" "\$task" "\$by"; then/if false; then/; s/spl_take_seen "\$f" "\$task" "\$by" \&\&/false \&\&/' \
+sed 's/if spl_take_seen "\$f" "\$task" "\$by" "\$post" "\$post_at"; then/if false; then/; s/spl_take_seen "\$f" "\$task" "\$by" "\$post" "\$post_at" \&\&/false \&\&/' \
   "$PROJ_ROOT/src/bash/run/spl-take.func.sh" >"$T/planted.func.sh"
 C="$T/ctl.log"
 REPLY_LOG="$C" take DRY_RUN=0 TAKE_FUNC="$T/planted.func.sh" DESK_TASK=00000000-0000-4000-8000-0000000000c1 >/dev/null 2>&1

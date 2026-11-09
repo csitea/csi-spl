@@ -23,9 +23,14 @@ model. Now the box posts the take line itself; the model only answers.
 | the action reads the topic on the hub (`spool hub-tail --with-channel`, as the desk: each message with its envelope's channel) and runs `do_spl_take` with the plan "I read your post now" | `do_spl_take_auto`, `csi-spl-orc/src/bash/run/spl-take-auto.func.sh` |
 
 The human sees: "Taken by `<id>@<box>`: I read your post now. I post the
-result here." The ledger `dispatch/take.log` holds one take per topic and
-taker, so when the model then runs `do_spl_take` itself it gets
-`TAKEN-ALREADY` and posts nothing.
+result here." The ledger `dispatch/take.log` holds one take per human post
+and taker (SPL-5141; its fifth column is the post's msg id, from
+`do_spl_take_post`: the topic's newest human post no agent has answered), so
+when the model then runs `do_spl_take` on the same post it gets
+`TAKEN-ALREADY` and posts nothing, and a later human post in the topic gets
+its own take line. A row with no post id covers a post no newer than the row;
+a topic that cannot be read, or has nothing unanswered, keeps one line per
+topic and taker.
 
 ## 3. When it takes nothing
 

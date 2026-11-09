@@ -13,11 +13,18 @@
 # @description It is NOT the answer for the unanswered sweep (SPL-1718): the
 # @description sweep holds a take-last topic SWEEP_TAKE_GRACE minutes
 # @description (default 30), then lists it again until a real answer.
-# @description Idempotent: one take line per (topic, taker). The ledger is
-# @description <spool root>/dispatch/take.log ("<epoch> <topic> <id>@<box>
-# @description <plan>", tab-separated); a second call for the same pair posts
-# @description nothing and exits 0 saying TAKEN-ALREADY. A failed post is not
-# @description recorded, so a re-run posts it. Dry run unless DRY_RUN=0.
+# @description Idempotent: one take line per human post still unanswered, per
+# @description taker (SPL-5141: the rule is per post, SPEC-spool-fleet-roles.md
+# @description 3; one line per topic left a follow-up post with no take line).
+# @description The post is the topic's newest human post no agent has answered
+# @description (do_spl_take_post). The ledger is <spool root>/dispatch/take.log
+# @description ("<epoch> <topic> <id>@<box> <plan> <post msg id>", tab-separated);
+# @description a second call for the same post posts nothing and exits 0 saying
+# @description TAKEN-ALREADY. A row with no post id (older, or taken while the
+# @description topic could not be read) covers a post no newer than the row.
+# @description A topic that cannot be read, or has nothing unanswered, keeps one
+# @description line per (topic, taker). A failed post is not recorded, so a
+# @description re-run posts it. Dry run unless DRY_RUN=0.
 # @description A take of a post one person addressed to another (to_id HUM-n, or
 # @description @-mentions of people only) is refused by do_spl_desk_reply's
 # @description human-to-human gate and not recorded (SPL-3967).
@@ -31,6 +38,8 @@
 # @param TAKE_NOTIFY (optional) - space-separated agent ids told by spool note that DESK_AGENT owns the topic
 # @param TAKE_REPLY_CMD (optional) - replaces "<proj>/run -a do_spl_desk_reply" (tests)
 # @param TAKE_SEND (optional) - replaces spool-send.sh (tests)
+# @param TAKE_POST_CMD (optional) - replaces "<proj>/run -a do_spl_take_post" (tests); under SPOOL_TEST=1 with none the topic is not read
+# @param TAKE_POST_TIMEOUT (optional) - seconds for that read, default 20
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-002 DESK_TO=HUM-10 DESK_TASK=<full topic uuid> TAKE_PLAN='I read the hub logs' DRY_RUN=0 ./run -a do_spl_take
 #------------------------------------------------------------------------------
@@ -55,9 +64,10 @@ do_spl_take() {
   if [[ "${SPOOL_TEST:-}" == 1 && ( -z "${TAKE_REPLY_CMD:-}" || "$(realpath -m "$LEASE_DIR")" == "$(realpath -m /var/spool-hub/dispatch)" ) ]]; then
     do_log "FATAL SPOOL_TEST=1 needs TAKE_REPLY_CMD and a scratch SPOOL_ROOT: a test never posts for real"; return 96
   fi
-  local by="$agent@$box" body
+  local by="$agent@$box" body post="" post_at=""
   body="Taken by $by: $plan. I post the result here."
-  if spl_take_seen "$f" "$task" "$by"; then
+  IFS=$'\t' read -r post post_at < <(spl_take_post "$task") || true
+  if spl_take_seen "$f" "$task" "$by" "$post" "$post_at"; then
     echo "TAKEN-ALREADY $task by $by: no second take line"; return 0
   fi
   if [[ "${DRY_RUN:-1}" != 0 ]]; then
@@ -69,9 +79,9 @@ do_spl_take() {
   local out rc=0
   out="$( (
     flock -w 30 9 || { echo "FATAL could not lock $f.lock"; exit 1; }
-    spl_take_seen "$f" "$task" "$by" && { echo "TAKEN-ALREADY $task by $by: no second take line"; exit 3; }
+    spl_take_seen "$f" "$task" "$by" "$post" "$post_at" && { echo "TAKEN-ALREADY $task by $by: no second take line"; exit 3; }
     spl_take_reply "$to" "$task" "$body" >&2 || { echo "FATAL the take line was not posted in $task: nothing recorded, re-run to retry"; exit 1; }
-    printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$task" "$by" "$plan" >> "$f" ||
+    printf '%s\t%s\t%s\t%s\t%s\n' "$(date +%s)" "$task" "$by" "$plan" "$post" >> "$f" ||
       { echo "FATAL posted, but could not record it in $f"; exit 1; }
     echo "TAKEN $task by $by: $body"
   ) 9> "$f.lock" )" || rc=$?
@@ -81,9 +91,29 @@ do_spl_take() {
   spl_take_notify "$task" "$by" "$to" "$plan"
 }
 
-# 0 when the ledger <f> already holds a take of <topic> by <id>@<box>.
+# 0 when the ledger <f> already holds a take of <topic> by <id>@<box> that
+# covers [post] (posted at epoch [post at]): a row naming that post, or a row
+# with no post id no older than it. With no [post], any row of the pair.
 spl_take_seen() {
-  [[ -f "$1" ]] && awk -F'\t' -v t="$2" -v b="$3" '$2 == t && $3 == b { f = 1 } END { exit !f }' "$1"
+  [[ -f "$1" ]] && awk -F'\t' -v t="$2" -v b="$3" -v p="${4:-}" -v at="${5:-0}" '
+    $2 == t && $3 == b && (p == "" || $5 == p || ($5 == "" && $1 + 0 >= at + 0)) { f = 1 }
+    END { exit !f }' "$1"
+}
+
+# Print "<msg id>\t<epoch>" of the post to take in <topic>; nothing when the
+# topic cannot be read or nothing in it is unanswered. Under SPOOL_TEST=1 only
+# a test's own TAKE_POST_CMD reads, never a hub. Its output is searched for the
+# marked line: ./run prints log lines to stdout around it.
+spl_take_post() {
+  local cmd="${TAKE_POST_CMD:-}" out
+  if [[ -z "$cmd" ]]; then
+    [[ "${SPOOL_TEST:-}" == 1 ]] && return 0
+    cmd="$PROJ_PATH/run -a do_spl_take_post"
+  fi
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  out="$(DESK_TASK="$1" timeout "${TAKE_POST_TIMEOUT:-20}" $cmd 2>/dev/null)" ||
+    { do_log "WARN could not read topic $1: one take line per (topic, taker) this time" >&2; return 0; }
+  sed -n 's/^TAKE-POST \([A-Za-z0-9-]*\) \([0-9]*\)$/\1\t\2/p' <<<"$out" | tail -n 1
 }
 
 # The take line, through do_spl_desk_reply (DESK_TO + full DESK_TASK: post

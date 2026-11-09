@@ -149,13 +149,14 @@ _spl_review_go_seen() {
 
 # _spl_review_go_read_fail <line>: 0 when the line's read: part says FAIL as
 # a verdict (g-161 had to write `grok PASS ... read: JUDGMENT FAIL W1`, msg
-# 95d5ed90). A count is no verdict: 1 of 242 PASS lines on a box matched this,
-# 36 named FAIL for a red control (one box, since 2026-10-22).
+# 95d5ed90). A red control's count is no verdict: 1 of 242 PASS lines on a box
+# matched this, 36 named FAIL for a red control (one box, since 2026-10-22).
 _spl_review_go_read_fail() {
   local r="${1#* | read: }"
   r="${r%% | log: *}"
-  # `R3 2 FAILED; W1 of 3ff77bed closed` is a count, then the next finding
-  r="$(sed -E 's/\b[0-9]+[[:space:]]+fail(ed)?\b/count/Ig' <<<"$r")"
+  # only a count labelled R<n> or control is blanked: `R3 2 FAILED; W1 closed`.
+  # Any other `3 FAILED: W1` may be a finding: a wrong hold costs a hand-sent GO
+  r="$(sed -E 's/\b(R[0-9]+|controls?)[[:space:]]+[0-9]+[[:space:]]+fail(ed)?\b/count/Ig' <<<"$r")"
   grep -qiE '\b(judgment|judgement|verdict|overall|review)\b[^a-z0-9]{0,3}fail(ed)?\b|\bfail(ed)?\b[^a-z0-9]{0,3}w[0-9]+\b' <<<"$r"
 }
 

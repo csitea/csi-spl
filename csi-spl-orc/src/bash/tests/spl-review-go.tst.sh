@@ -34,8 +34,9 @@
 #    15. RED CONTROL a PASS header whose read: says FAIL (g-161's `grok PASS
 #        ... read: JUDGMENT FAIL W1`, msg 95d5ed90) -> rc 1, no GO; control: a
 #        red control's FAIL count in read: -> GO (SPL-4251)
-#        a count right before a W<n> label -> GO; bare and labelled FAIL W<n>
-#        stay held (SPL-5148)
+#        a count labelled R<n> or control right before a W<n> label -> GO; bare
+#        and labelled FAIL W<n> and a count with no such label stay held
+#        (SPL-5148)
 #    16. a second review seat (spec 155 B5: grok R7 + agy strings, SPL-4251):
 #        RED CONTROL the grok PASS while another placed brief names the same
 #        author and sha -> rc 10, no GO, WAIT in automation.log; the agy PASS
@@ -415,6 +416,16 @@ run REVIEW_GO_MSG="$f"; refused "15. RED CONTROL: a bare FAIL W1 at a clause sta
 reset
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS; R1 FAIL W1 a.sh:3 drops the lock/')" 15000000-0000-4000-8000-000000000005)
 run REVIEW_GO_MSG="$f"; refused "15. RED CONTROL: a label R1 is no count, R1 FAIL W1 is held" $? 1 "read: says FAIL"
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS, red control 2 FAILED; W1 of 3ff77bed closed/')" 15000000-0000-4000-8000-000000000006)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 1 )) && pass "15. a count labelled control right before a W<n> label still GOes" || fail "15. control count before W<n> rc=$rc gos=$(gos) out=$(tail -3 "$T/out")"
+i=0
+for shape in '3 FAILED: W1 a.sh:3 drops the lock' '1 FAIL W1 a.sh:3 drops the lock' 'JUDGMENT: 3 FAILED, W1 open' 'case 3 FAIL W1' '#4 FAIL W1' 'R-1 FAIL W1' 'R 1 FAIL W1' '| 3 FAILED | W1 |'; do
+  i=$((i + 1)); reset
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed "s/read: 1 PASS 0 failures/read: 9 PASS; $shape/")" "15000000-0000-4000-8000-00000000001$i")
+  run REVIEW_GO_MSG="$f"; refused "15. RED CONTROL: a count with no red-control label is held: $shape" $? 1 "read: says FAIL"
+done
 
 # --- 16. a second review seat for the same author and sha ----------------------------------------------------------
 waits() { count "$LOG" '^WAIT '; }

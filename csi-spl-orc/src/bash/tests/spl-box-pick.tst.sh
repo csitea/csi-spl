@@ -51,6 +51,8 @@
 #          review seats included; a row pinned to it waits and says why; both
 #          are released when the hold ends; every box recovering -> the
 #          fallback places with its WARN, a recovering box before a degraded one.
+#          the bench removed the last box that could take the lane -> pick=hold
+#          naming the hold, never nokind or the plain overflow reason.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -990,6 +992,30 @@ out="$(run BEATS="$T/rec2.json" HUB_NOW=$((G1 + 400)))"
 out="$(run BEATS="$T/deg1.json" HUB_NOW=$((G1 + 400)))"
 [[ "$(pick "$out")" == boxb ]] && grep -q '^BOX boxa .*DEGRADED' <<<"$out" && grep -q '^WARN every box' <<<"$out" &&
   pass "20. boxa degraded, boxb recovering: the fallback takes the recovering box, not the first in order" || fail "20. mixed: $out"
+
+# 20. W1 (c-429): the bench removed the last box that could take the lane ->
+#     pick=hold naming the hold, never nokind (spawn-window exit 13, a
+#     launch-failed blocker per placer retry).
+LOST='^pick=hold reason=.*in its recovering hold \(boxa healthy for 400s < hold 1800s\)'
+clis "boxa:agy,claude:60" "boxb:claude:60"
+K20=(LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy BEATS="$T/rec1.json")
+out="$(run "${K20[@]}" HUB_NOW=$((G1 + 400)))"
+[[ "$(pick "$out")" == hold ]] && grep -qE "$LOST" <<<"$out" &&
+  pass "20. only the benched box has the CLI: pick=hold naming the hold, not nokind" || fail "20. benched CLI: $out"
+out="$(run "${K20[@]}" HUB_NOW=$((G1 + 1800)))"
+[[ "$(pick "$out")" == boxa ]] && pass "20. CONTROL the same lane goes to boxa when the hold ends" || fail "20. CLI release: $out"
+clis "boxa:claude:60" "boxb:claude:60"
+out="$(run "${K20[@]}" HUB_NOW=$((G1 + 400)))"
+[[ "$(pick "$out")" == nokind ]] && pass "20. CONTROL the benched box lacks the CLI too: still nokind, waiting would not help" || fail "20. both no CLI: $out"
+stats "boxa:1:8" "boxb:24:8"
+out="$(run BEATS="$T/rec1.json" HUB_NOW=$((G1 + 400)))"
+[[ "$(pick "$out")" == hold ]] && grep -qE "$LOST" <<<"$out" &&
+  pass "20. the healthy box is past its overflow mark: the hold reason names the bench" || fail "20. overflow: $out"
+stats "boxa:24:8" "boxb:24:8"
+out="$(run BEATS="$T/rec1.json" HUB_NOW=$((G1 + 400)))"
+[[ "$(pick "$out")" == hold ]] && grep -q 'reason=no box with a sample is below its overflow mark' <<<"$out" &&
+  pass "20. CONTROL the benched box is past its overflow mark too: the plain overflow hold" || fail "20. both over: $out"
+stats "boxa:1:8" "boxb:1:8"
 
 # 20. the placer: a row pinned to the box waits, says why, and is released.
 # pin20 PICK_OUT -> the rows left after spl_spawn_place_pin_hold

@@ -254,6 +254,7 @@ spl_box_pick_decide() {
        // (first($seen[] | select(.pct < .band.high)) | . + {why: "high"})
        // ([$seen[] | select(.pct < .band.high * $over / 100)] | min_by(.pct / .band.high) | if . == null then null else . + {why: "over"} end)
        // null) as $pick
+    | [$open[] | select(.sick and (.down | not) and (.capped | not) and (.nokind | not) and (.wkover | not) and .pct < .band.high * $over / 100)] as $benched
     | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), \(($t.boxes // {}) | length) per-box band(s), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
       ($rows[] | if .miss then "WARN box \(.box): no load sample in the last \($since), skipped"
         else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high)\(if .band.aim < .band.high then " aim \(.band.aim)" else "" end) (\(.band.src))\(if .cord then "  CORDONED (until \(.until | todate))" else "" end)\(if .dfull then "  DISK \(.disk.mount) \(.disk.pct)% >= \($dmax)%: not picked" else "" end)\(if .down then "  DEGRADED (\(.why))" elif .sick then "  RECOVERING (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if .nokind then "  no \($kind) CLI: not picked" else "" end)\(
@@ -264,6 +265,8 @@ spl_box_pick_decide() {
          "pick=hold reason=every box with a sample is CORDONED (\([$all[].box] | join(" "))): queue the lane, spawn nothing"
        elif $pick == null and ($uncord | length) > 0 and ($open | length) == 0 then
          "pick=hold reason=every box with a sample is at or over the disk headroom mark \($dmax)% (\([$uncord[] | "\(.box) \(.disk.mount) \(.disk.pct)%"] | join(", "))): queue the lane, spawn nothing"
+       elif $pick == null and ($benched | length) > 0 then
+         "pick=hold reason=every box that could take this lane is in its recovering hold (\([$benched[] | "\(.box) \(.why)"] | join(", "))): queue the lane, spawn nothing"
        elif $pick == null and ($seen0 | length) > 0 and ($kinded | length) == 0 then
          "pick=nokind reason=no box with room has a \($kind) CLI for the agent user (measured without it: \($nk | join(" "))): spawn nothing"
        elif $pick == null and ($kinded | length) > 0 and ($seen | length) == 0 then

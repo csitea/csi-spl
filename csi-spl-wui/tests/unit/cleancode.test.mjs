@@ -46,8 +46,6 @@ const LONG = new Map([
 // the struct / object they belong to and delete its line; a NEW wide one fails.
 const WIDE = new Set([
   'src/composables/useCardEdit.ts useCardEdit',
-  'src/composables/useCardEdit.ts useEditKeys',
-  'src/composables/useCardHeight.ts useCardGrip',
   'src/composables/useCardMove.ts useCardMove',
   'src/composables/useCardSwipe.ts useCardSwipe',
   'src/composables/useCardSwipe.ts useCardSwipeFlags',

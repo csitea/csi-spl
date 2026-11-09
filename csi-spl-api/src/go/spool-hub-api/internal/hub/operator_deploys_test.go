@@ -141,7 +141,7 @@ func randSHA(t *testing.T) string {
 }
 
 // TestOperatorDeploysIngest (T025 GATE): the env's operator SA reports a
-// deploy and the row is stored (source ci, plain version written v-form);
+// deploy and the row is stored (source ci, the tag as sent);
 // the same run's re-post returns that row, stored=false. RED CONTROL: no
 // token is 401, a stranger's token 403, an unknown env or a short sha 400,
 // and none of them writes a row.
@@ -170,7 +170,7 @@ func TestOperatorDeploysIngest(t *testing.T) {
 	}
 	code, out := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", body)
 	row, _ := out["deploy"].(map[string]any)
-	if code != http.StatusOK || out["stored"] != true || row["commit_sha"] != sha || row["version"] != "v3.2.5" ||
+	if code != http.StatusOK || out["stored"] != true || row["commit_sha"] != sha || row["version"] != "3.2.5" ||
 		row["source"] != "ci" || row["status"] != "success" || row["deployed_by"] != operatorSA {
 		t.Fatalf("GATE: the operator's report: %d %v", code, out)
 	}
@@ -308,5 +308,18 @@ func TestDeployReconcileOff(t *testing.T) {
 	}
 	if srv := newEnv(t, func(o *hub.Options) { o.Env = "dev"; o.Store = store.NewMemory() }).srv; srv.NewDeployReconciler() != nil {
 		t.Error("a store without the deploy record runs the reconcile check")
+	}
+}
+
+// A posted tag is stored as sent, so a repo's deploy and its release note read
+// as one version (spec 171 section 3.3.2 step 3; R7 W1 of SPL-5108).
+func TestOperatorDeployStoresTheTagAsSent(t *testing.T) {
+	e, tid, _, _ := deployEnv(t)
+	for _, tag := range []string{"2026.11.05", "release-7", "3.2.5", "v3.2.5"} {
+		body := map[string]any{"env": "dev", "component": "hub", "version": tag, "commit_sha": randSHA(t)}
+		code, out := opCall(t, e, tid, http.MethodPost, "/v1/operator/deploys", "good", body)
+		if row, _ := out["deploy"].(map[string]any); code != http.StatusOK || row["version"] != tag {
+			t.Errorf("%s: %d %v", tag, code, out)
+		}
 	}
 }

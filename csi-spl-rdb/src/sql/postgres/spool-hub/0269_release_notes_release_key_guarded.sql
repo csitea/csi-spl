@@ -13,7 +13,7 @@
 -- Live-data safety: the CI order is migrate, then the new revision, so between
 -- the two the old hub's list matches this index neither on tenant_id nor on the
 -- CASE and seq-scans (R7 of SPL-4983 on 9,348 notes, n=7: about 6 ms to 592 ms).
--- The build holds a write lock for its seconds on that table size; the
+-- The build holds an exclusive lock, reads wait too, for its seconds on that table size; the
 -- deploy-time ingest is the only writer.
 -- DEPLOY ORDER: apply BEFORE the hub of row B-2.
 

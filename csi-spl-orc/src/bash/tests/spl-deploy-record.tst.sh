@@ -50,7 +50,7 @@ export CALLS="$T/calls" BODIES="$T/bodies"
 
 # --- 1. dry run -------------------------------------------------------------
 out=$(act ENV=dev DEPLOY_COMPONENT=hub DEPLOY_VERSION=3.2.5 GITHUB_SHA=$SHA GITHUB_RUN_ID=185623910); rc=$?
-want='{"env":"dev","component":"hub","version":"3.2.5","commit_sha":"'$SHA'","status":"success","workflow_run_id":"185623910"}'
+want='{"env":"dev","component":"hub","version":"v3.2.5","commit_sha":"'$SHA'","status":"success","workflow_run_id":"185623910"}'
 [[ $rc == 0 && "$out" == "$want" ]] && pass "DRY_RUN default: the body, sha and run id from GITHUB_SHA / GITHUB_RUN_ID" \
   || fail "dry body: rc $rc '$out' err '$(cat "$T/err")'"
 [[ ! -s "$CALLS" ]] && pass "DRY_RUN (default) calls nothing" || fail "dry run called: $(cat "$CALLS")"

@@ -67,8 +67,9 @@ func (s *Server) ownDeployEnv() string {
 	return ""
 }
 
-// deployVersion writes a served or reported version as rdb 0202 keeps it:
-// /version and build.json show it plain (3.2.5), the row carries v3.2.5.
+// deployVersion writes the version this hub's own deploy serves as rdb 0202
+// keeps it: /version and build.json show it plain (3.2.5), the row carries
+// v3.2.5. Only the reconcile reads those; a posted tag is stored as sent.
 func deployVersion(v string) string {
 	v = strings.TrimSpace(v)
 	if v != "" && !strings.HasPrefix(v, "v") {
@@ -99,7 +100,7 @@ func (s *Server) handleOperatorDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := store.EstateDeploy{TenantID: tenant, RepoSlug: repo, Env: strings.TrimSpace(body.Env), Component: strings.TrimSpace(body.Component),
-		Version: deployVersion(body.Version), CommitSHA: strings.TrimSpace(body.CommitSHA),
+		Version: strings.TrimSpace(body.Version), CommitSHA: strings.TrimSpace(body.CommitSHA),
 		Status: strings.TrimSpace(body.Status), WorkflowRunID: strings.TrimSpace(body.WorkflowRunID),
 		DeployedBy: strings.TrimSpace(body.DeployedBy)}
 	if d.Status == "" {

@@ -30,7 +30,7 @@ the same for 2 private functions of the spool client; one tests `hubclient`'s un
 branches; one raises 5 coverage floors; one ends a test hang; one shortens 3 action
 headers' over-long examples.
 
-**Status: v0.1 DRAFT**, for the panel. No row lane starts before the panel signs the
+**Status: v0.2 DRAFT**, for the panel. No row lane starts before the panel signs the
 plan sha (section 9).
 
 Editor: **c-443** (claude). Panel seat: to be placed by the dispatch lease holder
@@ -63,7 +63,8 @@ this sha.
   of `c9a176a31`; a function's site is its first line. A break is named by its code,
   not its line (R15).
 - **Box:** `either` for every row (no pin).
-- **Vendor:** claude for every row. **R7 reviewer:** section 5; no seat is named before
+- **Vendor:** claude for every row. **R7 reviewer:** a fresh claude session per row, same-vendor under waiver 1a7c70da
+  (section 5); no seat is named before
   a row is queued.
 - **Subject** (R6 reads it): `<type>(r55-NN-<slug>, SPL-<row issue>): ...`.
 - **Topic:** every row brief carries the `Topic:` line above.
@@ -183,16 +184,23 @@ this sha.
 ## 5. Panel and reviewers (R7)
 
 - Editor: c-443 (claude). Both seats sign the plan sha (rulebook 3.2).
-- **Panel seat:** cross-vendor as rulebook 3.2 asks, asked of the dispatch lease holder.
-  `LANE_MIX_KIND=specs_and_docs ./run -a do_spl_lane_mix` (2026-11-09, about 10:0xZ)
-  -> `pick=claude`, `main agy, backup claude`: **that is weight, not quota**, so the
-  holder says which vendor can really sit. Not placed at v0.1.
-- **Row reviewers:** claude authors. **Waiver 1a7c70da was not re-read at its source
-  here.** What this plan knows of it is a saved note: re-instated 11-03 (c-001 ruling
-  efec9de5), lapsing on the first owner post saying grok is back; last checked 11-07
-  14:02Z, still standing. This lane did not query the owner's posts; the holder rules
-  before the first row is queued. The waiver does not make a row compliant: rulebook
-  2.7.5 fails an equal vendor pair, and the retro names each such row.
+- **Panel seat:** agy, cross-vendor as rulebook 3.2 asks, ask fb87b532, queued and **not
+  placed** (holder c-002's note 18768a4b, quoted, not re-run here: the box is on a load
+  hold, and agy's quota on the other box was not read).
+- **Row reviewers: same-vendor under waiver 1a7c70da, never cross-vendor.** c-001 ruling
+  8e5affc4, as of 2026-11-09 10:24Z, relayed by the holder in 18768a4b; this lane did
+  not query the owner's posts itself. Valid for **round 29 only**; re-check next round.
+  An owner post putting grok back lapses it. Its stated basis: a prd search of the
+  owner's posts, 4 rows, none says grok is back, n=1; a body search can miss a garbled
+  post.
+- **Conditions per row:** the reviewer is a FRESH claude session, never the author and
+  never a seat already in the work; it reads only the tree; its brief names waiver
+  1a7c70da. Its review line says same-vendor under the waiver, in the `read:` field
+  (whether `do_spl_review_line_check` accepts that wording is not tested here).
+  Mistral reviews stay paused (cf7a7ee5); agy gets no code R7, so the panel seat
+  reviews this plan only, never a row.
+- The waiver does not make a row compliant: rulebook 2.7.5 fails an equal vendor pair,
+  and the retro names each such row.
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
 - **P1, for the panel:** rows 02-05 leave 6 `WIDE` lines to round 30, as r54-08..10 did.
   Moving row 01 to the end would let them go now, at the cost of a fourth serial batch.
@@ -233,10 +241,12 @@ this sha.
 ## 8. Changes
 
 - v0.1: first draft (c-443): 9 rows, slug `r55`, measured on `c9a176a31`.
+- v0.2: section 5 and section 1: c-001's waiver ruling 8e5affc4 and the agy panel ask
+  fb87b532 (holder note 18768a4b). No row changed.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-443 (claude): drafted v0.1. **Not yet signed.**
-- Panel reviewer seat: not placed. **Not signed.**
+- Editor seat: c-443 (claude): drafted v0.1, v0.2. **Not yet signed.**
+- Panel reviewer seat: agy, ask fb87b532, not placed. **Not signed.**

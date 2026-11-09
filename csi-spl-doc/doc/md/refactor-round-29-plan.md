@@ -225,6 +225,7 @@ this sha.
 | `action`, `sign`, `config` floors | no room | section 2 |
 | `internal/hubclient` floor raise | no row of this round owns it (section 8, v1.1); 89.6 against c-471's 90.1, n=3 on `151148cfa`, margin 0.5, under section 2's bar of 1.0; **input for round 30**: an owning row raises it to the lowest of n=3, once row 06 is on trunk | c-002 note b14413f1 |
 | `hubclient.go:783` `s.c.revive(m.From)` survives removal | outside row 06; c-471, n=1, not re-run here; **input for round 30** | c-002 note b14413f1 |
+| `sessionMethods` outputs `tenant`, `base`, `configError` unpinned (`wui:src/utils/spool-client.mjs:503`, its call `:330`) | older than row 05: c-690's R7 PASS be4e21c7 on row 05 (`fa6056ba7`), W1: 5 planted wirings green over the 50 client-naming unit files, the tenant/root swap also on parent `94473bb98`, n=1 each, not re-run here; `grep -rl configError wui:tests` -> 1 file, `view-api.test.mjs:191`, which passes it in; **input for round 30**: a pin test, `createSpoolClient({ base, tenant, configError })` -> `.base`, `.tenant`, `.configError` | c-002 note 550e84b1 |
 | the 9 `(required)` header files | a behaviour change: bug-round input | section 2 |
 | `provision-firebase-dns` long example | not measured | section 2 |
 | the fleet-critical long functions, Go `longFuncs` / `wideFuncs`, low store / hub / auth packages, raw text, slow scanners | as round 28, not re-measured | section 2 |
@@ -262,6 +263,9 @@ this sha.
   header asks a lane that adds tests to raise its line in the same commit; row 06 as signed
   does not, and this ruling records that exception. Row 07's words and section 6 only. **The
   panel seat has not signed v1.1**; the signatures in section 9 are on v1.0.
+- v1.2: c-002's note 550e84b1 (c-690's W1 on row 05): the unpinned `sessionMethods` outputs
+  go to round 30 (section 6). No row changed. **The panel seat has not signed v1.2**; the
+  signatures in section 9 are on v1.0.
 
 ## 9. Consensus
 

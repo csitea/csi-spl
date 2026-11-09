@@ -42,6 +42,16 @@ _pp_secs() { echo "$(( $(date +%s 2>/dev/null || echo 0) - _pp_t0 ))s"; }
 _pp_override="${SPL_PREPUSH_OVERRIDE:-0}"
 _pp_refs="$(cat)"  # git's ref lines, read once: the non-ff guard and the wip skip both use them
 
+# The ref lines as git sent them (SPL-5163), so a later "why was this gated" is
+# provable from the log: remote ref plus 12 chars of each sha. "none" is a real
+# case, git runs this hook after dropping every ref (stale lease, up to date).
+_pp_seen=""
+while read -r _ _pp_lsha _pp_rref _pp_rsha; do
+  [ -n "${_pp_rref:-}" ] || continue
+  _pp_seen+="$_pp_rref ${_pp_rsha:0:12}..${_pp_lsha:0:12}; "
+done <<<"$_pp_refs"
+_pp_logline "REFS $PWD HEAD=$head remote=${1:-?} -- ${_pp_seen:-none}"
+
 # A watcher seat pushes nothing (spec 165 3.3 (3), SPL-4344) -- FIRST, any
 # ref, SPL_PREPUSH_OVERRIDE included. The caller is read from the process
 # chain (its uid, environ or pane: spl_watcher_refuse in the pushing tree's
@@ -195,11 +205,19 @@ fi
 # watchdog's do_spl_lane_wip_push) is not gated: it carries unfinished work, CI
 # does not build it, and the job must not block on the gate. Read from stdin,
 # scoped to those refs only; a mixed push (wip + any other ref) is gated as usual.
+# No ref line at all (SPL-5163): git dropped every ref (a stale lease, an up to
+# date ref) and will send nothing, so there is nothing to gate; it ran the whole
+# gate for 19+ min. A line with no remote ref is not that case: it stays gated.
 _pp_wip=0
-while read -r _ _ _pp_rref _; do
-  [ -n "${_pp_rref:-}" ] || continue
-  case "$_pp_rref" in refs/heads/wip/?*) _pp_wip=1 ;; *) _pp_wip=2; break ;; esac
+while read -r _pp_lref _ _pp_rref _; do
+  [ -n "${_pp_lref:-}" ] || continue
+  case "${_pp_rref:-}" in refs/heads/wip/?*) _pp_wip=1 ;; *) _pp_wip=2; break ;; esac
 done <<<"$_pp_refs"
+if [ "$_pp_wip" = 0 ]; then
+  _pp_logline "SKIP-NOREFS $PWD HEAD=$head remote=${1:-?} -- no ref line on stdin, git sends nothing"
+  echo "pre-push: no ref to send (rejected or up to date) -- the deploy-gate is skipped" >&2
+  exit 0
+fi
 if [ "$_pp_wip" = 1 ]; then
   _pp_logline "SKIP-WIP $PWD HEAD=$head remote=${1:-?} -- every ref is refs/heads/wip/*"
   echo "pre-push: every ref is refs/heads/wip/* -- the deploy-gate is skipped (spec 102 5.4)" >&2

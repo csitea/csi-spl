@@ -14,6 +14,9 @@
 #    13. the gate gets the per-part log, the verdict cache and tier=fast
 #    14. a STALE shared checkout: the lane's own hook runs (trampoline)
 #    15. the run and refusal text give SPL_PREPUSH_OVERRIDE to the owner's go only
+#    16. SPL-5163: real pushes through git: wip-only and no-ref pushes are never
+#        gated, the ref lines are logged; mixed, master and malformed stay gated;
+#        the non-ff, R7 and owner-order guards still come first (red controls)
 #   INSTALLER
 #     6. installs core.hooksPath for ONE worktree only, others untouched
 #     7. idempotent (second run still 0)
@@ -271,6 +274,94 @@ o15p="$(hook_text "$OHOOK" "$ROOT/l15op")"; o15f="$(hook_text "$OHOOK" "$ROOT/l1
 case "$o15f" in *"Fix it, or override once"*) pass "15. control: the old hook renders the old refusal" ;; *) fail "15. control: the old hook renders the old refusal" "$o15f" ;; esac
 override_ok "$o15p" && fail "15. control (old run line) -> FAIL" "$o15p" || pass "15. control (old run line) -> FAIL"
 override_ok "$o15f" && fail "15. control (old refusal) -> FAIL" "$o15f" || pass "15. control (old refusal) -> FAIL"
+
+# 16. SPL-5163: git runs the hook even when it dropped every ref, with EMPTY
+#     stdin (a stale lease, an up to date ref): that ran the whole gate. Real
+#     pushes through git, a bare remote and a gate that records its run.
+R16="$ROOT/r16"; git init -q --bare "$R16/o.git"; git clone -q "$R16/o.git" "$R16/c" 2>/dev/null
+mkdir -p "$R16/c/csi-spl-iac" "$R16/hk"
+printf '#!/usr/bin/env bash\necho ran >>"$GATE"\nexit 0\n' >"$R16/c/csi-spl-iac/run"; chmod +x "$R16/c/csi-spl-iac/run"
+git -C "$R16/c" add -A; git -C "$R16/c" commit -qm s16; git -C "$R16/c" push -q --no-verify origin HEAD:refs/heads/master
+git -C "$R16/c" config core.hooksPath "$R16/hk"
+A16="$(git -C "$R16/c" rev-parse HEAD)"
+B16="$(git -C "$R16/c" commit-tree "$A16^{tree}" -p "$A16" -m b)"
+C16="$(git -C "$R16/c" commit-tree "$A16^{tree}" -p "$B16" -m c)"
+W16=refs/heads/wip/c-999-x
+push16() {  # <hook> <logdir> <git push args...> -> the push's rc; the gate records in <logdir>/gate
+  local h="$1" ld="$2"; shift 2
+  mkdir -p "$ld"; install -m 0755 "$h" "$R16/hk/pre-push"
+  GATE="$ld/gate" SPL_PREPUSH_LOG_DIR="$ld" git -C "$R16/c" push -q origin "$@" >/dev/null 2>&1
+}
+gated16() { [ -s "$1/gate" ] && echo gated || echo no; }
+logged16() { grep -c "$2" "$1/pre-push.log" 2>/dev/null; }
+L="$ROOT/l16a"; push16 "$HOOK" "$L" --force-with-lease="$W16:" "$A16:$W16"; eq "16a. new wip ref, empty expect -> pushed" 0 "$?"
+eq "16a. ... not gated" no "$(gated16 "$L")"; eq "16a. ... SKIP-WIP" 1 "$(logged16 "$L" ' SKIP-WIP ')"
+grep -q "REFS .* -- $W16 000000000000..${A16:0:12}; " "$L/pre-push.log" && pass "16a. ... the ref line is logged, 12-char shas" || fail "16a. ... the ref line is logged, 12-char shas" "$(cat "$L/pre-push.log")"
+L="$ROOT/l16b"; push16 "$HOOK" "$L" --force-with-lease="$W16:$A16" "$B16:$W16"; eq "16b. wip update, right lease -> pushed" 0 "$?"
+eq "16b. ... not gated" no "$(gated16 "$L")"
+L="$ROOT/l16c"; push16 "$HOOK" "$L" --force-with-lease="$W16:" "$C16:$W16"; eq "16c. existing wip ref, empty expect -> git rejects the stale lease" 1 "$?"
+eq "16c. ... not gated" no "$(gated16 "$L")"; eq "16c. ... SKIP-NOREFS" 1 "$(logged16 "$L" ' SKIP-NOREFS ')"; eq "16c. ... REFS none" 1 "$(logged16 "$L" 'REFS .* -- none$')"
+eq "16c. ... the remote ref did not move" "$B16" "$(git -C "$R16/o.git" rev-parse "$W16")"
+L="$ROOT/l16d"; push16 "$HOOK" "$L" --force-with-lease="$W16:$B16" "$B16:$W16"; eq "16d. wip up to date -> exit 0" 0 "$?"
+eq "16d. ... not gated" no "$(gated16 "$L")"; eq "16d. ... SKIP-NOREFS" 1 "$(logged16 "$L" ' SKIP-NOREFS ')"
+L="$ROOT/l16e"; push16 "$HOOK" "$L" "$B16:refs/heads/lane16" "$C16:refs/heads/wip/c-999-y"; eq "16e. mixed wip + lane ref -> pushed" 0 "$?"
+eq "16e. ... GATED" gated "$(gated16 "$L")"; eq "16e. ... no SKIP line" 0 "$(logged16 "$L" ' SKIP-')"
+L="$ROOT/l16f"; push16 "$HOOK" "$L" "$B16:refs/heads/master"; eq "16f. master push -> pushed" 0 "$?"
+eq "16f. ... GATED" gated "$(gated16 "$L")"
+
+# The rest by hand on the hook's stdin; the guards are stubbed in the pushing
+# tree's own files, as the hook sources them.
+R16G="$ROOT/r16g"; mkdir -p "$R16G/csi-spl-iac" "$R16G/csi-spl-orc/src/bash/run" "$R16G/csi-spl-orc/src/bash/features/spawn-agents/lib"
+cp "$R16/c/csi-spl-iac/run" "$R16G/csi-spl-iac/run"
+cat >"$R16G/csi-spl-orc/src/bash/run/spl-push-master.func.sh" <<'EOF'
+_spl_push_master_unreviewed() { [ "${STUB_R7:-0}" = 1 ] && echo "abc r7 row"; return 0; }
+EOF
+cat >"$R16G/csi-spl-orc/src/bash/features/spawn-agents/lib/owner-order-guard.inc.sh" <<'EOF'
+oog_pre_push() { cat >/dev/null; if [ "${STUB_OOG:-0}" = 1 ]; then echo "owner-orders: REFUSED stub"; return 1; fi; return 0; }
+EOF
+git init -q "$R16G"; git -C "$R16G" add -A; git -C "$R16G" commit -qm a; git -C "$R16G" commit -q --allow-empty -m b
+G0="$(git -C "$R16G" rev-parse HEAD~1)"; G1="$(git -C "$R16G" rev-parse HEAD)"
+hook16() {  # <hook> <logdir> <stdin> [env...] -> the hook's rc
+  local h="$1" ld="$2" in="$3"; shift 3
+  mkdir -p "$ld"
+  ( cd "$R16G" && printf '%s' "$in" | env "$@" GATE="$ld/gate" SPL_PREPUSH_LOG_DIR="$ld" bash "$h" origin file://x >/dev/null 2>&1 )
+}
+L="$ROOT/l16g"; hook16 "$HOOK" "$L" "garbage"$'\n'; eq "16g. a line with no remote ref -> exit 0 from the gate" 0 "$?"
+eq "16g. ... GATED, never read as no refs" gated "$(gated16 "$L")"; eq "16g. ... no SKIP line" 0 "$(logged16 "$L" ' SKIP-')"
+NF16="refs/heads/master $G0 refs/heads/master $G1"$'\n'"refs/heads/w $G1 refs/heads/wip/x $ZERO"$'\n'
+R716="refs/heads/master $G1 refs/heads/master $G0"$'\n'"refs/heads/w $G1 refs/heads/wip/x $ZERO"$'\n'
+OO16="refs/heads/w $G1 refs/heads/wip/x $ZERO"$'\n'
+L="$ROOT/l16h"; hook16 "$HOOK" "$L" "$NF16"; eq "16h. non-ff guard still refuses (wip beside master)" 1 "$?"; eq "16h. ... before the gate" no "$(gated16 "$L")"
+L="$ROOT/l16i"; hook16 "$HOOK" "$L" "$R716" STUB_R7=1; eq "16i. R7 line check still refuses" 1 "$?"; eq "16i. ... before the gate" no "$(gated16 "$L")"
+L="$ROOT/l16j"; hook16 "$HOOK" "$L" "$OO16" STUB_OOG=1; eq "16j. owner-order guard still refuses a wip-only push, before the skip" 1 "$?"
+grep -q 'REFUSE .*owner order' "$L/pre-push.log" && pass "16j. ... logged" || fail "16j. ... logged" "$(cat "$L/pre-push.log")"
+
+# Red controls: each planted defect must change the verdict asserted above.
+mut16() {  # <out> <old> <new> -> a copy of the hook with the one edit; fails when <old> is absent
+  OLD16="$2" NEW16="$3" python3 - "$HOOK" "$1" <<'PY16'
+import os, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+old = os.environ["OLD16"]
+if old not in s: sys.exit("mutation target absent: " + old)
+open(sys.argv[2], "w", encoding="utf-8").write(s.replace(old, os.environ["NEW16"]))
+PY16
+}
+SKIPLINE='if [ "$_pp_wip" = 0 ]; then'
+M="$ROOT/m16nr"; mut16 "$M" "$SKIPLINE" 'if false; then' || fail "16 control: the no-ref mutation applies"
+L="$ROOT/l16cc"; push16 "$M" "$L" --force-with-lease="$W16:$B16" "$B16:$W16"; eq "16 control: without the no-ref skip, the up to date wip push IS gated" gated "$(gated16 "$L")"
+M="$ROOT/m16mix"; mut16 "$M" '*) _pp_wip=2; break ;; esac' '*) _pp_wip=1 ;; esac' || fail "16 control: the mixed mutation applies"
+L="$ROOT/l16ce"; push16 "$M" "$L" "$A16:refs/heads/lane16b" "$A16:refs/heads/wip/c-999-z"; eq "16 control: a skip that ignores the other ref leaves the mixed push ungated" no "$(gated16 "$L")"
+L="$ROOT/l16cf"; push16 "$M" "$L" "$C16:refs/heads/master"; eq "16 control: ... and the master push ungated" no "$(gated16 "$L")"
+M="$ROOT/m16g"; mut16 "$M" 'read -r _pp_lref _ _pp_rref _; do
+  [ -n "${_pp_lref:-}" ] || continue' 'read -r _pp_lref _ _pp_rref _; do
+  [ -n "${_pp_rref:-}" ] || continue' || fail "16 control: the malformed mutation applies"
+L="$ROOT/l16cg"; hook16 "$M" "$L" "garbage"$'\n'; eq "16 control: reading a malformed line as no refs leaves it ungated" no "$(gated16 "$L")"
+M="$ROOT/m16nf"; mut16 "$M" 'elif ! git merge-base --is-ancestor "$_pp_rsha" "$_pp_lsha" 2>/dev/null; then' 'elif false; then' || fail "16 control: the non-ff mutation applies"
+L="$ROOT/l16ch"; hook16 "$M" "$L" "$NF16"; eq "16 control: no ancestry check -> the non-ff push passes" 0 "$?"
+M="$ROOT/m16r7"; mut16 "$M" '[ -n "$_pp_bad" ] || continue' 'continue' || fail "16 control: the R7 mutation applies"
+L="$ROOT/l16ci"; hook16 "$M" "$L" "$R716" STUB_R7=1; eq "16 control: no R7 check -> the round row passes" 0 "$?"
+M="$ROOT/m16oo"; mut16 "$M" 'if [ -r "$_pp_oo" ]; then' 'if false; then' || fail "16 control: the owner-order mutation applies"
+L="$ROOT/l16cj"; hook16 "$M" "$L" "$OO16" STUB_OOG=1; eq "16 control: no owner-order guard -> the wip push passes" 0 "$?"
 
 echo "-- test-pre-push-hook.sh: $fails failed"
 [ "$fails" -eq 0 ]

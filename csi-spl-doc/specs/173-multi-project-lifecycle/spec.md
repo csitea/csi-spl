@@ -1,6 +1,6 @@
 # 173 Developing and tracking different software projects per workspace
 
-Version: v0.1 (2026-11-09), analysis only: nothing below is built, and no
+Version: v0.2 (2026-11-09, folds R7 review W1-W3 and N1-N4 of c-492), analysis only: nothing below is built, and no
 build issue is filed. Epic SPL-5152 · Issue SPL-5150 · Class feature · Kind specs_and_docs ·
 Task `dispatch-07b2d7b2` · Placement slug
 `c002-doc-multi-project-per-workspace-analysis` · Author c-486.
@@ -35,7 +35,8 @@ EPIC on that"
 The spool can already **track a workspace's own issues and close them from
 its own repo** (`lane-issue-and-docs.md` section 5), and specs 143 and 171
 design the **read side** of commits, releases and deploys. Three things are
-still missing, and no existing spec owns them:
+still missing. Spec 171 section 3.2 designs a part of the first (G1 says how
+this differs); no existing spec owns the rest:
 
 1. **Nothing connects a registered project to the work.** The tables exist
    (`rdb/0266`), but no issue, discussion, lane or report names a project,
@@ -85,7 +86,11 @@ panel first. "Order" is the build order of section 5.
   and the hub's project is invisible to the box.
 - **Needed.** The hub registry becomes the source; the box keeps only what is
   local to it (clone path, desk seat), keyed by repo. The box file stays
-  private to the box, as `lane-issue-and-docs.md` section 5 requires.
+  private to the box, as `lane-issue-and-docs.md` section 5 requires. Spec 171
+  section 3.2's bridge writes both registries from `do_workspace_repo_register`,
+  one row per workspace (not built). G1 replaces the box file's key with the
+  repo and reads the hub as the source: an amendment to 171 / 143 B-6, to be
+  built with B-6, not beside it.
 - **Size M. Order 1.**
 
 ### G2 Idea and discussion
@@ -104,11 +109,14 @@ panel first. "Order" is the build order of section 5.
 - **Measured.**
   - The location is pinned: `git grep -hE 'csi-spl-doc/specs' origin/master
     -- csi-spl-orc/src | wc -l` -> 168 lines in 53 files, comments included.
-  - `spl_issue_create_epic_spec` needs a spec folder on origin/master for a
-    t1 issue, and returns early for a workspace with a box-map row
-    (`orc/run/spl-issue-create.func.sh:71`), so **a workspace's spec is
-    checked by nothing**. `li_brief_epic_spec` passes such a brief the same
-    way (`sa/lib/lane-issue.inc.sh:186`).
+  - `spl_issue_create_epic_spec` needs a spec folder on csi-spl's
+    origin/master unless the issue carries an owner go
+    (`orc/run/spl-issue-create.func.sh:70`) or its workspace has a box-map
+    row (`:71`). So **a workspace with a repo has its spec checked by
+    nothing, and one with neither row nor go must name a csi-spl spec
+    folder** (`li_epic_spec`, `:76`; `LI_SPEC_REPO_DEFAULT`,
+    `sa/lib/lane-issue.inc.sh:119`). `li_brief_epic_spec` passes a
+    `Workspace:` brief the same way (`sa/lib/lane-issue.inc.sh:186`).
   - `do_spl_spec_import_issues` defaults to `$APP_PATH/csi-spl-doc/specs`
     (`orc/run/spl-spec-import-issues.func.sh:48`); `SPEC_DIR` overrides it.
   - The next spec number is found by hand: 172's header shows the method, and
@@ -170,10 +178,13 @@ panel first. "Order" is the build order of section 5.
 ### G6 Review, push and the pre-push gate
 
 - **Measured.**
-  - `sa/hooks/pre-push:211-217`: with no `csi-spl-iac/run` in the tree the
-    hook logs `SKIP not-the-spool-tree` and lets the push through. **So the
-    deploy-gate and the guide ack do not run in another repo.** The non-ff
-    refusal sits earlier, at `:78-85`.
+  - `sa/hooks/pre-push-trampoline:17-27`: with no
+    `csi-spl-orc/.../hooks/pre-push` in the pushing tree or its common
+    checkout the trampoline exits 0 without running the hook. **So in another
+    repo nothing in the hook runs: no deploy gate, no guide ack, and no non-ff
+    refusal (`pre-push:78-85`).** The reviewer ran this: in a repo without
+    that path `bash -x` printed `+ exit 0`; the control with a stub at the
+    path ran the stub (n = 1 each).
   - `check-pre-push.func.sh` names its parts by csi-spl directory:
     `grep -cE 'csi-spl-[a-z]+'` on the file -> 80 lines.
   - Review: `do_spl_review_line_check` has `REVIEW_LINE_REPO`, and for another
@@ -181,11 +192,12 @@ panel first. "Order" is the build order of section 5.
     (`spl-review-line-check.func.sh:45-46`); the e2e rule is for `csi-spl-wui/`
     only (`:61`). The R7 flow itself (`review/<slug>` branches,
     `do_spl_review_go`) reads the fleet's own brief store and was not traced
-    through another repo.
+    through another repo; `do_spl_review_go` has `REVIEW_GO_REPO`
+    (`spl-review-go.func.sh:87,590`).
 - **Gap.** Another repo has no gate, and the review proof is weaker there.
 - **Needed.** A small per-repo **gate profile** kept in that repo (build,
-  test, lint commands; trunk; deploy targets). The hook runs the profile when
-  there is one, and the fleet-wide checks that are not about csi-spl
+  test, lint commands; trunk; deploy targets). The trampoline falls through
+  to the fleet's own hook, which runs the profile when there is one, and the fleet-wide checks that are not about csi-spl
   (identity, no AI trailers, secrets scan, issue citation) always. Whether a
   repo with no profile may be pushed to is owner question 3.
 - **Size M. Order 2.**
@@ -193,7 +205,8 @@ panel first. "Order" is the build order of section 5.
 ### G7 CI
 
 - **Measured.** `.github/workflows` holds 38 files; 36 name `csi-spl`; 2 use
-  `workflow_call`, so there is no reusable pipeline for another repo.
+  `workflow_call` (10, 22), both written for this repo (judged: not reusable
+  elsewhere as they stand).
   `GCP_KEY_CSI_SPL` appears on 83 workflow lines. The gate-history report
   takes its repo from the checkout's remote (`do_report_ci_gate`, its header),
   but only runs where someone runs it. No table or action found in this
@@ -304,7 +317,7 @@ panel first. "Order" is the build order of section 5.
 | 6 | G11 reports, G12 docs | Read side, last |
 | parallel | G9 = spec 143 B-2..B-9 | Already in build, not this epic's |
 
-Judged total: 13 gaps, one of them (G9) empty, roughly 15 to 25 lanes if
+Judged total: 13 gaps, one of them (G9) empty, roughly 19 to 26 lanes (5 S, 7 M) if
 owner question 1 stays a shared prefix. This is an estimate from the sizes
 above, not a measurement.
 
@@ -323,29 +336,12 @@ above, not a measurement.
 
 ## 7. Questions only the owner can answer
 
-1. **Issue keys**: does each software project get its own prefix and number
-   line (`WEB-12`, `API-12`), or does a workspace keep one line with a project
-   field? Recommended: one line per workspace with a project field; it is far
-   smaller, and a workspace can already set its prefix.
-2. **What is a project in the discussion rail**: a channel per project, a tag
-   on a topic, or a field set by the dispatcher? Recommended: a field with a
-   workspace default, so one-project workspaces see no change.
-3. **How strict is the chain in a customer's repo**: must every commit there
-   cite an issue and pass a gate (as csi-spl), or is it per project? Spec 143
-   made release-note trailers optional there. Recommended: per project, on by
-   default.
-4. **Whose machines run a project's CI and whose credentials deploy it**: the
-   fleet's runners, or GitHub-hosted runners and the workspace's own keys?
-   Recommended: GitHub-hosted and the workspace's own keys; csi-spl's runners
-   and keys stay csi-spl's.
-5. **Branching**: may a project use pull requests or another branching model,
-   or do all projects follow trunk-only? Recommended: the profile states it,
-   trunk-only as the default.
-6. **Who can start a lane on a project**: only the operator and the
-   dispatcher as today, or the workspace's own admins, paying from which
-   agent quota? Spec 143 kept registration operator-only. Recommended:
-   operator only until a pilot has run.
-7. **The pilot**: which real project goes first? Recommended: one of the
-   repos already in a box map, since its issue flow already works.
+1. **Issue keys**: one number line per project, or per workspace with a project field? Recommended: per workspace with a field.
+2. **Project in the discussion rail**: a channel per project, a tag on a topic, or a field? Recommended: a field with a workspace default.
+3. **Strictness in a customer's repo**: must every commit cite an issue and pass a gate, or is it per project? Recommended: per project, on by default.
+4. **A project's CI and deploy**: the fleet's runners and keys, or GitHub-hosted runners and the workspace's own keys? Recommended: GitHub-hosted and the workspace's own.
+5. **Branching**: may a project use pull requests, or is every project trunk-only? Recommended: the profile states it, trunk-only by default.
+6. **Who may start a lane on a project**: the operator and dispatcher only, or the workspace's admins too? Recommended: operator only until a pilot has run.
+7. **The pilot**: which real project goes first? Recommended: a repo already in a box map.
 
-<!-- version: 0.1 · updated: 2026-11-09 -->
+<!-- version: 0.2 · updated: 2026-11-09 -->

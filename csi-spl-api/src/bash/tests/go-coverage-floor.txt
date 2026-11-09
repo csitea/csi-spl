@@ -38,6 +38,10 @@ cmd/spool 77.8
 # 0b2f05cb1 (rows r52-07 and r52-09 landed) each read: action 91.6, channelmove
 # 96.3, hubclient 87.8, lockkey 83.6, payments 84.3. Before: 90.8, 83.3, 85.9,
 # 79.3, 83.6. hubclient: n=3 -race read 87.8 too.
+# r54-05 (refactor round 28, SPL-5132): five floors raised to the lowest of
+# n=3 readings, go test -count=1 -race -cover ./internal/<pkg>/, go1.26.10, on
+# 212dddf3c each read: cicdlogs 90.2, files 89.0, hubclient 89.6, invitemail
+# 87.8, mcp 90.0. Before: 89.0, 87.1, 87.8, 85.3, 88.7.
 # internal/action: 80.8 with r15-06's edit_test.go and issue_test.go (edit.go
 # and issue.go 0 -> 100%), 75.6 without on ef6adfcf3; go test -count=1 -cover
 # ./internal/action/, go1.26.9, n=3 read 80.8 each.
@@ -70,7 +74,7 @@ internal/channelmove 96.3
 # FetchLogs error paths, hasRealToken, runIDOK, writeVersion/now), 81.5
 # without on 593f2e41d; go test -count=1 -cover ./internal/cicdlogs/,
 # go1.26.10, n=3 read 89.0 each.
-internal/cicdlogs 89.0
+internal/cicdlogs 90.2
 internal/cloud 95.8
 # internal/config: 89.7 with r15-10's config_test.go table tests (getters,
 # env overrides, dir resolvers), 78.1 without on a60bb00c8; go test -count=1
@@ -78,7 +82,7 @@ internal/cloud 95.8
 internal/config 90.9
 internal/edge 98.9
 internal/enc 83.6
-internal/files 87.1
+internal/files 89.0
 internal/gcal 85.8
 internal/gcpalerts 91.8
 internal/github 89.5
@@ -90,10 +94,10 @@ internal/hours 99.0
 # -cover ./internal/hubclient, go1.26.9, load 14..38, plain and -race, n=10
 # read 82.2 every run; without that file n=5 read 81.5..81.7, which fails.
 # r48-09: 85.9, n=3 plain and n=3 -race on 6bce8cfb1 read 85.9 all six.
-internal/hubclient 87.8
+internal/hubclient 89.6
 internal/hygiene 90.0
 internal/i18n 97.2
-internal/invitemail 85.3
+internal/invitemail 87.8
 # internal/keyd: 82.2 with r42-08's store_test.go (StateDir, InitAgent refusals,
 # writeScrypt, writeNew errors) and pass_test.go (readOnce), 75.6 without on
 # b3f12e352; go test -count=1 -cover ./internal/keyd/, go1.26.10, n=3 read
@@ -113,7 +117,7 @@ internal/lockkey 83.6
 internal/logging 99.0
 internal/mail 93.7
 internal/marketing 86.5
-internal/mcp 88.7
+internal/mcp 90.0
 internal/msg 90.8
 internal/notify 94.8
 # internal/payments: 80.9 with stripe_refund_test.go (r16-04, 712/880), 78.6

@@ -90,10 +90,14 @@ func TestIssueVerb(t *testing.T) {
 		{"comment", []string{"comment", "--as", "c-007", "--ref", "SPL-3", "--body", "hi"}, 0, `"op":"comment"`},
 		{"archive", []string{"archive", "--as", "c-007", "--ref", "SPL-3", "--cascade"}, 0, `"op":"archive"`},
 		{"link", []string{"link", "--as", "c-007", "--ref", "SPL-3", "--discussion", "t3"}, 0, `"op":"link"`},
+		{"inherit-priority", []string{"inherit-priority", "--as", "c-007", "--from", "t1", "--to", "t2"}, 0, `"op":"inherit-priority"`},
 	})
 	fr := h.Frames()
-	if len(fr) != 8 {
-		t.Fatalf("hub read %d frames, want 8", len(fr))
+	if len(fr) != 9 {
+		t.Fatalf("hub read %d frames, want 9", len(fr))
+	}
+	if fr[8].IssueOp != "inherit-priority" {
+		t.Errorf("inherit-priority frame op %q", fr[8].IssueOp)
 	}
 	if fr[0].IssueOp != "list" || fr[0].Query != "limit=5&status=wip%2Ctodo" {
 		t.Errorf("list frame op %q query %q", fr[0].IssueOp, fr[0].Query)

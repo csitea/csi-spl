@@ -88,3 +88,7 @@ archived discussion is another lane's work and is not described here.
 | FR-AW-003 | an archived topic with unfinished work gets one new discussion in its channel, listing that work; its issues move there | Implemented — SPL-4955 |
 
 <!-- version: 0.2.0 · updated: 2026-11-07 -->
+
+## The follow-up keeps the priority (SPL-5147)
+
+`do_spl_archived_followup` gives the new discussion the archived one's stored priority, so a queue row re-homed there keeps its place. It calls the agent issue op `inherit-priority` (`spool issue inherit-priority --from <archived> --to <live>`, action `do_spl_topic_inherit_priority`). The caller names no number. The hub copies the row only within one workspace, refuses unless the source is archived and the target live, writes nothing when the source has no row, and keeps a priority the target already has. Any other priority write stays `PUT /v1/topics/{task_id}/priority`, a member session's.

@@ -26,6 +26,27 @@ func (s *Memory) SetTopicPriority(_ context.Context, tenant, taskID string, prio
 	return p, nil
 }
 
+// InheritTopicPriority implements TopicPriorityStore.
+func (s *Memory) InheritTopicPriority(_ context.Context, tenant, source, target, by string, at time.Time) (TopicPriority, bool, error) {
+	from, err := checkTopicPriority(tenant, source, TopicPriorityMin)
+	if err != nil {
+		return TopicPriority{}, false, err
+	}
+	to, err := checkTopicPriority(tenant, target, TopicPriorityMin)
+	if err != nil {
+		return TopicPriority{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	src, ok := s.topicPrio[[2]string{tenant, from}]
+	if _, set := s.topicPrio[[2]string{tenant, to}]; !ok || set {
+		return TopicPriority{}, false, nil
+	}
+	p := TopicPriority{TenantID: tenant, TaskID: to, Priority: src.Priority, SetBy: by, SetAt: at.UTC()}
+	s.topicPrio[[2]string{tenant, to}] = p
+	return p, true, nil
+}
+
 // TopicPriorities implements TopicPriorityStore.
 func (s *Memory) TopicPriorities(_ context.Context, tenant string, taskIDs []string) (map[string]int, error) {
 	if err := checkTenant(tenant); err != nil {

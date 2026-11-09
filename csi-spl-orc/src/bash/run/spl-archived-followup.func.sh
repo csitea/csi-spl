@@ -23,6 +23,10 @@
 # @description and the links never posts twice; a row declined after that post is
 # @description added to that discussion once (rows.seen). A post that fails is
 # @description named in ONE blocker to the orchestrator, and retried next run.
+# @description The new discussion takes the archived one's stored priority, when it
+# @description has one (SPL-5147: its re-homed queue rows keep their place). The hub
+# @description copies it (do_spl_topic_inherit_priority); a failed copy is a WARN and
+# @description a failed run, the issues still move.
 # @description Test workspaces are skipped.
 # @description One box acts for a topic: the holder's, when the hub's roster has the
 # @description holder's id on it in that workspace, else the first box by name that
@@ -52,6 +56,8 @@
 # @param ARCHIVED_FOLLOWUP_REPLY_CMD (optional, tests) - replaces do_spl_desk_reply: TENANT_ID, DESK_AGENT, DESK_TASK, DESK_TO, DESK_BODY_FILE in its env
 # @param ARCHIVED_FOLLOWUP_LINK_CMD (optional, tests) - replaces do_spl_issue_link: TENANT_ID, DESK_AGENT, ISSUE_REF, ISSUE_DISCUSSION, MODE in its env
 # @param ARCHIVED_FOLLOWUP_SEND (optional, tests) - the sender script, default spool-send.sh
+# @param ARCHIVED_FOLLOWUP_PRIORITY_CMD (optional, tests) - replaces do_spl_topic_inherit_priority: TENANT_ID, DESK_AGENT, PRIORITY_FROM, PRIORITY_TO in its env
+# @param ARCHIVED_FOLLOWUP_PRIORITY_WAIT (optional, tests) - seconds between tries while the hub has not stored the new discussion, default 3
 # @param SPL_DESK_AS_CMD (optional, tests) - replaces `sudo -n -u`, as in spl_desk_moved_to
 # @example ./run -a do_spl_archived_followup
 # @example DRY_RUN=0 ./run -a do_spl_archived_followup
@@ -137,6 +143,7 @@ spl_afu_topic() {
   elif grep -q $'^row\t' "$tmp/keep"; then
     spl_afu_late_rows "$tmp" "$tenant" "$topic" "$new" "$dir" || rc=1
   fi
+  spl_afu_inherit "$tenant" "$topic" "$new" || rc=1
   while IFS= read -r line; do
     ref="$(cut -f6 <<<"$line")"
     AFU_DONE+="$tenant:$ref "
@@ -147,6 +154,24 @@ spl_afu_topic() {
     fi
   done < <(grep $'^issue\t' "$tmp/keep")
   return "$rc"
+}
+
+# spl_afu_inherit TENANT TOPIC NEW: NEW takes TOPIC's stored priority. A desk post
+# reaches the hub through its sidecar, so a NEW the hub does not have yet is tried
+# again, a few seconds; any other refusal is final for this run.
+spl_afu_inherit() {
+  local try out
+  for try in 1 2 3 4 5; do
+    if [[ -n "${ARCHIVED_FOLLOWUP_PRIORITY_CMD:-}" ]]; then
+      out="$(TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" PRIORITY_FROM="$2" PRIORITY_TO="$3" $ARCHIVED_FOLLOWUP_PRIORITY_CMD 2>&1)"
+    else
+      out="$(spl_afu_run do_spl_topic_inherit_priority TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" PRIORITY_FROM="$2" PRIORITY_TO="$3" 2>&1)"
+    fi && return 0
+    [[ "$out" == *not_found* && $try -lt 5 ]] || break
+    sleep "${ARCHIVED_FOLLOWUP_PRIORITY_WAIT:-3}"
+  done
+  do_log "WARN $1 topic $2: $3 did not take its priority: $(tail -1 <<<"$out" | cut -c1-200)"
+  return 1
 }
 
 # spl_afu_poster_box SEATED -> the one box that acts for a topic. SEATED: the

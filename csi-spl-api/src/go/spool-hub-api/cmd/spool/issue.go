@@ -14,12 +14,13 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
-const issueUsage = `usage: spool issue <list|get|moved|prio-sync|create|update|comment|label|delete|archive|unarchive|link|unlink> --as <AGENT> [flags]
+const issueUsage = `usage: spool issue <list|get|moved|prio-sync|inherit-priority|create|update|comment|label|delete|archive|unarchive|link|unlink> --as <AGENT> [flags]
   list      [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
             [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created] [--limit N] [--cursor C]
   get       --ref SPL-3
   moved     the issue keys a channel move took from this workspace: old_key, dst, new_key, expires_at, live
   prio-sync [--apply] every open issue takes the highest priority set on its discussions (spec 150 3.4); a dry run without --apply
+  inherit-priority --from <archived topic> --to <live topic>  the target takes the source's stored priority; never overwrites one
   create    --title T  --discussions <topic id or /t/ link>,..  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature
             [--description D | --description-file F] [--status S]
             [--priority 1-5] [--level 1-3] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
@@ -60,11 +61,11 @@ var errIssueFlags = errors.New("bad flags")
 
 // issueFlags are every flag of every issue op; each op reads its own.
 type issueFlags struct {
-	as, ref, title, desc, descFile, status, priority, level, assignee, labels, label string
-	deadline, parent, epic, kind, before, after, sortBy, body, bodyFile, name, color string
-	limit, cursor, discussions, discussion                                           string
-	cascade, apply                                                                   bool
-	set                                                                              map[string]bool // the flags given
+	as, ref, title, desc, descFile, status, priority, level, assignee, labels, label, from, to string
+	deadline, parent, epic, kind, before, after, sortBy, body, bodyFile, name, color           string
+	limit, cursor, discussions, discussion                                                     string
+	cascade, apply                                                                             bool
+	set                                                                                        map[string]bool // the flags given
 }
 
 func newIssueFlagSet(op string, f *issueFlags) *flag.FlagSet {
@@ -99,6 +100,8 @@ func newIssueFlagSet(op string, f *issueFlags) *flag.FlagSet {
 		{&f.cursor, "cursor", "list: the next_cursor of the page before"},
 		{&f.discussions, "discussions", "create: the discussions it links, topic ids or /t/<id> links, comma separated (at least one)"},
 		{&f.discussion, "discussion", "link / unlink: one topic id or /t/<id> link"},
+		{&f.from, "from", "inherit-priority: the archived topic id"},
+		{&f.to, "to", "inherit-priority: the live topic id"},
 	} {
 		fs.StringVar(d.p, d.name, "", d.help)
 	}
@@ -126,6 +129,8 @@ func parseIssueArgs(op string, args []string) (action.IssueArgs, error) {
 		if f.apply {
 			in.Query = "dry_run=0"
 		}
+	case "inherit-priority":
+		in.Query = url.Values{"from": {f.from}, "to": {f.to}}.Encode()
 	case "create", "update":
 		in.Issue, err = f.issueObject(op == "update" && f.cascade)
 	case "comment":

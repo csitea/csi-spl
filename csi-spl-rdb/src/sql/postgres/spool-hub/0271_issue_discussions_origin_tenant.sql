@@ -1,0 +1,14 @@
+-- 0271_issue_discussions_origin_tenant.sql - an issue can link the discussion
+-- it came from in another workspace (SPL-5126; owner HUM-10, t1 ef94396b, msg
+-- 61bf7791; c-001 ruling bf29c39c). Forward-only.
+--
+-- origin_tenant NULL is every existing row: the topic is the link's own
+-- tenant's. Set, task_id is a topic of that workspace, written only by the
+-- operator route. No foreign key: ON DELETE SET NULL would turn the link into
+-- an own one and show its id, and CASCADE could remove an issue's last link
+-- from another workspace's delete. A deleted workspace reads as gone.
+--
+-- Runs under the operator RLS scope (spool migrate, rdb 0014). The running
+-- image neither reads nor writes the column, so the file applies first.
+-- DEPLOY ORDER: wf 20 applies this before the hub that reads it rolls.
+ALTER TABLE issue_discussions ADD COLUMN origin_tenant text;

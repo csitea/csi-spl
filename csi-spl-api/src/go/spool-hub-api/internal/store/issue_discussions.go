@@ -69,10 +69,15 @@ func IssueDiscussionDefault(tenant string) string {
 
 // IssueDiscussion is one link. State, Title and Channel are filled only by
 // IssueDiscussionStates.
+//
+// OriginTenant is set when the topic lives in another workspace (SPL-5126):
+// only the operator route writes one, TaskID is a topic of OriginTenant, and
+// nothing in this tenant may show or follow it (hub foreignDiscussion).
 type IssueDiscussion struct {
-	TaskID   string
-	LinkedBy string
-	LinkedAt time.Time
+	TaskID       string
+	LinkedBy     string
+	LinkedAt     time.Time
+	OriginTenant string
 }
 
 // DiscussionState is what a topic is now: State one of the Discussion*
@@ -93,6 +98,9 @@ type IssueDiscussions interface {
 	// no-op (added false). ErrNotFound for no such live issue,
 	// ErrInvalidIssue at IssueDiscussionsMax or for a bad id.
 	LinkIssueDiscussion(ctx context.Context, tenant string, number int, task, by string, now time.Time) (bool, error)
+	// LinkIssueOriginDiscussion is LinkIssueDiscussion for a topic of the
+	// workspace origin (SPL-5126, the operator route only).
+	LinkIssueOriginDiscussion(ctx context.Context, tenant string, number int, origin, task, by string, now time.Time) (bool, error)
 	// UnlinkIssueDiscussion removes one link. ErrNotFound when the issue has
 	// no such link, ErrIssueDiscussionLast when it is the last one.
 	UnlinkIssueDiscussion(ctx context.Context, tenant string, number int, task string) error
@@ -211,7 +219,12 @@ func (s *Memory) DiscussionStates(_ context.Context, tenant string, tasks []stri
 }
 
 // LinkIssueDiscussion links issue number to topic task; false when the link already existed (on the Memory store).
-func (s *Memory) LinkIssueDiscussion(_ context.Context, tenant string, number int, task, by string, now time.Time) (bool, error) {
+func (s *Memory) LinkIssueDiscussion(ctx context.Context, tenant string, number int, task, by string, now time.Time) (bool, error) {
+	return s.LinkIssueOriginDiscussion(ctx, tenant, number, "", task, by, now)
+}
+
+// LinkIssueOriginDiscussion links issue number to a topic of workspace origin ("" = its own) (on the Memory store).
+func (s *Memory) LinkIssueOriginDiscussion(_ context.Context, tenant string, number int, origin, task, by string, now time.Time) (bool, error) {
 	if !canonUUIDRe.MatchString(task) {
 		return false, invalidIssue("discussion %q is not a topic id (a uuid)", task)
 	}
@@ -230,7 +243,7 @@ func (s *Memory) LinkIssueDiscussion(_ context.Context, tenant string, number in
 	if len(ls) >= IssueDiscussionsMax {
 		return false, invalidIssue("an issue links to at most %d discussions", IssueDiscussionsMax)
 	}
-	s.iss.setLinks(tenant, number, append(append([]IssueDiscussion{}, ls...), IssueDiscussion{TaskID: task, LinkedBy: by, LinkedAt: now}))
+	s.iss.setLinks(tenant, number, append(append([]IssueDiscussion{}, ls...), IssueDiscussion{TaskID: task, LinkedBy: by, LinkedAt: now, OriginTenant: origin}))
 	return true, nil
 }
 
@@ -241,7 +254,7 @@ func (s *Memory) UnlinkIssueDiscussion(_ context.Context, tenant string, number 
 	ls := s.iss.linksOf(tenant, number)
 	keep := []IssueDiscussion{}
 	for _, l := range ls {
-		if l.TaskID != task {
+		if l.TaskID != task || l.OriginTenant != "" { // a foreign link is the operator's
 			keep = append(keep, l)
 		}
 	}
@@ -348,7 +361,7 @@ const issueDiscussionsInsertSQL = `INSERT INTO issue_discussions (tenant_id, num
 // IssueDiscussionLinks returns the discussion links of the given issues, by number (on Postgres).
 func (s *Postgres) IssueDiscussionLinks(ctx context.Context, tenant string, numbers []int) (map[int][]IssueDiscussion, error) {
 	out := map[int][]IssueDiscussion{}
-	q := `SELECT number, task_id::text, linked_by, linked_at FROM issue_discussions WHERE tenant_id = $1`
+	q := `SELECT number, task_id::text, linked_by, linked_at, COALESCE(origin_tenant, '') FROM issue_discussions WHERE tenant_id = $1`
 	args := []any{tenant}
 	if numbers != nil {
 		q += ` AND number = ANY($2)`
@@ -357,7 +370,7 @@ func (s *Postgres) IssueDiscussionLinks(ctx context.Context, tenant string, numb
 	err := s.queryTenant(ctx, tenant, q+` ORDER BY number, linked_at, task_id`, args, func(r pgx.Rows) error {
 		var n int
 		var d IssueDiscussion
-		if err := r.Scan(&n, &d.TaskID, &d.LinkedBy, &d.LinkedAt); err != nil {
+		if err := r.Scan(&n, &d.TaskID, &d.LinkedBy, &d.LinkedAt, &d.OriginTenant); err != nil {
 			return err
 		}
 		out[n] = append(out[n], d)
@@ -415,6 +428,11 @@ func (s *Postgres) DiscussionStates(ctx context.Context, tenant string, tasks []
 
 // LinkIssueDiscussion links issue number to topic task; false when the link already existed (on Postgres).
 func (s *Postgres) LinkIssueDiscussion(ctx context.Context, tenant string, number int, task, by string, now time.Time) (bool, error) {
+	return s.LinkIssueOriginDiscussion(ctx, tenant, number, "", task, by, now)
+}
+
+// LinkIssueOriginDiscussion links issue number to a topic of workspace origin ("" = its own) (on Postgres).
+func (s *Postgres) LinkIssueOriginDiscussion(ctx context.Context, tenant string, number int, origin, task, by string, now time.Time) (bool, error) {
 	if !canonUUIDRe.MatchString(task) {
 		return false, invalidIssue("discussion %q is not a topic id (a uuid)", task)
 	}
@@ -439,9 +457,9 @@ func (s *Postgres) LinkIssueDiscussion(ctx context.Context, tenant string, numbe
 		if n >= IssueDiscussionsMax {
 			return invalidIssue("an issue links to at most %d discussions", IssueDiscussionsMax)
 		}
-		tag, err := tx.Exec(ctx, `INSERT INTO issue_discussions (tenant_id, number, task_id, linked_by, linked_at)
-			VALUES ($1, $2, $3, $4, $5) ON CONFLICT (tenant_id, number, task_id) DO NOTHING`,
-			tenant, number, task, by, now.UTC().Truncate(time.Microsecond))
+		tag, err := tx.Exec(ctx, `INSERT INTO issue_discussions (tenant_id, number, task_id, linked_by, linked_at, origin_tenant)
+			VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')) ON CONFLICT (tenant_id, number, task_id) DO NOTHING`,
+			tenant, number, task, by, now.UTC().Truncate(time.Microsecond), origin)
 		added = err == nil && tag.RowsAffected() == 1
 		return err
 	})
@@ -457,7 +475,7 @@ func (s *Postgres) UnlinkIssueDiscussion(ctx context.Context, tenant string, num
 		// The issue's links are locked, so two removes cannot each leave one.
 		var n int
 		var has bool
-		if err := tx.QueryRow(ctx, `SELECT count(*), bool_or(task_id = $3) FROM (SELECT task_id FROM issue_discussions
+		if err := tx.QueryRow(ctx, `SELECT count(*), COALESCE(bool_or(task_id = $3 AND origin_tenant IS NULL), false) FROM (SELECT task_id, origin_tenant FROM issue_discussions
 			WHERE tenant_id = $1 AND number = $2 FOR UPDATE) d`, tenant, number, task).Scan(&n, &has); err != nil {
 			return err
 		}

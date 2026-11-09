@@ -947,7 +947,7 @@ func (s *Memory) IssueNumbersByDiscussion(_ context.Context, tenant, taskID stri
 	out := []int{}
 	for n, ls := range s.iss.links[tenant] {
 		for _, l := range ls {
-			if l.TaskID == taskID {
+			if l.TaskID == taskID && l.OriginTenant == "" {
 				out = append(out, n)
 				break
 			}

@@ -65,6 +65,7 @@ func (s *Server) routeReleaseNotes(mux *http.ServeMux) {
 	})}
 	mux.HandleFunc("POST /v1/operator/release-notes", rn.handleIngest)
 	mux.HandleFunc("POST /v1/operator/commit-links", s.handleCommitLinks)
+	mux.HandleFunc("POST /v1/operator/issues/{ref}/origin-discussion", s.handleIssueOriginDiscussion)
 	mux.HandleFunc("GET /v1/release-notes", rn.handleList)
 	mux.HandleFunc("GET /v1/release-notes/{ref}", rn.handleGet)
 	mux.HandleFunc("OPTIONS /v1/release-notes", s.preflight)

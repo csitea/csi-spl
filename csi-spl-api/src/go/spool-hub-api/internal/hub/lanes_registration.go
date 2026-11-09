@@ -64,7 +64,7 @@ func (s *Server) laneTopicsFromIssues(ctx context.Context, tenant string, ls []s
 			continue
 		}
 		for _, x := range links[n] {
-			if x.TaskID != def {
+			if x.TaskID != def && x.OriginTenant == "" {
 				ls[i].Topic = x.TaskID
 				break
 			}

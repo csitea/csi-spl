@@ -86,6 +86,29 @@ Turning it on is the dispatch holder's and the orchestrator's decision: it
 refuses commits on every open issue linked that way until each has a real
 origin.
 
+### 3.2 An origin in another workspace (SPL-5126)
+
+The member route refuses a topic of another workspace (`unknown_discussion`):
+the member cannot read it. The operator route links one:
+`POST /v1/operator/issues/{key}/origin-discussion`
+`{tenant, origin_tenant, discussion}`, through
+`ENV=<env> TENANT_ID=<tenant> ISSUE_KEY=<key> ORIGIN_TENANT=<workspace> DISCUSSION=<topic id> ./run -a do_spl_issue_origin_link`,
+a dry run unless `DRY_RUN=0`. For now only the orchestrator runs it (ruling
+bf29c39c): a lane sends it the exact command. The route's answer, its log and
+the action's output name neither the origin workspace nor the topic.
+
+Stored in `issue_discussions.origin_tenant` (NULL: the issue's own workspace).
+
+| reader | list, fan-out | single issue read | Reporting -> Releases |
+|---|---|---|---|
+| no access to the origin topic | `members_only`, nothing else | `members_only`, plus `state: gone` when the topic is deleted | empty entry, `can_open` false |
+| session that is a member there and passes the topic's door | `members_only` | `task_id`, title, channel, state, `workspace` | `task_id`, title, state, `workspace`, `can_open` true |
+
+An agent has no session, so it is always opaque. A member cannot remove a
+foreign link. The internal readers (cascade bug, topic priority follow, lane
+topic, issues of a topic) skip foreign links. The gate counts one as a real
+origin and never as a relay hash.
+
 ## 4. The cut-over and older commits
 
 The rule holds from the landing sha of the gate commit (the commit that adds

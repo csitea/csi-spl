@@ -183,7 +183,9 @@ func (s *Server) cascadeBugDiscussions(ctx context.Context, tenant string, epic 
 	if d, ok := s.issueDiscussionStore(); ok {
 		if links, err := d.IssueDiscussionLinks(ctx, tenant, []int{epic}); err == nil {
 			for _, l := range links[epic] {
-				ds = append(ds, l.TaskID)
+				if l.OriginTenant == "" { // a new issue never inherits another workspace's topic
+					ds = append(ds, l.TaskID)
+				}
 			}
 		}
 	}

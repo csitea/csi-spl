@@ -84,7 +84,7 @@ func (s *Postgres) ListFleetLanes(ctx context.Context, tenant, fleet string, now
 // the second the issues primary key. A row's task is "" for an own number.
 const fleetLaneIssuesSQL = `SELECT d.task_id::text, i.number, i.status, i.priority
 	FROM issue_discussions d JOIN issues i ON i.tenant_id = d.tenant_id AND i.number = d.number
-	WHERE d.tenant_id = $1 AND d.task_id = ANY($2::uuid[]) AND i.deleted_at IS NULL AND i.archived_at IS NULL
+	WHERE d.tenant_id = $1 AND d.task_id = ANY($2::uuid[]) AND d.origin_tenant IS NULL AND i.deleted_at IS NULL AND i.archived_at IS NULL
 	UNION ALL
 	SELECT '', number, status, priority FROM issues
 	WHERE tenant_id = $1 AND number = ANY($3::int[]) AND deleted_at IS NULL AND archived_at IS NULL

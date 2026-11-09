@@ -13241,6 +13241,33 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/issues/{ref}/origin-discussion": {
+      "post": {
+        "operationId": "postOperatorIssuesRefOriginDiscussion",
+        "responses": {
+          "200": {
+            "description": "OK: {key, added}; never names the origin workspace"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Link an issue to the discussion it came from in another workspace (SPL-5126)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/lane-console": {
       "get": {
         "operationId": "getOperatorLaneConsole",

@@ -386,7 +386,7 @@ func (s *Postgres) ListIssues(ctx context.Context, tenant string) ([]Issue, erro
 // taskID (on Postgres), from the issue_discussions_task index.
 func (s *Postgres) IssueNumbersByDiscussion(ctx context.Context, tenant, taskID string) ([]int, error) {
 	out := []int{}
-	err := s.queryTenant(ctx, tenant, `SELECT number FROM issue_discussions WHERE tenant_id = $1 AND task_id = $2::uuid ORDER BY number`,
+	err := s.queryTenant(ctx, tenant, `SELECT number FROM issue_discussions WHERE tenant_id = $1 AND task_id = $2::uuid AND origin_tenant IS NULL ORDER BY number`,
 		[]any{tenant, taskID}, func(r pgx.Rows) error {
 			var n int
 			if err := r.Scan(&n); err != nil {

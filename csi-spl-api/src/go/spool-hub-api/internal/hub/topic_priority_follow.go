@@ -119,7 +119,7 @@ func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenan
 	for _, ls := range links {
 		for _, l := range ls {
 			k := strings.ToLower(l.TaskID)
-			if k != def && !seen[k] {
+			if k != def && !seen[k] && l.OriginTenant == "" {
 				seen[k] = true
 				tasks = append(tasks, k)
 			}
@@ -148,7 +148,7 @@ func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenan
 func bestSetPriority(ls []store.IssueDiscussion, set map[string]int) (int, string) {
 	best, topic := 0, ""
 	for _, l := range ls {
-		if p, ok := set[strings.ToLower(l.TaskID)]; ok && (best == 0 || p < best) {
+		if p, ok := set[strings.ToLower(l.TaskID)]; ok && l.OriginTenant == "" && (best == 0 || p < best) {
 			best, topic = p, strings.ToLower(l.TaskID)
 		}
 	}

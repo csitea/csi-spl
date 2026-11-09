@@ -24,12 +24,82 @@ import (
 // issueDiscussionJSON is one link on the wire. State, title and channel are
 // set on a single-issue read only.
 type issueDiscussionJSON struct {
-	TaskID   string `json:"task_id"`
+	TaskID   string `json:"task_id,omitempty"`
 	State    string `json:"state,omitempty"`
 	Title    string `json:"title,omitempty"`
 	Channel  string `json:"channel,omitempty"`
 	LinkedBy string `json:"linked_by,omitempty"`
 	LinkedAt string `json:"linked_at,omitempty"`
+	// MembersOnly: a topic of another workspace this reader may not open
+	// (SPL-5126): every field naming it is empty. Workspace is set only for
+	// a reader who may open it.
+	MembersOnly bool   `json:"members_only,omitempty"`
+	Workspace   string `json:"workspace,omitempty"`
+}
+
+// originMember is the HUM-* of this reader in a workspace, "" when the reader
+// is no member of it. A nil originMember is a reader with no session: an
+// agent, the hub or a fan-out to every member.
+type originMember func(tenant string) string
+
+// originMemberOf answers for the session of r.
+func (s *Server) originMemberOf(r *http.Request) originMember {
+	return func(tenant string) string {
+		hum, err := s.memberID(r, tenant)
+		if err != nil {
+			return ""
+		}
+		return hum
+	}
+}
+
+// foreignDiscussion reads a link to a topic of another workspace for one
+// reader: the topic's state, and may only when hum is a member there who
+// passes that topic's door. hum "" never may: canReadTopic lets "" through,
+// as the tenant's own agent. A failed read is opaque, and its log names only
+// the issue's workspace, as the error text could name the other one.
+func (s *Server) foreignDiscussion(ctx context.Context, tenant string, l store.IssueDiscussion, hum string) (store.DiscussionState, bool) {
+	d, ok := s.issueDiscussionStore()
+	if !ok {
+		return store.DiscussionState{}, false
+	}
+	states, err := d.DiscussionStates(ctx, l.OriginTenant, []string{l.TaskID})
+	if err != nil {
+		s.o.Log.Error().Str("tenant", tenant).Msg("issue origin discussion state")
+		return store.DiscussionState{}, false
+	}
+	st := states[l.TaskID]
+	if st.State == "" {
+		st.State = store.DiscussionGone
+	}
+	if hum == "" || st.State == store.DiscussionGone {
+		return st, false
+	}
+	may, _, err := s.canReadTopic(ctx, l.OriginTenant, l.TaskID, hum)
+	if err != nil {
+		s.o.Log.Error().Str("tenant", tenant).Msg("issue origin discussion door")
+		return st, false
+	}
+	return st, may
+}
+
+// foreignDiscussionJSON is a foreign link on a single-issue read. A deleted
+// topic reads gone for everyone (c-001 ruling bf29c39c).
+func (s *Server) foreignDiscussionJSON(ctx context.Context, tenant string, l store.IssueDiscussion, om originMember) issueDiscussionJSON {
+	hum := ""
+	if om != nil {
+		hum = om(l.OriginTenant)
+	}
+	st, may := s.foreignDiscussion(ctx, tenant, l, hum)
+	if !may {
+		j := issueDiscussionJSON{MembersOnly: true}
+		if st.State == store.DiscussionGone {
+			j.State = st.State
+		}
+		return j
+	}
+	return issueDiscussionJSON{TaskID: l.TaskID, State: st.State, Title: st.Title, Channel: st.Channel,
+		LinkedAt: rfc(l.LinkedAt), Workspace: l.OriginTenant}
 }
 
 var (
@@ -187,10 +257,15 @@ func (s *Server) checkDiscussion(ctx context.Context, tenant, actor, task string
 	return nil
 }
 
-// linksJSON is the links alone, as a list read carries them.
+// linksJSON is the links alone, as a list read and a fan-out carry them: a
+// foreign link is always opaque here, whoever receives it.
 func linksJSON(ls []store.IssueDiscussion) []issueDiscussionJSON {
 	out := make([]issueDiscussionJSON, len(ls))
 	for k, l := range ls {
+		if l.OriginTenant != "" {
+			out[k] = issueDiscussionJSON{MembersOnly: true}
+			continue
+		}
 		out[k] = issueDiscussionJSON{TaskID: l.TaskID, LinkedBy: l.LinkedBy, LinkedAt: rfc(l.LinkedAt)}
 	}
 	return out
@@ -213,8 +288,8 @@ func (s *Server) tenantDiscussionLinks(ctx context.Context, tenant string) map[i
 
 // fullDiscussions is one issue's links with each topic's state; the title and
 // channel only for a topic the reader may read ("" reader: an agent or the
-// hub, which reads the tenant's topics).
-func (s *Server) fullDiscussions(ctx context.Context, tenant string, number int, reader string) ([]issueDiscussionJSON, error) {
+// hub, which reads the tenant's topics). A foreign link answers as om allows.
+func (s *Server) fullDiscussions(ctx context.Context, tenant string, number int, reader string, om originMember) ([]issueDiscussionJSON, error) {
 	d, ok := s.issueDiscussionStore()
 	if !ok {
 		return nil, nil
@@ -224,9 +299,11 @@ func (s *Server) fullDiscussions(ctx context.Context, tenant string, number int,
 		return nil, err
 	}
 	ls := links[number]
-	tasks := make([]string, len(ls))
-	for k, l := range ls {
-		tasks[k] = l.TaskID
+	tasks := []string{}
+	for _, l := range ls {
+		if l.OriginTenant == "" {
+			tasks = append(tasks, l.TaskID)
+		}
 	}
 	states, err := d.DiscussionStates(ctx, tenant, tasks)
 	if err != nil {
@@ -234,6 +311,10 @@ func (s *Server) fullDiscussions(ctx context.Context, tenant string, number int,
 	}
 	out := linksJSON(ls)
 	for k := range out {
+		if ls[k].OriginTenant != "" {
+			out[k] = s.foreignDiscussionJSON(ctx, tenant, ls[k], om)
+			continue
+		}
 		st := states[out[k].TaskID]
 		out[k].State = st.State
 		if out[k].State == "" {
@@ -255,8 +336,8 @@ func (s *Server) fullDiscussions(ctx context.Context, tenant string, number int,
 
 // withFullDiscussions sets j.Discussions for a single-issue read; a failed
 // read is logged and leaves them out.
-func (s *Server) withFullDiscussions(ctx context.Context, tenant, reader string, j *issueJSON) {
-	ds, err := s.fullDiscussions(ctx, tenant, j.Number, reader)
+func (s *Server) withFullDiscussions(ctx context.Context, tenant, reader string, om originMember, j *issueJSON) {
+	ds, err := s.fullDiscussions(ctx, tenant, j.Number, reader, om)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Int("issue", j.Number).Msg("issue discussions")
 		return
@@ -268,15 +349,15 @@ func (s *Server) withFullDiscussions(ctx context.Context, tenant, reader string,
 
 // linkDiscussion adds one link for actor; removeDiscussion removes one. Both
 // answer the issue with its full discussions and fan the issue frame out.
-func (s *Server) linkDiscussion(ctx context.Context, tenant, actor, ref, raw string) (issueJSON, *issueErr) {
-	return s.changeDiscussion(ctx, tenant, actor, ref, raw, true)
+func (s *Server) linkDiscussion(ctx context.Context, tenant, actor, ref, raw string, om originMember) (issueJSON, *issueErr) {
+	return s.changeDiscussion(ctx, tenant, actor, ref, raw, true, om)
 }
 
-func (s *Server) removeDiscussion(ctx context.Context, tenant, actor, ref, raw string) (issueJSON, *issueErr) {
-	return s.changeDiscussion(ctx, tenant, actor, ref, raw, false)
+func (s *Server) removeDiscussion(ctx context.Context, tenant, actor, ref, raw string, om originMember) (issueJSON, *issueErr) {
+	return s.changeDiscussion(ctx, tenant, actor, ref, raw, false, om)
 }
 
-func (s *Server) changeDiscussion(ctx context.Context, tenant, actor, ref, raw string, add bool) (issueJSON, *issueErr) {
+func (s *Server) changeDiscussion(ctx context.Context, tenant, actor, ref, raw string, add bool, om originMember) (issueJSON, *issueErr) {
 	is, ie := s.issueStore()
 	if ie != nil {
 		return issueJSON{}, ie
@@ -325,7 +406,7 @@ func (s *Server) changeDiscussion(ctx context.Context, tenant, actor, ref, raw s
 	if !humanIDRe.MatchString(reader) {
 		reader = ""
 	}
-	s.withFullDiscussions(ctx, tenant, reader, &out)
+	s.withFullDiscussions(ctx, tenant, reader, om, &out)
 	return out, nil
 }
 
@@ -343,7 +424,7 @@ func (s *Server) handleIssueDiscussionAdd(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusBadRequest, "bad_request", "body must be {\"discussion\": \"<topic id>\"}")
 		return
 	}
-	out, ie := s.linkDiscussion(r.Context(), t.ID, actor, r.PathValue("ref"), body.Discussion)
+	out, ie := s.linkDiscussion(r.Context(), t.ID, actor, r.PathValue("ref"), body.Discussion, s.originMemberOf(r))
 	if ie != nil {
 		writeIssueErr(w, ie)
 		return
@@ -358,7 +439,7 @@ func (s *Server) handleIssueDiscussionRemove(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	out, ie := s.removeDiscussion(r.Context(), t.ID, actor, r.PathValue("ref"), r.PathValue("task"))
+	out, ie := s.removeDiscussion(r.Context(), t.ID, actor, r.PathValue("ref"), r.PathValue("task"), s.originMemberOf(r))
 	if ie != nil {
 		writeIssueErr(w, ie)
 		return

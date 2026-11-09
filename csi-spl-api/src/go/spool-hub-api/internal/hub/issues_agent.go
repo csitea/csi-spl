@@ -277,13 +277,13 @@ func (s *Server) agentGetIssue(ctx context.Context, tenant, ref string) (any, *i
 		archived, auto := true, i.AutoClosed
 		out.Archived, out.AutoClosed = &archived, &auto
 	}
-	s.withFullDiscussions(ctx, tenant, "", &out)
+	s.withFullDiscussions(ctx, tenant, "", nil, &out)
 	return map[string]any{"issue": out}, nil
 }
 
 // agentLinkDiscussion is link / unlink: add or remove one discussion.
 func (s *Server) agentLinkDiscussion(ctx context.Context, tenant, as, ref, discussion string, add bool) (any, *issueErr) {
-	out, ie := s.changeDiscussion(ctx, tenant, as, ref, discussion, add)
+	out, ie := s.changeDiscussion(ctx, tenant, as, ref, discussion, add, nil)
 	if ie != nil {
 		return nil, ie
 	}

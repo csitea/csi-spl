@@ -128,7 +128,7 @@ func (m *pgMove) copyIssueEvents() error {
 func (m *pgMove) copyIssueChildren() error {
 	for _, c := range []struct{ table, cols string }{
 		{"issue_opens", "member_id, opened_at"},
-		{"issue_discussions", "task_id, linked_by, linked_at"},
+		{"issue_discussions", "task_id, linked_by, linked_at, origin_tenant"},
 	} {
 		if m.req.skipCopy[c.table] {
 			continue

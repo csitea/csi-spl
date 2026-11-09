@@ -901,7 +901,7 @@ func (s *Server) handleViewIssue(w http.ResponseWriter, r *http.Request, t store
 	}
 	out := toIssueJSON(i, s.storeGetter(r.Context(), t.ID))
 	hum, _ := s.memberID(r, t.ID)
-	s.withFullDiscussions(r.Context(), t.ID, hum, &out)
+	s.withFullDiscussions(r.Context(), t.ID, hum, s.originMemberOf(r), &out)
 	if hum != "" {
 		opened, ie := s.issuesOpenedBy(r.Context(), t.ID, hum)
 		if ie != nil {
@@ -957,7 +957,7 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	if !humanIDRe.MatchString(reader) {
 		reader = ""
 	}
-	s.withFullDiscussions(r.Context(), t.ID, reader, &out)
+	s.withFullDiscussions(r.Context(), t.ID, reader, s.originMemberOf(r), &out)
 	writeJSON(w, http.StatusCreated, map[string]any{"issue": out})
 }
 

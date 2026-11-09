@@ -461,6 +461,7 @@ spl-issue-epic-backfill.tst.sh 41
 spl-issue-epic-close-probe.tst.sh 4
 spl-issue-key-rate.tst.sh 2
 spl-issue-link.tst.sh 6
+spl-issue-origin-link.tst.sh 3
 spl-issue-owner-question-diss.tst.sh 4
 spl-issue-ref-rewrite.tst.sh 6
 spl-issue-ref-scan.tst.sh 5

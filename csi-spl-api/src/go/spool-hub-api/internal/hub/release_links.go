@@ -29,6 +29,9 @@ type releaseTopicJSON struct {
 	Title   string `json:"title,omitempty"`
 	State   string `json:"state,omitempty"`
 	CanOpen bool   `json:"can_open"`
+	// Workspace is the topic's own workspace when it is not the issue's
+	// (SPL-5126); set only with CanOpen.
+	Workspace string `json:"workspace,omitempty"`
 }
 
 // releaseIssueJSON is one issue a commit cites. Found is false for a key
@@ -64,7 +67,7 @@ func (s *Server) withReleaseLinks(r *http.Request, notes []store.ReleaseNote) []
 		links, states := s.releaseTenantLinks(r.Context(), tenant, notes, idx)
 		for _, i := range idx {
 			for _, k := range notes[i].IssueKeys {
-				out[i].Issues = append(out[i].Issues, s.releaseIssue(r.Context(), tenant, k, links, states, member, hum))
+				out[i].Issues = append(out[i].Issues, s.releaseIssue(r, tenant, k, links, states, member, hum))
 			}
 		}
 	}
@@ -96,7 +99,9 @@ func (s *Server) releaseTenantLinks(ctx context.Context, tenant string, notes []
 	tasks := []string{}
 	for _, ls := range links {
 		for _, l := range ls {
-			tasks = append(tasks, l.TaskID)
+			if l.OriginTenant == "" {
+				tasks = append(tasks, l.TaskID)
+			}
 		}
 	}
 	states, err := d.DiscussionStates(ctx, tenant, tasks)
@@ -110,12 +115,17 @@ func (s *Server) releaseTenantLinks(ctx context.Context, tenant string, notes []
 // releaseIssue is one cited key with its discussions as this viewer sees
 // them. An issue always links >= 1 discussion (rdb 0194), so a key with
 // none has no issue.
-func (s *Server) releaseIssue(ctx context.Context, tenant, key string, links map[int][]store.IssueDiscussion,
+func (s *Server) releaseIssue(r *http.Request, tenant, key string, links map[int][]store.IssueDiscussion,
 	states map[string]store.DiscussionState, member bool, hum string) releaseIssueJSON {
+	ctx := r.Context()
 	j := releaseIssueJSON{Key: key, Tenant: tenant, Member: member, Discussions: []releaseTopicJSON{}}
 	n, _ := store.ParseIssueRef(key)
 	for _, l := range links[n] {
 		j.Found = true
+		if l.OriginTenant != "" {
+			j.Discussions = append(j.Discussions, s.releaseForeignTopic(r, tenant, l))
+			continue
+		}
 		st := states[l.TaskID]
 		t := releaseTopicJSON{}
 		if member && st.State != "" && st.State != store.DiscussionGone {
@@ -130,6 +140,17 @@ func (s *Server) releaseIssue(ctx context.Context, tenant, key string, links map
 		j.Discussions = append(j.Discussions, t)
 	}
 	return j
+}
+
+// releaseForeignTopic is a link to a topic of another workspace, as the
+// session of r may see it: clickable for one who may open it there, else the
+// same empty entry any unreadable discussion gets.
+func (s *Server) releaseForeignTopic(r *http.Request, tenant string, l store.IssueDiscussion) releaseTopicJSON {
+	st, may := s.foreignDiscussion(r.Context(), tenant, l, s.originMemberOf(r)(l.OriginTenant))
+	if !may {
+		return releaseTopicJSON{}
+	}
+	return releaseTopicJSON{TaskID: l.TaskID, Title: st.Title, State: st.State, CanOpen: true, Workspace: l.OriginTenant}
 }
 
 // releaseVersionLinks is one version's notes with their issue links (GET
@@ -214,7 +235,7 @@ func commitLinks(tenant string, keys []string, links map[int][]store.IssueDiscus
 					continue
 				}
 				j.Discussions++
-				if store.RelayTaskHashRe.MatchString(l.TaskID) {
+				if l.OriginTenant == "" && store.RelayTaskHashRe.MatchString(l.TaskID) {
 					hashes++
 				}
 			}

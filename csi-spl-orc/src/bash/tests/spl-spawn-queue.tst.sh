@@ -1229,6 +1229,15 @@ out="$(agyb LOAD_JSON="$(loadc '["claude","agy"]')" "PICK=sat reason=below its l
   grep -qx "agy auto $T $T/briefs/agy-box.md agy-box" "$T/launch.log" &&
   pass "13b5. SPL-5078 control: no banner, agy measured on every box: placed as before" ||
   fail "13b5. all in: $out | $(cat "$T/launch.log")"
+# SPL-5143, R7 W4: the box of this row comes from the agy box hold, not its slug
+newc 56
+rm -f "$T/pc/spool/asks/.place.dark"; mkdir -p "$WDC"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\n' >"$WDC/pane"
+for n in 1 2 3; do agyb SPAWN_PLACE_DARK_RETRY_MIN=30 LAUNCH_DARK_SLUG=agy-box LOAD_JSON="$(loadc '["claude","agy"]')" "PICK=box-desk reason=below its low mark" >/dev/null; done
+[[ "$(grep -c ' agy-box SPAWN_BOX=sat$' "$T/launch.log")" == 1 && "$(jq -r .state <<<"$(hubrow "$C1")")" == queued ]] &&
+  pass "12e. a silent box named by the agy box hold is tried once per window too" ||
+  fail "12e. agy box: $(cat "$T/launch.log")"
+rm -rf "$T/pc/spool/asks/.place.dark" "$T/pc/spool/dispatch/wd/ctx.3"
 # W2: no row placed as agy or mistral = no lane map this tick, by count.
 printf '#!/usr/bin/env bash\necho x >>"$LOAD_COUNT"\nprintf "%%s\\n" "${LOAD_JSON:-}"\n' >"$T/bin/loadn"; chmod +x "$T/bin/loadn"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$C1" --by c-001@box-desk --reason "next case" >/dev/null 2>&1

@@ -440,8 +440,10 @@ the holder, and its `.place.wait` line carries the time the wait began.
 
 Known limit: no reply is not proof that nothing started. The request expires,
 but a box can take it just before the expiry and finish late, or start the
-lane and lose the reply; the pinned path has no slug check, so a retry can then
-start the lane twice. The retry window limits how often that can happen.
+lane and lose the reply; the pinned path has no slug check and nothing caps the
+retries, so each retry can then start the lane again. The retry window only
+paces them, to one per window; it applies to a row pinned by its slug and to an
+agy or mistral row sent to another box.
 
 The alternative, skipping a row whose launch failed within the last gap, was
 not taken: the failed launch would still burn a gap slot on every try.

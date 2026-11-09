@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactReread, contactsImport, contactsImportErrorKey, contactsList, contactsSkipKey } from '../../src/utils/contacts-client.mjs'
+import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactReread, contactsImport, contactsImportErrorKey, contactsList, contactsSkipKey, onContactsChanged } from '../../src/utils/contacts-client.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ANSWERS = JSON.parse(readFileSync(join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/hub/testdata/contacts_answers.golden.json'), 'utf8'))
@@ -163,9 +163,9 @@ describe('the mock answers in the hub\'s shape', () => {
 })
 
 describe('spec 154 B17: the CSV import', () => {
-  const HEAD = 'first_name,last_name,email,phone'
+  const HEAD = 'first_name,last_name,email,phone,google_resource'
   const csv = (...lines) => new File([[HEAD, ...lines].join('\n')], 'contacts.csv')
-  const GOOD = 'FirstName,LastName,first.last@example.com,'
+  const GOOD = 'FirstName,LastName,first.last@example.com,,'
 
   function hubSays(status, body) {
     globalThis.fetch = async (url, init) => {
@@ -222,13 +222,53 @@ describe('spec 154 B17: the CSV import', () => {
   it('the mock tells the formats, skips bad rows by line and code, refuses an unknown header', async () => {
     const google = new File(['First Name,Last Name,E-mail 1 - Value,Phone 1 - Value\nFirstName,LastName,a@example.com,'], 'g.csv')
     assert.equal((await contactsImport(MOCK, google, { dryRun: true })).format, 'google')
-    const mixed = await contactsImport(MOCK, csv(GOOD, GOOD, ',,not-an-address,', ',,,'), { dryRun: true })
+    const mixed = await contactsImport(MOCK, csv(GOOD, GOOD, ',,not-an-address,,', ',,,,'), { dryRun: true })
     assert.deepEqual(mixed.skipped, [{ line: 4, code: 'bad_email' }, { line: 5, code: 'row_empty' }])
     assert.equal(mixed.rows, 4)
     assert.equal(mixed.would_add, 1)
     assert.equal(mixed.file_duplicates, 1)
     const err = await contactsImport(MOCK, new File(['a,b\n1,2'], 'x.csv'), { dryRun: true }).catch((e) => e)
     assert.equal(err.error, 'csv_unknown_format')
+  })
+
+  it('the mock answers the hub\'s golden, for the golden\'s own file', async () => {
+    const file = () => new File([HEAD + '\nFirstNameB,LastNameB,,,\n,,no-at-sign,,\n'], 'c.csv')
+    assert.deepEqual(await contactsImport(MOCK, file(), { dryRun: true }), ANSWERS.import_dry_run.body)
+    assert.deepEqual(await contactsImport(MOCK, file()), ANSWERS.import.body)
+  })
+
+  it('the mock refuses a header the hub refuses', async () => {
+    const err = await contactsImport(MOCK, new File(['first_name,last_name,email,phone\nFirstName,LastName,,'], 'x.csv'), { dryRun: true }).catch((e) => e)
+    assert.equal(err.error, 'csv_unknown_format')
+  })
+
+  it('the mock keeps phone-only rows apart, and a held number is one row already there', async () => {
+    const two = await contactsImport(MOCK, csv(',,,+1 555 010 0001,', ',,,+1 555 010 0002,'))
+    assert.equal(two.added, 2)
+    assert.equal(two.file_duplicates, 0)
+    const held = await contactsImport(MOCK, csv(',,,15550100001,'), { dryRun: true })
+    assert.equal(held.already_there, 1)
+    assert.equal(held.already_there_by_phone, 1)
+  })
+
+  it('each refusal has its own key', () => {
+    for (const code of ['csv_too_large', 'csv_unknown_format', 'csv_bad_encoding', 'csv_malformed']) {
+      assert.equal(contactsImportErrorKey({ error: code }), 'contacts.import.error_' + code)
+    }
+  })
+
+  it('a failed import forgets the held list, a failed preview does not', async () => {
+    let fired = 0
+    const off = onContactsChanged(() => fired++)
+    hubSays(500, { error: 'internal' })
+    await assert.rejects(contactsImport(HUB, csv(GOOD), { dryRun: true }))
+    assert.equal(fired, 0)
+    await assert.rejects(contactsImport(HUB, csv(GOOD)))
+    assert.equal(fired, 1)
+    globalThis.fetch = async () => { throw new TypeError('lost') }
+    await assert.rejects(contactsImport(HUB, csv(GOOD)))
+    assert.equal(fired, 2)
+    off()
   })
 
   it('each skip code has a reason key', () => {

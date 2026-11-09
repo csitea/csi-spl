@@ -52,10 +52,10 @@ const PHONE = { name: '390', width: 390, height: 664 }
 const ME = { role: 'regular_user', permissions: [], contacts: true }
 const OFF = { role: 'regular_user', permissions: [], contacts: false }
 const GOOD = [
-  'first_name,last_name,email,phone',
-  'FirstName,LastName,first.last@example.com,',
-  'FirstName,LastName,second.last@example.com,',
-  ',,not-an-address,',
+  'first_name,last_name,email,phone,google_resource',
+  'FirstName,LastName,first.last@example.com,,',
+  'FirstName,LastName,second.last@example.com,,',
+  ',,not-an-address,,',
 ].join('\n')
 
 const dir = mkdtempSync(join(tmpdir(), 'contacts-import-'))
@@ -63,6 +63,10 @@ const goodFile = join(dir, 'good.csv')
 const badFile = join(dir, 'bad.csv')
 writeFileSync(goodFile, GOOD)
 writeFileSync(badFile, 'a,b\n1,2\n')
+const phoneFile = join(dir, 'phone.csv')
+writeFileSync(phoneFile, 'first_name,last_name,email,phone,google_resource\n,,,+1 555 010 0001,\n')
+const goneFile = join(dir, 'gone.csv')
+writeFileSync(goneFile, GOOD)
 
 const server = await startServer()
 const browser = await launch()
@@ -168,6 +172,29 @@ try {
   await pick(goodFile)
   await waitShown('[data-test=contacts-import-counts]')
   ok('C48-9 the same file again: 0 to add, Import off', (await text('[data-test=contacts-import-would-add]')) === '0' && await p.$eval('[data-test=contacts-import-start]', (b) => b.disabled))
+
+  /* a held number: one row, one already there */
+  await seed(ME, [{ contact_id: 'k-phone', first_name: '', last_name: '', email: null, phone: '15550100001', google: false, member_id: null }])
+  await load(DESKTOP, '/people')
+  await p.click('[data-testid=sidebar-tab-people]')
+  await waitShown(OPEN)
+  await p.click(OPEN)
+  await waitShown(FILE)
+  await pick(phoneFile)
+  await waitShown('[data-test=contacts-import-already-there]')
+  ok('C48-11 a phone-only row is counted once', (await text('[data-test=contacts-import-already-there]')) === '1', { n: await text('[data-test=contacts-import-already-there]') })
+
+  /* a failed import: the picker is empty, so the same file can be picked again */
+  await p.click('[data-test=contacts-import-close]')
+  await sleep(200)
+  await p.click(OPEN)
+  await waitShown(FILE)
+  await pick(goneFile)
+  await waitShown('[data-test=contacts-import-would-add]')
+  writeFileSync(goneFile, GOOD + '\n')
+  await p.click('[data-test=contacts-import-start]')
+  ok('C48-12 a failed import says so', await waitShown('[data-test=contacts-import-error]'))
+  ok('C48-13 and the picker is empty for the retry', (await p.$eval(FILE, (i) => i.files.length)) === 0)
 
   /* phone */
   await seed(ME, [])

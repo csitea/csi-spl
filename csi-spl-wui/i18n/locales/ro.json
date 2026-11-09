@@ -2216,7 +2216,7 @@
       "file_duplicates": "Repetate în fișier",
       "photos_ignored": "Imagini omise",
       "skipped": "Rânduri omise",
-      "skip_line": "Linia {line}: {reason}",
+      "skip_line": "Rândul {line}: {reason}",
       "skip_row_empty": "Rândul este gol.",
       "skip_too_long": "O valoare este prea lungă.",
       "skip_bad_birthday": "Ziua de naștere nu este o dată.",

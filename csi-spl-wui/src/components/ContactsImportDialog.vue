@@ -8,6 +8,7 @@
       <p class="muted">{{ t('contacts.import.hint') }}</p>
       <input
         v-if="!done"
+        ref="fileInput"
         type="file"
         accept=".csv,text/csv"
         data-test="contacts-import-file"
@@ -61,6 +62,7 @@ const emit = defineEmits<{ 'update:open': [boolean] }>()
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 const file = shallowRef<File | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
 const answer = shallowRef<ImportAnswer | null>(null)
 const busy = ref(false)
 const done = ref(false)
@@ -77,7 +79,7 @@ const counts = computed(() => {
       : { key: 'would-add', label: 'contacts.import.would_add', n: a.would_add ?? 0 },
   ]
   const more = [
-    { key: 'already-there', label: 'contacts.import.already_there', n: a.already_there + a.already_there_by_phone },
+    { key: 'already-there', label: 'contacts.import.already_there', n: a.already_there },
     { key: 'deleted-here', label: 'contacts.import.deleted_here', n: a.deleted_here },
     { key: 'file-duplicates', label: 'contacts.import.file_duplicates', n: a.file_duplicates },
     { key: 'skipped', label: 'contacts.import.skipped', n: a.skipped.length },
@@ -112,6 +114,8 @@ async function onPick(ev: Event) {
 
 async function start() {
   done.value = await send(false)
+  /* as on a refused preview: Import is off, so picking the file again is the retry */
+  if (!done.value && fileInput.value) fileInput.value.value = ''
 }
 </script>
 

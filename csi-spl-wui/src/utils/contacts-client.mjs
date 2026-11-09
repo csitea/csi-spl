@@ -103,29 +103,36 @@ function mockWrite(values, id) {
   return { ...row, member_id: null }
 }
 
-const MOCK_CSV_COLUMNS = {
-  first_name: ['first_name', 'First Name', 'Given Name'],
-  last_name: ['last_name', 'Last Name', 'Family Name'],
-  email: ['email', 'E-mail 1 - Value'],
-  phone: ['phone', 'Phone 1 - Value'],
+const MOCK_SPOOL_HEAD = 'first_name,last_name,email,phone,google_resource'
+const MOCK_SPOOL_HEADS = [MOCK_SPOOL_HEAD, MOCK_SPOOL_HEAD + ',company,job_title,birthday,notes']
+const MOCK_GOOGLE_COLUMNS = {
+  first_name: ['First Name', 'Given Name'],
+  last_name: ['Last Name', 'Family Name'],
+  email: ['E-mail 1 - Value'],
+  phone: ['Phone 1 - Value'],
 }
 const MOCK_SKIP_CODE = { contact_empty: 'row_empty', bad_email: 'bad_email', bad_phone: 'bad_phone' }
-const mockMatchKey = (c) => (c.email ? 'e:' + c.email.toLowerCase() : `n:${c.first_name}|${c.last_name}`)
+const mockPhoneKey = (phone) => 'p:' + phone.replace(/\D/g, '')
+const mockMatchKey = (c) => {
+  if (c.email) return 'e:' + c.email.toLowerCase()
+  return c.first_name || c.last_name ? `n:${c.first_name}|${c.last_name}` : mockPhoneKey(c.phone || '')
+}
 
+/** As the hub: a Spool export is its exact header, a Google one has the columns in any order. */
 function mockCsvColumns(names) {
-  const at = Object.fromEntries(Object.entries(MOCK_CSV_COLUMNS).map(([f, heads]) => [f, names.findIndex((n) => heads.includes(n))]))
+  if (MOCK_SPOOL_HEADS.includes(names.join(','))) return { format: 'spool', at: { first_name: 0, last_name: 1, email: 2, phone: 3 } }
+  const at = Object.fromEntries(Object.entries(MOCK_GOOGLE_COLUMNS).map(([f, heads]) => [f, names.findIndex((n) => heads.includes(n))]))
   if (at.email < 0 || at.phone < 0 || (at.first_name < 0 && at.last_name < 0)) throw refused(400, 'csv_unknown_format')
-  return at
+  return { format: 'google', at }
 }
 
 /** The hub's answer for a file of plain cells: quoting is the hub's own test. */
 function mockImport(text, dryRun) {
   const [head, ...lines] = text.split(/\r?\n/)
-  const names = head.split(',')
-  const at = mockCsvColumns(names)
-  const there = new Set(mockRead().map(mockMatchKey))
+  const { format, at } = mockCsvColumns(head.split(','))
+  const there = new Set(mockRead().flatMap((c) => [mockMatchKey(c), ...(c.phone ? [mockPhoneKey(c.phone)] : [])]))
   const fresh = new Map()
-  const out = { format: names.includes('first_name') ? 'spool' : 'google', rows: 0, already_there: 0, already_there_by_phone: 0, deleted_here: 0, file_duplicates: 0, skipped: [], photos_ignored: 0 }
+  const out = { format, rows: 0, already_there: 0, already_there_by_phone: 0, deleted_here: 0, file_duplicates: 0, skipped: [], photos_ignored: 0 }
   lines.forEach((line, i) => {
     if (!line.trim()) return
     out.rows++
@@ -139,6 +146,7 @@ function mockImport(text, dryRun) {
       return
     }
     const key = mockMatchKey(values)
+    if (key.startsWith('p:') && there.has(key)) out.already_there_by_phone++
     if (there.has(key)) out.already_there++
     else if (fresh.has(key)) out.file_duplicates++
     else fresh.set(key, values)
@@ -249,11 +257,14 @@ export async function contactDelete(api, id) {
  */
 export async function contactsImport(api, file, { dryRun = false } = {}) {
   if (file.size > IMPORT_MAX_BYTES) throw refused(413, 'csv_too_large')
-  const answer = api.mock
-    ? mockImport(await file.text(), dryRun)
-    : await call(api, 'POST', '/import', { params: dryRun ? { dry_run: 1 } : {}, csv: file })
-  if (!dryRun) changed()
-  return answer
+  try {
+    return api.mock
+      ? mockImport(await file.text(), dryRun)
+      : await call(api, 'POST', '/import', { params: dryRun ? { dry_run: 1 } : {}, csv: file })
+  } finally {
+    /* also on a failure: a lost answer may be an import the hub committed */
+    if (!dryRun) changed()
+  }
 }
 
 /** i18n key of a refused file. */

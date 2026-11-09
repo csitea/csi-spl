@@ -2216,7 +2216,7 @@
       "file_duplicates": "Dubbel in het bestand",
       "photos_ignored": "Weggelaten afbeeldingen",
       "skipped": "Overgeslagen rijen",
-      "skip_line": "Regel {line}: {reason}",
+      "skip_line": "Rij {line}: {reason}",
       "skip_row_empty": "De rij is leeg.",
       "skip_too_long": "Een waarde is te lang.",
       "skip_bad_birthday": "De verjaardag is geen datum.",

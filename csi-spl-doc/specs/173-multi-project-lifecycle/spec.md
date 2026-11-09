@@ -1,7 +1,7 @@
 # 173 Developing and tracking different software projects per workspace
 
 Version: v0.1 (2026-11-09), analysis only: nothing below is built, and no
-build issue is filed. Issue SPL-5150 · Class feature · Kind specs_and_docs ·
+build issue is filed. Epic SPL-5152 · Issue SPL-5150 · Class feature · Kind specs_and_docs ·
 Task `dispatch-07b2d7b2` · Placement slug
 `c002-doc-multi-project-per-workspace-analysis` · Author c-486.
 

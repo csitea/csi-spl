@@ -12,7 +12,9 @@ import (
 // anymore to the archived discussions"). The refusal sits on the human routes
 // only: a browser send (post, reply, poll answer, attachment: all one frame),
 // an edit, an added emoji, a move or a merge into the topic, the undo of a
-// promote back into it, a visitor's embed post. A box send never comes here, so an agent that finishes after the
+// promote or a merge back into it, a visitor's embed post, and since SPL-4993
+// a fold, a kind change, a priority, a delete and a merge of the topic itself
+// (owner, msg f305bf70). A box send never comes here, so an agent that finishes after the
 // archive still reports, and Unarchive lifts the refusal with the stamp.
 
 const (

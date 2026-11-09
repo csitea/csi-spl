@@ -50,7 +50,10 @@ Two additions the same evening (relayed by CLE-001):
   "the humans should not be able to insert any input anymore to the archived
   discussions"; SPL-4954). The hub refuses a person's post, reply, poll answer and
   attachment (one browser send frame), edit, added emoji, a move or merge into the topic
-  and the undo of a promote back into it with `topic_archived`, at any depth of the topic; the WUI shows no composer there, a short line instead, and
+  the undo of a promote or a merge back into it, a fold, a kind change, a priority, a
+  delete of a reply or of the topic, and a merge of the archived topic into another one
+  (owner, form a7d9c260, msg f305bf70: "All four: fold, kind change, priority, delete";
+  SPL-4993, SPL-4991, SPL-4992) with `topic_archived`, at any depth of the topic; the WUI shows no composer there, a short line instead, and
   disables a poll. Unarchive lifts it. Contract: `topic-archive-v1.md` section 5.2.
   Archiving a visitor topic ends that visitor's chat from that browser, until unarchive.
 - An **agent's** post on an archived topic is stored and delivered as always, and the
@@ -59,7 +62,8 @@ Two additions the same evening (relayed by CLE-001):
   soft delete exists to prevent.) **INFERRED** — say so if you want the Gmail rule.
 - **Found again**: the **Archive** entry in the left rail (icon: Material "archive", the
   Gmail glyph) opens `/archive`: every archived card of the tenant the viewer may read,
-  newest archived first, each with **Unarchive** and — for those allowed — **Delete**.
+  newest archived first, each with **Unarchive**. There is no **Delete** here: the owner's
+  order above refuses it on an archived topic, so a person unarchives first (SPL-4993).
 - **Restored** by **Unarchive** (the card menu in the Archive view, or the row button),
   which clears both columns.
 
@@ -130,7 +134,7 @@ Every place a topic is listed:
 | search results (`/search`, the topics group) | no — read-only by design | a result list of the query; an archived topic leaves search anyway, and the hit opens the topic, whose card has the menu |
 | the event log (`/events`) | no — read-only by design | it lists events (a record), not topics |
 | an issue's discussion topic (`/issues`) | no — refused by design | `409 issue_topic` (§3.2): an issue keeps its own lifecycle |
-| `/archive` | Unarchive + Delete | §3.1, unchanged |
+| `/archive` | Unarchive only | §3.1: Delete is refused while archived, so it is reached after Unarchive (SPL-4993) |
 
 ## 4. Every table that references a message
 

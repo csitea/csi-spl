@@ -147,7 +147,7 @@ func TestTopicArchivePermissions(t *testing.T) {
 	if c0["msg_id"] != card || c0["replies"] != float64(1) || c0["can_delete"] != false {
 		t.Fatalf("archived card for a member: %v", c0)
 	}
-	if _, out := call(t, e, tid, http.MethodGet, "/v1/view/archived", "HUM-1", nil); out["cards"].([]any)[0].(map[string]any)["can_delete"] != true {
+	if _, out := call(t, e, tid, http.MethodGet, "/v1/view/archived", "HUM-1", nil); out["cards"].([]any)[0].(map[string]any)["can_delete"] != false {
 		t.Fatalf("archived card for the author: %v", out)
 	}
 	// The topic is still readable by its id.
@@ -179,6 +179,9 @@ func TestTopicArchivePermissions(t *testing.T) {
 		t.Fatal("delete removed the wrong rows")
 	}
 	// An admin deletes the agent's topic; the author deletes their own.
+	if code, out := call(t, e, tid, http.MethodDelete, "/v1/messages/"+agentCard+"/archive", "HUM-9", nil); code != http.StatusOK {
+		t.Fatalf("admin unarchive: %d %v", code, out)
+	}
 	if code, out := call(t, e, tid, http.MethodDelete, "/v1/messages/"+agentCard+"/topic", "HUM-9", nil); code != http.StatusOK {
 		t.Fatalf("admin delete: %d %v", code, out)
 	}
@@ -319,6 +322,9 @@ func TestTopicArchiveLobbyFrames(t *testing.T) {
 		t.Fatalf("lobby feed after archive: %d rows %v", len(rows), feed)
 	}
 
+	if code, out = call(t, e, tid, http.MethodDelete, "/v1/messages/"+id+"/archive", "HUM-1", nil); code != http.StatusOK {
+		t.Fatalf("unarchive: %d %v", code, out)
+	}
 	code, out = call(t, e, tid, http.MethodDelete, "/v1/messages/"+id+"/topic", "HUM-1", nil)
 	if code != http.StatusOK || out["deleted"] != float64(2) {
 		t.Fatalf("delete: %d %v", code, out)

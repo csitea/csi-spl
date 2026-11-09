@@ -45,6 +45,9 @@ type TopicMerge interface {
 	// srcMsgID as its topic's card (is_parent 1). A best-effort undo: a row
 	// already gone is skipped.
 	UnmergeTopic(ctx context.Context, tenantID, srcMsgID string, msgIDs []string) error
+	// MergedRowHomes answers the distinct tasks and parent tasks UnmergeTopic
+	// would put msgIDs back into, read from the move columns (SPL-4991).
+	MergedRowHomes(ctx context.Context, tenantID string, msgIDs []string) ([]string, error)
 }
 
 // ---- Memory driver -----------------------------------------------------------
@@ -86,6 +89,27 @@ func (s *Memory) MergeTopic(_ context.Context, tenant, srcMsgID, srcTask, target
 	s.anyMoved = true
 	opener := s.messages[[2]string{tenant, srcMsgID}]
 	return MergeResult{MsgIDs: set.MsgIDs, TaskIDs: set.TaskIDs, At: opener.ReceivedAt}, nil
+}
+
+// MergedRowHomes implements the store method of that name on the map rows.
+func (s *Memory) MergedRowHomes(_ context.Context, tenant string, msgIDs []string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	seen := map[string]bool{}
+	var homes []string
+	for _, id := range msgIDs {
+		m, ok := s.messages[[2]string{tenant, id}]
+		if !ok || m.Move.FromTask == "" {
+			continue
+		}
+		for _, home := range []string{m.Move.FromTask, m.Move.FromParent} {
+			if home != "" && !seen[home] {
+				seen[home] = true
+				homes = append(homes, home)
+			}
+		}
+	}
+	return homes, nil
 }
 
 func (s *Memory) UnmergeTopic(_ context.Context, tenant, srcMsgID string, msgIDs []string) error {

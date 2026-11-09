@@ -425,6 +425,9 @@ func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be deleted by its box")
 		return
 	}
+	if !s.topicOpenDoor(w, r, t.ID, m.MsgID, m.TaskID) { // SPL-4993
+		return
+	}
 	if err := s.o.Store.DeleteMessage(r.Context(), t.ID, id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeErr(w, http.StatusNotFound, "not_found", "no such message")

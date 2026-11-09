@@ -244,7 +244,7 @@ func withType(typ string, m store.EditableMessage, body map[string]any) map[stri
 func (s *Server) handleDeleteTopic(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	c, ok := s.resolveCard(w, r, capDelete)
-	if !ok {
+	if !ok || !s.topicOpenDoor(w, r, c.t.ID, c.m.MsgID, c.m.TaskID) { // SPL-4993
 		return
 	}
 	set, err := s.o.Store.DeleteTopic(r.Context(), c.t.ID, c.m.MsgID, c.ownTask)
@@ -284,7 +284,7 @@ func (s *Server) handleViewTopicSize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := archivedBody(c.m, c.st)
-	out["replies"], out["task_ids"], out["can_delete"], out["can_archive"] = set.Replies(), set.TaskIDs, c.may, c.mayArchive
+	out["replies"], out["task_ids"], out["can_delete"], out["can_archive"] = set.Replies(), set.TaskIDs, c.may && c.st.ArchivedAt.IsZero(), c.mayArchive
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -317,7 +317,6 @@ func (s *Server) handleViewArchived(w http.ResponseWriter, r *http.Request, t st
 		}
 		q.BeforeAt, q.BeforeID = at, id
 	}
-	from, _ := s.editorID(r, t.ID)
 	cards, err := s.o.Store.ArchivedCards(r.Context(), t.ID, q)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("archived cards")
@@ -346,7 +345,7 @@ func (s *Server) handleViewArchived(w http.ResponseWriter, r *http.Request, t st
 			for i, c := range cards {
 				out[i] = map[string]any{"message": views[i], "msg_id": c.MsgID, "task_id": c.TaskID,
 					"archived_at": rfc(c.ArchivedAt), "archived_by": c.ArchivedBy, "replies": replies[c.MsgID],
-					"can_delete": hum == "" || s.mayChangeTopic(r.Context(), t.ID, hum, from, c.FromID)}
+					"can_delete": false} // SPL-4993: unarchive first
 				if c.Channel != "" {
 					out[i]["channel"] = c.Channel
 				}

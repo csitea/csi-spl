@@ -168,6 +168,9 @@ func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, 
 		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may merge these messages")
 		return src, keep, nil, false
 	}
+	if !s.topicOpenDoor(w, r, tenant, src.MsgID, src.TaskID) { // SPL-4993
+		return src, keep, nil, false
+	}
 	pub = s.wuiPub()
 	if src.FromBox != WUIBox || keep.FromBox != WUIBox || (keep.EnvSig != "" && pub == nil) {
 		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")

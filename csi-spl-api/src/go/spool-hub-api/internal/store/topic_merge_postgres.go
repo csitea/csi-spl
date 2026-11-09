@@ -82,6 +82,29 @@ func (s *Postgres) MergeTopic(ctx context.Context, tenant, srcMsgID, srcTask, ta
 	return res, nil
 }
 
+// MergedRowHomes implements the store method of that name in one read.
+func (s *Postgres) MergedRowHomes(ctx context.Context, tenant string, msgIDs []string) ([]string, error) {
+	ids := make([]string, 0, len(msgIDs))
+	for _, id := range msgIDs {
+		if canonUUIDRe.MatchString(id) {
+			ids = append(ids, id)
+		}
+	}
+	var homes []string
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `SELECT DISTINCT h.id::text FROM messages m
+			CROSS JOIN LATERAL unnest(ARRAY[m.moved_from_task, m.moved_from_parent]) AS h(id)
+			WHERE m.tenant_id = $1 AND m.msg_id = ANY($2::uuid[]) AND m.moved_from_task IS NOT NULL AND h.id IS NOT NULL`,
+			tenant, ids)
+		if err != nil {
+			return err
+		}
+		homes, err = pgx.CollectRows(rows, pgx.RowTo[string])
+		return err
+	})
+	return homes, err
+}
+
 func (s *Postgres) UnmergeTopic(ctx context.Context, tenant, srcMsgID string, msgIDs []string) error {
 	if !canonUUIDRe.MatchString(srcMsgID) {
 		return ErrNotFound

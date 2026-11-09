@@ -52,7 +52,8 @@ type topicPriorityReq struct {
 func (s *Server) handleTopicPriority(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	var q topicPriorityReq
-	ok := s.priorityCaller(w, r, &q) && s.priorityDoor(w, r, &q) && s.priorityAllowed(w, r, q)
+	ok := s.priorityCaller(w, r, &q) && s.priorityDoor(w, r, &q) && s.priorityAllowed(w, r, q) &&
+		s.topicOpenDoor(w, r, q.t.ID, q.task, q.card.MsgID) // SPL-4993
 	if !ok {
 		return
 	}

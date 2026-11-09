@@ -46,6 +46,22 @@ func kindFields(out map[string]any, kind string, setAt time.Time, setBy string) 
 	out["kind"], out["kind_set_at"], out["kind_set_by"] = kind, rfc(setAt), setBy
 }
 
+// readKindRequest reads {kind}; false has answered 400.
+func readKindRequest(w http.ResponseWriter, r *http.Request) (kindRequest, bool) {
+	var body kindRequest
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {kind}")
+		return body, false
+	}
+	if !msg.ValidKind(body.Kind) {
+		writeErr(w, http.StatusBadRequest, "bad_kind", "kind must be one of "+msg.KindList)
+		return body, false
+	}
+	return body, true
+}
+
 func (s *Server) handleSetMessageKind(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	t, hum, ok := s.humanTenant(w, r)
@@ -69,15 +85,8 @@ func (s *Server) handleSetMessageKind(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
 		return
 	}
-	var body kindRequest
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {kind}")
-		return
-	}
-	if !msg.ValidKind(body.Kind) {
-		writeErr(w, http.StatusBadRequest, "bad_kind", "kind must be one of "+msg.KindList)
+	body, ok := readKindRequest(w, r)
+	if !ok {
 		return
 	}
 	m, err := s.o.Store.GetEditable(r.Context(), t.ID, id, s.o.Now())
@@ -95,6 +104,9 @@ func (s *Server) handleSetMessageKind(w http.ResponseWriter, r *http.Request) {
 	}
 	if m.FromID != from && !s.setsAnyKind(r, t.ID, hum) {
 		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, a biz_owner or an admin may set this message's kind")
+		return
+	}
+	if !s.topicOpenDoor(w, r, t.ID, m.MsgID, m.TaskID) { // SPL-4993
 		return
 	}
 	now := s.o.Now().UTC().Truncate(time.Second)

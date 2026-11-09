@@ -357,8 +357,9 @@ const anyTopicArchivedSQL = `WITH RECURSIVE named(id) AS (
 		UNION
 		SELECT up.id FROM named n CROSS JOIN LATERAL (
 			SELECT m.task_id AS id FROM messages m WHERE m.tenant_id = $1 AND m.msg_id = n.id
-			UNION SELECT m.parent_task_id FROM messages m
-				WHERE m.tenant_id = $1 AND m.task_id = n.id AND m.parent_task_id IS NOT NULL) up
+			UNION SELECT f.parent_task_id FROM (SELECT m.parent_task_id FROM messages m
+				WHERE m.tenant_id = $1 AND m.task_id = n.id
+				ORDER BY m.received_at, m.msg_id LIMIT 1) f WHERE f.parent_task_id IS NOT NULL) up
 		WHERE n.id::text <> $3::text)
 	SELECT EXISTS (SELECT 1 FROM messages z
 		WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL

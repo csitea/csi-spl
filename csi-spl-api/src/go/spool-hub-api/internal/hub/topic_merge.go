@@ -96,7 +96,7 @@ func (s *Server) mergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow, 
 		writeRefusal(w, "lobby")
 		return
 	}
-	if !s.topicOpenDoor(w, r, c.t.ID, task) { // SPL-4954
+	if !s.topicOpenDoor(w, r, c.t.ID, task, c.m.TaskID, c.m.MsgID) { // SPL-4954; the source too, SPL-4992
 		return
 	}
 	now := s.o.Now()
@@ -131,6 +131,9 @@ func (s *Server) unmergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow
 	if !ok {
 		return
 	}
+	if !s.unmergeHomeOpen(w, r, c.t.ID, ids) {
+		return
+	}
 	if err := s.o.Store.UnmergeTopic(r.Context(), c.t.ID, c.m.MsgID, ids); !s.moveStored(w, err, c.m.MsgID) {
 		return
 	}
@@ -143,6 +146,20 @@ func (s *Server) unmergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow
 	to.TaskID, to.Channel = from, c.m.Move.FromChannel
 	s.fanoutMove(r.Context(), c.t.ID, c.m, to, mergeFrame(topicUnmergedFrame, out))
 	writeJSON(w, http.StatusOK, out)
+}
+
+// unmergeHomeOpen refuses an undo that would put a row back under an archived
+// topic (SPL-4991). The rows' stored homes decide, the ones the store will
+// write: the payload's from_task can be replayed or forged, and once every row
+// of a child topic has left, only the rows themselves still name its parent.
+func (s *Server) unmergeHomeOpen(w http.ResponseWriter, r *http.Request, tenant string, ids []string) bool {
+	homes, err := s.o.Store.MergedRowHomes(r.Context(), tenant, ids)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("merge undo homes")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return false
+	}
+	return s.topicOpenDoor(w, r, tenant, homes...)
 }
 
 // maxUndoRows caps an undo's msg_ids: a topic deeper than the delete walk is a

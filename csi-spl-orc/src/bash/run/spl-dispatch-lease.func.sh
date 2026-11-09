@@ -554,7 +554,7 @@ spl_lease_stall() {
   f="$LEASE_DIR/spin.$pid"
   # the spinner's "(...)" only: its glyph and verb cycle while frozen; it
   # sits above the input box, so it is read from the whole tail
-  spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$rows" | tail -1 | grep -oE '\(.*\)')"
+  spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$rows" | tail -1 | grep -oE '\(.*\)')" || true
   if [[ -n "$hit" && -z "$spin" ]]; then
     rm -f "$f"; until="$(spl_lease_limit_until "$foot")"
     [[ -n "$until" ]] && { echo "$hit, resets in $(( (until - $(spl_lease_now) + 59) / 60 )) min"; return 0; }

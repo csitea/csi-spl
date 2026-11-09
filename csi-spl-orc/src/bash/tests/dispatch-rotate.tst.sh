@@ -283,12 +283,7 @@ EOF
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-# SPL-5043 skip, fixed by bug row dispatch-lease-stall-spin-pipefail:
-# spl-dispatch-lease.func.sh:557 (spl_lease_stall's spin= pipe) fails under
-# pipefail on a pane with no spinner; that one line only, every other stray
-# still leaves its ERRTRAP line
-trap '[[ $BASH_COMMAND == return* || "${BASH_SOURCE[0]##*/}:$LINENO" == spl-dispatch-lease.func.sh:557 ]] ||
-  echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 VCLOCK_MS=0 VCLOCK_HELD=0
 sleep() {
   local n="${1:-1}" ms int frac tick="${ROTATE_TEST_TICK:-0.01}" p

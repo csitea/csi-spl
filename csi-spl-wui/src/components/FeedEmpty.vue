@@ -31,7 +31,7 @@
     <template v-if="ready">
       <p class="feed-empty__title">{{ search ? t('feed.no_matches') : t('feed.first_post.title', { channel: '#' + channel }) }}</p>
       <p class="feed-empty__hint">{{ search ? t('feed.first_post.filter_hint') : t('feed.first_post.hint') }}</p>
-      <button v-if="!search" type="button" class="btn feed-empty__start" data-testid="feed-empty-start" @click="focusComposer">
+      <button v-if="!search" type="button" class="btn feed-empty__start" data-testid="feed-empty-start" :disabled="omniboxFocused" @click="focusComposer">
         <UiIcon name="messages" :size="16" /><span>{{ t('feed.first_post.start') }}</span>
       </button>
     </template>
@@ -53,6 +53,23 @@ const ready = computed(() => te('feed.first_post.title'))
 function focusComposer() {
   callOmnibox(document.querySelector<HTMLTextAreaElement>(OMNIBOX_TEXTAREA))
 }
+
+/* SPL-5183 (owner HUM-10, t1 bb025917 msg b78bf9ad): "Whenever the cursor is on
+   the omnibox, the button should be disabled." Read from the document's focus
+   events, not one element's: the Omnibox element can be replaced */
+const omniboxFocused = ref(false)
+function syncOmniboxFocus() {
+  omniboxFocused.value = Boolean(document.activeElement?.matches(OMNIBOX_TEXTAREA))
+}
+onMounted(() => {
+  syncOmniboxFocus()
+  document.addEventListener('focusin', syncOmniboxFocus)
+  document.addEventListener('focusout', syncOmniboxFocus)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('focusin', syncOmniboxFocus)
+  document.removeEventListener('focusout', syncOmniboxFocus)
+})
 
 /* one greeting per mount; animationend takes the classes off, so it rests */
 const mascot = ref<HTMLElement | null>(null)
@@ -76,4 +93,5 @@ onMounted(() => { if (mascot.value) playTapAnim(mascot.value, 'greeting') })
 .feed-empty__title { margin: 0; color: var(--color-fg); font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; }
 .feed-empty__hint { margin: 0; color: var(--color-muted); font-size: 0.875rem; }
 .feed-empty__start { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.feed-empty__start:disabled { opacity: 0.5; cursor: default; }
 </style>

@@ -159,6 +159,40 @@ async function heldBeat(p, sel, tag) {
   check(`${tag}: its button stays mounted over a poll, and a click lands`, clicked === 'ok' && !w.removed && w.reads > 0, { clicked, ...w })
 }
 
+const START = '[data-testid=feed-empty-start]'
+const startDisabled = (p) => p.evaluate((sel) => document.querySelector(sel)?.disabled ?? null, START)
+const blurAll = (p) => p.evaluate(() => document.activeElement?.blur())
+const omniHasCaret = (p) => p.evaluate((sel) => document.activeElement === document.querySelector(sel), OMNI)
+
+/* SPL-5183: the button follows real focus, however the caret got there */
+async function focusFollowed(p, tag) {
+  check(`${tag}: its button is disabled once it has put the caret in the Omnibox`, await startDisabled(p) === true)
+  await p.click(START)
+  await sleep(100)
+  check(`${tag}: a click on the disabled button leaves the caret in the Omnibox`, await omniHasCaret(p))
+  await p.click('.feed-empty__title')
+  await sleep(100)
+  check(`${tag}: a click elsewhere enables it again`, await startDisabled(p) === false && !(await omniHasCaret(p)))
+  await p.click(OMNI)
+  await sleep(100)
+  check(`${tag}: a click into the Omnibox disables it, without the button`, await startDisabled(p) === true)
+  /* the element replaced under the caret: no blur to rely on, then a new one */
+  const swap = await p.evaluate((sel) => {
+    const old = document.querySelector(sel)
+    const fresh = old.cloneNode()
+    old.replaceWith(fresh)
+    window.__omniSwap = { old, fresh }
+  }, OMNI).then(() => sleep(100)).then(() => startDisabled(p))
+  check(`${tag}: the Omnibox replaced under the caret enables it`, swap === false, { swap })
+  const refocused = await p.evaluate(() => window.__omniSwap.fresh.focus()).then(() => sleep(100)).then(() => startDisabled(p))
+  check(`${tag}: focus in the replacement disables it`, refocused === true, { refocused })
+  await p.evaluate(() => { const { old, fresh } = window.__omniSwap; fresh.replaceWith(old); delete window.__omniSwap })
+  await sleep(100)
+  await blurAll(p)
+  await sleep(100)
+  check(`${tag}: focus gone with the box put back: enabled`, await startDisabled(p) === false)
+}
+
 async function channelStart(p, width, theme) {
   const tag = `${width} ${theme} #feedback`
   await p.evaluate((theme) => document.documentElement.setAttribute('data-theme', theme), theme)
@@ -179,7 +213,11 @@ async function channelStart(p, width, theme) {
   await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel').setSearch(''))
   await sleep(600)
   if (!e || !e.button) return
-  if (theme === 'dark') await heldBeat(p, '[data-testid=feed-empty-start]', tag)
+  /* SPL-5183 (owner HUM-10, t1 bb025917 msg b78bf9ad): "Whenever the cursor is
+     on the omnibox, the button should be disabled." A click needs it enabled */
+  await blurAll(p)
+  check(`${tag}: its button is enabled while the caret is elsewhere`, await startDisabled(p) === false)
+  if (theme === 'dark') { await heldBeat(p, START, tag); await blurAll(p) }
   /* a mark left by the DM steps clears first, so the one read below is this click's */
   await p.waitForFunction(() => !document.querySelector('form.omnibox--called'), { timeout: 5000 }).catch(() => {})
   await p.click('[data-testid=feed-empty-start]')
@@ -187,6 +225,7 @@ async function channelStart(p, width, theme) {
   check(`${tag}: its button puts the caret in the Omnibox`, await p.evaluate((sel) => document.activeElement === document.querySelector(sel), OMNI))
   const m = await marked(p)
   check(`${tag}: its button marks the Omnibox with a pulsing ring, in view`, pulsed(m) && m.anim === 'omnibox-called', m)
+  await focusFollowed(p, tag)
   /* a Reply (card menu, r shortcut, poll "Chat about this") sends the same event */
   await p.waitForFunction(() => !document.querySelector('form.omnibox--called'), { timeout: 5000 }).catch(() => {})
   await p.evaluate(() => { document.activeElement?.blur(); window.dispatchEvent(new CustomEvent('spool:composer-focus')) })
@@ -195,7 +234,9 @@ async function channelStart(p, width, theme) {
   check(`${tag}: a Reply's composer-focus marks the Omnibox too`, pulsed(r) && r.anim === 'omnibox-called', r)
   if (theme !== 'light') {
     await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
-    await p.click('[data-testid=feed-empty-start]')
+    await blurAll(p)
+    await sleep(100)
+    await p.click(START)
     await sleep(200)
     const s = await marked(p)
     await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])

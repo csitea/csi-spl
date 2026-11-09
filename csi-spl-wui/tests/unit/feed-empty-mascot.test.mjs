@@ -103,7 +103,7 @@ const UiIcon = { props: ['name', 'size'], render() { return Vue.h('i', { 'data-i
 
 async function mount(reduce, props = { channel: 'general' }) {
   globalThis.matchMedia = (q) => ({ matches: reduce && q.includes('reduce') })
-  globalThis.document = { querySelector: () => null }
+  globalThis.document = { querySelector: () => null, activeElement: null, addEventListener() {}, removeEventListener() {} }
   const root = el('#root')
   const errors = []
   const state = Vue.reactive({ ...props })

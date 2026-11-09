@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Jūsu kontaktos",
     "error_contact_empty": "Ievadiet vārdu, e-pastu vai tālruni.",
     "error_bad_email": "Tā nav e-pasta adrese.",
-    "error_bad_phone": "Tas nav tālruņa numurs."
+    "error_bad_phone": "Tas nav tālruņa numurs.",
+    "import": {
+      "title": "Importēt kontaktus",
+      "open": "Importēt no faila",
+      "hint": "Izvēlieties CSV failu, kas eksportēts no Google Contacts vai Spool.",
+      "rows": "Rindas failā",
+      "would_add": "Jauni kontakti pievienošanai",
+      "added": "Pievienotie jaunie kontakti",
+      "already_there": "Jau ir jūsu kontaktos",
+      "deleted_here": "Dzēsti Spool, atkārtoti netiek pievienoti",
+      "file_duplicates": "Atkārtojas failā",
+      "photos_ignored": "Izlaistie attēli",
+      "skipped": "Izlaistās rindas",
+      "skip_line": "Rinda {line}: {reason}",
+      "skip_row_empty": "Rinda ir tukša.",
+      "skip_too_long": "Vērtība ir pārāk gara.",
+      "skip_bad_birthday": "Dzimšanas diena nav datums.",
+      "start": "Importēt",
+      "error_csv_too_large": "Fails pārsniedz 5 MB vai 25 000 rindu.",
+      "error_csv_unknown_format": "Tas nav Google Contacts vai Spool eksports.",
+      "error_csv_bad_encoding": "Fails nav UTF-8 teksts.",
+      "error_csv_malformed": "Fails nav derīgs CSV.",
+      "failed": "Failu neizdevās importēt."
+    }
   },
   "activity": {
     "title": "Aktivitāšu žurnāls",

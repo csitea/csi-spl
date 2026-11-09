@@ -513,6 +513,7 @@
             <button type="button" class="people-filter__btn" data-testid="people-filter-workspace" :aria-pressed="peopleFilter === PEOPLE_FILTER_WORKSPACE" @click="setPeopleFilter(PEOPLE_FILTER_WORKSPACE)">{{ t('people.filter_workspace') }}</button>
           </div>
           <NuxtLink class="btn ghost people-tools__add" data-testid="people-add-contact" :to="localePath('/people/contact/new')">{{ t('people.add_contact') }}</NuxtLink>
+          <button type="button" class="btn ghost people-tools__add" data-testid="people-import-contacts" @click="contactsImportOpen = true">{{ t('contacts.import.open') }}</button>
         </div>
         <div class="sidebar-scroll">
           <p v-if="peopleMemberRows.length === 0" class="muted topic-empty">{{ t('people.none') }}</p>
@@ -624,6 +625,8 @@
       :description="propertiesChannel.description"
       :created-by="propertiesChannel.created_by"
     />
+    <!-- spec 154 B17: a new instance each opening, so nothing of the last file stays -->
+    <ContactsImportDialog v-if="contactsImportOpen" v-model:open="contactsImportOpen" />
     <!-- 050: the channels panel's collapse triangle, bottom corner. A DIRECT
          child of .sidebar so the collapse CSS hides its siblings and keeps only
          this strip. -->
@@ -649,6 +652,7 @@ import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
 /* CLE-77884: async too - only a search needs it */
+const ContactsImportDialog = defineAsyncComponent(() => import('~/components/ContactsImportDialog.vue'))
 const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSidePanel.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
@@ -937,6 +941,7 @@ const memberRows = computed(() => roster.people
    contacts, A-Z in each. The contact list is the lazy rows' read (C25). */
 const contactRows = shallowRef<Array<{ contact_id: string, member_id?: string | null }>>([])
 const contactsRefused = ref(false)
+const contactsImportOpen = ref(false)
 const contactsOn = computed(() => access.contacts && !acting.value && !contactsRefused.value && session.state !== 'out')
 const peopleFilter = ref(PEOPLE_FILTER_ALL)
 function setPeopleFilter(v: string) {

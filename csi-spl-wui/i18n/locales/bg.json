@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Във вашите контакти",
     "error_contact_empty": "Въведете име, имейл или телефон.",
     "error_bad_email": "Това не е имейл адрес.",
-    "error_bad_phone": "Това не е телефонен номер."
+    "error_bad_phone": "Това не е телефонен номер.",
+    "import": {
+      "title": "Импортиране на контакти",
+      "open": "Импортиране от файл",
+      "hint": "Изберете CSV файл, експортиран от Google Contacts или Spool.",
+      "rows": "Редове във файла",
+      "would_add": "Нови контакти за добавяне",
+      "added": "Добавени нови контакти",
+      "already_there": "Вече са в контактите ви",
+      "deleted_here": "Изтрити в Spool, не се добавят отново",
+      "file_duplicates": "Повторени във файла",
+      "photos_ignored": "Пропуснати снимки",
+      "skipped": "Пропуснати редове",
+      "skip_line": "Ред {line}: {reason}",
+      "skip_row_empty": "Редът е празен.",
+      "skip_too_long": "Стойност е твърде дълга.",
+      "skip_bad_birthday": "Рожденият ден не е дата.",
+      "start": "Импортиране",
+      "error_csv_too_large": "Файлът надхвърля 5 MB или 25 000 реда.",
+      "error_csv_unknown_format": "Това не е експорт от Google Contacts или Spool.",
+      "error_csv_bad_encoding": "Файлът не е текст в UTF-8.",
+      "error_csv_malformed": "Файлът не е валиден CSV.",
+      "failed": "Файлът не можа да се импортира."
+    }
   },
   "activity": {
     "title": "Дневник на активността",

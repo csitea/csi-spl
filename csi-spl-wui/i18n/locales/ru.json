@@ -2203,7 +2203,30 @@
     "in_your_contacts": "В ваших контактах",
     "error_contact_empty": "Введите имя, эл. почту или телефон.",
     "error_bad_email": "Это не адрес электронной почты.",
-    "error_bad_phone": "Это не номер телефона."
+    "error_bad_phone": "Это не номер телефона.",
+    "import": {
+      "title": "Импорт контактов",
+      "open": "Импорт из файла",
+      "hint": "Выберите CSV-файл, экспортированный из Google Contacts или Spool.",
+      "rows": "Строк в файле",
+      "would_add": "Новых контактов к добавлению",
+      "added": "Добавлено новых контактов",
+      "already_there": "Уже в ваших контактах",
+      "deleted_here": "Удалены в Spool, повторно не добавляются",
+      "file_duplicates": "Повторы в файле",
+      "photos_ignored": "Пропущено изображений",
+      "skipped": "Пропущено строк",
+      "skip_line": "Строка {line}: {reason}",
+      "skip_row_empty": "Строка пуста.",
+      "skip_too_long": "Значение слишком длинное.",
+      "skip_bad_birthday": "День рождения не является датой.",
+      "start": "Импортировать",
+      "error_csv_too_large": "Файл превышает 5 МБ или 25 000 строк.",
+      "error_csv_unknown_format": "Это не экспорт из Google Contacts или Spool.",
+      "error_csv_bad_encoding": "Файл не является текстом UTF-8.",
+      "error_csv_malformed": "Файл не является корректным CSV.",
+      "failed": "Не удалось импортировать файл."
+    }
   },
   "activity": {
     "title": "Журнал активности",

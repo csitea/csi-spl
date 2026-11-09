@@ -2203,7 +2203,30 @@
     "in_your_contacts": "У вашим контактима",
     "error_contact_empty": "Унесите име, е-пошту или телефон.",
     "error_bad_email": "Ово није адреса е-поште.",
-    "error_bad_phone": "Ово није број телефона."
+    "error_bad_phone": "Ово није број телефона.",
+    "import": {
+      "title": "Увези контакте",
+      "open": "Увези из датотеке",
+      "hint": "Изаберите CSV датотеку извезену из Google Contacts или Spool.",
+      "rows": "Редови у датотеци",
+      "would_add": "Нови контакти за додавање",
+      "added": "Додати нови контакти",
+      "already_there": "Већ су у вашим контактима",
+      "deleted_here": "Обрисани у Spool, не додају се поново",
+      "file_duplicates": "Понављају се у датотеци",
+      "photos_ignored": "Изостављене слике",
+      "skipped": "Прескочени редови",
+      "skip_line": "Ред {line}: {reason}",
+      "skip_row_empty": "Ред је празан.",
+      "skip_too_long": "Вредност је предугачка.",
+      "skip_bad_birthday": "Рођендан није датум.",
+      "start": "Увези",
+      "error_csv_too_large": "Датотека прелази 5 MB или 25.000 редова.",
+      "error_csv_unknown_format": "Ово није извоз из Google Contacts или Spool.",
+      "error_csv_bad_encoding": "Датотека није текст у UTF-8.",
+      "error_csv_malformed": "Датотека није исправан CSV.",
+      "failed": "Датотеку није могуће увести."
+    }
   },
   "activity": {
     "title": "Дневник активности",

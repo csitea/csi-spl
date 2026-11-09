@@ -2203,7 +2203,30 @@
     "in_your_contacts": "W Twoich kontaktach",
     "error_contact_empty": "Podaj imię, e-mail lub telefon.",
     "error_bad_email": "To nie jest adres e-mail.",
-    "error_bad_phone": "To nie jest numer telefonu."
+    "error_bad_phone": "To nie jest numer telefonu.",
+    "import": {
+      "title": "Importuj kontakty",
+      "open": "Importuj z pliku",
+      "hint": "Wybierz plik CSV wyeksportowany z Google Contacts lub Spool.",
+      "rows": "Wiersze w pliku",
+      "would_add": "Nowe kontakty do dodania",
+      "added": "Dodane nowe kontakty",
+      "already_there": "Już w Twoich kontaktach",
+      "deleted_here": "Usunięte w Spool, nie są dodawane ponownie",
+      "file_duplicates": "Powtórzone w pliku",
+      "photos_ignored": "Pominięte zdjęcia",
+      "skipped": "Pominięte wiersze",
+      "skip_line": "Wiersz {line}: {reason}",
+      "skip_row_empty": "Wiersz jest pusty.",
+      "skip_too_long": "Wartość jest zbyt długa.",
+      "skip_bad_birthday": "Data urodzin nie jest datą.",
+      "start": "Importuj",
+      "error_csv_too_large": "Plik przekracza 5 MB lub 25 000 wierszy.",
+      "error_csv_unknown_format": "To nie jest eksport z Google Contacts ani Spool.",
+      "error_csv_bad_encoding": "Plik nie jest tekstem UTF-8.",
+      "error_csv_malformed": "Plik nie jest prawidłowym CSV.",
+      "failed": "Nie udało się zaimportować pliku."
+    }
   },
   "activity": {
     "title": "Dziennik aktywności",

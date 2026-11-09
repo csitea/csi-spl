@@ -2203,7 +2203,30 @@
     "in_your_contacts": "En tus contactos",
     "error_contact_empty": "Introduce un nombre, un correo o un teléfono.",
     "error_bad_email": "Eso no es una dirección de correo.",
-    "error_bad_phone": "Eso no es un número de teléfono."
+    "error_bad_phone": "Eso no es un número de teléfono.",
+    "import": {
+      "title": "Importar contactos",
+      "open": "Importar desde un archivo",
+      "hint": "Elige un archivo CSV exportado de Google Contacts o de Spool.",
+      "rows": "Filas del archivo",
+      "would_add": "Contactos nuevos por añadir",
+      "added": "Contactos nuevos añadidos",
+      "already_there": "Ya están en tus contactos",
+      "deleted_here": "Eliminados en Spool, no se vuelven a añadir",
+      "file_duplicates": "Repetidos en el archivo",
+      "photos_ignored": "Imágenes omitidas",
+      "skipped": "Filas omitidas",
+      "skip_line": "Línea {line}: {reason}",
+      "skip_row_empty": "La fila está vacía.",
+      "skip_too_long": "Un valor es demasiado largo.",
+      "skip_bad_birthday": "El cumpleaños no es una fecha.",
+      "start": "Importar",
+      "error_csv_too_large": "El archivo supera los 5 MB o las 25.000 filas.",
+      "error_csv_unknown_format": "No es una exportación de Google Contacts ni de Spool.",
+      "error_csv_bad_encoding": "El archivo no es texto UTF-8.",
+      "error_csv_malformed": "El archivo no es un CSV válido.",
+      "failed": "No se pudo importar el archivo."
+    }
   },
   "activity": {
     "title": "Registro de actividad",

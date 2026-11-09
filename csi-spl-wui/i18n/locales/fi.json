@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Yhteystiedoissasi",
     "error_contact_empty": "Anna nimi, sähköposti tai puhelinnumero.",
     "error_bad_email": "Tämä ei ole sähköpostiosoite.",
-    "error_bad_phone": "Tämä ei ole puhelinnumero."
+    "error_bad_phone": "Tämä ei ole puhelinnumero.",
+    "import": {
+      "title": "Tuo yhteystiedot",
+      "open": "Tuo tiedostosta",
+      "hint": "Valitse Google Contactsista tai Spoolista viety CSV-tiedosto.",
+      "rows": "Rivejä tiedostossa",
+      "would_add": "Lisättäviä uusia yhteystietoja",
+      "added": "Lisättyjä uusia yhteystietoja",
+      "already_there": "Jo yhteystiedoissasi",
+      "deleted_here": "Poistettu Spoolissa, ei lisätä uudelleen",
+      "file_duplicates": "Toistuu tiedostossa",
+      "photos_ignored": "Pois jätettyjä kuvia",
+      "skipped": "Ohitettuja rivejä",
+      "skip_line": "Rivi {line}: {reason}",
+      "skip_row_empty": "Rivi on tyhjä.",
+      "skip_too_long": "Arvo on liian pitkä.",
+      "skip_bad_birthday": "Syntymäpäivä ei ole päivämäärä.",
+      "start": "Tuo",
+      "error_csv_too_large": "Tiedosto ylittää 5 Mt tai 25 000 riviä.",
+      "error_csv_unknown_format": "Tämä ei ole Google Contactsin tai Spoolin vienti.",
+      "error_csv_bad_encoding": "Tiedosto ei ole UTF-8-tekstiä.",
+      "error_csv_malformed": "Tiedosto ei ole kelvollinen CSV.",
+      "failed": "Tiedoston tuonti epäonnistui."
+    }
   },
   "activity": {
     "title": "Toimintaloki",

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactReread, contactsList } from '../../src/utils/contacts-client.mjs'
+import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactReread, contactsImport, contactsImportErrorKey, contactsList, contactsSkipKey } from '../../src/utils/contacts-client.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ANSWERS = JSON.parse(readFileSync(join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/hub/testdata/contacts_answers.golden.json'), 'utf8'))
@@ -159,5 +159,82 @@ describe('the mock answers in the hub\'s shape', () => {
     localStorage.setItem('spool.mock.contacts', JSON.stringify([{ contact_id: 'k-in', first_name: 'FirstName', last_name: '', email: null, phone: null, google: false, member_id: 'HUM-2' }]))
     assert.equal((await contactPatch(MOCK, 'k-in', VALUES)).member_id, null)
     assert.equal((await contactGet(MOCK, 'k-in')).member_id, 'HUM-2')
+  })
+})
+
+describe('spec 154 B17: the CSV import', () => {
+  const HEAD = 'first_name,last_name,email,phone'
+  const csv = (...lines) => new File([[HEAD, ...lines].join('\n')], 'contacts.csv')
+  const GOOD = 'FirstName,LastName,first.last@example.com,'
+
+  function hubSays(status, body) {
+    globalThis.fetch = async (url, init) => {
+      sent.push({ url: String(url), method: init.method, type: init.headers['content-type'], body: init.body })
+      return new Response(JSON.stringify(body), { status })
+    }
+  }
+
+  it('sends the file itself as text/csv, dry_run=1 for the preview', async () => {
+    hubSays(200, { rows: 1, would_add: 1, skipped: [] })
+    const file = csv(GOOD)
+    assert.equal((await contactsImport(HUB, file, { dryRun: true })).would_add, 1)
+    assert.equal(sent[0].method, 'POST')
+    assert.equal(sent[0].type, 'text/csv')
+    assert.equal(sent[0].body, file)
+    assert.match(sent[0].url, /\/v1\/me\/contacts\/import\?workspace=t1&dry_run=1$/)
+  })
+
+  it('the import itself has no dry_run', async () => {
+    hubSays(200, { rows: 1, added: 1, skipped: [] })
+    await contactsImport(HUB, csv(GOOD))
+    assert.doesNotMatch(sent[0].url, /dry_run/)
+  })
+
+  it('a refusal throws the hub code, and its key names it', async () => {
+    hubSays(400, { error: 'csv_unknown_format' })
+    const err = await contactsImport(HUB, csv(GOOD), { dryRun: true }).catch((e) => e)
+    assert.equal(err.status, 400)
+    assert.equal(contactsImportErrorKey(err), 'contacts.import.error_csv_unknown_format')
+    assert.equal(contactsImportErrorKey({ status: 0, error: '' }), 'contacts.import.failed')
+  })
+
+  it('a file over the hub cap is refused unsent; one at the cap is sent', async () => {
+    hubSays(200, { rows: 0, skipped: [] })
+    const big = await contactsImport(HUB, new File([new Uint8Array((5 << 20) + 1)], 'b.csv')).catch((e) => e)
+    assert.equal(big.error, 'csv_too_large')
+    assert.equal(sent.length, 0)
+    await contactsImport(HUB, new File([new Uint8Array(5 << 20)], 'b.csv'))
+    assert.equal(sent.length, 1)
+  })
+
+  it('the mock preview writes nothing, the import writes, the second adds 0', async () => {
+    const preview = await contactsImport(MOCK, csv(GOOD), { dryRun: true })
+    assert.equal(preview.would_add, 1)
+    assert.equal(preview.added, undefined)
+    assert.equal((await contactsList(MOCK, 'preview')).length, 0)
+    assert.equal((await contactsImport(MOCK, csv(GOOD))).added, 1)
+    assert.equal((await contactsList(MOCK, 'after')).length, 1)
+    const again = await contactsImport(MOCK, csv(GOOD))
+    assert.equal(again.added, 0)
+    assert.equal(again.already_there, 1)
+  })
+
+  it('the mock tells the formats, skips bad rows by line and code, refuses an unknown header', async () => {
+    const google = new File(['First Name,Last Name,E-mail 1 - Value,Phone 1 - Value\nFirstName,LastName,a@example.com,'], 'g.csv')
+    assert.equal((await contactsImport(MOCK, google, { dryRun: true })).format, 'google')
+    const mixed = await contactsImport(MOCK, csv(GOOD, GOOD, ',,not-an-address,', ',,,'), { dryRun: true })
+    assert.deepEqual(mixed.skipped, [{ line: 4, code: 'bad_email' }, { line: 5, code: 'row_empty' }])
+    assert.equal(mixed.rows, 4)
+    assert.equal(mixed.would_add, 1)
+    assert.equal(mixed.file_duplicates, 1)
+    const err = await contactsImport(MOCK, new File(['a,b\n1,2'], 'x.csv'), { dryRun: true }).catch((e) => e)
+    assert.equal(err.error, 'csv_unknown_format')
+  })
+
+  it('each skip code has a reason key', () => {
+    assert.equal(contactsSkipKey('bad_email'), 'contacts.error_bad_email')
+    assert.equal(contactsSkipKey('bad_birthday'), 'contacts.import.skip_bad_birthday')
+    assert.equal(contactsSkipKey('row_empty'), 'contacts.import.skip_row_empty')
+    assert.equal(contactsSkipKey('too_long'), 'contacts.import.skip_too_long')
   })
 })

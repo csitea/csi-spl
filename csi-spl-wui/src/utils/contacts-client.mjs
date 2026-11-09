@@ -8,6 +8,7 @@
  *   POST   /v1/me/contacts                     201, the contact
  *   PATCH  /v1/me/contacts/{id}                the contact, member_id null
  *   DELETE /v1/me/contacts/{id}                204
+ *   POST   /v1/me/contacts/import[?dry_run=1]  a text/csv body, the counts (B17)
  *
  * The contact is the whole body, no wrapper. A patch keeps a field sent as null
  * and clears one sent as "". tests/unit/contacts-client.test.mjs holds the
@@ -27,6 +28,8 @@ const MOCK_CONTACTS_KEY = 'spool.mock.contacts'
 const ROUTE = '/v1/me/contacts'
 /* the hub answers in created_at order and the panel sorts A-Z, so it needs every page */
 const MAX_PAGES = 100
+/* the hub's cap, contactsImportMaxBytes: a bigger file is refused before it is sent */
+const IMPORT_MAX_BYTES = 5 << 20
 
 function contactsUrl(api, tail, params) {
   const q = new URLSearchParams()
@@ -36,15 +39,16 @@ function contactsUrl(api, tail, params) {
   return `${String(api.base || '').replace(/\/+$/, '')}${ROUTE}${tail}${s ? '?' + s : ''}`
 }
 
-async function call(api, method, tail, { params, body } = {}) {
-  const headers = { accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) }
+async function call(api, method, tail, { params, body, csv } = {}) {
+  const type = csv ? 'text/csv' : body ? 'application/json' : ''
+  const headers = { accept: 'application/json', ...(type ? { 'content-type': type } : {}) }
   let res
   try {
     res = await fetch(contactsUrl(api, tail, params), {
       method,
       credentials: api.credentials,
       headers,
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      ...(csv ? { body: csv } : body ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(method === 'GET' ? BOOT_READ_TIMEOUT_MS : HUB_WRITE_TIMEOUT_MS),
     })
   } catch {
@@ -72,6 +76,8 @@ function mockKeep(list) {
   } catch { /* private mode: nothing is kept */ }
 }
 
+let mockMade = 0
+
 /** The hub's checks on the four values, its error codes. */
 function mockChecked(row) {
   if (!row.first_name && !row.last_name && !row.email && !row.phone) throw refused(400, 'contact_empty')
@@ -90,11 +96,56 @@ function mockFound(list, id) {
 function mockWrite(values, id) {
   const list = mockRead()
   const now = new Date().toISOString()
-  const was = id ? mockFound(list, id) : { contact_id: 'mock-' + Date.now().toString(36), first_name: '', last_name: '', email: null, phone: null, google: false, member_id: null, created_at: now, company: '', job_title: '', birthday: null, notes: '', in_only: false, photo: null }
+  const was = id ? mockFound(list, id) : { contact_id: 'mock-' + Date.now().toString(36) + '-' + (++mockMade), first_name: '', last_name: '', email: null, phone: null, google: false, member_id: null, created_at: now, company: '', job_title: '', birthday: null, notes: '', in_only: false, photo: null }
   const next = { ...was, ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== null)), updated_at: now }
   const row = mockChecked({ ...next, email: next.email || null, phone: next.phone || null })
   mockKeep(id ? list.map((c) => (c.contact_id === id ? row : c)) : [...list, row])
   return { ...row, member_id: null }
+}
+
+const MOCK_CSV_COLUMNS = {
+  first_name: ['first_name', 'First Name', 'Given Name'],
+  last_name: ['last_name', 'Last Name', 'Family Name'],
+  email: ['email', 'E-mail 1 - Value'],
+  phone: ['phone', 'Phone 1 - Value'],
+}
+const MOCK_SKIP_CODE = { contact_empty: 'row_empty', bad_email: 'bad_email', bad_phone: 'bad_phone' }
+const mockMatchKey = (c) => (c.email ? 'e:' + c.email.toLowerCase() : `n:${c.first_name}|${c.last_name}`)
+
+function mockCsvColumns(names) {
+  const at = Object.fromEntries(Object.entries(MOCK_CSV_COLUMNS).map(([f, heads]) => [f, names.findIndex((n) => heads.includes(n))]))
+  if (at.email < 0 || at.phone < 0 || (at.first_name < 0 && at.last_name < 0)) throw refused(400, 'csv_unknown_format')
+  return at
+}
+
+/** The hub's answer for a file of plain cells: quoting is the hub's own test. */
+function mockImport(text, dryRun) {
+  const [head, ...lines] = text.split(/\r?\n/)
+  const names = head.split(',')
+  const at = mockCsvColumns(names)
+  const there = new Set(mockRead().map(mockMatchKey))
+  const fresh = new Map()
+  const out = { format: names.includes('first_name') ? 'spool' : 'google', rows: 0, already_there: 0, already_there_by_phone: 0, deleted_here: 0, file_duplicates: 0, skipped: [], photos_ignored: 0 }
+  lines.forEach((line, i) => {
+    if (!line.trim()) return
+    out.rows++
+    const cells = line.split(',')
+    const row = Object.fromEntries(Object.entries(at).map(([f, n]) => [f, (n < 0 ? '' : cells[n] || '').trim()]))
+    const values = { ...row, email: row.email || null, phone: row.phone || null }
+    try {
+      mockChecked(values)
+    } catch (e) {
+      out.skipped.push({ line: i + 2, code: MOCK_SKIP_CODE[e.error] })
+      return
+    }
+    const key = mockMatchKey(values)
+    if (there.has(key)) out.already_there++
+    else if (fresh.has(key)) out.file_duplicates++
+    else fresh.set(key, values)
+  })
+  if (dryRun) return { ...out, would_add: fresh.size }
+  for (const values of fresh.values()) mockWrite(values)
+  return { ...out, added: fresh.size }
 }
 
 async function readEveryPage(api) {
@@ -189,6 +240,32 @@ export async function contactDelete(api, id) {
     mockKeep(list.filter((c) => c.contact_id !== id))
   } else await call(api, 'DELETE', '/' + encodeURIComponent(id))
   changed()
+}
+
+/**
+ * A CSV file, as its bytes: the hub tells the format and refuses a file that is
+ * not UTF-8. `dryRun` answers the counts and writes nothing.
+ * @param {any} api @param {File} file @param {{ dryRun?: boolean }} [opts]
+ */
+export async function contactsImport(api, file, { dryRun = false } = {}) {
+  if (file.size > IMPORT_MAX_BYTES) throw refused(413, 'csv_too_large')
+  const answer = api.mock
+    ? mockImport(await file.text(), dryRun)
+    : await call(api, 'POST', '/import', { params: dryRun ? { dry_run: 1 } : {}, csv: file })
+  if (!dryRun) changed()
+  return answer
+}
+
+/** i18n key of a refused file. */
+export function contactsImportErrorKey(err) {
+  const code = String(err?.error || '')
+  return ['csv_too_large', 'csv_unknown_format', 'csv_bad_encoding', 'csv_malformed'].includes(code) ? 'contacts.import.error_' + code : 'contacts.import.failed'
+}
+
+/** i18n key of one skipped line's reason. */
+export function contactsSkipKey(code) {
+  if (code === 'bad_email' || code === 'bad_phone') return 'contacts.error_' + code
+  return ['row_empty', 'too_long', 'bad_birthday'].includes(code) ? 'contacts.import.skip_' + code : 'contacts.import.failed'
 }
 
 /** Invite the contact's address to the session's workspace (O4). */

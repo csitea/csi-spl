@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Jūsų kontaktuose",
     "error_contact_empty": "Įveskite vardą, el. paštą arba telefoną.",
     "error_bad_email": "Tai nėra el. pašto adresas.",
-    "error_bad_phone": "Tai nėra telefono numeris."
+    "error_bad_phone": "Tai nėra telefono numeris.",
+    "import": {
+      "title": "Importuoti kontaktus",
+      "open": "Importuoti iš failo",
+      "hint": "Pasirinkite CSV failą, eksportuotą iš „Google Contacts“ arba „Spool“.",
+      "rows": "Eilučių faile",
+      "would_add": "Naujų kontaktų pridėti",
+      "added": "Pridėta naujų kontaktų",
+      "already_there": "Jau yra jūsų kontaktuose",
+      "deleted_here": "Ištrinti „Spool“, iš naujo nepridedami",
+      "file_duplicates": "Pasikartoja faile",
+      "photos_ignored": "Praleista paveikslėlių",
+      "skipped": "Praleista eilučių",
+      "skip_line": "Eilutė {line}: {reason}",
+      "skip_row_empty": "Eilutė tuščia.",
+      "skip_too_long": "Reikšmė per ilga.",
+      "skip_bad_birthday": "Gimtadienis nėra data.",
+      "start": "Importuoti",
+      "error_csv_too_large": "Failas viršija 5 MB arba 25 000 eilučių.",
+      "error_csv_unknown_format": "Tai nėra „Google Contacts“ ar „Spool“ eksportas.",
+      "error_csv_bad_encoding": "Failas nėra UTF-8 tekstas.",
+      "error_csv_malformed": "Failas nėra tinkamas CSV.",
+      "failed": "Nepavyko importuoti failo."
+    }
   },
   "activity": {
     "title": "Veiklos žurnalas",

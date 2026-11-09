@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Στις επαφές σας",
     "error_contact_empty": "Εισαγάγετε ένα όνομα, ένα email ή ένα τηλέφωνο.",
     "error_bad_email": "Αυτή δεν είναι διεύθυνση email.",
-    "error_bad_phone": "Αυτός δεν είναι αριθμός τηλεφώνου."
+    "error_bad_phone": "Αυτός δεν είναι αριθμός τηλεφώνου.",
+    "import": {
+      "title": "Εισαγωγή επαφών",
+      "open": "Εισαγωγή από αρχείο",
+      "hint": "Επιλέξτε ένα αρχείο CSV που εξήχθη από το Google Contacts ή το Spool.",
+      "rows": "Γραμμές στο αρχείο",
+      "would_add": "Νέες επαφές προς προσθήκη",
+      "added": "Νέες επαφές που προστέθηκαν",
+      "already_there": "Ήδη στις επαφές σας",
+      "deleted_here": "Διαγράφηκαν στο Spool, δεν προστίθενται ξανά",
+      "file_duplicates": "Επαναλαμβάνονται στο αρχείο",
+      "photos_ignored": "Εικόνες που παραλείφθηκαν",
+      "skipped": "Γραμμές που παραλείφθηκαν",
+      "skip_line": "Γραμμή {line}: {reason}",
+      "skip_row_empty": "Η γραμμή είναι κενή.",
+      "skip_too_long": "Μια τιμή είναι πολύ μεγάλη.",
+      "skip_bad_birthday": "Τα γενέθλια δεν είναι ημερομηνία.",
+      "start": "Εισαγωγή",
+      "error_csv_too_large": "Το αρχείο υπερβαίνει τα 5 MB ή τις 25.000 γραμμές.",
+      "error_csv_unknown_format": "Δεν είναι εξαγωγή από το Google Contacts ή το Spool.",
+      "error_csv_bad_encoding": "Το αρχείο δεν είναι κείμενο UTF-8.",
+      "error_csv_malformed": "Το αρχείο δεν είναι έγκυρο CSV.",
+      "failed": "Δεν ήταν δυνατή η εισαγωγή του αρχείου."
+    }
   },
   "activity": {
     "title": "Αρχείο δραστηριότητας",

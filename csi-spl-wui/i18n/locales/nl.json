@@ -2203,7 +2203,30 @@
     "in_your_contacts": "In je contacten",
     "error_contact_empty": "Voer een naam, een e-mailadres of een telefoonnummer in.",
     "error_bad_email": "Dat is geen e-mailadres.",
-    "error_bad_phone": "Dat is geen telefoonnummer."
+    "error_bad_phone": "Dat is geen telefoonnummer.",
+    "import": {
+      "title": "Contacten importeren",
+      "open": "Importeren uit bestand",
+      "hint": "Kies een CSV-bestand dat is geëxporteerd uit Google Contacts of Spool.",
+      "rows": "Rijen in het bestand",
+      "would_add": "Nieuwe contacten om toe te voegen",
+      "added": "Nieuwe contacten toegevoegd",
+      "already_there": "Al in je contacten",
+      "deleted_here": "Verwijderd in Spool, niet opnieuw toegevoegd",
+      "file_duplicates": "Dubbel in het bestand",
+      "photos_ignored": "Weggelaten afbeeldingen",
+      "skipped": "Overgeslagen rijen",
+      "skip_line": "Regel {line}: {reason}",
+      "skip_row_empty": "De rij is leeg.",
+      "skip_too_long": "Een waarde is te lang.",
+      "skip_bad_birthday": "De verjaardag is geen datum.",
+      "start": "Importeren",
+      "error_csv_too_large": "Het bestand is groter dan 5 MB of 25.000 rijen.",
+      "error_csv_unknown_format": "Dit is geen export van Google Contacts of Spool.",
+      "error_csv_bad_encoding": "Het bestand is geen UTF-8-tekst.",
+      "error_csv_malformed": "Het bestand is geen geldige CSV.",
+      "failed": "Het bestand kon niet worden geïmporteerd."
+    }
   },
   "activity": {
     "title": "Activiteitenlogboek",

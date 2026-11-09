@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Во вашите контакти",
     "error_contact_empty": "Внесете име, е-пошта или телефон.",
     "error_bad_email": "Ова не е адреса на е-пошта.",
-    "error_bad_phone": "Ова не е телефонски број."
+    "error_bad_phone": "Ова не е телефонски број.",
+    "import": {
+      "title": "Увези контакти",
+      "open": "Увези од датотека",
+      "hint": "Изберете CSV-датотека извезена од Google Contacts или Spool.",
+      "rows": "Редови во датотеката",
+      "would_add": "Нови контакти за додавање",
+      "added": "Додадени нови контакти",
+      "already_there": "Веќе се во вашите контакти",
+      "deleted_here": "Избришани во Spool, не се додаваат повторно",
+      "file_duplicates": "Повторени во датотеката",
+      "photos_ignored": "Изоставени слики",
+      "skipped": "Прескокнати редови",
+      "skip_line": "Ред {line}: {reason}",
+      "skip_row_empty": "Редот е празен.",
+      "skip_too_long": "Вредноста е предолга.",
+      "skip_bad_birthday": "Роденденот не е датум.",
+      "start": "Увези",
+      "error_csv_too_large": "Датотеката надминува 5 MB или 25.000 редови.",
+      "error_csv_unknown_format": "Ова не е извоз од Google Contacts или Spool.",
+      "error_csv_bad_encoding": "Датотеката не е текст во UTF-8.",
+      "error_csv_malformed": "Датотеката не е валиден CSV.",
+      "failed": "Датотеката не можеше да се увезе."
+    }
   },
   "activity": {
     "title": "Дневник на активности",

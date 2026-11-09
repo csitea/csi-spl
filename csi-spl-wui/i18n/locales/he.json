@@ -2203,7 +2203,30 @@
     "in_your_contacts": "באנשי הקשר שלכם",
     "error_contact_empty": "הזינו שם, אימייל או טלפון.",
     "error_bad_email": "זו אינה כתובת אימייל.",
-    "error_bad_phone": "זה אינו מספר טלפון."
+    "error_bad_phone": "זה אינו מספר טלפון.",
+    "import": {
+      "title": "ייבוא אנשי קשר",
+      "open": "ייבוא מקובץ",
+      "hint": "בחרו קובץ CSV שיוצא מ-Google Contacts או מ-Spool.",
+      "rows": "שורות בקובץ",
+      "would_add": "אנשי קשר חדשים להוספה",
+      "added": "אנשי קשר חדשים שנוספו",
+      "already_there": "כבר באנשי הקשר שלך",
+      "deleted_here": "נמחקו ב-Spool, לא יתווספו שוב",
+      "file_duplicates": "חוזרים בקובץ",
+      "photos_ignored": "תמונות שהושמטו",
+      "skipped": "שורות שדולגו",
+      "skip_line": "שורה {line}: {reason}",
+      "skip_row_empty": "השורה ריקה.",
+      "skip_too_long": "ערך ארוך מדי.",
+      "skip_bad_birthday": "יום ההולדת אינו תאריך.",
+      "start": "ייבוא",
+      "error_csv_too_large": "הקובץ חורג מ-5 MB או מ-25,000 שורות.",
+      "error_csv_unknown_format": "זהו אינו ייצוא של Google Contacts או Spool.",
+      "error_csv_bad_encoding": "הקובץ אינו טקסט UTF-8.",
+      "error_csv_malformed": "הקובץ אינו CSV תקין.",
+      "failed": "לא ניתן לייבא את הקובץ."
+    }
   },
   "activity": {
     "title": "יומן פעילות",

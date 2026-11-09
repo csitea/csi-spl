@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Rehberinizde",
     "error_contact_empty": "Bir ad, bir e-posta veya bir telefon girin.",
     "error_bad_email": "Bu bir e-posta adresi değil.",
-    "error_bad_phone": "Bu bir telefon numarası değil."
+    "error_bad_phone": "Bu bir telefon numarası değil.",
+    "import": {
+      "title": "Kişileri içe aktar",
+      "open": "Dosyadan içe aktar",
+      "hint": "Google Contacts veya Spool'dan dışa aktarılmış bir CSV dosyası seçin.",
+      "rows": "Dosyadaki satırlar",
+      "would_add": "Eklenecek yeni kişiler",
+      "added": "Eklenen yeni kişiler",
+      "already_there": "Kişilerinizde zaten var",
+      "deleted_here": "Spool'da silinmiş, yeniden eklenmez",
+      "file_duplicates": "Dosyada yinelenen",
+      "photos_ignored": "Atlanan resimler",
+      "skipped": "Atlanan satırlar",
+      "skip_line": "Satır {line}: {reason}",
+      "skip_row_empty": "Satır boş.",
+      "skip_too_long": "Bir değer çok uzun.",
+      "skip_bad_birthday": "Doğum günü bir tarih değil.",
+      "start": "İçe aktar",
+      "error_csv_too_large": "Dosya 5 MB veya 25.000 satırı aşıyor.",
+      "error_csv_unknown_format": "Bu bir Google Contacts veya Spool dışa aktarımı değil.",
+      "error_csv_bad_encoding": "Dosya UTF-8 metni değil.",
+      "error_csv_malformed": "Dosya geçerli bir CSV değil.",
+      "failed": "Dosya içe aktarılamadı."
+    }
   },
   "activity": {
     "title": "Etkinlik günlüğü",

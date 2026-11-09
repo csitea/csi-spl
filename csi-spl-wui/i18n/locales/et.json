@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Sinu kontaktides",
     "error_contact_empty": "Sisesta nimi, e-post või telefon.",
     "error_bad_email": "See ei ole e-posti aadress.",
-    "error_bad_phone": "See ei ole telefoninumber."
+    "error_bad_phone": "See ei ole telefoninumber.",
+    "import": {
+      "title": "Impordi kontaktid",
+      "open": "Impordi failist",
+      "hint": "Vali Google Contactsist või Spoolist eksporditud CSV-fail.",
+      "rows": "Ridu failis",
+      "would_add": "Lisatavaid uusi kontakte",
+      "added": "Lisatud uusi kontakte",
+      "already_there": "Juba sinu kontaktides",
+      "deleted_here": "Spoolis kustutatud, uuesti ei lisata",
+      "file_duplicates": "Failis korduvaid",
+      "photos_ignored": "Välja jäetud pilte",
+      "skipped": "Vahele jäetud ridu",
+      "skip_line": "Rida {line}: {reason}",
+      "skip_row_empty": "Rida on tühi.",
+      "skip_too_long": "Väärtus on liiga pikk.",
+      "skip_bad_birthday": "Sünnipäev ei ole kuupäev.",
+      "start": "Impordi",
+      "error_csv_too_large": "Fail ületab 5 MB või 25 000 rida.",
+      "error_csv_unknown_format": "See ei ole Google Contactsi ega Spooli eksport.",
+      "error_csv_bad_encoding": "Fail ei ole UTF-8 tekst.",
+      "error_csv_malformed": "Fail ei ole korrektne CSV.",
+      "failed": "Faili importimine ebaõnnestus."
+    }
   },
   "activity": {
     "title": "Tegevuslogi",

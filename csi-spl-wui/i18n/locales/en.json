@@ -2203,7 +2203,30 @@
     "in_your_contacts": "In your contacts",
     "error_contact_empty": "Enter a name, an email or a phone.",
     "error_bad_email": "That email is not an address.",
-    "error_bad_phone": "That phone is not a phone number."
+    "error_bad_phone": "That phone is not a phone number.",
+    "import": {
+      "title": "Import contacts",
+      "open": "Import from file",
+      "hint": "Choose a CSV file exported from Google Contacts or Spool.",
+      "rows": "Rows in the file",
+      "would_add": "New contacts to add",
+      "added": "New contacts added",
+      "already_there": "Already in your contacts",
+      "deleted_here": "Deleted in Spool, not added back",
+      "file_duplicates": "Repeated in the file",
+      "photos_ignored": "Pictures left out",
+      "skipped": "Rows skipped",
+      "skip_line": "Line {line}: {reason}",
+      "skip_row_empty": "The row is empty.",
+      "skip_too_long": "A value is too long.",
+      "skip_bad_birthday": "The birthday is not a date.",
+      "start": "Import",
+      "error_csv_too_large": "The file is over 5 MB or 25,000 rows.",
+      "error_csv_unknown_format": "This is not a Google Contacts or Spool export.",
+      "error_csv_bad_encoding": "The file is not UTF-8 text.",
+      "error_csv_malformed": "The file is not valid CSV.",
+      "failed": "Could not import the file."
+    }
   },
   "activity": {
     "title": "Activity log",

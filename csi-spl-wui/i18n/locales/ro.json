@@ -2203,7 +2203,30 @@
     "in_your_contacts": "În contactele tale",
     "error_contact_empty": "Introdu un nume, un e-mail sau un telefon.",
     "error_bad_email": "Aceasta nu este o adresă de e-mail.",
-    "error_bad_phone": "Acesta nu este un număr de telefon."
+    "error_bad_phone": "Acesta nu este un număr de telefon.",
+    "import": {
+      "title": "Importă contacte",
+      "open": "Importă din fișier",
+      "hint": "Alege un fișier CSV exportat din Google Contacts sau Spool.",
+      "rows": "Rânduri în fișier",
+      "would_add": "Contacte noi de adăugat",
+      "added": "Contacte noi adăugate",
+      "already_there": "Deja în contactele tale",
+      "deleted_here": "Șterse în Spool, nu se adaugă din nou",
+      "file_duplicates": "Repetate în fișier",
+      "photos_ignored": "Imagini omise",
+      "skipped": "Rânduri omise",
+      "skip_line": "Linia {line}: {reason}",
+      "skip_row_empty": "Rândul este gol.",
+      "skip_too_long": "O valoare este prea lungă.",
+      "skip_bad_birthday": "Ziua de naștere nu este o dată.",
+      "start": "Importă",
+      "error_csv_too_large": "Fișierul depășește 5 MB sau 25.000 de rânduri.",
+      "error_csv_unknown_format": "Nu este un export din Google Contacts sau Spool.",
+      "error_csv_bad_encoding": "Fișierul nu este text UTF-8.",
+      "error_csv_malformed": "Fișierul nu este un CSV valid.",
+      "failed": "Fișierul nu a putut fi importat."
+    }
   },
   "activity": {
     "title": "Jurnal de activitate",

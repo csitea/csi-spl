@@ -2203,7 +2203,30 @@
     "in_your_contacts": "I dina kontakter",
     "error_contact_empty": "Ange ett namn, en e-postadress eller ett telefonnummer.",
     "error_bad_email": "Det är inte en e-postadress.",
-    "error_bad_phone": "Det är inte ett telefonnummer."
+    "error_bad_phone": "Det är inte ett telefonnummer.",
+    "import": {
+      "title": "Importera kontakter",
+      "open": "Importera från fil",
+      "hint": "Välj en CSV-fil som exporterats från Google Contacts eller Spool.",
+      "rows": "Rader i filen",
+      "would_add": "Nya kontakter att lägga till",
+      "added": "Nya kontakter tillagda",
+      "already_there": "Redan bland dina kontakter",
+      "deleted_here": "Borttagna i Spool, läggs inte till igen",
+      "file_duplicates": "Upprepade i filen",
+      "photos_ignored": "Utelämnade bilder",
+      "skipped": "Överhoppade rader",
+      "skip_line": "Rad {line}: {reason}",
+      "skip_row_empty": "Raden är tom.",
+      "skip_too_long": "Ett värde är för långt.",
+      "skip_bad_birthday": "Födelsedagen är inget datum.",
+      "start": "Importera",
+      "error_csv_too_large": "Filen är större än 5 MB eller 25 000 rader.",
+      "error_csv_unknown_format": "Det här är ingen export från Google Contacts eller Spool.",
+      "error_csv_bad_encoding": "Filen är inte UTF-8-text.",
+      "error_csv_malformed": "Filen är inte giltig CSV.",
+      "failed": "Det gick inte att importera filen."
+    }
   },
   "activity": {
     "title": "Aktivitetslogg",

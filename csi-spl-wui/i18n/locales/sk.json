@@ -2203,7 +2203,30 @@
     "in_your_contacts": "Vo vašich kontaktoch",
     "error_contact_empty": "Zadajte meno, e-mail alebo telefón.",
     "error_bad_email": "Toto nie je e-mailová adresa.",
-    "error_bad_phone": "Toto nie je telefónne číslo."
+    "error_bad_phone": "Toto nie je telefónne číslo.",
+    "import": {
+      "title": "Importovať kontakty",
+      "open": "Importovať zo súboru",
+      "hint": "Vyberte súbor CSV exportovaný z Google Contacts alebo Spool.",
+      "rows": "Riadky v súbore",
+      "would_add": "Nové kontakty na pridanie",
+      "added": "Pridané nové kontakty",
+      "already_there": "Už vo vašich kontaktoch",
+      "deleted_here": "Odstránené v Spool, znova sa nepridajú",
+      "file_duplicates": "Opakujú sa v súbore",
+      "photos_ignored": "Vynechané obrázky",
+      "skipped": "Preskočené riadky",
+      "skip_line": "Riadok {line}: {reason}",
+      "skip_row_empty": "Riadok je prázdny.",
+      "skip_too_long": "Hodnota je príliš dlhá.",
+      "skip_bad_birthday": "Narodeniny nie sú dátum.",
+      "start": "Importovať",
+      "error_csv_too_large": "Súbor presahuje 5 MB alebo 25 000 riadkov.",
+      "error_csv_unknown_format": "Toto nie je export z Google Contacts ani Spool.",
+      "error_csv_bad_encoding": "Súbor nie je text UTF-8.",
+      "error_csv_malformed": "Súbor nie je platný CSV.",
+      "failed": "Súbor sa nepodarilo importovať."
+    }
   },
   "activity": {
     "title": "Denník aktivity",

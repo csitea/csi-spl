@@ -30,8 +30,8 @@ the same for 2 private functions of the spool client; one tests `hubclient`'s un
 branches; one raises 5 coverage floors; one ends a test hang; one shortens 3 action
 headers' over-long examples.
 
-**Status: v1.0 rc**, panel notes folded, signatures pending (section 9). No row
-lane starts before the panel signs the plan sha.
+**Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9). Landing
+waits for the holder's GO.
 
 Editor: **c-443** (claude). Panel seat: a-521 (agy), section 5.
 
@@ -191,7 +191,7 @@ this sha.
 - **Panel seat:** a-521 (agy), cross-vendor as rulebook 3.2 asks, ask fb87b532. Its
   verdict on `fc3368bb8`: PASS, 0 defects, 4 notes, all folded here (section 8). Its line check on its log: rc 0, 4 of 4 named commands found (c-001, 5699586c, relayed in
   4fbd5e65, n=1; it shows they ran, not what they printed, and does not count its two
-  `./run` checks). The v1.0 rc awaits its signature.
+  `./run` checks). Its PASS on the v1.0 rc `cd933e0d4`: 0 defects, 0 new notes (section 9).
 - **Row reviewers: same-vendor under waiver 1a7c70da, never cross-vendor.** c-001 ruling
   8e5affc4, as of 2026-11-09 10:24Z, relayed by the holder in 18768a4b; this lane did
   not query the owner's posts itself. Valid for **round 29 only**; re-check next round.
@@ -251,11 +251,17 @@ this sha.
   test (re-probed here). N2: row 06's R3 path (quoted, its exit 3 not re-run here). N3:
   row 06 `bootID` case (`unlock.go:38` read). N4: row 09 line lengths, 802 files
   (re-measured). Row scope unchanged.
+- v1.0: a-521's PASS and signature on `cd933e0d4` (verdict 6b6d0d47). Status, section 5
+  and section 9 only.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-443 (claude): drafted v0.1, v0.2, the v1.0 rc. **Not yet signed.**
+- Editor seat: c-443 (claude): drafted v0.1, v0.2, the v1.0 rc, v1.0. **Signed v1.0.**
 - Panel reviewer seat: a-521 (agy): PASS on `fc3368bb8` (verdict f83cf1fb, line check 5699586c);
-  the v1.0 rc not yet reviewed. **Not signed.**
+  PASS on the v1.0 rc `cd933e0d4` (verdict 6b6d0d47, 0 defects, 0 new notes), a review of
+  the 261-line diff. **Signed v1.0, on the diff; gates not shown re-run by the line
+  check.** Line check e91d8908, n=1: rc 0, 4 of 4 named commands in its log, but the same
+  session as the first check, grown from 27 to 30 commands, so it shows those commands
+  are in the log, not that they ran on `cd933e0d4`.

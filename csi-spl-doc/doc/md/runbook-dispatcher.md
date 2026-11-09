@@ -64,7 +64,7 @@ owns that topic.
 
 | what | command |
 |---|---|
-| take a post (the human sees it) | `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<your id> DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> TAKE_PLAN='<one line>' DRY_RUN=0 ./run -a do_spl_take`, before any other work, once per topic |
+| take a post (the human sees it) | `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<your id> DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> TAKE_PLAN='<one line>' DRY_RUN=0 ./run -a do_spl_take`, before any other work, once per unanswered human post (a later post in the topic gets its own line) |
 | post in a topic | Write the body to a file under `/var/spool-hub/dispatch/` (the box user must be able to read it). Then run `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<your id> DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply`. Output is often empty on success. Read the topic before re-sending |
 | a question only the owner can answer | the same with `DESK_KIND=blocker`; keep the `permalink` it prints and cite it whenever you refer to the question again |
 | a message to an agent | Write the body to a file. Then run `bash $SA/spool-send.sh --from <your id> --to <id>@<box> --kind <task\|note\|result\|blocker\|reject> --task dispatch-<topic8> --body-file <file>`. Read its last two lines unfiltered and look for `"delivery":"local\|sent"`. A refusal ("Nothing was sent") is easy to filter away |

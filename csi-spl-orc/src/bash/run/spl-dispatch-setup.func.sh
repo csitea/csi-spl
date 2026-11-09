@@ -351,7 +351,7 @@ spl_dispatch_reply_cmd() {
 
 # The take command the brief teaches <id> (t1 bc1a43e1 fix C): the same ONE
 # command shape as the reply; it posts "Taken by <id>@<box>: <plan>" in the
-# topic before any work, once per topic.
+# topic before any work, once per unanswered human post.
 spl_dispatch_take_cmd() {
   echo "$(spl_dispatch_desk_hop)env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> TAKE_PLAN='<one-line plan>' DRY_RUN=0 ./run -a do_spl_take"
 }

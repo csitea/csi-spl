@@ -215,8 +215,8 @@ machine's trio while this one holds it) reads and takes nothing.
 2026-10-08): the taker runs `do_spl_take` (`DESK_AGENT`, `DESK_TO`,
 `DESK_TASK`, `TAKE_PLAN`) before any other work. It posts one line in that
 topic to that human through `do_spl_desk_reply` ("Taken by <id>@<box>:
-<plan>. I post the result here."), once per topic and taker (ledger
-`dispatch/take.log`), and with `TAKE_NOTIFY` tells the agents by spool note
+<plan>. I post the result here."), once per unanswered human post and taker (ledger
+`dispatch/take.log`; a re-run on the same post posts nothing, a later post gets its own line), and with `TAKE_NOTIFY` tells the agents by spool note
 in the same call. A note to the agents alone is not a take.
 
 **The taker answers the post itself and owns that topic.** It keeps the

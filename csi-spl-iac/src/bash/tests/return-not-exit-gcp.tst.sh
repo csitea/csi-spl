@@ -30,7 +30,7 @@ QUIT_ON=$(sed -n '/^quit_on(){/,/^}/p' "$RUN_SH")
 [[ "$QUIT_ON" == *'rv=$?'* ]] && pass "run.sh's real quit_on is extracted" || { echo "FAIL: no quit_on in $RUN_SH"; exit 1; }
 
 stub gcloud 'echo "$*" >>"$GC_CALLS"; exit 0'
-stub psql 'cat >/dev/null 2>&1 || true; exit 0'
+stub psql 'exit 0'
 
 # the shared stubs of the run framework, then the action, in one bash -c
 COMMON='do_log(){ echo "$*"; }; do_gcp_account(){ echo sa@p.iam.gserviceaccount.com; }

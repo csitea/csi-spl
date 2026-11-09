@@ -144,6 +144,13 @@ EOF_K'
   refuse "send-keys /exit to a \$( ) pane" 'tmux send-keys -t $(cat /tmp/p) /exit Enter'
   refuse "send-keys /exit to a pane tmux cannot find" 'tmux send-keys -t %99 /exit Enter'
   refuse "send-keys /exit on another box" "ssh box2 'tmux send-keys -t %2 /exit Enter'"
+  refuse "send-keys /exit-clean on another box" "ssh box2 'tmux send-keys -t %4 /exit-clean Enter'"
+  refuse "send-keys of a quoted /exit on another box" "ssh box2 'tmux send-keys -t %4 \"/exit\" Enter'"
+  refuse "a \$( ) pane inside bash -c double quotes" 'bash -c "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
+  refuse "a \$( ) pane inside sudo bash -c double quotes" 'sudo -u owner bash -c "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
+  refuse "a \$( ) pane inside eval double quotes" 'eval "tmux send-keys -t $(cat /tmp/p) /exit Enter"'
+  refuse "a \$( ) pane after a message that quotes one" 'spool-send.sh --body "tmux send-keys -t $(cat p) /exit"; tmux send-keys -t $(cat /tmp/p) /exit Enter'
+  refuse "a \$( ) pane inside a double-quoted \$( )" 'echo "$(tmux send-keys -t $(cat /tmp/p) /exit Enter)"'
 }
 run_refusals
 
@@ -171,6 +178,8 @@ allow "send-keys Enter alone into another agent" 'tmux send-keys -t %2 Enter'
 allow "send-keys -X, a copy-mode command" 'tmux send-keys -t %2 -X cancel'
 allow "a message that quotes the send-keys" 'spool-send.sh --body "tmux send-keys -t %2 /exit Enter"'
 allow "a path that holds /exit" 'tmux send-keys -t %2 /exits/of/town Enter'
+allow "a message that quotes a \$( ) pane" 'spool-send.sh --body "never tmux send-keys -t $(cat p) /exit Enter"'
+allow "a single-quoted message with a \$( ) pane" "spool-send.sh --body 'never tmux send-keys -t \$(cat p) /exit Enter'"
 
 # 3. through the shared hook (claude / agy contracts)
 hook() {  # <hook> <harness> <command> -> "rc|stdout"

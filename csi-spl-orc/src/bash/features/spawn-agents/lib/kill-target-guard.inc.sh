@@ -35,6 +35,7 @@
 #     the caller's own pane and a pane with no agent pass. A pane the guard
 #     cannot resolve (computed, tmux has no answer, over ssh) is refused.
 #     The text must be literal: a typed $var is not read, nor send-keys -H.
+#     Quoted text is data (a message body), unless a shell, eval, ssh, ... runs it.
 # Heredoc bodies are data, unless a shell or eval on the same line reads them.
 # A script file that runs kill is not read: an action's own stop code is its
 # own, so rotation and close-window, which type /exit in their scripts, pass.
@@ -76,9 +77,11 @@ KEY_NAME = re.compile(r"^(Enter|KPEnter|Escape|Tab|BSpace|[CMS]-.+)$")
 OWN_PANE = {"$TMUX_PANE", "${TMUX_PANE}"}
 TMUX_ARG = {"-S", "-L", "-f", "-c", "-T"}
 EXIT_RULE = "never type an exit command into another agent\x27s pane; ask it through the spool"
-REMOTE_EXIT = re.compile(r"\btmux\s.*\bsend(-keys)?\s.*/(exit|kill-your-self)(\s|$)")
+REMOTE_EXIT = re.compile(r"\btmux\s.*\bsend(-keys)?\s.*/(exit|exit-clean|kill-your-self)(\s|$|[\"\x27])")
 RAW_EXIT = re.compile(r"(^|[\s;&|(`/])tmux\s.*\bsend(-keys)?\s.*/(exit|kill-your-self)")
-COMPUTED_PANE = re.compile(r"(^|[\s;&|(`/])tmux\s[^;&|\n]*\bsend(-keys)?\s[^;&|\n]*-t\s*(\$\(|`)[^\n]*/(exit|kill-your-self)")
+COMPUTED_PANE = re.compile(r"(^|[\s;&|(`/\"\x27])tmux\s[^;&|\n]*\bsend(-keys)?\s[^;&|\n]*-t\s*(\$\(|`)[^\n]*/(exit|kill-your-self)")
+TMUX_WORD = re.compile(r"(^|[\s;&|(`/\"\x27])tmux\s")
+RUNNERS = SHELLS | {"eval", "ssh", "screen", "su", "runuser", "env", "flock", "watch"}
 RUN_AS = None  # the user a sudo / su around the tmux runs it as
 SOCK = []  # the -S / -L of the tmux, kept for the next command of a chain
 
@@ -131,6 +134,39 @@ def heredocs(cmd, depth):
     return "\n".join(out)
 
 
+def open_quote(cmd, end):
+    """Where the quote holding cmd[end] opens; None if it is live shell text."""
+    stack, i = [], 0
+    while i < end:
+        c = cmd[i]
+        top = stack[-1][0] if stack else None
+        if top == "\x27":
+            if c == top:
+                stack.pop()
+        elif c == "\\":
+            i += 1
+        elif c == "$" and cmd[i + 1:i + 2] == "(":
+            stack.append(("(", i))
+            i += 1
+        elif c == ")" and top == "(":
+            stack.pop()
+        elif c in "\"`" and top == c:
+            stack.pop()
+        elif c in "\"`\x27":
+            stack.append((c, i))
+        i += 1
+    return stack[-1][1] if stack and stack[-1][0] in "\"\x27" else None
+
+
+def is_data(cmd, pos):
+    """Quoted text is an argument, unless a shell-like runner on its command runs it."""
+    q = open_quote(cmd, pos)
+    if q is None:
+        return False
+    words = re.split(r"[;&|(\n]", cmd[:q])[-1].split()
+    return not any(w.rsplit("/", 1)[-1] in RUNNERS for w in words)
+
+
 def check(cmd, depth=0):
     if depth > 8:
         raise Refuse("the command nests too deep to read (fail closed)")
@@ -152,7 +188,8 @@ def check(cmd, depth=0):
     # by one shows up with no target there: read the raw text for it.
     if re.search(r"(^|[\s;&|(`/])(kill|pkill)\s[^;&|\n]*(\$\(|`)", cmd):
         raise Refuse("kill with a computed target list ($( ) or backticks); " + RULE)
-    if COMPUTED_PANE.search(cmd):
+    if any(COMPUTED_PANE.match(cmd, m.start()) and not is_data(cmd, m.end() - 1)
+           for m in TMUX_WORD.finditer(cmd)):
         raise Refuse("send-keys of an exit command to a computed pane; " + EXIT_RULE)
 
 

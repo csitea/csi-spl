@@ -376,3 +376,32 @@ and `./run -a do_spl_vibe_push_guard_install` has run for that user.
 
 Test: `csi-spl-orc/src/bash/tests/force-push-guard.tst.sh`; the path through
 vibe's own hook manager: `spool-install/tests/test-y12-vibe-push-guard.sh`.
+
+## An exit command typed into another agent's pane (SPL-5142)
+
+The kill guard (`kill-target-guard.inc.sh`) holds a `tmux send-keys` of `/exit`,
+`/exit-clean` or `/kill-your-self` to the same rule as a kill of each agent
+process in the target pane. The own pane and a pane with no agent pass. A pane
+the guard cannot resolve (computed, no tmux answer, over ssh) is refused.
+
+Quoted text is data, so a message body that quotes the pattern passes. It is
+judged only when a shell-like runner on its command (a shell, `eval`, `ssh`,
+`screen`, `su`, `runuser`, `env`, `flock`, `watch`) runs it.
+
+Known limits, none of them judged by the guard:
+
+- Forms not read: the text in a `$var`; `send-keys -H`; `/quit`; `C-d C-d`; a
+  glued `C-u\;`; the text split over two tmux commands; the exit text after
+  other text or keys (`hello Enter /exit Enter`, `Up /exit`); a
+  `"$(tmux ...)"` with a literal pane; `| bash`; `xargs`; `tmux if-shell`;
+  `tmux run-shell`; `python3 -c`. A script file is not read either, by design:
+  rotation and close-window type `/exit` in theirs.
+- `$TMUX_PANE` is trusted by name, so a command that reassigns it first passes.
+- With no `python3`, every command holding `kill` or `send` is refused (fail
+  closed), which includes `spool-send.sh`.
+- An ssh command is matched on its raw text, so `grep` for the pattern over ssh,
+  or `/exit` as a path later on the line, is refused.
+- A message body inside a `bash -c '...'` that quotes a computed-pane send-keys
+  is refused: the outer text is run by the shell.
+
+The installed hooks change only when `do_install_force_push_guard` runs.

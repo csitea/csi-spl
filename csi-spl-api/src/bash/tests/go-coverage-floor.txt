@@ -42,6 +42,10 @@ cmd/spool 77.8
 # n=3 readings, go test -count=1 -race -cover ./internal/<pkg>/, go1.26.10, on
 # 212dddf3c each read: cicdlogs 90.2, files 89.0, hubclient 89.6, invitemail
 # 87.8, mcp 90.0. Before: 89.0, 87.1, 87.8, 85.3, 88.7.
+# r55-07 (refactor round 29, SPL-5178): five floors raised to the lowest of
+# n=3 readings, go test -count=1 -race -cover ./internal/<pkg>/, go1.26.10, on
+# 72485ffc8 each read: keyd 84.4, keydesk 90.5, keyexec 86.9, notify 96.6,
+# testkit 78.6. Before: 82.2, 88.7, 81.7, 94.8, 77.0.
 # internal/action: 80.8 with r15-06's edit_test.go and issue_test.go (edit.go
 # and issue.go 0 -> 100%), 75.6 without on ef6adfcf3; go test -count=1 -cover
 # ./internal/action/, go1.26.9, n=3 read 80.8 each.
@@ -102,13 +106,13 @@ internal/invitemail 87.8
 # writeScrypt, writeNew errors) and pass_test.go (readOnce), 75.6 without on
 # b3f12e352; go test -count=1 -cover ./internal/keyd/, go1.26.10, n=3 read
 # 82.2 each.
-internal/keyd 82.2
+internal/keyd 84.4
 # internal/keydesk: 88.1 with r43-07's keydesk_test.go (Refused.Error, Run on a
 # cancelled context, DefaultPeerOK on this process and another uid, procGroups,
 # ParseStatusGroups edges, IdentityPath), 79.1 without on 8160bf9ec; go test
 # -count=1 -cover ./internal/keydesk/, go1.26.10, n=3 read 88.1 each.
-internal/keydesk 88.7
-internal/keyexec 81.7
+internal/keydesk 90.5
+internal/keyexec 86.9
 # internal/lockkey: 78.7 with r43-06's lockkey_test.go (HolderAlive, readPID,
 # pidAlive on each pid file; writeFile errors), 76.7 without on e8e02f87e;
 # go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 78.7 each.
@@ -119,7 +123,7 @@ internal/mail 93.7
 internal/marketing 86.5
 internal/mcp 90.0
 internal/msg 90.8
-internal/notify 94.8
+internal/notify 96.6
 # internal/payments: 80.9 with stripe_refund_test.go (r16-04, 712/880), 78.6
 # without; paypal_payments_test.go (r14-06) took it 72.4 -> 78.6 (637 -> 692
 # of 880); go test -count=1 -cover ./internal/payments/, go1.26.10, n=3 read
@@ -132,7 +136,7 @@ internal/search 98.1
 internal/secretfile 100.0
 internal/sign 86.2
 internal/spool 93.2
-internal/testkit 77.0
+internal/testkit 78.6
 # fakehub: 84.5, deterministic since New's cleanup waits for its handlers
 # (SPL-2298). Before, a handler's exit ran after the profile was written on a
 # loaded box: 79.5 with GOMAXPROCS=1 (n=3), 82.1 idle. go test -count=1 -cover

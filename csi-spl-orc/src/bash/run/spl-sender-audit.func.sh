@@ -24,6 +24,7 @@
 _spl_sa_lib="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib"
 declare -F spl_role_seat >/dev/null || source "$_spl_sa_lib/spool-env.inc.sh"
 declare -F send_chain_caller >/dev/null || source "$_spl_sa_lib/spool-caller.inc.sh"
+declare -F spl_box_name >/dev/null || source "$_spl_sa_lib/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
 
 do_spl_sender_audit() {
   local dry="${DRY_RUN:-1}" tmp rc=0
@@ -142,7 +143,7 @@ spl_sa_report() {
 spl_sa_body() {
   local n
   n="$(wc -l <"$1")"
-  echo "**Sender audit on $(hostname -s) (SPL-5136):** $n post(s) whose \`from\` is not the agent that ran the send. Detection only, the posts were delivered."
+  echo "**Sender audit on $(spl_box_name) (SPL-5136):** $n post(s) whose \`from\` is not the agent that ran the send. Detection only, the posts were delivered."
   echo
   echo "| msg_id | from | caller |"
   echo "|---|---|---|"

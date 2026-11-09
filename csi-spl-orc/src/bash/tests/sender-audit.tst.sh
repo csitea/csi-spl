@@ -14,6 +14,7 @@
 #   9. W2: a dead chain with an id journalled at send time is flagged; a
 #      reused pid is not read as the agent
 #  10. W3: the counts, and no journal is never a clean result
+#  11. the note names the box from its config, not the hostname
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -164,6 +165,10 @@ reset; line 33333333-2 c-002 '[101,100]' '' c-777
 line 33333333-3 c-002 '[901]' '' '' '["1"]' 0 true
 audit DRY_RUN=0
 hit "W3 the note carries the counts" "This run: 1 flagged, 1 judged, 1 unjudgeable, 0 malformed." "$(cat "$T/sent")"
+
+reset; line 33333333-4 c-002 '[101,100]' '' c-777
+audit DRY_RUN=0 SPOOL_DESK_BOX=cfgbox
+hit "the note names the configured box" "Sender audit on cfgbox (SPL-5136)" "$(cat "$T/sent")"
 
 echo "-- sender-audit.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

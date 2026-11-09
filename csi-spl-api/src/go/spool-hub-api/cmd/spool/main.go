@@ -509,15 +509,17 @@ func cmdSend(cfg *config.Config, args []string) int {
 	}
 	ctx, stop := interruptible()
 	defer stop()
-	out, err := action.SendCtx(ctx, cfg, action.SendArgs{
+	in := action.SendArgs{
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
 		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
 		PutFiles: putFiles, ToBox: *toBox, TypedBy: *typedBy, Channel: *channel,
 		Answers: *answers, IfGen: *ifGen, Ref: *ref, Accepts: *accept,
-	})
+	}
+	out, err := action.SendCtx(ctx, cfg, in)
 	if err != nil {
 		return fail(err)
 	}
+	action.AuditSender(in, out)
 	fmt.Println(action.JSON(out))
 	return 0
 }

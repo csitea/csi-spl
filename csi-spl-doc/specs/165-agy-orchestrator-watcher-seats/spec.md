@@ -319,6 +319,30 @@ file mode and not an id the caller sets.
    The role-seat guard of SPL-3654 (`send_from_guard`, `spool-send.sh:214-224`) covers only
    role-seat ids today.
 
+#### 3.3.1 A send outside the guard is detected, not prevented (SPL-5136)
+
+The rule: **only a seat sends as a seat, and a send as anyone else is
+alarmed.** On 2026-11-07 a lane copied a desk sidecar's `SPOOL_*` variables and
+ran `spool send` itself, and the hub stored the post (n=1, one lane's
+transcript). Every agent has sudo to the box user, and the hub verifies the
+box's signature and that `from` is on that box's roster, so neither the binary
+nor the hub can refuse it: the box is the trust unit, not the seat.
+
+- Each successful CLI `spool send` appends its message id, `from`, any
+  `from_agent` claim and its ancestor pids to a journal at a fixed path that
+  does not follow `SPOOL_ROOT` (`action.AuditSender`).
+- `do_spl_sender_audit` names the agent running each chain as `send_from_guard`
+  does (`lib/spool-caller.inc.sh`), and sends the orchestrator one note on task
+  `fleet-anomaly` for the posts whose `from` is not that agent. Not flagged: no
+  agent in the chain, a role seat as the caller, a relayed line whose
+  `from_agent` names the caller.
+- Not caught: a lane that edits the journal, a send from a process detached
+  from its agent with its environment cleared, a raw write into an inbox, and a
+  send signed without the binary. `AuditSender` writes nothing and says nothing
+  when the journal cannot be opened.
+- Not yet scheduled: no cron line runs the action; which boxes run it is the
+  orchestrator's decision. The alarm rate on real traffic is unmeasured.
+
 ### 3.4 Findings Routing
 
 - Routine observations: `/var/spool-hub/watchers/<ID>/findings.jsonl`.

@@ -254,7 +254,7 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
    an overlay that is not valid YAML, or one malformed line (the reader's form check, not only a bad entry), fails the day. A body hit drops the message as above and counts against
    `body_drop_cap_pct`; a hit anywhere else = FATAL. Output names the class and the row key, never the value (§5.6).
    Known limits, not matched today (invented prefix `QZX`; c-001 ruling 19fe4298, a follow-up counts them on the first real candidate): `QZX+12` (a form-encoded space),
-   `QZX#12`, `QZX=12`, `QZX~12`, two or more separators (`QZX  12`, `QZX - 12`), `(QZX)-12`, the HTML entity `QZX&#45;12`, `-`, `\x2F`, percent nesting
+   `QZX#12`, `QZX=12`, `QZX~12`, two or more separators (`QZX  12`, `QZX - 12`), `(QZX)-12`, the HTML entity `QZX&#45;12`, `QZX\u002d12`, `\x2F`, percent nesting
    deeper than 3, zero-width and full-width characters, `[dot]`, the ideographic full stop.
    A ban list proves only what it names, so `do_spl_public_dataset_customer_check` (read-only) reads the channels of
    the overlay's `customer_channels` for URL hosts and ticket prefixes and fails, with counts only, on one that is in

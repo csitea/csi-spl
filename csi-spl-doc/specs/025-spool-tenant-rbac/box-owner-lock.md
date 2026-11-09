@@ -116,7 +116,9 @@ narrows the window; it does not claim the lock key is unrecoverable from a runni
 
 - `spool lock seal` prints a **recovery code** once: 256 random bits as 24 groups of 4 base32 characters.
   It seals a second copy of `K_lock` (`lock.key.recovery.enc`, same scheme, argon2id over the code). The owner
-  writes it down off the machine; it is never stored on a box or in the hub.
+  writes it down off the machine; it is never stored on a box or in the hub. When the clear box key cannot
+  be removed after sealing, the box is sealed: the command still prints the code, says the key file is still
+  on disk, and exits non-zero (SPL-5137). Remove that file by hand; a second `seal` is refused.
 - With the recovery code, `spool lock reseal` sets a new secret (both files are re-sealed; the recovery code
   stays valid until the owner rotates it with `spool lock rotate-recovery`).
 - Secret **and** recovery code lost: the lock cannot be lifted through the product by anyone. The only way out

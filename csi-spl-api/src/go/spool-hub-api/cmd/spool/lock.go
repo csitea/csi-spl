@@ -113,11 +113,16 @@ func cmdLockSeal(cfg *config.Config, args []string) int {
 	}
 	defer keyd.Wipe(secret)
 	res, err := lockkey.Seal(cfg.KeysDir, *tenant, *box, secret, lockParams)
+	if res.RecoveryCode != "" {
+		fmt.Printf("sealed box %s (workspace %s)\nlock_pubkey %s\nbox_pubkey  %s\n", res.Meta.Box, res.Meta.Tenant, res.Meta.LockPubkey, res.Meta.BoxPubkey)
+		fmt.Printf("RECOVERY CODE (shown once; write it down off this machine, never store it on a box):\n  %s\n", res.RecoveryCode)
+	}
 	if err != nil {
+		if res.RecoveryCode != "" {
+			fmt.Fprintln(os.Stderr, "the box IS sealed and the recovery code above is valid, but the clear box key file is still on disk: remove it by hand")
+		}
 		return fail(err)
 	}
-	fmt.Printf("sealed box %s (workspace %s)\nlock_pubkey %s\nbox_pubkey  %s\n", res.Meta.Box, res.Meta.Tenant, res.Meta.LockPubkey, res.Meta.BoxPubkey)
-	fmt.Printf("RECOVERY CODE (shown once; write it down off this machine, never store it on a box):\n  %s\n", res.RecoveryCode)
 	fmt.Fprintln(os.Stderr, "the box stays offline until 'spool lock unlock'")
 	return 0
 }

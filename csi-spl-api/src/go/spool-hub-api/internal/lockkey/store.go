@@ -96,7 +96,9 @@ type SealResult struct {
 // Seal locks box at rest (4.2): a new K_lock; K_box is the box's clear key
 // (made when the box has none); both sealed under secret, K_lock also under a
 // new recovery code; then the clear box key is overwritten and removed.
-// A box already sealed is refused (use Reseal).
+// A box already sealed is refused (use Reseal). When only the removal fails
+// the box is sealed and the filled result comes back with the error: this is
+// the one time the code exists.
 func Seal(keysDir, tenant, box string, secret []byte, p Params) (SealResult, error) {
 	if err := checkIDs(tenant, box); err != nil {
 		return SealResult{}, err
@@ -137,10 +139,11 @@ func Seal(keysDir, tenant, box string, secret []byte, p Params) (SealResult, err
 	if err := writeMeta(keysDir, k.Meta); err != nil {
 		return SealResult{}, err
 	}
+	res := SealResult{Meta: k.Meta, RecoveryCode: code}
 	if err := shred(clearBoxPath(keysDir, box)); err != nil {
-		return SealResult{}, fmt.Errorf("sealed, but the clear box key was not removed: %w", err)
+		return res, fmt.Errorf("sealed, but the clear box key was not removed: %w", err)
 	}
-	return SealResult{Meta: k.Meta, RecoveryCode: code}, nil
+	return res, nil
 }
 
 // Unseal opens both keys with the lock secret.

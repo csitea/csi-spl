@@ -286,4 +286,38 @@ touch -d '2 hours ago' "$A/c-009/lane-unlinked.log"
 req_b "$T_TMP/r11b" claude auto "$WORK" "$T_TMP/brief.md" warn-old
 eq "11. CONTROL an old line of a former c-009 is not this spawn's" 0 "$(grep -c 'LANE ROW REFUSED' "$T_TMP/r11b.err")"
 
+# ---- 12. a mailbox too big for a shell glob (SPL-5074) -----------------------
+# 28225 archived files overflowed "$d"/*.json: rc 126, 0 hits, stderr dropped.
+# Names of 240 bytes reach the exec limit with few files, so the case stays fast.
+fill_box() {  # DIR
+  mkdir -p "$1"
+  python3 -c 'import os, sys
+for i in range(int(sys.argv[2])):
+    open(os.path.join(sys.argv[1], "%0235d.json" % i), "w").close()' "$1" "$(( $(getconf ARG_MAX) / 240 + 1 ))"
+}
+fill_box "$B/c-001/inbox"
+grep -lF some-id "$B"/c-001/inbox/*.json >/dev/null 2>&1; rc=$?
+eq "12. CONTROL this inbox is too big for a glob" 126 "$rc"
+mkdir "$B/c-001/inbox/a-dir.json"
+ln -s "$T_TMP/nowhere" "$B/c-001/inbox/vanished.json"
+req_b "$T_TMP/r12" claude auto "$WORK" "$T_TMP/brief.md" big-inbox
+eq "12. the reply is found in the big inbox: exit 0" 0 "$(cat "$T_TMP/r12.rc")"
+eq "12. ... stdout is the remote id" "c-009@home %42" "$(cat "$T_TMP/r12")"
+has "12. a real read error stays visible" "a-dir.json: Is a directory" "$(cat "$T_TMP/r12.err")"
+hasnt "12. a message acked mid-scan is no error" "vanished.json" "$(cat "$T_TMP/r12.err")"
+
+# The serve tick only reads the last 24 h, so an older cancel reaches the
+# request through task_cancelled alone.
+task="$(on "$B" sat bash "$SR" --box home --wait 0 claude auto "$WORK" "$T_TMP/brief.md" big-archive 2>"$T_TMP/r12c.err")"
+task="${task#task }"
+on "$B" sat bash "$SR" --cancel --box home --task "$task" >/dev/null 2>>"$T_TMP/r12c.err"
+fill_box "$A/c-001/archive"
+cancel_msg="$(find "$A/c-001/inbox" -name '*.json' -exec grep -qF 'spawn-cancel' {} \; -exec grep -lF -- "$task" {} \;)"
+mv "$cancel_msg" "$A/c-001/archive/"
+touch -d '2 days ago' "$A/c-001/archive/${cancel_msg##*/}"
+n="$(calls)"
+serve_a
+eq "12. a cancel in a big archive still stops the request" "$n" "$(calls)"
+has "12. ... and the log says so" "withdrawn before spawn" "$(cat "$A/spawn-remote/serve.log")"
+
 t_done

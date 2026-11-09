@@ -204,6 +204,14 @@ request() {
   done
 }
 
+# The *.json files directly in DIR that hold TEXT. find, because a glob overflows
+# the exec limit on a big archive (rc 126, 0 hits). A real grep error shows; a
+# message acked into archive/ during the scan is no error, so that one is dropped.
+files_holding() {  # DIR TEXT
+  LC_ALL=C find "$1" -maxdepth 1 -name '*.json' -exec grep -lF -- "$2" {} + \
+    2> >(grep -v "No such file or directory$" >&2)
+}
+
 # The reply to TASK in ID's inbox or archive.
 reply_file() {  # ID TASK
   local d f
@@ -212,7 +220,7 @@ reply_file() {  # ID TASK
     while IFS= read -r f; do
       [ "$(jq -r '.task_id // ""' "$f" 2>/dev/null)" = "$2" ] || continue
       body_of "$f" | strip_from_agent | sed -n 1p | grep -xF "$MAGIC_REP" >/dev/null && { printf '%s' "$f"; return 0; }
-    done < <(grep -lF -- "$2" "$d"/*.json 2>/dev/null)
+    done < <(files_holding "$d" "$2")
   done
 }
 
@@ -623,7 +631,7 @@ task_cancelled() {  # INBOX_ID TASK
       [ "$(req_field "$b" task)" = "$task" ] || continue
       from="$(jq -r '.from // ""' "$f" 2>/dev/null)"
       [ "$(qualify "$from")" = "$holder" ] && return 0
-    done < <(grep -lF -- "$task" "$d"/*.json 2>/dev/null || true)
+    done < <(files_holding "$d" "$task")
   done
   return 1
 }

@@ -66,7 +66,7 @@ def heredoc_deny(cmd):
 
 def kill_deny(cmd):
     """The deny reason for a forbidden kill target, None to allow."""
-    if "kill" not in cmd:
+    if "kill" not in cmd and "send" not in cmd:
         return None
     return matcher_deny(KILL, cmd, "kill-guard")
 

@@ -116,7 +116,7 @@ if [ "$rc" != 0 ]; then
   refuse "${why:-the guard returned $rc (fail closed)}"
 fi
 case "$cmd" in
-  *kill*)
+  *kill*|*send*)
     [ -n "$klib" ] && [ -r "$klib" ] ||
       refuse "the matcher kill-target-guard.inc.sh is missing next to $0 (fail closed)" kill-guard
     # shellcheck source=../lib/kill-target-guard.inc.sh

@@ -51,9 +51,34 @@ cat >"$T/ps.txt" <<'EOF_PS'
    3100    3000 /bin/bash -c sleep 600
    3200    3100 sleep 600
    3300    3000 node serve.mjs --port 4321
+   2500    1000 -bash
+   2600    2500 /opt/agent/bin/claude --name c-110@box --dangerously-skip-permissions
+   4000    1000 -bash
+   4100    4000 sleep 99
 EOF_PS
 printf '#!/usr/bin/env bash\ncat "%s"\n' "$T/ps.txt" >"$T/bin/ps"
 chmod +x "$T/bin/ps"
+# The stub tmux answers display-message like the real one: a bad target is
+# rc 0 with empty output. %2 / c-002 another claude, %5 a shell over another
+# claude, %3 the caller's own pane, %4 a bare shell. sudo only runs its command.
+cat >"$T/bin/tmux" <<'EOF_TMUX'
+#!/usr/bin/env bash
+t=default
+while [ $# -gt 0 ]; do [ "$1" = -t ] && t="$2"; shift; done
+case "$t" in
+  %2|c-002) echo 2000 ;;
+  %5) echo 2500 ;;
+  %3|default) echo 3000 ;;
+  %4) echo 4000 ;;
+esac
+exit 0
+EOF_TMUX
+cat >"$T/bin/sudo" <<'EOF_SUDO'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do case "$1" in -n) shift ;; -u) shift 2 ;; *) break ;; esac; done
+exec "$@"
+EOF_SUDO
+chmod +x "$T/bin/tmux" "$T/bin/sudo"
 export PATH="$T/bin:$PATH" KILL_GUARD_SELF_PID=3000
 
 refuse() {  # <name> <command>
@@ -104,6 +129,21 @@ run_refusals() {
   refuse "a heredoc read by bash" 'bash <<EOF_K
 kill 1000
 EOF_K'
+  refuse "send-keys /exit into another agent" "tmux send-keys -t %2 '/exit' Enter"
+  refuse "send-keys -l /exit, the alias send" 'tmux send -t %2 -l /exit'
+  refuse "send-keys -t glued to the target" 'tmux send-keys -t%2 /exit Enter'
+  refuse "send-keys by window name" 'tmux send-keys -t c-002 /exit Enter'
+  refuse "send-keys /exit-clean with an argument" "tmux send-keys -t %2 '/exit-clean no-close' Enter"
+  refuse "send-keys /kill-your-self" 'tmux send-keys -t %2 /kill-your-self Enter'
+  refuse "/exit typed key by key" 'tmux send-keys -t %2 / e x i t Enter'
+  refuse "a shell pane over another agent" 'tmux send-keys -t %5 /exit Enter'
+  refuse "send-keys with the socket, through sudo" 'sudo -u owner tmux -S /tmp/s send-keys -t %2 /exit Enter'
+  refuse "send-keys inside bash -c under sudo" "sudo -u owner bash -c 'tmux -S /tmp/s send-keys -t %2 /exit Enter'"
+  refuse "the second command of a tmux chain" 'tmux send-keys -t %4 C-u \; send-keys -t %2 /exit Enter'
+  refuse "send-keys /exit to a computed pane" 'tmux send-keys -t "$PANE" /exit Enter'
+  refuse "send-keys /exit to a \$( ) pane" 'tmux send-keys -t $(cat /tmp/p) /exit Enter'
+  refuse "send-keys /exit to a pane tmux cannot find" 'tmux send-keys -t %99 /exit Enter'
+  refuse "send-keys /exit on another box" "ssh box2 'tmux send-keys -t %2 /exit Enter'"
 }
 run_refusals
 
@@ -122,6 +162,15 @@ allow "a heredoc body is data" 'cat > note.md <<EOF_N
 sudo kill $pids
 EOF_N'
 allow "no kill at all" 'echo hi'
+allow "send-keys /exit into the own pane" 'tmux send-keys -t %3 /exit Enter'
+allow "send-keys /exit into \$TMUX_PANE" 'tmux send-keys -t "$TMUX_PANE" /exit Enter'
+allow "send-keys /exit with no target: the own pane" 'tmux send-keys /exit Enter'
+allow "send-keys /exit into a bare shell" 'tmux send-keys -t %4 /exit Enter'
+allow "send-keys of other text into another agent" 'tmux send-keys -t %2 "hello" Enter'
+allow "send-keys Enter alone into another agent" 'tmux send-keys -t %2 Enter'
+allow "send-keys -X, a copy-mode command" 'tmux send-keys -t %2 -X cancel'
+allow "a message that quotes the send-keys" 'spool-send.sh --body "tmux send-keys -t %2 /exit Enter"'
+allow "a path that holds /exit" 'tmux send-keys -t %2 /exits/of/town Enter'
 
 # 3. through the shared hook (claude / agy contracts)
 hook() {  # <hook> <harness> <command> -> "rc|stdout"
@@ -138,6 +187,27 @@ r="$(hook "$HOOK" claude 'kill 3200')"
 if [ "$r" = "0|" ]; then pass "hook claude: an own child passes"; else fail "hook claude own child: $r"; fi
 r="$(hook "$HOOK" agy 'kill 3200')"
 if [ "$r" = '0|{"decision":"allow"}' ]; then pass "hook agy: an own child allow"; else fail "hook agy own child: $r"; fi
+r="$(hook "$HOOK" claude "tmux send-keys -t %2 '/exit' Enter")"
+if [ "${r%%|*}" = 2 ] && [[ "$r" == *kill-guard* ]]; then pass "hook claude: /exit into another agent's pane exit 2"; else fail "hook claude send-keys: $r"; fi
+r="$(hook "$HOOK" agy "tmux send-keys -t %2 '/exit' Enter")"
+if [ "${r%%|*}" = 0 ] && [[ "$r" == *'"decision": "deny"'*kill-guard* ]]; then pass "hook agy: /exit into another agent's pane deny JSON"; else fail "hook agy send-keys: $r"; fi
+r="$(hook "$HOOK" claude 'tmux send-keys -t %3 /exit Enter')"
+if [ "$r" = "0|" ]; then pass "hook claude: /exit into the own pane passes"; else fail "hook claude own pane: $r"; fi
+# The sanctioned paths type /exit inside their own scripts, which the hook
+# does not read: it sees only the command that starts them.
+for sanctioned in \
+  'cd csi-spl-orc && ./run -a do_spl_dispatch_rotate' \
+  'cd csi-spl-orc && ./run -a do_spl_lane_rotate' \
+  'cd csi-spl-orc && ./run -a do_spl_orch_rotate' \
+  'cd csi-spl-orc && ./run -a do_spl_peer_restart' \
+  'bash tmux-close-window.sh c-110 --defer'; do
+  r="$(hook "$HOOK" claude "$sanctioned")"
+  if [ "$r" = "0|" ]; then pass "hook claude: sanctioned: $sanctioned"; else fail "hook claude sanctioned ($sanctioned): $r"; fi
+done
+grep -qF 'spl_rotate_tmux send-keys -t "$pane" -l "$cmd"' "$SA/../../run/spl-rotate-lib.func.sh" &&
+  grep -qF "send-keys -t \"\$1\" -l '/exit'" "$SA/scripts/tmux-close-window.sh"
+if [ $? = 0 ]; then pass "the rotate lib and close-window still type /exit in their own scripts"
+else fail "a sanctioned path no longer types /exit in its script: re-check where the guard sits"; fi
 # RED: the hook as it was before SPL-2583 (3bec8b115, kept as a fixture:
 # CI checks out shallow, so git history is not there) lets the sat command
 # through.
@@ -167,6 +237,8 @@ r="$(vibe "$SAT")"
 if [ "${r%%|*}" = 0 ] && [[ "$r" == *'"decision": "deny"'*kill-guard* ]]; then pass "vibe hook: the sat command denied"; else fail "vibe hook: $r"; fi
 r="$(vibe 'kill 3200')"
 if [ "$r" = "0|" ]; then pass "vibe hook: an own child passes"; else fail "vibe hook own child: $r"; fi
+r="$(vibe 'tmux send-keys -t %2 /exit Enter')"
+if [ "${r%%|*}" = 0 ] && [[ "$r" == *'"decision": "deny"'*kill-guard* ]]; then pass "vibe hook: /exit into another agent's pane denied"; else fail "vibe hook send-keys: $r"; fi
 
 # 3c. spool-install y13 and y12 copy the matcher next to the hooks
 y13d="$T/y13"

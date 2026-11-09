@@ -30,14 +30,20 @@
 #     killable). The process table is one `ps -eo pid=,ppid=,args=` call.
 #   - killall in any form; pkill -f / --full; pkill with a computed pattern
 #     or one whose regex matches a protected or agent process name
+#   - tmux send-keys of /exit, /exit-clean or /kill-your-self into a pane that
+#     holds another agent, by the same rule as a kill of its pid (SPL-5142):
+#     the caller's own pane and a pane with no agent pass. A pane the guard
+#     cannot resolve (computed, tmux has no answer, over ssh) is refused.
+#     The text must be literal: a typed $var is not read, nor send-keys -H.
 # Heredoc bodies are data, unless a shell or eval on the same line reads them.
 # A script file that runs kill is not read: an action's own stop code is its
-# own. Fails CLOSED: no python3, a guard error or an untokenizable command
+# own, so rotation and close-window, which type /exit in their scripts, pass.
+# Fails CLOSED: no python3, a guard error or an untokenizable command
 # that runs kill is refused. KILL_GUARD_SELF_PID names the caller agent's pid
 # (tests); else it is the nearest agent process above the hook.
 
 kill_target_guard_check() {
-  case "${1-}" in *kill*) ;; *) return 0 ;; esac
+  case "${1-}" in *kill*|*send*) ;; *) return 0 ;; esac
   if ! command -v python3 >/dev/null 2>&1; then
     echo "kill-guard: refused: python3 is missing, the guard cannot read the command (fail closed)" >&2
     return 2
@@ -64,6 +70,17 @@ PROTECTED = re.compile(r"^(tmux|cron|crond|systemd|sshd|init)")
 AGENTS = {"claude", "grok", "vibe", "agy", "qwen", "gemini"}
 OWN = {"$!", "${!}", "$$", "${$}"}
 RULE = "never kill pid 0/1, a process group, tmux, cron, systemd, sshd or another agent; name your own child pids"
+SEND = {"send-keys", "send"}
+EXIT_TEXT = re.compile(r"^\s*/(exit|exit-clean|kill-your-self)(\s|$)")
+KEY_NAME = re.compile(r"^(Enter|KPEnter|Escape|Tab|BSpace|[CMS]-.+)$")
+OWN_PANE = {"$TMUX_PANE", "${TMUX_PANE}"}
+TMUX_ARG = {"-S", "-L", "-f", "-c", "-T"}
+EXIT_RULE = "never type an exit command into another agent\x27s pane; ask it through the spool"
+REMOTE_EXIT = re.compile(r"\btmux\s.*\bsend(-keys)?\s.*/(exit|kill-your-self)(\s|$)")
+RAW_EXIT = re.compile(r"(^|[\s;&|(`/])tmux\s.*\bsend(-keys)?\s.*/(exit|kill-your-self)")
+COMPUTED_PANE = re.compile(r"(^|[\s;&|(`/])tmux\s[^;&|\n]*\bsend(-keys)?\s[^;&|\n]*-t\s*(\$\(|`)[^\n]*/(exit|kill-your-self)")
+RUN_AS = None  # the user a sudo / su around the tmux runs it as
+SOCK = []  # the -S / -L of the tmux, kept for the next command of a chain
 
 
 class Refuse(Exception):
@@ -117,7 +134,7 @@ def heredocs(cmd, depth):
 def check(cmd, depth=0):
     if depth > 8:
         raise Refuse("the command nests too deep to read (fail closed)")
-    if "kill" not in cmd:
+    if "kill" not in cmd and "send" not in cmd:
         return
     if "<<" in cmd:
         cmd = heredocs(cmd, depth)
@@ -126,6 +143,8 @@ def check(cmd, depth=0):
     except ValueError as e:
         if re.search(r"(^|[\s;&|(`/])(kill|pkill|killall)(\s|$)", cmd):
             raise Refuse("cannot tokenize a command that runs kill (%s); fail closed" % e)
+        if RAW_EXIT.search(cmd):
+            raise Refuse("cannot tokenize a tmux send-keys of an exit command (%s); fail closed" % e)
         return
     for seg in segs:
         segment(seg, depth)
@@ -133,11 +152,18 @@ def check(cmd, depth=0):
     # by one shows up with no target there: read the raw text for it.
     if re.search(r"(^|[\s;&|(`/])(kill|pkill)\s[^;&|\n]*(\$\(|`)", cmd):
         raise Refuse("kill with a computed target list ($( ) or backticks); " + RULE)
+    if COMPUTED_PANE.search(cmd):
+        raise Refuse("send-keys of an exit command to a computed pane; " + EXIT_RULE)
 
 
 def skip_wrapper(b, toks, i, depth):
+    global RUN_AS
     opts = ARG_OPTS.get(b, set())
+    if b == "sudo":
+        RUN_AS = "root"
     while i < len(toks) and toks[i].startswith("-") and toks[i] != "-":
+        if b == "sudo" and toks[i] == "-u" and i + 1 < len(toks):
+            RUN_AS = toks[i + 1]
         if toks[i] in ("-S", "--split-string") and b == "env" and i + 1 < len(toks):
             check(toks[i + 1], depth + 1)
         if toks[i] == "-c" and b == "flock" and i + 1 < len(toks):
@@ -168,11 +194,22 @@ def segment(toks, depth):
                     check(rest[j + 1], depth + 1)
                     break
             return
-        elif b == "eval" or b in ("ssh", "tmux", "screen"):
+        elif b == "tmux":
+            tmux(toks[i + 1:], depth)
+            return
+        elif b in SEND:
+            send_keys(toks[i + 1:])
+            return
+        elif b == "ssh" and REMOTE_EXIT.search(" ".join(toks[i + 1:])):
+            raise Refuse("send-keys of an exit command over ssh cannot be judged here; " + EXIT_RULE)
+        elif b == "eval" or b in ("ssh", "screen"):
             check(" ".join(toks[i + 1:]), depth + 1)
             return
         elif b in ("su", "runuser"):
             rest = toks[i + 1:]
+            global RUN_AS
+            RUN_AS = next((a for j, a in enumerate(rest) if not a.startswith("-")
+                           and (j == 0 or rest[j - 1] not in ("-c", "--command"))), "root")
             for j, a in enumerate(rest):
                 if a in ("-c", "--command") and j + 1 < len(rest):
                     check(rest[j + 1], depth + 1)
@@ -189,6 +226,69 @@ def segment(toks, depth):
             return
         else:
             return
+
+
+def tmux(args, depth):
+    global SOCK
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        if args[i] in ("-S", "-L") and i + 1 < len(args):
+            SOCK = args[i:i + 2]
+        i += 2 if args[i] in TMUX_ARG else 1
+    if i < len(args) and args[i] in SEND:
+        send_keys(args[i + 1:])
+    else:
+        check(" ".join(args), depth + 1)
+
+
+def send_keys(args):
+    """Judge one send-keys: only an exit command typed at a pane matters."""
+    target, keys, i = None, [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            keys.extend(args[i + 1:])
+            break
+        if a.startswith("-") and len(a) > 1:
+            for n, c in enumerate(a[1:]):
+                if c == "X":
+                    return  # a copy-mode command, nothing is typed
+                if c in "ctN":
+                    glued = a[n + 2:]
+                    value = glued or (args[i + 1] if i + 1 < len(args) else "")
+                    i += 0 if glued else 1
+                    target = value if c == "t" else target
+                    break
+            i += 1
+            continue
+        keys.append(a)
+        i += 1
+    text = "".join(" " if k == "Space" else k for k in keys if not KEY_NAME.match(k))
+    if EXIT_TEXT.match(text):
+        pane(target)
+
+
+def pane(target):
+    """The kill rule for every agent process in the target pane."""
+    if target in OWN_PANE:
+        return
+    if target and ("$" in target or "`" in target):
+        raise Refuse("send-keys of an exit command to a computed pane %s; %s" % (target, EXIT_RULE))
+    cmd = ["sudo", "-n", "-u", RUN_AS] if RUN_AS else []
+    cmd += ["tmux"] + SOCK + ["display-message", "-p"] + (["-t", target] if target else []) + ["#{pane_pid}"]
+    # a bad target is rc 0 with empty output, so only a pid counts as an answer
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False).stdout.strip()
+    if not out.isdigit():
+        raise Refuse("send-keys of an exit command: tmux cannot resolve pane %s; %s" % (target, EXIT_RULE))
+    ps, todo, seen = table(), [int(out)], set()
+    while todo:
+        p = todo.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        todo.extend(c for c, v in ps.items() if v[0] == p)
+        if p in ps and is_agent(ps[p][1]):
+            literal(p, "send-keys of an exit command into pane %s" % target, EXIT_RULE)
 
 
 # pkill short options that take a value (pkill -h)
@@ -318,7 +418,8 @@ def self_pid(ps):
     return None
 
 
-def literal(n):
+def literal(n, what=None, rule=RULE):
+    what = what or "kill %d" % n
     ps = table()
     if n not in ps:
         return  # no such process: kill fails on its own
@@ -332,10 +433,10 @@ def literal(n):
     args = ps[n][1]
     first, _ = names(args)
     if PROTECTED.match(first):
-        raise Refuse("kill %d targets %s; %s" % (n, first, RULE))
+        raise Refuse("%s targets %s; %s" % (what, first, rule))
     who = is_agent(args)
     if who:
-        raise Refuse("kill %d targets another agent\x27s %s process; %s" % (n, who, RULE))
+        raise Refuse("%s targets another agent\x27s %s process; %s" % (what, who, rule))
 
 
 def main():

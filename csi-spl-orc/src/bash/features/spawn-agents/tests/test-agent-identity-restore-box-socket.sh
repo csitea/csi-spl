@@ -15,6 +15,7 @@
 #   6. no owner to read and the caller is not the box user: refused
 #   7. the box user itself runs tmux without a sudo hop
 #   8. removal control: without the pin the run reaches the caller's socket
+#   9. outside a test the socket check ignores the tests' owner seam
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -132,4 +133,10 @@ sed -e '/local -x SPOOL_TMUX_SOCKET=/d' -e '/_ai_restore_socket "$box_user"/d' "
 ne "8. control: the pin line was removed" "$(wc -l < "$FUNC")" "$(wc -l < "$T_TMP/no-pin.func.sh")"
 act "$T_TMP/no-pin.func.sh" DRY_RUN=0 >/dev/null
 ne "8. control: without the pin a call leaves the box socket" "0" "$(other_socket)"
+
+# --- 9 ----------------------------------------------------------------------------
+out="$(act "$FUNC" DRY_RUN=0 "SPOOL_TMUX_SOCKET=$T_TMP/private.sock" "IDENTITY_SOCKET_OWNER=$BOX")"; rc=$?
+has "9. outside a test the owner seam is ignored: the real owner refuses" "REFUSE  tmux socket $T_TMP/private.sock belongs to other-user" "$out"
+ne "9. ... exit non-zero" "0" "$rc"
+eq "9. ... and nothing starts" "0" "$(mutating)"
 t_done

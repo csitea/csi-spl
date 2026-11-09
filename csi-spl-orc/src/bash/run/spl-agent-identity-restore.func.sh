@@ -75,7 +75,7 @@
 # @param IDENTITY_RESTORE_USER (optional) - the user to start agents as, default the box's SPOOL_AGENT_USER
 # @param IDENTITY_COPY_OWNER (optional) - the owner a copied transcript gets, default that user (tests only)
 # @param IDENTITY_COPY_SUDO (optional) - the prefix that runs the copy, default "sudo -n" unless root (tests only)
-# @param IDENTITY_SOCKET_OWNER (optional) - the owner the socket check reads, default the socket's own (tests only)
+# @param IDENTITY_SOCKET_OWNER (optional) - the owner the socket check reads, default the socket's own (read only under SPOOL_TEST=1)
 # @param GROK_BIN (optional) - the grok cli a grok seat restarts with, default grok on the agent user's login PATH
 # @param SPOOL_TMUX_SOCKET (optional) - default the box user's socket, /tmp/tmux-<uid>/default
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -172,7 +172,8 @@ do_spl_agent_identity_restore() {
 # the caller is not the box user, so a start would make a server of its own.
 _ai_restore_socket() {  # BOX-USER
   local owner me
-  owner="${IDENTITY_SOCKET_OWNER:-$(ai_socket_owner "$SPOOL_TMUX_SOCKET")}"; me="$(id -un)"
+  owner="$(ai_socket_owner "$SPOOL_TMUX_SOCKET")"; me="$(id -un)"
+  [[ "${SPOOL_TEST:-}" == 1 && -n "${IDENTITY_SOCKET_OWNER:-}" ]] && owner="$IDENTITY_SOCKET_OWNER"
   if [[ -n "$owner" && "$owner" != "$1" ]]; then
     echo "REFUSE  tmux socket $SPOOL_TMUX_SOCKET belongs to $owner, not the box user $1: nothing started"; return 1
   fi

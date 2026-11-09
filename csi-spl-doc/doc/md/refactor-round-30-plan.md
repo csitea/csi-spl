@@ -31,10 +31,10 @@ parameter cap (`perfFeedPair`, `sendLive`); two do the same for Go (`searchSecti
 `revive` on resend and raises its floor; one shortens the last over-long action
 example. Row 09 (batch 2) drops the 4 `WIDE` lines rows 02, 03, 07, 08 leave.
 
-**Status: v0.2 DRAFT**, not signed (section 9). No row lane starts before the panel
+**Status: v0.3 DRAFT**, not signed (section 9). No row lane starts before the panel
 signs the plan sha.
 
-Editor: **c-716** (claude). Panel seat: asked of the dispatch holder (section 5).
+Editor: **c-716** (claude). Panel seat: an agy seat, queued (ask 6d53d23d, section 5).
 
 **One sha:** every count is measured on **`3c473d8f8`** (`origin/master`
 3c473d8f87b7fd5a9ef247a69e1fcf0b924194de, 2026-11-09T23:20:28Z), n=1 per command
@@ -184,15 +184,21 @@ time, not this sha.
 ## 5. Panel and reviewers (R7)
 
 - Editor: c-716 (claude). Both seats sign the plan sha (rulebook 3.2).
-- **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; the holder wrote its
-  brief and asked c-001 to queue it (c-002 a8facb1b, task `dispatch-refactor-r30`).
-- **Row reviewers:** round 29 ran them same-vendor under waiver 1a7c70da, ruled valid
-  for round 29 only (its section 5). **This plan does not assume it holds for round
-  30.** This lane could not read the owner's posts (its prd hub tools did not connect),
-  so it asks the holder to confirm the R7 vendor before the first row is queued. Until
-  then: a fresh claude session per row under waiver 1a7c70da if confirmed, never the
-  author, never a seat already in the work, reading only the tree; mistral reviews stay
-  paused (cf7a7ee5); agy gets no code R7.
+- **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; queued (ask
+  6d53d23d, c-002 6223a088), task `dispatch-refactor-r30`.
+- **Row reviewers: same-vendor under waiver 1a7c70da, never cross-vendor.** c-001
+  ruling 5923c9b3, relayed by the holder in 6223a088 (2026-11-09 about 23:4xZ): the
+  waiver stands for round 30's claude R7 seats on claude authors. Valid for **round 30
+  only**; re-check at round 31. An owner post putting grok back lapses it at once. Its
+  stated basis, n=1 each, quoted, not re-run here (this lane's prd hub tools did not
+  connect): `do_spl_hub_agent_kinds` -> `off [grok,qwen], paused []`; owner posts since
+  11-07 14:00Z matching grok / mistral / waiver / vendor -> 0 rows (control from
+  11-03: 13 rows, none says grok is back). A body search can miss a garbled post.
+- **Conditions per row:** the reviewer is a FRESH claude session, never the author and
+  never a seat already in the work; it reads only the tree; its brief names waiver
+  1a7c70da. Its review line says same-vendor under the waiver, in the `read:` field.
+  Mistral reviews stay paused (cf7a7ee5); agy gets no code R7, so the panel seat
+  reviews this plan only, never a row.
 - The waiver does not make a row compliant: rulebook 2.7.5 fails an equal vendor pair,
   and the retro names each such row.
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
@@ -233,10 +239,13 @@ time, not this sha.
 - v0.2: c-002's R3 reads a8facb1b folded (section 3.2): the sat queue 0 hits, c-462
   clear of row 03, c-593's `spool-client.mjs` edit named in row 04 (its diff re-read
   here). No row changed in scope.
+- v0.3: c-001's ruling 5923c9b3 (via 6223a088): row R7 same-vendor under waiver
+  1a7c70da for round 30 (section 5). No row changed.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-716 (claude): drafted v0.1, v0.2. **Not signed yet.**
-- Panel reviewer seat: **not placed yet**; asked of the dispatch holder.
+- Editor seat: c-716 (claude): drafted v0.1, v0.2, v0.3. **Not signed yet.**
+- Panel reviewer seat (agy): **queued, not placed yet** (ask 6d53d23d).
+- Row R7 seats: same-vendor under waiver 1a7c70da (c-001 5923c9b3), never cross-vendor.

@@ -326,8 +326,8 @@ export function createSpoolClient({
      by a read. withSessionRetry takes it back if the hub refuses credentials. */
   const conn = { token: String(token || ''), door: String(door || ''), doorGuessed: false, send: sender }
   const hubFetch = stampedFetch(fetchFn)
-  const live = liveReader(conn, root, configError, hubFetch, firstScreenMs, now)
-  const api = sessionMethods(tenant, mock, root, configError, conn, live)
+  const live = liveReader({ conn, root, configError, hubFetch }, firstScreenMs, now)
+  const api = sessionMethods({ tenant, mock, root, configError }, conn, live)
   const prio = topicPriorities(mock, mk, live)
   Object.assign(api, topicList(mock, mk, live, prio.note), topicReads(mock, mk, conn, live, prio.note), prio.methods, feedReads(api, mock, mk),
     shellReads(mock, mk, live), sendMethods(mock, mk, conn), fileMethods(root))
@@ -439,7 +439,7 @@ async function fetchOnce(fn, url, init) {
  * topic-list read is kept and handed out as a clone. Any write drops it,
  * and after the first screen every read goes out as before.
  */
-function liveReader(conn, root, configError, hubFetch, firstScreenMs, now) {
+function liveReader({ conn, root, configError, hubFetch }, firstScreenMs, now) {
   /** GET reads in flight, by what makes them identical. */
   const inflight = new Map()
   /** First-screen reads that have settled, by the same key. */
@@ -500,7 +500,7 @@ function liveReader(conn, root, configError, hubFetch, firstScreenMs, now) {
 }
 
 /** The client's identity half (mode, tenant, view token and door, sender) and its small reads. */
-function sessionMethods(tenant, mock, root, configError, conn, live) {
+function sessionMethods({ tenant, mock, root, configError }, conn, live) {
   return {
     mock: Boolean(mock),
     tenant: String(tenant || ''),

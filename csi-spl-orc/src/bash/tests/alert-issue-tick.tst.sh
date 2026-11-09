@@ -358,16 +358,22 @@ done
 printf '#!/bin/sh\necho "fake-spool $SPOOL_ROOT $*"\n' >"$T/fakespool"; chmod +x "$T/fakespool"
 cp "$T/fakespool" "$T/dhome/.local/bin/spool"
 disk() {
-  SNIPPET='root="$SP_ROOT"; PATH="$NOSPOOL"; spl_ai_read_disk' in_orc SP_ROOT="$SP" NOSPOOL="$T/nospool" "$@"
+  SNIPPET='root="$SP_ROOT"; PATH="$NOSPOOL"; PROJ_PATH="${RESOLVE_ORC:-$PROJ_PATH}"; spl_ai_read_disk' in_orc SP_ROOT="$SP" NOSPOOL="$T/nospool" "$@"
 }
 out="$(disk SPOOL_BIN="$T/fakespool" 2>&1)"
 [[ "$out" == "fake-spool $SP tail --task disk-headroom --json" ]] && pass "11. no spool on PATH: SPOOL_BIN answers the disk read" ||
   fail "11. SPOOL_BIN: $out"
 out="$(disk SPL_SPOOL="$T/fakespool" SPOOL_BIN="$T/nowhere" 2>&1)"
 [[ "$out" == "fake-spool $SP tail --task disk-headroom --json" ]] && pass "11. an executable SPL_SPOOL wins" || fail "11. SPL_SPOOL: $out"
-out="$(disk HOME="$T/dhome" SPOOL_BIN= 2>&1)"
-[[ "$out" == fake-spool* || -x "$APP_ROOT/csi-spl-api/src/go/spool-hub-api/bin/spool" ]] &&
+# spool-env alone in a tree with no build: a build of this tree would answer first
+mkdir -p "$T/nobuild/csi-spl-orc/src/bash/features/spawn-agents"
+cp -r "$PROJ_ROOT/src/bash/features/spawn-agents/lib" "$T/nobuild/csi-spl-orc/src/bash/features/spawn-agents/"
+out="$(disk RESOLVE_ORC="$T/nobuild/csi-spl-orc" HOME="$T/dhome" SPOOL_BIN= 2>&1)"
+[[ "$out" == "fake-spool $SP tail --task disk-headroom --json" ]] &&
   pass "11. the running user's own HOME spool answers (the desk user after a hop)" || fail "11. HOME: $out"
+out="$(disk RESOLVE_ORC="$T/nobuild/csi-spl-orc" HOME="$T/nohome" SPOOL_BIN= 2>&1)"; rc=$?
+[[ $rc != 0 && "$out" == *"no absolute spool binary (got 'spool')"* ]] &&
+  pass "11. no spool anywhere: refused, never a bare name" || fail "11. no binary: rc $rc $out"
 
 # 12: the GCP source under the pins the lease loop's do_spl_cloud_cnf exports
 mkdir -p "$T/gapp/csi-spl-iac"

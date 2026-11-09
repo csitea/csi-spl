@@ -338,3 +338,33 @@ and `./run -a do_spl_vibe_push_guard_install` has run for that user.
 
 Test: `csi-spl-orc/src/bash/tests/force-push-guard.tst.sh`; the path through
 vibe's own hook manager: `spool-install/tests/test-y12-vibe-push-guard.sh`.
+
+## A box that never answers holds its row, not the queue (SPL-5143)
+
+From 22:58Z on 2026-11-07 to 02:54Z on 2026-11-08 nothing was placed on any
+box, with 92 asks queued: one row pinned to a dark box was picked first on
+every tick, and each failed launch re-armed the gap.
+
+A launch pinned to a box (`SPAWN_BOX`) that gets no reply ends as spawn-window
+exit 8 on `spawn-remote exit 5`. `spl_spawn_place_launch` now treats that as a
+HOLD, like a full box:
+
+- no gap slot: `.place.last` goes back as it was, and the next row is taken in
+  the same tick (`spl_spawn_place_take_next`, up to `SPAWN_PLACE_HOLD_TRIES`);
+- the pinned row stays queued at its position and is tried again on a later
+  tick; it is never declined;
+- one INFO line per tick names the ask and the box, the reason is in
+  `.place.wait`, and no failure blocker goes to the holder.
+
+The other exit 8 causes (the box refused, the request did not leave) still
+fail as before: gap armed and the holder told.
+
+Each try still waits for the reply (300 s by default) inside the tick, under
+the placer's lock. The request carries an expiry, so a box that wakes late
+refuses it and a retry starts nothing twice.
+
+The alternative, skipping a row whose launch failed within the last gap, was
+not taken: the failed launch would still burn a gap slot on every try.
+
+Test: `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` case 12d, with its
+control (a refusing box still fails).

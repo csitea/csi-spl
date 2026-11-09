@@ -69,7 +69,9 @@
 # @description         a HOLD puts .place.last back as it was (SPL-4265),
 # @description         and the tick takes the next row the placer can
 # @description         launch, the held one keeping its place, up to
-# @description         SPAWN_PLACE_HOLD_TRIES rows a tick
+# @description         SPAWN_PLACE_HOLD_TRIES rows a tick. A box that never
+# @description         answers a launch pinned to it (spawn-window exit 8 on
+# @description         spawn-remote exit 5) holds the same way (SPL-5143)
 # @description      HAND-PINNED SLUG (SPL-2088), the dispatcher's convention:
 # @description         hand-<box>-<slug> or <box>hand-<slug> (box id letters and
 # @description         digits only) pins the lane to <box>. Its brief is
@@ -1267,7 +1269,11 @@ spl_spawn_place_brief() {  # SLUG
 
 # 4a. The existing launcher. The new id closes the ask; HOLD (returns 10) or
 # a failure puts it back in line. PIN (a hand-pinned slug's box) is its
-# SPAWN_BOX.
+# SPAWN_BOX. A pinned box that gave no reply returns 10 too (SPL-5143): each
+# such failure re-armed the gap and the row was picked first again, 4 h with
+# nothing placed on any box (2026-11-07). Its request expires by itself, so a
+# retry starts nothing twice. Why not a skip of rows that failed lately: that
+# keeps the gap armed, a dark box would still cost a slot on every try.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   local holder="$1" id out err rc=0 agent why seat=0
   id="$(jq -r '.ask_id' <<<"$2")"
@@ -1318,6 +1324,12 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     why="$(sed -n 's/^spawn-window: HOLD [^:]*: //p' <<<"$out" | tail -1 | sed 's/: queue the lane, spawn nothing.*$//; s/\. Queue it; nothing was spawned\.$//')"
     spl_spawn_place_wait "$id" "${why:-every box is past its load mark}"
     do_log "INFO ask ${id:0:8}: the launcher says HOLD (${why:-every box is past its load mark}): back in line at position 1"
+    return 10
+  fi
+  if (( rc == 8 )) && grep -q 'did not start (spawn-remote exit 5)$' <<<"$out"; then
+    why="no reply from ${6:-its box} to the spawn request"
+    spl_spawn_place_wait "$id" "$why"
+    do_log "INFO hold: ask ${id:0:8}: $why: it stays queued, the next row goes this tick"
     return 10
   fi
   do_log "WARN ask ${id:0:8}: the launch of $3:$4 failed (exit $rc): back in line"

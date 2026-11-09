@@ -71,7 +71,11 @@
 # @description         launch, the held one keeping its place, up to
 # @description         SPAWN_PLACE_HOLD_TRIES rows a tick. A box that never
 # @description         answers a launch pinned to it (spawn-window exit 8 on
-# @description         spawn-remote exit 5) holds the same way (SPL-5143)
+# @description         spawn-remote exit 5) holds the same way (SPL-5143):
+# @description         the box is tried again once per
+# @description         SPAWN_PLACE_DARK_RETRY_MIN, its rows leave the line
+# @description         until then, and a row dark for
+# @description         SPAWN_PLACE_DARK_ALARM_MIN tells the holder once
 # @description      HAND-PINNED SLUG (SPL-2088), the dispatcher's convention:
 # @description         hand-<box>-<slug> or <box>hand-<slug> (box id letters and
 # @description         digits only) pins the lane to <box>. Its brief is
@@ -169,6 +173,8 @@
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements at most (the ceiling), default 10
 # @param SPAWN_PLACE_HOLD_TRIES (optional) - rows one tick tries while the launcher answers HOLD (SPL-4265), default 5
+# @param SPAWN_PLACE_DARK_RETRY_MIN (optional) - minutes before a box that gave no reply is tried again (SPL-5143), default 30
+# @param SPAWN_PLACE_DARK_ALARM_MIN (optional) - minutes a row waits on a silent box before its one blocker to the holder (SPL-5143), default 120
 # @param SPAWN_PLACE_GAP_FLOOR_MIN (optional) - minutes between two placements at least, when the placed lane shows progress, default 3
 # @param TOKEN_BURN_STATE_DIR (optional) - the token burn collector's state dir, whose buckets.tsv shows a lane's progress on this box, default /var/csi/csi-spl/token-burn
 # @param SPAWN_PLACE_ARCHIVED_CMD (optional, tests) - gets a topic id, prints the hub's `lane --archived --topic` answer
@@ -210,10 +216,12 @@ do_spl_spawn_place() {
   spl_spawn_place_supply "$holder" "$rows"
   rows="$(spl_spawn_place_mark "$rows")"
   spl_spawn_place_seat_alarm "$holder" "$rows"
+  spl_spawn_place_dark_alarm "$holder" "$rows"
   if jq -e 'any(.[]; .state == "acked" and ._l and (._h | not))' >/dev/null <<<"$rows"; then
     do_log "INFO placing $(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$rows"): one at a time, $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued"
     return 0
   fi
+  rows="$(spl_spawn_place_dark_hold "$rows")"
   rows="$(spl_spawn_place_agy_hold "$rows")"
   rows="$(spl_spawn_place_away_hold "$rows")"
   rows="$(spl_spawn_place_pin_hold "$rows")"
@@ -241,6 +249,7 @@ spl_spawn_place_take_next() {  # HOLDER HEAD LINE
     spl_spawn_place_take "$1" "$(jq -c 'del(._l, ._h)' <<<"$head")" || rc=$?
     (( rc == 10 && n < ${SPAWN_PLACE_HOLD_TRIES:-5} )) || return 0
     rows="$(jq -c --arg i "$(jq -r '.ask_id' <<<"$head")" '[.[] | select(._l and .ask_id != $i)]' <<<"$rows")"
+    rows="$(spl_spawn_place_dark_hold "$rows")"
     head="$(jq -c '.[0] // empty' <<<"$rows")"
     [[ -n "$head" ]] || return 0
     head="$(spl_spawn_place_band "$head" "$rows")"
@@ -1271,8 +1280,10 @@ spl_spawn_place_brief() {  # SLUG
 # a failure puts it back in line. PIN (a hand-pinned slug's box) is its
 # SPAWN_BOX. A pinned box that gave no reply returns 10 too (SPL-5143): each
 # such failure re-armed the gap and the row was picked first again, 4 h with
-# nothing placed on any box (2026-11-07). Its request expires by itself, so a
-# retry starts nothing twice. Why not a skip of rows that failed lately: that
+# nothing placed on any box (2026-11-07). A retry can start the lane twice when
+# the box took the request and only its reply was lost: the pinned path has no
+# slug check, so spl_spawn_place_dark_hold paces it to one try per
+# SPAWN_PLACE_DARK_RETRY_MIN. Why not a skip of rows that failed lately: that
 # keeps the gap armed, a dark box would still cost a slot on every try.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   local holder="$1" id out err rc=0 agent why seat=0
@@ -1314,6 +1325,7 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     [[ "$agent" == *@* ]] || agent="$agent@$ASKS_BOX"
     printf '%s\n' "$agent" >"$(spool_asks_dir)/.place.agent"
     spl_spawn_place_wait "$id" ""
+    spl_spawn_place_dark_clear "${6:-}"
     spl_spawn_placed_close "$id" "$holder" "$agent"
     declare -F spl_review_notify_placed >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-review-notify.func.sh"
     spl_review_notify_placed "$holder" "$agent" "$4" "$5"
@@ -1327,13 +1339,81 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     return 10
   fi
   if (( rc == 8 )) && grep -q 'did not start (spawn-remote exit 5)$' <<<"$out"; then
-    why="no reply from ${6:-its box} to the spawn request"
+    spl_spawn_place_dark_note "$id" "${6:-}" 1
+    why="no reply from ${6:-its box} since $(spl_spawn_place_dark_since "$id")"
     spl_spawn_place_wait "$id" "$why"
     do_log "INFO hold: ask ${id:0:8}: $why: it stays queued, the next row goes this tick"
     return 10
   fi
   do_log "WARN ask ${id:0:8}: the launch of $3:$4 failed (exit $rc): back in line"
   spl_spawn_q_send "$holder" "$holder" blocker spawn-queue "**SPAWN QUEUE: the launch of ask ${id:0:8} ($3:$4) failed** (spawn-window exit $rc); it is back at position 1 and the placer retries it in ${SPAWN_PLACE_GAP_MIN:-10} min. Last lines: $(tail -3 <<<"$out" | tr '\n' ' ' | cut -c1-400)" || true
+}
+
+# <asks dir>/.place.dark (SPL-5143), one line per row waiting on a silent box:
+# "<ask_id>\t<box>\t<first epoch>\t<last try epoch>\t<told 0|1>". TRIED 1 stamps
+# this try; a row seen again keeps its first epoch and told flag.
+spl_spawn_place_dark_note() {  # ASK_ID BOX TRIED
+  local f tmp
+  f="$(spool_asks_dir)/.place.dark"; tmp="$f.$$"
+  touch "$f"
+  awk -F'\t' -v OFS='\t' -v a="$1" -v b="$2" -v t="$3" -v n="$(date +%s)" '
+    $1 == a { first = $3; last = $4; told = $5; next } { print }
+    END { print a, b, (first ? first : n), (t ? n : last + 0), told + 0 }' "$f" >"$tmp" && mv -f "$tmp" "$f"
+}
+
+# When ASK_ID's wait on a silent box began, for its wait line: the timestamp
+# of .place.wait moves on every write, so the start is in the text.
+spl_spawn_place_dark_since() {  # ASK_ID
+  date -u -d "@$(awk -F'\t' -v a="$1" '$1 == a { print $3 }' "$(spool_asks_dir)/.place.dark")" +%Y-%m-%dT%H:%MZ
+}
+
+# A launch started on BOX: it answers, its rows go back in line.
+spl_spawn_place_dark_clear() {  # BOX
+  local f tmp
+  f="$(spool_asks_dir)/.place.dark"; tmp="$f.$$"
+  [[ -n "$1" && -s "$f" ]] || return 0
+  awk -F'\t' -v b="$1" '$2 != b' "$f" >"$tmp" && mv -f "$tmp" "$f"
+}
+
+# 2a. A queued row pinned to a box that gave no reply in the last
+# SPAWN_PLACE_DARK_RETRY_MIN HOLDS (SPL-5143, R7 W1): out of the line, so it
+# uses none of a tick's SPAWN_PLACE_HOLD_TRIES. Before, five such rows took
+# all the tries, every tick. Each box costs one 300 s wait per window. Run
+# again after each HOLD, so the other rows of a box that just failed go too.
+# Prints ROWS minus the held ones.
+spl_spawn_place_dark_hold() {  # MARKED ROWS
+  local f id slug pin box last now held=() ps=() retry=$(( ${SPAWN_PLACE_DARK_RETRY_MIN:-30} * 60 ))
+  f="$(spool_asks_dir)/.place.dark"
+  [[ -s "$f" ]] || { echo "$1"; return 0; }
+  now="$(date +%s)"
+  while IFS=$'\t' read -r id slug pin; do
+    mapfile -t ps < <(spl_spawn_place_slug "$slug")
+    box="${ps[0]:-$pin}"
+    [[ -n "$box" ]] || continue
+    last="$(awk -F'\t' -v b="$box" '$2 == b && $4 > m { m = $4 } END { print m + 0 }' "$f")"
+    (( now - last < retry )) || continue
+    spl_spawn_place_dark_note "$id" "$box" 0
+    spl_spawn_place_wait "$id" "no reply from $box since $(spl_spawn_place_dark_since "$id")"
+    do_log "INFO hold: ask ${id:0:8} is pinned to $box, which gave no reply: it stays queued, the box is tried again within ${SPAWN_PLACE_DARK_RETRY_MIN:-30} min" >&2
+    held+=("$id")
+  done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))\t\(._b // "")"' <<<"$1")
+  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+}
+
+# Drops the .place.dark lines of asks no longer in the queue, then one blocker
+# to the holder for the rows dark SPAWN_PLACE_DARK_ALARM_MIN or more and not
+# told yet (SPL-5143, R7 W2: the HOLD has no end, so somebody must hear of it).
+# A blocker that was not delivered is sent again next tick.
+spl_spawn_place_dark_alarm() {  # HOLDER MARKED ROWS
+  local f tmp due min="${SPAWN_PLACE_DARK_ALARM_MIN:-120}"
+  f="$(spool_asks_dir)/.place.dark"; tmp="$f.$$"
+  [[ -s "$f" ]] || return 0
+  awk -F'\t' -v ids="$(jq -r '[.[].ask_id] | join(" ")' <<<"$2")" '
+    BEGIN { n = split(ids, a, " "); for (i = 1; i <= n; i++) K[a[i]] = 1 } $1 in K' "$f" >"$tmp" && mv -f "$tmp" "$f"
+  due="$(awk -F'\t' -v n="$(date +%s)" -v s="$(( min * 60 ))" '!$5 && n - $3 >= s { print substr($1, 1, 8) " on " $2 }' "$f" | paste -sd, - | sed 's/,/, /g')"
+  [[ -n "$due" ]] || return 0
+  spl_spawn_q_send "$1" "$1" blocker spawn-queue "**SPAWN QUEUE: rows pinned to a box that gave no reply for ${min} min or more: ${due}.** They stay queued and the placer tries the box every ${SPAWN_PLACE_DARK_RETRY_MIN:-30} min; the box needs a look, or the rows a decline." || return 0
+  awk -F'\t' -v OFS='\t' -v n="$(date +%s)" -v s="$(( min * 60 ))" 'n - $3 >= s { $5 = 1 } { print }' "$f" >"$tmp" && mv -f "$tmp" "$f"
 }
 
 # Why ASK_ID waits, kept for the queue view: one "<ask_id>\t<epoch>\t<why>"

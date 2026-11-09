@@ -14,7 +14,8 @@ import (
 // The Cloud infra and HR costs typed on the Expenses page (SPL-4383, rdb 0245;
 // owner HUM-10, t1 4f48f878 msg b0ccc0aa). The doors of GET
 // /v1/operator/fleet-tokens (fleetLoadCaller: the operator workspace's admin
-// or the operator service account):
+// or the operator service account; the GET also its product owner,
+// operator_read.go):
 //
 //	GET    /v1/operator/cost-entries?type=cloud|hr&month=YYYY-MM
 //	                                        {entries: [store.CostEntry]}; an
@@ -46,9 +47,9 @@ func (s *Server) routeCostEntries(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries/{id}", s.operatorWorkspacesPreflight)
 }
 
-// costEntryCaller is fleetLoadCaller plus the store; who called, false = answered.
-func (s *Server) costEntryCaller(w http.ResponseWriter, r *http.Request) (store.CostEntryStore, string, bool) {
-	_, _, who, ok := s.fleetLoadCaller(w, r)
+// costEntryCaller is the gate plus the store; who called, false = answered.
+func (s *Server) costEntryCaller(w http.ResponseWriter, r *http.Request, gate opCallerGate) (store.CostEntryStore, string, bool) {
+	_, _, who, ok := gate(w, r)
 	if !ok {
 		return nil, "", false
 	}
@@ -61,7 +62,7 @@ func (s *Server) costEntryCaller(w http.ResponseWriter, r *http.Request) (store.
 }
 
 func (s *Server) handleCostEntryList(w http.ResponseWriter, r *http.Request) {
-	ce, _, ok := s.costEntryCaller(w, r)
+	ce, _, ok := s.costEntryCaller(w, r, s.operatorReadCaller)
 	if !ok {
 		return
 	}
@@ -84,7 +85,7 @@ func (s *Server) handleCostEntryList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {
-	ce, who, ok := s.costEntryCaller(w, r)
+	ce, who, ok := s.costEntryCaller(w, r, s.fleetLoadCaller)
 	if !ok {
 		return
 	}
@@ -115,7 +116,7 @@ func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCostEntryDelete(w http.ResponseWriter, r *http.Request) {
-	ce, who, ok := s.costEntryCaller(w, r)
+	ce, who, ok := s.costEntryCaller(w, r, s.fleetLoadCaller)
 	if !ok {
 		return
 	}

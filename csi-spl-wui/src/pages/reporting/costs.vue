@@ -25,16 +25,16 @@
 </template>
 
 <script setup lang="ts">
-import { useOperatorPane } from '~/stores/operator-pane'
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import CostsHeader from '~/components/reporting/costs/CostsHeader.vue'
 import { costsPageFor, legacyCostsPath, visibleCostsPages } from '~/utils/reporting-costs.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const localePath = useLocalePath()
-const operator = useOperatorPane()
+const reader = useOperatorReader()
 
-const pages = computed(() => visibleCostsPages({ operator: operator.visible }))
+const pages = computed(() => visibleCostsPages({ operator: reader.value }))
 const active = computed(() => costsPageFor(route.path))
 /* the header's picks travel with the page bar */
 const carried = computed(() => {

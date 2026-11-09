@@ -5,9 +5,10 @@ is where the costs are entered. **Reporting -> Costs** only reports them. The
 sidebar keeps the icon rail only, and the page is the tab bar and the open
 tab.
 
-Expenses are for the admins of the operator workspace. Nobody else has the
-section in the rail; opening its address reads "Expenses are for operator
-admins only." and no tab.
+Expenses are for the admins and the product owners of the operator workspace.
+A product owner reads all three tabs but has no **Add**, edit or delete. Nobody
+else has the section in the rail; opening its address reads "Expenses are for
+operator admins and product owners only." and no tab.
 
 ## The tabs
 

@@ -25,8 +25,9 @@ export const MONITORING_TABS = Object.freeze([
   /* spec 140 4.1 (SPL-2322): the fleet's live token burn per agent type and agent, operator admins only */
   Object.freeze({ id: 'tokens', path: '/monitoring/tokens', labelKey: 'monitoring.tab.tokens', operatorsOnly: true, ready: true }),
   /* spec 153 3.2 (SPL-3215, row B4): the fleet's active lanes, refreshed every minute; operator admins see
-     every lane, a workspace's owners and admins (`staff`) its own lanes (3.6, row B6, SPL-3229) */
-  Object.freeze({ id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, ready: true }),
+     every lane, a workspace's owners and admins (`staff`) its own lanes (3.6, row B6, SPL-3229);
+     `operatorReader` (SPL-5181): also the operator workspace's product owner, read only */
+  Object.freeze({ id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, operatorReader: true, ready: true }),
   /* spec 153 3.10 (SPL-4421, row B10; owner HUM-10, t1 08213e0e, msg 8caf41ec): the same lanes, one row per topic
      with its lanes and issues; the same readers as Lanes (it reads the same routes) */
   Object.freeze({ id: 'topics', path: '/monitoring/topics', labelKey: 'monitoring.tab.topics', operatorsOnly: false, staff: true, ready: true }),
@@ -43,12 +44,13 @@ export const MONITORING_DEFAULT_PATH = MONITORING_TABS[0].path
  * ones only for an operator, a `staff` one for an operator or a workspace
  * owner or admin (`who.staff`), a `staffOnly` one for `who.staff` alone (an
  * operator who is neither owner nor admin does not see it), a tab naming a `perm` only when `who.can`
- * grants it (no `can` = not known yet: hidden; the hub's 403 is the control).
- * @param {{ operator?: boolean, staff?: boolean, can?: (perm: string) => boolean }} [who]
+ * grants it (no `can` = not known yet: hidden; the hub's 403 is the control);
+ * an `operatorReader` tab also for `who.operatorReader` (SPL-5181).
+ * @param {{ operator?: boolean, staff?: boolean, operatorReader?: boolean, can?: (perm: string) => boolean }} [who]
  */
 export function visibleMonitoringTabs(who = {}) {
   return MONITORING_TABS.filter((tab) => tab.ready && (!tab.operatorsOnly || who.operator === true)
-    && (!('staff' in tab) || (!tab.staffOnly && who.operator === true) || who.staff === true)
+    && (!('staff' in tab) || (!tab.staffOnly && who.operator === true) || who.staff === true || (tab.operatorReader === true && who.operatorReader === true))
     && (!tab.perm || (typeof who.can === 'function' && who.can(tab.perm) === true)))
 }
 

@@ -32,7 +32,7 @@
     </div>
 
     <!-- spec 140 (SPL-2322): today's fleet tokens, a link to the Tokens tab; operator admins only, its own chunk -->
-    <div v-if="operator.visible" class="costs-tokens-slot"><TokensCostsCard /></div>
+    <div v-if="reader" class="costs-tokens-slot"><TokensCostsCard /></div>
 
     <p v-if="state === 'loading'" class="muted" data-test="costs-loading">{{ t('monitoring.costs.loading') }}</p>
     <p v-else-if="state === 'forbidden'" class="costs-forbidden" data-test="costs-forbidden">{{ t('monitoring.costs.forbidden', { perm: forbiddenPerm }) }}</p>
@@ -135,9 +135,9 @@
 </template>
 
 <script setup lang="ts">
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
-import { useOperatorPane } from '~/stores/operator-pane'
 import { costsMonth, costsMonthOptions } from '~/utils/reporting-costs.mjs'
 import { COSTS_READ, costAIShareNote, costCoverageRows, costEmptySources, costListTotal, costMoney, costMonthOf, costPartKey, costPieSlices, costSecondCell, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
 
@@ -158,7 +158,7 @@ const view = ref<CostMonth | null>(null)
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const forbiddenPerm = ref(COSTS_READ)
 const session = useSessionStore()
-const operator = useOperatorPane()
+const reader = useOperatorReader()
 /* the reader's pick; the hub converts by the session's, the mock is handed it */
 const pick = computed(() => String(session.claims?.second_currency || ''))
 

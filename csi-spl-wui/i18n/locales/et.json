@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Laadin aktiivseid radu…",
-      "forbidden": "Laevastiku radu näeb ainult operaatori tööruumi administraator.",
+      "forbidden": "Laevastiku radu näeb ainult operaatori tööruumi administraator või tooteomanik.",
       "error": "Aktiivsete radade laadimine ebaõnnestus.",
       "empty": "Aktiivseid radu pole",
       "stale_red": "Andmed on aegunud: jaotur pole kättesaadav",
@@ -3641,7 +3641,7 @@
       "issues": "Probleemide aruanne tuleb peagi.",
       "posts": "Postituste aruanne tuleb peagi.",
       "lanes": "Radade aruanne tuleb peagi.",
-      "operators_only": "See aruanne on ainult operaatori administraatoritele."
+      "operators_only": "See aruanne on ainult operaatori administraatoritele ja tooteomanikele."
     },
     "costs": {
       "pages_label": "Kulude lehed",
@@ -4055,7 +4055,7 @@
       "err_period": "Vali kuu.",
       "err_note": "Märkus on liiga pikk: kuni 2000 tähemärki."
     },
-    "operators_only": "Kulud on ainult operaatori administraatoritele.",
+    "operators_only": "Kulud on ainult operaatori administraatoritele ja tooteomanikele.",
     "tokens_link": "Makstud tellimused ja laadimised sisestatakse jaotises Kulud → Tehisintellekti kulud."
   }
 }

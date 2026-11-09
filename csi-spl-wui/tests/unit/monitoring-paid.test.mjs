@@ -226,7 +226,7 @@ describe('monitoring-paid: the page wiring', () => {
   it('Expenses -> AI costs loads the Paid card as its own chunk, wrapped off a bare v-if (SPL-4382)', () => {
     const page = src('src/pages/expenses/[[tab]].vue')
     assert.match(page, /defineAsyncComponent\(\(\) => import\('~\/components\/monitoring\/token-burn\/PaidItemsCard\.vue'\)\)/)
-    assert.match(page, /<div class="tk-lazy"><PaidItemsCard \/><\/div>/)
+    assert.match(page, /<div class="tk-lazy"><PaidItemsCard :readonly="!operator\.visible" \/><\/div>/)
     assert.doesNotMatch(page, /^import PaidItemsCard/m)
   })
 

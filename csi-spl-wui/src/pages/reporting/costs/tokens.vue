@@ -10,7 +10,7 @@
 <template>
   <section class="costs-tokens" data-test="costs-tokens">
     <h3>{{ t('reporting.costs.tokens.title') }}</h3>
-    <div v-if="operator.visible" class="costs-tokens-slot"><TokensCostsCard /></div>
+    <div v-if="reader" class="costs-tokens-slot"><TokensCostsCard /></div>
 
     <p v-if="state === 'loading'" class="muted" data-test="costs-tokens-loading">{{ t('monitoring.costs.loading') }}</p>
     <p v-else-if="state === 'forbidden'" class="tokens-error" data-test="costs-forbidden">{{ t('monitoring.costs.forbidden', { perm: COSTS_READ }) }}</p>
@@ -48,9 +48,9 @@
 </template>
 
 <script setup lang="ts">
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
-import { useOperatorPane } from '~/stores/operator-pane'
 import { costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions } from '~/utils/reporting-costs.mjs'
 import { COSTS_READ, costMoney, costMonthOf, costPartKey, costUnits } from '~/utils/tenant-costs.mjs'
 import { sectionAmount, tokenParts } from '~/utils/costs-sections.mjs'
@@ -63,7 +63,7 @@ type CostsApi = { getTenantCosts: (month?: string, secondCurrency?: string) => P
 const { t, te, locale } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const session = useSessionStore()
-const operator = useOperatorPane()
+const reader = useOperatorReader()
 const pick = computed(() => String(session.claims?.second_currency || ''))
 const current = costsMonthOptions(new Date())[0]
 const month = computed(() => { const m = costsMonth(route.query.month); return m === current ? '' : m })

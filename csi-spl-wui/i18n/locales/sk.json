@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Načítavajú sa aktívne linky…",
-      "forbidden": "Linky flotily vidí iba správca pracovného priestoru operátora.",
+      "forbidden": "Linky flotily vidí iba správca alebo vlastník produktu pracovného priestoru operátora.",
       "error": "Aktívne linky sa nepodarilo načítať.",
       "empty": "Žiadne aktívne linky",
       "stale_red": "Zastarané údaje: hub je nedostupný",
@@ -3641,7 +3641,7 @@
       "issues": "Prehľad úloh už čoskoro.",
       "posts": "Prehľad príspevkov už čoskoro.",
       "lanes": "Prehľad liniek už čoskoro.",
-      "operators_only": "Tento prehľad je len pre administrátorov operátora."
+      "operators_only": "Tento prehľad je len pre administrátorov a vlastníkov produktu operátora."
     },
     "costs": {
       "pages_label": "Stránky nákladov",
@@ -4055,7 +4055,7 @@
       "err_period": "Vyberte mesiac.",
       "err_note": "Poznámka je príliš dlhá: najviac 2000 znakov."
     },
-    "operators_only": "Výdavky sú len pre administrátorov operátora.",
+    "operators_only": "Výdavky sú len pre administrátorov a vlastníkov produktu operátora.",
     "tokens_link": "Zaplatené predplatné a dobitia sa zadávajú v časti Výdavky → Náklady na AI."
   }
 }

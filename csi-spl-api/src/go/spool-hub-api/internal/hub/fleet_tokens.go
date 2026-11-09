@@ -63,7 +63,7 @@ func (s *Server) routeFleetTokens(mux *http.ServeMux) {
 
 // GET /v1/operator/fleet-tokens?window=&vendor=
 func (s *Server) handleFleetTokens(w http.ResponseWriter, r *http.Request) {
-	if _, _, _, ok := s.fleetLoadCaller(w, r); !ok {
+	if _, _, _, ok := s.operatorReadCaller(w, r); !ok {
 		return
 	}
 	ft, ok := s.o.Store.(store.FleetTokenStore)

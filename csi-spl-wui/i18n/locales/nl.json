@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Actieve banen laden…",
-      "forbidden": "Alleen een beheerder van de operatorwerkruimte ziet de banen van de vloot.",
+      "forbidden": "Alleen een beheerder of producteigenaar van de operatorwerkruimte ziet de banen van de vloot.",
       "error": "De actieve banen konden niet worden geladen.",
       "empty": "Geen actieve banen",
       "stale_red": "Verouderde gegevens: hub onbereikbaar",
@@ -3641,7 +3641,7 @@
       "issues": "Het kwestierapport komt binnenkort.",
       "posts": "Het berichtenrapport komt binnenkort.",
       "lanes": "Het banenrapport komt binnenkort.",
-      "operators_only": "Dit rapport is alleen voor beheerders van de operator."
+      "operators_only": "Dit rapport is alleen voor beheerders en producteigenaren van de operator."
     },
     "costs": {
       "pages_label": "Kostenpagina's",
@@ -4055,7 +4055,7 @@
       "err_period": "Kies een maand.",
       "err_note": "De notitie is te lang: maximaal 2000 tekens."
     },
-    "operators_only": "Uitgaven zijn alleen voor beheerders van de operator.",
+    "operators_only": "Uitgaven zijn alleen voor beheerders en producteigenaren van de operator.",
     "tokens_link": "Betaalde abonnementen en opwaarderingen voer je in onder Uitgaven → AI-kosten."
   }
 }

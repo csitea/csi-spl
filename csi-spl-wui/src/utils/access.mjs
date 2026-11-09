@@ -45,7 +45,19 @@ export function normalizeMe(body) {
     actAs: normalizeActAs(b.act_as),
     topicArchivePolicy: archivePolicyOf(b.topic_archive_policy),
     operatorAdmin: typeof b.operator_admin === 'boolean' ? b.operator_admin : null,
+    operatorReader: typeof b.operator_reader === 'boolean' ? b.operator_reader : null,
   }
+}
+
+/**
+ * SPL-5181: whether the reader sees the operator's costs, expenses and lanes:
+ * the hub's operator_reader, or `operatorVisible` (the console's probe) when
+ * it was not sent.
+ * @param {{ operatorReader?: boolean | null } | null | undefined} me normalizeMe() output
+ * @param {boolean} operatorVisible
+ */
+export function operatorReads(me, operatorVisible) {
+  return me?.operatorReader ?? operatorVisible === true
 }
 
 /**

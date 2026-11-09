@@ -10,7 +10,8 @@
      its own topics from GET /v1/view/lanes: the page asks the fleet route
      while the operator console shows (or is not known yet) and, once it
      answers 403, the workspace route for the rest of the page's life. The
-     tab shows to those two alone (utils/monitoring-tabs.mjs); anyone else
+     tab shows to those two and to the operator workspace's product owner, who
+     reads the fleet route (SPL-5181; utils/monitoring-tabs.mjs); anyone else
      reaching the URL sees the hub's 403 as a sentence, never a table.
      Refresh (P4): every 60 s while the browser tab is visible (a hidden tab
      makes no call; it catches up when shown), plus a Refresh button, with
@@ -200,7 +201,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useOperatorPane } from '~/stores/operator-pane'
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import { useAccessStore } from '~/stores/access'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
@@ -214,7 +215,7 @@ type LanesView = ReturnType<typeof fleetLanesOf>
 
 const DASH = '—'
 const { t } = useI18n({ useScope: 'global' })
-const operator = useOperatorPane()
+const operatorReader = useOperatorReader()
 const route = useRoute()
 /* SPL-4798: a row's ids as links, on the host of the workspace they belong to */
 const { pageTenant, linkOf } = useLaneLinks()
@@ -319,10 +320,10 @@ async function load() {
   busy.value = true
   try {
     const api = useSpoolApi() as unknown as LanesApi
-    lanesRead.operatorVisible = operator.visible
     /* SPL-4453: /v1/view/me picks the read; a member sends none and gets the line */
     const plan = lanesReadPlan(await gateMe(access))
     if (mine !== seq) return
+    lanesRead.operatorVisible = operatorReader.value
     if (plan === 'none') {
       view.value = null
       state.value = 'forbidden'

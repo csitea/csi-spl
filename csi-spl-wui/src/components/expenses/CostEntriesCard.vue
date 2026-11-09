@@ -8,7 +8,7 @@
   <section v-if="state !== 'forbidden'" class="tk-section ce-card" :data-test="'expenses-' + type">
     <div class="ce-head">
       <h3>{{ t('expenses.tab.' + type) }}</h3>
-      <button v-if="!adding" type="button" class="btn" data-test="cost-add" @click="openForm()">{{ t('expenses.entries.add') }}</button>
+      <button v-if="!adding && !readonly" type="button" class="btn" data-test="cost-add" @click="openForm()">{{ t('expenses.entries.add') }}</button>
     </div>
     <p class="muted ce-intro">{{ t('expenses.entries.intro_' + type) }}</p>
     <p v-if="state === 'loading'" class="muted" data-test="cost-loading">{{ t('expenses.entries.loading') }}</p>
@@ -61,7 +61,7 @@
               <th scope="col" class="num">{{ t('expenses.entries.col_amount') }}</th>
               <th scope="col">{{ t('expenses.entries.col_period') }}</th>
               <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
-              <th scope="col"><span class="ce-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
+              <th v-if="!readonly" scope="col"><span class="ce-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -70,7 +70,7 @@
               <td class="num" :data-label="t('expenses.entries.col_amount')" data-test="cost-row-amount">{{ fmtMoney(e.amount, e.currency, locale) }}</td>
               <td :data-label="t('expenses.entries.col_period')" data-test="cost-row-period">{{ e.period }}</td>
               <td class="ce-text" :data-label="t('monitoring.tokens.paid.col_note')">{{ e.note }}</td>
-              <td class="ce-row-actions">
+              <td v-if="!readonly" class="ce-row-actions">
                 <template v-if="confirming === e.id">
                   <span>{{ t('expenses.entries.confirm_delete') }}</span>
                   <button type="button" class="btn danger" :disabled="busy" data-test="cost-delete-yes" @click="remove(e.id)">{{ t('monitoring.tokens.paid.delete') }}</button>
@@ -92,7 +92,8 @@ import { fmtMoney } from '~/utils/monitoring-tokens.mjs'
 import { paidCurrencies } from '~/utils/monitoring-paid.mjs'
 import { checkCostEntryForm, costEntriesOf, costEntryBody, emptyCostEntryForm } from '~/utils/cost-entries.mjs'
 
-const props = defineProps<{ type: 'cloud' | 'hr' }>()
+/* readonly (SPL-5181): the operator's product owner reads the list, no add or delete */
+const props = defineProps<{ type: 'cloud' | 'hr', readonly?: boolean }>()
 /* the lazy client's one paid method (spool-client-lazy.mjs fleetPaid): no new stub in the initial chunk */
 type CostApi = {
   fleetPaid: (op: 'entries' | 'entry_create' | 'entry_delete', a?: unknown) => Promise<unknown>

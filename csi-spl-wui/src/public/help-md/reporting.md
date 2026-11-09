@@ -32,17 +32,17 @@ may open it:
 | Page | Address | Who sees it | Description |
 |---|---|---|---|
 | **Spend** | `/reporting/costs/spend` | everyone who sees Costs | The month's costs: a breakdown table and a pie chart (below). Hand-entered hr costs are not in it; they are on Human. |
-| **Cloud** | `/reporting/costs/cloud` | admins of the operator workspace | The month's cloud costs: one row per GCP project, then a project's services, then a service per day. The month's hand-entered cloud costs (for example an invoice) are listed with the projects, without the drill-down. |
-| **AI tokens** | `/reporting/costs/tokens` | everyone who sees Costs | The month's AI token costs: the tokens, what was paid in the header's currency, and the list price beside it. Admins of the operator workspace also see today's live fleet tokens. |
-| **Human** | `/reporting/costs/human` | everyone who sees Costs | Admins of the operator workspace see the month's hand-entered hr costs: one row per entry in the header's currency, with the amount as entered, and a total. Any other reader, or a month without hr entries, sees "Not tracked yet". |
-| **Price per token** | `/reporting/costs/price` | admins of the operator workspace | Coming in a later step. |
+| **Cloud** | `/reporting/costs/cloud` | admins and product owners of the operator workspace | The month's cloud costs: one row per GCP project, then a project's services, then a service per day. The month's hand-entered cloud costs (for example an invoice) are listed with the projects, without the drill-down. |
+| **AI tokens** | `/reporting/costs/tokens` | everyone who sees Costs | The month's AI token costs: the tokens, what was paid in the header's currency, and the list price beside it. Admins and product owners of the operator workspace also see today's live fleet tokens. |
+| **Human** | `/reporting/costs/human` | everyone who sees Costs | Admins and product owners of the operator workspace see the month's hand-entered hr costs: one row per entry in the header's currency, with the amount as entered, and a total. Any other reader, or a month without hr entries, sees "Not tracked yet". |
+| **Price per token** | `/reporting/costs/price` | admins and product owners of the operator workspace | Coming in a later step. |
 
 Costs only reports. The costs themselves are entered in the **Expenses**
 section of the left rail (see [Expenses](./expenses.md)): the paid
 subscriptions and top-ups under its **AI costs** tab.
 
 Opening a page you may not see by its address shows "This report is for
-operator admins only." in place of its content.
+operator admins and product owners only." in place of its content.
 
 On Cloud and Human, an entry with no exchange rate to USD shows a dash, and
 the total says how many entries it leaves out.

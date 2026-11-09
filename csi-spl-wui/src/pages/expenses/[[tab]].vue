@@ -7,8 +7,9 @@
      tab. One route, /expenses/:tab?, so the entry chunk carries one router
      record, not four (ci_initial_gzip_kb sits on its ceiling); each tab's card
      is its own chunk, the wrappers keep the async components off a bare v-if.
-     The bar reuses the Reporting bar's look. Operator admins only (hiding only,
-     the hub's 403 is the control); /expenses itself, or a tab that does not
+     The bar reuses the Reporting bar's look. The operator workspace's admins,
+     and read only its product owners (SPL-5181; hiding only, the hub's 403 is
+     the control); /expenses itself, or a tab that does not
      exist, lands on AI costs, in the browser only. -->
 <template>
   <div class="feed-col expenses-page" data-test="expenses-page">
@@ -32,17 +33,18 @@
       <SectionClose side="end" />
     </header>
     <div class="feed-body expenses-body">
-      <p v-if="!operator.visible" class="muted" data-test="expenses-operators-only">{{ t('expenses.operators_only') }}</p>
+      <p v-if="!reader" class="muted" data-test="expenses-operators-only">{{ t('expenses.operators_only') }}</p>
       <section v-else-if="active === 'ai'" data-test="expenses-ai">
-        <div class="tk-lazy"><PaidItemsCard /></div>
+        <div class="tk-lazy"><PaidItemsCard :readonly="!operator.visible" /></div>
       </section>
-      <div v-else-if="entryType" class="tk-lazy"><CostEntriesCard :key="entryType" :type="entryType" /></div>
+      <div v-else-if="entryType" class="tk-lazy"><CostEntriesCard :key="entryType" :type="entryType" :readonly="!operator.visible" /></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useOperatorPane } from '~/stores/operator-pane'
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import { EXPENSES_DEFAULT_PATH, expensesTabFor, visibleExpensesTabs } from '~/utils/expenses-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
@@ -50,8 +52,9 @@ const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const localePath = useLocalePath()
 const operator = useOperatorPane()
+const reader = useOperatorReader()
 
-const tabs = computed(() => visibleExpensesTabs({ operator: operator.visible }))
+const tabs = computed(() => visibleExpensesTabs({ operator: reader.value }))
 const active = computed(() => expensesTabFor(route.path))
 const entryType = computed(() => (active.value === 'cloud' || active.value === 'hr' ? active.value : null))
 const PaidItemsCard = defineAsyncComponent(() => import('~/components/monitoring/token-burn/PaidItemsCard.vue'))

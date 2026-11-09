@@ -46,9 +46,9 @@
 </template>
 
 <script setup lang="ts">
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
-import { useOperatorPane } from '~/stores/operator-pane'
 import { costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions } from '~/utils/reporting-costs.mjs'
 import { costMoney, costMonthOf } from '~/utils/tenant-costs.mjs'
 import { HUMAN_ROWS, cloudTotal, humanEntries, sectionAmount } from '~/utils/costs-sections.mjs'
@@ -59,7 +59,7 @@ type Money = { usdMicros: number, eurMicros: number, secondMicros: number | null
 const { t, locale } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const session = useSessionStore()
-const operator = useOperatorPane()
+const reader = useOperatorReader()
 const pick = computed(() => String(session.claims?.second_currency || ''))
 const current = costsMonthOptions(new Date())[0]
 const month = computed(() => { const m = costsMonth(route.query.month); return m === current ? '' : m })
@@ -100,7 +100,7 @@ async function load() {
 }
 
 onMounted(() => {
-  watch(() => [operator.visible, month.value, pick.value], () => { if (operator.visible) void load() }, { immediate: true })
+  watch(() => [reader.value, month.value, pick.value], () => { if (reader.value) void load() }, { immediate: true })
 })
 </script>
 

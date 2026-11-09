@@ -4,14 +4,14 @@
 <template>
   <section class="costs-shell" data-test="costs-shell-price">
     <h3>{{ t('reporting.costs.page.price') }}</h3>
-    <p v-if="operator.visible" class="muted" data-test="costs-shell-coming">{{ t('reporting.costs.coming') }}</p>
+    <p v-if="reader" class="muted" data-test="costs-shell-coming">{{ t('reporting.costs.coming') }}</p>
     <p v-else class="muted" data-test="reporting-operators-only">{{ t('reporting.future.operators_only') }}</p>
   </section>
 </template>
 
 <script setup lang="ts">
-import { useOperatorPane } from '~/stores/operator-pane'
+import { useOperatorReader } from '~/composables/useOperatorReader'
 
 const { t } = useI18n({ useScope: 'global' })
-const operator = useOperatorPane()
+const reader = useOperatorReader()
 </script>

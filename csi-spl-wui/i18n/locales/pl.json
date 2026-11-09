@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Wczytywanie aktywnych linii…",
-      "forbidden": "Linie floty widzi tylko administrator przestrzeni roboczej operatora.",
+      "forbidden": "Linie floty widzi tylko administrator lub właściciel produktu przestrzeni roboczej operatora.",
       "error": "Nie udało się wczytać aktywnych linii.",
       "empty": "Brak aktywnych linii",
       "stale_red": "Nieaktualne dane: hub nieosiągalny",
@@ -3641,7 +3641,7 @@
       "issues": "Raport zgłoszeń już wkrótce.",
       "posts": "Raport postów już wkrótce.",
       "lanes": "Raport linii już wkrótce.",
-      "operators_only": "Ten raport jest tylko dla administratorów operatora."
+      "operators_only": "Ten raport jest tylko dla administratorów i właścicieli produktu operatora."
     },
     "costs": {
       "pages_label": "Strony kosztów",
@@ -4055,7 +4055,7 @@
       "err_period": "Wybierz miesiąc.",
       "err_note": "Notatka jest za długa: maksymalnie 2000 znaków."
     },
-    "operators_only": "Wydatki są tylko dla administratorów operatora.",
+    "operators_only": "Wydatki są tylko dla administratorów i właścicieli produktu operatora.",
     "tokens_link": "Opłacone subskrypcje i doładowania wprowadza się w Wydatki → Koszty AI."
   }
 }

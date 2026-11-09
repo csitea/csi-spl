@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Ladataan aktiivisia kaistoja…",
-      "forbidden": "Vain operaattorityötilan ylläpitäjä näkee laivaston kaistat.",
+      "forbidden": "Vain operaattorityötilan ylläpitäjä tai tuoteomistaja näkee laivaston kaistat.",
       "error": "Aktiivisia kaistoja ei voitu ladata.",
       "empty": "Ei aktiivisia kaistoja",
       "stale_red": "Vanhentunutta tietoa: keskus ei vastaa",
@@ -3641,7 +3641,7 @@
       "issues": "Asiaraportti on tulossa pian.",
       "posts": "Viestiraportti on tulossa pian.",
       "lanes": "Kaistaraportti on tulossa pian.",
-      "operators_only": "Tämä raportti on vain operaattorin ylläpitäjille."
+      "operators_only": "Tämä raportti on vain operaattorin ylläpitäjille ja tuoteomistajille."
     },
     "costs": {
       "pages_label": "Kulusivut",
@@ -4055,7 +4055,7 @@
       "err_period": "Valitse kuukausi.",
       "err_note": "Huomautus on liian pitkä: enintään 2000 merkkiä."
     },
-    "operators_only": "Kulut ovat vain operaattorin ylläpitäjille.",
+    "operators_only": "Kulut ovat vain operaattorin ylläpitäjille ja tuoteomistajille.",
     "tokens_link": "Maksetut tilaukset ja lisäostot kirjataan kohdassa Kulut → Tekoälykulut."
   }
 }

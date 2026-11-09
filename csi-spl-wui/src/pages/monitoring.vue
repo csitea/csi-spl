@@ -48,6 +48,7 @@
 <script setup lang="ts">
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useAccessStore } from '~/stores/access'
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import { MONITORING_DEFAULT_PATH, monitoringStaff, monitoringTabFor, visibleMonitoringTabs } from '~/utils/monitoring-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
@@ -59,7 +60,8 @@ const access = useAccessStore()
 /* a permission tab (one naming a `perm`) shows once /v1/view/me answered;
    access.can fails open (no answer = unrestricted), the hub's 403 is the control */
 const meRead = ref(false)
-const tabs = computed(() => visibleMonitoringTabs({ operator: operator.visible, staff: monitoringStaff(access.me), can: meRead.value ? access.can : undefined }))
+const operatorReader = useOperatorReader()
+const tabs = computed(() => visibleMonitoringTabs({ operator: operator.visible, staff: monitoringStaff(access.me), operatorReader: operatorReader.value, can: meRead.value ? access.can : undefined }))
 const active = computed(() => monitoringTabFor(route.path))
 
 /* 3.16 (SPL-4730): on a phone the bar shares its row with the tab's

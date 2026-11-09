@@ -1452,7 +1452,8 @@ declare module '~/utils/access.mjs' {
   export function archivePolicyOf(v: unknown): string
   export type ActAs = { targetHum: string, targetName: string, expiresAt: string }
   export function normalizeActAs(a: unknown): ActAs | null
-  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null, topicArchivePolicy: string, operatorAdmin: boolean | null }
+  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null, operatorReader: boolean | null, topicArchivePolicy: string, operatorAdmin: boolean | null }
+  export function operatorReads(me: { operatorReader?: boolean | null } | null | undefined, operatorVisible: boolean): boolean
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
   export function ownerAllows(me: { permissions: string[] | null, tenantOwner?: boolean } | null | undefined): boolean
   export function canRemoveMember(

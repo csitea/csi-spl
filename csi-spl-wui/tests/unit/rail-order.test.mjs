@@ -305,7 +305,7 @@ describe('spec 155: the Notes rail tab, on as shipped (msg b75fb3d3), and the on
     assert.equal(saved.length, 15)
     assert.equal(saved.at(-1), 'archive')
     /* CONTROL: the shipped composable passes the operator probe, so a rail drawn without it fails here */
-    assert.match(read('src/composables/useRailOrder.ts'), /railOrderDrawn\([^\n]*, operator\.visible\)/)
+    assert.match(read('src/composables/useRailOrder.ts'), /railOrderDrawn\([^\n]*, operatorReader\.value\)/)
   })
   it('section 6: notes_off draws no Notes; the order is untouched and a save gets it back', () => {
     const stored = ['channels', 'dm', 'issues', 'flow', 'calendar', 'notes', 'people', 'monitoring', 'reporting', 'archive']

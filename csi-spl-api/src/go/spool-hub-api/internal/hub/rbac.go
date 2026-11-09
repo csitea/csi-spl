@@ -146,6 +146,9 @@ type meBody struct {
 	// instead of probing it into a 403 (SPL-4451). Only an admin pays the
 	// cached operator lookup (TestRoundTripsPerRequest).
 	OperatorAdmin bool `json:"operator_admin"`
+	// OperatorReader is true when the caller reads the operator's costs,
+	// expenses and lanes (operator_read.go, SPL-5181): the WUI's signal.
+	OperatorReader bool `json:"operator_reader"`
 }
 
 // operatorAdminOf is operatorActor's rule as a flag: a's role is admin and
@@ -192,6 +195,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 				out.ActAs = s.actAsMe(r.Context(), t.ID, hum)
 			}
 		}
+		out.OperatorReader = s.operatorReaderOf(r.Context(), t.ID, a, out.ActAs != nil)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

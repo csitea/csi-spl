@@ -4,7 +4,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAddToNote } from '~/composables/useAddToNote'
-import { useOperatorPane } from '~/stores/operator-pane'
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import { perfWhenIdle } from '~/utils/perf-idle.mjs'
 import { applyRailOrder, parseRailOrder, pinRailOrder, railOrderDrawn, type RailId } from '~/utils/rail-order'
 
@@ -12,8 +12,8 @@ export function useRailOrder() {
   const session = useSessionStore()
   const auth = useAuthClient()
   const notes = useAddToNote()
-  const operator = useOperatorPane()
-  const order = computed<RailId[]>(() => railOrderDrawn(parseRailOrder(session.claims?.rail_order), notes.offered.value, operator.visible))
+  const operatorReader = useOperatorReader()
+  const order = computed<RailId[]>(() => railOrderDrawn(parseRailOrder(session.claims?.rail_order), notes.offered.value, operatorReader.value))
   const custom = computed(() => Array.isArray(session.claims?.rail_order) && session.claims.rail_order.length > 0)
   const saving = ref(false)
 

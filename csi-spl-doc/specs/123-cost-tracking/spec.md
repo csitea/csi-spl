@@ -704,3 +704,26 @@ page and e2e file in the same batch (R1).
   row waits for an owner answer any more: P01, P04 and P05 are unblocked
   by these answers (P05 still waits for the three-sections build, P02 for
   107 T071..T072).
+
+## 14. The operator's product owner reads the estate (SPL-5181)
+
+Owner HUM-10, t1 8426e63e, msg b17ead41: "The product owner should be able to
+see all of the expenses and costs, which are visible to the admin as well.";
+msg 573da484: "It should also be able to see the expenses tab."; t1 36406a93,
+msg 97bab339: "The product owner should also be able to see the lanes."
+
+This replaces the rule of t1 f3ed0eed msg 96d69790 (the estate is the operator
+admin's only), wherever this spec says the operator admin reads the estate.
+
+- One gate, `internal/hub/operator_read.go`: the operator workspace's admin or
+  product owner, never a live act-as clone. It serves the estate month, the
+  cloud days, and `GET /v1/operator/` `cost-entries`, `fleet-tokens`,
+  `fleet-tokens/paid`, `fleet-tokens/effective` and `fleet-lanes`.
+  `/v1/view/me` says it as `operator_reader`; the WUI reads that flag.
+- Read only: every POST, PATCH and DELETE stays on `fleetLoadCaller`, and the
+  WUI draws the product owner no add, edit or delete.
+- An act-as clone of the operator admin is refused these reads too; its writes
+  and every other operator route are unchanged.
+- Unchanged: `fleetLoadCaller`, `monitoringStaff`, the lane console, the Topics
+  tab, Finance and Incomes.
+

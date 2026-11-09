@@ -81,7 +81,9 @@ export function permReadable(me, perm) {
  * @returns {'fleet' | 'own' | 'none'}
  */
 export function lanesReadPlan(me) {
-  if (operatorReadable(me)) return 'fleet'
+  /* SPL-5181: the hub's own word when sent: its readers include a product owner, not an act-as clone */
+  if (me?.operatorReader === true) return 'fleet'
+  if (me?.operatorReader !== false && operatorReadable(me)) return 'fleet'
   return staffReadable(me) ? 'own' : 'none'
 }
 

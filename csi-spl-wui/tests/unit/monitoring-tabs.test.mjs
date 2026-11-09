@@ -83,7 +83,7 @@ describe('monitoring tabs', () => {
   })
   it('Lanes (spec 153 3.2, SPL-3215, C15-C16) is ready; operator admins and, since row B6, a workspace\'s staff', () => {
     const lanes = MONITORING_TABS.find((t) => t.id === 'lanes')
-    assert.deepEqual({ ...lanes }, { id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, ready: true })
+    assert.deepEqual({ ...lanes }, { id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, operatorReader: true, ready: true })
     /* C16 CONTROL: not an operator admin nor staff, or not known yet, never sees it, costs.read or not */
     for (const who of [undefined, { operator: false }, { operator: false, can: () => true }, { operator: false, staff: false }]) {
       assert.ok(!visibleMonitoringTabs(who).some((t) => t.id === 'lanes'), JSON.stringify(who))

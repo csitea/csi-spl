@@ -219,7 +219,7 @@ describe('monitoring tokens: the mock and the wiring', () => {
     assert.match(page, /TOKENS_POLL_MS/)
     const costs = read('src/pages/reporting/costs/spend.vue')
     assert.match(costs, /defineAsyncComponent\(\(\) => import\('@\/components\/monitoring\/token-burn\/TokensCostsCard\.vue'\)\)/, 'the costs card is its own chunk')
-    assert.match(costs, /v-if="operator\.visible"/, 'the costs card is for operator admins only')
+    assert.match(costs, /v-if="reader"/, 'the costs card is for the operator admin and product owner only')
     assert.match(read('src/utils/spool-client-lazy.mjs'), /live\('\/v1\/operator\/fleet-tokens' \+ mt\.tokensQuery\(window\)\)/)
   })
 })

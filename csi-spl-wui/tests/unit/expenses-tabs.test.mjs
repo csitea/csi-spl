@@ -36,7 +36,7 @@ async function renderPage(operator) {
   const template = s.slice(s.indexOf('<template>') + 10, s.lastIndexOf('</template>'))
   const code = compile(template, { mode: 'function', prefixIdentifiers: false }).code
   const fn = new Function('Vue', code)(Vue)
-  const ctx = { t, localePath: (p) => p, operator: { visible: operator }, tabs: visibleExpensesTabs({ operator }), active: 'ai' }
+  const ctx = { t, localePath: (p) => p, operator: { visible: operator }, reader: operator, tabs: visibleExpensesTabs({ operator }), active: 'ai' }
   const scope = new Proxy({}, {
     has: (_, k) => typeof k === 'string' && !k.startsWith('_') && !(k in globalThis),
     get: (_, k) => (k in ctx ? ctx[k] : undefined),
@@ -85,8 +85,8 @@ describe('the tabs: one per cost type (owner msg 50d84663: "at least 3 different
   })
   it('AI costs holds the paid subscriptions and top-ups (the Paid card); Cloud and HR the cost entries, each card its own chunk', () => {
     const page = read('src/pages/expenses/[[tab]].vue')
-    assert.match(page, /<div class="tk-lazy"><PaidItemsCard \/><\/div>/)
-    assert.match(page, /<div v-else-if="entryType" class="tk-lazy"><CostEntriesCard :key="entryType" :type="entryType" \/><\/div>/)
+    assert.match(page, /<div class="tk-lazy"><PaidItemsCard :readonly="!operator\.visible" \/><\/div>/)
+    assert.match(page, /<div v-else-if="entryType" class="tk-lazy"><CostEntriesCard :key="entryType" :type="entryType" :readonly="!operator\.visible" \/><\/div>/)
     assert.match(page, /defineAsyncComponent\(\(\) => import\('~\/components\/expenses\/CostEntriesCard\.vue'\)\)/)
   })
   it('operator admins only, as the Paid card was; anyone else sees no tab', () => {

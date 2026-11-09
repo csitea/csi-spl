@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Cargando las líneas activas…",
-      "forbidden": "Solo un administrador del espacio de trabajo del operador ve las líneas de la flota.",
+      "forbidden": "Solo un administrador o un propietario de producto del espacio de trabajo del operador ve las líneas de la flota.",
       "error": "No se pudieron cargar las líneas activas.",
       "empty": "No hay líneas activas",
       "stale_red": "Datos obsoletos: hub inaccesible",
@@ -3641,7 +3641,7 @@
       "issues": "El informe de incidencias llegará pronto.",
       "posts": "El informe de publicaciones llegará pronto.",
       "lanes": "El informe de líneas llegará pronto.",
-      "operators_only": "Este informe es solo para administradores del operador."
+      "operators_only": "Este informe es solo para administradores y propietarios de producto del operador."
     },
     "costs": {
       "pages_label": "Páginas de costes",
@@ -4055,7 +4055,7 @@
       "err_period": "Elige un mes.",
       "err_note": "La nota es demasiado larga: 2000 caracteres como máximo."
     },
-    "operators_only": "Los gastos son solo para administradores del operador.",
+    "operators_only": "Los gastos son solo para administradores y propietarios de producto del operador.",
     "tokens_link": "Las suscripciones y recargas pagadas se introducen en Gastos → Costes de IA."
   }
 }

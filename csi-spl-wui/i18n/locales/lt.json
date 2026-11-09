@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Įkeliamos aktyvios linijos…",
-      "forbidden": "Laivyno linijas mato tik operatoriaus darbo srities administratorius.",
+      "forbidden": "Laivyno linijas mato tik operatoriaus darbo srities administratorius arba produkto savininkas.",
       "error": "Nepavyko įkelti aktyvių linijų.",
       "empty": "Aktyvių linijų nėra",
       "stale_red": "Pasenę duomenys: centras nepasiekiamas",
@@ -3641,7 +3641,7 @@
       "issues": "Problemų ataskaita netrukus.",
       "posts": "Įrašų ataskaita netrukus.",
       "lanes": "Linijų ataskaita netrukus.",
-      "operators_only": "Ši ataskaita skirta tik operatoriaus administratoriams."
+      "operators_only": "Ši ataskaita skirta tik operatoriaus administratoriams ir produkto savininkams."
     },
     "costs": {
       "pages_label": "Išlaidų puslapiai",
@@ -4055,7 +4055,7 @@
       "err_period": "Pasirinkite mėnesį.",
       "err_note": "Pastaba per ilga: ne daugiau kaip 2000 simbolių."
     },
-    "operators_only": "Išlaidos skirtos tik operatoriaus administratoriams.",
+    "operators_only": "Išlaidos skirtos tik operatoriaus administratoriams ir produkto savininkams.",
     "tokens_link": "Apmokėtos prenumeratos ir papildymai įvedami skiltyje Išlaidos → DI išlaidos."
   }
 }

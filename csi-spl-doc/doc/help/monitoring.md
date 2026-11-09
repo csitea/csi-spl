@@ -25,6 +25,9 @@ Opening `/monitoring` on its own goes to the Agents tab.
 More tabs come later (capacity, open asks, CI and deploys, alerts). The fleet
 tabs among them show only to admins of the operator workspace.
 
+The operator workspace's product owners also see **Lanes**, read only, with the
+rows its admins read.
+
 <a id="ws-doc-b77b523b-f4d5-4077-bf67-a2d04b70b52c"></a>
 ## Boxes: system facts and allocation
 

@@ -58,9 +58,9 @@ func (s *Server) routeFleetPaid(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/operator/fleet-tokens/effective", s.operatorWorkspacesPreflight)
 }
 
-// fleetPaidCaller is fleetLoadCaller plus the store; who called, false = answered.
-func (s *Server) fleetPaidCaller(w http.ResponseWriter, r *http.Request) (store.FleetPaidStore, string, bool) {
-	_, _, who, ok := s.fleetLoadCaller(w, r)
+// fleetPaidCaller is the gate plus the store; who called, false = answered.
+func (s *Server) fleetPaidCaller(w http.ResponseWriter, r *http.Request, gate opCallerGate) (store.FleetPaidStore, string, bool) {
+	_, _, who, ok := gate(w, r)
 	if !ok {
 		return nil, "", false
 	}
@@ -73,7 +73,7 @@ func (s *Server) fleetPaidCaller(w http.ResponseWriter, r *http.Request) (store.
 }
 
 func (s *Server) handleFleetPaidList(w http.ResponseWriter, r *http.Request) {
-	fp, _, ok := s.fleetPaidCaller(w, r)
+	fp, _, ok := s.fleetPaidCaller(w, r, s.operatorReadCaller)
 	if !ok {
 		return
 	}
@@ -135,7 +135,7 @@ func (s *Server) knownCurrency(w http.ResponseWriter, r *http.Request, c string)
 }
 
 func (s *Server) handleFleetPaidCreate(w http.ResponseWriter, r *http.Request) {
-	fp, who, ok := s.fleetPaidCaller(w, r)
+	fp, who, ok := s.fleetPaidCaller(w, r, s.fleetLoadCaller)
 	if !ok {
 		return
 	}
@@ -174,7 +174,7 @@ func (s *Server) fleetPaidByID(w http.ResponseWriter, r *http.Request, fp store.
 }
 
 func (s *Server) handleFleetPaidUpdate(w http.ResponseWriter, r *http.Request) {
-	fp, who, ok := s.fleetPaidCaller(w, r)
+	fp, who, ok := s.fleetPaidCaller(w, r, s.fleetLoadCaller)
 	if !ok {
 		return
 	}
@@ -204,7 +204,7 @@ func (s *Server) handleFleetPaidUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFleetPaidDelete(w http.ResponseWriter, r *http.Request) {
-	fp, who, ok := s.fleetPaidCaller(w, r)
+	fp, who, ok := s.fleetPaidCaller(w, r, s.fleetLoadCaller)
 	if !ok {
 		return
 	}
@@ -225,7 +225,7 @@ func (s *Server) handleFleetPaidDelete(w http.ResponseWriter, r *http.Request) {
 
 // GET /v1/operator/fleet-tokens/effective?from=&to=
 func (s *Server) handleFleetPaidEffective(w http.ResponseWriter, r *http.Request) {
-	fp, _, ok := s.fleetPaidCaller(w, r)
+	fp, _, ok := s.fleetPaidCaller(w, r, s.operatorReadCaller)
 	if !ok {
 		return
 	}

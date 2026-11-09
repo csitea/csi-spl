@@ -12,7 +12,7 @@
   <section v-if="state !== 'forbidden'" class="tk-section pd-card" data-test="paid-card">
     <div class="pd-head">
       <h3>{{ t('monitoring.tokens.paid.title') }}</h3>
-      <button v-if="!form" type="button" class="btn" data-test="paid-add" @click="openForm(null)">{{ t('monitoring.tokens.paid.add') }}</button>
+      <button v-if="!form && !readonly" type="button" class="btn" data-test="paid-add" @click="openForm(null)">{{ t('monitoring.tokens.paid.add') }}</button>
     </div>
     <p class="muted pd-intro">{{ t('monitoring.tokens.paid.intro') }}</p>
     <p v-if="state === 'loading'" class="muted" data-test="paid-loading">{{ t('monitoring.tokens.paid.loading') }}</p>
@@ -37,7 +37,7 @@
               <th scope="col" class="num">{{ t('monitoring.tokens.paid.col_quantity') }}</th>
               <th scope="col">{{ t('monitoring.tokens.paid.col_period') }}</th>
               <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
-              <th scope="col"><span class="pd-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
+              <th v-if="!readonly" scope="col"><span class="pd-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -49,7 +49,7 @@
               <td class="num" :data-label="t('monitoring.tokens.paid.col_quantity')">{{ it.quantity }}</td>
               <td :data-label="t('monitoring.tokens.paid.col_period')" data-test="paid-item-period">{{ t('monitoring.tokens.paid.period', { start: it.periodStart, end: it.periodEnd }) }}</td>
               <td class="pd-note" :data-label="t('monitoring.tokens.paid.col_note')">{{ it.note }}</td>
-              <td class="pd-row-actions">
+              <td v-if="!readonly" class="pd-row-actions">
                 <template v-if="confirming === it.id">
                   <span>{{ t('monitoring.tokens.paid.confirm_delete') }}</span>
                   <button type="button" class="btn danger" :disabled="busy" data-test="paid-delete-yes" @click="remove(it.id)">{{ t('monitoring.tokens.paid.delete') }}</button>
@@ -71,6 +71,8 @@
 </template>
 
 <script setup lang="ts">
+/* readonly (SPL-5181): the operator's product owner reads the list, no add, edit or delete */
+defineProps<{ readonly?: boolean }>()
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { fmtMoney } from '~/utils/monitoring-tokens.mjs'
 import { emptyPaidForm, paidBody, paidCurrencies, paidEffectiveOf, paidFormOf, paidItemsOf, sortPaidItems } from '~/utils/monitoring-paid.mjs'

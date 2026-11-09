@@ -47,7 +47,7 @@ async function render(id, role, extra = {}) {
   const template = s.slice(s.indexOf('<template>') + 10, s.lastIndexOf('</template>'))
   const code = compile(template, { mode: 'function', prefixIdentifiers: false }).code
   const fn = new Function('Vue', code)(Vue)
-  const ctx = { t, localePath: (p) => p, operator: { visible: ROLES[role].operator }, ...extra }
+  const ctx = { t, localePath: (p) => p, operator: { visible: ROLES[role].operator }, reader: ROLES[role].operator, ...extra }
   const scope = new Proxy({}, {
     has: (_, k) => typeof k === 'string' && !k.startsWith('_') && !(k in globalThis),
     get: (_, k) => (k in ctx ? ctx[k] : undefined),

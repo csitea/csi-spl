@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Etkin hatlar yükleniyor…",
-      "forbidden": "Filonun hatlarını yalnızca operatör çalışma alanının yöneticisi görür.",
+      "forbidden": "Filonun hatlarını yalnızca operatör çalışma alanının yöneticisi veya ürün sahibi görür.",
       "error": "Etkin hatlar yüklenemedi.",
       "empty": "Etkin hat yok",
       "stale_red": "Veriler eski: merkeze ulaşılamıyor",
@@ -3641,7 +3641,7 @@
       "issues": "Konu raporu yakında geliyor.",
       "posts": "Gönderi raporu yakında geliyor.",
       "lanes": "Hat raporu yakında geliyor.",
-      "operators_only": "Bu rapor yalnızca operatör yöneticileri içindir."
+      "operators_only": "Bu rapor yalnızca operatör yöneticileri ve ürün sahipleri içindir."
     },
     "costs": {
       "pages_label": "Maliyet sayfaları",
@@ -4055,7 +4055,7 @@
       "err_period": "Bir ay seçin.",
       "err_note": "Not çok uzun: en fazla 2000 karakter."
     },
-    "operators_only": "Giderler yalnızca operatör yöneticileri içindir.",
+    "operators_only": "Giderler yalnızca operatör yöneticileri ve ürün sahipleri içindir.",
     "tokens_link": "Ödenen abonelikler ve yüklemeler Giderler → Yapay zekâ maliyetleri altında girilir."
   }
 }

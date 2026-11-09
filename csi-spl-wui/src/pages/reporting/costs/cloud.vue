@@ -16,7 +16,7 @@
 <template>
   <section class="costs-cloud" data-test="costs-cloud" :data-level="level">
     <h3>{{ t('reporting.costs.cloud.title') }}</h3>
-    <p v-if="!operator.visible" class="muted" data-test="reporting-operators-only">{{ t('reporting.future.operators_only') }}</p>
+    <p v-if="!reader" class="muted" data-test="reporting-operators-only">{{ t('reporting.future.operators_only') }}</p>
     <template v-else>
       <nav class="cloud-crumbs" :aria-label="t('reporting.costs.cloud.crumbs_label')" data-test="cloud-crumbs">
         <NuxtLink v-if="project" :to="levelTo('', '')" data-test="cloud-crumb-all">{{ t('reporting.costs.cloud.all_projects') }}</NuxtLink>
@@ -76,10 +76,10 @@
 </template>
 
 <script setup lang="ts">
+import { useOperatorReader } from '~/composables/useOperatorReader'
 import type { LocationQueryRaw } from 'vue-router'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
-import { useOperatorPane } from '~/stores/operator-pane'
 import { costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions } from '~/utils/reporting-costs.mjs'
 import { costMoney, costMonthOf } from '~/utils/tenant-costs.mjs'
 import { CLOUD_SOURCE, cloudDaysOf, cloudEntries, cloudProjects, cloudServiceDays, cloudServices, cloudTotal, sectionAmount } from '~/utils/costs-sections.mjs'
@@ -94,7 +94,7 @@ type Row = Money & { key: string, label: string, box?: string, sub?: string, to?
 const { t, locale } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const session = useSessionStore()
-const operator = useOperatorPane()
+const reader = useOperatorReader()
 const pick = computed(() => String(session.claims?.second_currency || ''))
 const current = costsMonthOptions(new Date())[0]
 const month = computed(() => { const m = costsMonth(route.query.month); return m === current ? '' : m })
@@ -171,7 +171,7 @@ async function load() {
 }
 
 onMounted(() => {
-  watch(() => [operator.visible, month.value, pick.value, project.value, kind.value], () => { if (operator.visible) void load() }, { immediate: true })
+  watch(() => [reader.value, month.value, pick.value, project.value, kind.value], () => { if (reader.value) void load() }, { immediate: true })
 })
 </script>
 

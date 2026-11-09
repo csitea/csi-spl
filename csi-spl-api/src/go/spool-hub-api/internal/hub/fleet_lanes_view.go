@@ -20,8 +20,8 @@ import (
 //
 //	GET /v1/operator/fleet-lanes?fleet=<fleet, default main>
 //
-// Who may: the fleet load doors (fleetLoadCaller), as fleet-tokens: the
-// operator workspace's admin or the operator service account. One tenant
+// Who may: operatorReadCaller (operator_read.go), as fleet-tokens: the
+// operator workspace's admin or product owner, or the operator service account. One tenant
 // only: the operator workspace's lanes, topics and issues, never another
 // tenant's; a lane whose topic is not one of its topics shows no title and
 // only its own issue.
@@ -92,7 +92,7 @@ func (s *Server) routeFleetLanes(mux *http.ServeMux) {
 
 // GET /v1/operator/fleet-lanes?fleet=
 func (s *Server) handleFleetLanesView(w http.ResponseWriter, r *http.Request) {
-	tenant, a, _, ok := s.fleetLoadCaller(w, r)
+	tenant, a, _, ok := s.operatorReadCaller(w, r)
 	if !ok {
 		return
 	}
@@ -118,7 +118,7 @@ func (s *Server) handleFleetLanesView(w http.ResponseWriter, r *http.Request) {
 }
 
 // fleetLanesView reads the active lanes and the queued asks and fills their
-// links and workspaces (3.8); reader is the admin whose topic door decides
+// links and workspaces (3.8); reader is the member whose topic door decides
 // the titles ("" = the service account).
 func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader string) (fleetLanesViewJSON, error) {
 	out, active, burn, err := s.activeFleetLanes(ctx, tenant, fleet)

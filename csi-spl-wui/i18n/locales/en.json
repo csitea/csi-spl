@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Loading the active lanes…",
-      "forbidden": "Only an admin of the operator workspace sees the fleet's lanes.",
+      "forbidden": "Only an admin or a product owner of the operator workspace sees the fleet's lanes.",
       "error": "Could not load the active lanes.",
       "empty": "No active lanes",
       "stale_red": "Data stale: hub unreachable",
@@ -3641,7 +3641,7 @@
       "issues": "The Issues report is coming soon.",
       "posts": "The Posts report is coming soon.",
       "lanes": "The Lanes report is coming soon.",
-      "operators_only": "This report is for operator admins only."
+      "operators_only": "This report is for operator admins and product owners only."
     },
     "costs": {
       "pages_label": "Costs pages",
@@ -4055,7 +4055,7 @@
       "err_period": "Pick a month.",
       "err_note": "The note is too long: at most 2000 characters."
     },
-    "operators_only": "Expenses are for operator admins only.",
+    "operators_only": "Expenses are for operator admins and product owners only.",
     "tokens_link": "Paid subscriptions and top-ups are entered under Expenses → AI costs."
   }
 }

@@ -3470,7 +3470,7 @@
     },
     "lanes": {
       "loading": "Se încarcă liniile active…",
-      "forbidden": "Doar un administrator al spațiului de lucru al operatorului vede liniile flotei.",
+      "forbidden": "Doar un administrator sau un proprietar de produs al spațiului de lucru al operatorului vede liniile flotei.",
       "error": "Liniile active nu au putut fi încărcate.",
       "empty": "Nicio linie activă",
       "stale_red": "Date învechite: hub inaccesibil",
@@ -3641,7 +3641,7 @@
       "issues": "Raportul problemelor vine în curând.",
       "posts": "Raportul postărilor vine în curând.",
       "lanes": "Raportul liniilor vine în curând.",
-      "operators_only": "Acest raport este doar pentru administratorii operatorului."
+      "operators_only": "Acest raport este doar pentru administratorii și proprietarii de produs ai operatorului."
     },
     "costs": {
       "pages_label": "Paginile de costuri",
@@ -4055,7 +4055,7 @@
       "err_period": "Alege o lună.",
       "err_note": "Nota este prea lungă: cel mult 2000 de caractere."
     },
-    "operators_only": "Cheltuielile sunt doar pentru administratorii operatorului.",
+    "operators_only": "Cheltuielile sunt doar pentru administratorii și proprietarii de produs ai operatorului.",
     "tokens_link": "Abonamentele și reîncărcările plătite se introduc la Cheltuieli → Costuri IA."
   }
 }

@@ -52,8 +52,8 @@ func (s *Server) handleCostCloudDays(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read")
 		return
 	}
-	if op == "" || t.ID != op || !a.Has(rbac.Admin) {
-		writeErr(w, http.StatusForbidden, "forbidden", "the cloud costs are the estate's: the operator workspace's admin only")
+	if !operatorReadRole(op, t.ID, a) {
+		writeErr(w, http.StatusForbidden, "forbidden", "the cloud costs are the estate's: the operator workspace's admin or product owner only")
 		return
 	}
 	if s.readerIsActAsClone(r.Context(), t.ID, a.HumanID) {

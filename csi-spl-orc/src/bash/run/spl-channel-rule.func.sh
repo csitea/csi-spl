@@ -112,6 +112,21 @@ spl_cr_columns() {
   SPL_CR_COL=("$t" "$c" "${CHANNEL_RULE_DOC:-}" "${CHANNEL_RULE_ENV:-}" "${CHANNEL_RULE_AGENT:-}" "${CHANNEL_RULE_SOLE:--}" "$hold")
 }
 
+# spl_cr_lock_open MAP: fd 9 on <map>.lock. An existing lock opens read-only,
+# flock needs no more, so a lock of another user stops nobody; a user who could
+# not replace the map never creates one.
+spl_cr_lock_open() {
+  local m="$1"
+  if [[ -e "$m.lock" ]]; then
+    exec 9<"$m.lock" || { do_log "FATAL cannot open $m.lock"; return 1; }
+    return 0
+  fi
+  if [[ -e "$m" && $EUID -ne 0 && "$(stat -c %u "$m")" != "$EUID" ]]; then
+    do_log "FATAL only the owner of $m can replace it and keep its owner"; return 1
+  fi
+  exec 9>>"$m.lock" || { do_log "FATAL cannot open $m.lock"; return 1; }
+}
+
 spl_cr_set() {
   local dry=1 drc m why row t c
   local -a SPL_CR_COL=()
@@ -124,7 +139,7 @@ spl_cr_set() {
   m="$(cr_map)"
   if ((dry)); then spl_cr_write "$m" "$t" "$c" "$row" 1; return; fi
   (
-    exec 9>>"$m.lock" || { do_log "FATAL cannot open $m.lock"; exit 1; }
+    spl_cr_lock_open "$m" || exit 1
     flock -w "${CHANNEL_RULE_LOCK_WAIT:-30}" 9 || { do_log "FATAL $m.lock is held by another writer"; exit 1; }
     spl_cr_write "$m" "$t" "$c" "$row" 0
   )

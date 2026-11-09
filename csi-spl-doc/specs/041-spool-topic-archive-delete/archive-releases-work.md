@@ -57,6 +57,7 @@ archived discussion is another lane's work and is not described here.
   It takes `<map>.lock`, the lock of the map's other writer, around the read and the rename,
   waits `CHANNEL_RULE_LOCK_WAIT` seconds (default 30), and exits 1 if the lock is still held. It
   also exits 1, the map unchanged, for a user who could not keep the file's owner: run it as the owner.
+  Such a user leaves no lock behind, and `set` opens an existing lock read-only, so a lock of another user does not stop it.
 - **A map that cannot be read holds, with an alarm.** Missing or unreadable: every channel reads
   as held, and the log and the blocker say `ALARM`. A map with no row for a channel leaves it
   free. A `*` row without the word in column 7 is malformed, so it holds too.

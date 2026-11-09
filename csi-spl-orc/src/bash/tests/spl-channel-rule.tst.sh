@@ -3,13 +3,14 @@
 # Purpose: do_spl_channel_rule (SPL-5146) writes one row of the box map from env
 #          and checks a map without changing it; cr_no_auto_post reads a map it
 #          cannot read as held, with an alarm. A sandbox: its own SPOOL_ROOT.
-# Cases: 1-6 the reader, 7-14 and 22-24 set, 15-21 and 25 check.
+# Cases: 1-6 the reader, 7-14, 22-24 and 26-27 set, 15-21 and 25 check.
 # RED CONTROLS: without the alarm of cr_no_auto_post 1..3 fail; a * row read
 # like a channel row frees 4; awk's rc taken for the column 7 verdict fails 5; a
 # set that writes in a dry run fails 7; a set that does not keep the file's mode
 # fails 8; with no floor, 18 reads a restored map as fine; a set without the
 # lock of <map>.lock fails 22 and 23; a set without the chown fails 24; the
-# count of bad rows as the rc fails 25.
+# count of bad rows as the rc fails 25; an existing lock opened for append
+# fails 26; a non-owner who creates the lock fails 27.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -101,7 +102,7 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 done
 wait
 [[ "$(grep -cx 0 "$rcs")" == 12 && "$(grep -c $'^t2\tpar[0-9]*\t' "$M")" == 12 && "$(grep -c '^t1' "$M")" == 2 ]] && pass "22 twelve writers at once: every row is kept" || fail "22 rcs $(tr '\n' ' ' <"$rcs") // $(cat "$M")"
-map; keep; flock "$M.lock" sleep 20 & holder=$!
+map; keep; flock -o "$M.lock" sleep 20 & holder=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do flock -n "$M.lock" true || break; sleep 0.2; done
 out="$(act "${SET[@]}" CHANNEL_RULE_LOCK_WAIT=1 DRY_RUN=0)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"held by another writer"* ]] && same && pass "23 the lock of another writer held: refused, the map unchanged" || fail "23 rc $rc: $out"
@@ -117,6 +118,18 @@ map; keep; out="$(act "${SET[@]}" PATH="$T/bin:$PATH" DRY_RUN=0)"; rc=$?
 # --- a count of bad rows that wraps at 256
 map; for ((i = 0; i < 256; i++)); do printf 't1\tb%d\tnot-a-doc\tprd\tc-001\n' "$i"; done >>"$M"; touch -t "$NEW_AT" "$M"; out="$(act)"; rc=$?
 [[ $rc -eq 2 ]] && pass "25 check: 256 bad rows are 2, the count does not wrap" || fail "25 rc $rc: $(tail -1 <<<"$out")"
+
+# --- a lock the writer cannot open for append, and a non-owner with no lock yet
+map; rm -f "$M.lock"; : >"$M.lock"; chmod 0444 "$M.lock"
+out="$(act "${SET[@]}" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && grep -q $'^t2\t' "$M" && pass "26 a lock this user cannot append to: still locks, the row is written" || fail "26 rc $rc: $out"
+rm -f "$M.lock"
+if ((EUID != 0)); then
+  printf '#!/bin/sh\n[ "$1 $2" = "-c %%u" ] && { echo 12345; exit 0; }\nexec %s "$@"\n' "$(command -v stat)" >"$T/bin/stat"; chmod +x "$T/bin/stat"
+  map; keep; out="$(act "${SET[@]}" PATH="$T/bin:$PATH" DRY_RUN=0)"; rc=$?
+  [[ $rc -eq 1 && "$out" == *"only the owner"* && ! -e "$M.lock" ]] && same && pass "27 a non-owner with no lock yet: refused, leaves no lock" || fail "27 rc $rc: $out"
+  rm -f "$T/bin/stat"
+else pass "27 a non-owner (not applicable: root may replace any map)"; fi
 
 echo "spl-channel-rule: $fails failure(s)"
 [[ $fails -eq 0 ]]

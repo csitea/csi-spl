@@ -870,7 +870,7 @@ declare module '~/utils/move.mjs' {
   export function mayPromoteMessage(msg: unknown, viewerId: string, me: MeLike, opts?: { openerId?: string, lobbyTaskId?: string, channel?: string | null }): boolean
   export function isPromoteDropTarget(drag: MoveDrag | null): boolean
   export function paneOpenerId(rows: unknown[]): string
-  export function paneOpenerRow<T extends { msg_id?: string }>(rows: T[], opts?: { named?: string, known?: Array<T | null | undefined>, hasOlder?: boolean }): T | { msg_id: string } | null
+  export function paneOpenerRow<T extends { msg_id?: string }>(rows: T[], opts?: { named?: string, known?: Array<T | null | undefined>, hasOlder?: boolean, taskId?: string }): T | { msg_id: string } | null
   export function movedNote(msg: unknown): { kind: 'channel', channel: string } | { kind: 'topic', task: string } | null
 }
 

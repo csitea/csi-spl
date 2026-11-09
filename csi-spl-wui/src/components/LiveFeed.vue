@@ -292,7 +292,7 @@ const unreadOrder = useUnreadOrder()
    its earliest card, not every level-1 row - an agent's DM answer is stored
    at level 1 and is a reply that may move (owner, t1 ffc3b83c). */
 const openerRow = computed(() => (props.topicCardMenu
-  ? paneOpenerRow(props.rows, { named: String(props.moveCtx?.opener || ''), known: props.openerRows || [], hasOlder: props.hasOlder }) as SpoolMessage | null
+  ? paneOpenerRow(props.rows, { named: String(props.moveCtx?.opener || ''), known: props.openerRows || [], hasOlder: props.hasOlder, taskId: String(props.moveCtx?.topic || '') }) as SpoolMessage | null
   : null))
 const openerId = computed(() => String(openerRow.value?.msg_id || ''))
 const unreadRank = (m: SpoolMessage) => (openerId.value && String(m.msg_id) === openerId.value ? 0 : countedRow(m) ? cardNew.unseen(m) : Number(isNew(m)))

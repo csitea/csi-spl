@@ -133,6 +133,16 @@ describe('HUM-10: every stored message of a topic pane offers Archive topic in i
     assert.equal(paneOpenerRow([later, ...window30], { known: [opener], hasOlder: true }).msg_id, 'o1')
     assert.equal(paneOpenerRow([later, ...window30], { known: [], hasOlder: true }), null, 'older pages unread, opener unknown')
   })
+  it('N6: a pinned root of another topic is never taken for the opener', () => {
+    // c-468 N6: openTarget(target, topic.rootMsg) may leave another topic's root pinned
+    const foreign = { msg_id: 'A0', task_id: 'tA', from: 'HUM-9', is_parent: 1, ts: '2026-10-09T09:00:00Z' }
+    const window30 = [newest, older]
+    assert.equal(paneOpenerRow(window30, { known: [null, foreign], hasOlder: true, taskId: 't1' }), null, 'before the oldest row loads')
+    assert.equal(paneOpenerRow(window30, { known: [opener, foreign], hasOlder: true, taskId: 't1' }).msg_id, 'o1', 'the foreign card is older')
+    // a message-rooted topic: its root lives in the parent task and is the named id
+    const root = { msg_id: 'p0', task_id: 'chan', from: 'HUM-1', is_parent: 1, ts: '2026-10-09T09:00:00Z' }
+    assert.equal(paneOpenerRow(window30, { named: 'p0', known: [null, root], hasOlder: true, taskId: 't1' }).from, 'HUM-1')
+  })
   it('the whole topic held: the earliest card, a held row before a fetched copy', () => {
     assert.equal(paneOpenerRow([newest, older, opener], {}).msg_id, 'o1')
     assert.equal(paneOpenerRow([opener], { named: 'o1', known: [{ ...opener, from: 'old' }] }).from, opener.from)

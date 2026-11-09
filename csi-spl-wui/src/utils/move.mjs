@@ -99,10 +99,14 @@ export function paneOpenerId(rows) {
  * pinned root). With older pages unread a card in the window can be a later
  * level-1 line, which the hub refuses (409 not_a_card), so only `known` names
  * it then. A named id no row matches stays a bare { msg_id }. null = unknown.
+ * `taskId` is the pane's topic: a `known` row of another task counts only as
+ * the named id (a message-rooted topic's root lives in its parent task), never
+ * as an earliest card - a root left pinned from another topic (c-468 N6).
  */
-export function paneOpenerRow(rows, { named = '', known = [], hasOlder = false } = {}) {
+export function paneOpenerRow(rows, { named = '', known = [], hasOlder = false, taskId = '' } = {}) {
   const held = Array.isArray(rows) ? rows : []
-  const read = known.filter(Boolean)
+  const ours = (m) => !taskId || String(m.task_id || '') === String(taskId) || (named && String(m.msg_id) === String(named))
+  const read = known.filter((m) => m && ours(m))
   const id = String(named || '') || paneOpenerId(hasOlder ? read : held)
   if (!id) return null
   return [...held, ...read].find((m) => m && String(m.msg_id) === id) || { msg_id: id }

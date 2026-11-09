@@ -71,7 +71,9 @@ on() {  # ROOT BOX CMD...
   env SPOOL_ROOT="$root" SPOOL_BOX_ENV="$root/box.env" SPOOL_DESK_BOX="$box" FAKE_FROM_BOX="$box" \
     SPOOL_FLEET_RELAY_CMD="$T_TMP/fake-hub" SPAWN_REMOTE_POLL=1 SPAWN_ORC_RUN="$T_TMP/run-no-desk" "$@"
 }
-serve_b() { on "$B" sat SPAWN_REMOTE_ISSUE_CMD="$T_TMP/issue-stub" LI_HUB_STATUS_CMD="$T_TMP/status-stub" ${1:+"$1"} bash "$SR" --serve 2>>"$T_TMP/serve.err"; }
+# A tick reads epoch 0, so a slow box cannot expire a request this file means to serve.
+serve_clock() { if [ "${1:-}" = +%s ]; then echo 0; else command date "$@"; fi; }
+serve_b() { ( date() { serve_clock "$@"; }; export -f date serve_clock; on "$B" sat SPAWN_REMOTE_ISSUE_CMD="$T_TMP/issue-stub" LI_HUB_STATUS_CMD="$T_TMP/status-stub" ${1:+"$1"} bash "$SR" --serve 2>>"$T_TMP/serve.err" ); }
 # spawn-window on A in the background; B's receiver ticks until it returns.
 spawn_a() {  # TITLE [SERVE_ENV] ; rc in RC, output in $T_TMP/o
   rm -f "$T_TMP/rc"
@@ -140,6 +142,7 @@ issue_a() {  # TITLE BRIEF WAIT [SERVE_ENV] ; rc in RC
   local _
   for _ in $(seq 1 20); do sleep 1; [ -f "$T_TMP/rc" ] && break; serve_b "${4:-}"; done
   wait; RC="$(cat "$T_TMP/rc" 2>/dev/null || echo none)"
+  serve_b "${4:-}"  # the caller may give up before any tick: its request is in the inbox by now
 }
 calls() { cat "$T_TMP/issue.calls" 2>/dev/null; }
 printf '# Brief: once only\n\nWorkspace: acme\n' >"$T_TMP/once.md"

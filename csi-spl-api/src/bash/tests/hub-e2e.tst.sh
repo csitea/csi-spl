@@ -80,7 +80,7 @@ stop_hub() { kill "$HUB_PID"; wait "$HUB_PID" 2>/dev/null || true; HUB_PID=""; }
 
 # box <name>: env for one box (own spool root and keys)
 box() {
-  echo "SPOOL_ROOT=$WORK/$1/spool SPOOL_KEYS_DIR=$WORK/$1/keys SPOOL_BOX_ID=$1 SPOOL_HUB_URL=http://$TENANT.localhost:$PORT"
+  echo "SPOOL_ROOT=$WORK/$1/spool SPOOL_KEYS_DIR=$WORK/$1/keys SPOOL_BOX_ID=$1 SPOOL_SENDER_AUDIT=$WORK/$1/sender-audit.jsonl SPOOL_HUB_URL=http://$TENANT.localhost:$PORT"
 }
 on() { local b="$1" e; shift; read -r -a e <<<"$(box "$b")"; env "${e[@]}" "$BIN" "$@"; }
 

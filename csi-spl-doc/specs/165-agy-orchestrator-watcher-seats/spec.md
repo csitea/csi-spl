@@ -328,18 +328,34 @@ transcript). Every agent has sudo to the box user, and the hub verifies the
 box's signature and that `from` is on that box's roster, so neither the binary
 nor the hub can refuse it: the box is the trust unit, not the seat.
 
-- Each successful CLI `spool send` appends its message id, `from`, any
-  `from_agent` claim and its ancestor pids to a journal at a fixed path that
-  does not follow `SPOOL_ROOT` (`action.AuditSender`).
-- `do_spl_sender_audit` names the agent running each chain as `send_from_guard`
-  does (`lib/spool-caller.inc.sh`), and sends the orchestrator one note on task
-  `fleet-anomaly` for the posts whose `from` is not that agent. Not flagged: no
-  agent in the chain, a role seat as the caller, a relayed line whose
-  `from_agent` names the caller.
-- Not caught: a lane that edits the journal, a send from a process detached
-  from its agent with its environment cleared, a raw write into an inbox, and a
-  send signed without the binary. `AuditSender` writes nothing and says nothing
-  when the journal cannot be opened.
+- Each successful CLI `spool send` appends to a journal at a fixed path that
+  does not follow `SPOOL_ROOT` (`action.AuditSender`): its message id, `from`,
+  any `from_agent` claim, its ancestor pids with their start times, and the
+  agent id of the outermost process carrying one, read at send time (through
+  the process owner when another uid holds it, as `proc-owner.inc.sh` does).
+  The id is left out when any pid could not be read, because an inner copied id
+  must not win over an unread outer one.
+- `do_spl_sender_audit` judges each line and sends the orchestrator one note on
+  task `fleet-anomaly` for the posts whose `from` is not the agent that ran the
+  send. The id journalled at send time decides, so a lane that has exited is
+  still caught. Without one, only a chain whose outermost pid still runs with
+  the same start time can be judged, by its environ or its tmux window name.
+  Not flagged: no agent in the chain, a role seat as the caller, a relayed line
+  whose `from_agent` names the caller.
+- **A clean result must mean something judged.** Every run reports flagged,
+  judged, unjudgeable and malformed counts. It is `OK` only when at least one
+  line was judged and none was left over, and the note carries the counts. No
+  journal is a `WARN`, never a clean result. A line that cannot be judged is
+  counted, never read as clean. A note is sent only for flagged posts.
+- Not caught: a lane that edits the journal; one that sets `SPOOL_SENDER_AUDIT`
+  or `SPOOL_TEST=1` so nothing is written, which a copied desk environment does
+  not carry but a deliberate sender can; one that opens its body with a
+  `from_agent` line naming itself, which at least labels the post; a send
+  through the MCP server, which is not the CLI path journalled here; a send from
+  a process detached from its agent with its environment cleared; a raw write
+  into an inbox; and a send signed without the binary. `AuditSender` says one
+  line on stderr when the journal cannot be written, and nothing when its
+  directory is absent.
 - Not yet scheduled: no cron line runs the action; which boxes run it is the
   orchestrator's decision. The alarm rate on real traffic is unmeasured.
 

@@ -138,6 +138,83 @@ func TestOpenScrypt(t *testing.T) {
 	}
 }
 
+// Rule: a file that fails part way through its payload is refused, and none
+// of the chunks that did authenticate reach the caller.
+func TestOpenScryptTamperedLateChunk(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sealed.age")
+	pass := []byte("right-pass")
+	if err := writeScrypt(path, bytes.Repeat([]byte("k"), 200000), pass, 0600); err != nil {
+		t.Fatal(err)
+	}
+	sealed, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sealed[len(sealed)-1] ^= 0xff
+	if err := os.WriteFile(path, sealed, 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := openScrypt(path, pass)
+	osWantErr(t, err, "could not open the agent keys")
+	if got != nil {
+		t.Fatalf("%d bytes of plaintext from a tampered file", len(got))
+	}
+}
+
+// Rule: openScrypt opens a payload of exactly 1 MiB and refuses a larger one
+// instead of returning the first 1 MiB of it.
+func TestOpenScryptSizeLimit(t *testing.T) {
+	pass := []byte("right-pass")
+	path := filepath.Join(t.TempDir(), "sealed.age")
+	if err := writeScrypt(path, bytes.Repeat([]byte("k"), 1<<20), pass, 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := openScrypt(path, pass)
+	if err != nil || len(got) != 1<<20 {
+		t.Fatalf("at the limit: %d bytes, %v", len(got), err)
+	}
+	if err := writeScrypt(path, bytes.Repeat([]byte("k"), 1<<20+1), pass, 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err = openScrypt(path, pass)
+	osWantErr(t, err, "could not open the agent keys")
+	if got != nil {
+		t.Fatalf("%d bytes returned over the limit", len(got))
+	}
+}
+
+// Rule: when owner.pub cannot be written InitOwner returns the error and no
+// key, leaves no owner.age behind, and a retry gives the caller the key.
+func TestInitOwnerRecipientNotWritable(t *testing.T) {
+	dir := t.TempDir()
+	ws := randWS(t)
+	pass := []byte("owner-pass")
+	mkKeys(t, dir)
+	pubPath := filepath.Join(dir, "keys", "owner.pub")
+	if err := os.Mkdir(pubPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	pub, err := InitOwner(dir, ws, pass)
+	osWantErr(t, err, "could not store the recipient")
+	if pub != "" {
+		t.Fatalf("pub = %q on a refusal", pub)
+	}
+	if present(filepath.Join(dir, "keys", "owner.age")) {
+		t.Fatal("a failed InitOwner left owner.age behind")
+	}
+	if err := os.Remove(pubPath); err != nil {
+		t.Fatal(err)
+	}
+	pub, err = InitOwner(dir, ws, pass)
+	if err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	stored, err := os.ReadFile(pubPath)
+	if err != nil || string(stored) != pub+"\n" {
+		t.Fatalf("owner.pub reads %q, %v; want the returned key", stored, err)
+	}
+}
+
 // Rule: a socket file nothing listens on reads as locked and is removed.
 func TestStatusStaleSocketIsLockedAndRemoved(t *testing.T) {
 	dir := shortDir(t)

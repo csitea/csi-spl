@@ -146,6 +146,8 @@ func InitOwner(dir, workspace string, pass []byte) (string, error) {
 	}
 	pub := ident.Recipient().String()
 	if err := writePub(dir, "owner", pub); err != nil {
+		// The caller never gets this key: left in place it would refuse the retry.
+		os.Remove(filepath.Join(dir, "keys", "owner.age"))
 		return "", err
 	}
 	return pub, nil
@@ -340,8 +342,8 @@ func openScrypt(path string, pass []byte) ([]byte, error) {
 	if err != nil {
 		return nil, errors.New("could not open the agent keys")
 	}
-	plain, err := io.ReadAll(io.LimitReader(r, 1<<20))
-	if err != nil {
+	plain, err := io.ReadAll(io.LimitReader(r, 1<<20+1))
+	if err != nil || len(plain) > 1<<20 {
 		Wipe(plain)
 		return nil, errors.New("could not open the agent keys")
 	}

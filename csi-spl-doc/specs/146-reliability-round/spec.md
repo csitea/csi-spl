@@ -103,7 +103,10 @@ as proposed", on the c-002 proposal f520f8bb (from the SPL-4622 triage).
 `cd csi-spl-orc && ./run -a do_spl_alert_issue_tick` (code, no model) reads,
 since its last tick, the #alerts topics, `do_gcp_list_alert_incidents` and
 the disk notes (task `disk-headroom`), and folds them by fingerprint
-(`csi-spl-orc/src/bash/scripts/alert-issue-fold.py`):
+(`csi-spl-orc/src/bash/scripts/alert-issue-fold.py`). The disk read uses the
+absolute spool binary of the user running the tick (no `spool` is on the cron's
+or sudo's PATH); the GCP read drops any inherited one-project pin, so each env
+of `ALERT_ISSUE_GCP_ENVS` runs by its own project key (SPL-5164):
 
 - **Fingerprint**: the text with digits, times, ids, the severity word and
   any `(bracketed detail)` stripped, plus the box; a disk note is box +

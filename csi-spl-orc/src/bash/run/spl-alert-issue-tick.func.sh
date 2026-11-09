@@ -42,6 +42,8 @@
 # @param ALERT_ISSUE_SPEC (optional) - the spec of a filed issue, default csi-spl-doc/specs/146-reliability-round
 # @param ALERT_ISSUE_DISCUSSION (required when DRY_RUN=0) - the topic (a lowercase UUID) a disk or GCP alert's issue links; an #alerts alert links its own topic (also lease.conf)
 # @param ALERT_ISSUE_GCP (optional) - 0 skips the GCP incident read, default 1
+# @param ALERT_ISSUE_GCP_ENVS (optional) - the envs the GCP read lists, each by its own project key, default "dev prd"
+# @param SPOOL_BIN SPL_SPOOL (optional) - the spool binary of the disk read; default spool-env's, for the user running the tick
 # @param ALERT_ISSUE_HOLDER (optional) - the orch holder <ID>@<box> (the asks tick passes it); default lease.orch
 # @param ALERT_ISSUE_BOX (optional) - this machine's box id, default spl_desk_box_default
 # @param ALERT_ISSUE_ALERTS_CMD ALERT_ISSUE_DISK_CMD ALERT_ISSUE_GCP_CMD (optional, tests) - replace a source read: print its raw output
@@ -194,11 +196,29 @@ spl_ai_read_alerts() {
 }
 
 spl_ai_read_disk() {
-  SPOOL_ROOT="$root" timeout 30 "${SPL_SPOOL:-spool}" tail --task disk-headroom --json
+  local bin
+  bin="$(spl_ai_spool_bin)" || return 1
+  SPOOL_ROOT="$root" timeout 30 "$bin" tail --task disk-headroom --json
 }
 
+# The absolute spool binary of the user running this tick: neither the cron's
+# PATH nor sudo's secure_path holds spool (SPL-5164). An executable SPL_SPOOL,
+# else what spool-env resolves (SPOOL_BIN, this tree's build, this user's HOME).
+spl_ai_spool_bin() {
+  local b="${SPL_SPOOL:-}"
+  [[ -x "$b" ]] ||
+    b="$(export SPOOL_ROOT="$root"; source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" >/dev/null 2>&1 &&
+      spool_env_resolve >/dev/null 2>&1; printf '%s' "${SPOOL_BIN:-}")"
+  [[ "$b" == /* && -x "$b" ]] || { echo "no absolute spool binary (got '$b'): set SPOOL_BIN" >&2; return 1; }
+  printf '%s\n' "$b"
+}
+
+# Every env by its own project key. The lease loop's do_spl_cloud_cnf exports
+# SPL_PROJECT, and a pin names ONE project: inherited, it refuses the env list
+# (SPL-5164) and would pick its key for the other env too.
 spl_ai_read_gcp() {
-  ( cd "${APP_PATH:-$PROJ_PATH/..}/csi-spl-iac" && ORG="${ORG:-csi}" APP="${APP:-spl}" SINCE="$AI_SINCE" \
+  ( cd "${APP_PATH:-$PROJ_PATH/..}/csi-spl-iac" && unset GCP_SA_KEY_FILE PROJ_ID SPL_PROJECT GCP_PROJECT &&
+      ORG="${ORG:-csi}" APP="${APP:-spl}" SINCE="$AI_SINCE" \
       ENV='' GCP_LIST_ENVS="${ALERT_ISSUE_GCP_ENVS:-dev prd}" timeout 180 ./run -a do_gcp_list_alert_incidents )
 }
 

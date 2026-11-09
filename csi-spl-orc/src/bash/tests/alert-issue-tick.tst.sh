@@ -38,6 +38,9 @@
 #      a live run without ALERT_ISSUE_DISCUSSION is refused
 #   9. do_spl_asks_tick starts the alert tick only on the holder's machine
 #      and never under SPOOL_TEST=1 unless ALERT_ISSUE_IN_TESTS=1
+#   11. the disk source finds an absolute spool with none on PATH (SPL-5164)
+#   12. the GCP source drops the one-project pins the lease loop exports, and
+#       still asks for every env of ALERT_ISSUE_GCP_ENVS (SPL-5164)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -346,5 +349,43 @@ hook ALERT_ISSUE_IN_TESTS=1 DRY_RUN=0 >/dev/null; for _ in 1 2 3 4 5 6 7 8 9 10;
 grep -q 'hook -a do_spl_alert_issue_tick holder=c-001@sat dry=1' "$T/hook.log" 2>/dev/null &&
   pass "9. the asks tick starts it with the holder, as a dry run unless ALERT_ISSUE_DRY_RUN=0 (never the caller's DRY_RUN)" ||
   fail "9. hook: $(cat "$T/hook.log" 2>/dev/null)"
+
+# 11: the disk source with no spool on PATH: the cron's and sudo's secure_path
+mkdir -p "$T/nospool" "$T/dhome/.local/bin"
+for b in timeout jq dirname basename readlink stat id cat git python3 mkdir date sed grep awk tr cut head tail ls uname hostname; do
+  p="$(command -v "$b")" && ln -sf "$p" "$T/nospool/$b"
+done
+printf '#!/bin/sh\necho "fake-spool $SPOOL_ROOT $*"\n' >"$T/fakespool"; chmod +x "$T/fakespool"
+cp "$T/fakespool" "$T/dhome/.local/bin/spool"
+disk() {
+  SNIPPET='root="$SP_ROOT"; PATH="$NOSPOOL"; spl_ai_read_disk' in_orc SP_ROOT="$SP" NOSPOOL="$T/nospool" "$@"
+}
+out="$(disk SPOOL_BIN="$T/fakespool" 2>&1)"
+[[ "$out" == "fake-spool $SP tail --task disk-headroom --json" ]] && pass "11. no spool on PATH: SPOOL_BIN answers the disk read" ||
+  fail "11. SPOOL_BIN: $out"
+out="$(disk SPL_SPOOL="$T/fakespool" SPOOL_BIN="$T/nowhere" 2>&1)"
+[[ "$out" == "fake-spool $SP tail --task disk-headroom --json" ]] && pass "11. an executable SPL_SPOOL wins" || fail "11. SPL_SPOOL: $out"
+out="$(disk HOME="$T/dhome" SPOOL_BIN= 2>&1)"
+[[ "$out" == fake-spool* || -x "$APP_ROOT/csi-spl-api/src/go/spool-hub-api/bin/spool" ]] &&
+  pass "11. the running user's own HOME spool answers (the desk user after a hop)" || fail "11. HOME: $out"
+
+# 12: the GCP source under the pins the lease loop's do_spl_cloud_cnf exports
+mkdir -p "$T/gapp/csi-spl-iac"
+cat >"$T/gapp/csi-spl-iac/run" <<'EOF'
+#!/bin/bash
+pin="${GCP_SA_KEY_FILE:-}${PROJ_ID:-}${SPL_PROJECT:-}${GCP_PROJECT:-}"
+[[ -z "$pin" ]] || { echo "FATAL name one project: $pin" >&2; exit 1; }
+echo "$2 env=[${ENV:-}] envs=[${GCP_LIST_ENVS:-}] since=[${SINCE:-}]"
+EOF
+chmod +x "$T/gapp/csi-spl-iac/run"
+gcp() {
+  SNIPPET='AI_SINCE=90m; spl_ai_read_gcp' in_orc APP_PATH="$T/gapp" SPL_PROJECT=csi-spl-dev PROJ_ID=csi-spl-dev \
+    GCP_PROJECT=csi-spl-dev GCP_SA_KEY_FILE=/nonexistent/key.json "$@"
+}
+out="$(gcp 2>&1)"
+[[ "$out" == "do_gcp_list_alert_incidents env=[] envs=[dev prd] since=[90m]" ]] &&
+  pass "12. the inherited pins are dropped: every env, each by its own key" || fail "12. pins: $out"
+out="$(gcp ALERT_ISSUE_GCP_ENVS=prd 2>&1)"
+[[ "$out" == *"envs=[prd]"* ]] && pass "12. ALERT_ISSUE_GCP_ENVS still names the envs" || fail "12. envs: $out"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "FAILURES: $fails"; exit 1; }

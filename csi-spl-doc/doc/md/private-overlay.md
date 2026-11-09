@@ -54,6 +54,15 @@ orgs:                  # other organisations (do_oss_gate other-org)
   - <org>
 deny:                  # other literals the hygiene gate refuses (PCRE)
   - '<regex>'
+customer_strings:      # what the public dataset gate drops (spec 091)
+  - key:<PREFIX>
+  - domain:<domain>
+  - server:<name>
+customer_ignore:       # what the customer check accepts as not a customer
+  - key:<PREFIX>
+  - domain:<domain>
+customer_channels:     # the channels the customer check reads
+  - <workspace>/<channel>
 ```
 
 - **Hide a slug:** add its `ws-hidden-NN` line, write the placeholder in

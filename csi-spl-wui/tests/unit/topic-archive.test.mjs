@@ -22,6 +22,7 @@ import {
   withoutCards,
 } from '../../src/utils/topic-archive.mjs'
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
+import { paneOpenerRow } from '../../src/utils/move.mjs'
 import { messageCardSrc } from './lib/message-card-src.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -113,6 +114,30 @@ describe('HUM-10: every stored message of a topic pane offers Archive topic in i
   })
   it('the menu: never on a pending echo', () => {
     assert.equal(paneArchiveOffer({ ...older, pending: true }, opener, 'HUM-1', everyone), false)
+  })
+  it('the menu: never on a row with no msg_id', () => {
+    assert.equal(paneArchiveOffer({ ...older, msg_id: '' }, opener, 'HUM-1', everyone), false)
+  })
+  it('a long topic: the opener past the loaded page is read from the fetched oldest row', () => {
+    const later = { msg_id: 'x', from: 'c-1', is_parent: 1, ts: '2026-10-10T10:30:00Z' }
+    const window30 = [newest, older]
+    const row = paneOpenerRow(window30, { known: [opener], hasOlder: true })
+    assert.equal(row.msg_id, 'o1', 'no root id: the oldest row names the opener')
+    for (const m of window30) assert.equal(paneArchiveOffer(m, row, 'HUM-2', everyone), true, m.msg_id)
+    // starter policy: the real starter keeps the right, because the row has its from
+    const named = paneOpenerRow(window30, { named: 'o1', known: [opener], hasOlder: true })
+    assert.equal(named.from, 'HUM-1', 'a named opener past the page is the real row, not a stand-in')
+    assert.equal(paneArchiveOffer(older, named, 'HUM-1', starter), true)
+    assert.equal(paneArchiveOffer(older, named, 'HUM-2', starter), false)
+    // N1: a later level-1 line in the window is not the opener
+    assert.equal(paneOpenerRow([later, ...window30], { known: [opener], hasOlder: true }).msg_id, 'o1')
+    assert.equal(paneOpenerRow([later, ...window30], { known: [], hasOlder: true }), null, 'older pages unread, opener unknown')
+  })
+  it('the whole topic held: the earliest card, a held row before a fetched copy', () => {
+    assert.equal(paneOpenerRow([newest, older, opener], {}).msg_id, 'o1')
+    assert.equal(paneOpenerRow([opener], { named: 'o1', known: [{ ...opener, from: 'old' }] }).from, opener.from)
+    assert.deepEqual(paneOpenerRow([newest], { named: 'o9', known: [opener], hasOlder: true }), { msg_id: 'o9' }, 'a named id no row matches')
+    assert.equal(paneOpenerRow([newest, older], {}), null)
   })
   it('the left swipe: only the latest message, on the same permission', () => {
     assert.equal(paneArchiveSwipe(newest, 'r2', opener, 'HUM-2', everyone), true)

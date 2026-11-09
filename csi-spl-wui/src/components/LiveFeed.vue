@@ -179,7 +179,7 @@ import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { isTopicCard, latestMessageId } from '~/utils/topic-archive.mjs'
-import { paneOpenerId } from '~/utils/move.mjs'
+import { paneOpenerRow } from '~/utils/move.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useThreadAwait, type AwaitMark } from '~/composables/useAwaitReply'
 import { useViewPrefs } from '~/composables/useViewPrefs'
@@ -240,6 +240,8 @@ const props = defineProps<{
   clipPane?: CardClipPane
   /** SPL-1024: a thread whose rows may be moved to another topic (the right pane). */
   moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null
+  /** a topic pane's rows read apart from its window: the oldest row, the pinned root */
+  openerRows?: Array<SpoolMessage | null | undefined>
   /** CLE-77804 (topic 1e7d56b8): the read cursor frozen when this feed was
       opened. Messages after it are "new": the divider goes before the first,
       they carry a fading highlight, and a "N new" button jumps to the divider.
@@ -289,7 +291,10 @@ const unreadOrder = useUnreadOrder()
 /* The middle pane marks every card. A thread marks only its opening card:
    its earliest card, not every level-1 row - an agent's DM answer is stored
    at level 1 and is a reply that may move (owner, t1 ffc3b83c). */
-const openerId = computed(() => (props.topicCardMenu ? String(props.moveCtx?.opener || '') || paneOpenerId(props.rows) : ''))
+const openerRow = computed(() => (props.topicCardMenu
+  ? paneOpenerRow(props.rows, { named: String(props.moveCtx?.opener || ''), known: props.openerRows || [], hasOlder: props.hasOlder }) as SpoolMessage | null
+  : null))
+const openerId = computed(() => String(openerRow.value?.msg_id || ''))
 const unreadRank = (m: SpoolMessage) => (openerId.value && String(m.msg_id) === openerId.value ? 0 : countedRow(m) ? cardNew.unseen(m) : Number(isNew(m)))
 /* the rows in DOM (= reading) order */
 /* CLE-77840: a reply deleted with the Delete key stays hidden while its Undo
@@ -430,12 +435,7 @@ function topicMenuFor(m: SpoolMessage) {
    swipes to archive, on the opener's permission (MessageCard). An opener
    past the loaded page is named by id alone (no level = a card). */
 const paneLatestId = computed(() => (props.topicCardMenu ? props.lastMsgId || latestMessageId(props.rows) : ''))
-const paneOpener = computed<SpoolMessage | null | undefined>(() => {
-  if (!props.topicCardMenu) return undefined
-  const id = openerId.value
-  if (!id) return null
-  return props.rows.find((r) => String(r.msg_id) === id) || ({ msg_id: id } as SpoolMessage)
-})
+const paneOpener = computed<SpoolMessage | null | undefined>(() => (props.topicCardMenu ? openerRow.value : undefined))
 /* the pane's move context names that opener, so a later level-1 row moves as a reply */
 const paneMoveCtx = computed(() => (props.moveCtx && openerId.value ? { ...props.moveCtx, opener: openerId.value } : props.moveCtx))
 

@@ -16,6 +16,8 @@
 //      archive, the older reply and the opener do not; a long LEFT slide on
 //      the latest reply archives the topic ("Archived · Undo" shows)
 //   S  a topic with no replies: its opening card offers Archive topic
+//   W  a long topic opened by task id, its opener past the loaded window:
+//      every reply offers Archive topic, and it archives the topic
 //
 // Run:
 //   node tests/e2e/topic-archive-any-message.test.mjs
@@ -221,11 +223,40 @@ try {
   ok('R an older reply\'s menu has no Archive topic', ro.length > 0 && !ro.includes('msg-menu-archive'), ro)
   await closeMenu(r)
   await menuItems(r, inPane(rs.top))
-  const rt = await r.evaluate(() => { const e = document.querySelector('[data-testid=msg-menu-archive]'); return e ? { disabled: e.disabled === true || e.getAttribute('aria-disabled') === 'true' } : null })
-  ok('R the opening card never has it enabled', !rt || rt.disabled, rt)
+  const rt = await r.evaluate(() => { const e = document.querySelector('[data-testid=msg-menu-archive]'); return e ? { disabled: e.disabled === true || e.getAttribute('aria-disabled') === 'true', reason: e.title } : null })
+  ok('R the opening card lists it disabled, never absent or enabled', rt !== null && rt.disabled === true && rt.reason.length > 0, rt)
   await closeMenu(r)
   ok('no unexpected page errors (refused)', r.errors.filter((e) => !benign(e)).length === 0, r.errors)
   await r.close()
+
+  /* ---- W. a long topic opened by its task id alone (c-468 W1): the pane holds
+     a window without the opener, more pages unread. The mock pane shows every
+     held row, so the opener is taken out of the held rows; the read still
+     pages (31 replies past the 30-row window) and answers the oldest row. */
+  const w = await page(browser, { width: 1440, height: 900 })
+  const ws = await seed(w, 'W', 31)
+  const wLatest = ws.replies[30]
+  const wOlder = ws.replies[3]
+  ok('W the topic pane opens', await openTopic(w, ws, wLatest))
+  await sleep(800)
+  const wState = await w.evaluate((top) => {
+    const g = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s
+    const ch = g.get('channel')
+    ch.messages = ch.messages.filter((m) => m.msg_id !== top)
+    return { root: g.get('topic').target?.rootMsgId, held: g.get('topic').messages.some((m) => m.msg_id === top) }
+  }, ws.top)
+  await sleep(500)
+  ok('W opened with no root id, the opener not held', wState.root === '' && wState.held === false, wState)
+  ok('W Load more is offered (older pages unread)', await has(w, '.topic .older-sentinel'))
+  const wl = await menuItems(w, inPane(wLatest))
+  ok('W the latest reply offers Archive topic', wl.includes('msg-menu-archive'), wl)
+  await closeMenu(w)
+  const wo = await menuItems(w, inPane(wOlder))
+  ok('W an older reply offers Archive topic', wo.includes('msg-menu-archive'), wo)
+  await w.evaluate(() => document.querySelector('[data-testid=msg-menu-archive]')?.click())
+  ok('W Archive topic from that reply archives the topic', await until(w, (t) => Boolean(document.querySelector(t)), toast, 4000))
+  ok('no unexpected page errors (long topic)', w.errors.filter((e) => !benign(e)).length === 0, w.errors)
+  await w.close()
 
   /* ---- P. phone: the left swipe ----------------------------------------- */
   const p = await page(browser, { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })

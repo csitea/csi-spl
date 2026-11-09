@@ -92,6 +92,22 @@ export function paneOpenerId(rows) {
   return best ? String(best.msg_id) : ''
 }
 
+/**
+ * The opening card of a pane that may hold only a window of its topic (c-468
+ * W1, owner t1 bb0091f1 msg 83355f04). `named` is the id the open carried;
+ * `known` are rows read apart from the window (the topic's oldest row, the
+ * pinned root). With older pages unread a card in the window can be a later
+ * level-1 line, which the hub refuses (409 not_a_card), so only `known` names
+ * it then. A named id no row matches stays a bare { msg_id }. null = unknown.
+ */
+export function paneOpenerRow(rows, { named = '', known = [], hasOlder = false } = {}) {
+  const held = Array.isArray(rows) ? rows : []
+  const read = known.filter(Boolean)
+  const id = String(named || '') || paneOpenerId(hasOlder ? read : held)
+  if (!id) return null
+  return [...held, ...read].find((m) => m && String(m.msg_id) === id) || { msg_id: id }
+}
+
 /** A left-rail channel row lights up (and takes the drop) for this drag. */
 export function isChannelDropTarget(drag, channelId, listed = null) {
   const d = drag && typeof drag === 'object' ? drag : null

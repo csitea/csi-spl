@@ -59,6 +59,7 @@
         @deleted="onDeleted"
         @reacted="onReacted"
         :move-ctx="moveCtx"
+        :opener-rows="[oldestRow, topic.rootMsg]"
       />
     </div>
     <BornTopics v-if="newestLast" />

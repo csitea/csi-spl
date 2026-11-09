@@ -40,7 +40,7 @@ function readState() {
   const lastLive = ref<SpoolMessage | null>(null)
   const olderCursor = ref<string | null>(null)
   const loadingOlder = ref(false)
-  /* The topic's first message, for the heading, when the newest page does not reach it. */
+  /* The topic's first message, when the newest page does not reach it: the heading, and the opener Archive topic is decided on. */
   const oldestRow = ref<SpoolMessage | null>(null)
   /* t1 8fb802cd: the open topic's archive stamp ('' = live), from its first read */
   const archivedAt = ref('')
@@ -108,6 +108,7 @@ function watchTopicOpen({ topic, api, t }: TopicPaneReadOptions, s: ReadState, {
         archivedAt.value = archiveStamp(d)
         mockHead.value = (d.messages || []) as SpoolMessage[]
         olderCursor.value = d.next || null
+        if (olderCursor.value) void loadOldestRow(id)
       }).catch((e) => {
         /* no answer: the pane shows the held rows, unmarked, without Load more;
            SPL-1839: the e2e fault hook (spool.mock.read-fault) says it */
@@ -126,7 +127,7 @@ function watchTopicOpen({ topic, api, t }: TopicPaneReadOptions, s: ReadState, {
       liveRows.value = data.messages || []
       olderCursor.value = data.next || null
       archivedAt.value = archiveStamp(data)
-      if (olderCursor.value && !topic.rootMsg) void loadOldestRow(id)
+      if (olderCursor.value) void loadOldestRow(id)
     } catch (e) {
       loadErr.value = e
       loadError.value = t('topic.load_failed')

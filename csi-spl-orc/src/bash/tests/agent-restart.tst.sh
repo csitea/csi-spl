@@ -762,10 +762,10 @@ rc="$(go ID=c-976 CAUSE=S3 DRY_RUN=0 WD_EVIDENCE=dead)"
   pass "22. 3 box-event restarts in the hour do not count: the next S3 runs (hourly limit 3)" || fail "22. hourly rc=$rc: $(tail -3 "$T/o")"
 
 # --- 23. a restored lane: the wrapper goes before the claude -------------------------------
-# wrapped <pid> <id> <cmd>: <pid> runs under su (<pid>+1000) under <cmd> (<pid>+2000)
+# wrapped <pid> <id> <cmd>: <pid> runs under su (<pid>+1000) under <cmd> <id> (<pid>+2000)
 pstat() { mkdir -p "$T/proc/$1"; echo "$2" > "$T/proc/$1/comm"; echo "$1 ($2) S $3 0 0" > "$T/proc/$1/stat"; printf '%b' "$4" > "$T/proc/$1/cmdline"; }
 wrapped() {
-  pstat $(( $1 + 2000 )) bash 1 "$3"
+  pstat $(( $1 + 2000 )) bash 1 "$3$2\0"
   pstat $(( $1 + 1000 )) su $(( $1 + 2000 )) 'su\0-\0'
   echo "$1 (claude) S $(( $1 + 1000 )) 0 0" > "$T/proc/$1/stat"
   echo "$(( $1 + 2000 )) $2 $(( $1 + 3000 ))" > "$T/wrapped.$1"
@@ -794,6 +794,14 @@ world; lane c-004 %82 4004; hb c-004 in-tool 1000 "$HB23"; wrapped 4004 c-004 "$
 rc="$(go ID=c-004 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash")"
 [[ "$rc" == 0 && "$(grep -v '^ack' "$T/order.log" | sed -n 1,3p | tr '\n' ' ')" == "spawn c-004 kill 6004 kill 4004 " && "$(nproc c-004)" == 1 ]] && ! grep -q resume "$T/order.log" &&
   pass "23. a restored seat: after the ack the wrapper goes first, then the old claude; one session" || fail "23. seat rc=$rc procs=$(nproc c-004): $(tr '\n' ' ' < "$T/order.log") $(tail -3 "$T/o")"
+world; lane c-981 %83 4981; hb c-981 in-tool 1000 "$HB23"; wrapped 4981 c-111 "$RW"; rm -f "$T/wrapped.4981"
+rc="$(go ID=c-981 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash")"
+[[ "$rc" == 0 ]] && ! grep -q ' 6981' "$T/kill.log" && alive 6981 &&
+  pass "23. control: the restore wrapper of another id is not signalled" || fail "23. other id rc=$rc: $(cat "$T/kill.log")"
+world; lane c-004 %84 4004; hb c-004 in-tool 1000 "$HB23"; wrapped 4004 c-004 "$RW"
+rc="$(go ID=c-004 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash" ROTATE_KILL="$T/bin/kill.stuck")"
+[[ "$rc" == 0 ]] && grep -q 'kill -KILL 6004' "$T/kill.log" && grep -q 'kill -TERM 4004' "$T/kill.log" && grep -q 'RS-RETIRE FAIL .*restore wrapper' "$D/rotate.log" &&
+  pass "23. a seat whose wrapper survives SIGKILL: the acked restart still signals the old claude, and says so" || fail "23. seat stuck rc=$rc: $(cat "$T/kill.log") $(tail -3 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

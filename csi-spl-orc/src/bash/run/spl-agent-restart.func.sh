@@ -458,34 +458,40 @@ spl_ars_plan() {
 # A planned end (no investigation): rebirth, hard end, reboot, box down, login reset.
 spl_ars_planned() { [[ ! "$ARS_CAUSE" =~ ^S[0-9]+$ ]]; }
 
-# spl_ars_wrapper_of PID: the restore-<kind>.sh above PID, by the parent chain
-# (no tmux, so a window on a server the fleet does not see is found too), or
-# nothing. A process with no such ancestor is not a restored session.
+# spl_ars_wrapper_of PID ID: the restore-<kind>.sh of ID above PID, by the
+# parent chain (no tmux, so a window on a server the fleet does not see is found
+# too), or nothing. Every launcher passes the id as the adapter's first argument;
+# the wrapper of another id is that seat's, never ours to stop.
 spl_ars_wrapper_of() {
-  local p="$1" a0 a1 root="${LEASE_PROC_ROOT:-/proc}"
+  local p="$1" id="$2" a0 a1 a2 root="${LEASE_PROC_ROOT:-/proc}"
   for _ in $(seq 1 16); do
     p="$(awk '{sub(/^.*\) /, ""); print $2}' "$root/$p/stat" 2>/dev/null || true)"
     [[ "$p" =~ ^[0-9]+$ ]] && (( p > 1 )) || return 0
-    a0="" a1=""
-    { IFS= read -r -d '' a0; IFS= read -r -d '' a1; } < "$root/$p/cmdline" 2>/dev/null || true
-    if [[ "${a0##*/}" == bash && "${a1##*/}" =~ ^restore-[a-z]+(-plain)?\.sh$ ]]; then echo "$p"; return 0; fi
+    a0="" a1="" a2=""
+    { IFS= read -r -d '' a0; IFS= read -r -d '' a1; IFS= read -r -d '' a2; } < "$root/$p/cmdline" 2>/dev/null || true
+    if [[ "${a0##*/}" == bash && "${a1##*/}" =~ ^restore-[a-z]+(-plain)?\.sh$ && "$a2" == "$id" ]]; then echo "$p"; return 0; fi
   done
   return 0
 }
 
-# spl_ars_kill PID RID: the session's restore wrapper first, by its own pid,
+# spl_ars_kill PID RID ID [signal]: the session's restore wrapper first, by its own pid,
 # then the session. restore-core.inc.sh resumes the id again when the CLI ends
 # non-zero, so a wrapper left alive starts a second session of it within a
 # second (SPL-5140). A wrapper holds nothing worth a TERM: KILL. One that
-# stays = 1 and the session is left alone, ROTATE_ERR says why.
+# stays = 1, ROTATE_ERR says why, and the session is left alone, unless the
+# caller says signal: a seat whose new session has acked still retires the old.
 spl_ars_kill() {
-  local pid="$1" rid="$2" w a0 t0 root="${LEASE_PROC_ROOT:-/proc}"
-  w="$(spl_ars_wrapper_of "$pid")"
+  local pid="$1" rid="$2" id="$3" stuck="${4:-}" w a0 t0 root="${LEASE_PROC_ROOT:-/proc}"
+  w="$(spl_ars_wrapper_of "$pid" "$id")"
   if [[ -n "$w" ]]; then
     ${ROTATE_KILL:-sudo -n kill} -KILL "$w" 2>/dev/null || true
     t0=$SECONDS
     while a0=""; { IFS= read -r -d '' a0; } < "$root/$w/cmdline" 2>/dev/null || true; [[ -n "$a0" ]]; do
-      if (( SECONDS - t0 >= 5 )); then ROTATE_ERR="the restore wrapper $w of pid $pid survived SIGKILL"; return 1; fi
+      if (( SECONDS - t0 >= 5 )); then
+        [[ "$stuck" != signal ]] || spl_wdt_kill "$pid" || true
+        ROTATE_ERR="the restore wrapper $w of pid $pid survived SIGKILL"
+        return 1
+      fi
       sleep 1
     done
     spl_peer_rlog "$rid" RS-RETIRE OK "restore wrapper $w of pid $pid gone first"
@@ -499,7 +505,7 @@ spl_ars_kill() {
 spl_ars_lane() {
   local id="$1" rid="$2" ts="$3" hand="$4" seed="$5"
   if [[ -n "$ARS_PID" ]]; then
-    if ! spl_ars_kill "$ARS_PID" "$rid"; then
+    if ! spl_ars_kill "$ARS_PID" "$rid" "$id"; then
       spl_peer_rlog "$rid" RS-RETIRE FAIL "$ROTATE_ERR: no new session in its worktree"
       spl_wdt_alert "$id" "$rid" RS-RETIRE "$ROTATE_ERR"
       return 1
@@ -550,7 +556,7 @@ spl_ars_seat() {
   if (( ack != 0 )); then
     spl_peer_with_lib spl_rotate_restore "$id" "$ARS_PANE" "$ROTATE_NEW_PANE"
     if [[ -n "$ROTATE_NEW_PID" ]] && spl_peer_alive "$ROTATE_NEW_PID"; then spl_wdt_kill "$ROTATE_NEW_PID" || true; fi
-    if [[ "$ARS_CAUSE" == hard-end && -n "$ARS_PID" ]] && spl_ars_kill "$ARS_PID" "$rid"; then
+    if [[ "$ARS_CAUSE" == hard-end && -n "$ARS_PID" ]] && spl_ars_kill "$ARS_PID" "$rid" "$id"; then
       spl_peer_rlog "$rid" RS-RETIRE OK "hard end: pid $ARS_PID retired anyway (R2); the next tick starts a fresh one"
     else
       spl_peer_rlog "$rid" RS-RETIRE SKIP "the old session${ARS_PID:+ (pid $ARS_PID)} keeps the seat (060 D2)"
@@ -560,9 +566,9 @@ spl_ars_seat() {
     return 1
   fi
   if [[ -n "$ARS_PID" ]]; then
-    if spl_ars_kill "$ARS_PID" "$rid"; then spl_peer_rlog "$rid" RS-RETIRE OK "pid $ARS_PID gone after the ack"
+    if spl_ars_kill "$ARS_PID" "$rid" "$id" signal; then spl_peer_rlog "$rid" RS-RETIRE OK "pid $ARS_PID gone after the ack"
     else
-      spl_peer_rlog "$rid" RS-RETIRE FAIL "$ROTATE_ERR: two sessions carry $id until a human clears it"
+      spl_peer_rlog "$rid" RS-RETIRE FAIL "$ROTATE_ERR: $id may carry two sessions until a human clears it"
       spl_wdt_alert "$id" "$rid" RS-RETIRE "$ROTATE_ERR"
     fi
   fi

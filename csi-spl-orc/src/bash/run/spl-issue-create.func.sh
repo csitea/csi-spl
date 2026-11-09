@@ -38,8 +38,8 @@
 # @param ISSUE_DEADLINE (optional) - RFC 3339 with a zone, e.g. 2026-10-01T15:00:00Z
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE='Rotate the relay key' ISSUE_DISCUSSIONS=<topic id> ISSUE_EPIC=SPL-17 ISSUE_DESCRIPTION='Spec: csi-spl-doc/specs/135-work-process' ISSUE_PRIORITY=2 ISSUE_ASSIGNEE=CLE-00 DRY_RUN=0 ./run -a do_spl_issue_create
-# @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-001 ISSUE_TITLE='Invoice run' ISSUE_DISCUSSIONS=<topic uuid> ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO=<owner msg uuid> ISSUE_DESCRIPTION='card' DRY_RUN=0 ./run -a do_spl_issue_create
+# @example ENV=dev TENANT_ID=t1 DESK_AGENT=<agent id> ISSUE_TITLE='<title>' ISSUE_DISCUSSIONS=<topic id> ISSUE_EPIC=SPL-17 ISSUE_DESCRIPTION='Spec: <spec dir>' DRY_RUN=0 ./run -a do_spl_issue_create
+# @example ENV=prd TENANT_ID=csitea DESK_AGENT=<id> ISSUE_TITLE=<title> ISSUE_DISCUSSIONS=<topic> ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO=<uuid> ISSUE_DESCRIPTION=<card> DRY_RUN=0 ./run -a do_spl_issue_create
 #------------------------------------------------------------------------------
 do_spl_issue_create() {
   [[ -n "${ISSUE_TITLE:-}" ]] || { do_log "FATAL ISSUE_TITLE must carry the issue title"; return 1; }

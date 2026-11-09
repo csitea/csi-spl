@@ -60,7 +60,7 @@
 # @param   re-copy); every run of that copy must pass the same tag
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd SRC_TENANT=csitea SRC_TOPIC_ID=0f8fad5b-d9cb-469f-a165-70867728950e DST_TENANT=t1 DST_CHANNEL=dev DESK_AGENT=c-001 ./run -a do_spl_topic_copy_cross
-# @example ENV=dev SRC_TENANT=t1 SRC_TOPIC_ID=0f8fad5b-d9cb-469f-a165-70867728950e DST_TENANT=e2e DST_CHANNEL=dev DESK_AGENT=c-001 MSG_IDS='1a2b3c4d 5e6f7a8b' TITLE='Part 1' ARCHIVE=0 DRY_RUN=0 ./run -a do_spl_topic_copy_cross
+# @example ENV=dev SRC_TENANT=t1 SRC_TOPIC_ID=<topic id> DST_TENANT=e2e DST_CHANNEL=dev DESK_AGENT=c-001 MSG_IDS='<msg id> <msg id>' TITLE='Part 1' ARCHIVE=0 DRY_RUN=0 ./run -a do_spl_topic_copy_cross
 #------------------------------------------------------------------------------
 do_spl_topic_copy_cross() {
   : "${SRC_TENANT:?SRC_TENANT must be set (no default) - the workspace the topic is in}"

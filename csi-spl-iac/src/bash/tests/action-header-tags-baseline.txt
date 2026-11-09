@@ -30,6 +30,3 @@ csi-spl-orc/src/bash/run/spl-spawn-queue.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-share.func.sh
 [long-example]
 csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh
-csi-spl-orc/src/bash/run/spl-issue-create.func.sh
-csi-spl-orc/src/bash/run/spl-tenant-member-add.func.sh
-csi-spl-orc/src/bash/run/spl-topic-copy-cross.func.sh

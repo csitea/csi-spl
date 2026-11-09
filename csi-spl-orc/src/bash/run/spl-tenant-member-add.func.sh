@@ -49,7 +49,7 @@
 # @param   argument, env var, or log — and one trailing newline is stripped.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 EMAIL=person@example.com MEMBER_ROLE=developer ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_tenant_member_add
-# @example ENV=prd TENANT_ID=acme EMAIL=office@example.com DISPLAY_NAME='FirstName LastName' MEMBER_ROLE=biz_owner CREATE_HUMAN=1 PASSWORD_FILE=$HOME/.spool/.csi/acme.pw ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_tenant_member_add
+# @example ENV=prd TENANT_ID=<tenant> EMAIL=<email> DISPLAY_NAME='<name>' MEMBER_ROLE=biz_owner CREATE_HUMAN=1 PASSWORD_FILE=<pw file> ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_tenant_member_add
 #------------------------------------------------------------------------------
 do_spl_tenant_member_add() {
   do_require_bin yq psql || return 1

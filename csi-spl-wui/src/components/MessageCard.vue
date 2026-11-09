@@ -655,7 +655,7 @@ const editError = ref('')
 const localePath = useLocalePath()
 const msgEdit = useMessageEdit()
 const { canEdit, viewerId: editorId, removeAttachment } = msgEdit
-const { editing, saving, emptyAsk, editHintId, draft, editMp, startEdit, closeEdit, onEditKey, save, cancel: cancelEdit } = useCardEdit(props, emit, rowEl, editEl, editError, msgEdit)
+const { editing, saving, emptyAsk, editHintId, draft, editMp, startEdit, closeEdit, onEditKey, save, cancel: cancelEdit } = useCardEdit({ props, emit, rowEl, editEl, editError }, msgEdit)
 /* The same message can sit in the middle list and the topic pane at once.
    The menu id has to be this card, not the msg_id, or both menus open. */
 const menuKey = useId()

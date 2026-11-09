@@ -58,13 +58,10 @@ function editWhereOf(m: SpoolMessage): PokeWhere {
 }
 
 export function useCardEdit(
-  props: { msg: SpoolMessage },
-  emit: (e: 'edited', msg: SpoolMessage) => void,
-  rowEl: Ref<HTMLElement | null>,
-  editEl: Ref<HTMLTextAreaElement | null>,
-  editError: Ref<string>,
+  card: { props: { msg: SpoolMessage }, emit: (e: 'edited', msg: SpoolMessage) => void, rowEl: Ref<HTMLElement | null>, editEl: Ref<HTMLTextAreaElement | null>, editError: Ref<string> },
   msgEdit: MsgEdit,
 ) {
+  const { props, emit, rowEl, editEl, editError } = card
   const { canEdit } = msgEdit
   const edit = ref<ReturnType<typeof beginEdit>>(null)
   const editing = computed(() => edit.value !== null)

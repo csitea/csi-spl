@@ -38,7 +38,7 @@ function openCard() {
   }
   const msg = { msg_id: 'm1', body: 'old body' }
   const editError = ref('')
-  const card = mod.useCardEdit({ msg }, () => {}, ref(null), ref(null), editError, msgEdit)
+  const card = mod.useCardEdit({ props: { msg }, emit: () => {}, rowEl: ref(null), editEl: ref(null), editError }, msgEdit)
   card.startEdit()
   return { card, commits, editError }
 }

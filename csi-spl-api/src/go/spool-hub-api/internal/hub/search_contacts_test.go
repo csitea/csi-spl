@@ -206,3 +206,50 @@ func TestSearchContactsKillSwitchAndPersonGate(t *testing.T) {
 		t.Errorf("act-as clone = types %v %v, want no contact section", types, contactHits(sec))
 	}
 }
+
+// C11b: in:contacts (and channel:contacts) answers exactly as type:contact:
+// the reader's own contacts only, one section. in:#contacts is the channel.
+// Another person's search and a workspace outside the switch get none.
+func TestSearchContactsInContacts(t *testing.T) {
+	c := newContactsRig(t, func(_, w2 string) []string { return []string{w2} })
+	id := c.create(t, c.b2, map[string]any{"first_name": ctFirst, "last_name": ctLast})
+	_, wantTypes, wantSec := c.searchAs(t, c.b2, "type:contact "+ctFirst, "")
+	if !slices.Equal(contactHits(wantSec), []string{id}) {
+		t.Fatalf("twin: type:contact = %v, want [%s]", contactHits(wantSec), id)
+	}
+	for _, q := range []string{"in:contacts " + ctFirst, "channel:contacts " + ctFirst, "IN:CONTACTS " + ctFirst} {
+		code, types, sec := c.searchAs(t, c.b2, q, "")
+		if code != http.StatusOK || !slices.Equal(types, wantTypes) || !slices.Equal(contactHits(sec), []string{id}) {
+			t.Errorf("C11b: %q = %d types %v %v, want types %v, [%s]", q, code, types, contactHits(sec), wantTypes, id)
+		}
+	}
+	if _, _, sec := c.searchAs(t, c.b2, "in:contacts nomatchword", ""); len(contactHits(sec)) != 0 {
+		t.Errorf("CONTROL: a word no contact holds = %v, want none", contactHits(sec))
+	}
+	if code, types, sec := c.searchAs(t, c.b2, "in:#contacts "+ctFirst, ""); code != http.StatusOK || slices.Contains(types, "contact") || sec != nil {
+		t.Errorf("CONTROL: in:#contacts = %d types %v %v, want the channel, no contact section", code, types, sec)
+	}
+	if code, types, sec := c.searchAs(t, c.b1, "in:contacts "+ctFirst, ""); code != http.StatusOK || slices.Contains(types, "contact") || sec != nil {
+		t.Errorf("gate: W1 (off) = %d types %v %v, want no contact section", code, types, sec)
+	}
+	c.cs.setClone(c.p1)
+	if _, types, sec := c.searchAs(t, c.b2, "in:contacts "+ctFirst, ""); slices.Contains(types, "contact") || len(contactHits(sec)) != 0 {
+		t.Errorf("gate: act-as clone = types %v %v, want no contact section", types, contactHits(sec))
+	}
+}
+
+// C10 for in:contacts: P2 finds none of P1's; the twin is P1's own search.
+func TestSearchInContactsOtherPersonSeesNone(t *testing.T) {
+	c := newContactsRig(t, onAll)
+	id := c.create(t, c.b1, map[string]any{"first_name": ctFirst})
+	if _, _, sec := c.searchAs(t, c.b1, "in:contacts "+ctFirst, ""); !slices.Equal(contactHits(sec), []string{id}) {
+		t.Fatalf("twin: P1 = %v, want [%s]", contactHits(sec), id)
+	}
+	admin, _ := c.other(t, "admin")
+	stranger, _ := c.other(t, "")
+	for name, b := range map[string]*http.Client{"admin of W1": admin, "stranger": stranger} {
+		if code, _, sec := c.searchAs(t, b, "in:contacts "+ctFirst, ""); code != http.StatusOK || len(contactHits(sec)) != 0 {
+			t.Errorf("C10: %s = %d %v, want none of P1's", name, code, contactHits(sec))
+		}
+	}
+}

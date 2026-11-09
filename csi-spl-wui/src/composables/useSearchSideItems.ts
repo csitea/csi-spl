@@ -84,6 +84,9 @@ function itemOf(c: SearchSideItemsOpts, row: SearchRow): SideHitItem {
       return { ...base, badge: '#', where: metaOf(c, row) }
     case 'events':
       return { ...base, where: metaOf(c, row), when: when(r.received_at) }
+    case 'contacts':
+      /* the reader's own contact: how to reach it (spec 154 2.3) */
+      return { ...base, badge: '👤', where: String(r.email || r.phone || '') }
     case 'file_lines':
       /* a box file stream line: the box and its stream key (spec 160 3.6) */
       return { ...base, badge: '📜', where: [String(r.box_id || ''), String(r.stream_key || '')].filter(Boolean).join(' · '), when: when(r.at) }

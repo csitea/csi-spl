@@ -1318,7 +1318,7 @@ declare module '~/utils/highlighter.mjs' {
 }
 
 declare module '~/utils/search.mjs' {
-  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'tenants' | 'topics' | 'files' | 'messages' | 'docs' | 'file_lines' | 'events' | 'issues'
+  export type SearchGroupType = 'robots' | 'users' | 'contacts' | 'channels' | 'boxes' | 'tenants' | 'topics' | 'files' | 'messages' | 'docs' | 'file_lines' | 'events' | 'issues'
   export interface SearchOperator { op: string, example?: string, values?: string[] }
   export interface SearchRow {
     type: SearchGroupType

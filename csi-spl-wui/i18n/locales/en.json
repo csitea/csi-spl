@@ -1146,6 +1146,7 @@
       "events": "Event log",
       "issues": "Issues",
       "docs": "Documents",
+      "contacts": "Contacts",
       "file_lines": "File stream lines"
     },
     "notice": {

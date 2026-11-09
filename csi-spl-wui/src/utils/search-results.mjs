@@ -17,8 +17,9 @@ import { parentSection, parentSectionHref } from './parent-section.mjs'
  *  tenants, events and issues are opt-in: the hub returns them for type:tenant,
  *  type:event and type:issue. docs (spec 100 section 14, SPL-3337) are the
  *  workspace's Qto document sections, in every plain search. file_lines (spec
- *  160 3.6) are the box file stream lines, only for in:file-streams. */
-export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'docs', 'file_lines', 'events', 'issues']
+ *  160 3.6) are the box file stream lines, only for in:file-streams. contacts
+ *  (spec 154 2.3) are the reader's own, in a plain search and in:contacts. */
+export const SEARCH_GROUPS = ['robots', 'users', 'contacts', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'docs', 'file_lines', 'events', 'issues']
 
 /**
  * Canonical type names, then each type's aliases. `type:` completions lead
@@ -139,6 +140,7 @@ function keyOf(type, r, i) {
     return `issues:${k || i}`
   }
   if (type === 'docs') return `docs:${r.item_id || i}`
+  if (type === 'contacts') return `contacts:${r.contact_id || i}`
   if (type === 'file_lines') return `file_lines:${r.stream_id || ''}:${r.seq ?? i}`
   const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.error_id || r.id || i
   const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
@@ -264,6 +266,11 @@ export function searchTarget(row) {
       const key = String(raw ?? '').trim()
       if (!key) return null
       return { path: `/issues?issue=${encodeURIComponent(key)}` }
+    }
+    case 'contacts': {
+      /* the reader's own contact: its card (spec 154 2.3) */
+      const id = String(r.contact_id || '').trim()
+      return id ? { path: `/people/contact/${encodeURIComponent(id)}` } : null
     }
     case 'file_lines': {
       /* the File streams tab at that line, Follow off (spec 160 3.6) */

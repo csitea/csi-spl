@@ -55,8 +55,8 @@ function issueOperators() {
 export const SEARCH_OPERATORS = [
   { op: 'from:', example: 'from:CLE-07' },
   { op: 'to:', example: 'to:HUM-1' },
-  { op: 'in:', example: 'in:#lobby', values: ['dm', 'file-streams'] },
-  { op: 'channel:', example: 'channel:#lobby', values: ['dm', 'file-streams'] },
+  { op: 'in:', example: 'in:#lobby', values: ['dm', 'file-streams', 'contacts'] },
+  { op: 'channel:', example: 'channel:#lobby', values: ['dm', 'file-streams', 'contacts'] },
   { op: 'is:', values: ['task', 'note', 'result', 'reject', 'blocker', 'msg', 'relay', 'root', 'online', 'offline', 'revoked'] },
   { op: 'has:', values: ['file', 'attachment', 'code'] },
   { op: 'type:', values: TYPE_VALUES },
@@ -106,7 +106,7 @@ export function ensureSearchOperators(catalogue = SEARCH_OPERATORS) {
   }
   if (!has('channel:') && has('in:')) {
     const inn = out.find((o) => o.op === 'in:')
-    out.push({ op: 'channel:', example: 'channel:#lobby', values: Array.isArray(inn.values) ? inn.values.slice() : ['dm', 'file-streams'] })
+    out.push({ op: 'channel:', example: 'channel:#lobby', values: Array.isArray(inn.values) ? inn.values.slice() : ['dm', 'file-streams', 'contacts'] })
     changed = true
   }
   for (const extra of issueOperators()) {

@@ -42,6 +42,10 @@ var goldenQueries = []string{
 	"in:file-streams token", "channel:file-streams token", "in:#file-streams token", "channel:#file-streams token",
 	"in:file-stream x", "in:FILE-STREAMS x", "type:file_line box:box-a name:app after:7d", "in:file-streams from:CLE-07",
 	"in:file-streams in:#lobby", "type:file_line is:task", "type:message in:file-streams", "-in:file-streams x",
+	// in:contacts (spec 154 2.3, case C11b): the reserved word, and #contacts the channel
+	"in:contacts token", "channel:contacts token", "in:#contacts token", "channel:#contacts token", "in:CONTACTS x",
+	"type:contact in:contacts x", "in:contacts from:CLE-07", "in:contacts in:#lobby", "in:contacts in:file-streams",
+	"type:message in:contacts", "-in:contacts x",
 	// empty values
 	"from:", `title:""`, "in: x",
 }

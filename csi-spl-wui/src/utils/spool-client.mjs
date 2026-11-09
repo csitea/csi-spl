@@ -821,6 +821,23 @@ function feedReads(api, mock, mk) {
   }
 }
 
+/** The mock tenant's search answer: its messages and channels, its Qto documents (spec 100 section 14) and, for in:contacts, its contacts (spec 154 2.3). */
+async function mockSearchAnswer(mk, q) {
+  const { mockSearch, mockSearchFault } = await import('./search-results.mjs')
+  await mockSearchFault()
+  const res = mockSearch(mk.state.messages, q, mk.state.channels)
+  try {
+    const { mockSearchDocs } = await import('../components/workspace-docs/-doctree-mock')
+    const docs = mockSearchDocs(q)
+    if (docs.length) res.groups.docs = { results: docs, next: null }
+  } catch { /* no doctree mock here: no docs group */ }
+  if (/(^|\s)in:contacts(\s|$)/i.test(q)) {
+    const { mockContactHits } = await import('./contacts-client.mjs')
+    res.groups.contacts = { results: mockContactHits(q), next: null }
+  }
+  return res
+}
+
 /** Channels, search and the roster: the shell's other first-screen reads. */
 function shellReads(mock, mk, live) {
   return {
@@ -845,19 +862,8 @@ function shellReads(mock, mk, live) {
      */
     async search({ q = '', cursor = '', limit = 0, sort = '' } = {}) {
       // The result half loads on the first search, never on the first paint (027 budget).
-      const { mockSearch, mockSearchFault, normalizeSearchResponse } = await import('./search-results.mjs')
-      if (mock) {
-        await mockSearchFault()
-        const res = mockSearch(mk.state.messages, q, mk.state.channels)
-        /* spec 100 section 14: the mock tenant's Qto documents, from the
-           doctree mock (a lazy chunk; none where it cannot load) */
-        try {
-          const { mockSearchDocs } = await import('../components/workspace-docs/-doctree-mock')
-          const docs = mockSearchDocs(q)
-          if (docs.length) res.groups.docs = { results: docs, next: null }
-        } catch { /* no doctree mock here: no docs group */ }
-        return normalizeSearchResponse(res)
-      }
+      const { normalizeSearchResponse } = await import('./search-results.mjs')
+      if (mock) return normalizeSearchResponse(await mockSearchAnswer(mk, q))
       // 027 budget: the search grammar (search.mjs + its mention autocomplete)
       // rides the first search, not the initial chunk.
       const { searchApiQuery } = await import('./search.mjs')

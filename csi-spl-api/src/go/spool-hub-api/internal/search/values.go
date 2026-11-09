@@ -128,6 +128,13 @@ func channelValue(term *Term, lv string, neg bool) string {
 		term.FileStreams = true
 		return ""
 	}
+	if lv == "contacts" { // reserved, as file-streams; #contacts is a channel
+		if neg { // it picks the section, as type: does
+			return "in:contacts cannot be negated"
+		}
+		term.Contacts = true
+		return ""
+	}
 	c := strings.TrimPrefix(lv, "#")
 	switch {
 	case c == "dm":
@@ -138,7 +145,7 @@ func channelValue(term *Term, lv string, neg bool) string {
 		}
 		term.Channel = c
 	default:
-		return "in: must be a channel (#name), dm or file-streams"
+		return "in: must be a channel (#name), dm, file-streams or contacts"
 	}
 	return ""
 }

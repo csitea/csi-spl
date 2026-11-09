@@ -234,7 +234,7 @@ describe('operator autocomplete', () => {
     assert.deepEqual(completeOperators('type:ten').map((c) => c.insert), ['type:tenant '])
     assert.deepEqual(completeOperators('type:ev').map((c) => c.insert), ['type:event '])
     assert.deepEqual(completeOperators('kind:ten').map((c) => c.insert), ['kind:tenant '])
-    assert.deepEqual(completeOperators('channel:').map((c) => c.insert), ['channel:dm ', 'channel:file-streams '])
+    assert.deepEqual(completeOperators('channel:').map((c) => c.insert), ['channel:dm ', 'channel:file-streams ', 'channel:contacts '])
     assert.deepEqual(completeOperators('type:top').map((c) => c.insert), ['type:topic '])
     assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:attachment ', 'has:code '])
   })
@@ -846,15 +846,24 @@ describe('file stream lines (spec 160 3.6, SPL-3888)', () => {
     assert.deepEqual(normalizeSearchResponse({}).notices, [])
     assert.deepEqual(res().notices, [])
   })
-  it('in: and channel: offer file-streams beside dm', () => {
+  it('in: and channel: offer file-streams and contacts beside dm', () => {
     for (const op of ['in:', 'channel:']) {
-      assert.deepEqual(SEARCH_OPERATORS.find((o) => o.op === op).values, ['dm', 'file-streams'])
+      assert.deepEqual(SEARCH_OPERATORS.find((o) => o.op === op).values, ['dm', 'file-streams', 'contacts'])
     }
+    assert.deepEqual(completeOperators('in:con').map((c) => c.insert), ['in:contacts '])
+  })
+  it('a contact hit is a row of its own and opens the card (spec 154 2.3)', () => {
+    const g = normalizeSearchResponse({ groups: { contacts: { results: [{ contact_id: 'k/1', name: { text: 'FirstName LastName', highlights: [[0, 5]] } }], next: null } } }).groups[0]
+    assert.equal(g.type, 'contacts')
+    assert.equal(g.items[0].key, 'contacts:k/1')
+    assert.equal(g.items[0].display.text, 'FirstName LastName')
+    assert.deepEqual(searchTarget(g.items[0]), { path: '/people/contact/k%2F1' })
+    assert.equal(searchTarget({ type: 'contacts' }), null)
   })
   it('every locale names the group and the notice', () => {
     for (const f of readdirSync(join(WUI, 'i18n/locales')).filter((x) => x.endsWith('.json'))) {
       const s = JSON.parse(readFileSync(join(WUI, 'i18n/locales', f), 'utf8')).search
-      assert.ok(s.group.file_lines && s.notice.file_streams_staff_only, f)
+      assert.ok(s.group.file_lines && s.group.contacts && s.notice.file_streams_staff_only, f)
     }
   })
 })

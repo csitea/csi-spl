@@ -20,6 +20,10 @@ func TestContactGrammar(t *testing.T) {
 		{"type:contacts FirstName", []Type{TypeContact}},
 		{"kind:contact 5550100000", []Type{TypeContact}},
 		{"type:user,contact FirstName", []Type{TypeUser, TypeContact}},
+		{"in:contacts FirstName", []Type{TypeContact}},
+		{"channel:contacts FirstName", []Type{TypeContact}},
+		{"IN:Contacts FirstName", []Type{TypeContact}},
+		{"in:#contacts FirstName", []Type{TypeMessage, TypeTopic, TypeFile}},                                // CONTROL: the channel
 		{"from:HUM-3 FirstName", []Type{TypeMessage, TypeTopic, TypeFile}},                                  // CONTROL
 		{"name:FirstName", []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc}}, // CONTROL
 	}
@@ -41,6 +45,15 @@ func TestContactGrammar(t *testing.T) {
 	}
 	e := Entity{Type: TypeContact, Name: "FirstName LastName",
 		Text: []string{"FirstName", "LastName", "FirstName LastName", "first.last@example.com", "+1 555 010 0000", "15550100000"}}
+	if p, err := Parse("in:contacts firstname", now); err != nil || !MatchEntity(p.Root, e) {
+		t.Errorf("in:contacts firstname: no match (err %v), want the contact", err)
+	}
+	if p, err := Parse("in:contacts nobody", now); err != nil || MatchEntity(p.Root, e) {
+		t.Errorf("CONTROL in:contacts nobody: match (err %v), want none", err)
+	}
+	if p, err := Parse("in:#contacts firstname", now); err != nil || MatchEntity(p.Root, e) {
+		t.Errorf("CONTROL in:#contacts firstname: match (err %v), want none: a channel holds no contact", err)
+	}
 	for q, want := range map[string]bool{
 		"firstname": true, "5550100000": true, `"FirstName LastName"`: true, "first.last@example": true,
 		"FirstName -LastName": false, "nobody": false,

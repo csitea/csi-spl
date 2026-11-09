@@ -200,6 +200,8 @@ func MatchEntity(n *Node, e Entity) bool {
 			return false
 		case OpName:
 			return contains(e.Name, t.Value)
+		case OpIn: // in:contacts only picks the section
+			return t.Contacts && e.Type == TypeContact
 		case OpBox:
 			return e.Box == t.Box
 		case OpBefore, OpAfter, OpOn:

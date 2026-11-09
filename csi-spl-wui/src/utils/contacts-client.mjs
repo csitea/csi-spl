@@ -70,6 +70,15 @@ function mockRead() {
   }
 }
 
+/** The mock's in:contacts section: every free word is a prefix of a field (the hub's rule, spec 154 2.3). */
+export function mockContactHits(q) {
+  const words = String(q || '').toLowerCase().split(/\s+/).filter((w) => w && !w.includes(':'))
+  return mockRead().filter((c) => {
+    const hay = [c.first_name, c.last_name, c.email].map((x) => String(x || '').toLowerCase())
+    return words.every((w) => hay.some((h) => h.startsWith(w)))
+  }).map((c) => ({ ...c, name: { text: `${c.first_name} ${c.last_name}`.trim() || c.email || c.phone || '', highlights: [] } }))
+}
+
 function mockKeep(list) {
   try {
     globalThis.localStorage?.setItem(MOCK_CONTACTS_KEY, JSON.stringify(list))

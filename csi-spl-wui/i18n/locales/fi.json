@@ -1146,6 +1146,7 @@
       "events": "Tapahtumaloki",
       "issues": "Asiat",
       "docs": "Dokumentit",
+      "contacts": "Yhteystiedot",
       "file_lines": "Tiedostovirtojen rivit"
     },
     "notice": {

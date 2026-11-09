@@ -176,7 +176,7 @@ var Operators = []Operator{
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox, TypeFileLine}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself; a file stream line of this box"},
-	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeFileLine}, Example: "in:#lobby", Doc: "a channel (#name or name), dm for direct messages, or file-streams for the box file stream lines (owner or admin; #file-streams is the channel of that name)"},
+	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeFileLine, TypeContact}, Example: "in:#lobby", Doc: "a channel (#name or name), dm for direct messages, file-streams for the box file stream lines (owner or admin; #file-streams is the channel of that name), or contacts for your own contacts (#contacts is the channel of that name)"},
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
 		"blocker": {TypeMessage}, "msg": {TypeMessage}, "relay": {TypeMessage},
@@ -227,15 +227,17 @@ type Term struct {
 
 	Enum    string // is: / has: canonical value
 	ID, Box string // from: / to: (<id>@<box> sets both; a bare value sets ID)
-	Channel string // in: normalized slug; "" with DM or FileStreams
+	Channel string // in: normalized slug; "" with DM, FileStreams or Contacts
 	DM      bool   // in:dm
 	// FileStreams: in:file-streams (no '#'), the file_line section only
 	FileStreams bool
-	From        time.Time // before / after / on lower bound (zero = none)
-	Until       time.Time // exclusive upper bound (zero = none)
-	Size        int64     // larger / smaller; priority: the priority
-	Types       []Type    // type:
-	Lexemes     []string  // text / title: lowercase words (Words of Value)
+	// Contacts: in:contacts (no '#'), the contact section only (spec 154 2.3)
+	Contacts bool
+	From     time.Time // before / after / on lower bound (zero = none)
+	Until    time.Time // exclusive upper bound (zero = none)
+	Size     int64     // larger / smaller; priority: the priority
+	Types    []Type    // type:
+	Lexemes  []string  // text / title: lowercase words (Words of Value)
 }
 
 // NodeKind is the AST node kind.
@@ -813,9 +815,12 @@ func applies(t *Term) []Type {
 	if t.Op == OpText {
 		return nil
 	}
-	if t.Op == OpIn { // a channel or dm is a message's; file-streams a line's
+	if t.Op == OpIn { // a channel or dm is a message's; file-streams a line's; contacts a contact's
 		if t.FileStreams {
 			return []Type{TypeFileLine}
+		}
+		if t.Contacts {
+			return []Type{TypeContact}
 		}
 		return msgTopicFile
 	}

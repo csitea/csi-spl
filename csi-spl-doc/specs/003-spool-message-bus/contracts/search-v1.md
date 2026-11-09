@@ -179,6 +179,7 @@ attachment without `bytes`, or a directory) matches neither.
 | `box:` | `<box>` | message, thread, file, robot, box, file_line | message / file: `from_box` or `to_box`; thread: any message; robot: its box; box: its id; file_line: the stream's box |
 | `in:` | `#<channel>`, `<channel>`, `dm` | message, thread, file | the channel (`general` = `lobby`); `in:dm` = no channel (a DM) |
 | `in:` | `file-streams` (no `#`) | file_line | every line of the workspace's file streams (§3.1, §4.11) |
+| `in:` | `contacts` (no `#`) | contact | the reader's own contacts, the same answer as `type:contact` (§4.12); `#contacts` stays the channel of that name; not negatable (`400 bad_query`), as `type:` |
 | `is:` | `task`, `note`, `result`, `reject` | message | the message kind |
 | `is:` | `relay` | message | agent-to-agent mail: a DM whose sender and recipient are both agents (neither `HUM-*`, `GST-*` nor `ALL-0`) |
 | `is:` | `root` | thread | `parent_task_id` is null |

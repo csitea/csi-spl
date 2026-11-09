@@ -3264,6 +3264,7 @@
     "untitled": "Téma {id}",
     "archived": "archivovaná",
     "gone": "odstránená",
+    "members_only": "diskusia, len pre členov",
     "required": "Najprv prepojte aspoň jednu diskusiu.",
     "error_bad": "Toto nie je odkaz ani ID témy.",
     "error_unknown": "Takáto diskusia v tomto pracovnom priestore neexistuje alebo k nej nemáte prístup.",

@@ -3264,6 +3264,7 @@
     "untitled": "Tema {id}",
     "archived": "archyvuotas",
     "gone": "ištrintas",
+    "members_only": "diskusija, tik nariams",
     "required": "Pirmiausia susiekite bent vieną aptarimą.",
     "error_bad": "Tai nėra temos nuoroda ar ID.",
     "error_unknown": "Šioje darbo srityje tokio aptarimo nėra arba neturite prie jo prieigos.",

@@ -5,6 +5,8 @@
 // more discussions." (msg 9a8e4764) An archived discussion still opens; a
 // deleted one opens the "no longer exists" page (msg 28b479fd).
 
+import { tenantUrl } from './tenant-host.mjs'
+
 /** a topic id */
 const TOPIC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** a topic's short id: its first 8 hex digits (the hub resolves it) */
@@ -17,7 +19,7 @@ export const DISCUSSION_STATES = ['live', 'archived', 'gone']
 /**
  * One link as the hub sent it, every field present.
  * @param {unknown} raw
- * @returns {{ task_id: string, state: string, title: string, channel: string, linked_by: string, linked_at: string }}
+ * @returns {{ task_id: string, state: string, title: string, channel: string, linked_by: string, linked_at: string, members_only: boolean, workspace: string }}
  */
 export function normalizeDiscussion(raw) {
   const r = raw && typeof raw === 'object' ? /** @type {Record<string, unknown>} */ (raw) : {}
@@ -30,12 +32,16 @@ export function normalizeDiscussion(raw) {
     channel: String(r.channel || ''),
     linked_by: String(r.linked_by || ''),
     linked_at: String(r.linked_at || ''),
+    /* SPL-5126: a link to another workspace the reader cannot see: no id, nothing that names it */
+    members_only: r.members_only === true,
+    /* SPL-5126: the topic's own workspace, sent only to a reader who may open it */
+    workspace: String(r.workspace || ''),
   }
 }
 
 /** @param {unknown} raw */
 export function normalizeDiscussions(raw) {
-  return Array.isArray(raw) ? raw.map(normalizeDiscussion).filter((d) => d.task_id) : []
+  return Array.isArray(raw) ? raw.map(normalizeDiscussion).filter((d) => d.task_id || d.members_only) : []
 }
 
 /**
@@ -62,6 +68,17 @@ export function shortTopic(id) {
  */
 export function discussionPath(d) {
   return `/t/${d.task_id}`
+}
+
+/**
+ * Where a link to another workspace opens: the topic on that workspace's
+ * host, '' with tenant hosts off or for a link of this workspace (SPL-5126).
+ * @param {{ task_id: string, workspace: string }} d
+ * @param {string} siteUrl
+ * @param {string} apexTenant
+ */
+export function foreignDiscussionHref(d, siteUrl, apexTenant) {
+  return d.workspace ? tenantUrl(d.workspace, siteUrl, apexTenant, discussionPath(d)) : ''
 }
 
 /**

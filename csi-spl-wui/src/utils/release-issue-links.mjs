@@ -4,12 +4,14 @@
  * least 1 discussion where this issue originated from and the links must be
  * clickable"). The hub answers each note with issues[]:
  *
- *   { key, tenant, found, member, discussions: [{ task_id?, title?, state?, can_open }] }
+ *   { key, tenant, found, member, discussions: [{ task_id?, title?, state?, can_open, workspace?, members_only? }] }
  *
  * tenant is the workspace that OWNS the issue (t1 for this repo), not the
  * viewer's. A discussion carries task_id and title only when the viewer may
  * open it there. A note with no issue that resolves to a discussion is
  * "unknown" (msg dd164168: the older commits, from before the rule).
+ * SPL-5126: workspace is the topic's own when it is not the issue's;
+ * members_only marks such a link the viewer cannot see, naming nothing.
  *
  * Pure: the caller passes the page's workspace, the site URL (tenant hosts
  * on, else '') and the apex workspace, and pathFor (the locale path).
@@ -36,7 +38,7 @@ function hrefIn(tenant, path, ctx) {
  * @param {unknown} issues the note's issues[]
  * @param {{ pageTenant?: string, siteUrl?: string, apexTenant?: string, pathFor?: (p: string) => string }} ctx
  * @returns {{ unknown: boolean, issues: { key: string, tenant: string, found: boolean, href: string, external: boolean }[],
- *   discussions: { id: string, key: string, tenant: string, title: string, canOpen: boolean, href: string, external: boolean }[] }}
+ *   discussions: { id: string, key: string, tenant: string, title: string, canOpen: boolean, membersOnly: boolean, href: string, external: boolean }[] }}
  */
 export function releaseIssueLinks(issues, ctx = {}) {
   const list = Array.isArray(issues) ? issues : []
@@ -57,8 +59,8 @@ export function releaseIssueLinks(issues, ctx = {}) {
       const dedupe = canOpen ? 't:' + id : 'k:' + key + ':' + i
       if (seen.has(dedupe)) return
       seen.add(dedupe)
-      const to = canOpen ? hrefIn(tenant, '/t/' + id, ctx) : { href: '', external: false }
-      out.discussions.push({ id, key, tenant, title: canOpen ? String(d?.title || '') : '', canOpen, href: to.href, external: to.external })
+      const to = canOpen ? hrefIn(String(d?.workspace || tenant), '/t/' + id, ctx) : { href: '', external: false }
+      out.discussions.push({ id, key, tenant, title: canOpen ? String(d?.title || '') : '', canOpen, membersOnly: d?.members_only === true, href: to.href, external: to.external })
     })
   }
   return out

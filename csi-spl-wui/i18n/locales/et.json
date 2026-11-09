@@ -3264,6 +3264,7 @@
     "untitled": "Teema {id}",
     "archived": "arhiveeritud",
     "gone": "kustutatud",
+    "members_only": "arutelu, ainult liikmetele",
     "required": "Seo kõigepealt vähemalt üks arutelu.",
     "error_bad": "See ei ole teema link ega id.",
     "error_unknown": "Sellist arutelu selles tööruumis pole või sul pole sellele ligipääsu.",

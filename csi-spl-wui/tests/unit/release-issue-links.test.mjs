@@ -73,3 +73,16 @@ describe('releaseIssueLinks', () => {
     assert.deepEqual(l.discussions.map((d) => d.id), [TOPIC, OTHER])
   })
 })
+
+describe('releaseIssueLinks, a discussion in another workspace (SPL-5126)', () => {
+  it('opaque: marked members only, nothing to open', () => {
+    const [d] = releaseIssueLinks([issue('SPL-5', 't1', [{ can_open: false, members_only: true }])], CTX).discussions
+    assert.deepEqual([d.membersOnly, d.canOpen, d.href, d.id, d.title], [true, false, '', '', ''])
+  })
+  it('readable: the link goes to the topic\'s own workspace, not the issue\'s', () => {
+    const [d] = releaseIssueLinks([issue('SPL-5', 't1', [{ ...open(TOPIC, 'x'), workspace: 'originws' }])], CTX).discussions
+    assert.equal(d.href, `https://originws.spool.example.com/t/${TOPIC}`)
+    assert.equal(d.external, true)
+    assert.equal(d.membersOnly, false)
+  })
+})

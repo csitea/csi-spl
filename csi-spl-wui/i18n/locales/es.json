@@ -3264,6 +3264,7 @@
     "untitled": "Tema {id}",
     "archived": "archivado",
     "gone": "eliminado",
+    "members_only": "discusión, solo miembros",
     "required": "Vincula primero al menos una conversación.",
     "error_bad": "Eso no es un enlace ni un id de tema.",
     "error_unknown": "No existe esa conversación en este espacio de trabajo o no tienes acceso a ella.",

@@ -3264,6 +3264,7 @@
     "untitled": "Topic {id}",
     "archived": "archived",
     "gone": "deleted",
+    "members_only": "discussion, members only",
     "required": "Link at least one discussion first.",
     "error_bad": "That is not a topic link or id.",
     "error_unknown": "No such discussion in this workspace, or you cannot read it.",

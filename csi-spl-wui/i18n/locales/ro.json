@@ -3264,6 +3264,7 @@
     "untitled": "Tema {id}",
     "archived": "arhivată",
     "gone": "ștearsă",
+    "members_only": "discuție, doar pentru membri",
     "required": "Asociază mai întâi cel puțin o discuție.",
     "error_bad": "Acesta nu este un link sau un ID de temă.",
     "error_unknown": "Nu există o astfel de discuție în acest spațiu de lucru sau nu ai acces la ea.",

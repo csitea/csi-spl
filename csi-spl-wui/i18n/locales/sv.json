@@ -3264,6 +3264,7 @@
     "untitled": "Ämne {id}",
     "archived": "arkiverad",
     "gone": "borttagen",
+    "members_only": "diskussion, endast för medlemmar",
     "required": "Länka minst en diskussion först.",
     "error_bad": "Det är ingen ämneslänk eller id.",
     "error_unknown": "Det finns ingen sådan diskussion i den här arbetsytan, eller så har du inte åtkomst till den.",

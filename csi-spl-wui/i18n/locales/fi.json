@@ -3264,6 +3264,7 @@
     "untitled": "Aihe {id}",
     "archived": "arkistoitu",
     "gone": "poistettu",
+    "members_only": "keskustelu, vain jäsenille",
     "required": "Linkitä ensin vähintään yksi keskustelu.",
     "error_bad": "Tämä ei ole aiheen linkki eikä tunniste.",
     "error_unknown": "Tällaista keskustelua ei ole tässä työtilassa, tai sinulla ei ole siihen pääsyä.",

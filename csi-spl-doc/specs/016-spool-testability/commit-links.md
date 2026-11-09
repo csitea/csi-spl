@@ -101,13 +101,18 @@ Stored in `issue_discussions.origin_tenant` (NULL: the issue's own workspace).
 
 | reader | list, fan-out | single issue read | Reporting -> Releases |
 |---|---|---|---|
-| no access to the origin topic | `members_only`, nothing else | `members_only`, plus `state: gone` when the topic is deleted | empty entry, `can_open` false |
+| no access to the origin topic | `members_only`, nothing else | `members_only`, plus `state: gone` when the topic is deleted | `members_only`, `can_open` false |
 | session that is a member there and passes the topic's door | `members_only` | `task_id`, title, channel, state, `workspace` | `task_id`, title, state, `workspace`, `can_open` true |
 
 An agent has no session, so it is always opaque. A member cannot remove a
 foreign link. The internal readers (cascade bug, topic priority follow, lane
 topic, issues of a topic) skip foreign links. The gate counts one as a real
 origin and never as a relay hash.
+
+The WUI shows an opaque entry as "discussion, members only", with no link
+and no Unlink, in the issue's Discussions panel and on Reporting ->
+Releases. A reader with access gets a link to the topic on the host of its
+own workspace, in a new tab (plain text with tenant hosts off).
 
 ## 4. The cut-over and older commits
 
@@ -148,7 +153,8 @@ and the pure builder `csi-spl-wui/src/utils/release-issue-links.mjs`:
   new tab.
 - a key with no issue is shown struck through, not linked.
 - a discussion the viewer may not open reads "discussion, <workspace>
-  members only", with no link.
+  members only", with no link; a link to another workspace the viewer cannot
+  see reads "discussion, members only" and names no workspace (section 3).
 - a commit with no stored key, or none that resolves to a discussion, shows
   **unknown**: these are the older commits, from before this feature.
 - a hub revision that sends no `issues` field shows nothing.

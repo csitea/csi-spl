@@ -3264,6 +3264,7 @@
     "untitled": "Konu {id}",
     "archived": "arşivlendi",
     "gone": "silindi",
+    "members_only": "tartışma, yalnızca üyeler",
     "required": "Önce en az bir tartışma bağlayın.",
     "error_bad": "Bu bir konu bağlantısı veya kimliği değil.",
     "error_unknown": "Bu çalışma alanında böyle bir tartışma yok veya ona erişiminiz yok.",

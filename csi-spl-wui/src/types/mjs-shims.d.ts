@@ -1713,6 +1713,8 @@ declare module '~/utils/issue-discussions.mjs' {
     channel: string
     linked_by: string
     linked_at: string
+    members_only: boolean
+    workspace: string
   }
   export const DISCUSSION_STATES: string[]
   export const MOCK_TOPICS: Record<string, string>
@@ -1723,6 +1725,7 @@ declare module '~/utils/issue-discussions.mjs' {
   export function discussionRef(input: unknown): string
   export function shortTopic(id: string): string
   export function discussionPath(d: { task_id: string }): string
+  export function foreignDiscussionHref(d: { task_id: string, workspace: string }, siteUrl: string, apexTenant: string): string
   export function discussionErrorKey(e: { status?: number, token?: string }): string
 }
 

@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MOCK_GONE_TOPIC, discussionErrorKey, discussionPath, discussionRef, normalizeDiscussions, shortTopic,
+  MOCK_GONE_TOPIC, discussionErrorKey, discussionPath, discussionRef, foreignDiscussionHref, normalizeDiscussions, shortTopic,
 } from '../../src/utils/issue-discussions.mjs'
 import { createMockIssues, issueQuery, normalizeIssue } from '../../src/utils/issues.mjs'
 import { aiIssueBody } from '../../src/utils/msg-ai-actions.mjs'
@@ -119,5 +119,30 @@ describe('topic issue chips (spec 153 B5b)', () => {
     const en = JSON.parse(src('i18n/locales/en.json'))
     assert.equal(en.topic.issue_chip_aria, 'Linked issue {key}: {status}')
     assert.ok(en.topic.issue_chips_label)
+  })
+})
+
+describe('a link to another workspace (SPL-5126)', () => {
+  it('an opaque row survives, with nothing that names the origin', () => {
+    const [d] = normalizeDiscussions([{ members_only: true }])
+    assert.equal(d.members_only, true)
+    assert.deepEqual([d.task_id, d.title, d.channel, d.linked_by, d.workspace], ['', '', '', '', ''])
+  })
+  it('a row with neither an id nor the opaque mark is still dropped', () => {
+    assert.deepEqual(normalizeDiscussions([{ state: 'gone' }]), [])
+  })
+  it('a deleted opaque row reads gone', () => {
+    assert.equal(normalizeDiscussions([{ members_only: true, state: 'gone' }])[0].state, 'gone')
+  })
+  it('a readable foreign link opens on the host of its own workspace, none with tenant hosts off', () => {
+    const d = { task_id: LIVE, workspace: 'originws' }
+    assert.equal(foreignDiscussionHref(d, 'https://app.example.com', 'apexws'), `https://originws.app.example.com/t/${LIVE}`)
+    assert.equal(foreignDiscussionHref(d, '', 'apexws'), '')
+    assert.equal(foreignDiscussionHref({ task_id: LIVE, workspace: '' }, 'https://app.example.com', 'apexws'), '')
+  })
+  it('the panel renders the opaque row first and offers no unlink on a foreign row', () => {
+    const vue = src('src/components/IssueDiscussions.vue')
+    assert.ok(vue.indexOf('issue-discussion-members-only') < vue.indexOf('issue-discussions__gone-btn'))
+    assert.match(vue, /!d\.members_only && !d\.workspace/)
   })
 })

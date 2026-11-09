@@ -179,6 +179,9 @@ func TestIssueOriginInReleaseLinks(t *testing.T) {
 	if strings.Contains(string(raw), f.origin) || strings.Contains(string(raw), f.tb) || strings.Contains(string(raw), originTitle) {
 		t.Fatalf("release link, no access: %s", raw)
 	}
+	if !strings.Contains(string(raw), `"members_only":true`) {
+		t.Fatalf("release link, no access, is not marked members only: %s", raw)
+	}
 	raw, _ = json.Marshal(commitIssues(t, f.e, f.ta, f.both, day))
 	for _, want := range []string{f.origin, `"workspace":"` + f.tb + `"`, `"can_open":true`} {
 		if !strings.Contains(string(raw), want) {

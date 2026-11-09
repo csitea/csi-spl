@@ -3264,6 +3264,7 @@
     "untitled": "Onderwerp {id}",
     "archived": "gearchiveerd",
     "gone": "verwijderd",
+    "members_only": "discussie, alleen voor leden",
     "required": "Koppel eerst minstens één bespreking.",
     "error_bad": "Dat is geen onderwerplink of id.",
     "error_unknown": "Deze bespreking bestaat niet in deze werkruimte, of je hebt er geen toegang toe.",

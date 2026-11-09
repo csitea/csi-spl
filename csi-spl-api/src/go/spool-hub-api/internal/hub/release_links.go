@@ -32,6 +32,9 @@ type releaseTopicJSON struct {
 	// Workspace is the topic's own workspace when it is not the issue's
 	// (SPL-5126); set only with CanOpen.
 	Workspace string `json:"workspace,omitempty"`
+	// MembersOnly marks a link to another workspace the viewer cannot see:
+	// the entry names nothing else.
+	MembersOnly bool `json:"members_only,omitempty"`
 }
 
 // releaseIssueJSON is one issue a commit cites. Found is false for a key
@@ -144,11 +147,11 @@ func (s *Server) releaseIssue(r *http.Request, tenant, key string, links map[int
 
 // releaseForeignTopic is a link to a topic of another workspace, as the
 // session of r may see it: clickable for one who may open it there, else the
-// same empty entry any unreadable discussion gets.
+// opaque members-only entry.
 func (s *Server) releaseForeignTopic(r *http.Request, tenant string, l store.IssueDiscussion) releaseTopicJSON {
 	st, may := s.foreignDiscussion(r.Context(), tenant, l, s.originMemberOf(r)(l.OriginTenant))
 	if !may {
-		return releaseTopicJSON{}
+		return releaseTopicJSON{MembersOnly: true}
 	}
 	return releaseTopicJSON{TaskID: l.TaskID, Title: st.Title, State: st.State, CanOpen: true, Workspace: l.OriginTenant}
 }

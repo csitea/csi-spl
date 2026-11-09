@@ -13,22 +13,32 @@
     <p v-if="draft && !items.length" class="muted issue-discussions__hint" data-test="issue-discussions-hint">{{ t('issue_discussions.hint_draft') }}</p>
     <ul v-if="items.length" class="issue-discussions__list">
       <li
-        v-for="d in items"
-        :key="d.task_id"
+        v-for="(d, k) in items"
+        :key="d.task_id || 'opaque' + k"
         class="issue-discussions__row"
         data-test="issue-discussion"
         :data-task="d.task_id"
         :data-state="d.state"
       >
         <UiIcon name="messages" :size="14" class="issue-discussions__icon" />
+        <span v-if="d.members_only" class="issue-discussions__link" data-test="issue-discussion-members-only">{{ t('issue_discussions.members_only') }}</span>
         <button
-          v-if="!draft && d.state === 'gone'"
+          v-else-if="!draft && d.state === 'gone'"
           type="button"
           class="issue-discussions__link issue-discussions__gone-btn"
           data-test="issue-discussion-link"
           :aria-expanded="gone === d.task_id"
           @click="gone = gone === d.task_id ? '' : d.task_id"
         >{{ labelOf(d) }}</button>
+        <a
+          v-else-if="!draft && foreignHref(d)"
+          class="issue-discussions__link"
+          data-test="issue-discussion-link"
+          :href="foreignHref(d)"
+          target="_blank"
+          rel="noopener"
+        >{{ labelOf(d) }}</a>
+        <span v-else-if="!draft && d.workspace" class="issue-discussions__link" data-test="issue-discussion-plain">{{ labelOf(d) }}</span>
         <NuxtLink
           v-else-if="!draft"
           class="issue-discussions__link"
@@ -39,7 +49,7 @@
         <span v-if="d.state === 'archived'" class="issue-discussions__badge" data-test="issue-discussion-archived">{{ t('issue_discussions.archived') }}</span>
         <span v-else-if="d.state === 'gone'" class="issue-discussions__badge" data-test="issue-discussion-gone">{{ t('issue_discussions.gone') }}</span>
         <button
-          v-if="draft || items.length > 1"
+          v-if="(draft || items.length > 1) && !d.members_only && !d.workspace"
           type="button"
           class="icon-btn issue-discussions__x"
           data-test="issue-discussion-remove"
@@ -74,7 +84,7 @@
 
 <script setup lang="ts">
 import type { IssueDiscussion } from '~/utils/issue-discussions.mjs'
-import { discussionErrorKey, discussionPath, discussionRef, normalizeDiscussions, shortTopic } from '~/utils/issue-discussions.mjs'
+import { discussionErrorKey, discussionPath, discussionRef, foreignDiscussionHref, normalizeDiscussions, shortTopic } from '~/utils/issue-discussions.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 const props = defineProps<{
@@ -105,8 +115,13 @@ const error = ref('')
 const gone = ref('')
 
 const items = computed<IssueDiscussion[]>(() => draft.value
-  ? (props.modelValue || []).map((id) => ({ task_id: id, state: 'live', title: '', channel: '', linked_by: '', linked_at: '' }))
+  ? (props.modelValue || []).map((id) => ({ task_id: id, state: 'live', title: '', channel: '', linked_by: '', linked_at: '', members_only: false, workspace: '' }))
   : linked.value)
+
+const pub = useRuntimeConfig().public
+function foreignHref(d: IssueDiscussion): string {
+  return foreignDiscussionHref(d, String(pub.tenantHosts || '0') === '1' ? String(pub.siteUrl || '') : '', String(pub.tenant || ''))
+}
 
 function labelOf(d: IssueDiscussion): string {
   if (draft.value && d.task_id === props.defaultDiscussion) return t('issue_discussions.default')

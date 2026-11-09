@@ -3264,6 +3264,7 @@
     "untitled": "Temat {id}",
     "archived": "zarchiwizowany",
     "gone": "usunięty",
+    "members_only": "dyskusja, tylko dla członków",
     "required": "Najpierw połącz co najmniej jedną dyskusję.",
     "error_bad": "To nie jest link ani identyfikator tematu.",
     "error_unknown": "Nie ma takiej dyskusji w tej przestrzeni roboczej lub nie masz do niej dostępu.",

@@ -32,6 +32,7 @@
         @click="go($event, d)"
       >{{ d.title || t('reporting.releases.links_discussion') }}</a>
       <span v-else-if="d.canOpen" class="ril-chip" :title="d.title" data-test="release-links-discussion-plain">{{ d.title || t('reporting.releases.links_discussion') }}</span>
+      <span v-else-if="d.membersOnly" class="ril-chip ril-chip--locked" data-test="release-links-discussion-members-only">{{ t('issue_discussions.members_only') }}</span>
       <span v-else class="ril-chip ril-chip--locked" :title="t('reporting.releases.links_discussion_locked', { ws: wsName(d.tenant) })" data-test="release-links-discussion-locked">{{ t('reporting.releases.links_discussion_locked', { ws: wsName(d.tenant) }) }}</span>
     </template>
   </span>

@@ -3264,6 +3264,7 @@
     "untitled": "Tēma {id}",
     "archived": "arhivēta",
     "gone": "dzēsta",
+    "members_only": "diskusija, tikai dalībniekiem",
     "required": "Vispirms piesaistiet vismaz vienu diskusiju.",
     "error_bad": "Tā nav tēmas saite vai ID.",
     "error_unknown": "Šādas diskusijas šajā darbvietā nav, vai jums nav tai piekļuves.",

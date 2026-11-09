@@ -105,6 +105,14 @@
 #      fence between is held; 12 plain S3 restarts are held; a marker past
 #      WD_FENCE_RESTART_TTL counts. Cause reboot at 12 is restarted; 3
 #      box-event lines in the hour do not hold the next S3
+#  23. a restored lane restarted (SPL-5140; c-186 2026-11-07, n=1, two
+#      sessions of one id for 111 s): the restore wrapper above the claude
+#      is stopped by its own pid BEFORE the claude, in a window the fleet
+#      server sees and in one it does not, so nothing resumes the id. Red
+#      control (origin/master): the wrapper resumes a second session.
+#      Controls: a parent that is no restore wrapper is not signalled; a
+#      wrapper that survives SIGKILL stops the restart, the claude untouched.
+#      A seat (start first): the wrapper goes after the ack, before the old claude
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -178,6 +186,9 @@ EOF
 cat > "$T/bin/kill" <<'EOF'
 #!/usr/bin/env bash
 echo "kill $*" >> "$T/kill.log"; echo "kill $2" >> "$T/order.log"; rm -rf "$T/proc/$2"
+# a restore wrapper still alive resumes the id it ran (restore-core.inc.sh, the kick fallback)
+if [ -s "$T/wrapped.$2" ]; then read -r w id dup < "$T/wrapped.$2"
+  if [ -d "$T/proc/$w" ]; then mkdir -p "$T/proc/$dup"; echo claude > "$T/proc/$dup/comm"; printf 'SPOOL_AGENT_ID=%s\0' "$id" > "$T/proc/$dup/environ"; echo "resume $id" >> "$T/order.log"; fi; fi
 EOF
 cat > "$T/bin/ai" <<'EOF'
 #!/usr/bin/env bash
@@ -749,6 +760,40 @@ world; lane c-976 %77 -; printf '%s S3 box-event\n' $((T0 - 1800)) $((T0 - 1200)
 rc="$(go ID=c-976 CAUSE=S3 DRY_RUN=0 WD_EVIDENCE=dead)"
 [[ "$rc" == 0 && "$(grep -c . "$S/c-976/lifetime/restarts")" == 4 ]] &&
   pass "22. 3 box-event restarts in the hour do not count: the next S3 runs (hourly limit 3)" || fail "22. hourly rc=$rc: $(tail -3 "$T/o")"
+
+# --- 23. a restored lane: the wrapper goes before the claude -------------------------------
+# wrapped <pid> <id> <cmd>: <pid> runs under su (<pid>+1000) under <cmd> (<pid>+2000)
+pstat() { mkdir -p "$T/proc/$1"; echo "$2" > "$T/proc/$1/comm"; echo "$1 ($2) S $3 0 0" > "$T/proc/$1/stat"; printf '%b' "$4" > "$T/proc/$1/cmdline"; }
+wrapped() {
+  pstat $(( $1 + 2000 )) bash 1 "$3"
+  pstat $(( $1 + 1000 )) su $(( $1 + 2000 )) 'su\0-\0'
+  echo "$1 (claude) S $(( $1 + 1000 )) 0 0" > "$T/proc/$1/stat"
+  echo "$(( $1 + 2000 )) $2 $(( $1 + 3000 ))" > "$T/wrapped.$1"
+}
+RW='bash\0/opt/x/spawn-agents/scripts/restore-claude.sh\0'
+HB23='| .tool = "Bash" | .tool_since = .progress_ts'
+world; lane c-977 %78 4977; hb c-977 in-tool 1000 "$HB23"; wrapped 4977 c-977 "$RW"
+rc="$(go ID=c-977 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash")"
+[[ "$rc" == 0 && "$(head -3 "$T/order.log" | tr '\n' ' ')" == "kill 6977 kill 4977 spawn c-977 " && "$(nproc c-977)" == 1 ]] && ! grep -q resume "$T/order.log" &&
+  pass "23. a restored lane: the wrapper by its own pid, then the claude, then the spawn; one session" || fail "23. fleet pane rc=$rc procs=$(nproc c-977): $(tr '\n' ' ' < "$T/order.log") $(tail -3 "$T/o")"
+world; lane c-978 %79 4978; hb c-978 in-tool 1000 "$HB23"; wrapped 4978 c-978 "$RW"
+awk -F'\t' '$1 != "%79"' "$T/tmux/panes" > "$T/tmux/p.new" && mv "$T/tmux/p.new" "$T/tmux/panes"
+rc="$(go ID=c-978 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash")"
+[[ "$rc" == 0 && "$(nproc c-978)" == 1 ]] && grep -q 'kill -KILL 6978' "$T/kill.log" && ! grep -q resume "$T/order.log" &&
+  pass "23. a window on a server the fleet does not see: the wrapper is stopped all the same" || fail "23. private server rc=$rc procs=$(nproc c-978): $(tr '\n' ' ' < "$T/order.log" 2>/dev/null) $(tail -3 "$T/o")"
+world; lane c-979 %80 4979; hb c-979 in-tool 1000 "$HB23"; wrapped 4979 c-979 'bash\0/opt/x/other.sh\0'; rm -f "$T/wrapped.4979"
+rc="$(go ID=c-979 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash")"
+[[ "$rc" == 0 ]] && ! grep -q ' 6979' "$T/kill.log" && alive 6979 &&
+  pass "23. control: a parent that is no restore wrapper is not signalled" || fail "23. other parent rc=$rc: $(cat "$T/kill.log")"
+world; lane c-980 %81 4980; hb c-980 in-tool 1000 "$HB23"; wrapped 4980 c-980 "$RW"
+printf '#!/usr/bin/env bash\necho "kill $*" >> "$T/kill.log"\n' > "$T/bin/kill.stuck"; chmod +x "$T/bin/kill.stuck"
+rc="$(go ID=c-980 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash" ROTATE_KILL="$T/bin/kill.stuck")"
+[[ "$rc" != 0 && ! -s "$T/spawn.log" ]] && ! grep -q 'kill -TERM 4980' "$T/kill.log" && alive 4980 && grep -q 'RS-RETIRE FAIL .*restore wrapper' "$D/rotate.log" &&
+  pass "23. control: a wrapper that survives SIGKILL stops the restart, the claude untouched, nothing spawned" || fail "23. stuck rc=$rc: $(cat "$T/kill.log") $(tail -3 "$T/o")"
+world; lane c-004 %82 4004; hb c-004 in-tool 1000 "$HB23"; wrapped 4004 c-004 "$RW"
+rc="$(go ID=c-004 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash")"
+[[ "$rc" == 0 && "$(grep -v '^ack' "$T/order.log" | sed -n 1,3p | tr '\n' ' ')" == "spawn c-004 kill 6004 kill 4004 " && "$(nproc c-004)" == 1 ]] && ! grep -q resume "$T/order.log" &&
+  pass "23. a restored seat: after the ack the wrapper goes first, then the old claude; one session" || fail "23. seat rc=$rc procs=$(nproc c-004): $(tr '\n' ' ' < "$T/order.log") $(tail -3 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

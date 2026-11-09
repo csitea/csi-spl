@@ -221,11 +221,11 @@ do_spl_spawn_place() {
     do_log "INFO placing $(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$rows"): one at a time, $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued"
     return 0
   fi
-  rows="$(spl_spawn_place_dark_hold "$rows")"
   rows="$(spl_spawn_place_agy_hold "$rows")"
   rows="$(spl_spawn_place_away_hold "$rows")"
   rows="$(spl_spawn_place_pin_hold "$rows")"
   rows="$(spl_spawn_place_agy_box_hold "$rows")"
+  rows="$(spl_spawn_place_dark_hold "$rows")"
   rows="$(spl_spawn_place_line "$rows")"
   spl_spawn_place_band_sample
   head="$(jq -c '.[0] // empty' <<<"$rows")"
@@ -1280,10 +1280,10 @@ spl_spawn_place_brief() {  # SLUG
 # a failure puts it back in line. PIN (a hand-pinned slug's box) is its
 # SPAWN_BOX. A pinned box that gave no reply returns 10 too (SPL-5143): each
 # such failure re-armed the gap and the row was picked first again, 4 h with
-# nothing placed on any box (2026-11-07). A retry can start the lane twice when
-# the box took the request and only its reply was lost: the pinned path has no
-# slug check, so spl_spawn_place_dark_hold paces it to one try per
-# SPAWN_PLACE_DARK_RETRY_MIN. Why not a skip of rows that failed lately: that
+# nothing placed on any box (2026-11-07). A retry can start the lane again each
+# time the box takes the request and only its reply is lost: the pinned path has
+# no slug check and nothing caps the retries, so spl_spawn_place_dark_hold only
+# paces them to one try per SPAWN_PLACE_DARK_RETRY_MIN. Why not a skip of rows that failed lately: that
 # keeps the gap armed, a dark box would still cost a slot on every try.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   local holder="$1" id out err rc=0 agent why seat=0
@@ -1378,8 +1378,10 @@ spl_spawn_place_dark_clear() {  # BOX
 # 2a. A queued row pinned to a box that gave no reply in the last
 # SPAWN_PLACE_DARK_RETRY_MIN HOLDS (SPL-5143, R7 W1): out of the line, so it
 # uses none of a tick's SPAWN_PLACE_HOLD_TRIES. Before, five such rows took
-# all the tries, every tick. Each box costs one 300 s wait per window. Run
-# again after each HOLD, so the other rows of a box that just failed go too.
+# all the tries, every tick. Each box costs one 300 s wait per window. It runs
+# after spl_spawn_place_agy_box_hold, which sets the _b box of an agy or mistral
+# row (R7 W4). Run again after each HOLD, so the other rows of a box that just
+# failed go too.
 # Prints ROWS minus the held ones.
 spl_spawn_place_dark_hold() {  # MARKED ROWS
   local f id slug pin box last now held=() ps=() retry=$(( ${SPAWN_PLACE_DARK_RETRY_MIN:-30} * 60 ))

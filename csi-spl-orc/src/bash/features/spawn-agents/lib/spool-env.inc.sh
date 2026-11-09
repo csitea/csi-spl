@@ -88,7 +88,7 @@ _spool_bin_built_from_head() {  # REPO BUILT
 # non-login PATH), else the stale build with a loud warning, else bare spool.
 _spool_bin_fallback() {  # BUILT
   local b
-  b="$(command -v spool 2>/dev/null)"
+  b="$(command -v spool 2>/dev/null || true)"
   [ -z "$b" ] && [ -x "$HOME/.local/bin/spool" ] && b="$HOME/.local/bin/spool"
   if [ -z "$b" ] && [ -x "$1" ]; then
     [ "${SPOOL_BIN_STALE_WARN:-1}" = 0 ] ||

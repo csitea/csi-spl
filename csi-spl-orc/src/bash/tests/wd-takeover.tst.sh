@@ -6,7 +6,7 @@
 #          processes are a ps stub + a fake /proc (LEASE_PROC_ROOT), tmux is a
 #          stub keeping panes in a file, spawn-window.sh, ./run, spool-send.sh,
 #          kill and the identity map are stubs that log, the clock is
-#          LEASE_NOW. The action runs under ./run's `set -E` + an ERR trap.
+#          LEASE_NOW. The action runs under `set -E` + an ERR trap: a lint on strays, ./run clears its own.
 #   1. S1, S3, S4, S5 each end in a fresh session under the same id (FR-012):
 #      the old pid gone (TERM, no /exit-clean), the old window closed, the
 #      handoff with its `## watchdog` section, the seed with the old brief,

@@ -4,7 +4,7 @@
 #          check of the agent user's and the box user's ~/.claude/settings.json
 #          (2026-10-07: an allow rule "mcp__*" parked every new session on
 #          a Settings Warning dialog). Throwaway files and spool root, a
-#          spool-send stub; the action runs under ./run's set -E + ERR trap.
+#          spool-send stub; the action runs under set -E + an ERR trap (a lint on strays; ./run clears its own).
 #          Each case has its control: one input flipped.
 #   1. a good file: SETTINGS OK, exit 0, nobody told.
 #      Control: the same file with "mcp__*" added is BAD (case 2)

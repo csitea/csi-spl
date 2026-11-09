@@ -52,7 +52,7 @@ export T PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL
   ROTATE_KILL="$T/bin/none" WD_PS_CMD="$T/bin/none" WD_SEND="$T/bin/none" ROTATE_BOOT_GRACE=0 SPOOL_BIN="$T/bin/none"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$T/bin/none"
 
-# an actor as ./run runs one (set -E, an ERR trap that ends it): it takes the
+# an actor under set -E and an ERR trap that ends it (a lint on strays; ./run clears its own): it takes the
 # id lock and, holding it, "runs" (a line in ran.<id>) for HOLD seconds;
 # ORPHAN=1 leaves a child behind that outlives it, REENTER=1 takes it again
 cat >"$T/bin/actor" <<'EOF'
@@ -73,7 +73,7 @@ fi
 [[ -n "${ORPHAN:-}" ]] && { sleep 30 </dev/null >/dev/null 2>&1 & echo $! >"$T/orphan.pid"; }
 exec sleep "$hold"
 EOF
-# a real action, as ./run runs it
+# a real action, under the same lint trap
 # SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
 # command (one ERRTRAP line on stderr) and the run goes on; the action runs as
 # a plain command, because in a `||` list bash suppresses ERR for the whole

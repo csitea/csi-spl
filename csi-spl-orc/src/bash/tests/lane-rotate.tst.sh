@@ -6,7 +6,7 @@
 #          (LEASE_PROC_ROOT), tmux is a stub keeping panes in a file, the
 #          spawn starts a fake agent that runs ONLY its seed's ack line, the
 #          spool send, kill, the identity map and the login probe are stubs.
-#          The action runs under ./run's `set -E` + ERR trap.
+#          The action runs under `set -E` + an ERR trap: a lint on strays, ./run clears its own.
 #   1. 2 healthy ticks in a row (every session young) = 0 stops, 0 notes
 #   2. a lane mid-push at 50 min is warned once and DEFERred (red control:
 #      the same lane without the push is rotated)

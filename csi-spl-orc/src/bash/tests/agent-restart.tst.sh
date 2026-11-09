@@ -7,7 +7,7 @@
 #          a fake /proc, tmux a stub keeping panes in a file, spawn-window.sh,
 #          ./run, spool-send.sh, kill and the identity map stubs that log, the
 #          clock LEASE_NOW; a lane's worktree is a real clone of a bare
-#          remote (the wip ref is real). It runs under ./run's set -E + ERR trap.
+#          remote (the wip ref is real). It runs under set -E + an ERR trap: a lint on strays, ./run clears its own.
 #   1. a lane rebirth: one process, same id and worktree, the wip ref pushed
 #      before the spawn, the rebirth marker consumed, session.json #2, RS-*
 #      phases ending DONE OK, ONE REBORN line to the orchestrator, no blocker

@@ -6,8 +6,8 @@
 #          touched: processes live in a fake /proc (LEASE_PROC_ROOT), tmux is a
 #          stub keeping panes in a file, the spawn starts a fake claude that
 #          runs ONLY its seed's ack line (T-NO-MODEL), ./run, spool-send, kill
-#          and the identity map are stubs. The action runs under ./run's
-#          `set -E` + ERR trap, so a stray failing command fails the test.
+#          and the identity map are stubs. The action runs under
+#          `set -E` + an ERR trap (./run clears its own), so a stray failing command fails the test.
 #   1. L1 shape: dry run = PLAN lines + the handoff preview (all 9 sections),
 #      nothing written, renamed or spawned
 #   2. T-ORCH-GATES: disabled (env, rotate.conf), standby, absent, duplicate,

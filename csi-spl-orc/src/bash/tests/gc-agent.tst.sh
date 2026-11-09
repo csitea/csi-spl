@@ -3,7 +3,7 @@
 # Purpose: the GC agent of a box (do_spl_gc, spl-gc.func.sh; owner HUM-10,
 #          t1 91a36ace), in a sandbox: tmux is a stub keeping windows in a
 #          file, the spool send and the restart are stubs. Nothing real is
-#          touched. The action runs under ./run's `set -E` + ERR trap.
+#          touched. The action runs under `set -E` + an ERR trap: a lint on strays, ./run clears its own.
 #   1. the slot's vendor comes from cnf/gc/gc.conf: :00 claude, :30 grok,
 #      :47 grok; a cnf that swaps them swaps the vendor (not hard-coded)
 #   2. COUNTING: two starts in one slot = 1 GC window, the second SKIPs;

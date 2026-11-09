@@ -5,7 +5,7 @@
 #          (LEASE_PROC_ROOT), tmux is a stub keeping panes in a file, the lane's
 #          worktree is a throwaway clone of a throwaway bare origin, and ./run,
 #          spool-send, ps and the identity map are stubs. The action runs under
-#          ./run's `set -E` + ERR trap, so a stray failing command fails the test.
+#          `set -E` + an ERR trap (./run clears its own), so a stray failing command fails the test.
 #   1. dry run: PLAN lines + the distil printed (header with the brief, 1b
 #      NOTES, 1c tried and failed = "none recorded", 2 git + spool state and
 #      NO pane scrape, 4 outbox, 5 inbox, 8 session tail); nothing written,

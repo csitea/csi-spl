@@ -31,7 +31,7 @@ parameter cap (`perfFeedPair`, `sendLive`); two do the same for Go (`searchSecti
 `revive` on resend and raises its floor; one shortens the last over-long action
 example. Row 09 (batch 2) drops the 4 `WIDE` lines rows 02, 03, 07, 08 leave.
 
-**Status: v0.1 DRAFT**, not signed (section 9). No row lane starts before the panel
+**Status: v0.2 DRAFT**, not signed (section 9). No row lane starts before the panel
 signs the plan sha.
 
 Editor: **c-716** (claude). Panel seat: asked of the dispatch holder (section 5).
@@ -118,7 +118,7 @@ time, not this sha.
 | 01 `test(r56-01-wui-drop-stale-wide-lines)` | a gate's list holds no stale line (`r55-01`) | three functions came under the cap and left their lines | `wui:tests/unit/cleancode.test.mjs:48` (`useCardEdit`)<br>`:55` (`liveReader`)<br>`:56` (`sessionMethods`) | 3 lines | Delete exactly the lines the gate NOTEs. Tests: `node tests/unit/cleancode.test.mjs` (`9 listed wide` -> `6`, no `NOTE WIDE`); `pnpm run test:unit`. R9 (a gate's list): `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Red control:** delete a still-wide line instead (`perfFeedPair`) -> the gate fails naming it, restored. | either | claude | tests | 1 |
 | 02 `refactor(r56-02-wui-perf-feed-pair-object)` | a function takes its per-call inputs as one object | `perfFeedPair` takes 6 parameters; its one call passes them positionally | `wui:src/utils/perf-rum.mjs:552` (`perfFeedPair`)<br>`wui:src/utils/perf-mark.mjs:75` (its one call, `sink.feed`) | 1 function, 1 call | `perfFeedPair(st, f, { rows, fresh, shown }, o)` and `sink.feed(st, f, { rows, fresh, shown }, o)`; the jsdoc of both follows. `perf-rum.mjs:392` and `perf-mark.test.mjs:22` pass it by reference and stay. Leave the `WIDE` line (row 09). Tests: `perf-mark.test.mjs`, `perf-rum.test.mjs`, `perf-idle.test.mjs`, **`unused-exports.test.mjs`**; `pnpm run typecheck`; `pnpm run test:unit`; `node tests/unit/cleancode.test.mjs` (a `NOTE WIDE:` after); the e2e files the map selects. **Control:** at `perf-mark.mjs:75` swap `fresh` and `shown` -> a switch-view case of `perf-mark.test.mjs` fails, restored; not run here. | either | claude | simple_coding | 1 |
 | 03 `refactor(r56-03-wui-send-live-args-object)` | as row 02, with the type that already exists | `sendLive` takes 6 parameters and spreads them into `LiveSendArgs` for `liveSendFrame` | `wui:src/stores/channel.ts:637` (`sendLive`)<br>`:542` (its one caller, in `send`)<br>`:641` (its `liveSendFrame` call) | 1 function, 1 caller | `sendLive(a: LiveSendArgs)`, called `sendLive({ text, parentTaskId, files, channelId, isParent, dmPeer })`; its body destructures `a`. `send`'s signature unchanged. Keep the text `async function sendLive` (sliced by **`send-failure.test.mjs:93`, `:134`** and **`pane-send-lost.test.mjs:93`**) and the patterns **`offline-queue.test.mjs:113-116`** match. Leave the `WIDE` line (row 09). Tests: those three, `omnibox-topic.test.mjs`, the 25 files `grep -rlE 'sendLive\|stores/channel' wui:tests/unit` lists, through `pnpm run test:unit`; `pnpm run typecheck`; `node tests/unit/cleancode.test.mjs`; the e2e files the map selects. **Control:** drop `parentTaskId` from the call object -> `omnibox-topic.test.mjs` (`task_id: parentTaskId \|\| newId()`) or a reply case fails, restored; the lane names the case; not run here. | either | claude | simple_coding | 1 |
-| 04 `test(r56-04-wui-pin-session-outputs)` | a client's public fields under test | no unit test reads `.tenant`, `.base` or `.configError` of a client (section 2) | `wui:src/utils/spool-client.mjs:503` (`sessionMethods`, read only)<br>`:330` (its call, read only)<br>`wui:tests/unit/spool-client-session-outputs.test.mjs` (new) | 3 fields | `createSpoolClient({ base: '<url>/', tenant: 't1', configError: 'e', mock: false })` -> `.base` is the url with the trailing `/` gone, `.tenant` `'t1'`, `.configError` `'e'`, `.mock` `false`; the defaults (`{}`) -> `''`, `''`, `''`, `true`. Non-test code unchanged. Tests: the new file; `pnpm run test:unit`. **Red control:** swap `tenant` and `root` in `sessionMethods`' return -> the new case fails, restored (c-690 found this swap green over today's 50 files). | either | claude | tests | 1 |
+| 04 `test(r56-04-wui-pin-session-outputs)` | a client's public fields under test | no unit test reads `.tenant`, `.base` or `.configError` of a client (section 2) | `wui:src/utils/spool-client.mjs:503` (`sessionMethods`, read only)<br>`:330` (its call, read only)<br>`wui:tests/unit/spool-client-session-outputs.test.mjs` (new) | 3 fields | `createSpoolClient({ base: '<url>/', tenant: 't1', configError: 'e', mock: false })` -> `.base` is the url with the trailing `/` gone, `.tenant` `'t1'`, `.configError` `'e'`, `.mock` `false`; the defaults (`{}`) -> `''`, `''`, `''`, `true`. Non-test code unchanged. **Live lane c-593 (SPL-5175, `ac4b7c73d`, not landed) edits `spool-client.mjs`** (`git diff --stat 3c473d8f8...ac4b7c73d` -> 19+, 13-; its hunks name none of `sessionMethods`, `tenant`, `configError`, `base: root`), so `:503` / `:330` may move if it lands first: the row writes only its new file and finds the sites by name. Tests: the new file; `pnpm run test:unit`. **Red control:** swap `tenant` and `root` in `sessionMethods`' return -> the new case fails, restored (c-690 found this swap green over today's 50 files). | either | claude | tests | 1 |
 | 05 `test(r56-05-api-hubclient-revive-defaults)` | a call that survives removal gets a case; a floor follows its tests (`r55-06`, `r55-07`) | `s.c.revive(m.From)` can be deleted with every test green; `now` and `timeout` defaults unrun; floor 0.5 under the read | `go:internal/hubclient/hubclient.go:783` (`revive` in `sendFrame`, read only)<br>`go:internal/hubclient/hubclient.go:194` (`now`), `:222` (`timeout`), read only<br>`go:internal/hubclient/revive_defaults_test.go` (new)<br>`api:src/bash/tests/go-coverage-floor.txt:101` | 1 call, 2 defaults, 1 floor | `t.TempDir()` only. **revive:** an agent marked not running (its `stopSince` set, as `agent_drop_test.go` does) whose first send the hub refuses `from_not_announced` -> after `sendFrame` its `stopSince` entry is gone; reuse r55-06's `ub` helpers where they fit. **Defaults:** `Client{}.now()` within a second of `time.Now()`; `Client{}.timeout()` == `defaultReadyTimeout`. Then the floor line to the lowest of n=3 `go test -count=1 -race -cover ./internal/hubclient/`, in the file's comment format. Non-test code unchanged. Helpers prefixed `rd`. Tests: `go test -count=1 -race -cover ./internal/hubclient/`; `run-all-tests.sh`. R9 (a floor): as row 01. **Red control:** `:783` removed -> the revive case fails (it is green today, section 2), restored. | either | claude | tests | 1 |
 | 06 `refactor(r56-06-iac-firebase-dns-example-short)` | a header's example fits the gate's 200 characters (`r55-09`) | the parser joins the 4 example lines into one of 227 characters | `iac:run/provision-firebase-dns.func.sh:15-18`<br>`iac:t/action-header-tags-baseline.txt` (its `[long-example]` line) | 4 comment lines, 1 baseline line | Shorten to at most 200 characters joined: `<placeholders>` for the long values (the project, the zone, the FQDN), or one example only; comment lines only; the baseline line deleted in the same commit. The lane re-measures with `do_parse_metadata <f> \| grep '^example='`. Tests: **`action-header-tags.tst.sh`** (`1 long-example` -> `0`), `wui-hosting-019-031.tst.sh`, `gcp-sa-key-email.tst.sh`, **`bash-cleancode.tst.sh`**; `./run -a do_check_pre_push_lint`. R9 as row 01. **Red control:** delete the baseline line before shortening -> the gate fails naming the file, restored. | either | claude | simple_coding | 1 |
 | 07 `refactor(r56-07-api-search-sections-page)` | pass the struct instead (`cleancode_test.go:20`) | `searchSections` takes 8 parameters, at the listed maximum | `go:internal/hub/search.go:234` (`searchSections`)<br>`:167` (its one caller) | 1 function, 1 caller | The page inputs `types, cur, hash, limit` as one unexported struct (e.g. `searchPage`), so it takes at most 7 (5 here). Results and error unchanged. Leave the `wideFuncs` line (row 09). Tests: `go test -count=1 ./internal/hub/` (the 19 `search*_test.go` files among them); `run-all-tests.sh`; `go test ./internal/cleancode/ -v -run TestCleanCode` (a `no longer takes more than` log after). **Control:** swap `hash` and the cursor's use in the new struct -> `search_paging_pin_test.go` fails, restored; the lane names the case; not run here. | either | claude | simple_coding | 1 |
@@ -162,6 +162,12 @@ time, not this sha.
   `hubclient`, `search`, `scanMove` or the firebase DNS action; `c002-bug-hub-prio-sync-flake-under-load`
   touches the hub's Postgres tests, not a file of row 07 or 08 by its summary. A slug is
   not a brief: the holder greps them on sat.
+- **Holder's reads on sat** (c-002 a8facb1b, about 23:4xZ, n=1, quoted, not re-run here):
+  the 31 queued rows with a brief there, grepped for the rows' files -> 0 hits (the
+  32nd, the SPL-5175 agy row, has no brief there); c-462 (SPL-5182) review head
+  `0d8f4d085`, `git diff --stat origin/master...0d8f4d085` -> 17 files, none
+  `src/stores/channel.ts`: **row 03 is clear of it**; live lane c-593 edits
+  `spool-client.mjs`, which row 04 reads (row 04 names it).
 
 ## 4. Per row: what the lane does
 
@@ -178,8 +184,8 @@ time, not this sha.
 ## 5. Panel and reviewers (R7)
 
 - Editor: c-716 (claude). Both seats sign the plan sha (rulebook 3.2).
-- **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; **asked of the
-  dispatch holder c-002@sat** with this draft (section 9).
+- **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; the holder wrote its
+  brief and asked c-001 to queue it (c-002 a8facb1b, task `dispatch-refactor-r30`).
 - **Row reviewers:** round 29 ran them same-vendor under waiver 1a7c70da, ruled valid
   for round 29 only (its section 5). **This plan does not assume it holds for round
   30.** This lane could not read the owner's posts (its prd hub tools did not connect),
@@ -224,9 +230,13 @@ time, not this sha.
   row 01, the 3 of r55-03 / r55-04 to round 31. c-002's two candidates (msg 8ea902d7):
   b14413f1 -> row 05, 550e84b1 -> row 04.
 
+- v0.2: c-002's R3 reads a8facb1b folded (section 3.2): the sat queue 0 hits, c-462
+  clear of row 03, c-593's `spool-client.mjs` edit named in row 04 (its diff re-read
+  here). No row changed in scope.
+
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-716 (claude): drafted v0.1. **Not signed yet.**
+- Editor seat: c-716 (claude): drafted v0.1, v0.2. **Not signed yet.**
 - Panel reviewer seat: **not placed yet**; asked of the dispatch holder.

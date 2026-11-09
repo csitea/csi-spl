@@ -247,6 +247,7 @@ printf '#!/usr/bin/env bash\necho "{\\"lanes\\": ${LANES:-[]}}"\n' >"$T/bin/lane
 printf '#!/usr/bin/env bash\ncat "$BURN_JSON" 2>/dev/null\n' >"$T/bin/burn"; chmod +x "$T/bin/burn"; mkdir -p "$T/burn"
 # the launcher stub: prints "<ID> <PANE>" (LAUNCH_ID), or exits LAUNCH_RC;
 # the slug LAUNCH_HOLD_SLUG alone gets spawn-window's HOLD (exit 10)
+# and the slugs of LAUNCH_DARK_SLUG their pinned box's silence (exit 8, remote exit 5)
 cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
 echo "$*${SPAWN_BOX:+ SPAWN_BOX=$SPAWN_BOX}" >>"$LAUNCH_LOG"
@@ -256,6 +257,10 @@ echo "spawn-window: c-001 asked for $2" >&2
 [ -z "${LAUNCH_ERR:-}" ] || echo "$LAUNCH_ERR" >&2
 if [ -n "${LAUNCH_HOLD_SLUG:-}" ] && [ "$5" = "$LAUNCH_HOLD_SLUG" ]; then
   echo "spawn-window: HOLD auto: waiting: grok weekly >= 90% on box-a: queue the lane, spawn nothing." >&2; exit 10
+fi
+if [[ " ${LAUNCH_DARK_SLUG:-} " == *" $5 "* ]]; then
+  echo "spawn-remote: no reply from $SPAWN_BOX within 300s (task t1); it may still come" >&2
+  echo "spawn-window: the spawn on SPAWN_BOX=$SPAWN_BOX did not start (spawn-remote exit 5)" >&2; exit 8
 fi
 [ "${LAUNCH_RC:-0}" = 0 ] || exit "$LAUNCH_RC"
 echo "${LAUNCH_ID:-c-281} %42"
@@ -786,6 +791,57 @@ on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_HOLD_SLUG=grok-head >/dev
 [[ "$(stat -c %Y "$T/pc/spool/asks/.place.last")" == "$old_t" ]] &&
   pass "12c. a HOLD keeps an older .place.last at its time (the last real launch)" ||
   fail "12c. .place.last moved: $(stat -c %Y "$T/pc/spool/asks/.place.last") != $old_t"
+for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
+
+# 12d. SPL-5143: a pinned box that never answers (spawn-window exit 8 on
+# spawn-remote exit 5) HOLDS like a full box: no gap slot, the next row in the
+# same tick, the pinned row queued, one log line a tick, no blocker. Before,
+# each failure re-armed the gap and the row was picked first again: 4 h with
+# nothing placed, 2026-11-07. CONTROL: another exit 8 (the box refused) still
+# fails as before, gap armed and the holder told.
+D1=9c9c9c9c-0000-4000-8000-000000000001; D2=9d9d9d9d-0000-4000-8000-000000000002
+D3=9e9e9e9e-0000-4000-8000-000000000003; D4=9f9f9f9f-0000-4000-8000-000000000004
+D5=90909090-0000-4000-8000-000000000005; D6=91919191-0000-4000-8000-000000000006
+printf 'brief text\n%s\n' "$ES" >"$T/briefs/dark-pin.md"
+printf '# Review of a lane\n%s\n' "$ES" >"$T/briefs/dark-seat-reviewer.md"
+printf 'brief text\n%s\n' "$ES" >"$T/briefs/dark-behind.md"
+dark_row() {  # ID SLUG
+  put "$1" c-002@box-desk "dispatch-5143-${1:0:4}" "SPAWN REQUEST $2"
+  on pc do_spl_spawn_enqueue ASK_ID="$1" SPAWN_CLASS=bug SPAWN_PLACE="claude:$2" >/dev/null 2>&1
+}
+dark_tick() {  # [env...]: a tick once the 10 min gap has passed
+  [[ ! -e "$T/pc/spool/asks/.place.last" ]] || touch -d "@$(( $(date +%s) - 11 * 60 ))" "$T/pc/spool/asks/.place.last"
+  on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_DARK_SLUG=dark-pin "$@" 2>&1
+}
+dark_placed() { local i n=0; for i in "$@"; do [[ "$(jq -r .reason <<<"$(hubrow "$i")")" == placed:* ]] && n=$((n + 1)); done; echo "$n"; }
+dark_row "$D1" hand-sat-dark-pin; dark_row "$D2" dark-behind; dark_row "$D3" dark-behind; dark_row "$D4" dark-behind
+rm -f "$T/pc/spool/asks/.place.last" "$T/pc/spool/asks/.place.agent"; : >"$T/launch.log"; : >"$T/send.log"
+lines=0
+for n in 1 2 3; do
+  out="$(dark_tick LAUNCH_ID=c-50$n)"
+  lines=$(( lines + $(grep -c "ask ${D1:0:8}: no reply from sat" <<<"$out") ))
+done
+[[ "$(grep -c ' dark-pin SPAWN_BOX=sat$' "$T/launch.log")" == 3 && "$(dark_placed "$D2" "$D3" "$D4")" == 3 ]] &&
+  pass "12d. three silent launches of a pinned row: the three rows behind it are placed" ||
+  fail "12d. placed $(dark_placed "$D2" "$D3" "$D4") of 3 behind it: $(cat "$T/launch.log")"
+[[ "$(jq -r .state <<<"$(hubrow "$D1")")" == queued && "$(jq -r .position <<<"$(listrow "$D1")")" == 1 && "$lines" == 3 ]] &&
+  grep -q "^$D1"$'\t'".*no reply from sat" "$T/pc/spool/asks/.place.wait" &&
+  pass "12d. the pinned row stays queued at position 1, one log line a tick, its reason in .place.wait" ||
+  fail "12d. pinned row: $(hubrow "$D1") lines=$lines"
+! grep -q "${D1:0:8}" "$T/send.log" && pass "12d. a dark box sends the holder no failure blocker per tick" || fail "12d. blocker: $(sends)"
+dark_row "$D5" dark-behind; dark_row "$D6" hand-sat-dark-seat-reviewer
+printf '2026-01-15T12:00Z\t%s\t%s\tc-001@box-desk\n' "$D6" "$(sed -n 's/^SPL_SPAWN_REVIEW_SEAT_GO=//p' "$PROJ_ROOT/src/bash/run/spl-spawn-enqueue.func.sh")" >>"$T/pc/spool/asks/bypass.tsv"
+out="$(dark_tick "LAUNCH_DARK_SLUG=dark-pin dark-seat-reviewer" LAUNCH_ID=c-504)"
+grep -q "review-seat pick: ask ${D6:0:8}" <<<"$out" && [[ "$(jq -r .state <<<"$(hubrow "$D6")")" == queued && "$(dark_placed "$D5")" == 1 ]] &&
+  pass "12d. a review seat picked ahead of the bands, its box silent: the next row is placed in the same tick" ||
+  fail "12d. seat pick: $out | $(hubrow "$D5")"
+sed -i "/$D6/d" "$T/pc/spool/asks/bypass.tsv"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$D6" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/send.log"
+out="$(dark_tick LAUNCH_DARK_SLUG= LAUNCH_RC=8 "LAUNCH_ERR=spawn-window: the spawn on SPAWN_BOX=sat did not start (spawn-remote exit 4)")"
+[[ -e "$T/pc/spool/asks/.place.last" ]] && grep -q "the launch of claude:dark-pin failed (exit 8)" <<<"$out" && grep -q "ask ${D1:0:8} (claude:dark-pin) failed" "$T/send.log" &&
+  pass "12d. CONTROL: a box that refused (remote exit 4) still fails: gap armed, the holder told" ||
+  fail "12d. control: $out | $(sends)"
 for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
 
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief

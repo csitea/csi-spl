@@ -23,6 +23,13 @@
 # @description and the links never posts twice; a row declined after that post is
 # @description added to that discussion once (rows.seen). A post that fails is
 # @description named in ONE blocker to the orchestrator, and retried next run.
+# @description The new discussion takes the archived one's stored priority, when it
+# @description has one (SPL-5147: its re-homed queue rows keep their place). The hub
+# @description copies it (do_spl_topic_inherit_priority); a failed copy is a WARN, a
+# @description failed run and ONE blocker, the issues still move, and the copy is kept
+# @description in <state dir>/inherit.pending and tried again every run until it takes;
+# @description a final refusal (not archived, not live, not its follow-up) is dropped
+# @description from it after its blocker (R7 c-714 W2).
 # @description Test workspaces are skipped.
 # @description One box acts for a topic: the holder's, when the hub's roster has the
 # @description holder's id on it in that workspace, else the first box by name that
@@ -46,12 +53,14 @@
 # @param ENV (optional) - dev or prd, default lease.conf LEASE_ENV
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
-# @param ARCHIVED_FOLLOWUP_STATE_DIR (optional) - since, journal.tsv, rows.seen, failed.keys; default <spool root>/dispatch/archived-followup
+# @param ARCHIVED_FOLLOWUP_STATE_DIR (optional) - since, journal.tsv, rows.seen, failed.keys, inherit.pending; default <spool root>/dispatch/archived-followup
 # @param ARCHIVED_FOLLOWUP_ROWS_FILE (optional, tests) - read the rows from this file, not the hub DB
 # @param ARCHIVED_FOLLOWUP_POST_CMD (optional, tests) - replaces do_spl_desk_post: TENANT_ID, DESK_AGENT, DESK_CHANNEL, DESK_BODY_FILE in its env, prints its JSON line
 # @param ARCHIVED_FOLLOWUP_REPLY_CMD (optional, tests) - replaces do_spl_desk_reply: TENANT_ID, DESK_AGENT, DESK_TASK, DESK_TO, DESK_BODY_FILE in its env
 # @param ARCHIVED_FOLLOWUP_LINK_CMD (optional, tests) - replaces do_spl_issue_link: TENANT_ID, DESK_AGENT, ISSUE_REF, ISSUE_DISCUSSION, MODE in its env
 # @param ARCHIVED_FOLLOWUP_SEND (optional, tests) - the sender script, default spool-send.sh
+# @param ARCHIVED_FOLLOWUP_PRIORITY_CMD (optional, tests) - replaces do_spl_topic_inherit_priority: TENANT_ID, DESK_AGENT, PRIORITY_FROM, PRIORITY_TO in its env
+# @param ARCHIVED_FOLLOWUP_PRIORITY_WAIT (optional, tests) - seconds between tries while the hub has not stored the new discussion, default 3
 # @param SPL_DESK_AS_CMD (optional, tests) - replaces `sudo -n -u`, as in spl_desk_moved_to
 # @example ./run -a do_spl_archived_followup
 # @example DRY_RUN=0 ./run -a do_spl_archived_followup
@@ -76,6 +85,7 @@ do_spl_archived_followup() {
   AFU_BOX="${LEASE_MACHINE:-$(spl_desk_box_default)}"
   AFU_HOLDER_BOX="$AFU_BOX"
   [[ "$LH" == *@* ]] && AFU_HOLDER_BOX="${LH##*@}"
+  spl_afu_pending "$dir" "$dry" || rc=1
   tmp="$(mktemp -d)" || return 1
   if ! spl_afu_rows "$tmp/rows" "$since"; then
     rm -rf "$tmp"
@@ -137,6 +147,10 @@ spl_afu_topic() {
   elif grep -q $'^row\t' "$tmp/keep"; then
     spl_afu_late_rows "$tmp" "$tenant" "$topic" "$new" "$dir" || rc=1
   fi
+  if ! spl_afu_inherit "$tenant" "$topic" "$new"; then
+    rc=1
+    spl_afu_inherit_failed "$tenant" "$topic" "$new" "$dir"
+  fi
   while IFS= read -r line; do
     ref="$(cut -f6 <<<"$line")"
     AFU_DONE+="$tenant:$ref "
@@ -146,6 +160,71 @@ spl_afu_topic() {
       do_log "WARN $ref was not moved to $new: the next run tries again"; rc=1
     fi
   done < <(grep $'^issue\t' "$tmp/keep")
+  return "$rc"
+}
+
+# spl_afu_inherit TENANT TOPIC NEW: NEW takes TOPIC's stored priority. A desk post
+# reaches the hub through its sidecar, so a NEW the hub does not have yet is tried
+# again, a few seconds; any other refusal is final for this run. AFU_INHERIT_OUT:
+# the hub's last answer.
+spl_afu_inherit() {
+  local try out
+  AFU_INHERIT_OUT=""
+  for try in 1 2 3 4 5; do
+    if [[ -n "${ARCHIVED_FOLLOWUP_PRIORITY_CMD:-}" ]]; then
+      out="$(TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" PRIORITY_FROM="$2" PRIORITY_TO="$3" $ARCHIVED_FOLLOWUP_PRIORITY_CMD 2>&1)"
+    else
+      out="$(spl_afu_run do_spl_topic_inherit_priority TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" PRIORITY_FROM="$2" PRIORITY_TO="$3" 2>&1)"
+    fi && return 0
+    [[ "$out" == *not_found* && $try -lt 5 ]] || break
+    sleep "${ARCHIVED_FOLLOWUP_PRIORITY_WAIT:-3}"
+  done
+  AFU_INHERIT_OUT="$out"
+  do_log "WARN $1 topic $2: $3 did not take its priority: $(tail -1 <<<"$out" | cut -c1-200)"
+  return 1
+}
+
+# spl_afu_final_refusal: 0 when the hub's last answer will not change on a retry.
+spl_afu_final_refusal() {
+  [[ "${AFU_INHERIT_OUT:-}" =~ (source_not_archived|target_not_live|not_followup|bad_issue) ]]
+}
+
+# spl_afu_inherit_failed TENANT TOPIC NEW DIR: the issues move anyway and the next
+# run finds no row of TOPIC, so the copy is journalled in inherit.pending (unless
+# final) and named in ONE blocker.
+spl_afu_inherit_failed() {
+  local why="${AFU_INHERIT_OUT:-no answer}" next="the next run tries again"
+  why="$(tail -1 <<<"$why" | cut -c1-200)"
+  if spl_afu_final_refusal; then next="the hub refused it for good, nothing tries again"
+  elif ! grep -qxF "$1"$'\t'"$2"$'\t'"$3" "$4/inherit.pending" 2>/dev/null; then
+    printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$4/inherit.pending" || do_log "WARN inherit.pending not written: $2 -> $3"
+  fi
+  spl_afu_blocker "$1" "$2" "$4" "$why" "**BLOCKER** archived discussion /t/$2 ($1): its follow-up /t/$3 did not take its priority: $why. The issues moved there; $next. Action do_spl_archived_followup (SPL-5147)." inherit
+}
+
+# spl_afu_pending DIR DRY: each copy of inherit.pending is tried again; one that
+# takes, or is refused for good, leaves the file.
+spl_afu_pending() {
+  local dir="$1" dry="$2" tenant topic new rc=0
+  [[ -s "$dir/inherit.pending" ]] || return 0
+  : >"$dir/inherit.pending.next" || return 1
+  while IFS=$'\t' read -r tenant topic new; do
+    [[ -n "$new" ]] || continue
+    if ((dry)); then
+      do_log "WOULD try again: $tenant follow-up $new takes the priority of $topic"
+      printf '%s\t%s\t%s\n' "$tenant" "$topic" "$new" >>"$dir/inherit.pending.next"; continue
+    fi
+    if ! spl_afu_desk_seated "$tenant"; then
+      do_log "WARN $tenant follow-up $new: no desk for $AFU_AGENT on $AFU_BOX, its priority copy waits"
+    elif spl_afu_inherit "$tenant" "$topic" "$new"; then
+      do_log "OK $tenant topic $topic: its follow-up $new took its priority on a later run"; continue
+    elif spl_afu_final_refusal; then
+      do_log "WARN $tenant follow-up $new: refused for good, no more tries"; continue
+    fi
+    rc=1
+    printf '%s\t%s\t%s\n' "$tenant" "$topic" "$new" >>"$dir/inherit.pending.next"
+  done <"$dir/inherit.pending"
+  mv "$dir/inherit.pending.next" "$dir/inherit.pending" || return 1
   return "$rc"
 }
 
@@ -302,13 +381,15 @@ spl_afu_link() {
   spl_afu_run do_spl_issue_link TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" >/dev/null 2>&1
 }
 
-# spl_afu_blocker TENANT TOPIC DIR WHY [BODY]: ONE blocker to the orchestrator per
-# topic (failed.keys), so a topic that keeps failing does not repeat every run. A
-# BODY is the held one: it lists what was left, so it has its own key.
+# spl_afu_blocker TENANT TOPIC DIR WHY [BODY [TAG]]: ONE blocker to the orchestrator
+# per topic (failed.keys), so a topic that keeps failing does not repeat every run.
+# A BODY has its own key, TAG (default held: it lists what was left; inherit: a
+# priority copy that failed).
 spl_afu_blocker() {
   local k="$1"$'\t'"$2" send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  [[ -z "${5:-}" ]] || k+=$'\theld'
-  if [[ -n "${5:-}" ]]; then do_log "WARN $1 topic $2: held, nothing posted or linked: $4"
+  [[ -z "${5:-}" ]] || k+=$'\t'"${6:-held}"
+  if [[ "${6:-}" == inherit ]]; then :
+  elif [[ -n "${5:-}" ]]; then do_log "WARN $1 topic $2: held, nothing posted or linked: $4"
   else do_log "WARN $1 topic $2: no follow-up discussion: $4"; fi
   grep -qxF "$k" "$3/failed.keys" 2>/dev/null && return 0
   if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$(spl_role_seat 1)" --to orchestrator --kind blocker --task archived-followup \

@@ -26,6 +26,11 @@
 #     cannot be read, a malformed column 7: no post, reply or link, one blocker
 #     naming what was left, even after an earlier blocker of the topic;
 #     CONTROL: another channel of the same workspace still posts
+#  14 the follow-up takes the archived parent's stored priority (SPL-5147): 2 -> 2;
+#     CONTROL none -> none; a dry run calls nothing; a failed copy still moves the
+#     issues, fails the run, sends one blocker and is journalled; a later run with
+#     no row left tries it again until it takes (R7 c-714 W2); a final refusal is
+#     not journalled; a follow-up the hub has not stored yet is retried
 # RED CONTROLS: without the action file every case fails; without the journal
 # read case 4 posts twice; without the poster check case 5 posts; without
 # spl_afu_work_left case 9 posts; without spl_afu_desk_seated case 10d posts;
@@ -35,7 +40,9 @@
 # spl_afu_channel_held every case of 13 but its controls posts; reading only the
 # word in column 7, 13i..k post; with one failed.keys key per topic, 13m and 13n
 # send no second blocker. Without the alarm 13h2..h4 fail; a * row read like a
-# channel row posts in 13k2 and 13k3; the old held text fails 13f2.
+# channel row posts in 13k2 and 13k3; the old held text fails 13f2; without
+# spl_afu_inherit case 14a stays unset; without spl_afu_pending 14f and 14h fail;
+# without the final-refusal check 14j journals the copy.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -76,12 +83,21 @@ cat >"$T/bin/send" <<EOF
 #!/usr/bin/env bash
 echo "send \$*" >>"$LOG"
 EOF
+cat >"$T/bin/inherit" <<EOF
+#!/usr/bin/env bash
+echo "inherit \$TENANT_ID \$DESK_AGENT \$PRIORITY_FROM \$PRIORITY_TO" >>"$T/inherit.log"
+if [ -s "$T/inherit-fails" ]; then
+  n=\$(sed -n 1p "$T/inherit-fails"); sed -i 1d "$T/inherit-fails"; echo "\$n"; exit 1
+fi
+[ ! -f "$T/prio/\$PRIORITY_FROM" ] || cp "$T/prio/\$PRIORITY_FROM" "$T/prio/\$PRIORITY_TO"
+EOF
+mkdir -p "$T/prio"
 chmod +x "$T/bin/"*
 
 run() {
   SNIPPET="spl_test_workspace() { [[ \"\$1\" == e2e ]]; }; do_spl_archived_followup" in_orc SPOOL_ROOT="$SP" LEASE_MACHINE=box-a \
     ARCHIVED_FOLLOWUP_STATE_DIR="$ST" ARCHIVED_FOLLOWUP_ROWS_FILE="${ROWS:-$T/rows}" ARCHIVED_FOLLOWUP_POST_CMD="$T/bin/post" \
-    ARCHIVED_FOLLOWUP_REPLY_CMD="$T/bin/reply" ARCHIVED_FOLLOWUP_LINK_CMD="$T/bin/link" ARCHIVED_FOLLOWUP_SEND="$T/bin/send" "$@" 2>&1
+    ARCHIVED_FOLLOWUP_REPLY_CMD="$T/bin/reply" ARCHIVED_FOLLOWUP_LINK_CMD="$T/bin/link" ARCHIVED_FOLLOWUP_SEND="$T/bin/send" ARCHIVED_FOLLOWUP_PRIORITY_CMD="$T/bin/inherit" ARCHIVED_FOLLOWUP_PRIORITY_WAIT=0 "$@" 2>&1
 }
 count() { grep -c "$1" "$LOG"; }
 
@@ -327,6 +343,51 @@ SQL
 else
   echo "SKIP: 12 needs AFU_TEST_PG_DSN, or docker, psql and a cached $PG_IMAGE image"
 fi
+
+# 14. the follow-up's priority. A stub hub: the copy is a file of the parent's id.
+PAR="eeeeeeee-0000-4000-8000-000000000005"
+printf 'issue\tt1\t%s\tdev\t%s\tSPL-9\twip\ta job\tbox-a\tHUM-1\n' "$PAR" "$AT" >"$T/rows14"
+fresh14() { rm -rf "$ST14" "$T/prio"/* "$T/inherit-fails" "$T/inherit.log"; mkdir -p "$ST14"; echo 2020-01-01T00:00:00Z >"$ST14/since"; : >"$LOG"; }
+ST14="$T/fu14"
+run14() { ROWS="$T/rows14" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" "$@"; }
+fresh14; echo 2 >"$T/prio/$PAR"
+out="$(run14 DRY_RUN=0)"
+[[ "$(cat "$T/prio/$NEW" 2>/dev/null)" == 2 && "$(cat "$T/inherit.log")" == "inherit t1 c-002 $PAR $NEW" ]] &&
+  pass "14a a parent at priority 2: the follow-up reads 2" || fail "14a: $out // $(cat "$T/inherit.log" 2>&1)"
+fresh14
+out="$(run14 DRY_RUN=0)"
+[[ ! -e "$T/prio/$NEW" && "$(count "^link SPL-9 $NEW")" == 1 ]] &&
+  pass "14b CONTROL a parent with none: the follow-up has none" || fail "14b: $out"
+fresh14; echo 2 >"$T/prio/$PAR"
+out="$(run14)"
+[[ ! -e "$T/inherit.log" && ! -e "$T/prio/$NEW" ]] && pass "14c a dry run copies nothing" || fail "14c: $out"
+fresh14; echo 2 >"$T/prio/$PAR"; echo "internal: priority not inherited" >"$T/inherit-fails"
+out="$(run14 DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 && "$(grep -c inherit "$T/inherit.log")" == 1 && "$(count "^link SPL-9 $NEW")" == 1 && "$out" == *"internal: priority"* &&
+   "$(cat "$ST14/inherit.pending" 2>/dev/null)" == "t1"$'\t'"$PAR"$'\t'"$NEW" && "$(count '^send .*did not take its priority.*the next run tries again')" == 1 ]] &&
+  pass "14d a failed copy: one try, the issue still moves, the run fails and says why, the copy is journalled, one blocker" || fail "14d (rc=$rc): $out // $(cat "$LOG")"
+: >"$T/rows14.empty"
+echo "internal: priority not inherited" >"$T/inherit-fails"
+out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 && "$(grep -c inherit "$T/inherit.log")" == 2 && -s "$ST14/inherit.pending" && "$(count '^send')" == 1 ]] &&
+  pass "14f the issues gone from the topic, a run with no row still tries the copy; failing again it stays journalled, no second blocker" || fail "14f (rc=$rc): $out // $(cat "$LOG")"
+out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14")"; rc=$?
+[[ "$(grep -c inherit "$T/inherit.log")" == 2 && -s "$ST14/inherit.pending" && "$out" == *"WOULD try again"* ]] &&
+  pass "14g a dry run names the waiting copy and calls nothing" || fail "14g (rc=$rc): $out"
+out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c inherit "$T/inherit.log")" == 3 && "$(cat "$T/prio/$NEW" 2>/dev/null)" == 2 && ! -s "$ST14/inherit.pending" ]] &&
+  pass "14h a later run takes the copy and clears the journal" || fail "14h (rc=$rc): $out"
+out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c inherit "$T/inherit.log")" == 3 ]] && pass "14i once taken, nothing tries again" || fail "14i (rc=$rc): $out"
+fresh14; echo 2 >"$T/prio/$PAR"; echo "not_followup: refused" >"$T/inherit-fails"
+out="$(run14 DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 && "$(grep -c inherit "$T/inherit.log")" == 1 && "$(count "^link SPL-9 $NEW")" == 1 && ! -s "$ST14/inherit.pending" &&
+   "$(count '^send .*not_followup.*refused it for good')" == 1 ]] &&
+  pass "14j a final refusal: the issue still moves, one blocker, nothing journalled" || fail "14j (rc=$rc): $out // $(cat "$LOG")"
+fresh14; echo 2 >"$T/prio/$PAR"; printf 'not_found: no such target topic\nnot_found: no such target topic\n' >"$T/inherit-fails"
+out="$(run14 DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c inherit "$T/inherit.log")" == 3 && "$(cat "$T/prio/$NEW" 2>/dev/null)" == 2 ]] &&
+  pass "14e a follow-up the hub has not stored yet is tried again" || fail "14e (rc=$rc): $out"
 
 echo "spl-archived-followup: $fails failure(s)"
 [[ $fails -eq 0 ]]

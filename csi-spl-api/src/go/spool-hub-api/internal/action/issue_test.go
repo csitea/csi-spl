@@ -73,6 +73,7 @@ func TestIssueHub(t *testing.T) {
 		{Op: "delete", As: "CLE-1", Ref: "SPL-1"},
 		{Op: "archive", As: "CLE-1", Ref: "SPL-1", Query: "cascade=1"},
 		{Op: "unarchive", As: "CLE-1", Ref: "SPL-1"},
+		{Op: "inherit-priority", As: "CLE-1", Query: "from=a&to=b"},
 		{Op: "link", As: "CLE-1", Ref: "SPL-1", Body: "/t/x"},
 		{Op: "unlink", As: "CLE-1", Ref: "SPL-1", Body: "/t/x"},
 		{Op: "get", As: "CLE-1", Ref: "SPL-2", Hub: hubclient.New(cfg)},

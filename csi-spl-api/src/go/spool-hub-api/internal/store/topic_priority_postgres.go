@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -29,6 +30,33 @@ func (s *Postgres) SetTopicPriority(ctx context.Context, tenant, taskID string, 
 	}
 	p.SetAt = p.SetAt.UTC()
 	return p, nil
+}
+
+// InheritTopicPriority implements TopicPriorityStore: one statement, so a
+// priority set meanwhile on the target is kept (DO NOTHING, no row back).
+func (s *Postgres) InheritTopicPriority(ctx context.Context, tenant, source, target, by string, at time.Time) (TopicPriority, bool, error) {
+	from, err := checkTopicPriority(tenant, source, TopicPriorityMin)
+	if err != nil {
+		return TopicPriority{}, false, err
+	}
+	to, err := checkTopicPriority(tenant, target, TopicPriorityMin)
+	if err != nil {
+		return TopicPriority{}, false, err
+	}
+	p := TopicPriority{TenantID: tenant}
+	err = s.queryRowTenant(ctx, tenant, `INSERT INTO topic_priorities (tenant_id, task_id, priority, set_by, set_at)
+		SELECT tenant_id, $3::uuid, priority, $4, $5 FROM topic_priorities WHERE tenant_id = $1 AND task_id = $2::uuid
+		ON CONFLICT (tenant_id, task_id) DO NOTHING
+		RETURNING task_id::text, priority, set_by, set_at`,
+		[]any{tenant, from, to, by, at.UTC()}, &p.TaskID, &p.Priority, &p.SetBy, &p.SetAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TopicPriority{}, false, nil
+	}
+	if err != nil {
+		return TopicPriority{}, false, mapFK(err)
+	}
+	p.SetAt = p.SetAt.UTC()
+	return p, true, nil
 }
 
 // TopicPriorities implements TopicPriorityStore: one probe of the primary

@@ -53,6 +53,10 @@ type TopicPriorityStore interface {
 	// row, a set 3 too), keyed by the asked id: an unset topic is absent,
 	// never the default. A new issue inherits from it (SPL-4725).
 	SetTopicPriorities(ctx context.Context, tenant string, taskIDs []string) (map[string]int, error)
+	// InheritTopicPriority copies source's stored priority to target, in
+	// one workspace, set by by at at (SPL-5147). false, no write: source has
+	// no row, or target already has one, which it keeps.
+	InheritTopicPriority(ctx context.Context, tenant, source, target, by string, at time.Time) (TopicPriority, bool, error)
 }
 
 var (

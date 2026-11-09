@@ -28,9 +28,9 @@ func Issue(ctx context.Context, cfg *config.Config, in IssueArgs) (json.RawMessa
 		return nil, fmt.Errorf("issues need hub mode ($SPOOL_HUB_URL is not set)")
 	}
 	switch in.Op {
-	case "create", "update", "get", "list", "moved", "prio-sync", "label", "comment", "delete", "archive", "unarchive", "link", "unlink":
+	case "create", "update", "get", "list", "moved", "prio-sync", "inherit-priority", "label", "comment", "delete", "archive", "unarchive", "link", "unlink":
 	default:
-		return nil, fmt.Errorf("op must be create, update, get, list, moved, prio-sync, label, comment, delete, archive, unarchive, link or unlink")
+		return nil, fmt.Errorf("op must be create, update, get, list, moved, prio-sync, inherit-priority, label, comment, delete, archive, unarchive, link or unlink")
 	}
 	if in.As == "" {
 		return nil, fmt.Errorf("--as (the acting agent id) is required")

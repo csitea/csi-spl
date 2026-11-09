@@ -500,9 +500,39 @@ printf 'customer_strings:\n  - key:QZX\n    - key:LOST\n' >"$T/overlay-bad.yaml"
 cp "$FIX/clean.sql" "$T/d-badl.sql"; OVERLAY="$T/overlay-bad.yaml" act d-badl "$EXPORT_DSN"
 [[ "$(cat "$T/d-badl.act.rc")" == 1 && ! -e "$T/d-badl.act.sql" ]] && grep -q 'not in the form' "$T/d-badl.act.log" \
   && pass "13. one malformed customer_strings line fails the action" || fail "13. bad line: $(cat "$T/d-badl.act.log")"
+n=0
+for bad in '  - key:QZX\n- key:LOST\n  - key:AFTER\n' '  - key:QZX\nkey:LOST\n  - key:AFTER\n' '  - key:QZX\n- key:LOST\n- key:AFTER\n'; do
+  n=$((n + 1)); printf "customer_strings:\n$bad" >"$T/overlay-c0$n.yaml"
+  cp "$FIX/clean.sql" "$T/d-c0$n.sql"; OVERLAY="$T/overlay-c0$n.yaml" act "d-c0$n" "$EXPORT_DSN"
+  [[ "$(cat "$T/d-c0$n.act.rc")" == 1 && ! -e "$T/d-c0$n.act.sql" ]] && grep -q 'not in the form' "$T/d-c0$n.act.log" \
+    && pass "13. a malformed line at column 0 fails the action ($n)" || fail "13. column 0 ($n): $(cat "$T/d-c0$n.act.log")"
+done
+printf 'customer_strings: [key:AAA]\n  - key:QZX\n' >"$T/overlay-hdr.yaml"
+cp "$FIX/clean.sql" "$T/d-hdr.sql"; OVERLAY="$T/overlay-hdr.yaml" act d-hdr "$EXPORT_DSN"
+[[ "$(cat "$T/d-hdr.act.rc")" == 1 && ! -e "$T/d-hdr.act.sql" ]] && grep -q 'not in the form' "$T/d-hdr.act.log" \
+  && pass "13. a customer_strings header with a value fails the action" || fail "13. header value: $(cat "$T/d-hdr.act.log")"
+printf 'customer_strings:\n  - key:QZX\nnext_section:\n  - other\n' >"$T/overlay-ok.yaml"
+cp "$FIX/clean.sql" "$T/d-okn.sql"; OVERLAY="$T/overlay-ok.yaml" act d-okn "$EXPORT_DSN"
+! grep -q 'not in the form' "$T/d-okn.act.log" \
+  && pass "13. a well formed section after customer_strings is accepted" || fail "13. next section: $(cat "$T/d-okn.act.log")"
 cp "$FIX/clean.sql" "$T/d-noover.sql"; OVERLAY="$T/no-such-overlay.yaml" act d-noover "$EXPORT_DSN"
 [[ "$(cat "$T/d-noover.act.rc")" == 1 ]] && grep -q 'no private overlay' "$T/d-noover.act.log" \
   && pass "13. no overlay at all fails the action" || fail "13. no overlay: $(cat "$T/d-noover.act.log")"
+
+# the completeness check's SQL on real Postgres (its action test stubs the read)
+cc_sql="$(source "$PROJ_ROOT/src/bash/run/spl-public-dataset-customer-check.func.sh"; spl_pd_cc_sql "('wsa','chan-x')")"
+cc_out="$(psql -X -q -At "$DB_DSN" <<EOF_CC
+CREATE TEMP TABLE messages (tenant_id text, channel text, body text);
+INSERT INTO messages VALUES
+  ('wsa', 'chan-x', 'see https://a9.example.net?mail=u@b9.example.net'),
+  ('wsa', 'chan-x', 'see https://a8.example.net#mail=u@b8.example.net'),
+  ('wsa', 'chan-x', 'see https://u@a7.example.net/x'),
+  ('wsa', 'other', 'see https://a6.example.net/x');
+$cc_sql;
+EOF_CC
+)"
+[[ "$(sort <<<"$cc_out" | paste -sd,)" == 'host|a7.example.net,host|a8.example.net,host|a9.example.net' ]] \
+  && pass "14. the check's SQL reads the host before a ? or # that holds an @" || fail "14. cc sql: $cc_out"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s)"; exit 1

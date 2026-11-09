@@ -55,7 +55,7 @@ spl_pd_cc_where() {
 # spl_pd_cc_sql <where>: one statement, the distinct hosts and key prefixes.
 spl_pd_cc_sql() {
   cat <<EOF_SQL
-SELECT 'host', lower((regexp_matches(body, 'https?://(?:[^/[:space:]@]*@)?([^/[:space:]:)>"''|\`?#\]]+)', 'gi'))[1]) FROM messages WHERE (tenant_id, channel) IN ($1)
+SELECT 'host', lower((regexp_matches(body, 'https?://(?:[^/[:space:]@?#]*@)?([^/[:space:]:)>"''|\`?#\]]+)', 'gi'))[1]) FROM messages WHERE (tenant_id, channel) IN ($1)
 UNION
 SELECT 'key', (regexp_matches(body, '\\m([A-Z][A-Z0-9]{1,9})-[0-9]+\\M', 'g'))[1] FROM messages WHERE (tenant_id, channel) IN ($1)
 EOF_SQL

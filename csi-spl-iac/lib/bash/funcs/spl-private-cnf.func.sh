@@ -67,12 +67,21 @@ spl_private_list() {
   ' "$(spl_private_cnf_path)"
 }
 
-# spl_private_list_strict <section> -> spl_private_list, or rc 2 when a line of
-# the section is not '  - item' (spl_private_list drops such a line silently)
+# spl_private_list_strict <section> -> spl_private_list, or rc 2 when the
+# overlay is not valid YAML (or no yq can prove it is), when a line of the
+# section is not '  - item', when a column-0 line in the section is not
+# 'name:' or when the section's header carries a value (spl_private_list drops
+# each of those silently, and with a column-0 line every list line after it)
 spl_private_list_strict() {
   spl_private_require || return 1
+  yq . "$(spl_private_cnf_path)" >/dev/null 2>&1 || return 2
   awk -v want="$1" '
-    /^[^[:space:]#]/ { sec = $0; sub(/:.*/, "", sec); next }
+    /^[^[:space:]#]/ {
+      if (sec == want && !/^[A-Za-z0-9_-]+:([[:space:]]|$)/) exit 2
+      sec = $0; sub(/:.*/, "", sec)
+      if (sec == want && !/^[^:]+:[[:space:]]*(#.*)?$/) exit 2
+      next
+    }
     sec == want && !/^[[:space:]]*(#|$)/ && !/^  - [^[:space:]]/ { exit 2 }
   ' "$(spl_private_cnf_path)" || return 2
   spl_private_list "$1"

@@ -59,6 +59,7 @@ for h in 'new1.example.net?x=1' 'new2.example.net#a' 'new3.example.net]' 'user@n
 done
 ok_rows; run lim; grep -q 'a server name outside a URL is not detected' "$T/lim.log" && grep -q '2 read as no host' "$T/lim.log" && pass "2b. the OK line says what it does not prove" || fail "2b. lim: $(cat "$T/lim.log")"
 printf 'customer_strings:\n  - key:QZX\n    - key:LOST\ncustomer_channels:\n  - wsa/chan-x\n' >"$T/o.yaml"; run badl; [[ "$(cat "$T/badl.rc")" != 0 ]] && grep -q 'not in the form' "$T/badl.log" && pass "4. a malformed list line is FATAL" || fail "4. bad line: $(cat "$T/badl.log")"
+printf 'customer_strings:\n  - key:QZX\n- key:LOST\n  - key:AFTER\ncustomer_channels:\n  - wsa/chan-x\n' >"$T/o.yaml"; run bad0; [[ "$(cat "$T/bad0.rc")" != 0 ]] && grep -q 'not in the form' "$T/bad0.log" && pass "4. a malformed line at column 0 is FATAL" || fail "4. bad column 0: $(cat "$T/bad0.log")"
 grep -q "'gi'" "$T/good.sql" && grep -q '@' "$T/good.sql" && pass "5. the host read ignores case and skips a user part" || fail "5. sql flags: $(cat "$T/good.sql")"
 ok_overlay; ok_rows
 

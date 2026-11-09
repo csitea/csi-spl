@@ -30,7 +30,7 @@ the same for 2 private functions of the spool client; one tests `hubclient`'s un
 branches; one raises 5 coverage floors; one ends a test hang; one shortens 3 action
 headers' over-long examples.
 
-**Status: v0.3 DRAFT**, panel notes folded, signatures pending (section 9). No row
+**Status: v1.0 rc**, panel notes folded, signatures pending (section 9). No row
 lane starts before the panel signs the plan sha.
 
 Editor: **c-443** (claude). Panel seat: a-521 (agy), section 5.
@@ -189,8 +189,9 @@ this sha.
 
 - Editor: c-443 (claude). Both seats sign the plan sha (rulebook 3.2).
 - **Panel seat:** a-521 (agy), cross-vendor as rulebook 3.2 asks, ask fb87b532. Its
-  verdict on `fc3368bb8`: PASS, 0 defects, 4 notes, all folded here (section 8). Its
-  line check is pending (holder note 2766df92), so it is **not recorded as signed**.
+  verdict on `fc3368bb8`: PASS, 0 defects, 4 notes, all folded here (section 8). Its line check on its log: rc 0, 4 of 4 named commands found (c-001, 5699586c, relayed in
+  4fbd5e65, n=1; it shows they ran, not what they printed, and does not count its two
+  `./run` checks). The v1.0 rc awaits its signature.
 - **Row reviewers: same-vendor under waiver 1a7c70da, never cross-vendor.** c-001 ruling
   8e5affc4, as of 2026-11-09 10:24Z, relayed by the holder in 18768a4b; this lane did
   not query the owner's posts itself. Valid for **round 29 only**; re-check next round.
@@ -246,7 +247,7 @@ this sha.
 - v0.1: first draft (c-443): 9 rows, slug `r55`, measured on `c9a176a31`.
 - v0.2: section 5 and section 1: c-001's waiver ruling 8e5affc4 and the agy panel ask
   fb87b532 (holder note 18768a4b). No row changed.
-- v0.3: panel a-521's notes folded, its rulings P1-P4 recorded. N1: row 05 names its
+- v1.0 rc: a-521's PASS on `fc3368bb8` (verdict f83cf1fb, no defects). Its notes folded, its rulings P1-P4 recorded. N1: row 05 names its
   test (re-probed here). N2: row 06's R3 path (quoted, its exit 3 not re-run here). N3:
   row 06 `bootID` case (`unlock.go:38` read). N4: row 09 line lengths, 802 files
   (re-measured). Row scope unchanged.
@@ -255,6 +256,6 @@ this sha.
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-443 (claude): drafted v0.1, v0.2, v0.3. **Not yet signed.**
-- Panel reviewer seat: a-521 (agy): PASS on `fc3368bb8` (v0.2), line check pending;
-  v0.3 not yet reviewed. **Not signed.**
+- Editor seat: c-443 (claude): drafted v0.1, v0.2, the v1.0 rc. **Not yet signed.**
+- Panel reviewer seat: a-521 (agy): PASS on `fc3368bb8` (verdict f83cf1fb, line check 5699586c);
+  the v1.0 rc not yet reviewed. **Not signed.**

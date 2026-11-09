@@ -13,9 +13,11 @@
 #      the human, after the note; a later tick sends nothing more
 #   3. red controls, the human at once: the probe says expired; no probe
 #      file; a stale probe; a harness login-check does not cover; a screen
-#      login-check does not read; a restore that did not hold
+#      login-check does not read; a restore that did not hold; an episode
+#      clock that is empty, garbage, in the future or not a file
 #   4. a seat login-check restored a minute ago, its old banner still up ->
-#      on it
+#      on it; the last age that still counts as on it, for the probe (900 s)
+#      and for a restore that did not hold (3600 s is past the relapse window)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -111,12 +113,32 @@ two_ticks >/dev/null
 calls_human "3. control: a screen login-check does not read -> the human" "does not act on this screen"
 reset_box; probe "$T0" ok; echo "$((T0 - 1200))" > "$LC/restored.$ID"; two_ticks >/dev/null
 calls_human "3. control: restored 20 min ago and back on the screen -> the human" "did not hold"
+CLOCK="$D/wd/$ID.ep.S2.lc_since"
+for shape in empty garbage future directory; do
+  reset_box; probe "$T0" ok; mkdir -p "$D/wd"
+  case "$shape" in
+    empty) : > "$CLOCK" ;;
+    garbage) echo garbage > "$CLOCK" ;;
+    future) echo "$((T0 + 86400))" > "$CLOCK" ;;
+    directory) mkdir "$CLOCK" ;;
+  esac
+  two_ticks >/dev/null
+  calls_human "3. control: an episode clock that is $shape -> the human" "cannot read how long"
+done
 
 # 4. the resumed session still shows the old banner
 reset_box; probe "$T0" ok; echo "$((T0 - 60))" > "$LC/restored.$ID"; two_ticks >/dev/null
 if [[ "$(n_sent "$ON_IT")" == 1 && "$(n_sent "--ask blocker")" == 0 ]]; then
   pass "4. restored a minute ago, the old banner still up -> on it"
 else fail "4. fresh restore: $(cat "$T/sent" 2>/dev/null)"; fi
+# the acting tick is T0 + 30
+on_it_at_edge() {
+  if [[ "$(n_sent "$ON_IT")" == 1 && "$(n_sent "--ask blocker")" == 0 ]]; then pass "$1"; else fail "$1: $(cat "$T/sent" 2>/dev/null)"; fi
+}
+reset_box; probe "$((T0 - 870))" ok; two_ticks >/dev/null
+on_it_at_edge "4. a probe exactly 900 s old is still fresh"
+reset_box; probe "$T0" ok; echo "$((T0 + 30 - 3600))" > "$LC/restored.$ID"; two_ticks >/dev/null
+on_it_at_edge "4. a restore exactly 3600 s old is past the relapse window"
 
 grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")"
 

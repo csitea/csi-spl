@@ -1301,7 +1301,8 @@ spl_wd_login_human() {
     echo "login-check restored it $(( now - at ))s ago and that did not hold"; return 0
   fi
   [[ -e "$f" ]] || echo "$now" > "$f"
-  since="$(cat "$f" 2>/dev/null || true)"; [[ "$since" =~ ^[0-9]+$ ]] || since="$now"
+  since="$(cat "$f" 2>/dev/null || true)"
+  [[ "$since" =~ ^[0-9]+$ ]] && (( since <= now )) || { echo "the watchdog cannot read how long this seat has been stuck"; return 0; }
   (( now - since >= grace )) || return 1
   echo "login-check did not restore it in $(( now - since ))s"
 }

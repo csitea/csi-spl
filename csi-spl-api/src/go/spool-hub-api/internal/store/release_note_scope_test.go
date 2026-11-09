@@ -256,6 +256,19 @@ func TestReleaseListPlanUsesGuardedIndex(t *testing.T) {
 	if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
 		t.Fatal(err)
 	}
+	// Rows other tests left flip the plan on a small table, so the plan is read
+	// on this transaction's own rows and statistics.
+	if _, err := tx.Exec(ctx, `INSERT INTO release_notes (sha, version, committed_at, kind, area, subject,
+			lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, link, ingested_at, issue_keys,
+			tenant_id, repo_slug, body)
+		SELECT substr(md5('plan-a' || g) || md5('plan-b' || g), 1, 40), 'v1.0.' || g, now() - g * interval '1 minute',
+			'feat', 'api', 's', 'a', 'a', 'a', 'a', 'a', 'a', 'ok', '', now(), '{}', 't1', 'o/r', 'b'
+		FROM generate_series(1, 1000) g`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `ANALYZE release_notes`); err != nil {
+		t.Fatal(err)
+	}
 	vk := releaseKeySQL("version")
 	rows, err := tx.Query(ctx, `EXPLAIN SELECT DISTINCT `+vk+` AS k FROM release_notes
 		WHERE tenant_id = 't1' AND version IS NOT NULL AND `+vk+` IS NOT NULL ORDER BY k DESC NULLS LAST LIMIT 10`)

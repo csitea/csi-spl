@@ -1,7 +1,7 @@
 <!-- SPL-983 (specs/041 §3.1): the Archive. Every archived topic card of the
      tenant this member may read (GET /v1/view/archived), newest archived
-     first. Each row opens its topic, and carries Unarchive and - for its
-     author, the tenant owner or an admin - Delete. The left-rail entry that
+     first. Each row opens its topic and carries Unarchive; Delete is reached
+     after it (SPL-4993, owner msg f305bf70). The left-rail entry that
      opens this page is SPL-979's. A row click opens the thread in the shell's
      right pane and stays here (t1 58b8055d): /t/:id hides the rail, and
      closing that page leaves the Topics list with no way back. A modified
@@ -48,17 +48,6 @@
               <UiIcon name="unarchive" :size="16" />
               <span>{{ t('archive.unarchive') }}</span>
             </button>
-            <button
-              v-if="r.can_delete"
-              type="button"
-              class="btn ghost archive-row__btn archive-row__btn--danger"
-              data-test="archive-delete"
-              :disabled="busy === r.msg_id"
-              @click="deleting = r.msg_id"
-            >
-              <UiIcon name="delete" :size="16" />
-              <span>{{ t('archive.delete') }}</span>
-            </button>
           </div>
           <p v-if="rowError[r.msg_id]" class="archive-error" role="alert">{{ t(rowError[r.msg_id]) }}</p>
         </li>
@@ -68,13 +57,6 @@
       </button>
       <LazyArchiveNotes />
     </div>
-    <LazyTopicDeleteDialog
-      v-if="deleting"
-      :open="Boolean(deleting)"
-      :msg-id="deleting"
-      @update:open="(v: boolean) => { if (!v) deleting = '' }"
-      @deleted="onDeleted"
-    />
   </div>
 </template>
 
@@ -101,7 +83,6 @@ const next = ref<string | null>(null)
 const loading = ref(false)
 const loadError = ref('')
 const busy = ref('')
-const deleting = ref('')
 const rowError = ref<Record<string, string>>({})
 
 useHead({ title: () => t('archive.title') })
@@ -173,11 +154,6 @@ async function unarchive(id: string) {
   } finally {
     busy.value = ''
   }
-}
-
-function onDeleted(out: { msg_ids: string[] }) {
-  rows.value = withoutCards(rows.value, [deleting.value, ...out.msg_ids])
-  deleting.value = ''
 }
 
 let offTopic = () => {}

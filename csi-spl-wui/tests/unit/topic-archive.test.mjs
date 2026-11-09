@@ -330,12 +330,12 @@ describe('wiring', () => {
     assert.match(ws, /topicArchived: 'topic_archived'/)
     assert.match(ws, /topicDeleted: 'topic_deleted'/)
   })
-  it('the Archive page lists, unarchives and deletes', () => {
+  it('the Archive page lists and unarchives, and offers no Delete (SPL-4993)', () => {
     const p = src('src/pages/archive.vue')
     /* a fresh page's first read can beat the session door (a 401): measured live on dev, 2026-09-26 */
     assert.match(p, /withSessionRetry\(api, \(\) => api\.listArchived\(/)
     assert.match(p, /api\.archiveTopic\(id, false\)/)
-    assert.match(p, /LazyTopicDeleteDialog/)
+    assert.doesNotMatch(p, /LazyTopicDeleteDialog|archive-delete/)
     /* t1 58b8055d: a row click opens the shell pane and stays on Archive */
     assert.match(p, /topic\.openTopic\(id\)/)
     assert.match(p, /ev\.preventDefault\(\)/)

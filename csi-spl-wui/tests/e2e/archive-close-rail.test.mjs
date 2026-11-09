@@ -159,6 +159,8 @@ try {
     await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/archive'))
     const listed = seeded && await until(p, (id) => Boolean(document.querySelector(`[data-test=archive-row][data-msg-id="${id}"]`)), seeded.msg_id)
     ok(`${vp.name} Archive lists that topic`, listed)
+    const del = await p.evaluate((id) => Boolean(document.querySelector(`[data-test=archive-row][data-msg-id="${id}"] [data-test=archive-delete]`)), seeded && seeded.msg_id)
+    ok(`${vp.name} the row offers no Delete (SPL-4993)`, !del)
 
     const before = await seen(p)
     ok(`${vp.name} Archive shows the rail`, before.rail && before.channels && before.messages && before.archive && !before.browse, before)

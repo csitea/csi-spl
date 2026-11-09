@@ -1272,7 +1272,7 @@ async function listArchived(ctx, { before } = {}) {
   if (mock) {
     return {
       cards: (state.archived || []).map((m) => ({ message: m, msg_id: m.msg_id, task_id: m.task_id, channel: m.channel || null,
-        archived_at: m.archived_at, archived_by: m.archived_by, replies: 0, can_delete: true })),
+        archived_at: m.archived_at, archived_by: m.archived_by, replies: 0, can_delete: false })),
       next: null,
     }
   }

@@ -34,6 +34,8 @@
 #    15. RED CONTROL a PASS header whose read: says FAIL (g-161's `grok PASS
 #        ... read: JUDGMENT FAIL W1`, msg 95d5ed90) -> rc 1, no GO; control: a
 #        red control's FAIL count in read: -> GO (SPL-4251)
+#        a count right before a W<n> label -> GO; bare and labelled FAIL W<n>
+#        stay held (SPL-5148)
 #    16. a second review seat (spec 155 B5: grok R7 + agy strings, SPL-4251):
 #        RED CONTROL the grok PASS while another placed brief names the same
 #        author and sha -> rc 10, no GO, WAIT in automation.log; the agy PASS
@@ -403,6 +405,16 @@ reset
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS, red control 2 FAIL, restored 9 PASS/')" 15000000-0000-4000-8000-000000000002)
 run REVIEW_GO_MSG="$f"; rc=$?
 (( rc == 0 && $(gos) == 1 )) && pass "15. control: a red control's FAIL count in read: still GOes" || fail "15. red-control count rc=$rc out=$(tail -3 "$T/out")"
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS, R1 14 FAILED, R2 8 FAILED, R3 2 FAILED; W1 of 3ff77bed closed: page and clear hop/')" 15000000-0000-4000-8000-000000000003)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 1 )) && pass "15. a red control's FAIL count right before a W<n> label still GOes" || fail "15. count before W<n> rc=$rc gos=$(gos) out=$(tail -3 "$T/out")"
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS; FAIL W1 a.sh:3 drops the lock/')" 15000000-0000-4000-8000-000000000004)
+run REVIEW_GO_MSG="$f"; refused "15. RED CONTROL: a bare FAIL W1 at a clause start" $? 1 "read: says FAIL"
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS; R1 FAIL W1 a.sh:3 drops the lock/')" 15000000-0000-4000-8000-000000000005)
+run REVIEW_GO_MSG="$f"; refused "15. RED CONTROL: a label R1 is no count, R1 FAIL W1 is held" $? 1 "read: says FAIL"
 
 # --- 16. a second review seat for the same author and sha ----------------------------------------------------------
 waits() { count "$LOG" '^WAIT '; }

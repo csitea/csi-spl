@@ -154,6 +154,8 @@ _spl_review_go_seen() {
 _spl_review_go_read_fail() {
   local r="${1#* | read: }"
   r="${r%% | log: *}"
+  # `R3 2 FAILED; W1 of 3ff77bed closed` is a count, then the next finding
+  r="$(sed -E 's/\b[0-9]+[[:space:]]+fail(ed)?\b/count/Ig' <<<"$r")"
   grep -qiE '\b(judgment|judgement|verdict|overall|review)\b[^a-z0-9]{0,3}fail(ed)?\b|\bfail(ed)?\b[^a-z0-9]{0,3}w[0-9]+\b' <<<"$r"
 }
 

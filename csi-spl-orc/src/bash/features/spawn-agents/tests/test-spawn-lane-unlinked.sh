@@ -28,4 +28,21 @@ eq "SPAWN_LANE_TOPIC + SPAWN_ISSUE name them -> no warning" "" "$(warn c-875 "$T
 eq "a role seat (c-002) is no lane -> no warning" "" "$(warn c-002 "$T_TMP/brief-none.md")"
 eq "a role-rotation scope is no lane -> no warning" "" "$(warn c-876 "$T_TMP/brief-none.md" SPAWN_LANE_SCOPE='role c-462 (rotation 20261105T1739Z)')"
 check "a scope that merely starts with 'role ' is a lane -> refused" bash -c '[[ -n "$1" ]]' _ "$(warn c-877 "$T_TMP/brief-none.md" SPAWN_LANE_SCOPE='role model review')"
+# A relay hash from the ask (a v5 uuid: dispatch-refactor-r27) must not beat the
+# discussion the brief names: the hub refuses a hash of a task that is no topic,
+# so the seat got no row (SPL-5144, n=2 on 2026-11-08).
+H=0ebd228a-f4c8-59cf-8d41-f684aba97be8
+D=b4b264a7-95e9-40aa-a863-529c8637c181
+printf '# Brief: review\n\nIssue: SPL-1\nTopic: %s (t1)\n' "$D" >"$T_TMP/brief-disc.md"
+printf '# Brief: review\n\nIssue: SPL-1\n' >"$T_TMP/brief-nodisc.md"
+# sent <id> <brief> [env...]: the --topic of the lane put a dry-run spawn plans
+sent() {
+  local id="$1" brief="$2"; shift 2
+  env "$@" bash "$T_SCRIPTS/spawn-claude.sh" "$id" "$WD" "$brief" "do it" 2>&1 |
+    sed -nE "s/.*lane-map\.sh put .* --topic '([^']*)'.*/\1/p" | sed -n 1p
+}
+eq "a relay hash from the ask yields to the brief's discussion" "$D" "$(sent c-878 "$T_TMP/brief-disc.md" SPAWN_LANE_TOPIC="$H")"
+eq "...also when it came as LANE_ISSUE_TOPIC" "$D" "$(sent c-879 "$T_TMP/brief-disc.md" LANE_ISSUE_TOPIC="$H")"
+eq "control: with no discussion in the brief the hash is still sent (the hub may resolve it)" "$H" "$(sent c-880 "$T_TMP/brief-nodisc.md" SPAWN_LANE_TOPIC="$H")"
+eq "control: a topic uuid from the ask wins over the brief's" "$U" "$(sent c-881 "$T_TMP/brief-disc.md" SPAWN_LANE_TOPIC="$U")"
 t_done

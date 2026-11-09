@@ -141,6 +141,7 @@ while [ $# -gt 0 ]; do case "$1" in
 f="$HUB_DIR/$fleet.json"; [ -s "$f" ] || echo '{"lanes":[]}' >"$f"
 if [ -n "$agent" ]; then
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "box must be the agent's desk box id" >&2; exit 1; }
+  [ "${HUB_REQUIRE_LINKS:-0}" = 1 ] && [ -z "$topic" ] && { echo "spool: lane: topic is required (rdb 0264)" >&2; exit 2; }
   row="$(jq -n -c --arg a "$agent" --arg b "$box" --arg r "$repo" --arg br "$branch" --arg s "$scope" --arg fl "$files" \
     --arg t "$topic" --arg i "$issue" --arg o "$origin" --arg st "$state" --arg w "$SPOOL_DESK_BOX" \
     '{agent_id:$a, agent_box:$b, repo:$r, branch:$br, scope:$s, files:($fl | split(",") | map(select(length > 0))),
@@ -347,6 +348,23 @@ row="$(jq -c '.lanes[] | select(.agent_id == "c-109" and .agent_box == "sat")' "
   pass "done on a two-row id writes ONE box (sat) and keeps sat's own row fields" || fail "two-row done (rc=$rc): $out / $row"
 [[ "$(jq -r '[.lanes[] | select(.agent_id == "c-109")] | map(.agent_box) | sort | join(",")' "$T/hub/main.json")" == box-desk,sat ]] &&
   pass "...and no row with a two-word box was made" || fail "rows: $(cat "$T/hub/main.json")"
+# 8b. one id live on two boxes (SPL-5144): a row per box, and each box's done
+# closes its own row from that row's fields. A box with no row of its own still
+# fails its done: the reaper reads that failure as "cannot tell" and alerts (a
+# wrong box name looks the same). The stub refuses no topic, as the hub does.
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_BRANCH=on-pc LANE_TOPIC=t-pc LANE_ISSUE=SPL-11 >/dev/null
+on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_BRANCH=on-sat LANE_TOPIC=t-sat LANE_ISSUE=SPL-12 >/dev/null
+[[ "$(jq -r '[.lanes[] | select(.agent_id == "c-111" and .state == "live") | .agent_box + ":" + .topic] | sort | join(",")' "$T/hub/main.json")" == box-desk:t-pc,sat:t-sat ]] &&
+  pass "one id live on two boxes keeps a row per box, each with its own topic" || fail "c-111 rows: $(cat "$T/hub/main.json")"
+out="$(on sat do_spl_lane_put "${F[@]}" HUB_REQUIRE_LINKS=1 LANE_AGENT=c-111 LANE_STATE=done 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r '[.lanes[] | select(.agent_id == "c-111") | .agent_box + ":" + .state + ":" + .topic] | sort | join(",")' "$T/hub/main.json")" == box-desk:live:t-pc,sat:done:t-sat ]] &&
+  pass "done on sat closes sat's row from its own topic, the other box's stays live" || fail "c-111 done (rc=$rc): $out / $(cat "$T/hub/main.json")"
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_STATE=done >/dev/null
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_BRANCH=on-pc LANE_TOPIC=t-pc LANE_ISSUE=SPL-13 >/dev/null
+out="$(on sat do_spl_lane_put "${F[@]}" HUB_REQUIRE_LINKS=1 LANE_AGENT=c-112 LANE_STATE=done 2>&1)"; rc=$?
+[[ $rc -eq 2 && "$out" == *"topic is required"* ]] &&
+  pass "pin: a done with no row on this box is still refused, exit 2 (the reaper's alert)" || fail "no-row done (rc=$rc): $out"
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_STATE=done >/dev/null
 out="$(on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-110 'LANE_BOX=sat box-desk')"; rc=$?
 [[ $rc -eq 1 && "$out" == *"LANE_BOX must be"* ]] && pass "the action refuses a two-word LANE_BOX" || fail "two-word LANE_BOX (rc=$rc): $out"
 

@@ -345,13 +345,18 @@ _spawn_lane_unlinked_warn() {  # SCOPE TOPIC ISSUE
 # the hub would refuse is left out so the row still lands. Last for the topic,
 # a report task's relay hash (_spawn_lane_relay_hash); the only other way a
 # version-5 uuid reaches the row is a `Discussion:` line that names it (SPL-5099).
+# A version-5 uuid in those two variables is a relay task's hash and waits
+# until the brief has been read: the hub refuses the hash of a task that is no
+# topic (dispatch-refactor-r27), and the seat then has no row (SPL-5144).
 # The origin issue is
 # lifetime/origin-issue (spec 153 3.12, do_spl_lane_issue wrote it).
 _spawn_lane_put() {
   local scope="${SPAWN_LANE_SCOPE:-}" repo="" log
-  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue="" origin=""
+  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue="" origin="" asked_hash=""
+  if [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then asked_hash="$topic"; topic=""; fi
   [ -n "$topic" ] || topic="$(_spawn_lane_topic "$BRIEF")"
   [ -n "$topic" ] || topic="$(_spawn_lane_topic "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
+  [ -n "$topic" ] || topic="$asked_hash"
   [ -n "$topic" ] || topic="$(_spawn_lane_relay_hash "$BRIEF")"
   [ -n "$topic" ] || topic="$(_spawn_lane_relay_hash "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
   if [ -n "$BRIEF" ] && . "${_SP_DIR}/../lib/lane-issue.inc.sh" 2>/dev/null; then

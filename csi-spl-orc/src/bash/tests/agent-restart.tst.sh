@@ -201,13 +201,21 @@ EOF
 # send: the relay is down while $T/relay.down exists (spool-send exit 13, nothing sent)
 printf '#!/usr/bin/env bash\n[ -e "%s/relay.down" ] && exit 13\necho "send $*" >> "%s/sent"\n' "$T" "$T" > "$T/bin/send"
 printf '#!/usr/bin/env bash\ncat "%s/tr.$1" 2>/dev/null\n' "$T" > "$T/bin/tr"
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat > "$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 source "$PROJ_PATH/src/bash/run/spl-agent-restart.func.sh"
-do_spl_agent_restart || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+do_spl_agent_restart
 EOF
 chmod +x "$T/bin/"*
 
@@ -270,6 +278,13 @@ go() { env "$@" "$T/bin/act" > "$T/o" 2>&1; echo $?; }
 alive() { [[ -d "$T/proc/$1" ]]; }
 nproc() { grep -lx "SPOOL_AGENT_ID=$1" "$T/proc"/[0-9]*/environ 2>/dev/null | wc -l; }
 rlog() { grep -c " [0-9]*T[0-9]*Z-rs-$1 $2 " "$D/rotate.log" 2>/dev/null || true; }
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+world; lane c-931 %31 -; reborn c-931
+go ID=c-931 CAUSE=rebirth DRY_RUN=0 ROTATE_TEST_STRAY=do_spl_agent_restart >/dev/null
+grep -q "^ERRTRAP: command false" "$T/o" && pass "0. control: a planted stray failing command shows as ERRTRAP" || fail "0. stray control: $(cat "$T/o")"
 
 # --- 1. a lane rebirth ----------------------------------------------------------
 world; lane c-931 %31 -; reborn c-931

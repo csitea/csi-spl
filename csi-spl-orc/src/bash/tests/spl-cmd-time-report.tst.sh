@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # Purpose: do_spl_cmd_time_report, the read-only "where do agents wait" table
 #          over Claude Code transcripts. A fixture projects dir and spool root
-#          in a throwaway dir; the action runs under ./run's set -E + ERR trap.
+#          in a throwaway dir.
 #          Each case has its CONTROL: one input flipped.
 #   1. ranking + numbers: do_a (2 calls, 10 + 20 s) above git fetch (5 s),
 #      share / median / max as computed by hand
@@ -32,12 +32,10 @@ case "$S" in /var/spool-hub*) echo "FAIL: refusing a live spool root"; exit 1 ;;
 printf 'SPOOL_AGENT_USER=%s\n' "$(id -un)" >"$S/box.env"
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
-set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
 do_log() { echo "$*" >&2; }
 do_require_bin() { command -v "$1" >/dev/null; }
 source "$PROJ_PATH/src/bash/run/spl-cmd-time-report.func.sh"
-do_spl_cmd_time_report || exit $?
+do_spl_cmd_time_report
 EOF
 chmod +x "$T/bin/act"
 export PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env"

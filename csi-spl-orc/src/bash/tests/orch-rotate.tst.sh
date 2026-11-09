@@ -268,7 +268,7 @@ case "$1" in
   retire) echo "retire $2 $3" >>"$T/ai.log"; rm -f "$SPOOL_ROOT/agents/$2.json" ;;
 esac
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run.
+# the action under set -E and an ERR trap.
 # The clock seam (test round 1 row 01): every wait loop of the rotate libs
 # reads $SECONDS and sleeps, so `sleep N` here adds N to $SECONDS and to the
 # ledger $T/vclock (one line of ms per sleep, any subshell) and really sleeps
@@ -277,10 +277,14 @@ EOF
 # in flight ($T/ack.pending) the clock stands still, as for a session that
 # answers at once; at most 500 such ticks per process. $T/sampling: each
 # tick records lease.conf's holder (section 18.3).
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 VCLOCK_MS=0 VCLOCK_HELD=0
 sleep() {
   local n="${1:-1}" ms int frac tick="${ROTATE_TEST_TICK:-0.01}"
@@ -298,7 +302,11 @@ sleep() {
 do_log() { echo "$*"; }
 do_require_bin() { return 0; }
 source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"
-do_spl_orch_rotate || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+do_spl_orch_rotate
 EOF
 chmod +x "$T/bin/"*
 
@@ -337,6 +345,12 @@ done
 grep -q 'done one' "$T/o" && fail "1. a done lane is listed" || pass "1. the handoff carries all 9 sections (a done lane left out)"
 [[ ! -e "$D/rotate.log" && ! -e "$D/rotate.orch.ctx" && ! -e "$D/handoff" && ! -e "$T/spawn.log" && ! -e "$T/tmux/log" ]] &&
   pass "1. dry run: nothing written, renamed or spawned" || fail "1. the dry run touched something"
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+world; act ROTATE_TEST_STRAY=do_spl_orch_rotate >"$T/o" 2>&1
+grep -q "^ERRTRAP: command false" "$T/o" && pass "1. control: a planted stray failing command shows as ERRTRAP" || fail "1. stray control: $(cat "$T/o")"
 
 # --- 2. T-ORCH-GATES -----------------------------------------------------------------------
 gate() {  # <want> <label> [env...]

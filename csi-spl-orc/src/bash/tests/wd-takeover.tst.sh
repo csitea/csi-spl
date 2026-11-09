@@ -112,14 +112,22 @@ esac
 EOF
 printf '#!/usr/bin/env bash\necho "send $*" >> "%s/sent"\n' "$T" > "$T/bin/send"
 printf '#!/usr/bin/env bash\ncat "%s/tr.$1" 2>/dev/null\n' "$T" > "$T/bin/tr"
-# the action, as ./run runs it: set -E and an ERR trap that ends the run
+# the action under set -E and an ERR trap
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat > "$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 source "$PROJ_PATH/src/bash/run/spl-wd-takeover.func.sh"
-do_spl_wd_takeover || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+do_spl_wd_takeover
 EOF
 chmod +x "$T/bin/"*
 
@@ -195,6 +203,13 @@ proof() {
   grep -q ERRTRAP "$T/o" && bad+=" errtrap"
   [[ -z "$bad" ]] && pass "$desc" || fail "$desc:$bad -- $(tail -5 "$T/o")"
 }
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+world; agent c-905 %5 -
+take ID=c-905 REASON=S3 DRY_RUN=0 ROTATE_TEST_STRAY=do_spl_wd_takeover >/dev/null
+grep -q "^ERRTRAP: command false" "$T/o" && pass "0. control: a planted stray failing command shows as ERRTRAP" || fail "0. stray control: $(cat "$T/o")"
 
 # --- 1. S1, S3, S4, S5 end in a fresh session -------------------------------------
 world; agent c-905 %5 -

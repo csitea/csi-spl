@@ -103,14 +103,22 @@ cat >"$T/bin/restart" <<'EOF'
 #!/usr/bin/env bash
 echo "restart ID=$ID CAUSE=$CAUSE DRY_RUN=$DRY_RUN EV=$WD_EVIDENCE" >>"$T/restart.log"
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run
+# the action under set -E and an ERR trap
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO) rc=$?"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 source "$PROJ_PATH/src/bash/run/spl-gc.func.sh"
-do_spl_gc || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+do_spl_gc
 EOF
 chmod +x "$T/bin/"*
 
@@ -131,6 +139,12 @@ DRY=1 gc start $(( H0 + 2820 )); check "1. :47 = the :30 slot's grok" 'grep -q "
 printf 'slot 00 grok\nslot 30 claude\nfallback claude\n' >"$T/swap.conf"
 DRY=1 gc start "$H0" GC_CONF="$T/swap.conf"; check "1. a cnf that swaps the slots swaps the vendor" 'grep -q "vendor=grok" "$T/out"'
 check "1. a dry start opens nothing" '[ "$(gcwin)" = 0 ]'
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+reset; DRY_RUN=1 GC_CMD=start GC_NOW="$H0" ROTATE_TEST_STRAY=do_spl_gc "$T/bin/act" >"$T/out" 2>&1 || true
+check "1. control: a planted stray failing command shows as ERRTRAP" 'grep -q "^ERRTRAP: command false" "$T/out"'
 
 # --- 2. counting test + control -----------------------------------------------------
 reset; lane c-911

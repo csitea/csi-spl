@@ -6,8 +6,7 @@
 #          Nothing real is touched: sessions live in a fake /proc
 #          (LEASE_PROC_ROOT), tmux is a stub keeping panes in a file (its
 #          input box answers /exit-clean as the CLI does), spawn-window.sh,
-#          ./run, the identity map, kill and crontab are stubs. The actions run
-#          under ./run's `set -E` + an ERR trap that ends the run.
+#          ./run, the identity map, kill and crontab are stubs.
 #   1. slot -> seat on both offsets (0 and 7): each seat owns 15 minutes,
 #      001..004 at M, M+15, M+30, M+45; the distill names the seat of the NEXT
 #      slot; the cron schedules
@@ -125,17 +124,15 @@ cat > "$T/bin/crontab" <<'EOF'
 if [ "${1:-}" = -l ]; then cat "$FAKE_CRONTAB" 2>/dev/null; exit 0; fi
 cp "$1" "$FAKE_CRONTAB"
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run
+# the action
 cat > "$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
-set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
 do_log() { echo "$*"; }
 do_require_bin() { return 0; }
 for f in spl-peer-crons spl-peer-distill spl-peer-restart-install-cron spl-peer-distill-install-cron spl-peer-ensure-install-cron; do
   source "$PROJ_PATH/src/bash/run/$f.func.sh"
 done
-"$1" || exit $?
+"$1"
 EOF
 chmod +x "$T/bin/"*
 

@@ -45,14 +45,22 @@ cat >"$T/bin/send" <<'EOF'
 #!/usr/bin/env bash
 echo "send $*" >>"${SENT:-$T/sent}"
 EOF
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 do_require_bin() { command -v "$1" >/dev/null; }
 source "$PROJ_PATH/src/bash/run/spl-agent-settings-check.func.sh"
-do_spl_agent_settings_check || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+do_spl_agent_settings_check
 EOF
 chmod +x "$T/bin/"*
 export T PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SETTINGS_CHECK_SEND="$T/bin/send"
@@ -68,6 +76,12 @@ echo "$good" >"$A"
 rc="$(go SETTINGS_CHECK_FILES="agent=$A")"
 [[ "$rc" == 0 && "$(sent)" == 0 ]] && grep -q "SETTINGS OK agent $A mtime $(iso "$A")\$" "$T/o" &&
   pass "1. a good file (globs after mcp__slack__ and in Bash args): OK, exit 0, nobody told" || fail "1. rc=$rc $(cat "$T/o")"
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+go ROTATE_TEST_STRAY=do_spl_agent_settings_check SETTINGS_CHECK_FILES="agent=$A" >/dev/null
+grep -q "^ERRTRAP: command false" "$T/o" && pass "1. control: a planted stray failing command shows as ERRTRAP" || fail "1. stray control: $(cat "$T/o")"
 
 # --- 2. a bare mcp__* --------------------------------------------------------------------
 echo "$withstar" >"$A"; touch -d '2026-10-07 16:29:00 UTC' "$A"

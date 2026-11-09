@@ -6,8 +6,7 @@
 #          A sandbox: a fake /proc (LEASE_PROC_ROOT), panes read through
 #          LEASE_PANE_CMD, tmux, spawn-window, kill, ./run (lane-mix, the
 #          handoff's sources) and the identity map are stubs; the seat switch
-#          is the REAL role-seat-switch.sh. The action runs under ./run's
-#          set -E + ERR trap.
+#          is the REAL role-seat-switch.sh.
 #   1. dry run: PLAN c-001 -> g-001, nothing moved, lease.conf unchanged
 #   2. stall -> switch to grok: one dir g-001 (the inbox moved with it),
 #      every other letter links to it, grok started in the seat
@@ -181,14 +180,12 @@ printf '#!/bin/sh\ncat "$T/pane/$1" 2>/dev/null || printf "❯ \\n"\n' >"$T/bin/
 printf '#!/bin/sh\nexit 0\n' >"$T/bin/tr"
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
-set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
 sleep() { :; }
 do_log() { echo "$*"; }
 do_require_bin() { return 0; }
 source "$PROJ_PATH/src/bash/run/spl-role-failover.func.sh"
 source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"
-"${ACT_FN:-do_spl_role_failover}" || exit $?
+"${ACT_FN:-do_spl_role_failover}"
 EOF
 chmod +x "$T/bin/"*
 

@@ -246,15 +246,23 @@ cat >"$T/bin/worker" <<'EOF'
 echo "worker $ID $LANE_ROTATE_KIND forced=$LANE_ROTATE_FORCED" >>"$T/worker.log"
 sleep 30
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run
+# the action under set -E and an ERR trap
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
 source "$PROJ_PATH/src/bash/run/spl-agent-age-check.func.sh"
-"${ACTION:-do_spl_lane_rotate}" || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+"${ACTION:-do_spl_lane_rotate}"
 EOF
 chmod +x "$T/bin/"*
 
@@ -275,6 +283,12 @@ check "1. two healthy ticks: 0 spawns" '[ "$(n "$T/spawn.log")" = 0 ]'
 check "1. two healthy ticks: 0 stops" '[ "$(n "$T/kill.log")" = 0 ] && [ "$(n "$T/tmux/log" submit)" = 0 ]'
 check "1. two healthy ticks: 0 notes" '[ "$(n "$T/send.log")" = 0 ]'
 check "1. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+reset; lane c-911 10; ROTATE_TEST_STRAY=do_spl_lane_rotate tick
+check "1. control: a planted stray failing command shows as ERRTRAP" 'grep -q "^ERRTRAP: command false" "$T/tick.out"'
 
 # --- 2. a lane mid-push is warned once and deferred; control rotates it ----------
 reset; lane c-921 50

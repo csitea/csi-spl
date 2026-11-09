@@ -200,16 +200,24 @@ cat >"$T/bin/worker" <<'EOF'
 echo "worker $ID $LANE_ROTATE_KIND forced=$LANE_ROTATE_FORCED" >>"$T/worker.log"
 sleep 30
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run
+# the action under set -E and an ERR trap
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 # LR_FUNC: a planted copy (the red control), outside run/: the lib by its own path first
 [ -z "${LR_FUNC:-}" ] || source "$PROJ_PATH/src/bash/run/spl-rotate-lib.func.sh"
 source "${LR_FUNC:-$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh}"
-"${ACTION:-do_spl_lane_rotate}" || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+"${ACTION:-do_spl_lane_rotate}"
 EOF
 chmod +x "$T/bin/"*
 
@@ -232,6 +240,12 @@ check "1. one clear SKIP line names the role rotation" '[ "$(n "$T/tick.out" "g-
 check "1. g-002 is neither warned nor stopped" '! grep -q "g-002" "$T/send.log" 2>/dev/null && ! grep -q "%002 /exit" "$T/tmux/log" 2>/dev/null && [ -d "$T/proc/2002" ]'
 check "1. control: the plain lane of the same age is rotated in the same tick" 'spawned c-982 && grep -q "lane-c-982 DONE OK" "$D/rotate.log"'
 check "1. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+reset; role_rot ACK; lane g-002 70; lane c-982 70; ROTATE_TEST_STRAY=do_spl_lane_rotate tick
+check "1. control: a planted stray failing command shows as ERRTRAP" 'grep -q "^ERRTRAP: command false" "$T/tick.out"'
 
 # --- 2. the worker, started anyway, refuses at its gate --------------------------------
 reset; role_rot SPAWN; lane g-002 70

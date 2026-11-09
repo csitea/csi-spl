@@ -125,16 +125,24 @@ echo "ps $*" >>"$T/ps.log"
 [ -f "$T/ps.stray" ] && printf ' 4242 /opt/human-bin/claude --resume x\n 4243 bash -c claude-launcher\n'
 exit 0
 EOF
-# the action, as ./run runs it: set -E and an ERR trap that ends the run;
+# the action under set -E and an ERR trap;
 # do_spl_lifecycle_event is "present" (brief 03), its calls go to the run stub
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 do_spl_lifecycle_event() { :; }
 source "$PROJ_PATH/src/bash/run/spl-lane-restart.func.sh"
-do_spl_lane_restart || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+do_spl_lane_restart
 EOF
 chmod +x "$T/bin/"*
 
@@ -173,6 +181,12 @@ grep -q 'working on the gate' "$T/o" && fail "1. the distil carries a raw pane s
 grep -qE '^## (3|6|6b|7)\.' "$T/o" && fail "1. a lane distil carries a role-seat section" || pass "1. the lane distil skips sections 3, 6, 6b, 7"
 [[ ! -e "$H" && ! -e "$D/lane-restart.log" && ! -e "$T/tmux/log" && ! -e "$T/run.log" && ! -e "$T/send.log" ]] &&
   pass "1. dry run: nothing written, no respawn, no event" || fail "1. the dry run touched something"
+
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+world; act ROTATE_TEST_STRAY=do_spl_lane_restart >"$T/o" 2>&1
+grep -q "^ERRTRAP: command false" "$T/o" && pass "1. control: a planted stray failing command shows as ERRTRAP" || fail "1. stray control: $(cat "$T/o")"
 
 # --- 2. the gate -----------------------------------------------------------------
 world; echo b >>"$T/wt/a.txt"

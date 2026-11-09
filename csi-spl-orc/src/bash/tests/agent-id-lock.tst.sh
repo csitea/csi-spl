@@ -74,13 +74,21 @@ fi
 exec sleep "$hold"
 EOF
 # a real action, as ./run runs it
+# SPL-5154, as dispatch-rotate.tst.sh: the ERR trap records a stray failing
+# command (one ERRTRAP line on stderr) and the run goes on; the action runs as
+# a plain command, because in a `||` list bash suppresses ERR for the whole
+# call. ROTATE_TEST_STRAY=<fn>: <fn> starts with a failing command (red control).
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
 set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+trap '[[ $BASH_COMMAND == return* ]] || echo "ERRTRAP: $BASH_COMMAND (line $LINENO)" >&2' ERR
 do_log() { echo "$*"; }
 for f in "$PROJ_PATH"/src/bash/run/spl-{rotate-lib,dispatch-lease,watchdog,peer-restart,wd-takeover,lane-restart,orch-rotate,dispatch-rotate}.func.sh; do source "$f"; done
-"$1" || exit $?
+if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
+  eval "stray_$(declare -f "$ROTATE_TEST_STRAY")"
+  eval "$ROTATE_TEST_STRAY() { command false; stray_$ROTATE_TEST_STRAY \"\$@\"; }"
+fi
+"$1"
 EOF
 chmod +x "$T/bin/"*
 reset() { rm -f "$T"/ran.* "$D/rotate.log"; }
@@ -151,6 +159,11 @@ act do_spl_wd_takeover ID=c-900 REASON=S3 DRY_RUN=1 >"$T/o" 2>&1; rc=$?
   pass "3. takeover on a held id: exit 4" || fail "3. takeover rc=$rc $(cat "$T/o")"
 act do_spl_wd_takeover ID=c-904 REASON=S3 DRY_RUN=1 >"$T/o" 2>&1; rc=$?
 ! grep -q 'id lock' "$T/o" && ! grep -q ERRTRAP "$T/o" && pass "3. control: takeover on a free id gets past the lock (rc=$rc)" || fail "3. takeover control rc=$rc $(cat "$T/o")"
+# SPL-5154, the red control of this file's ERRTRAP asserts: a stray planted at
+# the start of the action leaves an ERRTRAP line, where the old
+# `|| exit $?` stub left none
+act do_spl_wd_takeover ID=c-904 REASON=S3 DRY_RUN=1 ROTATE_TEST_STRAY=do_spl_wd_takeover >"$T/o" 2>&1
+grep -q "^ERRTRAP: command false" "$T/o" && pass "3. control: a planted stray failing command shows as ERRTRAP" || fail "3. stray control: $(cat "$T/o")"
 free
 
 held c-001

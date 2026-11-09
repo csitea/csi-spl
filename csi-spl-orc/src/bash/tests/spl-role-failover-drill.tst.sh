@@ -84,12 +84,10 @@ echo "run $* ID=${ID:-} CAUSE=${CAUSE:-} DRY_RUN=${DRY_RUN:-}" >>"$T/run.log"
 echo "restart $ID held=$([ -e "$T/wd/$ID.heldout" ] && echo y || echo n)" >>"$T/order.log"
 "$T/bin/proc" 301 "$ID"
 EOF
-# the action under ./run's set -E + ERR trap; the failover and the watchdog
+# the action; the failover and the watchdog
 # tick are stubs (see the header)
 cat >"$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
-set -E
-trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
 sleep() { :; }
 do_log() { echo "$*"; }
 do_require_bin() { return 0; }
@@ -126,7 +124,7 @@ do_spl_role_failover() {
 if [[ "${ACT_NO_HOLD:-0}" == 1 ]]; then spl_rfd_hold() { RFD_HELD=""; }; fi
 # the red control of case 9: the drill goes on in the caller's process group
 if [[ "${ACT_NO_DETACH:-0}" == 1 ]]; then spl_rfd_detach() { return 1; }; fi
-do_spl_role_failover_drill || exit $?
+do_spl_role_failover_drill
 EOF
 chmod +x "$T/bin/"*
 

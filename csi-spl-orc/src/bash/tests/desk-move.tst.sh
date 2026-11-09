@@ -116,7 +116,7 @@ do_spl_desk_check() {
   local d="\$SPL_STATE_DIR/desk/\$TENANT_ID/\$DESK_BOX" v=ok
   spl_desk_alive "\$d/spool/.hub/hub-run.pid" || v=down
   [[ -s "$T/verdict" ]] && v="\$(cat "$T/verdict")"
-  [[ "\$v" == none ]] && { echo "FATAL no readable password file"; return 1; }
+  [[ "\$v" == none ]] && { echo "roster-noise-line"; echo "FATAL no readable password file /x/pw-human"; return 1; }
   echo "check \$TENANT_ID/\$DESK_BOX \$v home=\$HOME" >>"$T/side.log"
   echo "{\"verdict\": \"\$v\"}"
   [[ "\$v" == ok ]]
@@ -302,6 +302,8 @@ reset_box; echo none >"$T/verdict"
 out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
 [[ $rc -ne 0 ]] && pass "11. a proof with no verdict stops the move" || fail "11. no-verdict proof ignored"
 has "11. the proof line says no verdict" "says 'no verdict'" "$out"
+has "11. the check's FATAL reason reaches the move's log" "FAIL proof output: FATAL no readable password file /x/pw-human" "$out"
+hasnt "11. a check line that is no FATAL or FAIL stays out of the log" "roster-noise-line" "$out"
 grep -Eq "FAIL the desk prd ws-a/box-a failed as $DU: its sidecar is up \(pid [0-9]+\) but the proof did not pass" <<<"$out" && pass "11. the forward line names the proof and the live pid" || fail "11. forward line: $(grep 'FAIL the desk' <<<"$out")"
 grep -Eq "FAIL prd ws-a/box-a is back on disk as $ME, but its sidecar is up \(pid [0-9]+\) but the proof did not pass" <<<"$out" && pass "11. the rollback line names the proof and the live pid" || fail "11. rollback line: $(grep 'back on disk' <<<"$out")"
 hasnt "11. no false 'sidecar did not come up'" "did not come up" "$out"

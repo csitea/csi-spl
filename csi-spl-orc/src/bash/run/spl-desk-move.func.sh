@@ -454,7 +454,7 @@ _spl_dm_side_as() {
 #   proof  do_spl_desk_check for that seat, until ok / muted / agent-missing
 #          (MOVE_CHECK_SECS, default 60)
 _spl_dm_side() {
-  local d="$SPL_STATE_DIR/desk/$TENANT_ID/$DESK_BOX" seat v i out
+  local d="$SPL_STATE_DIR/desk/$TENANT_ID/$DESK_BOX" seat v i out line
   case "$1" in
     stop) DESK_AGENT="" DESK_ALL=1 DRY_RUN=0 do_spl_desk_down >/dev/null; return $? ;;
   esac
@@ -468,6 +468,9 @@ _spl_dm_side() {
     sleep "${MOVE_CHECK_EVERY:-5}"
   done
   do_log "FAIL proof $TENANT_ID/$DESK_BOX: do_spl_desk_check says '${v:-no verdict}' after ${MOVE_CHECK_SECS:-60} s"
+  # the reason from the last check: 'no verdict' alone cannot tell an
+  # unreadable probe login from a login 429 (SPL-4985, 2026-11-09)
+  while IFS= read -r line; do do_log "FAIL proof output: $line"; done < <(grep -E 'FATAL|FAIL' <<<"$out" | tail -n 5)
   return 1
 }
 

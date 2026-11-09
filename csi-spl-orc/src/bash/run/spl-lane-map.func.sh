@@ -37,6 +37,9 @@
 # @description every row. A worktree here with no live hub row then counts only
 # @description while its pane is live (a closed lane's done row is not read),
 # @description and stays when tmux is unreadable: unsure is not free.
+# @description A role seat's row never goes done (the successor keeps the lane), so
+# @description one with nothing running it reads `gone` once its box's reading shows
+# @description no pane for it (SPL-5091): off the default map, on --all, owns nothing.
 # @param LANE_FLEET (optional) - the fleet; default LEASE_FLEET (env, then <spool root>/dispatch/lease.conf)
 # @param LANE_ENV / LANE_TENANT (optional) - the hub env (dev|prd|self) and the tenant holding the map; default LEASE_ENV / LEASE_TENANT
 # @param LANE_DESK_BOX (optional) - the pinned desk box whose key signs the calls; default LEASE_DESK_BOX, then spl_desk_box_default
@@ -85,6 +88,7 @@ do_spl_lane_map() {
   spl_lane_box_report "$rows" "$live_here" "$load"
   # the box rows feed the load only: they are no lane
   rows="$(jq -c --arg b "$LANE_BOX_ROW_ID" '[.[] | select(.agent_id != $b)]' <<<"$rows")"
+  rows="$(spl_lane_seat_gone "$rows" "$load")"
   [[ "${LANE_ALL:-0}" == 1 ]] || rows="$(jq -c '[.[] | select(.state == "live")]' <<<"$rows")"
 
   if [[ "$fmt" == json ]]; then
@@ -418,6 +422,20 @@ spl_lane_table_recent() {
   (( hidden == 0 )) || echo "$hidden older rows hidden (--all)"
 }
 
+# A live role seat row with nothing running it reads state gone (SPL-5091). The
+# hub keeps it live for ever (lane-map.sh refuses done for a seat), and most dead
+# seats have no identity file, so the box's own reading decides: seat_ids of the
+# load. null there (nothing to read, or a BOX-0 row that may be cut) leaves the
+# row as it is: unsure is not gone. Plain lanes are not touched.
+spl_lane_seat_gone() {  # ROWS LOAD (spl_lane_load)
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  jq -c --argjson load "$2" --arg seat "^${SPL_ROLE_SEAT_RX}$" '
+    map(. as $r
+      | ([$load[] | select(.box == $r.agent_box)] | first | .seat_ids) as $up
+      | if $r.state == "live" and ($r.agent_id | test($seat)) and $up != null and ($up | index($r.agent_id)) == null
+        then .state = "gone" else . end)' <<<"$1"
+}
+
 # The reserved id of a box's LOAD row in the lane map: one row per box,
 # BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] [wk=<kind>:<pct>[@<reset epoch>],...] [cordon=<box>:<until>,...] live=<id>,...`: the agents
 # with a live tmux pane on that box and its free memory, as that box itself
@@ -468,11 +486,13 @@ spl_lane_clis_here() {
 }
 
 # The load per box, as a JSON array of
-# {box, here, live, busy, busy_ids, seats, clean_ids, mem, mem_kb, clis, cordon, src}: the
+# {box, here, live, busy, busy_ids, seats, seat_ids, clean_ids, mem, mem_kb, clis, cordon, src}: the
 # agents live on the box NOW, split into busy (build lanes, their ids in
 # busy_ids) and seats; clean_ids, from another box's BOX-0 row, are its lanes
 # with `files: []` and a clean worktree (spl_lane_clean_here) (001-003 and the ids lease.conf
-# names: they run the fleet, they are not build load). src says where the
+# names: they run the fleet, they are not build load). seat_ids: the seats running
+# there, null when unknown (src rows, or a BOX-0 row at its 500-char cut, whose
+# live= may have lost ids; spl_lane_seat_gone). src says where the
 # live agents come from:
 #   panes  this box: its tmux panes (spl_lane_live_here)
 #   box    another box: its BOX-0 row younger than LANE_BOX_ROW_MAX_S, plus
@@ -536,6 +556,7 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
         | ($x.ids | unique) as $u
         | {box: $b, here: ($b == $here), live: ($x.src != "rows" or ($u | length) > 0),
            busy: ([$u[] | select(seat | not)] | length), busy_ids: [$u[] | select(seat | not)], seats: ([$u[] | select(seat)] | length),
+           seat_ids: (if $x.src == "panes" or ($x.src == "box" and ($rep.scope | length) < 500) then [$u[] | select(seat)] else null end),
            clean_ids: ($x.clean // []), mem: ($x.kb | gb), mem_kb: $x.kb, clis: $x.clis,
            cordon: (if $b == $here then $herecordon else $x.cordon // {} end), src: $x.src})' <<<"$1"
 }

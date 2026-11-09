@@ -8,7 +8,7 @@
 # Usage:
 #   lane-map.sh [list] [--check <path,...>] [--agent <ID>] [--json] [--all]
 #       print the live lanes younger than 2 h (<ID>@<box>, state, age, repo,
-#       branch, topic, files, scope, src); --all: every row, done ones too;
+#       branch, topic, files, scope, src); --all: every row, done and gone ones too;
 #       --check prints ONLY `free` (exit 0), or `<path> owned by <ID>@<box>
 #       <branch>` per overlap (exit 3; an empty row's worktree edits count),
 #       or `unknown: <ID>@<box> <branch> has no files recorded; ask it or read

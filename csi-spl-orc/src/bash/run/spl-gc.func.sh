@@ -225,14 +225,15 @@ spl_gc_kind_on() {
     GC_KIND_WHY="the agent kinds setting was not read (no fleet: LEASE_FLEET unset in lease.conf)"; return 1
   fi
   out="$(LANE_TIMEOUT="${GC_KINDS_TIMEOUT:-15}" spl_lane_spool fleet-load get 2>&1)" || true
-  if ! jq -e '.agent_kinds_off | type == "array"' >/dev/null 2>&1 <<<"$out"; then
+  if ! jq -e '(.agent_kinds_off | type == "array") and ((.agent_kinds_paused // {}) | type == "object")' >/dev/null 2>&1 <<<"$out"; then
     last="$(tail -n 1 <<<"$out")"
     GC_KIND_WHY="the agent kinds setting was not read (the hub did not answer it: ${last:0:160})"; return 1
   fi
   GC_KIND_WHY="$(jq -r --arg k "$1" --arg e "$LANE_ENV" '((.agent_kinds_paused // {})[$k]) as $p
     | if (.agent_kinds_off | index($k)) != null then "\($k) off in the \($e) instance settings"
       elif $p != null then "\($k) paused in the \($e) instance settings until \($p.until)"
-      else empty end' <<<"$out")"
+      else empty end' <<<"$out" 2>&1)" ||
+    { GC_KIND_WHY="the agent kinds setting was not read (jq: ${GC_KIND_WHY:0:160})"; return 1; }
   [[ -z "$GC_KIND_WHY" ]]
 }
 

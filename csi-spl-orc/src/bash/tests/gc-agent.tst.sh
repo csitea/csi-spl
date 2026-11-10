@@ -36,7 +36,8 @@
 #  17. the instance agent kinds (SPL-5241, owner HUM-10 t1 476aff8f: grok off):
 #      the :30 grok slot with grok off = claude, one FALLBACK line naming the
 #      setting; paused = claude; a failed read (hub error, junk, no fleet) =
-#      claude, never grok; a dry run says it and logs nothing; CONTROL: grok
+#      claude, never grok (also a junk agent_kinds_paused, and no hub client:
+#      the real spl_lane_init with no LEASE_ENV); a dry run says it and logs nothing; CONTROL: grok
 #      on (qwen off) = grok as today; COUNT: the :00 claude slot reads nothing
 #      The hub is a stub (LANE_HUB_CMD): kinds off [] unless a case says otherwise
 #  15. close-ask with a landed claim (SPL-3270), in a throwaway repo: a sha
@@ -426,6 +427,15 @@ check "17. a failed hub read = claude, never grok" 'started claude && grep -q "F
 reset; kinds '{"fleet":"main"}'
 gc start $(( H0 + 1800 ))
 check "17. an answer with no agent_kinds_off = claude" 'started claude && grep -q "FALLBACK .* grok -> claude: the agent kinds setting was not read" "$D/gc/gc.log"'
+reset; kinds '{"agent_kinds_off":[],"agent_kinds_paused":["grok"]}'
+gc start $(( H0 + 1800 ))
+check "17. a junk agent_kinds_paused (an array) = claude, never grok (R7 W1)" 'started claude && grep -q "FALLBACK .* grok -> claude: the agent kinds setting was not read" "$D/gc/gc.log"'
+reset; kinds '{"agent_kinds_off":[],"agent_kinds_paused":{"grok":"junk"}}'
+gc start $(( H0 + 1800 ))
+check "17. a paused entry jq cannot read = claude, never grok" 'started claude && grep -q "FALLBACK .* grok -> claude: the agent kinds setting was not read (jq: " "$D/gc/gc.log"'
+reset; sed -i '/^LEASE_ENV=/d' "$D/lease.conf"
+gc start $(( H0 + 1800 )) LANE_HUB_CMD=
+check "17. no hub client (no LEASE_ENV, the real init) = claude, the hub not called (R7 W2)" 'started claude && grep -q "FALLBACK .* grok -> claude: the agent kinds setting was not read (no hub client: .*LANE_ENV" "$D/gc/gc.log" && [ "$(n "$T/hub.log")" = 0 ]'
 reset; sed -i '/^LEASE_FLEET=/d' "$D/lease.conf"
 gc start $(( H0 + 1800 ))
 check "17. no fleet in lease.conf = claude, the hub not called" 'started claude && grep -q "FALLBACK .* grok -> claude: .*no fleet" "$D/gc/gc.log" && [ "$(n "$T/hub.log")" = 0 ]'

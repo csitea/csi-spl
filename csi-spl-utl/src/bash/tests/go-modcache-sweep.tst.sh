@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Purpose: go-modcache-sweep.sh on a fixture module cache and fixture
-# checkouts in a mktemp dir (no go, no network; a sleep under a unique name,
+# checkouts in a mktemp dir (no go, no network; a bash under a unique argv0,
 # set as GO_MODCACHE_BUSY_RX, stands in for a running build):
 #   - the refusals: a bad DRY_RUN, GO_MODCACHE_AGE_D 0, roots with no go.mod /
 #     go.sum, a root dir the scan cannot read; no cache is OK
@@ -76,7 +76,8 @@ has "DONE would-remove=3 " && pass "4. the dry run counts 3" || fail "4. count (
 grep -q sumdb "$T/out" && fail "4. sumdb read as a module" || pass "4. sumdb is no module"
 [[ -d "$C/example.com/old@v0.9.0" && -f "$D/example.com/dlonly/@v/v0.1.0.zip" ]] && pass "4. the dry run removed nothing" || fail "4. the dry run removed something"
 
-mkdir -p "$T/bin"; ln -s "$(command -v sleep)" "$T/bin/$busy"; "$T/bin/$busy" 300 & gp=$!
+# bash under that argv0, not a sleep symlink: a multicall sleep (uutils) refuses an argv0 not its own
+( exec -a "$busy" bash -c 'while :; do sleep 1; done' ) & gp=$!
 sleep 0.3
 run; has "KEEP busy user=$me $C" && has "DONE would-remove=0 " && pass "5. a running go keeps the whole cache" || fail "5. busy ($(tail -2 "$T/out"))"
 sed -E 's/^  go_busy "\$o" && /  false \&\& /' "$SCRIPT" >"$T/ctl.sh"

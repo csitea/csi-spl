@@ -4067,7 +4067,16 @@
       "err_amount": "Enter an amount above 0.",
       "err_currency": "Pick a currency.",
       "err_period": "Pick a month.",
-      "err_note": "The note is too long: at most 2000 characters."
+      "err_note": "The note is too long: at most 2000 characters.",
+      "col_amount_in": "{currency}, net of VAT",
+      "shown": "{n} of {total} costs",
+      "no_match": "No cost matches the filters",
+      "filter_text": "Search costs",
+      "filter_currency": "Entered in",
+      "total": "Total",
+      "converted": "Converted from {currency} at the {month} rate",
+      "no_rate": "No exchange rate for {month}",
+      "total_no_rate": "No total: a month has no exchange rate"
     },
     "operators_only": "Expenses are for operator admins and product owners only.",
     "tokens_link": "Paid subscriptions and top-ups are entered under Expenses → AI costs."

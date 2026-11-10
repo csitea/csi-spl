@@ -4067,7 +4067,16 @@
       "err_amount": "Ange ett belopp över 0.",
       "err_currency": "Välj en valuta.",
       "err_period": "Välj en månad.",
-      "err_note": "Anteckningen är för lång: högst 2000 tecken."
+      "err_note": "Anteckningen är för lång: högst 2000 tecken.",
+      "col_amount_in": "{currency} exkl. moms",
+      "shown": "{n} av {total} kostnader",
+      "no_match": "Ingen kostnad matchar filtren",
+      "filter_text": "Sök kostnader",
+      "filter_currency": "Angivet i",
+      "total": "Totalt",
+      "converted": "Omräknat från {currency} till kursen för {month}",
+      "no_rate": "Ingen växelkurs för {month}",
+      "total_no_rate": "Ingen summa: en månad saknar växelkurs"
     },
     "operators_only": "Utgifter är bara för operatörens administratörer och produktägare.",
     "tokens_link": "Betalda abonnemang och påfyllningar förs in under Utgifter → AI-kostnader."

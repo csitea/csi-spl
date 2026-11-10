@@ -4067,7 +4067,16 @@
       "err_amount": "Sisesta summa üle 0.",
       "err_currency": "Vali valuuta.",
       "err_period": "Vali kuu.",
-      "err_note": "Märkus on liiga pikk: kuni 2000 tähemärki."
+      "err_note": "Märkus on liiga pikk: kuni 2000 tähemärki.",
+      "col_amount_in": "{currency} ilma käibemaksuta",
+      "shown": "{n}/{total} kulu",
+      "no_match": "Ükski kulu ei vasta filtritele",
+      "filter_text": "Otsi kulusid",
+      "filter_currency": "Sisestatud valuutas",
+      "total": "Kokku",
+      "converted": "Teisendatud valuutast {currency} kuu {month} kursiga",
+      "no_rate": "Kuu {month} vahetuskurss puudub",
+      "total_no_rate": "Kokkuvõte puudub: ühel kuul pole vahetuskurssi"
     },
     "operators_only": "Kulud on ainult operaatori administraatoritele ja tooteomanikele.",
     "tokens_link": "Makstud tellimused ja laadimised sisestatakse jaotises Kulud → Tehisintellekti kulud."

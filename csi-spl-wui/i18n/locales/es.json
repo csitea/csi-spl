@@ -4067,7 +4067,16 @@
       "err_amount": "Introduce un importe superior a 0.",
       "err_currency": "Elige una moneda.",
       "err_period": "Elige un mes.",
-      "err_note": "La nota es demasiado larga: 2000 caracteres como máximo."
+      "err_note": "La nota es demasiado larga: 2000 caracteres como máximo.",
+      "col_amount_in": "{currency} sin IVA",
+      "shown": "{n} de {total} costes",
+      "no_match": "Ningún coste coincide con los filtros",
+      "filter_text": "Buscar costes",
+      "filter_currency": "Introducido en",
+      "total": "Suma total",
+      "converted": "Convertido desde {currency} al tipo de {month}",
+      "no_rate": "No hay tipo de cambio para {month}",
+      "total_no_rate": "Sin total: un mes no tiene tipo de cambio"
     },
     "operators_only": "Los gastos son solo para administradores y propietarios de producto del operador.",
     "tokens_link": "Las suscripciones y recargas pagadas se introducen en Gastos → Costes de IA."

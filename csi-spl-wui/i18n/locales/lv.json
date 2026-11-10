@@ -4067,7 +4067,16 @@
       "err_amount": "Ievadiet summu, kas lielāka par 0.",
       "err_currency": "Izvēlieties valūtu.",
       "err_period": "Izvēlieties mēnesi.",
-      "err_note": "Piezīme ir pārāk gara: ne vairāk kā 2000 rakstzīmju."
+      "err_note": "Piezīme ir pārāk gara: ne vairāk kā 2000 rakstzīmju.",
+      "col_amount_in": "{currency} bez PVN",
+      "shown": "{n} no {total} izmaksām",
+      "no_match": "Neviena izmaksa neatbilst filtriem",
+      "filter_text": "Meklēt izmaksas",
+      "filter_currency": "Ievadīts valūtā",
+      "total": "Kopā",
+      "converted": "Konvertēts no {currency} pēc {month} kursa",
+      "no_rate": "Nav valūtas kursa par {month}",
+      "total_no_rate": "Nav kopsummas: vienam mēnesim nav valūtas kursa"
     },
     "operators_only": "Izdevumi ir tikai operatora administratoriem un produkta īpašniekiem.",
     "tokens_link": "Apmaksātie abonementi un papildinājumi tiek ievadīti sadaļā Izdevumi → MI izmaksas."

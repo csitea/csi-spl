@@ -4067,7 +4067,16 @@
       "err_amount": "Anna summa, joka on yli 0.",
       "err_currency": "Valitse valuutta.",
       "err_period": "Valitse kuukausi.",
-      "err_note": "Huomautus on liian pitkä: enintään 2000 merkkiä."
+      "err_note": "Huomautus on liian pitkä: enintään 2000 merkkiä.",
+      "col_amount_in": "{currency} ilman arvonlisäveroa",
+      "shown": "{n}/{total} kulua",
+      "no_match": "Mikään kulu ei vastaa suodattimia",
+      "filter_text": "Hae kuluja",
+      "filter_currency": "Syötetty valuuttana",
+      "total": "Yhteensä",
+      "converted": "Muunnettu valuutasta {currency} kuukauden {month} kurssilla",
+      "no_rate": "Kuukaudelle {month} ei ole vaihtokurssia",
+      "total_no_rate": "Ei yhteissummaa: jollakin kuukaudella ei ole vaihtokurssia"
     },
     "operators_only": "Kulut ovat vain operaattorin ylläpitäjille ja tuoteomistajille.",
     "tokens_link": "Maksetut tilaukset ja lisäostot kirjataan kohdassa Kulut → Tekoälykulut."

@@ -4067,7 +4067,16 @@
       "err_amount": "Wpisz kwotę większą od 0.",
       "err_currency": "Wybierz walutę.",
       "err_period": "Wybierz miesiąc.",
-      "err_note": "Notatka jest za długa: maksymalnie 2000 znaków."
+      "err_note": "Notatka jest za długa: maksymalnie 2000 znaków.",
+      "col_amount_in": "{currency} netto",
+      "shown": "{n} z {total} kosztów",
+      "no_match": "Żaden koszt nie pasuje do filtrów",
+      "filter_text": "Szukaj kosztów",
+      "filter_currency": "Wprowadzono w",
+      "total": "Razem",
+      "converted": "Przeliczono z {currency} po kursie z {month}",
+      "no_rate": "Brak kursu wymiany dla {month}",
+      "total_no_rate": "Brak sumy: jeden miesiąc nie ma kursu wymiany"
     },
     "operators_only": "Wydatki są tylko dla administratorów i właścicieli produktu operatora.",
     "tokens_link": "Opłacone subskrypcje i doładowania wprowadza się w Wydatki → Koszty AI."

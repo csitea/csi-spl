@@ -4067,7 +4067,16 @@
       "err_amount": "Zadajte sumu vyššiu ako 0.",
       "err_currency": "Vyberte menu.",
       "err_period": "Vyberte mesiac.",
-      "err_note": "Poznámka je príliš dlhá: najviac 2000 znakov."
+      "err_note": "Poznámka je príliš dlhá: najviac 2000 znakov.",
+      "col_amount_in": "{currency} bez DPH",
+      "shown": "{n} z {total} nákladov",
+      "no_match": "Filtrom nezodpovedá žiadny náklad",
+      "filter_text": "Hľadať náklady",
+      "filter_currency": "Zadané v",
+      "total": "Spolu",
+      "converted": "Prepočítané z {currency} kurzom za {month}",
+      "no_rate": "Pre {month} nie je výmenný kurz",
+      "total_no_rate": "Bez súčtu: jeden mesiac nemá výmenný kurz"
     },
     "operators_only": "Výdavky sú len pre administrátorov a vlastníkov produktu operátora.",
     "tokens_link": "Zaplatené predplatné a dobitia sa zadávajú v časti Výdavky → Náklady na AI."

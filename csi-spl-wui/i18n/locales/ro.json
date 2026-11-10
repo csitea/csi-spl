@@ -4067,7 +4067,16 @@
       "err_amount": "Introdu o sumă mai mare de 0.",
       "err_currency": "Alege o monedă.",
       "err_period": "Alege o lună.",
-      "err_note": "Nota este prea lungă: cel mult 2000 de caractere."
+      "err_note": "Nota este prea lungă: cel mult 2000 de caractere.",
+      "col_amount_in": "{currency} fără TVA",
+      "shown": "{n} din {total} costuri",
+      "no_match": "Niciun cost nu corespunde filtrelor",
+      "filter_text": "Caută costuri",
+      "filter_currency": "Introdus în",
+      "total": "Totalul",
+      "converted": "Convertit din {currency} la cursul din {month}",
+      "no_rate": "Nu există curs de schimb pentru {month}",
+      "total_no_rate": "Fără total: o lună nu are curs de schimb"
     },
     "operators_only": "Cheltuielile sunt doar pentru administratorii și proprietarii de produs ai operatorului.",
     "tokens_link": "Abonamentele și reîncărcările plătite se introduc la Cheltuieli → Costuri IA."

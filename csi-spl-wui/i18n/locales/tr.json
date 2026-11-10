@@ -4067,7 +4067,16 @@
       "err_amount": "0’dan büyük bir tutar girin.",
       "err_currency": "Bir para birimi seçin.",
       "err_period": "Bir ay seçin.",
-      "err_note": "Not çok uzun: en fazla 2000 karakter."
+      "err_note": "Not çok uzun: en fazla 2000 karakter.",
+      "col_amount_in": "KDV hariç {currency}",
+      "shown": "{n}/{total} maliyet",
+      "no_match": "Filtrelere uyan maliyet yok",
+      "filter_text": "Maliyetlerde ara",
+      "filter_currency": "Girilen para birimi",
+      "total": "Toplam",
+      "converted": "{currency} biriminden {month} kuruyla çevrildi",
+      "no_rate": "{month} için döviz kuru yok",
+      "total_no_rate": "Toplam yok: bir ayın döviz kuru yok"
     },
     "operators_only": "Giderler yalnızca operatör yöneticileri ve ürün sahipleri içindir.",
     "tokens_link": "Ödenen abonelikler ve yüklemeler Giderler → Yapay zekâ maliyetleri altında girilir."

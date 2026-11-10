@@ -22,6 +22,10 @@ set -uo pipefail
 t_sandbox
 unset TMUX TMUX_PANE SPOOL_BOX_TAG BOX_TAG SPOOL_AGENT_ID MCP_BOT_AGENT_ID SPOOL_AGENT_USER
 ME="$(id -un)"; AG="agentu-$$"
+# Ids unique to this run: the ALERT check walks the box user's real process
+# list, so a second copy of this test running at the same time (another lane's
+# gate) would otherwise add its own 2 agents to our count (SPL-5226).
+I1="CLE-$$71"; I2="CLE-$$72"
 HB="$T_TMP/home-box"; HA="$T_TMP/home-agent"; W="$T_TMP/wt"; A="$T_TMP/adapters"
 mkdir -p "$HB/.claude/sessions" "$HA/.claude" "$W" "$A" "$SPOOL_ROOT/agents"
 printf 'SPOOL_AGENT_USER=%s\n' "$AG" > "$SPOOL_ROOT/box.env"
@@ -57,14 +61,14 @@ PY
 }
 
 t_tmux
-mkdir -p "$W/CLE-71" "$W/CLE-72"
-transcript "$HB" s-71 "$W/CLE-71" "box copy 71"              # only in the box user's home
-mkdir -p "$HB/.claude/projects/$(slug "$W/CLE-71")/s-71/subagents"
-printf 'x\n' > "$HB/.claude/projects/$(slug "$W/CLE-71")/s-71/subagents/a.jsonl"
-transcript "$HB" s-72 "$W/CLE-72" "box copy 72"              # in both homes: the agent user's is kept
-transcript "$HA" s-72 "$W/CLE-72" "agent copy 72"
-record CLE-71 s-71 "$W/CLE-71" "$ME"
-record CLE-72 s-72 "$W/CLE-72" "$ME"
+mkdir -p "$W/$I1" "$W/$I2"
+transcript "$HB" s-71 "$W/$I1" "box copy 71"              # only in the box user's home
+mkdir -p "$HB/.claude/projects/$(slug "$W/$I1")/s-71/subagents"
+printf 'x\n' > "$HB/.claude/projects/$(slug "$W/$I1")/s-71/subagents/a.jsonl"
+transcript "$HB" s-72 "$W/$I2" "box copy 72"              # in both homes: the agent user's is kept
+transcript "$HA" s-72 "$W/$I2" "agent copy 72"
+record "$I1" s-71 "$W/$I1" "$ME"
+record "$I2" s-72 "$W/$I2" "$ME"
 # The box user's own interactive CLI: no agent id, never flagged.
 t_window 'mine' "bash -c 'exec -a claude sleep 600'" >/dev/null
 sleep 0.5
@@ -73,25 +77,25 @@ act() {
     set -uo pipefail; do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-agent-identity-restore.func.sh"; do_spl_agent_identity_restore'
 }
-dst71="$HA/.claude/projects/$(slug "$W/CLE-71")"
+dst71="$HA/.claude/projects/$(slug "$W/$I1")"
 
 # --- 1 ----------------------------------------------------------------------------
 out="$(act)"
-has "1. CLE-71 is planned as the agent user" "RESTORE CLE-71: claude session s-71 in $W/CLE-71, as $AG," "$out"
-has "1. CLE-72 is planned as the agent user" "RESTORE CLE-72: claude session s-72 in $W/CLE-72, as $AG," "$out"
-has "1. the box-user-only transcript is planned as a COPY" "COPY    CLE-71: transcript s-71 from $ME's home to $AG's" "$out"
-hasnt "1. a transcript the agent user has is not copied" "COPY    CLE-72" "$out"
+has "1. the first agent is planned as the agent user" "RESTORE $I1: claude session s-71 in $W/$I1, as $AG," "$out"
+has "1. the second agent is planned as the agent user" "RESTORE $I2: claude session s-72 in $W/$I2, as $AG," "$out"
+has "1. the box-user-only transcript is planned as a COPY" "COPY    $I1: transcript s-71 from $ME's home to $AG's" "$out"
+hasnt "1. a transcript the agent user has is not copied" "COPY    $I2" "$out"
 check "1. the dry run copies nothing" test ! -e "$dst71/s-71.jsonl"
 
 # --- 2 + 3 + 4 ----------------------------------------------------------------------
 out="$(act DRY_RUN=0)"; rc=$?
 eq "2. each adapter starts with SPOOL_AGENT_USER = the agent user" \
-  "CLE-71|$AG CLE-72|$AG" "$(sort "$T_TMP/started" | tr '\n' ' ' | sed 's/ $//')"
+  "$I1|$AG $I2|$AG" "$(sort "$T_TMP/started" | tr '\n' ' ' | sed 's/ $//')"
 has "3. the copy is reported" "COPIED  transcript s-71 from $ME's home to $AG's" "$out"
 eq "3. the transcript is in the agent user's home, byte-identical" \
-  "$(cat "$HB/.claude/projects/$(slug "$W/CLE-71")/s-71.jsonl")" "$(cat "$dst71/s-71.jsonl" 2>/dev/null)"
+  "$(cat "$HB/.claude/projects/$(slug "$W/$I1")/s-71.jsonl")" "$(cat "$dst71/s-71.jsonl" 2>/dev/null)"
 check "3. its <sid>/ dir came along" test -f "$dst71/s-71/subagents/a.jsonl"
-has "3. the agent user's own transcript is kept" "agent copy 72" "$(cat "$HA/.claude/projects/$(slug "$W/CLE-72")/s-72.jsonl")"
+has "3. the agent user's own transcript is kept" "agent copy 72" "$(cat "$HA/.claude/projects/$(slug "$W/$I2")/s-72.jsonl")"
 check "4. an agent running as the box user fails the run" test "$rc" -ne 0
 has "4. ... named as an ALERT" "ALERT   pid " "$out"
 eq "4. ... one ALERT per started agent, none for the box user's own CLI" 2 "$(printf '%s\n' "$out" | grep -c '^ALERT ')"

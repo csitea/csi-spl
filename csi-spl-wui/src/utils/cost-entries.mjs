@@ -13,7 +13,7 @@
  * it. Node tests import it.
  */
 
-import { mockError, mockGate, mockStore, PAID_MOCK_FX } from './monitoring-paid.mjs'
+import { mockError, mockGate, mockMoney, mockStore, moneyCell, moneyTotals } from './monitoring-paid.mjs'
 import { sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
 
 /** The types the tabs enter (store.CostEntryTypes). */
@@ -90,22 +90,10 @@ function mockWrite(store, list) {
   try { store.setItem(COST_ENTRIES_MOCK_KEY, JSON.stringify(list)) } catch { /* the mock forgets */ }
 }
 
-/* the mock's USD and EUR of an entry at its one rate per currency (units per
-   USD: PAID_MOCK_FX, held equal to tenant-costs MOCK_FX_RATES; this file never
-   imports tenant-costs.mjs, the chunk rule); a currency it holds no rate of is
-   null, as the hub */
-function mockPriced(e, rates) {
-  const rate = e.currency === 'USD' ? 1 : rates[e.currency]
-  const own = Math.round(Number(e.amount) * 1e6)
-  const usd = rate ? Math.round(own / rate) : null
-  const eur = e.currency === 'EUR' ? own : usd === null || !rates.EUR ? null : Math.round(usd * rates.EUR)
-  return { ...e, usd_micros: usd, eur_micros: eur }
-}
-
-/** The mock's GET: one type's entries, priced; 403 to anyone but an operator admin. */
-export function mockCostEntryList(type, store = mockStore(), rates = PAID_MOCK_FX) {
+/** The mock's GET: one type's entries, priced (monitoring-paid.mjs mockMoney); 403 to anyone but an operator admin. */
+export function mockCostEntryList(type, store = mockStore()) {
   mockGate(store)
-  return { entries: mockRead(store).filter((e) => e.type === type).map((e) => mockPriced(e, rates)) }
+  return { entries: mockRead(store).filter((e) => e.type === type).map((e) => ({ ...e, ...mockMoney(e.amount, e.currency) })) }
 }
 
 /** The mock's POST: stores the body, or refuses once when COST_ENTRIES_MOCK_REFUSE_KEY is set. */
@@ -180,19 +168,10 @@ export function costEntryFilterChoices(rows) {
   return { period: uniqSorted(rows.map((e) => e.period)).reverse(), currency: uniqSorted(rows.map((e) => e.currency)) }
 }
 
-/**
- * One amount cell, USD or EUR: its micros (null = no rate of the month) and
- * whether a rate made it (the entry was entered in another currency).
- * @param {{ currency: string, usdMicros: number|null, eurMicros: number|null }} e
- * @param {'USD' | 'EUR'} cur
- */
-export function costEntryCell(e, cur) {
-  const micros = cur === 'USD' ? e.usdMicros : e.eurMicros
-  return { amount: micros === null ? null : micros / 1e6, converted: e.currency !== cur, none: micros === null }
-}
+/** One amount cell, USD or EUR (monitoring-paid.mjs moneyCell). */
+export const costEntryCell = moneyCell
 
 /** The shown rows' sums in USD and EUR, units; null when a row has no rate (never a partial sum). */
 export function costEntryTotals(rows) {
-  const sum = (k) => (rows.some((e) => e[k] === null) ? null : rows.reduce((n, e) => n + e[k], 0) / 1e6)
-  return { usd: sum('usdMicros'), eur: sum('eurMicros') }
+  return moneyTotals(rows)
 }

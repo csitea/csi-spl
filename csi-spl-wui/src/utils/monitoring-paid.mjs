@@ -17,6 +17,7 @@
  */
 
 import { TOKENS_MOCK_OPERATOR_KEY, TOKENS_VENDORS } from './monitoring-tokens.mjs'
+import { sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
 
 /** The item kinds (store.FleetPaidKinds). */
 export const PAID_KINDS = Object.freeze(['subscription', 'topup'])
@@ -36,6 +37,7 @@ const CUR_RE = /^[A-Z]{3}$/
 const DAY_MS = 86400000
 const str = (v) => (typeof v === 'string' ? v : '')
 const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+const micro = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
 /** A UTC day YYYY-MM-DD as ms, else NaN (2026-02-30 is not a day). */
 export function dayMs(d) {
@@ -57,6 +59,10 @@ function itemOf(it) {
     periodStart: str(it.period_start),
     periodEnd: str(it.period_end),
     note: str(it.note),
+    /* SPL-5198: the amount in USD and EUR at the rates of period_start (hub
+       store.PricePaidItems), micros; null = no rate made it, never 0 */
+    usdMicros: micro(it.usd_micros),
+    eurMicros: micro(it.eur_micros),
   }
 }
 
@@ -144,7 +150,100 @@ export function sortPaidItems(rows) {
   return (Array.isArray(rows) ? rows : []).slice().sort((a, b) => cmp(a.periodStart, b.periodStart) || cmp(a.id, b.id))
 }
 
+/*
+ * SPL-5198 (owner HUM-10, t1 965283be msg 382450e2: "listing should have
+ * sorting and filtering simir to the issues listing , it must also have the
+ * pricess in dollars and euros"): Expenses -> AI costs gets the sort and
+ * filter row of the Lanes sheet (SPL-3887): a header click cycles the sort
+ * (sheet-sort.mjs cycleSort, components/SheetSortButton.vue), sortRowsBy
+ * orders. The money cell and totals are shared with the cost entries
+ * (utils/cost-entries.mjs).
+ */
+
+/** The sortable columns, in the table's order. */
+export const PAID_COLUMNS = Object.freeze(['plan', 'vendor', 'kind', 'usd', 'eur', 'quantity', 'period'])
+/** No filter: every row. */
+export const PAID_NO_FILTER = Object.freeze({ text: '', vendor: '', period: '', currency: '' })
+
+/* a column's value to sort on; null (no rate) sorts last either way */
+function paidValue(it, col) {
+  if (col === 'usd') return it.usdMicros
+  if (col === 'eur') return it.eurMicros
+  if (col === 'quantity') return it.quantity
+  if (col === 'period') return it.periodStart || null
+  return (col === 'plan' ? it.planLabel : col === 'vendor' ? it.vendor : it.kind) || null
+}
+
+/** The rows in a sheet sort ({ col: '', dir: '' } = the order given, the hub's). */
+export function sortPaidRows(rows, sort) {
+  return sortRowsBy(rows, sort, PAID_COLUMNS, paidValue)
+}
+
+/**
+ * The rows the filter row keeps: every word of `text` in the plan or the
+ * note; the vendor, the month the period starts in and the entered currency
+ * each '' (any) or equal.
+ * @param {{ text?: string, vendor?: string, period?: string, currency?: string }} f
+ */
+export function filterPaidItems(rows, f) {
+  const words = str(f.text).toLowerCase().split(/\s+/).filter(Boolean)
+  return rows.filter((it) => (!f.vendor || it.vendor === f.vendor)
+    && (!f.period || it.periodStart.slice(0, 7) === f.period)
+    && (!f.currency || it.currency === f.currency)
+    && (words.length === 0 || words.every((w) => (it.planLabel + ' ' + it.note).toLowerCase().includes(w))))
+}
+
+/** True when any filter is set. */
+export function paidItemsFiltered(f) {
+  return Boolean(str(f.text).trim() || f.vendor || f.period || f.currency)
+}
+
+/** The selects' choices: the values the rows hold, months newest first. */
+export function paidFilterChoices(rows) {
+  return {
+    vendor: uniqSorted(rows.map((it) => it.vendor)),
+    period: uniqSorted(rows.map((it) => it.periodStart.slice(0, 7))).reverse(),
+    currency: uniqSorted(rows.map((it) => it.currency)),
+  }
+}
+
+/**
+ * One amount cell, USD or EUR, of a row with usdMicros / eurMicros: the
+ * amount (null = no rate) and whether a rate made it (entered in another
+ * currency).
+ * @param {{ currency: string, usdMicros: number|null, eurMicros: number|null }} row
+ * @param {'USD' | 'EUR'} cur
+ */
+export function moneyCell(row, cur) {
+  const micros = cur === 'USD' ? row.usdMicros : row.eurMicros
+  return { amount: micros === null ? null : micros / 1e6, converted: row.currency !== cur, none: micros === null }
+}
+
+/** The rows' sums in USD and EUR, units, each row `times(row)` times; null when a row has no rate (never a partial sum). */
+export function moneyTotals(rows, times = () => 1) {
+  const sum = (k) => (rows.some((r) => r[k] === null) ? null : rows.reduce((n, r) => n + r[k] * times(r), 0) / 1e6)
+  return { usd: sum('usdMicros'), eur: sum('eurMicros') }
+}
+
+/** The paid items' sums: each item's amount times its quantity. */
+export function paidTotals(rows) {
+  return moneyTotals(rows, (it) => it.quantity)
+}
+
 /* ---- the mock hub (CI e2e on the mock bundle) ---- */
+
+/**
+ * The mock's USD and EUR micros of an amount in `currency` at its one rate
+ * (units per USD, PAID_MOCK_FX); a currency it holds no rate of is null, as
+ * the hub (store.PriceCostEntries, store.PricePaidItems).
+ */
+export function mockMoney(amount, currency, rates = PAID_MOCK_FX) {
+  const rate = currency === 'USD' ? 1 : rates[currency]
+  const own = Math.round(Number(amount) * 1e6)
+  const usd = rate ? Math.round(own / rate) : null
+  const eur = currency === 'EUR' ? own : usd === null || !rates.EUR ? null : Math.round(usd * rates.EUR)
+  return { usd_micros: usd, eur_micros: eur }
+}
 
 /** The hub's refusal texts per check (store.CheckFleetPaidItem, hub knownCurrency). */
 const HUB_TEXT = Object.freeze({
@@ -204,7 +303,7 @@ function mockCheck(b, store) {
 /** The mock's GET .../paid. */
 export function mockPaidList(store = mockStore()) {
   mockGate(store)
-  return { items: mockRead(store) }
+  return { items: mockRead(store).map((it) => ({ ...it, ...mockMoney(it.amount, it.currency) })) }
 }
 
 /** The mock's POST .../paid: the item (201). */

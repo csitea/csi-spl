@@ -50,7 +50,7 @@ describe('monitoring-paid: hub bodies', () => {
       { vendor: 'claude' }, null, 'junk',
     ] })
     assert.deepEqual(rows, [{ id: 'a', vendor: 'grok', kind: 'topup', planLabel: 'credits', quantity: 2, amount: 25.5, currency: 'EUR',
-      periodStart: '2026-10-01', periodEnd: '2026-10-15', note: 'x' }])
+      periodStart: '2026-10-01', periodEnd: '2026-10-15', note: 'x', usdMicros: null, eurMicros: null }])
     assert.deepEqual(paidItemsOf(null), [])
     assert.deepEqual(paidItemsOf({ items: 'no' }), [])
   })

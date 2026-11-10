@@ -196,7 +196,12 @@ main() {
   exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
   RUN_TEE_PIDS+=" $!"
   trap do_wait_tees EXIT
-  main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
+  # exec, not a redirection on the main_exec call: for that one bash keeps a
+  # saved copy of each tee fd, which an `exit` inside main_exec (error_handler,
+  # an action's own exit) never closes, so every failing ./run idled to the
+  # RUN_TEE_WAIT_S cap in do_wait_tees (SPL-5192, run-log.tst.sh case 5).
+  exec >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
+  main_exec "$@"
   exit $?
 }
 

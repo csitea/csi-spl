@@ -14,6 +14,10 @@
 #      permission (non-root only)
 #   4. a slow stdout tee (SPL-2820): ./run returns only after its tee wrote
 #      the last line, so `./run ... >f; grep f` never reads f too early
+#   5. an action that ends in `exit` (a failure through error_handler, or its
+#      own exit 0) does not idle in do_wait_tees (SPL-5192): with
+#      RUN_TEE_WAIT_S=20 a counting `sleep` shim sees at most 100 polls (a
+#      saved copy of the tee fd held it to the cap: ~1,000+ polls)
 # Each case runs against the orc, iac and utl run.sh (kept in lockstep), in a
 # throwaway tree with a probe action. A regular FILE in the way blocks a mkdir
 # even for root, so cases 1-2 hold under any user.
@@ -105,6 +109,28 @@ for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
   rc=$?
   [[ $rc == 0 ]] && grep -q 'PROBE ran' "$T/slow-$m.out" && pass "$m: a slow stdout tee wrote before ./run returned" ||
     fail "$m: slow stdout tee: rc=$rc, stdout lost its last line: $(head -c 200 "$T/slow-$m.out")"
+done
+
+# 5. exit inside main_exec: the tees end at once, not at RUN_TEE_WAIT_S
+real_sleep=$(command -v sleep)
+mkdir -p "$T/count"
+printf '#!/usr/bin/env bash\necho x >>%q\nexec %q "$@"\n' "$T/sleeps" "$real_sleep" >"$T/count/sleep"
+chmod +x "$T/count/sleep"
+for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
+  d="$T/$m/csi-x/csi-x-orc"
+  printf 'do_fail_probe() {\n  echo "FAIL PROBE last line"\n  return 3\n}\n' >"$d/src/bash/run/fail-probe.func.sh"
+  printf 'do_exit_probe() {\n  echo "EXIT PROBE last line"\n  exit 0\n}\n' >"$d/src/bash/run/exit-probe.func.sh"
+  for c in fail:3 exit:0; do
+    a=${c%%:*} want=${c#*:}
+    : >"$T/sleeps"
+    (cd "$d" && PATH="$T/count:$PATH" HOME="$T/home" VAR_DIR="$T/var-exit" TMPDIR="$T/tmp-exit" RUN_TEE_WAIT_S=20 \
+      ./run -a "do_${a}_probe" </dev/null 2>"$T/exit-$m.err" >"$T/exit-$m.out")
+    rc=$?
+    n=$(wc -l <"$T/sleeps")
+    [[ $rc == "$want" ]] && grep -qi "$a PROBE last line" "$T/exit-$m.out" && ((n <= 100)) &&
+      pass "$m: do_${a}_probe exits $rc with its last line, $n tee poll(s)" ||
+      fail "$m: do_${a}_probe: rc=$rc (want $want), $n tee poll(s) (max 100), out: $(tail -c 200 "$T/exit-$m.out")"
+  done
 done
 
 echo "run-log: $fails failure(s)"

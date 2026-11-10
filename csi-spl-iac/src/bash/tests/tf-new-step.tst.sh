@@ -17,6 +17,11 @@
 #   7. `make -n tf-new-step` in csi-spl-orc runs ./run in a dir whose
 #      src/bash/run defines do_tf_new_step (SPL-4764; orc's own ./run has no
 #      such action: "do_tf_new_step NOT found")
+#   8. the template dir is the one the real tree keeps its step templates in,
+#      src/tpl/%org%-%app%/%env%/tf, the same one do_tf_remove_step reads
+#      (SPL-5243; it wrote and checked csi-rel's src/tpl/cnf/env/%org%/%app%/
+#      %env%/tf, which holds no file here), and a new step writes nothing under
+#      the csi-rel path
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -26,7 +31,8 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 fails=0
 ACTION="$PROJ_ROOT/src/bash/run/tf-new-step.func.sh"
 require_action "$ACTION"
-TPL_DIR='src/tpl/cnf/env/%org%/%app%/%env%/tf'
+TPL_DIR='src/tpl/%org%-%app%/%env%/tf'
+OLD_TPL_DIR='src/tpl/cnf/env/%org%/%app%/%env%/tf'
 
 # new_tree <name>: an empty project tree with the templates the action copies
 new_tree() {
@@ -102,6 +108,17 @@ if [[ -n "$mk" && -d "$ORC/$dir/src/bash/run" ]] && grep -qs '^do_tf_new_step()'
 else
   fail "make -n tf-new-step cannot reach do_tf_new_step: '${mk}' (run dir $dir)"
 fi
+
+# 8. one template dir: the real tree's, shared with do_tf_remove_step; nothing
+#    under the csi-rel path
+compgen -G "$PROJ_ROOT/$TPL_DIR/*.tfvars.tpl" >/dev/null &&
+  pass "$TPL_DIR holds the real tree's step templates" || fail "no *.tfvars.tpl under $PROJ_ROOT/$TPL_DIR"
+shared=$(source "$PROJ_ROOT/src/bash/run/tf-remove-step.func.sh" 2>/dev/null && tf_step_tpl_dir 2>/dev/null)
+[[ "$shared" == "$TPL_DIR" ]] && grep -q 'tf_step_tpl_dir' "$ACTION" &&
+  pass "tf-new-step reads the one template dir, tf_step_tpl_dir of tf-remove-step" ||
+  fail "no shared template dir: tf_step_tpl_dir='$shared', tf-new-step uses it: $(grep -c tf_step_tpl_dir "$ACTION")"
+[[ ! -e "$T/d/src/tpl/cnf" ]] && pass "a new step writes nothing under the csi-rel $OLD_TPL_DIR" ||
+  fail "a new step wrote under the csi-rel path: $(find "$T/d/src/tpl/cnf" | tr '\n' ' ')"
 
 echo "---- $(basename "$0"): $fails failed"
 [ "$fails" -eq 0 ]

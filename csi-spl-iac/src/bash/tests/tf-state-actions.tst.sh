@@ -7,7 +7,9 @@
 #      src/tpl/%org%-%app%/%env%/tf (the one the real tree holds), relative to
 #      the cwd. One set missing: a WARNING names it and the other set goes;
 #      neither: refused, nothing removed. It runs in a SANDBOX cwd, never the
-#      real tree.
+#      real tree. A step is matched exactly (SPL-5243): <STEP>, <STEP>.*,
+#      <STEP>-remote-bucket and <STEP>-remote-bucket.*, so STEP=05 is not
+#      050-gcs-files and 007-dns is not 0070-other or 007-dnsx.
 #   2. do_tf_replace_target: default `plan -replace=<t>` per target, no apply;
 #      DRY_RUN=0 `apply -auto-approve -replace=<t>` per target
 #   3. do_tf_state_push: default pushes nothing; DRY_RUN=0 runs
@@ -87,6 +89,25 @@ sandbox; command rm "$T/sbx/$tfdir/007-dns.vars.tfvars.tpl"; run_action do_tf_re
   && grep -q "WARNING no $tfdir/007-dns\* to remove" "$T/out.log" \
   && pass "remove-step DRY_RUN=0, no tpl: a WARNING names the tpl set, the terraform dir goes" \
   || fail "remove-step partial: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
+sandbox; command rm -r "$T/sbx/src/terraform/007-dns"; run_action do_tf_remove_step DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && ! -e "$T/sbx/$tfdir/007-dns.vars.tfvars.tpl" && -f "$T/sbx/$tfdir/008-keep.vars.tfvars.tpl" \
+  && -f "$T/sbx/src/terraform/008-keep/main.tf" ]] && grep -q "WARNING no src/terraform/007-dns\* to remove" "$T/out.log" \
+  && pass "remove-step DRY_RUN=0, no terraform dir: a WARNING names it, the tpl goes, the other step's stay" \
+  || fail "remove-step reverse partial: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
+sandbox; mkdir "$T/sbx/src/terraform/007-dns-remote-bucket" "$T/sbx/src/terraform/0070-other"
+touch "$T/sbx/$tfdir/007-dns.backend-config.tfvars.tpl" "$T/sbx/$tfdir/007-dns-remote-bucket.vars.tfvars.tpl" \
+  "$T/sbx/$tfdir/0070-other.vars.tfvars.tpl" "$T/sbx/$tfdir/007-dnsx.vars.tfvars.tpl"
+run_action do_tf_remove_step DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && ! -e "$T/sbx/src/terraform/007-dns-remote-bucket" && ! -e "$T/sbx/$tfdir/007-dns.backend-config.tfvars.tpl" \
+  && ! -e "$T/sbx/$tfdir/007-dns-remote-bucket.vars.tfvars.tpl" && -d "$T/sbx/src/terraform/0070-other" \
+  && -f "$T/sbx/$tfdir/0070-other.vars.tfvars.tpl" && -f "$T/sbx/$tfdir/007-dnsx.vars.tfvars.tpl" ]] \
+  && pass "remove-step DRY_RUN=0: the step, its bucket dir and its tpls go; 0070-other and 007-dnsx stay" \
+  || fail "remove-step exact step: rc=$rc left=$(find "$T/sbx" -path '*00[78]*' | tr '\n' ' ')"
+sandbox; mkdir "$T/sbx/src/terraform/050-gcs-files"; touch "$T/sbx/$tfdir/050-gcs-files.vars.tfvars.tpl"
+run_action do_tf_remove_step DRY_RUN=0 STEP=05; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" && -d "$T/sbx/src/terraform/050-gcs-files" && -f "$T/sbx/$tfdir/050-gcs-files.vars.tfvars.tpl" ]] \
+  && pass "remove-step DRY_RUN=0 STEP=05: a prefix is no step, 050-gcs-files stays, refused" \
+  || fail "remove-step STEP=05 prefix: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
 sandbox; run_action do_tf_remove_step DRY_RUN=0 STEP=009-none; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'FATAL nothing of step 009-none' "$T/out.log" \
   && pass "remove-step DRY_RUN=0, nothing matches: refused, no rm" \

@@ -7,6 +7,8 @@
 //
 //   P1  320 / 360 / 390: nothing scrolls sideways, the page nor the list
 //   P2  a card spans the list's width and holds at most 3 lines
+//   P6  a lane with 4 issue keys (mock 'keys', c-404) is still 3 lines,
+//       nothing sideways, every key in the cell's title (W1)
 //   P3  every cell of the row is on the card, inside it, none hidden
 //   P4  the agent opens the LaneDialog
 //   P5  a sort click and a filter still apply
@@ -19,7 +21,7 @@ import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 import { TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
-import { LANE_COLUMNS } from '../../src/utils/monitoring-lanes.mjs'
+import { LANE_COLUMNS, LANES_MOCK_KEY } from '../../src/utils/monitoring-lanes.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -49,14 +51,14 @@ const SEED = { 'spool.mock.session': SESSION, [TOKENS_MOCK_OPERATOR_KEY]: '1' }
 /* the row's cells, one per LANE_COLUMNS entry, by their data-test */
 const CELLS = ['lanes-agent', 'lanes-box', 'lanes-priority', 'lanes-vendor', 'lanes-state', 'lanes-scope', 'lanes-topic', 'lanes-issues', 'lanes-origin', 'lanes-updated', 'lanes-active', 'lanes-workspace']
 
-async function open(browser, vp, path) {
+async function open(browser, vp, path, seed = SEED) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e && e.message).slice(0, 200)))
   await p.evaluateOnNewDocument((s) => {
     try { for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v) } catch { /* about:blank */ }
-  }, SEED)
+  }, seed)
   await setPageViewport(p, vp)
   await p.goto(server.base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, vp)
@@ -123,6 +125,16 @@ try {
     ok(`P5b ${tag}: a filter leaves its cards only`, await rowsAre(p, 'm-039'), await order(p))
     ok(`P5c ${tag}: no page error`, errors.length === 0, errors)
     await ctx.close()
+
+    const k = await open(browser, vp, PATH, { ...SEED, [LANES_MOCK_KEY]: 'keys' })
+    const mk = await measure(k.p)
+    const c404 = mk.cards.find((c) => c.agent === 'c-404')
+    ok(`P6 ${tag}: a card with 4 issue keys is at most 3 lines`, !!c404 && mk.cards.every((c) => c.lines <= 3), mk.cards.map((c) => [c.agent, c.lines]))
+    ok(`P6b ${tag}: with 4 keys nothing scrolls sideways, every cell inside its card`, mk.page[0] <= mk.page[1] && mk.list[0] <= mk.list[1] && mk.cards.every((c) => c.missing.length === 0 && c.out.length === 0), { page: mk.page, list: mk.list, out: mk.cards.map((c) => [c.agent, c.out]) })
+    const title = await k.p.$eval('[data-test=lanes-row][data-agent="c-404"] [data-test=lanes-issues]', (el) => el.getAttribute('title') || '')
+    ok(`P6c ${tag}: the issue cell's title names every key`, ['SPL-4041', 'SPL-4042', 'SPL-4043', 'SPL-4044'].every((key) => title.includes(key)), title)
+    if (process.env.SHOT_DIR) await k.p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-lanes-phone-keys-${tag}.png`, fullPage: true })
+    await k.ctx.close()
   }
 
   const { p, ctx } = await open(browser, DESKTOP.vp, PATH)

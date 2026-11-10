@@ -2175,14 +2175,22 @@ change was SPL-4842, Refresh inside the tabs' row).
   3. scope (cut) ... box, workspace (cut at 35 %), last active (end).
   An empty origin cell is not drawn. The two ages carry their column name
   as a `title`. Card text 0.8125rem, issue keys 0.75rem.
+- The three lines hold for any number of issue keys (W1 of the R7 review):
+  the keys stay on line 2, at most 45 % of it, on one line; the keys that
+  do not fit are cut with an ellipsis. The cell's `title` lists every key,
+  and the LaneDialog (the agent's click) lists them all as well. Before
+  this, a lane with 3 or more keys stacked them one per line, 4 to 6
+  lines at 320 px.
 - The sort names wrap above the cards as a row of buttons; the filter row
   wraps under them, the text search first on its own line.
 - Nothing scrolls sideways at 320, 360 and 390 px, the page nor the list;
   the desktop table is unchanged.
 - No new text key.
-- Test: `csi-spl-wui/tests/e2e/monitoring-lanes-phone.test.mjs` (P1-P5 at
+- Test: `csi-spl-wui/tests/e2e/monitoring-lanes-phone.test.mjs` (P1-P6 at
   320/360/390, D1 at 1440). Red control: on the code before it, P1b and P2
   fail at all three widths (the list 1703 px wide in a 308..378 px box).
+  P6 reads the mock `spool.mock.fleet_lanes=keys`, which adds lane c-404
+  with 4 issue keys; it is red on the card layout before the cut.
 
 ## 4. Cases
 

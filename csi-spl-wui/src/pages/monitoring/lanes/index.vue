@@ -163,7 +163,7 @@
                 <span v-else-if="l.roleSeat" class="muted" data-test="lanes-role-seat">{{ t('monitoring.lanes.role_seat') }}</span>
                 <span v-else class="muted">{{ DASH }}</span>
               </td>
-              <td data-test="lanes-issues">
+              <td :title="l.issues.map((i: { key: string }) => i.key).join(', ') || undefined" data-test="lanes-issues">
                 <span v-if="l.issues.length === 0 && l.roleSeat" class="muted" data-test="lanes-role-seat">{{ t('monitoring.lanes.role_seat') }}</span>
                 <span v-else-if="l.issues.length === 0" class="muted">{{ DASH }}</span>
                 <template v-for="i in l.issues" :key="i.key">
@@ -493,7 +493,10 @@ onBeforeUnmount(() => {
   .ln-row > [data-test=lanes-updated] { order: 5; margin-inline-start: auto; color: var(--color-muted); }
   /* the two cut cells take what the line leaves, down to their basis */
   .ln-row > [data-test=lanes-topic] { order: 11; flex: 1 1 5rem; max-width: none; }
-  .ln-row > [data-test=lanes-issues] { order: 12; }
+  /* the keys stay on line 2, on one line, at most 45 % of it; the rest is
+     cut, every key in the cell's title and the LaneDialog (W1: they stacked
+     one per line, 4..6 lines at 320 px with 3+ keys) */
+  .ln-row > [data-test=lanes-issues] { order: 12; flex: 0 1 auto; max-width: 45%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ln-row > [data-test=lanes-origin] { order: 13; }
   .ln-row .ln-issue { font-size: 0.75rem; }
   .ln-row .ln-issue:last-child { margin-inline-end: 0; }

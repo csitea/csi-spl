@@ -424,6 +424,14 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
       { agent_id: 'c-792', agent_box: 'box-a', vendor: 'claude', scope: 'An old row', topic_id: LANE_UNKNOWN, topic_title: '',
         issues: [{ key: LANE_UNKNOWN, status: '' }], updated_at: ago(3400), age_s: 3400, last_active: '', workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE })
   }
+  /* 3.25 (SPL-5235, W1): a lane with four issue keys, its phone card still three lines */
+  if (get(LANES_MOCK_KEY) === 'keys') {
+    out.lanes.push({ agent_id: 'c-404', agent_box: 'box-a', vendor: 'claude', scope: 'A lane with four issue keys',
+      topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',
+      issues: [{ key: 'SPL-4041', status: 'wip', priority: 2 }, { key: 'SPL-4042', status: 'wip' }, { key: 'SPL-4043', status: '' }, { key: 'SPL-4044', status: '' }],
+      priority: 2, origin_issue: { key: 'SPL-4040', status: 'done' }, updated_at: ago(900), age_s: 900, last_active: ago(120),
+      workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE })
+  }
   if (get(LANES_MOCK_KEY) === 'topics') {
     out.lanes.splice(1, 0, { agent_id: 'c-733', agent_box: 'box-a', vendor: 'claude', scope: 'Monitoring -> Topics',
       topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',

@@ -16,6 +16,7 @@ import {
   mobileOverlayPop,
   mobileOverlayState,
   mobilePopDropsTopic,
+  mobilePopWaitsRoute,
   mobilePushPlan,
   mobileRecordStep,
   mobileStaleLoginLoad,
@@ -341,6 +342,29 @@ function onTouchEnd(e: TouchEvent) {
   if (isMobileBackSwipe({ x0: start.x, y0: start.y, x1: p.clientX, y1: p.clientY, width: window.innerWidth, rtl })) pop()
 }
 
+/* SPL-5232: the newest popstate; a level still waiting for its route yields to it */
+let popSeq = 0
+const POP_ROUTE_WAIT_MS = 3000
+
+/** browser Back / Forward, and pop() -> history.back() */
+function listenPopState(router: ReturnType<typeof useRouter>) {
+  window.addEventListener('popstate', (e) => {
+    moved()
+    inPlaceUntil = 0
+    if (isMobile.value) backs.value++
+    const tagged = mobileTaggedLevel(e.state)
+    if (tagged === null) return
+    /* SPL-5232 (utils mobilePopWaitsRoute): off level 1, the page mounts on the route it lands on */
+    const lags = router.resolve(router.options.history.location).fullPath !== router.currentRoute.value.fullPath
+    const seq = ++popSeq
+    if (!mobilePopWaitsRoute(tagged, level.value, lags)) return applyLevel(tagged)
+    /* no navigation ever follows (a guard that hangs): the level still moves */
+    const land = () => { off(); clearTimeout(late); if (seq === popSeq) applyLevel(tagged) }
+    const off = router.afterEach(land)
+    const late = setTimeout(land, POP_ROUTE_WAIT_MS)
+  })
+}
+
 /** layouts/default.vue only: wire the stack to the topic stores, the router and the window. */
 function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   closeTopic = opts.closeTopic
@@ -388,14 +412,7 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
     tag(level.value, below)
   })
 
-  /* browser Back / Forward, and pop() -> history.back() */
-  window.addEventListener('popstate', (e) => {
-    moved()
-    inPlaceUntil = 0
-    if (isMobile.value) backs.value++
-    const tagged = mobileTaggedLevel(e.state)
-    if (tagged !== null) applyLevel(tagged)
-  })
+  listenPopState(router)
 
   /* the level moved without a popstate: record it so Back comes down again */
   watch(level, (next) => {

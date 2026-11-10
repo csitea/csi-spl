@@ -132,6 +132,22 @@ export function mobileHasPrev(state) {
   return Boolean(state && typeof state === 'object' && typeof state.back === 'string' && state.back)
 }
 
+/**
+ * SPL-5232: a popstate that lifts the phone off level 1 onto an entry whose
+ * route vue-router has not resolved yet. Level 1 unmounts the middle panel
+ * (layouts/default.vue mountMain), so showing level 2 at once mounts the page
+ * on the route being left: the channel page read #lobby before #alerts, and
+ * the stale read could end the new feed's wait. Such a level waits for the
+ * route (router.afterEach); every other popstate applies at once.
+ * @param {1|2|3|null} tagged the level the entry says
+ * @param {1|2|3} level the level on screen
+ * @param {boolean} routeLags the URL is not vue-router's current route yet
+ * @returns {boolean}
+ */
+export function mobilePopWaitsRoute(tagged, level, routeLags) {
+  return level === 1 && tagged !== null && tagged > 1 && routeLags
+}
+
 /** history.state with this shell's tags merged in; the router's own keys untouched. */
 export function mobileTagState(state, level, below) {
   const base = state && typeof state === 'object' ? { ...state } : {}

@@ -22,6 +22,7 @@ import {
   mobileOverlayCloseStep,
   mobileOverlayOf,
   mobilePopDropsTopic,
+  mobilePopWaitsRoute,
   mobilePushPlan,
   mobileRecordStep,
   mobileStaleLoginLoad,
@@ -205,6 +206,14 @@ describe('SPL-5232: Back in a discussion is one level, never another section', (
     assert.equal(mobileHasPrev({ back: '/issues', current: '/channel/lobby' }), true)
     assert.equal(mobileHasPrev({ back: null, current: '/' }), false)
     assert.equal(mobileHasPrev(null), false)
+  })
+  it('a popstate off level 1 waits for its route; any other applies at once (SPL-5232)', () => {
+    assert.equal(mobilePopWaitsRoute(2, 1, true), true, '#lobby list -> #alerts: the page must not mount on #lobby')
+    assert.equal(mobilePopWaitsRoute(3, 1, true), true)
+    assert.equal(mobilePopWaitsRoute(2, 1, false), false, 'the same route: nothing to wait for')
+    assert.equal(mobilePopWaitsRoute(2, 2, true), false, 'the page is mounted already: the route change re-reads it')
+    assert.equal(mobilePopWaitsRoute(1, 2, true), false)
+    assert.equal(mobilePopWaitsRoute(null, 1, true), false)
   })
 })
 

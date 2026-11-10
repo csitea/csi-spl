@@ -84,17 +84,21 @@ const go = (p, path) => vue(p, (to) => {
   void document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router?.push(to)
 }, path)
 
-/* the plant: the next channel open waits `ms` with the feed loading, then reads */
-const plantSlow = (p, ms) => vue(p, (wait) => {
+/* the plant: the next channel open (of `only`, when given) waits `ms` with the
+   feed loading, then reads. SPL-5232: named, so no other read can use up the
+   plant meant for #alerts (a Back off the channel list once mounted the page
+   on #lobby first: useMobileStack waits for the route now) */
+const plantSlow = (p, ms, only = '') => vue(p, ([wait, name]) => {
   const ch = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('channel')
   const orig = ch.selectChannel
   ch.selectChannel = async (...a) => {
+    if (name && a[0] !== name) return orig(...a)
     ch.selectChannel = orig
     ch.loading = true
     await new Promise((r) => setTimeout(r, wait))
     return orig(...a)
   }
-}, ms)
+}, [ms, only])
 
 /* records every show / hide of the dots, ms after the call */
 const watchDots = (p) => vue(p, () => {
@@ -174,7 +178,7 @@ async function slowBack(browser, base, how) {
       await sleep(1200)
       slow = 'dock'
     }
-    await plantSlow(page, SLOW_MS)
+    await plantSlow(page, SLOW_MS, 'alerts')
     await watchDots(page)
     const t0 = Date.now()
     const pressed = await BACKS[slow](page)

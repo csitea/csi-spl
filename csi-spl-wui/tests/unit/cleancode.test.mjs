@@ -45,15 +45,12 @@ const LONG = new Map([
 // most WIDE_CAP. The list may only shrink: split a function's parameters into
 // the struct / object they belong to and delete its line; a NEW wide one fails.
 const WIDE = new Set([
-  'src/composables/useCardEdit.ts useCardEdit',
   'src/composables/useCardMove.ts useCardMove',
   'src/composables/useCardTopicActions.ts useCardMessageActions',
   'src/composables/useCardTopicActions.ts useCardTopicActions',
   'src/stores/channel.ts send',
   'src/stores/channel.ts sendLive',
   'src/utils/perf-rum.mjs perfFeedPair',
-  'src/utils/spool-client.mjs liveReader',
-  'src/utils/spool-client.mjs sessionMethods',
 ])
 
 const NEST = new Set([

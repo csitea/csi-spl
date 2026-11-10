@@ -80,6 +80,7 @@ run FS_DRY=0 STUB_FSTYPE=btrfs
 
 # 7. the action, through a stub ssh that runs the remote command on the piped script
 do_log() { echo "$*"; }
+# shellcheck disable=SC2034  # read by do_satellite_data_fs_grow
 do_satellite_ssh_opts() { SATELLITE_SSH=(-o "ProxyCommand=stub" debian@test-satellite); }
 stub ssh "echo \"ssh \$*\" >>'$CALLS'; cmd=\"\${!#}\"; cmd=\"\${cmd#sudo -n }\"; eval \"\$cmd\""
 # shellcheck disable=SC1091

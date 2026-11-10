@@ -94,3 +94,39 @@ func marketingMeta(ctx context.Context, hc *config.Hub, log zerolog.Logger, pmc 
 	log.Info().Str("redirect_uri", meta.RedirectURI).Bool("mail", m.Mail != nil).Msg("marketing: meta on")
 	return m
 }
+
+// marketingX builds the X connect + post wiring (spec 090 X row, SPL-5194),
+// or nil while the X app's client id, its secret, the KMS key or the WUI
+// origin is not set (cnf marketing.x.inject "false"): then every
+// /v1/marketing/x route answers 503 not_configured and the dispatch idles.
+// The redirect URI is the WUI origin's callback, registered in the X app
+// (x-app-setup.md 2).
+func marketingX(ctx context.Context, hc *config.Hub, log zerolog.Logger, pmc *mail.Config, appURL string) *hub.MarketingX {
+	id, secret, key := strings.TrimSpace(hc.MarketingXClientID), strings.TrimSpace(hc.MarketingXClientSecret), strings.TrimSpace(hc.MarketingKMSKey)
+	appURL = strings.TrimRight(strings.TrimSpace(appURL), "/")
+	if id == "" || secret == "" || key == "" || appURL == "" {
+		log.Info().Bool("client_id", id != "").Bool("client_secret", secret != "").Bool("kms_key", key != "").
+			Bool("app_url", appURL != "").Msg("marketing: x off, connect answers 503")
+		return nil
+	}
+	kms, err := marketing.NewCloudKMS(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("marketing: x off, no KMS client, connect answers 503")
+		return nil
+	}
+	sealer, err := marketing.NewSealer(kms, key)
+	if err != nil {
+		log.Error().Err(err).Msg("marketing: x off, connect answers 503")
+		return nil
+	}
+	m := &hub.MarketingX{X: &marketing.X{ClientID: id, ClientSecret: marketing.NewPlaintext(secret), RedirectURI: appURL + hub.XCallbackPath},
+		Sealer: sealer, AppURL: appURL, APIURL: strings.TrimRight(strings.TrimSpace(os.Getenv("SPOOL_HUB_OPERATOR_AUDIENCE")), "/")}
+	if pmc != nil && pmc.Transport != mail.TransportNone {
+		sender := pmc.Sender(log)
+		m.Mail = func(ctx context.Context, to, subject, body string) error {
+			return sender.Send(ctx, mail.Message{To: to, Subject: subject, TextBody: body, Template: "marketing_reconnect", Locale: "en"})
+		}
+	}
+	log.Info().Str("redirect_uri", m.X.RedirectURI).Bool("mail", m.Mail != nil).Msg("marketing: x on")
+	return m
+}

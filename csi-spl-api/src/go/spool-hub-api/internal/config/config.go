@@ -475,6 +475,12 @@ type Hub struct {
 	MarketingFacebookClientSecret string `env:"SPOOL_HUB_MARKETING_FACEBOOK_CLIENT_SECRET"`
 	MarketingFacebookAPIVersion   string `env:"SPOOL_HUB_MARKETING_FACEBOOK_API_VERSION"`
 	MarketingFacebookScopes       string `env:"SPOOL_HUB_MARKETING_FACEBOOK_SCOPES"`
+	// MarketingXClientID / MarketingXClientSecret are the X developer app's
+	// OAuth 2.0 client (spec 090 X row, SPL-5194; x-app-setup.md), injected
+	// from Secret Manager only while cnf marketing.x.inject is "true". With
+	// both and MarketingKMSKey set the /v1/marketing/x routes work; else 503.
+	MarketingXClientID     string `env:"SPOOL_HUB_MARKETING_X_CLIENT_ID"`
+	MarketingXClientSecret string `env:"SPOOL_HUB_MARKETING_X_CLIENT_SECRET"`
 	// The Google Calendar connect (spec 149 B5, SPL-3208, cnf gcal): the
 	// allow-list (workspace ids or the one entry "all"; empty = off
 	// everywhere, every /v1/me/google-calendar route answers 404), the

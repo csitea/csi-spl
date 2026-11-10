@@ -63,3 +63,44 @@ func TestCostEntryPartsPostgresRates(t *testing.T) {
 		t.Errorf("%+v", p)
 	}
 }
+
+// SPL-5198 (owner HUM-10, t1 965283be msg 382450e2: "it must also have the
+// pricess in dollars and euros"): each listed entry in USD and in EUR, at
+// the month's rates. Q1 a EUR entry of 64.80 at 0.9 EUR per USD is 72 USD,
+// its EUR the amount; Q2 a USD entry of 10 is 9 EUR; Q3 a SEK entry of 100
+// at 10 SEK per USD is 10 USD and 9 EUR, both converted; Q4 a currency with
+// no rate has neither; Q5 with no EUR rate a USD entry has no EUR and a EUR
+// entry no USD, never a guess. RED CONTROL: Q5 fails when a missing rate
+// reads as 0 (EURMicros taken from CostPart.EURMicros, not SecondMicros).
+func TestPriceCostEntries(t *testing.T) {
+	ctx := context.Background()
+	micros := func(p *int64) any {
+		if p == nil {
+			return nil
+		}
+		return *p
+	}
+	entries := []CostEntry{
+		{ID: "a", Type: "cloud", Label: "eur", Amount: 64.8, Currency: "EUR", Period: "2026-01"},
+		{ID: "b", Type: "cloud", Label: "usd", Amount: 10, Currency: "USD", Period: "2026-01"},
+		{ID: "c", Type: "hr", Label: "sek", Amount: 100, Currency: "SEK", Period: "2026-01"},
+		{ID: "d", Type: "hr", Label: "nok", Amount: 5, Currency: "NOK", Period: "2026-01"},
+	}
+	want := [][2]any{{int64(72000000), int64(64800000)}, {int64(10000000), int64(9000000)}, {int64(10000000), int64(9000000)}, {nil, nil}}
+	got, err := PriceCostEntries(ctx, entries, fakeEntryRates(map[string]float64{"EUR": 0.9, "SEK": 10}))
+	if err != nil || len(got) != len(entries) {
+		t.Fatalf("Q1-Q4: %v %v", got, err)
+	}
+	for i, g := range got {
+		if g.ID != entries[i].ID || micros(g.USDMicros) != want[i][0] || micros(g.EURMicros) != want[i][1] {
+			t.Errorf("Q%d %s: usd %v eur %v, want %v", i+1, g.Label, micros(g.USDMicros), micros(g.EURMicros), want[i])
+		}
+	}
+	got, _ = PriceCostEntries(ctx, entries[:2], fakeEntryRates(map[string]float64{}))
+	if micros(got[0].USDMicros) != nil || micros(got[0].EURMicros) != int64(64800000) {
+		t.Errorf("Q5 EUR entry with no EUR rate: usd %v eur %v", micros(got[0].USDMicros), micros(got[0].EURMicros))
+	}
+	if micros(got[1].USDMicros) != int64(10000000) || micros(got[1].EURMicros) != nil {
+		t.Errorf("Q5 USD entry with no EUR rate: usd %v eur %v", micros(got[1].USDMicros), micros(got[1].EURMicros))
+	}
+}

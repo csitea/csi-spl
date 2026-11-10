@@ -244,11 +244,7 @@ func (s *Server) costEntryMonthParts(ctx context.Context, month, cur string) (sp
 	if err != nil || len(entries) == 0 {
 		return nil, nil, err
 	}
-	rate := func(context.Context, string, string) (float64, string, bool, error) { return 0, "", false, nil }
-	if fx, ok := s.o.Store.(store.FleetPaidStore); ok {
-		rate = fx.FleetPaidFXRate
-	}
-	parts, err := store.CostEntryParts(ctx, entries, cur, rate)
+	parts, err := store.CostEntryParts(ctx, entries, cur, s.costEntryRate())
 	for _, p := range parts {
 		if p.Kind == "hr" {
 			human = append(human, p)

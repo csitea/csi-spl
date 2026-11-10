@@ -98,3 +98,33 @@ func costEntryPart(e CostEntry, second string, look func(quote, day string) (cos
 	p.SecondMicros, p.FXRate, p.FXRateDay, p.FXRateFirstDay = &sm, &r, &at, &at
 	return p, nil
 }
+
+// PricedCostEntry is a listed cost entry with its amount in USD and in EUR
+// (SPL-5198; owner HUM-10, t1 965283be msg 382450e2: "it must also have the
+// pricess in dollars and euros"), at the rates of its month as above; nil
+// where no rate made it.
+type PricedCostEntry struct {
+	CostEntry
+	USDMicros *int64 `json:"usd_micros"`
+	EURMicros *int64 `json:"eur_micros"`
+}
+
+// PriceCostEntries prices entries in the order given: their parts read in
+// EUR, so EUR is the second amount (nil with no rate) and USD the part's
+// unless Unpriced.
+func PriceCostEntries(ctx context.Context, entries []CostEntry, rate CostEntryRate) ([]PricedCostEntry, error) {
+	parts, err := CostEntryParts(ctx, entries, "EUR", rate)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PricedCostEntry, 0, len(entries))
+	for i, e := range entries {
+		pe := PricedCostEntry{CostEntry: e, EURMicros: parts[i].SecondMicros}
+		if !parts[i].Unpriced {
+			usd := parts[i].USDMicros
+			pe.USDMicros = &usd
+		}
+		out = append(out, pe)
+	}
+	return out, nil
+}

@@ -2,6 +2,7 @@ package hub
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -18,8 +19,9 @@ import (
 // operator_read.go):
 //
 //	GET    /v1/operator/cost-entries?type=cloud|hr&month=YYYY-MM
-//	                                        {entries: [store.CostEntry]}; an
-//	                                        absent filter matches every row
+//	                                        {entries: [store.PricedCostEntry]}:
+//	                                        each in USD and EUR too (SPL-5198);
+//	                                        an absent filter matches every row
 //	POST   /v1/operator/cost-entries        {type, label, amount, currency,
 //	                                         period: YYYY-MM, note?} -> 201 the entry
 //	DELETE /v1/operator/cost-entries/{id}   -> 204
@@ -45,6 +47,15 @@ func (s *Server) routeCostEntries(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/operator/cost-entries/{id}", s.handleCostEntryDelete)
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries", s.operatorWorkspacesPreflight)
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries/{id}", s.operatorWorkspacesPreflight)
+}
+
+// costEntryRate is the entries' rates, the paid items' (FleetPaidFXRate);
+// none on a store without them.
+func (s *Server) costEntryRate() store.CostEntryRate {
+	if fx, ok := s.o.Store.(store.FleetPaidStore); ok {
+		return fx.FleetPaidFXRate
+	}
+	return func(context.Context, string, string) (float64, string, bool, error) { return 0, "", false, nil }
 }
 
 // costEntryCaller is the gate plus the store; who called, false = answered.
@@ -76,12 +87,16 @@ func (s *Server) handleCostEntryList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entries, err := ce.ListCostEntries(r.Context(), typ, month)
+	var priced []store.PricedCostEntry
+	if err == nil {
+		priced, err = store.PriceCostEntries(r.Context(), entries, s.costEntryRate())
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Msg("cost entry list")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost entries unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
+	writeJSON(w, http.StatusOK, map[string]any{"entries": priced})
 }
 
 func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {

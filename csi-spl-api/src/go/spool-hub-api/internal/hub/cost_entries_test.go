@@ -74,3 +74,55 @@ func TestCostEntryRoutes(t *testing.T) {
 		t.Fatalf("second delete: %d, want 404", code)
 	}
 }
+
+// SPL-5198 (owner HUM-10, t1 965283be msg 382450e2: "it must also have the
+// pricess in dollars and euros"): GET /v1/operator/cost-entries carries each
+// entry's usd_micros and eur_micros at its month's rates
+// (store.PriceCostEntries). A USD entry's USD is its amount and a EUR
+// entry's EUR is its amount, on any store; a currency with no rate (XTS) has
+// both null, never 0. The other side is the rate's and is not asserted here
+// (Memory keeps no rates; TestPriceCostEntries covers it). RED CONTROL: the
+// route answering store.CostEntry rows (no fields) fails every check.
+func TestCostEntryListPriced(t *testing.T) {
+	r := newFleetTokensRig(t)
+	month := "2003-11"
+	ids := map[string]string{}
+	for cur, amount := range map[string]float64{"USD": 10, "EUR": 64.8, "XTS": 7} {
+		code, got := call(t, r.e, r.op, http.MethodPost, costEntryPath, r.admin,
+			map[string]any{"type": "cloud", "label": "priced " + cur, "amount": amount, "currency": cur, "period": month})
+		if code != http.StatusCreated {
+			t.Fatalf("create %s: %d %v", cur, code, got)
+		}
+		id, _ := got["id"].(string)
+		ids[id] = cur
+		t.Cleanup(func() { call(t, r.e, r.op, http.MethodDelete, costEntryPath+"/"+id, r.admin, nil) })
+	}
+	code, got := call(t, r.e, r.op, http.MethodGet, costEntryPath+"?type=cloud&month="+month, r.admin, nil)
+	if code != http.StatusOK {
+		t.Fatalf("list: %d %v", code, got)
+	}
+	seen := 0
+	for _, raw := range got["entries"].([]any) {
+		e := raw.(map[string]any)
+		cur, mine := ids[e["id"].(string)]
+		if !mine {
+			continue
+		}
+		seen++
+		usd, hasUSD := e["usd_micros"]
+		eur, hasEUR := e["eur_micros"]
+		switch {
+		case !hasUSD || !hasEUR:
+			t.Errorf("%s entry has no usd_micros / eur_micros: %v", cur, e)
+		case cur == "USD" && usd != float64(10000000):
+			t.Errorf("USD entry usd_micros %v, want 10000000", usd)
+		case cur == "EUR" && eur != float64(64800000):
+			t.Errorf("EUR entry eur_micros %v, want 64800000", eur)
+		case cur == "XTS" && (usd != nil || eur != nil):
+			t.Errorf("XTS entry priced: usd %v eur %v, want both null", usd, eur)
+		}
+	}
+	if seen != len(ids) {
+		t.Fatalf("listed %d of %d entries", seen, len(ids))
+	}
+}

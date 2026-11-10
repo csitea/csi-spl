@@ -455,25 +455,32 @@ func (s *Server) metaApprove(ctx context.Context, mm *MarketingMeta, st metaStor
 	if ch.Platform == store.MarketingPlatformIG && !isJPEG(selectedMedia(media)) {
 		return "", ErrMarketingNeedsJPEG
 	}
-	now := s.o.Now()
-	if _, err := st.ScheduleMarketingPost(ctx, store.MarketingPost{Tenant: ch.Tenant, ChannelID: ch.ID,
+	return s.approveHeld(ctx, st, store.MarketingPost{Tenant: ch.Tenant, ChannelID: ch.ID,
 		SourceType: store.MarketingSourceBlog, SourceRef: bp.ID, ContentText: metaCaption(mm.AppURL, ch.Platform, bp),
-		Status: store.MarketingAwaitingApproval, MediaAssets: media}, now); err != nil {
+		Status: store.MarketingAwaitingApproval, MediaAssets: media}, actor)
+}
+
+// approveHeld records the held post p (once per channel and source) and
+// approves it: scheduled, due now; it returns the post's id. A row that is
+// already past the hold is ErrMarketingRecorded (409). Meta and X (SPL-5194).
+func (s *Server) approveHeld(ctx context.Context, st metaStore, p store.MarketingPost, actor string) (string, error) {
+	now := s.o.Now()
+	if _, err := st.ScheduleMarketingPost(ctx, p, now); err != nil {
 		return "", err
 	}
-	p, err := st.MarketingPostByRef(ctx, ch.Tenant, ch.ID, store.MarketingSourceBlog, bp.ID)
+	got, err := st.MarketingPostByRef(ctx, p.Tenant, p.ChannelID, p.SourceType, p.SourceRef)
 	if err != nil {
 		return "", err
 	}
-	if p.Status != store.MarketingAwaitingApproval {
+	if got.Status != store.MarketingAwaitingApproval {
 		return "", ErrMarketingRecorded
 	}
-	if err := st.ApproveMarketingPost(ctx, ch.Tenant, p.ID, actor, now); errors.Is(err, store.ErrNotFound) {
+	if err := st.ApproveMarketingPost(ctx, p.Tenant, got.ID, actor, now); errors.Is(err, store.ErrNotFound) {
 		return "", ErrMarketingRecorded // a racing publish approved it first
 	} else if err != nil {
 		return "", err
 	}
-	return p.ID, nil
+	return got.ID, nil
 }
 
 func metaHTTP(mm *MarketingMeta) *http.Client {

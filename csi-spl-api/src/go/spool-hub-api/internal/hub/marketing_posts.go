@@ -138,7 +138,9 @@ func (s *Server) handleMarketingPosts(w http.ResponseWriter, r *http.Request, te
 	var posts []marketing.BlogPost
 	var profiles []LinkedInProfile
 	var err error
-	if ch := r.URL.Query().Get("channel"); ch != "" {
+	if ch := r.URL.Query().Get("channel"); ch != "" && s.isXChannel(r.Context(), tenant, ch) { // SPL-5194
+		posts, err = s.UnsharedXPosts(r.Context(), tenant, hum, ch)
+	} else if ch != "" {
 		posts, err = s.UnsharedMetaPosts(r.Context(), tenant, hum, ch)
 	} else {
 		posts, profiles, err = s.unsharedLinkedIn(r.Context(), tenant, hum)
@@ -146,11 +148,12 @@ func (s *Server) handleMarketingPosts(w http.ResponseWriter, r *http.Request, te
 	switch {
 	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingNotApprover):
 		writeForbidden(w, rbac.TenantSettings, err.Error())
-	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingOff), errors.Is(err, ErrMarketingNoMetaPage):
+	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingOff), errors.Is(err, ErrMarketingNoMetaPage),
+		errors.Is(err, ErrMarketingNoXAccount):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, ErrMarketingNoLinked):
 		writeErr(w, http.StatusServiceUnavailable, "linkedin_off", err.Error())
-	case errors.Is(err, ErrMarketingNoMeta):
+	case errors.Is(err, ErrMarketingNoMeta), errors.Is(err, ErrMarketingNoX):
 		writeErr(w, http.StatusServiceUnavailable, "not_configured", err.Error())
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "the unshared blog posts are unavailable")

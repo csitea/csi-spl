@@ -236,6 +236,10 @@ type Options struct {
 	// 090 T033, SPL-4254, marketing_meta_channels.go); nil = not configured:
 	// every /v1/marketing/facebook route answers 503 not_configured.
 	MarketingMeta *MarketingMeta
+	// MarketingX connects X accounts and posts on them (spec 090 X row,
+	// SPL-5194, marketing_x_channels.go); nil = not configured: every
+	// /v1/marketing/x route answers 503 not_configured.
+	MarketingX *MarketingX
 	// Gcal connects a member's own Google Calendar (spec 149 B5, SPL-3208,
 	// gcal_connect.go); nil = off: every /v1/me/google-calendar route is 404.
 	Gcal *GcalConnect

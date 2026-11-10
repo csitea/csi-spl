@@ -49,8 +49,6 @@ const WIDE = new Set([
   'src/composables/useCardTopicActions.ts useCardMessageActions',
   'src/composables/useCardTopicActions.ts useCardTopicActions',
   'src/stores/channel.ts send',
-  'src/stores/channel.ts sendLive',
-  'src/utils/perf-rum.mjs perfFeedPair',
 ])
 
 const NEST = new Set([

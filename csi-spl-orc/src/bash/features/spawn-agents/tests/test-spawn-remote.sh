@@ -61,14 +61,22 @@ far_box() { ( unset SPAWN_LANE_TOPIC SPAWN_LANE_SCOPE SPAWN_LANE_FILES LANE_ISSU
 serve_a() { far_box bash "$SR" --serve; }
 calls() { [ -f "$T_TMP/spawn.calls" ] && wc -l <"$T_TMP/spawn.calls" || echo 0; }
 # A request from B in the background; A's receiver ticks until it is answered.
+# The wait is only an upper bound: a request answered at once returns at once.
+# It also sets the request's expiry (wait - min(60, wait/2) from now): at 20 the
+# far box refused as expired any tick slower than 10 s, which a box at load
+# 113-122 reached (exit 4 in cases 10-13, master too; SPL-5237). T_REQ_WAIT
+# lowers it for a control run. A request that fails prints its stderr as diag.
+REQ_WAIT="${T_REQ_WAIT:-120}"
+req_diag() { [ "$(cat "$1.rc" 2>/dev/null)" = 0 ] || sed 's/^/  diag: /' "$1.err" 2>/dev/null; }
 req_b() {  # OUT_FILE ARGS...
   local out="$1"; shift
-  ( on "$B" sat bash "$SR" --box home --wait 20 "$@" >"$out" 2>"$out.err"; echo $? >"$out.rc" ) &
+  ( on "$B" sat bash "$SR" --box home --wait "$REQ_WAIT" "$@" >"$out" 2>"$out.err"; echo $? >"$out.rc" ) &
   local _
-  for _ in $(seq 1 20); do
+  for _ in $(seq 1 "$REQ_WAIT"); do
     serve_a; [ -f "$out.rc" ] && break; sleep 1
   done
   wait
+  req_diag "$out"
 }
 
 # ---- 1. the orch holder on sat spawns on home ------------------------------------
@@ -258,13 +266,14 @@ EOF
 chmod +x "$T_TMP/spawn-launcher-dry"
 req_real() {  # OUT_FILE ARGS...
   local out="$1"; shift
-  ( on "$B" sat bash "$SR" --box home --wait 20 "$@" >"$out" 2>"$out.err"; echo $? >"$out.rc" ) &
+  ( on "$B" sat bash "$SR" --box home --wait "$REQ_WAIT" "$@" >"$out" 2>"$out.err"; echo $? >"$out.rc" ) &
   local _
-  for _ in $(seq 1 20); do
+  for _ in $(seq 1 "$REQ_WAIT"); do
     far_box SPAWN_REMOTE_WINDOW_CMD="$T_TMP/spawn-launcher-dry" bash "$SR" --serve
     [ -f "$out.rc" ] && break; sleep 1
   done
   wait
+  req_diag "$out"
 }
 SPAWN_LANE_TOPIC="$U" SPAWN_LANE_FILES='a/b.sh' req_real "$T_TMP/r10g" claude auto "$WORK" "$T_TMP/nolink.md" row-real
 has "10. the real launcher's row carries the topic" "--topic '$U'" "$(grep 'lane-map.sh put' "$T_TMP/launcher.out")"

@@ -31,10 +31,10 @@ parameter cap (`perfFeedPair`, `sendLive`); two do the same for Go (`searchSecti
 `revive` on resend and raises its floor. Row 08 (batch 2) drops the 4 `WIDE` lines
 rows 02, 03, 06, 07 leave.
 
-**Status: v0.4 DRAFT**, not signed (section 9). No row lane starts before the panel
-signs the plan sha.
+**Status: v1.0 rc**, signed by the editor seat; the panel seat's signature on this rc
+is pending (section 9). No row lane starts before the panel signs the plan sha.
 
-Editor: **c-716** (claude). Panel seat: an agy seat, queued (ask 6d53d23d, section 5).
+Editor: **c-716** (claude). Panel seat: a-725 (agy), section 5.
 
 **One sha:** every count is measured on **`3c473d8f8`** (`origin/master`
 3c473d8f87b7fd5a9ef247a69e1fcf0b924194de, 2026-11-09T23:20:28Z), n=1 per command
@@ -94,7 +94,7 @@ time, not this sha.
 | round 29 6; c-002 b14413f1 (N1 of c-471's review of r55-06) | `hubclient.go:783` `s.c.revive(m.From)` survives removal | on an archive copy, `:783` replaced by `_ = 0`, `go test -count=1 ./internal/hubclient/` | `ok`, n=1: **confirmed, no test fails**. `revive` itself has a unit case (`agent_drop_test.go:58`); its call in `sendFrame` has none | **Row 05** |
 | round 29 6 (v1.1 ruling) | `internal/hubclient` floor | `go test -count=1 -race -cover ./internal/hubclient/`, n=3; `grep -n hubclient api:src/bash/tests/go-coverage-floor.txt` | 90.1, 90.1, 90.1 against floor `89.6` (`:101`). r55-06 is on trunk (`5c0a4b600`) | **Row 05** raises it |
 | round 29 6 | `hubclient` `now`, `timeout` | `go tool cover -func=<f>`, the profile's zero-count blocks | `now` 66.7 (`hubclient.go:195-197`, `c.Now == nil`), `timeout` 66.7 (`:223-225`, `ReadyTimeout <= 0`) | **Row 05** |
-| Go clean code gate | `wideFuncs` with one private caller | `grep -rnE '\b<name>\(' go:internal` per entry | `searchSections` (`hub/search.go:234`, 8 params, one caller `:167`); `scanMove` (`store/message_move_postgres.go:191`, 8 params, two callers `view_postgres.go:554`, `message_edit_postgres.go:63`) | **Rows 07, 08** |
+| Go clean code gate | `wideFuncs` with one private caller | `grep -rnE '\b<name>\(' go:internal` per entry | `searchSections` (`hub/search.go:234`, 8 params, one caller `:167`); `scanMove` (`store/message_move_postgres.go:191`, 8 params, two callers `view_postgres.go:554`, `message_edit_postgres.go:63`) | **Rows 06, 07** |
 | rows 02, 03, 06, 07 here | the 4 `WIDE` / `wideFuncs` lines they leave | as row 01; the Go gate `t.Logf`s `no longer takes more than` (`cleancode_test.go:112`) and does not fail | 4 | **Row 08**, batch 2 |
 
 **Deferred or dropped:**
@@ -254,13 +254,21 @@ time, not this sha.
   (`ls ... | wc -l` -> 11). **N1:** R3 on written paths (section 3.2). **N2:** row 08's
   gate lines; `perf-rum.test.mjs` and `omnibox-topic.test.mjs` bold. **N3:** section 9
   names claude and round 30 only.
+- v1.0 rc: a-725's PASS on v0.4 `b5061bcd2` (verdict c1fb87fc, holder 9c32ec26, 0
+  defects, 1 note). N1: section 2's `searchSections` / `scanMove` row now points to
+  **Rows 06, 07** (it read 07, 08 after the v0.4 renumbering). Status and section 9;
+  no row changed.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-716 (claude): drafted v0.1 to v0.4. **Not signed yet.**
+- Editor seat: c-716 (claude): drafted v0.1 to v0.4 and the v1.0 rc. **Signed the v1.0 rc.**
 - Panel reviewer seat: a-725 (agy, this box): **FAIL on v0.3 `210c23222`** (1839e41b), 3
-  defects, 3 notes, folded in v0.4. Not signed; re-review of the delta asked.
+  defects, 3 notes, folded in v0.4. **PASS on v0.4 `b5061bcd2`** (c1fb87fc): 0 defects,
+  1 note (N1, folded in the v1.0 rc); gates re-run on that sha (dist hygiene clean, fleet
+  rules 0 drift) and row 03's strict-type probe run (typecheck green; red control
+  TS2345, rc 2). The rc differs from v0.4 by N1's table cell, this section and the
+  status lines only. **Signature on the v1.0 rc pending.**
 - Row R7 seats: fresh **claude** sessions, same-vendor under waiver 1a7c70da (c-001
   5923c9b3), **round 30 only**, never cross-vendor.

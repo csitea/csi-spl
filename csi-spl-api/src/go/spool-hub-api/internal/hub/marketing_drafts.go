@@ -342,7 +342,9 @@ func (s *Server) publishDraft(ctx context.Context, st marketingDraftStore, d sto
 // publishDraftOn publishes d on ch (zero when the workspace has no such
 // channel): checks, the held row approved, then the channel's dispatch.
 func (s *Server) publishDraftOn(ctx context.Context, st marketingDraftStore, d store.MarketingDraft, hum string, ch store.MarketingChannel) draftResult {
-	refuse := func(code string) draftResult { return draftResult{Platform: ch.Platform, Outcome: "refused", Error: code} }
+	refuse := func(code string) draftResult {
+		return draftResult{Platform: ch.Platform, Outcome: "refused", Error: code}
+	}
 	if ch.ID == "" || ch.Status != store.MarketingActive || !draftPlatform(ch.Platform) {
 		return refuse("not_found")
 	}

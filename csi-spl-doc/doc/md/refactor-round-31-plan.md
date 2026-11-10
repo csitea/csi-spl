@@ -33,7 +33,7 @@ caller each.** Three Go rows (`RecordAuthEvent`, `mergePair` + `fanoutMerged`,
 never-placed r55-04 and r55-03) pass their inputs as one struct or object; the two rows
 whose rules no test drives pin them first. Row 06 drops the 7 lines they leave.
 
-**Status: v0.2 DRAFT**, not signed. No row lane starts before the panel signs the plan
+**Status: v0.3 DRAFT**, not signed. No row lane starts before the panel signs the plan
 sha (rulebook 3.2).
 
 Editor: **c-029** (claude). Panel seat: requested, section 5.
@@ -196,17 +196,20 @@ and lane readings are live state, so they carry their own time, not this sha.
 - Editor: c-029 (claude). Both seats sign the plan sha (rulebook 3.2).
 - **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; queued by the holder
   (c-002@sat b779f524: QUEUE dd34c093 to c-001, `agy:c002-refactor-round-31-agy-panel-reviewer`,
-  reviewing `9c841c58b`). agy reviews this plan only, never a
+  reviewing `9c841c58b`; position 3 of 42 per a50aca31). agy reviews this plan only, never a
   row.
-- **Row reviewers: no ruling yet.** The holder asked c-001 (c-002@sat b779f524, in
-  dd34c093). Round 30's ruling (c-001 5923c9b3, same-vendor claude under waiver
-  1a7c70da) was **round 30 only**. Its basis, re-read here: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
-  `prd instance agent kinds: off [grok,qwen], paused []` (2026-11-10T16:00Z, n=1).
-  Owner posts not re-searched (this lane's prd hub tools did not connect). This plan
-  names no row reviewer vendor until the ruling comes.
-- **If the ruling is the waiver again, the conditions per row** (as round 30): the reviewer is a FRESH claude session, never
+- **Row reviewers: same-vendor R7 under waiver 1a7c70da, never cross-vendor.** c-001
+  ruling 24802acd (16:1xZ), relayed by the holder in a50aca31: the waiver stands for
+  round 31's claude R7 seats on claude authors. It **lapses on the first owner post
+  that says grok is back**. Its stated basis, quoted, not re-run here except the first:
+  prd agent kinds off [grok, qwen] (re-read here: `ENV=prd ./run -a
+  do_spl_hub_agent_kinds` -> `prd instance agent kinds: off [grok,qwen], paused []`,
+  2026-11-10T16:00Z, n=1); mistral reviews paused (cf7a7ee5); agy takes no code R7;
+  0 HUM-10 posts since 11-07 14:00Z say grok is back (this lane's prd hub tools did
+  not connect, so not re-searched here).
+- **Conditions per row:** the reviewer is a FRESH claude session, never
   the author and never a seat already in the work; it reads only the tree; its brief
-  names the waiver. Its review line says same-vendor under the waiver, in the `read:`
+  names waiver 1a7c70da. Its review line says same-vendor under the waiver, in the `read:`
   field. Mistral reviews stay paused (cf7a7ee5).
 - The waiver does not make a row compliant: rulebook 2.7.5 fails an equal vendor pair,
   and the retro names each such row.
@@ -249,12 +252,17 @@ and lane readings are live state, so they carry their own time, not this sha.
   lanes recording no files), so section 3.2 says live lanes are NOT proven free; R7
   row vendor stated as not ruled (sections 5, 9); the panel seat queued (dd34c093).
   r56-08 asked to be queued (19c0436d). No row changed.
+- v0.3: c-001's R7 ruling 24802acd (via a50aca31) folded: same-vendor R7 under waiver
+  1a7c70da for round 31, never cross-vendor, lapsing on an owner post that grok is
+  back (sections 5, 9). No row changed.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-029 (claude): drafted v0.1, v0.2. Not signed yet.
+- Editor seat: c-029 (claude): drafted v0.1 to v0.3. Not signed yet.
 - Panel reviewer seat: an agy seat, queued (dd34c093), reviewing v0.1 `9c841c58b`. Not
   placed yet.
-- Row R7 seats: **none ruled yet** for round 31 (section 5).
+- Row R7 seats: fresh **claude** sessions, **same-vendor R7 under waiver 1a7c70da**
+  (c-001 24802acd), round 31, never cross-vendor; lapses on the first owner post that
+  says grok is back.

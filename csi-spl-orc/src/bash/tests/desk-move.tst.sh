@@ -581,6 +581,9 @@ rm -f "$T/ra429"; reset_box
 # a normal return the caller's trap is back
 pr_run() {
   mkdir -p "$T/tmpj"; rm -rf "$T/tmpj"/*
+  # ign: INT ignored on entry, as in a bash started under & without job
+  # control (the CI runner); the caller's INT trap is then a no-op
+  [[ "${2:-}" == ign ]] && trap '' INT
   exec env PROJ_PATH="$PROJ_ROOT" TMPDIR="$T/tmpj" TENANT_ID=ws-a DESK_BOX=box-a MOVE_CHECK_SECS="$1" MOVE_CHECK_EVERY=1 T="$T" bash -c '
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
@@ -593,6 +596,13 @@ for _ in $(seq 1 50); do [[ -n "$(ls -A "$T/tmpj" 2>/dev/null)" ]] && break; sle
 sleep 0.5; kill -TERM "$p"; wait "$p"; rc=$?
 [[ $rc -eq 130 && -z "$(ls -A "$T/tmpj")" ]] && pass "17.5 a proof killed by TERM leaves no session dir" || fail "17.5 rc=$rc left: $(ls -A "$T/tmpj" | tr '\n' ' ')"
 grep -qx OUTER-TRAP "$T/pr.out" && pass "17.5 the caller's trap still runs" || fail "17.5 the caller's trap did not run: $(tr '\n' '|' <"$T/pr.out")"
+# 17.7 the CI case made explicit (run 42889002535): INT ignored on entry,
+# so the caller's INT trap is empty; TERM must still run TERM's own handler
+pr_run 30 ign >"$T/pr.out" & p=$!
+for _ in $(seq 1 50); do [[ -n "$(ls -A "$T/tmpj" 2>/dev/null)" ]] && break; sleep 0.1; done
+sleep 0.5; kill -TERM "$p"; wait "$p"; rc=$?
+[[ $rc -eq 130 && -z "$(ls -A "$T/tmpj")" ]] && pass "17.7 INT ignored on entry, TERM: no session dir" || fail "17.7 rc=$rc left: $(ls -A "$T/tmpj" | tr '\n' ' ')"
+grep -qx OUTER-TRAP "$T/pr.out" && pass "17.7 INT ignored on entry: the caller's TERM trap still runs" || fail "17.7 the caller's TERM trap did not run: $(tr '\n' '|' <"$T/pr.out")"
 out="$(pr_run 1)"
 has "17.6 on return the caller's trap is restored" "after: trap -- 'echo OUTER-TRAP; exit 130' SIGTERM" "$out"
 [[ -z "$(ls -A "$T/tmpj")" ]] && pass "17.6 no session dir after a normal return" || fail "17.6 left: $(ls -A "$T/tmpj")"

@@ -537,15 +537,20 @@ _spl_dm_side() {
 # before the caller's own trap runs (exit 130 when there is none).
 _spl_dm_proof() {
   local seat="$1" every="${MOVE_CHECK_EVERY:-5}" left="${MOVE_CHECK_SECS:-60}" budget="${MOVE_CHECK_429_SECS:-300}"
-  local back jar out v="" w ra line rc=1 old_traps h
+  local back jar out v="" w ra line rc=1 old_traps h sig
   [[ "$every" =~ ^[1-9][0-9]*$ && "$left" =~ ^[0-9]+$ && "$budget" =~ ^[0-9]+$ ]] ||
     { do_log "FATAL MOVE_CHECK_EVERY (>= 1), MOVE_CHECK_SECS and MOVE_CHECK_429_SECS must be whole seconds"; return 1; }
   back="$every"
   jar="$(umask 077 && mktemp -d)" || { do_log "FAIL proof $TENANT_ID/$DESK_BOX: no temp dir for its session"; return 1; }
   old_traps="$(trap -p INT TERM HUP)"
-  h="$(trap -p INT)"; [[ -n "$h" ]] && eval "set -- $h" && h="$3"
-  # shellcheck disable=SC2064  # expands now on purpose: this jar, the caller's handler
-  trap "rm -rf -- $(printf '%q' "$jar"); ${h:-exit 130}" INT TERM HUP
+  # each signal keeps its OWN caller handler: INT is ignored in a bash
+  # started under & without job control, so INT's handler cannot stand in
+  # for TERM's (SPL-5233, CI run 42889002535)
+  for sig in INT TERM HUP; do
+    h="$(trap -p "$sig")"; [[ -n "$h" ]] && eval "set -- $h" && h="$3"
+    # shellcheck disable=SC2064  # expands now on purpose: this jar, the caller's handler
+    trap "rm -rf -- $(printf '%q' "$jar"); ${h:-exit 130}" "$sig"
+  done
   while :; do
     out="$(DESK_AGENT="$seat" DRY_RUN=1 PROBE_COOKIE_FILE="$jar/session" do_spl_desk_check 2>&1)"
     v="$(grep -o '"verdict": "[a-z-]*"' <<<"$out" | tail -n 1 | cut -d'"' -f4)"

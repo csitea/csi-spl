@@ -6,6 +6,8 @@
 # @description (do_spl_merged_cnf). tpl-gen runs locally from its venv.
 # @description tpl-gen is the git-ignored sibling clone $APP_PATH/tpl-gen; its
 # @description HEAD must equal cnf/tpl-gen.ref so a render is reproducible.
+# @description <env>.env.json is rewritten only when a value changed, so an
+# @description equal render keeps the committed bytes (SPL-5199).
 # @param ENV - required: dev or prd
 # @param TPL_GEN_PATH (optional) - default: $APP_PATH/tpl-gen
 # @example ENV=dev ./run -a do_tpl_gen
@@ -52,7 +54,7 @@ do_tpl_gen() {
         TGT="$cnf_proj" \
         .venv/bin/python tpl_gen/tpl_gen.py >/dev/null
   ) || { rm -rf "$work"; do_log "FATAL tpl-gen failed for ENV=$ENV"; return 1; }
-  yq -o json '.' "$cnf_src" >"$cnf_dir/$ENV.env.json" || { rm -rf "$work"; return 1; }
+  _tpl_gen_write_json "$cnf_src" "$cnf_dir/$ENV.env.json" || { rm -rf "$work"; return 1; }
   rm -rf "$work"
   do_log "INFO rendered $cnf_dir/$ENV.env.json (effective config, generated)"
 
@@ -62,4 +64,18 @@ do_tpl_gen() {
     do_log "INFO rendered $f"
   done
   return 0
+}
+
+# _tpl_gen_write_json <yaml> <json>: render <yaml> to <json>, but write only
+# when a value differs. Two yq versions print one number two ways (the box's
+# v4.43.1 "1", the yq that rendered a27e25136 "1.0"), so an unconditional
+# rewrite of an equal file dirtied the main checkout every hour (SPL-5199: the
+# prune cron's push ran the pre-push cnf part there). jq compares by value.
+_tpl_gen_write_json() {
+  local tmp="$1.json"
+  yq -o json '.' "$1" >"$tmp" || return 1
+  if [[ -f "$2" ]] && jq -en --slurpfile a "$2" --slurpfile b "$tmp" '$a == $b' >/dev/null 2>&1; then
+    return 0
+  fi
+  cat "$tmp" >"$2"
 }

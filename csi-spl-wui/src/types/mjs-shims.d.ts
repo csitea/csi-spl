@@ -127,6 +127,9 @@ declare module '~/utils/spool-client.mjs' {
     listMetaPages(): Promise<{ pages?: Array<{ channel_id: string, page_id?: string, name?: string, status?: string, instagram?: { channel_id: string, ig_user_id?: string, username?: string, status?: string } | null }> }>
     listMarketingChannels(): Promise<{ channels?: Array<{ channel_id: string, platform?: string, metadata?: Record<string, unknown> }> }>
     connectFacebook(): Promise<{ authorize_url?: string }>
+    /* spec 090 X row (SPL-5194): X accounts */
+    listXAccounts(): Promise<{ accounts?: Array<{ channel_id: string, user_id?: string, username?: string, name?: string, status?: string }> }>
+    connectX(): Promise<{ authorize_url?: string }>
     disconnectMarketingChannel(channelId: string): Promise<null>
     listTenantChannels(): Promise<unknown>
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>

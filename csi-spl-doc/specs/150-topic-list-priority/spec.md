@@ -376,7 +376,9 @@ holds (panel.md section 1, one row per claim with its command).
        the set row of every discussion it links, or newer, is never moved
        by them; it sets them instead. Where one topic has a set row in two
        workspaces the newer row counts. Two issues set one after the other
-       on one discussion: the second wins, the first follows it.
+       on one discussion: the second wins, the first follows it. Every change
+       is stamped to the microsecond, so a PUT in the same second as an
+       issue change is still the newer.
      - **Across workspaces.** From the operator workspace a change writes
        the topic in the workspace that holds it (`topicWorkspace`: the
        fleet's lane issue on the owner's t1 topic sets t1's row). From any

@@ -92,6 +92,34 @@ func TestIssuePrioritySpreadsToDiscussions(t *testing.T) {
 	if ch, _ := ownChanges(r, prioSync(t, r, "dry_run=0"))["changes"].([]any); len(ch) != 0 {
 		t.Errorf("C150-F5 sweep after both changes moves issues: %v", ch)
 	}
+	if a, b := topicPrio(t, r.e, r.op, talkA), topicPrio(t, r.e, r.op, talkB); a != 1 || b != 4 {
+		t.Errorf("C150-F5 discussions after the sweep: A %d, B %d; want 1 and 4", a, b)
+	}
+}
+
+// C150-F9: an issue change, then a discussion PUT in the same second: the
+// PUT is the newer and wins, before and after the sweep. RED CONTROL (the
+// PUT stamped to the second, R7 c-529 on 26f2d8a93): the PUT reads as
+// older, and the sweep puts the discussion and both issues back to 1.
+func TestTopicPrioritySameSecondPutWins(t *testing.T) {
+	r := newFleetTokensRig(t)
+	talk := uid.New()
+	lobbyTopic(t, r.e, r.op, talk, "## Same second\n\nrow")
+	k := issueWithPrio(t, r.e, r.op, r.admin, "changed first", talk, 5)
+	sib := issueWithPrio(t, r.e, r.op, r.admin, "sibling", talk, 5)
+
+	now := time.Now()
+	r.offset.Store(int64(now.Truncate(time.Second).Add(time.Second + time.Millisecond).Sub(now))) // the hub's clock just past a whole second
+	patchPrio(t, r.e, r.op, r.admin, k, 1)
+	if code, out := putPriority(t, r.e, r.op, talk, r.admin, map[string]any{"priority": 4}); code != http.StatusOK {
+		t.Fatalf("PUT priority: %d %v", code, out)
+	}
+	for _, run := range []string{"after the PUT", "after the sweep"} {
+		if d, i, s := topicPrio(t, r.e, r.op, talk), issuePrio(t, r.e, r.op, r.admin, k), issuePrio(t, r.e, r.op, r.admin, sib); d != 4 || i != 4 || s != 4 {
+			t.Errorf("C150-F9 %s: discussion %d, issue %d, sibling %d; want 4, 4, 4", run, d, i, s)
+		}
+		prioSync(t, r, "dry_run=0")
+	}
 }
 
 // C150-F6: two issues on one discussion, set one after the other: the
@@ -189,6 +217,65 @@ func TestIssuePrioritySweepSpreads(t *testing.T) {
 	}
 	if sp := ownSpread(r, prioSync(t, r, "dry_run=0")); len(sp) != 0 {
 		t.Errorf("C150-F8 second apply is not a no-op: %v", sp)
+	}
+}
+
+// C150-F10: two issues on one discussion, both changed past the hub after
+// its row: the sweep spreads the older change first, so the newest is
+// written last and wins, and the other issue follows it. RED CONTROL (the
+// spread sorted newest first, R7 c-529 a2): the discussion and both issues
+// end at the older 2.
+func TestIssuePrioritySweepSpreadsNewestLast(t *testing.T) {
+	r := newFleetTokensRig(t)
+	talk := uid.New()
+	lobbyTopic(t, r.e, r.op, talk, "## Newest last\n\nrow")
+	a := issueWithPrio(t, r.e, r.op, r.admin, "older change", talk, 5)
+	b := issueWithPrio(t, r.e, r.op, r.admin, "newer change", talk, 5)
+	if code, out := putPriority(t, r.e, r.op, talk, r.admin, map[string]any{"priority": 3}); code != http.StatusOK {
+		t.Fatalf("PUT priority: %d %v", code, out)
+	}
+	for _, c := range []struct {
+		key  string
+		prio int
+		in   time.Duration
+	}{{b, 4, 2 * time.Second}, {a, 2, time.Second}} {
+		n, _ := store.ParseIssueRef(c.key)
+		p := c.prio
+		if _, err := r.e.st.(store.Issues).UpdateIssue(context.Background(), r.op, n, store.IssuePatch{Priority: &p, PriorityOwn: true}, "HUM-1", time.Now().Add(c.in)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prioSync(t, r, "dry_run=0")
+	if d, pa, pb := topicPrio(t, r.e, r.op, talk), issuePrio(t, r.e, r.op, r.admin, a), issuePrio(t, r.e, r.op, r.admin, b); d != 4 || pa != 4 || pb != 4 {
+		t.Errorf("C150-F10 after the sweep: discussion %d, older issue %d, newer issue %d; want 4, 4, 4", d, pa, pb)
+	}
+}
+
+// C150-F11: an operator topic with a set row in two workspaces: the
+// operator issue on it takes the newer row at the sweep. RED CONTROL
+// (linkedSetPriorities keeps the older row, R7 c-529 a3): the issue stays
+// at the operator row's 3.
+func TestIssuePriorityNewerWorkspaceRowCounts(t *testing.T) {
+	r := newFleetTokensRig(t)
+	opTalk := uid.New()
+	lobbyTopic(t, r.e, r.op, opTalk, "## Two rows\n\nrow")
+	relayCopy(t, r.e, r.other, opTalk)
+	kOp := issueWithPrio(t, r.e, r.op, r.admin, "operator issue", opTalk, 5)
+	kRelay := issueWithPrio(t, r.e, r.other, r.otherA, "issue on the relay copy", opTalk, 5)
+	if code, out := putPriority(t, r.e, r.op, opTalk, r.admin, map[string]any{"priority": 3}); code != http.StatusOK {
+		t.Fatalf("PUT priority: %d %v", code, out)
+	}
+	if got := issuePrio(t, r.e, r.op, r.admin, kOp); got != 3 {
+		t.Fatalf("before: operator issue prio %d, want 3", got)
+	}
+	r.offset.Store(int64(time.Second)) // the other workspace's row is the newer
+	patchPrio(t, r.e, r.other, r.otherA, kRelay, 1)
+	if got := topicPrio(t, r.e, r.other, opTalk); got != 1 {
+		t.Fatalf("before: the other workspace's row %d, want 1", got)
+	}
+	prioSync(t, r, "dry_run=0")
+	if got := issuePrio(t, r.e, r.op, r.admin, kOp); got != 1 {
+		t.Errorf("C150-F11 after the sweep: operator issue prio %d, want the newer row's 1", got)
 	}
 }
 

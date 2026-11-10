@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -46,7 +45,7 @@ func (s *Server) agentInheritPriority(ctx context.Context, tenant, as, query str
 		out["reason"] = "source_has_no_priority"
 		return out, nil
 	}
-	row, wrote, err := ps.InheritTopicPriority(ctx, tenant, from, to, as, s.o.Now().UTC().Truncate(time.Second))
+	row, wrote, err := ps.InheritTopicPriority(ctx, tenant, from, to, as, s.o.Now().UTC()) // to the microsecond, as the PUT
 	if err != nil {
 		return nil, inheritFailed(s, err, to)
 	}

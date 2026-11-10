@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -66,7 +65,7 @@ func (s *Server) handleTopicPriority(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "priority not stored")
 		return
 	}
-	row, err := ps.SetTopicPriority(r.Context(), q.t.ID, q.task, prio, q.from, s.o.Now().UTC().Truncate(time.Second))
+	row, err := ps.SetTopicPriority(r.Context(), q.t.ID, q.task, prio, q.from, s.o.Now().UTC()) // to the microsecond: an issue change in the same second must not read as newer
 	switch {
 	case errors.Is(err, store.ErrBadTopicPriority):
 		writeErr(w, http.StatusBadRequest, "bad_json", "priority must be 1..5")

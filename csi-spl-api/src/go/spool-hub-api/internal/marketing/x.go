@@ -302,7 +302,7 @@ func xError(resp *http.Response, body []byte) *XError {
 		msg = e.Errors[0].Message
 	}
 	if len(msg) > 200 {
-		msg = msg[:200]
+		msg = strings.ToValidUTF8(msg[:200], "") // never split a rune
 	}
 	xe := &XError{Status: resp.StatusCode, Message: msg}
 	if resp.StatusCode == http.StatusTooManyRequests {

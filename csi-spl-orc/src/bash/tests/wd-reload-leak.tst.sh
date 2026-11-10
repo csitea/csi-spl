@@ -33,7 +33,8 @@ mkdir -p "$W/code"
 if grep -qF 'exec {RUN_TEE_OUT_FD}> >(do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)' "$PROJ_ROOT/run" &&
    grep -qF 'exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)' "$PROJ_ROOT/run" &&
    grep -qF 'tee >(do_mask_private_keys >"$1")' "$PROJ_ROOT/run" &&
-   grep -qF 'main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-' "$PROJ_ROOT/run"; then
+   grep -qF 'exec >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-' "$PROJ_ROOT/run" &&
+   grep -qxF '  main_exec "$@"' "$PROJ_ROOT/run"; then
   pass "0 ./run still starts every action under the two tee process substitutions"
 else
   fail "0 ./run's tee line changed: update the model in this test"
@@ -81,7 +82,8 @@ main() {
   mkdir -p $main_log_dir
   exec {RUN_TEE_OUT_FD}> >(do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)
   exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
-  main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
+  exec >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
+  main_exec "$@"
   exit $?
 }
 main "$@"

@@ -13,9 +13,8 @@
  * it. Node tests import it.
  */
 
-import { mockError, mockGate, mockStore } from './monitoring-paid.mjs'
+import { mockError, mockGate, mockStore, PAID_MOCK_FX } from './monitoring-paid.mjs'
 import { sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
-import { MOCK_FX_RATES } from './tenant-costs.mjs'
 
 /** The types the tabs enter (store.CostEntryTypes). */
 export const COST_ENTRY_TYPES = Object.freeze(['cloud', 'hr'])
@@ -91,20 +90,22 @@ function mockWrite(store, list) {
   try { store.setItem(COST_ENTRIES_MOCK_KEY, JSON.stringify(list)) } catch { /* the mock forgets */ }
 }
 
-/* the mock's USD and EUR of an entry at its one rate per currency (tenant-costs
-   MOCK_FX_RATES, units per USD); a currency it holds no rate of is null, as the hub */
-function mockPriced(e) {
-  const rate = e.currency === 'USD' ? 1 : MOCK_FX_RATES[e.currency]
+/* the mock's USD and EUR of an entry at its one rate per currency (units per
+   USD: PAID_MOCK_FX, held equal to tenant-costs MOCK_FX_RATES; this file never
+   imports tenant-costs.mjs, the chunk rule); a currency it holds no rate of is
+   null, as the hub */
+function mockPriced(e, rates) {
+  const rate = e.currency === 'USD' ? 1 : rates[e.currency]
   const own = Math.round(Number(e.amount) * 1e6)
   const usd = rate ? Math.round(own / rate) : null
-  const eur = e.currency === 'EUR' ? own : usd === null ? null : Math.round(usd * MOCK_FX_RATES.EUR)
+  const eur = e.currency === 'EUR' ? own : usd === null || !rates.EUR ? null : Math.round(usd * rates.EUR)
   return { ...e, usd_micros: usd, eur_micros: eur }
 }
 
 /** The mock's GET: one type's entries, priced; 403 to anyone but an operator admin. */
-export function mockCostEntryList(type, store = mockStore()) {
+export function mockCostEntryList(type, store = mockStore(), rates = PAID_MOCK_FX) {
   mockGate(store)
-  return { entries: mockRead(store).filter((e) => e.type === type).map(mockPriced) }
+  return { entries: mockRead(store).filter((e) => e.type === type).map((e) => mockPriced(e, rates)) }
 }
 
 /** The mock's POST: stores the body, or refuses once when COST_ENTRIES_MOCK_REFUSE_KEY is set. */

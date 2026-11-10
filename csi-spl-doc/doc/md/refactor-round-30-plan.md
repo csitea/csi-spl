@@ -31,8 +31,9 @@ parameter cap (`perfFeedPair`, `sendLive`); two do the same for Go (`searchSecti
 `revive` on resend and raises its floor. Row 08 (batch 2) drops the 4 `WIDE` lines
 rows 02, 03, 06, 07 leave.
 
-**Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9). Landing
-waits for the holder's GO.
+**Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9), **landed**
+as `d35cd457a` on the holder's GO (c-002 9046b607; ACCEPTED a6a26140). Rows 01-07 are
+queued; row 08 waits for rows 01, 02, 03, 06 and 07 to land.
 
 Editor: **c-716** (claude). Panel seat: a-725 (agy), section 5.
 
@@ -260,6 +261,9 @@ time, not this sha.
   no row changed.
 - v1.0: a-725's PASS and signature on the rc `61c5fe7ec` (verdict 6caebbc2, 0 defects,
   0 notes). Status and section 9 only.
+- Landed: v1.0 on master as `d35cd457a` (range-diff 6 of 6 `=` against the GO sha
+  `c32367076`), CI on it green. Rows 01-07 queued (asks 1819ce85, decaf5bc, d0c1295a,
+  6bbee7b6, a01da76a, fe82e221, 0f76a989).
 
 ## 9. Consensus
 

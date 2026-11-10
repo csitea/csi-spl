@@ -60,7 +60,7 @@ func (s *Postgres) GetEditable(ctx context.Context, tenant, msgID string, now ti
 		return EditableMessage{}, err
 	}
 	m.Channel, m.ParentTaskID = deref(channel), deref(parent)
-	scanMove(&m.Move, mvAt, mvBy, mvCh, mvTask, mCh, mTask, mParent)
+	scanMove(&m.Move, moveScan{At: mvAt, By: mvBy, FromChannel: mvCh, FromTask: mvTask, Channel: mCh, Task: mTask, Parent: mParent})
 	m.EditedBy, m.KindSetBy = deref(editedBy), deref(kindSetBy)
 	if kindSetAt != nil {
 		m.KindSetAt = *kindSetAt

@@ -187,13 +187,19 @@ func (s *Postgres) MovedTaskChannel(ctx context.Context, tenant, task string) (s
 	return deref(channel), true, nil
 }
 
-// scanMove fills a view row's mark from the six columns the view reads.
-func scanMove(v *MoveMark, at *time.Time, by, fromChannel, fromTask, channel, task, parent *string) {
-	if at == nil {
+// moveScan holds the scan targets of moveCols, in its column order.
+type moveScan struct {
+	At                                               *time.Time
+	By, FromChannel, FromTask, Channel, Task, Parent *string
+}
+
+// scanMove fills a view row's mark from the seven columns moveCols reads.
+func scanMove(v *MoveMark, c moveScan) {
+	if c.At == nil {
 		return
 	}
-	*v = MoveMark{At: *at, By: deref(by), FromChannel: deref(fromChannel), FromTask: deref(fromTask),
-		Channel: deref(channel), TaskID: deref(task), ParentTaskID: deref(parent)}
+	*v = MoveMark{At: *c.At, By: deref(c.By), FromChannel: deref(c.FromChannel), FromTask: deref(c.FromTask),
+		Channel: deref(c.Channel), TaskID: deref(c.Task), ParentTaskID: deref(c.Parent)}
 }
 
 // moveCols is the column list scanMove reads, for a view SELECT whose

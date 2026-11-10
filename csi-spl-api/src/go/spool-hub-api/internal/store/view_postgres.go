@@ -551,7 +551,7 @@ func scanViewMsg(rows pgx.Rows, lead ...any) (ViewMsg, error) {
 	if err := rows.Scan(dest...); err != nil {
 		return v, err
 	}
-	scanMove(&v.Move, mvAt, mvBy, mvCh, mvTask, ch, task, parent)
+	scanMove(&v.Move, moveScan{At: mvAt, By: mvBy, FromChannel: mvCh, FromTask: mvTask, Channel: ch, Task: task, Parent: parent})
 	v.RowChannel = deref(ch)
 	v.TypedBy, v.EditedBy, v.Responsible = deref(typedBy), deref(editedBy), deref(responsible)
 	v.RefTaskID, v.MirrorOf = deref(refTask), deref(mirrorOf)

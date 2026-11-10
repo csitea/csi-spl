@@ -7,7 +7,8 @@
 # @description tpl-gen is the git-ignored sibling clone $APP_PATH/tpl-gen; its
 # @description HEAD must equal cnf/tpl-gen.ref so a render is reproducible.
 # @description <env>.env.json is rewritten only when a value changed, so an
-# @description equal render keeps the committed bytes (SPL-5199).
+# @description equal render keeps the committed bytes (SPL-5199); without jq
+# @description it refuses before any write (SPL-5242).
 # @param ENV - required: dev or prd
 # @param TPL_GEN_PATH (optional) - default: $APP_PATH/tpl-gen
 # @example ENV=dev ./run -a do_tpl_gen
@@ -17,6 +18,7 @@ do_tpl_gen() {
   do_resolve_oap APP
   do_require_var ENV "${ENV:-}"
   [[ "$ENV" == dev || "$ENV" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: $ENV"; return 1; }
+  do_require_bin yq jq || return 1
 
   local tpl_gen="${TPL_GEN_PATH:-$APP_PATH/tpl-gen}"
   local py_proj="$tpl_gen/src/python/tpl-gen"
@@ -71,8 +73,12 @@ do_tpl_gen() {
 # v4.43.1 "1", the yq that rendered a27e25136 "1.0"), so an unconditional
 # rewrite of an equal file dirtied the main checkout every hour (SPL-5199: the
 # prune cron's push ran the pre-push cnf part there). jq compares by value.
+# A missing jq is refused, never read as "differs" (SPL-5242: that was a
+# silent unconditional write). The make path do-spl-merged-cnf
+# (csi-spl-orc/src/make/spl-merged-cnf.func.mk) writes through this too.
 _tpl_gen_write_json() {
   local tmp="$1.json"
+  do_require_bin yq jq || return 1
   yq -o json '.' "$1" >"$tmp" || return 1
   if [[ -f "$2" ]] && jq -en --slurpfile a "$2" --slurpfile b "$tmp" '$a == $b' >/dev/null 2>&1; then
     return 0

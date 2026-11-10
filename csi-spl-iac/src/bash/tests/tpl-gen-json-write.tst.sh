@@ -17,6 +17,9 @@ fails=0
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 # shellcheck source=/dev/null
 source "$PROJ_ROOT/src/bash/run/tpl-gen.func.sh"
+# shellcheck source=/dev/null
+source "$PROJ_ROOT/lib/bash/funcs/require-bin.func.sh"
+do_log() { echo "$*"; }
 
 printf 'env:\n  rate: 1.0\n  price: 5.00\n  pcts: [0.5, 1.0]\n' >"$T/in.yaml"
 # compact, one line: no yq version prints it this way

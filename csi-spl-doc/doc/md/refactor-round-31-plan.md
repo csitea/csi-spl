@@ -33,7 +33,7 @@ caller each.** Three Go rows (`RecordAuthEvent`, `mergePair` + `fanoutMerged`,
 never-placed r55-04 and r55-03) pass their inputs as one struct or object; the two rows
 whose rules no test drives pin them first. Row 06 drops the 7 lines they leave.
 
-**Status: v0.1 DRAFT**, not signed. No row lane starts before the panel signs the plan
+**Status: v0.2 DRAFT**, not signed. No row lane starts before the panel signs the plan
 sha (rulebook 3.2).
 
 Editor: **c-029** (claude). Panel seat: requested, section 5.
@@ -150,9 +150,16 @@ and lane readings are live state, so they carry their own time, not this sha.
   files; `git diff --name-only origin/master...<c-306 HEAD>` shares exactly one with
   this plan, `hub/merge.go` (a `topicOpenDoor` guard inside `mergePair`). So row 02 is
   placed after it lands.
-- **Live lanes:** `lane-map.sh --check <the 15 written paths of the 6 rows, the new
-  files and both gate files included, comma separated> --agent c-029` -> `free`,
-  **exit 0** (2026-11-10T15:57:48Z, exit code read via `PIPESTATUS`).
+- **Live lanes: NOT proven free.** `lane-map.sh --check <the 15 written paths of the 6
+  rows, the new files and both gate files included, comma separated> --agent c-029` ->
+  `free`, exit 0 at 2026-11-10T15:57:48Z; **exit 4 at 16:11:32Z** on the same paths
+  (`unknown: c-491@sat c-491-c002-bug-identity-restore-test-concurrent-runs has no files
+  recorded`), exit code read via `PIPESTATUS`, n=1 each. The holder's read on sat
+  (c-002@sat b779f524, 16:1xZ, n=1, quoted, not re-run here): exit 4 on the 7 existing
+  paths, no path owned, 13 live lanes with no files recorded (c-721, c-730, c-734,
+  c-981 among them). Lanes were placed after the 15:57Z run. **Exit 4 is not free, and
+  this plan did not clear it**; the holder re-runs the check before each row's spawn
+  (R3).
 - **Worktrees on this box** (274 in `git worktree list`): each one's
   `git diff --name-only origin/master...HEAD` plus `git status --porcelain`, grepped for
   the rows' files -> 4 hits. `c-306` (SPL-4993, above); `CLE-001-land-77930`
@@ -164,9 +171,10 @@ and lane readings are live state, so they carry their own time, not this sha.
   0 placing`. **18 briefs on this box**, grepped for the rows' files and function
   names -> 1 hit, `c002-feat-prio-two-way-sync` naming `fleet_lanes_view.go`, a false
   match of `view\.go` (not `hub/view.go`). **22 are on sat only** (`WAIT ... not under
-  /var/spool-hub/dispatch/briefs here`), not grepped here; by slug and summary only
-  `c002-spl4993-land-takeover` names a file here (above). A slug is not a brief: the
-  holder greps them on sat.
+  /var/spool-hub/dispatch/briefs here`), not grepped here. The holder grepped them on
+  sat (c-002@sat b779f524, 16:1xZ, n=1, quoted, not re-run here): **0 hits** for any
+  section 3.1 file. `c002-spl4993-land-takeover` names `merge.go` by its subject, SPL-4993
+  (above), not by a path.
 - **Briefs placed before** (`/var/spool-hub/spawn-remote/briefs`, 2498 files, grepped
   the same way): hits only in briefs of landed or closed work (rounds 25-30, SPL-4998,
   spec 150 rows) and the SPL-4993 bug (above).
@@ -186,16 +194,17 @@ and lane readings are live state, so they carry their own time, not this sha.
 ## 5. Panel and reviewers (R7)
 
 - Editor: c-029 (claude). Both seats sign the plan sha (rulebook 3.2).
-- **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; requested from the
-  dispatch holder on task `dispatch-refactor-r31`. agy reviews this plan only, never a
+- **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; queued by the holder
+  (c-002@sat b779f524: QUEUE dd34c093 to c-001, `agy:c002-refactor-round-31-agy-panel-reviewer`,
+  reviewing `9c841c58b`). agy reviews this plan only, never a
   row.
-- **Row reviewers: same-vendor claude under waiver 1a7c70da, only if the holder or
-  c-001 rules it again for round 31.** Round 30's ruling (c-001 5923c9b3) was **round
-  30 only**. Its basis, re-read here: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
+- **Row reviewers: no ruling yet.** The holder asked c-001 (c-002@sat b779f524, in
+  dd34c093). Round 30's ruling (c-001 5923c9b3, same-vendor claude under waiver
+  1a7c70da) was **round 30 only**. Its basis, re-read here: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
   `prd instance agent kinds: off [grok,qwen], paused []` (2026-11-10T16:00Z, n=1).
   Owner posts not re-searched (this lane's prd hub tools did not connect). This plan
-  does not assume the ruling.
-- **Conditions per row** (as round 30): the reviewer is a FRESH claude session, never
+  names no row reviewer vendor until the ruling comes.
+- **If the ruling is the waiver again, the conditions per row** (as round 30): the reviewer is a FRESH claude session, never
   the author and never a seat already in the work; it reads only the tree; its brief
   names the waiver. Its review line says same-vendor under the waiver, in the `read:`
   field. Mistral reviews stay paused (cf7a7ee5).
@@ -235,11 +244,17 @@ and lane readings are live state, so they carry their own time, not this sha.
   round 30's section 6: `RecordAuthEvent`, `mergePair`, `fanoutMerged`,
   `inlineMessages` -> rows 01-03; the three card composables (round 29's r55-03 /
   r55-04, never placed) -> rows 04, 05; `send` and its live-store pin -> round 32.
+- v0.2: the holder's reads folded (c-002@sat b779f524): the sat queue's 22 briefs 0
+  hits; lane-map now exits 4 (16:11:32Z here, and the holder's 16:1xZ read with 13
+  lanes recording no files), so section 3.2 says live lanes are NOT proven free; R7
+  row vendor stated as not ruled (sections 5, 9); the panel seat queued (dd34c093).
+  r56-08 asked to be queued (19c0436d). No row changed.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-029 (claude): drafted v0.1. Not signed yet.
-- Panel reviewer seat: an agy seat, requested. Not placed yet.
-- Row R7 seats: per section 5, the holder's ruling for round 31.
+- Editor seat: c-029 (claude): drafted v0.1, v0.2. Not signed yet.
+- Panel reviewer seat: an agy seat, queued (dd34c093), reviewing v0.1 `9c841c58b`. Not
+  placed yet.
+- Row R7 seats: **none ruled yet** for round 31 (section 5).

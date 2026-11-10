@@ -307,6 +307,9 @@ doc = {
       # spec 090 T030 (SPL-4164): the Meta (Facebook Page + Instagram) connect
       # callback of T033, registered on the WUI origin like LinkedIn's.
       {"source": "/api/v1/marketing/facebook/callback", "run": {"serviceId": service, "region": region}},
+      # spec 090 X row (SPL-5194): the X connect callback, registered on the
+      # WUI origin like LinkedIn's (x-app-setup.md).
+      {"source": "/api/v1/marketing/x/callback", "run": {"serviceId": service, "region": region}},
       # spec 006 checkout-v1 §1 (the bare prefix for POST /api/v1/checkout)
       {"source": "/api/v1/checkout", "run": {"serviceId": service, "region": region}},
       {"source": "/api/v1/checkout/**", "run": {"serviceId": service, "region": region}},

@@ -41,7 +41,8 @@ for env in dev prd; do
   mkt_inject=$(yq -r '.env.marketing.linkedin.inject // "false"' "$CNF/$env.env.json")
   gh_inject=$(yq -r '.env.docs.repo_edit.inject // "false"' "$CNF/$env.env.json")
   fb_inject=$(yq -r '.env.marketing.facebook.inject // "false"' "$CNF/$env.env.json")
-  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" "$gh_inject" "$fb_inject" <<'PY'
+  x_inject=$(yq -r '.env.marketing.x.inject // "false"' "$CNF/$env.env.json")
+  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" "$gh_inject" "$fb_inject" "$x_inject" <<'PY'
 import json, sys
 env = json.loads(sys.argv[1].split("=", 1)[1]); sec = set(json.loads(sys.argv[2].split("=", 1)[1]))
 listed = [p.strip().upper() for p in env.get("SPOOL_HUB_AUTH_PROVIDERS", "").split(",") if p.strip()]
@@ -59,12 +60,18 @@ if env.get("SPOOL_HUB_ENABLE_PAYPAL") == "true": want.add("SPOOL_HUB_PAYPAL_CLIE
 if sys.argv[6] == "true": want.add("SPOOL_GITHUB_APP_KEY")
 # spec 090 T030: the reused sign-in Meta secret only while marketing.facebook.inject is "true"
 if sys.argv[7] == "true": want.add("SPOOL_HUB_MARKETING_FACEBOOK_CLIENT_SECRET")
+# spec 090 X row (SPL-5194): the X app pair only while marketing.x.inject is "true"
+if sys.argv[8] == "true": want |= {"SPOOL_HUB_MARKETING_X_CLIENT_ID", "SPOOL_HUB_MARKETING_X_CLIENT_SECRET"}
 print("ok" if sec == want else f"injected {sorted(sec)} != expected {sorted(want)}")
 PY
 )
   [[ "$inv" == ok ]] && pass "$env injects exactly the secrets its providers/native/mail settings need" || fail "$env $inv"
   got=$(grep -E '^auth_secret_ids ' "$v" | grep -oE 'csi-spl-hub-(auth|mail|wui)-[a-z-]+' | sort | tr '\n' ' ')
   [[ "$got" == "$slots" ]] && pass "$env 030 creates all 8 slots" || fail "$env auth_secret_ids: $got"
+  # spec 090 X row (SPL-5194): both X app slots exist whatever marketing.x.inject says
+  ids=$(grep -E '^auth_secret_ids ' "$v")
+  grep -qF '"csi-spl-hub-marketing-x-client-id"' <<<"$ids" && grep -qF '"csi-spl-hub-marketing-x-client-secret"' <<<"$ids" \
+    && pass "$env 030 creates both X app slots" || fail "$env auth_secret_ids lacks an X app slot"
   grep -q '"SPOOL_HUB_WUI_KEY"' <<<"$envline" && fail "$env the box-wui key is a plain env var" || pass "$env the box-wui key is never a plain env var"
   # SPL-2157: debug sign-in links are opt-in for lde only; dev/prd never set them on
   dbg=$(yq -r '.env.auth.native.env.SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS // "false"' "$CNF/$env.env.json")

@@ -172,8 +172,26 @@ Removes what the plan above listed as `PLAN remove`, through `git worktree remov
 cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_sweep_review_worktrees
 ```
 
+## 2.13 Clean unused Go module versions, plan
+
+Each box user's Go module cache (`go env GOMODCACHE`) keeps every module version any build ever fetched; the build-cache prune never touches it, and `go clean -modcache` drops all of it. This action lists, per version, what no `go.mod` or `go.sum` on the box names: it reads every one under `/opt`, `/srv`, `/var/tmp`, `/tmp` and the users' homes (`GO_MODCACHE_ROOTS` replaces the first four). A removed version costs a re-download when a build next asks for it. Run it by hand. A dry run unless `DRY_RUN=0`.
+
+```bash
+cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> ./run -a do_sweep_go_modcache
+```
+
+One line per version with its size, then a `CACHE` line per user. `PLAN remove` or `REMOVE`: no `go.mod` / `go.sum` names it and nothing in it changed for 7 days (`GO_MODCACHE_AGE_D`). `KEEP used`: a `go.sum` or `go.mod` names it, or a `go.mod` asks for that Go toolchain. `KEEP recent`: changed in the last 7 days. `KEEP busy`: the user runs a go build, test, vet or lint now, so the whole cache stays. A `REFUSE` line means the scan could not read a directory or found no `go.mod` at all: nothing is removed.
+
+## 2.14 Clean unused Go module versions, apply
+
+Removes what the plan above listed as `PLAN remove`, as the cache's owner: the version's read-only files are made writable first, as `go clean -modcache` does, then its directory and its `cache/download` files go.
+
+```bash
+cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_sweep_go_modcache
+```
+
 <a id="ws-doc-d25a9f24-2c98-4999-9f34-87af2537eec7"></a>
-## 2.13 A bad deploy: roll back
+## 2.15 A bad deploy: roll back
 
 When a deploy breaks the hub or the WUI:
 

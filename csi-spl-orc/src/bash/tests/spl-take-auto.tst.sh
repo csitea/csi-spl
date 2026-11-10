@@ -23,9 +23,18 @@
 #      other seat (one log line why); a normal channel, a DM and the sole seat
 #      itself still take; a tail that does not name the post's channel, an
 #      unreadable map or a malformed seat column posts nothing (fail closed)
+#   9. no-auto-post (SPL-5212): a human post in a channel the box map holds
+#      (column 7 no-auto-post, its own row or the workspace's * row) is not
+#      taken by any seat, the sole seat included (one log line why); a channel
+#      with no holding row, a * row of another workspace and a DM still take;
+#      a missing map or a malformed column 7 posts nothing (fail closed).
+#      Sections 1-7 run on a map with no rows: a box with a map that holds
+#      nothing.
 #   control: with the owner check removed (a planted copy), an owned topic is
 #      taken again -> assertion 3 would turn red; with the sole-seat check
-#      removed, the sole-seat post is taken -> section 8 would turn red
+#      removed, the sole-seat post is taken -> section 8 would turn red;
+#      with the no-auto-post check removed, a held post is taken -> section 9
+#      would turn red
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -40,6 +49,7 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
 S="$T/spool"; mkdir -p "$S/dispatch"
+printf '# no rows\n' >"$S/channel-rules.tsv"
 DESK="$T/state/prd/desk/t1/box-a/spool"; mkdir -p "$DESK"
 TOPIC=00000000-0000-4000-8000-0000000000b1
 cat >"$T/reply.sh" <<'EOF'
@@ -203,11 +213,45 @@ fresh; printf 't1\tsole\t%s\tprd\tc-423\tc-423\n' "$DOC" >"$S/channel-rules.tsv"
 out="$(auto)"; has "8. a malformed sole seat column: no post" "cannot tell the sole seat of #sole" "$out"
 chmod 000 "$S/channel-rules.tsv"
 if [[ -r "$S/channel-rules.tsv" ]]; then pass "8. an unreadable map (skipped: this user reads mode 000)"
-else fresh; out="$(auto)"; has "8. an unreadable map: no post" "cannot tell the sole seat" "$out"; fi
+else fresh; out="$(auto)"; has "8. an unreadable map: no post" "cannot tell whether the box map holds #sole (the map is unreadable)" "$out"; fi
 chmod 644 "$S/channel-rules.tsv"
 eq "8. none of the fail-closed cases posted" 0 "$(n "$REPLY_LOG")"
-rm -f "$S/channel-rules.tsv"; fresh; row HUM-10 ALL-0 'q' sole >"$TAIL_FILE"
-out="$(auto)"; has "8. no box map: no channel has a sole seat" "TAKEN $TOPIC" "$out"
+
+# ---- 9. no-auto-post (SPL-5212) -------------------------------------------------
+printf 't1\theld\t-\t-\t-\t-\tno-auto-post\nt1\tops\t%s\tprd\tc-001\nt2\t*\t-\t-\t-\t-\tno-auto-post\nt1\tsole\t%s\tprd\tc-423\tc-423@box-z\tno-auto-post\n' "$DOC" "$DOC" >"$S/channel-rules.tsv"
+fresh; row HUM-10 ALL-0 'q' held >"$TAIL_FILE"
+out="$(auto)"
+has "9. a human post in a channel with its own no-auto-post row: skipped, why" "no-auto-post channel #held: the box map holds it from automatic posts" "$out"
+eq "9. no take line in a held channel" 0 "$(n "$REPLY_LOG")"
+has "9. one log line says why" "skip no-auto-post channel #held" "$(cat "$S/dispatch/take-auto.log")"
+eq "9. exactly one log line" 1 "$(n "$S/dispatch/take-auto.log")"
+fresh; { row HUM-10 ALL-0 'q' ops ma-1; row c-009 c-002 'relay' held; } >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_MSGID=ma-1)"; has "9. any channel the topic touches counts" "no-auto-post channel #held" "$out"
+fresh; lease c-423@box-z "$(date +%s)"; row HUM-10 ALL-0 'q' sole >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_TO=c-423 SPOOL_BOX_ID=box-z)"; has "9. the sole seat of a held channel takes nothing either" "no-auto-post channel #sole" "$out"
+lease c-002@box-a "$(date +%s)"
+fresh; row HUM-10 ALL-0 'q' ops >"$TAIL_FILE"
+out="$(auto SPOOL_TENANT=t2)"; has "9. a * row holds every channel of its workspace" "no-auto-post channel #ops" "$out"
+eq "9. none of the held posts was taken" 0 "$(n "$REPLY_LOG")"
+fresh; row HUM-10 ALL-0 'q' ops >"$TAIL_FILE"
+out="$(auto)"; has "9. control: a channel with no holding row still takes" "TAKEN $TOPIC by c-002@box-a" "$out"
+eq "9. control: it posted its take line" 1 "$(n "$REPLY_LOG")"
+fresh; row HUM-10 ALL-0 'q' other >"$TAIL_FILE"
+out="$(auto)"; has "9. control: another workspace's * row does not hold t1" "TAKEN $TOPIC" "$out"
+fresh; row HUM-10 c-002 'q' '' >"$TAIL_FILE"
+out="$(auto SPOOL_TENANT=t2)"; has "9. a DM is no channel: a * row does not hold it" "TAKEN $TOPIC" "$out"
+fresh; printf 't1\theld\t-\t-\t-\t-\tno-auto-posts\n' >"$S/channel-rules.tsv"; row HUM-10 ALL-0 'q' held >"$TAIL_FILE"
+out="$(auto)"; has "9. a malformed column 7: no post" "cannot tell whether the box map holds #held: no post" "$out"
+rm -f "$S/channel-rules.tsv"; fresh; row HUM-10 ALL-0 'q' ops >"$TAIL_FILE"
+out="$(auto)"; has "9. no box map: no post (the map alone names a held channel)" "cannot tell whether the box map holds #ops (the map is missing)" "$out"
+eq "9. none of the fail-closed cases posted" 0 "$(n "$REPLY_LOG")"
+
+# ---- control: no no-auto-post check -> a held post is taken ---------------------
+printf 't1\theld\t-\t-\t-\t-\tno-auto-post\n' >"$S/channel-rules.tsv"
+sed 's/^    rc=0; cr_no_auto_post .*$/    rc=1/' "$PROJ_ROOT/src/bash/run/spl-take-auto.func.sh" >"$T/planted-held.func.sh"
+fresh; row HUM-10 ALL-0 'q' held >"$TAIL_FILE"
+auto TAKE_AUTO_FUNC="$T/planted-held.func.sh" >/dev/null
+eq "control: the planted copy takes a held post (section 9 would be red)" 1 "$(n "$REPLY_LOG")"
 
 # ---- control: no sole-seat check -> the sole-seat post is taken ----------------
 printf 't1\tsole\t%s\tprd\tc-423\tc-423@box-z\n' "$DOC" >"$S/channel-rules.tsv"

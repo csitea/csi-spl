@@ -22,6 +22,10 @@
 # @description     seat (column 6 of the box map channel-rules.tsv, read by
 # @description     cr_sole_seat; SPL-3542), or the hub tail does not say which
 # @description     channel the post is in: fail closed, nothing is posted
+# @description   - the topic is in a channel the box map holds from automatic
+# @description     posts (column 7 no-auto-post, its own row or the workspace's
+# @description     * row; cr_no_auto_post, SPL-5212); a map that is missing or
+# @description     cannot be read holds every channel: fail closed, no post
 # @description   - the topic holds an agent reply to a human or the channel: owned
 # @description Dry run unless DRY_RUN=0 (the notifier passes DRY_RUN=0).
 # @param TAKE_AUTO_TO - required: the seat the post was delivered to
@@ -88,13 +92,15 @@ spl_take_auto_skip() {
 }
 
 # Print why <id>@<box> must not post in the topic of <tail> and exit 0;
-# exit 1 = no sole seat stands in the way (SPL-3542). A channel may have a
-# sole seat, the one seat that posts there (column 6 of the box map
-# channel-rules.tsv, cr_sole_seat). Fail closed: the poster's row must say
-# which channel it is in ("" = a DM), every channel the topic touches is
-# checked, and a map that cannot be read posts nothing.
+# exit 1 = no channel rule stands in the way. A channel may be held from
+# automatic posts (column 7 no-auto-post of the box map channel-rules.tsv, its
+# row or the workspace's * row, cr_no_auto_post; SPL-5212) or have a sole
+# seat, the one seat that posts there (column 6, cr_sole_seat; SPL-3542).
+# Fail closed: the poster's row must say which channel it is in ("" = a DM),
+# every channel the topic touches is checked, and a map that cannot be read
+# posts nothing; for no-auto-post, a missing map holds too (cr_no_auto_post 2).
 spl_take_auto_sole() {
-  local by="$1" tenant="$2" tail="$3" known ch seat rc
+  local by="$1" tenant="$2" tail="$3" known ch seat rc fault
   local -a chans=()
   declare -F cr_sole_seat >/dev/null ||
     source "$PROJ_PATH/src/bash/features/spawn-agents/lib/channel-rules.inc.sh" ||
@@ -105,6 +111,9 @@ spl_take_auto_sole() {
   mapfile -t chans < <(jq -r -s '[.[] | select(has("channel")) | .channel | tostring
     | ltrimstr("#") | ascii_downcase | select(. != "")] | unique | .[]' <<<"$tail" 2>/dev/null)
   for ch in "${chans[@]}"; do
+    rc=0; cr_no_auto_post "$tenant" "$ch" 2>/dev/null || rc=$?
+    (( rc == 0 )) && { echo "no-auto-post channel #$ch: the box map holds it from automatic posts"; return 0; }
+    (( rc == 2 )) && { fault="$(cr_map_fault)"; echo "cannot tell whether the box map holds #$ch${fault:+ (the map is $fault)}: no post"; return 0; }
     rc=0; seat="$(cr_sole_seat "$tenant" "$ch" 2>/dev/null)" || rc=$?
     (( rc == 2 )) && { echo "cannot tell the sole seat of #$ch: no post"; return 0; }
     (( rc == 0 )) && [[ "$seat" != "$by" ]] && { echo "sole-seat channel #$ch: only $seat posts there"; return 0; }

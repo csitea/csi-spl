@@ -46,7 +46,9 @@ Each decision is one line in `<spool root>/dispatch/take-auto.log`
 | the hub tail fails | fail closed: the seat's model takes it, as before |
 | the topic holds an agent message to a human or to the channel | an OD owns it. An agent-to-agent relay on the topic and the non-AI responder (`RSP-*`) do not count |
 | the topic is in a channel whose sole seat is another seat | only that seat posts there (section 3.1) |
+| the topic is in a channel the box map holds from automatic posts | nothing posts there on its own, the sole seat included (section 3.2) |
 | the hub tail does not say which channel the post is in, the box map cannot be read, or its sole seat column is malformed | fail closed: nothing is posted, the seat's model decides |
+| the box map is missing, or a column 7 is not `no-auto-post`, empty or `-` | fail closed: the map alone names a held channel, so nothing is posted (section 3.2) |
 
 ### 3.1 Sole-seat channels (SPL-3542)
 
@@ -66,6 +68,19 @@ seat that is not `<id>@<box>`. The sole seat itself still takes, and so does
 a DM (channel `""`). A desk binary older than `--with-channel` fails the hub
 tail, which already posts nothing.
 
+### 3.2 Channels held from automatic posts (SPL-5212)
+
+Column 7 of the same map, the word `no-auto-post`, holds a channel from every
+post code makes on its own; a `*` row holds every channel of its workspace
+(`cr_no_auto_post`, the rule of
+[archive-releases-work.md](../041-spool-topic-archive-delete/archive-releases-work.md)).
+Before SPL-5212 only `do_spl_archived_followup` read it, so a held channel
+with no sole seat could still get the take line. `do_spl_take_auto` now checks
+it next to the sole seat, for every channel the topic touches, and first: the
+sole seat of a held channel takes nothing either. It fails closed as the
+follow-up does: a map that is missing or cannot be read, or a bad column 7,
+posts nothing; the skip line says which. A DM is no channel and is not held.
+
 ## 4. Proof
 
 `csi-spl-orc/src/bash/tests/spl-take-auto.tst.sh`: the take, the second
@@ -73,6 +88,10 @@ delivery, ownership, every skip, the dry run, the notifier gate and its
 wiring, the sole-seat cases (section 8), and two planted controls (no owner
 check: an owned topic is taken; no sole-seat check: a sole-seat post is
 taken). Section 8 run against the code before SPL-3542 fails 12 assertions:
-the sole-seat post is taken.
+the sole-seat post is taken. Section 9 (SPL-5212) holds a channel by its own
+row and by a `*` row, with controls that still take (a channel with no holding
+row, another workspace's `*` row, a DM), and a third planted control (no
+no-auto-post check: a held post is taken). Run against the code before
+SPL-5212 it fails 11 assertions: the held posts are taken.
 Run against the tree without this change it fails at the first assertion
 (no action).

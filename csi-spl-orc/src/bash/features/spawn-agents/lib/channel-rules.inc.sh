@@ -15,7 +15,8 @@
 # cr_sole_seat (do_spl_take_auto, SPL-3542); empty or "-" = no sole seat.
 # The optional 7th column, the word no-auto-post: code that carries work on its
 # own posts nothing there, and names it to the orchestrator (cr_no_auto_post,
-# do_spl_archived_followup, SPL-4955). A row with channel * holds every channel
+# do_spl_archived_followup, SPL-4955); the automatic "Taken by" line of
+# do_spl_take_auto is not posted there either (SPL-5212). A row with channel * holds every channel
 # of its workspace; columns 3-6 of such a row are "-" and column 7 is the word.
 # A row is written and a map is checked by do_spl_channel_rule (SPL-5146).
 # The seed generator (spawn-core for a first, rotation or restart seed;

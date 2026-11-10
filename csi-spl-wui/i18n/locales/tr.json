@@ -1829,7 +1829,7 @@
     "marketing_x_revoke_hint": "Uygulamanın X'teki erişimini de kaldırmak için: X'te Ayarlar ve gizlilik, Güvenlik ve hesap erişimi, Uygulamalar ve oturumlar, Bağlı uygulamalar'ı açın ve uygulamanın erişimini iptal edin.",
     "marketing_x_chars": "X'in saydığı şekliyle {count} / {limit} karakter",
     "marketing_x_shortened": "X için çok uzun: özet sığması için kısaltılır.",
-    "marketing_x_too_long": "Bu gönderi kısaltılsa bile X'in 280 karakterine sığmıyor.",
+    "marketing_x_too_long": "Bu yazı kısaltılsa bile X'in 280 karakterine sığmıyor.",
     "marketing_x_forbidden": "Bu hesapta yalnızca hesabı bağlayan üye, bir çalışma alanı yöneticisi veya bir işletme sahibi yayın yapabilir.",
     "display_name": "Çalışma alanı adı",
     "display_name_hint": "Çalışma alanı değiştiricide ve sekme başlığında gösterilir. Boş bırakılırsa kimlik gösterilir ({id}).",

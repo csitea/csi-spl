@@ -1830,7 +1830,7 @@
     "marketing_x_chars": "{count} / {limit} tecken, så som X räknar dem",
     "marketing_x_shortened": "För långt för X: sammanfattningen kortas så att den får plats.",
     "marketing_x_too_long": "Det här inlägget får inte plats i X:s 280 tecken, inte ens förkortat.",
-    "marketing_x_forbidden": "Endast medlemmen som anslöt kontot, en administratör för arbetsytan eller en företagsägare kan publicera på det.",
+    "marketing_x_forbidden": "Bara medlemmen som anslöt det här kontot, en administratör i arbetsytan eller en affärsägare kan publicera på det.",
     "display_name": "Arbetsytans namn",
     "display_name_hint": "Visas i arbetsytans väljare och flikens titel. Tomt visar id:t ({id}).",
     "default_locale": "Standardspråk",

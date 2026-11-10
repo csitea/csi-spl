@@ -22,8 +22,10 @@ SHARE note b2aa51f8, refactor under its band. Re-read here (2026-11-10T15:43Z, n
 `r55|r56|r57|refactor` -> 0 rows). Round 30 ([plan](refactor-round-30-plan.md), slug
 `r56`) is **not served**: on `35927a0d8`,
 `git log 35927a0d8 --format='%h %s' -E --grep='r56-'` -> 7 commits, rows 01-07.
-**Row 08 has no commit** and is not queued; it edits the two gate lists, so only row
-06 here touches them, after it (section 3.2). No round 30 retro is on `35927a0d8`
+**Row 08 has no commit** on `35927a0d8`; it edits the two gate lists, so only row
+06 here touches them, after it (section 3.2). Since then (panel a-165, 17:4xZ,
+quoted, not re-run here) r56-08 is **live as `c-495@sat`**, 0 commits on
+`078c9a72c`. No round 30 retro is on `35927a0d8`
 (`ls csi-spl-doc/doc/md/ | grep -c refactor-round-30-retro` -> 0), so section 2
 re-measures round 30's own carry-over list (its section 6).
 
@@ -31,16 +33,19 @@ Round 31 focus: **the `WIDE` / `wideFuncs` functions round 30 left that have one
 caller each.** Three Go rows (`RecordAuthEvent`, `mergePair` + `fanoutMerged`,
 `inlineMessages`) and two WUI rows (the card actions and `useCardMove`, round 29's
 never-placed r55-04 and r55-03) pass their inputs as one struct or object; the two rows
-whose rules no test drives pin them first. Row 06 drops the 7 lines they leave.
+whose rules no test drives pin them first, and row 05 adds the drop case its test
+lacks (v0.4). Row 06 drops the 7 lines they leave.
 
-**Status: v0.3 DRAFT**, not signed. No row lane starts before the panel signs the plan
+**Status: v0.4 DRAFT**, not signed. No row lane starts before the panel signs the plan
 sha (rulebook 3.2).
 
 Editor: **c-029** (claude). Panel seat: requested, section 5.
 
 **One sha:** every count is measured on **`35927a0d8`** (`origin/master`
 35927a0d81654ae6117f25069907fb2fd8cc1e3c, 2026-11-10T10:34:18Z), n=1 per command
-unless stated. Go: go1.26.10. Go reads are in this lane's worktree at that sha, clean;
+unless stated. Re-checked at v0.4 on `origin/master` `078c9a72c`: `git diff --stat
+35927a0d8 078c9a72c -- <the 13 existing written paths>` -> empty, so every line here
+still holds. Go: go1.26.10. Go reads are in this lane's worktree at that sha, clean;
 the WUI gate ran on a `git archive 35927a0d8` copy with the main checkout's
 `node_modules` linked in, read only; row 01's survival probe ran on two
 `git archive 35927a0d8 csi-spl-api csi-spl-rdb` copies (one planted, one clean). Queue
@@ -77,7 +82,10 @@ and lane readings are live state, so they carry their own time, not this sha.
   files the pre-push map selects
   (`cd csi-spl-iac && WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e`).
 - **What was and was not run:** row 01's survival probe (section 2), n=1. **No other
-  red control or break named here has been planted, and no case has been written.**
+  red control or break named here has been planted by this lane, and no case has been
+  written.** The panel (a-165, on v0.3, quoted, n=1 each) planted row 02's, row
+  03's, row 05's and row 06's controls and row 04's three breaks: section 3 states
+  their results.
 
 ## 2. Where the rows come from (measured on `35927a0d8`)
 
@@ -89,9 +97,9 @@ and lane readings are live state, so they carry their own time, not this sha.
 | round 30 6 | is the adapter's field mapping under test? | archive copy, `hub/memberactivity.go:46` `IP: ip, UA: ua` planted as `IP: ua, UA: ip`; `go test -count=1 ./internal/hub/` on it and on a clean copy; `go test -count=1 ./internal/auth/` on it | hub: the same 3 `--- FAIL` on both copies (`TestEmojiChoicesMatchWUI`, `TestDMCountsMatchWUIFixture`, `TestChannelMovePlanRetentionLines`: they read `csi-spl-wui/` and `csi-spl-orc/` files the api-only archive lacks, their logs say so); auth `ok`. **The swap survives every hub and auth test**, n=1. `memberactivity_recorder_test.go` checks only that the memory store yields nil | **Row 01** pins first |
 | round 30 6 | `mergePair`, `fanoutMerged` `wideFuncs` | `grep -rnE '\b(mergePair\|fanoutMerged)\(' go:` | `mergePair` (`hub/merge.go:151`, 8 params, one caller `:77`); `fanoutMerged` (`:249`, 8 params, one caller `:117`, one bench caller `hub/fanout_encode_e16_bench_test.go:61`). Lines `cleancode_test.go:48`, `:49`. `merge_test.go:75-76` reads the merged frame's `msg_id`, `merged_from`, `task_id`; `:62` the answer's `merged_from`, `edited_by`, `revision` | **Row 02** |
 | round 30 6 | `inlineMessages` `wideFuncs` | `grep -rnE '\binlineMessages\(' go:`; `ls go:hub/*_test.go \| xargs grep -l per_topic \| wc -l` | `hub/view.go:990`, 8 params, one caller `:788`; line `cleancode_test.go:51`. 9 test files send `per_topic` (among them `view_per_topic_test.go`, `demo_moderation_test.go:236`) | **Row 03** |
-| round 30 6 (round 29 r55-04, never placed) | `useCardTopicActions`, `useCardMessageActions` `WIDE` | `grep -rnE '\b(useCardTopicActions\|useCardMessageActions)\(' wui:src wui:tests`; `git log 35927a0d8 --oneline --grep='r55-04'`; `git ls-remote origin '*r55-0[34]*'` | 6 params each (`useCardTopicActions.ts:42`, `:193`); one caller each, `MessageCard.vue:725`, `:726`; `useCardMessageActions` has one test caller (`card-message-actions.test.mjs:27`, its rules pinned by SPL-4998 `07f53e6d1`); **no test calls `useCardTopicActions`**. r55-04: 0 commits, 0 branches, not queued | **Row 04** |
-| round 30 6 (round 29 r55-03, never placed) | `useCardMove` `WIDE` | `grep -rnE '\buseCardMove\(' wui:src wui:tests`; `--grep='r55-03'` | 6 params (`useCardMove.ts:68`); one caller `MessageCard.vue:756`; one test caller `card-move-steps.test.mjs:67`. r55-03: 0 commits, 0 branches, not queued | **Row 05** |
-| WUI gate | the list now | `node tests/unit/cleancode.test.mjs` (archive copy) | `13297 functions, 0 listed long, 6 listed wide, none deeper than 4 or wider than 5`; 2 `NOTE WIDE` (`sendLive`, `perfFeedPair`): **r56-08's** lines | rows 04, 05 leave 3 lines |
+| round 30 6 (round 29 r55-04, never placed) | `useCardTopicActions`, `useCardMessageActions` `WIDE` | `grep -rnE '\b(useCardTopicActions\|useCardMessageActions)\(' wui:src wui:tests`; `git log 35927a0d8 --format='%h %s' \| grep -cE 'r55-0[34]'` (subjects only); `git ls-remote origin '*r55-0[34]*'` | 6 params each (`useCardTopicActions.ts:42`, `:193`); one caller each, `MessageCard.vue:725`, `:726`; `useCardMessageActions` has one test caller (`card-message-actions.test.mjs:27`, its rules pinned by SPL-4998 `07f53e6d1`); **no test calls `useCardTopicActions`**. r55-04: 0 row commits (`--grep='r55-04'` also matches bodies: 1 plan-doc hit, `745520383`, the round 30 plan), 0 branches, not queued | **Row 04** |
+| round 30 6 (round 29 r55-03, never placed) | `useCardMove` `WIDE` | `grep -rnE '\buseCardMove\(' wui:src wui:tests`; the subject grep of row 04 | 6 params (`useCardMove.ts:68`); one caller `MessageCard.vue:756`; one test caller `card-move-steps.test.mjs:67`. r55-03: 0 row commits (`--grep` 1 plan-doc hit, `745520383`), 0 branches, not queued. `card-move-steps.test.mjs:42` stubs `land: () => {}` and none of its 3 cases drops a card; `title` (`useCardMove.ts:127`) and `pickerOpen` (`:88`) are not asserted | **Row 05** pins first |
+| WUI gate | the list now | `node tests/unit/cleancode.test.mjs` (archive copy) | `13297 functions, 0 listed long, 6 listed wide, none deeper than 4 or wider than 5` (`13337 functions` on `078c9a72c` after SPL-5194 `8ad692de1`, panel a-165, not re-run here; the list unchanged); 2 `NOTE WIDE` (`sendLive`, `perfFeedPair`): **r56-08's** lines | rows 04, 05 leave 3 lines |
 | Go gate | the list now | `go test -count=1 -v -run TestCleanCode ./internal/cleancode/` | `ok`; 2 `no longer takes more than 7` logs (`searchSections`, `scanMove`): **r56-08's** lines. 14 `wideFuncs` lines | rows 01-03 leave 4 lines |
 | rows 01-05 here | the 7 lines they leave | as the two gate rows above | 7 (3 WUI, 4 Go) | **Row 06**, batch 3 |
 
@@ -99,7 +107,7 @@ and lane readings are live state, so they carry their own time, not this sha.
 
 | source | input | command on `35927a0d8` | n | disposition |
 |---|---|---|---|---|
-| round 30 6 | `send` `WIDE` (`wui:src/stores/channel.ts:541`) | `grep -rnE '\.send\(' wui:src --include=*.vue --include=*.ts --include=*.mjs \| grep -v client.send`, read one by one | 8 call sites of the store action: `PollForm.vue:168`, `TopBar.vue:254` (`target.send`), `lobby.vue:268`, `:284`, `channel/[name].vue:166`, `t/[task_id].vue:172`, `useDmLineTarget.ts:72`, `msg-ai-run.ts:48` (`deps.send`). Over the 5-site cap | **Left out**: a store's public action, needs its own split over two rows; **input for round 32** |
+| round 30 6 | `send` `WIDE` (`wui:src/stores/channel.ts:541`) | `git grep -nE '\.send\(\|send:' 35927a0d8 -- csi-spl-wui/src`, read one by one | 7 call sites of the store action: `PollForm.vue:168`, `lobby.vue:268`, `:284`, `channel/[name].vue:166`, `t/[task_id].vue:172`, `useDmLineTarget.ts:72`, `msg-ai-run.ts:48` (`deps.send`, typed `AiRunDeps.send` at `:31`); plus 2 wirings by reference, `MessageMenu.vue:118` and `useAiListRun.ts:23` (`send: ... .send`). Not `TopBar.vue:254`: that is `OmniboxTarget.send` (`omnibox.ts:14`, 2nd arg `files`). Over the 5-site cap | **Left out**: a store's public action, needs its own split over two rows; **input for round 32** |
 | round 30 6 | a live-store pin of `send` | `git grep -n useChannelStore 35927a0d8 -- csi-spl-wui/tests/unit \| wc -l` | 0: no unit test loads the channel store | **Left out**: a harness is wider than a row; round 32 input with `send` |
 | round 30 2, 6 | `hubclient` `writeAtomic`, `hold` | not re-measured | none | **Left out**, as round 30: no small case found |
 | Go `wideFuncs` | `IssueToken` (2), `CASFleetLease` (2), `MoveMessage` (2), `MergeTopic` (2) | gate comment `cleancode_test.go:41-43` | implement one interface each, leave together | **Left out**: interface pairs, wider than a row |
@@ -112,10 +120,10 @@ and lane readings are live state, so they carry their own time, not this sha.
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r57-01-api-pin-auth-event-struct)` | pin first, then pass the struct instead (`cleancode_test.go:20`) | `RecordAuthEvent` takes 8 parameters, 6 of them strings in a row; the adapter's field mapping survives a swap (section 2) | `go:auth/audit.go:21` (`ActivityRecorder`)<br>`go:auth/audit.go:43` (its one call)<br>`go:hub/memberactivity.go:40` (the adapter)<br>`go:auth/audit_test.go:54` (`fakeRecorder`)<br>`go:hub/memberactivity_adapter_pin_test.go` (new) | 1 interface, 1 call, 2 implementations, 1 pin | **Pin first:** a fake store that embeds `store.NewMemory()` and records `AppendMemberActivity`; `authActivityAdapter{store: fake}.RecordAuthEvent(...)` with seven distinct values -> each lands in its own `store.MemberActivity` field (`TenantID`, `SubjectHum`, `Kind`, `Detail`, `IP`, `UA`, `CreatedAt`). **Red control:** the probe's swap `IP: ua, UA: ip` -> the new case fails (green over every hub and auth test today, section 2), restored. **Then** `RecordAuthEvent(ctx, ev auth.Event)` with `auth.Event{Tenant, HumanID, Kind, Method, IP, UA string; At time.Time}` defined in `auth`, so the seam stays primitives-only (no `store` import in `auth`; the comment above `ActivityRecorder` follows). Leave the `wideFuncs` line (row 06). Helpers prefixed `ap`. Tests: the new file; `go test -count=1 ./internal/auth/ ./internal/hub/`; `run-all-tests.sh`; auth: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; `go test ./internal/cleancode/ -v -run TestCleanCode` (a `no longer takes more than` log after). | either | claude | simple_coding | 1 |
-| 02 `refactor(r57-02-api-merge-pair-fanout-structs)` | as row 01, no new pin | `mergePair` and `fanoutMerged` take 8 parameters each; `merge_test.go` drives both through `POST /v1/messages/{id}/merge` | `go:hub/merge.go:151` (`mergePair`)<br>`go:hub/merge.go:77` (its one caller)<br>`go:hub/merge.go:249` (`fanoutMerged`)<br>`go:hub/merge.go:117` (its one caller)<br>`go:hub/fanout_encode_e16_bench_test.go:61` (bench caller) | 2 functions, 2 callers, 1 bench | `mergePair`'s request inputs (`hum, from, srcID, keepID, now`) as one unexported struct, and `fanoutMerged`'s edit stamp (`canon, at, by, rev`) as another, so each takes at most 7. Results, frames and errors unchanged. **Placed only after SPL-4993's `merge.go` change is on master** (section 3.2): it adds a guard inside `mergePair`'s body. Leave the two `wideFuncs` lines (row 06). Tests: `go test -count=1 ./internal/hub/` (with `merge_test.go`, `merge_pin_test.go`, `topic_merge_test.go`); `go test -run XXX -bench Merged ./internal/hub/` builds the bench; `run-all-tests.sh`; the Go gate as row 01. **Control:** swap `srcID` and `keepID` in the `:77` struct literal -> `TestMergeMessageIntoPrevious` fails (`:62`, `merged_from`), restored; the lane names the case; not run here. | either | claude | simple_coding | 1, after SPL-4993 |
+| 02 `refactor(r57-02-api-merge-pair-fanout-structs)` | as row 01, no new pin | `mergePair` and `fanoutMerged` take 8 parameters each; `merge_test.go` drives both through `POST /v1/messages/{id}/merge` | `go:hub/merge.go:151` (`mergePair`)<br>`go:hub/merge.go:77` (its one caller)<br>`go:hub/merge.go:249` (`fanoutMerged`)<br>`go:hub/merge.go:117` (its one caller)<br>`go:hub/fanout_encode_e16_bench_test.go:61` (bench caller) | 2 functions, 2 callers, 1 bench | `mergePair`'s request inputs (`hum, from, srcID, keepID, now`) as one unexported struct, and `fanoutMerged`'s edit stamp (`canon, at, by, rev`) as another, so each takes at most 7. Results, frames and errors unchanged. **Placed only after SPL-4993's `merge.go` change is on master** (section 3.2): it adds a guard inside `mergePair`'s body. Leave the two `wideFuncs` lines (row 06). Tests: `go test -count=1 ./internal/hub/` (with `merge_test.go`, `merge_pin_test.go`, `topic_merge_test.go`); `go test -run XXX -bench Merged ./internal/hub/` builds the bench; `run-all-tests.sh`; the Go gate as row 01. **Control:** swap `srcID` and `keepID` in the `:77` struct literal -> `TestMergeMessageIntoPrevious` fails at `merge_test.go:77` (the watcher frame's `msg_id` / `merged_from`; the answer's `merged_from` at `:62` comes from `handleMerge`'s own `srcID`, `merge.go:119`), restored. Run by the panel on v0.3 (exit 1, n=1), not here. | either | claude | simple_coding | 1, after SPL-4993 |
 | 03 `refactor(r57-03-api-inline-messages-page)` | as row 02 | `inlineMessages` takes 8 parameters | `go:hub/view.go:990` (`inlineMessages`)<br>`go:hub/view.go:788` (its one caller) | 1 function, 1 caller | Its page inputs (`per, out`) and filters (`mod, lv`) as one unexported struct, so it takes at most 7 (5 here). Results, error answers and the read count unchanged (`roundtrips_perf_test.go` counts the round trips). Leave the `wideFuncs` line (row 06). Tests: `go test -count=1 ./internal/hub/` (the 9 `per_topic` files among them); `run-all-tests.sh`; the Go gate as row 01. **Control:** pass a zero `modView` in the `:788` struct -> a `per_topic` case of `demo_moderation_test.go` (a hidden message inlined) fails, restored; the lane names it; not run here. | either | claude | simple_coding | 1 |
 | 04 `refactor(r57-04-wui-pin-card-topic-actions-object)` | pin first, then one object (round 29 r55-04, re-measured) | both functions take 6 parameters; no test calls `useCardTopicActions` (section 2) | `wui:src/composables/useCardTopicActions.ts:42` (6 params)<br>`wui:src/composables/useCardTopicActions.ts:193` (6 params)<br>`wui:src/components/MessageCard.vue:725-726` (their callers)<br>`wui:tests/unit/card-message-actions.test.mjs:27` (its one test caller)<br>`wui:tests/unit/card-topic-actions.test.mjs` (new) | 2 functions, 2 callers, 3 pins | **Pin first**, on `onMenuArchive` (`:63`): **(R)** a second archive while one runs does nothing (break: delete `if (removing.value) return false`, `:65`); **(D)** an archived topic leaves every feed (break: delete `dropEverywhere(id)`, `:72`); **(E)** a failed archive shows its error and clears `removing` (break: delete `removing.value = false` in `finally`, `:82`). Each red only under its own break, restored. **Then** `useCardTopicActions({ props, emit, rowEl }, busy, menu, msgEdit)` and `useCardMessageActions({ props, emit, editing }, busy, menu, msgEdit)`; returned keys unchanged. Leave the `WIDE` lines (row 06). Tests: the new file; `card-message-actions.test.mjs`; **`msg-make-task.test.mjs`** (`:79` reads the file); the readers of **`lib/message-card-src.mjs`** (`grep -rl message-card-src wui:tests/unit \| wc -l` -> 17); `pnpm run typecheck`; `pnpm run test:unit`; `node tests/unit/cleancode.test.mjs`; the e2e files the map selects. | either | claude | simple_coding | 1 |
-| 05 `refactor(r57-05-wui-card-move-object)` | as row 04, its rules run by an existing test (`r52-01`) | `useCardMove` takes 6 parameters; `card-move-steps.test.mjs` runs its drag rules, so no new pin | `wui:src/composables/useCardMove.ts:68` (6 params)<br>`wui:src/components/MessageCard.vue:756` (its one caller)<br>`wui:tests/unit/card-move-steps.test.mjs:67` (its one test caller) | 1 function, 1 caller | `useCardMove({ props, flags, title, pickerOpen }, menu, peer)`; `peer` and the returned keys unchanged. Leave the `WIDE` line (row 06). Tests: `card-move-steps.test.mjs` (only the call at `:67` changes); the readers of **`lib/message-card-src.mjs`**; `pnpm run typecheck`; `pnpm run test:unit`; `node tests/unit/cleancode.test.mjs`; the e2e files the map selects. **Control:** in `onDrop` (`:92`) delete `move.land(true)` (`:95`) -> a case of `card-move-steps.test.mjs` fails on the new signature, restored; not run here. | either | claude | simple_coding | 2 (after 04) |
+| 05 `refactor(r57-05-wui-pin-card-move-object)` | pin first, then one object (round 29 r55-03, re-measured) | `useCardMove` takes 6 parameters; `card-move-steps.test.mjs` (`r52-01`) runs its lift and track steps but never a drop: its stub `land` is a no-op (`:42`), so deleting `move.land(true)` stays green (panel a-165 on v0.3: 3 pass, 0 fail, n=1) | `wui:src/composables/useCardMove.ts:68` (6 params)<br>`wui:src/components/MessageCard.vue:756` (its one caller)<br>`wui:tests/unit/card-move-steps.test.mjs:42` (the `useMoveStore` stub), `:67` (its one test caller), new cases | 1 function, 1 caller, 1 test file | **Pin first, in `card-move-steps.test.mjs`:** the stub records `land` calls; on start, `lifts[0].title` is the title passed in and `pickerOpen.value === false`; a new drop step (`onDrop`) -> `land(true)` called once and the drag ended (`endDrag`). **Red control:** delete `move.land(true)` (`useCardMove.ts:95`) -> the drop case fails, restored; delete `pickerOpen.value = false` (`:88`) -> the start case fails, restored. **Then** `useCardMove({ props, flags, title, pickerOpen }, menu, peer)`; `peer` and the returned keys unchanged; only the call at `:67` changes beside the new cases. Leave the `WIDE` line (row 06). Tests: `card-move-steps.test.mjs`; the readers of **`lib/message-card-src.mjs`**; `pnpm run typecheck`; `pnpm run test:unit`; `node tests/unit/cleancode.test.mjs`; the e2e files the map selects. | either | claude | simple_coding | 2 (after 04) |
 | 06 `test(r57-06-drop-wide-lines-of-r57)` | a gate's list holds no stale line (`r56-08`) | rows 01-05 leave 7 stale lines | `wui:tests/unit/cleancode.test.mjs:48-50` (`useCardMove`, `useCardMessageActions`, `useCardTopicActions`)<br>`go:cleancode/cleancode_test.go:47-49` (`RecordAuthEvent`, `fanoutMerged`, `mergePair`), `:51` (`inlineMessages`); lines as of `35927a0d8`, they move when r56-08 lands | 7 lines | Placed only after **r56-08** and rows 01-05 are on trunk (R16); a row not landed keeps its line, and the lane says which. Delete exactly the lines the gates note. Tests: `node tests/unit/cleancode.test.mjs` (no `NOTE WIDE`; `1 listed wide`, `send`, once r56-08 and rows 04, 05 landed); `go test -count=1 -v ./internal/cleancode/` (no `no longer` log; 8 `wideFuncs` lines once r56-08 and rows 01-03 landed); `pnpm run test:unit`; `run-all-tests.sh`. R9 (a gate's list): `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Red control:** delete a still-wide line (`send`) -> the WUI gate fails naming it; delete `(*MemoryCredStore).IssueToken` -> the Go gate fails; both restored. | either | claude | tests | 3 (after r56-08, 01-05) |
 
 ### 3.1 Lanes and batches
@@ -127,7 +135,8 @@ and lane readings are live state, so they carry their own time, not this sha.
   new test file. All four change code that runs. No row edits a migration,
   `csi-spl-cnf/`, a workflow or terraform.
 - **Row 02 also waits for SPL-4993** (section 3.2), not for another row here.
-- **Batch 2: row 05** shares `MessageCard.vue` with row 04. Placed within 30 minutes
+- **Batch 2: row 05** shares `MessageCard.vue` with row 04; it alone writes
+  `card-move-steps.test.mjs`. Placed within 30 minutes
   of row 04 landing (R16).
 - **Batch 3: row 06** edits both gate lists, which r56-08 edits too. Placed within 30
   minutes of the last of r56-08 and rows 01-05 landing (R16).
@@ -141,9 +150,10 @@ and lane readings are live state, so they carry their own time, not this sha.
   (`message_move_postgres.go`, `view_postgres.go`, `message_edit_postgres.go`) are on
   master (`b3ddc72b2`, 2026-11-10T08:26:41Z) and no row here names them
   (`grep -E '^\| 0[1-6] ' <this file> | grep -cE 'message_move_postgres|view_postgres|message_edit_postgres'`
-  -> 0). r56-08 is **not queued** (`do_spl_spawn_queue`, 15:43Z: no `r56` slug), about
-  7 hours after its last prerequisite landed: the holder's R16, named here, not acted
-  on by this lane.
+  -> 0). r56-08 was **not queued** at 15:43Z (`do_spl_spawn_queue`: no `r56` slug); since then
+  it is **live as `c-495@sat`** (`c-495-c002-r56-08-drop-wide-lines-of-r56`, panel
+  a-165, quoted; `git log origin/master --format='%h %s' | grep -c r56-08` -> 0 at
+  2026-11-10T17:42Z here), so row 06 still waits for it.
 - **SPL-4993 (queued land takeover `7c6ed543`, `c002-spl4993-land-takeover`, queued on
   sat):** its 3 commits are in c-306's worktree on this box
   (`git log --oneline origin/master..<c-306 HEAD>` -> 3, not on master) and change 19
@@ -179,7 +189,15 @@ and lane readings are live state, so they carry their own time, not this sha.
   the same way): hits only in briefs of landed or closed work (rounds 25-30, SPL-4998,
   spec 150 rows) and the SPL-4993 bug (above).
 - **Written paths only** (round 30 N1): the holder's `--check` at each spawn takes the
-  row's written paths.
+  row's written paths, **all 15**, and its sat brief grep takes every written basename,
+  `card-move-steps.test.mjs`, `cleancode.test.mjs` and `cleancode_test.go` included
+  (panel N3: the v0.2 sat read covered 7 paths and omitted those three).
+- **Panel's read on this box (a-165, on v0.3, quoted, not re-run here):** `--check` on all 15
+  paths -> exit 4, 0 owned; 3 `unknown:` lanes, all on sat (`c-490-rotate`, `c-495`
+  r56-08, `c-497-c002-review-spl5198-r3-reviewer`). c-730 and c-981 are clean rotate
+  trees, c-734 has 0 overlap, c-721 (SPL-5194) landed. 0 hits in the 15 briefs on this box.
+  Still unproven: the 22 sat-only briefs for those three basenames and unrecorded sat
+  edits; the holder re-checks at each spawn.
 
 ## 4. Per row: what the lane does
 
@@ -188,15 +206,16 @@ and lane readings are live state, so they carry their own time, not this sha.
   as structs.
 - **03:** Pass `inlineMessages`' page inputs and filters as one struct.
 - **04:** Pin three archive rules; both card action composables take one object.
-- **05:** After 04: `useCardMove` takes one object.
+- **05:** After 04: pin the drop and start steps; `useCardMove` takes one object.
 - **06:** After r56-08 and 01-05: delete the seven lines they leave.
 
 ## 5. Panel and reviewers (R7)
 
 - Editor: c-029 (claude). Both seats sign the plan sha (rulebook 3.2).
 - **Panel seat:** an agy seat, cross-vendor as rulebook 3.2 asks; queued by the holder
-  (c-002@sat b779f524: QUEUE dd34c093 to c-001, `agy:c002-refactor-round-31-agy-panel-reviewer`,
-  reviewing `9c841c58b`; position 3 of 42 per a50aca31). agy reviews this plan only, never a
+  (ask dd34c093, re-put as 1558bc1c), placed as **a-165** (SPL-5230): FAIL on v0.3
+  `9b2b46aeb` (be6f15dc; holder send-back 6bdc7cc3), 3 defects W1-W3 and 3 notes,
+  folded in v0.4; it re-reviews v0.4. agy reviews this plan only, never a
   row.
 - **Row reviewers: same-vendor R7 under waiver 1a7c70da, never cross-vendor.** c-001
   ruling 24802acd (16:1xZ), relayed by the holder in a50aca31: the waiver stands for
@@ -219,7 +238,7 @@ and lane readings are live state, so they carry their own time, not this sha.
 
 | what | why | measured by |
 |---|---|---|
-| `send` `WIDE` (`channel.ts:541`) | 8 call sites, over the 5-site cap; **input for round 32** (two rows) | section 2 |
+| `send` `WIDE` (`channel.ts:541`) | 7 call sites plus 2 wirings, over the 5-site cap; **input for round 32** (two rows) | section 2 |
 | a live-store pin of `send` | no unit test loads the channel store (0); a harness is wider than a row; **input for round 32** | section 2 |
 | `hubclient` `writeAtomic`, `hold` | no small case found | round 30 section 2 |
 | Go `wideFuncs` interface pairs | an interface change over two stores | section 2 |
@@ -238,7 +257,7 @@ and lane readings are live state, so they carry their own time, not this sha.
 | batches | batch 1: 4 rows (row 02 also after SPL-4993); batch 2: 1; batch 3: 1 |
 | WUI `WIDE` lines | 6 -> 4 (r56-08) -> 1 (row 06, `send`) |
 | Go `wideFuncs` lines | 14 -> 12 (r56-08) -> 8 (row 06) |
-| new pins | 2 files (rows 01, 04) |
+| new pins | 2 new files (rows 01, 04); 1 file extended (row 05) |
 | measured on | `35927a0d8`, n=1 per command unless stated |
 
 ## 8. Changes
@@ -255,14 +274,22 @@ and lane readings are live state, so they carry their own time, not this sha.
 - v0.3: c-001's R7 ruling 24802acd (via a50aca31) folded: same-vendor R7 under waiver
   1a7c70da for round 31, never cross-vendor, lapsing on an owner post that grok is
   back (sections 5, 9). No row changed.
+- v0.4: the agy panel's FAIL (a-165 be6f15dc, holder send-back 6bdc7cc3) folded.
+  W1: row 05's control was green, so row 05 pins first in `card-move-steps.test.mjs`
+  (drop and start cases) and is renamed `r57-05-wui-pin-card-move-object`. W2: `send`
+  has 7 store call sites, not 8 (`TopBar.vue:254` is the omnibox target's `send`).
+  W3: the r55 commit count matches subjects; `--grep` finds 1 plan-doc body. N1: row
+  02's control fails at `merge_test.go:77`. N2: r56-08 live as c-495@sat; SPL-5194
+  landed; the panel seat placed. N3: the spawn re-check takes all 15 paths. Lines
+  re-checked on `078c9a72c` (unchanged). Rows 01-04 and 06 unchanged.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-029 (claude): drafted v0.1 to v0.3. Not signed yet.
-- Panel reviewer seat: an agy seat, queued (dd34c093), reviewing v0.1 `9c841c58b`. Not
-  placed yet.
+- Editor seat: c-029 (claude): drafted v0.1 to v0.4. Not signed yet.
+- Panel reviewer seat: agy, a-165: FAIL on v0.3 `9b2b46aeb`; re-reviews v0.4. Not
+  signed yet.
 - Row R7 seats: fresh **claude** sessions, **same-vendor R7 under waiver 1a7c70da**
   (c-001 24802acd), round 31, never cross-vendor; lapses on the first owner post that
   says grok is back.

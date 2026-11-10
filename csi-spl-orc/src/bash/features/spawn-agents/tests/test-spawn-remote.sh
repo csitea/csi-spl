@@ -320,4 +320,75 @@ serve_a
 eq "12. a cancel in a big archive still stops the request" "$n" "$(calls)"
 has "12. ... and the log says so" "withdrawn before spawn" "$(cat "$A/spawn-remote/serve.log")"
 
+# ---- 13. a cancel check that cannot read the mailbox spawns nothing (SPL-5237) --
+# A failed read counted as "not cancelled": a withdrawn request still started a
+# lane. Now the tick stops, says so, and leaves the request to the next tick.
+cancelled_req() {  # SLUG ; prints the task id of a request withdrawn at once
+  local t
+  t="$(on "$B" sat bash "$SR" --box home --wait 0 claude auto "$WORK" "$T_TMP/brief.md" "$1" 2>>"$T_TMP/r13.err")"
+  t="${t#task }"
+  on "$B" sat bash "$SR" --cancel --box home --task "$t" >/dev/null 2>>"$T_TMP/r13.err"
+  printf '%s' "$t"
+}
+req_msg() {  # TASK ; the request's msg_id on A
+  jq -r --arg t "$1" 'select(.task_id == $t and (.body | contains("spawn-request v1"))) | .msg_id' \
+    "$A"/c-001/inbox/*.json 2>/dev/null
+}
+if [ "$(id -u)" -eq 0 ]; then
+  echo "skip - 13. root reads a mode-000 file: run as a plain user"
+else
+  rm -rf "$A/c-001/archive"; mkdir -p "$A/c-001/archive"; TAB=$'\t'
+  for where in file archive state; do
+    task="$(cancelled_req "unread-$where")"
+    cancel_msg="$(grep -lF -- "$task" "$A"/c-001/inbox/*.json | xargs grep -lF -- 'spawn-cancel')"
+    if [ "$where" = file ]; then
+      locked="$cancel_msg" mode=600
+    elif [ "$where" = archive ]; then
+      mv "$cancel_msg" "$A/c-001/archive/"; locked="$A/c-001/archive" mode=700
+    else
+      # The cancel was noted on an earlier tick and its message is gone:
+      # spawn-remote/cancelled is the only place that holds it.
+      jq -r '.msg_id' "$cancel_msg" >>"$A/spawn-remote/seen"; rm -f "$cancel_msg"
+      echo "$task" >>"$A/spawn-remote/cancelled"; locked="$A/spawn-remote/cancelled" mode=600
+    fi
+    msg="$(req_msg "$task")"
+    chmod 000 "$locked"
+    n="$(calls)"; : >"$T_TMP/serve.err"
+    serve_a
+    eq "13. $where mode 000: the withdrawn request spawns nothing" "$n" "$(calls)"
+    has "13. ... the tick says why on stderr" "UNREADABLE $msg" "$(cat "$T_TMP/serve.err")"
+    has "13. ... and in its log" "UNREADABLE$TAB$msg" "$(cat "$A/spawn-remote/serve.log")"
+    check "13. ... the request stays retriable (not marked seen)" \
+      bash -c '! grep -qxF -- "$1" "$2"' _ "$msg" "$A/spawn-remote/seen"
+    chmod "$mode" "$locked"
+    serve_a
+    eq "13. ... readable again: the cancel still wins" "$n" "$(calls)"
+    has "13. ... and the log says so" "CANCELLED$TAB$msg" "$(cat "$A/spawn-remote/serve.log")"
+  done
+  n="$(calls)"
+  req_b "$T_TMP/r13" claude auto "$WORK" "$T_TMP/brief.md" readable-no-cancel
+  eq "13. CONTROL a readable mailbox with no cancel still spawns once" "$((n + 1))" "$(calls)"
+  eq "13. CONTROL ... and answers the id" "c-009@home %42" "$(cat "$T_TMP/r13")"
+fi
+
+# ---- 14. unsee never empties seen (SPL-5237, R7 W1) ----------------------------
+# A failed rewrite of seen (a full disk) truncated it, so every request of the
+# last 24 h was handled again. Now seen stays as it was and unsee says so.
+# shellcheck disable=SC2034,SC2317 # STATE and say are read by the eval'd unsee
+unsee_run() {  # STATE MSG_ID [ulimit -f]
+  ( STATE="$1"; say() { echo "spawn-remote: $*" >&2; }
+    eval "$(sed -n '/^unsee() {/,/^}/p' "$SR")"
+    [ -z "${3:-}" ] || ulimit -f "$3"
+    unsee "$2" )
+}
+U="$T_TMP/u14"; mkdir -p "$U"; printf 'old-1\nmsg-14\nold-2\n' >"$U/seen"
+unsee_run "$U" msg-14 2>"$T_TMP/u14.err"; rc=$?
+eq "14. unsee drops only its msg_id" "0 old-1 old-2" "$rc $(tr '\n' ' ' <"$U/seen" | sed 's/ $//')"
+printf 'old-1\nmsg-14\nold-2\n' >"$U/seen"
+# stderr through a pipe: the size limit kills a write to a file, not to a pipe.
+unsee_run "$U" msg-14 0 2>&1 >/dev/null | cat >"$T_TMP/u14.err"; rc="${PIPESTATUS[0]}"
+eq "14. a failed write leaves seen as it was" "1 old-1 msg-14 old-2" "$rc $(tr '\n' ' ' <"$U/seen" | sed 's/ $//')"
+has "14. ... says so on stderr" "cannot unmark msg-14" "$(cat "$T_TMP/u14.err")"
+eq "14. ... and leaves no temp file" "seen" "$(ls "$U")"
+
 t_done

@@ -36,6 +36,11 @@
 #   id in SPAWN_REMOTE_INBOX_IDS (default this machine's LEASE_ORCH) for
 #   messages whose body opens with "spawn-request v1", each handled once
 #   (<root>/spawn-remote/seen, marked BEFORE the spawn: at most once).
+#   A request is withdrawn by a "spawn-cancel v1" from the holder. When the
+#   cancel check cannot read a mailbox (a file or the dir itself, SPL-5237)
+#   the tick starts nothing: it logs UNREADABLE, unmarks the request, and the
+#   next tick asks again, until the request's expiry refuses it or it leaves
+#   the 24 h scan window.
 #   Accepted ONLY from the fleet's current orch lease holder: <root>/dispatch/
 #   lease.orch ("<ID>@<box> <epoch>"); with no lease.orch at all, this
 #   machine's LEASE_ORCH. "none@unreachable" accepts nobody. A relayed `from`
@@ -266,7 +271,7 @@ lane_refused_line() {  # ID EPOCH
 }
 
 handle() {  # INBOX_ID FILE
-  local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason requester expires
+  local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason requester expires retry
   local topic scope files started warn lane
   msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
   [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
@@ -302,7 +307,8 @@ handle() {  # INBOX_ID FILE
   # The cron tick has no agent id. The verified `from` is who asked; the
   # target's spawn-window records it (a bare id; "@<box>" is the relay).
   requester="${from%%@*}"
-  if task_cancelled "$me" "$task"; then
+  task_cancelled "$me" "$task"; rc=$?
+  if [ "$rc" -eq 0 ]; then
     log_line CANCELLED "$msg" "$from" "task $task withdrawn before spawn"
     return 0
   fi
@@ -310,6 +316,13 @@ handle() {  # INBOX_ID FILE
   if [[ "$expires" =~ ^[0-9]+$ ]] && [ "$(date +%s)" -gt "$expires" ]; then
     log_line EXPIRED "$msg" "$from" "arrived after its expiry $expires: the requester starts it elsewhere"
     reply "$me" "$from" "$task" refused "reason: expired at $expires before this box could start it"
+    return 0
+  fi
+  if [ "$rc" -ne 1 ]; then
+    # Fail closed: a cancel we cannot read may be there. Unmarked, so retried.
+    retry="retried next tick"
+    unsee "$msg" || retry="NOT retried: seen could not be rewritten"
+    log_line UNREADABLE "$msg" "$from" "task $task: cannot read $SPOOL_ROOT/$me for a cancel; nothing started, $retry"
     return 0
   fi
   lane=("SPAWN_REQUESTER=$requester" ${topic:+"SPAWN_LANE_TOPIC=$topic"} ${scope:+"SPAWN_LANE_SCOPE=$scope"} ${files:+"SPAWN_LANE_FILES=$files"})
@@ -615,15 +628,18 @@ issue_run() {  # INBOX_ID MSG FROM TASK ID KEY TOPIC BRIEF [TOKEN]
 }
 
 # 0 when the orch holder has withdrawn TASK (spawn-remote/cancelled, or a
-# spawn-cancel v1 from the holder in ID's inbox or archive).
+# spawn-cancel v1 from the holder in ID's inbox or archive), 1 when it has
+# not, 2 when a place a cancel could be in was unreadable (error on stderr).
 task_cancelled() {  # INBOX_ID TASK
-  local id="$1" task="$2" d f b from holder
+  local id="$1" task="$2" d f b from holder hits blind=0
   [ -n "$task" ] || return 1
   grep -qxF -- "$task" "$STATE/cancelled" 2>/dev/null && return 0
+  [ ! -e "$STATE/cancelled" ] || [ -r "$STATE/cancelled" ] || { say "cannot read $STATE/cancelled"; blind=1; }
   holder="$(orch_holder)"
   [ -n "$holder" ] || return 1
   for d in "$SPOOL_ROOT/$id/inbox" "$SPOOL_ROOT/$id/archive"; do
     [ -d "$d" ] || continue
+    hits="$(files_holding_strict "$d" "$task")" || blind=1
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       b="$(body_of "$f" | strip_from_agent)"
@@ -631,8 +647,34 @@ task_cancelled() {  # INBOX_ID TASK
       [ "$(req_field "$b" task)" = "$task" ] || continue
       from="$(jq -r '.from // ""' "$f" 2>/dev/null)"
       [ "$(qualify "$from")" = "$holder" ] && return 0
-    done < <(files_holding "$d" "$task")
+    done <<<"$hits"
   done
+  [ "$blind" -eq 0 ] || return 2
+  return 1
+}
+
+# files_holding, but exit 2 when DIR or a file in it could not be read: then
+# "no file holds TEXT" is not known. A file acked away mid-scan is no error.
+files_holding_strict() {  # DIR TEXT
+  local err rc=0
+  err="$(mktemp)" || return 2
+  LC_ALL=C find "$1" -maxdepth 1 -name '*.json' -type f -exec grep -lF -- "$2" {} + 2>"$err"
+  grep -v "No such file or directory$" "$err" >&2 && rc=2
+  rm -f "$err"
+  return "$rc"
+}
+
+# Forget MSG_ID, so the next tick handles it again. 1 when seen could not be
+# rewritten: it is then left as it was (MSG_ID stays seen, not retried), never
+# emptied, so no other request is handled twice.
+unsee() {  # MSG_ID
+  local tmp rc=0
+  if tmp="$(mktemp "$STATE/seen.XXXXXX")"; then
+    grep -vxF -- "$1" "$STATE/seen" >"$tmp" 2>/dev/null || rc=$?
+    [ "$rc" -le 1 ] && mv -f -- "$tmp" "$STATE/seen" && return 0
+    rm -f -- "$tmp"
+  fi
+  say "cannot unmark $1 in $STATE/seen (grep rc=$rc): left as it was"
   return 1
 }
 

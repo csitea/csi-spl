@@ -188,7 +188,7 @@ on a box (an agent's machine):
   doc-read            print one workspace document to stdout
   doc-write           save one workspace document (last write wins)
   doc-delete          delete one workspace document
-  marketing-publish   publish a live blog post on the workspace owner's LinkedIn, for them (--for HUM-...)
+  marketing-publish   publish a live blog post on the workspace's LinkedIn, for an admin or business owner (--for HUM-...)
   doctree             the outline documents: list, nodes, folder, create, head, read, add, edit, move, delete, rename, export
   layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
 

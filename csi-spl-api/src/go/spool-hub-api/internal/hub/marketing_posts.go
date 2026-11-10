@@ -13,8 +13,8 @@ import (
 // The list of live blog posts not shared yet (SPL-1698; owner HUM-10,
 // topic add4fbf4 msgs f78e3eab, 3a3f366b), so the WUI can offer a Publish
 // button for each one: GET /v1/marketing/posts. Same gate as the publish
-// (linkedInChannels, SPL-5196): the member who connected a LinkedIn
-// channel or one holding tenant.settings; anyone else gets 403. A post is
+// (linkedInChannels, SPL-5196): a member holding tenant.settings; anyone
+// else gets 403, the member who connected the channel included. A post is
 // listed when one of those baselined channels has no row for it yet, the
 // case where the publish answers 200 rather than 409. The answer names
 // whose profiles a publish posts on (profiles), so the WUI's button can

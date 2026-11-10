@@ -67,6 +67,32 @@ func TestMarketingLinkedInAdminAndOwnerPublish(t *testing.T) {
 	}
 }
 
+// SPL-5196 R7 W1: the member who connected LinkedIn and later lost both
+// roles is refused like any other member; connecting needs tenant.settings,
+// publishing keeps needing it (owner: "business owner or admin" only).
+func TestMarketingLinkedInDemotedConnectorRefused(t *testing.T) {
+	e := newShareEnv(t)
+	e.sweep()
+	seat(t, e.env, e.tid, rbac.BizOwner) // the workspace keeps a business owner
+	setRoles(t, e.env, e.tid, e.owner, rbac.RegularUser)
+	e.newPostWaits(t, "2026-10-29-demoted")
+	n := e.fake.shareCount()
+	if code, body := call(t, e.env, e.tid, http.MethodGet, "/v1/marketing/posts", e.owner, nil); code != http.StatusForbidden || body["permission"] != rbac.TenantSettings {
+		t.Fatalf("demoted connector GET: %d %v, want 403 naming tenant.settings", code, body)
+	}
+	if code, body := call(t, e.env, e.tid, http.MethodPost, "/v1/marketing/posts/2026-10-29-demoted/publish", e.owner, nil); code != http.StatusForbidden || body["permission"] != rbac.TenantSettings {
+		t.Fatalf("demoted connector publish: %d %v, want 403 naming tenant.settings", code, body)
+	}
+	b := e.box(e.tid, "box-od", "c-002")
+	e.pin(e.tid, b)
+	if code, body := e.agentPublish(t, e.tid, e.agentToken(e.tid, b), e.owner, "2026-10-29-demoted"); code != http.StatusForbidden {
+		t.Fatalf("agent for the demoted connector: %d %v, want 403", code, body)
+	}
+	if m := e.fake.shareCount(); m != n {
+		t.Fatalf("%d shares (was %d), want none more", m, n)
+	}
+}
+
 // SPL-5196: a workspace's admin with no LinkedIn connected at all gets
 // 404 (no channel), not 403: the right is there, the account is not.
 func TestMarketingLinkedInAdminNoChannel(t *testing.T) {

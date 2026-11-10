@@ -260,7 +260,7 @@ may do it today, so the default changes nothing (3.6).
 |---|---|---|---|
 | `ship.approve` (new) | give an agent the go to release or deploy | all but T | not checked: a post (2.6); agent-read bit (3.10) |
 | `roadmap.publish` (new) | make the workspace roadmap public or private; approve a roadmap goal (the approval message's author) | O A | `hub/roadmap_switch.go:82`, `hub/calendar_sync.go:252-254` (role names, list at `:83`) |
-| `marketing.publish` (new) | publish a marketing post | O | `hub/marketing_share.go:245`, `hub/marketing_posts.go:31` (owner flag) |
+| `marketing.publish` (new) | publish a marketing post | O A | not checked: since SPL-5196 the hub gates the publish and its list on `tenant.settings` (O A by the default roles; `hub/marketing_share.go` `linkedInChannels`, `hub/marketing_meta_dispatch.go` `metaApprover`). The grant (`rbac.go` `Defaults`, `rbac/lifecycle.go` `presetFills`, rdb `0223`) still reads O only, until a follow-up grants it to admin and the hub checks it |
 | `embeds.manage` (new) | put a channel on a website (embeds and their keys) | O | `hub/embed_admin.go:92` (owner flag) |
 
 **Administer (13)**

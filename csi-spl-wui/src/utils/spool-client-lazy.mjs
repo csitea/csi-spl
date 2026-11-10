@@ -707,8 +707,8 @@ async function patchMarketingSwitch(ctx, enabled) {
 }
 
 /**
- * GET /v1/marketing/posts (SPL-1698): the live blog posts the workspace owner
- * can still publish on their LinkedIn channel, { posts: [{ id, title,
+ * GET /v1/marketing/posts (SPL-1698, SPL-5196): the live blog posts an admin
+ * or business owner can still publish on the workspace's LinkedIn, { posts: [{ id, title,
  * summary, image }] }. 403 for anyone but the owner, 404 while marketing is
  * off or the owner connected no LinkedIn account: the WUI then hides the list.
  */
@@ -721,7 +721,7 @@ async function listMarketingPosts(ctx, channel) {
 }
 
 /**
- * POST /v1/marketing/posts/{id}/publish (SPL-40): the owner shares one post
+ * POST /v1/marketing/posts/{id}/publish (SPL-40): an admin or business owner shares one post
  * on LinkedIn, { post, scheduled, published, retried, failed }; 403 for
  * anyone but the owner, 409 once it is published or recorded.
  */

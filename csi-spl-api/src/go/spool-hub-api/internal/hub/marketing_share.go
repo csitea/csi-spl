@@ -18,14 +18,14 @@ import (
 // SPL-1855 (owner HUM-10, topic f46301d4 msgs 54795a30, c5ed6345: "you
 // SHOULD be able to push to LinkedIn without me") to an agent publishing
 // FOR a member, and by SPL-5196 (owner HUM-10, t1 19ef7d51 msg 8c73a054:
-// "any person with either a business owner or admin role") to Facebook's
-// rule (metaApprover).
+// "any person with either a business owner or admin role") to every member
+// holding tenant.settings (linkedInChannels).
 //
 //   - The sweep never starts a share. A new English post in the live blog
 //     index goes to LinkedIn only when it is published on
-//     POST /v1/marketing/posts/{id}/publish: by the member who connected
-//     the channel or a member holding tenant.settings (biz_owner and admin
-//     by the default roles; PublishMarketingPost), or by an agent whose box
+//     POST /v1/marketing/posts/{id}/publish: by a member holding
+//     tenant.settings (biz_owner and admin by the default roles; connecting
+//     needs it too; PublishMarketingPost), or by an agent whose box
 //     upload token names that member in X-Spool-Requester
 //     (AgentPublishMarketingPost). The share always goes out on the
 //     connector's own profile: the list names it (linkedInProfiles). Any
@@ -212,9 +212,9 @@ func blogByID(posts []marketing.BlogPost) map[string]marketing.BlogPost {
 
 // Why a publish was refused (PublishMarketingPost, AgentPublishMarketingPost).
 // ErrMarketingNotOwner keeps its SPL-40 name; since SPL-5196 it means
-// neither the connector nor a tenant.settings holder.
+// the member does not hold tenant.settings.
 var (
-	ErrMarketingNotOwner  = errors.New("only a member holding tenant.settings (an admin or business owner) or the member who connected LinkedIn publishes to it, or an agent for them")
+	ErrMarketingNotOwner  = errors.New("only a member holding tenant.settings (an admin or business owner) publishes to LinkedIn, or an agent for them")
 	ErrMarketingSeatOther = errors.New("this agent's box was joined for another member than the requester")
 	ErrMarketingNoChannel = errors.New("the workspace has no connected LinkedIn account")
 	ErrMarketingNoPost    = errors.New("the post is not in the live blog index")
@@ -313,33 +313,30 @@ func (s *Server) seatActsFor(ctx context.Context, tenant, seat, hum string) erro
 	return nil
 }
 
-// linkedInChannels: tenant's active LinkedIn channels hum, a member, may
-// publish on, Facebook's rule (metaApprover): those hum connected, or all
-// of them when hum holds tenant.settings. ErrMarketingNotOwner when hum
-// may publish on none, ErrMarketingNoChannel when hum holds tenant.settings
-// and there is none.
+// linkedInChannels: tenant's active LinkedIn channels, which hum, a member,
+// may publish on only while holding tenant.settings (biz_owner and admin by
+// the default roles; owner msg 8c73a054). Having connected a channel is not
+// enough: a connector who lost both roles is refused (R7 W1).
+// ErrMarketingNotOwner without tenant.settings, ErrMarketingNoChannel when
+// there is no active channel.
 func (s *Server) linkedInChannels(ctx context.Context, mk store.Marketing, tenant, hum string) ([]store.MarketingChannel, error) {
-	if _, err := s.access(ctx, hum, tenant); hum == "" || err != nil {
+	if _, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !s.allowed(ctx, hum, tenant, rbac.TenantSettings) {
 		return nil, ErrMarketingNotOwner
 	}
 	all, err := mk.MarketingChannels(ctx, tenant)
 	if err != nil {
 		return nil, err
 	}
-	settings := s.allowed(ctx, hum, tenant, rbac.TenantSettings)
 	var out []store.MarketingChannel
 	for _, ch := range all {
-		if ch.Platform == "linkedin" && ch.Status == store.MarketingActive && (settings || ch.DelegatedBy == hum) {
+		if ch.Platform == "linkedin" && ch.Status == store.MarketingActive {
 			out = append(out, ch)
 		}
 	}
-	switch {
-	case len(out) > 0:
-		return out, nil
-	case settings:
+	if len(out) == 0 {
 		return nil, ErrMarketingNoChannel
 	}
-	return nil, ErrMarketingNotOwner
+	return out, nil
 }
 
 // POST /v1/marketing/posts/{id}/publish: a member shares one live blog

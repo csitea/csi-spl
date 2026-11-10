@@ -88,7 +88,7 @@ async function publishForbiddenSteps(p) {
   await p.click(TOGGLE)
   await p.waitForSelector(PUB_UNAVAILABLE, { visible: true, timeout: 5000 }).catch(() => null)
   const line = await text(p, PUB_UNAVAILABLE + ' p')
-  ok('P6 a 403 on the list shows one line, no list', line === 'Only an admin or business owner of the workspace, or the member who connected LinkedIn, can publish.' &&
+  ok('P6 a 403 on the list shows one line, no list', line === 'Only an admin or business owner of the workspace can publish.' &&
     !(await p.$(PUB)) && !(await p.$(UNAVAILABLE)), { line })
   await mockPublish(p, '')
   await p.click(TOGGLE)

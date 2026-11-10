@@ -18,8 +18,8 @@ import (
 )
 
 // marketing-publish (SPL-1855; owner HUM-10, topic f46301d4 msgs 54795a30,
-// c5ed6345): an agent publishes one live blog post on the workspace owner's
-// connected LinkedIn channel, for that owner:
+// c5ed6345; SPL-5196): an agent publishes one live blog post on the
+// workspace's connected LinkedIn, for an admin or business owner:
 //
 //	marketing-publish <post-id> --for <HUM-id>
 //
@@ -38,7 +38,7 @@ func cmdMarketingPublish(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("marketing-publish", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() { fmt.Fprintln(fs.Output(), usage) }
-	forHum := fs.String("for", "", "the workspace owner the post is published for (HUM-...)")
+	forHum := fs.String("for", "", "the admin or business owner the post is published for (HUM-...)")
 	if err := fs.Parse(forFirst(args)); err != nil {
 		return 1
 	}
@@ -50,7 +50,7 @@ func cmdMarketingPublish(cfg *config.Config, args []string) int {
 		return fail(fmt.Errorf("post id %q is not a blog post id (YYYY-MM-DD-slug)", post))
 	}
 	if !marketingHumRe.MatchString(hum) {
-		return fail(errors.New("--for must name the workspace owner's HUM-... id"))
+		return fail(errors.New("--for must name an admin or business owner's HUM-... id"))
 	}
 	ctx, stop := interruptible()
 	defer stop()

@@ -1063,6 +1063,22 @@ and 5 dev desks, none with a live sidecar.
   `spl_lane_desk_spool` signs there as its owner, with its binary. The unmarked
   box-user rows that reach `spl_lane_init` (`box-stats`, the unanswered sweep's
   link check, `agent-id-reap`, `spawn-remote`) rely on it.
+- **The cross-box relay reaches a moved fleet desk (SPL-5246).**
+  `spool-fleet-relay.sh` reads the desk under `spool_desk_root`: the box user's
+  own root while box.env has no `SPOOL_DESK_USER`, which a half-moved box keeps.
+  On sat 2026-11-10 every placer launch pinned to another box exited 8 (`no live
+  hub-run sidecar for sat in t1`, 20 cron lines): the placer cron runs as the
+  box user and read its stub of `prd/t1/sat`. When that desk has no live
+  sidecar and `spl_desk_moved_to` names its owner, the relay now re-runs once
+  as that owner (`SPL_DESK_AS_CMD`, default `sudo -n -u`) with
+  `SPOOL_DESK_USER` set, keeping every argument. That covers the placer
+  (`spawn-remote.sh` -> `spool-send.sh`), `box-link-watch-relay.sh` and every
+  other caller. No hop with `SPOOL_FLEET_STATE_ROOT` set, after one hop
+  (`SPL_DESK_HOPPED`), or under `SPOOL_TEST=1` without `SPL_DESK_AS_CMD`. A desk
+  that did not move behaves as before. Test: `fleet-relay-desk-moved.tst.sh`.
+  The same caller-root read, not fixed here: `spool-topic-kind.sh:68` (the
+  owner-topic probe of `spool-send.sh`), `topic-text.sh:65`,
+  `desk-seat-drop.sh:58`, `role-seat-switch.sh:62`, `agent-id-rename.sh:74`.
 - **The fleet loop stays the box user's.** `spl_lease_ensure` runs as the owner
   of `fleet.run` (`spl_lease_ensure_as_owner`), so moving the reconcile cron does
   not strand a loop on old code, and a boot does not seat it under another user.

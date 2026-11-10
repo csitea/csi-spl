@@ -30,6 +30,15 @@
 #   state   SPOOL_FLEET_STATE_ROOT, else spool_desk_root: the desk user's
 #           (SPOOL_DESK_USER) state root, else this user's
 # The desk is <state>/<env>/desk/<tenant>/<box>.
+# A desk that MOVED to another user (do_spl_desk_move, spec 069 section 8.4;
+# spl_desk_moved_to: that user's copy is pinned, this one is not and has no
+# live sidecar) is reached by ONE hop: the relay re-runs as that user
+# (SPL_DESK_AS_CMD, default `sudo -n -u`) with SPOOL_DESK_USER set. Why
+# (SPL-5246): the move writes SPOOL_DESK_USER to box.env only once every desk
+# moved, so on a half-moved box a box-user caller (the placer cron, via
+# spool-send.sh) read its own stub and refused every cross-box send, rc 3.
+# No hop with SPOOL_FLEET_STATE_ROOT set, after one hop (SPL_DESK_HOPPED), or
+# under SPOOL_TEST=1 without SPL_DESK_AS_CMD.
 #
 # stdout: the `spool send` JSON ({delivery: sent|queued|pending, ...}).
 # A sender not seated on the desk but listed in this machine's registry.tsv
@@ -47,6 +56,7 @@ say() { echo "spool-fleet-relay: $*" >&2; }
 # shellcheck source=../lib/desk-root.inc.sh
 . "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/../lib/desk-root.inc.sh"
 
+ARGV=("$@")
 ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0 ACCEPT="" THISBOX=0 ARG_TENANT=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -88,8 +98,46 @@ STATE="${SPOOL_FLEET_STATE_ROOT:-$(spool_desk_root "$(getent passwd "$(id -un)" 
   { say "no desk state root on this machine (SPOOL_DESK_USER has no home?). Nothing was sent."; exit 3; }
 d="$STATE/$ENVN/desk/$TENANT/$BOX"
 
+# desk_alive PIDFILE: 0 when it names a live `spool hub-run` (/proc cmdline).
+desk_alive() {
+  local p
+  p="$(cat "$1" 2>/dev/null)"
+  [[ "$p" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$p/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null
+}
+# desk_moved_to: the user the desk moved to (spl_desk_moved_to, the ./run
+# side's one answer, over this caller's root $STATE/$ENVN), 0; else 1.
+desk_moved_to() {
+  local orc mv me
+  me="$(id -un)"
+  [[ -z "${SPOOL_FLEET_STATE_ROOT:-}" && -z "${SPL_DESK_HOPPED:-}" ]] || return 1
+  [[ "${SPOOL_TEST:-}" != 1 || -n "${SPL_DESK_AS_CMD:-}" ]] || return 1
+  [[ -z "$(_spool_desk_root_key "$BOXENV")" || "$(_spool_desk_root_key "$BOXENV")" == "$me" ]] || return 1
+  orc="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../../.." && pwd)"
+  # shellcheck disable=SC2034,SC2317 # read and called by the sourced spl_desk_moved_to
+  mv="$(
+    PROJ_PATH="$orc" SPL_ORG_APP="$(basename "$orc" | sed 's/-orc$//')" ENV="$ENVN" SPL_STATE_DIR="$STATE/$ENVN" SPOOL_BOX_ENV="$BOXENV"
+    do_log() { echo "spool-fleet-relay: $*"; }
+    spl_desk_alive() { desk_alive "$1"; }
+    # shellcheck source=../../../../../lib/bash/funcs/spl-cloud-cnf.func.sh
+    . "$orc/lib/bash/funcs/spl-cloud-cnf.func.sh" && . "$orc/lib/bash/funcs/spl-desk-moved.func.sh" &&
+      spl_desk_moved_to "$TENANT" "$BOX" "$ENVN"
+  )" || return 1
+  [[ "${mv%%$'\t'*}" =~ ^[a-z_][a-z0-9_-]{0,31}$ && "${mv%%$'\t'*}" != "$me" ]] || return 1
+  printf '%s' "${mv%%$'\t'*}"
+}
+
 pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
-[[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null || {
+desk_alive "$d/spool/.hub/hub-run.pid" || {
+  if mu="$(desk_moved_to)"; then
+    say "INFO desk $BOX of $TENANT ($ENVN) lives under $mu's state root (do_spl_desk_move, spec 069 8.4), not $(id -un)'s ($d): relayed as $mu"
+    read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+    declare -a hopenv=(HOME="$(getent passwd "$mu" | cut -d: -f6)" SPL_DESK_HOPPED="$(id -un)" SPOOL_DESK_USER="$mu"
+      SPOOL_FLEET_ENV="$ENVN" SPOOL_FLEET_TENANT="$TENANT" SPOOL_DESK_BOX="$BOX" SPOOL_BOX_ENV="$BOXENV")
+    for v in SPOOL_TEST SPOOL_FLEET_PROXY SPOOL_FLEET_BIN SPOOL_BIN SPOOL_FLEET_PROC_ROOT; do
+      [ -n "${!v:-}" ] && hopenv+=("$v=${!v}")
+    done
+    exec "${as[@]}" "$mu" -- env "${hopenv[@]}" bash "$(readlink -f "${BASH_SOURCE[0]}")" --spool-root "$ROOT" "${ARGV[@]}"
+  fi
   say "no live hub-run sidecar for $BOX in $TENANT ($ENVN, $d): the message to $TO cannot leave this machine. Run do_spl_desk_up. Nothing was sent."
   exit 3; }
 declare -a envv=()

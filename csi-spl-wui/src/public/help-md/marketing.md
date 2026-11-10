@@ -4,7 +4,7 @@ Marketing lets a workspace share its live blog posts on **Facebook Pages**, **In
 
 Three rules apply across every channel:
 
-- **Nothing is posted without human approval.** Connecting a Facebook Page, an Instagram account, or LinkedIn never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook Page or Instagram post is approved by the member who connected the channel, by a workspace admin (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved only by the workspace owner, on a LinkedIn account they connected themselves, or by an agent acting for them.
+- **Nothing is posted without human approval.** Connecting a Facebook Page, an Instagram account, or LinkedIn never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A post on any connected channel, LinkedIn included, is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post always goes out on the LinkedIn profile of the member who connected it.
 - **No plaintext tokens.** Every OAuth access token is envelope-encrypted with Cloud KMS (`AES-256-GCM`) before it is stored, and is decrypted in memory only for the duration of an outbound API call.
 - **One API post per channel per 24 hours.** For a connected Facebook Page or Instagram account, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
 
@@ -42,7 +42,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 
 1. In the **Facebook and Instagram** list on **Workspace settings -> General**, click **Publish** on the active **Facebook Page** or **Instagram** row you want to post to.
 2. The per-account queue opens below the list with the heading **Publish to `<Account Name>`** (*"Live blog posts not shared on this account yet. Each one goes out only when you press Publish."*).
-   - The queue and its buttons are for the member who connected the channel and for workspace admins (`tenant.settings`); anyone else sees a line saying they cannot publish on this account.
+   - The queue and its buttons are for the member who connected the channel and for workspace admins and business owners (`tenant.settings`); anyone else sees a line saying they cannot publish on this account.
    - When every live blog post has already been shared on that account, the queue reads *"Every live blog post is already shared."*
 3. Each unshared blog post row in the queue shows:
    - A 48×48 thumbnail preview of the post's image (when the post has one).
@@ -76,8 +76,8 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 1. There is no Connect LinkedIn button yet. To connect LinkedIn for the first time, a workspace administrator (`tenant.settings`) who is signed in to spool-hub opens `<hub API>/v1/marketing/linkedin/connect?workspace=<workspace_id>` in the same browser while Marketing is switched on, and approves the LinkedIn consent screen (`openid`, `profile`, `w_member_social`). To renew, use the same link, which the hub mails to the member who connected LinkedIn 7 days before the token expires.
    - On the first connect, all existing blog posts are baselined as `skipped` so connecting never floods your LinkedIn profile with old articles.
    - LinkedIn access tokens last about 60 days; 7 days before expiry, the hub mails the member who connected LinkedIn a one-click re-connect link.
-2. In **Workspace settings -> General**, under **Publish to LinkedIn** (*"Live blog posts not shared on LinkedIn yet. Only the workspace owner who connected LinkedIn can publish them."*), review the list of unshared live blog posts.
-3. Click **Publish to LinkedIn** next to a post (`POST /v1/marketing/posts/{id}/publish`). When LinkedIn accepts the post, the notice reads **Published on LinkedIn.**
+2. In **Workspace settings -> General**, under **Publish to LinkedIn** (*"Live blog posts not shared on LinkedIn yet. An admin or business owner of the workspace, or the member who connected LinkedIn, can publish them."*), review the list of unshared live blog posts. Anyone else sees *"Only an admin or business owner of the workspace, or the member who connected LinkedIn, can publish."* instead.
+3. Click **Publish to LinkedIn** next to a post (`POST /v1/marketing/posts/{id}/publish`). The post goes out on the LinkedIn profile of the member who connected LinkedIn: when that is someone else, the button reads **Publish on the LinkedIn profile of `<Name>`**. When LinkedIn accepts the post, the notice reads **Published on LinkedIn.**
 
 ---
 

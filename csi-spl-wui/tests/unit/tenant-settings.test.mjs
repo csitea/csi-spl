@@ -149,7 +149,7 @@ ok('066 L7: the client calls the admin summary route', lazy.includes('/v1/admin/
     !marketingSaysWhy('switch', null) && !marketingSaysWhy('publish', undefined))
   const en = JSON.parse(readFileSync(new URL('../../i18n/locales/en.json', import.meta.url), 'utf8')).tenant_settings
   ok('SPL-1856 the two lines read as the owner asked', en.marketing_not_available === 'Marketing is not available in this workspace.' &&
-    en.marketing_publish_forbidden === 'Only the workspace owner who connected LinkedIn can publish.')
+    en.marketing_publish_forbidden === 'Only an admin or business owner of the workspace, or the member who connected LinkedIn, can publish.')
   const dir = new URL('../../i18n/locales/', import.meta.url)
   const missing = readdirSync(dir).filter((f) => f.endsWith('.json')).filter((f) => {
     const ts = JSON.parse(readFileSync(new URL(f, dir), 'utf8')).tenant_settings || {}

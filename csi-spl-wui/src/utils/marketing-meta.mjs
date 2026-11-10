@@ -12,6 +12,16 @@ export const META_LIMITS = Object.freeze({ facebook_page: 63206, instagram_busin
 /** The Page tasks that let the connecting member post on it (Meta's Page roles). */
 const META_POST_TASKS = Object.freeze(['MANAGE', 'CREATE_CONTENT'])
 
+/**
+ * SPL-5196: the names of the LinkedIn profiles a publish goes out on that are
+ * not the viewer's own (the hub list's `profiles`, `mine` false), joined by
+ * ", "; '' when every one is the viewer's, so the button keeps its plain label.
+ */
+export function linkedInOthers(profiles) {
+  if (!Array.isArray(profiles)) return ''
+  return profiles.filter((p) => p && !p.mine).map((p) => String(p.name || '').trim()).filter(Boolean).join(', ')
+}
+
 /** The blog post's address on the app origin (marketing.BlogPostURL). */
 export function blogPostUrl(appUrl, id) {
   return String(appUrl || '').replace(/\/+$/, '') + '/blog/' + encodeURIComponent(String(id || ''))

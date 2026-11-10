@@ -1,10 +1,12 @@
-<!-- Publish to LinkedIn (SPL-1698; owner HUM-10, topic add4fbf4 msgs
-     f78e3eab, 3a3f366b: only the workspace owner publishes to LinkedIn),
-     inside Tenant settings -> General, under the marketing switch. Lists the
-     live blog posts not shared yet (GET /v1/marketing/posts), each with a
-     Publish button (POST /v1/marketing/posts/{id}/publish). Shown only to
-     the workspace owner who connected the LinkedIn channel: the hub answers
-     403 to anyone else, and the section says so in one line (SPL-1856); a
+<!-- Publish to LinkedIn (SPL-1698), inside Tenant settings -> General,
+     under the marketing switch. Lists the live blog posts not shared yet
+     (GET /v1/marketing/posts), each with a Publish button
+     (POST /v1/marketing/posts/{id}/publish). Shown to an admin or business
+     owner (tenant.settings) or the member who connected the LinkedIn
+     channel (SPL-5196; owner HUM-10, t1 19ef7d51 msg 8c73a054): the hub
+     answers 403 to anyone else, and the section says so in one line
+     (SPL-1856). The post goes out on the connector's own profile, so when
+     that is someone else's the button names it (the list's `profiles`); a
      404 (marketing off, outside the allow-list or no channel connected)
      hides it, the switch above says why.
      spec 090 T035 (SPL-4494): with a `channel` (a Facebook Page or an
@@ -47,7 +49,7 @@
           :disabled="busy !== '' || (channel !== undefined && metaNeedsJpeg(channel.platform, p.image))"
           data-test="tenant-marketing-publish-button"
           @click="publish(p.id)"
-        >{{ t(channel ? 'tenant_settings.marketing_meta_publish_button' : 'tenant_settings.marketing_publish_button') }}</button>
+        >{{ buttonLabel }}</button>
         <button type="button" class="btn ghost" :aria-expanded="handover === p.id" data-test="marketing-handover-open" @click="handover = handover === p.id ? '' : p.id">{{ t('tenant_settings.marketing_handover_open') }}</button>
         <MarketingDraftHandover v-if="handover === p.id" class="mp-handover" :post="p" :channel="channel?.id" @handed-over="handedOver" />
       </li>
@@ -60,7 +62,7 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { marketingSaysWhy } from '~/utils/tenant-settings.mjs'
-import { metaCaption, metaNeedsJpeg, metaNumber, metaPublishErrorKey } from '~/utils/marketing-meta.mjs'
+import { linkedInOthers, metaCaption, metaNeedsJpeg, metaNumber, metaPublishErrorKey } from '~/utils/marketing-meta.mjs'
 
 type Post = { id: string, title?: string, summary?: string, image?: string }
 type MetaChannel = { id: string, platform: string, name: string }
@@ -77,6 +79,8 @@ const shown = ref(false)
 // SPL-1856: the hub refused with 403, so one line says why there is no list
 const why = ref(false)
 const posts = ref<Post[]>([])
+// SPL-5196: the LinkedIn profiles a publish posts on that are not the viewer's own
+const others = ref('')
 const busy = ref('')
 // the post whose hand-over card is open, '' for none
 const handover = ref('')
@@ -89,6 +93,10 @@ const channel = computed(() => props.channel)
 const title = computed(() => (props.channel
   ? t('tenant_settings.marketing_meta_publish_title', { name: props.channel.name })
   : t('tenant_settings.marketing_publish_title')))
+const buttonLabel = computed(() => {
+  if (props.channel) return t('tenant_settings.marketing_meta_publish_button')
+  return others.value ? t('tenant_settings.marketing_publish_button_on', { name: others.value }) : t('tenant_settings.marketing_publish_button')
+})
 const appUrl = import.meta.client ? window.location.origin : ''
 const caption = (p: Post) => metaCaption(props.channel?.platform || '', p, appUrl)
 
@@ -140,6 +148,7 @@ onMounted(async () => {
   try {
     const r = await api.listMarketingPosts(props.channel?.id)
     posts.value = Array.isArray(r?.posts) ? r.posts.filter((p) => p && typeof p.id === 'string') : []
+    others.value = props.channel ? '' : linkedInOthers(r?.profiles)
     shown.value = true
   } catch (e) {
     shown.value = false

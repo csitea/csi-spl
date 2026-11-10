@@ -187,8 +187,9 @@ function mockMarketing() {
   const mkt = { enabled: false }
   // SPL-1698: the mock signed-in member is the workspace owner holding the
   // LinkedIn channel, with two live posts not shared yet. localStorage
-  // spool.mock.marketing.publish=forbidden plays a non-owner (403),
-  // =recorded a post already published elsewhere (409).
+  // spool.mock.marketing.publish=forbidden plays a member who may not
+  // publish (403), =recorded a post already published elsewhere (409),
+  // =other an admin whose LinkedIn channel another member connected (SPL-5196).
   const unshared = [
     { id: '2026-10-13-mock-second', title: 'Mock post two', summary: 'The newer mock post.', image: '/logo.webp' },
     { id: '2026-10-12-mock-first', title: 'Mock post one', summary: 'The older mock post.', image: '/mock-first.jpg' },
@@ -234,7 +235,7 @@ function mockMarketing() {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
       if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')
       if (channel) return meta.posts(channel)
-      return { posts: unshared.map((p) => ({ ...p })) }
+      return { posts: unshared.map((p) => ({ ...p })), profiles: [{ channel_id: 'mch-li-1', name: 'FirstName LastName', mine: mktPublish() !== 'other' }] }
     },
     ...mockMarketingHandOver(unshared, meta, () => mktListed() && mkt.enabled, mktPublish),
     publishMarketingPost(id, channel) {

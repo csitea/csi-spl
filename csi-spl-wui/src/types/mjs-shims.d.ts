@@ -119,7 +119,7 @@ declare module '~/utils/spool-client.mjs' {
     createBoxLock(box: string, req: { signed_body: string, signature: string, box_signature: string }): Promise<unknown>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
-    listMarketingPosts(channel?: string): Promise<{ posts?: Array<{ id: string, title?: string, summary?: string, image?: string }> }>
+    listMarketingPosts(channel?: string): Promise<{ posts?: Array<{ id: string, title?: string, summary?: string, image?: string }>, profiles?: Array<{ channel_id: string, name: string, mine: boolean }> }>
     publishMarketingPost(postId: string, channel?: string): Promise<{ post?: string, scheduled?: number, published?: number, retried?: number, failed?: number, deferred?: number }>
     getMarketingShareLinks(postId: string): Promise<{ post_id?: string, url?: string, facebook?: string, viber?: string, whatsapp?: string, instagram?: { caption?: string, images?: string[], open?: string } }>
     manualPublishMarketingPost(postId: string, channel: string): Promise<{ post?: string, channel?: string, status?: string, platform_post_id?: string, published_at?: string }>

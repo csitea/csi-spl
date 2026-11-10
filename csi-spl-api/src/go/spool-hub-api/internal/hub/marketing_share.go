@@ -14,19 +14,22 @@ import (
 )
 
 // The blog share sweep (spec 090 T015, SPL-1634; owner HUM-10, topic
-// add4fbf4 msgs 06f5fd99, 489d18e6) and the owner's publish (SPL-40; owner
-// HUM-10, topic add4fbf4 msg 3a3f366b: only they can post to LinkedIn),
-// widened by SPL-1855 (owner HUM-10, topic f46301d4 msgs 54795a30,
-// c5ed6345: "you SHOULD be able to push to LinkedIn without me") to an
-// agent publishing FOR the owner.
+// add4fbf4 msgs 06f5fd99, 489d18e6) and the publish (SPL-40), widened by
+// SPL-1855 (owner HUM-10, topic f46301d4 msgs 54795a30, c5ed6345: "you
+// SHOULD be able to push to LinkedIn without me") to an agent publishing
+// FOR a member, and by SPL-5196 (owner HUM-10, t1 19ef7d51 msg 8c73a054:
+// "any person with either a business owner or admin role") to Facebook's
+// rule (metaApprover).
 //
 //   - The sweep never starts a share. A new English post in the live blog
 //     index goes to LinkedIn only when it is published on
-//     POST /v1/marketing/posts/{id}/publish: by the workspace owner who
-//     connected the channel (PublishMarketingPost), or by an agent whose
-//     box upload token names that owner in X-Spool-Requester
+//     POST /v1/marketing/posts/{id}/publish: by the member who connected
+//     the channel or a member holding tenant.settings (biz_owner and admin
+//     by the default roles; PublishMarketingPost), or by an agent whose box
+//     upload token names that member in X-Spool-Requester
 //     (AgentPublishMarketingPost). The share always goes out on the
-//     owner's own connected channel. Any other member and the sweep cannot.
+//     connector's own profile: the list names it (linkedInProfiles). Any
+//     other member and the sweep cannot.
 //   - The publish uses the one publisher there is: it schedules the post's
 //     row, claims it and shares it (dispatchDue, shareOne). The sweep only
 //     finishes what the owner started: the retries below.
@@ -208,10 +211,12 @@ func blogByID(posts []marketing.BlogPost) map[string]marketing.BlogPost {
 }
 
 // Why a publish was refused (PublishMarketingPost, AgentPublishMarketingPost).
+// ErrMarketingNotOwner keeps its SPL-40 name; since SPL-5196 it means
+// neither the connector nor a tenant.settings holder.
 var (
-	ErrMarketingNotOwner  = errors.New("only the workspace owner publishes to LinkedIn, or an agent for them")
+	ErrMarketingNotOwner  = errors.New("only a member holding tenant.settings (an admin or business owner) or the member who connected LinkedIn publishes to it, or an agent for them")
 	ErrMarketingSeatOther = errors.New("this agent's box was joined for another member than the requester")
-	ErrMarketingNoChannel = errors.New("the workspace owner has no connected LinkedIn account")
+	ErrMarketingNoChannel = errors.New("the workspace has no connected LinkedIn account")
 	ErrMarketingNoPost    = errors.New("the post is not in the live blog index")
 	ErrMarketingRecorded  = errors.New("the post is already published, or recorded for LinkedIn")
 	ErrMarketingOff       = errors.New("marketing is not on in this workspace")
@@ -219,19 +224,19 @@ var (
 )
 
 // PublishMarketingPost shares the live blog post postID on every active
-// LinkedIn channel of tenant that hum connected, once each; only the
-// workspace owner (rbac TenantOwner) may. The share goes through the same
-// claim and dispatch as the sweep's retries.
+// LinkedIn channel of tenant that hum may publish on (linkedInChannels),
+// once each, each on its connector's profile. The share goes through the
+// same claim and dispatch as the sweep's retries.
 func (s *Server) PublishMarketingPost(ctx context.Context, tenant, hum, postID string) (MarketingShareResult, error) {
 	return s.publishMarketingPost(ctx, tenant, hum, "", postID)
 }
 
 // AgentPublishMarketingPost is the same publish by an agent, seat (the box
 // of its upload token), acting for hum (SPL-1855). Every gate of the
-// owner's publish holds: the workspace allow-listed (cnf
-// marketing.workspaces) and switched on, hum its owner, and only hum's own
-// connected channels. A seat joined for a member (its join token's
-// for_human) acts only for that member.
+// member's publish holds: the workspace allow-listed (cnf
+// marketing.workspaces) and switched on, and only the channels hum may
+// publish on. A seat joined for a member (its join token's for_human) acts
+// only for that member.
 func (s *Server) AgentPublishMarketingPost(ctx context.Context, tenant, seat, hum, postID string) (MarketingShareResult, error) {
 	if seat == "" {
 		return MarketingShareResult{}, ErrMarketingNotOwner
@@ -249,18 +254,12 @@ func (s *Server) publishMarketingPost(ctx context.Context, tenant, hum, seat, po
 	if !s.marketingSweepable(ctx, tenant) {
 		return res, ErrMarketingOff
 	}
-	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
-		return res, ErrMarketingNotOwner
-	}
 	if err := s.seatActsFor(ctx, tenant, seat, hum); err != nil {
 		return res, err
 	}
-	chs, err := s.ownerChannels(ctx, mk, tenant, hum)
+	chs, err := s.linkedInChannels(ctx, mk, tenant, hum)
 	if err != nil {
 		return res, err
-	}
-	if len(chs) == 0 {
-		return res, ErrMarketingNoChannel
 	}
 	posts, err := marketing.FetchBlogIndex(ctx, m.httpClient(), m.AppURL)
 	if err != nil {
@@ -284,7 +283,7 @@ func (s *Server) publishMarketingPost(ctx context.Context, tenant, hum, seat, po
 			continue
 		}
 		res.Scheduled++
-		s.o.Log.Info().Str("tenant", tenant).Str("channel", ch.ID).Str("post", postID).Str("by", hum).Str("agent", seat).Msg("marketing: a blog post is published on the owner's LinkedIn")
+		s.o.Log.Info().Str("tenant", tenant).Str("channel", ch.ID).Str("post", postID).Str("by", hum).Str("agent", seat).Str("connector", ch.DelegatedBy).Msg("marketing: a blog post is published on the connector's LinkedIn")
 		if due, err := mk.ClaimMarketingPosts(ctx, tenant, ch.ID, now); err == nil && len(due) > 0 {
 			s.dispatchDue(ctx, m, mk, ch, due, byID, &res)
 		}
@@ -314,22 +313,36 @@ func (s *Server) seatActsFor(ctx context.Context, tenant, seat, hum string) erro
 	return nil
 }
 
-// ownerChannels: tenant's active LinkedIn channels that hum connected.
-func (s *Server) ownerChannels(ctx context.Context, mk store.Marketing, tenant, hum string) ([]store.MarketingChannel, error) {
+// linkedInChannels: tenant's active LinkedIn channels hum, a member, may
+// publish on, Facebook's rule (metaApprover): those hum connected, or all
+// of them when hum holds tenant.settings. ErrMarketingNotOwner when hum
+// may publish on none, ErrMarketingNoChannel when hum holds tenant.settings
+// and there is none.
+func (s *Server) linkedInChannels(ctx context.Context, mk store.Marketing, tenant, hum string) ([]store.MarketingChannel, error) {
+	if _, err := s.access(ctx, hum, tenant); hum == "" || err != nil {
+		return nil, ErrMarketingNotOwner
+	}
 	all, err := mk.MarketingChannels(ctx, tenant)
 	if err != nil {
 		return nil, err
 	}
+	settings := s.allowed(ctx, hum, tenant, rbac.TenantSettings)
 	var out []store.MarketingChannel
 	for _, ch := range all {
-		if ch.Platform == "linkedin" && ch.Status == store.MarketingActive && ch.DelegatedBy == hum {
+		if ch.Platform == "linkedin" && ch.Status == store.MarketingActive && (settings || ch.DelegatedBy == hum) {
 			out = append(out, ch)
 		}
 	}
-	return out, nil
+	switch {
+	case len(out) > 0:
+		return out, nil
+	case settings:
+		return nil, ErrMarketingNoChannel
+	}
+	return nil, ErrMarketingNotOwner
 }
 
-// POST /v1/marketing/posts/{id}/publish: the owner shares one live blog
+// POST /v1/marketing/posts/{id}/publish: a member shares one live blog
 // post; with ?channel=<id> on that Facebook Page or Instagram account (T034).
 func (s *Server) handleMarketingPublish(w http.ResponseWriter, r *http.Request, tenant string) {
 	w.Header().Set("Cache-Control", "no-store")
@@ -375,9 +388,7 @@ func (s *Server) handleAgentMarketingPublish(w http.ResponseWriter, r *http.Requ
 
 func writeMarketingPublish(w http.ResponseWriter, r *http.Request, res MarketingShareResult, err error) {
 	switch {
-	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther):
-		writeForbidden(w, permTenantOwner, err.Error())
-	case errors.Is(err, ErrMarketingNotApprover):
+	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther), errors.Is(err, ErrMarketingNotApprover):
 		writeForbidden(w, rbac.TenantSettings, err.Error())
 	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff),
 		errors.Is(err, ErrMarketingNoMetaPage):

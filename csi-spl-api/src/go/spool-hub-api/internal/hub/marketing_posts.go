@@ -6,38 +6,59 @@ import (
 	"net/http"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// The owner's list of live blog posts not shared yet (SPL-1698; owner
-// HUM-10, topic add4fbf4 msgs f78e3eab, 3a3f366b), so the WUI can offer a
-// Publish button for each one: GET /v1/marketing/posts. Same gate as the
-// publish (PublishMarketingPost): only the workspace owner (rbac
-// TenantOwner) who connected a LinkedIn channel; anyone else gets 403. A
-// post is listed when one of the owner's baselined channels has no row for
-// it yet, the case where the publish answers 200 rather than 409.
+// The list of live blog posts not shared yet (SPL-1698; owner HUM-10,
+// topic add4fbf4 msgs f78e3eab, 3a3f366b), so the WUI can offer a Publish
+// button for each one: GET /v1/marketing/posts. Same gate as the publish
+// (linkedInChannels, SPL-5196): the member who connected a LinkedIn
+// channel or one holding tenant.settings; anyone else gets 403. A post is
+// listed when one of those baselined channels has no row for it yet, the
+// case where the publish answers 200 rather than 409. The answer names
+// whose profiles a publish posts on (profiles), so the WUI's button can
+// say it when they are not the caller's own.
 
-// UnsharedMarketingPosts is the live posts that hum, the workspace owner,
-// can still publish on one of their LinkedIn channels, newest first.
+// LinkedInProfile is one LinkedIn channel a publish goes out on: the
+// connector's name, and whether the caller is the connector.
+type LinkedInProfile struct {
+	ChannelID string `json:"channel_id"`
+	Name      string `json:"name"`
+	Mine      bool   `json:"mine"`
+}
+
+// UnsharedMarketingPosts is the live posts that hum can still publish on
+// one of the LinkedIn channels it may publish on, newest first.
 func (s *Server) UnsharedMarketingPosts(ctx context.Context, tenant, hum string) ([]marketing.BlogPost, error) {
+	posts, _, err := s.unsharedLinkedIn(ctx, tenant, hum)
+	return posts, err
+}
+
+// unsharedLinkedIn is UnsharedMarketingPosts plus the profiles they go out on.
+func (s *Server) unsharedLinkedIn(ctx context.Context, tenant, hum string) ([]marketing.BlogPost, []LinkedInProfile, error) {
 	m := s.o.MarketingLinkedIn
 	mk, ok := s.o.Store.(store.Marketing)
 	if m == nil || !ok {
-		return nil, ErrMarketingNoLinked
+		return nil, nil, ErrMarketingNoLinked
 	}
 	if !s.marketingSweepable(ctx, tenant) {
-		return nil, ErrMarketingOff
+		return nil, nil, ErrMarketingOff
 	}
-	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
-		return nil, ErrMarketingNotOwner
-	}
-	chs, err := s.ownerChannels(ctx, mk, tenant, hum)
+	chs, err := s.linkedInChannels(ctx, mk, tenant, hum)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if len(chs) == 0 {
-		return nil, ErrMarketingNoChannel
+	profiles := make([]LinkedInProfile, len(chs))
+	for i, ch := range chs {
+		profiles[i] = LinkedInProfile{ChannelID: ch.ID, Name: ch.AccountName, Mine: ch.DelegatedBy == hum}
 	}
+	posts, err := unsharedOn(ctx, m, mk, tenant, chs)
+	return posts, profiles, err
+}
+
+// unsharedOn: the live posts some baselined channel of chs has no row for.
+func unsharedOn(ctx context.Context, m *MarketingLinkedIn, mk store.Marketing, tenant string, chs []store.MarketingChannel) ([]marketing.BlogPost, error) {
 	var known []map[string]bool
 	for _, ch := range chs {
 		if ch.BaselineAt == nil { // before the first sweep: the back catalogue is not listed
@@ -68,11 +89,11 @@ func (s *Server) UnsharedMarketingPosts(ctx context.Context, tenant, hum string)
 	return out, nil
 }
 
-// UnsharedMetaPosts is the live posts that hum, the workspace owner, can
-// still publish on the Facebook Page or Instagram account channelID: those
-// with no row on it (spec 090 T035, SPL-4496). Same gates as the Meta
-// publish (publishMetaPost); a Meta channel has no baseline, so the whole
-// live index counts.
+// UnsharedMetaPosts is the live posts that hum can still publish on the
+// Facebook Page or Instagram account channelID: those with no row on it
+// (spec 090 T035, SPL-4496). Same gates as the Meta publish
+// (publishMetaPost, metaApprover; SPL-5196: it was the workspace owner
+// only); a Meta channel has no baseline, so the whole live index counts.
 func (s *Server) UnsharedMetaPosts(ctx context.Context, tenant, hum, channelID string) ([]marketing.BlogPost, error) {
 	mm, st, ok := s.metaReady()
 	if !ok {
@@ -81,12 +102,15 @@ func (s *Server) UnsharedMetaPosts(ctx context.Context, tenant, hum, channelID s
 	if !s.marketingSweepable(ctx, tenant) {
 		return nil, ErrMarketingOff
 	}
-	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
-		return nil, ErrMarketingNotOwner
+	if _, err := s.access(ctx, hum, tenant); hum == "" || err != nil {
+		return nil, ErrMarketingNotApprover
 	}
 	ch, err := metaChannel(ctx, st, tenant, channelID)
 	if err != nil {
 		return nil, err
+	}
+	if !s.metaApprover(ctx, tenant, hum, ch) {
+		return nil, ErrMarketingNotApprover
 	}
 	refs, err := st.MarketingPostRefs(ctx, tenant, ch.ID)
 	if err != nil {
@@ -105,21 +129,23 @@ func (s *Server) UnsharedMetaPosts(ctx context.Context, tenant, hum, channelID s
 	return out, nil
 }
 
-// GET /v1/marketing/posts: the owner's unshared live blog posts; with
-// ?channel=<id> those of that Facebook Page or Instagram account.
+// GET /v1/marketing/posts: the caller's unshared live blog posts and the
+// LinkedIn profiles they go out on; with ?channel=<id> those of that
+// Facebook Page or Instagram account.
 func (s *Server) handleMarketingPosts(w http.ResponseWriter, r *http.Request, tenant string) {
 	w.Header().Set("Cache-Control", "no-store")
 	hum, _ := s.memberID(r, tenant)
 	var posts []marketing.BlogPost
+	var profiles []LinkedInProfile
 	var err error
 	if ch := r.URL.Query().Get("channel"); ch != "" {
 		posts, err = s.UnsharedMetaPosts(r.Context(), tenant, hum, ch)
 	} else {
-		posts, err = s.UnsharedMarketingPosts(r.Context(), tenant, hum)
+		posts, profiles, err = s.unsharedLinkedIn(r.Context(), tenant, hum)
 	}
 	switch {
-	case errors.Is(err, ErrMarketingNotOwner):
-		writeForbidden(w, permTenantOwner, err.Error())
+	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingNotApprover):
+		writeForbidden(w, rbac.TenantSettings, err.Error())
 	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingOff), errors.Is(err, ErrMarketingNoMetaPage):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, ErrMarketingNoLinked):
@@ -128,6 +154,8 @@ func (s *Server) handleMarketingPosts(w http.ResponseWriter, r *http.Request, te
 		writeErr(w, http.StatusServiceUnavailable, "not_configured", err.Error())
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "the unshared blog posts are unavailable")
+	case profiles != nil:
+		writeJSON(w, http.StatusOK, map[string]any{"posts": posts, "profiles": profiles})
 	default:
 		writeJSON(w, http.StatusOK, map[string]any{"posts": posts})
 	}

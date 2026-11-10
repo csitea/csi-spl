@@ -9,13 +9,14 @@
 //   - META_DISCONNECT_LIVE = false          -> "the live client offers Disconnect (SPL-4496 route served)"
 //   - a static `import MarketingAccounts` in general.vue -> "Tenant settings > General loads the accounts lazily"
 //   - the mock post's /mock-first.jpg removed -> "every mock post picture is in src/public"
+//   - linkedInOthers ignoring `mine` -> "SPL-5196 the viewer's own profile keeps the plain label"
 //
 // Run: node tests/unit/marketing-meta.test.mjs
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  META_LIMITS, blogPostUrl, metaAccountRows, metaCanDisconnect, metaCaption, metaCharCount, metaInitials,
+  META_LIMITS, blogPostUrl, linkedInOthers, metaAccountRows, metaCanDisconnect, metaCaption, metaCharCount, metaInitials,
   metaLoadView, metaNeedsJpeg, metaNumber, metaPageCanPost, metaPublishErrorKey, metaRowsWithout,
 } from '../../src/utils/marketing-meta.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
@@ -117,6 +118,14 @@ const mock = readFileSync(join(WUI, 'src/utils/tenant-settings-mock.mjs'), 'utf8
 const pics = [...mock.matchAll(/image:\s*'(\/[^']+)'/g)].map((m) => m[1])
 const absent = pics.filter((f) => !existsSync(join(WUI, 'src/public', f)))
 ok('every mock post picture is in src/public', pics.includes('/mock-first.jpg') && absent.length === 0, JSON.stringify(absent))
+
+// SPL-5196: a LinkedIn publish goes out on the connector's profile; the
+// button names it when that is not the viewer's own
+ok('SPL-5196 the viewer\'s own profile keeps the plain label', linkedInOthers([{ name: 'FirstName LastName', mine: true }]) === '')
+ok('SPL-5196 another member\'s profile is named', linkedInOthers([{ name: 'FirstName LastName', mine: false }]) === 'FirstName LastName')
+ok('SPL-5196 several are joined, own ones and nameless ones left out', linkedInOthers([{ name: 'A B', mine: false }, { name: 'C D', mine: true }, { name: ' ', mine: false }, { name: 'E F', mine: false }]) === 'A B, E F')
+ok('SPL-5196 no profiles, no name', linkedInOthers(undefined) === '' && linkedInOthers([]) === '' && linkedInOthers([null]) === '')
+ok('SPL-5196 the button text names the profile', en.marketing_publish_button_on === 'Publish on the LinkedIn profile of {name}')
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs marketing-meta.test.mjs', suite.ok, suite.why)

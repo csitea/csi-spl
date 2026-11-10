@@ -122,8 +122,12 @@ func TestMarketingMetaPostList(t *testing.T) {
 	if code, ids := list(e.owner, e.ig.ID); code != http.StatusOK || strings.Join(ids, ",") != all {
 		t.Fatalf("Instagram list: %d %v, want all three (no row on it)", code, ids)
 	}
-	if code, _ := list(e.admin, e.page.ID); code != http.StatusForbidden {
-		t.Fatalf("admin list: %d, want 403", code)
+	// SPL-5196: the admin (the Page's connector) lists too; a developer is 403
+	if code, ids := list(e.admin, e.page.ID); code != http.StatusOK || strings.Join(ids, ",") != "2026-10-29-webp,2026-10-28-third" {
+		t.Fatalf("admin list: %d %v, want 200 and the two unpublished", code, ids)
+	}
+	if code, _ := list(seat(t, e.env, e.tid, rbac.Developer), e.page.ID); code != http.StatusForbidden {
+		t.Fatalf("developer list: %d, want 403", code)
 	}
 	if code, _ := list(e.owner, "00000000-0000-4000-8000-000000000000"); code != http.StatusNotFound {
 		t.Fatalf("unknown channel: %d, want 404", code)

@@ -11,6 +11,8 @@
 //      that goes out removes its row; switched off, the list is gone;
 //   P6. SPL-1856: a member who is not the LinkedIn owner (the mock answers
 //      403) sees one plain line under "Publish to LinkedIn", not a gap;
+//   P7. SPL-5196: an admin publishing on a LinkedIn channel another member
+//      connected reads whose profile it goes out on, on the button;
 //   3. a workspace outside the cnf allow-list (the mock answers 404, as the
 //      hub does) shows no toggle, but ONE line saying Marketing is not
 //      available here (SPL-1856, owner msg d657f49d), at 1440 and at 390,
@@ -23,6 +25,9 @@
 // (SPL-1856's red control is the old components: steps P6 and 3 fail on them.)
 // or step P2 (the mock answers 200 instead of 409):
 //   PROVE_RED=recorded node tests/e2e/marketing-switch.test.mjs
+// or step P7 (SPL-5196: the mock says the viewer connected LinkedIn, so the
+// button keeps its plain label instead of naming the connector's profile):
+//   PROVE_RED=other node tests/e2e/marketing-switch.test.mjs
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e marketing-switch
@@ -83,7 +88,7 @@ async function publishForbiddenSteps(p) {
   await p.click(TOGGLE)
   await p.waitForSelector(PUB_UNAVAILABLE, { visible: true, timeout: 5000 }).catch(() => null)
   const line = await text(p, PUB_UNAVAILABLE + ' p')
-  ok('P6 a 403 on the list shows one line, no list', line === 'Only the workspace owner who connected LinkedIn can publish.' &&
+  ok('P6 a 403 on the list shows one line, no list', line === 'Only an admin or business owner of the workspace, or the member who connected LinkedIn, can publish.' &&
     !(await p.$(PUB)) && !(await p.$(UNAVAILABLE)), { line })
   await mockPublish(p, '')
   await p.click(TOGGLE)
@@ -92,11 +97,27 @@ async function publishForbiddenSteps(p) {
   ok('P6b switched off, the line is gone too (the list 404 stays silent)', !(await p.$(PUB_UNAVAILABLE)) && !(await p.$(PUB)))
 }
 
+// SPL-5196: an admin publishing on a channel another member connected reads
+// whose profile the post goes out on, on the button itself
+async function publishOtherSteps(p) {
+  await mockPublish(p, RED === 'other' ? '' : 'other')
+  await p.click(TOGGLE)
+  await p.waitForSelector(PUB_BTN, { visible: true, timeout: 5000 }).catch(() => null)
+  const label = await text(p, PUB_BTN)
+  ok('P7 the button names the connector\'s profile', label === 'Publish on the LinkedIn profile of FirstName LastName', { label })
+  await mockPublish(p, '')
+  await p.click(TOGGLE)
+  await p.waitForFunction((s) => document.querySelector(s)?.checked === false && !document.querySelector(s)?.disabled, { timeout: 5000 }, TOGGLE).catch(() => null)
+  await new Promise((r) => setTimeout(r, 300))
+}
+
 // SPL-1698: the owner's Publish to LinkedIn list, while marketing is on
 async function publishSteps(p) {
   await p.waitForSelector(PUB_ROW, { visible: true, timeout: 5000 }).catch(() => null)
   const first = await rows(p)
   ok('P1 the owner sees the two unshared live posts, each with a Publish button', first.length === 2 && (await p.$$(PUB_BTN)).length === 2, first)
+  const own = await text(p, PUB_BTN)
+  ok('P1b on the viewer\'s own profile the button keeps its plain label', own === 'Publish to LinkedIn', { own })
   // 409: the post is already published, or recorded for LinkedIn
   await mockPublish(p, RED === 'recorded' ? '' : 'recorded')
   await clickPublish(p)
@@ -106,7 +127,7 @@ async function publishSteps(p) {
   await mockPublish(p, 'forbidden')
   await clickPublish(p)
   const forbidden = await text(p, '[data-test=tenant-marketing-publish-error]')
-  ok('P3 a 403 shows as a plain message and keeps the row', forbidden.startsWith('Only the workspace owner') && (await rows(p)).length === 1, { forbidden })
+  ok('P3 a 403 shows as a plain message and keeps the row', forbidden.startsWith('Only an admin or business owner') && (await rows(p)).length === 1, { forbidden })
   // CONTROL: the owner's publish goes out and the list empties
   await mockPublish(p, '')
   await clickPublish(p)
@@ -145,6 +166,7 @@ try {
     await new Promise((r) => setTimeout(r, 300))
     ok('P5 switched off, the Publish list is gone', !(await p.$(PUB)))
     await publishForbiddenSteps(p)
+    await publishOtherSteps(p)
   }
 
   // 3. outside the allow-list: no toggle, one line saying why, General still renders

@@ -138,7 +138,7 @@ func (c *shareClock) add(d time.Duration) {
 // newShareEnv: one allow-listed, switched-on workspace whose owner has a
 // connected LinkedIn channel (token expires in 60 days), an admin, and a
 // live blog with two posts.
-func newShareEnv(t *testing.T) *shareEnv {
+func newShareEnv(t *testing.T, mut ...func(*hub.Options)) *shareEnv {
 	t.Helper()
 	fake := newShareFake(t)
 	fake.posts = []marketing.BlogPost{blogPost("2026-10-02-second"), blogPost("2026-10-01-first")}
@@ -166,6 +166,9 @@ func newShareEnv(t *testing.T) *shareEnv {
 		o.MarketingLinkedIn = m
 		o.Log = zerolog.New(buf)
 		o.Now = clock.Now
+		for _, m := range mut {
+			m(o)
+		}
 	}, tid)
 	admin := seat(t, e, tid, rbac.Admin)
 	mktOn(t, e, tid, admin)
@@ -176,7 +179,7 @@ func newShareEnv(t *testing.T) *shareEnv {
 	}
 	exp := clock.Now().Add(60 * 24 * time.Hour)
 	ch, err := e.st.(store.Marketing).ConnectMarketingChannel(context.Background(), store.MarketingChannel{Tenant: tid,
-		Platform: "linkedin", AccountRef: fakeLinkedInSub, DelegatedBy: owner, AutoPublish: true, ExpiresAt: &exp},
+		Platform: "linkedin", AccountRef: fakeLinkedInSub, AccountName: "FirstName LastName", DelegatedBy: owner, AutoPublish: true, ExpiresAt: &exp},
 		store.MarketingToken{Ciphertext: sealed, KMSKeyID: keyID}, clock.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -393,22 +396,23 @@ func TestMarketingShareReminderOnceAWeekAhead(t *testing.T) {
 	}
 }
 
-// SPL-40 (owner HUM-10, topic add4fbf4 msg 3a3f366b): only the workspace
-// owner publishes to LinkedIn. An admin, another member and an agent are
-// refused, on the route and on the method; the owner's publish goes out.
+// SPL-40, widened by SPL-5196 (TestMarketingLinkedInAdminAndOwnerPublish
+// holds the admin and the business owner): a member with neither
+// tenant.settings nor the connection, and an agent, are refused, on the
+// route and on the method; the connector's publish goes out.
 func TestMarketingShareOnlyTheOwnerPublishes(t *testing.T) {
 	e := newShareEnv(t)
 	e.sweep()
 	e.newPostWaits(t, "2026-10-13-owner")
 	dev, agent := seat(t, e.env, e.tid, rbac.Developer), seat(t, e.env, e.tid, rbac.PureAgent)
-	for _, who := range []string{e.admin, dev, agent, "", "AGT-1"} {
+	for _, who := range []string{dev, agent, "", "AGT-1"} {
 		if _, err := e.srv.PublishMarketingPost(context.Background(), e.tid, who, "2026-10-13-owner"); !errors.Is(err, hub.ErrMarketingNotOwner) {
 			t.Fatalf("publish as %q: %v, want ErrMarketingNotOwner", who, err)
 		}
 	}
 	path := "/v1/marketing/posts/2026-10-13-owner/publish"
-	if code, body := call(t, e.env, e.tid, http.MethodPost, path, e.admin, nil); code != http.StatusForbidden {
-		t.Fatalf("admin POST %s: %d %v, want 403", path, code, body)
+	if code, body := call(t, e.env, e.tid, http.MethodPost, path, dev, nil); code != http.StatusForbidden {
+		t.Fatalf("developer POST %s: %d %v, want 403", path, code, body)
 	}
 	if n := e.fake.shareCount(); n != 0 {
 		t.Fatalf("a refused publish reached LinkedIn: %d shares", n)
@@ -461,8 +465,8 @@ func (e *shareEnv) agentPublish(t *testing.T, tid, tok, requester, id string) (i
 
 // SPL-1855 (owner HUM-10, topic f46301d4 msgs 54795a30, c5ed6345): an agent
 // publishes a live post for the workspace owner, on the owner's connected
-// channel, once. It is refused for anyone but the owner, and outside the
-// allow-list; the sweep still starts nothing.
+// channel, once. It is refused for a member who may not publish (SPL-5196:
+// an admin may), and outside the allow-list; the sweep still starts nothing.
 func TestMarketingShareAgentPublishesForTheOwner(t *testing.T) {
 	e := newShareEnv(t)
 	e.sweep()
@@ -471,7 +475,7 @@ func TestMarketingShareAgentPublishesForTheOwner(t *testing.T) {
 	e.pin(e.tid, b)
 	tok := e.agentToken(e.tid, b)
 	dev := seat(t, e.env, e.tid, rbac.Developer)
-	for _, who := range []string{"", e.admin, dev, "HUM-999999999"} {
+	for _, who := range []string{"", dev, "HUM-999999999"} {
 		if code, body := e.agentPublish(t, e.tid, tok, who, "2026-10-14-agent"); code != http.StatusForbidden {
 			t.Fatalf("agent for %q: %d %v, want 403", who, code, body)
 		}

@@ -76,7 +76,7 @@ To comply with platform policies and protect account reputation, posting "on beh
 | **Draft Handover (Manual)** | WUI Handover Card (clipboard + asset pack) | Direct customer control (HUM-23). 1-click caption copy, asset selector/download, deep link open. Zero external API credentials required. | **Phase 3b** |
 | **Viber / WhatsApp Pre-fill** | Client Deep Links (`viber://forward`, `wa.me/?text=`) | One-click prefill links. Author taps send in app. Does not preselect channel/group; zero server tokens needed. | **Phase 3b** |
 | **LinkedIn (Company)** | OAuth 2.0 (`w_organization_social`) | Company brand page. Requires LinkedIn Community Management API access, business verification, and formal app review (weeks). | Phase 4 |
-| **X (Twitter)** | OAuth 2.0 PKCE (`tweet.write`) | Pay-per-use / developer tier with prepaid credits (vendor card checked 2026-10-05: ~$0.015 per post, ~$0.200 with link). Live price verified at build time. Rotating refresh tokens. | Phase 4 |
+| **X (Twitter)** | OAuth 2.0 PKCE (`tweet.write`) | Pay-per-use with prepaid credits (docs.x.com pricing read 2026-11-10: $0.015 per post, $0.200 with a URL; every hub post carries one). Rotating refresh tokens. Built, shipped dark until the owner's app: [x-app-setup.md](./x-app-setup.md) (SPL-5194). | Phase 4 |
 
 *Note on Reach Metrics*: Public post URLs and published status are recorded in Phase 1. API reach analytics (impressions, clicks) are best-effort where exposed without extra paid tiers, and deferred from Phase 1.
 

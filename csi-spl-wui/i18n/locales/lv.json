@@ -4070,7 +4070,7 @@
       "err_note": "Piezīme ir pārāk gara: ne vairāk kā 2000 rakstzīmju.",
       "col_amount_in": "{currency} bez PVN",
       "shown": "{n} no {total} izmaksām",
-      "no_match": "Neviena izmaksa neatbilst filtriem",
+      "no_match": "Nevienas izmaksas neatbilst filtriem",
       "filter_text": "Meklēt izmaksas",
       "filter_currency": "Ievadīts valūtā",
       "total": "Kopā",

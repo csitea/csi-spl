@@ -4072,7 +4072,7 @@
       "shown": "{n} מתוך {total} עלויות",
       "no_match": "אין עלות שתואמת את המסננים",
       "filter_text": "חיפוש עלויות",
-      "filter_currency": "הוזן ב־",
+      "filter_currency": "הוזן במטבע",
       "total": "סה״כ",
       "converted": "הומר מ־{currency} לפי שער {day}",
       "no_rate": "אין שער חליפין שמור עבור {currency}",

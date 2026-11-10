@@ -4072,7 +4072,7 @@
       "shown": "{n}/{total} kulua",
       "no_match": "Mikään kulu ei vastaa suodattimia",
       "filter_text": "Hae kuluja",
-      "filter_currency": "Syötetty valuuttana",
+      "filter_currency": "Syötetty valuutassa",
       "total": "Yhteensä",
       "converted": "Muunnettu valuutasta {currency} päivän {day} kurssilla",
       "no_rate": "Valuutalle {currency} ei ole tallennettu vaihtokurssia",

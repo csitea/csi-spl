@@ -320,4 +320,50 @@ serve_a
 eq "12. a cancel in a big archive still stops the request" "$n" "$(calls)"
 has "12. ... and the log says so" "withdrawn before spawn" "$(cat "$A/spawn-remote/serve.log")"
 
+# ---- 13. a cancel check that cannot read the mailbox spawns nothing (SPL-5237) --
+# A failed read counted as "not cancelled": a withdrawn request still started a
+# lane. Now the tick stops, says so, and leaves the request to the next tick.
+cancelled_req() {  # SLUG ; prints the task id of a request withdrawn at once
+  local t
+  t="$(on "$B" sat bash "$SR" --box home --wait 0 claude auto "$WORK" "$T_TMP/brief.md" "$1" 2>>"$T_TMP/r13.err")"
+  t="${t#task }"
+  on "$B" sat bash "$SR" --cancel --box home --task "$t" >/dev/null 2>>"$T_TMP/r13.err"
+  printf '%s' "$t"
+}
+req_msg() {  # TASK ; the request's msg_id on A
+  jq -r --arg t "$1" 'select(.task_id == $t and (.body | contains("spawn-request v1"))) | .msg_id' \
+    "$A"/c-001/inbox/*.json 2>/dev/null
+}
+if [ "$(id -u)" -eq 0 ]; then
+  echo "skip - 13. root reads a mode-000 file: run as a plain user"
+else
+  rm -rf "$A/c-001/archive"; mkdir -p "$A/c-001/archive"; TAB=$'\t'
+  for where in file archive; do
+    task="$(cancelled_req "unread-$where")"
+    cancel_msg="$(grep -lF -- "$task" "$A"/c-001/inbox/*.json | xargs grep -lF -- 'spawn-cancel')"
+    if [ "$where" = file ]; then
+      locked="$cancel_msg" mode=600
+    else
+      mv "$cancel_msg" "$A/c-001/archive/"; locked="$A/c-001/archive" mode=700
+    fi
+    msg="$(req_msg "$task")"
+    chmod 000 "$locked"
+    n="$(calls)"; : >"$T_TMP/serve.err"
+    serve_a
+    eq "13. $where mode 000: the withdrawn request spawns nothing" "$n" "$(calls)"
+    has "13. ... the tick says why on stderr" "UNREADABLE $msg" "$(cat "$T_TMP/serve.err")"
+    has "13. ... and in its log" "UNREADABLE$TAB$msg" "$(cat "$A/spawn-remote/serve.log")"
+    check "13. ... the request stays retriable (not marked seen)" \
+      bash -c '! grep -qxF -- "$1" "$2"' _ "$msg" "$A/spawn-remote/seen"
+    chmod "$mode" "$locked"
+    serve_a
+    eq "13. ... readable again: the cancel still wins" "$n" "$(calls)"
+    has "13. ... and the log says so" "CANCELLED$TAB$msg" "$(cat "$A/spawn-remote/serve.log")"
+  done
+  n="$(calls)"
+  req_b "$T_TMP/r13" claude auto "$WORK" "$T_TMP/brief.md" readable-no-cancel
+  eq "13. CONTROL a readable mailbox with no cancel still spawns once" "$((n + 1))" "$(calls)"
+  eq "13. CONTROL ... and answers the id" "c-009@home %42" "$(cat "$T_TMP/r13")"
+fi
+
 t_done

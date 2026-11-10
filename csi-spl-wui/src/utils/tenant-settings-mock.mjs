@@ -156,7 +156,7 @@ function mockMarketingMeta(unshared) {
 /**
  * spec 090 X row (SPL-5194): one X account, @mock_studio; Connect adds
  * @mock_shop. spool.mock.marketing.x=not_configured plays a hub without the
- * X app (503).
+ * X app (503), =too_long a post that does not fit 280 even shortened (422).
  */
 function mockMarketingX(unshared) {
   const flag = () => {
@@ -187,6 +187,7 @@ function mockMarketingX(unshared) {
     },
     publish(id, channel) {
       if (!unshared.some((x) => x.id === id) || (done[channel] || []).includes(id)) throw mockErr(409, 'already_recorded')
+      if (flag() === 'too_long') throw mockErr(422, 'too_long')
       done[channel] = [...(done[channel] || []), id]
       return { post: id, scheduled: 1, published: 1, retried: 0, failed: 0, deferred: 0 }
     },

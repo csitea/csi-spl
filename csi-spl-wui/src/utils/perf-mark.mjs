@@ -72,7 +72,7 @@ export function perfFeed(f, o) {
     const rows = Array.isArray(o.rows) ? o.rows : []
     const shown = !o.loading && (rows.length > 0 || f.sawLoading)
     const sink = perfSink()
-    if (sink && typeof sink.feed === 'function') sink.feed(st, f, rows, fresh, shown, o)
+    if (sink && typeof sink.feed === 'function') sink.feed(st, f, { rows, fresh, shown }, o)
     if (shown && !st.landed) {
       st.landed = true
       const cache = perfCache()

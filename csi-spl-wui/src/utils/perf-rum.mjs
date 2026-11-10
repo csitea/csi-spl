@@ -547,9 +547,11 @@ function feedSends(st, f, rows, own) {
  *   M3 send_ack     an own pending row loses `pending` (or arrives confirmed); a
  *                   pending row that leaves the feed is outcome=fail
  *   M5 switch_view  the feed's view changed and its first rows (or empty state) show
- * `st` is perf-mark's shared memory, `f` the feed's own.
+ * `st` is perf-mark's shared memory, `f` the feed's own, `c` this call's
+ * feed state and `o` the feed's options.
+ * @param {{ rows: any[], fresh: boolean, shown: boolean }} c
  */
-export function perfFeedPair(st, f, rows, fresh, shown, o) {
+export function perfFeedPair(st, f, { rows, fresh, shown }, o) {
   try {
     if (fresh) feedSwitched(st, f, rows)
     else if (!f.seen) {

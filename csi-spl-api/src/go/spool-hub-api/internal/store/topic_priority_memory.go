@@ -77,3 +77,20 @@ func (s *Memory) storedTopicPriorities(tenant string, keys []string) map[string]
 	}
 	return stored
 }
+
+// SetTopicPriorityRows implements TopicPriorityStore.
+func (s *Memory) SetTopicPriorityRows(_ context.Context, tenant string, taskIDs []string) (map[string]TopicPriority, error) {
+	if err := checkTenant(tenant); err != nil {
+		return nil, err
+	}
+	_, keys := defaultTopicPriorities(taskIDs)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]TopicPriority{}
+	for _, k := range keys {
+		if p, ok := s.topicPrio[[2]string{tenant, k}]; ok {
+			out[k] = p
+		}
+	}
+	return out, nil
+}

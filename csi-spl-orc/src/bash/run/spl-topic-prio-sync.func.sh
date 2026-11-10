@@ -12,7 +12,11 @@
 # @description issue with no set discussion keeps its own. Run from the
 # @description operator workspace's desk (the lease's LEASE_TENANT), the hub
 # @description sweeps every workspace. The PUT of a topic's priority applies
-# @description it at once; this is the safety net.
+# @description it at once; this is the safety net. The last prio change wins,
+# @description both ways (v1.3, SPL-5223): an issue's own change that is newer
+# @description than its discussions' sets them (the answer's spread list, one
+# @description line each: topic workspace, topic, old -> new, issue), and the
+# @description sweep never moves such an issue back.
 # @description Only the box of the dispatch lease holder acts (the cron runs on
 # @description every box), unless TOPIC_PRIO_FORCE=1. Logs one line per issue
 # @description (workspace, key, topic, old -> new) and a summary. DRY_RUN=1
@@ -62,6 +66,8 @@ import json, sys
 d = json.loads(sys.argv[1]); dry = sys.argv[2] == "1"
 d = d.get("result", d)
 verb = "would move" if dry else "moved"
+for c in d.get("spread") or []:
+    print("INFO topic-prio-sync: %s %s topic %s %s -> %s (issue %s)" % ("would set" if dry else "set", c["workspace"], c["topic"], c["from"] or "unset", c["to"], c["key"]))
 for c in d.get("changes") or []:
     print("INFO topic-prio-sync: %s %s %s %s -> %s (topic %s)" % (verb, c["workspace"], c["key"], c["from"], c["to"], c["topic"]))
 ws = d.get("workspaces") or []

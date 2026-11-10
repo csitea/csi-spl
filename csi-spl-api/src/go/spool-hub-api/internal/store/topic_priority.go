@@ -53,6 +53,10 @@ type TopicPriorityStore interface {
 	// row, a set 3 too), keyed by the asked id: an unset topic is absent,
 	// never the default. A new issue inherits from it (SPL-4725).
 	SetTopicPriorities(ctx context.Context, tenant string, taskIDs []string) (map[string]int, error)
+	// SetTopicPriorityRows is SetTopicPriorities with who set each and
+	// when, keyed by the stored (lower case) id: the newest change wins
+	// between a discussion and its issues (spec 150 3.4 item 4, SPL-5223).
+	SetTopicPriorityRows(ctx context.Context, tenant string, taskIDs []string) (map[string]TopicPriority, error)
 	// InheritTopicPriority copies source's stored priority to target, in
 	// one workspace, set by by at at (SPL-5147). false, no write: source has
 	// no row, or target already has one, which it keeps.

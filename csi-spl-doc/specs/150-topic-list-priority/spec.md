@@ -1,6 +1,12 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.2 (2026-11-04): the discussion's priority is the source; an
+Version v1.3 (2026-11-10): the last prio change wins, both ways: an
+issue's own change sets every discussion it links, their other issues and
+their lanes follow, and the 5-min sweep never undoes a newer change
+(section 3.4 item 4; the owner, t1 20da7236 msgs `76af2576` and
+`01c1f25e`, SPL-5223).
+
+v1.2 (2026-11-04): the discussion's priority is the source; an
 issue follows the priority set on its discussions and a lane follows its
 issues (section 3.4 item 4; the owner, csitea b0f50875 msgs `ee3d6efc` and
 `f061e485`, SPL-4813). This replaces panel D4.
@@ -343,11 +349,51 @@ holds (panel.md section 1, one row per claim with its command).
      each change is an issue update by the setter (its
      history names who) and an `issue` frame to the open tabs. A failed apply
      is logged, never the PUT's error.
+   - **The last prio change wins, both ways** (v1.3, SPL-5223; owner
+     HUM-10, t1 20da7236, msg `76af2576`: "I should be able to control the
+     priority of the stuff which is getting built by just changing either
+     the priority of the discussions or by changing the priority of the
+     actual tasks. These should propagate"; msg `01c1f25e`: an issue
+     linked to two discussions sets both).
+     - A person's or an agent's change of an issue's priority (the issue
+       update path, `PATCH /v1/issues/{ref}` and the agent op `update`)
+       stamps `issues.priority_set_at` (rdb 0273). A change the issue takes
+       from its discussions does not: its time is the discussion's
+       `topic_priorities.set_at`.
+     - **Issue -> discussions.** The change sets EVERY discussion the issue
+       links, the workspace's default discussion and a link to another
+       workspace's topic (`origin_tenant`, SPL-5126) left out, at the
+       issue's own time and by whoever changed it (the sweep's seat when the
+       sweep spreads it)
+       (`hub/topic_priority_spread.go`). Each set discussion then applies
+       as a PUT does: its other open issues follow it (the rule above),
+       their lanes follow them, and the open views get the
+       `topic_priority` frame. The issue's history names who changed it;
+       each issue that follows gets an update by the same person.
+     - **Discussion -> issues** works as before: an open issue takes the
+       highest priority set on its discussions.
+     - **The newest change wins.** An issue whose own change is as new as
+       the set row of every discussion it links, or newer, is never moved
+       by them; it sets them instead. Where one topic has a set row in two
+       workspaces the newer row counts. Two issues set one after the other
+       on one discussion: the second wins, the first follows it.
+     - **Across workspaces.** From the operator workspace a change writes
+       the topic in the workspace that holds it (`topicWorkspace`: the
+       fleet's lane issue on the owner's t1 topic sets t1's row). From any
+       other workspace it writes that workspace's own rows only.
+     - **No loop.** Only the update path and the sweep spread; the follow
+       a spread starts never spreads again. A failed spread is logged,
+       never the update's error: the sweep spreads it.
+     - Existing issues have no stamp, so their discussions win, as in v1.2.
    - **Every 5 minutes, the safety net**: the agent issue op `prio-sync`
      (`spool issue prio-sync [--apply]`, a dry run without `--apply`) applies
      it to every issue of the caller's workspace, and from the operator
      workspace to every workspace of the hub: each takes only its own
-     discussions' priorities. `cd csi-spl-orc && ./run -a do_spl_topic_prio_sync`
+     discussions' priorities. It first spreads every newer issue change
+     (oldest first, so the newest is written last; the answer's `spread`
+     list: topic workspace, topic, issue, old -> new), then the other
+     issues follow. A dry run lists the spreads but not the follows they
+     would start. `cd csi-spl-orc && ./run -a do_spl_topic_prio_sync`
      calls it as the dispatch lease holder's desk, on that holder's box only,
      dry run unless `DRY_RUN=0`, one log line per issue (workspace, key,
      old -> new, topic) and the count of open issues with no set discussion.

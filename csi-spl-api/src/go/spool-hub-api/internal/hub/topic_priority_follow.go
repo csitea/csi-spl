@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -33,6 +34,12 @@ import (
 // issues linking that topic, and the agent issue op prio-sync, every issue
 // of the workspace, which the 5-min cron calls (do_spl_topic_prio_sync): the
 // safety net for a priority set before this rule or a failed apply.
+//
+// The last prio change wins, both ways (spec 150 3.4 item 4 v1.3, SPL-5223;
+// owner HUM-10, t1 20da7236, msgs 76af2576 and 01c1f25e): an issue whose own
+// change (issues.priority_set_at, rdb 0273) is as new as every set row of its
+// discussions or newer is never moved by them; it sets them instead
+// (topic_priority_spread.go), and their other issues follow.
 
 // prioChangeJSON is one issue moved (or, on a dry run, to move): its
 // workspace and key, the discussion whose priority it takes, the old and the
@@ -45,11 +52,13 @@ type prioChangeJSON struct {
 	To        int    `json:"to"`
 }
 
-// prioFollow is one run's answer: the workspaces swept, the changes and the
-// open issues that link no set discussion (they keep their own priority).
+// prioFollow is one run's answer: the workspaces swept, the changes, the
+// discussions set by a newer issue change (spread) and the open issues that
+// link no set discussion (they keep their own priority).
 type prioFollow struct {
 	Workspaces []string         `json:"workspaces"`
 	Changes    []prioChangeJSON `json:"changes"`
+	Spread     []prioSpreadJSON `json:"spread"`
 	Unset      int              `json:"unset"`
 	Applied    bool             `json:"applied"`
 }
@@ -57,41 +66,92 @@ type prioFollow struct {
 // prioRun is one apply: the issues of tenant to follow (numbers nil: every
 // one), the workspaces whose topics' priorities count besides tenant's own
 // (lookIn), who writes, and whether it writes (apply false only computes).
+// spread lets an issue's newer own change set its discussions: the update
+// path and the sweep, never the follow a spread starts (no loop).
 type prioRun struct {
 	tenant  string
 	numbers []int
 	lookIn  []string
 	by      string
 	apply   bool
+	spread  bool
 }
 
-// followDiscussionPriority applies the rule to one run.
-func (s *Server) followDiscussionPriority(ctx context.Context, run prioRun) (prioFollow, error) {
-	tenant, apply := run.tenant, run.apply
-	out := prioFollow{Workspaces: []string{tenant}, Changes: []prioChangeJSON{}, Applied: apply}
+// prioView is what one run reads: its issues, their links, the set rows of
+// the linked discussions (the newest per topic) and the issues' own stamps.
+type prioView struct {
+	links  map[int][]store.IssueDiscussion
+	set    map[string]store.TopicPriority
+	issues []store.Issue
+	own    map[int]time.Time
+}
+
+// ownNewer: issue n's own change is as new as every set row of its
+// discussions or newer, so they never move it (a tie goes to the issue: its
+// spread writes the topics at its own time).
+func (v prioView) ownNewer(n int) bool {
+	at, ok := v.own[n]
+	if !ok {
+		return false
+	}
+	for _, l := range v.links[n] {
+		if p, set := v.set[strings.ToLower(l.TaskID)]; set && l.OriginTenant == "" && p.SetAt.After(at) {
+			return false
+		}
+	}
+	return true
+}
+
+// readPrioView reads one run's view.
+func (s *Server) readPrioView(ctx context.Context, run prioRun) (prioView, error) {
+	var v prioView
 	ds, okD := s.o.Store.(store.IssueDiscussions)
 	ps, okP := s.o.Store.(store.TopicPriorityStore)
+	os, okO := s.o.Store.(store.IssuePrioritySets)
 	is, ie := s.issueStore()
-	if !okD || !okP || ie != nil {
-		return out, errors.New("this store keeps no issue discussions or topic priorities")
+	if !okD || !okP || !okO || ie != nil {
+		return v, errors.New("this store keeps no issue discussions or topic priorities")
 	}
-	links, err := ds.IssueDiscussionLinks(ctx, tenant, run.numbers)
-	if err != nil {
+	var err error
+	if v.links, err = ds.IssueDiscussionLinks(ctx, run.tenant, run.numbers); err != nil {
+		return v, err
+	}
+	if v.set, err = linkedSetPriorities(ctx, ps, run.tenant, run.lookIn, v.links); err != nil {
+		return v, err
+	}
+	if v.issues, err = followIssues(ctx, is, run.tenant, run.numbers); err != nil {
+		return v, err
+	}
+	v.own, err = os.IssuePrioritySetAt(ctx, run.tenant, run.numbers)
+	return v, err
+}
+
+// followDiscussionPriority applies the rule to one run: first the spreads
+// of the newer issue changes (run.spread), then every other open issue
+// follows its discussions.
+func (s *Server) followDiscussionPriority(ctx context.Context, run prioRun) (prioFollow, error) {
+	tenant, apply := run.tenant, run.apply
+	out := prioFollow{Workspaces: []string{tenant}, Changes: []prioChangeJSON{}, Spread: []prioSpreadJSON{}, Applied: apply}
+	is, ie := s.issueStore()
+	v, err := s.readPrioView(ctx, run)
+	if err != nil || ie != nil {
 		return out, err
 	}
-	set, err := linkedSetPriorities(ctx, ps, tenant, run.lookIn, links)
-	if err != nil {
-		return out, err
+	if run.spread {
+		if out.Spread, err = s.spreadNewerIssues(ctx, run, v); err != nil {
+			return out, err
+		}
+		if apply && len(out.Spread) > 0 {
+			if v, err = s.readPrioView(ctx, run); err != nil {
+				return out, err
+			}
+		}
 	}
-	issues, err := followIssues(ctx, is, tenant, run.numbers)
-	if err != nil {
-		return out, err
-	}
-	for _, i := range issues {
-		if issueResolved(i.Status) {
+	for _, i := range v.issues {
+		if issueResolved(i.Status) || v.ownNewer(i.Number) {
 			continue
 		}
-		to, topic := bestSetPriority(links[i.Number], set)
+		to, topic := bestSetPriority(v.links[i.Number], v.set)
 		if to == 0 {
 			out.Unset++
 			continue
@@ -109,10 +169,10 @@ func (s *Server) followDiscussionPriority(ctx context.Context, run prioRun) (pri
 	return out, nil
 }
 
-// linkedSetPriorities is the set priority of every discussion links names,
-// read in tenant and in each of lookIn (the highest where two answer), the
-// default discussion left out; absent = not set.
-func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenant string, lookIn []string, links map[int][]store.IssueDiscussion) (map[string]int, error) {
+// linkedSetPriorities is the set row of every discussion links names, read
+// in tenant and in each of lookIn (the newest where two answer: the last
+// change wins), the default discussion left out; absent = not set.
+func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenant string, lookIn []string, links map[int][]store.IssueDiscussion) (map[string]store.TopicPriority, error) {
 	def := strings.ToLower(store.IssueDiscussionDefault(tenant))
 	seen := map[string]bool{}
 	tasks := []string{}
@@ -125,17 +185,17 @@ func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenan
 			}
 		}
 	}
-	out := map[string]int{}
+	out := map[string]store.TopicPriority{}
 	if len(tasks) == 0 {
 		return out, nil
 	}
 	for _, t := range append([]string{tenant}, lookIn...) {
-		got, err := ps.SetTopicPriorities(ctx, t, tasks)
+		got, err := ps.SetTopicPriorityRows(ctx, t, tasks)
 		if err != nil {
 			return nil, err
 		}
 		for k, p := range got {
-			if q, ok := out[k]; !ok || p < q {
+			if q, ok := out[k]; !ok || p.SetAt.After(q.SetAt) {
 				out[k] = p
 			}
 		}
@@ -145,11 +205,11 @@ func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenan
 
 // bestSetPriority is the highest set priority among ls and the discussion
 // that sets it (the oldest link of a tie); 0 when none is set.
-func bestSetPriority(ls []store.IssueDiscussion, set map[string]int) (int, string) {
+func bestSetPriority(ls []store.IssueDiscussion, set map[string]store.TopicPriority) (int, string) {
 	best, topic := 0, ""
 	for _, l := range ls {
-		if p, ok := set[strings.ToLower(l.TaskID)]; ok && l.OriginTenant == "" && (best == 0 || p < best) {
-			best, topic = p, strings.ToLower(l.TaskID)
+		if p, ok := set[strings.ToLower(l.TaskID)]; ok && l.OriginTenant == "" && (best == 0 || p.Priority < best) {
+			best, topic = p.Priority, strings.ToLower(l.TaskID)
 		}
 	}
 	return best, topic
@@ -253,18 +313,19 @@ func (s *Server) agentPrioSync(ctx context.Context, tenant, as, query string) (a
 	}
 	apply := q.Get("dry_run") == "0"
 	tenants, err := s.prioSyncWorkspaces(ctx, tenant)
-	all := prioFollow{Workspaces: tenants, Changes: []prioChangeJSON{}, Applied: apply}
+	all := prioFollow{Workspaces: tenants, Changes: []prioChangeJSON{}, Spread: []prioSpreadJSON{}, Applied: apply}
 	for _, t := range tenants {
 		if err != nil {
 			break
 		}
-		run := prioRun{tenant: t, by: as, apply: apply}
+		run := prioRun{tenant: t, by: as, apply: apply, spread: true}
 		if t == tenant && len(tenants) > 1 { // the operator workspace: every workspace's topics count
 			run.lookIn = tenants[1:]
 		}
 		var res prioFollow
 		res, err = s.followDiscussionPriority(ctx, run)
 		all.Changes, all.Unset = append(all.Changes, res.Changes...), all.Unset+res.Unset
+		all.Spread = append(all.Spread, res.Spread...)
 	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("issue priority sync")

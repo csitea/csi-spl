@@ -19,7 +19,7 @@ const issueUsage = `usage: spool issue <list|get|moved|prio-sync|inherit-priorit
             [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created] [--limit N] [--cursor C]
   get       --ref SPL-3
   moved     the issue keys a channel move took from this workspace: old_key, dst, new_key, expires_at, live
-  prio-sync [--apply] every open issue takes the highest priority set on its discussions (spec 150 3.4); a dry run without --apply
+  prio-sync [--apply] the last prio change wins: a newer issue change sets its discussions, every other open issue takes the highest priority set on its discussions (spec 150 3.4); a dry run without --apply
   inherit-priority --from <archived topic> --to <live topic>  the target takes the source's stored priority; never overwrites one
   create    --title T  --discussions <topic id or /t/ link>,..  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature
             [--description D | --description-file F] [--status S]

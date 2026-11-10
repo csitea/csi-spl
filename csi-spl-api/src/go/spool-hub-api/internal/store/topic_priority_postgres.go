@@ -108,3 +108,29 @@ func (s *Postgres) storedTopicPriorities(ctx context.Context, tenant string, key
 	}
 	return stored, nil
 }
+
+// SetTopicPriorityRows implements TopicPriorityStore: the same one probe,
+// the whole rows.
+func (s *Postgres) SetTopicPriorityRows(ctx context.Context, tenant string, taskIDs []string) (map[string]TopicPriority, error) {
+	if err := checkTenant(tenant); err != nil {
+		return nil, err
+	}
+	_, keys := defaultTopicPriorities(taskIDs)
+	out := map[string]TopicPriority{}
+	if len(keys) == 0 {
+		return out, nil
+	}
+	err := s.queryTenant(ctx, tenant, `SELECT task_id::text, priority, set_by, set_at FROM topic_priorities
+		WHERE tenant_id = $1 AND task_id = ANY ($2::uuid[])`, []any{tenant, keys},
+		func(r pgx.Rows) error {
+			p := TopicPriority{TenantID: tenant}
+			err := r.Scan(&p.TaskID, &p.Priority, &p.SetBy, &p.SetAt)
+			p.SetAt = p.SetAt.UTC()
+			out[p.TaskID] = p
+			return err
+		})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

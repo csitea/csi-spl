@@ -428,6 +428,7 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 	if p.Empty() {
 		return store.Issue{}, badIssue("nothing to change")
 	}
+	p.PriorityOwn = p.Priority != nil // spec 150 3.4 item 4: the issue's own change (SPL-5223)
 	if ie := s.checkEpicField(ctx, tenant, q); ie != nil {
 		return store.Issue{}, ie
 	}
@@ -462,6 +463,9 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 	s.afterEpicAutoClose(ctx, tenant, actor, out) // SPL-1729
 	if p.Status != nil && issueResolved(out.Status) {
 		s.clearBlockerMark(ctx, tenant, actor, out) // blocker_issue.go: resolving the issue clears the mark
+	}
+	if p.Priority != nil {
+		s.spreadIssuePriority(ctx, tenant, number, actor) // topic_priority_spread.go: its discussions, their issues, the lanes
 	}
 	return out, nil
 }

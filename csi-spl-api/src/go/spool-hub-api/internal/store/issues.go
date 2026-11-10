@@ -350,6 +350,10 @@ type IssuePatch struct {
 	DeadlineSet bool
 	Deadline    *time.Time
 	Parent      *int
+	// PriorityOwn marks Priority as the issue's own change (the update
+	// path), not one it took from its discussions: a changed priority
+	// stamps priority_set_at (rdb 0273, spec 150 3.4 item 4, SPL-5223).
+	PriorityOwn bool
 }
 
 // Empty reports a patch that changes nothing.
@@ -637,6 +641,7 @@ type memIssues struct {
 	history  map[string]map[int][]IssueEvent      // rdb 0181 issue_events, without comments
 	opened   map[[2]string]map[int]time.Time      // rdb 0184 issue_opens: (tenant, member) -> number -> opened_at
 	links    map[string]map[int][]IssueDiscussion // rdb 0194 issue_discussions
+	prioAt   map[string]map[int]time.Time         // rdb 0273 issues.priority_set_at
 }
 
 func (m *memIssues) init() {
@@ -798,6 +803,9 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 	row.Prefix = s.iss.prefixOf(tenant)
 	s.iss.rows[tenant][number] = copyIssue(row)
 	s.iss.recordLocked(tenant, number, issueChanges(old, row)...)
+	if p.PriorityOwn && old.Priority != row.Priority {
+		s.iss.stampPriorityLocked(tenant, number, now)
+	}
 	s.flowWatchAssigneeLocked(tenant, row.TaskID, row.Assignee, now)
 	if row.Level != was { // an issue made an epic: its subtasks are issues now
 		for n, c := range s.iss.rows[tenant] {

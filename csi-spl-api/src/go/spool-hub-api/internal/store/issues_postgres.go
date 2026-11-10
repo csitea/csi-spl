@@ -314,11 +314,13 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 			UPDATE issues SET title = $3, description = $4, status = $5,
 				priority = $6, level = $7, assignee = $8, labels = $9, deadline = $10, parent_number = $11,
 				updated_by = $12, updated_at = $13, completed_at = $14, canceled_at = $15, kind = $16,
-				auto_closed = false
+				auto_closed = false,
+				priority_set_at = CASE WHEN $18::boolean AND issues.priority IS DISTINCT FROM $6 THEN $13 ELSE issues.priority_set_at END
 			WHERE tenant_id = $1 AND number = $2
 			RETURNING `+issueCols,
 			tenant, number, cur.Title, cur.Description, cur.Status, cur.Priority, cur.Level, cur.Assignee, cur.Labels,
-			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt, cur.Kind, cur.TaskID), tenant, prefix)
+			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt, cur.Kind, cur.TaskID,
+			p.PriorityOwn), tenant, prefix)
 		switch {
 		case err != nil:
 			return err

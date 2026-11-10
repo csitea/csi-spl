@@ -12,6 +12,8 @@
 #   5. a failed hub call or an answer that does not parse is rc 1
 #   6. the cron row: manifest row topic-prio-sync every 5 min, its script is
 #      executable, refuses a worktree, runs the action with DRY_RUN=0
+#   7. a discussion set by a newer issue change (the answer's spread list,
+#      SPL-5223) logs one line: would set / set, workspace, topic, old -> new
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -24,7 +26,7 @@ TOPIC=269d405d-d59a-4ba2-b58d-b19986580451
 mkdir -p "$T/spool/dispatch"
 echo "c-002@box-a 1793464017" >"$T/spool/dispatch/lease"
 printf 'LEASE_ORCH=c-001\nLEASE_ENV=dev\nLEASE_TENANT=t1\n' >"$T/spool/dispatch/lease.conf"
-printf '{"workspaces":["t1","csitea"],"changes":[{"workspace":"csitea","key":"SPL-7","topic":"%s","from":5,"to":1}],"unset":4,"applied":false}\n' "$TOPIC" >"$T/answer.json"
+printf '{"workspaces":["t1","csitea"],"changes":[{"workspace":"csitea","key":"SPL-7","topic":"%s","from":5,"to":1}],"spread":[{"workspace":"t1","topic":"%s","key":"SPL-9","from":0,"to":2}],"unset":4,"applied":false}\n' "$TOPIC" "$TOPIC" >"$T/answer.json"
 
 # sync [VAR=value]... [-- SNIPPET]: the action in a fresh bash with the hub
 # call replaced (it records its args, env and desk in $T/calls); SNIPPET
@@ -53,10 +55,14 @@ grep -q "INFO topic-prio-sync: would move csitea SPL-7 5 -> 1 (topic $TOPIC)" "$
   grep -q "OK topic-prio-sync: 1 issue(s) would move across 2 workspace(s); 4 open issue(s) link no set discussion and keep their own (DRY_RUN" "$T/out" &&
   pass "1. one line per issue and the summary, marked DRY_RUN" || fail "1. lines: $(cat "$T/out")"
 
+grep -q "INFO topic-prio-sync: would set t1 topic $TOPIC unset -> 2 (issue SPL-9)" "$T/out" &&
+  pass "7. a spread logs would set, workspace, topic, unset -> new and the issue" || fail "7. dry lines: $(cat "$T/out")"
+
 # --- 2. apply -----------------------------------------------------------------
 reset; sync DRY_RUN=0; rc=$?
 [[ $rc == 0 && "$(cat "$T/calls" 2>/dev/null)" == "prio-sync --apply | dev t1 c-002" ]] &&
   grep -q "INFO topic-prio-sync: moved csitea SPL-7 5 -> 1" "$T/out" &&
+  grep -q "INFO topic-prio-sync: set t1 topic $TOPIC unset -> 2 (issue SPL-9)" "$T/out" &&
   pass "2. DRY_RUN=0 calls prio-sync --apply and logs moved" || fail "2. rc=$rc calls: $(cat "$T/calls" 2>/dev/null) out: $(cat "$T/out")"
 
 # --- 3. red control -------------------------------------------------------------

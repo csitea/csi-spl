@@ -1,0 +1,17 @@
+-- 0273_issue_priority_set_at.sql - when an issue's own prio was last set
+-- (spec 150 section 3.4 item 4, v1.3, SPL-5223; owner HUM-10, t1 20da7236,
+-- msgs 76af2576 and 01c1f25e: the last prio change wins, both ways).
+-- Forward-only.
+--
+-- priority_set_at is the time a person or an agent last changed the issue's
+-- priority by hand (the issue update path). A change the issue took from its
+-- discussions leaves it: that one is the discussion's, and its time is the
+-- topic_priorities set_at (rdb 0214). The hub compares the two, the newest
+-- wins. NULL is every existing row: no hand change is known, so the
+-- discussions win, as before (SPL-4813).
+--
+-- Live-data safety: a nullable column with no default, no rewrite.
+-- Runs under the operator RLS scope (spool migrate, rdb 0014). The running
+-- image neither reads nor writes the column, so the file applies first.
+-- DEPLOY ORDER: wf 20 applies this before the hub that reads it rolls.
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS priority_set_at timestamptz;

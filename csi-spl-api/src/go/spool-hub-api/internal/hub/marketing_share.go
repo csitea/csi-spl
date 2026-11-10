@@ -357,6 +357,9 @@ func (s *Server) publishOn(r *http.Request, tenant, hum, seat string) (Marketing
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), marketingPublishTimeout)
 	defer cancel()
 	if ch := r.URL.Query().Get("channel"); ch != "" {
+		if s.isXChannel(ctx, tenant, ch) { // SPL-5194
+			return s.publishXPost(ctx, tenant, hum, seat, r.PathValue("id"), ch)
+		}
 		return s.publishMetaPost(ctx, tenant, hum, seat, r.PathValue("id"), ch)
 	}
 	if seat != "" {
@@ -388,15 +391,17 @@ func writeMarketingPublish(w http.ResponseWriter, r *http.Request, res Marketing
 	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther), errors.Is(err, ErrMarketingNotApprover):
 		writeForbidden(w, rbac.TenantSettings, err.Error())
 	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff),
-		errors.Is(err, ErrMarketingNoMetaPage):
+		errors.Is(err, ErrMarketingNoMetaPage), errors.Is(err, ErrMarketingNoXAccount):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, ErrMarketingRecorded):
 		writeErr(w, http.StatusConflict, "already_recorded", err.Error())
 	case errors.Is(err, ErrMarketingNeedsJPEG):
 		writeErr(w, http.StatusUnprocessableEntity, "instagram_needs_jpeg", err.Error())
+	case errors.Is(err, ErrMarketingXTooLong):
+		writeErr(w, http.StatusUnprocessableEntity, "x_too_long", err.Error())
 	case errors.Is(err, ErrMarketingNoLinked):
 		writeErr(w, http.StatusServiceUnavailable, "linkedin_off", err.Error())
-	case errors.Is(err, ErrMarketingNoMeta):
+	case errors.Is(err, ErrMarketingNoMeta), errors.Is(err, ErrMarketingNoX):
 		writeErr(w, http.StatusServiceUnavailable, "not_configured", err.Error())
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "the publish failed before the platform was called")
@@ -529,6 +534,8 @@ func (s *Server) reportShareFailure(ctx context.Context, m *MarketingLinkedIn, t
 	for _, ch := range chs {
 		if ch.ID == channelID && isMetaPlatform(ch.Platform) {
 			s.metaReportFailure(ctx, s.o.MarketingMeta, ch, postRef, why)
+		} else if ch.ID == channelID && ch.Platform == store.MarketingPlatformX { // SPL-5194
+			s.xReportFailure(ctx, s.o.MarketingX, ch, postRef, why)
 		} else if ch.ID == channelID && m != nil {
 			s.mailHolder(ctx, m, tenant, ch.DelegatedBy, "A blog post was not shared on LinkedIn",
 				"spool-hub could not share the blog post "+marketing.BlogPostURL(m.AppURL, postRef)+" on LinkedIn, and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nShare it by hand if you want it on your profile.\n")

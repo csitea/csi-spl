@@ -6446,6 +6446,159 @@
         ]
       }
     },
+    "/v1/marketing/x/accounts": {
+      "get": {
+        "operationId": "getMarketingXAccounts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {accounts: [{channel_id, user_id, username, name, status, delegated_by}]}, never a token (spec 090 X row)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: the X app is not configured on this hub"
+          }
+        },
+        "summary": "List connected X accounts",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/x/callback": {
+      "get": {
+        "operationId": "getMarketingXCallback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "an HTML page: the X account connected (every post held for a member's press), or X's refusal"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "the exchange with X failed"
+          },
+          "503": {
+            "description": "not_configured: the X app is not configured on this hub"
+          }
+        },
+        "summary": "X's OAuth redirect",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/x/connect": {
+      "get": {
+        "operationId": "getMarketingXConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Found: to X's consent page, OAuth 2.0 authorization code + PKCE S256 (the one-click connect link, spec 090 X row)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: the X app is not configured on this hub"
+          }
+        },
+        "summary": "Connect an X account (browser link)",
+        "tags": [
+          "marketing"
+        ]
+      },
+      "post": {
+        "operationId": "postMarketingXConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {authorize_url}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: the X app is not configured on this hub"
+          }
+        },
+        "summary": "Start connecting an X account",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/me/channel-order": {
       "put": {
         "operationId": "putMeChannelOrder",

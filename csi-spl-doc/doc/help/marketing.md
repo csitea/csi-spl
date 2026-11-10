@@ -2,13 +2,13 @@
 
 > Generated from qto doc `dce0e088-8630-4242-b201-c0ced5ad763b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
-Marketing lets a workspace share its live blog posts on **Facebook Pages**, **Instagram** professional accounts and **LinkedIn**. The share row on every blog post page also shares to WhatsApp, Viber, X, Telegram, Reddit, Substack and e-mail, or copies the link.
+Marketing lets a workspace share its live blog posts on **Facebook Pages**, **Instagram** professional accounts, **LinkedIn** and **X**. The share row on every blog post page also shares to WhatsApp, Viber, X, Telegram, Reddit, Substack and e-mail, or copies the link.
 
 Three rules apply across every channel:
 
-- **Nothing is posted without human approval.** Connecting a Facebook Page, an Instagram account, or LinkedIn never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook or Instagram post is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them, and always goes out on the LinkedIn profile of the member who connected it; that member, once no longer an admin or business owner, cannot publish.
+- **Nothing is posted without human approval.** Connecting a Facebook Page, an Instagram account, LinkedIn or X never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook, Instagram or X post is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them, and always goes out on the LinkedIn profile of the member who connected it; that member, once no longer an admin or business owner, cannot publish.
 - **No plaintext tokens.** Every OAuth access token is envelope-encrypted with Cloud KMS (`AES-256-GCM`) before it is stored, and is decrypted in memory only for the duration of an outbound API call.
-- **One API post per channel per 24 hours.** For a connected Facebook Page or Instagram account, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
+- **One API post per channel per 24 hours.** For a connected Facebook Page, Instagram account or X account, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
 
 ---
 
@@ -86,6 +86,22 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
    - LinkedIn access tokens last about 60 days; 7 days before expiry, the hub mails the member who connected LinkedIn a one-click re-connect link.
 2. In **Workspace settings -> General**, under **Publish to LinkedIn** (*"Live blog posts not shared on LinkedIn yet. An admin or business owner of the workspace can publish them."*), review the list of unshared live blog posts. Anyone else sees *"Only an admin or business owner of the workspace can publish."* instead.
 3. Click **Publish to LinkedIn** next to a post (`POST /v1/marketing/posts/{id}/publish`). The post goes out on the LinkedIn profile of the member who connected LinkedIn: when that is someone else, the button reads **Publish on the LinkedIn profile of `<Name>`**. When LinkedIn accepts the post, the notice reads **Published on LinkedIn.**
+
+<a id="ws-doc-b5cad6e4-970c-43e0-9e3c-78d4f586bd20"></a>
+### 1.6 Connect X and publish from the X queue
+
+1. In **Workspace settings -> General**, find the **X** section (*"Connect the X account you post from. Nothing is posted without a member pressing Publish."*).
+   - If the hub administrator has not enabled X on the hub yet (`marketing.x.inject: "false"`), the section reads *"X is not set up on this hub yet."* This is the case on dev and prd today (section 4.4).
+   - When no X account is connected yet, the list reads *"No X account is connected yet."*
+2. Click **Connect X** (`POST /v1/marketing/x/connect`). Your browser goes to X's consent screen (OAuth 2.0 with PKCE; scopes `tweet.read`, `tweet.write`, `users.read`, `offline.access`). Sign in with the X account you post from and allow the app.
+3. X sends you back to the hub (`/api/v1/marketing/x/callback`), which stores the access and refresh tokens encrypted with Cloud KMS and shows **X connected** (*"Connected `<account>` for workspace `<id>`. Nothing is posted on it until a member presses Publish."*). If you declined on X or the exchange failed, the page reads **X was not connected** and nothing is stored.
+4. The account appears in the **X** list with the platform label **X** and its status badge: **Connected** or **Expired: connect again**. The access token lasts 2 hours; the hub refreshes it before a publish, so you do not connect again unless X refuses the refresh. Then the badge reads **Expired: connect again**, the member who connected the account gets a mail with the re-connect link, and the account's posts wait, unsent.
+5. Click **Publish** on a **Connected** row. The queue opens as in section 1.3, with these X rules:
+   - Only the member who connected the account, a workspace admin or a business owner (`tenant.settings`) can publish on it. Anyone else who presses **Publish** is refused with *"Only the member who connected this account, a workspace admin or a business owner can publish on it."*
+   - The post is the title, the summary and the blog post link. The counter reads **`<count> / 280 characters, as X counts them`**: a link counts as 23 characters, and CJK characters and emoji count as 2.
+   - If it is longer, the row reads *"Too long for X: the summary is shortened to fit."* and the hub shortens the summary with "…". A post that does not fit even so is refused when you press **Publish** (*"This post does not fit X's 280 characters, even shortened."*), and nothing is recorded.
+   - The 24-hour rule, the retries (`HTTP 429` or `503` from X, at most 3 tries in all) and the failure mail are as in section 1.3. X bills every post from the owner's prepaid credits; with no credit left X refuses the post, and the publish fails like any other failure.
+6. To disconnect, click **Disconnect** on the row and confirm, as in section 1.4. The dialog adds: *"To remove the app's access on X as well: on X open Settings and privacy, Security and account access, Apps and sessions, Connected apps, and revoke the app."*
 
 ---
 
@@ -215,6 +231,11 @@ The Meta App Review submission package (`T038`) has **not been submitted or appr
 ### 4.3 LinkedIn is not switched on on dev
 
 `marketing.linkedin.inject` is `"false"` in `dev.env.yaml`, so section 1.5 does not work on dev; on prd it is switched on.
+
+<a id="ws-doc-794f6658-bdbd-4c80-b412-f829aa1cf415"></a>
+### 4.4 X is not switched on yet
+
+`marketing.x.inject` is `"false"` on dev and prd, so section 1.6 shows only *"X is not set up on this hub yet."* Turning it on needs the owner's X developer app and prepaid credits: the steps are in `csi-spl-doc/specs/090-marketing-automation/x-app-setup.md`.
 
 <a id="ws-doc-109e2a47-7c72-40d7-96ed-4c16e41594f8"></a>
 ## 5. Post a blog post by hand

@@ -180,8 +180,18 @@ spl_afu_inherit() {
     sleep "${ARCHIVED_FOLLOWUP_PRIORITY_WAIT:-3}"
   done
   AFU_INHERIT_OUT="$out"
-  do_log "WARN $1 topic $2: $3 did not take its priority: $(tail -1 <<<"$out" | cut -c1-200)"
+  do_log "WARN $1 topic $2: $3 did not take its priority: $(spl_afu_why)"
   return 1
+}
+
+# spl_afu_why: the hub's answer in one line, not the trailer ./run adds to a failed
+# action ("ERROR Action failed", "FATAL Command ... failed at line"): the first
+# FATAL above it (spl_desk_issue_run's, with the spool error), else its last line.
+spl_afu_why() {
+  local body why
+  body="$(grep -vE "^(ERROR Action failed with status|FATAL Command '[^']*' failed at line)" <<<"${AFU_INHERIT_OUT:-}")"
+  why="$(grep -m1 'FATAL ' <<<"$body")" || why="$(grep . <<<"$body" | tail -1)"
+  cut -c1-200 <<<"${why:-${AFU_INHERIT_OUT:-no answer}}" | tail -1
 }
 
 # spl_afu_final_refusal: 0 when the hub's last answer will not change on a retry.
@@ -193,8 +203,8 @@ spl_afu_final_refusal() {
 # run finds no row of TOPIC, so the copy is journalled in inherit.pending (unless
 # final) and named in ONE blocker.
 spl_afu_inherit_failed() {
-  local why="${AFU_INHERIT_OUT:-no answer}" next="the next run tries again"
-  why="$(tail -1 <<<"$why" | cut -c1-200)"
+  local why next="the next run tries again"
+  why="$(spl_afu_why)"
   if spl_afu_final_refusal; then next="the hub refused it for good, nothing tries again"
   elif ! grep -qxF "$1"$'\t'"$2"$'\t'"$3" "$4/inherit.pending" 2>/dev/null; then
     printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$4/inherit.pending" || do_log "WARN inherit.pending not written: $2 -> $3"

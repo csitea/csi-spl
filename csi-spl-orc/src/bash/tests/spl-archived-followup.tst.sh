@@ -86,6 +86,7 @@ EOF
 cat >"$T/bin/inherit" <<EOF
 #!/usr/bin/env bash
 echo "inherit \$TENANT_ID \$DESK_AGENT \$PRIORITY_FROM \$PRIORITY_TO" >>"$T/inherit.log"
+if [ -s "$T/inherit-why" ]; then cat "$T/inherit-why"; exit 1; fi
 if [ -s "$T/inherit-fails" ]; then
   n=\$(sed -n 1p "$T/inherit-fails"); sed -i 1d "$T/inherit-fails"; echo "\$n"; exit 1
 fi
@@ -347,7 +348,7 @@ fi
 # 14. the follow-up's priority. A stub hub: the copy is a file of the parent's id.
 PAR="eeeeeeee-0000-4000-8000-000000000005"
 printf 'issue\tt1\t%s\tdev\t%s\tSPL-9\twip\ta job\tbox-a\tHUM-1\n' "$PAR" "$AT" >"$T/rows14"
-fresh14() { rm -rf "$ST14" "$T/prio"/* "$T/inherit-fails" "$T/inherit.log"; mkdir -p "$ST14"; echo 2020-01-01T00:00:00Z >"$ST14/since"; : >"$LOG"; }
+fresh14() { rm -rf "$ST14" "$T/prio"/* "$T/inherit-fails" "$T/inherit-why" "$T/inherit.log"; mkdir -p "$ST14"; echo 2020-01-01T00:00:00Z >"$ST14/since"; : >"$LOG"; }
 ST14="$T/fu14"
 run14() { ROWS="$T/rows14" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" "$@"; }
 fresh14; echo 2 >"$T/prio/$PAR"
@@ -388,6 +389,18 @@ fresh14; echo 2 >"$T/prio/$PAR"; printf 'not_found: no such target topic\nnot_fo
 out="$(run14 DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$(grep -c inherit "$T/inherit.log")" == 3 && "$(cat "$T/prio/$NEW" 2>/dev/null)" == 2 ]] &&
   pass "14e a follow-up the hub has not stored yet is tried again" || fail "14e (rc=$rc): $out"
+
+# 14k: the real cause, not ./run's trailer. The prd shape of 2026-11-10T03:05Z: a box
+# spool built before --from/--to (spl_desk_issue_run's FATAL, the flag usage), then
+# the two lines ./run adds; the log and the blocker named only the last.
+fresh14; echo 2 >"$T/prio/$PAR"
+printf '%s\n' "FATAL spool issue inherit-priority as c-002: flag provided but not defined: -from" "Usage of issue inherit-priority:" "  -apply" \
+  "ERROR Action failed with status 1" "FATAL Command 'do_spl_topic_inherit_priority' failed at line 131 with status 1." >"$T/inherit-why"
+out="$(run14 DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 && "$out" == *"did not take its priority: FATAL spool issue inherit-priority as c-002: flag provided but not defined: -from"* &&
+   "$(count '^send .*its priority: FATAL spool issue inherit-priority as c-002: flag provided but not defined: -from\. The issues')" == 1 ]] &&
+  pass "14k the log and the blocker name the spool error, not ./run's failed-at-line trailer" || fail "14k (rc=$rc): $out // $(cat "$LOG")"
+rm -f "$T/inherit-why"
 
 echo "spl-archived-followup: $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -39,6 +39,18 @@ The slots and their vendor live in ONE place, `csi-spl-orc/cnf/gc/gc.conf`:
 | `GC_MAX_AGE=1500` | a GC older than this is ended by the next start |
 | `GC_POKE_WAIT=1200` | a restart needs a poke from an earlier pass, at least this old |
 
+A slot's vendor that is not the fallback starts only when the instance
+setting has it on (SPL-5241; owner HUM-10, t1 476aff8f, 11-04: grok off).
+That setting is the one `do_spl_lane_mix` and the Fleet load page read, set
+with `do_spl_hub_agent_kinds`: `start` reads it once from the hub
+(`spool fleet-load get` for the fleet env of the dispatch `lease.conf`,
+signed by the box's desk key, no human login; about 1 to 1.5 s, at most
+`GC_KINDS_TIMEOUT` s). The vendor off or paused there, or a read that fails,
+starts the fallback, with one `FALLBACK <run id> <vendor> -> <fallback>:
+<why>` line in `gc.log`, as for a limit dialog. So `slot 30 grok` stays in
+`gc.conf`: grok comes back when the setting turns it on, with no commit. The
+`:00` claude slot reads nothing.
+
 <a id="ws-doc-e879545c-7434-478d-82b2-0300d465ff28"></a>
 ### 1.2 No overlap
 

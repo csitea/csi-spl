@@ -33,6 +33,12 @@
 #      dialog too = FAIL, no third start; no input box in the wait = kept.
 #      The stub screen draws no input box, so the suite waits
 #      GC_START_CHECK_S=0 s (one look) unless a case says otherwise
+#  17. the instance agent kinds (SPL-5241, owner HUM-10 t1 476aff8f: grok off):
+#      the :30 grok slot with grok off = claude, one FALLBACK line naming the
+#      setting; paused = claude; a failed read (hub error, junk, no fleet) =
+#      claude, never grok; a dry run says it and logs nothing; CONTROL: grok
+#      on (qwen off) = grok as today; COUNT: the :00 claude slot reads nothing
+#      The hub is a stub (LANE_HUB_CMD): kinds off [] unless a case says otherwise
 #  15. close-ask with a landed claim (SPL-3270), in a throwaway repo: a sha
 #      on origin/master = sent; a sha on a side branch only = refused, nothing
 #      sent; an 8-hex msg id that is no commit = sent; no sha = sent
@@ -56,7 +62,7 @@ export T S D
 H0=1792098000
 
 reset() {
-  rm -rf "$S" "$T"/*.log "$T/tmux"
+  rm -rf "$S" "$T"/*.log "$T/tmux" "$T/kinds.json" "$T/kinds.rc"
   mkdir -p "$D" "$T/tmux" "$T/bin"
   : >"$T/tmux/windows"
   printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\n' "$(id -un)" "$(id -un)" >"$S/box.env"
@@ -120,12 +126,19 @@ if [[ -n "${ROTATE_TEST_STRAY:-}" ]]; then
 fi
 do_spl_gc
 EOF
+# the hub (LANE_HUB_CMD): `fleet-load get` prints $T/kinds.json, exit $T/kinds.rc
+cat >"$T/bin/hub" <<'EOF2'
+#!/usr/bin/env bash
+echo "$*" >>"$T/hub.log"
+cat "$T/kinds.json" 2>/dev/null || echo '{"agent_kinds_off":[],"agent_kinds_paused":{}}'
+exit "$(cat "$T/kinds.rc" 2>/dev/null || echo 0)"
+EOF2
 chmod +x "$T/bin/"*
 
 export GC_PROC_ROOT="$T/proc" SPOOL_OWNER_HOP=0 PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL_TEST=1 LEASE_MACHINE=box-a \
   ROTATE_TMUX="$T/bin/tmux" GC_SEND="$T/bin/send" GC_RESTART_CMD="$T/bin/restart" GC_CLOSE_DELAY=0 \
-  GC_START_CHECK_S=0 START_CHECK_POLL=0.1
-unset SPOOL_AGENT_ID SPOOL_BOX_TAG MCP_BOT_AGENT_ID TMUX TMUX_PANE GC_VENDOR GC_CONF GC_RUN_ID
+  LANE_HUB_CMD="$T/bin/hub" GC_START_CHECK_S=0 START_CHECK_POLL=0.1
+unset LANE_FLEET LANE_ENV LANE_TENANT LANE_MODE SPOOL_AGENT_ID SPOOL_BOX_TAG MCP_BOT_AGENT_ID TMUX TMUX_PANE GC_VENDOR GC_CONF GC_RUN_ID
 # gc <cmd> <now> [VAR=value ...]: one action run, its output in $T/out, its exit in rc
 gc() { local c="$1" t="$2"; shift 2; rc=0; env GC_CMD="$c" GC_NOW="$t" DRY_RUN="${DRY:-0}" "$@" "$T/bin/act" >"$T/out" 2>&1 || rc=$?; cat "$T/out" >>"$T/all.out"; }
 n() { if [ -f "$1" ]; then grep -c -- "${2:-.}" "$1" || true; else echo 0; fi; }
@@ -395,6 +408,36 @@ check "16. scan: the same pane prints no /exit-clean" 'grep -q "^   | ❯" "$T/o
 printf 'working on it\n\e[39m❯\xc2\xa0\e[38;5;231m/exit-clean \e[39m\n' >"$T/tmux/screen.$p16"
 gc begin $(( H0 + 3 )) AGENT_ID=c-918
 check "16. CONTROL: the same text typed (not dim) is kept, its colour codes stripped" 'grep -q "^❯.*/exit-clean $" "$T/out" && ! grep -q $'"'"'\e'"'"' "$T/out"'
+
+# --- 17. the instance agent kinds (SPL-5241) ---------------------------------------------
+kinds() { printf '%s\n' "$1" >"$T/kinds.json"; }
+started() { [ "$rc" = 0 ] && [ "$(n "$T/tmux/log" new-window)" = 1 ] && [ "$(awk '{print $3}' "$D/gc/run")" = "$1" ]; }
+reset; kinds '{"agent_kinds_off":["grok","qwen"],"agent_kinds_paused":{}}'
+gc start $(( H0 + 1800 ))
+check "17. grok off: the :30 slot starts claude, one window, claude in the run file" 'started claude && grep -q "new-window .*gc-session.sh'"'"' '"'"'claude'"'"' '"'"'claude'"'"'" "$T/tmux/log"'
+check "17. grok off: one FALLBACK line names the setting, START names claude, no grok START" '[ "$(n "$D/gc/gc.log" "FALLBACK 20261015T2130Z-gc-box-a grok -> claude: grok off in the prd instance settings")" = 1 ] && grep -q "START 20261015T2130Z-gc-box-a claude" "$D/gc/gc.log" && ! grep -q "START .* grok" "$D/gc/gc.log"'
+check "17. the read is the hub fleet-load get" '[ "$(n "$T/hub.log" "^fleet-load get$")" = 1 ]'
+reset; kinds '{"agent_kinds_off":[],"agent_kinds_paused":{"grok":{"until":"2026-11-20T00:00:00Z","reason":"usage limit","box":"sat"}}}'
+gc start $(( H0 + 1800 ))
+check "17. grok paused = claude" 'started claude && grep -q "FALLBACK .* grok -> claude: grok paused in the prd instance settings until 2026-11-20T00:00:00Z" "$D/gc/gc.log"'
+reset; echo 1 >"$T/kinds.rc"; kinds 'Error: hub unreachable'
+gc start $(( H0 + 1800 ))
+check "17. a failed hub read = claude, never grok" 'started claude && grep -q "FALLBACK .* grok -> claude: the agent kinds setting was not read (the hub did not answer it: Error: hub unreachable)" "$D/gc/gc.log"'
+reset; kinds '{"fleet":"main"}'
+gc start $(( H0 + 1800 ))
+check "17. an answer with no agent_kinds_off = claude" 'started claude && grep -q "FALLBACK .* grok -> claude: the agent kinds setting was not read" "$D/gc/gc.log"'
+reset; sed -i '/^LEASE_FLEET=/d' "$D/lease.conf"
+gc start $(( H0 + 1800 ))
+check "17. no fleet in lease.conf = claude, the hub not called" 'started claude && grep -q "FALLBACK .* grok -> claude: .*no fleet" "$D/gc/gc.log" && [ "$(n "$T/hub.log")" = 0 ]'
+reset; kinds '{"agent_kinds_off":["grok"],"agent_kinds_paused":{}}'
+DRY=1 gc start $(( H0 + 1800 ))
+check "17. a dry start says FALLBACK and plans claude, logs nothing, opens nothing" 'grep -q "^FALLBACK .* grok -> claude: grok off" "$T/out" && grep -q "vendor=claude" "$T/out" && [ ! -s "$D/gc/gc.log" ] && [ "$(gcwin)" = 0 ]'
+reset; kinds '{"agent_kinds_off":["qwen"],"agent_kinds_paused":{"agy":{"until":"2026-11-20T00:00:00Z","reason":"x","box":"sat"}}}'
+gc start $(( H0 + 1800 ))
+check "17. CONTROL: grok on (qwen off, agy paused) = grok as today, no FALLBACK" 'started grok && ! grep -q FALLBACK "$D/gc/gc.log" && [ "$(n "$T/hub.log")" = 1 ]'
+reset; kinds '{"agent_kinds_off":["grok"],"agent_kinds_paused":{}}'
+gc start "$H0"
+check "17. COUNT: the :00 claude slot (the fallback) reads nothing from the hub" 'started claude && [ "$(n "$T/hub.log")" = 0 ] && ! grep -q FALLBACK "$D/gc/gc.log"'
 
 check "14. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 

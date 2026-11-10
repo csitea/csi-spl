@@ -8,7 +8,10 @@
 # @description orchestrator to close a finished one, sends one summary line and
 # @description closes itself. The agent only judges: every step is this action.
 # @description   start     - the cron's (gc-cron.sh): the slot's vendor from
-# @description               cnf/gc/gc.conf (:00 claude, :30 grok), no overlap
+# @description               cnf/gc/gc.conf (:00 claude, :30 grok); a vendor
+# @description               off or paused in the instance agent kinds
+# @description               setting (do_spl_hub_agent_kinds), or a failed
+# @description               read of it, starts the cnf fallback; no overlap
 # @description               (a live GC younger than GC_MAX_AGE = SKIP; an
 # @description               older one is ended first), a window gc@<box>;
 # @description               its pane is watched GC_START_CHECK_S s: on a limit
@@ -48,6 +51,7 @@
 # @param AGENT_ID - the agent of begin / poke / restart / close-ask
 # @param GC_HINT / GC_WHY / GC_SUMMARY - the text of poke / close-ask / done
 # @param GC_VENDOR (optional) - start: this vendor instead of the slot's
+# @param GC_KINDS_TIMEOUT (optional) - start: seconds for the hub read of the agent kinds off (default 15)
 # @param GC_START_CHECK_S (optional) - start: how long to watch the new pane for a limit dialog (default 20)
 # @param GC_CONF (optional) - default <orc>/cnf/gc/gc.conf
 # @param GC_STATE_DIR (optional) - default <spool root>/dispatch/gc
@@ -66,6 +70,8 @@ declare -F spool_proc_env_get >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/proc-owner.inc.sh"
 declare -F spool_start_check >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/start-check.inc.sh"
+declare -F spl_lane_init >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
 
 SPL_GC_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPL_GC_KNOBS="GC_AGENT_CAP GC_MAX_AGE GC_POKE_WAIT GC_SILENT_AGE GC_CLOSE_ASK_EVERY GC_START_CHECK_S"
@@ -171,6 +177,11 @@ spl_gc_start() {
   fi
   vendor="${GC_VENDOR:-$(spl_gc_slot_vendor)}"
   rid="$(date -u -d "@$GC_NOW" +%Y%m%dT%H%MZ)-gc-$GC_BOX"
+  if [[ "$vendor" != "$GC_FALLBACK" ]] && ! spl_gc_kind_on "$vendor"; then
+    [[ "$GC_DRY" == 1 ]] || spl_gc_log "FALLBACK $rid $vendor -> $GC_FALLBACK: $GC_KIND_WHY"
+    echo "FALLBACK $rid $vendor -> $GC_FALLBACK: $GC_KIND_WHY"
+    vendor="$GC_FALLBACK"
+  fi
   if [[ "$GC_DRY" == 1 ]]; then echo "PLAN start $rid vendor=$vendor window=$GC_WIN: $(spl_gc_session_cmd "$vendor" "$rid")"; return 0; fi
   sess="$(spl_gc_tmux list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}' || true)"
   [[ -n "$sess" ]] || sess="$(spl_gc_tmux list-sessions -F '#{session_id}' 2>/dev/null | head -1 || true)"
@@ -194,6 +205,35 @@ spl_gc_start() {
   rm -f "$GC_DIR/cur"
   spl_gc_log "START $rid $vendor $GC_PANE"
   echo "START $rid $vendor $GC_PANE"
+}
+
+# spl_gc_kind_on VENDOR: 0 when the instance setting has VENDOR on, else 1
+# and GC_KIND_WHY. The setting is the one do_spl_lane_mix and the Fleet load
+# page read (`spool fleet-load get`: agent_kinds_off, agent_kinds_paused), for
+# the fleet env of lease.conf, signed by this box's desk key (no human login).
+# A read that fails is never "on": the owner's off order (HUM-10, t1 476aff8f,
+# 11-04) stands until a read says otherwise. Only a slot whose vendor is not
+# the fallback reads it (one hub call, at most GC_KINDS_TIMEOUT s).
+spl_gc_kind_on() {
+  local out last
+  GC_KIND_WHY=""
+  if ! spl_lane_init >"$GC_DIR/kinds.err" 2>&1; then
+    last="$(tail -n 1 "$GC_DIR/kinds.err")"
+    GC_KIND_WHY="the agent kinds setting was not read (no hub client: ${last:0:160})"; return 1
+  fi
+  if [[ "$LANE_MODE" != hub ]]; then
+    GC_KIND_WHY="the agent kinds setting was not read (no fleet: LEASE_FLEET unset in lease.conf)"; return 1
+  fi
+  out="$(LANE_TIMEOUT="${GC_KINDS_TIMEOUT:-15}" spl_lane_spool fleet-load get 2>&1)" || true
+  if ! jq -e '.agent_kinds_off | type == "array"' >/dev/null 2>&1 <<<"$out"; then
+    last="$(tail -n 1 <<<"$out")"
+    GC_KIND_WHY="the agent kinds setting was not read (the hub did not answer it: ${last:0:160})"; return 1
+  fi
+  GC_KIND_WHY="$(jq -r --arg k "$1" --arg e "$LANE_ENV" '((.agent_kinds_paused // {})[$k]) as $p
+    | if (.agent_kinds_off | index($k)) != null then "\($k) off in the \($e) instance settings"
+      elif $p != null then "\($k) paused in the \($e) instance settings until \($p.until)"
+      else empty end' <<<"$out")"
+  [[ -z "$GC_KIND_WHY" ]]
 }
 
 spl_gc_session_cmd() {

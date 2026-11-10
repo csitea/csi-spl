@@ -4,15 +4,17 @@
 # @description from the Cloud console in a browser (spec 123 section 15,
 # @description SPL-5220, the owner's choice B). No Google API returns them.
 # @description
-# @description The OWNER runs it at his own desk, never an agent: it refuses
-# @description under AGENT_ID, SPOOL_AGENT_ID or CLAUDECODE, without a terminal
-# @description and without a display. It opens a VISIBLE google-chrome on a
-# @description dedicated profile (BILLING_CHROME_PROFILE, default
-# @description $HOME/.local/share/<org>-<app>/billing-chrome-profile, mode 700,
-# @description refused inside a git work tree) and the owner logs in there
-# @description himself. The session lives in that profile only: no password or
-# @description cookie is read, printed, logged or stored anywhere else, and
-# @description the profile path is never logged.
+# @description The OWNER runs it at his own desk, as himself. It refuses when
+# @description it sees an agent: AGENT_ID, SPOOL_AGENT_ID or CLAUDECODE set,
+# @description SUDO_USER set (the fleet wraps agent calls in sudo, which drops
+# @description the other markers), or an ancestor process named claude, agy,
+# @description grok, vibe or qwen. It also refuses without a terminal and
+# @description without a display. These are the only checks; a caller that
+# @description hides all of them gets through, so nothing worth taking is kept:
+# @description Chrome runs on a THROWAWAY profile (a mktemp dir, mode 700,
+# @description removed when the run ends, on Ctrl-C and on TERM/HUP too), the
+# @description owner logs in there himself each run, and no session, password
+# @description or cookie survives the run or is read, printed or logged.
 # @description
 # @description FRAGILE: it reads the console's billing documents page, which
 # @description Google may change at any time (then it says so and exits 2).
@@ -37,7 +39,7 @@
 GBB_PLAYWRIGHT_CORE_VERSION=1.65.0
 
 do_gcp_billing_invoices_browser() {
-  local today="${BILLING_TODAY:-$(date -u +%F)}" n="${BILLING_MONTHS:-12}" chrome profile pwdir ids js
+  local today="${BILLING_TODAY:-$(date -u +%F)}" n="${BILLING_MONTHS:-12}" chrome pwdir ids js
   _gbb_owner_only || return 1
   do_gcp_billing_months "${today}" "${n}" >/dev/null || return 1
   do_resolve_oap ORG
@@ -45,28 +47,62 @@ do_gcp_billing_invoices_browser() {
   do_gcp_billing_cnf || return 1
   chrome=$(command -v "${BILLING_CHROME:-google-chrome}") || { do_log "FATAL no ${BILLING_CHROME:-google-chrome} (BILLING_CHROME)"; return 1; }
   ids=$(_gbb_accounts) || return 1
-  profile="${BILLING_CHROME_PROFILE:-${HOME}/.local/share/${ORG}-${APP}/billing-chrome-profile}"
-  _gbb_profile "${profile}" || return 1
   pwdir="${BILLING_PW_DIR:-${HOME}/.cache/${ORG}-${APP}/playwright-core-${GBB_PLAYWRIGHT_CORE_VERSION}}"
   _gbb_playwright "${pwdir}" || return 1
   js="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/src/js/billing-invoices/download.mjs"
   [[ -f "${js}" ]] || { do_log "FATAL no ${js}"; return 1; }
   do_log "INFO $(tr ',' '\n' <<<"${ids}" | grep -c .) account(s), ${n} months to ${today}, playwright-core ${GBB_PLAYWRIGHT_CORE_VERSION}, DRY=${BILLING_DRY:-0}"
   BILLING_ACCOUNTS="${ids}" BILLING_TODAY="${today}" BILLING_MONTHS="${n}" BILLING_PDF_DIR="${BILL_OUT_ROOT}/pdf" \
-    BILLING_CHROME_PROFILE="${profile}" BILLING_PW_DIR="${pwdir}" BILLING_CHROME="${chrome}" BILLING_DRY="${BILLING_DRY:-0}" \
-    node "${js}"
+    BILLING_PW_DIR="${pwdir}" BILLING_CHROME="${chrome}" BILLING_DRY="${BILLING_DRY:-0}" \
+    _gbb_throwaway node "${js}"
 }
 
-# _gbb_owner_only - a person at a terminal with a display; never an agent.
+# _gbb_throwaway <cmd...> - run <cmd> with TMPDIR set to a fresh mode-700
+# mktemp dir, where Chrome keeps its profile (playwright's launch() puts its
+# user-data-dir under TMPDIR), and remove that dir when <cmd> ends, on Ctrl-C,
+# TERM and HUP too. Only a SIGKILL leaves it, under the system tmp dir.
+_gbb_throwaway() (
+  local tmp rc
+  tmp=$(mktemp -d) || { do_log "FATAL cannot make the throwaway profile dir"; exit 1; }
+  chmod 700 "${tmp}"
+  trap 'rm -rf "${tmp}"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+  TMPDIR="${tmp}" "$@"
+  rc=$?
+  exit "${rc}"
+)
+
+# _gbb_owner_only - a person at a terminal with a display; refuses every agent
+# marker it can see (the env markers, sudo, an agent binary up the tree).
 _gbb_owner_only() {
+  local c
   if [[ -n "${AGENT_ID:-}${SPOOL_AGENT_ID:-}${CLAUDECODE:-}" ]]; then
     do_log "FATAL an agent never runs this: the owner runs it at his own desk and logs in himself"
     return 1
   fi
+  [[ -z "${SUDO_USER:-}" ]] || { do_log "FATAL run under sudo: an agent never runs this; the owner runs it as himself"; return 1; }
+  while read -r c; do
+    case "${c}" in
+      claude | agy | grok | vibe | qwen) do_log "FATAL an agent never runs this (${c} is an ancestor process): the owner runs it at his own desk"; return 1 ;;
+    esac
+  done < <(_gbb_ancestor_comms)
   [[ -t 0 ]] || { do_log "FATAL no terminal: the owner runs it by hand"; return 1; }
   [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || { do_log "FATAL no display: it opens a visible Chrome for the owner's login"; return 1; }
-  local b
-  for b in node npm; do command -v "${b}" &>/dev/null || { do_log "FATAL ${b} is not installed"; return 1; }; done
+  for c in node npm; do command -v "${c}" &>/dev/null || { do_log "FATAL ${c} is not installed"; return 1; }; done
+}
+
+# _gbb_ancestor_comms - the comm of every ancestor of this shell, nearest
+# first, read from /proc (PPid in status), up to pid 1.
+_gbb_ancestor_comms() {
+  local p="${BASHPID}" n=0
+  while [[ "${p}" =~ ^[0-9]+$ ]] && ((p > 1 && n < 64)); do
+    p=$(awk '/^PPid:/ {print $2}' "/proc/${p}/status" 2>/dev/null) || break
+    [[ "${p}" =~ ^[0-9]+$ ]] && ((p > 1)) || break
+    cat "/proc/${p}/comm" 2>/dev/null
+    n=$((n + 1))
+  done
 }
 
 # _gbb_accounts - BILLING_ACCOUNT_IDS, else the newest fetch run's accounts.tsv.
@@ -80,19 +116,6 @@ _gbb_accounts() {
   [[ "${ids}" =~ ^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}(,[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6})*$ ]] \
     || { do_log "FATAL the account ids are no billing account ids (XXXXXX-XXXXXX-XXXXXX, comma separated)" >&2; return 1; }
   printf '%s' "${ids}"
-}
-
-# _gbb_profile <dir> - mode 700, never inside a git work tree (its session
-# cookies would be one `git add` away from a commit).
-_gbb_profile() {
-  local dir="$1" up
-  (umask 077 && mkdir -p "${dir}") || { do_log "FATAL cannot make the Chrome profile dir (BILLING_CHROME_PROFILE)"; return 1; }
-  chmod 700 "${dir}"
-  up="${dir}"
-  while [[ "${up}" != / && -n "${up}" ]]; do
-    [[ -e "${up}/.git" ]] && { do_log "FATAL the Chrome profile dir (BILLING_CHROME_PROFILE) is inside a git work tree: refused"; return 1; }
-    up=$(dirname "${up}")
-  done
 }
 
 # _gbb_playwright <dir> - the pinned playwright-core, installed once into <dir>.

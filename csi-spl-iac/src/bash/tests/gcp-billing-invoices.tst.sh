@@ -16,11 +16,16 @@
 #   B. do_gcp_billing_sa_create: the dry run (default) prints 2 would-run and
 #      the owner steps, NO mutation; CONTROL DRY_RUN=0 makes the 2; everything
 #      present -> none; an owner (user) identity and DRY_RUN=2 are refused.
-#   C. do_gcp_billing_invoices_browser: refused under AGENT_ID / CLAUDECODE /
-#      no terminal (node never started); the profile dir inside a git work
-#      tree refused, else mode 700; playwright-core installed at the PINNED
-#      version, once; on a terminal (script(1)) node gets the accounts of the
-#      newest fetch run and the profile path is never logged.
+#   C. do_gcp_billing_invoices_browser: refused (node never started) under
+#      AGENT_ID / CLAUDECODE / SPOOL_AGENT_ID, under SUDO_USER with those
+#      markers dropped (the fleet's `sudo -u <user> bash -c`), under an
+#      ancestor process named claude/agy/grok/vibe/qwen (the /proc walk is
+#      also run for real, under a bash copy named claude), and without a
+#      terminal; playwright-core installed at the PINNED version, once; on a
+#      terminal (script(1)) node gets the accounts of the newest fetch run and
+#      a fresh mode-700 TMPDIR (the throwaway profile) that is gone after the
+#      run, and after a TERM too; download.mjs uses launch(), never a
+#      persistent context. The out dir inside a git work tree is refused.
 #   D. node --test of src/js/billing-invoices/lib.mjs (the row choice), when
 #      node is on the box; else NOT RUN.
 # Stubs: gcloud, curl, npm, node on PATH (they log their argv). Nothing
@@ -63,7 +68,9 @@ for a in "$@"; do [[ "$a" == @* ]] && cp "${a#@}" "$LOG.body"; done
 printf "{\"jobComplete\":true,\"rows\":[{\"f\":[{\"v\":\"$A1\"},{\"v\":\"202610\"},{\"v\":\"EUR\"},{\"v\":\"1254.5\"}]},{\"f\":[{\"v\":\"$A1\"},{\"v\":\"202609\"},{\"v\":\"EUR\"},{\"v\":\"980\"}]}]}\n200"'
 stub npm 'echo "npm $*" >>"$LOG"; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --prefix ]] && { j=$((i + 1)); d="${!j}"; }; done
 mkdir -p "$d/node_modules/playwright-core"; echo "{\"version\":\"${STUB_PW_VER:-1.65.0}\"}" >"$d/node_modules/playwright-core/package.json"'
-stub node 'echo "node $* ACCOUNTS=$BILLING_ACCOUNTS TODAY=$BILLING_TODAY MONTHS=$BILLING_MONTHS PDF=$BILLING_PDF_DIR DRY=$BILLING_DRY" >>"$LOG"'
+stub node 'echo "node $* ACCOUNTS=$BILLING_ACCOUNTS TODAY=$BILLING_TODAY MONTHS=$BILLING_MONTHS PDF=$BILLING_PDF_DIR DRY=$BILLING_DRY" >>"$LOG"
+echo "TMPDIR=$TMPDIR MODE=$(stat -c %a "$TMPDIR")" >>"$LOG"; mkdir -p "$TMPDIR/playwright_chromiumdev_profile-x"; echo cookie >"$TMPDIR/playwright_chromiumdev_profile-x/Cookies"
+[[ -n "${STUB_NODE_TERM:-}" ]] && { kill -TERM "$PPID"; sleep 1; }; exit 0'
 
 key() { mkdir -p "$T/home/.gcp/.csi"; printf '{"type":"service_account","client_email":"%s"}\n' "$1" >"$T/home/.gcp/.csi/key-csi-spl-billing.json"; }
 
@@ -71,7 +78,7 @@ key() { mkdir -p "$T/home/.gcp/.csi"; printf '{"type":"service_account","client_
 run() {
   local out="$1" fn="$2"; shift 2
   : >"$T/log"; : >"$T/log.stdin"; rm -f "$T/log.body"
-  env -u ACCOUNT -u GCP_ACCOUNT -u CLOUDSDK_CONFIG -u DRY_RUN -u AGENT_ID -u SPOOL_AGENT_ID -u CLAUDECODE \
+  env -u ACCOUNT -u GCP_ACCOUNT -u CLOUDSDK_CONFIG -u DRY_RUN -u AGENT_ID -u SPOOL_AGENT_ID -u CLAUDECODE -u SUDO_USER \
     -u BILLING_SA_KEY_FILE -u BILLING_OUT_DIR -u BILLING_ACCOUNT_IDS \
     PATH="$T/bin:$PATH" HOME="$T/home" LOG="$T/log" STATE=absent SA="$SA" A1="$A1" A2="$A2" APP_PATH="$APP_ROOT" \
     BILLING_TODAY=2026-11-10 LIBS="$LIBS" FETCH="$FETCH" SACR="$SACR" BROW="$BROW" FN="$fn" "$@" bash -c '
@@ -80,6 +87,7 @@ run() {
     for l in $LIBS; do source "$l"; done
     source "$FETCH"; source "$SACR"; source "$BROW"
     [[ -n "${STUB_PIN:-}" ]] && do_gcp_pin_account(){ GCP_ACCOUNT="$STUB_PIN"; export GCP_ACCOUNT; }
+    [[ -n "${STUB_ANCESTORS:-}" ]] && _gbb_ancestor_comms(){ tr " " "\n" <<<"$STUB_ANCESTORS"; }
     $FN; echo "rc=$?"' >"$out" 2>&1
 }
 calls() { grep -E '^gcloud (billing|iam|projects|services)|^curl ' "$T/log"; }
@@ -166,18 +174,31 @@ grep -q 'DRY_RUN must be 0 or 1' "$T/o" && [[ ! -s "$T/log" ]] && pass "sa_creat
 
 # --- C. browser -------------------------------------------------------------------
 for v in AGENT_ID=c-000 CLAUDECODE=1 SPOOL_AGENT_ID=c-000; do
-  run "$T/o" do_gcp_billing_invoices_browser "$v" DISPLAY=:99
+  run "$T/o" do_gcp_billing_invoices_browser "$v" DISPLAY=:99 STUB_ANCESTORS="bash script"
   grep -q '^rc=1$' "$T/o" && grep -q 'an agent never runs this' "$T/o" && ! grep -q '^node' "$T/log" \
     && pass "browser: $v -> refused, node never started" || fail "browser $v: $(cat "$T/o")"
 done
-run "$T/o" do_gcp_billing_invoices_browser DISPLAY=:99
+# the fleet's `sudo -u <user> bash -c`: the env markers are gone, SUDO_USER is set
+run "$T/o" do_gcp_billing_invoices_browser SUDO_USER=agentuser DISPLAY=:99 STUB_ANCESTORS="bash sudo bash"
+grep -q '^rc=1$' "$T/o" && grep -q 'under sudo' "$T/o" && ! grep -q '^node' "$T/log" \
+  && pass "browser: under sudo (markers dropped, SUDO_USER set) -> refused, node never started" || fail "browser sudo: $(cat "$T/o")"
+for a in claude agy grok vibe qwen; do
+  run "$T/o" do_gcp_billing_invoices_browser DISPLAY=:99 STUB_ANCESTORS="bash $a tmux:"
+  grep -q '^rc=1$' "$T/o" && grep -q "($a is an ancestor process)" "$T/o" && ! grep -q '^node' "$T/log" \
+    || { fail "browser ancestor $a: $(cat "$T/o")"; continue; }
+  [[ $a == qwen ]] && pass "browser: an ancestor named claude/agy/grok/vibe/qwen (markers dropped) -> refused, node never started"
+done
+# the real /proc walk, under a bash copy named claude (two commands: no exec)
+mkdir -p "$T/agent"; cp "$(command -v bash)" "$T/agent/claude"
+"$T/agent/claude" -c "bash -c 'source $BROW; _gbb_ancestor_comms' >$T/anc; true"
+[[ "$(sed -n 1p "$T/anc")" == claude ]] && pass "browser: the /proc ancestor walk sees a real ancestor named claude" || fail "ancestor walk: $(tr '\n' ' ' <"$T/anc")"
+run "$T/o" do_gcp_billing_invoices_browser DISPLAY=:99 STUB_ANCESTORS="bash script"
 grep -q '^rc=1$' "$T/o" && grep -q 'no terminal' "$T/o" && ! grep -q '^node' "$T/log" \
   && pass "browser: no terminal -> refused" || fail "browser no tty: $(cat "$T/o")"
 mkdir -p "$T/repo/.git"
-run "$T/o" "_gbb_profile $T/repo/sub/profile"; mv "$T/o" "$T/o1"
-run "$T/o" "_gbb_profile $T/home/prof"
-grep -q 'inside a git work tree' "$T/o1" && grep -q '^rc=1$' "$T/o1" && grep -q '^rc=0$' "$T/o" && [[ "$(stat -c %a "$T/home/prof")" == 700 ]] \
-  && pass "browser: a profile dir inside a git work tree is refused; else it is made mode 700" || fail "profile: $(cat "$T/o1" "$T/o")"
+run "$T/o" do_gcp_billing_invoices_fetch BILLING_OUT_DIR="$T/repo/sub/out"
+grep -q '^rc=1$' "$T/o" && grep -q 'out dir (BILLING_OUT_DIR) is inside a git work tree' "$T/o" && [[ -z "$(calls)" ]] && [[ ! -e "$T/repo/sub" ]] \
+  && pass "fetch: an out dir inside a git work tree is refused before any call" || fail "out in git: $(cat "$T/o")"
 rm -rf "$T/pw"
 run "$T/o" "_gbb_playwright $T/pw"; run "$T/o2" "_gbb_playwright $T/pw"
 [[ "$(grep -c '^npm install' "$T/log")" -eq 0 ]] && grep -q '^rc=0$' "$T/o2" \
@@ -186,13 +207,26 @@ run "$T/o" "_gbb_playwright $T/pw"; run "$T/o2" "_gbb_playwright $T/pw"
 rm -rf "$T/pw"; run "$T/o" "_gbb_playwright $T/pw"
 grep -qE '^npm install --prefix .*/pw .*playwright-core@1\.65\.0$' "$T/log" && pass "browser: the npm install names playwright-core@1.65.0 exactly" || fail "npm: $(cat "$T/log")"
 # script(1) gives the run a terminal; the runner file carries run() and its vars
-{ echo '#!/bin/bash'; declare -p T APP_ROOT LIBS FETCH SACR BROW SA A1 A2; declare -f run
-  echo 'run "$T/o" do_gcp_billing_invoices_browser DISPLAY=:99 BILLING_CHROME=bash'; } >"$T/tty.sh"
-script -qec "bash $T/tty.sh" /dev/null </dev/null >/dev/null 2>&1
+tty_run() {
+  { echo '#!/bin/bash'; declare -p T APP_ROOT LIBS FETCH SACR BROW SA A1 A2; declare -f run
+    echo "run \"\$T/o\" do_gcp_billing_invoices_browser DISPLAY=:99 BILLING_CHROME=bash STUB_ANCESTORS='bash script' $*"; } >"$T/tty.sh"
+  script -qec "bash $T/tty.sh" /dev/null </dev/null >/dev/null 2>&1
+  tmpd=$(sed -n 's/^TMPDIR=\([^ ]*\) .*/\1/p' "$T/log")
+}
+tty_run
 grep -q '^rc=0$' "$T/o" && grep -q "^node .*/src/js/billing-invoices/download.mjs ACCOUNTS=$A1,$A2 TODAY=2026-11-10 MONTHS=12 PDF=$OUT/pdf DRY=0$" "$T/log" \
-  && ! grep -q 'billing-chrome-profile' "$T/o" \
-  && pass "browser: on a terminal, node gets the newest fetch run's accounts; the profile path is never logged" \
+  && pass "browser: on a terminal, node gets the newest fetch run's accounts" \
   || fail "browser tty: $(cat "$T/o") / $(cat "$T/log")"
+[[ -n "$tmpd" && "$tmpd" != "$T/home"* ]] && grep -q "^TMPDIR=$tmpd MODE=700$" "$T/log" && [[ ! -e "$tmpd" ]] \
+  && ! grep -qi 'profile' "$T/o" \
+  && pass "browser: Chrome's profile lives in a fresh mode-700 TMPDIR, removed after the run; no profile path logged" \
+  || fail "throwaway: [$tmpd] $(ls -la "$tmpd" 2>&1) / $(cat "$T/o")"
+tty_run STUB_NODE_TERM=1
+grep -q '^rc=143$' "$T/o" && [[ -n "$tmpd" && ! -e "$tmpd" ]] \
+  && pass "browser: on a TERM the throwaway profile is removed too (rc 143)" || fail "throwaway TERM: [$tmpd] $(cat "$T/o")"
+code=$(grep -vE '^\s*//' "$PROJ_ROOT/src/js/billing-invoices/download.mjs")
+grep -q 'chromium.launch(' <<<"$code" && ! grep -q 'launchPersistentContext\|userDataDir\|BILLING_CHROME_PROFILE' <<<"$code" \
+  && pass "browser: download.mjs uses chromium.launch() + newContext(), never a persistent profile" || fail "download.mjs persistent"
 
 # --- D. node --test of the row choice -------------------------------------------------
 if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/bin/node" ]]; then

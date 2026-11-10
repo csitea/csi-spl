@@ -1,12 +1,15 @@
 // download.mjs - save every billing account's invoice PDFs of the last
 // <months> months from the console (spec 123 section 15, SPL-5220). Run ONLY
 // through do_gcp_billing_invoices_browser, by the owner at his own desk: it
-// opens a visible Chrome on a dedicated profile and the owner logs in there
-// himself. Nothing here reads, prints or stores a password or a cookie; the
-// session stays in the profile dir (BILLING_CHROME_PROFILE, outside git).
+// opens a visible Chrome on a THROWAWAY profile and the owner logs in there
+// himself, each run. chromium.launch() + newContext() (never a persistent
+// context): playwright makes the profile under TMPDIR, a mktemp dir the
+// action removes when the run ends, so no session survives it. Nothing here
+// reads, prints or stores a password or a cookie.
 // FRAGILE by design (the owner's choice B): it reads the console's billing
-// documents page, which Google may change at any time. A run that finds no
-// invoice row says so and exits 2; nothing is guessed.
+// documents page, which Google may change at any time. When any account's page
+// shows no invoice row in the window, it says so and exits 2; nothing is
+// guessed.
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -77,14 +80,14 @@ async function oneAccount(page, id) {
   return picks.length;
 }
 
-const ctx = await chromium.launchPersistentContext(env('BILLING_CHROME_PROFILE'), {
-  executablePath: env('BILLING_CHROME'), headless: false, acceptDownloads: true,
-});
-let found = 0;
+const browser = await chromium.launch({ executablePath: env('BILLING_CHROME'), headless: false });
+let missing = 0;
 try {
-  const page = ctx.pages()[0] || (await ctx.newPage());
-  for (const id of accounts) found += await oneAccount(page, id);
+  const ctx = await browser.newContext({ acceptDownloads: true });
+  const page = await ctx.newPage();
+  for (const id of accounts) if (!(await oneAccount(page, id))) missing += 1;
 } finally {
-  await ctx.close();
+  await browser.close();
 }
-process.exit(found ? 0 : 2);
+if (missing) console.log(`WARNING ${missing} of ${accounts.length} account(s) showed no invoice row: exit 2`);
+process.exit(missing ? 2 : 0);

@@ -9,12 +9,15 @@
 # @description   BILL_SA       billing_sa, its id (spl-billing)
 # @description   BILL_EMAIL    <billing_sa>@<export_project>.iam.gserviceaccount.com
 # @description and, from env with $HOME defaults (no literal user or host):
-# @description   BILL_KEY      BILLING_SA_KEY_FILE, default the per-env key
-# @description                 pattern $HOME/.gcp/.<org>/key-<org>-<app>-billing.json
+# @description   BILL_KEY      BILLING_SA_KEY_FILE, default ONE key (not per
+# @description                 env) beside the env keys:
+# @description                 $HOME/.gcp/.<org>/key-<org>-<app>-billing.json
 # @description                 (minted out of band by the owner, never terraform,
 # @description                 never git)
 # @description   BILL_OUT_ROOT BILLING_OUT_DIR, default
-# @description                 $HOME/.local/share/<org>-<app>/billing-invoices
+# @description                 $HOME/.local/share/<org>-<app>/billing-invoices;
+# @description                 refused inside a git work tree (it holds
+# @description                 unmasked account ids and the invoice PDFs)
 # @description Needs ORG and APP (do_resolve_oap). Never logs a key or a token.
 # @param $1 (optional) the cnf dir, default $APP_PATH/<org>-<app>-cnf/<org>-<app>
 # @example do_gcp_billing_cnf || return 1
@@ -32,6 +35,23 @@ do_gcp_billing_cnf() {
   BILL_EMAIL="${BILL_SA}@${BILL_PROJECT}.iam.gserviceaccount.com"
   BILL_KEY="${BILLING_SA_KEY_FILE:-${HOME:?HOME unset}/.gcp/.${ORG}/key-${ORG}-${APP}-billing.json}"
   BILL_OUT_ROOT="${BILLING_OUT_DIR:-${HOME:?HOME unset}/.local/share/${ORG}-${APP}/billing-invoices}"
+  do_gcp_billing_outside_git "${BILL_OUT_ROOT}" || { do_log "FATAL the out dir (BILLING_OUT_DIR) is inside a git work tree: refused"; return 1; }
+}
+
+#------------------------------------------------------------------------------
+# @description Return 1 when <dir>, or any dir above it, holds a .git (a work
+# @description tree, its files one `git add` away from a commit). <dir> need
+# @description not exist yet.
+# @param $1 the dir
+#------------------------------------------------------------------------------
+do_gcp_billing_outside_git() {
+  local up="${1:?dir}"
+  [[ "${up}" == /* ]] || up="${PWD}/${up}"
+  while [[ -n "${up}" && "${up}" != / ]]; do
+    [[ -e "${up}/.git" ]] && return 1
+    up=$(dirname "${up}")
+  done
+  return 0
 }
 
 #------------------------------------------------------------------------------

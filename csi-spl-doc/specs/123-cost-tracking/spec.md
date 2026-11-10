@@ -760,9 +760,9 @@ to log in each time)".
   - `roles/billing.viewer` and `roles/billing.user` on each billing account;
   - `roles/billing.projectManager` on a project it is to move;
   - BigQuery Data Viewer on the billing export dataset;
-  - its key, minted out of band to the per-env key pattern
-    (`key-<org>-<app>-billing.json` beside the others), never by terraform
-    and never in git.
+  - its key, minted out of band as ONE key (not per env), beside the env
+    keys (`key-<org>-<app>-billing.json`), never by terraform and never in
+    git.
 - Moving a project's billing, and closing an account, are the owner's go for
   each call. No action here does either.
 
@@ -774,7 +774,8 @@ SA is refused, and so is a missing key; the owner account is never a fallback.
 For the invoice months of the last `BILLING_MONTHS` (12) months from the day
 of the call (2026-11-10 gives 202511..202610: every invoice issued in that
 year), it writes into `BILLING_OUT_DIR` (default
-`$HOME/.local/share/<org>-<app>/billing-invoices`, mode 700, outside git):
+`$HOME/.local/share/<org>-<app>/billing-invoices`, mode 700, refused inside a
+git work tree, since it holds unmasked account ids and the PDFs):
 `accounts.tsv`, `projects-<id>.tsv`, `amounts.tsv` (cost + credits per
 account-month, from the export) and `summary.tsv` + `README.md`, the PDF
 checklist. A month counts as `have` when a PDF dated the next month is
@@ -782,14 +783,27 @@ under `pdf/<id>/`. Ids are logged masked.
 
 ### 15.4 `do_gcp_billing_invoices_browser` (the owner's, choice B)
 
-- The owner runs it at his own desk. It refuses under `AGENT_ID`,
-  `SPOOL_AGENT_ID` or `CLAUDECODE`, and without a terminal or a display.
-- It opens a visible google-chrome on a dedicated profile
-  (`BILLING_CHROME_PROFILE`, default `$HOME/.local/share/<org>-<app>/billing-chrome-profile`,
-  mode 700, refused inside a git work tree), and the owner logs in there
-  himself. The session stays in that profile. No password or cookie is
-  read, logged or stored anywhere else, and the profile path is never
-  logged.
+- The owner runs it at his own desk, as himself. It refuses when it sees an
+  agent, and these are ALL its checks:
+  - `AGENT_ID`, `SPOOL_AGENT_ID` or `CLAUDECODE` set;
+  - `SUDO_USER` set: the fleet wraps agent calls in `sudo -u <user> bash -c`,
+    which drops the three markers above (R7 c-526, n = 1);
+  - an ancestor process (read from `/proc`, up to pid 1) whose comm is
+    `claude`, `agy`, `grok`, `vibe` or `qwen`;
+  - no terminal on stdin, or neither `DISPLAY` nor `WAYLAND_DISPLAY` set
+    (any value passes: it is not a proof of a person).
+
+  A caller that hides all of these gets through. So the run keeps nothing
+  worth taking:
+- It opens a visible google-chrome on a THROWAWAY profile:
+  `chromium.launch()` + `newContext()`, never a persistent context.
+  playwright-core 1.65.0 makes the profile under `os.tmpdir()` and removes it
+  on close (read in its `coreBundle.js`, the `playwright_<name>dev_profile-`
+  mkdtemp). The action points `TMPDIR` at a fresh mktemp dir, mode 700, and
+  removes that dir when the run ends, on Ctrl-C, TERM and HUP too. Only a
+  SIGKILL leaves it, under the system tmp dir. The owner logs in himself on
+  each run, as his B answer says ("you have to log in each time"). No
+  session survives the run; no password or cookie is read, logged or stored.
 - For each account (`BILLING_ACCOUNT_IDS`, or the newest fetch run's), it opens
   the billing documents page and picks the invoice rows dated in the window
   (`src/js/billing-invoices/lib.mjs`). It saves each one as
@@ -799,8 +813,10 @@ under `pdf/<id>/`. Ids are logged masked.
   owner's desk with npm, once, into `BILLING_PW_DIR`
   (`$HOME/.cache/<org>-<app>/playwright-core-1.65.0`). It drives the
   installed Chrome and downloads no browser.
-- FRAGILE, as the owner accepted: when Google changes the page, the run says
-  that no row was found and exits 2. It guesses nothing.
+- FRAGILE, as the owner accepted: when any account's page shows no invoice
+  row in the window (Google changed the page, or the account has none), the
+  run says so for that account, saves the others, and exits 2. It guesses
+  nothing.
 
 ### 15.5 Tests
 
@@ -813,8 +829,13 @@ test covers:
 - the 12-month window, the amounts and the `have` tick;
 - the refusals and the masked ids;
 - the SA dry run against its `DRY_RUN=0` control;
-- the browser's refusals, its profile rules, the pinned install, and the
-  terminal case run through script(1);
+- the browser's refusals: each env marker, `SUDO_USER` with the markers
+  dropped, each agent ancestor name, a real `/proc` walk under a bash copy
+  named `claude`, no terminal; red against the c98d86148 guard (10 FAILED);
+- the pinned install, and the terminal case run through script(1): a fresh
+  mode-700 `TMPDIR` that is gone after the run and after a TERM, and
+  `download.mjs` with no persistent context;
+- the out dir inside a git work tree, refused before any call;
 - `node --test` of `lib.mjs` on synthetic rows.
 
 Not covered: the real console page. Only the owner's own run can show it.

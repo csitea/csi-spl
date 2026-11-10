@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -425,7 +426,10 @@ func (s *Server) routeMarketingShare(mux *http.ServeMux) {
 	})
 }
 
-// dispatchDue opens the token once and shares each claimed post.
+// dispatchDue opens the token once and shares each claimed post. A post
+// the workspace wrote (source draft, spec 090 section 22) is its own text;
+// a blog post is looked up in byID, and a nil byID (the index was not read)
+// retries it rather than failing it.
 func (s *Server) dispatchDue(ctx context.Context, m *MarketingLinkedIn, mk store.Marketing, ch store.MarketingChannel, due []store.MarketingPost, byID map[string]marketing.BlogPost, res *MarketingShareResult) {
 	tok, err := s.openChannelToken(ctx, m, mk, ch)
 	refused := false
@@ -433,11 +437,16 @@ func (s *Server) dispatchDue(ctx context.Context, m *MarketingLinkedIn, mk store
 		var out store.MarketingOutcome
 		unauthorized := false
 		bp, live := byID[p.SourceRef]
+		draft := p.SourceType == store.MarketingSourceDraft
 		switch {
 		case refused: // LinkedIn refused the token: the rest wait for the re-connect, unsent
 			out = store.MarketingOutcome{Retry: true, RetryAt: s.o.Now(), Error: "waiting for the LinkedIn re-connect"}
 		case err != nil: // nothing was sent: a KMS or store failure is retried
 			out = retryOrFail(p.Attempts, errors.New("token unavailable: "+err.Error()), s.o.Now())
+		case draft:
+			out, unauthorized = s.shareDraftOne(ctx, m, ch, tok, p)
+		case byID == nil: // nothing was sent: the blog index was not read
+			out = retryOrFail(p.Attempts, errors.New("the blog index was not read"), s.o.Now())
 		case !live:
 			out = store.MarketingOutcome{Error: "the post is no longer in the live blog index"}
 		default:
@@ -473,6 +482,18 @@ func (s *Server) shareOne(ctx context.Context, m *MarketingLinkedIn, ch store.Ma
 		}
 	}
 	id, err := m.LinkedIn.Share(ctx, tok, ch.AccountRef, marketing.BlogArticle(m.AppURL, bp, nil), thumb)
+	return s.linkedInOutcome(id, err, attempt)
+}
+
+// shareDraftOne posts a post the workspace wrote: its text alone, no card.
+func (s *Server) shareDraftOne(ctx context.Context, m *MarketingLinkedIn, ch store.MarketingChannel, tok marketing.Plaintext, p store.MarketingPost) (store.MarketingOutcome, bool) {
+	id, err := m.LinkedIn.Share(ctx, tok, ch.AccountRef, marketing.Article{Commentary: p.ContentText}, "")
+	return s.linkedInOutcome(id, err, p.Attempts)
+}
+
+// linkedInOutcome maps a share's answer to the post's outcome.
+// unauthorized: LinkedIn answered 401; the post waits for the re-connect.
+func (s *Server) linkedInOutcome(id string, err error, attempt int) (out store.MarketingOutcome, unauthorized bool) {
 	switch {
 	case err == nil:
 		return store.MarketingOutcome{Published: true, PlatformPostID: id}, false
@@ -537,10 +558,20 @@ func (s *Server) reportShareFailure(ctx context.Context, m *MarketingLinkedIn, t
 		} else if ch.ID == channelID && ch.Platform == store.MarketingPlatformX { // SPL-5194
 			s.xReportFailure(ctx, s.o.MarketingX, ch, postRef, why)
 		} else if ch.ID == channelID && m != nil {
-			s.mailHolder(ctx, m, tenant, ch.DelegatedBy, "A blog post was not shared on LinkedIn",
-				"spool-hub could not share the blog post "+marketing.BlogPostURL(m.AppURL, postRef)+" on LinkedIn, and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nShare it by hand if you want it on your profile.\n")
+			s.mailHolder(ctx, m, tenant, ch.DelegatedBy, "A post was not shared on LinkedIn",
+				"spool-hub could not share "+marketingPostLabel(m.AppURL, postRef)+" on LinkedIn, and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nShare it by hand if you want it on your profile.\n")
 		}
 	}
+}
+
+// marketingPostLabel names a post in a mail: a blog post by its address, a
+// post the workspace wrote (its ref is the draft's uuid; a blog ref is a
+// dated slug, never a uuid) by its id.
+func marketingPostLabel(appURL, ref string) string {
+	if msg.IsUUID(ref) {
+		return "the post " + ref + " written in your workspace (Tenant settings, Posts)"
+	}
+	return "the blog post " + marketing.BlogPostURL(appURL, ref)
 }
 
 // mailHolder mails the member who connected the channel; a missing relay or

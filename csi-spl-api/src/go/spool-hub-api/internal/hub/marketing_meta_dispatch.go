@@ -228,8 +228,7 @@ func (s *Server) publishMetaOne(ctx context.Context, ps *metaPass, tok marketing
 		id, err = s.publishInstagram(ctx, ps, tok, p)
 	} else {
 		field = marketing.PermalinkFacebook
-		id, err = ps.mm.Meta.PublishFacebookPagePost(ctx, tok, ps.ch.AccountRef,
-			marketing.FacebookPost{Message: p.ContentText, Link: marketing.BlogPostURL(ps.mm.AppURL, p.SourceRef)})
+		id, err = ps.mm.Meta.PublishFacebookPagePost(ctx, tok, ps.ch.AccountRef, facebookPostOf(ps.mm.AppURL, p))
 	}
 	if err != nil {
 		return metaOutcome(err, p.Attempts, s.o.Now())
@@ -239,6 +238,16 @@ func (s *Server) publishMetaOne(ctx context.Context, ps *metaPass, tok marketing
 		s.o.Log.Warn().Str("channel", ps.ch.ID).Str("post", p.SourceRef).Str("err", lerr.Error()).Msg("marketing: published, permalink unread")
 	}
 	return store.MarketingOutcome{Published: true, PlatformPostID: id, Permalink: link}, false
+}
+
+// facebookPostOf is p as a Page post: a blog post links its page; a post
+// the workspace wrote (spec 090 section 22) is its text, as the caption of
+// its picture when it has one.
+func facebookPostOf(appURL string, p store.MarketingPost) marketing.FacebookPost {
+	if p.SourceType == store.MarketingSourceDraft {
+		return marketing.FacebookPost{Message: p.ContentText, PhotoURL: selectedMedia(p.MediaAssets)}
+	}
+	return marketing.FacebookPost{Message: p.ContentText, Link: marketing.BlogPostURL(appURL, p.SourceRef)}
 }
 
 // publishInstagram makes a container of the post's picture, waits for Meta
@@ -365,8 +374,8 @@ func (s *Server) metaReportFailure(ctx context.Context, mm *MarketingMeta, ch st
 	if mm == nil {
 		return
 	}
-	s.mailMember(ctx, mm.Mail, ch.Tenant, ch.DelegatedBy, "A blog post was not published on "+ch.AccountName,
-		"spool-hub could not publish the blog post "+marketing.BlogPostURL(mm.AppURL, postRef)+" on "+ch.AccountName+" ("+ch.Platform+
+	s.mailMember(ctx, mm.Mail, ch.Tenant, ch.DelegatedBy, "A post was not published on "+ch.AccountName,
+		"spool-hub could not publish "+marketingPostLabel(mm.AppURL, postRef)+" on "+ch.AccountName+" ("+ch.Platform+
 			"), and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nPost it by hand if you want it there.\n")
 }
 

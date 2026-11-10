@@ -16,6 +16,7 @@ type memMarketing struct {
 	tokens   map[string]MarketingToken    // channel id -> sealed token
 	posts    map[string]*memMktPost       // post id -> post
 	events   []memMktEvent
+	drafts   map[string]*MarketingDraft // draft id -> draft (rdb 0273)
 }
 
 type memMktPost struct {
@@ -40,7 +41,7 @@ func memUUID() string {
 func (s *Memory) mkt() *memMarketing {
 	if s.marketing == nil {
 		s.marketing = &memMarketing{channels: map[string]*MarketingChannel{}, tokens: map[string]MarketingToken{},
-			posts: map[string]*memMktPost{}}
+			posts: map[string]*memMktPost{}, drafts: map[string]*MarketingDraft{}}
 	}
 	return s.marketing
 }

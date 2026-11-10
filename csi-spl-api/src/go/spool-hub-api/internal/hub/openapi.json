@@ -5943,6 +5943,248 @@
         ]
       }
     },
+    "/v1/marketing/drafts": {
+      "get": {
+        "operationId": "getMarketingDrafts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {drafts: [{id, author_id, body, image_url, published_at, created_at, updated_at, mine, posts: [{channel_id, status, platform_post_id, last_error}]}], channels: [{channel_id, platform, name}]}; the workspace's own posts, last changed first, and the active channels a publish can go to"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "List the workspace's own marketing posts (a member holding tenant.settings: admin or biz_owner; marketing on; never the demo workspace; spec 090 section 22, SPL-5240)",
+        "tags": [
+          "marketing"
+        ]
+      },
+      "post": {
+        "operationId": "postMarketingDrafts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "body": {
+                    "maxLength": 3000,
+                    "type": "string"
+                  },
+                  "image_url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created: the draft, mine true"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Write a marketing post in the workspace (a member holding tenant.settings: admin or biz_owner; marketing on; never the demo workspace; spec 090 section 22, SPL-5240)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/drafts/{id}": {
+      "delete": {
+        "operationId": "deleteMarketingDraftsById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: the draft is deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "the post is published: it is kept"
+          }
+        },
+        "summary": "Delete a marketing post (its author only, until its first publish) (a member holding tenant.settings: admin or biz_owner; marketing on; never the demo workspace; spec 090 section 22, SPL-5240)",
+        "tags": [
+          "marketing"
+        ]
+      },
+      "patch": {
+        "operationId": "patchMarketingDraftsById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "body": {
+                    "maxLength": 3000,
+                    "type": "string"
+                  },
+                  "image_url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the edited draft"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "the post is published: its text is kept as it went out"
+          }
+        },
+        "summary": "Edit a marketing post (its author only, until its first publish) (a member holding tenant.settings: admin or biz_owner; marketing on; never the demo workspace; spec 090 section 22, SPL-5240)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/drafts/{id}/publish": {
+      "post": {
+        "operationId": "postMarketingDraftsByIdPublish",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "channels": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 20,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "channels"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {draft, results: [{channel_id, platform, outcome: published|retried|deferred|failed|scheduled|refused, error}]}; the post went out on each channel once, with no approval step; refused carries not_found, not_configured, already_recorded, instagram_needs_jpeg, instagram_too_long or x_too_long"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Publish a marketing post on the workspace's channels (its author only) (a member holding tenant.settings: admin or biz_owner; marketing on; never the demo workspace; spec 090 section 22, SPL-5240)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/facebook/callback": {
       "get": {
         "operationId": "getMarketingFacebookCallback",

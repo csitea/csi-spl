@@ -199,4 +199,5 @@ func (s *Server) routeMarketing(mux *http.ServeMux) {
 	s.routeMarketingShare(mux)         // SPL-40: the owner publishes a blog post on LinkedIn
 	s.routeMarketingPosts(mux)         // SPL-1698: the owner's unshared posts, for the WUI
 	s.routeMarketingManualPublish(mux) // spec 090 T036: a post the member made by hand
+	s.routeMarketingDrafts(mux)        // spec 090 section 22 (SPL-5240): the workspace's own posts
 }

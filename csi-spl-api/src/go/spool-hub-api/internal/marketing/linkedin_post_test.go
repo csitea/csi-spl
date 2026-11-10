@@ -84,6 +84,24 @@ func TestShareSendsOnePostWithThumbnail(t *testing.T) {
 	}
 }
 
+// TestShareTextPost: an Article with no URL (a post the workspace wrote,
+// spec 090 section 22, SPL-5240) is the commentary alone: no content card.
+func TestShareTextPost(t *testing.T) {
+	var body map[string]any
+	l := fakeLinkedIn(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("X-Restli-Id", "urn:li:share:43")
+		w.WriteHeader(http.StatusCreated)
+	})
+	id, err := l.Share(context.Background(), NewPlaintext(testOAuthToken), "abc", Article{Commentary: "Our news (today)"}, "")
+	if err != nil || id != "urn:li:share:43" {
+		t.Fatalf("share: %q %v", id, err)
+	}
+	if _, has := body["content"]; has || body["commentary"] != `Our news \(today\)` || body["lifecycleState"] != "PUBLISHED" {
+		t.Fatalf("a text post carries %v", body)
+	}
+}
+
 func TestShareErrors(t *testing.T) {
 	ctx, tok := context.Background(), NewPlaintext(testOAuthToken)
 	a := Article{URL: "https://app.example.com/blog/x"}

@@ -531,6 +531,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := seedMarketing(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// marketing_drafts (rdb 0273, spec 090 section 22, SPL-5240): one draft
+	// carrying the marker, through the store API.
+	if _, err := pg.CreateMarketingDraft(ctx, MarketingDraft{Tenant: s.tenant, AuthorID: hum, Body: "draft " + s.marker}, now); err != nil {
+		t.Fatal(err)
+	}
 	// gcal_connections, gcal_event_map (rdb 0217, spec 149 B1, SPL-3123): the
 	// seeded member's Google connection and the calendar event it synced. No
 	// store API yet (B2), so raw rows under inTenant.

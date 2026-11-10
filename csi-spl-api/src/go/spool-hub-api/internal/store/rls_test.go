@@ -78,6 +78,8 @@ var rlsTables = []string{
 	"netvisor_settings", "netvisor_snapshots", "netvisor_forecast_items", "netvisor_card_cost_lines",
 	// rdb 0266, spec 143 releases-projects row B-1
 	"software_projects", "workspace_repos",
+	// rdb 0273, spec 090 section 22 (SPL-5240)
+	"marketing_drafts",
 }
 
 // spl4808ExpandTables carry a tenant_id but no tenant row security yet: rdb

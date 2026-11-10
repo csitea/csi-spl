@@ -283,8 +283,8 @@ func (s *Server) xReportFailure(ctx context.Context, mx *MarketingX, ch store.Ma
 	if mx == nil {
 		return
 	}
-	s.mailMember(ctx, mx.Mail, ch.Tenant, ch.DelegatedBy, "A blog post was not published on "+ch.AccountName,
-		"spool-hub could not publish the blog post "+marketing.BlogPostURL(mx.AppURL, postRef)+" on X ("+ch.AccountName+
+	s.mailMember(ctx, mx.Mail, ch.Tenant, ch.DelegatedBy, "A post was not published on "+ch.AccountName,
+		"spool-hub could not publish "+marketingPostLabel(mx.AppURL, postRef)+" on X ("+ch.AccountName+
 			"), and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nPost it by hand if you want it there.\n")
 }
 

@@ -403,6 +403,7 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.4.0 | 2026-10-05 | c-334 | Added §15, the per-workspace switch (owner msgs `37bcb88b` item 4 and `5cd2e544`): the cnf allow-list AND the db flag `tenants.marketing_enabled`, which defaults off; the flag never widens the list; `all` is supported but unused; the demo workspace is never on. |
 | v0.4.1 | 2026-10-14 | c-516 | §15 item 5: the WUI says why Marketing is missing (one line on the switch's `404`, one on the Publish list's `403`) instead of hiding it silently (SPL-1856). |
 | v0.5.2 | 2026-10-26 | a-292 | Resolved review findings R1-R3: introduced explicit status 'awaiting_approval' in migration 0229 to guarantee approval hold is never claimed by background worker, aligned SQL query documentation with full live store query (FOR UPDATE SKIP LOCKED with UPDATE...RETURNING), and clarified Phase 3 source_type scope ('blog'). |
+| v0.6.0 | 2026-11-10 | c-507 | §22, the workspace's own posts (SPL-5240; owner t1 `19ef7d51`, poll `c1d8be01` Q1 A, Q2 A): rdb 0273 `marketing_drafts`, the draft routes, the author's publish on LinkedIn, Facebook, Instagram and X with no approval step, the Posts section of Workspace settings. |
 
 ---
 
@@ -773,4 +774,32 @@ The single-flight background dispatcher enforces strict failure handling to prot
 2. **Instagram Container Polling**:
    - For Instagram image publishing, container creation returns `creation_id`. The dispatcher verifies container status via `GET /{creation_id}?fields=status_code` before calling `media_publish`. If `status_code == 'ERROR'`, the post fails immediately without retry, logging Meta's diagnostic error message into `marketing_post_events`.
 
-<!-- version: 0.5.3 · updated: 2026-10-28 · last-edit: 2026-10-28T13:40:00Z -->
+## 22. The Workspace's Own Posts (Post Editor)
+
+Owner HUM-10, t1 `19ef7d51` (2026-11-09 17:27Z):
+> "it should be possible for any person with either a business owner or admin role in a workspace to create content in that workspace and to post that content from the integrated posts for the particular target system."
+
+Poll `c1d8be01` (2026-11-10 07:37Z): **Q1 A** "Only its own posts: build the per-workspace editor first, then open marketing to every workspace"; **Q2 A** "Nobody: the author publishes it" (no approval step). Built by SPL-5240.
+
+1. **Store** (rdb `0273_marketing_drafts.sql`): `marketing_drafts` holds one post a member wrote: `body` (1 to 3,000 characters, LinkedIn's cap), an optional `image_url` (a public `https` address the platform fetches), `author_id`, and `published_at`, set on the first publish. FORCE RLS in the `0187` shape: a workspace reads and writes only its own drafts. `marketing_posts.source_type` gains `draft`: a publish is one row per channel with `source_ref` = the draft id, so the `UNIQUE (channel_id, source_type, source_ref)` key keeps it to once per channel, exactly as for a blog post.
+2. **Who**: every route needs a member holding `tenant.settings` (by the default roles `admin` and `biz_owner`); `developer`, `tester`, `regular_user`, `product_owner`, `biz_customer` get `403` naming it, and the demo workspace gets `403` under any allow-list. They all sit behind `marketingRoute` (§15): `404` while marketing is off. Every admin and business owner sees all the workspace's drafts; **only the author** edits, deletes and publishes one (`403` for the others), and only **until its first publish**: from then on its text is what went out, so an edit or a delete is `409`. A published draft can still be published on a channel it has not gone to yet.
+3. **Routes** (hub `internal/hub/marketing_drafts.go`, `openapi.json`):
+
+   | route | answer |
+   |---|---|
+   | `GET /v1/marketing/drafts` | `{drafts, channels}`: the drafts, last changed first, each with `mine` and its `posts` (`channel_id`, `status`, `platform_post_id`, `last_error`); the active LinkedIn, Facebook Page, Instagram and X channels a publish can go to |
+   | `POST /v1/marketing/drafts` `{body, image_url}` | `201` the draft |
+   | `PATCH /v1/marketing/drafts/{id}` `{body, image_url}` | `200`; `409` once published |
+   | `DELETE /v1/marketing/drafts/{id}` | `204`; `409` once published |
+   | `POST /v1/marketing/drafts/{id}/publish` `{channels: [id]}` | `200 {draft, results}`: per channel `outcome` `published`, `retried`, `deferred` (the channel's daily cap, §16.3), `failed`, or `refused` with `error` `not_found`, `not_configured`, `already_recorded`, `instagram_needs_jpeg`, `instagram_too_long`, `x_too_long` |
+
+4. **Publish, no approval step**: the author's publish records the row held and approves it in the same call (`approveHeld`, the Meta and X path), then dispatches it through the channel's own sender, detached from the request (`marketingPublishTimeout`):
+   - **LinkedIn**: a text post, the commentary alone with no article card, on the **connector's** personal profile (§16.3: a LinkedIn post always goes out on the profile that connected it).
+   - **Facebook Page**: the text as a feed post, or, with a picture, a photo post with the text as caption. No link.
+   - **Instagram**: the picture with the text as caption; a draft without a JPEG picture, or a text over 2,200 characters, is refused before anything is recorded.
+   - **X**: the text as it is, at most 280 weighted characters (`x_too_long` otherwise; nothing is shortened).
+   The retry, failure and token-refusal rules are §16.3 and §21.2, unchanged; the sweeps send a retried draft row from its own `content_text`, never from the blog index. A failure mail names "the post `<id>` written in your workspace" instead of a blog address.
+5. **WUI**: Workspace settings -> **Posts** (`/tenant-settings/posts`, nav gated on `tenant.settings`): write, edit and delete a draft, pick the connected channels and publish; each draft shows where it went. Help: `doc/help/marketing.md` section 6.
+6. **Then every workspace** (Q1 A order, after the editor): cnf `marketing.workspaces` becomes `all` on dev and prd. The demo workspace stays refused (§15 item 3), and every workspace's own switch `tenants.marketing_enabled` still starts off until its admin turns it on (§15 item 2): nothing posts by itself.
+
+<!-- version: 0.6.0 · updated: 2026-11-10 · last-edit: 2026-11-10T19:30:00Z -->

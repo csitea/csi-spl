@@ -118,22 +118,27 @@ func (l *LinkedIn) UploadImage(ctx context.Context, tok Plaintext, memberSub str
 }
 
 // Share posts a on the member's feed and returns the post urn. A failure
-// after the request went out is ErrUnknownOutcome (never retried).
+// after the request went out is ErrUnknownOutcome (never retried). An
+// Article with no URL is a text post: the commentary alone, no card (a
+// post the workspace wrote, spec 090 section 22).
 func (l *LinkedIn) Share(ctx context.Context, tok Plaintext, memberSub string, a Article, thumbnail string) (string, error) {
-	article := map[string]any{"source": a.URL, "title": a.Title, "description": a.Description}
-	if thumbnail != "" {
-		article["thumbnail"] = thumbnail
-	}
-	req, err := l.restRequest(ctx, http.MethodPost, "/rest/posts", tok, map[string]any{
+	body := map[string]any{
 		"author":     "urn:li:person:" + memberSub,
 		"commentary": EscapeLittleText(a.Commentary),
 		"visibility": "PUBLIC",
 		"distribution": map[string]any{"feedDistribution": "MAIN_FEED", "targetEntities": []any{},
 			"thirdPartyDistributionChannels": []any{}},
-		"content":                   map[string]any{"article": article},
 		"lifecycleState":            "PUBLISHED",
 		"isReshareDisabledByAuthor": false,
-	})
+	}
+	if a.URL != "" {
+		article := map[string]any{"source": a.URL, "title": a.Title, "description": a.Description}
+		if thumbnail != "" {
+			article["thumbnail"] = thumbnail
+		}
+		body["content"] = map[string]any{"article": article}
+	}
+	req, err := l.restRequest(ctx, http.MethodPost, "/rest/posts", tok, body)
 	if err != nil {
 		return "", err
 	}

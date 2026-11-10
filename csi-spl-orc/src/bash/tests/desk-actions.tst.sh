@@ -536,6 +536,16 @@ out=$(SNIPPET=do_spl_desk_check in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 \
   fail "the roster failure is silent: $out"
 [[ "$out" == *"/nonexistent-roster.json"* ]] && pass "…naming what it tried to read" ||
   fail "the failure names nothing: $out"
+# The hint follows the status the read returned (SPL-5233): a 401 is a bad
+# probe password, where "retry" is wrong advice; only a 429 says retry.
+for st in 401:invalid_credentials:'A 401 here' 429:rate_limited:'A 429 here'; do
+  IFS=: read -r code err want <<<"$st"
+  out=$(SNIPPET="spl_desk_roster() { echo '{\"step\": \"login\", \"status\": $code, \"error\": \"$err\"}'; return 2; }; do_spl_desk_check" \
+          in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 2>&1)
+  other='A 429 here'; [[ $code == 429 ]] && other='A 401 here'
+  [[ "$out" == *"$want"* && "$out" != *"$other"* ]] && pass "a roster read that got $code prints the $code hint only" ||
+    fail "the $code roster failure printed the wrong hint: $out"
+done
 
 # --- 6. the detach does not hold the caller's descriptors --------------------------
 # The regression: `pid="$(spl_desk_sidecar ...)"` never returned, because the

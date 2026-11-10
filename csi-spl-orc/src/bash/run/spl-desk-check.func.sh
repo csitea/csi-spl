@@ -86,7 +86,7 @@ do_spl_desk_check() {
   if (( rrc )); then
     do_log "FATAL cannot read the roster for $tenant (exit $rrc). What the read returned:"
     do_log "FATAL   ${roster:-<nothing>}"
-    do_log "FATAL A 429 here is this box's own agents competing for the member login; retry, or pass DESK_ROSTER_JSON to read a saved capture."
+    _spl_desk_check_roster_hint "$roster"
     return 1
   fi
   local verdict
@@ -113,6 +113,19 @@ EOF_PY
   DESK_MUTE_ALARM_RAISE=0 do_spl_desk_check_mutes
   [[ "$v" == ok ]] && return 0
   spl_desk_repair "$v" "$repair" "$tenant" "$box" "$agent"
+}
+
+# The hint for a failed roster read follows the status it returned (SPL-5233:
+# a 401 printed the 429 hint, and "retry" is wrong advice for a bad password).
+_spl_desk_check_roster_hint() {
+  local roster="$1"
+  if [[ "$roster" =~ \"status\":\ ?429 ]]; then
+    do_log "FATAL A 429 here is this box's own agents competing for the member login; retry, or pass DESK_ROSTER_JSON to read a saved capture."
+  elif [[ "$roster" =~ \"status\":\ ?401 ]]; then
+    do_log "FATAL A 401 here is the hub rejecting the probe password (PROBE_PW_FILE or the user's own pw-human): a retry will not help; fix that file, or pass DESK_ROSTER_JSON to read a saved capture."
+  else
+    do_log "FATAL Pass DESK_ROSTER_JSON to read a saved capture."
+  fi
 }
 
 # _spl_desk_check_explain <verdict> <tenant> <box> <agent> <state dir> <pid>:

@@ -36,8 +36,8 @@ never-placed r55-04 and r55-03) pass their inputs as one struct or object; the t
 whose rules no test drives pin them first, and row 05 adds the drop case its test
 lacks (v0.4). Row 06 drops the 7 lines they leave.
 
-**Status: v1.0**, signed by the editor seat; the panel seat's signature on this sha is
-its own to give (section 9). No row lane starts before both seats sign (rulebook 3.2).
+**Status: v1.0 SIGNED** by the editor seat and the panel seat on `809788f13`
+(section 9). Rows are queued by the holder once the plan is on origin/master.
 
 Editor: **c-029** (claude). Panel seat: requested, section 5.
 
@@ -285,6 +285,8 @@ and lane readings are live state, so they carry their own time, not this sha.
 - v1.0: a-165's PASS on v0.4 `3bb81fe8e` (verdict 7a9be124; the holder's copy
   45e4b806; 0 defects, 0 notes), per the holder's 266b3bd7. Status, section 8 and
   section 9 only.
+- v1.0 signed: a-165's signature on `809788f13` (a034472f) recorded. Status and section
+  9 only.
 
 ## 9. Consensus
 
@@ -296,8 +298,9 @@ Both seats sign this plan (rulebook 3.2).
   W1-W3 and N1-N3 resolved; rows 01, 04, 05 pin-first gaps and rows 02, 03, 06
   controls planted on `078c9a72c` and re-checked; dist hygiene clean, fleet rules 0
   drift; `r57-` 0 on `origin/master` `8edd245f0`. v1.0 differs from v0.4 by the
-  status line, section 8 and this section only. **Signature on v1.0: asked of a-165,
-  pending**; the editor does not write it.
+  status line, section 8 and this section only. **SIGNED v1.0 `809788f13`**
+  (a034472f, its own message): diff from v0.4 checked by it (1 file, status, sections
+  8 and 9 only), dist hygiene clean. This later commit adds only that record.
 - Row R7 seats: fresh **claude** sessions, **same-vendor R7 under waiver 1a7c70da**
   (c-001 24802acd), round 31, never cross-vendor; lapses on the first owner post that
   says grok is back.

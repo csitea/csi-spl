@@ -36,8 +36,8 @@ never-placed r55-04 and r55-03) pass their inputs as one struct or object; the t
 whose rules no test drives pin them first, and row 05 adds the drop case its test
 lacks (v0.4). Row 06 drops the 7 lines they leave.
 
-**Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9). Landing
-waits for the holder's GO; no row lane starts before it lands.
+**Status: v1.0**, signed by the editor seat; the panel seat's signature on this sha is
+its own to give (section 9). No row lane starts before both seats sign (rulebook 3.2).
 
 Editor: **c-029** (claude). Panel seat: requested, section 5.
 
@@ -282,8 +282,9 @@ and lane readings are live state, so they carry their own time, not this sha.
   02's control fails at `merge_test.go:77`. N2: r56-08 live as c-495@sat; SPL-5194
   landed; the panel seat placed. N3: the spawn re-check takes all 15 paths. Lines
   re-checked on `078c9a72c` (unchanged). Rows 01-04 and 06 unchanged.
-- v1.0: a-165's PASS on v0.4 `3bb81fe8e` (verdict 7a9be124, 0 defects, 0 notes).
-  Status, section 8 and section 9 only.
+- v1.0: a-165's PASS on v0.4 `3bb81fe8e` (verdict 7a9be124; the holder's copy
+  45e4b806; 0 defects, 0 notes), per the holder's 266b3bd7. Status, section 8 and
+  section 9 only.
 
 ## 9. Consensus
 
@@ -294,8 +295,9 @@ Both seats sign this plan (rulebook 3.2).
   notes, folded in v0.4); **PASS on v0.4 `3bb81fe8e`** (7a9be124): 0 defects, 0 notes;
   W1-W3 and N1-N3 resolved; rows 01, 04, 05 pin-first gaps and rows 02, 03, 06
   controls planted on `078c9a72c` and re-checked; dist hygiene clean, fleet rules 0
-  drift; `r57-` 0 on `origin/master` `8edd245f0`. **Signed v1.0, on v0.4**; v1.0
-  differs from it by the status line, section 8 and this section only.
+  drift; `r57-` 0 on `origin/master` `8edd245f0`. v1.0 differs from v0.4 by the
+  status line, section 8 and this section only. **Signature on v1.0: asked of a-165,
+  pending**; the editor does not write it.
 - Row R7 seats: fresh **claude** sessions, **same-vendor R7 under waiver 1a7c70da**
   (c-001 24802acd), round 31, never cross-vendor; lapses on the first owner post that
   says grok is back.

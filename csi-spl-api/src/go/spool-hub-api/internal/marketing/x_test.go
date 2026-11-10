@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // SPL-5194: the X connect and post client against a fake X.
@@ -235,5 +236,15 @@ func TestXPostText(t *testing.T) {
 		if !strings.Contains(text, "…") {
 			t.Errorf("%s: shortened with no ellipsis: %q", name, text)
 		}
+	}
+}
+
+func TestXErrorCutKeepsUTF8(t *testing.T) {
+	// 199 ASCII bytes, then a 2-byte rune: a plain [:200] cut splits it.
+	detail := strings.Repeat("a", 199) + "ä" + strings.Repeat("b", 50)
+	body, _ := json.Marshal(map[string]string{"detail": detail})
+	xe := xError(&http.Response{StatusCode: http.StatusForbidden, Header: http.Header{}}, body)
+	if !utf8.ValidString(xe.Message) || len(xe.Message) > 200 || !strings.HasPrefix(detail, xe.Message) {
+		t.Fatalf("message %q (%d bytes): want a valid UTF-8 prefix of at most 200 bytes", xe.Message, len(xe.Message))
 	}
 }

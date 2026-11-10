@@ -31,8 +31,8 @@ parameter cap (`perfFeedPair`, `sendLive`); two do the same for Go (`searchSecti
 `revive` on resend and raises its floor. Row 08 (batch 2) drops the 4 `WIDE` lines
 rows 02, 03, 06, 07 leave.
 
-**Status: v1.0 rc**, signed by the editor seat; the panel seat's signature on this rc
-is pending (section 9). No row lane starts before the panel signs the plan sha.
+**Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9). Landing
+waits for the holder's GO.
 
 Editor: **c-716** (claude). Panel seat: a-725 (agy), section 5.
 
@@ -258,17 +258,22 @@ time, not this sha.
   defects, 1 note). N1: section 2's `searchSections` / `scanMove` row now points to
   **Rows 06, 07** (it read 07, 08 after the v0.4 renumbering). Status and section 9;
   no row changed.
+- v1.0: a-725's PASS and signature on the rc `61c5fe7ec` (verdict 6caebbc2, 0 defects,
+  0 notes). Status and section 9 only.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-716 (claude): drafted v0.1 to v0.4 and the v1.0 rc. **Signed the v1.0 rc.**
+- Editor seat: c-716 (claude): drafted v0.1 to v0.4 the v1.0 rc and v1.0. **Signed v1.0.**
 - Panel reviewer seat: a-725 (agy, this box): **FAIL on v0.3 `210c23222`** (1839e41b), 3
   defects, 3 notes, folded in v0.4. **PASS on v0.4 `b5061bcd2`** (c1fb87fc): 0 defects,
   1 note (N1, folded in the v1.0 rc); gates re-run on that sha (dist hygiene clean, fleet
   rules 0 drift) and row 03's strict-type probe run (typecheck green; red control
   TS2345, rc 2). The rc differs from v0.4 by N1's table cell, this section and the
-  status lines only. **Signature on the v1.0 rc pending.**
+  status lines only. **PASS on the v1.0 rc `61c5fe7ec`** (6caebbc2): 0 defects, 0 notes;
+  gates re-run on it (dist hygiene clean, fleet rules 0 drift, both clean code gates
+  green) and `r56-` 0 on `origin/master` `c742a5b1e`. **Signed v1.0, on the rc**; v1.0
+  differs from it by the status line, section 8 and this section only.
 - Row R7 seats: fresh **claude** sessions, same-vendor under waiver 1a7c70da (c-001
   5923c9b3), **round 30 only**, never cross-vendor.

@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -125,4 +126,92 @@ func TestChannelMoveProofReadIsOneSnapshot(t *testing.T) {
 	if a, b := moved(pg.asOperator); a == b {
 		t.Errorf("CONTROL: asOperator should see the later commit: %d then %d", a, b)
 	}
+}
+
+// SPL-5075: the flock of a P4 run is per box and the hub holds no step lock, so
+// a second P4, from another box, can pass the gate while the first one
+// commits, then reach StartChannelMoveStep. That start must never clear the
+// committed done mark: with P4 not done, P2..P4 would run again and P5..P7
+// would refuse. Both orders, on a real P4: the late start after the commit,
+// and one that waits on the row while the done mark is not committed yet.
+// CONTROL: before P4 is done, a start of P4 runs and leaves it not done.
+func TestStartChannelMoveStepKeepsCommittedP4(t *testing.T) {
+	f := seedMove(t)
+	ctx := context.Background()
+	req := f.req()
+	start := func() error {
+		return f.pg.StartChannelMoveStep(ctx, f.dst, req.MoveID, f.ch, "P4", map[string]any{"lanes": []string{}})
+	}
+	p4Done := func() bool {
+		t.Helper()
+		return mvCount(t, f.pg, `SELECT count(*) FROM channel_move_steps WHERE tenant_id = $1 AND move_id = $2::uuid AND step = 'P4' AND done_at IS NOT NULL`,
+			f.dst, req.MoveID) == 1
+	}
+	plan, err := f.pg.PlanChannelMove(ctx, req.ChannelMovePlanRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pg.OpenChannelMove(ctx, ChannelMoveOpen{Dst: f.dst, Src: f.src, Channel: f.ch, GoMsgID: req.GoMsgID,
+		StartedBy: req.StartedBy, Binds: plan.Binds, MoveID: req.MoveID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := start(); err != nil {
+		t.Fatalf("CONTROL: the first start of P4: %v", err)
+	}
+	if p4Done() {
+		t.Fatal("CONTROL: a started P4 reads as done")
+	}
+	f.apply(t, req)
+	if !p4Done() {
+		t.Fatal("P4 committed but its step is not done")
+	}
+	if err := start(); !errors.Is(err, ErrConflict) {
+		t.Errorf("a start of P4 after its commit: %v, want ErrConflict", err)
+	}
+	if !p4Done() {
+		t.Error("a start after the commit cleared P4's done mark")
+	}
+
+	// The same race, with the late start waiting on the uncommitted done mark.
+	mvExec(t, f.pg, `UPDATE channel_move_steps SET done_at = NULL WHERE tenant_id = $1 AND move_id = $2::uuid AND step = 'P4'`, f.dst, req.MoveID)
+	locked, release, committed := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		committed <- f.pg.asOperator(ctx, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `UPDATE channel_move_steps SET done_at = clock_timestamp() WHERE tenant_id = $1 AND move_id = $2::uuid AND step = 'P4'`,
+				f.dst, req.MoveID)
+			close(locked)
+			<-release
+			return err
+		})
+	}()
+	<-locked
+	late := make(chan error, 1)
+	go func() { late <- start() }()
+	waitForLockWait(t, f.pg)
+	close(release)
+	if err := <-committed; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-late; !errors.Is(err, ErrConflict) {
+		t.Errorf("a start that waited on P4's commit: %v, want ErrConflict", err)
+	}
+	if !p4Done() {
+		t.Fatal("a start that waited on P4's commit cleared its done mark")
+	}
+}
+
+// waitForLockWait returns once a session of this database waits on a row lock.
+func waitForLockWait(t *testing.T, pg *Postgres) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		var n int
+		if err := pg.pool.QueryRow(context.Background(), `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%channel_move_steps%'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+	}
+	t.Fatal("the late start never waited on the P4 row")
 }

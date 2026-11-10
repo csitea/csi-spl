@@ -727,3 +727,94 @@ admin's only), wherever this spec says the operator admin reads the estate.
 - Unchanged: `fleetLoadCaller`, `monitoringStaff`, the lane console, the Topics
   tab, Finance and Incomes.
 
+
+## 15. Billing accounts and their invoices (SPL-5220)
+
+Owner HUM-10, csitea #laskut f655b326, relayed by c-004: "there should be 1..1
+billing accounts for the [owner login]"; "the shell action to fetch all of the
+invoices for all of the billing accounts for the last 12 months from the day of
+the call". Msg 92e8e78d: "Create a service account which will be able to fetch
+and update the billing the same way I personally do." Answer to the A/B/C poll
+(msg b980e841): **B**, "also script the console download in a browser with your
+logged-in session (fragile, breaks when Google changes the page, and you have
+to log in each time)".
+
+### 15.1 What an API gives (read 2026-11-10, n = 6 project keys)
+
+- The Cloud Billing API (v1 and v1beta, discovery revision 20261106) has no
+  invoice, document or payment method. The invoice PDFs come from the console
+  only (Billing > Documents). Neither a service account nor a gcloud login
+  can fetch them.
+- An SA with billing-account roles can list the accounts and their projects,
+  move a project's billing, and read the monthly amounts from the BigQuery
+  billing export (4.2).
+
+### 15.2 The billing SA
+
+- `env.cost.gcp.billing_sa` = `spl-billing`, in `export_project`
+  (`csi-spl-all`, the cnf's "-all").
+- `do_gcp_billing_sa_create` (dry run unless `DRY_RUN=0`, the owner's go)
+  creates it as the csi-spl-all SA and grants `roles/bigquery.jobUser` on
+  csi-spl-all. It only PRINTS the owner's own steps, because no project SA holds
+  a role on a billing account:
+  - `roles/billing.viewer` and `roles/billing.user` on each billing account;
+  - `roles/billing.projectManager` on a project it is to move;
+  - BigQuery Data Viewer on the billing export dataset;
+  - its key, minted out of band to the per-env key pattern
+    (`key-<org>-<app>-billing.json` beside the others), never by terraform
+    and never in git.
+- Moving a project's billing, and closing an account, are the owner's go for
+  each call. No action here does either.
+
+### 15.3 `do_gcp_billing_invoices_fetch` (read only)
+
+It runs as the billing SA only: its key (`BILLING_SA_KEY_FILE`) is activated in
+a throwaway `CLOUDSDK_CONFIG`, with `--account` on every call. A key of another
+SA is refused, and so is a missing key; the owner account is never a fallback.
+For the invoice months of the last `BILLING_MONTHS` (12) months from the day
+of the call (2026-11-10 gives 202511..202610: every invoice issued in that
+year), it writes into `BILLING_OUT_DIR` (default
+`$HOME/.local/share/<org>-<app>/billing-invoices`, mode 700, outside git):
+`accounts.tsv`, `projects-<id>.tsv`, `amounts.tsv` (cost + credits per
+account-month, from the export) and `summary.tsv` + `README.md`, the PDF
+checklist. A month counts as `have` when a PDF dated the next month is
+under `pdf/<id>/`. Ids are logged masked.
+
+### 15.4 `do_gcp_billing_invoices_browser` (the owner's, choice B)
+
+- The owner runs it at his own desk. It refuses under `AGENT_ID`,
+  `SPOOL_AGENT_ID` or `CLAUDECODE`, and without a terminal or a display.
+- It opens a visible google-chrome on a dedicated profile
+  (`BILLING_CHROME_PROFILE`, default `$HOME/.local/share/<org>-<app>/billing-chrome-profile`,
+  mode 700, refused inside a git work tree), and the owner logs in there
+  himself. The session stays in that profile. No password or cookie is
+  read, logged or stored anywhere else, and the profile path is never
+  logged.
+- For each account (`BILLING_ACCOUNT_IDS`, or the newest fetch run's), it opens
+  the billing documents page and picks the invoice rows dated in the window
+  (`src/js/billing-invoices/lib.mjs`). It saves each one as
+  `pdf/<id>/<date>-<number>.pdf`, the checklist the fetch ticks off.
+  `BILLING_DRY=1` lists the rows and saves nothing.
+- **playwright-core is pinned to 1.65.0** and installed at run time on the
+  owner's desk with npm, once, into `BILLING_PW_DIR`
+  (`$HOME/.cache/<org>-<app>/playwright-core-1.65.0`). It drives the
+  installed Chrome and downloads no browser.
+- FRAGILE, as the owner accepted: when Google changes the page, the run says
+  that no row was found and exits 2. It guesses nothing.
+
+### 15.5 Tests
+
+`csi-spl-iac/src/bash/tests/gcp-billing-invoices.tst.sh` runs offline, with
+gcloud, curl, npm and node stubbed. The fetch cases use the real pin lib. The
+test covers:
+
+- `--account` on every call, one throwaway config, and that
+  `~/.config/gcloud` is never made;
+- the 12-month window, the amounts and the `have` tick;
+- the refusals and the masked ids;
+- the SA dry run against its `DRY_RUN=0` control;
+- the browser's refusals, its profile rules, the pinned install, and the
+  terminal case run through script(1);
+- `node --test` of `lib.mjs` on synthetic rows.
+
+Not covered: the real console page. Only the owner's own run can show it.

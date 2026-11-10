@@ -270,14 +270,16 @@
         <!-- topic d4bc9db4 (owner): the phone dock is Back | Attach | Send,
              Attach in the middle. Back is the top bar's "<" (MobileBack: the
              same stack.pop()), in thumb reach while the keyboard is up; a
-             photo is taken through Attach (the OS picker offers the camera) -->
+             photo is taken through Attach (the OS picker offers the camera).
+             SPL-5232: at level 1 it is the browser's Back while the tab has
+             an app entry before (stack.canBack), else disabled -->
         <button
           v-if="docked"
           type="button"
           tabindex="-1"
           class="dock-back"
           data-testid="dock-back"
-          :disabled="stack.level.value <= 1"
+          :disabled="!stack.canBack.value"
           v-tap-anim="'hop'"
           @mousedown.prevent
           @click.stop="stack.pop()"

@@ -9,7 +9,10 @@
 // marked loading (aria-busy), as a slow hub would. Each case watches the
 // dots with a MutationObserver from the moment of the Back.
 //   1-3. a slow Back by each way in (the chevron, browser Back, a swipe
-//        right): dots seen, and gone once the feed has loaded
+//        right): dots seen, and gone once the feed has loaded. SPL-5232
+//        (owner, t1 90194aeb): the chevron and a swipe from #lobby's topics
+//        go to the channel list (2 -> 1), not to #alerts; the slow Back is
+//        then the dock's Back from the list, the browser's Back to #alerts
 //   4.   the same Back with no plant (the mock answers at once): the dots
 //        show for ~0.7 s, then go
 //   5.   a Back that needs no load (level 3 -> 2, the feed is there) with
@@ -110,6 +113,11 @@ const watchDots = (p) => vue(p, () => {
 const dotsLog = (p) => vue(p, () => window.__backWait?.log || [])
 
 const BACKS = {
+  dock: (p) => vue(p, () => {
+    const e = [...document.querySelectorAll('[data-testid=dock-back]')].find((x) => x.getBoundingClientRect().width > 0 && !x.disabled)
+    e?.click()
+    return Boolean(e)
+  }),
   chevron: (p) => vue(p, () => {
     const e = [...document.querySelectorAll('[data-testid=mobile-back]')].find((x) => x.getBoundingClientRect().width > 0)
     e?.click()
@@ -158,10 +166,18 @@ async function slowBack(browser, base, how) {
     ok(`${how}: the dots region is on the page (390 px)`, mounted)
     const s0 = await twoChannels(page)
     ok(`${how}: setup, #lobby on level 2 after #alerts`, s0.path === '/channel/lobby' && s0.level === '2', s0)
+    let slow = how
+    if (how !== 'browser Back') {
+      await BACKS[how](page)
+      const l1 = await waitFor(page, (s) => s.level === '1')
+      ok(`${how}: Back from #lobby goes to the channel list (2 -> 1), not #alerts`, l1.level === '1' && l1.path === '/channel/lobby', l1)
+      await sleep(1200)
+      slow = 'dock'
+    }
     await plantSlow(page, SLOW_MS)
     await watchDots(page)
     const t0 = Date.now()
-    const pressed = await BACKS[how](page)
+    const pressed = await BACKS[slow](page)
     await sleep(SLOW_MS / 2)
     const mid = await page.$('[data-testid=back-wait-dots]')
     const back = await waitFor(page, (s) => s.path === '/channel/alerts' && !s.busy, SLOW_MS + 6000)
@@ -187,12 +203,15 @@ async function instantBacks(browser, base) {
   try {
     ok('instant: the dots region is on the page (390 px)', mounted)
     await twoChannels(page)
-    await watchDots(page)
     await BACKS.chevron(page)
+    await waitFor(page, (x) => x.level === '1')
+    await sleep(1200)
+    await watchDots(page)
+    await BACKS.dock(page)
     const s = await waitFor(page, (x) => x.path === '/channel/alerts' && !x.busy)
     await sleep(1200)
     let log = await dotsLog(page)
-    ok('instant: a Back the mock answers at once shows the dots ~0.7 s, then they go', s.path === '/channel/alerts' && shortShow(log, 1500), { s, log })
+    ok('instant: a Back the mock answers at once (the dock\'s, list -> #alerts) shows the dots ~0.7 s, then they go', s.path === '/channel/alerts' && shortShow(log, 1500), { s, log })
 
     await vue(page, (id) => document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('topic')?.openTopic(id), TASK)
     const l3 = await waitFor(page, (x) => x.level === '3')

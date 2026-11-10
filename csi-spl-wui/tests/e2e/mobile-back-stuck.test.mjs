@@ -22,6 +22,10 @@
 // Desktop (1440) is the control: no chevron, no dock Back, and Back / Forward
 // over a `?topic=` link keep their URLs byte for byte.
 //
+// SPL-5232 (owner, t1 90194aeb): case 1's second Back goes to the channel
+// list (2 -> 1), no longer to #alerts; the dock's Back at level 1 then
+// returns to #alerts, as browser Back would.
+//
 // SPL-4624, one more job per width: Back while the landing of a `?topic=` link
 // still waits for its card, the card drawn before the route drops `?topic=`.
 // The landing opened the topic again and the stack pushed level 3 over the
@@ -179,10 +183,17 @@ async function round(browser, base, width, r, ok) {
     want = (x) => x.level === '2' && !x.topic && x.path === '/channel/lobby'
     s = await st(want, BACK_HOLD)
     ok(`${at} ${first} from the linked topic: 3 -> 2, its channel, the topic stays closed`, want(s), s)
+    /* SPL-5232 (owner HUM-10, t1 90194aeb msg 1966d7e6): the topics level
+       goes to the channel level, not to #alerts where the link was; from
+       the top the dock's Back is the browser's Back, so #alerts comes next */
     await press(page, second)
+    want = (x) => x.level === '1' && !x.topic && x.path === '/channel/lobby'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${second}: 2 -> 1, the channel list, not #alerts`, want(s), s)
+    const docked = await press(page, 'dock-back')
     want = (x) => x.level === '2' && !x.topic && x.path === '/channel/alerts'
     s = await st(want, BACK_HOLD)
-    ok(`${at} ${second}: back to #alerts, where the link was`, want(s), s)
+    ok(`${at} dock-back at level 1: back to #alerts, where the link was`, docked && want(s), { docked, ...s })
     await press(page, first)
     want = (x) => x.level === '1'
     s = await st(want, BACK_HOLD)

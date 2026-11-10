@@ -1969,6 +1969,8 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileInitialLevel(path: string, query: Record<string, unknown> | null | undefined): MobileLevel
   export function mobileTaggedLevel(state: unknown): MobileLevel | null
   export function mobileHasBelow(state: unknown): boolean
+  export function mobileBelowLevel(state: unknown): MobileLevel | null
+  export function mobileHasPrev(state: unknown): boolean
   export function mobileTagState(state: unknown, level: MobileLevel, below?: number): Record<string, unknown>
   export function mobileHistoryStep(tagged: MobileLevel | null, next: MobileLevel): 'tag' | 'push' | 'none'
   export function mobileStaleTopicUrl(href: string, tagged: MobileLevel | null): string | null
@@ -1984,7 +1986,7 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileStatePosition(state: unknown): number | null
   export function mobileRecordStep(tagged: MobileLevel | null, next: MobileLevel, inPlace: boolean): { step: 'tag' | 'push' | 'none', clearInPlace: boolean }
   export function mobilePushPlan(href: string, state: unknown, next: MobileLevel, tagged: MobileLevel | null): { under: string | null, state: Record<string, unknown>, url: string | undefined }
-  export function mobileBackStep(s: { mobile: boolean, overlays: number, level: MobileLevel, hasBelow: boolean, up: () => boolean }): 'overlay' | 'history' | 'down' | 'none'
+  export function mobileBackStep(s: { mobile: boolean, overlays: number, level: MobileLevel, below: MobileLevel | null, prev?: boolean, chat?: boolean, up: () => boolean }): 'overlay' | 'history' | 'down' | 'none'
   export function mobileAfterNavStep(failure: 'duplicated' | 'other' | null, mobile: boolean, tagged: MobileLevel | null): 'push' | 'tag' | 'none'
   export function mobileSwipeStart(active: boolean, touches: ArrayLike<{ clientX: number, clientY: number }> | null | undefined): { x: number, y: number } | null
   export function mobilePopDropsTopic(step: { kind: string, back?: boolean }): boolean

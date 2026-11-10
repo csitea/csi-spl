@@ -6,7 +6,8 @@ import {
   isStaleLoginStep,
   mobileAfterNavStep,
   mobileBackStep,
-  mobileHasBelow,
+  mobileBelowLevel,
+  mobileHasPrev,
   mobileInitialLevel,
   mobileLevelOf,
   mobileLoginFrontDoor,
@@ -26,6 +27,7 @@ import {
   type MobileLevel,
 } from '~/utils/mobile-stack.mjs'
 import { useSessionStore } from '~/stores/session'
+import { chatKind } from '~/utils/section-strip.mjs'
 
 /**
  * SPL-989 (epic SPL-988) — the phone / small-tablet navigation stack: THE one
@@ -70,6 +72,11 @@ let installed = false
 const backs = ref(0)
 /* CLE-77882: an open-in-place is navigating (utils/mobile-stack.mjs mobileInPlaceStep) */
 let inPlaceUntil = 0
+/* SPL-5232: the tab has an app entry before this one (vue-router state.back):
+   at level 1 the dock's Back is the browser's Back, not a dead button */
+const hasPrev = ref(false)
+const syncPrev = () => { hasPrev.value = mobileHasPrev(window.history.state) }
+const canBack = computed(() => isMobile.value && (level.value > 1 || hasPrev.value))
 
 function tag(lv: MobileLevel, below?: number) {
   window.history.replaceState(mobileTagState(window.history.state, lv, below), '')
@@ -131,6 +138,8 @@ function enqueue(op: () => void | Promise<void>): Promise<void> {
 }
 
 const statePosition = () => mobileStatePosition(window.history.state)
+/* the current entry changed (a route navigation, a popstate): note where we are */
+const moved = () => { lastPos = statePosition(); syncPrev() }
 
 /** history.go(-n), resolved when its popstate has been handled (or after a timeout). */
 function stepBack(n: number): Promise<void> {
@@ -290,7 +299,9 @@ const push = (lv: 2 | 3) => { if (lv >= 2) home.value = false }
 
 function pop() {
   const stepsUp = () => ups.value.some((u) => u())
-  const step = mobileBackStep({ mobile: isMobile.value, overlays: overlays.length, level: level.value, hasBelow: mobileHasBelow(window.history.state), up: stepsUp })
+  const state = window.history.state
+  const chat = chatKind(window.location.pathname) !== ''
+  const step = mobileBackStep({ mobile: isMobile.value, overlays: overlays.length, level: level.value, below: mobileBelowLevel(state), prev: mobileHasPrev(state), chat, up: stepsUp })
   if (step === 'overlay') void enqueue(() => (overlays.length ? stepBack(1) : undefined))
   else if (step === 'history') window.history.back()
   else if (step === 'down') { applyLevel((level.value - 1) as MobileLevel); backs.value++ }
@@ -363,10 +374,11 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   const first = mobileTaggedLevel(window.history.state) ?? mobileInitialLevel(route.path, route.query as Record<string, unknown>)
   home.value = first === 1
   tag(first)
+  syncPrev()
 
   /* a route navigation: a fresh entry is a push from the level we were on */
   router.afterEach((_to, _from, failure) => {
-    lastPos = statePosition()
+    moved()
     const kind = failure ? (isNavigationFailure(failure, NavigationFailureType.duplicated) ? 'duplicated' : 'other') : null
     const step = mobileAfterNavStep(kind, isMobile.value, mobileTaggedLevel(window.history.state))
     if (step === 'push') return push(2)
@@ -378,7 +390,7 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
 
   /* browser Back / Forward, and pop() -> history.back() */
   window.addEventListener('popstate', (e) => {
-    lastPos = statePosition()
+    moved()
     inPlaceUntil = 0
     if (isMobile.value) backs.value++
     const tagged = mobileTaggedLevel(e.state)
@@ -412,6 +424,8 @@ export function useMobileStack() {
     isMobile,
     /** the panel on screen: 1 left, 2 middle, 3 right */
     level,
+    /** SPL-5232: a Back would move (level > 1, or an app entry before level 1): the dock's Back */
+    canBack,
     push,
     pop,
     home: toHome,

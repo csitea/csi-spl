@@ -12,6 +12,8 @@ import {
   mobileAfterNavStep,
   mobileBackStep,
   mobileHasBelow,
+  mobileBelowLevel,
+  mobileHasPrev,
   mobileHistoryStep,
   mobileInPlaceStep,
   mobileInitialLevel,
@@ -146,16 +148,17 @@ describe('087 T003: Back never lands on the sign-in page while signed in', () =>
 
 // r14-07 (SPL-2696): the stack decisions useMobileStack.ts applies.
 describe('r14-07: Back by the chevron or a swipe', () => {
-  const s = (o) => ({ mobile: true, overlays: 0, level: 2, hasBelow: false, up: () => false, ...o })
+  const s = (o) => ({ mobile: true, overlays: 0, level: 2, below: null, up: () => false, ...o })
   it('the top overlay goes first, then an entry of ours below, else down in place', () => {
-    assert.equal(mobileBackStep(s({ overlays: 1, hasBelow: true, level: 3 })), 'overlay')
-    assert.equal(mobileBackStep(s({ hasBelow: true, level: 3 })), 'history')
+    assert.equal(mobileBackStep(s({ overlays: 1, below: 2, level: 3 })), 'overlay')
+    assert.equal(mobileBackStep(s({ below: 2, level: 3 })), 'history')
     assert.equal(mobileBackStep(s({ level: 3 })), 'down')
     assert.equal(mobileBackStep(s({ level: 2 })), 'down')
   })
-  it('CONTROL: not a phone, or level 1, does nothing', () => {
+  it('CONTROL: not a phone, or level 1 with nothing before, does nothing', () => {
     assert.equal(mobileBackStep(s({ mobile: false, overlays: 1, level: 3 })), 'none')
-    assert.equal(mobileBackStep(s({ level: 1, hasBelow: true })), 'none')
+    assert.equal(mobileBackStep(s({ level: 1, below: 2 })), 'none')
+    assert.equal(mobileBackStep(s({ mobile: false, level: 1, prev: true })), 'none')
   })
   it('a page level above a level-2 deep link steps up first, and is asked only there', () => {
     let asked = 0
@@ -164,8 +167,44 @@ describe('r14-07: Back by the chevron or a swipe', () => {
     assert.equal(mobileBackStep(s({ up: up(false) })), 'down')
     assert.equal(asked, 2)
     mobileBackStep(s({ level: 3, up: up(true) }))
-    mobileBackStep(s({ hasBelow: true, up: up(true) }))
+    mobileBackStep(s({ below: 1, up: up(true) }))
     assert.equal(asked, 2, 'up() is not asked on level 3 or with an entry below')
+  })
+})
+
+// SPL-5232 (owner HUM-10, t1 90194aeb msg 1966d7e6): in a discussion Back is
+// one level up - the topic to its topics, the topics to the channel list -
+// and from the top it is the browser's Back; never another section.
+describe('SPL-5232: Back in a discussion is one level, never another section', () => {
+  const s = (o) => ({ mobile: true, overlays: 0, level: 2, below: null, chat: true, up: () => false, ...o })
+  it('the topics of a channel opened by a link from another page (Issues: below 2) step down to the list', () => {
+    assert.equal(mobileBackStep(s({ level: 2, below: 2 })), 'down')
+    assert.equal(mobileBackStep(s({ level: 2, below: 3 })), 'down', 'a link from a topic to another channel')
+  })
+  it('a topic opened by a link from another topic (below 3) steps down to its own topics', () => {
+    assert.equal(mobileBackStep(s({ level: 3, below: 3 })), 'down')
+  })
+  it('CONTROL: a lower level of ours below is still history.back() (the tap path, an open in place from a list)', () => {
+    assert.equal(mobileBackStep(s({ level: 2, below: 1 })), 'history')
+    assert.equal(mobileBackStep(s({ level: 3, below: 2 })), 'history')
+    assert.equal(mobileBackStep(s({ level: 3, below: 1 })), 'history', 'CLE-77882: Back returns to the list')
+  })
+  it('CONTROL: outside a discussion any entry of ours below is history.back(), as before', () => {
+    assert.equal(mobileBackStep(s({ chat: false, level: 2, below: 2 })), 'history')
+    assert.equal(mobileBackStep(s({ chat: false, level: 3, below: 3 })), 'history')
+  })
+  it('level 1 with an app entry before is the browser Back; with none, nothing', () => {
+    assert.equal(mobileBackStep(s({ level: 1, prev: true })), 'history')
+    assert.equal(mobileBackStep(s({ level: 1, prev: false })), 'none')
+    assert.equal(mobileBackStep(s({ level: 1, prev: true, overlays: 1 })), 'overlay', 'an open sheet still closes first')
+  })
+  it('reads the level below and vue-router\'s previous entry off history.state', () => {
+    assert.equal(mobileBelowLevel(mobileTagState({}, 2, 3)), 3)
+    assert.equal(mobileBelowLevel(mobileTagState({}, 2)), null)
+    assert.equal(mobileBelowLevel(null), null)
+    assert.equal(mobileHasPrev({ back: '/issues', current: '/channel/lobby' }), true)
+    assert.equal(mobileHasPrev({ back: null, current: '/' }), false)
+    assert.equal(mobileHasPrev(null), false)
   })
 })
 

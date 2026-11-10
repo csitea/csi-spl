@@ -121,6 +121,17 @@ export function mobileHasBelow(state) {
   return v === 1 || v === 2 || v === 3
 }
 
+/** The level of the in-app entry under this one (MOBILE_BELOW_KEY), or null. */
+export function mobileBelowLevel(state) {
+  const v = state && typeof state === 'object' ? state[MOBILE_BELOW_KEY] : null
+  return v === 1 || v === 2 || v === 3 ? v : null
+}
+
+/** True when vue-router recorded an app entry before this one (state.back), so browser Back stays in the app. */
+export function mobileHasPrev(state) {
+  return Boolean(state && typeof state === 'object' && typeof state.back === 'string' && state.back)
+}
+
 /** history.state with this shell's tags merged in; the router's own keys untouched. */
 export function mobileTagState(state, level, below) {
   const base = state && typeof state === 'object' ? { ...state } : {}
@@ -197,21 +208,29 @@ export function mobilePushPlan(href, state, next, tagged) {
 }
 
 /**
- * Back by the chevron or a swipe (pop()):
+ * Back by the chevron, the dock's Back or a swipe (pop()):
  *   'overlay' - SPL-994: the top overlay goes first (its entry is stepped over)
- *   'history' - an entry of ours is below: history.back()
+ *   'history' - an entry of ours is below: history.back(); at level 1, an app
+ *               entry before this one (`prev`): Back is the browser's Back
  *   'down'    - a deep link, nothing of ours below: step down a level in place
- *   'none'    - not a phone, level 1 already, or (t1 3b8891e0) a page level
- *               above the deep link stepped up itself (`up()` returned true)
+ *   'none'    - not a phone, level 1 with nothing before, or (t1 3b8891e0) a
+ *               page level above the deep link stepped up itself (`up()` true)
+ * SPL-5232 (owner HUM-10, t1 90194aeb msg 1966d7e6): in a discussion (`chat`:
+ * a channel, the lobby, a DM) Back is one level up and never another section.
+ * An entry reached by a link from another page (an issue's discussion link,
+ * Notes, a link to another channel or topic) is tagged with the level it was
+ * opened FROM, not a lower one: history.back() went to that page (the Issues
+ * list from a channel's topics). There, `below` must be a lower level, else
+ * Back steps down in place: the topic to its channel, the channel to the list.
  * `up` is asked last, and only on level 2 with nothing below.
- * @param {{ mobile: boolean, overlays: number, level: 1|2|3, hasBelow: boolean, up: () => boolean }} s
+ * @param {{ mobile: boolean, overlays: number, level: 1|2|3, below: 1|2|3|null, prev?: boolean, chat?: boolean, up: () => boolean }} s
  * @returns {'overlay'|'history'|'down'|'none'}
  */
 export function mobileBackStep(s) {
   if (!s.mobile) return 'none'
   if (s.overlays > 0) return 'overlay'
-  if (s.level === 1) return 'none'
-  if (s.hasBelow) return 'history'
+  if (s.level === 1) return s.prev ? 'history' : 'none'
+  if (s.below !== null && (!s.chat || s.below < s.level)) return 'history'
   if (s.level === 2 && s.up()) return 'none'
   return 'down'
 }

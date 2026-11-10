@@ -7,6 +7,9 @@
 //            deep     `/`, then the level-3 deep link
 //            login    `/login`, `/`, then the level-3 deep link
 //            notify   a notification open (`/m/<msg_id>`, replaces itself)
+//            link     SPL-5232: `/`, `/issues`, then a link from that page to
+//                     the topic (an issue's discussion link: router.push)
+//            rail     SPL-5232: `/`, `/notes`, the rail's Channels, #lobby, a topic
 //            (the resumed place is added by 087 T004)
 //   methods  chevron  the header "<" (MobileBack)
 //            dock     the dock Back (MessageComposer)
@@ -21,7 +24,16 @@
 // (3 -> 2 -> 1), and then browser Back from level 1 (the OS gesture: there is
 // no chevron or swipe at level 1) leaves the app with no step showing the
 // sign-in page: no `/login` URL, and a MutationObserver that runs from the
-// first byte of every document never saw `.login-landing-card`.
+// first byte of every document never saw `.login-landing-card`. In the dock
+// column the dock's Back takes those level-1 steps while it is enabled
+// (SPL-5232: from the top it is the browser's Back). The `link` entry's first
+// Back from level 1 must reach the page the link was on (`/issues`).
+//
+// SPL-5232 (owner HUM-10, t1 90194aeb msg 1966d7e6): a channel opened by a
+// link from another section's page was tagged with that page's level (2), so
+// the chevron and the dock's Back at the channel's topics went back to the
+// Issues list (2 -> 2), not the channel list. Browser Back follows the
+// browser's own history there (the page the link was on): KNOWN_RED below.
 //
 // Known red, by design (the control). The `login` cells failed until 087
 // T003 (spec §2 row 2: Back from level 1 landed on the stale `/login` entry
@@ -61,7 +73,7 @@ const TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const REPLY = '33333333-3333-4333-8333-333333333333'
 const SIZES = { 360: 780, 390: 844 }
 const SWIPE_Y = 420
-const ALL_ENTRIES = ['tap', 'topic', 'channel', 'deep', 'login', 'notify']
+const ALL_ENTRIES = ['tap', 'topic', 'channel', 'deep', 'login', 'notify', 'link', 'rail']
 const ALL_METHODS = ['chevron', 'dock', 'edge', 'mid', 'browser', 'sheet']
 const pick = (env, all) => (env ? env.split(',').filter((x) => all.includes(x)) : all)
 const ENTRIES = pick(process.env.ENTRIES, ALL_ENTRIES)
@@ -81,6 +93,8 @@ const KNOWN_RED = {
   'deep/sheet': 'as deep/browser; 087 T007',
   'notify/browser': '/m/<id> builds level 2 only: browser Back from it leaves the app; 087 T007',
   'notify/sheet': 'as notify/browser; 087 T007',
+  'link/browser': 'browser Back is the browser history: 2 -> the /issues page the link was on (2); SPL-5232 fixes the in-app Backs',
+  'link/sheet': 'as link/browser',
 }
 const knownRed = (entry, method) => KNOWN_RED[`${entry}/${method}`] || KNOWN_RED[`${entry}/*`] || ''
 const STRICT = process.env.KNOWN_RED === 'strict'
@@ -218,6 +232,22 @@ const load = async (p, base, path) => {
   await p.waitForSelector('.spool-shell, .login-landing-card', { timeout: NAV_TIMEOUT })
 }
 
+/** At level 1 on Channels: tap #lobby (level 2), then open a topic (level 3). */
+async function tapLobbyAndTopic(p) {
+  await p.evaluate(() => {
+    const row = [...document.querySelectorAll('#sidebar-panel-channels .nav-item')].find((e) => (e.getAttribute('href') || '').endsWith('/channel/lobby'))
+    row?.click()
+  })
+  await shellAt(p, 2)
+  await p.evaluate((id) => {
+    const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+    pinia?._s.get('topic')?.openTopic(id)
+  }, TASK)
+}
+
+/* SPL-5232: the page of another section the `link` entry follows a link from */
+const LINK_FROM = '/issues'
+
 /** Open the entry; resolve to the level it starts on. */
 async function enter(p, base, entry) {
   const deep = `/channel/lobby?topic=${TASK}`
@@ -226,15 +256,7 @@ async function enter(p, base, entry) {
     await shellAt(p, 1)
     await click(p, '[data-testid=sidebar-tab-channels]')
     await sleep(300)
-    await p.evaluate(() => {
-      const row = [...document.querySelectorAll('#sidebar-panel-channels .nav-item')].find((e) => (e.getAttribute('href') || '').endsWith('/channel/lobby'))
-      row?.click()
-    })
-    await shellAt(p, 2)
-    await p.evaluate((id) => {
-      const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
-      pinia?._s.get('topic')?.openTopic(id)
-    }, TASK)
+    await tapLobbyAndTopic(p)
   } else if (entry === 'topic') {
     await load(p, base, deep)
   } else if (entry === 'channel') {
@@ -252,6 +274,20 @@ async function enter(p, base, entry) {
     await load(p, base, deep)
   } else if (entry === 'notify') {
     await load(p, base, `/m/${REPLY}`)
+  } else if (entry === 'link') {
+    await load(p, base, '/')
+    await shellAt(p, 1)
+    await load(p, base, LINK_FROM)
+    await shellAt(p, 2)
+    await p.evaluate((to) => document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router?.push(to), deep)
+  } else if (entry === 'rail') {
+    await load(p, base, '/')
+    await shellAt(p, 1)
+    await load(p, base, '/notes')
+    await shellAt(p, 2)
+    await click(p, '[data-testid=sidebar-tab-channels]')
+    await shellAt(p, 1)
+    await tapLobbyAndTopic(p)
   }
   return (await shellAt(p, 3)).level
 }
@@ -305,11 +341,15 @@ async function cell(browser, base, width, entry, method, noBfcache = false) {
       else if (s.level !== lv - 1) fails.push(`Back at level ${lv} went to level ${s.level} (${s.path})`)
     }
 
-    /* level 1: browser Back (the OS gesture) until the tab leaves the app */
+    /* level 1: browser Back (the OS gesture) until the tab leaves the app; in
+       the dock column the dock's Back while it is enabled (SPL-5232) */
     for (let i = 0; i < 4 && !fails.length; i++) {
-      await goBack(p)
+      const docked = method === 'dock' && (await click(p, '[data-testid=dock-back]'))
+      if (!docked && method === 'dock' && entry === 'link' && i === 0) fails.push('the dock\'s Back is disabled at level 1 with an app entry before it')
+      if (!docked) await goBack(p)
       await sleep(400)
       const s = await state(p)
+      if (i === 0 && entry === 'link' && s.path.split('?')[0] !== LINK_FROM) fails.push(`Back from level 1 went to ${s.path}, not the page the link was on (${LINK_FROM})`)
       if (s.path === 'about:blank') { steps.push('out'); break }
       steps.push(s.login ? 'LOGIN' : `L${s.level}`)
       if (s.login || s.painted) fails.push(`Back from level 1 showed the sign-in page (${s.path}, painted=${s.painted})`)

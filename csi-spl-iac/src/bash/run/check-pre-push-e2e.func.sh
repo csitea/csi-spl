@@ -34,13 +34,14 @@
 # @description WUI tree without e2e/bench contents, so an e2e-only edit and a
 # @description rebase over non-WUI commits reuse it; the files run through
 # @description csi-spl-orc's wui-e2e-mock-serve.sh, as wf 10 runs them. The
-# @description whole part runs under PRE_PUSH_E2E_TIMEOUT. The cache keeps the
+# @description whole part runs under _pp_budget: PRE_PUSH_E2E_TIMEOUT, else
+# @description PRE_PUSH_PART_TIMEOUT, else 600 s (SPL-5238). The cache keeps the
 # @description newest 3 bundles; a run holds its bundle (a shared flock on
 # @description <cache>/.locks/<key>) until it ends, and the prune skips a held one.
 # @param PRE_PUSH_E2E (optional) - 0 = never select the part, default 1
 # @param PRE_PUSH_E2E_MAX (optional) - most files run, default 6
 # @param PRE_PUSH_E2E_BUDGET (optional) - CI seconds the files may sum to, default 240
-# @param PRE_PUSH_E2E_TIMEOUT (optional) - seconds for the whole part, default 600
+# @param PRE_PUSH_E2E_TIMEOUT (optional) - seconds for the whole part; wins over PRE_PUSH_PART_TIMEOUT, default 600
 # @param PRE_PUSH_E2E_BUNDLES (optional) - bundle cache dir, default ~/.cache/csi-spl/wui-e2e-bundle
 # @param PRE_PUSH_E2E_GENERATE (optional) - the build command (tests), default the mock generate
 # @param PRE_PUSH_E2E_RUNNER (optional) - the run command (tests), default mock-serve + run-e2e-tests.mjs
@@ -351,7 +352,7 @@ _pp_part_wui_e2e() {
   for t in $files; do [[ -f "$tree/csi-spl-wui/$t" ]] || missing+=" $t"; done
   [[ -z "$missing" ]] || echo "wui-e2e: not in this tree (new in the push?):$missing"
   export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin
-  timeout -k 10 "${PRE_PUSH_E2E_TIMEOUT:-600}" bash -c '
+  timeout -k 10 "$(_pp_budget _pp_part_wui_e2e)" bash -c '
     set -uo pipefail
     tree="$1" files="$2"
     wui="$tree/csi-spl-wui"; cd "$wui" || exit 1

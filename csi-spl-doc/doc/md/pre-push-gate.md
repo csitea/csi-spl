@@ -178,7 +178,11 @@ One rule sets every part's budget, on both tiers (`_pp_part_var` and
 `PRE_PUSH_E2E_TIMEOUT` (wui-e2e) and `PRE_PUSH_FEATURES_TIMEOUT`
 (orc-features); every other part has none. Before SPL-5238 the wui and
 wui-e2e parts ignored `PRE_PUSH_PART_TIMEOUT`: a push with 1500 still TIMED
-OUT at 420 s and 600 s (c-463, n=1). A part that runs out logs
+OUT at 420 s and 600 s (c-463, n=1); the wui-e2e part's own `timeout` now
+reads `_pp_budget` too (`check-pre-push-e2e.func.sh`). The rule cuts both
+ways: a variable you set can also lower a budget, so
+`PRE_PUSH_PART_TIMEOUT=100` gives wui 100 s instead of its 420 s default.
+A part that runs out logs
 `TIMED OUT after <n>s (<why>)`: the why names the variable that set the
 budget, or, for a default budget, the default and the variable that raises
 it (for a load-scaled one also the base, the load it read and the cap).

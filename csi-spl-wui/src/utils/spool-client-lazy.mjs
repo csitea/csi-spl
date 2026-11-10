@@ -736,6 +736,58 @@ async function publishMarketingPost(ctx, postId, channel) {
 }
 
 /**
+ * spec 090 section 22 (SPL-5240): the workspace's own posts. GET
+ * /v1/marketing/drafts → { drafts: [{ id, author_id, body, image_url,
+ * published_at, mine, posts: [{ channel_id, status }] }], channels:
+ * [{ channel_id, platform, name }] }. tenant.settings only (403), 404 while
+ * marketing is off.
+ */
+async function listMarketingDrafts(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).marketingDrafts()
+  return live('/v1/marketing/drafts')
+}
+
+/** POST /v1/marketing/drafts { body, image_url } → 201 the draft. */
+async function createMarketingDraft(ctx, body, imageUrl) {
+  const { live, mock, tenantMock } = ctx
+  const b = { body: String(body ?? ''), image_url: String(imageUrl ?? '') }
+  if (mock) return (await tenantMock()).createMarketingDraft(b)
+  return live('/v1/marketing/drafts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) })
+}
+
+/** PATCH /v1/marketing/drafts/{id} { body, image_url } → the draft; 409 once published, 403 not the author's. */
+async function updateMarketingDraft(ctx, id, body, imageUrl) {
+  const { live, mock, tenantMock } = ctx
+  const did = String(id || '')
+  const b = { body: String(body ?? ''), image_url: String(imageUrl ?? '') }
+  if (mock) return (await tenantMock()).updateMarketingDraft(did, b)
+  return live(`/v1/marketing/drafts/${encodeURIComponent(did)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) })
+}
+
+/** DELETE /v1/marketing/drafts/{id} → 204; 409 once published, 403 not the author's. */
+async function deleteMarketingDraft(ctx, id) {
+  const { live, mock, tenantMock } = ctx
+  const did = String(id || '')
+  if (mock) return (await tenantMock()).deleteMarketingDraft(did)
+  return live(`/v1/marketing/drafts/${encodeURIComponent(did)}`, { method: 'DELETE' })
+}
+
+/**
+ * POST /v1/marketing/drafts/{id}/publish { channels } → { draft, results:
+ * [{ channel_id, platform, outcome, error }] }: the author publishes, no approval step.
+ */
+async function publishMarketingDraft(ctx, id, channels) {
+  const { live, mock, tenantMock } = ctx
+  const did = String(id || '')
+  const chs = (Array.isArray(channels) ? channels : []).map(String)
+  if (mock) return (await tenantMock()).publishMarketingDraft(did, chs)
+  return live(`/v1/marketing/drafts/${encodeURIComponent(did)}/publish`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ channels: chs }),
+  })
+}
+
+/**
  * GET /v1/marketing/posts/{id}/share-links (spec 090 T037): the live blog
  * post's one-click links, { post_id, url, facebook, viber, whatsapp,
  * instagram: { caption, images, open } }; any member, marketing on.
@@ -2287,6 +2339,11 @@ export const lazySpoolMethods = {
   publishMarketingPost,
   getMarketingShareLinks,
   manualPublishMarketingPost,
+  listMarketingDrafts,
+  createMarketingDraft,
+  updateMarketingDraft,
+  deleteMarketingDraft,
+  publishMarketingDraft,
   listMetaPages,
   listMarketingChannels,
   connectFacebook,

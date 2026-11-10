@@ -238,6 +238,91 @@ function mockMarketingHandOver(unshared, meta, on, publishFlag) {
   }
 }
 
+/**
+ * spec 090 section 22 (SPL-5240): the workspace's own posts, with the hub's
+ * rules: only the author edits, deletes and publishes; a published draft is
+ * kept (409); once per channel; Instagram needs a JPEG picture, X 280
+ * characters. One draft by another admin is seeded (mine false).
+ */
+function mockMarketingDrafts(on, publishFlag, chans) {
+  const now = () => new Date().toISOString()
+  const drafts = [{ id: 'mdr-other-1', author_id: 'HUM-other', body: 'A post another admin wrote.', image_url: '', published_at: null,
+    created_at: '2026-11-09T10:00:00Z', updated_at: '2026-11-09T10:00:00Z', mine: false, posts: [] }]
+  let n = 0
+  const gate = () => {
+    if (!on()) throw mockErr(404, 'not_found')
+    if (publishFlag() === 'forbidden') throw mockErr(403, 'forbidden')
+  }
+  const own = (id) => {
+    const d = drafts.find((x) => x.id === id)
+    if (!d) throw mockErr(404, 'not_found')
+    if (!d.mine) throw mockErr(403, 'forbidden')
+    return d
+  }
+  const check = (b) => {
+    const body = String(b?.body ?? '')
+    if (!body.trim() || [...body].length > 3000) throw mockErr(400, 'bad_body')
+    const img = String(b?.image_url ?? '').trim()
+    if (img && !/^https:\/\/[^/@]+\//.test(img)) throw mockErr(400, 'bad_image_url')
+    return { body, image_url: img }
+  }
+  const unfit = (ch, d) => {
+    if (ch.platform === 'instagram_business' && !/\.jpe?g$/i.test(d.image_url)) return 'instagram_needs_jpeg'
+    if (ch.platform === 'x' && [...d.body].length > 280) return 'x_too_long'
+    return ''
+  }
+  const copy = (d) => ({ ...d, posts: d.posts.map((p) => ({ ...p })) })
+  return {
+    marketingDrafts() {
+      gate()
+      return { drafts: drafts.map(copy), channels: chans() }
+    },
+    createMarketingDraft(b) {
+      gate()
+      const d = { id: `mdr-${++n}`, author_id: 'HUM-mock', ...check(b), published_at: null, created_at: now(), updated_at: now(), mine: true, posts: [] }
+      drafts.unshift(d)
+      return copy(d)
+    },
+    updateMarketingDraft(id, b) {
+      gate()
+      const d = own(id)
+      if (d.published_at) throw mockErr(409, 'published')
+      Object.assign(d, check(b), { updated_at: now() })
+      return copy(d)
+    },
+    deleteMarketingDraft(id) {
+      gate()
+      const d = own(id)
+      if (d.published_at) throw mockErr(409, 'published')
+      drafts.splice(drafts.indexOf(d), 1)
+      return null
+    },
+    publishMarketingDraft(id, ids) {
+      gate()
+      const d = own(id)
+      if (!ids.length) throw mockErr(400, 'bad_channels')
+      const results = ids.map((cid) => {
+        const ch = chans().find((c) => c.channel_id === cid)
+        const why = !ch ? 'not_found' : d.posts.some((p) => p.channel_id === cid) ? 'already_recorded' : unfit(ch, d)
+        if (why) return { channel_id: cid, platform: ch?.platform, outcome: 'refused', error: why }
+        d.posts.push({ channel_id: cid, status: 'published' })
+        return { channel_id: cid, platform: ch.platform, outcome: 'published' }
+      })
+      if (results.some((r) => r.outcome !== 'refused')) d.published_at = d.published_at || now()
+      return { draft: copy(d), results }
+    },
+  }
+}
+
+/** spec 090 section 22: every connected channel a draft can go to. */
+function mockDraftChannels(meta, xm) {
+  return [
+    { channel_id: 'mch-li-1', platform: 'linkedin', name: 'FirstName LastName' },
+    ...meta.channels().channels.map((c) => ({ channel_id: c.channel_id, platform: c.platform, name: c.account_name })),
+    ...xm.accounts().accounts.map((a) => ({ channel_id: a.channel_id, platform: 'x', name: '@' + a.username })),
+  ]
+}
+
 /** The mock's marketing routes: the switch (spec 090 §15) and the owner's publish (SPL-1698). */
 function mockMarketing() {
   // spec 090 §15: the mock workspace is allow-listed and starts OFF, like a
@@ -284,6 +369,7 @@ function mockMarketing() {
       return meta.disconnect(id)
     },
     ...mockMarketingXRoutes(xm, () => mktListed() && mkt.enabled),
+    ...mockMarketingDrafts(() => mktListed() && mkt.enabled, mktPublish, () => mockDraftChannels(meta, xm)),
     marketing() {
       if (!mktListed()) throw mockErr(404, 'not_found')
       return { tenant_id: 'mock', enabled: mkt.enabled }

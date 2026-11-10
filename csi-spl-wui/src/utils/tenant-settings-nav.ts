@@ -27,6 +27,7 @@ export const TENANT_SETTINGS_SECTIONS: TenantSection[] = [
   { id: 'takeover', label: 'tenant_settings.takeover', perm: 'tenant.settings' },
   { id: 'channels', label: 'tenant_settings.channels', perm: 'tenant.settings' },
   { id: 'general', label: 'tenant_settings.general', perm: 'tenant.settings' },
+  { id: 'posts', label: 'tenant_settings.posts', perm: 'tenant.settings' },
   { id: 'hours', label: 'tenant_settings.hours', perm: 'tenant.settings' },
   { id: 'performance', label: 'tenant_settings.performance', perm: 'tenant.settings' },
 ]

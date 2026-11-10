@@ -348,6 +348,12 @@ permission. Its sections are:
   visibility, member and agent counts, the no-fallback flag, and Archive.
 - **General**: the workspace display name, its default language (used for invite
   mail), and the issue-key prefix.
+- **Posts**: the workspace's own marketing posts. An admin or business owner
+  writes a post (text, and an optional picture address), edits or deletes it
+  while it is a draft, and publishes it on the connected LinkedIn, Facebook,
+  Instagram and X accounts with no approval step. Only the author changes or
+  publishes a post; once published it stays as it went out. Shown while
+  Marketing is on (**General**). More: the Marketing help page, section 6.
 - **Hours**: how time worked is counted for every member of the workspace: the
   period (a week, two weeks or a month), the days after a period ends during
   which members can still edit it, the idle cutoff (a gap between two actions up

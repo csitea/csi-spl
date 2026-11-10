@@ -134,7 +134,7 @@ try {
   await p.waitForFunction(() => location.pathname.endsWith('/tenant-settings/members'), { timeout: 10000 }).catch(() => null)
   ok('2 it opens the first section, Members', path(p).endsWith('/tenant-settings/members'), path(p))
   const nav = await attrs(p, '[data-test=tenant-settings-nav] a', 'data-test')
-  ok('3 the Settings layout lists Members, Agents, Vendor split, Agent keys, Agent takeover, Channels, General, Hours, Performance', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-agent-keys,tenant-settings-nav-takeover,tenant-settings-nav-channels,tenant-settings-nav-general,tenant-settings-nav-hours,tenant-settings-nav-performance', nav)
+  ok('3 the Settings layout lists Members, Agents, Vendor split, Agent keys, Agent takeover, Channels, General, Posts, Hours, Performance', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-agent-keys,tenant-settings-nav-takeover,tenant-settings-nav-channels,tenant-settings-nav-general,tenant-settings-nav-posts,tenant-settings-nav-hours,tenant-settings-nav-performance', nav)
 
   // 2. Members: the users list and edit pane, embedded
   await p.waitForSelector('[data-test=tenant-settings-members] [data-test=users-row]', { visible: true, timeout: 10000 })
@@ -606,7 +606,7 @@ try {
   }, DEV)
   const refused = {}
   const noAccess = {}
-  for (const where of ['members', 'agents', 'split', 'agent-keys', 'takeover', 'channels', 'general', 'hours', 'performance', '/users']) {
+  for (const where of ['members', 'agents', 'split', 'agent-keys', 'takeover', 'channels', 'general', 'posts', 'hours', 'performance', '/users']) {
     const url = where.startsWith('/') ? where : '/tenant-settings/' + where
     await m.goto(server.base + url, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     // takeover reads GET /v1/takeover-ladder, open to any member (SPL-2115)
@@ -616,7 +616,7 @@ try {
     refused[where] = await m.evaluate(() => globalThis.SPOOL_MOCK_403 || [])
   }
   const reads = Object.values(refused).flat()
-  ok('19a a member opening the 9 sections and /users by URL makes 0 reads the hub answers 403', reads.length === 0, refused)
+  ok('19a a member opening the 10 sections and /users by URL makes 0 reads the hub answers 403', reads.length === 0, refused)
   const shut = Object.entries(noAccess).filter(([, v]) => !v).map(([w]) => w)
   ok('19b each refused section shows its no-access line instead of a load error', shut.length === 0, noAccess)
   ok('19c no page errors as a member', mErrors.length === 0, mErrors)

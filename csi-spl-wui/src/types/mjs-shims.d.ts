@@ -125,6 +125,11 @@ declare module '~/utils/spool-client.mjs' {
     manualPublishMarketingPost(postId: string, channel: string): Promise<{ post?: string, channel?: string, status?: string, platform_post_id?: string, published_at?: string }>
     /* spec 090 T035: Facebook Pages + Instagram accounts */
     listMetaPages(): Promise<{ pages?: Array<{ channel_id: string, page_id?: string, name?: string, status?: string, instagram?: { channel_id: string, ig_user_id?: string, username?: string, status?: string } | null }> }>
+    listMarketingDrafts(): Promise<{ drafts?: Array<{ id: string, author_id?: string, body: string, image_url?: string, published_at?: string, mine?: boolean, posts?: Array<{ channel_id: string, status: string }> }>, channels?: Array<{ channel_id: string, platform: string, name: string }> }>
+    createMarketingDraft(body: string, imageUrl?: string): Promise<{ id: string, author_id?: string, body: string, image_url?: string, published_at?: string, mine?: boolean, posts?: Array<{ channel_id: string, status: string }> }>
+    updateMarketingDraft(id: string, body: string, imageUrl?: string): Promise<{ id: string, author_id?: string, body: string, image_url?: string, published_at?: string, mine?: boolean, posts?: Array<{ channel_id: string, status: string }> }>
+    deleteMarketingDraft(id: string): Promise<null>
+    publishMarketingDraft(id: string, channels: string[]): Promise<{ draft?: { id: string, author_id?: string, body: string, image_url?: string, published_at?: string, mine?: boolean, posts?: Array<{ channel_id: string, status: string }> }, results?: Array<{ channel_id: string, platform?: string, outcome: string, error?: string }> }>
     listMarketingChannels(): Promise<{ channels?: Array<{ channel_id: string, platform?: string, metadata?: Record<string, unknown> }> }>
     connectFacebook(): Promise<{ authorize_url?: string }>
     /* spec 090 X row (SPL-5194): X accounts */

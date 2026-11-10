@@ -6,7 +6,7 @@ Marketing lets a workspace share its live blog posts on **Facebook Pages**, **In
 
 Three rules apply across every channel:
 
-- **Nothing is posted without human approval.** Connecting a Facebook Page, an Instagram account, LinkedIn or X never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook, Instagram or X post is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them, and always goes out on the LinkedIn profile of the member who connected it; that member, once no longer an admin or business owner, cannot publish.
+- **Nothing is posted without a person pressing Publish.** Connecting a Facebook Page, an Instagram account, LinkedIn or X never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook, Instagram or X post is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them, and always goes out on the LinkedIn profile of the member who connected it; that member, once no longer an admin or business owner, cannot publish.
 - **No plaintext tokens.** Every OAuth access token is envelope-encrypted with Cloud KMS (`AES-256-GCM`) before it is stored, and is decrypted in memory only for the duration of an outbound API call.
 - **One API post per channel per 24 hours.** For a connected Facebook Page, Instagram account or X account, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
 
@@ -241,3 +241,28 @@ The Meta App Review submission package (`T038`) has **not been submitted or appr
 ## 5. Post a blog post by hand
 
 To post a blog post yourself, with your own choice of photos, press **Post by hand** next to the post in the publish queue. The steps: [Post a blog post yourself: the draft hand-over](marketing-hand-over.md).
+
+## 6. Workspace settings -> Posts (`/tenant-settings/posts`): Write your own post and publish it
+
+Besides the blog, a workspace can write its own posts. Open **Workspace settings -> Posts**. Only workspace administrators and business owners (`tenant.settings`) see this screen, and Marketing must be on for the workspace (section 1.1); otherwise the screen says so.
+
+### 6.1 Write a draft
+
+1. Type the post in **Text** (up to 3,000 characters; the counter below the box shows how many you used).
+2. Optionally give a **Picture address**: a public `https://` address of a JPEG picture. Instagram needs one; Facebook posts it as a photo with your text as its caption; LinkedIn and X get the text only.
+3. Press **Save draft**. The draft appears in the list below, marked *Draft*.
+
+Every administrator and business owner of the workspace sees every draft. A draft written by someone else is marked *Written by another admin or business owner*: only its author can edit, delete or publish it.
+
+### 6.2 Edit or delete a draft
+
+Press **Edit** on your draft, change it in the form above, and press **Save changes** (or **Cancel**). **Delete** removes the draft after you confirm. Once a post is published it can no longer be edited or deleted: it stays as it went out.
+
+### 6.3 Publish
+
+1. Under your draft, tick the accounts in **Publish on**: every connected LinkedIn profile, Facebook Page, Instagram account and X account of the workspace (connect them in section 1).
+2. Press **Publish**. There is no approval step: the post goes out at once, on each account once.
+3. A line per account says what happened: *published*, *waits for the daily limit* (Facebook, Instagram and X send at most one post per account per 24 hours), *will be tried again*, or why it was refused: Instagram needs a JPEG picture or at most 2,200 characters, X takes at most 280 characters, or the post is already published there.
+4. The draft is now marked *Published* and lists where it went. You can still publish it on an account it has not gone to yet.
+
+A LinkedIn post goes out on the LinkedIn profile of the member who connected LinkedIn, as for blog posts.

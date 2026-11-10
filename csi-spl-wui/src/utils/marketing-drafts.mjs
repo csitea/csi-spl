@@ -6,7 +6,7 @@
  */
 
 /** The platforms' own names: brands, the same in every language. */
-export const DRAFT_PLATFORMS = { linkedin: 'LinkedIn', facebook_page: 'Facebook', instagram_business: 'Instagram', x: 'X' }
+const DRAFT_PLATFORMS = { linkedin: 'LinkedIn', facebook_page: 'Facebook', instagram_business: 'Instagram', x: 'X' }
 
 /** The hub's cap on a draft's text (rdb 0273, LinkedIn's 3,000). */
 export const DRAFT_MAX_CHARS = 3000

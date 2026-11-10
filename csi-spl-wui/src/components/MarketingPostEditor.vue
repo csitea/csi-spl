@@ -168,14 +168,14 @@ onMounted(load)
 .mpe-intro { margin: 0; }
 .mpe-form { display: flex; flex-direction: column; gap: 10px; }
 .mpe-field { display: flex; flex-direction: column; gap: 4px; }
-.mpe-field textarea, .mpe-field input { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 8px); background: var(--color-bg); color: inherit; }
+.mpe-field textarea, .mpe-field input { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); color: inherit; }
 .mpe-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .mpe-notice { margin: 0; overflow-wrap: anywhere; }
 .mpe-error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
 .mpe-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-.mpe-row { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 8px); }
+.mpe-row { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .mpe-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.mpe-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--color-border); }
+.mpe-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); }
 .mpe-badge--sent { border-color: var(--color-accent, var(--color-border)); }
 .mpe-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mpe-sent { margin: 0; padding-left: 18px; color: var(--color-muted); }

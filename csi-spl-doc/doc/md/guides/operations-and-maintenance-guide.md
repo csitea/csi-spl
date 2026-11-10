@@ -154,8 +154,26 @@ Removes what the plan above listed as `PLAN remove`. A worktree goes through `gi
 cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_sweep_workdirs
 ```
 
+## 2.11 Clean finished review worktrees, plan
+
+A reviewer checks a `review/*` branch out in its own worktree, often detached, and nothing removes it when the review ends: the workdir table never lists it. This action lists every linked worktree of the repo; run it by hand, it is no cron and no sweep step. A dry run unless `DRY_RUN=0`.
+
+```bash
+cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> ./run -a do_sweep_review_worktrees
+```
+
+One line per worktree with its size. `PLAN remove` or `REMOVE`: a `review/*` worktree (a local `review/*` branch, or detached at a commit an origin `review/*` branch holds that is not on `origin/master`), clean, every commit on origin (`proof=on-origin`) or with a patch-id twin on `origin/master` (`proof=patch-equal:<n>`), and no live agent owns it. `KEEP not-review`: any other worktree, a lane's or a desk's. `KEEP unpushed <sha>`: a commit that is nowhere on origin. `KEEP dirty`: uncommitted or untracked files. `KEEP locked`, `KEEP in-use` (a process has its cwd or an open file in it), `KEEP live-owner <id>` (the dir is named for a live lane), `KEEP live-branch`, `KEEP registry-row`: an agent still holds it. `KEEP owner-unknown`: the lane map did not answer, so nothing goes.
+
+## 2.12 Clean finished review worktrees, apply
+
+Removes what the plan above listed as `PLAN remove`, through `git worktree remove` as the worktree's owner, never `--force` and never `rm -rf`; the branch stays.
+
+```bash
+cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_sweep_review_worktrees
+```
+
 <a id="ws-doc-d25a9f24-2c98-4999-9f34-87af2537eec7"></a>
-## 2.11 A bad deploy: roll back
+## 2.13 A bad deploy: roll back
 
 When a deploy breaks the hub or the WUI:
 

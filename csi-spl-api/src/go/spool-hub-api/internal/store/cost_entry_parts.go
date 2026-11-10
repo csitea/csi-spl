@@ -36,8 +36,22 @@ type costEntryFX struct {
 // CostEntryParts shapes entries (one month's) into parts in the order given,
 // second the reader's second currency.
 func CostEntryParts(ctx context.Context, entries []CostEntry, second string, rate CostEntryRate) ([]CostPart, error) {
+	look := costEntryLook(ctx, rate)
+	out := make([]CostPart, 0, len(entries))
+	for _, e := range entries {
+		p, err := costEntryPart(e, second, look)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// costEntryLook is rate with USD at 1 and each quote and day asked once.
+func costEntryLook(ctx context.Context, rate CostEntryRate) func(quote, day string) (costEntryFX, error) {
 	seen := map[[2]string]costEntryFX{}
-	look := func(quote, day string) (costEntryFX, error) {
+	return func(quote, day string) (costEntryFX, error) {
 		if quote == "USD" {
 			return costEntryFX{rate: 1, day: day, ok: true}, nil
 		}
@@ -50,15 +64,6 @@ func CostEntryParts(ctx context.Context, entries []CostEntry, second string, rat
 		seen[k] = fx
 		return fx, err
 	}
-	out := make([]CostPart, 0, len(entries))
-	for _, e := range entries {
-		p, err := costEntryPart(e, second, look)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, nil
 }
 
 // costEntryPart is one entry's part.

@@ -98,7 +98,10 @@ internal/hours 99.0
 # -cover ./internal/hubclient, go1.26.9, load 14..38, plain and -race, n=10
 # read 82.2 every run; without that file n=5 read 81.5..81.7, which fails.
 # r48-09: 85.9, n=3 plain and n=3 -race on 6bce8cfb1 read 85.9 all six.
-internal/hubclient 89.6
+# r56-05: 90.3 with revive_defaults_test.go (sendFrame revive, now and timeout
+# defaults), 90.2 without on 2d77ffdcb (n=1); go test -count=1 -race -cover
+# ./internal/hubclient/, go1.26.10, n=3 read 90.3 each.
+internal/hubclient 90.3
 internal/hygiene 90.0
 internal/i18n 97.2
 internal/invitemail 87.8

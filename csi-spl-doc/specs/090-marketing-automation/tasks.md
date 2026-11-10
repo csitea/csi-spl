@@ -369,7 +369,10 @@ Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for customer draft handover (`spec.md`
   - **Depends**: T035. **Serial**.
 
 ### Phase 4: Extended Platforms
-- [ ] T040 **Phase 4, X (Twitter)**: OAuth 2.0 PKCE, rotating refresh tokens, live price check. Needs from the owner: an X developer account and prepaid credit.
+- [x] T040 **Phase 4, X (Twitter)**: OAuth 2.0 PKCE, rotating refresh tokens, live price check (c-721, SPL-5194). Built and shipped dark: rdb 0272 lets a channel be `x`; `internal/marketing/x.go` (PKCE connect, token, refresh, `users/me`, post, X's weighted 280 count); `hub/marketing_x_channels.go` (connect, callback, accounts) and `hub/marketing_x_dispatch.go` (publish on the shared queue, gate `metaApprover`, refresh a minute before expiry with a compare-and-swap, 422 when a post cannot fit); cnf `marketing.x.inject: "false"` with two empty 030 secret slots, so every X route answers 503 `not_configured`; WUI `MarketingXAccounts.vue` in Tenant settings -> General. Price read 2026-11-10 from docs.x.com: $0.015 per post, $0.200 with a URL (every hub post has one).
+  - **Tests**: `internal/marketing/x_test.go` and `internal/hub/marketing_x_test.go` against a fake X server; `hub-auth-030.tst.sh`, `wui-actions.tst.sh`; WUI `tests/unit/marketing-x.test.mjs` and `tests/e2e/marketing-x-accounts.test.mjs`.
+  - **Red Control**: `PROVE_RED=too_long` and `PROVE_RED=configured` turn the e2e red.
+  - **Needs from the owner**: the X developer app and prepaid credits, then the go for the secret versions and the 030 apply: [x-app-setup.md](./x-app-setup.md).
 - [ ] T041 **Phase 4, LinkedIn company page**: needs from the owner LinkedIn Community Management API access and business verification.
 - [ ] T042 **Phase 4, Viber Channels 1-Way Post API**: high-volume broadcast channel support via Channel Auth Token.
 

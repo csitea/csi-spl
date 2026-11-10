@@ -4,10 +4,10 @@
 # golang.org/x/crypto 0.51->0.55, x/net 0.55->0.58, grpc 1.83.1->1.84.0 (trunk
 # 3225fde7), which cleared the 7 Critical + 3 High this list used to carry.
 # Remaining entries, each with a reason + review date:
-#  - golang.org/x/crypto (GO-2026-5932): the openpgp package is deprecated; the
-#    advisory covers every x/crypto release, so no fixed version exists. We do
-#    not import x/crypto/openpgp; osv-scanner rates it unimportant (shown only
-#    with --all-vulns). GO-2026-6354/6355/6443 (x/crypto, grpc) were dropped
+#  - golang.org/x/crypto (GO-2026-5932, openpgp): dropped 2026-11-10 (SPL-5082),
+#    OSV now lists a fix and x/crypto is on it, the pseudo-version
+#    v0.58.1-0.20261009181718-2f1f834330b2 (no tag carries the fix yet; v0.58.0
+#    precedes it). GO-2026-6354/6355/6443 (x/crypto, grpc) were dropped
 #    once the toolchain reached go 1.26.9: osv-scanner 2.6.0 named them unused.
 #  - node-forge (npm, GHSA-86w9-cpqp-85rv): dropped 2026-10-31 (SPL-4508), the
 #    pnpm.overrides pin node-forge ^1.4.1 (1.4.2 in the lockfile) fixes it and
@@ -46,11 +46,6 @@
 #    Re-check by 2026-11-27 (SPL-3972).
 # Review / re-check by 2026-11-27.
 
-[[IgnoredVulns]]
-id = "GO-2026-5932"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto/openpgp is deprecated: the advisory covers every x/crypto release (no fixed version); we do not import openpgp; osv-scanner rates it unimportant; not reachable (govulncheck green)."
-
 # SPL-2908: the three nuxt 3.21.11 advisories that reddened workflow 70 on 2026-10-22.
 [[IgnoredVulns]]
 id = "GHSA-vjh5-4x84-xrqp" # SPL-2908
@@ -58,12 +53,12 @@ ignoreUntil = 2026-11-27
 reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs a running Nitro server with case-insensitive route rules, the WUI ships as nuxt generate static output on Firebase Hosting. Real fix: nuxt 4 migration."
 
 [[IgnoredVulns]]
-id = "GHSA-xfq5-w38q-pc2x"
+id = "GHSA-xfq5-w38q-pc2x" # SPL-2908
 ignoreUntil = 2026-11-27
 reason = "nuxt 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs server islands, the WUI has no .server.vue/.island.vue, NuxtIsland or useHeadSafe. Real fix: nuxt 4 migration."
 
 [[IgnoredVulns]]
-id = "GHSA-jjm6-p2m9-9w4x"
+id = "GHSA-jjm6-p2m9-9w4x" # SPL-2908
 ignoreUntil = 2026-11-27
 reason = "nuxt 3.21.11: fixed only in 4.6.0, no fixed 3.x; needs pages disabled, the WUI uses pages (src/pages). Real fix: nuxt 4 migration."
 

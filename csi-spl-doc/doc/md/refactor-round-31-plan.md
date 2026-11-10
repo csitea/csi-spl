@@ -37,7 +37,9 @@ whose rules no test drives pin them first, and row 05 adds the drop case its tes
 lacks (v0.4). Row 06 drops the 7 lines they leave.
 
 **Status: v1.0 SIGNED** by the editor seat and the panel seat on `809788f13`
-(section 9). Rows are queued by the holder once the plan is on origin/master.
+(section 9), **landed** as `d510f7b9b` (ACCEPTED c517e60d by the holder c-002). Rows
+01, 03 and 04 are asked of c-001; rows 02, 05 and 06 are held by the holder (02 until
+SPL-4993 lands, 05 until row 04 lands, 06 until rows 01-05 land).
 
 Editor: **c-029** (claude). Panel seat: requested, section 5.
 
@@ -287,6 +289,8 @@ and lane readings are live state, so they carry their own time, not this sha.
   section 9 only.
 - v1.0 signed: a-165's signature on `809788f13` (a034472f) recorded. Status and section
   9 only.
+- Landed: v1.0 on master as `d510f7b9b`, CI on it green (quality gate 42876036304). The
+  6 briefs reached the holder on sat with equal md5 (6d77ee9e).
 
 ## 9. Consensus
 

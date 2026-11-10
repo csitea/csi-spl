@@ -24,7 +24,10 @@ A="$T/app"; cnf="$A/csi-spl-cnf/csi-spl"
 mkdir -p "$cnf" "$A/csi-spl-iac/lib/bash" "$A/csi-spl-iac/src/bash/run"
 cp -r "$ORC/../csi-spl-iac/lib/bash/funcs" "$A/csi-spl-iac/lib/bash/"
 cp "$ORC/../csi-spl-iac/src/bash/run/tpl-gen.func.sh" "$A/csi-spl-iac/src/bash/run/"
-printf 'env:\n  rate: 1.0\n  dns:\n    BASE_DOMAIN: example.com\n' >"$cnf/all.env.yaml"
+# env_subdomain "" as prd's cnf has it: with no key the derived fqdn is
+# null + "." + BASE_DOMAIN, which yq versions print differently (the box
+# example.com, CI's .example.com), so the expected json would drift.
+printf 'env:\n  rate: 1.0\n  dns:\n    BASE_DOMAIN: example.com\n    env_subdomain: ""\n' >"$cnf/all.env.yaml"
 printf 'env:\n  price: 5.00\n' >"$cnf/dev.env.yaml"
 
 # run_make [PATH] -> output; rc in $rc
@@ -34,7 +37,7 @@ run_make() {
 }
 
 # compact, 1.0 / 5.00: no yq version prints it this way
-committed='{"env":{"rate":1.0,"dns":{"BASE_DOMAIN":"example.com","fqdn":"example.com","api_fqdn":"api.example.com"},"price":5.00}}'
+committed='{"env":{"rate":1.0,"dns":{"BASE_DOMAIN":"example.com","env_subdomain":"","fqdn":"example.com","api_fqdn":"api.example.com"},"price":5.00}}'
 printf '%s\n' "$committed" >"$cnf/dev.env.json"
 run_make
 [[ $rc -eq 0 && "$(cat "$cnf/dev.env.json")" == "$committed" ]] \

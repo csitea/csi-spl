@@ -14,6 +14,9 @@
      there (?channel=<id>, T034), each post with its picture, the length of
      the text the hub sends against the platform's cap (63,206 Facebook,
      2,200 Instagram) and, on Instagram, the JPEG rule.
+     spec 090 X row (SPL-5194): with an X account `channel` the text is the
+     post the hub sends (marketing-x.mjs xPostText), counted as X counts it
+     against 280; a longer one is shortened with "…", the link kept whole.
      spec 090 T036 (SPL-4804): "Post by hand" opens the draft hand-over for
      that post (MarketingDraftHandover.vue, its own lazy chunk); a post marked
      as posted by hand leaves the list like a published one. -->
@@ -37,9 +40,9 @@
           <span class="mp-name">{{ p.title || p.id }}</span>
           <template v-if="channel">
             <small class="mp-count" :class="{ 'mp-over': caption(p).over }" data-test="marketing-meta-chars" :data-count="caption(p).count" :data-limit="caption(p).limit">
-              {{ t('tenant_settings.marketing_meta_chars', { count: metaNumber(caption(p).count), limit: metaNumber(caption(p).limit) }) }}
+              {{ t(isX ? 'tenant_settings.marketing_x_chars' : 'tenant_settings.marketing_meta_chars', { count: metaNumber(caption(p).count), limit: metaNumber(caption(p).limit) }) }}
             </small>
-            <small v-if="caption(p).over" class="mp-over" data-test="marketing-meta-shortened">{{ t('tenant_settings.marketing_meta_shortened') }}</small>
+            <small v-if="caption(p).over" class="mp-over" data-test="marketing-meta-shortened">{{ t(isX ? 'tenant_settings.marketing_x_shortened' : 'tenant_settings.marketing_meta_shortened') }}</small>
             <small v-if="metaNeedsJpeg(channel.platform, p.image)" class="mp-over" data-test="marketing-meta-needs-jpeg">{{ t('tenant_settings.marketing_meta_needs_jpeg') }}</small>
           </template>
         </span>
@@ -63,6 +66,7 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { marketingSaysWhy } from '~/utils/tenant-settings.mjs'
 import { linkedInOthers, metaCaption, metaNeedsJpeg, metaNumber, metaPublishErrorKey } from '~/utils/marketing-meta.mjs'
+import { xPostText, xPublishErrorKey } from '~/utils/marketing-x.mjs'
 
 type Post = { id: string, title?: string, summary?: string, image?: string }
 type MetaChannel = { id: string, platform: string, name: string }
@@ -98,10 +102,12 @@ const buttonLabel = computed(() => {
   return others.value ? t('tenant_settings.marketing_publish_button_on', { name: others.value }) : t('tenant_settings.marketing_publish_button')
 })
 const appUrl = import.meta.client ? window.location.origin : ''
-const caption = (p: Post) => metaCaption(props.channel?.platform || '', p, appUrl)
+const isX = computed(() => props.channel?.platform === 'x')
+const caption = (p: Post) => (isX.value ? xPostText(p, appUrl) : metaCaption(props.channel?.platform || '', p, appUrl))
 
 // The hub's answer to a refused publish, as one plain sentence.
 function publishErrorKey(e: unknown): string {
+  if (isX.value) return 'tenant_settings.' + xPublishErrorKey(e)
   if (props.channel) return 'tenant_settings.' + metaPublishErrorKey(e)
   const status = (e as { status?: number } | null)?.status
   if (status === 403) return 'tenant_settings.marketing_publish_forbidden'

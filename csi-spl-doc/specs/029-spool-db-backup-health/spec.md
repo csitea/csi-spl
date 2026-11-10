@@ -742,10 +742,37 @@ Not checked: prd; the off-project `bkp` copy (the drill reads the 045
 bucket); a migrate that APPLIES files (the dev dump was at head, so the
 migrate step applied 0; the hermetic test covers the apply path with a stub).
 
+## 6.10 One-off prd clean-up (2026-11-10, SPL-5187)
+
+Owner HUM-10, topic ef8904c0: "no need to keep any backups which are older
+than today as an ad hoc action. The normal configuration is to keep 30 days of
+backups", and poll msg 5ec19d75: "Only today's stays, everything older goes".
+So one run, and the 30-day settings of 045 and 046 stay as they are.
+
+`cd csi-spl-iac && ENV=prd ./run -a do_gcp_purge_prd_backups` (a dry run;
+`DRY_RUN=0` deletes, only on the owner's go for that dry run's output):
+
+- lists both buckets live at the start; a bucket with no dump created today
+  (UTC) is aborted and nothing in it is deleted;
+- 045 (`csi-spl-prd-db-backups`, as the prd SA): every generation created
+  before today 00:00 UTC goes;
+- 046 (`csi-spl-bkp-prd`, as the `csi-spl-bkp` SA), under `prd/db/` only:
+  every generation 30 days old or older whose retention has expired goes;
+  anything younger is left by the lock. `prd/files/` is counted, never
+  touched. No retention, lock, lifecycle, soft delete or versioning change;
+- reports per bucket before, to remove / removed, after, left by the lock,
+  and states soft delete plainly: measured 2026-11-09T23:5xZ, 045 keeps a
+  deleted object 7 days and 046 30 days, so the data is hidden, not gone,
+  until then. 046 is versioned; the action deletes each generation by number.
+
+Test: `csi-spl-iac/src/bash/tests/gcp-purge-prd-backups.tst.sh` (stubbed
+gcloud; dry run, no-today abort, the 30-day and today edges, non-prd refused,
+each with a red control that removes its guard).
+
 ## 7. Out of scope
 
 Anything that changes the schema, the instance flags, the tier or the
 availability type. This lane measures, reports, and adds the backup job the
 owner asked for. Every change to the running database above is a D-row in §6.
 
-<!-- last-edit: 2026-09-29T03:45:00Z -->
+<!-- last-edit: 2026-11-10T00:00:00Z -->

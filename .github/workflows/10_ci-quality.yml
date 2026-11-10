@@ -1009,16 +1009,23 @@ jobs:
   # 2 -> 3 (spec 133 round 30): runners are GitHub-hosted now (not the box),
   # and orc 1/2 ran ~900 s, co-critical with the slowest e2e shard. The
   # weights pack 3 shards to 5,314 / 5,293 / 5,310 s of 15,917 s.
+  # 3 -> 4 (SPL-5207, CI-refactor round 2): orc was wf 10's last job in 6 of 9
+  # green master runs (2026-11-09/10). A shard is CPU-bound (cpu ~0.85 x wall,
+  # test step ~ summed file wall / 4 on nproc=4, n=30 jobs), so its step time
+  # follows the work it holds: 1,040 / 969 / 1,037 s mean (n=61 runs). The
+  # weights, refreshed from 72 jobs, pack 4 shards to 3,112 / 3,018 / 3,098 /
+  # 2,922 s of held-out summed wall (~780 s of test step for the largest).
+  # Hosted runners: the extra shard adds no load to the box.
   # ===========================================================================
   orc-suite:
-    name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/3"
+    name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/4"
     needs: classify
     if: ${{ !cancelled() && needs.classify.outputs.run_orc != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     timeout-minutes: 30
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
     # in the run ends this one, so a red gate frees its slot.
@@ -1173,7 +1180,7 @@ jobs:
         env:
           GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
           GH_TOKEN: ${{ github.token }}
-          ORC_TEST_SHARD: ${{ matrix.shard }}/3
+          ORC_TEST_SHARD: ${{ matrix.shard }}/4
         run: |
           set -euo pipefail
           bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \

@@ -170,9 +170,18 @@ fast-tier green, as the full-tier bases are. The orc fast base of 600 s is
 a placeholder: the green-trunk timeouts it replaces were cut at 300 s, so
 their real time is not in the log.
 
-`PRE_PUSH_PART_TIMEOUT` overrides every part on both tiers. A part that runs
-out logs `TIMED OUT after <n>s (<why>)`, and for a default budget the why
-names the base, the load it read, the cap and the variable that raises it.
+One rule sets every part's budget, on both tiers (`_pp_part_var` and
+`_pp_budget`, SPL-5238): the part's own variable, when set, wins; else
+`PRE_PUSH_PART_TIMEOUT`; else the part's default. The own variables are
+`PRE_PUSH_API_FULL_TIMEOUT`, `PRE_PUSH_IAC_FULL_TIMEOUT` and
+`PRE_PUSH_ORC_FULL_TIMEOUT` (full tier only), `PRE_PUSH_WUI_TIMEOUT`,
+`PRE_PUSH_E2E_TIMEOUT` (wui-e2e) and `PRE_PUSH_FEATURES_TIMEOUT`
+(orc-features); every other part has none. Before SPL-5238 the wui and
+wui-e2e parts ignored `PRE_PUSH_PART_TIMEOUT`: a push with 1500 still TIMED
+OUT at 420 s and 600 s (c-463, n=1). A part that runs out logs
+`TIMED OUT after <n>s (<why>)`: the why names the variable that set the
+budget, or, for a default budget, the default and the variable that raises
+it (for a load-scaled one also the base, the load it read and the cap).
 
 A process a part leaves behind (a test's `setsid` child, a test daemon that
 escaped its cleanup) can no longer hold the hook past the part's budget

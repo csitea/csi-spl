@@ -78,7 +78,9 @@
 # @param PRE_PUSH_SKIP_PASSED (optional) - 1 = return PASS at once when this exact clean tree, parts set,
 # @param        tier, merge-base and gate code already passed whole (the pre-push hook sets it)
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache and the tree-pass record (always run)
-# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part; overrides every part budget on both tiers
+# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, every part on both tiers, unless that
+# @param        part's own variable is set: PRE_PUSH_{API,IAC,ORC}_FULL_TIMEOUT (full tier),
+# @param        PRE_PUSH_WUI_TIMEOUT, PRE_PUSH_E2E_TIMEOUT, PRE_PUSH_FEATURES_TIMEOUT win over it
 # @param        (unset keeps that part's own default; the shared fast default is 300)
 # @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier; default 1950 x the load per cpu
 # @param        (loadavg 1 min / nproc, when over 1), at most PRE_PUSH_API_FULL_CAP
@@ -499,33 +501,45 @@ _pp_part_hygiene() {
 # log. Both bases are interim until tier= on the PART line gives a
 # fast-tier-only distribution; then each base becomes 1.75x the slowest
 # fast-tier green, as the full-tier bases are.
-# PRE_PUSH_PART_TIMEOUT overrides both tiers.
-_pp_full_timeout() {  # <full-tier default>
-  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
-  elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "$1"
-  else echo "$_pp_timeout"; fi
+# One rule for every part, on both tiers (SPL-5238): the part's own variable
+# (_pp_part_var), when set, wins; else PRE_PUSH_PART_TIMEOUT; else the part's
+# default. wui and wui-e2e used to read only their own variable, so a push
+# with PRE_PUSH_PART_TIMEOUT=1500 still TIMED OUT at 420 s and 600 s (c-463).
+_pp_part_var() {  # <part-fn> -> the variable that sets this part's budget on this tier, if any
+  local full=""; [[ "${_PP_TIER:-fast}" == full ]] && full=1
+  case "$1" in
+    _pp_part_api) [[ -n "$full" ]] && echo PRE_PUSH_API_FULL_TIMEOUT ;;
+    _pp_part_iac) [[ -n "$full" ]] && echo PRE_PUSH_IAC_FULL_TIMEOUT ;;
+    _pp_part_orc) [[ -n "$full" ]] && echo PRE_PUSH_ORC_FULL_TIMEOUT ;;
+    _pp_part_wui) echo PRE_PUSH_WUI_TIMEOUT ;;
+    _pp_part_wui_e2e) echo PRE_PUSH_E2E_TIMEOUT ;;
+    _pp_part_orc_features) echo PRE_PUSH_FEATURES_TIMEOUT ;;
+  esac
+  return 0
 }
 # The budget a part runs under: the ONE source both the part's `timeout` and
 # the TIMED OUT note read. The note used to print the shared 300 s for every
 # part, so lanes whose api (900 s) or wui (420 s) budget ran out raised the
 # wrong number (c-448, c-464, c-465, 2026-10-07).
 _pp_budget() {  # <part-fn>
+  local var; var="$(_pp_part_var "$1")"
+  if [[ -n "$var" && -n "${!var:-}" ]]; then echo "${!var}"; return 0; fi
+  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"; return 0; fi
+  local full=""; [[ "${_PP_TIER:-fast}" == full ]] && full=1
   case "$1" in
-    _pp_part_api) _pp_full_timeout "${PRE_PUSH_API_FULL_TIMEOUT:-$(_pp_api_full_default)}" ;;
+    _pp_part_api) if [[ -n "$full" ]]; then _pp_api_full_default; else echo "$_pp_timeout"; fi ;;
     _pp_part_iac)
-      if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
-      elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "${PRE_PUSH_IAC_FULL_TIMEOUT:-600}"
+      if [[ -n "$full" ]]; then echo 600
       else _pp_load_scaled "$_pp_iac_fast_base" "${PRE_PUSH_IAC_FAST_CAP:-1200}"; fi ;;
     # the full tier runs every orc file: ~32..38 min on sat when idle
     _pp_part_orc)
-      if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
-      elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "${PRE_PUSH_ORC_FULL_TIMEOUT:-$(_pp_orc_full_default)}"
+      if [[ -n "$full" ]]; then _pp_orc_full_default
       else _pp_load_scaled "$_pp_orc_fast_base" "${PRE_PUSH_ORC_FAST_CAP:-1500}"; fi ;;
-    _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
-    _pp_part_wui_e2e) echo "${PRE_PUSH_E2E_TIMEOUT:-600}" ;;
+    _pp_part_wui) echo 420 ;;
+    _pp_part_wui_e2e) echo 600 ;;
     # the full tier runs every feature: 308 s on sat at load 65..118 (16
     # cpus, c-981, n=1) TIMED OUT at 300 s; 900 s is ~2.9x that
-    _pp_part_orc_features) if [[ -n "${PRE_PUSH_FEATURES_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_FEATURES_TIMEOUT"; else _pp_full_timeout 900; fi ;;
+    _pp_part_orc_features) if [[ -n "$full" ]]; then echo 900; else echo "$_pp_timeout"; fi ;;
     *) echo "$_pp_timeout" ;;
   esac
 }
@@ -590,33 +604,24 @@ _pp_orc_full_base=4000
 _pp_iac_fast_base=500
 _pp_orc_fast_base=600
 _pp_orc_full_default() { _pp_load_scaled "$_pp_orc_full_base" "${PRE_PUSH_ORC_FULL_CAP:-6000}"; }
-_pp_budget_why() {  # <part-fn> -> where its budget came from
-  local part base cap var scale=""
-  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then
-    case "$1" in
-      _pp_part_api|_pp_part_orc|_pp_part_iac) echo "PRE_PUSH_PART_TIMEOUT" ;;
-    esac
-    return 0
-  fi
-  case "$1" in
-    _pp_part_api)
-      if [[ "${_PP_TIER:-fast}" != full ]]; then echo "fast-tier part default"; return 0; fi
+_pp_budget_why() {  # <part-fn> -> where its budget came from, and the variable that raises it
+  local part base cap var scale="" own
+  own="$(_pp_part_var "$1")"
+  if [[ -n "$own" && -n "${!own:-}" ]]; then echo "$own"; return 0; fi
+  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "PRE_PUSH_PART_TIMEOUT"; return 0; fi
+  case "$1:${_PP_TIER:-fast}" in
+    _pp_part_api:full)
       part=api base="$_pp_api_full_base" cap="${PRE_PUSH_API_FULL_CAP:-2700}" var=PRE_PUSH_API_FULL_TIMEOUT scale=full ;;
-    _pp_part_orc)
-      if [[ "${_PP_TIER:-fast}" != full ]]; then
-        # FAST_CAP does not bind at load/cpu <= 1, nor while the scaled base
-        # is under it. The raise knob is PRE_PUSH_PART_TIMEOUT.
-        part=orc base="$_pp_orc_fast_base" cap="${PRE_PUSH_ORC_FAST_CAP:-1500}" var=PRE_PUSH_PART_TIMEOUT scale=fast
-      else
-        part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-6000}" var=PRE_PUSH_ORC_FULL_TIMEOUT scale=full
-      fi ;;
-    _pp_part_iac)
-      if [[ "${_PP_TIER:-fast}" == full ]]; then return 0; fi
-      # Same raise knob as fast orc: FAST_CAP does not bind below the cap.
+    _pp_part_orc:full)
+      part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-6000}" var=PRE_PUSH_ORC_FULL_TIMEOUT scale=full ;;
+    # FAST_CAP does not bind at load/cpu <= 1, nor while the scaled base is
+    # under it: the fast orc and iac raise knob is PRE_PUSH_PART_TIMEOUT.
+    _pp_part_orc:*)
+      part=orc base="$_pp_orc_fast_base" cap="${PRE_PUSH_ORC_FAST_CAP:-1500}" var=PRE_PUSH_PART_TIMEOUT scale=fast ;;
+    _pp_part_iac:fast)
       part=iac base="$_pp_iac_fast_base" cap="${PRE_PUSH_IAC_FAST_CAP:-1200}" var=PRE_PUSH_PART_TIMEOUT scale=fast ;;
-    *) return 0 ;;
+    *) echo "part default $(_pp_budget "$1")s; raise it with ${own:-PRE_PUSH_PART_TIMEOUT}"; return 0 ;;
   esac
-  if [[ "$scale" == full && -n "${!var:-}" ]]; then echo "$var"; return 0; fi
   _pp_load_read
   echo "$part $scale default ${base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s; raise it with $var"
 }

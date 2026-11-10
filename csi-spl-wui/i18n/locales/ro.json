@@ -1779,7 +1779,7 @@
     "marketing_publish_title": "Publică pe LinkedIn",
     "marketing_publish_hint": "Articole de blog publicate care nu au fost încă distribuite pe LinkedIn. Le poate publica un administrator sau proprietar de business al spațiului de lucru.",
     "marketing_publish_button": "Publică pe LinkedIn",
-    "marketing_publish_button_on": "Publică pe profilul LinkedIn al lui {name}",
+    "marketing_publish_button_on": "Publică pe profilul LinkedIn al membrului {name}",
     "marketing_publish_empty": "Toate articolele de blog sunt deja distribuite.",
     "marketing_publish_done": "Publicat pe LinkedIn.",
     "marketing_publish_retry": "LinkedIn nu l-a acceptat încă; se reîncearcă automat.",

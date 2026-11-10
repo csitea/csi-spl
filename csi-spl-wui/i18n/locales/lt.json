@@ -1779,7 +1779,7 @@
     "marketing_publish_title": "Skelbti LinkedIn",
     "marketing_publish_hint": "Paskelbti tinklaraščio įrašai, dar nepasidalyti LinkedIn. Juos gali paskelbti darbo srities administratorius ar verslo savininkas.",
     "marketing_publish_button": "Skelbti LinkedIn",
-    "marketing_publish_button_on": "Skelbti {name} LinkedIn profilyje",
+    "marketing_publish_button_on": "Skelbti nario {name} LinkedIn profilyje",
     "marketing_publish_empty": "Visi tinklaraščio įrašai jau pasidalyti.",
     "marketing_publish_done": "Paskelbta LinkedIn.",
     "marketing_publish_retry": "LinkedIn dar jo nepriėmė; bandoma automatiškai iš naujo.",

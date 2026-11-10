@@ -1815,7 +1815,7 @@
     "marketing_meta_shortened": "Príliš dlhé: zhrnutie sa skráti, aby sa zmestilo.",
     "marketing_meta_needs_jpeg": "Instagram prijíma iba obrázok JPEG a tento príspevok žiadny nemá.",
     "marketing_meta_conflict": "Tento príspevok je na tomto účte už zverejnený.",
-    "marketing_meta_forbidden": "Na tomto účte môže zverejňovať iba administrátor alebo obchodný vlastník pracovného priestoru, alebo člen, ktorý tento účet pripojil.",
+    "marketing_meta_forbidden": "Na tomto účte môže zverejňovať iba administrátor alebo obchodný vlastník pracovného priestoru alebo člen, ktorý tento účet pripojil.",
     "marketing_meta_done": "Zverejnené.",
     "marketing_meta_deferred": "Tento účet už dnes zverejnil svoj príspevok; tento odíde, keď sa uvoľní 24-hodinové okno.",
     "marketing_meta_preview_alt": "Obrázok k {title}",

@@ -1779,7 +1779,7 @@
     "marketing_publish_title": "Δημοσίευση στο LinkedIn",
     "marketing_publish_hint": "Αναρτήσεις του ιστολογίου που δεν έχουν κοινοποιηθεί ακόμη στο LinkedIn. Μπορεί να τις δημοσιεύσει ένας διαχειριστής ή επιχειρηματικός ιδιοκτήτης του χώρου εργασίας.",
     "marketing_publish_button": "Δημοσίευση στο LinkedIn",
-    "marketing_publish_button_on": "Δημοσίευση στο προφίλ LinkedIn του/της {name}",
+    "marketing_publish_button_on": "Δημοσίευση στο προφίλ LinkedIn του μέλους {name}",
     "marketing_publish_empty": "Όλες οι αναρτήσεις του ιστολογίου έχουν ήδη κοινοποιηθεί.",
     "marketing_publish_done": "Δημοσιεύτηκε στο LinkedIn.",
     "marketing_publish_retry": "Το LinkedIn δεν τη δέχτηκε ακόμη· επαναλαμβάνεται αυτόματα.",

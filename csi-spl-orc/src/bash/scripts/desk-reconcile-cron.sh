@@ -496,6 +496,22 @@ if [ "${DESK_OTHER_BOXES:-1}" != 0 ]; then
   say "INFO do_spl_desk_up_boxes exit $brc"
   [ "$rc" = 0 ] && [ "$brc" != 0 ] && rc=1
 fi
+
+# THE DESKS OF THE OTHER USERS (SPL-5210). The passes above skip a desk moved
+# to another user's state root (spl_desk_moved_to: "<user>'s reconcile and
+# sidecar serve it"), and that user may run no reconcile: on sat 2026-11-08 the
+# agent user's crontab held none, and its 11 prd desks stayed down from the
+# 02:36:20Z boot until a hand do_spl_desk_reseat_dead at 20:28Z. So this tick
+# re-runs that action as each other desk user (DESK_RESEAT_OTHERS=1, sudo -n):
+# only a pinned desk that user owns whose sidecar died with the box, no move,
+# no keygen. Not under a pause: the paused branch above stays SPL-4772's.
+# DESK_OTHER_USERS_RESEAT=0 turns it off.
+if [ "${DESK_OTHER_USERS_RESEAT:-1}" != 0 ]; then
+  ( cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" DESK_RESEAT_OTHERS=1 DRY_RUN=0 ./run -a do_spl_desk_reseat_dead )
+  orc_rc=$?
+  say "INFO do_spl_desk_reseat_dead DESK_RESEAT_OTHERS=1 exit $orc_rc"
+  [ "$rc" = 0 ] && [ "$orc_rc" != 0 ] && rc=1
+fi
 fi
 
 # The dispatchers on every channel of every workspace (2026-10-01: two channels

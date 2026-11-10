@@ -19,13 +19,26 @@
 # @description alone, one line each. A moved desk's dir belongs to its new user,
 # @description so the owner check leaves it to that user (no spl_desk_moved_to
 # @description call: on the caller's own pinned copy it never names a move).
+# @description DESK_RESEAT_OTHERS=1 (the box user's unpaused tick, SPL-5210):
+# @description the same re-seat for the desks of every OTHER user that may hold
+# @description this env's desks (spl_desk_roots: the desk, agent and box user),
+# @description by re-running this action as that user through SPL_DESK_AS_CMD;
+# @description none of the caller's own desks. Each hopped run re-seats only the
+# @description desks that user owns. On sat 2026-11-08 the 11 prd desks moved to
+# @description the agent user stayed down from the 02:36:20Z boot until a hand
+# @description run at 20:28Z: the box user's reconcile skips a moved desk and the
+# @description agent user runs no reconcile.
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
+# @param DESK_RESEAT_OTHERS (optional) - 1: re-seat the other users' desks
+# @param   (see above); default 0, the caller's own
+# @param SPL_DESK_AS_CMD (optional) - the hop, default `sudo -n -u`
 # @param DESK_BOOT_TIME (optional) - the boot time, epoch seconds; default
 # @param   btime of /proc/stat
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd ./run -a do_spl_desk_reseat_dead
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_desk_reseat_dead
+# @example ENV=prd DESK_RESEAT_OTHERS=1 ./run -a do_spl_desk_reseat_dead
 #------------------------------------------------------------------------------
 do_spl_desk_reseat_dead() {
   do_spl_cloud_cnf || return 1
@@ -33,6 +46,7 @@ do_spl_desk_reseat_dead() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local e t b u d me agent boot rc=0 n=0 r=0
   me="$(id -un)"
+  [[ "${DESK_RESEAT_OTHERS:-0}" == 1 ]] && { spl_desk_reseat_others "$me" "$dry"; return; }
   boot="$(spl_desk_boot_epoch)" || { do_log "FATAL no boot time (DESK_BOOT_TIME or btime of /proc/stat)"; return 1; }
   while IFS=$'\t' read -r e t b u d; do
     n=$((n + 1))
@@ -53,6 +67,35 @@ do_spl_desk_reseat_dead() {
     fi
   done < <(spl_desk_dead_list "$ENV")
   do_log "OK $n dead desk(s) in $ENV, $r re-seated$( (( dry )) && echo ' (DRY_RUN: nothing was touched)')"
+  return "$rc"
+}
+
+# spl_desk_reseat_others <me> <dry>: do_spl_desk_reseat_dead again as each
+# other user of spl_desk_roots, one hop each (SPL_DESK_HOPPED: never from a
+# hopped run). A user the hop cannot reach (no sudo -n rule) is one WARN line,
+# rc unchanged: that box needs the user's own tick. rc 1 when a hopped run
+# failed. Under SPOOL_TEST=1 only a test's own SPL_DESK_AS_CMD hops.
+# One party per desk: the hopped run keeps the owner check (a desk is
+# re-seated only by the user that owns its dir) and the box user's seat steps
+# skip a desk moved to another user (spl_desk_moved_to); a second start of one
+# sidecar finds it live under its hub-run.lock (spl_desk_sidecar).
+spl_desk_reseat_others() {
+  local me="$1" dry="$2" u h n=0 rc=0
+  local -a as=() vars=()
+  [[ -z "${SPL_DESK_HOPPED:-}" ]] || { do_log "FATAL DESK_RESEAT_OTHERS=1 in a run hopped from $SPL_DESK_HOPPED: one hop, never a loop"; return 1; }
+  [[ "${SPOOL_TEST:-}" != 1 || -n "${SPL_DESK_AS_CMD:-}" ]] || { do_log "FATAL DESK_RESEAT_OTHERS=1 under SPOOL_TEST=1 hops only through a test's SPL_DESK_AS_CMD"; return 1; }
+  read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
+  for u in ENV SPOOL_ROOT SPOOL_BOX_ENV DESK_BOOT_TIME; do [[ -n "${!u:-}" ]] && vars+=("$u=${!u}"); done
+  while read -r u; do
+    n=$((n + 1))
+    "${as[@]}" "$u" -- true </dev/null 2>/dev/null ||
+      { do_log "WARN $u's dead desks of $ENV are not re-seated from $me's tick: no ${as[*]} $u rule"; continue; }
+    h="$(getent passwd "$u" | cut -d: -f6)"
+    do_log "INFO the dead desks of $ENV owned by $u: do_spl_desk_reseat_dead re-runs as $u"
+    "${as[@]}" "$u" -- env HOME="$h" PATH="$PATH" "${vars[@]}" DRY_RUN="$( (( dry )) && echo 1 || echo 0)" \
+      SPL_DESK_HOPPED="$me" "$PROJ_PATH/run" -a do_spl_desk_reseat_dead </dev/null 9>&- || rc=1
+  done < <(spl_desk_roots "$ENV" | cut -f1 | grep -vxF -- "$me" | sort -u)
+  (( n )) || do_log "OK no other user may hold desks of $ENV here: nothing to re-seat from $me's tick"
   return "$rc"
 }
 

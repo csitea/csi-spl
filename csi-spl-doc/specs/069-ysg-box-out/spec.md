@@ -750,8 +750,14 @@ unpinned stub with no live sidecar and no pinned copy can be hopped to,
 `do_spl_desk_reply` and `do_spl_desk_post` (so `do_spl_fleet_notice` too) end
 FATAL, rc 1, nothing sent, in a dry run as well (`spl_desk_undelivered_refuse`).
 `spool send` only writes the outbox, so the post used to sit there with rc 0.
-A pinned desk with its sidecar down is still accepted: the reconcile restarts
-it. Test: `desk-user-hops.tst.sh` case 14.
+A pinned desk with its sidecar down is still accepted, but a restart is
+promised only for a sidecar that died with the box: the box user's unpaused
+tick re-runs `do_spl_desk_reseat_dead` as each other desk user
+(`DESK_RESEAT_OTHERS=1`, `sudo -n`; SPL-5210), and that run re-seats only the
+pinned desks it owns whose `hub-run.pid` predates the boot. A sidecar that
+dies later under a user with no reconcile of its own stays down until a hand
+re-seat. Tests: `desk-user-hops.tst.sh` case 14, `desk-reseat-dead.tst.sh`
+cases 4e and 4f.
 
 So a desk under `<agent-user>` is **readable only by `<agent-user>`**: a
 `<box-user>` cron that reads or posts through a moved desk keeps failing,

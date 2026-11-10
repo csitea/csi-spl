@@ -154,6 +154,64 @@ function mockMarketingMeta(unshared) {
 }
 
 /**
+ * spec 090 X row (SPL-5194): one X account, @mock_studio; Connect adds
+ * @mock_shop. spool.mock.marketing.x=not_configured plays a hub without the
+ * X app (503).
+ */
+function mockMarketingX(unshared) {
+  const flag = () => {
+    try { return globalThis.localStorage?.getItem('spool.mock.marketing.x') || '' } catch { return '' }
+  }
+  const accounts = [{ channel_id: 'mch-x-1', user_id: '42', username: 'mock_studio', name: 'Mock Studio', status: 'active' }]
+  const done = {}
+  const has = (id) => accounts.some((a) => a.channel_id === id)
+  return {
+    configured() {
+      if (flag() === 'not_configured') throw mockErr(503, 'not_configured')
+    },
+    has,
+    accounts: () => ({ accounts: accounts.map((a) => ({ ...a })) }),
+    connect() {
+      if (!has('mch-x-2')) accounts.push({ channel_id: 'mch-x-2', user_id: '43', username: 'mock_shop', name: 'Mock Shop', status: 'active' })
+      return { authorize_url: '' }
+    },
+    disconnect(id) {
+      const i = accounts.findIndex((a) => a.channel_id === id)
+      if (i < 0) throw mockErr(404, 'not_found')
+      accounts.splice(i, 1)
+      return null
+    },
+    posts(channel) {
+      const sent = done[channel] || []
+      return { posts: unshared.filter((p) => !sent.includes(p.id)).map((p) => ({ ...p })) }
+    },
+    publish(id, channel) {
+      if (!unshared.some((x) => x.id === id) || (done[channel] || []).includes(id)) throw mockErr(409, 'already_recorded')
+      done[channel] = [...(done[channel] || []), id]
+      return { post: id, scheduled: 1, published: 1, retried: 0, failed: 0, deferred: 0 }
+    },
+  }
+}
+
+/** spec 090 X row: GET /v1/marketing/x/accounts and POST .../x/connect, 404 while marketing is off. */
+function mockMarketingXRoutes(xm, on) {
+  const gate = () => {
+    if (!on()) throw mockErr(404, 'not_found')
+    xm.configured()
+  }
+  return {
+    xAccounts() {
+      gate()
+      return xm.accounts()
+    },
+    connectX() {
+      gate()
+      return xm.connect()
+    },
+  }
+}
+
+/**
  * spec 090 T036/T037: the share links (built by the hub's twin module, with
  * three same-origin pictures so the hand-over's photo picker has a choice,
  * and a fourth on another origin under /blog/img/ as the hub builds it on
@@ -201,6 +259,7 @@ function mockMarketing() {
     try { return globalThis.localStorage?.getItem('spool.mock.marketing') !== 'unlisted' } catch { return true }
   }
   const meta = mockMarketingMeta(unshared)
+  const xm = mockMarketingX(unshared)
   const metaOn = () => {
     if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
     meta.configured()
@@ -220,8 +279,10 @@ function mockMarketing() {
     },
     disconnectMarketingChannel(id) {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
+      if (xm.has(id)) return xm.disconnect(id)
       return meta.disconnect(id)
     },
+    ...mockMarketingXRoutes(xm, () => mktListed() && mkt.enabled),
     marketing() {
       if (!mktListed()) throw mockErr(404, 'not_found')
       return { tenant_id: 'mock', enabled: mkt.enabled }
@@ -234,6 +295,7 @@ function mockMarketing() {
     marketingPosts(channel) {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
       if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')
+      if (channel && xm.has(channel)) return xm.posts(channel)
       if (channel) return meta.posts(channel)
       return { posts: unshared.map((p) => ({ ...p })), profiles: [{ channel_id: 'mch-li-1', name: 'FirstName LastName', mine: mktPublish() !== 'other' }] }
     },
@@ -241,6 +303,7 @@ function mockMarketing() {
     publishMarketingPost(id, channel) {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
       if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')
+      if (channel && xm.has(channel)) return xm.publish(id, channel)
       if (channel) return meta.publish(id, channel)
       const i = unshared.findIndex((p) => p.id === id)
       if (mktPublish() === 'recorded' || i < 0) throw mockErr(409, 'already_recorded')

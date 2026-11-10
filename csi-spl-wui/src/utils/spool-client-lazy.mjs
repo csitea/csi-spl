@@ -788,6 +788,24 @@ async function connectFacebook(ctx) {
 }
 
 /**
+ * GET /v1/marketing/x/accounts (spec 090 X row, SPL-5194): the workspace's
+ * connected X accounts, { accounts: [{ channel_id, user_id, username, name,
+ * status, delegated_by }] }. 503 not_configured while the X app is not wired.
+ */
+async function listXAccounts(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).xAccounts()
+  return live('/v1/marketing/x/accounts')
+}
+
+/** POST /v1/marketing/x/connect → { authorize_url }: X's consent page to open (PKCE). */
+async function connectX(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).connectX()
+  return live('/v1/marketing/x/connect', { method: 'POST' })
+}
+
+/**
  * DELETE /v1/marketing/channels/{channel_id} → 204 (lane SPL-4496): the
  * channel and its sealed token go; a Page takes its Instagram account along.
  * Not on the hub yet: metaDisconnectLive() keeps the button off a live client.
@@ -2272,6 +2290,8 @@ export const lazySpoolMethods = {
   listMetaPages,
   listMarketingChannels,
   connectFacebook,
+  listXAccounts,
+  connectX,
   disconnectMarketingChannel,
   mintJoinToken,
   listJoinTokens,

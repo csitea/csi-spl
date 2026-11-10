@@ -146,7 +146,7 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", why}
 		}
 		sent := l.Topic
-		if l.Topic, ae = s.laneTopic(ctx, x.tenant, l.Topic); ae != nil {
+		if l.Topic, ae = s.laneTopicPut(ctx, x.tenant, l); ae != nil {
 			return laneAnswer{}, ae
 		}
 		got, err := s.o.Store.PutFleetLane(ctx, x.tenant, l, x.box, now)
@@ -249,6 +249,30 @@ func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *
 		return "", nil
 	}
 	return ids[0], nil
+}
+
+// laneTopicPut is the topic a put of l stores: laneTopic, else the sent
+// topic when the row of l's agent and box already stores exactly it. The hub
+// took it when that row was opened (a version-5 topic of the operator's own
+// workspace, opened by its 8 hex), so its close and its re-puts keep it
+// instead of being refused as a relay hash (SPL-5080); a new row still
+// needs laneTopic's answer (rdb 0264).
+func (s *Server) laneTopicPut(ctx context.Context, tenant string, l store.FleetLane) (string, *issueErr) {
+	got, ae := s.laneTopic(ctx, tenant, l.Topic)
+	if ae != nil || got != "" || l.Topic == "" {
+		return got, ae
+	}
+	rows, err := s.o.Store.ListFleetLanes(ctx, tenant, l.Fleet, s.o.Now())
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("fleet lane kept topic")
+		return "", &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}
+	}
+	for _, r := range rows {
+		if r.AgentID == l.AgentID && r.AgentBox == l.AgentBox && r.Topic == l.Topic {
+			return l.Topic, nil
+		}
+	}
+	return "", nil
 }
 
 // laneTopicIsElsewhere is topic when it is a topic of another non-archived

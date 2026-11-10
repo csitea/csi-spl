@@ -1,5 +1,10 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-10, SPL-5080): section 3.24 (a put that resends the topic
+its row already stores keeps it, so a lane whose discussion is a version-5
+topic of the operator's own workspace can be closed), cases C129-C132. A bug
+fix on 3.21, placed as one lane brief, not a panel version.
+
 Addendum (2026-11-07, SPL-5007): section 3.23 (a launch that crosses boxes
 carries the lane row's topic, scope and files; the ok reply reports a refused
 row), cases C127-C128. A bug fix on 3.21, placed as one lane brief, not a panel
@@ -2109,6 +2114,46 @@ Cases (`spawn-agents/tests/test-spawn-remote.sh`):
   exit 0 unchanged; a line older than this spawn is not reported.
 - Red control: the test on the code before this change, 17 of 77 failed, among
   them the far launcher's fields and the real launcher's `--topic`.
+
+### 3.24 A lane's close keeps the topic its row already stores (SPL-5080)
+
+Seen on prd 2026-11-08 (n = 3 lanes, from the lane brief): closing a lane
+row was refused with `bad_frame (topic <id> names no single discussion (rdb
+0264: a lane needs one))`, by `lane-map.sh done` (c-810, c-812) and by the
+reaper (c-842), which retries from `.reap/lane-close.tsv` while the retired
+seat still reads live on the map.
+
+Why: a lane opened with its topic's 8 hex is stored with the full uuid
+(`laneTopic`, `TopicsByPrefix` of the tenant). When that discussion is a
+version-5 uuid of the operator's OWN workspace, a later put that resends the
+stored uuid (`spl-lane-put.func.sh` reads the row and sends its topic back)
+goes down the relay-hash path: it is no relay hash of a topic, and
+`laneTopicIsElsewhere` skips the operator workspace, so it resolved to none
+and 3.21 refused it. The live map read 2026-11-10 (`LANE_FORMAT=json
+LANE_ALL=1 ./run -a do_spl_lane_map`, n = 1 read) held 8 of 953 rows with a
+version-5 topic, c-842, c-381 and c-383 among them, all `live`.
+
+What changes: when the sent topic resolves to none, the hub keeps it if the
+row of that agent and box already stores exactly it (`laneTopicPut`,
+`internal/hub/box_lane.go`): the hub took that topic when the row was
+opened, so a close or a re-put of the same row is not refused. A new row,
+and a put naming a topic its row does not hold, still go through 3.21
+unchanged: the rule protects a lane's creation, and a relay hash is still
+never stored as a new lane's discussion.
+
+Not changed: a new lane that names a version-5 topic of the operator's own
+workspace by its full uuid is still refused; by its 8 hex it is stored.
+
+Cases (`internal/hub/lanes_topic_kept_test.go`,
+`TestLanePutKeepsItsOwnV5Topic`; Memory, and Postgres under
+`SPOOL_TEST_PG_DSN`):
+
+- **C129** a live re-put with the stored full uuid keeps it.
+- **C130** the close (`state: done`) with the stored full uuid keeps it.
+- **C131** a new row naming that version-5 uuid is refused as before.
+- **C132** a close naming a version-5 uuid its row does not hold is refused.
+- Red control: on master 4522b6b1e, C129 and C130 were refused with "names
+  no single discussion"; C131 and C132 passed.
 
 ## 4. Cases
 

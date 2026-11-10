@@ -75,7 +75,10 @@
 #      -> launched on this box (SPAWN_BOX), and HOLDS with the
 #      reset when this box is full or the row is pinned to sat (CONTROLS: the
 #      pick names this box -> launched here; no blocker -> as before, no
-#      SPAWN_BOX)
+#      SPAWN_BOX). SPL-5208: sat's blocker from a CLOSED lane still steers a
+#      row to this box when it is in with room; this box full, or this box
+#      out too -> not held, launched on sat (SPL-5078 W1); a row placed as
+#      mistral and swapped to agy runs the lane map too (R7 W4)
 #  13c. SPL-3024: a row placed directly as agy:<slug> holds while agy is out
 #      of quota, review or not (CONTROL: agy in quota launches it as agy)
 #      SPL-3138: agy back but the row not launched (ceiling full): its agy
@@ -1175,6 +1178,44 @@ out="$(agyp "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-542)"
   grep -qx "agy auto $T $T/briefs/agy-target.md agy-target SPAWN_BOX=box-desk" "$T/launch.log" &&
   pass "13b4. control: the pick names this box (agy in): launched there, the box judged is its SPAWN_BOX" ||
   fail "13b4. control target in: $out | $(cat "$T/launch.log")"
+# SPL-5208 (R7 W3 on SPL-5078): sat's blocker is from a CLOSED lane (a-958 not
+# in sat's busy_ids). It holds no box (W1), but the login it measured may still
+# be on its limit, so a row the pick sends to sat still goes to a box with no
+# blocker when one is in and has room (SPL-4020, the a-097 case).
+agyc() { on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON="$(load '["c-394"]')" "$@" 2>&1; }
+B1=bbbb0045-0000-4000-8000-000000000045
+put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy target closed"
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-target >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(agyc "PICK=sat reason=below its low mark" LAUNCH_ID=a-544)"
+[[ "$(jq -r .reason <<<"$(hubrow "$B1")")" == "placed: a-544@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-target.md agy-target SPAWN_BOX=box-desk" "$T/launch.log" &&
+  grep -q "INFO ask ${B1:0:8}: agy on sat .*a closed lane's blocker.*: it launches on box-desk" <<<"$out" &&
+  pass "13b4. SPL-5208: the pick names sat, sat's blocker from a closed lane, this box in with room: launched on this box, not on sat" ||
+  fail "13b4. closed blocker, here free: $out | $(hubrow "$B1") | $(cat "$T/launch.log")"
+B1=bbbb0046-0000-4000-8000-000000000046
+put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy target closed full"
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-target >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(agyc "PICK=sat reason=below its low mark" "PICK_BOXES=$DESK_FULL" LAUNCH_ID=a-545)"
+[[ "$(jq -r .reason <<<"$(hubrow "$B1")")" == "placed: a-545@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-target.md agy-target SPAWN_BOX=sat" "$T/launch.log" &&
+  ! grep -q "INFO hold: ask ${B1:0:8}" <<<"$out" &&
+  pass "13b4. SPL-5208 (W1 kept): sat's blocker from a closed lane, this box full: not held, launched on sat" ||
+  fail "13b4. closed blocker, here full: $out | $(hubrow "$B1") | $(cat "$T/launch.log")"
+WDH="$T/pc/spool/dispatch/wd/ctx.3/a-860"; mkdir -p "$WDH"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\n' >"$WDH/pane"
+B1=bbbb0047-0000-4000-8000-000000000047
+put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy every box out closed"
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-target >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(agyc "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-546)"
+[[ "$(jq -r .reason <<<"$(hubrow "$B1")")" == "placed: a-546@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-target.md agy-target SPAWN_BOX=sat" "$T/launch.log" &&
+  ! grep -q "INFO hold: ask ${B1:0:8}" <<<"$out" &&
+  pass "13b4. SPL-5208 (W1 kept): this box out, sat only on a closed lane's blocker: not held, launched on sat" ||
+  fail "13b4. every box out, closed only: $out | $(hubrow "$B1") | $(cat "$T/launch.log")"
+rm -rf "$T/pc/spool/dispatch/wd/ctx.3" "$T/pc/spool/dispatch/vendor-probe/agy-limit-seen.tsv"
 rm -f "$WDM"/*
 B1=bbbb0044-0000-4000-8000-000000000044
 put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy target 3"
@@ -1258,6 +1299,22 @@ rm -f "$T/pc/spool/asks/.place.last" "$T/loadn.count"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/loadn" LOAD_COUNT="$T/loadn.count" LOAD_JSON="" "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-562 2>&1)"
 [[ -s "$T/loadn.count" ]] && pass "SPL-5078 control: a row placed as agy: the lane map is called" || fail "agy row, no lane map: $out | $(hubrow "$D2")"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$D2" --by c-001@box-desk --reason "next case" >/dev/null 2>&1
+# SPL-5208 (R7 W4): the mistral half of the early return. A row placed as
+# mistral whose swap is to agy (a Kind: i18n WUI brief, mistral_ui_allowed
+# false) is judged by the agy box hold too: this box out, sat in -> it
+# launches on sat. The lane-map count alone cannot pin it: the launch's own
+# vendor swap (spl_spawn_place_vendor) reads the lane map for such a row.
+printf 'Kind: i18n. Translate the hover in csi-spl-wui/src/components/w4.vue\n%s\n' "$ES" >"$T/briefs/w4-hover.md"
+D3=bbbb0063-0000-4000-8000-000000000063
+put "$D3" c-002@box-desk dispatch-placer-agy-count "SPAWN REQUEST mistral swapped to agy count"
+on pc do_spl_spawn_enqueue ASK_ID="$D3" SPAWN_CLASS=bug SPAWN_PLACE=mistral:w4-hover >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last" "$T/loadn.count"; : >"$T/launch.log"
+mkdir -p "$WDC"; printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 13h53m38s.\n' >"$WDC/pane"
+out="$(on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/loadn" LOAD_COUNT="$T/loadn.count" LOAD_JSON="$(loadc '["claude","agy"]')" "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-563 2>&1)"
+[[ -s "$T/loadn.count" ]] && grep -qx "agy auto $T $T/briefs/w4-hover.md w4-hover SPAWN_BOX=sat" "$T/launch.log" &&
+  pass "SPL-5208: a row placed as mistral, swapped to agy, this box out: the agy box hold sends it to sat" || fail "mistral->agy row: $out | $(hubrow "$D3") | $(cat "$T/launch.log")"
+rm -rf "$T/pc/spool/dispatch/wd/ctx.3" "$T/pc/spool/dispatch/vendor-probe/agy-limit-seen.tsv"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$D3" --by c-001@box-desk --reason "next case" >/dev/null 2>&1
 # The login half of the program-or-login hold, on the real spool_vendor_clis.
 clis5078() { env -u SPOOL_VENDOR_CLIS_CMD HOME="$T/agyhome" SPOOL_AGENT_USER=x SPOOL_AGY_AUTH_MARKER=.agy-login AGY_BIN=true bash -c '
   source "'"$PROJ_ROOT"'/src/bash/features/spawn-agents/lib/spool-env.inc.sh"

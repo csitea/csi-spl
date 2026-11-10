@@ -1035,8 +1035,10 @@ spl_spawn_place_agy_load() {
 # waited on a sat banner while a-122 and a-236 answered on the main box; which
 # login each box uses is not measured, so two boxes may still share one). The
 # boxes are this one and the lane map's live ones. This box is out on
-# spl_spawn_place_agy_out, another on its watchdog blocker
-# (spl_spawn_place_agy_boxes); either is out when measured without the agy
+# spl_spawn_place_agy_out, another on its watchdog blocker from a live lane
+# (spl_spawn_place_agy_boxes); a blocker from a closed lane only makes that
+# box "steer" (SPL-5208): in for the every-box-out judgement, but a row is
+# steered off it to a box that is in; either is out when measured without the agy
 # program or its login (spool_vendor_clis, the lane map's clis; 2026-11-06:
 # sat lost both, and a launch there fails and returns to position 1). No
 # measurement = unknown = not out; a hub that is silent lists this box and
@@ -1053,9 +1055,11 @@ spl_spawn_place_agy_state() {
   printf '%s\t%s\t%s\n' "$ASKS_BOX" "$([[ -n "$here" ]] && echo out || echo in)" "$here"
   while IFS= read -r box; do
     [[ -n "$box" && "$box" != "$ASKS_BOX" ]] || continue
-    line="$(awk -F'\t' -v b="$box" '$1 == b { print $2; exit }' <<<"$outs")"
-    if [[ -n "$line" ]]; then
-      printf '%s\tout\tagy on %s is at its quota limit until %s\n' "$box" "$box" "$line"
+    line="$(awk -F'\t' -v b="$box" '$1 == b { print $3 "\t" $2; exit }' <<<"$outs")"
+    if [[ "$line" == live$'\t'* ]]; then
+      printf '%s\tout\tagy on %s is at its quota limit until %s\n' "$box" "$box" "${line#*$'\t'}"
+    elif [[ -n "$line" ]]; then
+      printf '%s\tsteer\tagy on %s may be at its quota limit until %s, a closed lane'"'"'s blocker\n' "$box" "$box" "${line#*$'\t'}"
     elif jq -e --arg b "$box" 'any(.load[]?; .box == $b and .clis != null and ((.clis | index("agy")) == null))' <<<"$load" >/dev/null 2>&1; then
       printf '%s\tout\tthe agy program or its login is missing on %s\n' "$box" "$box"
     else
@@ -1064,10 +1068,11 @@ spl_spawn_place_agy_state() {
   done < <({ jq -r '.load[]? | select(.live) | .box' <<<"$load" 2>/dev/null; cut -f1 <<<"$outs"; } | sort -u)
 }
 
-# Every box's why, joined, when no box's agy is in; else nothing.
+# Every box's why, joined, when no box's agy is in; else nothing. A steer box
+# (a closed lane's blocker only) counts as in (SPL-5078 W1).
 spl_spawn_place_agy_all_out() {  # [STATE]
   local st="${1:-$(spl_spawn_place_agy_state)}"
-  awk -F'\t' '$2 == "in" { exit 1 }' <<<"$st" || return 0
+  awk -F'\t' '$2 != "out" { exit 1 }' <<<"$st" || return 0
   cut -f3 <<<"$st" | paste -sd ';' - | sed 's/;/; /g'
 }
 
@@ -1087,23 +1092,27 @@ spl_spawn_place_agy_recs() {  # SINCE NOW
 }
 
 # The other boxes whose agy login is on its limit (SPL-4020), one
-# "<box>\t<UTC> (<evidence>)" line per box, its latest reset. A blocker counts
-# while its reset is ahead and its lane is live on its box (SPL-5078, the
-# check SPL-3846 set; replaces SPL-4020's "live lane or not"): in that box's
-# busy_ids of LOAD, the lane map's JSON, read from its BOX-0 row. A banner from
-# a lane with no window proves nothing either way, and with agy.ok unwritten
-# nothing else would clear it before its reset. No load for that box, or only
-# its lane rows (src rows): liveness unknown, the blocker counts. A probe here
-# proves nothing about another box's login, so agy.ok is not read.
+# "<box>\t<UTC> (<evidence>)\t<live|closed>" line per box, its latest reset.
+# A blocker holds while its reset is ahead and its lane is live on its box
+# (SPL-5078, the check SPL-3846 set): in that box's busy_ids of LOAD, the lane
+# map's JSON, read from its BOX-0 row. A banner from a lane with no window
+# proves nothing either way, and with agy.ok unwritten nothing else would
+# clear it before its reset, so it is "closed": it holds no box, it only
+# steers a row off it (SPL-5208, SPL-4020's a-097). A box with a live blocker
+# is live. No load for that box, or only its lane rows (src rows): liveness
+# unknown, live. A probe here proves nothing about another box's login, so
+# agy.ok is not read.
 spl_spawn_place_agy_boxes() {  # LOAD
-  local load="$1" id box u m
+  local load="$1" id box u m lv
   [[ -n "$load" ]] || load='{}'
   while IFS=$'\t' read -r id box u m; do
     [[ -n "$id" ]] || continue
-    jq -e --arg b "$box" --arg i "$id" 'any(.load[]?; .box == $b and .src != "rows" and ((.busy_ids // []) | index($i) == null))' <<<"$load" >/dev/null 2>&1 && continue
-    printf '%s\t%s\t%s (%s@%s S2 kind=limit, its watchdog'"'"'s blocker %s)\n' \
-      "$box" "$u" "$(date -u -d "@$u" +%FT%TZ)" "$id" "$box" "$m"
-  done <<<"$(spl_spawn_place_agy_recs 0 "$(date +%s)")" | sort -t $'\t' -k1,1 -k2,2nr | awk -F'\t' '!s[$1]++ { print $1 "\t" $3 }'
+    lv=1
+    jq -e --arg b "$box" --arg i "$id" 'any(.load[]?; .box == $b and .src != "rows" and ((.busy_ids // []) | index($i) == null))' <<<"$load" >/dev/null 2>&1 && lv=0
+    printf '%s\t%s\t%s\t%s (%s@%s S2 kind=limit, its watchdog'"'"'s blocker %s)\n' \
+      "$box" "$lv" "$u" "$(date -u -d "@$u" +%FT%TZ)" "$id" "$box" "$m"
+  done <<<"$(spl_spawn_place_agy_recs 0 "$(date +%s)")" | sort -t $'\t' -k1,1 -k2,2nr -k3,3nr |
+    awk -F'\t' '!s[$1]++ { print $1 "\t" $4 "\t" ($2 ? "live" : "closed") }'
 }
 
 # The ids with a live process on this box as "|<id>|<id>|" ("|" = none), from
@@ -1212,21 +1221,25 @@ spl_spawn_place_pin_hold() {  # MARKED ROWS
 # box is out (spl_spawn_place_agy_state), the target is the pinned slug's box,
 # else do_spl_box_pick's pick (BOX_PICK_KIND=agy). Target out: an unpinned row
 # goes to a box that is in and not full (spl_spawn_place_pin_full), this box
-# first; else it HOLDS, queued, out of this tick's line, the why in .place.wait. Target in:
+# first, else to a steer box; else it HOLDS, queued, out of this tick's line,
+# the why in .place.wait. Target steer (only a closed lane's blocker, SPL-5208):
+# an unpinned row goes to a box that is in and not full, else it launches on
+# the target; it never holds (SPL-5078 W1). Target in:
 # the row carries it as _b, the launch's SPAWN_BOX, so the launch goes where
 # it was judged. With no row placed as agy or mistral it returns before the
 # state, which runs the lane map (10.6 s on sat, n=1, on a 1-min cron).
 # Prints ROWS minus the held ones.
 spl_spawn_place_agy_box_hold() {  # MARKED ROWS
-  local st outs alt id vendor slug brief pin box pout="" lout="" why full held=() to='{}'
+  local st outs alt altout a id vendor slug brief pin box pout="" lout="" line sb why full held=() to='{}'
   local rx="^(agy on [a-z0-9-]+ is at its quota limit until |agy is out of quota until |the agy program or its login is missing on )"
   jq -e 'any(.[]; .state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))' <<<"$1" >/dev/null 2>&1 || {
     spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0
   }
   st="$(spl_spawn_place_agy_state)"
-  outs="$(awk -F'\t' '$2 == "out"' <<<"$st")"
+  outs="$(awk -F'\t' '$2 != "in"' <<<"$st")"
   [[ -n "$outs" ]] || { spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0; }
-  alt="$(awk -F'\t' -v h="$ASKS_BOX" '$2 == "in" { if ($1 == h) { print; f = 1; exit } if (!a) a = $0 } END { if (!f && a) print a }' <<<"$st" | cut -f1)"
+  alt="$(spl_spawn_place_agy_alt "$st" in)" altout="$alt"
+  [[ -n "$altout" ]] || altout="$(spl_spawn_place_agy_alt "$st" steer)"
   while IFS=$'\t' read -r id vendor slug; do
     brief="$(spl_spawn_place_brief "$slug")"
     [[ -n "$brief" ]] || continue
@@ -1243,15 +1256,16 @@ spl_spawn_place_agy_box_hold() {  # MARKED ROWS
       box="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\).*$/\1/p' <<<"$pout" | tail -1)"
       [[ -n "$box" && "$box" != hold && "$box" != nokind ]] || continue
     fi
-    why="$(awk -F'\t' -v b="$box" '$1 == b { print $3; exit }' <<<"$outs")"
-    if [[ -z "$why" ]]; then
-      [[ -n "$pin" ]] || to="$(jq -c --arg i "$id" --arg b "$box" '.[$i] = $b' <<<"$to")"
+    line="$(awk -F'\t' -v b="$box" '$1 == b { print $2 "\t" $3; exit }' <<<"$outs")"
+    sb="${line%%$'\t'*}" why="${line#*$'\t'}" a="$alt" full=""
+    [[ "$sb" == out ]] && a="$altout"
+    if [[ -n "$sb" && -z "$pin" && -n "$a" ]] && ! full="$(spl_spawn_place_pin_full "$a" "$pout")"; then
+      do_log "INFO ask ${id:0:8}: $why: it launches on $a" >&2
+      to="$(jq -c --arg i "$id" --arg b "$a" '.[$i] = $b' <<<"$to")"
       continue
     fi
-    full=""
-    if [[ -z "$pin" && -n "$alt" ]] && ! full="$(spl_spawn_place_pin_full "$alt" "$pout")"; then
-      do_log "INFO ask ${id:0:8}: $why: it launches on $alt" >&2
-      to="$(jq -c --arg i "$id" --arg b "$alt" '.[$i] = $b' <<<"$to")"
+    if [[ "$sb" != out ]]; then
+      [[ -n "$pin" ]] || to="$(jq -c --arg i "$id" --arg b "$box" '.[$i] = $b' <<<"$to")"
       continue
     fi
     why="$why, and ${full:-the row is pinned there}"
@@ -1263,6 +1277,12 @@ spl_spawn_place_agy_box_hold() {  # MARKED ROWS
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "$rx"
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" --argjson to "$to" \
     '[.[] | select(.ask_id as $i | $h | index($i) | not) | if $to[.ask_id] then ._b = $to[.ask_id] else . end]' <<<"$1"
+}
+
+# The first box of STATE (spl_spawn_place_agy_state) whose agy is WHICH (in,
+# steer), this box first, or nothing.
+spl_spawn_place_agy_alt() {  # STATE WHICH
+  awk -F'\t' -v h="$ASKS_BOX" -v w="$2" '$2 == w { if ($1 == h) { print $1; f = 1; exit } if (!a) a = $1 } END { if (!f && a) print a }' <<<"$1"
 }
 
 # The brief file of SLUG on this box, or nothing; a hand-pinned SLUG falls

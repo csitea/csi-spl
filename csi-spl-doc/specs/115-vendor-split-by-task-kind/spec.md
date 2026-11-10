@@ -241,7 +241,11 @@ login each box uses is not measured: the judgement is per box, and two boxes
 may still share one. Another box's blocker counts only while its lane is live
 there (in that box's `busy_ids`; no load or rows only: unknown, it counts),
 because a banner from a lane with no window proves nothing either way; this
-replaces SPL-4020's "live lane or not" below. `spl_lane_rotate_limit` now sees
+replaces SPL-4020's "live lane or not" below. A closed lane's blocker still
+steers (SPL-5208): that box is `steer`, in for the every-box-out judgement, but
+a row the pick sends there launches on a box that is in and has room, this box
+first; with none it launches on the steer box and never holds (SPL-4020's
+a-097 case, which SPL-5078's W1 fix had dropped). `spl_lane_rotate_limit` now sees
 this box's agy only. With no row placed as agy or mistral the placer skips this
 judgement, so a tick runs no lane map for it. A row holds only while every
 box is out, and the hold line names each box's reason; otherwise it launches on

@@ -33,6 +33,10 @@ headers' over-long examples.
 **Status: v1.0 SIGNED** by the editor seat and the panel seat (section 9). Landing
 waits for the holder's GO.
 
+**Editor seat closed** (2026-11-10): the holder c-002 ACCEPTED it (msg 2bfe01d6) on
+v1.2 `1f8bc53d7`. The round 30 inputs (section 6) are rows 01-05 of section 2 in
+[refactor-round-30-plan.md](refactor-round-30-plan.md) (`d35cd457a`).
+
 Editor: **c-443** (claude). Panel seat: a-521 (agy), section 5.
 
 **One sha:** every count is measured on **`c9a176a31`** (`origin/master`

@@ -34,7 +34,7 @@ or the operator service account; anyone else is answered 403
 
 | route | answer |
 |---|---|
-| `GET /v1/operator/cost-entries?type=cloud\|hr&month=YYYY-MM` | `{entries}`, period then created_at order; an absent filter matches every row; a bad one is 400 |
+| `GET /v1/operator/cost-entries?type=cloud\|hr&month=YYYY-MM` | `{entries}`, period then created_at order, each with `usd_micros` and `eur_micros` (section 8); an absent filter matches every row; a bad one is 400 |
 | `POST /v1/operator/cost-entries` `{type, label, amount, currency, period: YYYY-MM, note?}` | 201, the entry; a bad one is 400 `bad_cost_entry` |
 | `DELETE /v1/operator/cost-entries/{id}` | 204; an unknown id is 404 |
 
@@ -157,3 +157,48 @@ a wrong entry is deleted and entered again. The amount is the net of VAT
 - Tests: `tests/unit/cost-entries.test.mjs` (the checks and the body per type), `costEntryRound` in
   `tests/e2e/monitoring-costs.test.mjs` (1400 + 390 px: insert per type, the
   other tab does not list it, delete).
+
+## 8. Sort, filter, USD and EUR on every Expenses list (SPL-5198)
+
+Owner HUM-10, t1 965283be msg 382450e2: "listing should have sorting and
+filtering simir to the issues listing , it must also have the pricess in
+dollars and euros". Applies to the three tabs: AI costs (the paid items),
+Cloud infra costs and HR costs.
+
+### 8.1 The hub prices each row
+
+- `GET /v1/operator/cost-entries` adds `usd_micros` and `eur_micros` to each
+  entry (`store.PriceCostEntries`). They use the rates of the entry's month,
+  the same rule as the month read in section 4.
+- `GET /v1/operator/fleet-tokens/paid` adds the same two fields to each item
+  (`store.PricePaidItems`), at the rates of its `period_start`, the day the
+  effective read already converts it at.
+- A field is the amount itself when the row was entered in that currency.
+  Otherwise it is converted with the rates already in `fx_rates` (rdb 0200);
+  there is no second rate source. When no rate exists the field is `null`,
+  never 0.
+
+### 8.2 The Web UI list
+
+- Columns: the label, USD, EUR, the month (or the period), the note, and for
+  the paid items also the vendor, the kind and the quantity. Each column name
+  is a sort control (`components/SheetSortButton.vue`, `aria-sort` on its
+  `th`), the same control as Issues and Monitoring -> Lanes: a click cycles
+  ascending, descending, then back to the list's own order. A row with no
+  rate sorts last either way.
+- A filter row under the column names: text (label or plan, and note), the
+  month, the entered currency, and for the paid items the vendor. **Clear
+  filters** resets them. While a filter is set, the list says
+  "n of total". When no row matches, it says so.
+- A converted amount is marked with ≈ and a title naming the source currency
+  and the month of the rate. A missing rate shows a dash, with a title
+  saying there is no rate for that month.
+- The total row sums the shown rows in USD and EUR; a paid item counts its
+  amount times its quantity. If any shown row has no rate, the total is not
+  shown and the row says why. It never shows a partial sum.
+- Code: `utils/cost-entries.mjs`, `utils/monitoring-paid.mjs` (`moneyCell`,
+  `moneyTotals`, `mockMoney` shared by both lists), `CostEntriesCard.vue`,
+  `PaidItemsCard.vue`.
+- Tests: `TestPriceCostEntries`, `TestCostEntryListPriced`,
+  `TestPricePaidItems`; `tests/unit/cost-entries-sort-filter.test.mjs`,
+  `tests/unit/paid-items-sort-filter.test.mjs`.

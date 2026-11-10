@@ -300,6 +300,14 @@ async function costEntryRound(p, id, size) {
   ok(`SPL-4382 ${id}: the hub's refusal shows as it came`, await waitFor(p, '[data-test=cost-form-refused]'))
   await p.click('[data-test=cost-save]')
   ok(`SPL-4382 ${id}: Save lists the entry`, await waitFor(p, '[data-test=cost-row]') && (await p.$eval('[data-test=cost-row-label]', (e) => e.textContent)) === `E2E ${id}`)
+  /* SPL-5198: the USD entry in EUR too, converted and marked; a filter that matches nothing says so. CONTROL: red before it, there is no cost-row-eur */
+  const eurCell = await p.$eval('[data-test=cost-row-eur]', (e) => [e.textContent.trim(), e.getAttribute('data-converted')]).catch(() => [])
+  ok(`SPL-5198 ${id}: USD as entered, EUR converted and marked`, (await text(p, '[data-test=cost-row-usd]')) === '$64.80' && /^≈ €\d/.test(eurCell[0] || '') && eurCell[1] === 'true', [await text(p, '[data-test=cost-row-usd]'), eurCell])
+  ok(`SPL-5198 ${id}: the total row in both currencies`, (await text(p, '[data-test=cost-total-usd]')) === '$64.80' && /^€\d/.test(await text(p, '[data-test=cost-total-eur]')))
+  await setField(p, '[data-test=cost-filter-text]', 'zzz')
+  ok(`SPL-5198 ${id}: no match is said, with 0 of 1`, await waitFor(p, '[data-test=cost-no-match]') && (await text(p, '[data-test=cost-shown]')) === '0 of 1 costs', await text(p, '[data-test=cost-shown]'))
+  await tap(p, '[data-test=cost-filter-clear]')
+  ok(`SPL-5198 ${id}: Clear filters lists it again`, await waitFor(p, '[data-test=cost-row]'))
   ok(`SPL-4382 ${id}: stored with this tab's type`, await p.evaluate((k, t) => JSON.parse(localStorage.getItem(k)).every((e) => e.type === t), 'spool.mock.cost_entries', id))
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/expenses-${id}-${size.width}.png`, fullPage: true })
   await p.click(`[data-test=expenses-tab-${other}]`)
@@ -488,7 +496,10 @@ async function paidRound(p, base, size) {
   await tap(p, '[data-test=paid-save]')
   ok('paid: the added item shows', await waitFor(p, '[data-test=paid-item-row]') && (await count(p, '[data-test=paid-item-row]')) === 1)
   ok('paid: the form closes on save', (await count(p, '[data-test=paid-form]')) === 0)
-  ok('paid: its plan and price', (await text(p, '[data-test=paid-item-plan]')) === 'E2E fixture' && (await text(p, '[data-test=paid-item-amount]')) === '$300.00', [await text(p, '[data-test=paid-item-plan]'), await text(p, '[data-test=paid-item-amount]')])
+  ok('paid: its plan and price', (await text(p, '[data-test=paid-item-plan]')) === 'E2E fixture' && (await text(p, '[data-test=paid-item-usd]')) === '$300.00', [await text(p, '[data-test=paid-item-plan]'), await text(p, '[data-test=paid-item-usd]')])
+  /* SPL-5198: the same item in EUR, converted and marked; CONTROL: red before it, there is no paid-item-eur */
+  const eurCell = await p.$eval('[data-test=paid-item-eur]', (e) => [e.textContent.trim(), e.getAttribute('data-converted'), e.getAttribute('title')]).catch(() => [])
+  ok('SPL-5198 paid: the USD item in EUR too, marked converted with its rate\'s day', /^≈ €\d/.test(eurCell[0] || '') && eurCell[1] === 'true' && /USD/.test(eurCell[2] || ''), eurCell)
   await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=claude]')?.getAttribute('data-status') === 'effective', { timeout: 10000 }).catch(() => null)
   const eff = await text(p, '[data-test=paid-effective-row][data-vendor=claude] [data-test=paid-eff-value]')
   ok('paid: claude now has an effective price per 1M tokens', (await claudeStatus()) === 'effective' && /^\$\d+\.\d{2,4}$/.test(eff), [await claudeStatus(), eff])
@@ -499,7 +510,7 @@ async function paidRound(p, base, size) {
   await setField(p, '[data-test=paid-f-plan]', 'E2E fixture edited')
   await setField(p, '[data-test=paid-f-amount]', '150')
   await tap(p, '[data-test=paid-save]')
-  ok('paid: the edit shows', await waitText(p, '[data-test=paid-item-plan]', 'E2E fixture edited') && (await text(p, '[data-test=paid-item-amount]')) === '$150.00', await text(p, '[data-test=paid-item-amount]'))
+  ok('paid: the edit shows', await waitText(p, '[data-test=paid-item-plan]', 'E2E fixture edited') && (await text(p, '[data-test=paid-item-usd]')) === '$150.00', await text(p, '[data-test=paid-item-usd]'))
   await p.evaluate((k) => localStorage.setItem(k, 'currency must be USD or one the hub holds an exchange rate for'), PAID_MOCK_REFUSE_KEY)
   await tap(p, '[data-test=paid-edit]')
   await waitFor(p, '[data-test=paid-form]')
@@ -519,6 +530,7 @@ async function paidRound(p, base, size) {
   await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=agy]')?.getAttribute('data-status') === 'not_metered', { timeout: 10000 }).catch(() => null)
   ok('paid: agy paid but unmetered says "Not metered", its daily share $1.00', (await text(p, '[data-test=paid-effective-row][data-vendor=agy] [data-test=paid-eff-value]')) === 'Not metered'
     && (await text(p, '[data-test=paid-effective-row][data-vendor=agy] [data-test=paid-eff-day]')) === '$1.00', await text(p, '[data-test=paid-effective-row][data-vendor=agy]'))
+  await paidSortFilter(p)
   if (size.width < 600) ok('paid: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/expenses-ai-paid-${size.width}.png`, fullPage: true })
   for (let i = 0; i < 2; i++) {
@@ -530,6 +542,26 @@ async function paidRound(p, base, size) {
   }
   ok('paid: deleted, the card is empty again', await waitFor(p, '[data-test=paid-empty]') && (await count(p, '[data-test=paid-item-row]')) === 0)
   ok('paid: claude is back to the list price only', await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=claude]')?.getAttribute('data-status') === 'list_only', { timeout: 10000 }).then(() => true, () => false))
+}
+
+/** SPL-5198: AI costs sorts, filters and totals in USD and EUR (two items: claude $150, agy $30). CONTROL: red before it, there is no paid-sort-usd. */
+async function paidSortFilter(p) {
+  const plans = () => p.$$eval('[data-test=paid-item-plan]', (els) => els.map((e) => e.textContent.trim()))
+  await tap(p, '[data-test=paid-sort-usd]')
+  ok('SPL-5198 paid: USD sorts ascending, aria-sort says so', (await plans()).join('|') === 'E2E fixture agy|E2E fixture edited'
+    && (await p.$eval('[data-test=paid-sort-usd]', (e) => e.closest('th').getAttribute('aria-sort')).catch(() => '')) === 'ascending', await plans())
+  await tap(p, '[data-test=paid-sort-usd]')
+  ok('SPL-5198 paid: a second click sorts descending', (await plans()).join('|') === 'E2E fixture edited|E2E fixture agy', await plans())
+  await tap(p, '[data-test=paid-sort-usd]')
+  ok('SPL-5198 paid: the total is both items in USD', (await text(p, '[data-test=paid-total-usd]')) === '$180.00' && /^€\d/.test(await text(p, '[data-test=paid-total-eur]')), [await text(p, '[data-test=paid-total-usd]'), await text(p, '[data-test=paid-total-eur]')])
+  await setField(p, '[data-test=paid-filter-vendor]', 'agy')
+  ok('SPL-5198 paid: the vendor filter keeps agy, says 1 of 2', await p.waitForFunction(() => document.querySelectorAll('[data-test=paid-item-row]').length === 1, { timeout: 5000 }).then(() => true, () => false)
+    && (await text(p, '[data-test=paid-shown]')) === '1 of 2 costs' && (await text(p, '[data-test=paid-total-usd]')) === '$30.00', await text(p, '[data-test=paid-shown]'))
+  await setField(p, '[data-test=paid-filter-text]', 'zzz')
+  ok('SPL-5198 paid: nothing matches, the list says so', await waitFor(p, '[data-test=paid-no-match]') && (await count(p, '[data-test=paid-total]')) === 0)
+  await tap(p, '[data-test=paid-filter-clear]')
+  ok('SPL-5198 paid: Clear filters shows both again', await p.waitForFunction(() => document.querySelectorAll('[data-test=paid-item-row]').length === 2, { timeout: 5000 }).then(() => true, () => false)
+    && (await count(p, '[data-test=paid-shown]')) === 0)
 }
 
 /** Spec 153 3.1: where the heading, the bar, its first label, the active tab and the close X are drawn. Text edges come from a Range over the text, not the boxes. */

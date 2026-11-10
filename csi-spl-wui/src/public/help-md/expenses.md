@@ -26,6 +26,20 @@ A cost on Cloud infra costs or HR costs is one row of one month: a description
 (on HR costs the role or the contract), the amount net of VAT, its currency, the
 month and an optional note. A row cannot be edited: delete it and enter it again.
 
+## Sort, filter, USD and EUR
+
+Each tab's list shows every row in USD and EUR next to the amount entered.
+A converted amount is marked with ≈, and its tooltip names the currency it
+was entered in and the month whose rate converted it. A dash means there is
+no rate for that month.
+
+Click a column name to sort: ascending, descending, then back to the list's
+own order. A row with no rate sorts last. The filter row under the column
+names narrows the list by text, month, the currency entered and, on **AI
+costs**, the vendor; **Clear filters** resets them. While a filter is set the
+list reads "n of total". The total row sums the rows shown in USD and EUR; if
+one of them has no rate, it says so and shows no total.
+
 ## Old links
 
 `/reporting/costs/paid` (the old Paid items page under Reporting -> Costs)

@@ -53,35 +53,81 @@
 
     <template v-if="state === 'ok'">
       <p v-if="!entries.length" class="muted" data-test="cost-empty">{{ t('expenses.entries.empty') }}</p>
-      <div v-else class="tk-table-wrap">
-        <table class="tk-table" data-test="cost-entries">
-          <thead>
-            <tr>
-              <th scope="col">{{ t('expenses.entries.col_label_' + type) }}</th>
-              <th scope="col" class="num">{{ t('expenses.entries.col_amount') }}</th>
-              <th scope="col">{{ t('expenses.entries.col_period') }}</th>
-              <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
-              <th v-if="!readonly" scope="col"><span class="ce-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="e in entries" :key="e.id" data-test="cost-row" :data-id="e.id">
-              <th scope="row" class="ce-text" data-test="cost-row-label">{{ e.label }}</th>
-              <td class="num" :data-label="t('expenses.entries.col_amount')" data-test="cost-row-amount">{{ fmtMoney(e.amount, e.currency, locale) }}</td>
-              <td :data-label="t('expenses.entries.col_period')" data-test="cost-row-period">{{ e.period }}</td>
-              <td class="ce-text" :data-label="t('monitoring.tokens.paid.col_note')">{{ e.note }}</td>
-              <td v-if="!readonly" class="ce-row-actions">
-                <template v-if="confirming === e.id">
-                  <span>{{ t('expenses.entries.confirm_delete') }}</span>
-                  <button type="button" class="btn danger" :disabled="busy" data-test="cost-delete-yes" @click="remove(e.id)">{{ t('monitoring.tokens.paid.delete') }}</button>
-                  <button type="button" class="btn" :disabled="busy" data-test="cost-delete-no" @click="confirming = ''">{{ t('monitoring.tokens.paid.cancel') }}</button>
+      <template v-else>
+        <div class="ce-tools">
+          <span v-if="filtered" class="muted" role="status" data-test="cost-shown">{{ t('expenses.entries.shown', { n: rows.length, total: entries.length }) }}</span>
+          <button type="button" class="btn ghost" :disabled="!filtered" data-test="cost-filter-clear" @click="clearFilters()">{{ t('issues.filter_clear') }}</button>
+        </div>
+        <div class="tk-table-wrap">
+          <table class="tk-table" data-test="cost-entries">
+            <thead>
+              <tr>
+                <th v-for="c in columns" :key="c.col" scope="col" :class="c.cls" :aria-sort="ariaSort(c.col)">
+                  <SheetSortButton :col="c.col" :name="c.name" :sort="sort" :test="'cost-sort-' + c.col" @sort="toggleSort" />
+                </th>
+                <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
+                <th v-if="!readonly" scope="col"><span class="ce-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
+              </tr>
+              <tr class="ce-frow" data-test="cost-filters">
+                <th>
+                  <input v-model="filters.text" type="search" data-test="cost-filter-text" :placeholder="t('expenses.entries.filter_text')" :aria-label="t('expenses.entries.filter_text')">
+                </th>
+                <th colspan="2">
+                  <select v-model="filters.currency" data-test="cost-filter-currency" :aria-label="t('expenses.entries.filter_currency')">
+                    <option value="">{{ t('expenses.entries.filter_currency') }}: {{ t('issues.filter_all') }}</option>
+                    <option v-for="c in choices.currency" :key="c" :value="c">{{ c }}</option>
+                  </select>
+                </th>
+                <th>
+                  <select v-model="filters.period" data-test="cost-filter-period" :aria-label="t('expenses.entries.col_period')">
+                    <option value="">{{ t('expenses.entries.col_period') }}: {{ t('issues.filter_all') }}</option>
+                    <option v-for="m in choices.period" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                </th>
+                <th :colspan="readonly ? 1 : 2" />
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!rows.length">
+                <td :colspan="readonly ? 5 : 6" class="muted" data-test="cost-no-match">{{ t('expenses.entries.no_match') }}</td>
+              </tr>
+              <tr v-for="e in rows" :key="e.id" data-test="cost-row" :data-id="e.id">
+                <th scope="row" class="ce-text" data-test="cost-row-label">{{ e.label }}</th>
+                <td
+                  v-for="cur in CURS"
+                  :key="cur"
+                  class="num"
+                  :data-label="t('expenses.entries.col_amount_in', { currency: cur })"
+                  :data-test="'cost-row-' + cur.toLowerCase()"
+                  :data-converted="cell(e, cur).converted || undefined"
+                  :title="cellTitle(e, cur)"
+                >{{ cellText(e, cur) }}</td>
+                <td :data-label="t('expenses.entries.col_period')" data-test="cost-row-period">{{ e.period }}</td>
+                <td class="ce-text" :data-label="t('monitoring.tokens.paid.col_note')">{{ e.note }}</td>
+                <td v-if="!readonly" class="ce-row-actions">
+                  <template v-if="confirming === e.id">
+                    <span>{{ t('expenses.entries.confirm_delete') }}</span>
+                    <button type="button" class="btn danger" :disabled="busy" data-test="cost-delete-yes" @click="remove(e.id)">{{ t('monitoring.tokens.paid.delete') }}</button>
+                    <button type="button" class="btn" :disabled="busy" data-test="cost-delete-no" @click="confirming = ''">{{ t('monitoring.tokens.paid.cancel') }}</button>
+                  </template>
+                  <button v-else type="button" class="btn" :disabled="busy" data-test="cost-delete" @click="confirming = e.id">{{ t('monitoring.tokens.paid.delete') }}</button>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot v-if="rows.length">
+              <tr data-test="cost-total">
+                <th scope="row">{{ t('expenses.entries.total') }}</th>
+                <template v-if="totals.usd !== null && totals.eur !== null">
+                  <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'USD' })" data-test="cost-total-usd">{{ fmtMoney(totals.usd, 'USD', locale) }}</td>
+                  <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'EUR' })" data-test="cost-total-eur">{{ fmtMoney(totals.eur, 'EUR', locale) }}</td>
                 </template>
-                <button v-else type="button" class="btn" :disabled="busy" data-test="cost-delete" @click="confirming = e.id">{{ t('monitoring.tokens.paid.delete') }}</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                <td v-else colspan="2" class="muted" data-test="cost-total-none">{{ t('expenses.entries.total_no_rate') }}</td>
+                <td :colspan="readonly ? 2 : 3" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </template>
     </template>
   </section>
 </template>
@@ -90,7 +136,11 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { fmtMoney } from '~/utils/monitoring-tokens.mjs'
 import { paidCurrencies } from '~/utils/monitoring-paid.mjs'
-import { checkCostEntryForm, costEntriesOf, costEntryBody, emptyCostEntryForm } from '~/utils/cost-entries.mjs'
+import { cycleSort } from '~/utils/sheet-sort.mjs'
+import {
+  checkCostEntryForm, COST_ENTRY_COLUMNS, COST_ENTRY_NO_FILTER, costEntriesFiltered, costEntriesOf, costEntryBody, costEntryCell,
+  costEntryFilterChoices, costEntryTotals, emptyCostEntryForm, filterCostEntries, sortCostEntries,
+} from '~/utils/cost-entries.mjs'
 
 /* readonly (SPL-5181): the operator's product owner reads the list, no add or delete */
 const props = defineProps<{ type: 'cloud' | 'hr', readonly?: boolean }>()
@@ -112,6 +162,37 @@ const refused = ref('')
 const actionError = ref('')
 const confirming = ref('')
 const busy = ref(false)
+
+/* SPL-5198 (owner HUM-10, t1 965283be msg 382450e2): sort and filter as
+   the Issues and Lanes sheets (SheetSortButton, cycleSort), each amount in
+   USD and EUR (the hub's usd_micros / eur_micros), a converted one marked ≈
+   with its rate's month, none as a dash; the total of the shown rows */
+const CURS = ['USD', 'EUR'] as const
+type Row = ReturnType<typeof costEntriesOf>[number]
+const columns = computed(() => COST_ENTRY_COLUMNS.map((col: string) => ({
+  col,
+  name: col === 'label' ? t('expenses.entries.col_label_' + props.type) : col === 'period' ? t('expenses.entries.col_period') : t('expenses.entries.col_amount_in', { currency: col.toUpperCase() }),
+  cls: col === 'usd' || col === 'eur' ? 'num' : undefined,
+})))
+const sort = ref<{ col: string, dir: string }>({ col: '', dir: '' })
+const toggleSort = (col: string) => { sort.value = cycleSort(col, sort.value, COST_ENTRY_COLUMNS) }
+const ariaSort = (col: string) => (sort.value.col === col ? (sort.value.dir === 'asc' ? 'ascending' : 'descending') : 'none')
+const filters = reactive({ ...COST_ENTRY_NO_FILTER })
+const filtered = computed(() => costEntriesFiltered(filters))
+const clearFilters = () => { Object.assign(filters, COST_ENTRY_NO_FILTER) }
+const choices = computed(() => costEntryFilterChoices(entries.value))
+const rows = computed(() => sortCostEntries(filterCostEntries(entries.value, filters), sort.value))
+const totals = computed(() => costEntryTotals(rows.value))
+const cell = (e: Row, cur: 'USD' | 'EUR') => costEntryCell(e, cur)
+function cellText(e: Row, cur: 'USD' | 'EUR') {
+  const c = cell(e, cur)
+  return c.amount === null ? '—' : (c.converted ? '≈ ' : '') + fmtMoney(c.amount, cur, locale.value)
+}
+function cellTitle(e: Row, cur: 'USD' | 'EUR') {
+  const c = cell(e, cur)
+  if (c.none) return t('expenses.entries.no_rate', { month: e.period })
+  return c.converted ? t('expenses.entries.converted', { currency: e.currency, month: e.period }) : undefined
+}
 
 /* the hub's own words when it refuses: its detail, else its token */
 const hubWhy = (e: unknown) => {
@@ -190,4 +271,13 @@ onMounted(async () => {
 .ce-grid input, .ce-grid select, .ce-grid textarea { min-width: 0; width: 100%; box-sizing: border-box; }
 .ce-wide { grid-column: 1 / -1; }
 .ce-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ce-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.ce-frow th { font-weight: normal; padding-top: 2px; }
+/* SPL-5198: a phone keeps the sort names and the filter row (token-burn.css hides a .tk-table head under 601 px) as the rows' 2-column grid */
+@media (max-width: 600px) {
+  .ce-card .tk-table thead { display: block; }
+  .ce-card .tk-table thead th:empty { display: none; }
+}
+.ce-frow select, .ce-frow input { width: 100%; min-width: 5rem; max-width: 16rem; font: inherit; box-sizing: border-box; }
+tfoot th, tfoot td { font-weight: 600; border-bottom: 0; }
 </style>

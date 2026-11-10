@@ -78,12 +78,17 @@ func (s *Server) handleFleetPaidList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	items, err := fp.ListPaidItems(r.Context())
+	var priced []store.PricedPaidItem
+	if err == nil {
+		// SPL-5198: each item in USD and EUR at its period_start's rates
+		priced, err = store.PricePaidItems(r.Context(), items, fp.FleetPaidFXRate)
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Msg("fleet paid list")
 		writeErr(w, http.StatusInternalServerError, "internal", "paid items unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, map[string]any{"items": priced})
 }
 
 // decodeFleetPaid reads the body onto e (its absent fields keep e's values)

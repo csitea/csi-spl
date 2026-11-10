@@ -26,44 +26,95 @@
 
     <template v-if="state === 'ok'">
       <p v-if="!items.length" class="muted" data-test="paid-empty">{{ t('monitoring.tokens.paid.empty') }}</p>
-      <div v-else class="tk-table-wrap">
-        <table class="tk-table" data-test="paid-items">
-          <thead>
-            <tr>
-              <th scope="col">{{ t('monitoring.tokens.paid.col_plan') }}</th>
-              <th scope="col">{{ t('monitoring.tokens.col_vendor') }}</th>
-              <th scope="col">{{ t('monitoring.tokens.paid.col_kind') }}</th>
-              <th scope="col" class="num">{{ t('monitoring.tokens.paid.col_amount') }}</th>
-              <th scope="col" class="num">{{ t('monitoring.tokens.paid.col_quantity') }}</th>
-              <th scope="col">{{ t('monitoring.tokens.paid.col_period') }}</th>
-              <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
-              <th v-if="!readonly" scope="col"><span class="pd-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="it in items" :key="it.id" data-test="paid-item-row" :data-id="it.id" :data-vendor="it.vendor">
-              <th scope="row" data-test="paid-item-plan">{{ it.planLabel }}</th>
-              <td :data-label="t('monitoring.tokens.col_vendor')">{{ kindLabel(it.vendor) }}</td>
-              <td :data-label="t('monitoring.tokens.paid.col_kind')">{{ t('monitoring.tokens.paid.kind_' + it.kind) }}</td>
-              <td class="num" :data-label="t('monitoring.tokens.paid.col_amount')" data-test="paid-item-amount">{{ fmtMoney(it.amount, it.currency, locale) }}</td>
-              <td class="num" :data-label="t('monitoring.tokens.paid.col_quantity')">{{ it.quantity }}</td>
-              <td :data-label="t('monitoring.tokens.paid.col_period')" data-test="paid-item-period">{{ t('monitoring.tokens.paid.period', { start: it.periodStart, end: it.periodEnd }) }}</td>
-              <td class="pd-note" :data-label="t('monitoring.tokens.paid.col_note')">{{ it.note }}</td>
-              <td v-if="!readonly" class="pd-row-actions">
-                <template v-if="confirming === it.id">
-                  <span>{{ t('monitoring.tokens.paid.confirm_delete') }}</span>
-                  <button type="button" class="btn danger" :disabled="busy" data-test="paid-delete-yes" @click="remove(it.id)">{{ t('monitoring.tokens.paid.delete') }}</button>
-                  <button type="button" class="btn" :disabled="busy" data-test="paid-delete-no" @click="confirming = ''">{{ t('monitoring.tokens.paid.cancel') }}</button>
+      <template v-else>
+        <div class="pd-tools">
+          <span v-if="filtered" class="muted" role="status" data-test="paid-shown">{{ t('expenses.entries.shown', { n: rows.length, total: items.length }) }}</span>
+          <button type="button" class="btn ghost" :disabled="!filtered" data-test="paid-filter-clear" @click="clearFilters()">{{ t('issues.filter_clear') }}</button>
+        </div>
+        <div class="tk-table-wrap">
+          <table class="tk-table" data-test="paid-items">
+            <thead>
+              <tr>
+                <th v-for="c in columns" :key="c.col" scope="col" :class="c.cls" :aria-sort="ariaSort(c.col)">
+                  <SheetSortButton :col="c.col" :name="c.name" :sort="sort" :test="'paid-sort-' + c.col" @sort="toggleSort" />
+                </th>
+                <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
+                <th v-if="!readonly" scope="col"><span class="pd-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
+              </tr>
+              <tr class="pd-frow" data-test="paid-filters">
+                <th>
+                  <input v-model="filters.text" type="search" data-test="paid-filter-text" :placeholder="t('expenses.entries.filter_text')" :aria-label="t('expenses.entries.filter_text')">
+                </th>
+                <th>
+                  <select v-model="filters.vendor" data-test="paid-filter-vendor" :aria-label="t('monitoring.tokens.col_vendor')">
+                    <option value="">{{ t('monitoring.tokens.col_vendor') }}: {{ t('issues.filter_all') }}</option>
+                    <option v-for="v in choices.vendor" :key="v" :value="v">{{ kindLabel(v) }}</option>
+                  </select>
+                </th>
+                <th />
+                <th colspan="2">
+                  <select v-model="filters.currency" data-test="paid-filter-currency" :aria-label="t('expenses.entries.filter_currency')">
+                    <option value="">{{ t('expenses.entries.filter_currency') }}: {{ t('issues.filter_all') }}</option>
+                    <option v-for="c in choices.currency" :key="c" :value="c">{{ c }}</option>
+                  </select>
+                </th>
+                <th />
+                <th>
+                  <select v-model="filters.period" data-test="paid-filter-period" :aria-label="t('monitoring.tokens.paid.col_period')">
+                    <option value="">{{ t('monitoring.tokens.paid.col_period') }}: {{ t('issues.filter_all') }}</option>
+                    <option v-for="m in choices.period" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                </th>
+                <th :colspan="readonly ? 1 : 2" />
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!rows.length">
+                <td :colspan="readonly ? 8 : 9" class="muted" data-test="paid-no-match">{{ t('expenses.entries.no_match') }}</td>
+              </tr>
+              <tr v-for="it in rows" :key="it.id" data-test="paid-item-row" :data-id="it.id" :data-vendor="it.vendor">
+                <th scope="row" data-test="paid-item-plan">{{ it.planLabel }}</th>
+                <td :data-label="t('monitoring.tokens.col_vendor')">{{ kindLabel(it.vendor) }}</td>
+                <td :data-label="t('monitoring.tokens.paid.col_kind')">{{ t('monitoring.tokens.paid.kind_' + it.kind) }}</td>
+                <td
+                  v-for="cur in CURS"
+                  :key="cur"
+                  class="num"
+                  :data-label="t('expenses.entries.col_amount_in', { currency: cur })"
+                  :data-test="'paid-item-' + cur.toLowerCase()"
+                  :data-converted="moneyCell(it, cur).converted || undefined"
+                  :title="cellTitle(it, cur)"
+                >{{ cellText(it, cur) }}</td>
+                <td class="num" :data-label="t('monitoring.tokens.paid.col_quantity')">{{ it.quantity }}</td>
+                <td :data-label="t('monitoring.tokens.paid.col_period')" data-test="paid-item-period">{{ t('monitoring.tokens.paid.period', { start: it.periodStart, end: it.periodEnd }) }}</td>
+                <td class="pd-note" :data-label="t('monitoring.tokens.paid.col_note')">{{ it.note }}</td>
+                <td v-if="!readonly" class="pd-row-actions">
+                  <template v-if="confirming === it.id">
+                    <span>{{ t('monitoring.tokens.paid.confirm_delete') }}</span>
+                    <button type="button" class="btn danger" :disabled="busy" data-test="paid-delete-yes" @click="remove(it.id)">{{ t('monitoring.tokens.paid.delete') }}</button>
+                    <button type="button" class="btn" :disabled="busy" data-test="paid-delete-no" @click="confirming = ''">{{ t('monitoring.tokens.paid.cancel') }}</button>
+                  </template>
+                  <template v-else>
+                    <button type="button" class="btn" :disabled="busy" data-test="paid-edit" @click="openForm(it)">{{ t('monitoring.tokens.paid.edit') }}</button>
+                    <button type="button" class="btn" :disabled="busy" data-test="paid-delete" @click="confirming = it.id">{{ t('monitoring.tokens.paid.delete') }}</button>
+                  </template>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot v-if="rows.length">
+              <tr data-test="paid-total">
+                <th scope="row" colspan="3">{{ t('expenses.entries.total') }}</th>
+                <template v-if="totals.usd !== null && totals.eur !== null">
+                  <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'USD' })" data-test="paid-total-usd">{{ fmtMoney(totals.usd, 'USD', locale) }}</td>
+                  <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'EUR' })" data-test="paid-total-eur">{{ fmtMoney(totals.eur, 'EUR', locale) }}</td>
                 </template>
-                <template v-else>
-                  <button type="button" class="btn" :disabled="busy" data-test="paid-edit" @click="openForm(it)">{{ t('monitoring.tokens.paid.edit') }}</button>
-                  <button type="button" class="btn" :disabled="busy" data-test="paid-delete" @click="confirming = it.id">{{ t('monitoring.tokens.paid.delete') }}</button>
-                </template>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                <td v-else colspan="2" class="muted" data-test="paid-total-none">{{ t('expenses.entries.total_no_rate') }}</td>
+                <td :colspan="readonly ? 3 : 4" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </template>
       <EffectivePriceTable v-if="effective" :view="effective" />
       <p v-else-if="effectiveFailed" class="pd-error" data-test="paid-effective-error">{{ t('monitoring.tokens.paid.effective_error') }}</p>
     </template>
@@ -75,7 +126,11 @@
 defineProps<{ readonly?: boolean }>()
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { fmtMoney } from '~/utils/monitoring-tokens.mjs'
-import { emptyPaidForm, paidBody, paidCurrencies, paidEffectiveOf, paidFormOf, paidItemsOf, sortPaidItems } from '~/utils/monitoring-paid.mjs'
+import { cycleSort } from '~/utils/sheet-sort.mjs'
+import {
+  emptyPaidForm, filterPaidItems, moneyCell, PAID_COLUMNS, PAID_NO_FILTER, paidBody, paidCurrencies, paidEffectiveOf, paidFilterChoices,
+  paidFormOf, paidItemsFiltered, paidItemsOf, paidTotals, sortPaidItems, sortPaidRows,
+} from '~/utils/monitoring-paid.mjs'
 import PaidItemForm from './PaidItemForm.vue'
 import EffectivePriceTable from './EffectivePriceTable.vue'
 
@@ -105,6 +160,43 @@ const kindLabel = (v: string) => {
   const k = 'agents.kinds.' + (v === 'agy' ? 'antigravity' : v)
   return te(k) ? t(k) : v
 }
+/* SPL-5198 (owner HUM-10, t1 965283be msg 382450e2): sort and filter as
+   the Issues and Lanes sheets (SheetSortButton, cycleSort), each amount in
+   USD and EUR at the rates of its period_start (the hub's usd_micros /
+   eur_micros), a converted one marked ≈, none as a dash; the total counts
+   amount times quantity */
+const CURS = ['USD', 'EUR'] as const
+const COLUMN_KEYS: Record<string, string> = {
+  plan: 'monitoring.tokens.paid.col_plan',
+  vendor: 'monitoring.tokens.col_vendor',
+  kind: 'monitoring.tokens.paid.col_kind',
+  quantity: 'monitoring.tokens.paid.col_quantity',
+  period: 'monitoring.tokens.paid.col_period',
+}
+const columns = computed(() => PAID_COLUMNS.map((col: string) => ({
+  col,
+  name: COLUMN_KEYS[col] ? t(COLUMN_KEYS[col]!) : t('expenses.entries.col_amount_in', { currency: col.toUpperCase() }),
+  cls: col === 'usd' || col === 'eur' || col === 'quantity' ? 'num' : undefined,
+})))
+const sort = ref<{ col: string, dir: string }>({ col: '', dir: '' })
+const toggleSort = (col: string) => { sort.value = cycleSort(col, sort.value, PAID_COLUMNS) }
+const ariaSort = (col: string) => (sort.value.col === col ? (sort.value.dir === 'asc' ? 'ascending' : 'descending') : 'none')
+const filters = reactive({ ...PAID_NO_FILTER })
+const filtered = computed(() => paidItemsFiltered(filters))
+const clearFilters = () => { Object.assign(filters, PAID_NO_FILTER) }
+const choices = computed(() => paidFilterChoices(items.value))
+const rows = computed(() => sortPaidRows(filterPaidItems(items.value, filters), sort.value))
+const totals = computed(() => paidTotals(rows.value))
+function cellText(it: PaidItem, cur: 'USD' | 'EUR') {
+  const c = moneyCell(it, cur)
+  return c.amount === null ? '—' : (c.converted ? '≈ ' : '') + fmtMoney(c.amount, cur, locale.value)
+}
+function cellTitle(it: PaidItem, cur: 'USD' | 'EUR') {
+  const c = moneyCell(it, cur)
+  if (c.none) return t('expenses.entries.no_rate', { month: it.periodStart })
+  return c.converted ? t('expenses.entries.converted', { currency: it.currency, month: it.periodStart }) : undefined
+}
+
 /* the hub's own words when it refuses: its detail, else its token */
 const hubWhy = (e: unknown) => {
   const err = e as { detail?: string, token?: string, message?: string }
@@ -190,5 +282,14 @@ onMounted(async () => {
 .pd-error { margin: 0; color: var(--color-danger); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; overflow-wrap: anywhere; }
 .pd-note { overflow-wrap: anywhere; max-width: 20rem; }
 .pd-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; white-space: nowrap; }
+.pd-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.pd-frow th { font-weight: normal; padding-top: 2px; }
+/* SPL-5198: a phone keeps the sort names and the filter row (token-burn.css hides a .tk-table head under 601 px) as the rows' 2-column grid */
+@media (max-width: 600px) {
+  .pd-card .tk-table thead { display: block; }
+  .pd-card .tk-table thead th:empty { display: none; }
+}
+.pd-frow select, .pd-frow input { width: 100%; min-width: 5rem; max-width: 16rem; font: inherit; box-sizing: border-box; }
+tfoot th, tfoot td { font-weight: 600; border-bottom: 0; }
 .pd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>

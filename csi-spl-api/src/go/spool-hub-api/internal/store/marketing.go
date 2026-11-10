@@ -136,12 +136,13 @@ type MarketingOutcome struct {
 	Error          string
 }
 
-// Marketing statuses, platforms and source types (rdb 0187 and 0236 CHECKs).
+// Marketing statuses, platforms and source types (rdb 0187, 0236 and 0272 CHECKs).
 const (
 	MarketingAwaitingApproval = "awaiting_approval"
 	MarketingPlatformLinkedIn = "linkedin"
 	MarketingPlatformFacebook = "facebook_page"
 	MarketingPlatformIG       = "instagram_business"
+	MarketingPlatformX        = "x" // rdb 0272, SPL-5194
 	MarketingManualPostID     = "manual"
 	MarketingActive           = "active"
 	MarketingExpired          = "expired"
@@ -545,10 +546,11 @@ func (s *Postgres) FinishMarketingPost(ctx context.Context, tenant, postID strin
 	})
 }
 
-// mktPlatforms are the platforms a channel may have (rdb 0187, 0236), with
+// mktPlatforms are the platforms a channel may have (rdb 0187, 0236, 0272), with
 // the name a failure text gives each.
 var mktPlatforms = []struct{ ID, Name string }{
 	{MarketingPlatformLinkedIn, "LinkedIn"}, {MarketingPlatformFacebook, "Facebook"}, {MarketingPlatformIG, "Instagram"},
+	{MarketingPlatformX, "X"},
 }
 
 // mktStuckWhy is the failure text of a post stuck in dispatching on a

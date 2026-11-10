@@ -39,12 +39,12 @@ describe('paid items: USD and EUR', () => {
     assert.equal(paidItemsOf({ items: [{ id: 'x', usd_micros: '1' }] })[0].usdMicros, null)
   })
   it('an EUR item: EUR as entered, USD converted; a USD item the other way', () => {
-    assert.deepEqual(moneyCell(rows[1], 'EUR'), { amount: 46, converted: false, none: false })
-    assert.deepEqual(moneyCell(rows[1], 'USD'), { amount: 50, converted: true, none: false })
-    assert.deepEqual(moneyCell(rows[2], 'EUR'), { amount: 92, converted: true, none: false })
+    assert.deepEqual(moneyCell(rows[1], 'EUR'), { amount: 46, converted: false, none: false, day: '', missing: '' })
+    assert.deepEqual(moneyCell(rows[1], 'USD'), { amount: 50, converted: true, none: false, day: '', missing: '' })
+    assert.deepEqual(moneyCell(rows[2], 'EUR'), { amount: 92, converted: true, none: false, day: '', missing: '' })
   })
   it('a currency without a rate: no amount, said so', () => {
-    assert.deepEqual(moneyCell(rows[0], 'EUR'), { amount: null, converted: true, none: true })
+    assert.deepEqual(moneyCell(rows[0], 'EUR'), { amount: null, converted: true, none: true, day: '', missing: 'XTS' })
   })
   it('totals count each item times its quantity; none when an item has no rate', () => {
     assert.deepEqual(paidTotals(rows.slice(1)), { usd: 250, eur: 230 })
@@ -98,5 +98,7 @@ describe('paid items: the mock prices as the hub', () => {
     assert.deepEqual([a.usd_micros, a.eur_micros], [10000000, Math.round(10000000 * PAID_MOCK_FX.EUR)])
     assert.deepEqual([b.usd_micros, b.eur_micros], [Math.round(46000000 / PAID_MOCK_FX.EUR), 46000000])
     assert.deepEqual([c.usd_micros, c.eur_micros], [null, null])
+    /* a converted amount names its rate's day; the mock's rates hold on every day */
+    assert.deepEqual([a.usd_rate_day, a.eur_rate_day, b.usd_rate_day, b.eur_rate_day, c.usd_rate_day], [null, '2026-09-01', '2026-09-01', null, null])
   })
 })

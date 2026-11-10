@@ -177,12 +177,20 @@ Cloud infra costs and HR costs.
   Otherwise it is converted with the rates already in `fx_rates` (rdb 0200);
   there is no second rate source. When no rate exists the field is `null`,
   never 0.
+- `usd_rate_day` and `eur_rate_day` name the day of the rate that made each
+  converted field (`null` when the row is in that currency or no rate made
+  it). The rate lookup falls back to the last rate before the day, else the
+  first after it, with no bound, so this day can be far from the row's own.
+  When two rates made the EUR field (neither USD nor EUR entered), it names
+  the one farther from the row's day. Both lists share one rule
+  (`store.priceUSDEUR`).
 
 ### 8.2 The Web UI list
 
-- Columns: the label, USD, EUR, the month (or the period), the note, and for
-  the paid items also the vendor, the kind and the quantity. Each column name
-  is a sort control (`components/SheetSortButton.vue`, `aria-sort` on its
+- Columns: the label, the amount as entered (in its own currency), USD, EUR,
+  the month (or the period), the note, and for the paid items also the
+  vendor, the kind and the quantity. Each column name except the amount as
+  entered (no sort across currencies) is a sort control (`components/SheetSortButton.vue`, `aria-sort` on its
   `th`), the same control as Issues and Monitoring -> Lanes: a click cycles
   ascending, descending, then back to the list's own order. A row with no
   rate sorts last either way.
@@ -191,8 +199,9 @@ Cloud infra costs and HR costs.
   filters** resets them. While a filter is set, the list says
   "n of total". When no row matches, it says so.
 - A converted amount is marked with ≈ and a title naming the source currency
-  and the month of the rate. A missing rate shows a dash, with a title
-  saying there is no rate for that month.
+  and the day of the rate used (`usd_rate_day` / `eur_rate_day`). A missing
+  rate shows a dash, with a title naming the currency that has no stored
+  rate; the amount as entered stays in its own column.
 - The total row sums the shown rows in USD and EUR; a paid item counts its
   amount times its quantity. If any shown row has no rate, the total is not
   shown and the row says why. It never shows a partial sum.

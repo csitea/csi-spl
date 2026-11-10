@@ -4074,8 +4074,8 @@
       "filter_text": "Maliyetlerde ara",
       "filter_currency": "Girilen para birimi",
       "total": "Toplam",
-      "converted": "{currency} biriminden {month} kuruyla çevrildi",
-      "no_rate": "{month} için döviz kuru yok",
+      "converted": "{currency} biriminden {day} tarihli kurla çevrildi",
+      "no_rate": "{currency} için kayıtlı döviz kuru yok",
       "total_no_rate": "Toplam yok: bir ayın döviz kuru yok"
     },
     "operators_only": "Giderler yalnızca operatör yöneticileri ve ürün sahipleri içindir.",

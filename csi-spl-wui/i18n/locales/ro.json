@@ -4074,8 +4074,8 @@
       "filter_text": "Caută costuri",
       "filter_currency": "Introdus în",
       "total": "Totalul",
-      "converted": "Convertit din {currency} la cursul din {month}",
-      "no_rate": "Nu există curs de schimb pentru {month}",
+      "converted": "Convertit din {currency} la cursul din {day}",
+      "no_rate": "Nu există curs de schimb salvat pentru {currency}",
       "total_no_rate": "Fără total: o lună nu are curs de schimb"
     },
     "operators_only": "Cheltuielile sunt doar pentru administratorii și proprietarii de produs ai operatorului.",

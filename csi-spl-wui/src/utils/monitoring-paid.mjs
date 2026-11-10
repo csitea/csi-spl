@@ -63,6 +63,9 @@ function itemOf(it) {
        store.PricePaidItems), micros; null = no rate made it, never 0 */
     usdMicros: micro(it.usd_micros),
     eurMicros: micro(it.eur_micros),
+    /* the day of the rate that made each ('' = none or not converted) */
+    usdRateDay: str(it.usd_rate_day),
+    eurRateDay: str(it.eur_rate_day),
   }
 }
 
@@ -209,14 +212,18 @@ export function paidFilterChoices(rows) {
 
 /**
  * One amount cell, USD or EUR, of a row with usdMicros / eurMicros: the
- * amount (null = no rate) and whether a rate made it (entered in another
- * currency).
- * @param {{ currency: string, usdMicros: number|null, eurMicros: number|null }} row
+ * amount (null = no rate), whether a rate made it (entered in another
+ * currency), the day of that rate ('' = none), which the hub may have
+ * taken from another day than the row's (store.priceUSDEUR), and with no
+ * amount the currency whose rate is missing: the row's own, else EUR.
+ * @param {{ currency: string, usdMicros: number|null, eurMicros: number|null, usdRateDay?: string, eurRateDay?: string }} row
  * @param {'USD' | 'EUR'} cur
  */
 export function moneyCell(row, cur) {
   const micros = cur === 'USD' ? row.usdMicros : row.eurMicros
-  return { amount: micros === null ? null : micros / 1e6, converted: row.currency !== cur, none: micros === null }
+  const day = (cur === 'USD' ? row.usdRateDay : row.eurRateDay) || ''
+  const missing = micros !== null ? '' : cur === 'USD' || row.usdMicros === null ? row.currency : 'EUR'
+  return { amount: micros === null ? null : micros / 1e6, converted: row.currency !== cur, none: micros === null, day, missing }
 }
 
 /** The rows' sums in USD and EUR, units, each row `times(row)` times; null when a row has no rate (never a partial sum). */
@@ -235,14 +242,20 @@ export function paidTotals(rows) {
 /**
  * The mock's USD and EUR micros of an amount in `currency` at its one rate
  * (units per USD, PAID_MOCK_FX); a currency it holds no rate of is null, as
- * the hub (store.PriceCostEntries, store.PricePaidItems).
+ * the hub (store.PriceCostEntries, store.PricePaidItems). Its rates hold on
+ * every day, so a converted amount names `day` as its rate's day.
  */
-export function mockMoney(amount, currency, rates = PAID_MOCK_FX) {
+export function mockMoney(amount, currency, rates = PAID_MOCK_FX, day = '') {
   const rate = currency === 'USD' ? 1 : rates[currency]
   const own = Math.round(Number(amount) * 1e6)
   const usd = rate ? Math.round(own / rate) : null
   const eur = currency === 'EUR' ? own : usd === null || !rates.EUR ? null : Math.round(usd * rates.EUR)
-  return { usd_micros: usd, eur_micros: eur }
+  return {
+    usd_micros: usd,
+    eur_micros: eur,
+    usd_rate_day: usd !== null && currency !== 'USD' ? day : null,
+    eur_rate_day: eur !== null && currency !== 'EUR' ? day : null,
+  }
 }
 
 /** The hub's refusal texts per check (store.CheckFleetPaidItem, hub knownCurrency). */
@@ -303,7 +316,7 @@ function mockCheck(b, store) {
 /** The mock's GET .../paid. */
 export function mockPaidList(store = mockStore()) {
   mockGate(store)
-  return { items: mockRead(store).map((it) => ({ ...it, ...mockMoney(it.amount, it.currency) })) }
+  return { items: mockRead(store).map((it) => ({ ...it, ...mockMoney(it.amount, it.currency, undefined, it.period_start) })) }
 }
 
 /** The mock's POST .../paid: the item (201). */

@@ -4074,8 +4074,8 @@
       "filter_text": "Buscar costes",
       "filter_currency": "Introducido en",
       "total": "Suma total",
-      "converted": "Convertido desde {currency} al tipo de {month}",
-      "no_rate": "No hay tipo de cambio para {month}",
+      "converted": "Convertido desde {currency} al tipo del {day}",
+      "no_rate": "No hay tipo de cambio guardado para {currency}",
       "total_no_rate": "Sin total: un mes no tiene tipo de cambio"
     },
     "operators_only": "Los gastos son solo para administradores y propietarios de producto del operador.",

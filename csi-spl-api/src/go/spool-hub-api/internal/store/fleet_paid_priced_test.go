@@ -54,6 +54,48 @@ func TestPricePaidItems(t *testing.T) {
 	}
 }
 
+// SPL-5198 R7 W2: each amount names the day of the rate that made it, not
+// the day asked: R1 SEK on 2026-10-15 with the SEK rate from 2026-06-30 and
+// the EUR rate from 2026-10-14 names 2026-06-30 for USD and the farther of
+// the two, 2026-06-30, for EUR; R2 USD names no USD day and the EUR rate's
+// for EUR; R3 EUR names the EUR rate's day for USD and none for EUR; R4 no rate
+// names neither. The cost entries share the rule (priceUSDEUR): R5.
+// RED CONTROL: EURDay = eur.day for every currency -> R1 fails.
+func TestPricedRateDays(t *testing.T) {
+	ctx := context.Background()
+	at := map[string]string{"SEK": "2026-06-30", "EUR": "2026-10-14"}
+	rate := func(_ context.Context, quote, _ string) (float64, string, bool, error) {
+		r, ok := map[string]float64{"EUR": 0.9, "SEK": 10.5}[quote]
+		return r, at[quote], ok, nil
+	}
+	items := []FleetPaidItem{
+		{ID: "r1", Amount: 105, Currency: "SEK", PeriodStart: "2026-10-15"},
+		{ID: "r2", Amount: 10, Currency: "USD", PeriodStart: "2026-10-15"},
+		{ID: "r3", Amount: 9, Currency: "EUR", PeriodStart: "2026-10-15"},
+		{ID: "r4", Amount: 7, Currency: "XTS", PeriodStart: "2026-10-15"},
+	}
+	ps, err := PricePaidItems(ctx, items, rate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	day := func(p *string) string {
+		if p == nil {
+			return "-"
+		}
+		return *p
+	}
+	want := [][2]string{{"2026-06-30", "2026-06-30"}, {"-", "2026-10-14"}, {"2026-10-14", "-"}, {"-", "-"}}
+	for i, w := range want {
+		if g := [2]string{day(ps[i].USDRateDay), day(ps[i].EURRateDay)}; g != w {
+			t.Errorf("R%d %s: rate days %v, want %v", i+1, items[i].Currency, g, w)
+		}
+	}
+	ce, err := PriceCostEntries(ctx, []CostEntry{{ID: "e", Amount: 105, Currency: "SEK", Period: "2026-10"}}, rate)
+	if err != nil || day(ce[0].USDRateDay) != "2026-06-30" || day(ce[0].EURRateDay) != "2026-06-30" {
+		t.Errorf("R5: %s %s %v", day(ce[0].USDRateDay), day(ce[0].EURRateDay), err)
+	}
+}
+
 func sameI64(a, b *int64) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
 
 func showMicros(p *int64) any {

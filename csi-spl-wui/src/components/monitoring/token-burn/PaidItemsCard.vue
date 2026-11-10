@@ -35,8 +35,9 @@
           <table class="tk-table" data-test="paid-items">
             <thead>
               <tr>
-                <th v-for="c in columns" :key="c.col" scope="col" :class="c.cls" :aria-sort="ariaSort(c.col)">
-                  <SheetSortButton :col="c.col" :name="c.name" :sort="sort" :test="'paid-sort-' + c.col" @sort="toggleSort" />
+                <th v-for="c in columns" :key="c.col" scope="col" :class="c.cls" :aria-sort="c.sorts ? ariaSort(c.col) : undefined">
+                  <SheetSortButton v-if="c.sorts" :col="c.col" :name="c.name" :sort="sort" :test="'paid-sort-' + c.col" @sort="toggleSort" />
+                  <template v-else>{{ c.name }}</template>
                 </th>
                 <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
                 <th v-if="!readonly" scope="col"><span class="pd-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
@@ -52,7 +53,7 @@
                   </select>
                 </th>
                 <th />
-                <th colspan="2">
+                <th colspan="3">
                   <select v-model="filters.currency" data-test="paid-filter-currency" :aria-label="t('expenses.entries.filter_currency')">
                     <option value="">{{ t('expenses.entries.filter_currency') }}: {{ t('issues.filter_all') }}</option>
                     <option v-for="c in choices.currency" :key="c" :value="c">{{ c }}</option>
@@ -70,12 +71,13 @@
             </thead>
             <tbody>
               <tr v-if="!rows.length">
-                <td :colspan="readonly ? 8 : 9" class="muted" data-test="paid-no-match">{{ t('expenses.entries.no_match') }}</td>
+                <td :colspan="readonly ? 9 : 10" class="muted" data-test="paid-no-match">{{ t('expenses.entries.no_match') }}</td>
               </tr>
               <tr v-for="it in rows" :key="it.id" data-test="paid-item-row" :data-id="it.id" :data-vendor="it.vendor">
                 <th scope="row" data-test="paid-item-plan">{{ it.planLabel }}</th>
                 <td :data-label="t('monitoring.tokens.col_vendor')">{{ kindLabel(it.vendor) }}</td>
                 <td :data-label="t('monitoring.tokens.paid.col_kind')">{{ t('monitoring.tokens.paid.kind_' + it.kind) }}</td>
+                <td class="num" :data-label="t('monitoring.tokens.paid.col_amount')" data-test="paid-item-amount">{{ fmtMoney(it.amount, it.currency, locale) }}</td>
                 <td
                   v-for="cur in CURS"
                   :key="cur"
@@ -103,7 +105,7 @@
             </tbody>
             <tfoot v-if="rows.length">
               <tr data-test="paid-total">
-                <th scope="row" colspan="3">{{ t('expenses.entries.total') }}</th>
+                <th scope="row" colspan="4">{{ t('expenses.entries.total') }}</th>
                 <template v-if="totals.usd !== null && totals.eur !== null">
                   <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'USD' })" data-test="paid-total-usd">{{ fmtMoney(totals.usd, 'USD', locale) }}</td>
                   <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'EUR' })" data-test="paid-total-eur">{{ fmtMoney(totals.eur, 'EUR', locale) }}</td>
@@ -173,11 +175,17 @@ const COLUMN_KEYS: Record<string, string> = {
   quantity: 'monitoring.tokens.paid.col_quantity',
   period: 'monitoring.tokens.paid.col_period',
 }
-const columns = computed(() => PAID_COLUMNS.map((col: string) => ({
-  col,
-  name: COLUMN_KEYS[col] ? t(COLUMN_KEYS[col]!) : t('expenses.entries.col_amount_in', { currency: col.toUpperCase() }),
-  cls: col === 'usd' || col === 'eur' || col === 'quantity' ? 'num' : undefined,
-})))
+const columns = computed(() => {
+  const cols = PAID_COLUMNS.map((col: string) => ({
+    col,
+    name: COLUMN_KEYS[col] ? t(COLUMN_KEYS[col]!) : t('expenses.entries.col_amount_in', { currency: col.toUpperCase() }),
+    cls: col === 'usd' || col === 'eur' || col === 'quantity' ? 'num' : undefined,
+    sorts: true,
+  }))
+  /* the price as entered, in its own currency: no sort across currencies */
+  cols.splice(cols.findIndex((c) => c.col === 'usd'), 0, { col: 'amount', name: t('monitoring.tokens.paid.col_amount'), cls: 'num', sorts: false })
+  return cols
+})
 const sort = ref<{ col: string, dir: string }>({ col: '', dir: '' })
 const toggleSort = (col: string) => { sort.value = cycleSort(col, sort.value, PAID_COLUMNS) }
 const ariaSort = (col: string) => (sort.value.col === col ? (sort.value.dir === 'asc' ? 'ascending' : 'descending') : 'none')
@@ -193,8 +201,8 @@ function cellText(it: PaidItem, cur: 'USD' | 'EUR') {
 }
 function cellTitle(it: PaidItem, cur: 'USD' | 'EUR') {
   const c = moneyCell(it, cur)
-  if (c.none) return t('expenses.entries.no_rate', { month: it.periodStart })
-  return c.converted ? t('expenses.entries.converted', { currency: it.currency, month: it.periodStart }) : undefined
+  if (c.none) return t('expenses.entries.no_rate', { currency: c.missing })
+  return c.converted ? t('expenses.entries.converted', { currency: it.currency, day: c.day }) : undefined
 }
 
 /* the hub's own words when it refuses: its detail, else its token */

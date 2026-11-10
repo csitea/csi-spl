@@ -30,8 +30,10 @@ month and an optional note. A row cannot be edited: delete it and enter it again
 
 Each tab's list shows every row in USD and EUR next to the amount entered.
 A converted amount is marked with ≈, and its tooltip names the currency it
-was entered in and the month whose rate converted it. A dash means there is
-no rate for that month.
+was entered in and the day of the rate that converted it. When there is no
+rate for the row's own day, the nearest earlier rate is used (else the first
+later one), so check that day. A dash means no rate is stored for that
+currency; the amount entered is still shown.
 
 Click a column name to sort: ascending, descending, then back to the list's
 own order. A row with no rate sorts last. The filter row under the column

@@ -4074,8 +4074,8 @@
       "filter_text": "Ieškoti išlaidų",
       "filter_currency": "Įvesta valiuta",
       "total": "Iš viso",
-      "converted": "Konvertuota iš {currency} pagal {month} kursą",
-      "no_rate": "Nėra {month} valiutos kurso",
+      "converted": "Konvertuota iš {currency} pagal {day} kursą",
+      "no_rate": "Nėra išsaugoto {currency} valiutos kurso",
       "total_no_rate": "Nėra sumos: vienam mėnesiui nėra valiutos kurso"
     },
     "operators_only": "Išlaidos skirtos tik operatoriaus administratoriams ir produkto savininkams.",

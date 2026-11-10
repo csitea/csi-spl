@@ -4074,8 +4074,8 @@
       "filter_text": "חיפוש עלויות",
       "filter_currency": "הוזן ב־",
       "total": "סה״כ",
-      "converted": "הומר מ־{currency} לפי שער {month}",
-      "no_rate": "אין שער חליפין ל־{month}",
+      "converted": "הומר מ־{currency} לפי שער {day}",
+      "no_rate": "אין שער חליפין שמור עבור {currency}",
       "total_no_rate": "אין סה״כ: לחודש אחד אין שער חליפין"
     },
     "operators_only": "ההוצאות מיועדות למנהלי המפעיל ולבעלי המוצר שלו בלבד.",

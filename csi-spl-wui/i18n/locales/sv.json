@@ -4074,8 +4074,8 @@
       "filter_text": "Sök kostnader",
       "filter_currency": "Angivet i",
       "total": "Totalt",
-      "converted": "Omräknat från {currency} till kursen för {month}",
-      "no_rate": "Ingen växelkurs för {month}",
+      "converted": "Omräknat från {currency} till kursen den {day}",
+      "no_rate": "Ingen växelkurs sparad för {currency}",
       "total_no_rate": "Ingen summa: en månad saknar växelkurs"
     },
     "operators_only": "Utgifter är bara för operatörens administratörer och produktägare.",

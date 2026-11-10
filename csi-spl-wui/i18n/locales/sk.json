@@ -4074,8 +4074,8 @@
       "filter_text": "Hľadať náklady",
       "filter_currency": "Zadané v",
       "total": "Spolu",
-      "converted": "Prepočítané z {currency} kurzom za {month}",
-      "no_rate": "Pre {month} nie je výmenný kurz",
+      "converted": "Prepočítané z {currency} kurzom z {day}",
+      "no_rate": "Pre {currency} nie je uložený výmenný kurz",
       "total_no_rate": "Bez súčtu: jeden mesiac nemá výmenný kurz"
     },
     "operators_only": "Výdavky sú len pre administrátorov a vlastníkov produktu operátora.",

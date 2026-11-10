@@ -4074,8 +4074,8 @@
       "filter_text": "Meklēt izmaksas",
       "filter_currency": "Ievadīts valūtā",
       "total": "Kopā",
-      "converted": "Konvertēts no {currency} pēc {month} kursa",
-      "no_rate": "Nav valūtas kursa par {month}",
+      "converted": "Konvertēts no {currency} pēc {day} kursa",
+      "no_rate": "Valūtai {currency} nav saglabāta valūtas kursa",
       "total_no_rate": "Nav kopsummas: vienam mēnesim nav valūtas kursa"
     },
     "operators_only": "Izdevumi ir tikai operatora administratoriem un produkta īpašniekiem.",

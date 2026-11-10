@@ -4074,8 +4074,8 @@
       "filter_text": "Otsi kulusid",
       "filter_currency": "Sisestatud valuutas",
       "total": "Kokku",
-      "converted": "Teisendatud valuutast {currency} kuu {month} kursiga",
-      "no_rate": "Kuu {month} vahetuskurss puudub",
+      "converted": "Teisendatud valuutast {currency} kuupäeva {day} kursiga",
+      "no_rate": "Valuuta {currency} vahetuskurssi pole salvestatud",
       "total_no_rate": "Kokkuvõte puudub: ühel kuul pole vahetuskurssi"
     },
     "operators_only": "Kulud on ainult operaatori administraatoritele ja tooteomanikele.",

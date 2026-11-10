@@ -4074,8 +4074,8 @@
       "filter_text": "Szukaj kosztów",
       "filter_currency": "Wprowadzono w",
       "total": "Razem",
-      "converted": "Przeliczono z {currency} po kursie z {month}",
-      "no_rate": "Brak kursu wymiany dla {month}",
+      "converted": "Przeliczono z {currency} po kursie z {day}",
+      "no_rate": "Brak zapisanego kursu wymiany dla {currency}",
       "total_no_rate": "Brak sumy: jeden miesiąc nie ma kursu wymiany"
     },
     "operators_only": "Wydatki są tylko dla administratorów i właścicieli produktu operatora.",

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"math"
+	"time"
 )
 
 // The month read's hand-entered costs (SPL-4824, spec 143; owner csitea
@@ -72,23 +73,17 @@ func costEntryPart(e CostEntry, second string, look func(quote, day string) (cos
 	amount := int64(math.Round(e.Amount * 1e6))
 	p := CostPart{Estate: true, Source: CostSourceEntry, ProjectOrVendor: e.Label, Kind: e.Type, Origin: "hand",
 		EntryMicros: amount, EntryCurrency: e.Currency}
-	own, err := look(e.Currency, day)
+	m, err := priceUSDEUR(amount, e.Currency, day, look)
 	if err != nil {
 		return p, err
 	}
-	var usd float64
-	if own.ok {
-		usd = float64(amount) / own.rate
-		p.USDMicros = int64(math.Round(usd))
+	if m.USD != nil {
+		p.USDMicros = *m.USD
 	} else {
 		p.Unpriced = true
 	}
-	if e.Currency == "EUR" {
-		p.EURMicros = amount
-	} else if eur, err := look("EUR", day); err != nil {
-		return p, err
-	} else if own.ok && eur.ok {
-		p.EURMicros = int64(math.Round(usd * eur.rate))
+	if m.EUR != nil {
+		p.EURMicros = *m.EUR
 	}
 	if second == e.Currency {
 		one := 1.0
@@ -96,40 +91,103 @@ func costEntryPart(e CostEntry, second string, look func(quote, day string) (cos
 		return p, nil
 	}
 	sec, err := look(second, day)
-	if err != nil || !own.ok || !sec.ok {
+	if err != nil || !m.own.ok || !sec.ok {
 		return p, err
 	}
-	sm, r, at := int64(math.Round(usd*sec.rate)), sec.rate, sec.day
+	sm, r, at := int64(math.Round(m.usd*sec.rate)), sec.rate, sec.day
 	p.SecondMicros, p.FXRate, p.FXRateDay, p.FXRateFirstDay = &sm, &r, &at, &at
 	return p, nil
+}
+
+// usdEUR is an amount priced in USD and EUR (priceUSDEUR): micros, nil where
+// no rate made it; each with the day of the rate that made it, nil where the
+// amount is that currency (SPL-5198 R7 W2: the fallback rate may be from
+// another day than asked, so the list names the day used).
+type usdEUR struct {
+	USD, EUR       *int64
+	USDDay, EURDay *string
+	usd            float64
+	own            costEntryFX
+}
+
+// priceUSDEUR prices amount (micros, in currency) at day: USD at its own
+// rate, EUR the amount when it is EUR, else the USD at the EUR rate, the day
+// of the rate farther from day when two rates made it.
+func priceUSDEUR(amount int64, currency, day string, look func(quote, day string) (costEntryFX, error)) (usdEUR, error) {
+	var m usdEUR
+	own, err := look(currency, day)
+	if err != nil {
+		return m, err
+	}
+	m.own = own
+	if own.ok {
+		m.usd = float64(amount) / own.rate
+		u := int64(math.Round(m.usd))
+		m.USD = &u
+		if currency != "USD" {
+			d := own.day
+			m.USDDay = &d
+		}
+	}
+	if currency == "EUR" {
+		a := amount
+		m.EUR = &a
+		return m, nil
+	}
+	eur, err := look("EUR", day)
+	if err != nil || !own.ok || !eur.ok {
+		return m, err
+	}
+	e := int64(math.Round(m.usd * eur.rate))
+	m.EUR = &e
+	d := eur.day
+	if currency != "USD" {
+		d = fartherDay(day, own.day, eur.day)
+	}
+	m.EURDay = &d
+	return m, nil
+}
+
+// fartherDay is whichever of a and b (YYYY-MM-DD) lies farther from day; a
+// on a tie or an unreadable day.
+func fartherDay(day, a, b string) string {
+	gap := func(x string) float64 {
+		t0, e0 := time.Parse(time.DateOnly, day)
+		t1, e1 := time.Parse(time.DateOnly, x)
+		if e0 != nil || e1 != nil {
+			return -1
+		}
+		return math.Abs(t1.Sub(t0).Hours())
+	}
+	if gap(b) > gap(a) {
+		return b
+	}
+	return a
 }
 
 // PricedCostEntry is a listed cost entry with its amount in USD and in EUR
 // (SPL-5198; owner HUM-10, t1 965283be msg 382450e2: "it must also have the
 // pricess in dollars and euros"), at the rates of its month as above; nil
-// where no rate made it.
+// where no rate made it; each with the day of the rate used (usdEUR).
 type PricedCostEntry struct {
 	CostEntry
-	USDMicros *int64 `json:"usd_micros"`
-	EURMicros *int64 `json:"eur_micros"`
+	USDMicros  *int64  `json:"usd_micros"`
+	EURMicros  *int64  `json:"eur_micros"`
+	USDRateDay *string `json:"usd_rate_day"`
+	EURRateDay *string `json:"eur_rate_day"`
 }
 
-// PriceCostEntries prices entries in the order given: their parts read in
-// EUR, so EUR is the second amount (nil with no rate) and USD the part's
-// unless Unpriced.
+// PriceCostEntries prices entries in the order given at the first day of
+// their month (priceUSDEUR).
 func PriceCostEntries(ctx context.Context, entries []CostEntry, rate CostEntryRate) ([]PricedCostEntry, error) {
-	parts, err := CostEntryParts(ctx, entries, "EUR", rate)
-	if err != nil {
-		return nil, err
-	}
+	look := costEntryLook(ctx, rate)
 	out := make([]PricedCostEntry, 0, len(entries))
-	for i, e := range entries {
-		pe := PricedCostEntry{CostEntry: e, EURMicros: parts[i].SecondMicros}
-		if !parts[i].Unpriced {
-			usd := parts[i].USDMicros
-			pe.USDMicros = &usd
+	for _, e := range entries {
+		m, err := priceUSDEUR(int64(math.Round(e.Amount*1e6)), e.Currency, e.Period+"-01", look)
+		if err != nil {
+			return nil, err
 		}
-		out = append(out, pe)
+		out = append(out, PricedCostEntry{CostEntry: e, USDMicros: m.USD, EURMicros: m.EUR, USDRateDay: m.USDDay, EURRateDay: m.EURDay})
 	}
 	return out, nil
 }

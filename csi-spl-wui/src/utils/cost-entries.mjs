@@ -48,6 +48,9 @@ export function costEntriesOf(body) {
        store.PriceCostEntries), micros; null = no rate made it, never 0 */
     usdMicros: micro(e.usd_micros),
     eurMicros: micro(e.eur_micros),
+    /* the day of the rate that made each ('' = none or not converted) */
+    usdRateDay: str(e.usd_rate_day),
+    eurRateDay: str(e.eur_rate_day),
   })).sort((a, b) => b.period.localeCompare(a.period))
 }
 
@@ -93,7 +96,7 @@ function mockWrite(store, list) {
 /** The mock's GET: one type's entries, priced (monitoring-paid.mjs mockMoney); 403 to anyone but an operator admin. */
 export function mockCostEntryList(type, store = mockStore()) {
   mockGate(store)
-  return { entries: mockRead(store).filter((e) => e.type === type).map((e) => ({ ...e, ...mockMoney(e.amount, e.currency) })) }
+  return { entries: mockRead(store).filter((e) => e.type === type).map((e) => ({ ...e, ...mockMoney(e.amount, e.currency, undefined, e.period + '-01') })) }
 }
 
 /** The mock's POST: stores the body, or refuses once when COST_ENTRIES_MOCK_REFUSE_KEY is set. */

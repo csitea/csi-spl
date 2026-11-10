@@ -4074,8 +4074,8 @@
       "filter_text": "Kosten zoeken",
       "filter_currency": "Ingevoerd in",
       "total": "Totaal",
-      "converted": "Omgerekend uit {currency} tegen de koers van {month}",
-      "no_rate": "Geen wisselkoers voor {month}",
+      "converted": "Omgerekend uit {currency} tegen de koers van {day}",
+      "no_rate": "Geen wisselkoers opgeslagen voor {currency}",
       "total_no_rate": "Geen totaal: een maand heeft geen wisselkoers"
     },
     "operators_only": "Uitgaven zijn alleen voor beheerders en producteigenaren van de operator.",

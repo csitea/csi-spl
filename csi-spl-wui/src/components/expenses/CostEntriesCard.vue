@@ -62,8 +62,9 @@
           <table class="tk-table" data-test="cost-entries">
             <thead>
               <tr>
-                <th v-for="c in columns" :key="c.col" scope="col" :class="c.cls" :aria-sort="ariaSort(c.col)">
-                  <SheetSortButton :col="c.col" :name="c.name" :sort="sort" :test="'cost-sort-' + c.col" @sort="toggleSort" />
+                <th v-for="c in columns" :key="c.col" scope="col" :class="c.cls" :aria-sort="c.sorts ? ariaSort(c.col) : undefined">
+                  <SheetSortButton v-if="c.sorts" :col="c.col" :name="c.name" :sort="sort" :test="'cost-sort-' + c.col" @sort="toggleSort" />
+                  <template v-else>{{ c.name }}</template>
                 </th>
                 <th scope="col">{{ t('monitoring.tokens.paid.col_note') }}</th>
                 <th v-if="!readonly" scope="col"><span class="ce-sr">{{ t('monitoring.tokens.paid.col_actions') }}</span></th>
@@ -72,7 +73,7 @@
                 <th>
                   <input v-model="filters.text" type="search" data-test="cost-filter-text" :placeholder="t('expenses.entries.filter_text')" :aria-label="t('expenses.entries.filter_text')">
                 </th>
-                <th colspan="2">
+                <th colspan="3">
                   <select v-model="filters.currency" data-test="cost-filter-currency" :aria-label="t('expenses.entries.filter_currency')">
                     <option value="">{{ t('expenses.entries.filter_currency') }}: {{ t('issues.filter_all') }}</option>
                     <option v-for="c in choices.currency" :key="c" :value="c">{{ c }}</option>
@@ -89,10 +90,11 @@
             </thead>
             <tbody>
               <tr v-if="!rows.length">
-                <td :colspan="readonly ? 5 : 6" class="muted" data-test="cost-no-match">{{ t('expenses.entries.no_match') }}</td>
+                <td :colspan="readonly ? 6 : 7" class="muted" data-test="cost-no-match">{{ t('expenses.entries.no_match') }}</td>
               </tr>
               <tr v-for="e in rows" :key="e.id" data-test="cost-row" :data-id="e.id">
                 <th scope="row" class="ce-text" data-test="cost-row-label">{{ e.label }}</th>
+                <td class="num" :data-label="t('expenses.entries.col_amount')" data-test="cost-row-amount">{{ fmtMoney(e.amount, e.currency, locale) }}</td>
                 <td
                   v-for="cur in CURS"
                   :key="cur"
@@ -116,7 +118,7 @@
             </tbody>
             <tfoot v-if="rows.length">
               <tr data-test="cost-total">
-                <th scope="row">{{ t('expenses.entries.total') }}</th>
+                <th scope="row" colspan="2">{{ t('expenses.entries.total') }}</th>
                 <template v-if="totals.usd !== null && totals.eur !== null">
                   <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'USD' })" data-test="cost-total-usd">{{ fmtMoney(totals.usd, 'USD', locale) }}</td>
                   <td class="num" :data-label="t('expenses.entries.col_amount_in', { currency: 'EUR' })" data-test="cost-total-eur">{{ fmtMoney(totals.eur, 'EUR', locale) }}</td>
@@ -165,15 +167,22 @@ const busy = ref(false)
 
 /* SPL-5198 (owner HUM-10, t1 965283be msg 382450e2): sort and filter as
    the Issues and Lanes sheets (SheetSortButton, cycleSort), each amount in
-   USD and EUR (the hub's usd_micros / eur_micros), a converted one marked ≈
-   with its rate's month, none as a dash; the total of the shown rows */
+   USD and EUR (the hub's usd_micros / eur_micros) next to the amount as
+   entered, a converted one marked ≈ with the day of its rate (usd_rate_day /
+   eur_rate_day), none as a dash; the total of the shown rows */
 const CURS = ['USD', 'EUR'] as const
 type Row = ReturnType<typeof costEntriesOf>[number]
-const columns = computed(() => COST_ENTRY_COLUMNS.map((col: string) => ({
-  col,
-  name: col === 'label' ? t('expenses.entries.col_label_' + props.type) : col === 'period' ? t('expenses.entries.col_period') : t('expenses.entries.col_amount_in', { currency: col.toUpperCase() }),
-  cls: col === 'usd' || col === 'eur' ? 'num' : undefined,
-})))
+const columns = computed(() => {
+  const cols = COST_ENTRY_COLUMNS.map((col: string) => ({
+    col,
+    name: col === 'label' ? t('expenses.entries.col_label_' + props.type) : col === 'period' ? t('expenses.entries.col_period') : t('expenses.entries.col_amount_in', { currency: col.toUpperCase() }),
+    cls: col === 'usd' || col === 'eur' ? 'num' : undefined,
+    sorts: true,
+  }))
+  /* the amount as entered, in its own currency: no sort across currencies */
+  cols.splice(1, 0, { col: 'amount', name: t('expenses.entries.col_amount'), cls: 'num', sorts: false })
+  return cols
+})
 const sort = ref<{ col: string, dir: string }>({ col: '', dir: '' })
 const toggleSort = (col: string) => { sort.value = cycleSort(col, sort.value, COST_ENTRY_COLUMNS) }
 const ariaSort = (col: string) => (sort.value.col === col ? (sort.value.dir === 'asc' ? 'ascending' : 'descending') : 'none')
@@ -190,8 +199,8 @@ function cellText(e: Row, cur: 'USD' | 'EUR') {
 }
 function cellTitle(e: Row, cur: 'USD' | 'EUR') {
   const c = cell(e, cur)
-  if (c.none) return t('expenses.entries.no_rate', { month: e.period })
-  return c.converted ? t('expenses.entries.converted', { currency: e.currency, month: e.period }) : undefined
+  if (c.none) return t('expenses.entries.no_rate', { currency: c.missing })
+  return c.converted ? t('expenses.entries.converted', { currency: e.currency, day: c.day }) : undefined
 }
 
 /* the hub's own words when it refuses: its detail, else its token */

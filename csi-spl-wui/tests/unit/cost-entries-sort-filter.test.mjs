@@ -26,8 +26,8 @@ import { cycleSort } from '../../src/utils/sheet-sort.mjs'
 
 /* an EUR row, a USD row, a row of a month with no rate (XTS) */
 const rows = costEntriesOf({ entries: [
-  { id: 'e', type: 'cloud', label: 'Workspace invoice', amount: 64.8, currency: 'EUR', period: '2026-09', note: 'net', usd_micros: 72000000, eur_micros: 64800000 },
-  { id: 'u', type: 'cloud', label: 'GitHub', amount: 10, currency: 'USD', period: '2026-09', note: '', usd_micros: 10000000, eur_micros: 9000000 },
+  { id: 'e', type: 'cloud', label: 'Workspace invoice', amount: 64.8, currency: 'EUR', period: '2026-09', note: 'net', usd_micros: 72000000, eur_micros: 64800000, usd_rate_day: '2026-08-29', eur_rate_day: null },
+  { id: 'u', type: 'cloud', label: 'GitHub', amount: 10, currency: 'USD', period: '2026-09', note: '', usd_micros: 10000000, eur_micros: 9000000, usd_rate_day: null, eur_rate_day: '2026-09-01' },
   { id: 'n', type: 'cloud', label: 'Old hosting', amount: 7, currency: 'XTS', period: '2026-07', note: 'no rate', usd_micros: null, eur_micros: null },
 ] })
 const ids = (list) => list.map((e) => e.id).join(',')
@@ -38,15 +38,19 @@ describe('cost entries: USD and EUR', () => {
     assert.equal(costEntriesOf({ entries: [{ id: 'x', usd_micros: 'a' }] })[0].usdMicros, null)
   })
   it('an EUR row: EUR as entered, USD converted', () => {
-    assert.deepEqual(costEntryCell(rows[0], 'EUR'), { amount: 64.8, converted: false, none: false })
-    assert.deepEqual(costEntryCell(rows[0], 'USD'), { amount: 72, converted: true, none: false })
+    assert.deepEqual(costEntryCell(rows[0], 'EUR'), { amount: 64.8, converted: false, none: false, day: '', missing: '' })
+    /* SPL-5198 R7 W2: the day of the rate used, not the row's month */
+    assert.deepEqual(costEntryCell(rows[0], 'USD'), { amount: 72, converted: true, none: false, day: '2026-08-29', missing: '' })
   })
   it('a USD row: USD as entered, EUR converted', () => {
-    assert.deepEqual(costEntryCell(rows[1], 'USD'), { amount: 10, converted: false, none: false })
-    assert.deepEqual(costEntryCell(rows[1], 'EUR'), { amount: 9, converted: true, none: false })
+    assert.deepEqual(costEntryCell(rows[1], 'USD'), { amount: 10, converted: false, none: false, day: '', missing: '' })
+    assert.deepEqual(costEntryCell(rows[1], 'EUR'), { amount: 9, converted: true, none: false, day: '2026-09-01', missing: '' })
   })
   it('a month without a rate: no amount, said so', () => {
-    assert.deepEqual(costEntryCell(rows[2], 'USD'), { amount: null, converted: true, none: true })
+    assert.deepEqual(costEntryCell(rows[2], 'USD'), { amount: null, converted: true, none: true, day: '', missing: 'XTS' })
+    /* a USD row with no EUR rate: the missing one is EUR's */
+    const [noEur] = costEntriesOf({ entries: [{ id: 'z', amount: 1, currency: 'USD', period: '2026-09', usd_micros: 1000000, eur_micros: null }] })
+    assert.equal(costEntryCell(noEur, 'EUR').missing, 'EUR')
   })
   it('totals sum both currencies, none when a row has no rate', () => {
     assert.deepEqual(costEntryTotals(rows.slice(0, 2)), { usd: 82, eur: 73.8 })

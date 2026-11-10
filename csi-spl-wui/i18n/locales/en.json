@@ -4074,8 +4074,8 @@
       "filter_text": "Search costs",
       "filter_currency": "Entered in",
       "total": "Total",
-      "converted": "Converted from {currency} at the {month} rate",
-      "no_rate": "No exchange rate for {month}",
+      "converted": "Converted from {currency} at the rate of {day}",
+      "no_rate": "No exchange rate stored for {currency}",
       "total_no_rate": "No total: a month has no exchange rate"
     },
     "operators_only": "Expenses are for operator admins and product owners only.",

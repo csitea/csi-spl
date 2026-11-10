@@ -4074,8 +4074,8 @@
       "filter_text": "Hae kuluja",
       "filter_currency": "Syötetty valuuttana",
       "total": "Yhteensä",
-      "converted": "Muunnettu valuutasta {currency} kuukauden {month} kurssilla",
-      "no_rate": "Kuukaudelle {month} ei ole vaihtokurssia",
+      "converted": "Muunnettu valuutasta {currency} päivän {day} kurssilla",
+      "no_rate": "Valuutalle {currency} ei ole tallennettu vaihtokurssia",
       "total_no_rate": "Ei yhteissummaa: jollakin kuukaudella ei ole vaihtokurssia"
     },
     "operators_only": "Kulut ovat vain operaattorin ylläpitäjille ja tuoteomistajille.",

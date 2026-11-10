@@ -303,6 +303,9 @@ async function costEntryRound(p, id, size) {
   /* SPL-5198: the USD entry in EUR too, converted and marked; a filter that matches nothing says so. CONTROL: red before it, there is no cost-row-eur */
   const eurCell = await p.$eval('[data-test=cost-row-eur]', (e) => [e.textContent.trim(), e.getAttribute('data-converted')]).catch(() => [])
   ok(`SPL-5198 ${id}: USD as entered, EUR converted and marked`, (await text(p, '[data-test=cost-row-usd]')) === '$64.80' && /^≈ €\d/.test(eurCell[0] || '') && eurCell[1] === 'true', [await text(p, '[data-test=cost-row-usd]'), eurCell])
+  /* SPL-5198 R7 W1 + W2: the amount as entered keeps its own column; the EUR title names the day of its rate. CONTROL: red on bf0482b23, no cost-row-amount and a month title */
+  const eurTitle = await p.$eval('[data-test=cost-row-eur]', (e) => e.getAttribute('title') || '').catch(() => '')
+  ok(`SPL-5198 ${id}: the amount as entered shows, the EUR title names its rate's day`, (await text(p, '[data-test=cost-row-amount]')) === '$64.80' && /^Converted from USD at the rate of \d{4}-\d{2}-\d{2}$/.test(eurTitle), [await text(p, '[data-test=cost-row-amount]'), eurTitle])
   ok(`SPL-5198 ${id}: the total row in both currencies`, (await text(p, '[data-test=cost-total-usd]')) === '$64.80' && /^€\d/.test(await text(p, '[data-test=cost-total-eur]')))
   await setField(p, '[data-test=cost-filter-text]', 'zzz')
   ok(`SPL-5198 ${id}: no match is said, with 0 of 1`, await waitFor(p, '[data-test=cost-no-match]') && (await text(p, '[data-test=cost-shown]')) === '0 of 1 costs', await text(p, '[data-test=cost-shown]'))
@@ -499,7 +502,8 @@ async function paidRound(p, base, size) {
   ok('paid: its plan and price', (await text(p, '[data-test=paid-item-plan]')) === 'E2E fixture' && (await text(p, '[data-test=paid-item-usd]')) === '$300.00', [await text(p, '[data-test=paid-item-plan]'), await text(p, '[data-test=paid-item-usd]')])
   /* SPL-5198: the same item in EUR, converted and marked; CONTROL: red before it, there is no paid-item-eur */
   const eurCell = await p.$eval('[data-test=paid-item-eur]', (e) => [e.textContent.trim(), e.getAttribute('data-converted'), e.getAttribute('title')]).catch(() => [])
-  ok('SPL-5198 paid: the USD item in EUR too, marked converted with its rate\'s day', /^≈ €\d/.test(eurCell[0] || '') && eurCell[1] === 'true' && /USD/.test(eurCell[2] || ''), eurCell)
+  ok('SPL-5198 paid: the USD item in EUR too, marked converted with its rate\'s day', /^≈ €\d/.test(eurCell[0] || '') && eurCell[1] === 'true' && /^Converted from USD at the rate of \d{4}-\d{2}-\d{2}$/.test(eurCell[2] || ''), eurCell)
+  ok('SPL-5198 paid: the price as entered keeps its column', (await text(p, '[data-test=paid-item-amount]')) === '$300.00', await text(p, '[data-test=paid-item-amount]'))
   await p.waitForFunction(() => document.querySelector('[data-test=paid-effective-row][data-vendor=claude]')?.getAttribute('data-status') === 'effective', { timeout: 10000 }).catch(() => null)
   const eff = await text(p, '[data-test=paid-effective-row][data-vendor=claude] [data-test=paid-eff-value]')
   ok('paid: claude now has an effective price per 1M tokens', (await claudeStatus()) === 'effective' && /^\$\d+\.\d{2,4}$/.test(eff), [await claudeStatus(), eff])

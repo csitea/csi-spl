@@ -4,7 +4,7 @@
 # set as GO_MODCACHE_BUSY_RX, stands in for a running build):
 #   - the refusals: a bad DRY_RUN, GO_MODCACHE_AGE_D 0, roots with no go.mod /
 #     go.sum, a root dir the scan cannot read; no cache is OK
-#   - KEEP used: a go.sum line, a go.sum /go.mod-only line, a go.mod require of
+#   - KEEP used: a go.sum line, a go.work.sum line, a go.sum /go.mod-only line, a go.mod require of
 #     a case-escaped path (github.com/!big!corp), the toolchain a go.mod asks
 #   - KEEP recent: an unnamed version with a fresh file
 #   - planned: an unnamed old version (extracted dir + download files, read
@@ -37,13 +37,14 @@ ver() {
 fixture() {
   chmod -R u+w "$T" 2>/dev/null; rm -rf "$C" "$S"
   ver example.com/used v1.0.0 x; ver example.com/modonly v1.1.0; ver 'github.com/!big!corp/lib' v2.0.0 x
-  ver example.com/old v0.9.0 x; ver example.com/dlonly v0.1.0; ver example.com/fresh v0.2.0 x
+  ver example.com/wsum v1.2.0 x; ver example.com/old v0.9.0 x; ver example.com/dlonly v0.1.0; ver example.com/fresh v0.2.0 x
   ver golang.org/toolchain v0.0.1-go1.26.10.linux-amd64 x; ver golang.org/toolchain v0.0.1-go1.25.0.linux-amd64 x
   mkdir -p "$D/sumdb/sum.golang.org/lookup" "$C/cache/vcs/x"; echo 'example.com/old v0.9.0 h1:x=' >"$C/cache/vcs/x/go.sum"
   mkdir -p "$S/app" "$S/web/node_modules/m"
   printf 'module app\n\ngo 1.26\n\ntoolchain go1.26.10\n\nrequire (\n\tgithub.com/BigCorp/lib v2.0.0 // indirect\n)\n' >"$S/app/go.mod"
   printf 'example.com/used v1.0.0 h1:a=\nexample.com/used v1.0.0/go.mod h1:b=\nexample.com/modonly v1.1.0/go.mod h1:c=\n' >"$S/app/go.sum"
   echo 'example.com/old v0.9.0 h1:x=' >"$S/web/node_modules/m/go.sum"
+  echo 'example.com/wsum v1.2.0 h1:w=' >"$S/go.work.sum"
   find "$C" "$S" -exec touch -h -d '30 days ago' {} +
   touch "$C/example.com/fresh@v0.2.0/sub/a.go"
   find "$C" -path "$C/cache" -prune -o -type d -name '*@*' -prune -exec chmod -R a-w {} + # as go leaves them
@@ -64,7 +65,7 @@ DIRS="" GO_MODCACHE_USERS=nobody-here run; [[ $? == 0 ]] && has "OK no Go module
 run; rc=$?
 [[ $rc == 0 ]] && pass "2. dry run exits 0" || fail "2. dry run rc=$rc ($(tail -3 "$T/out"))"
 for e in "used [0-9]+KB user=$me example.com/used@v1.0.0" "used [0-9]+KB user=$me example.com/modonly@v1.1.0" \
-  "used [0-9]+KB user=$me github.com/BigCorp/lib@v2.0.0" "used [0-9]+KB user=$me golang.org/toolchain@v0.0.1-go1.26.10.linux-amd64" \
+  "used [0-9]+KB user=$me github.com/BigCorp/lib@v2.0.0" "used [0-9]+KB user=$me example.com/wsum@v1.2.0" "used [0-9]+KB user=$me golang.org/toolchain@v0.0.1-go1.26.10.linux-amd64" \
   "recent [0-9]+KB user=$me example.com/fresh@v0.2.0"; do
   has "KEEP $e$" && pass "3. KEEP ${e##* }" || fail "3. KEEP $e ($(grep "${e##* }" "$T/out"))"
 done

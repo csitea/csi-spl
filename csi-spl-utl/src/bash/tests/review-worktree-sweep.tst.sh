@@ -11,6 +11,10 @@
 #     registry-row; owner-unknown for all when the hub did not answer
 #   - the dry run removes nothing; DRY_RUN=0 removes the three planned ones
 #     through git worktree remove, keeps their branches and every kept one
+#   - W1 (R7 c-492): a review branch deleted on origin whose tracking ref
+#     stays here: detached on it is not-review, a local review/* branch whose
+#     commit was only on it is unpushed; an origin ls-remote cannot read is
+#     refused
 #   - red controls: with each keep check deleted from a copy of the script,
 #     the worktree it guarded is planned
 set -uo pipefail
@@ -42,6 +46,13 @@ q "$M" worktree add -b review/c "$W/wt-unpushed" origin/master; commit "$W/wt-un
 q "$M" worktree add -b review/d "$W/wt-livebr" "$ra"
 q "$M" worktree add -b c-500-feat "$W/c-500" origin/master
 q "$M" worktree add --detach "$W/wt-master" "$ra~1"
+# W1 (R7 c-492): branches deleted on origin, their tracking refs left here
+q "$M" switch -c review/x origin/master; commit "$M" px 1; q "$M" push origin review/x; q "$M" switch master
+q "$M" worktree add --detach "$W/wt-gone" review/x; q "$M" branch -D review/x
+q "$M" worktree add -b review/y "$W/wt-ybr" origin/master; commit "$W/wt-ybr" py 1; q "$W/wt-ybr" push origin review/y:review/y-push
+git clone -q "$T/origin.git" "$T/other" 2>/dev/null; q "$T/other" push origin --delete review/x review/y-push
+git -C "$M" rev-parse -q --verify refs/remotes/origin/review/x >/dev/null && git -C "$M" rev-parse -q --verify refs/remotes/origin/review/y-push >/dev/null \
+  || { echo "FAIL fixture: the stale tracking refs are missing"; exit 1; }
 echo x >"$W/wt-dirty/untracked"
 q "$M" worktree lock "$W/wt-locked"
 mkdir -p "$T/spool"; printf 'c-600\tclaude\t%%9\t%s\t20261001T000000Z\n' "$W/wt-reg" >"$T/spool/registry.tsv"
@@ -56,6 +67,9 @@ has() { grep -qE -- "$1" "$T/out"; }
 run DRY_RUN=2; [[ $? == 2 ]] && has REFUSE && pass "1. a bad DRY_RUN is refused" || fail "1. DRY_RUN=2 ($(cat "$T/out"))"
 mkdir -p "$T/nogit"; env REVIEW_WT_SUDO=0 REVIEW_WT_REPO="$T/nogit" bash "$SCRIPT" >"$T/out" 2>&1
 [[ $? == 2 ]] && has REFUSE && pass "1. a repo that is no checkout is refused" || fail "1. no checkout ($(cat "$T/out"))"
+git clone -q "$T/origin.git" "$T/broken" 2>/dev/null; q "$T/broken" remote set-url origin "$T/nope.git"
+env REVIEW_WT_SUDO=0 REVIEW_WT_REPO="$T/broken" REVIEW_WT_LANES="$T/lanes.json" SPOOL_ROOT="$T/spool" bash "$SCRIPT" >"$T/out" 2>&1
+[[ $? == 2 ]] && has "REFUSE cannot read origin's branches" && pass "1. an origin that cannot be read is refused" || fail "1. ls-remote ($(cat "$T/out"))"
 
 run; rc=$?
 [[ $rc == 0 ]] && pass "2. dry run exits 0" || fail "2. dry run rc=$rc ($(tail -3 "$T/out"))"
@@ -64,7 +78,8 @@ has "PLAN remove [0-9]+MB $W/c-503-review branch=detached " && pass "2. a done l
 has "PLAN remove [0-9]+MB $W/wt-br branch=review/b ref=review/b proof=patch-equal:1$" && pass "2. an unpushed commit with a patch twin on master is planned (patch-equal:1)" || fail "2. wt-br ($(grep wt-br "$T/out"))"
 for e in "not-review -MB $W/c-500" "not-review -MB $W/wt-master" "unpushed [0-9a-f]{12} [0-9]+MB $W/wt-unpushed" "dirty [0-9]+MB $W/wt-dirty" \
   "locked [0-9]+MB $W/wt-locked" "in-use [0-9]+MB $W/wt-held" "live-owner c-501 [0-9]+MB $W/c-501-review" \
-  "live-branch review/d [0-9]+MB $W/wt-livebr" "registry-row [0-9]+MB $W/wt-reg"; do
+  "live-branch review/d [0-9]+MB $W/wt-livebr" "registry-row [0-9]+MB $W/wt-reg" \
+  "not-review [-]MB $W/wt-gone" "unpushed [0-9a-f]{12} [0-9]+MB $W/wt-ybr"; do
   has "KEEP $e$" && pass "3. KEEP ${e%% *}" || fail "3. KEEP $e ($(grep "${e##* }" "$T/out"))"
 done
 has "DONE would-remove=3 " && pass "2. the dry run counts 3" || fail "2. count ($(tail -1 "$T/out"))"
@@ -73,16 +88,17 @@ has "DONE would-remove=3 " && pass "2. the dry run counts 3" || fail "2. count (
 LANES="$T/lanes-down.json" run
 has "DONE would-remove=0 " && has "KEEP owner-unknown [0-9]+MB $W/wt-det$" && pass "4. hub silent: every worktree is kept (owner-unknown)" || fail "4. hub down ($(grep -E 'wt-det|DONE' "$T/out"))"
 
-# control <label> <sed -E script> <worktree>: with that check cut from a copy
-# of the script, the guarded worktree is planned
+# control <label> <sed -E script> <worktree> [ERE]: with that check cut from a
+# copy of the script, the guarded worktree is planned (or shows the ERE)
 control() {
+  local want="${4:-PLAN remove [0-9]+MB $W/$3 }"
   sed -E "$2" "$SCRIPT" >"$T/ctl.sh"
   if cmp -s "$SCRIPT" "$T/ctl.sh"; then fail "5. control $1: pattern matched nothing"; return; fi
   S="$T/ctl.sh" run
-  has "PLAN remove [0-9]+MB $W/$3 " && pass "5. control: without the $1 check, $3 is planned" || fail "5. control $1 ($(grep "$3" "$T/out"))"
+  has "$want" && pass "5. control: without the $1 check, $3: $want" || fail "5. control $1 ($(grep "$3" "$T/out"))"
 }
 control review 's/\[\[ "\$br" == review\/\* \]\] && //' c-500
-control on-master '/merge-base --is-ancestor HEAD origin\/master/d' wt-master
+control on-master '/merge-base --is-ancestor HEAD "\$master_sha"/d' wt-master
 control unpushed 's/grep -qxF -- "- \$sha" <<<"\$twins" \|\|/true ||/' wt-unpushed
 control dirty '/why="dirty"/d' wt-dirty
 control locked '/why="locked"/d' wt-locked
@@ -90,13 +106,19 @@ control in-use '/why="in-use"/d' wt-held
 control live-owner '/why="live-owner/d' c-501-review
 control live-branch '/why="live-branch/d' wt-livebr
 control registry-row '/why="registry-row"/d' wt-reg
+# W1: the ref and the proof each refuse a branch origin no longer has
+w1_ref='s/\[\[ "\$\{live_ref\[\$name\]:-\}" == "\$sha" \]\] && /true \&\& /'
+w1_proof='s/rev-list --stdin HEAD <"\$live"/rev-list HEAD --not --remotes=origin/'
+control live-ref "$w1_ref" wt-gone "KEEP unpushed [0-9a-f]{12} [0-9]+MB $W/wt-gone$"
+control live-proof "$w1_proof" wt-ybr
+control live-ref+live-proof "$w1_ref;$w1_proof" wt-gone "PLAN remove [0-9]+MB $W/wt-gone branch=detached ref=origin/review/x proof=on-origin$"
 
 run DRY_RUN=0; rc=$?
 [[ $rc == 0 ]] && pass "6. real run exits 0" || fail "6. real run rc=$rc ($(tail -3 "$T/out"))"
 [[ ! -e "$W/wt-det" && ! -e "$W/wt-br" && ! -e "$W/c-503-review" ]] && has "REMOVE [0-9]+MB $W/wt-det " && pass "6. the three planned worktrees are removed" || fail "6. not removed ($(ls "$W"))"
 grep -qF "$W/wt-det" <<<"$(git -C "$M" worktree list --porcelain)" && fail "6. git still lists wt-det" || pass "6. git no longer lists them (git worktree remove)"
 git -C "$M" rev-parse -q --verify refs/heads/review/b >/dev/null && pass "6. the branch review/b stays" || fail "6. review/b deleted"
-for d in c-500 wt-master wt-unpushed wt-dirty wt-locked wt-held c-501-review wt-livebr wt-reg; do
+for d in c-500 wt-master wt-gone wt-ybr wt-unpushed wt-dirty wt-locked wt-held c-501-review wt-livebr wt-reg; do
   [[ -d "$W/$d" ]] || fail "6. kept worktree $d was removed"
 done
 [[ -f "$W/wt-dirty/untracked" ]] && pass "6. every kept worktree is still there" || fail "6. untracked file lost"

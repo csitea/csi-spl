@@ -162,11 +162,11 @@ A reviewer checks a `review/*` branch out in its own worktree, often detached, a
 cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> ./run -a do_sweep_review_worktrees
 ```
 
-One line per worktree with its size. `PLAN remove` or `REMOVE`: a `review/*` worktree (a local `review/*` branch, or detached at a commit an origin `review/*` branch holds that is not on `origin/master`), clean, every commit on origin (`proof=on-origin`) or with a patch-id twin on `origin/master` (`proof=patch-equal:<n>`), and no live agent owns it. `KEEP not-review`: any other worktree, a lane's or a desk's. `KEEP unpushed <sha>`: a commit that is nowhere on origin. `KEEP dirty`: uncommitted or untracked files. `KEEP locked`, `KEEP in-use` (a process has its cwd or an open file in it), `KEEP live-owner <id>` (the dir is named for a live lane), `KEEP live-branch`, `KEEP registry-row`: an agent still holds it. `KEEP owner-unknown`: the lane map did not answer, so nothing goes.
+One line per worktree with its size. `PLAN remove` or `REMOVE`: a `review/*` worktree (a local `review/*` branch, or detached at a commit an origin `review/*` branch holds that is not on `origin/master`), clean, every commit on a branch origin has now (`proof=on-origin`) or with a patch-id twin on origin's master (`proof=patch-equal:<n>`), and no live agent owns it. "Now" is one `git ls-remote origin` per run: the local `origin/*` tracking refs are never trusted, since a branch deleted on origin leaves its tracking ref behind. `KEEP not-review`: any other worktree, a lane's or a desk's. `KEEP unpushed <sha>`: a commit that is nowhere on origin. `KEEP dirty`: uncommitted or untracked files. `KEEP locked`, `KEEP in-use` (a process has its cwd or an open file in it), `KEEP live-owner <id>` (the dir is named for a live lane), `KEEP live-branch`, `KEEP registry-row`: an agent still holds it. `KEEP owner-unknown`: the lane map did not answer, so nothing goes. A `REFUSE` line means origin or `/proc` could not be read: nothing is removed.
 
 ## 2.12 Clean finished review worktrees, apply
 
-Removes what the plan above listed as `PLAN remove`, through `git worktree remove` as the worktree's owner, never `--force` and never `rm -rf`; the branch stays.
+Removes what the plan above listed as `PLAN remove`, through `git worktree remove` as the worktree's owner after a fresh check that no process uses it, never `--force` and never `rm -rf`; the branch stays.
 
 ```bash
 cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_sweep_review_worktrees
@@ -174,7 +174,7 @@ cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_swee
 
 ## 2.13 Clean unused Go module versions, plan
 
-Each box user's Go module cache (`go env GOMODCACHE`) keeps every module version any build ever fetched; the build-cache prune never touches it, and `go clean -modcache` drops all of it. This action lists, per version, what no `go.mod` or `go.sum` on the box names: it reads every one under `/opt`, `/srv`, `/var/tmp`, `/tmp` and the users' homes (`GO_MODCACHE_ROOTS` replaces the first four). A removed version costs a re-download when a build next asks for it. Run it by hand. A dry run unless `DRY_RUN=0`.
+Each box user's Go module cache (`go env GOMODCACHE`) keeps every module version any build ever fetched; the build-cache prune never touches it, and `go clean -modcache` drops all of it. This action lists, per version, what no `go.mod`, `go.sum`, `go.work` or `go.work.sum` on the box names: it reads every one under `/opt`, `/srv`, `/var/tmp`, `/tmp` and the users' homes (`GO_MODCACHE_ROOTS` replaces the first four). A removed version costs a re-download when a build next asks for it. Run it by hand. A dry run unless `DRY_RUN=0`.
 
 ```bash
 cd <CHECKOUT>/csi-spl-utl && sudo -u <OWNER_USER> ./run -a do_sweep_go_modcache

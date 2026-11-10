@@ -7,12 +7,16 @@
 #
 # A linked worktree of REVIEW_WT_REPO is removed only when ALL hold:
 #   - review: it is on a local review/* branch, or detached at a commit that
-#     an origin review/* branch contains (the first one is named) and that is
-#     NOT on origin/master: a review branch contains the master it was cut
+#     a review/* branch of origin contains (one origin still has, at the sha
+#     the snapshot reads; the first is named) and that is NOT on its master: a review branch contains the master it was cut
 #     from, so a checkout detached on master (a desk's) is no review;
-#   - pushed: every commit of its HEAD is on origin (no commit outside
-#     --remotes=origin), or each one that is not has a patch-id equal commit
-#     on origin/master (git cherry); the proof is printed per worktree;
+#   - pushed: every commit of its HEAD is on a branch origin has NOW, or each
+#     one that is not has a patch-id equal commit on origin's master (git
+#     cherry); the proof is printed per worktree. "Now" is one
+#     `git ls-remote origin` per run, never the local refs/remotes/origin/*:
+#     nothing prunes those, and a review branch deleted on origin leaves its
+#     tracking ref behind (sat 2026-11-10: 581 local origin/review/* refs, 192
+#     on origin). A run that cannot read origin removes nothing;
 #   - clean: git status --porcelain is empty (untracked files count; ignored
 #     ones do not, git worktree remove drops them);
 #   - not locked, not a symlink, not root-owned;
@@ -23,7 +27,7 @@
 #     path, and no process has its cwd or an open file under it (/proc via
 #     sudo -n; a scan that reads nothing removes nothing).
 # It goes through `git worktree remove` (never --force, never rm -rf), as its
-# owner; the branch stays. Anything else: one KEEP line with the reason.
+# owner, after a fresh /proc scan; the branch stays. Anything else: one KEEP line with the reason.
 #
 #   DRY_RUN=1 (default) | 0
 #   REVIEW_WT_REPO   a checkout of the repo (default: the one holding this file)
@@ -61,10 +65,29 @@ main="$(git -c safe.directory='*' -C "$repo" rev-parse --path-format=absolute --
 main="${main%/.git}"
 [[ "$use_sudo" == 0 || "$(id -u)" == 0 ]] || sudo -n true 2>/dev/null || refuse "no sudo -n: cannot read every process's cwd and fds"
 
-held="$(mktemp)"; trap 'rm -f "$held"' EXIT
-as_root find /proc -mindepth 2 -maxdepth 3 \( -path '/proc/[0-9]*/cwd' -o -path '/proc/[0-9]*/fd/*' \) \
-  -printf '%l\n' 2>/dev/null | sort -u >"$held"
-[[ -s "$held" ]] || refuse "the /proc scan read nothing"
+held="$(mktemp)" live="$(mktemp)"; trap 'rm -f "$held" "$live"' EXIT
+# scan_held: every process's cwd and open files, into held; rc 1 when empty
+scan_held() {
+  as_root find /proc -mindepth 2 -maxdepth 3 \( -path '/proc/[0-9]*/cwd' -o -path '/proc/[0-9]*/fd/*' \) \
+    -printf '%l\n' 2>/dev/null | sort -u >"$held"
+  [[ -s "$held" ]]
+}
+scan_held || refuse "the /proc scan read nothing"
+
+# The branches origin has now (git ls-remote), only those whose commit is
+# here: live_ref[origin/<name>]=<sha>, and live holds ^<sha> per line for
+# rev-list --stdin
+declare -A live_ref=() here=()
+heads="$(GIT_TERMINAL_PROMPT=0 timeout 120 git -c safe.directory='*' -C "$main" ls-remote origin 'refs/heads/*' 2>/dev/null)" ||
+  refuse "cannot read origin's branches (git ls-remote origin)"
+while read -r sha kind; do
+  [[ "$kind" == commit ]] && { here["$sha"]=1; echo "^$sha" >>"$live"; }
+done < <(awk '{ print $1 }' <<<"$heads" | sort -u | git -c safe.directory='*' -C "$main" cat-file --batch-check='%(objectname) %(objecttype)')
+while read -r sha name; do
+  [[ -n "${here[$sha]:-}" ]] && live_ref["origin/${name#refs/heads/}"]="$sha"
+done <<<"$heads"
+master_sha="${live_ref[origin/master]:-}"
+[[ -n "$master_sha" ]] || refuse "origin's master is not in the ls-remote snapshot, or not fetched here"
 is_held() { grep -qxF -e "$1" "$held" || grep -qF -e "$1/" "$held"; }
 
 # load_live: the live lanes' ids and branches (lane-map.sh --json --all, only
@@ -101,18 +124,22 @@ print("ok", 1)' <<<"$json" 2>/dev/null)
 review_ref() {
   local o="$1" p="$2" br="$3"
   if [[ -n "$br" ]]; then [[ "$br" == review/* ]] && echo "$br"; return 0; fi
-  g "$o" "$p" merge-base --is-ancestor HEAD origin/master && return 0
-  g "$o" "$p" for-each-ref --contains HEAD --count=1 --format='%(refname:short)' refs/remotes/origin/review/
+  g "$o" "$p" merge-base --is-ancestor HEAD "$master_sha" && return 0
+  local name sha
+  while read -r name sha; do
+    [[ "${live_ref[$name]:-}" == "$sha" ]] && { echo "$name"; return 0; }
+  done < <(g "$o" "$p" for-each-ref --contains HEAD --format='%(refname:short) %(objectname)' refs/remotes/origin/review/)
+  return 0
 }
 
 # pushed_proof <owner> <path>: prints on-origin or patch-equal:<n>; rc 1 and
-# the reason (unpushed <sha>) when a commit is on no origin ref and has no
-# patch-id twin on origin/master
+# the reason (unpushed <sha>) when a commit is on no branch origin has now
+# and has no patch-id twin on origin's master
 pushed_proof() {
   local o="$1" p="$2" out twins sha
-  out="$(g "$o" "$p" rev-list HEAD --not --remotes=origin)" || { echo "rev-list-failed"; return 1; }
+  out="$(g "$o" "$p" rev-list --stdin HEAD <"$live")" || { echo "rev-list-failed"; return 1; }
   [[ -z "$out" ]] && { echo "on-origin"; return 0; }
-  twins="$(g "$o" "$p" cherry origin/master HEAD)" || { echo "cherry-failed"; return 1; }
+  twins="$(g "$o" "$p" cherry "$master_sha" HEAD)" || { echo "cherry-failed"; return 1; }
   for sha in $out; do
     grep -qxF -- "- $sha" <<<"$twins" || { echo "unpushed ${sha:0:12}"; return 1; }
   done
@@ -152,6 +179,7 @@ settle() {
   esac
   if [[ -n "$why" ]]; then say "KEEP $why ${mb}MB $p"; n_keep=$((n_keep + 1)); return; fi
   if [[ "$dry" == 1 ]]; then say "PLAN remove ${mb}MB $p branch=${br:-detached} ref=$ref proof=$proof"
+  elif ! scan_held || is_held "$p"; then say "KEEP in-use ${mb}MB $p (held when its turn came)"; n_keep=$((n_keep + 1)); return
   elif g "$o" "$main" worktree remove "$p" >/dev/null 2>&1 && [[ ! -e "$p" ]]; then
     say "REMOVE ${mb}MB $p branch=${br:-detached} ref=$ref proof=$proof"
   else say "WARN could not remove $p (git worktree remove refused)"; fail=1; return; fi

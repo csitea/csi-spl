@@ -7,7 +7,9 @@
 #
 # The caches: each box user's GOMODCACHE (`go env GOMODCACHE` in that user's
 # login shell, else <home>/go/pkg/mod), or GO_MODCACHE_DIRS. The names: every
-# go.mod and go.sum under GO_MODCACHE_ROOTS and the users' homes (node_modules,
+# go.mod and go.sum (go.work and go.work.sum read alike) under
+# GO_MODCACHE_ROOTS and the users' homes (not added with GO_MODCACHE_DIRS, a
+# test hook) (node_modules,
 # .git and */pkg/mod pruned): a go.sum line names <module>@<version> (its
 # /go.mod form too), a go.mod line <module> <version> (require, replace), and
 # its go / toolchain line keeps golang.org/toolchain@v0.0.1-go<that>.<os-arch>.
@@ -92,7 +94,7 @@ for p in sys.stdin.read().split("\0"):
     except OSError:
         print("err", p)
         continue
-    gosum = os.path.basename(p) == "go.sum"
+    gosum = os.path.basename(p) in ("go.sum", "go.work.sum")
     for line in txt.splitlines():
         t = line.split("//")[0].split()
         if gosum and len(t) >= 2:
@@ -179,7 +181,7 @@ load_names() {
   for c in "${caches[@]}"; do prunes+=(-path "${c#*:}" -prune -o); done
   # shellcheck disable=SC2086 # roots is a word list
   as_root find $roots "${prunes[@]}" \( -name node_modules -o -name .git -o -path '*/pkg/mod' \) -prune \
-    -o -type f \( -name go.mod -o -name go.sum \) -print0 >"$list" 2>"$errf"
+    -o -type f \( -name go.mod -o -name go.sum -o -name go.work -o -name go.work.sum \) -print0 >"$list" 2>"$errf"
   bad="$(grep -v 'No such file or directory' "$errf")"
   if [[ -n "$bad" ]]; then
     say "ERR $(sed -n 1,3p <<<"$bad" | tr '\n' ' ')"

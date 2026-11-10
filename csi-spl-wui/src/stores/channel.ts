@@ -539,7 +539,7 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
   /* spec 117 FR-4: `dmPeer` is the other end of a DM topic answered from
      /t/<task_id>, where the store holds no peer; it is sent as on /dm */
   async function send(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
-    if (!api.mock) return sendLive(text, parentTaskId, files, channelId, isParent, dmPeer)
+    if (!api.mock) return sendLive({ text, parentTaskId, files, channelId, isParent, dmPeer })
     const req = {
       channel: channelId || active.value,
       peer: channelId ? undefined : (peer.value || dmPeer || undefined),
@@ -595,8 +595,12 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
   return { send }
 }
 
-/** sendLive's arguments, as one object for the frame step. */
-type LiveSendArgs = { text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string }
+/** sendLive's arguments, as one object: every key is required, so a call that
+    leaves one out fails typecheck instead of sending it as undefined. */
+type LiveSendArgs = {
+  text: string, parentTaskId: string | undefined, files: unknown[] | undefined,
+  channelId: string | undefined, isParent: number | undefined, dmPeer: string | undefined,
+}
 
 /** The hub frame sendLive sends: who it goes to, on which box, in which channel. */
 async function liveSendFrame(s: ChannelState, a: LiveSendArgs, toFileRefs: Outbox['toFileRefs']) {
@@ -634,11 +638,12 @@ async function liveSendFrame(s: ChannelState, a: LiveSendArgs, toFileRefs: Outbo
 function liveSendSteps(s: ChannelState, d: Pick<Outbox, 'toFileRefs'> & Pick<Counts, 'repliesFor'> & Landing) {
   const { api, active, messages } = s
   const { toFileRefs, repliesFor, waitForNetwork, landed } = d
-  async function sendLive(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
+  async function sendLive(a: LiveSendArgs) {
+    const { text, parentTaskId, channelId } = a
     const live = useLive()
     const client = live.ensure()
     if (!client) throw new Error(`live socket unavailable (${api.configError || 'no base'})`)
-    const { frame, asDm, peerId, channelNow, parentBit } = await liveSendFrame(s, { text, parentTaskId, files, channelId, isParent, dmPeer }, toFileRefs)
+    const { frame, asDm, peerId, channelNow, parentBit } = await liveSendFrame(s, a, toFileRefs)
     /* The last point that knows the real payload: an empty box with no files
        is refused here, where parseMention has already run, because an empty
        row reads exactly like a lost one. A bare `@CLE-00` is NOT empty - it

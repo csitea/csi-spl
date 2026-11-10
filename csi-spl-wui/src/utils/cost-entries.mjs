@@ -14,6 +14,8 @@
  */
 
 import { mockError, mockGate, mockStore } from './monitoring-paid.mjs'
+import { sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
+import { MOCK_FX_RATES } from './tenant-costs.mjs'
 
 /** The types the tabs enter (store.CostEntryTypes). */
 export const COST_ENTRY_TYPES = Object.freeze(['cloud', 'hr'])
@@ -30,6 +32,7 @@ const NOTE_MAX = 2000
 const str = (v) => (typeof v === 'string' ? v : '')
 /* the hub counts bytes (Go len), so a Cyrillic label reaches its limit sooner */
 const bytes = (s) => new TextEncoder().encode(s).length
+const micro = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
 /** GET .../cost-entries ({entries: [...]}) as rows, the newest month first; an entry with no id is dropped. */
 export function costEntriesOf(body) {
@@ -42,6 +45,10 @@ export function costEntriesOf(body) {
     currency: str(e.currency),
     period: str(e.period),
     note: str(e.note),
+    /* SPL-5198: the amount in USD and EUR at the month's rates (hub
+       store.PriceCostEntries), micros; null = no rate made it, never 0 */
+    usdMicros: micro(e.usd_micros),
+    eurMicros: micro(e.eur_micros),
   })).sort((a, b) => b.period.localeCompare(a.period))
 }
 
@@ -84,10 +91,20 @@ function mockWrite(store, list) {
   try { store.setItem(COST_ENTRIES_MOCK_KEY, JSON.stringify(list)) } catch { /* the mock forgets */ }
 }
 
-/** The mock's GET: one type's entries; 403 to anyone but an operator admin. */
+/* the mock's USD and EUR of an entry at its one rate per currency (tenant-costs
+   MOCK_FX_RATES, units per USD); a currency it holds no rate of is null, as the hub */
+function mockPriced(e) {
+  const rate = e.currency === 'USD' ? 1 : MOCK_FX_RATES[e.currency]
+  const own = Math.round(Number(e.amount) * 1e6)
+  const usd = rate ? Math.round(own / rate) : null
+  const eur = e.currency === 'EUR' ? own : usd === null ? null : Math.round(usd * MOCK_FX_RATES.EUR)
+  return { ...e, usd_micros: usd, eur_micros: eur }
+}
+
+/** The mock's GET: one type's entries, priced; 403 to anyone but an operator admin. */
 export function mockCostEntryList(type, store = mockStore()) {
   mockGate(store)
-  return { entries: mockRead(store).filter((e) => e.type === type) }
+  return { entries: mockRead(store).filter((e) => e.type === type).map(mockPriced) }
 }
 
 /** The mock's POST: stores the body, or refuses once when COST_ENTRIES_MOCK_REFUSE_KEY is set. */
@@ -112,4 +129,69 @@ export function mockCostEntryDelete(id, store = mockStore()) {
   if (!list.some((e) => e.id === id)) throw mockError(404, 'not_found', 'no cost entry ' + id)
   mockWrite(store, list.filter((e) => e.id !== id))
   return null
+}
+
+/*
+ * SPL-5198 (owner HUM-10, t1 965283be msg 382450e2: "listing should have
+ * sorting and filtering simir to the issues listing , it must also have the
+ * pricess in dollars and euros"): the list's sort and filter row, the Lanes
+ * sheet's (SPL-3887) on the same pieces: a header click cycles the sort
+ * (sheet-sort.mjs cycleSort, components/SheetSortButton.vue), sortRowsBy
+ * orders, the row under the names filters by text, month and currency.
+ */
+
+/** The sortable columns, in the table's order. */
+export const COST_ENTRY_COLUMNS = Object.freeze(['label', 'usd', 'eur', 'period'])
+/** No filter: every row. */
+export const COST_ENTRY_NO_FILTER = Object.freeze({ text: '', period: '', currency: '' })
+
+/* a column's value to sort on; null (no rate) sorts last either way */
+function costEntryValue(e, col) {
+  if (col === 'usd') return e.usdMicros
+  if (col === 'eur') return e.eurMicros
+  return col === 'period' ? e.period || null : e.label || null
+}
+
+/** The rows in a sheet sort ({ col: '', dir: '' } = the newest month first, as read). */
+export function sortCostEntries(rows, sort) {
+  return sortRowsBy(rows, sort, COST_ENTRY_COLUMNS, costEntryValue)
+}
+
+/**
+ * The rows the filter row keeps: every word of `text` in the label or the
+ * note, and the month and the entered currency each '' (any) or equal.
+ * @param {{ text?: string, period?: string, currency?: string }} f
+ */
+export function filterCostEntries(rows, f) {
+  const words = str(f.text).toLowerCase().split(/\s+/).filter(Boolean)
+  return rows.filter((e) => (!f.period || e.period === f.period)
+    && (!f.currency || e.currency === f.currency)
+    && (words.length === 0 || words.every((w) => (e.label + ' ' + e.note).toLowerCase().includes(w))))
+}
+
+/** True when any filter is set. */
+export function costEntriesFiltered(f) {
+  return Boolean(str(f.text).trim() || f.period || f.currency)
+}
+
+/** The month and currency selects' choices: the values the rows hold, months newest first. */
+export function costEntryFilterChoices(rows) {
+  return { period: uniqSorted(rows.map((e) => e.period)).reverse(), currency: uniqSorted(rows.map((e) => e.currency)) }
+}
+
+/**
+ * One amount cell, USD or EUR: its micros (null = no rate of the month) and
+ * whether a rate made it (the entry was entered in another currency).
+ * @param {{ currency: string, usdMicros: number|null, eurMicros: number|null }} e
+ * @param {'USD' | 'EUR'} cur
+ */
+export function costEntryCell(e, cur) {
+  const micros = cur === 'USD' ? e.usdMicros : e.eurMicros
+  return { amount: micros === null ? null : micros / 1e6, converted: e.currency !== cur, none: micros === null }
+}
+
+/** The shown rows' sums in USD and EUR, units; null when a row has no rate (never a partial sum). */
+export function costEntryTotals(rows) {
+  const sum = (k) => (rows.some((e) => e[k] === null) ? null : rows.reduce((n, e) => n + e[k], 0) / 1e6)
+  return { usd: sum('usdMicros'), eur: sum('eurMicros') }
 }

@@ -3,8 +3,11 @@
 # Purpose: the terraform state and step actions are dry runs unless DRY_RUN=0
 #          and refuse to start without their required vars.
 #   1. do_tf_remove_step: default lists what would go and removes nothing;
-#      DRY_RUN=0 removes only <STEP>* under src/terraform and the tf tpl dir,
-#      relative to the cwd. It runs in a SANDBOX cwd, never the real tree.
+#      DRY_RUN=0 removes only <STEP>* under src/terraform and the tf tpl dir
+#      src/tpl/%org%-%app%/%env%/tf (the one the real tree holds), relative to
+#      the cwd. One set missing: a WARNING names it and the other set goes;
+#      neither: refused, nothing removed. It runs in a SANDBOX cwd, never the
+#      real tree.
 #   2. do_tf_replace_target: default `plan -replace=<t>` per target, no apply;
 #      DRY_RUN=0 `apply -auto-approve -replace=<t>` per target
 #   3. do_tf_state_push: default pushes nothing; DRY_RUN=0 runs
@@ -59,15 +62,19 @@ run_action() {
 }
 calls() { tr '\n' '|' <"$T/calls.log"; }
 vars="-var-file=$T/app/o-a-cnf/o-a/dev/tf/007-dns.vars.tfvars"
-tfdir="src/tpl/cnf/env/%org%/%app%/%env%/tf"
+tfdir="src/tpl/%org%-%app%/%env%/tf"
 
 # --- 1. tf-remove-step: dry run by default, sandbox cwd only ------------------------
+compgen -G "$PROJ_ROOT/$tfdir/*.tfvars.tpl" >/dev/null \
+  && pass "remove-step: the sandbox tpl dir is where the real tree keeps the step templates" \
+  || fail "remove-step: no *.tfvars.tpl under $PROJ_ROOT/$tfdir; the sandbox no longer mirrors the tree"
 sandbox; run_action do_tf_remove_step; rc=$?
 [[ $rc -eq 0 && -f "$T/sbx/src/terraform/007-dns/main.tf" && -f "$T/sbx/$tfdir/007-dns.vars.tfvars.tpl" ]] \
   && ! grep -q '^rm ' "$T/calls.log" && pass "remove-step default: nothing removed, no rm" \
   || fail "remove-step default: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
-grep -q 'src/terraform/007-dns' "$T/out.log" && grep -q 'DRY_RUN: nothing removed; DRY_RUN=0 removes' "$T/out.log" \
-  && pass "remove-step default: lists the step's paths and says nothing was removed" || fail "remove-step log: $(cat "$T/out.log")"
+grep -qx 'src/terraform/007-dns' "$T/out.log" && grep -qxF "$tfdir/007-dns.vars.tfvars.tpl" "$T/out.log" \
+  && grep -q 'DRY_RUN: nothing removed; DRY_RUN=0 removes' "$T/out.log" \
+  && pass "remove-step default: lists the terraform dir and the tpl, says nothing was removed" || fail "remove-step log: $(cat "$T/out.log")"
 sandbox; run_action do_tf_remove_step DRY_RUN=0; rc=$?
 [[ $rc -eq 0 && ! -e "$T/sbx/src/terraform/007-dns" && ! -e "$T/sbx/$tfdir/007-dns.vars.tfvars.tpl" ]] \
   && pass "remove-step DRY_RUN=0: the step's terraform dir and tpl go" || fail "remove-step DRY_RUN=0: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
@@ -75,6 +82,15 @@ sandbox; run_action do_tf_remove_step DRY_RUN=0; rc=$?
   && pass "remove-step DRY_RUN=0: the other step stays" || fail "remove-step removed another step: $(find "$T/sbx" | tr '\n' ' ')"
 [[ -z "$(grep -v '^rm ' "$T/calls.log")" ]] \
   && pass "remove-step: no do_tf_init, terraform or gcloud" || fail "remove-step called out: $(calls)"
+sandbox; command rm "$T/sbx/$tfdir/007-dns.vars.tfvars.tpl"; run_action do_tf_remove_step DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && ! -e "$T/sbx/src/terraform/007-dns" && -f "$T/sbx/src/terraform/008-keep/main.tf" ]] \
+  && grep -q "WARNING no $tfdir/007-dns\* to remove" "$T/out.log" \
+  && pass "remove-step DRY_RUN=0, no tpl: a WARNING names the tpl set, the terraform dir goes" \
+  || fail "remove-step partial: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
+sandbox; run_action do_tf_remove_step DRY_RUN=0 STEP=009-none; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'FATAL nothing of step 009-none' "$T/out.log" \
+  && pass "remove-step DRY_RUN=0, nothing matches: refused, no rm" \
+  || fail "remove-step no match: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
 
 # --- 2. tf-replace-target -----------------------------------------------------------
 run_action do_tf_replace_target; rc=$?

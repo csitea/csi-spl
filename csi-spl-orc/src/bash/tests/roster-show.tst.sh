@@ -3,6 +3,9 @@
 # answers the login and GET /v1/view/roster with the boxes in $T/roster.json.
 # CONTROL: a stub that refuses the roster (401 view_door) must fail the action,
 # so an empty roster can never be mistaken for a clean one.
+# PROBE_COOKIE_FILE (SPL-5233): reads that share it sign in once, the file is
+# 0600, a refused session signs in again; a login 429 prints the hub's
+# Retry-After as retry_after.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="$HERE/../scripts/roster-show.py"
@@ -17,21 +20,28 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 T = sys.argv[1]
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
-    def reply(self, st, body, cookie=False):
+    def tok(self):
+        p = os.path.join(T, "tok")
+        return open(p).read().strip() if os.path.exists(p) else "tok"
+    def reply(self, st, body, cookie=False, hdr=None):
         raw = json.dumps(body).encode()
         self.send_response(st)
         self.send_header("Content-Type", "application/json")
-        if cookie: self.send_header("Set-Cookie", "spool_session=tok; Path=/; HttpOnly")
+        if cookie: self.send_header("Set-Cookie", "spool_session=" + self.tok() + "; Path=/; HttpOnly")
+        for k, v in (hdr or {}).items(): self.send_header(k, v)
         self.end_headers(); self.wfile.write(raw)
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         b = json.loads(self.rfile.read(n) or b"{}")
         if self.path == "/api/v1/auth/login":
             open(os.path.join(T, "login.json"), "w").write(json.dumps(b))
+            open(os.path.join(T, "logins"), "a").write("login\n")
+            if os.path.exists(os.path.join(T, "r429")):
+                return self.reply(429, {"error": "rate_limited"}, hdr={"Retry-After": "42"})
             return self.reply(200, {}, cookie=b.get("password") == "pw-ok")
         self.reply(404, {"error": "not_found"})
     def do_GET(self):
-        if self.headers.get("Cookie") != "spool_session=tok": return self.reply(401, {"error": "view_door"})
+        if self.headers.get("Cookie") != "spool_session=" + self.tok(): return self.reply(401, {"error": "view_door"})
         if os.path.exists(os.path.join(T, "door-shut")): return self.reply(401, {"error": "view_door"})
         self.reply(200, json.load(open(os.path.join(T, "roster.json"))))
 s = HTTPServer(("127.0.0.1", 0), H)
@@ -63,6 +73,26 @@ touch "$T/door-shut"; show; rc=$?
 rm -f "$T/door-shut"
 PW="$T/pw-bad" show; rc=$?
 [[ $rc -eq 2 ]] && grep -q '"step": "login"' "$T/out" && pass "a failed sign-in exits 2" || fail "bad login: rc=$rc $(cat "$T/out")"
+
+# PROBE_COOKIE_FILE: three reads, one login; a refused session signs in again
+logins() { wc -l <"$T/logins" 2>/dev/null || echo 0; }
+mkdir -p "$T/jar"; : >"$T/logins"
+for i in 1 2 3; do PROBE_COOKIE_FILE="$T/jar/s" show || fail "cookie read $i: $(cat "$T/out")"; done
+[[ "$(logins)" -eq 1 ]] && pass "three reads with PROBE_COOKIE_FILE sign in once" || fail "logins with a cookie file: $(logins), want 1"
+[[ "$(stat -c %a "$T/jar/s")" == 600 ]] && pass "the session file is 0600" || fail "session file mode $(stat -c %a "$T/jar/s")"
+grep -q 'spool_session' "$T/out" && fail "the cookie is printed" || pass "the reused session is not printed"
+: >"$T/logins"; for i in 1 2 3; do show; done
+[[ "$(logins)" -eq 3 ]] && pass "CONTROL: without PROBE_COOKIE_FILE every read signs in" || fail "logins without a cookie file: $(logins), want 3"
+: >"$T/logins"; echo tok2 >"$T/tok"
+PROBE_COOKIE_FILE="$T/jar/s" show; rc=$?
+[[ $rc -eq 0 && "$(logins)" -eq 1 ]] && pass "a refused session signs in again and reads" || fail "re-login: rc=$rc logins=$(logins) $(cat "$T/out")"
+touch "$T/door-shut"; PROBE_COOKIE_FILE="$T/jar/s" show; rc=$?
+[[ $rc -eq 1 ]] && grep -q '"step": "roster"' "$T/out" && pass "CONTROL: a shut door with a saved session still exits 1" || fail "door with cookie: rc=$rc $(cat "$T/out")"
+rm -f "$T/door-shut" "$T/jar/s"
+touch "$T/r429"; PROBE_COOKIE_FILE="$T/jar/s" show; rc=$?
+[[ $rc -eq 2 ]] && grep -q '"status": 429' "$T/out" && grep -q '"retry_after": 42' "$T/out" && pass "a login 429 prints the hub's Retry-After" || fail "429: rc=$rc $(cat "$T/out")"
+[[ ! -e "$T/jar/s" ]] && pass "a refused login saves no session" || fail "session saved after a 429"
+rm -f "$T/r429" "$T/tok"
 
 # The action, sourced like the other orc tests (no ./run: no log file writes).
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"

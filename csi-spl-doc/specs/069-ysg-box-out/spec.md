@@ -1064,6 +1064,41 @@ Tests: `desk-move.tst.sh` cases 14 and 15, `desk-user-hops.tst.sh` cases 6 to 13
 `dispatch-lease-moved-desk.tst.sh` cases 10 and 11, and for the cron rows going
 back `install-box-crons.tst.sh` case 9.
 
+#### 8.4.5 The proof's credential and its login (SPL-5233)
+
+Measured on sat 2026-11-10 (n=2, one prd desk, desk-cron orc `b3ddc72b2`):
+the plan was clean, the real move copied, verified and started the sidecar as
+`<agent-user>`, then the proof gave `no verdict`. First run: the probe password
+file passed as `PROBE_PW_FILE` was `<box-user>`'s, mode 0600, and the proof runs
+as `<agent-user>`. Second run, with a `<agent-user>` copy: the login answered
+429 `rate_limited`, and the rollback's proof (as `<box-user>`) could not read
+the `<agent-user>` copy. Both runs rolled back.
+
+- **Each proof reads a credential its own user can read.** The forward proof
+  runs as the target user, the rollback's as the source user. The desk user's
+  proof reads `MOVE_DESK_PW_FILE`, the box user's `MOVE_BOX_PW_FILE`, each
+  defaulting to `PROBE_PW_FILE`, else that user's own
+  `<state>/m3-e2e/{<workspace>,e2e}/pw-human`. `DESK_ROSTER_JSON`, when set, is
+  the one file both read.
+- **Checked before anything moves.** The plan, and a real run before any stop
+  or copy, read each file as its user (`sudo -n -u <user> test -r`) for every
+  desk with a live sidecar, and refuse with a FATAL that names the file and
+  the user. Nothing is read or printed beyond that test.
+- **One login per proof.** The hub allows 10 member logins per address per 15
+  minutes (`SPOOL_HUB_AUTH_NATIVE_LOGIN_PER_EMAIL`, `_RATE_WINDOW`); the old
+  proof logged in on each of its up to 13 checks. Now `roster-show.py` keeps
+  the session in `PROBE_COOKIE_FILE` (0600, in a `mktemp -d` of the proof's
+  user, removed after) and signs in again only when the session is refused.
+- **A 429 waits, with a bound.** A login 429 waits the hub's `Retry-After`
+  (printed as `retry_after`), else `MOVE_CHECK_EVERY` doubled per 429, at most
+  60 s a wait, and retries. The 429 waits of one proof sum to at most
+  `MOVE_CHECK_429_SECS` (300 s), on top of `MOVE_CHECK_SECS` (60 s); a wait past
+  it ends the proof with `no verdict`. A proof that waits counts in the desk's
+  downtime, so it can pass `MOVE_MAX_SECS` and stop the box after that desk.
+
+Tests: `desk-move.tst.sh` cases 16 and 17, `roster-show.tst.sh` (the session
+file and `retry_after`).
+
 ### 8.5 Build rows
 
 Rounds-rulebook rows. Disjoint files; batch 1 lands first, batch 2 rows in

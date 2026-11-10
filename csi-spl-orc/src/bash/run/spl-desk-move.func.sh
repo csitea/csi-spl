@@ -45,6 +45,22 @@
 # @description runs through `sudo -n -u <desk user>` (files) and its ./run
 # @description (the sidecar steps); nothing is chowned, nothing needs root.
 # @description Downtime per desk = stop to proof, in seconds.
+# @description The proof's credential (SPL-5233): the forward proof runs as
+# @description the target user, the rollback's as the source user, and each
+# @description reads its own probe password file: MOVE_DESK_PW_FILE (desk
+# @description user) / MOVE_BOX_PW_FILE (box user), each defaulting to
+# @description PROBE_PW_FILE, else that user's own
+# @description <state>/m3-e2e/{<workspace>,e2e}/pw-human (DESK_ROSTER_JSON,
+# @description when set, is the one file both read). The plan, and a real run
+# @description before any stop or copy, check with `sudo -n -u <user> test -r`
+# @description that each user can read its file for every desk with a live
+# @description sidecar, and refuse with a FATAL naming the file and the user.
+# @description The proof logs in once (the session is kept in a 0600 file of
+# @description a mktemp dir of that user, removed after) and on a login 429
+# @description waits and retries: the hub's Retry-After, else
+# @description MOVE_CHECK_EVERY doubled per 429 (at most 60 s a wait), all
+# @description 429 waits of one proof at most MOVE_CHECK_429_SECS (300 s, on
+# @description top of MOVE_CHECK_SECS); past that bound: 'no verdict'.
 # @description The quiesce window (spec 069 8.4.1): from the copy to the
 # @description source's rename aside (or its rollback) the desk carries the
 # @description marker <desk dir>.quiesce, written as the desk's owner and
@@ -69,7 +85,11 @@
 # @param   side runs, default this one (e.g. the desk-cron checkout)
 # @param MOVE_PRUNE_DAYS (optional) - default 7
 # @param PROBE_EMAIL / PROBE_PW_FILE / DESK_ROSTER_JSON (optional) - the roster
-# @param   read of the proof, as do_spl_desk_check documents them
+# @param   read of the proof, as do_spl_desk_check documents them. The file
+# @param   must be readable by the user each proof runs as (see above)
+# @param MOVE_DESK_PW_FILE / MOVE_BOX_PW_FILE (optional) - the probe password
+# @param   file of the desk user's / the box user's proof, default PROBE_PW_FILE
+# @param MOVE_CHECK_429_SECS (optional) - the 429 back-off bound of one proof, default 300
 # @param DESK_QUIESCE_SETTLE_SECS (optional) - pause between the marker and the copy, default 2
 # @param DESK_QUIESCE_MAX_SECS / DESK_QUIESCE_WAIT_SECS (optional) - the writers' side, see above
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -97,6 +117,7 @@ do_spl_desk_move() {
   local -a desks=()
   mapfile -t desks < <(_spl_dm_list)
   _spl_dm_plan "${desks[@]}"
+  _spl_dm_cred_check "${desks[@]}" || { do_log "FATAL the proof could not run as every user it needs: nothing was touched"; return 1; }
   if (( dry )); then
     [[ "$cmd" == plan ]] || do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to $cmd ${#desks[@]} desk(s)."
     return 0
@@ -148,6 +169,41 @@ _spl_dm_root() { SPOOL_DESK_USER="$1" spl_desk_state_root "$2"; }
 _spl_dm_as() {
   local u="$1"; shift
   if [[ "$u" == "$DM_ME" ]]; then "$@"; else sudo -n -u "$u" -- "$@"; fi
+}
+
+# _spl_dm_pw_for <user>: the probe password file the proof of that user
+# reads: MOVE_DESK_PW_FILE for the desk user, MOVE_BOX_PW_FILE for the box
+# user, each defaulting to PROBE_PW_FILE; empty = that user's own default.
+_spl_dm_pw_for() {
+  if [[ "$1" == "$DM_DESK" ]]; then printf '%s' "${MOVE_DESK_PW_FILE:-${PROBE_PW_FILE:-}}"
+  else printf '%s' "${MOVE_BOX_PW_FILE:-${PROBE_PW_FILE:-}}"; fi
+}
+
+# _spl_dm_cred_check <desk>...: per desk with a live sidecar, the target user
+# (its proof) and the source user (the rollback's proof) can each read the
+# roster input that proof reads (DESK_ROSTER_JSON, else its password file,
+# else its own m3-e2e default). Read as that user, never printed. 0 = all can.
+_spl_dm_cred_check() {
+  local x e ws id u f r why bad=0; local -A seen=()
+  for x in "$@"; do
+    read -r e ws id <<<"$x"
+    [[ -n "$(_spl_dm_pid "$DM_FROM" "$(_spl_dm_root "$DM_FROM" "$e")/desk/$ws/$id")" ]] || continue
+    for u in "$DM_TO" "$DM_FROM"; do
+      why="the $([[ "$u" == "$DM_TO" ]] && echo proof || echo "rollback's proof") of $e $ws/$id"
+      f="${DESK_ROSTER_JSON:-$(_spl_dm_pw_for "$u")}"
+      if [[ -n "$f" ]]; then
+        [[ -n "${seen[$u|$f]:-}" ]] && continue; seen[$u|$f]=1
+        _spl_dm_as "$u" test -r "$f" && continue
+        do_log "FATAL $u cannot read $f, the probe credential of $why (runs as $u): give $u a copy it can read and pass it as $([[ "$u" == "$DM_DESK" ]] && echo MOVE_DESK_PW_FILE || echo MOVE_BOX_PW_FILE)"
+        bad=1; continue
+      fi
+      r="$(_spl_dm_root "$u" "$e")/m3-e2e"
+      _spl_dm_as "$u" test -r "$r/$ws/pw-human" || _spl_dm_as "$u" test -r "$r/e2e/pw-human" || {
+        do_log "FATAL $u can read neither $r/$ws/pw-human nor $r/e2e/pw-human, the probe credential of $why (runs as $u): pass $([[ "$u" == "$DM_DESK" ]] && echo MOVE_DESK_PW_FILE || echo MOVE_BOX_PW_FILE) or PROBE_PW_FILE"
+        bad=1; }
+    done
+  done
+  return "$bad"
 }
 
 # _spl_dm_list: "<env> <workspace> <desk id>" per desk of DM_FROM, in move
@@ -436,12 +492,14 @@ _spl_dm_undo_all() {
 # runs its ./run (MOVE_RUN, default this checkout) under sudo with its HOME.
 _spl_dm_side_as() {
   local u="$1" step="$2" e="$3" ws="$4" id="$5" root="$6" k
+  local pw; pw="$(_spl_dm_pw_for "$u")"
   if [[ "$u" == "$DM_ME" ]]; then
-    ENV="$e" SPL_STATE_DIR="$root" TENANT_ID="$ws" DESK_BOX="$id" _spl_dm_side "$step"
+    ENV="$e" SPL_STATE_DIR="$root" TENANT_ID="$ws" DESK_BOX="$id" PROBE_PW_FILE="$pw" _spl_dm_side "$step"
     return $?
   fi
   local -a pass=(HOME="$(_spl_dm_home "$u")" PATH="$PATH" ENV="$e" SPL_STATE_DIR="$root" TENANT_ID="$ws" DESK_BOX="$id" MOVE_CMD="_$step")
-  for k in SPOOL_ROOT SPOOL_TEST SPOOL_BOX_ENV PROBE_EMAIL PROBE_PW_FILE DESK_ROSTER_JSON MOVE_CHECK_SECS MOVE_CHECK_EVERY SPL_PRIVATE_CNF; do
+  [[ -n "$pw" ]] && pass+=("PROBE_PW_FILE=$pw")
+  for k in SPOOL_ROOT SPOOL_TEST SPOOL_BOX_ENV PROBE_EMAIL DESK_ROSTER_JSON MOVE_CHECK_SECS MOVE_CHECK_EVERY MOVE_CHECK_429_SECS SPL_PRIVATE_CNF; do
     [[ -n "${!k:-}" ]] && pass+=("$k=${!k}")
   done
   sudo -n -u "$u" -- env "${pass[@]}" bash -c 'cd "$1" && ./run -a do_spl_desk_move' _ "${MOVE_RUN:-$PROJ_PATH}"
@@ -451,22 +509,54 @@ _spl_dm_side_as() {
 # DESK_BOX in SPL_STATE_DIR, as the user running it.
 #   stop   do_spl_desk_down DESK_ALL=1 (no seat is released)
 #   start  spl_desk_box_restart with its first seat (do_spl_desk_up)
-#   proof  do_spl_desk_check for that seat, until ok / muted / agent-missing
-#          (MOVE_CHECK_SECS, default 60)
+#   proof  _spl_dm_proof for that seat
 _spl_dm_side() {
-  local d="$SPL_STATE_DIR/desk/$TENANT_ID/$DESK_BOX" seat v i out line
+  local d="$SPL_STATE_DIR/desk/$TENANT_ID/$DESK_BOX" seat
   case "$1" in
     stop) DESK_AGENT="" DESK_ALL=1 DRY_RUN=0 do_spl_desk_down >/dev/null; return $? ;;
   esac
   seat="$(spl_desk_box_agents "$d" | sed -n 1p)"
   [[ -n "$seat" ]] || { do_log "FAIL $TENANT_ID/$DESK_BOX has no seat to start its sidecar with"; return 1; }
   if [[ "$1" == start ]]; then spl_desk_box_restart "$d" "$TENANT_ID" "$DESK_BOX" "$seat"; return $?; fi
-  for ((i = 0; i <= ${MOVE_CHECK_SECS:-60}; i += ${MOVE_CHECK_EVERY:-5})); do
-    out="$(DESK_AGENT="$seat" DRY_RUN=1 do_spl_desk_check 2>&1)"
+  _spl_dm_proof "$seat"
+}
+
+# _spl_dm_proof <seat>: do_spl_desk_check until ok / muted / agent-missing,
+# every MOVE_CHECK_EVERY (5) s for MOVE_CHECK_SECS (60). One member login for
+# the whole proof: roster-show.py keeps the session in PROBE_COOKIE_FILE, a
+# 0600 file of a mktemp dir of this user, removed after (SPL-5233: one login
+# per attempt was up to 13 a desk against the hub's 10 per address per 15
+# min). A login 429 waits the hub's Retry-After, else MOVE_CHECK_EVERY
+# doubled per 429 (at most 60 s), and retries; the 429 waits of one proof sum
+# to at most MOVE_CHECK_429_SECS (300) and do not count against
+# MOVE_CHECK_SECS. A wait past that bound ends it: 'no verdict'.
+_spl_dm_proof() {
+  local seat="$1" every="${MOVE_CHECK_EVERY:-5}" left="${MOVE_CHECK_SECS:-60}" budget="${MOVE_CHECK_429_SECS:-300}"
+  local back jar out v="" w ra line rc=1
+  [[ "$every" =~ ^[1-9][0-9]*$ && "$left" =~ ^[0-9]+$ && "$budget" =~ ^[0-9]+$ ]] ||
+    { do_log "FATAL MOVE_CHECK_EVERY (>= 1), MOVE_CHECK_SECS and MOVE_CHECK_429_SECS must be whole seconds"; return 1; }
+  back="$every"
+  jar="$(umask 077 && mktemp -d)" || { do_log "FAIL proof $TENANT_ID/$DESK_BOX: no temp dir for its session"; return 1; }
+  while :; do
+    out="$(DESK_AGENT="$seat" DRY_RUN=1 PROBE_COOKIE_FILE="$jar/session" do_spl_desk_check 2>&1)"
     v="$(grep -o '"verdict": "[a-z-]*"' <<<"$out" | tail -n 1 | cut -d'"' -f4)"
-    case "$v" in ok | muted | agent-missing) do_log "INFO proof $TENANT_ID/$DESK_BOX: $v"; return 0 ;; esac
-    sleep "${MOVE_CHECK_EVERY:-5}"
+    case "$v" in ok | muted | agent-missing) do_log "INFO proof $TENANT_ID/$DESK_BOX: $v"; rc=0; break ;; esac
+    if grep -q '"status": 429' <<<"$out"; then
+      ra="$(grep -o '"retry_after": [0-9]*' <<<"$out" | tail -n 1 | grep -o '[0-9]*$')"
+      w="${ra:-$back}"
+      if (( w > budget )); then
+        do_log "FAIL proof $TENANT_ID/$DESK_BOX: the member login is rate limited (429); the next try is in $w s, past the $budget s left of MOVE_CHECK_429_SECS (${MOVE_CHECK_429_SECS:-300})"
+        break
+      fi
+      do_log "INFO proof $TENANT_ID/$DESK_BOX: login 429 (rate_limited), retrying in $w s ($budget s of 429 back-off left)"
+      sleep "$w"; budget=$((budget - w)); back=$((back * 2)); (( back > 60 )) && back=60
+      continue
+    fi
+    (( left >= every )) || break
+    sleep "$every"; left=$((left - every))
   done
+  rm -rf -- "$jar"
+  (( rc == 0 )) && return 0
   do_log "FAIL proof $TENANT_ID/$DESK_BOX: do_spl_desk_check says '${v:-no verdict}' after ${MOVE_CHECK_SECS:-60} s"
   # the reason from the last check: 'no verdict' alone cannot tell an
   # unreadable probe login from a login 429 (SPL-4985, 2026-11-09)

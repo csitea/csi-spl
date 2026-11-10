@@ -54,6 +54,15 @@
 #      first stub. RED CONTROL: 48dc6c573 refuses the command
 #  15. back, the rollback (SPL-4985, R7 question 3): with MOVE_DESKS, after
 #      unswitch, over a stub, a failed verify and a failed proof; unswitch twice
+#  16. the proof's credential (SPL-5233): a probe password file the target
+#      user cannot read refuses the plan and a real move before any stop or
+#      copy (0 desks touched), naming the file and the user; readable, the
+#      plan is unchanged; each side's proof gets its own file
+#      (MOVE_DESK_PW_FILE / MOVE_BOX_PW_FILE); the rollback side is checked
+#      too; with no file set, each user's own m3-e2e default is checked
+#  17. the proof's login (SPL-5233): one member login per proof, not one per
+#      attempt; a 429 then a 200 -> ok; a 429 every time -> 'no verdict' once
+#      MOVE_CHECK_429_SECS is spent
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -79,6 +88,7 @@ cat >"$T/stub/sudo" <<EOF
 u=""
 while [ \$# -gt 0 ]; do case "\$1" in -n|-H) shift ;; -u) u="\$2"; shift 2 ;; --) shift; break ;; *) break ;; esac; done
 echo "sudo \$u \${1##*/}" >>"$T/sudo.log"
+[ "\${1##*/}" = test ] && [ "\$2" = -r ] && [ -e "$T/deny.\$u" ] && grep -qxF -- "\$3" "$T/deny.\$u" && exit 1
 [ "\${1##*/}" = tar ] && [ -e "$T/tar-slow" ] && sleep 1.5
 exec "\$@"
 EOF
@@ -113,7 +123,17 @@ spl_desk_box_restart() {
   _fake_start "\$1"
 }
 do_spl_desk_check() {
-  local d="\$SPL_STATE_DIR/desk/\$TENANT_ID/\$DESK_BOX" v=ok
+  local d="\$SPL_STATE_DIR/desk/\$TENANT_ID/\$DESK_BOX" v=ok n
+  echo "pw=\${PROBE_PW_FILE:-} home=\$HOME" >>"$T/pw.log"
+  if [[ -z "\${PROBE_COOKIE_FILE:-}" || ! -s "\${PROBE_COOKIE_FILE:-}" ]]; then
+    echo "login home=\$HOME" >>"$T/login.log"
+    n="\$(cat "$T/r429" 2>/dev/null)"
+    if [[ "\$n" =~ ^[1-9][0-9]*$ ]]; then
+      echo "\$((n - 1))" >"$T/r429"
+      echo 'FATAL   {"step": "login", "status": 429, "error": "rate_limited", "retry_after": 1}'; return 1
+    fi
+    [[ -n "\${PROBE_COOKIE_FILE:-}" ]] && echo session >"\$PROBE_COOKIE_FILE"
+  fi
   spl_desk_alive "\$d/spool/.hub/hub-run.pid" || v=down
   [[ -s "$T/verdict" ]] && v="\$(cat "$T/verdict")"
   [[ "\$v" == none ]] && { echo "roster-noise-line"; echo "FATAL no readable password file /x/pw-human"; return 1; }
@@ -138,7 +158,7 @@ chmod +x "$T/orc/run"
 mv_run() {
   env -u SPOOL_DESK_USER -u SPL_STATE_DIR PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" HOME="$BH" \
     PATH="$T/stub:$PATH" SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$T/box.env" SPL_ORG_APP="$OA" \
-    MOVE_RUN="$T/orc" MOVE_CHECK_SECS=2 MOVE_CHECK_EVERY=1 DESK_QUIESCE_SETTLE_SECS=0 "$@" bash -c '
+    MOVE_RUN="$T/orc" MOVE_CHECK_SECS=2 MOVE_CHECK_EVERY=1 DESK_QUIESCE_SETTLE_SECS=0 PROBE_PW_FILE="$T/pw-probe" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
@@ -158,8 +178,9 @@ mkdesk() {
   [[ "${4:-}" == live ]] && (source "$T/over.sh"; _fake_start "$d")
   return 0
 }
+echo not-a-password >"$T/pw-probe"; chmod 600 "$T/pw-probe"
 reset_box() {
-  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict" "$T"/start-dies.*
+  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict" "$T"/start-dies.* "$T"/deny.* "$T/r429" "$T/pw.log" "$T/login.log"
   mkdir -p "$BH" "$DH" "$T/spool"
   printf 'SPOOL_DESK_BOX=box-x\nSPOOL_FLEET_TENANT=ws-fleet\nSPOOL_FLEET_ENV=prd\n' >"$T/box.env"
   mkdesk prd ws-fleet box-x live
@@ -493,6 +514,56 @@ out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_R
 [[ -f "$DST_P/desk/ws-a/box-a/keys/box-box-a.key" && ! -e "$SRC_P/desk/ws-a/box-a" ]] && pass "15.7 the desk is the desk user's again" || fail "15.7 not rolled back"
 grep -q '^start ws-a/box-a seat=c-101 home='"$DH" "$T/side.log" && pass "15.7 its sidecar restarted as the desk user" || fail "15.7 restart: $(tr '\n' '|' <"$T/side.log")"
 rm -f "$T/verdict"
+
+# --- 16. the proof's credential (SPL-5233) -----------------------------------------
+reset_box; out2="$(mv_run MOVE_DESK_USER="$DU" | grep '^PLAN' | sed -E 's/sidecar [0-9]+/sidecar <pid>/')"
+before="$(tree)"; echo "$T/pw-probe" >"$T/deny.$DU"; : >"$T/sudo.log"
+for c in plan move; do
+  out="$(mv_run MOVE_CMD=$c MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+  [[ $rc -ne 0 ]] && has "16.1 $c: a file the target user cannot read is refused, naming file and user" "FATAL $DU cannot read $T/pw-probe, the probe credential of the proof of prd ws-a/box-a (runs as $DU)" "$out" || fail "16.1 $c rc=$rc $(tail -n 3 <<<"$out")"
+  has "16.1 $c: says nothing was touched" "nothing was touched" "$out"
+done
+[[ "$(tree)" == "$before" && ! -e "$T/side.log" ]] && pass "16.1 refused: 0 desks touched, no sidecar stopped" || fail "16.1 refused run changed the tree or a sidecar: $(tr '\n' '|' <"$T/side.log" 2>/dev/null)"
+grep -q ' tar$' "$T/sudo.log" && fail "16.1 a copy ran" || pass "16.1 no copy ran"
+rm -f "$T/deny.$DU"
+out="$(mv_run MOVE_DESK_USER="$DU")"; rc=$?
+[[ $rc -eq 0 && "$(grep '^PLAN' <<<"$out" | sed -E 's/sidecar [0-9]+/sidecar <pid>/')" == "$out2" ]] && hasnt "16.2 readable: the plan is unchanged" "FATAL" "$out" || fail "16.2 readable plan rc=$rc $(grep -E 'FATAL|PLAN' <<<"$out" | tr '\n' '|')"
+grep -q "^sudo $DU test" "$T/sudo.log" && pass "16.2 the check reads as the target user (sudo -u $DU test -r)" || fail "16.2 no sudo test as $DU"
+echo x >"$T/pw-desk"; echo x >"$T/pw-box"; echo "$T/pw-probe" >"$T/deny.$DU"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_DESK_PW_FILE="$T/pw-desk" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && pass "16.3 MOVE_DESK_PW_FILE: the move passes" || fail "16.3 rc=$rc $(tail -n 4 <<<"$out")"
+grep -qx "pw=$T/pw-desk home=$DH" "$T/pw.log" && pass "16.3 the desk user's proof reads MOVE_DESK_PW_FILE" || fail "16.3 pw.log $(tr '\n' '|' <"$T/pw.log")"
+reset_box; echo stranded >"$T/verdict"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_DESK_PW_FILE="$T/pw-desk" MOVE_BOX_PW_FILE="$T/pw-box" DRY_RUN=0)"
+grep -qx "pw=$T/pw-box home=$BH" "$T/pw.log" && grep -qx "pw=$T/pw-desk home=$DH" "$T/pw.log" && pass "16.4 the rollback's proof reads the box user's own file" || fail "16.4 pw.log $(tr '\n' '|' <"$T/pw.log")"
+reset_box; mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0 >/dev/null
+before="$(tree)"; echo "$T/pw-probe" >"$T/deny.$DU"; : >"$T/side.log"
+out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "16.5 back: the rollback side (the desk user) is checked too" "of the rollback's proof of prd ws-a/box-a (runs as $DU)" "$out" || fail "16.5 rc=$rc $(tail -n 3 <<<"$out")"
+[[ "$(tree)" == "$before" && ! -s "$T/side.log" ]] && pass "16.5 refused back touched nothing" || fail "16.5 changed"
+reset_box
+out="$(mv_run MOVE_DESK_USER="$DU" PROBE_PW_FILE=)"; rc=$?
+[[ $rc -ne 0 ]] && has "16.6 no file set, no default: refused, both default paths named" "FATAL $DU can read neither $DST_P/m3-e2e/ws-a/pw-human nor $DST_P/m3-e2e/e2e/pw-human" "$out" || fail "16.6 rc=$rc $(tail -n 3 <<<"$out")"
+mkdir -p "$DST_P/m3-e2e/e2e" "$SRC_P/m3-e2e/e2e"; echo x >"$DST_P/m3-e2e/e2e/pw-human"; echo x >"$SRC_P/m3-e2e/e2e/pw-human"
+out="$(mv_run MOVE_DESK_USER="$DU" PROBE_PW_FILE=)"; rc=$?
+[[ $rc -eq 0 ]] && hasnt "16.6 each user's own default is enough" "FATAL" "$out" || fail "16.6 defaults rc=$rc $(tail -n 3 <<<"$out")"
+
+# --- 17. the proof's login (SPL-5233) -------------------------------------------------
+reset_box; echo stranded >"$T/verdict"
+mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0 >/dev/null
+n="$(grep -c "^login home=$DH" "$T/login.log")" m="$(grep -c "home=$DH" "$T/pw.log")"
+[[ "$n" == 1 && "$m" -ge 3 ]] && pass "17.1 one login for a proof of $m checks" || fail "17.1 logins $n for $m checks, want 1"
+reset_box; echo 1 >"$T/r429"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=5 DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && has "17.2 a 429 then a 200: verdict ok" "INFO proof ws-a/box-a: ok" "$out" || fail "17.2 rc=$rc $(grep -E 'FAIL|429' <<<"$out" | tr '\n' '|')"
+has "17.2 the 429 wait is named" "login 429 (rate_limited), retrying in 1 s" "$out"
+reset_box; echo 99 >"$T/r429"; t0="$(date +%s)"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=3 DRY_RUN=0)"; rc=$?; t1="$(date +%s)"
+[[ $rc -ne 0 ]] && has "17.3 a 429 every time: no verdict" "says 'no verdict'" "$out" || fail "17.3 rc=$rc"
+has "17.3 the bound is named" "the member login is rate limited (429); the next try is in 1 s, past the 0 s left of MOVE_CHECK_429_SECS (3)" "$out"
+n="$(grep -c "^login home=$DH" "$T/login.log")"
+[[ "$n" == 4 && $((t1 - t0)) -lt 30 ]] && pass "17.3 bounded: 4 logins in the forward proof (3 x 1 s), $((t1 - t0)) s in all" || fail "17.3 logins $n, $((t1 - t0)) s"
+[[ -f "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key" && ! -e "$DST_P/desk/ws-a/box-a" ]] && pass "17.3 the desk is rolled back" || fail "17.3 not rolled back"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

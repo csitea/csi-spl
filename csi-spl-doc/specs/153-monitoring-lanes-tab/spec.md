@@ -416,7 +416,9 @@ section 3.3 serves the live list only (decision P6).
   280 px) with the full text in a `title` attribute. The table sits in a
   wrapper that scrolls sideways inside itself, as the Tokens table does
   (`.tk-table-wrap { overflow-x: auto; max-width: 100% }`,
-  `wui/components/monitoring/token-burn/token-burn.css:5`). An empty
+  `wui/components/monitoring/token-burn/token-burn.css:5`). On a phone
+  (<= 820 px) the rows are dense cards instead, nothing scrolls sideways
+  (3.25). An empty
   discussion or issue cell shows a muted dash.
 - Text: `monitoring.tab.lanes` reuses each locale's existing
   `reporting.tab.lanes` word (19 locales, all present, e.g. en "Lanes",
@@ -684,8 +686,8 @@ rule below (10 in a `topic` form, 5 only as a `dispatch-<topic8>` task),
   `workspace` (id) and `workspace_name`: the workspace holding the row's
   topic, else the operator workspace, where the row lives. The workspace
   route (3.6) names W. The WUI shows it as the right-most column, also
-  inside W and on a phone (the table scrolls sideways in its wrapper, 3.2;
-  the column is never dropped) (C42, C43).
+  inside W and on a phone (on its card's third line, 3.25; the column is
+  never dropped) (C42, C43).
 - **A lane with no issue or no topic** shows a dash, as before. The defect
   is upstream: a brief with neither an `Issue:` line nor a topic should be
   refused where it is queued (`do_spl_spawn_enqueue` already refuses one
@@ -1018,8 +1020,8 @@ The rule (the dispatch holder's reading, the lane brief):
   (`LANE_COLUMNS`); the filter row gets an empty cell under Prio. The cell
   is the number in the Issues sheet's colours, a dash for none; the name is
   the Issues sheet's word (`issues.field_priority`), so no new text key and
-  no language review. The phone keeps the column (the table scrolls inside
-  itself, 3.2).
+  no language review. The phone keeps the prio first on each card's first
+  line (3.25).
 - **The sort.** The name is the sheet's sort button (`cycleSort`,
   `sortLanes`, sort key `priority`): ascending = prio 1 first, descending =
   5 first, a lane with no prio last both ways, ties in the hub's order. No
@@ -2154,6 +2156,33 @@ Cases (`internal/hub/lanes_topic_kept_test.go`,
 - **C132** a close naming a version-5 uuid its row does not hold is refused.
 - Red control: on master 4522b6b1e, C129 and C130 were refused with "names
   no single discussion"; C131 and C132 passed.
+
+### 3.25 A phone reads each lane as a dense card (SPL-5235)
+
+Owner HUM-10, t1 389ad5fd, msg e3fad8e4: "The lanes view on mobile should
+be improved similarly to how the releases listing was improved on mobile:
+maximum utilization of space." No earlier lane or ref changed this layout
+(searched: issues, the page's git log, every branch name; the only phone
+change was SPL-4842, Refresh inside the tabs' row).
+
+- At the one phone breakpoint (`max-width: 820px`) the same table, its
+  cells, links, `data-test` names and the row's LaneDialog click unchanged,
+  is laid out by CSS only (`pages/monitoring/lanes/index.vue`): table,
+  head and body are blocks, each row a flex card across the list's whole
+  width, in three short lines:
+  1. prio, agent@box, vendor, state ... updated (end);
+  2. discussion (cut, title holds it) ... issue keys, origin issue;
+  3. scope (cut) ... box, workspace (cut at 35 %), last active (end).
+  An empty origin cell is not drawn. The two ages carry their column name
+  as a `title`. Card text 0.8125rem, issue keys 0.75rem.
+- The sort names wrap above the cards as a row of buttons; the filter row
+  wraps under them, the text search first on its own line.
+- Nothing scrolls sideways at 320, 360 and 390 px, the page nor the list;
+  the desktop table is unchanged.
+- No new text key.
+- Test: `csi-spl-wui/tests/e2e/monitoring-lanes-phone.test.mjs` (P1-P5 at
+  320/360/390, D1 at 1440). Red control: on the code before it, P1b and P2
+  fail at all three widths (the list 1703 px wide in a 308..378 px box).
 
 ## 4. Cases
 

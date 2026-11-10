@@ -115,7 +115,7 @@
                   <option v-for="s in choices.state" :key="s" :value="s">{{ stateLabel(s) }}</option>
                 </select>
               </th>
-              <th colspan="4">
+              <th colspan="4" class="ln-fsearch">
                 <input v-model="filters.text" type="search" class="ln-search" data-test="lanes-filter-text" :placeholder="t('monitoring.lanes.filter_text')" :aria-label="t('monitoring.lanes.filter_text')">
               </th>
               <th>
@@ -177,8 +177,8 @@
                   <span v-else class="ln-issue">{{ l.originIssue.key }}</span>
                 </template>
               </td>
-              <td class="num" data-test="lanes-updated">{{ ago(l.updatedAt) }}</td>
-              <td class="num" data-test="lanes-active">{{ ago(l.lastActive) }}</td>
+              <td class="num" :title="t('monitoring.lanes.col_updated')" data-test="lanes-updated">{{ ago(l.updatedAt) }}</td>
+              <td class="num" :title="t('monitoring.tokens.col_last')" data-test="lanes-active">{{ ago(l.lastActive) }}</td>
               <td class="ln-ws" :title="l.workspace || undefined" data-test="lanes-workspace">{{ l.workspaceName || DASH }}</td>
             </tr>
           </tbody>
@@ -431,7 +431,7 @@ onBeforeUnmount(() => {
 .ln-age[data-stale="amber"] { color: var(--color-warn); }
 .ln-stale { padding: 0 8px; border-radius: var(--radius-pill); background: var(--color-danger); color: var(--color-danger-fg); font-size: 0.8125rem; font-weight: 600; }
 .ln-error { color: var(--color-danger); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-/* the table scrolls sideways inside itself, never the page (3.2, as .tk-table-wrap) */
+/* the table scrolls sideways inside itself, never the page (3.2, as .tk-table-wrap); a phone reads cards (3.25, below) */
 .ln-table-wrap { overflow-x: auto; max-width: 100%; }
 .ln-table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
 .ln-table th, .ln-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; }
@@ -458,4 +458,48 @@ onBeforeUnmount(() => {
 .ln-prio--4, .ln-prio--5 { color: var(--color-muted); }
 /* the workspace, the last column (3.8): it may wrap, never dropped (phone too) */
 .ln-ws { min-width: 6rem; overflow-wrap: anywhere; }
+
+/* 3.25 (SPL-5235; owner HUM-10, t1 389ad5fd, msg e3fad8e4): on a phone
+   (the one 820 px breakpoint) the same table reads as a list of dense
+   cards, the whole width, nothing scrolls sideways. The sort names and the
+   filters wrap above it; each row is a card of three short lines:
+     1  prio  agent@box  vendor  state ............ updated
+     2  discussion (cut) ................... issues  origin
+     3  scope (cut) ......... box  workspace (cut)  last active
+   Every cell, link, data-test and the row's click stay as on the desktop. */
+@media (max-width: 820px) {
+  .ln-table-wrap { overflow-x: visible; }
+  .ln-table, .ln-table thead, .ln-table tbody { display: block; width: 100%; }
+  .ln-table thead tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding-bottom: 4px; }
+  .ln-table thead th { padding: 0; border: 0; font-size: 0.8125rem; }
+  .ln-table thead .ln-frow { gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--color-border); }
+  .ln-frow th:empty { display: none; }
+  .ln-frow select { width: auto; min-width: 0; max-width: 100%; }
+  .ln-frow .ln-fsearch { order: -1; flex: 1 1 100%; }
+  .ln-frow .ln-search { max-width: none; }
+  .ln-table tbody tr { display: block; }
+  .ln-table tbody .ln-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 6px 2px; font-size: 0.8125rem; border-bottom: 1px solid var(--color-border); }
+  .ln-row > th, .ln-row > td { padding: 0; border: 0; min-width: 0; }
+  .ln-row > td:empty { display: none; }
+  .ln-row[data-selected="1"] { background: var(--color-selected); }
+  /* the two line breaks between the card's three lines */
+  .ln-row::before, .ln-row::after { content: ""; flex: 0 0 100%; height: 0; }
+  .ln-row::before { order: 10; }
+  .ln-row::after { order: 20; }
+  .ln-row > [data-test=lanes-priority] { order: 1; }
+  .ln-row > .ln-id { order: 2; }
+  .ln-row > [data-test=lanes-vendor] { order: 3; color: var(--color-muted); }
+  .ln-row > [data-test=lanes-state] { order: 4; }
+  .ln-row > [data-test=lanes-updated] { order: 5; margin-inline-start: auto; color: var(--color-muted); }
+  /* the two cut cells take what the line leaves, down to their basis */
+  .ln-row > [data-test=lanes-topic] { order: 11; flex: 1 1 5rem; max-width: none; }
+  .ln-row > [data-test=lanes-issues] { order: 12; }
+  .ln-row > [data-test=lanes-origin] { order: 13; }
+  .ln-row .ln-issue { font-size: 0.75rem; }
+  .ln-row .ln-issue:last-child { margin-inline-end: 0; }
+  .ln-row > [data-test=lanes-scope] { order: 21; flex: 1 1 3rem; max-width: none; color: var(--color-muted); }
+  .ln-row > .ln-box { order: 22; color: var(--color-muted); }
+  .ln-row > .ln-ws { order: 23; flex: 0 1 auto; min-width: 0; max-width: 35%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ln-row > [data-test=lanes-active] { order: 24; color: var(--color-muted); }
+}
 </style>

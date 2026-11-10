@@ -130,17 +130,24 @@ func (s *Postgres) ChannelMoveJournal(ctx context.Context, dst, src, channel str
 	return &j, nil
 }
 
-// StartChannelMoveStep implements ChannelMoveJournals.
+// StartChannelMoveStep implements ChannelMoveJournals. A done P4 row is left
+// as it is (SPL-5075): a second P4 from another box can pass the gate while
+// the first commits, and wait here on the row; the WHERE reads the committed
+// row, so it updates nothing and the start is refused.
 func (s *Postgres) StartChannelMoveStep(ctx context.Context, dst, moveID, channel, step string, detail any) error {
 	d, err := mvStepJSON(detail)
 	if err != nil {
 		return err
 	}
 	return s.inTenant(ctx, dst, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO channel_move_steps (tenant_id, move_id, channel_id, step, started_at, detail)
+		tag, err := tx.Exec(ctx, `INSERT INTO channel_move_steps (tenant_id, move_id, channel_id, step, started_at, detail)
 			VALUES ($1, $2::uuid, $3, $4, clock_timestamp(), $5::jsonb)
-			ON CONFLICT (tenant_id, move_id, step) DO UPDATE SET started_at = EXCLUDED.started_at, done_at = NULL, detail = EXCLUDED.detail`,
+			ON CONFLICT (tenant_id, move_id, step) DO UPDATE SET started_at = EXCLUDED.started_at, done_at = NULL, detail = EXCLUDED.detail
+			WHERE channel_move_steps.step <> 'P4' OR channel_move_steps.done_at IS NULL`,
 			dst, moveID, channel, step, d)
+		if err == nil && tag.RowsAffected() == 0 {
+			err = fmt.Errorf("move %s: P4 is already done: %w", moveID, ErrConflict)
+		}
 		return err
 	})
 }

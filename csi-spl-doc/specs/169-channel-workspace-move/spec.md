@@ -568,6 +568,12 @@ cd csi-spl-orc && CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy ./run -a do_sp
 | P7 | Run every proof of section 5 and write the results into the journal; print the kept list (5.6) with the date each copy expires | n/a |
 
 P1-P4 (with P2b) can be re-run until P4 commits; P5-P7 resume from the journal.
+The box lock is per box and the hub holds no step lock, so a second P4 from
+another box can pass the gate while the first commits. Its start never
+clears a done P4: the journal keeps the done mark and the start answers 409
+(SPL-5075, `api/store/channel_move_journal_postgres.go`
+`StartChannelMoveStep`; test `TestStartChannelMoveStepKeepsCommittedP4`, on
+Postgres, with a start after the commit and one that waits on it).
 
 ### 8.3 The journal
 

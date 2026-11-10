@@ -87,6 +87,7 @@ type ChannelMoveJournals interface {
 	ChannelMoveJournal(ctx context.Context, dst, src, channel string) (*ChannelMoveJournalRow, error)
 	// StartChannelMoveStep marks a step running: done_at goes back to NULL, so a
 	// step that dies is resumed (C17). detail, if not nil, is what it must not lose.
+	// A done P4 is never cleared: that start is ErrConflict (SPL-5075).
 	StartChannelMoveStep(ctx context.Context, dst, moveID, channel, step string, detail any) error
 	// FinishChannelMoveStep marks it done, with what it did.
 	FinishChannelMoveStep(ctx context.Context, dst, moveID, channel, step string, done ChannelMoveStepDone) error

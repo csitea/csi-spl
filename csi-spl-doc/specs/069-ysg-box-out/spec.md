@@ -1088,13 +1088,24 @@ the `<agent-user>` copy. Both runs rolled back.
   minutes (`SPOOL_HUB_AUTH_NATIVE_LOGIN_PER_EMAIL`, `_RATE_WINDOW`); the old
   proof logged in on each of its up to 13 checks. Now `roster-show.py` keeps
   the session in `PROBE_COOKIE_FILE` (0600, in a `mktemp -d` of the proof's
-  user, removed after) and signs in again only when the session is refused.
+  user, removed after, also when the proof is stopped by INT, TERM or HUP)
+  and signs in again only when the session is refused. Forward and rollback
+  are two proofs, so a move that rolls back signs in twice.
 - **A 429 waits, with a bound.** A login 429 waits the hub's `Retry-After`
   (printed as `retry_after`), else `MOVE_CHECK_EVERY` doubled per 429, at most
-  60 s a wait, and retries. The 429 waits of one proof sum to at most
-  `MOVE_CHECK_429_SECS` (300 s), on top of `MOVE_CHECK_SECS` (60 s); a wait past
-  it ends the proof with `no verdict`. A proof that waits counts in the desk's
-  downtime, so it can pass `MOVE_MAX_SECS` and stop the box after that desk.
+  60 s a wait, and retries. A `Retry-After` under 1 s counts as the doubled
+  wait, so every retry costs at least 1 s. The 429 waits of one proof sum to at
+  most `MOVE_CHECK_429_SECS` (300 s), on top of `MOVE_CHECK_SECS` (60 s); a wait
+  past it ends the proof with `no verdict`. These bound the sleeps and so the
+  number of checks, not the wall time: each check can also spend up to 3 HTTP
+  calls of 20 s each. A proof that waits counts in the desk's downtime, so it
+  can pass `MOVE_MAX_SECS` and stop the box after that desk.
+- **Not checked at plan time** (R7 notes, 2026-11-10): a desk whose sidecar
+  starts after the check (it is not proved either, so the two agree); and the
+  probe email, which the proof reads from its user's own
+  `m3-e2e/<workspace>/human-email`: with `MOVE_DESK_PW_FILE` pointing at a
+  copy, that email must belong to the same member, or the proof fails at login
+  after the move and the desk rolls back.
 
 Tests: `desk-move.tst.sh` cases 16 and 17, `roster-show.tst.sh` (the session
 file and `retry_after`).

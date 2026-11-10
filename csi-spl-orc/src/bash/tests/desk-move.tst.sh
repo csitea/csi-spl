@@ -58,6 +58,10 @@
 #      user cannot read refuses the plan and a real move before any stop or
 #      copy (0 desks touched), naming the file and the user; readable, the
 #      plan is unchanged; each side's proof gets its own file
+#  17. the proof's login (SPL-5233): one login per proof; a 429 then a 200 is
+#      ok; a 429 every time ends at MOVE_CHECK_429_SECS, also with a
+#      Retry-After of 0 (R7 W1); a proof killed by TERM removes its session
+#      dir and still runs the caller's trap, which it restores on return (W2)
 #      (MOVE_DESK_PW_FILE / MOVE_BOX_PW_FILE); the rollback side is checked
 #      too; with no file set, each user's own m3-e2e default is checked
 #  17. the proof's login (SPL-5233): one member login per proof, not one per
@@ -130,7 +134,7 @@ do_spl_desk_check() {
     n="\$(cat "$T/r429" 2>/dev/null)"
     if [[ "\$n" =~ ^[1-9][0-9]*$ ]]; then
       echo "\$((n - 1))" >"$T/r429"
-      echo 'FATAL   {"step": "login", "status": 429, "error": "rate_limited", "retry_after": 1}'; return 1
+      echo "FATAL   {\"step\": \"login\", \"status\": 429, \"error\": \"rate_limited\", \"retry_after\": \$(cat "$T/ra429" 2>/dev/null || echo 1)}"; return 1
     fi
     [[ -n "\${PROBE_COOKIE_FILE:-}" ]] && echo session >"\$PROBE_COOKIE_FILE"
   fi
@@ -154,9 +158,10 @@ do_spl_desk_move
 EOF
 chmod +x "$T/orc/run"
 
-# mv_run [VAR=value]...: do_spl_desk_move in a fresh bash as the box user.
+# mv_run [VAR=value]...: do_spl_desk_move in a fresh bash as the box user
+# (killed after MV_TIMEOUT s when that is set).
 mv_run() {
-  env -u SPOOL_DESK_USER -u SPL_STATE_DIR PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" HOME="$BH" \
+  ${MV_TIMEOUT:+timeout "$MV_TIMEOUT"} env -u SPOOL_DESK_USER -u SPL_STATE_DIR PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" HOME="$BH" \
     PATH="$T/stub:$PATH" SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$T/box.env" SPL_ORG_APP="$OA" \
     MOVE_RUN="$T/orc" MOVE_CHECK_SECS=2 MOVE_CHECK_EVERY=1 DESK_QUIESCE_SETTLE_SECS=0 PROBE_PW_FILE="$T/pw-probe" "$@" bash -c '
     set -uo pipefail
@@ -180,7 +185,7 @@ mkdesk() {
 }
 echo not-a-password >"$T/pw-probe"; chmod 600 "$T/pw-probe"
 reset_box() {
-  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict" "$T"/start-dies.* "$T"/deny.* "$T/r429" "$T/pw.log" "$T/login.log"
+  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict" "$T"/start-dies.* "$T"/deny.* "$T/r429" "$T/ra429" "$T/pw.log" "$T/login.log"
   mkdir -p "$BH" "$DH" "$T/spool"
   printf 'SPOOL_DESK_BOX=box-x\nSPOOL_FLEET_TENANT=ws-fleet\nSPOOL_FLEET_ENV=prd\n' >"$T/box.env"
   mkdesk prd ws-fleet box-x live
@@ -564,6 +569,33 @@ has "17.3 the bound is named" "the member login is rate limited (429); the next 
 n="$(grep -c "^login home=$DH" "$T/login.log")"
 [[ "$n" == 4 && $((t1 - t0)) -lt 30 ]] && pass "17.3 bounded: 4 logins in the forward proof (3 x 1 s), $((t1 - t0)) s in all" || fail "17.3 logins $n, $((t1 - t0)) s"
 [[ -f "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key" && ! -e "$DST_P/desk/ws-a/box-a" ]] && pass "17.3 the desk is rolled back" || fail "17.3 not rolled back"
+reset_box; echo 99 >"$T/r429"; echo 0 >"$T/ra429"; t0="$(date +%s)"
+out="$(MV_TIMEOUT=60 mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=3 DRY_RUN=0)"; rc=$?; t1="$(date +%s)"
+n="$(grep -c "^login home=$DH" "$T/login.log")"
+[[ $rc -ne 0 && $rc -ne 124 ]] && has "17.4 Retry-After 0, a 429 every time: no verdict" "says 'no verdict'" "$out" || fail "17.4 rc=$rc (124 = the 429 loop never ended)"
+has "17.4 a Retry-After of 0 waits the doubled back-off" "the next try is in 4 s, past the 0 s left of MOVE_CHECK_429_SECS (3)" "$out"
+[[ "$n" == 3 && $((t1 - t0)) -lt 30 ]] && pass "17.4 bounded: 3 logins (1 s + 2 s), $((t1 - t0)) s in all" || fail "17.4 logins $n, $((t1 - t0)) s"
+rm -f "$T/ra429"; reset_box
+# _spl_dm_proof alone (pr_run execs its bash, so & gives its pid), killed by
+# TERM while it waits: no session dir is left and the caller's trap runs; on
+# a normal return the caller's trap is back
+pr_run() {
+  mkdir -p "$T/tmpj"; rm -rf "$T/tmpj"/*
+  exec env PROJ_PATH="$PROJ_ROOT" TMPDIR="$T/tmpj" TENANT_ID=ws-a DESK_BOX=box-a MOVE_CHECK_SECS="$1" MOVE_CHECK_EVERY=1 T="$T" bash -c '
+    do_log() { echo "$*"; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    do_spl_desk_check() { echo session >"$PROBE_COOKIE_FILE"; echo "{\"verdict\": \"down\"}"; return 1; }
+    trap "echo OUTER-TRAP; exit 130" INT TERM HUP
+    _spl_dm_proof c-101; echo "after: $(trap -p TERM)"' 2>&1
+}
+pr_run 30 >"$T/pr.out" & p=$!
+for _ in $(seq 1 50); do [[ -n "$(ls -A "$T/tmpj" 2>/dev/null)" ]] && break; sleep 0.1; done
+sleep 0.5; kill -TERM "$p"; wait "$p"; rc=$?
+[[ $rc -eq 130 && -z "$(ls -A "$T/tmpj")" ]] && pass "17.5 a proof killed by TERM leaves no session dir" || fail "17.5 rc=$rc left: $(ls -A "$T/tmpj" | tr '\n' ' ')"
+grep -qx OUTER-TRAP "$T/pr.out" && pass "17.5 the caller's trap still runs" || fail "17.5 the caller's trap did not run: $(tr '\n' '|' <"$T/pr.out")"
+out="$(pr_run 1)"
+has "17.6 on return the caller's trap is restored" "after: trap -- 'echo OUTER-TRAP; exit 130' SIGTERM" "$out"
+[[ -z "$(ls -A "$T/tmpj")" ]] && pass "17.6 no session dir after a normal return" || fail "17.6 left: $(ls -A "$T/tmpj")"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

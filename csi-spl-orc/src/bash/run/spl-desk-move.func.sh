@@ -58,9 +58,11 @@
 # @description The proof logs in once (the session is kept in a 0600 file of
 # @description a mktemp dir of that user, removed after) and on a login 429
 # @description waits and retries: the hub's Retry-After, else
-# @description MOVE_CHECK_EVERY doubled per 429 (at most 60 s a wait), all
-# @description 429 waits of one proof at most MOVE_CHECK_429_SECS (300 s, on
-# @description top of MOVE_CHECK_SECS); past that bound: 'no verdict'.
+# @description MOVE_CHECK_EVERY doubled per 429 (at most 60 s a wait; a
+# @description Retry-After under 1 s counts as that), all 429 waits of one
+# @description proof at most MOVE_CHECK_429_SECS (300 s, on top of
+# @description MOVE_CHECK_SECS); past that bound: 'no verdict'. The session
+# @description dir is removed also on INT / TERM / HUP.
 # @description The quiesce window (spec 069 8.4.1): from the copy to the
 # @description source's rename aside (or its rollback) the desk carries the
 # @description marker <desk dir>.quiesce, written as the desk's owner and
@@ -529,21 +531,28 @@ _spl_dm_side() {
 # min). A login 429 waits the hub's Retry-After, else MOVE_CHECK_EVERY
 # doubled per 429 (at most 60 s), and retries; the 429 waits of one proof sum
 # to at most MOVE_CHECK_429_SECS (300) and do not count against
-# MOVE_CHECK_SECS. A wait past that bound ends it: 'no verdict'.
+# MOVE_CHECK_SECS. A Retry-After under 1 s counts as the doubled wait, so
+# every 429 spends at least 1 s of that bound. A wait past it ends the proof:
+# 'no verdict'. The session dir goes on every return, and on INT / TERM / HUP
+# before the caller's own trap runs (exit 130 when there is none).
 _spl_dm_proof() {
   local seat="$1" every="${MOVE_CHECK_EVERY:-5}" left="${MOVE_CHECK_SECS:-60}" budget="${MOVE_CHECK_429_SECS:-300}"
-  local back jar out v="" w ra line rc=1
+  local back jar out v="" w ra line rc=1 old_traps h
   [[ "$every" =~ ^[1-9][0-9]*$ && "$left" =~ ^[0-9]+$ && "$budget" =~ ^[0-9]+$ ]] ||
     { do_log "FATAL MOVE_CHECK_EVERY (>= 1), MOVE_CHECK_SECS and MOVE_CHECK_429_SECS must be whole seconds"; return 1; }
   back="$every"
   jar="$(umask 077 && mktemp -d)" || { do_log "FAIL proof $TENANT_ID/$DESK_BOX: no temp dir for its session"; return 1; }
+  old_traps="$(trap -p INT TERM HUP)"
+  h="$(trap -p INT)"; [[ -n "$h" ]] && eval "set -- $h" && h="$3"
+  # shellcheck disable=SC2064  # expands now on purpose: this jar, the caller's handler
+  trap "rm -rf -- $(printf '%q' "$jar"); ${h:-exit 130}" INT TERM HUP
   while :; do
     out="$(DESK_AGENT="$seat" DRY_RUN=1 PROBE_COOKIE_FILE="$jar/session" do_spl_desk_check 2>&1)"
     v="$(grep -o '"verdict": "[a-z-]*"' <<<"$out" | tail -n 1 | cut -d'"' -f4)"
     case "$v" in ok | muted | agent-missing) do_log "INFO proof $TENANT_ID/$DESK_BOX: $v"; rc=0; break ;; esac
     if grep -q '"status": 429' <<<"$out"; then
       ra="$(grep -o '"retry_after": [0-9]*' <<<"$out" | tail -n 1 | grep -o '[0-9]*$')"
-      w="${ra:-$back}"
+      w="${ra:-$back}"; (( w >= 1 )) || w="$back"
       if (( w > budget )); then
         do_log "FAIL proof $TENANT_ID/$DESK_BOX: the member login is rate limited (429); the next try is in $w s, past the $budget s left of MOVE_CHECK_429_SECS (${MOVE_CHECK_429_SECS:-300})"
         break
@@ -556,6 +565,7 @@ _spl_dm_proof() {
     sleep "$every"; left=$((left - every))
   done
   rm -rf -- "$jar"
+  trap - INT TERM HUP; [[ -n "$old_traps" ]] && eval "$old_traps"
   (( rc == 0 )) && return 0
   do_log "FAIL proof $TENANT_ID/$DESK_BOX: do_spl_desk_check says '${v:-no verdict}' after ${MOVE_CHECK_SECS:-60} s"
   # the reason from the last check: 'no verdict' alone cannot tell an

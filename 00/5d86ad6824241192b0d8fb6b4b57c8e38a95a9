@@ -1,0 +1,6 @@
+Lay-What: Typing in:contacts in search now finds people in your own contacts, and a normal search lists matching contacts too.
+Lay-How: The search treats in:contacts as the contacts list instead of a channel named contacts, and the results show a Contacts group.
+Lay-Why: in:contacts looked for a channel called contacts and found nothing, so you could not search your contacts this way.
+Tech-What: in:contacts and channel:contacts are a reserved search scope equal to type:contact; the WUI draws a contacts results group.
+Tech-How: grammar reserves the word, MatchEntity passes in:contacts, the hub reuses the type:contact gate; SEARCH_GROUPS gains contacts with search.group.contacts in 19 locales.
+Tech-Why: MatchEntity returned false for every in: term and SEARCH_GROUPS had no contacts group, so contact hits were never shown.

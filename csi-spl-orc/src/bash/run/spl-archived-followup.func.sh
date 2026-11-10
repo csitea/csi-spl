@@ -30,6 +30,12 @@
 # @description in <state dir>/inherit.pending and tried again every run until it takes;
 # @description a final refusal (not archived, not live, not its follow-up) is dropped
 # @description from it after its blocker (R7 c-714 W2).
+# @description A deleted issue is not work left (SPL-5244). A move the hub refuses
+# @description `not_found (no such issue)` is final: ONE blocker under the key
+# @description move:<ref> in failed.keys, and later runs skip that issue. A follow-up
+# @description that is itself archived and followed up is not a target: the issues go
+# @description to the last discussion of the chain journal.tsv keeps (no hub read),
+# @description which takes no priority again (its own hop did).
 # @description Test workspaces are skipped.
 # @description One box acts for a topic: the holder's, when the hub's roster has the
 # @description holder's id on it in that workspace, else the first box by name that
@@ -107,12 +113,13 @@ do_spl_archived_followup() {
 # spl_afu_topic TMP TENANT TOPIC DIR DRY: one archived topic's new discussion
 # and its issues' move. An issue moved for another topic this run is left out.
 spl_afu_topic() {
-  local tmp="$1" tenant="$2" topic="$3" dir="$4" dry="$5" new ref rc=0 line seated poster why
+  local tmp="$1" tenant="$2" topic="$3" dir="$4" dry="$5" new ref rc=0 line seated poster why hops
   awk -F'\t' -v t="$tenant" -v k="$topic" '$2 == t && $3 == k' "$tmp/rows" >"$tmp/one"
   : >"$tmp/keep"
   while IFS= read -r line; do
     ref="$(cut -f6 <<<"$line")"
     if [[ "$line" == issue$'\t'* && "$AFU_DONE" == *" $tenant:$ref "* ]]; then continue; fi
+    if [[ "$line" == issue$'\t'* ]] && grep -qxF "$tenant"$'\t'"$topic"$'\t'"move:$ref" "$dir/failed.keys" 2>/dev/null; then continue; fi
     if [[ "$line" == row$'\t'* ]] && grep -qxF "$tenant"$'\t'"$topic"$'\t'"$ref" "$dir/rows.seen" 2>/dev/null; then continue; fi
     printf '%s\n' "$line" >>"$tmp/keep"
   done <"$tmp/one"
@@ -123,7 +130,7 @@ spl_afu_topic() {
     do_log "INFO $tenant topic $topic: box $poster follows it up (roster of $AFU_AGENT in $tenant: ${seated:-no box})"
     return 0
   fi
-  new="$(awk -F'\t' -v t="$tenant" -v k="$topic" '$1 == t && $2 == k { n = $3 } END { print n }' "$dir/journal.tsv" 2>/dev/null)"
+  IFS=$'\t' read -r hops new < <(spl_afu_chain "$tenant" "$topic" "$dir")
   if why="$(spl_afu_channel_held "$tenant" "$(cut -f4 "$tmp/keep" | sed -n 1p)")"; then
     if ((dry)); then do_log "WOULD name $tenant topic $topic in a blocker, no post: $why"; return 0; fi
     spl_afu_blocker "$tenant" "$topic" "$dir" "$why" "$(spl_afu_held_body "$tenant" "$topic" "$new" "$why" "$tmp/keep")"
@@ -147,7 +154,7 @@ spl_afu_topic() {
   elif grep -q $'^row\t' "$tmp/keep"; then
     spl_afu_late_rows "$tmp" "$tenant" "$topic" "$new" "$dir" || rc=1
   fi
-  if ! spl_afu_inherit "$tenant" "$topic" "$new"; then
+  if (( ${hops:-0} <= 1 )) && ! spl_afu_inherit "$tenant" "$topic" "$new"; then
     rc=1
     spl_afu_inherit_failed "$tenant" "$topic" "$new" "$dir"
   fi
@@ -156,6 +163,8 @@ spl_afu_topic() {
     AFU_DONE+="$tenant:$ref "
     if spl_afu_link "$tenant" "$ref" "$new" link && spl_afu_link "$tenant" "$ref" "$topic" unlink; then
       do_log "OK $ref moved from $topic to $new"
+    elif [[ "$AFU_LINK_OUT" == *"not_found (no such issue)"* ]]; then
+      spl_afu_move_final "$tenant" "$topic" "$ref" "$new" "$dir"; rc=1
     else
       do_log "WARN $ref was not moved to $new: the next run tries again"; rc=1
     fi
@@ -383,12 +392,33 @@ spl_afu_body_rows() {
 }
 
 # spl_afu_link TENANT REF DISCUSSION MODE: the hub's issue link or unlink.
+# AFU_LINK_OUT: the hub's answer.
 spl_afu_link() {
   if [[ -n "${ARCHIVED_FOLLOWUP_LINK_CMD:-}" ]]; then
-    TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" $ARCHIVED_FOLLOWUP_LINK_CMD >/dev/null 2>&1
+    AFU_LINK_OUT="$(TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" $ARCHIVED_FOLLOWUP_LINK_CMD 2>&1)"
     return
   fi
-  spl_afu_run do_spl_issue_link TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" >/dev/null 2>&1
+  AFU_LINK_OUT="$(spl_afu_run do_spl_issue_link TENANT_ID="$1" DESK_AGENT="$AFU_AGENT" DESK_BOX="$AFU_BOX" ISSUE_REF="$2" ISSUE_DISCUSSION="$3" MODE="$4" 2>&1)"
+}
+
+# spl_afu_move_final TENANT TOPIC REF NEW DIR: the hub has no such issue (deleted or
+# archived since the read), so no run will move it: ONE blocker, key move:REF, which
+# the next run reads to skip it (SPL-5244).
+spl_afu_move_final() {
+  local why
+  why="$(AFU_INHERIT_OUT="$AFU_LINK_OUT" spl_afu_why)"
+  do_log "WARN $3 was not moved to $4, refused for good: $why; nothing tries again"
+  spl_afu_blocker "$1" "$2" "$5" "$why" "**BLOCKER** archived discussion /t/$2 ($1): $3 could not be moved to its follow-up /t/$4: $why. The hub has no such issue (deleted or archived since), so nothing tries again. Action do_spl_archived_followup (SPL-5244)." "move:$3"
+}
+
+# spl_afu_chain TENANT TOPIC DIR -> "<hops>\t<follow-up>" from journal.tsv: TOPIC's
+# follow-up, and while that one was archived and followed up too, its follow-up
+# (SPL-5244). 0 and empty: none yet. A cycle or 20 hops ends the walk.
+spl_afu_chain() {
+  awk -F'\t' -v t="$1" -v k="$2" '$1 == t { m[$2] = $3 }
+    END { c = k; seen[c] = 1
+      for (h = 0; h < 20 && (c in m) && !(m[c] in seen); h++) { c = m[c]; seen[c] = 1 }
+      printf "%d\t%s\n", h, (h ? c : "") }' "$3/journal.tsv" 2>/dev/null || printf '0\t\n'
 }
 
 # spl_afu_blocker TENANT TOPIC DIR WHY [BODY [TAG]]: ONE blocker to the orchestrator
@@ -398,7 +428,7 @@ spl_afu_link() {
 spl_afu_blocker() {
   local k="$1"$'\t'"$2" send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   [[ -z "${5:-}" ]] || k+=$'\t'"${6:-held}"
-  if [[ "${6:-}" == inherit ]]; then :
+  if [[ "${6:-}" == inherit || "${6:-}" == move:* ]]; then :
   elif [[ -n "${5:-}" ]]; then do_log "WARN $1 topic $2: held, nothing posted or linked: $4"
   else do_log "WARN $1 topic $2: no follow-up discussion: $4"; fi
   grep -qxF "$k" "$3/failed.keys" 2>/dev/null && return 0
@@ -454,7 +484,7 @@ SELECT 'issue', a.tenant_id, a.task_id, coalesce(a.channel, ''), to_char(a.at AT
   FROM b a JOIN issue_discussions d ON d.tenant_id = a.tenant_id AND d.task_id = a.task_id
   JOIN issues i ON i.tenant_id = d.tenant_id AND i.number = d.number
   LEFT JOIN issue_counters c ON c.tenant_id = i.tenant_id
- WHERE a.task_id <> issue_discussion_default(a.tenant_id) AND i.archived_at IS NULL
+ WHERE a.task_id <> issue_discussion_default(a.tenant_id) AND i.archived_at IS NULL AND i.deleted_at IS NULL
    AND i.status IN ('eval', 'todo', 'wip', 'blocked', 'onhold') AND i.kind NOT IN ('epic', 'feature')
    AND NOT ('answer' = ANY (i.labels))
    AND i.title !~* 'standing .*seat'

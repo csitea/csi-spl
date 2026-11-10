@@ -73,6 +73,9 @@ EOF
 cat >"$T/bin/link" <<EOF
 #!/usr/bin/env bash
 echo "\$MODE \$ISSUE_REF \$ISSUE_DISCUSSION" >>"$LOG"
+if grep -qxF "\$ISSUE_REF" "$T/link-nf" 2>/dev/null; then
+  printf '%s\n' "FATAL spool issue link as c-002: spool: hub refused: not_found (no such issue)" "ERROR Action failed with status 1"; exit 1
+fi
 EOF
 cat >"$T/bin/reply" <<EOF
 #!/usr/bin/env bash
@@ -324,12 +327,14 @@ if [[ -n "${AFU_TEST_PG_DSN:-}" ]]; then
 CREATE SCHEMA $SCH; SET search_path = $SCH;
 CREATE TABLE messages (tenant_id text, task_id uuid, channel text, archived_at timestamptz, from_id text, ts timestamptz);
 CREATE TABLE roster (tenant_id text, box_id text, agent_id text);
-CREATE TABLE issues (tenant_id text, number int, status text, title text, kind text, labels text[], archived_at timestamptz);
+CREATE TABLE issues (tenant_id text, number int, status text, title text, kind text, labels text[], archived_at timestamptz, deleted_at timestamptz);
 CREATE TABLE issue_discussions (tenant_id text, number int, task_id uuid);
 CREATE TABLE issue_counters (tenant_id text, prefix text);
 CREATE TABLE fleet_asks (ask_id text, discussion text, topic text, state text, reason text, summary text, updated_at timestamptz);
-CREATE FUNCTION issue_discussion_default(text) RETURNS uuid LANGUAGE sql AS 'SELECT NULL::uuid';
+CREATE FUNCTION issue_discussion_default(text) RETURNS uuid LANGUAGE sql AS 'SELECT ''00000000-0000-4000-8000-000000000000''::uuid';
 INSERT INTO messages VALUES ('t1', '$OLD', 'dev', now(), 'HUM-1', now());
+INSERT INTO issues VALUES ('t1', 41, 'todo', 'a live job', 'issue', '{}', NULL, NULL), ('t1', 42, 'todo', 'a deleted job', 'issue', '{}', NULL, now());
+INSERT INTO issue_discussions VALUES ('t1', 41, '$OLD'), ('t1', 42, '$OLD');
 INSERT INTO roster VALUES ('t1', 'box-b', 'c-002'), ('t1', 'box-a', 'c-002'), ('t1', 'box-a', 'c-003');
 INSERT INTO fleet_asks VALUES ('a0000001-x', '$OLD', '', 'declined', 'discussion archived: x', 'full discussion', now()),
   ('a0000002-x', '${OLD:0:8}', '', 'declined', 'discussion archived: x', 'short discussion', now()),
@@ -340,6 +345,8 @@ SQL
   SNIPPET="spl_pg_env() { shift; \"\$1\" \"\$AFU_TEST_PG_DSN&options=-csearch_path%3D$SCH\" \"\${@:2}\"; }; _spl_afu_read '$T/sql.out' '2020-01-01T00:00:00Z' c-002" in_orc AFU_TEST_PG_DSN="$AFU_TEST_PG_DSN" SPL_PROXY_DSN=unused >"$T/sql.log" 2>&1
   [[ "$(cut -f1,8 "$T/sql.out" | sort | tr '\n' ';')" == *"full discussion"*"full topic"*"short discussion"* && "$(grep -c '^row' "$T/sql.out")" == 4 && "$(cut -f9,10 "$T/sql.out" | sort -u)" == "box-a,box-b"$'\t'"HUM-1" ]] &&
     pass "12 the real statement: a row by all 4 binding forms, not another topic's; sorted roster; last human" || fail "12: $(cat "$T/sql.log") // $(cat "$T/sql.out" 2>&1)"
+  [[ "$(grep '^issue' "$T/sql.out" | cut -f6 | tr '\n' ' ')" == "SPL-41 " ]] &&
+    pass "12b a deleted issue is not work left (SPL-5244: the owner deleted SPL-5068, its move was refused every run)" || fail "12b: $(grep '^issue' "$T/sql.out" 2>&1)"
   psql -X -q "$AFU_TEST_PG_DSN" -c "DROP SCHEMA $SCH CASCADE" >/dev/null 2>&1
 else
   echo "SKIP: 12 needs AFU_TEST_PG_DSN, or docker, psql and a cached $PG_IMAGE image"
@@ -401,6 +408,52 @@ out="$(run14 DRY_RUN=0)"; rc=$?
    "$(count '^send .*its priority: FATAL spool issue inherit-priority as c-002: flag provided but not defined: -from\. The issues')" == 1 ]] &&
   pass "14k the log and the blocker name the spool error, not ./run's failed-at-line trailer" || fail "14k (rc=$rc): $out // $(cat "$LOG")"
 rm -f "$T/inherit-why"
+
+# 15. a move the hub refuses not_found (SPL-5244: the issue is gone): final. ONE
+# blocker and one failed.keys key; the next run skips it, no WARN, no link call.
+# CONTROL: the other issue of the same topic moves, as in 3.
+ST15="$T/fu15"; mkdir -p "$ST15"; echo 2020-01-01T00:00:00Z >"$ST15/since"; : >"$LOG"
+{ printf 'issue\tt1\t%s\tdev\t%s\tSPL-50\ttodo\ta gone job\tbox-a\tHUM-1\n' "$PAR" "$AT"
+  printf 'issue\tt1\t%s\tdev\t%s\tSPL-51\ttodo\ta live job\tbox-a\tHUM-1\n' "$PAR" "$AT"; } >"$T/rows15"
+echo SPL-50 >"$T/link-nf"
+run15() { ROWS="$T/rows15" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST15" DRY_RUN=0; }
+out="$(run15)"; rc=$?
+[[ "$(count '^send .*SPL-50.*not_found (no such issue).*nothing tries again')" == 1 ]] && grep -qxF "t1"$'\t'"$PAR"$'\t'"move:SPL-50" "$ST15/failed.keys" &&
+  pass "15a a not_found move: one blocker naming the hub's answer, one failed.keys key" || fail "15a (rc=$rc): $out // $(cat "$LOG") // $(cat "$ST15/failed.keys" 2>&1)"
+[[ "$(count "^link SPL-51 $NEW$")" == 1 && "$(count "^unlink SPL-51 $PAR$")" == 1 ]] &&
+  pass "15b CONTROL the topic's other issue moves" || fail "15b: $(cat "$LOG")"
+n15="$(count '^link SPL-50 ')"
+out="$(run15)"; rc=$?
+[[ $rc -eq 0 && "$(count '^link SPL-50 ')" == "$n15" && "$(count '^send ')" == 1 && "$out" != *"SPL-50 was not moved"* ]] &&
+  pass "15c the next run: no link call, no WARN, no second blocker, rc 0" || fail "15c (rc=$rc): $out // $(cat "$LOG")"
+rm -f "$T/link-nf"
+
+# 16. a follow-up that is itself archived: the journal's chain is followed to its
+# last entry (SPL-5244: 4f48f878 -> bc6ebfd8 -> b0cce04e), no hub read; the chained
+# follow-up does not take the priority again (its own hop did). CONTROL: 3a..3e
+# and 14a are the one-hop journal.
+A16="11111111-0000-4000-8000-000000000016" B16="22222222-0000-4000-8000-000000000016" C16="33333333-0000-4000-8000-000000000016"
+ST16="$T/fu16"; mkdir -p "$ST16"; echo 2020-01-01T00:00:00Z >"$ST16/since"; : >"$LOG"; rm -f "$T/inherit.log"
+printf 't1\t%s\t%s\nt1\t%s\t%s\n' "$A16" "$B16" "$B16" "$C16" >"$ST16/journal.tsv"
+printf 'issue\tt1\t%s\tdev\t%s\tSPL-60\ttodo\ta job\tbox-a\tHUM-1\n' "$A16" "$AT" >"$T/rows16"
+out="$(ROWS="$T/rows16" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$(count '^post ')" == 0 && "$(count "^link SPL-60 $C16$")" == 1 && "$(count "^unlink SPL-60 $A16$")" == 1 && "$(count "^link SPL-60 $B16")" == 0 && ! -e "$T/inherit.log" ]] &&
+  pass "16a an archived follow-up: the issue moves to the chain's last entry, not into the archived one, no priority copy" || fail "16a (rc=$rc): $out // $(cat "$LOG")"
+# 16b: the chain's LAST entry is archived too (no journal row of its own yet). The
+# move went there (16a, today's path); the next run reads the issue under that
+# archived topic and follows it up once, like any archive; a run after it, with no
+# row left, does nothing. No loop, no retry every run.
+printf 'issue\tt1\t%s\tdev\t%s\tSPL-60\ttodo\ta job\tbox-a\tHUM-1\n' "$C16" "$AT" >"$T/rows16c"; : >"$LOG"
+out="$(ROWS="$T/rows16c" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" DRY_RUN=0)"; rc=$?
+: >"$T/rows16e"
+out3="$(ROWS="$T/rows16e" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" DRY_RUN=0)"; rc3=$?
+[[ $rc -eq 0 && $rc3 -eq 0 && "$(count '^post ')" == 1 && "$(count "^link SPL-60 $NEW$")" == 1 && "$(count "^unlink SPL-60 $C16$")" == 1 && "$(grep -c . "$LOG")" == 3 ]] &&
+  grep -qxF "t1"$'\t'"$C16"$'\t'"$NEW" "$ST16/journal.tsv" &&
+  pass "16b the last entry archived too: followed up once as its own archive, then nothing; no loop" || fail "16b (rc=$rc/$rc3): $out // $out3 // $(cat "$LOG")"
+# 16c: a journal cycle (the action never writes one, a hand edit could) ends.
+printf 't1\t%s\t%s\nt1\t%s\t%s\n' "$A16" "$B16" "$B16" "$A16" >"$ST16/journal.tsv"; : >"$LOG"
+out="$(ROWS="$T/rows16" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" DRY_RUN=0)"; rc=$?
+[[ "$(count '^link SPL-60 ')" == 1 && "$(count '^post ')" == 0 ]] && pass "16c a journal cycle ends: one link, no post" || fail "16c (rc=$rc): $out // $(cat "$LOG")"
 
 echo "spl-archived-followup: $fails failure(s)"
 [[ $fails -eq 0 ]]

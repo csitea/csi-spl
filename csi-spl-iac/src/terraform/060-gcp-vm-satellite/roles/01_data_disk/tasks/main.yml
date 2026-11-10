@@ -30,6 +30,18 @@
     passno: "2"
     state: mounted
 
+# a disk grown by 060 (cnf data_disk_size_gb) is a bigger device under the same
+# filesystem: grow it online, the script do_satellite_data_fs_grow runs (SPL-5224)
+- name: Grow the data filesystem into the whole disk
+  ansible.builtin.script:
+    cmd: "{{ playbook_dir }}/../../bash/scripts/satellite-data-fs-grow.sh"
+    executable: /bin/bash
+  environment:
+    FS_MNT: "{{ data_mnt }}"
+    FS_DRY: "0"
+  register: data_fs_grow
+  changed_when: "'GREW ' in data_fs_grow.stdout"
+
 - name: The dirs on the data disk
   ansible.builtin.file:
     path: "{{ data_mnt }}/{{ item }}"

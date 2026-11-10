@@ -247,3 +247,24 @@ Apply order: owner `ENV=all` gcp-000 -> state bucket -> 059 plan/provision ->
 - Applying any of this (owner go per call: the step's `make do-provision`, the bootstrap, the credentials push).
 - A second satellite, a dev twin, autoscaling, a GPU.
 - Any web endpoint on the satellite.
+
+## 8. The data disk grown to 200 GB (SPL-5224, 2026-11-10)
+
+Owner, t1 d99d3132 (msgs 8c1d2329, d8bad204): grow the data disk in
+Terraform and apply it. `/mnt/data` ran at 78-88% (SPL-5086).
+
+- cnf `prd.env.yaml` `steps.060-gcp-vm-satellite.data_disk_size_gb`: 100 -> 200.
+  The satellite lives only in prd's cnf (project `csi-spl-all`); dev renders
+  the step's header only, so there is one apply, `ENV=prd`.
+- Terraform grows `google_compute_disk.data` in place (`size` is updatable):
+  the plan is 1 to change, 0 to add, 0 to destroy, the instance untouched.
+  A pd only grows; GCP never shrinks it.
+- Cost: Balanced PD Capacity in Finland is $0.11 per GiB-month (Cloud Billing
+  catalog, 2026-11-10), so +100 GiB is +$11.00 a month at list price.
+- The filesystem grows online, with no reboot:
+  `cd csi-spl-iac && ./run -a do_satellite_data_fs_grow` (dry run), then
+  `DRY_RUN=0`. It runs `src/bash/scripts/satellite-data-fs-grow.sh` on the VM as
+  root over IAP: `resize2fs <dev>` for ext4, `xfs_growfs <mnt>` for xfs, and
+  it refuses a partition, which would need growpart first. Box-playbook role
+  `01_data_disk` runs the same script after the mount, so a rebuild grows too.
+- Test: `csi-spl-iac/src/bash/tests/satellite-data-fs-grow.tst.sh`.

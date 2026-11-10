@@ -164,7 +164,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine, Lobby: s.o.LobbyTaskID, // specs/041
 		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance", ScanOnly: searchIndexOff(),
 		HideRelay: !q.Relay} // agent-to-agent mail only when asked (t1 c9beaa77)
-	groups, names, notices, err := s.searchSections(ctx, t, q, base, types, cur, hash, limit)
+	groups, names, notices, err := s.searchSections(ctx, t, q, base, searchPaging{types: types, cur: cur, hash: hash, limit: limit})
 	if errors.Is(err, store.ErrSearchBudget) {
 		writeErr(w, http.StatusServiceUnavailable, "search_budget", "the search ran past its time budget; narrow the query")
 		return
@@ -229,10 +229,20 @@ func searchLimit(r *http.Request, sections int) int {
 	return limit
 }
 
+// searchPaging is the page one request asks for: the sections to run, the
+// cursor that continues one of them (nil on a first page), the hash of q and
+// sort a new cursor carries, and the page size.
+type searchPaging struct {
+	types []search.Type
+	cur   *searchCursor
+	hash  string
+	limit int
+}
+
 // searchSections runs each section in order; a section past the time budget
 // is store.ErrSearchBudget.
 func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Query, base store.SearchQuery,
-	types []search.Type, cur *searchCursor, hash string, limit int) (map[string]section, []string, []string, error) {
+	pg searchPaging) (map[string]section, []string, []string, error) {
 	groups := map[string]section{}
 	names := []string{}
 	// notices is always present (spec 160 3.6): stable codes, never free text
@@ -245,14 +255,14 @@ func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Q
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	for _, ty := range types {
+	for _, ty := range pg.types {
 		sq := base
-		c := searchCursor{T: ty, H: hash}
-		if cur != nil {
-			c = *cur
+		c := searchCursor{T: ty, H: pg.hash}
+		if pg.cur != nil {
+			c = *pg.cur
 			sq.AfterAt, sq.AfterID, sq.AfterIdx, sq.Offset = c.At, c.ID, c.Idx, c.Off
 		}
-		sec, err := s.searchSection(ctx, t, q, sq, c, limit)
+		sec, err := s.searchSection(ctx, t, q, sq, c, pg.limit)
 		if errors.Is(err, store.ErrSearchBudget) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, nil, nil, store.ErrSearchBudget
 		}

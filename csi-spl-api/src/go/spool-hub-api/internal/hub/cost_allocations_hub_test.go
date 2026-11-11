@@ -55,7 +55,9 @@ func allocatedPart(t *testing.T, r *fleetTokensRig, tid, hum, month, label strin
 // SPL-5291 (owner HUM-10 poll 01cbbdea, 1B 2B 3B; spec 143
 // costs-allocation.md sections 3 and 4). A1 only the operator admin sets a
 // split on the operator door (the operator developer and another
-// workspace's admin: 403); a Tokens item and a sum of 9999 are 400. A2 a
+// workspace's admin: 403); a Tokens item, a sum of 9999 and an item no
+// month holds (R7 N3: a label, a kind or a cost line never entered) are
+// 400, while removing such an item's split is 200. A2 a
 // person who is admin of W1 and W2 and developer of W3 sees only W1's and
 // W2's shares (held 8000, never W3's) and re-splits 40/40 to 20/60 with a
 // body of W1 and W2 only, as that view gives it; W3 keeps 2000. A3 the
@@ -99,10 +101,20 @@ func TestCostAllocationRoutes(t *testing.T) {
 		"shares": []map[string]any{{"workspace_id": w1, "share_bp": 10000}}}
 	boxBurn := map[string]any{"source": "fleet_tokens.box-a", "project_or_vendor": "claude", "kind": "tokens",
 		"shares": []map[string]any{{"workspace_id": w1, "share_bp": 10000}}}
-	for name, b := range map[string]map[string]any{"tokens": tokens, "box burn": boxBurn, "sum 9999": allocBody(label, [2]any{w1, 9999})} {
+	unknown := allocBody("never entered "+newTenantID("u"), [2]any{w1, 10000})
+	otherKind := allocBody(label, [2]any{w1, 10000})
+	otherKind["kind"] = "hr"
+	gcpLine := map[string]any{"source": "gcp", "project_or_vendor": "csi-spl-x", "kind": "cloud_run",
+		"shares": []map[string]any{{"workspace_id": w1, "share_bp": 10000}}}
+	for name, b := range map[string]map[string]any{"tokens": tokens, "box burn": boxBurn, "sum 9999": allocBody(label, [2]any{w1, 9999}),
+		"no month holds the label": unknown, "no month holds the kind": otherKind, "no month holds the line": gcpLine} {
 		if code, got := call(t, r.e, r.op, http.MethodPut, costAllocOpPath, r.admin, b); code != http.StatusBadRequest {
 			t.Errorf("A1 %s: %d %v, want 400", name, code, got)
 		}
+	}
+	// A removal is never checked: an item that is gone keeps a removable split.
+	if code, got := call(t, r.e, r.op, http.MethodPut, costAllocOpPath, r.admin, allocBody("never entered "+newTenantID("u"))); code != http.StatusOK {
+		t.Errorf("A1 removal of an unknown item: %d %v, want 200", code, got)
 	}
 	if code, got := call(t, r.e, r.op, http.MethodPut, costAllocOpPath, r.admin, split); code != http.StatusOK {
 		t.Fatalf("A1 operator split: %d %v", code, got)

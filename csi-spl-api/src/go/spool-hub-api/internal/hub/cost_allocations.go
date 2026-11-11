@@ -204,7 +204,43 @@ func (s *Server) handleCostAllocPut(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_cost_allocation", why)
 		return
 	}
+	if len(in.Shares) > 0 {
+		known, err := s.costItemKnown(r.Context(), in.CostItemKey)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("source", in.Source).Msg("cost allocation item check")
+			writeErr(w, http.StatusInternalServerError, "internal", "the cost item was not checked")
+			return
+		}
+		if !known {
+			writeErr(w, http.StatusBadRequest, "bad_cost_allocation", "no month holds the item "+
+				in.Source+" / "+in.ProjectOrVendor+" / "+in.Kind)
+			return
+		}
+	}
 	s.putCostAlloc(w, r, ca, in, nil)
+}
+
+// costItemKnown says whether some month holds key as an estate item (R7
+// N3): a cost entry of that type and label, else a live estate cost line
+// (a store without cost lines holds none). A removal (no shares) is never
+// checked, so a split of an item that is gone can still be removed.
+func (s *Server) costItemKnown(ctx context.Context, key store.CostItemKey) (bool, error) {
+	if key.Source == store.CostSourceEntry {
+		ce, ok := s.o.Store.(store.CostEntryStore)
+		if !ok {
+			return false, nil
+		}
+		entries, err := ce.ListCostEntries(ctx, key.Kind, "")
+		if err != nil {
+			return false, err
+		}
+		return slices.ContainsFunc(entries, func(e store.CostEntry) bool { return e.Label == key.ProjectOrVendor }), nil
+	}
+	cl, ok := s.o.Store.(store.CostEstateLineKnown)
+	if !ok {
+		return false, nil
+	}
+	return cl.CostEstateLineKnown(ctx, key)
 }
 
 // readCostAllocEdit decodes the PUT body and checks it with check (the whole

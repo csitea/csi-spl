@@ -103,4 +103,19 @@ func costAllocLocked(ctx context.Context, tx pgx.Tx, k CostItemKey) ([]CostAlloc
 	})
 }
 
-var _ CostAllocationStore = (*Postgres)(nil)
+// CostEstateLineKnown is CostEstateLineKnown on Postgres, in the operator
+// scope (the estate lines have no tenant).
+func (s *Postgres) CostEstateLineKnown(ctx context.Context, k CostItemKey) (bool, error) {
+	var known bool
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM cost_lines WHERE tenant_id IS NULL
+			AND superseded_by IS NULL AND source = $1 AND project_or_vendor = $2 AND kind = $3)`,
+			k.Source, k.ProjectOrVendor, k.Kind).Scan(&known)
+	})
+	return known, err
+}
+
+var (
+	_ CostAllocationStore = (*Postgres)(nil)
+	_ CostEstateLineKnown = (*Postgres)(nil)
+)

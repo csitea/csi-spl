@@ -130,7 +130,7 @@ not hidden (R7 note N2, 2026-11-11).
 | route | answer |
 |---|---|
 | `GET /v1/operator/cost-allocations?month=YYYY-MM` | `{month, items, workspaces}`: every Persons and Cloud estate item of that month (with its money) and its split (`shares: [{workspace_id, share_bp}]`, empty when none); `workspaces` lists where a share may go |
-| `PUT /v1/operator/cost-allocations` `{source, project_or_vendor, kind, shares: [{workspace_id, share_bp}]}` | 200, the split; `shares: []` removes it; a Tokens item, a sum other than 10000, a duplicate or unknown workspace or a share outside 1..10000 is 400 `bad_cost_allocation` |
+| `PUT /v1/operator/cost-allocations` `{source, project_or_vendor, kind, shares: [{workspace_id, share_bp}]}` | 200, the split; `shares: []` removes it; a Tokens item, a sum other than 10000, a duplicate or unknown workspace, a share outside 1..10000 or an item no month holds (no cost entry of that type and label, no live estate cost line of that source, project and kind on any day; R7 N3) is 400 `bad_cost_allocation`; a removal is never checked, so the split of an item that is gone can still be removed |
 | `GET /v1/tenant/cost-allocations?month=YYYY-MM` | the customer admin's view (section 3) |
 | `PUT /v1/tenant/cost-allocations` | the same body shape, `shares` naming only the admin's workspaces (section 3); 200, the completed split; the section 3 rules, 403 `cost_allocation.outside` |
 

@@ -185,6 +185,15 @@ type CostAllocationStore interface {
 	PutCostAllocation(ctx context.Context, a CostAllocation, within map[string]bool) (CostAllocation, error)
 }
 
+// CostEstateLineKnown says whether some month holds k as an estate cost
+// line (R7 N3: a split of a key no month holds is refused). Postgres only:
+// a store without cost_lines has no such item.
+type CostEstateLineKnown interface {
+	// CostEstateLineKnown is true when a live (not superseded) estate line
+	// of any day carries k's source, project_or_vendor and kind.
+	CostEstateLineKnown(ctx context.Context, k CostItemKey) (bool, error)
+}
+
 func sortCostAllocations(out []CostAllocation) {
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i].CostItemKey, out[j].CostItemKey

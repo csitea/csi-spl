@@ -233,3 +233,37 @@ func TestCostAllocationRLS(t *testing.T) {
 		t.Fatalf("CONTROL: the operator scope reads the row: %d %v", n, err)
 	}
 }
+
+// TestCostEstateLineKnown (R7 N3): an estate line of any day makes its key
+// known; another kind, a workspace's own line and a superseded line do not.
+// RED CONTROL: without "tenant_id IS NULL" the workspace's line counts and
+// the "workspace line" case fails.
+func TestCostEstateLineKnown(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	tenant := newTenant(t, pg)
+	src, pov, wpov, gone := uid("gcp-"), uid("csi-spl-"), uid("ws-"), uid("gone-")
+	costSeed(t, pg, "", "2004-05-03", src, pov, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
+	costSeed(t, pg, tenant, "2004-05-03", src, wpov, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
+	costSeed(t, pg, "", "2004-05-04", src, gone, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE cost_lines SET superseded_by = (SELECT min(id) FROM cost_lines WHERE project_or_vendor = $2)
+			WHERE project_or_vendor = $1`, gone, pov)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]struct {
+		k    CostItemKey
+		want bool
+	}{
+		"estate line":     {CostItemKey{Source: src, ProjectOrVendor: pov, Kind: "cloud_run"}, true},
+		"other kind":      {CostItemKey{Source: src, ProjectOrVendor: pov, Kind: "storage"}, false},
+		"workspace line":  {CostItemKey{Source: src, ProjectOrVendor: wpov, Kind: "cloud_run"}, false},
+		"superseded line": {CostItemKey{Source: src, ProjectOrVendor: gone, Kind: "cloud_run"}, false},
+	} {
+		if got, err := pg.CostEstateLineKnown(ctx, c.k); err != nil || got != c.want {
+			t.Errorf("%s: %v %v, want %v", name, got, err, c.want)
+		}
+	}
+}

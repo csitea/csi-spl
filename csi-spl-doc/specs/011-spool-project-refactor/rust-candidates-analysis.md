@@ -1,7 +1,7 @@
 # Rust Candidates Analysis: Shell Performance, Complexity, and Pilot Plan
 
-- **Version:** `v0.4 (rc3)`
-- **Status:** Release candidate 3 for panel review and sign-off (analysis only; no code or conversion issues)
+- **Version:** `v1.0`
+- **Status:** Final signed panel analysis (`v1.0`; analysis only, no code or conversion issues)
 - **Issue:** `SPL-5274` (Epic `SPL-2402`)
 - **Spec:** `csi-spl-doc/specs/011-spool-project-refactor` ([spec.md](spec.md))
 - **Discussion:** `/t/fc3b7ac3-54cd-4ac4-84b4-5528647fca12`
@@ -388,7 +388,7 @@ flowchart LR
 
 ## 8. Signatures
 
-### Fold Summary (`v0.1` -> `v0.4 (rc3)`)
+### Fold Summary (`v0.1` -> `v1.0`)
 
 - **Reviewer `c-553@sat` (`v0.1` `F1`–`F9` + `v0.3 rc2` `M1`–`M2`, `N1`–`N3`):** Corrected `sigpipe-lint` cadence (`touched .sh only`), added exit codes (`rc=1` on synthetic legacy globs; `182` vs `183` glob note), updated `spool 1.1.3` size (`66.8 MB`), added `do_spl_cmd_time_report` omitted-row note and box names, added `uptime` load to every timing table, marked all unmeasured numbers `est.`, pinned `rust-toolchain.toml` rule to current stable at pilot start, aligned Section 1.2 & 2.2 `pre-push.log` executed run count (`15,274` executed `PASS`/`FAIL`/`WARN-*`/`PASS-tree` = `418.6 h` vs `13,860` `PASS`+`FAIL` = `329.5 h`), distinguished `bash-cleancode`'s `1,182` 8-root `.sh` walk set from the `1,208` whole-repo prod count, replaced the `sat` `force-push-guard-hook.sh` estimate with measured `269.0 ms` median (`n=5`, `load 116–126`), added the `12.5x` (`load 118–135`) 1-`awk` `sat` wall point, and noted `shadow` mode's `est. +4 ms` / `+1` proc burn-in overhead.
 - **Shell + Performance Expert `c-559@sat` (`v0.1` `F1`–`F10` + 3 `orc` test traces + `v0.2 rc1` `C1`–`C3`):** Added Section 2.1 box fork saturation (`90k–112k` procs/min, `45%` `sys` CPU in `n=1` 30 s window pointing to process starts, `pidrun.py`/`subtree.py` attribution), added Section 2.2 7-day `pre-push.log` telemetry (`418.6 h` total, `185.7 h` Bash test suites, plus `desk-move.tst.sh` `39,886` procs, `spl-lane-issue.tst.sh` `717 s` wall, and `lane-rotate.tst.sh` `35,892` procs) as Rank #2, corrected `orc ./run` `sat` range to `4,339.0 ms` median (`3,672..5,271 ms`, `n=5`) + `nsfork.sh` `procs=6` offset note, added installed crontab cadence (`64` entries, `34,953` runs/day) and `2026-11-10` cron wall table (`lane_rotate` `7.6 h/day`), elevated `watchdog` (`9.4%` of box PIDs -> measure 1 tick first) and `lane_rotate`, and calibrated `spool-agent-hook` total wall (`~1.5 h/day`) vs per-call latency.
@@ -400,7 +400,7 @@ Each panel seat signs the final version with its own commit on branch `review/c0
 
 | Seat | Agent ID | Version Read | Commit SHA Read | Verdict | Signature Commit |
 |---|---|---|---|---|---|
-| **EDITOR** (`c002-fc3b7ac3-rust-panel-editor`) | `a-526` | `v0.4 (rc3)` | *(pending final v1.0 SHA)* | Author & editor (`v0.1`–`v0.4 rc3`) | *(signs on v1.0 declaration)* |
-| **SHELL + PERFORMANCE EXPERT** (`c002-fc3b7ac3-rust-panel-shell-expert`) | `c-559@sat` | `v0.4 (rc3)` | `04b2db5690857195940f2a59d87ceabeaa9fa8c9` | Signed / Agree (`M1` re-counted from `pre-push.log`: `15,274` executed / `418.8 h`; `PASS` + `FAIL` `13,860` / `329.1 h`) | this commit (rc2: `286c0af74`) |
-| **RUST EXPERT** (`c002-fc3b7ac3-rust-panel-rust-expert`) | `c-565@sat` | `v0.4 (rc3)` | `04b2db5690857195940f2a59d87ceabeaa9fa8c9` | Signed / Agree (4.2 `est. ~3–5 ms` note folded as asked; new rc3 figures not mine are `c-553`/`c-559` measurements) | this commit (rc2: `114379712`) |
-| **REVIEWER** (`c002-fc3b7ac3-rust-panel-reviewer`) | `c-553@sat` | `v0.4 (rc3)` | `04b2db5690857195940f2a59d87ceabeaa9fa8c9` | **PASS** (rc2 `M1`–`M2` verified folded: `15,274` executed runs and the `1,182` 8-root walk set; `N1`–`N3` folded; re-runs `n=5` guard hook, `n=3` 1-`awk` `cmp` on `9cda5fda`) | this commit |
+| **EDITOR** (`c002-fc3b7ac3-rust-panel-editor`) | `a-526` | `v1.0` *(from `v0.4 rc3`)* | `872370c399c33655dfb4897e33f546ba66949ceb` | Signed / Declared `v1.0` (author & editor `v0.1`–`v1.0`; all seats signed, Reviewer `PASS`) | this commit |
+| **SHELL + PERFORMANCE EXPERT** (`c002-fc3b7ac3-rust-panel-shell-expert`) | `c-559@sat` | `v0.4 (rc3)` | `04b2db5690857195940f2a59d87ceabeaa9fa8c9` | Signed / Agree (`M1` re-counted from `pre-push.log`: `15,274` executed / `418.8 h`; `PASS` + `FAIL` `13,860` / `329.1 h`) | `f0451c51df8712b141570560b0ed849f51946f3a` (rc2: `286c0af74`) |
+| **RUST EXPERT** (`c002-fc3b7ac3-rust-panel-rust-expert`) | `c-565@sat` | `v0.4 (rc3)` | `04b2db5690857195940f2a59d87ceabeaa9fa8c9` | Signed / Agree (4.2 `est. ~3–5 ms` note folded as asked; new rc3 figures not mine are `c-553`/`c-559` measurements) | `872370c399c33655dfb4897e33f546ba66949ceb` (rc2: `114379712`) |
+| **REVIEWER** (`c002-fc3b7ac3-rust-panel-reviewer`) | `c-553@sat` | `v0.4 (rc3)` | `04b2db5690857195940f2a59d87ceabeaa9fa8c9` | **PASS** (rc2 `M1`–`M2` verified folded: `15,274` executed runs and the `1,182` 8-root walk set; `N1`–`N3` folded; re-runs `n=5` guard hook, `n=3` 1-`awk` `cmp` on `9cda5fda`) | `938b7a09233b8991756d6c2f4eedc57ebaee8529` |

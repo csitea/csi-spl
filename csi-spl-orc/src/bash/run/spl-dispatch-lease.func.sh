@@ -55,6 +55,7 @@
 # @param LEASE_UNREACHABLE_RETRY (optional) - fleet mode: seconds between ticks while a hub call fails, default 10 (at most LEASE_PERIOD)
 # @param LEASE_HUB_TIMEOUT (optional) - fleet mode: seconds one hub lease call may take, default 12; LEASE_HUB_TRIES (default 2) tries a "hub unreachable" or timed-out call, LEASE_HUB_RETRY_SLEEP (default 2 s) apart; every try is a line in <spool root>/dispatch/dial.log (SPL-2246)
 # @param LEASE_FLEET (optional) - fleet mode: the fleet's name on the hub (else lease.conf)
+# @param LEASE_KEEP (optional) - fleet mode (SPL-5339): 0 turns off the keeper that renews this machine's held row between slow ticks (off under SPOOL_TEST=1 or LEASE_HUB_CMD unless 1); LEASE_KEEP_EVERY (30 s) between its passes, LEASE_KEEP_AFTER (1.5 x LEASE_PERIOD) the own-write age it renews at, LEASE_KEEP_MAX (2 x LEASE_STALE) the tick-judgement age past which it stops
 # @param LEASE_MACHINE (optional) - fleet mode: this machine's box, default its desk box id (spl_desk_box_default)
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
 # @param LEASE_PRIORITY_ORCH / LEASE_PRIORITY_DISPATCH (optional) - fleet mode: that role's own machine ranking, same form as LEASE_PRIORITY (env or lease.conf); unset = LEASE_PRIORITY
@@ -890,6 +891,7 @@ spl_lease_loop() {
   echo "$$" > "$LEASE_DIR/$verb.pid"
   spl_lease_code_ver > "$LEASE_DIR/$verb.ver"
   spl_lease_log "$verb start master=$LEASE_MASTER${LEASE_FAILOVER:+ failover=$LEASE_FAILOVER} pid=$$"
+  [[ "$verb" == fleet ]] && spl_fleet_keeper_start "$$"
   while :; do
     # SPL-4566: a loop a test started ends with that test
     spl_test_owner_gone && { spl_lease_log "$verb stop: its test is gone (SPL_TEST_OWNER=$SPL_TEST_OWNER)"; break; }
@@ -2304,6 +2306,12 @@ spl_fleet_role_tick() {
   [[ "$since" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && (( now - last <= LEASE_STALE )) &&
     [[ -z "$stier" || "$stier" == "$ct" ]] || since="$now"
   if [[ -z "$cand" ]]; then rm -f "$sincef"; else echo "$since $now $ct" > "$sincef"; rm -f "$LEASE_DIR/fleet.$role.dead-since"; fi
+  spl_fleet_role_hub
+}
+
+# The hub half of a role's tick: read, decide, compare-and-set, mirror, tell.
+# It runs on spl_fleet_role_tick's locals (role me cand now since hold ct ht ...).
+spl_fleet_role_hub() {
   if ! out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" || ! spl_fleet_read "$out"; then
     spl_fleet_unreachable "$role" "$now" "$out"; return 0
   fi
@@ -2357,9 +2365,12 @@ spl_fleet_role_tick() {
   fi
   rm -f "$LEASE_DIR/fleet.$role.unreachable"
   [[ "$won" == true && "$handback" == true ]] && spl_fleet_handback_start "$role" "$want" "$before" "$now"
-  spl_fleet_apply "$role" "$(spl_fleet_shown "$role" "$now")" "$now"
+  # the mirror's epoch is this read's, not the tick's start: the seat checks
+  # before it took up to 94 s on sat (SPL-5339) and would age a fresher keep
+  spl_fleet_apply "$role" "$(spl_fleet_shown "$role" "$now")" "$(spl_lease_now)"
   # the holder (this machine, just written) copies it into every served tenant
-  [[ "$won" == true ]] && spl_fleet_mirror_bg "$role" "$FH"
+  [[ "$won" == true ]] && { spl_fleet_mirror_bg "$role" "$FH"; rm -f "$LEASE_DIR/fleet.$role.keeping"; }
+  spl_fleet_keep_mark "$role" "$cand" "$now"
   return 0
 }
 
@@ -2681,10 +2692,9 @@ spl_fleet_nolocal() {
 
 # Mirror the holder locally and tell the agents a change moves.
 spl_fleet_apply() {
-  local role="$1" holder="$2" now="$3" f prev id
-  f="$(spl_fleet_mirror_file "$role")"
+  local role="$1" holder="$2" now="$3" prev id
   # always <ID>@<box>: ids 001-003 exist on EVERY box, a bare id cannot tell them apart
-  printf '%s %s\n' "$holder" "$now" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  spl_fleet_mirror_put "$role" "$holder" "$now"
   prev="$(cat "$LEASE_DIR/fleet.$role.holder" 2>/dev/null)"
   [[ "$prev" == "$holder" ]] && return 0
   echo "$holder" > "$LEASE_DIR/fleet.$role.holder"
@@ -2702,6 +2712,95 @@ spl_fleet_apply() {
   done
   [[ "$role" == dispatch && "$holder" != "$LEASE_ORCH@$LEASE_MACHINE" ]] &&
     spl_lease_tell "$LEASE_ORCH" "FLEET LEASE dispatch: ${prev:-none} -> $holder."
+  return 0
+}
+
+# ---- the keeper: a slow tick does not age the holder's row (SPL-5339) --------
+# 2026-11-11 on sat (load5 121..136), 198 ticks in dial.log: LEASE_PERIOD is
+# 60 s but one tick took 124 s (p50), 184 s (p90), 246 s (max). The time is
+# the seat checks (spl_fleet_candidate, /proc + pane + transcript under that
+# load): pin-<role> to the role's read 19 s / 26 s (p50), 94 s (max); the hub
+# calls are 1.6 s (p50) and the tenant copies already run off the thread
+# (SPL-5120). So the t1 dispatch row was renewed every 120 s (p50) and over
+# LEASE_STALE in 21 of 181 ticks: dispatch-check showed "lease: GAP stale"
+# while c-002@sat held it, and the <pc box> took the role from a live holder
+# ("<pc box> takes over from c-002@sat (silent 213s)", 20:00:36Z): 25 times
+# 00:36-20:00Z (orch 15, dispatch 10), each "silent 181s".."234s", each back
+# by a handback minutes later.
+# Now a keeper process beside the loop renews the row the loop LAST JUDGED its
+# own, between ticks: the tick writes <dir>/fleet.<role>.keep-holder
+# ("<holder> <epoch>") when the hub names <cand>@<this box> after its write,
+# <cand> being the seat this very tick found able, and removes it otherwise
+# (no seat, a move, a hold, another box). Every LEASE_KEEP_EVERY s (30) the
+# keeper, for a row whose last own write (fleet.<role>.ok) is LEASE_KEEP_AFTER
+# s (1.5 x LEASE_PERIOD: a healthy tick never reaches it) old or more, reads
+# the row and, only while the hub still names that holder, compare-and-sets
+# the SAME holder on that gen. On a win it refreshes fleet.<role>.ok and the
+# local mirror, the mirror only while it still names that holder (a handback
+# wait keeps its old name), and copies to the tenants. It never names a holder the hub does not; any change of holder
+# stays the tick's. A tick whose last judgement is older than LEASE_KEEP_MAX s
+# (2 x LEASE_STALE) is not kept: a hung loop still lets the row go stale. A
+# race with the tick is settled by --if-gen: one of the two writes loses and
+# the next tick reads the row again. One KEEP line per episode in lease.log.
+# LEASE_KEEP=0 turns it off; off under SPOOL_TEST=1 or the LEASE_HUB_CMD stub
+# unless LEASE_KEEP=1.
+
+# spl_fleet_mirror_put <role> <holder> <epoch> [<only while it names>]: the
+# local mirror, one writer at a time (the tick and the keeper).
+spl_fleet_mirror_put() {
+  local f cur=""
+  f="$(spl_fleet_mirror_file "$1")"
+  ( flock -w 5 9 || true
+    if [[ -n "${4:-}" ]]; then read -r cur _ 2>/dev/null < "$f"; [[ "$cur" == "$4" ]] || exit 0; fi
+    printf '%s %s\n' "$2" "$3" > "$f.tmp.$BASHPID" && mv -f "$f.tmp.$BASHPID" "$f" ) 9>"$LEASE_DIR/fleet.$1.put.lock"
+}
+
+# spl_fleet_keep_mark <role> <cand> <now>: what the keeper may renew after
+# this tick (see above).
+spl_fleet_keep_mark() {
+  local f="$LEASE_DIR/fleet.$1.keep-holder"
+  if [[ -n "$2" && "$FH" == "$2@$LEASE_MACHINE" ]]; then
+    printf '%s %s\n' "$FH" "$3" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  else
+    rm -f "$f"
+  fi
+}
+
+# spl_fleet_keep_role <role>: one keeper pass for one role.
+spl_fleet_keep_role() {
+  local role="$1" h="" at="" last="" now out FH FG FA FW
+  now="$(spl_lease_now)"
+  read -r h at 2>/dev/null < "$LEASE_DIR/fleet.$role.keep-holder" || return 0
+  [[ "$h" == *@"$LEASE_MACHINE" && "$at" =~ ^[0-9]+$ ]] && (( now - at <= ${LEASE_KEEP_MAX:-$((2 * LEASE_STALE))} )) || return 0
+  read -r last 2>/dev/null < "$LEASE_DIR/fleet.$role.ok" || true
+  [[ "$last" =~ ^[0-9]+$ ]] || last="$at"
+  (( now - last >= ${LEASE_KEEP_AFTER:-$((LEASE_PERIOD * 3 / 2))} )) || return 0
+  out="$(LEASE_HUB_TRIES=1 spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" && spl_fleet_read "$out" || return 0
+  [[ "$FH" == "$h" ]] || return 0
+  out="$(LEASE_HUB_TRIES=1 spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$h" --if-gen "$FG" 2>&1)" &&
+    spl_fleet_read "$out" && [[ "$FW" == true && "$FH" == "$h" ]] || return 0
+  now="$(spl_lease_now)"
+  echo "$now" > "$LEASE_DIR/fleet.$role.ok"; echo "$FG" > "$LEASE_DIR/fleet.$role.ok.gen"
+  spl_fleet_mirror_put "$role" "$h" "$now" "$h"
+  spl_fleet_once "$role.keeping" "KEEP $role: no tick renewed $h for $((now - last))s, the keeper renews it (LEASE_KEEP_EVERY ${LEASE_KEEP_EVERY:-30}s)"
+  spl_fleet_mirror_bg "$role" "$h"
+}
+
+spl_fleet_keep_tick() {
+  spl_fleet_keep_role orch
+  spl_fleet_keep_role dispatch
+  return 0
+}
+
+# spl_fleet_keeper_start <loop pid>: the keeper process; it ends with the loop.
+spl_fleet_keeper_start() {
+  local on="${LEASE_KEEP:-1}" every="${LEASE_KEEP_EVERY:-30}"
+  [[ "${SPOOL_TEST:-0}" == 1 || -n "${LEASE_HUB_CMD:-}" ]] && on="${LEASE_KEEP:-0}"
+  [[ "$on" == 1 ]] || return 0
+  [[ "$every" =~ ^[1-9][0-9]*$ ]] || every=30
+  ( while kill -0 "$1" 2>/dev/null && ! spl_test_owner_gone; do
+      sleep "$every"; spl_fleet_keep_tick
+    done ) 7>&- 8>&- 9>&- &
   return 0
 }
 

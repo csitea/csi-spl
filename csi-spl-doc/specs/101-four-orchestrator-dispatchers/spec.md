@@ -331,6 +331,26 @@ interim runs longer, two cheap guards (**D16**): a `lease.orch` older than
 `LEASE_STALE` is treated as unknown and relayed through the hub; the desk
 reconcile alerts on a box with a role agent and no lease loop.
 
+**The tick order and its keeper (SPL-5339, 2026-11-11).** A fleet tick runs,
+per role (orch, then dispatch): the pin read, the seat checks
+(`spl_fleet_candidate`), the hub read, the decision, the compare-and-set, the
+local mirror (`dispatch/lease`, `dispatch/lease.orch`), then the tenant copies
+off the thread (SPL-5120). On sat (load5 121..136, n = 198 ticks in
+`dial.log`) the seat checks made one tick 124 s p50 and 246 s max against a
+60 s `LEASE_PERIOD`, so the holder's hub row and its local file went over
+`LEASE_STALE` (180 s) in 21 of 181 ticks. That showed as `lease: GAP stale`
+in dispatch-check, and the <pc box> took a role from a live holder 25 times
+from 00:36Z to 20:00Z (orch 15, dispatch 10; its `lease.log`: "silent 181s"
+.. "silent 234s"). Now a keeper process beside the loop renews, between
+ticks, only the holder the last tick judged its own: the hub must still name that holder, and the write
+is a compare-and-set of the same holder on the gen it read. It renews only a
+row whose last own write is 1.5 x `LEASE_PERIOD` old, and stops once the last
+judgement is older than 2 x `LEASE_STALE`. Every change of holder stays the
+tick's, and the mirror's epoch is the time of the hub read, not the tick's
+start. Code and measurement: the keeper section of
+`csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`; test
+`csi-spl-orc/src/bash/tests/fleet-lease-slow-tick.tst.sh`.
+
 ### 8.5 Pass numbers per step (r3 5.3)
 
 Every number carries the tree sha, the switch states (`PEER_SHADOW`,

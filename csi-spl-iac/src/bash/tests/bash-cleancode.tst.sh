@@ -27,7 +27,6 @@ LONG="
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh _spawn_worktree 79
   csi-spl-orc/src/bash/run/spl-agent-identity-restore.func.sh do_spl_agent_identity_restore 80
   csi-spl-orc/src/bash/run/spl-desk-reply.func.sh spl_desk_pick 80
-  csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh spl_fleet_role_tick 78
 "
 
 fails=0

@@ -175,6 +175,7 @@ file-probe.tst.sh 8
 file-streams-measure.tst.sh 15
 fleet-lease-dead-holder.tst.sh 18
 fleet-lease-mirror-moved.tst.sh 4
+fleet-lease-slow-tick.tst.sh 85
 fleet-lease.tst.sh 308
 fleet-lease-vendor-failover.tst.sh 158
 fleet-stopped-alarm.tst.sh 115

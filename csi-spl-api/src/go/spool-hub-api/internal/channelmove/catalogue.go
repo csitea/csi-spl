@@ -181,7 +181,7 @@ var notChannelTables = concat(
 	notChannel("marketing_*.channel_id is a social-media channel (rdb 0187), not a spool channel",
 		"marketing_channel_tokens", "marketing_channels", "marketing_metric_definitions",
 		"marketing_metric_samples", "marketing_post_events", "marketing_posts"),
-	notChannel("a workspace's own marketing post text, keyed by workspace and author (rdb 0273), names no channel",
+	notChannel("a workspace's own marketing post text, keyed by workspace and author (rdb 0274), names no channel",
 		"marketing_drafts"),
 	notChannel("repo-doc edits name a git path and ref; T8's free-text scan (5.2) reads target_ref",
 		"repo_doc_author_notices", "repo_doc_authors", "repo_doc_edits"),

@@ -531,7 +531,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := seedMarketing(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
-	// marketing_drafts (rdb 0273, spec 090 section 22, SPL-5240): one draft
+	// marketing_drafts (rdb 0274, spec 090 section 22, SPL-5240): one draft
 	// carrying the marker, through the store API.
 	if _, err := pg.CreateMarketingDraft(ctx, MarketingDraft{Tenant: s.tenant, AuthorID: hum, Body: "draft " + s.marker}, now); err != nil {
 		t.Fatal(err)

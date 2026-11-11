@@ -16,7 +16,7 @@ type memMarketing struct {
 	tokens   map[string]MarketingToken    // channel id -> sealed token
 	posts    map[string]*memMktPost       // post id -> post
 	events   []memMktEvent
-	drafts   map[string]*MarketingDraft // draft id -> draft (rdb 0273)
+	drafts   map[string]*MarketingDraft // draft id -> draft (rdb 0274)
 }
 
 type memMktPost struct {

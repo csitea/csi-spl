@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// The Memory store's MarketingDrafts (rdb 0273), for hub tests and a hub
+// The Memory store's MarketingDrafts (rdb 0274), for hub tests and a hub
 // without Postgres. Same rules as the Postgres one, under s.mu.
 
-// CreateMarketingDraft implements MarketingDrafts on the Memory store (rdb 0273).
+// CreateMarketingDraft implements MarketingDrafts on the Memory store (rdb 0274).
 func (s *Memory) CreateMarketingDraft(_ context.Context, d MarketingDraft, now time.Time) (MarketingDraft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -38,7 +38,7 @@ func (s *Memory) draftLocked(d MarketingDraft) MarketingDraft {
 	return d
 }
 
-// MarketingDrafts implements MarketingDrafts on the Memory store (rdb 0273).
+// MarketingDrafts implements MarketingDrafts on the Memory store (rdb 0274).
 func (s *Memory) MarketingDrafts(_ context.Context, tenant string) ([]MarketingDraft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -57,7 +57,7 @@ func (s *Memory) MarketingDrafts(_ context.Context, tenant string) ([]MarketingD
 	return out, nil
 }
 
-// MarketingDraft implements MarketingDrafts on the Memory store (rdb 0273).
+// MarketingDraft implements MarketingDrafts on the Memory store (rdb 0274).
 func (s *Memory) MarketingDraft(_ context.Context, tenant, id string) (MarketingDraft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -80,7 +80,7 @@ func (s *Memory) unpublishedLocked(tenant, id string) (*MarketingDraft, error) {
 	return d, nil
 }
 
-// UpdateMarketingDraft implements MarketingDrafts on the Memory store (rdb 0273).
+// UpdateMarketingDraft implements MarketingDrafts on the Memory store (rdb 0274).
 func (s *Memory) UpdateMarketingDraft(_ context.Context, d MarketingDraft, now time.Time) (MarketingDraft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -92,7 +92,7 @@ func (s *Memory) UpdateMarketingDraft(_ context.Context, d MarketingDraft, now t
 	return s.draftLocked(*cur), nil
 }
 
-// DeleteMarketingDraft implements MarketingDrafts on the Memory store (rdb 0273).
+// DeleteMarketingDraft implements MarketingDrafts on the Memory store (rdb 0274).
 func (s *Memory) DeleteMarketingDraft(_ context.Context, tenant, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,7 +103,7 @@ func (s *Memory) DeleteMarketingDraft(_ context.Context, tenant, id string) erro
 	return nil
 }
 
-// MarkMarketingDraftPublished implements MarketingDrafts on the Memory store (rdb 0273).
+// MarkMarketingDraftPublished implements MarketingDrafts on the Memory store (rdb 0274).
 func (s *Memory) MarkMarketingDraftPublished(_ context.Context, tenant, id string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

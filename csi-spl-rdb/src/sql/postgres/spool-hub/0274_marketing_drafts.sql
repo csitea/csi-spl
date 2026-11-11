@@ -1,4 +1,4 @@
--- 0273_marketing_drafts.sql - spec 090 section 22 (SPL-5240, epic SPL-2376):
+-- 0274_marketing_drafts.sql - spec 090 section 22 (SPL-5240, epic SPL-2376):
 -- a workspace writes its own marketing posts. Owner HUM-10, t1 19ef7d51
 -- (2026-11-09): "any person with either a business owner or admin role in a
 -- workspace to create content in that workspace and to post that content";

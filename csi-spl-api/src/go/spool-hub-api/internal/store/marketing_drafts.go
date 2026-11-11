@@ -9,7 +9,7 @@ import (
 )
 
 // MarketingDrafts is the workspace's own marketing posts (spec 090 section
-// 22, rdb 0273, SPL-5240; owner HUM-10, t1 19ef7d51): a member holding
+// 22, rdb 0274, SPL-5240; owner HUM-10, t1 19ef7d51): a member holding
 // tenant.settings writes one, edits or deletes it while it is a draft, and
 // publishes it on the workspace's channels. A publish is a marketing_posts
 // row per channel, source 'draft', source_ref the draft's id, so it goes
@@ -43,10 +43,10 @@ type MarketingDrafts interface {
 // ErrMarketingDraftPublished: the draft went out, so its text is kept as sent.
 var ErrMarketingDraftPublished = errors.New("store: the post is published: it is no longer edited or deleted")
 
-// MarketingSourceDraft is a marketing_posts source of rdb 0273: a draft.
+// MarketingSourceDraft is a marketing_posts source of rdb 0274: a draft.
 const MarketingSourceDraft = "draft"
 
-// MarketingDraftMaxChars is rdb 0273's body cap (LinkedIn's 3,000).
+// MarketingDraftMaxChars is rdb 0274's body cap (LinkedIn's 3,000).
 const MarketingDraftMaxChars = 3000
 
 // MarketingDraft is one post a member of the workspace wrote.
@@ -81,7 +81,7 @@ func scanMktDraft(r pgx.Row) (MarketingDraft, error) {
 	return d, err
 }
 
-// CreateMarketingDraft implements MarketingDrafts on the Postgres store (rdb 0273).
+// CreateMarketingDraft implements MarketingDrafts on the Postgres store (rdb 0274).
 func (s *Postgres) CreateMarketingDraft(ctx context.Context, d MarketingDraft, now time.Time) (MarketingDraft, error) {
 	var out MarketingDraft
 	err := s.inTenant(ctx, d.Tenant, func(tx pgx.Tx) error {
@@ -93,7 +93,7 @@ func (s *Postgres) CreateMarketingDraft(ctx context.Context, d MarketingDraft, n
 	return out, err
 }
 
-// MarketingDrafts implements MarketingDrafts on the Postgres store (rdb 0273).
+// MarketingDrafts implements MarketingDrafts on the Postgres store (rdb 0274).
 func (s *Postgres) MarketingDrafts(ctx context.Context, tenant string) ([]MarketingDraft, error) {
 	out := []MarketingDraft{}
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -114,7 +114,7 @@ func (s *Postgres) MarketingDrafts(ctx context.Context, tenant string) ([]Market
 	return out, err
 }
 
-// MarketingDraft implements MarketingDrafts on the Postgres store (rdb 0273).
+// MarketingDraft implements MarketingDrafts on the Postgres store (rdb 0274).
 func (s *Postgres) MarketingDraft(ctx context.Context, tenant, id string) (MarketingDraft, error) {
 	var out MarketingDraft
 	if !isUUID(id) {
@@ -182,7 +182,7 @@ func mktDraftUnpublished(ctx context.Context, tx pgx.Tx, tenant, id string) erro
 	return nil
 }
 
-// UpdateMarketingDraft implements MarketingDrafts on the Postgres store (rdb 0273).
+// UpdateMarketingDraft implements MarketingDrafts on the Postgres store (rdb 0274).
 func (s *Postgres) UpdateMarketingDraft(ctx context.Context, d MarketingDraft, now time.Time) (MarketingDraft, error) {
 	var out MarketingDraft
 	if !isUUID(d.ID) {
@@ -200,7 +200,7 @@ func (s *Postgres) UpdateMarketingDraft(ctx context.Context, d MarketingDraft, n
 	return out, err
 }
 
-// DeleteMarketingDraft implements MarketingDrafts on the Postgres store (rdb 0273).
+// DeleteMarketingDraft implements MarketingDrafts on the Postgres store (rdb 0274).
 func (s *Postgres) DeleteMarketingDraft(ctx context.Context, tenant, id string) error {
 	if !isUUID(id) {
 		return ErrNotFound
@@ -214,7 +214,7 @@ func (s *Postgres) DeleteMarketingDraft(ctx context.Context, tenant, id string) 
 	})
 }
 
-// MarkMarketingDraftPublished implements MarketingDrafts on the Postgres store (rdb 0273).
+// MarkMarketingDraftPublished implements MarketingDrafts on the Postgres store (rdb 0274).
 func (s *Postgres) MarkMarketingDraftPublished(ctx context.Context, tenant, id string, now time.Time) error {
 	if !isUUID(id) {
 		return ErrNotFound

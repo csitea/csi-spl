@@ -8,7 +8,7 @@
 /** The platforms' own names: brands, the same in every language. */
 const DRAFT_PLATFORMS = { linkedin: 'LinkedIn', facebook_page: 'Facebook', instagram_business: 'Instagram', x: 'X' }
 
-/** The hub's cap on a draft's text (rdb 0273, LinkedIn's 3,000). */
+/** The hub's cap on a draft's text (rdb 0274, LinkedIn's 3,000). */
 export const DRAFT_MAX_CHARS = 3000
 
 /** "LinkedIn · FirstName LastName" for a channel { platform, name }. */

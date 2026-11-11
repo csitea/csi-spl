@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Spec 090 section 22 / SPL-5240 (rdb 0273): the workspace's own posts on
+// Spec 090 section 22 / SPL-5240 (rdb 0274): the workspace's own posts on
 // Postgres. A draft is edited and deleted until its first publish, its
 // publishes are marketing_posts rows of source 'draft', and another
 // workspace never reads or changes it.

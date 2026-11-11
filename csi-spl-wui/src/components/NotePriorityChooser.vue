@@ -134,10 +134,13 @@ async function choose(n: number) {
   }
   .note-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
   .note-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+  /* near-square, as TopicPriorityChooser (R7 c-611, W1) */
   .note-prio__opt input {
     inset: 50% 0 auto;
     height: var(--tap);
     transform: translateY(-50%);
+    appearance: none;
+    border-radius: var(--radius-xs);
   }
   /* SPL-4893: the chooser shares the title's row (NoteDetail); the label
      stays for screen readers (the group's aria-labelledby), not drawn */

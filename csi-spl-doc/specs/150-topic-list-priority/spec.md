@@ -1,9 +1,10 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.4 (2026-11-11): on a phone the 1..5 bar is drawn 70% smaller
-and centred, and its label reads "Prio" (section 3.3 WUI, key
-`topic.priority.short` in 3.5, case C314; the owner, t1 2fafde5c msgs
-`b6a2468d` and `0b66d67c`, SPL-5288).
+Version v1.4 (2026-11-11): the bar's label reads "Prio" at every width
+(each locale its own short form), and only on a phone is the 1..5 bar drawn
+70% smaller and centred, each value a near-square 44 px tall target (section 3.3
+WUI, key `topic.priority.short` in 3.5, case C314; the owner, t1 2fafde5c
+msgs `b6a2468d` and `0b66d67c`, SPL-5288).
 
 v1.3 (2026-11-10): the last prio change wins, both ways: an
 issue's own change sets every discussion it links, their other issues and
@@ -282,11 +283,17 @@ holds (panel.md section 1, one row per claim with its command).
   the old value back and says why (`topic.priority.failed`).
 - **On a phone** (<= 820 px, v1.4) the bar is drawn at 30% of its old size
   (222 x 46 px -> about 64 x 14 at 360 and 390 px) and centred in its row,
-  the label "Prio" (`topic.priority.short`) beside it. Each value keeps a
-  44 px tall target, its invisible radio standing out of the drawn cell;
-  the bar's row stays 44 px tall so nothing covers it. Desktop is
-  unchanged. The note chooser (`NotePriorityChooser.vue`, spec 155) draws
-  the same bar and label, and stays right of the note's title.
+  the label beside it. Each value keeps a 44 px tall target, its invisible
+  radio standing out of the drawn cell, near-square at the smallest token
+  radius (a 50% round radio is hit-tested as an ellipse, only 4-6 px wide
+  near its top and bottom); the bar's row
+  stays 44 px tall so nothing covers it. On desktop the bar keeps its size.
+- **The label** reads "Prio" (`topic.priority.short`) at every width, the
+  owner's word with no width named (msg `0b66d67c`); each locale has its own
+  short form (fi "Prior.", agy review a-612).
+- The note chooser (`NotePriorityChooser.vue`, spec 155) draws the same bar
+  and stays right of the note's title; on a phone its label is kept for
+  screen readers only (SPL-4893).
 - In `TopicPane.vue` and `LiveTopicPane.vue`, where `BornTopics` is
   (`TopicPane.vue:30/61`, `LiveTopicPane.vue:30/62`): at the top of the pane
   body when Message order is newest first, at the bottom when newest last,

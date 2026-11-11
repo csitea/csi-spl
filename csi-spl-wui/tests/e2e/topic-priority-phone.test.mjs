@@ -93,6 +93,21 @@ const shape = (sel) => {
 const within = (v, old) => v >= old * (SHARE - SHARE_TOL) && v <= old * (SHARE + SHARE_TOL)
 const checked = (p, sel) => p.$eval(sel, (c) => c.querySelector('input[type=radio]:checked')?.value || '')
 
+/* every point of the grid dx -4/0/+4, dy -21/-15/0/+15/+21 around each value's
+   drawn centre that does NOT hit that value's radio: a round radio is
+   hit-tested as an ellipse (R7 c-611, W1) */
+function missedHits(sel) {
+  const miss = []
+  document.querySelectorAll(`${sel} label`).forEach((cell, i) => {
+    const r = cell.getBoundingClientRect()
+    for (const dx of [-4, 0, 4]) for (const dy of [-21, -15, 0, 15, 21]) {
+      const hit = document.elementFromPoint(r.left + r.width / 2 + dx, r.top + r.height / 2 + dy)
+      if (hit !== cell.querySelector('input[type=radio]')) miss.push(`${i + 1}@${dx},${dy}:${hit ? hit.tagName : 'none'}`)
+    }
+  })
+  return miss
+}
+
 /* a finger on value n: the drawn cell's centre, moved dy px */
 async function tapValue(p, sel, n, dy = 0) {
   const s = await p.evaluate(shape, sel)
@@ -111,6 +126,8 @@ async function phoneTopic(browser, base, width) {
   check(`${tag}: the bar is centred in its row (gaps equal +-2 px)`, Math.abs(s.gapL - s.gapR) <= 2, { gapL: s.gapL, gapR: s.gapR })
   check(`${tag}: the label reads "Prio", beside the bar`, s.label === 'Prio' && s.labelLeftOfBar, { label: s.label, left: s.labelLeftOfBar })
   check(`${tag}: each value's radio is a 44 px tall target`, s.radios.every((r) => r.h >= 44), s.radios.map((r) => r.h))
+  const missT = await p.evaluate(missedHits, CHOOSER)
+  check(`${tag}: each value is hit at dx +-4, dy +-21 around its centre`, missT.length === 0, missT)
   for (const n of [1, 2, 4, 5, 3]) {
     await tapValue(p, CHOOSER, n)
     const ok = await p.waitForFunction((sel, n) => {
@@ -140,6 +157,8 @@ async function phoneNote(browser, base, width) {
   const ev = { w: s.bar.w, h: s.bar.h }
   check(`${tag}: the bar is drawn at 30% (+-3%) of the old width and height`, within(s.bar.w, OLD_PHONE.w) && within(s.bar.h, OLD_PHONE.h), ev)
   check(`${tag}: each value's radio is a 44 px tall target`, s.radios.every((r) => r.h >= 44), s.radios.map((r) => r.h))
+  const missN = await p.evaluate(missedHits, sel)
+  check(`${tag}: each value is hit at dx +-4, dy +-21 around its centre`, missN.length === 0, missN)
   const before = await checked(p, sel)
   const n = before === '2' ? 4 : 2
   await tapValue(p, sel, n)

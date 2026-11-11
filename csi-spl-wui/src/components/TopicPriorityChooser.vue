@@ -132,7 +132,7 @@ async function choose(n: number) {
 }
 .topic-prio__note--err { color: var(--color-danger); }
 /* SPL-5288 (owner HUM-10, t1 2fafde5c msg b6a2468d): on a phone the bar is
-   drawn 70% smaller (222 x 46 px -> about 67 x 14) and centred in its row,
+   drawn 70% smaller (222 x 46 px -> about 64 x 14) and centred in its row,
    the label beside it. Each value keeps a 44 px tall target: its radio,
    invisible, stands out of the drawn cell, so the group no longer clips and
    the end cells round the pill themselves. */
@@ -159,10 +159,14 @@ async function choose(n: number) {
   }
   .topic-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
   .topic-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+  /* near-square: a 50% round radio is hit-tested as an ellipse, 4-6 px wide
+     near its top and bottom (R7 c-611, W1); the smallest token radius */
   .topic-prio__opt input {
     inset: 50% 0 auto;
     height: var(--tap);
     transform: translateY(-50%);
+    appearance: none;
+    border-radius: var(--radius-xs);
   }
 }
 </style>

@@ -21,7 +21,11 @@ import (
 // c5ed6345; SPL-5196): an agent publishes one live blog post on the
 // workspace's connected LinkedIn, for an admin or business owner:
 //
-//	marketing-publish <post-id> --for <HUM-id>
+//	marketing-publish <post-id> --for <HUM-id> [--channel <channel-id>]
+//
+// --channel (SPL-5258) publishes on that connected channel instead, sent as
+// ?channel=<id>: a LinkedIn company page (the post's author is the page), a
+// Facebook Page, an Instagram account or an X account.
 //
 // POST /v1/marketing/posts/{id}/publish with the box's role=cli upload token
 // and X-Spool-Requester: <HUM-id>. The hub keeps every gate: the workspace
@@ -31,14 +35,16 @@ import (
 var (
 	marketingPostRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$`)
 	marketingHumRe  = regexp.MustCompile(`^HUM-[A-Za-z0-9_-]+$`)
+	marketingChanRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 )
 
 func cmdMarketingPublish(cfg *config.Config, args []string) int {
-	const usage = "usage: spool marketing-publish <post-id> --for <HUM-id>"
+	const usage = "usage: spool marketing-publish <post-id> --for <HUM-id> [--channel <channel-id>]"
 	fs := flag.NewFlagSet("marketing-publish", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() { fmt.Fprintln(fs.Output(), usage) }
 	forHum := fs.String("for", "", "the admin or business owner the post is published for (HUM-...)")
+	channel := fs.String("channel", "", "publish on this connected channel (e.g. a LinkedIn company page) instead of the owner's LinkedIn")
 	if err := fs.Parse(forFirst(args)); err != nil {
 		return 1
 	}
@@ -52,24 +58,31 @@ func cmdMarketingPublish(cfg *config.Config, args []string) int {
 	if !marketingHumRe.MatchString(hum) {
 		return fail(errors.New("--for must name an admin or business owner's HUM-... id"))
 	}
+	ch := strings.TrimSpace(*channel)
+	if ch != "" && !marketingChanRe.MatchString(ch) {
+		return fail(fmt.Errorf("--channel %q is not a channel id", ch))
+	}
 	ctx, stop := interruptible()
 	defer stop()
-	out, err := marketingPublishCall(ctx, cfg, post, hum)
+	out, err := marketingPublishCall(ctx, cfg, post, hum, ch)
 	if err != nil {
 		return fail(err)
 	}
 	return writeStdout(out, true)
 }
 
-// forFirst moves --for <v> ahead of the post id so flag.FlagSet sees it.
+// forFirst moves --for <v> and --channel <v> ahead of the post id so
+// flag.FlagSet sees them.
 func forFirst(args []string) []string {
 	var flags, pos []string
+	valued := func(a string) bool { return a == "--for" || a == "-for" || a == "--channel" || a == "-channel" }
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
-		case (a == "--for" || a == "-for") && i+1 < len(args):
+		case valued(a) && i+1 < len(args):
 			flags = append(flags, a, args[i+1])
 			i++
-		case strings.HasPrefix(a, "--for=") || strings.HasPrefix(a, "-for="):
+		case strings.HasPrefix(a, "--for=") || strings.HasPrefix(a, "-for=") ||
+			strings.HasPrefix(a, "--channel=") || strings.HasPrefix(a, "-channel="):
 			flags = append(flags, a)
 		default:
 			pos = append(pos, a)
@@ -79,7 +92,7 @@ func forFirst(args []string) []string {
 }
 
 // marketingPublishCall performs the publish and returns the hub's body.
-func marketingPublishCall(ctx context.Context, cfg *config.Config, post, hum string) ([]byte, error) {
+func marketingPublishCall(ctx context.Context, cfg *config.Config, post, hum, channel string) ([]byte, error) {
 	if strings.TrimSpace(cfg.HubURL) == "" {
 		return nil, errors.New("marketing-publish needs hub mode ($SPOOL_HUB_URL is not set)")
 	}
@@ -102,6 +115,9 @@ func marketingPublishCall(ctx context.Context, cfg *config.Config, post, hum str
 		return nil, err
 	}
 	path := "/v1/marketing/posts/" + url.PathEscape(post) + "/publish"
+	if channel != "" {
+		path += "?" + url.Values{"channel": {channel}}.Encode()
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, docEndpoint(cfg.HubURL, path), nil)
 	if err != nil {
 		return nil, err

@@ -77,6 +77,14 @@ run DRY_RUN=0
   grep -q '"dry_run": false' "$T/o" && grep -q "OK $AGENT published $POST" "$T/o" &&
   pass "DRY_RUN=0 runs marketing-publish once for HUM-10 and prints the hub's answer" || fail "publish (rc=$rc): $(cat "$T/o") / $(cat "$T/calls")"
 
+# --- 4b. CHANNEL_ID publishes on that connected channel (SPL-5258: a LinkedIn company page) ---------------
+run DRY_RUN=0 CHANNEL_ID=mch-lp-1
+[[ $rc -eq 0 && "$(cat "$T/calls")" == "marketing-publish|$POST|--for|HUM-10|--channel|mch-lp-1" ]] &&
+  pass "CHANNEL_ID passes --channel to marketing-publish" || fail "channel (rc=$rc): $(cat "$T/o") / $(cat "$T/calls")"
+run DRY_RUN=0 CHANNEL_ID='a b'
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'CHANNEL_ID must be' "$T/o" &&
+  pass "a CHANNEL_ID that is not a channel id is refused before any call" || fail "bad channel (rc=$rc): $(cat "$T/o")"
+
 # --- 5. the hub's 409 (once per post) ---------------------------------------------------------------------
 run DRY_RUN=0 HUB_CODE=409
 [[ $rc -ne 0 ]] && grep -q 'FATAL marketing-publish .*409' "$T/o" && ! grep -q '^OK' "$T/o" &&

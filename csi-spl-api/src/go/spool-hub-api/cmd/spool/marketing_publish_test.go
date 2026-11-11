@@ -60,3 +60,34 @@ func TestMarketingPublishVerb(t *testing.T) {
 		t.Fatalf("a refused call reached the hub: %q", got)
 	}
 }
+
+// SPL-5258 (linkedin-company-page.md 6.4): --channel <id> publishes on that
+// connected channel (a LinkedIn company page), sent as ?channel=<id>; a
+// channel id that is not one is refused before any call.
+func TestMarketingPublishChannel(t *testing.T) {
+	h := &docsHub{token: "tok"}
+	var mu sync.Mutex
+	var got []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/ws", h.wsHello)
+	mux.HandleFunc("POST /v1/marketing/posts/{id}/publish", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		got = append(got, r.PathValue("id")+"|"+r.URL.RawQuery+"|"+r.Header.Get("X-Spool-Requester"))
+		_, _ = io.WriteString(w, `{"post":"`+r.PathValue("id")+`","published":1}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	docEnv(t, srv.URL)
+
+	rc, out, errOut := captureRun(t, []string{"marketing-publish", "2026-10-14-new-post", "--channel", "mch-lp-1", "--for", "HUM-42"})
+	if rc != 0 || !strings.Contains(out, `"published":1`) || errOut != "" {
+		t.Fatalf("publish on a channel: rc %d out %q err %q", rc, out, errOut)
+	}
+	if rc, _, _ := captureRun(t, []string{"marketing-publish", "2026-10-14-new-post", "--for", "HUM-42", "--channel", "a b&c"}); rc == 0 {
+		t.Fatal("a channel id with spaces and & was not refused")
+	}
+	if len(got) != 1 || got[0] != "2026-10-14-new-post|channel=mch-lp-1|HUM-42" {
+		t.Fatalf("hub saw %q, want one call with ?channel=mch-lp-1", got)
+	}
+}

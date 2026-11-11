@@ -557,16 +557,26 @@ func (s *Server) reportShareFailure(ctx context.Context, m *MarketingLinkedIn, t
 		return
 	}
 	for _, ch := range chs {
-		if ch.ID == channelID && isMetaPlatform(ch.Platform) {
-			s.metaReportFailure(ctx, s.o.MarketingMeta, ch, postRef, why)
-		} else if ch.ID == channelID && ch.Platform == store.MarketingPlatformX { // SPL-5194
-			s.xReportFailure(ctx, s.o.MarketingX, ch, postRef, why)
-		} else if ch.ID == channelID && ch.Platform == store.MarketingPlatformLinkedInPage { // SPL-5258
-			s.orgReportFailure(ctx, s.o.MarketingLinkedInOrg, ch, postRef, why)
-		} else if ch.ID == channelID && m != nil {
-			s.mailHolder(ctx, m, tenant, ch.DelegatedBy, "A post was not shared on LinkedIn",
-				"spool-hub could not share "+marketingPostLabel(m.AppURL, postRef)+" on LinkedIn, and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nShare it by hand if you want it on your profile.\n")
+		if ch.ID == channelID {
+			s.reportChannelFailure(ctx, m, tenant, ch, postRef, why)
 		}
+	}
+}
+
+// reportChannelFailure tells the holder of channel ch that postRef failed,
+// the way its platform reports: Meta, X and a LinkedIn Page (SPL-5258) by
+// their own reporters, a personal LinkedIn profile by mail.
+func (s *Server) reportChannelFailure(ctx context.Context, m *MarketingLinkedIn, tenant string, ch store.MarketingChannel, postRef, why string) {
+	switch {
+	case isMetaPlatform(ch.Platform):
+		s.metaReportFailure(ctx, s.o.MarketingMeta, ch, postRef, why)
+	case ch.Platform == store.MarketingPlatformX: // SPL-5194
+		s.xReportFailure(ctx, s.o.MarketingX, ch, postRef, why)
+	case ch.Platform == store.MarketingPlatformLinkedInPage: // SPL-5258
+		s.orgReportFailure(ctx, s.o.MarketingLinkedInOrg, ch, postRef, why)
+	case m != nil:
+		s.mailHolder(ctx, m, tenant, ch.DelegatedBy, "A post was not shared on LinkedIn",
+			"spool-hub could not share "+marketingPostLabel(m.AppURL, postRef)+" on LinkedIn, and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nShare it by hand if you want it on your profile.\n")
 	}
 }
 

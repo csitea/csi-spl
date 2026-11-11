@@ -56,7 +56,7 @@
       "vite": "^7.3.7",
       "launch-editor": "^2.14.2",
       "seroval": "~1.6.11",
-      "node-forge": "^1.4.1"
+      "node-forge": "^1.4.3"
     },
     "auditConfig": {
       "ignoreGhsas": [

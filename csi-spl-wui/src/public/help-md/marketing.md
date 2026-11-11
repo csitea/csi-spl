@@ -6,7 +6,7 @@ Three rules apply across every channel:
 
 - **Nothing is posted without a person pressing Publish.** Connecting a Facebook Page, an Instagram account, LinkedIn or X never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook, Instagram or X post is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them, and always goes out on the LinkedIn profile of the member who connected it; that member, once no longer an admin or business owner, cannot publish. A LinkedIn company page post is approved the same way (any workspace admin or business owner, or an agent for one of them) and always goes out as the company, never on a person's profile.
 - **No plaintext tokens.** Every OAuth access token is envelope-encrypted with Cloud KMS (`AES-256-GCM`) before it is stored, and is decrypted in memory only for the duration of an outbound API call.
-- **One API post per channel per 24 hours.** For a connected Facebook Page, Instagram account, X account or LinkedIn company page, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
+- **One API post per channel per 24 hours.** For a connected Facebook Page, Instagram account, X account or LinkedIn company page, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). A personal LinkedIn profile has no such cap.
 
 ---
 

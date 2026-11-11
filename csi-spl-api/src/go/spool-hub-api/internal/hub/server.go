@@ -240,6 +240,11 @@ type Options struct {
 	// SPL-5194, marketing_x_channels.go); nil = not configured: every
 	// /v1/marketing/x route answers 503 not_configured.
 	MarketingX *MarketingX
+	// MarketingLinkedInOrg connects LinkedIn Company Pages and posts as them
+	// (spec 090 T041, SPL-5258, marketing_linkedin_org_channels.go); nil = not
+	// configured: every /v1/marketing/linkedin-org route answers 503
+	// not_configured.
+	MarketingLinkedInOrg *MarketingLinkedInOrg
 	// Gcal connects a member's own Google Calendar (spec 149 B5, SPL-3208,
 	// gcal_connect.go); nil = off: every /v1/me/google-calendar route is 404.
 	Gcal *GcalConnect

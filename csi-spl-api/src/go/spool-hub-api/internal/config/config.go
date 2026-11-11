@@ -481,6 +481,18 @@ type Hub struct {
 	// both and MarketingKMSKey set the /v1/marketing/x routes work; else 503.
 	MarketingXClientID     string `env:"SPOOL_HUB_MARKETING_X_CLIENT_ID"`
 	MarketingXClientSecret string `env:"SPOOL_HUB_MARKETING_X_CLIENT_SECRET"`
+	// The LinkedIn Company Page app (spec 090 T041, SPL-5258;
+	// linkedin-company-page.md 6.2): a second LinkedIn app holding only the
+	// Community Management API, injected from Secret Manager only while cnf
+	// marketing.linkedin_org.inject is "true" (the secret is never logged).
+	// With the id, the secret and MarketingKMSKey set the
+	// /v1/marketing/linkedin-org routes work; else 503 not_configured. Empty
+	// version = MarketingLinkedInVersion; empty scopes =
+	// marketing.LinkedInOrgScopes.
+	MarketingLinkedInOrgClientID     string `env:"SPOOL_HUB_MARKETING_LINKEDIN_ORG_CLIENT_ID"`
+	MarketingLinkedInOrgClientSecret string `env:"SPOOL_HUB_MARKETING_LINKEDIN_ORG_CLIENT_SECRET"`
+	MarketingLinkedInOrgVersion      string `env:"SPOOL_HUB_MARKETING_LINKEDIN_ORG_VERSION"`
+	MarketingLinkedInOrgScopes       string `env:"SPOOL_HUB_MARKETING_LINKEDIN_ORG_SCOPES"`
 	// The Google Calendar connect (spec 149 B5, SPL-3208, cnf gcal): the
 	// allow-list (workspace ids or the one entry "all"; empty = off
 	// everywhere, every /v1/me/google-calendar route answers 404), the

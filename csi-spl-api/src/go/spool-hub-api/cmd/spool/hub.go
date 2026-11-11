@@ -153,9 +153,10 @@ func cmdServe() int {
 // superviseMarketing starts the spec 090 loops, each supervised (SPL-2128);
 // each returns at once while its platform is not configured.
 func superviseMarketing(ctx context.Context, log zerolog.Logger, srv *hub.Server) {
-	go hub.Supervise(ctx, log, "marketing-share", srv.RunMarketingShare)       // spec 090 T015, SPL-1634
-	go hub.Supervise(ctx, log, "marketing-meta", srv.RunMarketingMetaDispatch) // spec 090 T034, SPL-4424
-	go hub.Supervise(ctx, log, "marketing-x", srv.RunMarketingXDispatch)       // spec 090 X row, SPL-5194
+	go hub.Supervise(ctx, log, "marketing-share", srv.RunMarketingShare)                      // spec 090 T015, SPL-1634
+	go hub.Supervise(ctx, log, "marketing-meta", srv.RunMarketingMetaDispatch)                // spec 090 T034, SPL-4424
+	go hub.Supervise(ctx, log, "marketing-x", srv.RunMarketingXDispatch)                      // spec 090 X row, SPL-5194
+	go hub.Supervise(ctx, log, "marketing-linkedin-org", srv.RunMarketingLinkedInOrgDispatch) // spec 090 T041, SPL-5258
 }
 
 // claimOperatorWorkspace records the cnf operator workspace in the database
@@ -318,10 +319,11 @@ func mailOptions(ctx context.Context, opts *hub.Options, hc *config.Hub, log zer
 	// spec 090 T033 (SPL-4254): connect Facebook Pages + Instagram
 	opts.MarketingMeta = marketingMeta(ctx, hc, log, pmc, ac.AppURL)
 	opts.MarketingX = marketingX(ctx, hc, log, pmc, ac.AppURL)
-	opts.Gcal = gcalConnect(ctx, hc, ac, log)            // spec 149 B5: a member's Google Calendar
-	opts.EmbedRelinkMail = embedRelinkMailer(log, pmc)   // specs/121 T206
-	opts.VendorKeySealer = vendorKeySealer(ctx, hc, log) // spec 127 H1 + spec 159 T1: a workspace's own vendor keys
-	opts.VendorKeyMail = vendorKeyMailer(log, pmc)       // spec 159 3: every admin and biz owner is told
+	opts.MarketingLinkedInOrg = marketingLinkedInOrg(ctx, hc, log, pmc, ac.AppURL) // spec 090 T041: LinkedIn Company Pages
+	opts.Gcal = gcalConnect(ctx, hc, ac, log)                                      // spec 149 B5: a member's Google Calendar
+	opts.EmbedRelinkMail = embedRelinkMailer(log, pmc)                             // specs/121 T206
+	opts.VendorKeySealer = vendorKeySealer(ctx, hc, log)                           // spec 127 H1 + spec 159 T1: a workspace's own vendor keys
+	opts.VendorKeyMail = vendorKeyMailer(log, pmc)                                 // spec 159 3: every admin and biz owner is told
 	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
 }
 

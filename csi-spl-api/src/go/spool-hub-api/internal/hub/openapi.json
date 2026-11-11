@@ -6460,6 +6460,167 @@
         ]
       }
     },
+    "/v1/marketing/linkedin-org/callback": {
+      "get": {
+        "operationId": "getMarketingLinkedinOrgCallback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "an HTML page: the company pages connected (one channel per page where the member is an approved Super admin or Content admin; nothing is posted until an admin or business owner presses Publish), or LinkedIn's refusal"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "the exchange with LinkedIn failed"
+          },
+          "503": {
+            "description": "not_configured: LinkedIn company page publishing is not configured on this hub"
+          }
+        },
+        "summary": "LinkedIn's OAuth redirect for the company page app",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/linkedin-org/connect": {
+      "get": {
+        "operationId": "getMarketingLinkedinOrgConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Found: to LinkedIn's consent page for the Company Page app (Community Management API scopes; spec 090 linkedin-company-page.md, SPL-5258)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: LinkedIn company page publishing is not configured on this hub"
+          }
+        },
+        "summary": "Connect a LinkedIn company page (browser link)",
+        "tags": [
+          "marketing"
+        ]
+      },
+      "post": {
+        "operationId": "postMarketingLinkedinOrgConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {authorize_url}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: LinkedIn company page publishing is not configured on this hub"
+          }
+        },
+        "summary": "Start connecting a LinkedIn company page",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/linkedin-org/pages": {
+      "get": {
+        "operationId": "getMarketingLinkedinOrgPages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {pages: [{channel_id, organization_id, organization_urn, name, vanity_name, role, status, delegated_by, expires_at}]}, never a token (SPL-5258)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: LinkedIn company page publishing is not configured on this hub"
+          }
+        },
+        "summary": "List connected LinkedIn company pages",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/linkedin/callback": {
       "get": {
         "operationId": "getMarketingLinkedInCallback",

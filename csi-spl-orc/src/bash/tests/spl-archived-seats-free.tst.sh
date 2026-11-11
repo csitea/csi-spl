@@ -263,6 +263,23 @@ for l in "${!ctl[@]}"; do
   b="$(bind "$l")"
   [[ "$b" == "${ctl[$l]}" ]] && pass "7b CONTROL '$l' still binds ${ctl[$l]}" || fail "7b '$l' binds '$b'"
 done
+# 7d. SPL-5273: the same for a value that starts with `n/a`, `na` or `no topic`
+# ("Topic: n/a (was <t8>)", "Topic: no topic, <t8> archived"). RED CONTROL: on
+# dd8324929 each one that quotes a topic binds it. A value with "no" or "na"
+# inside a word keeps today's result (a hyphen-joined `notes-<t8>` binds none, as before).
+for l in 'Topic: n/a (was aaaaaaaa)' 'Topic: N/A, owner topic aaaaaaaa archived' "**Topic:** na (was $ARCH)" \
+  'Topic: no topic, aaaaaaaa archived' '**Discussion:** No Topic (aaaaaaaa archived)' "Ask-Topic: NA $ARCH" \
+  'Topic: n/a' 'Topic: no topic'; do
+  b="$(bind "$l")"
+  [[ -z "$b" ]] && pass "7d '$l' binds no topic" || fail "7d '$l' binds '$b'"
+done
+declare -A ctl2=(
+  ['Topic: nominal 1234abcd']=1234abcd ['Topic: notes-aaaaaaaa']='' ['Topic: notes aaaaaaaa']=aaaaaaaa ['Topic: name aaaaaaaa']=aaaaaaaa
+  ['Topic: no-topic-aaaaaaaa']='' ['Topic: nobody aaaaaaaa']=aaaaaaaa ['Topic: nature aaaaaaaa']=aaaaaaaa)
+for l in "${!ctl2[@]}"; do
+  b="$(bind "$l")"
+  [[ "$b" == "${ctl2[$l]}" ]] && pass "7e CONTROL '$l' still binds ${ctl2[$l]}" || fail "7e '$l' binds '$b'"
+done
 echo c-740 >>"$T/archived.ids" && echo c-740 >>"$T/windows"
 brief c-740 $'# Lane\n\nTopic: none live (owner topic aaaaaaaa archived 11-05), report to the dispatch holder'
 wt c-740 && echo wip >"$T/wt/c-740/wip.txt"

@@ -23,10 +23,12 @@
 # @description case a brief saying the topic only in prose missed) or else a
 # @description `Task:`, `Topic:` or `Discussion:` line naming that topic (`Task:
 # @description dispatch-<topic8>`, `Topic: [env tenant] <uuid>`). That first line
-# @description binds to NO topic when its value starts with `none` (any case,
-# @description `**Topic:** None ...` too), even if it quotes a topic8 later on
-# @description (SPL-5266: "Topic: none live (owner topic <t8> archived ...)"
-# @description raised blockers for lanes that name no topic on purpose). Kept, and named in ONE blocker to the
+# @description binds to NO topic when its value starts with `none`, `n/a`, `na`
+# @description or `no topic` (any case, `**Topic:** None ...` too), even if it
+# @description quotes a topic8 later on (SPL-5266: "Topic: none live (owner topic
+# @description <t8> archived ...)" raised blockers for lanes that name no topic on
+# @description purpose; SPL-5273: "Topic: n/a (was <t8>)", "Topic: no topic, <t8>
+# @description archived"). Kept, and named in ONE blocker to the
 # @description orchestrator (id, topic, reason, git counts): a lane bound to the
 # @description topic but started after the archive, and one with uncommitted or
 # @description unpushed work. The blocker is sent again only when a new (id,
@@ -175,7 +177,7 @@ spl_archived_seat_workspace_wide() {
 spl_archived_seat_binding() {
   local line="${1:-}" t
   [[ -n "$line" ]] || return 0
-  grep -qiE '^[*]*[A-Za-z-]+:[*[:space:]]*none([^A-Za-z0-9_-]|$)' <<<"$line" && return 0
+  grep -qiE '^[*]*[A-Za-z-]+:[*[:space:]]*(none|n/a|na|no[[:space:]]+topic)([^A-Za-z0-9_-]|$)' <<<"$line" && return 0
   t="$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$line" | sed -n 1p)"
   [[ -n "$t" ]] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' <<<"$line" | grep -oE '[0-9a-f]{8}' | sed -n 1p)"
   [[ -n "$t" ]] || t="$(grep -oE '(^|[^0-9A-Za-z-])[0-9a-f]{8}([^0-9A-Za-z-]|$)' <<<"$line" | grep -oE '[0-9a-f]{8}' | sed -n 1p)"

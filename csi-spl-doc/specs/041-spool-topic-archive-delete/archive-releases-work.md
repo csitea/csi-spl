@@ -22,9 +22,11 @@ archived discussion is another lane's work and is not described here.
   so a brief that names the topic only in prose still binds (t1 2e46fcb6: c-702's brief said
   "t1 topic 2e46fcb6", and the 5-minute run skipped it).
 - **A bound lane is released.** `do_spl_archived_seats_free` reads `Ask-Topic:`, then a
-  `Task:`, `Topic:` or `Discussion:` line. A line whose value starts with `none` (any case,
-  `**Topic:** None` too) binds no topic, even when it quotes a topic later on: "Topic: none
-  live (owner topic 476aff8f archived 11-05)" is a lane with no topic on purpose (SPL-5266). A freed lane's open issue goes `onhold`, no longer
+  `Task:`, `Topic:` or `Discussion:` line. A line whose value starts with `none`, `n/a`, `na`
+  or `no topic` (any case, `**Topic:** None` too) binds no topic, even when it quotes a topic
+  later on: "Topic: none live (owner topic 476aff8f archived 11-05)" is a lane with no topic on
+  purpose (SPL-5266), and so are "Topic: n/a (was <t8>)" and "Topic: no topic, <t8> archived"
+  (SPL-5273). A word that only starts with those letters (`nominal`, `notes`) still binds. A freed lane's open issue goes `onhold`, no longer
   `diss`: it is work left over, not work thrown away. An issue already `done`, `diss` or `qas`
   stays as it is: a hold neither reopens finished or discarded work nor takes it out of review.
 - **A seat that answers a whole workspace is never closed by one topic.** Skipped: role seats

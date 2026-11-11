@@ -345,6 +345,23 @@ permission. Its sections are:
   agent goes to the first box in the list that is under the high mark. An empty
   list leaves the order to each box. A box id is letters, digits and hyphens,
   up to 32 characters, and the list holds at most 32 boxes.
+- **Cost allocation** (`/tenant-settings/cost-allocation`): a shared Persons
+  or Cloud cost, such as a cloud bill or a person's hours, assigned to one
+  workspace or split across several by percentage. The administrator of the
+  workspace that runs the fleet sees every Persons and Cloud cost of the month
+  under its label, with its
+  amount and its split (for example *Acme 60 % · Globex 40 %*), or **Not
+  allocated**. **Edit** opens one percentage per workspace; the total shows
+  as you type, and **Save** stays disabled until the shares add up to 100 %.
+  Leave every share empty to remove the split. A split holds for every month,
+  past ones too: the month picker only chooses the amounts shown. Tokens are
+  never split by hand; they are shared automatically by the tokens each
+  workspace used. The administrator of a customer workspace who also
+  administers other workspaces sees the costs that already have a share in
+  those workspaces. They can move that share between those workspaces only.
+  The total those workspaces hold stays the same, and the shares of other
+  workspaces stay as they are, so **Save** waits until their rows add up to
+  what they hold. The section shows only for these administrators.
 
 ---
 

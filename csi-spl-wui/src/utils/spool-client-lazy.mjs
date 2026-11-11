@@ -2100,9 +2100,12 @@ async function reportingSql(ctx, query) {
  *   'entries', type       GET    /v1/operator/cost-entries?type= (SPL-4382, Expenses)
  *   'entry_create', body  POST   /v1/operator/cost-entries
  *   'entry_delete', id    DELETE /v1/operator/cost-entries/{id}
- * Operator admin only, as getFleetTokens. The mock answers from
- * monitoring-paid.mjs and cost-entries.mjs, which load only here and on their
- * cards.
+ *   'alloc', door, month  GET    /v1/<door>/cost-allocations?month= (SPL-5291)
+ *   'alloc_put', door, b  PUT    /v1/<door>/cost-allocations
+ * Operator admin only, as getFleetTokens; the alloc ops' door 'tenant' is a
+ * customer workspace's admin (costs-allocation.md section 3). The mock
+ * answers from monitoring-paid.mjs, cost-entries.mjs and cost-allocations.mjs,
+ * which load only here and on their cards.
  */
 async function fleetPaid(ctx, op, a, b) {
   const { live, mock } = ctx
@@ -2110,6 +2113,19 @@ async function fleetPaid(ctx, op, a, b) {
   const one = (id) => base + '/' + encodeURIComponent(id)
   const json = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   const entries = '/v1/operator/cost-entries'
+  if (op.startsWith('alloc')) {
+    const door = a === 'tenant' ? 'tenant' : 'operator'
+    if (mock) {
+      const c = await import('./cost-allocations.mjs')
+      if (op === 'alloc') return door === 'tenant' ? c.mockTenantCostAllocList(b) : c.mockCostAllocList(b)
+      if (op === 'alloc_put') return door === 'tenant' ? c.mockTenantCostAllocPut(b) : c.mockCostAllocPut(b)
+      throw new Error('fleetPaid: unknown op ' + op)
+    }
+    const path = '/v1/' + door + '/cost-allocations'
+    if (op === 'alloc') return live(path + (b ? '?month=' + encodeURIComponent(b) : ''))
+    if (op === 'alloc_put') return live(path, json('PUT', b))
+    throw new Error('fleetPaid: unknown op ' + op)
+  }
   if (mock && op.startsWith('entr')) {
     const c = await import('./cost-entries.mjs')
     const ops = { entries: () => c.mockCostEntryList(a), entry_create: () => c.mockCostEntryCreate(a), entry_delete: () => c.mockCostEntryDelete(a) }

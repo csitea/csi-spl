@@ -1,7 +1,10 @@
 # Costs: a cost assigned or split to workspaces by hand (SPL-5291)
 
-Status: **Draft v0.2, revised on the owner's answers (poll `01cbbdea`);
-nothing landed.** Issue: SPL-5291 (epic SPL-2373). Discussion: t1
+Status: **v0.3: hub + store + Settings -> Cost allocation built on branch
+`c-569-c003-feat-costs-workspace-allocation`; nothing on master yet.** v0.2
+was revised on the owner's answers (poll `01cbbdea`); v0.3 adds the
+customer admin's partial body (section 3) and the settings page as built
+(section 5.1). Issue: SPL-5291 (epic SPL-2373). Discussion: t1
 `41a74806` (#spool-hub-ui, owner HUM-10). Sibling:
 `c002-refactor-reporting-costs-four-labels` builds the four labels (Total,
 Persons, Cloud, Tokens) per workspace (answer A); this page is answer B.
@@ -96,6 +99,16 @@ with `old` the item's split in force and `new` the body:
 4. `old` holds a share in at least one workspace of `A` (an item nobody
    gave them is not theirs to split).
 
+**The body names only `A`'s shares.** The admin never reads the shares
+outside `A` (below), so their body cannot carry them: inside the
+transaction the store completes it with every stored share of a workspace
+outside `A` that the body does not name (`store.MergeCostAllocWithin`), then
+judges the rules above, then checks the result as a whole split. A body that
+does name an outside workspace is kept as sent and judged (rule 1 when it
+differs, rule 2 when it is new). The hub's read of the body checks each
+share (1..10000, no duplicate) but not the sum, which only the completed
+split has.
+
 So a customer admin can only move cost between workspaces they administer.
 The check runs inside the write's transaction, the item's rows locked
 (`SELECT ... FOR UPDATE`), so an operator change in between cannot be
@@ -115,7 +128,7 @@ workspaces outside `A`.
 | `GET /v1/operator/cost-allocations?month=YYYY-MM` | `{month, items, workspaces}`: every Persons and Cloud estate item of that month (with its money) and its split (`shares: [{workspace_id, share_bp}]`, empty when none); `workspaces` lists where a share may go |
 | `PUT /v1/operator/cost-allocations` `{source, project_or_vendor, kind, shares: [{workspace_id, share_bp}]}` | 200, the split; `shares: []` removes it; a Tokens item, a sum other than 10000, a duplicate or unknown workspace or a share outside 1..10000 is 400 `bad_cost_allocation` |
 | `GET /v1/tenant/cost-allocations?month=YYYY-MM` | the customer admin's view (section 3) |
-| `PUT /v1/tenant/cost-allocations` | the same body; the section 3 rules, 403 `cost_allocation.outside` |
+| `PUT /v1/tenant/cost-allocations` | the same body shape, `shares` naming only the admin's workspaces (section 3); 200, the completed split; the section 3 rules, 403 `cost_allocation.outside` |
 
 **The workspace read** (`GET /v1/tenant/costs`, scope `workspace`) adds one
 part per item allocated to it: source `allocated`, the item's
@@ -140,6 +153,19 @@ estate part gains `allocation` (its shares).
   (probe `GET /v1/tenant/cost-allocations` with at least one item): the
   same list with only their workspaces, Save disabled until their rows sum
   to what they hold.
+- **As built** (5.1, `csi-spl-wui`): route `/tenant-settings/cost-allocation`,
+  `components/CostAllocationCard.vue`, `utils/cost-allocations.mjs` (the
+  checks, the body, the mock). The nav entry shows after
+  `pages/tenant-settings.vue` probes the operator door (skipped when
+  `/v1/view/me` says `operator_admin: false`) and then the tenant door
+  (only with `tenant.settings`); the client reaches both over the existing
+  `fleetPaid` stub (ops `alloc`, `alloc_put`), so the initial bundle gains
+  no stub name. A percentage takes up to two decimals (basis points); every
+  row empty removes an operator split. A product owner of the operator
+  workspace reads the list (GET) but a Save answers 403 (PUT is admin only);
+  the page shows the hub's words. Strings `tenant_settings.cost_alloc*` in
+  all 19 locales (agy review last). Help: `doc/help/user-settings.md`
+  section 9.
 - **A workspace's Costs page** (only after the sibling lane lands, through
   its per-workspace function): each allocated item is a row under Persons
   or Cloud, marked "Allocated: 40 % of <item>", and is in that label's pie
@@ -169,4 +195,4 @@ estate part gains `allocation` (its shares).
   the workspace's page; every new string in all locales, the agy review
   last.
 
-<!-- version: 0.2.0 · updated: 2026-11-11 -->
+<!-- version: 0.3.0 · updated: 2026-11-11 -->

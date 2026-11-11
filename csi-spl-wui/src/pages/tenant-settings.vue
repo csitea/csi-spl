@@ -74,15 +74,32 @@ async function probeFleet() {
     if (mine === fleetSeq) fleetOn.value = false
   }
 }
+/* SPL-5291: Cost allocation shows for the operator workspace's admin, or a
+   customer admin holding a share to split (utils/cost-allocations.mjs) */
+const costAllocOn = ref(false)
+let costAllocSeq = 0
+type AllocCall = (op: 'alloc', door: string, month: string) => Promise<unknown>
+async function probeCostAlloc() {
+  const mine = ++costAllocSeq
+  const me = access.me as { permissions?: string[] | null } | null
+  const call = (api as unknown as { fleetPaid: AllocCall }).fleetPaid
+  const { probeCostAllocDoor } = await import('~/utils/cost-allocations.mjs')
+  const found = await probeCostAllocDoor((door: string, month: string) => call('alloc', door, month), {
+    operator: fleetLoadReadable(access.me),
+    tenant: api.mock || Boolean(me && Array.isArray(me.permissions) && me.permissions.includes('tenant.settings')),
+  })
+  if (mine === costAllocSeq) costAllocOn.value = Boolean(found)
+}
 watch(signedIn, (v) => {
   if (!v) return
   void access.load().finally(() => {
     accessReady.value = true
     void probeFleet()
+    void probeCostAlloc()
   })
 }, { immediate: true })
 const sections = computed(() => {
-  const opts = { mock: api.mock, fleetLoad: fleetOn.value }
+  const opts = { mock: api.mock, fleetLoad: fleetOn.value, costAlloc: costAllocOn.value }
   return tenantSettingsSections(access.me, opts)
 })
 const active = computed(() => tenantSettingsSectionOf(route.path))

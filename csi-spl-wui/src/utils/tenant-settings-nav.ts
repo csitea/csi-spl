@@ -13,10 +13,15 @@
  * Fleet load is not a /v1/view/me permission. It is the operator workspace's
  * admin (GET /v1/operator/fleet-load; 403 operator.workspaces hides it).
  * The settings page probes and passes fleetLoad: true only after a 200.
+ *
+ * Cost allocation (SPL-5291, spec 143 costs-allocation.md) is not one
+ * either: the operator workspace's admin (GET /v1/operator/cost-allocations
+ * 200), or a customer admin holding a share to split (GET
+ * /v1/tenant/cost-allocations with an item). costAlloc: true after either.
  */
 
 export type TenantSection = { id: string, label: string, perm: string }
-export type TenantSectionsOpts = { mock?: boolean, fleetLoad?: boolean }
+export type TenantSectionsOpts = { mock?: boolean, fleetLoad?: boolean, costAlloc?: boolean }
 type TenantMe = { permissions?: string[] | null } | null | undefined
 
 export const TENANT_SETTINGS_SECTIONS: TenantSection[] = [
@@ -34,6 +39,8 @@ export const TENANT_SETTINGS_SECTIONS: TenantSection[] = [
 
 /** Shown only when the fleet-load probe succeeded. Not a me() permission. */
 export const FLEET_LOAD_SECTION = { id: 'fleet-load', label: 'tenant_settings.fleet_load' }
+/** Shown only when the cost-allocation probe found a door. Not a me() permission. */
+const COST_ALLOC_SECTION = { id: 'cost-allocation', label: 'tenant_settings.cost_alloc' }
 
 /**
  * Sections the mock gates like the hub when an e2e plays a role
@@ -53,6 +60,7 @@ export function tenantSettingsSections(me: TenantMe, opts: TenantSectionsOpts = 
     ? TENANT_SETTINGS_SECTIONS.filter((s) => !perms || !MOCK_GATED.has(s.id) || perms.includes(s.perm))
     : filterByPerm(me)
   if (opts.fleetLoad) base.push(FLEET_LOAD_SECTION as TenantSection)
+  if (opts.costAlloc) base.push(COST_ALLOC_SECTION as TenantSection)
   return base
 }
 
@@ -74,6 +82,6 @@ export function tenantSettingsSectionOf(path: unknown): string {
   const m = /\/tenant-settings\/([a-z]+(?:-[a-z]+)*)\/?$/.exec(String(path || '').split(/[?#]/)[0])
   if (!m) return ''
   const id = m[1]
-  if (id === FLEET_LOAD_SECTION.id) return id
+  if (id === FLEET_LOAD_SECTION.id || id === COST_ALLOC_SECTION.id) return id
   return TENANT_SETTINGS_SECTIONS.some((s) => s.id === id) ? id : ''
 }

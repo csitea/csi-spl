@@ -1,6 +1,9 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.3, 2026-11-03, by c-212 (claude): D8 is the owner's CHANGE, a
+Version v1.4, 2026-11-11, by a-624 (agy): adds section 2.10, an agent adds a
+note with a link on the owner's ask (SPL-5295), with its open questions in
+section 3.1, data/wire/switch lines in sections 4-6, cases C33-C41 in section 7
+and build rows B11-B13 in section 8. v1.3, 2026-11-03, by c-212 (claude): D8 is the owner's CHANGE, a
 drag or Move onto another priority takes that priority (2.9, SPL-4701), and
 the tie order is one key everywhere. v1.2, 2026-11-02, by c-705 (claude): adds
 section 2.9, a note's priority (SPL-4652), with its lines in sections 4 and 5.
@@ -15,7 +18,9 @@ open choice is a default the owner may change (section 3). One reviewer
 from another vendor reads it before build row B1 is placed. Nothing in it
 is built.
 
-Source: prd t1 topic `topic:5586fe0e-8230-4f47-b717-b99dc4d20312`. Issue
+Source: prd t1 topic `topic:5586fe0e-8230-4f47-b717-b99dc4d20312` (v1.4:
+t1 topics `82539895` and `topic:bc41153c-166b-4361-9b10-4ede16e78ea5`, issue
+SPL-5295, epic SPL-5294). Issue
 SPL-3213, epic SPL-2403. Each build row in section 8 gets its own issue
 when it is placed. Parent spec: [005 spool WUI](../005-spool-wui/).
 
@@ -28,7 +33,8 @@ Paths used below:
 - `wui/` = `csi-spl-wui/src/`, `wui-tests/` = `csi-spl-wui/tests/`
 
 Every `file:line` below was read on origin/master `2daeaf1fa` with
-`grep -n` or `sed -n` on that tree; rows 30-32 (v1.1) on `fafbb86d0`.
+`grep -n` or `sed -n` on that tree; rows 30-32 (v1.1) on `fafbb86d0`;
+rows 33-35 and section 2.10 (v1.4) on `269de997c`.
 Nothing was read from prd.
 
 Builds on, and does not repeat:
@@ -98,6 +104,9 @@ marked (C).
 | 30 | the realm's RLS seeds (v1.1, W1) | `store/personal_rls_test.go:274-277` `realmSeedPG` seeds P and Q with a row in every personal table, then `:317` loops over `personalTables`; `store/personal_catalogue_test.go:256` `seedRealm` plants the rows of the policy test | widening `personalTables` without seed rows for the three notes tables fails both tests: B2 seeds them |
 | 31 | how a hub flag is read (v1.1, W2) | `api/internal/config/config.go:281-283` struct fields with `env:"SPOOL_HUB_…"` tags; `api/cmd/spool/hub.go:319` builds `hub.Options`; `hub/server.go:42` `type Options struct`; a cnf hub env value, e.g. `csi-spl-cnf/csi-spl/all.env.yaml:748` `SPOOL_HUB_AUTH_NATIVE_ENABLED` | the kill switch is one env var through those three files (section 6) |
 | 32 | the help coverage gates (v1.1, W3, W4) | `csi-spl-wui/tests/unit/help-settings-coverage.test.mjs:32` `RAIL_HELP` (every `RAIL_TABS` id needs a help mapping, :117-121) and `:66-69` (every `SETTINGS_SECTIONS` id must be named as `/settings/<id>` in the user settings help); `csi-spl-wui/tests/unit/help-sync.test.mjs` compares `wui/public/help-md/` (with `pages.json`) to `csi-spl-doc/doc/help/`, rewritten by `node src/node/help/sync-help.mjs` | B5 maps `notes` in `RAIL_HELP` and syncs `notes.md`; B10 names `/settings/notes` in `user-settings.md` and syncs it |
+| 33 | box-socket agent verbs, CLI and MCP pins (v1.4, on `269de997c`) | `hub/ws.go:163-165` (`case wire.TIssue`, `case wire.TFlowRead`), `:838` `senderRefusal(x, from)` (requires an announced agent of `x.box`, refuses `HUM-*` and `GST-*`); `api/internal/wire/wire.go:89` `TFlowRead`; `api/cmd/spool/usage_test.go:16` `TestUsageNamesEveryVerb`; `api/internal/mcp/mcp_test.go:296` `TestToolNamesAreCanonical`, `:357` `TestSeatedServerActsForItsSeatOnly`; `api/internal/mcp/tools_golden_test.go:16` `TestToolsListGolden` (`testdata/tools.golden`) | an agent write goes on the authenticated box socket (`TNoteAdd`), CLI `spool note` and MCP `spool_note_add`, never on `/v1/me/realm/notes` (2.10, B12) |
+| 34 | proving a human message and the agent topic read door (v1.4, on `269de997c`) | `store/message_edit.go:37` `EditableMessage` (`FromID`, `FromBox`, `CopiedFrom`, `TaskID`, `Channel`), `:90` `GetEditable`; `hub/wui.go:42` `WUIBox = "box-wui"`; `hub/actas.go:29` `readerIsActAsClone`; `hub/box_archive.go:115` `boxReadsCard`, `:132` `boxMemberReadsCard` (channel membership + private/dedicated scope gates); `hub/channel_move.go:361` `channelMoveOwner` | `note_add` proves the ask in `x.tenant` before touching `personal.notes`: a live `box-wui` human row, not a copy or clone, in a topic the acting agent reads (2.10) |
+| 35 | non-session `inPerson` callers (v1.4, on `269de997c`) | `store/rls.go:59` `pgScopePerson`, `:115` `inPerson`; `store/personal_scope_test.go:25` `personCallers` (`:33` `appendRealmReceipts`, `:69` `ContactsChangedSince`), `:81` `realmTenantCallers` (must stay empty: `inPerson` and `inTenant` never nest); `api/internal/config/config.go:312` `NotesEnabled`, `api/cmd/spool/hub.go:389`, `hub/server.go:264`, `csi-spl-cnf/csi-spl/all.env.yaml:543` | `CreateNoteOnAsk` runs in its own `inPerson` tx after the workspace ask check closes, adding one entry to `personCallers` while `realmTenantCallers` stays empty (2.10, B11) |
 
 ## 2. The design
 
@@ -124,7 +133,9 @@ shows in every workspace the person belongs to. So the notes are stored
 in spec 119's realm, schema `personal`, isolated by the `person_scope`
 policy (1.2 row 22). An admin, another member and the operator scope read
 0 rows. A note survives leaving a workspace; it is erased with the person
-(`humans` FK cascade).
+(`humans` FK cascade). When an agent adds a note on a person's ask (2.10),
+that note lives in the same `personal.notes` table under the asking
+person's `person_id`, never in a workspace table.
 
 ### 2.3 A link
 
@@ -176,9 +187,12 @@ Three ways to add a link:
 
 ### 2.4 The hub side
 
-All routes are realm routes (1.2 rows 26-27): `realmCaller`, no
-workspace header, the person from the session alone. An act-as clone, an
-agent and a time-accountant-only seat are refused (403 `person_only`).
+All HTTP routes under `/v1/me/realm/notes` are realm routes (1.2 rows
+26-27): `realmCaller`, no workspace header, the person from the session
+alone. An act-as clone, an agent and a time-accountant-only seat are
+refused (403 `person_only`). The single narrow grant for an agent adding
+one note with a link on a verified ask runs on the box WebSocket, never on
+`/v1/me/realm/notes`, and exposes no read, list, edit or delete (2.10).
 
 When the hub returns a link, it compares its `workspace_id` with the
 person's seats (1.2 row 26, already loaded by `realmRefuses`). A link
@@ -285,8 +299,15 @@ none. agy reviews the locale files as the last step before B5 ships
   after a typed confirmation in Settings -> Notes.
 - Account erase: the `humans` FK cascade (1.2 row 22).
 - A link stores no content of the object beyond its label (2.3, D4).
-- Logs: a route logs the person id, the note id and the outcome, never a
-  title, text, label or URL.
+- Agent add-on-ask (2.10): an agent never reads, lists, edits or deletes a
+  person's notes; it receives only `{msg_id, id, link_id, created_at}` for
+  the one note it just created on that person's ask. The note stores
+  provenance (`added_by_agent`, `ask_msg_id`, `ask_workspace_id`, no
+  message text) and returns `ask_left: true` if the person later leaves
+  `ask_workspace_id`.
+- Logs: a route logs the person id, the note id and the outcome (plus
+  `agent`, `ask_msg` and `ask_workspace` on `note_add`, 2.10), never a
+  title, text, label, ref or URL.
 
 ### 2.9 Priority (SPL-4652)
 
@@ -344,6 +365,116 @@ default. Every existing note reads 5. The WUI's discussion default is 3
   one priority `position`, stored by the hub per note (PATCH position), orders
   before any date key, so a dragged order is kept across reloads and devices.
 
+### 2.10 An agent adds a note on the owner's ask (SPL-5295)
+
+Owner HUM-10, t1 topic `82539895`, 2026-11-11 (epic SPL-5294, discussion
+`bc41153c`):
+
+> "Create a note to me with a link to this one" (08:45:11Z, msg `64243d93`)
+>
+> "Poll: 8dcb4cda ... Answer: B — A lane builds it: when you ask, an agent
+> may add a note with a link to your Notes" (10:04:18Z, msg `1a81761a`)
+>
+> "create a new discussion for the notes creation as well ... and the specs
+> change ... put it into prio 5 category" (10:04:53Z, msg `1401094d`)
+
+- **What proves the ask**: the agent sends `ask_msg_id` (lowercase UUID) over
+  its authenticated box WebSocket (`x.tenant`, `x.box`), acting as `as`
+  (`senderRefusal(x, f.As) == ""`, 1.2 row 33; workspace unsuspended and
+  `billing.AllowsWrite`). The agent never names a `person_id`: the target
+  realm is always `m.FromID` of the verified ask message. Before any realm
+  transaction opens, the hub checks `ask_msg_id` in `x.tenant` (step 1,
+  1.2 row 34):
+  1. `GetEditable(ctx, x.tenant, askMsgID, now)` (`store/message_edit.go:90`)
+     loads a live message within retention in `x.tenant` (missing or expired
+     -> 404 `not_found`).
+  2. **In a topic the agent can read**: either `boxReadsCard(ctx, x, m)`
+     (`hub/box_archive.go:115`: this box sent `m`, `m.ToBox == x.box`, or
+     `DeliveryState(ctx, x.tenant, m.MsgID, x.box) != ""` for a DM or
+     delivered channel post), or when `m.Channel != ""`, `TaskCard` +
+     `boxMemberReadsCard(ctx, x, f.As, m.TaskID, card)` (`:132`: `f.As` is
+     seated in `card.Channel`, the topic is not a spec 144 private scope, and
+     `f.As` is not dedicated to another scope). Any unreadability answers 404
+     `not_found` — identical to an unknown UUID, so `note_add` leaks nothing
+     about messages in other workspaces, channels, DMs or private scopes.
+  3. **Written here by a real person**: `m.FromBox == WUIBox` (`"box-wui"`,
+     `hub/wui.go:42`; boxes cannot send as `box-wui`), `m.CopiedFrom == ""`
+     (a spec 169 copied row was not written as an ask in `x.tenant`),
+     `realmPersonRe.MatchString(m.FromID)` (`^HUM-[0-9]+$`,
+     `hub/realm.go:48`), `!s.readerIsActAsClone(ctx, x.tenant, m.FromID)`
+     (`hub/actas.go:29`: a live act-as clone cannot trigger a realm write),
+     and `ml.Memberships(ctx, m.FromID)` has a person seat (`!realmSeatsNotPerson`,
+     `hub/realm.go:119-131`), else 403 `ask_not_person`. Whether every human
+     member may ask for their own Notes or only the operator `biz_owner`
+     (`channelMoveOwner`, `hub/channel_move.go:361`) is **OQ-1** (section
+     3.1; 403 `ask_not_owner` under OQ-1 B). Replay and age bounds on
+     `ask_msg_id` (`UNIQUE (person_id, ask_workspace_id, ask_msg_id)` -> 409
+     `ask_used`, age window -> 400 `ask_expired`) are **OQ-3** (section 3.1).
+- **The narrowest grant**: one box-socket frame `wire.TNoteAdd = "note_add"`
+  (`hub/notes_agent.go` `onNoteAdd`, wired in `hub/ws.go`, CLI `spool note add`,
+  MCP `spool_note_add`). It creates **one** note in `m.FromID`'s
+  `personal.notes`: unpinned (`pinned = false`), unarchived
+  (`archived_at = NULL`), `priority = 5` (msg `1401094d` and 2.9; **OQ-2**),
+  `0` checklist items, optional `title` (`<= 200` chars; `body` per **OQ-2**),
+  and **exactly 1 link** (`store.NoteLink`, 2.3: `kind`, `ref`, `day`,
+  `label <= 200`) whose `workspace_id` must be `x.tenant` when `kind <> 'url'`
+  and `""` when `kind = 'url'` (an agent in W1 cannot plant a link claiming to
+  come from W2; any violation is 400 `bad_note`). It returns only
+  `{msg_id, id, link_id, created_at}` — never `position`, note counts or any
+  other note. Agents get **zero** read, list, get, patch, reorder, checklist,
+  link-edit, export or delete ops; every `/v1/me/realm/notes` HTTP route still
+  refuses agents, box tokens and act-as clones with 403 `person_only`.
+- **How 1.2 rows 25-27 stay true, and what changes**:
+  - **Rows 26 and 27 stay unchanged**: `realmCaller` (`hub/realm.go:62`) and
+    every `/v1/me/realm/notes` route (`hub/realm_notes.go:479`) stay
+    human-session-only (`person_only` / `tenant_named`). `note_add` is a
+    box-socket frame on `hub/ws.go`, not a `/v1/me/realm/notes` route.
+  - **Row 25 (`inPerson`, `personCallers`, `realmTenantCallers`) —
+    `realmTenantCallers` stays empty; `personCallers` gains one entry**:
+    step 1's workspace reads (`GetEditable`, `TaskCard`, `ChannelMembers`) and
+    `Memberships` close before step 2 starts. Step 2 calls one store method,
+    `CreateNoteOnAsk(ctx, person, in, now)`, which opens **only**
+    `inPerson(ctx, person, ...)` (`store/rls.go:115`) and never `inTenant` or
+    `asOperator`. Thus `inPerson` and `inTenant` never nest (which `rdb 0168`'s
+    `person_scope` policy would block anyway) and `realmTenantCallers`
+    (`store/personal_scope_test.go:81`) stays empty. What changes in row 25:
+    `personCallers` (`:25`) adds `"CreateNoteOnAsk"`, and the `inPerson`
+    comment (`store/rls.go:113`, `personal_scope_test.go:23`) records this
+    third audited non-session `person` source alongside 119's
+    `appendRealmReceipts` leaver and 154's `contacts_sync.human_id` (1.2 row
+    35): `person` comes solely from `m.FromID` of a verified `box-wui` human
+    message in a topic the acting agent reads.
+  - **Rows 22-24 (`personal.notes` DDL, RLS, grants, catalogue)**:
+    `person_scope`, `personalTables` and `roles/runtime-grants.sql` stay
+    unchanged; the additive migration (`rdb/<next>_note_agent_ask.sql`,
+    section 4) adds three nullable provenance columns on `personal.notes` with
+    no `tenant_id` column and no FK outside `personal` (119 T-C1..T-C6 stay
+    green).
+- **Audit and kill switch**:
+  - **Stored and exported provenance**: `added_by_agent` (`<agent>@<box>`,
+    e.g. `a-1@box-a`), `ask_msg_id` (`uuid`) and `ask_workspace_id` (`text`),
+    all `NULL` on human-made notes and all `NOT NULL` on agent-made notes
+    (section 4). Returned on `GET /v1/me/realm/notes`,
+    `GET /v1/me/realm/notes/{id}` and `GET /v1/me/realm/notes/export`, plus
+    `ask_left: true` when `ask_workspace_id` is no longer in the person's
+    current seats (`c.ws`, matching D4 in 2.4).
+  - **Hub structured log** (2.8): logs `op="notes_agent_add"`, `person`,
+    `note`, `agent` (`<agent>@<box>`), `ask_msg`, `ask_workspace` and
+    `outcome` (`"created"` or refusal code), never a title, body, label, ref
+    or URL.
+  - **Kill switch** (section 6): `SPOOL_HUB_NOTES_ENABLED=false` refuses
+    `note_add` with 404 `notes_off`, and a dedicated switch
+    `SPOOL_HUB_NOTES_AGENT_ADD_ENABLED` (**OQ-5**, section 6) turns off
+    `note_add` alone while human Notes stay live.
+- **WUI marker**: in the open note (`wui/components/NoteDetail.vue`), an
+  agent-made note (`note.added_by_agent`) shows a provenance line
+  `"Added by <agent> on your ask"` (`notes.added_by_agent`), where `"your ask"`
+  links to `resolveTyped('msg', ask_msg_id)` / `<origin>/m/<ask_msg_id>` on
+  `tenantOrigin(ask_workspace_id, ...)` when `!note.ask_left`, or plain text
+  when `note.ask_left` is true (D4). Whether list rows also draw a compact
+  agent chip or stay strictly `title` + `P<n>` (SPL-4651) is **OQ-4** (section
+  3.1).
+
 ## 3. Defaults (owner may change)
 
 The owner asked to start building without a question round. Each default
@@ -377,6 +508,64 @@ named.
   onto a note of another priority moves it there and takes that note's
   priority; the groups never mix (2.9, SPL-4701). Was: Move and drag stay
   within the same priority. Changes `utils/note-order.mjs`, `pages/notes.vue`.
+
+### 3.1 Open questions for the owner (v1.4, SPL-5295)
+
+Build rows B11-B13 wait on the owner's answers to OQ-1..OQ-5 (plus a cross-vendor
+spec review):
+
+- **OQ-1. Who may ask an agent to add a note?**
+  - **A (recommended)**: Any signed-in human member (`HUM-*`, never an act-as
+    clone or agent) may ask in a topic the agent reads, and the note always
+    lands in **that asking person's own** Notes (`person = m.FromID`).
+    Matches poll `8dcb4cda` answer B ("when you ask, an agent may add a note
+    with a link to your Notes") and D1; an agent still cannot write anyone
+    else's Notes because `person` comes from `m.FromID`.
+  - **B**: Only the operator-workspace `biz_owner` (`channelMoveOwner`,
+    `hub/channel_move.go:361`, HUM-10) may trigger `note_add`; any other
+    human's `ask_msg_id` is refused with 403 `ask_not_owner`.
+  - *Changes*: B12 only.
+- **OQ-2. What fields may the agent set on the new note besides the link?**
+  - **A (recommended)**: `title` (`<= 200` chars, e.g. the linked topic or
+    issue subject) + **1 link** (`label <= 200`), empty `body` (`""`), `0`
+    checklist items, and `priority` fixed at `5` (msg `1401094d`, "put it into
+    prio 5 category", and 2.9). Narrowest useful grant: list rows need a title
+    (2.6, SPL-4651) and the link holds the target.
+  - **B**: Same as A, plus optional plain `body` (`<= 2 000` chars) when the
+    ask wants a short summary.
+  - **C**: Same as A or B, plus optional `priority` `1..5` (default `5`) when
+    the ask names a priority.
+  - *Changes*: B11, B12.
+- **OQ-3. Replay cap and age window on `ask_msg_id`?**
+  - **A (recommended)**: At most **1 note per `(person_id, ask_workspace_id,
+    ask_msg_id)`** (a partial unique index; a second `note_add` on the same
+    ask answers 409 `ask_used`) AND `ask_msg_id` must be at most **24 hours**
+    old (`now - m.TS <= 24h`, else 400 `ask_expired`), stopping a runaway loop
+    from flooding 2 000 notes or replaying old history.
+  - **B**: 1 note per `ask_msg_id` (`ask_used`), no age window beyond message
+    retention.
+  - **C**: Up to 5 notes per `ask_msg_id` within 24 h (drops the unique index
+    for a count check in `CreateNoteOnAsk`).
+  - *Changes*: B11, B12.
+- **OQ-4. Where does the WUI marker show on an agent-made note?**
+  - **A (recommended)**: Inside the **open note** (`NoteDetail.vue`) only —
+    a provenance line `"Added by <agent> on your ask"` linking `msg:<ask_msg_id>`
+    — keeping `/notes` list rows strictly `title` + `P<n>` as ordered in
+    SPL-4651 (`msg:a4c630a8`, "only the titles should be visible in the
+    listings").
+  - **B**: Open-note provenance line **plus** a compact `@<agent>` chip right
+    after `P<n>` on the list row (above 820 px, hidden on phones like `P<n>`).
+  - *Changes*: B13 only.
+- **OQ-5. Kill switch and per-person opt-out?**
+  - **A (recommended)**: One dedicated hub env var
+    `SPOOL_HUB_NOTES_AGENT_ADD_ENABLED` alongside `SPOOL_HUB_NOTES_ENABLED`
+    (section 6), so the operator can turn off agent note creation alone while
+    human Notes stay live; no per-person Settings toggle in v1 (nothing runs
+    unless the person posts an ask).
+  - **B**: `SPOOL_HUB_NOTES_AGENT_ADD_ENABLED` **plus** a per-person toggle
+    `"Allow agents to add notes when I ask"` (default on, stored on
+    `personal.settings`) in Settings -> Notes (`wui/components/settings/notes.vue`).
+  - *Changes*: B12 (and B11, B13 under B).
 
 ## 4. Data
 
@@ -432,6 +621,29 @@ Each table gets ENABLE + FORCE RLS and the one `person_scope` policy of
 (SELECT, INSERT, UPDATE, DELETE). The 2 000-note cap is checked by the
 store in the insert's transaction, not by a trigger.
 
+One additive migration for agent provenance (B11, `rdb/<next>_note_agent_ask.sql`;
+`<next>` = `0275` on `269de997c`, fixed at build time):
+
+```sql
+ALTER TABLE personal.notes
+    ADD COLUMN added_by_agent   text NULL CHECK (added_by_agent IS NULL OR length(added_by_agent) BETWEEN 1 AND 64),
+    ADD COLUMN ask_msg_id       uuid NULL,
+    ADD COLUMN ask_workspace_id text NULL CHECK (ask_workspace_id IS NULL OR length(ask_workspace_id) BETWEEN 1 AND 200),
+    ADD CONSTRAINT notes_agent_ask_all_or_none CHECK (
+        (added_by_agent IS NULL) = (ask_msg_id IS NULL)
+        AND (added_by_agent IS NULL) = (ask_workspace_id IS NULL)
+    );
+CREATE UNIQUE INDEX notes_person_ask_msg_uidx
+    ON personal.notes (person_id, ask_workspace_id, ask_msg_id)
+    WHERE ask_msg_id IS NOT NULL; -- OQ-3 A/B: at most one note per ask
+```
+
+`ask_workspace_id` is plain `text` with no FK, like `personal.note_links.workspace_id`
+(1.2 row 22: no column named `tenant_id` and no FK to a workspace table).
+`person_scope` and the table-level grant on `personal.notes` in
+`roles/runtime-grants.sql` already cover the new columns, so no role or
+catalogue-list change is needed.
+
 ## 5. Routes
 
 **Built** (B4, SPL-3636): every route below is in `hub/realm_notes.go`,
@@ -462,14 +674,33 @@ is applied with it still answers `notes_off` (the binary default is off).
 Another person's note id answers 404, never 403, so a note's existence
 is not revealed.
 
+Once B12 lands (2.10), `GET /v1/me/realm/notes`, `GET /v1/me/realm/notes/{id}`
+and `GET /v1/me/realm/notes/export` also include `added_by_agent`, `ask_msg_id`,
+`ask_workspace_id` and `ask_left` (`omitempty`: omitted on human-made notes;
+`ask_left: true` when `ask_workspace_id` is not in the person's current seats).
+Every `/v1/me/realm/notes` route stays human-session-only (`403 person_only`
+to agents, box tokens and act-as clones).
+
+**Box-socket op** (2.10, B12 — planned):
+
+| frame / CLI / MCP | request fields | answer / refusals |
+|---|---|---|
+| `wire.TNoteAdd = "note_add"` (`hub/notes_agent.go` `onNoteAdd`), CLI `spool note add --as <agent> --ask-msg <uuid> [--title <t>] --kind <k> --ref <r> [--day YYYY-MM-DD] [--label <l>]`, MCP `spool_note_add` | `msg_id` (correlation id), `as` (announced agent on `x.box`), `ask_msg_id` (UUID of the ask in `x.tenant`), `title` (`<= 200`, optional), `link` (`{kind, ref, day, label}`; `workspace_id` set by the hub to `x.tenant` when `kind <> 'url'`, `""` when `kind = 'url'`) | 201 `{msg_id, id, link_id, created_at}`; 403 `from_not_announced` (`senderRefusal`), 404 `notes_off` (section 6), 404 `not_found` (missing, expired or unreadable `ask_msg_id`), 403 `ask_not_person` / `ask_not_owner` (2.10, OQ-1), 400 `ask_expired` / 409 `ask_used` (OQ-3), 400 `bad_note` / 400 `notes_full` (2.4) |
+
 ## 6. Kill switch
 
 The hub env var `SPOOL_HUB_NOTES_ENABLED` (v1.1, W2), set in the hub's env
 in `csi-spl-cnf/csi-spl/all.env.yaml` like `SPOOL_HUB_AUTH_NATIVE_ENABLED`
 (1.2 row 31), `"true"` once B4 lands. It reaches the hub as one field in
 `api/internal/config/config.go`, copied into `hub.Options` in
-`api/cmd/spool/hub.go`. `false`: every notes route answers 404
-`notes_off`. The WUI needs no session claim: when
+`api/cmd/spool/hub.go`. `false`: every notes route and the box-socket
+`note_add` op (2.10) answer 404 `notes_off`. A second env var,
+`SPOOL_HUB_NOTES_AGENT_ADD_ENABLED` (2.10, OQ-5; binary default `false`,
+`"true"` in `csi-spl-cnf/csi-spl/all.env.yaml` once B12 lands, plumbed through
+`api/internal/config/config.go`, `api/cmd/spool/hub.go` and
+`hub.Options.NotesAgentAddEnabled`), gates `note_add`
+alone: when `false`, `note_add` answers 404 `notes_off` while human
+`/v1/me/realm/notes` routes keep serving. The WUI needs no session claim: when
 `GET /v1/me/realm/notes` answers 404 `notes_off`, it hides the tab and the
 "Add to note" items. The stored notes stay. Deferred, by name: B5 shows
 "Notes are turned off" on `/notes` only; hiding the rail tab and the items
@@ -518,6 +749,15 @@ workspaces.
 | C30 | B9 | palette, type a note's title | no hit | a `notes` hit that opens it | `palette.test.mjs` |
 | C31 | B10 | Settings -> Notes: Export, Erase with the typed confirmation | n/a | a `notes-<date>.json` download; the list empty after Erase | e2e on the mock bundle; twin: a wrong confirmation word erases nothing |
 | C32 | SPL-4652 | set a priority in the open note; a new note; 0 or 6; another person; the list order | n/a | reads back; 5; 400 `bad_note`; 404; pinned, then 1..5, then `position`, and a drop on another priority moves nothing | `store/personal_notes_test.go` (memory and Postgres), `hub/realm_notes_test.go`, `wui-tests/unit/note-order.test.mjs`, `wui-tests/e2e/notes-open.test.mjs` (1440 and 390 px) |
+| C33 | B11 | `<next>_note_agent_ask.sql` applies (`269de997c` has no `added_by_agent`); half-filled provenance; duplicate `(person_id, ask_workspace_id, ask_msg_id)` | columns absent | columns present; `notes_agent_ask_all_or_none` CHECK violation; `notes_person_ask_msg_uidx` unique violation; `TestRLSPersonalCatalogue` and `TestRLSPersonalPolicy` pass (C) | Postgres test (`personal_notes_test.go`, `personal_catalogue_test.go`); twin: multiple human notes (`NULL` provenance) insert |
+| C34 | B11 | `CreateNoteOnAsk` in memory and Postgres: 1 link, priority 5, provenance, 2 000-note cap; `TestPersonScopeCallers` | no method | inserts 1 unpinned priority-5 note on top of its group, returns `{id, link_id, created_at}` only; duplicate ask -> `ErrAskUsed`; 0 or 2 links -> `ErrBadNote`; 2 001st -> `ErrNotesFull`; `personCallers` has `CreateNoteOnAsk` and `realmTenantCallers` stays empty (C) | `store/personal_notes_test.go` (memory and Postgres), `store/personal_scope_test.go` |
+| C35 | B12 | P1 posts `m` from `box-wui` in a topic announced agent `a-1` reads; `a-1` sends `note_add` citing `m` with a `topic` link | unknown frame type | 201 `{msg_id, id, link_id, created_at}`; P1's `GET /v1/me/realm/notes/{id}` and `/export` show the link and `added_by_agent: "a-1@box-a"`, `ask_msg_id: m`, `ask_workspace_id: "W1"`; P2 gets 404 / 0 rows | `hub/notes_agent_test.go` (memory and Postgres) |
+| C36 | B12 | `note_add` authenticity and replay gates: unannounced `as`; `as = "HUM-1"`; box-sent `m` (`FromBox != "box-wui"`); spec 169 copied `m` (`CopiedFrom != ""`); act-as clone author; non-person seat; non-owner under OQ-1 B; replay of `m`; stale `m` past OQ-3 A | unknown frame type | 403 `from_not_announced` twice; 403 `ask_not_person` four times; 403 `ask_not_owner` (OQ-1 B); 409 `ask_used`; 400 `ask_expired`; 0 notes created | `hub/notes_agent_test.go` |
+| C37 | B12 | `note_add` topic read-door isolation (no oracle): `m` in W2 while box is in W1; `m` in a channel `a-1` is not in; `m` in a spec 144 private topic; `a-1` dedicated to another scope; `m` a DM to another box | unknown frame type | 404 `not_found` each (identical to an unknown UUID); P1's Notes stay at 0 rows | `hub/notes_agent_test.go` |
+| C38 | B12 | narrow-grant and audit gates: `/v1/me/realm/notes*` from an agent or box token; `note_add` with 0 links, 2 links, `javascript:x` URL, or cross-workspace ref; captured hub log line on create and refusal | C11 passes; no `note_add` | 403 `person_only` (C); 400 `bad_note` each; log holds `person`, `note`, `agent`, `ask_msg`, `ask_workspace` and never title, label or ref | `hub/realm_notes_test.go`, `hub/notes_agent_test.go` |
+| C39 | B12 | kill switches: `SPOOL_HUB_NOTES_ENABLED=false`; `SPOOL_HUB_NOTES_ENABLED=true` with `SPOOL_HUB_NOTES_AGENT_ADD_ENABLED=false` | n/a | first: both `/v1/me/realm/notes` and `note_add` answer 404 `notes_off`; second: `note_add` answers 404 `notes_off` while P1's `GET /v1/me/realm/notes` answers 200 | `hub/notes_agent_test.go`; twin: both `true` answers 201 |
+| C40 | B12 | CLI `spool note add` and MCP `spool_note_add` (incl. seated server `Options{Seat: "a-1"}` called with `as: "a-2"`) | unknown verb / tool | CLI creates the note (`TestUsageNamesEveryVerb` green); MCP matches CLI, refuses `as != seat`, and `TestToolNamesAreCanonical` + `TestToolsListGolden` pass | `api/internal/action/note_test.go`, `api/cmd/spool/usage_test.go`, `api/internal/mcp/mcp_test.go`, `tools_golden_test.go` |
+| C41 | B13 | WUI marker on an agent-made note (`NoteDetail.vue`, plus list row if OQ-4 B), cross-workspace ask link, and `ask_left: true` after leaving `ask_workspace_id` (D4) | no provenance shown | open note renders `"Added by a-1@box-a on your ask"` linking `/m/<ask_msg_id>` on `tenantOrigin(ask_workspace_id)`; `ask_left: true` renders plain text with no `<a>`; human-made note shows no marker; `i18n-parity.test.mjs` passes across all 19 locales | `wui-tests/e2e/notes-agent-ask.test.mjs` (1440 and 390 px), `i18n-parity.test.mjs` |
 
 ## 8. Build rows
 
@@ -540,6 +780,9 @@ its docs or a `Docs: none (<why>)` line.
 | B8 | "Add to note" everywhere + the picker; on `notes_off` the rail tab and the items hide (section 6) | `wui/utils/msg-menu.mjs`, `wui/components/MessageMenu.vue`, `wui/utils/msg-shortcuts.mjs`, `wui/components/IssueRowMenu.vue`, `wui/components/IssueDetailActions.vue`, `wui/components/SidebarRowMenu.vue`, `wui/components/CalendarEventDialog.vue`, `wui/components/AddToNotePicker.vue`, `wui-tests/unit/msg-menu.test.mjs`, `wui-tests/unit/msg-shortcuts.test.mjs`, a new e2e | C26, C27 | B7 |
 | B9 | `/note` in the omnibox, the palette's `notes` group | `wui/utils/search.mjs` (`omniboxMode`), `wui/components/TopBar.vue`, `wui/composables/usePaletteItems.ts`, `wui-tests/unit/search.test.mjs`, `wui-tests/unit/palette.test.mjs` | C28-C30 | B7 |
 | B10 | Settings -> Notes: export and erase | `wui/utils/settings-nav.mjs`, `wui/pages/settings/[[section]].vue`, `wui/components/SettingsNotes.vue`, `csi-spl-doc/doc/help/user-settings.md` + its synced copy `wui/public/help-md/user-settings.md` (names `/settings/notes`, v1.1 W4), a new e2e | C31 | B5 |
+| B11 | agent-ask provenance columns + `CreateNoteOnAsk` store (memory and Postgres; `PRE_PUSH_TIER=full`) | `rdb/<next>_note_agent_ask.sql`, `store/personal_notes.go`, `store/personal_notes_memory.go`, `store/personal_notes_test.go`, `store/personal_scope_test.go` (`personCallers`), `store/rls.go` (`inPerson` comment) | C33, C34 | B3 + owner OQ-2, OQ-3 |
+| B12 | hub `note_add` box-socket op, provenance on `GET` / export + `ask_left`, `SPOOL_HUB_NOTES_AGENT_ADD_ENABLED`, CLI `spool note add`, MCP `spool_note_add` (`PRE_PUSH_TIER=full`) | `api/internal/wire/wire.go` (`TNoteAdd`), `hub/notes_agent.go`, `hub/notes_agent_test.go`, `hub/ws.go`, `hub/realm_notes.go`, `hub/realm_notes_test.go`, `hub/openapi.json`, `hub/server.go` (`Options`), `api/internal/config/config.go`, `api/cmd/spool/hub.go`, `csi-spl-cnf/csi-spl/all.env.yaml` (+ tpl-gen), `api/internal/hubclient/note.go`, `api/internal/action/note.go`, `api/internal/action/note_test.go`, `api/cmd/spool/note.go`, `api/cmd/spool/main.go` (`runBoxCmd` + `usage`), `api/internal/mcp/mcp.go`, `api/internal/mcp/mcp_test.go` (`TestToolNamesAreCanonical`, seated test), `api/internal/mcp/testdata/tools.golden`; docs: mark 2.10 / section 5 built | C35-C40 | B4, B11 + owner OQ-1..OQ-3, OQ-5 |
+| B13 | WUI marker on an agent-made note, locales (19 files + agy language review), help sync (never placed on mistral) | `wui/stores/notes.ts`, `wui/components/NoteDetail.vue` (+ `wui/pages/notes.vue`, `wui/components/ArchiveNotes.vue` if OQ-4 B), `csi-spl-wui/i18n/locales/*.json`, `csi-spl-doc/doc/help/notes.md` + synced `wui/public/help-md/notes.md` (`node src/node/help/sync-help.mjs`), `wui-tests/e2e/notes-agent-ask.test.mjs` (1440 and 390 px) | C41 | B12 + owner OQ-4 |
 
 **B8 Implemented** (SPL-4578, the `feat(wui, SPL-4578)` commit): the item is opt-in (`msgMenuItems` flag `note`), so no other menu changes. On a phone the item sits right after Archive, which keeps its index (owner order t1 7a6be5a3); the 12-row sheet tightens its rows up to 760 px of height, and up to 700 px a reason keeps one line, so it fits without scrolling and leaves at least 44 px of dimmed page to tap (`phone-card-menu.test.mjs`). The picker `wui/components/AddToNotePicker.vue` is its own chunk, mounted once with the app's context by `wui/composables/useAddToNote.ts`, which also holds the notes-off switch: the first menu that offers the item reads `GET /v1/me/realm/notes` once (lazily, never at boot: `ci_initial_gzip_kb` 154.2 on B8 rebased onto B9, n=1, generated and measured with the CI runner's node; wf 10 read 154.1 on B9 alone), and a 404 `notes_off` hides every item. The links are built by `wui/utils/add-to-note.mjs` (import-free; types `wui/types/add-to-note.d.ts`; test `wui-tests/unit/add-to-note.test.mjs`): a topic card adds its topic, any other line the message. Files widened beyond the row, each because the item could not run without it: `wui/composables/useCardKeys.ts` (Shift + N runs there), `wui/pages/issues.vue` (hands the open issue to `IssueDetailActions`), `wui/components/CalendarPhonePeek.vue` (a phone opens an entry's peek, not `CalendarEventDialog`), `wui/types/mjs-shims.d.ts`, the help page `keyboard-shortcuts.md` (both copies have the row; its Qto source `514cf337` does not: its export, `grep -c 'Shift + N'` -> 0 on 2026-11-02), and three pinning tests (`issue-detail-buttons`, `msg-make-task`, `copy-feedback`). The issue row menu reads the shared `useIssueMenu()` target, so the page's own handler is unchanged. Not built: Shift + N on the Issues list (not a case), the doc page's item (no file in the row), and the rail tab's notes-off hide (the tab is switched off by `NOTES_RAIL_ON`, outside this row). On a phone the picker is UiDialog's full screen (the move picker's shape), not a bottom sheet. No new text key. e2e `wui-tests/e2e/add-to-note.test.mjs` (C26, C27 per object and the New note twin, notes off; 1440 and 390 px).
 

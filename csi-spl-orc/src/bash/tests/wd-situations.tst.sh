@@ -904,6 +904,18 @@ s9ctx s9g2 1260 1300 1260; hb idle 1300 '| .harness = "grok"'
 grep -q '^HIT S9 .*rule=2x$' <<<"$(run_s s9)" && pass "8 S9 grok: a poke 21 min ago, progress 21 min old, pane frozen: hit (rule=2x)" || fail "8 S9 grok: $(run_s s9)"
 hb idle 1000 '| .harness = "grok"'
 nohit "8 S9 grok control: progress after the poke" s9
+# a NUL-damaged input.log line (SPL-5316; c-545 / c-528 restarted by
+# S9 at 2026-11-11T00:10:18Z, input=605s, n=2): GNU date read 26 NULs +
+# "<ts> note" as today 00:00:00Z, a keystroke after a base from yesterday.
+# The context sits 605 s past the real midnight, since that is what date reads.
+s9mid="$(date -u -d 'today 00:00' +%s)"; s9t0="$T0"; T0=$((s9mid + 605))
+s9ctx s9nul 605 660 605; echo "$T0" > "$C/now"
+{ printf '\0%.0s' {1..26}; printf '2026-11-10T10:08:14Z note\n'; } > "$C/input_log"
+nohit "8 S9 an input.log line of 26 NULs + a ts is no keystroke at 00:00:00Z" s9
+echo "$(iso "$s9mid") note" > "$C/input_log"
+grep -q '^HIT S9 input=605s ' <<<"$(run_s s9)" && pass "8 S9 control: the same context with a real poke at 00:00:00Z hits" ||
+  fail "8 S9 NUL control: '$(run_s s9)'"
+T0="$s9t0"
 # agy idle on its own timer after answering a poke (a-849 2026-10-10, n=1):
 # the timer row "● [17:34:10] Wait for c-844 running" below the prompt read as
 # held input (S6) and the frozen pane as stuck (S9, no heartbeat: rule 2x). The

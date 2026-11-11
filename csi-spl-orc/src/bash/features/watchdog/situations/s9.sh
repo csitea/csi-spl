@@ -48,8 +48,13 @@ fi
 [[ -n "$WD_PID" ]] || exit 0
 stuck=$(( ${WD_STUCK_MIN:-10} * 60 ))
 
+# A line counts only when its first field is a whole "YYYY-MM-DDTHH:MM:SSZ":
+# GNU date reads an empty or NUL-cut field as today 00:00:00Z, so a line of 26
+# NULs + "<ts> note" (c-545 / c-528 after an unclean stop, restarted
+# by S9 at 2026-11-11T00:10:18Z, n=2) read as a keystroke at every midnight.
+S9_ISO='^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$'
 # epochs of the ISO times on stdin (first field per line), one per line
-s9_epochs() { awk 'NF { print $1 }' | date -u -f - +%s 2>/dev/null; return 0; }
+s9_epochs() { awk -v re="$S9_ISO" '$1 ~ re { print $1 }' | date -u -f - +%s 2>/dev/null; return 0; }
 s9_max() { sort -n | tail -1; }
 
 rule=ups win="$stuck"
@@ -74,8 +79,8 @@ unread="$(wd_f inbox | awk -v me="$WD_ID" '$4 != me && $4 !~ ("^" me "@") { prin
 s9_handled() {  # s9_handled EPOCH: a refused poke at EPOCH was taken in
   [[ -n "$prog" ]] && (( prog > $1 )) && { [[ -z "$unread" ]] || (( unread > $1 )); }
 }
-counted="$( { wd_f input_log | awk 'NF && $2 !~ /^refused-/' | s9_epochs
-  wd_f input_log | awk 'NF && $2 ~ /^refused-/ { print $1 }' | while read -r ts; do
+counted="$( { wd_f input_log | awk '$2 !~ /^refused-/' | s9_epochs
+  wd_f input_log | awk -v re="$S9_ISO" '$1 ~ re && $2 ~ /^refused-/ { print $1 }' | while read -r ts; do
     e="$(date -u -d "$ts" +%s 2>/dev/null)" || continue
     s9_handled "$e" || echo "$e"
   done; } )"

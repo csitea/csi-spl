@@ -26,6 +26,13 @@ resource "google_compute_disk" "data" {
   # (2026-10-01 "destroy and recreate it ... verify everything once again"),
   # and git is the backup (round 1 Q13). A destroy is owner-gated per call
   # (make do-tf-plan-destroy first). A VM rebuild alone keeps this disk.
+  # The shrink guard (SPL-5262) instead: 08-data-disk-guard.tf.
+  lifecycle {
+    precondition {
+      condition     = local.data_disk_keeps
+      error_message = "REFUSED (SPL-5262): data_disk_size_gb ${var.data_disk_size_gb} / data_disk_type ${var.data_disk_type} against the live disk ${local.data_disk_live_text}. A persistent disk cannot shrink or change type, so this plans as destroy + create: the data disk wiped. Raise the value to at least the live size; a deliberate recreate is a destroy drill (make do-tf-plan-destroy) first."
+    }
+  }
 }
 
 resource "google_compute_instance" "satellite" {

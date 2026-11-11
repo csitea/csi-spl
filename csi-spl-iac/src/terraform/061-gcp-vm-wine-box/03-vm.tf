@@ -24,6 +24,14 @@ resource "google_compute_disk" "data" {
   size   = var.data_disk_size_gb
   zone   = var.gcp_zone
   labels = merge(local.labels, { role = "wine-box-data" })
+
+  # the shrink guard (SPL-5262): 08-data-disk-guard.tf
+  lifecycle {
+    precondition {
+      condition     = local.data_disk_keeps
+      error_message = "REFUSED (SPL-5262): data disk ${var.data_disk_name} ${var.data_disk_size_gb} GB ${var.data_disk_type} against the live disk ${local.data_disk_live_text}. A persistent disk cannot shrink or change type or name, so this plans as destroy + create: the data disk wiped. Raise the size to at least the live one; a deliberate recreate is data_disk_enabled = false first, or a destroy drill."
+    }
+  }
 }
 
 resource "google_compute_instance" "wine" {

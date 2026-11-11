@@ -54,7 +54,7 @@ func TestBoxPresenceGetIsTheSocketNotTheStamp(t *testing.T) {
 	// ... while the roster's online, read right after that same cli hello,
 	// says online: the self-fulfilling proof the old path would take.
 	if r := rosterOnline(t, e, tid); !r["box-a"] {
-		t.Logf("note: the roster no longer reads a cli-only box online: %v", r)
+		t.Fatalf("the roster should read cli-only box-a online (the stamp): %v", r)
 	}
 
 	// The sidecar connects: socket true, its seated agents.

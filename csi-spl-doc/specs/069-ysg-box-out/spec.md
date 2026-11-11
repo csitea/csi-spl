@@ -1161,9 +1161,9 @@ dead.
   while the answering hub instance holds a role=box socket for the box
   (`s.boxes`); it never reads `last_hello_at`, and the asking cli session is
   never in `s.boxes`. `agents` is the box's seated roster.
-- **Per instance.** The hub runs up to 2 instances (cnf
-  `hub.cloud_run.max_instances`): a socket on the other one reads `socket`
-  false. A false is "not seen here", never proof of down; a true is a live
+- **Per instance.** The hub runs up to `hub.cloud_run.max_instances`
+  instances per revision, and twice that during a deploy roll (two revisions
+  hold sockets): a socket on another instance reads `socket` false. A false is "not seen here", never proof of down; a true is a live
   socket. The proof retries, each try a fresh dial.
 
 Test: `internal/hub/box_presence_test.go` (no socket -> false while the

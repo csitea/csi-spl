@@ -1,5 +1,5 @@
 <!-- Spec 154 B17 (11.2): import contacts from a CSV file. The dry run gives the
-     preview, Import writes. Loaded on the first opening from the People panel,
+     preview, Import writes. Loaded on the first opening from the Add contact form (SPL-5279),
      so the first paint never carries it (C47). A skipped row shows its line and
      reason only, never a value (C12). -->
 <template>

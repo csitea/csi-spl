@@ -2,7 +2,8 @@
      The four fields, Edit and Delete; Message when the contact is a member of
      this workspace (member_id), else Invite for a reader who may invite. Email
      and phone open the reader's own apps (contact-links.mjs, rdb 0193).
-     /people/contact/new is the same form, empty: the panel's Add contact. -->
+     /people/contact/new is the same form, empty: the panel's Add contact (+),
+     with Import from file above its fields (SPL-5279). -->
 <template>
   <div class="feed-col" data-test="contact-page">
     <header class="feed-header">
@@ -13,6 +14,12 @@
       <p v-if="view === 'loading'" class="muted contact-card">{{ t('common.loading') }}</p>
       <p v-else-if="view === 'missing'" class="muted contact-card" data-test="contact-missing">{{ t('contacts.not_found') }}</p>
       <form v-else-if="view === 'form'" class="contact-card" data-test="contact-form" novalidate @submit.prevent="save">
+        <!-- SPL-5279: the panel's Import from file moved here, onto the new contact form -->
+        <div v-if="isNew" class="contact-card__import">
+          <button type="button" class="btn ghost" data-testid="people-import-contacts" :disabled="busy" @click="importOpen = true">
+            {{ t('contacts.import.open') }}
+          </button>
+        </div>
         <label v-for="f in FIELDS" :key="f.key" class="contact-card__field">
           <span>{{ t('contacts.' + f.key) }}</span>
           <input v-model="form[f.key]" class="input" :type="f.type" autocomplete="off" :data-test="'contact-input-' + f.key">
@@ -55,6 +62,8 @@
       </div>
     </div>
 
+    <!-- spec 154 B17: a new instance each opening, so nothing of the last file stays; async, so no first paint carries it (C47) -->
+    <ContactsImportDialog v-if="importOpen" v-model:open="importOpen" />
     <UiDialog :open="confirmOpen" size="md" :title="t('contacts.delete_title')" @update:open="confirmOpen = $event">
       <p data-test="contact-delete-text">{{ t('contacts.delete_confirm', { name: shownName }) }}</p>
       <template #footer>
@@ -76,6 +85,8 @@ import { contactCreate, contactDelete, contactErrorKey, contactGet, contactInvit
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { contactName } from '~/utils/people-order.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
+
+const ContactsImportDialog = defineAsyncComponent(() => import('~/components/ContactsImportDialog.vue'))
 
 type Contact = { contact_id: string, first_name: string, last_name: string, email: string | null, phone: string | null, member_id?: string | null }
 type FieldKey = 'first_name' | 'last_name' | 'email' | 'phone'
@@ -104,6 +115,7 @@ const busy = ref(false)
 const error = ref('')
 const said = ref(false)
 const confirmOpen = ref(false)
+const importOpen = ref(false)
 
 const shownName = computed(() => contactName(contact.value))
 const canMessage = computed(() => Boolean(contact.value?.member_id) && contact.value?.member_id !== roster.self?.id)
@@ -228,6 +240,8 @@ onMounted(() => {
 .contact-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 .contact-card__actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .contact-card__actions .btn { display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap, 44px); }
+.contact-card__import { display: flex; }
+.contact-card__import .btn { min-height: var(--tap, 44px); }
 .contact-card__error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
 .contact-card__said { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 480px) {

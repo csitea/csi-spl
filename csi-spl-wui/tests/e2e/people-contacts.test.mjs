@@ -115,6 +115,14 @@ try {
   ok('C24f-5 twin: contacts true reads the list once', (await reads()) === 1, { reads: await reads() })
   ok('C24-1 no new rail tab', railOff > 0 && (await railCount()) === railOff, { off: railOff, on: await railCount() })
   ok('C24-2 the filter and Add contact show', await waitShown('[data-testid=people-filter-workspace]') && await shown('[data-testid=people-add-contact]'))
+  /* SPL-5279: on a desktop the + sits on the PEOPLE heading row, labelled for a reader */
+  const head = await p.evaluate(() => {
+    const h = document.querySelector('[data-testid=sidebar-help-people]').getBoundingClientRect()
+    const a = document.querySelector('[data-testid=people-add-contact]')
+    const b = a.getBoundingClientRect()
+    return { sameRow: b.top < h.bottom && b.bottom > h.top, label: a.getAttribute('aria-label') }
+  })
+  ok('C24-2b the + is on the heading row, aria-label Add contact', head.sameRow && head.label === 'Add contact', head)
   await waitShown('[data-test=people-contact-row]')
   ok('C24-3 group 3 lists the others A-Z, the matched contact not twice', JSON.stringify(await rowNames()) === JSON.stringify(['Olive Outer', 'Zed Zeta']), await rowNames())
   ok('C24e the matched member carries the contact tag', await shown(`${member('HUM-2')} [data-testid=people-contact-tag]`))
@@ -229,6 +237,28 @@ try {
   await waitShown('[data-test=people-contact-row]')
   ok('P-2 390 no sideways scroll', await fits())
   ok('P-3 390 the filter is tall enough to tap', (await p.$eval('[data-testid=people-filter-all]', (b) => b.getBoundingClientRect().height)) >= 44)
+  /* SPL-5279 (owner poll, option C): the tools are the filter alone, Add contact a round
+     + floating bottom right above the composer, and the last row scrolls clear of it */
+  const tools = await p.$eval('[data-testid=people-tools]', (e) => Math.round(e.getBoundingClientRect().height))
+  ok('P-6 390 the tools are one row (the filter alone)', tools > 0 && tools <= 60, { tools })
+  const fab = await p.evaluate(() => {
+    const e = document.querySelector('[data-testid=people-add-contact]')
+    if (!e) return null
+    const b = e.getBoundingClientRect()
+    const dock = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--composer-dock-h')) || 0
+    return { w: Math.round(b.width), h: Math.round(b.height), right: Math.round(innerWidth - b.right), bottom: Math.round(b.bottom), floor: Math.round(innerHeight - dock), fixed: getComputedStyle(e).position === 'fixed', round: getComputedStyle(e).borderTopLeftRadius }
+  })
+  ok('P-7 390 the + is round, >= 44 px, fixed bottom right above the composer', Boolean(fab) && fab.fixed && fab.w >= 44 && fab.h >= 44 && fab.right <= 24 && fab.bottom <= fab.floor && fab.round === '50%', fab)
+  const clear = await p.evaluate(async () => {
+    const box = document.querySelector('[data-testid=sidebar-panel-people] .sidebar-scroll')
+    const rows = [...box.querySelectorAll('.nav-item, [data-test=people-contact-row]')].filter((e) => e.getBoundingClientRect().height > 0)
+    box.scrollTop = box.scrollHeight
+    await new Promise((r) => setTimeout(r, 100))
+    const last = rows[rows.length - 1].getBoundingClientRect()
+    const plus = document.querySelector('[data-testid=people-add-contact]').getBoundingClientRect()
+    return { lastBottom: Math.round(last.bottom), plusTop: Math.round(plus.top), boxBottom: Math.round(box.getBoundingClientRect().bottom) }
+  })
+  ok('P-8 390 scrolled down, the last person ends above the +', clear.lastBottom <= clear.plusTop, clear)
   await shot('panel-390x664')
   await load(PHONE, '/people/contact/k-out')
   await waitShown('[data-test=contact-card]')

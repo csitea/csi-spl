@@ -1,5 +1,6 @@
-// Spec 154 B17 slice a: the CSV import dialog of the People panel, in a real
-// browser, on the mock bundle. Fixtures are FirstName LastName and example.com.
+// Spec 154 B17 slice a: the CSV import dialog, in a real browser, on the mock
+// bundle. SPL-5279: its entry is on the Add contact form, reached by the
+// People panel's round + (ADD). Fixtures are FirstName LastName and example.com.
 //   C48  pick a file, see the preview (nothing written), import, the rows appear
 //        in the panel; no CSP violation
 //   C47  the dialog is in no first-paint chunk of 200.html, and loads on opening
@@ -9,6 +10,7 @@
 // a marker that matches nothing cannot pass "absent". C48-2 is the preview's
 // twin of C48-5: the same list read before and after the Import click.
 // Red control: a static import of the dialog in ChannelSidebar.vue fails C47-2.
+// Red control (SPL-5279): the old panel button back beside the + fails C48-0.
 //
 //   BASE_URL=<generated mock bundle> OUT=<dir> node tests/e2e/contacts-import.test.mjs
 import { createRequire } from 'node:module'
@@ -109,6 +111,9 @@ try {
   const shot = async (name) => { if (OUT) await p.screenshot({ path: `${OUT}/${name}.png` }) }
   const rowNames = () => p.$$eval('[data-test=people-contact-row] .label', (l) => l.map((e) => e.textContent.trim()))
   const OPEN = '[data-testid=people-import-contacts]'
+  const ADD = '[data-testid=people-add-contact]'
+  /* the + opens the empty form; Import from file sits on it */
+  const toForm = async () => { await waitShown(ADD); await p.click(ADD); return waitShown(OPEN) }
   const FILE = `[data-test=${MARKER}]`
   const pick = async (path) => { await (await p.$(FILE)).uploadFile(path) }
   const firstPaint = () => p.evaluate(async () => {
@@ -128,7 +133,7 @@ try {
   await load(DESKTOP, '/people')
   await seed(OFF, [])
   await load(DESKTOP, '/people')
-  ok('C24f contacts false: no Import from file', await shown('[data-testid=sidebar-panel-people]') && !(await shown(OPEN)))
+  ok('C24f contacts false: no + and no Import from file', await shown('[data-testid=sidebar-panel-people]') && !(await shown(ADD)) && !(await shown(OPEN)))
 
   /* C47 + C48 */
   await seed(ME, [])
@@ -136,7 +141,8 @@ try {
   const before = new Set(chunks.keys())
   const initial = await firstPaint()
   ok('C47-0 200.html names first-paint chunks', initial.length > 0, { n: initial.length })
-  ok('C48-1 Import from file shows beside Add contact', await waitShown(OPEN) && await shown('[data-testid=people-add-contact]'), { said: await text(OPEN) })
+  ok('C48-0 the panel has the + and no Import button of its own', await waitShown(ADD) && !(await shown(OPEN)))
+  ok('C48-1 the + opens the form, Import from file on it', await toForm() && await shown('[data-test=contact-form]'), { said: await text(OPEN) })
   await p.click(OPEN)
   ok('C48-1b the dialog opens', await waitShown(FILE))
   await sleep(300)
@@ -177,7 +183,7 @@ try {
   await seed(ME, [{ contact_id: 'k-phone', first_name: '', last_name: '', email: null, phone: '15550100001', google: false, member_id: null }])
   await load(DESKTOP, '/people')
   await p.click('[data-testid=sidebar-tab-people]')
-  await waitShown(OPEN)
+  await toForm()
   await p.click(OPEN)
   await waitShown(FILE)
   await pick(phoneFile)
@@ -200,7 +206,7 @@ try {
   await seed(ME, [])
   await load(PHONE, '/people')
   await p.click('[data-testid=sidebar-tab-people]')
-  await waitShown(OPEN)
+  await toForm()
   ok('P-1 390 the entry can be tapped', (await p.$eval(OPEN, (b) => b.getBoundingClientRect().height)) >= 44)
   await p.click(OPEN)
   await waitShown(FILE)

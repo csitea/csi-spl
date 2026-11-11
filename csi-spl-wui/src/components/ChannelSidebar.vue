@@ -509,20 +509,26 @@
         aria-labelledby="sidebar-tab-people"
         data-testid="sidebar-panel-people"
       >
-        <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-people" aria-describedby="sidebar-help-people-tip">
-          {{ t('sidebar.people') }}
-          <span id="sidebar-help-people-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.people') }}</span>
-        </h2>
-        <!-- spec 154 2.7: the filter and Add contact; outside contacts.workspaces, neither -->
+        <div class="people-head">
+          <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-people" aria-describedby="sidebar-help-people-tip">
+            {{ t('sidebar.people') }}
+            <span id="sidebar-help-people-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.people') }}</span>
+          </h2>
+          <!-- SPL-5279 (owner poll, option C): Add contact is one round +, like
+               the Issues + (issues-fab): on the heading row on a desktop, floating
+               bottom right on a phone. Import from file is in its form. -->
+          <NuxtLink v-if="contactsOn" class="people-fab" data-testid="people-add-contact" :to="localePath('/people/contact/new')" :aria-label="t('people.add_contact')" :title="t('people.add_contact')">
+            <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+          </NuxtLink>
+        </div>
+        <!-- spec 154 2.7: the filter; outside contacts.workspaces, none -->
         <div v-if="contactsOn" class="people-tools" data-testid="people-tools">
           <div class="people-filter" role="group" :aria-label="t('people.filter_label')">
             <button type="button" class="people-filter__btn" data-testid="people-filter-all" :aria-pressed="peopleFilter === PEOPLE_FILTER_ALL" @click="setPeopleFilter(PEOPLE_FILTER_ALL)">{{ t('people.filter_all') }}</button>
             <button type="button" class="people-filter__btn" data-testid="people-filter-workspace" :aria-pressed="peopleFilter === PEOPLE_FILTER_WORKSPACE" @click="setPeopleFilter(PEOPLE_FILTER_WORKSPACE)">{{ t('people.filter_workspace') }}</button>
           </div>
-          <NuxtLink class="btn ghost people-tools__add" data-testid="people-add-contact" :to="localePath('/people/contact/new')">{{ t('people.add_contact') }}</NuxtLink>
-          <button type="button" class="btn ghost people-tools__add" data-testid="people-import-contacts" @click="contactsImportOpen = true">{{ t('contacts.import.open') }}</button>
         </div>
-        <div class="sidebar-scroll">
+        <div class="sidebar-scroll" :class="{ 'people-scroll': contactsOn }">
           <p v-if="peopleMemberRows.length === 0" class="muted topic-empty">{{ t('people.none') }}</p>
           <div v-for="p in peopleMemberRows" :key="p.id" class="nav-row">
             <NuxtLink
@@ -632,8 +638,6 @@
       :description="propertiesChannel.description"
       :created-by="propertiesChannel.created_by"
     />
-    <!-- spec 154 B17: a new instance each opening, so nothing of the last file stays -->
-    <ContactsImportDialog v-if="contactsImportOpen" v-model:open="contactsImportOpen" />
     <!-- 050: the channels panel's collapse triangle, bottom corner. A DIRECT
          child of .sidebar so the collapse CSS hides its siblings and keeps only
          this strip. -->
@@ -659,7 +663,6 @@ import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
 /* CLE-77884: async too - only a search needs it */
-const ContactsImportDialog = defineAsyncComponent(() => import('~/components/ContactsImportDialog.vue'))
 const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSidePanel.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
@@ -948,7 +951,6 @@ const memberRows = computed(() => roster.people
    contacts, A-Z in each. The contact list is the lazy rows' read (C25). */
 const contactRows = shallowRef<Array<{ contact_id: string, member_id?: string | null }>>([])
 const contactsRefused = ref(false)
-const contactsImportOpen = ref(false)
 const contactsOn = computed(() => access.contacts && !acting.value && !contactsRefused.value && session.state !== 'out')
 const peopleFilter = ref(PEOPLE_FILTER_ALL)
 function setPeopleFilter(v: string) {
@@ -1153,8 +1155,41 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
 .people-filter { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 8px); }
 .people-filter__btn { flex: 1 1 0; min-width: 0; min-height: 32px; padding: 2px 6px; border: 0; border-radius: var(--radius-xs); background: transparent; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; }
 .people-filter__btn[aria-pressed="true"] { background: var(--color-surface-hover); font-weight: 600; }
-.people-tools__add { display: flex; align-items: center; justify-content: center; min-height: 32px; padding: 2px 6px; font-size: 0.8125rem; text-decoration: none; }
-@media (max-width: 820px) { .people-filter__btn, .people-tools__add { min-height: var(--tap, 44px); } }
+/* SPL-5279: the heading row carries the round + (the Issues + look, SPL-978) */
+.people-head { display: flex; align-items: center; gap: 8px; padding-inline-end: 8px; }
+.people-head > .sidebar-help { flex: 1 1 auto; min-width: 0; }
+.people-fab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  text-decoration: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.people-fab:hover { background: var(--color-accent-pressed); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22); }
+.people-fab:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) { .people-fab { transition: none; } .people-fab:active { transform: none; } }
+@media (max-width: 820px) {
+  .people-filter__btn { min-height: var(--tap, 44px); }
+  /* on a phone it floats bottom right, above the composer dock (as issues-fab, SPL-1005) */
+  .people-fab {
+    position: fixed;
+    inset-inline-end: 16px;
+    bottom: calc(16px + max(var(--composer-dock-h, 0px), env(safe-area-inset-bottom, 0px)));
+    z-index: 15;
+    width: 56px;
+    height: 56px;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
+  }
+  /* the last person scrolls clear of the floating + (56px + 16px + 8px) */
+  .people-scroll { padding-bottom: 80px; }
+}
 /* the reader's own row is a status line, not a destination: no pointer, no
    hover highlight, nothing that reads as "click me" */
 .self-row { cursor: default; }

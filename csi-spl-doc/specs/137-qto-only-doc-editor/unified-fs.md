@@ -148,6 +148,16 @@ history credits c-001 with 185 imports, 5 edits and 7 deletes it never made.
   older than `--check` refuses it as an unknown verb and writes nothing; the
   dry run then keeps its OK with a WARN that the flags were not checked.
   Tests: `desk-doctree.tst.sh` section 7, `doctree_check_test.go`.
+- **A short id is refused** (SPL-5338): the hub resolves a doc or item only
+  by its full uuid, and `--check` makes no hub call, so
+  `edit 0d291303 d6767a99 ...` passed its dry run, then failed live with a
+  404. An 8-hex id as a positional or as the value of `--item`, `--parent`,
+  `--under`, `--after`, `--folder` or `--topic` is now refused for every
+  verb, dry run or not, before any spool call; take the full ids from
+  `list` or `read <doc>`. Refusing in the action was chosen over a hub read
+  in the dry run: it needs no network call and no per-verb knowledge of
+  which id is a doc, an item or a folder. Test: `desk-doctree.tst.sh`
+  section 10.
 - The guard: `csi-spl-orc/src/bash/tests/desk-doctree.tst.sh` section 9.
 
 ### 6.1 Starting a desk: a lane never starts another's

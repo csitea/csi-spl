@@ -24,6 +24,12 @@
 #      DESK_AGENT is the caller (AGENT_ID, else the $TMUX_PANE window's id);
 #      a foreign or unknown caller is refused, no spool call; dry runs and
 #      reads stay open to a foreign DESK_AGENT
+#  10. a short id (SPL-5338): the hub resolves only full uuids, so a live
+#      `edit 0d291303 d6767a99 ...` 404s, and its dry run passed (--check
+#      makes no hub call). Any verb with an 8-hex id as a positional or an id
+#      flag's value (--item --parent --under --after --folder --topic) is
+#      refused, no spool call, dry run or not; free text (--value deadbeef),
+#      numbers and full uuids pass
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -53,6 +59,8 @@ if [[ "$1 $2" == "doctree --check" ]]; then
   esac
   exit 0
 fi
+# The hub keys docs by uuid: an 8-hex short doc id is its 404 (section 10).
+if [[ "${3:-}" =~ ^[0-9a-f]{8}$ ]]; then echo "spool: hub 404: workspace doc $3 not found" >&2; exit 1; fi
 echo '{"docs":[{"id":"42","title":"Rebuild guide"}]}'
 EOF_STUB
 chmod +x "$T/state/dev/bin/spool"
@@ -175,6 +183,24 @@ run DOCTREE_ARGS='rename 42 --title Y' DESK_AGENT=c-001 "${NOBODY[@]}" TMUX_PANE
   pass "no AGENT_ID: the id of the \$TMUX_PANE window is the caller" || fail "pane caller (rc=$rc): $(cat "$T/o")"
 run DOCTREE_ARGS='rename 42 --title Y' DESK_AGENT=c-001 "${NOBODY[@]}" TMUX_PANE=%9 STUB_WNAME='bx1: c-129 T030B' DRY_RUN=0
 refused "a \$TMUX_PANE window of another agent is refused" 'DESK_AGENT=c-001 is not you (c-129)'
+
+# --- 10. a short id (SPL-5338) -------------------------------------------------------------
+U1=0d291303-1111-4222-8333-444455556666 U2=d6767a99-7777-4888-9999-aaaabbbbcccc
+run DOCTREE_ARGS='edit 0d291303 d6767a99 --field title --value v' DRY_RUN=0
+refused "a live edit with 8-hex short ids is refused before the hub's 404" 'short id(s) 0d291303 d6767a99: the hub resolves only the full uuid'
+run DOCTREE_ARGS='edit 0d291303 d6767a99 --field title --value v'
+refused "DRY_RUN=1 with 8-hex short ids fails as the live run would" 'short id(s) 0d291303 d6767a99: the hub resolves only the full uuid'
+run DOCTREE_ARGS="add $U1 --kind para --item=d6767a99 --text t"
+refused "a short id as --item= is refused" 'short id(s) d6767a99:'
+run DOCTREE_ARGS="move $U1 $U2 --parent 0d291303"
+refused "a short id as --parent is refused" 'short id(s) 0d291303:'
+run DOCTREE_ARGS='read 0d291303'
+refused "a read with a short doc id is refused too" 'short id(s) 0d291303:'
+run DOCTREE_ARGS="edit $U1 $U2 --field title --value deadbeef --json"
+[[ $rc -eq 0 && "$(argv)" == "doctree --check edit $U1 $U2 --field title --value deadbeef --json" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
+  pass "full uuids pass; an 8-hex --value is text, not an id" || fail "full uuid dry run (rc=$rc): $(argv) / $(cat "$T/o")"
+run DOCTREE_ARGS="move $U1 $U2 --rev 12345678 --ord 1"
+[[ $rc -eq 0 ]] && pass "an 8-digit --rev is a number, not an id" || fail "rev (rc=$rc): $(cat "$T/o")"
 
 echo "desk-doctree: $fails failure(s)"
 ((fails == 0))

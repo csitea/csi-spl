@@ -30,6 +30,11 @@
 # @description has the installed spool parse the verb's flags and arguments
 # @description (`spool doctree --check`, no hub call) and fails on what it
 # @description refuses, so a dry run passes only a command that can run (SPL-2545).
+# @description An 8-hex short id (0d291303) as a positional or as the value of
+# @description --item --parent --under --after --folder --topic is refused for
+# @description every verb, dry run or not, no spool call: the hub resolves only
+# @description the full uuid and answers a short one 404, which the parse-only
+# @description --check never sees (SPL-5338).
 # @description A write with DRY_RUN=0 is also refused, no spool call, unless
 # @description DESK_AGENT is the caller itself: AGENT_ID, else SPOOL_AGENT_ID /
 # @description MCP_BOT_AGENT_ID, else the agent id of the tmux window $TMUX_PANE
@@ -70,6 +75,7 @@ do_spl_desk_doctree() {
   local in=""
   _spl_desk_doctree_in in || return 1
   _spl_desk_doctree_file_flags args "$in" || return 1
+  _spl_desk_doctree_full_ids args || return 1
 
   local d
   d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
@@ -200,6 +206,38 @@ _spl_desk_doctree_file_flags() {
     if (( pic )); then _dt_a+=(--path "$in"); else _dt_a+=(--file "$in"); fi
   fi
   return 0
+}
+
+# _spl_desk_doctree_full_ids <array name>: 1 with one FATAL naming every 8-hex
+# short id in the verb's ids (SPL-5338): its positionals and the values of the
+# id flags. The doc and item ids are uuid columns (rdb 0157) and the hub looks
+# them up as given, so a short id is a 404 on the live run while `--check`,
+# which makes no hub call, passed it. The values of the other flags (--title,
+# --value, --rev ...) are text or numbers and stay unchecked.
+_spl_desk_doctree_full_ids() {
+  local -n _dt_ids="$1"
+  local i a f short=() next=""
+  local ids=" item parent under after folder topic " bools=" json dotted replace tight tight-end unnumbered "
+  for ((i = 1; i < ${#_dt_ids[@]}; i++)); do
+    a="${_dt_ids[$i]}"
+    if [[ -n "$next" ]]; then
+      [[ "$next" == id && "$a" =~ ^[0-9a-fA-F]{8}$ ]] && short+=("$a")
+      next=""; continue
+    fi
+    if [[ "$a" == -* ]]; then
+      f="${a#-}"; f="${f#-}"
+      if [[ "$f" == *=* ]]; then
+        [[ "$ids" == *" ${f%%=*} "* && "${f#*=}" =~ ^[0-9a-fA-F]{8}$ ]] && short+=("${f#*=}")
+      elif [[ "$ids" == *" $f "* ]]; then next=id
+      elif [[ "$bools" != *" $f "* ]]; then next=value
+      fi
+      continue
+    fi
+    [[ "$a" =~ ^[0-9a-fA-F]{8}$ ]] && short+=("$a")
+  done
+  (( ${#short[@]} == 0 )) && return 0
+  do_log "FATAL short id(s) ${short[*]}: the hub resolves only the full uuid (${short[0]}-xxxx-xxxx-xxxx-xxxxxxxxxxxx) and answers a short one 404, so this would fail live; take the full ids from DOCTREE_ARGS='list' or 'read <doc>'"
+  return 1
 }
 
 # _spl_desk_doctree_is_in <value> <in>: 0 when a file flag's value is

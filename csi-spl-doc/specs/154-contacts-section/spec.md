@@ -591,8 +591,10 @@ inside each; the "in this workspace" filter shows groups 1 and 2.
   Edit and Delete, Message (when `member_id` is set) or Invite (2.4, O4),
   and the 0193 links. The member card (`wui/pages/people/[id].vue`) gets one
   line, "In your contacts", linking to the contact card when one of the
-  reader's contacts matches that member. An **Add contact** button sits in
-  the panel header.
+  reader's contacts matches that member. **Add contact** is a round **+**
+  (the Issues + look) on the panel's PEOPLE heading row; on a phone it
+  floats bottom right above the composer, and the list pads so its last row
+  scrolls clear of it (SPL-5279).
 - **Kill switch** (2.9): in a workspace outside `contacts.workspaces` the
   panel shows only members, with no filter and no Add button, exactly as
   today apart from the new order. The WUI learns the switch from the
@@ -1108,7 +1110,7 @@ of this spec.
 |---|---|---|
 | who | the person, in their own session (`realmRefuses`, section 4) | the same |
 | needs Google | no; works with `SPOOL_CLOUD_PROVIDER=none` | a spec 149 connection in this workspace with the contacts scope (B7) and the binding of 2.2 step 3 |
-| how it starts | People panel menu: **Import from file**; pick a `.csv`; a preview; **Import** | settings, `calendar-google` section: the **Contacts** switch (B18), which starts the first sync; then **Sync now** and the 10 minute cycle (2.5) |
+| how it starts | the People panel's **+** (Add contact), then **Import from file** on the empty form (SPL-5279); pick a `.csv`; a preview; **Import** | settings, `calendar-google` section: the **Contacts** switch (B18), which starts the first sync; then **Sync now** and the 10 minute cycle (2.5) |
 | route | `POST /v1/me/contacts/import` (`text/csv` body), `?dry_run=1` for the preview | `PUT /v1/me/contacts/sync {enabled:true}`, `POST /v1/me/contacts/sync` (both live, row 41) |
 | formats | Google Contacts' own CSV export and the Spool export (row 41), told apart by the header (11.2.1) | the People API (11.5) |
 | pictures | none: a CSV carries no picture bytes; a `Photo` URL column is ignored and counted (11.4) | yes: the contact's own Google picture, fetched by the hub (11.4) |

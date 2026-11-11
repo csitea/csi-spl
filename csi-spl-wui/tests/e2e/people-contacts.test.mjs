@@ -263,6 +263,7 @@ try {
   await load(PHONE, '/people/contact/k-out')
   await waitShown('[data-test=contact-card]')
   ok('P-4 390 the card has no sideways scroll', await fits())
+  ok('P-9 390 the card page (level 2) shows no floating +', !(await shown('[data-testid=people-add-contact]')))
   const small = await p.$$eval('[data-test=contact-card] .btn', (l) => l.filter((b) => b.getBoundingClientRect().height < 44).length)
   ok('P-5 390 every card button >= 44 px tall', small === 0, { small })
   await shot('card-390x664')

@@ -288,7 +288,9 @@ Both seats sign this plan (rulebook 3.2).
 - Panel reviewer seat: a-812 (agy, on the box that has agy): FAIL on v0.1
   `0916829514e8` (63f0e7f2: W1-W4, N1-N4; folded in v0.2); **PASS on v0.2
   `b604989c1`** (838bbaa1): W1-W4 fixed, section 3.3's command re-run (4/7/23, an exact
-  set match), N1-N3 folded with no new defect, dist hygiene and fleet rules rc=0. Its
-  v1.0 signature: asked on this sha.
+  set match), N1-N3 folded with no new defect, dist hygiene and fleet rules rc=0.
+  **SIGNED v1.0 `41867b93b`** (a0fb9c4f, its own message): diff from v0.2 checked by it
+  (1 file, status, sections 8 and 9 only), dist hygiene and fleet rules rc=0, `r58-` 0
+  on `origin/master` `7318acddb`. This later commit adds only that record.
 - Row R7 seats: fresh **claude** sessions, same-vendor R7 under waiver 1a7c70da if it
   still stands at queueing (section 5).

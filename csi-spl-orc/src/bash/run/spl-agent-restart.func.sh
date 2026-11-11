@@ -135,11 +135,12 @@ spl_ars_is_seat() {
 }
 
 # spl_ars_slot ID: one of the slot locks peer/restart.slot.<n> (4.2) on fd 6
-# for the whole run: a lane any of 1..RESTART_SLOTS, a seat slot 0. The
-# children that outlive the run close it (spawn, detach). None free = exit 4.
+# for the whole run: a lane any of 1..RESTART_SLOTS, a seat slot 0, a
+# standing seat too (spl_wd_standing_seat; it keeps the lane path otherwise).
+# The children that outlive the run close it (spawn, detach). None free = exit 4.
 spl_ars_slot() {
   local n first=1 last="$RESTART_SLOTS"
-  if [[ -n "$ARS_SEAT" ]]; then first=0; last=0; fi
+  if [[ -n "$ARS_SEAT" ]] || spl_wd_standing_seat "$1"; then first=0; last=0; fi
   for (( n = first; n <= last; n++ )); do
     exec 6>> "$PEER_DIR/restart.slot.$n" || continue
     if flock -n 6; then ARS_SLOT="$n"; return 0; fi

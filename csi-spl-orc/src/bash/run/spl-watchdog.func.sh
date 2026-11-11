@@ -2060,10 +2060,26 @@ spl_wd_fence_pid() {
   echo "${pid:--}"
 }
 
-# A seat never moves (10.2): ids 001..004, a peer seat, an expected seat.
+# A seat never moves (10.2): ids 001..004, a peer seat, an expected seat, a
+# standing seat (spl_wd_standing_seat).
 spl_wd_fence_is_seat() {
+  spl_wd_standing_seat "$1" && return 0
   if declare -F spl_ars_is_seat >/dev/null; then spl_ars_is_seat "$1"; return; fi
   [[ "$1" =~ -00[1-4]$ ]]
+}
+
+# spl_wd_standing_seat ID: 0 when ID is a standing seat spawned as a lane id
+# (a topic or workspace seat): lifetime/standing (spl_lane_standing), or its
+# brief's own heading opens "# Seat brief" (a restart seed nested over the
+# brief is read at its innermost section A, as spl_ars_brief_unnest cuts it).
+# One box 2026-11-11 05:04Z: the fence TERMed 5 such seats as lanes (SPL-5326).
+spl_wd_standing_seat() {
+  declare -F spl_lane_standing >/dev/null || source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"
+  spl_lane_standing "$1" && return 0
+  awk 'FNR == 1 && /^# Brief: you are / { nest = 1; next }
+    nest && /^## A\. Your brief/ { h = ""; next }
+    /^# / && h == "" { h = $0 } END { exit !(tolower(h) ~ /^# +seat brief([^[:alnum:]]|$)/) }' \
+    "$SPOOL_ROOT/$1/lifetime/brief.md" 2>/dev/null
 }
 
 # spl_wd_beat NOW: one beat, bounded by WD_BEAT_TIMEOUT (10 s). An answer

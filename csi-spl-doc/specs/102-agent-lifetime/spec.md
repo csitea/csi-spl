@@ -655,6 +655,15 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
 - **What moves**: only lanes. A seat is a slot of its box (001..004); the
   other boxes' seats take its jobs by the 093 claim (093 10), so a down
   box's seats simply wait for their box.
+- **How the fence knows a seat** (SPL-5326; one box 2026-11-11 05:04Z: five
+  topic and workspace seats TERMed as lanes, then restarted by S3):
+  `spl_wd_fence_is_seat` spares ids 001..004, a peer seat
+  (`<spool root>/peer/seats`), an expected seat, and a **standing seat**
+  spawned under a lane id (`spl_wd_standing_seat`): it carries
+  `lifetime/standing`, or its `lifetime/brief.md` opens `# Seat brief`
+  (a restart seed nested over the brief is read at its innermost section
+  A). Such a seat also restarts in the seat slot 0 (4.2), on the lane path
+  otherwise. A brief opening `# Lane brief`, or none, is a lane.
 - **Takeover of a down box's lanes**: each live box's watchdog, on the tick
   it sees a down box, tries ONE hub CAS per lane of that box: `running_box`
   from the down box to itself, in the lane's fleet row (keyed by its HOME

@@ -113,6 +113,11 @@
 #      Controls: a parent that is no restore wrapper is not signalled; a
 #      wrapper that survives SIGKILL stops the restart, the claude untouched.
 #      A seat (start first): the wrapper goes after the ack, before the old claude
+#  24. a standing seat spawned as a lane id (SPL-5326; one box 2026-11-11 05:04Z,
+#      5 topic seats fenced and restarted as lanes): its brief heading "# Seat
+#      brief:" or lifetime/standing restarts it in the seat slot 0, on the lane
+#      path still (its wip pushed, no restart ack). Control: the same lane with
+#      a "# Lane brief:" heading takes a lane slot (1)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -817,6 +822,25 @@ world; lane c-004 %84 4004; hb c-004 in-tool 1000 "$HB23"; wrapped 4004 c-004 "$
 rc="$(go ID=c-004 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash" ROTATE_KILL="$T/bin/kill.stuck")"
 [[ "$rc" == 0 ]] && grep -q 'kill -KILL 6004' "$T/kill.log" && grep -q 'kill -TERM 4004' "$T/kill.log" && grep -q 'RS-RETIRE FAIL .*restore wrapper' "$D/rotate.log" &&
   pass "23. a seat whose wrapper survives SIGKILL: the acked restart still signals the old claude, and says so" || fail "23. seat stuck rc=$rc: $(cat "$T/kill.log") $(tail -3 "$T/o")"
+
+# --- 24. a standing seat spawned as a lane id takes the seat slot (SPL-5326) ------------------
+# slot24 ID: the slot of ID's RS-GATE OK line
+slot24() { grep -o "Z-rs-$1 RS-GATE OK .*; slot [0-9]" "$D/rotate.log" | grep -o '[0-9]$'; }
+world; lane c-955 %55 -; reborn c-955
+printf '# Seat brief: acme #ops topic 0123abcd - answer the posts in this one topic (standing seat, claude, runs ON box1)\n\nWork.\n' > "$S/c-955/lifetime/brief.md"
+rc="$(go ID=c-955 CAUSE=rebirth DRY_RUN=0)"
+[[ "$rc" == 0 && "$(slot24 c-955)" == 0 && "$(rlog c-955 RS-WIP)" == 1 && "$(rlog c-955 RS-ACK)" == 0 ]] &&
+  pass "24. a '# Seat brief:' lane id restarts in the seat slot 0, on the lane path (wip pushed, no ack)" ||
+  fail "24. seat brief rc=$rc slot=$(slot24 c-955) wip=$(rlog c-955 RS-WIP) ack=$(rlog c-955 RS-ACK): $(tail -4 "$T/o")"
+world; lane c-956 %56 -; reborn c-956; : > "$S/c-956/lifetime/standing"
+rc="$(go ID=c-956 CAUSE=rebirth DRY_RUN=0)"
+[[ "$rc" == 0 && "$(slot24 c-956)" == 0 ]] &&
+  pass "24. lifetime/standing: the seat slot 0" || fail "24. standing rc=$rc slot=$(slot24 c-956): $(tail -4 "$T/o")"
+world; lane c-957 %57 -; reborn c-957
+printf '# Lane brief: bug - a standing seat is fenced as a lane\n\nWork.\n' > "$S/c-957/lifetime/brief.md"
+rc="$(go ID=c-957 CAUSE=rebirth DRY_RUN=0)"
+[[ "$rc" == 0 && "$(slot24 c-957)" == 1 ]] &&
+  pass "24. control: a '# Lane brief:' lane takes a lane slot (1)" || fail "24. lane brief rc=$rc slot=$(slot24 c-957): $(tail -4 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

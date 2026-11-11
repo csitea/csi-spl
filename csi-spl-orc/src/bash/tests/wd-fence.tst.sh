@@ -82,6 +82,12 @@
 #      (GAP <inst> from= to= s= boot=), naming no cause; a 540 s gap gets
 #      RESUME and no line; the file keeps its last WD_GAP_LOG_MAX lines.
 #      RED control: origin/master writes no gap.log (the commit body has the run)
+#  17. SPL-5326: a standing seat spawned as a lane id is not TERMed (one box
+#      2026-11-11 05:04Z: 5 topic seats TERMed, then restarted by S3). Its
+#      brief opens "# Seat brief:", or it carries lifetime/standing, or a
+#      restart seed nests over its seat brief: no wip push, no TERM, not in
+#      the FENCED note. Control: a "# Lane brief:" lane and a lane with no
+#      brief are pushed and TERMed as in 3
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -570,6 +576,25 @@ reset
 for g in 601 700 800; do WD_GAP_LOG_MAX=2 gap16 $(( T0 - g )) "$T0"; done
 [[ "$(n wd/gap.log .)" == 2 && "$(head -n 1 "$T/wd/gap.log")" == *" s=700 "* ]] &&
   pass "16. 3 gaps with WD_GAP_LOG_MAX=2: the last 2 kept" || fail "16. trim: $(cat "$T/wd/gap.log" 2>&1)"
+
+# ---- 17. a standing seat spawned as a lane id is never TERMed (SPL-5326) -------
+reset
+printf 'c-001\t101\t%%1\nc-050\t150\t%%2\nc-051\t151\t%%3\nc-507\t157\t%%4\nc-545\t145\t%%5\nc-981\t198\t%%6\n' > "$T/tick/agents"
+printf '101 1 500 claude\n150 1 500 claude\n151 1 500 claude\n157 1 500 claude\n145 1 500 claude\n198 1 500 claude\n' > "$T/tick/ps"
+mkdir -p "$T/spool/c-050/lifetime" "$T/spool/c-507/lifetime" "$T/spool/c-545/lifetime" "$T/spool/c-981/lifetime"
+printf '# Lane brief: bug - the fence TERMs standing seats\n\nWork.\n' > "$T/spool/c-050/lifetime/brief.md"
+printf '# Seat brief: acme #ops topic 0123abcd - answer the posts in this one topic (standing seat, claude, runs ON box1)\n\nWork.\n' > "$T/spool/c-507/lifetime/brief.md"
+: > "$T/spool/c-545/lifetime/standing"
+printf '# Brief: you are c-981@box1, restarted by the watchdog (rebirth)\n\n## A. Your brief (x)\n\n# Seat brief: acme #ops topic 4567cdef (standing seat)\n\n## B. The handoff\n\n# Lane brief: quoted\n' > "$T/spool/c-981/lifetime/brief.md"
+ticks 0 0 ok
+ticks 30 120 silent
+[[ -e "$T/wd/fenced" ]] && grep -qx "kill -TERM 150" "$T/acts" && grep -qx "kill -TERM 151" "$T/acts" && grep -qx "wip c-050" "$T/acts" &&
+  pass "17. control: a '# Lane brief:' lane and a lane with no brief are pushed and TERMed" || fail "17. lanes: $(cat "$T/acts" 2>/dev/null)"
+[[ "$(n acts 'c-507\| 157$')" == 0 ]] && pass "17. a '# Seat brief:' lane id is not pushed or TERMed" || fail "17. seat brief touched: $(cat "$T/acts")"
+[[ "$(n acts 'c-545\| 145$')" == 0 ]] && pass "17. lifetime/standing: not pushed or TERMed" || fail "17. standing touched: $(cat "$T/acts")"
+[[ "$(n acts 'c-981\| 198$')" == 0 ]] && pass "17. a restart seed nested over a seat brief: not TERMed" || fail "17. nested seed touched: $(cat "$T/acts")"
+printf 'c-001\t101\t%%1\nc-050\t150\t%%2\nc-051\t151\t%%3\n' > "$T/tick/agents"
+printf '101 1 500 claude\n150 1 500 claude\n151 1 500 claude\n' > "$T/tick/ps"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

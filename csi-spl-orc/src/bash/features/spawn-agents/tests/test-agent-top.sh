@@ -91,7 +91,17 @@ bash "$TOP" --ensure-badge-loop --interval 60; p1="$(cat "$AGENT_TOP_PIDFILE" 2>
 check "5. --ensure-badge-loop starts a loop" kill -0 "${p1:-0}"
 bash "$TOP" --ensure-badge-loop --interval 60
 eq "5. a second call starts none" "$p1" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)"
-gone() { local _; for _ in $(seq 1 40); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.2; done; return 1; }
+gone() { local _ t0=$SECONDS; for _ in $(seq 1 40); do
+    kill -0 "$1" 2>/dev/null || { echo "# gone: pid $1 ended after $((SECONDS - t0)) s" >&2; return 0; }; sleep 0.2; done
+  echo "# gone: pid $1 still alive after $((SECONDS - t0)) s" >&2; return 1; }
+# A loop acts on a planted pid, a removed tree or a dead server only once it
+# has started: written its own pid (pidfile_put, after the tmux check). Plant
+# or remove before that and it either never sees the plant or dies at start
+# for another reason. So wait for its own pid first (25 x 0.2 s, the old
+# budget), and a timeout FAILS the check instead of planting anyway.
+owns() { local _ t0=$SECONDS; for _ in $(seq 1 25); do  # PIDFILE PID
+    [ "$(cat "$1" 2>/dev/null)" = "$2" ] && { echo "# owns: pid $2 in $1 after $((SECONDS - t0)) s" >&2; return 0; }; sleep 0.2; done
+  echo "# owns: pid $2 not in $1 after $((SECONDS - t0)) s" >&2; return 1; }
 # A TERM that lands while the loop's bash is still starting, before its traps,
 # kills it with no EXIT trap and leaves the pidfile (40/40 with an immediate
 # kill; CI run 39018706098 under load). So wait until it catches TERM (SigCgt
@@ -104,16 +114,16 @@ kill "$p1" 2>/dev/null
 check "5. TERM ends the loop at once, not after its 60 s interval" gone "${p1:-0}"
 check "5. ... and it removes its own pidfile" test ! -e "$AGENT_TOP_PIDFILE"
 bash "$TOP" --badge-loop --interval 1 & lp=$!
-for _ in $(seq 1 25); do [ "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)" = "$lp" ] && break; sleep 0.2; done
+check "5. the loop wrote its own pid before the plant" owns "$AGENT_TOP_PIDFILE" "$lp"
 echo 999999 >"$AGENT_TOP_PIDFILE"
 check "5. a loop whose PIDFILE names another pid stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
 mkdir -p "$T_TMP/tree/scripts"; cp -r "$T_FEAT/lib" "$T_TMP/tree/"; cp "$TOP" "$T_TMP/tree/scripts/"
 AGENT_TOP_PIDFILE="$T_TMP/tree.pid" bash "$T_TMP/tree/scripts/agent-top.sh" --badge-loop --interval 1 & lp=$!
-sleep 0.5; rm -rf "$T_TMP/tree"
+check "5. the tree loop wrote its own pid before the removal" owns "$T_TMP/tree.pid" "$lp"; rm -rf "$T_TMP/tree"
 check "5. a loop whose tree was removed stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
 S2="$T_TMP/s2.sock"; tmux -S "$S2" -f /dev/null new-session -d 'sleep 600'
 SPOOL_TMUX_SOCKET="$S2" AGENT_TOP_PIDFILE="$T_TMP/s2.pid" bash "$TOP" --badge-loop --interval 1 & lp=$!
-sleep 0.5; tmux -S "$S2" kill-server
+check "5. the s2 loop wrote its own pid before the kill" owns "$T_TMP/s2.pid" "$lp"; tmux -S "$S2" kill-server
 check "5. a loop whose tmux server is gone stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
 
 # --- 6 ------------------------------------------------------------------------------

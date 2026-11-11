@@ -527,7 +527,10 @@ export T
 proc() {  # proc <pid> <id> [comm]: a live process carrying SPOOL_AGENT_ID=<id>
   mkdir -p "$T/proc/$1"; printf 'SPOOL_AGENT_ID=%s\0' "$2" > "$T/proc/$1/environ"
 }
+# reset_box settles first: a takeover still in flight from the case before
+# would write its lines into this case's fresh files (SPL-5341 R7 B1)
 reset_box() {
+  settle
   unset NOW
   rm -rf "$D" "$S"/c-* "$T/sent" "$T/takeovers" "$T/takeovers.done" "$T/takeover.slow" "$T/tmux/log" "$T/proc"; mkdir -p "$D" "$T/proc"; rm -f "$T/tmux/screen."*
   : > "$T/ps"; : > "$T/tmux/panes"; : > "$T/tmux/clients"
@@ -562,17 +565,22 @@ wd() {
 }
 # settle: wait until every takeover the watchdog started (a "TAKEOVER <id>"
 # line in wd.log, written before the detached start) has finished (its line in
-# takeovers.done), not a fixed time: under load a takeover outlived the old
-# 2 s cap (SPL-5341). No takeover started: returns at once. Hung: fails after
-# SETTLE_MAX s (60).
+# takeovers.done), per id, not a fixed time: under load a takeover outlived the
+# old 2 s cap (SPL-5341). No takeover started: returns at once (SETTLE_PASSES,
+# the passes it waited, is 0). Hung: fails after SETTLE_MAX s (60).
 settle() {
-  local i started done_n
+  local i id left started done_n
   for (( i = 0; i < ${SETTLE_MAX:-60} * 10; i++ )); do
-    started="$(grep -c ' TAKEOVER ' "$D/wd.log" 2>/dev/null)"; done_n="$(grep -c . "$T/takeovers.done" 2>/dev/null)"
-    (( ${started:-0} <= ${done_n:-0} )) && return 0
+    left=""
+    for id in $(grep -o ' TAKEOVER [^ ]*' "$D/wd.log" 2>/dev/null | sort -u | cut -d' ' -f3); do
+      started="$(grep -c " TAKEOVER $id " "$D/wd.log" 2>/dev/null)"; done_n="$(grep -cx -- "$id" "$T/takeovers.done" 2>/dev/null)"
+      (( ${started:-0} > ${done_n:-0} )) && left+="$id "
+    done
+    SETTLE_PASSES=$i
+    [[ -z "$left" ]] && return 0
     sleep 0.1
   done
-  fail "settle: ${started:-0} takeover(s) started, ${done_n:-0} finished after ${SETTLE_MAX:-60} s"
+  fail "settle: takeover(s) of ${left% } started, not finished after ${SETTLE_MAX:-60} s"
 }
 
 # 3. a tick: one line per agent, wd.<id>, other boxes and retiring windows skipped
@@ -679,7 +687,7 @@ grep -q 'c-917 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "4 an id's own
 reset_box; agent c-918 %1 4018
 echo '{"v":1,"kind":"task","from":"c-002","to":"c-918","body":"stop"}' > "$S/c-918/inbox/s.json"
 touch -d "@$((T0 - 375))" "$S/c-918/inbox/s.json"
-out="$(wd)"; NOW=$((T0 + 30)) out2="$(wd)"; sleep 0.5
+out="$(wd)"; NOW=$((T0 + 30)) out2="$(wd)"; settle
 grep -q 'c-918 HIT S1 age=375 prog=unknown .*-> ring$' <<<"$out" && grep -q -- '--poke-only --from .* --to c-918' "$T/sent" &&
   [[ ! -s "$T/takeovers" ]] && grep -q 'c-918 HIT S1 .*ring done' <<<"$out2" &&
   pass "4 progress unknown: S1 rings once, no takeover at 375 s and 405 s" || fail "4 unknown: $out / $out2 / $(cat "$T/takeovers" 2>/dev/null)"
@@ -747,12 +755,12 @@ unset WD_SETTINGS_HOME
 # under load a takeover outlived the cap); a tick that started none returns at once
 reset_box; agent c-911 %1 -; echo 3 > "$T/takeover.slow"
 NOW=$T0 wd >/dev/null; s0=$SECONDS; NOW=$((T0 + 30)) out="$(wd)"; settle; el=$((SECONDS - s0))
-grep -qx 'takeover c-911 S3' "$T/takeovers" && [[ "$(cat "$S/c-911/lifetime/restarts" 2>/dev/null)" == "$((T0 + 30)) S3" ]] &&
+grep -qx 'takeover c-911 S3' "$T/takeovers" && [[ "$(cat "$S/c-911/lifetime/restarts" 2>/dev/null)" == "$((T0 + 30)) S3" ]] && (( el >= 2 )) &&
   pass "4 settle: a takeover that takes 3 s is waited for, all its writes done (${el}s)" || fail "4 settle slow: $out / $(cat "$T/takeovers" 2>/dev/null) / ${el}s"
 reset_box; agent c-912 %1 4012
-NOW=$T0 out="$(wd)"; t0=$(date +%s%N); settle; el=$(( ($(date +%s%N) - t0) / 1000000 ))
-grep -q '^c-912 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && (( el < 500 )) &&
-  pass "4 settle control: no takeover started, settle returns at once (${el} ms)" || fail "4 settle fast: $out / ${el} ms"
+NOW=$T0 out="$(wd)"; SETTLE_PASSES=x; settle
+grep -q '^c-912 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && [[ "$SETTLE_PASSES" == 0 ]] &&
+  pass "4 settle control: no takeover started, settle returns at once (no wait pass)" || fail "4 settle fast: $out / passes=$SETTLE_PASSES"
 
 # 5. guards, each with its control
 reset_box; agent c-921 %1 -
@@ -805,9 +813,9 @@ lim() {
     do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; spl_wd_init >/dev/null
     spl_wd_takeover c-931 S3 "evidence"; echo "rc=$?"'
 }
-# cnt N: wait (60 s at most) until N takeovers finished (their takeovers.done lines)
-cnt() { for _ in $(seq 1 600); do [[ "$(grep -c . "$T/takeovers.done" 2>/dev/null)" == "$1" ]] && return; sleep 0.1; done; }
-r1="$(lim "$T0")"; cnt 1; r2="$(lim $((T0 + 600)))"; cnt 2; r3="$(lim $((T0 + 900)))"; cnt 3; r4="$(lim $((T0 + 1200)))"; sleep 0.3
+# cnt N: wait (60 s at most) until N takeovers of c-931 finished (its takeovers.done lines)
+cnt() { for _ in $(seq 1 600); do [[ "$(grep -cx c-931 "$T/takeovers.done" 2>/dev/null)" == "$1" ]] && return; sleep 0.1; done; }
+r1="$(lim "$T0")"; cnt 1; r2="$(lim $((T0 + 600)))"; cnt 2; r3="$(lim $((T0 + 900)))"; cnt 3; r4="$(lim $((T0 + 1200)))"; settle
 [[ "$r1" == rc=0 && "$r2" == rc=0 && "$r3" == rc=0 ]] && pass "6 control: three restarts in an hour run (the third is under the limit)" || fail "6 first three: $r1 / $r2 / $r3"
 [[ "$r4" == *"held out: 3 restarts"*"rc=1" ]] && [[ "$(grep -c . "$T/takeovers")" == 3 ]] && pass "6 the fourth is not done: held out" || fail "6 fourth: $r4 / $(cat "$T/takeovers")"
 [[ "$(grep -c -- '--kind note --ask blocker --task wd-c-931' "$T/sent")" == 1 ]] && [[ -s "$S/c-931/lifetime/heldout" && -s "$D/wd/c-931.heldout" ]] &&
@@ -1045,7 +1053,7 @@ grep -q 'c-960 HIT S3 .*-> takeover done 60s ago' <<<"$out" && [[ "$(grep -c . "
 out="$(TICK=2000 NOW=$((T0 + 330)) wd)"; settle
 grep -q 'c-960 HIT S3 .*-> takeover$' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] && grep -q 'TAKEOVER-FAILED c-960 S3: still no live session 300s' "$D/wd.log" &&
   pass "9 a takeover whose session is dead again 300 s later: failed, retried in the same episode" || fail "9 retry: $out / $(cat "$T/takeovers")"
-out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 630)) wd)"; sleep 0.3
+out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 630)) wd)"; settle
 grep -q 'c-960 HIT S3 .*takeover not done: held out: 2 restarts' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] &&
   [[ "$(grep -c -- '--to orchestrator --kind note --ask blocker --task wd-c-960' "$T/sent")" == 1 ]] && [[ -s "$D/wd/c-960.heldout" ]] &&
   pass "9 the third in an hour: held out, ONE blocker to the orchestrator" || fail "9 cap: $out / $(cat "$T/sent" 2>/dev/null)"
@@ -1069,14 +1077,14 @@ grep -qx "m-971	-	%1" "$D/wd/tick/agents" && grep -q 'm-971 OK (pending S3 1/2' 
 mreset; agent m-972 %1 4072 "Vibe CLI" 3600 "$MF/pane-mistral-auth.txt"
 echo '{"v":1,"kind":"task","from":"c-002","to":"m-972","body":"do"}' > "$S/m-972/inbox/j.json"; touch -d "@$((T0 - 300))" "$S/m-972/inbox/j.json"
 echo "c-002@box1 $T0" > "$D/lease"
-for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
+for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; settle
 grep -q 'm-972 HIT S2 kind=auth pane: Invalid API key' <<<"$out" && pass "10 vibe's dead key: HIT S2 kind=auth" || fail "10 auth: $out"
 [[ ! -s "$T/takeovers" ]] && pass "10 an auth lane is left alone: no respawn in 4 ticks, a job waiting" || fail "10 auth took over: $(cat "$T/takeovers")"
 [[ "$(grep -c -- '--to c-002@box1 --kind note --task wd-m-972' "$T/sent")" == 1 ]] && grep -q 'API key is refused' "$T/sent" &&
   pass "10 ONE blocker to the dispatcher (the lease holder)" || fail "10 auth blocker: $(cat "$T/sent" 2>/dev/null)"
 grep -q '^HIT S2 kind=auth ' "$D/wd/ctx/m-972/out.s2" && pass "10 ctx/m-972/out.s2 carries 'HIT S2 kind=auth' (lane-mix's read)" || fail "10 out.s2: $(cat "$D/wd/ctx/m-972/out.s2" 2>/dev/null)"
 mreset; agent m-973 %1 4073 "Vibe CLI" 3600 "$MF/pane-mistral-auth.txt"
-for k in 0 1; do NOW=$((T0 + 30 * k)) wd >/dev/null; done; sleep 0.3
+for k in 0 1; do NOW=$((T0 + 30 * k)) wd >/dev/null; done; settle
 grep -q -- '--to orchestrator --kind note --ask blocker --task wd-m-973' "$T/sent" && pass "10 control: no dispatch lease: the blocker goes to the orchestrator" || fail "10 no lease: $(cat "$T/sent" 2>/dev/null)"
 # spec 132: agy's kind=auth is a missing login, not a refused key. The same
 # shape as m-972 (4 ticks, one blocker, no restart), the wording differs.
@@ -1084,7 +1092,7 @@ reset_box; rm -rf "$S"/a-*
 agent a-980 %1 4080 agy 3600 "$FX/s2-agy-login.pane"
 echo '{"v":1,"kind":"task","from":"c-002","to":"a-980","body":"do"}' > "$S/a-980/inbox/j.json"; touch -d "@$((T0 - 300))" "$S/a-980/inbox/j.json"
 echo "c-002@box1 $T0" > "$D/lease"
-for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
+for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; settle
 grep -q 'a-980 HIT S2 kind=auth pane: You are currently not signed in' <<<"$out" && pass "10 agy's missing login: HIT S2 kind=auth" || fail "10 agy auth: $out"
 [[ ! -s "$T/takeovers" ]] && pass "10 an agy auth lane is left alone: no respawn" || fail "10 agy auth took over: $(cat "$T/takeovers")"
 [[ "$(grep -c -- '--to c-002@box1 --kind note --task wd-a-980' "$T/sent")" == 1 ]] && grep -q 'login required (agy)' "$T/sent" &&
@@ -1102,7 +1110,7 @@ mreset; agent m-975 %1 4075 "Vibe CLI"
 echo '{"v":1,"kind":"task","from":"c-002","to":"m-975","body":"do"}' > "$S/m-975/inbox/j.json"; touch -d "@$((T0 - 400))" "$S/m-975/inbox/j.json"
 jq -n --arg p "$(iso $((T0 - 600)))" --arg s "$(iso $((T0 - 120)))" \
   '{v: 1, id: "m-975", harness: "mistral", pid: 4075, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-975/heartbeat.json"
-for k in 0 1; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
+for k in 0 1; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; settle
 grep -q '^m-975 OK' <<<"$out" && grep -q '^S1 HELD tool=bash' "$D/wd/ctx/m-975/out.s1" && [[ ! -s "$T/takeovers" ]] && pass "10 a vibe lane in a tool call (heartbeat pid = Vibe CLI pid) is not taken over" || fail "10 held: $out / $(cat "$T/takeovers" 2>/dev/null)"
 mreset; agent m-976 %1 4076 "Vibe CLI"
 echo '{"v":1,"kind":"task","from":"c-002","to":"m-976","body":"do"}' > "$S/m-976/inbox/j.json"; touch -d "@$((T0 - 400))" "$S/m-976/inbox/j.json"

@@ -3969,7 +3969,7 @@
     "unarchive": "Scoate din arhivă",
     "delete": "Șterge",
     "deleted": "Notița a fost ștearsă",
-    "archived_toast": "Notiță arhivată",
+    "archived_toast": "Notița a fost arhivată",
     "undo": "Anulează",
     "saving": "Se salvează…",
     "not_saved": "Nesalvată, încearcă din nou",
@@ -4011,7 +4011,7 @@
       "label": "Acțiuni pentru notiță",
       "discuss": "Transformă în discuție",
       "discuss_empty": "Notița este goală",
-      "discussed": "Discuția a început în lobby. Notița rămâne, cu un link către ea."
+      "discussed": "S-a început o discuție în lobby. Notița rămâne, cu un link către ea."
     }
   },
   "offline": {

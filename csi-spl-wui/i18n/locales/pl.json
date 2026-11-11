@@ -4008,10 +4008,10 @@
     },
     "add_to_note": "Dodaj do notatki",
     "menu": {
-      "label": "Działania notatki",
+      "label": "Działania na notatce",
       "discuss": "Zamień w dyskusję",
       "discuss_empty": "Notatka jest pusta",
-      "discussed": "Dyskusja rozpoczęta w lobby. Notatka zostaje, z linkiem do niej."
+      "discussed": "Dyskusja rozpoczęta w lobby. Notatka zostaje z linkiem do dyskusji."
     }
   },
   "offline": {

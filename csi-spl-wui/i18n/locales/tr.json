@@ -4008,10 +4008,10 @@
     },
     "add_to_note": "Nota ekle",
     "menu": {
-      "label": "Not eylemleri",
+      "label": "Not işlemleri",
       "discuss": "Tartışmaya dönüştür",
       "discuss_empty": "Not boş",
-      "discussed": "Tartışma lobide başladı. Not kalır ve ona bir bağlantı içerir."
+      "discussed": "Lobide tartışma başlatıldı. Not yerinde kalır, tartışmaya bağlantı eklenir."
     }
   },
   "offline": {

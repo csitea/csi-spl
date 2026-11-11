@@ -4011,7 +4011,7 @@
       "label": "Anteckningsåtgärder",
       "discuss": "Gör om till en diskussion",
       "discuss_empty": "Anteckningen är tom",
-      "discussed": "Diskussionen startade i lobbyn. Anteckningen finns kvar, med en länk dit."
+      "discussed": "En diskussion startades i lobbyn. Anteckningen finns kvar, med en länk dit."
     }
   },
   "offline": {

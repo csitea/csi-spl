@@ -3969,7 +3969,7 @@
     "unarchive": "Taasta arhiivist",
     "delete": "Kustuta",
     "deleted": "Märge kustutatud",
-    "archived_toast": "Märge arhiveeriti",
+    "archived_toast": "Märge arhiveeritud",
     "undo": "Võta tagasi",
     "saving": "Salvestamine…",
     "not_saved": "Ei salvestatud, proovi uuesti",
@@ -4011,7 +4011,7 @@
       "label": "Märkme toimingud",
       "discuss": "Muuda aruteluks",
       "discuss_empty": "Märge on tühi",
-      "discussed": "Arutelu algas fuajees. Märge jääb alles, lingiga sellele."
+      "discussed": "Fuajees alustati arutelu. Märge jääb alles koos lingiga arutelule."
     }
   },
   "offline": {

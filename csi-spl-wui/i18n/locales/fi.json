@@ -3969,7 +3969,7 @@
     "unarchive": "Palauta arkistosta",
     "delete": "Poista",
     "deleted": "Muistiinpano poistettu",
-    "archived_toast": "Muistiinpano arkistoitiin",
+    "archived_toast": "Muistiinpano arkistoitu",
     "undo": "Kumoa",
     "saving": "Tallennetaan…",
     "not_saved": "Ei tallennettu, yritä uudelleen",
@@ -4011,7 +4011,7 @@
       "label": "Muistiinpanon toiminnot",
       "discuss": "Muuta keskusteluksi",
       "discuss_empty": "Muistiinpano on tyhjä",
-      "discussed": "Keskustelu alkoi aulassa. Muistiinpano säilyy, ja siinä on linkki keskusteluun."
+      "discussed": "Keskustelu aloitettu aulassa. Muistiinpano säilyy, ja siinä on linkki keskusteluun."
     }
   },
   "offline": {

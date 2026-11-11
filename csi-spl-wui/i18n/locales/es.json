@@ -4009,9 +4009,9 @@
     "add_to_note": "Añadir a una nota",
     "menu": {
       "label": "Acciones de la nota",
-      "discuss": "Convertir en debate",
+      "discuss": "Convertir en discusión",
       "discuss_empty": "La nota está vacía",
-      "discussed": "El debate empezó en el vestíbulo. La nota se queda, con un enlace a él."
+      "discussed": "Discusión iniciada en el vestíbulo. La nota se queda, con un enlace a ella."
     }
   },
   "offline": {

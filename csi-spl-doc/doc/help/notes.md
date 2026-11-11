@@ -84,7 +84,7 @@ Every note has a menu with three actions:
   lobby. Its first post is the note: the title on the first line (it becomes
   the discussion's subject), then the text, then the checklist lines. The
   note stays as it is, in your list, and gains a link to the new discussion.
-  **Discussion started** shows with **Open**, which takes you there. An empty
+  A small message shows with **Open**, which takes you there. An empty
   note cannot become a discussion: the action is greyed out and says why.
 - **Delete**, as above.
 

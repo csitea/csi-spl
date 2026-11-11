@@ -4011,7 +4011,7 @@
       "label": "Notitieacties",
       "discuss": "Omzetten in een discussie",
       "discuss_empty": "De notitie is leeg",
-      "discussed": "De discussie is gestart in de lobby. De notitie blijft, met een link ernaar."
+      "discussed": "Discussie gestart in de lobby. De notitie blijft staan, met een link ernaar."
     }
   },
   "offline": {

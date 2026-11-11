@@ -747,7 +747,7 @@ spl_ars_brief_unnest() {
 spl_ars_lane_state() {
   local d="$SPOOL_ROOT/$1" out in kind newer
   out="$(spl_ars_newest_own "$d/outbox")"
-  in="$(find "$d/inbox" "$d/archive" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p)"
+  in="$(spl_ars_newest_own "$d/inbox" "$d/archive")"
   [[ -n "$out" ]] || { echo in-flight; return 0; }
   kind="$(jq -r '.kind // empty' "${out#* }" 2>/dev/null || true)"
   if [[ "$kind" == blocker ]] && { [[ -z "$in" ]] || awk -v i="${in%% *}" -v o="${out%% *}" 'BEGIN { exit !(i < o) }'; }; then kind=blocked
@@ -766,13 +766,13 @@ spl_ars_ack_task() {
   [[ "$(jq -r '.task_id // ""' "$1" 2>/dev/null)" =~ ^(restart|lane-rotate)- ]]
 }
 
-# spl_ars_newest_own DIR: "<mtime> <path>" of DIR's newest message that is
-# not on an ACK task (spl_ars_ack_task), else nothing.
+# spl_ars_newest_own DIR...: "<mtime> <path>" of the DIRs' newest message
+# that is not on an ACK task (spl_ars_ack_task), else nothing.
 spl_ars_newest_own() {
   local t p
   while read -r t p; do
     spl_ars_ack_task "$p" || { echo "$t $p"; return 0; }
-  done < <(find "$1" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn)
+  done < <(find "$@" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn)
   return 0
 }
 

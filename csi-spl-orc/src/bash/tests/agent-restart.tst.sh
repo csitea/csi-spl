@@ -124,7 +124,9 @@
 #      spl_ars_seat_line's forms match): its seed says STAND BY and quotes the
 #      heading, no FINISH (origin/master: FINISH on the ACK line). Controls:
 #      the same with a "# Lane brief:" heading -> FINISH; a rotated lane in
-#      flight (a note, then the ACK) -> CONTINUE (origin/master: FINISH)
+#      flight (a note, then the ACK) -> CONTINUE (origin/master: FINISH); a
+#      rotated lane with an unanswered blocker -> WAIT (the rotation note and
+#      the ACK's inbox copy answer nothing; origin/master: FINISH)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -852,6 +854,7 @@ rc="$(go ID=c-957 CAUSE=rebirth DRY_RUN=0)"
 # --- 25. a rotated standing seat: the lane-rotate ACK is not its result (SPL-5334) ----------
 rot25() {  # rot25 <id> <age s>: the orch's rotation note, then the lane's own ACK (outbox + its inbox copy)
   local f d t="lane-rotate-20270115T0700Z-lane-$1"
+  mkdir -p "$S/$1/archive"
   f="$S/$1/archive/rot-note-$RANDOM.json"
   jq -n --arg id "$1" '{v: 1, ts: "2027-01-15T07:00:00Z", from: "c-001", to: $id, kind: "note", task_id: "lane-rotate-\($id)", body: "rotation at 07:00Z UTC: push what is green"}' > "$f"
   touch -d "@$(( $(date +%s) - $2 - 50 ))" "$f"
@@ -878,6 +881,11 @@ brief18 c-960 '# Lane brief: bug - a lane in flight\n\nWork.'
 rc="$(go ID=c-960 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-960)"
 [[ "$rc" == 0 ]] && grep -q '^4\. Then CONTINUE the brief now' <<<"$sd" && ! grep -q 'FINISH' <<<"$sd" &&
   pass "25. control: a rotated lane in flight (a note, then the ACK) -> CONTINUE, not FINISH" || fail "25. lane in flight rc=$rc: $(step18 "$sd")"
+world; lane c-961 %61 -; reborn c-961; msg17 c-961 outbox blocker 600; rot25 c-961 200
+brief18 c-961 '# Lane brief: bug - a blocked lane\n\nWork.'
+rc="$(go ID=c-961 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-961)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then WAIT: your brief is blocked' <<<"$sd" && grep -q 'the blocker text' <<<"$sd" &&
+  pass "25. a rotated lane with an unanswered blocker -> WAIT, the rotation answers nothing" || fail "25. lane blocked rc=$rc: $(step18 "$sd")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

@@ -18,9 +18,18 @@
 # @description   5. no process has its cwd in it or names it on its command
 # @description      line (/proc read once per run, as root through sudo -n;
 # @description      a failed read = every entry held).
-# @description The target dir goes as its owner (sudo -n -u <owner> rm -rf),
-# @description then the root's symlink to it. One PLAN|REMOVE / KEEP line per
-# @description entry, then DONE with the count and MB. Rollback: the runner
+# @description It fails closed (SPL-5251): a run where sudo -n cannot run
+# @description stops with FATAL before any verdict, and an entry where a
+# @description root read (the .runner test, the .credentials* and the
+# @description recent-file finds, du) fails as a sudo failure, not as a clean
+# @description "not found", is KEEP unreadable, never removed.
+# @description The target dir is emptied as its owner (sudo -n -u <owner>
+# @description rm -rf), then root rmdirs it (an empty dir only: its parent is
+# @description root 755, which the owner cannot write), then the root's
+# @description symlink to it. One PLAN|REMOVE / KEEP / WARN line per entry,
+# @description then DONE with the count, the MB really freed and the failed
+# @description count; a WARN (an entry left behind, with what it freed) makes
+# @description the run exit 1. Rollback: the runner
 # @description tarball in the root and do_gh_runner_add. Not a step of the
 # @description box disk sweep: run it by hand. Dry run unless DRY_RUN=0.
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -53,24 +62,60 @@ ghrd_held() {
   return 1
 }
 
-# ghrd_why <name> <dir> <age_d> - prints the KEEP reason, empty when it may go
+# ghrd_sread <cmd>... - <cmd> as root (sudo -n): its stdout, then a last line
+# rc=<its exit code>. No rc= line means sudo itself failed (no rule, a
+# password asked, a timeout), which is never read as "not found".
+ghrd_sread() {
+  # shellcheck disable=SC2016
+  sudo -n sh -c '"$@"; echo "rc=$?"' sh "$@" 2>/dev/null
+}
+
+# ghrd_rc <out> - the rc of a ghrd_sread output, empty when sudo failed
+ghrd_rc() { [[ "${1##*$'\n'}" =~ ^rc=([0-9]+)$ ]] && echo "${BASH_REMATCH[1]}"; }
+
+# ghrd_found <find args>... - find as root: 0 found, 1 none, 2 unreadable
+ghrd_found() {
+  local out; out="$(ghrd_sread find "$@")"
+  [[ "$(ghrd_rc "$out")" == 0 ]] || return 2
+  [[ "$out" != rc=0 ]]
+}
+
+# ghrd_mb <dir> - the dir's size in MB, read as root; non-zero when unreadable
+ghrd_mb() {
+  local out mb; out="$(ghrd_sread du -xsm -- "$1")"
+  [[ "$(ghrd_rc "$out")" == 0 ]] || return 1
+  mb="${out%%[[:space:]]*}"; [[ "$mb" =~ ^[0-9]+$ ]] || return 1
+  echo "$mb"
+}
+
+# ghrd_why <name> <dir> <age_d> - prints the KEEP reason, empty when it may go;
+# a root read that fails as a sudo failure is "unreadable"
 ghrd_why() {
-  local name="$1" dir="$2" age_d="$3"
+  local name="$1" dir="$2" age_d="$3" rc
   [[ -f "$dir/run.sh" && -f "$dir/config.sh" && -e "$dir/bin/Runner.Listener" ]] || { echo "not-a-runner"; return 0; }
-  sudo -n test -e "$dir/.runner" && { echo "registered"; return 0; }
-  [[ -n "$(sudo -n find "$dir" -maxdepth 1 -name '.credentials*' -print -quit 2>/dev/null)" ]] && { echo "registered"; return 0; }
+  rc="$(ghrd_rc "$(ghrd_sread test -e "$dir/.runner")")"
+  [[ "$rc" == 0 ]] && { echo "registered"; return 0; }
+  [[ "$rc" == 1 ]] || { echo "unreadable"; return 0; }
+  ghrd_found "$dir" -maxdepth 1 -name '.credentials*' -print -quit; rc=$?
+  (( rc == 0 )) && { echo "registered"; return 0; }
+  (( rc == 1 )) || { echo "unreadable"; return 0; }
   systemctl list-unit-files --no-legend 'actions.runner.*' 2>/dev/null |
     awk -v s=".$name.service" '{ n = $1 } length(n) > length(s) && substr(n, length(n) - length(s) + 1) == s { f = 1 } END { exit !f }' &&
     { echo "unit"; return 0; }
-  [[ -n "$(sudo -n find "$dir" -xdev ! -type d -newermt "-${age_d} days" -print -quit 2>/dev/null)" ]] && { echo "recent"; return 0; }
+  ghrd_found "$dir" -xdev ! -type d -newermt "-${age_d} days" -print -quit; rc=$?
+  (( rc == 0 )) && { echo "recent"; return 0; }
+  (( rc == 1 )) || { echo "unreadable"; return 0; }
   return 0
 }
 
-# ghrd_remove <entry> <dir> - rm -rf the dir as its owner, then the link
+# ghrd_remove <entry> <dir> - empty the dir as its owner, rmdir it as root
+# (the owner cannot unlink it from a root 755 parent; rmdir takes an empty
+# dir only), then the link
 ghrd_remove() {
   local entry="$1" dir="$2" owner
   owner="$(stat -c %U -- "$dir")" || return 1
-  sudo -n -u "$owner" rm -rf -- "$dir" || return 1
+  sudo -n -u "$owner" rm -rf -- "$dir" 2>/dev/null
+  [[ -e "$dir" ]] && sudo -n rmdir -- "$dir" 2>/dev/null
   [[ ! -e "$dir" ]] || return 1
   if [[ -L "$entry" ]]; then sudo -n rm -f -- "$entry" || return 1; fi
   return 0
@@ -82,7 +127,8 @@ do_gh_runner_dirs_sweep() {
   [[ "$age_d" =~ ^[0-9]+$ ]] && (( age_d >= 1 )) || { do_log "FATAL GH_RUNNER_DIRS_AGE_D must be a whole number >= 1"; return 1; }
   root="$(readlink -f -- "$root" 2>/dev/null)"
   [[ -n "$root" && "$root" != / && -d "$root" ]] || { do_log "FATAL GH_RUNNER_DIRS_ROOT must be a dir other than /"; return 1; }
-  local entry name dir why mb n=0 tot=0 fail=0 procs="" read_ps=0
+  sudo -n true 2>/dev/null || { do_log "FATAL sudo -n cannot run here: every root read would fail, so no entry can be judged; nothing done"; return 1; }
+  local entry name dir why mb left n=0 nf=0 tot=0 procs="" read_ps=0
   ghrd_say "START root=$root dry_run=$dry age_d=$age_d"
   while IFS= read -r -d '' entry; do
     name="${entry##*/}"; dir="$(readlink -f -- "$entry" 2>/dev/null)"
@@ -93,13 +139,17 @@ do_gh_runner_dirs_sweep() {
       ghrd_held "$procs" "$entry" "$dir" && why="held"
     fi
     [[ -n "$why" ]] && { ghrd_say "KEEP $why $entry"; continue; }
-    mb="$(sudo -n du -xsm -- "$dir" 2>/dev/null | cut -f1)"; mb="${mb:-0}"
+    mb="$(ghrd_mb "$dir")" || { ghrd_say "KEEP unreadable $entry"; continue; }
     if [[ "$dry" == 1 ]]; then ghrd_say "PLAN remove ${mb}MB $entry -> $dir"
     elif ghrd_remove "$entry" "$dir"; then ghrd_say "REMOVE ${mb}MB $entry -> $dir"
-    else ghrd_say "WARN could not remove $entry -> $dir"; fail=1; continue
+    else
+      left=0; [[ -e "$dir" ]] && { left="$(ghrd_mb "$dir")" || left="$mb"; }
+      (( left > mb )) && left="$mb"
+      ghrd_say "WARN could not remove $entry -> $dir, freed $((mb - left))MB of ${mb}MB"
+      nf=$((nf + 1)); tot=$((tot + mb - left)); continue
     fi
     n=$((n + 1)); tot=$((tot + mb))
   done < <(find "$root" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null | sort -z)
-  ghrd_say "DONE $([[ "$dry" == 1 ]] && echo would-remove || echo removed)=$n (${tot} MB) dry_run=$dry"
-  return "$fail"
+  ghrd_say "DONE $([[ "$dry" == 1 ]] && echo would-remove || echo removed)=$n (${tot} MB) failed=$nf dry_run=$dry"
+  (( nf == 0 ))
 }

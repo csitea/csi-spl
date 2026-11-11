@@ -82,6 +82,9 @@
         :aria-label="t('ws_doctree.open')"
       >
         <UiIcon name="file-text" :size="20" />
+        <!-- SPL-5336 (owner HUM-10, t1 b3ed7ef5): the docs icon always carries
+             its word, as the phone strip's tabs do, on phone and desktop -->
+        <span class="sidebar-tab__label" data-testid="qto-open-label" aria-hidden="true">{{ t('docs.title') }}</span>
       </NuxtLink>
       <!-- SPL-1037 (specs/046): the app / tenant settings, admins and
            biz_owners only; owner 2026-09-28: a gear -->
@@ -143,6 +146,7 @@
           </NuxtLink>
           <NuxtLink v-if="qtoShown" v-tap-anim="'lift'" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')" :data-current="railLinkOn('docs') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="file-text" :size="20" />
+            <span class="sidebar-tab__label">{{ t('docs.title') }}</span>
           </NuxtLink>
           <NuxtLink v-if="tenantSettingsShown" v-tap-anim="'bounce'" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')" :data-current="railLinkOn('settings') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="settings" :size="20" />
@@ -1068,6 +1072,29 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   width: min(22px, 70cqi);
   height: min(22px, 70cqi);
 }
+/* SPL-5336: the docs link names itself under its icon on desktop too,
+   in the "Show labels" style of the tabs (main.css) */
+.sidebar-rail__qto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 2px;
+  box-sizing: border-box;
+  aspect-ratio: auto;
+  line-height: 1.15;
+  container-type: normal;
+}
+.sidebar-rail__qto :deep(svg) { width: 20px; height: 20px; flex: none; }
+.sidebar-rail__qto .sidebar-tab__label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.625rem;
+}
 /* The strip owns the width (main.css, at most 5vw). These buttons fill
    that width and must not impose a 32px min that would push past the cap. */
 .sidebar-tab {
@@ -1571,7 +1598,8 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   .sidebar-tab[data-on="true"] :deep(svg) { width: 20px; height: 20px; }
   .sidebar-tab__label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 0.6875rem; white-space: nowrap; }
   .sidebar-tab[aria-selected="true"] .sidebar-tab__label,
-  .sidebar-tab[data-on="true"] .sidebar-tab__label { font-weight: 700; }
+  .sidebar-tab[data-on="true"] .sidebar-tab__label,
+  .sidebar-rail__qto[data-current="true"] .sidebar-tab__label { font-weight: 700; }
   /* the endless strip's copies: [before][real][after], one row, same gap */
   .sidebar-rail__loop { display: flex; flex: 0 0 auto; gap: inherit; }
   .sidebar-rail__loop[data-loop="before"] { order: -1; }
@@ -1590,6 +1618,10 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   .sidebar-rail__help :deep(svg),
   .sidebar-rail__qto :deep(svg),
   .sidebar-rail__settings :deep(svg) { width: 22px; height: 22px; }
+  /* SPL-5336: the docs link is laid out as a named tab (icon over its word) */
+  .sidebar-rail__qto { padding: 4px 2px; aspect-ratio: auto; }
+  .sidebar-rail__qto .sidebar-tab__label { font-size: 0.6875rem; }
+  .sidebar-rail__qto[data-current="true"] :deep(svg) { width: 20px; height: 20px; }
   .sidebar.sidebar--rail { width: 100%; max-width: 100%; }
   .sidebar-body { padding-top: 4px; }
   .nav-row > .nav-item { min-height: 48px; }

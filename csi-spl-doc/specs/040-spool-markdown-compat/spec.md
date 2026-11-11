@@ -44,6 +44,7 @@ that works; it is no longer needed.
 | FR-MD-012 | A plain body (one line, `**bold**`, a link, a code block) and a body whose markdown is only inside a ```` ```md ```` fence render exactly as before. | Implemented (T009) |
 | FR-MD-013 | An issue description is rendered markdown; a click, Enter or `e` opens the editor with the raw text; a click elsewhere saves it; a failed save keeps the editor and says so (`IssueDescription.vue`). | Implemented (T010) |
 | FR-MD-014 | Agents are told how to post in ONE place, `doc/help/how-to-post.md`; tool help, seed prompts and action help point to it. | Implemented (T011) |
+| FR-MD-015 | A rendered table with a header row and >= 3 body rows sorts by a click, tap, Enter or Space on a column header (owner HUM-10, t1 8f983920: "Make all of the tables in the topics' msgs sortable"; md-tables panel plan v1.0 section 3.2, SPL-2466 rows 04, 05, 09): ascending, descending, then the author's order, with `aria-sort` on the th. A column sorts as numbers with units (sizes and durations scaled), ISO dates or clock times when >= 80% of its filled cells parse so, else as text (`Intl.Collator`, numeric); empty cells (`-`, `—`, `N/A`) stay last both ways and ties keep the author's order. A 1-2 row table, a colspan / rowspan table and a `no-sort` table stay static. The sort is a view: Show source and a copied post keep the author's order (`utils/table-sort.ts`, `MdTable.vue`, a lazy chunk loaded only for a post that holds a table). | Implemented (SPL-5292) |
 
 ## 2. Decisions
 

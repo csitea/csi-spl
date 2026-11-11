@@ -44,6 +44,7 @@ import { useSessionStore } from '~/stores/session'
 import CodeBlock from '~/components/CodeBlock.vue'
 import MessageRuns from '~/components/MessageRuns.vue'
 import { appLinkText, useAppLinkLabel } from '~/composables/useAppLinkLabel'
+import type MdTableComp from '~/components/MdTable.vue'
 
 const props = defineProps<{ text: string, bare?: boolean, anchors?: boolean }>()
 const emit = defineEmits<{ rendered: [on: boolean] }>()
@@ -72,6 +73,8 @@ const tree = shallowRef<MdNode[] | null>(null)
 let tags: Set<string> = new Set()
 /* SPL-2466 row 02: a table's hint classes, filtered again at the DOM (markdown.mjs safeTableClass) */
 let tableClass: (v: unknown) => string = () => ''
+/* SPL-2466 row 05: the sortable table, a lazy chunk loaded for a post that holds a table */
+const mdTable = shallowRef<typeof MdTableComp | null>(null)
 /* only the newest render may write; an older one that resolves late is dropped */
 let seq = 0
 
@@ -94,7 +97,13 @@ watch(
       tableClass = safeTableClass
       /* SPL-1291: a doc link opens /docs/<path> (cnf repoWebUrl) */
       const docsRepo = String(pub.repoWebUrl || '')
-      tree.value = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo, docPath: docs ? docs.resolve : null, anchors: props.anchors })
+      const next = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo, docPath: docs ? docs.resolve : null, anchors: props.anchors })
+      if (!mdTable.value && next.some(holdsTable)) {
+        /* a failed chunk leaves the table as written, unsortable */
+        mdTable.value = await import('~/components/MdTable.vue').then((m) => m.default, () => null)
+        if (mine !== seq) return
+      }
+      tree.value = next
       emit('rendered', true)
     } catch {
       /* the source stays readable */
@@ -103,6 +112,10 @@ watch(
   { immediate: true },
 )
 
+
+function holdsTable(n: MdNode): boolean {
+  return typeof n !== 'string' && (n.tag === 'table' || n.children.some(holdsTable))
+}
 
 /* a link opens and the row under it does not also open its topic, select,
    or start an edit (the same rule as MessageBody's links). Internal links
@@ -153,6 +166,8 @@ function node(n: MdNode, inCode = false): VNodeChild {
     const src = typeof code === 'string' ? code : (code?.children || []).filter((c) => typeof c === 'string').join('')
     return h(CodeBlock, { text: src, lang: n.attrs['data-lang'] || '' })
   }
+  /* SPL-2466 row 05: MdTable draws the rows (in the sorted order) through node() */
+  if (n.tag === 'table' && mdTable.value && tags.has('table')) return h(mdTable.value, { node: n, cls: tableClass(n.attrs.class), render: node })
   const kids = n.children.map((k) => node(k, inCode || n.tag === 'code'))
   // the tree is allow-listed already; the check here keeps it that way
   if (!tags.has(n.tag)) return kids
@@ -349,6 +364,28 @@ MdNodes.props = ['nodes', 'stamp']
 .md-block :deep(.md-table :where(tbody > tr:hover, table > tr:hover)) {
   background: color-mix(in srgb, var(--color-fg) 4%, transparent);
 }
+/* SPL-2466 row 05: a sortable header is a button that looks like the header
+   (SheetSortButton's look); the sorted column shows its triangle, the
+   others a faint one on hover or focus */
+.md-block :deep(.md-th-sort) {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.md-block :deep(.md-th-sort__mark) {
+  display: inline-block;
+  min-width: 0.75em;
+  margin-inline-start: 4px;
+  font-size: 0.625rem;
+  color: var(--color-fg);
+}
+.md-block :deep(.md-th-sort:not([data-sorted]):hover .md-th-sort__mark)::before,
+.md-block :deep(.md-th-sort:not([data-sorted]):focus-visible .md-th-sort__mark)::before { content: '▲'; opacity: 0.35; }
 .md-block :deep(.md-table--compact :where(th, td)) { padding: 0.2em 0.4em; }
 .md-block :deep(.md-table--compact table) { font-size: 0.8125rem; }
 .md-block :deep(.md-table--dense table) {

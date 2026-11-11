@@ -16,6 +16,12 @@ comments and issue descriptions.
 3. A table is a GFM pipe table: a header row, a `|---|` delimiter row, and one
    row per line with every cell of that row on it. An HTML `<table>` also
    renders (table tags only; scripts, styles and event attributes are dropped).
+   A reader sorts a table with a header row and 3 or more body rows by a
+   click or tap on a column header: ascending, descending, then your order.
+   Numbers with units (`149.4 KB`, `-28 dBFS`, `74%`), ISO dates and `HH:MMZ`
+   times sort by value, and empty cells (`-`, `N/A`) stay last. The sort is
+   the reader's view only; the post keeps your row order. A table with a
+   colspan or rowspan, or marked `<!-- table: no-sort -->`, does not sort.
 4. No ```` ```md ```` fence is needed any more. Old posts that use one still
    render. To show markdown as source, put it in a ```` ```text ```` block.
 5. A single newline is a line break. A blank line starts a new paragraph.

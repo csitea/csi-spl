@@ -47,7 +47,10 @@
 #      this box = delivered, the body naming c-507@box-a. An owner pane seat
 #      (c-004's brief line) = hinted idle by design, poke / restart /
 #      close-ask refused; a standing seat (heading, "Standing seat: stay up",
-#      lifetime/standing) = no close-ask; CONTROL: a plain lane is closed
+#      lifetime/standing, "# Brief: the standing ... seat") = no close-ask;
+#      CONTROL: a plain lane, and lanes whose title or heading only names a
+#      standing seat, are closed. A box tag != its machine: <id>@<machine> is
+#      this box for begin and poke
 #  15. close-ask with a landed claim (SPL-3270), in a throwaway repo: a sha
 #      on origin/master = sent; a sha on a side branch only = refused, nothing
 #      sent; an 8-hex msg id that is no commit = sent; no sha = sent
@@ -504,6 +507,23 @@ standing18 c-984 '# Lane brief: row 3, review by the round standing reviewer c-2
 check "18. CONTROL: a plain lane with ACCEPTED (its brief names another standing reviewer) = close-ask sent" '[ "$rc" = 0 ] && [ "$(sent "--task gc-c-984")" = 1 ]'
 standing18 c-985 '# Lane brief: a GC bug\n\nIts brief makes c-981 a STANDING seat ("Standing seat: stay up"). A standing seat is never done.\n'
 check "18. CONTROL: a lane whose brief quotes another seat's \"Standing seat: stay up\" = close-ask sent" '[ "$rc" = 0 ] && [ "$(sent "--task gc-c-985")" = 1 ]'
+# N1 (R7 c-781 f2578445): a title or heading that only NAMES a standing seat
+# is a lane. Verbatim from 3 lane briefs (the reviewer of this fix among them).
+standing18 c-986 '# Lane brief: bug - the watchdog S1 restarts an idle standing seat whose plan line is a monitor wait (one small task, claude)\n'; r1=$rc
+standing18 c-987 '# Lane brief: SPL-5317 R7 code review of a1f1e8706 (the GC never pokes a same-id seat of another box, nor an owner pane seat; no close-ask for a standing seat)\n'; r2=$rc
+standing18 c-988 '# Lane brief: a CI caps test races the hub log\n\n## The red (diagnosed by the standing CI seat c-296@box-b, msg c6175e5e)\n'; r3=$rc
+check "18. CONTROL: lanes whose title or a heading only names a standing seat = close-ask sent (x3)" '[ "$r1$r2$r3" = 000 ] && [ "$(sent "--task gc-c-98[678]")" = 3 ]'
+standing18 c-989 '# Brief: the standing CI-refactor seat - one measured CI change per round (claude, complex_coding, CI only)\n'
+check "18. a \"# Brief: the standing ... seat\" title = no close-ask (exit 4)" '[ "$rc" = 4 ] && [ "$(sent "--task gc-c-989")" = 0 ]'
+# N3: the box tag (SPOOL_BOX_TAG) differs from the machine (ROTATE_BOX); a
+# qualified <id>@<machine> is this box for begin and poke, the body names the tag.
+reset; lane c-507; gc start "$H0" SPOOL_BOX_TAG=tag-a
+gc begin $(( H0 + 1 )) SPOOL_BOX_TAG=tag-a AGENT_ID=c-507@box-a
+check "18. tag != machine: begin c-507@box-a (the machine) = begun (exit 0)" '[ "$rc" = 0 ] && grep -q "^BEGIN c-507:" "$T/out"'
+gc poke $(( H0 + 2 )) SPOOL_BOX_TAG=tag-a AGENT_ID=c-507@box-a GC_HINT="a-336@box-a waits on c-507@tag-a"
+check "18. tag != machine: poke c-507@box-a, GC_HINT naming the tag and the machine = one note to c-507@tag-a" '[ "$rc" = 0 ] && [ "$(sent "--to c-507 --kind note --task gc-c-507 --body GC (tag-a, .*) to c-507@tag-a: you look stuck")" = 1 ]'
+gc poke $(( H0 + 3 )) SPOOL_BOX_TAG=tag-a AGENT_ID=c-507@box-b GC_HINT="x"
+check "18. tag != machine: poke c-507@box-b = refused (exit 4), no second note" '[ "$rc" = 4 ] && [ "$(sent)" = 1 ]'
 check "18. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 check "14. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'

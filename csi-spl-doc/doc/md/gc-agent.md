@@ -117,10 +117,14 @@ An id with 2+ panes is judged in the pane whose process carries `SPOOL_AGENT_ID=
   unless the owner says so (it answers the owner in its pane) is hinted
   `idle by design` and scanned only: `poke`, `restart` and `close-ask` refuse.
   Its questions to the owner are not "stuck" (11-11, c-004).
-- **A standing seat is never done**: `lifetime/standing`, a brief heading
-  naming it a standing seat, "You are a STANDING seat", a "- STANDING seat:"
-  item or "Standing seat: stay up" refuse `close-ask`, ACCEPTED or not
-  (11-11, c-981).
+- **A standing seat is never done**: `lifetime/standing`, a brief title
+  marking the seat itself standing ("(standing seat, ..." or "# Brief: the
+  standing ... seat"), "You are a STANDING seat", a "- STANDING seat:" item
+  or "Standing seat: stay up" opening a line or a sentence refuse
+  `close-ask`, ACCEPTED or not (11-11, c-981). A title or heading that only
+  names a standing seat ("Lane brief: bug - the watchdog restarts an idle
+  standing seat") and a brief quoting another seat's "Standing seat: stay
+  up" are lanes, closed as any lane.
 - **Never kill by pattern**: the restart is the fleet's one restart path.
 
 <a id="ws-doc-560b258f-ba09-42fe-92fa-652c9b3a7a9f"></a>

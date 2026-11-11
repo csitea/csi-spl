@@ -433,15 +433,18 @@ spl_gc_pane_seat() {
 }
 
 # The marker that makes ID a standing seat, else rc 1: lifetime/standing (the
-# lane rotation's rule), a heading naming it a standing seat, "You are a
+# lane rotation's rule), the brief's title marking the seat itself standing
+# ("(standing seat, ..." or "# Brief: the standing ... seat"), "You are a
 # STANDING seat", a "- STANDING seat:" item or "Standing seat: stay up" opening a
 # line or a sentence (a brief that quotes it about another seat is no marker).
+# A title or heading that only names a standing seat is no marker either: a
+# "Lane brief: bug - the watchdog restarts an idle standing seat" is a lane.
 # 11-11: the GC asked to close the standing c-981 as "done and idle".
 spl_gc_standing() {
   local b q
   [[ -f "$SPOOL_ROOT/$1/lifetime/standing" ]] && { echo "lifetime/standing"; return 0; }
   b="$(spl_gc_brief "$1")"
-  q="$(grep -m1 -iE '^#+ .*\bstanding\b[^.]*\bseat\b' "$b" 2>/dev/null)" ||
+  q="$(grep -m1 -iE '^# .*\(standing seat\b|^# (seat )?brief:.*\bstanding\b[^.]*\bseat\b' "$b" 2>/dev/null)" ||
     q="$(grep -m1 -oiE 'you are a standing seat[^.]*|^[-*] +standing seat:[^.]*|(^|[.;] +)standing seat: *stay up[^.]*' "$b" 2>/dev/null)" || return 1
   q="$(sed -E 's/^[.;] +//' <<<"$q")"
   printf '%s\n' "${q:0:160}"

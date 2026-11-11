@@ -753,10 +753,20 @@ to log in each time)".
 
 - `env.cost.gcp.billing_sa` = `spl-billing`, in `export_project`
   (`csi-spl-all`, the cnf's "-all").
-- `do_gcp_billing_sa_create` (dry run unless `DRY_RUN=0`, the owner's go)
-  creates it as the csi-spl-all SA and grants `roles/bigquery.jobUser` on
-  csi-spl-all. It only PRINTS the owner's own steps, because no project SA holds
-  a role on a billing account:
+- Terraform step `002-gcp-billing-sa` (SPL-5265; owner, f655b326: "the sa
+  account must be created as terraform step") creates it and grants
+  `roles/bigquery.jobUser` on csi-spl-all, and nothing else. It is rendered
+  from prd only and runs as the csi-spl-all SA, its state in
+  `csi-spl-all-tfstate` (the 059 pattern); its own state means adding it
+  recreates no other step. Plan:
+  `cd csi-spl-orc && ENV=prd STEP=002-gcp-billing-sa make do-tf-plan`; the
+  apply is the owner's go. Its README:
+  `csi-spl-iac/src/terraform/002-gcp-billing-sa/README.md`.
+- `do_gcp_billing_sa_create` creates nothing since then (`DRY_RUN=0` is
+  refused), so the step is the one creator. As the csi-spl-all SA it reports
+  whether the SA and its jobUser exist, names the step when they do not, and
+  PRINTS the owner's own steps, which stay outside terraform because no
+  project SA holds a role on a billing account:
   - `roles/billing.viewer` and `roles/billing.user` on each billing account;
   - `roles/billing.projectManager` on a project it is to move;
   - BigQuery Data Viewer on the billing export dataset;

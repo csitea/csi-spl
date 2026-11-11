@@ -5,7 +5,7 @@
 # @description section 15, SPL-5220). Read only.
 # @description
 # @description Runs as the dedicated billing SA ONLY (cnf env.cost.gcp.billing_sa,
-# @description made by do_gcp_billing_sa_create): its key (BILLING_SA_KEY_FILE,
+# @description made by terraform step 002-gcp-billing-sa): its key (BILLING_SA_KEY_FILE,
 # @description default the per-env key pattern) is activated in a throwaway
 # @description CLOUDSDK_CONFIG, and every gcloud call carries --account. No
 # @description human login, never the owner account, never ~/.config/gcloud.

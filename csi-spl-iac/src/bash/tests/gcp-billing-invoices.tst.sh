@@ -13,9 +13,12 @@
 #      5. BigQuery denied -> WARNING, rc 0, the checklist still written.
 #      6. ids masked in the log, the token never in the log or argv; the out
 #         dir is mode 700.
-#   B. do_gcp_billing_sa_create: the dry run (default) prints 2 would-run and
-#      the owner steps, NO mutation; CONTROL DRY_RUN=0 makes the 2; everything
-#      present -> none; an owner (user) identity and DRY_RUN=2 are refused.
+#   B. do_gcp_billing_sa_create (read only since SPL-5265: terraform step
+#      002-gcp-billing-sa is the one creator): absent -> it names the step's
+#      plan command and prints the owner steps, NO mutation; present -> OK, no
+#      mutation; DRY_RUN=0 is refused before any gcloud call; an owner (user)
+#      identity and DRY_RUN=2 are refused. CONTROL: a copy of the action
+#      planted with a create call is caught by the same mutation check.
 #   C. do_gcp_billing_invoices_browser: refused (node never started) under
 #      AGENT_ID / CLAUDECODE / SPOOL_AGENT_ID, under SUDO_USER with those
 #      markers dropped (the fleet's `sudo -u <user> bash -c`), under an
@@ -154,18 +157,24 @@ done
 P=csi-spl-all@csi-spl-all.iam.gserviceaccount.com
 mutations() { grep -E '^gcloud (iam service-accounts create|.*add-iam-policy-binding)' "$T/log"; }
 run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P"
-grep -q '^rc=0$' "$T/o" && [[ "$(grep -c 'DRY_RUN would run' "$T/o")" -eq 2 ]] && [[ -z "$(mutations)" ]] \
-  && pass "sa_create: the default dry run prints 2 would-run (create, jobUser), no mutation" || fail "sa dry: $(cat "$T/o") / $(mutations)"
+grep -q '^rc=0$' "$T/o" && [[ -z "$(mutations)" ]] && grep -q 'WARN the SA and its jobUser missing: terraform step 002-gcp-billing-sa creates them: cd csi-spl-orc && ENV=prd STEP=002-gcp-billing-sa make do-tf-plan' "$T/o" \
+  && grep -q 'nothing was changed' "$T/o" \
+  && pass "sa_create: absent -> points to terraform step 002-gcp-billing-sa, no mutation" || fail "sa absent: $(cat "$T/o") / $(mutations)"
 grep -q "billing accounts add-iam-policy-binding <BILLING_ACCOUNT_ID> --member=serviceAccount:$SA --role=roles/billing.viewer --account=<OWNER_LOGIN>" "$T/o" \
   && grep -q 'role=roles/billing.user ' "$T/o" && grep -q 'role=roles/billing.projectManager ' "$T/o" \
   && grep -q "keys create \"\$HOME/.gcp/.csi/key-csi-spl-billing.json\" --iam-account=$SA" "$T/o" \
   && ! grep -qE '^gcloud billing accounts add-iam' "$T/log" \
   && pass "sa_create: the owner steps (viewer, user, projectManager, the key) are printed, never run" || fail "owner steps: $(cat "$T/o")"
+run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P" STATE=present
+grep -q '^rc=0$' "$T/o" && [[ -z "$(mutations)" ]] && grep -q "OK $SA exists with jobUser on csi-spl-all (terraform step 002-gcp-billing-sa)" "$T/o" \
+  && pass "sa_create: present -> OK, no mutation" || fail "sa present: $(cat "$T/o") / $(mutations)"
 run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P" DRY_RUN=0
-grep -q '^rc=0$' "$T/o" && [[ "$(mutations | wc -l)" -eq 2 ]] && [[ -z "$(mutations | grep -v -- "--account=$P")" ]] \
-  && pass "sa_create CONTROL: DRY_RUN=0 makes the 2 mutations, as the csi-spl-all SA" || fail "sa run: $(mutations) / $(cat "$T/o")"
-run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P" DRY_RUN=0 STATE=present
-grep -q '^rc=0$' "$T/o" && [[ -z "$(mutations)" ]] && pass "sa_create: everything present -> no mutation (idempotent)" || fail "sa idem: $(mutations)"
+grep -q '^rc=1$' "$T/o" && grep -q 'DRY_RUN=0 refused: this action creates nothing.*terraform step 002-gcp-billing-sa' "$T/o" && [[ ! -s "$T/log" ]] \
+  && pass "sa_create: DRY_RUN=0 -> refused before any gcloud call (the step is the one creator)" || fail "sa DRY_RUN=0: $(cat "$T/o") / $(cat "$T/log")"
+# CONTROL: the same check sees a create the action would make
+sed 's/gcloud iam service-accounts describe/gcloud iam service-accounts create/' "$SACR" >"$T/sacr-planted.sh"
+run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P" SACR="$T/sacr-planted.sh"
+[[ -n "$(mutations)" ]] && pass "sa_create CONTROL: a planted create call is caught by the mutation check" || fail "sa control: the planted create was not seen ($(cat "$T/log"))"
 run "$T/o" do_gcp_billing_sa_create STUB_PIN=owner@example.com
 grep -q '^rc=1$' "$T/o" && grep -q 'is no service account' "$T/o" && [[ -z "$(calls)" ]] \
   && pass "sa_create: an owner (user) identity -> refused before any call" || fail "sa owner: $(cat "$T/o")"

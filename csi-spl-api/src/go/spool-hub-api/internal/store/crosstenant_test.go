@@ -531,6 +531,13 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := seedMarketing(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// a linkedin_page channel (rdb 0275, spec 090 T041, SPL-5258): a LinkedIn
+	// Company Page with its sealed bundle, through the store API.
+	if _, err := pg.ConnectMarketingChannel(ctx, MarketingChannel{Tenant: s.tenant, Platform: MarketingPlatformLinkedInPage,
+		AccountRef: "1001", AccountType: "page", AccountName: "Page " + s.marker, DelegatedBy: hum},
+		MarketingToken{Ciphertext: "v1.sealed.page." + s.tenant, KMSKeyID: "kms/key/1"}, now); err != nil {
+		t.Fatal(err)
+	}
 	// marketing_drafts (rdb 0274, spec 090 section 22, SPL-5240): one draft
 	// carrying the marker, through the store API.
 	if _, err := pg.CreateMarketingDraft(ctx, MarketingDraft{Tenant: s.tenant, AuthorID: hum, Body: "draft " + s.marker}, now); err != nil {

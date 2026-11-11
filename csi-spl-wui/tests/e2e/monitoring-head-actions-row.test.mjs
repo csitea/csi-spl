@@ -23,6 +23,13 @@
 //     ROW_GAP px (it filled the row: flush on the line above the tabs and
 //     standing over them); the age keeps "<n> s" on one line, also in a
 //     narrower font (the owner's phone wrapped "Updated 3 | s ago")
+// SPL-5276 (owner HUM-10, t1 e1e97af9, msg 2dedcc73: "the refresh button
+// should be in the same place where the clear lock button is"): Lanes
+// follows the Event log. On a desktop its age, then Refresh LAST, where Clear
+// log is; Clear filters shows only while a filter is on, before Refresh. On
+// a touch screen only the age is on the row; Refresh is at the bottom centre
+// (monitoring-lanes-like-events.test.mjs measures both places), so 7's
+// in-row Refresh checks run for Topics and Tokens.
 // Plus the states without a list: first load (Refresh, no age, no Clear
 // filters), an empty answer (no Clear filters), forbidden (Refresh only), and
 // no empty row left where .ln-head was.
@@ -79,11 +86,13 @@ const ROW_GAP = 4
 const TABS_MIN = 110
 /* each tab, its controls (data-test, in row order) and the one it moves to next */
 const TABS = [
-  { id: 'lanes', ready: 'lanes-row', controls: ['lanes-refresh', 'lanes-age', 'lanes-filter-clear'], next: 'topics' },
+  { id: 'lanes', ready: 'lanes-row', controls: ['lanes-age', 'lanes-refresh'], phoneControls: ['lanes-age'], clearOnFilter: true, next: 'topics' },
   { id: 'topics', ready: 'topics-row', controls: ['topics-refresh', 'topics-age', 'topics-filter-clear'], next: 'tokens' },
   { id: 'tokens', ready: 'tokens-agent-row', controls: ['tokens-refresh', 'tokens-age'], next: 'lanes' },
 ]
-const ALL_CONTROLS = TABS.flatMap((t) => t.controls)
+const ALL_CONTROLS = [...TABS.flatMap((t) => t.controls), 'lanes-filter-clear']
+/* the controls on the row at this size: Lanes' Refresh leaves it on a touch screen (SPL-5276) */
+const rowControls = (tab, touch) => (touch && tab.phoneControls) || tab.controls
 
 const count = (p, sel) => p.$$eval(sel, (els) => els.length).catch(() => -1)
 const text = (p, sel) => p.$eval(sel, (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
@@ -164,6 +173,7 @@ function checkRow(tag, g, touch) {
 
 /** 7: on a touch screen, Refresh in the row: whole, apart, tappable, off the row's edges; "<n> s" unbroken. */
 async function checkPhone(p, tag, tab) {
+  if (tab.phoneControls) return checkAgeLines(p, tag, tab)
   const g = await p.evaluate((rid, aid) => {
     const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom } }
     const btn = document.querySelector(`[data-test=${rid}]`)
@@ -184,6 +194,11 @@ async function checkPhone(p, tag, tab) {
   ok(`${tag}: 7 Refresh overlaps neither the tab bar nor its age`, b && apart(b, g.nav) && apart(b, g.age), { btn: b && [Math.round(b.l), Math.round(b.r)], nav: g.nav && Math.round(g.nav.r), age: g.age && Math.round(g.age.l) })
   ok(`${tag}: 7 a tap at Refresh's middle reaches it`, g.hit)
   ok(`${tag}: 7 Refresh clears the row's top edge and bottom line by >= ${ROW_GAP} px`, b && g.row && b.t - g.row.t >= ROW_GAP - 0.5 && g.row.b - b.b >= ROW_GAP - 0.5, { top: b && g.row && Math.round(b.t - g.row.t), bottom: b && g.row && Math.round(g.row.b - b.b) })
+  await checkAgeLines(p, tag, tab)
+}
+
+/** 7: the age keeps "<n> s" on one line. */
+async function checkAgeLines(p, tag, tab) {
   /* the age's lines; "narrow" stands in for the owner's phone font (Roboto), narrower than the pinned DejaVu Sans */
   for (const narrow of [false, true]) {
     const lines = await p.$eval(`[data-test=${tab.id}-age]`, (e, n) => {
@@ -210,6 +225,7 @@ async function checkWorks(p, tag, tab) {
   await p.click(`[data-test=${tab.id}-refresh]`)
   const reset = await p.waitForFunction((sel) => /\b[0-2] s\b/.test(document.querySelector(sel)?.textContent || ''), { timeout: 8000 }, `[data-test=${tab.id}-age]`).then(() => true, () => false)
   ok(`${tag}: 5 Refresh reads again (the age back to 0..2 s)`, reset, [before, await text(p, `[data-test=${tab.id}-age]`)])
+  if (tab.clearOnFilter) return checkClearOnFilter(p, tag, tab)
   if (!tab.controls.includes(`${tab.id}-filter-clear`)) return
   const clear = `[data-test=${tab.id}-filter-clear]`
   const disabled = () => p.$eval(clear, (b) => b.disabled).catch(() => null)
@@ -223,12 +239,28 @@ async function checkWorks(p, tag, tab) {
   ok(`${tag}: 5 Clear filters brings every row back, and is disabled again`, back && (await disabled()) === true && (await count(p, `[data-test=${tab.id}-shown]`)) === 0)
 }
 
+/** 5 (SPL-5276, Lanes as the Event log): no Clear filters with no filter; a filter shows it before Refresh; a click clears it and it goes. */
+async function checkClearOnFilter(p, tag, tab) {
+  if (await p.$(`[data-test=${tab.id}-filters-open]`)) return /* a phone: Clear filters is in the Filters sheet (monitoring-lanes-url) */
+  const clear = `[data-test=${tab.id}-filter-clear]`
+  ok(`${tag}: 5 no Clear filters with no filter`, (await count(p, clear)) === 0)
+  const rows = await count(p, `[data-test=${tab.ready}]`)
+  await p.select(`[data-test=${tab.id}-filter-box]`, 'box-b')
+  const narrowed = await p.waitForFunction((s, n) => document.querySelectorAll(s).length < n, { timeout: 5000 }, `[data-test=${tab.ready}]`, rows).then(() => true, () => false)
+  const order = await p.$$eval('#monitoring-head-actions [data-test]', (els) => els.map((e) => e.getAttribute('data-test'))).catch(() => [])
+  ok(`${tag}: 5 a filter shows Clear filters on the row, before Refresh (last)`, narrowed && order.indexOf(`${tab.id}-filter-clear`) >= 0
+    && order.indexOf(`${tab.id}-filter-clear`) < order.indexOf(`${tab.id}-refresh`) && order[order.length - 1] === `${tab.id}-refresh`, { rows, order })
+  await p.click(clear)
+  const back = await p.waitForFunction((s, n) => document.querySelectorAll(s).length === n, { timeout: 5000 }, `[data-test=${tab.ready}]`, rows).then(() => true, () => false)
+  ok(`${tag}: 5 Clear filters brings every row back and goes`, back && (await count(p, clear)) === 0 && (await count(p, `[data-test=${tab.id}-shown]`)) === 0)
+}
+
 /** 6: on the next tab no control of this one stays. */
 async function checkLeave(p, tag, tab) {
   await p.click(`[data-test=monitoring-tab-${tab.next}]`)
   await waitFor(p, `[data-test=${tab.next}-page]`)
   await sleep(300)
-  const own = TABS.find((t) => t.id === tab.next).controls
+  const own = TABS.find((t) => t.id === tab.next).controls.concat(['lanes-refresh'])
   const left = await p.$$eval('#monitoring-head-actions [data-test]', (els, keep) => els.map((e) => e.getAttribute('data-test')).filter((id) => !keep.includes(id)), own).catch(() => ['?'])
   const stray = []
   for (const id of tab.controls) if ((await count(p, `[data-test=${id}]`)) > 0) stray.push(id)
@@ -242,7 +274,7 @@ async function oneTab(browser, base, size, tab) {
     await p.goto(base + `/monitoring/${tab.id}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     ok(`${tag}: the tab renders its rows`, await waitFor(p, `[data-test=${tab.ready}]`))
     await waitFor(p, `[data-test=${tab.id}-age]`)
-    checkRow(tag, await geometry(p, tab.controls), touch)
+    checkRow(tag, await geometry(p, rowControls(tab, touch)), touch)
     if (touch) await checkPhone(p, tag, tab)
     const head = { lanes: '.ln-head', topics: '.tp-head', tokens: '.tk-head' }[tab.id]
     const empty = await p.$$eval(head, (els) => els.filter((e) => e.children.length === 0 || e.getBoundingClientRect().height === 0).length).catch(() => -1)
@@ -256,12 +288,14 @@ async function oneTab(browser, base, size, tab) {
 /** The states without a list: first load, empty, forbidden. */
 async function states(browser, base, size) {
   const tag = `${size.width}x${size.height}`
+  /* SPL-5276: a touch screen's Refresh is at the bottom centre, outside the row */
+  const refreshSel = size.width < 800 ? '[data-test=lanes-refresh]:not(#monitoring-head-actions *)' : '#monitoring-head-actions [data-test=lanes-refresh]'
   {
     const { ctx, p } = await monitoringPage(browser, base, size, { lanes: 'empty' })
     await p.goto(base + '/monitoring/lanes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const empty = await waitFor(p, '[data-test=lanes-empty]')
     ok(`lanes ${tag} empty: Refresh and the age on the row, no Clear filters, no .ln-head row`, empty
-      && (await count(p, '#monitoring-head-actions [data-test=lanes-refresh]')) === 1 && (await count(p, '#monitoring-head-actions [data-test=lanes-age]')) === 1
+      && (await count(p, refreshSel)) === 1 && (await count(p, '#monitoring-head-actions [data-test=lanes-age]')) === 1
       && (await count(p, '[data-test=lanes-filter-clear]')) === 0 && (await count(p, '.ln-head')) === 0)
     await ctx.close()
   }
@@ -270,7 +304,7 @@ async function states(browser, base, size) {
     await p.goto(base + '/monitoring/lanes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const forbidden = await waitFor(p, '[data-test=lanes-forbidden]')
     ok(`lanes ${tag} forbidden: the sentence, Refresh on the row, no age, no Clear filters`, forbidden
-      && (await count(p, '#monitoring-head-actions [data-test=lanes-refresh]')) === 1
+      && (await count(p, refreshSel)) === 1
       && (await count(p, '[data-test=lanes-age]')) === 0 && (await count(p, '[data-test=lanes-filter-clear]')) === 0)
     await ctx.close()
   }
@@ -278,7 +312,7 @@ async function states(browser, base, size) {
     /* first load: the controls come with the client, Refresh before any answer */
     const { ctx, p } = await monitoringPage(browser, base, size)
     await p.goto(base + '/monitoring/lanes', { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
-    const refresh = await waitFor(p, '#monitoring-head-actions [data-test=lanes-refresh]')
+    const refresh = await waitFor(p, refreshSel)
     const age = await count(p, '[data-test=lanes-age]')
     const rows = await count(p, '[data-test=lanes-row]')
     ok(`lanes ${tag} first load: Refresh on the row; the age only with the answer`, refresh && (age === 0 || rows > 0), { age, rows })

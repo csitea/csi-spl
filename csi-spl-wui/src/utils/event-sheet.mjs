@@ -1,12 +1,27 @@
 // Sort and filter for the personal event log. The page already holds the
 // rows; nothing here calls the hub. SPL-3366. Spec 162 B1 (E1): the
 // request (METHOD path) and code (code, then name) columns.
+// SPL-5276: the column-sheet rules (the sort cycle, the sort words, a text or
+// choice filter per column, the present values) live in column-sheet.mjs,
+// which Monitoring -> Lanes shares; this file keeps what is the log's own.
+
+import {
+  emptySheetFilters,
+  emptySheetSort,
+  nextSheetSort,
+  sheetFiltersActive,
+  sheetPresentValues,
+  sheetRowMatches,
+  sheetSortDirKey,
+  sheetSortLabel,
+  sheetTextHas,
+} from './column-sheet.mjs'
 
 /** @typedef {{ col: string, dir: string }} EventSort */
 /** @typedef {{ when: string, id: string, source: string, status: string, request: string, code: string, message: string, route: string }} EventFilters */
 
 export const EVENT_COLUMNS = [
-  { col: 'when', key: 'events.col_when', kind: 'text' },
+  { col: 'when', key: 'events.col_when', kind: 'text', words: 'date' },
   { col: 'id', key: 'events.col_id', kind: 'text' },
   { col: 'source', key: 'events.col_source', kind: 'choice' },
   { col: 'status', key: 'events.col_status', kind: 'choice' },
@@ -16,49 +31,32 @@ export const EVENT_COLUMNS = [
   { col: 'route', key: 'events.col_route', kind: 'text' },
 ]
 
-const FILTER_KEYS = ['when', 'id', 'source', 'status', 'request', 'code', 'message', 'route']
-
 /** @returns {EventSort} */
 export function emptyEventSort() {
-  return { col: '', dir: '' }
+  return emptySheetSort()
 }
 
 /** @returns {EventFilters} */
 export function emptyEventFilters() {
-  return { when: '', id: '', source: '', status: '', request: '', code: '', message: '', route: '' }
-}
-
-function knownColumn(col) {
-  return EVENT_COLUMNS.some((c) => c.col === col)
+  return /** @type {EventFilters} */ (emptySheetFilters(EVENT_COLUMNS))
 }
 
 /** A header click: none → asc → desc → none. A new column starts at asc. */
 export function nextEventSort(col, cur) {
-  if (!knownColumn(col)) return emptyEventSort()
-  if (!cur || cur.col !== col) return { col, dir: 'asc' }
-  if (cur.dir === 'asc') return { col, dir: 'desc' }
-  return emptyEventSort()
+  return nextSheetSort(col, cur, EVENT_COLUMNS)
 }
 
 /** When uses the date words. Every other column, including status, uses the text words. */
 export function eventSortDirKey(col, dir) {
-  const date = col === 'when'
-  if (dir === 'desc') return date ? 'issues_mobile.dir_date_desc' : 'issues_mobile.dir_text_desc'
-  return date ? 'issues_mobile.dir_date_asc' : 'issues_mobile.dir_text_asc'
+  return sheetSortDirKey(dir, col === 'when' ? 'date' : 'text')
 }
 
-function columnKey(col) {
-  const hit = EVENT_COLUMNS.find((c) => c.col === col)
-  return hit ? hit.key : 'events.col_when'
-}
+/** The log's own order, the label of no sort: When, newest first. */
+const EVENT_DEFAULT_SORT = { colKey: 'events.col_when', dirKey: 'issues_mobile.dir_date_desc' }
 
 /** Default (no column selected) still reads as When, newest first. */
 export function eventSortLabel(sort) {
-  const active = !!(sort && sort.col && (sort.dir === 'asc' || sort.dir === 'desc'))
-  if (!active) {
-    return { colKey: 'events.col_when', dirKey: 'issues_mobile.dir_date_desc', active: false }
-  }
-  return { colKey: columnKey(sort.col), dirKey: eventSortDirKey(sort.col, sort.dir), active: true }
+  return sheetSortLabel(sort, EVENT_COLUMNS, EVENT_DEFAULT_SORT)
 }
 
 /** Milliseconds of at, else received_at. Missing or unparseable is 0. */
@@ -131,13 +129,10 @@ export function sortEvents(rows, sort) {
 
 /** True when any filter field has text that is not only spaces. */
 export function filtersActive(filters) {
-  if (!filters) return false
-  return FILTER_KEYS.some((key) => String(filters[key] || '').trim() !== '')
+  return sheetFiltersActive(filters, EVENT_COLUMNS)
 }
 
-function contains(hay, needle) {
-  return String(hay || '').toLowerCase().includes(needle)
-}
+const contains = sheetTextHas
 
 function utcDay(row) {
   const n = eventInstant(row)
@@ -158,26 +153,22 @@ function whenMatches(row, q) {
   return day !== '' && utcDay(row) === day
 }
 
+/* the log's own cells: When reads the time or its UTC day, a status is the
+   number as sent; every other column is the shared text or choice rule */
+const EVENT_CELLS = {
+  textOf,
+  choiceOf: (row, col) => String((row && row[col]) || ''),
+  custom: (row, col, q) => {
+    if (col === 'when') return whenMatches(row, q.toLowerCase())
+    if (col === 'status') return String(row && row.status) === q
+    return undefined
+  },
+}
+
 function rowMatches(row, filters, pinId) {
   if (pinId && row && String(row.id) === String(pinId)) return true
   if (!filtersActive(filters)) return true
-  const when = String(filters.when || '').trim().toLowerCase()
-  const id = String(filters.id || '').trim().toLowerCase()
-  const source = String(filters.source || '').trim()
-  const status = String(filters.status || '').trim()
-  const request = String(filters.request || '').trim().toLowerCase()
-  const code = String(filters.code || '').trim().toLowerCase()
-  const message = String(filters.message || '').trim().toLowerCase()
-  const route = String(filters.route || '').trim().toLowerCase()
-  if (when && !whenMatches(row, when)) return false
-  if (id && !contains(row && row.error_id, id)) return false
-  if (source && String((row && row.source) || '').trim() !== source) return false
-  if (status !== '' && String(row && row.status) !== status) return false
-  if (request && !contains(eventRequestText(row), request)) return false
-  if (code && !contains(eventCodeText(row), code)) return false
-  if (message && !contains(row && row.message, message)) return false
-  if (route && !contains(row && row.route, route)) return false
-  return true
+  return sheetRowMatches(row, filters, EVENT_COLUMNS, EVENT_CELLS)
 }
 
 /** Rows that match. pinId stays even when the filter would hide it. */
@@ -201,15 +192,7 @@ function cmpNumStr(a, b) {
 
 /** Values present on the loaded rows. Status is numeric. Blanks are dropped. */
 export function presentValues(rows, field) {
-  const list = Array.isArray(rows) ? rows : []
-  const seen = new Set()
-  for (const row of list) {
-    const value = choiceValue(row, field)
-    if (value !== '') seen.add(value)
-  }
-  const out = [...seen]
-  out.sort(field === 'status' ? cmpNumStr : (a, b) => cmpText(a, b))
-  return out
+  return sheetPresentValues(rows, (row) => choiceValue(row, field), field === 'status' ? cmpNumStr : cmpText)
 }
 
 /** Filter, then sort. `pinId` stays in the list even when the filter would hide it. */

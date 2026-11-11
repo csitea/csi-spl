@@ -48,20 +48,35 @@
      the origin issue link through the one `type:id` renderer
      (composables/useLaneLinks.ts -> utils/note-links.mjs), on the workspace
      host they belong to, at render time; `unknown` and an id with no known
-     host stay text. -->
+     host stay text.
+     Like the Event log (SPL-5276; owner HUM-10, t1 e1e97af9, msgs 7ccb6bfa
+     and 2dedcc73: "Sorting and filtering in lanes should behave exactly as
+     sorting and filtering for the event log", "the refresh button should be
+     in the same place where the clear lock button is"): the sheet is the
+     Event log's (components/SheetHead.vue, SheetPhoneBar.vue,
+     utils/column-sheet.mjs). On a desktop each name sorts (▲, ▼, then the
+     hub's order) and the row under the names holds one filter per column; on
+     a phone a bar shows the sort in words and opens a Sort and a Filters
+     sheet. Clear filters shows while a filter is on, before the last action.
+     Refresh takes Clear log's place: the right end of the tabs' row on a
+     desktop, the bottom centre above the dock on a phone
+     (components/PhoneDockButton.vue). -->
 <template>
   <div class="monitoring-lanes" data-test="lanes-page">
-    <!-- 3.16 (SPL-4730; owner HUM-10, t1 3238db2c, msg 2dd25d62): Refresh,
-         its age and Clear filters sit on the tabs' row, on the right
+    <!-- 3.16 (SPL-4730; owner HUM-10, t1 3238db2c, msg 2dd25d62): the age,
+         Clear filters and Refresh sit on the tabs' row, on the right
          (monitoring.vue #monitoring-head-actions); client only, as Events'
-         Clear log: the prerendered tab has no answer yet -->
+         Clear log: the prerendered tab has no answer yet. SPL-5276: in the
+         Event log's order, Clear filters (desktop, a filter on) and then
+         Refresh last, where Clear log is; a phone's Refresh is at the
+         bottom centre, as its Clear log -->
     <ClientOnly>
       <Teleport to="#monitoring-head-actions" defer>
-        <button type="button" class="btn ln-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="lanes-refresh" @click="refresh()">
+        <span v-if="view" class="ln-age" :data-stale="stale" data-test="lanes-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
+        <button v-if="view && view.lanes.length && !phone && filtered" type="button" class="btn ghost" data-test="lanes-filter-clear" @click="clearFilters()">{{ t('issues.filter_clear') }}</button>
+        <button v-if="!phone" type="button" class="btn ln-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="lanes-refresh" @click="refresh()">
           <UiIcon name="refresh" class="mh-icon" /><span class="mh-label">{{ t('monitoring.tokens.refresh') }}</span>
         </button>
-        <span v-if="view" class="ln-age" :data-stale="stale" data-test="lanes-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
-        <button v-if="view && view.lanes.length" type="button" class="btn ghost" :disabled="!filtered" data-test="lanes-filter-clear" @click="clearFilters()"><UiIcon name="filter-x" class="mh-icon" /><span class="mh-label">{{ t('issues.filter_clear') }}</span></button>
       </Teleport>
     </ClientOnly>
     <!-- the red stale line and "shown n of total" stay above the table, a row only while one shows -->
@@ -80,62 +95,23 @@
     <template v-if="view && state !== 'forbidden'">
       <p v-if="view.lanes.length === 0" class="muted" data-test="lanes-empty">{{ t('monitoring.lanes.empty') }}</p>
       <div v-else class="ln-table-wrap">
+        <SheetPhoneBar
+          v-if="phone"
+          :columns="sheetColumns"
+          :sort="sort"
+          :filters="filters"
+          prefix="lanes"
+          :sort-words="sortWords"
+          :filters-on="filtered"
+          @sort="toggleSort"
+          @filter="onFilter"
+          @clear="clearFilters"
+        />
         <table class="ln-table" :aria-label="t('monitoring.lanes.table_label')" data-test="lanes-table">
-          <thead>
-            <tr>
-              <th
-                v-for="c in columns"
-                :key="c.col"
-                scope="col"
-                :class="c.cls"
-                :data-test="c.test"
-                :aria-sort="sort.col === c.col ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'"
-              >
-                <SheetSortButton :col="c.col" :name="c.name" :sort="sort" :test="'lanes-sort-' + c.col" @sort="toggleSort" />
-              </th>
-            </tr>
-            <tr class="ln-frow" data-test="lanes-filters">
-              <th />
-              <th>
-                <select v-model="filters.box" data-test="lanes-filter-box" :aria-label="t('monitoring.lanes.filter_box')">
-                  <option value="">{{ t('issues.filter_all') }}</option>
-                  <option v-for="b in choices.box" :key="b" :value="b">{{ b }}</option>
-                </select>
-              </th>
-              <th />
-              <th>
-                <select v-model="filters.vendor" data-test="lanes-filter-vendor" :aria-label="t('monitoring.lanes.filter_vendor')">
-                  <option value="">{{ t('issues.filter_all') }}</option>
-                  <option v-for="v in choices.vendor" :key="v" :value="v">{{ v }}</option>
-                </select>
-              </th>
-              <th>
-                <select v-model="filters.state" data-test="lanes-filter-state" :aria-label="t('monitoring.lanes.filter_state')">
-                  <option value="">{{ t('issues.filter_all') }}</option>
-                  <option v-for="s in choices.state" :key="s" :value="s">{{ stateLabel(s) }}</option>
-                </select>
-              </th>
-              <th colspan="4" class="ln-fsearch">
-                <input v-model="filters.text" type="search" class="ln-search" data-test="lanes-filter-text" :placeholder="t('monitoring.lanes.filter_text')" :aria-label="t('monitoring.lanes.filter_text')">
-              </th>
-              <th>
-                <select v-model="filters.age" data-test="lanes-filter-age" :aria-label="t('monitoring.lanes.filter_age')">
-                  <option value="">{{ t('issues.filter_all') }}</option>
-                  <option v-for="a in LANE_AGES" :key="a" :value="a">{{ ageLabel(a) }}</option>
-                </select>
-              </th>
-              <th />
-              <th>
-                <select v-model="filters.workspace" data-test="lanes-filter-workspace" :aria-label="t('sidebar.tenant')">
-                  <option value="">{{ t('issues.filter_all') }}</option>
-                  <option v-for="w in choices.workspace" :key="w.id" :value="w.id">{{ w.name }}</option>
-                </select>
-              </th>
-            </tr>
-          </thead>
+          <SheetHead :columns="sheetColumns" :sort="sort" :filters="filters" :phone="phone" prefix="lanes" @sort="toggleSort" @filter="onFilter" />
           <tbody>
             <tr v-if="rows.length === 0">
-              <td :colspan="columns.length" class="muted" data-test="lanes-no-match">{{ t('monitoring.lanes.no_match') }}</td>
+              <td :colspan="sheetColumns.length" class="muted" data-test="lanes-no-match">{{ t('monitoring.lanes.no_match') }}</td>
             </tr>
             <tr
               v-for="l in rows"
@@ -185,6 +161,11 @@
         </table>
       </div>
     </template>
+    <!-- the room the phone's Refresh needs under the last card -->
+    <div v-if="phone" class="ln-dock-room" aria-hidden="true" />
+    <PhoneDockButton v-if="phone" class="ln-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="lanes-refresh" @click="refresh()">
+      {{ t('monitoring.tokens.refresh') }}
+    </PhoneDockButton>
     <LaneDialog
       v-if="opened"
       :open="!!opened"
@@ -205,9 +186,10 @@ import { useOperatorReader } from '~/composables/useOperatorReader'
 import { useAccessStore } from '~/stores/access'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
-import { LANE_AGES, LANE_COLUMNS, LANE_QUERY, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssueRef, laneName, laneTopicRef, lanesFiltered, lanesStaleLevel, minutesAgo, readLanes, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
+import { LANE_AGE_COLUMNS, LANE_AGES, LANE_QUERY, LANE_SHEET_COLUMNS, LANES_DEFAULT_SORT, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssueRef, laneName, laneTopicRef, lanesFiltered, lanesStaleLevel, minutesAgo, readLanes, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
 import { lanesFiltersOffered, lanesStateFromQuery, lanesStateQuery, plainQuery, sameLanesQuery } from '~/utils/monitoring-lanes-url.mjs'
-import { cycleSort } from '~/utils/sheet-sort.mjs'
+import { nextSheetSort, sheetSortLabel } from '~/utils/column-sheet.mjs'
+import { usePhone } from '~/composables/useTouchUi'
 import { useLaneLinks, type LaneLink } from '~/composables/useLaneLinks'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
@@ -217,6 +199,7 @@ const DASH = '—'
 const { t } = useI18n({ useScope: 'global' })
 const operatorReader = useOperatorReader()
 const route = useRoute()
+const phone = usePhone()
 /* SPL-4798: a row's ids as links, on the host of the workspace they belong to */
 const { pageTenant, linkOf } = useLaneLinks()
 const topicTo = (l: LanesView['lanes'][number]) => linkOf(laneTopicRef(l, pageTenant.value))
@@ -234,33 +217,49 @@ const now = ref(Date.now())
 const lag = computed(() => (fetchedAt.value ? lagSeconds(fetchedAt.value, now.value) : 0))
 const stale = computed(() => lanesStaleLevel(lag.value))
 
-/* the sheet's columns, the sort (none = the hub's order) and the filter row (SPL-3887) */
-const COLUMN_NAMES: Record<string, { key: string, cls?: string, test?: string }> = {
-  agent: { key: 'monitoring.tokens.col_agent' },
-  box: { key: 'monitoring.lanes.col_box', test: 'lanes-col-box' },
-  priority: { key: 'issues.field_priority', cls: 'num', test: 'lanes-col-priority' },
-  vendor: { key: 'monitoring.tokens.col_vendor' },
-  state: { key: 'monitoring.lanes.col_state' },
-  scope: { key: 'monitoring.lanes.col_scope' },
-  topic: { key: 'issues.discussion' },
-  issues: { key: 'issues.title' },
-  origin: { key: 'monitoring.lanes.col_origin_issue', test: 'lanes-col-origin' },
-  updated: { key: 'monitoring.lanes.col_updated', cls: 'num' },
-  active: { key: 'monitoring.tokens.col_last', cls: 'num' },
-  workspace: { key: 'sidebar.tenant', test: 'lanes-col-workspace' },
+/* the sheet's columns, the sort (none = the hub's order) and one filter per
+   column: the Event log's (SPL-5276, utils/column-sheet.mjs) */
+const COLUMN_EXTRA: Record<string, { cls?: string, test?: string }> = {
+  box: { test: 'lanes-col-box' },
+  priority: { cls: 'num', test: 'lanes-col-priority' },
+  origin: { test: 'lanes-col-origin' },
+  updated: { cls: 'num' },
+  active: { cls: 'num' },
+  workspace: { test: 'lanes-col-workspace' },
 }
-const columns = computed(() => LANE_COLUMNS.map((col: string) => ({ col, name: t(COLUMN_NAMES[col]!.key), cls: COLUMN_NAMES[col]!.cls, test: COLUMN_NAMES[col]!.test })))
 const sort = ref<{ col: string, dir: string }>({ col: '', dir: '' })
 function toggleSort(col: string) {
-  sort.value = cycleSort(col, sort.value, LANE_COLUMNS)
+  sort.value = nextSheetSort(col, sort.value, LANE_SHEET_COLUMNS)
 }
-const filters = reactive({ ...LANES_NO_FILTER })
+const filters = reactive<Record<string, string>>({ ...LANES_NO_FILTER })
 const filtered = computed(() => lanesFiltered(filters))
+function onFilter(col: string, value: string) {
+  filters[col] = value
+}
 function clearFilters() {
   Object.assign(filters, LANES_NO_FILTER)
 }
 const choices = computed(() => laneFilterChoices(view.value ? view.value.lanes : []))
-const rows = computed(() => (view.value ? sortLanes(filterLanes(view.value.lanes, filters), sort.value) : []))
+/** a choice column's options: the answer's values, in words where the page has them */
+function choicesOf(col: string): { value: string, label: string }[] {
+  if (LANE_AGE_COLUMNS.includes(col)) return LANE_AGES.map((a) => ({ value: a, label: ageLabel(a) }))
+  if (col === 'workspace') return choices.value.workspace.map((w) => ({ value: w.id, label: w.name }))
+  if (col === 'state') return choices.value.state.map((v) => ({ value: v, label: stateLabel(v) }))
+  const list: string[] = (choices.value as unknown as Record<string, string[]>)[col] || []
+  return list.map((v) => ({ value: v, label: v }))
+}
+const sheetColumns = computed(() => LANE_SHEET_COLUMNS.map((c) => ({
+  col: c.col,
+  label: t(c.key),
+  kind: c.kind,
+  choices: c.kind === 'choice' ? choicesOf(c.col) : undefined,
+  ...COLUMN_EXTRA[c.col],
+})))
+const sortWords = computed(() => {
+  const bits = sheetSortLabel(sort.value, LANE_SHEET_COLUMNS, LANES_DEFAULT_SORT)
+  return t('issues_mobile.sort_now', { col: t(bits.colKey), dir: t(bits.dirKey) })
+})
+const rows = computed(() => (view.value ? sortLanes(filterLanes(view.value.lanes, filters, view.value.asOf), sort.value) : []))
 
 /* the sort and the filters follow the address and back (3.15, SPL-4729) */
 const router = useRouter()
@@ -434,8 +433,8 @@ onBeforeUnmount(() => {
 /* the table scrolls sideways inside itself, never the page (3.2, as .tk-table-wrap); a phone reads cards (3.25, below) */
 .ln-table-wrap { overflow-x: auto; max-width: 100%; }
 .ln-table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
-.ln-table th, .ln-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; }
-.ln-table .num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ln-table :deep(th), .ln-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; }
+.ln-table :deep(.num) { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ln-row[data-selected="1"] > * { background: var(--color-selected); }
 .ln-id { font-family: var(--font-mono); font-weight: 600; white-space: nowrap; }
 /* the agent opens its lane's dialog (3.20): a link-like button, the cell's text kept */
@@ -447,9 +446,11 @@ onBeforeUnmount(() => {
 /* a long scope or topic stays on one line, its full text in the title (3.2) */
 .ln-cut { max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ln-issue { margin-inline-end: 6px; white-space: nowrap; font-family: var(--font-mono); }
-/* the filter row under the names, as the Issues sheet's (SPL-3887) */
-.ln-frow th { font-weight: normal; padding-top: 2px; }
-.ln-frow select, .ln-search { width: 100%; min-width: 5rem; max-width: 16rem; font: inherit; }
+/* the filter row under the names is SheetHead.vue's, as the Event log's
+   (SPL-5276); a filter keeps a usable width in the auto-width table */
+.ln-table :deep(.sheet-filter) { min-width: 5rem; max-width: 16rem; }
+/* the room under the last card for the phone's Refresh (PhoneDockButton) */
+.ln-dock-room { height: calc(var(--tap, 44px) + 16px); }
 /* the prio, coloured as on the Issues sheet (3.14) */
 .ln-prio { font-weight: 600; font-variant-numeric: tabular-nums; }
 .ln-prio--1 { color: var(--color-danger); }
@@ -461,22 +462,25 @@ onBeforeUnmount(() => {
 
 /* 3.25 (SPL-5235; owner HUM-10, t1 389ad5fd, msg e3fad8e4): on a phone
    (the one 820 px breakpoint) the same table reads as a list of dense
-   cards, the whole width, nothing scrolls sideways. The sort names and the
-   filters wrap above it; each row is a card of three short lines:
+   cards, the whole width, nothing scrolls sideways. The Event log's phone
+   bar sorts and filters above it (SPL-5276); each row is a card of three short lines:
      1  prio  agent@box  vendor  state ............ updated
      2  discussion (cut) ................... issues  origin
      3  scope (cut) ......... box  workspace (cut)  last active
    Every cell, link, data-test and the row's click stay as on the desktop. */
 @media (max-width: 820px) {
   .ln-table-wrap { overflow-x: visible; }
-  .ln-table, .ln-table thead, .ln-table tbody { display: block; width: 100%; }
-  .ln-table thead tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding-bottom: 4px; }
-  .ln-table thead th { padding: 0; border: 0; font-size: 0.8125rem; }
-  .ln-table thead .ln-frow { gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--color-border); }
-  .ln-frow th:empty { display: none; }
-  .ln-frow select { width: auto; min-width: 0; max-width: 100%; }
-  .ln-frow .ln-fsearch { order: -1; flex: 1 1 100%; }
-  .ln-frow .ln-search { max-width: none; }
+  .ln-table, .ln-table tbody { display: block; width: 100%; }
+  /* SPL-5276: the names stay in the DOM for readers, visually hidden, as
+     the Event log's cards; the bar above (SheetPhoneBar) sorts and filters */
+  .ln-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .ln-table tbody tr { display: block; }
   .ln-table tbody .ln-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 6px 2px; font-size: 0.8125rem; border-bottom: 1px solid var(--color-border); }
   .ln-row > th, .ln-row > td { padding: 0; border: 0; min-width: 0; }

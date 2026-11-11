@@ -3,6 +3,10 @@
 // and text with the Issues sheet's controls: one header button
 // (components/SheetSortButton.vue) and one sort cycle (utils/sheet-sort.mjs),
 // never a second copy.
+// SPL-5276 (owner HUM-10, t1 e1e97af9, msg 7ccb6bfa: "Sorting and filtering
+// in lanes should behave exactly as sorting and filtering for the event
+// log"): the sheet is now the Event log's column sheet (utils/column-sheet.mjs,
+// components/SheetHead.vue + SheetPhoneBar.vue): one filter per column.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -12,6 +16,7 @@ import { cycleSort } from '../../src/utils/sheet-sort.mjs'
 import { nextSort, SHEET_COLUMNS } from '../../src/utils/issues-view.mjs'
 import {
   LANE_COLUMNS,
+  LANE_SHEET_COLUMNS,
   LANES_NO_FILTER,
   filterLanes,
   fleetLanesOf,
@@ -88,39 +93,61 @@ describe('the lanes sort by every column', () => {
   })
 })
 
-describe('the lanes filter by box, vendor, state, age and text', () => {
+const AS_OF = '2026-10-27T12:00:00Z'
+const only = (f) => ids(filterLanes(VIEW, { ...LANES_NO_FILTER, ...f }, AS_OF))
+
+describe('the lanes filter one column at a time, as the Event log', () => {
   it('no filter keeps every lane, and says it is not filtered', () => {
-    assert.equal(ids(filterLanes(VIEW, LANES_NO_FILTER)), 'c-10,c-9,a-277,m-039')
+    assert.equal(only({}), 'c-10,c-9,a-277,m-039')
     assert.equal(lanesFiltered(LANES_NO_FILTER), false)
-    assert.equal(lanesFiltered({ ...LANES_NO_FILTER, text: '   ' }), false)
+    assert.equal(lanesFiltered({ ...LANES_NO_FILTER, scope: '   ' }), false)
   })
-  it('box, vendor and state each keep their equal lanes', () => {
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, box: 'box-a' })), 'c-9,a-277')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, vendor: 'claude' })), 'c-10,c-9')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, state: 'queued' })), 'm-039')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, state: 'live' })), 'c-10,c-9,a-277')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, box: 'box-a', vendor: 'agy' })), 'a-277', 'the filters combine')
+  it('box, prio, vendor, state and workspace each keep their equal lanes', () => {
+    assert.equal(only({ box: 'box-a' }), 'c-9,a-277')
+    assert.equal(only({ priority: '1' }), 'a-277')
+    assert.equal(only({ vendor: 'claude' }), 'c-10,c-9')
+    assert.equal(only({ state: 'queued' }), 'm-039')
+    assert.equal(only({ state: 'live' }), 'c-10,c-9,a-277')
+    assert.equal(only({ box: 'box-a', vendor: 'agy' }), 'a-277', 'the filters combine')
+    assert.equal(only({ vendor: 'clau' }), '', 'a choice is equal, never a part')
   })
-  it('age: within 1 h, within 24 h, over 24 h', () => {
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, age: '1h' })), 'c-10,m-039')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, age: '24h' })), 'c-10,c-9,m-039')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, age: 'older' })), 'a-277')
+  it('Updated picks the write\'s age: within 1 h, within 24 h, over 24 h', () => {
+    assert.equal(only({ updated: '1h' }), 'c-10,m-039')
+    assert.equal(only({ updated: '24h' }), 'c-10,c-9,m-039')
+    assert.equal(only({ updated: 'older' }), 'a-277')
   })
-  it('text: every word, any case, in the agent, scope, discussion, issue keys or workspace', () => {
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, text: 'SPL-3' })), 'a-277')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, text: 'alpha' })), 'a-277')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, text: 'ACME' })), 'c-9')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, text: 'c-10@box-b' })), 'c-10')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, text: 'ops sort' })), 'c-10')
-    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, text: 'nothing-matches' })), '')
-    assert.equal(lanesFiltered({ ...LANES_NO_FILTER, text: 'x' }), true)
+  it('Last active picks the last token minute\'s age against as_of; a lane with none matches no age', () => {
+    assert.equal(only({ active: '1h' }), 'c-10')
+    assert.equal(only({ active: '24h' }), 'c-10')
+    assert.equal(only({ active: 'older' }), 'a-277')
+  })
+  it('a text column keeps the lanes whose cell holds the text, any case', () => {
+    assert.equal(only({ agent: 'C-10@BOX' }), 'c-10')
+    assert.equal(only({ agent: 'box-a' }), 'c-9,a-277')
+    assert.equal(only({ scope: 'sweep' }), 'c-9')
+    assert.equal(only({ topic: 'alpha' }), 'a-277')
+    assert.equal(only({ topic: 'x' }), 'a-277', 'the topic id too')
+    assert.equal(only({ issues: 'spl-2' }), 'c-10')
+    assert.equal(only({ origin: 'ops-7' }), 'a-277')
+    assert.equal(only({ scope: 'nothing-matches' }), '')
+    assert.equal(only({ scope: 'locale', agent: 'c-' }), '', 'text filters combine too')
+    assert.equal(lanesFiltered({ ...LANES_NO_FILTER, agent: 'x' }), true)
+  })
+  it('a filter on one column never searches another (the old four-column box is gone)', () => {
+    assert.equal(only({ scope: 'Ops' }), '', 'the workspace name is not in the scope')
+    assert.equal('text' in LANES_NO_FILTER, false)
+    assert.deepEqual(Object.keys(LANES_NO_FILTER), LANE_COLUMNS)
   })
   it('the selects offer the answer\'s distinct values; a lane with no state is live', () => {
-    assert.deepEqual(laneFilterChoices(VIEW), { box: ['box-a', 'box-b'], vendor: ['agy', 'claude', 'mistral'], state: ['live', 'queued'],
+    assert.deepEqual(laneFilterChoices(VIEW), { box: ['box-a', 'box-b'], priority: ['1', '3'], vendor: ['agy', 'claude', 'mistral'], state: ['live', 'queued'],
       workspace: [{ id: 'w2', name: 'Acme' }, { id: 'w1', name: 'Ops' }] })
     assert.equal(laneState({}), 'live')
     assert.equal(VIEW[0].state, 'live')
     assert.equal(VIEW[3].state, 'queued')
+  })
+  it('every column is a text or a choice, as the Event log\'s', () => {
+    assert.deepEqual(LANE_SHEET_COLUMNS.map((c) => c.col + ':' + c.kind), ['agent:text', 'box:choice', 'priority:choice', 'vendor:choice', 'state:choice',
+      'scope:text', 'topic:text', 'issues:text', 'origin:text', 'updated:choice', 'active:choice', 'workspace:choice'])
   })
 })
 
@@ -128,17 +155,19 @@ describe('one control, not a copy', () => {
   const button = read('src/components/SheetSortButton.vue')
   const issues = read('src/pages/issues.vue')
   const lanes = read('src/pages/monitoring/lanes/index.vue')
-  it('both sheets render SheetSortButton and neither carries its own sort button', () => {
+  const events = read('src/pages/monitoring/events/index.vue')
+  it('the Issues sheet renders SheetSortButton; Lanes and the Event log render the one SheetHead and SheetPhoneBar', () => {
     assert.match(button, /class="issues-sort-h"/)
-    for (const [name, page] of [['issues', issues], ['lanes', lanes]]) {
-      assert.match(page, /<SheetSortButton\b/, name)
-      assert.doesNotMatch(page, /class="issues-sort-h"|class="issues-sort-mark"/, name)
+    assert.match(issues, /<SheetSortButton\b/)
+    for (const [name, page, prefix] of [['lanes', lanes, 'lanes'], ['events', events, 'events']]) {
+      assert.match(page, new RegExp(`<SheetHead [^>]*prefix="${prefix}"`), name)
+      assert.match(page, new RegExp(`<SheetPhoneBar[\\s\\S]*?prefix="${prefix}"`), name)
+      assert.doesNotMatch(page, /<thead|<SheetSortButton\b|class="issues-sort-h"|sort-mark|events-sheet|events-mbar/, name + ' carries no own head, sort button or sheet')
     }
   })
-  it('the lanes page sorts through the shared cycle and binds aria-sort on each name', () => {
-    assert.match(lanes, /cycleSort\(col, sort\.value, LANE_COLUMNS\)/)
-    assert.match(lanes, /:aria-sort=/)
-    for (const f of ['box', 'vendor', 'state', 'age', 'text', 'workspace']) assert.match(lanes, new RegExp(`data-test="lanes-filter-${f}"`), f)
+  it('the lanes page sorts through the shared cycle over its columns', () => {
+    assert.match(lanes, /nextSheetSort\(col, sort\.value, LANE_SHEET_COLUMNS\)/)
+    assert.match(lanes, /filterLanes\(view\.value\.lanes, filters, view\.value\.asOf\)/)
   })
 })
 
@@ -164,11 +193,7 @@ describe('the Box column', () => {
   })
   it('each row renders the box the hub sent, a dash when none', () => {
     assert.match(lanes, /<td class="ln-box" data-test="lanes-box">\{\{ l\.box \|\| DASH \}\}<\/td>/)
-    assert.match(lanes, /box: \{ key: 'monitoring\.lanes\.col_box'/)
-  })
-  it('the box select sits under the Box name, not under the agent', () => {
-    const frow = lanes.slice(lanes.indexOf('data-test="lanes-filters"'))
-    assert.match(frow, /^data-test="lanes-filters">\s*<th \/>\s*<th>\s*<select v-model="filters\.box"/)
+    assert.deepEqual(LANE_SHEET_COLUMNS[1], { col: 'box', key: 'monitoring.lanes.col_box', kind: 'choice' })
   })
   it('the header word is in all 19 locales', () => {
     for (const loc of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
@@ -200,15 +225,9 @@ describe('the Workspace filter', () => {
       { agent_id: 'c-5', workspace: 'w4', workspace_name: 'Alpha' }] }).lanes
     assert.deepEqual(laneFilterChoices(v).workspace, [{ id: 'w4', name: 'Alpha' }, { id: 'w3', name: 'w3' }, { id: 'w9', name: 'zeta' }])
   })
-  it('the page has its select under the last column, labelled by the column name, the Workspace column still last', () => {
+  it('the Workspace column is still last, a choice offered by name and matched on the id', () => {
     assert.equal(LANE_COLUMNS[LANE_COLUMNS.length - 1], 'workspace')
-    const row = lanes.slice(lanes.indexOf('data-test="lanes-filters"'), lanes.indexOf('</thead>'))
-    const cells = row.split(/<th(?=[\s/>])/).slice(1)
-    const spans = cells.map((c) => Number((/^\s+colspan="(\d+)"/.exec(c) || [])[1] || 1))
-    assert.equal(spans.reduce((a, b) => a + b, 0), LANE_COLUMNS.length, 'one filter cell per column')
-    assert.match(cells[cells.length - 1], /data-test="lanes-filter-workspace"/, 'the last filter cell')
-    assert.match(cells[cells.length - 1], /:aria-label="t\('sidebar\.tenant'\)"/)
-    assert.match(cells[cells.length - 1], /v-for="w in choices\.workspace" :key="w\.id" :value="w\.id"/)
+    assert.match(lanes, /col === 'workspace'\) return choices\.value\.workspace\.map\(\(w\) => \(\{ value: w\.id, label: w\.name \}\)\)/)
   })
 })
 
@@ -239,8 +258,6 @@ describe('the Prio column', () => {
   it('the page renders the prio as the 3rd cell, a dash for none, under the Issues sheet\'s word', () => {
     const row = lanes.slice(lanes.indexOf('data-test="lanes-row"'))
     assert.match(row, /data-test="lanes-agent"[^\n]*\n\s*<td class="ln-box"[^\n]*\n\s*<td class="num" data-test="lanes-priority"/)
-    assert.match(lanes, /priority: \{ key: 'issues\.field_priority'/)
-    const frow = lanes.slice(lanes.indexOf('data-test="lanes-filters"'))
-    assert.match(frow, /^data-test="lanes-filters">\s*<th \/>\s*<th>\s*<select v-model="filters\.box"[\s\S]*?<\/th>\s*<th \/>\s*<th>\s*<select v-model="filters\.vendor"/)
+    assert.deepEqual(LANE_SHEET_COLUMNS[2], { col: 'priority', key: 'issues.field_priority', kind: 'choice', words: 'num' })
   })
 })

@@ -11,7 +11,8 @@
 //       nothing sideways, every key in the cell's title (W1)
 //   P3  every cell of the row is on the card, inside it, none hidden
 //   P4  the agent opens the LaneDialog
-//   P5  a sort click and a filter still apply
+//   P5  a sort click and a filter still apply (SPL-5276: through the Event
+//       log's phone bar, its Sort and Filters sheets)
 //   D1  1440: the table is a table, one row per lane, a cell per column
 //
 //   BASE_URL=<generated mock bundle> pnpm run test:e2e monitoring-lanes-phone
@@ -118,10 +119,16 @@ try {
     await p.waitForFunction(() => !document.querySelector('[role=dialog]'), { timeout: 5000 }).catch(() => {})
 
     const before = await order(p)
-    await p.click('[data-test=lanes-sort-agent]')
+    await p.click('[data-test=lanes-sort-open]')
+    await p.waitForSelector('[data-test=lanes-sort-sheet] [data-test=lanes-sort-agent]', { visible: true, timeout: 8000 })
+    await p.click('[data-test=lanes-sort-sheet] [data-test=lanes-sort-agent]')
+    await p.click('[data-test=lanes-sheet-scrim]')
     const asc = before.split(',').sort().join(',')
     ok(`P5 ${tag}: a sort click orders the cards`, await rowsAre(p, asc), { before, after: await order(p) })
-    await p.select('[data-test=lanes-filter-vendor]', 'mistral')
+    await p.click('[data-test=lanes-filters-open]')
+    await p.waitForSelector('[data-test=lanes-filters] [data-test=lanes-filter-vendor]', { visible: true, timeout: 8000 })
+    await p.select('[data-test=lanes-filters] [data-test=lanes-filter-vendor]', 'mistral')
+    await p.click('[data-test=lanes-sheet-scrim]')
     ok(`P5b ${tag}: a filter leaves its cards only`, await rowsAre(p, 'm-039'), await order(p))
     ok(`P5c ${tag}: no page error`, errors.length === 0, errors)
     await ctx.close()

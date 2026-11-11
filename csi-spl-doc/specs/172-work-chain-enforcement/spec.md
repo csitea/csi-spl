@@ -164,7 +164,7 @@ identity restore, and a put that fails in the background).
 | issue | hub: blocker epic, cascade bug | `api/hub/blocker_issue_epic.go`, `api/hub/issue_epic_close.go` | derived; the cascade may fall back to the default |
 | lane | the placer | `orc/run/spl-spawn-place.func.sh` `spl_spawn_place_no_links` | **refuses** no discussion / no issue (SPL-4797) |
 | lane | hand spawn | `sa/scripts/spawn-window.sh` `sw_issue` -> `sa/scripts/spawn-core.inc.sh` `_spawn_lane_put` | refuses no issue (exit 12); **no discussion check**; the put runs in the background, best effort, and writes blanks |
-| lane | enqueue | `orc/run/spl-spawn-enqueue.func.sh` | refuses no `Epic:`/`Spec:` pair only; `ASK_DISCUSSION` optional: 908 of the last 8 days' 1322 task asks have `discussion` NULL (`select date_trunc('day',created_at), count(*), count(*) filter (where discussion is null) from fleet_asks where kind='task' ...`) |
+| lane | enqueue | `orc/run/spl-spawn-enqueue.func.sh` | refuses no `Epic:`/`Spec:` pair, and since SPL-5325 no discussion too (`spl_spawn_q_enqueue_links` runs the placer's `spl_spawn_place_no_links`: a brief with no `Topic:` on a `dispatch-<word>` ask is refused at once, no queue row); `ASK_DISCUSSION` optional: 908 of the last 8 days' 1322 task asks have `discussion` NULL (`select date_trunc('day',created_at), count(*), count(*) filter (where discussion is null) from fleet_asks where kind='task' ...`) |
 | lane | role rotation, failover | `orc/run/spl-rotate-lib.func.sh` (`SPAWN_REUSE_ID=1`, scope `role <id> (rotation <rid>)`) | `sw_issue` skipped; topic and issue from `lifetime/*`, empty for a seat |
 | lane | seat restart | `orc/run/spl-peer-restart.func.sh` (scope `seat <id> (restart <rid>)`) | as rotation |
 | lane | BOX-0 heartbeat | `orc/run/spl-lane-map.func.sh` (scope `mem_kb=... live=...`) | sends no topic, no issue: it is a box, not a lane |
@@ -260,7 +260,7 @@ Owner `937e89a4`: no search, the literal `unknown`.
 | T2 | orc | `spl-issue-create.func.sh`, `csi-spl-orc/lib/bash/funcs/spl-desk-issue.func.sh` | G2: refuse the default for a new issue | S | none |
 | T3 | api | `hub/issue_discussions.go` `discussionsFor`, `hub/issue_epic_close.go` | G3: the default is no discussion for a new issue; the cascade takes the epic's | M | none |
 | T4 | orc | `sa/lib/lane-issue.inc.sh` `li_discussion_from_brief` | G4: read `Owner topic: <ws> <uuid>` | S | none |
-| T5 | orc | `spl-spawn-enqueue.func.sh` | G5: refuse no discussion, write `ASK_DISCUSSION` | S | none (SPL-4797 refuses at placement only) |
+| T5 | orc | `spl-spawn-enqueue.func.sh` | G5: refuse no discussion, write `ASK_DISCUSSION` | built (the refusal) | **SPL-5325**: the enqueue runs the placer's check (one function, both callers), test `spl-spawn-queue.tst.sh` 1b; the idle filler and the security round now write a `Topic:` line. Writing `ASK_DISCUSSION` from the brief: not built |
 | T6 | orc | `sa/scripts/spawn-window.sh` | G6: the link check on a hand spawn | S | none |
 | T7 | orc | `sa/scripts/spawn-core.inc.sh` `_spawn_lane_put`, `spawn_main` | G7: the put in the foreground, no window on a refused put | M | none |
 | T8 | orc | `spl-rotate-lib.func.sh`, `spl-peer-restart.func.sh` | G8: carry the row's links; seats take the standing values | M | none |

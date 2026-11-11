@@ -7,6 +7,9 @@
 #          class, then enqueued_at).
 #   1. enqueue: the sender is told "queued, position N of M" on its task (an
 #      owner topic uuid becomes dispatch-<topic8>); a second request is 2 of 2
+#  1b. SPL-5325: a placed brief with no Topic: on a dispatch-<word> ask is
+#      refused at the enqueue with the placer's links line (CONTROLS: a hub
+#      uuid, a dispatch-<topic8> ask, a Topic: line all queue)
 #   2. the asks tick past ASKS_OWNER_MIN and the re-raise time: a queued ask
 #      is never re-raised, escalated or dead-lettered (CONTROL: the same ask
 #      left open IS raised and told to the owner)
@@ -342,6 +345,37 @@ else fail "second enqueue: $(sends)"; fi
 if ! on pc do_spl_spawn_enqueue ASK_ID="$A2" SPAWN_CLASS=bug SPAWN_PLACE='claude:x;rm' >/dev/null 2>&1; then
   pass "enqueue: a placement that is not <vendor>:<slug> is refused"
 else fail "a bad placement was taken"; fi
+
+# SPL-5325: the placer's links check runs at the enqueue. A placed brief with
+# no Topic: line, on an ask whose topic is a dispatch-<word> task, is refused
+# at once with the placer's line; before, it queued and was refused only at the
+# head (88af5bd4, 0135f355, 7cf29924 on 2026-11-11). CONTROLS: the same brief on
+# a hub uuid or a dispatch-<topic8> ask, and a brief with a Topic: line on the
+# dispatch-<word> ask, all queue. Each is closed again: the later cases count
+# the queue.
+printf '%s\n' 'Spec: csi-spl-doc/specs/135-work-process' 'Epic: SPL-1' >"$T/briefs/no-topic.md"
+printf '%s\n' "$ES" >"$T/briefs/with-topic.md"
+N1=b1b1b1b1-0000-4000-8000-000000005325; N2=b2b2b2b2-0000-4000-8000-000000005325
+N3=b3b3b3b3-0000-4000-8000-000000005325; N4=b4b4b4b4-0000-4000-8000-000000005325
+put "$N1" c-002@box-desk dispatch-prepush "SPAWN REQUEST prepush sig"
+put "$N2" c-002@box-desk "$OWNER_TOPIC" "SPAWN REQUEST no-topic on a hub topic"
+put "$N3" c-002@box-desk dispatch-c9beaa77 "SPAWN REQUEST no-topic on dispatch-<topic8>"
+put "$N4" c-002@box-desk dispatch-prepush "SPAWN REQUEST with-topic on dispatch-<word>"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$N1" SPAWN_CLASS=bug SPAWN_PLACE=claude:no-topic 2>&1)"; rc=$?
+if (( rc != 0 )) && [[ "$(jq -r .state <<<"$(hubrow "$N1")")" == open ]] &&
+   grep -q "FATAL ask not queued: lane refused, no discussion: the ask's topic 'dispatch-prepush' names no hub topic and brief $T/briefs/no-topic.md names none (add a 'Topic: <uuid>' line" <<<"$out"; then
+  pass "SPL-5325: a brief with no Topic: on a dispatch-<word> ask is refused at the enqueue (rc $rc, no queue row), the placer's line"
+else fail "SPL-5325 refuse: rc $rc | $out | $(hubrow "$N1")"; fi
+for c in "$N2 no-topic hub-uuid" "$N3 no-topic dispatch-<topic8>" "$N4 with-topic Topic:-line"; do
+  read -r n b what <<<"$c"
+  out="$(on pc do_spl_spawn_enqueue ASK_ID="$n" SPAWN_CLASS=bug SPAWN_PLACE="claude:$b" 2>&1)"; rc=$?
+  if (( rc == 0 )) && [[ "$(jq -r .state <<<"$(hubrow "$n")")" == queued ]]; then
+    pass "SPL-5325 control: $what ask is queued"
+  else fail "SPL-5325 control $what: rc $rc | $out | $(hubrow "$n")"; fi
+  HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$n" --by c-001@box-desk --reason test >/dev/null
+done
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$N1" --by c-001@box-desk --reason test >/dev/null
+: >"$T/send.log"
 
 # 2. the asks tick never raises a queued ask (CONTROL: an open one) ---------------
 put "$A3" c-002@box-desk dispatch-c9beaa77-y "an ordinary blocker"
@@ -1519,17 +1553,21 @@ out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-508 2>&1)"
 # names none is handed to the holder with "no discussion", nothing launched
 # (CONTROL: the same brief on dispatch-<topic8> launches); a brief that lost
 # its Epic:/Spec: pair after the enqueue is handed off with "no issue".
-# RED on master 022055fe6: both rows were launched.
+# RED on master 022055fe6: both rows were launched. Since SPL-5325 the enqueue
+# refuses a brief with no discussion (case 1b), so E10's brief loses its
+# Topic: line after the enqueue, as E12's loses its Epic:/Spec: pair.
 E10=31700010-0000-4000-8000-000000000010; E11=31700011-0000-4000-8000-000000000011; E12=31700012-0000-4000-8000-000000000012
 printf 'Kind: complex_coding\nReport on task dispatch-s169-rows.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/no-disc.md"
 printf 'SPL-8\twip\n' >"$T/epics.tsv"
-q16c() {  # ASK_ID ASK_TOPIC SLUG: the only queued row
+q16c() {  # ASK_ID ASK_TOPIC SLUG [ENV...]: the only queued row
   jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
   put "$1" c-002@box-desk "$2" "SPAWN REQUEST links"
-  on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$1" SPAWN_CLASS=feature SPAWN_PLACE="claude:$3" >/dev/null 2>&1
+  on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$1" SPAWN_CLASS=feature SPAWN_PLACE="claude:$3" "${@:4}" >/dev/null 2>&1
   rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
 }
+printf 'Topic: 7c0de153-0000-4000-8000-000000004797\n' >>"$T/briefs/no-disc.md"
 q16c "$E10" dispatch-s169-rows no-disc
+printf 'Kind: complex_coding\nReport on task dispatch-s169-rows.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/no-disc.md"
 out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-517 2>&1)"
 [[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$E10")")" == acked ]] &&
   grep -qF "It needs you: lane refused, no discussion: the ask's topic 'dispatch-s169-rows' names no hub topic and brief $T/briefs/no-disc.md names none (add a 'Topic: <uuid>' line" "$T/send.log" &&
@@ -1569,8 +1607,7 @@ for form in "Discussion: $D16" "**Topic:** $D16"; do
 done
 E15=31700015-0000-4000-8000-000000000015
 printf 'Kind: complex_coding\nReport on task dispatch-s169-rows.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/no-disc.md"
-q16c "$E15" dispatch-s169-rows no-disc
-jq --arg i "$E15" --arg d "$D16" '(.[] | select(.ask_id == $i)) |= (.discussion = $d)' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+q16c "$E15" dispatch-s169-rows no-disc ASK_DISCUSSION="$D16"
 : >"$T/launch.log.env"
 out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-521 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$E15")")" == "placed: c-521@box-desk" ]] && grep -qx "no-disc SPAWN_LANE_TOPIC=$D16" "$T/launch.log.env" &&

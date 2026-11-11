@@ -21,6 +21,10 @@
 # @description ask the same way (SPL-2508): the hub would refuse the lane's
 # @description issue under it ("unknown_parent") at launch. An epic the hub
 # @description auto-closed (SPL-1729) is reopened instead, never refused (SPL-3060).
+# @description A SPAWN_PLACE brief that names no discussion, on an ask whose
+# @description topic is no hub topic (a dispatch-<word> task), is refused the
+# @description same way, with the placer's "lane refused, no discussion" line
+# @description (SPL-5325; the placer's check, spl_spawn_place_no_links).
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
@@ -113,6 +117,7 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     local closed; closed="$([[ -z "$brief" ]] || li_brief_epic_closed "$brief")"
     [[ "$closed" != *$'\t'auto-closed ]] || { spl_spawn_q_enqueue_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}"; closed=""; }
     [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
+    [[ -z "$brief" ]] || spl_spawn_q_enqueue_links "$id" "$brief" || return 1
   fi
   if [[ -n "$seat" ]]; then  # the hub takes bypass on a feature only (rdb 0195): the seat goes unflagged, the log records it
     row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "" "")" || rc=$?
@@ -128,6 +133,21 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   fi
   do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
   printf '%s\n' "$row"
+}
+
+# The placer's links check (spl_spawn_place_no_links, SPL-4797) at the enqueue
+# (SPL-5325): a placed brief that names no discussion, on an ask whose topic is
+# no hub topic (a dispatch-<word> task), is refused now, while its writer can
+# fix it, not when the row reaches the head (3 rows on 2026-11-11, one lost its
+# slot). The row is the journal's (the hub's mirror), else the loaded book; an
+# ask in neither is left to the placer.
+spl_spawn_q_enqueue_links() {  # ID BRIEF
+  local row why
+  row="$(spool_ask_journal_get "$1" 2>/dev/null)" ||
+    row="$(jq -c --arg i "$1" 'first(.[] | select(.ask_id == $i)) // empty' <<<"${ASKS_ROWS:-[]}" 2>/dev/null)"
+  [[ -n "$row" ]] || return 0
+  why="$(spl_spawn_place_no_links "$row" "$2")"
+  [[ -z "$why" ]] || { do_log "FATAL ask not queued: $why" >&2; return 1; }
 }
 
 # The owner's review-seat GO (HUM-10, msg 994f2257, 2026-10-16): every review

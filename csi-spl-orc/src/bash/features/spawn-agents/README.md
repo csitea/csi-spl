@@ -293,8 +293,8 @@ bash csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-user-check.sh
 grok (1.0.70) reads a linked worktree as trusted only when its MAIN checkout,
 the parent of `git rev-parse --git-common-dir`, is in
 `~/.grok/trusted_folders.toml`. So for grok, `trust-workdir.sh` also writes
-that key when the dir is the top of a linked worktree. It writes no parent dir
-and nothing for any other CLI. The session still runs in its worktree. Before
+that key when the dir is the top of a linked worktree (codex too, 3.9.5). It
+writes no parent dir and nothing for any other CLI. The session still runs in its worktree. Before
 this, a grok seat on a repo whose main checkout was never trusted
 (2026-10-28, SPL-4065) stopped on "Do you trust the contents of this directory?
 <main checkout>". The proof, with a real `grok inspect` read when grok is on
@@ -302,6 +302,23 @@ PATH:
 
 ```bash
 bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-trust-grok-worktree.sh
+```
+
+### 3.9.5 codex trusts a worktree through its main checkout too
+
+Codex (0.166.0) keeps folder trust in `$CODEX_HOME` (default `~/.codex`)
+`config.toml` as `[projects."<dir>"] trust_level = "trusted"`, and for a
+linked worktree it asks about the MAIN checkout. `trust-workdir.sh` writes
+both keys for the `codex` kind, flips an `"untrusted"` entry in its own table,
+leaves the rest of `config.toml` as it is, and skips a box with no codex
+home. Before this (2026-11-11, SPL-5300) the spawn printed
+`trust-workdir: unknown agent 'codex'` and o-629 stopped on "Trust this
+folder? 1. Trust and continue 2. Quit". spawn-window's start check now
+watches a codex window too: that dialog is a `trust prompt` (exit 11), and
+codex's idle screen (`›` composer, `? for shortcuts`) counts as started.
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-trust-codex.sh
 ```
 
 ### 3.10 The identity map: one record per agent

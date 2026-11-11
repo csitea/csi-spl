@@ -20,6 +20,10 @@
 #   mistral $VIBE_HOME (<home>/.vibe)/trusted_folders.toml  trusted = ["<dir>", …]
 #           (specs/110 3.3; the dir also leaves `untrusted`, which vibe checks
 #           literally before it asks)
+#   codex   $CODEX_HOME (<home>/.codex)/config.toml  [projects."<dir>"] trust_level = "trusted"
+#           (SPL-5300: like grok, codex 0.166.0 asked "Trust this folder?" for
+#           the MAIN checkout of o-629's linked worktree, so that key is
+#           written too; an "untrusted" entry is flipped in its own table)
 #
 # A store that does not exist is skipped (the CLI's first run onboards itself).
 # Each edit is idempotent, under an flock, written via temp file + rename.
@@ -35,7 +39,7 @@
 # claude launched next reads it and the next spawn's edit waits for this
 # claude's startup write to be over.
 #
-# Usage: trust-workdir.sh [--settle] <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy qwen mistral)
+# Usage: trust-workdir.sh [--settle] <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy qwen mistral codex)
 set -uo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -52,7 +56,7 @@ shift
 AGENT_USER="${1:-$(id -un)}"
 [ $# -gt 0 ] && shift
 AGENTS=("$@")
-[ ${#AGENTS[@]} -eq 0 ] && AGENTS=(claude grok agy qwen mistral)
+[ ${#AGENTS[@]} -eq 0 ] && AGENTS=(claude grok agy qwen mistral codex)
 
 if [ -d "$DIR" ]; then DIR_ABS="$(cd "$DIR" && pwd -P)"; else DIR_ABS="$(readlink -m -- "$DIR")"; fi
 
@@ -182,6 +186,48 @@ def mistral(before):
     return "trusted = %s\nuntrusted = %s\n" % (fmt(trusted_l), fmt(untrusted_l))
 
 
+# codex keys a linked worktree on its main checkout the same way.
+CODEX_KEYS = GROK_KEYS
+
+
+def codex_levels(text):
+    """{dir: trust_level} of a codex config.toml (tomllib: 3.11+)."""
+    import tomllib
+    projects = tomllib.loads(text).get("projects", {})
+    return {k: v.get("trust_level") for k, v in projects.items() if isinstance(v, dict)}
+
+
+def codex(before):
+    # config.toml carries the login store, analytics and more; no stdlib TOML
+    # writer, so edit only the [projects."<dir>"] table, line by line.
+    levels = codex_levels(before)
+    for key in CODEX_KEYS:
+        if levels.get(key) == "trusted":
+            continue
+        header = '[projects.%s]' % json.dumps(key)
+        lines = before.split("\n")
+        at = [i for i, l in enumerate(lines) if l.strip() == header]
+        if at:
+            end = next((j for j in range(at[0] + 1, len(lines))
+                        if lines[j].lstrip().startswith("[")), len(lines))
+            body = [j for j in range(at[0] + 1, end)
+                    if re.match(r"\s*trust_level\s*=", lines[j])]
+            if body:
+                lines[body[0]] = 'trust_level = "trusted"'
+            else:
+                lines.insert(at[0] + 1, 'trust_level = "trusted"')
+            before = "\n".join(lines)
+            continue
+        if before == "" or before.endswith("\n\n"):
+            sep = ""
+        elif before.endswith("\n"):
+            sep = "\n"
+        else:
+            sep = "\n\n"
+        before = '%s%s%s\ntrust_level = "trusted"\n' % (before, sep, header)
+    return before
+
+
 STORES = {
     "claude": (os.path.join(home, ".claude.json"), claude, None),
     "agy": (os.path.join(home, ".gemini", "antigravity-cli", "settings.json"),
@@ -190,6 +236,8 @@ STORES = {
     "qwen": (os.path.join(home, ".qwen", "trustedFolders.json"), qwen, "{}\n"),
     "mistral": (os.path.join(os.environ.get("VIBE_HOME") or os.path.join(home, ".vibe"),
                              "trusted_folders.toml"), mistral, ""),
+    "codex": (os.path.join(os.environ.get("CODEX_HOME") or os.path.join(home, ".codex"),
+                           "config.toml"), codex, ""),
 }
 
 def trusted(name):
@@ -210,6 +258,9 @@ def trusted(name):
         if name == "mistral":
             trusted_l, untrusted_l = vibe_lists(text)
             return target in trusted_l and target not in untrusted_l
+        if name == "codex":
+            levels = codex_levels(text)
+            return all(levels.get(key) == "trusted" for key in CODEX_KEYS)
         return all(grok_has(text, key) for key in GROK_KEYS)
     except ValueError:
         return False   # a half-written file reads as not-yet-trusted
@@ -257,8 +308,9 @@ for name in agents:
 
 if changed:
     print("trust-workdir: trusted %s for %s" % (target, ", ".join(changed)))
-if "grok" in agents and len(GROK_KEYS) > 1:
-    print("trust-workdir: grok also keyed on the main checkout %s (linked worktree)" % grok_main)
+for kind in ("grok", "codex"):
+    if kind in agents and len(GROK_KEYS) > 1:
+        print("trust-workdir: %s also keyed on the main checkout %s (linked worktree)" % (kind, grok_main))
 if skipped:
     print("trust-workdir: skipped %s" % ", ".join(skipped))
 

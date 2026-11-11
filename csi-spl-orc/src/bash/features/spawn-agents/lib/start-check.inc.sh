@@ -15,6 +15,9 @@
 #                                 "no input box within <WAIT>s" on stdout;
 #                                 5 = GONE PANE (a command) says the pane's
 #                                 process ended first, "the pane ended ..." 
+#                                 START_CHECK_READY_RE (optional, extended
+#                                 regex): a screen it matches also counts as
+#                                 started, for a CLI that draws no claude box
 #
 # Why: a start that sits on Claude's "Settings Warning" (an allow rule it
 # rejects, 2026-10-07 17:29Z) never acks, and the rotation found out only
@@ -51,6 +54,10 @@
 # proceed  y" / "No, quit  n". Unmatched, the agent restart logged RS-SPAWN OK
 # over it. For a linked worktree <dir> is the MAIN checkout: grok keys trust
 # there (trust-workdir.sh writes that key too).
+# codex's trust prompt (SPL-5300, 2026-11-11, codex 0.166.0, o-629, n=1):
+# "Folder access" / "<dir>" / "Trust this folder? Codex can read, edit, and
+# run files here, ..." / "1. Trust and continue" / "2. Quit". Like grok's,
+# <dir> is the MAIN checkout of a linked worktree.
 # claude's usage-limit menu (SPL-4507; box 1 2026-10-24 16:08Z failover
 # 20261024T1601Z-failover, box 2 15:19Z master 20261024T1515Z-master, n=2):
 # "What do you want to do?" / "❯ 1. Stop and wait for limit to reset" /
@@ -66,7 +73,7 @@
 SPOOL_START_DIALOGS=(
   'Settings Warning|^[[:space:]]*Settings Warning[[:space:]]*$'
   'Settings Error|Continue without these settings|Exit and fix manually'
-  'trust prompt|Is this a project you created or one you trust|Yes, I trust this folder|Do you trust the files|Do you trust the contents of this directory'
+  'trust prompt|Is this a project you created or one you trust|Yes, I trust this folder|Do you trust the files|Do you trust the contents of this directory|Trust this folder\?|Trust and continue'
   'auto-mode offer|Make auto mode your default permission mode'
   'bypass-permissions confirm|Yes, I accept'
   'auth/login|Not logged in|Select login method|[Pp]lease run /login|Invalid API key|OAuth token (has )?expired'
@@ -81,7 +88,7 @@ spool_start_hint() {
     'Settings Warning') printf ', the allow rules in the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json' ;;
     'Settings Error') printf ', a settings file the session cannot read or parse (its path is on the screen): the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json and the .claude/settings*.json of its working dir, their file modes included' ;;
     'auto-mode offer') printf ', permissions.disableAutoMode in ~/.claude/settings.json' ;;
-    'trust prompt') printf ', the agent user'"'"'s trust store for its working dir (trust-workdir.sh); grok keys a linked worktree on its main checkout, the dir the prompt names' ;;
+    'trust prompt') printf ', the agent user'"'"'s trust store for its working dir (trust-workdir.sh); grok and codex key a linked worktree on its main checkout, the dir the prompt names' ;;
     'auth/login') printf ', the agent user'"'"'s claude login' ;;
     'usage limit') printf ', its vendor'"'"'s login (claude'"'"'s for a claude seat) has no quota until its limit resets (the screen names when): the successor must be another vendor' ;;
     'grok weekly limit') printf ', grok has no quota until its weekly reset: the successor must be claude' ;;
@@ -118,7 +125,7 @@ spool_screen_input_box() {
 }
 
 spool_start_check() {
-  local pane="$1" wait="$2" cap="$3" gone="${4:-}" scr name t0=$SECONDS
+  local pane="$1" wait="$2" cap="$3" gone="${4:-}" scr name t0=$SECONDS esc=$'\033'
   [[ "$wait" =~ ^[0-9]+$ ]] || { echo "the start check wait must be whole seconds, got '$wait'"; return 4; }
   while :; do
     scr="$("$cap" "$pane" 2>/dev/null || true)"
@@ -127,6 +134,8 @@ spool_start_check() {
       name="$(spool_start_dialog <<<"$scr")"
       [[ -n "$name" ]] && { printf '%s\n' "$name"; return 3; }
       spool_screen_input_box <<<"$scr" >/dev/null && return 0
+      [[ -n "${START_CHECK_READY_RE:-}" ]] &&
+        sed -E "s/${esc}\[[0-9;?]*[A-Za-z]//g" <<<"$scr" | grep -qE -- "$START_CHECK_READY_RE" && return 0
     fi
     if [[ -n "$gone" ]] && "$gone" "$pane"; then echo "the pane ended before an input box was drawn"; return 5; fi
     (( SECONDS - t0 < wait )) || break

@@ -24,8 +24,9 @@
 # with `tmux -S $SPOOL_TMUX_SOCKET list-windows -a`. Run it as anyone: tmux calls
 # hop to $SPOOL_BOX_USER when needed.
 #
-# START CHECK: a claude window is watched up to SPAWN_START_CHECK_WAIT (45 s)
-# for its input box (lib/start-check.inc.sh). A known dialog on it (Settings
+# START CHECK: a claude or codex window is watched up to SPAWN_START_CHECK_WAIT
+# (45 s) for its input box (lib/start-check.inc.sh; codex's is its "›"
+# composer or its "? for shortcuts" footer, SPL-5300). A known dialog on it (Settings
 # Warning, trust prompt, auth/login, usage limit, auto-mode offer) = exit 11
 # at once, "<ID> <PANE>" still printed and the dialog named on stderr; the
 # window stays for a human and nothing is typed into it. No box in time, the
@@ -671,7 +672,11 @@ fi
 # the od pool, the claude handover and the peer restart grep it without
 # reading the exit code, so a pane that ended must never print it (SPL-2627).
 rc=0
-if [ "$KIND" = claude ] && [ "${SPAWN_START_CHECK:-1}" != 0 ]; then
+if { [ "$KIND" = claude ] || [ "$KIND" = codex ]; } && [ "${SPAWN_START_CHECK:-1}" != 0 ]; then
+  # codex 0.166.0 idle (o-629, 2026-11-11, n=1): "› Ask Codex to do anything"
+  # over "? for shortcuts"; its trust dialog is named before this is read.
+  # shellcheck disable=SC2034  # read by spool_start_check
+  [ "$KIND" = codex ] && START_CHECK_READY_RE='^› |\? for shortcuts'
   # shellcheck source=../lib/start-check.inc.sh
   . "$HERE/../lib/start-check.inc.sh"
   sw_capture() { "${SPOOL_TM[@]}" capture-pane -p -e -t "$1" 2>/dev/null; }

@@ -9,7 +9,10 @@
 // CONTROL: C47-1 needs the marker to be found in the chunk the opening loads, so
 // a marker that matches nothing cannot pass "absent". C48-2 is the preview's
 // twin of C48-5: the same list read before and after the Import click.
-// Red control: a static import of the dialog in ChannelSidebar.vue fails C47-2.
+// Red control: a static import of the dialog in a first-paint file such as
+// ChannelSidebar.vue fails C47-2. Since SPL-5279 the dialog opens from
+// pages/people/contact/[id].vue (lazy); C47-2 reads only 200.html's chunks, so
+// it does not by itself police a static import in that route page (not run).
 // Red control (SPL-5279): the old panel button back beside the + fails C48-0.
 //
 //   BASE_URL=<generated mock bundle> OUT=<dir> node tests/e2e/contacts-import.test.mjs

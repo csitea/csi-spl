@@ -70,7 +70,7 @@ export function costUnits(units, locale = 'en') {
 }
 
 /** A part's own key: (estate, source, project_or_vendor, kind, origin), the hub's GROUP BY. */
-export function costPartKey(p) {
+function costPartKey(p) {
   return [p.estate ? 'e' : 'w', p.source, p.projectOrVendor, p.kind, p.origin].join('|')
 }
 

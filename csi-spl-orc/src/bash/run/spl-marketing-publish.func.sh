@@ -24,6 +24,7 @@
 # @param POST_ID - required: the live blog post id, YYYY-MM-DD-slug
 # @param FOR_HUM - required: the workspace owner who connected LinkedIn (HUM-...)
 # @param DESK_AGENT - required: the publishing agent's desk seat (the dispatcher)
+# @param CHANNEL_ID (optional) - a connected channel id: publish on it (--channel), e.g. a LinkedIn company page (SPL-5258)
 # @param DESK_BOX (optional) - default the desk box, the same value do_spl_desk_up used
 # @param DRY_RUN (optional) - 1 (default) prints what it would publish; 0 publishes
 # @example ENV=prd TENANT_ID=spool POST_ID=2026-10-14-a-post FOR_HUM=HUM-10 DESK_AGENT=<agent id> ./run -a do_spl_marketing_publish
@@ -34,7 +35,9 @@ do_spl_marketing_publish() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local post="${POST_ID:-}" hum="${FOR_HUM:-}" tenant="${TENANT_ID:-}"
-  local agent="${DESK_AGENT:-}"
+  local agent="${DESK_AGENT:-}" chan="${CHANNEL_ID:-}"
+  [[ -z "$chan" || "$chan" =~ ^[A-Za-z0-9_-]{1,128}$ ]] ||
+    { do_log "FATAL CHANNEL_ID must be a channel id, got: '$chan'"; return 1; }
   [[ "$post" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$ ]] ||
     { do_log "FATAL POST_ID must be a blog post id (YYYY-MM-DD-slug), got: '$post'"; return 1; }
   [[ "$hum" =~ ^HUM-[A-Za-z0-9_-]+$ ]] ||
@@ -65,7 +68,7 @@ do_spl_marketing_publish() {
   [[ "$desk" == present ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
   local out
-  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- marketing-publish "$post" --for "$hum" 2>&1)" ||
+  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- marketing-publish "$post" --for "$hum" ${chan:+--channel "$chan"} 2>&1)" ||
     { do_log "FATAL marketing-publish $post for $hum in $tenant: $out"; return 1; }
   _spl_marketing_publish_row "$tenant" "$post" "$hum" "$agent" "$box" "$title" "$url" 0 "$desk" "$out"
   do_log "OK $agent published $post on the LinkedIn of $hum in $tenant ($ENV)"

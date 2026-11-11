@@ -22,7 +22,11 @@
 # @description (SPL-4955: the placer writes the queue row's topic there, the
 # @description case a brief saying the topic only in prose missed) or else a
 # @description `Task:`, `Topic:` or `Discussion:` line naming that topic (`Task:
-# @description dispatch-<topic8>`, `Topic: [env tenant] <uuid>`). Kept, and named in ONE blocker to the
+# @description dispatch-<topic8>`, `Topic: [env tenant] <uuid>`). That first line
+# @description binds to NO topic when its value starts with `none` (any case,
+# @description `**Topic:** None ...` too), even if it quotes a topic8 later on
+# @description (SPL-5266: "Topic: none live (owner topic <t8> archived ...)"
+# @description raised blockers for lanes that name no topic on purpose). Kept, and named in ONE blocker to the
 # @description orchestrator (id, topic, reason, git counts): a lane bound to the
 # @description topic but started after the archive, and one with uncommitted or
 # @description unpushed work. The blocker is sent again only when a new (id,
@@ -164,10 +168,14 @@ spl_archived_seat_workspace_wide() {
 
 # spl_archived_seat_binding LINE -> the topic a brief's binding line names:
 # its first full uuid, else the 8 hex of a dispatch-<topic8> task, else a bare
-# 8-hex short id; nothing for a line that names none (Task: dispatch-r15-01).
+# 8-hex short id; nothing for a line that names none (Task: dispatch-r15-01),
+# and nothing for a line whose value starts with the word `none` (any case,
+# markdown bold allowed): "Topic: none live (owner topic 476aff8f archived
+# 11-05)" says the lane has NO topic, the topic8 after it is prose (SPL-5266).
 spl_archived_seat_binding() {
   local line="${1:-}" t
   [[ -n "$line" ]] || return 0
+  grep -qiE '^[*]*[A-Za-z-]+:[*[:space:]]*none([^A-Za-z0-9_-]|$)' <<<"$line" && return 0
   t="$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$line" | sed -n 1p)"
   [[ -n "$t" ]] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' <<<"$line" | grep -oE '[0-9a-f]{8}' | sed -n 1p)"
   [[ -n "$t" ]] || t="$(grep -oE '(^|[^0-9A-Za-z-])[0-9a-f]{8}([^0-9A-Za-z-]|$)' <<<"$line" | grep -oE '[0-9a-f]{8}' | sed -n 1p)"

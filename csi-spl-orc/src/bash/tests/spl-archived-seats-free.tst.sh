@@ -244,5 +244,34 @@ out="$(real_walk SPL_DESK_AS_CMD=false DRY_RUN=1)"
   pass "6b CONTROL: a root it cannot read warns, and the guard alone would not hold" || fail "6b: $out"
 chmod 755 "$T/closed/desk"
 
+# 7. SPL-5266: a binding line whose value starts with `none` (any case, optional
+# markdown bold) binds to NO topic, even when it quotes a topic8 later in the
+# line ("Topic: none live (owner topic 476aff8f archived 11-05)" raised two
+# blockers). RED CONTROL: without the none check 7a binds aaaaaaaa, and c-740
+# (dirty worktree) is KEPT and named in a blocker.
+bind() { SNIPPET="spl_archived_seat_binding $(printf '%q' "$1")" run; }
+for l in 'Topic: none live (owner topic aaaaaaaa archived 11-05)' \
+  '**Topic:** None, the owner topic aaaaaaaa is archived' 'Task: NONE (dispatch-aaaaaaaa archived)' \
+  "Ask-Topic: none (was $ARCH)" 'Topic: none'; do
+  b="$(bind "$l")"
+  [[ -z "$b" ]] && pass "7a '$l' binds no topic" || fail "7a '$l' binds '$b'"
+done
+declare -A ctl=(
+  ["Topic: $ARCH"]="$ARCH" ["Topic: [prd t1] $ARCH"]="$ARCH" ['Task: dispatch-aaaaaaaa']=aaaaaaaa
+  ["Ask-Topic: $ARCH"]="$ARCH" ['**Topic:** aaaaaaaa']=aaaaaaaa ['Topic: nonesuch aaaaaaaa']=aaaaaaaa)
+for l in "${!ctl[@]}"; do
+  b="$(bind "$l")"
+  [[ "$b" == "${ctl[$l]}" ]] && pass "7b CONTROL '$l' still binds ${ctl[$l]}" || fail "7b '$l' binds '$b'"
+done
+echo c-740 >>"$T/archived.ids" && echo c-740 >>"$T/windows"
+brief c-740 $'# Lane\n\nTopic: none live (owner topic aaaaaaaa archived 11-05), report to the dispatch holder'
+wt c-740 && echo wip >"$T/wt/c-740/wip.txt"
+printf 'c-740\tclaude\t%%1\t%s\t20261026T000000Z\n' "$T/wt/c-740" >>"$SP/registry.tsv"
+n_send="$(grep -c '^send ' "$LOG")"
+out="$(run DRY_RUN=0)"
+if [[ "$(closed c-740)" == 0 && "$(grep -c '^send ' "$LOG")" == "$n_send" ]] && grep -q "INFO c-740: " <<<"$out" &&
+  ! grep -qE "KEEP c-740 |- c-740," <<<"$out"; then pass "7c a 'Topic: none ...' lane: a skip line, neither freed nor in a blocker"
+else fail "7c c-740: closed $(closed c-740)x, sends $(grep -c '^send ' "$LOG") (was $n_send): $(grep -- c-740 <<<"$out")"; fi
+
 echo "spl-archived-seats-free: $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -20,7 +20,7 @@
 # @description only. The spool binary is the state dir's (spl_host_spool), or
 # @description TOKEN_REPRICE_SPOOL; it must know the verb.
 # @param ENV - required: dev or prd
-# @param TOKEN_REPRICE_MODELS - required: the stored model names, comma separated (no default)
+# @param TOKEN_REPRICE_MODELS - required: the stored model names, comma separated (no default); a name may end in agy's effort label, e.g. gemini-4-argon-(medium) (SPL-5314)
 # @param TOKEN_REPRICE_FROM - required: the first minute, YYYY-MM-DD (UTC) or YYYY-MM-DDTHH:MM:SSZ (no default)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param TOKEN_REPRICE_SPOOL (optional) - the spool binary, default the state dir's
@@ -57,7 +57,7 @@ spl_token_reprice_args() {
   IFS=, read -r -a list <<<"$models"
   [[ "${models: -1}" != , && ${#list[@]} -gt 0 ]] || { do_log "FATAL TOKEN_REPRICE_MODELS has an empty name: '$models'"; return 1; }
   for m in "${list[@]}"; do
-    [[ "$m" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}(\[[0-9a-z]{1,8}\])?$ ]] ||
+    [[ "$m" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}(-\([0-9a-z]{1,16}\))?(\[[0-9a-z]{1,8}\])?$ ]] ||
       { do_log "FATAL TOKEN_REPRICE_MODELS: bad model name '$m'"; return 1; }
     [[ -z "${seen[$m]:-}" ]] || { do_log "FATAL TOKEN_REPRICE_MODELS names '$m' twice"; return 1; }
     seen[$m]=1

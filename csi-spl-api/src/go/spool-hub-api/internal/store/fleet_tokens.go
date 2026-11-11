@@ -41,11 +41,15 @@ var fleetTokenProviders = map[string]string{"claude": "anthropic", "mistral": "m
 func FleetTokenProvider(vendor string) string { return fleetTokenProviders[vendor] }
 
 // fleetTokenModel is the model_prices model of a transcript's model name: a
-// context-size suffix such as "[1m]" and a snapshot date such as
-// "-20251001" (claude-haiku-4-5-20251001 is claude-haiku-4-5) name no other
-// price row.
+// context-size suffix such as "[1m]", a reasoning-effort label such as
+// "-(medium)" (agy reports its UI label: gemini-4-argon-(medium) is
+// gemini-4-argon, SPL-5314) and a snapshot date such as "-20251001"
+// (claude-haiku-4-5-20251001 is claude-haiku-4-5) name no other price row.
 func fleetTokenModel(m string) string {
 	if i := strings.IndexByte(m, '['); i > 0 && strings.HasSuffix(m, "]") {
+		m = m[:i]
+	}
+	if i := strings.LastIndex(m, "-("); i > 0 && strings.HasSuffix(m, ")") {
 		m = m[:i]
 	}
 	if n := len(m) - 9; n > 0 && m[n] == '-' && strings.Trim(m[n+1:], "0123456789") == "" {

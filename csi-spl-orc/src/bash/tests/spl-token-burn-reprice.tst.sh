@@ -65,6 +65,7 @@ runa() {
 ok=(TOKEN_REPRICE_MODELS=m-1 TOKEN_REPRICE_FROM=2026-10-16)
 for bad in "TOKEN_REPRICE_MODELS=" "TOKEN_REPRICE_FROM=" "TOKEN_REPRICE_MODELS=m-1,,m-2" "TOKEN_REPRICE_MODELS=m-1," \
            "TOKEN_REPRICE_MODELS=m-1,m-1" "TOKEN_REPRICE_MODELS=m'1" "TOKEN_REPRICE_MODELS=m 1" \
+           "TOKEN_REPRICE_MODELS=m-(medium" "TOKEN_REPRICE_MODELS=m-(Medium)" \
            "TOKEN_REPRICE_FROM=16.10.2026" "TOKEN_REPRICE_FROM=2026-10-16T00:00:00+03:00" "DRY_RUN=2"; do
   runa "${ok[@]}" "$bad"; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A1. $bad refused before any DB call" || fail "A1. $bad: rc=$rc $(cat "$T/calls" "$T/e")"
@@ -76,8 +77,8 @@ runa TOKEN_REPRICE_MODELS=m-1; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'TOKEN_REPRICE_FROM is required (no default)' "$T/e" &&
   pass "A1. no TOKEN_REPRICE_FROM default" || fail "A1. from default: rc=$rc $(cat "$T/e")"
 
-runa "${ok[@]}" TOKEN_REPRICE_MODELS='claude-haiku-4-5-20251001,mistral-large,claude-opus-5-5[1m]'; rc=$?
-[[ $rc -eq 0 ]] && grep -q '^argv fleet-tokens-reprice --models claude-haiku-4-5-20251001,mistral-large,claude-opus-5-5\[1m\] --from 2026-10-16$' "$T/calls" &&
+runa "${ok[@]}" TOKEN_REPRICE_MODELS='claude-haiku-4-5-20251001,mistral-large,claude-opus-5-5[1m],gemini-4-argon-(medium)'; rc=$?
+[[ $rc -eq 0 ]] && grep -q '^argv fleet-tokens-reprice --models claude-haiku-4-5-20251001,mistral-large,claude-opus-5-5\[1m\],gemini-4-argon-(medium) --from 2026-10-16$' "$T/calls" &&
   grep -q 'DRY_RUN prd' "$T/e" && grep -q 'm-1 unpriced_before=2 would_price=2 cost_usd=0.0015 unpriced_after=0' "$T/e" &&
   pass "A2. DRY_RUN defaults to 1: no --write; real model names pass" || fail "A2. dry: rc=$rc $(cat "$T/calls" "$T/e")"
 runa "${ok[@]}" TOKEN_REPRICE_FROM=2026-10-16T09:19:00Z DRY_RUN=0; rc=$?

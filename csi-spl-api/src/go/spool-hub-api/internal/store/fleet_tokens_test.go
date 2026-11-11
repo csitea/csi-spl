@@ -112,7 +112,8 @@ func TestFleetTokenStoreUpsert(t *testing.T) {
 
 // spec 140 T010: each sample is priced against the model_prices row in force
 // at its minute (a later price never re-prices an earlier minute, a
-// "[1m]" suffix and a "-YYYYMMDD" snapshot date name the same model); a model with no price stores cost 0
+// "[1m]" suffix, a "-YYYYMMDD" snapshot date and agy's "-(medium)" effort label
+// name the same model); a model with no price stores cost 0
 // and priced false (red control), its tokens still count. Memory and Postgres.
 func TestFleetTokenStorePricing(t *testing.T) {
 	ctx := context.Background()
@@ -128,6 +129,10 @@ func TestFleetTokenStorePricing(t *testing.T) {
 				{"anthropic", model, UsageKindCacheWrite, 5_000_000, "USD", m0.Add(-time.Hour)},
 				// Doubled from m0+5m on: minutes before keep the old price.
 				{"anthropic", model, UsageKindIn, 8_000_000, "USD", m0.Add(5 * time.Minute)},
+				// agy is provider google (SPL-5314).
+				{"google", model, UsageKindIn, 2_000_000, "USD", m0.Add(-time.Hour)},
+				{"google", model, UsageKindOut, 10_000_000, "USD", m0.Add(-time.Hour)},
+				{"google", model, UsageKindCacheRead, 100_000, "USD", m0.Add(-time.Hour)},
 			} {
 				putFleetPrice(t, st, p)
 			}
@@ -138,6 +143,7 @@ func TestFleetTokenStorePricing(t *testing.T) {
 				fleetSample("c-2", "claude", uid("unpriced-"), m0, 5000, 0, 0, 0),
 				fleetSample("m-1", "mistral", model, m0, 7, 0, 0, 0),
 				fleetSample("c-3", "claude", model, m0, 0, 0, 0, 0),
+				fleetSample("a-1", "agy", model+"-(medium)", m0, 1000, 100, 2000, 0),
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -162,6 +168,10 @@ func TestFleetTokenStorePricing(t *testing.T) {
 			if r := at("m-1", m0); r.Priced || r.CostMicros != 0 {
 				t.Fatalf("another provider's model does not take anthropic's price: %+v", r)
 			}
+			// 1000*2 + 100*10 + 2000*0.1 = 2000 + 1000 + 200 micros.
+			if r := at("a-1", m0); !r.Priced || r.CostMicros != 3200 || r.Model != model+"-(medium)" {
+				t.Fatalf("an agy effort label at its base model's google price %+v, want 3200 micros", r)
+			}
 			if r := at("c-3", m0); !r.Priced || r.CostMicros != 0 {
 				t.Fatalf("a zero minute is priced at 0: %+v", r)
 			}
@@ -182,6 +192,11 @@ func TestFleetTokenModel(t *testing.T) {
 		"mistral-large-latest":           "mistral-large-latest",
 		"model-2025100x":                 "model-2025100x",
 		"-20251001":                      "-20251001",
+		"gemini-4-argon-(medium)":        "gemini-4-argon",
+		"gemini-4-argon-(high)":          "gemini-4-argon",
+		"gemini-3.8-flash":               "gemini-3.8-flash",
+		"-(medium)":                      "-(medium)",
+		"gemini-4-argon-(medium":         "gemini-4-argon-(medium",
 	} {
 		if got := fleetTokenModel(in); got != want {
 			t.Errorf("fleetTokenModel(%q) = %q, want %q", in, got, want)

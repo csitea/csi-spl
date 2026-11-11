@@ -412,9 +412,11 @@ Where the hub differs from sections 3.2 to 3.6 and 4.4.2, and why. The code is
   open. `is_metered` absent reads true; an unmetered sample (vendor `qwen`, or
   any unmetered lane) must say false.
 - **Pricing**: vendor to `model_prices.provider`: claude `anthropic`,
-  mistral `mistral`, grok `xai`, agy `google`, qwen `qwen`; a model's `[1m]`-style suffix
-  and an 8-digit snapshot date (`claude-haiku-4-5-20251001` prices as
-  `claude-haiku-4-5`, SPL-2323) are dropped for the lookup. The price row in
+  mistral `mistral`, grok `xai`, agy `google`, qwen `qwen`; a model's `[1m]`-style suffix,
+  agy's reasoning-effort label (`gemini-4-argon-(medium)` prices as
+  `gemini-4-argon`, SPL-5314) and an 8-digit snapshot date
+  (`claude-haiku-4-5-20251001` prices as `claude-haiku-4-5`, SPL-2323) are
+  dropped for the lookup. The price row in
   force at the minute wins. mistral's model is vibe's alias
   (`mistral-large`), priced at Mistral's list price (cnf `model_prices`).
 - **Reprice** (SPL-2405): a minute stored while its model had no price row
@@ -583,10 +585,28 @@ turns of the day (`spl_cost_tokens_agy`), so Monitoring -> Costs lists grok's
 and agy's tokens beside claude's; a grok or agy lane with rows there is no
 longer "unmetered".
 
-**No price.** `model_prices` holds no `xai` or `google` row: grok and agy
-minutes are stored `priced=false`, cost 0, and the Tokens tab and the Costs
-card say "not priced", never a cost of 0. A price row added later is applied with
+**No price.** `model_prices` holds no `xai` row: grok minutes are stored
+`priced=false`, cost 0, and the Tokens tab and the Costs card say "not
+priced", never a cost of 0. A price row added later is applied with
 `do_spl_token_burn_reprice` (3.7).
+
+**agy's price (SPL-5314).** cnf `env.model_prices` holds `google` rows for
+the two models agy reports, from Google's paid-tier Standard list price
+(`https://aistudio.google.com/docs/pricing`, read 2026-11-11), USD per
+million tokens:
+
+| model | from | in | out | cache read |
+|---|---|---|---|---|
+| `gemini-3.8-flash` | 2026-11-01 | 0.75 | 3.75 | 0.075 |
+| `gemini-3.8-flash` | 2027-01-01 | 1.50 | 7.50 | 0.15 |
+| `gemini-4-argon` | 2026-11-01 | 2.00 | 10.00 | 0.10 |
+| `gemini-4-argon` | 2026-12-01 | 4.00 | 20.00 | 0.20 |
+
+The page names no start date for today's prices, so the rows start
+2026-11-01 and an October agy minute stays unpriced. Google lists no
+per-token cache write price and agy reports `cache_write` 0, so there is no
+write row. An agy minute with no model (the collector found none) stays
+unpriced.
 
 ### 3.10 Each workspace sees its own token costs (SPL-3565)
 

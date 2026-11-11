@@ -36,7 +36,7 @@ import { pendingRow, withoutMsg } from '~/utils/feed-core.mjs'
 import { applyEdit } from '~/utils/msg-apply.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji-core.mjs'
 import { withSessionRetry } from '~/utils/live-follow-core.mjs'
-import { openFeed, readFirstPage, sameFeed } from '~/utils/feed-read.mjs'
+import { readFirstPage, readMore } from '~/utils/feed-read.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
 
 export type { ChannelRow }
@@ -294,23 +294,26 @@ function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
     }
     if (!olderCursor.value || loadingOlder.value) return
     loadingOlder.value = true
-    /* SPL-5250: an older page of the feed left behind changes nothing here */
-    const where = openFeed(s)
+    /* SPL-5250: an older page of a feed left behind (or opened again since) changes nothing here */
+    const before = olderCursor.value || undefined
     try {
-      const page = await withSessionRetry(api, () => api.listMessages({ ...where, limit: WINDOW, before: olderCursor.value || undefined }))
-      if (!sameFeed(where, s)) return
-      const incoming = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
-      const seen = new Set(messages.value.map((m) => m.msg_id))
-      const add = incoming.filter((m) => m.msg_id && !seen.has(m.msg_id))
-      if (add.length) messages.value = [...messages.value, ...add]
-      totals.value = mergeTopicTotals(totals.value, page.totals)
-      olderCursor.value = page.next || null
-      visible.value += WINDOW
-      follow()
-    } catch (e) {
-      if (!sameFeed(where, s)) return
-      error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_older_failed')
-      olderCursor.value = null
+      await readMore(s, {
+        read: (where: { channel?: string, peer?: string }) => withSessionRetry(api, () => api.listMessages({ ...where, limit: WINDOW, before })),
+        land: (page: Awaited<ReturnType<typeof api.listMessages>>) => {
+          const incoming = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+          const seen = new Set(messages.value.map((m) => m.msg_id))
+          const add = incoming.filter((m) => m.msg_id && !seen.has(m.msg_id))
+          if (add.length) messages.value = [...messages.value, ...add]
+          totals.value = mergeTopicTotals(totals.value, page.totals)
+          olderCursor.value = page.next || null
+          visible.value += WINDOW
+          follow()
+        },
+        fail: (e: unknown) => {
+          error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_older_failed')
+          olderCursor.value = null
+        },
+      })
     } finally {
       loadingOlder.value = false
     }
@@ -381,25 +384,24 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
   let catchUpSync = { key: '', cursor: '' }
   async function catchUp() {
     if (api.mock) return refresh()
-    const where = { channel: active.value, peer: peer.value }
-    const key = `${where.channel || ''}|${where.peer || ''}`
+    const key = `${active.value || ''}|${peer.value || ''}`
     /* R2-2: only the topics changed after the newest row held (or the last
        sync); the hub answers the full page when it cannot vouch for a delta */
     const q = catchUpQuery(messages.value, catchUpSync.key === key ? catchUpSync.cursor : '')
-    try {
-      const page = await withSessionRetry(api, () => api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50,
-        ...(q ? { changedSince: q.since, rx: q.rx } : {}) }))
-      if (!sameFeed(where, s)) return
-      catchUpSync = { key, cursor: page.sync || '' }
-      const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
-      messages.value = mergeCatchUp(messages.value, fresh,
-        { delta: page.delta === true, goneTasks: page.goneTasks, goneMsgs: page.goneMsgs, sinceAt: q ? q.sinceAt : '' }) as FeedMessage[]
-      totals.value = mergeTopicTotals(totals.value, page.totals)
-      follow()
-    } catch (e) {
-      if (!sameFeed(where, s)) return
-      error.value = e instanceof Error ? e.message : i18n.t('feed.error.catch_up_failed')
-    }
+    /* SPL-5250: a catch-up of a feed left behind (or opened again since) changes nothing */
+    await readMore(s, {
+      read: (where: { channel?: string, peer?: string }) => withSessionRetry(api, () => api.listMessages({ ...where, limit: 50,
+        ...(q ? { changedSince: q.since, rx: q.rx } : {}) })),
+      land: (page: Awaited<ReturnType<typeof api.listMessages>>) => {
+        catchUpSync = { key, cursor: page.sync || '' }
+        const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+        messages.value = mergeCatchUp(messages.value, fresh,
+          { delta: page.delta === true, goneTasks: page.goneTasks, goneMsgs: page.goneMsgs, sinceAt: q ? q.sinceAt : '' }) as FeedMessage[]
+        totals.value = mergeTopicTotals(totals.value, page.totals)
+        follow()
+      },
+      fail: (e: unknown) => { error.value = e instanceof Error ? e.message : i18n.t('feed.error.catch_up_failed') },
+    })
   }
 
   return { selectChannel, selectDm, refresh, catchUp }

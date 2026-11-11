@@ -201,7 +201,9 @@ describe('channel store paging action (sentinel → older page)', () => {
 describe('A6 wiring in channel.ts and spool-client', () => {
   it('channel store loadOlder fetches before=<next>, appends, stops at null', () => {
     const st = read('stores/channel.ts')
-    assert.match(st, /before:\s*olderCursor\.value/)
+    /* SPL-5250: the cursor is read before the await, then passed as before */
+    assert.match(st, /const before = olderCursor\.value \|\| undefined/)
+    assert.match(st, /limit: WINDOW, before \}/)
     assert.match(st, /if \(!olderCursor\.value/)
     assert.match(st, /olderCursor\.value = page\.next \|\| null/)
     assert.match(st, /\[\.\.\.messages\.value, \.\.\.add\]/)

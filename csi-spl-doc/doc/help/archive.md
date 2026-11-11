@@ -39,6 +39,8 @@ The open issues of a topic follow it. Archiving the topic closes them
 someone changed it in between. Deleting the topic deletes its open issues.
 Done, discarded and in-review issues, epics and features stay as they are.
 Each closed or reopened issue gets a comment that names the topic.
+Archiving, unarchiving or deleting a whole channel does the same for each of
+its topics.
 
 ---
 

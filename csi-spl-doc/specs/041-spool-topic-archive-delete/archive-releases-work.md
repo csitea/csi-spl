@@ -41,14 +41,16 @@ archived discussion is another lane's work and is not described here.
   is a plain lane, and is freed.
   The desk walk reads every user's root of the box: a root the cron's user cannot enter (0700) is
   read as its owner, and one it cannot read at all gets a WARN.
-- **Retired by SPL-5284: what is left no longer goes on in a new discussion.** The issues now
-  follow their discussion in the hub (section "An issue follows its discussion" below), and the
-  box cron no longer runs `do_spl_archived_followup`; the action stays for a hand run. What it
-  did: `do_spl_archived_followup` ran in the same
+- **Declined rows only since SPL-5284; issues follow at archive time.** The issues now follow
+  their discussion in the hub (section "An issue follows its discussion" below), so
+  `do_spl_archived_followup` drops every issue line it reads (`ARCHIVED_FOLLOWUP_ISSUES=1` brings
+  the old issue move back, for a hand run). It still carries on the queue rows the placer declined
+  because of the archive: the owner asked for that carry-over (msg 51465f86), and dropping it
+  needs the owner (holder c-002, R7 c-574 W2). It runs in the same
   cron on every box, for topics archived after that box's first run (forward-only). Per topic
   it posts one new discussion in the archived topic's channel, under the dispatch lease holder's
-  id, naming the old topic and listing the work; each issue is linked there, then unlinked from
-  the old one. `journal.tsv` keeps old -> new, so a crash between the post and the links never
+  id, naming the old topic and listing the declined rows; before SPL-5284 each issue was also
+  linked there, then unlinked from the old one. `journal.tsv` keeps old -> new, so a crash between the post and the links never
   posts twice. A post that fails sends one blocker to the orchestrator, and is retried every run.
 - **A held channel gets no follow-up.** Where nothing may post on its own, the code does not:
   a channel with `no-auto-post` in column 7 of the box map `<spool root>/channel-rules.tsv`, every
@@ -98,9 +100,9 @@ archived discussion is another lane's work and is not described here.
 |---|---|---|
 | FR-AW-001 | a queued row whose discussion is archived is declined, not placed; its sender and the holder are told | Implemented — SPL-4955 |
 | FR-AW-002 | a lane bound to an archived topic by `Ask-Topic:`, `Task:`, `Topic:` or `Discussion:` is released, its open issue `onhold`; a seat that answers a whole workspace is never closed by one topic | Implemented — SPL-4955 |
-| FR-AW-003 | an archived topic with unfinished work gets one new discussion in its channel, listing that work; its issues move there | Superseded by FR-AW-004 — SPL-5284 (out of the cron) |
-| FR-AW-004 | archiving a discussion closes its open issues (`diss`) in the same transaction; unarchiving puts each back to its previous status unless it was changed in between; deleting it deletes its open issues; any ONE linked discussion decides; a channel archive, unarchive or delete does the same for its topics | Implemented — SPL-5284 |
-| FR-AW-005 | each closed or reopened issue gets an `issue` update frame and one comment naming the discussion; a deleted one an `issue` delete frame | Implemented — SPL-5284 |
+| FR-AW-003 | an archived topic with queue rows declined for the archive gets one new discussion in its channel, listing them (declined rows only; issues follow at archive time, FR-AW-004) | Implemented — SPL-4955; issue move superseded by FR-AW-004 — SPL-5284 |
+| FR-AW-004 | archiving a discussion closes its open issues (`diss`) in the same transaction; unarchiving puts each back to its previous status unless it was changed in between; deleting it deletes its open issues; any ONE linked discussion decides; a channel archive (its creator's, or an admin's from the workspace settings), unarchive or delete does the same for its topics | Implemented — SPL-5284 |
+| FR-AW-005 | each closed or reopened issue gets an `issue` update frame and one comment naming the discussion, on the topic, box and channel paths alike; a deleted one an `issue` delete frame | Implemented — SPL-5284 |
 
 ## An issue follows its discussion (SPL-5284)
 
@@ -125,7 +127,8 @@ It is the hub, in the store transaction of the discussion's own change, so the t
 - **Open** is `eval`, `todo`, `wip`, `blocked` or `onhold`. `done`, `diss` and `qas` stay as they
   are. An epic or a feature is never closed by one discussion (its children have their own), nor
   through a link from another workspace (SPL-5126), nor an issue already archived or deleted.
-- **Archive** (`PUT /v1/messages/{card}/archive`, the box's archive, or a channel archive): each
+- **Archive** (`PUT /v1/messages/{card}/archive`, the box's archive, or a channel archive:
+  `PUT /v1/channels/{channel}/archive` or the admin's `DELETE /v1/tenant/channels/{channel}`): each
   open issue the topic links goes to `diss`; `issue_discussion_closes` keeps its previous status
   and the `canceled_at` it was given.
 - **Unarchive** (the `DELETE` twin, or a channel unarchive): each issue that archive closed goes
@@ -137,10 +140,14 @@ It is the hub, in the store transaction of the discussion's own change, so the t
   closed or reopened issue gets one hub comment naming the discussion as `/t/<task id>`, who did it
   and when. A deleted issue gets the frame only.
 
-This replaces the follow-up move (FR-AW-003): the box cron runs only `do_spl_archived_seats_free`.
+This replaces the follow-up's issue move (FR-AW-003): the box cron runs `do_spl_archived_seats_free`,
+then `do_spl_archived_followup` for the declined queue rows only.
+The hub closes issues the old follow-up left alone: one with the `answer` label, or a standing or
+reviewer seat's own issue, when it links the archived discussion (any ONE linked discussion
+decides, poll answer 1 B).
 A freed lane's issue that the hub already closed is `diss`, which that run leaves as it is.
 
-<!-- version: 0.3.0 · updated: 2026-11-11 -->
+<!-- version: 0.3.1 · updated: 2026-11-11 -->
 
 ## The follow-up keeps the priority (SPL-5147)
 

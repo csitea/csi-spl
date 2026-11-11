@@ -310,6 +310,9 @@ doc = {
       # spec 090 X row (SPL-5194): the X connect callback, registered on the
       # WUI origin like LinkedIn's (x-app-setup.md).
       {"source": "/api/v1/marketing/x/callback", "run": {"serviceId": service, "region": region}},
+      # spec 090 T041 (SPL-5258): the LinkedIn Company Page connect callback,
+      # registered on the WUI origin like LinkedIn's (linkedin-company-page.md 10.2).
+      {"source": "/api/v1/marketing/linkedin-org/callback", "run": {"serviceId": service, "region": region}},
       # spec 006 checkout-v1 §1 (the bare prefix for POST /api/v1/checkout)
       {"source": "/api/v1/checkout", "run": {"serviceId": service, "region": region}},
       {"source": "/api/v1/checkout/**", "run": {"serviceId": service, "region": region}},

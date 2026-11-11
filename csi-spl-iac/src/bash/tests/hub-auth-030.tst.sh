@@ -42,7 +42,8 @@ for env in dev prd; do
   gh_inject=$(yq -r '.env.docs.repo_edit.inject // "false"' "$CNF/$env.env.json")
   fb_inject=$(yq -r '.env.marketing.facebook.inject // "false"' "$CNF/$env.env.json")
   x_inject=$(yq -r '.env.marketing.x.inject // "false"' "$CNF/$env.env.json")
-  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" "$gh_inject" "$fb_inject" "$x_inject" <<'PY'
+  lo_inject=$(yq -r '.env.marketing.linkedin_org.inject // "false"' "$CNF/$env.env.json")
+  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" "$gh_inject" "$fb_inject" "$x_inject" "$lo_inject" <<'PY'
 import json, sys
 env = json.loads(sys.argv[1].split("=", 1)[1]); sec = set(json.loads(sys.argv[2].split("=", 1)[1]))
 listed = [p.strip().upper() for p in env.get("SPOOL_HUB_AUTH_PROVIDERS", "").split(",") if p.strip()]
@@ -62,6 +63,10 @@ if sys.argv[6] == "true": want.add("SPOOL_GITHUB_APP_KEY")
 if sys.argv[7] == "true": want.add("SPOOL_HUB_MARKETING_FACEBOOK_CLIENT_SECRET")
 # spec 090 X row (SPL-5194): the X app pair only while marketing.x.inject is "true"
 if sys.argv[8] == "true": want |= {"SPOOL_HUB_MARKETING_X_CLIENT_ID", "SPOOL_HUB_MARKETING_X_CLIENT_SECRET"}
+# spec 090 T041 (SPL-5258): the LinkedIn Company Page app pair only while marketing.linkedin_org.inject is "true"
+if sys.argv[9] == "true": want |= {"SPOOL_HUB_MARKETING_LINKEDIN_ORG_CLIENT_ID", "SPOOL_HUB_MARKETING_LINKEDIN_ORG_CLIENT_SECRET"}
+lo_env = {"SPOOL_HUB_MARKETING_LINKEDIN_ORG_VERSION", "SPOOL_HUB_MARKETING_LINKEDIN_ORG_SCOPES"} & set(env)
+if (sys.argv[9] == "true") != (len(lo_env) == 2): print(f"linkedin_org inject {sys.argv[9]} but env carries {sorted(lo_env)}"); sys.exit(0)
 print("ok" if sec == want else f"injected {sorted(sec)} != expected {sorted(want)}")
 PY
 )
@@ -72,6 +77,9 @@ PY
   ids=$(grep -E '^auth_secret_ids ' "$v")
   grep -qF '"csi-spl-hub-marketing-x-client-id"' <<<"$ids" && grep -qF '"csi-spl-hub-marketing-x-client-secret"' <<<"$ids" \
     && pass "$env 030 creates both X app slots" || fail "$env auth_secret_ids lacks an X app slot"
+  # spec 090 T041 (SPL-5258): both LinkedIn Company Page app slots exist whatever marketing.linkedin_org.inject says
+  grep -qF '"csi-spl-hub-marketing-linkedin-org-client-id"' <<<"$ids" && grep -qF '"csi-spl-hub-marketing-linkedin-org-client-secret"' <<<"$ids" \
+    && pass "$env 030 creates both LinkedIn Company Page app slots" || fail "$env auth_secret_ids lacks a LinkedIn Company Page app slot"
   grep -q '"SPOOL_HUB_WUI_KEY"' <<<"$envline" && fail "$env the box-wui key is a plain env var" || pass "$env the box-wui key is never a plain env var"
   # SPL-2157: debug sign-in links are opt-in for lde only; dev/prd never set them on
   dbg=$(yq -r '.env.auth.native.env.SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS // "false"' "$CNF/$env.env.json")

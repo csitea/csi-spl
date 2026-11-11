@@ -37,7 +37,7 @@
 #      for the box user through the named install actions, then checks them;
 #      run against a stub ./run + crontab: one line each, idempotent.
 #  17. role 10 also installs the PC-only csi-spl crons (spec 064 L4): the dev
-#      desk reconcile (*/3, CLE-00 muted) and the weekly full scan (sat-only)
+#      desk reconcile (*/3, c-001 muted) and the weekly full scan (sat-only)
 #      as the box user, the tmp scratch sweep as the agent user, each the PC's
 #      line through its named action; run against a stub: one line each,
 #      other lines kept, idempotent, a failing action fails the task.
@@ -445,10 +445,10 @@ for t in yaml.safe_load(open('$r10')):
         for i in t['loop']: print('ITEM', i['tag'], i['user'], i['dir'], i['action'], '|' + i['env'] + '|' + i['check'] + '|')
         print(t['ansible.builtin.shell'])")
 grep -qx "{{ owner_user if item.user == 'box' else agent_user }}" <<<"$(head -n1 <<<"$pt")" \
-  && grep -qx 'ITEM desk-reconcile box csi-spl-orc do_spl_desk_install_service |ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 DESK_CRON_EVERY=3|DESK_SERVICE_ACTION=check|' <<<"$pt" \
+  && grep -qx 'ITEM desk-reconcile box csi-spl-orc do_spl_desk_install_service |ENV=dev TENANT_ID=t1 DESK_MUTE=c-001 DESK_CRON_EVERY=3|DESK_SERVICE_ACTION=check|' <<<"$pt" \
   && grep -qx 'ITEM weekly-full-scan box csi-spl-iac do_install_weekly_full_scan_cron |WEEKLY_SCAN_CRON_ACTION=install||' <<<"$pt" \
   && grep -qx 'ITEM tmp-scratch-sweep agent csi-spl-orc do_tmp_scratch_sweep_install_cron |SCRATCH_CRON_MINUTE=17 SCRATCH_CRON_DRY_RUN=0||' <<<"$pt" \
-  && pass "17. role 10 installs the PC's dev desk reconcile (*/3, CLE-00 muted) + weekly scan as the box user, the scratch sweep as the agent user" \
+  && pass "17. role 10 installs the PC's dev desk reconcile (*/3, c-001 muted) + weekly scan as the box user, the scratch sweep as the agent user" \
   || fail "17. role 10 PC-only items: $(grep -E '^(ITEM|\{\{)' <<<"$pt" | tr '\n' ' ')"
 grep -q 'DRY_RUN=0 ./run -a {{ item.action }}' <<<"$pt" && grep -q '{{ item.check }} ./run -a {{ item.action }}' <<<"$pt" \
   && pass "17. role 10 goes through the named install actions (and the desk check)" || fail "17. role 10 does not use the PC-only install actions"
@@ -484,13 +484,22 @@ for t in yaml.safe_load(open('$r10')):
         print(s.replace('{{ spool_root }}', '$PB17/spool').replace('{{ repo_dir }}', '$PB17/repo'))" "$1")
   env FAKE_CRON="$PB17/cron" PATH="$PB17/bin:$PATH" STUB_FAIL="${2:-}" bash -c "$body" 2>&1; }
 p1=$(run_pc desk-reconcile); p2=$(run_pc weekly-full-scan); p3=$(run_pc tmp-scratch-sweep); p4=$(run_pc desk-reconcile); p5=$(run_pc tmp-scratch-sweep)
-[[ "$p1" == "CHANGED */3 * * * * ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 "*"# csi-spl:desk-reconcile" && "$p2" == "CHANGED 0 21 * * 5 "*"# csi-spl:weekly-full-scan" \
+[[ "$p1" == "CHANGED */3 * * * * ENV=dev TENANT_ID=t1 DESK_MUTE=c-001 "*"# csi-spl:desk-reconcile" && "$p2" == "CHANGED 0 21 * * 5 "*"# csi-spl:weekly-full-scan" \
    && "$p3" == "CHANGED 17 * * * * DRY_RUN=0 "*"# csi-spl:tmp-scratch-sweep" && "$p4" == "OK */3 "* && "$p5" == "OK 17 "* ]] \
   && [[ "$(grep -c 'csi-spl:desk-reconcile$' "$PB17/cron")" == 1 && "$(grep -c 'csi-spl:desk-reconcile-prd$' "$PB17/cron")" == 1 \
      && "$(grep -c 'csi-spl:weekly-full-scan$' "$PB17/cron")" == 1 && "$(grep -c 'csi-spl:tmp-scratch-sweep$' "$PB17/cron")" == 1 \
      && "$(grep -c 'orch-rotate$' "$PB17/cron")" == 1 && "$(wc -l <"$PB17/cron")" == 5 ]] \
   && pass "17. role 10 against a stub: the PC's three lines, one each, the prd desk + rotation lines kept, a re-run is OK (no change)" \
   || fail "17. role 10 PC-only run: p1=$p1 p2=$p2 p3=$p3 p4=$p4 p5=$p5 cron=$(cat "$PB17/cron")"
+# Every DESK_MUTE id role 10 passes must survive the action's own check
+# (spl_is_participant_id) after the legacy-id cutoff (spec 061 section 0):
+# DESK_MUTE=CLE-00 failed every prd provision of step 060 in this task.
+mutes=$(sed -n 's/.*DESK_MUTE=\([^ "]*\).*/\1/p' "$r10" | sort -u)
+bad=$(for m in $mutes; do (export SPOOL_NOW=2026-11-11T00:00:00Z; source "$O/../features/spawn-agents/lib/spool-env.inc.sh" >/dev/null 2>&1
+  spl_is_participant_id "$m" 2>/dev/null) || printf '%s ' "$m"; done)
+[[ -n "$mutes" && -z "$bad" ]] \
+  && pass "17. role 10's DESK_MUTE ids ($(tr '\n' ' ' <<<"$mutes" | sed 's/ $//')) are agent ids the desk install accepts after the legacy cutoff" \
+  || fail "17. role 10 passes DESK_MUTE '${bad:-<none found>}': not an agent id after the legacy cutoff (spec 061), the provision task fails"
 p6=$(run_pc weekly-full-scan do_install_weekly_full_scan_cron); p6rc=$?
 [[ $p6rc -ne 0 && "$p6" == *"FAIL do_install_weekly_full_scan_cron"* ]] \
   && pass "17. role 10 fails when an install action fails" || fail "17. role 10 swallowed a failing action: rc=$p6rc $p6"

@@ -41,6 +41,10 @@ fb_ln=$(grep -n '"/api/v1/marketing/facebook/callback"' "$R" | sed -n 1p | cut -
 x_ln=$(grep -n '"/api/v1/marketing/x/callback"' "$R" | sed -n 1p | cut -d: -f1)
 [[ -n "$x_ln" && -n "$spa_ln" && "$x_ln" -lt "$spa_ln" ]] \
   && pass "render: x callback rewrite precedes the SPA fallback" || fail "render: x callback rewrite missing or after '**'"
+# spec 090 T041 (SPL-5258): the LinkedIn Company Page connect callback, same shape
+lo_ln=$(grep -n '"/api/v1/marketing/linkedin-org/callback"' "$R" | sed -n 1p | cut -d: -f1)
+[[ -n "$lo_ln" && -n "$spa_ln" && "$lo_ln" -lt "$spa_ln" ]] \
+  && pass "render: linkedin-org callback rewrite precedes the SPA fallback" || fail "render: linkedin-org callback rewrite missing or after '**'"
 [[ -f "$APP_ROOT/csi-spl-wui/package.json" ]] && pass "csi-spl-wui/package.json exists" || fail "missing WUI package.json"
 grep -q '"@pinia/nuxt"' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI depends on Pinia" || fail "Pinia missing"
 grep -q 'nuxt generate' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI has generate script" || fail "generate script"

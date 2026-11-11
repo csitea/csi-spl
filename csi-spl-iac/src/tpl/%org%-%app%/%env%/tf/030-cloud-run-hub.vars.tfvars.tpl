@@ -86,6 +86,15 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (mkt_x.get("inject", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update(mkt_x_sec) %}
 {%- endif %}
+{#- spec 090 T041 (SPL-5258): the two LinkedIn Company Page app slots always
+    exist; injected, with the API version and scopes, only while
+    marketing.linkedin_org.inject is "true" (both versions exist) #}
+{%- set mkt_lo = marketing["linkedin_org"] if (marketing is defined and marketing["linkedin_org"] is defined) else {} %}
+{%- set mkt_lo_sec = {"SPOOL_HUB_MARKETING_LINKEDIN_ORG_CLIENT_ID": mkt_lo["client_id_secret"], "SPOOL_HUB_MARKETING_LINKEDIN_ORG_CLIENT_SECRET": mkt_lo["client_secret_secret"]} if mkt_lo else {} %}
+{%- if (mkt_lo.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_sec.update(mkt_lo_sec) %}
+{%- set _ = run_env.update({"SPOOL_HUB_MARKETING_LINKEDIN_ORG_VERSION": mkt_lo["version"] | string, "SPOOL_HUB_MARKETING_LINKEDIN_ORG_SCOPES": mkt_lo["scopes"]}) %}
+{%- endif %}
 {#- spec 090 T030 (SPL-4164): Page + Instagram publishing reuses the sign-in
     Meta app: its id and its secret slot (already in auth_secret_ids, so no
     new slot), only while marketing.facebook.inject is "true" #}
@@ -153,7 +162,7 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- set _ = run_env.update({"SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE": vk["pepper_file"]}) %}
 {%- set vk_pepper_version = hub["secret_versions"][vk["pepper_secret"]] | string %}
 {%- endif %}
-{%- set slot_ids =(auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) + (rnb_sec.values() | list) + (mkt_sec.values() | list) + (mkt_x_sec.values() | list) %}
+{%- set slot_ids =(auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) + (rnb_sec.values() | list) + (mkt_sec.values() | list) + (mkt_x_sec.values() | list) + (mkt_lo_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
 {%- for p in listed %}

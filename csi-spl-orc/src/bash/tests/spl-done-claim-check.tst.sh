@@ -261,14 +261,16 @@ v="$(for k in cust custno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
 [ "$rc" = 0 ] && [ "$v" = "cust=landed custno=would-alert " ] && [ "$(verdict quoted)" = landed ] && [ "$(verdict unl)" = would-alert ] &&
   pass "10. a sha on a cnf customer repo's fetched trunk is landed; a sha in no known repo's trunk still alerts; the csi-spl verdicts stand; a clone on another box is skipped" ||
   fail "10. cnf customer repo (rc $rc) got '$v': $(cat "$T/o")"
-# SPL-4471: a GitHub-only row (no src_dir: its clone takes no git) has
-# no clone to read: skipped, no gh call, the other verdicts stand.
+# SPL-4471: a GitHub-only row (no src_dir: its clone takes no git) has no
+# clone to read. SPL-5248: it is read on GitHub; gh failing (the stub exits
+# 1) makes a sha known nowhere "not checked", never an alert (case 25).
 cp "$T/cust.yaml" "$T/cust-gh.yaml" && printf '      - {name: far-hub, github: example-org/far-hub, trunk: master}\n' >>"$T/cust-gh.yaml"
 mkdir -p "$T/stub" && printf '#!/bin/sh\necho "gh $*" >>"%s"\nexit 1\n' "$T/gh10.log" >"$T/stub/gh" && chmod +x "$T/stub/gh"
 run DONE_CLAIM_STATE_DIR="$T/st10" SPOOL_BOX_USER= LANE_LANDED_CNF="$T/cust-gh.yaml"; rc=$?
 v="$(for k in cust custno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
-[ "$rc" = 0 ] && [ "$v" = "cust=landed custno=would-alert " ] && [ ! -s "$T/gh10.log" ] &&
-  pass "10. a GitHub-only cnf row is skipped (no gh call), the customer verdicts stand" ||
+[ "$rc" = 0 ] && [ "$v" = "cust=landed custno=unchecked " ] && grep -q 'example-org/far-hub/branches/master' "$T/gh10.log" &&
+  grep -q "^custno	.*not checked (far-hub on GitHub (example-org/far-hub) not read (gh failed)): ${CUSTLOCAL:0:12}" "$T/o" &&
+  pass "10. a GitHub-only cnf row is read on GitHub; gh failing, a sha known nowhere is not checked (the reason in the row), the customer verdict stands" ||
   fail "10. GitHub-only row (rc $rc) got '$v', gh calls: $(cat "$T/gh10.log" 2>/dev/null): $(cat "$T/o")"
 rm -f "$T/stub/gh"
 
@@ -945,5 +947,76 @@ v="$(for k in orig24 off24 bad24; do printf '%s=%s ' "$k" "$(verdict $k)"; done)
 [ "$(rg lv for-each-ref)" = "$REFS24" ] && ! rg lv cat-file -e "$NEW24^{object}" 2>/dev/null &&
   pass "24. the listed clone is read unfetched: its refs are unchanged and the commit pushed after its last fetch is still unknown to it" ||
   fail "24. the listed clone was written: $(rg lv for-each-ref)"
+
+# 25. SPL-5248 (c-001 notes db70d60e, 2207c5fb, 11-10, n=1: c-865's
+# cd0d7dfc9, on a box-side GitHub-only repo's trunk, alerted "not an object in any
+# repository"; synthetic here): the box's clone of a GitHub-only repo (a row
+# of the box-side landed-repos file) is listed in done-claim-local-repos.txt
+# but never fetched, so its origin/master lacks the landed sha. The sha is
+# read on GitHub (a stubbed gh): on its trunk it is landed; an unknown sha
+# still alerts; gh failing is not checked, never an alert; and no git command
+# runs in that clone (a PATH-stubbed git logs every call in it).
+SP="$T/spool25"
+mkdir -p "$SP"
+mkrepo far-rel
+git clone -q "$T/far-rel.git" "$T/far-push" 2>/dev/null
+rg far-push commit -q --allow-empty -m "far landed" && lettered far-push 12 "far landed" && rg far-push push -q origin HEAD:master
+FAR25=$(rg far-push rev-parse HEAD)
+printf 'env:\n  box:\n    landed_repos:\n      - {name: far-rel, github: example-org/far-rel, trunk: master, box: box-a}\n' >"$T/landed25.yaml"
+chmod 644 "$T/landed25.yaml"
+printf '%s origin/master\n' "$T/far-rel" >"$SP/done-claim-local-repos.txt"
+rg far-rel worktree add -q -b c-944-c002-far "$T/wt25/c-944" origin/master 2>/dev/null
+printf 'c-941\tclaude\t%%9\t%s\t-\nc-942\tclaude\t%%9\t%s\t-\nc-943\tclaude\t%%9\t%s\t-\nc-944\tclaude\t%%9\t%s\t-\n' \
+  "$T/wt/c-563" "$T/wt/c-563" "$T/wt/c-563" "$T/wt25/c-944" >"$SP/registry.tsv"
+msg c-002/archive gh25 c-941 c-002 30 "- sha: ${FAR25:0:12}"
+msg c-002/archive unk25 c-942 c-002 30 "- sha: feedface0129"
+msg c-002/archive body25 c-943 c-002 30 "landed in $T/far-rel: ${FAR25:0:12}"
+msg c-002/archive own25 c-944 c-002 30 "- sha: ${FAR25:0:12}"
+cat >"$T/stub/gh" <<'EOF'
+#!/bin/bash
+echo "gh $*" >>"$GH25_LOG"
+[ "${GH25_DOWN:-0}" = 1 ] && exit 1
+case "$2" in
+  repos/example-org/far-rel) echo example-org/far-rel ;;
+  repos/example-org/far-rel/branches/master) echo master ;;
+  repos/example-org/far-rel/commits/*) s="${2##*/}"; [ "${GH25_FULL#"$s"}" != "$GH25_FULL" ] || exit 1; echo "$GH25_FULL" ;;
+  repos/example-org/far-rel/compare/master...*) echo behind ;;
+  *) exit 1 ;;
+esac
+EOF
+mkdir -p "$T/gitstub"
+cat >"$T/gitstub/git" <<'EOF'
+#!/bin/bash
+d="$PWD"
+for ((i = 1; i < $#; i++)); do [ "${!i}" = -C ] && { i=$((i + 1)); d="${!i}"; }; done
+case "$d" in "$GIT25_WATCH" | "$GIT25_WATCH"/*) echo "git $d $*" >>"$GIT25_LOG" ;; esac
+exec "$GIT25_REAL" "$@"
+EOF
+chmod +x "$T/stub/gh" "$T/gitstub/git"
+! rg far-rel cat-file -e "$FAR25^{object}" 2>/dev/null &&
+  pass "25. control: the never-fetched clone lacks ${FAR25:0:12}, which is on its origin's master" || fail "25. control: fixture"
+run25() {
+  : >"$T/gh25.log"; : >"$T/git25.log"
+  run DONE_CLAIM_STATE_DIR="$T/st25" SPOOL_LANDED_REPOS_FILE="$T/landed25.yaml" GH25_LOG="$T/gh25.log" GH25_FULL="$FAR25" \
+    GIT25_WATCH="$T/far-rel" GIT25_LOG="$T/git25.log" GIT25_REAL="$(command -v git)" PATH="$T/gitstub:$T/stub:$PATH" "$@"
+}
+run25; rc=$?
+v="$(for k in gh25 unk25 body25 own25; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "gh25=landed unk25=would-alert body25=landed own25=landed " ] &&
+  grep -q "compare/master...$FAR25" "$T/gh25.log" &&
+  pass "25. a sha on the GitHub trunk of a GitHub-only repo (gh compare 'behind') is landed, also with the clone's path in the body or from a lane working in a worktree of that clone; an unknown sha (gh: no such commit) still alerts" ||
+  fail "25. on GitHub (rc $rc) got '$v': $(cat "$T/o") // gh: $(cat "$T/gh25.log")"
+[ "$rc" = 0 ] && [ ! -s "$T/git25.log" ] &&
+  grep -q "WARN .* lists $T/far-rel, the clone of a GitHub-only landed repo: never read here" "$T/o" &&
+  pass "25. no git command runs in the listed (body-named, a lane's own) clone of the GitHub-only repo: 0 calls there" ||
+  fail "25. git ran in the clone ($(wc -l <"$T/git25.log") calls): $(head -5 "$T/git25.log")"
+run25 GH25_DOWN=1; rc=$?
+v="$(for k in gh25 unk25 body25 own25; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "gh25=unchecked unk25=unchecked body25=unchecked own25=unchecked " ] && [ ! -s "$T/git25.log" ] &&
+  grep -q "^gh25	.*not checked (a workspace repo on GitHub not read (gh failed)): ${FAR25:0:12}" "$T/o" &&
+  [ -z "$(grep -v WARN "$T/o" | grep example-org)" ] &&
+  pass "25. gh failing: every sha known nowhere is not checked, never an alert, the reason in the row; a box-side row is named 'a workspace repo', never by name" ||
+  fail "25. gh down (rc $rc) got '$v': $(cat "$T/o")"
+rm -f "$T/stub/gh"
 
 exit "$fails"

@@ -153,10 +153,9 @@ own customer repo). The check read only the tree holding it plus cnf
 
 A `landed_repos` row with `github: <owner>/<repo>` in place of `src_dir`
 (SPL-4471: a live service runs from that clone, so no git command may run
-there) has no clone to read: this check skips it, and `do_spl_lane_issue`
-(end done) and the **Live** proof (`LIVE_REPO`) read its sha on GitHub
-instead (`gh api` commits and compare, "behind" or "identical" = on the
-trunk), from any box. A repo whose name must stay out of this tree is such a
+there) has no clone to read: `do_spl_lane_issue` (end done), the **Live**
+proof (`LIVE_REPO`) and this check read its sha on GitHub instead (`gh api`
+commits and compare, "behind" or "identical" = on the trunk), from any box. A repo whose name must stay out of this tree is such a
 row in the box-side `$SPOOL_ROOT/landed-repos.yaml` (`SPOOL_LANDED_REPOS_FILE`,
 never in git, the cnf's `env.box.landed_repos` shape), read after the cnf.
 Only its GitHub-only rows count, and only when the file is owned by root or
@@ -177,9 +176,27 @@ are required, and it prints none of them.
 The refusals of `spl_landed_repo` and the GitHub checks, and the reason and
 issue text of `do_spl_lane_issue` (end done), call such a row `a workspace
 repo`. The name still sits in the lane's own `lifetime/issue-end` file, and
-the **Live** proof's missing-line repeats the `LIVE_REPO` its caller gave. A
-GitHub-only row adds nothing to this check, which skips it (above): only
-`do_spl_lane_issue` and the **Live** proof read a sha in that repo.
+the **Live** proof's missing-line repeats the `LIVE_REPO` its caller gave.
+
+**GitHub-only rows in this check (SPL-5248).** c-865's sha
+cd0d7dfc9 alerted "not an object in any repository" twice (c-001 notes
+db70d60e and 2207c5fb, 2026-11-10, n=1), though `git ls-remote` named it
+the trunk of a box-side GitHub-only repo: the box-local list (section 1.5)
+named the box's clone, which is never fetched, so its `origin/master` was
+4 days behind.
+
+- A sha on no local trunk is read on GitHub, on the trunk of each
+  GitHub-only row, by the same calls as `do_spl_lane_issue`
+  (`spl_landed_repo_gh_trunk`, `spl_landed_repo_gh_commit`, the compare of
+  `spl_landed_repo_gh_on`): on it, the sha is `landed`. A sha GitHub does
+  not know still alerts as before.
+- The clone of such a row is never read: a `done-claim-local-repos.txt` line
+  or a path in the body whose basename is the row's name or repo name
+  (`/opt/<org>/<repo>`) runs no git command (a WARN for the list line).
+- gh failing (the repo, the commit lookup or the compare does not answer)
+  makes every sha known nowhere else `unchecked`, "not checked (<repo> not
+  read (gh failed))" in the row, never an alert; a box-side row is named
+  `a workspace repo` there.
 
 - The repos read for a result also include the sender lane's OWN repo:
   its worktree from `registry.tsv` (column 4), else its newest
@@ -226,7 +243,9 @@ so the `pending` rule of section 1.1 did not hold them.
   absolute path per line, `#` a comment, lists such clones; a listed clone
   is read for every message when it sets `spool.landedOnAnyBranch` or
   `spool.localTrunk`, else it is skipped with a WARN. It is read as it is,
-  never fetched. The list lives on the box, never in git: this repo names no
+  never fetched. A line naming the clone of a GitHub-only landed repo is
+  skipped with a WARN and no git command: that repo is read on GitHub
+  (section 1.3, SPL-5248). The list lives on the box, never in git: this repo names no
   customer repo or path. Neither the lane's brief nor its workdir names the
   clone, so neither could be the source.
 - **Patch-ids** (c-002 msg 60b5dc28, n=3 on 2026-10-28: c-441, c-522,
@@ -279,3 +298,10 @@ SPL-3673: a retired lane's sha on `origin/review/grok-dispatch-grade` with
 both would alert); the same sha claimed landed alerts "on review branch
 origin/review/grok-dispatch-grade, not on master"; a sha on no branch with
 "not on master" alerts "not in the repository".
+SPL-5248: a sha on the GitHub trunk of a GitHub-only box-side row (stubbed
+`gh`, compare "behind") is `landed`, also with the clone's path in the body,
+while that clone, listed in `done-claim-local-repos.txt` and never fetched,
+lacks it; an unknown sha still alerts; a PATH-stubbed `git` logs 0 calls in
+that clone; gh failing makes them `unchecked` with the reason, never an
+alert (red on the code before: all three would alert, 32 git calls in the
+clone).

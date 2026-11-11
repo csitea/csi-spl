@@ -152,6 +152,12 @@
 # @description     request); a sha on no branch with the same stable patch-id
 # @description     as a review- or wip-branch sha of that message (a sha
 # @description     amended since) is on that branch: pending or review with it
+# @description   - SPL-5248 (c-865's sha cd0d7dfc9, 11-10): a sha on
+# @description     no local trunk is read on GitHub, on the trunk of each
+# @description     GitHub-only landed repo (SPL-4471), by the shared gh calls
+# @description     of do_spl_lane_issue: on it, landed. Such a repo's clone
+# @description     (a listed or named path whose basename is its name) runs
+# @description     no git command; gh failing is unchecked, never an alert
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
 # @description TSV row per decided message (msg_id, lane, landed | rewritten |
 # @description seat | pending | unchecked | review | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
@@ -191,20 +197,21 @@ do_spl_done_claim_check() {
   fi
   : >"$tmp/unchk"
   spl_done_claim_repos "$tmp/unchk" >"$tmp/repos" || { rm -rf "$tmp"; return 1; }
-  spl_done_claim_listed "${DONE_CLAIM_LOCAL_REPOS:-$root/done-claim-local-repos.txt}" "$tmp/repos" >>"$tmp/repos"
-  spl_done_claim_lane_repos "$root" "$tmp/due" "$tmp/repos" "$tmp/unchk" >"$tmp/stale"
+  spl_done_claim_gh_repos "$tmp/unchk" >"$tmp/gh"
+  spl_done_claim_listed "${DONE_CLAIM_LOCAL_REPOS:-$root/done-claim-local-repos.txt}" "$tmp/repos" "$tmp/gh" >>"$tmp/repos"
+  spl_done_claim_lane_repos "$root" "$tmp/due" "$tmp/repos" "$tmp/unchk" "$tmp/gh" >"$tmp/stale"
   local to=""
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
   spl_done_claim_seats "$root" "$tmp/repos" >"$tmp/seats"
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
   local id from ts task body shas bad unchk rv verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0 n_unchk=0 n_rev=0
   while IFS=$'\t' read -r id from ts task body; do
-    cp "$tmp/repos" "$tmp/r" && spl_done_claim_named "$body" "$tmp/repos" >>"$tmp/r"
+    cp "$tmp/repos" "$tmp/r" && spl_done_claim_named "$body" "$tmp/repos" "$tmp/gh" >>"$tmp/r"
     shas="$(spl_done_claim_notes "$tmp/r" "$(spl_done_claim_shas "$body" "$tmp/r")")"
     bad="" unchk="" rv=""
     if spl_done_claim_r7 "$body" || grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
-    elif bad="$(spl_done_claim_missing "$tmp/r" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
+    elif bad="$(spl_done_claim_missing "$tmp/r" "$shas" "$tmp/gh" "$tmp/unchk")" && [[ -n "$shas" && -z "$bad" ]]; then
       verdict=landed; n_ok=$((n_ok + 1))
     elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/r" "$bad")" == "$bad" ]] &&
       spl_done_claim_rewrite "$tmp/r" "$body" "$(spl_done_claim_since "$root" "${from%@*}" "$now")"; then
@@ -411,6 +418,8 @@ spl_done_claim_repos() {
 # is skipped with a WARN, never a FATAL. SPL-3020: [unchecked file] gets
 # "R\t<top>\t<why>" per repo whose fetch failed and "L\t<lane>\t<why>" per
 # lane whose own repo was not read; a local-trunk repo is its local branch.
+# SPL-5248: an own repo that is the clone of a GitHub-only repo of [gh file]
+# (spl_done_claim_gh_clone) is not read, never fetched: read on GitHub.
 spl_done_claim_lane_repos() {
   local have="" stale="" top ref c id wt
   while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$3"
@@ -424,6 +433,7 @@ spl_done_claim_lane_repos() {
     fi
     have+="$c"$'\n'
     top="${c%/.git}"
+    spl_done_claim_gh_clone "$top" "${5:-}" && continue
     if ref="$(spl_done_claim_local_trunk "$top")"; then echo "$top $ref" >>"$3"; continue; fi
     ref=""
     for ref in origin/master origin/main; do git -C "$top" rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 && break; ref=""; done
@@ -495,11 +505,75 @@ spl_done_claim_landed_repos() {
   return $rc
 }
 
+# spl_done_claim_gh_repos [unchecked file]: SPL-5248 (c-865's sha
+# cd0d7dfc9 alerted "not an object in any repository" twice, 11-10: the box's
+# clone of that GitHub-only repo was never fetched). One line per GitHub-only
+# landed repo (a gh:<owner>/<repo> row of spl_landed_repo_rows, SPL-4471):
+# "<owner>/<repo> <trunk> <name>", its trunk read on GitHub by the shared
+# spl_landed_repo_gh_trunk (do_spl_lane_issue, the Live proof). A repo gh
+# cannot read is "<owner>/<repo> - <name>" plus an "R" row in [unchecked
+# file] (SPL-3020): a sha known nowhere else is then not checked, never an
+# alert. No git command runs here, and none in that repo's clone.
+spl_done_claim_gh_repos() {
+  local n c t why
+  while IFS=$'\t' read -r n c t _; do
+    [[ "$c" == gh:* ]] || continue
+    [[ "$t" == - ]] && t=""
+    if t="$(spl_landed_repo_gh_trunk "$n" "${c#gh:}" "$t" 2>/dev/null)"; then echo "${c#gh:} $t $n"; continue; fi
+    why="$(spl_landed_repo_gh_shown "$n" "${c#gh:}") not read (gh failed)"
+    do_log "WARN $why: a sha found on no local trunk is not checked" >&2
+    printf 'R\t%s\t%s\n' "$c" "$why" >>"${1:-/dev/null}"
+    echo "${c#gh:} - $n"
+  done < <(spl_landed_repo_rows 2>/dev/null)
+}
+
+# spl_done_claim_on_gh <gh file> <unchecked file> <sha>: true when <sha> is a
+# commit on the trunk of a GitHub-only repo of <gh file>, read by the shared
+# spl_landed_repo_gh_commit and the compare of spl_landed_repo_gh_on
+# (base=trunk, head=sha: "behind" or "identical" is landed). A failed compare,
+# or a failed lookup while the repo itself no longer answers, adds that repo's
+# "R" row to <unchecked file> (the sha is then not checked) and skips the repo
+# for the rest of the run.
+spl_done_claim_on_gh() {
+  local repo t n full st why
+  while read -r repo t n; do
+    [[ "$t" != - ]] && ! grep -q -- "^R"$'\t'"gh:$repo"$'\t' "$2" 2>/dev/null || continue
+    if full="$(spl_landed_repo_gh_commit "$repo" "$3")"; then
+      st="$(spl_landed_repo_gh "$repo" "compare/$t...$full" .status)"
+      [[ "$st" =~ ^(behind|identical)$ ]] && return 0
+      [[ -n "$st" ]] && continue
+      why="compare failed"
+    else
+      [[ -z "$(spl_landed_repo_gh "$repo" "" .full_name)" ]] || continue
+      why="gh failed"
+    fi
+    printf 'R\tgh:%s\t%s not read (%s)\n' "$repo" "$(spl_landed_repo_gh_shown "$n" "$repo")" "$why" >>"$2"
+  done <"$1"
+  return 1
+}
+
+# spl_done_claim_gh_clone <path> <gh file>: true when <path> is the clone of a
+# GitHub-only repo of <gh file>: its basename is that row's name or repo
+# (/opt/<org>/<repo>). Decided from the path alone: such a clone is never
+# fetched, so its trunk is stale (one such clone's origin/master was 4 days behind,
+# 11-10), and no git command may run in it; its shas are read on GitHub.
+spl_done_claim_gh_clone() {
+  local b="${1%/}" repo t n
+  b="${b##*/}"
+  [[ -n "$b" && -r "${2:-}" ]] || return 1
+  while read -r repo t n; do
+    [[ "$b" == "$n" || "$b" == "${repo#*/}" ]] && return 0
+  done <"$2"
+  return 1
+}
+
 # spl_done_claim_missing <repos file> <shas>: the shas on no repo's trunk. A
 # sha that resolves in a repo has landed when it is an ancestor of its trunk,
 # or when `git cherry` marks it "-": the same patch (patch-id) is on the trunk
 # under another sha, as a review-branch sha after the rebase that landed it.
 # In a commit-only repo (spl_done_claim_on_any_branch) any local branch counts.
+# SPL-5248: a sha on no local trunk is then read on GitHub, on the trunk of
+# each GitHub-only landed repo of [gh file] (spl_done_claim_on_gh).
 spl_done_claim_missing() {
   local s full top ref ok out=()
   for s in $2; do
@@ -510,7 +584,7 @@ spl_done_claim_missing() {
         git -C "$top" cherry "$ref" "$full" "$full^" 2>/dev/null | grep -x -- "- $full" >/dev/null ||
         spl_done_claim_on_any_branch "$top" "$full"; then ok=1; break; fi
     done <"$1"
-    (( ok )) || out+=("$s")
+    (( ok )) || { [[ -n "${3:-}" ]] && spl_done_claim_on_gh "$3" "${4:-/dev/null}" "$s"; } || out+=("$s")
   done
   echo "${out[*]}"
 }
@@ -524,18 +598,20 @@ spl_done_claim_on_any_branch() {
     [[ -n "$(git -C "$1" for-each-ref --count=1 --contains "$2" refs/heads 2>/dev/null)" ]]
 }
 
-# spl_done_claim_named <body> <repos file>: "<top> <trunk>" per git clone on this
+# spl_done_claim_named <body> <repos file> [gh file]: "<top> <trunk>" per git clone on this
 # box whose top dir the body names as an absolute path (c-761's "/opt/<org>/<repo>
 # was fast-forwarded", SPL-3758) and that is not in <repos file> (same git common
 # dir). Its trunks: its spool.localTrunk branch, else BOTH origin/master (else
 # origin/main) and its local master (else main): read as it is, never fetched
 # (c-761's clone could not fetch; its origin/master was stale and the sha was
-# on its local master, pushed from there).
+# on its local master, pushed from there). SPL-5248: the clone of a GitHub-only
+# repo of [gh file] (spl_done_claim_gh_clone) is never read: no git runs in it.
 spl_done_claim_named() {
   local p top c have="" ref
   while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$2"
   while read -r p; do
     p="${p%/}"
+    spl_done_claim_gh_clone "$p" "${3:-}" && continue
     top="$(git -C "$p" rev-parse --show-toplevel 2>/dev/null)" && [[ "$top" == "$p" ]] || continue
     c="$(spl_done_claim_common "$top")" && ! grep -qxF -- "$c" <<<"$have" || continue
     have+="$c"$'\n'
@@ -550,7 +626,7 @@ spl_done_claim_named() {
   return 0
 }
 
-# spl_done_claim_listed <list file> <repos file>: "<top> <ref>" per clone of
+# spl_done_claim_listed <list file> <repos file> [gh file]: "<top> <ref>" per clone of
 # the box-local <list file> (SPL-4085: one absolute path per line, # a
 # comment) not yet in <repos file> (same git common dir) that sets
 # spool.landedOnAnyBranch true or spool.localTrunk; <ref> its local trunk,
@@ -559,13 +635,18 @@ spl_done_claim_named() {
 # clone may never touch its remote. A listed clone with neither marker is
 # skipped with a WARN (it would need a fetch). SPL-4836: a line's second
 # column names <ref> itself, marker or not; one that resolves to no commit
-# is a WARN and the clone is skipped.
+# is a WARN and the clone is skipped. SPL-5248: a line naming the clone of a
+# GitHub-only repo of [gh file] (spl_done_claim_gh_clone) is a WARN and runs
+# no git command there; that repo's shas are read on GitHub.
 spl_done_claim_listed() {
   local p want top c have="" ref
   [[ -f "$1" ]] || return 0
   while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$2"
   while read -r p want _; do
     [[ "$p" == /* ]] || continue
+    if spl_done_claim_gh_clone "$p" "${3:-}"; then
+      do_log "WARN $1 lists $p, the clone of a GitHub-only landed repo: never read here (no git command), its shas are read on GitHub" >&2; continue
+    fi
     top="$(git -C "$p" rev-parse --show-toplevel 2>/dev/null)" || { do_log "WARN $1 lists $p, no git clone: skipped" >&2; continue; }
     c="$(spl_done_claim_common "$top")" && ! grep -qxF -- "$c" <<<"$have" || continue
     have+="$c"$'\n'

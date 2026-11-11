@@ -251,6 +251,15 @@ destroy deletes it, and **git is the only backup**. Push everything before a
 destroy. A recreate also loses `/home`, which holds the AI CLI logins, so the
 owner logs in again.
 
+A plan that would REPLACE the data disk is refused instead (SPL-5262): a
+persistent disk cannot shrink or change type, so a `data_disk_size_gb` below
+the live size (a typo) or another `data_disk_type` would plan as destroy +
+create. The disk's precondition (`060-gcp-vm-satellite/08-data-disk-guard.tf`)
+reads the live disk whenever the step's applied state holds the VM, and fails
+the plan. A grow plans in place; a destroy drill and the recreate after it
+still run. Step 061 (the wine box) has the same guard while
+`data_disk_enabled` is true. Test: `csi-spl-iac/src/bash/tests/data-disk-shrink-guard.tst.sh`.
+
 Results of the 2026-10-01 drill:
 
 | stage | result |

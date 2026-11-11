@@ -402,7 +402,7 @@ the costs for each month for the last 12 months and from the start of the
 year"; "each workspace should have those settable and allocate-able
 separately for them" (poll 0c5e94b4, answer C "Both A and B": A, each
 workspace reads the four labels with its own costs, is this section; B, a
-cost split to workspaces by hand, is [costs-allocation.md](costs-allocation.md)).
+cost split to workspaces by hand, is the separate lane c003-feat-costs-workspace-allocation).
 
 | label | path | its items (one table row each) | was |
 |---|---|---|---|

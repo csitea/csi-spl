@@ -86,7 +86,9 @@ const rowKeys = (p) => p.$$eval('[data-test=cmt-row]', (els) => els.map((e) => e
 const sideways = (p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 const shot = async (p, name, size) => { if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/costs-${name}-${size.width}.png`, fullPage: true }) }
 /** the label's table rendered (the loading line gone) */
-const ready = (p) => p.waitForFunction(() => document.querySelector('[data-test=costs-month-table]') && !document.querySelector('[data-test=costs-loading]'), { timeout: 20000 }).then(() => true, () => false)
+const ready = (p) => p.waitForFunction(() => document.querySelectorAll('[data-test=costs-page]').length === 1 && document.querySelector('[data-test=costs-month-table]') && !document.querySelector('[data-test=costs-loading]'), { timeout: 20000 }).then(() => true, () => false)
+/** a link's click, as the browser dispatches it, once the async pie no longer shifts the layout */
+const follow = async (p, sel) => { await new Promise((r) => setTimeout(r, 300)); await p.$eval(sel, (a) => a.click()) }
 
 async function redirects(browser, base, size) {
   const { ctx, p } = await costsPage(browser, base, size)
@@ -113,14 +115,16 @@ async function redirects(browser, base, size) {
 
 /** the pie straight after the label, each item's value and % on screen */
 async function pieAfterLabel(p, label) {
-  await waitFor(p, '[data-test=costs-pie-legend-row]')
-  const shape = await p.evaluate(() => {
-    const h = document.querySelector('[data-test=costs-label-title]')
+  const sec = label.toLowerCase()
+  /* the leaving page stays in the DOM during the page transition: read the active label's own section */
+  await waitFor(p, `[data-test=costs-page][data-section=${sec}] [data-test=costs-pie-legend-row]`)
+  const shape = await p.evaluate((sec) => {
+    const h = document.querySelector(`[data-test=costs-page][data-section=${sec}] [data-test=costs-label-title]`)
     const next = h && h.nextElementSibling
     return { title: h ? h.textContent.trim() : '', next: next ? next.getAttribute('data-test') : '' }
-  })
+  }, sec)
   ok(`${label}: the pie comes straight after the label's name`, shape.title === label && shape.next === 'costs-pie', shape)
-  const legend = await p.$$eval('[data-test=costs-pie-legend-row]', (els) => els.map((e) => {
+  const legend = await p.$$eval(`[data-test=costs-page][data-section=${sec}] [data-test=costs-pie-legend-row]`, (els) => els.map((e) => {
     const v = e.querySelector('[data-test=costs-pie-value]')
     const c = e.querySelector('[data-test=costs-pie-pct]')
     const seen = (x) => Boolean(x) && x.getBoundingClientRect().width > 0 && getComputedStyle(x).visibility !== 'hidden'
@@ -202,14 +206,14 @@ async function cloudPersonsTokens(browser, base, size) {
   await pieAfterLabel(p, 'Cloud')
   ok('Cloud: the projects and the entries, the most expensive first', (await rowKeys(p)).join(',') === 'project-prd,entry:Workspace suite,project-all,project-dev,entry:Domain suite', await rowKeys(p))
   await shot(p, 'cloud', size)
-  await p.click('[data-test=cmt-row][data-key=project-prd] [data-test=cmt-drill]')
+  await follow(p, '[data-test=cmt-row][data-key=project-prd] [data-test=cmt-drill]')
   ok('Cloud: a project opens its services, in the query', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd'), where(p))
   await p.waitForFunction(() => document.querySelector('[data-test=costs-page]')?.getAttribute('data-level') === 'service' && !document.querySelector('[data-test=costs-loading]'), { timeout: 15000 }).catch(() => null)
   ok('Cloud: cloud_sql, cloud_run, network', (await rowKeys(p)).join(',') === 'cloud_sql,cloud_run,network', await rowKeys(p))
-  await p.click('[data-test=cmt-row][data-key=cloud_sql] [data-test=cmt-drill]')
+  await follow(p, '[data-test=cmt-row][data-key=cloud_sql] [data-test=cmt-drill]')
   const days = await p.waitForFunction(() => document.querySelector('[data-test=costs-page]')?.getAttribute('data-level') === 'day' && document.querySelectorAll('[data-test=cmt-row]').length === 30, { timeout: 15000 }).then(() => true, () => false)
   ok('Cloud: a service opens its 30 days of September', days && (await rowKeys(p))[0] === '2026-09-01', (await rowKeys(p)).length)
-  await p.click('[data-test=cloud-crumb-all]')
+  await follow(p, '[data-test=cloud-crumb-all]')
   ok('Cloud: All projects walks back up, the month kept', await waitWhere(p, '/reporting/costs/cloud?month=2026-09'), where(p))
 
   await p.click('[data-test=costs-page-persons]')

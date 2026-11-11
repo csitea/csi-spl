@@ -2044,7 +2044,7 @@
     "posts_no_channels": "Yhtään tiliä ei ole vielä yhdistetty: yhdistä LinkedIn, Facebook, Instagram tai X kohdassa Työtilan asetukset -> Yleistä.",
     "posts_draft": "Luonnos",
     "posts_published": "Julkaistu",
-    "posts_by_other": "Toisen ylläpitäjän tai yrityksen omistajan kirjoittama",
+    "posts_by_other": "Toisen ylläpitäjän tai liiketoiminnan omistajan kirjoittama",
     "posts_sent_to": "Minne se meni",
     "posts_edit": "Muokkaa",
     "posts_delete": "Poista",
@@ -2064,7 +2064,7 @@
     "posts_why_internal": "{name}: ei tallennettu, yritä uudelleen",
     "posts_not_author": "Vain julkaisun kirjoittaja voi muuttaa tai julkaista sen.",
     "posts_locked": "Tämä julkaisu on julkaistu: sitä ei voi enää muuttaa tai poistaa.",
-    "posts_bad_input": "Kirjoita enintään 3 000 merkin teksti ja kuvan osoite, joka alkaa https://.",
+    "posts_bad_input": "Kirjoita enintään 3 000 merkin teksti ja kuvan osoite, joka alkaa etuliitteellä https://.",
     "posts_failed": "Se ei onnistunut. Yritä uudelleen."
   },
   "help": {

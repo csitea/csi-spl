@@ -2044,11 +2044,11 @@
     "posts_no_channels": "Ühtegi kontot pole veel ühendatud: ühenda LinkedIn, Facebook, Instagram või X jaotises Tööruumi seaded -> Üldine.",
     "posts_draft": "Mustand",
     "posts_published": "Avaldatud",
-    "posts_by_other": "Kirjutanud teine administraator või ärijuht",
+    "posts_by_other": "Kirjutanud teine administraator või äriomanik",
     "posts_sent_to": "Kuhu see läks",
     "posts_edit": "Muuda",
     "posts_delete": "Kustuta",
-    "posts_publish_on": "Avalda kanalis",
+    "posts_publish_on": "Avalda kontodel",
     "posts_publish": "Avalda",
     "posts_result_published": "{name}: avaldatud",
     "posts_result_deferred": "{name}: ootab päevalimiiti",
@@ -2064,7 +2064,7 @@
     "posts_why_internal": "{name}: ei salvestatud, proovi uuesti",
     "posts_not_author": "Ainult postituse autor saab seda muuta või avaldada.",
     "posts_locked": "See postitus on avaldatud: seda ei saa enam muuta ega kustutada.",
-    "posts_bad_input": "Kirjuta kuni 3000 märgi pikkune tekst ja pildi aadress, mis algab https://.",
+    "posts_bad_input": "Kirjuta kuni 3000 märgi pikkune tekst ja pildi aadress, mis algab eesliitega https://.",
     "posts_failed": "See ei õnnestunud. Proovi uuesti."
   },
   "help": {

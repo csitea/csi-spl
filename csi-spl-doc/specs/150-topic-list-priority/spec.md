@@ -2,7 +2,7 @@
 
 Version v1.4 (2026-11-11): the bar's label reads "Prio" at every width
 (each locale its own short form), and only on a phone is the 1..5 bar drawn
-70% smaller and centred, each value a near-square 44 px tall target (section 3.3
+70% smaller and centred, each value a 44 px tall target with near-square corners (section 3.3
 WUI, key `topic.priority.short` in 3.5, case C314; the owner, t1 2fafde5c
 msgs `b6a2468d` and `0b66d67c`, SPL-5288).
 

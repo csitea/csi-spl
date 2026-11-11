@@ -20,6 +20,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 2. Tick **Marketing is on for this workspace**.
    - By default this box is unchecked (*"Off by default. While it is off, nothing is drafted or posted on anyone's behalf."*).
    - If the workspace is not enabled on the hub (`marketing.workspaces`), the section reads *"Marketing is not available in this workspace."*
+   - Every workspace except the demo workspace may turn Marketing on (`marketing.workspaces: all`). The hub picks this up after its next terraform step 030 apply; until then only the workspaces it listed before can.
 
 ### 1.2 Connect Facebook Pages and Instagram accounts
 

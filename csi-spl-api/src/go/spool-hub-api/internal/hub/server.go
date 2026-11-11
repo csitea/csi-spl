@@ -511,35 +511,36 @@ func (s *Server) Handler() http.Handler {
 // Handler stays within its 80-line longFuncs ceiling (maxFuncLinesListed in the
 // clean-code gate; any function not listed gets 75) (SPL-1036).
 func (s *Server) routeSections(mux *http.ServeMux) {
-	s.routePerfIngest(mux)    // spec 066 L2: POST /v1/perf/samples, fire-and-forget
-	s.routePerfSummary(mux)   // spec 066 L3: GET /v1/admin/perf/summary
-	s.routeReleaseNotes(mux)  // spec 065 L4: /v1/release-notes + the operator ingest
-	s.routeDocs(mux)          // the Docs section: GET /v1/docs/{path...}
-	s.routeOpenAPI(mux)       // spec 104 §4.2: GET /v1/openapi.json
-	s.routeWorkspaceDocs(mux) // specs/075 Phase 2: /v1/workspace/docs/{path...}
-	s.routeDocTree(mux)       // spec 113 T004: /v1/workspace/doctree (outline + grid)
-	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
-	s.routeBoxLocks(mux)      // spec 025 box owner lock 6.2: /v1/boxes/{box}/lock, box_lock_routes.go
-	s.routeCostRead(mux)      // spec 123 lane 4b: GET /v1/tenant/costs, cost_read.go
-	s.routeCostCloudDays(mux) // SPL-4187: GET /v1/tenant/costs/cloud, cost_cloud_days.go
-	s.routeFXRates(mux)       // SPL-2108, rdb 0200: the costs' second-currency rates, fx_rates.go
-	s.routeFleetTokens(mux)   // spec 140, rdb 0199: GET /v1/operator/fleet-tokens
-	s.routeFleetLanes(mux)    // spec 153 3.3, rdb 0221: GET /v1/operator/fleet-lanes, fleet_lanes_view.go
-	s.routeFleetRoster(mux)   // spec 153 3.18, SPL-4786: GET /v1/operator/fleet-roster, operator_roster_view.go
-	s.routeZombieTopics(mux)  // spec 166 3.2 row B5: GET /v1/operator/zombie-topics, zombie_topics.go
-	s.routeLanesView(mux)     // spec 153 3.6, B6: GET /v1/view/lanes, a workspace's own, workspace_lanes_view.go
-	s.routeLogEvents(mux)     // spec 162 3.2, B3: the Workspace and System logs, log_events.go
-	s.routeFileStreams(mux)   // spec 160 3.4, B3: GET /v1/view/file-streams, file_streams_view.go
-	s.routeFleetPaid(mux)     // SPL-2342, rdb 0205: paid items + effective price, fleet_token_paid.go
-	s.routeCostEntries(mux)   // SPL-4383, rdb 0245: Cloud infra + HR cost entries, cost_entries.go
-	s.routeFleetDesks(mux)    // spec 158 4.2.2, rdb 0230: PUT/DELETE /v1/operator/fleet-desks/{box}, operator_fleet_desks.go
-	s.routeFleet(mux)         // spec 158 4.2.3-4, rdb 0243: GET /v1/fleet/workspaces, POST /v1/fleet/enrol, fleet_workspaces.go
-	s.routeReportingSQL(mux)  // spec 143 3: POST /v1/reporting/sql, workspace admins, reporting_sql.go
-	s.routeCategories(mux)    // spec 143 4.5, rdb 0204: activity categories + token rollup, categories.go
-	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
-	s.routeEmbedPow(mux)      // specs/121 T105: /v1/embed/{embed_id}/challenge, off unless EmbedEnabled
-	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
-	s.routeEmbedSignIn(mux)   // specs/121 T205: POST /v1/embed/{embed_id}/signin, off unless EmbedEnabled
+	s.routePerfIngest(mux)      // spec 066 L2: POST /v1/perf/samples, fire-and-forget
+	s.routePerfSummary(mux)     // spec 066 L3: GET /v1/admin/perf/summary
+	s.routeReleaseNotes(mux)    // spec 065 L4: /v1/release-notes + the operator ingest
+	s.routeDocs(mux)            // the Docs section: GET /v1/docs/{path...}
+	s.routeOpenAPI(mux)         // spec 104 §4.2: GET /v1/openapi.json
+	s.routeWorkspaceDocs(mux)   // specs/075 Phase 2: /v1/workspace/docs/{path...}
+	s.routeDocTree(mux)         // spec 113 T004: /v1/workspace/doctree (outline + grid)
+	s.routeBoxStats(mux)        // rdb 0117: GET /v1/tenant/box-stats
+	s.routeBoxLocks(mux)        // spec 025 box owner lock 6.2: /v1/boxes/{box}/lock, box_lock_routes.go
+	s.routeCostRead(mux)        // spec 123 lane 4b: GET /v1/tenant/costs, cost_read.go
+	s.routeCostCloudDays(mux)   // SPL-4187: GET /v1/tenant/costs/cloud, cost_cloud_days.go
+	s.routeFXRates(mux)         // SPL-2108, rdb 0200: the costs' second-currency rates, fx_rates.go
+	s.routeFleetTokens(mux)     // spec 140, rdb 0199: GET /v1/operator/fleet-tokens
+	s.routeFleetLanes(mux)      // spec 153 3.3, rdb 0221: GET /v1/operator/fleet-lanes, fleet_lanes_view.go
+	s.routeFleetRoster(mux)     // spec 153 3.18, SPL-4786: GET /v1/operator/fleet-roster, operator_roster_view.go
+	s.routeZombieTopics(mux)    // spec 166 3.2 row B5: GET /v1/operator/zombie-topics, zombie_topics.go
+	s.routeLanesView(mux)       // spec 153 3.6, B6: GET /v1/view/lanes, a workspace's own, workspace_lanes_view.go
+	s.routeLogEvents(mux)       // spec 162 3.2, B3: the Workspace and System logs, log_events.go
+	s.routeFileStreams(mux)     // spec 160 3.4, B3: GET /v1/view/file-streams, file_streams_view.go
+	s.routeFleetPaid(mux)       // SPL-2342, rdb 0205: paid items + effective price, fleet_token_paid.go
+	s.routeCostEntries(mux)     // SPL-4383, rdb 0245: Cloud infra + HR cost entries, cost_entries.go
+	s.routeCostAllocations(mux) // SPL-5291, rdb 0275: an estate cost split to workspaces, cost_allocations.go
+	s.routeFleetDesks(mux)      // spec 158 4.2.2, rdb 0230: PUT/DELETE /v1/operator/fleet-desks/{box}, operator_fleet_desks.go
+	s.routeFleet(mux)           // spec 158 4.2.3-4, rdb 0243: GET /v1/fleet/workspaces, POST /v1/fleet/enrol, fleet_workspaces.go
+	s.routeReportingSQL(mux)    // spec 143 3: POST /v1/reporting/sql, workspace admins, reporting_sql.go
+	s.routeCategories(mux)      // spec 143 4.5, rdb 0204: activity categories + token rollup, categories.go
+	s.routeEmbedVisitor(mux)    // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
+	s.routeEmbedPow(mux)        // specs/121 T105: /v1/embed/{embed_id}/challenge, off unless EmbedEnabled
+	s.routeEmbedAdmin(mux)      // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
+	s.routeEmbedSignIn(mux)     // specs/121 T205: POST /v1/embed/{embed_id}/signin, off unless EmbedEnabled
 	// specs/121 T201: /embed/*, per-embed frame-ancestors; T202 passes its assets.
 	s.routeEmbedServe(mux, s.o.EmbedEnabled, embedassets.FS)
 	s.routeEmbedStaff(mux)  // specs/121 T106: /v1/tenant/embed-visitors*, staff, off unless EmbedEnabled

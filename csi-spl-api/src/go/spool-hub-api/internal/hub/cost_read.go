@@ -116,6 +116,9 @@ type costPartOut struct {
 	store.CostPart
 	Hand bool     `json:"hand"` // entered by hand (origin hand or invoice)
 	Pct  *float64 `json:"pct"`
+	// Allocation is the estate item's split in force (SPL-5291), the
+	// estate answer's only; the amounts stay whole.
+	Allocation []store.CostAllocShare `json:"allocation,omitempty"`
 }
 
 type costCoverageOut struct {
@@ -139,7 +142,8 @@ type costMonthBody struct {
 	// Workspaces is every workspace's token burn of the month, the estate
 	// answer's only (absent from a workspace answer).
 	Workspaces []costWorkspaceOut `json:"workspaces,omitempty"`
-	// Human is the month's hr entries (SPL-4840), the estate answer's only:
+	// Human is the month's hr entries (SPL-4840), the estate answer's, and a
+	// customer workspace's share of the hr entries split to it (SPL-5291):
 	// Reporting -> Costs -> Human, never in Total or a part's pct.
 	Human []costPartOut `json:"human,omitempty"`
 	// AIShareFrom is a customer workspace's first day with a workspace-
@@ -192,13 +196,22 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		burn, err = s.workspaceTokenParts(r.Context(), op, costBurnOf(estate, t.ID), win)
 	}
+	var splits []store.CostAllocation
+	if err == nil {
+		splits, err = s.costAllocSplits(r.Context())
+	}
 	var ai *store.AIPaidMonth
 	if err == nil {
 		ai, err = s.aiCostParts(r.Context(), op, estate, t.ID, win, cur)
 	}
 	var hand, human []store.CostPart
-	if err == nil && estate {
+	switch {
+	case err != nil:
+	case estate:
 		hand, human, err = s.costEntryMonthParts(r.Context(), win.Month, cur)
+	case t.ID != op:
+		// SPL-5291: a customer workspace's share of the items split by hand
+		hand, human, err = s.costAllocatedParts(r.Context(), op, t.ID, win, cur, splits)
 	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
@@ -217,7 +230,13 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		b.AIShareFrom = ai.ShareFrom
 	}
 	if estate {
-		b.Workspaces, b.Human = costWorkspaces(burn), costHumanParts(human)
+		b.Workspaces = costWorkspaces(burn)
+	}
+	if len(human) > 0 || estate {
+		b.Human = costHumanParts(human)
+	}
+	if estate {
+		costAllocAnnotate(&b, splits)
 	}
 	writeJSON(w, http.StatusOK, b)
 }

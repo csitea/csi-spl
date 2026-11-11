@@ -65,6 +65,11 @@ type CostPart struct {
 	EntryMicros   int64  `json:"entry_micros,omitempty"`
 	EntryCurrency string `json:"entry_currency,omitempty"`
 	Unpriced      bool   `json:"unpriced,omitempty"`
+	// A workspace's share of an estate item split by hand (SPL-5291, source
+	// allocated, cost_allocations.go): the item's own source and the
+	// share in basis points.
+	AllocatedSource string `json:"allocated_source,omitempty"`
+	ShareBP         int    `json:"share_bp,omitempty"`
 }
 
 // CostSourceDays is one source's cost_coverage rows in the month, per state.

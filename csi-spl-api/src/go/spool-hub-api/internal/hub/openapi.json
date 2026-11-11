@@ -12387,6 +12387,120 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/cost-allocations": {
+      "get": {
+        "operationId": "getOperatorCostAllocations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month whose amounts are shown YYYY-MM (UTC); default the current month so far; a split holds for every month",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {month, second_currency, items: [{source, project_or_vendor, kind, origin, label, usd_micros, eur_micros, second_micros, unpriced, shares}], workspaces: [{id, name}]} (SPL-5291)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the estate's Persons and Cloud cost items with their splits",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "put": {
+        "operationId": "putOperatorCostAllocation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One item's split (SPL-5291, rdb 0275): the estate Persons or Cloud item (source, project_or_vendor, kind) and each workspace's share in basis points, summing to 10000; shares [] removes the split. A Tokens item is refused (400 bad_cost_allocation).",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "project_or_vendor": {
+                    "type": "string"
+                  },
+                  "shares": {
+                    "items": {
+                      "properties": {
+                        "share_bp": {
+                          "maximum": 10000,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "workspace_id",
+                        "share_bp"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "project_or_vendor",
+                  "kind",
+                  "shares"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the stored split (SPL-5291)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Set or remove one estate cost item's split across workspaces",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/cost-entries": {
       "get": {
         "operationId": "getOperatorCostEntries",
@@ -16367,6 +16481,118 @@
           }
         },
         "summary": "Update tenant channels",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/tenant/cost-allocations": {
+      "get": {
+        "operationId": "getTenantCostAllocations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month whose amounts are shown YYYY-MM (UTC); default the current month so far; a split holds for every month",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {month, second_currency, items: [{source, project_or_vendor, kind, label, held_bp, shares: [{workspace_id, share_bp, usd_micros, eur_micros, second_micros}]}], workspaces: [{id, name}]}: only the caller's administered workspaces' shares (SPL-5291)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the cost items split to the workspaces the signed-in admin administers",
+        "tags": [
+          "tenant"
+        ]
+      },
+      "put": {
+        "operationId": "putTenantCostAllocation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One item's split (SPL-5291, rdb 0275): the estate Persons or Cloud item (source, project_or_vendor, kind) and each workspace's share in basis points, summing to 10000; shares [] removes the split. A Tokens item is refused (400 bad_cost_allocation).",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "project_or_vendor": {
+                    "type": "string"
+                  },
+                  "shares": {
+                    "items": {
+                      "properties": {
+                        "share_bp": {
+                          "maximum": 10000,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "workspace_id",
+                        "share_bp"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "project_or_vendor",
+                  "kind",
+                  "shares"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the stored split; 403 cost_allocation.outside when it would change, add or shed a share outside those workspaces (SPL-5291)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Re-split a cost item among the workspaces the signed-in admin administers",
         "tags": [
           "tenant"
         ]

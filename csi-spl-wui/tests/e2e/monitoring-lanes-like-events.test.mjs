@@ -32,6 +32,7 @@ import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { startServer } from './lib/server.mjs'
+import { tapScrim } from './lib/sheet-scrim.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 import { LANE_COLUMNS, LANES_MOCK_KEY } from '../../src/utils/monitoring-lanes.mjs'
@@ -204,24 +205,21 @@ async function phoneSheet(o, tag) {
     marks.push(await o.p.$eval(opt, (b) => b.getAttribute('aria-pressed') + ':' + b.lastElementChild.textContent.trim()))
   }
   ok(`S4 ${tag}: a row's tap cycles ▲ -> ▼ -> none`, marks.join('|') === 'true:▲|true:▼|false:', marks)
-  await o.p.click(`[data-test=${o.prefix}-sheet-scrim]`)
-  await sleep(400) /* the sheet's Back step settles before the next tap */
+  await tapScrim(o.p, o.prefix)
   await openSheet(o, `[data-test=${o.prefix}-filters-open]`, `[data-test=${o.prefix}-filters]`)
   const fields = await o.p.$$eval(`[data-test=${o.prefix}-filters] [data-test^=${o.prefix}-filter-]:not(button)`, (els) => els.map((e) => e.getAttribute('data-test'))).catch(() => [])
   ok(`S4 ${tag}: the Filters sheet has a filter per column and Clear filters`, fields.join() === o.columns.map((c) => `${o.prefix}-filter-${c}`).join()
     && (await o.p.$(`[data-test=${o.prefix}-filters] [data-test=${o.prefix}-filter-clear]`)) !== null, fields)
   const all = await rowCount(o)
   await setFilter(o, o.choice, o.choiceValue)
-  await o.p.click(`[data-test=${o.prefix}-sheet-scrim]`)
-  await sleep(400) /* the sheet's Back step settles before the next tap */
+  await tapScrim(o.p, o.prefix)
   const fewer = await until(o, ([s, n]) => document.querySelectorAll(s).length < n, [`[data-test=${o.row}]`, all])
   const dot = await o.p.$eval(`[data-test=${o.prefix}-filters-open]`, (b) => b.getAttribute('data-active')).catch(() => '')
   ok(`S4 ${tag}: a filter narrows the rows and lights the Filters dot`, fewer && dot === 'true', { all, now: await rowCount(o), dot })
   if (SHOT_DIR) await o.p.screenshot({ path: join(SHOT_DIR, `${o.prefix}-filtered-${tag}.png`) })
   await openSheet(o, `[data-test=${o.prefix}-filters-open]`, `[data-test=${o.prefix}-filters] [data-test=${o.prefix}-filter-clear]`)
   await o.p.click(`[data-test=${o.prefix}-filters] [data-test=${o.prefix}-filter-clear]`)
-  await o.p.click(`[data-test=${o.prefix}-sheet-scrim]`)
-  await sleep(400) /* the sheet's Back step settles before the next tap */
+  await tapScrim(o.p, o.prefix)
   ok(`S4 ${tag}: Clear filters in the sheet brings every row back`, await until(o, ([s, n]) => document.querySelectorAll(s).length === n, [`[data-test=${o.row}]`, all]))
 }
 

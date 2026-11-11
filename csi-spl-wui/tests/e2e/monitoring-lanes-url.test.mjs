@@ -27,6 +27,7 @@
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
+import { tapScrim } from './lib/sheet-scrim.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 import { TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 
@@ -90,7 +91,7 @@ async function inFilters(p, vp, fn) {
   await p.click('[data-test=lanes-filters-open]')
   await p.waitForSelector('[data-test=lanes-filters]', { visible: true, timeout: 8000 })
   try { return await fn() } finally {
-    if (await p.$('[data-test=lanes-sheet-scrim]')) await p.click('[data-test=lanes-sheet-scrim]')
+    await tapScrim(p, 'lanes')
   }
 }
 /* a sort click: the name on a desktop, its row in the Sort sheet on a phone */
@@ -99,7 +100,7 @@ async function sortBy(p, vp, col) {
   await p.click('[data-test=lanes-sort-open]')
   await p.waitForSelector(`[data-test=lanes-sort-sheet] [data-test=lanes-sort-${col}]`, { visible: true, timeout: 8000 })
   await p.click(`[data-test=lanes-sort-sheet] [data-test=lanes-sort-${col}]`)
-  await p.click('[data-test=lanes-sheet-scrim]')
+  await tapScrim(p, 'lanes')
 }
 const controls = (p, vp) => inFilters(p, vp, () => p.evaluate((phone) => {
   const val = (t) => document.querySelector(`[data-test=${t}]`)?.value ?? null

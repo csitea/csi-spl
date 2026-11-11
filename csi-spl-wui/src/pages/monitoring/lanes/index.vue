@@ -284,7 +284,20 @@ function writeUrl() {
   router.replace({ query: next }).then(done, done)
 }
 readUrl()
-watch(() => route.query, () => { if (!writing) readUrl() })
+/* SPL-5276: closing a phone sheet steps Back over the sheet's history entry.
+   vue-router hears that popstate before useMobileStack's capture listener
+   (at the window, listeners fire in the order they were added: Chrome 154),
+   so the route moves to the entry under the sheet, without the sort or filter
+   just picked, while the stack puts the sheet's address back. The address
+   bar wins: the router follows it, and the page keeps what was picked. */
+function routeLagsAddress() {
+  return import.meta.client && router.resolve(router.options.history.location).fullPath !== router.currentRoute.value.fullPath
+}
+watch(() => route.query, () => {
+  if (writing) return
+  if (routeLagsAddress()) return void router.replace(router.options.history.location)
+  readUrl()
+})
 watch([sort, filters], writeUrl, { deep: true })
 /* the first answer checks the link's values against what it offers */
 let offeredChecked = false
@@ -292,6 +305,10 @@ watch(view, (v) => {
   if (!v || offeredChecked) return
   offeredChecked = true
   Object.assign(filters, lanesFiltersOffered({ ...filters }, choices.value))
+  /* SPL-5276: the address names what the page shows from its first answer on:
+     an old link's ?age= becomes ?updated=, its ?text= goes (nothing else
+     writes it while no sort or filter changes) */
+  writeUrl()
 })
 /** the age filter's choices in words */
 function ageLabel(a: string) {

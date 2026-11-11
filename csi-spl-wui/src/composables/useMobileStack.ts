@@ -211,9 +211,13 @@ function dropStaleTopic(state: unknown) {
 
 /*
  * 087 T003 (FR-001, utils isStaleLoginStep): a stale /login is left from a popstate
- * (capture, before vue-router renders it), a bfcache restore (pageshow hides it
- * first) or a back_forward load (mobileStaleLoginLoad, after the session probe).
- * Armed by plugins/mobile-stale-login.client.ts on every document; phones only.
+ * (before vue-router sees it), a bfcache restore (pageshow hides it first) or a
+ * back_forward load (mobileStaleLoginLoad, after the session probe). Armed by
+ * plugins/mobile-stale-login.client.ts on every document; phones only.
+ * SPL-5319: popstate listeners at window run in the order they were added,
+ * capture or not, so the popstate check is returned, not added here: the
+ * plugin's listener, added before nuxt:router creates the history, calls it,
+ * and its stopImmediatePropagation keeps the router off the stale entry.
  */
 let staleArmed = false
 let staleLeft = false
@@ -233,16 +237,16 @@ function leaveStaleLogin(state: unknown, hide: boolean) {
   staleTimer = setTimeout(() => window.location.replace(door), 800)
 }
 
-function guardStaleLogin() {
+function guardStaleLogin(): ((e: PopStateEvent) => void) | undefined {
   if (!import.meta.client || staleArmed) return
   staleArmed = true
   const session = useSessionStore()
   const stale = () => onPhone() && isStaleLoginStep(window.location.pathname, session.state)
-  window.addEventListener('popstate', (e) => {
+  const onPop = (e: PopStateEvent) => {
     /* the step back landed in this document: no fallback */
     clearTimeout(staleTimer)
     if (stale()) { e.stopImmediatePropagation(); leaveStaleLogin(e.state, false) }
-  }, { capture: true })
+  }
   window.addEventListener('pagehide', () => clearTimeout(staleTimer))
   window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return
@@ -251,7 +255,7 @@ function guardStaleLogin() {
     if (stale()) leaveStaleLogin(window.history.state, true)
   })
   const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
-  if (!mobileStaleLoginLoad(nav?.type, onPhone(), window.location.pathname)) return
+  if (!mobileStaleLoginLoad(nav?.type, onPhone(), window.location.pathname)) return onPop
   const stop = watch(() => session.state, (s) => {
     if (s === 'loading') return
     stop()
@@ -259,6 +263,7 @@ function guardStaleLogin() {
     /* SPL-4624: utils/stale-login-hide-script.mjs hid it on a stale hint */
     else document.documentElement.style.visibility = ''
   }, { immediate: true })
+  return onPop
 }
 
 function overlayOpened(o: Overlay) {

@@ -1074,7 +1074,9 @@ and 5 dev desks, none with a live sidecar.
   `SPOOL_DESK_USER` set, keeping every argument. That covers the placer
   (`spawn-remote.sh` -> `spool-send.sh`), `box-link-watch-relay.sh` and every
   other caller. No hop with `SPOOL_FLEET_STATE_ROOT` set, after one hop
-  (`SPL_DESK_HOPPED`), or under `SPOOL_TEST=1` without `SPL_DESK_AS_CMD`. A desk
+  (`SPL_DESK_HOPPED`), under `SPOOL_TEST=1` without `SPL_DESK_AS_CMD`, or when
+  `SPOOL_DESK_USER` (env, else box.env) names a user other than the caller:
+  `spool_desk_root` already reads that user's root (`desk-root.inc.sh`). A desk
   that did not move behaves as before. Test: `fleet-relay-desk-moved.tst.sh`.
   The same caller-root read, not fixed here: `spool-topic-kind.sh:68` (the
   owner-topic probe of `spool-send.sh`), `topic-text.sh:65`,

@@ -103,6 +103,12 @@ rlc_no_row() {
     <<<"$RLC_MAP" >/dev/null 2>&1
 }
 
+# rlc_no_row_line ID: the retire's one line when the close found no hub row of
+# the id on this box (lane-map.sh done exit 6, SPL-5340); rlc_said_no_row ID OUT
+# reads it back, so the reaper sends no "held owner topic ?" note for that seat.
+rlc_no_row_line() { printf 'agent-id-retire: INFO no hub lane row of %s on %s: nothing to close\n' "$1" "$(rlc_box)"; }
+rlc_said_no_row() { grep -qF "INFO no hub lane row of $1 on " <<<"$2"; }
+
 # rlc_seat_topic ID: into RLC_TOPIC the topic of the id's live row on this box,
 # "?" when the hub did not answer.
 rlc_seat_topic() {
@@ -187,8 +193,10 @@ rlc_alert() {
 # rlc_drain: retry the queued closes, at most REAP_LANE_RETRY_MAX (20) a tick;
 # the rest are counted and wait, and the failed ones go behind them.
 # An id in use again (re-issued after its quarantine) leaves the queue unclosed:
-# its row is a new lane's now. So does an id with no hub row on this box: nothing
-# to close, no retry and no alert.
+# its row is a new lane's now. So does an id with no hub row on this box, read
+# from the map or by the close itself (exit 6): nothing to close, no retry and no
+# alert. The binary's "topic is required" line alone is no such answer: it also
+# follows a read the hub did not answer (SPL-5340).
 rlc_drain() {
   local q n=0 waiting=0 max="${REAP_LANE_RETRY_MAX:-20}" id first why out rc last_why=""
   local -a gone=() failed=()
@@ -214,6 +222,9 @@ rlc_drain() {
     rc=0; out="$(timeout 60 bash "$_here/lane-map.sh" "done" --agent "$id" 2>&1 </dev/null)" || rc=$?
     if [ "$rc" = 0 ]; then
       say "LANE ${id}: the hub row is closed (failing since ${first})"
+      gone+=("$id")
+    elif [ "$rc" = 6 ]; then
+      say "INFO lane-close ${id}: no hub row on $(rlc_box), nothing to close; off the queue"
       gone+=("$id")
     else
       last_why="$(rlc_why "$out")"

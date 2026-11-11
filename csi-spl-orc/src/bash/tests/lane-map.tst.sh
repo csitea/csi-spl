@@ -338,7 +338,7 @@ out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json | tail -1)"
   pass "json: fleet, hub state and the live rows" || fail "json: $out"
 
 # 8. one id, a row on two boxes
-on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-109 LANE_BRANCH=old-row LANE_STATE=done >/dev/null
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-109 LANE_BRANCH=old-row LANE_TOPIC=t-old LANE_STATE=done >/dev/null
 on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-109 LANE_BRANCH=new-row LANE_TOPIC=t-9 >/dev/null
 [[ "$(jq '[.lanes[] | select(.agent_id == "c-109")] | length' "$T/hub/main.json")" == 2 ]] &&
   pass "setup: c-109 has a row on box-desk and one on sat" || fail "two-row setup: $(cat "$T/hub/main.json")"
@@ -350,9 +350,10 @@ row="$(jq -c '.lanes[] | select(.agent_id == "c-109" and .agent_box == "sat")' "
   pass "...and no row with a two-word box was made" || fail "rows: $(cat "$T/hub/main.json")"
 # 8b. one id live on two boxes (SPL-5144): a row per box, and each box's done
 # closes its own row from that row's fields. A box with no row of its own still
-# fails its done. The reaper skips that done when the hub listed this box's rows
-# without the id; it tries it, and alerts on the failure, only when it cannot
-# tell (no answer, or a wrong box name). The stub refuses no topic, as the hub does.
+# has nothing to close: its done reads this box's rows without the id, exit 6
+# and no write (SPL-5340). The reaper tries it, and alerts on the failure, only
+# when it cannot tell (no answer, or a wrong box name). The stub refuses no
+# topic, as the hub does.
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_BRANCH=on-pc LANE_TOPIC=t-pc LANE_ISSUE=SPL-11 >/dev/null
 on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_BRANCH=on-sat LANE_TOPIC=t-sat LANE_ISSUE=SPL-12 >/dev/null
 [[ "$(jq -r '[.lanes[] | select(.agent_id == "c-111" and .state == "live") | .agent_box + ":" + .topic] | sort | join(",")' "$T/hub/main.json")" == box-desk:t-pc,sat:t-sat ]] &&
@@ -363,8 +364,8 @@ out="$(on sat do_spl_lane_put "${F[@]}" HUB_REQUIRE_LINKS=1 LANE_AGENT=c-111 LAN
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-111 LANE_STATE=done >/dev/null
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_BRANCH=on-pc LANE_TOPIC=t-pc LANE_ISSUE=SPL-13 >/dev/null
 out="$(on sat do_spl_lane_put "${F[@]}" HUB_REQUIRE_LINKS=1 LANE_AGENT=c-112 LANE_STATE=done 2>&1)"; rc=$?
-[[ $rc -eq 2 && "$out" == *"topic is required"* ]] &&
-  pass "pin: a done with no row on this box is still refused, exit 2" || fail "no-row done (rc=$rc): $out"
+[[ $rc -eq 6 && "$out" == *"no hub lane row of c-112 on sat: nothing to close"* && "$(jq '[.lanes[] | select(.agent_id == "c-112" and .agent_box == "sat")] | length' "$T/hub/main.json")" == 0 ]] &&
+  pass "pin: a done with no row on this box is exit 6, nothing to close, and mints no row" || fail "no-row done (rc=$rc): $out"
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_STATE=done >/dev/null
 out="$(on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-110 'LANE_BOX=sat box-desk')"; rc=$?
 [[ $rc -eq 1 && "$out" == *"LANE_BOX must be"* ]] && pass "the action refuses a two-word LANE_BOX" || fail "two-word LANE_BOX (rc=$rc): $out"

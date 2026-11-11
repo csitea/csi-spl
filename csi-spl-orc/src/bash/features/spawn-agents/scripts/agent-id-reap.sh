@@ -45,7 +45,8 @@
 # .reap/lane-close.tsv; every tick retries REAP_LANE_RETRY_MAX of it, and one that fails again
 # alerts the dispatch lease holder (at most once per REAP_ALERT_GAP_S), so a
 # retired id's row cannot stay live unseen. An id with no hub row on this box has
-# nothing to close and just leaves the queue (SPL-4987). --close-lanes puts ids on that queue
+# nothing to close and just leaves the queue (SPL-4987); one whose close read no
+# row of it on this box is one INFO line, queued nowhere and told nobody (SPL-5340). --close-lanes puts ids on that queue
 # by hand and drains it: rows an old reap left live. A reaped seat whose live row
 # names an owner topic, or whose row the hub would not show, is one note to the
 # holder naming the topic. It keeps no seat alive. lib/reap-lane-close.inc.sh.
@@ -259,7 +260,7 @@ for id in $(printf '%s\n' "${!cand[@]}" | sort); do
     nreap=$((nreap + 1))
     [ "$APPLY" = 1 ] && echo "$(date -u +%FT%TZ) $rid DONE OK retired by the reaper: dead $((age / 3600)) h (${src})" 2>/dev/null >>"$R/dispatch/rotate.log"
     [ "$APPLY" = 1 ] && unset "keep[$id]"
-    [ "$lane" = 1 ] && rlc_seat_reaped "$id" "$RLC_TOPIC"
+    [ "$lane" = 1 ] && { rlc_said_no_row "$id" "$out" && RLC_TOPIC=""; rlc_seat_reaped "$id" "$RLC_TOPIC"; }
   else
     say "SKIP ${id}: dead $((age / 3600)) h, but agent-id-retire refused (rc ${rc}): $(printf '%s' "$out" | tail -1)"
   fi

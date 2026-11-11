@@ -27,7 +27,8 @@
 # are theirs. Exit codes: the action's own (0 ok, 1 refused, 2 hub did not take a
 # write, 3 collision, 4 a live lane with no files: scope unknown, 5 nothing
 # owned on THIS machine but the hub did not answer: other machines unread,
-# NOT free); 64 usage, or a box setting that is not ONE box id.
+# NOT free, 6 done: the hub answered and holds no row of the id on this box,
+# nothing to close); 64 usage, or a box setting that is not ONE box id.
 #
 # LANE_MAP_ORC (tests): the csi-spl-orc dir whose ./run is called.
 set -uo pipefail

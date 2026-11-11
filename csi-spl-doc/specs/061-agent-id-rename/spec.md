@@ -154,6 +154,19 @@ the reaper for an agent dead for more than `SPOOL_ID_REAP_H` (default 6):
 | hub DM and channel history | stays. Rows keep `from = c-004`. The generation is the spawned-utc. The hub's agent seat row records `seated_at`, and the WUI shows a divider "new holder since <ts>" in a DM with a reused id (lane L10, after today) |
 | tmux window | already closed by `/exit-clean`. A window still open blocks reuse (3.5 rule 4), so `tmux-close-window.sh --agent <id> --retire` closes every window whose name leads with the id before it retires (SPL-2459: a-520 had an old shell window too, and needed two runs); a `--defer` leaves one whose pane still runs an agent CLI, and the retire then refuses |
 
+The lane row close. A close the hub did not take is queued in
+`$SPOOL_ROOT/.reap/lane-close.tsv`; the reaper retries it each tick and alerts
+the dispatch holder (SPL-4650). An id with no hub row on this box has nothing to
+close, no retry and no alert: the reaper drops it when the lane map lists this
+box's rows without it (SPL-4987), and the close itself says so when its own
+read of the hub does: `lane-map.sh done` exit 6, one line
+`agent-id-retire: INFO no hub lane row of <id> on <box>: nothing to close`,
+nothing queued and no "held owner topic ?" note (SPL-5340). The spool binary's
+`topic is required (rdb 0264)` refusal alone is not that answer: the binary
+prints it before it calls the hub, so a hub that did not answer gives the same
+line, and that close is retried and alerted. An answer with no row of this box
+at all (a wrong or renamed box name) is "cannot tell" and alerts too.
+
 A message that arrives for a retired id inside the quarantine bounces to the
 sender as a `reject` ("c-004 retired at <ts>"). It does NOT queue.
 

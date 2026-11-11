@@ -17,13 +17,22 @@ HUBLOG="$T_TMP/hub.log" SENDS="$T_TMP/sends.log"; : >"$HUBLOG"; : >"$SENDS"
 mkdir -p "$R/dispatch"; echo "c-002@tbox 1793630573" >"$R/dispatch/lease"
 
 # The hub: reads answer the rows in $T_TMP/rows.json, a write is refused while
-# $T_TMP/refuse exists, nothing answers while $T_TMP/down exists. A write with an
-# empty topic for an id with no row on tbox would mint a row: refused, in the
-# store's words (rdb 0264).
+# $T_TMP/refuse exists, nothing answers while $T_TMP/down exists, and the next N
+# reads go unanswered while $T_TMP/down-reads holds N. A write with an empty
+# topic for an id with no row on tbox would mint a row: refused, in the store's
+# words (rdb 0264). The spool binary refuses an empty topic itself, before it
+# calls the hub, so a hub that is down gives that same line (SPL-5340).
 cat >"$T_TMP/hub.sh" <<STUB
 #!/usr/bin/env bash
 echo "PATH=\$PATH \$*" >>"$HUBLOG"
-[ -e "$T_TMP/down" ] && exit 1
+if [ -e "$T_TMP/down" ]; then
+  case " \$* " in *" --topic  "*) echo "spool: lane: topic is required: the discussion the lane comes from (rdb 0264)" >&2 ;; esac
+  exit 1
+fi
+case " \$* " in *" --state "*) ;; *)
+  n="\$(cat "$T_TMP/down-reads" 2>/dev/null)"
+  [ "\${n:-0}" -gt 0 ] && { echo \$((n - 1)) >"$T_TMP/down-reads"; exit 1; } ;;
+esac
 case " \$* " in
   *" --state "*)
     [ -e "$T_TMP/refuse" ] && { echo "stub hub: refused" >&2; exit 1; }
@@ -48,9 +57,10 @@ STUB
 chmod +x "$T_TMP/hub.sh" "$T_TMP/send.sh" "$T_TMP/kind.sh"
 row() { printf '{"agent_id":"%s","agent_box":"%s","state":"%s","topic":"%s"}' "$1" "${3:-tbox}" "${4:-live}" "$2"; }
 # The ids the queue sections below plant have a live row, so only the section on
-# ids without one sees that case. c-401 has a row on another box only (the case
-# of the alerts); c-402, c-403, c-404 and c-406 have none anywhere.
-rows=""; for i in 021 {101..105} {201..221} {301..303}; do rows+="$(row "c-$i" "$AGENTT"),"; done
+# ids without one sees that case (c-017's cron PATH check needs its write). c-401
+# has a row on another box only (the case of the alerts); c-402, c-403, c-404,
+# c-406, c-407, c-409 and c-410 have none anywhere.
+rows=""; for i in 017 021 {101..105} {201..221} {301..303}; do rows+="$(row "c-$i" "$AGENTT"),"; done
 cat >"$T_TMP/rows.json" <<JSON
 {"lanes":[${rows}$(row c-011 "$OWNER"),$(row c-012 "$AGENTT"),$(row c-013 ""),$(row c-014 "$OWNER"),$(row c-401 "$AGENTT" obox "done"),$(row c-405 "$AGENTT" obox "done"),$(row c-405 "$AGENTT")]}
 JSON
@@ -275,13 +285,13 @@ eq "...it stays queued" "c-406 " "$(ids)"
 has "...and alerts" "ALERT told c-002@tbox: hub lane rows not closed: c-406" "$out"
 cp "$T_TMP/rows.keep" "$T_TMP/rows.json"; rm -f "$Q"
 
-# The line the box really queues: the retire's own failed close, with the hub's
-# refusal in it, on a tick that reaped a seat. The same tick drops it.
+# A reaped seat with no row: the retire's close reads the hub, finds none of the
+# id on this box and says so in one line; nothing is queued (SPL-5340).
 agent c-407; : >"$SENDS"; : >"$HUBLOG"; rm -f "$R/.reap/lane-close.alerted"
 out="$(reap 2026-10-02T19:00:00Z --apply)"
 has "a seat with no row is reaped" "REAP c-407" "$out"
-has "...the retire tried and warned" "the hub lane row of c-407 was not closed" "$out"
-has "...the same tick drops the id" "lane-close c-407: no hub row on tbox, nothing to close; off the queue" "$out"
+has "...the retire says there is nothing to close" "INFO no hub lane row of c-407 on tbox: nothing to close" "$out"
+hasnt "...and warns nothing" "the hub lane row of c-407 was not closed" "$out"
 hasnt "...no alert" ALERT "$out"
 check "...the queue is empty" test ! -s "$Q"
 eq "...nothing sent" 0 "$(wc -l <"$SENDS")"
@@ -304,5 +314,32 @@ has "...the close is tried and fails" "WARN lane-close c-401: not closed" "$out"
 eq "...it stays queued" "c-401 " "$(ids)"
 has "...and alerts" "ALERT told c-002@tbox: hub lane rows not closed: c-401" "$out"
 rm -f "$Q"
+
+# --- SPL-5340: the tick's map read goes unanswered, the close's own read answers ---
+# c-409 has no row anywhere. The topic read and the drain's "no row" check both
+# had no map; the close read the hub itself and found no row of c-409 on tbox:
+# nothing to close. No retry, no ALERT, no "held owner topic ?" note.
+agent c-409; echo 1 >"$T_TMP/down-reads"; : >"$SENDS"; : >"$HUBLOG"; rm -f "$Q" "$R/.reap/lane-close.alerted"
+out="$(LANE_HUB_TRIES=1 LANE_HUB_BACKOFF='' reap 2026-10-02T19:45:00Z --apply)"
+has "the seat is reaped" "REAP c-409" "$out"
+eq "CONTROL the tick's map read went unanswered" 0 "$(cat "$T_TMP/down-reads")"
+has "the close finds no row: one INFO line" "INFO no hub lane row of c-409 on tbox: nothing to close" "$out"
+eq "...only one line names the close" 1 "$(grep -c 'lane row of c-409\|lane-close c-409' <<<"$out")"
+hasnt "...no WARN" "WARN" "$out"
+check "...nothing queued" test ! -s "$Q"
+hasnt "...no alert" ALERT "$out"
+hasnt "...no owner-topic note" "held owner topic" "$out"
+eq "...nothing sent" 0 "$(wc -l <"$SENDS")"
+hasnt "...and no close write that would mint a row" "--agent c-409" "$(grep -- '--state' "$HUBLOG")"
+
+# CONTROL: a hub that does not answer the close's read either gives the binary's
+# own "topic is required" line: that is no "no row", the close retries and alerts.
+agent c-410; touch "$T_TMP/down"; : >"$SENDS"; rm -f "$R/.reap/lane-close.alerted"
+out="$(LANE_HUB_TRIES=1 LANE_HUB_BACKOFF='' reap 2026-10-02T20:00:00Z --apply)"
+has "CONTROL a down hub refuses the empty topic" "topic is required" "$out"
+hasnt "...which is no 'no row'" "nothing to close" "$out"
+eq "...the close is queued" "c-410 " "$(ids)"
+has "...retried and alerted" "ALERT told c-002@tbox: hub lane rows not closed: c-410" "$out"
+rm -f "$T_TMP/down" "$Q"
 
 t_done

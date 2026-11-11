@@ -17,7 +17,9 @@
 #   hub lane row -> state done (lane-map.sh done). A close the hub did not take
 #                  says why and queues in .reap/lane-close.tsv: the reaper's next
 #                  tick retries it and alerts the dispatch holder (SPL-4650), or
-#                  drops it when this box has no hub row of the id (SPL-4987)
+#                  drops it when this box has no hub row of the id (SPL-4987).
+#                  A hub that answers with no row of the id on this box (exit 6)
+#                  is one INFO line, nothing queued (SPL-5340)
 #   pending     -> $SPOOL_ROOT/.retired/.pending.<ID> while --apply runs: the
 #                  generation, the alias row and "registry" once the rows
 #                  moved. A run stopped half-way leaves it, and the re-run
@@ -307,7 +309,9 @@ if [ "$lane" = 1 ]; then
   step lane "lane-map.sh done --agent ${ID}"
   if [ "$APPLY" = 1 ]; then
     lane_rc=0; lane_out="$(timeout 60 bash "$_here/lane-map.sh" "done" --agent "$ID" 2>&1 </dev/null)" || lane_rc=$?
-    if [ "$lane_rc" != 0 ]; then
+    if [ "$lane_rc" = 6 ]; then
+      rlc_no_row_line "$ID" >&2
+    elif [ "$lane_rc" != 0 ]; then
       lane_why="$(rlc_why "$lane_out")"
       echo "agent-id-retire: WARN the hub lane row of ${ID} was not closed (lane-map.sh done, rc ${lane_rc}): ${lane_why}" >&2
       rlc_add "$ID" "$lane_why" || echo "agent-id-retire: WARN the close of ${ID} could not be queued in $(rlc_queue): nobody retries it" >&2

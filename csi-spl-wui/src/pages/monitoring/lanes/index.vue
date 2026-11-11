@@ -190,6 +190,8 @@ import { LANE_AGE_COLUMNS, LANE_AGES, LANE_QUERY, LANE_SHEET_COLUMNS, LANES_DEFA
 import { lanesFiltersOffered, lanesStateFromQuery, lanesStateQuery, plainQuery, sameLanesQuery } from '~/utils/monitoring-lanes-url.mjs'
 import { nextSheetSort, sheetSortLabel } from '~/utils/column-sheet.mjs'
 import { usePhone } from '~/composables/useTouchUi'
+import { currentQuery } from '~/composables/useIssueOpen'
+import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 import { useLaneLinks, type LaneLink } from '~/composables/useLaneLinks'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
@@ -264,55 +266,56 @@ const rows = computed(() => (view.value ? sortLanes(filterLanes(view.value.lanes
 /* the sort and the filters follow the address and back (3.15, SPL-4729) */
 const router = useRouter()
 const listPath = route.path
+/* SPL-5276: the address, not the route, as the Issues list does
+   (useIssueListUrl, SPL-4648): closing a phone sheet steps Back over its
+   entry, so the route moves to the entry under it while useMobileStack puts
+   the sheet's address back; only the address keeps what the sheet wrote. */
+const addressQuery = () => (import.meta.client ? currentQuery() : plainQuery(route.query))
+const here = () => router.currentRoute.value.path === listPath
 /* replaces on their way: the route still names the state before them */
 let writing = 0
+/* the state is newer than the address: a navigation (the sheet's Back)
+   cancelled the replace, and it is owed once more */
+let owed = false
 /** the address's sort and filters, each value the answer does not offer set back to All */
 function readUrl() {
-  const q = lanesStateFromQuery(route.query)
+  const q = lanesStateFromQuery(addressQuery())
   if (q.sort.col !== sort.value.col || q.sort.dir !== sort.value.dir) sort.value = q.sort
   const f = view.value ? lanesFiltersOffered(q.filters, choices.value) : q.filters
   const now: Record<string, string> = filters
   if (Object.entries(f).some(([k, v]) => now[k] !== v)) Object.assign(filters, f)
 }
 function writeUrl() {
-  if (!import.meta.client || router.currentRoute.value.path !== listPath) return
-  const base = plainQuery(route.query)
+  if (!import.meta.client || !here()) return
+  const base = addressQuery()
   const next = lanesStateQuery({ sort: sort.value, filters }, base)
-  if (sameLanesQuery(next, base)) return
+  if (!writing && sameLanesQuery(next, base)) { owed = false; return }
   writing++
-  const done = () => { writing-- }
-  router.replace({ query: next }).then(done, done)
+  /* a pick that also closes its phone sheet: the sheet's history.back cancels
+     this replace; it stays owed, and follow() or the refusal sends it */
+  const landed = (failure?: unknown) => {
+    writing--
+    if (writing) return
+    if (isNavigationFailure(failure, NavigationFailureType.cancelled)) { owed = true; return }
+    owed = false
+    if (!failure) follow()
+  }
+  router.replace({ query: next }).then(landed, landed)
+}
+/* the address moved (Back, Forward, a link to this page) */
+function follow() {
+  if (writing || !here()) return
+  if (!owed) readUrl()
+  writeUrl()
 }
 readUrl()
-/* SPL-5276: closing a phone sheet steps Back over the sheet's history entry.
-   vue-router hears that popstate before useMobileStack's capture listener
-   (at the window, listeners fire in the order they were added: Chrome 154),
-   so the route moves to the entry under the sheet, without the sort or filter
-   just picked, while the stack puts the sheet's address back. The address
-   bar wins: the router follows it, and the page keeps what was picked.
-   The router's own history.location is the popped entry too, so the check
-   reads the address bar (window.location), less the router's base.
-   The router's navigation and this watcher can both settle in the microtask
-   checkpoint between the two popstate listeners (seen under load: e2e P5b
-   at 320 px), before the stack has put the address back; so the check runs
-   once more after the event (setTimeout 0), and the router follows then. */
-function addressNow() {
-  const base = router.options.history.base || ''
-  const path = window.location.pathname
-  return (base && path.startsWith(base) ? path.slice(base.length) || '/' : path) + window.location.search + window.location.hash
+if (import.meta.client) {
+  /* a refused or aborted move: the address is still owed what changed meanwhile */
+  onBeforeUnmount(router.afterEach((_to, _from, failure) => {
+    if (failure && (owed || writing) && isNavigationFailure(failure, NavigationFailureType.aborted)) setTimeout(writeUrl, 0)
+  }))
+  watch(() => router.currentRoute.value.query, follow)
 }
-function routeLagsAddress() {
-  return import.meta.client && router.resolve(addressNow()).fullPath !== router.currentRoute.value.fullPath
-}
-function followAddress() {
-  if (router.currentRoute.value.path === listPath && routeLagsAddress()) void router.replace(addressNow())
-}
-watch(() => route.query, () => {
-  if (import.meta.client) setTimeout(followAddress, 0)
-  if (writing) return
-  if (routeLagsAddress()) return void router.replace(addressNow())
-  readUrl()
-})
 watch([sort, filters], writeUrl, { deep: true })
 /* the first answer checks the link's values against what it offers */
 let offeredChecked = false

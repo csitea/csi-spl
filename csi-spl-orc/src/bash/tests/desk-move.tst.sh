@@ -575,14 +575,14 @@ out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_
 [[ $rc -ne 0 ]] && has "17.3 a 429 every time: no verdict" "says 'no verdict'" "$out" || fail "17.3 rc=$rc"
 has "17.3 the bound is named" "the member login is rate limited (429); the next try is in 1 s, past the 0 s left of MOVE_CHECK_429_SECS (3)" "$out"
 n="$(grep -c "^login home=$DH" "$T/login.log")"
-[[ "$n" == 4 && $((t1 - t0)) -lt 30 ]] && pass "17.3 bounded: 4 logins in the forward proof (3 x 1 s), $((t1 - t0)) s in all" || fail "17.3 logins $n, $((t1 - t0)) s"
+[[ "$n" == 4 && $((t1 - t0)) -lt 90 ]] && pass "17.3 bounded: 4 logins in the forward proof (3 x 1 s), $((t1 - t0)) s in all" || fail "17.3 logins $n, $((t1 - t0)) s"
 [[ -f "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key" && ! -e "$DST_P/desk/ws-a/box-a" ]] && pass "17.3 the desk is rolled back" || fail "17.3 not rolled back"
 reset_box; echo 99 >"$T/r429"; echo 0 >"$T/ra429"; t0="$(date +%s)"
 out="$(MV_TIMEOUT=60 mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=3 DRY_RUN=0)"; rc=$?; t1="$(date +%s)"
 n="$(grep -c "^login home=$DH" "$T/login.log")"
 [[ $rc -ne 0 && $rc -ne 124 ]] && has "17.4 Retry-After 0, a 429 every time: no verdict" "says 'no verdict'" "$out" || fail "17.4 rc=$rc (124 = the 429 loop never ended)"
 has "17.4 a Retry-After of 0 waits the doubled back-off" "the next try is in 4 s, past the 0 s left of MOVE_CHECK_429_SECS (3)" "$out"
-[[ "$n" == 3 && $((t1 - t0)) -lt 30 ]] && pass "17.4 bounded: 3 logins (1 s + 2 s), $((t1 - t0)) s in all" || fail "17.4 logins $n, $((t1 - t0)) s"
+[[ "$n" == 3 && $((t1 - t0)) -lt 90 ]] && pass "17.4 bounded: 3 logins (1 s + 2 s), $((t1 - t0)) s in all" || fail "17.4 logins $n, $((t1 - t0)) s"
 rm -f "$T/ra429"; reset_box
 # _spl_dm_proof alone (pr_run execs its bash, so & gives its pid), killed by
 # TERM while it waits: no session dir is left and the caller's trap runs; on

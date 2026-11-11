@@ -115,6 +115,10 @@ defineExpose({ close })
   align-items: center;
   justify-content: center;
   padding: 0;
+  /* the Event log's own `.events-table-wrap .btn { margin-top: 0.75rem }` set
+     this on master; a scoped rule does not reach a child component, so it is
+     kept here, or the Event log's phone bar drops from 66 to 52 px */
+  margin-top: 0.75rem;
 }
 .sheet-mbar__btn.btn.ghost,
 .sheet-mbar__btn.btn.ghost:active { border: 0; background: transparent; }

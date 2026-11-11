@@ -373,7 +373,10 @@ Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for customer draft handover (`spec.md`
   - **Tests**: `internal/marketing/x_test.go` and `internal/hub/marketing_x_test.go` against a fake X server; `hub-auth-030.tst.sh`, `wui-actions.tst.sh`; WUI `tests/unit/marketing-x.test.mjs` and `tests/e2e/marketing-x-accounts.test.mjs`.
   - **Red Control**: `PROVE_RED=too_long` and `PROVE_RED=configured` turn the e2e red.
   - **Needs from the owner**: the X developer app and prepaid credits, then the go for the secret versions and the 030 apply: [x-app-setup.md](./x-app-setup.md).
-- [ ] T041 **Phase 4, LinkedIn company page**: needs from the owner LinkedIn Community Management API access and business verification.
+- [x] T041 **Phase 4, LinkedIn company page**: built and shipped dark (c-547, SPL-5258; [linkedin-company-page.md](./linkedin-company-page.md)). rdb 0275 lets a channel be `linkedin_page`; `internal/marketing/linkedin_org.go` (the second LinkedIn app: OAuth, refresh, `organizationAcls`, image upload and post as `urn:li:organization:<id>`); `hub/marketing_linkedin_org_channels.go` (connect, callback, pages) and `hub/marketing_linkedin_org_dispatch.go` (publish on the shared queue, gate `tenant.settings` only, refresh with a compare-and-swap, 7-day reminder); cnf `marketing.linkedin_org.inject: "false"` with empty 030 secret slots, so every route answers 503 `not_configured`; WUI `MarketingLinkedInPages.vue` in Tenant settings -> General.
+  - **Tests**: `internal/marketing/linkedin_org_test.go`, `internal/hub/marketing_linkedin_org_test.go` against a fake LinkedIn, `internal/store/marketing_linkedin_page_test.go` on Postgres, `hub-auth-030.tst.sh`, `wui-actions.tst.sh`; WUI `tests/unit/marketing-linkedin-page.test.mjs` and `tests/e2e/marketing-linkedin-page.test.mjs`.
+  - **Red Control**: `PROVE_RED=forbidden` and `PROVE_RED=configured` turn the e2e red; without rdb 0275 the store test fails `marketing_channels_platform_check`.
+  - **Needs from the owner**: LinkedIn's approval of the Community Management API request, then the go for the secret versions and the 030 apply (linkedin-company-page.md section 10).
 - [ ] T042 **Phase 4, Viber Channels 1-Way Post API**: high-volume broadcast channel support via Channel Auth Token.
 
 <!-- version: 0.2.2 · updated: 2026-10-26 · last-edit: 2026-10-26T12:50:00Z -->

@@ -4,9 +4,9 @@ Marketing lets a workspace share its live blog posts on **Facebook Pages**, **In
 
 Three rules apply across every channel:
 
-- **Nothing is posted without a person pressing Publish.** Connecting a Facebook Page, an Instagram account, LinkedIn or X never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook, Instagram or X post is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them, and always goes out on the LinkedIn profile of the member who connected it; that member, once no longer an admin or business owner, cannot publish.
+- **Nothing is posted without a person pressing Publish.** Connecting a Facebook Page, an Instagram account, LinkedIn or X never publishes anything on its own. Each post goes out only when someone allowed to approve it presses **Publish** in the queue, or shares it from the blog post page. A Facebook, Instagram or X post is approved by the member who connected the channel, by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them. A LinkedIn post is approved by a workspace admin or business owner (`tenant.settings`), or by an agent for one of them, and always goes out on the LinkedIn profile of the member who connected it; that member, once no longer an admin or business owner, cannot publish. A LinkedIn company page post is approved the same way (any workspace admin or business owner, or an agent for one of them) and always goes out as the company, never on a person's profile.
 - **No plaintext tokens.** Every OAuth access token is envelope-encrypted with Cloud KMS (`AES-256-GCM`) before it is stored, and is decrypted in memory only for the duration of an outbound API call.
-- **One API post per channel per 24 hours.** For a connected Facebook Page, Instagram account or X account, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
+- **One API post per channel per 24 hours.** For a connected Facebook Page, Instagram account, X account or LinkedIn company page, the hub sends at most one post per channel per rolling 24-hour window (and never exceeds Instagram's 100-post daily limit). LinkedIn has no such cap.
 
 ---
 
@@ -94,6 +94,21 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
    - If it is longer, the row reads *"Too long for X: the summary is shortened to fit."* and the hub shortens the summary with "…". A post that does not fit even so is refused when you press **Publish** (*"This post does not fit X's 280 characters, even shortened."*), and nothing is recorded.
    - The 24-hour rule, the retries (`HTTP 429` or `503` from X, at most 3 tries in all) and the failure mail are as in section 1.3. X bills every post from the owner's prepaid credits; with no credit left X refuses the post, and the publish fails like any other failure.
 6. To disconnect, click **Disconnect** on the row and confirm, as in section 1.4. The dialog adds: *"To remove the app's access on X as well: on X open Settings and privacy, Security and account access, Apps and sessions, Connected apps, and revoke the app."*
+
+
+### 1.7 Connect a LinkedIn company page and publish as the company
+
+1. In **Workspace settings -> General**, find the **LinkedIn company pages** section (*"A Super admin or Content admin of your company's LinkedIn page connects it once. Then any admin or business owner of this workspace publishes blog posts as the company. Nothing is posted until someone presses Publish."*).
+   - If the hub administrator has not enabled company pages on the hub yet (`marketing.linkedin_org.inject: "false"`), the section reads *"LinkedIn company page publishing is not set up on this hub yet."* This is the case on dev and prd today (section 4.5).
+   - When no page is connected yet, the list reads *"No LinkedIn company page connected yet."*
+2. A workspace admin or business owner (`tenant.settings`) who is also a **Super admin** or **Content admin** of the company page on LinkedIn clicks **Connect a LinkedIn page** (`POST /v1/marketing/linkedin-org/connect`). The browser goes to LinkedIn's consent screen of the company page app (scopes `w_organization_social`, `r_organization_social`, `rw_organization_admin`); sign in and allow it.
+3. LinkedIn sends you back to the hub (`/api/v1/marketing/linkedin-org/callback`). The hub connects every page on which you hold an approved Super admin or Content admin role, one channel per page, stores the tokens encrypted with Cloud KMS, and shows **LinkedIn company page connected**. Nothing is posted on it until an admin or business owner presses **Publish**. With no such role on any page, the page reads **LinkedIn company page was not connected** and nothing is stored.
+4. Each page appears with its name (linked to its LinkedIn page), the platform label **LinkedIn company page**, its status badge (**Connected** or **Expired: connect again**) and *"Connection ends on `<date>`"*. The hub refreshes the access token before it ends; 7 days before the connection itself ends, the member who connected the page gets a mail with the re-connect link.
+5. Click **Publish** on a **Connected** row. The queue opens as in section 1.3, with these rules:
+   - Any workspace admin or business owner (`tenant.settings`), or an agent for one of them, publishes, even when another admin connected the page. Anyone else is told *"Only an admin or business owner of the workspace can publish as the company page."* The member who connected the page, once no longer an admin or business owner, cannot publish either.
+   - The button reads **Publish as `<page name>`**. The post is the title, the summary and the blog post link under LinkedIn's 3,000-character limit, with the article card, and its author is the company page.
+   - The 24-hour rule, the retries (`HTTP 429` or `503` from LinkedIn, at most 3 tries in all) and the failure mail are as in section 1.3.
+6. To disconnect, click **Disconnect** on the row and confirm, as in section 1.4. The dialog adds: *"To remove the app's access on LinkedIn as well: on LinkedIn open Settings & Privacy, Data privacy, Permitted services, and remove the app."*
 
 ---
 
@@ -211,6 +226,10 @@ The Meta App Review submission package (`T038`) has **not been submitted or appr
 ### 4.4 X is not switched on yet
 
 `marketing.x.inject` is `"false"` on dev and prd, so section 1.6 shows only *"X is not set up on this hub yet."* Turning it on needs the owner's X developer app and prepaid credits: the steps are in `csi-spl-doc/specs/090-marketing-automation/x-app-setup.md`.
+
+### 4.5 LinkedIn company pages are not switched on yet
+
+`marketing.linkedin_org.inject` is `"false"` on dev and prd, so section 1.7 shows only *"LinkedIn company page publishing is not set up on this hub yet."* Turning it on needs LinkedIn's approval of the owner's Community Management API request for a second LinkedIn app, then that app's client id and secret in the hub's secrets and the step 030 apply: the owner steps are in `csi-spl-doc/specs/090-marketing-automation/linkedin-company-page.md` section 10.
 
 ## 5. Post a blog post by hand
 

@@ -65,20 +65,16 @@ function replies(n, topic, mine) {
   return rows
 }
 
-/* the arrow, the Save button and whether the arrow sits on Save */
-function readState(ROW, SAVE) {
+/* the arrow and the editor. The proof is jump === 0 while editing: at 390x844
+   the arrow need not sit on Save, so an overlap read proved nothing (R7 N1). */
+function readState(ROW) {
   const b = document.querySelector('[data-test=topic-section] [data-testid=thread-jump]')
-  const save = document.querySelector(SAVE)
   const box = document.querySelector(`${ROW} [data-test=msg-edit-box]`)
-  const r = b ? b.getBoundingClientRect() : null
-  const sr = save ? save.getBoundingClientRect() : null
-  const overlap = Boolean(r && sr && r.left < sr.right && sr.left < r.right && r.top < sr.bottom && sr.top < r.bottom)
   return {
     jump: document.querySelectorAll('[data-testid=thread-jump]').length,
     end: b ? b.getAttribute('data-end') : '',
     editing: Boolean(box),
     body: (document.querySelector(`${ROW} .msg-body`)?.textContent || '').trim().slice(0, 40),
-    overlap,
   }
 }
 
@@ -107,7 +103,7 @@ try {
   await sleep(400)
   await p.waitForSelector(ROW, { timeout: NAV_TIMEOUT })
 
-  const read = () => p.evaluate(readState, ROW, SAVE)
+  const read = () => p.evaluate(readState, ROW)
   const until = async (want, ms = 4000) => {
     const t0 = Date.now()
     let v = await read()
@@ -125,7 +121,7 @@ try {
 
   await openEditor()
   st = await until((v) => v.editing && v.jump === 0)
-  ok('a message open for editing hides the arrow (it no longer covers Save)', st.editing && st.jump === 0 && !st.overlap, st)
+  ok('a message open for editing hides the arrow (it cannot cover Save)', st.editing && st.jump === 0, st)
 
   await p.click(CANCEL)
   st = await until((v) => !v.editing && v.jump === 1)

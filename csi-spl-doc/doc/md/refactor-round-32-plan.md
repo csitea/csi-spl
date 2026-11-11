@@ -35,10 +35,10 @@ nothing to enforce). Row 08 drops the gate lines they leave. Round 31's `send`
 carry-over is **left out again, with a new measurement** (section 2): 30 e2e files
 call the store's positional `send`.
 
-**Status: v0.1 DRAFT**, for the panel (section 5). No row lane starts before the panel
+**Status: v0.2 DRAFT**, for the panel's delta review (section 5). No row lane starts before the panel
 signs the plan sha.
 
-Editor: **c-591** (claude). Panel seat: requested, section 5.
+Editor: **c-591** (claude). Panel seat: a-812 (agy), section 5.
 
 **One sha:** every count is measured on **`1985b986d`** (`origin/master`
 1985b986d5dd898eb4abec6f831cbc2b5d905ca9, 2026-11-11T17:35:32Z), n=1 per command
@@ -85,7 +85,7 @@ Queue and lane readings are live state, so they carry their own time, not this s
 |---|---|---|---|---|
 | round 31 6 (Go `wideFuncs` interface pairs) | `IssueToken` | `git grep -nE '\bIssueToken\(' 1985b986d -- csi-spl-api/src/go` | 8 params. The `CredStore` method (`auth/native_store.go:67`), 2 implementations (`native_store.go:128` Memory, `native_store_postgres.go:53` Pg), **one production caller** (`auth/native.go:329`, in `mint`), one test file (`native_store_test.go`, 7 calls `:72`-`:119`). Lines `cleancode_test.go:45-46` | **Row 01** |
 | the same | is the call's argument order under test? | archive copy, `native.go:329` `th, pwHash` planted as `pwHash, th`; `go test -count=1 ./internal/auth/` | **45 `--- FAIL`** (verify `401 verification_token_invalid`, e.g. `TestPreferencesNeedSession`), rc 1. The order is pinned; no pin row needed | Row 01's control |
-| round 31 6 (Go `wideFuncs` interface pairs) | `CASFleetLease`, `MoveMessage`, `MergeTopic` | the same grep per name | `CASFleetLease`: 1 caller `hub/box_lease.go:97` + 5 test files; `MoveMessage`: 1 caller `hub/message_move.go:326` + 13 test files; `MergeTopic`: 1 caller `hub/topic_merge.go:108` + 9 test files | **Left out**: over the 5-site cap (section 6) |
+| round 31 6 (Go `wideFuncs` interface pairs) | `CASFleetLease`, `MoveMessage`, `MergeTopic` | the same grep per name | `CASFleetLease`: 1 caller `hub/box_lease.go:97` + 5 test files; `MoveMessage`: 1 store caller `hub/message_move.go:326` (the other 2 non-test hits are the client's own `hubclient/move.go:38` and its caller `action/move.go:87`) + 11 test files (`git grep -lE '\bMoveMessage\(' 1985b986d -- 'csi-spl-api/src/go/**/*_test.go' \| wc -l` -> 11; v0.1 said 13); `MergeTopic`: 1 caller `hub/topic_merge.go:108` + 9 test files | **Left out**: over the 5-site cap (section 6) |
 | rounds 29-31 6 ("fleet-critical long Bash functions, not re-measured") | the Bash `LONG` list | `sed -n 25,31p iac:tests/bash-cleancode.tst.sh`; `bash iac:tests/bash-cleancode.tst.sh` | 5 listed, each at its ceiling (no `NOTE LONG`): `_spawn_worktree` 79, `do_spl_agent_identity_restore` 80, `spl_desk_pick` 80, `spl_fleet_role_tick` 78, `do_provision_firebase_dns` 169 | rows 02-04 |
 | the same | tests that name each | `git grep -lE '<file basename>\|<function>' 1985b986d -- <orc and iac test files>` | `spl_desk_pick`: 5 (`desk-actions.tst.sh` names the function); `do_spl_agent_identity_restore`: 9 (6 `test-agent-identity-restore*.sh`); `_spawn_worktree`: 16 (`test-spawn-stale-wt-dir.sh`, `test-spawn-fetch-no-prompt.sh`, `test-spawn-reuse-unpushed.sh` name the function); **`spl_fleet_role_tick`: 0 tests name it** (only `bash-cleancode.tst.sh`) | rows 02-04; `spl_fleet_role_tick` left out |
 | round 29 2 ("the action header files") | the `[missing]` list | `bash iac:tests/action-header-tags.tst.sh` | `measured 812 files: 20 missing, 1 long-example`; `ALL PASS` | rows 05-07 |
@@ -96,7 +96,7 @@ Queue and lane readings are live state, so they carry their own time, not this s
 
 | source | input | command on `1985b986d` | n | disposition |
 |---|---|---|---|---|
-| round 31 6 (input for round 32) | `send` `WIDE` (`csi-spl-wui/src/stores/channel.ts:534`) | `git grep -cE "(ch\|chStore\|channel\|\('channel'\)\??)\.send\(" 1985b986d -- csi-spl-wui/tests/e2e`, summed | **30 e2e files, 56 calls** drive the store's positional `send` through pinia (e.g. `agent-id-mention.test.mjs:51` `ch.send(text, undefined, undefined, undefined, 1)`), on top of round 31's 7 source call sites and 2 wirings. Round 31 counted only `src/`. Any change of its parameter list moves those files too | **Left out**: needs an e2e send helper first (30 files, over the cap many times); input for a later round, section 6 |
+| round 31 6 (input for round 32) | `send` `WIDE` (`csi-spl-wui/src/stores/channel.ts:534`) | `git grep -cE "(ch\|chStore\|channel\|\('channel'\)\??)\.send\(" 1985b986d -- csi-spl-wui/tests/e2e`, summed | **30 e2e files, 56 matching lines (57 calls**: `merge-touch-live.proof.mjs:70` holds two) drive the store's positional `send` through pinia (e.g. `agent-id-mention.test.mjs:51` `ch.send(text, undefined, undefined, undefined, 1)`), on top of round 31's 7 source call sites and 2 wirings. Round 31 counted only `src/`. Any change of its parameter list moves those files too | **Left out**: needs an e2e send helper first (30 files, over the cap many times); input for a later round, section 6 |
 | round 31 6 | a live-store pin of `send` | `git grep -c useChannelStore 1985b986d -- csi-spl-wui/tests/unit \| wc -l` | 0 | **Left out**, with `send` |
 | round 31 6 | `hubclient` `writeAtomic`, `hold` | not re-measured | none | **Left out**, as round 31 |
 | round 31 6 | Go `longFuncs` (`(*Server).Handler`, `ProvisionMember`) | `sed -n 33,36p go:cleancode/cleancode_test.go` | 2 lines | **Left out**, as round 31 |
@@ -108,13 +108,13 @@ Queue and lane readings are live state, so they carry their own time, not this s
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r58-01-api-issue-token-struct)` | pass the struct instead (`cleancode_test.go:20`) | `IssueToken` takes 8 parameters, 4 strings in a row; one production caller, so the interface pair fits one row | `go:auth/native_store.go:67` (the `CredStore` method)<br>`go:auth/native_store.go:128` (Memory)<br>`go:auth/native_store_postgres.go:53` (Pg)<br>`go:auth/native.go:329` (its one caller)<br>`go:auth/native_store_test.go:72-119` (7 calls) | 1 method, 2 implementations, 1 caller, 1 test file | `IssueToken(ctx, t TokenIssue)` with `TokenIssue{Kind, Subject, TokenHash, PwHash string; Now, Expires time.Time; Floor MailFloor}` defined in `auth` beside `MailFloor`. Results and errors unchanged. Leave both `wideFuncs` lines (row 08). **Control:** the probe's swap at `native.go:329` (`pwHash, th`) -> 45 `--- FAIL` in `./internal/auth/` (section 2, run here n=1); the lane re-plants the same swap in the struct literal (`TokenHash: pwHash, PwHash: th`) -> red, restored. Tests: `go test -count=1 ./internal/auth/`; `run-all-tests.sh`; auth store: `PRE_PUSH_TIER=full ./run -a do_check_pre_push` (Postgres runs `native_store_test.go` on `PgCredStore`); `go test -count=1 -v -run TestCleanCode ./internal/cleancode/` (two `no longer takes more than` logs after). | either | claude | simple_coding | 1 |
-| 02 `refactor(r58-02-orc-desk-pick-steps)` | a function in named steps (`MAX_LINES` 75) | `spl_desk_pick` is 80 lines, at its `LONG` ceiling | `orc:run/spl-desk-reply.func.sh:528` (`spl_desk_pick`) | 1 function | Move one cohesive block into a named helper in the same file so `spl_desk_pick` is at most 75 lines; output, exit codes and globals unchanged. Leave the `LONG` line (row 08; the gate prints a `NOTE LONG`, not a fail: `bash-cleancode.tst.sh:78`). Tests: `orc:tests/desk-actions.tst.sh`, `desk-root-readers.tst.sh`, `enc-dirs-untouched.tst.sh`, `watcher-read-only.tst.sh` (they name the file); `bash iac:tests/bash-cleancode.tst.sh` (a `NOTE LONG` for it after); `cd csi-spl-iac && ./run -a do_check_pre_push_lint` (shellcheck, sigpipe). **Control:** C2 behaviour kept; the lane names one `desk-actions.tst.sh` case that fails with the helper's call deleted, restored. | either | claude | simple_coding | 1 |
+| 02 `refactor(r58-02-orc-desk-pick-steps)` | a function in named steps (`MAX_LINES` 75) | `spl_desk_pick` is 80 lines, at its `LONG` ceiling | `orc:run/spl-desk-reply.func.sh:528` (`spl_desk_pick`) | 1 function | Move one cohesive block into a named helper in the same file so `spl_desk_pick` is at most 75 lines; output, exit codes and globals unchanged. `spl_desk_pick` is one `python3 - ... <<'EOF_PY'` heredoc (`:529-606`, on `1985b986d` and `eeb364cc6`): a `def` inside it leaves the Bash function as long, so the helper is a second Bash function (e.g. one carrying the named-`DESK_TASK` branch, `:545-576`, in its own heredoc). Leave the `LONG` line (row 08; the gate prints a `NOTE LONG`, not a fail: `bash-cleancode.tst.sh:78`). Tests: `orc:tests/desk-actions.tst.sh`, `desk-root-readers.tst.sh`, `enc-dirs-untouched.tst.sh`, `watcher-read-only.tst.sh` (they name the file); `bash iac:tests/bash-cleancode.tst.sh` (a `NOTE LONG` for it after); `cd csi-spl-iac && ./run -a do_check_pre_push_lint` (shellcheck, sigpipe). **Control:** C2 behaviour kept; the lane names one `desk-actions.tst.sh` case that fails with the helper's call deleted, restored. | either | claude | simple_coding | 1 |
 | 03 `refactor(r58-03-orc-identity-restore-steps)` | as row 02 | `do_spl_agent_identity_restore` is 80 lines, at its ceiling | `orc:run/spl-agent-identity-restore.func.sh:89` | 1 function | As row 02: at most 75 lines, a named helper in the same file; output, `DRY_RUN` behaviour and exit codes unchanged. Leave the `LONG` line (row 08). Tests: the 6 `orc:features/spawn-agents/tests/test-agent-identity-restore*.sh`, `test-agent-name-shape.sh`, `orc:tests/asks.tst.sh`; `bash-cleancode.tst.sh`; `do_check_pre_push_lint`. **Control:** as row 02, a named `test-agent-identity-restore*.sh` case red with the helper's call deleted, restored. | either | claude | simple_coding | 1 |
 | 04 `refactor(r58-04-orc-spawn-worktree-steps)` | as row 02 | `_spawn_worktree` is 79 lines, at its ceiling | `orc:features/spawn-agents/scripts/spawn-core.inc.sh:194` | 1 function | As row 02: at most 75 lines, a named helper in `spawn-core.inc.sh`; the worktree, branch and fetch steps unchanged. Leave the `LONG` line (row 08). Tests: the 15 spawn-agents and orc tests that name `spawn-core.inc.sh` or the function (section 2's grep, `bash-cleancode.tst.sh` aside; `test-spawn-stale-wt-dir.sh`, `test-spawn-fetch-no-prompt.sh`, `test-spawn-reuse-unpushed.sh` name the function); `bash-cleancode.tst.sh`; `do_check_pre_push_lint`. **Control:** as row 02, on `test-spawn-reuse-unpushed.sh` or `test-spawn-stale-wt-dir.sh`, restored. | either | claude | simple_coding | 1 |
-| 05 `refactor(r58-05-orc-action-headers-a)` | a header `./run --help` can read (developer guide 2.4.2) | 4 action files parse to no header (section 2) | `orc:run/spl-asks-sync.func.sh`<br>`orc:run/spl-orch-inbox.func.sh`<br>`orc:run/spl-spawn-group-list.func.sh`<br>`orc:run/spl-export-constitution-coding-standards.func.sh`<br>`iac:tests/action-header-tags-baseline.txt` (4 `[missing]` lines) | 4 files, 4 lines | Wrap each file's existing `@description` / `@param` / `@example` lines in a `#---` block right after the shebang (moving any code or plain comment above it below it); add an `@example` only where none is parsed, no other text change; delete the 4 baseline lines. Re-check `grep -ciE '^# *@param.*required'` -> 0 per file before the push. Tests: `bash iac:tests/action-header-tags.tst.sh` (`16 missing` after; it fails while a fixed file is still listed); `orc:tests/asks.tst.sh` (`spl-orch-inbox`), `export-constitution-coding-standards.tst.sh`; `do_parse_metadata <f>` shows a `description=` and an `example=` per file. **Control:** the test's own rule is the red: fix one file, leave its baseline line -> `FAIL ... is listed under [missing] but now has both tags`, then delete it -> pass. | either | claude | simple_coding | 1 |
-| 06 `refactor(r58-06-orc-action-headers-b)` | as row 05 | 3 more files | `orc:run/spl-epic-stall-check.func.sh`<br>`orc:run/spl-security-round-queue.func.sh`<br>`orc:run/spl-spawn-fill.func.sh`<br>`iac:tests/action-header-tags-baseline.txt` (3 lines) | 3 files, 3 lines | As row 05. Tests: `action-header-tags.tst.sh` (`13 missing`); `orc:tests/spl-epic-stall-check.tst.sh`, `alarm-kind-note.tst.sh`, `spl-security-round-queue.tst.sh`, `spl-spawn-fill.tst.sh`. Control as row 05. | either | claude | simple_coding | 2 (after 05) |
-| 07 `refactor(r58-07-orc-action-headers-c)` | as row 05 | 3 more files | `orc:run/spl-spawn-queue.func.sh`<br>`orc:run/spl-spawn-share.func.sh`<br>`orc:run/spl-lane-map.func.sh`<br>`iac:tests/action-header-tags-baseline.txt` (3 lines) | 3 files, 3 lines | As row 05. Tests: `action-header-tags.tst.sh` (`10 missing`); `alarm-kind-note.tst.sh`, `spl-spawn-share.tst.sh`, `spl-spawn-place-argmax.tst.sh`, `spl-spawn-place-supply.tst.sh`, `lane-map.tst.sh`, `lane-map-dead-role-seat.tst.sh`, `spl-box-pick.tst.sh`, `box-stats-cron.tst.sh`, `apply-gh-runner-cpu-budget.tst.sh`. Control as row 05. | either | claude | simple_coding | 3 (after 06) |
-| 08 `test(r58-08-drop-gate-lines-of-r58)` | a gate's list holds no stale line (`r56-08`, `r57-06`) | rows 01-04 leave 5 stale lines | `iac:tests/bash-cleancode.tst.sh:27-29` (`_spawn_worktree`, `do_spl_agent_identity_restore`, `spl_desk_pick`)<br>`go:cleancode/cleancode_test.go:45-46` (`IssueToken` x2); lines as of `1985b986d`, they move when r57-06 lands | 5 lines | Placed only after **r57-06** and rows 01-04 are on trunk (R16); a row not landed keeps its line, and the lane says which. Delete exactly the lines the gates note. Tests: `bash-cleancode.tst.sh` (no `NOTE LONG`; `2 listed`); `go test -count=1 -v ./internal/cleancode/` (no `no longer` log); `run-all-tests.sh`. R9 (a gate's list): `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Red control:** delete a still-long line (`spl_fleet_role_tick`) -> the Bash gate fails naming it; delete `(*Memory).CASFleetLease` -> the Go gate fails; both restored. | either | claude | tests | 3 (after r57-06, 01-04) |
+| 05 `refactor(r58-05-orc-action-headers-a)` | a header `./run --help` can read (developer guide 2.4.2) | 4 action files parse to no header (section 2) | `orc:run/spl-asks-sync.func.sh:2`<br>`orc:run/spl-orch-inbox.func.sh:2`<br>`orc:run/spl-spawn-group-list.func.sh:2`<br>`orc:run/spl-export-constitution-coding-standards.func.sh:3` (code `:6-8`, `#---` and `@description` `:10-11`)<br>`iac:tests/action-header-tags-baseline.txt:16,18,21,25` | 4 files, 4 lines | Wrap each file's existing `@description` / `@param` / `@example` lines in a `#---` block right after the shebang (moving any code or plain comment above it below it); add an `@example` only where none is parsed, no other text change; delete the 4 baseline lines. Re-check `grep -ciE '^# *@param.*required'` -> 0 per file before the push. Tests: `bash iac:tests/action-header-tags.tst.sh` (`16 missing` after; it fails while a fixed file is still listed); the 4 orc tests that name a file's basename or `do_*` function (section 3.3): `orc:tests/asks.tst.sh`, `export-constitution-coding-standards.tst.sh`, `fleet-lease.tst.sh` (`do_spl_orch_inbox`), `spl-spawn-group.tst.sh` (`do_spl_spawn_group_list`); `cd csi-spl-iac && ./run -a do_check_pre_push_lint`; `do_parse_metadata <f>` shows a `description=` and an `example=` per file. **Control:** the test's own rule is the red: fix one file, leave its baseline line -> `FAIL ... is listed under [missing] but now has both tags`, then delete it -> pass. | either | claude | simple_coding | 1 |
+| 06 `refactor(r58-06-orc-action-headers-b)` | as row 05 | 3 more files | `orc:run/spl-epic-stall-check.func.sh:2`<br>`orc:run/spl-security-round-queue.func.sh:2`<br>`orc:run/spl-spawn-fill.func.sh:2`<br>`iac:tests/action-header-tags-baseline.txt:17,22,24` (on `1985b986d`; `:16,19,21` once row 05 deletes its 4) | 3 files, 3 lines | As row 05. Tests: `action-header-tags.tst.sh` (`13 missing`); the 7 orc tests that name a file's basename or `do_*` function (section 3.3): `orc:tests/spl-epic-stall-check.tst.sh`, `alarm-kind-note.tst.sh`, `spl-security-round-queue.tst.sh`, `spl-spawn-fill.tst.sh`, `desk-user-hops.tst.sh`, `spl-spawn-group.tst.sh`, `spl-spawn-share.tst.sh`; `do_check_pre_push_lint`. Control as row 05. | either | claude | simple_coding | 2 (after 05) |
+| 07 `refactor(r58-07-orc-action-headers-c)` | as row 05 | 3 more files | `orc:run/spl-spawn-queue.func.sh:2`<br>`orc:run/spl-spawn-share.func.sh:2`<br>`orc:run/spl-lane-map.func.sh:2`<br>`iac:tests/action-header-tags-baseline.txt:19,29,30` (on `1985b986d`; `:16,22,23` once rows 05-06 delete their 7) | 3 files, 3 lines | As row 05. Tests: `action-header-tags.tst.sh` (`10 missing`); the 23 orc tests that name a file's basename or `do_*` function (section 3.3): `orc:features/spawn-agents/tests/test-spawn-placement.sh` and, under `orc:tests/`, `alarm-kind-note`, `apply-gh-runner-cpu-budget`, `asks`, `box-stats-cron`, `dispatch-rotate`, `lane-map`, `lane-map-dead-role-seat`, `orch-rotate`, `peer-restart`, `spl-box-pick`, `spl-epic-stall-check`, `spl-lane-mix`, `spl-review-go`, `spl-security-round-queue`, `spl-spawn-fill`, `spl-spawn-group`, `spl-spawn-place-argmax`, `spl-spawn-place-supply`, `spl-spawn-queue`, `spl-spawn-share`, `spl-zombie-topics`, `wd-takeover` (each `.tst.sh`); `do_check_pre_push_lint`. Control as row 05. | either | claude | simple_coding | 3 (after 06) |
+| 08 `test(r58-08-drop-gate-lines-of-r58)` | a gate's list holds no stale line (`r56-08`, `r57-06`) | rows 01-04 leave 5 stale lines | `iac:tests/bash-cleancode.tst.sh:27-29` (`_spawn_worktree`, `do_spl_agent_identity_restore`, `spl_desk_pick`)<br>`go:cleancode/cleancode_test.go:45-46` (`IssueToken` x2); lines as of `1985b986d`, they move when r57-06 lands | 5 lines | Placed only after **r57-06** and rows 01-04 are on trunk (R16); a row not landed keeps its line, and the lane says which. Delete exactly the lines the gates note. Tests: `bash-cleancode.tst.sh` (no `NOTE LONG`; `2 listed`); `go test -count=1 -v ./internal/cleancode/` (no `no longer` log); `run-all-tests.sh`. R9 (a gate's list): `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Red control:** delete a still-long line (`spl_fleet_role_tick`) -> the Bash gate fails naming it; delete `(*Memory).CASFleetLease` -> the Go gate fails; both restored. Rows 01 and r57-06 are not ordered: if row 01 lands first, `IssueToken` takes 2 parameters and deleting its `wideFuncs` line no longer fails the Go gate, so r57-06's and this row's Go control use a still-wide entry such as `(*Memory).CASFleetLease`. | either | claude | tests | 3 (after r57-06, 01-04) |
 
 ### 3.1 Lanes and batches
 
@@ -146,33 +146,63 @@ Queue and lane readings are live state, so they carry their own time, not this s
   writes `cleancode_test.go` and waits for r57-06.
   `git log origin/master --oneline -E --grep='r57-' | wc -l` -> 0 at
   2026-11-11T17:53:35Z (on `1985b986d`).
-- **Lane map: NOT proven free.** `lane-map.sh --check <the written paths of rows 01-08,
-  both gate files included, comma separated> --agent c-591`: with
-  `spl-spawn-place.func.sh` in the list -> **exit 3** at 2026-11-11T18:05:38Z, owned by
-  `c-567@sat c-567-c002-spl5259-issue-follows-discussion` (changed in its worktree), so
-  that file is left out (section 2). Without it (19 paths) -> **exit 4** at 18:07:05Z: 0
-  paths owned; 9 `unknown:` lanes, all on the other box (not sat), with no files recorded (`c-004`,
-  `c-381`, `c-507`, `c-528`, `c-545`, `c-669`, `c-981` rotate lanes, `c-382` csi-rel
-  price, `c-770` bug prepush sig control). Exit codes read via `PIPESTATUS`, n=1 each.
+- **The written paths: 20.** Row 01 writes 4 (`native_store.go`,
+  `native_store_postgres.go`, `native.go`, `native_store_test.go`), rows 02-04 write 3
+  (`spl-desk-reply.func.sh`, `spl-agent-identity-restore.func.sh`,
+  `spawn-core.inc.sh`), rows 05-07 write 11 (the ten action files and
+  `action-header-tags-baseline.txt`), row 08 writes 2 (`bash-cleancode.tst.sh`,
+  `cleancode_test.go`). v0.1 said 19 here; the v0.2 readings below are on all 20, each
+  checked present on `origin/master` `eeb364cc6` (`git cat-file -e`).
+- **Lane map: NOT proven free.** With `spl-spawn-place.func.sh` added (21 paths) ->
+  **exit 3** at 2026-11-11T18:05:38Z, owned by `c-567@sat
+  c-567-c002-spl5259-issue-follows-discussion` (changed in its worktree), so that file
+  is left out (section 2). `lane-map.sh --check <the 20 paths, comma separated> --agent
+  c-591` -> **exit 4** at 2026-11-11T19:17:02Z: 0 paths owned; 13 `unknown:` lanes, all
+  on the other box (not sat), with no files recorded (`c-004`, `c-381`, `c-507`,
+  `c-528`, `c-545`, `c-669`, `c-799`, `c-981` rotate lanes, `c-382` csi-rel price,
+  `c-770` prepush sig control, `c-810` wd fence, `c-815` archived seats, `c-824`
+  prepush sig counts). Exit codes read via `PIPESTATUS`, n=1 each. The panel seat read
+  the same check from the other box (exit 4: 0 lanes there own a path; the live sat
+  lanes show as `unknown:` from there) and scanned that box's worktrees (0 live hits).
   **Exit 4 is not free, and this plan did not clear it**; the holder re-runs the check
-  before each row's spawn (R3).
-- **Spawn queue (2026-11-11T18:09:07Z):** `do_spl_spawn_queue` -> `32 queued, 1
-  placing`; 33 placement slugs. **29 briefs on this box**, grepped for every written
+  on all 20 paths before each row's spawn (R3).
+- **Spawn queue (2026-11-11T19:18:00Z):** `do_spl_spawn_queue` -> `23 queued, 2
+  placing`; 25 placement slugs. **22 briefs on this box**, grepped for every written
   basename and function of rows 01-08 (`native\.go`, `native_store`, `IssueToken`,
   the ten action file names, `action-header-tags`, `spawn-core\.inc`,
   `_spawn_worktree`, `spl-agent-identity-restore`, `identity_restore`,
   `spl-desk-reply`, `spl_desk_pick`, `bash-cleancode`, `cleancode_test`) -> 1 hit,
   `hand-sat-c002-r57-01-api-pin-auth-event-struct` on `cleancode_test` (round 31,
-  above). **4 are not on this box, not grepped:**
-  `c002-bug-enqueue-refuses-no-topic-brief`, `c002-bug-gc-exempt-seat`,
-  `c002-spl5320-prepush-sig-claude-waiver-reviewer`,
-  `hand-sat-c002-bug-agy-review-seat-placed-on-box-without-agy`; the holder greps them
-  on sat.
-- **Worktrees on this box** (158 in `git worktree list`, 2026-11-11T18:10:42Z): each
+  above). **3 are not on this box, not grepped here:**
+  `hand-sat-c002-bug-agy-review-seat-placed-on-box-without-agy`,
+  `c002-bug-gc-exempt-seat`, `c002-spl5326-fence-seats-claude-waiver-reviewer`; the
+  holder greps them where they live. (The two briefs v0.1 could not read,
+  `c002-bug-enqueue-refuses-no-topic-brief` and
+  `c002-spl5320-prepush-sig-claude-waiver-reviewer`, were grepped on the other box by
+  the panel seat: 0 hits; both have landed and left the queue.)
+- **Worktrees on this box** (163 in `git worktree list`, 2026-11-11T19:19:58Z): each
   one's `git diff --name-only origin/master...HEAD` plus `git status --porcelain`,
-  matched against the 19 paths -> 1 hit, `g-962-r4620` (`spawn-core.inc.sh`; last commit
+  matched against the 20 paths -> 1 hit, `g-962-r4620` (`spawn-core.inc.sh`; last commit
   `a6078ea15` 2026-11-02, no tmux window: `list-windows -a | grep -c g-962` -> 0): stale
   scratch, not a live lane.
+- **Trunk moved** from `1985b986d` to `eeb364cc6` while this plan was reviewed. On the
+  20 paths it changed only `spl-security-round-queue.func.sh` (`:149+`) and
+  `spl-spawn-fill.func.sh` (`:234+`, SPL-5325): `git diff -U0 1985b986d origin/master
+  -- <the 10 action files> | grep '^@@'`; no cited header or baseline line moved.
+
+### 3.3 Tests per row, measured (R2, C4)
+
+`./run -a do_<action>` finds `<action>.func.sh` by name, and several tests source the
+action files by bare basename (`for f in spl-lane-map spl-spawn-queue ...; do source
+.../$f.func.sh`), so a grep for `<basename>.func.sh` alone misses them. Rows 05-07
+list every test that names a file's bare basename or its `do_*` function. The
+command, per row, with `NAMES` its action basenames:
+
+`pat=$(for n in $NAMES; do printf '%s' "|\b$n(\.func\.sh)?([^a-z0-9_-]|\$)|\bdo_${n//-/_}\b"; done); git grep -lE "${pat#|}" <sha> -- 'csi-spl-orc/**/tests/*' 'csi-spl-iac/**/tests/*' | grep -v baseline.txt`
+
+On `1985b986d` and on `eeb364cc6` alike (n=1 each): row 05 -> 4 tests, row 06 -> 7,
+row 07 -> 23, each listed in its row (`orc-shard-weights.txt` also matches rows 06-07:
+a shard weights file, not a test). v0.1 listed 2, 4 and 9 (finding W1 of the panel).
 
 ## 4. Per row: what the lane does
 
@@ -209,9 +239,9 @@ Queue and lane readings are live state, so they carry their own time, not this s
 
 | what | why | measured by |
 |---|---|---|
-| `send` `WIDE` (`channel.ts:534`) | 30 e2e files (56 calls) plus 7 source call sites and 2 wirings use its positional form; needs an e2e send helper first; **input for a later round** | section 2 |
+| `send` `WIDE` (`channel.ts:534`) | 30 e2e files (56 matching lines, 57 calls) plus 7 source call sites and 2 wirings use its positional form; needs an e2e send helper first; **input for a later round** | section 2 |
 | a live-store pin of `send` | no unit test loads the channel store (0) | section 2 |
-| `CASFleetLease`, `MoveMessage`, `MergeTopic` pairs | 5, 13 and 9 test files call each; over the 5-site cap | section 2 |
+| `CASFleetLease`, `MoveMessage`, `MergeTopic` pairs | 5, 11 and 9 test files call each; over the 5-site cap | section 2 |
 | `spl_fleet_role_tick` (`LONG`, 78) | no test names it; needs a pin row first | section 2 |
 | the 9 header files with a `(required)` param | parsing their header makes `./run` refuse a call without it: a behaviour change, bug-round input | section 2 |
 | `spl-spawn-place.func.sh` header | owned by c-567@sat (lane map exit 3) | section 3.2 |
@@ -235,6 +265,13 @@ Queue and lane readings are live state, so they carry their own time, not this s
 
 ## 8. Changes
 
+- v0.2 (c-591, the panel's FAIL on v0.1 `0916829514e8`, a-812, W1-W4 and N1-N3):
+  W1 rows 05-07 list every test that names a file's bare basename or `do_*` function
+  (4, 7, 23; section 3.3) and add `do_check_pre_push_lint`; W2 rows 05-07 carry
+  `:line` sites and baseline lines; W3 `MoveMessage` 11 test files, not 13; W4 the
+  written paths are 20, not 19, and the lane map, queue and worktree readings are
+  re-run on all 20 (section 3.2, 19:17Z-19:20Z); N1 56 matching lines, 57 calls; N2 a
+  note on row 08's Go control; N3 row 02's heredoc. Rows, sites and batches unchanged.
 - v0.1: first draft (c-591): 8 rows, slug `r58`, measured on `1985b986d`. Carries
   round 31's section 6: `send` re-measured and left out again (30 e2e files); the Go
   interface pairs measured (`IssueToken` taken, three left out); the long Bash
@@ -245,7 +282,8 @@ Queue and lane readings are live state, so they carry their own time, not this s
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-591 (claude): drafted v0.1.
-- Panel reviewer seat: agy, pinned to the box that has agy: requested.
+- Editor seat: c-591 (claude): drafted v0.1, v0.2.
+- Panel reviewer seat: a-812 (agy, on the box that has agy): FAIL on v0.1
+  `0916829514e8` (W1-W4); v0.2 waits for its delta review.
 - Row R7 seats: fresh **claude** sessions, same-vendor R7 under waiver 1a7c70da if it
   still stands at queueing (section 5).

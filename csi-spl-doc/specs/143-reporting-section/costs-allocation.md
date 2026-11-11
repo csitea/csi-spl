@@ -119,8 +119,11 @@ naming the rule it broke.
 What a customer admin sees (`GET /v1/tenant/cost-allocations?month=`): the
 items that hold a share in `A`, each with its label, the share of each
 workspace of `A` and its money in that month, and `held_bp` (the sum `A`
-holds). Never the item's whole amount, the estate's total, or the shares of
-workspaces outside `A`.
+holds). Never the estate's total or the shares of workspaces outside `A`.
+The item's whole amount is not sent, but a share's money and its `share_bp`
+imply it (money x 10000 / share_bp), so a customer admin can compute the
+whole amount of every item that holds a share in `A`; this is accepted,
+not hidden (R7 note N2, 2026-11-11).
 
 ## 4. Hub API
 

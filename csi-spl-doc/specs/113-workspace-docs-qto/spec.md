@@ -414,6 +414,14 @@ nested-set arithmetic is replaced by the section 2.2 model.
 Spool verbs `doc-read`, `doc-write`, `doc-list`; MCP tools wrap them
 (spec 075 T009). `doc-write` runs the same section 3.3 ops.
 
+`spool doctree folder-delete <folder-id>` (SPL-5256) deletes one empty
+folder through `DELETE /v1/workspace/doctree/folders/{id}`, in the tree
+`$SPOOL_DOCTREE_FS` names. It never sends `recursive=1`: a folder with
+children is the hub's `409 folder_not_empty`, printed as is, and a missing
+one its 404. `do_spl_desk_doctree` runs it as a writing verb (a dry run
+unless `DRY_RUN=0`). Tests: `go test -run TestDocTreeFolderDelete ./cmd/spool/`,
+`csi-spl-orc/src/bash/tests/doctree-folder-delete-verb.tst.sh`.
+
 ## 8. Rules
 
 - Distribution hygiene: no literal domains, hosts, or personal names; read

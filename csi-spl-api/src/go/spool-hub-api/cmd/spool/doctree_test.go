@@ -135,6 +135,10 @@ func (h *dtHub) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if parts[0] == "folders" && r.Method == http.MethodDelete && len(parts) == 2 {
+		h.serveFolderDelete(w, r, parts[1])
+		return
+	}
 	if parts[0] == "nodes" || parts[0] == "folders" {
 		writeJSON(w, http.StatusOK, map[string]any{"route": parts[0], "parent": r.URL.Query().Get("parent"), "in": in})
 		return

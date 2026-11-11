@@ -29,6 +29,7 @@ import (
 //	doctree list [--topic id]                    the documents
 //	doctree nodes [--parent id]                  one folder's children (none = the top)
 //	doctree folder --name n [--parent id] [--title t] [--description d]
+//	doctree folder-delete <folder-id>              an empty folder (a non-empty one: the hub's 409)
 //	doctree create --title t [--folder id] [--description d]
 //	doctree head <doc>                           rev, items, root, topic
 //	doctree read <doc> [--item id]               the items as JSON (a subtree, or the whole doc)
@@ -74,7 +75,7 @@ const (
 	docTreeAPI      = "/v1/workspace/doctree"
 	docTreeRespMax  = 64 << 20 // a whole document of up to 20,000 items
 	docTreeImageMax = 5 << 20  // hub DocTreeImageMax
-	docTreeUsage    = "usage: spool doctree list|nodes|folder|create|head|read|add|edit|move|delete|rename|export|asset-put|asset-get ..."
+	docTreeUsage    = "usage: spool doctree list|nodes|folder|folder-delete|create|head|read|add|edit|move|delete|rename|export|asset-put|asset-get ..."
 )
 
 // dtItem is one item as the hub sends it.
@@ -408,6 +409,20 @@ func dtFolder(ctx context.Context, cfg *config.Config, args []string) error {
 	in := map[string]any{"parent": *parent, "name": *name, "title": *title, "description": *desc}
 	return dtRun(ctx, cfg, func(c *dtClient) ([]byte, error) {
 		return c.json(ctx, http.MethodPost, docTreeAPI+"/folders", in, nil)
+	})
+}
+
+// dtFolderDelete deletes one empty folder (the node id doctree nodes lists).
+// It never asks for ?recursive=1: a folder with children is the hub's 409
+// folder_not_empty, shown as is; empty it first (SPL-5256).
+func dtFolderDelete(ctx context.Context, cfg *config.Config, args []string) error {
+	fs := newDTFlags("folder-delete", "usage: spool doctree folder-delete <folder-id>")
+	pos, err := fs.parse(args, 1, 1)
+	if err != nil {
+		return err
+	}
+	return dtRun(ctx, cfg, func(c *dtClient) ([]byte, error) {
+		return c.json(ctx, http.MethodDelete, docTreeAPI+"/folders/"+url.PathEscape(pos[0]), nil, nil)
 	})
 }
 

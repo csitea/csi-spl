@@ -26,6 +26,8 @@ var docTreeVerbs = []dtVerb{
 		"usage: spool doctree nodes [--parent folder-id]"},
 	{"folder", dtFolder, "create a folder",
 		"usage: spool doctree folder --name n [--parent folder-id] [--title t] [--description d]"},
+	{"folder-delete", dtFolderDelete, "delete an empty folder (a non-empty one is refused by the hub, 409)",
+		"usage: spool doctree folder-delete <folder-id>"},
 	{"move-node", dtMoveNode, "move a folder or a document (its node id from nodes) under another folder",
 		"usage: spool doctree move-node <node> [--parent folder-id]"},
 	{"create", dtCreate, "create a document; prints it with its id",

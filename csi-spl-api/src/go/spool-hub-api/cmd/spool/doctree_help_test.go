@@ -8,7 +8,7 @@ import (
 // The fifteen doctree verbs on 2026-10-16 (asset-put, asset-get: SPL-2201);
 // TestDocTreeHelpListsTheDispatchTable catches a sixteenth that the help page
 // would miss.
-var dtHelpVerbs = []string{"list", "nodes", "folder", "move-node", "create", "head", "read",
+var dtHelpVerbs = []string{"list", "nodes", "folder", "folder-delete", "move-node", "create", "head", "read",
 	"add", "edit", "move", "delete", "rename", "export", "asset-put", "asset-get"}
 
 // dtHelpPageOK checks one help page: every verb with its usage line, and the

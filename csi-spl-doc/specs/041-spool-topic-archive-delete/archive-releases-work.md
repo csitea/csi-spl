@@ -41,7 +41,10 @@ archived discussion is another lane's work and is not described here.
   is a plain lane, and is freed.
   The desk walk reads every user's root of the box: a root the cron's user cannot enter (0700) is
   read as its owner, and one it cannot read at all gets a WARN.
-- **What is left goes on in one new discussion.** `do_spl_archived_followup` runs in the same
+- **Retired by SPL-5284: what is left no longer goes on in a new discussion.** The issues now
+  follow their discussion in the hub (section "An issue follows its discussion" below), and the
+  box cron no longer runs `do_spl_archived_followup`; the action stays for a hand run. What it
+  did: `do_spl_archived_followup` ran in the same
   cron on every box, for topics archived after that box's first run (forward-only). Per topic
   it posts one new discussion in the archived topic's channel, under the dispatch lease holder's
   id, naming the old topic and listing the work; each issue is linked there, then unlinked from
@@ -95,9 +98,49 @@ archived discussion is another lane's work and is not described here.
 |---|---|---|
 | FR-AW-001 | a queued row whose discussion is archived is declined, not placed; its sender and the holder are told | Implemented — SPL-4955 |
 | FR-AW-002 | a lane bound to an archived topic by `Ask-Topic:`, `Task:`, `Topic:` or `Discussion:` is released, its open issue `onhold`; a seat that answers a whole workspace is never closed by one topic | Implemented — SPL-4955 |
-| FR-AW-003 | an archived topic with unfinished work gets one new discussion in its channel, listing that work; its issues move there | Implemented — SPL-4955 |
+| FR-AW-003 | an archived topic with unfinished work gets one new discussion in its channel, listing that work; its issues move there | Superseded by FR-AW-004 — SPL-5284 (out of the cron) |
+| FR-AW-004 | archiving a discussion closes its open issues (`diss`) in the same transaction; unarchiving puts each back to its previous status unless it was changed in between; deleting it deletes its open issues; any ONE linked discussion decides; a channel archive, unarchive or delete does the same for its topics | Implemented — SPL-5284 |
+| FR-AW-005 | each closed or reopened issue gets an `issue` update frame and one comment naming the discussion; a deleted one an `issue` delete frame | Implemented — SPL-5284 |
 
-<!-- version: 0.2.0 · updated: 2026-11-07 -->
+## An issue follows its discussion (SPL-5284)
+
+The owner, HUM-10, t1 fcf09921, 2026-11-11:
+
+> (a081dcf2) Once a customer closes a discussion, all of the open issues should be changed to
+> this status and closed as well. If he happens to unarchive or undelete, the same goes for the
+> deletion operation. If the customer deletes a discussion, then all of the open issues should be
+> deleted as well.
+>
+> (eae27b5d) Respectively, if the customer then reopens a discussion, all of the issues which are
+> related to it and which were in this status should be reopened and changed back to To Do or Work
+> in Progress (whatever the previous status was).
+
+Poll 063a4bdd (same topic): an issue linked to several discussions follows any ONE of them (1 B);
+a deleted discussion deletes its open issues, it no longer moves them to the backlog (2 A); a
+discussion undelete is its own lane (3 A).
+
+It is the hub, in the store transaction of the discussion's own change, so the two never disagree
+(`internal/store/issue_follow.go`, rdb `0275_issue_discussion_closes.sql`):
+
+- **Open** is `eval`, `todo`, `wip`, `blocked` or `onhold`. `done`, `diss` and `qas` stay as they
+  are. An epic or a feature is never closed by one discussion (its children have their own), nor
+  through a link from another workspace (SPL-5126), nor an issue already archived or deleted.
+- **Archive** (`PUT /v1/messages/{card}/archive`, the box's archive, or a channel archive): each
+  open issue the topic links goes to `diss`; `issue_discussion_closes` keeps its previous status
+  and the `canceled_at` it was given.
+- **Unarchive** (the `DELETE` twin, or a channel unarchive): each issue that archive closed goes
+  back to the kept status, when it is still `diss` with that same `canceled_at`. An issue changed
+  by hand in between keeps the hand change. The kept rows of the topic are dropped either way.
+- **Delete** (`DELETE /v1/messages/{card}/topic`, or a channel delete): each open issue the topic
+  links is soft-deleted (`deleted_at`), its status and link kept for a discussion undelete.
+- **Who is told:** every open tab gets an `issue` frame (update, or delete with the key), and each
+  closed or reopened issue gets one hub comment naming the discussion as `/t/<task id>`, who did it
+  and when. A deleted issue gets the frame only.
+
+This replaces the follow-up move (FR-AW-003): the box cron runs only `do_spl_archived_seats_free`.
+A freed lane's issue that the hub already closed is `diss`, which that run leaves as it is.
+
+<!-- version: 0.3.0 · updated: 2026-11-11 -->
 
 ## The follow-up keeps the priority (SPL-5147)
 

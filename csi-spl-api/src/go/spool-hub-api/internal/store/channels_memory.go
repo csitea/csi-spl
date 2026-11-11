@@ -180,7 +180,8 @@ func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now tim
 			delete(bag, id)
 		}
 	}
-	for mk, m := range s.messages { // its messages and the rows that reference them
+	s.followLocked(tenant, s.channelTasksLocked(tenant, id), IssueFollowDelete, by, now) // SPL-5284
+	for mk, m := range s.messages {                                                      // its messages and the rows that reference them
 		if mk[0] == tenant && m.Channel == id {
 			delete(s.messages, mk)
 			delete(s.revisions, mk)
@@ -230,13 +231,29 @@ func (s *Memory) ArchiveChannel(_ context.Context, tenant, id, by string, now ti
 	c.ArchivedAt, c.ArchivedBy = now, by
 	delete(s.ch.rows, k)
 	s.ch.archived[k] = c
+	var tasks []string
 	for _, m := range s.messages {
 		if m.TenantID == tenant && m.Channel == id && parentBit(m.IsParent) == 1 &&
 			m.ArchivedAt.IsZero() && s.firstOfTaskLocked(tenant, m) {
 			m.ArchivedAt, m.ArchivedBy = now, by
+			tasks = append(tasks, m.TaskID)
 		}
 	}
+	s.followLocked(tenant, tasks, IssueFollowArchive, by, now) // SPL-5284
 	return nil
+}
+
+// channelTasksLocked is the distinct tasks of channel id's messages.
+func (s *Memory) channelTasksLocked(tenant, id string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range s.messages {
+		if m.TenantID == tenant && m.Channel == id && !seen[m.TaskID] {
+			seen[m.TaskID] = true
+			out = append(out, m.TaskID)
+		}
+	}
+	return out
 }
 
 // UnarchiveChannel restores the channel and only the cards this archive
@@ -255,11 +272,14 @@ func (s *Memory) UnarchiveChannel(_ context.Context, tenant, id string) error {
 	c.ArchivedAt, c.ArchivedBy = time.Time{}, ""
 	delete(s.ch.archived, k)
 	s.ch.rows[k] = c
+	var tasks []string
 	for _, m := range s.messages {
 		if m.TenantID == tenant && m.Channel == id && !m.ArchivedAt.IsZero() && m.ArchivedAt.Equal(at) {
 			m.ArchivedAt, m.ArchivedBy = time.Time{}, ""
+			tasks = append(tasks, m.TaskID)
 		}
 	}
+	s.unfollowLocked(tenant, tasks, IssueFollowHub, time.Time{}) // SPL-5284
 	return nil
 }
 

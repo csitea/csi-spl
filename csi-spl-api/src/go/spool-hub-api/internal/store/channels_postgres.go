@@ -109,6 +109,10 @@ func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now
 		if !strings.HasPrefix(createdBy, "HUM-") {
 			return ErrConflict
 		}
+		// SPL-5284: the open issues its topics link are deleted with it (soft).
+		if err := followChannelTx(ctx, tx, tenant, id, by, now); err != nil {
+			return err
+		}
 		// its messages (deliveries, message_revisions, message_reactions and
 		// message_kind_changes cascade off messages, as DeleteTopic relies on)
 		if _, err := tx.Exec(ctx, `DELETE FROM messages WHERE tenant_id = $1 AND channel = $2`, tenant, id); err != nil {
@@ -144,10 +148,14 @@ func (s *Postgres) ArchiveChannel(ctx context.Context, tenant, id, by string, no
 		}
 		// its topic cards: the earliest is_parent=1 row of each task in the
 		// channel that is not already archived (scanCard's FirstOfTask shape).
-		_, err = tx.Exec(ctx, `UPDATE messages m SET archived_at = $3, archived_by = $4
+		tasks, err := taskList(tx.Query(ctx, `UPDATE messages m SET archived_at = $3, archived_by = $4
 			WHERE m.tenant_id = $1 AND m.channel = $2 AND m.archived_at IS NULL AND m.is_parent = 1
 			AND NOT EXISTS (SELECT 1 FROM messages e WHERE e.tenant_id = m.tenant_id AND e.task_id = m.task_id
-				AND e.is_parent = 1 AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id))`, tenant, id, now, by)
+				AND e.is_parent = 1 AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id))
+			RETURNING m.task_id::text`, tenant, id, now, by))
+		if err == nil { // SPL-5284: the open issues of its topics close with it
+			_, err = followArchiveTx(ctx, tx, tenant, tasks, by, now)
+		}
 		return err
 	})
 }
@@ -172,8 +180,12 @@ func (s *Postgres) UnarchiveChannel(ctx context.Context, tenant, id string) erro
 			WHERE tenant_id = $1 AND channel_id = $2`, tenant, id); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE messages SET archived_at = NULL, archived_by = NULL
-			WHERE tenant_id = $1 AND channel = $2 AND archived_at = $3`, tenant, id, at)
+		tasks, err := taskList(tx.Query(ctx, `UPDATE messages SET archived_at = NULL, archived_by = NULL
+			WHERE tenant_id = $1 AND channel = $2 AND archived_at = $3
+			RETURNING task_id::text`, tenant, id, at))
+		if err == nil { // SPL-5284: and reopen with it
+			_, err = followUnarchiveTx(ctx, tx, tenant, tasks, IssueFollowHub, time.Time{})
+		}
 		return err
 	})
 }

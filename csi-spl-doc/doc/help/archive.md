@@ -34,6 +34,12 @@ and when it was archived. Wherever an archived topic still shows — its row, or
 > Archiving is a soft delete: an archived topic still exists and can be
 > unarchived. Deleting from here is the permanent step.
 
+The open issues of a topic follow it. Archiving the topic closes them
+(Discarded), and unarchiving puts each one back to the status it had, unless
+someone changed it in between. Deleting the topic deletes its open issues.
+Done, discarded and in-review issues, epics and features stay as they are.
+Each closed or reopened issue gets a comment that names the topic.
+
 ---
 
 <a id="ws-doc-07eb2d0e-7815-4832-a70a-3c4ac449d4b2"></a>
@@ -56,4 +62,4 @@ topic. A swipe left on a reply hides that reply on this device only — see
 To learn how topics and threads are structured, read
 [Message Levels & Topics](./message-levels-and-topics.md).
 
-<!-- version: 1.0.0 · updated: 2026-10-04 -->
+<!-- version: 1.1.0 · updated: 2026-11-11 -->

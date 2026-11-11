@@ -88,7 +88,16 @@ func (s *Postgres) SetArchived(ctx context.Context, tenant, msgID, by string, at
 		if err := archiveMirrorsTx(ctx, tx, tenant, msgID, by, at, archived); err != nil { // spec 067 edge 3
 			return err
 		}
-		return scanCard(ctx, tx, tenant, msgID, time.Time{}, &c)
+		if err := scanCard(ctx, tx, tenant, msgID, time.Time{}, &c); err != nil {
+			return err
+		}
+		// SPL-5284: the topic's open issues close with it, and reopen with it.
+		if archived {
+			c.Followed, err = followArchiveTx(ctx, tx, tenant, []string{c.TaskID}, by, at)
+		} else {
+			c.Followed, err = followUnarchiveTx(ctx, tx, tenant, []string{c.TaskID}, by, at)
+		}
+		return err
 	})
 	return c, err
 }
@@ -148,7 +157,7 @@ func (s *Postgres) TopicOf(ctx context.Context, tenant, msgID, ownTask string) (
 // FOR UPDATE, so a reply stored while the walk runs either lands before the
 // lock (and is walked) or waits and finds its topic gone. deliveries,
 // message_revisions, message_reactions and message_kind_changes cascade.
-func (s *Postgres) DeleteTopic(ctx context.Context, tenant, msgID, ownTask string) (TopicSet, error) {
+func (s *Postgres) DeleteTopic(ctx context.Context, tenant, msgID, ownTask, by string, at time.Time) (TopicSet, error) {
 	if !canonUUIDRe.MatchString(msgID) || (ownTask != "" && !canonUUIDRe.MatchString(ownTask)) {
 		return TopicSet{}, ErrNotFound
 	}
@@ -156,6 +165,11 @@ func (s *Postgres) DeleteTopic(ctx context.Context, tenant, msgID, ownTask strin
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
 		if set, err = topicTx(ctx, tx, tenant, msgID, ownTask); err != nil {
+			return err
+		}
+		// SPL-5284: the topic's open issues are deleted with it (soft), before
+		// the rows go and 0194's prune relinks what is left to the default.
+		if set.Followed, err = followDeleteTx(ctx, tx, tenant, set.TaskIDs, by, at); err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, `DELETE FROM messages WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[])`, tenant, set.MsgIDs)

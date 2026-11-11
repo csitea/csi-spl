@@ -1,5 +1,8 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
+# @description RETIRED from the box cron by SPL-5284: the hub now closes an archived
+# @description discussion's open issues itself (spec 041 archive-releases-work.md
+# @description section "An issue follows its discussion"); run it by hand only.
 # @description What an archived discussion left undone goes on in a new
 # @description discussion, by code (SPL-4955; owner HUM-10, msg 51465f86: "if
 # @description there is somethign else to be done to create an additional

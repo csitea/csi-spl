@@ -107,6 +107,7 @@ func (s *Server) boxArchive(ctx context.Context, x *session, f wire.Frame) (map[
 	s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("msg_id", m.MsgID).Str("by", f.As).Bool("archived", archive).Msg("topic archive by box")
 	out := archivedBody(m, st)
 	s.fanoutTopic(ctx, x.tenant, m, withType(topicArchivedFrame, m, out))
+	s.afterIssueFollow(ctx, x.tenant, f.As, st.Followed) // SPL-5284
 	return out, nil
 }
 

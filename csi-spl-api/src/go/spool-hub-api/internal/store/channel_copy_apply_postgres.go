@@ -67,7 +67,7 @@ var cpCarried = map[string]bool{
 
 	"deliveries": false, "delivery_live_acks": false, "fallback_deliveries": false, "read_marks": false,
 	"channel_invites": false, "channel_subscriptions": false, "dedicated_agents": false,
-	"flow_watches": false, "flow_events": false, "issue_opens": false,
+	"flow_watches": false, "flow_events": false, "issue_opens": false, "issue_discussion_closes": false,
 	"hours_plan": false, "hours_minutes": false, "hours_entries": false, "hours_entry_spans": false, "hours_adjustments": false,
 	"spec_sync_map": false,
 	"usage_events":  false, "token_budgets": false, "workspace_events": false, "operator_audit": false,

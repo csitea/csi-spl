@@ -105,6 +105,8 @@ var movedTables = []Entry{
 	{Table: "issue_events", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7"},
 	{Table: "issue_opens", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7"},
 	{Table: "issue_discussions", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7"},
+	{Table: "issue_discussion_closes", Class: Moved, Set: `number = ANY(@numbers)`,
+		Reason: "M7 (rdb 0275): the close a discussion made follows its issue, so the unarchive in <DST> reverts it"},
 	{Table: "workspace_doc", Class: Moved, Set: `id = ANY(@docs)`, Reason: "M8"},
 	{Table: "workspace_doc_item", Class: Moved, Set: `doc_id = ANY(@docs)`, Reason: "M8"},
 	{Table: "workspace_doc_node", Class: Moved, Set: `doc_id = ANY(@docs)`, Reason: "M8, re-placed under a folder named for the channel"},

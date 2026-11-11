@@ -17,6 +17,7 @@ func init() {
 	mvParts["issue_events"] = mvPart{copy: mvNothing}
 	mvParts["issue_opens"] = mvPart{copy: mvNothing}
 	mvParts["issue_discussions"] = mvPart{copy: mvNothing}
+	mvParts["issue_discussion_closes"] = mvPart{copy: mvNothing}
 	mvParts["spec_sync_map"] = mvPart{copy: mvCopySpecSync, del: mvDeleteSpecSync}
 	mvPrepare = append(mvPrepare, mvStashSpecSync)
 }
@@ -129,6 +130,7 @@ func (m *pgMove) copyIssueChildren() error {
 	for _, c := range []struct{ table, cols string }{
 		{"issue_opens", "member_id, opened_at"},
 		{"issue_discussions", "task_id, linked_by, linked_at, origin_tenant"},
+		{"issue_discussion_closes", "task_id, op, prev_status, closed_at, closed_by"},
 	} {
 		if m.req.skipCopy[c.table] {
 			continue

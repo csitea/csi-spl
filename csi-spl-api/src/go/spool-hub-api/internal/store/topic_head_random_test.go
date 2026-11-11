@@ -463,7 +463,7 @@ func (r *headRand) opMergeLines() error {
 func (r *headRand) opDeleteTopic() error {
 	task := r.pick(r.cards)
 	r.note("%s", task)
-	_, err := r.f.pg.DeleteTopic(context.Background(), r.f.tn, r.f.task[task], r.f.task[task])
+	_, err := r.f.pg.DeleteTopic(context.Background(), r.f.tn, r.f.task[task], r.f.task[task], "HUM-1", time.Now())
 	return err
 }
 

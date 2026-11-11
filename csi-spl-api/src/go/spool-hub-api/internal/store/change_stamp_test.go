@@ -169,7 +169,7 @@ func TestChangeStampWriters(t *testing.T) {
 			return err
 		}},
 		{name: "topic delete", do: func(s seeded) error {
-			_, err := pg.DeleteTopic(ctx, s.tenant, s.msg, s.taskID)
+			_, err := pg.DeleteTopic(ctx, s.tenant, s.msg, s.taskID, "HUM-1", time.Now())
 			return err
 		}},
 		{name: "channel create", do: func(s seeded) error {

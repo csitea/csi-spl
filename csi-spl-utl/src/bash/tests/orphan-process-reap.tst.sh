@@ -39,6 +39,9 @@
 #  24. Process of the same id started before the retire -> still flagged
 #  25. Several retires of one id, rows out of time order -> the latest counts
 #  26. Retired row with empty pane/worktree columns -> its retire time is still read
+#  27. tmux isolation (SPL-5331): the scan's window list comes from the test stub,
+#      so a live window named like a planted retired id cannot hide it
+#  28. A tmux window named for a retired id marks the id active -> not flagged
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -54,13 +57,14 @@ T=$(mktemp -d /tmp/opr.XXXXXX)
 chmod 777 "$T"
 BIN="$T/bin" STATE="$T/state" PROC="$T/proc" CNF="$T/cnf" LOGS="$T/log"
 SENT="$T/sent.log" LIVE_LOG="$T/live-calls.log" SENTINEL_LOG="$T/sentinel.log"
+TMUX_CALLS="$T/tmux-calls.log" TMUX_WINDOWS="$T/tmux-windows.txt"
 RETIRED_TSV="$CNF/registry.retired.tsv"
 ACTIVE_TSV="$CNF/registry.tsv"
 STAMP="$STATE/alert.stamp"
 
 mkdir -p "$BIN" "$STATE" "$PROC" "$CNF" "$LOGS"
 chmod -R 777 "$T"
-: >"$SENT"; : >"$LIVE_LOG"; : >"$SENTINEL_LOG"
+: >"$SENT"; : >"$LIVE_LOG"; : >"$SENTINEL_LOG"; : >"$TMUX_CALLS"; : >"$TMUX_WINDOWS"
 
 cleanup() {
   if [[ -n "${T:-}" && -d "$T" ]]; then
@@ -97,6 +101,16 @@ BEOF
 cat >"$BIN/spool" <<BEOF
 #!/bin/bash
 printf 'spool %s\n' "\$*" >>"$LIVE_LOG"; exit 97
+BEOF
+
+# The scanner reads the live tmux server's window names as active ids, and a
+# box may run a window named like a planted retired id (c-004@<box> on one
+# box, SPL-5331): every tmux call answers from this run's window fixture.
+cat >"$BIN/tmux" <<BEOF
+#!/bin/bash
+printf 'tmux %s\n' "\$*" >>"$TMUX_CALLS"
+[[ " \$* " == *" list-windows "* && -f "$TMUX_WINDOWS" ]] && cat "$TMUX_WINDOWS"
+exit 0
 BEOF
 
 chmod +x "$BIN"/*
@@ -564,6 +578,28 @@ if ((rc == 1)) && [[ "$out" == *"orphan pid=605"* && "$out" != *"orphan pid=604"
   pass "26. A retired row with empty columns: its retire time is still read"
 else
   fail "26. Empty columns (rc=$rc out=$out)"
+fi
+
+# ---- 27-28. tmux windows come from the fixture, never the live server -------
+# 27: a scan asks tmux for the window names and gets the stub (SPL-5331)
+: >"$TMUX_CALLS"
+clear_procs
+plant_proc 701 "node" "node serve.js" "c-004" "/tmp/test" 1
+out=$(run_check 1 2>&1); rc=$?
+if ((rc == 1)) && [[ "$out" == *"orphan pid=701"* ]] && grep -q 'list-windows' "$TMUX_CALLS"; then
+  pass "27. The scan's tmux window list is the test stub's, not the live server's"
+else
+  fail "27. tmux isolation (rc=$rc calls=$(cat "$TMUX_CALLS") out=$out)"
+fi
+
+# 28: a live window named for a retired id marks it active: not flagged
+echo "c-004@PC ?" >"$TMUX_WINDOWS"
+out=$(run_check 1 2>&1); rc=$?
+: >"$TMUX_WINDOWS"
+if ((rc == 0)) && [[ "$out" == *"orphan-process OK: 0 orphan processes found"* ]]; then
+  pass "28. A tmux window named for a retired id keeps its process unflagged"
+else
+  fail "28. Window marks active (rc=$rc out=$out)"
 fi
 
 echo "=========================================="

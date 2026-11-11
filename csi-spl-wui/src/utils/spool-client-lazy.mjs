@@ -858,6 +858,26 @@ async function connectX(ctx) {
 }
 
 /**
+ * GET /v1/marketing/linkedin-org/pages (spec 090 T041, SPL-5258): the
+ * workspace's connected LinkedIn company pages, { pages: [{ channel_id,
+ * organization_id, organization_urn, name, vanity_name, role, status,
+ * delegated_by, expires_at }] }, never a token. 503 not_configured while the
+ * Company Page app is not wired.
+ */
+async function listLinkedInPages(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).linkedInPages()
+  return live('/v1/marketing/linkedin-org/pages')
+}
+
+/** POST /v1/marketing/linkedin-org/connect → { authorize_url }: LinkedIn's consent page of the Company Page app. */
+async function connectLinkedInPage(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).connectLinkedInPage()
+  return live('/v1/marketing/linkedin-org/connect', { method: 'POST' })
+}
+
+/**
  * DELETE /v1/marketing/channels/{channel_id} → 204 (lane SPL-4496): the
  * channel and its sealed token go; a Page takes its Instagram account along.
  * Not on the hub yet: metaDisconnectLive() keeps the button off a live client.
@@ -2365,6 +2385,8 @@ export const lazySpoolMethods = {
   connectFacebook,
   listXAccounts,
   connectX,
+  listLinkedInPages,
+  connectLinkedInPage,
   disconnectMarketingChannel,
   mintJoinToken,
   listJoinTokens,

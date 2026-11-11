@@ -62,6 +62,8 @@ const LAZY_METHODS = [
   'connectFacebook',
   'listXAccounts',
   'connectX',
+  'listLinkedInPages',
+  'connectLinkedInPage',
   'disconnectMarketingChannel',
   'mintJoinToken',
   'listJoinTokens',

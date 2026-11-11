@@ -135,6 +135,9 @@ declare module '~/utils/spool-client.mjs' {
     /* spec 090 X row (SPL-5194): X accounts */
     listXAccounts(): Promise<{ accounts?: Array<{ channel_id: string, user_id?: string, username?: string, name?: string, status?: string }> }>
     connectX(): Promise<{ authorize_url?: string }>
+    /* spec 090 T041 (SPL-5258): LinkedIn company pages */
+    listLinkedInPages(): Promise<{ pages?: Array<{ channel_id: string, organization_id?: string, organization_urn?: string, name?: string, vanity_name?: string, role?: string, status?: string, delegated_by?: string, expires_at?: string }> }>
+    connectLinkedInPage(): Promise<{ authorize_url?: string }>
     disconnectMarketingChannel(channelId: string): Promise<null>
     listTenantChannels(): Promise<unknown>
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>

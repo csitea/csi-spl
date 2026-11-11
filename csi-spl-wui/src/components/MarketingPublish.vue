@@ -17,13 +17,16 @@
      spec 090 X row (SPL-5194): with an X account `channel` the text is the
      post the hub sends (marketing-x.mjs xPostText), counted as X counts it
      against 280; a longer one is shortened with "…", the link kept whole.
+     spec 090 T041 (SPL-5258): with a LinkedIn company page `channel` the
+     text is the commentary the hub posts as the page (marketing-linkedin-
+     page.mjs liPageCaption) against 3,000, and the button names the page.
      spec 090 T036 (SPL-4804): "Post by hand" opens the draft hand-over for
      that post (MarketingDraftHandover.vue, its own lazy chunk); a post marked
      as posted by hand leaves the list like a published one. -->
 <template>
   <div v-if="why" class="mp" data-test="tenant-marketing-publish-unavailable">
     <h4 class="mp-title">{{ title }}</h4>
-    <p v-if="channel" class="muted mp-why">{{ t('tenant_settings.marketing_meta_forbidden') }}</p>
+    <p v-if="channel" class="muted mp-why">{{ t(isLiPage ? 'tenant_settings.marketing_li_page_forbidden' : 'tenant_settings.marketing_meta_forbidden') }}</p>
     <p v-else class="muted mp-why">{{ t('tenant_settings.marketing_publish_forbidden') }}</p>
   </div>
   <div v-else-if="shown" class="mp" data-test="tenant-marketing-publish" :data-channel="channel?.id || ''">
@@ -67,6 +70,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { marketingSaysWhy } from '~/utils/tenant-settings.mjs'
 import { linkedInOthers, metaCaption, metaNeedsJpeg, metaNumber, metaPublishErrorKey } from '~/utils/marketing-meta.mjs'
 import { xPostText, xPublishErrorKey } from '~/utils/marketing-x.mjs'
+import { liPageCaption, liPagePublishErrorKey } from '~/utils/marketing-linkedin-page.mjs'
 
 type Post = { id: string, title?: string, summary?: string, image?: string }
 type MetaChannel = { id: string, platform: string, name: string }
@@ -98,16 +102,23 @@ const title = computed(() => (props.channel
   ? t('tenant_settings.marketing_meta_publish_title', { name: props.channel.name })
   : t('tenant_settings.marketing_publish_title')))
 const buttonLabel = computed(() => {
+  if (isLiPage.value) return t('tenant_settings.marketing_li_page_publish_button', { name: props.channel?.name || '' })
   if (props.channel) return t('tenant_settings.marketing_meta_publish_button')
   return others.value ? t('tenant_settings.marketing_publish_button_on', { name: others.value }) : t('tenant_settings.marketing_publish_button')
 })
 const appUrl = import.meta.client ? window.location.origin : ''
 const isX = computed(() => props.channel?.platform === 'x')
-const caption = (p: Post) => (isX.value ? xPostText(p, appUrl) : metaCaption(props.channel?.platform || '', p, appUrl))
+const isLiPage = computed(() => props.channel?.platform === 'linkedin_page')
+function caption(p: Post) {
+  if (isX.value) return xPostText(p, appUrl)
+  if (isLiPage.value) return liPageCaption(p, appUrl)
+  return metaCaption(props.channel?.platform || '', p, appUrl)
+}
 
 // The hub's answer to a refused publish, as one plain sentence.
 function publishErrorKey(e: unknown): string {
   if (isX.value) return 'tenant_settings.' + xPublishErrorKey(e)
+  if (isLiPage.value) return 'tenant_settings.' + liPagePublishErrorKey(e)
   if (props.channel) return 'tenant_settings.' + metaPublishErrorKey(e)
   const status = (e as { status?: number } | null)?.status
   if (status === 403) return 'tenant_settings.marketing_publish_forbidden'

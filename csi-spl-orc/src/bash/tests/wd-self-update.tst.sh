@@ -147,6 +147,16 @@ lib() {
     spl_wd_init >/dev/null || exit 1
     eval "$SNIP"' 2>&1
 }
+# UPD_WAIT: how long the action itself may take from a commit to its
+# verdict, read from its own defaults: a tick to see the commit, the
+# pre-flight at spl_wd_upd_check_limit's cap (a loaded box), every self-check
+# window, then WT of slack. The fixed WT + 15 / WT + 40 caps of cases 5 and 6
+# were shorter than the pre-flight alone may take at load 5/cpu (60 s; c-524
+# 2026-11-11, load 68..94 on 16 cpus: case 6 red 2 of 2). A cap only bounds a
+# wait, a green run never reaches it.
+UPD_WAIT="$(lib 'WD_UPD_LOAD1=999999 spl_wd_upd_check_limit; echo $(( WD_TICK + WD_UPD_LIM + WD_UPD_STEP_MAX * WD_UPD_STEP_TRIES ))')"
+[[ "$UPD_WAIT" =~ ^[0-9]+$ ]] || { echo "FAIL: the action's rollout budget: '$UPD_WAIT'"; exit 1; }
+UPD_WAIT=$(( UPD_WAIT + WT ))
 held() { [[ -f "$1" ]] && ! flock -n "$1" true; }
 live() { local n=0 i; for i in 1 2 3; do held "$W/run.$i.lock" && n=$((n + 1)); done; echo "$n"; }
 # on_good <seconds>: every heartbeat on SHA_C or SHA_D: after 4 the two
@@ -447,7 +457,7 @@ wait_for "good := ${SHA_D:0:9} \(csi-spl-orc unchanged" $(( WT + 10 )) && [[ "$(
 # ---- 5. a commit whose ./run exits non-zero ------------------------------------------
 : > "$T/sent"
 sed -i '2i exit 3' "$O/run"; SHA_E="$(commit E)"
-wait_for "FAILED ${SHA_E:0:9}: pre-flight" $(( WT + 15 )) && [[ -f "$W/code/$SHA_E.bad" && "$(link good)" == "$SHA_D" ]] &&
+wait_for "FAILED ${SHA_E:0:9}: pre-flight" "$UPD_WAIT" && [[ -f "$W/code/$SHA_E.bad" && "$(link good)" == "$SHA_D" ]] &&
   pass "5 bad commit: pre-flight fails, ${SHA_E:0:9} quarantined, good stays ${SHA_D:0:9}" || fail "5 preflight: $(tail -n 4 "$LOG")"
 sent_once "commit ${SHA_E:0:9} failed" && pass "5 ONE admin alert names the commit" || fail "5 alert: $(cat "$T/sent")"
 sleep $(( TICK + 2 ))
@@ -459,7 +469,7 @@ sleep $(( TICK + 2 ))
 sed -i '2d' "$O/run"
 # a watchdog bug that shows only in a loop instance (the pre-flight tick has no WD_INST)
 sed -i '/^source /a if [ -n "${WD_INST:-}" ]; then spl_wd_run_scripts() { nosuchcmd_v6; }; fi' "$O/run"; SHA_F="$(commit F)"
-wait_for "FAILED ${SHA_F:0:9}: instance 1 failed its self-check tick" $(( WT + 40 )) &&
+wait_for "FAILED ${SHA_F:0:9}: instance 1 failed its self-check tick" "$UPD_WAIT" &&
   pass "6 instance 1 execs, its self-check tick fails (script errors)" || fail "6 check: $(tail -n 6 "$LOG")"
 wait_for "instance 1: back on ${SHA_D:0:9} \(rollback\)" 30 && on_good 10 &&
   pass "6 instance 1 execs back into good ${SHA_D:0:9}; all 3 on good code" || fail "6 rollback: $(tail -n 4 "$LOG"); $(hb_sha 1) $(hb_sha 2) $(hb_sha 3)"

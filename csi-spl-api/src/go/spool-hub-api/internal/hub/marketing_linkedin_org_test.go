@@ -524,6 +524,41 @@ func TestMarketingLinkedInOrgFailures(t *testing.T) {
 	}
 }
 
+// A 400 on the post (LinkedIn rejects its content) fails that post once and
+// mails it; the connection stays: only a refused refresh counts 400 as
+// refused (spec linkedin-company-page.md section 5.4, SPL-5258 R7).
+func TestMarketingLinkedInOrgPostBadRequest(t *testing.T) {
+	e := newOrgEnv(t, false)
+	e.connect(t, e.admin)
+	ch := e.channel(t)
+	e.fake.set(func(f *orgFake) {
+		f.postFail = func(w http.ResponseWriter) bool {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"message":"commentary too long","status":400}`)
+			return true
+		}
+	})
+	if code, body := e.publish(t, e.admin, "2026-11-10-two", ch); code != http.StatusOK || body["failed"] != float64(1) {
+		t.Fatalf("post 400: %d %v, want 200 failed 1", code, body)
+	}
+	if got := e.channel(t); got.Status != store.MarketingActive {
+		t.Fatalf("channel %s after a post 400, want active", got.Status)
+	}
+	if p := e.post(t, ch, "2026-11-10-two"); p.Status != store.MarketingFailed {
+		t.Fatalf("post %s, want failed", p.Status)
+	}
+	if len(*e.mails) != 1 || strings.Contains((*e.mails)[0], "refused") ||
+		!strings.Contains((*e.mails)[0], "was not published on the LinkedIn company page Example Company") {
+		t.Fatalf("mails %v", *e.mails)
+	}
+	n := len(e.fake.sent())
+	e.clock.add(time.Hour)
+	e.srv.SweepMarketingLinkedInOrg(context.Background())
+	if len(e.fake.sent()) != n {
+		t.Fatal("a post LinkedIn rejected was sent again")
+	}
+}
+
 // 7 days before the connection ends the connector gets one reminder; at the
 // end the channel is expired and its posts wait.
 func TestMarketingLinkedInOrgExpiry(t *testing.T) {

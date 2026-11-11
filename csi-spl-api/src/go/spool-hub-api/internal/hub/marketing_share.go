@@ -361,6 +361,9 @@ func (s *Server) publishOn(r *http.Request, tenant, hum, seat string) (Marketing
 		if s.isXChannel(ctx, tenant, ch) { // SPL-5194
 			return s.publishXPost(ctx, tenant, hum, seat, r.PathValue("id"), ch)
 		}
+		if s.isLinkedInPageChannel(ctx, tenant, ch) { // SPL-5258
+			return s.publishLinkedInPagePost(ctx, tenant, hum, seat, r.PathValue("id"), ch)
+		}
 		return s.publishMetaPost(ctx, tenant, hum, seat, r.PathValue("id"), ch)
 	}
 	if seat != "" {
@@ -389,10 +392,11 @@ func (s *Server) handleAgentMarketingPublish(w http.ResponseWriter, r *http.Requ
 
 func writeMarketingPublish(w http.ResponseWriter, r *http.Request, res MarketingShareResult, err error) {
 	switch {
-	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther), errors.Is(err, ErrMarketingNotApprover):
+	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther), errors.Is(err, ErrMarketingNotApprover),
+		errors.Is(err, ErrMarketingPageNotOwner):
 		writeForbidden(w, rbac.TenantSettings, err.Error())
 	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff),
-		errors.Is(err, ErrMarketingNoMetaPage), errors.Is(err, ErrMarketingNoXAccount):
+		errors.Is(err, ErrMarketingNoMetaPage), errors.Is(err, ErrMarketingNoXAccount), errors.Is(err, ErrMarketingNoLinkedInPage):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, ErrMarketingRecorded):
 		writeErr(w, http.StatusConflict, "already_recorded", err.Error())
@@ -402,7 +406,7 @@ func writeMarketingPublish(w http.ResponseWriter, r *http.Request, res Marketing
 		writeErr(w, http.StatusUnprocessableEntity, "x_too_long", err.Error())
 	case errors.Is(err, ErrMarketingNoLinked):
 		writeErr(w, http.StatusServiceUnavailable, "linkedin_off", err.Error())
-	case errors.Is(err, ErrMarketingNoMeta), errors.Is(err, ErrMarketingNoX):
+	case errors.Is(err, ErrMarketingNoMeta), errors.Is(err, ErrMarketingNoX), errors.Is(err, ErrMarketingNoLinkedInOrg):
 		writeErr(w, http.StatusServiceUnavailable, "not_configured", err.Error())
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "the publish failed before the platform was called")
@@ -557,6 +561,8 @@ func (s *Server) reportShareFailure(ctx context.Context, m *MarketingLinkedIn, t
 			s.metaReportFailure(ctx, s.o.MarketingMeta, ch, postRef, why)
 		} else if ch.ID == channelID && ch.Platform == store.MarketingPlatformX { // SPL-5194
 			s.xReportFailure(ctx, s.o.MarketingX, ch, postRef, why)
+		} else if ch.ID == channelID && ch.Platform == store.MarketingPlatformLinkedInPage { // SPL-5258
+			s.orgReportFailure(ctx, s.o.MarketingLinkedInOrg, ch, postRef, why)
 		} else if ch.ID == channelID && m != nil {
 			s.mailHolder(ctx, m, tenant, ch.DelegatedBy, "A post was not shared on LinkedIn",
 				"spool-hub could not share "+marketingPostLabel(m.AppURL, postRef)+" on LinkedIn, and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nShare it by hand if you want it on your profile.\n")

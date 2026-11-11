@@ -196,6 +196,7 @@ func (s *Server) routeMarketing(mux *http.ServeMux) {
 	s.routeMarketingChannels(mux)      // spec 090 T006 (SPL-1634): connect LinkedIn
 	s.routeMarketingMeta(mux)          // spec 090 T033 (SPL-4254): connect Facebook Pages + Instagram
 	s.routeMarketingX(mux)             // spec 090 X row (SPL-5194): connect X accounts
+	s.routeMarketingLinkedInOrg(mux)   // spec 090 T041 (SPL-5258): connect LinkedIn Company Pages
 	s.routeMarketingShare(mux)         // SPL-40: the owner publishes a blog post on LinkedIn
 	s.routeMarketingPosts(mux)         // SPL-1698: the owner's unshared posts, for the WUI
 	s.routeMarketingManualPublish(mux) // spec 090 T036: a post the member made by hand

@@ -130,3 +130,45 @@ func marketingX(ctx context.Context, hc *config.Hub, log zerolog.Logger, pmc *ma
 	log.Info().Str("redirect_uri", m.X.RedirectURI).Bool("mail", m.Mail != nil).Msg("marketing: x on")
 	return m
 }
+
+// marketingLinkedInOrg builds the LinkedIn Company Page connect + post
+// wiring (spec 090 T041, SPL-5258), or nil while the Company Page app's
+// client id, its secret, the KMS key or the WUI origin is not set (cnf
+// marketing.linkedin_org.inject "false"): then every
+// /v1/marketing/linkedin-org route answers 503 not_configured and the
+// dispatch idles. The redirect URI is the WUI origin's callback, registered
+// in that app (linkedin-company-page.md 10.2 step 4).
+func marketingLinkedInOrg(ctx context.Context, hc *config.Hub, log zerolog.Logger, pmc *mail.Config, appURL string) *hub.MarketingLinkedInOrg {
+	id, secret, key := strings.TrimSpace(hc.MarketingLinkedInOrgClientID), strings.TrimSpace(hc.MarketingLinkedInOrgClientSecret), strings.TrimSpace(hc.MarketingKMSKey)
+	appURL = strings.TrimRight(strings.TrimSpace(appURL), "/")
+	if id == "" || secret == "" || key == "" || appURL == "" {
+		log.Info().Bool("client_id", id != "").Bool("client_secret", secret != "").Bool("kms_key", key != "").
+			Bool("app_url", appURL != "").Msg("marketing: linkedin org off, connect answers 503")
+		return nil
+	}
+	kms, err := marketing.NewCloudKMS(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("marketing: linkedin org off, no KMS client, connect answers 503")
+		return nil
+	}
+	sealer, err := marketing.NewSealer(kms, key)
+	if err != nil {
+		log.Error().Err(err).Msg("marketing: linkedin org off, connect answers 503")
+		return nil
+	}
+	version := strings.TrimSpace(hc.MarketingLinkedInOrgVersion)
+	if version == "" {
+		version = hc.MarketingLinkedInVersion
+	}
+	m := &hub.MarketingLinkedInOrg{Org: &marketing.LinkedInOrg{ClientID: id, ClientSecret: marketing.NewPlaintext(secret),
+		RedirectURI: appURL + hub.LinkedInOrgCallbackPath, Version: version, Scopes: strings.TrimSpace(hc.MarketingLinkedInOrgScopes)},
+		Sealer: sealer, AppURL: appURL, APIURL: strings.TrimRight(strings.TrimSpace(os.Getenv("SPOOL_HUB_OPERATOR_AUDIENCE")), "/")}
+	if pmc != nil && pmc.Transport != mail.TransportNone {
+		sender := pmc.Sender(log)
+		m.Mail = func(ctx context.Context, to, subject, body string) error {
+			return sender.Send(ctx, mail.Message{To: to, Subject: subject, TextBody: body, Template: "marketing_reconnect", Locale: "en"})
+		}
+	}
+	log.Info().Str("redirect_uri", m.Org.RedirectURI).Bool("mail", m.Mail != nil).Msg("marketing: linkedin org on")
+	return m
+}

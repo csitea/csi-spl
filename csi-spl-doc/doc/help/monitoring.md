@@ -55,10 +55,10 @@ the **Edit in Workspace settings** links.
 <a id="ws-doc-8073c0e2-9057-4100-b9ef-fdcdaf42321e"></a>
 ## Costs: moved to Reporting
 
-There is no Costs tab here: the month's costs, with their breakdown table and
-pie chart, live in Reporting -> Costs -> Spend (see [Reporting](./reporting.md)).
+There is no Costs tab here: the costs, with their pie charts and monthly
+tables, live in Reporting -> Costs -> Total (see [Reporting](./reporting.md)).
 An old `/monitoring/costs` link still opens that page and keeps the month
-(`/monitoring/costs?month=2026-09` opens `/reporting/costs/spend?month=2026-09`).
+(`/monitoring/costs?month=2026-09` opens `/reporting/costs/total?month=2026-09`).
 
 <a id="ws-doc-d432640e-55a4-47db-95eb-f052b3cfd0b3"></a>
 ## Tokens: fleet burn and agent breakdown

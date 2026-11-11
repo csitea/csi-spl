@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Costes de personal",
         "not_tracked": "Aún sin seguimiento. Los costes de personal son tiempo aprobado al precio propio de cada persona, que construyen las filas {rows} de la especificación 107; no se muestra ninguna cifra hasta que estén listas."
-      }
+      },
+      "label": {
+        "total": "Total general",
+        "persons": "Personas",
+        "cloud": "Nube",
+        "tokens": "Tokens",
+        "other": "Otros"
+      },
+      "period": "Periodo",
+      "period_ytd": "Desde el inicio del año ({year})",
+      "col_item": "Concepto",
+      "col_share": "Proporción",
+      "pie_label": "La proporción de cada concepto en el coste del periodo",
+      "table_label": "Los costes por mes",
+      "no_pie": "Aún no hay costes en este periodo, así que no hay gráfico circular.",
+      "empty": "No hay costes en esta categoría en este periodo.",
+      "no_split": "Este espacio de trabajo aún no tiene costes propios en esta categoría: pertenecen a toda la infraestructura y se muestran en el espacio de trabajo del operador.",
+      "tokens_sub": "{units} tokens · precio de lista {list}, no pagado",
+      "price_link": "Precio por token: el precio efectivo de cada tipo de agente está en Gastos → Costes de IA."
     },
     "releases": {
       "soon": "El informe de versiones llegará pronto.",

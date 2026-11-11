@@ -20,7 +20,7 @@ opened. Opening `/expenses` on its own goes to **AI costs**.
 |---|---|---|
 | **AI costs** | `/expenses/ai` | The paid subscriptions and top-ups of the AI vendors: the list, **Add a paid item**, edit and delete, and the effective price per token per vendor beside its list price. |
 | **Cloud infra costs** | `/expenses/cloud` | Cloud infrastructure costs entered by hand, such as an invoice: the list, **Add a cost** and delete. Reporting -> Costs counts them under Cloud. |
-| **HR costs** | `/expenses/hr` | Human resources costs entered by hand: the list, **Add a cost** and delete. Reporting -> Costs shows them under Human, not in Spend. |
+| **HR costs** | `/expenses/hr` | Human resources costs entered by hand: the list, **Add a cost** and delete. Reporting -> Costs shows them under Persons. |
 
 A cost on Cloud infra costs or HR costs is one row of one month: a description
 (on HR costs the role or the contract), the amount net of VAT, its currency, the

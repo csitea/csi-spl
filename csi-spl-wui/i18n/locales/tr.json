@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Personel maliyetleri",
         "not_tracked": "Henüz izlenmiyor. Personel maliyetleri, her kişinin kendi ücretiyle onaylanmış süredir ve 107 numaralı belirtimin {rows} satırlarıyla oluşturulur; bunlar tamamlanana kadar hiçbir sayı gösterilmez."
-      }
+      },
+      "label": {
+        "total": "Toplam",
+        "persons": "Kişiler",
+        "cloud": "Bulut",
+        "tokens": "Belirteçler",
+        "other": "Diğer"
+      },
+      "period": "Dönem",
+      "period_ytd": "Yıl başından beri ({year})",
+      "col_item": "Kalem",
+      "col_share": "Pay",
+      "pie_label": "Her kalemin dönem maliyetindeki payı",
+      "table_label": "Aylara göre maliyetler",
+      "no_pie": "Bu dönemde henüz maliyet yok, bu yüzden pasta grafik yok.",
+      "empty": "Bu dönemde bu kategoride maliyet yok.",
+      "no_split": "Bu çalışma alanının bu kategoride henüz kendine ait maliyeti yok: maliyetler tüm altyapıya aittir ve operatörün çalışma alanında gösterilir.",
+      "tokens_sub": "{units} belirteç · liste fiyatı {list}, ödenmedi",
+      "price_link": "Belirteç başına fiyat: her ajan türünün gerçek fiyatı Giderler → Yapay zekâ maliyetleri altındadır."
     },
     "releases": {
       "soon": "Sürüm raporu yakında geliyor.",

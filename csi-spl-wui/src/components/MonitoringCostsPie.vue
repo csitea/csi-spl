@@ -22,14 +22,15 @@
         data-test="costs-pie-slice"
         :data-key="s.key"
         :data-pct="s.pct"
-      ><title>{{ s.label }}: {{ s.pctText }}</title></path>
+      ><title>{{ s.label }}: {{ s.valueText ? s.valueText + ', ' : '' }}{{ s.pctText }}</title></path>
     </svg>
     <figcaption class="costs-pie-legend">
       <ul>
         <li v-for="s in slices" :key="s.key" data-test="costs-pie-legend-row">
           <svg class="costs-pie-swatch" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" :fill="s.color" /></svg>
           <span class="costs-pie-name">{{ s.label }}</span>
-          <span class="costs-pie-pct">{{ s.pctText }}</span>
+          <span v-if="s.valueText" class="costs-pie-value" data-test="costs-pie-value">{{ s.valueText }}</span>
+          <span class="costs-pie-pct" data-test="costs-pie-pct">{{ s.pctText }}</span>
         </li>
       </ul>
     </figcaption>
@@ -39,7 +40,7 @@
 <script setup lang="ts">
 defineProps<{
   label: string
-  slices: { key: string, d: string, color: string, label: string, pctText: string, pct: number }[]
+  slices: { key: string, d: string, color: string, label: string, pctText: string, pct: number, valueText?: string }[]
 }>()
 </script>
 
@@ -52,5 +53,6 @@ defineProps<{
 .costs-pie-legend li { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .costs-pie-swatch { width: 12px; height: 12px; flex: 0 0 auto; }
 .costs-pie-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.costs-pie-pct { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.costs-pie-value, .costs-pie-pct { flex: 0 0 auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.costs-pie-pct { min-width: 3.5rem; text-align: end; }
 </style>

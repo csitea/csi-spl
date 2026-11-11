@@ -123,6 +123,10 @@ Paid items page left Costs for the **Expenses** section (3.8): Costs only
 reports costs, it enters none (owner HUM-10, t1 4f48f878, msg baa43948), and
 `/reporting/costs/paid` redirects to `/expenses/ai`, the query kept.
 
+**Since SPL-5312** (section 3.9) the bar is the four labels **Total**
+(default), **Persons**, **Cloud** and **Tokens**, each for every costs
+reader; Spend, Human and Price per token redirect to their label.
+
 ### 3.3 Spend
 
 Rows grouped by what was bought, never by stored source, a subtotal each:
@@ -386,6 +390,78 @@ The tab list is `wui/utils/expenses-tabs.mjs`. Paid subscriptions and top-ups ar
 items, so they sit in AI costs, not in a tab of their own. Tests:
 `tests/unit/expenses-tabs.test.mjs`, `tests/unit/cost-entries.test.mjs`, the Expenses part of
 `tests/e2e/monitoring-costs.test.mjs` (1400 + 390 px).
+
+### 3.9 Four labels: Total, Persons, Cloud, Tokens (SPL-5312)
+
+Owner HUM-10, t1 41a74806, 2026-11-11: "refactor the cost reporting page";
+"there should be only the following labels - Total , Persons , Cloud , Tokens";
+"each one of those must have a pie chart straight after the label , with the
+values and the percentages for each split down item of the costs"; "a nice
+sortable and listale table for the costs on monthly basis"; "a dropdown for
+the costs for each month for the last 12 months and from the start of the
+year"; "each workspace should have those settable and allocate-able
+separately for them" (poll 0c5e94b4, answer C "Both A and B": A, each
+workspace reads the four labels with its own costs, is this section; B, a
+cost split to workspaces by hand, is [costs-allocation.md](costs-allocation.md)).
+
+| label | path | its items (one table row each) | was |
+|---|---|---|---|
+| **Total** (default) | `/reporting/costs/total` | Persons, Cloud, Tokens, and Other when a part fits none (agent hours, a count) | Spend's total |
+| **Persons** | `/reporting/costs/persons` | each hand-entered `hr` cost (the month answer's `human` list, SPL-4840) | Human |
+| **Cloud** | `/reporting/costs/cloud` | each GCP project (its box apart) and each hand-entered `cloud` cost; a project's link opens its services (`?project=`), and for a single month a service's link its days (`&kind=`) | Cloud |
+| **Tokens** | `/reporting/costs/tokens` | each token part: the burn per vendor (`fleet_tokens`, its tokens and list price under its name, never added), the paid AI items (`ai_paid`) or a workspace's share of them (`ai_share`) | AI tokens; Price per token |
+
+- **Every label for every costs reader.** The money is what the hub's
+  answer holds for the reader (`GET /v1/tenant/costs`): the estate for the
+  operator workspace's admin and product owner, the workspace's own costs for
+  anyone else (owner answer A). No label is hidden; a workspace whose
+  answer has no Persons or Cloud part reads "This workspace has no costs of
+  its own under this label yet", since those are the estate's in today's hub
+  data until the allocation (answer B) lands.
+- **Total holds Persons.** The hr entries count in Total beside Cloud and
+  Tokens, so the four labels add up; Spend left them out (SPL-4840, answer
+  A "In Human; left out of Spend"), and the hub's `total` and `pct` still do.
+  The WUI sums its own rows; no hub field changed.
+- **Straight after the label**: its pie (`MonitoringCostsPie.vue`, inline
+  SVG, no chart library), one slice per item with money, each legend row
+  naming the item, its value in the header's currency and its share of the
+  label's period total, read without a hover (a phone has none). No money,
+  no pie: a line says so.
+- **Then the table**: the label's items, one money column per month of
+  the period, the period's total when it has more than one month, and the
+  share; a footer row of the column totals. A click on a column name (a
+  button, so Enter and Space too) sorts by it, money highest first and names
+  A-Z first, a second click flips it; `aria-sort` on the column. A dash (no
+  rate, never a guess) sorts last both ways and its title says why; a total
+  that leaves out an unpriced entry says how many (SPL-4824).
+- **The period**, the header's one dropdown (`?month=`): the year to date
+  (`ytd`, 1 January to now, one month read each, in parallel), then the
+  current month "so far" and the 11 before it. An older month from a link is
+  kept. The floor of October 2026 (rule 3.1.2) is gone: a month before the
+  first cost line reads as empty. The currency switch stays.
+- **Kept under the table**: Total, for a single month, the "n of N days
+  complete" per source and the sources with no money yet; Tokens, the
+  list-price line, a link to Expenses -> AI costs, where each agent type's
+  effective price per token lives (Price per token's figures), the operator
+  admin's live fleet card and the estate's token burn per workspace over the
+  period.
+- **Old links**: `/reporting/costs/spend` lands on Total,
+  `/reporting/costs/human` on Persons, `/reporting/costs/price` on Tokens,
+  the query kept (`utils/reporting-costs.mjs` `COSTS_REDIRECTS`), as
+  `/monitoring/costs`, `/reporting/tokens` and `/reporting/costs` (Total) do.
+
+**As built** (`csi-spl-wui`): `utils/costs-labels.mjs` (`costLabelOf`, which
+label a part counts under, an allocated part by its `allocatedSource`;
+`costsLabelRows`, the one function every label's numbers go through, which
+the allocation feeds; the pie, the sort, the day level, the burn),
+`composables/useCostsPeriod.ts` (the period's month answers),
+`components/reporting/costs/CostsLabel.vue`, `CostsMonthTable.vue`,
+`CostsLabelExtras.vue`, the four one-line pages. Strings
+`reporting.costs.label.*` and `reporting.costs.{period,period_ytd,col_item,
+col_share,pie_label,table_label,no_pie,empty,no_split,tokens_sub,price_link}`
+in all 19 locales (agy review last). Tests: `tests/unit/costs-labels.test.mjs`,
+`reporting-costs.test.mjs`, `tests/e2e/reporting-costs-labels.test.mjs`
+(1440 and 390 px).
 
 ## 4. Data: what feeds each figure
 

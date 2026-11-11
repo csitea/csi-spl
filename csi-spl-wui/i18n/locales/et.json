@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Inimeste kulud",
         "not_tracked": "Veel ei jälgita. Inimeste kulud on kinnitatud aeg iga inimese enda hinnaga, mille ehitavad spetsifikatsiooni 107 read {rows}; arvu ei näidata enne, kui need valmivad."
-      }
+      },
+      "label": {
+        "total": "Kokku",
+        "persons": "Isikud",
+        "cloud": "Pilv",
+        "tokens": "Tokenid",
+        "other": "Muu"
+      },
+      "period": "Periood",
+      "period_ytd": "Aasta algusest ({year})",
+      "col_item": "Kirje",
+      "col_share": "Osakaal",
+      "pie_label": "Iga kirje osakaal perioodi kuludes",
+      "table_label": "Kulud kuude kaupa",
+      "no_pie": "Selle perioodi kohta pole veel kulusid, seega sektordiagrammi pole.",
+      "empty": "Selles kategoorias pole sel perioodil kulusid.",
+      "no_split": "Sellel tööruumil pole selles kategoorias veel oma kulusid: need kuuluvad kogu taristule ja on näha operaatori tööruumis.",
+      "tokens_sub": "{units} tokenit · hinnakirja hind {list}, tasumata",
+      "price_link": "Tokeni hind: iga agenditüübi tegelik hind on jaotises Kulud → Tehisintellekti kulud."
     },
     "releases": {
       "soon": "Väljalasete aruanne tuleb peagi.",

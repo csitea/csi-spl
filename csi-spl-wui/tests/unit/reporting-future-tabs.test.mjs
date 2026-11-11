@@ -7,6 +7,8 @@
 // Paid render for an operator admin only, Tokens for every member (owner
 // HUM-10, t1 1be0e370, msg 3f1c7128, answer 1 A). SPL-4382: Paid items left
 // Costs for Expenses -> AI costs; /reporting/costs/paid only redirects.
+// SPL-5312: Costs is the four labels Total, Persons, Cloud, Tokens, one
+// component each; Spend, Human and Price per token redirect to their label.
 //
 // The pages' templates are the SHIPPED ones, rendered with Vue's own
 // compiler + server renderer for each role, so a page that drops the gate
@@ -26,7 +28,8 @@ import { REPORTING_TABS, visibleReportingTabs, reportingTabShows } from '../../s
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const FUTURE = ['issues', 'posts', 'lanes']
-const OPERATOR_ONLY = ['lanes', 'costs/price']
+/* SPL-5312: Price per token became a redirect to Tokens; no Costs page is operators-only now */
+const OPERATOR_ONLY = ['lanes']
 const tab = (id) => REPORTING_TABS.find((x) => x.id === id)
 const page = (id) => 'src/pages/reporting/' + id + '.vue'
 
@@ -70,59 +73,25 @@ describe('T051-T053 each reserved tab has its page and stays hidden', () => {
   })
 })
 
-describe('S1 Costs pages (SPL-3798; SPL-4187): AI tokens and Human for every member; Cloud and Price per token for an operator admin; Paid items moved to Expenses (SPL-4382)', () => {
+describe('S1 Costs pages (SPL-3798; SPL-4187; SPL-5312 the four labels): Total, Persons, Cloud and Tokens for every costs reader; the pages before them and Paid items (SPL-4382) redirect', () => {
   it('/reporting/tokens is a redirect now, no page of its own', () => {
     const src = read(page('tokens'))
     assert.match(src, /<LegacyMonitoringRedirect \/>/)
     assert.doesNotMatch(src, /reporting\.future\.tokens/)
   })
-  it('SPL-4187: AI tokens is a section of its own now (the month read\'s token parts), no longer the shell', () => {
-    const src = read(page('costs/tokens'))
-    assert.match(src, /data-test="costs-tokens-table"/)
-    assert.match(src, /tokenParts\(/)
-    assert.doesNotMatch(src, /costs-shell-tokens|reporting\.costs\.coming/)
-  })
-  it('SPL-4187: Human says "not tracked yet" for every role while it has no row, no number', async () => {
-    for (const role of Object.keys(ROLES)) {
-      const html = await render('costs/human', role, { state: 'idle', rows: [] })
-      assert.match(html, /data-test="costs-human-not-tracked"/, role)
-      assert.doesNotMatch(html, /data-test="human-table"/, role)
-      assert.ok(html.includes(t('reporting.costs.human.title')), role)
+  it('SPL-5312: each label page is the one CostsLabel component with its section, no gate of its own (the hub scopes the money)', () => {
+    for (const id of ['total', 'persons', 'cloud', 'tokens']) {
+      const src = read(page('costs/' + id))
+      assert.match(src, new RegExp(`<CostsLabel section="${id}" />`), id)
+      /* CONTROL: before SPL-5312 Cloud drew the operators-only line for anyone else */
+      assert.doesNotMatch(src, /operators_only|useOperatorReader/, id)
     }
   })
-  it('SPL-4840: a month with hr entries lists them in a table, and the "not tracked yet" line goes', async () => {
-    const row = { key: 'hr:pay:0', label: 'pay', entryMicros: 1, entryCurrency: 'EUR', amount: { text: '$1.00' } }
-    const html = await render('costs/human', 'operator admin', {
-      state: 'ok', rows: [row], sum: {}, total: { text: '$1.00' }, currency: 'USD', costMoney: () => '€1.00', locale: 'en',
-    })
-    /* CONTROL: rows [] (above) draws the line and no table */
-    assert.match(html, /data-test="human-table"/)
-    assert.match(html, /data-test="human-row"/)
-    assert.doesNotMatch(html, /data-test="costs-human-not-tracked"/)
-  })
-  it('SPL-4187: Cloud is the estate\'s: anyone but an operator admin gets the operators-only line, no table', async () => {
-    for (const role of ['workspace admin', 'member']) {
-      const html = await render('costs/cloud', role)
-      /* CONTROL: the page's gate, not the bar, keeps a direct visit out */
-      assert.doesNotMatch(html, /data-test="cloud-table"/, role)
-      assert.ok(html.includes(t('reporting.future.operators_only')), role)
-    }
-  })
-  it('SPL-4382: /reporting/costs/paid is a redirect (to Expenses -> AI costs), no shell of its own', () => {
-    const src = read(page('costs/paid'))
-    assert.match(src, /<LegacyMonitoringRedirect \/>/)
-    assert.doesNotMatch(src, /costs-shell-paid|reporting\.costs\.coming/)
-  })
-  it('the Price shell: the coming line for an operator admin; anyone else the operators-only line', async () => {
-    for (const id of ['price']) {
-      const op = await render('costs/' + id, 'operator admin')
-      assert.ok(op.includes(t('reporting.costs.page.' + id)) && op.includes(t('reporting.costs.coming')), id)
-      for (const role of ['workspace admin', 'member']) {
-        const html = await render('costs/' + id, role)
-        /* CONTROL: the page's gate, not the bar, keeps a direct visit out */
-        assert.doesNotMatch(html, /data-test="costs-shell-coming"/, id + ' ' + role)
-        assert.ok(html.includes(t('reporting.future.operators_only')), id + ' ' + role)
-      }
+  it('SPL-5312: Spend, Human and Price per token are redirects to their label now; SPL-4382: Paid items to Expenses', () => {
+    for (const id of ['spend', 'human', 'price', 'paid']) {
+      const src = read(page('costs/' + id))
+      assert.match(src, /<LegacyMonitoringRedirect \/>/, id)
+      assert.doesNotMatch(src, /costs-shell|reporting\.costs\.coming|data-test="costs-table"/, id)
     }
   })
 })

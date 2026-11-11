@@ -1,11 +1,13 @@
 <!-- Spec 143 costs-redesign.md 3.2, slice S1 (SPL-3798, owner HUM-10, t1
      1be0e370, msg 3f1c7128, answer 6 A): Reporting -> Costs, one tab with
-     four pages, each its own path and chunk (utils/reporting-costs.mjs):
-     Spend (default), Tokens, Price per token and Paid items (the last two
-     drawn for an operator admin only; hiding only, the hub's 403 is the
-     control). The header's month and currency ride in the query, kept
-     across the page bar. /reporting/costs itself lands on Spend, in the
-     browser only, so the prerendered page is the bar, never a redirect. -->
+     its pages, each its own path and chunk (utils/reporting-costs.mjs).
+     The header's month and currency ride in the query, kept
+     across the page bar. /reporting/costs itself lands on Total, in the
+     browser only, so the prerendered page is the bar, never a redirect.
+     SPL-5312 (spec 143 costs-redesign.md 3.9; owner HUM-10, t1 41a74806):
+     the bar is the four labels, Total (default), Persons, Cloud, Tokens,
+     each for every costs reader; the header's period is a month or the
+     year to date. The pages before them redirect to their label. -->
 <template>
   <div class="reporting-costs" data-test="reporting-costs">
     <nav class="costs-pages" :aria-label="t('reporting.costs.pages_label')" data-test="costs-pages">

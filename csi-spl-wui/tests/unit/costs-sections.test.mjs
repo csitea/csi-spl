@@ -139,12 +139,10 @@ describe('AI tokens and Human', () => {
     const m = costMonthOf(mockTenantCostsBody('2026-10', '', new Date(Date.UTC(2026, 10, 2))))
     assert.ok(tokenParts(m.parts).every((p) => /^(fleet_tokens|ai_paid|ai_share)/.test(p.source)))
   })
-  it('Human names the spec 107 rows while it has no row, and reads the month\'s human list (SPL-4840)', () => {
+  it('SPL-5312: Human became Persons, which reads the month\'s human list through costs-labels.mjs (SPL-4840 kept)', () => {
     assert.equal(HUMAN_ROWS, 'T071..T077')
-    const h = read('src/pages/reporting/costs/human.vue')
-    assert.match(h, /reporting\.costs\.human\.not_tracked/)
-    assert.match(h, /humanEntries\(/)
-    assert.match(h, /costMonthOf\(body\)\.human/)
+    assert.match(read('src/pages/reporting/costs/human.vue'), /<LegacyMonitoringRedirect \/>/)
+    assert.match(read('src/utils/costs-labels.mjs'), /m\.human/)
   })
   it('SPL-4840: the hr entries are Human\'s rows, the most expensive first; cloud and workspace entries left out', () => {
     const rows = humanEntries([entry('pay a', 9_000_000, { kind: 'hr' }), entry('pay b', 30_000_000, { kind: 'hr' }), entry('suite', 70_000_000),

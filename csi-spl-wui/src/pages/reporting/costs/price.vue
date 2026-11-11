@@ -1,17 +1,8 @@
-<!-- Spec 143 costs-redesign.md 3.5, slice S1 (SPL-3798): Reporting -> Costs -> Price per token, a shell (its
-     title and a "coming" line, no data) until slice S5 moves the page in. Operator admins only
-     (the operator pane's probe); hiding only, the hub's 403 on /v1/operator/* is the control. -->
+<!-- SPL-5312 (spec 143 costs-redesign.md 3.9; owner HUM-10, t1 41a74806:
+     "there should be only the following labels - Total, Persons, Cloud,
+     Tokens"): the page before the four labels. This route stays so an old
+     link still matches; it redirects to /reporting/costs/tokens, the query kept
+     (LegacyMonitoringRedirect, utils/reporting-costs.mjs COSTS_REDIRECTS). -->
 <template>
-  <section class="costs-shell" data-test="costs-shell-price">
-    <h3>{{ t('reporting.costs.page.price') }}</h3>
-    <p v-if="reader" class="muted" data-test="costs-shell-coming">{{ t('reporting.costs.coming') }}</p>
-    <p v-else class="muted" data-test="reporting-operators-only">{{ t('reporting.future.operators_only') }}</p>
-  </section>
+  <LegacyMonitoringRedirect />
 </template>
-
-<script setup lang="ts">
-import { useOperatorReader } from '~/composables/useOperatorReader'
-
-const { t } = useI18n({ useScope: 'global' })
-const reader = useOperatorReader()
-</script>

@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Personeelskosten",
         "not_tracked": "Nog niet bijgehouden. Personeelskosten zijn goedgekeurde tijd tegen de eigen prijs van elke persoon, gebouwd door de rijen {rows} van specificatie 107; er wordt geen getal getoond tot die klaar zijn."
-      }
+      },
+      "label": {
+        "total": "Totaal",
+        "persons": "Personen",
+        "cloud": "Cloud",
+        "tokens": "Tokens",
+        "other": "Overig"
+      },
+      "period": "Periode",
+      "period_ytd": "Sinds begin van het jaar ({year})",
+      "col_item": "Post",
+      "col_share": "Aandeel",
+      "pie_label": "Het aandeel van elke post in de kosten van de periode",
+      "table_label": "De kosten per maand",
+      "no_pie": "Nog geen kosten in deze periode, dus geen cirkeldiagram.",
+      "empty": "Geen kosten onder dit label in deze periode.",
+      "no_split": "Deze werkruimte heeft onder dit label nog geen eigen kosten: ze horen bij de hele infrastructuur en staan in de werkruimte van de operator.",
+      "tokens_sub": "{units} tokens · catalogusprijs {list}, niet betaald",
+      "price_link": "Prijs per token: de werkelijke prijs van elk agenttype staat onder Uitgaven → AI-kosten."
     },
     "releases": {
       "soon": "Het uitgaverapport komt binnenkort.",

@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Náklady na ľudí",
         "not_tracked": "Zatiaľ sa nesleduje. Náklady na ľudí sú schválený čas podľa vlastnej sadzby každej osoby, ktorý budujú riadky {rows} špecifikácie 107; žiadne číslo sa nezobrazí, kým nebudú hotové."
-      }
+      },
+      "label": {
+        "total": "Spolu",
+        "persons": "Osoby",
+        "cloud": "Cloud",
+        "tokens": "Tokeny",
+        "other": "Iné"
+      },
+      "period": "Obdobie",
+      "period_ytd": "Od začiatku roka ({year})",
+      "col_item": "Položka",
+      "col_share": "Podiel",
+      "pie_label": "Podiel každej položky na nákladoch obdobia",
+      "table_label": "Náklady po mesiacoch",
+      "no_pie": "Za toto obdobie zatiaľ nie sú náklady, preto chýba koláčový graf.",
+      "empty": "V tejto kategórii za toto obdobie nie sú náklady.",
+      "no_split": "Tento pracovný priestor zatiaľ nemá v tejto kategórii vlastné náklady: patria celej infraštruktúre a zobrazujú sa v pracovnom priestore operátora.",
+      "tokens_sub": "{units} tokenov · cenníková cena {list}, nezaplatená",
+      "price_link": "Cena za token: skutočná cena každého typu agenta je vo Výdavky → Náklady na AI."
     },
     "releases": {
       "soon": "Prehľad vydaní už čoskoro.",

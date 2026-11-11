@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Cilvēku izmaksas",
         "not_tracked": "Vēl netiek uzskaitīts. Cilvēku izmaksas ir apstiprināts laiks pēc katra cilvēka paša cenas, ko veido specifikācijas 107 rindas {rows}; skaitlis netiek rādīts, līdz tās ir gatavas."
-      }
+      },
+      "label": {
+        "total": "Kopā",
+        "persons": "Personas",
+        "cloud": "Mākonis",
+        "tokens": "Tokeni",
+        "other": "Citas"
+      },
+      "period": "Periods",
+      "period_ytd": "No gada sākuma ({year})",
+      "col_item": "Pozīcija",
+      "col_share": "Daļa",
+      "pie_label": "Katras pozīcijas daļa perioda izmaksās",
+      "table_label": "Izmaksas pa mēnešiem",
+      "no_pie": "Šim periodam vēl nav izmaksu, tāpēc nav sektoru diagrammas.",
+      "empty": "Šajā kategorijā šajā periodā nav izmaksu.",
+      "no_split": "Šai darbvietai šajā kategorijā vēl nav savu izmaksu: tās pieder visai infrastruktūrai un ir redzamas operatora darbvietā.",
+      "tokens_sub": "{units} tokeni · cenrāža cena {list}, nav samaksāta",
+      "price_link": "Tokena cena: katra aģenta tipa faktiskā cena ir sadaļā Izdevumi → MI izmaksas."
     },
     "releases": {
       "soon": "Laidienu pārskats drīzumā.",

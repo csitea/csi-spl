@@ -300,16 +300,20 @@ describe('the second currency (spec 123 5.4, SPL-2199)', () => {
 
 describe('the chunk rule (spec 123 8: ci_initial_gzip_kb stays <= 155)', () => {
   const files = walk(join(WUI, 'src')).map((p) => relative(WUI, p))
-  it('the pie is imported by the costs page only, and lazily', () => {
+  it('the pie is imported by the costs label only (SPL-5312: every label draws one), and lazily', () => {
     const users = files.filter((f) => /MonitoringCostsPie/.test(read(f)) && !f.endsWith('MonitoringCostsPie.vue'))
-    assert.deepEqual(users, ['src/pages/reporting/costs/spend.vue'])
-    const page = read('src/pages/reporting/costs/spend.vue')
+    assert.deepEqual(users, ['src/components/reporting/costs/CostsLabel.vue'])
+    const page = read('src/components/reporting/costs/CostsLabel.vue')
     assert.match(page, /defineAsyncComponent\(\(\) => import\('@\/components\/MonitoringCostsPie\.vue'\)\)/)
     assert.doesNotMatch(page, /^import .*MonitoringCostsPie/m)
   })
-  it('tenant-costs.mjs is statically imported by the costs pages only (Spend; Cloud and AI tokens, SPL-4187; Human, SPL-4840); the client loads it on call', () => {
+  it('tenant-costs.mjs is statically imported by the costs label code only (SPL-5312: the four labels share CostsLabel); the client loads it on call', () => {
     const statics = files.filter((f) => /^import [^\n]*from '[^']*tenant-costs\.mjs'/m.test(read(f)))
-    assert.deepEqual(statics, ['src/pages/reporting/costs/cloud.vue', 'src/pages/reporting/costs/human.vue', 'src/pages/reporting/costs/spend.vue', 'src/pages/reporting/costs/tokens.vue'])
+    assert.deepEqual(statics, ['src/components/reporting/costs/CostsLabel.vue', 'src/components/reporting/costs/CostsLabelExtras.vue', 'src/composables/useCostsPeriod.ts', 'src/utils/costs-labels.mjs'])
+    /* the label code is imported by the four label pages only, never the shell */
+    const labelUsers = files.filter((f) => /^import [^\n]*(CostsLabel\.vue|useCostsPeriod|costs-labels\.mjs)'/m.test(read(f)))
+    assert.deepEqual(labelUsers, ['src/components/reporting/costs/CostsLabel.vue', 'src/components/reporting/costs/CostsLabelExtras.vue', 'src/components/reporting/costs/CostsMonthTable.vue',
+      'src/pages/reporting/costs/cloud.vue', 'src/pages/reporting/costs/persons.vue', 'src/pages/reporting/costs/tokens.vue', 'src/pages/reporting/costs/total.vue'])
     assert.match(read('src/utils/spool-client-lazy.mjs'), /await import\('\.\/tenant-costs\.mjs'\)/)
     assert.doesNotMatch(read('src/utils/spool-client.mjs'), /tenant-costs/)
   })

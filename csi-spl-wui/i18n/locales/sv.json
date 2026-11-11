@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Personalkostnader",
         "not_tracked": "Spåras inte ännu. Personalkostnader är godkänd tid till varje persons eget pris, byggda av rader {rows} i specifikation 107; ingen siffra visas förrän de är klara."
-      }
+      },
+      "label": {
+        "total": "Totalt",
+        "persons": "Personer",
+        "cloud": "Moln",
+        "tokens": "Token",
+        "other": "Övrigt"
+      },
+      "period": "Tidsperiod",
+      "period_ytd": "Hittills i år ({year})",
+      "col_item": "Post",
+      "col_share": "Andel",
+      "pie_label": "Varje posts andel av periodens kostnad",
+      "table_label": "Kostnaderna per månad",
+      "no_pie": "Inga kostnader ännu i den här perioden, så inget cirkeldiagram.",
+      "empty": "Inga kostnader under den här etiketten i den här perioden.",
+      "no_split": "Den här arbetsytan har ännu inga egna kostnader under den här etiketten: de tillhör hela infrastrukturen och visas i operatörens arbetsyta.",
+      "tokens_sub": "{units} token · listpris {list}, inte betalt",
+      "price_link": "Pris per token: varje agenttyps faktiska pris finns under Utgifter → AI-kostnader."
     },
     "releases": {
       "soon": "Versionsrapporten kommer snart.",

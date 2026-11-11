@@ -2,26 +2,30 @@
 //
 // Spec 143 costs-redesign.md 3.2 and 5, slice S1 (SPL-3798, owner HUM-10,
 // t1 1be0e370, msg 3f1c7128, answers 2 A and 6 A): Reporting -> Costs, one
-// tab with its pages (six since SPL-4187), each its own path and chunk;
-// the header's one month and one currency, carried in the query so every
-// page and the back button keep them; the old links that land here. One
-// list for the page bar (pages/reporting/costs.vue) and the tests. No costs
-// code here: the Spend, Cloud and AI tokens pages load utils/tenant-costs.mjs. SPL-4382:
-// the Paid items page left for Expenses -> AI costs (utils/expenses-tabs.mjs).
+// tab with its pages, each its own path and chunk; the header's one period
+// and one currency, carried in the query so every page and the back button
+// keep them; the old links that land here. One list for the page bar
+// (pages/reporting/costs.vue) and the tests. No costs code here: the label
+// pages load utils/costs-labels.mjs. SPL-4382: the Paid items page left for
+// Expenses -> AI costs (utils/expenses-tabs.mjs).
+//
+// SPL-5312 (spec 143 costs-redesign.md 3.9; owner HUM-10, t1 41a74806,
+// 2026-11-11: "there should be only the following labels - Total, Persons,
+// Cloud, Tokens" and "a dropdown for the costs for each month for the last
+// 12 months and from the start of the year"): the four labels, every one
+// for every costs reader (the hub scopes the money to the workspace), and
+// the period: each of the last 12 months, or the year to date.
 
 import { productPath } from './signed-out-redirect.mjs'
 
-/** The pages in their order; Spend is where /reporting/costs lands.
- *  `operatorsOnly`: drawn for an operator admin only (the hub's 403 is the control).
- *  SPL-4187 (spec 123 5.5, owner t1 e2c0e6b4 msg 81217a3f): the three kinds
- *  of cost, Cloud, AI tokens and Human, each a section of its own; Cloud is
- *  the estate's, so the operator admin's. */
+/** The pages in their order; Total is where /reporting/costs lands.
+ *  `operatorsOnly`: drawn for an operator admin only (none since SPL-5312:
+ *  a workspace reads its own costs on every label, the hub's scope). */
 export const COSTS_PAGES = Object.freeze([
-  Object.freeze({ id: 'spend', path: '/reporting/costs/spend', labelKey: 'reporting.costs.page.spend', operatorsOnly: false }),
-  Object.freeze({ id: 'cloud', path: '/reporting/costs/cloud', labelKey: 'reporting.costs.page.cloud', operatorsOnly: true }),
-  Object.freeze({ id: 'tokens', path: '/reporting/costs/tokens', labelKey: 'reporting.costs.page.tokens', operatorsOnly: false }),
-  Object.freeze({ id: 'human', path: '/reporting/costs/human', labelKey: 'reporting.costs.page.human', operatorsOnly: false }),
-  Object.freeze({ id: 'price', path: '/reporting/costs/price', labelKey: 'reporting.costs.page.price', operatorsOnly: true }),
+  Object.freeze({ id: 'total', path: '/reporting/costs/total', labelKey: 'reporting.costs.label.total', operatorsOnly: false }),
+  Object.freeze({ id: 'persons', path: '/reporting/costs/persons', labelKey: 'reporting.costs.label.persons', operatorsOnly: false }),
+  Object.freeze({ id: 'cloud', path: '/reporting/costs/cloud', labelKey: 'reporting.costs.label.cloud', operatorsOnly: false }),
+  Object.freeze({ id: 'tokens', path: '/reporting/costs/tokens', labelKey: 'reporting.costs.label.tokens', operatorsOnly: false }),
 ])
 
 export const COSTS_DEFAULT_PATH = COSTS_PAGES[0].path
@@ -31,7 +35,7 @@ export function visibleCostsPages(who = {}) {
   return COSTS_PAGES.filter((p) => !p.operatorsOnly || who.operator === true)
 }
 
-/** The page a route is on, locale prefix or not; null off the four pages. @param {string} path */
+/** The page a route is on, locale prefix or not; null off the pages. @param {string} path */
 export function costsPageFor(path) {
   const p = productPath(path)
   for (const page of COSTS_PAGES) {
@@ -43,9 +47,14 @@ export function costsPageFor(path) {
 /** Section 5 "Links": an old path -> its Costs page, no locale prefix (the
  *  caller adds it and keeps the query, `?month=` included). */
 export const COSTS_REDIRECTS = Object.freeze({
-  '/monitoring/costs': '/reporting/costs/spend',
+  '/monitoring/costs': '/reporting/costs/total',
   '/reporting/tokens': '/reporting/costs/tokens',
-  '/reporting/costs': '/reporting/costs/spend',
+  '/reporting/costs': '/reporting/costs/total',
+  /* SPL-5312: the pages before the four labels land on their label; Price
+     per token's figures live in Expenses -> AI costs, linked from Tokens */
+  '/reporting/costs/spend': '/reporting/costs/total',
+  '/reporting/costs/human': '/reporting/costs/persons',
+  '/reporting/costs/price': '/reporting/costs/tokens',
   /* SPL-4382 (spec 143 costs-redesign.md 3.8): the paid items are entered
      under Expenses, Costs only reports them */
   '/reporting/costs/paid': '/expenses/ai',
@@ -60,12 +69,11 @@ export function legacyCostsPath(path) {
   return Object.prototype.hasOwnProperty.call(COSTS_REDIRECTS, p) ? COSTS_REDIRECTS[p] : null
 }
 
-/** The first month holding a cost line (costs-redesign.md section 2 item 13:
- *  cost lines start in October 2026); the picker offers nothing before it. */
-export const COSTS_FIRST_MONTH = '2026-10'
-/** At most this many months in the picker (rule 3.1.2). */
+/** At most this many months in the picker (SPL-5312: "the last 12 months"). */
 const COSTS_MONTHS_MAX = 12
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+/** The period "from the start of the year" (SPL-5312), `?month=ytd`. */
+export const COSTS_YTD = 'ytd'
 
 /** A valid YYYY-MM (the first of an array query), else ''. */
 export function costsMonth(v) {
@@ -76,24 +84,39 @@ export function costsMonth(v) {
 const monthOf = (d) => d.toISOString().slice(0, 7)
 
 /**
- * The picker's months, the current UTC month first, back to `first`, at most
- * 12. A `keep` month from the URL (an old link, a bookmark) before `first`
- * but not in the future is added last, so the page shows what the link asked
- * for and never rewrites it.
+ * The picker's months, the current UTC month first, then the 11 before it.
+ * A `keep` month from the URL (an old link, a bookmark) older than those but
+ * not in the future is added last, so the page shows what the link asked for
+ * and never rewrites it.
  * @param {Date} [now]
- * @param {string} [first]
  * @param {string} [keep]
  */
-export function costsMonthOptions(now = new Date(), first = COSTS_FIRST_MONTH, keep = '') {
+export function costsMonthOptions(now = new Date(), keep = '') {
   const out = []
   const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  while (out.length < COSTS_MONTHS_MAX && monthOf(d) >= first) {
+  while (out.length < COSTS_MONTHS_MAX) {
     out.push(monthOf(d))
     d.setUTCMonth(d.getUTCMonth() - 1)
   }
-  if (!out.length) out.push(monthOf(now))
   const k = costsMonth(keep)
   if (k && k <= out[0] && !out.includes(k)) out.push(k)
+  return out
+}
+
+/** The period a query names: 'ytd', a month not in the future, else '' (the current month). @param {unknown} v @param {Date} [now] */
+export function costsPeriod(v, now = new Date()) {
+  const s = Array.isArray(v) ? v[0] : v
+  if (s === COSTS_YTD) return COSTS_YTD
+  const m = costsMonth(s)
+  return m && m <= monthOf(now) ? m : ''
+}
+
+/** The months a period reads, oldest first: the year to date is January to the current month. @param {string} period @param {Date} [now] */
+export function costsPeriodMonths(period, now = new Date()) {
+  const cur = monthOf(now)
+  if (period !== COSTS_YTD) return [costsPeriod(period, now) || cur]
+  const out = []
+  for (let m = 1; m <= now.getUTCMonth() + 1; m++) out.push(cur.slice(0, 5) + String(m).padStart(2, '0'))
   return out
 }
 
@@ -116,7 +139,7 @@ export function costsCurrency(v, options) {
 }
 
 /**
- * The query after a header pick: `month` dropped for the current month,
+ * The query after a header pick: `month` (a month or 'ytd') dropped for the current month,
  * `currency` dropped for USD, every other key kept.
  * @param {Record<string, unknown>} query
  * @param {{ month?: string, currency?: string, current?: string }} pick
@@ -124,7 +147,7 @@ export function costsCurrency(v, options) {
 export function costsQueryWith(query, { month, currency, current } = {}) {
   const q = { ...query }
   if (month !== undefined) {
-    if (!costsMonth(month) || month === current) delete q.month
+    if ((!costsMonth(month) && month !== COSTS_YTD) || month === current) delete q.month
     else q.month = month
   }
   if (currency !== undefined) {

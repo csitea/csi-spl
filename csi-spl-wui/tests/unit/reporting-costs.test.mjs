@@ -2,6 +2,9 @@
 // t1 1be0e370, msg 3f1c7128, answers 2 A and 6 A): Reporting -> Costs, its
 // pages (six since SPL-4187: Cloud, AI tokens and Human, each a section of
 // its own), the header's month and currency, and the redirect table.
+// SPL-5312 (owner HUM-10, t1 41a74806): the four labels Total, Persons,
+// Cloud and Tokens for every costs reader; the period is one of the last 12
+// months or the year to date; Spend, Human and Price redirect to their label.
 //
 // Run: node --test tests/unit/reporting-costs.test.mjs
 import { describe, it } from 'node:test'
@@ -10,8 +13,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  COSTS_PAGES, COSTS_DEFAULT_PATH, COSTS_REDIRECTS, COSTS_FIRST_MONTH, visibleCostsPages, costsPageFor, legacyCostsPath,
-  costsMonth, costsMonthOptions, costsCurrencyOptions, costsCurrency, costsQueryWith,
+  COSTS_PAGES, COSTS_DEFAULT_PATH, COSTS_REDIRECTS, COSTS_YTD, visibleCostsPages, costsPageFor, legacyCostsPath,
+  costsMonth, costsMonthOptions, costsPeriod, costsPeriodMonths, costsCurrencyOptions, costsCurrency, costsQueryWith,
 } from '../../src/utils/reporting-costs.mjs'
 import { reportingTabFor } from '../../src/utils/reporting-tabs.mjs'
 import { legacyMonitoringPath, monitoringTabFor } from '../../src/utils/monitoring-tabs.mjs'
@@ -20,44 +23,48 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const ids = (pages) => pages.map((p) => p.id)
 
-describe('the pages (section 3.2; SPL-4187 the three sections)', () => {
-  it('Spend (default), Cloud, AI tokens, Human, Price per token, each its own path and page file (its own chunk); no Paid items (SPL-4382: Expenses)', () => {
+describe('the pages (section 3.2; SPL-5312 the four labels)', () => {
+  it('Total (default), Persons, Cloud, Tokens, each its own path and page file (its own chunk)', () => {
     assert.deepEqual(COSTS_PAGES.map((p) => [p.id, p.path]), [
-      ['spend', '/reporting/costs/spend'], ['cloud', '/reporting/costs/cloud'], ['tokens', '/reporting/costs/tokens'],
-      ['human', '/reporting/costs/human'], ['price', '/reporting/costs/price'],
+      ['total', '/reporting/costs/total'], ['persons', '/reporting/costs/persons'], ['cloud', '/reporting/costs/cloud'], ['tokens', '/reporting/costs/tokens'],
     ])
-    assert.equal(COSTS_DEFAULT_PATH, '/reporting/costs/spend')
+    assert.equal(COSTS_DEFAULT_PATH, '/reporting/costs/total')
     for (const p of COSTS_PAGES) {
       assert.ok(existsSync(join(WUI, 'src/pages' + p.path + '.vue')), p.path)
-      assert.equal(p.labelKey, 'reporting.costs.page.' + p.id)
+      assert.equal(p.labelKey, 'reporting.costs.label.' + p.id)
     }
     /* no page is imported by hand: Nuxt makes each route its own chunk */
     for (const f of walk('src')) assert.doesNotMatch(read(f), /import [^\n]*pages\/reporting\/costs\//, f)
   })
-  it('Cloud (the estate) and Price per token for an operator admin only; Spend, AI tokens and Human for every costs reader', () => {
-    assert.deepEqual(ids(visibleCostsPages({ operator: true })), ['spend', 'cloud', 'tokens', 'human', 'price'])
-    /* CONTROL: anyone else, or not known yet */
-    for (const who of [undefined, {}, { operator: false }]) assert.deepEqual(ids(visibleCostsPages(who)), ['spend', 'tokens', 'human'], JSON.stringify(who))
+  it('every costs reader sees the four labels (the hub scopes the money to the workspace)', () => {
+    for (const who of [undefined, {}, { operator: false }, { operator: true }]) assert.deepEqual(ids(visibleCostsPages(who)), ['total', 'persons', 'cloud', 'tokens'], JSON.stringify(who))
+    /* CONTROL: before SPL-5312 Cloud and Price were the operator admin's only */
+    assert.equal(COSTS_PAGES.some((p) => p.operatorsOnly), false)
   })
   it('costsPageFor: the page a route is on, locale prefix or not; the Reporting tab is Costs', () => {
-    assert.equal(costsPageFor('/reporting/costs/spend'), 'spend')
-    assert.equal(costsPageFor('/fi/reporting/costs/price'), 'price')
-    /* SPL-4382: Paid items left for Expenses, its old path is no Costs page */
-    assert.equal(costsPageFor('/reporting/costs/paid'), null)
-    assert.equal(costsPageFor('/reporting/costs'), null)
-    assert.equal(costsPageFor('/reporting/costs/spendx'), null)
-    for (const p of ['/reporting/costs', '/reporting/costs/price', '/sv/reporting/costs/tokens']) assert.equal(reportingTabFor(p), 'costs', p)
+    assert.equal(costsPageFor('/reporting/costs/total'), 'total')
+    assert.equal(costsPageFor('/fi/reporting/costs/persons'), 'persons')
+    /* the pages before the labels and Paid items are no Costs page: they redirect */
+    for (const p of ['/reporting/costs/spend', '/reporting/costs/human', '/reporting/costs/price', '/reporting/costs/paid', '/reporting/costs', '/reporting/costs/totalx']) assert.equal(costsPageFor(p), null, p)
+    for (const p of ['/reporting/costs', '/reporting/costs/cloud', '/sv/reporting/costs/tokens']) assert.equal(reportingTabFor(p), 'costs', p)
   })
 })
 
 describe('the redirect table (section 5 "Links")', () => {
-  it('four old paths, each to its Costs page or (SPL-4382) Paid items to Expenses -> AI costs', () => {
+  it('the old paths, each to its label or (SPL-4382) Paid items to Expenses -> AI costs, never a 404', () => {
     assert.deepEqual({ ...COSTS_REDIRECTS }, {
-      '/monitoring/costs': '/reporting/costs/spend',
+      '/monitoring/costs': '/reporting/costs/total',
       '/reporting/tokens': '/reporting/costs/tokens',
-      '/reporting/costs': '/reporting/costs/spend',
+      '/reporting/costs': '/reporting/costs/total',
+      '/reporting/costs/spend': '/reporting/costs/total',
+      '/reporting/costs/human': '/reporting/costs/persons',
+      '/reporting/costs/price': '/reporting/costs/tokens',
       '/reporting/costs/paid': '/expenses/ai',
     })
+    /* every old Costs path keeps a page file (the route matches, then redirects) */
+    for (const from of Object.keys(COSTS_REDIRECTS).filter((f) => f.startsWith('/reporting/costs/'))) {
+      assert.match(read('src/pages' + from + '.vue'), /<LegacyMonitoringRedirect \/>/, from)
+    }
     for (const [from, to] of Object.entries(COSTS_REDIRECTS)) {
       assert.equal(legacyCostsPath(from), to, from)
       assert.equal(legacyCostsPath('/nl' + from), to, 'locale ' + from)
@@ -76,7 +83,7 @@ describe('the redirect table (section 5 "Links")', () => {
     const r = read('src/components/LegacyMonitoringRedirect.vue')
     assert.match(r, /legacyMonitoringPath\(route\.path\) \|\| legacyCostsPath\(route\.path\)/)
     assert.match(r, /navigateTo\(\{ path: localePath\(to\), query: route\.query, hash: route\.hash \}, \{ replace: true \}\)/)
-    /* /reporting/costs lands on Spend from its own page, query kept, a Costs page itself never redirected */
+    /* /reporting/costs lands on Total from its own page, query kept, a Costs page itself never redirected */
     const c = read('src/pages/reporting/costs.vue')
     assert.match(c, /const to = costsPageFor\(p\) \? null : legacyCostsPath\(p\)/)
     assert.match(c, /navigateTo\(\{ path: localePath\(to\), query: route\.query, hash: route\.hash \}, \{ replace: true \}\)/)
@@ -85,24 +92,31 @@ describe('the redirect table (section 5 "Links")', () => {
   })
 })
 
-describe('the header: one month, one currency, in the query', () => {
-  const NOW = new Date(Date.UTC(2026, 9, 27, 10))
-  it('months from the current one back to the first month holding a cost line', () => {
-    assert.equal(COSTS_FIRST_MONTH, '2026-10')
-    assert.deepEqual(costsMonthOptions(NOW), ['2026-10'])
-    assert.deepEqual(costsMonthOptions(new Date(Date.UTC(2027, 0, 3))), ['2027-01', '2026-12', '2026-11', '2026-10'])
-    const far = costsMonthOptions(new Date(Date.UTC(2028, 5, 1)))
-    assert.equal(far.length, 12, 'at most 12')
-    assert.equal(far[0], '2028-06')
-    /* CONTROL: the old picker's 12 months back would offer 2025-11 today */
-    assert.equal(costsMonthOptions(NOW).includes('2025-11'), false)
+describe('the header: one period, one currency, in the query', () => {
+  const NOW = new Date(Date.UTC(2026, 10, 11, 10))
+  it('SPL-5312: the months are the current one and the 11 before it', () => {
+    const m = costsMonthOptions(NOW)
+    assert.equal(m.length, 12)
+    assert.deepEqual([m[0], m[11]], ['2026-11', '2025-12'])
+    /* CONTROL: the floor of October 2026 is gone, the owner asked for the last 12 months */
+    assert.ok(m.includes('2026-09') && m.includes('2026-01'))
   })
-  it('a URL month before the first line is kept (an old link never rewritten); a future or bad one is not', () => {
-    assert.deepEqual(costsMonthOptions(NOW, undefined, '2026-09'), ['2026-10', '2026-09'])
-    assert.deepEqual(costsMonthOptions(NOW, undefined, '2026-11'), ['2026-10'])
-    assert.deepEqual(costsMonthOptions(NOW, undefined, '2026-13'), ['2026-10'])
+  it('a URL month older than 12 is kept (an old link never rewritten); a future or bad one is not', () => {
+    assert.deepEqual(costsMonthOptions(NOW, '2025-03').slice(-1), ['2025-03'])
+    assert.equal(costsMonthOptions(NOW, '2026-12').length, 12)
+    assert.equal(costsMonthOptions(NOW, '2026-13').length, 12)
     assert.equal(costsMonth(['2026-09', 'x']), '2026-09')
     assert.equal(costsMonth('26-09'), '')
+  })
+  it('SPL-5312: the period is a month or the year to date; the year to date reads January to now', () => {
+    assert.equal(costsPeriod(COSTS_YTD, NOW), 'ytd')
+    assert.equal(costsPeriod('2026-09', NOW), '2026-09')
+    assert.equal(costsPeriod('2026-12', NOW), '', 'a future month is no period')
+    assert.equal(costsPeriod(undefined, NOW), '')
+    assert.deepEqual(costsPeriodMonths('ytd', NOW), ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'])
+    assert.deepEqual(costsPeriodMonths('ytd', new Date(Date.UTC(2027, 0, 2))), ['2027-01'])
+    assert.deepEqual(costsPeriodMonths('2026-09', NOW), ['2026-09'])
+    assert.deepEqual(costsPeriodMonths('', NOW), ['2026-11'])
   })
   it('currency: USD (default) or the reader\'s second currency, EUR unless picked', () => {
     assert.deepEqual(costsCurrencyOptions(''), ['USD', 'EUR'])
@@ -117,6 +131,7 @@ describe('the header: one month, one currency, in the query', () => {
     assert.deepEqual(costsQueryWith({ month: '2026-09' }, { month: '2026-10', current: '2026-10' }), {})
     assert.deepEqual(costsQueryWith({ month: '2026-09' }, { currency: 'EUR' }), { month: '2026-09', currency: 'EUR' })
     assert.deepEqual(costsQueryWith({ currency: 'EUR' }, { currency: 'USD' }), {})
+    assert.deepEqual(costsQueryWith({ month: '2026-09' }, { month: 'ytd', current: '2026-11' }), { month: 'ytd' })
   })
   it('the header and the page bar: the query carried, no :style (CSP), the strings from the catalogue', () => {
     const h = read('src/components/reporting/costs/CostsHeader.vue')
@@ -127,14 +142,16 @@ describe('the header: one month, one currency, in the query', () => {
     for (const f of ['src/components/reporting/costs/CostsHeader.vue', 'src/pages/reporting/costs.vue', ...COSTS_PAGES.map((p) => 'src/pages' + p.path + '.vue')]) {
       assert.doesNotMatch(read(f), /:style=|v-bind:style/, f)
     }
-    /* the Spend page reads the header's month, it has no picker of its own */
-    const s = read('src/pages/reporting/costs/spend.vue')
-    assert.doesNotMatch(s, /data-test="costs-month"/)
-    assert.match(s, /costsMonth\(route\.query\.month\)/)
+    /* the labels read the header's period, they have no picker of their own */
+    const c2 = read('src/composables/useCostsPeriod.ts')
+    assert.match(c2, /costsPeriod\(route\.query\.month, new Date\(\)\)/)
+    assert.doesNotMatch(read('src/components/reporting/costs/CostsLabel.vue'), /<select/)
+    assert.match(h, /:value="COSTS_YTD"/)
   })
   it('every new string is in every locale', () => {
     const dir = join(WUI, 'i18n/locales')
-    const keys = ['reporting.tab.costs', 'reporting.costs.pages_label', 'reporting.costs.currency', 'reporting.costs.coming', ...COSTS_PAGES.map((p) => p.labelKey)]
+    const keys = ['reporting.tab.costs', 'reporting.costs.pages_label', 'reporting.costs.currency', ...COSTS_PAGES.map((p) => p.labelKey),
+      ...['label.other', 'period', 'period_ytd', 'col_item', 'col_share', 'pie_label', 'table_label', 'no_pie', 'empty', 'no_split', 'tokens_sub', 'price_link'].map((k) => 'reporting.costs.' + k)]
     const files = readdirSync(dir).filter((x) => x.endsWith('.json'))
     assert.equal(files.length, 19)
     for (const f of files) {

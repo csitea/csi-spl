@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Koszty osobowe",
         "not_tracked": "Jeszcze nie śledzone. Koszty osobowe to zatwierdzony czas według własnej stawki każdej osoby, budowany przez wiersze {rows} specyfikacji 107; żadna liczba nie jest pokazywana, dopóki nie zostaną ukończone."
-      }
+      },
+      "label": {
+        "total": "Razem",
+        "persons": "Osoby",
+        "cloud": "Chmura",
+        "tokens": "Tokeny",
+        "other": "Inne"
+      },
+      "period": "Okres",
+      "period_ytd": "Od początku roku ({year})",
+      "col_item": "Pozycja",
+      "col_share": "Udział",
+      "pie_label": "Udział każdej pozycji w kosztach okresu",
+      "table_label": "Koszty według miesięcy",
+      "no_pie": "Brak jeszcze kosztów w tym okresie, więc nie ma wykresu kołowego.",
+      "empty": "Brak kosztów w tej kategorii w tym okresie.",
+      "no_split": "Ten obszar roboczy nie ma jeszcze własnych kosztów w tej kategorii: należą one do całej infrastruktury i są widoczne w obszarze roboczym operatora.",
+      "tokens_sub": "{units} tokenów · cena katalogowa {list}, niezapłacona",
+      "price_link": "Cena za token: rzeczywista cena każdego typu agenta jest w Wydatki → Koszty AI."
     },
     "releases": {
       "soon": "Raport wydań już wkrótce.",

@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Henkilöstökulut",
         "not_tracked": "Ei vielä seurannassa. Henkilöstökulut ovat hyväksyttyä aikaa kunkin henkilön omalla hinnalla, ja ne rakennetaan määrittelyn 107 riveillä {rows}; lukua ei näytetä ennen kuin ne ovat valmiit."
-      }
+      },
+      "label": {
+        "total": "Yhteensä",
+        "persons": "Henkilöt",
+        "cloud": "Pilvi",
+        "tokens": "Tokenit",
+        "other": "Muut"
+      },
+      "period": "Ajanjakso",
+      "period_ytd": "Vuoden alusta ({year})",
+      "col_item": "Erä",
+      "col_share": "Osuus",
+      "pie_label": "Kunkin erän osuus ajanjakson kuluista",
+      "table_label": "Kulut kuukausittain",
+      "no_pie": "Tälle ajanjaksolle ei ole vielä kuluja, joten piirakkakaaviota ei ole.",
+      "empty": "Tällä ajanjaksolla ei ole kuluja tässä luokassa.",
+      "no_split": "Tällä työtilalla ei ole vielä omia kuluja tässä luokassa: ne kuuluvat koko infrastruktuurille ja näkyvät operaattorin työtilassa.",
+      "tokens_sub": "{units} tokenia · listahinta {list}, ei maksettu",
+      "price_link": "Tokenin hinta: kunkin agenttityypin todellinen hinta on kohdassa Kulut → Tekoälykulut."
     },
     "releases": {
       "soon": "Julkaisuraportti on tulossa pian.",

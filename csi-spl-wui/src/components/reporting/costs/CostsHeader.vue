@@ -5,12 +5,18 @@
      defaults and leave it), so switching pages and the back button keep
      them. Months: the current UTC month "so far" back to the first month
      holding a cost line (utils/reporting-costs.mjs). Currency: USD or the
-     reader's second currency (Settings -> Appearance, EUR unless picked). -->
+     reader's second currency (Settings -> Appearance, EUR unless picked).
+     SPL-5312 (owner t1 41a74806: "a dropdown for the costs for each month
+     for the last 12 months and from the start of the year"): the picker is
+     the period, the year to date first (`?month=ytd`), then the current
+     month "so far" and the 11 before it; an older month from a link is
+     kept. -->
 <template>
   <div class="costs-header" data-test="costs-header">
     <label class="costs-header-month">
-      <span>{{ t('monitoring.costs.month') }}</span>
+      <span>{{ t('reporting.costs.period') }}</span>
       <select :value="month" data-test="costs-header-month" @change="pickMonth">
+        <option :value="COSTS_YTD" data-test="costs-period-ytd">{{ t('reporting.costs.period_ytd', { year: months[0].slice(0, 4) }) }}</option>
         <option v-for="(m, i) in months" :key="m" :value="m">{{ i === 0 ? t('monitoring.costs.month_so_far', { month: m }) : m }}</option>
       </select>
     </label>
@@ -34,15 +40,15 @@
 <script setup lang="ts">
 import type { LocationQueryRaw } from 'vue-router'
 import { useSessionStore } from '~/stores/session'
-import { costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions, costsQueryWith } from '~/utils/reporting-costs.mjs'
+import { COSTS_YTD, costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions, costsPeriod, costsQueryWith } from '~/utils/reporting-costs.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 
-const months = computed(() => costsMonthOptions(new Date(), undefined, costsMonth(route.query.month)))
-const month = computed(() => costsMonth(route.query.month) || months.value[0])
+const months = computed(() => costsMonthOptions(new Date(), costsMonth(route.query.month)))
+const month = computed(() => costsPeriod(route.query.month, new Date()) || months.value[0])
 const currencies = computed(() => costsCurrencyOptions(String(session.claims?.second_currency || '')))
 const currency = computed(() => costsCurrency(route.query.currency, currencies.value))
 

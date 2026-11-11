@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Human costs",
         "not_tracked": "Not tracked yet. Human costs are approved time at each person's own price, built by spec 107 rows {rows}; no number is shown until they land."
-      }
+      },
+      "label": {
+        "total": "Total",
+        "persons": "Persons",
+        "cloud": "Cloud",
+        "tokens": "Tokens",
+        "other": "Other"
+      },
+      "period": "Period",
+      "period_ytd": "Year to date ({year})",
+      "col_item": "Item",
+      "col_share": "Share",
+      "pie_label": "Each item's share of the period's cost",
+      "table_label": "The costs per month",
+      "no_pie": "No cost in this period yet, so no pie.",
+      "empty": "No costs under this label in this period.",
+      "no_split": "This workspace has no costs of its own under this label yet: they belong to the whole estate, shown in the operator workspace.",
+      "tokens_sub": "{units} tokens · list price {list}, not paid",
+      "price_link": "Price per token: each agent type's effective price is under Expenses → AI costs."
     },
     "releases": {
       "soon": "The Releases report is coming soon.",

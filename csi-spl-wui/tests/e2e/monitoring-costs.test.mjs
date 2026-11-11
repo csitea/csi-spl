@@ -91,6 +91,12 @@
 //     (its whole round above) lives on AI costs; Monitoring -> Tokens links
 //     there. Anyone else: the operators-only line, no tab, no Paid card.
 //
+//   - SPL-5312 (spec 143 costs-redesign.md 3.9): Costs is the four labels
+//     Total, Persons, Cloud, Tokens; their bar, pies, tables, period and
+//     redirects are tests/e2e/reporting-costs-labels.test.mjs. Here: the
+//     second-currency setting, the no-rate dash, the empty month, the AI
+//     share line and the 403, on the labels.
+//
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
 //   SHOT_DIR=<dir> keeps a screenshot per size.
@@ -174,56 +180,18 @@ async function open(p, base, path) {
   await p.waitForSelector(`[data-test=${bar}]`, { visible: true, timeout: 20000 }).catch(() => null)
   return res
 }
-const SPEND = '/reporting/costs/spend'
+const TOTAL = '/reporting/costs/total'
 const reportingTabIds = (p) => p.$$eval('[data-test^=reporting-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('reporting-tab-'.length)))
 const costsPageIds = (p) => p.$$eval('[data-test^=costs-page-]', (els) => els.map((e) => e.getAttribute('data-test').slice('costs-page-'.length)))
 const where = (p) => { const u = new URL(p.url()); return u.pathname.replace(/\/$/, '') + u.search }
 const waitWhere = (p, want) => p.waitForFunction((w) => location.pathname.replace(/\/$/, '') + location.search === w, { timeout: 15000 }, want).then(() => true, () => false)
 
-/** costs-redesign.md slice S1 (SPL-3798): the redirects, the page bar and the header. CONTROL: on master before S1 /monitoring/costs is the page itself, so the redirect checks FAIL there. */
+/** costs-redesign.md slice S1 (SPL-3798): what stays outside the four labels (SPL-5312: the bar, the header and the redirects are reporting-costs-labels.test.mjs). */
 async function costsS1(browser, base, size) {
   {
     const { ctx, p } = await costsPage(browser, base, size)
-    await open(p, base, '/monitoring/costs?month=2026-09')
-    ok('S1 redirect: /monitoring/costs?month=2026-09 -> /reporting/costs/spend?month=2026-09', await waitWhere(p, SPEND + '?month=2026-09'), where(p))
-    ok('S1 redirect: the Spend page renders the month asked for, not "so far"', await waitFor(p, '[data-test=costs-table]') && (await count(p, '[data-test=costs-so-far]')) === 0)
-    const months = await p.$$eval('[data-test=costs-header-month] option', (els) => els.map((e) => e.value))
-    const cur = new Date().toISOString().slice(0, 7)
-    ok('S1 header: months from the current one back to 2026-10, the URL month kept, none in the future', months[0] === cur && months.includes('2026-09')
-      && months.filter((m) => m !== '2026-09').every((m) => m >= '2026-10' && m <= cur), months)
-    ok('S1 header: the picker shows the URL month', (await p.$eval('[data-test=costs-header-month]', (e) => e.value).catch(() => '')) === '2026-09')
-    ok('S1 tab: Reporting -> Costs is the active tab', (await p.$eval('[data-test=reporting-tab-costs]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page')
-    ok('S1 bar: Spend, AI tokens and Human for a non-operator, Spend active', (await costsPageIds(p)).join(',') === 'spend,tokens,human'
-      && (await p.$eval('[data-test=costs-page-spend]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page', await costsPageIds(p))
-    const curs = await p.$$eval('[data-test^=costs-header-cur-]', (els) => els.map((e) => [e.textContent.trim(), e.getAttribute('aria-checked')]))
-    ok('S1 header: USD (picked, the default) or EUR', JSON.stringify(curs) === JSON.stringify([['USD', 'true'], ['EUR', 'false']]), curs)
-    await p.click('[data-test=costs-header-cur-EUR]')
-    ok('S1 header: picking EUR writes ?currency=EUR, the month kept', await waitWhere(p, SPEND + '?month=2026-09&currency=EUR'), where(p))
-    await p.click('[data-test=costs-page-tokens]')
-    ok('S1 bar: Tokens keeps the month and the currency', await waitWhere(p, '/reporting/costs/tokens?month=2026-09&currency=EUR'), where(p))
-    ok('SPL-4187 AI tokens: the month\'s token parts, no shell', await waitFor(p, '[data-test=costs-tokens-table]')
-      && (await count(p, '[data-test=costs-tokens-row]')) >= 1 && (await count(p, '[data-test=costs-shell-coming]')) === 0, await count(p, '[data-test=costs-tokens-row]'))
-    await p.goBack()
-    ok('S1 back: Spend again, the same query', await waitWhere(p, SPEND + '?month=2026-09&currency=EUR'), where(p))
-    if (size.width < 600) ok('S1: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
-    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-spend-${size.width}.png`, fullPage: true })
-    await open(p, base, '/reporting/tokens')
-    ok('S1 redirect: /reporting/tokens -> /reporting/costs/tokens', await waitWhere(p, '/reporting/costs/tokens'), where(p))
-    await open(p, base, '/reporting/costs?month=2026-09')
-    ok('S1 redirect: /reporting/costs -> Spend, the query kept', await waitWhere(p, SPEND + '?month=2026-09'), where(p))
     await open(p, base, '/monitoring/tokens')
     ok('S1: /monitoring/tokens stays', (await waitFor(p, '[data-test=tokens-forbidden]')) && where(p) === '/monitoring/tokens', where(p))
-    await ctx.close()
-  }
-  {
-    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
-    await open(p, base, SPEND)
-    await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 5, { timeout: 15000 }).catch(() => null)
-    ok('S1 bar: an operator admin sees all five pages, no Paid items (SPL-4382)', (await costsPageIds(p)).join(',') === 'spend,cloud,tokens,human,price', await costsPageIds(p))
-    for (const id of ['price']) {
-      await p.click(`[data-test=costs-page-${id}]`)
-      ok(`S1 ${id}: the shell for an operator admin`, await waitFor(p, `[data-test=costs-shell-${id}] [data-test=costs-shell-coming]`))
-    }
     await ctx.close()
   }
   {
@@ -324,112 +292,7 @@ async function costEntryRound(p, id, size) {
   ok(`SPL-4382 ${id}: deleted, the list is empty again`, await waitFor(p, '[data-test=cost-empty]'))
 }
 
-/** SPL-4187: the three sections. CONTROL: on master before it there is no Cloud or Human page, so every check here FAILS there. */
-async function costsSections(browser, base, size) {
-  {
-    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
-    const root = '/reporting/costs/cloud?month=2026-09'
-    await open(p, base, root)
-    const keys = () => p.$$eval('[data-test=cloud-row]', (els) => els.map((e) => e.getAttribute('data-key')))
-    await p.waitForSelector('[data-test=cloud-row]', { visible: true, timeout: 20000 }).catch(() => null)
-    ok('Cloud level 1: one row per GCP project, the most expensive first', (await keys()).join(',') === 'project-prd,project-all,project-dev', await keys())
-    ok('Cloud level 1: the money in the header\'s currency (USD)', (await text(p, '[data-test=cloud-currency]')) === 'USD')
-    const prdAmount = await text(p, '[data-test=cloud-row][data-key=project-prd] [data-test=cloud-amount]')
-    await p.click('[data-test=cloud-row][data-key=project-prd] [data-test=cloud-drill]')
-    ok('Cloud level 2: a project\'s services, in the query', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd'), where(p))
-    await p.waitForFunction(() => document.querySelector('[data-test=costs-cloud]')?.getAttribute('data-level') === 'service', { timeout: 15000 }).catch(() => null)
-    ok('Cloud level 2: cloud_sql, cloud_run, network; the total is the project row', (await keys()).join(',') === 'cloud_sql,cloud_run,network'
-      && (await text(p, '[data-test=cloud-total-amount]')) === prdAmount, [await keys(), prdAmount, await text(p, '[data-test=cloud-total-amount]')])
-    const sqlAmount = await text(p, '[data-test=cloud-row][data-key=cloud_sql] [data-test=cloud-amount]')
-    await p.click('[data-test=cloud-row][data-key=cloud_sql] [data-test=cloud-drill]')
-    ok('Cloud level 3: the service per day, in the query', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd&kind=cloud_sql'), where(p))
-    await p.waitForFunction(() => document.querySelector('[data-test=costs-cloud]')?.getAttribute('data-level') === 'day' && document.querySelectorAll('[data-test=cloud-row]').length > 0, { timeout: 15000 }).catch(() => null)
-    const days = await keys()
-    ok('Cloud level 3: the 30 days of September, oldest first; the total is the service row', days.length === 30 && days[0] === '2026-09-01' && days[29] === '2026-09-30'
-      && (await text(p, '[data-test=cloud-total-amount]')) === sqlAmount, [days.length, sqlAmount, await text(p, '[data-test=cloud-total-amount]')])
-    if (size.width < 600) ok('Cloud: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
-    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-cloud-day-${size.width}.png`, fullPage: true })
-    await p.click('[data-test=cloud-crumb-project]')
-    ok('Cloud crumbs: the project crumb walks up to the services', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd'), where(p))
-    await p.goBack()
-    ok('Cloud back: the day level again', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd&kind=cloud_sql'), where(p))
-    await p.click('[data-test=cloud-crumb-all]')
-    ok('Cloud crumbs: All projects is level 1, the month kept', await waitWhere(p, root), where(p))
-    await p.click('[data-test=costs-page-human]')
-    ok('Human: "not tracked yet", naming spec 107 T071..T077', await waitFor(p, '[data-test=costs-human-not-tracked]')
-      && (await text(p, '[data-test=costs-human-not-tracked]')).includes('T071..T077'), await text(p, '[data-test=costs-human-not-tracked]'))
-    await ctx.close()
-  }
-  {
-    /* SPL-4824: the month's hand-entered cloud costs are level 1 rows beside the projects, no drill;
-       one with no rate (CHF in the mock) is a dash saying so, the total says what it leaves out.
-       CONTROL: before SPL-4824 the page lists the GCP projects only, so every check here FAILS. */
-    const { ctx, p } = await costsPage(browser, base, size, { operator: true, scenario: 'entries' })
-    await open(p, base, '/reporting/costs/cloud?month=2026-09')
-    await p.waitForSelector('[data-test=cloud-row]', { visible: true, timeout: 20000 }).catch(() => null)
-    const rows = await p.$$eval('[data-test=cloud-row]', (els) => els.map((e) => ({
-      key: e.getAttribute('data-key'), unpriced: e.getAttribute('data-unpriced'), drill: !!e.querySelector('[data-test=cloud-drill]'),
-      text: e.querySelector('[data-test=cloud-amount]')?.textContent.trim(), title: e.querySelector('[data-test=cloud-amount]')?.getAttribute('title') || '',
-      sub: e.querySelector('.cloud-sub')?.textContent.trim() })))
-    const suite = rows.find((r) => r.key === 'entry:Workspace suite:0')
-    const chf = rows.find((r) => r.key === 'entry:Domain suite:1')
-    ok('entries: the projects first, then the two entries', rows.map((r) => r.key).join(',') === 'project-prd,project-all,project-dev,entry:Workspace suite:0,entry:Domain suite:1', rows)
-    ok('entries: a priced entry shows its USD and its own amount, no drill', suite && !suite.drill && /^\$70\.43$/.test(suite.text) && suite.sub === 'Entered by hand: €64.80', suite)
-    ok('entries: an unpriced entry is a dash saying no rate, never $0', chf && chf.unpriced === '1' && chf.text === '\u2014' && /^No CHF rate for this month/.test(chf.title), chf)
-    const tot = await p.$eval('[data-test=cloud-total-amount]', (e) => ({ left: e.getAttribute('data-left'), title: e.getAttribute('title') || '' })).catch(() => ({}))
-    ok('entries: the total says it leaves the unpriced one out', tot.left === '1' && tot.title === 'Entered costs with no exchange rate left out: 1', tot)
-    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-cloud-entries-${size.width}.png`, fullPage: true })
-    /* R7 W1: in EUR the unpriced CHF entry is left out of the total too, never blanks it (CONTROL: before the fix a dash) */
-    await open(p, base, '/reporting/costs/cloud?month=2026-09&currency=EUR')
-    await p.waitForSelector('[data-test=cloud-total-amount]', { visible: true, timeout: 20000 }).catch(() => null)
-    const totEur = await p.$eval('[data-test=cloud-total-amount]', (e) => ({ text: e.textContent.trim(), left: e.getAttribute('data-left'), title: e.getAttribute('title') || '' })).catch(() => ({}))
-    ok('entries: the EUR total keeps its amount and says it leaves the unpriced one out', /^€[\d,.]+$/.test(totEur.text || '') && totEur.left === '1'
-      && totEur.title === 'Entered costs with no exchange rate left out: 1', totEur)
-    await open(p, base, '/reporting/costs/spend?month=2026-09')
-    await p.waitForSelector('[data-test=costs-row][data-source=cost_entry]', { visible: true, timeout: 20000 }).catch(() => null)
-    const usd = await titles(p, '[data-test=costs-row][data-source=cost_entry] [data-test=costs-usd]')
-    ok('entries: Spend lists both; the unpriced one a dash with its "no rate" title', usd.length === 2 && usd.filter((c) => c.none === '1').length === 1
-      && usd.some((c) => c.text === '\u2014' && /^No CHF rate/.test(c.title)) && usd.some((c) => c.text === '$70.43'), usd)
-    const totUsd = await p.$eval('[data-test=costs-total-usd]', (e) => e.getAttribute('title') || '').catch(() => '')
-    ok('entries: the Spend USD total says what it leaves out', totUsd === 'Entered costs with no exchange rate left out: 1', totUsd)
-    const totCells = await p.$$eval('[data-test=costs-total-eur], [data-test=costs-total-second]', (els) => els.map((e) => ({ text: e.textContent.trim(), title: e.getAttribute('title') || '' })))
-    ok('entries: the Spend EUR and second totals keep their amounts and say what they leave out (R7 W1, N2)', totCells.length === 2
-      && totCells.every((c) => /^€[\d,.]+$/.test(c.text) && c.title === 'Entered costs with no exchange rate left out: 1'), totCells)
-    /* SPL-4824 R7 N1: the unpriced part's share cell is empty beside its dash, never "0 %" (CONTROL: before the fix "0 %") */
-    const chfPct = await p.$$eval('[data-test=costs-row][data-source=cost_entry]', (els) => els.filter((e) => e.querySelector('[data-test=costs-usd]')?.getAttribute('data-none') === '1')
-      .map((e) => e.children[4]?.textContent.trim()))
-    ok('N1: the unpriced entry\'s % of month is empty, the dash alone', chfPct.length === 1 && chfPct[0] === '', chfPct)
-    /* SPL-4840 (owner answer A "In Human; left out of Spend"): Spend lists no hr entry (CONTROL: before it the hr entries are Spend rows) */
-    const spendLabels = await p.$$eval('[data-test=costs-row][data-source=cost_entry] .costs-part', (els) => els.map((e) => e.textContent.trim()))
-    ok('SPL-4840: Spend leaves the hr entries out', spendLabels.length === 2 && !spendLabels.some((l) => /contract/.test(l)), spendLabels)
-    await open(p, base, '/reporting/costs/human?month=2026-09')
-    await p.waitForSelector('[data-test=human-row]', { visible: true, timeout: 20000 }).catch(() => null)
-    const hr = await p.$$eval('[data-test=human-row]', (els) => els.map((e) => ({
-      key: e.getAttribute('data-key'), unpriced: e.getAttribute('data-unpriced'), text: e.querySelector('[data-test=human-amount]')?.textContent.trim(),
-      title: e.querySelector('[data-test=human-amount]')?.getAttribute('title') || '', sub: e.querySelector('.human-sub')?.textContent.trim() })))
-    ok('SPL-4840: Human lists the two hr entries, the priced one first with its own amount', hr.map((r) => r.key).join(',') === 'hr:Design contract:0,hr:Support contract:1'
-      && /^\$[\d,.]+$/.test(hr[0].text) && hr[0].sub === 'Entered by hand: €1,200.00', hr)
-    ok('SPL-4840: Human\'s unpriced entry is a dash saying no rate', hr[1] && hr[1].unpriced === '1' && hr[1].text === '\u2014' && /^No CHF rate for this month/.test(hr[1].title), hr[1])
-    const hrTot = await p.$eval('[data-test=human-total-amount]', (e) => ({ text: e.textContent.trim(), left: e.getAttribute('data-left') })).catch(() => ({}))
-    ok('SPL-4840: Human\'s total is the priced entry, and leaves the unpriced one out', hrTot.text === hr[0]?.text && hrTot.left === '1', hrTot)
-    ok('SPL-4840: no "not tracked yet" line on a month with hr entries', (await count(p, '[data-test=costs-human-not-tracked]')) === 0)
-    if (size.width < 600) ok('Human: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
-    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-human-entries-${size.width}.png`, fullPage: true })
-    await ctx.close()
-  }
-  {
-    /* CONTROL: a member opening Cloud directly gets the operators-only line, no table */
-    const { ctx, p } = await costsPage(browser, base, size)
-    await open(p, base, '/reporting/costs/cloud')
-    ok('Cloud control: a direct URL, not an operator admin: operators only, no table', await waitFor(p, '[data-test=costs-cloud] [data-test=reporting-operators-only]')
-      && (await count(p, '[data-test=cloud-table]')) === 0)
-    await ctx.close()
-  }
-}
-
-const titles = (p, sel) => p.$$eval(sel, (els) => els.map((e) => ({ src: e.closest('tr')?.getAttribute('data-source') || '', text: e.textContent.trim(), title: e.getAttribute('title') || '', none: e.getAttribute('data-none') })))
 const go = (p, path) => p.evaluate((path) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(path), path)
-const DAY = '\\d{4}-\\d{2}-\\d{2}'
 const waitFor = (p, sel) => p.waitForSelector(sel, { visible: true, timeout: 20000 }).then(() => true, () => false)
 /** Set a form field as a person would (an input event Vue's v-model reads); works for date inputs in any locale. */
 const setField = (p, sel, value) => p.$eval(sel, (e, v) => {
@@ -963,79 +826,13 @@ try {
     await topicsTab(browser, server.base, size)
     await lanesSortFilter(browser, server.base, size)
     await costsS1(browser, server.base, size)
-    await costsSections(browser, server.base, size)
     await expensesSection(browser, server.base, size)
 
-    /* a full month, the mock's default me (unrestricted) */
-    {
-      const { ctx, p } = await costsPage(browser, server.base, size)
-      const res = await open(p, server.base, SPEND)
-      ok('/reporting/costs/spend answers 200', Boolean(res && res.status() === 200), res && res.status())
-      await p.waitForFunction(() => document.querySelector('[data-test=reporting-tab-costs]'), { timeout: 15000 }).catch(() => null)
-      const tabs = await reportingTabIds(p)
-      ok('the Costs tab shows (unrestricted me)', tabs.includes('costs'), tabs)
-      const active = await p.$eval('[data-test=reporting-tab-costs]', (e) => e.getAttribute('aria-current')).catch(() => '')
-      ok('Costs is the active tab', active === 'page', active)
-      ok('the table renders', await waitFor(p, '[data-test=costs-table]'))
-      ok('one row per part (9) and a not-tracked row', (await count(p, '[data-test=costs-row]')) === 9
-        && (await count(p, '[data-test=costs-not-tracked]')) === 1, await count(p, '[data-test=costs-row]'))
-      const usd = await text(p, '[data-test=costs-total-usd]')
-      const eur = await text(p, '[data-test=costs-total-eur]')
-      ok('the total row in USD and EUR', usd === '$368.40' && eur === '€338.93', { usd, eur })
-      ok('the by-hand mark on the invoice row', (await count(p, '[data-test=costs-hand]')) === 1)
-      ok('the pie renders', await waitFor(p, '[data-test=costs-pie-svg]'))
-      const slices = await p.$$eval('[data-test=costs-pie-slice]', (els) => els.map((e) => ({ k: e.getAttribute('data-key'), pct: Number(e.getAttribute('data-pct')) })))
-      ok('5 slices over 1 % plus one "other"', slices.length === 6 && slices.at(-1).k === 'other', slices.map((s) => s.k))
-      const sum = Math.round(slices.reduce((s, x) => s + x.pct, 0) * 10) / 10
-      ok('the slices sum to 100 %', Math.abs(sum - 100) <= 0.2, sum)
-      ok('the legend labels every slice', (await count(p, '[data-test=costs-pie-legend-row]')) === slices.length)
-      const soFar = await text(p, '[data-test=costs-so-far]')
-      ok('the current month is marked "so far"', /^So far: \d+ of \d+ days$/.test(soFar), soFar)
-      ok('n of N per source (3 sources)', (await count(p, '[data-test=costs-coverage-row]')) === 3)
-      const empties = await p.$$eval('[data-test=costs-empty-source]', (els) => els.map((e) => e.getAttribute('data-source')))
-      ok('count-only sources are named, GCP has money', empties.join(',') === 'fleet_tokens,agent_hours', empties)
-      /* spec 140 3.10 (SPL-3565): the list-price total, and the estate's every-workspace token table */
-      const listTot = await text(p, '[data-test=costs-total-list]')
-      ok('3.10 the total row sums the list price', listTot === '$2,650.00', listTot)
-      ok('3.10 the estate lists every workspace\'s burn (3 rows)', (await count(p, '[data-test=costs-workspace-row]')) === 3, await count(p, '[data-test=costs-workspace-row]'))
-      const alpha = await text(p, '[data-test=costs-workspace-row][data-workspace="ws-alpha"][data-vendor="claude"] td:last-child')
-      ok('3.10 a workspace row shows its list price', alpha === '$13.89', alpha)
-      const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-      ok('no sideways scroll', wide <= 0, wide)
-      if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-costs-${size.width}.png`, fullPage: true })
-
-      /* an earlier month: ended, so no "so far" mark (CONTROL: the mark follows the status); S1: the month is the header's, in the URL */
-      await go(p, SPEND + '?month=2026-09')
-      const months = ['', '2026-09']
-      const gone = await p.waitForFunction(() => !document.querySelector('[data-test=costs-so-far]') && document.querySelector('[data-test=costs-table]'), { timeout: 15000 }).then(() => true, () => false)
-      ok('an earlier month is not "so far"', gone)
-
-      /* spec 123 5.4: the second-currency column, EUR unless picked (the ended month: rate dates fixed) */
-      const ended = months[1]
-      const last = new Date(Date.UTC(+ended.slice(0, 4), +ended.slice(5, 7), 0)).toISOString().slice(0, 10)
-      const head = await text(p, '[data-test=costs-second-head]')
-      ok('second currency: the header names EUR (never picked)', head === 'EUR (day rate)', head)
-      const cells = await titles(p, '[data-test=costs-second]')
-      ok('second currency: one cell per part', cells.length === 9, cells.length)
-      const inv = cells.find((c) => c.src === 'hand') || {}
-      ok('second currency: the invoice row converted at its day rate, the rate and its date in the title',
-        inv.text === '€184.00' && inv.title === `1 USD = 0.92 EUR, rate of ${last}`, inv)
-      const gcp = cells.find((c) => c.src === 'gcp') || {}
-      ok('second currency: a GCP row, each day at its own rate, the first and last rate dates in the title',
-        gcp.text === '€58.42' && gcp.title === `Each day at its own rate, ${ended}-01 to ${last}. Latest: 1 USD = 0.92 EUR (${last})`, gcp)
-      ok('second currency: no row is a dash (every day has a rate)', cells.every((c) => c.none === '0'), cells.map((c) => c.none))
-      const tot = await text(p, '[data-test=costs-total-second]')
-      ok('second currency: the total in EUR', tot === '€338.93', tot)
-      const wide2 = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-      ok('second currency: still no sideways scroll', wide2 <= 0, wide2)
-      await ctx.close()
-    }
-
-    /* the personal setting: Settings -> Appearance -> Second currency, then the column follows it */
+    /* the personal setting: Settings -> Appearance -> Second currency; SPL-5312: the header's second currency follows it, and so do the label's cells */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { prefs: true })
-      await open(p, server.base, SPEND)
-      ok('setting: the table renders', await waitFor(p, '[data-test=costs-table]'))
+      await open(p, server.base, TOTAL)
+      ok('setting: the table renders', await waitFor(p, '[data-test=costs-month-table]'))
       await go(p, '/settings/appearance')
       ok('setting: the Second currency picker shows', await waitFor(p, '[data-test=second-currency-select]'))
       await p.waitForFunction(() => document.querySelectorAll('[data-test=second-currency-select] option').length > 1, { timeout: 15000 }).catch(() => null)
@@ -1047,24 +844,17 @@ try {
       await p.select('[data-test=second-currency-select]', 'SEK').catch(() => null)
       for (let i = 0; i < 50 && p.saved.length === 0; i++) await new Promise((r) => setTimeout(r, 100))
       ok('setting: the pick is saved through the hub setting (PUT /preferences second_currency)', p.saved.at(-1) === JSON.stringify({ second_currency: 'SEK' }), p.saved)
-      await go(p, SPEND)
-      const sek = await p.waitForFunction(() => (document.querySelector('[data-test=costs-second-head]') || {}).textContent?.trim() === 'SEK (day rate)', { timeout: 15000 }).then(() => true, () => false)
-      ok('setting: the column now names SEK', sek, await text(p, '[data-test=costs-second-head]'))
-      const totSek = await text(p, '[data-test=costs-total-second]')
-      ok('setting: the total converted at the SEK rate', /^SEK\s?3,868\.20$/.test(totSek), totSek)
-      const sekCell = (await titles(p, '[data-test=costs-second]')).find((c) => c.src === 'hand') || {}
-      ok('setting: the rate title names SEK', new RegExp(`^1 USD = 10\\.5 SEK, rate of ${DAY}$`).test(sekCell.title), sekCell)
-      const usdNow = await text(p, '[data-test=costs-total-usd]')
-      ok('setting: the USD column unchanged', usdNow === '$368.40', usdNow)
-      /* CONTROL: back to the default sends null (the hub's EUR) and the column follows */
+      await go(p, TOTAL + '?currency=SEK')
+      const sek = await p.waitForFunction(() => document.querySelector('[data-test=costs-header-cur-SEK]') && /^SEK/.test(document.querySelector('[data-test=cmt-foot-cell]')?.textContent.trim() || ''), { timeout: 15000 }).then(() => true, () => false)
+      ok('setting: the header offers SEK and the totals are in SEK', sek, await text(p, '[data-test=cmt-foot]'))
+      /* CONTROL: back to the default sends null (the hub's EUR) and the header follows */
       await go(p, '/settings/appearance')
       await waitFor(p, '[data-test=second-currency-select]')
       await p.select('[data-test=second-currency-select]', 'EUR').catch(() => null)
       for (let i = 0; i < 50 && p.saved.length < 2; i++) await new Promise((r) => setTimeout(r, 100))
       ok('setting: picking the default clears it (second_currency null)', p.saved.at(-1) === JSON.stringify({ second_currency: null }), p.saved)
-      await go(p, SPEND)
-      const eurBack = await p.waitForFunction(() => (document.querySelector('[data-test=costs-second-head]') || {}).textContent?.trim() === 'EUR (day rate)', { timeout: 15000 }).then(() => true, () => false)
-      ok('setting: the column is back to EUR', eurBack, await text(p, '[data-test=costs-second-head]'))
+      await go(p, TOTAL)
+      ok('setting: the header offers EUR again', await waitFor(p, '[data-test=costs-header-cur-EUR]') && (await count(p, '[data-test=costs-header-cur-SEK]')) === 0)
       if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-costs-second-${size.width}.png`, fullPage: true })
       await ctx.close()
     }
@@ -1072,23 +862,20 @@ try {
     /* a part with no rate: the dash and a title saying so, never a guess; the total too */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'norate' })
-      await open(p, server.base, SPEND)
-      ok('norate: the table renders', await waitFor(p, '[data-test=costs-table]'))
-      const cells = await titles(p, '[data-test=costs-second]')
-      const inv = cells.find((c) => c.src === 'hand') || {}
+      await open(p, server.base, '/reporting/costs/tokens?currency=EUR')
+      ok('norate: the table renders', await waitFor(p, '[data-test=cmt-row]'))
+      const inv = await p.$eval('[data-test=cmt-row][data-key="hand|llm-vendor|subscription"] [data-test=cmt-cell]', (c) => ({ text: c.textContent.trim(), none: c.getAttribute('data-none'), title: c.getAttribute('title') || '' })).catch(() => ({}))
       ok('norate: the invoice row is a dash saying there is no rate', inv.text === '\u2014' && inv.none === '1'
         && inv.title === 'No EUR rate on or before a cost day, so no amount', inv)
-      ok('norate: the other rows keep their amounts', cells.filter((c) => c.src !== 'hand').every((c) => c.none === '0' && c.text.startsWith('€')), cells)
-      const tot = await p.$eval('[data-test=costs-total-second]', (e) => ({ text: e.textContent.trim(), title: e.getAttribute('title') || '' })).catch(() => ({}))
-      ok('norate: the total is a dash too', tot.text === '\u2014' && /^No EUR rate/.test(tot.title), tot)
+      ok('norate: the other row keeps its amount', /^€/.test(await text(p, '[data-test=cmt-row][data-key="fleet_tokens|llm-vendor|tokens"] [data-test=cmt-cell]')))
       await ctx.close()
     }
 
     /* today's prd: counts only, no GCP rows */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'empty' })
-      await open(p, server.base, SPEND)
-      ok('empty: the table renders', await waitFor(p, '[data-test=costs-table]'))
+      await open(p, server.base, TOTAL)
+      ok('empty: the table renders', await waitFor(p, '[data-test=costs-month-table]'))
       ok('empty: no pie, its note instead', (await count(p, '[data-test=costs-pie-svg]')) === 0 && await waitFor(p, '[data-test=costs-no-pie]'))
       const empties = await p.$$eval('[data-test=costs-empty-source]', (els) => els.map((e) => e.textContent.trim()))
       ok('empty: "no cost data yet" for GCP, fleet tokens and agent hours', empties.length === 3 && empties[0] === 'No cost data yet for GCP', empties)
@@ -1096,16 +883,16 @@ try {
       await ctx.close()
     }
 
-    /* spec 143 3.3.1 (SPL-3891): a customer workspace's share of the AI subscriptions */
+    /* spec 143 3.3.1 (SPL-3891): a customer workspace's share of the AI subscriptions, under Tokens */
     {
       /* last month, always ended: the share counts from the 3rd day, so the
          current month has none on days 1-2 (master red on 2026-11-01, SPL-4542) */
       const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'share' })
-      await open(p, server.base, SPEND + '?month=' + costMonthOptions(new Date(), 2)[1])
-      ok('share: the table renders', await waitFor(p, '[data-test=costs-table]'))
-      const rows = await p.$$eval('[data-test=costs-row][data-source=ai_share] .costs-part', (els) => els.map((e) => e.textContent.trim()))
+      await open(p, server.base, '/reporting/costs/tokens?month=' + costMonthOptions(new Date(), 2)[1])
+      ok('share: the table renders', await waitFor(p, '[data-test=cmt-row]'))
+      const rows = await p.$$eval('[data-test=cmt-row]', (els) => els.filter((e) => e.getAttribute('data-key').startsWith('ai_share|')).map((e) => e.querySelector('th').textContent.replace(/\s+/g, ' ').trim()))
       ok('share: one row per agent type, named as the workspace\'s share', rows.join('|') === 'AI subscriptions (your share) · agy|AI subscriptions (your share) · claude', rows)
-      ok('share: no ai_paid row (the estate\'s plans)', (await count(p, '[data-test=costs-row][data-source=ai_paid]')) === 0)
+      ok('share: no ai_paid row (the estate\'s plans)', (await count(p, '[data-test=cmt-row][data-key^="ai_paid|"]')) === 0)
       const note = await text(p, '[data-test=costs-ai-share-note]')
       ok('share: the line names the first counted day', /^Your share of the AI subscriptions counts each ended day from \d{4}-\d{2}-03:/.test(note), note)
       if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/costs-ai-share-${size.width}.png`, fullPage: true })
@@ -1113,19 +900,18 @@ try {
     }
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'share_none' })
-      await open(p, server.base, SPEND)
-      ok('share_none: the table renders', await waitFor(p, '[data-test=costs-table]'))
-      ok('share_none: no ai_share row yet', (await count(p, '[data-test=costs-row][data-source=ai_share]')) === 0)
+      await open(p, server.base, '/reporting/costs/tokens')
+      ok('share_none: the table renders', await waitFor(p, '[data-test=cmt-row]'))
+      ok('share_none: no ai_share row yet', (await count(p, '[data-test=cmt-row][data-key^="ai_share|"]')) === 0)
       const note = await p.$eval('[data-test=costs-ai-share-note]', (e) => ({ key: e.getAttribute('data-key'), text: e.textContent.trim() })).catch(() => ({}))
       ok('share_none: the line says no share yet, today\'s tokens tomorrow', note.key === 'ai_share_none' && note.text.includes('so today\'s tokens show tomorrow'), note)
-      if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/costs-ai-share-none-${size.width}.png`, fullPage: true })
       await ctx.close()
     }
     /* CONTROL: the estate's mock month carries no share line */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, {})
-      await open(p, server.base, SPEND)
-      ok('share control: the estate has no share line', await waitFor(p, '[data-test=costs-table]') && (await count(p, '[data-test=costs-ai-share-note]')) === 0)
+      await open(p, server.base, '/reporting/costs/tokens')
+      ok('share control: the estate has no share line', await waitFor(p, '[data-test=cmt-row]') && (await count(p, '[data-test=costs-ai-share-note]')) === 0)
       await ctx.close()
     }
 
@@ -1137,19 +923,19 @@ try {
       await new Promise((r) => setTimeout(r, 500))
       const tabs = await reportingTabIds(p)
       ok('without costs.read: no Reporting Costs tab', tabs.length >= 1 && !tabs.includes('costs'), tabs)
-      await open(p, server.base, SPEND)
+      await open(p, server.base, TOTAL)
       ok('without costs.read: the direct URL shows the 403 state', await waitFor(p, '[data-test=costs-forbidden]'))
       const why = await text(p, '[data-test=costs-forbidden]')
       ok('the 403 state names costs.read', why.includes('costs.read'), why)
-      ok('without costs.read: no table', (await count(p, '[data-test=costs-table]')) === 0)
+      ok('without costs.read: no table', (await count(p, '[data-test=costs-month-table]')) === 0)
       await ctx.close()
     }
 
     /* spec 140 (SPL-2322): an operator admin, the busy mock fleet */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { operator: true })
-      await open(p, server.base, SPEND)
-      ok('tokens: the Costs page carries the Tokens card for an operator admin', await waitFor(p, '[data-test=costs-tokens-card]'))
+      await open(p, server.base, '/reporting/costs/tokens')
+      ok('tokens: Costs -> Tokens carries the Tokens card for an operator admin', await waitFor(p, '[data-test=costs-tokens-card]'))
       const card = await text(p, '[data-test=costs-tokens-card-body]')
       ok('tokens: the card says today\'s fleet tokens and cost', card === '19.35M tokens used · $42.15', card)
       ok('tokens: the card names the unmetered and unpriced lanes', (await text(p, '[data-test=costs-tokens-card-note]')).includes('1 not metered · 2 not priced'))
@@ -1234,9 +1020,9 @@ try {
     /* CONTROL: not an operator admin: no card, no tab, the direct URL is the 403 sentence */
     {
       const { ctx, p } = await costsPage(browser, server.base, size)
-      await open(p, server.base, SPEND)
-      await waitFor(p, '[data-test=costs-table]')
-      ok('tokens control: no Tokens card on Costs', (await count(p, '[data-test=costs-tokens-card]')) === 0)
+      await open(p, server.base, '/reporting/costs/tokens')
+      await waitFor(p, '[data-test=costs-month-table]')
+      ok('tokens control: no Tokens card on Costs -> Tokens', (await count(p, '[data-test=costs-tokens-card]')) === 0)
       ok('tokens control: no Tokens tab', !(await tabIds(p)).includes('tokens'), await tabIds(p))
       await open(p, server.base, '/monitoring/tokens')
       ok('tokens control: the direct URL shows the 403 sentence', await waitFor(p, '[data-test=tokens-forbidden]'))

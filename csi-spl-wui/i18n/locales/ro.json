@@ -3731,7 +3731,25 @@
       "human": {
         "title": "Costuri cu personalul",
         "not_tracked": "Încă neurmărit. Costurile cu personalul sunt timp aprobat la prețul propriu al fiecărei persoane, construite de rândurile {rows} din specificația 107; nu se afișează niciun număr până nu sunt gata."
-      }
+      },
+      "label": {
+        "total": "Total general",
+        "persons": "Persoane",
+        "cloud": "Cloud",
+        "tokens": "Tokeni",
+        "other": "Altele"
+      },
+      "period": "Perioadă",
+      "period_ytd": "De la începutul anului ({year})",
+      "col_item": "Element",
+      "col_share": "Pondere",
+      "pie_label": "Ponderea fiecărui element în costul perioadei",
+      "table_label": "Costurile pe luni",
+      "no_pie": "Încă nu există costuri în această perioadă, deci nu există diagramă circulară.",
+      "empty": "Nu există costuri în această categorie în această perioadă.",
+      "no_split": "Acest spațiu de lucru nu are încă costuri proprii în această categorie: ele aparțin întregii infrastructuri și sunt afișate în spațiul de lucru al operatorului.",
+      "tokens_sub": "{units} tokeni · preț de listă {list}, neplătit",
+      "price_link": "Preț pe token: prețul efectiv al fiecărui tip de agent se află la Cheltuieli → Costuri IA."
     },
     "releases": {
       "soon": "Raportul versiunilor vine în curând.",

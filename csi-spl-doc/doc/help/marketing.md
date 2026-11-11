@@ -243,10 +243,12 @@ The Meta App Review submission package (`T038`) has **not been submitted or appr
 
 To post a blog post yourself, with your own choice of photos, press **Post by hand** next to the post in the publish queue. The steps: [Post a blog post yourself: the draft hand-over](marketing-hand-over.md).
 
+<a id="ws-doc-d9adc7f0-4115-4ba9-a765-eb19100264ac"></a>
 ## 6. Workspace settings -> Posts (`/tenant-settings/posts`): Write your own post and publish it
 
 Besides the blog, a workspace can write its own posts. Open **Workspace settings -> Posts**. Only workspace administrators and business owners (`tenant.settings`) see this screen, and Marketing must be on for the workspace (section 1.1); otherwise the screen says so.
 
+<a id="ws-doc-1ba882fa-518f-4d4a-9ac3-44a523386c17"></a>
 ### 6.1 Write a draft
 
 1. Type the post in **Text** (up to 3,000 characters; the counter below the box shows how many you used).
@@ -255,10 +257,12 @@ Besides the blog, a workspace can write its own posts. Open **Workspace settings
 
 Every administrator and business owner of the workspace sees every draft. A draft written by someone else is marked *Written by another admin or business owner*: only its author can edit, delete or publish it.
 
+<a id="ws-doc-85a91daa-0ab4-4844-848c-383b1865c786"></a>
 ### 6.2 Edit or delete a draft
 
 Press **Edit** on your draft, change it in the form above, and press **Save changes** (or **Cancel**). **Delete** removes the draft after you confirm. Once a post is published it can no longer be edited or deleted: it stays as it went out.
 
+<a id="ws-doc-2fbc67f5-aae6-4c83-ae5a-33597db951ea"></a>
 ### 6.3 Publish
 
 1. Under your draft, tick the accounts in **Publish on**: every connected LinkedIn profile, Facebook Page, Instagram account and X account of the workspace (connect them in section 1).

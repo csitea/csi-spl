@@ -57,6 +57,9 @@
 //	          hub mode: the instance's fleet load target, {low, high, box_order, boxes,
 //	          agent_kinds_off, agent_kinds_paused, source} (rdb 0118, 0134, 0149), or
 //	          pause an agent kind for every box until <until> (RFC 3339)
+//	box-presence
+//	          hub mode: this box's own presence, {box, socket, agents}: socket = a role=box
+//	          socket on the answering hub instance, never last_hello_at (SPL-5318)
 //	fleet-tokens push --json <file|->
 //	          hub mode: push the box collector's live token burn buckets (spec 140 3.4)
 //	file-streams push --json <file|->
@@ -179,6 +182,7 @@ on a box (an agent's machine):
   box-stats           append one box load + memory sample (put --json), or read the history (list)
   caps                print the workspace's agent caps by vendor, or check one agent against them (check <id>)
   box-beat            beat this box once and print the hub's ack (put --pid), or read the beats (list)
+  box-presence        print whether the hub holds this box's socket, and its seated agents
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   fleet-tokens        push the box collector's token burn buckets (push --json <file|->)
   file-streams        send the box file follower's announce or lines (push --json <file|->)
@@ -352,7 +356,7 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLease(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
-	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams":
+	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams", "box-presence":
 		return runFleetCmd(cfg, cmd, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
@@ -386,6 +390,8 @@ func runFleetCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdBoxBeat(cfg, rest)
 	case "fleet-load": // rdb 0118
 		return cmdFleetLoad(cfg, rest)
+	case "box-presence": // SPL-5318
+		return cmdBoxPresence(cfg, rest)
 	case "file-streams": // spec 160 3.3, rdb 0237
 		return cmdFileStreams(cfg, rest)
 	default: // fleet-tokens: spec 140 3.4, rdb 0199

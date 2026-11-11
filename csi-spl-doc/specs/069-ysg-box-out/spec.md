@@ -1140,6 +1140,36 @@ the `<agent-user>` copy. Both runs rolled back.
 Tests: `desk-move.tst.sh` cases 16 and 17, `roster-show.tst.sh` (the session
 file and `retry_after`).
 
+#### 8.4.6 A login-free proof: the desk's own key (SPL-5318)
+
+Measured on sat 2026-11-10 (c-499, n=1, `cd01a509e`): the `dev/demo/sat` move
+passed stop, copy, verify and start, then waited out a login 429 (828 s) and
+got `401 invalid_credentials`: no verdict, rolled back. A member login is the
+wrong proof: it rate-limits and goes stale, and `DESK_ROSTER_JSON` is a saved
+capture (the tests' seam), not a live read.
+
+No box-signed hub read carried presence (checked on `e2e5b45fd`: every lane
+op, `/v1/fleet/workspaces`, the welcome and roster frames). And the stamp the
+roster's `online` falls back to, `boxes.last_hello_at`, is written by EVERY
+hello, the probe's own role=cli one included (`seatSession` -> `TouchBox`),
+so a probe signed by the desk's key reads the desk online with its sidecar
+dead.
+
+- **The hub's answer.** `lane_op box_presence_get` (`spool box-presence`,
+  over the box-signed hello like `spool fleet-load get`) answers
+  `{box, socket, agents}` for the asking box only. `socket` is true only
+  while the answering hub instance holds a role=box socket for the box
+  (`s.boxes`); it never reads `last_hello_at`, and the asking cli session is
+  never in `s.boxes`. `agents` is the box's seated roster.
+- **Per instance.** The hub runs up to 2 instances (cnf
+  `hub.cloud_run.max_instances`): a socket on the other one reads `socket`
+  false. A false is "not seen here", never proof of down; a true is a live
+  socket. The proof retries, each try a fresh dial.
+
+Test: `internal/hub/box_presence_test.go` (no socket -> false while the
+roster reads the box online; socket -> true with its agents; the other
+instance -> false; closed -> false).
+
 ### 8.5 Build rows
 
 Rounds-rulebook rows. Disjoint files; batch 1 lands first, batch 2 rows in

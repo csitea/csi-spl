@@ -105,6 +105,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onFileStreamsLane(ctx, x, f)
 		return
 	}
+	if isBoxPresenceLaneOp(f.LaneOp) { // SPL-5318: the box's own socket, the desk move's proof
+		s.onBoxPresenceLane(ctx, x, f)
+		return
+	}
 	id := f.MsgID
 	if !uuidRe.MatchString(id) {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "a lane frame needs msg_id (a UUID) to pair the reply")

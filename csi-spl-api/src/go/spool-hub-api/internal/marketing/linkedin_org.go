@@ -339,16 +339,24 @@ func LinkedInPostPermalink(urn string) string {
 	return LinkedInAuthBase + "/feed/update/" + urn
 }
 
-// OrgTokenRefused: LinkedIn no longer accepts the Page connection (section
-// 5.4): a 401, a 403 (the member lost the Page role), or a refresh refused
-// with 400 (invalid_grant: an expired or revoked refresh token). Connect
-// again.
+// OrgTokenRefused: LinkedIn no longer accepts the Page connection on a
+// call made with the access token (section 5.4): a 401, or a 403 (the member
+// lost the Page role). Connect again. A 400 on such a call (a post LinkedIn
+// rejects for its content) is NOT refused: that post fails, the channel stays.
 func OrgTokenRefused(err error) bool {
 	var he *HTTPError
 	if !errors.As(err, &he) {
 		return false
 	}
-	return he.Status == http.StatusUnauthorized || he.Status == http.StatusForbidden || he.Status == http.StatusBadRequest
+	return he.Status == http.StatusUnauthorized || he.Status == http.StatusForbidden
+}
+
+// OrgRefreshRefused: LinkedIn refused the refresh, so the connection is gone:
+// OrgTokenRefused, or a 400 (invalid_grant: an expired or revoked refresh
+// token). Only the refresh counts a 400 as refused (spec section 5.4).
+func OrgRefreshRefused(err error) bool {
+	var he *HTTPError
+	return OrgTokenRefused(err) || (errors.As(err, &he) && he.Status == http.StatusBadRequest)
 }
 
 // Bundle is the token bundle as one Plaintext, sealed into one channel token.

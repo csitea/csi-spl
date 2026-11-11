@@ -102,7 +102,7 @@ func TestLinkedInOrgExchangeAndRefresh(t *testing.T) {
 		t.Fatalf("refresh keeps the refresh token and its first end: %+v %v", fresh, err)
 	}
 	_, err = o.Refresh(context.Background(), OrgToken{Refresh: NewPlaintext("revoked")}, later)
-	if !OrgTokenRefused(err) || strings.Contains(err.Error(), "revoked") {
+	if !OrgRefreshRefused(err) || strings.Contains(err.Error(), "revoked") {
 		t.Fatalf("a refused refresh: %v, want refused with no token text", err)
 	}
 	// no refresh token issued (a restricted tier): the access token alone
@@ -206,13 +206,27 @@ func TestOrgTokenRefusedAndBundle(t *testing.T) {
 	}{
 		{&HTTPError{Status: 401}, true},
 		{fmt.Errorf("w: %w", &HTTPError{Status: 403}), true},
-		{&HTTPError{Status: 400}, true},
+		{&HTTPError{Status: 400}, false}, // a post's 400 fails the post, never the channel
 		{&HTTPError{Status: 429}, false},
 		{&HTTPError{Status: 500}, false},
 		{ErrUnknownOutcome, false},
 	} {
 		if got := OrgTokenRefused(c.err); got != c.refused {
 			t.Errorf("OrgTokenRefused(%v) = %v, want %v", c.err, got, c.refused)
+		}
+	}
+	for _, c := range []struct {
+		err     error
+		refused bool
+	}{
+		{&HTTPError{Status: 401}, true},
+		{&HTTPError{Status: 403}, true},
+		{fmt.Errorf("w: %w", &HTTPError{Status: 400}), true}, // invalid_grant
+		{&HTTPError{Status: 429}, false},
+		{ErrUnknownOutcome, false},
+	} {
+		if got := OrgRefreshRefused(c.err); got != c.refused {
+			t.Errorf("OrgRefreshRefused(%v) = %v, want %v", c.err, got, c.refused)
 		}
 	}
 	now := time.Unix(1_800_000_000, 0)

@@ -199,7 +199,7 @@ func (s *Server) orgDispatchChannel(ctx context.Context, ps *orgPass) time.Time 
 // each claimed post.
 func (s *Server) dispatchOrg(ctx context.Context, ps *orgPass, due []store.MarketingPost) {
 	tok, terr := s.orgAccessToken(ctx, ps)
-	refused := marketing.OrgTokenRefused(terr)
+	refused := marketing.OrgRefreshRefused(terr)
 	if refused {
 		s.orgRefused(ctx, ps)
 	}

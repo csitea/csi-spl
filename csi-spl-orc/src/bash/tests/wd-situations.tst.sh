@@ -512,10 +512,15 @@ cat > "$T/bin/send" <<'EOF'
 #!/usr/bin/env bash
 echo "send $*" >> "$T/sent"
 EOF
+# the takeover: sleeps $T/takeover.slow s (default WD_TST_TAKEOVER_SLOW, 0),
+# then its writes; the last line, takeovers.done, is the signal settle() waits
+# on. WD_TST_TAKEOVER_SLOW=3 bash wd-situations.tst.sh: every takeover slow
 cat > "$T/bin/takeover" <<'EOF'
 #!/usr/bin/env bash
+sleep "$(cat "$T/takeover.slow" 2>/dev/null || echo "${WD_TST_TAKEOVER_SLOW:-0}")"
 echo "takeover $ID $REASON" >> "$T/takeovers"
 mkdir -p "$SPOOL_ROOT/$ID/lifetime"; echo "$LEASE_NOW $CAUSE" >> "$SPOOL_ROOT/$ID/lifetime/restarts"
+echo "$ID" >> "$T/takeovers.done"
 EOF
 chmod +x "$T/bin/"*
 export T
@@ -524,7 +529,7 @@ proc() {  # proc <pid> <id> [comm]: a live process carrying SPOOL_AGENT_ID=<id>
 }
 reset_box() {
   unset NOW
-  rm -rf "$D" "$S"/c-* "$T/sent" "$T/takeovers" "$T/tmux/log" "$T/proc"; mkdir -p "$D" "$T/proc"; rm -f "$T/tmux/screen."*
+  rm -rf "$D" "$S"/c-* "$T/sent" "$T/takeovers" "$T/takeovers.done" "$T/takeover.slow" "$T/tmux/log" "$T/proc"; mkdir -p "$D" "$T/proc"; rm -f "$T/tmux/screen."*
   : > "$T/ps"; : > "$T/tmux/panes"; : > "$T/tmux/clients"
 }
 # agent <id> <pane> <pid|-> [comm] [age] [screen]: a window, maybe a process
@@ -539,18 +544,36 @@ agent() {
 }
 transcript_stub() { printf '#!/usr/bin/env bash\ncat "%s/tr.$1" 2>/dev/null\n' "$T" > "$T/bin/tr"; chmod +x "$T/bin/tr"; }
 transcript_stub
-# wd: one tick of do_spl_watchdog under ./run's set -E + ERR trap
+# wd: one tick of do_spl_watchdog under ./run's set -E + ERR trap. Each
+# situation script gets WD_SCRIPT_TIMEOUT 60 s here (live: 5): under load
+# (~130) a killed s7.sh hit nothing, which ended the S7 episode and its flags
+# (spl_wd_episodes_end), so "4 S7 60" read "c-915 OK" and "4 S7 310" took over
+# again (SPL-5341). A case that tests the timeout sets its own.
 wd() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" \
     WD_PS_CMD="$T/bin/ps" ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" WD_TAKEOVER_CMD="$T/bin/takeover" \
-    LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_NOW="${NOW:-$T0}" WD_TICKS=1 WD_TICK="${TICK:-100}" DRY_RUN="${DRY:-0}" bash -c '
+    LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_NOW="${NOW:-$T0}" WD_TICKS=1 WD_TICK="${TICK:-100}" DRY_RUN="${DRY:-0}" \
+    WD_SCRIPT_TIMEOUT="${WD_SCRIPT_TIMEOUT:-60}" bash -c '
     set -E; trap "echo ERR-TRAP: \$BASH_COMMAND; exit 9" ERR
     do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"
     source "$PROJ_PATH/src/bash/run/spl-wd-hold.func.sh"
     do_spl_watchdog' 2>&1 | tee -a "$T/all.out"
 }
-settle() { for _ in $(seq 1 20); do [[ -s "$T/takeovers" ]] && return; sleep 0.1; done; }
+# settle: wait until every takeover the watchdog started (a "TAKEOVER <id>"
+# line in wd.log, written before the detached start) has finished (its line in
+# takeovers.done), not a fixed time: under load a takeover outlived the old
+# 2 s cap (SPL-5341). No takeover started: returns at once. Hung: fails after
+# SETTLE_MAX s (60).
+settle() {
+  local i started done_n
+  for (( i = 0; i < ${SETTLE_MAX:-60} * 10; i++ )); do
+    started="$(grep -c ' TAKEOVER ' "$D/wd.log" 2>/dev/null)"; done_n="$(grep -c . "$T/takeovers.done" 2>/dev/null)"
+    (( ${started:-0} <= ${done_n:-0} )) && return 0
+    sleep 0.1
+  done
+  fail "settle: ${started:-0} takeover(s) started, ${done_n:-0} finished after ${SETTLE_MAX:-60} s"
+}
 
 # 3. a tick: one line per agent, wd.<id>, other boxes and retiring windows skipped
 reset_box
@@ -720,6 +743,17 @@ out="$(WD_KEY_WAIT=0 wd)"; settle
   pass "4 S7 control: a quoted offer gets no key, no takeover, no settings write" || fail "4 S7 quote: $out"
 unset WD_SETTINGS_HOME
 
+# settle() waits on the takeover's own done line, not a fixed 2 s (SPL-5341:
+# under load a takeover outlived the cap); a tick that started none returns at once
+reset_box; agent c-911 %1 -; echo 3 > "$T/takeover.slow"
+NOW=$T0 wd >/dev/null; s0=$SECONDS; NOW=$((T0 + 30)) out="$(wd)"; settle; el=$((SECONDS - s0))
+grep -qx 'takeover c-911 S3' "$T/takeovers" && [[ "$(cat "$S/c-911/lifetime/restarts" 2>/dev/null)" == "$((T0 + 30)) S3" ]] &&
+  pass "4 settle: a takeover that takes 3 s is waited for, all its writes done (${el}s)" || fail "4 settle slow: $out / $(cat "$T/takeovers" 2>/dev/null) / ${el}s"
+reset_box; agent c-912 %1 4012
+NOW=$T0 out="$(wd)"; t0=$(date +%s%N); settle; el=$(( ($(date +%s%N) - t0) / 1000000 ))
+grep -q '^c-912 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && (( el < 500 )) &&
+  pass "4 settle control: no takeover started, settle returns at once (${el} ms)" || fail "4 settle fast: $out / ${el} ms"
+
 # 5. guards, each with its control
 reset_box; agent c-921 %1 -
 echo "\$1 $((T0 - 20))" > "$T/tmux/clients"
@@ -764,14 +798,15 @@ grep -q 'c-924 HIT S3' <<<"$out" && pass "5 control: after the grace the debounc
 
 # 6. limits (102 6.1): 3 restarts per id per hour; the fourth is held out
 # (no expiry) + ONE blocker
-reset_box
+settle; reset_box
 lim() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" WD_SEND="$T/bin/send" \
     WD_TAKEOVER_CMD="$T/bin/takeover" LEASE_NOW="$1" bash -c '
     do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; spl_wd_init >/dev/null
     spl_wd_takeover c-931 S3 "evidence"; echo "rc=$?"'
 }
-cnt() { for _ in $(seq 1 20); do [[ "$(grep -c . "$S/c-931/lifetime/restarts" 2>/dev/null)" == "$1" ]] && return; sleep 0.1; done; }
+# cnt N: wait (60 s at most) until N takeovers finished (their takeovers.done lines)
+cnt() { for _ in $(seq 1 600); do [[ "$(grep -c . "$T/takeovers.done" 2>/dev/null)" == "$1" ]] && return; sleep 0.1; done; }
 r1="$(lim "$T0")"; cnt 1; r2="$(lim $((T0 + 600)))"; cnt 2; r3="$(lim $((T0 + 900)))"; cnt 3; r4="$(lim $((T0 + 1200)))"; sleep 0.3
 [[ "$r1" == rc=0 && "$r2" == rc=0 && "$r3" == rc=0 ]] && pass "6 control: three restarts in an hour run (the third is under the limit)" || fail "6 first three: $r1 / $r2 / $r3"
 [[ "$r4" == *"held out: 3 restarts"*"rc=1" ]] && [[ "$(grep -c . "$T/takeovers")" == 3 ]] && pass "6 the fourth is not done: held out" || fail "6 fourth: $r4 / $(cat "$T/takeovers")"
@@ -1007,7 +1042,7 @@ TICK=2000 NOW=$T0 wd >/dev/null; TICK=2000 NOW=$((T0 + 30)) wd >/dev/null; settl
 out="$(TICK=2000 NOW=$((T0 + 90)) wd)"
 grep -q 'c-960 HIT S3 .*-> takeover done 60s ago' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 1 ]] &&
   pass "9 control: within WD_TAKEOVER_RETRY of a takeover nothing is retried" || fail "9 no early retry: $out / $(cat "$T/takeovers")"
-out="$(TICK=2000 NOW=$((T0 + 330)) wd)"; for _ in $(seq 1 20); do [[ "$(grep -c . "$T/takeovers")" == 2 ]] && break; sleep 0.1; done
+out="$(TICK=2000 NOW=$((T0 + 330)) wd)"; settle
 grep -q 'c-960 HIT S3 .*-> takeover$' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] && grep -q 'TAKEOVER-FAILED c-960 S3: still no live session 300s' "$D/wd.log" &&
   pass "9 a takeover whose session is dead again 300 s later: failed, retried in the same episode" || fail "9 retry: $out / $(cat "$T/takeovers")"
 out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 630)) wd)"; sleep 0.3

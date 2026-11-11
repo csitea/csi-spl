@@ -2067,7 +2067,7 @@
     "posts_locked": "This post is published: it can no longer be changed or deleted.",
     "posts_bad_input": "Write a text of up to 3,000 characters, and a picture address that starts with https://.",
     "posts_failed": "That did not work. Try again.",
-    "cost_alloc": "Cost allocation",
+    "section_cost_allocation": "Cost allocation",
     "cost_alloc_title": "Cost allocation",
     "cost_alloc_hint": "Assign a shared Persons or Cloud cost to one workspace, or split it across several by percentage. A split holds for every month, past ones too; the month only picks the amounts shown. Tokens are shared automatically.",
     "cost_alloc_hint_tenant": "Move the share of a cost that your workspaces hold between them. Their total stays the same.",

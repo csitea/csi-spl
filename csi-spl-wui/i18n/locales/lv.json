@@ -2067,7 +2067,7 @@
     "posts_locked": "Šis ieraksts ir publicēts: to vairs nevar mainīt vai dzēst.",
     "posts_bad_input": "Uzrakstiet tekstu līdz 3000 rakstzīmēm un attēla adresi, kas sākas ar https://.",
     "posts_failed": "Neizdevās. Mēģiniet vēlreiz.",
-    "cost_alloc": "Izmaksu sadale",
+    "section_cost_allocation": "Izmaksu sadale",
     "cost_alloc_title": "Izmaksu sadale",
     "cost_alloc_hint": "Piešķiriet kopīgas cilvēku vai mākoņa izmaksas vienai darbvietai vai sadaliet tās starp vairākām procentos. Sadale ir spēkā katram mēnesim, arī pagājušajiem; mēnesis izvēlas tikai rādītās summas. Tokeni tiek sadalīti automātiski.",
     "cost_alloc_hint_tenant": "Pārvietojiet izmaksu daļu, kas ir jūsu darbvietām, starp tām. To kopsumma paliek nemainīga.",

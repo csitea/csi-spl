@@ -2067,7 +2067,7 @@
     "posts_locked": "Tento príspevok je zverejnený: už ho nemožno zmeniť ani odstrániť.",
     "posts_bad_input": "Napíšte text s najviac 3 000 znakmi a adresu obrázka, ktorá sa začína na https://.",
     "posts_failed": "Nepodarilo sa. Skúste to znova.",
-    "cost_alloc": "Rozdelenie nákladov",
+    "section_cost_allocation": "Rozdelenie nákladov",
     "cost_alloc_title": "Rozdelenie nákladov",
     "cost_alloc_hint": "Priraďte spoločný náklad na ľudí alebo cloud jednému pracovnému priestoru alebo ho rozdeľte percentuálne medzi viaceré. Rozdelenie platí pre každý mesiac, aj pre minulé; mesiac vyberá len zobrazené sumy. Tokeny sa rozdeľujú automaticky.",
     "cost_alloc_hint_tenant": "Presuňte medzi svojimi pracovnými priestormi podiel na náklade, ktorý im patrí. Ich súčet zostáva rovnaký.",

@@ -2067,7 +2067,7 @@
     "posts_locked": "Bu gönderi yayımlandı: artık değiştirilemez veya silinemez.",
     "posts_bad_input": "En fazla 3.000 karakterlik bir metin ve https:// ile başlayan bir görsel adresi yazın.",
     "posts_failed": "Olmadı. Yeniden deneyin.",
-    "cost_alloc": "Maliyet dağıtımı",
+    "section_cost_allocation": "Maliyet dağıtımı",
     "cost_alloc_title": "Maliyet dağıtımı",
     "cost_alloc_hint": "Ortak bir personel veya bulut maliyetini tek bir çalışma alanına atayın ya da yüzde olarak birkaç alan arasında bölün. Bir bölüşüm geçmiş aylar dahil her ay için geçerlidir; ay yalnızca gösterilen tutarları seçer. Belirteçler otomatik olarak paylaştırılır.",
     "cost_alloc_hint_tenant": "Çalışma alanlarınızın sahip olduğu maliyet payını bu alanlar arasında taşıyın. Toplamları aynı kalır.",

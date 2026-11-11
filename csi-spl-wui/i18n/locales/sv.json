@@ -2067,7 +2067,7 @@
     "posts_locked": "Det här inlägget är publicerat: det kan inte längre ändras eller tas bort.",
     "posts_bad_input": "Skriv en text på högst 3 000 tecken och en bildadress som börjar med https://.",
     "posts_failed": "Det fungerade inte. Försök igen.",
-    "cost_alloc": "Kostnadsfördelning",
+    "section_cost_allocation": "Kostnadsfördelning",
     "cost_alloc_title": "Kostnadsfördelning",
     "cost_alloc_hint": "Tilldela en delad personal- eller molnkostnad till en arbetsyta, eller dela den mellan flera i procent. En fördelning gäller för varje månad, även tidigare; månaden väljer bara de belopp som visas. Tokens fördelas automatiskt.",
     "cost_alloc_hint_tenant": "Flytta den andel av en kostnad som dina arbetsytor har mellan dem. Deras summa förblir densamma.",

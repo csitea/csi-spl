@@ -2067,7 +2067,7 @@
     "posts_locked": "Esta publicación está publicada: ya no se puede cambiar ni eliminar.",
     "posts_bad_input": "Escribe un texto de hasta 3.000 caracteres y una dirección de imagen que empiece por https://.",
     "posts_failed": "No ha funcionado. Inténtalo de nuevo.",
-    "cost_alloc": "Asignación de costes",
+    "section_cost_allocation": "Asignación de costes",
     "cost_alloc_title": "Asignación de costes",
     "cost_alloc_hint": "Asigna un coste compartido de Personal o Nube a un espacio de trabajo, o repártelo entre varios por porcentaje. Un reparto vale para todos los meses, también los pasados; el mes solo elige los importes que se muestran. Los tokens se reparten automáticamente.",
     "cost_alloc_hint_tenant": "Mueve entre tus espacios de trabajo la parte de un coste que tienen. Su total no cambia.",

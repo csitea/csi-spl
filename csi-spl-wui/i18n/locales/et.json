@@ -2067,7 +2067,7 @@
     "posts_locked": "See postitus on avaldatud: seda ei saa enam muuta ega kustutada.",
     "posts_bad_input": "Kirjuta kuni 3000 märgi pikkune tekst ja pildi aadress, mis algab eesliitega https://.",
     "posts_failed": "See ei õnnestunud. Proovi uuesti.",
-    "cost_alloc": "Kulude jaotus",
+    "section_cost_allocation": "Kulude jaotus",
     "cost_alloc_title": "Kulude jaotus",
     "cost_alloc_hint": "Määra jagatud inimeste kulu või pilvekulu ühele tööruumile või jaga see protsentides mitme vahel. Jaotus kehtib iga kuu, ka möödunud kuude kohta; kuu valib ainult näidatavad summad. Tokenid jaotatakse automaatselt.",
     "cost_alloc_hint_tenant": "Liiguta kulu osa, mis sinu tööruumidel on, nende vahel. Nende kogusumma jääb samaks.",

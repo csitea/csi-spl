@@ -164,9 +164,12 @@ estate part gains `allocation` (its shares).
   no stub name. A percentage takes up to two decimals (basis points); every
   row empty removes an operator split. A product owner of the operator
   workspace reads the list (GET) but a Save answers 403 (PUT is admin only);
-  the page shows the hub's words. Strings `tenant_settings.cost_alloc*` in
-  all 19 locales (agy review last). Help: `doc/help/user-settings.md`
-  section 9.
+  the page shows the hub's words. Strings `tenant_settings.cost_alloc_*` in
+  all 19 locales (agy review last); the nav label is
+  `tenant_settings.section_cost_allocation`, a key that prefixes no other,
+  so the first-screen catalogue keeps only that one (a nav label that
+  prefixes the page's keys pulls them all into core). Help:
+  `doc/help/user-settings.md` section 9.
 - **A workspace's Costs page** (only after the sibling lane lands, through
   its per-workspace function): each allocated item is a row under Persons
   or Cloud, marked "Allocated: 40 % of <item>", and is in that label's pie

@@ -2067,7 +2067,7 @@
     "posts_locked": "Ten post jest opublikowany: nie można go już zmienić ani usunąć.",
     "posts_bad_input": "Napisz tekst do 3000 znaków i adres obrazu zaczynający się od https://.",
     "posts_failed": "Nie udało się. Spróbuj ponownie.",
-    "cost_alloc": "Podział kosztów",
+    "section_cost_allocation": "Podział kosztów",
     "cost_alloc_title": "Podział kosztów",
     "cost_alloc_hint": "Przypisz wspólny koszt personelu lub chmury do jednego obszaru roboczego albo podziel go procentowo między kilka. Podział obowiązuje w każdym miesiącu, także w minionych; miesiąc wybiera tylko pokazywane kwoty. Tokeny dzielone są automatycznie.",
     "cost_alloc_hint_tenant": "Przesuń między swoimi obszarami roboczymi udział w koszcie, który do nich należy. Ich suma pozostaje taka sama.",

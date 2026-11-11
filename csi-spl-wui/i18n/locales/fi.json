@@ -2067,7 +2067,7 @@
     "posts_locked": "Tämä julkaisu on julkaistu: sitä ei voi enää muuttaa tai poistaa.",
     "posts_bad_input": "Kirjoita enintään 3 000 merkin teksti ja kuvan osoite, joka alkaa etuliitteellä https://.",
     "posts_failed": "Se ei onnistunut. Yritä uudelleen.",
-    "cost_alloc": "Kulujen kohdistus",
+    "section_cost_allocation": "Kulujen kohdistus",
     "cost_alloc_title": "Kulujen kohdistus",
     "cost_alloc_hint": "Kohdista yhteinen henkilöstö- tai pilvikulu yhdelle työtilalle tai jaa se usealle prosentteina. Jako on voimassa joka kuukaudelle, myös menneille; kuukausi valitsee vain näytettävät summat. Tokenit jaetaan automaattisesti.",
     "cost_alloc_hint_tenant": "Siirrä työtilojesi osuutta kulusta niiden kesken. Niiden yhteissumma pysyy samana.",

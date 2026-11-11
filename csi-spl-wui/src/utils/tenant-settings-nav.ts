@@ -40,7 +40,7 @@ export const TENANT_SETTINGS_SECTIONS: TenantSection[] = [
 /** Shown only when the fleet-load probe succeeded. Not a me() permission. */
 export const FLEET_LOAD_SECTION = { id: 'fleet-load', label: 'tenant_settings.fleet_load' }
 /** Shown only when the cost-allocation probe found a door. Not a me() permission. */
-const COST_ALLOC_SECTION = { id: 'cost-allocation', label: 'tenant_settings.cost_alloc' }
+const COST_ALLOC_SECTION = { id: 'cost-allocation', label: 'tenant_settings.section_cost_allocation' }
 
 /**
  * Sections the mock gates like the hub when an e2e plays a role

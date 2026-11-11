@@ -2067,7 +2067,7 @@
     "posts_locked": "Šis įrašas paskelbtas: jo nebegalima keisti ar ištrinti.",
     "posts_bad_input": "Parašykite iki 3 000 simbolių tekstą ir paveikslėlio adresą, prasidedantį https://.",
     "posts_failed": "Nepavyko. Bandykite dar kartą.",
-    "cost_alloc": "Išlaidų paskirstymas",
+    "section_cost_allocation": "Išlaidų paskirstymas",
     "cost_alloc_title": "Išlaidų paskirstymas",
     "cost_alloc_hint": "Priskirkite bendras žmonių ar debesijos išlaidas vienai darbo sričiai arba padalykite jas kelioms procentais. Padalijimas galioja kiekvienam mėnesiui, taip pat praėjusiems; mėnuo parenka tik rodomas sumas. Žetonai paskirstomi automatiškai.",
     "cost_alloc_hint_tenant": "Perkelkite išlaidų dalį, kurią turi jūsų darbo sritys, tarp jų. Jų bendra suma nesikeičia.",

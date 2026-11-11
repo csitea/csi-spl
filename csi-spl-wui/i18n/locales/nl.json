@@ -2067,7 +2067,7 @@
     "posts_locked": "Dit bericht is gepubliceerd: het kan niet meer worden gewijzigd of verwijderd.",
     "posts_bad_input": "Schrijf een tekst van maximaal 3.000 tekens en een afbeeldingsadres dat begint met https://.",
     "posts_failed": "Dat is niet gelukt. Probeer het opnieuw.",
-    "cost_alloc": "Kostenverdeling",
+    "section_cost_allocation": "Kostenverdeling",
     "cost_alloc_title": "Kostenverdeling",
     "cost_alloc_hint": "Wijs gedeelde personeels- of cloudkosten toe aan één werkruimte, of verdeel ze in procenten over meerdere. Een verdeling geldt voor elke maand, ook voor eerdere; de maand kiest alleen de getoonde bedragen. Tokens worden automatisch verdeeld.",
     "cost_alloc_hint_tenant": "Verschuif het deel van een kostenpost dat je werkruimten dragen tussen die werkruimten. Hun totaal blijft gelijk.",

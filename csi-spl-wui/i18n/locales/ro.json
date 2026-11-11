@@ -2067,7 +2067,7 @@
     "posts_locked": "Această postare este publicată: nu mai poate fi modificată sau ștearsă.",
     "posts_bad_input": "Scrieți un text de cel mult 3.000 de caractere și o adresă de imagine care începe cu https://.",
     "posts_failed": "Nu a funcționat. Încercați din nou.",
-    "cost_alloc": "Alocarea costurilor",
+    "section_cost_allocation": "Alocarea costurilor",
     "cost_alloc_title": "Alocarea costurilor",
     "cost_alloc_hint": "Atribuiți un cost comun de personal sau cloud unui singur spațiu de lucru sau împărțiți-l procentual între mai multe. O împărțire este valabilă pentru fiecare lună, inclusiv cele trecute; luna alege doar sumele afișate. Tokenii se împart automat.",
     "cost_alloc_hint_tenant": "Mutați între spațiile dvs. de lucru partea dintr-un cost pe care o dețin. Totalul lor rămâne același.",

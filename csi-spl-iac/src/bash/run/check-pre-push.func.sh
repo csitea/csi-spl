@@ -1117,6 +1117,9 @@ _pp_orphans_reap() {  # <tee pid>
 #   lint <line>            'SYNTAX ...:', 'COMPOSE schema:', 'HCL parse:',
 #                          'LOCKFILE', 'GO MOD:', 'terraform fmt:'
 #   panic <msg>            'panic: <msg>'
+# No item: a report-only perf-*.sh run (run-ci-tests.sh), every line from
+# '=== perf, reported, not gating: <f>' to its '=== perf <f>: PASS|OVER
+# BUDGET' line; its FAIL carries the measured ms, so it read NEW every run.
 # Normalised: the tree root (a bare mention reads <tree>), /tmp and $TMPDIR
 # paths (CI's TMPDIR is not /tmp), hex ids (7+), colour codes and a
 # trailing duration are stripped, so the same failure reads the same on both
@@ -1140,6 +1143,9 @@ _pp_sig() {  # <output-file> <tree-root>
     function nojson(s) { sub(/[ \t]+[[{][^ \t]*[ \t]*$/, "", s); return s }
     function after(s, re) { if (match(s, re)) return substr(s, RSTART + RLENGTH); return s }
     { line = $0; gsub(/\033\[[0-9;]*[A-Za-z]/, "", line) }
+    line ~ /^=== perf, reported, not gating: / { perf = 1; next }
+    line ~ /^(::warning::)?=== perf [^ ]+: (PASS|OVER BUDGET)/ { perf = 0; next }
+    perf { next }
     fmt && line ~ /^[ \t]*[^ \t]+\.go[ \t]*$/ { emit("gofmt", line); next }
     { fmt = 0 }
     line ~ /^gofmt needed on:/ { fmt = 1; next }

@@ -202,6 +202,28 @@ mute="$ctl\n\nunit runner: all 1 file(s) passed\nsomething went wrong"
 eq "11b. a mute red beside a passing file's planted FAIL, on HEAD and base -> FAIL (fail closed)" \
   "1|FAIL" "$(names "$mute" "$mute" _unit_part | cut -d'|' -f1,2)"
 
+# 12. (SPL-5330) a perf-*.sh run is report-only (run-ci-tests.sh): its lines,
+#     from '=== perf, reported, not gating: <f>' to that file's PASS / OVER
+#     BUDGET line, are no item. Its 'FAIL - ... (50 ms) ...' carries the
+#     measured ms mid-line, so it read NEW on every run and blocked a push
+#     whose part was red for another reason on a red trunk (c-542, msg
+#     ebe2f8aa). A FAIL before or after the section still counts; so does
+#     CI's '::warning::' prefix on the closing line. Red control:
+#     PP_SIG_FROM=<the old _pp_sig> (12a, 12b and 12c FAIL there).
+perf='=== perf, reported, not gating: spawn-agents/perf-agent-hook.sh'
+perf="$perf\nFAIL - the hook's fastest of 300 runs (50 ms) is not under 50 ms (bare interpreter: 18 ms, load 71.69)"
+over='=== perf spawn-agents/perf-agent-hook.sh: OVER BUDGET (rc=1), reported only'
+f12="$ROOT/perf-12a.log"
+printf '%b\n' "FAIL - x\n$perf\n$over\nFAIL - y" >"$f12"
+eq "12a. a perf section's FAIL -> no item; a FAIL before and after it -> its item" \
+  "fail x;fail y" "$(_pp_sig "$f12" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
+printf '%b\n' "$perf\n::warning::$over\nFAIL - y" >"$f12"
+eq "12b. ... CI's ::warning:: closing line ends the section too" \
+  "fail y" "$(_pp_sig "$f12" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
+_perf_part() { grep -q '^good$' "$1/flag" && return 0; cat "$1/flag"; return 1; }
+eq "12c. the same red on HEAD and base, another perf ms -> WARN" "0|WARN" \
+  "$(names "FAIL - x\n$perf\n$over" "FAIL - x\n${perf/(50 ms)/(51 ms)}\n$over" _perf_part | cut -d'|' -f1,2)"
+
 # 4. the per-part timeout kills a hanging suite (the tf-steps hang) instead of
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.
 FT="$ROOT/faketree"; mkdir -p "$FT/csi-spl-iac/src/bash/tests"

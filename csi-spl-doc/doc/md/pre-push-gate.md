@@ -142,6 +142,10 @@ c-304's new gofmt and `TestCleanCodeGate` failures passed as
 "pre-existing" behind an unrelated trunk red, because both trees merely
 exited non-zero. A suite that stops at its first failing step (the api
 suite is `set -e`) can still hide a later new failure behind that step.
+A `perf-*.sh` budget is report-only in the local gate too, as in CI
+(`run-ci-tests.sh`): its section of the orc-features output, from
+`=== perf, reported, not gating:` to its `PASS` / `OVER BUDGET` line, yields
+no item (SPL-5330).
 See `_pp_sig` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`.
 
 <a id="ws-doc-caf371ff-0217-4092-b7c8-5f2bdc81e685"></a>

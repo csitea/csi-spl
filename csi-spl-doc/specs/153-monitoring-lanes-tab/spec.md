@@ -2182,7 +2182,9 @@ change was SPL-4842, Refresh inside the tabs' row).
   this, a lane with 3 or more keys stacked them one per line, 4 to 6
   lines at 320 px.
 - The sort names wrap above the cards as a row of buttons; the filter row
-  wraps under them, the text search first on its own line.
+  wraps under them, the text search first on its own line. (Superseded by
+  3.26: a phone sorts and filters in the Event log's bar and sheets, the
+  names stay in the DOM for readers, visually hidden.)
 - Nothing scrolls sideways at 320, 360 and 390 px, the page nor the list;
   the desktop table is unchanged.
 - No new text key.
@@ -2191,6 +2193,63 @@ change was SPL-4842, Refresh inside the tabs' row).
   fail at all three widths (the list 1703 px wide in a 308..378 px box).
   P6 reads the mock `spool.mock.fleet_lanes=keys`, which adds lane c-404
   with 4 issue keys; it is red on the card layout before the cut.
+
+### 3.26 Sort and filter as the Event log; Refresh where Clear log is (SPL-5276)
+
+Owner HUM-10, t1 e1e97af9 (03:54Z): msg 7ccb6bfa "Sorting and filtering in
+lanes should behave exactly as sorting and filtering for the event log.",
+msg 2dedcc73 "Also, the refresh button should be in the same place where the
+clear lock button is." The page has no "clear lock" button; the Event log's
+**Clear log** (`pages/monitoring/events/index.vue`) is the one it names.
+
+What differed, read on origin/master `9cda5fdae`:
+
+| | Event log (the reference) | Lanes before |
+|---|---|---|
+| sort control | the column name is a button, ▲ / ▼ after the sorted one | the Issues sheet's `SheetSortButton` (a faint ▲ on hover) |
+| sort cycle | none -> asc -> desc -> none, a new column asc | the same (`cycleSort`) |
+| default order | newest first (When) | the hub's, newest write first |
+| filters | one under every column: a text box (part, any case) or a select (exact, All first) | 6 controls: box, vendor, state, age, workspace selects and one text box over 4 columns; agent, prio and last active none |
+| Clear filters (desktop) | on the tabs' row only while a filter is on, before Clear log | always on the row, disabled with no filter |
+| phone | a bar "Sorted: <column>, <direction>" + Sort and Filters buttons (a dot while filtered), each a bottom sheet; Clear filters in the Filters sheet | the names and the filter row wrapped above the cards |
+| URL | none | sort, dir and each filter (3.15) |
+| Clear log / Refresh | Clear log last on the tabs' row (desktop), fixed at the bottom centre above the dock (phone) | Refresh first on the tabs' row, on a phone too |
+
+Now:
+
+- One column sheet for both tables, reused, never copied:
+  `wui/utils/column-sheet.mjs` (the sort cycle, its mark and `aria-sort`,
+  the phone bar's words, one text or choice filter per column, the values a
+  choice offers), `wui/components/SheetHead.vue` (the names and the filter
+  row), `SheetFilterField.vue` (one filter), `SheetPhoneBar.vue` (the bar and
+  its two sheets), `PhoneDockButton.vue` (the bottom-centre action). The
+  Event log's page and `utils/event-sheet.mjs` use them with their
+  behaviour, text and `data-test` names unchanged.
+- Lanes' columns (`LANE_SHEET_COLUMNS` in `wui/utils/monitoring-lanes.mjs`):
+  text filters on agent (id@box), scope, discussion (title and id), issues
+  (the keys), origin; choice filters on box, prio, vendor, state, workspace
+  (by name, matched on the id), and on Updated and Last active an age
+  (within 1 h, within 24 h, over 24 h; Last active against the answer's
+  `as_of`, a lane with none matches no age). The one text box over four
+  columns is gone. The sort values stay 3.14's (prio 1 first, an empty cell
+  last both ways, names with numbers). No sort reads "Updated, newest first".
+- The URL (3.15) keeps working: each filter is a parameter named as its
+  column (`agent`, `box`, `priority`, ..., `workspace`); an old link's `age`
+  reads as `updated`, its `text` is dropped, and neither is written back.
+- Refresh takes Clear log's place: on a desktop the tabs' row reads the age,
+  Clear filters (while a filter is on), Refresh last; on a phone the age
+  stays on the row and Refresh is fixed at the bottom centre above the dock,
+  with room under the last card. Every column, the LaneDialog, the deep link
+  `?lane=`, the stale line and "n of total" are unchanged.
+- No new text key.
+- Tests: unit `tests/unit/column-sheet.test.mjs` (the shared rules, the same
+  clicks and filters through both tables), `monitoring-lanes-sort-filter`,
+  `monitoring-lanes-url`, `event-sheet` (unchanged, green); e2e
+  `tests/e2e/monitoring-lanes-like-events.test.mjs` (S1-S4 the same steps on
+  both pages at 1440 and 390, R1-R2 Refresh where Clear log is),
+  `monitoring-lanes-phone`, `monitoring-lanes-url`,
+  `monitoring-head-actions-row`, `monitoring-costs`. Red control: the bundle
+  of origin/master fails S1, S3, S4, R1 and R2.
 
 ## 4. Cases
 

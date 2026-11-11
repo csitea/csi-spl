@@ -14,6 +14,7 @@
 import { mockRefused } from './act-as-mock.mjs'
 import { isoSeconds } from './iso-seconds.mjs'
 import { lagSeconds, TOKENS_MOCK_OPERATOR_KEY } from './monitoring-tokens.mjs'
+import { emptySheetFilters, sheetFiltersActive, sheetRowMatches } from './column-sheet.mjs'
 
 /** Polling while the tab is open and the browser tab visible (decision P4). */
 export const LANES_POLL_MS = 60000
@@ -149,15 +150,48 @@ export function lanesStaleLevel(lagS) {
    header button is the Issues sheet's (components/SheetSortButton.vue, the
    cycle utils/sheet-sort.mjs); no sort = the hub's order, newest write first. */
 
+/**
+ * SPL-5276 (owner HUM-10, t1 e1e97af9, msg 7ccb6bfa: "Sorting and filtering
+ * in lanes should behave exactly as sorting and filtering for the event
+ * log"): the sheet is the Event log's column sheet (utils/column-sheet.mjs,
+ * components/SheetHead.vue and SheetPhoneBar.vue). Every column sorts by its
+ * name and has one filter under it: a text column keeps the lanes whose cell
+ * holds the text, a choice column the lanes equal to the value picked. The
+ * two times pick an age (within 1 h, within 24 h, older), as the Updated
+ * filter did; the free-text box over four columns is gone, each column has
+ * its own.
+ * @type {readonly { col: string, key: string, kind: 'text' | 'choice', words?: 'date' | 'num' | 'text' }[]}
+ */
+export const LANE_SHEET_COLUMNS = Object.freeze([
+  { col: 'agent', key: 'monitoring.tokens.col_agent', kind: 'text' },
+  { col: 'box', key: 'monitoring.lanes.col_box', kind: 'choice' },
+  { col: 'priority', key: 'issues.field_priority', kind: 'choice', words: 'num' },
+  { col: 'vendor', key: 'monitoring.tokens.col_vendor', kind: 'choice' },
+  { col: 'state', key: 'monitoring.lanes.col_state', kind: 'choice' },
+  { col: 'scope', key: 'monitoring.lanes.col_scope', kind: 'text' },
+  { col: 'topic', key: 'issues.discussion', kind: 'text' },
+  { col: 'issues', key: 'issues.title', kind: 'text' },
+  { col: 'origin', key: 'monitoring.lanes.col_origin_issue', kind: 'text' },
+  { col: 'updated', key: 'monitoring.lanes.col_updated', kind: 'choice', words: 'date' },
+  { col: 'active', key: 'monitoring.tokens.col_last', kind: 'choice', words: 'date' },
+  { col: 'workspace', key: 'sidebar.tenant', kind: 'choice' },
+])
+
 /** The sortable columns, in the table's order. */
-export const LANE_COLUMNS = ['agent', 'box', 'priority', 'vendor', 'state', 'scope', 'topic', 'issues', 'origin', 'updated', 'active', 'workspace']
+export const LANE_COLUMNS = LANE_SHEET_COLUMNS.map((c) => c.col)
+
+/** The list's own order, the phone bar's words for no sort: Updated, newest first (the hub's). */
+export const LANES_DEFAULT_SORT = Object.freeze({ colKey: 'monitoring.lanes.col_updated', dirKey: 'issues_mobile.dir_date_desc' })
 
 /** The age filter: written within 1 h, within 24 h, or longer ago. */
 export const LANE_AGES = ['1h', '24h', 'older']
 const AGE_S = { '1h': 3600, '24h': 86400 }
 
-/** No filter: every lane shows. */
-export const LANES_NO_FILTER = Object.freeze({ text: '', box: '', vendor: '', state: '', age: '', workspace: '' })
+/** The columns whose filter picks an age. */
+export const LANE_AGE_COLUMNS = ['updated', 'active']
+
+/** No filter: every lane shows (one empty filter per column). */
+export const LANES_NO_FILTER = Object.freeze(emptySheetFilters(LANE_SHEET_COLUMNS))
 
 /** A lane's state; a hub without the field sends live lanes only. */
 export function laneState(lane) {
@@ -221,12 +255,6 @@ export function sortLanes(lanes, sort) {
   return sortRowsBy(lanes, sort, LANE_COLUMNS, sortValue)
 }
 
-/** The words a text filter searches: the agent, scope, discussion, issue keys and workspace. */
-function laneWords(lane) {
-  return [laneName(lane), lane.vendor, lane.scope, lane.topicTitle, lane.topicId, ...lane.issues.map((i) => i.key), lane.originIssue ? lane.originIssue.key : '', lane.workspaceName, lane.workspace]
-    .join(' ').toLowerCase()
-}
-
 /** Whether a row's ageS is in an age filter ('' = any); Topics reuses it. */
 export function ageMatches(lane, age) {
   if (!age) return true
@@ -235,27 +263,60 @@ export function ageMatches(lane, age) {
   return s < AGE_S[age]
 }
 
+/** A text column's words (the cell as shown, its id too). */
+function laneText(lane, col) {
+  switch (col) {
+    case 'agent': return laneName(lane)
+    case 'topic': return [lane.topicTitle, lane.topicId].filter(Boolean).join(' ')
+    case 'issues': return lane.issues.map((i) => i.key).join(' ')
+    case 'origin': return lane.originIssue ? lane.originIssue.key : ''
+    default: return str(lane[col])
+  }
+}
+
+/** A choice column's value: the box, prio (1..5), vendor, state or workspace id. */
+function laneChoice(lane, col) {
+  if (col === 'state') return laneState(lane)
+  if (col === 'priority') return lane.priority ? String(lane.priority) : ''
+  return str(lane[col])
+}
+
+/** Seconds from the lane's last token minute to the answer's as_of; null for none. */
+function activeSeconds(lane, asOf) {
+  const ref = Date.parse(str(asOf))
+  const at = Date.parse(str(lane.lastActive))
+  return Number.isFinite(ref) && Number.isFinite(at) ? Math.max(0, (ref - at) / 1000) : null
+}
+
 /**
- * The lanes the filter row keeps: every word of `text` in the lane's words,
- * and box, vendor, state, age and workspace (its id) each '' (any) or equal.
+ * The lanes the filter row keeps: each column's filter '' (All) or matching,
+ * the Event log's rule (utils/column-sheet.mjs sheetRowMatches). Updated
+ * picks the write's age, Last active the age of the last token minute
+ * against the answer's `asOf` (a lane with none matches no age).
  * @template T
  * @param {T[]} lanes
- * @param {{ text?: string, box?: string, vendor?: string, state?: string, age?: string, workspace?: string }} f
+ * @param {Record<string, string>} f
+ * @param {string} [asOf]
  * @returns {T[]}
  */
-export function filterLanes(lanes, f) {
-  const words = str(f.text).toLowerCase().split(/\s+/).filter(Boolean)
-  return lanes.filter((l) => (!f.box || l.box === f.box)
-    && (!f.vendor || l.vendor === f.vendor)
-    && (!f.state || laneState(l) === f.state)
-    && (!f.workspace || l.workspace === f.workspace)
-    && ageMatches(l, str(f.age))
-    && (words.length === 0 || words.every((w) => laneWords(l).includes(w))))
+export function filterLanes(lanes, f, asOf = '') {
+  if (!lanesFiltered(f)) return lanes.slice()
+  const cells = {
+    textOf: laneText,
+    choiceOf: laneChoice,
+    custom: (l, col, q) => {
+      if (col === 'updated') return ageMatches(l, q)
+      if (col !== 'active') return undefined
+      const s = activeSeconds(l, asOf)
+      return s !== null && ageMatches({ ageS: s }, q)
+    },
+  }
+  return lanes.filter((l) => sheetRowMatches(l, f, LANE_SHEET_COLUMNS, cells))
 }
 
 /** True when any filter is set. */
 export function lanesFiltered(f) {
-  return Boolean(str(f.text).trim() || f.box || f.vendor || f.state || f.age || f.workspace)
+  return sheetFiltersActive(f, LANE_SHEET_COLUMNS)
 }
 
 /** The distinct non-empty values, sorted as words with numbers. */
@@ -270,11 +331,11 @@ function laneWorkspaceChoices(lanes) {
   return [...byId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
 }
 
-/** Each select's choices: the distinct non-empty values in the answer, sorted. */
+/** Each select's choices: the distinct non-empty values in the answer, sorted (prio 1 first). */
 export function laneFilterChoices(lanes) {
   const uniq = uniqSorted
-  return { box: uniq(lanes.map((l) => l.box)), vendor: uniq(lanes.map((l) => l.vendor)), state: uniq(lanes.map(laneState)),
-    workspace: laneWorkspaceChoices(lanes) }
+  return { box: uniq(lanes.map((l) => l.box)), priority: uniq(lanes.map((l) => (l.priority ? String(l.priority) : ''))),
+    vendor: uniq(lanes.map((l) => l.vendor)), state: uniq(lanes.map(laneState)), workspace: laneWorkspaceChoices(lanes) }
 }
 
 /**

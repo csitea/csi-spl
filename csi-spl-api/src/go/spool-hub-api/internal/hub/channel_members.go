@@ -581,7 +581,8 @@ func (s *Server) handleUnarchiveChannel(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no archived channel "+r.PathValue("channel")+" in this tenant")
 		return
 	}
-	switch err := s.o.Store.UnarchiveChannel(r.Context(), t.ID, ch); {
+	followed, err := s.o.Store.UnarchiveChannel(r.Context(), t.ID, ch, hum)
+	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no archived channel "+r.PathValue("channel")+" in this tenant")
 		return
@@ -592,6 +593,7 @@ func (s *Server) handleUnarchiveChannel(w http.ResponseWriter, r *http.Request) 
 	row.ArchivedAt, row.ArchivedBy = time.Time{}, ""
 	s.fanoutChannel(r.Context(), t.ID, row)
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel unarchived")
+	s.afterIssueFollow(r.Context(), t.ID, hum, followed) // SPL-5284
 	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "name": row.Name, "description": row.Description,
 		"created_by": row.CreatedBy, "created_at": rfc(row.CreatedAt), "default": false})
 }
@@ -634,7 +636,7 @@ func (s *Server) handleRemoveChannelMember(w http.ResponseWriter, r *http.Reques
 // member's socket so each open sidebar drops the row. verb / past name the
 // operation in the refusals and the log.
 func (s *Server) retireChannel(w http.ResponseWriter, r *http.Request, verb, past string,
-	retire func(ctx context.Context, tenant, channel, by string, at time.Time) error, logKind string) {
+	retire func(ctx context.Context, tenant, channel, by string, at time.Time) ([]store.IssueFollow, error), logKind string) {
 	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
 		return
@@ -652,7 +654,8 @@ func (s *Server) retireChannel(w http.ResponseWriter, r *http.Request, verb, pas
 		return
 	}
 	members := s.channelMemberSet(r.Context(), t.ID, ch)
-	switch err := retire(r.Context(), t.ID, ch, hum, s.o.Now().UTC()); {
+	followed, err := retire(r.Context(), t.ID, ch, hum, s.o.Now().UTC())
+	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
 		return
@@ -665,6 +668,7 @@ func (s *Server) retireChannel(w http.ResponseWriter, r *http.Request, verb, pas
 	}
 	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel " + past)
+	s.afterIssueFollow(r.Context(), t.ID, hum, followed) // SPL-5284
 	if logKind != "" {
 		s.workspaceEvent(r.Context(), t.ID, store.LogEvent{Kind: logKind, Actor: hum, Message: "#" + ch + " " + past,
 			OriginKind: store.LogOriginComponent, OriginRef: "channels/" + ch})

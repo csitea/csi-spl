@@ -123,9 +123,9 @@ func TestDoorCacheWritersClear(t *testing.T) {
 			func(_ string, _, c []string, _ error) bool { return reflect.DeepEqual(c, []string{"ops", "qa"}) }},
 		{"RemoveChannelHuman", func() error { return pg.RemoveChannelHuman(ctx, tid, "qa", dev) },
 			func(_ string, _, c []string, _ error) bool { return reflect.DeepEqual(c, []string{"ops"}) }},
-		{"ArchiveChannel", func() error { return pg.ArchiveChannel(ctx, tid, "ops", owner, now) },
+		{"ArchiveChannel", func() error { return errOf(pg.ArchiveChannel(ctx, tid, "ops", owner, now)) },
 			func(_ string, _, c []string, _ error) bool { return len(c) == 0 }},
-		{"UnarchiveChannel", func() error { return pg.UnarchiveChannel(ctx, tid, "ops") },
+		{"UnarchiveChannel", func() error { return errOf(pg.UnarchiveChannel(ctx, tid, "ops", owner)) },
 			func(_ string, _, c []string, _ error) bool { return reflect.DeepEqual(c, []string{"ops"}) }},
 		{"SetChannelOrder", func() error { return pg.SetChannelOrder(ctx, tid, dev, []string{"web", "ops"}) },
 			func(_ string, o, _ []string, _ error) bool { return reflect.DeepEqual(o, []string{"web", "ops"}) }},
@@ -134,7 +134,7 @@ func TestDoorCacheWritersClear(t *testing.T) {
 				return err
 			}
 			doorRead(t, pg, tid, dev) //nolint:errcheck // warm the cache with web in it
-			return pg.DeleteChannel(ctx, tid, "web", owner, now)
+			return errOf(pg.DeleteChannel(ctx, tid, "web", owner, now))
 		}, func(_ string, _, c []string, _ error) bool { return reflect.DeepEqual(c, []string{"ops"}) }},
 		{"SetMemberRole", func() error { return pg.SetMemberRole(ctx, tid, dev, "tester", "") },
 			func(r string, _, _ []string, _ error) bool { return r == "tester" }},

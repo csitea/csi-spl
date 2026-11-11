@@ -178,7 +178,7 @@ func TestChangeStampWriters(t *testing.T) {
 		{name: "channel agent invite", do: func(s seeded) error {
 			return pg.InviteChannelAgent(ctx, s.tenant, s.channelID, "box-b", "CLE-03", at())
 		}},
-		{name: "channel archive", do: func(s seeded) error { return pg.ArchiveChannel(ctx, s.tenant, s.other, s.humanID, at()) },
+		{name: "channel archive", do: func(s seeded) error { return errOf(pg.ArchiveChannel(ctx, s.tenant, s.other, s.humanID, at())) },
 			prep: func(s *seeded) error {
 				s.other = uid("ch-")
 				return pg.CreateChannel(ctx, Channel{TenantID: s.tenant, ChannelID: s.other, Name: uid("n"), CreatedBy: s.humanID, CreatedAt: at()})

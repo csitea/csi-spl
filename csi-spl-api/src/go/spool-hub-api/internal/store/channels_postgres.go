@@ -90,13 +90,14 @@ func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, e
 // default channel is refused, and only a human-created channel (created_by
 // HUM-*) is deletable, matching the Memory store. An archived channel is
 // deletable too (the create-conflict dialog offers "delete to free the name").
-func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now time.Time) error {
+func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now time.Time) ([]IssueFollow, error) {
 	defer s.hot.forget() // DB payload cut 5: its channel_humans rows cascade out of the door cache
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
-		return ErrConflict
+		return nil, ErrConflict
 	}
-	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+	var followed []IssueFollow
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var createdBy string
 		err := tx.QueryRow(ctx, `SELECT created_by FROM channels WHERE tenant_id = $1 AND channel_id = $2 FOR UPDATE`,
 			tenant, id).Scan(&createdBy)
@@ -110,8 +111,9 @@ func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now
 			return ErrConflict
 		}
 		// SPL-5284: the open issues its topics link are deleted with it (soft).
-		if err := followChannelTx(ctx, tx, tenant, id, by, now); err != nil {
-			return err
+		var err2 error
+		if followed, err2 = followChannelTx(ctx, tx, tenant, id, by, now); err2 != nil {
+			return err2
 		}
 		// its messages (deliveries, message_revisions, message_reactions and
 		// message_kind_changes cascade off messages, as DeleteTopic relies on)
@@ -121,19 +123,24 @@ func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now
 		_, err = tx.Exec(ctx, `DELETE FROM channels WHERE tenant_id = $1 AND channel_id = $2`, tenant, id)
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return followed, nil
 }
 
 // ArchiveChannel stamps the channels row (rdb 0092) and its topic cards. A
 // default channel is refused before the statement; the 0092 CHECK refuses it
 // again in the database. The card stamp carries the channel's archived_at so
 // UnarchiveChannel can tell it from a card archived on its own earlier.
-func (s *Postgres) ArchiveChannel(ctx context.Context, tenant, id, by string, now time.Time) error {
+func (s *Postgres) ArchiveChannel(ctx context.Context, tenant, id, by string, now time.Time) ([]IssueFollow, error) {
 	defer s.hot.forget() // DB payload cut 5: the door cache's channel list skips archived channels
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
-		return ErrConflict
+		return nil, ErrConflict
 	}
-	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+	var followed []IssueFollow
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `UPDATE channels SET archived_at = $3, archived_by = $4
 			WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NULL`, tenant, id, now, by)
 		var pe interface{ SQLState() string }
@@ -154,19 +161,24 @@ func (s *Postgres) ArchiveChannel(ctx context.Context, tenant, id, by string, no
 				AND e.is_parent = 1 AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id))
 			RETURNING m.task_id::text`, tenant, id, now, by))
 		if err == nil { // SPL-5284: the open issues of its topics close with it
-			_, err = followArchiveTx(ctx, tx, tenant, tasks, by, now)
+			followed, err = followArchiveTx(ctx, tx, tenant, tasks, by, now)
 		}
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return followed, nil
 }
 
 // UnarchiveChannel clears the channels row and only the cards THIS archive
 // stamped (archived_at equal to the channel's), so a card archived on its own
 // before the channel archive keeps its stamp. ErrNotFound when not archived.
-func (s *Postgres) UnarchiveChannel(ctx context.Context, tenant, id string) error {
+func (s *Postgres) UnarchiveChannel(ctx context.Context, tenant, id, by string) ([]IssueFollow, error) {
 	defer s.hot.forget() // DB payload cut 5: the door cache's channel list skips archived channels
 	id = NormalizeChannel(id)
-	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+	var followed []IssueFollow
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var at time.Time
 		err := tx.QueryRow(ctx, `SELECT archived_at FROM channels
 			WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NOT NULL FOR UPDATE`, tenant, id).Scan(&at)
@@ -184,10 +196,14 @@ func (s *Postgres) UnarchiveChannel(ctx context.Context, tenant, id string) erro
 			WHERE tenant_id = $1 AND channel = $2 AND archived_at = $3
 			RETURNING task_id::text`, tenant, id, at))
 		if err == nil { // SPL-5284: and reopen with it
-			_, err = followUnarchiveTx(ctx, tx, tenant, tasks, IssueFollowHub, time.Time{})
+			followed, err = followUnarchiveTx(ctx, tx, tenant, tasks, followBy(by), time.Time{})
 		}
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return followed, nil
 }
 
 // ArchivedChannel returns an archived channel's row, ok=false when none.

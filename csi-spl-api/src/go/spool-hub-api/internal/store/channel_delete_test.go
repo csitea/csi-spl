@@ -41,24 +41,24 @@ func TestDeleteChannelHardFreesTheName(t *testing.T) {
 
 			// a default channel, and a channel no human created, are refused
 			for _, d := range DefaultChannels {
-				if err := s.DeleteChannel(ctx, tid, d, "HUM-1", now); !errors.Is(err, ErrConflict) {
+				if _, err := s.DeleteChannel(ctx, tid, d, "HUM-1", now); !errors.Is(err, ErrConflict) {
 					t.Fatalf("delete default %s: %v", d, err)
 				}
 			}
 			if err := s.CreateChannel(ctx, Channel{TenantID: tid, ChannelID: "by-wui", Name: "by-wui", CreatedBy: "wui", CreatedAt: now}); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.DeleteChannel(ctx, tid, "by-wui", "HUM-1", now); !errors.Is(err, ErrConflict) {
+			if _, err := s.DeleteChannel(ctx, tid, "by-wui", "HUM-1", now); !errors.Is(err, ErrConflict) {
 				t.Fatalf("delete a wui-created channel: %v", err)
 			}
-			if err := s.DeleteChannel(ctx, tid, "nosuch", "HUM-1", now); !errors.Is(err, ErrNotFound) {
+			if _, err := s.DeleteChannel(ctx, tid, "nosuch", "HUM-1", now); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("delete unknown: %v", err)
 			}
 
-			if err := s.DeleteChannel(ctx, tid, "doomed", "HUM-1", now); err != nil {
+			if _, err := s.DeleteChannel(ctx, tid, "doomed", "HUM-1", now); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.DeleteChannel(ctx, tid, "doomed", "HUM-1", now); !errors.Is(err, ErrNotFound) {
+			if _, err := s.DeleteChannel(ctx, tid, "doomed", "HUM-1", now); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("second delete: %v", err)
 			}
 			if ok, err := s.ChannelKnown(ctx, tid, "doomed"); err != nil || ok {
@@ -139,19 +139,19 @@ func TestArchiveChannelReservesNameAndCards(t *testing.T) {
 
 			// refusals: default, wui-created, unknown
 			for _, d := range DefaultChannels {
-				if err := s.ArchiveChannel(ctx, tid, d, "HUM-1", now); !errors.Is(err, ErrConflict) {
+				if _, err := s.ArchiveChannel(ctx, tid, d, "HUM-1", now); !errors.Is(err, ErrConflict) {
 					t.Fatalf("archive default %s: %v", d, err)
 				}
 			}
-			if err := s.ArchiveChannel(ctx, tid, "nosuch", "HUM-1", now); !errors.Is(err, ErrNotFound) {
+			if _, err := s.ArchiveChannel(ctx, tid, "nosuch", "HUM-1", now); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("archive unknown: %v", err)
 			}
 
 			at := now.Add(time.Minute)
-			if err := s.ArchiveChannel(ctx, tid, "arch", "HUM-1", at); err != nil {
+			if _, err := s.ArchiveChannel(ctx, tid, "arch", "HUM-1", at); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.ArchiveChannel(ctx, tid, "arch", "HUM-1", at); !errors.Is(err, ErrNotFound) {
+			if _, err := s.ArchiveChannel(ctx, tid, "arch", "HUM-1", at); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("second archive: %v", err)
 			}
 			// hidden everywhere
@@ -183,10 +183,10 @@ func TestArchiveChannelReservesNameAndCards(t *testing.T) {
 			}
 
 			// unarchive: the channel and only the cards this archive stamped come back
-			if err := s.UnarchiveChannel(ctx, tid, "arch"); err != nil {
+			if _, err := s.UnarchiveChannel(ctx, tid, "arch", "HUM-1"); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.UnarchiveChannel(ctx, tid, "arch"); !errors.Is(err, ErrNotFound) {
+			if _, err := s.UnarchiveChannel(ctx, tid, "arch", "HUM-1"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unarchive a live channel: %v", err)
 			}
 			if got, err := s.Channel(ctx, tid, "arch"); err != nil || got.Name != "Arch" {

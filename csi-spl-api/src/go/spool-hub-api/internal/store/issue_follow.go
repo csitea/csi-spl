@@ -96,18 +96,25 @@ func followUnarchiveTx(ctx context.Context, tx pgx.Tx, tenant string, tasks []st
 		tenant, followTasks(tasks), followAt(at), by)
 }
 
-// IssueFollowHub is the updated_by of a reopen nobody named (a channel
-// unarchive carries no actor).
+// IssueFollowHub is the updated_by of a reopen nobody named.
 const IssueFollowHub = "hub"
 
-// followChannelTx soft-deletes the open issues of every topic of channel id
-// (a channel delete).
-func followChannelTx(ctx context.Context, tx pgx.Tx, tenant, id, by string, at time.Time) error {
-	tasks, err := taskList(tx.Query(ctx, `SELECT DISTINCT task_id::text FROM messages WHERE tenant_id = $1 AND channel = $2`, tenant, id))
-	if err == nil {
-		_, err = followDeleteTx(ctx, tx, tenant, tasks, by, at)
+// followBy is by, or IssueFollowHub when empty.
+func followBy(by string) string {
+	if by == "" {
+		return IssueFollowHub
 	}
-	return err
+	return by
+}
+
+// followChannelTx soft-deletes the open issues of every topic of channel id
+// (a channel delete) and answers them.
+func followChannelTx(ctx context.Context, tx pgx.Tx, tenant, id, by string, at time.Time) ([]IssueFollow, error) {
+	tasks, err := taskList(tx.Query(ctx, `SELECT DISTINCT task_id::text FROM messages WHERE tenant_id = $1 AND channel = $2`, tenant, id))
+	if err != nil {
+		return nil, err
+	}
+	return followDeleteTx(ctx, tx, tenant, tasks, by, at)
 }
 
 // taskList reads one text column.

@@ -33,7 +33,12 @@
 #     issues, fails the run, sends one blocker and is journalled; a later run with
 #     no row left tries it again until it takes (R7 c-714 W2); a final refusal is
 #     not journalled; a follow-up the hub has not stored yet is retried
-# RED CONTROLS: without the action file every case fails; without the journal
+#  18 the default (ARCHIVED_FOLLOWUP_ISSUES unset, the cron's) carries the declined
+#     rows only: no issue is listed, linked or unlinked, a topic with issues only
+#     posts nothing (SPL-5284: the hub closed them at archive time; R7 c-574 W2)
+# Cases 1..17 set ARCHIVED_FOLLOWUP_ISSUES=1, the issue move from before SPL-5284.
+# RED CONTROLS: without the action file every case fails; without
+# spl_afu_rows_only case 18 links the issues; without the journal
 # read case 4 posts twice; without the poster check case 5 posts; without
 # spl_afu_work_left case 9 posts; without spl_afu_desk_seated case 10d posts;
 # without spl_afu_late_rows case 11 replies nothing; without the other roots of
@@ -103,6 +108,7 @@ chmod +x "$T/bin/"*
 run() {
   SNIPPET="spl_test_workspace() { [[ \"\$1\" == e2e ]]; }; do_spl_archived_followup" in_orc SPOOL_ROOT="$SP" LEASE_MACHINE=box-a \
     ARCHIVED_FOLLOWUP_STATE_DIR="$ST" ARCHIVED_FOLLOWUP_ROWS_FILE="${ROWS:-$T/rows}" ARCHIVED_FOLLOWUP_POST_CMD="$T/bin/post" \
+    ARCHIVED_FOLLOWUP_ISSUES="${AFU_ISSUES:-1}" \
     ARCHIVED_FOLLOWUP_REPLY_CMD="$T/bin/reply" ARCHIVED_FOLLOWUP_LINK_CMD="$T/bin/link" ARCHIVED_FOLLOWUP_SEND="$T/bin/send" ARCHIVED_FOLLOWUP_PRIORITY_CMD="$T/bin/inherit" ARCHIVED_FOLLOWUP_PRIORITY_WAIT=0 "$@" 2>&1
 }
 count() { grep -c "$1" "$LOG"; }
@@ -213,7 +219,7 @@ fresh; echo "c-002@box-a $(date +%s)" >"$SP/dispatch/lease"
 printf 'issue\tt3\t%s\tdev\t%s\tSPL-8\twip\tthe second job\tbox-a\tHUM-1\n' "$OLD" "$AT" >"$T/rows10g"
 out="$(real_post t3)"; rc=$?
 [[ $rc -ne 0 && "$out" == *"FATAL no desk for c-002 on box-a in t3"* ]] && pass "10g CONTROL: the real post as this user refuses a desk under another user's root" || fail "10g rc $rc: $out"
-out="$(SNIPPET="$ROOTS; spl_test_workspace() { return 1; }; do_spl_archived_followup" in_orc SPOOL_ROOT="$SP" LEASE_MACHINE=box-a ARCHIVED_FOLLOWUP_STATE_DIR="$ST" ARCHIVED_FOLLOWUP_ROWS_FILE="$T/rows10g" ARCHIVED_FOLLOWUP_SEND="$T/bin/send" SPL_DESK_AS_CMD="$T/bin/as" DRY_RUN=0 2>&1)"; rc=$?
+out="$(SNIPPET="$ROOTS; spl_test_workspace() { return 1; }; do_spl_archived_followup" in_orc SPOOL_ROOT="$SP" LEASE_MACHINE=box-a ARCHIVED_FOLLOWUP_STATE_DIR="$ST" ARCHIVED_FOLLOWUP_ROWS_FILE="$T/rows10g" ARCHIVED_FOLLOWUP_ISSUES=1 ARCHIVED_FOLLOWUP_SEND="$T/bin/send" SPL_DESK_AS_CMD="$T/bin/as" DRY_RUN=0 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$(count '^as desk-u do_spl_desk_post TENANT_ID=t3 DESK_BOX=box-a DESK_AGENT=c-002\|^as desk-u do_spl_desk_post TENANT_ID=t3 DESK_AGENT=c-002 DESK_BOX=box-a')" == 1 && "$(count '^as desk-u do_spl_issue_link .*ISSUE_REF=SPL-8 MODE=link')" == 1 && "$(count '^as desk-u do_spl_issue_link .*MODE=unlink')" == 1 && "$(count '^send ')" == 0 ]] && pass "10h the post and both links run as the desk's user, no blocker" || fail "10h rc $rc: $out // $(cat "$LOG")"
 out="$(SNIPPET="$ROOTS; AFU_BOX=box-a AFU_AGENT=c-002; spl_afu_desk_seated t3 && echo \"user=\$AFU_DESK_USER\"; spl_afu_desk_seated t1 && echo \"user=[\$AFU_DESK_USER]\"; spl_afu_desk_seated t2 || echo none" in_orc SPOOL_ROOT="$SP" SPL_DESK_AS_CMD="$T/bin/as" 2>&1)"
 [[ "$out" == *"user=desk-u"* && "$out" == *"user=[]"* && "$out" == *none* ]] && pass "10i the check names the other user, none for its own desk, and refuses where no root has it" || fail "10i: $out"
@@ -475,6 +481,17 @@ for v in 0 10 1440; do
   [[ $rc -eq 0 ]] || bad+=" ok-$v(rc=$rc)"
 done
 [[ -z "$bad" && ! -s "$LOG" ]] && pass "17 settle: 02640, 010, 1441, 99999 refused; 0, 10, 1440 run" || fail "17:$bad // $(cat "$LOG")"
+
+# 18. the default: declined rows only (SPL-5284).
+ST18="$T/fu18"; mkdir -p "$ST18"; date -u +%Y-%m-%dT%H:%M:%SZ >"$ST18/since"
+printf 'issue\tt1\t%s\tdev\t%s\tSPL-70\twip\ta job the hub closed\tbox-a\tHUM-1\n' "$OLD3" "$AT" >"$T/rows18b"
+: >"$LOG"
+out="$(AFU_ISSUES=0 ROWS="$T/rows" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST18" DRY_RUN=0)"; rc=$?
+out2="$(AFU_ISSUES=0 ROWS="$T/rows18b" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST18" DRY_RUN=0)"; rc2=$?
+[[ $rc -eq 0 && $rc2 -eq 0 && "$(count '^post ')" == 1 && "$(count '^link ')" == 0 && "$(count '^unlink ')" == 0 ]] &&
+  grep -q 'abcd1234' "$T/last-body" 2>/dev/null && ! grep -q 'SPL-1\|SPL-2\|SPL-70\|Issues moved here' "$T/last-body" &&
+  pass "18 the default carries the declined rows only: one post for the row topic, no issue listed or moved" ||
+  fail "18 (rc=$rc/$rc2): $out // $out2 // $(cat "$LOG") // $(cat "$T/last-body" 2>/dev/null)"
 
 echo "spl-archived-followup: $fails failure(s)"
 [[ $fails -eq 0 ]]

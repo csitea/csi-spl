@@ -1,8 +1,12 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description RETIRED from the box cron by SPL-5284: the hub now closes an archived
-# @description discussion's open issues itself (spec 041 archive-releases-work.md
-# @description section "An issue follows its discussion"); run it by hand only.
+# @description Declined rows only since SPL-5284: issues follow their discussion at
+# @description archive time in the hub (spec 041 archive-releases-work.md, section
+# @description "An issue follows its discussion"), so this run drops every issue line
+# @description it reads and carries on only the queue rows the placer declined
+# @description because of the archive (holder c-002, R7 c-574 W2: the owner asked for
+# @description that carry-over, msg 51465f86). ARCHIVED_FOLLOWUP_ISSUES=1 brings the
+# @description old issue move back, for a hand run or a test.
 # @description What an archived discussion left undone goes on in a new
 # @description discussion, by code (SPL-4955; owner HUM-10, msg 51465f86: "if
 # @description there is somethign else to be done to create an additional
@@ -72,6 +76,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param ARCHIVED_FOLLOWUP_SETTLE_MIN (optional) - minutes an archive holds before it is followed up, default 10 (0..1440)
+# @param ARCHIVED_FOLLOWUP_ISSUES (optional) - 0 (default): declined rows only; 1: the issues move too (before SPL-5284)
 # @param ARCHIVED_FOLLOWUP_STATE_DIR (optional) - since, journal.tsv, rows.seen, failed.keys, inherit.pending; default <spool root>/dispatch/archived-followup
 # @param ARCHIVED_FOLLOWUP_ROWS_FILE (optional, tests) - read the rows from this file, not the hub DB
 # @param ARCHIVED_FOLLOWUP_POST_CMD (optional, tests) - replaces do_spl_desk_post: TENANT_ID, DESK_AGENT, DESK_CHANNEL, DESK_BODY_FILE in its env, prints its JSON line
@@ -464,13 +469,20 @@ spl_afu_work_left() {
   awk -F'\t' '!($1 == "issue" && tolower($8) ~ /^(seat|lane) brief: *r7 review/)' "$1" >"$1.left" && mv "$1.left" "$1"
 }
 
+# spl_afu_rows_only ROWS: drops every issue line unless ARCHIVED_FOLLOWUP_ISSUES=1
+# (SPL-5284: the hub closed them at archive time; only the declined rows go on).
+spl_afu_rows_only() {
+  [[ "${ARCHIVED_FOLLOWUP_ISSUES:-0}" == 1 ]] && return 0
+  awk -F'\t' '$1 != "issue"' "$1" >"$1.rows" && mv "$1.rows" "$1"
+}
+
 # spl_afu_rows OUT SINCE: kind, tenant, topic, channel, archived at, ref, status,
 # text, the boxes of the roster with the holder's id there, the topic's last
 # human; tab separated, read-only.
 spl_afu_rows() {
   if [[ -n "${ARCHIVED_FOLLOWUP_ROWS_FILE:-}" ]]; then
     cp "$ARCHIVED_FOLLOWUP_ROWS_FILE" "$1" || { do_log "FATAL cannot read ARCHIVED_FOLLOWUP_ROWS_FILE $ARCHIVED_FOLLOWUP_ROWS_FILE"; return 1; }
-    spl_afu_work_left "$1"
+    spl_afu_work_left "$1" && spl_afu_rows_only "$1"
     return
   fi
   do_require_bin yq psql || return 1
@@ -478,7 +490,7 @@ spl_afu_rows() {
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   spl_via_proxy _spl_afu_read "$1" "$2" "$AFU_AGENT" "${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10}" || { do_log "FATAL could not read the archived topics of $ENV"; return 1; }
-  spl_afu_work_left "$1"
+  spl_afu_work_left "$1" && spl_afu_rows_only "$1"
 }
 
 # The one statement: OUT SINCE AGENT [SETTLE minutes, default 10]. A topic is

@@ -364,7 +364,7 @@ func headCases() []headCase {
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return firstOf(absent(f, r, "A"), absent(f, r, "K")) }},
 		{id: "E19", what: "delete a channel", apply: func(f *headFix) {
 			f.line("a3", "A", time.Minute, lineOpt{ch: "crew"})
-			f.must("delete channel", f.pg.DeleteChannel(ctx, f.tn, "crew", "HUM-1", f.t0))
+			f.must("delete channel", errOf(f.pg.DeleteChannel(ctx, f.tn, "crew", "HUM-1", f.t0)))
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
 			return firstOf(absent(f, r, "B"), countIs(f, r, "A", 3))
 		}},
@@ -424,7 +424,7 @@ func headCases() []headCase {
 			return firstOf(countIs(f, r, "T1", 1), countIs(f, r, "T5", 1), boundaryAt(f, f.t0.Add(-2*time.Minute), 2))
 		}},
 		{id: "E29", what: "archive a channel (stamps its topic cards)", apply: func(f *headFix) {
-			f.must("archive channel", f.pg.ArchiveChannel(ctx, f.tn, "crew", "HUM-1", f.t0))
+			f.must("archive channel", errOf(f.pg.ArchiveChannel(ctx, f.tn, "crew", "HUM-1", f.t0)))
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return absent(f, r, "B") }},
 		{id: "E30", what: "a child topic gains a line in another channel", apply: func(f *headFix) {
 			f.line("k1", "K", time.Minute, lineOpt{parent: "A", ch: "crew"})
@@ -557,8 +557,8 @@ func headCasesT001b() []headCase {
 			return firstOf(countIs(f, r, "A", 4), countIs(f, r, "D", 2))
 		}},
 		{id: "E37", what: "a channel is unarchived", apply: func(f *headFix) {
-			f.must("archive channel", f.pg.ArchiveChannel(ctx, f.tn, "crew", "HUM-1", f.t0))
-			f.must("unarchive channel", f.pg.UnarchiveChannel(ctx, f.tn, "crew"))
+			f.must("archive channel", errOf(f.pg.ArchiveChannel(ctx, f.tn, "crew", "HUM-1", f.t0)))
+			f.must("unarchive channel", errOf(f.pg.UnarchiveChannel(ctx, f.tn, "crew", "HUM-1")))
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "B", 2) }},
 		{id: "E38", what: "a topic that has a child is merged", apply: func(f *headFix) {
 			_, err := f.pg.MergeTopic(ctx, f.tn, f.msg["a0"], f.task["A"], f.task["B"], "crew", "HUM-1", f.t0)

@@ -22,8 +22,8 @@ import (
 
 // archiveEnv: HUM-8 is the tenant owner, HUM-9 an admin, everyone else a
 // developer (roleOf, message_kind_test.go).
-func archiveEnv(t *testing.T) *env {
-	return newEnv(t, func(o *hub.Options) {
+func archiveEnv(t *testing.T, mut ...func(*hub.Options)) *env {
+	return newEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
 		o.ViewDoor = hub.ViewDoorOff
 		o.LobbyTaskID = lobby
 		o.ViewCORSOrigins = []string{wuiOrigin}
@@ -34,7 +34,7 @@ func archiveEnv(t *testing.T) *env {
 			}
 			return "", errors.New("no session")
 		}
-	})
+	}}, mut...)...)
 }
 
 // putCard stores a row the way the hub stores a browser (box-wui) or box

@@ -476,7 +476,8 @@ func (s *Server) handleArchiveTenantChannel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	members := s.channelMemberSet(r.Context(), t.ID, ch)
-	switch err := s.o.Store.ArchiveChannel(r.Context(), t.ID, ch, a.HumanID, s.o.Now().UTC()); {
+	followed, err := s.o.Store.ArchiveChannel(r.Context(), t.ID, ch, a.HumanID, s.o.Now().UTC())
+	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this tenant")
 		return
@@ -489,6 +490,7 @@ func (s *Server) handleArchiveTenantChannel(w http.ResponseWriter, r *http.Reque
 	}
 	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", a.HumanID).Msg("tenant.channel_archived")
+	s.afterIssueFollow(r.Context(), t.ID, a.HumanID, followed) // SPL-5284
 	w.WriteHeader(http.StatusNoContent)
 }
 

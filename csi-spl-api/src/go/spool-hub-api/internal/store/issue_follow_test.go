@@ -178,21 +178,32 @@ func TestIssueFollowsChannel(t *testing.T) {
 				}
 				return g.Status
 			}
-			if err := s.ArchiveChannel(ctx, tid, "closed", "HUM-2", now.Add(time.Minute)); err != nil {
+			// R7 c-574 W1: each call answers what it did, for the hub's frames.
+			one := func(what string, fs []IssueFollow, op, from, to string) {
+				t.Helper()
+				if len(fs) != 1 || fs[0].Number != i.Number || fs[0].TaskID != T || fs[0].Op != op || fs[0].From != from || fs[0].To != to {
+					t.Fatalf("%s answered %+v, want one %s of #%d %s->%s", what, fs, op, i.Number, from, to)
+				}
+			}
+			fs, err := s.ArchiveChannel(ctx, tid, "closed", "HUM-2", now.Add(time.Minute))
+			if err != nil {
 				t.Fatal(err)
 			}
+			one("archive", fs, IssueFollowArchive, IssueWIP, IssueDiss)
 			if got := status(); got != IssueDiss {
 				t.Fatalf("after the channel archive: %s, want diss", got)
 			}
-			if err := s.UnarchiveChannel(ctx, tid, "closed"); err != nil {
+			if fs, err = s.UnarchiveChannel(ctx, tid, "closed", "HUM-1"); err != nil {
 				t.Fatal(err)
 			}
+			one("unarchive", fs, "unarchive", IssueDiss, IssueWIP)
 			if got := status(); got != IssueWIP {
 				t.Fatalf("after the channel unarchive: %s, want wip", got)
 			}
-			if err := s.DeleteChannel(ctx, tid, "closed", "HUM-2", now.Add(2*time.Minute)); err != nil {
+			if fs, err = s.DeleteChannel(ctx, tid, "closed", "HUM-2", now.Add(2*time.Minute)); err != nil {
 				t.Fatal(err)
 			}
+			one("delete", fs, IssueFollowDelete, IssueWIP, "")
 			if _, err := is.GetIssue(ctx, tid, i.Number); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("after the channel delete: %v, want ErrNotFound", err)
 			}

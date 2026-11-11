@@ -256,7 +256,7 @@ func TestDMRefNotIntoUnreadableChannel(t *testing.T) {
 		t.Fatal("CONTROL: the member's same claim was not kept and mirrored")
 	}
 
-	if err := r.e.st.ArchiveChannel(ctx, r.tid, dmRefChannel, "HUM-1", time.Now()); err != nil {
+	if _, err := r.e.st.ArchiveChannel(ctx, r.tid, dmRefChannel, "HUM-1", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	later := r.dm(r.w1, uuidV4(), d, "", "a DM after the channel was archived")

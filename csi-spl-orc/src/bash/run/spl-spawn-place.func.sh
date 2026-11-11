@@ -157,8 +157,10 @@
 # @description         whose discussion or dispatch-<topic8> topic is archived
 # @description         on the hub is not placed: declined with the reason, its
 # @description         sender and the holder told, the next row taken in the same
-# @description         tick. do_spl_archived_followup lists it in the new
-# @description         discussion. A failed read places as before, one WARN.
+# @description         tick. do_spl_archived_followup lists it in a new
+# @description         discussion (declined rows only since SPL-5284; the
+# @description         issues follow their discussion in the hub). A failed
+# @description         read places as before, one WARN.
 # @description         A launch writes `Ask-Topic: <topic>` into the brief, the
 # @description         lane's binding for do_spl_archived_seats_free
 # @description      CATEGORY (spec 143 4.4, SPL-2790): before a launch (4a) the

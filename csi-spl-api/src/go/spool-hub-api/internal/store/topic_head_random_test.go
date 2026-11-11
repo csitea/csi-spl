@@ -474,16 +474,16 @@ func (r *headRand) opChannel() error {
 	switch k {
 	case 0:
 		r.note("archive #crew")
-		return r.f.pg.ArchiveChannel(ctx, r.f.tn, "crew", "HUM-1", r.f.t0)
+		return errOf(r.f.pg.ArchiveChannel(ctx, r.f.tn, "crew", "HUM-1", r.f.t0))
 	case 3:
 		r.note("delete and re-create #crew")
-		if err := r.f.pg.DeleteChannel(ctx, r.f.tn, "crew", "HUM-1", r.f.t0); err != nil {
+		if _, err := r.f.pg.DeleteChannel(ctx, r.f.tn, "crew", "HUM-1", r.f.t0); err != nil {
 			return err
 		}
 		return r.f.pg.CreateChannel(ctx, Channel{TenantID: r.f.tn, ChannelID: "crew", Name: "crew", CreatedBy: "HUM-1"})
 	}
 	r.note("unarchive #crew")
-	return r.f.pg.UnarchiveChannel(ctx, r.f.tn, "crew")
+	return errOf(r.f.pg.UnarchiveChannel(ctx, r.f.tn, "crew", "HUM-1"))
 }
 
 func (r *headRand) opResend() error {

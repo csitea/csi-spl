@@ -64,7 +64,7 @@ func TestHiddenUnreadGateSkipsUnlistedChannels(t *testing.T) {
 	archivedTopic(ChannelLobby, 19*time.Minute)
 	archivedTopic(ChannelIssues, 18*time.Minute)
 	archivedTopic("old", 17*time.Minute)
-	if err := pg.ArchiveChannel(ctx, tid, "old", "HUM-2", now.Add(-30*time.Second)); err != nil {
+	if _, err := pg.ArchiveChannel(ctx, tid, "old", "HUM-2", now.Add(-30*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	early := now.Add(-time.Hour)

@@ -14,8 +14,9 @@
 # @description desk seat dropped, the lane row done, the worktree listed for the
 # @description disk sweep, never removed), after its still open lane issue is
 # @description put on hold with the reason "discussion archived by the owner"
-# @description (SPL-4955: it is work left over, do_spl_archived_followup moves
-# @description it to a new discussion; a diss used to discard it).
+# @description (SPL-4955: it is work left over; a diss used to discard it. Since
+# @description SPL-5284 the hub has already closed an open issue of the topic at
+# @description archive time, and a diss stays as it is).
 # @description The hub row alone is not proof: the spawn path stores the first
 # @description topic a brief MENTIONS. So a lane is freed only when its own brief
 # @description (<spool root>/<id>/lifetime/brief.md) has an `Ask-Topic:` line
@@ -220,7 +221,7 @@ spl_archived_seat_git_counts() {
 # close and retire it through tmux-close-window.sh --retire.
 spl_archived_seat_free() {
   local root="$1" id="$2" topic="$3" at="$4" dry="$5" key=""
-  local reason="discussion archived by the owner (topic $topic, archived $at; SPL-3983): do_spl_archived_followup moves what is left to a new discussion (SPL-4955)"
+  local reason="discussion archived by the owner (topic $topic, archived $at; SPL-3983): the hub closes its open issues at archive time and reopens them on an unarchive (SPL-5284)"
   [[ -s "$root/$id/lifetime/issue" && ! -e "$root/$id/lifetime/issue-end" ]] && key="$(head -1 "$root/$id/lifetime/issue")"
   if ((dry)); then
     do_log "WOULD free $id (topic $topic, archived $at)${key:+, its issue $key on hold}: tmux-close-window.sh --agent $id --retire"

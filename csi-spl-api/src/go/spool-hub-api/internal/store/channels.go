@@ -204,8 +204,9 @@ type Channels interface {
 	// removed in one transaction, so the slug is FREE again - a new channel of
 	// the same id inherits no topic, member or message. ErrConflict on a
 	// default channel; ErrNotFound when absent. Who may call it is the hub's
-	// rule, not the store's.
-	DeleteChannel(ctx context.Context, tenantID, channelID, by string, now time.Time) error
+	// rule, not the store's. It answers the open issues its topics linked,
+	// soft-deleted in the same transaction (SPL-5284, issue_follow.go).
+	DeleteChannel(ctx context.Context, tenantID, channelID, by string, now time.Time) ([]IssueFollow, error)
 	// ArchiveChannel hides a created channel and reserves its name (rdb 0092,
 	// SPL feature topic 32ea1b81): it stamps channels.archived_at/archived_by
 	// and stamps the same archived_at/archived_by on every not-yet-archived
@@ -216,15 +217,17 @@ type Channels interface {
 	// ChannelMembers / ChannelHumanMembers none, HumanChannels and
 	// ViewChannelStats omit it - while its slug stays taken (CreateChannel
 	// ErrConflict) so a new channel cannot collide. ErrConflict on a default
-	// channel; ErrNotFound when absent or already archived.
-	ArchiveChannel(ctx context.Context, tenantID, channelID, by string, now time.Time) error
+	// channel; ErrNotFound when absent or already archived. It answers the
+	// open issues of those topics it closed (SPL-5284, issue_follow.go).
+	ArchiveChannel(ctx context.Context, tenantID, channelID, by string, now time.Time) ([]IssueFollow, error)
 	// UnarchiveChannel undoes ArchiveChannel: the channel returns and the topic
 	// cards THIS archive stamped (archived_at equal to the channel's) are
 	// un-archived; a card archived on its own before the channel archive keeps
 	// its earlier stamp and stays archived. Members, agents and the messages
 	// still in retention come back as they were. ErrNotFound when the channel
-	// is not an archived one.
-	UnarchiveChannel(ctx context.Context, tenantID, channelID string) error
+	// is not an archived one. It answers the issues the archive closed that
+	// it reopened, stamped updated_by by ("" = IssueFollowHub; SPL-5284).
+	UnarchiveChannel(ctx context.Context, tenantID, channelID, by string) ([]IssueFollow, error)
 	// ArchivedChannel returns an archived channel's row (ArchivedAt/ArchivedBy
 	// set), ok=false when the tenant has no archived channel of that id. The
 	// one read that sees past the archive flag - the create handler uses it to

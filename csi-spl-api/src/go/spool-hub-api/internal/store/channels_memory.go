@@ -141,10 +141,10 @@ func (s *Memory) ChannelKnown(_ context.Context, tenant, id string) (bool, error
 
 // DeleteChannel HARD-deletes a channel (live or archived): its row, its
 // membership rows and its messages are all removed, so the slug is free.
-func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now time.Time) error {
+func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now time.Time) ([]IssueFollow, error) {
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
-		return ErrConflict
+		return nil, ErrConflict
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -153,11 +153,11 @@ func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now tim
 	c, archived := s.ch.rows[k], false
 	if _, ok := s.ch.rows[k]; !ok {
 		if c, archived = s.ch.archived[k]; !archived {
-			return ErrNotFound
+			return nil, ErrNotFound
 		}
 	}
 	if len(c.CreatedBy) < 4 || c.CreatedBy[:4] != "HUM-" { // the 0092 CHECK
-		return ErrConflict
+		return nil, ErrConflict
 	}
 	delete(s.ch.rows, k)
 	delete(s.ch.archived, k)
@@ -180,8 +180,8 @@ func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now tim
 			delete(bag, id)
 		}
 	}
-	s.followLocked(tenant, s.channelTasksLocked(tenant, id), IssueFollowDelete, by, now) // SPL-5284
-	for mk, m := range s.messages {                                                      // its messages and the rows that reference them
+	followed := s.followLocked(tenant, s.channelTasksLocked(tenant, id), IssueFollowDelete, by, now) // SPL-5284
+	for mk, m := range s.messages {                                                                  // its messages and the rows that reference them
 		if mk[0] == tenant && m.Channel == id {
 			delete(s.messages, mk)
 			delete(s.revisions, mk)
@@ -194,7 +194,7 @@ func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now tim
 			}
 		}
 	}
-	return nil
+	return followed, nil
 }
 
 // firstOfTaskLocked reports whether m is its task's opening card (no earlier
@@ -212,10 +212,10 @@ func (s *Memory) firstOfTaskLocked(tenant string, m *Message) bool {
 // ArchiveChannel hides a channel, reserves its slug and stamps its topic
 // cards (rdb 0092). The cards it stamps carry the channel's archived_at, so
 // UnarchiveChannel can tell them from cards archived on their own before.
-func (s *Memory) ArchiveChannel(_ context.Context, tenant, id, by string, now time.Time) error {
+func (s *Memory) ArchiveChannel(_ context.Context, tenant, id, by string, now time.Time) ([]IssueFollow, error) {
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
-		return ErrConflict
+		return nil, ErrConflict
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -223,10 +223,10 @@ func (s *Memory) ArchiveChannel(_ context.Context, tenant, id, by string, now ti
 	k := [2]string{tenant, id}
 	c, ok := s.ch.rows[k]
 	if !ok { // absent or already archived
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
 	if len(c.CreatedBy) < 4 || c.CreatedBy[:4] != "HUM-" { // the 0092 CHECK
-		return ErrConflict
+		return nil, ErrConflict
 	}
 	c.ArchivedAt, c.ArchivedBy = now, by
 	delete(s.ch.rows, k)
@@ -239,8 +239,7 @@ func (s *Memory) ArchiveChannel(_ context.Context, tenant, id, by string, now ti
 			tasks = append(tasks, m.TaskID)
 		}
 	}
-	s.followLocked(tenant, tasks, IssueFollowArchive, by, now) // SPL-5284
-	return nil
+	return s.followLocked(tenant, tasks, IssueFollowArchive, by, now), nil // SPL-5284
 }
 
 // channelTasksLocked is the distinct tasks of channel id's messages.
@@ -258,7 +257,7 @@ func (s *Memory) channelTasksLocked(tenant, id string) []string {
 
 // UnarchiveChannel restores the channel and only the cards this archive
 // stamped (same archived_at). Cards archived individually before keep theirs.
-func (s *Memory) UnarchiveChannel(_ context.Context, tenant, id string) error {
+func (s *Memory) UnarchiveChannel(_ context.Context, tenant, id, by string) ([]IssueFollow, error) {
 	id = NormalizeChannel(id)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -266,7 +265,7 @@ func (s *Memory) UnarchiveChannel(_ context.Context, tenant, id string) error {
 	k := [2]string{tenant, id}
 	c, ok := s.ch.archived[k]
 	if !ok {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
 	at := c.ArchivedAt
 	c.ArchivedAt, c.ArchivedBy = time.Time{}, ""
@@ -279,8 +278,7 @@ func (s *Memory) UnarchiveChannel(_ context.Context, tenant, id string) error {
 			tasks = append(tasks, m.TaskID)
 		}
 	}
-	s.unfollowLocked(tenant, tasks, IssueFollowHub, time.Time{}) // SPL-5284
-	return nil
+	return s.unfollowLocked(tenant, tasks, followBy(by), time.Time{}), nil // SPL-5284
 }
 
 func (s *Memory) ArchivedChannel(_ context.Context, tenant, id string) (Channel, bool, error) {

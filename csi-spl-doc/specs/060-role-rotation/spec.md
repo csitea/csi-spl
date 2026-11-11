@@ -594,12 +594,15 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 
   When the holder's lease.conf names no `LEASE_ENV` + `LEASE_TENANT` (and no
   `ASKS_OWNER_CMD` is set): one `WARN`, and the ask alone.
+  When the ask itself cannot be filed (`do_spl_ask_put` fails), no one has
+  been asked: the card stays `blocker` and names no ask.
 
   The other automatic `#alerts` posters, checked for SPL-5332: the
   orchestrator failover, the recovered line (FR-075's follow-up,
   `spl_rotate_recovered`) and the hung-watchdog notice are already `note`.
   The deploy-lag alarm and the deploy-failure post stay `blocker`: they run
-  in CI with no lease to name an orchestrator, the failure post's "From:" is
+  from the box cron `spl-ops-alarm-cron.sh`, outside any role lease, so
+  there is no orchestrator to name, the failure post's "From:" is
   read from a subject tag that is now usually an issue key rather than an
   agent, and the cause (a code red, or a GCP permission or quota only the
   owner can change) is not known when they post.

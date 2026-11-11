@@ -30,7 +30,7 @@
 #   spl_rotate_retire PANE PID              /exit-clean, /exit once its turn ends, wait, TERM, wait, KILL (FR-015)
 #   spl_rotate_ack_wait ID RID TIMEOUT      the new session's result on task <role>-rotate-<rid> in <ID>/outbox (FR-041)
 #   spl_rotate_ack_send ROLE ID             the ROTATE_CMD=ack sender, run by the new session (FR-041)
-#   spl_rotate_alert ROLE RID PHASE REASON  an ask (blocker) + an immediate owner DM (FR-075); <id>/lifetime/alerts.open
+#   spl_rotate_alert ROLE RID PHASE REASON  an ask (blocker) to the orchestrator + an #alerts note (FR-075); <id>/lifetime/alerts.open
 #   spl_rotate_recovered ID RID ACTION PID  that seat healthy again: its open alert asks closed, one line to the owner
 #
 # The globals a rotation sets and these read: ROTATE_RID, ROTATE_OLD_PID,
@@ -1529,7 +1529,12 @@ spl_rotate_alert() {
     if spl_is_agent_id "$id" && mkdir -p "$SPOOL_ROOT/$id/lifetime" 2>/dev/null; then
       echo "$ask $rid $phase" >> "$SPOOL_ROOT/$id/lifetime/alerts.open" 2>/dev/null || true
     fi
-  else spl_rotate_log "$rid" ALERT FAIL "do_spl_ask_put failed"; fi
+  else
+    # no ask reached anyone: the card stays a blocker and names no ask
+    spl_rotate_log "$rid" ALERT FAIL "do_spl_ask_put failed"
+    spl_rotate_owner_say "$rid" "$id" "$ask" "**$body** The ask to the orchestrator failed." blocker
+    return 0
+  fi
   local who="${LEASE_ORCH:+$LEASE_ORCH (the orchestrator)}"
   spl_rotate_owner_say "$rid" "$id" "$ask" \
     "**$body** For ${who:-the orchestrator}, ask ${ask:0:8}: nothing for the owner to do." note

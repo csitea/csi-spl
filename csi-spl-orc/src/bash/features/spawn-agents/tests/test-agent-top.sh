@@ -91,7 +91,11 @@ bash "$TOP" --ensure-badge-loop --interval 60; p1="$(cat "$AGENT_TOP_PIDFILE" 2>
 check "5. --ensure-badge-loop starts a loop" kill -0 "${p1:-0}"
 bash "$TOP" --ensure-badge-loop --interval 60
 eq "5. a second call starts none" "$p1" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)"
-gone() { local _ t0=$SECONDS; for _ in $(seq 1 40); do
+# gone PID [TRIES]: TRIES x 0.2 s, default 40 (8 s). The TERM check keeps 8 s: it
+# proves TERM acts at once. The self-stop checks get 150 (30 s): their loop
+# polls each --interval 1 s and, in the parallel feature run at load ~90 on
+# 16 cores, did not notice the change within 8 s (pre-push, tree 0e686871e).
+gone() { local _ t0=$SECONDS; for _ in $(seq 1 "${2:-40}"); do
     kill -0 "$1" 2>/dev/null || { echo "# gone: pid $1 ended after $((SECONDS - t0)) s" >&2; return 0; }; sleep 0.2; done
   echo "# gone: pid $1 still alive after $((SECONDS - t0)) s" >&2; return 1; }
 # A loop acts on a planted pid, a removed tree or a dead server only once it
@@ -116,15 +120,15 @@ check "5. ... and it removes its own pidfile" test ! -e "$AGENT_TOP_PIDFILE"
 bash "$TOP" --badge-loop --interval 1 & lp=$!
 check "5. the loop wrote its own pid before the plant" owns "$AGENT_TOP_PIDFILE" "$lp"
 echo 999999 >"$AGENT_TOP_PIDFILE"
-check "5. a loop whose PIDFILE names another pid stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
+check "5. a loop whose PIDFILE names another pid stops by itself" gone "$lp" 150; kill "$lp" 2>/dev/null
 mkdir -p "$T_TMP/tree/scripts"; cp -r "$T_FEAT/lib" "$T_TMP/tree/"; cp "$TOP" "$T_TMP/tree/scripts/"
 AGENT_TOP_PIDFILE="$T_TMP/tree.pid" bash "$T_TMP/tree/scripts/agent-top.sh" --badge-loop --interval 1 & lp=$!
 check "5. the tree loop wrote its own pid before the removal" owns "$T_TMP/tree.pid" "$lp"; rm -rf "$T_TMP/tree"
-check "5. a loop whose tree was removed stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
+check "5. a loop whose tree was removed stops by itself" gone "$lp" 150; kill "$lp" 2>/dev/null
 S2="$T_TMP/s2.sock"; tmux -S "$S2" -f /dev/null new-session -d 'sleep 600'
 SPOOL_TMUX_SOCKET="$S2" AGENT_TOP_PIDFILE="$T_TMP/s2.pid" bash "$TOP" --badge-loop --interval 1 & lp=$!
 check "5. the s2 loop wrote its own pid before the kill" owns "$T_TMP/s2.pid" "$lp"; tmux -S "$S2" kill-server
-check "5. a loop whose tmux server is gone stops by itself" gone "$lp"; kill "$lp" 2>/dev/null
+check "5. a loop whose tmux server is gone stops by itself" gone "$lp" 150; kill "$lp" 2>/dev/null
 
 # --- 6 ------------------------------------------------------------------------------
 # The limit fixture is Vibe 2.26.0's rate-limit text (vibe/cli/textual_ui/app.py

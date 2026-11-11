@@ -163,10 +163,14 @@
         aria-labelledby="sidebar-tab-dm"
         data-testid="sidebar-panel-dm"
       >
+    <!-- SPL-5268: a discussion list's top chevron (MobileBack top) -->
+    <div class="sidebar-head">
+    <MobileBack top />
     <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-dm" aria-describedby="sidebar-help-dm-tip">
       {{ t(dmLabelKey) }}
       <span id="sidebar-help-dm-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.direct_messages') }}</span>
     </h2>
+    </div>
     <div class="sidebar-scroll">
     <!-- the reader's own row. A signed-in human is the one peer
          guaranteed to be online, and was the only one the pane never drew -
@@ -276,6 +280,9 @@
          anyone had decided to create anything, and had nowhere to put what
          the channel is FOR. -->
     <div class="sidebar-head">
+      <!-- SPL-5268 (owner poll 157965f2 A): the top chevron at the top level
+           of Discussions too; a tap is the browser's Back (MobileBack top) -->
+      <MobileBack top />
       <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-channels" aria-describedby="sidebar-help-channels-tip">
         {{ t('sidebar.channels') }}
         <span id="sidebar-help-channels-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.channels') }}</span>

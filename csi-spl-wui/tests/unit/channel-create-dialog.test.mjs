@@ -37,7 +37,8 @@ describe('the + control next to the Channels heading', () => {
   const sidebar = channelSidebarSrc()
 
   it('is a real button in the heading row, not a field in the channel list', () => {
-    assert.match(sidebar, /<div class="sidebar-head">\s*<h2[^>]*>\s*\{\{ t\('sidebar\.channels'\) \}\}/)
+    /* SPL-5268: the phone's top chevron (MobileBack top) may lead the row */
+    assert.match(sidebar, /<div class="sidebar-head">\s*(?:<!--[\s\S]*?-->\s*)?(?:<MobileBack top \/>\s*)?<h2[^>]*>\s*\{\{ t\('sidebar\.channels'\) \}\}/)
     assert.match(sidebar, /type="button"[\s\S]{0,200}data-testid="create-channel"/)
     assert.match(sidebar, /<UiIcon name="plus"/)
     /* the old always-open row is gone from the markup AND from the stylesheet */

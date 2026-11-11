@@ -16,7 +16,11 @@
 # stubs, not the real thing: they never key a selection (an iac test that
 # stubs do_log once selected all 198 orc tests). Its basename and stem
 # still do. A shared test library (test-lib.inc.sh, lib.inc.sh) defines
-# real helpers, so its functions still count. Prints tab-separated lines:
+# real helpers, so its functions still count. A function the ./run
+# dispatcher (src/bash/run/run.sh) defines, such as do_log, is the
+# dispatcher's: another file that defines its own stand-in never keys on it
+# (a relay script's local do_log selected 380 of 646 orc tests, SPL-5321).
+# Prints tab-separated lines:
 #   run<TAB><test file name><TAB><why>
 #   ignore<TAB><repo path><TAB><why>
 #   full<TAB><why>          (then nothing else: run the whole suite)
@@ -54,6 +58,10 @@ else
   } | sort -u)
 fi
 
+# defs: the shell function names defined in stdin, one per line
+defs() { sed -nE 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_:.-]*)[[:space:]]*\(\).*$/\2/p'; }
+dispatcher_fns=" $(defs 2>/dev/null <"$top/${orc}src/bash/run/run.sh" | tr '\n' ' ') "
+
 # keys <repo path>: the names a test would use for this file, one per line
 keys() {
   local f="$1" b stem
@@ -65,9 +73,8 @@ keys() {
   case "$b" in *.tst.sh|test-*.sh|*.proof.sh) return 0 ;; esac
   [[ "/$f" == */fixtures/* ]] && return 0
   { [[ -f "$top/$f" ]] && cat "$top/$f"; git -C "$top" show "$base:$f" 2>/dev/null; } \
-    | sed -nE 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_:.-]*)[[:space:]]*\(\).*$/\2/p' \
-    | while read -r fn; do
-        (( ${#fn} >= 5 )) && [[ "$fn" == *[_-]* ]] || continue
+    | defs | while read -r fn; do
+        (( ${#fn} >= 5 )) && [[ "$fn" == *[_-]* && "$dispatcher_fns" != *" $fn "* ]] || continue
         echo "$fn"
       done
   return 0

@@ -21,6 +21,11 @@
 #      tree that stubs do_foo selects nothing (it is ignored, not foo.tst.sh);
 #      CONTROL: a real source file outside the tree defining do_foo still
 #      selects foo.tst.sh
+#  11. a function the ./run dispatcher (src/bash/run/run.sh) defines is the
+#      dispatcher's: a script that defines its own do_log stand-in does not
+#      select every test that names do_log (SPL-5321: 389 orc files for one
+#      relay change); CONTROL: a function only the script defines still
+#      selects its test
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -105,6 +110,20 @@ rm -f "$R/other/stub.tst.sh"; printf 'do_foo() { :; }\n' >"$R/other/real.func.sh
 [ "$(plan)" = "$(printf 'run\tfoo.tst.sh\tnames other/real.func.sh')" ] \
   && pass "10 CONTROL the same function in a real file selects foo.tst.sh" || fail "10 control" "$(plan)"
 reset_tree
+# 11
+mkdir -p "$O/src/bash/run" "$O/src/bash/scripts"
+printf 'do_log() { echo log; }\n' >"$O/src/bash/run/run.sh"
+printf '#!/usr/bin/env bash\n# calls do_log\necho ran-log\n' >"$D/log.tst.sh"
+printf '#!/usr/bin/env bash\n# calls do_relay_hop\n' >"$D/hop.tst.sh"
+g add -A; g commit -qm 'dispatcher, a do_log test, a hop test'
+printf 'do_log() { echo relay; }\ndo_relay_hop() { :; }\n' >"$O/src/bash/scripts/relay.sh"
+g add -A; g commit -qm 'relay'
+plan11=$( (cd "$R" && ORC_TEST_BASE=HEAD~1 ORC_TEST_ALWAYS='' bash "$D/changed-tests.sh") )
+grep -q 'log.tst.sh' <<<"$plan11" && fail "11 a do_log stand-in must not select the do_log tests" "$plan11" \
+  || pass "11 a stand-in for a dispatcher function selects no test that names it"
+[ "$plan11" = "$(printf 'run\thop.tst.sh\tnames csi-spl-orc/src/bash/scripts/relay.sh')" ] \
+  && pass "11 CONTROL a function only the script defines selects its test" || fail "11 control" "$plan11"
+g reset -q --hard master; g clean -qfd
 # 8
 printf 'do_foo() { echo foo4; }\n' >"$O/lib/bash/funcs/foo.func.sh"
 res="$T/bg/result"; mkdir -p "$T/bg"

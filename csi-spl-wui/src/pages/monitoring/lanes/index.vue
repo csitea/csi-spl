@@ -289,13 +289,20 @@ readUrl()
    (at the window, listeners fire in the order they were added: Chrome 154),
    so the route moves to the entry under the sheet, without the sort or filter
    just picked, while the stack puts the sheet's address back. The address
-   bar wins: the router follows it, and the page keeps what was picked. */
+   bar wins: the router follows it, and the page keeps what was picked.
+   The router's own history.location is the popped entry too, so the check
+   reads the address bar (window.location), less the router's base. */
+function addressNow() {
+  const base = router.options.history.base || ''
+  const path = window.location.pathname
+  return (base && path.startsWith(base) ? path.slice(base.length) || '/' : path) + window.location.search + window.location.hash
+}
 function routeLagsAddress() {
-  return import.meta.client && router.resolve(router.options.history.location).fullPath !== router.currentRoute.value.fullPath
+  return import.meta.client && router.resolve(addressNow()).fullPath !== router.currentRoute.value.fullPath
 }
 watch(() => route.query, () => {
   if (writing) return
-  if (routeLagsAddress()) return void router.replace(router.options.history.location)
+  if (routeLagsAddress()) return void router.replace(addressNow())
   readUrl()
 })
 watch([sort, filters], writeUrl, { deep: true })

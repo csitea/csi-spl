@@ -857,7 +857,9 @@ the fleet desk failed its verify (`1 file(s) missing in the copy`, `12 file(s)
 not in the source`) and rolled back. It is the one desk with local writers
 while its sidecar is down, so its spool changed between the copy and the
 verify. The verify stays exact (equal lists, equal key digest, modes);
-instead the move quiesces the desk for its copy.
+instead the move quiesces the desk for its copy. One exception (SPL-5247):
+`spool-mirror.py`'s 60 s dedupe markers `<seat>/.mirror/seen/*` are left out
+of both lists; every other file is compared.
 
 - **The marker.** From just before the copy until the new desk's proof
   passes, or the rollback has renamed the source back (R7 W1, below),
@@ -871,6 +873,14 @@ instead the move quiesces the desk for its copy.
   of a copy and verify that run past 300 s: safe (the exact verify then
   fails and the desk rolls back), but that move fails; split it with
   `MOVE_DESKS` or raise the limit for it.
+- **The target's marker** (SPL-5247). The same marker is written as the
+  target's owner beside the target desk dir (`<target desk dir>.quiesce`)
+  for the copy and the verify, and lifted before the start (its proof writes
+  the target's spool) and on every rollback. A writer that still resolves
+  the target's path (on a back, the box user's own agents) waits on it too.
+  Found on sat 2026-11-10: a back of prd/t1 failed its verify on 5
+  `<seat>/.mirror/seen/` files, pruned mid-copy by a box-user hook running
+  on the target path, which no source marker can reach.
 - **How long.** The copy starts `DESK_QUIESCE_SETTLE_SECS` (default 2 s)
   after the marker, so a write already under way ends first. The window is
   then the copy, the verify, the rename, the start and the proof: seconds for a desk, never more
@@ -906,7 +916,7 @@ them honour the marker (sha of this change's parent `5675aa1c3`):
 |---|---|---|
 | every `spool` box command (`recv` / `recv --ack`, `send`, `edit`, `delete`, `move`, `put-file`, `hub-sync`, ...), so `spl-desk-reply.sh`, `spool-send.sh`, `do_spl_take_auto`, the asks, lane-map and token-burn pushes, the probes; the Store writes are `internal/spool/spool.go:395,425,505` | inbox, outbox, archive, `.hub/` | yes: `runBoxCmd` (`cmd/spool/main.go`) waits before every box command but `tail`, `hub-tail`, `get-file`, `get-dir`, `hub-get-file` |
 | the MCP server (`spool mcp`, one per agent session, long-lived) | outbox, archive, files | yes: `spool_send`, `spool_recv`, `spool_put_file` wait (`internal/mcp/mcp.go`, `tools.gate`); `spool_reply` writes a workspace desk it resolves itself and does not |
-| `spool-mirror.py` (the claude / grok / agy / qwen / vibe hooks) | `<seat>/.mirror/{seen,turn,topic,last-answer,mirror.log}` | yes: `post_one` waits (`quiesce_clear`), and skips that post when still held |
+| `spool-mirror.py` (the claude / grok / agy / qwen / vibe hooks) | `<seat>/.mirror/{seen,turn,topic,last-answer,mirror.log}` | yes: `post_one` waits (`quiesce_clear`), and skips that post when still held; `first_sighting` prunes and writes no `seen/` marker while the marker is live (SPL-5247) |
 | `spool_notify_mark_trigger` (`spool-notify.inc.sh`) | `<seat>/.mirror/trigger/*` | yes: it never waits (the notice's latency budget), it writes no trigger while the marker is live |
 | the poke retry daemon `spool-poke-retry.sh` (detached, up to `SPOOL_POKE_RETRY_SECS` 1800 s) | removes `<seat>/.pokes/*.poke`, makes `retry.lock` / `retry.pid`, removes `retry.pid` on exit | yes (R7 W2): it waits before its first file (75 when still held), and a sweep is skipped (no entry removed, no exit) while the marker is live |
 | the poke log (`spool-poke-queue.inc.sh`, `spool_notice_record`, `spool_show_notice_pane`) | creates `<seat>/.pokes/` and `notices.log` on a seat's FIRST notice, appends after | no: an append changes no file list, its lines after the copy stay in `desk.moved-*`; a seat's first notice in the window adds a file, the verify fails and the desk rolls back |
@@ -923,7 +933,9 @@ adds a file every 0.1 s during a slowed copy: FAIL verify without the
 quiesce, a clean move with it) and case 13 (a writer that arrives in the
 window and writes after it: refused after a clean move, written into the
 restored desk after a failed proof, and a re-created source refuses the
-rollback's rename; red on d91a4ebea), `internal/quiesce/quiesce_test.go`,
+rollback's rename; red on d91a4ebea), case 18 (the `seen/` markers: left out
+of the verify, not pruned under a marker, a back with a target-side hook;
+red on 675236324), `internal/quiesce/quiesce_test.go`,
 `cmd/spool/quiesce_gate_test.go`, and
 `features/spawn-agents/tests/test-spool-poke-queue.sh` (the daemon in the
 window; red on origin/master's daemon).

@@ -67,6 +67,13 @@
 #  17. the proof's login (SPL-5233): one member login per proof, not one per
 #      attempt; a 429 then a 200 -> ok; a 429 every time -> 'no verdict' once
 #      MOVE_CHECK_429_SECS is spent
+#  18. the mirror's 60 s seen markers (SPL-5247, sat 2026-11-10: a back failed
+#      its verify on 5 <seat>/.mirror/seen/* files a target-side hook pruned):
+#      the verify ignores them and still compares every other file;
+#      first_sighting() on a desk with a live <desk>.quiesce prunes and writes
+#      nothing; a back with a hook pruning on the TARGET path while the copy is
+#      verified passes, and the move's target marker is gone after it.
+#      RED CONTROL: origin/master 675236324's two files fail 18.1, 18.2, 18.3
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -94,6 +101,7 @@ while [ \$# -gt 0 ]; do case "\$1" in -n|-H) shift ;; -u) u="\$2"; shift 2 ;; --
 echo "sudo \$u \${1##*/}" >>"$T/sudo.log"
 [ "\${1##*/}" = test ] && [ "\$2" = -r ] && [ -e "$T/deny.\$u" ] && grep -qxF -- "\$3" "$T/deny.\$u" && exit 1
 [ "\${1##*/}" = tar ] && [ -e "$T/tar-slow" ] && sleep 1.5
+[ "\${1##*/}" = find ] && [ -e "$T/find-slow" ] && sleep 1
 exec "\$@"
 EOF
 chmod +x "$T/stub/getent" "$T/stub/sudo"
@@ -606,6 +614,84 @@ grep -qx OUTER-TRAP "$T/pr.out" && pass "17.7 INT ignored on entry: the caller's
 out="$(pr_run 1)"
 has "17.6 on return the caller's trap is restored" "after: trap -- 'echo OUTER-TRAP; exit 130' SIGTERM" "$out"
 [[ -z "$(ls -A "$T/tmpj")" ]] && pass "17.6 no session dir after a normal return" || fail "17.6 left: $(ls -A "$T/tmpj")"
+
+# --- 18. the mirror's seen markers and the move (SPL-5247) -------------------------
+MIRROR="$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spool-mirror.py"
+# 18.1 the verify: seen markers differ between source and target, nothing else
+reset_box
+V1="$T/v/src/desk/ws/id" V2="$T/v/dst/desk/ws/id"
+mkdir -p "${V1%/*}" "${V2%/*}"; cp -a "$SRC_P/desk/ws-a/box-a" "$V1"
+mkdir -p "$V1/spool/c-101/.mirror/seen"; : >"$V1/spool/c-101/.mirror/seen/only-src"
+cp -a "$V1" "$V2"; rm "$V2/spool/c-101/.mirror/seen/only-src"; : >"$V2/spool/c-101/.mirror/seen/only-dst"
+# vfy <base>: _spl_dm_verify V1 V2 <base> as the caller
+vfy() {
+  ( do_log() { echo "$*"; }
+    # shellcheck source=../run/spl-desk-move.func.sh
+    source "$PROJ_ROOT/src/bash/run/spl-desk-move.func.sh"
+    # shellcheck disable=SC2034 # read by the sourced _spl_dm_as
+    DM_ME="$ME" DM_FROM="$ME" DM_TO="$ME"
+    _spl_dm_verify "$V1" "$V2" "$1" ) 2>&1
+}
+out="$(vfy "")"; rc=$?
+[[ $rc -eq 0 ]] && pass "18.1 a forward verify ignores the seen markers" || fail "18.1 forward rc=$rc $out"
+out="$(vfy "$T/v/base")"; rc=$?
+[[ $rc -eq 0 ]] && pass "18.1 a back verify ignores the seen markers" || fail "18.1 back rc=$rc $out"
+mv "$V2/pinned" "$T/v/pinned"
+out="$(vfy "$T/v/base")"; rc=$?
+[[ $rc -ne 0 ]] && has "18.1 every other file is still compared" "1 file(s) missing in the copy" "$out" || fail "18.1 a missing pinned passed"
+mv "$T/v/pinned" "$V2/pinned"
+# 18.2 first_sighting on a desk under a move: nothing pruned, nothing written
+fs() {  # <desk> -> "<result> <files in seen>"; one seen marker 10 min old first
+  python3 -I - "$MIRROR" "$1" <<'PYT'
+import importlib.util, os, sys, time
+spec = importlib.util.spec_from_file_location("mirror", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+d = os.path.join(sys.argv[2], "spool", "c-101", ".mirror", "seen"); os.makedirs(d, exist_ok=True)
+for f in os.listdir(d): os.remove(os.path.join(d, f))
+o = os.path.join(d, "old"); open(o, "w").close(); os.utime(o, (time.time() - 600,) * 2)
+r = m.first_sighting(os.path.join(sys.argv[2], "spool", "c-101"), "s1", "prompt", "hello", time.time())
+print(r, " ".join(sorted("old" if f == "old" else "new" for f in os.listdir(d))))
+PYT
+}
+for side in V1 V2; do
+  dk="${!side}"
+  echo live >"$dk.quiesce"
+  o="$(fs "$dk" 2>&1)"
+  [[ "$o" == "False old" ]] && pass "18.2 first_sighting on the $side desk under a live marker: nothing pruned or written" || fail "18.2 $side live marker: $o"
+  touch -d '-10 minutes' "$dk.quiesce"
+  o="$(fs "$dk" 2>&1)"
+  [[ "$o" == "True new" ]] && pass "18.2 a stale marker ($side) is ignored: it prunes and writes" || fail "18.2 $side stale marker: $o"
+  rm -f "$dk.quiesce"
+  o="$(fs "$dk" 2>&1)"
+  [[ "$o" == "True new" ]] && pass "18.2 no marker ($side): it prunes and writes" || fail "18.2 $side no marker: $o"
+done
+# 18.3 the sat case: a back while a hook of the box user prunes on the target
+# path; the slowed source listing holds the window between copy and verify open
+reset_box
+mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0 >/dev/null
+SEEN="$DST_P/desk/ws-a/box-a/spool/c-101/.mirror/seen" TGT="$SRC_P/desk/ws-a/box-a"
+mkdir -p "$SEEN"; for i in 1 2 3 4 5; do : >"$SEEN/m$i"; touch -d '-10 minutes' "$SEEN/m$i"; done
+rm -f "$T/hook.stop"
+python3 -I - "$MIRROR" "$TGT" "$T/hook.stop" >"$T/hook.log" 2>&1 <<'PYT' &
+import importlib.util, os, sys, time
+spec = importlib.util.spec_from_file_location("mirror", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+i = 0
+while not os.path.exists(sys.argv[3]) and i < 2400:
+    i += 1
+    if os.path.isdir(sys.argv[2]):
+        held = os.path.exists(sys.argv[2] + ".quiesce")
+        r = m.first_sighting(os.path.join(sys.argv[2], "spool", "c-101"), "s1", "prompt", str(i), time.time())
+        if held and os.path.exists(sys.argv[2] + ".quiesce"):
+            print("held", r)
+    time.sleep(0.05)
+PYT
+HPID=$!
+: >"$T/find-slow"
+out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+rm -f "$T/find-slow"; : >"$T/hook.stop"; wait "$HPID" 2>/dev/null
+[[ $rc -eq 0 ]] && pass "18.3 a back with a target-side hook passes its verify" || fail "18.3 back rc=$rc $(grep -E 'FAIL' <<<"$out" | tr '\n' '|')"
+has "18.3 the move marks the target" "INFO quiesce $TGT.quiesce" "$out"
+grep -q '^held False' "$T/hook.log" && ! grep -q '^held True' "$T/hook.log" && pass "18.3 the hook wrote nothing while the target was marked" || fail "18.3 hook: $(sort "$T/hook.log" | uniq -c | tr '\n' '|')"
+[[ -z "$(find "$SRC_P/desk/ws-a" "$DST_P/desk/ws-a" -name '*.quiesce' 2>/dev/null)" ]] && pass "18.3 no quiesce marker left" || fail "18.3 a marker stayed"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

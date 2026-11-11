@@ -72,7 +72,9 @@
 # @description DESK_QUIESCE_WAIT_SECS (120), then refuses (exit 75); a marker
 # @description older than DESK_QUIESCE_MAX_SECS (300) is ignored. The copy
 # @description starts DESK_QUIESCE_SETTLE_SECS (2) after the marker, so a
-# @description write already under way ends first. The verify stays exact.
+# @description write already under way ends first. The same marker sits
+# @description beside the target for the copy and the verify (SPL-5247). The
+# @description verify stays exact but for spool-mirror.py's seen/ markers.
 # @description Dry run unless DRY_RUN=0 (plan always is one).
 # @param MOVE_CMD (optional) - plan (default) | move | back | prune | switch | unswitch
 # @param MOVE_DESK_USER (optional) - the desk user (<agent-user>); default
@@ -296,6 +298,25 @@ _spl_dm_quiesce_on() {
   sleep "${DESK_QUIESCE_SETTLE_SECS:-2}"
 }
 
+# _spl_dm_quiesce_to <dst>: the same marker beside the target, written as
+# DM_TO, for the copy and the verify: a writer still holding the target's path
+# (back: the box user's own desk) waits on it too (SPL-5247). DM_QUIESCED_TO
+# names it; lifted before the start, whose proof writes the target's spool.
+_spl_dm_quiesce_to() {
+  local m="$1.quiesce"
+  printf 'do_spl_desk_move %s -> %s %s pid %s\n' "$DM_FROM" "$DM_TO" "$DM_STAMP" "$$" |
+    _spl_dm_as "$DM_TO" tee "$m" >/dev/null || { do_log "FAIL cannot write the quiesce marker $m"; return 1; }
+  DM_QUIESCED_TO="$m"
+  do_log "INFO quiesce $m: the target's local writers wait too"
+}
+
+# _spl_dm_quiesce_to_off: remove the marker _spl_dm_quiesce_to wrote, if any.
+_spl_dm_quiesce_to_off() {
+  [[ -n "${DM_QUIESCED_TO:-}" ]] || return 0
+  _spl_dm_as "$DM_TO" rm -f -- "$DM_QUIESCED_TO" || { do_log "WARN cannot remove $DM_QUIESCED_TO: it is ignored after DESK_QUIESCE_MAX_SECS (300 s)"; return 1; }
+  DM_QUIESCED_TO=""
+}
+
 # _spl_dm_quiesce_touch: renew the marker's mtime, so DESK_QUIESCE_MAX_SECS
 # counts from the start and the proof, not from the copy.
 _spl_dm_quiesce_touch() {
@@ -303,8 +324,10 @@ _spl_dm_quiesce_touch() {
   _spl_dm_as "$DM_FROM" touch -- "$DM_QUIESCED" || do_log "WARN cannot renew $DM_QUIESCED"
 }
 
-# _spl_dm_quiesce_off: remove the marker _spl_dm_quiesce_on wrote, if any.
+# _spl_dm_quiesce_off: remove the markers _spl_dm_quiesce_on and
+# _spl_dm_quiesce_to wrote, if any.
 _spl_dm_quiesce_off() {
+  _spl_dm_quiesce_to_off
   [[ -n "${DM_QUIESCED:-}" ]] || return 0
   _spl_dm_as "$DM_FROM" rm -f -- "$DM_QUIESCED" || { do_log "WARN cannot remove $DM_QUIESCED: it is ignored after DESK_QUIESCE_MAX_SECS (300 s)"; return 1; }
   do_log "INFO quiesce off: $DM_QUIESCED removed"
@@ -384,7 +407,7 @@ _spl_dm_one() {
   # The marker stays until the proof passes or the rollback has the source
   # back: a writer held by it re-checks the desk dir after its wait (75 when
   # the desk is gone), so none re-creates <src> under the aside (R7 W1).
-  _spl_dm_quiesce_touch
+  _spl_dm_quiesce_touch; _spl_dm_quiesce_to_off
   if [[ -n "$pid" ]] && ! _spl_dm_up "$DM_TO" "$e" "$ws" "$id" "$troot" "$dst"; then
     _spl_dm_undo_all "$e" "$ws" "$id" "$src" "$dst" "$aside" "$froot" "$troot"; return 1
   fi
@@ -400,6 +423,7 @@ _spl_dm_one() {
 _spl_dm_copy() {
   local src="$1" dst="$2" troot="$3" base="$4"; local -a ps
   _spl_dm_as "$DM_TO" mkdir -p "${dst%/*}" && _spl_dm_as "$DM_TO" chmod 700 "$troot" "$troot/desk" "${dst%/*}" || return 1
+  _spl_dm_quiesce_to "$dst" || return 1
   if [[ -n "$base" ]]; then _spl_dm_as "$DM_TO" mv "$base" "$dst" || return 1
   else _spl_dm_as "$DM_TO" mkdir -m 700 "$dst" || return 1; fi
   _spl_dm_as "$DM_FROM" tar -C "$src" -cf - . 2>/dev/null | _spl_dm_as "$DM_TO" tar -C "$dst" -xpf - 2>/dev/null
@@ -410,12 +434,14 @@ _spl_dm_copy() {
 
 # _spl_dm_verify <src> <dst> <base>: the copy is the desk. Every source file
 # is in dst (move: the lists are equal), the key digest is equal (compared,
-# never printed), dst and dst/keys are 0700 and every key is 0600.
+# never printed), dst and dst/keys are 0700 and every key is 0600. The
+# mirror's 60 s dedupe markers (<seat>/.mirror/seen/*, spool-mirror.py
+# first_sighting) are not compared: a hook pruned them mid-copy (SPL-5247).
 _spl_dm_verify() {
   local src="$1" dst="$2" base="$3" w miss extra ka kb bad=0 m
   w="$(umask 077 && mktemp -d)" || return 1
-  _spl_dm_as "$DM_FROM" find "$src" -type f -printf '%P\n' 2>/dev/null | LC_ALL=C sort >"$w/a"
-  _spl_dm_as "$DM_TO" find "$dst" -type f -printf '%P\n' 2>/dev/null | LC_ALL=C sort >"$w/b"
+  _spl_dm_as "$DM_FROM" find "$src" -type f ! -path '*/.mirror/seen/*' -printf '%P\n' 2>/dev/null | LC_ALL=C sort >"$w/a"
+  _spl_dm_as "$DM_TO" find "$dst" -type f ! -path '*/.mirror/seen/*' -printf '%P\n' 2>/dev/null | LC_ALL=C sort >"$w/b"
   miss="$(LC_ALL=C comm -23 "$w/a" "$w/b" | wc -l)" extra="$(LC_ALL=C comm -13 "$w/a" "$w/b" | wc -l)"
   rm -rf "$w"
   (( miss == 0 )) || { do_log "FAIL verify $dst: $miss file(s) missing in the copy"; bad=1; }

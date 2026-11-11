@@ -796,7 +796,13 @@ def first_sighting(adir, session, event, text, now):
     """True once per (session, event, text) within SEEN_TTL. Two hook configs
     that both reach one session (the shared ~/.claude/settings.json and a
     wrapper's --settings, at different script paths) fire twice for one
-    prompt; the O_EXCL create lets exactly one of them post."""
+    prompt; the O_EXCL create lets exactly one of them post. False, with
+    nothing pruned or written, while the seat's desk (adir is
+    <desk>/spool/<agent>) carries a live move marker <desk>.quiesce: the move
+    writes one on its source and on its target, and a prune mid-copy made
+    the verify of the back fail (SPL-5247)."""
+    if quiesce_live(os.path.dirname(os.path.dirname(adir.rstrip("/")))):
+        return False
     d = os.path.join(adir, ".mirror", "seen")
     os.makedirs(d, exist_ok=True)
     for p in glob.glob(os.path.join(d, "*")):
@@ -824,24 +830,24 @@ def _env_secs(key, default):
         return default
 
 
+def quiesce_live(seat):
+    """True while <seat>.quiesce is younger than DESK_QUIESCE_MAX_SECS (300)."""
+    try:
+        age = time.time() - os.path.getmtime(seat.rstrip("/") + ".quiesce")
+    except OSError:
+        return False
+    return age < _env_secs("DESK_QUIESCE_MAX_SECS", 300)
+
+
 def quiesce_clear(seat, sleep=time.sleep):
     """The desk quiesce window (spec 069 8.4.1): False while <seat>.quiesce,
     younger than DESK_QUIESCE_MAX_SECS (300), is still there after
     DESK_QUIESCE_WAIT_SECS (120), or when the seat dir is gone once it goes
     (the move renamed it aside: the post would re-create an orphan seat);
     True at once when there is none."""
-    marker = seat.rstrip("/") + ".quiesce"
-    max_age = _env_secs("DESK_QUIESCE_MAX_SECS", 300)
     wait = _env_secs("DESK_QUIESCE_WAIT_SECS", 120)
-
-    def live():
-        try:
-            return time.time() - os.path.getmtime(marker) < max_age
-        except OSError:
-            return False
-
     waited = 0
-    while live():
+    while quiesce_live(seat):
         if waited >= wait:
             return False
         sleep(1)

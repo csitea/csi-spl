@@ -142,9 +142,10 @@
     </div>
     <p class="sr-only" aria-live="polite">{{ announce }}</p>
     <!-- Phone thread only: one round arrow. Away from the newest end it
-         jumps there; at that end it jumps to the oldest. -->
+         jumps there; at that end it jumps to the oldest. Hidden while a
+         card of this feed is being edited: it sat on Save (SPL-5315). -->
     <button
-      v-if="phone && props.holdScroll && jumpEnds.show"
+      v-if="phone && props.holdScroll && jumpEnds.show && !feedEditing"
       type="button"
       class="thread-jump"
       data-testid="thread-jump"
@@ -185,6 +186,7 @@ import { useThreadAwait, type AwaitMark } from '~/composables/useAwaitReply'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { provideFeedEditing } from '~/composables/useFeedEditing'
 import { perfDelivered, perfFeed, perfFeedState, perfOn, perfWatchRouter } from '~/utils/perf-mark.mjs'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
@@ -367,6 +369,8 @@ const { drawnItems, windowed, spacerTop, spacerBottom, drawRow } = useFeedWindow
 /* CLE-77905: no unread jump on a phone (useLiveFeedUnreadJump); the thread arrow is phone-only */
 const phone = useMobileStack().isMobile
 /* the phone thread's arrow to its other end (useLiveFeedThreadEnds) */
+/* SPL-5315: how many of this feed's cards have their editor open */
+const feedEditing = provideFeedEditing()
 const { jumpEnds, measureJump, jumpThreadEnd } = useLiveFeedThreadEnds({ root, phone, newestLast, holdScroll: () => props.holdScroll, rowCount: () => props.rows.length })
 /* CLE-77804 / SPL-2430: the "N new" jump and the landing on open (useLiveFeedUnreadJump) */
 const { showUnreadJump, jumpToUnread } = useLiveFeedUnreadJump({ props, root, phone, newestLast, shown, viewerId, firstNewId, newCount, pill, hold, drawRow, measureJump })

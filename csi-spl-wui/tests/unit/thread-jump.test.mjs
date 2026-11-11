@@ -58,7 +58,7 @@ describe('the phone thread paints the arrow and nothing else does', () => {
   const feed = read('src/components/LiveFeed.vue')
 
   it('the button is a phone thread only, and a tap scrolls that pane smoothly', () => {
-    assert.match(feed, /v-if="phone && props\.holdScroll && jumpEnds\.show"/)
+    assert.match(feed, /v-if="phone && props\.holdScroll && jumpEnds\.show && !feedEditing"/)
     assert.match(feed, /data-testid="thread-jump"/)
     assert.match(feed, /:data-end="jumpEnds\.show"/)
     assert.match(feed, /:data-dir="jumpEnds\.dir"/)
@@ -71,6 +71,17 @@ describe('the phone thread paints the arrow and nothing else does', () => {
     assert.match(ends, /prefers-reduced-motion: reduce/)
     assert.doesNotMatch(feed, /IntersectionObserver/)
     assert.doesNotMatch(ends, /IntersectionObserver/)
+  })
+
+  it('SPL-5315: the arrow hides while a card of this feed is being edited', () => {
+    const counter = read('src/composables/useFeedEditing.ts')
+    const card = read('src/composables/useCardEdit.ts')
+    assert.match(feed, /const feedEditing = provideFeedEditing\(\)/)
+    assert.match(card, /reportCardEditing\(editing\)/)
+    assert.match(counter, /provide\(FEED_EDITING, open\)/)
+    assert.match(counter, /inject\(FEED_EDITING, null\)/)
+    /* a card unmounted mid-edit must not keep the arrow hidden */
+    assert.match(counter, /onUnmounted\(\(\) => set\(false\)\)/)
   })
 
   it('the round button is drawn only at the phone width', () => {

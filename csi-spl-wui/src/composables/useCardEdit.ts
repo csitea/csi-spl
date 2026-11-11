@@ -40,6 +40,7 @@ import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { beginEdit, commitEdit, editFailureKey, editKeyAction, withDraft } from '~/utils/msg-edit.mjs'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
+import { reportCardEditing } from '~/composables/useFeedEditing'
 import type { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -65,6 +66,8 @@ export function useCardEdit(
   const { canEdit } = msgEdit
   const edit = ref<ReturnType<typeof beginEdit>>(null)
   const editing = computed(() => edit.value !== null)
+  /* SPL-5315: the host feed hides its phone thread arrow while this is open */
+  reportCardEditing(editing)
   const saving = ref(false)
   /* SPL-5057: Save on an emptied box raises this; the card asks to delete */
   const emptyAsk = ref(false)

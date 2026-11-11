@@ -4,6 +4,8 @@ module github.com/csitea/csi-spl/spool-hub-api
 
 go 1.26.10
 
+toolchain go1.26.11
+
 require (
 	cloud.google.com/go/storage v1.69.0
 	filippo.io/age v1.3.2

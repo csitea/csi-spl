@@ -398,15 +398,20 @@ spl_box_quota_lapse_s() {
 # TAB read at TAB the % this box reads now, if any) for do_spl_weekly_limit_alert:
 # that box now takes lanes on a hold nobody disproved, and the alarm is what makes
 # that visible. Unlocked: overlapping reads can each add the lapse, the alarm reads
-# them as one by its first four fields.
+# them as one by its first four fields. A FILE.lapsed that cannot be opened ends
+# it at once and quietly (SPL-5257): the redirect would fail before awk reads,
+# and a feeding printf still writing then hits a closed pipe ("write error:
+# Broken pipe" when SIGPIPE is ignored, as under CI), so each feeder is
+# silenced too.
 spl_box_quota_note_lapsed() {
   local lapse
   lapse="$(spl_box_quota_lapse_s)"
   (( lapse > 0 )) || return 0
+  { : >>"$1.lapsed"; } 2>/dev/null || return 0
   awk -F'\t' -v OFS='\t' -v max="$(spl_box_quota_max "${SPL_CNF:-}")" -v now="$4" -v lapse="$lapse" -v lifted=",$5," '
     FNR == NR { if (NF) cur[$1] = $2; next }
     $2 + 0 >= max && $3 + 0 > now && now - $4 >= lapse && !index(lifted, "," $1 ",") && cur[$1] + 0 < max {
-      print $1, $2, ($6 != "" ? $6 : "kept"), $4, cur[$1] }' <(printf '%s\n' "$3") <(printf '%s\n' "$2") 2>/dev/null >>"$1.lapsed" || true
+      print $1, $2, ($6 != "" ? $6 : "kept"), $4, cur[$1] }' <(printf '%s\n' "$3" 2>/dev/null) <(printf '%s\n' "$2" 2>/dev/null) 2>/dev/null >>"$1.lapsed" || true
   [[ -s "$1.lapsed" ]] || rm -f "$1.lapsed" 2>/dev/null
   return 0
 }

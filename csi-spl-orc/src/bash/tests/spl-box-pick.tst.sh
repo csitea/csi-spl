@@ -620,6 +620,15 @@ wk "box-a:claude:96@$FUT:4000" "box-b:claude:40:60"
 out="$(BOX_QUOTA_RESET=1 LANE_QUOTA_STATE=/proc/nope/kept.tsv LANE_QUOTA_CMD="echo claude:95@$FUT" bash -c \
   'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known' 2>&1)"
 [[ "$out" == "claude:95@$FUT" ]] && pass "16k. a state file that cannot be written -> the live reading, no noise" || fail "16k. $out"
+# 16k2. (SPL-5257) RED CONTROL for 16k's flake: CI ignores SIGPIPE, so a feeder
+#     printf of spl_box_quota_note_lapsed still writing when the FILE.lapsed
+#     redirect fails printed "printf: write error: Broken pipe" (52 of 300 16k
+#     runs). Rows over the 64 KiB pipe buffer make the feeder block, so the old
+#     code failed it 20 of 20 times; it must stay silent.
+for i in $(seq 20000); do printf 'k%d\t10\t0\t0\n' "$i"; done >"$T/big-rows.tsv"
+out="$(bash -c 'trap "" PIPE; source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"
+  b="$(cat "$1")"; spl_box_quota_note_lapsed /proc/nope/kept.tsv "$b" "$b" 0 ""; echo "rc=$?"' _ "$T/big-rows.tsv" 2>&1)"
+[[ "$out" == "rc=0" ]] && pass "16k2. RED CONTROL unwritable .lapsed, SIGPIPE ignored, rows over a pipe buffer -> rc 0, no noise" || fail "16k2. $out"
 # 16l. a kept 100 % drops once the login is measured with quota after it
 #     (SPL-4702): 2026-11-03 the login was swapped at 08:56Z, sat held claude
 #     lanes on its 07:57Z 100 % until the Nov 7 reset. A real answer newer

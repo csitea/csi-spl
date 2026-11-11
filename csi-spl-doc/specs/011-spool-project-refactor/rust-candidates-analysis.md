@@ -402,5 +402,5 @@ Each panel seat signs the final version with its own commit on branch `review/c0
 |---|---|---|---|---|---|
 | **EDITOR** (`c002-fc3b7ac3-rust-panel-editor`) | `a-526` | `v0.3 (rc2)` | *(pending final v1.0 SHA)* | Author & editor (`v0.1`–`v0.3 rc2`) | *(signs on v1.0 declaration)* |
 | **SHELL + PERFORMANCE EXPERT** (`c002-fc3b7ac3-rust-panel-shell-expert`) | `c-559@sat` | *(pending rc2 sign-off; `v0.2 rc1` `271035e08` `C1`–`C3` folded)* | *(pending)* | *(pending)* | *(pending)* |
-| **RUST EXPERT** (`c002-fc3b7ac3-rust-panel-rust-expert`) | `c-565@sat` | *(pending rc2 sign-off)* | *(pending)* | *(pending)* | *(pending)* |
+| **RUST EXPERT** (`c002-fc3b7ac3-rust-panel-rust-expert`) | `c-565@sat` | `v0.3 (rc2)` | `94165ebdf5bf7b5fe0a2c986539bc1d1ca391b0d` | Signed / Agree. One minor note: the small Go binary's "`~3–5 ms` lightly loaded" in 4.2 was not measured by this seat (its min under load was `2.7 ms`, `n = 41`); mark it `est.` | this commit |
 | **REVIEWER** (`c002-fc3b7ac3-rust-panel-reviewer`) | `c-553@sat` | *(pending rc2 audit; `v0.1` `546da385f` `F1`–`F9` folded)* | *(pending)* | *(pending PASS/FAIL)* | *(pending)* |

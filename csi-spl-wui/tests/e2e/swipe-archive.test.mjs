@@ -297,7 +297,11 @@ try {
   const apops = await pops(p)
   const edge = await edgeSwipe(p, card(a.top), { mid: midState(card(a.top)) })
   ok('A a RIGHT swipe from the left edge does not move the card (it is Back)', edge && !edge.strip && !edge.menuStrip && !edge.shifted, edge)
-  ok('A ... the phone goes Back (one history entry popped)', alv === '2' && (await until(p, (n) => (window.__swipePops || 0) > n, apops, 3000)), { level: alv, after: await level(p), pops: [apops, await pops(p)] })
+  /* spec 087: Back from a channel is its channel list (level 2 -> 1) on the
+     same page, never a history step off it to another section (SPL-5232) */
+  ok('A ... the phone goes Back one level (channel -> its list, same page)',
+    alv === '2' && (await until(p, () => document.querySelector('[data-mobile-level]')?.getAttribute('data-mobile-level') === '1' && location.pathname.startsWith('/channel/'), null, 3000)),
+    { level: alv, after: await level(p), path: await p.evaluate(() => location.pathname), pops: [apops, await pops(p)] })
   ok('A ... no menu, no archive', !(await has(p, menu)) && !(await has(p, toast)))
 
   /* ---- B. topic view ------------------------------------------------------ */

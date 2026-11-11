@@ -763,6 +763,7 @@ cd <CHECKOUT>/csi-spl-orc && ./run -a do_check_gh_runner
 cd <CHECKOUT>/csi-spl-iac && SPOOL_CI_RUNNER='"ubuntu-latest"' DRY_RUN=0 ./run -a do_gh_set_ci_vars
 ```
 
+<a id="ws-doc-bfe9f6c3-0bad-45df-94e2-7960055a5dce"></a>
 ### 14.4 Remove retired runner dirs
 
 `do_gh_runner_remove` deregisters a runner but keeps its install dir for rollback. `do_gh_runner_dirs_sweep` removes a dir of `GH_RUNNER_DIRS_ROOT` only when it is a runner install, deregistered (no `.runner`, no `.credentials*`), has no unit, no file newer than `GH_RUNNER_DIRS_AGE_D` days and no process in it. It fails closed: when `sudo -n` cannot run, it stops with `FATAL` before any verdict; when one root read of a dir fails as a sudo failure, that dir is `KEEP unreadable`, never removed. The dir is emptied as its owner and then removed as root with `rmdir`, so a root-owned parent does not leave it behind. `DONE` reports what was removed, the MB really freed and the failed count; a `WARN` line (a dir left behind, with what it freed) exits 1. Dry run unless `DRY_RUN=0`; run it by hand. `grep -c '^do_gh_runner_dirs_sweep()' csi-spl-orc/src/bash/run/gh-runner-dirs-sweep.func.sh` -> 1.

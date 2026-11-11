@@ -183,6 +183,25 @@ eq "10f. the runner's lines -> unit <file> › <check> + unit-file <file>" \
   "unit a.test.mjs › mock: a row reads;unit agent-split-kinds.test.mjs › the tests default is the cnf row;unit-file a.test.mjs;unit-file agent-split-kinds.test.mjs" \
   "$(_pp_sig "$f10" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
 
+# 11. (SPL-5320) a unit check's FAIL line counts only when its file failed:
+#     auth-i18n-keys.test.mjs prints its planted control as '  FAIL key present
+#     ...' and exits 0, and that line read as a failing item, so a mute red
+#     (typecheck, a crash) on HEAD and base WARNed "pre-existing" with the
+#     control as its signature. The runner's summary lists the failed files;
+#     with no summary (a killed run) every FAIL line still counts (10c-10e).
+#     Lines from the wui unit output of e2e5b45fd, verbatim. Red control:
+#     PP_SIG_FROM=<the old _pp_sig> (11a and 11b FAIL there).
+ctl='──[1/2] auth-i18n-keys.test.mjs\n  FAIL key present auth.native_error.__control_missing__: missing in en.json\n  OK   CONTROL: a missing key fails\n\nAll auth-i18n-keys checks passed.'
+real='──[2/2] b.test.mjs\n  FAIL the row is sorted'
+f11="$ROOT/unit-11a.log"
+printf '%b\n' "$ctl\n$real\n\nunit runner: 1 of 2 file(s) FAILED\n  FAIL b.test.mjs (exit 1)" >"$f11"
+eq "11a. a planted FAIL in a passing file -> no item; a FAIL in a failing file -> its item" \
+  "unit b.test.mjs › the row is sorted;unit-file b.test.mjs" \
+  "$(_pp_sig "$f11" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
+mute="$ctl\n\nunit runner: all 1 file(s) passed\nsomething went wrong"
+eq "11b. a mute red beside a passing file's planted FAIL, on HEAD and base -> FAIL (fail closed)" \
+  "1|FAIL" "$(names "$mute" "$mute" _unit_part | cut -d'|' -f1,2)"
+
 # 4. the per-part timeout kills a hanging suite (the tf-steps hang) instead of
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.
 FT="$ROOT/faketree"; mkdir -p "$FT/csi-spl-iac/src/bash/tests"

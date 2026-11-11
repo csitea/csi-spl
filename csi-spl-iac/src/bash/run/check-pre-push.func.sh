@@ -1109,7 +1109,10 @@ _pp_orphans_reap() {  # <tee pid>
 #   unit <file> › <check>  wui unit check '  FAIL <check> <why>' under the runner's
 #                          '──[i/n] <file>.test.mjs' header: the whole text, as
 #                          ': ' is inside check names ('mock: ...'); a trailing
-#                          JSON token is dropped (SPL-5094)
+#                          JSON token is dropped (SPL-5094); only for a file
+#                          the runner's summary lists as failed, so a passing
+#                          file's planted control FAIL is no item (SPL-5320);
+#                          no summary (a killed run): every such line counts
 #   check <text>           any other indented 'FAIL <text>' with no ': '
 #   lint <line>            'SYNTAX ...:', 'COMPOSE schema:', 'HCL parse:',
 #                          'LOCKFILE', 'GO MOD:', 'terraform fmt:'
@@ -1144,9 +1147,9 @@ _pp_sig() {  # <output-file> <tree-root>
     line ~ /^[ \t]*FAIL(:| -) / { s = after(line, "FAIL(:| -) "); sub(/ -- .*/, "", s); emit("fail", s); next }
     line ~ /^[ \t]*FAIL tests\/e2e\/[^ ]+\.test\.mjs/ { s = after(line, "FAIL "); sub(/ .*/, "", s); emit("e2e-file", s); next }
     line ~ /^──\[[0-9]+\/[0-9]+\] [^ \/]+\.test\.mjs[ \t]*$/ { ufile = line; sub(/^[^\]]*\] /, "", ufile); next }
-    line ~ /^unit runner: / { ufile = ""; next }
-    line ~ /^[ \t]+FAIL [^ \t:\/]+\.test\.mjs \((exit|signal) / { s = after(line, "FAIL "); sub(/ .*/, "", s); emit("unit-file", s); next }
-    ufile != "" && line ~ /^[ \t]+FAIL [^ \t]/ { emit("unit", ufile " › " nojson(after(line, "FAIL "))); next }
+    line ~ /^unit runner: / { if (line ~ / file\(s\) (passed|FAILED)/) usum = 1; ufile = ""; next }
+    line ~ /^[ \t]+FAIL [^ \t:\/]+\.test\.mjs \((exit|signal) / { s = after(line, "FAIL "); sub(/ .*/, "", s); ufail[s] = 1; emit("unit-file", s); next }
+    ufile != "" && line ~ /^[ \t]+FAIL [^ \t]/ { un++; ukf[un] = ufile; ukc[un] = nojson(after(line, "FAIL ")); next }
     line ~ /^[ \t]+FAIL [^ \t]/ && index(line, ": ") { s = after(line, "FAIL "); s = substr(s, 1, index(s, ": ") - 1); emit("e2e", s); next }
     line ~ /^[ \t]+FAIL [^ \t]/ { emit("check", nojson(after(line, "FAIL "))); next }
     line ~ /^FAIL[ \t]+[^ \t]+/ { split(line, f, /[ \t]+/); emit("go-pkg", f[2]); next }
@@ -1162,6 +1165,7 @@ _pp_sig() {  # <output-file> <tree-root>
     line ~ /^[ \t]*(vet: )?[^ \t:]+\.[A-Za-z0-9]+:[0-9]+(:[0-9]+)?(:| - )/ {
       s = line; sub(/^[ \t]*(vet: )?/, "", s); f1 = s; sub(/:.*/, "", f1); sub(/^\.\//, "", f1)
       emit("diag", f1 ": " after(s, ":[0-9]+(:[0-9]+)?(:| - )[ \\t]*")); next }
+    END { for (i = 1; i <= un; i++) if (!usum || (ukf[i] in ufail)) emit("unit", ukf[i] " › " ukc[i]) }
   ' "$1" | sort -u
 }
 

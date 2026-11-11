@@ -71,6 +71,8 @@
       <MarketingAccounts v-if="!loading && !loadError" :key="mktKey" />
       <!-- spec 090 X row (SPL-5194): X accounts, their own chunk too -->
       <MarketingXAccounts v-if="!loading && !loadError" :key="mktKey" />
+      <!-- spec 090 T041 (SPL-5258): LinkedIn company pages, their own chunk too -->
+      <MarketingLinkedInPages v-if="!loading && !loadError" :key="mktKey" />
     </div>
     <BlockerIssueSetting v-if="!loading && !loadError" />
   </SettingsSection>
@@ -89,6 +91,7 @@ import type { TenantSettings } from '~/utils/tenant-settings.mjs'
 
 const MarketingAccounts = defineAsyncComponent(() => import('~/components/MarketingAccounts.vue'))
 const MarketingXAccounts = defineAsyncComponent(() => import('~/components/MarketingXAccounts.vue'))
+const MarketingLinkedInPages = defineAsyncComponent(() => import('~/components/MarketingLinkedInPages.vue'))
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 

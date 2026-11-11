@@ -213,6 +213,82 @@ function mockMarketingXRoutes(xm, on) {
 }
 
 /**
+ * spec 090 T041 (SPL-5258): one LinkedIn company page, Mock Company; Connect
+ * adds Mock Labs. spool.mock.marketing.li_page=not_configured plays a hub
+ * without the Company Page app (503). Publish as the page answers 403 to a
+ * member without tenant.settings (spool.mock.marketing.publish=forbidden).
+ */
+function mockMarketingLiPage(unshared) {
+  const flag = () => {
+    try { return globalThis.localStorage?.getItem('spool.mock.marketing.li_page') || '' } catch { return '' }
+  }
+  const pages = [{ channel_id: 'mch-lp-1', organization_id: '1001', organization_urn: 'urn:li:organization:1001', name: 'Mock Company',
+    vanity_name: 'mock-company', role: 'ADMINISTRATOR', status: 'active', expires_at: '2027-11-11T09:00:00Z' }]
+  const done = {}
+  const has = (id) => pages.some((p) => p.channel_id === id)
+  return {
+    configured() {
+      if (flag() === 'not_configured') throw mockErr(503, 'not_configured')
+    },
+    has,
+    pages: () => ({ pages: pages.map((p) => ({ ...p })) }),
+    connect() {
+      if (!has('mch-lp-2')) {
+        pages.push({ channel_id: 'mch-lp-2', organization_id: '1002', organization_urn: 'urn:li:organization:1002', name: 'Mock Labs',
+          vanity_name: '', role: 'CONTENT_ADMIN', status: 'active', expires_at: '2027-11-11T09:00:00Z' })
+      }
+      return { authorize_url: '' }
+    },
+    disconnect(id) {
+      const i = pages.findIndex((p) => p.channel_id === id)
+      if (i < 0) throw mockErr(404, 'not_found')
+      pages.splice(i, 1)
+      return null
+    },
+    posts(channel) {
+      const sent = done[channel] || []
+      return { posts: unshared.filter((p) => !sent.includes(p.id)).map((p) => ({ ...p })) }
+    },
+    publish(id, channel) {
+      if (flag() === 'not_configured') throw mockErr(503, 'not_configured')
+      if (!unshared.some((x) => x.id === id) || (done[channel] || []).includes(id)) throw mockErr(409, 'already_recorded')
+      done[channel] = [...(done[channel] || []), id]
+      return { post: id, scheduled: 1, published: 1, retried: 0, failed: 0, deferred: 0 }
+    },
+  }
+}
+
+/** spec 090 T041: GET /v1/marketing/linkedin-org/pages and POST .../connect, 404 while marketing is off. */
+function mockMarketingLiPageRoutes(lp, on) {
+  const gate = () => {
+    if (!on()) throw mockErr(404, 'not_found')
+    lp.configured()
+  }
+  return {
+    linkedInPages() {
+      gate()
+      return lp.pages()
+    },
+    connectLinkedInPage() {
+      gate()
+      return lp.connect()
+    },
+  }
+}
+
+/**
+ * The X accounts (SPL-5194) and the LinkedIn company pages (SPL-5258): own(id)
+ * names the one a channel id belongs to (undefined: a Meta channel), routes
+ * are their list and connect calls.
+ */
+function mockMarketingOwnChannels(unshared, on) {
+  const xm = mockMarketingX(unshared)
+  const lp = mockMarketingLiPage(unshared)
+  const own = (id) => (id ? [xm, lp].find((m) => m.has(id)) : undefined)
+  return { xm, own, routes: { ...mockMarketingXRoutes(xm, on), ...mockMarketingLiPageRoutes(lp, on) } }
+}
+
+/**
  * spec 090 T036/T037: the share links (built by the hub's twin module, with
  * three same-origin pictures so the hand-over's photo picker has a choice,
  * and a fourth on another origin under /blog/img/ as the hub builds it on
@@ -345,7 +421,7 @@ function mockMarketing() {
     try { return globalThis.localStorage?.getItem('spool.mock.marketing') !== 'unlisted' } catch { return true }
   }
   const meta = mockMarketingMeta(unshared)
-  const xm = mockMarketingX(unshared)
+  const { xm, own, routes } = mockMarketingOwnChannels(unshared, () => mktListed() && mkt.enabled)
   const metaOn = () => {
     if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
     meta.configured()
@@ -365,10 +441,10 @@ function mockMarketing() {
     },
     disconnectMarketingChannel(id) {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
-      if (xm.has(id)) return xm.disconnect(id)
+      if (own(id)) return own(id).disconnect(id)
       return meta.disconnect(id)
     },
-    ...mockMarketingXRoutes(xm, () => mktListed() && mkt.enabled),
+    ...routes,
     ...mockMarketingDrafts(() => mktListed() && mkt.enabled, mktPublish, () => mockDraftChannels(meta, xm)),
     marketing() {
       if (!mktListed()) throw mockErr(404, 'not_found')
@@ -382,7 +458,7 @@ function mockMarketing() {
     marketingPosts(channel) {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
       if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')
-      if (channel && xm.has(channel)) return xm.posts(channel)
+      if (own(channel)) return own(channel).posts(channel)
       if (channel) return meta.posts(channel)
       return { posts: unshared.map((p) => ({ ...p })), profiles: [{ channel_id: 'mch-li-1', name: 'FirstName LastName', mine: mktPublish() !== 'other' }] }
     },
@@ -390,7 +466,7 @@ function mockMarketing() {
     publishMarketingPost(id, channel) {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
       if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')
-      if (channel && xm.has(channel)) return xm.publish(id, channel)
+      if (own(channel)) return own(channel).publish(id, channel)
       if (channel) return meta.publish(id, channel)
       const i = unshared.findIndex((p) => p.id === id)
       if (mktPublish() === 'recorded' || i < 0) throw mockErr(409, 'already_recorded')

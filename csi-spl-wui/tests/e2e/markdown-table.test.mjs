@@ -20,7 +20,10 @@ import { CHROME_LAUNCH_ARGS, applyViewport } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const FROM = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-const REPLY = '33333333-3333-4333-8333-333333333333'
+/* the post rides the mock feed's own hook (spool.mock.extra-messages), not
+   the channel store: the mock refresh every 4 s (useSpoolEvents) replaces
+   the store's rows, and a body written there is gone 3.8 s later (R7 W1) */
+const REPLY = '52925292-5292-4529-8529-529252925292'
 const BODY = [
   '## Sizes',
   '',
@@ -66,24 +69,24 @@ async function launch() {
 }
 
 async function openPost(page, base) {
-  await page.evaluateOnNewDocument(() => {
+  const row = {
+    v: 1, msg_id: REPLY, task_id: 'e5292e52-92e5-4292-8e52-92e5292e5292', ts: '2026-09-18T10:02:30Z',
+    from: 'CLE-07', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', kind: 'note', body: BODY,
+    files: [], channel: 'lobby', parent_task_id: FROM,
+  }
+  await page.evaluateOnNewDocument((r) => {
     localStorage.setItem('spool-card-clip-thread', 'full')
     localStorage.setItem('spool-card-clip', 'full')
     sessionStorage.setItem('spool-card-clip-session-thread', 'full')
-  })
+    localStorage.setItem('spool.mock.extra-messages', JSON.stringify([r]))
+  }, row)
   await page.goto(`${base}/channel/lobby?topic=${FROM}`, { waitUntil: 'networkidle2' })
   await page.waitForSelector('.spool-shell')
-  await sleep(800)
-  await page.evaluate((id, text) => {
-    const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
-    const ch = pinia?._s.get('channel')
-    ch.messages = ch.messages.map((m) => (m.msg_id === id ? { ...m, body: text } : m))
-  }, REPLY, BODY)
   await page.waitForFunction(() => {
     const t = document.querySelector('.spool-shell > .topic [data-testid=md-block][data-rendered=true] .md-table table')
     return Boolean(t && t.getBoundingClientRect().width > 0)
-  }, { timeout: 15000 })
-  /* the feed slides rows under a changed body for a moment */
+  }, { timeout: 30000 })
+  /* the feed slides rows under a new post for a moment */
   await page.waitForFunction(() => !document.querySelector('.prepend-move, .append-move'), { timeout: 2000 }).catch(() => {})
   await sleep(300)
 }

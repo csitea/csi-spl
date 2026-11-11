@@ -1,10 +1,16 @@
 # Costs: a cost assigned or split to workspaces by hand (SPL-5291)
 
-Status: **v0.3: hub + store + Settings -> Cost allocation built on branch
+Status: **v0.4: hub + store + Settings -> Cost allocation built on branch
 `c-569-c003-feat-costs-workspace-allocation`; nothing on master yet.** v0.2
 was revised on the owner's answers (poll `01cbbdea`); v0.3 adds the
 customer admin's partial body (section 3) and the settings page as built
-(section 5.1). Issue: SPL-5291 (epic SPL-2373). Discussion: t1
+(section 5.1). v0.4 takes the R7 review (c-580 `027c803f`): token burn
+`fleet_tokens.<box>` stays Tokens (section 1), the nav label key (5.1), the
+whole amount a share implies (3), an item no month holds is 400 (4).
+Correction, R7 note N4: commit `04780c504`'s Docs line cites this file's
+v0.2 as `d45a91d26`; that is the sha before the rebase, the commit on the
+branch is `f7a293367` (history is not rewritten). Issue: SPL-5291 (epic
+SPL-2373). Discussion: t1
 `41a74806` (#spool-hub-ui, owner HUM-10). Sibling:
 `c002-refactor-reporting-costs-four-labels` builds the four labels (Total,
 Persons, Cloud, Tokens) per workspace (answer A); this page is answer B.
@@ -202,4 +208,4 @@ estate part gains `allocation` (its shares).
   the workspace's page; every new string in all locales, the agy review
   last.
 
-<!-- version: 0.3.0 · updated: 2026-11-11 -->
+<!-- version: 0.4.0 · updated: 2026-11-11 -->

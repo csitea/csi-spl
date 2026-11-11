@@ -431,6 +431,14 @@ ctx s5; hb working 10 "| .calls = $(calls 5 3)"
 hit "S5 five repeats of the newest call in the last 8" s5
 ctx s5c; hb working 10 "| .calls = $(calls 4 4)"
 nohit "S5 control: four repeats" s5
+# SPL-5335 (a topic seat, 2026-11-11, n=1): 8 pokes, each answered in its own turn
+# by the same `spool recv ... >/dev/null; echo ok`: the same call and result 8
+# times, but a user prompt (heartbeat turn_since) before the last one
+ccalls() { jq -nc --argjson n "$1" --arg t0 "$T0" '[range(0; $n) | {sig: "cc33", res: "z3", ts: ((($t0 | tonumber) - 10 * ($n - .)) | todate)}]'; }
+ctx s5t; hb working 5 "| .calls = $(ccalls 8) | .turn_since = \"$(iso $((T0 - 15)))\""
+nohit "S5 8 identical calls, a new turn before the last: counts the current turn only" s5
+ctx s5tc; hb working 5 "| .calls = $(ccalls 8) | .turn_since = \"$(iso $((T0 - 90)))\""
+hit "S5 control: the same 8 calls inside ONE turn (a real loop)" s5
 
 # S6: unsent text in the input box
 ctx s6; hb idle 900; echo ": 'SPOOL c-900: 1 new message (task 9b3e7d10)'" > "$C/input"; echo 150 > "$C/input_age"

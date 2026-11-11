@@ -3969,6 +3969,7 @@
     "unarchive": "Taasta arhiivist",
     "delete": "Kustuta",
     "deleted": "Märge kustutatud",
+    "archived_toast": "Märge arhiveeriti",
     "undo": "Võta tagasi",
     "saving": "Salvestamine…",
     "not_saved": "Ei salvestatud, proovi uuesti",
@@ -4005,7 +4006,13 @@
       "export_failed": "Eksport ebaõnnestus. Proovi uuesti.",
       "erase_failed": "Märkmeid ei kustutatud. Proovi uuesti."
     },
-    "add_to_note": "Lisa märkmesse"
+    "add_to_note": "Lisa märkmesse",
+    "menu": {
+      "label": "Märkme toimingud",
+      "discuss": "Muuda aruteluks",
+      "discuss_empty": "Märge on tühi",
+      "discussed": "Arutelu algas fuajees. Märge jääb alles, lingiga sellele."
+    }
   },
   "offline": {
     "banner": {

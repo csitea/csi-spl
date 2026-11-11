@@ -9,8 +9,12 @@
      /notes?note=<id>; B6 (SPL-4186) opens it:
      components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
      full screen on a phone. The order is the person's own: drag a row, or
-     Alt+Up / Alt+Down on it (utils/note-order.mjs). Delete (D2) takes the note
-     off at once and shows a 10 s Undo; the DELETE goes when it ends. -->
+     Alt+Up / Alt+Down on it (utils/note-order.mjs). Every row has a menu
+     (spec 155 2.10, SPL-5255): a right-click, or its menu button (a phone has
+     no right-click), with Archive, Turn into a discussion and Delete
+     (components/NoteMenu.vue, composables/useNoteActions.ts). Archive and
+     Delete (D2) act at once, no confirm, and show a 10 s Undo snackbar, at the
+     bottom on a phone and at the top on a desktop; the DELETE goes when it ends. -->
 <template>
   <div class="feed-col notes-page" data-test="notes-page">
     <header class="feed-header">
@@ -77,6 +81,7 @@
                 @dragleave="dragOver = ''"
                 @drop.prevent="onDrop(n.id)"
                 @dragend="dragId = ''; dragOver = ''"
+                @contextmenu.prevent="openMenu(n.id, $event.clientX, $event.clientY)"
               >
                 <a
                   class="notes-row__open"
@@ -91,6 +96,16 @@
                   <span class="notes-row__title">{{ rowTitle(n) }}</span>
                   <span class="notes-row__prio" data-test="notes-row-priority">{{ t('topic.priority.badge', { n: notePriority(n) }) }}</span>
                 </a>
+                <button
+                  type="button"
+                  class="icon-btn notes-row__menu"
+                  data-test="notes-row-menu"
+                  :aria-label="t('notes.menu.label')"
+                  :title="t('notes.menu.label')"
+                  aria-haspopup="menu"
+                  :aria-expanded="menu?.id === n.id ? 'true' : 'false'"
+                  @click="openMenuAt(n.id, $event)"
+                ><UiIcon name="more" :size="18" /></button>
               </li>
             </ul>
           </section>
@@ -105,19 +120,32 @@
       :can-down="canMove(openId, 1)"
       @close="close"
       @delete="onDelete"
+      @archive="onArchive"
+      @discuss="acts.discuss"
       @move="move"
     />
+    <NoteMenu
+      :open="Boolean(menu)"
+      :x="menu?.x ?? 0"
+      :y="menu?.y ?? 0"
+      :note="menuNote"
+      @choose="onChoose"
+      @close="menu = null"
+    />
     <UndoSnackbar
-      v-if="deleted"
-      :key="deleted.id"
-      icon="trash"
-      testid="notes-delete-toast"
-      :text="t('notes.deleted')"
-      :undo-label="t('notes.undo')"
+      v-if="acts.toast.value"
+      :key="acts.toast.value.seq"
+      flip
+      :icon="toastView.icon"
+      :testid="toastView.testid"
+      :data-id="acts.toast.value.id"
+      :text="t(toastView.text)"
+      :show-undo="Boolean(toastView.button)"
+      :undo-label="toastView.button ? t(toastView.button) : ''"
       :close-label="t('common.close')"
-      :duration="DELETE_UNDO_MS"
-      @undo="undoDelete"
-      @dismiss="sendDelete()"
+      :duration="NOTE_UNDO_MS"
+      @undo="acts.act()"
+      @dismiss="acts.settle()"
     />
   </div>
 </template>
@@ -129,9 +157,8 @@ import { movePlacement, dropPlacement, drawnAbove, notePriority } from '~/utils/
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useNoteOpen } from '~/composables/useNoteOpen'
-
-/* D2 (spec 155 section 3): Delete has a 10 s Undo, then the DELETE goes */
-const DELETE_UNDO_MS = 10_000
+import { NOTE_UNDO_MS, noteToastView, useNoteActions } from '~/composables/useNoteActions'
+import { NOTE_MENU_ARCHIVE, NOTE_MENU_DELETE, NOTE_MENU_DISCUSS, NOTE_MENU_UNARCHIVE } from '~/utils/note-menu.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -186,27 +213,38 @@ function onDrop(target: string) {
   place(id, dropPlacement(store.notes, id, target, drawnAbove(store.notes, id, target)))
 }
 
-/* D2: the note leaves the list at once; Undo puts it back, nothing sent */
-const deleted = ref<NoteSummary | null>(null)
+/* 2.10 (SPL-5255): Archive and Delete act at once, no confirm, then the Undo
+   snackbar; D2: Undo of a Delete sends nothing, its DELETE goes when the
+   snackbar ends. Turn into a discussion: its snackbar's Open goes to the topic. */
+const acts = useNoteActions({ onOpenTopic: (taskId) => { void router.push(localePath('/t/' + taskId)) } })
+const toastView = computed(() => (acts.toast.value ? noteToastView(acts.toast.value) : noteToastView({ kind: 'failed', id: '', seq: 0 })))
 function onDelete(id: string) {
-  sendDelete()
-  close()
-  const row = store.hide(id)
-  if (row) deleted.value = row
-  else void store.remove(id)
+  if (openId.value === id) close()
+  acts.remove(id)
 }
-function undoDelete() {
-  if (deleted.value) store.unhide(deleted.value)
-  deleted.value = null
+function onArchive(id: string) {
+  if (openId.value === id) close()
+  void acts.archive(id)
 }
-/* only while the store still holds it: Erase (Settings -> Notes) already sent it */
-function sendDelete(keepalive = false) {
-  const row = deleted.value
-  deleted.value = null
-  if (row && store.hidden.includes(row.id)) void store.remove(row.id, keepalive)
+
+/* the row's menu: at the pointer (right-click), or under its button */
+const menu = ref<{ id: string, x: number, y: number } | null>(null)
+const menuNote = computed(() => (menu.value ? store.notes.find((n) => n.id === menu.value?.id) ?? null : null))
+function openMenu(id: string, x: number, y: number) {
+  menu.value = { id, x, y }
 }
-/* the page goes (reload, tab closed): the DELETE still goes */
-const onPageHide = () => sendDelete(true)
+function openMenuAt(id: string, e: MouseEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  openMenu(id, r.left, r.bottom)
+}
+function onChoose(action: string) {
+  const id = menu.value?.id
+  if (!id) return
+  if (action === NOTE_MENU_ARCHIVE) onArchive(id)
+  else if (action === NOTE_MENU_UNARCHIVE) void acts.unarchive(id)
+  else if (action === NOTE_MENU_DISCUSS) void acts.discuss(id)
+  else if (action === NOTE_MENU_DELETE) onDelete(id)
+}
 
 /* a plain link: a click opens the note in place (useNoteOpen), a
    Ctrl / middle click still opens its address in a new tab. A NuxtLink's own
@@ -241,12 +279,9 @@ function onFocus() {
 onMounted(() => {
   void store.load()
   window.addEventListener('focus', onFocus)
-  window.addEventListener('pagehide', onPageHide)
 })
 onUnmounted(() => {
   window.removeEventListener('focus', onFocus)
-  window.removeEventListener('pagehide', onPageHide)
-  sendDelete()
 })
 </script>
 
@@ -296,8 +331,10 @@ onUnmounted(() => {
 .notes-group + .notes-group { margin-top: 1rem; }
 .notes-group__head { margin: 0 0 0.5rem; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; color: var(--color-muted); }
 .notes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.notes-row { min-width: 0; }
+.notes-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.notes-row__menu { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
 .notes-row__open {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   padding: 8px 10px;
@@ -332,6 +369,7 @@ onUnmounted(() => {
 }
 @media (max-width: 820px) {
   .notes-bar .btn, .notes-bar__filter, .notes-row__open { min-height: var(--tap, 44px); }
+  .notes-row__menu { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
   /* the phone +: over the dock, if any, on the bottom right */
   .notes-fab {
     position: fixed;

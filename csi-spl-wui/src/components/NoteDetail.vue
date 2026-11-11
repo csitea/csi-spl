@@ -9,6 +9,10 @@
      Delete. Each field saves 800 ms after the last key and on close; a failed
      save keeps the text and shows "Not saved, retry". Delete is the page's
      (D2: the note goes at once, the DELETE waits for the 10 s Undo).
+     Spec 155 2.10 (SPL-5255): the note's menu (NoteMenu: Archive, Turn into
+     a discussion, Delete) opens from the More button or a right-click on the
+     note outside its text boxes and links; Archive, Delete and the
+     discussion are the page's (composables/useNoteActions.ts).
      Loaded lazily from pages/notes.vue, so none of it is first-load JS. -->
 <template>
   <IssueDetailFrame :modal="!phone" :open="true" :title="headTitle" class="note-detail" :aria-label="t('notes.title')" @close="close">
@@ -23,11 +27,11 @@
           :disabled="a.disabled"
           :aria-label="t(a.label)"
           :title="t(a.label)"
-          @click="act(a.id)"
+          @click="act(a.id, $event)"
         ><UiIcon :name="a.icon" :size="16" /></button>
       </span>
     </template>
-    <div class="note-in" data-test="note-detail" :data-note-id="id" :data-state="state" :data-modal="phone ? 'false' : 'true'">
+    <div class="note-in" data-test="note-detail" :data-note-id="id" :data-state="state" :data-modal="phone ? 'false' : 'true'" @contextmenu="onContext">
       <header v-if="phone" class="note-in__h">
         <MobileBack class="note-in__back" data-test="note-back" />
         <span class="note-in__gap" />
@@ -41,7 +45,7 @@
             :disabled="a.disabled"
             :aria-label="t(a.label)"
             :title="t(a.label)"
-            @click="act(a.id)"
+            @click="act(a.id, $event)"
           ><UiIcon :name="a.icon" :size="20" /></button>
         </template>
       </header>
@@ -79,18 +83,28 @@
         </p>
       </template>
     </div>
+    <NoteMenu
+      :open="Boolean(menuAt)"
+      :x="menuAt?.x ?? 0"
+      :y="menuAt?.y ?? 0"
+      :note="note"
+      :over-modal="!phone"
+      @choose="onChoose"
+      @close="menuAt = null"
+    />
   </IssueDetailFrame>
 </template>
 
 <script setup lang="ts">
 import { useNotesStore, type Note, type NoteItem, type NoteLink, type NotePatch } from '~/stores/notes'
 import type { UiIconName } from '~/utils/uiIcons'
+import { NOTE_MENU_ARCHIVE, NOTE_MENU_DELETE, NOTE_MENU_DISCUSS, NOTE_MENU_UNARCHIVE } from '~/utils/note-menu.mjs'
 
 /* spec 155 2.6: a field saves this long after the last key */
 const SAVE_PAUSE_MS = 800
 
 const props = defineProps<{ id: string, phone: boolean, canUp: boolean, canDown: boolean }>()
-const emit = defineEmits<{ close: [], delete: [id: string], move: [id: string, dir: number] }>()
+const emit = defineEmits<{ close: [], delete: [id: string], archive: [id: string], discuss: [id: string], move: [id: string, dir: number] }>()
 const { t } = useI18n({ useScope: 'global' })
 const store = useNotesStore()
 
@@ -114,6 +128,7 @@ const actions = computed<Array<{ id: string, icon: UiIconName, label: string, di
   { id: 'up', icon: 'chevron-up', label: 'notes.move_up', disabled: !props.canUp },
   { id: 'down', icon: 'chevron-down', label: 'notes.move_down', disabled: !props.canDown },
   { id: 'delete', icon: 'trash', label: 'notes.delete' },
+  { id: 'menu', icon: 'more', label: 'notes.menu.label' },
 ])
 
 async function load() {
@@ -192,17 +207,43 @@ async function patch(fields: NotePatch) {
   }
 }
 
-async function act(id: string) {
+async function act(id: string, ev?: MouseEvent) {
   if (!note.value) return
   if (id === 'pin') await patch({ pinned: !note.value.pinned })
   else if (id === 'archive') {
-    const archiving = !note.value.archived
-    if ((await patch({ archived: archiving })) && archiving) close()
+    /* 2.10: archiving is the page's (it closes the note, then the Undo snackbar) */
+    if (note.value.archived) await patch({ archived: false })
+    else {
+      await flush()
+      emit('archive', note.value.id)
+    }
   } else if (id === 'up' || id === 'down') emit('move', note.value.id, id === 'up' ? -1 : 1)
   else if (id === 'delete') {
     if (timer) clearTimeout(timer)
     dirty.fields = dirty.items = false
     emit('delete', note.value.id)
+  } else if (id === 'menu' && ev) {
+    const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+    menuAt.value = { x: r.left, y: r.bottom }
+  }
+}
+
+/* 2.10: the note's menu; a right-click in a text box or on a link keeps the browser's own menu */
+const menuAt = ref<{ x: number, y: number } | null>(null)
+function onContext(ev: MouseEvent) {
+  const el = ev.target as HTMLElement | null
+  if (!note.value || el?.closest('input, textarea, a, [contenteditable="true"]')) return
+  ev.preventDefault()
+  menuAt.value = { x: ev.clientX, y: ev.clientY }
+}
+async function onChoose(action: string) {
+  if (action === NOTE_MENU_UNARCHIVE) await act('archive')
+  else if (action === NOTE_MENU_ARCHIVE) await act('archive')
+  else if (action === NOTE_MENU_DELETE) await act('delete')
+  else if (action === NOTE_MENU_DISCUSS && note.value) {
+    /* what is typed goes first, so the discussion posts the text on screen */
+    await flush()
+    emit('discuss', note.value.id)
   }
 }
 

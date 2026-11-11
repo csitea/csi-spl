@@ -3969,6 +3969,7 @@
     "unarchive": "Palauta arkistosta",
     "delete": "Poista",
     "deleted": "Muistiinpano poistettu",
+    "archived_toast": "Muistiinpano arkistoitiin",
     "undo": "Kumoa",
     "saving": "Tallennetaan…",
     "not_saved": "Ei tallennettu, yritä uudelleen",
@@ -4005,7 +4006,13 @@
       "export_failed": "Vienti epäonnistui. Yritä uudelleen.",
       "erase_failed": "Muistiinpanoja ei poistettu. Yritä uudelleen."
     },
-    "add_to_note": "Lisää muistiinpanoon"
+    "add_to_note": "Lisää muistiinpanoon",
+    "menu": {
+      "label": "Muistiinpanon toiminnot",
+      "discuss": "Muuta keskusteluksi",
+      "discuss_empty": "Muistiinpano on tyhjä",
+      "discussed": "Keskustelu alkoi aulassa. Muistiinpano säilyy, ja siinä on linkki keskusteluun."
+    }
   },
   "offline": {
     "banner": {

@@ -3969,6 +3969,7 @@
     "unarchive": "Grąžinti iš archyvo",
     "delete": "Ištrinti",
     "deleted": "Užrašas ištrintas",
+    "archived_toast": "Užrašas suarchyvuotas",
     "undo": "Atšaukti",
     "saving": "Įrašoma…",
     "not_saved": "Neįrašyta, bandykite dar kartą",
@@ -4005,7 +4006,13 @@
       "export_failed": "Eksportuoti nepavyko. Bandykite dar kartą.",
       "erase_failed": "Užrašai nebuvo ištrinti. Bandykite dar kartą."
     },
-    "add_to_note": "Pridėti prie užrašo"
+    "add_to_note": "Pridėti prie užrašo",
+    "menu": {
+      "label": "Užrašo veiksmai",
+      "discuss": "Paversti diskusija",
+      "discuss_empty": "Užrašas tuščias",
+      "discussed": "Diskusija pradėta fojė. Užrašas lieka, su nuoroda į ją."
+    }
   },
   "offline": {
     "banner": {

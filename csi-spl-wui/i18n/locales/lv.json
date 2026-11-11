@@ -3969,6 +3969,7 @@
     "unarchive": "Atjaunot no arhīva",
     "delete": "Dzēst",
     "deleted": "Piezīme izdzēsta",
+    "archived_toast": "Piezīme arhivēta",
     "undo": "Atsaukt",
     "saving": "Saglabā…",
     "not_saved": "Nav saglabāts, mēģiniet vēlreiz",
@@ -4005,7 +4006,13 @@
       "export_failed": "Eksportēšana neizdevās. Mēģiniet vēlreiz.",
       "erase_failed": "Piezīmes netika dzēstas. Mēģiniet vēlreiz."
     },
-    "add_to_note": "Pievienot piezīmei"
+    "add_to_note": "Pievienot piezīmei",
+    "menu": {
+      "label": "Piezīmes darbības",
+      "discuss": "Pārvērst par diskusiju",
+      "discuss_empty": "Piezīme ir tukša",
+      "discussed": "Diskusija sākta vestibilā. Piezīme paliek, ar saiti uz to."
+    }
   },
   "offline": {
     "banner": {

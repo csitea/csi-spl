@@ -3969,6 +3969,7 @@
     "unarchive": "Desarchivar",
     "delete": "Eliminar",
     "deleted": "Nota eliminada",
+    "archived_toast": "Nota archivada",
     "undo": "Deshacer",
     "saving": "Guardando…",
     "not_saved": "No guardada, reintentar",
@@ -4005,7 +4006,13 @@
       "export_failed": "La exportación ha fallado. Inténtalo de nuevo.",
       "erase_failed": "Las notas no se han borrado. Inténtalo de nuevo."
     },
-    "add_to_note": "Añadir a una nota"
+    "add_to_note": "Añadir a una nota",
+    "menu": {
+      "label": "Acciones de la nota",
+      "discuss": "Convertir en debate",
+      "discuss_empty": "La nota está vacía",
+      "discussed": "El debate empezó en el vestíbulo. La nota se queda, con un enlace a él."
+    }
   },
   "offline": {
     "banner": {

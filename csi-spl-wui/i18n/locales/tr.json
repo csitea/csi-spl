@@ -3969,6 +3969,7 @@
     "unarchive": "Arşivden çıkar",
     "delete": "Sil",
     "deleted": "Not silindi",
+    "archived_toast": "Not arşivlendi",
     "undo": "Geri al",
     "saving": "Kaydediliyor…",
     "not_saved": "Kaydedilmedi, yeniden dene",
@@ -4005,7 +4006,13 @@
       "export_failed": "Dışa aktarma başarısız oldu. Tekrar deneyin.",
       "erase_failed": "Notlar silinmedi. Tekrar deneyin."
     },
-    "add_to_note": "Nota ekle"
+    "add_to_note": "Nota ekle",
+    "menu": {
+      "label": "Not eylemleri",
+      "discuss": "Tartışmaya dönüştür",
+      "discuss_empty": "Not boş",
+      "discussed": "Tartışma lobide başladı. Not kalır ve ona bir bağlantı içerir."
+    }
   },
   "offline": {
     "banner": {

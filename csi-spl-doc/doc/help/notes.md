@@ -62,17 +62,44 @@ or the phone's Back) takes you back to the list.
 - **Priority**: pick 1 to 5 in the open note; 1 is the highest and a new note
   has 5. It is saved at once and the note moves to its place in the list.
 - **Pin** puts the note in the Pinned group; **Unpin** takes it out.
-- **Archive** hides the note from the list and closes it. Find it again in
-  the **Archive** section (the left rail), under **Notes**: open it there, or
-  press **Unarchive** on its row, and it is back in your list.
+- **Archive** hides the note from the list and closes it at once, with no
+  question, and shows **Note archived** with **Undo** for 10 seconds. Find it
+  again in the **Archive** section (the left rail), under **Notes**: open it
+  there, or press **Unarchive** on its row, and it is back in your list.
 - **Move up** / **Move down** change the note's place in its group. In the
   list, **Alt+Up** / **Alt+Down** on a row does the same, and on a wide screen
   you can drag a row. A note moved onto a note of another priority takes that
   note's priority: drag a P5 note onto a P2 note and it becomes P2, in its
   place among the P2 notes. **Priority** in the open note changes it too.
-- **Delete** removes the note at once and shows **Note deleted** with
-  **Undo** for 10 seconds. Undo brings it back as it was. When the message
-  goes away, the note is deleted for good; there is no trash.
+- **Delete** removes the note at once, with no question, and shows **Note
+  deleted** with **Undo** for 10 seconds. Undo brings it back as it was. When
+  the message goes away, the note is deleted for good; there is no trash.
+
+## The note menu
+
+Every note has a menu with three actions:
+
+- **Archive** (**Unarchive** on an archived note), as above.
+- **Turn into a discussion** starts a new discussion in the workspace's
+  lobby. Its first post is the note: the title on the first line (it becomes
+  the discussion's subject), then the text, then the checklist lines. The
+  note stays as it is, in your list, and gains a link to the new discussion.
+  **Discussion started** shows with **Open**, which takes you there. An empty
+  note cannot become a discussion: the action is greyed out and says why.
+- **Delete**, as above.
+
+To open it:
+
+- On a wide screen, right-click a row of the list, or right-click the open
+  note outside its text boxes and links (there the browser's own menu stays,
+  for copy and paste).
+- On any screen, press the **...** button at the end of a row, or the **...**
+  button at the top of the open note. On a phone the menu opens from the
+  bottom of the screen.
+
+Archive and Delete ask no question. The small message with **Undo** shows at
+the top of the window on a wide screen, and at the bottom of the screen on a
+phone. The archived notes in the **Archive** section have the same menu.
 
 ## From the top bar and the command palette
 

@@ -3969,6 +3969,7 @@
     "unarchive": "Scoate din arhivă",
     "delete": "Șterge",
     "deleted": "Notița a fost ștearsă",
+    "archived_toast": "Notiță arhivată",
     "undo": "Anulează",
     "saving": "Se salvează…",
     "not_saved": "Nesalvată, încearcă din nou",
@@ -4005,7 +4006,13 @@
       "export_failed": "Exportul a eșuat. Încearcă din nou.",
       "erase_failed": "Notițele nu au fost șterse. Încearcă din nou."
     },
-    "add_to_note": "Adaugă la notiță"
+    "add_to_note": "Adaugă la notiță",
+    "menu": {
+      "label": "Acțiuni pentru notiță",
+      "discuss": "Transformă în discuție",
+      "discuss_empty": "Notița este goală",
+      "discussed": "Discuția a început în lobby. Notița rămâne, cu un link către ea."
+    }
   },
   "offline": {
     "banner": {

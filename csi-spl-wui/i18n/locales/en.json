@@ -3969,6 +3969,7 @@
     "unarchive": "Unarchive",
     "delete": "Delete",
     "deleted": "Note deleted",
+    "archived_toast": "Note archived",
     "undo": "Undo",
     "saving": "Saving…",
     "not_saved": "Not saved, retry",
@@ -4005,7 +4006,13 @@
       "export_failed": "The export failed. Try again.",
       "erase_failed": "The notes were not erased. Try again."
     },
-    "add_to_note": "Add to note"
+    "add_to_note": "Add to note",
+    "menu": {
+      "label": "Note actions",
+      "discuss": "Turn into a discussion",
+      "discuss_empty": "The note is empty",
+      "discussed": "Discussion started in the lobby. The note stays, with a link to it."
+    }
   },
   "offline": {
     "banner": {

@@ -3969,6 +3969,7 @@
     "unarchive": "Przywróć z archiwum",
     "delete": "Usuń",
     "deleted": "Notatka usunięta",
+    "archived_toast": "Notatka zarchiwizowana",
     "undo": "Cofnij",
     "saving": "Zapisywanie…",
     "not_saved": "Nie zapisano, spróbuj ponownie",
@@ -4005,7 +4006,13 @@
       "export_failed": "Eksport się nie powiódł. Spróbuj ponownie.",
       "erase_failed": "Notatki nie zostały wymazane. Spróbuj ponownie."
     },
-    "add_to_note": "Dodaj do notatki"
+    "add_to_note": "Dodaj do notatki",
+    "menu": {
+      "label": "Działania notatki",
+      "discuss": "Zamień w dyskusję",
+      "discuss_empty": "Notatka jest pusta",
+      "discussed": "Dyskusja rozpoczęta w lobby. Notatka zostaje, z linkiem do niej."
+    }
   },
   "offline": {
     "banner": {

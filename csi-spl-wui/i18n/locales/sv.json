@@ -3969,6 +3969,7 @@
     "unarchive": "Återställ från arkiv",
     "delete": "Ta bort",
     "deleted": "Anteckningen togs bort",
+    "archived_toast": "Anteckningen arkiverades",
     "undo": "Ångra",
     "saving": "Sparar…",
     "not_saved": "Inte sparad, försök igen",
@@ -4005,7 +4006,13 @@
       "export_failed": "Exporten misslyckades. Försök igen.",
       "erase_failed": "Anteckningarna raderades inte. Försök igen."
     },
-    "add_to_note": "Lägg till i anteckning"
+    "add_to_note": "Lägg till i anteckning",
+    "menu": {
+      "label": "Anteckningsåtgärder",
+      "discuss": "Gör om till en diskussion",
+      "discuss_empty": "Anteckningen är tom",
+      "discussed": "Diskussionen startade i lobbyn. Anteckningen finns kvar, med en länk dit."
+    }
   },
   "offline": {
     "banner": {

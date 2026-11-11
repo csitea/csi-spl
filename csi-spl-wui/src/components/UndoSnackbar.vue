@@ -31,11 +31,19 @@
      transform and opacity only, still under reduced motion) set on the root
      itself: playTapAnim() would put it on the first svg inside, the close
      icon. The root is centred by its margins, not a transform, so the
-     keyframes' transform moves it without shifting it sideways. -->
+     keyframes' transform moves it without shifting it sideways.
+
+     `flip` (spec 155 2.10, SPL-5255; owner HUM-10, t1 b7eb7c9a, msg
+     ac509205: "the small undo snack bar at the bottom of mobile and at the
+     top of the desktop"): the notes' Archive / Delete snackbar sits the other
+     way round, at the TOP on a desktop (under the top bar) and at the BOTTOM
+     on a phone (over the dock, the keyboard and the safe-area inset). -->
 <template>
   <div
     ref="rootEl"
     class="undo-snackbar tap-anim tap-anim--settle"
+    :class="{ 'undo-snackbar--flip': flip }"
+    :data-place="flip ? 'flip' : 'default'"
     role="status"
     aria-live="polite"
     aria-atomic="true"
@@ -88,6 +96,8 @@ const props = withDefaults(defineProps<{
   testid?: string
   dataId?: string | number
   duration?: number
+  /** SPL-5255: the top on a desktop, the bottom on a phone */
+  flip?: boolean
 }>(), { testid: 'undo-snackbar', showUndo: true, busy: false, duration: 0 })
 
 const emit = defineEmits<{ undo: [], dismiss: [] }>()
@@ -158,6 +168,11 @@ onBeforeUnmount(() => {
 }
 .undo-snackbar__undo { flex: none; font-weight: 600; color: var(--color-accent); }
 .undo-snackbar__close { flex: none; }
+/* SPL-5255: flipped, the desktop's snackbar sits at the top, under the top bar */
+.undo-snackbar.undo-snackbar--flip {
+  top: calc(var(--top-bar-h, 0px) + 0.75rem);
+  bottom: auto;
+}
 /* CLE-77871: a thumb, not a cursor - 44 px targets (--tap) */
 @media (max-width: 820px), (pointer: coarse) {
   /* e3e9ca61: at the TOP on a phone, under the notch / status bar */
@@ -169,5 +184,10 @@ onBeforeUnmount(() => {
   }
   .undo-snackbar__undo,
   .undo-snackbar__close { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  /* SPL-5255: flipped, the phone's sits at the bottom, over the dock and the keyboard */
+  .undo-snackbar.undo-snackbar--flip {
+    top: auto;
+    bottom: calc(0.5rem + max(var(--composer-dock-h, 0px) + var(--kb-inset, 0px), env(safe-area-inset-bottom, 0px)));
+  }
 }
 </style>

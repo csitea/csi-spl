@@ -7,7 +7,10 @@
      note in place (NoteDetail, lazy, as on /notes), a modified click follows
      /notes?note=<id>. Unarchive PATCHes archived=false and the note is back in
      Notes. Loaded lazily from pages/archive.vue, so the notes store is no
-     first-load JS. A switched-off Notes section (notes_off) shows nothing. -->
+     first-load JS. A switched-off Notes section (notes_off) shows nothing.
+     Spec 155 2.10 (SPL-5255): a row's right-click and its menu button open
+     the note's menu (Unarchive, Turn into a discussion, Delete), as on
+     /notes; the actions and the Undo snackbar are useNoteActions'. -->
 <template>
   <section v-if="store.state !== 'off'" class="archive-notes" data-test="archive-notes">
     <h3 class="archive-part__head">{{ t('sidebar.notes') }}</h3>
@@ -18,7 +21,7 @@
     <p v-else-if="store.state === 'loading' || store.state === 'idle'" class="muted" data-test="archive-notes-loading">{{ t('notes.loading') }}</p>
     <p v-else-if="!rows.length" class="muted" data-test="archive-notes-empty">{{ t('notes.empty_archived') }}</p>
     <ul v-else class="archive-list" data-test="archive-notes-list">
-      <li v-for="n in rows" :key="n.id" class="archive-row" data-test="archive-note-row" :data-note-id="n.id">
+      <li v-for="n in rows" :key="n.id" class="archive-row" data-test="archive-note-row" :data-note-id="n.id" @contextmenu.prevent="menu = { id: n.id, x: $event.clientX, y: $event.clientY }">
         <a class="archive-row__open" :href="noteHref(n.id)" data-test="archive-note-open" @click.exact.prevent="open(n.id)">
           <span class="archive-note__head">
             <span class="archive-note__title">{{ rowTitle(n) }}</span>
@@ -39,6 +42,15 @@
             <UiIcon name="unarchive" :size="16" />
             <span>{{ t('notes.unarchive') }}</span>
           </button>
+          <button
+            type="button"
+            class="icon-btn archive-row__menu"
+            data-test="archive-note-menu"
+            :aria-label="t('notes.menu.label')"
+            :title="t('notes.menu.label')"
+            aria-haspopup="menu"
+            @click="openMenuAt(n.id, $event)"
+          ><UiIcon name="more" :size="18" /></button>
         </div>
         <p v-if="rowError[n.id]" class="archive-error" role="alert">{{ t('archive.note_error') }}</p>
       </li>
@@ -51,18 +63,31 @@
       :can-down="false"
       @close="close"
       @delete="onDelete"
+      @archive="onArchive"
+      @discuss="acts.discuss"
+    />
+    <NoteMenu
+      :open="Boolean(menu)"
+      :x="menu?.x ?? 0"
+      :y="menu?.y ?? 0"
+      :note="menuNote"
+      @choose="onChoose"
+      @close="menu = null"
     />
     <UndoSnackbar
-      v-if="deleted"
-      :key="deleted.id"
-      icon="trash"
-      testid="notes-delete-toast"
-      :text="t('notes.deleted')"
-      :undo-label="t('notes.undo')"
+      v-if="acts.toast.value"
+      :key="acts.toast.value.seq"
+      flip
+      :icon="toastView.icon"
+      :testid="toastView.testid"
+      :data-id="acts.toast.value.id"
+      :text="t(toastView.text)"
+      :show-undo="Boolean(toastView.button)"
+      :undo-label="toastView.button ? t(toastView.button) : ''"
       :close-label="t('common.close')"
-      :duration="DELETE_UNDO_MS"
-      @undo="undoDelete"
-      @dismiss="sendDelete()"
+      :duration="NOTE_UNDO_MS"
+      @undo="acts.act()"
+      @dismiss="acts.settle()"
     />
   </section>
 </template>
@@ -75,9 +100,8 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useNoteOpen } from '~/composables/useNoteOpen'
-
-/* D2 (spec 155 section 3): the same 10 s Undo as on /notes */
-const DELETE_UNDO_MS = 10_000
+import { NOTE_UNDO_MS, noteToastView, useNoteActions } from '~/composables/useNoteActions'
+import { NOTE_MENU_ARCHIVE, NOTE_MENU_DELETE, NOTE_MENU_DISCUSS, NOTE_MENU_UNARCHIVE } from '~/utils/note-menu.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -116,33 +140,34 @@ async function unarchive(id: string) {
   }
 }
 
-/* D2, as on /notes: the note leaves the list at once; Undo puts it back, nothing sent */
-const deleted = ref<NoteSummary | null>(null)
+/* 2.10 (SPL-5255), as on /notes: Delete and Archive act at once, then the Undo snackbar */
+const acts = useNoteActions({ onOpenTopic: (taskId) => { void router.push(localePath('/t/' + taskId)) } })
+const toastView = computed(() => (acts.toast.value ? noteToastView(acts.toast.value) : noteToastView({ kind: 'failed', id: '', seq: 0 })))
 function onDelete(id: string) {
-  sendDelete()
-  close()
-  const row = store.hide(id)
-  if (row) deleted.value = row
-  else void store.remove(id)
+  if (openId.value === id) close()
+  acts.remove(id)
 }
-function undoDelete() {
-  if (deleted.value) store.unhide(deleted.value)
-  deleted.value = null
+function onArchive(id: string) {
+  if (openId.value === id) close()
+  void acts.archive(id)
 }
-function sendDelete(keepalive = false) {
-  const row = deleted.value
-  deleted.value = null
-  if (row && store.hidden.includes(row.id)) void store.remove(row.id, keepalive)
+const menu = ref<{ id: string, x: number, y: number } | null>(null)
+const menuNote = computed(() => (menu.value ? store.notes.find((n) => n.id === menu.value?.id) ?? null : null))
+function openMenuAt(id: string, e: MouseEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  menu.value = { id, x: r.left, y: r.bottom }
 }
-const onPageHide = () => sendDelete(true)
+function onChoose(action: string) {
+  const id = menu.value?.id
+  if (!id) return
+  if (action === NOTE_MENU_UNARCHIVE) void unarchive(id)
+  else if (action === NOTE_MENU_ARCHIVE) onArchive(id)
+  else if (action === NOTE_MENU_DISCUSS) void acts.discuss(id)
+  else if (action === NOTE_MENU_DELETE) onDelete(id)
+}
 
 onMounted(() => {
   void store.load()
-  window.addEventListener('pagehide', onPageHide)
-})
-onUnmounted(() => {
-  window.removeEventListener('pagehide', onPageHide)
-  sendDelete()
 })
 </script>
 
@@ -186,8 +211,10 @@ onUnmounted(() => {
 .archive-row__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.8125rem; min-width: 0; }
 .archive-row__actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .archive-row__btn { display: inline-flex; align-items: center; gap: 6px; }
+.archive-row__menu { display: inline-flex; align-items: center; justify-content: center; }
 @media (max-width: 820px) {
   .archive-row__btn { min-height: var(--tap, 44px); }
+  .archive-row__menu { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
 }
 @media (max-width: 600px) {
   .archive-note__prio { display: none; }

@@ -1,6 +1,8 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.3, 2026-11-03, by c-212 (claude): D8 is the owner's CHANGE, a
+Version v1.4, 2026-11-11, by c-538 (claude): section 2.10, every note's menu
+(Archive, Turn into a discussion, Delete) with the Undo snackbar placement the
+owner asked for (SPL-5255). v1.3, 2026-11-03, by c-212 (claude): D8 is the owner's CHANGE, a
 drag or Move onto another priority takes that priority (2.9, SPL-4701), and
 the tie order is one key everywhere. v1.2, 2026-11-02, by c-705 (claude): adds
 section 2.9, a note's priority (SPL-4652), with its lines in sections 4 and 5.
@@ -343,6 +345,58 @@ default. Every existing note reads 5. The WUI's discussion default is 3
   moved one, and the one it lands on gives its number; down mirrors it. Within
   one priority `position`, stored by the hub per note (PATCH position), orders
   before any date key, so a dragged order is kept across reloads and devices.
+
+### 2.10 The note menu (SPL-5255)
+
+Owner HUM-10, t1 `b7eb7c9a`, 2026-11-10: "Each of the notes should have a
+right-click menu button so that one could archive the note, delete it, or
+turn it into a discussion." Then (msgs `79092e0b`, `ac509205`): "No need to
+have a confirmation for the delete or archive." "Just the small undo snack
+bar at the bottom of mobile and at the top of the desktop".
+
+- **Where**: every note, in the Notes list, the open note and the Archive
+  section's Notes part. A right-click on a list row, or on the open note
+  outside its text boxes and links (where the browser's own menu stays, for
+  copy and paste), opens it at the pointer; every row and the open note also
+  carry a visible **More** button (`more` icon), since a phone has no
+  right-click. The panel is `UiPointMenu`, the WUI's one menu opened at a
+  point (a bottom sheet at <= 820 px), in `wui/components/NoteMenu.vue`; the
+  items are `wui/utils/note-menu.mjs` `noteMenuItems`.
+- **Items**, in order: **Archive** (**Unarchive** on an archived note),
+  **Turn into a discussion**, **Delete** (danger colour).
+- **Archive** PATCHes `archived=true` at once, no confirm, and shows the
+  Undo snackbar for 10 s; Undo PATCHes `archived=false`. The hub had it
+  (PATCH `archived`, section 5); nothing new there.
+- **Delete** is D2 unchanged: no confirm, the note leaves the list at once,
+  Undo for 10 s sends nothing, and the `DELETE` goes when the snackbar ends
+  or the page goes. It is a hard delete: the hub keeps no trash (section 5,
+  `DELETE /v1/me/realm/notes/{id}`, items and links cascade).
+- **Turn into a discussion** posts a new topic in the current workspace's
+  `lobby` (every member has it; a note belongs to no workspace, 2.2). Its
+  first post is `noteDiscussionBody`: the title on the first line (the
+  topic's subject), then the text, then the checklist as `- [x] line` /
+  `- [ ] line`. The note stays as it was, not archived, and gains a `topic`
+  link to the new topic labelled with that first line (2.3). The snackbar
+  "Discussion started in the lobby. The note stays, with a link to it." has
+  **Open**, to `/t/<topic>`. An empty note (no title, text or checklist line)
+  shows the item locked with its reason. The post goes over the WUI socket,
+  as every post (the mock client's `sendMessage` on the mock bundle).
+- **The snackbar** is `UndoSnackbar` with `flip`: at the top on a desktop
+  (under the top bar), at the bottom on a phone (over the dock, the keyboard
+  and the safe-area inset). The other snackbars keep their place (top on a
+  phone, owner t1 `e3e9ca61`). One at a time: a new action settles the last
+  one first (a pending `DELETE` is sent). The actions and the snackbar's
+  state are `wui/composables/useNoteActions.ts`.
+- **Hub**: no change; archive, unarchive, delete and the link were all
+  served (section 5).
+- **i18n**: `notes.archived_toast` and `notes.menu.{label, discuss,
+  discuss_empty, discussed}` in all 19 locales; the agy seat reviews them as
+  the last step (language rule).
+- **Tests**: `wui-tests/unit/note-menu.test.mjs` (items, the first post);
+  `wui-tests/e2e/notes-menu.test.mjs` at 1440 and 390 px: right-click and
+  the menu button, each action, no confirm on Archive or Delete, the
+  snackbar at the top (1440) and the bottom (390), Undo restores, the
+  discussion's link and Open.
 
 ## 3. Defaults (owner may change)
 

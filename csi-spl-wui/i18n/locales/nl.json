@@ -3969,6 +3969,7 @@
     "unarchive": "Uit archief halen",
     "delete": "Verwijderen",
     "deleted": "Notitie verwijderd",
+    "archived_toast": "Notitie gearchiveerd",
     "undo": "Ongedaan maken",
     "saving": "Opslaan…",
     "not_saved": "Niet opgeslagen, opnieuw proberen",
@@ -4005,7 +4006,13 @@
       "export_failed": "Het exporteren is mislukt. Probeer het opnieuw.",
       "erase_failed": "De notities zijn niet gewist. Probeer het opnieuw."
     },
-    "add_to_note": "Aan notitie toevoegen"
+    "add_to_note": "Aan notitie toevoegen",
+    "menu": {
+      "label": "Notitieacties",
+      "discuss": "Omzetten in een discussie",
+      "discuss_empty": "De notitie is leeg",
+      "discussed": "De discussie is gestart in de lobby. De notitie blijft, met een link ernaar."
+    }
   },
   "offline": {
     "banner": {

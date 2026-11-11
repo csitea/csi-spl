@@ -317,7 +317,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" 
   LEASE_PROC_ROOT="$T/proc" LEASE_PANE_CMD="$T/bin/footer" ROTATE_TMUX="$T/bin/tmux" ROTATE_SPAWN="$T/bin/spawn" ROTATE_RUN="$T/bin/run" \
   ROTATE_KILL="$T/bin/kill" ROTATE_SEND="$T/bin/send" ROTATE_AI="$T/bin/ai" ROTATE_HOLD_DIR="$T/hold" ROTATE_MEMORY_DIR="$T/mem" \
   ROTATE_AS_AGENT_DIRECT=1 ROTATE_POLL=1 ROTATE_IDLE_SEC=0 ROTATE_IDLE_GRACE=2 ROTATE_ESC_WAIT=1 ROTATE_START_WAIT=4 \
-  ROTATE_ACK_TIMEOUT=6 ROTATE_EXIT_WAIT=2 ROTATE_TERM_WAIT=2 ROTATE_NEW_EXIT_WAIT=2 ROTATE_PROMOTE_WAIT=3 ROTATE_SETTLE=0 ROTATE_SEQ_WAIT=2
+  ROTATE_ACK_TIMEOUT=6 ROTATE_EXIT_WAIT=2 ROTATE_TERM_WAIT=2 ROTATE_NEW_EXIT_WAIT=2 ROTATE_PROMOTE_WAIT=3 ROTATE_RELEASE_WAIT=3 ROTATE_SETTLE=0 ROTATE_SEQ_WAIT=2
 
 # the world: c-902 (pid 102, pane %2) holds the lease, c-903 (pid 103, pane %3) stands by, both 2 h old
 world() {
@@ -1285,6 +1285,43 @@ act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok >"$T/o" 2>&1; rc=$?
   pass "29. control: the guard gives grok -> g-002 refreshed in place under its own id" || fail "29. same-vendor rc=$rc: $(cat "$T/o")"
 ! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "29. no stray failing command under the ERR trap" || fail "29. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
 rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00*
+
+# --- 30. SPL-5333: the lease comes back after ROTATE_PROMOTE_WAIT = RELEASE OK, not FAIL ---------
+# 20261111T1545Z-master and 1645Z-master on sat: RELEASE FAIL 240 s after the
+# release, the lease back on c-002@sat 291 s and 484 s after it. In fleet mode
+# the fleet loop moves it back: the master able on its next tick, then
+# LEASE_SEAT_HOLD (2) ticks in a row; under load a tick is 100-180 s apart
+# (n=55 master releases on sat 2026-11-10..11: median 158 s, 9 over 240 s,
+# max 484 s). RELEASE waits ROTATE_RELEASE_WAIT (600 s) for it. The live
+# shape at RELEASE (case 12's at_release); the hub row moves back on the 6th
+# 1 s poll, past ROTATE_PROMOTE_WAIT=3.
+release_back_at() {  # <polls>
+  rm -f "$T/rel.n"
+  cat >"$T/at-sleep.1" <<HOOK
+n=\$(( \$(cat "\$T/rel.n" 2>/dev/null || echo 0) + 1 )); echo "\$n" >"\$T/rel.n"
+if (( n >= $1 )); then echo "c-902@box-desk \$(date +%s)" >"\$T/spool/dispatch/lease"; else cp "\$T/at-sleep.ran" "\$T/at-sleep.1"; fi
+HOOK
+}
+at_release c-903@box-desk; release_back_at 6
+act DRY_RUN=0 ROTATE_RELEASE_WAIT=20 >"$T/o" 2>&1; rc=$?
+rm -f "$T/at-sleep.1"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q ' RELEASE OK the lease is c-902@box-desk' "$T/o" &&
+  ! grep -qE ' (RELEASE FAIL|FAIL FAIL) ' "$T/o" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null && [[ ! -e "$T/hook-fail.log" ]] &&
+  pass "30. the lease back after ROTATE_PROMOTE_WAIT, within ROTATE_RELEASE_WAIT: RELEASE OK, DONE, no ask" ||
+  fail "30. slow hand-back rc=$rc phase=$(ctx ROTATE_PHASE) polls=$(cat "$T/rel.n" 2>/dev/null) $(cat "$T/o") $(cat "$T/run.log" "$T/hook-fail.log" 2>/dev/null)"
+# CONTROL: a lease that never comes back still FAILs after ROTATE_RELEASE_WAIT, with the ask
+at_release c-903@box-desk
+act DRY_RUN=0 ROTATE_RELEASE_WAIT=8 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q ' RELEASE FAIL the lease is still c-903@box-desk 8s after the release' "$T/o" &&
+  grep -q '^do_spl_ask_put .*ASK_SUMMARY=ROTATION FAILED master RELEASE' "$T/run.log" &&
+  pass "30. CONTROL: a lease that never comes back: RELEASE FAIL after ROTATE_RELEASE_WAIT + ask" || fail "30. control rc=$rc $(cat "$T/o")"
+# CONTROL: the lease on another machine still ends RELEASE SKIP standby (FR-044)
+at_release c-903@box-main
+act DRY_RUN=0 ROTATE_RELEASE_WAIT=8 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q ' RELEASE SKIP standby (lease c-903@box-main)' "$T/o" &&
+  ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "30. CONTROL: the lease on another machine: RELEASE SKIP standby, no ask" || fail "30. control-remote rc=$rc $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "30. no stray failing command under the ERR trap" || fail "30. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

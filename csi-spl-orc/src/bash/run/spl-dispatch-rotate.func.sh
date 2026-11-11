@@ -64,7 +64,8 @@
 # @param ROTATE_ID (optional) - with ROTATE_CMD=ack: the rotation id from the seed
 # @param ROTATE_FORCE (optional) - 1 skips the age and boot gates
 # @param ROTATE_ACK_TIMEOUT (optional) - s, default 600 here (the orchestrator's is 900)
-# @param ROTATE_PROMOTE_WAIT (optional) - s for the lease to move to F and back, default 240
+# @param ROTATE_PROMOTE_WAIT (optional) - s for the lease to move to F at HOLD, default 240
+# @param ROTATE_RELEASE_WAIT (optional) - s for the lease to come back to M at RELEASE, default 600
 # @param ROTATE_SETTLE (optional) - s the fresh master holds the lease before F is refreshed, default 120
 # @param ROTATE_SEQ_WAIT (optional) - s to wait for an orch rotation in flight, default 600
 # @param ROTATE_HOLD_MAX (optional) - s after which the lease loops ignore a hold, default 1800
@@ -92,10 +93,10 @@ do_spl_dispatch_rotate() {
   spl_rotate_live_seats
   # the old and the new session may be different vendors (ROTATE_ROLE_VENDOR)
   ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral agy}"
-  : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"
+  : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_RELEASE_WAIT:=600}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"
   : "${ROTATE_DISPATCH_MIN_AGE:=1200}" "${ROTATE_DISPATCH_MAX_AGE:=1800}" "${ROTATE_DISPATCH_AGE_GRACE:=900}"
   local k
-  for k in ROTATE_DISPATCH_MIN_AGE ROTATE_DISPATCH_MAX_AGE ROTATE_DISPATCH_AGE_GRACE; do
+  for k in ROTATE_DISPATCH_MIN_AGE ROTATE_DISPATCH_MAX_AGE ROTATE_DISPATCH_AGE_GRACE ROTATE_RELEASE_WAIT; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   spl_is_agent_id "${LEASE_MASTER:-}" && spl_is_agent_id "${LEASE_FAILOVER:-}" &&
@@ -570,13 +571,14 @@ spl_disp_role() { echo "${ROTATE_RID##*-}"; }
 
 # ---- the lease: HOLD and RELEASE (FR-023, FR-028) ------------------------------
 
-# 0 once the dispatch lease names <id> (bare, or <id>@<this box>).
+# 0 once the dispatch lease names <id> (bare, or <id>@<this box>) within
+# <s> seconds (default ROTATE_PROMOTE_WAIT).
 spl_disp_wait_holder() {
-  local t0=$SECONDS
+  local t0=$SECONDS wait="${2:-$ROTATE_PROMOTE_WAIT}"
   while :; do
     spl_lease_read
     [[ "$LH" == "$1" || "$LH" == "$1@$ROTATE_BOX" ]] && return 0
-    (( SECONDS - t0 >= ROTATE_PROMOTE_WAIT )) && return 1
+    (( SECONDS - t0 >= wait )) && return 1
     sleep "$ROTATE_POLL"
   done
 }
@@ -819,14 +821,17 @@ spl_disp_close() {
   # (20261006T1315Z-master on sat: the lease went to the fleet main, RELEASE FAILed
   # and alerted "old session kept" for a pid already gone, every hour)
   spl_lease_read
-  if spl_lease_remote || { ! spl_disp_wait_holder "$LEASE_MASTER" && spl_lease_remote; }; then
+  # SPL-5333: in fleet mode the fleet loop moves it back (the master able on
+  # its next tick, then LEASE_SEAT_HOLD ticks in a row): 78..484 s on sat
+  # (n=55, 9 over the old 240 s wait, 2026-11-10..11), so RELEASE waits longer
+  if spl_lease_remote || { ! spl_disp_wait_holder "$LEASE_MASTER" "$ROTATE_RELEASE_WAIT" && spl_lease_remote; }; then
     ROTATE_STANDBY="$LH"
     spl_disp_step RELEASE SKIP "standby (lease $LH)"
     return 0
   fi
   if [[ "$LH" != "$LEASE_MASTER" && "$LH" != "$LEASE_MASTER@$ROTATE_BOX" ]]; then
     spl_disp_rank_kept && return 0
-    spl_disp_step RELEASE FAIL "the lease is still $LH ${ROTATE_PROMOTE_WAIT}s after the release; $LEASE_FAILOVER keeps acting"
+    spl_disp_step RELEASE FAIL "the lease is still $LH ${ROTATE_RELEASE_WAIT}s after the release; $LEASE_FAILOVER keeps acting"
     # RETIRE OK has run: the old session is gone, the new one is the master
     spl_rotate_alert master "$ROTATE_RID" RELEASE "the lease did not come back to $LEASE_MASTER" \
       "old session retired (pid $ROTATE_OLD_PID); new session: $LEASE_MASTER@$ROTATE_BOX pid ${ROTATE_NEW_PID:-?}"

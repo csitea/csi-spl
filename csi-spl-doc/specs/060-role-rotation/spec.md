@@ -330,9 +330,19 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
     back by the existing handback (fleet-roles 4: "the master's own renewal
     is the handback");
   - F is told `STANDBY`;
-  - the script waits up to `ROTATE_PROMOTE_WAIT` for the local lease file to
-    name `<M>@<box>`. A timeout = `FAIL release` and an ALERT. F keeps
-    acting, so dispatch never stops.
+  - the script waits up to `ROTATE_RELEASE_WAIT` (600 s) for the local
+    lease file to name `<M>@<box>`. A timeout = `FAIL release` and an
+    ALERT. F keeps acting, so dispatch never stops.
+
+  SPL-5333: in fleet mode nobody writes the lease back at RELEASE. The fleet
+  loop moves it: the new M shows able on its next tick, then the same-box
+  seat move waits `LEASE_SEAT_HOLD` (2) ticks in a row (SPL-3069). Under load
+  the ticks are 100 to 180 s apart, and a gap over `LEASE_STALE` restarts the
+  count. On sat, n=55 master releases (2026-11-10 and 11): the lease came
+  back after 78 to 484 s (median 158 s). 9 of them took longer than the old
+  240 s wait (`ROTATE_PROMOTE_WAIT`), so each raised `RELEASE FAIL`, an ask
+  and an #alerts card. Then the next slot spent itself on a RESUME. RELEASE
+  now has its own wait. HOLD keeps `ROTATE_PROMOTE_WAIT`.
 - **FR-029** REFRESH F (owner R2, "re-create the failover too"):
   - once M has held the lease for `ROTATE_SETTLE` (120 s), F is re-created
     when its process age is at least `ROTATE_MIN_AGE`;

@@ -1120,6 +1120,8 @@ _pp_orphans_reap() {  # <tee pid>
 # No item: a report-only perf-*.sh run (run-ci-tests.sh), every line from
 # '=== perf, reported, not gating: <f>' to its '=== perf <f>: PASS|OVER
 # BUDGET' line; its FAIL carries the measured ms, so it read NEW every run.
+# A killed run prints no closing line: the runner's 'UNFINISHED ' and the
+# part's 'FAILED: ' / 'TIMED OUT ' lines end the section and still count.
 # Normalised: the tree root (a bare mention reads <tree>), /tmp and $TMPDIR
 # paths (CI's TMPDIR is not /tmp), hex ids (7+), colour codes and a
 # trailing duration are stripped, so the same failure reads the same on both
@@ -1145,6 +1147,7 @@ _pp_sig() {  # <output-file> <tree-root>
     { line = $0; gsub(/\033\[[0-9;]*[A-Za-z]/, "", line) }
     line ~ /^=== perf, reported, not gating: / { perf = 1; next }
     line ~ /^(::warning::)?=== perf [^ ]+: (PASS|OVER BUDGET)/ { perf = 0; next }
+    perf && line ~ /^(FAILED: |UNFINISHED |TIMED OUT )/ { perf = 0 }
     perf { next }
     fmt && line ~ /^[ \t]*[^ \t]+\.go[ \t]*$/ { emit("gofmt", line); next }
     { fmt = 0 }

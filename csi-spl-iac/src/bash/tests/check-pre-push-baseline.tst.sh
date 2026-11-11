@@ -213,7 +213,7 @@ eq "11b. a mute red beside a passing file's planted FAIL, on HEAD and base -> FA
 perf='=== perf, reported, not gating: spawn-agents/perf-agent-hook.sh'
 perf="$perf\nFAIL - the hook's fastest of 300 runs (50 ms) is not under 50 ms (bare interpreter: 18 ms, load 71.69)"
 over='=== perf spawn-agents/perf-agent-hook.sh: OVER BUDGET (rc=1), reported only'
-f12="$ROOT/perf-12a.log"
+f12="$ROOT/perf-12.log"
 printf '%b\n' "FAIL - x\n$perf\n$over\nFAIL - y" >"$f12"
 eq "12a. a perf section's FAIL -> no item; a FAIL before and after it -> its item" \
   "fail x;fail y" "$(_pp_sig "$f12" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
@@ -223,6 +223,12 @@ eq "12b. ... CI's ::warning:: closing line ends the section too" \
 _perf_part() { grep -q '^good$' "$1/flag" && return 0; cat "$1/flag"; return 1; }
 eq "12c. the same red on HEAD and base, another perf ms -> WARN" "0|WARN" \
   "$(names "FAIL - x\n$perf\n$over" "FAIL - x\n${perf/(50 ms)/(51 ms)}\n$over" _perf_part | cut -d'|' -f1,2)"
+# 12d. (R7 c-843, B1) the part's timeout kills the runner in the perf run: no
+#      closing line, and _pp_part_orc_features appends its FAILED: lines after
+#      the open section. They end it and keep their items (fail closed).
+printf '%b\n' "$perf\nUNFINISHED spawn-agents/perf-agent-hook.sh\nFAILED: spawn-agents/b.tst.sh\nFAILED: spawn-agents/perf-agent-hook.sh (still running at the timeout)" >"$f12"
+eq "12d. an unclosed perf section: the part's FAILED: lines after it still count" \
+  "suite spawn-agents/b.tst.sh;suite spawn-agents/perf-agent-hook.sh" "$(_pp_sig "$f12" "$ROOT" | LC_ALL=C sort | paste -sd';' -)"
 
 # 4. the per-part timeout kills a hanging suite (the tf-steps hang) instead of
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.

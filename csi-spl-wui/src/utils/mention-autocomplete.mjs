@@ -1,6 +1,6 @@
 /** @mention picker over the roster. Node tests import this file; Vue wraps it. */
 
-import { agentKindOf, isWritableAgentId } from './agent-id.mjs'
+import { agentKindOf, isNewAgentId, isWritableAgentId } from './agent-id.mjs'
 
 const HUMAN_RE = /^(HUM|GST)-[0-9]+$/
 
@@ -9,9 +9,10 @@ const HUMAN_RE = /^(HUM|GST)-[0-9]+$/
 const MENTION_TOKEN_RE = /(^|[\s])@([\p{L}\p{N}._-]*)$/u
 
 export function isAgentId(id) {
-  /* a known kind (c-004, CLE-07, ...) or a person; EZB-1 / ALL-0 are not offered */
+  /* a new-form id (c-004, o-629: the grammar's letters, SPL-5299), a known
+     legacy kind (CLE-07) or a person; EZB-1 / ALL-0 are not offered */
   const s = String(id || '')
-  return agentKindOf(s) !== 'agent' || HUMAN_RE.test(s)
+  return isNewAgentId(s) || agentKindOf(s) !== 'agent' || HUMAN_RE.test(s)
 }
 
 /**

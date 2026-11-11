@@ -3,8 +3,9 @@
 // an id regex.
 //
 // Wave A = accept only: readers take BOTH forms.
-//   new      c-004, a-004, g-004, m-004, q-004   (^[acgmq]-[0-9]{3}$, lower case;
-//            m- Mistral, spec 110; FR-005 with the Go agentid grammar)
+//   new      c-004, a-004, g-004, m-004, q-004   (^[acgmoqu]-[0-9]{3}$, lower case;
+//            m- Mistral, spec 110; o- Codex, u- Cursor, spec 161; FR-005 with
+//            the Go agentid grammar)
 //   legacy   CLE-77952, AGY-1, GRK-3, QWN-9, ORC-1 ([A-Z]{2,4}-[0-9]+)
 //   people   HUM-17, GST-3, and the browser box BOX-1, unchanged
 //

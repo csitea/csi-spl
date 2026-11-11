@@ -16,7 +16,7 @@ const CONTRACT = join(HERE, '..', '..', 'src', 'utils', 'mention-grammar.json')
 
 // What flow_mentions.go implements (agentIDAt, legacyIDAt, boxEnd).
 const GO_SCAN = {
-  agent_id_src: '[acgmq]-[0-9]{3}(?![0-9])',
+  agent_id_src: '[acgmoqu]-[0-9]{3}(?![0-9])',
   legacy_id_src: '[A-Z]{2,4}-[0-9]+',
   box_id_src: '[a-z0-9][a-z0-9-]{0,31}',
 }

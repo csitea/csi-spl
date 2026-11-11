@@ -11,7 +11,7 @@ import (
 // csi-spl-wui/src/utils/notify.mjs, built from csi-spl-wui/src/utils/agent-id.mjs:
 //
 //	@(PARTICIPANT_ID_SRC)(?:@BOX_ID_SRC)?\b        (global, no lookbehind)
-//	PARTICIPANT_ID_SRC = (?:[acgmq]-[0-9]{3}(?![0-9])|[A-Z]{2,4}-[0-9]+)
+//	PARTICIPANT_ID_SRC = (?:[acgmoqu]-[0-9]{3}(?![0-9])|[A-Z]{2,4}-[0-9]+)
 //	BOX_ID_SRC         = [a-z0-9][a-z0-9-]{0,31}
 //
 // RE2 has no lookahead, so it is a hand scan that takes the same matches the
@@ -57,11 +57,11 @@ func mentionAt(s string, i int) (string, int, bool) {
 	return s[p:end], boxEnd(s, end), true
 }
 
-// agentIDAt: [acgmq]-[0-9]{3} at p, not followed by a digit. It follows
-// mention-grammar.json, not agentid: u- and o- (spec 161) join when row B8
-// widens the contract, until then @u-004 names no one.
+// agentIDAt: [acgmoqu]-[0-9]{3} at p, not followed by a digit. It follows
+// mention-grammar.json, which takes Cursor u- and Codex o- (spec 161) since
+// SPL-5299.
 func agentIDAt(s string, p int) (int, bool) {
-	if p+5 > len(s) || !strings.ContainsRune("acgmq", rune(s[p])) || s[p+1] != '-' {
+	if p+5 > len(s) || !strings.ContainsRune("acgmoqu", rune(s[p])) || s[p+1] != '-' {
 		return 0, false
 	}
 	for k := p + 2; k < p+5; k++ {

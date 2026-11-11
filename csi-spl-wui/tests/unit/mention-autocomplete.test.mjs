@@ -226,3 +226,23 @@ describe('the @ picker offers only active agents (dc6d5e3f)', () => {
     assert.deepEqual(filterRosterMentions(peers, 'AGY').map((p) => p.id), ['AGY-3499'])
   })
 })
+
+// SPL-5299 (owner HUM-10, t1 82539895, msg 7722a2f8: "I cannot tack him
+// either"): a seated Codex o- or Cursor u- agent (spec 161) is offered like a
+// c- agent. CONTROL: before the fix both lists were ['c-684'] (n=1).
+describe('the @ picker offers Codex and Cursor agents (SPL-5299)', () => {
+  const peers = [
+    { id: 'c-684', box: 'box-rsp', label: 'c-684@box-rsp', online: true },
+    { id: 'o-629', box: 'box-a', label: 'o-629@box-a', online: true },
+    { id: 'u-004', box: 'sat', label: 'u-004@sat', online: true },
+  ]
+  it('o- and u- are offered with the c- agent', () => {
+    assert.deepEqual(mentionCandidates({ peers, query: '' }).map((p) => p.id), ['c-684', 'o-629', 'u-004'])
+  })
+  it('@o finds the Codex agent', () => {
+    assert.deepEqual(mentionCandidates({ peers, query: 'o-6' }).map((p) => p.id), ['o-629'])
+  })
+  it('an unknown letter stays out', () => {
+    assert.deepEqual(mentionCandidates({ peers: [{ id: 'x-004', box: 'sat', label: 'x-004@sat' }], query: '' }), [])
+  })
+})

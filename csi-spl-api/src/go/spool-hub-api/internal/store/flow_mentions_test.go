@@ -91,9 +91,9 @@ func TestMentionGrammarContract(t *testing.T) {
 		t.Fatalf("%s: %v", grammarContract, err)
 	}
 	for key, want := range map[string]string{
-		"agent_id_src":  "[acgmq]-[0-9]{3}(?![0-9])", // agentIDAt
-		"legacy_id_src": "[A-Z]{2,4}-[0-9]+",         // legacyIDAt
-		"box_id_src":    "[a-z0-9][a-z0-9-]{0,31}",   // boxEnd
+		"agent_id_src":  "[acgmoqu]-[0-9]{3}(?![0-9])", // agentIDAt
+		"legacy_id_src": "[A-Z]{2,4}-[0-9]+",           // legacyIDAt
+		"box_id_src":    "[a-z0-9][a-z0-9-]{0,31}",     // boxEnd
 	} {
 		if got[key] != want {
 			t.Errorf("mention-grammar.json %s = %q, the Go scan implements %q: port the change to flow_mentions.go, then update this pin", key, got[key], want)
@@ -207,7 +207,7 @@ func TestFlowMentions(t *testing.T) {
 // TestFlowAgentCursorCodex: u- and o- (spec 161 row B2) are flow agents, in
 // Go (IsFlowAgent) and in the SQL twin (flowAgentSQL, run through Go's
 // regexp: the pattern is plain POSIX). x- and d- stay refused. The mention
-// scan is not widened here: it follows mention-grammar.json, row B8.
+// scan names them too, as mention-grammar.json does since SPL-5299.
 func TestFlowAgentCursorCodex(t *testing.T) {
 	sqlRe := regexp.MustCompile(strings.TrimSuffix(strings.TrimPrefix(flowAgentSQL, "~ '"), "'"))
 	for key, want := range map[string]bool{
@@ -218,7 +218,7 @@ func TestFlowAgentCursorCodex(t *testing.T) {
 			t.Errorf("%q: IsFlowAgent %v, flowAgentSQL %v; want %v", key, IsFlowAgent(key), sqlRe.MatchString(key), want)
 		}
 	}
-	if got := MentionedIDs("@u-004 @o-004"); got != nil {
-		t.Errorf("MentionedIDs(@u-004 @o-004) = %v: the mention scan joins with mention-grammar.json (B8)", got)
+	if got := MentionedIDs("@u-004 @o-004 @x-004"); !reflect.DeepEqual(got, []string{"u-004", "o-004"}) {
+		t.Errorf("MentionedIDs(@u-004 @o-004 @x-004) = %v, want [u-004 o-004] (SPL-5299)", got)
 	}
 }

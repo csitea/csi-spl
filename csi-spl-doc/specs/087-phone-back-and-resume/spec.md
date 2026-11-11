@@ -65,7 +65,7 @@ Owner HUM-10, t1 `90194aeb` (msg `1966d7e6`, 2026-11-10, SPL-5232): "Regardless 
 |---|---|
 | a topic (level 3) | its channel's topics (level 2) |
 | a channel's topics (level 2) | the channel list (level 1) |
-| the channel list (level 1) | the previous view, as browser Back; the dock's Back is enabled only while the tab has an app entry before this one (vue-router `state.back`), else disabled as before |
+| the channel list (level 1) | the previous view, as browser Back; the dock's Back is enabled only while the tab has an app entry before this one (vue-router `state.back`), else disabled as before. The top chevron is drawn there too (SPL-5268), in the head of the Channels and Direct messages lists, only while that entry exists: no entry, no chevron (no dead tap) |
 
 Measured on origin/master `b52b7838d`, mock bundle, n = 1 per cell at 360 and 390: a channel opened by a link from another section's page (an issue's discussion link, Notes) left its entry tagged with that page's level (`splBelow` 2), and `mobileBackStep` took any entry below as `history.back()`, so Back at the channel's topics went to the Issues list (2 -> 2), 8 of 8 cells (chevron, dock, edge and mid swipe). The tap path, the rail tap from another section, deep links and a reload already walked 3 -> 2 -> 1. The rule: in a discussion `history.back()` is taken only when the entry below is a LOWER level of ours; otherwise Back steps down in place. A lower level keeps CLE-77882 (a message opened in place from a list returns to the list). Browser Back keeps the browser's history (the page the link was on). The gate: `phone-back-matrix` entries `link` and `rail`.
 
@@ -89,7 +89,7 @@ Measured on origin/master `b52b7838d`, mock bundle, n = 1 per cell at 360 and 39
 | **FR-005** | A deep link, a query or hash, a notification open (`/m/<id>`, `notify-open`) or a `?settings=` route skips the restore | Planned |
 | **FR-006** | Sign-out deletes the member's `spool.lastPlace` entry; a stored place that fails to load falls back to level 1 with no error notice | Planned |
 | **FR-007** | Above 820 px no restore runs and Back is unchanged | Planned |
-| **FR-009** | In a discussion every in-app Back (chevron, dock, swipe) moves one level (§3.4): the topic to its topics, the topics to the channel list, never to an entry of another section; at level 1 the dock's Back is browser Back while an app entry is before it | Done (SPL-5232) |
+| **FR-009** | In a discussion every in-app Back (chevron, dock, swipe) moves one level (§3.4): the topic to its topics, the topics to the channel list, never to an entry of another section; at level 1 the dock's Back and the top chevron (drawn only then, SPL-5268) are browser Back while an app entry is before it | Done (SPL-5232, SPL-5268) |
 | **FR-008** | Help `interface-overview.md` §8 says the app reopens where you left off on a phone, and how to start fresh (the section chooser) | Planned |
 
 ## 6. Acceptance scenarios
@@ -137,5 +137,6 @@ Restoring on a desktop. Syncing the last place across devices. Changing the 043 
 |---|---|---|
 | v0.1 | First spec from the mobile consensus, build item 4 (D7 + U1) | c-246 |
 | v0.2 | §3.4 and FR-009: Back in a discussion per level (owner t1 90194aeb, SPL-5232) | c-498 |
+| v0.3 | §3.4 and FR-009: the top chevron at level 1 of Discussions, as browser Back (owner t1 90194aeb, poll 157965f2 A, SPL-5268) | c-455 |
 
-<!-- version: 0.2.0 · updated: 2026-11-10 · last-edit: 2026-11-10T12:00:00Z -->
+<!-- version: 0.3.0 · updated: 2026-11-11 · last-edit: 2026-11-11T06:00:00Z -->

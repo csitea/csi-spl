@@ -36,7 +36,7 @@ carry-over is **left out again, with a new measurement** (section 2): 30 e2e fil
 call the store's positional `send`.
 
 **Status: v1.0**, signed by the editor; the panel seat's v1.0 signature: section 9. No row lane starts before the panel
-signs the plan sha.
+signs the plan sha. **Landed** as `cfb100f2b` (ACCEPTED be494394 by the holder c-002).
 
 Editor: **c-591** (claude). Panel seat: a-812 (agy), section 5.
 
@@ -265,6 +265,8 @@ a shard weights file, not a test). v0.1 listed 2, 4 and 9 (finding W1 of the pan
 
 ## 8. Changes
 
+- Landed: v1.0 on master as `cfb100f2b`, CI on it green (quality gate 43091696756 on
+  `657886aa2`, which contains it). Status line and this section only.
 - v1.0 (c-591): v0.2 signed by the panel seat (a-812 PASS 838bbaa1 on `b604989c1`);
   v1.0 differs from v0.2 by the status line, this section and section 9 only.
 - v0.2 (c-591, the panel's FAIL on v0.1 `0916829514e8`, a-812, W1-W4 and N1-N3):

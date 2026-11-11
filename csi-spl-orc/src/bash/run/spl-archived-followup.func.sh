@@ -37,6 +37,15 @@
 # @description to the last discussion of the chain journal.tsv keeps (no hub read),
 # @description which takes no priority again (its own hop did).
 # @description Test workspaces are skipped.
+# @description What counts as archived is the hub's own rule (store.TopicArchived,
+# @description the source_not_archived check of the priority copy): a row of the
+# @description topic carries archived_at, and the hub stamps only a topic's opening
+# @description card (not_a_card for any other message) or a whole channel. An
+# @description archive is followed up only once it has held ARCHIVED_FOLLOWUP_SETTLE_MIN
+# @description minutes: a person who archives and puts the topic back at once has no
+# @description follow-up (SPL-5259: csi-rel 637bfd01 was archived at 11:25:18Z, its
+# @description follow-up posted at 11:25:39Z, the card restored at 11:25:41Z). A topic
+# @description put back is read live again on the next run, so nothing is posted.
 # @description One box acts for a topic: the holder's, when the hub's roster has the
 # @description holder's id on it in that workspace, else the first box by name that
 # @description has. The desk may be under another user's state root of that box, 0700
@@ -59,6 +68,7 @@
 # @param ENV (optional) - dev or prd, default lease.conf LEASE_ENV
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
+# @param ARCHIVED_FOLLOWUP_SETTLE_MIN (optional) - minutes an archive holds before it is followed up, default 10 (0..1440)
 # @param ARCHIVED_FOLLOWUP_STATE_DIR (optional) - since, journal.tsv, rows.seen, failed.keys, inherit.pending; default <spool root>/dispatch/archived-followup
 # @param ARCHIVED_FOLLOWUP_ROWS_FILE (optional, tests) - read the rows from this file, not the hub DB
 # @param ARCHIVED_FOLLOWUP_POST_CMD (optional, tests) - replaces do_spl_desk_post: TENANT_ID, DESK_AGENT, DESK_CHANNEL, DESK_BODY_FILE in its env, prints its JSON line
@@ -85,6 +95,9 @@ do_spl_archived_followup() {
     return 0
   fi
   since="$(cat "$dir/since")"
+  # No leading zero: bash would read 02640 as octal 1440, psql as decimal 2640.
+  [[ "${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10}" =~ ^(0|[1-9][0-9]{0,3})$ ]] && (( ${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10} <= 1440 )) ||
+    { do_log "FATAL ARCHIVED_FOLLOWUP_SETTLE_MIN must be 0..1440 minutes, got ${ARCHIVED_FOLLOWUP_SETTLE_MIN:-}"; return 1; }
   LH=""; spl_lease_read || true
   AFU_AGENT="$(spl_lease_holder_id)"
   [[ -n "$AFU_AGENT" && "$AFU_AGENT" != none ]] || { do_log "INFO nobody holds the dispatch lease: nothing followed up"; return 0; }
@@ -461,20 +474,24 @@ spl_afu_rows() {
   do_spl_cloud_cnf || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  spl_via_proxy _spl_afu_read "$1" "$2" "$AFU_AGENT" || { do_log "FATAL could not read the archived topics of $ENV"; return 1; }
+  spl_via_proxy _spl_afu_read "$1" "$2" "$AFU_AGENT" "${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10}" || { do_log "FATAL could not read the archived topics of $ENV"; return 1; }
   spl_afu_work_left "$1"
 }
 
-# The one statement. messages_archived holds only archived rows, so a is small.
+# The one statement: OUT SINCE AGENT [SETTLE minutes, default 10]. A topic is
+# archived as the hub reads it (a row of it carries archived_at: its opening
+# card, or its channel's archive), and only once its first stamp is SETTLE
+# minutes old (SPL-5259). messages_archived holds only archived rows, so a is small.
 _spl_afu_read() {
   PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
-    psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 -v since="$2" -v agent="$3" >/dev/null <<SQL
+    psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 -v since="$2" -v agent="$3" -v settle="${4:-10}" >/dev/null <<SQL
 BEGIN READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
 \\o $1
 WITH a AS MATERIALIZED (
   SELECT tenant_id, task_id, min(archived_at) AS at, max(channel) AS channel FROM messages
-   WHERE archived_at > :'since'::timestamptz AND task_id IS NOT NULL GROUP BY 1, 2),
+   WHERE archived_at > :'since'::timestamptz AND task_id IS NOT NULL GROUP BY 1, 2
+  HAVING min(archived_at) <= now() - make_interval(mins => :'settle'::int)),
 b AS MATERIALIZED (
   SELECT a.*, coalesce((SELECT string_agg(r.box_id, ',' ORDER BY r.box_id) FROM roster r WHERE r.tenant_id = a.tenant_id AND r.agent_id = :'agent'), '') AS seated,
          coalesce((SELECT m.from_id FROM messages m WHERE m.tenant_id = a.tenant_id AND m.task_id = a.task_id AND m.from_id LIKE 'HUM-%' ORDER BY m.ts DESC LIMIT 1), '') AS human

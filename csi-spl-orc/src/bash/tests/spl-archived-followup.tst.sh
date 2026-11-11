@@ -22,6 +22,8 @@
 #  11 a row declined after the post is added to that discussion, once (W4)
 #  12 the real statement joins a row by every binding form, on AFU_TEST_PG_DSN or
 #     a throwaway Postgres (CI caches the image; an unlisted SKIP fails its job)
+#     12c an archive younger than the settle time (default 10 min) or none is not
+#     followed up yet (SPL-5259); CONTROL 12d: a settle time of 0 takes it
 #  13 a channel the box map holds, a workspace's * row, a sole seat, a map that
 #     cannot be read, a malformed column 7: no post, reply or link, one blocker
 #     naming what was left, even after an earlier blocker of the topic;
@@ -332,9 +334,11 @@ CREATE TABLE issue_discussions (tenant_id text, number int, task_id uuid);
 CREATE TABLE issue_counters (tenant_id text, prefix text);
 CREATE TABLE fleet_asks (ask_id text, discussion text, topic text, state text, reason text, summary text, updated_at timestamptz);
 CREATE FUNCTION issue_discussion_default(text) RETURNS uuid LANGUAGE sql AS 'SELECT ''00000000-0000-4000-8000-000000000000''::uuid';
-INSERT INTO messages VALUES ('t1', '$OLD', 'dev', now(), 'HUM-1', now());
-INSERT INTO issues VALUES ('t1', 41, 'todo', 'a live job', 'issue', '{}', NULL, NULL), ('t1', 42, 'todo', 'a deleted job', 'issue', '{}', NULL, now());
-INSERT INTO issue_discussions VALUES ('t1', 41, '$OLD'), ('t1', 42, '$OLD');
+INSERT INTO messages VALUES ('t1', '$OLD', 'dev', now() - interval '1 hour', 'HUM-1', now()),
+  ('t1', '$OLD3', 'dev', now() - interval '30 seconds', 'HUM-1', now()), ('t1', '$OLD2', 'dev', NULL, 'HUM-1', now());
+INSERT INTO issues VALUES ('t1', 41, 'todo', 'a live job', 'issue', '{}', NULL, NULL), ('t1', 42, 'todo', 'a deleted job', 'issue', '{}', NULL, now()),
+  ('t1', 43, 'wip', 'a job of a topic archived 30 s ago', 'issue', '{}', NULL, NULL), ('t1', 44, 'wip', 'a job of a live topic', 'issue', '{}', NULL, NULL);
+INSERT INTO issue_discussions VALUES ('t1', 41, '$OLD'), ('t1', 42, '$OLD'), ('t1', 43, '$OLD3'), ('t1', 44, '$OLD2');
 INSERT INTO roster VALUES ('t1', 'box-b', 'c-002'), ('t1', 'box-a', 'c-002'), ('t1', 'box-a', 'c-003');
 INSERT INTO fleet_asks VALUES ('a0000001-x', '$OLD', '', 'declined', 'discussion archived: x', 'full discussion', now()),
   ('a0000002-x', '${OLD:0:8}', '', 'declined', 'discussion archived: x', 'short discussion', now()),
@@ -347,6 +351,11 @@ SQL
     pass "12 the real statement: a row by all 4 binding forms, not another topic's; sorted roster; last human" || fail "12: $(cat "$T/sql.log") // $(cat "$T/sql.out" 2>&1)"
   [[ "$(grep '^issue' "$T/sql.out" | cut -f6 | tr '\n' ' ')" == "SPL-41 " ]] &&
     pass "12b a deleted issue is not work left (SPL-5244: the owner deleted SPL-5068, its move was refused every run)" || fail "12b: $(grep '^issue' "$T/sql.out" 2>&1)"
+  [[ "$(cut -f3 "$T/sql.out" | sort -u)" == "$OLD" ]] &&
+    pass "12c a topic archived 30 s ago is not followed up yet (it may be put back: SPL-5259, csi-rel 637bfd01 archived 11:25:18Z, restored 11:25:41Z), nor a live one" || fail "12c: $(cut -f1-3,6 "$T/sql.out" 2>&1)"
+  SNIPPET="spl_pg_env() { shift; \"\$1\" \"\$AFU_TEST_PG_DSN&options=-csearch_path%3D$SCH\" \"\${@:2}\"; }; _spl_afu_read '$T/sql0.out' '2020-01-01T00:00:00Z' c-002 0" in_orc AFU_TEST_PG_DSN="$AFU_TEST_PG_DSN" SPL_PROXY_DSN=unused >"$T/sql0.log" 2>&1
+  [[ "$(grep '^issue' "$T/sql0.out" | cut -f6 | sort | tr '\n' ' ')" == "SPL-41 SPL-43 " ]] &&
+    pass "12d CONTROL: a settle time of 0 takes the topic archived 30 s ago, still not the live one" || fail "12d: $(cat "$T/sql0.log") // $(cut -f1-3,6 "$T/sql0.out" 2>&1)"
   psql -X -q "$AFU_TEST_PG_DSN" -c "DROP SCHEMA $SCH CASCADE" >/dev/null 2>&1
 else
   echo "SKIP: 12 needs AFU_TEST_PG_DSN, or docker, psql and a cached $PG_IMAGE image"
@@ -454,6 +463,18 @@ out3="$(ROWS="$T/rows16e" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" DRY_RUN=0)"; r
 printf 't1\t%s\t%s\nt1\t%s\t%s\n' "$A16" "$B16" "$B16" "$A16" >"$ST16/journal.tsv"; : >"$LOG"
 out="$(ROWS="$T/rows16" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" DRY_RUN=0)"; rc=$?
 [[ "$(count '^link SPL-60 ')" == 1 && "$(count '^post ')" == 0 ]] && pass "16c a journal cycle ends: one link, no post" || fail "16c (rc=$rc): $out // $(cat "$LOG")"
+
+# 17. the settle knob: a leading zero (bash octal, psql decimal) or past 1440 is refused, nothing called.
+: >"$LOG"; bad=""
+for v in 02640 010 1441 99999; do
+  out="$(ROWS="$T/rows16e" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" ARCHIVED_FOLLOWUP_SETTLE_MIN="$v" DRY_RUN=0)"; rc=$?
+  [[ $rc -ne 0 && "$out" == *"FATAL ARCHIVED_FOLLOWUP_SETTLE_MIN must be 0..1440 minutes, got $v"* ]] || bad+=" $v(rc=$rc)"
+done
+for v in 0 10 1440; do
+  out="$(ROWS="$T/rows16e" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST16" ARCHIVED_FOLLOWUP_SETTLE_MIN="$v" DRY_RUN=0)"; rc=$?
+  [[ $rc -eq 0 ]] || bad+=" ok-$v(rc=$rc)"
+done
+[[ -z "$bad" && ! -s "$LOG" ]] && pass "17 settle: 02640, 010, 1441, 99999 refused; 0, 10, 1440 run" || fail "17:$bad // $(cat "$LOG")"
 
 echo "spl-archived-followup: $fails failure(s)"
 [[ $fails -eq 0 ]]

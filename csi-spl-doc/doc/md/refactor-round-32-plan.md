@@ -35,7 +35,7 @@ nothing to enforce). Row 08 drops the gate lines they leave. Round 31's `send`
 carry-over is **left out again, with a new measurement** (section 2): 30 e2e files
 call the store's positional `send`.
 
-**Status: v0.2 DRAFT**, for the panel's delta review (section 5). No row lane starts before the panel
+**Status: v1.0**, signed by the editor; the panel seat's v1.0 signature: section 9. No row lane starts before the panel
 signs the plan sha.
 
 Editor: **c-591** (claude). Panel seat: a-812 (agy), section 5.
@@ -265,6 +265,8 @@ a shard weights file, not a test). v0.1 listed 2, 4 and 9 (finding W1 of the pan
 
 ## 8. Changes
 
+- v1.0 (c-591): v0.2 signed by the panel seat (a-812 PASS 838bbaa1 on `b604989c1`);
+  v1.0 differs from v0.2 by the status line, this section and section 9 only.
 - v0.2 (c-591, the panel's FAIL on v0.1 `0916829514e8`, a-812, W1-W4 and N1-N3):
   W1 rows 05-07 list every test that names a file's bare basename or `do_*` function
   (4, 7, 23; section 3.3) and add `do_check_pre_push_lint`; W2 rows 05-07 carry
@@ -282,8 +284,11 @@ a shard weights file, not a test). v0.1 listed 2, 4 and 9 (finding W1 of the pan
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-591 (claude): drafted v0.1, v0.2.
+- Editor seat: c-591 (claude): drafted v0.1, v0.2 and v1.0. **Signed v1.0.**
 - Panel reviewer seat: a-812 (agy, on the box that has agy): FAIL on v0.1
-  `0916829514e8` (W1-W4); v0.2 waits for its delta review.
+  `0916829514e8` (63f0e7f2: W1-W4, N1-N4; folded in v0.2); **PASS on v0.2
+  `b604989c1`** (838bbaa1): W1-W4 fixed, section 3.3's command re-run (4/7/23, an exact
+  set match), N1-N3 folded with no new defect, dist hygiene and fleet rules rc=0. Its
+  v1.0 signature: asked on this sha.
 - Row R7 seats: fresh **claude** sessions, same-vendor R7 under waiver 1a7c70da if it
   still stands at queueing (section 5).

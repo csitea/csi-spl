@@ -2241,6 +2241,13 @@ Now:
   stays on the row and Refresh is fixed at the bottom centre above the dock,
   with room under the last card. Every column, the LaneDialog, the deep link
   `?lane=`, the stale line and "n of total" are unchanged.
+- A sort or filter picked in a phone sheet stays after the sheet closes.
+  Closing steps Back over the sheet's history entry, and vue-router hears
+  that popstate before `useMobileStack`'s capture listener (at the window,
+  listeners fire in the order they were added; Chrome 154). The route then
+  names the entry under the sheet while the address bar keeps the pick.
+  When the route lags the address bar, the page has the router follow the
+  address bar. The Event log keeps nothing in its URL, so it never hit this.
 - No new text key.
 - Tests: unit `tests/unit/column-sheet.test.mjs` (the shared rules, the same
   clicks and filters through both tables), `monitoring-lanes-sort-filter`,
@@ -2249,7 +2256,11 @@ Now:
   both pages at 1440 and 390, R1-R2 Refresh where Clear log is),
   `monitoring-lanes-phone`, `monitoring-lanes-url`,
   `monitoring-head-actions-row`, `monitoring-costs`. Red control: the bundle
-  of origin/master fails S1, S3, S4, R1 and R2.
+  of origin/master fails S1, S3, S4, R1 and R2. The phone specs close a sheet
+  with `tests/e2e/lib/sheet-scrim.mjs`: a tap on the scrim above the sheet,
+  where a person taps. A click at the scrim's centre landed inside the
+  12-row Sort sheet, on Prio. P5 (320, 360, 390) and C63 (390) fail on the
+  bundle without the route fix: the sort is gone once the sheet closes.
 
 ## 4. Cases
 

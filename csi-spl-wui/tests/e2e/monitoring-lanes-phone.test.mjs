@@ -20,6 +20,7 @@
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
+import { tapScrim } from './lib/sheet-scrim.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 import { TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 import { LANE_COLUMNS, LANES_MOCK_KEY } from '../../src/utils/monitoring-lanes.mjs'
@@ -122,13 +123,13 @@ try {
     await p.click('[data-test=lanes-sort-open]')
     await p.waitForSelector('[data-test=lanes-sort-sheet] [data-test=lanes-sort-agent]', { visible: true, timeout: 8000 })
     await p.click('[data-test=lanes-sort-sheet] [data-test=lanes-sort-agent]')
-    await p.click('[data-test=lanes-sheet-scrim]')
+    await tapScrim(p, 'lanes')
     const asc = before.split(',').sort().join(',')
     ok(`P5 ${tag}: a sort click orders the cards`, await rowsAre(p, asc), { before, after: await order(p) })
     await p.click('[data-test=lanes-filters-open]')
     await p.waitForSelector('[data-test=lanes-filters] [data-test=lanes-filter-vendor]', { visible: true, timeout: 8000 })
     await p.select('[data-test=lanes-filters] [data-test=lanes-filter-vendor]', 'mistral')
-    await p.click('[data-test=lanes-sheet-scrim]')
+    await tapScrim(p, 'lanes')
     ok(`P5b ${tag}: a filter leaves its cards only`, await rowsAre(p, 'm-039'), await order(p))
     ok(`P5c ${tag}: no page error`, errors.length === 0, errors)
     await ctx.close()

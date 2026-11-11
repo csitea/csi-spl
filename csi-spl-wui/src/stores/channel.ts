@@ -36,6 +36,7 @@ import { pendingRow, withoutMsg } from '~/utils/feed-core.mjs'
 import { applyEdit } from '~/utils/msg-apply.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji-core.mjs'
 import { withSessionRetry } from '~/utils/live-follow-core.mjs'
+import { openFeed, readFirstPage, sameFeed } from '~/utils/feed-read.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
 
 export type { ChannelRow }
@@ -271,7 +272,7 @@ function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Pro
 
 /** The Msgs window: search, and Load more over the held rows and older pages. */
 function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
-  const { api, i18n, active, peer, messages, totals, error, search, visible, lastLive, olderCursor, loadingOlder, view } = s
+  const { api, i18n, messages, totals, error, search, visible, lastLive, olderCursor, loadingOlder, view } = s
   const { follow } = d
   function resetView() {
     search.value = ''
@@ -293,13 +294,11 @@ function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
     }
     if (!olderCursor.value || loadingOlder.value) return
     loadingOlder.value = true
+    /* SPL-5250: an older page of the feed left behind changes nothing here */
+    const where = openFeed(s)
     try {
-      const page = await withSessionRetry(api, () => api.listMessages({
-        channel: active.value || undefined,
-        peer: peer.value || undefined,
-        limit: WINDOW,
-        before: olderCursor.value || undefined,
-      }))
+      const page = await withSessionRetry(api, () => api.listMessages({ ...where, limit: WINDOW, before: olderCursor.value || undefined }))
+      if (!sameFeed(where, s)) return
       const incoming = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
       const seen = new Set(messages.value.map((m) => m.msg_id))
       const add = incoming.filter((m) => m.msg_id && !seen.has(m.msg_id))
@@ -309,6 +308,7 @@ function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
       visible.value += WINDOW
       follow()
     } catch (e) {
+      if (!sameFeed(where, s)) return
       error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_older_failed')
       olderCursor.value = null
     } finally {
@@ -339,7 +339,7 @@ function withHeld(s: ChannelState, queue: Outbox['queue'], rows: unknown[]) {
 
 /** Opening a channel or DM, its first page, and the catch-up after a reconnect. */
 function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'queue'> & { resetView: () => void }) {
-  const { api, i18n, active, peer, messages, unread, loading, error, offlineAt, totals, olderCursor } = s
+  const { api, i18n, active, peer, messages, unread, error, totals } = s
   const { follow, queue, resetView } = d
   async function selectChannel(name: string) {
     if (active.value !== name || peer.value) resetView()
@@ -359,28 +359,18 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
 
   /* SPL-5037: `background` is the mock tenant's poll. It re-reads a feed already
      on screen, so it leaves `loading` alone: both empty states are gated on it,
-     and a flip unmounts their buttons for the length of the read. */
+     and a flip unmounts their buttons for the length of the read.
+     SPL-5250: a read that returns after the open feed changed changes nothing. */
   async function refresh({ background = false } = {}) {
-    if (!background) loading.value = true
-    error.value = null
-    const where = { channel: active.value || undefined, peer: peer.value || undefined }
-    try {
-      const page = await withSessionRetry(api, () => api.listMessages({
-        ...where,
-        limit: WINDOW,
-      }))
-      messages.value = withHeld(s, queue, page.messages || [])
-      totals.value = page.totals || {}
-      olderCursor.value = page.next || null
-      offlineAt.value = null
-      void offlineFeed((m) => m.keepPage(api.tenant, where, page))
-      follow()
-    } catch (e) {
-      /* SPL-2149: no network - the copy of this feed this device read last */
-      if (!(await offlineFeed((m) => m.showKept(s, (rows: unknown[]) => withHeld(s, queue, rows), e, where)))) error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_failed')
-    } finally {
-      if (!background) loading.value = false
-    }
+    const kept = (rows: unknown[]) => withHeld(s, queue, rows)
+    await readFirstPage(s, {
+      read: (where: { channel?: string, peer?: string }) => withSessionRetry(api, () => api.listMessages({ ...where, limit: WINDOW })),
+      withHeld: kept,
+      keep: (where: unknown, page: unknown) => { void offlineFeed((m) => m.keepPage(api.tenant, where, page)) },
+      showKept: (e: unknown, where: unknown) => offlineFeed((m) => m.showKept(s, kept, e, where)),
+      follow,
+      failed: (e: unknown) => e instanceof Error ? e.message : i18n.t('feed.error.load_failed'),
+    }, { background })
   }
 
   /**
@@ -399,7 +389,7 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
     try {
       const page = await withSessionRetry(api, () => api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50,
         ...(q ? { changedSince: q.since, rx: q.rx } : {}) }))
-      if (where.channel !== active.value || where.peer !== peer.value) return
+      if (!sameFeed(where, s)) return
       catchUpSync = { key, cursor: page.sync || '' }
       const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
       messages.value = mergeCatchUp(messages.value, fresh,
@@ -407,6 +397,7 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
       totals.value = mergeTopicTotals(totals.value, page.totals)
       follow()
     } catch (e) {
+      if (!sameFeed(where, s)) return
       error.value = e instanceof Error ? e.message : i18n.t('feed.error.catch_up_failed')
     }
   }

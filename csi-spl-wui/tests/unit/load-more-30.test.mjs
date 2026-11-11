@@ -28,7 +28,7 @@ describe('the page is 30 rows', () => {
   it('the channel store asks the hub for 30 on the first read and on every Load more', () => {
     const st = read('src/stores/channel.ts')
     const refresh = st.slice(st.indexOf('async function refresh'), st.indexOf('async function catchUp'))
-    assert.match(refresh, /limit: WINDOW,/)
+    assert.match(refresh, /limit: WINDOW \}/)
     const older = st.slice(st.indexOf('async function loadOlder'), st.indexOf('function setSearch'))
     assert.match(older, /limit: WINDOW,/)
     assert.match(older, /loadingOlder\.value = true/)

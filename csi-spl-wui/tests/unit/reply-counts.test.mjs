@@ -133,6 +133,7 @@ describe('SPL-1008 reply counts', () => {
     const src = readFileSync(join(SRC, 'stores/channel.ts'), 'utf8')
     assert.match(src, /topicRepliesIn\(replyIndex\.value, taskId, totals\.value\[taskId\]\)/)
     assert.equal((src.match(/mergeTopicTotals\(totals\.value, page\.totals\)/g) || []).length, 2, 'loadOlder and catchUp merge the page totals')
-    assert.match(src, /totals\.value = page\.totals \|\| \{\}/)
+    /* SPL-5250: the first page is read by utils/feed-read.mjs */
+    assert.match(readFileSync(join(SRC, 'utils/feed-read.mjs'), 'utf8'), /s\.totals\.value = page\.totals \|\| \{\}/)
   })
 })

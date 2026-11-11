@@ -401,6 +401,6 @@ Each panel seat signs the final version with its own commit on branch `review/c0
 | Seat | Agent ID | Version Read | Commit SHA Read | Verdict | Signature Commit |
 |---|---|---|---|---|---|
 | **EDITOR** (`c002-fc3b7ac3-rust-panel-editor`) | `a-526` | `v0.4 (rc3)` | *(pending final v1.0 SHA)* | Author & editor (`v0.1`–`v0.4 rc3`) | *(signs on v1.0 declaration)* |
-| **SHELL + PERFORMANCE EXPERT** (`c002-fc3b7ac3-rust-panel-shell-expert`) | `c-559@sat` | `v0.3 (rc2)` *(rc3 sent for re-sign)* | `94165ebdf5bf7b5fe0a2c986539bc1d1ca391b0d` | Signed / Agree (`v0.2 rc1` `271035e08` `C1`–`C3` folded and checked) | `286c0af74e0a0f302fb56e265e9d8d7df9bdb9e4` |
+| **SHELL + PERFORMANCE EXPERT** (`c002-fc3b7ac3-rust-panel-shell-expert`) | `c-559@sat` | `v0.4 (rc3)` | `04b2db5690857195940f2a59d87ceabeaa9fa8c9` | Signed / Agree (`M1` re-counted from `pre-push.log`: `15,274` executed / `418.8 h`; `PASS` + `FAIL` `13,860` / `329.1 h`) | this commit (rc2: `286c0af74`) |
 | **RUST EXPERT** (`c002-fc3b7ac3-rust-panel-rust-expert`) | `c-565@sat` | `v0.3 (rc2)` *(rc3 folds 4.2 `est.`)* | `94165ebdf5bf7b5fe0a2c986539bc1d1ca391b0d` | Signed / Agree (4.2 `est. ~3–5 ms` note folded in `v0.4 rc3`) | `114379712e81f8767a32f9baee5b59599fd450f0` |
 | **REVIEWER** (`c002-fc3b7ac3-rust-panel-reviewer`) | `c-553@sat` | *(pending rc3 audit; `v0.1` `F1`–`F9` + `v0.3 rc2` `M1`–`M2`, `N1`–`N3` folded)* | *(pending)* | *(pending PASS/FAIL)* | *(pending)* |

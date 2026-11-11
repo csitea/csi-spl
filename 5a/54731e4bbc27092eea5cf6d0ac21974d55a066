@@ -1,0 +1,11 @@
+Lay-What: a new agent of the Codex kind now starts on its own, without stopping to ask whether it may work in its folder.
+
+Lay-How: before the agent starts, its folder is written into that agent's own list of trusted folders, and the start watch recognises the question if it still appears.
+
+Lay-Why: a Codex agent sat on the folder question until a person pressed Enter, so it never joined the team by itself.
+
+Tech-What: trust-workdir.sh gains a codex store; start-check.inc.sh names codex's trust dialog (exit 11) and its ready composer.
+
+Tech-How: writes [projects."<dir>"] trust_level = "trusted" in $CODEX_HOME/config.toml for the worktree and its main checkout, editing only that table; spawn-window watches codex windows.
+
+Tech-Why: trust-workdir had no codex kind (unknown agent 'codex'), and Codex 0.166.0 keys a linked worktree on its main checkout, like grok.

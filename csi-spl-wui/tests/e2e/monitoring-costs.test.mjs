@@ -656,14 +656,18 @@ async function tabRow(browser, base) {
 
 /** SPL-3887 (owner HUM-10, t1 31f6f470, msgs 1eedefed and 08b25696): the Lanes table sorts by a column-name click and filters by box, vendor, state, age and text, the Issues sheet's controls. CONTROL: on master the names are plain text and no filter row exists, so every check here FAILS there. */
 async function lanesSortFilter(browser, base, size) {
+  /* SPL-5276: a phone sorts and filters in the Event log's sheets, checked by
+     monitoring-lanes-phone, monitoring-lanes-url and monitoring-lanes-like-events */
+  if (size.width <= 820) return
   const { ctx, p } = await costsPage(browser, base, size, { operator: true })
   await open(p, base, '/monitoring/lanes')
   const order = () => p.$$eval('[data-test=lanes-row]', (els) => els.map((e) => e.getAttribute('data-agent')).join(','))
   const until = (want) => p.waitForFunction((w) => [...document.querySelectorAll('[data-test=lanes-row]')].map((e) => e.getAttribute('data-agent')).join(',') === w, { timeout: 5000 }, want).then(() => true, () => false)
   ok('3887 lanes: three rows in the hub order', await until('c-085,a-277,m-039'), await order())
-  const names = await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((th) => (th.querySelector('button.issues-sort-h') ? 'b' : '-')).join(''))
-  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbbbbb', names)
-  const aria = () => p.$eval('[data-test=lanes-sort-agent]', (b) => b.closest('th').getAttribute('aria-sort') + ':' + b.querySelector('.issues-sort-mark').textContent)
+  /* SPL-5276: the names are the Event log's sort buttons (SheetHead.vue) */
+  const names = await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((th) => (th.querySelector('button.sheet-sort-h') ? 'b' : '-')).join(''))
+  ok('3887 lanes: every column name is the Event log\'s sort button', names === 'bbbbbbbbbbbb', names)
+  const aria = () => p.$eval('[data-test=lanes-sort-agent]', (b) => b.closest('th').getAttribute('aria-sort') + ':' + b.querySelector('.sheet-sort-mark').textContent)
   await p.click('[data-test=lanes-sort-agent]')
   ok('3887 lanes: a name click sorts ascending, ▲', (await until('a-277,c-085,m-039')) && (await aria()) === 'ascending:▲', [await order(), await aria()])
   await p.click('[data-test=lanes-sort-agent]')
@@ -701,15 +705,15 @@ async function lanesSortFilter(browser, base, size) {
   await p.select('[data-test=lanes-filter-state]', 'live')
   ok('3887 lanes: the state filter keeps the live lanes', await until('c-085,a-277,m-039'), await order())
   await p.select('[data-test=lanes-filter-state]', '')
-  await p.select('[data-test=lanes-filter-age]', '1h')
+  await p.select('[data-test=lanes-filter-updated]', '1h')
   ok('3887 lanes: within 1 h keeps the lanes written 4, 25 and 50 min ago', await until('c-085,a-277,m-039'), await order())
-  await p.select('[data-test=lanes-filter-age]', 'older')
+  await p.select('[data-test=lanes-filter-updated]', 'older')
   ok('3887 lanes: over 24 h keeps none, and the table says so', (await until('')) && (await waitFor(p, '[data-test=lanes-no-match]')), await order())
-  await p.select('[data-test=lanes-filter-age]', '')
-  await p.type('[data-test=lanes-filter-text]', 'spl-3215')
-  ok('3887 lanes: the text filter finds an issue key, any case', await until('c-085'), await order())
+  await p.select('[data-test=lanes-filter-updated]', '')
+  await p.type('[data-test=lanes-filter-issues]', 'spl-3215')
+  ok('3887 lanes: the Issues text filter finds an issue key, any case', await until('c-085'), await order())
   await p.click('[data-test=lanes-filter-clear]')
-  ok('3887 lanes: Clear filters shows every lane again', (await until('c-085,a-277,m-039')) && (await p.$eval('[data-test=lanes-filter-text]', (e) => e.value)) === '', await order())
+  ok('3887 lanes: Clear filters shows every lane again', (await until('c-085,a-277,m-039')) && (await p.$eval('[data-test=lanes-filter-issues]', (e) => e.value)) === '', await order())
   const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ok('3887 lanes: the filter row adds no sideways page scroll', wide <= 0, wide)
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-lanes-sort-filter-${size.width}.png`, fullPage: true })
@@ -717,6 +721,16 @@ async function lanesSortFilter(browser, base, size) {
 }
 
 /** Spec 153 3.14 C63 (SPL-4727; owner HUM-10, t1 0d0bc34c, msgs 136f2e49 and c78812f2): each lane shows its prio, the highest among its issues, as the 3rd column, and a name click sorts by it, prio 1 first; a lane with no issue shows a dash and sorts last both ways. The mock fleet with c-733 (prio 1) and c-085 (prio 2). CONTROL: on master there is no Prio column, so every check here FAILS there. */
+/* SPL-5276: a Lanes sort click as the Event log's: the column name on a
+   desktop, its row in the Sort sheet on a phone (SheetPhoneBar) */
+async function sortLanesBy(p, size, col) {
+  if (size.width > 820) return p.click(`[data-test=lanes-sort-${col}]`)
+  await p.click('[data-test=lanes-sort-open]')
+  await p.waitForSelector(`[data-test=lanes-sort-sheet] [data-test=lanes-sort-${col}]`, { visible: true, timeout: 8000 })
+  await p.click(`[data-test=lanes-sort-sheet] [data-test=lanes-sort-${col}]`)
+  await p.click('[data-test=lanes-sheet-scrim]')
+}
+
 async function lanesPrioSort(browser, base, size) {
   const { ctx, p } = await costsPage(browser, base, size, { operator: true })
   await p.evaluate(() => localStorage.setItem('spool.mock.fleet_lanes', 'topics'))
@@ -730,12 +744,12 @@ async function lanesPrioSort(browser, base, size) {
   ok('C63 lanes: each row\'s 3rd cell is its prio, a dash for none', (await cells()) === '2,1,—,—', await cells())
   const shown = await p.$eval('[data-test=lanes-col-priority]', (th) => th.getBoundingClientRect().width > 0).catch(() => false)
   ok('C63 lanes: the Prio column is shown at this width', shown)
-  await p.click('[data-test=lanes-sort-priority]')
+  await sortLanesBy(p, size, 'priority')
   ok('C63 lanes: Prio ascending = prio 1 first, no prio last', await until('c-733,c-085,a-277,m-039'), await order())
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-lanes-prio-${size.width}.png`, fullPage: true })
-  await p.click('[data-test=lanes-sort-priority]')
+  await sortLanesBy(p, size, 'priority')
   ok('C63 lanes: Prio descending, no prio still last', await until('c-085,c-733,a-277,m-039'), await order())
-  await p.click('[data-test=lanes-sort-priority]')
+  await sortLanesBy(p, size, 'priority')
   ok('C63 lanes: a third click is the hub order again', await until('c-085,c-733,a-277,m-039'), await order())
   const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ok('C63 lanes: the Prio column adds no sideways page scroll', wide <= 0, wide)

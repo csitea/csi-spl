@@ -385,7 +385,10 @@ function listenPopState(router: ReturnType<typeof useRouter>) {
  * the router has read the entry under the overlay (a query the page wrote while
  * it was open is not on it) and is sent back to the overlay's URL. force: also
  * when currentRoute still says so (its pop navigation is pending), which that
- * replace cancels.
+ * replace cancels. Pending was so in every measured run, but it is timing, not
+ * a guarantee; if the pop finalizes first, the replace still lands on the URL
+ * (two navigations, not one). Global beforeEach guards see that transient
+ * no-query target before it is cancelled (R7 c-925 N1/N2).
  */
 function routeAligner(router: ReturnType<typeof useRouter>) {
   return (href: string) => {

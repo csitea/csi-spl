@@ -1113,4 +1113,11 @@ Q3 How should untracked commits (human commits, legacy commits before token trac
 
 ---
 
+## 9. Costs allocated to workspaces by hand (Draft, SPL-5291)
+
+An estate cost item (a shared cloud bill, a person's hours, a paid AI item)
+assigned to one workspace or split across workspaces by percentage, and
+each workspace's share on its Costs page (owner HUM-10, t1 `41a74806`, poll
+`0c5e94b4` answer C, part B): [costs-allocation.md](costs-allocation.md).
+
 <!-- version: 0.4.1 · updated: 2026-11-07 · last-edit: 2026-11-07T06:00:00Z -->

@@ -300,7 +300,10 @@ function writeUrl() {
     owed = false
     if (!failure) follow()
   }
-  router.replace({ query: next }).then(landed, landed)
+  /* force: after a sheet's Back the route names the entry under it while the
+     address kept the sheet's query, so a Clear back to that route's query is a
+     "duplicate" the router would skip, and the address would keep the filter */
+  router.replace({ query: next, force: true }).then(landed, landed)
 }
 /* the address moved (Back, Forward, a link to this page) */
 function follow() {

@@ -2074,7 +2074,7 @@
     "cost_alloc_month": "Місяць",
     "cost_alloc_persons": "Люди",
     "cost_alloc_cloud": "Хмара",
-    "cost_alloc_empty": "Цього місяця витрат із цією міткою немає.",
+    "cost_alloc_empty": "Цього місяця в цьому розділі витрат немає.",
     "cost_alloc_not_split": "Не розподілено",
     "cost_alloc_unpriced": "Без ціни",
     "cost_alloc_edit": "Редагувати",

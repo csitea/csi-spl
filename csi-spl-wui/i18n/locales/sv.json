@@ -2074,7 +2074,7 @@
     "cost_alloc_month": "Månad",
     "cost_alloc_persons": "Personal",
     "cost_alloc_cloud": "Moln",
-    "cost_alloc_empty": "Inga kostnader under den här etiketten den här månaden.",
+    "cost_alloc_empty": "Inga kostnader i den här kategorin denna månad.",
     "cost_alloc_not_split": "Inte fördelad",
     "cost_alloc_unpriced": "Inget pris",
     "cost_alloc_edit": "Redigera",

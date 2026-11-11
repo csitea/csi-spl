@@ -2074,7 +2074,7 @@
     "cost_alloc_month": "Месяц",
     "cost_alloc_persons": "Персонал",
     "cost_alloc_cloud": "Облако",
-    "cost_alloc_empty": "В этом месяце затрат с этой меткой нет.",
+    "cost_alloc_empty": "В этом разделе за этот месяц затрат нет.",
     "cost_alloc_not_split": "Не распределено",
     "cost_alloc_unpriced": "Нет цены",
     "cost_alloc_edit": "Редактировать",

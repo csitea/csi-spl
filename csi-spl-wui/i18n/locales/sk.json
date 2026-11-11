@@ -2074,7 +2074,7 @@
     "cost_alloc_month": "Mesiac",
     "cost_alloc_persons": "Ľudia",
     "cost_alloc_cloud": "Cloud",
-    "cost_alloc_empty": "V tomto mesiaci nie sú pod týmto štítkom žiadne náklady.",
+    "cost_alloc_empty": "V tejto časti nie sú v tomto mesiaci žiadne náklady.",
     "cost_alloc_not_split": "Nepriradené",
     "cost_alloc_unpriced": "Bez ceny",
     "cost_alloc_edit": "Upraviť",

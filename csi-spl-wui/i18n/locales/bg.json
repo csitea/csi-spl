@@ -2074,7 +2074,7 @@
     "cost_alloc_month": "Месец",
     "cost_alloc_persons": "Хора",
     "cost_alloc_cloud": "Облак",
-    "cost_alloc_empty": "Няма разходи с този етикет този месец.",
+    "cost_alloc_empty": "През този месец няма разходи в този раздел.",
     "cost_alloc_not_split": "Не е разпределен",
     "cost_alloc_unpriced": "Без цена",
     "cost_alloc_edit": "Редактиране",

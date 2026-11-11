@@ -2074,7 +2074,7 @@
     "cost_alloc_month": "Mes",
     "cost_alloc_persons": "Personal",
     "cost_alloc_cloud": "Nube",
-    "cost_alloc_empty": "No hay costes en esta etiqueta este mes.",
+    "cost_alloc_empty": "No hay costes en esta categoría este mes.",
     "cost_alloc_not_split": "Sin asignar",
     "cost_alloc_unpriced": "Sin precio",
     "cost_alloc_edit": "Editar",

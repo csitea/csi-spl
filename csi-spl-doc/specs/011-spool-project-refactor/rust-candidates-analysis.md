@@ -1,13 +1,13 @@
 # Rust Candidates Analysis: Shell Performance, Complexity, and Pilot Plan
 
-- **Version:** `v0.1`
-- **Status:** Draft for panel review (analysis only; no code or conversion issues)
+- **Version:** `v0.2 (rc1)`
+- **Status:** Release candidate 1 for panel review and sign-off (analysis only; no code or conversion issues)
 - **Issue:** `SPL-5274` (Epic `SPL-2402`)
 - **Spec:** `csi-spl-doc/specs/011-spool-project-refactor` ([spec.md](spec.md))
 - **Discussion:** `/t/fc3b7ac3-54cd-4ac4-84b4-5528647fca12`
-- **Baseline commit:** `9cda5fdaeb5c2850c091927b8bcd19f305846881` (`origin/master`)
+- **Baseline commit:** `9cda5fdaeb5c2850c091927b8bcd19f305846881` (`origin/master`; Rust startup and single-`awk` ratios also verified on `c10b3ce97`)
 
-This repository contains 2,314 shell files (362,133 lines: 1,208 production shell files at 179,431 lines and 1,106 shell test files at 182,702 lines) plus 99 Python helper scripts (25,485 lines), alongside 1,938 Go files (398,703 lines) that build the `spool` CLI (`42.2 MB`). Empirical measurements on commit `9cda5fdaeb5c2850c091927b8bcd19f305846881` show that shell runtime cost splits cleanly into two buckets: external network, `gcloud`, `docker`, and `git` I/O (`do_spl_db_query` at `10.5 s` median, `git push` at `43.8 s`, `gh run watch` at `308.0 s`), where rewriting Bash into Rust saves almost nothing, and local process-fork and text-scanning storms (`action-header-tags.tst.sh` at `10.02 s` and `891` forks, `lane-map.sh` local-only at `7.57 s` and `1,290` forks, `sigpipe-lint.sh` across `iac` and `orc` at `3.16 s` and `882` forks, `bash-cleancode.tst.sh` at `2.38 s` and `1,245` forks, `./run` startup at `0.96 s` and `162` forks per call, and per-tool-call Python guards at `39-49 ms`), where compiled native code cuts wall time by 10x-100x and replaces fragile `awk`, `sed`, and embedded-Python lexers with typed parsers. Actions that already speak hub wire protocol, Ed25519 signing, or hub JSON state (`spool-send.sh`, `lane-map` hub merge, `do_spl_asks_open`, `do_spl_desk_reply`) belong in the existing Go `spool` binary rather than splitting hub client code across two languages, while `./run` eager file loading (`695` `*.func.sh` files sourced per call) should be fixed first in Bash via an action-to-file index. Rust is the strongest technical fit—and directly builds team Rust capability without duplicating Go hub internals—for stateless shell and repo static linters, pre-tool command AST security guards, and high-throughput local JSONL and filesystem scanners, starting with one small, zero-production-risk pilot: replacing the 130-line `awk` lexer in `csi-spl-iac/src/bash/scripts/sigpipe-lint.sh` with a single static Rust binary (`spl-sh-lint sigpipe`) behind an automatic fallback to the existing shell script.
+This repository holds 2,314 shell scripts (362,133 lines) and 99 Python helpers (25,485 lines) beside 1,938 Go files (398,703 lines) that build the 66.8 MB `spool` CLI. Measurements across two 16-core fleet boxes show that process creation—90,281 to 112,308 process starts per minute and 45% kernel `sys` CPU on `sat`—is the real machine bottleneck, not Bash syntax speed. Thin wrappers around `gcloud`, `docker`, `terraform`, and `git` spend over 95% of wall time in external tools, so rewriting them saves nothing. Two cheap Bash fixes pay off first with no new compiler: a lazy action index for `./run` (`1.00 s` CPU and `162` processes per start across `12,293+` logged `orc` runs/day and `185.7 h/week` of Bash push-gate tests) and collapsing per-file `awk` loops into one `awk` call (`bash-cleancode.tst.sh` drops `65x` in CPU, from `2.36 s` and `1,245` processes to `36.4 ms` and `2` processes in Bash alone). Actions that speak hub HTTP, Ed25519 signing, or ask and desk JSON (`spool-send.sh`, `lane-map`, `asks`, `desk-reply`, `gc`) belong in the existing Go `spool` binary. Rust fits stateless per-call command security guards, harness hooks, typed shell analyzers, and local stream scanners—where `spool` (`446` Go package inits, `155.5 ms` startup under load) is too heavy and Python cold starts (`64.7–113.5 ms` CPU and `9–11` processes per shell call in `force-push-guard-hook.sh`) cannot be batched. We recommend one pure-Rust pilot first: `spl-cmd-guard` backing `force-push-guard-hook.sh` in fail-closed `shadow` mode, where Python stays authoritative until 10,000 real calls match 100%.
 
 ---
 
@@ -15,7 +15,7 @@ This repository contains 2,314 shell files (362,133 lines: 1,208 production shel
 
 ### 1.1 Repository Shell Inventory
 
-All counts below were measured on commit `9cda5fdaeb5c2850c091927b8bcd19f305846881` over tracked files (`git ls-files`), counting `.sh`/`.bash` files plus extension-less files with a `#!/...sh` or `#!/...bash` shebang, and classifying `*.tst.sh`, `*/tests/*`, and `*/test-*` as test scripts.
+All counts below were measured on commit `9cda5fdaeb5c2850c091927b8bcd19f305846881` over tracked files (`git ls-files`). The inventory script counts `.sh` and `.bash` files plus extension-less files carrying a `#!/...sh` or `#!/...bash` shebang. Files matching `*.tst.sh`, `*/tests/*`, or `*/test-*` are classified as test scripts.
 
 | Sub-project | Prod shell files | Prod shell lines | Test shell files | Test shell lines | Total shell files | Total shell lines | Primary role |
 |---|---:|---:|---:|---:|---:|---:|---|
@@ -23,13 +23,15 @@ All counts below were measured on commit `9cda5fdaeb5c2850c091927b8bcd19f3058468
 | `csi-spl-iac` | 189 | 21,110 | 239 | 30,122 | 428 | 51,232 | Pre-push deploy gate, static linters, CI/GCP provisioning |
 | `csi-spl-utl` | 36 | 6,561 | 21 | 5,112 | 57 | 11,673 | Workdir sweeps, local utility actions |
 | `csi-spl-doc` | 12 | 2,615 | 3 | 628 | 15 | 3,243 | Spec-kit helpers and doc checks |
-| `csi-spl-api` | 8 | 573 | 25 | 2,457 | 33 | 3,030 | Offline Go toolchain/module-cache build wrappers |
+| `csi-spl-api` | 8 | 573 | 25 | 2,457 | 33 | 3,030 | Offline Go toolchain and module-cache build wrappers |
 | `csi-spl-rdb` | 0 | 0 | 1 | 196 | 1 | 196 | SQL migration test wrapper |
 | `csi-spl-cnf` | 0 | 0 | 1 | 149 | 1 | 149 | Config test wrapper |
 | `csi-spl-wui` | 1 | 63 | 0 | 0 | 1 | 63 | WUI helper script |
 | **Total (shell)** | **1,208** | **179,431** | **1,106** | **182,702** | **2,314** | **362,133** | **All tracked shell scripts** |
-| *Comparison: Python (`.py`)* | *99 (all)* | *25,485* | *—* | *—* | *99* | *25,485* | *Embedded CLI/gate/stream helpers under `src/bash/`* |
-| *Comparison: Go (`.go`)* | *1,938 (all)* | *398,703* | *—* | *—* | *1,938* | *398,703* | *Hub server + `spool` CLI (`42.2 MB` binary)* |
+| *Comparison: Python (`.py`)* | *99 (all)* | *25,485* | *—* | *—* | *99* | *25,485* | *Embedded CLI, gate, and stream helpers under `src/bash/`* |
+| *Comparison: Go (`.go`)* | *1,938 (all)* | *398,703* | *—* | *—* | *1,938* | *398,703* | *Hub server + `spool` CLI (`66.8 MB` stripped binary, `spool 1.1.3`)* |
+
+> **Binary size and structural totals:** `csi-spl-api/src/bash/build.sh:44` holds an older comment citing `42.2 MB` (`CLE-35076`). Measured via `stat -Lc '%s'` on 2026-11-11, the installed `spool 1.1.3` binary is `66,752,777` bytes (`66.8 MB`) on the desk box and `66,773,257` bytes (`66.8 MB`) on `sat`. Across the production `.sh`/`.bash` files (`1,195` extension-matched prod files, `177,676 L`), regex structural scan counts **`6,922` functions, `18,934` branch keywords, `12,236` pipes, `16,382` `$()` command substitutions, `826` `python`, `862` `awk`, and `1,374` `jq` call sites**. The eight largest single production files are `spl-dispatch-lease.func.sh` (`2,740 L`, `141 fn`, `304 $()`), `spl-watchdog.func.sh` (`2,170 L`, `126 fn`, `260 $()`), `spl-rotate-lib.func.sh` (`1,623 L`, `93 fn`, `177 $()`), `spl-spawn-place.func.sh` (`1,480 L`, `64 fn`, `235 $()`, `75 jq`), `check-pre-push.func.sh` (`1,352 L`, `64 fn`, `111 $()`), `spool-install/install.sh` (`1,142 L`, `34 fn`, `108 $()`), `spl-dispatch-rotate.func.sh` (`1,114 L`, `53 fn`, `133 $()`), and `spool-env.inc.sh` (`1,110 L`, `62 fn`, `98 $()`).
 
 Reproducible inventory command (`n = 1`, deterministic on `9cda5fdaeb5c2850c091927b8bcd19f305846881`):
 
@@ -63,91 +65,155 @@ TOTAL=2314 (362133 L) PROD=1208 (179431 L) TEST=1106 (182702 L)
 
 ### 1.2 Execution Cadence Across the Fleet
 
-1. **Every agent tool call (`> 15,000x/day/box` across PreToolUse, PostToolUse, UserPromptSubmit, Stop):** `spool-agent-hook.sh` runs on every hook event; on Bash `PreToolUse` calls (`7,657` foreground Bash calls recorded in 24 hours on one box alone), `kill-target-guard.inc.sh` and `force-push-guard.inc.sh` also inspect command strings.
-2. **Every minute (`* * * * *`, `1,440x/day/box` per job):** `csi-spl-orc/cnf/box-crons/box-crons.manifest` schedules 14 every-minute jobs (`box-save-sessions`, `agent-login-check`, `lane-rotate`, `uplink-probe`, `gc`, `reverse-tunnel`, `token-burn`, `push-orphan-check`, `file-streams`, `box-link-watch`, `rel-external-api`, `rel-tmux-health`, `rel-box-beat`, `agent-steps-log`), alongside separately installed every-minute crons (`do_spl_spawn_place`, `do_spl_wd_inst_start`, `do_spl_unanswered_sweep`, `do_spl_dispatch_rotate`). Roughly 18 `./run` processes start every minute on each box (`~25,920/day/box`).
-3. **Every 5 to 15 minutes (`96–288x/day/box` per job):** 11 `*/5` jobs (`issue-close-landed`, `topic-prio-sync`, `done-claim-check`, `archived-seats-free`, `topic-status-card`, `login2-sync`, `weekly-limit-alert`, `fleet-stopped-alarm`, `rel-systemd-unit`, `rel-clock-sync`, `rel-cron-snitch`) and 5 `*/10`–`*/15` jobs (`ci-red-note`, `graft-index-refresh`, `zombie-topics`, `reflection`, `release-notes-lag-alarm`).
-4. **Every inter-agent message and desk reply (`~500x/day/box`):** `spool-send.sh` (`379` foreground calls/24h on one box) and `do_spl_desk_reply` (`116` calls/24h).
-5. **Every git push and CI quality run (`do_check_pre_push`):** Runs via the per-worktree `pre-push` hook on every branch or trunk push (`27` foreground `do_check_pre_push` + `44` `do_spl_push_master` calls/24h on one box) and in `.github/workflows/10_ci-quality.yml`.
+1. **Every agent tool call (`~54,000` hook events/day on `sat`, measured as `376` events in `10 min` across seat `heartbeat.log` files):** `spool-agent-hook.sh` runs on `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, and `Stop`. On every shell `PreToolUse` call (`7,657` foreground Bash calls/24h on the desk box; higher on `sat`), `force-push-guard-hook.sh` also runs—spawning 2 to 4 `python3` processes (`force-push-guard.inc.sh` on **every** shell call, plus `kill-target-guard.inc.sh` whenever the command contains `kill` or `send`, plus `heredoc-collision-guard.inc.sh` on `<<`).
+2. **Installed crontabs (`34,953` scheduled runs/day on `sat` across `64` entries):** While `csi-spl-orc/cnf/box-crons/box-crons.manifest` lists 14 every-minute entries, inspecting both installed user crontabs (`sudo crontab -u <box-user> -l` and `sudo crontab -u <agent-user> -l`) on `sat` shows **64 active entries totaling `34,953` runs/day**: **20 every-minute jobs** (`wd-start`, `unanswered-sweep`, `spawn-remote`, `spawn-place`, `review-go`, `poll-ack`, `gh-runner-cpu-budget`, `uplink-probe`, `token-burn`, `rel-tmux-health`, `rel-external-api`, `rel-box-beat`, `push-orphan-check`, `lane-rotate`, `gc`, `file-streams`, `box-save-sessions`, `box-link-watch`, `agent-login-check`, `agent-identity-reconcile`), **2 every-3-minute jobs**, and **16 every-5-minute jobs**. On `2026-11-10`, `csi-spl-orc` logged **`12,293` `./run` action starts** on `sat` (`grep -c 'do_run_actions: actions='`), a lower bound because quiet actions skip file logging. Besides crons, `do_spl_watchdog` runs 3 persistent `WD_TICK=30s` background loops.
+3. **Every inter-agent message and desk reply (`~500+x/day/box`):** `spool-send.sh` (`379` foreground calls/24h on the desk box, plus cron sends; also triggers `*send*` in `kill-target-guard` when run by an agent!) and `do_spl_desk_reply` (`116` calls/24h).
+4. **Every git push and CI run (`13,860` gate part runs = `418.6 h` in 7 days on `sat`):** Triggered by the worktree `pre-push` hook and `.github/workflows/10_ci-quality.yml`:
+   - `orc` (`119.4 h/7d`), `orc-features` (`46.2 h/7d`), and `iac` (`20.1 h/7d`) Bash test suites account for **`185.7 h/week` (`44.4%` of all gate wait)** on `sat`.
+   - `check-dist-hygiene.func.sh` runs on **every push** (`1,202` runs, `5.5 h/7d`), even under `SPL_PREPUSH_OVERRIDE=1`.
+   - `gcloud-account-pinned.tst.sh` runs whole-tree on **every non-override push** (`iac` suite, or `iac-cross` `_PPX_MAP` `.` rule on `919` runs / `2.8 h/7d`).
+   - `bash-cleancode.tst.sh` walks all `1,182` prod `.sh` files (`6,794` functions) on **every `orc` push** (`check-pre-push.func.sh:667`), **every `iac` push**, and CI workflow 10.
+   - `action-header-tags.tst.sh` runs whole-tree on **every `iac` push** (`78` runs/7d) and CI workflow 10 `iac-suite`.
+   - `sigpipe-lint.sh` (`lint-sigpipe`) runs **only on touched `.sh` files** (`check-pre-push-lint.func.sh:277, 422`; `375` runs, `0 s` median, **`0.1 h/7d`**), never whole-tree.
 
-### 1.3 Ranked Candidate Table (Top 22 Candidates)
+### 1.3 Ranked Candidate Table (Top 23 Candidates)
 
-Complexity columns below (`LOC`, `FN` functions, `BR` `if/elif/case/for/while/until` branches, `$()` command substitutions, and embedded `py`/`jq`/`awk` calls) and shell test counts (`*.tst.sh` and `*/tests/*.sh` referencing the file or action) were measured directly on `9cda5fdaeb5c2850c091927b8bcd19f305846881`. Candidates are ranked by **net engineering value** (measured speed gain + complexity eliminated minus fleet/production risk).
+Line counts (`wc -l`), complexity counts (`fn`, `br`, `$()`, `py/jq/awk`), and test references were measured on `9cda5fdaeb5c2850c091927b8bcd19f305846881`. Every unmeasured post-change latency, speedup ratio, and target LOC is marked `est.`. Candidates are ranked by **net practical value** (real wait/CPU saved + complexity retired minus operational blast radius), separating cheap Bash fixes from Rust and Go targets.
 
-| Rank | Candidate (`path` / action) | Size & complexity (`LOC`, `fn`, `br`, `$()`, `py/jq/awk`) | Run cadence | Measured baseline (`9cda5fdae`) | Dominant cost | Est. speed gain | Complexity cut | Fleet / prd risk | Shell tests today | Rewrite size | Best-fit target |
+| Rank | Candidate (`path` / action) | Size & complexity (`LOC`, `fn`, `br`, `$()`, `py/jq/awk`) | Actual run cadence | Measured baseline (`9cda5fdae`, CPU + procs + wall) | Dominant cost | Est. speed gain | Complexity cut | Fleet / prd risk | Shell tests today | Est. rewrite size | Best-fit target |
 |---:|---|---|---|---|---|---|---|---|---:|---|---|
-| **1** | `csi-spl-iac/src/bash/scripts/sigpipe-lint.sh` (`lint-sigpipe`) | `130 L`, `0 fn`, hand-rolled `awk` quote/heredoc/pipe state machine | Every `.sh` push + full suite | `29.8 ms` (1 file, `2` forks); `3,161.3 ms` (`882` forks) across `878` `*.func.sh` | 1 `awk` fork/file + string scanning | **~40x–80x** (`3.16 s -> ~45 ms` whole tree; `<3 ms` 1 file) | **High** (replaces fragile regex quote/heredoc lexer with real AST/token stream) | **None** (dev/CI lint only; zero prd runtime touch) | 2 (`sigpipe-lint.tst.sh`: 8 cases + mutation control) | Small (`~350` LOC Rust) | **Rust (PILOT: `spl-sh-lint`)** |
-| **2** | `csi-spl-iac/src/bash/tests/action-header-tags.tst.sh` | `242 L`, multi-file `@description` / `@param` / `@example` tag parser | Every `iac` suite / pre-push | `10,017.7 ms` (`n=3`), `891` forks | Per-file `awk`/subshell forks across `878+` action files | **~150x** (`10.02 s -> ~60 ms`) | **High** (typed header parser + baseline check in one pass) | **None** (static test gate only) | 1 (`action-header-tags.tst.sh`) | Small (`~400` LOC Rust) | **Rust (`spl-sh-lint`)** |
-| **3** | `csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh` | `115 L`, `awk` function-length ceiling scanner over all prod `.sh` | Every `iac` suite / pre-push | `2,381.9 ms` (`n=3`), `1,245` forks | `1,208` sequential `awk` process forks (`961.9 ms` kernel `sys`) | **~80x** (`2.38 s -> ~30 ms`) | **Medium-High** (shares exact AST/lexer with Rank 1; fixes inline-brace edge cases) | **None** (static test gate only) | 3 | Small (`~250` LOC Rust) | **Rust (`spl-sh-lint`)** |
-| **4** | `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh` | `198 L`, whole-tree `gcloud` account-pinning static rule scanner | Every `iac` suite / pre-push | `2,242.4 ms` (`n=3`), `569` forks | Per-file process forks + regex scans (`1,052.1 ms` `sys`) | **~60x** (`2.24 s -> ~35 ms`) | **Medium** (consolidates shell `gcloud` invocation analysis into `spl-sh-lint`) | **None** (static test gate only) | 3 | Small (`~300` LOC Rust) | **Rust (`spl-sh-lint`)** |
-| **5** | `csi-spl-iac/src/bash/run/check-dist-hygiene.func.sh` + wf 10 `Sweep` | `64 L` sh + `120 L` YAML `grep -P` rules | Every push (even `SPL_PREPUSH_OVERRIDE=1`) + CI | `649.4 ms` idle (`n=3`, `72` forks); `7.6 s` live median (`p90 87–109 s` under load) | Full `git ls-files \| tar \| tar` disk copy + multiple whole-tree `grep -P` passes | **~10x** (`650 ms -> ~60 ms`, zero temp-tree copy via `git` index walk + `regex::RegexSet`) | **Medium** (reads same rule spec, eliminates temp export I/O) | **Low** (must keep workflow YAML as single rule source of truth) | 19 | Medium (`~500` LOC Rust) | **Rust (`spl-sh-lint hygiene`)** |
-| **6** | `kill-target-guard.inc.sh` + `force-push-guard.inc.sh` (`spawn-agents/lib/`) | `515 + 430 = 945 L`, `7 fn`, `256 br`, `7 py` (`shlex` tokenizers) | Every agent Bash tool call (`>7,600x/day/box`) + git wrapper | `3.1 ms` fast-path (`git status`); `38.7 ms` (`force-push`) / `48.5 ms` (`kill $!`) | Python interpreter cold start (`~35 ms`) + dual Bash/Python shell lexing | **~15x–25x** on guarded commands (`40–48 ms -> <2 ms`) | **Very High** (replaces two 450-line Bash+Python shell tokenizers with one `tree-sitter-bash` / token guard) | **Medium** (blocks dangerous `kill`/`git push --force`; needs 100% parity on existing tests) | 9 (`kill-target-guard.tst.sh`, `test-y13-force-push-guard.sh`, etc.) | Medium (`~700` LOC Rust) | **Rust (`spl-cmd-guard`)** |
-| **7** | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent-hook.sh` | `712 L`, `2 fn`, `154 br`, `exec python3 -S` with custom `_json` C-scanner | Every agent hook event (`>15,000x/day/box`) | `38.9 ms` (`git status`) to `41.1 ms` (`git push`), `n=7`, `1` fork | `python3 -S` startup (`~29 ms` user CPU) + inbox/heartbeat file I/O | **~10x–15x** (`40 ms -> ~3 ms` per tool call; saves `~10 min` CPU/day/box) | **High** (drops hand-rolled Python JSON serializer/scanner, unifies with Rank 6 guard in one binary) | **Medium-High** (touches heartbeat, inbox injection, loop detection on every live seat) | 10 (`perf-agent-hook.sh`, `test-agent-hook*.sh`) | Medium (`~900` LOC Rust) | **Rust (`spl-agent-hook`, Phase 2)** |
-| **8** | `csi-spl-orc/run` + `csi-spl-iac/run` (`do_load_functions` + `do_run_log_tee`) | `669 L` each; `orc` sources `695` `*.func.sh` (`111,115 L`) per invocation | `~25,920x/day/box` (crons + CLI actions) | `orc`: `960.3 ms`, `162` forks (`n=5`); `iac`: `943.4 ms`, `291` forks (`n=5`) | Eager `find` + `source` of 695 unused `.func.sh` files + 4 `tee`/`sed` log processes | **~12x** (`960 ms -> ~75 ms` by lazy-loading via generated `actions.tsv` map) | **Medium** (25-line Bash index lookup removes `~0.9 s` floor from every `orc`/`iac` action) | **Medium** (cross-file helper calls without `declare -F` lazy `source` must be mapped) | 1 direct (`run-log.tst.sh`) + exercised by all suites | Tiny (`~80` LOC Bash + generator) | **Bash shape fix first** (optional Rust log masker later) |
-| **9** | `csi-spl-orc/src/bash/run/spl-lane-map.func.sh` + `lane-map.sh` | `778 L`, `32 fn`, `70 br`, `195 pipes`, `95 $()`, `31 jq` | Every edit check (`--check`), spawn, `37` fg calls/24h | `7,572.1 ms` local-only (`n=5`, **`1,290` forks**, `5.23 s` `sys`!); `8,893.9 ms` live (`n=3`) | **85% local fork storm** (`git`/`tmux`/`jq` per worktree), only 15% (`1.32 s`) hub HTTPS | **~6x overall / ~25x local leg** (`8.89 s -> ~1.5 s` live; `7.57 s -> ~0.25 s` local) | **High** (eliminates 31 `jq` pipelines and per-worktree subshell loops) | **Medium** (collision safety gate `exit 3/4/5` for all lanes) | 27 | Medium (`~800` LOC Go in `spool` or Rust helper) | **Go (`spool lane map`)** (or Rust local worktree collector) |
-| **10** | `spool-send.sh` + `spool-env.inc.sh` (`spawn-agents/`) | `645 + 1,110 = 1,755 L`, `76 fn`, `147 br`, `150 $()` | `379` fg calls/24h/box + cron notifications | `232.9 ms` (`106` forks) sandbox `--no-poke` vs `39.5 ms` Go `spool send`; `1.8 s` live med | Sourcing `6` `.inc.sh` libs (`106` forks) + owner-order / go-ask / role-seat guards + tmux poke | **~4x–5x local** (`233 ms -> ~45 ms`; live hub relay stays `~0.4–1.2 s`) | **High** (folds wrapper guards directly into `spool send` where wire/signing already live) | **High** (every inter-agent message and ask depends on it) | 62 (`spool-send.sh`), 47 (`spool-env.inc.sh`) | Medium (`~700` LOC Go) | **Go (`spool` CLI)** |
-| **11** | `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh` | `531 L`, `16 fn`, `115 br`, `84 pipes`, `2 py`, `4 jq`, `4 awk` | Every 1 min (`* * * * *` in `box-crons.manifest`) | `1,310.3 ms` (`n=5`, `157` forks; `960 ms` `./run` + `350 ms` scan on 500 rows) | `./run` startup + Python/shell JSONL byte-offset scanning across agent transcripts | **~25x** (`1.31 s -> ~50 ms` standalone binary invoked directly from cron) | **High** (streaming `serde_json` + cursor state replaces 531 L of mixed Bash/Python/jq) | **Low** (telemetry collector; non-blocking to lanes/prd) | 3 (`spl-token-burn-*.tst.sh`) | Small-Med (`~500` LOC Rust) | **Rust (`spl-token-burn`, Phase 3)** |
-| **12** | `csi-spl-iac/src/bash/run/check-pre-push-lint.func.sh` + `.py` linters | `600 L` sh (`44 fn`, `65 br`, `18 py`) + `config-syntax-check.py`, `tmp-path-lint.py` | Every push (`do_check_pre_push` fast tier) | `~1.5–12 s` depending on touched files | Multiple `python3` / `bash -n` / `awk` startups per touched file | **~3x–5x** on pure-repo rules (external `shellcheck`/`ruff`/`semgrep` stay external) | **Medium** (folds `lint-sigpipe`, `lint-tmp-path`, `lint-mdlinks`, `lint-migration` into `spl-sh-lint`) | **Low** (pre-push gate; `PRE_PUSH_LINT=0` rollback already exists) | 7 | Medium (`~900` LOC Rust incremental) | **Rust (`spl-sh-lint` subcommands)** |
-| **13** | `csi-spl-orc/src/bash/run/spl-lane-mix.func.sh` | `631 L`, `29 fn`, `76 br`, `45 $()` | Every spawn placement + `lane-mix` checks | `2,150.3 ms` (`n=5`, `426` forks, `1,183.8 ms` `sys`) | `./run` startup (`960 ms`) + `264` extra subshell/grep forks classifying paths | **~40x** (`2.15 s -> ~50 ms` in Go/Rust, or `~250 ms` after `./run` lazy-load) | **Medium** (pure deterministic table/glob rule engine) | **Low-Med** (vendor routing policy) | 5 | Small (`~350` LOC Go or Rust) | **Go (`spool`) or Rust** (after `./run` fix) |
-| **14** | `csi-spl-orc/src/bash/run/spl-gc.func.sh` | `619 L`, `44 fn`, `55 br`, `100 $()`, `7 jq`, `11 awk` | Every 1 min cron (`* * * * *`) + `329` fg calls/24h (`4.3 s` med) | `1,098.8 ms` empty sandbox (`n=3`, `197` forks); `4.3 s` live median (`p90 10.8 s`) | `./run` startup + per-inbox/archive file `stat`/`jq`/`awk` forks | **~5x–8x** (`4.3 s -> ~0.5–0.8 s` scanning `/var/spool-hub` in native `readdir` + JSON) | **Medium** (replaces 100 `$()` + `jq`/`awk` loops with single directory walk) | **Medium** (archives/prunes spool files; `DRY_RUN=1` parity required) | 1 (`gc-agent.tst.sh`) | Medium (`~600` LOC Go in `spool gc` or Rust) | **Go (`spool gc`) or Rust** |
-| **15** | `spl-asks-tick.func.sh` + `do_spl_asks_open` / `do_spl_ask_ack` | `535 L`, `27 fn`, `56 br`, `90 $()`, `23 jq` | `50` `ask_ack` (`21.9 s` med) + `22` `asks_open` (`7.7 s` med) / 24h | `1,066.3 ms` local 200-ask book (`n=5`, `173` forks); `7.7–21.9 s` live with hub | Local `./run` (`960 ms`) + `jq` forks + sequential hub `spool` round-trips | **~3x–5x** (batching hub calls + native JSON merge inside `spool`) | **High** (removes 23 `jq` pipelines and local/hub reconciliation glue) | **Medium** (dispatcher ask ledger) | 18 | Medium (`~600` LOC Go) | **Go (`spool ask`)** |
-| **16** | `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh` (+ `post-time`, `live-proof`) | `607 L`, `16 fn`, `72 br`, `9 py` | `116` fg calls/24h (`5.6 s` med, `p90 12.0 s`) | `5.6 s` live median (`~0.96 s` `./run` + `9` Python guard/picker invocations + hub I/O) | `./run` startup + multiple `spool recv`/`send` + Python topic-picker invocations | **~2x–3x** (`5.6 s -> ~2.0 s`; remaining time is hub HTTPS round-trip) | **High** (consolidates 9 inline Python blocks + sender/topic safety checks into `spool`) | **High** (human-facing WUI DM replies; strict topic-stealing guards) | 35 | Medium (`~700` LOC Go) | **Go (`spool desk reply`)** |
-| **17** | `csi-spl-orc/src/bash/run/spl-done-claim-check.func.sh` | `959 L`, `39 fn`, `109 br`, `43 pipes`, `103 $()`, `23 awk` | Every 5 min (`*/5` in `box-crons.manifest`) | Cron background (`~2–6 s` per tick) | `23` `awk` invocations + `git log`/file checks verifying lane completion claims | **~5x–10x** | **Medium-High** (`959 L` of `awk` text/git verification) | **Low-Med** (audit/alert cron) | 1 (`spl-done-claim-check.tst.sh`) | Medium (`~700` LOC Rust or Go) | **Rust or Go (Phase 3)** |
-| **18** | `csi-spl-iac/src/bash/run/check-pre-push.func.sh` | `1,352 L`, `64 fn`, `102 br`, `109 $()`, `6 py`, `6 jq` | Every `git push` (`27` direct + `44` `push_master` / 24h) | `9,728.4 ms` (`PRE_PUSH_ONLY=override`, `n=3`, `1,356` forks); `12.1 s` live med (`p90 283.6 s`) | In `override`/fast mode: `./run` + `1,356` git/hygiene/migration forks; in `p90`: child test suites (`go test`, `pnpm`, `orc`) | **~3x** on fast/override gate (`9.7 s -> ~2.5 s` via Rank 5 + Rank 8); **`~1.0x` on `p90`** (child suites dominate) | **Low if rewritten whole** (orchestrator calls external suites); **High if leaf checks move to Rust** | **High** (sole trunk deploy gate) | 32 | Keep orchestrator (`~1,350 L` sh); rewrite leaves | **Keep Bash orchestrator + Rust leaf linters** |
-| **19** | `spl-spawn-place.func.sh` + `spawn-remote.sh` + `spawn-window.sh` | `1,480 + 760 + 698 = 2,938 L`, `125 fn`, `250 br`, `467 $()`, `85 jq` | Every 1 min (`* * * * *`) + `54` `spawn_queue` calls/24h (`17.3 s` med) | `17.3 s` live median on `do_spl_spawn_queue` | Hub issue/ask calls + `git worktree add` + `ssh` + `tmux` window creation + `85` `jq` forks | **~1.5x–2x** (worktree + hub + ssh I/O dominate; JSON/quota math speeds up) | **Medium** if JSON/quota selection moves to Go; **Bad fit** for full rewrite (`tmux`/`sudo`/`git` glue) | **High** (fleet placement engine) | 25 combined | Partial (`~600` LOC Go for quota/JSON) | **Stay Bash for OS/tmux glue; Go `spool` for JSON/quota** |
-| **20** | `spl-dispatch-lease.func.sh` + `spl-dispatch-rotate.func.sh` | `2,740 + 1,114 = 3,854 L`, `194 fn`, `325 br`, `436 $()`, `24 jq` | `220` fg calls/24h (`1.7 s` med) + cron ticks | `1,064.3 ms` live `LEASE_CMD=show` (`n=5`); `960 ms` is `./run` startup, **`~104 ms` is actual lease read!** | `90%` `./run` eager-load overhead on `show`; hub round-trips on `acquire`/`tick` | **~8x on `show` via `./run` fix alone** (`1.06 s -> ~0.18 s` without rewriting a line of lease logic) | High complexity (`2,740 L`), **but rewriting 141 fleet-critical failover functions into a new language first is high risk** | **Critical** (controls `c-001`/`c-002`/`c-003` failover across boxes) | 35 (`lease`), 6 (`rotate`) | Large (`~2,200` LOC if ever ported) | **Do NOT rewrite in Rust now; `./run` fix first, Go `spool` later** |
-| **21** | `spl-watchdog.func.sh` + `spl-rotate-lib.func.sh` + `spl-lane-rotate.func.sh` + `spl-agent-restart.func.sh` | `2,170 + 1,623 + 1,003 + 965 = 5,761 L`, `321 fn`, `580 br`, `678 $()` | Every 1 min (`* * * * *`) + `194` `lane_rotate` calls/24h (`2.5 s` med) | `2.5 s` median on `do_spl_lane_rotate` | `tmux` pane scraping/sending, `ps`/`/proc` checks, `./run` startup (`0.96 s`) | **~1.5x** (mostly `./run` startup + `tmux` round-trips) | **Poor rewrite ROI** (deeply coupled to `tmux`, `sudo`, harness CLI flags, and live pane state) | **Critical** (live agent lifecycle; bugs kill or wedge active sessions) | 29 (`watchdog`), 19 (`rotate-lib`) | Very Large (`>3,500` LOC) | **Stay Bash** (apply `./run` lazy-load only) |
-| **22** | `tmux-close-window.sh` + `spool-install/install.sh` | `1,103 + 1,142 = 2,245 L`, `71 fn`, `308 br`, `15 py` | `22` `tmux-close-window` calls/24h (`8.7 s` med, deferred sleep); `install.sh` 2x/day | `8.7 s` median (intentional `--defer` sleep + git/lane checks) | Intentional deferred close timer + `git`/`sudo`/symlink operations | **~1.0x** (dominated by deferred timer and child builds) | **Low** (classic OS installer and `tmux` teardown scripts) | **Medium-High** | 16 (`close`), 14 (`install`) | Large (`~1,800` LOC) | **Stay Bash** |
+| **1** | `force-push-guard-hook.sh` + `force-push-guard.inc.sh` + `kill-target-guard.inc.sh` + `heredoc-collision-guard.inc.sh` | `138 + 430 + 515 + 102 = 1,185 L`, `4` Python `json`/`shlex` scripts | **Every agent shell tool call** (`>7,600–27,000x/day/box`) | Ordinary cmd: `64.7 ms` CPU, `9` procs (`71.3 ms` desk); `*kill*`/`*send*` cmd: `113.5 ms` CPU, `11` procs (`109.0 ms` desk) | **2 to 4 sequential `python3` cold starts** (`29–38 ms` each) per tool call; unbatchable in Bash | **`est. ~15x–25x`** (`est. <4 ms` wall, `1` proc vs `9–11` procs) | **Very High** (replaces 4 Bash+Python tokenizers/hooks with 1 pure-Rust lexer + JSON reader) | **Low in `shadow` mode** (Python stays authoritative during burn-in; fail-closed fallback) | 10 (`force-push-guard.tst.sh`, `kill-target-guard.tst.sh`, `heredoc-collision-guard.tst.sh`, `y13`) | `est. ~450` LOC (Pilot) / `~850` LOC (all 3) | **Rust (PILOT: `spl-cmd-guard`)** |
+| **2** | `orc` + `orc-features` + `iac` Bash test suites in `do_check_pre_push` | `1,106` test files, `182,702 L` | `726` suite runs/7d on `sat` (**`185.7 h/week` = `44.4%` of all push-gate wait**) | `orc` med `469 s` (`p90 3,680 s`); 1 file `desk-move.tst.sh` = **`39,886` procs**, `249 s` CPU (`145 s` `sys`), `18.9 min` wall (`sat`) | Repeated `./run` eager-loads + `jq`/`awk`/subshell fork storms inside assertions + test sleeps | **`est. ~2x–4x`** via Rank #3 `./run` index + inner helper consolidation | **Medium** (keep tests in Bash; speed up `./run` and inner helpers they call) | **None** (test suites only) | 1,106 | Shape fix (not a test rewrite) | **Bash shape fix (#3) + Go/Rust inner helpers** |
+| **3** | `csi-spl-orc/run` + `csi-spl-iac/run` (`do_load_functions` + `do_run_log_tee`) | `669 L` each; `orc` sources `695` `*.func.sh` (`111,115 L`, `4,619` fns) per call | `>= 12,293` logged `orc` starts/day on `sat` + every test `./run` | `orc`: `1,002.0 ms` CPU, `162` procs (`960 ms` desk; **`4.34–5.59 s` wall `sat`**); `iac`: `1,085.8 ms` CPU, `291` procs | Eager `find` + `source` of 695 unused `.func.sh` files + `tee`/`sed` log pipes | **`est. ~12x`** (`est. <80 ms` CPU via generated `actions.tsv` lazy-load map) | **Medium** (small Bash index removes `1.0 s` CPU / `4.3 s` `sat` wall floor everywhere) | **Medium** (cross-file helper calls need fallback `source` on missing fn) | 1 direct (`run-log.tst.sh`) + all suites | `est. ~80` LOC Bash + generator | **Bash shape fix first (Tier C0)** |
+| **4** | `spl-lane-map.func.sh` + `lane-map.sh` | `778 + 107 = 885 L`, `32 fn`, `70 br`, `195 pipes`, `95 $()`, `31 jq` | Every edit check (`--check`), `152` cron + fg runs/day | Desk: `7.69 s` CPU (`5.23 s` `sys`), `1,290` procs (`8.89 s` live); `sat` (129 wts): **`44.4 s` med wall, `1,683` procs** (`11.3 s` `sys`) | **>1,300 Bash subshell forks** (`$()`, pipes) + `143 jq` + `74 git` calls; hub HTTPS is ~15% | **`est. ~8x–15x`** (`44.4 s -> est. ~3 s` on `sat`; `8.9 s -> est. ~1.2 s` desk) | **High** (eliminates per-worktree subshell loops and 31 `jq` pipelines) | **Medium** (collision safety gate `exit 3/4/5` for all lanes) | 27 | `est. ~800` LOC Go | **Go (`spool lane map`)** |
+| **5** | `csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh` | `135 L`, `awk` function-length scanner over `1,182` prod `.sh` (`6,794` fns) | Every `orc` push (`check-pre-push.func.sh:667`), every `iac` push, CI wf 10 | Today: `2,363.5 ms` CPU, `1,245` procs (`2.38 s` desk; **`12.07–13.37 s` `sat`**). **1-`awk` Bash fix: `36.4 ms` CPU, `2` procs (`24.9 ms` desk; `569 ms` `sat`)** | `1,182` per-file `awk` forks (**98% removed by 1-`awk` Bash fix!**); regex brace heuristics (`r8-04`/`r9-05`) | **`65x` CPU via 1-`awk` Bash**; then **`est. ~2x–3x` more** (`est. <15 ms`) in Rust | **High in Rust** (replaces regex brace/quote heuristics with real shell lexer) | **None** (static test gate only) | 3 (9 built-in `CONTROL` cases) | `5 L` Bash first; `est. ~250` LOC Rust (`spl-sh-lint`) | **Bash 1-`awk` now -> Rust `spl-sh-lint` (Phase 2)** |
+| **6** | `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh` | `277 L`, whole-tree `gcloud` account-pinning static rule scanner | **Every non-override push** (`iac` or `iac-cross` `.` rule: `997` runs/7d) + CI | `3,516.5 ms` CPU (`1,052.1 ms` `sys`), `569` procs, `rc=0` (`2.24 s` desk) | Per-file `grep`/`awk` forks (`569` procs) across shell files | **`est. ~15x` batched sh / `~50x` Rust** (`est. ~40 ms`) | **Medium-High** (folds `gcloud` flag/env static checks into `spl-sh-lint`) | **None** (static test gate only) | 3 | `est. ~300` LOC Rust | **Bash batching -> Rust `spl-sh-lint` (Phase 2)** |
+| **7** | `csi-spl-iac/src/bash/tests/action-header-tags.tst.sh` | `135 L`, multi-file `@description` / `@param` / `@example` tag parser | Every `iac` push (`78` runs/7d) + CI wf 10 `iac-suite` | `9,312.3 ms` CPU (`2,366.6 ms` `sys`), `891` procs, `rc=0` (`10.02 s` desk) | Per-file `awk`/subshell forks across `878+` action files | **`est. ~20x` 1-`awk` / `~120x` Rust** (`est. ~75 ms`) | **High** (typed header parser + baseline ratchet in one pass) | **None** (static test gate only) | 1 (`action-header-tags.tst.sh`) | `est. ~350` LOC Rust | **Bash 1-`awk` -> Rust `spl-sh-lint` (Phase 2)** |
+| **8** | `csi-spl-iac/src/bash/run/check-dist-hygiene.func.sh` + wf 10 `Sweep` | `64 L` sh + `120 L` YAML `grep -P` rules | **Every push** (`1,202` runs = `5.5 h/7d` on `sat`, incl. override) + CI | `1,183.7 ms` CPU (`851.6 ms` `sys`), `72` procs, `rc=0` (`649 ms` desk; `15 s` med `sat`) | `git ls-files \| tar \| tar` temp-tree disk copy + multiple `grep -P` sweeps | **`est. ~5x` via `git grep -P` / `~10x` Rust** (`est. ~60 ms` `RegexSet`) | **Medium** (drops temp export I/O; must read rules from workflow YAML) | **Low** (must keep workflow YAML as single source) | 19 | `est. ~20` LOC sh or `~450` LOC Rust | **Bash `git grep` first; optional Rust `spl-sh-lint`** |
+| **9** | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent-hook.sh` | `712 L`, `2 fn`, `154 br`, `exec python3 -S` with C `_json` scanner | `~54,000` hook events/day on `sat` (`~1.5 h/day` wall) | Desk: `37.1 ms` CPU, `1` proc (`39–41 ms` wall); `sat`: `7–9` procs, **`95 ms` Pre / `154 ms` Post** med | `python3 -S` startup (`~29–38 ms`) + inbox/heartbeat file checks | **`est. ~10x–20x`** (`est. ~3–5 ms`/call; latency win per tool step) | **High** (retires C `_json` scanner hack; merges with Rank #1 in Phase 1) | **Medium-High** (touches heartbeat, inbox poke, loop guard on live seats) | 10 (`perf-agent-hook.sh`, `test-agent-hook*.sh`) | `est. ~850` LOC Rust | **Rust (`spl-agent-hook`, Phase 1)** |
+| **10** | `spool-send.sh` + `spool-env.inc.sh` (`spawn-agents/`) | `645 + 1,110 = 1,755 L`, `76 fn`, `147 br`, `150 $()` | `379` fg calls/24h desk + cron sends (`1.2%` of all box PIDs on `sat`) | Desk: `260.4 ms` CPU (`106` procs) vs `61.4 ms` `spool send`; `sat`: **`2,028 ms` (`135` procs) vs `285 ms` (`16` procs)** | Wrapper is **86% of local send wall** (sourcing 6 `.inc.sh` libs + policy guards) | **`est. ~5x–7x` local** (`2,028 ms -> ~285 ms` on `sat` by folding guards into `spool`) | **High** (moves policy/owner-order guards next to wire/signing in `spool`) | **High** (all inter-agent messaging depends on it) | 62 (`spool-send.sh`), 47 (`spool-env.inc.sh`) | `est. ~700` LOC Go | **Go (`spool send`)** |
+| **11** | `csi-spl-orc/src/bash/run/spl-watchdog.func.sh` (`do_spl_watchdog`) | `2,170 L`, `126 fn`, `260 $()` | 3 persistent loops (`WD_TICK=30s`) | **`9.4%` of all sampled PIDs on `sat` (`3,361 / 35,756` in 60s; `22%` of attributed PIDs)** | Subshell/`tmux`/`ps` fork loops every 30 s across all panes (single-tick isolated count still needed) | **Measure 1 isolated tick first** (`WD_TICKS=1` on throwaway state); `est. ~3x–5x` fewer forks | **Medium if state/proc collector extracted**; poor fit for full `tmux` rewrite | **Critical** (live agent recovery daemon) | 29 | Measure first; `est. ~500` LOC Go/Rust collector | **Measure 1 tick -> cut Bash forks / Go-Rust collector** |
+| **12** | `spl-lane-rotate.func.sh` + `spl-rotate-lib.func.sh` + `spl-agent-restart.func.sh` | `1,003 + 1,623 + 965 = 3,591 L`, `195 fn`, `418 $()` | Every 1 min cron: **`1,758` runs/day = `27,258 s` (`7.6 h/day`)** on `sat` | Cron med **`9 s`** (`p90 36 s`) on `sat`; fg med `2.5 s` desk | `./run` floor (`~4.3 s` wall on `sat`) + `/proc`/`tmux`/git state forks | **`est. ~2x–3x`** via Rank #3 `./run` index + batched `/proc`/`tmux` reads | **Low for full rewrite** (tightly bound to `tmux` panes and vendor CLIs) | **Critical** (hourly 60-min session handoff) | 19 (`rotate-lib`) + `lane-rotate.tst.sh` | Keep `tmux` glue in Bash | **Bash `#3` `./run` index + fork batching** |
+| **13** | `csi-spl-iac/src/bash/scripts/sigpipe-lint.sh` (`lint-sigpipe`) | `130 L`, `0 fn`, hand-rolled `awk` quote/heredoc/pipe state machine | **Touched `.sh` files only** (`375` runs = **`0.1 h/7d`** on `sat`, `0 s` med) | `29.5 ms` CPU, `2` procs, `rc=0` per file (`29.8 ms` desk; `85.9 ms` `sat`); `rc=1` on legacy tree | 1 `awk` fork per touched file; fragile regex quote/heredoc lexer | **`est. ~10x` per file** (`est. <3 ms`); **parser safety, not box speed**, is the win | **High** (retires fragile `awk` quote/heredoc state machine into `spl-sh-lint`) | **None** (dev/CI lint only) | 2 (`sigpipe-lint.tst.sh`: `119 L`, 8 cases + mutation) | `est. ~300` LOC Rust | **Rust (`spl-sh-lint sigpipe`, Phase 2)** |
+| **14** | `csi-spl-orc/src/bash/run/spl-token-burn-collect.func.sh` | `531 L`, `16 fn`, `115 br`, `84 pipes`, `2 py`, `4 jq`, `4 awk` | Every 1 min (`* * * * *`, `1,440x/day/box`) | `1,331.5 ms` CPU, `157` procs (`1,310 ms` desk: `960 ms` `./run` + `350 ms` JSONL scan) | `73%` `./run` startup (Rank #3); `27%` Python/jq JSONL cursor scan | **`est. ~4x` via `#3` alone**; **`est. ~25x`** (`est. ~50 ms`) as standalone Rust cron | **High** (`serde_json` byte-offset reader replaces 531 L of Bash/Python/jq) | **Low** (telemetry collector; non-blocking) | 3 (`spl-token-burn-*.tst.sh`) | `est. ~450` LOC Rust | **Bash `#3` now -> Rust `spl-token-burn` (Phase 3)** |
+| **15** | `csi-spl-orc/src/bash/run/spl-done-claim-check.func.sh` | `959 L`, `39 fn`, `109 br`, `43 pipes`, `103 $()`, `23 awk` | Every 5 min (`285` runs/day = **`7,127 s` / `2.0 h/day`** on `sat`, `1.5%` of PIDs) | Cron med **`14 s`** (`p90 52 s`) on `sat` | `./run` floor + `23` `awk` & `103` `$()` forks + `git` checks | **`est. ~4x–8x`** (`14 s -> est. ~2–3 s`) | **Medium-High** (replaces `959 L` of `awk`/subshell claim verification) | **Low-Med** (audit/alert cron) | 1 (`spl-done-claim-check.tst.sh`) | `est. ~650` LOC Rust or Go | **Rust or Go (Phase 3)** |
+| **16** | High-frequency `orc` audit crons: `agent-login-check`, `issue-close-landed`, `uplink-probe` | `3` actions (`1,422` + `575` + `1,326` = `3,323` runs/day on `sat`) | Every 1–5 min (**`26,804 s` = `7.4 h/day`** combined wall on `sat`) | Medians `6 s`, `5 s`, `5 s` on `sat` (mostly `./run` `4.3 s` floor!) | `70%–85%` of median wall is `orc ./run` eager-loading 695 files | **`est. ~3x`** immediately from Rank #3 `./run` lazy index | **Low** (`issue-close-landed.py` is already Python) | **Low-Med** | Covered by per-action `.tst.sh` | `0` LOC beyond Rank #3 | **Solved primarily by Bash `#3` `./run` index** |
+| **17** | `csi-spl-iac/src/bash/run/check-pre-push-lint.func.sh` + `.py` linters | `600 L` sh (`44 fn`, `65 br`, `18 py`) + `config-syntax-check.py`, `tmp-path-lint.py` | Every push (`do_check_pre_push` fast tier, touched files) | `~1.5–12 s` wall depending on touched files | Per-check `python3` / `awk` startups on touched files | **`est. ~3x–5x`** on pure-repo checks (`shellcheck`/`trufflehog`/`gitleaks` stay external) | **Medium** (folds `lint-tmp-path`, `lint-mdlinks`, `lint-migration` into `spl-sh-lint`) | **Low** (`PRE_PUSH_LINT=0` rollback exists) | 7 | `est. ~750` LOC Rust incremental | **Rust (`spl-sh-lint` subcommands, Phase 2)** |
+| **18** | `csi-spl-orc/src/bash/run/spl-lane-mix.func.sh` | `631 L`, `29 fn`, `76 br`, `45 $()` | Every spawn placement + `lane-mix` checks | `2,355.7 ms` CPU (`1,183.8 ms` `sys`), `426` procs (`2.15 s` wall desk) | `./run` startup (`1.00 s` CPU) + `264` subshell/grep path-rule forks | **`est. ~8x` via `#3` + batching**; **`est. ~40x`** (`est. ~50 ms`) in Go/Rust | **Medium** (deterministic glob/table rule engine) | **Low-Med** (vendor routing policy) | 5 | `est. ~350` LOC Go or Rust | **Go (`spool`) or Rust** |
+| **19** | `csi-spl-orc/src/bash/run/spl-gc.func.sh` | `619 L`, `44 fn`, `55 br`, `100 $()`, `7 jq`, `11 awk` | Every 1 min cron (`1,541 s/d` `sat` + `2,034 s/d` fg desk) | `1,134.5 ms` CPU, `197` procs empty; `4.3–6.0 s` live median | `./run` startup + per-inbox/archive `stat`/`jq`/`awk` forks | **`est. ~5x–8x`** (`est. ~0.6 s` via native `readdir` + JSON in `spool`) | **Medium** (replaces 100 `$()` + `jq`/`awk` loops with 1 walk) | **Medium** (prunes spool dirs; `DRY_RUN=1` parity required) | 1 (`gc-agent.tst.sh`) | `est. ~550` LOC Go | **Go (`spool gc`)** |
+| **20** | `spl-asks-tick.func.sh` + `do_spl_asks_open` / `do_spl_ask_ack` | `535 L`, `27 fn`, `56 br`, `90 $()`, `23 jq` | `50` `ask_ack` (`21.9 s` med) + `22` `asks_open` (`7.7 s` med) / 24h desk | `1,085.4 ms` CPU, `173` procs local 200-ask book; `7.7–21.9 s` live | `./run` (`1.00 s` CPU) + `jq` forks + sequential hub `spool` round-trips | **`est. ~3x–5x`** (batching hub calls + native JSON merge in `spool`) | **High** (retires 23 `jq` pipelines and local/hub glue) | **Medium** (dispatcher ask ledger) | 18 | `est. ~600` LOC Go | **Go (`spool ask`)** |
+| **21** | `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh` | `607 L`, `16 fn`, `72 br`, `9 py` | `116` fg calls/24h desk (`5.6 s` med, `p90 12.0 s`) | `5.6 s` live median (`~1.0 s` `./run` + 9 Python pickers/guards + hub I/O) | `./run` startup + multiple `spool` + Python calls + hub HTTPS | **`est. ~2x–3x`** (`est. ~2.0 s`; remaining wait is hub HTTPS) | **High** (folds 9 inline Python blocks + topic-stealing guards into `spool`) | **High** (human-facing WUI DM replies) | 35 | `est. ~700` LOC Go | **Go (`spool desk reply`)** |
+| **22** | `check-pre-push.func.sh` (`1,352 L`) + `spl-spawn-place` / `spawn-remote` / `spawn-window` (`2,937 L`, `85 jq`) | `4,289 L` combined orchestration | Every git push + every-minute spawn queue (`17.3 s` med) | `check-pre-push` override: `10.82 s` CPU, `1,356` procs; `spawn_queue`: `17.3 s` med | Child suites (`orc`/`wui`/`api`), `git worktree`, `ssh`, `tmux`, plus `85 jq` forks | **`est. ~2x–3x` on fast path** by speeding leaves (`#2,#3,#5–#8`); `~1.5x` on spawn | **Good if JSON/leaves move; bad if OS/`tmux` glue rewritten** | **High** (trunk deploy gate + fleet placer) | 32 + 25 | Keep Bash orchestrators; `est. ~600` LOC Go for spawn JSON | **Keep Bash orchestrators; Go/Rust leaves** |
+| **23** | `spl-dispatch-lease.func.sh` + `spl-dispatch-rotate.func.sh` (`3,854 L`) + `tmux-close-window.sh` + `install.sh` (`2,245 L`) | `6,099 L` combined (`265 fn`, `633 br`, `24 jq`, `15 py`) | `lease`: `220` fg/24h (`1.7 s` med) + cron (`4.2%` of `sat` PIDs); `close`: `22`/24h | `LEASE_CMD=show`: `1,064.3 ms` (`960 ms` `./run` + **`~104 ms` lease read**); `close`: `8.7 s` (`--defer` sleep) | `90%` `./run` eager-load on `show`; intentional timer/`git`/`sudo` on `close`/`install` | **`est. ~6x` on `lease show` via `#3` `./run` fix alone**; `~1.0x` on `close`/`install` | Porting `141` failover functions to a new language now carries unacceptable risk | **Critical** (`c-001..c-003` cross-box failover) | 41 + 30 | Do not port | **Stay Bash (apply `#3` `./run` lazy load only)** |
 
-### 1.4 Where a Rewrite Will NOT Help (Control Group)
+### 1.4 Shell-Shape Fixes vs Language Rewrites — and the Control Group Where Rewrites Save ~0%
 
-Per [lesson-speed-up-measure-first.md](../../doc/md/lesson-speed-up-measure-first.md) and [fleet-hot-commands-2026-10-07.md](../../doc/md/fleet-hot-commands-2026-10-07.md), several of the biggest agent wait sinks in 24-hour production telemetry spend **> 95% of wall time inside external cloud CLIs, network sockets, or child language toolchains**. Rewriting their thin Bash wrappers into Rust or Go yields **~0% wall-time reduction**:
+1. **Critical Panel Finding — Per-file `awk` loops are a shell-shape bug, not a language ceiling (`c-565` + editor verification):**
+   `bash-cleancode.tst.sh` (`lines 44–51`) and `sigpipe-lint.sh` (`line 32`) run `for f in "$@"; do awk ... "$f"; done`, forking one `awk` process per file. Passing all `1,182` walked `.sh` files to **one `awk` invocation** (`FNR==1 { n = "" }`, using `FNR` and `FILENAME`) produces **byte-identical output (`6,794` lines, `exact_match=True`)**:
+   - **Desk box (`load 5.4–5.8`):** `2,363.5 ms` CPU / `1,245` procs / `2,381.9 ms` wall -> **`36.4 ms` CPU (`30.1 ms` usr + `6.3 ms` sys) / `2` procs / `24.9 ms` wall** (**`65x` CPU cut, `95x` wall cut**).
+   - **`sat` under heavy load (`load 136–151`, `n = 5`):** `12,068 ms` median wall -> **`569 ms` median wall** (**`21.2x` wall cut**).
+   - **Takeaway:** Bank this 5-line Bash fix (and Rank #3's `./run` lazy index) immediately regardless of Rust. Rust's remaining job on static linters is **parser correctness and complexity reduction**, not rescuing `for f` `awk` loops.
+2. **Control Group — External I/O Wrappers Where Rewriting Bash Saves ~0% ([lesson-speed-up-measure-first.md](../../doc/md/lesson-speed-up-measure-first.md)):**
 
-| Action / command | 24h calls (1 box) | 24h wait (`s`) | Median (`s`) | What actually dominates wall time | Why a Rust rewrite does NOT help (and what does) |
+| Action / command | 24h calls (desk box) | 24h wait (`s`) | Median (`s`) | What dominates wall time | Why a Rust rewrite does NOT help (and what does) |
 |---|---:|---:|---:|---|---|
-| `do_spl_db_query` (`40 L` sh) | 196 | 8,418 | 10.5 | 4 `gcloud` starts (key activation + token) + cold Cloud SQL proxy startup (`~8.7 s`); `psql` itself is `0.13 s` | Wrapper is 40 lines of Bash; keeping one warm Cloud SQL proxy + token per env cuts ~80% (`lesson-speed-up-measure-first.md` class b/c). |
-| `do_spl_unanswered_sweep` | 30 | 6,150 | 11.6 | Paginated hub HTTPS reads across active topics + outlier stalls (`max 5,817 s`) | Network/hub bound; server-side filtering or cursor caching fixes it, not client language. |
-| `git push` / `git fetch` | 13 (`push`) | 1,830 | 43.8 | Remote pack transfer + `pre-push` child test suites (`go test`, `pnpm`, `orc`) | Dominated by `git` wire I/O and child test runners; tree-pass stamp (`PRE_PUSH_SKIP_PASSED=1`) and fresh-fetch skip already target the real cost. |
-| `pnpm run` / `gh run watch` | 7 / 2 | 707 / 616 | 52.9 / 308.0 | Node/Vite/Nuxt bundler and GitHub Actions remote job runtime | External build/CI wait; zero shell compute. |
-| `do_tf_*` / `docker` actions | < 10 | varies | 15–120+ | `terraform plan/apply`, provider API calls, container pulls/builds | Thin wrappers around `terraform` and `docker`. Stay Bash. |
+| `do_spl_db_query` (`40 L` sh) | 196 | 8,418 | 10.5 | 4 `gcloud` starts (key activation + token) + cold Cloud SQL proxy (`~8.7 s`); `psql` is `0.13 s` | Wrapper is 40 lines (`spl-db-query.func.sh`). Keeping one warm Cloud SQL proxy + token per env cuts ~80%. |
+| `do_spl_unanswered_sweep` | 30 | 6,150 | 11.6 | Paginated hub HTTPS reads across active topics + outlier stalls (`max 5,817 s`) | Network/hub bound. Server-side filtering or cursor caching fixes it, not client language. |
+| `wui`, `api`, `wui-e2e` push parts | 770 / 7d (`sat`) | 721,440 (`200.4 h/7d`) | 540–845 | Node/Nuxt/Vite, `go test -race`, and headless Chrome | Already Node and Go; shell only invokes `pnpm` and `go test`. |
+| `git push` / `gh run watch` | 13 / 2 | 1,830 / 616 | 43.8 / 308.0 | Remote git pack transfer, child test suites, and remote CI job runtime | External network/CI wait; tree-pass caching (`PRE_PUSH_SKIP_PASSED=1`) targets the real cost. |
+| `do_tf_*` / `docker` actions | < 10 | varies | 15–120+ | `terraform plan/apply`, cloud APIs, container builds | Thin wrappers around `terraform` and `docker`. Stay Bash. |
 
 ---
 
 ## 2. Measurements: Where Time Really Goes
 
-### 2.1 Foreground Agent Wait Over 24 Hours (Live Telemetry)
+### 2.1 Box Saturation by Process Creation (`sat`, `9cda5fdae`, `2026-11-11 07:25–08:20Z`, Load `78–147`)
 
-Measured on commit `9cda5fdaeb5c2850c091927b8bcd19f305846881` on a 16-core `x86_64` Debian 13 (`Linux 6.12.90+deb13.1-amd64`) fleet box over the 24-hour window `2026-11-10T07:00:00Z .. 2026-11-11T07:00:00Z` (`n = 7,657` foreground Bash calls across lanes, dispatchers, and role seats; `69,059 s` = `19.2 agent-hours` total wait on this single machine):
+Every wall-time number on a fleet box depends on scheduler contention caused by fork storms. Shell + Performance seat `c-559@sat` measured kernel process creation and CPU split directly from `/proc/stat` on `sat` (16-core `x86_64`, `e2-standard-16`):
+
+| Measure on `sat` (`9cda5fdae`) | Measured value | `n` | Exact command |
+|---|---|---:|---|
+| **Process starts per 60 s** | **`93,049` / `90,281` / `112,308`** (`1,505–1,872` forks/s) | 3 | `awk '/^processes/{print $2}' /proc/stat` before and after a `60 s` wait |
+| **Box CPU split over 30 s** | **`user 53%`, `sys 45%`, `idle 0%`** | 1 | `cpu` aggregate line of `/proc/stat` before and after `30 s` |
+| **`uptime` load average** | **`78 .. 147`** on `sat` (vs **`5.4 .. 17.2`** on the desk box) | — | `uptime` during each benchmark window |
+| **Top PID spawners (`60 s` sample)** | `do_spl_watchdog` **`9.0%`**, `orc *.tst.sh` **`>10%`**, scratch scripts `6.1%`, `dispatch_lease` `4.2%`, `done_claim_check` `1.5%`, `check_pre_push` `1.5%`, `spawn-remote` `1.4%`, `spool-send` `1.2%`, `lane_map` `1.1%` | `51,530` PIDs | `sudo python3 -I pidrun.py 60` (lower bound: `42.5%` exited before parent read); direct `subtree.py 60` on the 3 `watchdog` loop PIDs counted **`3,361 / 35,756` (`9.4%` of all sampled, `22%` of attributed)** |
+
+A **45% kernel `sys` CPU share** proves that starting short-lived child processes (`fork`/`execve`)—not Bash interpreting loops—dominates box load. Therefore, every benchmark below reports **the machine, load average, CPU time (`usr + sys`), and process count (`procs`)** alongside wall time.
+
+### 2.2 Largest Shell Wait on the Box: 7 Days of Pre-Push Gate Runs (`sat`, `2026-11-04..11`)
+
+Parsed by `c-559@sat` from `/mnt/data/home/<box-user>/.cache/csi-spl/pre-push.log` (`n = 44,476` part lines after `2026-11-04T07:50Z`, of which `13,462` `PASS` and `398` `FAIL` actually executed):
+
+| Pre-push gate part | Runs (`7d`) | Median (`s`) | p90 (`s`) | Total hours (`7d`) | Share of `418.6 h` | Underlying runtime |
+|---|---:|---:|---:|---:|---:|---|
+| `orc` | 357 | 469 | 3,680 | **119.4** | 28.5% | **Bash test suites** (`*.tst.sh`) |
+| `wui` | 368 | 845 | 848 | 84.5 | 20.2% | Node / TypeScript / Vitest |
+| `api` | 241 | 540 | 3,173 | 76.7 | 18.3% | Go (`go test`) |
+| `orc-features` | 291 | 521 | 996 | **46.2** | 11.0% | **Bash feature tests** |
+| `wui-e2e` | 161 | 834 | 1,210 | 39.2 | 9.4% | Node + headless Chrome |
+| `iac` | 78 | 583 | 1,778 | **20.1** | 4.8% | **Bash test suites** (incl. `cleancode`, `header-tags`, `gcloud-pinned`) |
+| `lint-gosec` | 123 | 380 | 659 | 14.7 | 3.5% | External Go scanner |
+| `hygiene` | 1,202 | 15 | 25 | **5.5** | 1.3% | **Bash (`tar` copy + `grep -P`)** |
+| `lint-trufflehog` | 1,077 | 9 | 15 | 3.1 | 0.7% | External Go/Rust binary |
+| `iac-cross` | 919 | 8 | 21 | **2.8** | 0.7% | **Bash (`gcloud-account-pinned.tst.sh` + cross checks)** |
+| `commit-links` | 1,090 | 7 | 13 | **2.6** | 0.6% | **Bash + hub CLI** |
+| `lint-shellcheck` | 341 | 3 | 14 | 0.6 | 0.1% | External Haskell binary |
+| `lint-sigpipe` | 375 | 0 | 2 | **0.1** | 0.02% | **`awk` (`sigpipe-lint.sh` on touched `.sh` only)** |
+| **Total (`7` days, `sat`)** | **13,860** *(all)* | — | — | **418.6** | **100%** | **Bash test suites (`orc`+`orc-features`+`iac`) = `185.7 h` (`44.4%`)** |
+
+**Single-test traces (`n = 1` each on `sat`, `sudo unshare -n -fp --mount-proc`):**
+- `desk-move.tst.sh` (`9cda5fdae`, load `80..147`, `07:50–08:09Z`): **`1,133.9 s` (`18.9 min`) wall**, **`103.9 s` user CPU + `145.1 s` `sys` CPU** (`249.0 s` CPU = `22%` of wall), **`39,886` processes spawned** (`~6.2 ms` CPU/fork).
+- `spl-lane-issue.tst.sh` (mixed tree `9cda5fdae -> c10b3ce97` WUI-only delta during session rotation, load `136..147`, `174` PASS / `0` FAIL): **`717.0 s` (`12.0 min`) wall**, **`105.3 s` user CPU + `148.3 s` `sys` CPU** (`253.6 s` CPU = `35%` of wall; process counter lost across session rotation).
+- Both tests show the identical signature: **`sys` CPU exceeds `user` CPU** (`145–148 s` vs `104–105 s`). Speeding up `orc` test suites requires cutting `./run` startup (Rank #3) and inner helper forks, not porting 1,106 test scripts to Rust.
+
+### 2.3 Installed Cron Duration (`sat`, `2026-11-10`) and Foreground Agent Wait (Desk Box, `24h`)
+
+**A. Top `csi-spl-orc` cron wall consumers on `sat` (`2026-11-10`, `python3 -I logdur.py` pairing `START` to `run completed` in `csi-spl-orc.20261110.log`, whole-second timestamps):**
+
+| Cron / background `./run` action | Logged runs / day (`n`) | Median (`s`) | p90 (`s`) | Total wall (`s/day`) | Hours / day (`sat`) |
+|---|---:|---:|---:|---:|---:|
+| `do_spl_lane_rotate` | 1,758 | 9 | 36 | **27,258** | **7.57 h** |
+| `do_spl_agent_login_check` | 1,422 | 6 | 17 | **12,153** | **3.38 h** |
+| `do_spl_issue_close_landed` | 575 | 5 | 38 | **7,531** | **2.09 h** |
+| `do_spl_done_claim_check` | 285 | 14 | 52 | **7,127** | **1.98 h** |
+| `do_spl_uplink_probe` | 1,326 | 5 | 7 | **7,120** | **1.98 h** |
+| `do_spl_weekly_limit_alert` | 288 | 8 | 19 | 2,937 | 0.82 h |
+| `do_spl_lane_map` | 152 | 13 | 36 | 2,840 | 0.79 h |
+| `do_spl_release_notes_lag_alarm` | 96 | 22 | 48 | 2,088 | 0.58 h |
+| `do_spl_push_orphan_check` | 1,440 | 1 | 3 | 2,068 | 0.57 h |
+| `do_spl_gc` | 207 | 6 | 16 | 1,541 | 0.43 h |
+
+**B. Foreground agent wait on the desk box (`9cda5fdae`, `2026-11-10T07:00Z..2026-11-11T07:00Z`, 16 cores, `uptime` load `7–17`, `n = 7,657` calls = `69,059 s` / `19.2 h`):**
+
+Command: `cd csi-spl-orc && SINCE=2026-11-10T07:00:00Z UNTIL=2026-11-11T07:00:00Z CMD_TIME_TOP=25 ./run -a do_spl_cmd_time_report`
+
+> **Row selection note:** All repo `./run` actions and scripts in the top 25 are shown below (plus `#38`, `#39`, `#47`). Ad-hoc non-repo commands in the top 25 are omitted: `#3 <other>` (`21` calls, `7,181 s`), `#6 grep` (`631`, `2,217 s`), `#9 cat` (`1,234`, `1,626 s`), `#10 tail` (`110`, `1,498 s`), `#11 poll-loop grep` (`21`, `1,446 s`), `#16 git add` (`21`, `812 s`), `#19 pnpm run` (`7`, `707 s`), `#20 rm` (`14`, `704 s`), `#21 python3` (`299`, `662 s`), `#23 pwd` (`17`, `629 s`), `#24 gh run watch` (`2`, `616 s`), alongside `#25 do_spl_take` (`20`, `616 s`, `10.6 s` med, hub claim).
+
+| # | Repo action / script | Calls (`n`) | Total wait (`s`) | Share (`%`) | Median (`s`) | p90 (`s`) | Dominant bottleneck |
+|---:|---|---:|---:|---:|---:|---:|---|
+| 1 | `do_spl_db_query` | 196 | 8,418 | 12.2 | 10.5 | 17.2 | `gcloud` auth + cold Cloud SQL proxy (external I/O) |
+| 2 | `do_spl_ask_ack` | 50 | 7,226 | 10.5 | 21.9 | 55.0 | `./run` startup + sequential hub `spool` calls + `jq` |
+| 4 | `do_spl_unanswered_sweep` | 30 | 6,150 | 8.9 | 11.6 | 19.2 | Hub HTTPS topic/post queries |
+| 5 | `do_check_pre_push` | 27 | 2,782 | 4.0 | 12.1 | 283.6 | Fast tier: `1,356+` forks; slow tail: child test suites |
+| 7 | `do_spl_gc` | 329 | 2,034 | 2.9 | 4.3 | 10.8 | `./run` startup + per-file `stat`/`jq`/`awk` forks |
+| 8 | `git push` | 13 | 1,830 | 2.7 | 43.8 | 486.6 | `pre-push` hook gate + remote git pack transfer |
+| 12 | `do_spl_spawn_queue` | 54 | 1,138 | 1.6 | 17.3 | 41.7 | Hub issue/ask round-trips + `./run` + `jq` |
+| 13 | `do_spl_dispatch_lease` | 220 | 1,073 | 1.6 | 1.7 | 4.0 | `./run` startup (`1.00 s` CPU) + hub lease read |
+| 14 | `do_spl_push_master` | 44 | 1,004 | 1.5 | 1.9 | 27.2 | Fast-forward ref check + `pre-push` gate |
+| 15 | `spool-send.sh` | 379 | 935 | 1.4 | 1.8 | 3.8 | `106–135` local wrapper forks + hub relay + poke |
+| 17 | `do_spl_desk_reply` | 116 | 773 | 1.1 | 5.6 | 12.0 | `./run` (`1.00 s` CPU) + 9 Python guards/pickers + hub I/O |
+| 18 | `do_spl_asks_open` | 22 | 772 | 1.1 | 7.7 | 16.3 | `./run` (`1.00 s` CPU) + `jq` merge + hub read |
+| 22 | `do_spl_lane_rotate` | 194 | 643 | 0.9 | 2.5 | 5.8 | `./run` (`1.00 s` CPU) + `tmux` + worktree/hub state |
+| 38 | `tmux-close-window.sh` | 22 | 347 | 0.5 | 8.7 | 19.6 | Deferred close timer + lane-map/git checks |
+| 39 | `lane-map.sh` | 37 | 333 | 0.5 | 10.1 | 15.8 | **85% local worktree/subshell forks (`7.69 s` CPU)**, 15% hub read |
+| 47 | `do_check_dist_hygiene` | 24 | 208 | 0.3 | 7.6 | 18.4 | `./run` + `tar` tracked-tree copy + `grep -P` sweeps |
+
+### 2.4 Controlled Microbenchmarks Across Both Load Regimes (Desk Box `load 5.4–17.2` vs `sat` `load 78–151`)
+
+Each probe ran on commit `9cda5fdaeb5c2850c091927b8bcd19f305846881` inside an isolated PID namespace (`unshare -r --pid --fork`) against `SPOOL_TEST=1` throwaway inputs (`2026-11-11 07:25–08:20Z`). `procs` is exact processes spawned (`ns_last_pid - 1` on the desk box). Where `c-553@sat`, `c-559@sat`, or `c-565@sat` also timed the target on `sat`, both load regimes are shown side by side:
 
 ```bash
-cd csi-spl-orc && SINCE=2026-11-10T07:00:00Z UNTIL=2026-11-11T07:00:00Z CMD_TIME_TOP=25 ./run -a do_spl_cmd_time_report
-```
-
-| # | Action | Calls (`n`) | Total wait (`s`) | Share (`%`) | Median (`s`) | p90 (`s`) | Max (`s`) | Primary payer | Dominant bottleneck |
-|---:|---|---:|---:|---:|---:|---:|---:|---|---|
-| 1 | `do_spl_db_query` | 196 | 8,418 | 12.2 | 10.5 | 17.2 | 5,829.8 | other 79%, lane 17% | `gcloud` auth + cold Cloud SQL proxy (network/auth) |
-| 2 | `do_spl_ask_ack` | 50 | 7,226 | 10.5 | 21.9 | 55.0 | 5,832.6 | other 100% | `./run` startup + sequential hub `spool` calls + `jq` |
-| 4 | `do_spl_unanswered_sweep` | 30 | 6,150 | 8.9 | 11.6 | 19.2 | 5,817.0 | dispatcher 96% | Hub HTTPS topic/post queries |
-| 5 | `do_check_pre_push` | 27 | 2,782 | 4.0 | 12.1 | 283.6 | 600.9 | lane 77%, other 23% | Fast tier: `1,356+` forks + linters; slow tail: child test suites |
-| 7 | `do_spl_gc` | 329 | 2,034 | 2.9 | 4.3 | 10.8 | 71.2 | other 100% | `./run` startup + per-file `stat`/`jq`/`awk` forks |
-| 8 | `git push` | 13 | 1,830 | 2.7 | 43.8 | 486.6 | 601.3 | lane 66%, other 34% | `pre-push` hook gate + remote git transfer |
-| 12 | `do_spl_spawn_queue` | 54 | 1,138 | 1.6 | 17.3 | 41.7 | 63.3 | other 57%, disp 34% | Hub issue/ask round-trips + `./run` + `jq` |
-| 13 | `do_spl_dispatch_lease` | 220 | 1,073 | 1.6 | 1.7 | 4.0 | 291.1 | other 63%, disp 29% | `./run` startup (`0.96 s`) + hub lease read |
-| 14 | `do_spl_push_master` | 44 | 1,004 | 1.5 | 1.9 | 27.2 | 526.0 | lane 99% | Fast-forward ref check + `pre-push` gate |
-| 15 | `spool-send.sh` | 379 | 935 | 1.4 | 1.8 | 3.8 | 30.0 | other 51%, lane 25% | `106` local wrapper forks (`0.23 s`) + hub relay + tmux poke |
-| 17 | `do_spl_desk_reply` | 116 | 773 | 1.1 | 5.6 | 12.0 | 18.8 | other 65%, disp 27% | `./run` (`0.96 s`) + 9 Python guards/pickers + hub `spool` I/O |
-| 18 | `do_spl_asks_open` | 22 | 772 | 1.1 | 7.7 | 16.3 | 573.4 | other 98% | `./run` (`0.96 s`) + `jq` merge + hub read |
-| 22 | `do_spl_lane_rotate` | 194 | 643 | 0.9 | 2.5 | 5.8 | 13.8 | lane 89% | `./run` (`0.96 s`) + `tmux` + worktree/hub state |
-| 38 | `tmux-close-window.sh` | 22 | 347 | 0.5 | 8.7 | 19.6 | 35.8 | lane 95% | Deferred close timer + lane-map/git checks |
-| 39 | `lane-map.sh` | 37 | 333 | 0.5 | 10.1 | 15.8 | 28.4 | lane/disp | **85% local worktree/jq forks (`7.57 s`)**, 15% hub read (`1.32 s`) |
-| 47 | `do_check_dist_hygiene` | 24 | 208 | 0.3 | 7.6 | 18.4 | 31.2 | lane 100% | `./run` + `tar` tracked-tree copy + multiple `grep -P` sweeps |
-
-### 2.2 Controlled Local Microbenchmarks (Wall, CPU, and Exact Process Forks)
-
-To separate local process-fork and language overhead from cloud/network latency without touching production or sending live messages, each hot path was timed on commit `9cda5fdaeb5c2850c091927b8bcd19f305846881` inside an isolated user/PID namespace (`unshare -r --pid --fork`), reading `/proc/sys/kernel/ns_last_pid` (`last_pid - 1` = exact processes spawned inside the command) and `resource.getrusage(resource.RUSAGE_CHILDREN)` against `SPOOL_TEST=1` throwaway temp directories (`mktemp -d`).
-
-Reproducible single-probe harness (works for any row below):
-
-```bash
+uptime
 unshare -r --pid --fork python3 -c '
 import resource, subprocess, sys, time
 t0 = time.perf_counter()
@@ -155,205 +221,185 @@ p = subprocess.run(["bash", "-c", sys.argv[1]], stdout=subprocess.DEVNULL, stder
 w = (time.perf_counter() - t0) * 1000
 ru = resource.getrusage(resource.RUSAGE_CHILDREN)
 procs = int(open("/proc/sys/kernel/ns_last_pid").read().strip()) - 1
-print(f"wall={w:.1f}ms usr={ru.ru_utime*1000:.1f}ms sys={ru.ru_stime*1000:.1f}ms procs={procs} rc={p.returncode}")
-' "bash csi-spl-iac/src/bash/scripts/sigpipe-lint.sh csi-spl-iac/src/bash/run/*.func.sh csi-spl-iac/lib/bash/funcs/*.func.sh"
+print(f"usr={ru.ru_utime*1000:.1f}ms sys={ru.ru_stime*1000:.1f}ms procs={procs} rc={p.returncode} wall={w:.1f}ms")
+' "bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh"
 ```
 
-| Category | Measured target & throwaway input | `n` | Median wall (`ms`) | Range `min..max` (`ms`) | User CPU (`ms`) | Kernel `sys` CPU (`ms`) | Processes spawned | What dominates |
+| Category | Target & throwaway input | `n` (desk) | Desk `usr` + `sys` CPU (`ms`) | `procs` | `rc` | Desk med wall (`ms`, `load 5.4–12.3`) | `sat` med wall (`ms`, `load 78–151`) | What dominates |
 |---|---|---:|---:|---:|---:|---:|---:|---|
-| **`./run` dispatch** | `csi-spl-orc/run` (`695` `*.func.sh`, `do_spl_post_time`) | 5 | **960.3** | `745.5..1,606.0` | 567.6 | 434.4 | **162** | Bash parsing `111,115` lines of `*.func.sh` + `tee`/`sed` log pipes |
-| **`./run` dispatch** | `csi-spl-iac/run` (`183` `*.func.sh`, empty `do_check_pre_push_lint`) | 5 | **943.4** | `722.5..1,920.2` | 556.1 | 529.7 | **291** | Bash sourcing `183` files + git/env setup forks |
-| **`./run` dispatch** | `csi-spl-utl/run` (`28` `*.func.sh`, `do_sweep_workdirs` dry) | 5 | **153.5** | `120.3..191.6` | 106.6 | 55.8 | **70** | Scales directly with number of `*.func.sh` files sourced |
-| **Per-tool hook** | `spool-agent-hook.sh PreToolUse` (`git status` JSON) | 7 | **38.9** | `30.2..41.9` | 29.1 | 8.1 | **1** | `exec python3 -S` startup (`~29 ms` user CPU) |
-| **Per-tool hook** | `spool-agent-hook.sh PreToolUse` (`git merge` JSON) | 7 | **41.1** | `27.9..44.6` | 28.9 | 8.1 | **1** | `exec python3 -S` startup + JSON/git-guard check |
-| **Per-tool guard** | `force-push-guard.inc.sh --check` (`git push` cmd) | 7 | **38.7** | `27.8..43.1` | 26.9 | 11.4 | **2** | Bash + `python3` `shlex` cold start |
-| **Per-tool guard** | `kill-target-guard.inc.sh --check` (`git status`, fast path) | 7 | **3.1** | `2.4..6.8` | 2.2 | 0.0 | **1** | Pure Bash string fast-path (no `kill` substring) |
-| **Per-tool guard** | `kill-target-guard.inc.sh --check` (`kill $!`, slow path) | 7 | **48.5** | `33.6..51.0` | 32.2 | 12.6 | **2** | Bash + `python3` `shlex` tokenizer cold start |
-| **Spool messaging** | Compiled Go `spool send` direct (`SPOOL_TEST=1` sandbox) | 7 | **39.5** | `27.5..49.1` | 32.1 | 29.3 | **12** *(OS threads)* | Single compiled Go binary (local file write) |
-| **Spool messaging** | Compiled Go `spool recv` direct (`10` msgs in sandbox) | 7 | **44.4** | `25.5..48.4` | 41.9 | 19.8 | **12** *(OS threads)* | Single compiled Go binary (local JSON read) |
-| **Spool messaging** | `spool-send.sh --no-poke` wrapper (`SPOOL_TEST=1` sandbox) | 7 | **232.9** | `167.9..251.0` | 152.0 | 108.4 | **106** | **5.9x slower than `spool send`**: 94 extra shell/guard forks |
-| **Static linters** | `sigpipe-lint.sh` (1 file: `check-pre-push.func.sh`) | 5 | **29.8** | `29.3..33.8` | 29.5 | 0.0 | **2** | Single `awk` state-machine scan (`1,352` lines) |
-| **Static linters** | `sigpipe-lint.sh` (all `183` `iac` `*.func.sh` files) | 3 | **796.7** | `786.8..844.0` | 573.7 | 220.5 | **183** | 1 `awk` fork per file (`183` processes) |
-| **Static linters** | `sigpipe-lint.sh` (all `695` `orc` `*.func.sh` files) | 3 | **2,364.6** | `1,946.3..3,271.0` | 1,917.4 | 484.5 | **699** | 1 `awk` fork per file (`699` processes) |
-| **Static linters** | `bash-cleancode.tst.sh` (all `1,208` prod shell files) | 3 | **2,381.9** | `1,990.2..3,230.5` | 1,401.6 | 961.9 | **1,245** | 1 `awk` fork per file (`1,245` processes) |
-| **Static linters** | `action-header-tags.tst.sh` (all repo `./run` actions) | 3 | **10,017.7** | `9,481.9..13,569.8` | 6,945.7 | 2,366.6 | **891** | Per-file `awk`/bash tag parsing (`891` processes) |
-| **Static linters** | `gcloud-account-pinned.tst.sh` (whole repo scan) | 3 | **2,242.4** | `2,135.7..2,366.5` | 2,464.4 | 1,052.1 | **569** | Per-file grep/awk process forks (`569` processes) |
-| **Static linters** | `do_check_dist_hygiene` (`iac ./run`, full tracked tree) | 3 | **649.4** | `569.7..681.1` | 332.1 | 851.6 | **72** | `git ls-files \| tar` tree copy (`851.6 ms` `sys`!) + `grep -P` |
-| **Pre-push gate** | `do_check_pre_push` (`PRE_PUSH_ONLY=override`, clean tree) | 3 | **9,728.4** | `9,110..10,412` | 6,920.5 | 3,903.2 | **1,356** | `./run` startup + diff/part discovery + hygiene + migration checks |
-| **Fleet / state** | `lane-map.sh` **local-only** (`LANE_FLEET=''`, zero network) | 5 | **7,572.1** | `5,713.9..9,285.6` | 2,458.7 | **5,232.9** | **1,290** | **`1,290` local forks (`5.23 s` kernel `sys`)** across worktrees + `jq` |
-| **Fleet / state** | `lane-map.sh` **live** (hub HTTPS + local worktrees, read-only) | 3 | **8,893.9** | `8,069.5..9,539.1` | — | — | — | Local fork storm (`7.57 s`, 85%) + hub read (`1.32 s`, 15%) |
-| **Fleet / state** | `do_spl_dispatch_lease LEASE_CMD=show` (live read-only) | 5 | **1,064.3** | `996.9..1,161.4` | — | — | — | `960 ms` `orc ./run` startup + `~104 ms` actual lease check |
-| **Fleet / state** | `do_spl_asks_open` (`ASKS_HUB=0`, 200 synthetic asks) | 5 | **1,066.3** | `881.5..1,200.7` | 595.8 | 489.6 | **173** | `960 ms` `orc ./run` startup + `106 ms` (`11` forks) `jq` merge |
-| **Fleet / state** | `do_spl_lane_mix` (`LANE_MIX_PATHS=csi-spl-wui/src/app.vue`) | 5 | **2,150.3** | `1,766.9..19,528.9` | 1,171.9 | 1,183.8 | **426** | `960 ms` `orc ./run` + `264` forks evaluating path rules |
-| **Fleet / state** | `do_spl_token_burn_collect` (10 JSONL files, 500 rows, no push) | 5 | **1,310.3** | `760.7..1,613.6` | 779.0 | 552.5 | **157** | `960 ms` `orc ./run` + `350 ms` Python/jq JSONL cursor scan |
-| **Fleet / state** | `do_spl_gc` (`SPOOL_TEST=1` empty sandbox, `DRY_RUN=1`) | 3 | **1,098.8** | `985.2..1,210.4` | 624.3 | 510.2 | **197** | `960 ms` `orc ./run` + `139 ms` (`35` forks) dir walk |
-
-### 2.3 Four Empirical Takeaways
-
-1. **`lane-map.sh` is 85% local fork overhead, not hub network latency.** Running `lane-map.sh` with `LANE_FLEET=''` (zero network) still takes `7,572.1 ms` and spawns `1,290` child processes (`5,232.9 ms` in kernel `sys` CPU), versus `8,893.9 ms` with the live hub.
-2. **Four static text linters burn `17.80 s` and `3,587` process forks per full run.** `action-header-tags.tst.sh` (`10.02 s`), `sigpipe-lint.sh` across `iac`+`orc` (`3.16 s`), `bash-cleancode.tst.sh` (`2.38 s`), and `gcloud-account-pinned.tst.sh` (`2.24 s`) fork one `awk`/`grep` process per file over hundreds of shell files. A single multithreaded native binary reading those files in-process eliminates 99% of that kernel and startup overhead.
-3. **`csi-spl-orc/run` imposes a `0.96 s` (`162`-fork) tax before any action starts.** In `csi-spl-orc/run`, `do_load_functions` runs `find ... -name "*.func.sh" | sort -z` and `source`s all `695` files (`111,115` lines) on every call. Across ~18 every-minute box crons, that eager load alone consumes ~17 CPU-seconds every minute (~28% of a core continuously) and accounts for 90% of `do_spl_dispatch_lease` (`show`) and `do_spl_asks_open` (local) wall time.
-4. **Python cold-start (`30–38 ms`) sets a floor on per-tool-call hooks and guards.** `spool-agent-hook.sh` already had to bypass Python's `import json` (`~15 ms`) by calling C `_json.make_scanner` directly just to stay near `40 ms`. Native Rust starts in `< 1.5 ms` with zero VM boot or GC init.
+| **Guard hook (Pilot)** | `force-push-guard-hook.sh` (`"git status"` JSON stdin) | 7 | `51.0 + 13.7` (**64.7**) | **9** | `0` | **71.3** (`58.7..74.0`) | `est. ~180–260` *(2x `python3`)* | **2 `python3` cold starts** (JSON extract + `force-push-guard` `shlex`) on **every** shell call |
+| **Guard hook (Pilot)** | `force-push-guard-hook.sh` (`"git push --force..."` JSON) | 7 | `73.8 + 24.0` (**97.8**) | **10** | `2` | **106.7** (`76.0..121.6`) | — | **3 `python3` cold starts** (adds `refuse()` JSON formatter) |
+| **Guard hook (Pilot)** | `force-push-guard-hook.sh` (`"kill $!"` or `*send*` JSON) | 7 | `88.1 + 25.4` (**113.5**) | **11** | `0` | **109.0** (`87.2..186.1`) | — | **3 `python3` cold starts** (adds `kill-target-guard`; also hit by every `spool-send.sh`!) |
+| **Guard matcher only** | `force-push-guard.inc.sh --check "git push"` | 7 | `26.9 + 11.4` (**38.3**) | **2** | `0` | **38.7** (`27.8..43.1`) | — | 1 `python3` + `shlex` cold start |
+| **Guard matcher only** | `kill-target-guard.inc.sh --check` (`"git status"` / `"kill $!"`) | 7 | `2.2` / **44.8** | **1 / 2** | `0` | **3.1 / 48.5** | — | Bash substring skip (`3.1 ms`) vs `python3` `shlex` (`48.5 ms`) |
+| **Agent hook** | `spool-agent-hook.sh` (`PreToolUse` / `PostToolUse`) | 7 | `29.1 + 8.1` (**37.2**) | **1–9** | `0` | **38.9** (`30.2..41.9`) | **95.0** Pre / **154.0** Post (`n=6`) | `exec python3 -S` startup (`38.2 ms` empty on `sat`) + state I/O |
+| **`./run` dispatch** | `csi-spl-orc/run` (`695` `*.func.sh`, no-op/minimal action) | 5 | `567.6 + 434.4` (**1,002.0**) | **162** | `0` | **960.3** (`745..1,606`) | **4,339.0 – 5,593.0** (`n=5`) | Sourcing `111,115 L` (`4,619` fns: `2.4–3.2 s` wall on `sat`) + log pipes |
+| **`./run` dispatch** | `csi-spl-iac/run` (`183` `*.func.sh`) / `utl/run` (`28`) | 5 | **1,085.8** / **162.4** | **291 / 70** | `0` | **943.4 / 153.5** | **814.0** *(iac no-such-action)* | Scales linearly with sourced `*.func.sh` count |
+| **Spool messaging** | Go `spool send` direct (`SPOOL_TEST=1` local sandbox) | 7 | `32.1 + 29.3` (**61.4**) | **12–16** | `0` | **39.5** (`27.5..49.1`) | **285.0** (`181..299`, `n=5`) | Single compiled Go `spool` binary (`446` package inits = `155.5 ms` on `sat`) |
+| **Spool messaging** | `spool-send.sh` wrapper (`SPOOL_TEST=1` local sandbox) | 7 | `152.0 + 108.4` (**260.4**) | **106–136** | `0/5` | **232.9** (`167.9..251.0`) | **2,028.0** (`1,674..2,370`, `n=7`) | **Wrapper is 83%–86% of local wall** (`~100–120` extra Bash/subshell forks) |
+| **Static linters** | `bash-cleancode.tst.sh` (today: 1 `awk` per file, `1,182` files) | 3 | `1,401.6 + 961.9` (**2,363.5**) | **1,245** | `0` | **2,381.9** (`1,990..3,231`) | **12,068.0 – 13,368.0** (`n=3..5`) | `1,182` sequential `awk` process forks |
+| **Static linters** | `bash-cleancode` **1-`awk` control** (`awk prog "${files[@]}"`) | 1 / 5 | `30.1 + 6.3` (**36.4**) | **2** | `0` | **24.9** (`load 5.8`) | **569.0** (`n=5`, `load 136–151`) | **Exact `6,794`-line parity (`cmp` 0 diff); `65x` CPU / `21x–95x` wall cut in Bash** |
+| **Static linters** | `gcloud-account-pinned.tst.sh` (whole-repo scan) | 3 | `2,464.4 + 1,052.1` (**3,516.5**) | **569** | `0` | **2,242.4** (`2,136..2,367`) | — | Per-file `grep`/`awk` forks (`569` procs), paid on every push |
+| **Static linters** | `action-header-tags.tst.sh` (all repo `./run` actions) | 3 | `6,945.7 + 2,366.6` (**9,312.3**) | **891** | `0` | **10,017.7** (`9,482..13,570`) | — | Per-file `awk`/subshell tag parsing (`891` procs), paid on `iac` pushes |
+| **Static linters** | `do_check_dist_hygiene` (full tracked tree) | 3 | `332.1 + 851.6` (**1,183.7**) | **72** | `0` | **649.4** (`570..681`) | **15,000.0** *(7d live med)* | `git ls-files \| tar \| tar` disk copy (`851.6 ms` `sys`) + `grep -P` |
+| **Static linters** | `sigpipe-lint.sh`, 1 touched file (`check-pre-push.func.sh`) | 5 | `29.5 + 0.0` (**29.5**) | **2** | `0` | **29.8** (`29.3..33.8`) | **85.9** (`n=5`, `load 120–128`) | Real push workload (`0.1 h/7d` total on `sat`) |
+| **Static linters** | `sigpipe-lint.sh` *(synthetic `182`-file `iac` 2-dir glob)* | 3 | `573.7 + 220.5` (**794.2**) | **183** | **`1`** | **796.7** (`787..844`) | **2,708.0** (`n=3`, `load 120–128`) | *Synthetic batch probe (`rc=1` on legacy files; `find` hits `183` incl. `help/print-help.func.sh`)* |
+| **Fleet / state** | `lane-map.sh` (`local-only` desk / `--check` live `sat`) | 5 | `2,458.7 + 5,232.9` (**7,691.6**) | **1,290** | `0` | **7,572.1** (`8,893.9` live) | **44,400.0** (`1,683` procs, `n=5`) | `sat` `xtrace` (`40.7 s`, `129` wts): `local_row` `13.0 s`, `wt_changes` `8.6 s`, `load` `4.0 s` (>1,300 subshells) |
+| **Fleet / state** | `do_spl_dispatch_lease LEASE_CMD=show` (live read-only) | 5 | — | — | `0` | **1,064.3** (`997..1,161`) | — | `~960 ms` `orc ./run` startup + `~104 ms` actual lease check |
+| **Fleet / state** | `do_spl_lane_mix` / `token_burn` / `asks_open` / `gc` (sandbox) | 3–5 | `2,356 / 1,332 / 1,085 / 1,135` | **157–426** | `0` | **2,150 / 1,310 / 1,066 / 1,099** | — | Dominated by `1.00 s` `orc ./run` floor + `jq`/Python/subshell loops |
 
 ---
 
 ## 3. Value Summary by Action Tier
 
-Grouping the 22 ranked candidates by **what delivers the highest speedup and complexity reduction per unit of risk**:
-
 | Tier | Candidates (by Rank) | Action | Expected payoff |
 |---|---|---|---|
-| **Tier A — Move to Rust** | **#1** `sigpipe-lint`, **#2** `action-header-tags`, **#3** `bash-cleancode`, **#4** `gcloud-account-pinned`, **#5** `check-dist-hygiene`, **#6** `kill-target-guard` + `force-push-guard`, **#7** `spool-agent-hook`, **#11** `spl-token-burn-collect`, **#12** pure-repo `pre-push-lint` rules, **#17** `done-claim-check` | Build two focused Rust binaries over time: **`spl-sh-lint`** (static repo/shell scanner, starting with #1 pilot) and **`spl-cmd-guard` / `spl-agent-hook`** (per-tool-call AST guard + hook), followed by **`spl-token-burn`** | Cuts `17.8 s` + `3,587` forks of static linting to `< 0.15 s`; cuts per-tool guard/hook latency from `40–49 ms` to `< 3 ms`; eliminates embedded-Python/awk shell lexers with zero hub-protocol duplication. |
-| **Tier B — Fold into existing Go `spool` CLI** | **#9** `lane-map`, **#10** `spool-send.sh` + `spool-env`, **#13** `lane-mix`, **#14** `spl-gc`, **#15** `asks-tick`/`asks_open`/`ask_ack`, **#16** `desk-reply` | Extend the existing `spool` binary (`csi-spl-api/src/go/spool-hub-api/cmd/spool`) where Ed25519 signing, hub HTTP client, ask schemas, and inbox JSON already live | Cuts `lane-map` from `8.9 s` to `~1.5 s`, `spool-send` local overhead from `233 ms` (`106` forks) to `~45 ms`, and deletes thousands of lines of `jq` + Bash wrapper glue without maintaining a second hub wire client in Rust. |
-| **Tier C — Fix Bash dispatch shape first** | **#8** `csi-spl-orc/run` & `csi-spl-iac/run` (`do_load_functions`) | Generate a static `action -> file` manifest (`actions.tsv`) so `./run -a do_X` sources only `lib/bash/funcs/*.func.sh` + `X`'s file (with fallback to full load if a function is missing) | Drops `./run` startup from `960 ms` to `< 80 ms` across all 695 actions immediately, speeding up #13, #14, #15, #18, #20, and #21 without rewriting business logic. |
-| **Tier D — Keep in Bash (do not rewrite)** | **#18** `check-pre-push` top orchestrator, **#19** `spawn-place`/`window` OS glue, **#20** `dispatch-lease` failover state machine, **#21** `watchdog`/`rotate` tmux orchestration, **#22** `tmux-close-window`/`install.sh`, plus **Section 1.4** I/O wrappers (`db_query`, `git`, `terraform`, `docker`) | Keep shell orchestration where `tmux`, `sudo`, `git`, `gcloud`, or `docker` subprocesses are the actual work; apply caching/warm-proxy fixes (`lesson-speed-up-measure-first.md`) for I/O waits | Avoids multi-thousand-line, high-blast-radius rewrites of fleet-critical `tmux`/failover glue that would deliver `< 1.5x` wall-time improvement. |
+| **Tier C0 — Cheap Bash Shape Fixes First (No New Compiler)** | **#3** `orc/iac ./run` lazy `actions.tsv` index; **#5–#7** 1-`awk` batching in `bash-cleancode`, `gcloud-pinned`, `action-header-tags`; **#8** `git grep -P` in `dist-hygiene`; **#2, #11, #12, #16** test & cron fork cuts | Source only the called `.func.sh` in `./run`; pass `"${files[@]}"` to a single `awk`; measure 1 `watchdog` tick (`WD_TICKS=1`) and drop inner subshells | Cuts `orc ./run` floor from `1.00 s` CPU (`4.3–5.6 s` wall on `sat`) to `est. < 80 ms` CPU across `12,293+` daily runs and `185.7 h/week` of Bash test suites; cuts `bash-cleancode` `21x–95x` immediately. |
+| **Tier A — Move to Rust (Standalone Native Binaries)** | **#1** `spl-cmd-guard` *(Pilot: `force-push-guard-hook.sh` + command guards)*, **#9** `spl-agent-hook`, **#5–#8, #13, #17** `spl-sh-lint` (typed shell/repo static analyzer), **#14** `spl-token-burn`, **#15** `done-claim-check` | Ship **`spl-cmd-guard`** (`shadow` -> `rust` on `PreToolUse`), expand to **`spl-agent-hook`**, then consolidate static shell/header/sigpipe/tmp-path lexers into **`spl-sh-lint`** and stream scanners | Cuts per-tool-call guard latency from `65–114 ms` CPU (`9–11` procs) to `est. < 4 ms` (`1` proc); retires fragile Bash+Python+`awk` shell tokenizers into `#![forbid(unsafe_code)]` Rust. |
+| **Tier B — Fold into Existing Go `spool` CLI** | **#4** `lane-map`, **#10** `spool-send.sh` + `spool-env`, **#18** `lane-mix`, **#19** `spl-gc`, **#20** `asks-tick`/`asks_open`/`ask_ack`, **#21** `desk-reply` | Extend `spool` (`csi-spl-api/src/go/spool-hub-api/cmd/spool`) where Ed25519 signing, hub HTTP client, ask schemas, and inbox JSON already live | Cuts `lane-map` on `sat` from `44.4 s` (`1,683` procs) to `est. ~3 s` and `spool-send` local wrapper from `2,028 ms` to `~285 ms` on `sat` without duplicating hub wire code in Rust. |
+| **Tier D — Keep in Bash (Do Not Rewrite)** | **#22** `check-pre-push` & `spawn` OS/tmux orchestrators, **#23** `dispatch-lease` failover & `install.sh`, **#12** `lane-rotate` `tmux` glue, plus **Section 1.4** external I/O wrappers (`db_query`, `wui`/`api`, `git`, `terraform`, `docker`) | Keep shell orchestration where `tmux`, `sudo`, `git`, `gcloud`, or `docker` do the real work; fix I/O waits via warm Cloud SQL proxy and tree-pass caching | Avoids high-blast-radius rewrites of cross-box failover and `tmux` session control where a compiled rewrite saves `< 1.5x`. |
 
 ---
 
 ## 4. Rust vs What We Already Have (Go `spool` CLI and Bash)
 
-### 4.1 Honest Technical Comparison in This Codebase
+### 4.1 Measured Startup Floor on `sat` (`c10b3ce97`, 16 Cores, Load `136–151`)
 
-This repo already ships a mature, offline-built Go toolchain (`go1.26`, `1,938` `.go` files, single `spool` CLI binary distributed to every box and agent user). Introducing Rust adds a second compiled language, so Rust must earn its place where it beats both Bash and Go—not duplicate what Go already owns.
+Rust Expert `c-565@sat` measured empty execution startup across runtimes under identical `sat` load (`n = 41` each; `spool version` `n = 21`), and we verified `spool`'s `inittrace` on the desk box:
 
-| Dimension | Staying in Bash (+ `awk`/`jq`/`python3`) | Existing Go (`csi-spl-api` / `spool` CLI) | New Rust Runtime (`spl-sh-lint`, `spl-cmd-guard`, etc.) |
-|---|---|---|---|
-| **Process startup & floor latency** | Poor when sourcing libs (`233–960 ms`) or spawning `python3` (`39–49 ms`) | Good (`~12–40 ms` including Go runtime + `12` OS threads, `42.2 MB` binary) | **Best (`< 1.5 ms` startup, 1 thread unless parallelized, `1–4 MB` stripped `musl` binary, no GC)** |
-| **Shell AST / command-line lexing & static analysis** | Fragile (`sigpipe-lint.sh` custom `awk` lexer; `kill-target-guard` dual Bash + Python `shlex`) | Adequate for regexes, weaker ecosystem for Bash grammar (`mvdan.cc/sh` exists, fewer zero-copy scanner crates) | **Best (`tree-sitter-bash`, `brush-parser`/`conch-parser`, `regex` DFA/`RegexSet`, `ignore`, `memchr`, `rayon`)** |
-| **Hub HTTP API, Ed25519 signing, ask/lane/issue schemas** | Poor (`jq` + temp files + multiple `spool` CLI calls) | **Best (already implemented, tested, and pinned in `csi-spl-api`)** | Poor choice today (would duplicate auth, signing, env config, and wire structs across Go and Rust) |
-| **High-frequency hooks (`PreToolUse`, `PostToolUse`)** | Borderline (`40–49 ms` with `_json` C-scanner hack) | Acceptable (`~15–25 ms` if standalone small binary, heavier if inside `42 MB` `spool`) | **Best (`~1–3 ms` per call; ideal for synchronous harness hooks)** |
-| **OS / `tmux` / `sudo` / `gcloud` / `terraform` glue** | **Best (concise, inspectable, zero compile step)** | Verbose `os/exec` boilerplate | Verbose `std::process::Command` boilerplate |
-| **Compile time & disk footprint** | `0 s`, `0 MB` | Fast (`go build ./cmd/spool` in a few seconds warm; Go race cache capped at `2.1 GB` per `SPL-4790`) | Slower cold compile (`20–60 s`), `target/` grows to `0.5–2 GB` unless capped (`CARGO_INCREMENTAL=0` in CI) |
+| Runtime / binary | Median wall on `sat` (`ms`) | `min .. max` (`ms`) | Why this matters for candidate selection |
+|---|---:|---:|---|
+| `/bin/true` *(native C binary; stand-in floor since `rustc` is not installed)* | **3.9** | `0.9 .. 16.5` | Floor for a small static C or Rust binary (`0` VM/GC init). |
+| Small standalone Go binary (`1.4 MB`, `CGO_ENABLED=0 -ldflags='-s -w'`, `go1.26.10`) | **16.0** | `2.7 .. 55.3` | Go runtime + scheduler init costs `~12 ms` extra under heavy load, still fast if kept tiny. |
+| `python3 -I -S -c pass` | **28.8** | `16.2 .. 91.9` | Bare Python interpreter floor before importing `json`, `re`, or `shlex`. |
+| `python3 -S -c pass` *(the form `spool-agent-hook.sh:101` execs)* | **38.2** | `12.6 .. 94.6` | Today's floor *per Python invocation* (`force-push-guard-hook.sh` pays 2–3x this per call). |
+| Installed `spool version` (`66.8 MB`, `spool 1.1.3`, `n = 21`) | **155.5** | `82.5 .. 345.1` | `GODEBUG=inittrace=1 spool version` runs **`446` package `init` functions** (`internal/store`, Envoy, AWS, OpenTelemetry). **Never put per-tool-call hooks inside `spool`!** |
 
-### 4.2 Weighing the Owner's Explicit Rust Skill-Building Goal Openly
+### 4.2 Per-Candidate Language Fit and Weighing the Owner's Rust Skill Goal Openly
 
-The owner stated three goals together (`topic fc3b7ac3`, msg `b6d4854c`): **speed up**, **reduce complexity**, and **introduce a Rust runtime so the team and fleet gain practical skill developing production Rust code**.
+| Candidate group | Best technical fit | Reason |
+|---|---|---|
+| **Ranks #1 & #9** (`force-push-guard-hook`, `kill-target-guard`, `heredoc-collision-guard`, `spool-agent-hook`) | **Rust (`spl-cmd-guard` / `spl-agent-hook`), standalone binary — never inside `spool`** | Synchronous on every tool call (`~54,000` hook events/day on `sat`). `spool` (`155.5 ms`) is 4x slower than Python here; Rust's zero-runtime floor (`~4 ms` under load) and algebraic tokenizers shine. |
+| **Ranks #5–#8, #13, #17** (`cleancode`, `gcloud-pinned`, `header-tags`, `sigpipe`, `tmp-path`, `dist-hygiene`) | **Bash 1-`awk` / `git grep` first, then Rust (`spl-sh-lint`)** | Batching into 1 `awk` takes ~95% of the fork speedup immediately. Rust's win is retiring fragile `awk`/regex quote and heredoc state machines into one typed static analyzer. |
+| **Ranks #4, #10, #18–#21** (`lane-map`, `spool-send`, `lane-mix`, `gc`, `asks`, `desk-reply`) | **Go (`spool` CLI subcommands)** | Runs per command or cron (where `155 ms` init is minor) and directly reuses `csi-spl-api`'s Ed25519 signing, hub HTTP client, and wire types. |
+| **Ranks #14 & #15** (`token-burn-collect`, `done-claim-check`) | **Bash `#3` `./run` fix first, then Rust (`spl-token-burn`) or Go** | Local file/JSONL stream scanners with no hub signing dependency; clean Phase 3 Rust targets. |
+| **Ranks #2, #3, #12, #16, #22, #23** (`./run`, test suites, `rotate`, `lease`, `spawn`, `install`) | **Stay Bash (with `#3` lazy action index)** | OS/`tmux`/`sudo` glue or mission-critical failover where rewriting in Rust adds high risk for little wall gain. |
 
-Weighing that goal openly changes the decision in a healthy, disciplined way:
-- **Without the skill-building goal**, a minimalist team could argue for putting even static repo linters and hook guards into a small second Go binary (`cmd/spl-lint`) to avoid adding a Rust toolchain at all, sacrificing `tree-sitter-bash` ergonomics and ~15 ms of hook startup for single-compiler simplicity.
-- **With the skill-building goal**, adding Rust is **high-value and low-regret ONLY if we draw a clean architectural boundary**:
-  1. **Go (`spool`) keeps 100% ownership of hub wire protocol, signing, database/cloud clients, and desk/ask/lane JSON APIs.** Never rewrite `spool` protocol legs in Rust just to write Rust.
-  2. **Rust owns local, CPU/parser-heavy, zero-network CLI tools**: shell/repo static analysis (`spl-sh-lint`), command security guards & harness hooks (`spl-cmd-guard`), and local JSONL/filesystem stream processors (`spl-token-burn`).
-- That boundary gives the team real, idiomatic Rust problems (zero-copy lexing, `tree-sitter` AST traversal, parallel directory walking with `ignore`+`rayon`, `serde` streaming, property/mutation testing, static `musl` builds) where Rust genuinely outclasses both Bash and Go, while keeping production risk near zero during the learning curve.
+**Weighing the owner's Rust skill-building goal openly (`topic fc3b7ac3`, msg `b6d4854c`):**
+- If our *only* goal were latency with minimum toolchain surface, a **second tiny standalone Go binary (`cmd/spl-guard`, ~1.4 MB, importing zero hub/cloud packages)** would start in `~16 ms` under `sat` load (`~3–5 ms` lightly loaded) and capture roughly **two-thirds** of Rust's per-call hook latency win using the existing Go compiler.
+- With **gaining real team Rust capability** as an explicit goal alongside speed and lower parser complexity, scoping Rust to **standalone stateless binaries (`spl-cmd-guard`, `spl-sh-lint`, `spl-token-burn`)** while keeping **100% of hub wire/signing/cloud code in Go `spool`** is the cleanest architecture. Every Rust binary stays small, local, `#![forbid(unsafe_code)]`, and easy to roll back via a single env var.
 
 ---
 
 ## 5. Runtime and Toolchain Cost
 
-Today, fleet boxes (`Linux 6.12.90+deb13.1-amd64`, Debian 13) have **no `rustc`, `cargo`, or `rustup` installed**, and `.github/workflows/10_ci-quality.yml` notes explicitly (lines 18–22) that self-hosted CI runners are Debian 13 machines where every toolchain must be installed explicitly and deterministically. Below is the exact cost and design to bring Rust in cleanly alongside Go.
+Neither `sat` nor the desk box has `rustc`, `cargo`, or `rustup` installed today (`command -v rustc cargo rustup` returns nothing; `git grep` finds zero Rust setup in workflows).
 
-### 5.1 Workspace Layout and Toolchain Pinning
+### 5.1 Toolchain Pinning, Footprint, and `/mnt/data` Disk Rule
 
-- **Crate home:** Create one Cargo workspace, e.g. `csi-spl-utl/src/rust/` (or `csi-spl-orc/src/rust/`), with `Cargo.toml` (`resolver = "2"`, `[profile.release] strip = "symbols"`, `lto = "thin"`, `codegen-units = 1`, `panic = "abort"`) and a committed `Cargo.lock`.
-- **Pinned compiler (`rust-toolchain.toml`):** Pin an exact stable release (e.g. `channel = "1.85.0"`, `profile = "minimal"`, `components = ["rustfmt", "clippy"]`, `targets = ["x86_64-unknown-linux-musl"]`), matching how `go.mod` + `csi-spl-api/src/bash/use-go-toolchain.sh` pin Go. Never track floating `stable` or `nightly`.
-- **Offline-first builds (matching `csi-spl-api/src/bash/build.sh`):** Mirror `warm-go-mod-cache.sh`: a thin `build-rust.sh` wrapper warms `$CARGO_HOME` with `cargo fetch --locked` only when a crate in `Cargo.lock` is missing locally, and runs the build itself with `cargo build --release --locked --offline` so builds are hermetic and reproducible. Keep dependency count tight (`clap` or `lexopt`, `serde`/`serde_json`, `regex`, `ignore`, `rayon`, `tree-sitter-bash`).
-- **Embedded version & commit metadata:** Pass `SPOOL_BUILD_VERSION`, `SPOOL_BUILD_COMMIT`, and `SPOOL_BUILD_TIME` via `build.rs` or `rustc-env` so `<bin> --version` prints the exact trunk commit SHA—identical to `spool version`—allowing `do_spl_spool_refresh` and `spool-env.inc.sh` staleness checks to verify the binary against `HEAD`.
+- **Exact version pin (`rust-toolchain.toml`):** Pin `channel` to **the exact current upstream stable release when the pilot starts** (`1.99.1` as of `2026-10-13` in `static.rust-lang.org/dist/channel-rust-stable.toml`, mirroring `go 1.26.10` in `go.mod`), with `profile = "minimal"` and `components = ["rustfmt", "clippy"]`. Never float on `stable` or `nightly`.
+- **Download size:** From upstream `channel-rust-stable.toml` `xz` content-lengths for `x86_64` Linux: `rustc` `80 MB`, `rust-std` (`gnu`) `30 MB`, `rust-std` (`musl`) `39 MB`, `cargo` `10 MB`, `clippy` `5 MB`, `rustfmt` `2 MB` = **`~166 MB` compressed** (installed size unmeasured; for scale, `/usr/local/go` on `sat` is `270 MB`).
+- **Critical disk placement (`/` vs `/mnt/data`):** On `sat`, `/` is a `30 GB` disk with only **`11 GB` free**, whereas `/mnt/data` has **`122 GB` free** (the desk box uses a single `889 GB` NVMe `/` with `334 GB` free). Any installed Rust toolchain (`RUSTUP_HOME`, `CARGO_HOME`) and any shared `CARGO_TARGET_DIR` **must live under `/mnt/data` when mounted** (e.g. `/mnt/data/var/csi/rust`), never under `/usr/local` on a `30 GB` root volume.
+- **Zero C toolchain dependency for the pilot:** Crates that wrap C parsers (such as `tree-sitter-bash` via `cc`) require `gcc` and `musl-gcc` for static `musl` builds. Writing `spl-cmd-guard`'s POSIX word/quote/heredoc tokenizer in **pure Rust (`#![forbid(unsafe_code)]`, zero `-sys`/`cc` crates)** keeps compilation self-contained.
 
-### 5.2 CI Workflow Impact, Build Time, and Disk Guard
+### 5.2 CI Workflow, Architecture Scope, and Safe Box Distribution
 
-- **Workflow `10_ci-quality.yml` + `ci-doc-only.sh`:**
-  - Add a `rust-suite` job in `10_ci-quality.yml` gated by `ci-doc-only.sh` (so docs-only and WUI-only pushes skip it on the express lane, while touches to `*/src/rust/**` or the linters it backs run `rust-suite` + `iac-suite`).
-  - Setup action: pin `dtolnay/rust-toolchain` by full commit SHA reading `rust-toolchain.toml`, plus `Swatinem/rust-cache` keyed on `Cargo.lock` with `CARGO_INCREMENTAL=0`.
-  - **Expected CI time:** Cold build of a lean 5–8 crate linter (`regex` + `ignore` + `clap`) takes `~25–45 s` on a 16-core runner; warm cached `cargo test --locked` + `cargo clippy --locked -- -D warnings` + `cargo fmt --check` takes **`~5–10 s`**.
-  - **Runner disk protection (`SPL-4790` lesson):** On 2026-11-04, `hub-pg` filled runner disks restoring a `6.2 GB` Go race cache. Rust `target/` directories can similarly bloat if debug symbols and incremental artifacts accumulate. Set `[profile.dev] debug = 1` (line tables only, ~60% smaller `target/`), `CARGO_INCREMENTAL=0` in CI, run `csi-spl-orc/src/bash/scripts/ci-disk-guard.sh` before cache restore, cap saved cache size like `ci-cache-save-cap.sh`, and add a `prune-cargo-target` step alongside `prune-go-build-cache-cron.sh` on fleet boxes.
-- **Workflow `55_release-stable.yml` (cross-arch prebuilt release assets):**
-  - Extend job `cli` (`do_release_cli_assets`) or add a parallel `rust-cli` job building static binaries for `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-apple-darwin`, and `aarch64-apple-darwin` (using `cargo-zigbuild` or `musl-tools` on `ubuntu-latest`), publishing `<bin>-<os>-<arch>` + `SHA256SUMS` alongside `spool-SHA256SUMS`.
-  - Because `*-unknown-linux-musl` links zero host `glibc` symbols, the exact same `2–4 MB` binary runs on Debian 13, Ubuntu runners, and containers without libc version drift.
-
-### 5.3 Distribution to Fleet Boxes (`box-desk`, `sat`, and Workstation Boxes) and Agent Users
-
-Reuse the **exact single-shared-copy architecture** already proven in `csi-spl-orc/src/bash/run/spl-spool-refresh.func.sh` (owner rule 2026-10-04: *"keep one installed copy, so every update reaches everything at once"*):
-
-1. **System toolchain install (one-time per box via Ansible / box manifest):** Install rustup/toolchain under `/usr/local/cargo` + `/usr/local/rustup` (world-readable `0755`, pinned to `rust-toolchain.toml`, just like `/usr/local/go` in `csi-spl-iac/src/terraform/060-gcp-vm-satellite/`), OR download the verified CI-built `musl` binary from the release/artifact cache when `SPOOL_INSTALL_PREBUILT=1`.
-2. **One shared binary path per machine:** `do_spl_spool_refresh` (called twice daily by `do_spl_box_update` and on demand) builds or installs `/var/csi/csi-spl/spool/bin/<bin>` owned by `<box-user>:spool-agents` (`0755`).
-3. **Symlinked to both `<box-user>` and `<agent-user>`:** `install.sh --binary-only` links `$HOME/.local/share/spool-agent/tools/bin/<bin>` -> `/var/csi/csi-spl/spool/bin/<bin>` and `$HOME/.local/bin/<bin>` -> tools path for both the box owner user and the agent user via `sudo -n -u <agent-user> ... SPOOL_INSTALL_NO_BUILD=1`—never building twice and never touching the 5 snapshotted agent config files (`~/.config/spool-agent/env`, `~/.bashrc`, `~/.claude/CLAUDE.md`, `~/.claude/settings.json`, MCP links).
-4. **Safe atomic swap + rollback:** Build to `<bin>.new`, verify `<bin>.new --version` contains the target `origin/master` commit SHA and passes a self-check, keep the previous binary at `<bin>.bak`, and `mv -Tf <bin>.new <bin>` (atomic `rename(2)` on the same filesystem so running agent processes never hit `ETXTBSY`). If verification fails, restore `<bin>.bak` automatically.
-
-### 5.4 Pre-Push Lint and Distribution-Hygiene Gates
-
-- **`do_check_dist_hygiene` (`10_ci-quality.yml` `Sweep`):** Already scans all tracked files regardless of extension (excluding only `.git`, `node_modules`, `tpl-gen`), so `.rs` and `Cargo.toml` files are covered automatically from day one. Ensure `target/` is in `.gitignore` so build artifacts are never tracked.
-- **`do_check_pre_push_lint` (`check-pre-push-lint.func.sh`):** Add a fast `lint-rust` part triggered only when `*.rs`, `Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml` are in `_ppl_select`:
-  1. `cargo fmt --manifest-path ... --all -- --check` (`< 0.3 s`)
-  2. `cargo clippy --manifest-path ... --locked --offline --all-targets -- -D warnings` (`~2–5 s` warm)
-  3. Rust clean-code function-length gate (`MAX_LINES = 75`, matching `bash-cleancode.tst.sh` and the Go gate's `r28-01` 75-line ceiling) + `lint-tmp-path` (`tmp-path-lint.py` extended to `*.rs` test files).
-  4. Supply-chain gate: `cargo deny check advisories licenses bans sources` (or `cargo audit`) in the security workflow tier alongside `62_gosec` / `67_shellcheck`.
-- **How agents build and test in worktrees:** Set `CARGO_TARGET_DIR=/var/tmp/csi-spl-cargo-target-$(id -u)` (or per-user shared target cache under `$HOME/.cache/csi-spl-cargo`) in `build-rust.sh` so 15 concurrent agent worktrees on one box share compiled dependencies instead of creating 15 separate `1 GB` `target/` directories!
+1. **CI setup (`10_ci-quality.yml` and `70_supply-chain.yml`):**
+   - Self-hosted `["self-hosted", "spool-ci"]` Debian 13 jobs forbid assuming preinstalled compilers (`10_ci-quality.yml:18-22`). Install the pinned Rust tarball verified against a committed SHA256 checksum—the exact pattern enforced in `70_supply-chain.yml` by `workflow-70-pinned-checksums.tst.sh`—or pin the setup action by full 40-char commit SHA.
+   - Gate `rust-suite` behind `ci-doc-only.sh`, set `CARGO_INCREMENTAL=0` and `[profile.dev] debug = 1`, and guard runner disk with `ci-disk-guard.sh` and `ci-cache-save-cap.sh` (`SPL-4790` lesson). Cold compile of a lean 3–5 crate binary is `est. ~20–40 s`; warm `fmt` + `clippy` + `test` is `est. ~5–15 s`.
+2. **`x86_64` Linux only for fleet tools (skip cross-arch bloat):**
+   - In `csi-spl-cnf/csi-spl/{dev,prd}.env.yaml`, both fleet VMs are `e2-standard-*` (`e2-standard-2` dev, `e2-standard-16` prd) — **`x86_64` Linux only**. Box-internal binaries (`spl-cmd-guard`, `spl-sh-lint`) only need `x86_64-unknown-linux-musl` (or `gnu`), avoiding `darwin` and `aarch64` cross-compilation (`55_release-stable.yml`) unless a tool later ships to external developer laptops.
+3. **Boxes download verified binaries — no box-wide `rustup` needed (`install.sh` swap contract):**
+   - Fleet boxes should **download the CI-built binary + `SHA256SUMS`** (`CLI_FROM=download` pattern in `install.sh:776`) rather than compiling Rust on every box. Only CI and agent lanes actively editing `*/src/rust/**` need Cargo.
+   - Reuse `spool_swap` (`install.sh:701-737` and `do_spl_spool_refresh`): write `<bin>.new`, verify `<bin>.new --version` prints the expected commit SHA and passes `--self-test`, keep `<bin>.bak`, atomically `mv -Tf <bin>.new <bin>` under `/var/csi/csi-spl/spool/bin/<bin>`, and symlink into `$HOME/.local/bin/<bin>` for `<box-user>` and `<agent-user>`.
+4. **Gates (`do_check_dist_hygiene` & `do_check_pre_push_lint`):**
+   - Ignore `target/` in `.gitignore`; `do_check_dist_hygiene` automatically sweeps all tracked `.rs` and `.toml` files.
+   - Add `lint-rust` (triggered only when `*.rs` / `Cargo.*` / `rust-toolchain.toml` change): `cargo fmt --check`, `cargo clippy --locked --offline --all-targets -- -D warnings`, and the repo's **75-line max function cap**.
 
 ---
 
 ## 6. The Pilot ("Start Slowly at Once")
 
-### 6.1 Recommended Pilot: `spl-sh-lint sigpipe` (Replacing `sigpipe-lint.sh`'s `awk` Engine)
+### 6.1 Recommended Pilot: `spl-cmd-guard` (Backing `force-push-guard-hook.sh` in Shadow Mode)
 
-We evaluated two finalists for the first Rust pilot:
-- **Option A (Recommended): `spl-sh-lint sigpipe`**, backing `csi-spl-iac/src/bash/scripts/sigpipe-lint.sh` (Rank #1, the `lint-sigpipe` part of `do_check_pre_push_lint`).
-- **Option B (Runner-up — hold for Phase 2): `spl-cmd-guard`**, backing `kill-target-guard.inc.sh` + `force-push-guard.inc.sh` (Rank #6).
+We evaluated three candidate pilots against the panel's measurements:
+- **Recommended Pilot: `spl-cmd-guard`** (pure-Rust standalone binary, zero C crates), replacing the JSON payload extractor + `force-push-guard` matcher in `force-push-guard-hook.sh` (Rank #1), rolled out in **fail-closed `shadow` mode first**.
+- **Rejected as speed pilot #1: `sigpipe-lint.sh`** (Rank #13) — only scans touched `.sh` files on push (`0.1 h/week` total across `375` runs on `sat`). Cannot prove a meaningful speed win.
+- **Deferred to Phase 2 after 5-line Bash fix: `bash-cleancode.tst.sh`** (Rank #5) — switching its per-file loop to **one `awk` call in Bash** already cuts runtime `65x` in CPU (`2,363.5 ms -> 36.4 ms` desk; `12,068 ms -> 569 ms` wall on `sat`). Claiming that `20x+` win for Rust would be dishonest; `spl-sh-lint` remains the best **zero-hook alternative pilot** only if the owner prefers starting in pre-push purely as a toolchain and parser exercise.
 
-**Why Option A wins for "start slowly at once":**
-1. **Zero production or live-fleet blast radius:** `sigpipe-lint.sh` runs only during local `do_check_pre_push_lint` and CI `iac-suite`. Unlike `kill-target-guard` or `spool-agent-hook.sh`, a bug or missing binary during day-one rollout **cannot** block a live agent tool call, drop a spool message, or wedge a fleet cron.
-2. **Real parser problem where `awk` is already straining:** `sigpipe-lint.sh` (`130` lines) hand-rolls bash line continuations (`\` and trailing `|`), heredoc stripping (`<<` vs `<<-` vs `<<<` vs `$(( 1 << 2 ))`), nested `"$(... "q" | grep -m1 "x")"` quotes, `|| true` exemptions, and `# sigpipe-ok: <why>` opt-outs in `awk`. Implementing this cleanly in Rust establishes the reusable shell lexer/AST foundation immediately shared by Ranks #2, #3, #4, and #6.
-3. **Strong existing specification and mutation-tested test suite:** `csi-spl-iac/src/bash/tests/sigpipe-lint.tst.sh` (`119` lines) already pins all 8 behavioral contracts—including nested command-substitution quotes, heredocs, `--list-optouts`, `*.func.sh` implicit `pipefail` scope, and a mutation control.
-4. **Clear, measurable baseline (`n = 3` and `n = 5` on `9cda5fdaeb5c2850c091927b8bcd19f305846881`):**
-   - Single large file (`check-pre-push.func.sh`, `1,352 L`): **`29.8 ms` median** (`2` processes).
-   - All `183` `csi-spl-iac` `*.func.sh` files: **`796.7 ms` median** (`183` processes).
-   - All `695` `csi-spl-orc` `*.func.sh` files: **`2,364.6 ms` median** (`699` processes).
-   - Combined `878` `*.func.sh` files: **`3,161.3 ms` median** and **`882` spawned processes**.
+**Why `spl-cmd-guard` is the cleanest, most honest first Rust binary:**
+1. **Genuine native-binary win that Bash and `spool` cannot match:** Every agent shell call invokes `force-push-guard-hook.sh` in a fresh process (`64.7 ms` CPU / `71.3 ms` wall / `9` procs for `"git status"`, rising to `113.5 ms` CPU / `109.0 ms` wall / `11` procs on `*kill*|*send*`). Bash cannot batch across separate tool calls, and `spool` (`66.8 MB`, `155.5 ms` startup on `sat`) would make every call slower.
+2. **Small, fixed, well-tested specification:** `force-push-guard-hook.sh` (`138 L`) + `force-push-guard.inc.sh` (`430 L`) take one JSON blob on stdin and output `allow` (`rc=0`) or `refuse` (`rc=2` + harness deny JSON). Existing suites (`force-push-guard.tst.sh` and `test-y13-force-push-guard.sh`) already test wrapper unwrapping (`sudo`, `env -S`, `bash -c`, `eval`, heredocs, `+refspec`, `SPL_PREPUSH_OVERRIDE`, `.git-credentials`). `kill-target-guard` and `heredoc-collision-guard` stay in Python during Phase 0 and move into `spl-cmd-guard` in Phase 1 only after Phase 0 passes.
+3. **Bounded risk via fail-closed `shadow` mode:** Python keeps 100% authority over allow/refuse decisions throughout burn-in.
 
-### 6.2 Seamless Fallback to the Shell Version
+### 6.2 Fail-Closed Fallback Design (`SPL_CMD_GUARD_IMPL=py|shadow|rust`)
 
-`sigpipe-lint.sh` remains the stable CLI entrypoint (`sigpipe-lint.sh [--list-optouts] <file>...`, exit `0` clean, `1` findings, `2` usage) and delegates to `spl-sh-lint` through a 6-line wrapper at the top of `sigpipe-lint.sh`:
+Both command guards are **fail-closed** (`force-push-guard.inc.sh:43`, `force-push-guard-hook.sh:30`): a missing tool or unreadable payload refuses the command rather than waving it through. The fallback preserves that invariant strictly:
 
-1. **`SPL_SH_LINT_IMPL=awk`** forces the existing `awk` implementation immediately (one-variable rollback, matching `PRE_PUSH_LINT=0`).
-2. **Default (`SPL_SH_LINT_IMPL=auto`):** If `spl-sh-lint` is executable on `PATH` (or `$HOME/.local/bin/spl-sh-lint`), `exec spl-sh-lint sigpipe "$@"`; if the binary is absent (e.g. an unrefreshed box or external fork checkout), log one debug note when `SPL_SH_LINT_VERBOSE=1` and **fall through seamlessly to the existing `awk` loop**.
-3. **Shadow-parity mode (`SPL_SH_LINT_IMPL=shadow` in CI during burn-in):** Runs both Rust and `awk` on the same inputs and fails CI if exit codes or `file:line` findings diverge by a single byte.
+1. **`SPL_CMD_GUARD_IMPL=py` (instant one-variable rollback):** Runs today's unmodified Python path only.
+2. **`SPL_CMD_GUARD_IMPL=shadow` (Phase 0 default during burn-in):** Runs today's Python path as the **sole authoritative verdict**, also invokes `spl-cmd-guard`, and appends one line to a local shadow log (`verdict_match`, `py_ms`, `rust_ms`) without ever blocking or allowing a call on Rust's behalf.
+3. **`SPL_CMD_GUARD_IMPL=rust` (after all Section 6.3 gates pass):** Invokes `spl-cmd-guard` (`rc=0` allow, `rc=2` refuse). **If the binary is missing, non-executable, times out, or exits with any code other than `0` or `2`, `force-push-guard-hook.sh` immediately delegates to today's fail-closed Python path—never to "allow".**
 
 ### 6.3 Quantitative Success Criteria to Justify "Massively Later On"
 
-The pilot succeeds—and unlocks Phase 1+ expansion—only if **all five gates pass** after 7 days on `master`:
+Before cutting over from `shadow` to `rust`—and before starting Phase 1—**all six criteria must pass**:
 
-| # | Criterion | Target threshold |
+| # | Criterion | Required empirical threshold |
 |---:|---|---|
-| 1 | **Behavioral parity** | `100%` byte-for-byte output and exit-code match against `sigpipe-lint.sh` across all 8 cases in `sigpipe-lint.tst.sh` **plus** across all `2,314` tracked shell files in the repository (`shadow` mode zero-diff over 7 days of trunk pushes). |
-| 2 | **Speedup & fork elimination** | Scanning all `878` `iac`+`orc` `*.func.sh` files drops from **`3,161.3 ms` / `882` processes** to **`<= 80 ms` (`>= 40x` faster) / `1` process** on the same 16-core fleet box; single-file scan drops from `29.8 ms` to **`<= 4 ms`**. |
-| 3 | **Toolchain & CI budget** | Warm CI `rust-suite` job (`fmt` + `clippy` + `cargo test`) finishes in **`<= 20 s`**; stripped `x86_64-unknown-linux-musl` binary size is **`<= 4 MB`**; zero CI runner disk alerts. |
-| 4 | **Fleet distribution & fallback** | `do_spl_spool_refresh` installs `/var/csi/csi-spl/spool/bin/spl-sh-lint` cleanly for both `<box-user>` and `<agent-user>` on every fleet box, and removing the binary in a test proves `SPL_SH_LINT_IMPL=auto` falls back to `awk` with exit code parity. |
-| 5 | **Maintainability & ergonomics** | Rust source for the pilot stays **`<= 450` lines** (excluding unit tests), zero `unsafe` blocks (`#![forbid(unsafe_code)]`), every function `<= 75` lines, and passes `cargo clippy -- -D warnings`. |
+| 1 | **Shadow parity** | **`0` verdict mismatches** between Python and `spl-cmd-guard` across **`>= 7` days and `>= 10,000` real `PreToolUse` shell calls** on one fleet box, plus `100%` pass on all cases in `force-push-guard.tst.sh` and `test-y13-force-push-guard.sh`. |
+| 2 | **Measured latency & fork cut** | Median `force-push-guard-hook.sh` wall time drops to **`<= 1/4` of the Python baseline at the same load band** (e.g. `<= 16 ms` vs `62–107 ms` on the desk box; `< 10 ms` binary runtime) and processes per ordinary shell call drop from **`9` to `<= 2`**. |
+| 3 | **Fail-closed red controls** | Automated tests prove both failure modes: (a) removing `spl-cmd-guard` falls back to Python and still refuses `git push --force` (`rc=2`), and (b) a simulated binary crash (`exit 101`) falls back to Python and still refuses `git push --force`. |
+| 4 | **CI, binary, & disk budget** | Warm CI `rust-suite` job finishes in **`<= 60 s`** on `spool-ci`; stripped `x86_64` binary is **`<= 5 MB`**; fleet boxes install via verified download + `.bak` swap (no box-wide `rustup`); `0 MB` added to `sat`'s `30 GB` `/` partition. |
+| 5 | **Code hygiene** | Pure Rust (`#![forbid(unsafe_code)]`, zero C `-sys`/`cc` crates), every function **`<= 75` lines**, zero `clippy` warnings. |
+| 6 | **Team Rust skill proof** | At least **two lanes/agents other than the pilot author** land green changes to the Rust crate (verifying fleet maintainability, not one-off authorship). |
 
 ---
 
 ## 7. Rollout Shape for Later (Phases, Not Issues)
 
-If the owner approves the pilot after reviewing this analysis and the pilot meets all five Section 6.3 criteria, expansion follows four bounded phases (alongside parallel Bash `./run` indexing and Go `spool` consolidation):
+First bank the cheap Bash fixes (Track A), run the bounded Rust pilot (Phase 0), and advance only if Section 6.3 passes:
 
 ```mermaid
 flowchart LR
-  P0["Phase 0: Pilot\nspl-sh-lint sigpipe\n+ CI/box plumbing"] --> P1["Phase 1: Unified Static Scanner\naction-header-tags, bash-cleancode,\ngcloud-pinned, dist-hygiene"]
-  P1 --> P2["Phase 2: Harness Security Guard\nspl-cmd-guard + spl-agent-hook\n(<3 ms per tool call)"]
-  P2 --> P3["Phase 3: Local Stream & State Scanners\nspl-token-burn, done-claim-check,\nlocal worktree collector"]
-  B0["Parallel Track A (Bash)\n./run lazy action index\n(960 ms -> <80 ms)"] -.-> P1
-  G0["Parallel Track B (Go spool CLI)\nspool-send, lane-map merge,\nasks, desk-reply"] -.-> P2
+  B0["Track A (Bash, Immediate)\n1. ./run lazy actions.tsv index\n2. 1-awk linter batching (65x CPU)\n3. git-grep hygiene & test fork cuts"] --> P0
+  P0["Rust Phase 0: Pilot\nspl-cmd-guard (force-push-guard)\nin shadow -> rust mode"] --> P1["Rust Phase 1: Full Harness Hook\nFold kill-target + heredoc guards\n+ spool-agent-hook (<4 ms/call)"]
+  P1 --> P2["Rust Phase 2: spl-sh-lint\nTyped shell/header/sigpipe/tmp-path\nstatic analyzer (1 binary)"]
+  P2 --> P3["Rust Phase 3: Local Streamers\nspl-token-burn, done-claim-check,\noptional worktree collector"]
+  G0["Track B (Go spool CLI)\nspool-send, lane-map (44s -> ~3s),\nasks, desk-reply, gc"] -.-> P1
 ```
 
-- **Phase 0 — Toolchain Plumbing & Pilot (`spl-sh-lint sigpipe`):**
-  Pin `rust-toolchain.toml`, wire `lint-rust` + `rust-suite` + `do_spl_spool_refresh` shared binary distribution + shared `CARGO_TARGET_DIR`, ship `spl-sh-lint sigpipe` in `shadow` mode then `auto` mode, and measure 7-day trunk burn-in against Section 6.3.
-- **Phase 1 — Unified Pre-Push & Suite Static Scanner (`spl-sh-lint` expansion):**
-  Add subcommands to the **same single `spl-sh-lint` binary** (no binary sprawl—one Cargo workspace, one `musl` binary to distribute) for Ranks **#2** (`action-header-tags`), **#3** (`bash-cleancode`), **#4** (`gcloud-account-pinned`), **#5** (`check-dist-hygiene` git-index regex-set scanner), and pure-repo rules of **#12** (`lint-tmp-path`, `lint-mdlinks`). Expected win: cuts `~18.5 s` and `~3,660` process forks per full lint run down to `< 0.2 s`.
-- **Phase 2 — Pre-Tool Command AST Guard and Agent Hook (`spl-cmd-guard` / `spl-agent-hook`):**
-  Once the team has shipped Phase 1 cleanly, build the second Rust binary using `tree-sitter-bash` to unify **#6** (`kill-target-guard.inc.sh` + `force-push-guard.inc.sh`, deleting two separate Bash+Python shell tokenizers) and **#7** (`spool-agent-hook.sh` heartbeat, inbox injection, and loop detector). Roll out behind `SPOOL_HOOK_IMPL=py|shadow|rust` per box (`sat` canary first, then remaining boxes). Expected win: drops per-tool-call hook/guard latency from `39–49 ms` to `< 3 ms` across `> 15,000` daily hook events per box.
-- **Phase 3 — High-Cadence Local Stream & Claim Scanners:**
-  Port local, non-hub-protocol cron scanners **#11** (`spl-token-burn-collect`, invoked directly from cron without `./run` overhead: `1.31 s -> < 50 ms` every minute) and **#17** (`spl-done-claim-check`), plus optionally a fast local git-worktree status collector feeding `spool lane map` if `lane-map`'s local `1,290`-fork leg is not already absorbed by Go.
+- **Track A — Immediate Bash Shape Fixes (Do Regardless of Rust):**
+  Land `./run` lazy `actions.tsv` loading (`#3`, saving `1.00 s` CPU / `4.3 s` `sat` wall per call across crons and the `185.7 h/week` Bash test suites), switch `bash-cleancode` / `sigpipe-lint` / `action-header-tags` to single-`awk` passes (`#5–#7`), switch `dist-hygiene` from `tar | tar` copy to index scan (`#8`), and measure + trim 1 `watchdog` tick (`#11`).
+- **Track B — Go `spool` CLI Consolidation (Parallel, Zero New Toolchain):**
+  Fold hub-speaking wrappers into `spool`: `lane-map` (`#4`, cutting `44.4 s` / `1,683` procs on `sat`), `spool-send.sh` (`#10`), `asks` (`#20`), `desk-reply` (`#21`), and `gc` (`#19`).
+- **Rust Phase 0 — Pilot (`spl-cmd-guard` on `force-push-guard-hook.sh`):**
+  Pin `rust-toolchain.toml`, wire checksum-pinned CI + download-only `spool_swap` distribution, ship `spl-cmd-guard` in `shadow` mode for 7 days / `10,000+` calls, and evaluate Section 6.3.
+- **Rust Phase 1 — Complete Pre/Post-Tool Harness Binary (`spl-cmd-guard` + `spl-agent-hook`):**
+  Fold `kill-target-guard` (`#1`), `heredoc-collision-guard` (`#1`), and `spool-agent-hook.sh` (`#9`) into the same pure-Rust hook binary so every tool call runs **one** `< 4 ms` native process instead of two hooks and 2–4 Python interpreters.
+- **Rust Phase 2 — Unified Static Repo & Shell Analyzer (`spl-sh-lint`):**
+  Consolidate `bash-cleancode`, `gcloud-account-pinned`, `action-header-tags`, `sigpipe-lint`, `tmp-path-lint`, and `mdlinks` into subcommands of **one** static analyzer binary (`spl-sh-lint`), retiring fragile `awk`/regex shell lexers.
+- **Rust Phase 3 — High-Cadence Local Stream & Claim Scanners:**
+  Port stateless local scanners `spl-token-burn` (`#14`, invoked directly from cron without `./run`) and `done-claim-check` (`#15`).
 - **Explicit Non-Goals (Even "Massively Later On"):**
-  Never rewrite `spool` hub HTTP/signing/Postgres/GCS code from Go into Rust; never rewrite thin `gcloud` / `terraform` / `docker` / `git` wrappers; and never rewrite `tmux`-bound rotation/watchdog scripts wholesale unless their state machines are first decoupled from `tmux` shell calls.
+  Never port Go `spool` hub HTTP, Ed25519 signing, Postgres, or GCS code to Rust. Never rewrite thin `gcloud`, `terraform`, `docker`, or `git` wrappers. Never rewrite `dispatch-lease` cross-box failover or `tmux`-bound rotation loops wholesale in Rust.
 
 ---
 
 ## 8. Signatures
 
+### Fold Summary (`v0.1` -> `v0.2 (rc1)`)
+
+- **Reviewer `c-553@sat` (`F1`–`F9`):** Corrected `sigpipe-lint` cadence (`touched .sh only`), added exit codes (`rc=1` on synthetic legacy globs; `182` vs `183` glob note), updated `spool 1.1.3` size (`66.8 MB`), added `do_spl_cmd_time_report` omitted-row note and box names, added `uptime` load to every timing table, marked all unmeasured numbers `est.`, pinned `rust-toolchain.toml` rule to current stable at pilot start, and shortened sentences throughout.
+- **Shell + Performance Expert `c-559@sat` (`F1`–`F10` + `desk-move.tst.sh` trace):** Added Section 2.1 box fork saturation (`90k–112k` procs/min, `45%` `sys` CPU, `pidrun.py`/`subtree.py` attribution), added Section 2.2 7-day `pre-push.log` telemetry (`418.6 h` total, `185.7 h` Bash test suites, `desk-move.tst.sh` `39,886` procs) as Rank #2, added installed crontab cadence (`64` entries, `34,953` runs/day) and `2026-11-10` cron wall table (`lane_rotate` `7.6 h/day`), elevated `watchdog` (`9.4%` of box PIDs -> measure 1 tick first) and `lane_rotate`, and calibrated `spool-agent-hook` total wall (`~1.5 h/day`) vs per-call latency.
+- **Rust Expert `c-565@sat` (`F1`–`F6`):** Folded and independently verified the 1-`awk` `bash-cleancode` control (`65x` CPU / `21x–95x` wall cut in 5 lines of Bash, `exact_match=True`), added Section 4.1 runtime startup table (`spool` `66.8 MB` = `155.5 ms` from `446` Go package inits vs `16.0 ms` small Go vs `3.9 ms` native `/bin/true`), weighed small-Go vs Rust skill goal openly, corrected Section 5 (`1.99.1` channel facts, `/mnt/data` vs `30 GB` `/` disk rule, `x86_64`-only fleet VMs, download-only boxes without `rustup`, pure-Rust lexer with zero C crates), and adopted **`spl-cmd-guard` on `force-push-guard-hook.sh` in fail-closed `shadow` mode** as the Phase 0 pilot (backed by new `force-push-guard-hook.sh` measurements showing `9–11` procs and `64.7–113.5 ms` CPU per shell call).
+
+### Panel Sign-Off Table
+
 Each panel seat signs the final version with its own commit on branch `review/c002-rust-candidates-analysis` after verifying the claims and commands in its scope.
 
 | Seat | Agent ID | Version Read | Commit SHA Read | Verdict | Signature Commit |
 |---|---|---|---|---|---|
-| **EDITOR** (`c002-fc3b7ac3-rust-panel-editor`) | `a-526` | `v0.1` (drafted) | *(pending final rc)* | Author of `v0.1` | *(pending v1.0 sign-off)* |
-| **SHELL + PERFORMANCE EXPERT** (`c002-fc3b7ac3-rust-panel-shell-expert`) | `c-559@sat` | *(pending)* | *(pending)* | *(pending)* | *(pending)* |
-| **RUST EXPERT** (`c002-fc3b7ac3-rust-panel-rust-expert`) | *(queued: ask `eb94a86c`)* | *(pending)* | *(pending)* | *(pending)* | *(pending)* |
-| **REVIEWER** (`c002-fc3b7ac3-rust-panel-reviewer`) | `c-553@sat` | *(pending)* | *(pending)* | *(pending)* | *(pending)* |
+| **EDITOR** (`c002-fc3b7ac3-rust-panel-editor`) | `a-526` | `v0.2 (rc1)` | *(pending final v1.0 SHA)* | Author & editor (`v0.1`–`v0.2 rc1`) | *(signs on v1.0 declaration)* |
+| **SHELL + PERFORMANCE EXPERT** (`c002-fc3b7ac3-rust-panel-shell-expert`) | `c-559@sat` | *(pending rc1 review)* | *(pending)* | *(pending)* | *(pending)* |
+| **RUST EXPERT** (`c002-fc3b7ac3-rust-panel-rust-expert`) | `c-565@sat` | *(pending rc1 review)* | *(pending)* | *(pending)* | *(pending)* |
+| **REVIEWER** (`c002-fc3b7ac3-rust-panel-reviewer`) | `c-553@sat` | *(pending rc1 audit; `v0.1` `546da385f` early audit folded)* | *(pending)* | *(pending PASS/FAIL)* | *(pending)* |

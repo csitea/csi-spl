@@ -89,7 +89,9 @@ func (s *Server) handleTenantCostAllocPut(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	in, ok := readCostAllocEdit(w, r, hum)
+	// the body names the admin's workspaces' shares only (they never read
+	// the others); the store completes it with the stored ones
+	in, ok := readCostAllocEdit(w, r, hum, store.CheckCostAllocShares)
 	if !ok {
 		return
 	}

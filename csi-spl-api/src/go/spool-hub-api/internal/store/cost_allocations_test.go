@@ -119,6 +119,25 @@ func TestCostAllocationWithin(t *testing.T) {
 					t.Fatalf("after the refusals: %+v, want %+v", s, want)
 				}
 			}
+			// the admin never reads W3's share, so their body names W1 and
+			// W2 only: the store keeps W3's 2000 (MergeCostAllocWithin).
+			// CONTROL: the same body as the operator's is not a whole split.
+			got, perr := ca.PutCostAllocation(ctx, costSplit(key, by, share(w1, 5000), share(w2, 3000)), admin)
+			if perr != nil {
+				t.Fatalf("a body of the admin's own shares: %v", perr)
+			}
+			s = splitOf(t, ca, key)
+			for _, x := range []CostAllocShare{share(w1, 5000), share(w2, 3000), share(w3, 2000)} {
+				if !containsShare(s, x) || !containsShare(got.Shares, x) {
+					t.Fatalf("after a body of the admin's own shares: stored %+v, answered %+v, want %+v kept", s, got.Shares, x)
+				}
+			}
+			if len(s) != 3 {
+				t.Fatalf("after a body of the admin's own shares: %+v", s)
+			}
+			if _, err := ca.PutCostAllocation(ctx, costSplit(key, "op", share(w1, 5000), share(w2, 3000)), nil); err == nil {
+				t.Fatal("CONTROL: the operator's body of 8000 bp was stored, want the sum refusal")
+			}
 			// rule 3: an item held whole by W1 + W2; removing it gives the
 			// estate back what they held
 			own := CostItemKey{Source: "cost_entry", ProjectOrVendor: uid("own-"), Kind: "cloud"}

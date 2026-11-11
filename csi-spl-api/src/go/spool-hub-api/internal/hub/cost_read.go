@@ -192,53 +192,75 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		cm, err = cr.CostMonthRead(r.Context(), store.CostMonthQuery{Tenant: t.ID, Estate: estate,
 			From: win.From, To: win.To, CoverTo: win.CoverTo, Currency: cur})
 	}
-	var burn []store.WorkspaceTokenPart
+	var d costReadParts
 	if err == nil {
-		burn, err = s.workspaceTokenParts(r.Context(), op, costBurnOf(estate, t.ID), win)
-	}
-	var splits []store.CostAllocation
-	if err == nil {
-		splits, err = s.costAllocSplits(r.Context())
-	}
-	var ai *store.AIPaidMonth
-	if err == nil {
-		ai, err = s.aiCostParts(r.Context(), op, estate, t.ID, win, cur)
-	}
-	var hand, human []store.CostPart
-	switch {
-	case err != nil:
-	case estate:
-		hand, human, err = s.costEntryMonthParts(r.Context(), win.Month, cur)
-	case t.ID != op:
-		// SPL-5291: a customer workspace's share of the items split by hand
-		hand, human, err = s.costAllocatedParts(r.Context(), op, t.ID, win, cur, splits)
+		d, err = s.costReadGather(r.Context(), op, t.ID, estate, win, cur)
 	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost report unavailable")
 		return
 	}
+	writeJSON(w, http.StatusOK, costReadBody(win, estate, cur, cm, d))
+}
+
+// costReadParts is what the month answer adds to the cost lines: the token
+// burn, the hand splits, the paid AI items, and the hand-entered (estate)
+// or allocated (a customer workspace, SPL-5291) Cloud and Persons parts.
+type costReadParts struct {
+	burn        []store.WorkspaceTokenPart
+	splits      []store.CostAllocation
+	ai          *store.AIPaidMonth
+	hand, human []store.CostPart
+}
+
+// costReadGather reads costReadParts for tenant's month.
+func (s *Server) costReadGather(ctx context.Context, op, tenant string, estate bool, win costMonthWindow, cur string) (costReadParts, error) {
+	var d costReadParts
+	var err error
+	if d.burn, err = s.workspaceTokenParts(ctx, op, costBurnOf(estate, tenant), win); err != nil {
+		return d, err
+	}
+	if d.splits, err = s.costAllocSplits(ctx); err != nil {
+		return d, err
+	}
+	if d.ai, err = s.aiCostParts(ctx, op, estate, tenant, win, cur); err != nil {
+		return d, err
+	}
+	switch {
+	case estate:
+		d.hand, d.human, err = s.costEntryMonthParts(ctx, win.Month, cur)
+	case tenant != op:
+		// SPL-5291: a customer workspace's share of the items split by hand
+		d.hand, d.human, err = s.costAllocatedParts(ctx, op, tenant, win, cur, d.splits)
+	}
+	return d, err
+}
+
+// costReadBody is the month answer: the cost lines with d's parts.
+func costReadBody(win costMonthWindow, estate bool, cur string, cm store.CostMonth, d costReadParts) costMonthBody {
 	if !estate {
-		cm.Parts = append(cm.Parts, tokenCostParts(burn)...)
+		cm.Parts = append(cm.Parts, tokenCostParts(d.burn)...)
 	}
-	if ai != nil {
-		cm.Parts, cm.Coverage = append(cm.Parts, ai.Parts...), append(cm.Coverage, ai.Coverage)
+	if d.ai != nil {
+		cm.Parts, cm.Coverage = append(cm.Parts, d.ai.Parts...), append(cm.Coverage, d.ai.Coverage)
 	}
-	cm.Parts = append(cm.Parts, hand...)
+	cm.Parts = append(cm.Parts, d.hand...)
 	b := costMonthAnswer(win, estate, cur, cm)
-	if ai != nil && !estate {
-		b.AIShareFrom = ai.ShareFrom
+	if d.ai != nil && !estate {
+		b.AIShareFrom = d.ai.ShareFrom
 	}
 	if estate {
-		b.Workspaces = costWorkspaces(burn)
+		b.Workspaces = costWorkspaces(d.burn)
 	}
-	if len(human) > 0 || estate {
-		b.Human = costHumanParts(human)
+	if len(d.human) > 0 || estate {
+		b.Human = costHumanParts(d.human)
 	}
 	if estate {
-		costAllocAnnotate(&b, splits)
+		// after Human: the annotation marks its rows too
+		costAllocAnnotate(&b, d.splits)
 	}
-	writeJSON(w, http.StatusOK, b)
+	return b
 }
 
 // costBurnOf is the workspace whose burn the answer reads: every one ("")

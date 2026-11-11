@@ -59,7 +59,7 @@ func (s *Postgres) PutCostAllocation(ctx context.Context, a CostAllocation, with
 		if err != nil {
 			return err
 		}
-		if err := checkCostAllocPut(a, old, within); err != nil {
+		if a, err = checkCostAllocPut(a, old, within); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM cost_allocations WHERE source = $1 AND project_or_vendor = $2 AND kind = $3`,

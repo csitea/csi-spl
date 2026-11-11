@@ -61,6 +61,23 @@ type CostAllocation struct {
 // fine): the Go side of rdb 0275's CHECKs, a Tokens item and the sum, which
 // only a whole split can show.
 func CheckCostAllocation(a CostAllocation) string {
+	if why := CheckCostAllocShares(a); why != "" {
+		return why
+	}
+	sum := 0
+	for _, sh := range a.Shares {
+		sum += sh.ShareBP
+	}
+	if len(a.Shares) > 0 && sum != CostAllocMaxBP {
+		return fmt.Sprintf("the shares sum to %d basis points, not 10000 (100 %%)", sum)
+	}
+	return ""
+}
+
+// CheckCostAllocShares is CheckCostAllocation without the sum: a customer
+// admin's body names only their own workspaces' shares, which sum to what
+// those workspaces hold, not to 10000 (MergeCostAllocWithin completes it).
+func CheckCostAllocShares(a CostAllocation) string {
 	for _, f := range []string{a.Source, a.ProjectOrVendor, a.Kind} {
 		if strings.TrimSpace(f) == "" || len(f) > 200 {
 			return "source, project_or_vendor and kind must be 1..200 characters"
@@ -69,7 +86,7 @@ func CheckCostAllocation(a CostAllocation) string {
 	if CostItemTokens(a.Source) {
 		return "a Tokens item is shared automatically by tokens, never split by hand"
 	}
-	seen, sum := map[string]bool{}, 0
+	seen := map[string]bool{}
 	for _, sh := range a.Shares {
 		switch {
 		case strings.TrimSpace(sh.WorkspaceID) == "" || len(sh.WorkspaceID) > 200:
@@ -79,12 +96,29 @@ func CheckCostAllocation(a CostAllocation) string {
 		case sh.ShareBP < 1 || sh.ShareBP > CostAllocMaxBP:
 			return "a share must be 1..10000 basis points (0.01 %..100 %)"
 		}
-		seen[sh.WorkspaceID], sum = true, sum+sh.ShareBP
-	}
-	if len(a.Shares) > 0 && sum != CostAllocMaxBP {
-		return fmt.Sprintf("the shares sum to %d basis points, not 10000 (100 %%)", sum)
+		seen[sh.WorkspaceID] = true
 	}
 	return ""
+}
+
+// MergeCostAllocWithin completes a customer admin's body into a whole
+// split: the body's shares, then each stored share of a workspace outside
+// admin that the body does not name. The admin never reads those shares
+// (costs-allocation.md section 3), so their body cannot carry them; a body
+// that does name one is kept as sent, and CheckCostAllocWithin then judges
+// it (rule 1 when it differs from the stored share).
+func MergeCostAllocWithin(old, body []CostAllocShare, admin map[string]bool) []CostAllocShare {
+	named := map[string]bool{}
+	out := append([]CostAllocShare{}, body...)
+	for _, sh := range body {
+		named[sh.WorkspaceID] = true
+	}
+	for _, sh := range old {
+		if !admin[sh.WorkspaceID] && !named[sh.WorkspaceID] {
+			out = append(out, sh)
+		}
+	}
+	return out
 }
 
 // CheckCostAllocWithin is the customer admin's rule (costs-allocation.md
@@ -164,19 +198,22 @@ func sortCostAllocations(out []CostAllocation) {
 	}
 }
 
-// checkCostAllocPut is the whole write check: the split, then the customer
-// admin's rule against old.
-func checkCostAllocPut(a CostAllocation, old []CostAllocShare, within map[string]bool) error {
+// checkCostAllocPut is the whole write check and answers the split to
+// store. The operator's body is the whole split. A customer admin's (within
+// non-nil) is first completed with the stored shares outside their
+// workspaces (MergeCostAllocWithin), judged by their rule against old, and
+// only then checked as a whole split.
+func checkCostAllocPut(a CostAllocation, old []CostAllocShare, within map[string]bool) (CostAllocation, error) {
+	if within != nil {
+		a.Shares = MergeCostAllocWithin(old, a.Shares, within)
+		if why := CheckCostAllocWithin(old, a.Shares, within); why != "" {
+			return CostAllocation{}, fmt.Errorf("%w: %s", ErrCostAllocOutside, why)
+		}
+	}
 	if why := CheckCostAllocation(a); why != "" {
-		return fmt.Errorf("cost allocation: %s", why)
+		return CostAllocation{}, fmt.Errorf("cost allocation: %s", why)
 	}
-	if within == nil {
-		return nil
-	}
-	if why := CheckCostAllocWithin(old, a.Shares, within); why != "" {
-		return fmt.Errorf("%w: %s", ErrCostAllocOutside, why)
-	}
-	return nil
+	return a, nil
 }
 
 // The Memory driver keeps its splits beside the store, like the entries.
@@ -202,7 +239,8 @@ func (s *Memory) CostAllocations(_ context.Context) ([]CostAllocation, error) {
 func (s *Memory) PutCostAllocation(_ context.Context, a CostAllocation, within map[string]bool) (CostAllocation, error) {
 	memCostAllocMu.Lock()
 	defer memCostAllocMu.Unlock()
-	if err := checkCostAllocPut(a, memCostAlloc[s][a.CostItemKey].Shares, within); err != nil {
+	a, err := checkCostAllocPut(a, memCostAlloc[s][a.CostItemKey].Shares, within)
+	if err != nil {
 		return CostAllocation{}, err
 	}
 	if memCostAlloc[s] == nil {

@@ -196,7 +196,7 @@ func (s *Server) handleCostAllocPut(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	in, ok := readCostAllocEdit(w, r, who)
+	in, ok := readCostAllocEdit(w, r, who, store.CheckCostAllocation)
 	if !ok {
 		return
 	}
@@ -207,8 +207,10 @@ func (s *Server) handleCostAllocPut(w http.ResponseWriter, r *http.Request) {
 	s.putCostAlloc(w, r, ca, in, nil)
 }
 
-// readCostAllocEdit decodes and checks the PUT body; false = answered.
-func readCostAllocEdit(w http.ResponseWriter, r *http.Request, who string) (store.CostAllocation, bool) {
+// readCostAllocEdit decodes the PUT body and checks it with check (the whole
+// split for the operator, the shares only for a customer admin); false =
+// answered.
+func readCostAllocEdit(w http.ResponseWriter, r *http.Request, who string, check func(store.CostAllocation) string) (store.CostAllocation, bool) {
 	var e costAllocEdit
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, costAllocBodyMax))
 	if err == nil {
@@ -222,7 +224,7 @@ func readCostAllocEdit(w http.ResponseWriter, r *http.Request, who string) (stor
 	}
 	in := store.CostAllocation{CostItemKey: store.CostItemKey{Source: e.Source, ProjectOrVendor: e.ProjectOrVendor, Kind: e.Kind},
 		Shares: e.Shares, CreatedBy: who}
-	if why := store.CheckCostAllocation(in); why != "" {
+	if why := check(in); why != "" {
 		writeErr(w, http.StatusBadRequest, "bad_cost_allocation", why)
 		return store.CostAllocation{}, false
 	}

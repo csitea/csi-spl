@@ -154,7 +154,7 @@ func TestTopicArchiveAndDelete(t *testing.T) {
 			}
 
 			// Delete T: the card and its four children, nothing else.
-			set, err := s.DeleteTopic(ctx, tid, c.MsgID, T)
+			set, err := s.DeleteTopic(ctx, tid, c.MsgID, T, "HUM-1", time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -192,12 +192,12 @@ func TestTopicArchiveAndDelete(t *testing.T) {
 			if _, err := s.DeliveryState(ctx, tid, x1.MsgID, "box-b"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("delivery survived: %v", err)
 			}
-			if _, err := s.DeleteTopic(ctx, tid, c.MsgID, T); !errors.Is(err, ErrNotFound) {
+			if _, err := s.DeleteTopic(ctx, tid, c.MsgID, T, "HUM-1", time.Now()); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("second delete: %v", err)
 			}
 
 			// Delete lobby card l1: it and its thread, never the lobby.
-			set, err = s.DeleteTopic(ctx, tid, l1.MsgID, "")
+			set, err = s.DeleteTopic(ctx, tid, l1.MsgID, "", "HUM-1", time.Now())
 			if err != nil || len(set.MsgIDs) != 2 {
 				t.Fatalf("lobby card delete: %+v %v", set, err)
 			}
@@ -268,7 +268,7 @@ func TestTopicArchiveOldestRowIsReply(t *testing.T) {
 			}
 
 			// Delete the card: every row of the task goes, the card first.
-			set, err := s.DeleteTopic(ctx, tid, card.MsgID, T)
+			set, err := s.DeleteTopic(ctx, tid, card.MsgID, T, "HUM-1", time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}

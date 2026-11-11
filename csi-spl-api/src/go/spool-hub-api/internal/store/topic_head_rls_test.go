@@ -192,7 +192,10 @@ func TestTopicHeadRuntimeRole(t *testing.T) {
 		}},
 		{"E13", func() error { _, err := rt.SetArchived(ctx, f.tn, f.msg["a0"], "HUM-1", f.t0, true); return err }},
 		{"E16", func() error { return rt.DeleteMessage(ctx, f.tn, f.msg["a3"]) }},
-		{"E18", func() error { _, err := rt.DeleteTopic(ctx, f.tn, f.msg["a0"], f.task["A"]); return err }},
+		{"E18", func() error {
+			_, err := rt.DeleteTopic(ctx, f.tn, f.msg["a0"], f.task["A"], "HUM-1", time.Now())
+			return err
+		}},
 	}
 	for _, s := range steps {
 		before := headRevs(f)
@@ -328,7 +331,7 @@ func TestCrossTenantTopicHeads(t *testing.T) {
 	_, _ = pg.MoveMessage(ctx, f2.tn, f1.msg["a2"], f1.task["B"], "crew", "HUM-1", t0, time.Time{})
 	_, _ = pg.SetArchived(ctx, f2.tn, f1.msg["a0"], "HUM-1", t0, true)
 	_ = pg.DeleteMessage(ctx, f2.tn, f1.msg["a1"])
-	_, _ = pg.DeleteTopic(ctx, f2.tn, f1.msg["b0"], f1.task["B"])
+	_, _ = pg.DeleteTopic(ctx, f2.tn, f1.msg["b0"], f1.task["B"], "HUM-1", time.Now())
 	_, _ = pg.MergeTopic(ctx, f2.tn, f1.task["A"], f1.task["A"], f1.task["D"], ChannelLobby, "HUM-1", t0)
 	if after := headRevs(f1); fmt.Sprint(after) != fmt.Sprint(before) {
 		t.Fatalf("writes under %s moved %s's heads:\n before %v\n after  %v", f2.tn, f1.tn, before, after)

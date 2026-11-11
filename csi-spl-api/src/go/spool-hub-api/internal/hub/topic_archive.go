@@ -216,6 +216,7 @@ func (s *Server) handleArchiveTopic(w http.ResponseWriter, r *http.Request) {
 	out := archivedBody(c.m, st)
 	s.fanoutTopic(r.Context(), c.t.ID, c.m, withType(topicArchivedFrame, c.m, out))
 	s.pushFlowCountsAll(r.Context(), c.t.ID)
+	s.afterIssueFollow(r.Context(), c.t.ID, c.from, st.Followed) // SPL-5284
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -247,7 +248,7 @@ func (s *Server) handleDeleteTopic(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.topicTreeOpenDoor(w, r, c.t.ID, c.m, c.ownTask) { // SPL-4993
 		return
 	}
-	set, err := s.o.Store.DeleteTopic(r.Context(), c.t.ID, c.m.MsgID, c.ownTask)
+	set, err := s.o.Store.DeleteTopic(r.Context(), c.t.ID, c.m.MsgID, c.ownTask, c.from, s.o.Now())
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no such message")
@@ -264,6 +265,7 @@ func (s *Server) handleDeleteTopic(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"msg_id": c.m.MsgID, "task_id": c.m.TaskID, "deleted": len(set.MsgIDs),
 		"msg_ids": set.MsgIDs, "task_ids": set.TaskIDs}
 	s.fanoutTopic(r.Context(), c.t.ID, c.m, withType(topicDeletedFrame, c.m, out))
+	s.afterIssueFollow(r.Context(), c.t.ID, c.from, set.Followed) // SPL-5284
 	writeJSON(w, http.StatusOK, out)
 }
 

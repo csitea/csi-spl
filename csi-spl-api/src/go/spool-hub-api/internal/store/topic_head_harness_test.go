@@ -359,7 +359,7 @@ func headCases() []headCase {
 			f.must("merge lines", err)
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "A", 2) }},
 		{id: "E18", what: "delete a topic (and its child)", apply: func(f *headFix) {
-			_, err := f.pg.DeleteTopic(ctx, f.tn, f.msg["a0"], f.task["A"])
+			_, err := f.pg.DeleteTopic(ctx, f.tn, f.msg["a0"], f.task["A"], "HUM-1", time.Now())
 			f.must("delete topic", err)
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return firstOf(absent(f, r, "A"), absent(f, r, "K")) }},
 		{id: "E19", what: "delete a channel", apply: func(f *headFix) {

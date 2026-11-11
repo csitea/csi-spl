@@ -40,6 +40,9 @@ type CardState struct {
 	IssueTopic bool
 	ArchivedAt time.Time // zero = not archived
 	ArchivedBy string
+	// Followed is what SetArchived did to the open issues the topic links
+	// (SPL-5284, issue_follow.go); empty on a read.
+	Followed []IssueFollow
 }
 
 // TopicSet is every row of a card's topic: the card first, then the rest in
@@ -47,6 +50,9 @@ type CardState struct {
 type TopicSet struct {
 	MsgIDs  []string
 	TaskIDs []string
+	// Followed is the open issues DeleteTopic deleted with the topic
+	// (SPL-5284, issue_follow.go); empty on a read.
+	Followed []IssueFollow
 }
 
 // Replies is the number of rows a delete removes besides the card.
@@ -88,14 +94,17 @@ type TopicArchive interface {
 	CardState(ctx context.Context, tenantID, msgID string, now time.Time) (CardState, error)
 	// SetArchived stamps (archived=true) or clears the flag on msgID and
 	// answers the row's state after the write. Archiving an archived row
-	// keeps its first stamp. ErrNotFound when the row is gone.
+	// keeps its first stamp. The open issues the topic links close with it,
+	// and reopen on the unarchive (SPL-5284, CardState.Followed). ErrNotFound
+	// when the row is gone.
 	SetArchived(ctx context.Context, tenantID, msgID, by string, at time.Time, archived bool) (CardState, error)
 	// TopicOf walks the card's topic (see the package note) and answers it.
 	TopicOf(ctx context.Context, tenantID, msgID, ownTask string) (TopicSet, error)
 	// DeleteTopic walks the topic and deletes every row of it in ONE
-	// transaction, and answers what it deleted. ErrNotFound when the card is
-	// already gone.
-	DeleteTopic(ctx context.Context, tenantID, msgID, ownTask string) (TopicSet, error)
+	// transaction, and answers what it deleted. The open issues the topic
+	// links are soft-deleted in the same transaction, stamped by and at
+	// (SPL-5284). ErrNotFound when the card is already gone.
+	DeleteTopic(ctx context.Context, tenantID, msgID, ownTask, by string, at time.Time) (TopicSet, error)
 	// ArchivedCards lists the archived cards the reader may read.
 	ArchivedCards(ctx context.Context, tenantID string, q ArchivedQuery) ([]ArchivedCard, error)
 	// TopicReplies counts every row of each card's topic but the card, in
@@ -194,7 +203,13 @@ func (s *Memory) SetArchived(_ context.Context, tenant, msgID, by string, at tim
 	for _, c := range s.mirrorsLocked(tenant, msgID) { // spec 067 edge 3: the channel copy follows
 		archiveLocked(c, by, at, archived)
 	}
-	return s.cardStateLocked(tenant, m), nil
+	c := s.cardStateLocked(tenant, m)
+	if archived {
+		c.Followed = s.followLocked(tenant, []string{c.TaskID}, IssueFollowArchive, by, at)
+	} else {
+		c.Followed = s.unfollowLocked(tenant, []string{c.TaskID}, by, at)
+	}
+	return c, nil
 }
 
 func (s *Memory) topicLocked(tenant, msgID, ownTask string) (TopicSet, error) {
@@ -223,13 +238,14 @@ func (s *Memory) TopicOf(_ context.Context, tenant, msgID, ownTask string) (Topi
 	return s.topicLocked(tenant, msgID, ownTask)
 }
 
-func (s *Memory) DeleteTopic(_ context.Context, tenant, msgID, ownTask string) (TopicSet, error) {
+func (s *Memory) DeleteTopic(_ context.Context, tenant, msgID, ownTask, by string, at time.Time) (TopicSet, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	set, err := s.topicLocked(tenant, msgID, ownTask)
 	if err != nil {
 		return TopicSet{}, err
 	}
+	set.Followed = s.followLocked(tenant, set.TaskIDs, IssueFollowDelete, by, at)
 	for _, id := range set.MsgIDs {
 		k := [2]string{tenant, id}
 		delete(s.messages, k)

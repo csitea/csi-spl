@@ -741,15 +741,17 @@ spl_ars_brief_unnest() {
 # message is a result (the final summary) and nothing reached it since;
 # "reopened <line>" = a result, but a message reached it after that (m-682
 # 2026-10-09: a reject 27 s after its result, the seed said FINISH); the line
-# names that newer message. Else "in-flight".
+# names that newer message. Else "in-flight". The restart and rotation
+# ACKs and notes (spl_ars_ack_task) are skipped: a rotated lane's newest
+# outbox file is its lane-rotate ACK, a result that is not its own (SPL-5334).
 spl_ars_lane_state() {
   local d="$SPOOL_ROOT/$1" out in kind newer
-  out="$(find "$d/outbox" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p)"
+  out="$(spl_ars_newest_own "$d/outbox")"
   in="$(find "$d/inbox" "$d/archive" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p)"
   [[ -n "$out" ]] || { echo in-flight; return 0; }
   kind="$(jq -r '.kind // empty' "${out#* }" 2>/dev/null || true)"
   if [[ "$kind" == blocker ]] && { [[ -z "$in" ]] || awk -v i="${in%% *}" -v o="${out%% *}" 'BEGIN { exit !(i < o) }'; }; then kind=blocked
-  elif [[ "$kind" == result && "$(jq -r '.task_id // ""' "${out#* }" 2>/dev/null)" != restart-* ]]; then
+  elif [[ "$kind" == result ]]; then
     newer="$(spl_ars_newer_in "$d" "${out%% *}")"
     if [[ -n "$newer" ]]; then echo "reopened $(spl_ars_msg_line "$newer" from)"; return 0; fi
     kind="done"
@@ -757,13 +759,30 @@ spl_ars_lane_state() {
   echo "$kind $(spl_ars_msg_line "${out#* }" to)"
 }
 
+# spl_ars_ack_task FILE: 0 when FILE is on a restart or rotation task
+# (restart-*, lane-rotate-*): the ACKs the lane sends itself and the
+# rotation notes, never a step of its brief.
+spl_ars_ack_task() {
+  [[ "$(jq -r '.task_id // ""' "$1" 2>/dev/null)" =~ ^(restart|lane-rotate)- ]]
+}
+
+# spl_ars_newest_own DIR: "<mtime> <path>" of DIR's newest message that is
+# not on an ACK task (spl_ars_ack_task), else nothing.
+spl_ars_newest_own() {
+  local t p
+  while read -r t p; do
+    spl_ars_ack_task "$p" || { echo "$t $p"; return 0; }
+  done < <(find "$1" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn)
+  return 0
+}
+
 # spl_ars_newer_in DIR MTIME: the newest inbox/archive message newer than MTIME
-# that is not a restart ACK (task restart-*, the lane's own), else nothing.
+# that is not on an ACK task (spl_ars_ack_task), else nothing.
 spl_ars_newer_in() {
   local t p
   while read -r t p; do
     awk -v i="$t" -v o="$2" 'BEGIN { exit !(i > o) }' || return 0
-    [[ "$(jq -r '.task_id // ""' "$p" 2>/dev/null)" == restart-* ]] || { echo "$p"; return 0; }
+    spl_ars_ack_task "$p" || { echo "$p"; return 0; }
   done < <(find "$1/inbox" "$1/archive" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn)
   return 0
 }
@@ -791,14 +810,30 @@ spl_ars_seat_line() {
   printf '%s\n' "${q:0:200}"
 }
 
+# spl_ars_fence_seat ID BRIEF: when the fence spares ID as a standing seat
+# (spl_wd_standing_seat, SPL-5326: lifetime/standing or a "# Seat brief"
+# heading), BRIEF's first "# " heading as its seat line; else rc 1. c-981
+# 2026-11-11: a "# Seat brief" with none of spl_ars_seat_line's forms (SPL-5334).
+spl_ars_fence_seat() {
+  local h
+  spl_wd_standing_seat "$1" || return 1
+  h="$(grep -m1 '^# ' "${2:-/dev/null}" 2>/dev/null)"
+  h="${h#\# }"
+  [[ -n "$h" ]] || h="standing seat ($1)"
+  printf '%s\n' "${h:0:200}"
+}
+
 # The lane's step 4 of the seed: an in-flight lane goes on with its brief by
 # itself (owner rule A, t1 3192c200: after a reboot every lane that was working
 # carries on, no hand step); a blocked or done lane waits; a done standing seat
-# (spl_ars_seat_line on BRIEF) stands by for its next request.
+# (spl_ars_seat_line on BRIEF, else spl_ars_fence_seat) stands by for its
+# next request.
 spl_ars_seed_next() {
   local st seat
   st="$(spl_ars_lane_state "$1")"
-  if [[ "$st" == done* ]] && seat="$(spl_ars_seat_line "${2:-}")"; then st="seat ${st#done }"; fi
+  if [[ "$st" == done* ]] && { seat="$(spl_ars_seat_line "${2:-}")" || seat="$(spl_ars_fence_seat "$1" "${2:-}")"; }; then
+    st="seat ${st#done }"
+  fi
   case "$st" in
     seat*)    echo "4. Then STAND BY: you are a standing seat (\"$seat\")."
               echo "   Your last result does not end your role:"

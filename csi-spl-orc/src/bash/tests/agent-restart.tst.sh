@@ -118,6 +118,13 @@
 #      brief:" or lifetime/standing restarts it in the seat slot 0, on the lane
 #      path still (its wip pushed, no restart ack). Control: the same lane with
 #      a "# Lane brief:" heading takes a lane slot (1)
+#  25. a rotated standing seat whose last own message is a result (SPL-5334;
+#      c-981 2026-11-11, n=1, read only: its newest outbox file is the
+#      lane-rotate ACK, its brief a "# Seat brief:" heading none of
+#      spl_ars_seat_line's forms match): its seed says STAND BY and quotes the
+#      heading, no FINISH (origin/master: FINISH on the ACK line). Controls:
+#      the same with a "# Lane brief:" heading -> FINISH; a rotated lane in
+#      flight (a note, then the ACK) -> CONTINUE (origin/master: FINISH)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -841,6 +848,36 @@ printf '# Lane brief: bug - a standing seat is fenced as a lane\n\nWork.\n' > "$
 rc="$(go ID=c-957 CAUSE=rebirth DRY_RUN=0)"
 [[ "$rc" == 0 && "$(slot24 c-957)" == 1 ]] &&
   pass "24. control: a '# Lane brief:' lane takes a lane slot (1)" || fail "24. lane brief rc=$rc slot=$(slot24 c-957): $(tail -4 "$T/o")"
+
+# --- 25. a rotated standing seat: the lane-rotate ACK is not its result (SPL-5334) ----------
+rot25() {  # rot25 <id> <age s>: the orch's rotation note, then the lane's own ACK (outbox + its inbox copy)
+  local f d t="lane-rotate-20270115T0700Z-lane-$1"
+  f="$S/$1/archive/rot-note-$RANDOM.json"
+  jq -n --arg id "$1" '{v: 1, ts: "2027-01-15T07:00:00Z", from: "c-001", to: $id, kind: "note", task_id: "lane-rotate-\($id)", body: "rotation at 07:00Z UTC: push what is green"}' > "$f"
+  touch -d "@$(( $(date +%s) - $2 - 50 ))" "$f"
+  for d in outbox archive; do
+    f="$S/$1/$d/ack-rotation-$RANDOM.json"
+    jq -n --arg id "$1" --arg t "$t" '{v: 1, ts: "2027-01-15T07:01:00Z", from: $id, to: $id, kind: "result", task_id: $t, body: "ACK rotation \($t): read the handoff and the inbox."}' > "$f"
+    touch -d "@$(( $(date +%s) - $2 ))" "$f"
+  done
+}
+SEAT25='# Seat brief: workspace topic 0956269e - rebase its branch, then stay as the topic seat (standing seat, claude)\n\n- Stay idle between posts; the spool poke wakes you.'
+world; lane c-958 %58 -; reborn c-958; brief18 c-958 "$SEAT25"; msg17 c-958 outbox result 600; rot25 c-958 200
+rc="$(go ID=c-958 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-958)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then STAND BY: you are a standing seat ("Seat brief: workspace topic 0956269e' <<<"$sd" &&
+  grep -q 'the result text' <<<"$sd" && ! grep -q 'FINISH' <<<"$sd" && ! grep -q 'ACK rotation' <<<"$sd" &&
+  pass "25. a rotated '# Seat brief:' seat, its result before the lane-rotate ACK -> STAND BY, quotes the heading, no FINISH" ||
+  fail "25. seat rc=$rc: $(step18 "$sd")"
+world; lane c-959 %59 -; reborn c-959; msg17 c-959 outbox result 600; rot25 c-959 200
+brief18 c-959 '# Lane brief: bug - a seed for a done lane\n\nWork.'
+rc="$(go ID=c-959 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-959)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then FINISH: your brief is done' <<<"$sd" && grep -q 'the result text' <<<"$sd" && ! grep -q 'STAND BY' <<<"$sd" &&
+  pass "25. control: a done '# Lane brief:' lane, rotated since -> still FINISH, on its own result" || fail "25. lane done rc=$rc: $(step18 "$sd")"
+world; lane c-960 %60 -; reborn c-960; msg17 c-960 outbox note 600; rot25 c-960 200
+brief18 c-960 '# Lane brief: bug - a lane in flight\n\nWork.'
+rc="$(go ID=c-960 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-960)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then CONTINUE the brief now' <<<"$sd" && ! grep -q 'FINISH' <<<"$sd" &&
+  pass "25. control: a rotated lane in flight (a note, then the ACK) -> CONTINUE, not FINISH" || fail "25. lane in flight rc=$rc: $(step18 "$sd")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

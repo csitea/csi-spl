@@ -187,6 +187,15 @@ the post names it (`@c-001`, `c-001`, `orchestrator`); every other one waits
 in its inbox, and the 2-minute backstop and the unanswered sweep reach it as
 messages addressed to it (`spool_notify_orch_quiet`, owner HUM-10 2026-10-07).
 
+A topic seat (a lane whose recorded brief, `<spool root>/<id>/lifetime/brief.md`,
+opens with `# Seat brief:` and names its one topic) is typed a channel post of
+another topic only when that topic has no live seat of its own on the box, or
+the post names it; posts in its own topic and messages addressed to it are
+typed as before, and a held post still waits in its inbox
+(`spool_notify_seat_quiet`, SPL-5261). Before it, every post in a channel with
+one seat per topic was typed into every seat, and the other seats forwarded it
+to the topic's seat, which already had it (2026-11-10, n=2 posts).
+
 <a id="ws-doc-64b35c15-3c3a-4153-87b6-beaa6edbe9f3"></a>
 ## 3. The routing rule: the OD that takes a post owns it
 

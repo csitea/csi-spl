@@ -279,6 +279,80 @@ spool_notify_orch_quiet() {  # TO FROM MSGID BODY
   ! spool_notify_names_seat "${1:-}" "${4:-}"
 }
 
+# ── topic seats (SPL-5261) ──────────────────────────────────────────────────
+# A topic seat is a lane placed for ONE topic: its recorded brief
+# (<fleet root>/<id>/lifetime/brief.md, the one a rotation restarts from)
+# opens with `# Seat brief:` and names its topic there (`topic <8hex>`, the
+# dispatchers' seat heading). Every channel post reaches every member (owner
+# rule 2026-09-22), so a channel with one seat per topic typed each post into
+# every seat: on 2026-11-10 the owner's two posts in one topic reached the
+# seats of two other topics, and both forwarded them to the topic's own seat,
+# which already had them.
+
+# The box's spool root, where the lanes' lifetime/ dirs live: SPOOL_FLEET_ROOT
+# for the desk sidecar (its SPOOL_ROOT is the desk spool), else SPOOL_ROOT.
+spool_notify_fleet_root_var() {  # VAR
+  local __fr="${SPOOL_FLEET_ROOT:-}"
+  [ -n "$__fr" ] && [ -d "$__fr" ] || __fr="${SPOOL_ROOT:-}"
+  printf -v "$1" '%s' "${__fr%/}"
+}
+
+# Put into VAR the topic ID is the seat of (the 8-hex id its Seat brief's
+# heading names: `# Seat brief: <tenant> #<channel> topic <8hex> - ...`), or
+# '' when ID is no topic seat: no recorded brief, no Seat brief, or a seat of
+# a whole channel or workspace (its heading names no topic). Pure bash: this
+# runs on every delivery (CLE-3435 budget).
+spool_notify_seat_topic_var() {  # VAR ID
+  local __sv="$1" __f __h="" __rx='^#+[[:space:]]+Seat[[:space:]]brief:.*[[:space:](][Tt]opic[[:space:]]+`?([0-9a-f]{8})([^0-9A-Za-z-]|-[0-9a-f]{4}|$)'
+  printf -v "$__sv" '%s' ""
+  spool_notify_fleet_root_var __f
+  __f="$__f/${2:-}/lifetime/brief.md"
+  [ -n "${2:-}" ] && [ -r "$__f" ] || return 0
+  IFS= read -r __h <"$__f" || true
+  [[ "$__h" =~ $__rx ]] || return 0
+  printf -v "$__sv" '%s' "${BASH_REMATCH[1]}"
+}
+
+# 0 when TASK is the topic SEAT holds (its 8-hex id, a prefix of TASK).
+spool_notify_topic_is() {  # TASK SEAT_TOPIC
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] && [ "${1:0:${#2}}" = "$2" ]
+}
+
+# 0 when TASK has a live topic seat on this box other than EXCEPT: a Seat
+# brief naming it, and a live pane for that id.
+spool_notify_topic_has_seat() {  # TASK EXCEPT
+  local task="${1:-}" except="${2:-}" root f id t __tp
+  [[ "$task" =~ ^[0-9a-f]{8} ]] || return 1
+  spool_notify_fleet_root_var root
+  [ -d "$root" ] || return 1
+  while IFS= read -r f; do
+    id="${f%/lifetime/brief.md}"; id="${id##*/}"
+    [ "$id" != "$except" ] && spool_valid_id "$id" 2>/dev/null || continue
+    spool_notify_seat_topic_var t "$id"
+    spool_notify_topic_is "$task" "$t" || continue
+    spool_pane_of_var __tp "$id"
+    [ -n "$__tp" ] && return 0
+  done < <(grep -l -F -- "${task:0:8}" "$root"/*/lifetime/brief.md 2>/dev/null)
+  return 1
+}
+
+# 0 when the post must NOT be typed into TO's prompt: TO is a topic seat, the
+# post is a channel post not addressed to TO, in another topic, that topic
+# has a live seat of its own here, and the post does not name TO. A topic
+# with no live seat is still typed (someone must see it), and so is anything
+# addressed to TO. The post stays in TO's inbox either way.
+spool_notify_seat_quiet() {  # TO TASK MSGID BODY
+  local to="${1:-}" task="${2:-}" mine
+  [ -n "$to" ] && [ -n "$task" ] || return 1
+  spool_notify_seat_topic_var mine "$to"
+  [ -n "$mine" ] || return 1
+  ! spool_notify_topic_is "$task" "$mine" || return 1
+  spool_notify_direct_state "$to" "${3:-}"
+  [ "$?" = 1 ] || return 1
+  ! spool_notify_names_seat "$to" "${4:-}" || return 1
+  spool_notify_topic_has_seat "$task" "$to"
+}
+
 # Put into VAR the id as typed into a prompt: only [A-Za-z0-9._:-], at most
 # 64 characters. A topic or msg id is a uuid; anything else in one is dropped,
 # so the frame can never carry a quote, a space or a control byte. printf -v,

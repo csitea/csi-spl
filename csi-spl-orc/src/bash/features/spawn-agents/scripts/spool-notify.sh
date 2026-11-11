@@ -86,12 +86,16 @@ spool_valid_id "$TO" || exit 2
 #
 #    The orchestrator seat is offered a human's channel post only when the
 #    post names it (SPEC-spool-fleet-roles 2.1): the rest stay in its inbox.
+#    A topic seat is not offered a channel post of another topic that has a
+#    live seat of its own here, unless the post names it (SPL-5261).
 rc=0
 probe=0
 quiet=0
+seatq=0
 spool_notify_is_probe "$BODY" && probe=1
 spool_notify_orch_quiet "$TO" "$FROM" "$MSGID" "$BODY" && quiet=1
-if [ "$probe" = 0 ] && [ "$quiet" = 0 ] && [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
+[ "$quiet" = 1 ] || ! spool_notify_seat_quiet "$TO" "$TASK" "$MSGID" "$BODY" || seatq=1
+if [ "$probe" = 0 ] && [ "$quiet" = 0 ] && [ "$seatq" = 0 ] && [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
   spool_notify_frame _frame "$TO" "$FROM" "$TASK" "$MSGID"
   spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "${_frame}${BODY}"
   spool_notify_poke "$TO" "$_line" "${_frame}${BODY}" "$FROM"
@@ -113,6 +117,10 @@ if [ "$probe" = 1 ]; then
 fi
 if [ "$quiet" = 1 ]; then
   echo "poke: orch filter - ${TO} is the orchestrator seat and the channel post does not name it; it waits in ${SPOOL_ROOT}/${TO}/inbox/"
+  exit 0
+fi
+if [ "$seatq" = 1 ]; then
+  echo "poke: topic-seat filter - ${TO} is the seat of another topic; ${TASK} has its own live seat and the post does not name ${TO}; it waits in ${SPOOL_ROOT}/${TO}/inbox/"
   exit 0
 fi
 if [ "${SPOOL_POKE:-1}" = 0 ]; then

@@ -153,7 +153,9 @@ history credits c-001 with 185 imports, 5 edits and 7 deletes it never made.
   `edit 0d291303 d6767a99 ...` passed its dry run, then failed live with a
   404. An 8-hex id as a positional or as the value of `--item`, `--parent`,
   `--under`, `--after`, `--folder` or `--topic` is now refused for every
-  verb, dry run or not, before any spool call; take the full ids from
+  verb, dry run or not, before any spool call; every arg after a bare `--`
+  counts as a positional (the hub answers a short `--topic` 400, the others
+  404); take the full ids from
   `list` or `read <doc>`. Refusing in the action was chosen over a hub read
   in the dry run: it needs no network call and no per-verb knowledge of
   which id is a doc, an item or a folder. Test: `desk-doctree.tst.sh`

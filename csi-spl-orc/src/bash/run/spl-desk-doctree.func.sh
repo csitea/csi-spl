@@ -213,10 +213,11 @@ _spl_desk_doctree_file_flags() {
 # id flags. The doc and item ids are uuid columns (rdb 0157) and the hub looks
 # them up as given, so a short id is a 404 on the live run while `--check`,
 # which makes no hub call, passed it. The values of the other flags (--title,
-# --value, --rev ...) are text or numbers and stay unchecked.
+# --value, --rev ...) are text or numbers and stay unchecked. Every arg after
+# a bare `--` is a positional.
 _spl_desk_doctree_full_ids() {
   local -n _dt_ids="$1"
-  local i a f short=() next=""
+  local i a f short=() next="" ended=0
   local ids=" item parent under after folder topic " bools=" json dotted replace tight tight-end unnumbered "
   for ((i = 1; i < ${#_dt_ids[@]}; i++)); do
     a="${_dt_ids[$i]}"
@@ -224,7 +225,8 @@ _spl_desk_doctree_full_ids() {
       [[ "$next" == id && "$a" =~ ^[0-9a-fA-F]{8}$ ]] && short+=("$a")
       next=""; continue
     fi
-    if [[ "$a" == -* ]]; then
+    if (( ! ended )) && [[ "$a" == -- ]]; then ended=1; continue; fi
+    if (( ! ended )) && [[ "$a" == -* ]]; then
       f="${a#-}"; f="${f#-}"
       if [[ "$f" == *=* ]]; then
         [[ "$ids" == *" ${f%%=*} "* && "${f#*=}" =~ ^[0-9a-fA-F]{8}$ ]] && short+=("${f#*=}")
@@ -236,7 +238,7 @@ _spl_desk_doctree_full_ids() {
     [[ "$a" =~ ^[0-9a-fA-F]{8}$ ]] && short+=("$a")
   done
   (( ${#short[@]} == 0 )) && return 0
-  do_log "FATAL short id(s) ${short[*]}: the hub resolves only the full uuid (${short[0]}-xxxx-xxxx-xxxx-xxxxxxxxxxxx) and answers a short one 404, so this would fail live; take the full ids from DOCTREE_ARGS='list' or 'read <doc>'"
+  do_log "FATAL short id(s) ${short[*]}: the hub resolves only the full uuid (${short[0]}-xxxx-xxxx-xxxx-xxxxxxxxxxxx) and refuses a short one (404 for a doc or item, 400 for a topic), so this would fail live; take the full ids from DOCTREE_ARGS='list' or 'read <doc>'"
   return 1
 }
 

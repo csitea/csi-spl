@@ -29,7 +29,7 @@
 #      makes no hub call). Any verb with an 8-hex id as a positional or an id
 #      flag's value (--item --parent --under --after --folder --topic) is
 #      refused, no spool call, dry run or not; free text (--value deadbeef),
-#      numbers and full uuids pass
+#      numbers and full uuids pass; every arg after a bare -- is a positional
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -196,6 +196,8 @@ run DOCTREE_ARGS="move $U1 $U2 --parent 0d291303"
 refused "a short id as --parent is refused" 'short id(s) 0d291303:'
 run DOCTREE_ARGS='read 0d291303'
 refused "a read with a short doc id is refused too" 'short id(s) 0d291303:'
+run DOCTREE_ARGS="delete $U1 -- d6767a99"
+refused "a short id after the -- end-of-flags marker is refused" 'short id(s) d6767a99:'
 run DOCTREE_ARGS="edit $U1 $U2 --field title --value deadbeef --json"
 [[ $rc -eq 0 && "$(argv)" == "doctree --check edit $U1 $U2 --field title --value deadbeef --json" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" &&
   pass "full uuids pass; an 8-hex --value is text, not an id" || fail "full uuid dry run (rc=$rc): $(argv) / $(cat "$T/o")"

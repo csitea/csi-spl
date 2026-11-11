@@ -424,7 +424,7 @@ grep -q '^keys %20 /exit$' "$T/tmux/log" && grep -qx 'kill %20' "$T/tmux/log" &&
 grep -q "keys %2 Rotation $rid failed; you keep the role. Read $D/handoff/$rid-c-900.md" "$T/tmux/log" &&
   pass "5. the old pane is told where its handoff is" || fail "5. no line to the old pane"
 grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-900 ASK_TOPIC=orch-rotate-$rid" "$T/run.log" &&
-  grep -q '^do_spl_fleet_notice .*DESK_TO= DESK_KIND=blocker' "$T/run.log" && pass "5. ALERT: one ask + one ops channel notice" || fail "5. alert: $(cat "$T/run.log")"
+  grep -q '^do_spl_fleet_notice .*DESK_TO= DESK_KIND=note$' "$T/run.log" && pass "5. ALERT: one blocker ask + one ops channel note (SPL-5332)" || fail "5. alert: $(cat "$T/run.log")"
 
 # --- 6. T-ORCH-SPAWN-FAIL --------------------------------------------------------------------
 world; echo nopane >"$T/spawn.mode"

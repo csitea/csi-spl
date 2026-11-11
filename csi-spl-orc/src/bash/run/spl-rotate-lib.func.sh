@@ -1507,8 +1507,11 @@ spl_rotate_ack_send() {
 # ---- ALERT (FR-075) ----------------------------------------------------------------
 
 # spl_rotate_alert ROLE RID PHASE REASON [STATE]: an ask in the ask book (kind
-# blocker, topic <family>-rotate-<rid>) and, at once, a notice in the fleet's
-# ops channel (spl_rotate_owner_say). No hub setting: one WARN, the ask alone. Best effort, logged. The ask is
+# blocker, topic <family>-rotate-<rid>, to the orchestrator) and, at once, a
+# notice in the fleet's ops channel (spl_rotate_owner_say): kind note, naming
+# the orchestrator who acts, never a blocker (SPL-5332, owner HUM-10 #alerts
+# f86810f6: a blocker card asks the owner to act, and here the orchestrator
+# does). No hub setting: one WARN, the ask alone. Best effort, logged. The ask is
 # also recorded in <spool root>/<id>/lifetime/alerts.open ("<ask> <rid>
 # <phase>"), so the seat's next healthy start can say it recovered
 # (spl_rotate_recovered).
@@ -1527,7 +1530,9 @@ spl_rotate_alert() {
       echo "$ask $rid $phase" >> "$SPOOL_ROOT/$id/lifetime/alerts.open" 2>/dev/null || true
     fi
   else spl_rotate_log "$rid" ALERT FAIL "do_spl_ask_put failed"; fi
-  spl_rotate_owner_say "$rid" "$id" "$ask" "**$body**" blocker
+  local who="${LEASE_ORCH:+$LEASE_ORCH (the orchestrator)}"
+  spl_rotate_owner_say "$rid" "$id" "$ask" \
+    "**$body** For ${who:-the orchestrator}, ask ${ask:0:8}: nothing for the owner to do." note
   return 0
 }
 

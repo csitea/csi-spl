@@ -580,11 +580,29 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 - **FR-075** ALERT (owner D2) = two things:
   - an ask in the ask book: `do_spl_ask_put`, kind `blocker`, role `orch`,
     task `<role>-rotate-<rid>`, body `ROTATION FAILED <role> <phase> <reason>; old session kept: <ID>@<box> pid <n>`;
-  - a DM to the owner through the asks owner leg (`ASKS_OWNER_CMD`, else
-    `ASKS_OWNER` from the holder's desk), sent at once rather than after
-    `ASKS_OWNER_MIN`.
+  - a notice, sent at once: a new topic of the fleet's ops channel
+    (`do_spl_fleet_notice`, cnf `env.fleet_notices.channel`, today
+    `#alerts`; never a DM to the owner, SPL-2584), or `ASKS_OWNER_CMD` in
+    tests. It is kind `note`, never `blocker`, and names who acts: the body
+    ends `For <LEASE_ORCH> (the orchestrator), ask <id8>: nothing for the
+    owner to do.` (SPL-5332, owner HUM-10 #alerts f86810f6, 2026-11-11: "this
+    blocker type should be reserved only for a kind of message card which
+    requires somebody (and usually that somebody is me, admin) to do some
+    action"; a rotation failure is the orchestrator's to act on, through
+    the ask). Test: `dispatch-rotate.tst.sh` case 4, `orch-rotate.tst.sh`
+    case 5.
 
-  When neither owner setting exists: one `WARN`, and the ask alone.
+  When the holder's lease.conf names no `LEASE_ENV` + `LEASE_TENANT` (and no
+  `ASKS_OWNER_CMD` is set): one `WARN`, and the ask alone.
+
+  The other automatic `#alerts` posters, checked for SPL-5332: the
+  orchestrator failover, the recovered line (FR-075's follow-up,
+  `spl_rotate_recovered`) and the hung-watchdog notice are already `note`.
+  The deploy-lag alarm and the deploy-failure post stay `blocker`: they run
+  in CI with no lease to name an orchestrator, the failure post's "From:" is
+  read from a subject tag that is now usually an issue key rather than an
+  agent, and the cause (a code red, or a GCP permission or quota only the
+  owner can change) is not known when they post.
 
 ### 4.9 Rollback
 

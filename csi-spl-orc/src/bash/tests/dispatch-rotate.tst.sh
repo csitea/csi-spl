@@ -443,6 +443,11 @@ act DRY_RUN=0 ROTATE_ACK_TIMEOUT=2 >"$T/o" 2>&1; rc=$?
   fail "4. lease=$(cat "$D/lease") $(cat "$T/tmux/panes")"
 grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-902 ASK_TOPIC=dispatch-rotate-" "$T/run.log" && grep -q '^do_spl_fleet_notice .*DESK_TO=\( \|$\)' "$T/run.log" &&
   pass "4. ALERT: one ask + one ops channel notice (FR-075)" || fail "4. alert: $(cat "$T/run.log")"
+# SPL-5332 (owner HUM-10, #alerts f86810f6): the orchestrator acts, not the
+# owner: the #alerts card is a note that names it; the ask stays a blocker
+grep -q '^do_spl_fleet_notice .* DESK_KIND=note BODY=\*\*ROTATION FAILED master ACK .*\*\* For c-900 (the orchestrator), ask [0-9a-f]\{8\}: nothing for the owner to do\.$' "$T/run2.log" &&
+  ! grep -q '^do_spl_fleet_notice .* DESK_KIND=blocker' "$T/run2.log" &&
+  pass "4. ... the #alerts card is a note naming the orchestrator c-900, never a blocker" || fail "4. card: $(grep '^do_spl_fleet_notice' "$T/run2.log")"
 [[ ! -e "$T/proc/2903" && -d "$T/proc/103" ]] && ! grep -q REFRESH "$D/rotate.log" && pass "4. no refresh after a failed master" || fail "4. refreshed anyway"
 
 # --- 5. a failed F refresh ------------------------------------------------------------------

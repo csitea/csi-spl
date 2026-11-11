@@ -1843,7 +1843,7 @@
     "marketing_li_page_platform": "LinkedIn şirket sayfası",
     "marketing_li_page_expires": "Bağlantı {date} tarihinde sona eriyor",
     "marketing_li_page_revoke_hint": "Uygulamanın LinkedIn'deki erişimini de kaldırmak için: LinkedIn'de Ayarlar ve Gizlilik, Veri gizliliği, İzin verilen hizmetler'i açın ve uygulamayı kaldırın.",
-    "marketing_li_page_forbidden": "Şirket sayfası adına yalnızca çalışma alanının bir yöneticisi veya işletme sahibi yayınlayabilir.",
+    "marketing_li_page_forbidden": "Şirket sayfası adına yalnızca çalışma alanının bir yöneticisi veya işletme sahibi yayın yapabilir.",
     "marketing_li_page_publish_button": "{name} olarak yayınla",
     "display_name": "Çalışma alanı adı",
     "display_name_hint": "Çalışma alanı değiştiricide ve sekme başlığında gösterilir. Boş bırakılırsa kimlik gösterilir ({id}).",

@@ -436,7 +436,7 @@ holds (panel.md section 1, one row per claim with its command).
 | `feed.topic_list.window_new` | Showing new among the {n} topics loaded |
 | `feed.topic_list.empty_new` | No new topics. |
 | `topic.priority.label` | Priority |
-| `topic.priority.short` | Prio (v1.4: the chooser's label; `label` stays the badge's title) |
+| `topic.priority.short` | Prio (v1.4: the chooser's label; `label` stays the badge's title; nl and sv keep "Prio", fi reads "Prior.", agy a-612 msg `79c3221c`) |
 | `topic.priority.hint` | 1 is the most urgent, 5 the least. The orchestrator serves 1 first. |
 | `topic.priority.badge` | P{n} |
 | `topic.priority.saved` | Priority set to {n}. |

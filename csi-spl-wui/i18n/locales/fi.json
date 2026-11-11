@@ -1008,7 +1008,7 @@
     "list_title": "Aihe: {text}",
     "priority": {
       "label": "Prioriteetti",
-      "short": "Prio",
+      "short": "Prior.",
       "hint": "1 on kiireellisin, 5 vähiten kiireellinen. Orkestroija palvelee ensin 1:n.",
       "badge": "P{n}",
       "saved": "Prioriteetiksi asetettu {n}.",

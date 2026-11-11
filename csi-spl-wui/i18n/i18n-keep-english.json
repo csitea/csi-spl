@@ -23,7 +23,7 @@
     "tail -f": "command name, a code (spec 160 file streams list, SPL-4124)"
   },
   "keys": {
-    "topic.priority.short": "the bar's short label 'Prio' (owner HUM-10, t1 2fafde5c msg 0b66d67c): fi, nl and sv use the same short word (SPL-5288; agy language review pending)",
+    "topic.priority.short": "the bar's short label 'Prio' (owner HUM-10, t1 2fafde5c msg 0b66d67c): nl and sv use the same short word, a dictionary clipping (SPL-5288; agy a-612, msg 79c3221c; fi reads 'Prior.')",
     "auth.native.dev": "environment code 'dev:'",
     "feed.live_state.mock": "connection state code shown as is",
     "feed.live_state.no_base": "connection state code shown as is",

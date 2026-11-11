@@ -16,6 +16,7 @@ import {
   mobileOverlayPop,
   mobileOverlayState,
   mobilePopDropsTopic,
+  mobilePopLandStep,
   mobilePopWaitsRoute,
   mobilePushPlan,
   mobileRecordStep,
@@ -355,13 +356,17 @@ function listenPopState(router: ReturnType<typeof useRouter>) {
     const tagged = mobileTaggedLevel(e.state)
     if (tagged === null) return
     /* SPL-5232 (utils mobilePopWaitsRoute): off level 1, the page mounts on the route it lands on */
-    const lags = router.resolve(router.options.history.location).fullPath !== router.currentRoute.value.fullPath
+    const target = router.resolve(router.options.history.location).fullPath
     const seq = ++popSeq
-    if (!mobilePopWaitsRoute(tagged, level.value, lags)) return applyLevel(tagged)
+    if (!mobilePopWaitsRoute(tagged, level.value, target !== router.currentRoute.value.fullPath)) return applyLevel(tagged)
+    const land = (apply: boolean) => { off(); clearTimeout(late); if (apply && seq === popSeq) applyLevel(tagged) }
+    /* SPL-5254 (utils mobilePopLandStep): only its own route, resolved, lands it */
+    const off = router.afterEach((to, _from, failure) => {
+      const step = mobilePopLandStep(to.fullPath, target, Boolean(failure))
+      if (step !== 'wait') land(step === 'apply')
+    })
     /* no navigation ever follows (a guard that hangs): the level still moves */
-    const land = () => { off(); clearTimeout(late); if (seq === popSeq) applyLevel(tagged) }
-    const off = router.afterEach(land)
-    const late = setTimeout(land, POP_ROUTE_WAIT_MS)
+    const late = setTimeout(() => land(true), POP_ROUTE_WAIT_MS)
   })
 }
 

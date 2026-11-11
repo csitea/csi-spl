@@ -148,6 +148,26 @@ export function mobilePopWaitsRoute(tagged, level, routeLags) {
   return level === 1 && tagged !== null && tagged > 1 && routeLags
 }
 
+/**
+ * SPL-5254: what a waiting popstate (mobilePopWaitsRoute) does with one
+ * router.afterEach. Only its own route, resolved, lands it: two quick Backs
+ * make vue-router cancel the first navigation, and that cancelled afterEach
+ * must not apply the newer pop's level while ITS route is still pending (the
+ * page would mount on the route being left). A navigation to its own route
+ * that failed (a guard returned false) drops the level: the screen stays.
+ *   'apply' - its route resolved: show the level
+ *   'wait'  - another navigation ended (cancelled or not): keep waiting
+ *   'drop'  - its own navigation failed: never apply it
+ * @param {string} toPath the afterEach `to.fullPath`
+ * @param {string} target the fullPath the popstate's URL resolves to
+ * @param {boolean} failed the afterEach carried a navigation failure
+ * @returns {'apply'|'wait'|'drop'}
+ */
+export function mobilePopLandStep(toPath, target, failed) {
+  if (toPath !== target) return 'wait'
+  return failed ? 'drop' : 'apply'
+}
+
 /** history.state with this shell's tags merged in; the router's own keys untouched. */
 export function mobileTagState(state, level, below) {
   const base = state && typeof state === 'object' ? { ...state } : {}

@@ -18,6 +18,10 @@
 //   5.   a Back that needs no load (level 3 -> 2, the feed is there) with
 //        the plant armed: the same short show, not held by the unused plant
 //   5b.  level 2 -> 1 (the feed to the list): the same short show
+//   5c.  SPL-5254: the dock's Back off the channel list reads only the feed
+//        it lands on (selectChannel calls = ['alerts'], never #lobby's);
+//        two quick Backs off the list (vue-router cancels the first) and a
+//        Back a guard aborts mount no page on the route being left
 //   6.   reduced motion: the dots show and do not move
 //   7.   desktop (1440): no dots element at all
 //
@@ -116,6 +120,17 @@ const watchDots = (p) => vue(p, () => {
 })
 const dotsLog = (p) => vue(p, () => window.__backWait?.log || [])
 
+/* SPL-5254: every channel.selectChannel name from now on (the plant may wrap
+   it later; the spy reads the store's method at call time) */
+const spyReads = (p) => vue(p, () => {
+  const ch = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('channel')
+  const reads = []
+  const orig = ch.selectChannel
+  ch.selectChannel = (...a) => { reads.push(a[0]); return orig(...a) }
+  window.__reads = reads
+})
+const reads = (p) => vue(p, () => window.__reads || [])
+
 const BACKS = {
   dock: (p) => vue(p, () => {
     const e = [...document.querySelectorAll('[data-testid=dock-back]')].find((x) => x.getBoundingClientRect().width > 0 && !x.disabled)
@@ -178,6 +193,7 @@ async function slowBack(browser, base, how) {
       await sleep(1200)
       slow = 'dock'
     }
+    await spyReads(page)
     await plantSlow(page, SLOW_MS, 'alerts')
     await watchDots(page)
     const t0 = Date.now()
@@ -193,6 +209,8 @@ async function slowBack(browser, base, how) {
     ok(`${how}: the dots show while the feed loads`, Boolean(mid) && Boolean(firstOn), log)
     ok(`${how}: at once (first shown at ${firstOn ? firstOn[1] : '-'} ms)`, Boolean(firstOn) && firstOn[1] < 140, log)
     ok(`${how}: gone once the feed has loaded (${Date.now() - t0} ms)`, gone && log.length >= 2 && !log[log.length - 1][0], log)
+    const read = await reads(page)
+    if (slow === 'dock') ok(`${how}: the dock's Back off the list reads #alerts only, never #lobby (SPL-5232)`, JSON.stringify(read) === '["alerts"]', read)
   } finally {
     await ctx.close().catch(() => {})
   }
@@ -236,6 +254,77 @@ async function instantBacks(browser, base) {
     await sleep(1200)
     log = await dotsLog(page)
     ok('instant: 2 -> 1 (the feed to the list) shows the dots ~0.7 s, then they go', l1.level === '1' && shortShow(log, 1500), { l1, log })
+  } finally {
+    await ctx.close().catch(() => {})
+  }
+}
+
+/* SPL-5254: a navigation guard on the phone's router: each listed path waits
+   its ms (or, for false, is refused) */
+const holdRoutes = (p, plan) => vue(p, (rules) => {
+  const router = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router
+  window.__hold?.()
+  window.__hold = router.beforeEach(async (to) => {
+    const rule = rules[to.path]
+    if (rule === false) return false
+    if (rule) await new Promise((r) => setTimeout(r, rule))
+  })
+}, plan)
+
+/* #alerts, #feedback, #lobby by route pushes, then the chevron to the list (1) */
+async function listAfterThree(page) {
+  await go(page, '/channel/alerts')
+  await waitFor(page, (s) => s.path === '/channel/alerts' && s.level === '2' && !s.busy)
+  await go(page, '/channel/feedback')
+  await waitFor(page, (s) => s.path === '/channel/feedback' && s.level === '2' && !s.busy)
+  await go(page, '/channel/lobby')
+  await waitFor(page, (s) => s.path === '/channel/lobby' && s.level === '2' && !s.busy)
+  await BACKS.chevron(page)
+  const s = await waitFor(page, (x) => x.level === '1')
+  await sleep(1200)
+  return s
+}
+
+async function racedBacks(browser, base) {
+  const { ctx, page } = await phone(browser, base)
+  try {
+    const s0 = await listAfterThree(page)
+    ok('quick Backs: setup, the channel list (1) on /channel/lobby', s0.level === '1' && s0.path === '/channel/lobby', s0)
+    /* the first Back's route (#feedback) is still in its guard when the second
+       pops: vue-router cancels it, and its afterEach must not land the second */
+    await holdRoutes(page, { '/channel/feedback': 300, '/channel/alerts': 900 })
+    await spyReads(page)
+    await vue(page, () => {
+      window.addEventListener('popstate', () => history.back(), { once: true })
+      history.back()
+    })
+    const s = await waitFor(page, (x) => x.path === '/channel/alerts' && x.level === '2' && !x.busy, 6000)
+    await sleep(600)
+    const read = await reads(page)
+    ok('quick Backs: two Backs off the list land on #alerts at level 2', s.path === '/channel/alerts' && s.level === '2', s)
+    ok('quick Backs: the page mounts on #alerts only, never on #lobby or the cancelled #feedback', JSON.stringify(read) === '["alerts"]', read)
+  } finally {
+    await ctx.close().catch(() => {})
+  }
+}
+
+/* a Back off the list that a guard refuses: no level, no page */
+async function abortedBack(browser, base) {
+  const { ctx, page } = await phone(browser, base)
+  try {
+    await twoChannels(page)
+    await BACKS.chevron(page)
+    const l1 = await waitFor(page, (x) => x.level === '1')
+    await sleep(1200)
+    ok('aborted Back: setup, the list (1) on /channel/lobby after #alerts', l1.level === '1' && l1.path === '/channel/lobby', l1)
+    await holdRoutes(page, { '/channel/alerts': false })
+    await spyReads(page)
+    await BACKS.dock(page)
+    await sleep(1500)
+    const a = await where(page)
+    const aRead = await reads(page)
+    ok('aborted Back: a guard refuses #alerts, the list stays (1 on /channel/lobby)', a.level === '1' && a.path === '/channel/lobby', a)
+    ok('aborted Back: no page mounts (no feed read)', aRead.length === 0, aRead)
   } finally {
     await ctx.close().catch(() => {})
   }
@@ -291,6 +380,8 @@ try {
   console.log(`mobile-back-wait on ${server.base}`)
   for (const how of Object.keys(BACKS)) await slowBack(browser, server.base, how)
   await instantBacks(browser, server.base)
+  await racedBacks(browser, server.base)
+  await abortedBack(browser, server.base)
   await looks(browser, server.base, { theme: 'light' })
   await looks(browser, server.base, { theme: 'dark' })
   await looks(browser, server.base, { reduced: true })

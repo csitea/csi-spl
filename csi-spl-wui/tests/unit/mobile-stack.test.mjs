@@ -22,6 +22,7 @@ import {
   mobileOverlayCloseStep,
   mobileOverlayOf,
   mobilePopDropsTopic,
+  mobilePopLandStep,
   mobilePopWaitsRoute,
   mobilePushPlan,
   mobileRecordStep,
@@ -214,6 +215,12 @@ describe('SPL-5232: Back in a discussion is one level, never another section', (
     assert.equal(mobilePopWaitsRoute(2, 2, true), false, 'the page is mounted already: the route change re-reads it')
     assert.equal(mobilePopWaitsRoute(1, 2, true), false)
     assert.equal(mobilePopWaitsRoute(null, 1, true), false)
+  })
+  it('a waiting popstate lands only on its own route, resolved (SPL-5254)', () => {
+    assert.equal(mobilePopLandStep('/channel/alerts', '/channel/alerts', false), 'apply')
+    assert.equal(mobilePopLandStep('/channel/feedback', '/channel/alerts', true), 'wait', 'two quick Backs: the first, cancelled, is not this pop\'s route')
+    assert.equal(mobilePopLandStep('/channel/feedback', '/channel/alerts', false), 'wait', 'another route resolved: still not this pop\'s')
+    assert.equal(mobilePopLandStep('/channel/alerts', '/channel/alerts', true), 'drop', 'its own navigation aborted (a guard returned false): the level never applies')
   })
 })
 

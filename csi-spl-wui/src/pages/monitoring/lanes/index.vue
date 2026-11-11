@@ -291,7 +291,11 @@ readUrl()
    just picked, while the stack puts the sheet's address back. The address
    bar wins: the router follows it, and the page keeps what was picked.
    The router's own history.location is the popped entry too, so the check
-   reads the address bar (window.location), less the router's base. */
+   reads the address bar (window.location), less the router's base.
+   The router's navigation and this watcher can both settle in the microtask
+   checkpoint between the two popstate listeners (seen under load: e2e P5b
+   at 320 px), before the stack has put the address back; so the check runs
+   once more after the event (setTimeout 0), and the router follows then. */
 function addressNow() {
   const base = router.options.history.base || ''
   const path = window.location.pathname
@@ -300,7 +304,11 @@ function addressNow() {
 function routeLagsAddress() {
   return import.meta.client && router.resolve(addressNow()).fullPath !== router.currentRoute.value.fullPath
 }
+function followAddress() {
+  if (router.currentRoute.value.path === listPath && routeLagsAddress()) void router.replace(addressNow())
+}
 watch(() => route.query, () => {
+  if (import.meta.client) setTimeout(followAddress, 0)
   if (writing) return
   if (routeLagsAddress()) return void router.replace(addressNow())
   readUrl()

@@ -20,6 +20,7 @@ import {
   mobileLoginFrontDoor,
   mobileLevelOf,
   mobileOverlayCloseStep,
+  mobileRouterPath,
   mobileOverlayOf,
   mobilePopDropsTopic,
   mobilePopWaitsRoute,
@@ -280,5 +281,15 @@ describe('r14-07: swipe start and the stale login load', () => {
     assert.equal(mobileStaleLoginLoad('navigate', true, '/login'), false)
     assert.equal(mobileStaleLoginLoad('back_forward', false, '/login'), false)
     assert.equal(mobileStaleLoginLoad('back_forward', true, '/channel/lobby'), false)
+  })
+})
+
+describe('SPL-5313: the router path an overlay close compares', () => {
+  it('path, query and hash, the history base cut off as vue-router cuts it', () => {
+    assert.equal(mobileRouterPath('https://example.com/issues?status=done', ''), '/issues?status=done')
+    assert.equal(mobileRouterPath('https://example.com/monitoring/lanes?sort=agent&dir=asc#x', ''), '/monitoring/lanes?sort=agent&dir=asc#x')
+    assert.equal(mobileRouterPath('https://example.com/app/issues?status=done', '/app'), '/issues?status=done')
+    assert.equal(mobileRouterPath('https://example.com/app', '/app'), '/')
+    assert.equal(mobileRouterPath('https://example.com/other', '/app'), '/other')
   })
 })

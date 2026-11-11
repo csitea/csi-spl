@@ -12,6 +12,7 @@ import {
   mobileLevelOf,
   mobileLoginFrontDoor,
   mobileOverlayCloseStep,
+  mobileRouterPath,
   mobileOverlayOf,
   mobileOverlayPop,
   mobileOverlayState,
@@ -110,12 +111,15 @@ const rightPanel = (open: MaybeRefOrGetter<boolean>, close: () => void) => enlis
 
 /*
  * SPL-994 — overlays (the entry model: utils/mobile-stack.mjs). A CAPTURE-phase
- * popstate listener runs before vue-router's, closes the overlay and stops the
- * event: route and level never move. An overlay entry the router replaced (a
- * filter sheet writing its query) is copied onto the entry under it, so the
- * router's "current" and the address bar agree. Every history move runs through
- * one queue: history.back() is async, and a pushState issued before it lands
- * would be the entry it removes.
+ * popstate listener closes the overlay and stops the event, so the level never
+ * moves. It does NOT run before vue-router's (SPL-5313, measured: listeners on
+ * the window run in the order they were added, capture or not, and the
+ * router's is added first), so the router has already read the entry under the
+ * overlay. An overlay entry the router replaced (a filter sheet writing its
+ * query) is copied onto the entry under it, and the router is sent back to that
+ * URL (alignRoute), so the route and the address bar agree. Every history move
+ * runs through one queue: history.back() is async, and a pushState issued
+ * before it lands would be the entry it removes.
  */
 type Overlay = { id: number, open: () => boolean, close: () => void, state: Record<string, unknown> | null, url: string }
 const overlays: Overlay[] = []
@@ -129,6 +133,8 @@ let queued = 0
 let popWaiter: (() => void) | null = null
 let skipPops = 0
 let lastPos: number | null = null
+/* SPL-5313: set by install(); the route to the URL an overlay close keeps */
+let alignRoute: (href: string) => void = () => {}
 
 function enqueue(op: () => void | Promise<void>): Promise<void> {
   queued++
@@ -195,6 +201,7 @@ function onPopCapture(e: PopStateEvent) {
     const state = mobileOverlayState(top.state, under ? under.id : null)
     window.history.replaceState(state, '', top.url)
     if (under) Object.assign(under, { state, url: top.url })
+    alignRoute(top.url)
   }
   for (const o of gone) if (o.open()) o.close()
   wake()
@@ -370,6 +377,26 @@ function listenPopState(router: ReturnType<typeof useRouter>) {
   })
 }
 
+/*
+ * SPL-5313: the overlay close runs AFTER vue-router's popstate listener, not
+ * before: at the window, Chrome 154 ran popstate listeners in the order they
+ * were added, capture or not, and the router added its own at creation (n=3,
+ * e2e mobile-overlay-route). So stopImmediatePropagation only spares the level;
+ * the router has read the entry under the overlay (a query the page wrote while
+ * it was open is not on it) and is sent back to the overlay's URL. force: also
+ * when currentRoute still says so (its pop navigation is pending), which that
+ * replace cancels.
+ */
+function routeAligner(router: ReturnType<typeof useRouter>) {
+  return (href: string) => {
+    const history = router.options.history
+    const want = mobileRouterPath(href, history.base)
+    if (history.location === want) return
+    const to = router.resolve(want)
+    void router.replace({ path: to.path, query: to.query, hash: to.hash, force: true })
+  }
+}
+
 /** layouts/default.vue only: wire the stack to the topic stores, the router and the window. */
 function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   closeTopic = opts.closeTopic
@@ -383,8 +410,9 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   isMobile.value = mq.matches
   mq.addEventListener('change', (e) => { isMobile.value = e.matches })
 
-  /* SPL-994: before vue-router's popstate listener (capture runs first at the target) */
+  /* SPL-994 overlay close; SPL-5313: runs AFTER vue-router's listener (routeAligner) */
   window.addEventListener('popstate', onPopCapture, { capture: true })
+  alignRoute = routeAligner(router)
   /* the overlay's entry can be rewritten by anyone (vue-router, a page writing
      ?sort= with replaceState): keep its URL + state, which Back restores */
   const replaceState = window.history.replaceState.bind(window.history)

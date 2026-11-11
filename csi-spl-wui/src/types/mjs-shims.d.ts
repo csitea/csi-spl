@@ -1997,6 +1997,7 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileSwipeStart(active: boolean, touches: ArrayLike<{ clientX: number, clientY: number }> | null | undefined): { x: number, y: number } | null
   export function mobilePopDropsTopic(step: { kind: string, back?: boolean }): boolean
   export function mobileOverlayCloseStep(open: number[], id: number, current: number | null): 'back' | 'drop' | 'wait' | 'none'
+  export function mobileRouterPath(href: string, base: string): string
   export function mobileStaleLoginLoad(navType: string | undefined, phone: boolean, path: string): boolean
 }
 

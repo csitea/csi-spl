@@ -368,6 +368,20 @@ export function mobilePopDropsTopic(step) {
 }
 
 /**
+ * SPL-5313: the router's path of a page URL (path + query + hash, the history
+ * base cut off as vue-router's createWebHistory cuts it), to compare with
+ * router.options.history.location after an overlay close.
+ * @param {string} href an absolute URL (location.href)
+ * @param {string} base router.options.history.base ('' at the root)
+ * @returns {string}
+ */
+export function mobileRouterPath(href, base) {
+  const u = new URL(href)
+  const cut = base && u.pathname.toLowerCase().startsWith(base.toLowerCase())
+  return (cut ? u.pathname.slice(base.length) || '/' : u.pathname) + u.search + u.hash
+}
+
+/**
  * An overlay closed by its own X, backdrop or Escape (or unmounted):
  *   'back' - its entry is the current one: step back over it
  *   'drop' - its entry is gone already: just forget it

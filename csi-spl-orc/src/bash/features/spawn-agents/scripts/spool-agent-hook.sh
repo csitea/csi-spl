@@ -23,7 +23,9 @@
 #               file), UserPromptSubmit and PostToolUse. It never archives and
 #               never accepts. A stub is an inbox object with a "round".
 #   S5          PostToolUse: the same call with the same result WD_LOOP_N (5)
-#               times in the last 8 -> one warning injected.
+#               times in the last 8 of the current turn -> one warning
+#               injected. A call older than turn_since is not counted: 8 pokes
+#               each answered by the same call are 8 turns (SPL-5335).
 #   Stop block  (claude) an open stub, or a held job (peer/<id>/held) whose
 #               peer/<id>/touch/<msg> is over 10 min old, blocks the stop ONCE
 #               per turn (the harness's stop_hook_active ends it).
@@ -435,6 +437,15 @@ def entry_text(e):
             return p.get("text") or ""
     return ""
 
+def sec(s):
+    # an iso() stamp (a fraction allowed) cut to whole seconds, or None: the
+    # same-format strings compare like the epochs s5.sh compares
+    if not (isinstance(s, str) and len(s) >= 20 and s[-1] == "Z" and s[19] in "Z."):
+        return None
+    t = s[:19]
+    ok = t[4] + t[7] + t[10] + t[13] + t[16] == "--T::"
+    return t if ok and (t[:4] + t[5:7] + t[8:10] + t[11:13] + t[14:16] + t[17:]).isdigit() else None
+
 def h(*parts):
     return "%08x" % zlib.crc32(dumps(parts).encode())
 
@@ -653,7 +664,9 @@ def main():
                 out = {"hook_specific_output": {"additional_context": warn}}
         if claude:
             ctx.append(inject(False))
-            if sum(1 for c in calls if c.get("sig") == sig and c.get("res") == res) == LOOP_N:
+            t = sec(hb.get("turn_since"))
+            turn = [c for c in calls if t is None or (sec(c.get("ts")) or t) >= t]
+            if sum(1 for c in turn if c.get("sig") == sig and c.get("res") == res) == LOOP_N:
                 ctx.append("watchdog: you repeated %s %d times with the same result" % (tool, LOOP_N))
     elif event == "StopFailure":
         # claude: "fires instead of Stop when an API error ended the turn";

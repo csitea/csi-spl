@@ -221,6 +221,16 @@ hook SessionStart $((T0 + 410)) '{}' >/dev/null
 w=""; for i in 1 2 3 4 5; do w+="$(hook PostToolUse $((T0 + 410 + i)) "{\"tool_name\":\"Grep\",\"tool_input\":{\"pattern\":\"x\"},\"tool_response\":\"r$i\"}")"; done
 hasnt "the same call with 5 different results does not warn" "you repeated" "$w"
 eq "calls keeps the last 8" 8 "$(for i in $(seq 9); do hook PostToolUse $((T0 + 420 + i)) "{\"tool_name\":\"R\",\"tool_input\":$i}" >/dev/null; done; python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["calls"]))' "$D/heartbeat.json")"
+# SPL-5335: 4 identical calls, a user prompt (a poke), then the same call
+# again: 5 in the last 8 but 1 in this turn, so no warning
+hook SessionStart $((T0 + 440)) '{}' >/dev/null
+w=""; for i in 1 2 3 4; do w+="$(hook PostToolUse $((T0 + 440 + i)) "$same")"; done
+hook UserPromptSubmit $((T0 + 450)) '{}' >/dev/null
+w+="$(hook PostToolUse $((T0 + 450)) "$same")"
+hasnt "5 identical calls across 2 turns do not warn (SPL-5335)" "you repeated" "$w"
+w=""; for i in 1 2 3; do w+="$(hook PostToolUse $((T0 + 450 + i)) "$same")"; done
+hasnt "CONTROL: 4 identical calls in the new turn do not warn" "you repeated" "$w"
+eq "the 5th identical call of ONE turn warns, a call in the prompt's second counted" "watchdog: you repeated Grep 5 times with the same result" "$(hook PostToolUse $((T0 + 454)) "$same" | ctx)"
 
 echo "# 6. Stop block"
 transcript "$TR" 0 "ok"

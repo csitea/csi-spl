@@ -439,6 +439,12 @@ ctx s5t; hb working 5 "| .calls = $(ccalls 8) | .turn_since = \"$(iso $((T0 - 15
 nohit "S5 8 identical calls, a new turn before the last: counts the current turn only" s5
 ctx s5tc; hb working 5 "| .calls = $(ccalls 8) | .turn_since = \"$(iso $((T0 - 90)))\""
 hit "S5 control: the same 8 calls inside ONE turn (a real loop)" s5
+# the edges (R7 N2): a call in the prompt's own second is in the turn; a ts
+# the filter cannot read counts, so a malformed stamp never hides a loop
+ctx s5te; hb working 5 "| .calls = $(ccalls 5) | .turn_since = \"$(iso $((T0 - 50)))\""
+hit "S5 the oldest of 5 calls in the same second as turn_since: counted" s5
+ctx s5tu; hb working 5 "| .calls = ($(ccalls 5) | map(.ts = \"not-a-time\")) | .turn_since = \"$(iso $((T0 - 15)))\""
+hit "S5 turn_since set, an unreadable call ts: the call counts" s5
 
 # S6: unsent text in the input box
 ctx s6; hb idle 900; echo ": 'SPOOL c-900: 1 new message (task 9b3e7d10)'" > "$C/input"; echo 150 > "$C/input_age"

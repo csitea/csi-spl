@@ -9,11 +9,18 @@
  * A matches the open feed again (R7 c-544, msg 819963d6). So every opening of
  * a feed (a foreground first-page read) starts a new generation, and a read
  * lands only while its generation is still the newest one.
+ *
+ * A caller that awaits the read (a page's `await selectDm(p)`, then
+ * releaseStaleTopic over the rows it loaded) must still find the feed loaded
+ * when its read was overtaken: a superseded read resolves only once the newest
+ * opening read has (SPL-5250 trunk red on 7a101930c, c-001 msg afde1eb4).
  */
 
 /* the generation per channel store; a WeakMap, so the store's state needs no new field */
 const generations = new WeakMap()
 const generation = (s) => generations.get(s) || 0
+/* the newest opening read per channel store: { gen, read }, which an overtaken read waits for */
+const newest = new WeakMap()
 
 /**
  * The feed a read is for: the open channel or the open DM peer.
@@ -44,7 +51,13 @@ function startRead(s, { opening = false } = {}) {
   if (opening) generations.set(s, generation(s) + 1)
   const mine = generation(s)
   const where = openFeed(s)
-  return { where, current: () => mine === generation(s) && sameFeed(where, s) }
+  return { mine, where, current: () => mine === generation(s) && sameFeed(where, s) }
+}
+
+/* an overtaken read resolves with the newest opening read, never with itself */
+function overtaken(s, mine) {
+  const n = newest.get(s)
+  return n && n.gen > mine ? n.read : undefined
 }
 
 /**
@@ -57,13 +70,20 @@ function startRead(s, { opening = false } = {}) {
  * @param {any} d
  * @param {{ background?: boolean }} [opts]
  */
-export async function readFirstPage(s, d, { background = false } = {}) {
-  const { where, current } = startRead(s, { opening: !background })
+export function readFirstPage(s, d, { background = false } = {}) {
+  const read = firstPage(s, d, background)
+  if (!background) newest.set(s, { gen: generation(s), read })
+  return read
+}
+
+/** @param {any} s @param {any} d @param {boolean} background */
+async function firstPage(s, d, background) {
+  const { mine, where, current } = startRead(s, { opening: !background })
   if (!background) s.loading.value = true
   s.error.value = null
   try {
     const page = await d.read(where)
-    if (!current()) return
+    if (!current()) return overtaken(s, mine)
     s.messages.value = d.withHeld(page.messages || [])
     s.totals.value = page.totals || {}
     s.olderCursor.value = page.next || null
@@ -74,6 +94,7 @@ export async function readFirstPage(s, d, { background = false } = {}) {
     /* SPL-2149: no network - the copy of this feed this device read last */
     const kept = current() && await d.showKept(e, where)
     if (!kept && current()) s.error.value = d.failed(e)
+    if (!current()) return overtaken(s, mine)
   } finally {
     if (!background && current()) s.loading.value = false
   }

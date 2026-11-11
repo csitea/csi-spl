@@ -75,23 +75,25 @@ describe('SPL-5250 readFirstPage: a late read of the feed left behind changes no
   it('A returns while B is in flight: loading stays true, no A rows, then B lands', async () => {
     const { s, hub, ra, rb } = await aThenB()
     hub.calls[0].resolve(page('a1'))
-    await ra
+    await tick()
     assert.equal(s.loading.value, true, 'B is still loading')
     assert.deepEqual(s.messages.value, [])
     hub.calls[1].resolve(page('b1'))
     await rb
+    await ra
     assert.equal(s.loading.value, false)
     assert.deepEqual(s.messages.value.map((m) => m.msg_id), ['b1'])
   })
   it('A fails late: no error line, no kept copy of A, loading untouched', async () => {
     const { s, hub, log, ra, rb } = await aThenB()
     hub.calls[0].reject(new Error('A failed'))
-    await ra
+    await tick()
     assert.equal(s.error.value, null)
     assert.equal(s.loading.value, true)
     assert.equal(log.some(([k]) => k === 'showKept'), false)
     hub.calls[1].resolve(page('b1'))
     await rb
+    await ra
   })
   it('channel A to a DM with peer p: the channel read changes nothing', async () => {
     const { s, hub, ra, rb } = await aThenB({ active: null, peer: 'p' })
@@ -149,15 +151,17 @@ describe('SPL-5250 R7: A -> B -> A, only the newest opening of A lands', () => {
   it('A1 returns while A2 is in flight: no A1 rows, loading stays true', async () => {
     const { s, hub, log, a1, b, a2 } = aba()
     hub.calls[0].resolve(page('a-old'))
-    await a1
+    await tick()
     assert.equal(s.loading.value, true, 'A2 is still loading')
     assert.deepEqual(s.messages.value, [])
     assert.equal(log.some(([k]) => k === 'keep'), false, 'A1 is not kept as the offline copy')
     hub.calls[1].resolve(page('b1'))
-    await b
+    await tick()
     assert.deepEqual(s.messages.value, [])
     hub.calls[2].resolve(page('a-new'))
     await a2
+    await a1
+    await b
     assert.deepEqual(s.messages.value.map((m) => m.msg_id), ['a-new'])
     assert.equal(s.loading.value, false)
   })
@@ -331,5 +335,53 @@ describe('SPL-5250 wiring in stores/channel.ts', () => {
       assert.match(b, /await readMore\(s, \{/, name)
       assert.doesNotMatch(b.slice(0, b.indexOf('await readMore(')), /await /, `${name}: nothing awaited before readMore`)
     }
+  })
+})
+
+/* SPL-5250 trunk red on 7a101930c (c-001 msg afde1eb4): the DM and channel pages
+   `await channel.selectDm(p)` / `selectChannel(n)`, then releaseStaleTopic over
+   the rows loaded. Their watch fires twice on load (peer, then session), so the
+   first read is overtaken by a second opening of the SAME feed. It resolved at
+   once with an empty feed, and the open topic pane was closed as stale. */
+describe('SPL-5250: an overtaken read resolves only once the newest opening has landed', () => {
+  it('the same feed opened twice: awaiting the first read finds the second read\'s rows (n=1, deterministic)', async () => {
+    const s = store()
+    const hub = slowHub()
+    s.active.value = 'a'
+    const first = readFirstPage(s, steps(hub, []))
+    const second = readFirstPage(s, steps(hub, []))
+    let done = false
+    void first.then(() => { done = true })
+    hub.calls[0].resolve(page('a-first'))
+    await tick()
+    assert.equal(done, false, 'the first read waits for the second')
+    hub.calls[1].resolve(page('a-second'))
+    await first
+    assert.deepEqual(s.messages.value.map((m) => m.msg_id), ['a-second'])
+    assert.equal(s.loading.value, false)
+    await second
+  })
+  it('overtaken by a failed newest read: resolves after it, with its error', async () => {
+    const s = store()
+    const hub = slowHub()
+    s.active.value = 'a'
+    const first = readFirstPage(s, steps(hub, []))
+    const second = readFirstPage(s, steps(hub, []))
+    hub.calls[0].resolve(page('a-first'))
+    hub.calls[1].reject(new Error('down'))
+    await first
+    assert.equal(s.error.value, 'down')
+    assert.deepEqual(s.messages.value, [])
+    await second
+  })
+  it('a feed changed with no new opening: the left-behind read resolves, it never waits on itself', async () => {
+    const s = store()
+    const hub = slowHub()
+    s.active.value = 'a'
+    const r = readFirstPage(s, steps(hub, []))
+    s.active.value = 'b'
+    hub.calls[0].resolve(page('a1'))
+    assert.equal(await r, undefined)
+    assert.deepEqual(s.messages.value, [])
   })
 })

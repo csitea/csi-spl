@@ -8,7 +8,7 @@
      frame), so the chooser does no read of its own. -->
 <template>
   <div class="topic-prio" data-testid="topic-priority" :data-priority="value" :title="t('topic.priority.hint')">
-    <span :id="labelId" class="topic-prio__label">{{ t('topic.priority.label') }}</span>
+    <span :id="labelId" class="topic-prio__label">{{ t('topic.priority.short') }}</span>
     <div class="topic-prio__group" role="radiogroup" :aria-labelledby="labelId">
       <label
         v-for="n in LEVELS"
@@ -131,8 +131,38 @@ async function choose(n: number) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .topic-prio__note--err { color: var(--color-danger); }
-/* on a phone each value is a 44 px target */
+/* SPL-5288 (owner HUM-10, t1 2fafde5c msg b6a2468d): on a phone the bar is
+   drawn 70% smaller (222 x 46 px -> about 67 x 14) and centred in its row,
+   the label beside it. Each value keeps a 44 px tall target: its radio,
+   invisible, stands out of the drawn cell, so the group no longer clips and
+   the end cells round the pill themselves. */
 @media (max-width: 820px) {
-  .topic-prio__opt { min-width: var(--tap); min-height: var(--tap); }
+  .topic-prio {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    /* the bar's own row holds the 44 px targets, also with the note below */
+    grid-template-rows: minmax(var(--tap), auto);
+  }
+  .topic-prio__label { justify-self: end; }
+  .topic-prio__note { grid-column: 1 / -1; justify-self: center; }
+  .topic-prio__group {
+    font-size: 0.625rem;
+    line-height: 1;
+    overflow: visible;
+  }
+  .topic-prio__opt {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 1.1em;
+    height: 1.05em;
+    padding: 0;
+  }
+  .topic-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
+  .topic-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+  .topic-prio__opt input {
+    inset: 50% 0 auto;
+    height: var(--tap);
+    transform: translateY(-50%);
+  }
 }
 </style>

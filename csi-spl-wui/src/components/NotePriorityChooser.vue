@@ -5,7 +5,7 @@
      value back and says why. The list row follows through the store. -->
 <template>
   <div class="note-prio" data-test="note-priority" :data-priority="value">
-    <span :id="labelId" class="note-prio__label">{{ t('topic.priority.label') }}</span>
+    <span :id="labelId" class="note-prio__label">{{ t('topic.priority.short') }}</span>
     <div class="note-prio__group" role="radiogroup" :aria-labelledby="labelId">
       <label
         v-for="n in LEVELS"
@@ -114,9 +114,31 @@ async function choose(n: number) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .note-prio__note--err { color: var(--color-danger); }
-/* on a phone each value is a 44 px target */
+/* SPL-5288: on a phone the bar is drawn 70% smaller, as TopicPriorityChooser;
+   each value keeps a 44 px tall target (its invisible radio). It stays right
+   of the title (NoteDetail, owner t1 ba784026 msg 037cedef), not centred. */
 @media (max-width: 820px) {
-  .note-prio__opt { min-width: var(--tap); min-height: var(--tap); }
+  /* an empty first item keeps the bar's line 44 px tall, also with the note below */
+  .note-prio::before { content: ''; height: var(--tap); }
+  .note-prio__group {
+    font-size: 0.625rem;
+    line-height: 1;
+    overflow: visible;
+  }
+  .note-prio__opt {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 1.1em;
+    height: 1.05em;
+    padding: 0;
+  }
+  .note-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
+  .note-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+  .note-prio__opt input {
+    inset: 50% 0 auto;
+    height: var(--tap);
+    transform: translateY(-50%);
+  }
   /* SPL-4893: the chooser shares the title's row (NoteDetail); the label
      stays for screen readers (the group's aria-labelledby), not drawn */
   .note-prio__label {

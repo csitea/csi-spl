@@ -1,6 +1,11 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.3 (2026-11-10): the last prio change wins, both ways: an
+Version v1.4 (2026-11-11): on a phone the 1..5 bar is drawn 70% smaller
+and centred, and its label reads "Prio" (section 3.3 WUI, key
+`topic.priority.short` in 3.5, case C314; the owner, t1 2fafde5c msgs
+`b6a2468d` and `0b66d67c`, SPL-5288).
+
+v1.3 (2026-11-10): the last prio change wins, both ways: an
 issue's own change sets every discussion it links, their other issues and
 their lanes follow, and the 5-min sweep never undoes a newer change
 (section 3.4 item 4; the owner, t1 20da7236 msgs `76af2576` and
@@ -275,6 +280,13 @@ holds (panel.md section 1, one row per claim with its command).
 - `wui/components/TopicPriorityChooser.vue`: one row, a native radio group
   1..5, the current value checked. A click saves at once; a failed save puts
   the old value back and says why (`topic.priority.failed`).
+- **On a phone** (<= 820 px, v1.4) the bar is drawn at 30% of its old size
+  (222 x 46 px -> about 64 x 14 at 360 and 390 px) and centred in its row,
+  the label "Prio" (`topic.priority.short`) beside it. Each value keeps a
+  44 px tall target, its invisible radio standing out of the drawn cell;
+  the bar's row stays 44 px tall so nothing covers it. Desktop is
+  unchanged. The note chooser (`NotePriorityChooser.vue`, spec 155) draws
+  the same bar and label, and stays right of the note's title.
 - In `TopicPane.vue` and `LiveTopicPane.vue`, where `BornTopics` is
   (`TopicPane.vue:30/61`, `LiveTopicPane.vue:30/62`): at the top of the pane
   body when Message order is newest first, at the bottom when newest last,
@@ -424,6 +436,7 @@ holds (panel.md section 1, one row per claim with its command).
 | `feed.topic_list.window_new` | Showing new among the {n} topics loaded |
 | `feed.topic_list.empty_new` | No new topics. |
 | `topic.priority.label` | Priority |
+| `topic.priority.short` | Prio (v1.4: the chooser's label; `label` stays the badge's title) |
 | `topic.priority.hint` | 1 is the most urgent, 5 the least. The orchestrator serves 1 first. |
 | `topic.priority.badge` | P{n} |
 | `topic.priority.saved` | Priority set to {n}. |
@@ -471,6 +484,7 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C310 | 3 | top / bottom | the chooser is above the root when newest first, below the last reply when newest last | always on top | same |
 | C311 | 3 | failed save | the old value comes back and the error line shows | keep the clicked value | same |
 | C312 | 3 | card badge | `P2` on a card set to 2, `P5` at 5; no badge at 3 | badge at 3 too | `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs` |
+| C314 | 3 | phone bar (v1.4) | at 360 and 390 px the bar is 30% (+-3%) of its old width and height, centred (gaps equal +-2 px), labelled "Prio"; every value taps and saves, also 15 px above its cell; 1440 px keeps its size | the 44 px cells | `csi-spl-wui/tests/e2e/topic-priority-phone.test.mjs` |
 | C313 | 3 | i18n parity + raw text | all 19 locales hold every new key; the raw-text count does not rise | a literal "Priority" in the template | `csi-spl-wui/tests/unit/i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs` |
 | C401 | 4 | queue order | of two queued asks in one class, the priority 1 ask is position 1 even when queued later | the rank ignores priority | `store/fleet_ask_queue_test.go` |
 | C402 | 4 | no priority = today | asks with no discussion keep the class, EnqueuedAt order | the default ranks first | same |

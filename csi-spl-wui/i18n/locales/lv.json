@@ -1008,6 +1008,7 @@
     "list_title": "Tēma: {text}",
     "priority": {
       "label": "Prioritāte",
+      "short": "Prior.",
       "hint": "1 ir vissteidzamākā, 5 – vismazāk steidzamā. Orķestrētājs vispirms apkalpo 1.",
       "badge": "P{n}",
       "saved": "Prioritāte iestatīta: {n}.",

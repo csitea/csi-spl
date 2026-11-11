@@ -1008,6 +1008,7 @@
     "list_title": "Temat: {text}",
     "priority": {
       "label": "Priorytet",
+      "short": "Prior.",
       "hint": "1 jest najpilniejszy, 5 najmniej pilny. Orkiestrator obsługuje najpierw 1.",
       "badge": "P{n}",
       "saved": "Ustawiono priorytet {n}.",

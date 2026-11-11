@@ -606,8 +606,9 @@ async function notePriorityCase(browser, base, width, touch) {
   check(`${tag}: the chooser shows the note's 5`, await p.$eval('[data-test=note-priority-5]', (e) => e.checked))
   check(`${tag}: it offers 1..5`, same(await p.$$eval('[data-test=note-priority] input[type=radio]', (els) => els.map((e) => e.value)), ['1', '2', '3', '4', '5']))
   if (touch) {
-    const tap = await p.$eval('[data-test=note-priority-1]', (e) => { const r = e.closest('label').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] })
-    check(`${tag}: a level is a 44 px tap target`, tap[0] >= 44 && tap[1] >= 44, tap)
+    /* SPL-5288: the cell is drawn 70% smaller; its radio keeps the 44 px tall target */
+    const tap = await p.$eval('[data-test=note-priority-1]', (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] })
+    check(`${tag}: a level is a 44 px tall tap target`, tap[1] >= 44, tap)
     check(`${tag}: the open note has no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
   }
   await p.click('[data-test=note-priority-1]')

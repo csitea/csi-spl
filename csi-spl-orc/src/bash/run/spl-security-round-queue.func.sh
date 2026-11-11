@@ -146,13 +146,22 @@ spl_security_round_seat() {  # DAY SEAT VENDOR TEMPLATE FROM HOLDER
     do_log "PLAN would queue seat $2 of round $1 as $3:$slug, ask ${id:0:8}, task security-round-$1, from $5"
     return 0
   fi
-  { mkdir -p "$dir" && sed -e "s/<N>/$2/g" -e "s/<YYYY-MM-DD>/$1/g" "$4" >"$dir/$slug.md" && [[ -s "$dir/$slug.md" ]]; } ||
+  { mkdir -p "$dir" && sed -e "s/<N>/$2/g" -e "s/<YYYY-MM-DD>/$1/g" "$4" >"$dir/$slug.md" && [[ -s "$dir/$slug.md" ]] &&
+    spl_security_round_brief_topic "$dir/$slug.md"; } ||
     { do_log "WARN seat $2: the brief $dir/$slug.md was not written: not queued"; return 1; }
   out="$(spl_asks_hub put --fleet "$LANE_FLEET" --id "$id" --kind task --role orch --from "$5" \
     --topic "security-round-$1" --summary "SECURITY ROUND $1 seat $2 of 2 (bug, kind secret): the weekly walk of the chain for its weakest link" 2>&1)" ||
     { do_log "WARN seat $2: the hub did not take the ask: $(tail -1 <<<"$out" | cut -c1-200)"; return 1; }
   ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE="$3:$slug" ASK_BY="$6" SPAWN_URGENT=0 SPAWN_BYPASS='' \
     do_spl_spawn_enqueue || { do_log "WARN seat $2: the enqueue failed"; return 1; }
+}
+
+# The seat's discussion (spec 153 3.20): its task security-round-<date> is no
+# hub topic, so a brief naming none is refused at the enqueue (SPL-5325). A
+# template that names one keeps it; else the round's topic is appended.
+spl_security_round_brief_topic() {  # BRIEF
+  grep -qE '^[*]*(Topic|Discussion):' "$1" && return 0
+  printf '\nTopic: %s\n' "${SECURITY_ROUND_TOPIC:-$SPL_SECURITY_ROUND_TOPIC}" >>"$1"
 }
 
 # The round on the calendar, once per date: 06:00-08:00Z that day, linked to the topic.

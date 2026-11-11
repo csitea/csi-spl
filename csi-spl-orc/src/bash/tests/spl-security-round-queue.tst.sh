@@ -166,6 +166,8 @@ grep -qx '# Lane brief: weekly security round, panel SEAT 2 of 2' "$T/briefs/sec
   grep -q 'security-round/2026-10-16/seat-1.md' "$T/briefs/security-round-2026-10-16-seat-1.md" &&
   ! grep -q '<N>\|<YYYY-MM-DD>' "$T/briefs/"security-round-2026-10-16-seat-*.md &&
   pass "live: each brief is the template with <N> and the date replaced" || fail "briefs: $(cat "$T/briefs/"*)"
+[[ "$(grep -cx 'Topic: 3d0675ba-6dab-46cc-92c9-2aba3ac7cd23' "$T/briefs/"security-round-2026-10-16-seat-*.md | grep -c ':1$')" == 2 ]] &&
+  pass "live: each brief names the round's topic (SPL-5325: the enqueue refuses a brief with no discussion)" || fail "brief topic: $(cat "$T/briefs/"*)"
 grep -q 'secret security-round-2026-10-16' "$T/mix.log" && pass "live: the vendor comes from do_spl_lane_mix kind secret on the round's task" || fail "mix: $(cat "$T/mix.log")"
 [[ "$(cals)" == 1 ]] && grep -q '^prd t1 2026-10-16T06:00:00Z 2026-10-16T08:00:00Z 3d0675ba-6dab-46cc-92c9-2aba3ac7cd23 c-002 0 | Weekly security round (2026-10-16) | .*/t/3d0675ba-6dab-46cc-92c9-2aba3ac7cd23' "$T/cal.log" &&
   pass "live: one t1 calendar event, 06:00-08:00Z, linked to the topic, creator the dispatch holder" || fail "calendar: $(cat "$T/cal.log" 2>/dev/null)"

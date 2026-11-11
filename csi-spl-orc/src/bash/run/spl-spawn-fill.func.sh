@@ -231,7 +231,7 @@ spl_spawn_fill_issues() {
 }
 
 # The issues to queue, best first, at most N, as a JSON array of
-# {key, title, description, status, priority, created_at, class, sensitive}.
+# {key, title, description, status, priority, created_at, discussions, class, sensitive}.
 spl_spawn_fill_choose() {  # ISSUES CLASSES HELD N
   jq -c --arg cl "$2" --argjson held "$3" --argjson n "$4" --arg st "${SPAWN_FILL_STATUS:-todo,eval}" '
     def lbl: [.labels[]? | if type == "object" then (.id // .name) else . end];
@@ -244,7 +244,7 @@ spl_spawn_fill_choose() {  # ISSUES CLASSES HELD N
        | select($c != "" and ($order | index($c)))
        | select((.assignee // "") as $a | ($a | startswith("HUM-") | not) and ($held.lanes | index($a) | not))
        | select(.key as $k | $held.keys | index($k) | not)
-       | {key, title, description: (.description // ""), status, priority: (.priority // 0), created_at, class: $c,
+       | {key, title, description: (.description // ""), status, priority: (.priority // 0), created_at, discussions: (.discussions // []), class: $c,
           sensitive: (((.title // "") + " " + (.description // "")) | secret),
           _o: ($order | index($c)), _s: (.status as $s | $sts | index($s)), _p: (if (.priority // 0) < 1 then 9 else .priority end)}]
     | sort_by(._o, ._s, ._p, .created_at) | .[0:$n] | map(del(._o, ._s, ._p))' <<<"$1"
@@ -313,7 +313,10 @@ spl_spawn_fill_one() {  # ROW PICK FROM VENDOR SLUG ID
 spl_spawn_fill_brief() {  # ROW PICK FROM
   jq -r --argjson pick "$2" --arg from "$3" '
     "# Lane brief: \(.key) \(.title) (one small task, \(.class), from the idle filler)\n",
-    "Issue: \(.key)", "Class: \(.class)\n",
+    "Issue: \(.key)",
+    # the first topic the issue links: its task is no hub topic, and a brief naming none is refused at the enqueue (SPL-5325)
+    ([.discussions[]?.task_id // "" | select(test("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"))] | first | values | "Topic: \(.)"),
+    "Class: \(.class)\n",
     "Queued by do_spl_spawn_fill: \($pick.why). The issue is \(.status), priority \(.priority).",
     "Report your result to \($from) on task spawn-fill-\(.key | ascii_downcase); it judges Done.\n",
     "## 1. The issue\n", (if .description == "" then "(no description: read the title and the code)" else .description end), "",

@@ -94,7 +94,8 @@ printf 'LEASE_ORCH=c-001\nLEASE_FLEET=main\n' >"$T/spool/dispatch/lease.conf"
 iss() {  # KEY STATUS PRIORITY LABELS(json) [ASSIGNEE] [KIND] [DESC] [CREATED]
   jq -c -n --arg k "$1" --arg s "$2" --argjson p "$3" --argjson l "$4" --arg a "${5:-}" --arg kind "${6:-issue}" \
     --arg d "${7:-}" --arg c "${8:-2026-10-01T00:00:00Z}" \
-    '{key: $k, status: $s, priority: $p, labels: $l, assignee: $a, kind: $kind, description: $d, created_at: $c, title: "title of \($k)"}'
+    '{key: $k, status: $s, priority: $p, labels: $l, assignee: $a, kind: $kind, description: $d, created_at: $c, title: "title of \($k)",
+      discussions: [{task_id: "fcf09921-0000-4000-8000-000000001922"}]}'
 }
 {
   iss SPL-1 todo 2 '["bug"]'
@@ -192,6 +193,8 @@ else fail "live: $out | $row"; fi
 . "$PROJ_ROOT/src/bash/features/spawn-agents/lib/lane-issue.inc.sh"
 grep -qx 'Class: bug' "$T/briefs/fill-spl-1.md" && [[ "$(li_key_from_brief "$T/briefs/fill-spl-1.md")" == SPL-1 ]] &&
   pass "live: the brief carries Issue: SPL-1 (the spawn links it) and Class: bug (the share reads it)" || fail "brief: $(cat "$T/briefs/fill-spl-1.md")"
+[[ "$(li_discussion_from_brief "$T/briefs/fill-spl-1.md")" == fcf09921-0000-4000-8000-000000001922 ]] &&
+  pass "live: the brief names the issue's linked topic (SPL-5325: the enqueue refuses a brief with no discussion)" || fail "brief topic: $(cat "$T/briefs/fill-spl-1.md")"
 id2="$(fill SPAWN_FILL=on DRY_RUN=0 | grep -c 'not empty (1 queued')"
 [[ "$id2" == 1 && "$(asks)" == 1 ]] && pass "live: the next tick sees 1 queued and fills nothing" || fail "second tick: $id2 $(asks)"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$id" --by c-001@box-desk --reason "placed: c-300@box-desk" >/dev/null

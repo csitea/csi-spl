@@ -187,3 +187,43 @@ func heldItem(got map[string]any, label string) map[string]any {
 	}
 	return nil
 }
+
+// TestCostAllocationTenantRefusesAgentAndClone (spec 143 section 6, R7 note
+// N5): on the customer admin's door a call with no member session (an
+// agent seat, a box) and a live act-as clone of the admin are 403 on GET
+// and PUT. CONTROL: the admin itself reads 200, so each refusal is the
+// caller's. The clone needs Postgres (SPOOL_TEST_PG_DSN); on Memory only
+// the agent half runs.
+// NO RED CONTROL for the clone half: with readerIsActAsClone turned off
+// in costAllocAdmin the clone is still 403 (run 2026-11-11, Postgres,
+// n=1), so an earlier gate refuses it too; which one is not yet read.
+func TestCostAllocationTenantRefusesAgentAndClone(t *testing.T) {
+	r := newFleetTokensRig(t)
+	w1, _ := r.e.tenant()
+	admin := seatAs(t, r.e, w1, newTenantID("p")+"@example.com", rbac.Admin)
+	month := costAllocTenantPath + "?month=2004-06"
+	body := allocBody("shared bill "+newTenantID("b"), [2]any{w1, 10000})
+	if code, got := call(t, r.e, w1, http.MethodGet, month, admin, nil); code != http.StatusOK {
+		t.Fatalf("CONTROL: the admin's GET: %d %v", code, got)
+	}
+	refused := map[string]string{"agent seat (no member session)": ""}
+	if cs, ok := r.e.st.(dmCloneStore); ok {
+		now := time.Now().UTC().Truncate(time.Microsecond)
+		cl, err := cs.StartClone(context.Background(), store.CloneStart{TenantID: w1, TargetHum: admin, AdminName: "Admin",
+			CreatedBy: admin, ExpiresAt: now.Add(time.Hour)}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refused["act-as clone of the admin"] = cl.CloneHum
+	} else {
+		t.Log("act-as clone half skipped: needs Postgres (SPOOL_TEST_PG_DSN)")
+	}
+	for name, as := range refused {
+		if code, got := call(t, r.e, w1, http.MethodGet, month, as, nil); code != http.StatusForbidden {
+			t.Errorf("%s GET: %d %v, want 403", name, code, got)
+		}
+		if code, got := call(t, r.e, w1, http.MethodPut, costAllocTenantPath, as, body); code != http.StatusForbidden {
+			t.Errorf("%s PUT: %d %v, want 403", name, code, got)
+		}
+	}
+}

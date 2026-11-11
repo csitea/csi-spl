@@ -34,3 +34,15 @@ require_action() {
 # owns T (mktemp -d + its EXIT trap). Was copied into 8 + 4 sec-* tests.
 stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
 reset_bin() { rm -rf "${T:?}/bin"; mkdir -p "$T/bin"; }
+
+# tmp_dir - T=$(mktemp -d), removed when the test exits AND when it is killed
+# (SPL-5302). A bare `trap 'rm -rf "$T"' EXIT` is not enough: GNU timeout stops
+# a part with TERM to the child and then to its group, and a shell that gets
+# that second TERM while it reads a $(...) dies by it without running its EXIT
+# trap (strace, bash 5.2: no rm). A trapped signal exits through the trap.
+# Proof: hygiene-killed-cleanup.tst.sh.
+tmp_dir() {
+  T=$(mktemp -d) || { echo "FAIL: mktemp -d"; exit 1; }
+  trap 'rm -rf "$T"' EXIT
+  trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM
+}

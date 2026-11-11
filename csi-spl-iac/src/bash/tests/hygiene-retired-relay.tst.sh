@@ -20,7 +20,7 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 WF="$APP_ROOT/.github/workflows/10_ci-quality.yml"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+tmp_dir  # T, removed on exit and when killed (SPL-5302)
 LABEL='retired relay estate (SPL-1910)'
 
 fails=0

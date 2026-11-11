@@ -25,7 +25,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 WF="$APP_ROOT/.github/workflows/10_ci-quality.yml"
 CNF="csi-spl-cnf/csi-spl/all.env.yaml"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+tmp_dir  # T, removed on exit and when killed (SPL-5302)
 
 fails=0
 

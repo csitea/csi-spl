@@ -42,7 +42,8 @@ across months.
 | Cloud | the estate GCP parts of `cost_lines`, the `cloud` cost entries | `<gcp source> / <project> / <service>`, `cost_entry / <invoice label> / cloud` |
 
 **Tokens are never split by hand** (answer 1 B): the paid AI items
-(`ai_paid`) and the token burn (`fleet_tokens`) keep the automatic share by
+(`ai_paid`, `ai_share`) and the token burn (`fleet_tokens` per workspace,
+`fleet_tokens.<box>` on the estate) keep the automatic share by
 tokens (3.3.1). A split of a Tokens item is refused, 400.
 
 ## 2. Storage: rdb `0275_cost_allocations.sql`

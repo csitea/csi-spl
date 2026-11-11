@@ -61,6 +61,7 @@ func TestCostAllocationStore(t *testing.T) {
 				"twice":    costSplit(key, by, share(wa, 5000), share(wa, 5000)),
 				"zero":     costSplit(key, by, share(wa, 0), share(wb, 10000)),
 				"tokens":   costSplit(CostItemKey{Source: CostSourceAIPaid, ProjectOrVendor: "claude", Kind: "max"}, by, share(wa, 10000)),
+				"box burn": costSplit(CostItemKey{Source: "fleet_tokens.box-a", ProjectOrVendor: "claude", Kind: "tokens"}, by, share(wa, 10000)),
 				"no kind":  costSplit(CostItemKey{Source: "x", ProjectOrVendor: "y"}, by, share(wa, 10000)),
 			} {
 				if _, err := ca.PutCostAllocation(ctx, bad, nil); err == nil {

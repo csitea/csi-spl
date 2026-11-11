@@ -38,9 +38,12 @@ type CostItemKey struct {
 }
 
 // CostItemTokens is an item of the Tokens label, which stays automatic
-// (answer 1 B): the paid AI items, their shares and the token burn.
+// (answer 1 B): the paid AI items, their shares and the token burn, which
+// is "fleet_tokens" per workspace and "fleet_tokens.<box>" on the estate
+// (orc spl-db-cost-reinsert).
 func CostItemTokens(source string) bool {
-	return source == CostSourceAIPaid || source == CostSourceAIShare || source == "fleet_tokens"
+	return source == CostSourceAIPaid || source == CostSourceAIShare ||
+		source == "fleet_tokens" || strings.HasPrefix(source, "fleet_tokens.")
 }
 
 // CostAllocShare is one workspace's share of an item.

@@ -97,7 +97,9 @@ func TestCostAllocationRoutes(t *testing.T) {
 	}
 	tokens := map[string]any{"source": "ai_paid", "project_or_vendor": "claude", "kind": "max",
 		"shares": []map[string]any{{"workspace_id": w1, "share_bp": 10000}}}
-	for name, b := range map[string]map[string]any{"tokens": tokens, "sum 9999": allocBody(label, [2]any{w1, 9999})} {
+	boxBurn := map[string]any{"source": "fleet_tokens.box-a", "project_or_vendor": "claude", "kind": "tokens",
+		"shares": []map[string]any{{"workspace_id": w1, "share_bp": 10000}}}
+	for name, b := range map[string]map[string]any{"tokens": tokens, "box burn": boxBurn, "sum 9999": allocBody(label, [2]any{w1, 9999})} {
 		if code, got := call(t, r.e, r.op, http.MethodPut, costAllocOpPath, r.admin, b); code != http.StatusBadRequest {
 			t.Errorf("A1 %s: %d %v, want 400", name, code, got)
 		}

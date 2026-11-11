@@ -114,6 +114,12 @@ func prioSync(t *testing.T, r *fleetTokensRig, query string) map[string]any {
 	t.Helper()
 	ctx := context.Background()
 	b := r.e.box(r.op, "box-"+newTenantID(""), "CLE-07")
+	// SPL-5337: from the operator workspace the sweep walks every live
+	// workspace of the shared test database; in hub group d that is every
+	// one groups a..c made (1579 tenants on 2026-11-11), seconds per call on
+	// a loaded box, past env.box's 5 s reply wait ("no issue reply"). A
+	// test-only bound: the hub and the production client are unchanged.
+	b.c.ReadyTimeout = 60 * time.Second
 	r.e.pin(r.op, b)
 	sa, err := b.c.Dial(ctx, wire.RoleBox)
 	if err != nil {

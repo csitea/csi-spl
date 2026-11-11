@@ -87,9 +87,9 @@ GC session only decides which one to call:
 
 | `GC_CMD` | does |
 |---|---|
-| `scan` | one block per agent of this box: issue, brief, heartbeat silence, last commit, last post, unread inbox, an earlier GC poke, pane tail, a hint (`working`, `silent`, `accepted`) |
+| `scan` | one block per agent of this box: issue, brief, heartbeat silence, last commit, last post, unread inbox, an earlier GC poke, pane tail, a hint (`working`, `silent`, `accepted`, `standing seat, never done`, `idle by design`); each agent named `<id>@<box>` |
 | `begin` | starts the agent's 3-minute clock, prints its issue and last errors |
-| `poke` | `GC_HINT` as a spool note on task `gc-<id>` (the send rings the pane) |
+| `poke` | `GC_HINT` as a spool note on task `gc-<id>` (the send rings the pane), addressed to `<id>@<box>` in its body and the log |
 | `restart` | only after a poke from an earlier pass and no heartbeat progress since; progress unknown (`-`, an agy seat) is never "no progress" (the poke records the pane and a hash of its last 30 lines; the restart reads `MOVED`, exit 3, no restart, when the pane changed, the agent is in another pane, or an outbox, archive or `lifetime/session.json` file is newer than the poke): otherwise `do_spl_agent_restart CAUSE=gc`, detached, with its own guards, its evidence saying "progress unknown (-)" when that is the case |
 | `close-ask` | `GC_WHY` to the report addressee (2.3): close this finished lane (once a day per id); the orch lease holder gets a cc |
 | `done` | `GC_SUMMARY`: one log line, one note to the report addressee (2.3) on task `gc-<box>`, then the GC window closes |
@@ -107,6 +107,20 @@ An id with 2+ panes is judged in the pane whose process carries `SPOOL_AGENT_ID=
   them.
 - **A human hold** (`<id>/.human-hold`) refuses every step; the restart also
   applies the watchdog's human-activity gate.
+- **One id, two boxes** (SPL-5317): an id can be a seat on two boxes (11-11:
+  one box's GC poked its own c-507 about a FAIL relayed to c-507@sat).
+  `AGENT_ID=<id>@<another box>` refuses every step, exit 4, and the log names
+  both seats; it is never stripped to this box's `<id>`. A poke's `GC_HINT`
+  writes every agent as `<id>@<box>`: a bare id, or the poked id at another
+  box, refuses the poke.
+- **An owner pane seat is idle by design**: a seat whose brief forbids posting
+  unless the owner says so (it answers the owner in its pane) is hinted
+  `idle by design` and scanned only: `poke`, `restart` and `close-ask` refuse.
+  Its questions to the owner are not "stuck" (11-11, c-004).
+- **A standing seat is never done**: `lifetime/standing`, a brief heading
+  naming it a standing seat, "You are a STANDING seat", a "- STANDING seat:"
+  item or "Standing seat: stay up" refuse `close-ask`, ACCEPTED or not
+  (11-11, c-981).
 - **Never kill by pattern**: the restart is the fleet's one restart path.
 
 <a id="ws-doc-560b258f-ba09-42fe-92fa-652c9b3a7a9f"></a>

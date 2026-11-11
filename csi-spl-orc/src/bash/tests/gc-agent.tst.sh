@@ -40,6 +40,14 @@
 #      the real spl_lane_init with no LEASE_ENV); a dry run says it and logs nothing; CONTROL: grok
 #      on (qwen off) = grok as today; COUNT: the :00 claude slot reads nothing
 #      The hub is a stub (LANE_HUB_CMD): kinds off [] unless a case says otherwise
+#  18. one id, two boxes, and seats idle by design (SPL-5317): AGENT_ID
+#      c-507@sat on box-a's GC, which has its own c-507 = refused, the log
+#      names both seats, nothing sent; a GC_HINT with a bare id, or about
+#      c-507@sat while poking c-507 here = refused; CONTROL: all qualified to
+#      this box = delivered, the body naming c-507@box-a. An owner pane seat
+#      (c-004's brief line) = hinted idle by design, poke / restart /
+#      close-ask refused; a standing seat (heading, "Standing seat: stay up",
+#      lifetime/standing) = no close-ask; CONTROL: a plain lane is closed
 #  15. close-ask with a landed claim (SPL-3270), in a throwaway repo: a sha
 #      on origin/master = sent; a sha on a side branch only = refused, nothing
 #      sent; an 8-hex msg id that is no commit = sent; no sha = sent
@@ -266,10 +274,10 @@ check "9. done closes the GC window" 'grep -q "kill-window -t $gp" "$T/tmux/log"
 reset; lane c-917; lane c-918; lane c-919 box-b
 printf '{"v":1,"from":"c-001","to":"c-918","kind":"result","body":"ACCEPTED - thanks"}\n' >"$S/c-918/archive/m1.json"
 gc scan $(( H0 + 60 ))
-check "10. scan lists this box's agents only" '[ "$rc" = 0 ] && grep -q "^== c-917 " "$T/out" && grep -q "^== c-918 " "$T/out" && ! grep -q "c-919" "$T/out" && grep -q "agents=2" "$T/out"'
-check "10. an ACCEPTED lane is hinted done" 'grep -q "^== c-918 .*hint=accepted" "$T/out" && grep -q "^== c-917 .*hint=working" "$T/out"'
+check "10. scan lists this box's agents only" '[ "$rc" = 0 ] && grep -q "^== c-917@box-a " "$T/out" && grep -q "^== c-918@box-a " "$T/out" && ! grep -q "c-919" "$T/out" && grep -q "agents=2" "$T/out"'
+check "10. an ACCEPTED lane is hinted done" 'grep -q "^== c-918@box-a .*hint=accepted" "$T/out" && grep -q "^== c-917@box-a .*hint=working" "$T/out"'
 gc scan $(( H0 + 1000 ))
-check "10. silent past GC_SILENT_AGE is hinted silent" 'grep -q "^== c-917 .*hint=silent" "$T/out"'
+check "10. silent past GC_SILENT_AGE is hinted silent" 'grep -q "^== c-917@box-a .*hint=silent" "$T/out"'
 
 # --- 11. the report goes to the dispatch lease holder, read at send time --------------
 # (owner HUM-10, form 84d604dd: the 10-13 night every sat summary went to a fixed
@@ -355,12 +363,12 @@ printf '%%801\ta-925@box-a ! -2057Z-retiring\t7001\n%%802\ta-925@box-a sdlc roun
 printf 'Kept after the close\n$ \n' >"$T/tmux/screen.%801"; printf 'agy: working on round 7\n> \n' >"$T/tmux/screen.%802"
 noprog a-925
 gc scan $(( H0 + 60 ))
-check "13. two panes for one id: scan judges the live harness pane %802, once" 'grep -q "^== a-925 pane=%802 " "$T/out" && grep -q "working on round 7" "$T/out" && ! grep -q "Kept after the close" "$T/out" && grep -q "agents=1" "$T/out"'
+check "13. two panes for one id: scan judges the live harness pane %802, once" 'grep -q "^== a-925@box-a pane=%802 " "$T/out" && grep -q "working on round 7" "$T/out" && ! grep -q "Kept after the close" "$T/out" && grep -q "agents=1" "$T/out"'
 gc begin $(( H0 + 61 )) AGENT_ID=a-925
 check "13. begin captures the live pane, not the kept one" 'grep -q "working on round 7" "$T/out" && ! grep -q "Kept after the close" "$T/out"'
 rm -f "$T/proc/7003/environ"
 gc scan $(( H0 + 62 ))
-check "13. no live harness proven = the first pane (today's pick)" 'grep -q "^== a-925 pane=%801 " "$T/out"'
+check "13. no live harness proven = the first pane (today's pick)" 'grep -q "^== a-925@box-a pane=%801 " "$T/out"'
 check "13. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 # --- 14. the start check: a vendor stopped on a limit dialog ---------------------------
@@ -448,6 +456,55 @@ check "17. CONTROL: grok on (qwen off, agy paused) = grok as today, no FALLBACK"
 reset; kinds '{"agent_kinds_off":["grok"],"agent_kinds_paused":{}}'
 gc start "$H0"
 check "17. COUNT: the :00 claude slot (the fallback) reads nothing from the hub" 'started claude && [ "$(n "$T/hub.log")" = 0 ] && ! grep -q FALLBACK "$D/gc/gc.log"'
+
+# --- 18. one id on two boxes; seats idle by design (SPL-5317) ------------------------
+# 11-11 (c-001 notes 28c3ecec, ec624c33, b55741ab, n=1 each): one box's GC
+# poked its own c-507 about a FAIL relayed to c-507@sat, told the owner's
+# pane seat c-004 it looked stuck, and asked to close the standing c-981.
+sent() { n "$T/send.log" "${1:-.}"; }
+reset; lane c-507; gc start "$H0"
+gc begin $(( H0 + 1 )) AGENT_ID=c-507@sat
+check "18. begin c-507@sat on box-a (its own c-507 lives here) = refused (exit 4)" '[ "$rc" = 4 ] && grep -q "REFUSED begin c-507@sat: a seat of box sat, not of this box box-a (c-507@box-a here is a different seat, not touched)" "$D/gc/gc.log"'
+gc poke $(( H0 + 2 )) AGENT_ID=c-507@sat GC_HINT="a-336@box-b waits on your fix"
+check "18. poke c-507@sat on box-a = refused, nothing sent to the local c-507" '[ "$rc" = 4 ] && [ "$(sent)" = 0 ] && [ ! -f "$D/gc/c-507.poked" ]'
+gc begin $(( H0 + 3 )) AGENT_ID=c-507
+gc poke $(( H0 + 4 )) AGENT_ID=c-507 GC_HINT="a-336 waits on your fix for the agy FAIL"
+check "18. a GC_HINT naming a bare id (a-336) = refused, nothing sent" '[ "$rc" = 4 ] && [ "$(sent)" = 0 ] && grep -q "GC_HINT names a-336 with no box" "$T/out"'
+gc poke $(( H0 + 5 )) AGENT_ID=c-507 GC_HINT="a-336@box-b waits on c-507@sat for the agy FAIL"
+check "18. a GC_HINT about c-507@sat while poking c-507 here = refused, both named" '[ "$rc" = 4 ] && [ "$(sent)" = 0 ] && grep -q "REFUSED poke c-507@box-a: GC_HINT is about c-507@sat, a seat of another box" "$D/gc/gc.log"'
+gc poke $(( H0 + 6 )) AGENT_ID=c-507@box-a GC_HINT="a-336@box-a waits on your fix (c-507@box-a)"
+check "18. CONTROL: all qualified to this box = one note, the body and the log name c-507@box-a" '[ "$rc" = 0 ] && [ "$(sent "--to c-507 --kind note --task gc-c-507 --body GC (box-a, .*) to c-507@box-a: you look stuck")" = 1 ] && grep -q "POKE c-507@box-a: " "$D/gc/gc.log"'
+# the owner pane seat: c-004's brief line, verbatim
+reset; lane c-004; lane c-920; gc start "$H0"
+printf '# Seat brief: a channel topic - the owner'"'"'s investigation seat\n\n## Rules\n- Do not post in the topic unless the owner tells you to in your pane.\n' >"$S/c-004/lifetime/brief.md"
+gc scan $(( H0 + 1000 ))
+check "18. scan: the pane seat silent 1000 s is idle by design, not silent; a plain lane is silent" 'grep -q "^== c-004@box-a .*hint=idle by design: an owner pane seat, not stuck, scan only (Do not post in the topic unless the owner tells you to in your pane)" "$T/out" && grep -q "^== c-920@box-a .*hint=silent" "$T/out"'
+gc begin $(( H0 + 1001 )) AGENT_ID=c-004
+gc poke $(( H0 + 1002 )) AGENT_ID=c-004 GC_HINT="post your 3 open questions to the topic as a blocker"; r1=$rc
+gc restart $(( H0 + 1003 )) AGENT_ID=c-004; r2=$rc
+gc close-ask $(( H0 + 1004 )) AGENT_ID=c-004 GC_WHY="idle"; r3=$rc
+check "18. the pane seat: poke, restart, close-ask refused (exit 4 x3), nothing sent" '[ "$r1$r2$r3" = 444 ] && [ "$(sent)" = 0 ] && [ "$(n "$D/gc/gc.log" "REFUSED .* c-004@box-a: an owner pane seat, idle by design")" = 3 ]'
+gc begin $(( H0 + 1005 )) AGENT_ID=c-920
+gc poke $(( H0 + 1006 )) AGENT_ID=c-920 GC_HINT="the gate is red: run do_check_pre_push_lint"
+check "18. CONTROL: the plain silent lane next to it is poked" '[ "$rc" = 0 ] && [ "$(sent "--to c-920 ")" = 1 ]'
+# standing seats: c-981's heading, a "Standing seat: stay up" line, lifetime/standing
+standing18() {  # <id> <brief text> [file]: ACCEPTED, begin, close-ask
+  lane "$1"; printf '%b' "$2" >"$S/$1/lifetime/brief.md"; [ -z "${3:-}" ] || : >"$S/$1/lifetime/standing"
+  printf '{"v":1,"from":"c-001","to":"%s","kind":"result","body":"ACCEPTED - thanks"}\n' "$1" >"$S/$1/archive/m1.json"
+  gc begin $(( H0 + 2000 )) AGENT_ID="$1"; gc close-ask $(( H0 + 2001 )) AGENT_ID="$1" GC_WHY="ACCEPTED by c-001@box-a, idle since"
+}
+reset; gc start "$H0"; lease c-002@sat $(( H0 + 1970 )); lease_orch c-002@sat $(( H0 + 1970 ))
+standing18 c-981 '# Seat brief: a wf-12 topic 0956269e - rebase the wf-12 branch, then stay as the topic seat (standing seat, claude, runs ON box-b)\n'; r1=$rc
+standing18 c-982 '# Lane brief: reviewer\n\nReport per answered post. Standing seat: stay up; exit only on ACCEPTED.\n'; r2=$rc
+standing18 c-983 '# Lane brief: the c-983 task\n' file; r3=$rc
+check "18. a standing seat (heading / stay-up line / lifetime/standing) with ACCEPTED = no close-ask (exit 4 x3), nothing sent" '[ "$r1$r2$r3" = 444 ] && [ "$(sent)" = 0 ] && [ "$(n "$D/gc/gc.log" "REFUSED close-ask c-98[123]@box-a: a standing seat is never done")" = 3 ]'
+gc scan $(( H0 + 2002 ))
+check "18. scan: the standing seat with ACCEPTED is hinted never done, not accepted" 'grep -q "^== c-981@box-a .*hint=standing seat, never done" "$T/out" && ! grep -q "^== c-981@box-a .*hint=accepted" "$T/out"'
+standing18 c-984 '# Lane brief: row 3, review by the round standing reviewer c-285@sat\n'
+check "18. CONTROL: a plain lane with ACCEPTED (its brief names another standing reviewer) = close-ask sent" '[ "$rc" = 0 ] && [ "$(sent "--task gc-c-984")" = 1 ]'
+standing18 c-985 '# Lane brief: a GC bug\n\nIts brief makes c-981 a STANDING seat ("Standing seat: stay up"). A standing seat is never done.\n'
+check "18. CONTROL: a lane whose brief quotes another seat's \"Standing seat: stay up\" = close-ask sent" '[ "$rc" = 0 ] && [ "$(sent "--task gc-c-985")" = 1 ]'
+check "18. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 check "14. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 

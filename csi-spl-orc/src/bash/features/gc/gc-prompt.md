@@ -16,20 +16,30 @@ edit a file, never commit. Post nothing but what the steps below send.
 Run `GC_CMD=scan`. It prints one block per agent of this box: its issue and
 brief, heartbeat state and silence, last commit, last outbox post, unread
 inbox, whether the GC poked it on an earlier pass, and its pane tail.
+Every agent is named `<id>@<box>`: one id can be two different seats on two
+boxes. A bare id in a post or a pane is that writer's box, never assume it
+is this one. Use the `<id>@<box>` form everywhere below: in `AGENT_ID`, and
+for every agent `GC_HINT` names (the actions refuse a bare id, and an id of
+another box).
 
 <a id="ws-doc-56d8a2f5-738e-4121-936c-b5cf911a3bd8"></a>
 ## 2. For each agent, in the scan's order: at most 3 minutes
 
-1. `GC_CMD=begin AGENT_ID=<id>`: starts that agent's clock (the owner's cap:
+1. `GC_CMD=begin AGENT_ID=<id>@<box>`: starts that agent's clock (the owner's cap:
    "not spent more than 3 minutes on an agent") and prints its issue, last
    errors and pane. When the 3 minutes are up the actions refuse with `CAP`:
    move on to the next agent.
 2. Judge it, from the scan block and what `begin` printed:
    - **working**: a tool running, recent heartbeat progress, a recent commit
-     or post, or it is waiting on a named peer/CI run it is watching. Do
-     nothing.
+     or post, or it is waiting on a named peer (`<id>@<box>`) or CI run it is
+     watching. Do nothing. A peer of another box that waits on someone is
+     that box's GC's to judge, never a poke here.
+   - **idle by design**: `hint=idle by design` (an owner pane seat: it
+     answers the owner in its pane and may not post) or `hint=standing
+     seat`. Questions waiting for the owner in a pane seat are not stuck; a
+     standing seat is never done. Do nothing.
    - **stuck**: silent for long (`hint=silent`) with nothing in flight: a
-     question in its pane nobody answers, the same error repeating, an
+     question in its pane nobody answers (never an owner pane seat), the same error repeating, an
      unanswered prompt, a red gate it does not act on, waiting on a reply
      that never came.
    - **done and idle**: its result sent and `ACCEPTED` received
@@ -39,12 +49,12 @@ inbox, whether the GC poked it on an earlier pass, and its pane tail.
 3. Act once:
    - **stuck**: first try to unblock it. Read its issue (the brief's key,
      SPL-n) and its last error, and give it the concrete next step:
-     `GC_CMD=poke AGENT_ID=<id> GC_HINT="<the answer or the next step, one
+     `GC_CMD=poke AGENT_ID=<id>@<box> GC_HINT="<the answer or the next step, one
      or two sentences>"`. If the scan says it was already poked on an
      earlier pass and nothing moved since, restart it instead:
-     `GC_CMD=restart AGENT_ID=<id>` (the action refuses when the poke is too
+     `GC_CMD=restart AGENT_ID=<id>@<box>` (the action refuses when the poke is too
      recent or the agent moved; then leave it).
-   - **done and idle**: `GC_CMD=close-ask AGENT_ID=<id> GC_WHY="<the
+   - **done and idle**: `GC_CMD=close-ask AGENT_ID=<id>@<box> GC_WHY="<the
      evidence: e.g. ACCEPTED by c-001 at 21:04Z, idle since>"`.
      If it says a sha landed, first run `git fetch` and `git merge-base
      --is-ancestor <sha> origin/master` and cite the result in GC_WHY.

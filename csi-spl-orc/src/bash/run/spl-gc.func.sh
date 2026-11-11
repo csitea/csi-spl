@@ -44,7 +44,15 @@
 # @description carries SPOOL_AGENT_ID=<id> (a kept old pane never is).
 # @description Role seats (001..003) are scanned, never poked, restarted or
 # @description closed (rotation and the watchdog own them); a human hold
-# @description refuses every step. poke, restart and close-ask are refused
+# @description refuses every step. One id can be a seat on two boxes (SPL-5317):
+# @description AGENT_ID=<id>@<another box> is refused (never stripped to this
+# @description box's <id>), the log naming both seats; a poke names <id>@<box>
+# @description and its GC_HINT must write every agent as <id>@<box> (a bare id,
+# @description or the poked id at another box, = refused). An owner pane seat
+# @description (its brief: do not post unless the owner says so) is idle by
+# @description design: scan only, no poke, restart or close-ask. A standing
+# @description seat (lifetime/standing, or its brief says so) gets no close-ask.
+# @description poke, restart and close-ask are refused
 # @description past the cap of the agent begun last. Log: <dispatch>/gc/gc.log.
 # @description Dry run unless DRY_RUN=0. Exit: 0 done, 3 nothing to do, 4 refused.
 # @param GC_CMD - start | scan | begin | poke | restart | close-ask | done | status (default status)
@@ -337,7 +345,7 @@ spl_gc_scan() {
 }
 
 spl_gc_scan_one() {
-  local id="$1" pane="$2" d="$SPOOL_ROOT/$1" role=lane st prog tool err sil wt cm post pa acc hint
+  local id="$1" pane="$2" d="$SPOOL_ROOT/$1" role=lane st prog tool err sil wt cm post pa acc hint why
   spl_is_role_seat "$id" && role="role-seat (scan only)"
   [[ -n "$(spl_gc_human "$id")" ]] && role="$role, $(spl_gc_human "$id")"
   IFS=$'\t' read -r st prog tool err < <(jq -r '[.state // "-", .progress_ts // "-", .tool // "-", (.api_error // "-" | tostring)] | @tsv' "$d/heartbeat.json" 2>/dev/null || printf -- '-\t-\t-\t-\n')
@@ -350,7 +358,9 @@ spl_gc_scan_one() {
   hint=working
   (( sil >= GC_SILENT_AGE )) && hint=silent
   [[ -n "$acc" ]] && hint="accepted (done?)"
-  echo "== $id pane=$pane $role hint=$hint"
+  why="$(spl_gc_standing "$id")" && hint="standing seat, never done ($why)"
+  why="$(spl_gc_pane_seat "$id")" && hint="idle by design: an owner pane seat, not stuck, scan only ($why)"
+  echo "== $id@$GC_BOX pane=$pane $role hint=$hint"
   echo "   issue: $(cat "$d/lifetime/issue" 2>/dev/null || echo -)  brief: $(head -1 "$d/lifetime/brief.md" 2>/dev/null | cut -c1-120 || true)"
   echo "   heartbeat: state=$st silent=${sil}s tool=$tool api_error=$(cut -c1-120 <<<"$err")"
   echo "   last commit: $( [[ -n "$cm" ]] && echo "$(( GC_NOW - ${cm%% *} ))s ago ${cm#* }" | cut -c1-140 || echo -)  worktree: ${wt:--}"
@@ -372,20 +382,82 @@ spl_gc_human() { spl_rotate_human_hold "$1" "$GC_NOW"; }
 spl_gc_refuse() { spl_gc_log "REFUSED $1 $2: $3"; echo "REFUSED $1 $2: $3"; return 4; }
 
 spl_gc_step() {
-  local cmd="$1" id="${AGENT_ID:-}"
+  local cmd="$1" id="${AGENT_ID:-}" box="" why
+  [[ "$id" == *@* ]] && box="${id#*@}"
   id="${id%@*}"
   [[ "$id" =~ ^[acgqm]-[0-9]{3}$ ]] || { do_log "FATAL AGENT_ID must be an agent id (c-NNN), got: '${AGENT_ID:-}'"; return 1; }
+  if [[ -n "$box" ]] && ! spl_gc_this_box "$box"; then spl_gc_other_box "$cmd" "$id" "$box"; return; fi
   [[ -n "$(spl_gc_pane_of "$id")" ]] || { spl_gc_log "NONE $cmd $id: not an agent of this box"; echo "NONE $id: not an agent of this box"; return 3; }
   if [[ "$cmd" == begin ]]; then spl_gc_begin "$id"; return; fi
   spl_gc_cap "$cmd" "$id" || return
   if spl_is_role_seat "$id"; then spl_gc_refuse "$cmd" "$id" "a role seat: rotation and the watchdog own it"; return; fi
   local h; h="$(spl_gc_human "$id")"
   [[ -z "$h" ]] || { spl_gc_refuse "$cmd" "$id" "$h"; return; }
+  if why="$(spl_gc_pane_seat "$id")"; then
+    spl_gc_refuse "$cmd" "$id@$GC_BOX" "an owner pane seat, idle by design: it waits for the owner in its pane and may not post ($why)"; return
+  fi
+  if [[ "$cmd" == close-ask ]] && why="$(spl_gc_standing "$id")"; then
+    spl_gc_refuse "$cmd" "$id@$GC_BOX" "a standing seat is never done: no close proposal ($why)"; return
+  fi
   case "$cmd" in
     poke) spl_gc_poke "$id" ;;
     restart) spl_gc_restart "$id" ;;
     close-ask) spl_gc_close_ask "$id" ;;
   esac
+}
+
+# ---- whose seat, and seats idle by design (SPL-5317) ---------------------------
+
+# 0 when BOX names this box (its tag or its machine).
+spl_gc_this_box() { [[ "$1" == "$GC_BOX" || "$1" == "$ROTATE_BOX" ]]; }
+
+# AGENT_ID=<id>@<other box>: refused, never stripped to this box's <id>. One id
+# can be two seats: on 11-11 one box's GC (pass 20261111T0100Z) poked
+# c-507 there, a different seat, about a FAIL relayed to c-507@sat.
+spl_gc_other_box() {  # CMD ID BOX
+  local here="no $2 on this box"
+  [[ -n "$(spl_gc_pane_of "$2")" ]] && here="$2@$GC_BOX here is a different seat, not touched"
+  spl_gc_refuse "$1" "$2@$3" "a seat of box $3, not of this box $GC_BOX ($here): its own box's GC judges it"
+}
+
+spl_gc_brief() { printf '%s' "$SPOOL_ROOT/$1/lifetime/brief.md"; }
+
+# The brief line that makes ID an owner pane seat (it answers the owner in its
+# pane and may not post unless the owner says so), else rc 1. 11-11: a box's
+# GC told the owner's pane seat c-004 it "looks stuck" and to post its questions.
+spl_gc_pane_seat() {
+  local q
+  q="$(grep -m1 -oiE "[^.]*\b(do not|don't|never|must not) post\b[^.]*\b(unless|until|without)\b[^.]*\bowner\b[^.]*|[^.]*\bpost\b[^.]*\bonly when the owner\b[^.]*" "$(spl_gc_brief "$1")" 2>/dev/null)" || return 1
+  q="$(sed -E 's/^[[:space:]*-]+//' <<<"$q")"
+  printf '%s\n' "${q:0:160}"
+}
+
+# The marker that makes ID a standing seat, else rc 1: lifetime/standing (the
+# lane rotation's rule), a heading naming it a standing seat, "You are a
+# STANDING seat", a "- STANDING seat:" item or "Standing seat: stay up" opening a
+# line or a sentence (a brief that quotes it about another seat is no marker).
+# 11-11: the GC asked to close the standing c-981 as "done and idle".
+spl_gc_standing() {
+  local b q
+  [[ -f "$SPOOL_ROOT/$1/lifetime/standing" ]] && { echo "lifetime/standing"; return 0; }
+  b="$(spl_gc_brief "$1")"
+  q="$(grep -m1 -iE '^#+ .*\bstanding\b[^.]*\bseat\b' "$b" 2>/dev/null)" ||
+    q="$(grep -m1 -oiE 'you are a standing seat[^.]*|^[-*] +standing seat:[^.]*|(^|[.;] +)standing seat: *stay up[^.]*' "$b" 2>/dev/null)" || return 1
+  q="$(sed -E 's/^[.;] +//' <<<"$q")"
+  printf '%s\n' "${q:0:160}"
+}
+
+# Every agent GC_HINT names carries its box (<id>@<box>): a bare id is read on
+# whichever box the reader sits. A hint about the poked id at another box is
+# about that seat, never this one's.
+spl_gc_hint_ids() {
+  local id="$1" bare tok
+  bare="$(grep -oP '(?<![@\w-])[acgqm]-[0-9]{3}(?![@\w])' <<<"$GC_HINT" | sort -u | tr '\n' ' ' || true)"
+  [[ -z "$bare" ]] || { spl_gc_refuse poke "$id@$GC_BOX" "GC_HINT names ${bare% } with no box: write each agent as <id>@<box>"; return; }
+  for tok in $(grep -oE "\b$id@[a-z0-9][a-z0-9-]*" <<<"$GC_HINT" | sort -u || true); do
+    spl_gc_this_box "${tok#*@}" && continue
+    spl_gc_refuse poke "$id@$GC_BOX" "GC_HINT is about $tok, a seat of another box: this poke would reach $id@$GC_BOX, a different seat"; return
+  done
 }
 
 # The clock of the owner's cap: <gc>/cur "<id> <epoch>"; the agent before is
@@ -402,7 +474,7 @@ spl_gc_begin() {
     [[ -s "$d/$f" ]] && { echo "--- $f"; tail -n 3 "$d/$f" | cut -c1-200; }
   done
   echo "--- last posts"
-  ls -t "$d/outbox" 2>/dev/null | sed -n 1,2p | while read -r f; do jq -r '"\(.ts) \(.kind) to \(.to) task \(.task_id): \(.body)"' "$d/outbox/$f" 2>/dev/null | cut -c1-300; done || true
+  ls -t "$d/outbox" 2>/dev/null | sed -n 1,2p | while read -r f; do jq -r --arg b "$GC_BOX" '"\(.ts) \(.kind) to \(.to | if test("@") then . else "\(.)@\($b)" end) task \(.task_id): \(.body)"' "$d/outbox/$f" 2>/dev/null | cut -c1-300; done || true
   echo "--- pane"
   spl_gc_pane_text "$(spl_gc_pane_of "$id")" -30 | grep -v '^[[:space:]]*$' | tail -n 15 | cut -c1-200 || true
 }
@@ -503,11 +575,12 @@ spl_gc_poke() {
   if read -r t _p r _ 2>/dev/null < "$GC_DIR/$id.poked" && [[ "$r" == "$rid" ]]; then
     spl_gc_refuse poke "$id" "already poked in this pass"; return
   fi
-  spl_gc_send "$id" "gc-$id" "GC ($GC_BOX, $rid): you look stuck. $GC_HINT -- If you are working, carry on; if not, act on this or reply on this task." ||
-    { spl_gc_log "FAIL poke $id: not delivered"; echo "FAIL poke $id: not delivered"; return 1; }
+  spl_gc_hint_ids "$id" || return
+  spl_gc_send "$id" "gc-$id" "GC ($GC_BOX, $rid) to $id@$GC_BOX: you look stuck. $GC_HINT -- If you are working, carry on; if not, act on this or reply on this task." ||
+    { spl_gc_log "FAIL poke $id@$GC_BOX: not delivered"; echo "FAIL poke $id@$GC_BOX: not delivered"; return 1; }
   [[ "$GC_DRY" == 0 ]] && echo "$GC_NOW $(spl_gc_progress "$id") $rid $(spl_gc_screen "$id")" > "$GC_DIR/$id.poked"
-  spl_gc_log "POKE $id: $(cut -c1-200 <<<"$GC_HINT")"
-  echo "POKE $id"
+  spl_gc_log "POKE $id@$GC_BOX: $(cut -c1-200 <<<"$GC_HINT")"
+  echo "POKE $id@$GC_BOX"
 }
 
 spl_gc_restart() {

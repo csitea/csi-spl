@@ -1008,6 +1008,12 @@ html.pane-dragging * {
     visibility: hidden;
     transition: opacity .2s ease-out, visibility 0s .2s;
   }
+  /* SPL-5380 (owner HUM-10, t1 56f50ebb msgs 859f9742, 6b4f264b): a pane
+     header's row 2 - the priority bar, the topic list's filter and sort,
+     the card-size control (SPL-5349) - goes and comes with both bars, the
+     same state, and gives its room to the pane. A row holding the keyboard
+     focus stays, so a control never vanishes under the reader. */
+  .spool-shell[data-mobile-strip-hidden="1"] :is(.feed-header__row2, .topic-head__row2):not(:focus-within) { display: none; }
   /* a page's own level-3 panel (the open issue) starts under the strip: it
      is placed inside the page, not the screen */
   .spool-shell[data-mobile-section="1"] > .spool-main { position: relative; }

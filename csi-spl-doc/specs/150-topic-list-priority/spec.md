@@ -196,6 +196,14 @@ holds (panel.md section 1, one row per claim with its command).
   never cut. Row 2 (`.feed-header__row2`) holds the filter and sort at the
   left and the card-size control at the right; their popovers open toward
   the row's end.
+- **Hidden while scrolling (SPL-5380, owner t1 56f50ebb msgs 859f9742,
+  6b4f264b).** On a phone row 2 of this header and of the open topic's
+  header (the priority bar and the card-size control) goes and comes with
+  the section strip and the logo bar, on their one state
+  (`data-mobile-strip-hidden`, `layouts/default.vue` `stripAway`), no
+  listener of its own; a row holding the keyboard focus stays. A desktop
+  hides nothing on a scroll, so the row stays there. Test:
+  `csi-spl-wui/tests/e2e/prio-cardsize-scroll-hide.test.mjs`.
 - **Sizes (v1.5).** The card-size control (`CardClipControl.vue`) is drawn
   30% lower and narrower than before, in this header and in the
   topic's: cells 26 x 16 px on the desktop (was 33 x 24), 35 x 30 on a phone

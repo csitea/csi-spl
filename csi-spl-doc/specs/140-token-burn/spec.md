@@ -165,6 +165,7 @@ The collector inspects four distinct vendor session formats:
   1. Prompt seed path: the initial user prompt step (`step_index: 0`) contains `/var/spool-hub/<agent_id>/lifetime/prompt.txt`.
   2. Workspace database: `<agent_home>/.gemini/antigravity-cli/conversation_summaries.db` contains `workspace_uris` matching the worktree pattern `-wt[0-9]*[/-]([A-Za-z]+-[0-9]+)`.
   3. Direct worktree path regex from transcripts.
+  4. Cross-vendor bucket separation (`SPL-5370`): just as Grok names non-Grok cwds apart (`3.9`), an `agy` transcript whose resolved id is an Antigravity lane (`a-NNN` or legacy `AGY-NNN`) keeps `<id>`, while one running in another vendor's worktree or with no lane is named `<id> (agy)` / `unattributed (agy)` (both in `spl_cost_tokens_agy*` and in `spl_token_burn_sum`'s `agy_agent`, so cached `agents.tsv` entries from older runs cannot merge `agy` turns into a `claude` minute bucket); symmetrically, `claude_agent` qualifies a Claude transcript in another vendor's worktree as `<id> (claude)`.
 - **Reporting & Display Invariant**:
   - Running agy lanes with resolved transcripts report `is_metered: true` with measured token counts.
   - Any agy lane without discovered transcript token counts reports `is_metered: false` with `status: "unmetered"` (tokens NEVER rendered as zero).
@@ -604,9 +605,21 @@ million tokens:
 
 The page names no start date for today's prices, so the rows start
 2026-11-01 and an October agy minute stays unpriced. Google lists no
-per-token cache write price and agy reports `cache_write` 0, so there is no
-write row. An agy minute with no model (the collector found none) stays
-unpriced.
+per-token cache write price (only per-million cached-input read rates and
+per-hour cache storage rates, re-verified 2026-11-12 under `SPL-5370`) and
+agy reports `cache_write` 0, so there is no write row. An agy minute with no
+model (the collector found none) stays unpriced.
+
+**Re-labelling collided minutes (`SPL-5370`).** Before `agy_agent` named
+non-`a-NNN` sessions apart, an `agy` session sharing `unattributed` or a
+`c-NNN` worktree id with a `claude` turn in the same UTC minute hit the same
+`(agent_id, minute)` key in `spl_token_burn_sum`: `add()` kept the first
+writer's `vendor` (`claude`), overwrote `model` (`gemini-3.8-flash`), and
+summed both turns' tokens (carrying `claude`'s `cache_write` into that row).
+`ENV=<env> TOKEN_RELABEL_MODEL=<m> TOKEN_RELABEL_FROM_VENDOR=<v1> TOKEN_RELABEL_TO_VENDOR=<v2> TOKEN_RELABEL_FROM=<YYYY-MM-DD> ./run -a do_spl_token_burn_relabel_vendor`
+(`DRY_RUN=1` by default, rolled back) re-labels matching unpriced minutes in
+one operator transaction and re-rolls affected UTC days in
+`fleet_token_burn_daily`.
 
 ### 3.10 Each workspace sees its own token costs (SPL-3565)
 

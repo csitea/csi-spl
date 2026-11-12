@@ -400,6 +400,14 @@ TOKEN_BURN_GROK_AWK='
       }
       if (c ~ /^\/tmp(\/|$)/) c = "/tmp"
       return "unattributed (cwd " substr(c, 1, 81) ")"
+    }
+    function agy_agent(a) {
+      if (a == "") a = "unattributed"
+      return (a ~ /^(a|AGY)-[0-9]+$/ || index(a, " (agy)") > 0) ? a : a " (agy)"
+    }
+    function claude_agent(a) {
+      if (a == "") a = "unattributed"
+      return (a ~ /^(c|CLE)-[0-9]+$/ || a == "unattributed" || index(a, " (claude)") > 0) ? a : a " (claude)"
     }'
 
 # spl_token_burn_sum DIR NOW MODE ROWS LIVE: the per-id MAX (claude) and the
@@ -448,7 +456,7 @@ spl_token_burn_sum() {
         if (f[1] == "A") {
           if (f[4] < now - win) { late++; continue }
           id = f[3]; if (id in iseen) continue; iseen[id] = now
-          a = (f[2] in agent) ? agent[f[2]] : "unattributed"
+          a = agy_agent((f[2] in agent) ? agent[f[2]] : "")
           m = (f[5] != "") ? f[5] : (agymodel != "") ? agymodel : "gemini-3.8-flash"
           add(a, "agy", m, f[4], f[6], f[7], f[8], f[9], 1); metered_agents[a] = 1; agy++; continue
         }
@@ -456,7 +464,7 @@ spl_token_burn_sum() {
           if (f[4] < now - win) { late++; continue }
           id = f[3]; iseen[id] = now
           for (j = 1; j <= 4; j++) { x[j] = f[j + 5] - im[id, j]; if (x[j] < 0) x[j] = 0; else im[id, j] = f[j + 5] }
-          a = (f[2] in agent) ? agent[f[2]] : "unattributed"
+          a = claude_agent((f[2] in agent) ? agent[f[2]] : "")
           add(a, "claude", f[5], f[4], x[1], x[2], x[3], x[4], 1); metered_agents[a] = 1; claude++; continue
         }
         if (f[1] == "S") {

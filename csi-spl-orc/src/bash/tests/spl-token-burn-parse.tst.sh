@@ -26,6 +26,12 @@
 #      window counts its new turn only. Controls: named by the claude rule
 #      the grok tokens vanish into c-101's claude bucket; with the session
 #      counters as the baseline the g- lane's new turn is missing
+#   9. agy, named apart (SPL-5370): an agy transcript in a claude lane's
+#      worktree is "c-101 (agy)" and one with no lane is "unattributed (agy)"
+#      (even when agents.tsv cached bare "c-101" / "unattributed"), never
+#      overwriting a claude minute bucket's model to gemini-3.8-flash or
+#      inheriting claude's cache_write. Control: without agy_agent both buckets
+#      write vendor claude with model gemini-3.8-flash and claude's cache_write
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -173,6 +179,52 @@ tick >/dev/null
   pass "8. metered agy lane emits no unmetered bucket" || fail "8. a-402 unmetered bucket found"
 [[ "$(bucket a-401)" == "agy - 0 0 0 0 0" ]] &&
   pass "8. control: agy lane with no transcript is unmetered, never metered 0" || fail "8. a-401: $(bucket a-401)"
+
+# 9. agy named apart (SPL-5370): same minute as claude in c-101 and unattributed,
+# plus stale bare entries in agents.tsv as on a box upgraded in place
+M9=$((NOW - NOW % 60 - 60))
+mkdir -p "$H/.claude/projects/-opt"   "$H/.gemini/antigravity-cli/brain/conv_c101/.system_generated/logs"   "$H/.gemini/antigravity-cli/brain/conv_unattr/.system_generated/logs"
+python3 - "$H/.gemini/antigravity-cli/conversation_summaries.db" <<'EOF_DB'
+import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+con.execute("CREATE TABLE IF NOT EXISTS conversation_summaries (conversation_id TEXT, workspace_uris TEXT)")
+con.execute("INSERT INTO conversation_summaries VALUES ('conv_c101', 'file:///opt/x-wt/c-101')")
+con.commit()
+EOF_DB
+crow $((M9 + 1)) msg_C9 10 20 30 40 >>"$P"
+crow $((M9 + 2)) msg_U9 12 22 32 42 >"$H/.claude/projects/-opt/u9.jsonl"
+cat >"$H/.gemini/antigravity-cli/brain/conv_c101/.system_generated/logs/transcript.jsonl" <<EOF
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"$(iso $((M9 + 3)))","input_tokens":300,"output_tokens":25,"cache_read_tokens":150,"note":"$TXT"}
+EOF
+cat >"$H/.gemini/antigravity-cli/brain/conv_unattr/.system_generated/logs/transcript.jsonl" <<EOF
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"$(iso $((M9 + 4)))","input_tokens":200,"output_tokens":15,"cache_read_tokens":80,"note":"$TXT"}
+EOF
+printf '%s\tunattributed\n' "$H/.gemini/antigravity-cli/brain/conv_unattr/.system_generated/logs/transcript.jsonl" >>"$S/agents.tsv"
+cp -a "$S" "$T/s9"
+tick >/dev/null
+bad_v="$(awk -F'\t' '($2 == "claude" && $3 ~ /^gemini-/) || ($2 == "agy" && ($3 == "m-x" || $8 > 0)) { print $1 ":" $2 ":" $3 ":" $8 }' "$S/buckets.tsv")"
+[[ -z "$bad_v" && "$(bucket 'c-101 (agy)')" == "agy gemini-3.8-flash 300 25 150 0 1" &&
+   "$(bucket 'unattributed (agy)')" == "agy gemini-3.8-flash 200 15 80 0 1" &&
+   "$(bucket unattributed)" == "claude m-x 12 22 32 42 1" &&
+   "$(bucket c-101)" == "claude m-x 17 127 1041 103 1" ]] &&
+  pass "9. agy in a claude worktree or unattributed (incl. cached agents.tsv): named apart, never vendor claude for gemini" ||
+  fail "9. agy collision: bad=[$bad_v] c101_agy=[$(bucket 'c-101 (agy)')] unattr_agy=[$(bucket 'unattributed (agy)')] unattr=[$(bucket unattributed)] c101=[$(bucket c-101)]"
+mkdir -p "$T/ctl9"
+python3 - "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$T/ctl9/spl-cost-tokens-read.func.sh" <<'EOF_PY9A'
+import sys; s = open(sys.argv[1]).read()
+old = '[[ "$id" =~ ^(a|AGY)-[0-9]+$ ]] && printf \'%s\\n\' "$id" || printf \'%s (agy)\\n\' "$id"'
+assert old in s; open(sys.argv[2], 'w').write(s.replace(old, 'printf \'%s\\n\' "$id"'))
+EOF_PY9A
+python3 - "$PROJ_ROOT/src/bash/run/spl-token-burn-collect.func.sh" "$T/ctl9/spl-token-burn-collect.func.sh" <<'EOF_PY9B'
+import sys; s = open(sys.argv[1]).read()
+old = 'a = agy_agent((f[2] in agent) ? agent[f[2]] : "")'
+assert old in s; open(sys.argv[2], 'w').write(s.replace(old, 'a = (f[2] in agent) ? agent[f[2]] : "unattributed"'))
+EOF_PY9B
+tick TOKEN_BURN_STATE_DIR="$T/s9" COLLECT_FUNC="$T/ctl9/spl-token-burn-collect.func.sh" >/dev/null
+ctl9_bad="$(awk -F'\t' '$2 == "claude" && $3 == "gemini-3.8-flash" { print $1 ":" $8 }' "$T/s9/buckets.tsv" | sort | paste -sd' ')"
+[[ "$ctl9_bad" == "c-101:40 unattributed:42" ]] &&
+  pass "9. control: without agy_agent both buckets write vendor claude, model gemini-3.8-flash, with claude cache_write ($ctl9_bad)" ||
+  fail "9. control: got [$ctl9_bad]"
 
 leak="$(grep -rlF "$TXT" "$S" "$T/pushed" 2>/dev/null)"
 [[ -z "$leak" && -s "$S/buckets.tsv" ]] && pass "6. no transcript text in the state dir or the pushed frames" || fail "6. text leaked into: $leak"

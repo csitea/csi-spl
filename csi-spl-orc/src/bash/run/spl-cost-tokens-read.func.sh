@@ -212,32 +212,28 @@ spl_cost_tokens_grok() {
         for (j = 5; j <= 8; j++) if (s[k, j] > 0) print day, p[1], "grok", p[2], "-", kind[j - 4], s[k, j], "transcript" | "sort" } }'
 }
 
-# spl_cost_tokens_agy_agent FILE [ROOT]: the agent an agy transcript belongs
-# to: prompt.txt in the first lines, else workspace_uris in
-# conversation_summaries.db, else -wt-<id> in the path.
+# spl_cost_tokens_agy_agent FILE [ROOT]: the agent bucket an agy transcript
+# belongs to: prompt.txt in the first lines, else -wt-<id> in the path, else
+# workspace_uris in conversation_summaries.db. An agy lane id (a-NNN, legacy
+# AGY-NNN) stays as-is; another vendor's lane or none is "<id> (agy)" /
+# "unattributed (agy)" so agy never shares a claude bucket (SPL-5370).
 spl_cost_tokens_agy_agent() {
-  local f="$1" id conv_id home db uris
+  local f="$1" id="" conv_id home db uris
   id="$(head -n 5 "$f" 2>/dev/null | grep -oE '/var/spool-hub/[A-Za-z0-9_-]+/lifetime/prompt\.txt' | sed -n 1p)"
   if [[ -n "$id" ]]; then
-    id="${id#/var/spool-hub/}"
-    id="${id%/lifetime/prompt.txt}"
-    echo "$id"; return 0
-  fi
-  if [[ "$f" =~ -wt[0-9]*[/-]([A-Za-z0-9_-]+) ]]; then
-    echo "${BASH_REMATCH[1]}"; return 0
-  fi
-  if [[ "$f" =~ /brain/([^/]+)/ ]]; then
-    conv_id="${BASH_REMATCH[1]}"
-    home="${f%/.gemini/*}"
+    id="${id#/var/spool-hub/}"; id="${id%/lifetime/prompt.txt}"
+  elif [[ "$f" =~ -wt[0-9]*[/-]([A-Za-z0-9_-]+) ]]; then
+    id="${BASH_REMATCH[1]}"
+  elif [[ "$f" =~ /brain/([^/]+)/ ]]; then
+    conv_id="${BASH_REMATCH[1]}" home="${f%/.gemini/*}"
     db="$home/.gemini/antigravity-cli/conversation_summaries.db"
     if [[ -f "$db" && -n "$conv_id" ]]; then
       uris="$(python3 -c "import sqlite3, sys; con = sqlite3.connect(sys.argv[1]); r = con.execute('SELECT workspace_uris FROM conversation_summaries WHERE conversation_id = ?', (sys.argv[2],)).fetchone(); print(r[0] if r else '')" "$db" "$conv_id" 2>/dev/null)"
-      if [[ "$uris" =~ -wt[0-9]*[/-]([A-Za-z0-9_-]+) ]]; then
-        echo "${BASH_REMATCH[1]}"; return 0
-      fi
+      [[ "$uris" =~ -wt[0-9]*[/-]([A-Za-z0-9_-]+) ]] && id="${BASH_REMATCH[1]}"
     fi
   fi
-  echo unattributed
+  [[ -n "$id" ]] || id=unattributed
+  [[ "$id" =~ ^(a|AGY)-[0-9]+$ ]] && printf '%s\n' "$id" || printf '%s (agy)\n' "$id"
 }
 
 # SPL_COST_TOKENS_AGY_PY: python script to parse agy transcripts for a day
@@ -297,6 +293,8 @@ for h in homes:
                     if m: agent_id = m.group(1)
                 if not agent_id:
                     agent_id = "unattributed"
+                if not re.match(r"^(?:a|AGY)-[0-9]+$", agent_id):
+                    agent_id = f"{agent_id} (agy)"
 
                 f.seek(0)
                 for line in f:

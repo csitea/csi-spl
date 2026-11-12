@@ -15,9 +15,9 @@ const (
 	costAllocTenantPath = "/v1/tenant/cost-allocations"
 )
 
-// seatAs admits the person of email into tid with role: the same email in
+// costSeatAs admits the person of email into tid with role: the same email in
 // two workspaces is one person with two memberships.
-func seatAs(t *testing.T, e *env, tid, email, role string) string {
+func costSeatAs(t *testing.T, e *env, tid, email, role string) string {
 	t.Helper()
 	h := e.st.(store.Humans)
 	now := time.Now()
@@ -76,9 +76,9 @@ func TestCostAllocationRoutes(t *testing.T) {
 	w2, _ := r.e.tenant()
 	w3, _ := r.e.tenant()
 	email := newTenantID("p") + "@example.com"
-	p := seatAs(t, r.e, w1, email, rbac.Admin)
-	seatAs(t, r.e, w2, email, rbac.Admin)
-	seatAs(t, r.e, w3, email, rbac.Developer)
+	p := costSeatAs(t, r.e, w1, email, rbac.Admin)
+	costSeatAs(t, r.e, w2, email, rbac.Admin)
+	costSeatAs(t, r.e, w3, email, rbac.Developer)
 	devW1 := seat(t, r.e, w1, rbac.Developer)
 	label := "shared bill " + newTenantID("b")
 	for _, m := range []string{"2004-05", "2004-06"} {
@@ -200,7 +200,7 @@ func heldItem(got map[string]any, label string) map[string]any {
 func TestCostAllocationTenantRefusesAgentAndClone(t *testing.T) {
 	r := newFleetTokensRig(t)
 	w1, _ := r.e.tenant()
-	admin := seatAs(t, r.e, w1, newTenantID("p")+"@example.com", rbac.Admin)
+	admin := costSeatAs(t, r.e, w1, newTenantID("p")+"@example.com", rbac.Admin)
 	month := costAllocTenantPath + "?month=2004-06"
 	body := allocBody("shared bill "+newTenantID("b"), [2]any{w1, 10000})
 	if code, got := call(t, r.e, w1, http.MethodGet, month, admin, nil); code != http.StatusOK {

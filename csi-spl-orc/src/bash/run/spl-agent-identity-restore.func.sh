@@ -155,13 +155,22 @@ do_spl_agent_identity_restore() {
         ;;
     esac
   done <<< "$plan"
+  _ai_restore_finish "$dry" "$n" "$refused" "$failed" "$box_user" "$agent_user" "${started[@]}"
+}
+
+# The run's last step: its count line; after a real run that started any,
+# the settle, the window names from the map and the map check, then the
+# run-as check of the started ids (an ALERT is one more failure). 0 = none
+# failed.
+_ai_restore_finish() {  # DRY N REFUSED FAILED BOX-USER AGENT-USER STARTED-ID...
+  local dry="$1" n="$2" refused="$3" failed="$4" box_user="$5" agent_user="$6"; shift 6
   echo "restore: $n started, $refused refused, $failed failed"
   if [[ "$dry" == 0 && "$n" -gt 0 ]]; then
     sleep "${IDENTITY_RESTORE_SETTLE:-10}"
     ai_reconcile --apply | grep -vE '^SKIP pid' || true
     ai_check
   fi
-  if [[ "$dry" == 0 && "$n" -gt 0 && "$box_user" != "$agent_user" ]] && ! _ai_runas_check "$box_user" "${started[@]}"; then
+  if [[ "$dry" == 0 && "$n" -gt 0 && "$box_user" != "$agent_user" ]] && ! _ai_runas_check "$box_user" "$@"; then
     failed=$((failed + 1))
   fi
   (( failed == 0 ))

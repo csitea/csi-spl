@@ -69,7 +69,8 @@
 #      held the orch lease, the lease moved mid-tick, and the agy seat started
 #      on that box, which has no agy): every path that starts the lane HERE checks
 #      this box's CLI. The orch lease on another box, no fleet, a named
-#      TITLE, a respawn: this box without agy -> exit 13, REFUSED, nothing
+#      TITLE, a respawn, the busy count picking this box: this box without
+#      agy -> exit 13, REFUSED, nothing
 #      started; CONTROL each with agy here -> starts here
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
@@ -485,5 +486,13 @@ OUT="$(SPAWN_REUSE_ID=1 SPOOL_VENDOR_CLIS_CMD="$NO_AGY" bash "$SW" agy a-607 "$T
 check "18. a respawn (SPAWN_REUSE_ID=1), this box without agy: exit 13, nothing started" nocli a-607
 OUT="$(SPAWN_REUSE_ID=1 bash "$SW" agy a-607 "$T_TMP/wd" 2>&1)"; RC=$?
 check "18. CONTROL a respawn, agy here: starts here" here_k
+# The busy count picks this box from a map measured with agy; the measurement at launch has none (a flaky
+# or changed CLI between the two reads): the guard still refuses. FLIP: 1st call with agy, then without.
+printf '#!/usr/bin/env bash\nf="%s/flip.n"; n=$(cat "$f" 2>/dev/null || echo 0); echo $((n + 1)) > "$f"\n[ "$n" = 0 ] && echo claude,agy || echo claude\n' "$T_TMP" > "$T_TMP/flip"
+{ rows "$HERE_BOX" 0 100; report_cli "$OTHER" claude,agy 60 c-200,c-201; } | set_rows
+rm -f "$T_TMP/flip.n"; spawn_k agy SPOOL_VENDOR_CLIS_CMD="bash $T_TMP/flip"
+check "18. the busy count picks this box (0 busy, 2 there), then this box has no agy: exit 13, nothing started" nocli auto
+rm -f "$T_TMP/flip.n"; spawn_k agy
+check "18. CONTROL the same busy pick, agy here: starts here" here_k
 
 t_done

@@ -3380,6 +3380,128 @@
         ]
       }
     },
+    "/v1/channels/{channel}/workspace-move": {
+      "get": {
+        "operationId": "getChannelsByChannelWorkspaceMove",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{allowed: true, targets: [{slug, name}]}: the person's own workspaces but this one, live ones only (spec 169 8.5.2, T14)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "channel_move_owner: not the biz owner of the operator workspace, or no session; forbidden: no member of this workspace"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Probe the \"Move to workspace\" menu entry: may this person move the channel, and where to",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
+    "/v1/channels/{channel}/workspace-move/plan": {
+      "post": {
+        "operationId": "postChannelsByChannelWorkspaceMovePlan",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "dst": {
+                    "description": "one of the probe's target slugs",
+                    "type": "string"
+                  },
+                  "keep": {
+                    "description": "HUM ids added to dst (Q5)",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "keep_emails": {
+                    "description": "channel invites that move (5.1b)",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "leave_hours": {
+                    "description": "HUM ids whose hours rows stay (5.1a)",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "dst"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "the operator plan {counts, seats, mentions, members_lost, kept, refuse, shared_files} plus blocked: every stop the confirm would meet, refuse and P2's no orchestrator seat in dst and file quota of dst, [] when none; it changes nothing (spec 169 8.5.4, T14)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "channel_move_owner: not the biz owner of the operator workspace, or no session; forbidden: no member of this workspace"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "501": {
+            "description": "unsupported: a store that cannot plan a channel move"
+          }
+        },
+        "summary": "Plan a channel's move into another workspace for the menu entry's dialog; reads only",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
     "/v1/cicd-logs": {
       "post": {
         "operationId": "postCicdLogs",

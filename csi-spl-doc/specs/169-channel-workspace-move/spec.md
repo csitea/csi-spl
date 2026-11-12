@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.29 (2026-11-08). Status: **Draft** (part built: section 8.4's hub
+Version: v0.30 (2026-11-12). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -127,6 +127,12 @@ v0.29 folds the owner's answers to Q9, Q10 and Q11 (SPL-5046; owner HUM-10, t1
 035cb09e, msg a271ca2c, poll 9ac73227): A to each, the recommended answers 8.5 already
 followed. They move from 11.3 to the 11.1 table; 8.5 states them as decided; T14, T15,
 L14 and L15 wait for no answer. The order of section 10 does not change.
+v0.30 ticks row T14 (SPL-5371): the probe and the plan routes of 8.5.3 on the
+member session, in `api/hub/channel_move_browser.go`. Two answers of C29 come from
+the session door before the owner test: a member who is not in `<SRC>` gets its 403
+`forbidden`, and with the view door on (prd, dev) no session gets its 401 `view_door`
+(`humanTenant`, `api/hub/resolve.go`; read from the code, the tests run with the door
+off, where no session is the owner test's 403).
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -643,7 +649,8 @@ workspace" option". Read on origin/master `0b2f05cb1`:
 finds nothing, and no row of section 10 asked for it before this version. Today the
 only door is the shell action, called as the env's service account.
 
-Not built yet: everything in this section. The owner decided Q9, Q10 and Q11 (11.1,
+Built: the probe and the plan of 8.5.3, with 8.5.2's owner test and targets and 8.5.4's
+`.blocked` (T14). Not built yet: the rest of this section. The owner decided Q9, Q10 and Q11 (11.1,
 msg a271ca2c): A to each, the answers the text below was written for.
 
 #### 8.5.1 Where it sits
@@ -849,7 +856,7 @@ Each row is one small task; files named are where it lands.
 | T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 on the seeded 3,650-post channel against the box's 30 s client cap (`curl -m 30`, `spl_hub_operator_call`; the hub's Cloud Run request timeout is 600 s); over 30 s means a bug row before the first prd move, and SPL-5067 is that row: every channel-move call now waits the cnf's `hub.cloud_run.timeout_seconds` (`SPL_HUB_OP_MAX_TIME`); the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 | T13b | P7's free-text scan and Q4's mentions: T13 measured `proof scan messages.body 1` on one staying post that links a moved topic | built (SPL-5010): `api/channelmove/mentions.go` (`ReadMentions`), `api/hub/channel_move_steps.go` (`p7`), `api/store/rls.go` (`asOperatorSnapshot`), `orc/run/spl-channel-workspace-move.func.sh` (`MENTIONS`, `MENTION` lines); tests `api/channelmove/proof_test.go` (`TestMentionsPostgres`), `api/hub/channel_move_p7_test.go`, `api/store/channel_move_journal_test.go`. Not re-run on dev: a second T13 needs the owner's new GO |
 | T13c | `KEPT_UNTIL` printed `not read: no date for hub logs` (T13), so Q3's last date never printed | built (SPL-5010): cnf `hub.log_bucket`; `_spl_cwm_retention_log_days` sends that bucket's days only after it reads a line of the hub's service back from it (dev read 2026-11-07: two sinks, `_Default` 30 days, the hub's `requests` and `stderr` lines there; prd not read), else `not read: <why>`; case 13 of `orc/tests/spl-channel-workspace-move.tst.sh` |
-| T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31 | `api/hub/channel_move_browser.go`, `_test.go`, `openapi.json` |
+| T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31 | built (SPL-5371): `api/hub/channel_move_browser.go` (`GET /v1/channels/{channel}/workspace-move` answers `{allowed, targets: [{slug, name}]}`, `POST .../workspace-move/plan` `{dst, keep, keep_emails, leave_hours}` answers the operator plan plus `.blocked`: `.refuse` then P2's two checks, `[]` when nothing stops it; a `dst` the person is not in answers 404 `unknown_tenant`, as an unknown one; under a quota a store that cannot count the files, Memory, puts the uncounted total in `.blocked`), registered by `routeChannelMembers`; `openapi.json`; tests `api/hub/channel_move_browser_test.go` (C31's file total on Postgres) |
 | T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | `api/hub/channel_move_confirm.go`, `_test.go`, `api/hub/channel_move_steps.go`, `openapi.json` |
 | T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
 | T17 | Hub: the stored refusal and `GET /v1/channel-moves/{move_id}`, the status line in the GO's topic, the `#alerts` line (8.5.6). Test C35's store and hub half | `api/hub/channel_move_status.go`, `_test.go`, `api/store/channel_move_journal*.go` |

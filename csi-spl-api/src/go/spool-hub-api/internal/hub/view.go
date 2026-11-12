@@ -785,7 +785,7 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		return
 	}
 	out = mod.keepTopics(out) // specs/077 T016: a hidden opening message takes its topic row
-	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out, mod, lv) {
+	if per > 0 && !s.inlineMessages(w, r, t, sq, inlinePage{per: per, out: out, mod: mod, lv: lv}) {
 		return
 	}
 	if counts && !s.attachDMCounts(w, r, t, sq, reads, out) {
@@ -983,11 +983,21 @@ func (s *Server) deltaScope(w http.ResponseWriter, r *http.Request, t store.Tena
 	return body, true
 }
 
+// inlinePage is inlineMessages' page inputs (per, out) and its filters
+// (mod, lv); out is filled in place.
+type inlinePage struct {
+	per int
+	out []viewTopic
+	mod modView
+	lv  lockView
+}
+
 // inlineMessages fills each topic's newest per messages (per_topic=,
 // CLE-34985): one read for the whole page where the WUI made one request per
 // topic. The reader door is sq's, applied per message as ViewTopic applies
 // it. false = it answered with an error.
-func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, per int, out []viewTopic, mod modView, lv lockView) bool {
+func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, pg inlinePage) bool {
+	per, out, mod, lv := pg.per, pg.out, pg.mod, pg.lv
 	ids := make([]string, len(out))
 	for i := range out {
 		ids[i] = out[i].TaskID

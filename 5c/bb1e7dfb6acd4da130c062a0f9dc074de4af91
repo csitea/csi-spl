@@ -1,0 +1,6 @@
+Lay-What: On a phone, closing a filter or sort panel no longer leaves the page out of step with the web address it shows.
+Lay-How: When the panel closes, the app now re-reads the address the page wrote while the panel was open, and uses it.
+Lay-Why: After closing the panel the page could act on an older address, so a later step dropped your chosen filter or sort.
+Tech-What: WUI phone stack: closing an overlay realigns the vue-router route with the history entry (address bar).
+Tech-How: onPopCapture calls alignRoute: a forced router.replace to the overlay entry URL when history.location differs; helper mobileRouterPath.
+Tech-Why: popstate listeners run in the order added, so vue-router read the entry under the sheet before the capture listener could stop it.

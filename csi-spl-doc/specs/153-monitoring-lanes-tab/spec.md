@@ -1,5 +1,10 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-12, SPL-5396): section 3.28 (no close X on the
+Monitoring header; each gap around `>>` is as wide as "Monitor" in the
+heading's font), cases C140-C142. A bug fix on 3.1 and SPL-4811, placed as
+one lane brief, not a panel version.
+
 Addendum (2026-11-12, SPL-5353): section 3.26 (a review-only lane whose put
 names its report task's relay hash is refused; the spawn tries the reviewed
 lane's discussion once, and a row still not written is one WARN line in
@@ -2332,6 +2337,43 @@ Now:
   where a person taps. A click at the scrim's centre landed inside the
   12-row Sort sheet, on Prio. P5 (320, 360, 390) and C63 (390) fail on the
   bundle without the route fix: the sort is gone once the sheet closes.
+
+### 3.28 No close X; the gaps around `>>` are "Monitor" wide (SPL-5396)
+
+Owner HUM-10, t1 9d0d51e9 (2026-11-12): "the close button ( the x ) is not
+needed , it should [close] whenever one clicks on any other section in the
+section panel" and "there should be as much white space as now the length
+of the "Monitor" string is in the Monitoring label, between it and the >>
+and once again the same amount of white space till the tabs start".
+
+- `pages/monitoring.vue` renders no `SectionClose` (neither end). The page
+  closes the way every route does: a pick of any other section on the rail
+  (Issues, Archive, People, Channels, ...) navigates away and unmounts it.
+  The Esc close key has no X to click on Monitoring any more. Reporting and
+  every other section keep their X.
+- The separator is three spans: a gap, `>>` (`data-test="monitoring-title-mark"`),
+  a gap. Each gap (`.section-title-gap::before` in `main.css`) draws the
+  word "Monitor" with `visibility: hidden` in the heading's font (weight
+  700, `calc(var(--section-tab-fs) + 1px)`), so it is that word's width at
+  every font size and zoom, with no pixel constant. The separator's and the
+  bar's -12 px margins (SPL-4811, kept) cancel the header gap, so the first
+  gap starts at the heading text's end and the second ends on the first
+  folder tab's left border (the tab's edge, not its label).
+- Phone: unchanged; the heading and the separator are not drawn there
+  (CLE-77886), so there is no gap to size.
+- Reporting keeps its `"  >>  "` separator (the owner named Monitoring).
+- No new text key: the gap word is CSS generated content, never read out
+  (the separator is `aria-hidden`) and never copied (`user-select: none`).
+
+| # | case | expected | red control |
+|---|---|---|---|
+| C140 | desktop 1280: `>>`'s left edge minus the heading text's right edge, minus the width of "Monitor" in the h2's computed font | 0 +-1 px | master: FAILS (the gap is two spaces, not the word) |
+| C141 | desktop 1280: the first tab's left border minus `>>`'s right edge, minus that width | 0 +-1 px | master: FAILS (two spaces + 12 px) |
+| C142 | 1440: Monitoring shows no close X; Monitoring -> rail Issues / Archive / People / Channels leaves it, the picked section open | 0 X; each pick lands | master: one X |
+
+Tests: e2e `monitoring-costs` C2 (C140, C141) and C4 (no X, both close
+button settings), `section-exit` (C142); unit `monitoring-tabs`
+("SPL-5396").
 
 ## 4. Cases
 

@@ -9,12 +9,15 @@
   <div class="feed-col monitoring-page" data-test="monitoring-page">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
+      <!-- SPL-5396 (owner HUM-10, t1 9d0d51e9): no close X here; Monitoring
+           closes when the reader picks any other section on the rail -->
       <h2 class="section-title" data-test="monitoring-heading">{{ t('monitoring.title') }}</h2>
       <!-- spec 153 3.1 (SPL-3157, owner HUM-10, t1 5e7b15c9): the tab bar on
            the heading's row; SPL-4811 (t1 c7c44497, msg 416d130f): after
-           "  >>  " (main.css .section-title-sep) -->
-      <span class="section-title-sep" aria-hidden="true" data-test="monitoring-title-sep">{{ '  >>  ' }}</span>
+           "  >>  " (main.css .section-title-sep); SPL-5396 (t1 9d0d51e9):
+           each gap as wide as "Monitor" in the heading's font (main.css
+           .section-title-gap), not spaces -->
+      <span class="section-title-sep monitoring-title-sep" aria-hidden="true" data-test="monitoring-title-sep"><span class="section-title-gap" data-test="monitoring-title-gap" /><span data-test="monitoring-title-mark">{{ '>>' }}</span><span class="section-title-gap" data-test="monitoring-title-gap" /></span>
       <!-- spec 153 3.16 (SPL-4730): the bar and a tab's actions share one
            row; display: contents on a desktop (the header is that row), a
            flex row of its own on a phone, where the header dissolves -->
@@ -35,7 +38,6 @@
              Refresh, its age, Clear filters), teleported in by the tab -->
         <div id="monitoring-head-actions" class="monitoring-head-actions" data-test="monitoring-head-actions" />
       </div>
-      <SectionClose side="end" />
     </header>
     <!-- the summary strip's slot: empty until its lane fills it -->
     <div class="monitoring-summary" data-test="monitoring-summary" />

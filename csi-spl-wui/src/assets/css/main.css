@@ -1699,6 +1699,15 @@ form.composer.omnibox--called .omnibox-field { animation: omnibox-called-field 1
 .feed-header h2.section-title { font-size: calc(var(--section-tab-fs) + 1px); font-weight: 700; }
 .section-title-sep { white-space: pre; margin-left: -12px; font-size: var(--section-tab-fs); color: var(--color-muted); user-select: none; }
 .monitoring-tab, .reporting-tab { font-size: var(--section-tab-fs); }
+/* SPL-5396 (owner HUM-10, t1 9d0d51e9: "as much white space as now the
+   length of the "Monitor" string is in the Monitoring label, between it and
+   the >> and once again the same amount of white space till the tabs
+   start"): each gap is the word itself, drawn invisible in the heading's
+   font (bold, --section-tab-fs + 1px), so it tracks the font on every
+   screen; no magic px. The bar's -12px margin cancels the header gap, so the
+   second gap ends on the first tab's edge. */
+.monitoring-title-sep { white-space: nowrap; }
+.section-title-gap::before { content: "Monitor"; visibility: hidden; font-weight: 700; font-size: calc(var(--section-tab-fs) + 1px); }
 .monitoring-tabs { display: flex; align-items: flex-end; align-self: stretch; gap: 4px; flex: 1 1 auto; min-width: 0; margin: -12px 0 -13px -12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .monitoring-tabs::-webkit-scrollbar { display: none; }
 .monitoring-head-actions { display: flex; align-items: center; gap: 0.5rem; flex: none; } /* SPL-3250: a tab's header actions (Events: Clear log) */

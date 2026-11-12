@@ -42,8 +42,8 @@ const PAGES = [
   { name: 'Issues', tab: '[data-testid=sidebar-tab-issues]', path: '/issues' },
   { name: 'Archive', tab: '[data-testid=sidebar-tab-archive]', path: '/archive' },
   { name: 'People', tab: '[data-testid=sidebar-tab-people]', path: '/people' },
-  /* SPL-2075: Agents and Boxes are Monitoring's tabs now; SPL-3250 the Event log too */
-  { name: 'Monitoring', tab: '[data-testid=sidebar-tab-monitoring]', path: '/monitoring' },
+  /* SPL-2075: Agents and Boxes are Monitoring's tabs now; SPL-3250 the Event log too.
+     SPL-5396: Monitoring has no X; it closes on another section (below) */
   { name: 'Help', tab: '[data-testid=help-open]', path: '/help' },
   { name: 'Workspace settings', tab: '[data-testid=tenant-settings-open]', path: '/tenant-settings' },
 ]
@@ -93,6 +93,23 @@ try {
     await p.waitForFunction(() => location.pathname === '/channel/feedback', { timeout: 15000 }).catch(() => null)
     ok(`1440 ${s.name}: the X goes back to the channel the reader left`, (await path(p)) === '/channel/feedback', await path(p))
   }
+
+  /* SPL-5396 (owner HUM-10, t1 9d0d51e9: "the close button ( the x ) is not
+     needed, it should [close] whenever one clicks on any other section in the
+     section panel"). CONTROL: on master Monitoring draws an X, so the first FAILS there. */
+  await go(p, '[data-testid=sidebar-tab-monitoring]', '/monitoring')
+  const mon = await path(p)
+  ok('1440 Monitoring: no close X on the page (SPL-5396)', mon.startsWith('/monitoring') && (await closeX(p)) === 0, { mon, x: await closeX(p) })
+  for (const s of PAGES.filter((q) => q.tab.includes('sidebar-tab-'))) {
+    await go(p, '[data-testid=sidebar-tab-monitoring]', '/monitoring')
+    await go(p, s.tab, s.path)
+    const here = await path(p)
+    const left = await p.evaluate(() => !document.querySelector('[data-test=monitoring-page]'))
+    ok(`1440 Monitoring -> rail ${s.name}: Monitoring is closed, ${s.name} open`, left && (here === s.path || here.startsWith(s.path + '/')), { here, left })
+  }
+  await go(p, '[data-testid=sidebar-tab-monitoring]', '/monitoring')
+  await go(p, '[data-testid=sidebar-tab-channels]', '/channel/feedback')
+  ok('1440 Monitoring -> rail Channels: back in the channel the reader left', (await path(p)) === '/channel/feedback', await path(p))
 
   /* the rail's Channels / Flow bring the conversation back */
   await go(p, '[data-testid=sidebar-tab-issues]', '/issues')

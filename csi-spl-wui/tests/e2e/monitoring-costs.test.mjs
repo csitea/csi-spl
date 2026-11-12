@@ -432,7 +432,7 @@ async function paidSortFilter(p) {
     && (await count(p, '[data-test=paid-shown]')) === 0)
 }
 
-/** Spec 153 3.1: where the heading, the bar, its first label, the active tab and the close X are drawn. Text edges come from a Range over the text, not the boxes. */
+/** Spec 153 3.1: where the heading, the bar, its first label, the active tab and the close X are drawn (none since SPL-5396). Text edges come from a Range over the text, not the boxes. */
 const tabRowGeometry = (p) => p.evaluate(() => {
   const header = document.querySelector('[data-test=monitoring-page] > header')
   const h2 = document.querySelector('[data-test=monitoring-heading]')
@@ -443,15 +443,26 @@ const tabRowGeometry = (p) => p.evaluate(() => {
   if (!header || !h2 || !nav || !first) return null
   const head = textRect(h2)
   const label = textRect(first)
-  const sep = document.querySelector('[data-test=monitoring-title-sep]')
-  const mark = sep ? textRect(sep) : null
+  /* SPL-5396: the ">>" itself, and the width of "Monitor" in the heading's font */
+  const markEl = document.querySelector('[data-test=monitoring-title-mark]')
+  const mark = markEl ? textRect(markEl) : null
+  const probe = document.createElement('span')
+  probe.textContent = 'Monitor'
+  probe.style.font = getComputedStyle(h2).font
+  probe.style.position = 'absolute'
+  probe.style.whiteSpace = 'pre'
+  document.body.appendChild(probe)
+  const word = probe.getBoundingClientRect().width
+  probe.remove()
   const kids = [...header.children]
   const tabs = [...nav.querySelectorAll('a')].map((a) => a.getBoundingClientRect())
   const at = (sel) => kids.findIndex((e) => e.matches(sel))
   return {
     inHeader: nav.closest('header') === header,
-    sepGap: mark ? Math.round((mark.left - head.right) * 10) / 10 : null,
-    gap: mark ? Math.round((label.left - mark.right) * 10) / 10 : null,
+    word: Math.round(word * 10) / 10,
+    sepGap: mark ? Math.round((mark.left - head.right - word) * 10) / 10 : null,
+    gap: mark ? Math.round((first.getBoundingClientRect().left - mark.right - word) * 10) / 10 : null,
+    closeX: header.querySelectorAll('[data-test=section-close]').length,
     topDiff: Math.round(Math.abs(label.top - head.top) * 10) / 10,
     activeBottom: active ? Math.round((active.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom) * 10) / 10 : null,
     activeToBar: active ? Math.round((active.getBoundingClientRect().bottom - nav.getBoundingClientRect().bottom) * 10) / 10 : null,
@@ -503,15 +514,13 @@ async function tabRow(browser, base) {
       ok(`C3 ${label}: no scrollbar drawn under the tabs`, Boolean(g && g.navScrollbar === 0), g && g.navScrollbar)
     } else {
       ok(`C2 ${label}: the first label on the heading's line`, Boolean(g && g.topDiff <= 4), g && g.topDiff)
-      ok(`C2 ${label}: the separator right after the heading text (+-1 px, SPL-4811)`, Boolean(g && g.sepGap !== null && Math.abs(g.sepGap) <= 1), g && g.sepGap)
-      ok(`C2 ${label}: the first label 12 px +-2 after the separator`, Boolean(g && g.gap !== null && Math.abs(g.gap - 12) <= 2), g && g.gap)
+      /* SPL-5396 (owner HUM-10, t1 9d0d51e9): heading, a "Monitor"-wide gap, >>, the same gap, the first tab's edge. CONTROL: on master the gaps are two spaces (+12 px), so both FAIL there by ~50 px. */
+      ok(`C2 ${label}: ">>" one "Monitor" width after the heading text (+-1 px, SPL-5396)`, Boolean(g && g.word > 40 && g.sepGap !== null && Math.abs(g.sepGap) <= 1), g && [g.word, g.sepGap])
+      ok(`C2 ${label}: the first tab one "Monitor" width after ">>" (+-1 px, SPL-5396)`, Boolean(g && g.gap !== null && Math.abs(g.gap) <= 1), g && [g.word, g.gap])
       ok(`C2b ${label}: the active tab's bottom on the header's bottom (+-1 px)`, Boolean(g && g.activeBottom !== null && Math.abs(g.activeBottom) <= 1), g && g.activeBottom)
-      if (opts.closeButtons === 'windows') {
-        ok(`C4 ${label}: the end close X is the header's last element`, Boolean(g && g.last === 'end' && g.end > g.h2), g)
-      } else {
-        ok(`C4b ${label}: the start X before the heading, no end X`, Boolean(g && g.start >= 0 && g.start < g.h2 && g.end === -1), g)
-        ok(`C4b ${label}: the bar runs to the row's end`, Boolean(g && g.navRightGap <= 1), g && g.navRightGap)
-      }
+      /* SPL-5396: no close X on either side; another section on the rail closes Monitoring (section-exit) */
+      ok(`C4 ${label}: no close X in the header (SPL-5396)`, Boolean(g && g.closeX === 0 && g.start === -1 && g.end === -1), g)
+      ok(`C4b ${label}: the bar runs to the row's end`, Boolean(g && g.navRightGap <= 1), g && g.navRightGap)
     }
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-tab-row-${label.replace(/ /g, '-')}.png` })
     await ctx.close()

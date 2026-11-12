@@ -250,6 +250,17 @@ describe('monitoring tab bar: 3D folder tabs', () => {
   it('both themes: the tab rules use theme tokens only, never a literal colour', () => {
     for (const sel of ['.monitoring-tab', '.monitoring-tab--active']) assert.doesNotMatch(rule(sel), /#[0-9a-f]{3,8}\b|rgba?\(/i, sel)
   })
+  it('SPL-5396: no close X; each title gap is "Monitor" in the heading font, no px', () => {
+    const page = read('src/pages/monitoring.vue')
+    assert.doesNotMatch(page, /<SectionClose/, 'Monitoring closes on another section, not an X')
+    assert.equal((page.match(/class="section-title-gap"/g) || []).length, 2, 'a gap before and after >>')
+    assert.match(page, /data-test="monitoring-title-mark">\{\{ '>>' \}\}</)
+    const gap = rule('.section-title-gap::before')
+    assert.match(gap, /content:\s*"Monitor"/)
+    assert.match(gap, /visibility:\s*hidden/)
+    assert.match(gap, /font-size:\s*calc\(var\(--section-tab-fs\) \+ 1px\)/, 'the heading font size')
+    assert.doesNotMatch(gap, /width:/, 'no magic width')
+  })
   it('the selected tab is marked for assistive tech, and no :style binding (CSP)', () => {
     const page = read('src/pages/monitoring.vue')
     assert.match(page, /'monitoring-tab--active': active === tab\.id/)

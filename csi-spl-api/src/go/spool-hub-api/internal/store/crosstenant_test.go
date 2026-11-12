@@ -235,6 +235,16 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.MarkIssueOpened(ctx, s.tenant, hum, iss.Number, now); err != nil {
 		t.Fatal(err)
 	}
+	// issue_discussion_closes (rdb 0275, SPL-5284): the kept status of an
+	// issue its discussion's archive closed. A raw row under inTenant: the
+	// census needs the row, not the issue's status change.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO issue_discussion_closes (tenant_id, number, task_id, op, prev_status, closed_at, closed_by)
+			VALUES ($1, $2, $3::uuid, 'archive', 'wip', $4, $5)`, s.tenant, iss.Number, uuid4(), now, hum)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// member_clones (rdb 0088, specs/054): a technical clone human of the
 	// seeded member and its act-as row, so the table holds a row for both
 	// tenants. humans is hub-wide (no RLS); the clone row is tenant-scoped.

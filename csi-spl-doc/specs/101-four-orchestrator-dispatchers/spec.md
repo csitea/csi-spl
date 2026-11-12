@@ -345,7 +345,11 @@ from 00:36Z to 20:00Z (orch 15, dispatch 10; its `lease.log`: "silent 181s"
 ticks, only the holder the last tick judged its own: the hub must still name that holder, and the write
 is a compare-and-set of the same holder on the gen it read. It renews only a
 row whose last own write is 1.5 x `LEASE_PERIOD` old, and stops once the last
-judgement is older than 2 x `LEASE_STALE`. Every change of holder stays the
+judgement is older than 2 x `LEASE_STALE`. So a hung loop's row still goes
+stale, but later: its last keep is at most 2 x `LEASE_STALE` (360 s) after the
+last judgement, and the row reads stale `LEASE_STALE` after that, 540 s worst
+case at the defaults (180 s before the keeper). The keeper checks the loop's
+pid after each sleep, so a crashed loop gets no keep. Every change of holder stays the
 tick's, and the mirror's epoch is the time of the hub read, not the tick's
 start. Code and measurement: the keeper section of
 `csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`; test

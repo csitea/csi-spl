@@ -2739,7 +2739,8 @@ spl_fleet_apply() {
 # local mirror, the mirror only while it still names that holder (a handback
 # wait keeps its old name), and copies to the tenants. It never names a holder the hub does not; any change of holder
 # stays the tick's. A tick whose last judgement is older than LEASE_KEEP_MAX s
-# (2 x LEASE_STALE) is not kept: a hung loop still lets the row go stale. A
+# (2 x LEASE_STALE) is not kept: a hung loop still lets the row go stale, at
+# worst LEASE_KEEP_MAX + LEASE_STALE (540 s) after its last judgement. A
 # race with the tick is settled by --if-gen: one of the two writes loses and
 # the next tick reads the row again. One KEEP line per episode in lease.log.
 # LEASE_KEEP=0 turns it off; off under SPOOL_TEST=1 or the LEASE_HUB_CMD stub
@@ -2798,8 +2799,9 @@ spl_fleet_keeper_start() {
   [[ "${SPOOL_TEST:-0}" == 1 || -n "${LEASE_HUB_CMD:-}" ]] && on="${LEASE_KEEP:-0}"
   [[ "$on" == 1 ]] || return 0
   [[ "$every" =~ ^[1-9][0-9]*$ ]] || every=30
-  ( while kill -0 "$1" 2>/dev/null && ! spl_test_owner_gone; do
-      sleep "$every"; spl_fleet_keep_tick
+  # the loop is checked after the sleep: a crashed loop gets no pass (R7 N1)
+  ( while sleep "$every" && kill -0 "$1" 2>/dev/null && ! spl_test_owner_gone; do
+      spl_fleet_keep_tick
     done ) 7>&- 8>&- 9>&- &
   return 0
 }

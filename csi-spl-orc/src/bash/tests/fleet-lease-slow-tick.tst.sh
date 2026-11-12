@@ -24,8 +24,13 @@
 #      LEASE_KEEP_AFTER cost zero hub calls; a handback wait keeps the
 #      mirror's old name while the hub row is renewed; KEEP logged once
 #   4. a tick that finds no able seat removes the keep mark
+#   5. a tick whose compare-and-set loses to the keeper's renewal (R7 N3):
+#      the keeper's row stands, the tick keeps holder and mark, no take-over
+#   6. a loop that dies during the keeper's sleep gets no keeper pass (R7 N1)
 #  RED CONTROL on 269de997c's code: LEASE_SRC=<that file> fails 1 (the
-#  keeper does not exist there). Fixtures only in a mktemp root.
+#  keeper does not exist there); on 878dd2339's it fails 6 (LEASE_SRC must
+#  sit beside the real file, it sources its siblings). Fixtures only in a
+#  mktemp root.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -59,6 +64,8 @@ f="$HUB_DIR/${LEASE_HUB_TENANT:+$LEASE_HUB_TENANT.}$fleet.$role"
 exec 9>"$f.lock"; flock 9
 now="${HUB_NOW:-$(date +%s)}" h="" g=0 at=0
 [ -s "$f" ] && read -r h g at <"$f"
+# race.<role>: the keeper renews the same holder just before this write lands
+if [ -n "$holder" ] && [ -z "${LEASE_HUB_TENANT:-}" ] && [ -e "$HUB_DIR/race.$role" ]; then rm -f "$HUB_DIR/race.$role"; g=$((g + 1)); at="$now"; echo "$h $g $at" >"$f"; fi
 won=false
 if [ -n "$holder" ] && [ "$ifgen" = "$g" ]; then g=$((g + 1)); h="$holder"; at="$now"; echo "$h $g $at" >"$f"; won=true; fi
 age=-1; [ "$g" -gt 0 ] && age=$((now - at))
@@ -179,5 +186,40 @@ tick4 2060
 [[ ! -e "$M/spool/dispatch/fleet.dispatch.keep-holder" && "$(cat "$M/spool/dispatch/fleet.orch.keep-holder" 2>&1)" == "c-001@sat 2060" ]] &&
   pass "4. a tick with no able dispatch seat removes the mark: the keeper stops, the row goes stale as before" ||
   fail "4. unmark: $(ls "$M/spool/dispatch")"
+
+# --- 5. the tick loses its compare-and-set to the keeper (R7 N3) ----------------
+R="$T/r"; setup "$R"; RD="$R/spool/dispatch"
+tick_at() { lease_env "$R"; env "${LE[@]}" LEASE_NOW="$1" HUB_NOW="$1" bash -c '
+  set -uo pipefail
+  do_log() { :; }
+  source "$SRC"
+  spl_lease_init && spl_lease_ids master failover orch && spl_fleet_ids && spl_fleet_hub_init && spl_lease_fleet_tick' >>"$T/out" 2>&1; }
+tick_at 3000
+g0="$(cut -d' ' -f2 "$R/hub/main.dispatch")"
+touch "$R/hub/race.dispatch"; tick_at 3060
+[[ "$(cat "$R/hub/main.dispatch")" == "c-002@sat $((g0 + 1)) 3060" && "$(cat "$RD/fleet.dispatch.ok")" == 3000 &&
+   "$(cat "$RD/lease")" == "c-002@sat 3060" && "$(cat "$RD/fleet.dispatch.keep-holder" 2>&1)" == "c-002@sat 3060" &&
+   ! -e "$RD/fleet.dispatch.unreachable" ]] && ! grep -q 'takes over' "$RD/lease.log" 2>/dev/null &&
+  pass "5. a tick whose write loses to the keeper's renewal of the same holder: the keeper's row stands (gen $((g0 + 1))), the tick keeps the holder and its mark, no take-over, no unreachable" ||
+  fail "5. lost CAS: hub $(cat "$R/hub/main.dispatch") ok $(cat "$RD/fleet.dispatch.ok") file $(cat "$RD/lease") mark $(cat "$RD/fleet.dispatch.keep-holder" 2>&1) $(ls "$RD")"
+tick_at 3120
+[[ "$(cat "$R/hub/main.dispatch")" == "c-002@sat $((g0 + 2)) 3120" && "$(cat "$RD/fleet.dispatch.ok")" == 3120 ]] &&
+  pass "5. the next tick renews the row itself (gen $((g0 + 2)))" || fail "5. next tick: hub $(cat "$R/hub/main.dispatch") ok $(cat "$RD/fleet.dispatch.ok")"
+
+# --- 6. a loop that died during the keeper's sleep gets no pass (R7 N1) ---------
+row c-002@sat 30 1000 dispatch; echo 1000 >"$D/fleet.dispatch.ok"; echo "c-002@sat 1000" >"$D/fleet.dispatch.keep-holder"
+: >"$K/hub/calls"
+lease_env "$K"
+env "${LE[@]}" LEASE_NOW=1100 HUB_NOW=1100 LEASE_PERIOD=60 LEASE_STALE=180 LEASE_KEEP=1 LEASE_KEEP_EVERY=1 bash -c '
+  set -uo pipefail
+  do_log() { :; }
+  source "$SRC"
+  spl_lease_init && spl_lease_ids master failover orch && spl_fleet_ids && spl_fleet_hub_init || exit 1
+  # the trailing true: bash -c would exec a last "sleep" and never reap the
+  # dead loop, and kill -0 on a zombie succeeds
+  sleep 0.3 & spl_fleet_keeper_start "$!"; sleep 2.5; true' >>"$T/out" 2>&1
+[[ "$(n_calls)" == 0 && "$(cut -d' ' -f2 "$K/hub/main.dispatch")" == 30 ]] &&
+  pass "6. the loop gone 0.3 s into the keeper's 1 s sleep: no keeper pass, no hub call" ||
+  fail "6. dead loop: calls $(cat "$K/hub/calls") hub $(cat "$K/hub/main.dispatch")"
 
 [[ "$fails" == 0 ]]

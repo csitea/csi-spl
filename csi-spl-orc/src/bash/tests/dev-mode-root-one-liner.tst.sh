@@ -49,8 +49,10 @@ D
 chmod +x "$T/bin/docker"
 one_liner() {  # <dir>: the documented command run there; OUT + RC
   : >"$T/d.log"
+  # the compact log form, whatever the caller's: an outer ./run on a tty
+  # exports RUN_LOG_COMPACT=0, and leg 3 greps the compact FATAL line
   OUT=$(cd "$1" && env PATH="$T/bin:$PATH" DOCKER_LOG="$T/d.log" DEV_PREFLIGHT_UNAME_S=Plan9 \
-    bash -c "$cmd" 2>&1)
+    RUN_LOG=compact RUN_LOG_COMPACT=1 bash -c "$cmd" 2>&1)
   RC=$?
 }
 one_liner "$APP_ROOT"

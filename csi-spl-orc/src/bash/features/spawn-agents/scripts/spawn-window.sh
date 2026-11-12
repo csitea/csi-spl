@@ -163,7 +163,7 @@ spool_env_resolve
 usage() { sed -n '5p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
 
 KIND="${1:-}"; TITLE="${2:-}"
-case "$KIND" in claude|grok|agy|qwen|mistral|codex) ;; *) usage ;; esac
+spool_spawn_kind_ok "$KIND" || usage
 [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }

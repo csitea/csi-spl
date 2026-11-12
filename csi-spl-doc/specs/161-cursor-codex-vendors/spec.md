@@ -190,6 +190,7 @@ The exact files across the repository that read or enforce the grammar:
      case "$KIND" in claude|grok|agy|qwen|mistral|cursor|codex) ;; *) usage ;; esac
      ```
    - Routes `$KIND` to `spawn-cursor.sh` and `spawn-codex.sh`.
+   - As built (SPL-5343): the kinds are one list, `SPOOL_SPAWN_KINDS` with `spool_spawn_kind_ok` in `lib/spool-env.inc.sh`, which `spawn-window.sh` and both sides of `spawn-remote.sh` (`valid_args`, the sender and the far box) check. So a codex row placed on another box starts there; before this, `spawn-remote.sh` refused it with "bad kind codex" (exit 8). Cursor is not in the list until `spawn-window.sh` takes it.
 2. **`spawn-cursor.sh`**:
    - Adapter of `spawn-core.inc.sh`.
    - `SPAWN_KIND=cursor`, `SPAWN_ID_PREFIX=`, `SPAWN_ID_LETTER=u`, `SPAWN_BIN_VAR=CURSOR_BIN`.

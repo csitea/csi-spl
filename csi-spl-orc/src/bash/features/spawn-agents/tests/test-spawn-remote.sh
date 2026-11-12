@@ -400,4 +400,21 @@ eq "14. a failed write leaves seen as it was" "1 old-1 msg-14 old-2" "$rc $(tr '
 has "14. ... says so on stderr" "cannot unmark msg-14" "$(cat "$T_TMP/u14.err")"
 eq "14. ... and leaves no temp file" "seen" "$(ls "$U")"
 
+# ---- 15. codex is a kind a request may carry (SPL-5343) ------------------------
+# spawn-window took codex, spawn-remote's valid_args did not: a codex row placed
+# on another box failed "bad kind codex" (exit 8) and went back to the queue.
+# Both sides now read the one list, SPOOL_SPAWN_KINDS (lib/spool-env.inc.sh).
+n="$(calls)"
+req_b "$T_TMP/r15" codex auto "$WORK" "$T_TMP/brief.md" codex-slug
+eq "15. a codex request from the holder: exit 0" 0 "$(cat "$T_TMP/r15.rc")"
+eq "15. ... spawned on the far box" "$((n + 1))" "$(calls)"
+has "15. ... as kind codex" "codex auto $WORK $A/spawn-remote/briefs/" "$(tail -1 "$T_TMP/spawn.calls")"
+kinds="$(bash -c '. "$1"; printf %s "${SPOOL_SPAWN_KINDS:-}"' _ "$T_SCRIPTS/../lib/spool-env.inc.sh" 2>/dev/null)"
+has "15. the one kind list names codex" " codex" " $kinds"
+for f in spawn-remote.sh spawn-window.sh; do
+  use="$(grep -m1 -oE '<claude\|[a-z|]+>' "$T_SCRIPTS/$f")"
+  eq "15. $f usage names the list's kinds" "<${kinds// /|}>" "$use"
+done
+for k in $kinds; do check "15. kind $k has its launcher" test -r "$T_SCRIPTS/spawn-$k.sh"; done
+
 t_done

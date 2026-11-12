@@ -522,6 +522,14 @@ spool_codex_auth_marker() {
 # lane sits at agy's login screen, so agy does not count on that box.
 spool_agy_auth_marker() { printf '%s' "${SPOOL_AGY_AUTH_MARKER:-.gemini/antigravity-cli/antigravity-oauth-token}"; }
 
+# The kinds a lane is spawned as, one launcher scripts/spawn-<kind>.sh each:
+# the ONE list spawn-window.sh and both sides of spawn-remote.sh check, so the
+# remote path cannot drift from the local one again (SPL-5343: spawn-remote
+# lacked codex, and a codex row placed on another box failed "bad kind codex").
+SPOOL_SPAWN_KINDS='claude grok agy qwen mistral codex'
+# 0 when $1 is one of SPOOL_SPAWN_KINDS.
+spool_spawn_kind_ok() { [[ "${1:-}" =~ ^[a-z]+$ && " $SPOOL_SPAWN_KINDS " == *" $1 "* ]]; }
+
 # The vendor kinds THIS box can start (SPL-1649): one comma-separated line of
 # claude grok agy qwen mistral codex, each whose *_BIN `command -v` finds as the
 # agent user in its login shell - the way spool-harness.sh execs it, so a CLI
@@ -543,7 +551,7 @@ spool_vendor_clis() {
     SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
     spool_resolve_bins
     probe=""
-    for kind in claude grok agy qwen mistral codex; do
+    for kind in $SPOOL_SPAWN_KINDS; do
       var="$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')_BIN"
       probe+="command -v $(printf '%q' "${!var}") >/dev/null 2>&1 "
       # codex counts only with its subscription login (spool_codex_auth_marker).
@@ -554,7 +562,7 @@ spool_vendor_clis() {
     done
     out="$(spool_agent_exec "${probe}echo spool-clis-end" </dev/null 2>/dev/null)" || true
     [[ "$out" == *spool-clis-end* ]] || exit 1
-    grep -xE 'claude|grok|agy|qwen|mistral|codex' <<<"$out" | paste -sd, -
+    grep -xE "${SPOOL_SPAWN_KINDS// /|}" <<<"$out" | paste -sd, -
   )
 }
 

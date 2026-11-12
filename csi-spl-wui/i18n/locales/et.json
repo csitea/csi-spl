@@ -4116,7 +4116,7 @@
     "entries": {
       "add": "Lisa kulu",
       "intro_cloud": "Käsitsi sisestatud pilvetaristu kulud, näiteks arve, üks rida kuus. Aruanded → Kulud arvestab neid jaotises Pilv.",
-      "intro_hr": "Käsitsi sisestatud personalikulud, üks rida kuus. Aruanded → Kulud näitab neid jaotises Isikud ja Kokku sisaldab neid.",
+      "intro_hr": "Käsitsi sisestatud personalikulud, üks rida kuus. Aruanded → Kulud näitab neid jaotises Isikud ning jaotis Kokku sisaldab neid.",
       "col_label_cloud": "Kirjeldus",
       "col_label_hr": "Roll või leping",
       "col_amount": "Summa ilma käibemaksuta",

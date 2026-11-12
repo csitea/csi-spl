@@ -4116,7 +4116,7 @@
     "entries": {
       "add": "Añadir un coste",
       "intro_cloud": "Costes de infraestructura en la nube introducidos a mano, como una factura, una fila por mes. Informes → Costes los cuenta en Nube.",
-      "intro_hr": "Costes de recursos humanos introducidos a mano, una fila por mes. Informes → Costes los muestra en Personas, y el Total los incluye.",
+      "intro_hr": "Costes de recursos humanos introducidos a mano, una fila por mes. Informes → Costes los muestra en Personas, y Total los incluye.",
       "col_label_cloud": "Descripción",
       "col_label_hr": "Función o contrato",
       "col_amount": "Importe sin IVA",

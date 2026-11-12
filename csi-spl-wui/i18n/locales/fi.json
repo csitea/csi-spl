@@ -4116,7 +4116,7 @@
     "entries": {
       "add": "Lisää kulu",
       "intro_cloud": "Käsin kirjatut pilvi-infrastruktuurin kulut, esimerkiksi lasku, yksi rivi kuukaudessa. Raportit → Kulut laskee ne kohtaan Pilvi.",
-      "intro_hr": "Käsin kirjatut henkilöstökulut, yksi rivi kuukaudessa. Raportit → Kulut näyttää ne kohdassa Henkilöt, ja Yhteensä sisältää ne.",
+      "intro_hr": "Käsin kirjatut henkilöstökulut, yksi rivi kuukaudessa. Raportit → Kulut näyttää ne kohdassa Henkilöt, ja kohta Yhteensä sisältää ne.",
       "col_label_cloud": "Kuvaus",
       "col_label_hr": "Rooli tai sopimus",
       "col_amount": "Summa ilman arvonlisäveroa",

@@ -4116,7 +4116,7 @@
     "entries": {
       "add": "Pievienot izmaksas",
       "intro_cloud": "Manuāli ievadītas mākoņa infrastruktūras izmaksas, piemēram, rēķins, viena rinda mēnesī. Pārskati → Izmaksas tās skaita sadaļā Mākonis.",
-      "intro_hr": "Manuāli ievadītas personāla izmaksas, viena rinda mēnesī. Pārskati → Izmaksas tās rāda sadaļā Personas, un Kopā tās ietver.",
+      "intro_hr": "Manuāli ievadītas personāla izmaksas, viena rinda mēnesī. Pārskati → Izmaksas tās rāda sadaļā Personas, un sadaļa Kopā tās ietver.",
       "col_label_cloud": "Apraksts",
       "col_label_hr": "Loma vai līgums",
       "col_amount": "Summa bez PVN",

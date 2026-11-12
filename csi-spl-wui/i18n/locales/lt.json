@@ -4116,7 +4116,7 @@
     "entries": {
       "add": "Pridėti išlaidas",
       "intro_cloud": "Rankiniu būdu įvestos debesų infrastruktūros išlaidos, pavyzdžiui, sąskaita, viena eilutė per mėnesį. Ataskaitos → Išlaidos jas skaičiuoja skiltyje Debesija.",
-      "intro_hr": "Rankiniu būdu įvestos personalo išlaidos, viena eilutė per mėnesį. Ataskaitos → Išlaidos jas rodo skiltyje Asmenys, o Iš viso jas įtraukia.",
+      "intro_hr": "Rankiniu būdu įvestos personalo išlaidos, viena eilutė per mėnesį. Ataskaitos → Išlaidos jas rodo skiltyje Asmenys, o skiltis Iš viso jas įtraukia.",
       "col_label_cloud": "Aprašymas",
       "col_label_hr": "Pareigos arba sutartis",
       "col_amount": "Suma be PVM",

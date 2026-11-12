@@ -4116,7 +4116,7 @@
     "entries": {
       "add": "Pridať náklad",
       "intro_cloud": "Ručne zadané náklady na cloudovú infraštruktúru, napríklad faktúra, jeden riadok za mesiac. Prehľady → Náklady ich počítajú v časti Cloud.",
-      "intro_hr": "Ručne zadané personálne náklady, jeden riadok za mesiac. Prehľady → Náklady ich zobrazujú v časti Osoby a Spolu ich zahŕňa.",
+      "intro_hr": "Ručne zadané personálne náklady, jeden riadok za mesiac. Prehľady → Náklady ich zobrazujú v časti Osoby a časť Spolu ich zahŕňa.",
       "col_label_cloud": "Popis",
       "col_label_hr": "Rola alebo zmluva",
       "col_amount": "Suma bez DPH",

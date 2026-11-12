@@ -4116,7 +4116,7 @@
     "entries": {
       "add": "Dodaj koszt",
       "intro_cloud": "Koszty infrastruktury chmurowej wprowadzone ręcznie, np. faktura, jeden wiersz na miesiąc. Raporty → Koszty liczą je w sekcji Chmura.",
-      "intro_hr": "Koszty kadrowe wprowadzone ręcznie, jeden wiersz na miesiąc. Raporty → Koszty pokazują je w sekcji Osoby, a Razem je uwzględnia.",
+      "intro_hr": "Koszty kadrowe wprowadzone ręcznie, jeden wiersz na miesiąc. Raporty → Koszty pokazują je w sekcji Osoby, a sekcja Razem je uwzględnia.",
       "col_label_cloud": "Opis",
       "col_label_hr": "Rola lub umowa",
       "col_amount": "Kwota netto",

@@ -40,10 +40,13 @@ four:
 | **Cloud** | `/reporting/costs/cloud` | Each GCP project and each cloud cost entered by hand (for example an invoice). Click a project to see its services; for a single month, click a service to see its days. |
 | **Tokens** | `/reporting/costs/tokens` | The token use per vendor (with its tokens and list price, never added to a cost), the paid AI subscriptions, or a workspace's share of them. |
 
+Total includes Persons. The hub's own cost total leaves person costs out, so
+a page that shows that total can show a lower number for the same month.
+
 Each label shows, right after its name:
 
-- **A pie chart** of its items. Each item's value and percentage share is
-  written beside the chart, so a phone reads it too. With no cost in the
+- **A pie chart** of its items. Each item's value and percentage share are
+  written beside the chart, so a phone reads them too. With no cost in the
   period, no chart is drawn.
 - **A table** of its items with one column per month of the period, a total
   column when the period has more than one month, and the share. Click a

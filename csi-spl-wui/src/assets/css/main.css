@@ -827,6 +827,11 @@ html.pane-dragging * {
     min-height: 32px;
   }
 }
+/* the priority bar gives way (its cells narrow) before the row wraps */
+.topic-head__row2 > .prio-slot { min-width: 0; }
+@media (max-width: 359px) {
+  .topic-head__row2 > .clip-slot { min-width: calc(3 * 29px + 4px); }
+}
 /* SPL-5349 (owner HUM-10, t1 2fafde5c: "the full title of the topic will
    be visible"): the title wraps, never cut */
 .topic-heading__title {

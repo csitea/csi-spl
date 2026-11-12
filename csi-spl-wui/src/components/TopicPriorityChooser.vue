@@ -10,9 +10,11 @@
      on the topic header's second row, left, at the card-size control's size;
      a saved pick is a short "✓ N" right of the bar that fades out in under
      1 s and takes no room; screen readers hear the whole sentence. A failed
-     save keeps its line, so the reason stays readable. -->
+     save keeps its line, so the reason stays readable. Where the check would
+     touch the next control of the row (a 360 px phone: the card-size
+     control, R7 c-235 W1), it is drawn in the label's place instead. -->
 <template>
-  <div class="topic-prio" data-testid="topic-priority" :data-priority="value" :title="t('topic.priority.hint')">
+  <div ref="rootEl" class="topic-prio" :class="{ 'topic-prio--ok-at-label': okAtLabel }" data-testid="topic-priority" :data-priority="value" :title="t('topic.priority.hint')">
     <span :id="labelId" class="topic-prio__label">{{ t('topic.priority.short') }}</span>
     <div class="topic-prio__group" role="radiogroup" :aria-labelledby="labelId">
       <label
@@ -33,7 +35,7 @@
         <span>{{ n }}</span>
       </label>
     </div>
-    <span v-if="okShown" class="topic-prio__ok" aria-hidden="true" data-testid="topic-priority-ok">{{ okValue }}</span>
+    <span v-if="okShown" :key="okAtLabel ? 'at-label' : 'right'" ref="okEl" class="topic-prio__ok" :class="{ 'topic-prio__ok--at-label': okAtLabel }" aria-hidden="true" data-testid="topic-priority-ok">{{ okValue }}</span>
     <span class="topic-prio__note" :class="{ 'topic-prio__note--err': failed, 'sr-only': !failed }" role="status" data-testid="topic-priority-note">{{ note }}</span>
   </div>
 </template>
@@ -56,17 +58,33 @@ const saving = ref(false)
 const failed = ref(false)
 const note = ref('')
 /* the visible "✓ N": shown on a saved pick, gone under 1 s (CSS fades it) */
+const meets = (a: DOMRect, b: DOMRect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+/* right of the bar, unless it would meet another control of the row (the
+   chooser's slot's siblings) or leave the window: then over the label */
+function okCollides(): boolean {
+  const ok = okEl.value?.getBoundingClientRect()
+  const slot = rootEl.value?.parentElement
+  if (!ok || !slot?.parentElement) return false
+  if (ok.left < 0 || ok.right > document.documentElement.clientWidth) return true
+  return [...slot.parentElement.children].some((el) => el !== slot && meets(ok, el.getBoundingClientRect()))
+}
 const OK_MS = 800
 const okShown = ref(false)
 const okValue = ref(0)
+const okAtLabel = ref(false)
+const rootEl = ref<HTMLElement | null>(null)
+const okEl = ref<HTMLElement | null>(null)
 let okTimer: ReturnType<typeof setTimeout> | undefined
 function flashOk(n: number) {
   clearTimeout(okTimer)
   okValue.value = n
   okShown.value = false
   nextTick(() => {
+    okAtLabel.value = false
     okShown.value = true
-    okTimer = setTimeout(() => { okShown.value = false }, OK_MS)
+    /* measured before the frame is painted: the check never shows over the control */
+    nextTick(() => { okAtLabel.value = okCollides() })
+    okTimer = setTimeout(() => { okShown.value = false; okAtLabel.value = false }, OK_MS)
   })
 }
 onUnmounted(() => clearTimeout(okTimer))
@@ -117,17 +135,23 @@ async function choose(n: number) {
 .topic-prio {
   position: relative;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
+  min-width: 0;
   font-size: 0.75rem;
   /* the label no taller than the bar: the header row keeps its height
      when the lazy chooser mounts */
   line-height: 1;
   color: var(--color-muted);
 }
+/* one line: a long label ("προτερ:", "öncelik:") narrows the cells instead
+   of pushing the bar under it (R7 c-235 N1); a failed save's reason takes a
+   line of its own */
+.topic-prio:has(> .topic-prio__note--err) { flex-wrap: wrap; }
+.topic-prio__label { flex-shrink: 0; white-space: nowrap; }
 .topic-prio__group {
   display: inline-flex;
+  min-width: 0;
   font-size: 0.75rem;
   line-height: 1;
   border: 1px solid var(--color-border);
@@ -139,7 +163,9 @@ async function choose(n: number) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 1 auto;
   width: 26px;
+  min-width: 26px;
   height: 16px;
   cursor: pointer;
 }
@@ -173,6 +199,15 @@ async function choose(n: number) {
   color: var(--color-ok);
   animation: topic-prio-ok 750ms ease-in forwards;
 }
+/* in the label's place: the label steps aside while the check stands there;
+   it still names the group (aria-labelledby reads a hidden element too) */
+/* a new element (keyed): Chrome kept the old place of a restyled one on a
+   second pick under reduced motion (measured) */
+.topic-prio__ok--at-label {
+  inset-inline-start: 0;
+  margin-inline-start: 0;
+}
+.topic-prio--ok-at-label .topic-prio__label { visibility: hidden; }
 .topic-prio__ok::before { content: '\2713\00a0'; }
 @keyframes topic-prio-ok {
   0%, 55% { opacity: 1; }

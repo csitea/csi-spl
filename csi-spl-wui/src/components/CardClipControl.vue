@@ -110,4 +110,9 @@ const name = `card-clip-${useId()}`
     border-radius: var(--radius-xs);
   }
 }
+/* a 320 px phone: narrower, so the topic header's row 2 keeps the label,
+   the priority bar and this control on one 44 px line (R7 c-235 N1) */
+@media (max-width: 359px) {
+  .card-clip-ctl__opt { width: 29px; }
+}
 </style>

@@ -12,8 +12,13 @@
 //                   the control at the row's right; the label "prio:" left
 //                   of the bar; each value is tapped and saves, also 15 px
 //                   above its drawn cell (the 44 px tall target the radio
-//                   keeps); after a pick "✓ N" sits right of the bar, adds no
-//                   height, and is gone by 1000 ms (also with reduced motion)
+//                   keeps); after a pick "✓ N" shows, never on the card-size
+//                   control (R7 c-235 W1: at 360 it is drawn in the label's
+//                   place), adds no height, and is gone by 1000 ms (also with
+//                   reduced motion)
+//   phone 320       the same, the cells narrower: row 2 stays one 44 px line
+//   el, he 320/360  the longest labels ("προτερ:", RTL "עדיפות:"): row 2 one
+//                   line, the bar never under the control, no sideways scroll
 //   phone 390       the open note's bar has the same drawn size and saves
 //   desktop 1440    bar 132 x 18 px, card-size control 80 x 18, both on row 2
 //                   (bar left, control right), the full title on row 1
@@ -59,7 +64,7 @@ async function launch() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const NAV = Number(process.env.NAV_TIMEOUT ?? 90000)
 
-async function openPage(browser, base, width) {
+async function openPage(browser, base, width, lang = '') {
   const p = await browser.newPage()
   const phone = width < 600
   await p.setViewport({ width, height: phone ? 844 : 900, isMobile: phone, hasTouch: phone })
@@ -68,15 +73,15 @@ async function openPage(browser, base, width) {
     window.addEventListener('error', (e) => window.__errs.push(String(e.message || '')))
     try { localStorage.setItem('spool.mock.session', JSON.stringify(claims)) } catch { /* about:blank */ }
   }, CLAIMS)
-  await p.goto(`${base}/`, { waitUntil: 'load', timeout: NAV })
+  await p.goto(`${base}/${lang ? lang + '/' : ''}`, { waitUntil: 'load', timeout: NAV })
   await p.waitForSelector('[data-testid=sidebar-rail]', { timeout: NAV })
   return p
 }
 
-async function openTopic(p) {
+async function openTopic(p, lang = '') {
   await p.evaluate(async (to) => {
     await document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(to)
-  }, `/lobby?topic=${LIVE}`)
+  }, `${lang ? '/' + lang : ''}/lobby?topic=${LIVE}`)
   await p.waitForSelector(`${CHOOSER} input[type=radio]`, { timeout: 15000 })
   await sleep(400)
 }
@@ -107,6 +112,8 @@ const shape = (sel) => {
 }
 
 const near = (v, want) => Math.abs(v - want) <= want * TOL
+/* two boxes share pixels (either text direction) */
+const meets = (a, b) => Boolean(a && b) && a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b
 const checked = (p, sel) => p.$eval(sel, (c) => c.querySelector('input[type=radio]:checked')?.value || '')
 
 /* every point of the grid dx -4/0/+4, dy -21/-15/0/+15/+21 around each value's
@@ -157,10 +164,13 @@ async function okChecks(p, tag, pick) {
       const o = document.querySelector(sel).getBoundingClientRect()
       const g = document.querySelector(`${chooser} [role=radiogroup]`).getBoundingClientRect()
       const h = document.querySelector('[data-test=topic-section] > header').getBoundingClientRect().height
-      return { okL: o.left, barR: g.right, okMid: (o.top + o.bottom) / 2, barT: g.top, barB: g.bottom, headH: h, text: document.querySelector(sel).textContent }
+      const c = document.querySelector('[data-test=topic-section] [data-testid=card-clip-control]')?.getBoundingClientRect()
+      const B = (r) => r && { l: r.left, t: r.top, r: r.right, b: r.bottom }
+      return { okBox: B(o), bar: B(g), clip: B(c), okMid: (o.top + o.bottom) / 2, barT: g.top, barB: g.bottom, headH: h, text: document.querySelector(sel).textContent }
     }, OK, CHOOSER) : null
     const at = Date.now() - t0
-    check(`${t2}: after a pick a check shows right of the bar (seen at ${at} ms)`, ok && ok.okL >= ok.barR && ok.okMid >= ok.barT && ok.okMid <= ok.barB, ok)
+    check(`${t2}: after a pick a check shows on the bar's line (seen at ${at} ms)`, ok && ok.okMid >= ok.barT && ok.okMid <= ok.barB, ok)
+    check(`${t2}: the check is drawn on neither the bar nor the card-size control`, ok && !meets(ok.okBox, ok.bar) && !meets(ok.okBox, ok.clip), ok)
     check(`${t2}: the check adds no height to the header`, ok && Math.abs(ok.headH - before.head.h) <= 0.5, { before: before.head.h, after: ok?.headH })
     const wait = 1000 - (Date.now() - t0)
     if (wait > 0) await sleep(wait)
@@ -181,8 +191,13 @@ async function phoneTopic(browser, base, width) {
   await openTopic(p)
   const s = await p.evaluate(shape, CHOOSER)
   const ev = { w: s.bar.w, h: s.bar.h, want: PHONE }
-  check(`${tag}: the bar is drawn ${PHONE.w} x ${PHONE.h} px (+-3%)`, near(s.bar.w, PHONE.w) && near(s.bar.h, PHONE.h), ev)
-  check(`${tag}: the bar is >= 1.5x the SPL-5288 height and >= 1.8x its width`, s.bar.h >= 1.5 * SPL5288_PHONE.h && s.bar.w >= 1.8 * SPL5288_PHONE.w, ev)
+  if (width >= 360) {
+    check(`${tag}: the bar is drawn ${PHONE.w} x ${PHONE.h} px (+-3%)`, near(s.bar.w, PHONE.w) && near(s.bar.h, PHONE.h), ev)
+    check(`${tag}: the bar is >= 1.5x the SPL-5288 height and >= 1.8x its width`, s.bar.h >= 1.5 * SPL5288_PHONE.h && s.bar.w >= 1.8 * SPL5288_PHONE.w, ev)
+  } else {
+    check(`${tag}: the bar is ${PHONE.h} px tall (+-3%), its cells narrower`, near(s.bar.h, PHONE.h) && s.bar.w < PHONE.w, ev)
+  }
+  check(`${tag}: row 2 is one 44 px line`, s.row.h <= 44.5, s.row)
   rowChecks(tag, s)
   check(`${tag}: the label reads "prio:", left of the bar`, s.label === 'prio:' && s.labelLeftOfBar, { label: s.label, left: s.labelLeftOfBar })
   check(`${tag}: each value's radio is a 44 px tall target`, s.radios.every((r) => r.h >= 44), s.radios.map((r) => r.h))
@@ -205,6 +220,18 @@ async function phoneTopic(browser, base, width) {
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/topic-priority-phone-${width}.png` })
   const errs = (await p.evaluate(() => window.__errs || [])).filter((e) => !/dynamically imported module/.test(e))
   check(`${tag}: no window error`, errs.length === 0, { errs })
+  await p.close()
+}
+
+/* the longest labels, both text directions: row 2 stays one line */
+async function phoneLocale(browser, base, width, lang) {
+  const tag = `phone ${width} ${lang}`
+  const p = await openPage(browser, base, width, lang)
+  await openTopic(p, lang)
+  const s = await p.evaluate(shape, CHOOSER)
+  check(`${tag}: row 2 is one 44 px line`, s.row.h <= 44.5, { row: s.row, label: s.label })
+  check(`${tag}: the bar is beside the card-size control, not on it`, s.clip && !meets(s.bar, s.clip) && Math.abs((s.clip.t + s.clip.b) / 2 - (s.bar.t + s.bar.b) / 2) <= 2, { bar: s.bar, clip: s.clip })
+  check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
   await p.close()
 }
 
@@ -247,7 +274,8 @@ const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
-  for (const w of [360, 390]) await phoneTopic(browser, server.base, w)
+  for (const w of [320, 360, 390]) await phoneTopic(browser, server.base, w)
+  for (const lang of ['el', 'he']) for (const w of [320, 360]) await phoneLocale(browser, server.base, w, lang)
   await phoneNote(browser, server.base, 390)
   await desktop(browser, server.base, 1440)
 } catch (e) {

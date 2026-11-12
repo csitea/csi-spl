@@ -1,0 +1,6 @@
+Lay-What: Clarifies explanatory notes in the code for the phone panel close; nothing you see changes.
+Lay-How: Only comments in the code were reworded; no behaviour changed.
+Lay-Why: The old notes described the timing wrongly and could mislead the next person changing this.
+Tech-What: useMobileStack.ts routeAligner comments (R7 N1, N2 of the SPL-5313 review).
+Tech-How: Comment-only edit: the pending pop is a timing effect; guards see a transient no-query target.
+Tech-Why: The comments claimed capture listeners fire first at the window, which measurement disproved.

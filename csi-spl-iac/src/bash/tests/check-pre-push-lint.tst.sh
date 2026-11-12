@@ -265,6 +265,15 @@ mig_repo; git -C "$R" rm -q "$R/$MIG/0001_a.sql"; commit rm-mig
 rc="$(lint)"
 [[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] \
   && pass "15c. deleting a migration already on the base is REFUSED" || fail "15c. migration delete" "rc=$rc verdict=$(verdict lint-migration)"
+# 15e/f. PRE_PUSH_MODE=full checks the migrations that differ from the base too
+mig_repo; printf -- '-- changed\n' >>"$R/$MIG/0001_a.sql"; commit edit-mig
+rc="$(PRE_PUSH_MODE=full PRE_PUSH_LINT_ONLY=lint-migration lint)"
+[[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] && grep -q 'add a NEW NNNN file' "$T/out" \
+  && pass "15e. full mode: editing a migration already on the base is REFUSED" || fail "15e. full-mode migration edit" "rc=$rc verdict=$(verdict lint-migration)"
+mig_repo; echo '{"a":1}' >"$R/seed.json"; commit no-mig
+rc="$(PRE_PUSH_MODE=full PRE_PUSH_LINT_ONLY=lint-migration lint)"
+[[ "$rc" == 0 && "$(verdict lint-migration)" != FAIL ]] \
+  && pass "15f. full mode: a push with no migration change passes" || fail "15f. full-mode no migration" "rc=$rc verdict=$(verdict lint-migration)"
 
 # 23. migration prefixes (spec 072 A45)
 mig_repo; cp "$R/$MIG/0001_a.sql" "$R/$MIG/0001_x.sql"; commit copy-mig

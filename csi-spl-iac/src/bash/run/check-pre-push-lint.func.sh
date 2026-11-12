@@ -160,7 +160,8 @@ _ppl_select() {  # <scanner> <changed> <tree>
 
 # Plan the lint parts: sets _PPL_FILES[<scanner>] and _PPL_SELECTED (the
 # scanners to run). Never call it in $(...): the subshell would drop both.
-# FULL mode runs every scanner over its whole scope.
+# FULL mode runs every scanner over its whole scope, except lint-migration:
+# it checks the migrations that differ from PRE_PUSH_BASE, as fast mode does.
 _ppl_plan() {  # <changed> <mode> <tier> <tree>
   local changed="$1" mode="$2" tier="$3" tree="$4" sc sel
   local scanners="$_PPL_FAST"
@@ -177,7 +178,7 @@ _ppl_plan() {  # <changed> <mode> <tier> <tree>
       [[ "$sc" == lint-syntax || "$sc" == lint-trufflehog ]] && sel="$(git -C "$tree" ls-files 2>/dev/null)"
       case "$sc" in
         lint-syntax|lint-mdlinks|lint-sigpipe|lint-compose|lint-wui-syntax|lint-py|lint-tf) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
-        lint-migration) sel="" ;;   # nothing is "edited" in a whole-tree run
+        lint-migration) sel="$(_ppl_select "$sc" "$(_pp_changed "$tree" "${PRE_PUSH_BASE:-origin/master}")" "$tree")" ;;
       esac
     else
       sel="$(_ppl_select "$sc" "$changed" "$tree")"

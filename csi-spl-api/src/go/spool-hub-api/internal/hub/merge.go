@@ -51,6 +51,21 @@ type mergeRequest struct {
 	Into string `json:"into"`
 }
 
+// mergeAsk is one merge request's inputs: the caller, both rows and the clock.
+type mergeAsk struct {
+	hum, from, srcID, keepID string
+	now                      time.Time
+}
+
+// mergeStamp is the kept row's edit: its signed envelope, when, by whom and
+// its revision.
+type mergeStamp struct {
+	canon []byte
+	at    time.Time
+	by    string
+	rev   int
+}
+
 func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	t, hum, ok := s.humanTenant(w, r)
@@ -74,7 +89,7 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.o.Now()
-	src, keep, pub, ok := s.mergePair(w, r, t.ID, hum, from, srcID, keepID, now)
+	src, keep, pub, ok := s.mergePair(w, r, t.ID, mergeAsk{hum: hum, from: from, srcID: srcID, keepID: keepID, now: now})
 	if !ok {
 		return
 	}
@@ -114,7 +129,7 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("msg_id", keepID).Str("merged_from", srcID).Str("by", from).Int("revision", rev).Msg("message merged")
 
-	s.fanoutMerged(r.Context(), t.ID, keep, src, canon, at, from, rev)
+	s.fanoutMerged(r.Context(), t.ID, keep, src, mergeStamp{canon: canon, at: at, by: from, rev: rev})
 	out := editedPayload(keep, canon, at, from, rev)
 	out["merged_from"] = srcID
 	writeJSON(w, http.StatusOK, out)
@@ -148,12 +163,12 @@ func readMergeRequest(w http.ResponseWriter, r *http.Request) (srcID, keepID str
 // re-signable, and the source is not a topic's card. It answers the key to
 // re-sign the kept row with (nil when it was never signed); false has
 // written the refusal.
-func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, from, srcID, keepID string,
-	now time.Time) (src, keep store.EditableMessage, pub ed25519.PublicKey, ok bool) {
-	if src, ok = s.mergeRow(w, r, tenant, srcID, now); !ok {
+func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant string,
+	a mergeAsk) (src, keep store.EditableMessage, pub ed25519.PublicKey, ok bool) {
+	if src, ok = s.mergeRow(w, r, tenant, a.srcID, a.now); !ok {
 		return src, keep, nil, false
 	}
-	if keep, ok = s.mergeRow(w, r, tenant, keepID, now); !ok {
+	if keep, ok = s.mergeRow(w, r, tenant, a.keepID, a.now); !ok {
 		return src, keep, nil, false
 	}
 	if src.TaskID != keep.TaskID {
@@ -164,7 +179,7 @@ func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, 
 		writeErr(w, http.StatusConflict, "not_same_author", "only two messages of one author can be merged")
 		return src, keep, nil, false
 	}
-	if !s.mayChangeTopic(r.Context(), tenant, hum, from, src.FromID) {
+	if !s.mayChangeTopic(r.Context(), tenant, a.hum, a.from, src.FromID) {
 		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may merge these messages")
 		return src, keep, nil, false
 	}
@@ -176,7 +191,7 @@ func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, 
 		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")
 		return src, keep, nil, false
 	}
-	if !s.mergeSourceNotCard(w, r, tenant, src, now) {
+	if !s.mergeSourceNotCard(w, r, tenant, src, a.now) {
 		return src, keep, nil, false
 	}
 	if keep.EnvSig == "" {
@@ -249,7 +264,7 @@ func joinBodies(older, newer string) string {
 // fanoutMerged sends ONE message_merged frame to every browser socket that
 // was shown either message: the edited element of the kept row plus
 // merged_from, the row to drop.
-func (s *Server) fanoutMerged(ctx context.Context, tenant string, keep, src store.EditableMessage, canon []byte, at time.Time, by string, rev int) {
+func (s *Server) fanoutMerged(ctx context.Context, tenant string, keep, src store.EditableMessage, st mergeStamp) {
 	pk := parties{keep.FromID, keep.FromBox, keep.ToID, keep.ToBox}
 	ps := parties{src.FromID, src.FromBox, src.ToID, src.ToBox}
 	mk := s.channelMemberSet(ctx, tenant, keep.Channel)
@@ -270,19 +285,19 @@ func (s *Server) fanoutMerged(ctx context.Context, tenant string, keep, src stor
 		return
 	}
 	var e wire.Envelope
-	if err := json.Unmarshal(canon, &e); err != nil {
+	if err := json.Unmarshal(st.canon, &e); err != nil {
 		return
 	}
 	frame := map[string]any{"type": mergedFrame, "task_id": keep.TaskID, "msg_id": keep.MsgID,
 		"merged_from": src.MsgID, "cursor": encCursor(keep.ReceivedAt, keep.MsgID),
-		"received_at": rfc(keep.ReceivedAt), "envelope": e.Msg, "env": json.RawMessage(canon)}
+		"received_at": rfc(keep.ReceivedAt), "envelope": e.Msg, "env": json.RawMessage(st.canon)}
 	if keep.Channel != "" {
 		frame["channel"] = keep.Channel
 	}
 	if e.ParentTaskID != "" {
 		frame["parent_task_id"] = e.ParentTaskID
 	}
-	editedFields(frame, at, by, rev)
+	editedFields(frame, st.at, st.by, st.rev)
 	kindFields(frame, keep.Kind, keep.KindSetAt, keep.KindSetBy)
 	b, err := encodeFrame(frame)
 	if err != nil {

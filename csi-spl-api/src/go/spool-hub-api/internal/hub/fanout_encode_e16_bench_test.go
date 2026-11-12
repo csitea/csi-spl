@@ -58,7 +58,7 @@ func e16Site(name string) func(*Server, context.Context) {
 		return func(s *Server, ctx context.Context) { s.fanoutMove(ctx, "t1", m, m, e16MoveFrame()) }
 	case "Merged":
 		return func(s *Server, ctx context.Context) {
-			s.fanoutMerged(ctx, "t1", m, m, []byte(e16Canon), e16At, "h1", 2)
+			s.fanoutMerged(ctx, "t1", m, m, mergeStamp{canon: []byte(e16Canon), at: e16At, by: "h1", rev: 2})
 		}
 	case "Edited":
 		return func(s *Server, ctx context.Context) { s.fanoutEdited(ctx, "t1", m, []byte(e16Canon), e16At, "h1", 2) }

@@ -784,6 +784,20 @@ write makes it up. Measured on sat at 82cea0a5e: read through the hop p50 258
 ms (n=20) to 540 ms (n=60, the same dial under `./run`), a located dial 137 ms
 (n=20), the locate 94 ms (n=20), a real write 114..131 ms (n=3).
 
+**The lease reads its own env's desks (SPL-5390).** Both desk-reconcile crons
+(`ENV=dev` and `ENV=prd`) run the lease ensure, so the prd loop can be started
+by the dev tick and keep `ENV=dev` for its whole life. `spl_desk_env` reads `ENV`
+first, so every locate searched the dev roots: no pinned t1/sat there, and the
+fallback was the box user's prd path. On sat the loop started that way at
+2026-11-09T10:12:12Z (the dev cron's `cron.out`). From the move of prd t1/sat
+(2026-11-10 05:39Z) until a restart at 15:58Z, every dial was rc=78 `no private
+key for sat` and the gate read `desk: no hub-run sidecar in <box-user prd path>`
+(n=1 loop). Until the move the bug did not show: the box user's own pinned desk
+is found before any env is read. `spl_fleet_desk_at` and `spl_fleet_mirror_pins`
+now pass `spl_fleet_env` (`LEASE_ENV`, else `spl_desk_env`) to the desk
+resolvers, so the loop needs no `SPOOL_DESK_USER` or `ENV` in its environment.
+Test: `dispatch-lease-moved-desk.tst.sh` case 13.
+
 #### 8.3.2 Desk rows run in the desk user's crontab (SPL-4558)
 
 A row of `cnf/box-crons/box-crons.manifest` carries a sixth field, `as`:

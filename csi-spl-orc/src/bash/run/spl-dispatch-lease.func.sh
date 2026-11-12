@@ -1124,16 +1124,18 @@ spl_fleet_hub_init() {
 # the locate and spl_fleet_hop here, the calls their own timeout. -k because a
 # plain timeout waits as long as a sudo that ignores TERM (2026-11-07, n=1: 32 s
 # on a limit of 2). Cut = the desk reads as not reachable for that call.
+# The desks are LEASE_ENV's (spl_fleet_env), never the starter's ENV (SPL-5390).
 spl_fleet_desk_at() {
-  local t="$1" mv u r h rc
+  local t="$1" e mv u r h rc
   LD="" LB="${SPL_SPOOL:-}" LAS=()
   # pinned here = this user's desk, first of spl_desk_roots: no fork, this runs per dial
   LD="${SPL_STATE_DIR:-}/desk/$t/$LEASE_DESK_BOX"
   [[ -n "${SPL_STATE_DIR:-}" && -s "$LD/pinned" ]] && return 0
-  mv="$(SPL_DESK_AS_CMD="timeout -k 1 ${LEASE_HOP_TIMEOUT:-5} ${SPL_DESK_AS_CMD:-sudo -n -u}" spl_desk_moved_to "$t" "$LEASE_DESK_BOX")"; rc=$?
+  e="$(spl_fleet_env)"
+  mv="$(SPL_DESK_AS_CMD="timeout -k 1 ${LEASE_HOP_TIMEOUT:-5} ${SPL_DESK_AS_CMD:-sudo -n -u}" spl_desk_moved_to "$t" "$LEASE_DESK_BOX" "$e")"; rc=$?
   if (( rc == 0 )); then
     u="${mv%%$'\t'*}"
-    r="$(SPOOL_DESK_USER="$u" spl_desk_state_root)" || return 1
+    r="$(SPOOL_DESK_USER="$u" spl_desk_state_root "$e")" || return 1
     h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
     LD="$r/desk/$t/$LEASE_DESK_BOX" LB="$r/bin/spool"
     read -r -a LAS <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
@@ -1141,7 +1143,17 @@ spl_fleet_desk_at() {
     return 0
   fi
   (( rc != 2 )) || { LD=""; return 2; }
-  LD="$(spl_desk_dir "$t" "$LEASE_DESK_BOX")" || [[ $? -eq 1 ]]
+  LD="$(spl_desk_dir "$t" "$LEASE_DESK_BOX" "$e")" || [[ $? -eq 1 ]]
+}
+
+# spl_fleet_env: the env whose desks the lease reads: LEASE_ENV, else the desk
+# resolvers' own default (spl_desk_env). Why (SPL-5390): both desk-reconcile
+# crons (ENV=dev and ENV=prd) run the lease ensure, so the prd loop can inherit
+# ENV=dev; spl_desk_env reads ENV first, and on sat (11-09 10:12Z start, prd
+# t1/sat moved 11-10 05:39Z) every locate searched the dev roots, missed the
+# moved desk and signed with the box user's stub: "no private key for sat", ~10 h.
+spl_fleet_env() {
+  if [[ -n "${LEASE_ENV:-}" ]]; then printf '%s' "$LEASE_ENV"; else spl_desk_env; fi
 }
 
 # spl_fleet_locate_cut <tenant>: what a cut locate (spl_fleet_desk_at rc 2) says.
@@ -1256,9 +1268,10 @@ spl_fleet_mirror_tenants() {
 # root lists nothing, this pass copies the rest, and the log says so once until
 # the root lists again: its tenants are in no list a COPY-FAILED could name.
 spl_fleet_mirror_pins() {
-  local p u r mark rc
+  local p u r mark rc e
   local -a as=()
-  while IFS= read -r p; do [[ -s "$p" ]] && printf '%s\n' "$p"; done < <(spl_desk_glob "*/$LEASE_DESK_BOX/pinned")
+  e="$(spl_fleet_env)"
+  while IFS= read -r p; do [[ -s "$p" ]] && printf '%s\n' "$p"; done < <(spl_desk_glob "*/$LEASE_DESK_BOX/pinned" "$e")
   read -r -a as <<<"${SPL_DESK_AS_CMD:-sudo -n -u}"
   while IFS=$'\t' read -r u r; do
     [[ -n "$r" ]] && ! spl_desk_root_enterable "$r/desk" || continue
@@ -1270,7 +1283,7 @@ spl_fleet_mirror_pins() {
     elif [[ -f "$LEASE_DIR/fleet.$mark" ]]; then
       rm -f "$LEASE_DIR/fleet.$mark"; spl_lease_log "COPY-ROOT $r: listed again"
     fi
-  done < <(spl_desk_roots)
+  done < <(spl_desk_roots "$e")
   return 0
 }
 

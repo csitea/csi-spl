@@ -33,6 +33,9 @@
 #  12. a log read cut after partial output is not able, by its rc and not its
 #      text; a cut locate names the hop and uses no stub under A; -k on the
 #      locate and the signed call, the limit on hub init's pin read (SPL-5119)
+#  13. a loop that inherited the other env's ENV (ENV=dev, LEASE_ENV=prd) still
+#      locates LEASE_ENV's moved desk: the call, the gate and the tenant copies
+#      (SPL-5390). RED on 62a671a0d: "no private key for sat", "no hub-run sidecar"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -394,6 +397,33 @@ fresh; desk "$RB"; sidecar; lock
 out="$(limited init_rc "$(HOP_HANG="env HOME=" in_orc "$T/box.env.half" as-sel 'spl_fleet_hub_init; echo "init_rc=$?"')")"
 has "12j. hub init's pin read hangs: cut at the limit" "init_rc=1" "$out"
 PRE=()
+chmod 700 "$RB"
+
+# --- 13. a loop started by the other env's cron (SPL-5390) ----------------------
+# sat 2026-11-09T10:12:12Z: the dev desk-reconcile cron (ENV=dev) ran the lease
+# ensure that replaced the loop, so the prd loop (LEASE_ENV=prd) kept ENV=dev.
+# After the move of prd t1/sat (11-10 05:39Z) every locate looked in the dev
+# roots, found no pinned t1/sat there and fell back to A's prd path: rc=78 "no
+# private key for sat", n=1 loop, all day until a restart (15:58Z). The
+# desk-locate helpers read LEASE_ENV's desks, whatever ENV the starter had.
+DEV13='ENV=dev; LEASE_ENV=prd;'
+fresh; desk "$RB"; sidecar; mkdir -p "$RA/desk/t1/sat/spool/.hub"; lock
+out="$(in_orc "$T/box.env.half" as "$DEV13"' spl_fleet_hub_once --fleet main --role dispatch; echo "rc=$?"')"
+hasnt "13a. ENV=dev, LEASE_ENV=prd, A's stub: no 'no private key'" "no private key" "$out"
+has "13b. ...signed with B's prd key" "\"keys\":\"$RB/desk/t1/sat/keys\"" "$out"
+out="$(in_orc "$T/box.env.half" as "$DEV13"' spl_fleet_desk_able; echo "able_rc=$?"')"
+eq "13c. ...the gate reads B's prd desk: able" "able_rc=0" "$out"
+fresh; desk "$RB"; sidecar; lock
+out="$(in_orc "$T/box.env.half" as "$DEV13"' spl_fleet_desk_able; echo "able_rc=$?"')"
+eq "13d. no stub at all (the minutes after the move): able" "able_rc=0" "$out"
+fresh; desk "$RB"; sidecar; lock
+chmod 700 "$RB"; mkdir -p "$RB/desk/csi-rel/sat"; echo pin >"$RB/desk/csi-rel/sat/pinned"; lock
+out="$(in_orc "$T/box.env.half" as "$DEV13"' spl_fleet_mirror_tenants')"
+has "13e. the tenant copies list B's prd pins" "csi-rel" "$out"
+fresh; desk "$RA"; sidecar
+out="$(in_orc "$T/box.env.half" as "$DEV13"' spl_fleet_hub_once --fleet main --role dispatch; echo "rc=$?"')"
+has "13f. CONTROL not moved, ENV=dev: A's own prd key" "\"keys\":\"$RA/desk/t1/sat/keys\"" "$out"
+eq "13f. ...no hop" "0" "$(hops)"
 chmod 700 "$RB"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

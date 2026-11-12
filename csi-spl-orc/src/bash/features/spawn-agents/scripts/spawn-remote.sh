@@ -56,7 +56,8 @@
 #   <id>/lane-unlinked.log, and the requester prints it on stderr: the only
 #   other trace is on this box. Best effort: a launcher that has not reached
 #   its put when spawn-window returns (no start check: every kind but claude)
-#   and a refusal only the hub sees (<id>/lane.log) are not reported.
+#   and a hub refusal that comes after the reply (the put runs in the
+#   background; it writes the same log, spec 153 3.26) are not reported.
 #   Local mode is unsigned: an agent ON this machine can forge a bare `from`,
 #   but it can also run spawn-window.sh directly, so that grants nothing new.
 #

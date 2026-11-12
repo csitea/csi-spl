@@ -396,8 +396,51 @@ _spawn_lane_put() {
   _sp_plan lane "lane-map.sh put --agent ${TITLE} --repo ${repo:-<none>} --branch ${BRANCH:-<none>} --scope '${scope}' --files '${SPAWN_LANE_FILES:-}' --topic '${topic}' --issue '${issue}' --origin-issue '${origin}'"
   _sp_live || return 0
   log="${SPOOL_ROOT}/${TITLE}/lane.log"
-  ( timeout 60 bash "${_SP_DIR}/lane-map.sh" put --agent "$TITLE" --repo "$repo" --branch "$BRANCH" \
-      --scope "$scope" --files "${SPAWN_LANE_FILES:-}" --topic "$topic" --issue "$issue" --origin-issue "$origin" >"$log" 2>&1 & ) 2>/dev/null
+  ( _spawn_lane_put_live "$repo" "$scope" "$topic" "$issue" "$origin" "$log" </dev/null >/dev/null 2>&1 & ) 2>/dev/null
+}
+
+# _spawn_lane_put_live REPO SCOPE TOPIC ISSUE ORIGIN LOG: the live put, in the
+# background. A review-only lane's brief names its report task, not a
+# discussion (c-845: `Topic:` = the relay hash of archived-seats-free), so
+# the hub refuses the row (rdb 0264, SPL-5353). A refused put is tried once
+# more with the discussion of the issue's other lane (_spawn_lane_issue_topic);
+# a lane whose own discussion the hub takes never gets there. A row still not
+# written is ONE WARN line in <ID>/lane-unlinked.log, which spawn-remote
+# relays to the requester: never only in lane.log.
+_spawn_lane_put_live() {
+  local repo="$1" scope="$2" topic="$3" issue="$4" origin="$5" log="$6" alt=""
+  _spawn_lane_put_once "$repo" "$scope" "$topic" "$issue" "$origin" >"$log" 2>&1 && return 0
+  alt="$(_spawn_lane_issue_topic "$issue" "$topic")"
+  if [ -n "$alt" ]; then
+    echo "lane row of ${TITLE}: topic ${topic:-<none>} refused; again with ${alt}, the discussion of ${issue}'s other lane" >>"$log"
+    _spawn_lane_put_once "$repo" "$scope" "$alt" "$issue" "$origin" >>"$log" 2>&1 && return 0
+  fi
+  echo "WARN: LANE ROW REFUSED: ${TITLE}: the hub did not write its lane-map row with topic ${topic:-<none>}${alt:+, nor with ${alt}} (${log}: $(tail -1 "$log" 2>/dev/null | cut -c1-200)), so lane-map --check will not see this lane. Name its discussion: SPAWN_LANE_TOPIC=<discussion uuid>." \
+    >>"${SPOOL_ROOT}/${TITLE}/lane-unlinked.log" 2>/dev/null || true
+}
+
+_spawn_lane_put_once() {  # REPO SCOPE TOPIC ISSUE ORIGIN
+  timeout 60 bash "${_SP_DIR}/lane-map.sh" put --agent "$TITLE" --repo "$1" --branch "$BRANCH" \
+    --scope "$2" --files "${SPAWN_LANE_FILES:-}" --topic "$3" --issue "$4" --origin-issue "$5"
+}
+
+# _spawn_lane_issue_topic ISSUE REFUSED: the discussion of ISSUE's other lane
+# in the fleet lane map, the one a review lane reviews: the row of the brief's
+# `Author:` lane, else the one discussion every other row of ISSUE names. ""
+# for no issue, no such row or two discussions with no Author: no guess.
+_spawn_lane_issue_topic() {
+  local issue="$1" refused="$2" author="" b
+  [ -n "$issue" ] || return 0
+  for b in "$BRIEF" "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md"; do
+    [ -z "$author" ] && [ -r "$b" ] &&
+      author="$(grep -m1 -iE '^Author:' "$b" | grep -oE '\b[acgmq]-[0-9]{3}\b' | grep -vx "$TITLE" | sed -n 1p)"
+  done
+  timeout 60 bash "${_SP_DIR}/lane-map.sh" list --all --json 2>/dev/null |
+    jq -r --arg k "$issue" --arg me "$TITLE" --arg a "$author" --arg no "$refused" '
+      [.lanes[]? | select(.issue_key == $k and .agent_id != $me and .topic != $no
+        and (.topic // "" | test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")))] as $r
+      | ([$r[] | select(.agent_id == $a) | .topic] | first)
+        // ([$r[].topic] | unique | if length == 1 then .[0] else empty end) // empty' 2>/dev/null
 }
 
 # SCOPE INTEGRATION SPOOL_PROTO — the seed-prompt blocks every kind receives.

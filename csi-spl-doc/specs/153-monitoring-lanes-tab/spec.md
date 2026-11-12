@@ -1,5 +1,11 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-12, SPL-5353): section 3.26 (a review-only lane whose put
+names its report task's relay hash is refused; the spawn tries the reviewed
+lane's discussion once, and a row still not written is one WARN line in
+`<id>/lane-unlinked.log`), cases C133-C137. A bug fix on 3.21, placed as one
+lane brief, not a panel version.
+
 Addendum (2026-11-10, SPL-5080): section 3.24 (a put that resends the topic
 its row already stores keeps it, so a lane whose discussion is a version-5
 topic of the operator's own workspace can be closed), cases C129-C132. A bug
@@ -2191,6 +2197,57 @@ change was SPL-4842, Refresh inside the tabs' row).
   fail at all three widths (the list 1703 px wide in a 308..378 px box).
   P6 reads the mock `spool.mock.fleet_lanes=keys`, which adds lane c-404
   with 4 issue keys; it is red on the card layout before the cut.
+
+### 3.26 A review-only lane gets its row: a refused put tries the reviewed lane's discussion (SPL-5353)
+
+Seen on one box 2026-11-12 (n = 1 lane): c-845, the R7 reviewer of SPL-5273,
+had a worktree and no lane row (`lane-map.sh list --all --json`: a local
+row only, no `issue_key`), and its exit-clean was refused with `bad_frame
+(topic 8a8983d1-... names no single discussion)`.
+
+Why: a review brief names its report task, not a discussion. c-845's
+`Topic:` and `Ask-Topic:` lines carry `8a8983d1-eb0b-5577-ad9a-f04b4563feb9`,
+which is the relay hash of the task `archived-seats-free` (uuid5 of
+`spool-task:archived-seats-free`, recomputed), not of a `dispatch-<topic8>`
+task. The ask sent it as `SPAWN_LANE_TOPIC`, the brief names no discussion
+that beats it, so `_spawn_lane_put` sent the hash; the hub resolved it to
+none (`laneTopic`, 3.12) and refused the row (3.21). The put runs in the
+background and its answer went only to `<id>/lane.log`; the 3.21 WARN fires
+only for a put that carries no topic at all, so nobody was told.
+
+What changes (`spawn-core.inc.sh`, `_spawn_lane_put_live`):
+
+- A refused put is tried once more with the discussion of the issue's other
+  lane (`_spawn_lane_issue_topic`): from the fleet lane map, the row of the
+  brief's `Author:` lane when it carries the same issue key, else the one
+  discussion every other row of that issue names. Two discussions and no
+  Author, no other row, or no issue: no second put. `lane.log` names the
+  refused topic and the one tried.
+- A lane whose own discussion the hub takes puts once, as before; 3.21 is
+  unchanged, the hub stores no hash and no `unknown` for a lane.
+- A row still not written is ONE line, `WARN: LANE ROW REFUSED: <id>: the
+  hub did not write its lane-map row with topic <t>[, nor with <alt>]
+  (<lane.log>: <its last line>) ...`, in `<id>/lane-unlinked.log`, which
+  spawn-remote relays to the requester (3.23) when the put ended before the
+  launcher returned.
+
+Not changed: the hub, rdb 0264, the 3.20 placer check. c-845's missing row
+is the orchestrator's to handle; nothing edits prd rows.
+
+Cases (`spawn-agents/tests/test-spawn-lane-review-row.sh`, a stub
+`lane-map.sh` for the hub, n = 16):
+
+- **C133** c-845's brief: the hash is refused, the second put names the
+  Author lane's discussion and lands; no WARN; `lane.log` names the hash.
+- **C134** no other lane of the issue: one put, one WARN line naming the hash.
+- **C135** two other lanes of the issue on two discussions: no Author, no
+  second put and a WARN; with the Author, its discussion; the lane's own row
+  is never the other lane.
+- **C136** control: a lane whose discussion the hub takes puts once, reads no
+  map, writes no WARN.
+- **C137** the second put refused too: one WARN line naming both topics.
+- Red control: on master 8fc74467b, 13 of 16 fail (one put of the hash, no
+  second put, no WARN); the control C136 passes.
 
 ## 4. Cases
 

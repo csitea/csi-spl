@@ -1,5 +1,5 @@
 <!-- Spec 150 part 1 (row B6): the topic list's filter and sort, on the
-     channel-name row just before the card-clip control (FeedHeader, on the
+     header's second row, left (SPL-5349, option A; FeedHeader, on the
      channel, DM and lobby pages). Two icon buttons; each opens a small
      popover of native radios in one named group, as CardClipControl is
      (Tab lands on the group, the arrows move, Escape closes back to the
@@ -150,9 +150,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocDown))
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
+  /* SPL-5349: the card-size control's cell size, 26 x 16 px drawn (plus
+     the 1 px border), 35 x 30 on a phone */
+  box-sizing: border-box;
+  width: 26px;
+  height: 18px;
+  padding: 0;
   /* the icon is 1em, so it follows the font size setting (as CardClipControl) */
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--color-muted);
   background: none;
   border: 1px solid var(--color-border);
@@ -177,7 +182,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocDown))
 .tl-ctl__pop {
   position: absolute;
   top: calc(100% + 4px);
-  inset-inline-end: 0;
+  /* SPL-5349: the buttons start the row, so the popover opens toward the end */
+  inset-inline-start: 0;
   z-index: var(--z-overlay, 1000);
   display: flex;
   flex-direction: column;
@@ -204,9 +210,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocDown))
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .tl-ctl__opt input { margin: 0; }
-/* SPL-989: on a phone each button is a 44 px target */
+/* SPL-989: on a phone each button keeps a 44 px tall target - an
+   invisible box standing out of the drawn one (SPL-5349) */
 @media (max-width: 820px) {
-  .tl-ctl__btn { min-width: var(--tap); min-height: var(--tap); padding: 4px 10px; }
+  .tl-ctl__btn { width: 35px; height: 32px; font-size: 0.875rem; }
+  .tl-ctl__btn::after { content: ''; position: absolute; inset: 50% 0 auto; height: var(--tap); transform: translateY(-50%); }
   .tl-ctl__opt { min-height: var(--tap); }
 }
 </style>

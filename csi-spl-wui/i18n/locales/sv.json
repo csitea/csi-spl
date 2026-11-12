@@ -1008,7 +1008,7 @@
     "list_title": "Ämne: {text}",
     "priority": {
       "label": "Prioritet",
-      "short": "Prio",
+      "short": "prio:",
       "hint": "1 är mest brådskande, 5 minst. Orkestreraren hanterar 1 först.",
       "badge": "P{n}",
       "saved": "Prioritet satt till {n}.",

@@ -1008,7 +1008,7 @@
     "list_title": "Topic: {text}",
     "priority": {
       "label": "Priority",
-      "short": "Prio",
+      "short": "prio:",
       "hint": "1 is the most urgent, 5 the least. The orchestrator serves 1 first.",
       "badge": "P{n}",
       "saved": "Priority set to {n}.",

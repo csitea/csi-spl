@@ -1008,7 +1008,7 @@
     "list_title": "Tema: {text}",
     "priority": {
       "label": "Prioritetas",
-      "short": "Prior.",
+      "short": "prior:",
       "hint": "1 – skubiausia, 5 – mažiausiai skubi. Orkestruotojas pirmiausia aptarnauja 1.",
       "badge": "P{n}",
       "saved": "Prioritetas nustatytas: {n}.",

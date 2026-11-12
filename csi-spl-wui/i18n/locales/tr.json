@@ -1008,7 +1008,7 @@
     "list_title": "Konu: {text}",
     "priority": {
       "label": "Öncelik",
-      "short": "Öncelik",
+      "short": "öncelik:",
       "hint": "1 en acil, 5 en az acil olandır. Orkestratör önce 1'i işler.",
       "badge": "P{n}",
       "saved": "Öncelik {n} olarak ayarlandı.",

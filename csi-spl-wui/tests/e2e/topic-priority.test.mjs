@@ -8,9 +8,9 @@
 //                      (its topic-root node is the same element)
 //   C311  failed save  the mock refuses (403 not_allowed): the old value is
 //                      checked again and the error line names the token
-//   C310  top / bottom the chooser sits above the topic root when Message
-//                      order is newest first, below the last reply when it
-//                      is newest last
+//   C310  header row 2 the chooser sits on the topic header's second row,
+//                      above the topic root, in both Message orders
+//                      (SPL-5349, option A; was: at the pane's newest end)
 //
 // The mock hub's fanout is a BroadcastChannel (spool-client-mock.mjs), so the
 // two tabs are two pages of one browser context.
@@ -139,23 +139,18 @@ async function run(browser, base, width) {
     rolledBack && after?.checked === '1' && after?.data === '1', after)
   await a.evaluate(() => localStorage.removeItem('spool.mock.priority-fault'))
 
-  /* C310: the pane's newest end */
+  /* C310 (SPL-5349): the header's second row, in both orders */
   await a.bringToFront()
-  await setOrder(a, 'newest-first')
-  await until(a, (sel) => Boolean(document.querySelector(sel)), 8000, CHOOSER)
-  await sleep(300)
-  const first = await a.evaluate(place, PANE)
-  check(`${tag}: C310 newest first: the chooser is above the topic root`, Boolean(first) && first.chooserBottom <= first.rootTop, first)
-  await setOrder(a, 'newest-last')
-  await until(a, (pane) => {
-    const c = document.querySelector(`${pane} [data-testid=topic-priority]`)
-    const r = document.querySelector(`${pane} [data-test=topic-root]`)
-    return Boolean(c && r && (r.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING))
-  }, 8000, PANE)
-  await sleep(300)
-  const last = await a.evaluate(place, PANE)
-  check(`${tag}: C310 newest last: the chooser is below the last reply`, Boolean(last) && last.chooserTop >= last.rootBottom, last)
-  check(`${tag}: C310 the value survives the move (1 still checked)`, (await a.evaluate(read, CHOOSER))?.checked === '1', await a.evaluate(read, CHOOSER))
+  for (const order of ['newest-first', 'newest-last']) {
+    await setOrder(a, order)
+    await until(a, (sel) => Boolean(document.querySelector(sel)), 8000, CHOOSER)
+    await sleep(300)
+    const at = await a.evaluate(place, PANE)
+    const inRow2 = await a.evaluate((pane) => Boolean(document.querySelector(`${pane} > header .topic-head__row2 [data-testid=topic-priority]`)), PANE)
+    check(`${tag}: C310 ${order}: the chooser is on the header's row 2, above the topic root`, inRow2 && Boolean(at) && at.chooserBottom <= at.rootTop, at)
+    check(`${tag}: C310 ${order}: one chooser in the pane`, await a.evaluate((pane) => document.querySelectorAll(`${pane} [data-testid=topic-priority]`).length, PANE) === 1)
+  }
+  check(`${tag}: C310 the value survives the order change (1 still checked)`, (await a.evaluate(read, CHOOSER))?.checked === '1', await a.evaluate(read, CHOOSER))
   await setOrder(a, 'newest-first')
 
   const errs = [...await a.evaluate(() => window.__errs || []), ...await b.evaluate(() => window.__errs || [])]

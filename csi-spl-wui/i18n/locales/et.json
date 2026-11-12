@@ -1008,7 +1008,7 @@
     "list_title": "Teema: {text}",
     "priority": {
       "label": "Prioriteet",
-      "short": "Prior.",
+      "short": "prior:",
       "hint": "1 on kõige kiireloomulisem, 5 kõige vähem. Orkestreerija teenindab esmalt 1.",
       "badge": "P{n}",
       "saved": "Prioriteet on nüüd {n}.",

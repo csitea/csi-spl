@@ -52,25 +52,33 @@ const name = `card-clip-${useId()}`
 </script>
 
 <style scoped>
+/* SPL-5349 (owner HUM-10, t1 2fafde5c: "30% smaller than now ... probably a
+   little bit wider"): 70% of the old height, a little wider than 70% -
+   cells 26 x 16 px on the desktop (was 33 x 24), 35 x 30 on a phone (was
+   44 x 44); the topic priority bar takes the same size */
 .card-clip-ctl {
   display: inline-flex;
   flex-shrink: 0;
   margin-inline-start: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  overflow: hidden;
 }
 .card-clip-ctl__opt {
   position: relative;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
+  justify-content: center;
+  width: 26px;
+  height: 16px;
   /* the icon is 1em, so it follows the font size setting */
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--color-muted);
   cursor: pointer;
   white-space: nowrap;
 }
+.card-clip-ctl__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
+.card-clip-ctl__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
 .card-clip-ctl__opt + .card-clip-ctl__opt { border-inline-start: 1px solid var(--color-border); }
 .card-clip-ctl__opt--on {
   background: var(--color-selected);
@@ -90,8 +98,16 @@ const name = `card-clip-${useId()}`
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 /* SPL-989: not hover-only (the radio is drawn by its always-visible label);
-   on a phone each segment is a 44 px target */
+   on a phone each segment keeps a 44 px tall target: its radio, invisible,
+   stands out of the drawn cell */
 @media (max-width: 820px) {
-  .card-clip-ctl__opt { min-width: var(--tap); min-height: var(--tap); justify-content: center; padding: 4px 10px; }
+  .card-clip-ctl__opt { width: 35px; height: 30px; font-size: 0.875rem; }
+  .card-clip-ctl__opt input {
+    inset: 50% 0 auto;
+    height: var(--tap);
+    transform: translateY(-50%);
+    appearance: none;
+    border-radius: var(--radius-xs);
+  }
 }
 </style>

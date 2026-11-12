@@ -2,7 +2,9 @@
      note's priority, the pattern of TopicPriorityChooser: one row of native
      radios in one named group (Tab lands on the group, the arrows move), the
      current value checked. A click saves at once; a failed save puts the old
-     value back and says why. The list row follows through the store. -->
+     value back and says why. The list row follows through the store.
+     SPL-5349: the topic chooser's size and its fading "✓ N" right of the
+     bar; screen readers hear the whole sentence. -->
 <template>
   <div class="note-prio" data-test="note-priority" :data-priority="value">
     <span :id="labelId" class="note-prio__label">{{ t('topic.priority.short') }}</span>
@@ -25,7 +27,8 @@
         <span>{{ n }}</span>
       </label>
     </div>
-    <span v-if="message" class="note-prio__note" :class="{ 'note-prio__note--err': failed }" role="status" data-test="note-priority-note">{{ message }}</span>
+    <span v-if="okShown" class="note-prio__ok" aria-hidden="true" data-test="note-priority-ok">{{ okValue }}</span>
+    <span class="note-prio__note" :class="{ 'note-prio__note--err': failed, 'sr-only': !failed }" role="status" data-test="note-priority-note">{{ message }}</span>
   </div>
 </template>
 
@@ -46,10 +49,25 @@ const value = ref(notePriority({ priority: props.priority }))
 const saving = ref(false)
 const failed = ref(false)
 const message = ref('')
+/* the visible "✓ N": shown on a saved pick, gone under 1 s (CSS fades it) */
+const OK_MS = 800
+const okShown = ref(false)
+const okValue = ref(0)
+let okTimer: ReturnType<typeof setTimeout> | undefined
+function flashOk(n: number) {
+  clearTimeout(okTimer)
+  okValue.value = n
+  okShown.value = false
+  nextTick(() => {
+    okShown.value = true
+    okTimer = setTimeout(() => { okShown.value = false }, OK_MS)
+  })
+}
+onUnmounted(() => clearTimeout(okTimer))
 
 watch(() => [props.noteId, props.priority] as const, ([, p], [id]) => {
   value.value = notePriority({ priority: p })
-  if (id !== props.noteId) message.value = ''
+  if (id !== props.noteId) { message.value = ''; okShown.value = false }
 })
 
 async function choose(n: number) {
@@ -61,9 +79,11 @@ async function choose(n: number) {
     emit('saved', await store.patch(props.noteId, { priority: n }))
     failed.value = false
     message.value = t('topic.priority.saved', { n })
+    flashOk(n)
   } catch (e) {
     value.value = old
     failed.value = true
+    okShown.value = false
     message.value = t('topic.priority.failed', { token: String((e as { token?: string })?.token || (e as { status?: number })?.status || '') })
   } finally {
     saving.value = false
@@ -72,29 +92,39 @@ async function choose(n: number) {
 </script>
 
 <style scoped>
+/* SPL-5349: the topic chooser's size, cells 26 x 16 px on the desktop and
+   35 x 30 on a phone */
 .note-prio {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  font-size: 0.875rem;
+  gap: 4px 6px;
+  font-size: 0.75rem;
+  /* the label no taller than the bar: the header row keeps its height
+     when the lazy chooser mounts */
+  line-height: 1;
   color: var(--color-muted);
 }
 .note-prio__group {
   display: inline-flex;
+  font-size: 0.75rem;
+  line-height: 1;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  overflow: hidden;
 }
 .note-prio__opt {
   position: relative;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2em;
-  padding: 2px 6px;
+  width: 26px;
+  height: 16px;
   cursor: pointer;
 }
+.note-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
+.note-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
 .note-prio__opt + .note-prio__opt { border-inline-start: 1px solid var(--color-border); }
 .note-prio__opt--on {
   background: var(--color-selected);
@@ -113,27 +143,33 @@ async function choose(n: number) {
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-.note-prio__note--err { color: var(--color-danger); }
-/* SPL-5288: on a phone the bar is drawn 70% smaller, as TopicPriorityChooser;
-   each value keeps a 44 px tall target (its invisible radio). It stays right
-   of the title (NoteDetail, owner t1 ba784026 msg 037cedef), not centred. */
+/* right of the bar, out of the flow: no row height, nothing jumps. The bar
+   ends its row (NoteDetail), so the room for it is kept on the right. */
+.note-prio { padding-inline-end: 2.5em; }
+.note-prio__ok {
+  position: absolute;
+  inset-inline-end: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-ok);
+  animation: note-prio-ok 750ms ease-in forwards;
+}
+.note-prio__ok::before { content: '\2713\00a0'; }
+@keyframes note-prio-ok {
+  0%, 55% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-prio__ok { animation: none; }
+}
+.note-prio__note--err { flex-basis: 100%; color: var(--color-danger); }
+/* on a phone each value keeps a 44 px tall target (its invisible radio); it
+   stays right of the title (NoteDetail, owner t1 ba784026 msg 037cedef) */
 @media (max-width: 820px) {
-  /* an empty first item keeps the bar's line 44 px tall, also with the note below */
+  /* an empty first item keeps the bar's line 44 px tall */
   .note-prio::before { content: ''; height: var(--tap); }
-  .note-prio__group {
-    font-size: 0.625rem;
-    line-height: 1;
-    overflow: visible;
-  }
-  .note-prio__opt {
-    box-sizing: border-box;
-    min-width: 0;
-    width: 1.1em;
-    height: 1.05em;
-    padding: 0;
-  }
-  .note-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
-  .note-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+  .note-prio__group { font-size: 0.875rem; }
+  .note-prio__opt { width: 35px; height: 30px; }
   /* near-square, as TopicPriorityChooser (R7 c-611, W1) */
   .note-prio__opt input {
     inset: 50% 0 auto;

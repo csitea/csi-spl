@@ -5,7 +5,12 @@
      move), the current value checked. A click saves at once; a failed save
      puts the old value back and says why. The value comes from the client
      (topicPriorityOf: the pane's own topic read, a set, a `topic_priority`
-     frame), so the chooser does no read of its own. -->
+     frame), so the chooser does no read of its own.
+     SPL-5349 (owner HUM-10, t1 2fafde5c, option A of the mocks): the bar sits
+     on the topic header's second row, left, at the card-size control's size;
+     a saved pick is a short "✓ N" right of the bar that fades out in under
+     1 s and takes no room; screen readers hear the whole sentence. A failed
+     save keeps its line, so the reason stays readable. -->
 <template>
   <div class="topic-prio" data-testid="topic-priority" :data-priority="value" :title="t('topic.priority.hint')">
     <span :id="labelId" class="topic-prio__label">{{ t('topic.priority.short') }}</span>
@@ -28,7 +33,8 @@
         <span>{{ n }}</span>
       </label>
     </div>
-    <span v-if="note" class="topic-prio__note" :class="{ 'topic-prio__note--err': failed }" role="status" data-testid="topic-priority-note">{{ note }}</span>
+    <span v-if="okShown" class="topic-prio__ok" aria-hidden="true" data-testid="topic-priority-ok">{{ okValue }}</span>
+    <span class="topic-prio__note" :class="{ 'topic-prio__note--err': failed, 'sr-only': !failed }" role="status" data-testid="topic-priority-note">{{ note }}</span>
   </div>
 </template>
 
@@ -49,11 +55,27 @@ const value = ref<number>(TOPIC_PRIORITY_DEFAULT)
 const saving = ref(false)
 const failed = ref(false)
 const note = ref('')
+/* the visible "✓ N": shown on a saved pick, gone under 1 s (CSS fades it) */
+const OK_MS = 800
+const okShown = ref(false)
+const okValue = ref(0)
+let okTimer: ReturnType<typeof setTimeout> | undefined
+function flashOk(n: number) {
+  clearTimeout(okTimer)
+  okValue.value = n
+  okShown.value = false
+  nextTick(() => {
+    okShown.value = true
+    okTimer = setTimeout(() => { okShown.value = false }, OK_MS)
+  })
+}
+onUnmounted(() => clearTimeout(okTimer))
 
 watch(() => props.taskId, (id) => {
   value.value = topicPriority(api.topicPriorityOf(id))
   note.value = ''
   failed.value = false
+  okShown.value = false
 }, { immediate: true })
 
 /* the pane's read, this tab's set, another tab's frame */
@@ -77,9 +99,11 @@ async function choose(n: number) {
     await api.setTopicPriority(props.taskId, n)
     failed.value = false
     note.value = t('topic.priority.saved', { n })
+    flashOk(n)
   } catch (e) {
     value.value = old
     failed.value = true
+    okShown.value = false
     note.value = t('topic.priority.failed', { token: String((e as { token?: string })?.token || (e as { status?: number })?.status || '') })
   } finally {
     saving.value = false
@@ -88,30 +112,39 @@ async function choose(n: number) {
 </script>
 
 <style scoped>
+/* SPL-5349: the size of the card-size control (CardClipControl), cells
+   26 x 16 px on the desktop and 35 x 30 on a phone */
 .topic-prio {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  padding: 4px 12px;
-  font-size: 0.875rem;
+  gap: 4px 6px;
+  font-size: 0.75rem;
+  /* the label no taller than the bar: the header row keeps its height
+     when the lazy chooser mounts */
+  line-height: 1;
   color: var(--color-muted);
 }
 .topic-prio__group {
   display: inline-flex;
+  font-size: 0.75rem;
+  line-height: 1;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  overflow: hidden;
 }
 .topic-prio__opt {
   position: relative;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2em;
-  padding: 2px 6px;
+  width: 26px;
+  height: 16px;
   cursor: pointer;
 }
+.topic-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
+.topic-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
 .topic-prio__opt + .topic-prio__opt { border-inline-start: 1px solid var(--color-border); }
 .topic-prio__opt--on {
   background: var(--color-selected);
@@ -130,35 +163,31 @@ async function choose(n: number) {
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-.topic-prio__note--err { color: var(--color-danger); }
-/* SPL-5288 (owner HUM-10, t1 2fafde5c msg b6a2468d): on a phone the bar is
-   drawn 70% smaller (222 x 46 px -> about 64 x 14) and centred in its row,
-   the label beside it. Each value keeps a 44 px tall target: its radio,
-   invisible, stands out of the drawn cell, so the group no longer clips and
-   the end cells round the pill themselves. */
+/* right of the bar, out of the flow: no row height, nothing jumps */
+.topic-prio__ok {
+  position: absolute;
+  inset-inline-start: 100%;
+  margin-inline-start: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-ok);
+  animation: topic-prio-ok 750ms ease-in forwards;
+}
+.topic-prio__ok::before { content: '\2713\00a0'; }
+@keyframes topic-prio-ok {
+  0%, 55% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .topic-prio__ok { animation: none; }
+}
+.topic-prio__note--err { flex-basis: 100%; color: var(--color-danger); }
+/* on a phone each value keeps a 44 px tall target: its radio, invisible,
+   stands out of the drawn cell */
 @media (max-width: 820px) {
-  .topic-prio {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    /* the bar's own row holds the 44 px targets, also with the note below */
-    grid-template-rows: minmax(var(--tap), auto);
-  }
-  .topic-prio__label { justify-self: end; }
-  .topic-prio__note { grid-column: 1 / -1; justify-self: center; }
-  .topic-prio__group {
-    font-size: 0.625rem;
-    line-height: 1;
-    overflow: visible;
-  }
-  .topic-prio__opt {
-    box-sizing: border-box;
-    min-width: 0;
-    width: 1.1em;
-    height: 1.05em;
-    padding: 0;
-  }
-  .topic-prio__opt:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
-  .topic-prio__opt:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+  .topic-prio { font-size: 0.8125rem; }
+  .topic-prio__group { font-size: 0.875rem; }
+  .topic-prio__opt { width: 35px; height: 30px; }
   /* near-square: a 50% round radio is hit-tested as an ellipse, 4-6 px wide
      near its top and bottom (R7 c-611, W1); the smallest token radius */
   .topic-prio__opt input {

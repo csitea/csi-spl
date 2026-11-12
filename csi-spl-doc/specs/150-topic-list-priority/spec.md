@@ -1,6 +1,16 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.4 (2026-11-11): the bar's label reads "Prio" at every width
+Version v1.5 (2026-11-12): two-row headers (option A of the mocks, the
+owner's pick in poll `ba1b6b6f`, t1 2fafde5c msg `9e4cfb7d`, SPL-5349). The
+topic list header shows the full channel name on row 1 and the filter + sort
+(left) and card-size control (right) on row 2; the open topic shows the full
+title on row 1 and the priority bar (left) and card-size control (right) on
+row 2. The card-size control is 30% lower and a little wider, the filter and
+sort buttons and the priority bar take its size, the label reads "prio:",
+and a saved pick shows a "✓ N" right of the bar that fades out in under 1 s
+(section 3.1, 3.3 WUI, key `topic.priority.short` in 3.5, C310, C314).
+
+v1.4 (2026-11-11): the bar's label reads "Prio" at every width
 (each locale its own short form), and only on a phone is the 1..5 bar drawn
 70% smaller and centred, each value a 44 px tall target with near-square corners (section 3.3
 WUI, key `topic.priority.short` in 3.5, case C314; the owner, t1 2fafde5c
@@ -176,11 +186,21 @@ holds (panel.md section 1, one row per claim with its command).
 
 ## 3. Design
 
-### 3.1 Part 1: the topic-list control on the channel-name row
+### 3.1 Part 1: the topic-list control on the channel header
 
 - A new lazy component, `wui/components/TopicListControl.vue`, drawn in
-  `FeedHeader.vue` just before `<CardClipControl />` (line 40), on the
-  channel, DM and lobby pages.
+  `FeedHeader.vue` before `<CardClipControl />`, on the channel, DM and
+  lobby pages.
+- **Two rows (v1.5, SPL-5349).** Row 1 is the full channel name: it wraps,
+  never cut. Row 2 (`.feed-header__row2`) holds the filter and sort at the
+  left and the card-size control at the right; their popovers open toward
+  the row's end.
+- **Sizes (v1.5).** The card-size control (`CardClipControl.vue`) is drawn
+  30% lower and a little wider than before, in this header and in the
+  topic's: cells 26 x 16 px on the desktop (was 33 x 24), 35 x 30 on a phone
+  (was 44 x 44), so the control is 80 x 18 and 107 x 32. The filter and sort
+  buttons take the same size (26 x 18, 35 x 32). On a phone each still has
+  a 44 px tall target that stands out of the drawn cell.
 - Two icon buttons; each opens a small popover of native radios in one named
   group, as CardClipControl does (Tab lands on the group, the arrows move,
   Escape closes).
@@ -281,23 +301,34 @@ holds (panel.md section 1, one row per claim with its command).
 - `wui/components/TopicPriorityChooser.vue`: one row, a native radio group
   1..5, the current value checked. A click saves at once; a failed save puts
   the old value back and says why (`topic.priority.failed`).
-- **On a phone** (<= 820 px, v1.4) the bar is drawn at 30% of its old size
-  (222 x 46 px -> about 64 x 14 at 360 and 390 px) and centred in its row,
-  the label beside it. Each value keeps a 44 px tall target, its invisible
-  radio standing out of the drawn cell, near-square at the smallest token
-  radius (a 50% round radio is hit-tested as an ellipse, only 4-6 px wide
-  near its top and bottom); the bar's row
-  stays 44 px tall so nothing covers it. On desktop the bar keeps its size.
-- **The label** reads "Prio" (`topic.priority.short`) at every width, the
-  owner's word with no width named (msg `0b66d67c`); each locale has its own
-  short form (fi "Prior.", agy review a-612).
+- **Where (v1.5, SPL-5349).** In `TopicPane.vue` and `LiveTopicPane.vue`
+  the topic header has two rows: row 1 the full title (it wraps, never cut),
+  row 2 (`.topic-head__row2`) the bar at the left and the replies'
+  card-size control at the right, in both Message orders. (v1.0-v1.4 put
+  the bar at the pane's newest end.) The whole title replaces spec 109
+  FR-011's one-line cut title in the right pane and spec 078 T004b's
+  four-line clamp (`topic-pane-title-fits.test.mjs` step 5 checks it).
+- **Size (v1.5).** The bar is the card-size control's size (section 3.1):
+  cells 26 x 16 px on the desktop, so 132 x 18; 35 x 30 on a phone, so
+  177 x 32 (SPL-5288's phone bar was about 64 x 14, centred). Each value
+  keeps a 44 px tall target on a phone, its invisible radio standing out of
+  the drawn cell, near-square at the smallest token radius (a 50% round
+  radio is hit-tested as an ellipse, only 4-6 px wide near its top and
+  bottom); row 2 stays 44 px tall so nothing covers it.
+- **The label** reads "prio:" (`topic.priority.short`): lower case, a colon
+  after it (the owner wrote "semicolon"; ":" is how a label reads, a
+  one-character change if ";" was meant). Each locale has its own short
+  form, lower case where the script has case, a colon after it.
+- **A saved pick** shows "✓ N" right of the bar for under 1 s: visible,
+  then a CSS opacity fade, removed at 800 ms. It is out of the flow (no row
+  height, nothing jumps). With `prefers-reduced-motion` it does not fade and
+  is still removed at 800 ms. Screen readers hear "Priority set to N."
+  (`topic.priority.saved`, a `role=status` line drawn for them only). A
+  failed save keeps its visible error line.
 - The note chooser (`NotePriorityChooser.vue`, spec 155) draws the same bar
-  and stays right of the note's title; on a phone its label is kept for
-  screen readers only (SPL-4893).
-- In `TopicPane.vue` and `LiveTopicPane.vue`, where `BornTopics` is
-  (`TopicPane.vue:30/61`, `LiveTopicPane.vue:30/62`): at the top of the pane
-  body when Message order is newest first, at the bottom when newest last,
-  on phones too.
+  and the same "✓ N" and stays right of the note's title (room for the
+  check is kept at its right); on a phone its label is kept for screen
+  readers only (SPL-4893).
 - `wui/utils/spool-client.mjs` gets `setTopicPriority(taskId, prio)`;
   `wui/utils/spool-client-mock.mjs` its mock.
 - **The topic card shows a small badge** when a priority other than the
@@ -443,7 +474,7 @@ holds (panel.md section 1, one row per claim with its command).
 | `feed.topic_list.window_new` | Showing new among the {n} topics loaded |
 | `feed.topic_list.empty_new` | No new topics. |
 | `topic.priority.label` | Priority |
-| `topic.priority.short` | Prio (v1.4: the chooser's label; `label` stays the badge's title; nl and sv keep "Prio", fi reads "Prior.", agy a-612 msg `79c3221c`) |
+| `topic.priority.short` | prio: (v1.5: lower case and a colon in every locale, e.g. fi "prior:"; v1.4: the chooser's label; `label` stays the badge's title) |
 | `topic.priority.hint` | 1 is the most urgent, 5 the least. The orchestrator serves 1 first. |
 | `topic.priority.badge` | P{n} |
 | `topic.priority.saved` | Priority set to {n}. |
@@ -488,10 +519,10 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C307 | 3 | list rows carry it | a `GET /v1/view/topics` row has `priority` | drop the join | same |
 | C308 | 3 | delta | a set after the cursor lists the topic in a `since=` answer | no change kind | `hub/view_delta_test.go` (the delta has no test file of its own in `store/`) |
 | C309 | 3 | live frame | a second client sees the new value without a refetch | no frame | `csi-spl-wui/tests/e2e/topic-priority.test.mjs` |
-| C310 | 3 | top / bottom | the chooser is above the root when newest first, below the last reply when newest last | always on top | same |
+| C310 | 3 | header row 2 (v1.5) | the chooser is on the topic header's row 2, above the root, in both Message orders, one per pane | at the newest end | same |
 | C311 | 3 | failed save | the old value comes back and the error line shows | keep the clicked value | same |
 | C312 | 3 | card badge | `P2` on a card set to 2, `P5` at 5; no badge at 3 | badge at 3 too | `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs` |
-| C314 | 3 | phone bar (v1.4) | at 360 and 390 px the bar is 30% (+-3%) of its old width and height, centred (gaps equal +-2 px), labelled "Prio"; every value taps and saves, also 15 px above its cell; 1440 px keeps its size | the 44 px cells | `csi-spl-wui/tests/e2e/topic-priority-phone.test.mjs` |
+| C314 | 3 | the bar on row 2 (v1.5) | at 360 and 390 px the bar is 177 x 32 px (+-3%; >= 1.5x the v1.4 height, >= 1.8x its width), at 1440 px 132 x 18, as tall as the card-size control (80 x 18 at 1440), bar left and control right on row 2 under the whole title, labelled "prio:"; every value taps and saves, also 15 px above its cell; after a pick "✓ N" is right of the bar, adds no height and is gone by 1000 ms, reduced motion too | the v1.4 centred 64 x 14 bar | `csi-spl-wui/tests/e2e/topic-priority-phone.test.mjs` |
 | C313 | 3 | i18n parity + raw text | all 19 locales hold every new key; the raw-text count does not rise | a literal "Priority" in the template | `csi-spl-wui/tests/unit/i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs` |
 | C401 | 4 | queue order | of two queued asks in one class, the priority 1 ask is position 1 even when queued later | the rank ignores priority | `store/fleet_ask_queue_test.go` |
 | C402 | 4 | no priority = today | asks with no discussion keep the class, EnqueuedAt order | the default ranks first | same |

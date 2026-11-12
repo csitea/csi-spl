@@ -1008,7 +1008,7 @@
     "list_title": "Tema: {text}",
     "priority": {
       "label": "Prioridad",
-      "short": "Prior.",
+      "short": "prior:",
       "hint": "1 es lo más urgente, 5 lo menos. El orquestador atiende primero el 1.",
       "badge": "P{n}",
       "saved": "Prioridad establecida en {n}.",

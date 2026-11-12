@@ -12,9 +12,12 @@
      somethign is archived"): a DM opened on an ARCHIVED topic (?topic=)
      names that topic here, muted, beside the same ArchivedBadge the topic
      pane and the Topics rows carry; a live topic adds nothing.
-     Spec 150 B6: the topic list's filter and sort sit just before the card
-     height control; lazy, in a slot that holds its box from the first frame,
-     so the shell's initial chunk does not grow and the title does not jump. -->
+     Spec 150 B6: the topic list's filter and sort; lazy, in a slot that
+     holds its box from the first frame, so the shell's initial chunk does
+     not grow and nothing jumps.
+     SPL-5349 (owner HUM-10, t1 2fafde5c, option A): two rows - the full
+     channel name on row 1 (it wraps, never cut); row 2 holds the filter and
+     sort at the left and the card height control at the right. -->
 <template>
   <header class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t('pane.msgs')">
     <MobileBack />
@@ -40,8 +43,10 @@
       <span v-if="topicTitle" class="feed-header__topic-title">{{ topicTitle }}</span>
       <ArchivedBadge :at="archivedAt" :task-id="topicId" @unarchived="emit('unarchived')" />
     </span>
-    <span class="topic-list-slot"><LazyTopicListControl /></span>
-    <CardClipControl />
+    <div class="feed-header__row2" data-test="feed-header-row2">
+      <span class="topic-list-slot"><LazyTopicListControl /></span>
+      <CardClipControl />
+    </div>
   </header>
 </template>
 
@@ -72,19 +77,28 @@ const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <style scoped>
-/* spec 150 B6: the slot takes the right edge; the card height control follows it */
+/* SPL-5349: row 2 under the full name (main.css: .feed-header--pane) */
+.feed-header__row2 {
+  display: flex;
+  flex: 0 0 100%;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* spec 150 B6: the slot holds the two buttons' box (TopicListControl.vue:
+   26 x 18 px each, 35 x 32 on a phone, 2 px apart); the card height
+   control takes the right edge */
 .topic-list-slot {
   display: inline-flex;
   flex-shrink: 0;
-  margin-inline-start: auto;
-  min-width: calc(2 * (0.875rem + 18px) + 2px);
-  min-height: calc(0.875rem + 10px);
+  min-width: calc(2 * 26px + 2px);
+  min-height: 18px;
 }
-.topic-list-slot + .card-clip-ctl { margin-inline-start: 0; }
 @media (max-width: 820px) {
+  .feed-header__row2 { min-height: var(--tap); }
   .topic-list-slot {
-    min-width: calc(2 * max(var(--tap), 0.875rem + 22px) + 2px);
-    min-height: max(var(--tap), 0.875rem + 10px);
+    min-width: calc(2 * 35px + 2px);
+    min-height: 32px;
   }
 }
 /* gives way (ellipsis) before the name does; the badge never shrinks */

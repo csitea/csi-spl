@@ -1008,7 +1008,7 @@
     "list_title": "Temă: {text}",
     "priority": {
       "label": "Prioritate",
-      "short": "Prior.",
+      "short": "prior:",
       "hint": "1 este cel mai urgent, 5 cel mai puțin urgent. Orchestratorul servește mai întâi 1.",
       "badge": "P{n}",
       "saved": "Prioritatea a fost setată la {n}.",

@@ -60,11 +60,20 @@ describe('FeedHeader: one header for channel, DM and lobby', () => {
     assert.match(read('src/components/FeedHeader.vue'), /status\?: 'on' \| 'off'/)
   })
 
-  it('one row at every width: the title ellipses instead of wrapping the control', () => {
+  /* SPL-5349 (owner HUM-10, t1 2fafde5c, option A; was SPL-941's one row):
+     the full channel name on row 1, row 2 = filter + sort left, card size right */
+  it('two rows: the full name wraps; row 2 holds the filter + sort, then the card height control', () => {
     const css = read('src/assets/css/main.css')
-    assert.match(css, /\.feed-header--pane \.feed-header__title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/)
-    assert.doesNotMatch(css, /\.feed-header:has\(\.card-clip-ctl\) \{ flex-wrap: wrap/)
+    assert.match(css, /\.feed-header--pane \{[^}]*flex-wrap: wrap;/)
+    assert.match(css, /\.feed-header--pane \.feed-header__title \{[^}]*white-space: normal;/)
+    assert.doesNotMatch(css, /\.feed-header--pane \.feed-header__title \{[^}]*text-overflow: ellipsis/)
     assert.doesNotMatch(css, /\.feed-header__about/)
+    const t = template('src/components/FeedHeader.vue')
+    const row2 = t.slice(t.indexOf('class="feed-header__row2"'))
+    assert.ok(t.indexOf('class="feed-header__title"') < t.indexOf('class="feed-header__row2"'))
+    const list = row2.indexOf('<LazyTopicListControl />')
+    const clip = row2.indexOf('<CardClipControl />')
+    assert.ok(list > 0 && clip > list, `row 2: filters ${list} < card size ${clip}`)
   })
 })
 
@@ -103,38 +112,37 @@ describe('i18n: the "last 30 · tenant-scoped" note is gone from every locale', 
   })
 })
 
-/* Owner 2026-09-26 (prd topic b8cbfbe1): the thread pane's header is one row -
-   the X first, then the title on one line with an ellipsis (full title on
-   hover), then the replies' height control (SPL-945). SPL-1133: the X is
-   the shared UiCloseButton at both ends - first in Mac style (the default),
-   after the control in Windows style; one of the two renders. */
-describe('the thread pane header: X, then the title on one line, then the control', () => {
+/* Owner 2026-09-26 (prd topic b8cbfbe1): the thread pane's header - the X
+   first, then the title. SPL-1133: the X is the shared UiCloseButton at both
+   ends - first in Mac style (the default), last in Windows style; one of the
+   two renders. SPL-5349 (owner HUM-10, t1 2fafde5c, option A): the title in
+   full (it wraps), then row 2: the priority left, the replies' height
+   control (SPL-945) right. */
+describe('the thread pane header: X, the full title, X; row 2 = priority, then the control', () => {
   for (const p of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
     it(p, () => {
       const t = template(p)
       const head = t.slice(t.indexOf('<header>'), t.indexOf('</header>'))
       const x = head.indexOf('<UiCloseButton side="start"')
       const title = head.indexOf('class="topic-heading__title"')
-      const ctl = head.indexOf('<LazyCardClipControl pane="thread" />')
       const xEnd = head.indexOf('<UiCloseButton side="end"')
-      assert.ok(x > 0 && title > x && ctl > title && xEnd > ctl, `order X ${x} < title ${title} < control ${ctl} < X ${xEnd}`)
+      const row2 = head.indexOf('class="topic-head__row2"')
+      const prio = head.indexOf('<LazyTopicPriorityChooser')
+      const ctl = head.indexOf('<LazyCardClipControl pane="thread" />')
+      assert.ok(x > 0 && title > x && xEnd > title && row2 > xEnd && prio > row2 && ctl > prio,
+        `order X ${x} < title ${title} < X ${xEnd} < row 2 ${row2}: priority ${prio} < control ${ctl}`)
       assert.match(head, /class="topic-heading__title"[^>]*:title="heading"/)
-      assert.doesNotMatch(head, /flex-wrap:wrap/)
+      /* the priority is in the header only, never also at the feed's end */
+      assert.equal(t.split('<LazyTopicPriorityChooser').length, 2)
     })
   }
 
-  it('the phone title never wraps: nowrap + ellipsis, and the header row does not wrap', () => {
+  it('the title is never cut: it wraps at every width, and the header wraps into row 2', () => {
     const css = read('src/assets/css/main.css')
-    assert.match(css, /\.topic header \{[^}]*flex-wrap: nowrap;/)
-    assert.match(css, /\.topic-heading__title \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/)
-    assert.doesNotMatch(css, /\.topic-heading__title \{[^}]*overflow-wrap: anywhere/)
-  })
-
-  /* Spec 078 T004b (AC6, US3): at 1440 the 40 % pane leaves the title ~292 px,
-     so on the desktop the title wraps (clamped at 4 lines) and the controls
-     stay on the one row. The phone keeps the rule above. */
-  it('the desktop title wraps, clamped, inside a min-width: 821px rule', () => {
-    const css = read('src/assets/css/main.css')
-    assert.match(css, /@media \(min-width: 821px\) \{\s*\.topic-heading__title \{[^}]*-webkit-line-clamp: 4;[^}]*white-space: normal;/)
+    assert.match(css, /\.topic header \{[^}]*flex-wrap: wrap;/)
+    assert.match(css, /\.topic-heading__title \{[^}]*white-space: normal;[^}]*overflow-wrap: anywhere;/)
+    assert.doesNotMatch(css, /\.topic-heading__title \{[^}]*text-overflow: ellipsis/)
+    assert.doesNotMatch(css, /line-clamp: 4/)
+    assert.match(css, /\.topic-head__row2 \{[^}]*flex: 0 0 100%;/)
   })
 })

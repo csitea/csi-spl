@@ -10,9 +10,10 @@
     :aria-label="heading"
     @click="onTopicPaneClick"
   >
-    <!-- Owner 2026-09-26 (prd topic b8cbfbe1): one row - the X first, then the
-         title on one line, cut with an ellipsis (full title on hover). SPL-945:
-         the replies' height control at the right edge; lazy, so the shell's
+    <!-- Owner 2026-09-26 (prd topic b8cbfbe1): the X first, then the title.
+         SPL-5349 (owner HUM-10, t1 2fafde5c): the title is shown in full
+         (it wraps) and the controls go to a second row. SPL-945: the
+         replies' height control at the right edge; lazy, so the shell's
          initial chunk does not grow. -->
     <header>
       <!-- SPL-989: on a phone the chevron is Back (level 3 -> 2); the X hides -->
@@ -21,15 +22,18 @@
       <UiCloseButton side="start" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
       <strong class="topic-heading__title" :class="{ 'is-archived': pane.archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading"><span v-if="titleText" class="topic-heading__label">{{ t('topic.list_title', { text: '' }) }}</span><span class="topic-heading__text">{{ titleText || t('topic.title') }}</span></strong>
       <ArchivedBadge v-if="pane.archivedAt" :at="pane.archivedAt" :show-when="true" :task-id="pane.taskId || ''" @unarchived="pane.archivedAt = ''" />
-      <!-- SPL-2807: the slot holds the lazy control's box, so the title does not jump when it mounts -->
-      <span class="clip-slot"><LazyCardClipControl pane="thread" /></span>
       <UiCloseButton side="end" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
+      <!-- SPL-5349 (owner HUM-10, t1 2fafde5c, option A): row 2 under the full
+           title - the topic's priority left (spec 150 B7), the replies' height
+           control right. SPL-2807: each slot holds its lazy control's box, so
+           nothing jumps when it mounts. -->
+      <div class="topic-head__row2" data-test="topic-head-row2">
+        <div v-if="pane.taskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="pane.taskId" /></div>
+        <span class="clip-slot"><LazyCardClipControl pane="thread" /></span>
+      </div>
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
          at the newest end of the pane. -->
-    <!-- spec 150 B7: the topic's priority 1..5 at the pane's newest end (Message
-         order); the wrapper takes the v-if, never the lazy component itself -->
-    <div v-if="!newestLast && pane.taskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="pane.taskId" /></div>
     <BornTopics v-if="!newestLast" />
     <div class="pinned-root feed-body" data-test="topic-root">
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
@@ -63,7 +67,6 @@
       />
     </div>
     <BornTopics v-if="newestLast" />
-    <div v-if="newestLast && pane.taskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="pane.taskId" /></div>
     <!-- 050: the thread panel's collapse triangle, bottom corner (see
          TopicPane.vue). A DIRECT child of .topic for the collapse CSS. -->
     <PaneCollapseToggle pane="threads" />

@@ -10,9 +10,12 @@
 //      "the topic title on one line (ellipsis)"; the /t page keeps the wrap
 //   3  1920x1080: the default follows the window, about 662 px, title whole
 //   4  a dragged (stored) width still wins over the default
-//   5  spec 109 T011 (FR-011): at 1440 the header is one row <= 48 px, the
-//      title one line, and every control in it has an accessible name
-//      (aria-label or text, read from the DOM, so any locale passes)
+//   5  spec 109 T011 (FR-011), as SPL-5349 changed it (owner HUM-10, t1
+//      2fafde5c, option A: "the full title of the topic will be visible"):
+//      at 1440 the header is the whole title (never cut) on row 1 and one
+//      18 px control row under it, no taller than that plus its 7 px
+//      padding, and every control in it has an accessible name (aria-label
+//      or text, read from the DOM, so any locale passes)
 //
 // Run:
 //   pnpm test:e2e topic-pane-title-fits
@@ -117,6 +120,12 @@ const header = (p) => p.evaluate(() => {
   const lineH = h ? parseFloat(getComputedStyle(h).lineHeight) : 0
   return {
     headerH: head ? Math.round(head.getBoundingClientRect().height) : 0,
+    titleH: h ? Math.round(h.getBoundingClientRect().height) : 0,
+    titleCut: h ? h.scrollHeight > h.clientHeight + 1 || h.scrollWidth > h.clientWidth + 1 : true,
+    row2: (() => {
+      const r = head && head.querySelector('.topic-head__row2')
+      return r && h ? { h: Math.round(r.getBoundingClientRect().height), under: r.getBoundingClientRect().top >= h.getBoundingClientRect().bottom - 1 } : null
+    })(),
     kids: head ? [...head.children].filter(shown).map((el) => `${el.className || el.tagName}:${Math.round(el.getBoundingClientRect().height)}`) : [],
     lines: h && lineH ? Math.round(h.querySelector('.topic-heading__text').getBoundingClientRect().height / lineH) : 0,
     controls: controls.length,
@@ -174,12 +183,15 @@ try {
   ok('4 1440: a stored topic width of 400 wins over the default', near(kept.paneW, 400), kept)
   await shot(p, '4-stored')
 
-  /* ---- 5. T011: one-row header, labelled controls ------------------------ */
+  /* ---- 5. T011 (SPL-5349): the whole title, one control row under it ----- */
   await load(p, srv.base, 1440, 900, null)
   for (const id of ROOTS) {
     await openTopic(p, id)
     const hd = await header(p)
-    ok(`5 1440: ${id.slice(0, 8)} header is one row <= 48 px, the title one line (T011)`, hd.headerH > 0 && hd.headerH <= 48 && hd.lines === 1, hd)
+    /* row 1 (the 32 px X or the title) + 4 px row gap + row 2 (18 px) + 2 x 7 px padding + 1 px border */
+    const most = Math.max(32, hd.titleH) + 4 + 18 + 14 + 1
+    ok(`5 1440: ${id.slice(0, 8)} the title is whole and row 2 (18 px) is under it; header <= ${most} px (T011, SPL-5349)`,
+      hd.headerH > 0 && hd.headerH <= most + 1 && !hd.titleCut && hd.row2?.h === 18 && hd.row2?.under, hd)
     ok(`5 1440: ${id.slice(0, 8)} every header control has an accessible name (T011)`, hd.controls >= 2 && hd.unnamed.length === 0 && hd.radios > 0 && hd.unnamedRadios === 0, hd)
   }
   await shot(p, '5-header')

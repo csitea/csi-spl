@@ -1008,7 +1008,7 @@
     "list_title": "Téma: {text}",
     "priority": {
       "label": "Priorita",
-      "short": "Prior.",
+      "short": "prior:",
       "hint": "1 je najnaliehavejšia, 5 najmenej naliehavá. Orchestrátor obsluhuje najprv 1.",
       "badge": "P{n}",
       "saved": "Priorita nastavená na {n}.",

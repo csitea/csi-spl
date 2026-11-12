@@ -1,0 +1,6 @@
+Lay-What: An administrator who is viewing the app as someone else can no longer add or change cost records and paid items.
+Lay-How: The server now checks whether the administrator is borrowing another person's view and refuses those changes if so.
+Lay-Why: Changes made while viewing as someone else were saved as the administrator's, which could quietly alter the money figures.
+Tech-What: hub API cost entry and paid-item write handlers refuse a live act-as clone of the operator admin with 403.
+Tech-How: New operatorWriteCaller (fleetLoadCaller minus a live act-as clone) gates the 5 write handlers in cost_entries.go and fleet_token_paid.go.
+Tech-Why: The writes used fleetLoadCaller, which accepts an act-as clone of the admin, so a clone session got 201/204/200 on operator writes.

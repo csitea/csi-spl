@@ -3,7 +3,7 @@
 -- poll 0c5e94b4 answer C part B: "A cost (e.g. a shared cloud bill, a
 -- person's hours) can be assigned or split to workspaces by hand, and each
 -- workspace's page shows its share"; poll 01cbbdea answers 1B 2B 3B).
--- Forward-only.
+-- Forward-only and idempotent (IF NOT EXISTS, DROP POLICY IF EXISTS): a re-run is a no-op.
 --
 --   cost_allocations  one row per (item, workspace): that workspace's share
 --                     in basis points of the estate Persons or Cloud cost
@@ -24,7 +24,7 @@
 -- spool-hub-roles/runtime-grants.sql, like every table since 017.
 -- DEPLOY ORDER: apply BEFORE the hub that reads this table (wf 20 does).
 
-CREATE TABLE cost_allocations (
+CREATE TABLE IF NOT EXISTS cost_allocations (
     source             text        NOT NULL CHECK (length(source) BETWEEN 1 AND 200),
     project_or_vendor  text        NOT NULL CHECK (length(project_or_vendor) BETWEEN 1 AND 200),
     kind               text        NOT NULL CHECK (length(kind) BETWEEN 1 AND 200),
@@ -37,6 +37,7 @@ CREATE TABLE cost_allocations (
 
 ALTER TABLE cost_allocations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cost_allocations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS operator_scope ON cost_allocations;
 CREATE POLICY operator_scope ON cost_allocations
     USING (current_setting('app.rls_scope', true) = 'operator')
     WITH CHECK (current_setting('app.rls_scope', true) = 'operator');

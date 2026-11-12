@@ -83,7 +83,7 @@ rows.
 
 | caller | may |
 |---|---|
-| the operator workspace's admin, the operator service account | set any split of any item among any live workspaces (`PUT /v1/operator/cost-allocations`) |
+| the operator workspace's admin, the operator service account (never a live act-as clone of the admin: 403 `operator.workspaces`, `operatorWriteCaller`, SPL-5348) | set any split of any item among any live workspaces (`PUT /v1/operator/cost-allocations`) |
 | a customer workspace's admin | re-split, among the workspaces **they administer**, only the share those workspaces already hold (`PUT /v1/tenant/cost-allocations`) |
 | anyone else | nothing (403); members with `costs.read` see their workspace's share, read only |
 

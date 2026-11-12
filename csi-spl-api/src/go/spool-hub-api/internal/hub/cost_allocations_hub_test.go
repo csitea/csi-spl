@@ -227,3 +227,32 @@ func TestCostAllocationTenantRefusesAgentAndClone(t *testing.T) {
 		}
 	}
 }
+
+// TestCostAllocationOperatorRefusesClone (SPL-5291 on SPL-5348): a live
+// act-as clone of the operator admin is 403 on the operator door's GET and
+// 403 operator.workspaces on its PUT, as on the operator's other cost
+// writes. The PUT body is a removal, never checked against the months, so
+// the code is the gate's alone. CONTROL: the admin's same PUT is 200.
+func TestCostAllocationOperatorRefusesClone(t *testing.T) {
+	r := newFleetTokensRig(t)
+	cs, ok := r.e.st.(dmCloneStore)
+	if !ok {
+		t.Skip("act-as clone store needs Postgres (SPOOL_TEST_PG_DSN)")
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	cl, err := cs.StartClone(context.Background(), store.CloneStart{TenantID: r.op, TargetHum: r.admin, AdminName: "Admin",
+		CreatedBy: r.admin, ExpiresAt: now.Add(time.Hour)}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removal := allocBody("never entered " + newTenantID("u"))
+	if code, got := call(t, r.e, r.op, http.MethodGet, costAllocOpPath+"?month=2004-06", cl.CloneHum, nil); code != http.StatusForbidden {
+		t.Errorf("clone GET: %d %v, want 403", code, got)
+	}
+	if code, got := call(t, r.e, r.op, http.MethodPut, costAllocOpPath, cl.CloneHum, removal); code != http.StatusForbidden || got["permission"] != "operator.workspaces" {
+		t.Errorf("clone PUT: %d %v, want 403 operator.workspaces", code, got)
+	}
+	if code, got := call(t, r.e, r.op, http.MethodPut, costAllocOpPath, r.admin, removal); code != http.StatusOK {
+		t.Errorf("CONTROL admin PUT: %d %v, want 200", code, got)
+	}
+}

@@ -23,7 +23,8 @@ import (
 //
 // The operator's routes, behind the doors of the cost entries (the GET
 // operatorReadCaller's, the PUT the operator workspace's admin or the
-// operator service account, fleetLoadCaller):
+// operator service account and never a live act-as clone, operatorWriteCaller,
+// SPL-5348):
 //
 //	GET /v1/operator/cost-allocations?month=YYYY-MM
 //	    {month, second_currency, items: [{source, project_or_vendor, kind,
@@ -188,7 +189,7 @@ func sortCostAllocWorkspaces(out []costAllocWorkspace) {
 }
 
 func (s *Server) handleCostAllocPut(w http.ResponseWriter, r *http.Request) {
-	_, _, who, ok := s.fleetLoadCaller(w, r)
+	_, _, who, ok := s.operatorWriteCaller(w, r)
 	if !ok {
 		return
 	}

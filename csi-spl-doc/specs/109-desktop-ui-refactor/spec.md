@@ -165,7 +165,7 @@ Checked and kept: Ctrl+K palette (1 key, 0.4 s), `/` to focus, DM in 2 clicks, t
 | FR-008 | The top bar holds the workspace box, the omnibox, the notification controls and the avatar. The language picker moves into the avatar menu and Settings | F4 | 171 px freed |
 | FR-009 | Workspace settings has one entry on screen (the rail gear); the avatar menu keeps it only while the rail is collapsed. The first-run card's link goes with that card (T012) | F5 | 3 -> 1 |
 | FR-010 | The first-run card shrinks to a one-line chip once any step is done, and goes away when all are done | F6 | 270 -> <= 48 px |
-| FR-011 | The thread pane header shows the topic title on one line (ellipsis) and labelled controls (tooltip and `aria-label`) | F7 | raw text box -> title line |
+| FR-011 | The thread pane header shows the topic title on one line (ellipsis) and labelled controls (tooltip and `aria-label`). **Superseded** by spec 150 v1.5 (SPL-5349): the full title on row 1, the controls on row 2 | F7 | raw text box -> title line |
 | FR-012 | The rail gets a visible divider between talk (Channels, DMs, Topics, Flow, Issues, Calendar) and workspace (Event log, People, Agents, Boxes, Archive), and a "show labels" toggle, default off | F3 | 0 labels -> optional labels |
 | FR-013 | Plain words in headers: no "read-only · workspace-scoped" | F8 | i18n keys only |
 | FR-014 | The workspace box opens on `click` (keyboard and assistive tech included), not only on `mousedown` | F9 | `click()` opens nothing -> opens |

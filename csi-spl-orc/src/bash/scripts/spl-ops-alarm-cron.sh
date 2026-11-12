@@ -53,7 +53,10 @@ fi
 # PATH=/usr/bin:/bin, but gh/yq/go/pnpm live elsewhere. Set it here, and add the
 # user-local bin where gh often is.
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin${DESK_CRON_PATH_EXTRA:+:$DESK_CRON_PATH_EXTRA}"
-export GH_TOKEN="${GH_TOKEN:-$(cat "$HOME/.github/token" 2>/dev/null || true)}"
+# gh reads GH_TOKEN from the box's one GitHub credential file (SPL-5366). An
+# alarm run goes on without it: its gh checks then report the missing token.
+. "$HERE/../../../lib/bash/funcs/gh-box-token.func.sh"
+gh_box_token_export || echo "WARN no GitHub token for gh: put $(gh_box_token_var) in $(gh_box_token_file)" >&2
 
 need_missing=""
 for t in git python3; do command -v "$t" >/dev/null 2>&1 || need_missing="$need_missing $t"; done

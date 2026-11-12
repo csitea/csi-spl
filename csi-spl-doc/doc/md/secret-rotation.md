@@ -171,16 +171,17 @@ still valid. After step 5 the old key is gone: mint again.
 `do_gh_box_token_put` and `do_gh_box_token_check` (csi-spl-iac, SPL-2897,
 `src/bash/run/gh-box-token-put.func.sh` and `gh-box-token-check.func.sh`, one
 action per file as `./run` requires) put and prove one fine-grained token per
-box. Every reader on a box takes the token from the box user's
-`$HOME/.github/token` (the git credential helper, the crons' `GH_TOKEN`, the
-box playbooks) or from gh's stored login; put writes both, check proves both,
-and neither prints the token. Test: `csi-spl-iac/src/bash/tests/gh-box-token.tst.sh`.
+box. Every reader in this repo takes the token from `ALL_CSI_GITHUB_TOKEN` in
+`$HOME/.github/.csi/crs` (the one file and the one variable,
+[secrets round 1](secrets-round-1.md) section 6); gh's stored login serves git
+on the box. Put writes both, check proves both, and neither prints the token. Test: `csi-spl-iac/src/bash/tests/gh-box-token.tst.sh`.
 
 - **put** reads the token on stdin only (a hidden prompt on a terminal); a
   token on argv is refused, because `./run` logs its argv. It refuses a token
   that is not fine-grained (`github_pat_`) or that GitHub does not answer to.
-  A dry run unless `DRY_RUN=0`, which writes the file (mode 600), keeps the
-  old one as `token.prev` (the undo) and replaces gh's stored login.
+  A dry run unless `DRY_RUN=0`, which rewrites the `ALL_CSI_GITHUB_TOKEN`
+  (and `GITHUB_TOKEN`) line of the file, other lines and its mode kept, keeps
+  the old file as `crs.prev` (the undo) and replaces gh's stored login.
 - **check** prints the login, the token type (`fine-grained`, `classic`, ...),
   its expiry and the repo permissions it grants, then gh's stored login and
   whether it is the same token. Exit 0 only for a fine-grained token on both.

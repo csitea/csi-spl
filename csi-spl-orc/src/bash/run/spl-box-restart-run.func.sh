@@ -41,7 +41,7 @@
 # @param BOX_RESTART_REPO (optional) - <owner>/<repo>; default cnf github_repository, else gh repo view
 # @param BOX_RESTART_INHIBITORS (optional) - respect | ignore; default cnf env.box.restart.inhibitors, else respect
 # @param BOX_RESTART_CNF (optional) - default <checkout>/<org>-<app>-cnf/<org>-<app>/all.env.yaml
-# @param BOX_RESTART_GH_TOKEN_FILE (optional) - read into GH_TOKEN when gh is not logged in; default $HOME/.github/token
+# @param GH_TOKEN (optional) - else ALL_CSI_GITHUB_TOKEN from $HOME/.github/.csi/crs (gh-box-token.func.sh); none refuses
 # @param BOX_RESTART_DEPLOY_WORKFLOWS (optional) - default the wf 20 and wf 30 files
 # @param BOX_RESTART_FROM (optional) - the notes' sender, default SPOOL_AGENT_ID, else c-001
 # @example ./run -a do_spl_box_restart_run
@@ -103,7 +103,7 @@ spl_brx_conf() {
   done
   SPL_BRX_FROM="${BOX_RESTART_FROM:-${SPOOL_AGENT_ID:-$(spl_role_seat 1)}}"
   SPL_BRX_WFS="${BOX_RESTART_DEPLOY_WORKFLOWS:-20_hub-build-deploy.yml 30_wui-build-deploy.yml}"
-  spl_brx_gh_auth
+  spl_brx_gh_auth || return 1
   SPL_BRX_REPO="${BOX_RESTART_REPO:-$(spl_brx_cnf_get '.. | select(type == "!!map" and has("github_repository")) | .github_repository')}"
   [[ -n "$SPL_BRX_REPO" ]] ||
     SPL_BRX_REPO="$(cd "${APP_PATH:-.}" 2>/dev/null && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)"
@@ -126,14 +126,12 @@ spl_brx_cnf_get() {
   return 0
 }
 
-# A cron job (and an agent on a box with no gh login) has no gh login of its
-# own: the box user's token file is read into GH_TOKEN (never printed).
+# gh's GH_TOKEN, unless set, is the box's one GitHub credential
+# (lib/bash/funcs/gh-box-token.func.sh, SPL-5366; never printed); none refuses
 spl_brx_gh_auth() {
-  local f="${BOX_RESTART_GH_TOKEN_FILE:-$HOME/.github/token}"
-  [[ -n "${GH_TOKEN:-}" ]] && return 0
-  gh auth status >/dev/null 2>&1 && return 0
-  [[ -r "$f" ]] && { GH_TOKEN="$(cat "$f")"; export GH_TOKEN; }
-  return 0
+  gh_box_token_export && return 0
+  do_log "FATAL no GitHub token for gh: set GH_TOKEN or put $(gh_box_token_var) in $(gh_box_token_file)"
+  return 1
 }
 
 spl_brx_now() { echo "${BOX_RESTART_EPOCH:-$(date +%s)}"; }

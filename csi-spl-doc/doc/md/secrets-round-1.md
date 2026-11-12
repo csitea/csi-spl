@@ -94,3 +94,16 @@ balancer's 404 page and never reaches the hub. Check with
 ## 6. Per-box GitHub token
 
 The rule is one fine-grained GitHub token per box, stored in `$HOME/.github/.csi/crs` and rotated by `do_gh_box_token_put`. Owner exception, 2026-10-26 (HUM-10 t1 msg fb86a85f): two boxes share one classic token. The file was hand-copied between boxes as the box user, and GitHub was logged in with `gh auth login --with-token` and `gh auth setup-git`. Rotating it breaks both boxes at once; the per-box rule returns when the owner mints a fine-grained token per box.
+
+**One file, one variable** (owner HUM-10, t1 2afa48b4, 2026-11-12, msg 60d0ae5a: every source in every repo under `/opt` on the box uses this file and this variable; SPL-5366). Every reader in this repo takes the box's GitHub token from `$HOME/.github/.csi/crs`, the variable `ALL_CSI_GITHUB_TOKEN` in it, through one helper, `lib/bash/funcs/gh-box-token.func.sh` (identical in csi-spl-iac, -orc and -utl; test `csi-spl-iac/src/bash/tests/gh-box-token-lib.tst.sh`):
+
+| helper | does |
+|---|---|
+| `gh_box_token_read` | prints the token; the file is parsed, never sourced; a missing file or variable fails with the reason |
+| `gh_box_token_export` | keeps a `GH_TOKEN` the caller set, else exports `GH_TOKEN` from the file; fails the same way |
+
+- `GH_TOKEN` and `GITHUB_TOKEN` are only set from it, for the tools that need that exact name (`gh`). The file's `GITHUB_TOKEN` line holds the same token; no reader takes it.
+- No fallback: not to the old `$HOME/.github/token`, and not to gh's stored login. A cron whose whole job is gh (ci-overflow, ci-red-note, gh-runner-cpu-budget, git-prune-merged, reliability-check row gh-runner) refuses with exit 2 and names the file; `do_spl_box_restart_*`, `do_spl_box_update`, `do_spl_qas_ci_accept` and `do_gh_runner_health_check` refuse the same way. The ops alarm and the weekly full scan go on with a WARN line, so one missing file never silences the alarms.
+- `do_gh_box_token_put` rewrites the `ALL_CSI_GITHUB_TOKEN` (and `GITHUB_TOKEN`) line of the file, keeps its other lines and mode, and keeps the old file as `crs.prev`; `do_gh_box_token_check` reads the same variable and fails on a file other users can read.
+- The box-state backup leaves `.github/.csi/` out by name (`box-state-pack.sh`).
+- Not moved yet: the satellite playbook (`060-gcp-vm-satellite` roles `06_secrets`, `08_spool_harness`, `09_agent_tools`, and `satellite-verify.func.sh`) still writes and reads `~/.github/token` on a satellite it provisions.

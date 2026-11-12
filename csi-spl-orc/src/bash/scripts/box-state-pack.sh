@@ -7,7 +7,7 @@
 #       a tar stream of <src dir> on stdout, member names absolute minus the
 #       leading / (tar's own). On stderr one `DROP <path> <reason>` line per
 #       file left out. Left out:
-#         path   any .gcp / .ssh / .nano-banana* component, .github/token,
+#         path   any .gcp / .ssh / .nano-banana* / .github/.csi component, .github/token,
 #                .spool-hub/tenants, a file named .env, *.pem *.key *.p12,
 #                key-*.json, and every <skip path> (absolute)
 #         cred   a NetVisor or bank credential file, by name, anywhere
@@ -36,7 +36,7 @@ export LC_ALL=C
 # shellcheck disable=SC2089,SC2090 # a grep -E pattern: its quotes and backslashes ARE literal
 BOX_STATE_KEY_RE='-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----|root_private_key[\\"]*[[:space:]]*[:=][[:space:]]*[\\"]*[A-Za-z0-9+/_=-]{32,}|private_key_id[\\"]*[[:space:]]*:[[:space:]]*[\\"]*[0-9a-f]{40}|gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{60,}|xox[abprs]-[0-9]+-[0-9A-Za-z-]{20,}|sk-ant-[A-Za-z0-9_-]{32,}|AIza[0-9A-Za-z_-]{35}'
 # A member name (no leading /) that must never be in the archive.
-BOX_STATE_NAME_RE='(^|/)(\.gcp|\.ssh)(/|$)|(^|/)\.nano-banana[^/]*(/|$)|(^|/)\.github/token$|(^|/)\.spool-hub/tenants(/|$)|(^|/)\.env$|\.(pem|key|p12)$|(^|/)key-[^/]*\.json$'
+BOX_STATE_NAME_RE='(^|/)(\.gcp|\.ssh)(/|$)|(^|/)\.nano-banana[^/]*(/|$)|(^|/)\.github/token$|(^|/)\.github/\.csi(/|$)|(^|/)\.spool-hub/tenants(/|$)|(^|/)\.env$|\.(pem|key|p12)$|(^|/)key-[^/]*\.json$'
 # A NetVisor or bank credential file, matched on the lower-cased name.
 BOX_STATE_CRED_RE='(^|/)[^/]*(netvisor|bank[-_.]?(cred|creds|credentials|auth|api|key|keys|token|tokens|secret|secrets|cert|login))[^/]*$'
 # Homes whose dot-dirs may hold no 0600 file (dirs, globs allowed; the action

@@ -32,6 +32,7 @@
 # only by the script it drives).
 _PPX_MAP=(
   "comment-refs-exist.tst.sh csi-spl-orc/src/bash csi-spl-orc/lib/bash *.sh"
+  "gh-box-token-lib.tst.sh csi-spl-orc/lib/bash/funcs/gh-box-token.func.sh csi-spl-utl/lib/bash/funcs/gh-box-token.func.sh"
   "gcp-sm-secrets-dead.tst.sh csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-api/backend_api"
   "gcp-owner-login-bootstrap-only.tst.sh csi-spl-orc/src/bash/run csi-spl-orc/lib"
   "gcloud-account-pinned.tst.sh ."

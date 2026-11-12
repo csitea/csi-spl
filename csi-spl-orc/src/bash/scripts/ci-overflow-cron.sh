@@ -6,8 +6,8 @@
 #
 #   ci-overflow-cron.sh
 #
-# CI_OVERFLOW_GH_TOKEN_FILE (default $HOME/.github/token) gives gh its GH_TOKEN when
-# gh has no login and no GH_TOKEN is set.
+# gh's GH_TOKEN, unless set, is ALL_CSI_GITHUB_TOKEN from $HOME/.github/.csi/crs
+# (lib/bash/funcs/gh-box-token.func.sh); without it the run refuses (exit 2).
 #
 # Exit: 0 applied or nothing to do, 1 the apply failed, 2 a refusal.
 set -uo pipefail
@@ -24,11 +24,9 @@ case "$ORC" in
       { say "FATAL $ORC is in an agent worktree - install the cron against the shared checkout"; exit 2; } ;;
 esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
-# cron has no gh login of its own: the box user's token file, as ci-red-note
-tf="${CI_OVERFLOW_GH_TOKEN_FILE:-$HOME/.github/token}"
-if [ -z "${GH_TOKEN:-}" ] && ! gh auth status >/dev/null 2>&1 && [ -r "$tf" ]; then
-  GH_TOKEN="$(cat "$tf")"; export GH_TOKEN
-fi
+# gh reads GH_TOKEN from the box's one GitHub credential file (SPL-5366)
+. "$SELF/../../../lib/bash/funcs/gh-box-token.func.sh"
+gh_box_token_export || { say "FATAL no GitHub token for gh: set GH_TOKEN or put $(gh_box_token_var) in $(gh_box_token_file)"; exit 2; }
 
 ( cd "$ORC" && DRY_RUN=0 ./run -a do_route_ci_overflow ) | while IFS= read -r l; do say "$l"; done
 rc=${PIPESTATUS[0]}

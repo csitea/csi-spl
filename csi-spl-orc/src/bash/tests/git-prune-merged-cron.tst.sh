@@ -21,7 +21,8 @@ SCRIPT="$PROJ_ROOT/src/bash/scripts/git-prune-merged-cron.sh"
 
 # tree <dir> <script>: a fake orc tree <dir>/csi-spl-orc with ./run and the script
 tree() {
-  mkdir -p "$1/csi-spl-orc/src/bash/scripts"
+  mkdir -p "$1/csi-spl-orc/src/bash/scripts" "$1/csi-spl-orc/lib/bash/funcs"
+  cp "$PROJ_ROOT/lib/bash/funcs/gh-box-token.func.sh" "$1/csi-spl-orc/lib/bash/funcs/"
   printf '#!/bin/sh\nexit 0\n' >"$1/csi-spl-orc/run" && chmod +x "$1/csi-spl-orc/run"
   cp "$2" "$1/csi-spl-orc/src/bash/scripts/git-prune-merged-cron.sh"
 }

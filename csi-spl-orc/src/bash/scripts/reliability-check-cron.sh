@@ -76,11 +76,10 @@ if [ -z "${SPOOL_AGENT_ID:-}" ]; then
     say "WARN no LEASE_ORCH in $SPOOL_ROOT/dispatch/lease.conf: the alert notes of rel-$row will be refused"
   fi
 fi
-# gh with no login reads GH_TOKEN from the box user's own token file (as
-# ci-red-note-cron.sh)
-if [ "$row" = gh-runner ] && [ -z "${GH_TOKEN:-}" ]; then
-  tf="${REL_CRON_GH_TOKEN_FILE:-$HOME/.github/token}"
-  if ! gh auth status >/dev/null 2>&1 && [ -r "$tf" ]; then GH_TOKEN="$(cat "$tf")"; export GH_TOKEN; fi
+# gh reads GH_TOKEN from the box's one GitHub credential file (SPL-5366)
+if [ "$row" = gh-runner ]; then
+  . "$ORC/lib/bash/funcs/gh-box-token.func.sh"
+  gh_box_token_export || { say "FATAL no GitHub token for gh: set GH_TOKEN or put $(gh_box_token_var) in $(gh_box_token_file)"; exit 2; }
 fi
 
 lock="${REL_CRON_LOCK_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl}/rel-$row.lock"

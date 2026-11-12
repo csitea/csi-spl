@@ -44,6 +44,8 @@ source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
 SP="$T/spool" P="$T/proc" D="$T/desk" O="$T/origin.git"
+# the box's GitHub credential file, a fake one (never the real $HOME/.github/.csi/crs)
+printf 'ALL_CSI_GITHUB_TOKEN=tok-default\n' >"$T/crs"; export GH_BOX_TOKEN_FILE="$T/crs"
 mkdir -p "$SP/dispatch" "$P" "$T/bin"
 printf 'c-901\tclaude\t%%1\t/x\t20261008T000000Z\nc-902\tclaude\t%%2\t/x\t20261008T000000Z\tc-001\nc-903\tclaude\t%%3\t/x\t20261008T000000Z\n' >"$SP/registry.tsv"
 touch "$SP/dispatch/wd.c-901" "$SP/dispatch/wd.c-902"
@@ -266,11 +268,14 @@ out="$(run5 'do_spl_box_restart_after() { echo AFTER; }; do_spl_box_restart_tick
 [ "$rc" = 0 ] && grep -q AFTER <<<"$out" && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] \
   && pass "6. the tick writes last-week once the box has booted" || fail "6. tick (rc $rc: $out)"
 S6="$T/s6"; mkdir -p "$S6"; printf '#!/bin/sh\n[ "$1" = auth ] && exit 1\nexit 0\n' >"$S6/gh"; chmod +x "$S6/gh"
-echo tok-6 >"$T/token6"; repo6="$(yq -r '.env.steps."017-github-wif-deploy".github_repository' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
+printf 'ALL_CSI_GITHUB_TOKEN=tok-6\n' >"$T/crs6"; repo6="$(yq -r '.env.steps."017-github-wif-deploy".github_repository' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
 out="$(run 'spl_brx_conf && echo "repo=$SPL_BRX_REPO tok=$GH_TOKEN mode=$SPL_BRX_INHIBIT"' PATH="$S6:$PATH" GH_TOKEN= BOX_RESTART_REPO= \
-  BOX_RESTART_GH_TOKEN_FILE="$T/token6" BOX_RESTART_INHIBITORS=)"; rc=$?
+  GH_BOX_TOKEN_FILE="$T/crs6" BOX_RESTART_INHIBITORS=)"; rc=$?
 [ "$rc" = 0 ] && [ -n "$repo6" ] && grep -qx "repo=$repo6 tok=tok-6 mode=respect" <<<"$out" \
-  && pass "6. gh not logged in: GH_TOKEN from the token file; the repo and inhibitors=respect from cnf" || fail "6. conf (rc $rc: $out)"
+  && pass "6. GH_TOKEN from ALL_CSI_GITHUB_TOKEN in the crs file; the repo and inhibitors=respect from cnf" || fail "6. conf (rc $rc: $out)"
+out="$(run 'spl_brx_conf && echo "repo=$SPL_BRX_REPO"' PATH="$S6:$PATH" GH_TOKEN= GH_BOX_TOKEN_FILE="$T/no-crs6" BOX_RESTART_INHIBITORS=)"; rc=$?
+[ "$rc" = 1 ] && grep -q 'FATAL no GitHub token for gh' <<<"$out" && ! grep -q 'repo=' <<<"$out" \
+  && pass "6. red control: no crs file -> refused, no fallback" || fail "6. no crs (rc $rc: $out)"
 
 echo "box-restart: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

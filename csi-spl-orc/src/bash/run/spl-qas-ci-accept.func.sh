@@ -30,7 +30,7 @@
 # @param QAS_RUN_SCAN (optional) - how many recent runs to look through, default 30
 # @param QAS_LIVE_ENVS (optional) - the envs that must serve the proof sha, default "dev prd"
 # @param QAS_BUILD_URL_DEV QAS_BUILD_URL_PRD (optional) - override https://<env.dns.fqdn>/build.json
-# @param GH_TOKEN (optional) - when gh has no login: else read from $HOME/.github/token (spl_brx_gh_auth)
+# @param GH_TOKEN (optional) - else ALL_CSI_GITHUB_TOKEN from $HOME/.github/.csi/crs (spl_brx_gh_auth)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-002 ./run -a do_spl_qas_ci_accept
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-002 DRY_RUN=0 ./run -a do_spl_qas_ci_accept
@@ -44,7 +44,7 @@ do_spl_qas_ci_accept() {
     git -C "$APP_PATH" fetch -q "${ref%%/*}" "${ref#*/}" || { do_log "FATAL git fetch $ref failed"; return 1; }
   fi
   live="$(spl_qas_live_commits "$oa")" || return 1
-  spl_brx_gh_auth
+  spl_brx_gh_auth || return 1
   read -r run sha < <(spl_qas_proof_run "$live") || true
   [[ -n "${run:-}" ]] || { do_log "FATAL no completed ${QAS_WORKFLOW:-10_ci-quality.yml} run of the last ${QAS_RUN_SCAN:-30} has every wui browser e2e shard green on a sha live on ${QAS_LIVE_ENVS:-dev prd}: nothing moves"; return 1; }
   do_log "INFO proof run $run sha ${sha:0:12}, live: $(tr '\n' ' ' <<<"$live")"

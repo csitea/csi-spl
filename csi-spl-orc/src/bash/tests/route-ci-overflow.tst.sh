@@ -160,8 +160,11 @@ out="$(route DRY_RUN=0 CI_OVERFLOW_CNF="$T/cnf-off.yaml" LANE_FLEET=csi LANE_HUB
 
 # 5. cron script + installer -----------------------------------------------------------
 SH="$T/shared"
-mkdir -p "$SH/csi-spl-orc/src/bash/scripts"
+mkdir -p "$SH/csi-spl-orc/src/bash/scripts" "$SH/csi-spl-orc/lib/bash/funcs"
 cp "$PROJ_ROOT/src/bash/scripts/ci-overflow-cron.sh" "$SH/csi-spl-orc/src/bash/scripts/"
+cp "$PROJ_ROOT/lib/bash/funcs/gh-box-token.func.sh" "$SH/csi-spl-orc/lib/bash/funcs/"
+# the box's GitHub credential file, a fake one (never the real $HOME/.github/.csi/crs)
+printf 'GITHUB_TOKEN=tok-other\nALL_CSI_GITHUB_TOKEN=tok-from-file\n' >"$T/crs"; export GH_BOX_TOKEN_FILE="$T/crs"
 printf '#!/usr/bin/env bash\nprintf "DRY_RUN=%%s args=%%s\\n" "${DRY_RUN:-}" "$*" >>"%s/calls"\nexit "${RUN_RC:-0}"\n' "$T" >"$SH/csi-spl-orc/run"
 chmod +x "$SH/csi-spl-orc/run" "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh"
 out="$(bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
@@ -170,11 +173,13 @@ out="$(bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
 out="$(RUN_RC=1 bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
 [[ $rc -eq 1 && "$out" == *'FAIL CI overflow route rc=1'* ]] && pass "a failed route: exit 1" || fail "cron fail (rc=$rc): $out"
 printf '#!/usr/bin/env bash\necho "token=${GH_TOKEN:-unset}" >"%s/tok"\n' "$T" >"$SH/csi-spl-orc/run"
-echo tok-from-file >"$T/token"
-out="$(env -u GH_TOKEN GH_CONFIG_DIR="$T/nogh" CI_OVERFLOW_GH_TOKEN_FILE="$T/token" bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
+out="$(env -u GH_TOKEN bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/tok")" == token=tok-from-file ]] &&
-  pass "gh not logged in: the cron script gives the action GH_TOKEN from the token file" || fail "token file (rc=$rc): $out / $(cat "$T/tok" 2>&1)"
-out="$(GH_TOKEN=set-before GH_CONFIG_DIR="$T/nogh" CI_OVERFLOW_GH_TOKEN_FILE="$T/token" bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
+  pass "the cron script gives the action GH_TOKEN from ALL_CSI_GITHUB_TOKEN in the crs file" || fail "token file (rc=$rc): $out / $(cat "$T/tok" 2>&1)"
+rm -f "$T/tok"; out="$(env -u GH_TOKEN GH_BOX_TOKEN_FILE="$T/no-crs" bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 2 && ! -e "$T/tok" && "$out" == *'FATAL no GitHub token for gh'* ]] &&
+  pass "red control: no crs file -> exit 2 before the action, no fallback" || fail "no crs (rc=$rc): $out"
+out="$(GH_TOKEN=set-before bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/tok")" == token=set-before ]] &&
   pass "a GH_TOKEN already set is kept" || fail "token kept (rc=$rc): $out / $(cat "$T/tok" 2>&1)"
 WT="$T/csi-spl-wt/c-9"; mkdir -p "$WT"; cp -a "$SH/csi-spl-orc" "$WT/"

@@ -31,8 +31,8 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param BOX_UPDATE_LAG_ENVS (optional) - default "dev prd"
 # @param BOX_UPDATE_GRACE (optional) - minutes, default 45 (do_check_deploy_lag)
-# @param BOX_UPDATE_GH_TOKEN_FILE (optional) - read into GH_TOKEN when gh is
-# @param   not logged in; default $HOME/.github/token
+# @param GH_TOKEN (optional) - else ALL_CSI_GITHUB_TOKEN from $HOME/.github/.csi/crs
+# @param   (gh-box-token.func.sh); none refuses the dispatch
 # @param BOX_UPDATE_FETCHED (optional) - 1 skips step 1 (set by the re-exec)
 # @param BOX_UPDATE_REPO (optional) - owner/name, default read from the origin remote
 # @param BOX_UPDATE_LAG_CMD / BOX_UPDATE_GH (optional, tests) - replace
@@ -106,7 +106,7 @@ box_update_lag() {
     grep -qE "^$e (hub|wui) " <<<"$out" || { echo "WARN lag $e: no verdict (cannot tell)"; rc=1; }
   done
   (( hub || wui )) || { echo "OK lag: nothing lags trunk"; return "$rc"; }
-  box_update_gh_auth
+  box_update_gh_auth || return 1
   (( hub )) && { box_update_dispatch "$dry" "$trunk" 20_hub-build-deploy.yml hub || rc=1; }
   (( wui )) && { box_update_dispatch "$dry" "$trunk" 30_wui-build-deploy.yml wui || rc=1; }
   return "$rc"
@@ -115,14 +115,12 @@ box_update_lag() {
 # box_update_gh: gh, or the test stub
 box_update_gh() { "${BOX_UPDATE_GH:-gh}" "$@"; }
 
-# box_update_gh_auth: a cron job has no gh login of its own; the token file
-# on disk is read into GH_TOKEN (never printed)
+# box_update_gh_auth: gh's GH_TOKEN, unless set, is the box's one GitHub
+# credential (lib/bash/funcs/gh-box-token.func.sh, SPL-5366; never printed)
 box_update_gh_auth() {
-  local f="${BOX_UPDATE_GH_TOKEN_FILE:-$HOME/.github/token}"
-  [[ -n "${GH_TOKEN:-}" ]] && return 0
-  box_update_gh auth status >/dev/null 2>&1 && return 0
-  [[ -r "$f" ]] && { GH_TOKEN="$(cat "$f")"; export GH_TOKEN; }
-  return 0
+  gh_box_token_export && return 0
+  echo "FATAL no GitHub token for gh: set GH_TOKEN or put $(gh_box_token_var) in $(gh_box_token_file)"
+  return 1
 }
 
 # box_update_dispatch <dry> <trunk> <workflow> <component>: the existing

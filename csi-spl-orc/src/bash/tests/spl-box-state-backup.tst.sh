@@ -33,7 +33,7 @@ PACK="$PROJ_ROOT/src/bash/scripts/box-state-pack.sh"
 # shape sits in this file (the repo's own secret scanners read it).
 pem_head="-----BEGIN $(printf 'PRI%s' 'VATE') KEY-----"
 S="$T/box"
-mkdir -p "$S/proj/-opt-x/memory" "$S/proj/.gcp/.csi" "$S/proj/.ssh" "$S/proj/.github" "$S/proj/.vibe" \
+mkdir -p "$S/proj/-opt-x/memory" "$S/proj/.gcp/.csi" "$S/proj/.ssh" "$S/proj/.github/.csi" "$S/proj/.vibe" \
   "$S/proj/.nano-banana" "$S/proj/.spool-hub/tenants" "$S/spool/c-1/inbox" "$S/state/logs" "$S/state/graft"
 echo '{"type":"user","text":"we talk about the private_key field, no value"}' >"$S/proj/-opt-x/s1.jsonl"
 echo 'memory note' >"$S/proj/-opt-x/memory/MEMORY.md"
@@ -43,6 +43,7 @@ echo 'graft index' >"$S/state/graft/index.db"
 printf '{"type":"service_account","%s":"%s\\nMIIabc\\n"}\n' "private_$(printf key)" "$pem_head" >"$S/proj/.gcp/.csi/key-x-dev.json"
 echo 'ssh' >"$S/proj/.ssh/id_ed25519"
 echo 'tok' >"$S/proj/.github/token"
+echo 'ALL_CSI_GITHUB_TOKEN=tok' >"$S/proj/.github/.csi/crs"
 echo 'A=1' >"$S/proj/.vibe/.env"
 echo 'B=2' >"$S/proj/.env"
 echo 'k' >"$S/proj/.nano-banana/key"
@@ -94,14 +95,14 @@ names="$(zstd -dcq "$T/a.tar.zst" | tar -tif -)"
 for keep in proj/-opt-x/s1.jsonl proj/-opt-x/memory/MEMORY.md spool/c-1/inbox/m1.json state/logs/run.log; do
   grep -q "${S#/}/$keep\$" <<<"$names" && pass "2. kept: $keep" || fail "2. missing $keep: $names"
 done
-for out in .gcp/ .ssh/ .github/token .vibe/.env proj/.env .nano-banana .spool-hub/tenants leaked-tenant.json leaked-token.txt server.pem leak.log graft/; do
+for out in .gcp/ .ssh/ .github/token .github/.csi/ .vibe/.env proj/.env .nano-banana .spool-hub/tenants leaked-tenant.json leaked-token.txt server.pem leak.log graft/; do
   grep -qF "$out" <<<"$names" && fail "2. an excluded file went in: $out" || pass "2. left out: $out"
 done
 [[ "$(grep -cE 'private_key|\.ssh/|\.gcp/' <<<"$names")" == 0 ]] && pass "2. tar -t | grep -cE 'private_key|.ssh/|.gcp/' -> 0" || fail "2. the brief's name check: $names"
 re="$(bash "$PACK" key-re)"
 [[ "$(zstd -dcq "$T/a.tar.zst" | grep -caE -e "$re")" == 0 ]] && pass "2. no key material in the archive bytes" || fail "2. key material in the archive"
-grep -q "packed $S/proj as .*dropped: key=2 path=8\$" "$T/out" && grep -q "packed $S/state as .*dropped: key=1\$" "$T/out" \
-  && pass "2. the log counts the drops per source (proj: 2 key, 8 path; state: 1 key)" || fail "2. drop counts: $(cat "$T/out")"
+grep -q "packed $S/proj as .*dropped: key=2 path=9\$" "$T/out" && grep -q "packed $S/state as .*dropped: key=1\$" "$T/out" \
+  && pass "2. the log counts the drops per source (proj: 2 key, 9 path; state: 1 key)" || fail "2. drop counts: $(cat "$T/out")"
 [[ ! -s "$T/calls.log" ]] && pass "3. the dry run made no gcloud call" || fail "3. dry run called: $(cat "$T/calls.log")"
 [[ "$(cd "$S" && find . -type f -exec sha256sum {} + | sort)" == "$before" ]] && pass "3. ...and changed no source file" || fail "3. a source file changed"
 [[ -z "$(ls -A "$T/tmp")" ]] && pass "3. ...and left no work dir behind" || fail "3. left in TMPDIR: $(ls -A "$T/tmp")"

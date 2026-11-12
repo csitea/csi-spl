@@ -38,7 +38,10 @@ done
 # cron runs with PATH=/usr/bin:/bin; the scanners live in /usr/local/bin and
 # ~/.local/bin (do_install_lint_tools).
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin"
-export GH_TOKEN="${GH_TOKEN:-$(cat "$HOME/.github/token" 2>/dev/null || true)}"
+# gh reads GH_TOKEN from the box's one GitHub credential file (SPL-5366); a
+# scan goes on without it, only its gh steps then report the missing token
+. "$HERE/../../../lib/bash/funcs/gh-box-token.func.sh"
+gh_box_token_export || echo "weekly-full-scan-cron: WARN no GitHub token for gh: put $(gh_box_token_var) in $(gh_box_token_file)" >&2
 DRY_RUN="${DRY_RUN:-1}"
 
 for t in git python3 flock; do

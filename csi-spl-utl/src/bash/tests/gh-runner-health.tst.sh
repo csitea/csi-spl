@@ -27,15 +27,13 @@
 #  18. GH_RUNNER_HEALTH_UNIT_CHECK=1 runs the unit check: its FAIL is an alert,
 #      its OK is not
 #  19. LIVE GUARD: no call reached a gh other than the stub, nor spool-send.sh
-#  20. gh auth status fails, GH_TOKEN unset, the token file is present -> the
-#      API calls see its token (the stub 401s without one), exit 0
-#  21. the same with no token file -> auth status was tried, the old 401
-#      gh-api ERROR path runs, exit 1
-#  22. GH_TOKEN already set -> kept: no auth status call, the file's token
-#      never reaches the API calls
+#  20. GH_TOKEN unset -> the API calls carry ALL_CSI_GITHUB_TOKEN from the
+#      crs file (the stub 401s without one), no gh auth status call, exit 0
+#  21. RED CONTROL: no crs file -> FATAL, exit 2, no API call, no fallback
+#  22. GH_TOKEN already set -> kept: the file's token never reaches the API
 #  23. the token values never appear in the output of 20..22
-# The token file is always a fake one under the temp dir
-# (GH_RUNNER_HEALTH_TOKEN_FILE is always set); no real token file is read.
+# The crs file is always a fake one under the temp dir (GH_BOX_TOKEN_FILE is
+# always set); the real $HOME/.github/.csi/crs is never read.
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -111,9 +109,10 @@ export GH_RUNNER_HEALTH_NOW="$NOW" GH_RUNNER_HEALTH_STATE_DIR="$STATE"
 export GH_RUNNER_HEALTH_SEND_CMD="$BIN/send-stub" CPU_BUDGET_STATE_DIR="$CPU"
 export GH_RUNNER_HEALTH_UNITS="actions.runner.acme.box-01.service actions.runner.acme.box-02.service"
 export PROJ_PATH="$UTL_ROOT"
-export GH_RUNNER_HEALTH_TOKEN_FILE="$T/tok/no-token-file"
 mkdir -p "$T/tok"
 FILE_TOKEN="fake-c817-file-token-$$" ENV_TOKEN="fake-c817-env-token-$$"
+printf 'GITHUB_TOKEN=fake-other-%s\nALL_CSI_GITHUB_TOKEN=%s\n' "$$" "$FILE_TOKEN" >"$T/tok/crs"
+export GH_BOX_TOKEN_FILE="$T/tok/crs"
 STAMP="$STATE/last-alert.stamp"
 
 # runner <id> <name> <status> [label...] - one runner JSON object
@@ -139,7 +138,7 @@ reset_fix() { rm -f "$FIX"/*.json "$CPU/parked"; runners repo-runners; runners o
 check() {
   local f="$T/check.out" rc
   # shellcheck disable=SC2016 # $1 expands in the child bash
-  timeout -k 2 20 /bin/bash -c 'source "$1" && do_gh_runner_health_check' _ "$FUNC_SH" >"$f" 2>&1
+  timeout -k 2 20 /bin/bash -c 'source "$1" && source "$2" && do_gh_runner_health_check' _ "$UTL_ROOT/lib/bash/funcs/gh-box-token.func.sh" "$FUNC_SH" >"$f" 2>&1
   rc=$?
   cat "$f"
   return "$rc"
@@ -311,27 +310,25 @@ if [[ -n "$default_sh" && -f "$UTL_ROOT/$default_sh" ]] && grep -q '^do_check_gh
   pass "18b. the default unit check path ($default_sh) is csi-spl-orc's do_check_gh_runner"
 else fail "18b. default unit check path '$default_sh' does not hold do_check_gh_runner"; fi
 
-# ---- 20..23. the token file fallback -----------------------------------------
+# ---- 20..23. the box's one GitHub credential file ----------------------------
 reset_fix
 runners org-runners "$(runner 1 box-01 online)"
-printf '%s\n' "$FILE_TOKEN" >"$T/tok/token"
 : >"$AUTH_LOG"; : >"$TOK_LOG"
-out20="$(GH_STUB_NEED_TOKEN=1 GH_RUNNER_HEALTH_TOKEN_FILE="$T/tok/token" check)"; rc=$?
-if ((rc == 0)) && grep -q 'CHECK gh-runner-health OK' <<<"$out20" && [[ "$(wc -l <"$AUTH_LOG")" == 1 ]] &&
+out20="$(GH_STUB_NEED_TOKEN=1 check)"; rc=$?
+if ((rc == 0)) && grep -q 'CHECK gh-runner-health OK' <<<"$out20" && [[ ! -s "$AUTH_LOG" ]] &&
   [[ -s "$TOK_LOG" && "$(sort -u "$TOK_LOG")" == "$FILE_TOKEN" ]]; then
-  pass "20. auth status fails, token file present -> the API calls carry its GH_TOKEN, exit 0"
-else fail "20. token file (rc=$rc auth=$(wc -l <"$AUTH_LOG") tokens=$(sort -u "$TOK_LOG" | sed "s/$FILE_TOKEN/<file>/" | tr '\n' ' ')): $out20"; fi
+  pass "20. GH_TOKEN unset -> the API calls carry ALL_CSI_GITHUB_TOKEN from the crs file, no auth status, exit 0"
+else fail "20. crs file (rc=$rc auth=$(wc -l <"$AUTH_LOG") tokens=$(sort -u "$TOK_LOG" | sed "s/$FILE_TOKEN/<file>/" | tr '\n' ' ')): $out20"; fi
 : >"$AUTH_LOG"; : >"$TOK_LOG"
-out21="$(GH_STUB_NEED_TOKEN=1 check)"; rc=$?
-if ((rc == 1)) && [[ "$(wc -l <"$AUTH_LOG")" == 1 ]] &&
-  grep -q '^gh-api ERROR orgs/acme/actions/runners?per_page=100 (gh: Bad credentials (HTTP 401))' <<<"$out21" &&
-  [[ "$(sort -u "$TOK_LOG")" == "<unset>" ]] && ! grep -q 'CHECK.* OK' <<<"$out21"; then
-  pass "21. no token file -> auth status tried, the 401 is a gh-api ERROR, exit 1"
-else fail "21. no token file (rc=$rc auth=$(wc -l <"$AUTH_LOG")): $out21"; fi
+out21="$(GH_STUB_NEED_TOKEN=1 GH_BOX_TOKEN_FILE="$T/tok/no-crs" check)"; rc=$?
+if ((rc == 2)) && grep -q 'FATAL no GitHub token for gh' <<<"$out21" && [[ ! -s "$TOK_LOG" && ! -s "$AUTH_LOG" ]] &&
+  ! grep -q 'CHECK.* OK' <<<"$out21"; then
+  pass "21. RED CONTROL: no crs file -> FATAL, exit 2, no API call, no fallback"
+else fail "21. no crs file (rc=$rc auth=$(wc -l <"$AUTH_LOG")): $out21"; fi
 : >"$AUTH_LOG"; : >"$TOK_LOG"
-out22="$(GH_TOKEN="$ENV_TOKEN" GH_STUB_NEED_TOKEN=1 GH_RUNNER_HEALTH_TOKEN_FILE="$T/tok/token" check)"; rc=$?
+out22="$(GH_TOKEN="$ENV_TOKEN" GH_STUB_NEED_TOKEN=1 check)"; rc=$?
 if ((rc == 0)) && [[ ! -s "$AUTH_LOG" && -s "$TOK_LOG" && "$(sort -u "$TOK_LOG")" == "$ENV_TOKEN" ]]; then
-  pass "22. GH_TOKEN already set -> kept, no auth status call, the file is not used"
+  pass "22. GH_TOKEN already set -> kept, the file is not used"
 else fail "22. preset GH_TOKEN (rc=$rc auth=$(wc -l <"$AUTH_LOG") tokens=$(sort -u "$TOK_LOG" | sed -e "s/$FILE_TOKEN/<file>/" -e "s/$ENV_TOKEN/<env>/" | tr '\n' ' '))"; fi
 if ! grep -qF -e "$FILE_TOKEN" -e "$ENV_TOKEN" <<<"$out20$out21$out22"; then
   pass "23. no token value in the output of 20..22"

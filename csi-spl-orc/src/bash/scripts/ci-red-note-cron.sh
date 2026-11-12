@@ -12,8 +12,9 @@
 # push group); CI_GATE_STUCK_CHECK=0 skips it.
 #
 # A cron job reads no profile: the PATH is set here and the tools are checked
-# before any work. gh with no login reads GH_TOKEN from CI_RED_NOTE_GH_TOKEN_FILE
-# (default $HOME/.github/token, the box user's own) when that file exists.
+# before any work. gh's GH_TOKEN, unless set, is ALL_CSI_GITHUB_TOKEN from
+# $HOME/.github/.csi/crs (lib/bash/funcs/gh-box-token.func.sh); without it the
+# run refuses (exit 2).
 #
 #   ci-red-note-cron.sh [--check-tools]
 #
@@ -53,10 +54,9 @@ case "$IAC" in
       { say "FATAL $IAC is in an agent worktree - install the cron against the shared checkout"; exit 2; } ;;
 esac
 [ -x "$IAC/run" ] || { say "FATAL $IAC/run not found or not executable"; exit 2; }
-tf="${CI_RED_NOTE_GH_TOKEN_FILE:-$HOME/.github/token}"
-if [ -z "${GH_TOKEN:-}" ] && ! gh auth status >/dev/null 2>&1 && [ -r "$tf" ]; then
-  GH_TOKEN="$(cat "$tf")"; export GH_TOKEN
-fi
+# gh reads GH_TOKEN from the box's one GitHub credential file (SPL-5366)
+. "$SELF/../../../lib/bash/funcs/gh-box-token.func.sh"
+gh_box_token_export || { say "FATAL no GitHub token for gh: set GH_TOKEN or put $(gh_box_token_var) in $(gh_box_token_file)"; exit 2; }
 
 lock="${CI_RED_NOTE_LOCK:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/ci-red-note.lock}"
 mkdir -p "$(dirname "$lock")"

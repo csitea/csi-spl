@@ -120,9 +120,14 @@
 # busy count; no box left and this one lacks it too = exit 13, nothing
 # spawned. An explicit SPAWN_BOX (this box or another) measured without it =
 # exit 13 at once, and so does the fallback to this box after a failed remote
-# spawn. A box nobody measured (an older box: no cli= in its row) stays a
-# candidate. Seam: SPOOL_VENDOR_CLIS_CMD prints this box's kinds
-# ("claude,qwen").
+# spawn. Every other path that starts the lane HERE is checked once, where
+# they meet (SPL-5397): the orch lease held on another box, no fleet, a named
+# TITLE, a respawn (SPAWN_REUSE_ID=1), the busy count's pick of this box.
+# Before, the lease path skipped it: a placer tick began while one box held the
+# lease, the lease moved to another box mid-tick, and agy seat a-494 started
+# on the first box, which has no agy (2026-11-10 16:30Z). A box nobody measured (an older box:
+# no cli= in its row) stays a candidate. Seam: SPOOL_VENDOR_CLIS_CMD prints
+# this box's kinds ("claude,qwen").
 #
 # HUB DNS (SPL-4253, drill finding #5 on a box, 2026-10-29): a box that cannot
 # resolve the hub API host refused two launches in 10 min at the lane issue
@@ -375,6 +380,10 @@ place_box() {
   sw_place_by_busy "$here"
 }
 TARGET="$(place_box)" || exit $?
+# codex: its own check below (CODEX OFF) names it, login included.
+if [ -z "$TARGET" ] && [ "$KIND" != codex ] && sw_lacks_kind "$(spool_fleet_box)"; then
+  sw_refuse_kind "$(spool_fleet_box)" "the lane would start here and this box has no ${KIND} CLI for the agent user"; exit 13
+fi
 if [ -n "$TARGET" ]; then
   echo "spawn-window: placing ${TITLE} on ${TARGET} (${SPAWN_BOX:+SPAWN_BOX}${SPAWN_BOX:-fewest busy agents, then most free memory}), not on $(spool_fleet_box)" >&2
   if [ "${SPAWN_DRY_RUN:-0}" = 1 ] && [ -z "${SPAWN_REMOTE_CMD:-}" ]; then

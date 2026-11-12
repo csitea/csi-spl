@@ -75,7 +75,12 @@
 # @description         the box is tried again once per
 # @description         SPAWN_PLACE_DARK_RETRY_MIN, its rows leave the line
 # @description         until then, and a row dark for
-# @description         SPAWN_PLACE_DARK_ALARM_MIN tells the holder once
+# @description         SPAWN_PLACE_DARK_ALARM_MIN tells the holder once.
+# @description         spawn-window's REFUSED for a vendor CLI the box it
+# @description         would start on lacks (exit 13; a pinned box, this box
+# @description         on any path that starts here) holds like a HOLD,
+# @description         "no box to start <vendor> on: <why>" in .place.wait,
+# @description         no blocker (SPL-5397, a-494 on 2026-11-10)
 # @description      HAND-PINNED SLUG (SPL-2088), the dispatcher's convention:
 # @description         hand-<box>-<slug> or <box>hand-<slug> (box id letters and
 # @description         digits only) pins the lane to <box>. Its brief is
@@ -1306,6 +1311,9 @@ spl_spawn_place_brief() {  # SLUG
 # no slug check and nothing caps the retries, so spl_spawn_place_dark_hold only
 # paces them to one try per SPAWN_PLACE_DARK_RETRY_MIN. Why not a skip of rows that failed lately: that
 # keeps the gap armed, a dark box would still cost a slot on every try.
+# spawn-window's REFUSED for a missing vendor CLI (exit 13: the box it would
+# start on, a pinned one included, is measured without the program) holds the
+# same way, its reason in .place.wait (SPL-5397): no gap slot, no blocker.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   local holder="$1" id out err rc=0 agent why seat=0
   id="$(jq -r '.ask_id' <<<"$2")"
@@ -1364,6 +1372,12 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     why="no reply from ${6:-its box} since $(spl_spawn_place_dark_since "$id")"
     spl_spawn_place_wait "$id" "$why"
     do_log "INFO hold: ask ${id:0:8}: $why: it stays queued, the next row goes this tick"
+    return 10
+  fi
+  why="$(sed -n 's/^spawn-window: REFUSED [^:]*: //p' <<<"$out" | tail -1 | sed 's/; nothing was spawned$//')"
+  if (( rc == 13 )) && [[ -n "$why" ]]; then
+    spl_spawn_place_wait "$id" "no box to start $3 on: $why"
+    do_log "INFO hold: ask ${id:0:8}: no box to start $3 on: $why; it stays queued, the next row goes this tick"
     return 10
   fi
   do_log "WARN ask ${id:0:8}: the launch of $3:$4 failed (exit $rc): back in line"

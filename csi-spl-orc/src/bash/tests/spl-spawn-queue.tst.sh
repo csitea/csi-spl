@@ -253,7 +253,8 @@ printf '#!/usr/bin/env bash\necho "{\\"lanes\\": ${LANES:-[]}}"\n' >"$T/bin/lane
 printf '#!/usr/bin/env bash\ncat "$BURN_JSON" 2>/dev/null\n' >"$T/bin/burn"; chmod +x "$T/bin/burn"; mkdir -p "$T/burn"
 # the launcher stub: prints "<ID> <PANE>" (LAUNCH_ID), or exits LAUNCH_RC;
 # the slug LAUNCH_HOLD_SLUG alone gets spawn-window's HOLD (exit 10)
-# and the slugs of LAUNCH_DARK_SLUG their pinned box's silence (exit 8, remote exit 5)
+# and the slugs of LAUNCH_DARK_SLUG their pinned box's silence (exit 8, remote exit 5),
+# the slugs of LAUNCH_NOCLI_SLUG its REFUSED for a missing vendor CLI (exit 13)
 cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
 echo "$*${SPAWN_BOX:+ SPAWN_BOX=$SPAWN_BOX}" >>"$LAUNCH_LOG"
@@ -267,6 +268,9 @@ fi
 if [[ " ${LAUNCH_DARK_SLUG:-} " == *" $5 "* ]]; then
   echo "spawn-remote: no reply from $SPAWN_BOX within 300s (task t1); it may still come" >&2
   echo "spawn-window: the spawn on SPAWN_BOX=$SPAWN_BOX did not start (spawn-remote exit 5)" >&2; exit 8
+fi
+if [[ " ${LAUNCH_NOCLI_SLUG:-} " == *" $5 "* ]]; then
+  echo "spawn-window: REFUSED auto ($1) on ${SPAWN_BOX:-box-desk}: ${NOCLI_WHY:-the lane would start here and this box has no $1 CLI for the agent user} (measured there: grok,mistral); nothing was spawned" >&2; exit 13
 fi
 [ "${LAUNCH_RC:-0}" = 0 ] || exit "$LAUNCH_RC"
 echo "${LAUNCH_ID:-c-281} %42"
@@ -932,6 +936,41 @@ grep -qF 'did not start (spawn-remote exit ${rc})" >&2; exit 8' "$PROJ_ROOT/src/
   grep -qF "'did not start (spawn-remote exit 5)\$'" "$PROJ_ROOT/src/bash/run/spl-spawn-place.func.sh" &&
   pass "12e. spawn-window's pinned exit 8 line is the text the placer matches" ||
   fail "12e. the launcher's line and the placer's match differ"
+
+# 12f. SPL-5397 (a-494, 2026-11-10 16:30Z: an agy review seat started on
+# a box without agy): spawn-window's REFUSED for a vendor CLI the box lacks
+# (exit 13) HOLDS like its HOLD: the row stays queued, the reason in
+# .place.wait, no blocker, no gap slot, the next row placed in the same tick;
+# a pinned slug the same. CONTROL: another exit 13 (no REFUSED line) still
+# fails as before, the holder told.
+N1=5f5f5f5f-0000-4000-8000-000000000001; N2=5e5e5e5e-0000-4000-8000-000000000002; N3=5d5d5d5d-0000-4000-8000-000000000003
+for n in 1 2; do printf 'brief text\n%s\n' "$ES" >"$T/briefs/nc$n.md"; done
+dk_clean
+dark_row "$N1" nc1; dark_row "$N2" hand-sat-nc2; dark_row "$N3" dk6; : >"$T/send.log"
+out="$(dark_tick LAUNCH_DARK_SLUG= "LAUNCH_NOCLI_SLUG=nc1 nc2" LAUNCH_ID=c-520)"
+out="$out"$'\n'"$(dark_tick LAUNCH_DARK_SLUG= "LAUNCH_NOCLI_SLUG=nc1 nc2" LAUNCH_ID=c-521)"
+[[ "$(jq -r .state <<<"$(hubrow "$N1")")" == queued && "$(jq -r .state <<<"$(hubrow "$N2")")" == queued && "$(dark_placed "$N3")" == 1 ]] &&
+  grep -q "hold: ask ${N1:0:8}: no box to start claude on: the lane would start here and this box has no claude CLI for the agent user (measured there: grok,mistral); it stays queued" <<<"$out" &&
+  pass "12f. the launcher refuses for a missing CLI: the row stays queued, held, the row behind it placed in the same tick" ||
+  fail "12f. no-CLI refusal: $out | $(hubrow "$N1") | $(hubrow "$N3")"
+grep -qE "^$N1"$'\t'"[0-9]+"$'\t'"no box to start claude on: the lane would start here" "$T/pc/spool/asks/.place.wait" &&
+  grep -qE "^$N2"$'\t'"[0-9]+"$'\t'"no box to start claude on: the lane would start here" "$T/pc/spool/asks/.place.wait" &&
+  [[ "$(jq -r .state <<<"$(hubrow "$N2")")" == queued ]] &&
+  grep -q ' nc2 SPAWN_BOX=sat$' "$T/launch.log" &&
+  pass "12f. its reason is in .place.wait; a slug pinned to such a box holds the same way" ||
+  fail "12f. wait: $(cat "$T/pc/spool/asks/.place.wait") | $(cat "$T/launch.log")"
+! grep -q "failed" "$T/send.log" && ! grep -q "failed (exit 13)" <<<"$out" &&
+  pass "12f. no failure blocker to the holder, no 'failed' line" || fail "12f. blocker: $(sends)"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/send.log"
+out="$(dark_tick LAUNCH_DARK_SLUG= LAUNCH_RC=13 "LAUNCH_ERR=spawn-window: some other exit 13")"
+grep -q "the launch of claude:nc1 failed (exit 13)" <<<"$out" && grep -q "ask ${N1:0:8} (claude:nc1) failed" "$T/send.log" &&
+  pass "12f. CONTROL: an exit 13 without the REFUSED line still fails, the holder told" || fail "12f. control: $out | $(sends)"
+dk_clean
+grep -qF 'echo "spawn-window: REFUSED ${TITLE} (${KIND}) on $1: $2 (measured there: ${SW_CLIS:-none}); nothing was spawned" >&2' \
+  "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" &&
+  grep -qF "s/^spawn-window: REFUSED [^:]*: //p" "$PROJ_ROOT/src/bash/run/spl-spawn-place.func.sh" &&
+  pass "12f. spawn-window's REFUSED line is the text the placer matches" ||
+  fail "12f. the launcher's REFUSED line and the placer's match differ"
 
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true

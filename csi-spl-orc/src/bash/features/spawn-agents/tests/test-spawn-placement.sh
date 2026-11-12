@@ -65,6 +65,12 @@
 #      NEW named id on a cordoned box is refused (exit 10, the line names
 #      the box and the lift action), by a local marker or a published one;
 #      a respawn (SPAWN_REUSE_ID=1) on it is not; CONTROL no cordon
+#  18. SPL-5397 (a-494, 2026-11-10 16:30Z: a placer tick began while one box
+#      held the orch lease, the lease moved mid-tick, and the agy seat started
+#      on that box, which has no agy): every path that starts the lane HERE checks
+#      this box's CLI. The orch lease on another box, no fleet, a named
+#      TITLE, a respawn: this box without agy -> exit 13, REFUSED, nothing
+#      started; CONTROL each with agy here -> starts here
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -451,5 +457,33 @@ OUT="$(SPAWN_REUSE_ID=1 bash "$SW" claude c-504 "$T_TMP/wd" 2>&1)"; RC=$?
 check "17. W4 a respawn (SPAWN_REUSE_ID=1) on a cordoned box is not refused: it starts here" went_here
 uncordon
 echo "c-001@$HERE_BOX 1" > "$SPOOL_ROOT/dispatch/lease.orch"
+
+# 18. SPL-5397: the vendor CLI on every path that starts here
+nocli() { [ "$RC" = 13 ] && [[ "$OUT" == *"REFUSED $1 (agy) on $HERE_BOX: the lane would start here and this box has no agy CLI"* ]] &&
+  [[ "$OUT" != *"no tmux session"* ]] && [ ! -e "$T_TMP/remote.calls" ]; }
+here_k() { [ "$RC" = 5 ] && [[ "$OUT" == *"no tmux session"* ]] && [ ! -e "$T_TMP/remote.calls" ]; }
+{ rows "$HERE_BOX" 1 100; report_cli "$OTHER" claude,agy 60 c-200; } | set_rows
+echo "c-001@$OTHER 1" > "$SPOOL_ROOT/dispatch/lease.orch"
+spawn_k agy SPOOL_VENDOR_CLIS_CMD="$NO_AGY"
+check "18. the orch lease on another box, this box without agy: exit 13, nothing started (a-494)" nocli auto
+spawn_k agy
+check "18. CONTROL the orch lease on another box, agy here: starts here" here_k
+echo "c-001@$HERE_BOX 1" > "$SPOOL_ROOT/dispatch/lease.orch"
+grep -v LEASE_FLEET "$SPOOL_ROOT/dispatch/lease.conf" > "$T_TMP/c" && mv "$T_TMP/c" "$SPOOL_ROOT/dispatch/lease.conf"
+spawn_k agy SPOOL_VENDOR_CLIS_CMD="$NO_AGY"
+check "18. no fleet, this box without agy: exit 13, nothing started" nocli auto
+spawn_k agy
+check "18. CONTROL no fleet, agy here: starts here" here_k
+conf
+rm -f "$T_TMP/remote.calls"
+OUT="$(SPOOL_VENDOR_CLIS_CMD="$NO_AGY" bash "$SW" agy a-605 "$T_TMP/wd" 2>&1)"; RC=$?
+check "18. a named TITLE, this box without agy: exit 13, nothing started" nocli a-605
+OUT="$(bash "$SW" agy a-606 "$T_TMP/wd" 2>&1)"; RC=$?
+check "18. CONTROL a named TITLE, agy here: starts here" here_k
+mkdir -p "$SPOOL_ROOT/a-607/inbox"
+OUT="$(SPAWN_REUSE_ID=1 SPOOL_VENDOR_CLIS_CMD="$NO_AGY" bash "$SW" agy a-607 "$T_TMP/wd" 2>&1)"; RC=$?
+check "18. a respawn (SPAWN_REUSE_ID=1), this box without agy: exit 13, nothing started" nocli a-607
+OUT="$(SPAWN_REUSE_ID=1 bash "$SW" agy a-607 "$T_TMP/wd" 2>&1)"; RC=$?
+check "18. CONTROL a respawn, agy here: starts here" here_k
 
 t_done

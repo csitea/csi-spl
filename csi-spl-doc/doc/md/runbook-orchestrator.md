@@ -261,6 +261,13 @@ No line means no live hang. `ScheduleWakeup` is a wait the seat asked for, so it
    pick another vendor or install the CLI there. agy counts only with its
    login on that box, as codex does (SPL-5078), so a box with no agy login
    reads as having no agy CLI; the placer's hold line says "program or login".
+   Every path that would start the lane on the launching box itself checks
+   that box too (SPL-5397): the orch lease held on another box, no fleet, a
+   named id, a respawn. On 2026-11-10 a placer tick began while one box held the
+   lease, the lease moved to another box mid-tick, and agy seat a-494
+   started on the first box, which has no agy. The placer holds a row the launcher refuses this
+   way: it stays queued, `.place.wait` says "no box to start <vendor> on",
+   and the holder gets no blocker.
 7. Prove it: the window is listed, the seat is up, it runs as the agent user.
    Read every new pane at +2 min for a login screen, a usage-limit menu, a
    trust prompt or a vendor quota error. A grok or agy seat at quota 0 is

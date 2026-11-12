@@ -13,12 +13,19 @@ import (
 // and logged out etc."). The hub wires it to the store; nil = auditing off.
 //
 // It is a primitives-only seam so the auth package keeps no dependency on the
-// store package. kind is sign_in / sign_out; method is the sign-in method
-// (password / google / facebook / microsoft / linkedin / xai / actas); ip is a
-// /24-masked address and ua a coarse user agent (never a token, cookie,
-// password, a full IP or a third party's email — owner privacy rule).
+// store package: one Event of strings and a time, no store type.
 type ActivityRecorder interface {
-	RecordAuthEvent(ctx context.Context, tenant, humanID, kind, method, ip, ua string, at time.Time) error
+	RecordAuthEvent(ctx context.Context, ev Event) error
+}
+
+// Event is one auth event about a member, as the ActivityRecorder receives it.
+// Kind is sign_in / sign_out; Method is the sign-in method (password / google /
+// facebook / microsoft / linkedin / xai / actas); IP is a /24-masked address
+// and UA a coarse user agent (never a token, cookie, password, a full IP or a
+// third party's email — owner privacy rule).
+type Event struct {
+	Tenant, HumanID, Kind, Method, IP, UA string
+	At                                    time.Time
 }
 
 // recordAuth appends one auth event, best-effort: a failure is logged and
@@ -38,9 +45,9 @@ func (h *Handler) recordAuth(r *http.Request, tenant, humanID, kind, method stri
 		}
 		return
 	}
-	ip := maskIP(clientIP(r, h.hops))
-	ua := coarseUA(r.UserAgent())
-	if err := h.audit.RecordAuthEvent(r.Context(), tenant, humanID, kind, method, ip, ua, h.now().UTC()); err != nil {
+	ev := Event{Tenant: tenant, HumanID: humanID, Kind: kind, Method: method,
+		IP: maskIP(clientIP(r, h.hops)), UA: coarseUA(r.UserAgent()), At: h.now().UTC()}
+	if err := h.audit.RecordAuthEvent(r.Context(), ev); err != nil {
 		h.log.Warn().Err(err).Str("tenant", tenant).Str("kind", kind).Msg("auth activity not recorded")
 	}
 }

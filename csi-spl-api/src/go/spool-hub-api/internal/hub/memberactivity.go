@@ -37,13 +37,13 @@ var AuthActivityRetention = 90 * 24 * time.Hour
 // memory store) makes it a no-op, so auth auditing is simply off there.
 type authActivityAdapter struct{ store store.Store }
 
-func (a authActivityAdapter) RecordAuthEvent(ctx context.Context, tenant, humanID, kind, method, ip, ua string, at time.Time) error {
+func (a authActivityAdapter) RecordAuthEvent(ctx context.Context, ev auth.Event) error {
 	ap, ok := a.store.(memberActivityAppender)
 	if !ok {
 		return nil
 	}
 	return ap.AppendMemberActivity(ctx, store.MemberActivity{
-		TenantID: tenant, SubjectHum: humanID, Kind: kind, Detail: method, IP: ip, UA: ua, CreatedAt: at,
+		TenantID: ev.Tenant, SubjectHum: ev.HumanID, Kind: ev.Kind, Detail: ev.Method, IP: ev.IP, UA: ev.UA, CreatedAt: ev.At,
 	})
 }
 

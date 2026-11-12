@@ -51,8 +51,8 @@ func (m seatSet) Member(_ context.Context, hum, tenant string) (bool, error) {
 	return m[hum+"|"+tenant], nil
 }
 
-func (f *fakeRecorder) RecordAuthEvent(_ context.Context, tenant, hum, kind, method, ip, ua string, _ time.Time) error {
-	f.got = append(f.got, strings.Join([]string{tenant, hum, kind, method, ip, ua}, "|"))
+func (f *fakeRecorder) RecordAuthEvent(_ context.Context, ev Event) error {
+	f.got = append(f.got, strings.Join([]string{ev.Tenant, ev.HumanID, ev.Kind, ev.Method, ev.IP, ev.UA}, "|"))
 	return nil
 }
 

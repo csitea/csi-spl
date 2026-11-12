@@ -16,7 +16,7 @@ import (
 // owner HUM-10, t1 4f48f878 msg b0ccc0aa). The doors of GET
 // /v1/operator/fleet-tokens (fleetLoadCaller: the operator workspace's admin
 // or the operator service account; the GET also its product owner,
-// operator_read.go):
+// operator_read.go; a write never a live act-as clone, operator_write.go):
 //
 //	GET    /v1/operator/cost-entries?type=cloud|hr&month=YYYY-MM
 //	                                        {entries: [store.PricedCostEntry]}:
@@ -100,7 +100,7 @@ func (s *Server) handleCostEntryList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {
-	ce, who, ok := s.costEntryCaller(w, r, s.fleetLoadCaller)
+	ce, who, ok := s.costEntryCaller(w, r, s.operatorWriteCaller)
 	if !ok {
 		return
 	}
@@ -131,7 +131,7 @@ func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCostEntryDelete(w http.ResponseWriter, r *http.Request) {
-	ce, who, ok := s.costEntryCaller(w, r, s.fleetLoadCaller)
+	ce, who, ok := s.costEntryCaller(w, r, s.operatorWriteCaller)
 	if !ok {
 		return
 	}

@@ -720,10 +720,17 @@ admin's only), wherever this spec says the operator admin reads the estate.
   cloud days, and `GET /v1/operator/` `cost-entries`, `fleet-tokens`,
   `fleet-tokens/paid`, `fleet-tokens/effective` and `fleet-lanes`.
   `/v1/view/me` says it as `operator_reader`; the WUI reads that flag.
-- Read only: every POST, PATCH and DELETE stays on `fleetLoadCaller`, and the
-  WUI draws the product owner no add, edit or delete.
-- An act-as clone of the operator admin is refused these reads too; its writes
-  and every other operator route are unchanged.
+- Read only: every POST, PATCH and DELETE stays the operator admin's (or the
+  service account's), never the product owner's, and the WUI draws the
+  product owner no add, edit or delete.
+- An act-as clone of the operator admin is refused these reads too, and
+  (SPL-5348) the writes of the same data: every POST, PATCH and DELETE of
+  `cost-entries` and `fleet-tokens/paid` goes through
+  `internal/hub/operator_write.go`, `fleetLoadCaller` minus a live act-as
+  clone, 403 `operator.workspaces`. A clone may not write what it may not
+  read. Every other operator route is unchanged for a clone.
+- The WUI needs no change for it: a clone's `/v1/view/me` says
+  `operator_reader` false, so the Expenses page draws no cards at all.
 - Unchanged: `fleetLoadCaller`, `monitoringStaff`, the lane console, the Topics
   tab, Finance and Incomes.
 

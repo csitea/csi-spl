@@ -14,7 +14,8 @@ import (
 // What the operator PAID for the fleet's AI vendors, and the effective price
 // per token it makes (SPL-2342, rdb 0205; owner HUM-10, t1 e8ae0aad msg
 // 9f549412). The doors of GET /v1/operator/fleet-tokens (fleetLoadCaller:
-// the operator workspace's admin or the operator service account):
+// the operator workspace's admin or the operator service account; a write
+// never a live act-as clone, operator_write.go):
 //
 //	GET    /v1/operator/fleet-tokens/paid        {items: [store.FleetPaidItem]}
 //	POST   /v1/operator/fleet-tokens/paid        {vendor, kind, plan_label, quantity?, amount,
@@ -140,7 +141,7 @@ func (s *Server) knownCurrency(w http.ResponseWriter, r *http.Request, c string)
 }
 
 func (s *Server) handleFleetPaidCreate(w http.ResponseWriter, r *http.Request) {
-	fp, who, ok := s.fleetPaidCaller(w, r, s.fleetLoadCaller)
+	fp, who, ok := s.fleetPaidCaller(w, r, s.operatorWriteCaller)
 	if !ok {
 		return
 	}
@@ -179,7 +180,7 @@ func (s *Server) fleetPaidByID(w http.ResponseWriter, r *http.Request, fp store.
 }
 
 func (s *Server) handleFleetPaidUpdate(w http.ResponseWriter, r *http.Request) {
-	fp, who, ok := s.fleetPaidCaller(w, r, s.fleetLoadCaller)
+	fp, who, ok := s.fleetPaidCaller(w, r, s.operatorWriteCaller)
 	if !ok {
 		return
 	}
@@ -209,7 +210,7 @@ func (s *Server) handleFleetPaidUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFleetPaidDelete(w http.ResponseWriter, r *http.Request) {
-	fp, who, ok := s.fleetPaidCaller(w, r, s.fleetLoadCaller)
+	fp, who, ok := s.fleetPaidCaller(w, r, s.operatorWriteCaller)
 	if !ok {
 		return
 	}

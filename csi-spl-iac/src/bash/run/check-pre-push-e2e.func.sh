@@ -330,7 +330,7 @@ _ppe_tree_lock() {
   local gd
   if gd="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null)" && exec {_PPE_TREE_FD}>>"$gd/ppe-tree.lock"; then
     flock -n -x "$_PPE_TREE_FD" ||
-      { echo "wui-e2e: another run uses this tree, waiting for it"; flock -x "$_PPE_TREE_FD"; }
+      { echo "wui-e2e: another run uses this tree, waiting for it (the wait counts against this part's timeout)"; flock -x "$_PPE_TREE_FD"; }
   else
     exec {_PPE_TREE_FD}</dev/null
   fi 2>/dev/null
@@ -361,14 +361,39 @@ _ppe_bundle_hold() {
 # on it then finds no index.html, and one that opens the path afresh finds no
 # dir either.
 _ppe_bundle_prune() {
-  local d lock
+  local d
   mkdir -p "$1/.locks" || return 0
   # shellcheck disable=SC2012 # by mtime; the dirs are 40-hex keys
   ls -1dt "$1"/*/ 2>/dev/null | tail -n +4 | while IFS= read -r d; do
-    d="${d%/}"; lock="$1/.locks/${d##*/}"
-    # shellcheck disable=SC2094 # the lock is removed while held, on purpose (see above)
-    ( flock -n -x 9 || { echo "wui-e2e: kept $d: a run holds it"; exit 0; }; rm -rf "$d"; rm -f "$lock" ) 9>>"$lock"
+    _ppe_bundle_drop "${d%/}" || true
   done
+}
+
+# _ppe_bundle_drop <dir> - remove the bundle <dir>, then its lock, under the
+# exclusive lock (see _ppe_bundle_prune); rc 1 and one line when a run holds it.
+_ppe_bundle_drop() {
+  local lock="${1%/*}/.locks/${1##*/}"
+  mkdir -p "${lock%/*}" || return 1
+  # shellcheck disable=SC2094 # the lock is removed while held, on purpose (see above)
+  ( flock -n -x 9 || { echo "wui-e2e: kept $1: a run holds it"; exit 1; }; rm -rf "$1"; rm -f "$lock" ) 9>>"$lock"
+}
+
+# _ppe_bundle_reuse <tree> <cache> <key> <report> - rc 0 when the cached bundle
+# passes the budget and this run holds it. A cached bundle that fails the
+# budget (cached before SPL-5347, or the budgets moved) is dropped, so this
+# run builds a fresh one: re-used, the hold made it the newest and the prune
+# never dropped it. Its FAIL lines print prefixed: the verdict is the build's.
+# rc 2 when a run holds it and it stays: build, but do not cache.
+_ppe_bundle_reuse() {
+  local dir="$2/$3" out
+  [[ -n "$3" && -f "$dir/public/index.html" ]] || return 1
+  if out="$(_ppe_budget "$1" "$dir/public" "$4")"; then
+    echo "$out"; _ppe_bundle_hold "$dir"; return
+  fi
+  sed 's/^/wui-e2e: the cached bundle: /' <<<"$out"
+  echo "wui-e2e: the cached bundle ($2/${3:0:12}) fails the budget: dropped, building a fresh one"
+  _ppe_bundle_drop "$dir" || return 2
+  return 1
 }
 
 # _pp_part_wui_e2e <tree> - build or reuse the bundle, run the files.
@@ -389,7 +414,7 @@ _pp_part_wui_e2e() {
   [[ -n "$files" ]] || { echo "wui-e2e: no selected e2e file is on this tree, nothing to run"; return 1; }
   echo "wui-e2e: runs $(wc -w <<<"$files") file(s): $files"
   [[ -n "${_PPE_CUT:-}" ]] && echo "wui-e2e: left to CI by the cap (PRE_PUSH_E2E_MAX / _BUDGET): $(paste -sd' ' <<<"$_PPE_CUT")"
-  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin _ppe_budget _ppe_tree_lock
+  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin _ppe_budget _ppe_tree_lock _ppe_bundle_drop _ppe_bundle_reuse
   timeout -k 10 "$(_pp_budget _pp_part_wui_e2e)" bash -c '
     set -uo pipefail
     tree="$1" files="$2"
@@ -398,6 +423,7 @@ _pp_part_wui_e2e() {
     run_dir="$(mktemp -d "${TMPDIR:-/tmp}/csi-spl-ppe-run.XXXXXX")" || exit 1
     trap '\''rm -rf "$run_dir"; [[ -L .output/public ]] && rm -f .output/public && rmdir .output 2>/dev/null
              [[ -d .output.ppe-keep ]] && { rm -rf .output; mv .output.ppe-keep .output; }; true'\'' EXIT
+    _ppe_tree_lock .
     if [[ ! -d node_modules ]] || ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
       [[ -L node_modules ]] && rm -f node_modules
       echo "wui-e2e: pnpm install --frozen-lockfile"
@@ -405,15 +431,19 @@ _pp_part_wui_e2e() {
     fi
     key="$(_ppe_bundle_key "$tree")"
     cache="${PRE_PUSH_E2E_BUNDLES:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/wui-e2e-bundle}"
-    _ppe_tree_lock .
     _ppe_keep_heal .
     [[ -e .output ]] && mv .output .output.ppe-keep
-    built=""
-    if [[ -n "$key" && -f "$cache/$key/public/index.html" ]] && _ppe_bundle_hold "$cache/$key"; then
+    # wf 10 step "Initial JS gzip stays within the performance budget", same
+    # script, same budgets, same bundle: a budget only CI measured made 8 red
+    # runs on 10-27 (ci-panel-20261028 3.3, SPL-4129). A re-used bundle is
+    # measured too (_ppe_bundle_reuse): the budgets are not in its key.
+    _ppe_bundle_reuse "$tree" "$cache" "$key" "$run_dir/perf-budget.json"; rc=$?
+    if [[ "$rc" == 0 ]]; then
       echo "wui-e2e: bundle re-used ($cache/${key:0:12}): no WUI input changed since it was built"
     else
+      [[ "$rc" == 1 ]] || key=""
       echo "wui-e2e: building the mock bundle"
-      start=$SECONDS built=1
+      start=$SECONDS
       # the build also writes ignored outputs into the tree (.nuxt, dist,
       # src/public/roadmap.json, docs-public ...): the iac suite scans the
       # tree, so the ones this build made are removed again below
@@ -434,11 +464,6 @@ _pp_part_wui_e2e() {
       fi
     fi
     if [[ -n "$key" ]]; then mkdir -p .output && ln -s "$cache/$key/public" .output/public; fi
-    # wf 10 step "Initial JS gzip stays within the performance budget", same
-    # script, same budgets, same bundle: a budget only CI measured made 8 red
-    # runs on 10-27 (ci-panel-20261028 3.3, SPL-4129). A re-used bundle is
-    # measured again: the budgets are not in its key.
-    [[ -n "$built" ]] || _ppe_budget "$tree" .output/public "$run_dir/perf-budget.json" || exit 1
     export CHROME_PATH="${CHROME_PATH:-$(command -v google-chrome || command -v chromium || command -v chromium-browser)}"
     export TMPDIR="$run_dir" SHOT_DIR="$run_dir/shots"; mkdir -p "$SHOT_DIR"
     # shellcheck disable=SC2086 # files: one word each

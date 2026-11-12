@@ -301,6 +301,28 @@ fi
 [[ "$ra" == 0 && "$rb" == 0 && "$(wc -l <"$T/builds")" == 3 && "$(grep -c 'bundle re-used' "$T/out19")" == 1 ]] \
   && pass "19. CONTROL: the same tree under budget is cached (1 more build) and the next run says bundle re-used" \
   || { fail "19. CONTROL: rc $ra/$rb, builds $(wc -l <"$T/builds")"; sed 's/^/    | /' "$T/out19"; }
+# 19b. a bundle cached over the budget (before SPL-5347) is dropped and rebuilt once (R7 B1)
+for K in "$C"/*/; do break; done; K="${K%/}"
+head -c 4096 /dev/urandom | base64 >"$K/public/_nuxt/entry.js"; touch -d 2020-01-01 "$K"
+: >"$T/out19"; : >"$T/builds"; part19 64; ra=$?; part19 64; rb=$?
+if [[ "$ra" == 0 && "$rb" == 0 && "$(wc -l <"$T/builds")" == 1 ]] \
+   && grep -q 'the cached bundle .* fails the budget: dropped, building a fresh one' "$T/out19" \
+   && [[ "$(grep -c 'bundle re-used' "$T/out19")" == 1 ]] && ! grep -q '^FAIL' "$T/out19"; then
+  pass "19b. a cached over-budget bundle on an under-budget tree: dropped, 1 rebuild, rc 0, the next run re-uses the fresh one"
+else
+  fail "19b. cached over-budget bundle: rc $ra/$rb, builds $(wc -l <"$T/builds")"; sed 's/^/    | /' "$T/out19"
+fi
+# 19c. the same, while another run holds it: it stays, this run builds and caches nothing
+head -c 4096 /dev/urandom | base64 >"$K/public/_nuxt/entry.js"
+exec {hf}>>"$C/.locks/${K##*/}"; flock -s "$hf"
+: >"$T/out19"; : >"$T/builds"; part19 64 {hf}>&-; ra=$?; exec {hf}>&-
+if [[ "$ra" == 0 && "$(wc -l <"$T/builds")" == 1 && -f "$K/public/index.html" ]] \
+   && grep -q "wui-e2e: kept $K: a run holds it" "$T/out19" \
+   && [[ "$(head -c 4096 "$K/public/_nuxt/entry.js" | wc -c)" -gt 4000 ]]; then
+  pass "19c. a held over-budget bundle stays (its run keeps it); this run builds, passes, and leaves the cache entry alone"
+else
+  fail "19c. held over-budget bundle: rc $ra, builds $(wc -l <"$T/builds")"; sed 's/^/    | /' "$T/out19"
+fi
 
 # --- 20. two runs in one tree build one at a time ---------------------------------------------
 C="$T/bundles20"; : >"$T/builds"; rm -f "$T/overlap"; rm -rf "$T/building"

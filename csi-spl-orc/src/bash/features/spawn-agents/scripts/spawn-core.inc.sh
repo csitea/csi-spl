@@ -402,15 +402,18 @@ _spawn_lane_put() {
 # _spawn_lane_put_live REPO SCOPE TOPIC ISSUE ORIGIN LOG: the live put, in the
 # background. A review-only lane's brief names its report task, not a
 # discussion (c-845: `Topic:` = the relay hash of archived-seats-free), so
-# the hub refuses the row (rdb 0264, SPL-5353). A refused put is tried once
-# more with the discussion of the issue's other lane (_spawn_lane_issue_topic);
-# a lane whose own discussion the hub takes never gets there. A row still not
-# written is ONE WARN line in <ID>/lane-unlinked.log, which spawn-remote
-# relays to the requester: never only in lane.log.
+# the hub refuses the row (rdb 0264, SPL-5353). A put the hub refused for its
+# topic (_SPAWN_LANE_TOPIC_REFUSED in its output) is tried once more with the
+# discussion of the issue's other lane (_spawn_lane_issue_topic); a hub that
+# did not answer, or answered after the timeout, refused nothing, so its topic
+# is never replaced (R7 c-053 B1). A row still not written is ONE WARN line in
+# <ID>/lane-unlinked.log, not only lane.log; spawn-remote relays it when the
+# put ended before the launcher returned (spec 153 3.26), else it stays there.
+_SPAWN_LANE_TOPIC_REFUSED='names no single discussion|needs its discussion|topic is required'
 _spawn_lane_put_live() {
   local repo="$1" scope="$2" topic="$3" issue="$4" origin="$5" log="$6" alt=""
   _spawn_lane_put_once "$repo" "$scope" "$topic" "$issue" "$origin" >"$log" 2>&1 && return 0
-  alt="$(_spawn_lane_issue_topic "$issue" "$topic")"
+  grep -qE "$_SPAWN_LANE_TOPIC_REFUSED" "$log" 2>/dev/null && alt="$(_spawn_lane_issue_topic "$issue" "$topic")"
   if [ -n "$alt" ]; then
     echo "lane row of ${TITLE}: topic ${topic:-<none>} refused; again with ${alt}, the discussion of ${issue}'s other lane" >>"$log"
     _spawn_lane_put_once "$repo" "$scope" "$alt" "$issue" "$origin" >>"$log" 2>&1 && return 0

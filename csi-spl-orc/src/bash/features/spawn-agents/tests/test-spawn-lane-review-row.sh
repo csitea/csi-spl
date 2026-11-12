@@ -20,11 +20,13 @@ verb="$1"; shift
 if [ "$verb" = list ]; then echo list >>"$FAKE_CALLS"; cat "$FAKE_LIST"; exit 0; fi
 while [ $# -gt 0 ]; do [ "$1" = --topic ] && t="$2"; shift; done
 echo "put ${t:-}" >>"$FAKE_CALLS"
+case " ${FAKE_DOWN:-} " in *" ${t:-none} "*) echo "[WARN] lane not written (live): hub did not answer"; exit 2 ;; esac
+case " ${FAKE_SLOW:-} " in *" ${t:-none} "*) exit 124 ;; esac
 case " $FAKE_GOOD " in *" ${t:-none} "*) echo "[OK] lane put"; exit 0 ;; esac
 echo "[WARN] lane not written (live): bad_frame: topic ${t:-} names no single discussion (rdb 0264: a lane needs one)"
 exit 2
 EOF
-export FAKE_CALLS FAKE_LIST="$T_TMP/list.json" FAKE_GOOD
+export FAKE_CALLS FAKE_LIST="$T_TMP/list.json" FAKE_GOOD FAKE_DOWN="" FAKE_SLOW=""
 # shellcheck source=../scripts/spawn-core.inc.sh
 . "$T_SCRIPTS/spawn-core.inc.sh"
 row() { printf '{"agent_id":"%s","agent_box":"box-a","topic":"%s","issue_key":"%s","state":"%s"}' "$@"; }
@@ -88,4 +90,16 @@ FAKE_GOOD=""; lanes "$(row c-815 "$D" SPL-5273 "done")"
 eq "a refused retry stops there" "put $H list put $D" "$(put c-850 "$REVIEW" "$H")"
 has "...WARN names the retried discussion" "$D" "$(warn c-850)"
 eq "...in one line" 1 "$(warn c-850 | wc -l)"
+
+# 6. A hub that did not answer refused nothing (R7 c-053 B1): a lane whose
+#    discussion the hub takes keeps it: one put, no list, one WARN line.
+FAKE_GOOD="$D $E"; FAKE_DOWN="$E"; lanes "$(row c-815 "$D" SPL-5273 "done")"
+eq "outage on a good topic: one put, no list, no other discussion" "put $E" "$(put c-860 "${REVIEW/$H/$E}" "$E")"
+has "...the row not written is one WARN line" "WARN: LANE ROW REFUSED: c-860" "$(warn c-860)"
+hasnt "...lane.log claims no refusal" "refused; again" "$(cat "$SPOOL_ROOT/c-860/lane.log" 2>/dev/null)"
+# ...nor a put the timeout cut (the hub may have written it)
+FAKE_DOWN=""; FAKE_SLOW="$E"
+eq "timeout on a good topic: one put, no list" "put $E" "$(put c-861 "${REVIEW/$H/$E}" "$E")"
+has "...WARN" "WARN: LANE ROW REFUSED: c-861" "$(warn c-861)"
+FAKE_SLOW=""
 t_done

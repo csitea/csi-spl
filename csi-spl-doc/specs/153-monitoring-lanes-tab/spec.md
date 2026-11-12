@@ -3,7 +3,7 @@
 Addendum (2026-11-12, SPL-5353): section 3.26 (a review-only lane whose put
 names its report task's relay hash is refused; the spawn tries the reviewed
 lane's discussion once, and a row still not written is one WARN line in
-`<id>/lane-unlinked.log`), cases C133-C137. A bug fix on 3.21, placed as one
+`<id>/lane-unlinked.log`), cases C133-C138. A bug fix on 3.21, placed as one
 lane brief, not a panel version.
 
 Addendum (2026-11-10, SPL-5080): section 3.24 (a put that resends the topic
@@ -2217,14 +2217,19 @@ only for a put that carries no topic at all, so nobody was told.
 
 What changes (`spawn-core.inc.sh`, `_spawn_lane_put_live`):
 
-- A refused put is tried once more with the discussion of the issue's other
+- A put the hub refused for its topic (its output names no single
+  discussion, needs its discussion, or topic is required) is tried once
+  more with the discussion of the issue's other
   lane (`_spawn_lane_issue_topic`): from the fleet lane map, the row of the
   brief's `Author:` lane when it carries the same issue key, else the one
   discussion every other row of that issue names. Two discussions and no
   Author, no other row, or no issue: no second put. `lane.log` names the
   refused topic and the one tried.
 - A lane whose own discussion the hub takes puts once, as before; 3.21 is
-  unchanged, the hub stores no hash and no `unknown` for a lane.
+  unchanged, the hub stores no hash and no `unknown` for a lane. A hub that
+  did not answer, or a put cut by the 60 s timeout (the hub may have written
+  it), refused nothing: its topic is never replaced, the row is the WARN
+  below (R7 c-053 B1).
 - A row still not written is ONE line, `WARN: LANE ROW REFUSED: <id>: the
   hub did not write its lane-map row with topic <t>[, nor with <alt>]
   (<lane.log>: <its last line>) ...`, in `<id>/lane-unlinked.log`, which
@@ -2246,6 +2251,9 @@ Cases (`spawn-agents/tests/test-spawn-lane-review-row.sh`, a stub
 - **C136** control: a lane whose discussion the hub takes puts once, reads no
   map, writes no WARN.
 - **C137** the second put refused too: one WARN line naming both topics.
+- **C138** an outage, or a timeout, on a discussion the hub takes: one put,
+  no map read, no other discussion, one WARN line. Red control: on
+  0638ae228 both put the other lane's discussion (16 passed, 5 failed).
 - Red control: on master 8fc74467b, 13 of 16 fail (one put of the hash, no
   second put, no WARN); the control C136 passes.
 

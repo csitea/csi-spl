@@ -42,9 +42,9 @@ func TestDefaultsMatrix(t *testing.T) {
 		return false
 	}
 	// demo_user (specs/077), channel_guest (specs/121) and time_accountant
-	// (specs/107 T065; its invite is T047's) are roles no member route
-	// grants: not in RoleIDs.
-	if len(roles) != 11 || len(RoleIDs) != len(roles)-3 {
+	// (specs/107 T065; its invite is T047's) and the two accountant roles
+	// (specs/123 16, rdb 0275) are not in RoleIDs.
+	if len(roles) != 13 || len(RoleIDs) != len(roles)-5 {
 		t.Fatalf("roles: %d", len(roles))
 	}
 	all := map[string]bool{}
@@ -102,7 +102,7 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 	}
 	for _, r := range roles {
-		if r.ID != ChannelGuest && r.ID != TimeAccountant && !has(r.ID, TopicsRead) {
+		if r.ID != ExternalAccountant && r.ID != ChannelGuest && r.ID != TimeAccountant && !has(r.ID, TopicsRead) {
 			t.Errorf("%s cannot read", r.ID)
 		}
 	}
@@ -126,7 +126,7 @@ func TestDefaultsMatrix(t *testing.T) {
 		t.Errorf("demo_user %+v, want topics.read, notes.send, agents.command, docs.read and the five agents.* ids only", roles[DemoUser])
 	}
 	for _, id := range RoleIDs {
-		if id == DemoUser || id == ChannelGuest || id == TimeAccountant {
+		if id == DemoUser || id == ChannelGuest || id == TimeAccountant || costsOnly(id) {
 			t.Errorf("CONTROL: RoleIDs names %s: the Users page would offer it", id)
 		}
 	}
@@ -390,5 +390,65 @@ func TestFixedSet(t *testing.T) {
 	}
 	if !Exclusive(DemoUser) || !Exclusive(ChannelGuest) || Exclusive(Admin) {
 		t.Fatal("Exclusive")
+	}
+}
+
+// costsOnly is the two accountant roles (specs/123 16, rdb 0275).
+func costsOnly(id string) bool { return id == InternalAccountant || id == ExternalAccountant }
+
+// specs/123 16 (SPL-5359, rdb 0275): internal_accountant holds exactly
+// topics.read, costs.read and costs.write; external_accountant exactly the
+// two costs ids (no topics.read). costs.write is theirs, biz_owner's and
+// admin's (so an admin covers, and may grant, both roles). Neither holds a
+// members.* id, tenant.settings or a topics write. CONTROL: a developer
+// lacks costs.write, and developer + internal_accountant gets the union.
+func TestAccountantRolesCostsWrite(t *testing.T) {
+	roles := DefaultRoles()
+	for id, want := range map[string][]string{InternalAccountant: {CostsRead, CostsWrite, TopicsRead}, ExternalAccountant: {CostsRead, CostsWrite}} {
+		r, ok := roles[id]
+		if !ok || r.TenantOwner || !reflect.DeepEqual(r.Perms, want) {
+			t.Fatalf("%s %+v (present %v), want exactly %v", id, r, ok, want)
+		}
+	}
+	for _, r := range roles {
+		held := false
+		for _, q := range r.Perms {
+			held = held || q == CostsWrite
+		}
+		if want := r.ID == BizOwner || r.ID == Admin || costsOnly(r.ID); held != want {
+			t.Errorf("%s costs.write = %v, want %v", r.ID, held, want)
+		}
+	}
+	documented := false
+	for _, p := range Permissions {
+		documented = documented || p.ID == CostsWrite
+	}
+	if !documented {
+		t.Error("costs.write is not in the Permissions catalogue")
+	}
+	ctx := context.Background()
+	admin, _ := Fixed(Admin).Access(ctx, "HUM-1", "t1")
+	for _, id := range []string{InternalAccountant, ExternalAccountant} {
+		if !admin.Covers(roles[id]) {
+			t.Errorf("admin does not cover %s: it could not grant it", id)
+		}
+		a, err := FixedSet{id}.Access(ctx, "HUM-2", "t1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !a.Can(CostsWrite) || !a.Can(CostsRead) || a.Can(TopicsRead) != (id == InternalAccountant) || a.Can(MembersRoles) ||
+			a.Can(MembersInvite) || a.Can(TenantSettings) || a.Can(NotesSend) || a.Can(TopicsManage) || a.Can(FilesWrite) {
+			t.Errorf("%s seat grants %v", id, a.List())
+		}
+	}
+	if dev, _ := Fixed(Developer).Access(ctx, "HUM-3", "t1"); dev.Can(CostsWrite) {
+		t.Error("CONTROL: developer holds costs.write")
+	}
+	both, err := FixedSet{Developer, InternalAccountant}.Access(ctx, "HUM-4", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !both.Can(CostsWrite) || !both.Can(TopicsRead) || !both.Can(AgentsCommand) {
+		t.Errorf("developer + internal_accountant grants %v, want the union", both.List())
 	}
 }

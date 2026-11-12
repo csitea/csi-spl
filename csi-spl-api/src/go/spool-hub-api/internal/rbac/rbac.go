@@ -61,6 +61,12 @@ const (
 	// costs of the lanes working for it; only the operator workspace's admin
 	// reads the estate (the hub's cost route decides, not this id).
 	CostsRead = "costs.read"
+	// CostsWrite is the permission to enter and delete the hand-entered cost
+	// entries, cloud and hr (specs/123 16, rdb 0275, SPL-5359): the two
+	// accountant roles, biz_owner and admin. The entries are the estate's
+	// (rdb 0245, no tenant_id), so only a holder in the OPERATOR workspace
+	// writes them (hub/cost_entries.go); elsewhere it opens nothing yet.
+	CostsWrite = "costs.write"
 	// VendorKeysManage is the permission to set, replace and remove the
 	// workspace's own agent vendor keys and to confirm an operator-made
 	// manager (spec 127 4.3 and 5.1, rdb 0232). biz_owner and admin, by
@@ -135,6 +141,17 @@ const (
 	// combines with any other role (025 §10.2). Not in RoleIDs: its invite,
 	// which requires access_until, is T047's.
 	TimeAccountant = "time_accountant"
+	// InternalAccountant and ExternalAccountant enter the human-resource and
+	// other hand-entered costs and read the cost report (specs/123 16,
+	// rdb 0275, SPL-5359). internal_accountant: topics.read (every browser
+	// door asks it, hub/resolve.go humanTenant), costs.read and costs.write;
+	// it works alone or on top of a member role. external_accountant: costs.read
+	// and costs.write, no topics.read, an outside seat ended by access_until
+	// (like time_accountant); until a costs-only browser door exists it is
+	// refused at that door. Both combine with any other role (025 §10.2).
+	// Not in RoleIDs.
+	InternalAccountant = "internal_accountant"
+	ExternalAccountant = "external_accountant"
 )
 
 // Exclusive reports a role that holds a set alone (025 §10.2 rule 3, rdb
@@ -182,6 +199,7 @@ var Permissions = []PermissionDoc{
 	{HoursApprove, "approve or return a member's frozen hours period"},
 	{HoursRates, "see rates and labour cost; compute approved hours x rate"},
 	{CostsRead, "see the cost lines and coverage of the workspace (the estate in the operator workspace)"},
+	{CostsWrite, "enter and delete the hand-entered cost entries (cloud, hr); the operator workspace's only today"},
 	{IssuesCreate, "file an issue"},
 	{AgentsDM, "DM an agent"},
 	{AgentsStart, "open a new channel topic that addresses an agent"},
@@ -228,19 +246,22 @@ var Permissions = []PermissionDoc{
 // ids ride with agents.command (withAgents, demo_user included), the five
 // open issue ids with topics.manage (withMember, never demo_user), the rest
 // go to the roles their site names today. rdb 0232 adds vendor_keys.manage
-// to biz_owner and admin (spec 159 section 3, spec 127 4.3).
+// to biz_owner and admin (spec 159 section 3, spec 127 4.3). rdb 0275 adds
+// costs.write to biz_owner and admin, internal_accountant with topics.read,
+// costs.read and costs.write, external_accountant with the two costs ids
+// only (specs/123 16, SPL-5359).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
 		HoursRead, HoursApprove,
 		ChannelsAIAgents, MessagesKind, IssuesBlocker, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
-		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors, VendorKeysManage)...)},
+		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors, VendorKeysManage, CostsWrite)...)},
 	{ID: ProductOwner, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove)...)},
 	{ID: Admin, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite,
 		ChannelsAIAgents, MessagesKind, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
-		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors, VendorKeysManage)...)},
+		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors, VendorKeysManage, CostsWrite)...)},
 	{ID: Developer, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove)...)},
 	{ID: Tester, Perms: withMember(TopicsRead, NotesSend, DocsRead, DocsWrite)},
@@ -253,6 +274,8 @@ var Defaults = []Role{
 	{ID: DemoUser, Perms: sorted(withAgents(TopicsRead, NotesSend, AgentsCommand, DocsRead)...)},
 	{ID: ChannelGuest, Perms: []string{}}, // empty, not nil: the store reads '{}'
 	{ID: TimeAccountant, Perms: sorted(HoursRead, HoursRates)},
+	{ID: InternalAccountant, Perms: sorted(CostsRead, CostsWrite, TopicsRead)},
+	{ID: ExternalAccountant, Perms: sorted(CostsRead, CostsWrite)},
 }
 
 // withMember is p plus the four permissions every member role holds and

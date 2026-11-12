@@ -861,3 +861,33 @@ test covers:
 - `node --test` of `lib.mjs` on synthetic rows.
 
 Not covered: the real console page. Only the owner's own run can show it.
+
+## 16. Who enters the costs: the accountant roles (SPL-5359)
+
+Owner HUM-10, csitea #csi-fina topic ba50f507, 2026-11-12 09:02Z: "we must
+enter into the system all the human-resource costs"; 09:03Z: "so that the
+report shows them with the total costs"; 09:06Z and 09:11Z: an
+internal-accountant and an external-accountant role in every workspace. The
+roles and their grants: spec 025 section 12.
+
+- **What they enter.** The hand-entered cost entries of 4.4 (`cost_entries`,
+  rdb 0245, types `cloud` and `hr`), through `GET`, `POST` and `DELETE
+  /v1/operator/cost-entries`. Those rows are the estate's (no `tenant_id`),
+  so `costs.write` opens the three routes only to a member of the
+  **operator** workspace, never a live act-as clone
+  (`costEntryGate`, `internal/hub/cost_entries.go`). In any other workspace
+  the routes answer as before (403 `operator.workspaces`).
+- **What they read.** `GET /v1/tenant/costs` (`costs.read`): the reader's
+  workspace answer. The estate answer, the one that lists the hr entries
+  under Human on Total, is still the operator admin's and product owner's
+  (section 14).
+- **Open follow-ups**, not built here:
+  1. the estate read for a `costs.write` member of the operator workspace
+     (one more case in section 14's rule), so an accountant sees the hr
+     entries on Total;
+  2. a costs-only browser door for a seat without `topics.read`
+     (external_accountant, time_accountant): spec 025 section 12;
+  3. the cost-entry UI for an accountant: the Expenses page follows
+     `operator_reader`, there is no edit route (create and delete only), and
+     an `hr` row is a label and an amount, not a person;
+  4. per-workspace hr costs (`cost_entries` has no `tenant_id`).

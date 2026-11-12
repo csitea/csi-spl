@@ -654,4 +654,43 @@ Not built: picking from the workspace's pending invites (listing them needs
 - `csi-spl-wui/tests/e2e/channel-people.test.mjs`: type an address, Add, it is
   listed as invited, the minus removes it.
 
-<!-- version: 1.4.0 · updated: 2026-10-27 · last-edit: 2026-10-27T01:14:13Z -->
+## 12. The accountant roles (SPL-5359, 2026-11-12)
+
+Owner HUM-10, csitea #csi-fina topic ba50f507, 2026-11-12 09:06Z: "create a
+new role which is internal-accountant for all of the workspaces"; 09:11Z:
+"add also the external-accountant role in each workspace". What they enter
+and read: spec 123 section 16.
+
+One new permission, `costs.write` (rdb 0275): enter and delete the
+hand-entered cost entries. Two new system roles, add-ons like
+`time_accountant` (they combine with any role, §10.2; neither is in
+`RoleIDs`, both are grantable through `PUT /v1/members/{human_id}/roles`):
+
+| permission | internal_accountant | external_accountant | biz_owner | admin | every other §3.2 role |
+|---|---|---|---|---|---|
+| topics.read | Y | — | Y | Y | Y |
+| costs.read | Y | Y | Y | Y | Y |
+| costs.write | Y | Y | Y | Y | — |
+| anything else | — | — | as §3.2 | as §3.2 | as §3.2 |
+
+- `biz_owner` and `admin` hold `costs.write` so that an admin covers, and by
+  §3.4 rule 1 may grant, both accountant roles.
+- **internal_accountant** holds `topics.read` because every browser door asks
+  it (`humanTenant`, `internal/hub/resolve.go`): it reads topics and writes
+  none, and works alone or on top of a member role.
+- **external_accountant** is an outside seat: no `topics.read`, ended by
+  `access_until` (rdb 0113), like `time_accountant`.
+- **The gap (open).** The same door refuses a set without `topics.read`
+  (`403 topics.read`), `/v1/view/me` included, so today an
+  external_accountant alone (and a time_accountant alone) can use no browser
+  route. The follow-up is a costs-only door in the shape of §10.3 rule 6's
+  `operatorDoor`: `humanTenant`, `/v1/view/me` and the WUI shell let such a
+  seat in for its own routes only. Until it lands the safe default holds: an
+  outside seat reads no topic.
+
+Tests: `internal/rbac/rbac_test.go` `TestAccountantRolesCostsWrite`;
+`internal/hub/cost_entries_accountant_test.go`
+`TestCostEntryAccountantRoles`; the seed parity `TestRBACSeedMatchesDefaults`
+(Postgres).
+
+<!-- version: 1.5.0 · updated: 2026-11-12 · last-edit: 2026-11-12T10:30:00Z -->

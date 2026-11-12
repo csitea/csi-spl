@@ -124,8 +124,11 @@ func TestMembersAdminAPI(t *testing.T) {
 		grant[rr["id"].(string)] = rr["grantable"].(bool)
 	}
 	// RoleIDs plus time_accountant (specs/107 T065, rdb 0222), which the admin
-	// cannot grant: it holds hours.read and hours.rates, the admin neither.
-	if len(grant) != len(rbac.RoleIDs)+1 || grant[rbac.BizOwner] || !grant[rbac.Admin] || !grant[rbac.Tester] || grant[rbac.TimeAccountant] {
+	// cannot grant: it holds hours.read and hours.rates, the admin neither;
+	// plus the two accountant roles (specs/025 section 12, rdb 0275), which the
+	// admin grants: it holds costs.write.
+	if len(grant) != len(rbac.RoleIDs)+3 || grant[rbac.BizOwner] || !grant[rbac.Admin] || !grant[rbac.Tester] || grant[rbac.TimeAccountant] ||
+		!grant[rbac.InternalAccountant] || !grant[rbac.ExternalAccountant] {
 		t.Fatalf("roles: %v", grant)
 	}
 

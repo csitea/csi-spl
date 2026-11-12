@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -27,6 +29,11 @@ import (
 //	DELETE /v1/operator/cost-entries/{id}   -> 204
 //
 // AI costs are the paid items of fleet_token_paid.go, not these.
+//
+// costs.write opens all three to a member of the OPERATOR workspace who holds
+// it (the two accountant roles, spec 123 16, SPL-5359), never a live act-as
+// clone: costEntryGate. The rows are the estate's, so a holder in any other
+// workspace gets the operator gate's answer.
 
 // costEntryBodyMax bounds one entry's body (a 2000-character note and change).
 const costEntryBodyMax = 16 << 10
@@ -58,9 +65,38 @@ func (s *Server) costEntryRate() store.CostEntryRate {
 	return func(context.Context, string, string) (float64, string, bool, error) { return 0, "", false, nil }
 }
 
+// costEntryGate is base, or a member of the operator workspace holding
+// costs.write who is not a live act-as clone (SPL-5359). A bearer call, a
+// member of another workspace and a member without costs.write get base's
+// answer.
+func (s *Server) costEntryGate(base opCallerGate) opCallerGate {
+	return func(w http.ResponseWriter, r *http.Request) (string, *opActor, string, bool) {
+		if strings.HasPrefix(strings.TrimSpace(r.Header.Get("Authorization")), "Bearer ") {
+			return base(w, r)
+		}
+		op, err := s.operatorTenant(r.Context())
+		if err != nil || op == "" {
+			return base(w, r)
+		}
+		t, hum, ok := s.humanTenant(w, r)
+		if !ok {
+			return "", nil, "", false
+		}
+		if hum != "" && t.ID == op {
+			a, err := s.access(r.Context(), hum, t.ID)
+			if err == nil && a.Can(rbac.CostsWrite) && !s.readerIsActAsClone(r.Context(), t.ID, hum) {
+				s.allowOrigin(w, r)
+				w.Header().Set("Cache-Control", "no-store")
+				return t.ID, &opActor{tenant: t.ID, hum: hum}, hum, true
+			}
+		}
+		return base(w, r)
+	}
+}
+
 // costEntryCaller is the gate plus the store; who called, false = answered.
 func (s *Server) costEntryCaller(w http.ResponseWriter, r *http.Request, gate opCallerGate) (store.CostEntryStore, string, bool) {
-	_, _, who, ok := gate(w, r)
+	_, _, who, ok := s.costEntryGate(gate)(w, r)
 	if !ok {
 		return nil, "", false
 	}

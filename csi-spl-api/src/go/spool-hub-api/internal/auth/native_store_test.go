@@ -69,17 +69,17 @@ func TestCredStoreContract(t *testing.T) {
 			if name == "postgres" {
 				base = int(time.Now().UnixNano() % 1e12)
 			}
-			if _, err := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+1), "", now, now.Add(time.Hour), floor); err == nil {
+			if _, err := st.IssueToken(ctx, auth.TokenIssue{Kind: auth.TokenVerify, Subject: subj, TokenHash: th(base + 1), PwHash: "", Now: now, Expires: now.Add(time.Hour), Floor: floor}); err == nil {
 				t.Fatal("verify token without a password hash accepted")
 			}
-			if ok, err := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+1), h1, now, now.Add(time.Hour), floor); !ok || err != nil {
+			if ok, err := st.IssueToken(ctx, auth.TokenIssue{Kind: auth.TokenVerify, Subject: subj, TokenHash: th(base + 1), PwHash: h1, Now: now, Expires: now.Add(time.Hour), Floor: floor}); !ok || err != nil {
 				t.Fatalf("issue 1: %v %v", ok, err)
 			}
-			if ok, _ := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+2), h1, now.Add(30*time.Second), now.Add(time.Hour), floor); ok {
+			if ok, _ := st.IssueToken(ctx, auth.TokenIssue{Kind: auth.TokenVerify, Subject: subj, TokenHash: th(base + 2), PwHash: h1, Now: now.Add(30 * time.Second), Expires: now.Add(time.Hour), Floor: floor}); ok {
 				t.Fatal("floor interval not enforced")
 			}
 			t2 := now.Add(2 * time.Minute)
-			if ok, err := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+3), h2, t2, t2.Add(time.Hour), floor); !ok || err != nil {
+			if ok, err := st.IssueToken(ctx, auth.TokenIssue{Kind: auth.TokenVerify, Subject: subj, TokenHash: th(base + 3), PwHash: h2, Now: t2, Expires: t2.Add(time.Hour), Floor: floor}); !ok || err != nil {
 				t.Fatalf("issue 3: %v %v", ok, err)
 			}
 			if err := st.ConsumeVerification(ctx, th(base+1), t2, yes); !errors.Is(err, auth.ErrTokenInvalid) {
@@ -89,11 +89,11 @@ func TestCredStoreContract(t *testing.T) {
 				t.Fatalf("expired: %v", err)
 			}
 			t4 := now.Add(4 * time.Minute)
-			if ok, _ := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+4), h2, t4, t4.Add(time.Hour), floor); !ok {
+			if ok, _ := st.IssueToken(ctx, auth.TokenIssue{Kind: auth.TokenVerify, Subject: subj, TokenHash: th(base + 4), PwHash: h2, Now: t4, Expires: t4.Add(time.Hour), Floor: floor}); !ok {
 				t.Fatal("issue 4")
 			}
 			t6 := now.Add(6 * time.Minute)
-			if ok, _ := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+5), h2, t6, t6.Add(time.Hour), floor); ok {
+			if ok, _ := st.IssueToken(ctx, auth.TokenIssue{Kind: auth.TokenVerify, Subject: subj, TokenHash: th(base + 5), PwHash: h2, Now: t6, Expires: t6.Add(time.Hour), Floor: floor}); ok {
 				t.Fatal("daily cap (3) not enforced")
 			}
 			// accept sees the link's hash; a refusal writes nothing.
@@ -116,7 +116,7 @@ func TestCredStoreContract(t *testing.T) {
 			}
 			// Reset: single use, consumes every live reset token.
 			for i, at := range []time.Time{t4, t6} {
-				if ok, _ := st.IssueToken(ctx, auth.TokenReset, subj, th(base+10+i), "", at, at.Add(time.Hour), floor); !ok {
+				if ok, _ := st.IssueToken(ctx, auth.TokenIssue{Kind: auth.TokenReset, Subject: subj, TokenHash: th(base + 10 + i), PwHash: "", Now: at, Expires: at.Add(time.Hour), Floor: floor}); !ok {
 					t.Fatalf("reset issue %d", i)
 				}
 			}

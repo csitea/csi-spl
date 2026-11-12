@@ -50,12 +50,12 @@ func (p PgCredStore) GetCredential(ctx context.Context, subject string) (Credent
 	return c, err
 }
 
-func (p PgCredStore) IssueToken(ctx context.Context, kind, subject, tokenHash, pwHash string, now, expires time.Time, floor MailFloor) (bool, error) {
-	table, ok := tokenTable[kind]
+func (p PgCredStore) IssueToken(ctx context.Context, t TokenIssue) (bool, error) {
+	table, ok := tokenTable[t.Kind]
 	if !ok {
 		return false, errors.New("auth: unknown token kind")
 	}
-	if kind == TokenVerify && pwHash == "" {
+	if t.Kind == TokenVerify && t.PwHash == "" {
 		return false, errors.New("auth: verification token needs a password hash")
 	}
 	tx, err := p.Pool.Begin(ctx)
@@ -67,7 +67,7 @@ func (p PgCredStore) IssueToken(ctx context.Context, kind, subject, tokenHash, p
 	// exact across Cloud Run instances.
 	var one int
 	err = tx.QueryRow(ctx, `SELECT 1 FROM password_credentials WHERE provider = 'password' AND subject = $1 FOR UPDATE`,
-		subject).Scan(&one)
+		t.Subject).Scan(&one)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, ErrCredNotFound
 	}
@@ -78,27 +78,27 @@ func (p PgCredStore) IssueToken(ctx context.Context, kind, subject, tokenHash, p
 	var today int
 	if err := tx.QueryRow(ctx, `
 		SELECT MAX(created_at), COUNT(*) FILTER (WHERE created_at > $2::timestamptz - interval '24 hours')
-		  FROM `+table+` WHERE provider = 'password' AND subject = $1`, subject, now).Scan(&last, &today); err != nil {
+		  FROM `+table+` WHERE provider = 'password' AND subject = $1`, t.Subject, t.Now).Scan(&last, &today); err != nil {
 		return false, err
 	}
-	if last != nil && now.Sub(*last) < floor.MinInterval {
+	if last != nil && t.Now.Sub(*last) < t.Floor.MinInterval {
 		return false, nil
 	}
-	if floor.MaxPerDay > 0 && today >= floor.MaxPerDay {
+	if t.Floor.MaxPerDay > 0 && today >= t.Floor.MaxPerDay {
 		return false, nil
 	}
 	var err2 error
-	if kind == TokenVerify {
+	if t.Kind == TokenVerify {
 		// Only the newest link verifies (FR-015).
 		if _, err := tx.Exec(ctx, `UPDATE email_verification_tokens SET consumed_at = $2
-			WHERE provider = 'password' AND subject = $1 AND consumed_at IS NULL`, subject, now); err != nil {
+			WHERE provider = 'password' AND subject = $1 AND consumed_at IS NULL`, t.Subject, t.Now); err != nil {
 			return false, err
 		}
 		_, err2 = tx.Exec(ctx, `INSERT INTO email_verification_tokens (token_hash, provider, subject, password_hash, created_at, expires_at)
-			VALUES ($1, 'password', $2, $3, $4, $5)`, tokenHash, subject, pwHash, now, expires)
+			VALUES ($1, 'password', $2, $3, $4, $5)`, t.TokenHash, t.Subject, t.PwHash, t.Now, t.Expires)
 	} else {
 		_, err2 = tx.Exec(ctx, `INSERT INTO password_reset_tokens (token_hash, provider, subject, created_at, expires_at)
-			VALUES ($1, 'password', $2, $3, $4)`, tokenHash, subject, now, expires)
+			VALUES ($1, 'password', $2, $3, $4)`, t.TokenHash, t.Subject, t.Now, t.Expires)
 	}
 	if err2 != nil {
 		return false, err2

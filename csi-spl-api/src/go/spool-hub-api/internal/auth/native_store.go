@@ -52,6 +52,15 @@ type MailFloor struct {
 	MaxPerDay   int
 }
 
+// TokenIssue is one IssueToken request. TokenHash is the sha256 hex digest of
+// the token, never the plaintext; PwHash is the register call's password hash
+// (TokenVerify only).
+type TokenIssue struct {
+	Kind, Subject, TokenHash, PwHash string
+	Now, Expires                     time.Time
+	Floor                            MailFloor
+}
+
 // CredStore persists native credentials and their hashed tokens (spec 015).
 // Token arguments are ALWAYS sha256 hex digests, never plaintext.
 type CredStore interface {
@@ -59,12 +68,12 @@ type CredStore interface {
 	// the subject already has one, which is left untouched.
 	CreateCredential(ctx context.Context, c Credential, now time.Time) (created bool, err error)
 	GetCredential(ctx context.Context, subject string) (Credential, error)
-	// IssueToken stores a token of kind for subject unless the floor refuses
+	// IssueToken stores a token of t.Kind for t.Subject unless t.Floor refuses
 	// (issued=false, nil error). Counting and insert are one atomic step.
-	// pwHash is required for TokenVerify (the password of the register call
+	// t.PwHash is required for TokenVerify (the password of the register call
 	// that minted it) and ignored for TokenReset. A new TokenVerify retires
 	// every older live one of the subject: only the newest link verifies.
-	IssueToken(ctx context.Context, kind, subject, tokenHash, pwHash string, now, expires time.Time, floor MailFloor) (issued bool, err error)
+	IssueToken(ctx context.Context, t TokenIssue) (issued bool, err error)
 	// ConsumeVerification installs the token's password hash, marks the
 	// credential verified and consumes every live verification token of it. A
 	// token of an already-verified credential is a success that changes
@@ -125,38 +134,38 @@ func (m *MemoryCredStore) GetCredential(_ context.Context, subject string) (Cred
 // mailFloorDay is the window MailFloor counts a subject's tokens in.
 const mailFloorDay = 24 * time.Hour
 
-func (m *MemoryCredStore) IssueToken(_ context.Context, kind, subject, tokenHash, pwHash string, now, expires time.Time, floor MailFloor) (bool, error) {
-	if kind == TokenVerify && pwHash == "" {
+func (m *MemoryCredStore) IssueToken(_ context.Context, t TokenIssue) (bool, error) {
+	if t.Kind == TokenVerify && t.PwHash == "" {
 		return false, errors.New("auth: verification token needs a password hash")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.creds[subject]; !ok {
+	if _, ok := m.creds[t.Subject]; !ok {
 		return false, ErrCredNotFound
 	}
 	var last time.Time
 	today := 0
-	for _, t := range m.tokens {
-		if t.kind != kind || t.subject != subject {
+	for _, tok := range m.tokens {
+		if tok.kind != t.Kind || tok.subject != t.Subject {
 			continue
 		}
-		if t.created.After(last) {
-			last = t.created
+		if tok.created.After(last) {
+			last = tok.created
 		}
-		if t.created.After(now.Add(-mailFloorDay)) {
+		if tok.created.After(t.Now.Add(-mailFloorDay)) {
 			today++
 		}
 	}
-	if !last.IsZero() && now.Sub(last) < floor.MinInterval {
+	if !last.IsZero() && t.Now.Sub(last) < t.Floor.MinInterval {
 		return false, nil
 	}
-	if floor.MaxPerDay > 0 && today >= floor.MaxPerDay {
+	if t.Floor.MaxPerDay > 0 && today >= t.Floor.MaxPerDay {
 		return false, nil
 	}
-	if kind == TokenVerify {
-		m.consumeAll(TokenVerify, subject) // only the newest link verifies (FR-015)
+	if t.Kind == TokenVerify {
+		m.consumeAll(TokenVerify, t.Subject) // only the newest link verifies (FR-015)
 	}
-	m.tokens[tokenHash] = &memToken{kind: kind, subject: subject, pwHash: pwHash, created: now, expires: expires}
+	m.tokens[t.TokenHash] = &memToken{kind: t.Kind, subject: t.Subject, pwHash: t.PwHash, created: t.Now, expires: t.Expires}
 	return true, nil
 }
 

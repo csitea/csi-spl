@@ -326,8 +326,8 @@ func (n *native) mint(ctx context.Context, kind, email, pwHash string, now time.
 	if kind == TokenReset {
 		ttl, page = n.cfg.ResetTTL, "/reset-password"
 	}
-	issued, err = n.store.IssueToken(ctx, kind, email, th, pwHash, now, now.Add(ttl),
-		MailFloor{MinInterval: n.cfg.MailMinInterval, MaxPerDay: n.cfg.MailMaxPerDay})
+	issued, err = n.store.IssueToken(ctx, TokenIssue{Kind: kind, Subject: email, TokenHash: th, PwHash: pwHash,
+		Now: now, Expires: now.Add(ttl), Floor: MailFloor{MinInterval: n.cfg.MailMinInterval, MaxPerDay: n.cfg.MailMaxPerDay}})
 	if err != nil {
 		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_token_issue")
 		return "", false, false

@@ -1096,6 +1096,13 @@ back `install-box-crons.tst.sh` case 9.
 
 #### 8.4.5 The proof's credential and its login (SPL-5233)
 
+**Superseded by 8.4.6 (SPL-5318).** The move's proof no longer logs in and
+reads no password file: `MOVE_DESK_PW_FILE`, `MOVE_BOX_PW_FILE`, the
+plan-time `test -r` check, the session file and the login 429 wait are gone
+from `do_spl_desk_move`. What follows is the record of why that path failed.
+`do_spl_desk_check` (a human's health check) still reads the roster with a
+member login, as its own header documents.
+
 Measured on sat 2026-11-10 (n=2, one prd desk, desk-cron orc `b3ddc72b2`):
 the plan was clean, the real move copied, verified and started the sidecar as
 `<agent-user>`, then the proof gave `no verdict`. First run: the probe password
@@ -1165,10 +1172,34 @@ dead.
   instances per revision, and twice that during a deploy roll (two revisions
   hold sockets): a socket on another instance reads `socket` false. A false is "not seen here", never proof of down; a true is a live
   socket. The proof retries, each try a fresh dial.
+- **The move's proof reads it** (`_spl_dm_proof` in `spl-desk-move.func.sh`).
+  The forward proof runs as the target user, the rollback's as the source
+  user. Each runs `spool box-presence` from the desk dir (`SPOOL_ROOT=<desk>/spool`,
+  `SPOOL_KEYS_DIR=<desk>/keys`, the desk's box id and workspace, the cnf
+  hub), so the hub sees a hello signed by the desk's own key. No member
+  login, no password file, no plan-time credential check.
+  - `socket` true, seat in `agents`: `ok`.
+  - `socket` true, seat not listed: `agent-missing`, which passes as before
+    (the box is live; the seat re-announces).
+  - `socket` false, an error, or no JSON: read again every
+    `MOVE_CHECK_EVERY` (5 s) for `MOVE_CHECK_SECS` (60 s), then `no verdict`
+    and the desk rolls back. The FAIL line names the reason (socket false,
+    or the read's last `spool:` error).
+  - A busy or unreachable hub (a 429 or 5xx dial answer, `hub refused:
+    internal`, a read past `MOVE_PRESENCE_SECS`, 30 s) waits
+    `MOVE_CHECK_EVERY` doubled per such answer, at most 60 s a wait. These
+    waits sum to at most `MOVE_CHECK_429_SECS` (300 s) per proof, on top of
+    `MOVE_CHECK_SECS`; past it: `no verdict`.
+  - `DESK_ROSTER_JSON` stays `do_spl_desk_check`'s seam and is no part of
+    the proof.
 
-Test: `internal/hub/box_presence_test.go` (no socket -> false while the
+Tests: `internal/hub/box_presence_test.go` (no socket -> false while the
 roster reads the box online; socket -> true with its agents; the other
-instance -> false; closed -> false).
+instance -> false; closed -> false). `csi-spl-orc/src/bash/tests/desk-move.tst.sh`
+cases 16 (login-free: unreadable password files pass, no `test -r`,
+`do_spl_desk_check` never runs; socket false -> no verdict; agent-missing
+passes) and 17 (429 / 503 back-off and its bound; the verdict of one read;
+the real read's env; a hung read is busy).
 
 ### 8.5 Build rows
 

@@ -16,8 +16,8 @@
 # @description         key 0600), rename the source to desk.moved-<UTC>/,
 # @description         start the sidecar as the desk user
 # @description         (spl_desk_box_restart -> do_spl_desk_up) and prove it
-# @description         (do_spl_desk_check: ok, muted or agent-missing; never
-# @description         down, stranded or unpinned). A desk that fails is
+# @description         (spool box-presence, login-free: the hub holds its
+# @description         socket, its seat listed or not; see below). A desk that fails is
 # @description         rolled back at once and the box stops there; so does
 # @description         one whose downtime passes MOVE_MAX_SECS. Every desk
 # @description         moved: box.env gets SPOOL_DESK_USER (box-config.sh)
@@ -45,24 +45,23 @@
 # @description runs through `sudo -n -u <desk user>` (files) and its ./run
 # @description (the sidecar steps); nothing is chowned, nothing needs root.
 # @description Downtime per desk = stop to proof, in seconds.
-# @description The proof's credential (SPL-5233): the forward proof runs as
-# @description the target user, the rollback's as the source user, and each
-# @description reads its own probe password file: MOVE_DESK_PW_FILE (desk
-# @description user) / MOVE_BOX_PW_FILE (box user), each defaulting to
-# @description PROBE_PW_FILE, else that user's own
-# @description <state>/m3-e2e/{<workspace>,e2e}/pw-human (DESK_ROSTER_JSON,
-# @description when set, is the one file both read). The plan, and a real run
-# @description before any stop or copy, check with `sudo -n -u <user> test -r`
-# @description that each user can read its file for every desk with a live
-# @description sidecar, and refuse with a FATAL naming the file and the user.
-# @description The proof logs in once (the session is kept in a 0600 file of
-# @description a mktemp dir of that user, removed after) and on a login 429
-# @description waits and retries: the hub's Retry-After, else
-# @description MOVE_CHECK_EVERY doubled per 429 (at most 60 s a wait; a
-# @description Retry-After under 1 s counts as that), all 429 waits of one
-# @description proof at most MOVE_CHECK_429_SECS (300 s, on top of
-# @description MOVE_CHECK_SECS); past that bound: 'no verdict'. The session
-# @description dir is removed also on INT / TERM / HUP.
+# @description The proof is login-free (SPL-5318, spec 069 8.4.6): the
+# @description forward proof runs as the target user, the rollback's as the
+# @description source user, and each reads `spool box-presence` from the
+# @description desk dir, signed by the desk's own key: the hub's answer for
+# @description that box alone, {box, socket, agents}. No member login, no
+# @description password file (the SPL-5233 move of dev/demo/sat lost ~14 min
+# @description a try to login 429s, then a 401). socket true and the seat in
+# @description agents -> ok; socket true, seat missing -> agent-missing (the
+# @description desk is live; passes, as before); socket false (no socket on
+# @description the instance that answered: the hub may run two) -> re-read
+# @description every MOVE_CHECK_EVERY s for MOVE_CHECK_SECS, then 'no
+# @description verdict'. A hub that is busy or unreachable (429, 5xx, a dial
+# @description error) waits MOVE_CHECK_EVERY doubled per such answer (at most
+# @description 60 s), all of those waits of one proof at most
+# @description MOVE_CHECK_429_SECS (300 s, on top of MOVE_CHECK_SECS); past
+# @description that bound: 'no verdict'. DESK_ROSTER_JSON is
+# @description do_spl_desk_check's seam and no part of this proof.
 # @description The quiesce window (spec 069 8.4.1): from the copy to the
 # @description source's rename aside (or its rollback) the desk carries the
 # @description marker <desk dir>.quiesce, written as the desk's owner and
@@ -88,12 +87,8 @@
 # @param MOVE_RUN (optional) - the orc checkout whose ./run the desk user's
 # @param   side runs, default this one (e.g. the desk-cron checkout)
 # @param MOVE_PRUNE_DAYS (optional) - default 7
-# @param PROBE_EMAIL / PROBE_PW_FILE / DESK_ROSTER_JSON (optional) - the roster
-# @param   read of the proof, as do_spl_desk_check documents them. The file
-# @param   must be readable by the user each proof runs as (see above)
-# @param MOVE_DESK_PW_FILE / MOVE_BOX_PW_FILE (optional) - the probe password
-# @param   file of the desk user's / the box user's proof, default PROBE_PW_FILE
-# @param MOVE_CHECK_429_SECS (optional) - the 429 back-off bound of one proof, default 300
+# @param MOVE_CHECK_429_SECS (optional) - the busy-hub back-off bound of one proof, default 300
+# @param MOVE_PRESENCE_SECS (optional) - one box-presence read times out after this, default 30
 # @param DESK_QUIESCE_SETTLE_SECS (optional) - pause between the marker and the copy, default 2
 # @param DESK_QUIESCE_MAX_SECS / DESK_QUIESCE_WAIT_SECS (optional) - the writers' side, see above
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -121,7 +116,6 @@ do_spl_desk_move() {
   local -a desks=()
   mapfile -t desks < <(_spl_dm_list)
   _spl_dm_plan "${desks[@]}"
-  _spl_dm_cred_check "${desks[@]}" || { do_log "FATAL the proof could not run as every user it needs: nothing was touched"; return 1; }
   if (( dry )); then
     [[ "$cmd" == plan ]] || do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to $cmd ${#desks[@]} desk(s)."
     return 0
@@ -175,41 +169,6 @@ _spl_dm_as() {
   if [[ "$u" == "$DM_ME" ]]; then "$@"; else sudo -n -u "$u" -- "$@"; fi
 }
 
-# _spl_dm_pw_for <user>: the probe password file the proof of that user
-# reads: MOVE_DESK_PW_FILE for the desk user, MOVE_BOX_PW_FILE for the box
-# user, each defaulting to PROBE_PW_FILE; empty = that user's own default.
-_spl_dm_pw_for() {
-  if [[ "$1" == "$DM_DESK" ]]; then printf '%s' "${MOVE_DESK_PW_FILE:-${PROBE_PW_FILE:-}}"
-  else printf '%s' "${MOVE_BOX_PW_FILE:-${PROBE_PW_FILE:-}}"; fi
-}
-
-# _spl_dm_cred_check <desk>...: per desk with a live sidecar, the target user
-# (its proof) and the source user (the rollback's proof) can each read the
-# roster input that proof reads (DESK_ROSTER_JSON, else its password file,
-# else its own m3-e2e default). Read as that user, never printed. 0 = all can.
-_spl_dm_cred_check() {
-  local x e ws id u f r why bad=0; local -A seen=()
-  for x in "$@"; do
-    read -r e ws id <<<"$x"
-    [[ -n "$(_spl_dm_pid "$DM_FROM" "$(_spl_dm_root "$DM_FROM" "$e")/desk/$ws/$id")" ]] || continue
-    for u in "$DM_TO" "$DM_FROM"; do
-      why="the $([[ "$u" == "$DM_TO" ]] && echo proof || echo "rollback's proof") of $e $ws/$id"
-      f="${DESK_ROSTER_JSON:-$(_spl_dm_pw_for "$u")}"
-      if [[ -n "$f" ]]; then
-        [[ -n "${seen[$u|$f]:-}" ]] && continue; seen[$u|$f]=1
-        _spl_dm_as "$u" test -r "$f" && continue
-        do_log "FATAL $u cannot read $f, the probe credential of $why (runs as $u): give $u a copy it can read and pass it as $([[ "$u" == "$DM_DESK" ]] && echo MOVE_DESK_PW_FILE || echo MOVE_BOX_PW_FILE)"
-        bad=1; continue
-      fi
-      r="$(_spl_dm_root "$u" "$e")/m3-e2e"
-      _spl_dm_as "$u" test -r "$r/$ws/pw-human" || _spl_dm_as "$u" test -r "$r/e2e/pw-human" || {
-        do_log "FATAL $u can read neither $r/$ws/pw-human nor $r/e2e/pw-human, the probe credential of $why (runs as $u): pass $([[ "$u" == "$DM_DESK" ]] && echo MOVE_DESK_PW_FILE || echo MOVE_BOX_PW_FILE) or PROBE_PW_FILE"
-        bad=1; }
-    done
-  done
-  return "$bad"
-}
-
 # _spl_dm_list: "<env> <workspace> <desk id>" per desk of DM_FROM, in move
 # order: MOVE_ENVS order, the fleet desk last, MOVE_DESKS when set.
 _spl_dm_list() {
@@ -249,7 +208,7 @@ _spl_dm_plan() {
     [[ "$e/$ws/$id" == "$DM_FLEET" ]] && tag=" (fleet desk: last)"
     do_log "PLAN $n/$# $e $ws/$id $src -> $dst size ${sz:-?} keys ${keys:-none} sidecar ${pid:-down} seats $seats$tag"
   done
-  do_log "INFO order per desk: pause reconcile -> stop sidecar -> copy -> verify (files, key digest, modes) -> rename source to desk.moved-$DM_STAMP -> start as $DM_TO -> proof (do_spl_desk_check); a failure rolls that desk back and stops the box"
+  do_log "INFO order per desk: pause reconcile -> stop sidecar -> copy -> verify (files, key digest, modes) -> rename source to desk.moved-$DM_STAMP -> start as $DM_TO -> proof (spool box-presence, the desk key); a failure rolls that desk back and stops the box"
 }
 
 # _spl_dm_run <cmd> <desk>...: move (or back) every desk; the box stops at the
@@ -481,7 +440,7 @@ _spl_dm_up() {
   _spl_dm_side_as "$u" proof "$2" "$3" "$4" "$5" && return 0
   p="$(_spl_dm_pid "$u" "$6")"
   if [[ -n "$p" ]]; then
-    DM_WHY="its sidecar is up (pid $p) but the proof did not pass (the 'FAIL proof' line above; 'no verdict' = do_spl_desk_check could not run, e.g. no readable probe login)"
+    DM_WHY="its sidecar is up (pid $p) but the proof did not pass (the 'FAIL proof' line above; 'no verdict' = no hub socket for the box, or the presence read could not run)"
   else
     DM_WHY="its sidecar is not up (no live hub-run behind its pid file)"
   fi
@@ -511,7 +470,7 @@ _spl_dm_undo_all() {
   if _spl_dm_up "$DM_FROM" "$e" "$ws" "$id" "$froot" "$src"; then
     do_log "OK $e $ws/$id is back as $DM_FROM"
   else
-    do_log "FAIL $e $ws/$id is back on disk as $DM_FROM, but $DM_WHY: do_spl_desk_check"
+    do_log "FAIL $e $ws/$id is back on disk as $DM_FROM, but $DM_WHY: ENV=$e TENANT_ID=$ws DESK_AGENT=<seat> ./run -a do_spl_desk_check"
   fi
 }
 
@@ -520,14 +479,12 @@ _spl_dm_undo_all() {
 # runs its ./run (MOVE_RUN, default this checkout) under sudo with its HOME.
 _spl_dm_side_as() {
   local u="$1" step="$2" e="$3" ws="$4" id="$5" root="$6" k
-  local pw; pw="$(_spl_dm_pw_for "$u")"
   if [[ "$u" == "$DM_ME" ]]; then
-    ENV="$e" SPL_STATE_DIR="$root" TENANT_ID="$ws" DESK_BOX="$id" PROBE_PW_FILE="$pw" _spl_dm_side "$step"
+    ENV="$e" SPL_STATE_DIR="$root" TENANT_ID="$ws" DESK_BOX="$id" _spl_dm_side "$step"
     return $?
   fi
   local -a pass=(HOME="$(_spl_dm_home "$u")" PATH="$PATH" ENV="$e" SPL_STATE_DIR="$root" TENANT_ID="$ws" DESK_BOX="$id" MOVE_CMD="_$step")
-  [[ -n "$pw" ]] && pass+=("PROBE_PW_FILE=$pw")
-  for k in SPOOL_ROOT SPOOL_TEST SPOOL_BOX_ENV PROBE_EMAIL DESK_ROSTER_JSON MOVE_CHECK_SECS MOVE_CHECK_EVERY MOVE_CHECK_429_SECS SPL_PRIVATE_CNF; do
+  for k in SPOOL_ROOT SPOOL_TEST SPOOL_BOX_ENV MOVE_CHECK_SECS MOVE_CHECK_EVERY MOVE_CHECK_429_SECS MOVE_PRESENCE_SECS SPL_PRIVATE_CNF; do
     [[ -n "${!k:-}" ]] && pass+=("$k=${!k}")
   done
   sudo -n -u "$u" -- env "${pass[@]}" bash -c 'cd "$1" && ./run -a do_spl_desk_move' _ "${MOVE_RUN:-$PROJ_PATH}"
@@ -549,60 +506,92 @@ _spl_dm_side() {
   _spl_dm_proof "$seat"
 }
 
-# _spl_dm_proof <seat>: do_spl_desk_check until ok / muted / agent-missing,
-# every MOVE_CHECK_EVERY (5) s for MOVE_CHECK_SECS (60). One member login for
-# the whole proof: roster-show.py keeps the session in PROBE_COOKIE_FILE, a
-# 0600 file of a mktemp dir of this user, removed after (SPL-5233: one login
-# per attempt was up to 13 a desk against the hub's 10 per address per 15
-# min). A login 429 waits the hub's Retry-After, else MOVE_CHECK_EVERY
-# doubled per 429 (at most 60 s), and retries; the 429 waits of one proof sum
-# to at most MOVE_CHECK_429_SECS (300) and do not count against
-# MOVE_CHECK_SECS. A Retry-After under 1 s counts as the doubled wait, so
-# every 429 spends at least 1 s of that bound. A wait past it ends the proof:
-# 'no verdict'. The session dir goes on every return, and on INT / TERM / HUP
-# before the caller's own trap runs (exit 130 when there is none).
+# _spl_dm_proof <seat>: the hub's own answer for this desk, login-free
+# (SPL-5318, spec 069 8.4.6): `spool box-presence` from the desk dir, signed
+# by the desk's key, as the user running it; no member login, no password
+# file. Every MOVE_CHECK_EVERY (5) s for MOVE_CHECK_SECS (60):
+#   socket true, seat in agents     -> ok
+#   socket true, seat not in agents -> agent-missing (live; passes, as before)
+#   socket false, an error, no JSON -> read again; after the bound 'no verdict'
+# A busy or unreachable hub (429 / 5xx, a dial error, a read past
+# MOVE_PRESENCE_SECS) waits MOVE_CHECK_EVERY doubled per such answer (at most
+# 60 s); those waits of one proof sum to at most MOVE_CHECK_429_SECS (300) and
+# do not count against MOVE_CHECK_SECS. A wait past it: 'no verdict'.
 _spl_dm_proof() {
   local seat="$1" every="${MOVE_CHECK_EVERY:-5}" left="${MOVE_CHECK_SECS:-60}" budget="${MOVE_CHECK_429_SECS:-300}"
-  local back jar out v="" w ra line rc=1 old_traps h sig
+  local back out v="" w line rc=1
   [[ "$every" =~ ^[1-9][0-9]*$ && "$left" =~ ^[0-9]+$ && "$budget" =~ ^[0-9]+$ ]] ||
     { do_log "FATAL MOVE_CHECK_EVERY (>= 1), MOVE_CHECK_SECS and MOVE_CHECK_429_SECS must be whole seconds"; return 1; }
   back="$every"
-  jar="$(umask 077 && mktemp -d)" || { do_log "FAIL proof $TENANT_ID/$DESK_BOX: no temp dir for its session"; return 1; }
-  old_traps="$(trap -p INT TERM HUP)"
-  # each signal keeps its OWN caller handler: INT is ignored in a bash
-  # started under & without job control, so INT's handler cannot stand in
-  # for TERM's (SPL-5233, CI run 42889002535)
-  for sig in INT TERM HUP; do
-    h="$(trap -p "$sig")"; [[ -n "$h" ]] && eval "set -- $h" && h="$3"
-    # shellcheck disable=SC2064  # expands now on purpose: this jar, the caller's handler
-    trap "rm -rf -- $(printf '%q' "$jar"); ${h:-exit 130}" "$sig"
-  done
+  _spl_dm_presence_env || { do_log "FAIL proof $TENANT_ID/$DESK_BOX: no hub URL or spool binary for the presence read"; return 1; }
   while :; do
-    out="$(DESK_AGENT="$seat" DRY_RUN=1 PROBE_COOKIE_FILE="$jar/session" do_spl_desk_check 2>&1)"
-    v="$(grep -o '"verdict": "[a-z-]*"' <<<"$out" | tail -n 1 | cut -d'"' -f4)"
-    case "$v" in ok | muted | agent-missing) do_log "INFO proof $TENANT_ID/$DESK_BOX: $v"; rc=0; break ;; esac
-    if grep -q '"status": 429' <<<"$out"; then
-      ra="$(grep -o '"retry_after": [0-9]*' <<<"$out" | tail -n 1 | grep -o '[0-9]*$')"
-      w="${ra:-$back}"; (( w >= 1 )) || w="$back"
+    out="$(_spl_dm_presence 2>&1)"
+    v="$(_spl_dm_presence_verdict "$out" "$DESK_BOX" "$seat")"
+    case "$v" in ok | agent-missing) do_log "INFO proof $TENANT_ID/$DESK_BOX: $v (box-presence, signed by the desk key)"; rc=0; break ;; esac
+    if [[ "$v" == busy ]]; then
+      w="$back"
       if (( w > budget )); then
-        do_log "FAIL proof $TENANT_ID/$DESK_BOX: the member login is rate limited (429); the next try is in $w s, past the $budget s left of MOVE_CHECK_429_SECS (${MOVE_CHECK_429_SECS:-300})"
+        do_log "FAIL proof $TENANT_ID/$DESK_BOX: the hub is busy or unreachable; the next try is in $w s, past the $budget s left of MOVE_CHECK_429_SECS (${MOVE_CHECK_429_SECS:-300})"
         break
       fi
-      do_log "INFO proof $TENANT_ID/$DESK_BOX: login 429 (rate_limited), retrying in $w s ($budget s of 429 back-off left)"
+      do_log "INFO proof $TENANT_ID/$DESK_BOX: hub busy or unreachable ($(_spl_dm_presence_why "$out")), retrying in $w s ($budget s of back-off left)"
       sleep "$w"; budget=$((budget - w)); back=$((back * 2)); (( back > 60 )) && back=60
       continue
     fi
     (( left >= every )) || break
     sleep "$every"; left=$((left - every))
   done
-  rm -rf -- "$jar"
-  trap - INT TERM HUP; [[ -n "$old_traps" ]] && eval "$old_traps"
   (( rc == 0 )) && return 0
-  do_log "FAIL proof $TENANT_ID/$DESK_BOX: do_spl_desk_check says '${v:-no verdict}' after ${MOVE_CHECK_SECS:-60} s"
-  # the reason from the last check: 'no verdict' alone cannot tell an
-  # unreadable probe login from a login 429 (SPL-4985, 2026-11-09)
-  while IFS= read -r line; do do_log "FAIL proof output: $line"; done < <(grep -E 'FATAL|FAIL' <<<"$out" | tail -n 5)
+  case "$v" in
+    offline) v="no verdict' (socket false: no hub socket for $DESK_BOX on the instance(s) that answered)" ;;
+    busy) v="no verdict' (the hub stayed busy or unreachable)" ;;
+    *) v="no verdict'" ;;
+  esac
+  do_log "FAIL proof $TENANT_ID/$DESK_BOX: box-presence says '$v after ${MOVE_CHECK_SECS:-60} s"
+  # the reason from the last read: 'no verdict' alone cannot tell a socket on
+  # no instance from a refused key or a missing binary (SPL-4985, 2026-11-09)
+  while IFS= read -r line; do do_log "FAIL proof output: $line"; done < <(_spl_dm_presence_why "$out" all)
   return 1
+}
+
+# _spl_dm_presence_env: SPL_HUB_URL and SPL_SPOOL for this ENV, as
+# do_spl_desk_up resolves them (the cnf, then this user's binary).
+_spl_dm_presence_env() { do_require_bin jq && do_spl_desk_cnf && spl_host_spool; }
+
+# _spl_dm_presence: `spool box-presence` as the desk box of this user's
+# SPL_STATE_DIR, under MOVE_PRESENCE_SECS (30); -k 1 as spl_lane_desk_spool.
+_spl_dm_presence() {
+  local d="$SPL_STATE_DIR/desk/$TENANT_ID/$DESK_BOX"
+  timeout -k 1 "${MOVE_PRESENCE_SECS:-30}" env SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$DESK_BOX" \
+    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$TENANT_ID" "$SPL_SPOOL" box-presence
+}
+
+# _spl_dm_presence_verdict <output> <box> <seat>: ok | agent-missing | offline
+# | busy | no verdict, from one box-presence read (its JSON line, else its
+# error). A JSON of another box is no verdict.
+_spl_dm_presence_verdict() {
+  local out="$1" json
+  json="$(grep -m 1 '^{' <<<"$out")"
+  if [[ -n "$json" ]]; then
+    jq -r --arg b "$2" --arg s "$3" \
+      'if .box != $b then "no verdict" elif .socket != true then "offline"
+       elif ((.agents // []) | index($s)) != null then "ok" else "agent-missing" end' <<<"$json" 2>/dev/null ||
+      echo "no verdict"
+    return 0
+  fi
+  if grep -Eq 'hub unreachable|status code 101 but got (429|5[0-9][0-9])|hub refused: (internal|rate_limited|unavailable)' <<<"$out" ||
+    [[ -z "$out" ]]; then
+    echo busy
+  else
+    echo "no verdict"
+  fi
+}
+
+# _spl_dm_presence_why <output> [all]: the read's error lines (spool: ...,
+# FATAL, FAIL), the last one, or the last 5 with all. Never the JSON.
+_spl_dm_presence_why() {
+  local n=1; [[ "${2:-}" == all ]] && n=5
+  grep -E '^spool: |FATAL|FAIL' <<<"$1" | tail -n "$n" | cut -c1-300
 }
 
 # _spl_dm_prune <dry>: the desk.moved-<UTC> copies of both users older than

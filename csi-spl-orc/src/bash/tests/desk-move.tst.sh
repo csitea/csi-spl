@@ -26,7 +26,7 @@
 #   9. prune: dry run lists the desk.moved-* copies, DRY_RUN=0 removes them
 #  10. ROOT_KEY_JSON=-: stdin reaches the pin as a 0600 file that is removed
 #      after; empty stdin is refused; a key path is passed on unchanged
-#  11. a proof with no verdict (no probe login) while the sidecar is up: the
+#  11. a proof with no verdict (the presence read refused) while the sidecar is up: the
 #      forward and the rollback FAIL lines name the proof and the live pid,
 #      never "its sidecar did not come up"; a sidecar that really died after
 #      its start is named as not up. RED CONTROL: the old wording fails it
@@ -54,19 +54,19 @@
 #      first stub. RED CONTROL: 48dc6c573 refuses the command
 #  15. back, the rollback (SPL-4985, R7 question 3): with MOVE_DESKS, after
 #      unswitch, over a stub, a failed verify and a failed proof; unswitch twice
-#  16. the proof's credential (SPL-5233): a probe password file the target
-#      user cannot read refuses the plan and a real move before any stop or
-#      copy (0 desks touched), naming the file and the user; readable, the
-#      plan is unchanged; each side's proof gets its own file
-#  17. the proof's login (SPL-5233): one login per proof; a 429 then a 200 is
-#      ok; a 429 every time ends at MOVE_CHECK_429_SECS, also with a
-#      Retry-After of 0 (R7 W1); a proof killed by TERM removes its session
-#      dir and still runs the caller's trap, which it restores on return (W2)
-#      (MOVE_DESK_PW_FILE / MOVE_BOX_PW_FILE); the rollback side is checked
-#      too; with no file set, each user's own m3-e2e default is checked
-#  17. the proof's login (SPL-5233): one member login per proof, not one per
-#      attempt; a 429 then a 200 -> ok; a 429 every time -> 'no verdict' once
-#      MOVE_CHECK_429_SECS is spent
+#  16. the proof is login-free (SPL-5318): with every probe password file
+#      unreadable, the plan and the move pass on `spool box-presence` read
+#      as the desk user (the rollback's as the box user); no `sudo test -r`
+#      of any file, do_spl_desk_check (the member login) never runs; socket
+#      false on every read -> 'no verdict' after MOVE_CHECK_SECS, rolled
+#      back; socket true with the seat not listed -> agent-missing passes.
+#      RED CONTROL: origin/master e8b64d900's spl-desk-move.func.sh fails it
+#  17. a busy hub (SPL-5318): a 429 or a 503 dial answer waits the doubled
+#      back-off and retries; busy every time ends at MOVE_CHECK_429_SECS
+#      ('no verdict', bounded, rolled back); the verdict of one read from its
+#      JSON or its error (other box, bad JSON, refused key = no verdict); the
+#      real read runs as the desk box from its own dir, and a hung read ends
+#      at MOVE_PRESENCE_SECS as busy
 #  18. the mirror's 60 s seen markers (SPL-5247, sat 2026-11-10: a back failed
 #      its verify on 5 <seat>/.mirror/seen/* files a target-side hook pruned):
 #      the verify ignores them and still compares every other file;
@@ -99,6 +99,7 @@ cat >"$T/stub/sudo" <<EOF
 u=""
 while [ \$# -gt 0 ]; do case "\$1" in -n|-H) shift ;; -u) u="\$2"; shift 2 ;; --) shift; break ;; *) break ;; esac; done
 echo "sudo \$u \${1##*/}" >>"$T/sudo.log"
+[ "\${1##*/}" = test ] && echo "test-args \$u \$2 \$3" >>"$T/sudo.log"
 [ "\${1##*/}" = test ] && [ "\$2" = -r ] && [ -e "$T/deny.\$u" ] && grep -qxF -- "\$3" "$T/deny.\$u" && exit 1
 [ "\${1##*/}" = tar ] && [ -e "$T/tar-slow" ] && sleep 1.5
 [ "\${1##*/}" = find ] && [ -e "$T/find-slow" ] && sleep 1
@@ -134,25 +135,31 @@ spl_desk_box_restart() {
   fi
   _fake_start "\$1"
 }
-do_spl_desk_check() {
-  local d="\$SPL_STATE_DIR/desk/\$TENANT_ID/\$DESK_BOX" v=ok n
-  echo "pw=\${PROBE_PW_FILE:-} home=\$HOME" >>"$T/pw.log"
-  if [[ -z "\${PROBE_COOKIE_FILE:-}" || ! -s "\${PROBE_COOKIE_FILE:-}" ]]; then
-    echo "login home=\$HOME" >>"$T/login.log"
-    n="\$(cat "$T/r429" 2>/dev/null)"
-    if [[ "\$n" =~ ^[1-9][0-9]*$ ]]; then
-      echo "\$((n - 1))" >"$T/r429"
-      echo "FATAL   {\"step\": \"login\", \"status\": 429, \"error\": \"rate_limited\", \"retry_after\": \$(cat "$T/ra429" 2>/dev/null || echo 1)}"; return 1
-    fi
-    [[ -n "\${PROBE_COOKIE_FILE:-}" ]] && echo session >"\$PROBE_COOKIE_FILE"
+# The proof's read (SPL-5318): `spool box-presence` as the desk box. T/busy
+# = that many dial errors first (status T/busy-status, default 429);
+# T/verdict = ok | agent-missing | stranded (socket false) | none (an error).
+# do_spl_desk_check, the old member-login proof, must never run: check.log.
+_spl_dm_presence_env() { echo "env home=\$HOME" >>"$T/presence.log"; }
+_spl_dm_presence() {
+  local d="\$SPL_STATE_DIR/desk/\$TENANT_ID/\$DESK_BOX" v=ok n seats='["c-101","c-102"]'
+  echo "read \$TENANT_ID/\$DESK_BOX home=\$HOME" >>"$T/presence.log"
+  n="\$(cat "$T/busy" 2>/dev/null)"
+  if [[ "\$n" =~ ^[1-9][0-9]*$ ]]; then
+    echo "\$((n - 1))" >"$T/busy"
+    echo "spool: hub unreachable: failed to WebSocket dial: expected handshake response status code 101 but got \$(cat "$T/busy-status" 2>/dev/null || echo 429)" >&2; return 1
   fi
   spl_desk_alive "\$d/spool/.hub/hub-run.pid" || v=down
   [[ -s "$T/verdict" ]] && v="\$(cat "$T/verdict")"
-  [[ "\$v" == none ]] && { echo "roster-noise-line"; echo "FATAL no readable password file /x/pw-human"; return 1; }
   echo "check \$TENANT_ID/\$DESK_BOX \$v home=\$HOME" >>"$T/side.log"
-  echo "{\"verdict\": \"\$v\"}"
-  [[ "\$v" == ok ]]
+  case "\$v" in
+    none) echo "roster-noise-line"; echo "spool: hub refused: unpinned (box key not pinned)" >&2; return 78 ;;
+    ok) ;;
+    agent-missing) seats='[]' ;;
+    *) echo "{\"box\": \"\$DESK_BOX\", \"socket\": false, \"agents\": \$seats}"; return 0 ;;
+  esac
+  echo "{\"box\": \"\$DESK_BOX\", \"socket\": true, \"agents\": \$seats}"
 }
+do_spl_desk_check() { echo "check called home=\$HOME pw=\${PROBE_PW_FILE:-}" >>"$T/check.log"; return 1; }
 EOF
 cat >"$T/orc/run" <<EOF
 #!/bin/bash
@@ -193,7 +200,7 @@ mkdesk() {
 }
 echo not-a-password >"$T/pw-probe"; chmod 600 "$T/pw-probe"
 reset_box() {
-  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict" "$T"/start-dies.* "$T"/deny.* "$T/r429" "$T/ra429" "$T/pw.log" "$T/login.log"
+  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict" "$T"/start-dies.* "$T"/deny.* "$T/busy" "$T/busy-status" "$T/presence.log" "$T/check.log"
   mkdir -p "$BH" "$DH" "$T/spool"
   printf 'SPOOL_DESK_BOX=box-x\nSPOOL_FLEET_TENANT=ws-fleet\nSPOOL_FLEET_ENV=prd\n' >"$T/box.env"
   mkdesk prd ws-fleet box-x live
@@ -336,7 +343,7 @@ reset_box; echo none >"$T/verdict"
 out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
 [[ $rc -ne 0 ]] && pass "11. a proof with no verdict stops the move" || fail "11. no-verdict proof ignored"
 has "11. the proof line says no verdict" "says 'no verdict'" "$out"
-has "11. the check's FATAL reason reaches the move's log" "FAIL proof output: FATAL no readable password file /x/pw-human" "$out"
+has "11. the read's error reaches the move's log" "FAIL proof output: spool: hub refused: unpinned (box key not pinned)" "$out"
 hasnt "11. a check line that is no FATAL or FAIL stays out of the log" "roster-noise-line" "$out"
 grep -Eq "FAIL the desk prd ws-a/box-a failed as $DU: its sidecar is up \(pid [0-9]+\) but the proof did not pass" <<<"$out" && pass "11. the forward line names the proof and the live pid" || fail "11. forward line: $(grep 'FAIL the desk' <<<"$out")"
 grep -Eq "FAIL prd ws-a/box-a is back on disk as $ME, but its sidecar is up \(pid [0-9]+\) but the proof did not pass" <<<"$out" && pass "11. the rollback line names the proof and the live pid" || fail "11. rollback line: $(grep 'back on disk' <<<"$out")"
@@ -528,92 +535,84 @@ out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_R
 grep -q '^start ws-a/box-a seat=c-101 home='"$DH" "$T/side.log" && pass "15.7 its sidecar restarted as the desk user" || fail "15.7 restart: $(tr '\n' '|' <"$T/side.log")"
 rm -f "$T/verdict"
 
-# --- 16. the proof's credential (SPL-5233) -----------------------------------------
-reset_box; out2="$(mv_run MOVE_DESK_USER="$DU" | grep '^PLAN' | sed -E 's/sidecar [0-9]+/sidecar <pid>/')"
-before="$(tree)"; echo "$T/pw-probe" >"$T/deny.$DU"; : >"$T/sudo.log"
-for c in plan move; do
-  out="$(mv_run MOVE_CMD=$c MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
-  [[ $rc -ne 0 ]] && has "16.1 $c: a file the target user cannot read is refused, naming file and user" "FATAL $DU cannot read $T/pw-probe, the probe credential of the proof of prd ws-a/box-a (runs as $DU)" "$out" || fail "16.1 $c rc=$rc $(tail -n 3 <<<"$out")"
-  has "16.1 $c: says nothing was touched" "nothing was touched" "$out"
-done
-[[ "$(tree)" == "$before" && ! -e "$T/side.log" ]] && pass "16.1 refused: 0 desks touched, no sidecar stopped" || fail "16.1 refused run changed the tree or a sidecar: $(tr '\n' '|' <"$T/side.log" 2>/dev/null)"
-grep -q ' tar$' "$T/sudo.log" && fail "16.1 a copy ran" || pass "16.1 no copy ran"
-rm -f "$T/deny.$DU"
+# --- 16. the proof is login-free (SPL-5318) -----------------------------------------
+# Every probe password file is unreadable to both users: the move still runs,
+# and its proof is the desk's own box-presence read, never a member login.
+reset_box; echo "$T/pw-probe" >"$T/deny.$DU"; echo "$T/pw-probe" >"$T/deny.$ME"
 out="$(mv_run MOVE_DESK_USER="$DU")"; rc=$?
-[[ $rc -eq 0 && "$(grep '^PLAN' <<<"$out" | sed -E 's/sidecar [0-9]+/sidecar <pid>/')" == "$out2" ]] && hasnt "16.2 readable: the plan is unchanged" "FATAL" "$out" || fail "16.2 readable plan rc=$rc $(grep -E 'FATAL|PLAN' <<<"$out" | tr '\n' '|')"
-grep -q "^sudo $DU test" "$T/sudo.log" && pass "16.2 the check reads as the target user (sudo -u $DU test -r)" || fail "16.2 no sudo test as $DU"
-echo x >"$T/pw-desk"; echo x >"$T/pw-box"; echo "$T/pw-probe" >"$T/deny.$DU"
-out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_DESK_PW_FILE="$T/pw-desk" DRY_RUN=0)"; rc=$?
-[[ $rc -eq 0 ]] && pass "16.3 MOVE_DESK_PW_FILE: the move passes" || fail "16.3 rc=$rc $(tail -n 4 <<<"$out")"
-grep -qx "pw=$T/pw-desk home=$DH" "$T/pw.log" && pass "16.3 the desk user's proof reads MOVE_DESK_PW_FILE" || fail "16.3 pw.log $(tr '\n' '|' <"$T/pw.log")"
+[[ $rc -eq 0 ]] && hasnt "16.1 plan: no probe credential is checked" "FATAL" "$out" || fail "16.1 plan rc=$rc $(grep -E 'FATAL' <<<"$out" | tr '\n' '|')"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_DESK_PW_FILE="$T/pw-probe" MOVE_BOX_PW_FILE="$T/pw-probe" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && has "16.2 unreadable password files: the move passes on the presence read" "INFO proof ws-a/box-a: ok (box-presence, signed by the desk key)" "$out" || fail "16.2 rc=$rc $(tail -n 4 <<<"$out")"
+grep -qx "read ws-a/box-a home=$DH" "$T/presence.log" && pass "16.2 the proof reads box-presence as the desk user" || fail "16.2 presence.log $(tr '\n' '|' <"$T/presence.log" 2>/dev/null)"
+grep -E '^test-args [^ ]+ -r ' "$T/sudo.log" && fail "16.3 a file was read-tested as another user: $(grep -E '^test-args [^ ]+ -r ' "$T/sudo.log" | tr '\n' '|')" || pass "16.3 no password file is tested (no sudo -u <user> test -r)"
+[[ ! -e "$T/check.log" ]] && pass "16.3 no member login: do_spl_desk_check never ran" || fail "16.3 do_spl_desk_check ran: $(tr '\n' '|' <"$T/check.log")"
 reset_box; echo stranded >"$T/verdict"
-out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_DESK_PW_FILE="$T/pw-desk" MOVE_BOX_PW_FILE="$T/pw-box" DRY_RUN=0)"
-grep -qx "pw=$T/pw-box home=$BH" "$T/pw.log" && grep -qx "pw=$T/pw-desk home=$DH" "$T/pw.log" && pass "16.4 the rollback's proof reads the box user's own file" || fail "16.4 pw.log $(tr '\n' '|' <"$T/pw.log")"
-reset_box; mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0 >/dev/null
-before="$(tree)"; echo "$T/pw-probe" >"$T/deny.$DU"; : >"$T/side.log"
-out="$(mv_run MOVE_CMD=back MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
-[[ $rc -ne 0 ]] && has "16.5 back: the rollback side (the desk user) is checked too" "of the rollback's proof of prd ws-a/box-a (runs as $DU)" "$out" || fail "16.5 rc=$rc $(tail -n 3 <<<"$out")"
-[[ "$(tree)" == "$before" && ! -s "$T/side.log" ]] && pass "16.5 refused back touched nothing" || fail "16.5 changed"
-reset_box
-out="$(mv_run MOVE_DESK_USER="$DU" PROBE_PW_FILE=)"; rc=$?
-[[ $rc -ne 0 ]] && has "16.6 no file set, no default: refused, both default paths named" "FATAL $DU can read neither $DST_P/m3-e2e/ws-a/pw-human nor $DST_P/m3-e2e/e2e/pw-human" "$out" || fail "16.6 rc=$rc $(tail -n 3 <<<"$out")"
-mkdir -p "$DST_P/m3-e2e/e2e" "$SRC_P/m3-e2e/e2e"; echo x >"$DST_P/m3-e2e/e2e/pw-human"; echo x >"$SRC_P/m3-e2e/e2e/pw-human"
-out="$(mv_run MOVE_DESK_USER="$DU" PROBE_PW_FILE=)"; rc=$?
-[[ $rc -eq 0 ]] && hasnt "16.6 each user's own default is enough" "FATAL" "$out" || fail "16.6 defaults rc=$rc $(tail -n 3 <<<"$out")"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && has "16.4 socket false on every read: no verdict, named" "box-presence says 'no verdict' (socket false: no hub socket for box-a on the instance(s) that answered) after 2 s" "$out" || fail "16.4 rc=$rc $(grep FAIL <<<"$out" | tr '\n' '|')"
+n="$(grep -c "^read ws-a/box-a home=$DH" "$T/presence.log")"
+[[ "$n" == 3 ]] && pass "16.4 re-read every MOVE_CHECK_EVERY for MOVE_CHECK_SECS (3 reads in 2 s)" || fail "16.4 reads $n, want 3"
+grep -qx "read ws-a/box-a home=$BH" "$T/presence.log" && pass "16.4 the rollback's proof reads box-presence as the box user" || fail "16.4 no rollback read: $(tr '\n' '|' <"$T/presence.log")"
+reset_box; echo agent-missing >"$T/verdict"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && has "16.5 socket true, seat not listed: agent-missing passes" "INFO proof ws-a/box-a: agent-missing" "$out" || fail "16.5 rc=$rc $(tail -n 3 <<<"$out")"
 
-# --- 17. the proof's login (SPL-5233) -------------------------------------------------
-reset_box; echo stranded >"$T/verdict"
-mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a DRY_RUN=0 >/dev/null
-n="$(grep -c "^login home=$DH" "$T/login.log")" m="$(grep -c "home=$DH" "$T/pw.log")"
-[[ "$n" == 1 && "$m" -ge 3 ]] && pass "17.1 one login for a proof of $m checks" || fail "17.1 logins $n for $m checks, want 1"
-reset_box; echo 1 >"$T/r429"
+# --- 17. a busy hub: bounded back-off (SPL-5318) -------------------------------------
+reset_box; echo 1 >"$T/busy"
 out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=5 DRY_RUN=0)"; rc=$?
-[[ $rc -eq 0 ]] && has "17.2 a 429 then a 200: verdict ok" "INFO proof ws-a/box-a: ok" "$out" || fail "17.2 rc=$rc $(grep -E 'FAIL|429' <<<"$out" | tr '\n' '|')"
-has "17.2 the 429 wait is named" "login 429 (rate_limited), retrying in 1 s" "$out"
-reset_box; echo 99 >"$T/r429"; t0="$(date +%s)"
-out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=3 DRY_RUN=0)"; rc=$?; t1="$(date +%s)"
-[[ $rc -ne 0 ]] && has "17.3 a 429 every time: no verdict" "says 'no verdict'" "$out" || fail "17.3 rc=$rc"
-has "17.3 the bound is named" "the member login is rate limited (429); the next try is in 1 s, past the 0 s left of MOVE_CHECK_429_SECS (3)" "$out"
-n="$(grep -c "^login home=$DH" "$T/login.log")"
-[[ "$n" == 4 && $((t1 - t0)) -lt 90 ]] && pass "17.3 bounded: 4 logins in the forward proof (3 x 1 s), $((t1 - t0)) s in all" || fail "17.3 logins $n, $((t1 - t0)) s"
-[[ -f "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key" && ! -e "$DST_P/desk/ws-a/box-a" ]] && pass "17.3 the desk is rolled back" || fail "17.3 not rolled back"
-reset_box; echo 99 >"$T/r429"; echo 0 >"$T/ra429"; t0="$(date +%s)"
+[[ $rc -eq 0 ]] && has "17.1 a 429 then an answer: verdict ok" "INFO proof ws-a/box-a: ok" "$out" || fail "17.1 rc=$rc $(grep -E 'FAIL|busy' <<<"$out" | tr '\n' '|')"
+has "17.1 the wait is named, with the hub's status" "hub busy or unreachable (spool: hub unreachable: failed to WebSocket dial: expected handshake response status code 101 but got 429), retrying in 1 s" "$out"
+reset_box; echo 1 >"$T/busy"; echo 503 >"$T/busy-status"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=5 DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 ]] && has "17.2 a 503 backs off the same way" "got 503), retrying in 1 s" "$out" || fail "17.2 rc=$rc $(grep -E 'FAIL|busy' <<<"$out" | tr '\n' '|')"
+reset_box; echo 99 >"$T/busy"; t0="$(date +%s)"
 out="$(MV_TIMEOUT=60 mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS=prd/ws-a/box-a MOVE_CHECK_429_SECS=3 DRY_RUN=0)"; rc=$?; t1="$(date +%s)"
-n="$(grep -c "^login home=$DH" "$T/login.log")"
-[[ $rc -ne 0 && $rc -ne 124 ]] && has "17.4 Retry-After 0, a 429 every time: no verdict" "says 'no verdict'" "$out" || fail "17.4 rc=$rc (124 = the 429 loop never ended)"
-has "17.4 a Retry-After of 0 waits the doubled back-off" "the next try is in 4 s, past the 0 s left of MOVE_CHECK_429_SECS (3)" "$out"
-[[ "$n" == 3 && $((t1 - t0)) -lt 90 ]] && pass "17.4 bounded: 3 logins (1 s + 2 s), $((t1 - t0)) s in all" || fail "17.4 logins $n, $((t1 - t0)) s"
-rm -f "$T/ra429"; reset_box
-# _spl_dm_proof alone (pr_run execs its bash, so & gives its pid), killed by
-# TERM while it waits: no session dir is left and the caller's trap runs; on
-# a normal return the caller's trap is back
-pr_run() {
-  mkdir -p "$T/tmpj"; rm -rf "$T/tmpj"/*
-  # ign: INT ignored on entry, as in a bash started under & without job
-  # control (the CI runner); the caller's INT trap is then a no-op
-  [[ "${2:-}" == ign ]] && trap '' INT
-  exec env PROJ_PATH="$PROJ_ROOT" TMPDIR="$T/tmpj" TENANT_ID=ws-a DESK_BOX=box-a MOVE_CHECK_SECS="$1" MOVE_CHECK_EVERY=1 T="$T" bash -c '
+[[ $rc -ne 0 && $rc -ne 124 ]] && has "17.3 busy every time: no verdict" "says 'no verdict' (the hub stayed busy or unreachable)" "$out" || fail "17.3 rc=$rc (124 = the back-off never ended)"
+has "17.3 the bound is named" "the hub is busy or unreachable; the next try is in 4 s, past the 0 s left of MOVE_CHECK_429_SECS (3)" "$out"
+n="$(grep -c "^read ws-a/box-a home=$DH" "$T/presence.log")"
+[[ "$n" == 3 && $((t1 - t0)) -lt 60 ]] && pass "17.3 bounded: 3 reads in the forward proof (1 s + 2 s), $((t1 - t0)) s in all" || fail "17.3 reads $n, $((t1 - t0)) s"
+[[ -f "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key" && ! -e "$DST_P/desk/ws-a/box-a" ]] && pass "17.3 the desk is rolled back" || fail "17.3 not rolled back"
+reset_box
+# 17.4 the verdict of one read, alone (no stub): the JSON, else the error
+pv() {
+  env PROJ_PATH="$PROJ_ROOT" bash -c '
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
-    do_spl_desk_check() { echo session >"$PROBE_COOKIE_FILE"; echo "{\"verdict\": \"down\"}"; return 1; }
-    trap "echo OUTER-TRAP; exit 130" INT TERM HUP
-    _spl_dm_proof c-101; echo "after: $(trap -p TERM)"' 2>&1
+    _spl_dm_presence_verdict "$1" box-a c-101' _ "$1" 2>&1
 }
-pr_run 30 >"$T/pr.out" & p=$!
-for _ in $(seq 1 50); do [[ -n "$(ls -A "$T/tmpj" 2>/dev/null)" ]] && break; sleep 0.1; done
-sleep 0.5; kill -TERM "$p"; wait "$p"; rc=$?
-[[ $rc -eq 130 && -z "$(ls -A "$T/tmpj")" ]] && pass "17.5 a proof killed by TERM leaves no session dir" || fail "17.5 rc=$rc left: $(ls -A "$T/tmpj" | tr '\n' ' ')"
-grep -qx OUTER-TRAP "$T/pr.out" && pass "17.5 the caller's trap still runs" || fail "17.5 the caller's trap did not run: $(tr '\n' '|' <"$T/pr.out")"
-# 17.7 the CI case made explicit (run 42889002535): INT ignored on entry,
-# so the caller's INT trap is empty; TERM must still run TERM's own handler
-pr_run 30 ign >"$T/pr.out" & p=$!
-for _ in $(seq 1 50); do [[ -n "$(ls -A "$T/tmpj" 2>/dev/null)" ]] && break; sleep 0.1; done
-sleep 0.5; kill -TERM "$p"; wait "$p"; rc=$?
-[[ $rc -eq 130 && -z "$(ls -A "$T/tmpj")" ]] && pass "17.7 INT ignored on entry, TERM: no session dir" || fail "17.7 rc=$rc left: $(ls -A "$T/tmpj" | tr '\n' ' ')"
-grep -qx OUTER-TRAP "$T/pr.out" && pass "17.7 INT ignored on entry: the caller's TERM trap still runs" || fail "17.7 the caller's TERM trap did not run: $(tr '\n' '|' <"$T/pr.out")"
-out="$(pr_run 1)"
-has "17.6 on return the caller's trap is restored" "after: trap -- 'echo OUTER-TRAP; exit 130' SIGTERM" "$out"
-[[ -z "$(ls -A "$T/tmpj")" ]] && pass "17.6 no session dir after a normal return" || fail "17.6 left: $(ls -A "$T/tmpj")"
+for row in \
+  'ok|{"box": "box-a", "socket": true, "agents": ["c-100", "c-101"]}' \
+  'agent-missing|{"box": "box-a", "socket": true, "agents": ["c-100"]}' \
+  'agent-missing|{"box": "box-a", "socket": true, "agents": null}' \
+  'offline|{"box": "box-a", "socket": false, "agents": ["c-101"]}' \
+  'no verdict|{"box": "box-b", "socket": true, "agents": ["c-101"]}' \
+  'no verdict|{not json' \
+  'busy|spool: hub unreachable: failed to WebSocket dial: expected handshake response status code 101 but got 502' \
+  'busy|spool: hub refused: internal (box presence unavailable)' \
+  'busy|' \
+  'no verdict|spool: hub refused: unpinned (box key not pinned)' \
+  'no verdict|spool: hub refused: unauthorized (got 401)'; do
+  want="${row%%|*}" in="${row#*|}"
+  got="$(pv "$in")"
+  [[ "$got" == "$want" ]] && pass "17.4 '${in:0:60}' -> $want" || fail "17.4 '${in:0:60}' -> '$got', want '$want'"
+done
+# 17.5 the real read: the desk's own root, keys, box id, tenant and hub; one
+# box-presence argument; a read that hangs ends at MOVE_PRESENCE_SECS (busy)
+cat >"$T/fake-presence" <<'EOF2'
+#!/bin/bash
+[ -e "${0%/*}/presence-hang" ] && exec sleep 30
+echo "args=$* root=$SPOOL_ROOT keys=$SPOOL_KEYS_DIR box=$SPOOL_BOX_ID tenant=$SPOOL_TENANT hub=$SPOOL_HUB_URL pw=${PROBE_PW_FILE:-}"
+EOF2
+chmod +x "$T/fake-presence"
+pr() {
+  env PROJ_PATH="$PROJ_ROOT" SPL_STATE_DIR="$T/st" TENANT_ID=ws-a DESK_BOX=box-a SPL_HUB_URL=https://hub.invalid SPL_SPOOL="$T/fake-presence" MOVE_PRESENCE_SECS=1 bash -c '
+    do_log() { echo "$*"; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    out="$(_spl_dm_presence 2>&1)"; echo "rc=$? $out"; _spl_dm_presence_verdict "$out" box-a c-101' 2>&1
+}
+out="$(pr)"
+has "17.5 the read runs as the desk box, from its own dir" "rc=0 args=box-presence root=$T/st/desk/ws-a/box-a/spool keys=$T/st/desk/ws-a/box-a/keys box=box-a tenant=ws-a hub=https://hub.invalid pw=" "$out"
+: >"$T/presence-hang"; t0="$(date +%s)"; out="$(pr)"; t1="$(date +%s)"; rm -f "$T/presence-hang"
+[[ "$(tail -n 1 <<<"$out")" == busy && $((t1 - t0)) -lt 10 ]] && pass "17.5 a hung read ends at MOVE_PRESENCE_SECS and counts as busy ($((t1 - t0)) s)" || fail "17.5 hung read: $((t1 - t0)) s, $(tr '\n' '|' <<<"$out")"
 
 # --- 18. the mirror's seen markers and the move (SPL-5247) -------------------------
 MIRROR="$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spool-mirror.py"

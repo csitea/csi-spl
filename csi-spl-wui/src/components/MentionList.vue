@@ -37,6 +37,8 @@
         <!-- SPL-1009: two members chose one name - the id tells them apart -->
         <span v-if="p.sameName" class="muted mention-id" data-id-suffix data-testid="mention-id-suffix">{{ p.id }}</span>
         <span v-if="p.owner" class="muted" data-testid="mention-owner">{{ t('composer.biz_owner') }}</span>
+        <!-- spec 042 "Note to self": the reader's own row -->
+        <span v-if="p.self" class="muted" data-testid="mention-self">{{ t('composer.mention_me') }}</span>
         <!-- spec 096 §5: the member's status in grey after the name -->
         <span v-if="status.statusLabel(p.id, t)" class="muted mention-status" data-testid="mention-status">{{ status.statusLabel(p.id, t)?.full }}</span>
       </button>

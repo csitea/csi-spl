@@ -658,7 +658,8 @@
     "post_anyway": "Vis tiek skelbti",
     "send_failed_box_locked": "Neišsiųsta — šio agento dėžė užrakinta jos savininkams, ir tik jie gali rašyti jos agentams. Jūsų tekstas išsaugotas.",
     "send_failed_archived": "Neišsiųsta — ši tema archyvuota. Norėdami ją papildyti, grąžinkite ją iš archyvo. Jūsų tekstas išsaugotas.",
-    "topic_archived": "Ši tema archyvuota. Norėdami ją papildyti, grąžinkite ją iš archyvo."
+    "topic_archived": "Ši tema archyvuota. Norėdami ją papildyti, grąžinkite ją iš archyvo.",
+    "mention_me": "aš · pastaba sau"
   },
   "await_reply": {
     "spin": "Gauta — laukiama agento atsakymo",
@@ -992,6 +993,10 @@
       "window": "Surikiuotos įkeltos temos: {n}",
       "window_new": "Naujos tarp įkeltų temų: {n}",
       "empty_new": "Naujų temų nėra."
+    },
+    "note_to_self": {
+      "badge": "pastaba sau",
+      "title": "Pažymėta tik jums: joks agentas nepaklaustas ir niekas neatsako"
     }
   },
   "topic": {

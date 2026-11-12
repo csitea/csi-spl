@@ -50,8 +50,8 @@ var hoursPostCTE = `,
 		FROM ins` + hoursPostConflict + `)`
 
 var (
-	insertMessageOnlyHours = fmt.Sprintf(insertMessageSQL, flowInsertCTE(23)+hoursPostCTE)
-	insertMessageSentHours = fmt.Sprintf(insertMessageSQL, insertMessageSentDel+flowInsertCTE(24)+hoursPostCTE)
+	insertMessageOnlyHours = fmt.Sprintf(insertMessageSQL, flowInsertCTE(24)+hoursPostCTE)
+	insertMessageSentHours = fmt.Sprintf(insertMessageSQL, insertMessageSentDel+flowInsertCTE(25)+hoursPostCTE)
 )
 
 // insertMessageStmt is insertMessageArgs plus, for a member's post on a

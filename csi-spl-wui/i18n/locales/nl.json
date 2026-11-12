@@ -658,7 +658,8 @@
     "post_anyway": "Toch plaatsen",
     "send_failed_box_locked": "Niet verzonden — de box van deze agent is vergrendeld voor zijn eigenaren, en alleen zij kunnen de agents ervan berichten sturen. Je tekst staat er nog.",
     "send_failed_archived": "Niet verzonden — dit onderwerp is gearchiveerd. Haal het uit het archief om iets toe te voegen. Je tekst staat er nog.",
-    "topic_archived": "Dit onderwerp is gearchiveerd. Haal het uit het archief om iets toe te voegen."
+    "topic_archived": "Dit onderwerp is gearchiveerd. Haal het uit het archief om iets toe te voegen.",
+    "mention_me": "ik · notitie voor mezelf"
   },
   "await_reply": {
     "spin": "Ontvangen — wacht op antwoord van een agent",
@@ -992,6 +993,10 @@
       "window": "Gesorteerd: de {n} geladen onderwerpen",
       "window_new": "Nieuwe onder de {n} geladen onderwerpen",
       "empty_new": "Geen nieuwe onderwerpen."
+    },
+    "note_to_self": {
+      "badge": "notitie voor mezelf",
+      "title": "Alleen aan jou getagd: geen agent is gevraagd en geen enkele antwoordt"
     }
   },
   "topic": {

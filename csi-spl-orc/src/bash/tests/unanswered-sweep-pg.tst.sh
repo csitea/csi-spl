@@ -22,6 +22,9 @@
 #      before it as its anchor; a take is no reply, so a human post after
 #      one keeps the oldest anchor; a real answer after a take is 'agent'.
 #      CONTROL: an agent line that only starts "Taken by" is 'agent'
+#  10. spec 042 (rdb 0276): a note to self (note_to_self) last is 'self' and
+#      never the anchor: alone it has none and is not listed; after a still
+#      unanswered real ask it is anchored on that ask, which is listed
 #   7. M3: columns 14/15 are the OLDEST human post after the last agent reply
 #      (a burst after a reply: its first post; no reply: the topic's first;
 #      agent last: empty), and the classifier ages the burst from it
@@ -234,6 +237,30 @@ grep -q '^| open | t1 | #dev | 40000000-0000-4000-8000-000000000001 | .* | 30m |
   grep -q '^| open | t1 | #dev | 40000000-0000-4000-8000-000000000004 | .* | 40m | HUM-2 | any news? |' "$T/o9" &&
   ! grep -q '^| open | .*4000000[0-9-]*0000000000[23] |' "$T/o9" &&
   pass "9. the classifier lists the stalled take (aged from the ask) and the follow-up, not the answered ones" || fail "9. classify: $(grep 40000000 "$T/o9")"
+
+# --- 10. spec 042: a note to self is no ask -----------------------------------
+m9 5 51 HUM-2 ALL-0 20 "@HUM-2 send the zip file"
+m9 6 61 HUM-2 box-desk 40 "is the release out"; m9 6 62 HUM-2 ALL-0 20 "@HUM-2 noted"
+psql_owner -c "UPDATE messages SET note_to_self = true WHERE tenant_id = 't1'
+  AND msg_id IN ('50000000-0000-4000-8000-000000000051', '50000000-0000-4000-8000-000000000062')" >/dev/null || fail "10. flag"
+env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows9" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+  _spl_sweep_rows_read "$OUT"' >"$T/o10r" 2>&1 || fail "10. read: $(cat "$T/o10r")"
+[[ "$(c9 5 9) [$(c9 5 15)] $(c9 6 9) $(c9 6 15)" == "self [] self 50000000-0000-4000-8000-000000000061" ]] &&
+  pass "10. a note to self last is 'self': alone no anchor, after an open ask anchored on the ask" || fail "10. rows: '$(c9 5 9)' '$(c9 5 15)' '$(c9 6 9)' '$(c9 6 15)'"
+now10=$(( $(psql_owner -c "SELECT floor(extract(epoch FROM now()))::bigint") + 30 ))
+env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool10" ENV=prd SWEEP_ROWS_FILE="$T/rows9" SWEEP_TO=CLE-002 SWEEP_MIN_AGE=3 SWEEP_TAKE_GRACE=10 SWEEP_NOW="$now10" HOME="$T/home" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+  do_spl_unanswered_sweep' >"$T/o10" 2>&1
+! grep -q '^| open | .*40000000-0000-4000-8000-000000000005 |' "$T/o10" &&
+  grep -q '^| open | t1 | #dev | 40000000-0000-4000-8000-000000000006 | .* | 40m | HUM-2 | (asked before a note to self) |' "$T/o10" &&
+  pass "10. the classifier skips the lone note to self and lists the ask before the other (aged 40m)" || fail "10. classify: $(grep '4000000[0-9-]*00000000000[56]' "$T/o10")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

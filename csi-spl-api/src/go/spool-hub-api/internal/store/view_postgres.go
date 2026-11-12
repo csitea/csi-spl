@@ -475,7 +475,7 @@ func newTopicPage(tenant string, q TopicMsgQuery) *topicPage {
 	p.read = tenantRead{sql: `SELECT msg_id::text, received_at, env, edited_at, edited_by,
 				CASE WHEN edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 					FROM message_revisions r WHERE r.tenant_id = messages.tenant_id AND r.msg_id = messages.msg_id), 0) END,
-				is_parent, typed_by, responsible, ref_task_id::text, mirror_of::text, kind, kind_set_at, kind_set_by, ` + moveCols("") + `
+				is_parent, typed_by, responsible, ref_task_id::text, mirror_of::text, kind, kind_set_at, kind_set_by, ` + moveCols("") + `, note_to_self
 			FROM messages
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
@@ -537,8 +537,8 @@ func (s *Postgres) viewTopicDeliveries(ctx context.Context, tenant string, ids [
 
 // scanViewMsg reads one view row: msg_id, received_at, env, edited_at,
 // edited_by, the revision, is_parent, typed_by, responsible, ref_task_id,
-// mirror_of, the kind override and
-// moveCols, after any lead columns (the batch's task_id). The register probe
+// mirror_of, the kind override,
+// moveCols and note_to_self, after any lead columns (the batch's task_id). The register probe
 // behind the revision is paid only by an edited row: an unedited one (the
 // overwhelming majority) short-circuits on the NULL and costs nothing.
 func scanViewMsg(rows pgx.Rows, lead ...any) (ViewMsg, error) {
@@ -547,7 +547,7 @@ func scanViewMsg(rows pgx.Rows, lead ...any) (ViewMsg, error) {
 	var editedAt, kindSetAt, mvAt *time.Time
 	var kind string
 	dest := append(lead, &v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy, &responsible,
-		&refTask, &mirrorOf, &kind, &kindSetAt, &kindSetBy, &mvAt, &mvBy, &mvCh, &mvTask, &ch, &task, &parent)
+		&refTask, &mirrorOf, &kind, &kindSetAt, &kindSetBy, &mvAt, &mvBy, &mvCh, &mvTask, &ch, &task, &parent, &v.NoteToSelf)
 	if err := rows.Scan(dest...); err != nil {
 		return v, err
 	}

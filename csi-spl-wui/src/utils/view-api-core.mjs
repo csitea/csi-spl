@@ -121,6 +121,8 @@ function flattenViewMessage(el) {
     /* spec 067: the topic a DM is about, the DM a channel copy came from */
     if (typeof e.ref_task_id === 'string' && e.ref_task_id) out.ref_task_id = e.ref_task_id
     if (typeof e.mirror_of === 'string' && e.mirror_of) out.mirror_of = e.mirror_of
+    /* spec 042: a note to self (rdb 0276), omitted on every other line */
+    if (e.note_to_self === true) out.note_to_self = true
     if (e.is_parent === 0 || e.is_parent === 1) out.is_parent = e.is_parent
     if (Array.isArray(e.reactions)) out.reactions = normalizeReactions(e.reactions)
     delete out.sig

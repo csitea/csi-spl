@@ -246,3 +246,35 @@ describe('the @ picker offers Codex and Cursor agents (SPL-5299)', () => {
     assert.deepEqual(mentionCandidates({ peers: [{ id: 'x-004', box: 'sat', label: 'x-004@sat' }], query: '' }), [])
   })
 })
+
+// Spec 042 "Note to self" (owner HUM-10, t1 df36f210, msg 76800948): the
+// reader is offered as `me`, first on a query that starts "me", last on one
+// that matches their own id or name. CONTROL: an empty query, or one that
+// matches someone else only, still never offers the reader.
+describe('the @ picker offers the reader as me (spec 042 note to self)', () => {
+  const peers = [{ id: 'HUM-2', box: 'box-wui', label: 'HUM-2@box-wui', online: true }]
+  const names = { 'HUM-1': 'Reader Self', 'HUM-2': 'Mentor Person' }
+  const rows = (query) => mentionCandidates({ peers, names, selfId: 'HUM-1', query })
+  it('@me: the reader first, marked self', () => {
+    const r = rows('me')
+    assert.deepEqual(r.map((p) => p.id), ['HUM-1', 'HUM-2'])
+    assert.equal(r[0].self, true)
+    assert.equal(r[0].label, 'HUM-1')
+  })
+  it('@m and @M: the same', () => {
+    assert.equal(rows('m')[0].id, 'HUM-1')
+    assert.equal(rows('M')[0].id, 'HUM-1')
+  })
+  it('the own name or id: the reader last', () => {
+    assert.deepEqual(rows('self').map((p) => p.id), ['HUM-1'])
+    assert.deepEqual(rows('HUM-').map((p) => p.id), ['HUM-2', 'HUM-1'])
+  })
+  it('CONTROL: an empty query, or another person only, never offers the reader', () => {
+    assert.deepEqual(rows('').map((p) => p.id), ['HUM-2'])
+    assert.deepEqual(rows('mentor x').map((p) => p.id), [])
+    assert.ok(!rows('person').some((p) => p.self))
+  })
+  it('CONTROL: an agent reader has no me row', () => {
+    assert.ok(!mentionCandidates({ peers, names, selfId: 'c-308', query: 'me' }).some((p) => p.self))
+  })
+})

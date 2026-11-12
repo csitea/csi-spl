@@ -658,7 +658,8 @@
     "post_anyway": "Lähetä silti",
     "send_failed_box_locked": "Ei lähetetty — tämän agentin kone on lukittu omistajilleen, ja vain he voivat lähettää viestejä sen agenteille. Tekstisi on yhä tallessa.",
     "send_failed_archived": "Ei lähetetty — tämä aihe on arkistoitu. Palauta se arkistosta, jos haluat lisätä siihen. Tekstisi on yhä tallessa.",
-    "topic_archived": "Tämä aihe on arkistoitu. Palauta se arkistosta, jos haluat lisätä siihen."
+    "topic_archived": "Tämä aihe on arkistoitu. Palauta se arkistosta, jos haluat lisätä siihen.",
+    "mention_me": "minä · muistiinpano itselle"
   },
   "await_reply": {
     "spin": "Vastaanotettu — odotetaan agentin vastausta",
@@ -992,6 +993,10 @@
       "window": "Ladatut aiheet lajiteltu: {n}",
       "window_new": "Uudet ladattujen aiheiden joukosta: {n}",
       "empty_new": "Ei uusia aiheita."
+    },
+    "note_to_self": {
+      "badge": "muistiinpano itselle",
+      "title": "Merkitty vain sinulle: agentilta ei kysytty eikä kukaan vastaa"
     }
   },
   "topic": {

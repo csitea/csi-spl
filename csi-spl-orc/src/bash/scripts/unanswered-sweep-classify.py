@@ -18,6 +18,11 @@ column 9 'take') is not answered. The take opens a grace window of
 TAKE_GRACE minutes ('taken'); after it the topic is open again, aged and
 keyed from the same oldest human post as before the take, until a real
 answer comes. A take row with no human anchor is counted as answered.
+
+Spec 042 "Note to self": a topic whose last line is a note to self (column 9
+'self', messages.note_to_self) is counted 'self' and never listed, unless a
+real human post before it is still unanswered (columns 14/15, which never
+anchor on a note): that post is listed as a human post.
 """
 
 import os, re, sys, time
@@ -146,6 +151,7 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
                 "nobody",
                 "channel",
                 "human",
+                "self",
             )
         },
     )
@@ -157,6 +163,11 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
     if by == "terminal":
         c["terminal"] += 1
         continue
+    if by == "self":  # spec 042: a note to self; listed only from a real anchor
+        if len(f) != 15 or not f[14]:
+            c["self"] += 1
+            continue
+        by, body = "human", "(asked before a note to self)"
     take = by == "take"
     if take and first_msg == msg:
         c["answered"] += 1  # no human post before the take: nothing to answer
@@ -324,6 +335,7 @@ COLS = (
     "nobody",
     "channel",
     "human",
+    "self",
     "test",
 )
 rep += (

@@ -112,6 +112,9 @@ func (s *Server) noteMentionNonMembers(ctx context.Context, tenant, channel, aut
 		return
 	}
 	ids := mentionedOutside(m.Body, author, members)
+	if len(ids) != 0 { // spec 042 "Note to self": the author's linked accounts are theirs to tag
+		ids = mentionedOutside(m.Body, author, append(members, s.linkedHumans(ctx, author)...))
+	}
 	if len(ids) == 0 {
 		return
 	}

@@ -658,7 +658,8 @@
     "post_anyway": "Postita ikkagi",
     "send_failed_box_locked": "Ei saadetud — selle agendi kast on lukustatud omanikele ja ainult nemad saavad selle agentidele kirjutada. Sinu tekst on alles.",
     "send_failed_archived": "Saatmata — see teema on arhiveeritud. Sellele lisamiseks taasta see arhiivist. Sinu tekst on alles.",
-    "topic_archived": "See teema on arhiveeritud. Sellele lisamiseks taasta see arhiivist."
+    "topic_archived": "See teema on arhiveeritud. Sellele lisamiseks taasta see arhiivist.",
+    "mention_me": "mina · märge endale"
   },
   "await_reply": {
     "spin": "Kätte saadud — ootab agendi vastust",
@@ -992,6 +993,10 @@
       "window": "Laaditud teemad sorditud: {n}",
       "window_new": "Uued laaditud teemade seas: {n}",
       "empty_new": "Uusi teemasid pole."
+    },
+    "note_to_self": {
+      "badge": "märge endale",
+      "title": "Märgitud ainult sulle: ühelt agendilt ei küsitud ja keegi ei vasta"
     }
   },
   "topic": {

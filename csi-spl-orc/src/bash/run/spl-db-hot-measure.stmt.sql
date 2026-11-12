@@ -138,12 +138,12 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC
--- @@stmt thread sha256=8695590523ee3a93cab25d4d7e2972aea0f6dd583169c90a3481f3d51bd4a24e scope=tenant exec=:'t',:'task',now(),NULL,'',51,NULL,'',:'r',:'pub',:'mine'
+-- @@stmt thread sha256=9acebabbd6aa7b0b555f106ee3ec5408f100391ee738854687234b614a41ca04 scope=tenant exec=:'t',:'task',now(),NULL,'',51,NULL,'',:'r',:'pub',:'mine'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 SELECT msg_id::text, received_at, env, edited_at, edited_by,
 				CASE WHEN edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 					FROM message_revisions r WHERE r.tenant_id = messages.tenant_id AND r.msg_id = messages.msg_id), 0) END,
-				is_parent, typed_by, responsible, ref_task_id::text, mirror_of::text, kind, kind_set_at, kind_set_by, moved_at, moved_by, moved_from_channel, moved_from_task::text, channel, task_id::text, parent_task_id::text
+				is_parent, typed_by, responsible, ref_task_id::text, mirror_of::text, kind, kind_set_at, kind_set_by, moved_at, moved_by, moved_from_channel, moved_from_task::text, channel, task_id::text, parent_task_id::text, note_to_self
 			FROM messages
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))

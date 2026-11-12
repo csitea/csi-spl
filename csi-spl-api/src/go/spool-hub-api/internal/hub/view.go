@@ -1136,6 +1136,9 @@ type viewMsg struct {
 	// Omitted while unset.
 	RefTaskID string `json:"ref_task_id,omitempty"`
 	MirrorOf  string `json:"mirror_of,omitempty"`
+	// Spec 042 "Note to self" (rdb 0276): a person's post tagged only to its
+	// author; the WUI marks it. Omitted on every other line.
+	NoteToSelf bool `json:"note_to_self,omitempty"`
 	// SPL-952 (rdb 0060): the kind as set after sending. Omitted while it was
 	// never changed; the envelope then carries the truth.
 	Kind      string `json:"kind,omitempty"`
@@ -1425,7 +1428,7 @@ func viewMsgsIn(rows []store.ViewMsg, react map[string][]store.StoredReaction, t
 		}
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
 			Env: trimEnv(m.Env, home), Deliveries: viewDeliveries(m.Deliveries), IsParent: m.IsParent,
-			TypedBy: m.TypedBy, Responsible: m.Responsible, RefTaskID: m.RefTaskID, MirrorOf: m.MirrorOf}
+			TypedBy: m.TypedBy, Responsible: m.Responsible, RefTaskID: m.RefTaskID, MirrorOf: m.MirrorOf, NoteToSelf: m.NoteToSelf}
 		if rs := groupReactions(react[m.MsgID]); len(rs) > 0 {
 			v.Reactions = rs
 		}

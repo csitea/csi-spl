@@ -603,7 +603,7 @@ declare module '~/utils/mention-autocomplete.mjs' {
     query: string
     ownersFirst?: boolean
     isOnline?: ((id: string) => boolean) | null
-  }): { id: string, box?: string, label?: string, online?: boolean, owner?: boolean }[]
+  }): { id: string, box?: string, label?: string, online?: boolean, owner?: boolean, self?: boolean }[]
 }
 
 declare module '~/utils/mention-poke.mjs' {

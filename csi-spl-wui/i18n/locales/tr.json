@@ -658,7 +658,8 @@
     "post_anyway": "Yine de gönder",
     "send_failed_box_locked": "Gönderilmedi — bu ajanın kutusu sahiplerine kilitli ve ajanlarına yalnızca onlar mesaj gönderebilir. Metniniz hâlâ burada.",
     "send_failed_archived": "Gönderilmedi — bu konu arşivlendi. Bir şey eklemek için konuyu arşivden çıkarın. Metniniz hâlâ burada.",
-    "topic_archived": "Bu konu arşivlendi. Bir şey eklemek için konuyu arşivden çıkarın."
+    "topic_archived": "Bu konu arşivlendi. Bir şey eklemek için konuyu arşivden çıkarın.",
+    "mention_me": "ben · kendime not"
   },
   "await_reply": {
     "spin": "Alındı — bir ajanın yanıtı bekleniyor",
@@ -992,6 +993,10 @@
       "window": "Sıralandı: yüklenen {n} konu",
       "window_new": "Yüklenen {n} konu arasında yeniler",
       "empty_new": "Yeni konu yok."
+    },
+    "note_to_self": {
+      "badge": "kendime not",
+      "title": "Yalnızca size etiketlendi: hiçbir ajana sorulmadı ve hiçbiri yanıtlamıyor"
     }
   },
   "topic": {

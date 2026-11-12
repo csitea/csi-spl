@@ -88,10 +88,57 @@ prd t1 `#spool-hub-devel`, topic `3aba968b-b791-4cf3-a398-80d15bcc4962`, 2026-09
   (`csi-spl-wui/src/utils/spool-client-mock.mjs`, e2e `mention-direct.test.mjs`).
   The line is English on purpose, like K1: it is content, not UI chrome.
 
+## 3a. Note to self (SPL-5372)
+
+The owner, t1 `#spool-hub-bugs` topic `df36f210-eb7c-4ec0-8b58-fc8a6b08e345`,
+2026-11-12. A status post meant for himself was taken as an ask, and tagging his
+second account got the K7 "does not belong to this channel" line. His picks:
+
+- msg `76800948-b88b-484d-9ee6-a8a128a54b6d` (A): "As proposed: a post tagged only
+  to yourself is a note to self, no agent answers".
+- poll `f0fc6d7f`, 11:51:26Z (B): "Yes, A and B: also let me tag my second account
+  outside the channel".
+- poll `3193d41f`, msg `20528286` (C): "Operator-set link only, no self-service
+  (quickest)".
+
+The rule:
+
+- N1 A person's browser post addressed only to the person, or the person's linked
+  accounts (N4), is a **note to self**. Addressed is every @mention of the body,
+  plus the addressee (`to`) when it is a person: the WUI sends a leading @tag as the
+  addressee and strips it from the body. A post that also tags anyone else, agent
+  or person, is a normal post.
+- N2 The hub decides it once, at the send (`wuiRoute`,
+  `internal/hub/note_to_self.go`), and stores it as `messages.note_to_self`
+  (rdb `0276`). No agent gets it: no dispatch (an explicit addressee is dropped, as
+  SPL-2423 does in a humans-only channel), no topic-agent reply, no channel fan-out,
+  no fallback. The operator replay of unsigned posts skips it.
+- N3 Every other reader honours the flag: the WUI marks the line ("note to self",
+  `feed.note_to_self`), and the unanswered sweep counts it `self` and never lists it
+  (`do_spl_unanswered_sweep`). A real unanswered ask before the note is still
+  listed, aged from that ask.
+- N4 Two accounts of one person are linked only by an operator, on a human's order:
+  `do_spl_human_link` (`POST /v1/operator/humans/{human_id}/links`, table
+  `human_links`, both directions). There is no self-service link and no email
+  matching. A link changes no membership.
+- N5 K7: neither the author nor a linked account of the author gets the "does not
+  belong to this channel" line. Someone else's account outside the channel still
+  does.
+- N6 The picker offers the reader as `me` (`composer.mention_me`): first on a query
+  that starts "me", last on one that matches the reader's own id or name; never on
+  an empty query. Picking it writes the reader's own tag.
+
+Tests: hub `note_to_self_test.go` (no agent, no fallback, the flag; the linked
+account; controls: self + agent is delivered, an unlinked outsider gets K7),
+`human_links_operator_test.go`; sweep `unanswered-sweep.tst.sh` section 14 and
+`unanswered-sweep-pg.tst.sh` section 10; action `spl-human-link.tst.sh`; WUI
+`mention-autocomplete.test.mjs` (the `me` row).
+
 ## 4. Out of scope
 
 - A hub-side poke (MCP / CLI / box senders): the owner's ask is about the fields a person
-  types in. No DB migration is needed; the hub's only part is K7's line.
+  types in. The poke itself needs no DB migration; the hub's parts are K7's line and
+  section 3a's note to self.
 - The message card header (CLE-35016), the submit-key helper (CLE-35017).
 
-<!-- version: 0.2.0 · updated: 2026-10-17 -->
+<!-- version: 0.3.0 · updated: 2026-11-12 -->

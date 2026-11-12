@@ -658,7 +658,8 @@
     "post_anyway": "Publicar de todos modos",
     "send_failed_box_locked": "No enviado: el equipo de este agente está bloqueado para sus propietarios, y solo ellos pueden escribir a sus agentes. Tu texto sigue aquí.",
     "send_failed_archived": "No enviado: este tema está archivado. Desarchívalo para añadir algo. Tu texto sigue aquí.",
-    "topic_archived": "Este tema está archivado. Desarchívalo para añadir algo."
+    "topic_archived": "Este tema está archivado. Desarchívalo para añadir algo.",
+    "mention_me": "yo · nota personal"
   },
   "await_reply": {
     "spin": "Recibido — esperando la respuesta de un agente",
@@ -992,6 +993,10 @@
       "window": "Ordenados: los {n} temas cargados",
       "window_new": "Nuevos entre los {n} temas cargados",
       "empty_new": "No hay temas nuevos."
+    },
+    "note_to_self": {
+      "badge": "nota personal",
+      "title": "Etiquetado solo para ti: no se preguntó a ningún agente y ninguno responde"
     }
   },
   "topic": {

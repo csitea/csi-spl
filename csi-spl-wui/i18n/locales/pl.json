@@ -658,7 +658,8 @@
     "post_anyway": "Wyślij mimo to",
     "send_failed_box_locked": "Nie wysłano — box tego agenta jest zablokowany dla jego właścicieli i tylko oni mogą pisać do jego agentów. Twój tekst nadal tu jest.",
     "send_failed_archived": "Nie wysłano — ten temat jest zarchiwizowany. Przywróć go z archiwum, aby coś dodać. Twój tekst jest nadal tutaj.",
-    "topic_archived": "Ten temat jest zarchiwizowany. Przywróć go z archiwum, aby coś dodać."
+    "topic_archived": "Ten temat jest zarchiwizowany. Przywróć go z archiwum, aby coś dodać.",
+    "mention_me": "ja · notatka dla siebie"
   },
   "await_reply": {
     "spin": "Odebrano — czeka na odpowiedź agenta",
@@ -992,6 +993,10 @@
       "window": "Posortowano wczytane tematy: {n}",
       "window_new": "Nowe spośród wczytanych tematów: {n}",
       "empty_new": "Brak nowych tematów."
+    },
+    "note_to_self": {
+      "badge": "notatka dla siebie",
+      "title": "Oznaczone tylko dla ciebie: żaden agent nie został zapytany i nikt nie odpowiada"
     }
   },
   "topic": {

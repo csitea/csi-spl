@@ -77,6 +77,7 @@ type memHumans struct {
 	members    map[[2]string]memMember // (tenant, HUM-*) -> role
 	invites    map[[2]string]*memInvite
 	pending    map[string]memPending // rdb 0167: address -> who an admin added it to
+	links      map[[2]string]string  // rdb 0276 human_links: (human, linked) -> created_by
 }
 
 // memPending is one human_pending_emails row (rdb 0167).
@@ -92,6 +93,7 @@ func (h *memHumans) init() {
 		h.members = map[[2]string]memMember{}
 		h.invites = map[[2]string]*memInvite{}
 		h.pending = map[string]memPending{}
+		h.links = map[[2]string]string{}
 	}
 }
 

@@ -1024,6 +1024,7 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
 		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
 		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
+		NoteToSelf: noteToSelfOf(ctx), // spec 042, set by wuiSend only
 	}
 	inserted, sentInOne, err := s.insertRowRef(ctx, &row) // spec 067 L4, dm_ref.go
 	if err != nil {

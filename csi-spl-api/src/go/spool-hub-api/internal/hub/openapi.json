@@ -13821,6 +13821,87 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/humans/{human_id}/links": {
+      "get": {
+        "operationId": "getOperatorHumansByHumanIdLinks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {human_id, linked: [HUM-*]}, the accounts of the same person (human_links, spec 042 \"Note to self\")"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a human's linked accounts back (operator)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "post": {
+        "operationId": "postOperatorHumansByHumanIdLinks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {human_id, linked: [HUM-*]}: linked both ways, idempotent"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "technical (an agent or a clone is not a person's account)"
+          }
+        },
+        "summary": "Link two accounts of one person, ordered by a human (operator, spec 042)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/incomes": {
       "put": {
         "operationId": "putOperatorIncomes",

@@ -658,7 +658,8 @@
     "post_anyway": "Tomēr publicēt",
     "send_failed_box_locked": "Nav nosūtīts — šī aģenta kaste ir slēgta tās īpašniekiem, un tikai viņi var rakstīt tās aģentiem. Jūsu teksts ir saglabāts.",
     "send_failed_archived": "Nav nosūtīts — šī tēma ir arhivēta. Lai to papildinātu, atjaunojiet to no arhīva. Jūsu teksts ir saglabāts.",
-    "topic_archived": "Šī tēma ir arhivēta. Lai to papildinātu, atjaunojiet to no arhīva."
+    "topic_archived": "Šī tēma ir arhivēta. Lai to papildinātu, atjaunojiet to no arhīva.",
+    "mention_me": "es · piezīme sev"
   },
   "await_reply": {
     "spin": "Saņemts — gaida aģenta atbildi",
@@ -992,6 +993,10 @@
       "window": "Sakārtotas ielādētās tēmas: {n}",
       "window_new": "Jaunās starp ielādētajām tēmām: {n}",
       "empty_new": "Nav jaunu tēmu."
+    },
+    "note_to_self": {
+      "badge": "piezīme sev",
+      "title": "Atzīmēts tikai jums: neviens aģents netika jautāts, un neviens neatbild"
     }
   },
   "topic": {

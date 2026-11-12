@@ -45,7 +45,7 @@ func dmPointersSQL(door bool) string {
 		SELECT c.msg_id::text, c.received_at, c.env, c.edited_at, c.edited_by,
 			CASE WHEN c.edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 				FROM message_revisions r WHERE r.tenant_id = c.tenant_id AND r.msg_id = c.msg_id), 0) END,
-			c.is_parent, c.typed_by, c.responsible, c.ref_task_id::text, c.mirror_of::text, c.kind, c.kind_set_at, c.kind_set_by, ` + moveCols("c") + `
+			c.is_parent, c.typed_by, c.responsible, c.ref_task_id::text, c.mirror_of::text, c.kind, c.kind_set_at, c.kind_set_by, ` + moveCols("c") + `, c.note_to_self
 		FROM p JOIN messages c ON c.tenant_id = $1 AND c.msg_id = p.msg_id
 		ORDER BY c.received_at DESC, c.msg_id::text DESC`
 }

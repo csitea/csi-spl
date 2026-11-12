@@ -619,7 +619,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	}
 	ref := s.wuiDMRef(ctx, c, f.RefTaskID) // spec 067 3.3, dm_ref.go
 	s.shareMembersMemo(ctx, ref)
-	ctx = ref
+	ctx = withNoteToSelf(ref, rt.noteToSelf)
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
 		s.wuiRefuse(ctx, c, f, &frameRefusal{"conflict_msg", http.StatusConflict, "msg_id exists with a different message"})
@@ -638,10 +638,18 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	c.write(ctx, ack) //nolint:errcheck
 	// SPL-997: after the ack, so the sender never waits on it.
 	if r.inserted {
-		s.fallback(ctx, c.tenant, rt.channel, env, m)
-		s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
-		s.noteMentionAgentsHumansOnly(ctx, c.tenant, rt.channel, m)     // SPL-2423
+		s.wuiAfterStore(ctx, c, rt, env, m)
 	}
+}
+
+// wuiAfterStore is a stored browser send's after-ack steps: the ordinary
+// fallback (none for a note to self, note_to_self.go) and the hub's notes.
+func (s *Server) wuiAfterStore(ctx context.Context, c *wuiConn, rt wuiRouted, env *wire.Envelope, m *msg.Message) {
+	if !rt.noteToSelf {
+		s.fallback(ctx, c.tenant, rt.channel, env, m)
+	}
+	s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
+	s.noteMentionAgentsHumansOnly(ctx, c.tenant, rt.channel, m)     // SPL-2423
 }
 
 // wuiRefuse logs one line for a browser send the hub did not store and
@@ -713,6 +721,8 @@ type wuiRouted struct {
 	signing wuiSigning
 	// fallback: a reply to a retired agent seat went elsewhere (retired_reply.go)
 	fallback *replyFallback
+	// noteToSelf: the post tags only its author and reaches no agent (note_to_self.go)
+	noteToSelf bool
 }
 
 // wuiRoute checks the channel / parent tags and the poster's rights and
@@ -745,6 +755,9 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	if agent != "" && s.channelHumansOnly(ctx, c.tenant, rt.channel) { // SPL-2423: an @agent there is a plain post
 		agent, m.To = "", BroadcastID
 	}
+	if rt.noteToSelf = isNoteToSelf(c.member, m.To, m.Body, s.linkedSet(ctx, c.member)); rt.noteToSelf && agent != "" { // spec 042: no agent answers
+		agent, m.To = "", BroadcastID
+	}
 	if rf := frameRefusalOf(s.wuiMayPost(ctx, c, rt.channel, f.Channel, agent)); rf != nil {
 		return rt, rf
 	}
@@ -766,9 +779,11 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 		m.To = BroadcastID // FallbackTopic: a reply to the whole topic
 	}
 	// a channel-less ALL-0 reply goes to the topic's agent (topic_reply.go)
-	if rt.signing = s.topicReplyAgent(ctx, c, m, rt.channel, isParent); rt.signing.agent != "" {
-		m.To = rt.signing.agent
-		return rt, nil
+	if !rt.noteToSelf {
+		if rt.signing = s.topicReplyAgent(ctx, c, m, rt.channel, isParent); rt.signing.agent != "" {
+			m.To = rt.signing.agent
+			return rt, nil
+		}
 	}
 	// ... else a channel-less ALL-0 reply in a DM goes to its other person
 	peer, rf := s.topicReplyPerson(ctx, c, m, rt.channel, f.ParentTaskID)
@@ -778,7 +793,7 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	if peer != "" {
 		m.To = peer
 	}
-	rt.signing = wuiSigning{fanOut: rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
+	rt.signing = wuiSigning{fanOut: !rt.noteToSelf && rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
 		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)}
 	return rt, nil
 }
@@ -1045,6 +1060,9 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	}
 	if typedBy != "" { // specs/036 FR-011: top level, like edited_by
 		frame["typed_by"] = typedBy
+	}
+	if row.NoteToSelf { // spec 042 "Note to self", as the view row carries it
+		frame["note_to_self"] = true
 	}
 	// Spec 068: the responsible seat, as the view row carries it. A stored
 	// row may not hand it back (the 0110 trigger sets it), so derive it the

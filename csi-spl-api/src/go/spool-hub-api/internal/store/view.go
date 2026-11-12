@@ -128,6 +128,8 @@ type ViewMsg struct {
 	// "" = NULL.
 	RefTaskID string
 	MirrorOf  string
+	// NoteToSelf is messages.note_to_self (rdb 0276): the WUI marks the line.
+	NoteToSelf bool
 	// SPL-952 (rdb 0060): the kind as set after sending. All three are zero
 	// while nobody changed it, and the view then emits no override at all.
 	Kind      string
@@ -305,7 +307,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 func (s *Memory) viewMsgLocked(tenant string, m *Message) ViewMsg {
 	v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
 		EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Responsible: m.Responsible,
-		RefTaskID: m.RefTaskID, MirrorOf: m.MirrorOf, Move: viewMove(m), RowChannel: m.Channel}
+		RefTaskID: m.RefTaskID, MirrorOf: m.MirrorOf, Move: viewMove(m), RowChannel: m.Channel, NoteToSelf: m.NoteToSelf}
 	if !m.KindSetAt.IsZero() {
 		v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, m.KindSetAt, m.KindSetBy
 	}

@@ -38,7 +38,7 @@ var _ TopicsMessager = (*Postgres)(nil)
 // so a new messages column is not dragged through every card read.
 const topicMsgCols = `m.tenant_id, m.msg_id, m.received_at, m.env, m.edited_at, m.edited_by, m.is_parent, m.typed_by, m.responsible,
 				m.ref_task_id, m.mirror_of, m.kind, m.kind_set_at, m.kind_set_by, m.moved_at, m.moved_by, m.moved_from_channel, m.moved_from_task,
-				m.channel, m.task_id, m.parent_task_id`
+				m.channel, m.task_id, m.parent_task_id, m.note_to_self`
 
 // ViewTopicsMessages is two round trips whatever the number of topics: the
 // messages (one LATERAL walk per topic, newest first, on
@@ -61,7 +61,7 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 	err := s.queryTenant(ctx, tenant, `SELECT t.task_id::text, m.msg_id::text, m.received_at, m.env, m.edited_at, m.edited_by,
 			CASE WHEN m.edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 				FROM message_revisions r WHERE r.tenant_id = m.tenant_id AND r.msg_id = m.msg_id), 0) END,
-			m.is_parent, m.typed_by, m.responsible, m.ref_task_id::text, m.mirror_of::text, m.kind, m.kind_set_at, m.kind_set_by, `+moveCols("m")+`
+			m.is_parent, m.typed_by, m.responsible, m.ref_task_id::text, m.mirror_of::text, m.kind, m.kind_set_at, m.kind_set_by, `+moveCols("m")+`, m.note_to_self
 		FROM unnest($2::uuid[]) WITH ORDINALITY AS t(task_id, n)
 		CROSS JOIN LATERAL (
 			SELECT `+topicMsgCols+` FROM messages m

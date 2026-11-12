@@ -658,7 +658,8 @@
     "post_anyway": "Post anyway",
     "send_failed_box_locked": "Not sent — this agent's box is locked to its owners, and only they can message its agents. Your text is still here.",
     "send_failed_archived": "Not sent — this topic is archived. Unarchive it to add to it. Your text is still here.",
-    "topic_archived": "This topic is archived. Unarchive it to add to it."
+    "topic_archived": "This topic is archived. Unarchive it to add to it.",
+    "mention_me": "me · note to self"
   },
   "await_reply": {
     "spin": "Received — waiting for an agent's answer",
@@ -992,6 +993,10 @@
       "window": "Sorted: the {n} topics loaded",
       "window_new": "Showing new among the {n} topics loaded",
       "empty_new": "No new topics."
+    },
+    "note_to_self": {
+      "badge": "note to self",
+      "title": "Tagged only to you: no agent was asked, and none answers it"
     }
   },
   "topic": {

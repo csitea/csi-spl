@@ -126,9 +126,21 @@ export function mockSendMessage(state, p, uuid) {
     ...(is_parent === 0 || is_parent === 1 ? { is_parent } : {}),
     ...(isAgentId(to) && seatBox ? { responsible: `${to}@${seatBox}` } : {}),
   }
+  if (mockNoteToSelf(state.me.id, to, body)) row.note_to_self = true
   state.messages.push(row)
   mockNoteNonMembers(state, row)
   return row
+}
+
+/**
+ * Spec 042 "Note to self", the mock twin of the hub's isNoteToSelf
+ * (internal/hub/note_to_self.go): a person's post addressed only to the
+ * person (its @mentions, and `to` when it is a person: a leading @tag is
+ * sent as the addressee). The mock has no linked accounts.
+ */
+export function mockNoteToSelf(me, to, body) {
+  const ids = [...mentionedIds(body), ...(PERSON_RE.test(String(to || '')) ? [to] : [])]
+  return PERSON_RE.test(me) && ids.length > 0 && ids.every((id) => id === me)
 }
 
 /** A person's seat id (store.IsFlowMember): only people can be outside a channel's read door. */

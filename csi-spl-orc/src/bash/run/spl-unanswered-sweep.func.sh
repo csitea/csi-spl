@@ -18,6 +18,11 @@
 # @description              a take is not the answer, so after the grace
 # @description              the topic is open again, aged and keyed from
 # @description              the oldest human post before the take
+# @description   self     - the last message is a note to self (spec 042,
+# @description              messages.note_to_self: tagged only to its author
+# @description              or the author's linked account), with no real
+# @description              unanswered human post before it; one that has
+# @description              one is listed from that post
 # @description   terminal - a line a human typed in an agent's terminal and
 # @description              the agent mirrored (typed_by set, specs/036): the
 # @description              agent read it where it was typed
@@ -502,11 +507,15 @@ _spl_sweep_private_sql() {
 
 # _spl_sweep_rows_tail <archived predicate>: the select list and joins of
 # both reads, over a CTE k holding (tenant_id, msg_id) of each last line.
+# Spec 042: a note to self (note_to_self, rdb 0276) is 'self' in column 9
+# and never the oldest-human anchor (columns 14/15): no agent is meant to
+# answer it, so it neither opens a topic nor ends one.
 _spl_sweep_rows_tail() {
   cat <<SQL
 SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.task_id, l.msg_id,
        extract(epoch FROM l.received_at)::bigint, coalesce(l.typed_by, l.from_id), l.to_id,
        CASE WHEN l.typed_by IS NOT NULL THEN 'terminal'
+            WHEN l.note_to_self THEN 'self'
             WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' THEN 'human'
             WHEN $(_spl_sweep_take_sql l) THEN 'take' ELSE 'agent' END,
        CASE WHEN $1
@@ -539,7 +548,7 @@ SQL
      WHERE l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' OR $(_spl_sweep_take_sql l))
        AND h.tenant_id = l.tenant_id AND h.task_id = l.task_id
        AND h.expires_at > now() AND h.received_at > now() - make_interval(days => :days)
-       AND h.typed_by IS NULL AND (h.from_id LIKE 'HUM-%' OR h.from_id LIKE 'GST-%')
+       AND h.typed_by IS NULL AND (h.from_id LIKE 'HUM-%' OR h.from_id LIKE 'GST-%') AND NOT h.note_to_self
        AND NOT EXISTS (SELECT 1 FROM messages r
                         WHERE r.tenant_id = h.tenant_id AND r.task_id = h.task_id
                           AND (r.typed_by IS NOT NULL

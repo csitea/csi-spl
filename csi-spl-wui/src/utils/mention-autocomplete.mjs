@@ -99,7 +99,10 @@ export function insertMention(text, cursor, id) {
  * tenant's agents and people. `peers` is the roster (agents, and the people
  * online on box-wui); `names` adds every member who chose a display name, and
  * `owners` every business owner, so a person who is offline is still found.
- * The reader is never offered. In #feedback (`ownersFirst`) the owners lead.
+ * The reader is offered only as `me` (spec 042 "Note to self", owner HUM-10,
+ * t1 df36f210): on a query that starts "me" (first), or matches the reader's
+ * own id or name (last); a post that tags only the reader is a note to self,
+ * which no agent answers. In #feedback (`ownersFirst`) the owners lead.
  *
  * @param {{ peers?: unknown[], names?: Record<string, string> | null, owners?: string[],
  *   selfId?: string, query: string, ownersFirst?: boolean, isOnline?: ((id: string) => boolean) | null }} a
@@ -121,7 +124,26 @@ export function mentionCandidates({ peers = [], names = null, owners = [], selfI
     people.push({ id, box: 'box-wui', label: id, online: typeof isOnline === 'function' ? Boolean(isOnline(id)) : false })
   }
   people.sort((a, b) => String(names[a.id] || a.id).localeCompare(String(names[b.id] || b.id)))
-  return ownersFirst ? [...ownerRows, ...agents, ...people] : [...agents, ...people, ...ownerRows]
+  const rows = ownersFirst ? [...ownerRows, ...agents, ...people] : [...agents, ...people, ...ownerRows]
+  const me = selfMention(selfId, q, names, isOnline)
+  if (!me) return rows
+  return 'me'.startsWith(q) ? [me, ...rows] : [...rows, me]
+}
+
+/**
+ * The reader's own `me` row (spec 042 "Note to self"), or null: only a person,
+ * only on a non-empty query that starts "me" or matches their id or name.
+ *
+ * @param {string} selfId
+ * @param {string} q the lower-cased query, no @
+ * @param {Record<string, string> | null} names
+ * @param {((id: string) => boolean) | null} isOnline
+ */
+function selfMention(selfId, q, names, isOnline) {
+  if (!q || !/^HUM-\d+$/.test(selfId)) return null
+  const name = String((names && names[selfId]) || '').toLocaleLowerCase()
+  if (!'me'.startsWith(q) && !selfId.toLocaleLowerCase().includes(q) && !name.includes(q)) return null
+  return { id: selfId, box: 'box-wui', label: selfId, self: true, online: typeof isOnline === 'function' ? Boolean(isOnline(selfId)) : false }
 }
 
 /* SPL-1009 (owner, 2026-09-27: "but still the humans are presented with

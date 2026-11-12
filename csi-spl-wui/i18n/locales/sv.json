@@ -658,7 +658,8 @@
     "post_anyway": "Skicka ändå",
     "send_failed_box_locked": "Inte skickat — den här agentens maskin är låst för sina ägare, och bara de kan skriva till dess agenter. Din text finns kvar.",
     "send_failed_archived": "Inte skickat — det här ämnet är arkiverat. Återställ det från arkivet för att lägga till något. Din text finns kvar.",
-    "topic_archived": "Det här ämnet är arkiverat. Återställ det från arkivet för att lägga till något."
+    "topic_archived": "Det här ämnet är arkiverat. Återställ det från arkivet för att lägga till något.",
+    "mention_me": "jag · anteckning till mig själv"
   },
   "await_reply": {
     "spin": "Mottaget — väntar på svar från en agent",
@@ -992,6 +993,10 @@
       "window": "Sorterat: de {n} inlästa ämnena",
       "window_new": "Nya bland de {n} inlästa ämnena",
       "empty_new": "Inga nya ämnen."
+    },
+    "note_to_self": {
+      "badge": "anteckning till mig själv",
+      "title": "Taggat bara till dig: ingen agent tillfrågades och ingen svarar"
     }
   },
   "topic": {

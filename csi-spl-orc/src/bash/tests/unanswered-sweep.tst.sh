@@ -50,6 +50,10 @@
 #      the check row judges a seated box. Control: no seats (or a seats file
 #      with no seat line) -> today's single note to the lease holder, and
 #      nothing from a box whose lease is remote
+#  14. spec 042 "Note to self" (SPL-5372): a topic whose last line is a note
+#      to self (column 9 'self') with no real human anchor is counted 'self'
+#      and never listed. CONTROL: a 'self' last line after a still unanswered
+#      real human post (columns 14/15) lists that post, keyed from it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -127,8 +131,8 @@ for t in 02 03 04 05 06 07 08 09 e1 e2 e3 e6 e7; do
 done
 pass "1. agent-last, archived topic/channel, e2e, proof-*, to a human, terminal, HUM-1, #issues, fresh: left out"
 [[ "$(grep -c '^| ack |' "$T/o")" == 2 ]] && pass "1. 'ok thanks!' and an emoji-only post are listed as acks" || fail "1. acks: $(grep '^| ack' "$T/o")"
-grep -q '^| t1 | 2 | 0 | 0 | 0 | 2 | 1 | 0 | 1 | 2 | 0 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 0 | 0 |$' "$T/o" &&
-  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=4 ack=2 nobody=1 new=4 resend=0 escalate=0$' "$T/o" &&
+grep -q '^| t1 | 2 | 0 | 0 | 0 | 2 | 1 | 0 | 1 | 2 | 0 | 0 | 1 | 0 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 0 | 0 | 0 |$' "$T/o" &&
+  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=4 ack=2 nobody=1 new=4 resend=0 escalate=0$' "$T/o" &&
   pass "1. per-workspace counts" || fail "1. counts: $(grep -A10 'Per workspace' "$T/o")"
 # spec 117 1.3: a null-channel ALL-0 with no agent in the topic is read by its
 # writer alone. It used to be counted as to-human and listed nowhere; now it
@@ -435,6 +439,22 @@ rm -f "$S/peer/seats"
 s11 DELIVER=1 LEASE_MACHINE=box-b >"$T/o" 2>&1
 [[ "$(notes)" == "c-002 3" ]] && ! grep -q '^TO peers' "$T/sent" &&
   pass "11. control: no seats file + a local lease: ONE note with 3 items to the lease holder (today)" || fail "11. control local: notes=$(notes) $(cat "$T/o")"
+
+# --- 14. spec 042: a note to self is no ask --------------------------------------------------------
+S="$T/spool14"; mkdir -p "$S/dispatch"; rm -f "$T/sent"
+N1=00000000-0000-4000-8000-0000000000e1 N2=00000000-0000-4000-8000-0000000000e2
+A2=10000000-0000-4000-8000-0000000000e9
+{
+  printf '%s\t\tdevelopment\t%s\t10000000-0000-4000-8000-0000000000e1\t%s\tHUM-10\tALL-0\tself\topen\tlive\t-\t%s\t\t\n' t1 "$N1" "$H" "@HUM-10 send the zip file"
+  printf '%s\t\tdevelopment\t%s\t10000000-0000-4000-8000-0000000000e2\t%s\tHUM-10\tALL-0\tself\topen\tlive\t-\t%s\t%s\t%s\n' t1 "$N2" "$H" "@HUM-10 noted" "$((H - 60))" "$A2"
+} >"$T/rows14.tsv"
+sweep SWEEP_ROWS_FILE="$T/rows14.tsv" >"$T/o" 2>&1
+row14="$(grep '^| t1 |' "$T/o")"
+self14="$(awk -F' [|] ' '/^[|] workspace [|]/{for(i=1;i<=NF;i++) if($i=="self") c=i} /^[|] t1 [|]/{print $c}' "$T/o")"
+[[ "$self14" == 1 ]] && ! grep -q "$N1" "$T/o" &&
+  pass "14. a note to self with no real ask before it: counted self, not listed (n=1 row)" || fail "14. self: '$self14' row '$row14' $(grep -c "$N1" "$T/o")"
+grep -q "| $N2 | .* | 1h01m | HUM-10 | (asked before a note to self) |" "$T/o" &&
+  pass "14. CONTROL: a real unanswered ask before the note is still listed, aged from the ask (1h01m, the note is 1h00m)" || fail "14. control: $(grep -n "$N2\|$A2" "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "unanswered-sweep: all passed"; exit 0; }

@@ -658,7 +658,8 @@
     "post_anyway": "Napriek tomu odoslať",
     "send_failed_box_locked": "Neodoslané — box tohto agenta je uzamknutý pre jeho vlastníkov a len oni môžu písať jeho agentom. Váš text je stále tu.",
     "send_failed_archived": "Neodoslané — táto téma je archivovaná. Ak do nej chcete niečo pridať, obnovte ju z archívu. Váš text tu zostal.",
-    "topic_archived": "Táto téma je archivovaná. Ak do nej chcete niečo pridať, obnovte ju z archívu."
+    "topic_archived": "Táto téma je archivovaná. Ak do nej chcete niečo pridať, obnovte ju z archívu.",
+    "mention_me": "ja · poznámka pre seba"
   },
   "await_reply": {
     "spin": "Prijaté — čaká sa na odpoveď agenta",
@@ -992,6 +993,10 @@
       "window": "Zoradené načítané témy: {n}",
       "window_new": "Nové medzi načítanými témami: {n}",
       "empty_new": "Žiadne nové témy."
+    },
+    "note_to_self": {
+      "badge": "poznámka pre seba",
+      "title": "Označené len pre vás: žiadny agent nebol požiadaný a nikto neodpovedá"
     }
   },
   "topic": {

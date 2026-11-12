@@ -193,6 +193,8 @@ export function messageFromFrame(f) {
   /* spec 067: ref_task_id / mirror_of ride on the frame like the view row */
   if (typeof x.ref_task_id === 'string' && x.ref_task_id) out.ref_task_id = x.ref_task_id
   if (typeof x.mirror_of === 'string' && x.mirror_of) out.mirror_of = x.mirror_of
+  /* spec 042 "Note to self": the hub's flag rides on the frame like the view row */
+  if (x.note_to_self === true) out.note_to_self = true
   return out
 }
 

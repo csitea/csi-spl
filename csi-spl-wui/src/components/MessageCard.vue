@@ -97,6 +97,13 @@
           :data-mirror-of="msg.mirror_of"
           :title="t('feed.via_dm')"
         >{{ t('feed.via_dm') }}</span>
+        <!-- spec 042: tagged only to its author - no agent was asked -->
+        <span
+          v-if="msg.note_to_self"
+          class="msg-via-terminal msg-note-to-self"
+          data-testid="msg-note-to-self"
+          :title="t('feed.note_to_self.title')"
+        >{{ t('feed.note_to_self.badge') }}</span>
         <template v-if="recipient">
           <span class="msg-to-arrow" aria-hidden="true">→</span>
           <SpoolAvatar class="avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />

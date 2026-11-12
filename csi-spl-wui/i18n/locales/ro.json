@@ -658,7 +658,8 @@
     "post_anyway": "Postează oricum",
     "send_failed_box_locked": "Netrimis — boxul acestui agent este blocat pentru proprietarii săi și doar ei pot scrie agenților lui. Textul tău este încă aici.",
     "send_failed_archived": "Netrimis — această temă este arhivată. Scoate-o din arhivă pentru a adăuga ceva. Textul tău este încă aici.",
-    "topic_archived": "Această temă este arhivată. Scoate-o din arhivă pentru a adăuga ceva."
+    "topic_archived": "Această temă este arhivată. Scoate-o din arhivă pentru a adăuga ceva.",
+    "mention_me": "eu · notă pentru mine"
   },
   "await_reply": {
     "spin": "Primit — se așteaptă răspunsul unui agent",
@@ -992,6 +993,10 @@
       "window": "Sortate: subiectele încărcate ({n})",
       "window_new": "Noi dintre subiectele încărcate ({n})",
       "empty_new": "Nu există subiecte noi."
+    },
+    "note_to_self": {
+      "badge": "notă pentru mine",
+      "title": "Etichetat doar pentru tine: niciun agent nu a fost întrebat și niciunul nu răspunde"
     }
   },
   "topic": {

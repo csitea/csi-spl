@@ -68,7 +68,11 @@ func (s *Server) costEntryRate() store.CostEntryRate {
 // costEntryGate is base, or a member of the operator workspace holding
 // costs.write who is not a live act-as clone (SPL-5359). A bearer call, a
 // member of another workspace and a member without costs.write get base's
-// answer.
+// answer. The CORS and no-store headers go on before humanTenant, as in
+// operatorReadCaller: its 401/403/409 must reach a cross-origin WUI as a
+// readable answer, not a CORS network error (R7 a-290 W1). Before falling
+// through, they come off again: base sets its own, and allowOrigin ADDs
+// Vary: Origin, which would then go out twice.
 func (s *Server) costEntryGate(base opCallerGate) opCallerGate {
 	return func(w http.ResponseWriter, r *http.Request) (string, *opActor, string, bool) {
 		if strings.HasPrefix(strings.TrimSpace(r.Header.Get("Authorization")), "Bearer ") {
@@ -78,6 +82,9 @@ func (s *Server) costEntryGate(base opCallerGate) opCallerGate {
 		if err != nil || op == "" {
 			return base(w, r)
 		}
+		restore := snapshotHeaders(w.Header(), "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Vary", "Cache-Control")
+		s.allowOrigin(w, r)
+		w.Header().Set("Cache-Control", "no-store")
 		t, hum, ok := s.humanTenant(w, r)
 		if !ok {
 			return "", nil, "", false
@@ -85,12 +92,31 @@ func (s *Server) costEntryGate(base opCallerGate) opCallerGate {
 		if hum != "" && t.ID == op {
 			a, err := s.access(r.Context(), hum, t.ID)
 			if err == nil && a.Can(rbac.CostsWrite) && !s.readerIsActAsClone(r.Context(), t.ID, hum) {
-				s.allowOrigin(w, r)
-				w.Header().Set("Cache-Control", "no-store")
 				return t.ID, &opActor{tenant: t.ID, hum: hum}, hum, true
 			}
 		}
+		restore()
 		return base(w, r)
+	}
+}
+
+// snapshotHeaders copies keys' values out of h; the returned func puts them
+// back as they were (a key that was absent is deleted again).
+func snapshotHeaders(h http.Header, keys ...string) func() {
+	saved := make(map[string][]string, len(keys))
+	for _, k := range keys {
+		if v := h.Values(k); len(v) > 0 {
+			saved[k] = append([]string(nil), v...)
+		}
+	}
+	return func() {
+		for _, k := range keys {
+			if v, ok := saved[k]; ok {
+				h[http.CanonicalHeaderKey(k)] = v
+			} else {
+				h.Del(k)
+			}
+		}
 	}
 }
 

@@ -21,8 +21,11 @@ import (
 //
 //   - Who: a member of <SRC> who is the biz owner of the operator workspace,
 //     the test channelMoveGo makes (channelMoveOwner), never operatorActor's
-//     Admin. Anyone else, no session included, gets 403 channel_move_owner
-//     before the channel is read, so a refusal says nothing about the channel.
+//     Admin. Anyone else gets 403 channel_move_owner before the channel is
+//     read, so a refusal says nothing about the channel. The session door
+//     answers first (humanTenant): no session gets 401 view_door with the view
+//     door on (prd, dev), the owner test's 403 only with the door off, and a
+//     caller who is no member of <SRC> gets 403 forbidden.
 //   - Targets: the person's own workspaces (Memberships), <SRC> and a suspended
 //     one left out; a workspace they are not in is never named (Q10, W5).
 //   - The plan is the operator plan's answer plus .blocked: its stops, and the

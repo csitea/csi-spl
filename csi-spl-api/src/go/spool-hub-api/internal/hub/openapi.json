@@ -3407,7 +3407,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "channel_move_owner: not the biz owner of the operator workspace, or no session; forbidden: no member of this workspace"
+            "description": "channel_move_owner: not the biz owner of the operator workspace (no session too, only with the view door off; with it on, no session is the 401 view_door); forbidden: no member of this workspace"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -3487,7 +3487,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "channel_move_owner: not the biz owner of the operator workspace, or no session; forbidden: no member of this workspace"
+            "description": "channel_move_owner: not the biz owner of the operator workspace (no session too, only with the view door off; with it on, no session is the 401 view_door); forbidden: no member of this workspace"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"

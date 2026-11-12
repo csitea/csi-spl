@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.30 (2026-11-12). Status: **Draft** (part built: section 8.4's hub
+Version: v0.31 (2026-11-12). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -133,6 +133,10 @@ the session door before the owner test: a member who is not in `<SRC>` gets its 
 `forbidden`, and with the view door on (prd, dev) no session gets its 401 `view_door`
 (`humanTenant`, `api/hub/resolve.go`; read from the code, the tests run with the door
 off, where no session is the owner test's 403).
+v0.31 (SPL-5371, R7 c-355 N1-N3): row C29 states the session door's answers
+(no session: 401 `view_door` with the door on, the owner test's 403 only with it
+off), and so do the code comment and both openapi 403 texts. C29 gains a test with
+the door on; C30 a suspended target; C31 the order of `.blocked` (`.refuse` first).
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -809,7 +813,7 @@ and no cancel: before P4 a re-run comes with the pick-up, after it there is noth
 | C25 | Box rule (W2, F14): a move whose `<SRC>` rule row on this box names a desk agent with no `<DST>` desk on this box makes `plan` and `MOVE_CMD=run` refuse, exit 3, naming the agent and the box; seating the desk clears it. A map that exists but cannot be read, or a malformed row, also refuses: unread is not "no row". Shell test on a sandboxed `SPOOL_ROOT` | drop the check -> `plan` passes and the move stops only at P2b, or goes on with a row whose agent has no `<DST>` desk |
 | C26 | Box rule, what does not refuse and what is said: no row, no map, a row for another env, and a copy (no seat moves, section 7) each pass; every `plan` prints the box and the file it read and that other boxes are not read, and names the seats' other boxes; `plan` leaves the rule file byte-equal with no lock or temp file beside it. Shell test | refuse on an absent row -> a channel with no rule row can never move; drop the printed box -> a clean `plan` on the wrong box reads as a clean move |
 | C27 | Seats: `plan` lists a seat that HAS its `<DST>` desk and it refuses nothing; a seat by invite and as a dedicated agent is one seat; the list is sorted; a removed seat and a seat of a staying channel are not listed; an old `announce` row on a default channel is no seat, on a created channel it is one; it marshals as `.seats[].agent` and `.seats[].box`, and as `[]` on a channel with no seat; `plan` has no mode (a copy lists them too) | list only the seats with no desk -> T9c's line never prints and T7 probes no desk; drop the announce predicate -> the default channel lists the old row; drop every announce row -> the created channel loses its seat; drop the json tags -> jq reads no seat; a mode field on the request -> the no-mode test fails until a copy's seats are decided |
-| C29 | Who (8.5.2): the probe, the plan and the confirm answer 403 to a member of `<SRC>` who is not the operator workspace's biz owner, an admin included, and to no session at all | answer `Admin` too -> the admin gets a button whose GO the hub refuses |
+| C29 | Who (8.5.2): the probe, the plan and the confirm answer 403 to a member of `<SRC>` who is not the operator workspace's biz owner, an admin included. The session door answers first: no session gets its 401 `view_door` with the view door on (prd, dev), and the owner test's 403 only with the door off; a member who is not in `<SRC>` gets its 403 `forbidden` | answer `Admin` too -> the admin gets a button whose GO the hub refuses |
 | C30 | Targets: the probe lists only the person's own workspaces, never a hidden one they are not in | list every workspace -> a hidden slug in the answer |
 | C31 | Blocked (8.5.4): no orchestrator seat in `<DST>`, and a file total over its quota, are both in `.blocked` before the confirm | plan's stops alone -> the confirm passes and the move stops only at P2 |
 | C32 | The confirm's GO (8.5.5): the form and the answer it writes pass `channelMoveGo` unchanged, the answer's author is the session's person, the journal holds that msg id; a replay with another `dst` is refused | a form that does not name `<DST>` -> 403 `go_required` |

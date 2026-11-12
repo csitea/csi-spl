@@ -78,7 +78,7 @@ func (b *browserMove) plan(t *testing.T, as string, body map[string]any) (int, m
 
 // C29: the probe and the plan answer 403 channel_move_owner to every member of
 // <SRC> who is not the operator workspace's biz owner, an admin of it included,
-// and to no session, and 403 to that owner when not a member of <SRC>; the channel is
+// and to no session with the view door off, and 403 to that owner when not a member of <SRC>; the channel is
 // not read first, so a refused caller learns nothing of it. RED CONTROL: answer
 // Admin too (channelMoveBrowserOwner) -> the operator workspace's admin is
 // allowed and this test fails.
@@ -124,6 +124,22 @@ func TestChannelMoveBrowserWhoC29(t *testing.T) {
 	}
 }
 
+// C29 with the view door on (prd, dev): the session door answers no session
+// before the owner test, 401 view_door on both routes. RED CONTROL: the door
+// off (hub.ViewDoorOff) -> the owner test's 403 channel_move_owner, as in
+// TestChannelMoveBrowserWhoC29, and this test fails.
+func TestChannelMoveBrowserNoSessionDoorC29(t *testing.T) {
+	b := browserMoveFixture(t, func(o *hub.Options) { o.ViewDoor = hub.ViewDoorToken })
+	code, out := call(t, b.e, b.src, http.MethodGet, b.probe, "", nil)
+	if code != http.StatusUnauthorized || out["error"] != "view_door" {
+		t.Errorf("probe, no session: %d %v", code, out)
+	}
+	code, out = b.plan(t, "", map[string]any{"dst": b.dst})
+	if code != http.StatusUnauthorized || out["error"] != "view_door" {
+		t.Errorf("plan, no session: %d %v", code, out)
+	}
+}
+
 // C30: the targets are the owner's own workspaces but <SRC>; hidden, which the
 // owner is not in, is never listed, and a plan into it answers as an unknown
 // workspace does. RED CONTROL: list every workspace (channelMoveTargets) -> the
@@ -165,6 +181,56 @@ func TestChannelMoveBrowserTargetsC30(t *testing.T) {
 		if code, out := b.plan(t, b.owner, c.body); code != http.StatusBadRequest || out["error"] != c.errCode {
 			t.Errorf("%s: %d %v", c.name, code, out)
 		}
+	}
+}
+
+// C30, a suspended workspace: the owner is in it, yet it is no target.
+// CONTROL: before the suspension <DST> is listed. RED CONTROL: drop
+// t.Suspended() (channelMoveTargets) -> the suspended slug is listed.
+func TestChannelMoveBrowserTargetsSuspendedC30(t *testing.T) {
+	b := browserMoveFixture(t)
+	slugs := func() []string {
+		t.Helper()
+		code, out := call(t, b.e, b.src, http.MethodGet, b.probe, b.owner, nil)
+		if code != http.StatusOK {
+			t.Fatalf("probe: %d %v", code, out)
+		}
+		var got []string
+		for _, x := range out["targets"].([]any) {
+			got = append(got, x.(map[string]any)["slug"].(string))
+		}
+		return got
+	}
+	if !slices.Contains(slugs(), b.dst) {
+		t.Fatalf("control, <DST> live: %v", slugs())
+	}
+	if err := b.e.st.(store.OperatorWorkspaces).SetWorkspaceState(context.Background(), b.dst, true, false, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := slugs(); slices.Contains(got, b.dst) || !slices.Contains(got, b.op) {
+		t.Fatalf("targets %v: the suspended %s listed, or the live %s left out", got, b.dst, b.op)
+	}
+}
+
+// C31, the order of .blocked: the plan's own stops (.refuse) come first, then
+// the P2 lines. A channel of the same name in <DST> is a stop, and <DST> has no
+// orchestrator seat. RED CONTROL: the P2 lines first (handleChannelMoveBrowserPlan)
+// -> this test fails.
+func TestChannelMoveBrowserBlockedOrderC31(t *testing.T) {
+	b := browserMoveFixture(t)
+	if err := b.e.st.CreateChannel(context.Background(), store.Channel{TenantID: b.dst, ChannelID: b.ch, Name: b.ch, CreatedBy: b.owner, CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	code, out := b.plan(t, b.owner, map[string]any{"dst": b.dst})
+	if code != http.StatusOK {
+		t.Fatalf("plan: %d %v", code, out)
+	}
+	refuse, blocked := anyStrings(out["refuse"]), anyStrings(out["blocked"])
+	if len(refuse) != 1 || !strings.Contains(refuse[0], "exists in "+b.dst) {
+		t.Fatalf(".refuse: %v", refuse)
+	}
+	if len(blocked) != 2 || blocked[0] != refuse[0] || !strings.Contains(blocked[1], b.dst+" has no orchestrator seat") {
+		t.Fatalf(".blocked %v, want .refuse's line, then the orchestrator line", blocked)
 	}
 }
 

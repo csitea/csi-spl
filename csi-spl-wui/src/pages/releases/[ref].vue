@@ -36,34 +36,37 @@ const open = ref(true)
 const cameFrom = import.meta.client ? String((window.history.state as { back?: unknown } | null)?.back || '') : ''
 
 /* On a phone the dialog's own history entry (useMobileStack) is stepped over
-   first when the X closes it; leave the page only once that is done, on the
-   popstate that takes it off. SPL-5346: a 1 s poll gave up under load, left
-   from the dialog's entry, and the late step back landed under /releases/
-   again. OVERLAY_POP_GUARD_MS only covers a step back that never comes. */
+   first when the X closes it; leave the page only once that is done. Polled:
+   useMobileStack's capture listener swallows that popstate, so no listener of
+   the page sees it. SPL-5346: the poll gave up after 1 s, left from the
+   dialog's entry under load, and the late step back landed under /releases/
+   again; OVERLAY_POP_GUARD_MS only covers a step back that never comes. */
+const OVERLAY_POLL_MS = 50
 const OVERLAY_POP_GUARD_MS = 5000
+let mounted = true
+let pollTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => { mounted = false; clearTimeout(pollTimer) })
+
 function overlayGone(): Promise<void> {
+  const until = Date.now() + OVERLAY_POP_GUARD_MS
   return new Promise((resolve) => {
-    const finish = () => {
-      window.removeEventListener('popstate', check)
-      clearTimeout(guard)
-      resolve()
+    const tick = () => {
+      if (mobileOverlayOf(window.history.state) && Date.now() < until) pollTimer = setTimeout(tick, OVERLAY_POLL_MS)
+      else resolve()
     }
-    const check = () => { if (!mobileOverlayOf(window.history.state)) finish() }
-    const guard = setTimeout(finish, OVERLAY_POP_GUARD_MS)
-    window.addEventListener('popstate', check)
-    check()
+    tick()
   })
 }
-
-let mounted = true
-onBeforeUnmount(() => { mounted = false })
 
 watch(open, async (o) => {
   if (o) return
   await overlayGone()
   if (!mounted) return
   if (cameFrom) router.back()
-  else await navigateTo(localePath('/'), { replace: true })
+  /* router.replace, not navigateTo: the step back starts a router navigation
+     of this same route, and navigateTo called while its route middleware runs
+     only returns its target (SPL-5346: the page then stayed on /releases/) */
+  else await router.replace(localePath('/'))
 })
 /* a second link followed while here opens the dialog again */
 watch(noteRef, () => { open.value = true })

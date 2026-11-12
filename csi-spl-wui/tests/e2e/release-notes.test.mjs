@@ -95,6 +95,8 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/* SPL-5346: a close leaves /releases/ well before the page's 5 s guard (OVERLAY_POP_GUARD_MS) */
+const LEAVE_FAST_MS = 4000
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -452,12 +454,16 @@ try {
     await p.goto(server.base + '/releases/not-a-ref', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const bad = await until(p, () => /Not a commit or a version/.test(document.querySelector('[data-test=release-notes-message]')?.textContent || ''), null, 15000)
     ok(`${vp.name} 8c a ref that is neither says so`, bad)
+    let t0 = Date.now()
     await press(p, vp, vp.mobile ? '[data-testid=ui-dialog-back]' : '[data-testid=ui-dialog-close]')
     const left = await until(p, () => !document.querySelector('[data-test=release-notes]') && !location.pathname.includes('/releases/'), null, 8000)
-    /* SPL-5346: and stays left - a late step back over the dialog's entry lands under /releases/ again */
+    /* SPL-5346: soon (under LEAVE_FAST_MS, well below the page's 5 s guard, which
+       only a lost step back may wait out) and stays left - a late step back over
+       the dialog's entry lands under /releases/ again */
+    const leftMs = Date.now() - t0
     await sleep(2500)
     const stays = await p.evaluate(() => !document.querySelector('[data-test=release-notes]') && !location.pathname.includes('/releases/'))
-    ok(`${vp.name} 8d closing the linked modal leaves /releases/`, left && stays, await p.evaluate(() => location.pathname))
+    ok(`${vp.name} 8d closing the linked modal leaves /releases/`, left && leftMs < LEAVE_FAST_MS && stays, { path: await p.evaluate(() => location.pathname), leftMs })
 
     /* 9 a link followed inside the app: the same modal, closing returns there */
     await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -468,9 +474,11 @@ try {
     const inApp = await until(p, (sha) => document.querySelector('[data-test=release-note]')?.dataset.sha === sha, mockSha(3), 15000)
     ok(`${vp.name} 9a an in-app /releases/<sha> link opens that note in the modal`, inApp)
     await sleep(300)
+    t0 = Date.now()
     await press(p, vp, vp.mobile ? '[data-testid=ui-dialog-back]' : '[data-testid=ui-dialog-close]')
     const home = await until(p, () => !document.querySelector('[data-test=release-notes]') && location.pathname.endsWith('/lobby'), null, 8000)
-    ok(`${vp.name} 9b closing it returns to the page it was clicked on`, home, await p.evaluate(() => location.pathname))
+    const homeMs = Date.now() - t0
+    ok(`${vp.name} 9b closing it returns to the page it was clicked on`, home && homeMs < LEAVE_FAST_MS, { path: await p.evaluate(() => location.pathname), homeMs })
 
     /* 10 older versions, back to the first entry */
     await openFromCard(p, vp)

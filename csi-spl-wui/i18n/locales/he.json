@@ -1208,7 +1208,9 @@
     "tester": "בודק",
     "pure_agent": "סוכן טהור",
     "biz_customer": "לקוח עסקי",
-    "regular_user": "משתמש רגיל"
+    "regular_user": "משתמש רגיל",
+    "internal_accountant": "רואה חשבון פנימי",
+    "external_accountant": "רואה חשבון חיצוני"
   },
   "channels": {
     "feedback": {

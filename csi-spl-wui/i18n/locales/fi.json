@@ -1208,7 +1208,9 @@
     "tester": "Testaaja",
     "pure_agent": "Puhdas agentti",
     "biz_customer": "Liiketoiminnan asiakas",
-    "regular_user": "Tavallinen käyttäjä"
+    "regular_user": "Tavallinen käyttäjä",
+    "internal_accountant": "Sisäinen kirjanpitäjä",
+    "external_accountant": "Ulkoinen kirjanpitäjä"
   },
   "channels": {
     "feedback": {

@@ -1208,7 +1208,9 @@
     "tester": "Testija",
     "pure_agent": "Puhas agent",
     "biz_customer": "Ärikliient",
-    "regular_user": "Tavakasutaja"
+    "regular_user": "Tavakasutaja",
+    "internal_accountant": "Sisemine raamatupidaja",
+    "external_accountant": "Väline raamatupidaja"
   },
   "channels": {
     "feedback": {

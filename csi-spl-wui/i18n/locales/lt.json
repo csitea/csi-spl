@@ -1208,7 +1208,9 @@
     "tester": "Testuotojas",
     "pure_agent": "Grynas agentas",
     "biz_customer": "Verslo klientas",
-    "regular_user": "Įprastas naudotojas"
+    "regular_user": "Įprastas naudotojas",
+    "internal_accountant": "Vidinis buhalteris",
+    "external_accountant": "Išorinis buhalteris"
   },
   "channels": {
     "feedback": {

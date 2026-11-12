@@ -1208,7 +1208,9 @@
     "tester": "Тестувальник",
     "pure_agent": "Чистий агент",
     "biz_customer": "Бізнес-клієнт",
-    "regular_user": "Звичайний користувач"
+    "regular_user": "Звичайний користувач",
+    "internal_accountant": "Внутрішній бухгалтер",
+    "external_accountant": "Зовнішній бухгалтер"
   },
   "channels": {
     "feedback": {

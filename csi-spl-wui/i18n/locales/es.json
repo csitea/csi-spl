@@ -1208,7 +1208,9 @@
     "tester": "Evaluador",
     "pure_agent": "Agente puro",
     "biz_customer": "Cliente de negocio",
-    "regular_user": "Usuario habitual"
+    "regular_user": "Usuario habitual",
+    "internal_accountant": "Contable interno",
+    "external_accountant": "Contable externo"
   },
   "channels": {
     "feedback": {

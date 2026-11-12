@@ -1208,7 +1208,9 @@
     "tester": "Test uzmanı",
     "pure_agent": "Saf ajan",
     "biz_customer": "İş müşterisi",
-    "regular_user": "Normal kullanıcı"
+    "regular_user": "Normal kullanıcı",
+    "internal_accountant": "İç muhasebeci",
+    "external_accountant": "Dış muhasebeci"
   },
   "channels": {
     "feedback": {

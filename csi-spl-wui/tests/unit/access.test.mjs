@@ -1,6 +1,6 @@
 // specs/025 FR-006/FR-008: the WUI's reading of GET /v1/view/me.
 // Run: node tests/unit/access.test.mjs
-import { accessAllows, archivePolicyOf, ownerAllows, canRemoveMember, normalizeActAs, normalizeMe, roleLabelKey, ROLE_IDS, MEMBERS_IMPERSONATE } from '../../src/utils/access.mjs'
+import { accessAllows, archivePolicyOf, ownerAllows, canRemoveMember, normalizeActAs, normalizeMe, roleLabelKey, ROLE_IDS, LABELLED_ADDON_ROLE_IDS, MEMBERS_IMPERSONATE } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -25,6 +25,7 @@ ok('C26b roles: not sent = [], junk dropped', normalizeMe({ role: 'admin' }).rol
 ok('junk permissions are dropped', normalizeMe({ permissions: ['a', 3, null] }).permissions.length === 1)
 ok('role keys for the eight roles', ROLE_IDS.length === 8 && ROLE_IDS.every((r) => roleLabelKey(r) === `role.${r}`))
 ok('unknown / empty role has no key', roleLabelKey('custom_x') === '' && roleLabelKey(null) === '')
+ok('the accountant roles have a label key (SPL-5359)', LABELLED_ADDON_ROLE_IDS.length === 2 && LABELLED_ADDON_ROLE_IDS.every((r) => roleLabelKey(r) === `role.${r}`) && roleLabelKey('time_accountant') === '')
 // CLE-77819: the workspace archive policy, defaulting to everyone.
 ok('archive policy: the three values pass through', archivePolicyOf('admins') === 'admins' && archivePolicyOf('starter') === 'starter' && archivePolicyOf('everyone') === 'everyone')
 ok('archive policy: unset / unknown falls back to everyone', archivePolicyOf(undefined) === 'everyone' && archivePolicyOf('nobody') === 'everyone')

@@ -1208,7 +1208,9 @@
     "tester": "Tester",
     "pure_agent": "Čistý agent",
     "biz_customer": "Obchodný zákazník",
-    "regular_user": "Bežný používateľ"
+    "regular_user": "Bežný používateľ",
+    "internal_accountant": "Interný účtovník",
+    "external_accountant": "Externý účtovník"
   },
   "channels": {
     "feedback": {

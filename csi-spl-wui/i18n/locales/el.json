@@ -1208,7 +1208,9 @@
     "tester": "Ελεγκτής",
     "pure_agent": "Αμιγής πράκτορας",
     "biz_customer": "Επιχειρηματικός πελάτης",
-    "regular_user": "Απλός χρήστης"
+    "regular_user": "Απλός χρήστης",
+    "internal_accountant": "Εσωτερικός λογιστής",
+    "external_accountant": "Εξωτερικός λογιστής"
   },
   "channels": {
     "feedback": {

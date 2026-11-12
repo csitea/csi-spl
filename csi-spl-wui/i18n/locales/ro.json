@@ -1208,7 +1208,9 @@
     "tester": "Tester",
     "pure_agent": "Agent pur",
     "biz_customer": "Client de business",
-    "regular_user": "Utilizator obișnuit"
+    "regular_user": "Utilizator obișnuit",
+    "internal_accountant": "Contabil intern",
+    "external_accountant": "Contabil extern"
   },
   "channels": {
     "feedback": {

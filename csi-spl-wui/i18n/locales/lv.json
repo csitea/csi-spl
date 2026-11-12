@@ -1208,7 +1208,9 @@
     "tester": "Testētājs",
     "pure_agent": "Tīrs aģents",
     "biz_customer": "Biznesa klients",
-    "regular_user": "Parasts lietotājs"
+    "regular_user": "Parasts lietotājs",
+    "internal_accountant": "Iekšējais grāmatvedis",
+    "external_accountant": "Ārējais grāmatvedis"
   },
   "channels": {
     "feedback": {

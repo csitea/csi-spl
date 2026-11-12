@@ -1208,7 +1208,9 @@
     "tester": "Kwaliteitstester",
     "pure_agent": "Puur agent",
     "biz_customer": "Zakelijke klant",
-    "regular_user": "Gewone gebruiker"
+    "regular_user": "Gewone gebruiker",
+    "internal_accountant": "Interne boekhouder",
+    "external_accountant": "Externe boekhouder"
   },
   "channels": {
     "feedback": {

@@ -1208,7 +1208,9 @@
     "tester": "Тестер",
     "pure_agent": "Чист агент",
     "biz_customer": "Бизнис клиент",
-    "regular_user": "Обичен корисник"
+    "regular_user": "Обичен корисник",
+    "internal_accountant": "Внатрешен сметководител",
+    "external_accountant": "Надворешен сметководител"
   },
   "channels": {
     "feedback": {

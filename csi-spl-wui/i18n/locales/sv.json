@@ -1208,7 +1208,9 @@
     "tester": "Testare",
     "pure_agent": "Ren agent",
     "biz_customer": "Affärskund",
-    "regular_user": "Vanlig användare"
+    "regular_user": "Vanlig användare",
+    "internal_accountant": "Intern redovisningsekonom",
+    "external_accountant": "Extern redovisningsekonom"
   },
   "channels": {
     "feedback": {

@@ -1454,6 +1454,7 @@ declare module '~/utils/channel-order-edit.mjs' {
 
 declare module '~/utils/access.mjs' {
   export const ROLE_IDS: string[]
+  export const LABELLED_ADDON_ROLE_IDS: string[]
   export const MEMBERS_INVITE: 'members.invite'
   export const MEMBERS_IMPERSONATE: 'members.impersonate'
   export const TOPIC_ARCHIVE_POLICIES: readonly string[]

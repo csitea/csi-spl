@@ -88,7 +88,9 @@ const shot = async (p, name, size) => { if (process.env.SHOT_DIR) await p.screen
 /** the label's table rendered (the loading line gone) */
 const ready = (p) => p.waitForFunction(() => document.querySelectorAll('[data-test=costs-page]').length === 1 && document.querySelector('[data-test=costs-month-table]') && !document.querySelector('[data-test=costs-loading]'), { timeout: 20000 }).then(() => true, () => false)
 /** a link's click, as the browser dispatches it, once the async pie no longer shifts the layout */
-const follow = async (p, sel) => { await new Promise((r) => setTimeout(r, 300)); await p.$eval(sel, (a) => a.click()) }
+const follow = async (p, sel) => { await new Promise((r) => setTimeout(r, 300)); await act(`follow ${sel}`, () => p.$eval(sel, (a) => a.click())) }
+/** an interaction on an element that may be missing: a FAIL naming it, never a throw that ends the run (c-974 review N5) */
+const act = (what, fn) => Promise.resolve().then(fn).then(() => true, (e) => { ok(`can ${what}`, false, String(e && e.message || e).slice(0, 160)); return false })
 
 async function redirects(browser, base, size) {
   const { ctx, p } = await costsPage(browser, base, size)
@@ -145,14 +147,14 @@ async function totalLabel(browser, base, size) {
   ok('Total: n of N per source for a single month', (await count(p, '[data-test=costs-coverage-row]')) === 3)
   await shot(p, 'total', size)
   /* the sort: name A-Z, then Z-A; aria-sort on the column */
-  await p.click('[data-test=cmt-sort-name]')
+  await act('click [data-test=cmt-sort-name]', () => p.click('[data-test=cmt-sort-name]'))
   const sortedName = await p.waitForFunction(() => [...document.querySelectorAll('[data-test=cmt-row]')].map((e) => e.getAttribute('data-key')).join(',') === 'cloud,other,persons,tokens', { timeout: 5000 }).then(() => true, () => false)
   ok('sort: a name click sorts A-Z, ▲, aria-sort ascending', sortedName && (await p.$eval('[data-test=cmt-col-name]', (th) => th.getAttribute('aria-sort') + ':' + th.textContent.trim())) === 'ascending:Item▲', await rowKeys(p))
-  await p.click('[data-test=cmt-sort-name]')
+  await act('click [data-test=cmt-sort-name]', () => p.click('[data-test=cmt-sort-name]'))
   ok('sort: a second click flips it, ▼', (await rowKeys(p)).join(',') === 'tokens,persons,other,cloud'
     && (await p.$eval('[data-test=cmt-col-name]', (th) => th.getAttribute('aria-sort'))) === 'descending', await rowKeys(p))
   /* keyboard: Enter on the focused share column sorts by it, highest first */
-  await p.focus('[data-test=cmt-sort-pct]')
+  await act('focus [data-test=cmt-sort-pct]', () => p.focus('[data-test=cmt-sort-pct]'))
   await p.keyboard.press('Enter')
   ok('sort: Enter on a focused column name sorts by it, highest share first', (await rowKeys(p))[0] === 'persons'
     && (await p.$eval('[data-test=cmt-col-pct]', (th) => th.getAttribute('aria-sort'))) === 'descending', await rowKeys(p))
@@ -171,7 +173,7 @@ async function period(browser, base, size) {
   ok('period: the year to date, then the current month "so far" and the 11 before it', opts.length === 13 && opts[0][0] === 'ytd' && opts[0][1] === `Year to date (${year})`
     && opts[1][0] === cur && /so far/.test(opts[1][1]), opts.map((o) => o[0]))
   ok('period: the current month is picked and marked "so far"', (await p.$eval('[data-test=costs-header-month]', (e) => e.value)) === cur && await waitFor(p, '[data-test=costs-so-far]'))
-  await p.select('[data-test=costs-header-month]', 'ytd')
+  await act('select [data-test=costs-header-month]', () => p.select('[data-test=costs-header-month]', 'ytd'))
   ok('period: picking the year to date writes ?month=ytd', await waitWhere(p, '/reporting/costs/total?month=ytd'), where(p))
   const n = now.getUTCMonth() + 1
   const heads = () => p.$$eval('[data-test=costs-month-table] thead th', (els) => els.map((e) => e.getAttribute('data-test').slice('cmt-col-'.length)))
@@ -192,7 +194,7 @@ async function period(browser, base, size) {
   if (size.width < 600) ok('period: the year to date on a phone adds no sideways page scroll (the table scrolls inside itself)', (await sideways(p)) <= 0, await sideways(p))
   await shot(p, 'total-ytd', size)
   /* the currency */
-  await p.click('[data-test=costs-header-cur-EUR]')
+  await act('click [data-test=costs-header-cur-EUR]', () => p.click('[data-test=costs-header-cur-EUR]'))
   ok('currency: EUR writes ?currency=EUR, the period kept', await waitWhere(p, '/reporting/costs/total?month=ytd&currency=EUR'), where(p))
   const eur = await p.waitForFunction(() => /^€/.test(document.querySelector('[data-test=cmt-foot-total], [data-test=cmt-foot-cell]')?.textContent.trim() || ''), { timeout: 15000 }).then(() => true, () => false)
   ok('currency: the totals are in EUR', eur, await text(p, '[data-test=cmt-foot]'))
@@ -216,7 +218,7 @@ async function cloudPersonsTokens(browser, base, size) {
   await follow(p, '[data-test=cloud-crumb-all]')
   ok('Cloud: All projects walks back up, the month kept', await waitWhere(p, '/reporting/costs/cloud?month=2026-09'), where(p))
 
-  await p.click('[data-test=costs-page-persons]')
+  await act('click [data-test=costs-page-persons]', () => p.click('[data-test=costs-page-persons]'))
   ok('Persons: the label keeps the month', await waitWhere(p, '/reporting/costs/persons?month=2026-09'), where(p))
   await ready(p)
   await pieAfterLabel(p, 'Persons')
@@ -225,7 +227,7 @@ async function cloudPersonsTokens(browser, base, size) {
   ok('Persons: an entry with no rate is a dash saying so, never $0', chf.text === '—' && chf.none === '1' && /^No USD rate/.test(chf.title), chf)
   await shot(p, 'persons', size)
 
-  await p.click('[data-test=costs-page-tokens]')
+  await act('click [data-test=costs-page-tokens]', () => p.click('[data-test=costs-page-tokens]'))
   await ready(p)
   await pieAfterLabel(p, 'Tokens')
   ok('Tokens: the paid invoice and the burn, its tokens and list price under its name', (await count(p, '[data-test=cmt-row]')) === 2
@@ -246,7 +248,7 @@ async function workspaceAndForbidden(browser, base, size) {
     await ready(p)
     ok('workspace: Tokens lists its share per agent type', (await rowKeys(p)).filter((k) => k.startsWith('ai_share|')).length === 2, await rowKeys(p))
     ok('workspace: the scope line says this workspace', (await text(p, '[data-test=costs-scope]')) === 'This workspace')
-    await p.click('[data-test=costs-page-persons]')
+    await act('click [data-test=costs-page-persons]', () => p.click('[data-test=costs-page-persons]'))
     await ready(p)
     ok('workspace: Persons says it has no costs of its own yet, no rows', await waitFor(p, '[data-test=costs-no-split]') && (await count(p, '[data-test=cmt-row]')) === 0)
     await ctx.close()
@@ -265,11 +267,10 @@ const browser = await launch()
 try {
   for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     console.log(`-- ${size.width}x${size.height}`)
-    await redirects(browser, server.base, size)
-    await totalLabel(browser, server.base, size)
-    await period(browser, server.base, size)
-    await cloudPersonsTokens(browser, server.base, size)
-    await workspaceAndForbidden(browser, server.base, size)
+    for (const section of [redirects, totalLabel, period, cloudPersonsTokens, workspaceAndForbidden]) {
+      // a section that still throws is one FAIL, and the sections after it run (N5)
+      await section(browser, server.base, size).catch((e) => ok(`${section.name} ran to its end`, false, String(e && e.message || e).slice(0, 160)))
+    }
   }
 } finally {
   await browser.close()

@@ -1532,7 +1532,7 @@ spl_rotate_alert() {
   else
     # no ask reached anyone: the card stays a blocker and names no ask
     spl_rotate_log "$rid" ALERT FAIL "do_spl_ask_put failed"
-    spl_rotate_owner_say "$rid" "$id" "$ask" "**$body** The ask to the orchestrator failed." blocker
+    spl_rotate_owner_say "$rid" "$id" "" "**$body** The ask to the orchestrator failed." blocker
     return 0
   fi
   local who="${LEASE_ORCH:+$LEASE_ORCH (the orchestrator)}"
@@ -1581,7 +1581,7 @@ spl_rotate_owner_say() {
   elif [[ -n "${LEASE_ENV:-}" && -n "${LEASE_TENANT:-}" ]]; then
     if env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_AGENT="$id" DESK_KIND="$kind" \
         DESK_BODY="$body" DRY_RUN=0 timeout 120 "$ROTATE_RUN" -a do_spl_fleet_notice >/dev/null 2>&1 7>&- 8>&- 9>&-; then
-      spl_rotate_log "$rid" "$ph" OK "ops channel notice (ask ${ask:0:8})"
+      spl_rotate_log "$rid" "$ph" OK "ops channel notice${ask:+ (ask ${ask:0:8})}"
     else spl_rotate_log "$rid" "$ph" FAIL "the ops channel notice failed"; fi
   else
     spl_rotate_log "$rid" "$ph" WARN "no ops notice (ASKS_OWNER_CMD, or LEASE_ENV + LEASE_TENANT in $LEASE_CONF): the ask alone"

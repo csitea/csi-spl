@@ -449,13 +449,14 @@ grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-902 ASK_TOPIC=dispatch-rota
 grep -q '^do_spl_fleet_notice .* DESK_KIND=note BODY=\*\*ROTATION FAILED master ACK .*\*\* For c-900 (the orchestrator), ask [0-9a-f]\{8\}: nothing for the owner to do\.$' "$T/run2.log" &&
   ! grep -q '^do_spl_fleet_notice .* DESK_KIND=blocker' "$T/run2.log" &&
   pass "4. ... the #alerts card is a note naming the orchestrator c-900, never a blocker" || fail "4. card: $(grep '^do_spl_fleet_notice' "$T/run2.log")"
+[[ ! -e "$T/proc/2903" && -d "$T/proc/103" ]] && ! grep -q REFRESH "$D/rotate.log" && pass "4. no refresh after a failed master" || fail "4. refreshed anyway"
 # SPL-5332 N2: the ask was never filed, so nobody was asked: the card stays a blocker and names no ask
 world; echo no >"$T/ack.mode.c-902"; echo 1 >"$T/askput.rc"
 act DRY_RUN=0 ROTATE_ACK_TIMEOUT=2 >"$T/o" 2>&1; rm -f "$T/askput.rc"
 grep -q '^do_spl_fleet_notice .* DESK_KIND=blocker BODY=\*\*ROTATION FAILED master ACK .*\*\* The ask to the orchestrator failed\.$' "$T/run2.log" &&
-  ! grep -q '^do_spl_fleet_notice .* DESK_KIND=note' "$T/run2.log" && grep -q ' ALERT FAIL do_spl_ask_put failed' "$D/rotate.log" &&
-  pass "4. ... the ask failed: the card stays a blocker and names no ask" || fail "4. failed ask card: $(grep '^do_spl_fleet_notice' "$T/run2.log")"
-[[ ! -e "$T/proc/2903" && -d "$T/proc/103" ]] && ! grep -q REFRESH "$D/rotate.log" && pass "4. no refresh after a failed master" || fail "4. refreshed anyway"
+  [[ "$(grep -c '^do_spl_fleet_notice' "$T/run2.log")" == 1 ]] && grep -q ' ALERT FAIL do_spl_ask_put failed' "$D/rotate.log" &&
+  grep -q ' ALERT OK ops channel notice$' "$D/rotate.log" &&
+  pass "4. ... the ask failed: exactly one card, a blocker that names no ask" || fail "4. failed ask card: $(grep '^do_spl_fleet_notice' "$T/run2.log")"
 
 # --- 5. a failed F refresh ------------------------------------------------------------------
 world; echo no >"$T/ack.mode.c-903"

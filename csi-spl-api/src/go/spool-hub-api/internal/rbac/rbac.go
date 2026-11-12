@@ -62,7 +62,7 @@ const (
 	// reads the estate (the hub's cost route decides, not this id).
 	CostsRead = "costs.read"
 	// CostsWrite is the permission to enter and delete the hand-entered cost
-	// entries, cloud and hr (specs/123 16, rdb 0275, SPL-5359): the two
+	// entries, cloud and hr (specs/123 16, rdb 0276, SPL-5359): the two
 	// accountant roles, biz_owner and admin. The entries are the estate's
 	// (rdb 0245, no tenant_id), so only a holder in the OPERATOR workspace
 	// writes them (hub/cost_entries.go); elsewhere it opens nothing yet.
@@ -143,7 +143,7 @@ const (
 	TimeAccountant = "time_accountant"
 	// InternalAccountant and ExternalAccountant enter the human-resource and
 	// other hand-entered costs and read the cost report (specs/123 16,
-	// rdb 0275, SPL-5359). internal_accountant: topics.read (every browser
+	// rdb 0276, SPL-5359). internal_accountant: topics.read (every browser
 	// door asks it, hub/resolve.go humanTenant), costs.read and costs.write;
 	// it works alone or on top of a member role. external_accountant: costs.read
 	// and costs.write, no topics.read, an outside seat ended by access_until
@@ -246,7 +246,7 @@ var Permissions = []PermissionDoc{
 // ids ride with agents.command (withAgents, demo_user included), the five
 // open issue ids with topics.manage (withMember, never demo_user), the rest
 // go to the roles their site names today. rdb 0232 adds vendor_keys.manage
-// to biz_owner and admin (spec 159 section 3, spec 127 4.3). rdb 0275 adds
+// to biz_owner and admin (spec 159 section 3, spec 127 4.3). rdb 0276 adds
 // costs.write to biz_owner and admin, internal_accountant with topics.read,
 // costs.read and costs.write, external_accountant with the two costs ids
 // only (specs/123 16, SPL-5359).

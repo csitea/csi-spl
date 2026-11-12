@@ -661,7 +661,7 @@ new role which is internal-accountant for all of the workspaces"; 09:11Z:
 "add also the external-accountant role in each workspace". What they enter
 and read: spec 123 section 16.
 
-One new permission, `costs.write` (rdb 0275): enter and delete the
+One new permission, `costs.write` (rdb 0276): enter and delete the
 hand-entered cost entries. Two new system roles, add-ons like
 `time_accountant` (they combine with any role, §10.2; neither is in
 `RoleIDs`, both are grantable through `PUT /v1/members/{human_id}/roles`):

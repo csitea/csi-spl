@@ -13,7 +13,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
-// SPL-5359 (spec 123 16, rdb 0275): an internal_accountant of the OPERATOR
+// SPL-5359 (spec 123 16, rdb 0276): an internal_accountant of the OPERATOR
 // workspace reads the cost report (200), lists (200), creates (201) and
 // deletes (204) a cost entry, and is refused a member role change (403
 // members.roles) and an operator write (PATCH /v1/operator/fleet-load, 403

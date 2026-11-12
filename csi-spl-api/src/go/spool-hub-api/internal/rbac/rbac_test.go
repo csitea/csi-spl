@@ -43,7 +43,7 @@ func TestDefaultsMatrix(t *testing.T) {
 	}
 	// demo_user (specs/077), channel_guest (specs/121) and time_accountant
 	// (specs/107 T065; its invite is T047's) and the two accountant roles
-	// (specs/123 16, rdb 0275) are not in RoleIDs.
+	// (specs/123 16, rdb 0276) are not in RoleIDs.
 	if len(roles) != 13 || len(RoleIDs) != len(roles)-5 {
 		t.Fatalf("roles: %d", len(roles))
 	}
@@ -393,10 +393,10 @@ func TestFixedSet(t *testing.T) {
 	}
 }
 
-// costsOnly is the two accountant roles (specs/123 16, rdb 0275).
+// costsOnly is the two accountant roles (specs/123 16, rdb 0276).
 func costsOnly(id string) bool { return id == InternalAccountant || id == ExternalAccountant }
 
-// specs/123 16 (SPL-5359, rdb 0275): internal_accountant holds exactly
+// specs/123 16 (SPL-5359, rdb 0276): internal_accountant holds exactly
 // topics.read, costs.read and costs.write; external_accountant exactly the
 // two costs ids (no topics.read). costs.write is theirs, biz_owner's and
 // admin's (so an admin covers, and may grant, both roles). Neither holds a

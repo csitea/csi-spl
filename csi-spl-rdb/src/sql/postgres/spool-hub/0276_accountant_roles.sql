@@ -1,4 +1,4 @@
--- 0275_accountant_roles.sql - the costs.write permission and the two
+-- 0276_accountant_roles.sql - the costs.write permission and the two
 -- accountant roles (spec 123 section 16, spec 025 section 12; SPL-5359;
 -- owner HUM-10, csitea #csi-fina 2026-11-12: "create a new role which is
 -- internal-accountant for all of the workspaces", "add also the

@@ -125,7 +125,7 @@ func TestMembersAdminAPI(t *testing.T) {
 	}
 	// RoleIDs plus time_accountant (specs/107 T065, rdb 0222), which the admin
 	// cannot grant: it holds hours.read and hours.rates, the admin neither;
-	// plus the two accountant roles (specs/025 section 12, rdb 0275), which the
+	// plus the two accountant roles (specs/025 section 12, rdb 0276), which the
 	// admin grants: it holds costs.write.
 	if len(grant) != len(rbac.RoleIDs)+3 || grant[rbac.BizOwner] || !grant[rbac.Admin] || !grant[rbac.Tester] || grant[rbac.TimeAccountant] ||
 		!grant[rbac.InternalAccountant] || !grant[rbac.ExternalAccountant] {

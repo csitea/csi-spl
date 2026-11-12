@@ -119,7 +119,7 @@ export function canRemoveMember(me, { targetId, selfId, targetIsOwner = false, o
 
 /**
  * The add-on roles a member route grants but RoleIDs does not list (spec 123
- * 5.2, rdb 0275, SPL-5359): they still carry a label in the role picker.
+ * 5.2, rdb 0276, SPL-5359): they still carry a label in the role picker.
  */
 export const LABELLED_ADDON_ROLE_IDS = ['internal_accountant', 'external_accountant']
 

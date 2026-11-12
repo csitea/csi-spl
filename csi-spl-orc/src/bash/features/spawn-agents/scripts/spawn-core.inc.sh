@@ -190,22 +190,9 @@ _spawn_reuse_branch() {
   fi
 }
 
-# RUNDIR REPO BRANCH WORKTREE_DIR DEFBRANCH, creating the worktree when live.
-_spawn_worktree() {
-  local rv n cand main_br main_dirty safe_slug
-  RUNDIR="$WORKDIR"
-  REPO=""; BRANCH=""; WORKTREE_DIR=""; DEFBRANCH="master"
-
-  REPO="$(_spawn_main_checkout "$WORKDIR")"
-  if [ -z "$REPO" ] || ! git -C "$REPO" remote get-url origin >/dev/null 2>&1; then
-    REPO=""
-    _sp_plan worktree "none: ${WORKDIR} is not a git checkout with an origin; the session runs in it"
-    return 0
-  fi
-  DEFBRANCH="$(git -C "$REPO" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
-  DEFBRANCH="${DEFBRANCH#origin/}"
-  [ -n "$DEFBRANCH" ] || DEFBRANCH="master"
-
+# _spawn_sync_main: the fetch and main-ff steps of _spawn_worktree (reads REPO, DEFBRANCH).
+_spawn_sync_main() {
+  local main_br main_dirty
   # Keep the MAIN source in sync with trunk: fetch always, fast-forward only
   # when it is on trunk and clean. NEVER switch/reset it, never a merge commit.
   # git-fetch-fresh.sh: skipped when origin/<trunk> was fetched < 60 s ago.
@@ -232,6 +219,25 @@ _spawn_worktree() {
   else
     _sp_plan main-ff "none: ${REPO} is on '${main_br:-?}' or has local changes"
   fi
+}
+
+# RUNDIR REPO BRANCH WORKTREE_DIR DEFBRANCH, creating the worktree when live.
+_spawn_worktree() {
+  local rv n cand safe_slug
+  RUNDIR="$WORKDIR"
+  REPO=""; BRANCH=""; WORKTREE_DIR=""; DEFBRANCH="master"
+
+  REPO="$(_spawn_main_checkout "$WORKDIR")"
+  if [ -z "$REPO" ] || ! git -C "$REPO" remote get-url origin >/dev/null 2>&1; then
+    REPO=""
+    _sp_plan worktree "none: ${WORKDIR} is not a git checkout with an origin; the session runs in it"
+    return 0
+  fi
+  DEFBRANCH="$(git -C "$REPO" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
+  DEFBRANCH="${DEFBRANCH#origin/}"
+  [ -n "$DEFBRANCH" ] || DEFBRANCH="master"
+
+  _spawn_sync_main
 
   WORKTREE_DIR="${REPO}-wt/${TITLE}"
   safe_slug="$(printf '%s' "$SLUG" | tr '[:upper:]' '[:lower:]' | tr ' _/' '---' | tr -cd 'a-z0-9-')"

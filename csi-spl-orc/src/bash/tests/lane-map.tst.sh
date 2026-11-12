@@ -338,7 +338,8 @@ out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json | tail -1)"
   pass "json: fleet, hub state and the live rows" || fail "json: $out"
 
 # 8. one id, a row on two boxes
-on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-109 LANE_BRANCH=old-row LANE_TOPIC=t-old LANE_STATE=done >/dev/null
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-109 LANE_BRANCH=old-row LANE_TOPIC=t-old >/dev/null
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-109 LANE_STATE=done >/dev/null
 on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-109 LANE_BRANCH=new-row LANE_TOPIC=t-9 >/dev/null
 [[ "$(jq '[.lanes[] | select(.agent_id == "c-109")] | length' "$T/hub/main.json")" == 2 ]] &&
   pass "setup: c-109 has a row on box-desk and one on sat" || fail "two-row setup: $(cat "$T/hub/main.json")"
@@ -366,6 +367,12 @@ on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_BRANCH=on-pc LANE_TOPIC=t-
 out="$(on sat do_spl_lane_put "${F[@]}" HUB_REQUIRE_LINKS=1 LANE_AGENT=c-112 LANE_STATE=done 2>&1)"; rc=$?
 [[ $rc -eq 6 && "$out" == *"no hub lane row of c-112 on sat: nothing to close"* && "$(jq '[.lanes[] | select(.agent_id == "c-112" and .agent_box == "sat")] | length' "$T/hub/main.json")" == 0 ]] &&
   pass "pin: a done with no row on this box is exit 6, nothing to close, and mints no row" || fail "no-row done (rc=$rc): $out"
+# SPL-5344: a review-only lane has no row (its spawn put named a lane task, no
+# discussion); its done with --topic <its task> went past the guard and the hub
+# refused it (bad_frame, rdb 0264). A done never mints a row, topic or not.
+out="$(on sat do_spl_lane_put "${F[@]}" HUB_REQUIRE_LINKS=1 LANE_AGENT=c-112 LANE_TOPIC=t-lane-task LANE_ISSUE=SPL-14 LANE_STATE=done 2>&1)"; rc=$?
+[[ $rc -eq 6 && "$out" == *"no hub lane row of c-112 on sat: nothing to close"* && "$(jq '[.lanes[] | select(.agent_id == "c-112" and .agent_box == "sat")] | length' "$T/hub/main.json")" == 0 ]] &&
+  pass "a done --topic with no row on this box is exit 6 too, and mints no row (SPL-5344)" || fail "no-row done with topic (rc=$rc): $out"
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-112 LANE_STATE=done >/dev/null
 out="$(on sat do_spl_lane_put "${F[@]}" LANE_AGENT=c-110 'LANE_BOX=sat box-desk')"; rc=$?
 [[ $rc -eq 1 && "$out" == *"LANE_BOX must be"* ]] && pass "the action refuses a two-word LANE_BOX" || fail "two-word LANE_BOX (rc=$rc): $out"

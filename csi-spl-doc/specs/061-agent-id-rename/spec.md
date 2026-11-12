@@ -165,7 +165,11 @@ nothing queued and no "held owner topic ?" note (SPL-5340). The spool binary's
 `topic is required (rdb 0264)` refusal alone is not that answer: the binary
 prints it before it calls the hub, so a hub that did not answer gives the same
 line, and that close is retried and alerted. An answer with no row of this box
-at all (a wrong or renamed box name) is "cannot tell" and alerts too.
+at all (a wrong or renamed box name) is "cannot tell" and alerts too. The
+same holds for an `/exit-clean` done with `--topic`: a done closes a row, it
+never mints one, so an id with no row (a review-only lane whose task names no
+discussion) is exit 6 with or without a topic, never the hub's `bad_frame`
+(SPL-5344).
 
 A message that arrives for a retired id inside the quarantine bounces to the
 sender as a `reject` ("c-004 retired at <ts>"). It does NOT queue.

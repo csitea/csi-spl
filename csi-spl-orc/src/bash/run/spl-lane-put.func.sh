@@ -9,7 +9,8 @@
 # @description A retired id (spec 061) takes one write past its cutoff: LANE_STATE=done
 # @description on a row it already has (SPL-4962). Live stays refused. A done write
 # @description of an id the hub holds no row of on its box, where the hub answered
-# @description with rows of that box, is exit 6: nothing to close (SPL-5340).
+# @description with rows of that box, is exit 6: nothing to close (SPL-5340), with
+# @description or without LANE_TOPIC: a done never mints a row (SPL-5344).
 # @param LANE_AGENT (required) - the agent id, e.g. c-042; its box is LANE_BOX (default spl_desk_box_default)
 # @param LANE_STATE (optional) - live (default) or done
 # @param LANE_REPO / LANE_BRANCH / LANE_SCOPE / LANE_TOPIC (optional) - the row's fields; the scope is cut to one line of 500 bytes
@@ -55,7 +56,9 @@ do_spl_lane_put() {
     # required", rdb 0264) before it calls the hub, so the same line follows an
     # unanswered read: only an answer with rows of this box tells "no row". An
     # answer with none (a wrong or renamed box) is "cannot tell", as rlc_no_row.
-    if [[ -z "$cur" && -z "${LANE_TOPIC:-}" ]] &&
+    # SPL-5344: a given LANE_TOPIC does not change it: a done closes a row, it
+    # never mints one (a review lane's task names no discussion: bad_frame).
+    if [[ -z "$cur" ]] &&
       jq -e --arg b "$LANE_BOX" '[.lanes[]? | select(.agent_box == $b)] | length > 0' <<<"$rows" >/dev/null 2>&1; then
       do_log "INFO no hub lane row of $LANE_AGENT on $LANE_BOX: nothing to close"
       return 6

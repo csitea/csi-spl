@@ -69,6 +69,11 @@ A role seat (c-001..c-003, the ids in the dispatch lease) runs it too: it
 prints one INFO line and changes nothing, because the rotation successor keeps
 the same id and so the lane.
 
+Exit 6 with `INFO no hub lane row of <ID> on <box>: nothing to close` is done
+too: the lane never had a row (a review-only lane whose task names no
+discussion), so there is nothing to close. Do not retry it with `--topic`: a
+done closes a row, it never mints one (SPL-5344).
+
 ## 2. Report
 
 Send the summary to your named reporter (the one your brief or seed says to

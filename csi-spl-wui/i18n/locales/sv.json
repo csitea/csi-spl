@@ -3746,8 +3746,8 @@
       "pie_label": "Varje posts andel av periodens kostnad",
       "table_label": "Kostnaderna per månad",
       "no_pie": "Inga kostnader ännu i den här perioden, så inget cirkeldiagram.",
-      "empty": "Inga kostnader under den här etiketten i den här perioden.",
-      "no_split": "Den här arbetsytan har ännu inga egna kostnader under den här etiketten: de tillhör hela infrastrukturen och visas i operatörens arbetsyta.",
+      "empty": "Inga kostnader i den här kategorin under den här perioden.",
+      "no_split": "Den här arbetsytan har ännu inga egna kostnader i den här kategorin: de tillhör hela infrastrukturen och visas i operatörens arbetsyta.",
       "tokens_sub": "{units} token · listpris {list}, inte betalt",
       "price_link": "Pris per token: varje agenttyps faktiska pris finns under Utgifter → AI-kostnader."
     },

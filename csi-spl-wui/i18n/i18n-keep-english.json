@@ -44,6 +44,7 @@
     "people.contact_tag": "nl and ro write the sidebar tag as contact, the same word as English: claude language review SPL-4639 (c-955, msg 29df79ce). The longer compounds were the words that review rejected",
     "tenant_settings.marketing_handover_hashtags_label": "nl writes the loanword 'Hashtags' as en; 'Trefwoorden' means keywords: agy language review SPL-4804 (a-260, msg fea221d2)",
     "reporting.costs.label.cloud": "the Cloud label (SPL-5312, was reporting.costs.page.cloud): nl, ro and sk write the cloud-computing loanword 'Cloud' as in their own cloud titles, not the sky word (claude language review W4, c-700 msg 15167f79, SPL-4187)",
-    "reporting.costs.label.tokens": "the Tokens label (SPL-5312): LLM term kept as English 'Tokens' in el, es, nl, as monitoring.tab.tokens (agy language review SPL-2322, a-351, msg 66006252)"
+    "reporting.costs.label.tokens": "the Tokens label (SPL-5312): LLM term kept as English 'Tokens' in el, es, nl, as monitoring.tab.tokens (agy language review SPL-2322, a-351, msg 66006252)",
+    "reporting.costs.label.total": "the Total label (SPL-5312): es and ro write 'Total' the same as English, as reporting.incomes.col.total (agy language review SPL-5312)"
   }
 }

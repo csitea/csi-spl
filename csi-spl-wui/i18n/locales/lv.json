@@ -3737,7 +3737,7 @@
         "persons": "Personas",
         "cloud": "Mākonis",
         "tokens": "Tokeni",
-        "other": "Citas"
+        "other": "Cits"
       },
       "period": "Periods",
       "period_ytd": "No gada sākuma ({year})",
@@ -3748,8 +3748,8 @@
       "no_pie": "Šim periodam vēl nav izmaksu, tāpēc nav sektoru diagrammas.",
       "empty": "Šajā kategorijā šajā periodā nav izmaksu.",
       "no_split": "Šai darbvietai šajā kategorijā vēl nav savu izmaksu: tās pieder visai infrastruktūrai un ir redzamas operatora darbvietā.",
-      "tokens_sub": "{units} tokeni · cenrāža cena {list}, nav samaksāta",
-      "price_link": "Tokena cena: katra aģenta tipa faktiskā cena ir sadaļā Izdevumi → MI izmaksas."
+      "tokens_sub": "{units} tokenu · cenrāža cena {list}, nav samaksāta",
+      "price_link": "Tokena cena: katra aģenta veida faktiskā cena ir sadaļā Izdevumi → MI izmaksas."
     },
     "releases": {
       "soon": "Laidienu pārskats drīzumā.",

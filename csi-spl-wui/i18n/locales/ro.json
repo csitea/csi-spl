@@ -3733,7 +3733,7 @@
         "not_tracked": "Încă neurmărit. Costurile cu personalul sunt timp aprobat la prețul propriu al fiecărei persoane, construite de rândurile {rows} din specificația 107; nu se afișează niciun număr până nu sunt gata."
       },
       "label": {
-        "total": "Total general",
+        "total": "Total",
         "persons": "Persoane",
         "cloud": "Cloud",
         "tokens": "Tokeni",

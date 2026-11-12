@@ -3733,7 +3733,7 @@
         "not_tracked": "Aún sin seguimiento. Los costes de personal son tiempo aprobado al precio propio de cada persona, que construyen las filas {rows} de la especificación 107; no se muestra ninguna cifra hasta que estén listas."
       },
       "label": {
-        "total": "Total general",
+        "total": "Total",
         "persons": "Personas",
         "cloud": "Nube",
         "tokens": "Tokens",

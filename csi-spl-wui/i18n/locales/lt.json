@@ -3749,7 +3749,7 @@
       "empty": "Šioje kategorijoje per šį laikotarpį išlaidų nėra.",
       "no_split": "Ši darbo sritis šioje kategorijoje dar neturi savų išlaidų: jos priklauso visai infrastruktūrai ir rodomos operatoriaus darbo srityje.",
       "tokens_sub": "{units} žetonų · kainyno kaina {list}, nesumokėta",
-      "price_link": "Žetono kaina: kiekvieno agento tipo faktinė kaina pateikta skiltyje Išlaidos → DI išlaidos."
+      "price_link": "Žetono kaina: kiekvieno agento tipo tikroji kaina pateikta skiltyje Išlaidos → DI išlaidos."
     },
     "releases": {
       "soon": "Leidimų ataskaita netrukus.",

@@ -728,7 +728,10 @@ admin's only), wherever this spec says the operator admin reads the estate.
   `cost-entries` and `fleet-tokens/paid` goes through
   `internal/hub/operator_write.go`, `fleetLoadCaller` minus a live act-as
   clone, 403 `operator.workspaces`. A clone may not write what it may not
-  read. Every other operator route is unchanged for a clone.
+  read. Since SPL-5369 (owner HUM-10, t1 8426e63e, 08:51:55Z, pick A) every
+  operator write refuses a live clone, not only these: the gate is
+  `operatorActor`, every method but GET and HEAD (spec 054 section 5);
+  `operator_write.go` is now `fleetLoadCaller` itself.
 - The WUI needs no change for it: a clone's `/v1/view/me` says
   `operator_reader` false, so the Expenses page draws no cards at all.
 - Unchanged: `fleetLoadCaller`, `monitoringStaff`, the lane console, the Topics

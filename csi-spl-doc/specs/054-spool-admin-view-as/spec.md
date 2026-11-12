@@ -71,7 +71,7 @@ When admin **Y** starts "act as" on member **X** in tenant **T**, the hub, in on
 
 Everything `C` does is attributed to `C`. **X's real history is never touched.** Because `C` is a real member with
 X's role, it can *act* (writes are allowed and land as `C`), which is what "act as" means — but on a throwaway
-identity, so nothing lands on X.
+identity, so nothing lands on X. One exception: the operator routes, which a clone reads but never writes (`§5`).
 
 ## 4. Leaving is a sign-out (owner's rule)
 
@@ -105,6 +105,14 @@ login page → normal login.**
   mail/notification by default.
 - **Sticky banner + one-click stop**: a permanent high-z-index bar (the `BuildUpdateBar` pattern),
   "**Acting as {X}** (test clone) — **Stop**", on every route, not dismissible; Stop = the sign-out of `§4`.
+- **Operator routes are read only for a clone** (owner HUM-10, t1 8426e63e, 08:51:55Z: "A because of Security";
+  SPL-5369): a live act-as clone of the operator admin reads the operator routes but every operator write is
+  refused, 403 `operator.workspaces`. The one gate is `operatorActor` (`internal/hub/operator_workspaces.go`):
+  every method but GET and HEAD refuses a live clone, so the session writes on it and on `fleetLoadCaller`
+  (fleet load, categories, incomes, fleet desks, workspaces, agent caps, the event delete, paid items and cost
+  entries) all refuse it. The lane console's POST is a watch demand, a read, and stays open
+  (`operatorAdmin`). The reads `operator_read.go` serves stay refused to a clone (spec 123 section 14).
+  Test: `TestOperatorRoutesActAsCloneReadOnly` (Postgres).
 - **Technical clones are excluded** from member lists, seat/billing counts and rosters (filtered on
   `humans.technical`), so a clone never looks like a real seat.
 

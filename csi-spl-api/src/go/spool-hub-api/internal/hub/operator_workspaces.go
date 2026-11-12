@@ -79,8 +79,22 @@ func (s *Server) ClaimOperatorWorkspace(ctx context.Context) (string, error) {
 	return s.operatorTenant(ctx)
 }
 
-// operatorActor authorises a workspace route; false = answered.
+// operatorActor authorises a workspace route; false = answered. A live act-as
+// clone of the operator admin reads these routes but writes none of them
+// (owner HUM-10, t1 8426e63e, pick A; SPL-5369): every method but GET and
+// HEAD refuses it.
 func (s *Server) operatorActor(w http.ResponseWriter, r *http.Request) (opActor, bool) {
+	a, ok := s.operatorAdmin(w, r)
+	if ok && r.Method != http.MethodGet && r.Method != http.MethodHead && s.readerIsActAsClone(r.Context(), a.tenant, a.hum) {
+		writeForbidden(w, permOperatorAdmin, "an act-as clone reads the operator routes but writes none of them")
+		return opActor{}, false
+	}
+	return a, ok
+}
+
+// operatorAdmin is operatorActor without the clone's write refusal, for a POST
+// that only reads (the lane console's watch demand).
+func (s *Server) operatorAdmin(w http.ResponseWriter, r *http.Request) (opActor, bool) {
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
 	op, err := s.operatorTenant(r.Context())

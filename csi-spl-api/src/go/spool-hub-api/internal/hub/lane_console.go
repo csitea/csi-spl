@@ -121,7 +121,7 @@ func (s *Server) handleLaneConsole(operator, watch bool) http.HandlerFunc {
 func (s *Server) laneConsoleCaller(w http.ResponseWriter, r *http.Request, operator, watch bool) (laneConsoleAsk, bool) {
 	var ask laneConsoleAsk
 	if operator {
-		a, ok := s.operatorActor(w, r)
+		a, ok := s.operatorAdmin(w, r)
 		if !ok {
 			return ask, false
 		}

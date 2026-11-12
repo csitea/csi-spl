@@ -30,13 +30,16 @@
 SET LOCAL lock_timeout = '5s';
 
 INSERT INTO rbac_permissions (permission_id, description) VALUES
-    ('costs.write', 'enter and delete the hand-entered cost entries (cloud, hr); the operator workspace''s only today');
+    ('costs.write', 'enter and delete the hand-entered cost entries (cloud, hr); the operator workspace''s only today')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO rbac_roles (role_id, tenant_owner, description) VALUES
     ('internal_accountant', false, 'enters the hand-entered costs and reads the cost report and topics; no topics write (spec 123 16)'),
-    ('external_accountant', false, 'an outside accountant: enters the hand-entered costs and reads the cost report; no topics, ended by access_until (spec 123 16)');
+    ('external_accountant', false, 'an outside accountant: enters the hand-entered costs and reads the cost report; no topics, ended by access_until (spec 123 16)')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO rbac_role_permissions (role_id, permission_id) VALUES
     ('biz_owner', 'costs.write'), ('admin', 'costs.write'),
     ('internal_accountant', 'topics.read'), ('internal_accountant', 'costs.read'), ('internal_accountant', 'costs.write'),
-    ('external_accountant', 'costs.read'), ('external_accountant', 'costs.write');
+    ('external_accountant', 'costs.read'), ('external_accountant', 'costs.write')
+ON CONFLICT DO NOTHING;

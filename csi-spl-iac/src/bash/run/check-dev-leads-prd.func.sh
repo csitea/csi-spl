@@ -6,6 +6,8 @@
 # @description -> the prd apply is REFUSED, naming the step: apply dev first,
 # @description prove it there, then repeat it on prd. A dev plan that fails is
 # @description refused too (fail closed): dev's state is unknown.
+# @description A prd-only step (spec 057: its dev vars render is the stub marked
+# @description `# prd-only-step`) has no dev counterpart and passes, dev=none.
 # @description Owner, t1 msg 15204547: "Dev should always be in sync with Prod,
 # @description or it should be in a newer version than Prod."
 # @description do_provision, do_tf_apply and do_tf_apply_target call it through
@@ -32,6 +34,10 @@ do_check_dev_leads_prd() {
   local env="${ENV:?}" step="${STEP:?}" sha line rc verdict why
   if [[ "$env" != prd ]]; then
     echo "ENV_ORDER $env $step not-gated (only a prd apply waits for dev)"
+    return 0
+  fi
+  if env_order_prd_only_step "$step"; then
+    echo "ENV_ORDER prd $step allowed dev=none (prd-only step, spec 057)"
     return 0
   fi
   sha="$(env_order_tree_sha)"
@@ -63,6 +69,13 @@ env_order_gate() {
   [[ "${_ENV_ORDER_GATED:-}" == "${STEP:-}" ]] && return 0
   do_check_dev_leads_prd || return $?
   export _ENV_ORDER_GATED="$STEP"
+}
+
+# env_order_prd_only_step <step>: the dev vars render is the prd-only stub.
+# A missing render, or one without the marker, is not: it plans dev.
+env_order_prd_only_step() {
+  local oa="${ORG:-csi}-${APP#"${ORG:-csi}"-}"
+  grep -qx '# prd-only-step' "$APP_PATH/$oa-cnf/$oa/dev/tf/$1.vars.tfvars" 2>/dev/null
 }
 
 # env_order_plan_dev <step>: the dev plan line on stdout, its rc (0/2/1).

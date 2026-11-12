@@ -139,7 +139,8 @@ mount the tree that last ran `make do-setup-app-inf`.
   `do_tf_apply_target` call `env_order_gate` first, so a prd apply plans dev
   for the same step (`do_tf_plan_pending`, a csi-spl action, in its own run
   dir through `TF_RUN_DIR_SUFFIX` in `tf-init`) and is refused while dev is
-  pending. The rule: `csi-spl-doc/doc/md/fleet-rules-index.md` section 2.
+  pending; a prd-only step (`# prd-only-step` dev stub) has no dev plan
+  and passes. The rule: `csi-spl-doc/doc/md/fleet-rules-index.md` section 2.
 - A plan of a branch (SPL-2602): `cd csi-spl-orc && PLAN_REF=<branch|sha>
   ENV=dev STEP=<step> make do-tf-plan` runs `do_tf_plan_ref`
   (`csi-spl-orc/src/bash/run/tf-plan-ref.func.sh`) on the host. The

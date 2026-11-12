@@ -9,6 +9,9 @@
 #      a no-op) DOES apply: the assertion above can fail, so it proves the gate.
 #   2. GREEN: dev clean -> the prd apply runs; dev applies are never gated.
 #   3. dev plan fails -> refused (rc 1, fail closed).
+#   3b. a prd-only step (dev render is the `# prd-only-step` stub, spec 057)
+#      -> allowed dev=none, no dev plan. CONTROL: the same stub without the
+#      marker and a failing dev plan is still refused (rc 1).
 #   4. ENV_ORDER_OVERRIDE=<owner msg id> -> applies, WARN + one log line;
 #      a value that is not a msg id is refused.
 #   5. a clean dev plan of the same tree sha is reused; another sha, a
@@ -90,6 +93,19 @@ grep -q devplan "$T/calls" && fail "divest was gated" || pass "divest is not gat
 : >"$T/calls"; out=$(provision ENV=prd STUB_DEV_RC=1 2>&1); rc=$?
 [[ $rc -eq 1 ]] && ! grep -q ' apply ' "$T/calls" && pass "a failed dev plan refuses (rc 1)" || fail "failed dev plan: rc=$rc"
 grep -q "dev's state is unknown" <<<"$out" && pass "the refusal says dev is unknown" || fail "no unknown reason: $out"
+
+# --- 3b. a prd-only step has no dev counterpart -------------------------------
+TFD="$A/csi-spl-cnf/csi-spl/dev/tf"; mkdir -p "$TFD"
+printf '# GENERATED stub\n# prd-only-step\n' >"$TFD/002-x.vars.tfvars"
+: >"$T/calls"; out=$(in_iac STEP=002-x ENV=prd STUB_DEV_RC=1 ENV_ORDER_PLAN_CMD="$T/bin/devplan" -- 'do_check_dev_leads_prd' 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'ENV_ORDER prd 002-x allowed dev=none (prd-only step, spec 057)' <<<"$out" \
+  && pass "a prd-only step passes the gate, dev=none" || fail "prd-only step: rc=$rc out=$out"
+grep -q devplan "$T/calls" && fail "a prd-only step still planned dev" || pass "a prd-only step plans no dev"
+printf '# GENERATED stub\n' >"$TFD/002-x.vars.tfvars"
+: >"$T/calls"; out=$(in_iac STEP=002-x ENV=prd STUB_DEV_RC=1 ENV_ORDER_PLAN_CMD="$T/bin/devplan" -- 'do_check_dev_leads_prd' 2>&1); rc=$?
+[[ $rc -eq 1 ]] && grep -q '^REFUSED: prd apply of STEP=002-x' <<<"$out" && grep -q devplan "$T/calls" \
+  && pass "CONTROL: the stub without the marker plans dev and still refuses (rc 1)" || fail "CONTROL unmarked stub: rc=$rc out=$out"
+rm -rf "$A/csi-spl-cnf/csi-spl"
 
 # --- 4. the override --------------------------------------------------------
 : >"$T/calls"; out=$(provision ENV=prd STUB_DEV_RC=2 ENV_ORDER_OVERRIDE=15204547 2>&1); rc=$?

@@ -29,7 +29,7 @@ EOF
 export FAKE_CALLS FAKE_LIST="$T_TMP/list.json" FAKE_GOOD FAKE_DOWN="" FAKE_SLOW=""
 # shellcheck source=../scripts/spawn-core.inc.sh
 . "$T_SCRIPTS/spawn-core.inc.sh"
-row() { printf '{"agent_id":"%s","agent_box":"box-a","topic":"%s","issue_key":"%s","state":"%s"}' "$@"; }
+row() { printf '{"agent_id":"%s","agent_box":"%s","topic":"%s","issue_key":"%s","state":"%s"}' "$1" "${5:-box-a}" "$2" "$3" "$4"; }
 lanes() { local IFS=,; printf '{"fleet":"main","hub":"ok","lanes":[%s]}\n' "$*" >"$FAKE_LIST"; }
 
 # put ID BRIEF_BODY [ASK_TOPIC]: one live spawn step; waits (at most 5 s) for
@@ -76,6 +76,10 @@ has "...WARN" "WARN: LANE ROW REFUSED: c-847" "$(warn c-847)"
 # ...but the Author's lane decides between them
 lanes "$(row c-902 "$E" SPL-5273 live)" "$(row c-815 "$D" SPL-5273 "done")"
 eq "two discussions, the Author's wins" "put $H list put $D" "$(put c-848 "$REVIEW" "$H")"
+# ...on the Author's box: the same id with a row on another box is not it (R7 c-053 N2)
+lanes "$(row c-815 "$E" SPL-5273 live box-b)" "$(row c-815 "$D" SPL-5273 "done" box-a)"
+eq "Author c-815@box-a: its box-a row, not the box-b one listed first" "put $H list put $D" "$(put c-852 "$REVIEW" "$H")"
+eq "...a bare Author c-815 takes the first of its rows" "put $H list put $E" "$(put c-853 "${REVIEW/c-815@box-a/c-815}" "$H")"
 # ...and the lane's own old row (a restart) is no other lane
 lanes "$(row c-851 "$E" SPL-5273 live)"
 eq "its own row is not the reviewed lane" "put $H list" "$(put c-851 "${REVIEW/Author: c-815@box-a/}" "$H")"

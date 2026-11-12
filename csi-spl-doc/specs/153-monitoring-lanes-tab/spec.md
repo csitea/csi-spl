@@ -3,7 +3,7 @@
 Addendum (2026-11-12, SPL-5353): section 3.26 (a review-only lane whose put
 names its report task's relay hash is refused; the spawn tries the reviewed
 lane's discussion once, and a row still not written is one WARN line in
-`<id>/lane-unlinked.log`), cases C133-C138. A bug fix on 3.21, placed as one
+`<id>/lane-unlinked.log`), cases C133-C139. A bug fix on 3.21, placed as one
 lane brief, not a panel version.
 
 Addendum (2026-11-10, SPL-5080): section 3.24 (a put that resends the topic
@@ -2221,7 +2221,9 @@ What changes (`spawn-core.inc.sh`, `_spawn_lane_put_live`):
   discussion, needs its discussion, or topic is required) is tried once
   more with the discussion of the issue's other
   lane (`_spawn_lane_issue_topic`): from the fleet lane map, the row of the
-  brief's `Author:` lane when it carries the same issue key, else the one
+  brief's `Author:` lane when it carries the same issue key (on the box the
+  line names, `Author: c-815@<box>`: one id can hold a row on two boxes),
+  else the one
   discussion every other row of that issue names. Two discussions and no
   Author, no other row, or no issue: no second put. `lane.log` names the
   refused topic and the one tried.
@@ -2254,6 +2256,10 @@ Cases (`spawn-agents/tests/test-spawn-lane-review-row.sh`, a stub
 - **C138** an outage, or a timeout, on a discussion the hub takes: one put,
   no map read, no other discussion, one WARN line. Red control: on
   0638ae228 both put the other lane's discussion (16 passed, 5 failed).
+- **C139** `Author: c-815@box-a` with c-815 rows on box-b and box-a: the
+  box-a row's discussion, whatever the order; a bare `Author: c-815` takes
+  the first. Red control: on 4ef5b81c5 the box-b row won (22 passed, 1
+  failed).
 - Red control: on master 8fc74467b, 13 of 16 fail (one put of the hash, no
   second put, no WARN); the control C136 passes.
 

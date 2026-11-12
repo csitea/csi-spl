@@ -429,20 +429,23 @@ _spawn_lane_put_once() {  # REPO SCOPE TOPIC ISSUE ORIGIN
 
 # _spawn_lane_issue_topic ISSUE REFUSED: the discussion of ISSUE's other lane
 # in the fleet lane map, the one a review lane reviews: the row of the brief's
-# `Author:` lane, else the one discussion every other row of ISSUE names. ""
-# for no issue, no such row or two discussions with no Author: no guess.
+# `Author:` lane (on its box when the line names one, `c-815@<box>`: one id
+# can hold a row on two boxes, R7 c-053 N2), else the one discussion every
+# other row of ISSUE names. "" for no issue, no such row or two discussions
+# with no Author: no guess.
 _spawn_lane_issue_topic() {
-  local issue="$1" refused="$2" author="" b
+  local issue="$1" refused="$2" author="" abox="" b a
   [ -n "$issue" ] || return 0
   for b in "$BRIEF" "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md"; do
-    [ -z "$author" ] && [ -r "$b" ] &&
-      author="$(grep -m1 -iE '^Author:' "$b" | grep -oE '\b[acgmq]-[0-9]{3}\b' | grep -vx "$TITLE" | sed -n 1p)"
+    [ -z "$author" ] && [ -r "$b" ] || continue
+    a="$(grep -m1 -iE '^Author:' "$b" | grep -oE '\b[acgmq]-[0-9]{3}(@[a-z0-9][a-z0-9-]{0,31})?' | grep -v "^${TITLE}\(@\|\$\)" | sed -n 1p)"
+    author="${a%%@*}"; [[ "$a" == *@* ]] && abox="${a#*@}"
   done
   timeout 60 bash "${_SP_DIR}/lane-map.sh" list --all --json 2>/dev/null |
-    jq -r --arg k "$issue" --arg me "$TITLE" --arg a "$author" --arg no "$refused" '
+    jq -r --arg k "$issue" --arg me "$TITLE" --arg a "$author" --arg ab "$abox" --arg no "$refused" '
       [.lanes[]? | select(.issue_key == $k and .agent_id != $me and .topic != $no
         and (.topic // "" | test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")))] as $r
-      | ([$r[] | select(.agent_id == $a) | .topic] | first)
+      | ([$r[] | select(.agent_id == $a and ($ab == "" or .agent_box == $ab)) | .topic] | first)
         // ([$r[].topic] | unique | if length == 1 then .[0] else empty end) // empty' 2>/dev/null
 }
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The orchestrator's one-command view of its work (CLE-77929;
 # @description SPEC-spool-fleet-roles.md 4.3). Its inbox held 954 messages and
 # @description 0 archived on 2026-10-02: nothing ever marked a message handled,
@@ -23,6 +24,7 @@
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_orch_inbox
 # @example ORCH_INBOX_ARCHIVE=1 ./run -a do_spl_orch_inbox
+#------------------------------------------------------------------------------
 
 do_spl_orch_inbox() {
   spl_asks_init || return 1

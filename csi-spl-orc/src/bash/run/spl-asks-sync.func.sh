@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description Push this machine's journal asks the hub has not got yet
 # @description (CLE-77929; SPEC-spool-fleet-roles.md 4.3): a new ask is put, a
 # @description later state (acked, done, declined) is replayed as its op, and a
@@ -9,6 +10,7 @@
 # @description answers. Without a fleet it is a logged no-op.
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_asks_sync
+#------------------------------------------------------------------------------
 
 do_spl_asks_sync() {
   spl_asks_init || return 1

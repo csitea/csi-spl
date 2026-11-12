@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The work groups (SPL-2370, do_spl_spawn_group_put): one line
 # @description per group, rows done / running / in line / waiting against its
 # @description width N, then one line per row: its state (waiting, open,
@@ -13,6 +14,7 @@
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_spawn_group_list
 # @example GROUP_EPIC=SPL-2151 GROUP_FORMAT=json ./run -a do_spl_spawn_group_list
+#------------------------------------------------------------------------------
 
 do_spl_spawn_group_list() {
   local fmt="${GROUP_FORMAT:-table}" dir f g asks st err all='[]' live=1

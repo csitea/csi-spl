@@ -13,16 +13,12 @@ csi-spl-iac/src/bash/run/gcp-tail-logs.func.sh
 csi-spl-orc/src/bash/run/spl-ask-ack.func.sh
 csi-spl-orc/src/bash/run/spl-ask-close.func.sh
 csi-spl-orc/src/bash/run/spl-ask-put.func.sh
-csi-spl-orc/src/bash/run/spl-asks-sync.func.sh
 csi-spl-orc/src/bash/run/spl-epic-stall-check.func.sh
-csi-spl-orc/src/bash/run/spl-export-constitution-coding-standards.func.sh
 csi-spl-orc/src/bash/run/spl-lane-map.func.sh
 csi-spl-orc/src/bash/run/spl-lane-put.func.sh
-csi-spl-orc/src/bash/run/spl-orch-inbox.func.sh
 csi-spl-orc/src/bash/run/spl-security-round-queue.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-fill.func.sh
-csi-spl-orc/src/bash/run/spl-spawn-group-list.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-group-put.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-place.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-placed.func.sh

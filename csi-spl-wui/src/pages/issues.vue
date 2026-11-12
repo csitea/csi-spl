@@ -1937,6 +1937,16 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 /* SPL-1559: a new issue, not yet opened - the unread row's dot and bold title */
 .issues-unopened-dot { margin-inline-end: 6px; vertical-align: middle; }
 .issues-row[data-unopened] .issues-title, .issues-card[data-unopened] .issues-card__title { font-weight: 700; }
+/* SPL-5350 (owner, t1 0ca07420): a list row's title wraps to a second line
+   and stops at two, like the phone card; the full title reads on hover */
+.issues-c-title .issues-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .issues-table .issues-person { max-width: 10rem; }
 .issues-table .issues-pill { max-width: 7rem; }
 /* the header sort button and its triangle: components/SheetSortButton.vue */

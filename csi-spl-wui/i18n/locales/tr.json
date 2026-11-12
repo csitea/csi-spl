@@ -3728,10 +3728,6 @@
         "list_note": "Ödenen tutar para birimi sütunundadır; liste fiyatı yanında gösterilir ve asla ona eklenmez.",
         "empty": "Bu ay henüz yapay zekâ belirteci maliyeti satırı yok."
       },
-      "human": {
-        "title": "Personel maliyetleri",
-        "not_tracked": "Henüz izlenmiyor. Personel maliyetleri, her kişinin kendi ücretiyle onaylanmış süredir ve 107 numaralı belirtimin {rows} satırlarıyla oluşturulur; bunlar tamamlanana kadar hiçbir sayı gösterilmez."
-      },
       "label": {
         "total": "Toplam",
         "persons": "Kişiler",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Maliyet ekle",
       "intro_cloud": "Elle girilen bulut altyapısı maliyetleri, örneğin bir fatura, ay başına bir satır. Raporlama → Maliyetler bunları Bulut altında sayar.",
-      "intro_hr": "Elle girilen insan kaynakları maliyetleri, ay başına bir satır. Raporlama → Maliyetler bunları Harcama’da değil, Personel altında gösterir.",
+      "intro_hr": "Elle girilen insan kaynakları maliyetleri, ay başına bir satır. Raporlama → Maliyetler bunları Kişiler altında gösterir ve Toplam bunları içerir.",
       "col_label_cloud": "Açıklama",
       "col_label_hr": "Rol veya sözleşme",
       "col_amount": "KDV hariç tutar",

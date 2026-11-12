@@ -3728,10 +3728,6 @@
         "list_note": "Det som betalats står i valutakolumnen; listpriset visas bredvid och läggs aldrig till.",
         "empty": "Ingen rad med kostnad för AI-token ännu den här månaden."
       },
-      "human": {
-        "title": "Personalkostnader",
-        "not_tracked": "Spåras inte ännu. Personalkostnader är godkänd tid till varje persons eget pris, byggda av rader {rows} i specifikation 107; ingen siffra visas förrän de är klara."
-      },
       "label": {
         "total": "Totalt",
         "persons": "Personer",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Lägg till en kostnad",
       "intro_cloud": "Handinmatade kostnader för molninfrastruktur, till exempel en faktura, en rad per månad. Rapporter → Kostnader räknar dem under Moln.",
-      "intro_hr": "Handinmatade personalkostnader, en rad per månad. Rapporter → Kostnader visar dem under Personal, inte under Utgifter.",
+      "intro_hr": "Handinmatade personalkostnader, en rad per månad. Rapporter → Kostnader visar dem under Personer, och Totalt räknar med dem.",
       "col_label_cloud": "Beskrivning",
       "col_label_hr": "Roll eller avtal",
       "col_amount": "Belopp exkl. moms",

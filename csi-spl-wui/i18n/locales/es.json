@@ -3728,10 +3728,6 @@
         "list_note": "Lo pagado está en la columna de la moneda; el precio de lista se muestra al lado y nunca se suma.",
         "empty": "Aún no hay ninguna línea de coste de tokens de IA este mes."
       },
-      "human": {
-        "title": "Costes de personal",
-        "not_tracked": "Aún sin seguimiento. Los costes de personal son tiempo aprobado al precio propio de cada persona, que construyen las filas {rows} de la especificación 107; no se muestra ninguna cifra hasta que estén listas."
-      },
       "label": {
         "total": "Total",
         "persons": "Personas",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Añadir un coste",
       "intro_cloud": "Costes de infraestructura en la nube introducidos a mano, como una factura, una fila por mes. Informes → Costes los cuenta en Nube.",
-      "intro_hr": "Costes de recursos humanos introducidos a mano, una fila por mes. Informes → Costes los muestra en Personal, no en Gasto.",
+      "intro_hr": "Costes de recursos humanos introducidos a mano, una fila por mes. Informes → Costes los muestra en Personas, y el Total los incluye.",
       "col_label_cloud": "Descripción",
       "col_label_hr": "Función o contrato",
       "col_amount": "Importe sin IVA",

@@ -3728,10 +3728,6 @@
         "list_note": "Maksettu summa on valuuttasarakkeessa; listahinta näytetään sen vieressä eikä sitä koskaan lasketa mukaan.",
         "empty": "Tältä kuukaudelta ei ole vielä tekoälytokenien kulurivejä."
       },
-      "human": {
-        "title": "Henkilöstökulut",
-        "not_tracked": "Ei vielä seurannassa. Henkilöstökulut ovat hyväksyttyä aikaa kunkin henkilön omalla hinnalla, ja ne rakennetaan määrittelyn 107 riveillä {rows}; lukua ei näytetä ennen kuin ne ovat valmiit."
-      },
       "label": {
         "total": "Yhteensä",
         "persons": "Henkilöt",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Lisää kulu",
       "intro_cloud": "Käsin kirjatut pilvi-infrastruktuurin kulut, esimerkiksi lasku, yksi rivi kuukaudessa. Raportit → Kulut laskee ne kohtaan Pilvi.",
-      "intro_hr": "Käsin kirjatut henkilöstökulut, yksi rivi kuukaudessa. Raportit → Kulut näyttää ne kohdassa Henkilöstö, ei kohdassa Menot.",
+      "intro_hr": "Käsin kirjatut henkilöstökulut, yksi rivi kuukaudessa. Raportit → Kulut näyttää ne kohdassa Henkilöt, ja Yhteensä sisältää ne.",
       "col_label_cloud": "Kuvaus",
       "col_label_hr": "Rooli tai sopimus",
       "col_amount": "Summa ilman arvonlisäveroa",

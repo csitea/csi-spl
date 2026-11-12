@@ -3728,10 +3728,6 @@
         "list_note": "What was paid is in the currency column; the list price is shown beside it and never added to it.",
         "empty": "No AI token cost line in this month yet."
       },
-      "human": {
-        "title": "Human costs",
-        "not_tracked": "Not tracked yet. Human costs are approved time at each person's own price, built by spec 107 rows {rows}; no number is shown until they land."
-      },
       "label": {
         "total": "Total",
         "persons": "Persons",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Add a cost",
       "intro_cloud": "Cloud infrastructure costs entered by hand, such as an invoice, one row per month. Reporting → Costs counts them under Cloud.",
-      "intro_hr": "Human resources costs entered by hand, one row per month. Reporting → Costs shows them under Human, not in Spend.",
+      "intro_hr": "Human resources costs entered by hand, one row per month. Reporting → Costs shows them under Persons, and Total includes them.",
       "col_label_cloud": "Description",
       "col_label_hr": "Role or contract",
       "col_amount": "Amount, net of VAT",

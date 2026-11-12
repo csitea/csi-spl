@@ -3728,10 +3728,6 @@
         "list_note": "Wat betaald is staat in de valutakolom; de catalogusprijs staat ernaast en wordt er nooit bij opgeteld.",
         "empty": "Nog geen regel met kosten van AI-tokens in deze maand."
       },
-      "human": {
-        "title": "Personeelskosten",
-        "not_tracked": "Nog niet bijgehouden. Personeelskosten zijn goedgekeurde tijd tegen de eigen prijs van elke persoon, gebouwd door de rijen {rows} van specificatie 107; er wordt geen getal getoond tot die klaar zijn."
-      },
       "label": {
         "total": "Totaal",
         "persons": "Personen",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Kosten toevoegen",
       "intro_cloud": "Handmatig ingevoerde kosten voor cloudinfrastructuur, zoals een factuur, één rij per maand. Rapportage → Kosten telt ze onder Cloud.",
-      "intro_hr": "Handmatig ingevoerde personeelskosten, één rij per maand. Rapportage → Kosten toont ze onder Personeel, niet onder Uitgaven.",
+      "intro_hr": "Handmatig ingevoerde personeelskosten, één rij per maand. Rapportage → Kosten toont ze onder Personen, en Totaal telt ze mee.",
       "col_label_cloud": "Omschrijving",
       "col_label_hr": "Rol of contract",
       "col_amount": "Bedrag excl. btw",

@@ -181,8 +181,8 @@ describe('chunks and strings', () => {
   })
   it('every new string is in every locale, and differs from English (no untranslated copy)', () => {
     const en = JSON.parse(read('i18n/locales/en.json')).reporting.costs
-    const keys = ['page.cloud', 'page.human', 'page.tokens', ...['cloud', 'tokens', 'human'].flatMap((g) => Object.keys(en[g]).map((k) => g + '.' + k))]
-    assert.equal(keys.length, 19)
+    const keys = ['page.cloud', 'page.human', 'page.tokens', ...['cloud', 'tokens'].flatMap((g) => Object.keys(en[g]).map((k) => g + '.' + k))]
+    assert.equal(keys.length, 17)
     /* a key the allow-list keeps in English (with its reason) may equal en */
     const keepEnglish = new Set(Object.keys(JSON.parse(read('i18n/i18n-keep-english.json')).keys))
     const dir = join(WUI, 'i18n/locales')

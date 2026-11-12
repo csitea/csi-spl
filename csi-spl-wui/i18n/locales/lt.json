@@ -3728,10 +3728,6 @@
         "list_note": "Sumokėta suma yra valiutos stulpelyje; kainyno kaina rodoma šalia ir niekada nepridedama.",
         "empty": "Šį mėnesį dar nėra DI žetonų išlaidų eilutės."
       },
-      "human": {
-        "title": "Žmonių išlaidos",
-        "not_tracked": "Dar nesekama. Žmonių išlaidos yra patvirtintas laikas pagal kiekvieno žmogaus kainą, kurį kuria specifikacijos 107 eilutės {rows}; skaičius nerodomas, kol jos neparengtos."
-      },
       "label": {
         "total": "Iš viso",
         "persons": "Asmenys",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Pridėti išlaidas",
       "intro_cloud": "Rankiniu būdu įvestos debesų infrastruktūros išlaidos, pavyzdžiui, sąskaita, viena eilutė per mėnesį. Ataskaitos → Išlaidos jas skaičiuoja skiltyje Debesija.",
-      "intro_hr": "Rankiniu būdu įvestos personalo išlaidos, viena eilutė per mėnesį. Ataskaitos → Išlaidos jas rodo skiltyje Žmonės, o ne skiltyje Išleista.",
+      "intro_hr": "Rankiniu būdu įvestos personalo išlaidos, viena eilutė per mėnesį. Ataskaitos → Išlaidos jas rodo skiltyje Asmenys, o Iš viso jas įtraukia.",
       "col_label_cloud": "Aprašymas",
       "col_label_hr": "Pareigos arba sutartis",
       "col_amount": "Suma be PVM",

@@ -3728,10 +3728,6 @@
         "list_note": "Zapłacona kwota jest w kolumnie waluty; cena katalogowa jest pokazana obok i nigdy nie jest do niej doliczana.",
         "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów tokenów AI."
       },
-      "human": {
-        "title": "Koszty osobowe",
-        "not_tracked": "Jeszcze nie śledzone. Koszty osobowe to zatwierdzony czas według własnej stawki każdej osoby, budowany przez wiersze {rows} specyfikacji 107; żadna liczba nie jest pokazywana, dopóki nie zostaną ukończone."
-      },
       "label": {
         "total": "Razem",
         "persons": "Osoby",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Dodaj koszt",
       "intro_cloud": "Koszty infrastruktury chmurowej wprowadzone ręcznie, np. faktura, jeden wiersz na miesiąc. Raporty → Koszty liczą je w sekcji Chmura.",
-      "intro_hr": "Koszty kadrowe wprowadzone ręcznie, jeden wiersz na miesiąc. Raporty → Koszty pokazują je w sekcji Personel, a nie w Wydatkach.",
+      "intro_hr": "Koszty kadrowe wprowadzone ręcznie, jeden wiersz na miesiąc. Raporty → Koszty pokazują je w sekcji Osoby, a Razem je uwzględnia.",
       "col_label_cloud": "Opis",
       "col_label_hr": "Rola lub umowa",
       "col_amount": "Kwota netto",

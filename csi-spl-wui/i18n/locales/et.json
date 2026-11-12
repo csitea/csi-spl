@@ -3728,10 +3728,6 @@
         "list_note": "Makstud summa on valuuta veerus; hinnakirjahind on näidatud kõrval ja seda ei liideta kunagi.",
         "empty": "Selle kuu kohta pole veel ühtegi AI-tokenite kulu rida."
       },
-      "human": {
-        "title": "Inimeste kulud",
-        "not_tracked": "Veel ei jälgita. Inimeste kulud on kinnitatud aeg iga inimese enda hinnaga, mille ehitavad spetsifikatsiooni 107 read {rows}; arvu ei näidata enne, kui need valmivad."
-      },
       "label": {
         "total": "Kokku",
         "persons": "Isikud",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Lisa kulu",
       "intro_cloud": "Käsitsi sisestatud pilvetaristu kulud, näiteks arve, üks rida kuus. Aruanded → Kulud arvestab neid jaotises Pilv.",
-      "intro_hr": "Käsitsi sisestatud personalikulud, üks rida kuus. Aruanded → Kulud näitab neid jaotises Inimesed, mitte jaotises Kulutused.",
+      "intro_hr": "Käsitsi sisestatud personalikulud, üks rida kuus. Aruanded → Kulud näitab neid jaotises Isikud ja Kokku sisaldab neid.",
       "col_label_cloud": "Kirjeldus",
       "col_label_hr": "Roll või leping",
       "col_amount": "Summa ilma käibemaksuta",

@@ -3728,10 +3728,6 @@
         "list_note": "Suma plătită este în coloana monedei; prețul de listă este afișat alături și nu se adună niciodată la ea.",
         "empty": "Încă nu există nicio linie de cost cu tokeni AI luna aceasta."
       },
-      "human": {
-        "title": "Costuri cu personalul",
-        "not_tracked": "Încă neurmărit. Costurile cu personalul sunt timp aprobat la prețul propriu al fiecărei persoane, construite de rândurile {rows} din specificația 107; nu se afișează niciun număr până nu sunt gata."
-      },
       "label": {
         "total": "Total",
         "persons": "Persoane",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Adaugă un cost",
       "intro_cloud": "Costuri de infrastructură cloud introduse manual, de exemplu o factură, câte un rând pe lună. Rapoarte → Costuri le numără la Cloud.",
-      "intro_hr": "Costuri de resurse umane introduse manual, câte un rând pe lună. Rapoarte → Costuri le afișează la Personal, nu la Cheltuieli.",
+      "intro_hr": "Costuri de resurse umane introduse manual, câte un rând pe lună. Rapoarte → Costuri le afișează la Persoane, iar Total le include.",
       "col_label_cloud": "Descriere",
       "col_label_hr": "Rol sau contract",
       "col_amount": "Sumă fără TVA",

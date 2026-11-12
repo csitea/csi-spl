@@ -3728,10 +3728,6 @@
         "list_note": "Zaplatená suma je v stĺpci meny; cenníková cena je zobrazená vedľa a nikdy sa k nej nepripočítava.",
         "empty": "Tento mesiac zatiaľ nie je žiadny riadok nákladov na tokeny AI."
       },
-      "human": {
-        "title": "Náklady na ľudí",
-        "not_tracked": "Zatiaľ sa nesleduje. Náklady na ľudí sú schválený čas podľa vlastnej sadzby každej osoby, ktorý budujú riadky {rows} špecifikácie 107; žiadne číslo sa nezobrazí, kým nebudú hotové."
-      },
       "label": {
         "total": "Spolu",
         "persons": "Osoby",
@@ -4120,7 +4116,7 @@
     "entries": {
       "add": "Pridať náklad",
       "intro_cloud": "Ručne zadané náklady na cloudovú infraštruktúru, napríklad faktúra, jeden riadok za mesiac. Prehľady → Náklady ich počítajú v časti Cloud.",
-      "intro_hr": "Ručne zadané personálne náklady, jeden riadok za mesiac. Prehľady → Náklady ich zobrazujú v časti Ľudia, nie vo Výdavkoch.",
+      "intro_hr": "Ručne zadané personálne náklady, jeden riadok za mesiac. Prehľady → Náklady ich zobrazujú v časti Osoby a Spolu ich zahŕňa.",
       "col_label_cloud": "Popis",
       "col_label_hr": "Rola alebo zmluva",
       "col_amount": "Suma bez DPH",

@@ -25,8 +25,10 @@ import (
 
 // The test binary is re-exec'd for the pty. init runs before the testing
 // flag parser, so dashed key flags are not rejected as unknown test flags.
-// The test binary records its own pid for every helper it starts.
+// The test binary records its own pid for every helper it starts. It and
+// every helper or keyd it re-execs seal at the test scrypt cost (SPL-5352).
 func init() {
+	keyd.SetTestScryptWorkFactor(testScryptLogN)
 	if os.Getenv("SPOOL_KEY_HELPER") != "1" {
 		os.Setenv("SPOOL_KEY_TEST_PARENT", strconv.Itoa(os.Getpid()))
 		return

@@ -507,28 +507,13 @@ _spl_desk_reply_release_warn() {
   return 0
 }
 
-# spl_desk_pick <recv file> <to override> <task override> <answered file> <any>:
-# the conversation to answer, as "<to>\t<task>\t<msg_id>\t<head>". The recv JSON
-# is read from a FILE, never argv - a desk's inbox is never drained, so a busy
-# one (its JSON as an argv word) overran ARG_MAX and python never ran (measured
-# 2026-09-29: "Argument list too long", the pick empty, a waiting topic lost).
-#
-# Humans only (a HUM-* sender): a desk answers the person in the browser, not
-# another box. When DESK_TASK names a topic, the answer goes into THAT topic
-# full stop (owner rule, prd t1 topic b280b0e8, 2026-09-29) - no "newer than
-# the last answer" gate. Otherwise, among the human messages, only ones NEWER
-# than this desk's last answer are candidates - an inbox is never drained, so
-# "the newest human message" alone would keep re-picking whoever spoke most
-# recently ANYWHERE, and an answer meant for one person would land in another's.
-#
-# An 8-hex DESK_TASK is a topic-id prefix, resolved against the inbox's
-# task_ids. Exit 3 nothing to answer; exit 4 more than one conversation is
-# waiting; exit 5 a named topic could not be resolved or addressed - each
-# listed on stdout, a question for the operator, not a guess.
-spl_desk_pick() {
-  python3 - "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-0}" <<'EOF_PY'
+# spl_desk_pick_topic <recv file> <to override> <task>: spl_desk_pick's named
+# DESK_TASK step - resolve an 8-hex prefix, then answer in THAT topic (exit 0)
+# or say why it cannot (exit 5). Never exit 3: a named topic never falls through.
+spl_desk_pick_topic() {
+  python3 - "${1:-}" "${2:-}" "${3:-}" <<'EOF_PY'
 import json, re, sys
-src, to, task, answered, any_one = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] == "1"
+src, to, task = sys.argv[1], sys.argv[2], sys.argv[3]
 try:
     with open(src) as f:
         msgs = json.load(f) or []
@@ -564,16 +549,59 @@ def out(to_, task_, m=None):
 # Owner rule (prd t1 topic b280b0e8, 2026-09-29): "if the agent gives the topic
 # id, post there, full stop. The 'answer the last human' logic is used only when
 # no topic is given." So a named DESK_TASK never falls through to exit 3.
-if task:
-    in_topic = sorted([m for m in hums if m.get("task_id") == task],
-                      key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
-    if to:
-        m = next((x for x in reversed(in_topic) if x.get("from") == to), None)
-        out(to, task, m)  # obey the explicit human, with a message or without
-    if in_topic:
-        out(in_topic[-1].get("from", ""), task, in_topic[-1])  # the topic's human opener
-    print("topic %s has no human message in this desk's inbox; name the human with DESK_TO" % task)
-    sys.exit(5)
+in_topic = sorted([m for m in hums if m.get("task_id") == task],
+                  key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
+if to:
+    m = next((x for x in reversed(in_topic) if x.get("from") == to), None)
+    out(to, task, m)  # obey the explicit human, with a message or without
+if in_topic:
+    out(in_topic[-1].get("from", ""), task, in_topic[-1])  # the topic's human opener
+print("topic %s has no human message in this desk's inbox; name the human with DESK_TO" % task)
+sys.exit(5)
+EOF_PY
+}
+
+# spl_desk_pick <recv file> <to override> <task override> <answered file> <any>:
+# the conversation to answer, as "<to>\t<task>\t<msg_id>\t<head>". The recv JSON
+# is read from a FILE, never argv - a desk's inbox is never drained, so a busy
+# one (its JSON as an argv word) overran ARG_MAX and python never ran (measured
+# 2026-09-29: "Argument list too long", the pick empty, a waiting topic lost).
+#
+# Humans only (a HUM-* sender): a desk answers the person in the browser, not
+# another box. When DESK_TASK names a topic, the answer goes into THAT topic
+# full stop (owner rule, prd t1 topic b280b0e8, 2026-09-29) - no "newer than
+# the last answer" gate. Otherwise, among the human messages, only ones NEWER
+# than this desk's last answer are candidates - an inbox is never drained, so
+# "the newest human message" alone would keep re-picking whoever spoke most
+# recently ANYWHERE, and an answer meant for one person would land in another's.
+#
+# An 8-hex DESK_TASK is a topic-id prefix, resolved against the inbox's
+# task_ids. Exit 3 nothing to answer; exit 4 more than one conversation is
+# waiting; exit 5 a named topic could not be resolved or addressed - each
+# listed on stdout, a question for the operator, not a guess.
+spl_desk_pick() {
+  if [[ -n "${3:-}" ]]; then
+    spl_desk_pick_topic "${1:-}" "${2:-}" "${3:-}"
+    return
+  fi
+  python3 - "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-0}" <<'EOF_PY'
+import json, sys
+src, to, answered, any_one = sys.argv[1], sys.argv[2], sys.argv[4], sys.argv[5] == "1"
+try:
+    with open(src) as f:
+        msgs = json.load(f) or []
+except (OSError, ValueError):
+    msgs = []
+if not isinstance(msgs, list):
+    msgs = []
+msgs = [m for m in msgs if isinstance(m, dict)]
+
+hums = [m for m in msgs if str(m.get("from", "")).startswith("HUM-")]
+
+def out(to_, task_, m=None):
+    head = " ".join(str((m or {}).get("body", "")).split())[:80]
+    print("\t".join([to_, task_, (m or {}).get("msg_id", "") if m else "", head]))
+    sys.exit(0)
 
 # No DESK_TASK: the "answer the last human" picker.
 rows = hums

@@ -13,6 +13,9 @@
 //       an ellipsis where a locale's word is longer
 //     4 the label style of the tabs under "Show labels" (main.css): its font
 //       size, the word under the icon
+//   desktop 1440x900, en, "Show labels" off and on (R7 N1):
+//     5 the docs control stays a square the size of Help, so Help and the
+//       gear keep their boxes and places (71x71 with the labels on)
 //
 // Why "not clipped" is en only (dispatch holder, SPL-5336 option 1): measured
 // on the mock bundle, n=1 per locale, DejaVu Sans pinned, docs.title clips in
@@ -158,6 +161,25 @@ try {
       ok('1440 3 en: the docs link shows "Docs" under its icon, not clipped', m.text === word && m.shown && !m.clipped && m.below && m.inside, m)
       ok('1440 4 en: the font size of the tabs under "Show labels"', m.font === labelsFont, { font: m.font, labelsFont })
       if (SHOTS) await d.screenshot({ path: join(SHOTS, 'rail-docs-label-1440.png'), clip: { x: 0, y: 0, width: 400, height: 900 } })
+    }
+    deskErrors.push(...d.__errors)
+    await d.browserContext().close()
+  }
+  /* 5: the docs control is a square the size of Help, labels off and on */
+  {
+    const d = await newPage(browser, { width: 1440, height: 900 })
+    await open(d, srv.base, 'en')
+    for (const labels of [false, true]) {
+      const m = await d.evaluate(async ([docsSel, helpSel, on]) => {
+        document.documentElement.classList.toggle('rail-labels', on)
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+        const b = (sel) => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r ? { w: r.width, h: r.height } : null }
+        const label = document.querySelector(`${docsSel} .sidebar-tab__label`)
+        return { docs: b(docsSel), help: b(helpSel), clipped: label ? label.scrollWidth > label.clientWidth : null }
+      }, [DOCS, `${STRIP} > [data-testid=help-open]`, labels])
+      const square = !!m.docs && !!m.help && Math.abs(m.docs.w - m.docs.h) <= 1
+        && Math.abs(m.docs.w - m.help.w) <= 1 && Math.abs(m.docs.h - m.help.h) <= 1
+      ok(`1440 5 en, Show labels ${labels ? 'on' : 'off'}: the docs control is a square the size of Help, its word not clipped`, square && m.clipped === false, m)
     }
     deskErrors.push(...d.__errors)
     await d.browserContext().close()

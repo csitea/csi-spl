@@ -84,7 +84,7 @@
         <UiIcon name="file-text" :size="20" />
         <!-- SPL-5336 (owner HUM-10, t1 b3ed7ef5): the docs icon always carries
              its word, as the phone strip's tabs do, on phone and desktop -->
-        <span class="sidebar-tab__label" data-testid="qto-open-label" aria-hidden="true">{{ t('docs.title') }}</span>
+        <span class="sidebar-tab__label" aria-hidden="true">{{ t('docs.title') }}</span>
       </NuxtLink>
       <!-- SPL-1037 (specs/046): the app / tenant settings, admins and
            biz_owners only; owner 2026-09-28: a gear -->
@@ -1073,7 +1073,9 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   height: min(22px, 70cqi);
 }
 /* SPL-5336: the docs link names itself under its icon on desktop too,
-   in the "Show labels" style of the tabs (main.css) */
+   in the "Show labels" style of the tabs (main.css); it stays a square
+   like Help and the gear (aspect-ratio above), so with "Show labels" on
+   it is 71x71 as they are and Help does not move */
 .sidebar-rail__qto {
   display: flex;
   flex-direction: column;
@@ -1082,7 +1084,6 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   gap: 2px;
   padding: 6px 2px;
   box-sizing: border-box;
-  aspect-ratio: auto;
   line-height: 1.15;
   container-type: normal;
 }

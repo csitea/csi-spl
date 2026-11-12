@@ -80,12 +80,19 @@ function cellOf(parts, currency) {
   return { v: v === undefined ? null : v, left, empty: false }
 }
 
-/** The sum of cells (a row's total, a column's total): null when no cell has an amount. */
+/**
+ * The sum of cells (a row's total, a column's total): null when no cell has an
+ * amount. `none` counts the summed cells with no amount, through nested sums
+ * (a footer total sums row totals), so a total that leaves one out is marked
+ * (c-974 review N1, SPL-5312).
+ */
 export function costsCellSum(cells) {
   const has = cells.filter((c) => !c.empty)
   const vals = has.filter((c) => c.v !== null)
-  if (has.length && !vals.length) return { v: null, left: has.reduce((s, c) => s + c.left, 0), empty: false }
-  return { v: vals.reduce((s, c) => s + c.v, 0), left: has.reduce((s, c) => s + c.left, 0), empty: !has.length, none: has.length - vals.length }
+  const left = has.reduce((s, c) => s + c.left, 0)
+  const none = has.reduce((s, c) => s + (c.v === null ? (c.none || 1) : (c.none || 0)), 0)
+  if (has.length && !vals.length) return { v: null, left, empty: false, none }
+  return { v: vals.reduce((s, c) => s + c.v, 0), left, empty: !has.length, none }
 }
 
 function finishRow(r, currency) {

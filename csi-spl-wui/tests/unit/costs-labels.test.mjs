@@ -110,6 +110,18 @@ describe('the currency and the period', () => {
     assert.equal(costsCellSum([{ v: null, left: 1, empty: false }]).v, null)
     assert.equal(costsCellSum([{ v: 0, left: 0, empty: true }]).empty, true)
   })
+  it('a sum that leaves out a cell with no amount counts it in none, through a nested sum (N1)', () => {
+    const row = costsCellSum([{ v: 5, left: 0, empty: false }, { v: null, left: 0, empty: false }, { v: 0, left: 0, empty: true }])
+    assert.equal(row.v, 5)
+    assert.equal(row.none, 1)
+    const allNone = costsCellSum([{ v: null, left: 0, empty: false }, { v: null, left: 0, empty: false }])
+    assert.equal(allNone.v, null)
+    assert.equal(allNone.none, 2)
+    const foot = costsCellSum([row, allNone, { v: 3, left: 0, empty: false, none: 0 }])
+    assert.equal(foot.v, 8)
+    assert.equal(foot.none, 3)
+    assert.equal(costsCellSum([{ v: 1, left: 0, empty: false }]).none, 0)
+  })
 })
 
 describe('the pie', () => {

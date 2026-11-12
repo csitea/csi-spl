@@ -28,7 +28,7 @@
             <span v-if="r.sub" class="cmt-sub muted">{{ r.sub }}</span>
           </th>
           <td v-for="(c, i) in r.cells" :key="i" class="num" :data-label="months[i]" data-test="cmt-cell" :data-none="c.v === null ? '1' : '0'" :title="cellTitle(c)">{{ cellText(c) }}</td>
-          <td v-if="months.length > 1" class="num" :data-label="totalHead" data-test="cmt-total" :data-none="r.total.v === null ? '1' : '0'" :title="cellTitle(r.total)">{{ cellText(r.total) }}</td>
+          <td v-if="months.length > 1" class="num" :data-label="totalHead" data-test="cmt-total" :data-none-part="r.total.none || 0" :data-none="r.total.v === null ? '1' : '0'" :title="cellTitle(r.total)">{{ cellText(r.total) }}</td>
           <td class="num" :data-label="shareHead" data-test="cmt-pct">{{ r.pct === null ? '' : r.pct + ' %' }}</td>
         </tr>
         <tr v-if="!rows.length">
@@ -38,8 +38,8 @@
       <tfoot v-if="rows.length">
         <tr data-test="cmt-foot">
           <th scope="row">{{ totalHead }}</th>
-          <td v-for="(c, i) in totals.cells" :key="i" class="num" :data-label="months[i]" data-test="cmt-foot-cell" :data-left="c.left" :title="cellTitle(c)">{{ cellText(c) }}</td>
-          <td v-if="months.length > 1" class="num" :data-label="totalHead" data-test="cmt-foot-total" :data-left="totals.total.left" :title="cellTitle(totals.total)">{{ cellText(totals.total) }}</td>
+          <td v-for="(c, i) in totals.cells" :key="i" class="num" :data-label="months[i]" data-test="cmt-foot-cell" :data-none-part="c.none || 0" :data-left="c.left" :title="cellTitle(c)">{{ cellText(c) }}</td>
+          <td v-if="months.length > 1" class="num" :data-label="totalHead" data-test="cmt-foot-total" :data-none-part="totals.total.none || 0" :data-left="totals.total.left" :title="cellTitle(totals.total)">{{ cellText(totals.total) }}</td>
           <td class="num" :data-label="shareHead">{{ totals.total.v ? '100 %' : '' }}</td>
         </tr>
       </tfoot>
@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { costsNextSort, costsSortRows } from '~/utils/costs-labels.mjs'
 
-type Cell = { v: number | null, left: number, empty: boolean }
+type Cell = { v: number | null, left: number, empty: boolean, none?: number }
 type Row = { key: string, name: string, display: string, sub?: string, badge?: string, to?: unknown, cells: Cell[], total: Cell, pct: number | null }
 type Sort = { col: string, dir: 'ascending' | 'descending' }
 
@@ -85,9 +85,11 @@ function cellText(c: Cell) {
   if (c.empty) return ''
   return c.v === null ? '—' : props.money(c)
 }
+// A sum that leaves out a cell with no amount (no rate) says so (c-974 review N1).
 function cellTitle(c: Cell) {
   if (c.v === null && !c.empty) return props.noneTitle
-  return c.left ? t('monitoring.costs.total_unpriced', { n: c.left }) : undefined
+  const why = [c.none ? props.noneTitle : '', c.left ? t('monitoring.costs.total_unpriced', { n: c.left }) : ''].filter(Boolean)
+  return why.length ? why.join(' · ') : undefined
 }
 </script>
 

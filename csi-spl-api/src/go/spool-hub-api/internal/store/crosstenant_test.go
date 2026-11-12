@@ -531,7 +531,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := seedMarketing(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
-	// a linkedin_page channel (rdb 0275, spec 090 T041, SPL-5258): a LinkedIn
+	// a linkedin_page channel (rdb 0277, spec 090 T041, SPL-5258): a LinkedIn
 	// Company Page with its sealed bundle, through the store API.
 	if _, err := pg.ConnectMarketingChannel(ctx, MarketingChannel{Tenant: s.tenant, Platform: MarketingPlatformLinkedInPage,
 		AccountRef: "1001", AccountType: "page", AccountName: "Page " + s.marker, DelegatedBy: hum},

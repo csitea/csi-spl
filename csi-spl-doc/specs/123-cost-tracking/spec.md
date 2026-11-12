@@ -734,8 +734,10 @@ admin's only), wherever this spec says the operator admin reads the estate.
   `operator_write.go` is now `fleetLoadCaller` itself.
 - The WUI needs no change for it: a clone's `/v1/view/me` says
   `operator_reader` false, so the Expenses page draws no cards at all.
-- Unchanged: `fleetLoadCaller`, `monitoringStaff`, the lane console, the Topics
-  tab, Finance and Incomes.
+- Unchanged for the product owner: `fleetLoadCaller`, `monitoringStaff`, the
+  lane console, the Topics tab, Finance and Incomes. (For an act-as clone,
+  SPL-5369 changed two of them, above: `fleetLoadCaller` refuses its writes
+  and the lane console gate is `operatorAdmin`.)
 
 
 ## 15. Billing accounts and their invoices (SPL-5220)

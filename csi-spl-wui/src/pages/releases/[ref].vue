@@ -36,14 +36,32 @@ const open = ref(true)
 const cameFrom = import.meta.client ? String((window.history.state as { back?: unknown } | null)?.back || '') : ''
 
 /* On a phone the dialog's own history entry (useMobileStack) is stepped over
-   first when the X closes it; leave the page only once that is done. */
-async function overlayGone() {
-  for (let i = 0; i < 20 && mobileOverlayOf(window.history.state); i++) await new Promise((r) => setTimeout(r, 50))
+   first when the X closes it; leave the page only once that is done, on the
+   popstate that takes it off. SPL-5346: a 1 s poll gave up under load, left
+   from the dialog's entry, and the late step back landed under /releases/
+   again. OVERLAY_POP_GUARD_MS only covers a step back that never comes. */
+const OVERLAY_POP_GUARD_MS = 5000
+function overlayGone(): Promise<void> {
+  return new Promise((resolve) => {
+    const finish = () => {
+      window.removeEventListener('popstate', check)
+      clearTimeout(guard)
+      resolve()
+    }
+    const check = () => { if (!mobileOverlayOf(window.history.state)) finish() }
+    const guard = setTimeout(finish, OVERLAY_POP_GUARD_MS)
+    window.addEventListener('popstate', check)
+    check()
+  })
 }
+
+let mounted = true
+onBeforeUnmount(() => { mounted = false })
 
 watch(open, async (o) => {
   if (o) return
   await overlayGone()
+  if (!mounted) return
   if (cameFrom) router.back()
   else await navigateTo(localePath('/'), { replace: true })
 })

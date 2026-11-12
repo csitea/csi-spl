@@ -454,7 +454,10 @@ try {
     ok(`${vp.name} 8c a ref that is neither says so`, bad)
     await press(p, vp, vp.mobile ? '[data-testid=ui-dialog-back]' : '[data-testid=ui-dialog-close]')
     const left = await until(p, () => !document.querySelector('[data-test=release-notes]') && !location.pathname.includes('/releases/'), null, 8000)
-    ok(`${vp.name} 8d closing the linked modal leaves /releases/`, left, await p.evaluate(() => location.pathname))
+    /* SPL-5346: and stays left - a late step back over the dialog's entry lands under /releases/ again */
+    await sleep(2500)
+    const stays = await p.evaluate(() => !document.querySelector('[data-test=release-notes]') && !location.pathname.includes('/releases/'))
+    ok(`${vp.name} 8d closing the linked modal leaves /releases/`, left && stays, await p.evaluate(() => location.pathname))
 
     /* 9 a link followed inside the app: the same modal, closing returns there */
     await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

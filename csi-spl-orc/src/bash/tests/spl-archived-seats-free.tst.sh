@@ -24,6 +24,7 @@
 #   c-706 `Task:` line names another topic              -> skipped (SPL-4092)
 #   c-709 brief written after the archive               -> kept
 #   c-707 lane row live, no window here                 -> skipped silently
+#   c-750 bound, archived 2 min ago (settle 10)         -> skipped, not freed (SPL-5324)
 # A skipped lane is neither freed nor named in the blocker: the hub row names
 # its topic only because the spawn stores the first topic a brief mentions
 # (SPL-4092: n=3 blockers in 1.5 h, each answered "leave"). It is only a
@@ -32,6 +33,7 @@
 # nothing. RED CONTROL: without the action file every case fails
 # (`do_spl_archived_seats_free: command not found`). SPL-4955, without the desk
 # check c-722 and c-723 are closed, without the heading check c-725; without the Ask-Topic read c-720 is skipped.
+# SPL-5324: without the settle check (case 8) c-750, archived 2 min ago, is freed.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -289,6 +291,36 @@ out="$(run DRY_RUN=0)"
 if [[ "$(closed c-740)" == 0 && "$(grep -c '^send ' "$LOG")" == "$n_send" ]] && grep -q "INFO c-740: " <<<"$out" &&
   ! grep -qE "KEEP c-740 |- c-740," <<<"$out"; then pass "7c a 'Topic: none ...' lane: a skip line, neither freed nor in a blocker"
 else fail "7c c-740: closed $(closed c-740)x, sends $(grep -c '^send ' "$LOG") (was $n_send): $(grep -- c-740 <<<"$out")"; fi
+
+# 8. SPL-5324: an archive frees a lane only once it has held
+# ARCHIVED_FOLLOWUP_SETTLE_MIN minutes (default 10, the knob c-541's
+# do_spl_archived_followup reads, SPL-5259): on 2026-11-10 a topic was archived
+# and put back 23 s later. c-750's topic was archived 2 min ago, c-751's 30 min
+# ago; both are bound and clean. RED CONTROL: without the settle check 8a
+# frees c-750.
+for id in c-750 c-751; do brief "$id" $'# Lane\n\nTask: dispatch-aaaaaaaa' && echo "$id" >>"$T/windows"; done
+cat >"$T/bin/hub8" <<EOF
+#!/usr/bin/env bash
+jq -n -c --arg t "$ARCH" --arg a "\$(date -u -d '-2 min' +%Y-%m-%dT%H:%M:%SZ)" --arg b "\$(date -u -d '-30 min' +%Y-%m-%dT%H:%M:%SZ)" \
+  '{fleet: "main", lanes: [{agent_id: "c-750", agent_box: "box-a", topic: \$t, state: "live", topic_archived_at: \$a},
+    {agent_id: "c-751", agent_box: "box-a", topic: \$t, state: "live", topic_archived_at: \$b}]}'
+EOF
+chmod +x "$T/bin/hub8"
+n_send="$(grep -c '^send ' "$LOG")"
+out="$(run DRY_RUN=0 LANE_HUB_CMD="$T/bin/hub8")"; rc=$?
+if [[ $rc -eq 0 && "$(closed c-750)" == 0 && "$out" == *"INFO c-750: its topic was archived"*"under 10 min ago"* ]] &&
+  ! grep -qE "KEEP c-750 |- c-750," <<<"$out"; then pass "8a archived 2 min ago, default settle 10 -> c-750 a skip line, not freed"
+else fail "8a c-750 (rc $rc) closed $(closed c-750)x: $(grep -- c-750 <<<"$out")"; fi
+[[ "$(closed c-751)" == 1 ]] && pass "8b archived 30 min ago -> c-751 freed" || fail "8b c-751 closed $(closed c-751)x: $out"
+[[ "$(grep -c '^send ' "$LOG")" == "$n_send" ]] && pass "8c an unsettled archive sends no blocker" || fail "8c a blocker was sent"
+out="$(run DRY_RUN=1 LANE_HUB_CMD="$T/bin/hub8" ARCHIVED_FOLLOWUP_SETTLE_MIN=1)"
+[[ "$out" == *"WOULD free c-750"* ]] && pass "8d ARCHIVED_FOLLOWUP_SETTLE_MIN=1: c-750 (2 min) would be freed" || fail "8d: $(grep -- c-750 <<<"$out")"
+for v in abc -1 1441; do
+  n_close="$(grep -c '^close ' "$LOG")"
+  out="$(run DRY_RUN=0 LANE_HUB_CMD="$T/bin/hub8" ARCHIVED_FOLLOWUP_SETTLE_MIN="$v")"; rc=$?
+  [[ $rc -eq 1 && "$out" == *"FATAL ARCHIVED_FOLLOWUP_SETTLE_MIN must be 0..1440"* && "$(grep -c '^close ' "$LOG")" == "$n_close" ]] &&
+    pass "8e ARCHIVED_FOLLOWUP_SETTLE_MIN=$v refused, rc 1, nothing freed" || fail "8e $v (rc $rc): $out"
+done
 
 echo "spl-archived-seats-free: $fails failure(s)"
 [[ $fails -eq 0 ]]

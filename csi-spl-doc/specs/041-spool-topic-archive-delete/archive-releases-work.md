@@ -29,6 +29,12 @@ archived discussion is another lane's work and is not described here.
   (SPL-5273). A word that only starts with those letters (`nominal`, `notes`) still binds. A freed lane's open issue goes `onhold`, no longer
   `diss`: it is work left over, not work thrown away. An issue already `done`, `diss` or `qas`
   stays as it is: a hold neither reopens finished or discarded work nor takes it out of review.
+- **An archive frees lanes only once it has settled.** `do_spl_archived_seats_free` frees a
+  lane only when its topic's archive has held `ARCHIVED_FOLLOWUP_SETTLE_MIN` minutes (default
+  10, at most 1440), the same knob as the follow-up below, since the same cron runs both
+  (SPL-5324). A younger archive is a skip line of the run; a topic put back inside that time is
+  no longer in the hub's archived answer, so no later run frees its lanes (2026-11-10: a topic
+  archived and put back 23 s later).
 - **A seat that answers a whole workspace is never closed by one topic.** Skipped: role seats
   (001-003), a brief whose heading says "standing ... seat", an id seated on desks of 2+
   workspaces, or on a desk box other than this box's own. One desk dir on this box's own desk

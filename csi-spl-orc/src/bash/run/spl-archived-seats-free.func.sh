@@ -40,6 +40,12 @@
 # @description or it is on desks of 2+ workspaces, or on a desk box other than
 # @description this box's own, in every user's root of the box; a plain lane's one desk dir is not one), a lane whose brief binds it
 # @description to another topic or to none, and a lane not running on this box.
+# @description SPL-5324: an archive frees a lane only once it has held
+# @description ARCHIVED_FOLLOWUP_SETTLE_MIN minutes, the one knob it shares with
+# @description do_spl_archived_followup (SPL-5259; the same cron runs both): a
+# @description topic archived and put back inside that time (2026-11-10: 23 s)
+# @description frees nothing. A younger archive is a skip line; the hub stops
+# @description answering a topic put back, so a later run never frees it.
 # @description A re-run frees nothing
 # @description more: a freed lane's row is done and its window gone.
 # @description Dry run unless DRY_RUN=0: it prints what it would free and keep.
@@ -53,6 +59,7 @@
 # @param ARCHIVED_SEATS_ISSUE_CMD (optional, tests) - replaces `./run -a do_spl_lane_issue` for the issue end: AGENT_ID, LANE_ISSUE_OP=end, LANE_ISSUE_REASON in its env
 # @param ARCHIVED_SEATS_SEND (optional, tests) - the sender script, default spool-send.sh
 # @param SPL_DESK_AS_CMD (optional, tests) - replaces `sudo -n -u`, as in spl_desk_moved_to
+# @param ARCHIVED_FOLLOWUP_SETTLE_MIN (optional) - minutes an archive holds before its lanes are freed, default 10 (0..1440)
 # @param ARCHIVED_SEATS_FROM (optional) - the blocker's sender, default the orch role seat (lease.conf LEASE_ORCH)
 # @param ARCHIVED_SEATS_STATE_DIR (optional) - where the last blocker's keys live, default $XDG_STATE_HOME/csi-spl/archived-seats-free
 # @example ./run -a do_spl_archived_seats_free
@@ -61,6 +68,8 @@
 do_spl_archived_seats_free() {
   local root="${SPOOL_ROOT:-/var/spool-hub}" dry=1 json live id topic at verdict n_free=0 kept=""
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+  [[ "${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10}" =~ ^(0|[1-9][0-9]{0,3})$ ]] && (( ${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10} <= 1440 )) ||
+    { do_log "FATAL ARCHIVED_FOLLOWUP_SETTLE_MIN must be 0..1440 minutes, got ${ARCHIVED_FOLLOWUP_SETTLE_MIN:-}"; return 1; }
   spl_lane_init || return 1
   [[ "$LANE_MODE" == hub ]] || { do_log "INFO no fleet (LEASE_FLEET unset): no lane map, nothing to free"; return 0; }
   json="$(spl_lane_hub --fleet "$LANE_FLEET" --archived --box "$LANE_BOX" 2>&1)"
@@ -93,6 +102,9 @@ spl_archived_seat_verdict() {
   jq -e --arg a "$id" 'index($a) != null' >/dev/null 2>&1 <<<"$live" ||
     { printf 'skip\tits lane row is live, but no window of it runs on this box\n'; return 0; }
   if spl_is_role_seat "$id"; then printf 'skip\ta role seat (001-003) is never freed by this rule\n'; return 0; fi
+  if [[ -n "$at" ]] && (( $(date -d "$at" +%s 2>/dev/null || echo 0) > $(date +%s) - ${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10} * 60 )); then
+    printf 'skip\tits topic was archived at %s, under %s min ago (ARCHIVED_FOLLOWUP_SETTLE_MIN): a later run decides\n' "$at" "${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10}"; return 0
+  fi
   line="$(spl_archived_seat_desks "$id")"
   if spl_archived_seat_workspace_wide "$line"; then
     printf 'skip\tit answers a whole workspace (%s): one archived topic never closes it\n' "$(tr '\n' ' ' <<<"$line" | sed 's/ *$//')"; return 0

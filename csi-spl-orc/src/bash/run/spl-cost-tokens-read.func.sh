@@ -161,13 +161,18 @@ spl_cost_as() {
 # The agent a transcript belongs to: the spool agent record naming its
 # session id, else the -wt-<id> suffix of its project dir, else unattributed.
 spl_cost_tokens_agent() {
-  local f="$2" sid slug rec
+  local f="$2" sid slug rec id
   sid="$(basename "$f" .jsonl)"
   [[ "$f" == */subagents/* ]] && sid="$(basename "$(dirname "$(dirname "$f")")")"
   rec="$(grep -lsF "\"session_id\": \"$sid\"" "$1"/agents/*.json 2>/dev/null | sed -n 1p)"
   [[ -n "$rec" ]] && { basename "$rec" .json; return 0; }
   slug="${f%/"$sid"*}"; slug="${slug##*/}"
-  if [[ "$slug" =~ -wt[0-9]*-([A-Za-z]+-[0-9]+)$ ]]; then echo "${BASH_REMATCH[1]}"; else echo unattributed; fi
+  if [[ "$slug" =~ -wt[0-9]*-([A-Za-z]+-[0-9]+)$ ]]; then
+    id="${BASH_REMATCH[1]}"
+    [[ "$id" =~ ^(c|CLE)-[0-9]+$ ]] && echo "$id" || echo "$id (claude)"
+  else
+    echo unattributed
+  fi
 }
 
 # The one claude transcript parse, shared with the per-minute collector

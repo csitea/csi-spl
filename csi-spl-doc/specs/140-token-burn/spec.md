@@ -165,7 +165,7 @@ The collector inspects four distinct vendor session formats:
   1. Prompt seed path: the initial user prompt step (`step_index: 0`) contains `/var/spool-hub/<agent_id>/lifetime/prompt.txt`.
   2. Workspace database: `<agent_home>/.gemini/antigravity-cli/conversation_summaries.db` contains `workspace_uris` matching the worktree pattern `-wt[0-9]*[/-]([A-Za-z]+-[0-9]+)`.
   3. Direct worktree path regex from transcripts.
-  4. Cross-vendor bucket separation (`SPL-5370`): just as Grok names non-Grok cwds apart (`3.9`), an `agy` transcript whose resolved id is an Antigravity lane (`a-NNN` or legacy `AGY-NNN`) keeps `<id>`, while one running in another vendor's worktree or with no lane is named `<id> (agy)` / `unattributed (agy)` (both in `spl_cost_tokens_agy*` and in `spl_token_burn_sum`'s `agy_agent`, so cached `agents.tsv` entries from older runs cannot merge `agy` turns into a `claude` minute bucket); symmetrically, `claude_agent` qualifies a Claude transcript in another vendor's worktree as `<id> (claude)`.
+  4. Cross-vendor bucket separation (`SPL-5370`): just as Grok names non-Grok cwds apart (`3.9`), an `agy` transcript whose resolved id is an Antigravity lane (`a-NNN` or legacy `AGY-NNN`) keeps `<id>`, while one running in another vendor's worktree or with no lane is named `<id> (agy)` / `unattributed (agy)` (both in `spl_cost_tokens_agy*` and in `spl_token_burn_sum`'s `agy_agent`, so cached `agents.tsv` entries from older runs cannot merge `agy` turns into a `claude` minute bucket); symmetrically, both `spl_cost_tokens_agent` (day reader) and `claude_agent` (minute collector) qualify a Claude transcript in another vendor's worktree as `<id> (claude)`.
 - **Reporting & Display Invariant**:
   - Running agy lanes with resolved transcripts report `is_metered: true` with measured token counts.
   - Any agy lane without discovered transcript token counts reports `is_metered: false` with `status: "unmetered"` (tokens NEVER rendered as zero).
@@ -616,10 +616,12 @@ non-`a-NNN` sessions apart, an `agy` session sharing `unattributed` or a
 `(agent_id, minute)` key in `spl_token_burn_sum`: `add()` kept the first
 writer's `vendor` (`claude`), overwrote `model` (`gemini-3.8-flash`), and
 summed both turns' tokens (carrying `claude`'s `cache_write` into that row).
-`ENV=<env> TOKEN_RELABEL_MODEL=<m> TOKEN_RELABEL_FROM_VENDOR=<v1> TOKEN_RELABEL_TO_VENDOR=<v2> TOKEN_RELABEL_FROM=<YYYY-MM-DD> ./run -a do_spl_token_burn_relabel_vendor`
-(`DRY_RUN=1` by default, rolled back) re-labels matching unpriced minutes in
-one operator transaction and re-rolls affected UTC days in
-`fleet_token_burn_daily`.
+`ENV=<env> TOKEN_RELABEL_MODEL=<m> TOKEN_RELABEL_FROM_VENDOR=<v1> TOKEN_RELABEL_TO_VENDOR=<v2> TOKEN_RELABEL_FROM=<YYYY-MM-DD> [TOKEN_RELABEL_EXPECT=<n> DRY_RUN=0] ./run -a do_spl_token_burn_relabel_vendor`
+(`DRY_RUN=1` by default, rolled back; `DRY_RUN=0` requires `TOKEN_RELABEL_EXPECT=<n>`)
+re-labels matching unpriced minutes, qualifies non-native `agent_id` values as
+`<id> (<to_vendor>)` to match collector naming, and re-rolls affected UTC days
+in `fleet_token_burn_daily` (removing any orphaned daily row on unpruned days)
+in one operator transaction.
 
 ### 3.10 Each workspace sees its own token costs (SPL-3565)
 

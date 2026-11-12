@@ -193,5 +193,43 @@ run_read "$T/ctl11.func.sh" COST_AGY_HOMES="$T/ahome" >/dev/null
   pass "11. control 2: without the agy_id guard, non-agy worktree and unattributed rows collide on bare c-101 / unattributed" ||
   fail "11. control 2: $(grep $'\tagy\t' "$OUT")"
 
+# 11b. spl_cost_tokens_agy_agent (bash helper, R2) and spl_cost_tokens_agent cross-vendor (N3)
+agy_fn() {
+  bash -c 'source "$0"; for p in "${@:1}"; do spl_cost_tokens_agy_agent "$p"; done' "$1" \
+    "$A_HOME/.gemini/antigravity-cli/brain/s_agy/.system_generated/logs/transcript.jsonl" \
+    "$A_HOME/.gemini/antigravity-cli/brain/s_agy_c101/.system_generated/logs/transcript.jsonl" \
+    "$T/x-wt-g-201/transcript.jsonl" \
+    "$A_HOME/.gemini/antigravity-cli/brain/s_agy_unattr/.system_generated/logs/transcript.jsonl" | paste -sd'|'
+}
+mkdir -p "$T/x-wt-g-201"; : >"$T/x-wt-g-201/transcript.jsonl"
+[[ "$(agy_fn "$F")" == "a-301|c-101 (agy)|g-201 (agy)|unattributed (agy)" ]] &&
+  pass "11b. spl_cost_tokens_agy_agent: keeps a-301, qualifies c-101, -wt-g-201 and unattributed with (agy)" ||
+  fail "11b. agy_fn: $(agy_fn "$F")"
+python3 - "$F" "$T/ctl11b.func.sh" <<'EOF_CTL11B'
+import sys; s = open(sys.argv[1]).read()
+old = '[[ "$id" =~ ^(a|AGY)-[0-9]+$ ]] && printf \'%s\\n\' "$id" || printf \'%s (agy)\\n\' "$id"'
+assert old in s; open(sys.argv[2], "w").write(s.replace(old, 'printf \'%s\\n\' "$id"'))
+EOF_CTL11B
+[[ "$(agy_fn "$T/ctl11b.func.sh")" == "a-301|c-101|g-201|unattributed" ]] &&
+  pass "11b. control: without spl_cost_tokens_agy_agent qualifier, non-agy sessions return bare c-101/g-201/unattributed" ||
+  fail "11b. control: $(agy_fn "$T/ctl11b.func.sh")"
+
+mkdir -p "$P/-opt-x-wt-a-301"
+row "${DAY}T12:00:00.000Z" m-z msg_CA 3 9 0 11 > "$P/-opt-x-wt-a-301/33333333-3333-3333-3333-333333333333.jsonl"
+run_read "$F" >/dev/null
+[[ "$(units 'a-301 (claude)' output)" == 9 && "$(units a-301 tokens)" == unmetered ]] &&
+  pass "12. claude in an a-NNN worktree: named 'a-301 (claude)' in the day file, matching the minute collector" ||
+  fail "12. claude in a-301: $(grep a-301 "$OUT")"
+python3 - "$F" "$T/ctl12.func.sh" <<'EOF_CTL12'
+import sys; s = open(sys.argv[1]).read()
+old = '[[ "$id" =~ ^(c|CLE)-[0-9]+$ ]] && echo "$id" || echo "$id (claude)"'
+assert old in s; s = s.replace(old, 'echo "$id"')
+open(sys.argv[2], "w").write(s)
+EOF_CTL12
+run_read "$T/ctl12.func.sh" >/dev/null
+[[ "$(units a-301 output)" == 9 && -z "$(units 'a-301 (claude)' output)" ]] &&
+  pass "12. control: without the (claude) qualifier in spl_cost_tokens_agent, claude in -wt-a-301 writes bare a-301" ||
+  fail "12. control: $(grep a-301 "$OUT")"
+
 echo "spl-cost-tokens-read: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

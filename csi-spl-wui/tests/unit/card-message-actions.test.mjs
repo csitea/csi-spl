@@ -25,10 +25,8 @@ function card(props, msgEdit = {}) {
   const closed = []
   const busy = { removing: ref(false), editError: ref('') }
   const actions = mod.useCardMessageActions(
-    { msg: ROW, ...props },
-    (name, msg) => emitted.push([name, msg]),
+    { props: { msg: ROW, ...props }, emit: (name, msg) => emitted.push([name, msg]), editing: ref(false) },
     busy,
-    ref(false),
     { close: () => closed.push('menu') },
     {
       canEdit: () => true,

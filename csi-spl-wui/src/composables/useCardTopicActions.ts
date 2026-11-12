@@ -39,10 +39,11 @@ async function topicOpenerId(props: { msg: SpoolMessage, paneOpener?: SpoolMessa
   }
 }
 
+/** The card a topic action acts for: its props, its emit and its row. */
+export interface TopicCard { props: { msg: SpoolMessage, paneOpener?: SpoolMessage | null }, emit: CardEmit, rowEl: Ref<HTMLElement | null> }
+
 export function useCardTopicActions(
-  props: { msg: SpoolMessage, paneOpener?: SpoolMessage | null },
-  emit: CardEmit,
-  rowEl: Ref<HTMLElement | null>,
+  { props, emit, rowEl }: TopicCard,
   busy: CardBusy,
   menu: CardMenu,
   msgEdit: MsgEdit,
@@ -190,11 +191,12 @@ function messageIssueSteps(props: MessageRowProps, closeMenu: CardMenu['close'])
   return { aiError, onAiFail, onMakeIssue }
 }
 
+/** The card a message action acts for: its props, its emit and its edit state. */
+export interface MessageRowCard { props: MessageRowProps, emit: CardEmit, editing: Ref<boolean> }
+
 export function useCardMessageActions(
-  props: MessageRowProps,
-  emit: CardEmit,
+  { props, emit, editing }: MessageRowCard,
   busy: CardBusy,
-  editing: Ref<boolean>,
   menu: CardMenu,
   msgEdit: MsgEdit,
 ) {

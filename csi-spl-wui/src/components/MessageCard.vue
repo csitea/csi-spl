@@ -722,8 +722,8 @@ const canMakeTask = computed(() => mayMakeTask(props.msg, editorId.value, access
 const { titleOnly, linkPreviews, title } = useCardTitle(props, editing, files)
 const { clipOn, userPx, clipped, clipStyle, startGrip, onGripClick, onGripKey } = useCardHeight(props, editing, clipEl, clipInner)
 const busyState = { removing, editError }
-const { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete } = useCardTopicActions(props, emit, rowEl, busyState, menu, msgEdit)
-const { aiError, onAiFail, onMerge, remove, onMakeIssue } = useCardMessageActions(props, emit, busyState, editing, menu, msgEdit)
+const { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete } = useCardTopicActions({ props, emit, rowEl }, busyState, menu, msgEdit)
+const { aiError, onAiFail, onMerge, remove, onMakeIssue } = useCardMessageActions({ props, emit, editing }, busyState, menu, msgEdit)
 /* SPL-5057: Save on an emptied box asks the Delete key's confirm for this row */
 watch(emptyAsk, (asked) => {
   if (!asked) return

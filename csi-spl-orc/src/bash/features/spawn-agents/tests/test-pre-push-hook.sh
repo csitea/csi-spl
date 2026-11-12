@@ -27,6 +27,10 @@ set -uo pipefail
 # "git -C" and land commits on the real pushing branch. The hook scrubs them; do
 # it here too so the test is safe however it is invoked.
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
+# Hook-knob scrub (SPL-5394): a caller pushing with SPL_PREPUSH_TIER=full (or
+# running inside the gate, PRE_PUSH_*) must not reach the hook under test; each
+# case sets the knobs it tests on purpose. Case 13 read tier=full otherwise.
+for _v in $(compgen -v); do case "$_v" in SPL_PREPUSH_*|PRE_PUSH_*) unset "$_v" ;; esac; done
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS="$(cd "$HERE/../scripts" && pwd)"
 HOOK="$(cd "$HERE/../hooks" && pwd)/pre-push"

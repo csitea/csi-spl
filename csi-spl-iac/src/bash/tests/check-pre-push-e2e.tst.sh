@@ -48,6 +48,12 @@
 #      <cache>/.locks, outside the dir the prune deletes
 #  17. R7 W2: a hold that fails on the build path is rc 1 with a FAIL line,
 #      and no file runs on a bundle that is gone
+#  19. SPL-5347: a built bundle over the budget is not cached: rc 1 twice, the
+#      cache stays empty and the second run builds again; the control, the
+#      same tree under the budget, is cached and the next run re-uses it
+#  20. SPL-5347: two runs at once in one tree go one at a time (the tree
+#      lock): no overlapping build, 1 build, the second re-uses it; a child
+#      the runner leaves behind does not hold the lock after the run
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
@@ -57,6 +63,7 @@
 #              comes from the direct tier, not the score
 #   CONTROL e. BigPanel.vue alone fills MAX=2 with its own 2 tests, so check
 #              11's slot for dock-chip comes from the pin
+#   CONTROL f. without the tree lock check 20's two builds overlap
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset PRE_PUSH_NO_CACHE PRE_PUSH_MODE PRE_PUSH_SKIP_PASSED PRE_PUSH_ONLY PRE_PUSH_LINT PRE_PUSH_LINT_ONLY PRE_PUSH_CROSS PRE_PUSH_E2E PRE_PUSH_FEATURES 2>/dev/null || true  # SPL-5063: the caller's gate switches must not change these verdicts; a case sets its own
@@ -274,6 +281,71 @@ else
   fail "18b. outside the margin: rc $r, ran '$(cat "$T/ran")'"; sed 's/^/    | /' "$T/out"
 fi
 printf '%s\n' "$budgets_kept" >"$budgets"
+
+# --- 19. an over-budget bundle is not cached ------------------------------------------------
+C="$T/bundles19"; : >"$T/builds"; : >"$T/out19"
+part19() {
+  ( export PPE_T="$T" PRE_PUSH_E2E_GENERATE="$T/gen" PRE_PUSH_E2E_RUNNER="$T/run" PRE_PUSH_E2E_BUNDLES="$C" \
+      CHROME_PATH=/bin/true TMPDIR="$T" PPE_JS_BYTES="$1"
+    _ppe_plan "csi-spl-wui/src/components/FooBar.vue" "$R" && _pp_part_wui_e2e "$R" ) >>"$T/out19" 2>&1
+}
+part19 4096; ra=$?; part19 4096; rb=$?
+if [[ "$ra" == 1 && "$rb" == 1 && "$(wc -l <"$T/builds")" == 2 && -z "$(ls -1d "$C"/*/ 2>/dev/null)" ]] \
+   && ! grep -q 'bundle re-used' "$T/out19"; then
+  pass "19. an over-budget bundle: rc 1 twice, nothing left in the cache, the next run builds again (2 builds)"
+else
+  fail "19. over budget: rc $ra/$rb, builds $(wc -l <"$T/builds"), cache: $(ls -1 "$C" 2>/dev/null | paste -sd' ' -)"
+  sed 's/^/    | /' "$T/out19"
+fi
+: >"$T/out19"; part19 64; ra=$?; part19 64; rb=$?
+[[ "$ra" == 0 && "$rb" == 0 && "$(wc -l <"$T/builds")" == 3 && "$(grep -c 'bundle re-used' "$T/out19")" == 1 ]] \
+  && pass "19. CONTROL: the same tree under budget is cached (1 more build) and the next run says bundle re-used" \
+  || { fail "19. CONTROL: rc $ra/$rb, builds $(wc -l <"$T/builds")"; sed 's/^/    | /' "$T/out19"; }
+
+# --- 20. two runs in one tree build one at a time ---------------------------------------------
+C="$T/bundles20"; : >"$T/builds"; rm -f "$T/overlap"; rm -rf "$T/building"
+cat >"$T/gen20" <<'EOF'
+#!/bin/bash
+mkdir "$PPE_T/building" 2>/dev/null || echo overlap >>"$PPE_T/overlap"
+sleep 1; "$PPE_T/gen"; rc=$?; rmdir "$PPE_T/building" 2>/dev/null; exit "$rc"
+EOF
+chmod +x "$T/gen20"
+part20() {
+  ( export PPE_T="$T" PRE_PUSH_E2E_GENERATE="$T/gen20" PRE_PUSH_E2E_RUNNER="$T/run" PRE_PUSH_E2E_BUNDLES="$C" \
+      CHROME_PATH=/bin/true TMPDIR="$T"
+    _ppe_plan "csi-spl-wui/src/components/FooBar.vue" "$R" && _pp_part_wui_e2e "$R" ) >"$T/out20$1" 2>&1
+}
+part20 a & pa=$!; sleep 0.3; part20 b & pb=$!
+wait "$pa"; ra=$?; wait "$pb"; rb=$?
+if [[ "$ra" == 0 && "$rb" == 0 && ! -e "$T/overlap" && "$(wc -l <"$T/builds")" == 1 ]] \
+   && grep -q 'bundle re-used' "$T/out20b"; then
+  pass "20. two runs at once in one tree: no overlapping build, 1 build, the second re-uses it"
+else
+  fail "20. concurrent runs: rc $ra/$rb, overlap $([[ -e "$T/overlap" ]] && echo yes || echo no), builds $(wc -l <"$T/builds")"
+  sed 's/^/    a| /' "$T/out20a"; sed 's/^/    b| /' "$T/out20b"
+fi
+# CONTROL f. the same two runs without the tree lock overlap: check 20 comes from the lock
+C="$T/bundles20f"; : >"$T/builds"; rm -f "$T/overlap"; rm -rf "$T/building"
+( _ppe_tree_lock() { exec {_PPE_TREE_FD}</dev/null; }
+  part20 a & pa=$!; sleep 0.3; part20 b & pb=$!; wait "$pa" "$pb" )
+[[ -e "$T/overlap" ]] && pass "CONTROL f. without the tree lock the two builds overlap, so check 20 comes from the lock" \
+  || fail "CONTROL f. no overlap without the lock: check 20 proves nothing"
+# a child the runner leaves behind does not hold the tree lock after the run
+cat >"$T/run20" <<'EOF'
+#!/bin/bash
+sleep 30 </dev/null >/dev/null 2>&1 & echo "$!" >"$PPE_T/orphan"
+EOF
+chmod +x "$T/run20"
+( export PPE_T="$T" PRE_PUSH_E2E_GENERATE="$T/gen" PRE_PUSH_E2E_RUNNER="$T/run20" PRE_PUSH_E2E_BUNDLES="$C" \
+    CHROME_PATH=/bin/true TMPDIR="$T"
+  _ppe_plan "csi-spl-wui/src/components/FooBar.vue" "$R" && _pp_part_wui_e2e "$R" ) >"$T/out20c" 2>&1; r=$?
+if [[ "$r" == 0 && -e "$R/.git/ppe-tree.lock" ]] && flock -n -x "$R/.git/ppe-tree.lock" true; then
+  pass "20. a child the runner left behind (pid $(cat "$T/orphan")) does not hold the tree lock"
+else
+  fail "20. after the run the tree lock is $([[ -e "$R/.git/ppe-tree.lock" ]] && echo held || echo missing) (rc $r)"
+  sed 's/^/    | /' "$T/out20c"
+fi
+kill "$(cat "$T/orphan")" 2>/dev/null
 
 # --- 9. the stamp -----------------------------------------------------------------------------
 cat >"$T/pnpm" <<'EOF2'

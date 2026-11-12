@@ -307,6 +307,35 @@ if round(got * 10) + MARGIN_TENTHS > round(cap * 10):
 PY
 }
 
+# _ppe_budget <tree> <public> <report> - wf 10's perf-budget.py bundle check,
+# then the local margin, on the bundle at <public>.
+_ppe_budget() {
+  local budgets="$1/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json"
+  python3 "$1/csi-spl-orc/src/bash/scripts/perf-budget.py" bundle --pub "$2" --budgets "$budgets" --out "$3" ||
+    { echo "FAIL: wui-e2e: the bundle is over perf-budgets.json (wf 10 measures the same)"; return 1; }
+  _ppe_budget_margin "$3" "$budgets" ||
+    { echo "FAIL: wui-e2e: the bundle is inside the local margin under perf-budgets.json"; return 1; }
+}
+
+# _ppe_tree_lock <wui> - an exclusive flock on <git dir>/ppe-tree.lock, held
+# by the calling shell until it exits (fd in _PPE_TREE_FD): two runs in one
+# tree use the same .output, so they go one at a time (SPL-5347). Two builds at
+# once wrote into one .output; a run that re-used the bundle the other built
+# lost its .output/public to the other's EXIT trap. The second waits, then
+# finds the first's bundle in the cache if it passed. The git dir is per
+# worktree. Run the build and the runner with {_PPE_TREE_FD}>&-: a child left
+# behind (a Chrome past the timeout) then cannot hold the lock. No git dir, or
+# one it cannot write: no lock (the fd is /dev/null), as before.
+_ppe_tree_lock() {
+  local gd
+  if gd="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null)" && exec {_PPE_TREE_FD}>>"$gd/ppe-tree.lock"; then
+    flock -n -x "$_PPE_TREE_FD" ||
+      { echo "wui-e2e: another run uses this tree, waiting for it"; flock -x "$_PPE_TREE_FD"; }
+  else
+    exec {_PPE_TREE_FD}</dev/null
+  fi 2>/dev/null
+}
+
 # _ppe_bundle_hold <dir> - hold the bundle <dir> for the rest of the calling
 # shell: a shared flock on <cache>/.locks/<key>, on an fd the shell keeps open
 # until it exits, so its children (the runner, Chrome) hold it too and a
@@ -360,7 +389,7 @@ _pp_part_wui_e2e() {
   [[ -n "$files" ]] || { echo "wui-e2e: no selected e2e file is on this tree, nothing to run"; return 1; }
   echo "wui-e2e: runs $(wc -w <<<"$files") file(s): $files"
   [[ -n "${_PPE_CUT:-}" ]] && echo "wui-e2e: left to CI by the cap (PRE_PUSH_E2E_MAX / _BUDGET): $(paste -sd' ' <<<"$_PPE_CUT")"
-  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin
+  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin _ppe_budget _ppe_tree_lock
   timeout -k 10 "$(_pp_budget _pp_part_wui_e2e)" bash -c '
     set -uo pipefail
     tree="$1" files="$2"
@@ -376,22 +405,27 @@ _pp_part_wui_e2e() {
     fi
     key="$(_ppe_bundle_key "$tree")"
     cache="${PRE_PUSH_E2E_BUNDLES:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/wui-e2e-bundle}"
+    _ppe_tree_lock .
     _ppe_keep_heal .
     [[ -e .output ]] && mv .output .output.ppe-keep
+    built=""
     if [[ -n "$key" && -f "$cache/$key/public/index.html" ]] && _ppe_bundle_hold "$cache/$key"; then
       echo "wui-e2e: bundle re-used ($cache/${key:0:12}): no WUI input changed since it was built"
     else
       echo "wui-e2e: building the mock bundle"
-      start=$SECONDS
+      start=$SECONDS built=1
       # the build also writes ignored outputs into the tree (.nuxt, dist,
       # src/public/roadmap.json, docs-public ...): the iac suite scans the
       # tree, so the ones this build made are removed again below
       git ls-files --others --ignored --exclude-standard --directory . | grep -v "^node_modules/" | sort >"$run_dir/before"
-      ${PRE_PUSH_E2E_GENERATE:-_ppe_generate} || { echo "FAIL: wui-e2e: the mock bundle did not build"; exit 1; }
+      ${PRE_PUSH_E2E_GENERATE:-_ppe_generate} {_PPE_TREE_FD}>&- || { echo "FAIL: wui-e2e: the mock bundle did not build"; exit 1; }
       [[ -f .output/public/index.html ]] || { echo "FAIL: wui-e2e: no .output/public/index.html after the build"; exit 1; }
       echo "wui-e2e: bundle built in $((SECONDS - start)) s"
       git ls-files --others --ignored --exclude-standard --directory . | grep -v "^node_modules/" | sort |
         comm -13 "$run_dir/before" - | grep -v "^\.output/" | while IFS= read -r p; do rm -rf -- "./$p"; done
+      # the budget before the cache: a bundle that fails it is not cached,
+      # else every later push of this tree re-used it and failed (SPL-5347)
+      _ppe_budget "$tree" .output/public "$run_dir/perf-budget.json" || { rm -rf .output; exit 1; }
       if [[ -n "$key" ]]; then
         mkdir -p "$cache/$key" && rm -rf "$cache/$key/public" && mv .output/public "$cache/$key/public" && rm -rf .output
         _ppe_bundle_hold "$cache/$key" ||
@@ -402,20 +436,16 @@ _pp_part_wui_e2e() {
     if [[ -n "$key" ]]; then mkdir -p .output && ln -s "$cache/$key/public" .output/public; fi
     # wf 10 step "Initial JS gzip stays within the performance budget", same
     # script, same budgets, same bundle: a budget only CI measured made 8 red
-    # runs on 10-27 (ci-panel-20261028 3.3, SPL-4129)
-    budgets="$tree/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json"
-    python3 "$tree/csi-spl-orc/src/bash/scripts/perf-budget.py" bundle --pub .output/public \
-      --budgets "$budgets" --out "$run_dir/perf-budget.json" ||
-      { echo "FAIL: wui-e2e: the bundle is over perf-budgets.json (wf 10 measures the same)"; exit 1; }
-    _ppe_budget_margin "$run_dir/perf-budget.json" "$budgets" ||
-      { echo "FAIL: wui-e2e: the bundle is inside the local margin under perf-budgets.json"; exit 1; }
+    # runs on 10-27 (ci-panel-20261028 3.3, SPL-4129). A re-used bundle is
+    # measured again: the budgets are not in its key.
+    [[ -n "$built" ]] || _ppe_budget "$tree" .output/public "$run_dir/perf-budget.json" || exit 1
     export CHROME_PATH="${CHROME_PATH:-$(command -v google-chrome || command -v chromium || command -v chromium-browser)}"
     export TMPDIR="$run_dir" SHOT_DIR="$run_dir/shots"; mkdir -p "$SHOT_DIR"
     # shellcheck disable=SC2086 # files: one word each
     if [[ -n "${PRE_PUSH_E2E_RUNNER:-}" ]]; then
-      $PRE_PUSH_E2E_RUNNER $files
+      $PRE_PUSH_E2E_RUNNER $files {_PPE_TREE_FD}>&-
     else
-      bash "$tree/csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh" node src/node/test/run-e2e-tests.mjs $files
+      bash "$tree/csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh" node src/node/test/run-e2e-tests.mjs $files {_PPE_TREE_FD}>&-
     fi
   ' _ "$tree" "$files"
 }

@@ -47,7 +47,8 @@ chmod +x "$T/bin/slow-build" "$T/bin/fast-build"
 
 # new_tree <dir>: a committed WUI with installed modules and a user .output
 new_tree() {
-  local r="$1" w="$1/csi-spl-wui"; rm -rf "$r"; mkdir -p "$w/node_modules/.pnpm" "$w/.output"
+  local r="$1" w="$1/csi-spl-wui"; rm -rf "$r"; mkdir -p "$w/node_modules/.pnpm" "$w/.output" "$w/tests/e2e"
+  : >"$w/tests/e2e/x.test.mjs"  # the part runs only the files on its tree (SPL-5345)
   echo lock >"$w/pnpm-lock.yaml"; cp "$w/pnpm-lock.yaml" "$w/node_modules/.pnpm/lock.yaml"
   printf 'node_modules/\n.output/\n.output.ppe-keep/\n' >"$w/.gitignore"
   git -C "$r" init -q && git -C "$r" add -A && git -C "$r" -c user.name=t -c user.email=t@t commit -qm base

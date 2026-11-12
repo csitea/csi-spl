@@ -343,14 +343,23 @@ _ppe_bundle_prune() {
 }
 
 # _pp_part_wui_e2e <tree> - build or reuse the bundle, run the files.
+# Only the selected files on <tree> run: the baseline re-run (_pp_run, on the
+# base ref) gets the push's list, and a file the push adds is not there. The
+# runner dies "file(s) not found" on one before it runs any, so the base
+# signature was empty and a red trunk shares read NEW (SPL-5345). A left-out
+# file has no baseline: if it fails on the push's tree it stays NEW. None
+# left: rc 1, the verdict it got before.
 _pp_part_wui_e2e() {
   local tree="$1"
   [[ -n "$_PPE_FILES" ]] || { echo "wui-e2e: no e2e file maps to this change"; return 0; }
-  echo "wui-e2e: runs $(wc -w <<<"$_PPE_FILES") file(s): $(paste -sd' ' <<<"$_PPE_FILES")"
+  local files="" t missing=""
+  for t in $_PPE_FILES; do
+    if [[ -f "$tree/csi-spl-wui/$t" ]]; then files+="${files:+ }$t"; else missing+=" $t"; fi
+  done
+  [[ -z "$missing" ]] || echo "INFO wui-e2e: not on this tree, left out of this run (new in the push, no baseline):$missing"
+  [[ -n "$files" ]] || { echo "wui-e2e: no selected e2e file is on this tree, nothing to run"; return 1; }
+  echo "wui-e2e: runs $(wc -w <<<"$files") file(s): $files"
   [[ -n "${_PPE_CUT:-}" ]] && echo "wui-e2e: left to CI by the cap (PRE_PUSH_E2E_MAX / _BUDGET): $(paste -sd' ' <<<"$_PPE_CUT")"
-  local files="$_PPE_FILES" t missing=""
-  for t in $files; do [[ -f "$tree/csi-spl-wui/$t" ]] || missing+=" $t"; done
-  [[ -z "$missing" ]] || echo "wui-e2e: not in this tree (new in the push?):$missing"
   export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin
   timeout -k 10 "$(_pp_budget _pp_part_wui_e2e)" bash -c '
     set -uo pipefail

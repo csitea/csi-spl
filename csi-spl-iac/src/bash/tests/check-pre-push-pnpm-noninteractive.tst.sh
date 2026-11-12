@@ -52,7 +52,7 @@ export PATH="$T/bin:$PATH"
 
 # A tree with a WUI and no node_modules; a git repo for the e2e bundle key.
 new_tree() {
-  local r="$1"; rm -rf "$r"; mkdir -p "$r/csi-spl-wui"
+  local r="$1"; rm -rf "$r"; mkdir -p "$r/csi-spl-wui/tests/e2e"; : >"$r/csi-spl-wui/tests/e2e/x.test.mjs"  # the e2e part runs only the files on its tree (SPL-5345)
   echo lock >"$r/csi-spl-wui/pnpm-lock.yaml"; echo '{}' >"$r/csi-spl-wui/package.json"
   git -C "$r" init -q && git -C "$r" add -A && git -C "$r" commit -qm base
 }

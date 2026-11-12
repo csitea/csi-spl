@@ -91,7 +91,7 @@ done
 
 # 5. the real runners: `timeout` prints the budget it was handed, runs nothing.
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-mkdir -p "$T/csi-spl-wui"
+mkdir -p "$T/csi-spl-wui/tests/e2e"; : >"$T/csi-spl-wui/tests/e2e/x.test.mjs"  # the e2e part runs only the files on its tree (SPL-5345)
 ran() {  # <part-fn> [VAR=val ...] -> the budget the runner handed `timeout`
   local part="$1"; shift
   ( for kv in "$@"; do export "${kv?}"; done

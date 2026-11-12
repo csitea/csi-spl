@@ -142,6 +142,10 @@ c-304's new gofmt and `TestCleanCodeGate` failures passed as
 "pre-existing" behind an unrelated trunk red, because both trees merely
 exited non-zero. A suite that stops at its first failing step (the api
 suite is `set -e`) can still hide a later new failure behind that step.
+The wui-e2e re-run on trunk runs only the push's e2e files that trunk has:
+one INFO line names the ones the push adds, which have no baseline and stay
+NEW if they fail (SPL-5345; the runner used to die "file(s) not found" on
+them, and every e2e red read NEW).
 A `perf-*.sh` budget is report-only in the local gate too, as in CI
 (`run-ci-tests.sh`): its section of the orc-features output, from
 `=== perf, reported, not gating:` to its `PASS` / `OVER BUDGET` line (CI

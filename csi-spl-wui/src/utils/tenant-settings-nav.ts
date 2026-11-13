@@ -20,7 +20,8 @@
  * /v1/tenant/cost-allocations with an item). costAlloc: true after either.
  */
 
-export type TenantSection = { id: string, label: string, perm: string }
+/** `also`: other permissions that open the section too (any one of them) */
+export type TenantSection = { id: string, label: string, perm: string, also?: string[] }
 export type TenantSectionsOpts = { mock?: boolean, fleetLoad?: boolean, costAlloc?: boolean }
 type TenantMe = { permissions?: string[] | null } | null | undefined
 
@@ -33,7 +34,8 @@ export const TENANT_SETTINGS_SECTIONS: TenantSection[] = [
   { id: 'channels', label: 'tenant_settings.channels', perm: 'tenant.settings' },
   { id: 'general', label: 'tenant_settings.general', perm: 'tenant.settings' },
   { id: 'posts', label: 'tenant_settings.posts', perm: 'tenant.settings' },
-  { id: 'hours', label: 'tenant_settings.hours', perm: 'tenant.settings' },
+  // spec 107 FR-41: hours.norm (the product owner) opens Hours for the average field alone
+  { id: 'hours', label: 'tenant_settings.hours', perm: 'tenant.settings', also: ['hours.norm'] },
   { id: 'performance', label: 'tenant_settings.performance', perm: 'tenant.settings' },
 ]
 
@@ -57,7 +59,7 @@ export function tenantSettingsSections(me: TenantMe, opts: TenantSectionsOpts = 
   const mock = Boolean(opts.mock)
   const perms = me && Array.isArray(me.permissions) ? me.permissions : null
   const base: TenantSection[] = mock
-    ? TENANT_SETTINGS_SECTIONS.filter((s) => !perms || !MOCK_GATED.has(s.id) || perms.includes(s.perm))
+    ? TENANT_SETTINGS_SECTIONS.filter((s) => !perms || !MOCK_GATED.has(s.id) || sectionPermitted(s, perms))
     : filterByPerm(me)
   if (opts.fleetLoad) base.push(FLEET_LOAD_SECTION as TenantSection)
   if (opts.costAlloc) base.push(COST_ALLOC_SECTION as TenantSection)
@@ -66,7 +68,12 @@ export function tenantSettingsSections(me: TenantMe, opts: TenantSectionsOpts = 
 
 function filterByPerm(me: TenantMe): TenantSection[] {
   const perms = me && Array.isArray(me.permissions) ? me.permissions : []
-  return TENANT_SETTINGS_SECTIONS.filter((s) => perms.includes(s.perm))
+  return TENANT_SETTINGS_SECTIONS.filter((s) => sectionPermitted(s, perms))
+}
+
+/** Whether a holder of `perms` may open `s`: its perm, or one of `also`. */
+function sectionPermitted(s: TenantSection, perms: readonly string[]): boolean {
+  return perms.includes(s.perm) || Boolean(s.also && s.also.some((p) => perms.includes(p)))
 }
 
 /** Whether the bottom-left icon / the avatar menu row shows. */

@@ -54,6 +54,7 @@ with its time, then meetings, channels and **Other**.
 |---|---|
 | a dot | the day has suggestions you have not approved yet, or its period was returned |
 | a lock | the day is frozen, or a biz owner approved its period: it can no longer change |
+| a warning mark | the day's total is above the workspace's average hours per day (section 7.3); your hours are kept |
 
 In the dialog the day says **Frozen** or **Final** (a biz owner approved the
 period) next to the lock.
@@ -179,5 +180,17 @@ Only you see these minutes. The setting is kept per workspace.
 Your days follow your own time zone when you set one, otherwise the
 workspace's. A change of period starts after the last frozen period: days
 already passed never move into a new period.
+
+### 7.3 Average hours per day (biz owner, product owner or admin)
+
+**Workspace settings → Hours → Average hours per day** sets the hours a
+person registers on an average day in this workspace, typed as h:mm (for
+example 7:30) or as a number (7.5). Empty or 0:00 means no average; that is
+the default. A product owner sees this one field on the Hours page.
+
+It is a guide, not a limit: nothing you enter is refused. With an average
+set, the Working hours dialog shows "of 7:30 average per day" next to the
+day's total, and a day above it shows a warning mark on its line and a
+warning line in the dialog. The only hard limit stays 24 hours a day.
 
 <!-- version: 1.0.1 · updated: 2026-10-23 -->

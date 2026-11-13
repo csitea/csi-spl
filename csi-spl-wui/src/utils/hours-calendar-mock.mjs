@@ -15,6 +15,7 @@
  * HOURS_MOCK_PERIODS by an e2e; Resubmit moves returned to frozen.
  */
 import { hoursAddDays } from './hours-calendar.mjs'
+import { mockHoursNorm } from './hours-norm.mjs'
 
 export const HOURS_MOCK_TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 export const HOURS_MOCK_TOPIC_2 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
@@ -145,7 +146,7 @@ export function mockMyHours(day, today) {
   }
   const period = { start, end, state: pstate.state, minutes: 0, freezes_at: `${hoursAddDays(end, 3)}T00:00:00Z` }
   if (pstate.note) period.note = pstate.note
-  return { tz: 'UTC', today, period, days }
+  return { tz: 'UTC', today, period, days, norm_day_minutes: mockHoursNorm() }
 }
 
 function refuse(status, error, detail) {

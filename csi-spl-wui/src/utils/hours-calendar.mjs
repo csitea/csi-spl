@@ -11,6 +11,7 @@
  * loadHoursRange, the mock workspace's answer hours-calendar-mock.mjs.
  */
 import { isoDateTimeIn } from './date-iso-zone.mjs'
+import { hoursNormOf } from './hours-norm.mjs'
 
 /** The dialog's entry type (the dialog's own, not a hub event kind). */
 export const HOURS_ENTRY_TYPE = 'working_hours'
@@ -92,6 +93,8 @@ export function hoursIndex(bodies) {
   for (const b of Array.isArray(bodies) ? bodies : []) {
     if (!b || !Array.isArray(b.days)) continue
     const period = b.period && typeof b.period === 'object' ? b.period : null
+    // FR-41: the workspace's average minutes per day, 0 = none
+    const norm = hoursNormOf(b.norm_day_minutes)
     for (const d of b.days) {
       if (!d || !DAY_RE.test(String(d.date || ''))) continue
       const rows = Array.isArray(d.rows) ? d.rows : []
@@ -106,6 +109,7 @@ export function hoursIndex(bodies) {
         total,
         rows,
         period,
+        norm,
       })
     }
   }

@@ -15,7 +15,10 @@
      additionally for those automatic entries more notes"): the minutes open
      a ±15 stepper in place (or type h:mm), +15 extends a row, + Add books a
      target (HoursTargetPicker) with 0:30, Why shows the row's blocks, and
-     every line takes a note (<= 500) saved as the entry's note. -->
+     every line takes a note (<= 500) saved as the entry's note.
+     FR-41 (SPL-5440, spec 22.2): with a workspace average hours per day,
+     the total reads "of h:mm average per day", and a day above it shows a
+     warning line; the entry is kept, nothing is refused. -->
 <template>
   <div class="hours-day" data-test="hours-day" :data-day="day" :data-state="state" :data-period="periodState" :data-editable="editable ? 'true' : 'false'">
     <div v-if="banner" class="hours-day__banner" data-test="hours-day-banner" :data-open="banner.openDays.length">
@@ -33,9 +36,14 @@
       <span>{{ t('hours_cal.banner_returned', { note: banner?.note || '' }) }}</span>
       <button type="button" class="btn primary hours-day__btn" data-test="hours-resubmit" :disabled="busy" @click="resubmit">{{ t('hours_cal.resubmit') }}</button>
     </div>
+    <p v-if="over > 0" class="hours-day__over" role="status" data-test="hours-day-over" :data-over="over">
+      <UiIcon name="alert-triangle" :size="14" />
+      <span>{{ t('hours_cal.norm_over', { over: hoursHhmm(over), norm: hoursHhmm(norm) }) }}</span>
+    </p>
     <div class="hours-day__total" data-test="hours-day-total">
       <span>{{ t('hours_cal.total') }}</span>
       <strong dir="ltr">{{ hoursHhmm(cur ? cur.total : 0) }}</strong>
+      <span v-if="norm > 0" class="muted" data-test="hours-day-norm" :data-norm="norm">{{ t('hours_cal.norm_of', { norm: hoursHhmm(norm) }) }}</span>
       <span v-if="periodState === 'approved'" class="hours-day__tag" data-test="hours-day-final"><UiIcon name="lock" :size="12" />{{ t('hours_cal.state_final') }}</span>
       <span v-else-if="cur && cur.frozen" class="hours-day__tag" data-test="hours-day-frozen"><UiIcon name="lock" :size="12" />{{ t('hours_cal.state_frozen') }}</span>
       <span class="hours-day__spacer" />
@@ -209,6 +217,7 @@ import {
   hoursParseMinutes, hoursRejectEntry, hoursRowOpen, hoursStep, hoursUndoBody,
 } from '~/utils/hours-mine.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
+import { hoursNormOf, hoursOverNorm } from '~/utils/hours-norm.mjs'
 import { useHoursWrite } from '~/composables/useCalendarHours'
 import type { HoursBody, HoursDay, HoursRow } from '~/composables/useCalendarHours'
 import { useChannelStore } from '~/stores/channel'
@@ -237,6 +246,9 @@ watch(() => props.body, () => { local.value = null })
 const curBody = computed<HoursBody | null>(() => local.value || props.body || null)
 const cur = computed<HoursDay | undefined>(() => (local.value ? (hoursIndex([local.value]) as Map<string, HoursDay>).get(props.day) : props.data))
 const today = computed(() => String(curBody.value?.today || ''))
+/* FR-41: the workspace's average minutes per day (0 = none) and how far the day is above it */
+const norm = computed(() => hoursNormOf(curBody.value?.norm_day_minutes ?? cur.value?.norm))
+const over = computed(() => hoursOverNorm(cur.value ? cur.value.total : 0, norm.value))
 const { busy, error, write: put } = useHoursWrite(() => today.value || props.day)
 
 async function write(b: { entries?: unknown[], remove?: unknown[], resubmit?: string }) {
@@ -392,6 +404,8 @@ async function saveAdd() {
 .hours-day__note > span,
 .hours-day__undo > span { flex: 1 1 12rem; min-inline-size: 0; overflow-wrap: anywhere; }
 .hours-day__error { margin: 0; color: var(--color-danger, var(--color-fg)); font-weight: 600; }
+.hours-day__over { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--color-warn); background: var(--color-bg-2); }
+.hours-day__over > span { flex: 1 1 auto; min-inline-size: 0; overflow-wrap: anywhere; }
 .hours-day__total { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
 .hours-day__total strong { font-variant-numeric: tabular-nums; }
 .hours-day__spacer { flex: 1 1 auto; }

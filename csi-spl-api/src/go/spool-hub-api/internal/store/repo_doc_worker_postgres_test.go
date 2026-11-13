@@ -28,12 +28,35 @@ func TestRepoDocWorkerLockIsExclusive(t *testing.T) {
 	if err := a.Close(); err != nil {
 		t.Fatal(err)
 	}
-	c, ok, err := pg.LockRepoDocWorker(ctx)
-	if err != nil || !ok {
-		t.Fatalf("lock after release: ok=%v err=%v", ok, err)
-	}
-	_ = c.Close()
+	_ = lockOnceReleased(t, pg).Close()
 }
+
+// lockOnceReleased takes the worker lock that a just-closed session held.
+// Close sends Terminate and returns at once (pgx does not wait for the
+// server); the server frees a session lock only when the backend ends, so
+// the next try may still be refused for a moment: CI run 43322857652, and
+// 13/400 locally with the server's CPU starved (SPL-5406). A lock that Close
+// never frees still fails here, after repoDocLockWait.
+func lockOnceReleased(t *testing.T, pg *Postgres) *RepoDocWorkerSession {
+	t.Helper()
+	deadline := time.Now().Add(repoDocLockWait)
+	for {
+		s, ok, err := pg.LockRepoDocWorker(context.Background())
+		if err != nil {
+			t.Fatalf("lock after release: %v", err)
+		}
+		if ok {
+			return s
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("lock after release: still refused after %s", repoDocLockWait)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// repoDocLockWait bounds the wait for a closed session's backend to end.
+const repoDocLockWait = 5 * time.Second
 
 // TestRepoDocWorkerWakesOnSave: a save's NOTIFY ends the worker's wait long
 // before its poll; the session still holds the lock afterwards.

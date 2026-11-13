@@ -454,7 +454,13 @@ async function titleRow(p, base, tag, size, page, path) {
   ok(`T3 ${t}: the tabs keep their size (${size.touch ? 14.4 : 18} px)`, g?.tabFs === (size.touch ? 14.4 : 18), g && g.tabFs)
   ok(`T3 ${t}: the title is exactly 1 px bigger than the tabs`, g?.fsDiff === 1, g && [g.h2Fs, g.tabFs])
   ok(`T3 ${t}: the title is bold`, (g?.h2Weight || 0) >= 700, g && g.h2Weight)
-  ok(`T4 ${t}: the separator reads "  >>  ", spaces kept, hidden from screen readers and from a copy`, g?.sepText === '"  >>  "' && g.sepPre === 'pre' && g.sepHidden && g.sepSelect === 'none', g && [g.sepText, g.sepPre, g.sepHidden, g.sepSelect])
+  if (page === 'monitoring') {
+    /* SPL-5396 (t1 9d0d51e9): Monitoring's gaps are a hidden "Monitor" each
+       (main.css .section-title-gap), not spaces; their widths: monitoring-costs C2 */
+    ok(`T4 ${t}: the separator reads ">>" between two "Monitor"-wide gaps, on one line, hidden from screen readers and from a copy`, g?.sepText === '">>"' && g.sepPre === 'nowrap' && g.sepHidden && g.sepSelect === 'none', g && [g.sepText, g.sepPre, g.sepHidden, g.sepSelect])
+  } else {
+    ok(`T4 ${t}: the separator reads "  >>  ", spaces kept, hidden from screen readers and from a copy`, g?.sepText === '"  >>  "' && g.sepPre === 'pre' && g.sepHidden && g.sepSelect === 'none', g && [g.sepText, g.sepPre, g.sepHidden, g.sepSelect])
+  }
   ok(`T1 ${t}: the title, the separator and the tabs are in the header`, Boolean(g?.inHeader), g)
   if (!size.touch) {
     ok(`T2 ${t}: title, separator, first tab in that order`, Boolean(g?.order), g)

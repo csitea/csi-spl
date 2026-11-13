@@ -163,7 +163,7 @@ func TestFleetLoadAgentKinds(t *testing.T) {
 		t.Fatalf("admin PATCH agent_kinds_off = %d %v", code, body)
 	}
 	for _, bad := range []map[string]any{
-		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen", "mistral"}},
+		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen", "mistral", "codex"}},
 		{"agent_kinds_off": []string{"gpt"}},
 		{"agent_kinds_off": []string{"agy", "agy"}},
 		{"agent_kinds_off": "grok"},
@@ -268,7 +268,7 @@ func TestFleetLoadOperatorSA(t *testing.T) {
 	}
 	for _, bad := range []map[string]any{
 		{"agent_kinds_off": []string{"grok"}, "ordered_by": "bob"},
-		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen", "mistral"}},
+		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen", "mistral", "codex"}},
 	} {
 		if code, _ := opCall(t, e, op, http.MethodPatch, fleetLoadPath, "good", bad); code != http.StatusBadRequest {
 			t.Errorf("PATCH %v = %d, want 400", bad, code)

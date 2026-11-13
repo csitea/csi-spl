@@ -1570,6 +1570,33 @@ It is not read under act-as. A refusal or a failed read only leaves the row
 out. The label reuses the existing key `settings.email`, so the change adds
 no new text to any locale.
 
+### 12.4 t1 shows the name only (v1.4 r2)
+
+Owner HUM-10, t1 `#spool-hub-bugs` msg `028ac340` (2026-11-13), after the
+first build: "in every workspace every member should be able to see the
+email and the phone number of the other member. In the Spool Hub that should
+not be the case. In the T1 workspace only the first name and the last name
+from a contact should be visible. Nothing else should be visible." Plan
+`7da6100e`, GO by the dispatch holder (msg `5e5a51df`); the owner's poll
+`36ec7895` confirmed the workspaces: every workspace on this hub except t1,
+and the demo stays pseudonymous.
+
+- **Name-only workspaces.** The hub setting
+  `SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES` (comma-separated workspace
+  ids) lists them. Unset or empty means `t1`: the default is built into the
+  binary (`config.go`, `envDefault`), so an image deploy alone hides the
+  address in t1, with no cnf change and no 030 apply. An empty value cannot
+  turn t1 back to addresses.
+- **The card there.** The same route, the same gates (12.2), answers
+  `{human_id, display_name, email: null}`. The WUI person card then shows
+  no Email row (the same path as a refusal). Every other workspace is
+  unchanged: the address as in 12.2, and the demo stays null.
+- **Name.** A member has one `display_name`; there is no first or last name
+  column. **Phone.** A member has no phone number (the only numbers are a
+  person's own private contacts, 2.6, never another member's card). The card
+  carries no `phone` key. Both are a follow-up lane (ask `1d9c470c`, owner
+  poll `36ec7895`).
+
 ### 12.3 Cases (v1.4)
 
 | case | given | expect | proof |
@@ -1579,6 +1606,9 @@ no new text to any locale.
 | C42 | the same browser with a Bearer token; P1's session as an act-as clone | 403 `person_only`, no address | `TestMemberCardPersonOnly`; twin: the plain session gets 200; red control: a gate that refuses no one turns it red |
 | C43 | any card read | `Cache-Control: no-store`; the address is not in the hub log | `TestMemberCardNoStoreNoLog` |
 | C44 | a demo visitor reads another visitor's card | 200 with `email` null, no address anywhere | `TestDemoVisitorsSeeOnlyPseudonyms` (it caught the first build, which carried the address) |
+| C46 | W1 is name-only; P1 and Q (W1) read each other's and their own card | 200, `display_name` set, `email` null, no `@` in the body, no `phone` key | `TestMemberCardNameOnlyWorkspace`; twin: P1's W2 session (not name-only) reads the address |
+| C47 | `SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES` unset, empty, or `t1,w9` | `[t1]`, `[t1]`, `[t1 w9]` | `TestLoadHubMemberCardNameOnlyWorkspaces` |
+| C48 | the WUI in t1 opens a member's card | the card, no Email row, no address on the page | `csi-spl-wui/tests/e2e/people-email.test.mjs`; twin: the same card outside t1 shows the row |
 | C45 | cnf `[all]` | 030 carries `SPOOL_HUB_CONTACTS_WORKSPACES="all"` for dev and prd | `csi-spl-iac/src/bash/tests/hub-contacts-030.tst.sh` |
 
 <!-- version: 1.4 · updated: 2026-11-13 -->

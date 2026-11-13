@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 )
 
 // Spec 154 section 12 (SPL-5431): every member of a workspace reads every
@@ -88,6 +90,35 @@ func TestMemberCardNoStoreNoLog(t *testing.T) {
 	}
 	if strings.Contains(realmLogs(c.logs), c.email) {
 		t.Errorf("the hub log carries the member's address")
+	}
+}
+
+// C34 (section 12.4, owner HUM-10 t1 028ac340): in a name-only workspace
+// (t1 in every deployed hub, W1 here) a member reads another member's name
+// and never the address; the twin is the same person in W2, not name-only,
+// who reads the address. The card has no phone key in any workspace.
+func TestMemberCardNameOnlyWorkspace(t *testing.T) {
+	c := newContactsRig(t, onAll, func(o *hub.Options, w1, _ string) { o.MemberCardNameOnlyWorkspaces = []string{w1} })
+	q, qHum := c.other(t, "developer")
+	for _, k := range []struct {
+		name string
+		b    *http.Client
+		id   string
+	}{{"P1 -> Q in W1", c.b1, qHum}, {"Q -> P1 in W1", q, c.p1}, {"P1 -> self in W1", c.b1, c.p1}} {
+		code, raw, out := c.do(t, k.b, http.MethodGet, memberCardPath(k.id), nil, nil)
+		if code != http.StatusOK || out["human_id"] != k.id || out["display_name"] == nil || out["email"] != nil || strings.Contains(string(raw), "@") {
+			t.Errorf("%s = %d %s, want 200 with the name and no address", k.name, code, raw)
+		}
+		if _, has := out["phone"]; has {
+			t.Errorf("%s carries a phone key: %s", k.name, raw)
+		}
+	}
+	code, raw, out := c.do(t, c.b2, http.MethodGet, memberCardPath(c.p1), nil, nil)
+	if code != http.StatusOK || out["email"] != c.email {
+		t.Errorf("twin: P1 in W2 (not name-only) = %d %s, want 200 email %s", code, raw, c.email)
+	}
+	if _, has := out["phone"]; has {
+		t.Errorf("W2 card carries a phone key: %s", raw)
 	}
 }
 

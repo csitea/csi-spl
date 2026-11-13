@@ -512,6 +512,12 @@ type Hub struct {
 	// empty until the owner step S2.
 	ContactsWorkspaces []string `env:"SPOOL_HUB_CONTACTS_WORKSPACES" envSeparator:","`
 	ContactsScopes     string   `env:"SPOOL_HUB_CONTACTS_SCOPES"`
+	// The workspaces whose member card shows the name only (spec 154 section
+	// 12.4, SPL-5431; owner HUM-10, t1 028ac340: "In the T1 workspace only the
+	// first name and the last name ... Nothing else should be visible.").
+	// Unset or empty = t1: this library reads an empty value as the default,
+	// so the safe side never needs a cnf or terraform apply.
+	MemberCardNameOnlyWorkspaces []string `env:"SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES" envSeparator:"," envDefault:"t1"`
 	// The pictures of contacts (spec 154 11.4, cnf contacts, read by B16): the
 	// most a person keeps, and the https hosts a picture may be fetched from,
 	// none until the owner step S2.

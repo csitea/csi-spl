@@ -252,6 +252,11 @@ type Options struct {
 	// contacts.workspaces): workspace ids, or the one entry "all"; empty = off,
 	// every /v1/me/contacts route answers 404 (contacts.go).
 	ContactsWorkspaces []string
+	// MemberCardNameOnlyWorkspaces are the workspaces whose member card
+	// answers the name only, never the address (spec 154 section 12.4,
+	// member_card.go); config defaults it to t1. Empty = the address in
+	// every workspace but the demo.
+	MemberCardNameOnlyWorkspaces []string
 	// DemoMaxStay is how long a demo seat lasts (specs/077 FR-005,
 	// demo_stay.go); <= 0 = store.DefaultDemoMaxStay. GET /v1/demo shows it
 	// and the stay sweep gives a seat admitted before T009 that end.

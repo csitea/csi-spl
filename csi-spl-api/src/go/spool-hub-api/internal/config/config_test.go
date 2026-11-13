@@ -325,6 +325,22 @@ func TestLoadHubDefaultLocale(t *testing.T) {
 	}
 }
 
+// Spec 154 12.4 (SPL-5431): the member card is name-only in t1 unless the
+// env names other workspaces; unset or empty never turns t1 back to emails.
+func TestLoadHubMemberCardNameOnlyWorkspaces(t *testing.T) {
+	setHubBase(t)
+	for _, v := range []string{"", "t1"} {
+		t.Setenv("SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES", v)
+		if h, err := LoadHub(); err != nil || len(h.MemberCardNameOnlyWorkspaces) != 1 || h.MemberCardNameOnlyWorkspaces[0] != "t1" {
+			t.Fatalf("%q: %v %v, want [t1]", v, h.MemberCardNameOnlyWorkspaces, err)
+		}
+	}
+	t.Setenv("SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES", "t1,w9")
+	if h, err := LoadHub(); err != nil || strings.Join(h.MemberCardNameOnlyWorkspaces, ",") != "t1,w9" {
+		t.Fatalf("t1,w9: %v %v", h.MemberCardNameOnlyWorkspaces, err)
+	}
+}
+
 // 027 T010: the pool size is config with a default that fits Cloud SQL
 // db-f1-micro, and a nonsense size refuses boot.
 func TestLoadHubDBPool(t *testing.T) {

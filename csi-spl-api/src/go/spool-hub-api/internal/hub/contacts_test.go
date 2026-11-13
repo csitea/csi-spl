@@ -110,7 +110,7 @@ func contactsTenantID() string {
 
 // newContactsRig builds the rig; on names the workspaces of the switch from
 // W1 and W2.
-func newContactsRig(t *testing.T, on func(w1, w2 string) []string) *contactsRig {
+func newContactsRig(t *testing.T, on func(w1, w2 string) []string, more ...func(o *hub.Options, w1, w2 string)) *contactsRig {
 	t.Helper()
 	c := &contactsRig{logs: &lockedBuf{}, cs: &contactsCloneStore{}, clk: &contactsClock{},
 		w1: contactsTenantID(), w2: contactsTenantID()}
@@ -118,6 +118,9 @@ func newContactsRig(t *testing.T, on func(w1, w2 string) []string) *contactsRig 
 		o.Log = zerolog.New(c.logs)
 		o.Now = c.clk.now
 		o.ContactsWorkspaces = on(c.w1, c.w2)
+		for _, f := range more {
+			f(o, c.w1, c.w2)
+		}
 		c.cs.Store, c.cs.Humans = o.Store, o.Store.(store.Humans)
 		c.cs.PersonalContacts, c.cs.ContactsSyncs, c.cs.Gcal = o.Store.(store.PersonalContacts), o.Store.(store.ContactsSyncs), o.Store.(store.Gcal)
 		c.cs.MembershipLister = o.Store.(store.MembershipLister)

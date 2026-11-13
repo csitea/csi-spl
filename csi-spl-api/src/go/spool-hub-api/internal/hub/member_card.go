@@ -2,6 +2,7 @@ package hub
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -10,7 +11,7 @@ import (
 // The member card (spec 154 section 12, SPL-5431; owner HUM-10, t1 30f935b4
 // msg 4329fec1: "for the people who are in the workspace, once added to the
 // workspace, at least their email and their names should be visible to all
-// of the other people in the workspace").
+// of the other people in the workspace"; corrected by 028ac340: not in t1).
 //
 // GET /v1/view/members/{id}/card answers one member's display name and
 // address (humans.email) to another member of the SAME workspace:
@@ -23,6 +24,10 @@ import (
 //     as is a channel guest or a technical human, which that read leaves out.
 // In the demo workspace the card carries no address (specs/077 FR-007: a
 // visitor sees the others only by pseudonym; TestDemoVisitorsSeeOnlyPseudonyms).
+// Nor in a name-only workspace, Options.MemberCardNameOnlyWorkspaces, t1 by
+// default (section 12.4; owner HUM-10, t1 028ac340: "In the T1 workspace only
+// the first name and the last name from a contact should be visible. Nothing
+// else should be visible."): there the card is the id and the name, email null.
 // Never gated by members.invite: every member reads it. The roster
 // (/v1/view/roster) stays without the address, since a view token and an
 // agent read it. The address is never logged; the answer is no-store.
@@ -79,6 +84,9 @@ func (s *Server) handleMemberCard(w http.ResponseWriter, r *http.Request) {
 	card := memberCard(*them)
 	if s.o.DemoWorkspace != "" && t.ID == s.o.DemoWorkspace {
 		card.Email = nil // specs/077 FR-007: a demo visitor is a pseudonym, never an address
+	}
+	if slices.Contains(s.o.MemberCardNameOnlyWorkspaces, t.ID) {
+		card.Email = nil // spec 154 12.4: t1 shows the name only
 	}
 	writeJSON(w, http.StatusOK, card)
 }

@@ -1,6 +1,6 @@
 # OS Settings and Tweaks Analysis for the Fleet Boxes
 
-- **Version:** `v0.4` (folds the grok seat's reviews of `v0.1` and `v0.3`; see 6.1)
+- **Version:** `v0.5` (folds the grok seat's reviews of `v0.1`, `v0.3` and `v0.4`; see 6.1)
 - **Status:** Draft. Analysis only: nothing was changed on any box.
 - **Issue:** `SPL-5393` (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
@@ -232,8 +232,8 @@ go first).
 
 | # | setting | expected gain | risk | where it would be configured |
 |---:|---|---|---|---|
-| 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.1..5.6` -> `0.3 ms` `sys` per fork inside `./run` (`n = 2..3` per arm). Box-wide lower bound: new pids named `run` or `bash` whose RSS was `>= 60 MB` when read (`pidscan-rss.py`, 30 s, `n = 2`, `01:53Z`, load `24..28`): `5,388` and `4,827` = `>= 161 /s`; `161 x 4.8 ms` = `0.77` cores = `>= 11%` of the box's `6.7` cores of `sys` (`41.7% x 16`). Assumes those forks cost like the `69 MB` parent of 2.3; exited pids (`~3,700..4,000` per run) not counted | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
-| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `161 /s x 2.1 ms` = `0.34` cores = `>= 5%` of `sys` (same count and assumption as row 1) until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
+| 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.1..5.6` -> `0.3 ms` `sys` per fork inside `./run` (`n = 2..3` per arm). Box-wide lower bound: new pids named `run` (a directly executed `./run` and its subshells; `bash script` stays `bash`, so the `bash` band is not counted) whose RSS was `>= 60 MB` when read (`pidscan-rss.py`, 30 s, `n = 3`: `4,349` at `01:59Z`, load `24`, grok seat; `6,443` and `6,836` at `02:01Z`, load `33..35`, editor) = `>= 145 /s`; `145 x 4.8 ms` = `0.70` cores = `>= 10%` of the box's `6.7` cores of `sys` (`41.7% x 16`). Assumes those forks cost like the `69 MB` parent of 2.3; exited pids (`5,125..9,035` per run) not counted | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
+| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `145 /s x 2.1 ms` = `0.30` cores = `>= 4.5%` of `sys` (same count and assumption as row 1) until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
 | 2 | Kernel command line `retbleed=off spec_rstack_overflow=off` (the two still active; `meltdown`, `mds`, `l1tf`, `mmio`, `tsx`, `srbds`, `tsa` read `Not affected`) | Unknown: not computed, not measured. Only a throwaway `e2-standard-16` A/B can give it; never on a fleet box | **High**: removes protection between processes of the same VM; agents run third-party code (npm, pip) | new ansible role `12_kernel_cmdline` in `060-gcp-vm-satellite/roles/` (`/etc/default/grub.d/*.cfg`, `update-grub`, reboot); terraform step `060`, owner go |
 | 3 | Kernel command line `init_on_alloc=0` | Unknown: not measured (it zeroes kernel allocations such as page tables on each fork); same throwaway A/B | Medium: loses a hardening default against info leaks | same role as #2 |
 | 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | Unknown: not measured; not an OS setting | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
@@ -264,7 +264,7 @@ every process for RAM (the CI workflow already moves job temp off it,
 | seat | vendor | version reviewed | verdict |
 |---|---|---|---|
 | `c-630@sat` | claude (editor) | `v0.1`, `v0.2` | author |
-| `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`) | CHANGES both times (6, then 3 lines), all folded in `v0.3` and `v0.4`; sign-off on `v0.4` asked |
+| `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`), `v0.4` (`0a9a6cf35`) | CHANGES three times (6, 3, then 1 line), all folded in `v0.3`, `v0.4` and `v0.5`; sign-off on `v0.5` asked |
 | mistral seat | mistral | - | - |
 | agy seat (desk box) | agy | - | - |
 | codex seat (desk box) | codex | - | - |
@@ -292,3 +292,10 @@ can re-run them on its own box.
   live ones were `>= 60 MB`), so the editor re-counted with RSS
   (`pidscan-rss.py`) and the bounds fell from `16%` / `7%` to `11%` / `5%`.
   Its `fkheap` re-runs and the Python `AnonHugePages` check confirm 2.5.
+- `v0.5`, grok seat (review of `v0.4`, msg `b3a04e26`): rows 1 and 1b added
+  the `bash` `>= 60 MB` band to the `./run` gain, but `bash script` keeps comm
+  `bash`, so that band is not the `./run` parent. Both rows now count the `run`
+  band only: its scan (`4,349`, `01:59Z`) plus two editor re-runs (`6,443`,
+  `6,836`, `02:01Z`), lowest taken, and the bounds fell from `11%` / `5%` to
+  `10%` / `4.5%`. It confirmed the `v0.4` arithmetic and reproduced the scan's
+  magnitude.

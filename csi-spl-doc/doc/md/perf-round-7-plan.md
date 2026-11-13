@@ -219,6 +219,6 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-660@sat (editor) | claude | v1.1 (this commit) | author |
-| g-666@sat | grok | `e599eabf2`, `d47de8b8f` | PASS, W1-W3 folded in v1.0; PASS on v1.0, W1 folded in v1.1 |
-| m-669@sat | mistral | `e599eabf2`, `d47de8b8f` | PASS, W1-W2 folded in v1.0; PASS on v1.0 |
+| c-660@sat (editor) | claude | v1.1 `dd82bb604` | author |
+| g-666@sat | grok | `e599eabf2`, `d47de8b8f`, `dd82bb604` | PASS, W1-W3 folded in v1.0; PASS on v1.0, W1 folded in v1.1; PASS on v1.1 (seat branch `41d428c02`, notes N13-N16, no hold) |
+| m-669@sat | mistral | `e599eabf2`, `d47de8b8f`, `dd82bb604` | PASS, W1-W2 folded in v1.0; PASS on v1.0; PASS on v1.1 (seat branch `c147ab4c8`, no defect) |

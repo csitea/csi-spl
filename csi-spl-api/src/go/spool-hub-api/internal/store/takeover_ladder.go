@@ -27,8 +27,8 @@ import (
 var TakeoverTaskKinds = []string{"specs_and_docs", "tests", "simple_coding", "complex_coding", "i18n", "secret"}
 
 // takeoverSecretBanned never serve the secret kind (the data rule, owner
-// msgs 803c3b38, 26117740, 474f32a0).
-var takeoverSecretBanned = []string{"agy", "qwen"}
+// msgs 803c3b38, 26117740, 474f32a0; codex: owner msg 1fe6abcf, SPL-5454).
+var takeoverSecretBanned = []string{"agy", "qwen", "codex"}
 
 // The bounds of max_failures.
 const (
@@ -79,7 +79,7 @@ func ParseTakeoverOrder(s string) []string {
 }
 
 // CheckTakeoverOrder is nil when order is a valid ladder for kind: at least
-// one vendor, each of AgentKinds, none twice, and no agy or qwen in secret.
+// one vendor, each of AgentKinds, none twice, and no agy, qwen or codex in secret.
 // The error text names the rule.
 func CheckTakeoverOrder(kind string, order []string) error {
 	if len(order) == 0 {

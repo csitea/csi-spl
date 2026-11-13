@@ -37,10 +37,11 @@ type agentSplitJSON struct {
 	Agy     int `json:"agy"`
 	Qwen    int `json:"qwen"`
 	Mistral int `json:"mistral"`
+	Codex   int `json:"codex"`
 }
 
 func agentSplitJSONFrom(a store.AgentSplit) agentSplitJSON {
-	return agentSplitJSON{Claude: a.Claude, Grok: a.Grok, Agy: a.Agy, Qwen: a.Qwen, Mistral: a.Mistral}
+	return agentSplitJSON{Claude: a.Claude, Grok: a.Grok, Agy: a.Agy, Qwen: a.Qwen, Mistral: a.Mistral, Codex: a.Codex}
 }
 
 type tenantSettingsBody struct {
@@ -261,6 +262,9 @@ type agentSplitPatch struct {
 	Agy     *int `json:"agy"`
 	Qwen    *int `json:"qwen"`
 	Mistral *int `json:"mistral"`
+	// Codex is optional (SPL-5454): a five-number PATCH from a WUI built
+	// before rdb 0282 sets codex 0, so the sum still has to reach 100.
+	Codex *int `json:"codex"`
 }
 
 // patchAgentSplit checks the five shares (spec 110: a 4-number PATCH from an
@@ -271,12 +275,15 @@ func patchAgentSplit(w http.ResponseWriter, in *agentSplitPatch) (*store.AgentSp
 		return nil, true
 	}
 	if in.Claude == nil || in.Grok == nil || in.Agy == nil || in.Qwen == nil || in.Mistral == nil {
-		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy, qwen and mistral, whole numbers from 0 to 100 that sum to 100")
+		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy, qwen and mistral (codex optional, 0 when left out), whole numbers from 0 to 100 that sum to 100")
 		return nil, false
 	}
 	got := store.AgentSplit{Claude: *in.Claude, Grok: *in.Grok, Agy: *in.Agy, Qwen: *in.Qwen, Mistral: *in.Mistral}
+	if in.Codex != nil {
+		got.Codex = *in.Codex
+	}
 	if !got.Valid() {
-		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy, qwen and mistral, whole numbers from 0 to 100 that sum to 100")
+		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy, qwen and mistral (codex optional, 0 when left out), whole numbers from 0 to 100 that sum to 100")
 		return nil, false
 	}
 	return &got, true

@@ -21,7 +21,7 @@ import (
 
 // AgentCapVendors are the vendors a cap may name (rdb 0212's CHECK), the
 // kinds agentid.Kind answers.
-var AgentCapVendors = []string{"claude", "grok", "mistral", "agy", "qwen"}
+var AgentCapVendors = []string{"claude", "grok", "mistral", "agy", "qwen", "codex"}
 
 // CapPresenceTTL is how old a box's presence stamp (boxes.last_hello_at) may
 // be and its roster still count as live: the hub's presenceTTL() on a

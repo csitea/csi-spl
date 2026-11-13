@@ -40,7 +40,7 @@ import (
 //
 // agent_kinds_off (rdb 0149, owner HUM-10 t1 41fa1f2d: "a setting to disable
 // certain type of ai agents") is the kinds no box starts a new lane of
-// (claude, grok, agy, qwen, mistral); a PATCH replaces the set, never with every kind.
+// (claude, grok, agy, qwen, mistral, codex); a PATCH replaces the set, never with every kind.
 // agent_kinds_paused is {"<kind>": {until, reason, box}}: a timed pause a box
 // reported (lane_op fleet_load_pause) when a lane of that kind hit its usage
 // limit; a PATCH {"agent_kinds_paused": {"<kind>": null}} lifts one. Every
@@ -179,7 +179,7 @@ type fleetLoadPatchReq struct {
 	OrderedVia string `json:"ordered_via"`
 }
 
-const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high, aim?} with the same ranges and low <= aim <= high; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes; ci_overflow is true or false; runner_cpus is 0..256 (cores, 0 = the cnf share), fleet-wide or per box in boxes"
+const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high, aim?} with the same ranges and low <= aim <= high; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, codex, never all six; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes; ci_overflow is true or false; runner_cpus is 0..256 (cores, 0 = the cnf share), fleet-wide or per box in boxes"
 
 // patch turns the request into a store patch; ok=false: a field is not
 // its JSON type.
@@ -449,7 +449,7 @@ func (s *Server) fleetLoadPause(ctx context.Context, x *session, raw json.RawMes
 	if dec.Decode(&q) != nil || !slices.Contains(store.AgentKinds, q.Kind) || !q.Until.After(now) ||
 		q.Until.After(now.Add(store.MaxKindPause)) {
 		return fleetLoadBody{}, &issueErr{http.StatusBadRequest, "bad_frame",
-			"lane must be {kind: claude|grok|agy|qwen|mistral, until: RFC 3339 within 8 days, reason}"}
+			"lane must be {kind: claude|grok|agy|qwen|mistral|codex, until: RFC 3339 within 8 days, reason}"}
 	}
 	fl, ok := s.o.Store.(store.FleetLoadTarget)
 	if !ok {

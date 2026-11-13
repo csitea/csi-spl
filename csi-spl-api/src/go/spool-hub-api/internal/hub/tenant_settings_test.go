@@ -327,6 +327,45 @@ func TestTenantSettingsAgentSplit(t *testing.T) {
 		t.Fatalf("reread: %d %v", code, body)
 	}
 	assertSplit(t, body, 30, 0, 5, 10, 55)
+	assertCodex(t, body, 0)
+
+	// SPL-5454 (rdb 0282): codex is the sixth share. Set, it is stored and
+	// read back; a five-number PATCH (a WUI built before codex) sets it 0.
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{
+		"agent_split": map[string]int{"claude": 30, "grok": 0, "agy": 5, "qwen": 10, "mistral": 40, "codex": 15},
+	})
+	if code != 200 {
+		t.Fatalf("patch codex: %d %v", code, body)
+	}
+	assertSplit(t, body, 30, 0, 5, 10, 40)
+	assertCodex(t, body, 15)
+	code, body = call(t, e, tid, http.MethodGet, "/v1/tenant/settings", admin, nil)
+	if code != 200 {
+		t.Fatalf("reread codex: %d %v", code, body)
+	}
+	assertCodex(t, body, 15)
+	// CONTROL: the six must still sum to 100 (85 + codex 16 = 101).
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{
+		"agent_split": map[string]int{"claude": 30, "grok": 0, "agy": 5, "qwen": 10, "mistral": 40, "codex": 16},
+	})
+	if code != http.StatusBadRequest || body["error"] != "bad_split" {
+		t.Fatalf("codex sum 101: %d %v, want 400 bad_split", code, body)
+	}
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{
+		"agent_split": map[string]int{"claude": 30, "grok": 0, "agy": 5, "qwen": 10, "mistral": 55},
+	})
+	if code != 200 {
+		t.Fatalf("five-number patch: %d %v", code, body)
+	}
+	assertCodex(t, body, 0)
+}
+
+func assertCodex(t *testing.T, body map[string]any, want float64) {
+	t.Helper()
+	got, _ := body["agent_split"].(map[string]any)
+	if got["codex"] != want {
+		t.Fatalf("split codex %v, want %v (%v)", got["codex"], want, got)
+	}
 }
 
 func assertSplit(t *testing.T, body map[string]any, c, g, a, q, m float64) {

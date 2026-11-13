@@ -133,7 +133,7 @@ func TestFleetLoadAgentKinds(t *testing.T) {
 				t.Fatalf("set kinds off = %+v, %v", got, err)
 			}
 			for _, bad := range [][]string{
-				{"claude", "grok", "agy", "qwen", "mistral"}, // every kind off (spec 110: five)
+				{"claude", "grok", "agy", "qwen", "mistral", "codex"}, // every kind off (six, codex: SPL-5454)
 				{"gpt"},          // not a kind
 				{"grok", "grok"}, // not distinct
 			} {

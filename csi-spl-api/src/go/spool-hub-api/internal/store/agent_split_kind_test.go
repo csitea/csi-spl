@@ -57,7 +57,8 @@ func TestSplitKinds(t *testing.T) {
 			for _, d := range DefaultSplitKinds() {
 				want(got[d.Kind], d.Main(), d.Backup, false, d.Weights)
 			}
-			want(got["simple_coding"], "claude", "agy", false, map[string]int{"claude": 59, "agy": 41})
+			want(got["simple_coding"], "claude", "agy", false, map[string]int{"claude": 44, "agy": 41, "codex": 15})
+			want(got["tests"], "claude", "agy", false, map[string]int{"claude": 70, "agy": 15, "codex": 15})
 			want(got["specs_and_docs"], "agy", "claude", false, map[string]int{"agy": 80, "mistral": 15, "claude": 5})
 			want(got["orchestration"], "claude", "grok", false, map[string]int{"claude": 100})
 
@@ -84,22 +85,24 @@ func TestSplitKinds(t *testing.T) {
 			if got["simple_coding"].UpdatedBy != "HUM-1" || !got["simple_coding"].UpdatedAt.Equal(now) {
 				t.Fatalf("writer: %q %v", got["simple_coding"].UpdatedBy, got["simple_coding"].UpdatedAt)
 			}
-			want(got["tests"], "claude", "agy", false, map[string]int{"claude": 85, "agy": 15})
+			want(got["tests"], "claude", "agy", false, map[string]int{"claude": 70, "agy": 15, "codex": 15})
 
 			for label, p := range map[string]SplitKindPatch{
 				"agy in orchestration beside a good i18n (CONTROL)": {Set: []SplitKind{
 					{Kind: "i18n", Weights: map[string]int{"agy": 90, "claude": 10}, Backup: "claude"},
 					{Kind: "orchestration", Weights: map[string]int{"claude": 90, "agy": 10}, Backup: "grok"}}},
-				"secret on qwen":            {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 90, "qwen": 10}, Backup: "mistral"}}},
-				"secret agy backup":         {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 100}, Backup: "agy"}}},
-				"orchestration on agy":      {Set: []SplitKind{{Kind: "orchestration", Weights: map[string]int{"claude": 90, "agy": 10}, Backup: "grok"}}},
-				"orchestration qwen backup": {Set: []SplitKind{{Kind: "orchestration", Weights: map[string]int{"claude": 100}, Backup: "qwen"}}},
-				"sum 99":                    {Set: []SplitKind{{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 29}, Backup: "mistral"}}},
-				"tie":                       {Set: []SplitKind{{Kind: "tests", Weights: map[string]int{"claude": 50, "mistral": 50}, Backup: "mistral"}}},
-				"backup is main":            {Set: []SplitKind{{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 30}, Backup: "claude"}}},
-				"alias kind":                {Reset: []string{"hard"}},
-				"named twice":               {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 100}, Backup: "mistral"}}, Reset: []string{"secret"}},
-				"empty":                     {},
+				"secret on qwen":             {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 90, "qwen": 10}, Backup: "mistral"}}},
+				"secret agy backup":          {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 100}, Backup: "agy"}}},
+				"orchestration on agy":       {Set: []SplitKind{{Kind: "orchestration", Weights: map[string]int{"claude": 90, "agy": 10}, Backup: "grok"}}},
+				"secret on codex":            {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 85, "codex": 15}, Backup: "grok"}}},
+				"orchestration codex backup": {Set: []SplitKind{{Kind: "orchestration", Weights: map[string]int{"claude": 100}, Backup: "codex"}}},
+				"orchestration qwen backup":  {Set: []SplitKind{{Kind: "orchestration", Weights: map[string]int{"claude": 100}, Backup: "qwen"}}},
+				"sum 99":                     {Set: []SplitKind{{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 29}, Backup: "mistral"}}},
+				"tie":                        {Set: []SplitKind{{Kind: "tests", Weights: map[string]int{"claude": 50, "mistral": 50}, Backup: "mistral"}}},
+				"backup is main":             {Set: []SplitKind{{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 30}, Backup: "claude"}}},
+				"alias kind":                 {Reset: []string{"hard"}},
+				"named twice":                {Set: []SplitKind{{Kind: "secret", Weights: map[string]int{"claude": 100}, Backup: "mistral"}}, Reset: []string{"secret"}},
+				"empty":                      {},
 			} {
 				if err := sk.SetSplitKinds(ctx, tid, p, now); !errors.Is(err, ErrBadSplitKind) {
 					t.Errorf("%s: %v, want ErrBadSplitKind", label, err)
@@ -113,12 +116,15 @@ func TestSplitKinds(t *testing.T) {
 			if err := sk.SetSplitKinds(ctx, tid, SplitKindPatch{Set: []SplitKind{
 				{Kind: "complex_coding", Weights: map[string]int{"claude": 80, "agy": 20}, Backup: "agy"},
 				{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 30}, Backup: "agy"},
+				// codex (rdb 0282, SPL-5454): a weight and the backup in a coding kind.
+				{Kind: "specs_and_docs", Weights: map[string]int{"agy": 60, "codex": 40}, Backup: "codex"},
 			}, By: "HUM-1"}, now); err != nil {
 				t.Fatalf("agy in the coding kinds: %v", err)
 			}
 			got = read(tid)
 			want(got["complex_coding"], "claude", "agy", true, map[string]int{"claude": 80, "agy": 20})
 			want(got["tests"], "claude", "agy", true, map[string]int{"claude": 70, "mistral": 30})
+			want(got["specs_and_docs"], "agy", "codex", true, map[string]int{"agy": 60, "codex": 40})
 
 			for _, k := range read(other) {
 				if k.Set {
@@ -130,7 +136,7 @@ func TestSplitKinds(t *testing.T) {
 				t.Fatalf("reset: %v", err)
 			}
 			got = read(tid)
-			want(got["simple_coding"], "claude", "agy", false, map[string]int{"claude": 59, "agy": 41})
+			want(got["simple_coding"], "claude", "agy", false, map[string]int{"claude": 44, "agy": 41, "codex": 15})
 			want(got["secret"], "claude", "mistral", true, map[string]int{"claude": 70, "mistral": 30})
 		})
 	}

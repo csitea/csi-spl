@@ -13746,7 +13746,8 @@
                         "grok",
                         "agy",
                         "qwen",
-                        "mistral"
+                        "mistral",
+                        "codex"
                       ],
                       "type": "string"
                     },
@@ -15514,7 +15515,8 @@
                 "grok",
                 "mistral",
                 "agy",
-                "qwen"
+                "qwen",
+                "codex"
               ],
               "type": "string"
             }

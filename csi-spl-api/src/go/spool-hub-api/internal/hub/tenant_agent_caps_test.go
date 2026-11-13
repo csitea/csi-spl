@@ -33,8 +33,8 @@ func TestTenantAgentCaps(t *testing.T) {
 		t.Helper()
 		caps, _ := body["caps"].(map[string]any)
 		live, _ := body["live"].(map[string]any)
-		if body["workspace_id"] != other || len(caps) != 5 || caps["claude"] != float64(1) || caps["agy"] != float64(2) ||
-			caps["qwen"] != nil || len(live) != 5 || live["claude"] != float64(1) || live["qwen"] != float64(1) || live["grok"] != float64(0) {
+		if body["workspace_id"] != other || len(caps) != 6 || caps["claude"] != float64(1) || caps["agy"] != float64(2) ||
+			caps["qwen"] != nil || caps["codex"] != nil || len(live) != 6 || live["claude"] != float64(1) || live["qwen"] != float64(1) || live["grok"] != float64(0) {
 			t.Fatalf("%s: %v", name, body)
 		}
 	}

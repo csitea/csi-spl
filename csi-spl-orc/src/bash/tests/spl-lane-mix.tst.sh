@@ -77,7 +77,7 @@ mix() {
   env -u LANE_MIX_DIFFICULTY -u LANE_MIX_SENSITIVE -u LANE_MIX_SPLIT -u LANE_MIX_SPLIT_KIND -u LANE_MIX_KIND \
     -u LANE_MIX_TASK -u LANE_MIX_JOURNAL \
     -u SPOOL_AGENT_USER -u LANE_MIX_WD_DIR -u LANE_MIX_LIMIT_FRESH -u LANE_MIX_AUTH_FRESH \
-    -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN -u MISTRAL_BIN \
+    -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN -u MISTRAL_BIN -u CODEX_BIN \
     -u LANE_FLEET -u LANE_HUB_CMD -u LANE_ENV -u ENV -u LANE_TENANT -u LANE_BOX -u LANE_DESK_BOX \
     -u LANE_MIX_INSTANCE -u LANE_MIX_REPORT -u LANE_MIX_BRIEF -u LANE_MIX_PATHS \
     MIX_SRC="$([[ "${MIX_FULL:-}" == 1 ]] && echo '*' || echo "$MIX_SRC")" \
@@ -105,7 +105,7 @@ bash -n "$FUNC" && bash -n "$PROJ_ROOT/src/bash/run/spl-lane-mix-journal.func.sh
   && pass "0. both actions parse" || fail "0. action syntax"
 bad=""
 for k in specs_and_docs tests simple_coding complex_coding i18n secret orchestration; do
-  [[ "$(yq -r ".env.box.agent_split_by_kind.$k | (.claude // 0) + (.grok // 0) + (.agy // 0) + (.qwen // 0) + (.mistral // 0)" "$REAL_CNF")" == 100 \
+  [[ "$(yq -r ".env.box.agent_split_by_kind.$k | (.claude // 0) + (.grok // 0) + (.agy // 0) + (.qwen // 0) + (.mistral // 0) + (.codex // 0)" "$REAL_CNF")" == 100 \
      && -n "$(yq -r ".env.box.agent_split_by_kind.$k.backup // \"\"" "$REAL_CNF")" ]] || bad+=" $k"
 done
 [[ -z "$bad" ]] && [[ "$(yq -r '.env.box.agent_split.auth_marker.mistral' "$REAL_CNF")" == .vibe/.env ]] \
@@ -872,6 +872,41 @@ MIX_BODY='_spl_lane_mix_verdict limit claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 
 MIX_BODY='_spl_lane_mix_verdict auth claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 604800; echo "rc=$?"' mix
 [[ "$(cat "$T/out")" == "rc=0" ]] && pass "17. control: no auth verdict among 3000 files prints nothing, rc 0" || fail "17. no auth: $(cat "$T/out")"
 rm -rf "$T/dispatch"
+
+# --- 18. codex, the OpenAI Codex CLI (spec 161, SPL-5454) --------------------
+# The REAL cnf rows: codex 15 in tests and simple_coding (owner msg ea50c4b0),
+# 0 elsewhere. It counts only with its CLI and its subscription login
+# (auth_marker.codex, owner msg 9c70e4f7), and never takes secret-class work
+# (owner msg 1fe6abcf).
+mkdir -p "$H/.codex"; cli_on codex; : >"$H/.codex/auth.json"
+[[ "$(yq -r '.env.box.agent_split_by_kind | [.tests.codex, .simple_coding.codex, .complex_coding.codex // 0, .specs_and_docs.codex // 0, .i18n.codex // 0, .secret.codex // 0, .orchestration.codex // 0] | join(",")' "$REAL_CNF")" == 15,15,0,0,0,0,0 ]] \
+  && pass "18. the real cnf gives codex 15 in tests and simple_coding, 0 elsewhere" || fail "18. real cnf codex row"
+registry simple_coding 10 0 8
+mix LANE_MIX_CNF="$REAL_CNF" LANE_MIX_KIND=simple_coding LANE_MIX_INSTANCE=0
+[[ "$(pick)" == codex ]] && grep -q '^pick=codex launcher=/codex-spawn kind=simple_coding ' "$T/out" \
+  && pass "18. codex signed in, 0 of 18 simple_coding spawns against 15: the nudge picks codex" || fail "18. codex pick: $(cat "$T/out")"
+rm -f "$H/.codex/auth.json"
+mix LANE_MIX_CNF="$REAL_CNF" LANE_MIX_KIND=simple_coding LANE_MIX_INSTANCE=0
+[[ -n "$(pick)" && "$(pick)" != codex ]] && grep -q 'codex not signed in' "$T/out" \
+  && pass "18. control: no codex login (9c70e4f7) -> codex is out, pick=$(pick)" || fail "18. no login: $(cat "$T/out")"
+: >"$H/.codex/auth.json"; cli_off codex
+mix LANE_MIX_CNF="$REAL_CNF" LANE_MIX_KIND=simple_coding LANE_MIX_INSTANCE=0
+[[ "$(pick)" != codex ]] && grep -q 'no codex cli' "$T/out" \
+  && pass "18. control: no codex CLI -> codex is out, pick=$(pick)" || fail "18. no cli: $(cat "$T/out")"
+cli_on codex
+: >"$T/registry.tsv"
+mix LANE_MIX_KIND=tests LANE_MIX_INSTANCE=0 LANE_MIX_SPLIT_KIND="claude=20 grok=0 agy=0 qwen=0 mistral=0 codex=80 backup=claude"
+[[ "$(pick)" == codex ]] && pass "18. a LANE_MIX_SPLIT_KIND line with codex=80 makes codex the main" || fail "18. codex= line: $(cat "$T/out")"
+mix LANE_MIX_KIND=secret LANE_MIX_INSTANCE=0 LANE_MIX_SPLIT_KIND="claude=85 grok=0 agy=0 qwen=0 mistral=0 codex=15 backup=grok"
+grep -q 'FATAL .*data rule allows claude, grok or mistral only.*codex=15' "$T/out" && [[ -z "$(pick)" ]] \
+  && pass "18. data rule: a secret row with codex 15 is FATAL" || fail "18. secret codex row: $(cat "$T/out")"
+mix LANE_MIX_KIND=orchestration LANE_MIX_INSTANCE=0 LANE_MIX_SPLIT_KIND="claude=100 grok=0 agy=0 qwen=0 mistral=0 codex=0 backup=codex"
+grep -q 'FATAL .*data rule' "$T/out" && pass "18. data rule: codex as the orchestration backup is FATAL" || fail "18. codex backup: $(cat "$T/out")"
+registry simple_coding 10 0 8
+mix LANE_MIX_CNF="$REAL_CNF" LANE_MIX_KIND=simple_coding LANE_MIX_SENSITIVE=1 LANE_MIX_INSTANCE=0
+[[ "$(pick)" == claude && "$(kindof)" == secret ]] \
+  && pass "18. LANE_MIX_SENSITIVE=1 with codex signed in: secret, claude, never codex" || fail "18. sensitive: $(cat "$T/out")"
+rm -rf "$H/.codex"; cli_off codex
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

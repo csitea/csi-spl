@@ -2,8 +2,8 @@
 #------------------------------------------------------------------------------
 # @description READ-ONLY: print one workspace's agent vendor split (rdb 0109)
 # @description as one line the orchestrator can read:
-# @description   claude=40 grok=50 agy=10 qwen=0 mistral=0
-# @description The five whole numbers (mistral: rdb 0155, spec 110) are a guideline, not a quota. They sum
+# @description   claude=40 grok=50 agy=10 qwen=0 mistral=0 codex=0
+# @description The six whole numbers (mistral: rdb 0155, spec 110; codex: rdb 0282, SPL-5454) are a guideline, not a quota. They sum
 # @description to 100. The hub stores them and does not refuse a spawn that
 # @description drifts; spawn routing reads this line. Through the Cloud SQL
 # @description proxy as the env's project service account, one SELECT, values
@@ -12,7 +12,7 @@
 # @param TENANT_ID - required: the tenant slug
 # @description With --kind <k> (spec 115 HUB-1, rdb 0163) it prints that task
 # @description kind's row instead, the LANE_MIX_SPLIT line plus its backup:
-# @description   claude=80 grok=0 agy=0 qwen=0 mistral=20 backup=mistral
+# @description   claude=80 grok=0 agy=0 qwen=0 mistral=20 codex=0 backup=mistral
 # @description A kind the workspace has not set prints the cnf
 # @description env.box.agent_split_by_kind row (the log says source=cnf).
 # @param ENV - required: dev or prd
@@ -65,11 +65,11 @@ _spl_agent_split_kind() {
 
 # _spl_agent_split_kind_line <source> <kind> <rows> -> the kind's line from
 # "vendor|weight|is_backup" rows (one per line), checked against the spec 115
-# section 2 rules a router relies on: five known vendors at most, 0..100,
+# section 2 rules a router relies on: six known vendors at most, 0..100,
 # a sum of 100, one backup.
 _spl_agent_split_kind_line() {
   local src="$1" kind="$2" rows="$3" v line backup="" sum=0 n
-  declare -A w=([claude]=0 [grok]=0 [agy]=0 [qwen]=0 [mistral]=0)
+  declare -A w=([claude]=0 [grok]=0 [agy]=0 [qwen]=0 [mistral]=0 [codex]=0)
   while IFS='|' read -r v n line; do
     [[ -z "$v" ]] && continue
     if ! [[ -n "${w[$v]+x}" && "$n" =~ ^[0-9]+$ ]] || (( n > 100 )); then
@@ -81,8 +81,8 @@ _spl_agent_split_kind_line() {
   done <<<"$rows"
   (( sum == 100 )) || { do_log "FATAL agent split $kind ($src) sums to $sum, not 100"; return 1; }
   [[ -n "$backup" ]] || { do_log "FATAL agent split $kind ($src) names no backup"; return 1; }
-  printf 'claude=%s grok=%s agy=%s qwen=%s mistral=%s backup=%s\n' \
-    "${w[claude]}" "${w[grok]}" "${w[agy]}" "${w[qwen]}" "${w[mistral]}" "$backup"
+  printf 'claude=%s grok=%s agy=%s qwen=%s mistral=%s codex=%s backup=%s\n' \
+    "${w[claude]}" "${w[grok]}" "${w[agy]}" "${w[qwen]}" "${w[mistral]}" "${w[codex]}" "$backup"
 }
 
 # _spl_agent_split_kind_cnf <kind> -> the cnf env.box.agent_split_by_kind
@@ -121,41 +121,42 @@ SQL
   do_log "OK agent split $kind of $tenant on $SPL_SQL_CONN: $line (source=$src, read-only, as $GCP_ACCOUNT)"
 }
 
-# _spl_agent_split_show_run <tenant> -> one "claude=N grok=N agy=N qwen=N mistral=N" line.
+# _spl_agent_split_show_run <tenant> -> one "claude=N grok=N agy=N qwen=N mistral=N codex=N" line.
 # The tenant id travels as a psql variable. A row whose numbers are outside
 # 0..100 or do not sum to 100 is a FATAL, not a line a router should trust.
 _spl_agent_split_show_run() {
-  local tenant="$1" out claude grok agy qwen mistral sum
+  local tenant="$1" out claude grok agy qwen mistral codex sum
   out="$(PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
     psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$tenant" <<'SQL'
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT agent_split_claude::text || '|' || agent_split_grok::text || '|' ||
        agent_split_agy::text || '|' || agent_split_qwen::text || '|' ||
-       agent_split_mistral::text
+       agent_split_mistral::text || '|' || agent_split_codex::text
   FROM tenants WHERE tenant_id = :'tenant';
 ROLLBACK;
 SQL
 )" || { do_log "FATAL agent split read of $tenant failed: ${out:-}"; return 1; }
-  if [[ "$out" =~ ([0-9]+)\|([0-9]+)\|([0-9]+)\|([0-9]+)\|([0-9]+) ]]; then
+  if [[ "$out" =~ ([0-9]+)\|([0-9]+)\|([0-9]+)\|([0-9]+)\|([0-9]+)\|([0-9]+) ]]; then
     claude="${BASH_REMATCH[1]}"
     grok="${BASH_REMATCH[2]}"
     agy="${BASH_REMATCH[3]}"
     qwen="${BASH_REMATCH[4]}"
     mistral="${BASH_REMATCH[5]}"
+    codex="${BASH_REMATCH[6]}"
   else
     do_log "FATAL no agent split row for tenant $tenant"
     return 1
   fi
-  if (( claude > 100 || grok > 100 || agy > 100 || qwen > 100 || mistral > 100 )); then
+  if (( claude > 100 || grok > 100 || agy > 100 || qwen > 100 || mistral > 100 || codex > 100 )); then
     do_log "FATAL agent split of $tenant is outside 0..100"
     return 1
   fi
-  sum=$(( claude + grok + agy + qwen + mistral ))
+  sum=$(( claude + grok + agy + qwen + mistral + codex ))
   if (( sum != 100 )); then
     do_log "FATAL agent split of $tenant sums to $sum, not 100"
     return 1
   fi
-  printf 'claude=%s grok=%s agy=%s qwen=%s mistral=%s\n' "$claude" "$grok" "$agy" "$qwen" "$mistral"
-  do_log "OK agent split of $tenant on $SPL_SQL_CONN: claude=$claude grok=$grok agy=$agy qwen=$qwen mistral=$mistral (read-only, as $GCP_ACCOUNT)"
+  printf 'claude=%s grok=%s agy=%s qwen=%s mistral=%s codex=%s\n' "$claude" "$grok" "$agy" "$qwen" "$mistral" "$codex"
+  do_log "OK agent split of $tenant on $SPL_SQL_CONN: claude=$claude grok=$grok agy=$agy qwen=$qwen mistral=$mistral codex=$codex (read-only, as $GCP_ACCOUNT)"
 }

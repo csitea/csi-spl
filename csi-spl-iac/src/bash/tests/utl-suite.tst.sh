@@ -7,6 +7,7 @@
 #   1. at least one utl test exists (a moved dir must not pass as green)
 #   2. each utl test exits 0; a red one is named
 #------------------------------------------------------------------------------
+# test-timeout: 300 -- 123 s solo at load1 116..134 on 16 cores (c-746, n=1), rc 0; the 120 s default killed it in the pre-push hook (c-746 05:22:55Z, c-735 05:03:22Z, 2026-11-13); 300 = the peer headers, 2.4x that one sample
 set -uo pipefail
 
 dir=$(cd "$(dirname "$0")" && pwd)

@@ -27,8 +27,9 @@
 #        cnf tfvars; a templated read (csi-spl-cnf/csi-spl/${env}.env.json) is a
 #        glob: its files select and key the part, the rest of that dir does not
 #    14. (c-502) a push touching ONLY csi-spl-cnf/csi-spl/** runs the cnf render
-#        part, not the iac suite; CONTROL: cnf + a .sh, and cnf + conf-validator
-#        code (csi-spl-cnf/src), still run the iac suite and not the cnf part
+#        part, not the iac suite; CONTROL: cnf + a .sh runs the iac suite AND the
+#        cnf part, as does a rename into cnf from outside (SPL-5409);
+#        conf-validator code (csi-spl-cnf/src) runs the iac suite, not the cnf part
 #    15. the real cnf part (do_tpl_gen stubbed): an unchanged render PASSES, a
 #        stale one FAILS naming the env; CONTROL: no tpl-gen venv is a FAIL
 #    16. (2026-10-10, c-786) a push changing ONE spec .md selects no wui part,
@@ -343,11 +344,15 @@ R="$ROOT/r14b"; mkcnf "$R" >/dev/null 2>&1; : >"$COUNT"
 echo 'a: 2' >"$R/csi-spl-cnf/csi-spl/dev.env.yaml"; echo y >"$R/csi-spl-iac/a.sh"
 git -C "$R" add -A; git -C "$R" commit -qm "cnf + a .sh"
 gate "$R"; eq "14. CONTROL: cnf + .sh push -> the iac suite ran" 1 "$(runs csi-spl-iac)"
-eq "14. ... and the cnf part did not" 0 "$(runs cnf-render)"
+eq "14. ... and the cnf render part too (SPL-5409)" 1 "$(runs cnf-render)"
 R="$ROOT/r14c"; mkcnf "$R" >/dev/null 2>&1; : >"$COUNT"
 echo 'x = 2' >"$R/csi-spl-cnf/src/python/v.py"; git -C "$R" commit -qam "conf-validator code"
 gate "$R"; eq "14. CONTROL: csi-spl-cnf/src code -> the iac suite ran" 1 "$(runs csi-spl-iac)"
 eq "14. ... and the cnf part did not" 0 "$(runs cnf-render)"
+R="$ROOT/r14d"; mkcnf "$R" >/dev/null 2>&1; : >"$COUNT"
+mkdir -p "$R/csi-spl-doc"; echo 'b: 1' >"$R/csi-spl-doc/b.yaml"; git -C "$R" add -A; git -C "$R" commit -qm doc-yaml; git -C "$R" branch -f trunk HEAD
+git -C "$R" mv csi-spl-doc/b.yaml csi-spl-cnf/csi-spl/b.yaml; git -C "$R" commit -qm "rename into cnf"
+gate "$R"; eq "14. a rename into csi-spl-cnf/csi-spl from outside -> the cnf render part ran (SPL-5409)" 1 "$(runs cnf-render)"
 
 # 15. the real cnf part: a fake do_tpl_gen renders tf/s.vars.tfvars and
 #     <env>.env.json from <env>.env.yaml

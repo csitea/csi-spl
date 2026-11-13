@@ -1236,7 +1236,11 @@ _pp_plan_parts() {  # <tree> <base> <only>
       # shellcheck disable=SC2046
       _pp_touches "$sel" $(_pp_paths "$p") && parts+=" $p"
     done
-    _pp_cnf_only "$changed" && parts="${parts/ iac/ cnf}"
+    # a cnf path in a mixed push keeps the cnf render check too: the iac fast
+    # tier skips the slow render-parity tests, and a rename into cnf from
+    # outside lists both paths (SPL-5409)
+    if _pp_cnf_only "$changed"; then parts="${parts/ iac/ cnf}"
+    elif _pp_touches "$changed" csi-spl-cnf/csi-spl; then parts+=" cnf"; fi
   fi; _ppe_parts "$changed" "$tree"; _ppf_parts "$changed" "$tree"; _ppx_parts "$changed"
   if [[ "$only" == override ]]; then
     # The override skips the slow parts, never these: c-226's override landed

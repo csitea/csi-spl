@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Fixes an automatic check that sometimes failed on a busy machine; nothing a user sees changes.

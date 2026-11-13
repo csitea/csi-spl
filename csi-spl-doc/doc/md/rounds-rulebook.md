@@ -1,8 +1,8 @@
-# Bug-fix and refactoring rounds rulebook
+# Bug-fix, refactoring and performance rounds rulebook
 
 > Generated from qto doc `e621cc32-df7f-49e9-a33c-6d1f872e985c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
-The one home doc for creating bug-fix rounds and refactoring rounds across the fleet. Every other document points here.
+The one home doc for creating bug-fix rounds, refactoring rounds and performance rounds across the fleet. Every other document points here.
 
 Owner HUM-10, t1 topic `49b8babb-8ce2-42c6-8d89-270bd72210f4`:
 - msg f477d3ea: *"change the internal rules book / guidelines for the bugs and refactoring rounds creation"*
@@ -11,6 +11,8 @@ Owner HUM-10, t1 topic `49b8babb-8ce2-42c6-8d89-270bd72210f4`:
 - msg 0c3c223e: *"5 pushes ( aim for 1 , if complexity 3 )"*
 - msg 7f664194: *"As discussed in the previous topics 20-30 percent for bugs fixing and 20-30 percent allocation of resources for refactoring"*
 - msg 3d22fcea: rounds run continuously, embedded in core operation, no owner go needed.
+
+Owner HUM-10, t1 #refactoring topic `8ebbed0e-d775-448e-9b50-c42e45b6e126` (2026-11-12), performance rounds: section 4.
 
 <a id="ws-doc-435509f3-2699-495c-8394-8a84b4ed17e1"></a>
 ## 1. Round creation principles
@@ -45,9 +47,11 @@ Carried over from [SPEC-spool-fleet-roles.md](SPEC-spool-fleet-roles.md) section
 - Rounds run continuously as part of core system operations (owner HUM-10 msg 3d22fcea).
 - No owner go-ahead is needed for a round, its panel, or its row lanes.
 - When round `<N>`'s actions are served (R5), the dispatcher holding the lease requests round `<N+1>`'s planner at once (`c-001` places it).
+  - Exception, the perf floor (4.4, owner HUM-10 msg 98dedfc4): while the perf share is under 20%, the holder requests the next perf round's planner instead of refactor round `<N+1>`'s; refactor round `<N+1>` waits until the share is back at 20%.
 - The planner drafts the plan, places panel seats across vendors, and once the panel signs the plan sha, row lanes follow without waiting for owner approval.
 - Planner by day, rows by night ([spec 166](../../specs/166-orchestrator-daily-rhythm/spec.md) section 3.1, row B3; owner HUM-10, t1 c0b0d572 msg 421e479a): the round's planner and its panel run by day, its row lanes, reviewer seats and retro at night (20:00 to 07:00 CET/CEST, `do_spl_rhythm_phase`). From `SPAWN_SUPPLY_LEAD_MIN` (120) minutes before the night, while fewer than twice the night's refactor lanes (the night band's 40% floor of the live lanes) are queued, the placer sends the dispatch lease holder one `SPAWN SUPPLY LEAD` blocker naming the night (once per night, in place of that hour's refactor supply blocker); the holder requests the planner's rows at once, so they are queued when the night starts.
 - An individual row action that requires a production mutation, a `terraform apply`, or GCP secret access still requires the owner's explicit go for that specific call (repo [CLAUDE.md](../../../CLAUDE.md)); the round itself does not.
+
 
 <a id="ws-doc-dd1932e6-d7d8-4314-a081-f1216334ca1a"></a>
 ## 2. Standing round rules (R1–R16)
@@ -191,3 +195,75 @@ Every round plan document (`refactor-round-<N>-plan.md` or `bug-round-<N>-plan.m
 ### 3.2 Panel review and signing
 
 The planner submits the draft plan to a cross-vendor panel. All panel seats must sign the plan sha. Objections are folded into the final v1.0 plan commit before row spawning begins.
+
+<a id="ws-doc-410e8643-573f-4718-bd1a-0f96a4f21ad2"></a>
+## 4. Performance rounds: a permanent round kind
+
+A performance round (perf round) is a round whose rows each make a measured part of the system faster or lighter: a page's load, a payload, a bundle, a query, a gate's or a lane's waiting time. It is a permanent round kind beside the bug-fix and the refactoring round, and it recurs like them.
+
+Owner HUM-10, t1 #refactoring topic `8ebbed0e-d775-448e-9b50-c42e45b6e126`, 2026-11-12:
+- msg afbbbcd2: *"Do we have a separate round for performance in the refactoring rounds?"*
+- msg 271a4a68: *"If we do not have one, we should create a permanent one. Each round, when it starts, it should create a new discussion. When it has the discussions, then for each discussion, it should create a new discussion and do the improvements after each round."*
+- 17:50:34Z: *"let's create the permanent capapicity for those to be at lest 20% of the refactoring overall on average"*
+
+Before this section, perf rounds ran ad hoc: rounds 3 to 6 (`perf-audit-round3-2026-10-02.md`, `perf-round-4-plan.md`, `perf-round-5-plan.md` and its retro, `perf-round-6-plan.md`); the last p6 row landed 2026-10-20 and nothing made them recur.
+
+<a id="ws-doc-d6aedaff-e492-4439-ae98-a6d4a7e10cf1"></a>
+### 4.1 Same rules as a refactor round, measured first
+
+A perf round follows every rule of sections 1 to 3 as a refactor round does: at most 10 rows (1.1), the pushes per row (1.2), R1 to R16, the plan and its cross-vendor panel (3.1, 3.2). Its rows are measured first ([lesson: measure first](lesson-speed-up-measure-first.md)):
+- Each row's plan cell names its baseline: the command, the number and n, measured on one `origin/master` sha.
+- Each row lands with a counting or timing test that guards the gain, and its red control (C2): the test fails on the slow code, passes on the fast one.
+- A row whose measurement shows no gain is dropped from the round with that measurement, never landed as a guess.
+
+<a id="ws-doc-b307b111-4f63-478e-97d1-1e8f6b03f19c"></a>
+### 4.2 Continuous: round N served, round N+1 planned
+
+Perf rounds run continuously, as 1.4 says for refactor rounds, and need no owner go:
+- When perf round `<N>`'s rows are served (R5), the dispatcher holding the lease requests perf round `<N+1>`'s planner at once (`c-001` places it).
+- Planner by day, rows by night, as in 1.4 ([spec 166](../../specs/166-orchestrator-daily-rhythm/spec.md) section 3.1): the planner and its panel run by day; the row lanes, their reviewer seats and the retro at night.
+- A perf round runs beside the open refactor round. Under the 20% floor a perf round also takes the place of the next refactor round (4.4, the owner's rule). R1 (disjoint files) and R3 (the `lane-map.sh --check` before a spawn) hold across both: a perf row never spawns on a path a refactor row holds, nor the reverse.
+
+<a id="ws-doc-86f37c03-f1bb-4be8-afde-a5ae2cb65534"></a>
+### 4.3 One discussion per round, one per row
+
+- **The round's discussion.** When the holder requests a perf round's planner (4.2), it opens ONE new discussion for the round: a new topic in the t1 #refactoring channel (`cd csi-spl-orc && ./run -a do_spl_desk_post`), titled `Perf round <N>`, with its issue filed from the first answer (`LANE_ISSUE_OP=discussion ./run -a do_spl_lane_issue`). The planner brief's `Ask-Topic:` names it. The plan sha, the panel's signatures, the progress counts (R12) and the retro are posted there.
+- **A discussion per row.** Each row (each finding) of the signed plan gets its OWN discussion: the holder opens a topic for it in the same channel when it queues the row, links it from the round's discussion, and the row brief's `Ask-Topic:` names it. The row lane carries its own issue ([lane issue and docs](lane-issue-and-docs.md)). Talk about one row stays in that row's topic.
+- **Each round improves the next.** The retro (R8, `perf-round-<N>-retro.md`) names what the round improved, with its numbers, and what it found but did not fix. Its last section is the measured input list for round `<N+1>`, and the round `<N+1>` planner starts from it. A finding that is not perf work goes to the orchestrator as its own ask.
+
+The holder opens these topics by hand today; no action opens them yet: follow-up row F2 (4.6).
+
+<a id="ws-doc-7b63b964-ff47-42db-965c-82550491b5eb"></a>
+### 4.4 Share: at least 20% of the refactor capacity over 14 days
+
+The owner's decision (17:50:34Z, section 4): perf rounds take **at least 20% of the refactor capacity, on average**.
+
+- Perf rows are queued as `SPAWN_CLASS=refactor`: they take their lanes from the refactor class. The class bands (the [fleet rules index](fleet-rules-index.md), SPL-1817 row) do not change; this rule splits the refactor class.
+- **What is measured:** the round rows landed on `origin/master`. A row counts once, by its id in a landed commit subject of type `test`, `refactor`, `ci`, `fix`, `feat` or `perf` (the types `do_spl_push_master` checks as round rows; a `revert(...)` is not counted): `p<N>-<NN>` perf, `r<N>-<NN>` refactor, whatever its number of pushes. The share is perf rows / (perf rows + refactor rows).
+- **The window:** the last 14 days, rolling. A round of 10 rows lands over several nights, so a shorter window swings with whichever round happens to be open; 14 days spans several rounds of each kind.
+- **How the holder checks it:** at every round boundary (each time it requests a planner, 1.4 or 4.2), from any checkout of this repository on a fresh fetch. The verdict compares the exact counts (5 × perf ≥ perf + refactor), never the rounded percentage:
+
+```bash
+git fetch -q origin master && git log origin/master --since='14 days ago' --format=%s | grep -oE '^(test|refactor|ci|fix|feat|perf)\((p[0-9]+|r[0-9]+)-[0-9]{2}-' | sed -E 's/^[a-z]+\(//; s/-$//' | sort -u | awk '/^p/{p++} /^r/{r++} END{t=p+r; printf "perf %d refactor %d perf-share %s %s\n", p, r, (t ? sprintf("%.1f%%", 100*p/t) : "n/a"), (t == 0 ? "no-rows" : (5*p >= t ? "floor-met" : "under-20"))}'
+```
+
+- **Under 20%, a perf round replaces a refactor round** (owner HUM-10, poll 81980f01, msg 98dedfc4): once the open refactor round is served (R5), the holder requests the next perf round's planner instead of refactor round `<N+1>`'s. Refactor rounds wait until the check prints `floor-met` again. The open refactor round is never stopped; 1.4 carries the matching exception.
+- Measured on `origin/master` 4061ee214 (the count moves with every land, so re-run it rather than quote it), the command above printed `perf 0 refactor 135 perf-share 0.0% under-20`. The first rounds under this rule start below the floor, so the refactor round after the open one is a perf round.
+
+Enforced by: the holder's check at each boundary (review only). The placer does not enforce it yet: follow-up row F1 (4.6).
+
+<a id="ws-doc-a9a1e495-1084-405b-aaf4-58358ff1984b"></a>
+### 4.5 Ids and where the plans live
+
+- **Round id** `p<N>`, numbered on from the ad hoc rounds: the first round under this section is `p7` (the newest perf row on `origin/master` is a `p6` one). **Row id** `p<N>-<NN>`, two digits, 01 to 10 (1.1).
+- **Commit subject:** `<type>(p<N>-<NN>-<slug>, SPL-<n>): ...`, usually `perf`. `do_spl_push_master` already treats it as a round row: it refuses a `pN-NN` row with no R7 `review:` line (`csi-spl-orc/src/bash/run/spl-push-master.func.sh`, the `[rbp]` subject match). The review branch is `review/p<N>-<NN>`.
+- **Status (R6):** `git fetch origin master && git log origin/master --grep='(p<N>-' --format='%h %cI %s'`; the slug check before a spawn (R4) greps `p<N>-<NN>-`.
+- **Where the plans live:** a Qto `system` doc exported to `csi-spl-doc/doc/md/perf-round-<N>-plan.md` (imported once with `do_spl_doctree_import_md`, `QTO_FS=repo`, then edited in Qto), its panel's seat files under `csi-spl-doc/doc/md/perf-round-<N>/`, and the retro in `csi-spl-doc/doc/md/perf-round-<N>-retro.md`. Round 5 is the one complete example (plan, seat dir, retro); round 4 left a plan only, round 6 a plan and seat files with no retro. From p7 every round has all three.
+
+<a id="ws-doc-b643a963-080c-47f1-8182-35139654bf00"></a>
+### 4.6 Not built yet: follow-up rows
+
+Two parts of this section are kept by the holder by hand; each is a follow-up row, not built here:
+
+- **F1, the placer enforces the 20% floor.** The placer reads the perf share of the refactor class and, under 20%, refuses the next refactor round's planner (the open refactor round's rows still place) and names the next perf planner to the holder, as 4.4 says. Files: `csi-spl-orc/src/bash/run/spl-spawn-share.func.sh` (`SPL_SPAWN_BANDS`, the share read), `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` (`spl_spawn_place_band`), `csi-spl-orc/src/bash/run/spl-spawn-queue.func.sh` (the queue's order), their tests `csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh` and `spl-spawn-place-argmax.tst.sh`, and the SPL-1817 row of the [fleet rules index](fleet-rules-index.md). The class bands stay as they are.
+- **F2, an action opens the round's discussions.** A named action (`do_spl_round_open`, new: `csi-spl-orc/src/bash/run/spl-round-open.func.sh` and its test `csi-spl-orc/src/bash/tests/spl-round-open.tst.sh`) opens the round's topic when its planner is requested and one topic and issue per row when the row is queued (4.3), through `do_spl_desk_post` and `do_spl_lane_issue`.

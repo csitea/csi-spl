@@ -1713,6 +1713,7 @@
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
     "split_mistral": "Мистрал",
+    "split_codex": "Codex",
     "split_hint": "Како се дели нови агентски рад. Око пет поена у страну је уобичајено.",
     "performance": "Перформансе",
     "performance_title": "Перформансе онако како их људи виде",
@@ -1988,7 +1989,8 @@
         "grok": "Grok",
         "agy": "Antigravity",
         "mistral": "Mistral",
-        "qwen": "Qwen"
+        "qwen": "Qwen",
+        "codex": "Codex"
       },
       "state": {
         "set": "Постављен",
@@ -2366,6 +2368,7 @@
       "grok": "Grok",
       "qwen": "Qwen",
       "mistral": "Мистрал",
+      "codex": "Codex",
       "agent": "Агент"
     },
     "tabs_label": "Картица агента",

@@ -104,7 +104,7 @@ declare module '~/utils/spool-client.mjs' {
     newEmbedKey(embedId: string): Promise<{ embed_id: string, key_id: string, key_alg: string, private_key: string }>
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean, access_until?: string | null }): Promise<null>
     getTenantSettings(): Promise<unknown>
-    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number, mistral: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
+    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number, mistral: number, codex?: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
     getAgentSplit(): Promise<unknown>
     patchAgentSplit(kinds: Record<string, { weights: Record<string, number>, backup: string } | null>): Promise<unknown>
     /* SPL-2115: the takeover ladder (GET any member, PUT tenant.settings) */
@@ -1505,7 +1505,7 @@ declare module '~/utils/tenant-users-mock.mjs' {
 }
 
 declare module '~/utils/tenant-settings.mjs' {
-  export type AgentSplit = { claude: number, grok: number, agy: number, qwen: number, mistral: number }
+  export type AgentSplit = { claude: number, grok: number, agy: number, qwen: number, mistral: number, codex: number }
   export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number, issuePrefix: string, topicArchivePolicy: string, agentSplit: AgentSplit }
   export const TOPIC_ARCHIVE_POLICY_OPTIONS: readonly string[]
   export const AGENT_SPLIT_KINDS: readonly string[]

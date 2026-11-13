@@ -8,7 +8,7 @@
  */
 
 /** The vendors, in the hub's order (store.AgentKinds). */
-export const TAKEOVER_VENDORS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral'])
+export const TAKEOVER_VENDORS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral', 'codex'])
 
 /** The task kinds, in the order the section lists them. */
 export const TAKEOVER_KINDS = Object.freeze(['specs_and_docs', 'tests', 'simple_coding', 'complex_coding', 'i18n', 'secret'])
@@ -17,8 +17,8 @@ export const TAKEOVER_KINDS = Object.freeze(['specs_and_docs', 'tests', 'simple_
 export const TAKEOVER_MAX_FAILURES_MIN = 1
 export const TAKEOVER_MAX_FAILURES_MAX = 10
 
-/** The secret kind never goes to these (the data rule). */
-const SECRET_BANNED = Object.freeze(['agy', 'qwen'])
+/** The secret kind never goes to these (the data rule; codex: owner msg 1fe6abcf). */
+const SECRET_BANNED = Object.freeze(['agy', 'qwen', 'codex'])
 
 const CODING = Object.freeze({ order: ['mistral', 'agy', 'claude'], maxFailures: 2 })
 
@@ -35,7 +35,7 @@ export const DEFAULT_TAKEOVER = Object.freeze({
 /**
  * The first rule a row breaks, as an i18n key suffix (takeover.rule_<x>), or
  * '' when the hub would take it: at least one vendor ('empty'), known and
- * distinct vendors ('vendor'), no agy or qwen in secret ('secret'), a whole
+ * distinct vendors ('vendor'), no agy, qwen or codex in secret ('secret'), a whole
  * max_failures in range ('failures').
  */
 export function takeoverRule(kind, order, maxFailures) {

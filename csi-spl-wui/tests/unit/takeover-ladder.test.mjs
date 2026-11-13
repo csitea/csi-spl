@@ -30,6 +30,7 @@ ok('every default passes its own rule', TAKEOVER_KINDS.every((k) => takeoverRule
 
 // --- the rules -------------------------------------------------------------
 ok('CONTROL: agy in secret', takeoverRule('secret', ['claude', 'agy'], 2) === 'secret')
+ok('CONTROL: codex in secret (data rule, owner msg 1fe6abcf)', takeoverRule('secret', ['claude', 'codex'], 2) === 'secret' && !takeoverAddable('secret', ['claude']).includes('codex'))
 ok('CONTROL: qwen in secret', takeoverRule('secret', ['qwen'], 2) === 'secret')
 ok('agy in tests is fine (takeover, not the split)', takeoverRule('tests', ['agy', 'claude'], 2) === '')
 ok('empty order', takeoverRule('tests', [], 2) === 'empty')
@@ -39,7 +40,7 @@ ok('0 failures', takeoverRule('tests', ['claude'], 0) === 'failures')
 ok('11 failures', takeoverRule('tests', ['claude'], 11) === 'failures')
 ok('1.5 failures', takeoverRule('tests', ['claude'], 1.5) === 'failures')
 ok('secret never offers agy or qwen to add', takeoverAddable('secret', ['claude']).join() === 'grok,mistral')
-ok('tests offers the vendors not in the order', takeoverAddable('tests', ['mistral', 'agy', 'claude']).join() === 'grok,qwen')
+ok('tests offers the vendors not in the order', takeoverAddable('tests', ['mistral', 'agy', 'claude']).join() === 'grok,qwen,codex')
 
 // --- the reorder step ------------------------------------------------------
 ok('up', takeoverMove(['a', 'b', 'c'], 2, -1).join() === 'a,c,b')

@@ -31,7 +31,7 @@ const memStore = (seed = {}) => {
 const FAKE = 'sk-test-0000'
 
 console.log('vendor-keys')
-ok('five kinds, in page order', VENDOR_KEY_KINDS.join(',') === 'claude,grok,agy,mistral,qwen')
+ok('six kinds, in page order (codex: SPL-5454)', VENDOR_KEY_KINDS.join(',') === 'claude,grok,agy,mistral,qwen,codex')
 ok('the permission is the hub\'s vendor_keys.manage', VENDOR_KEYS_PERM === 'vendor_keys.manage')
 
 /* the GET body of spec 127 4.3 as the hub answers it (T1) */

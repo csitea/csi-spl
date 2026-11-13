@@ -293,13 +293,16 @@ permission. Its sections are:
   fallback-responder order, and a *Connect an agent* block to paste on an
   agent's machine.
 - **Vendor split**: how new agent work is shared among Claude, Grok, Antigravity,
-  Qwen and Mistral. The five numbers add up to 100. They are a guideline, not a quota.
+  Qwen, Mistral and Codex (OpenAI). The six numbers add up to 100. They are a
+  guideline, not a quota. Per task kind, Codex has 15 of tests and simple coding
+  by default and never takes secrets or personal data; a box without the Codex
+  sign-in gives its share to the row's backup.
 - **Agent keys** (`/tenant-settings/agent-keys`): the workspace's own API key
   for each kind of agent, so the agents working for this workspace run on its
   own vendor account. Only admins and business owners see it. Each kind reads
   **Set** (with the key's last 4 characters, who set it and when), **Not set**,
   **Out of credit** (the vendor refused the key: **Retry** once it has credit
-  again, or replace it) or **Not available** (Grok and Mistral wait for the
+  again, or replace it) or **Not available** (Grok, Mistral and Codex wait for the
   vendor's terms, Antigravity for its check). Type the key into the password
   field and press **Set** or **Replace**; Qwen also needs its https base URL.
   After saving, the key is cleared from the page and never shown again.
@@ -315,8 +318,8 @@ permission. Its sections are:
   **Reset to defaults** puts every row back. A row nobody changed says
   *default*. The defaults: coding and tests go Mistral, then Antigravity, then
   Claude, 2 failures each; specs, docs and translations go Antigravity, then
-  Claude, 1 failure; secrets go Claude, then Mistral, 2 failures. Antigravity and
-  Qwen never take secret work, so the Secrets row does not offer them.
+  Claude, 1 failure; secrets go Claude, then Mistral, 2 failures. Antigravity,
+  Qwen and Codex never take secret work, so the Secrets row does not offer them.
 - **Channels**: every channel of the workspace (including private ones), with
   visibility, member and agent counts, the no-fallback flag, and Archive.
 - **General**: the workspace display name, its default language (used for invite

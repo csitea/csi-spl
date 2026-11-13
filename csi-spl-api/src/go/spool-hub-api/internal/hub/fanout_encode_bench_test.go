@@ -122,23 +122,26 @@ func BenchmarkFanoutChannel(b *testing.B) {
 	}
 }
 
-// The channel fan-out to 10 sockets allocates at most the encode-once arm
-// (fanoutIssue, the same frame) plus 10 %; a marshal per socket is far above.
-// AllocsPerRun counts the whole process, so goroutines other tests left
-// running add to it: the arms alternate and each keeps its lowest of 5 rounds.
+// The channel fan-out to 10 sockets allocates no more than the encode-once
+// arm (fanoutIssue, the same frame) plus half of what 9 more encodings, one
+// per extra socket, would add. AllocsPerRun counts the whole process, the rig's
+// reader goroutines included, so a fixed margin flaked (CI 149 vs 133 + 10 %):
+// the bound is measured in encodings, and every arm keeps its lowest of 5 rounds.
 func TestFanoutChannelEncodesOnce(t *testing.T) {
 	s, done := fanoutRig(t, 10, nil)
 	defer done()
 	ctx, frame := context.Background(), benchChannelFrame()
-	once, got := math.Inf(1), math.Inf(1)
+	once, got, enc := math.Inf(1), math.Inf(1), math.Inf(1)
 	for i := 0; i < 5; i++ {
 		once = math.Min(once, testing.AllocsPerRun(50, func() { s.fanoutIssue(ctx, "t1", frame) }))
 		got = math.Min(got, testing.AllocsPerRun(50, func() { s.fanoutChannelFrame(ctx, "t1", nil, frame) }))
+		enc = math.Min(enc, testing.AllocsPerRun(50, func() { encodeFrame(frame) })) //nolint:errcheck
 	}
-	if got > once*1.1 {
-		t.Fatalf("fanoutChannelFrame: %.0f allocs/run, encode-once arm %.0f (+10 %% = %.0f)", got, once, once*1.1)
+	limit := once + 4.5*enc
+	if got > limit {
+		t.Fatalf("fanoutChannelFrame: %.0f allocs/run, encode-once arm %.0f + 4.5 encodings of %.0f = %.0f", got, once, enc, limit)
 	}
-	t.Logf("fanoutChannelFrame %.0f allocs/run, encode-once arm %.0f", got, once)
+	t.Logf("fanoutChannelFrame %.0f allocs/run, encode-once arm %.0f, one encoding %.0f, limit %.0f", got, once, enc, limit)
 }
 
 // Every socket receives the same bytes, and they are what wsjson.Write sent

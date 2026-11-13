@@ -175,3 +175,19 @@ None. W1..: none.
 ## Sign
 
 `panel: m-176 mistral PASS 29030f9058b1ac927b50404dd9580747aef4b79f`
+
+## v1.0 sign (second commit on this branch)
+
+The editor's v1.0 landed on `origin/master` as `0a7a25ac15329872372b71082406d3cc3bc3a469`
+(recorded by `918ad06ac docs(p8-plan, SPL-5456): perf round 8 plan landed as
+0a7a25ac1, ACCEPTED a8b9c3f6`). Verified here:
+
+- `git fetch -q origin master && git merge-base --is-ancestor 0a7a25ac1
+  origin/master` -> exit 0 (0a7a25ac1 is on origin/master).
+- `git diff 29030f905 0a7a25ac1 -- csi-spl-doc/doc/md/perf-round-8-plan.md | wc -l`
+  -> `0`: the plan file at v1.0 is byte-identical to the 29030f905 plan this
+  seat PASSed, so the verdict carries over unchanged.
+
+**Verdict on v1.0: PASS on 0a7a25ac15329872372b71082406d3cc3bc3a469.**
+
+`panel: m-176 mistral PASS 0a7a25ac15329872372b71082406d3cc3bc3a469 (plan file identical to 29030f905)`

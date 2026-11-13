@@ -1,6 +1,6 @@
 # OS Settings and Tweaks Analysis for the Fleet Boxes
 
-- **Version:** `v0.1` (editor draft, not yet reviewed by the panel)
+- **Version:** `v0.2` (editor draft + editor addendum 2.5, not yet reviewed by the panel)
 - **Status:** Draft. Analysis only: nothing was changed on any box.
 - **Issue:** `SPL-5393` (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
@@ -28,7 +28,11 @@ The largest measured lever is not an OS setting: a `$( )` subshell forked from
 a Bash that has sourced the 644 `orc` action files (`68 MB` RSS) costs
 `5.6 ms` of `sys` against `0.3 ms` from a plain Bash, `19x`. That is the Rust
 analysis's rank #3 (`./run` lazy action index), now with its kernel cost
-measured. The OS-side candidates are smaller and mostly unmeasurable without a
+measured. The cause is page-table work: the Bash heap sits on 4 KiB pages
+(`AnonHugePages: 0 kB`), and a fork's kernel cost grows with 4 KiB-mapped memory
+(2.5). One env-level setting, `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728`
+on the `./run` Bash, puts part of that heap on huge pages and cuts `sys` per
+fork by `41%` (measured, no reboot). The other OS-side candidates are smaller and mostly unmeasurable without a
 throwaway VM: the CPU vulnerability mitigations (`retbleed`, `SRSO`) and
 `init_on_alloc`, both boot parameters. Several popular tweaks were measured
 here and **do not help**: transparent huge pages off, `LC_ALL=C`, I/O
@@ -140,11 +144,52 @@ Each `$( )`, pipeline stage or `( )` in a script that runs inside `./run`
 pays this. It explains why the box-wide figure (`2.9` core-ms per start) sits
 far above the cost of starting a small program (`1.5..3.9 ms` `sys` in 2.2).
 
+### 2.5 Why the big-Bash fork is expensive, and a per-process fix
+
+Probe `fkheap.c`: a C parent fills a heap of the given size, then forks `300`
+children that `_exit` at once (or first write one byte every 64 pages). The
+`thp off` arm calls `madvise(MADV_NOHUGEPAGE)` on that heap only. Load `24`,
+`01:27Z`, `n = 1` per row.
+
+| parent heap | huge pages | parent `sys` + child `sys` per fork | wall per fork |
+|---|---|---:|---:|
+| `0 MB` | - | `153 us` | `443 us` |
+| `64 MB` | yes (THP `always`) | `301 us` | `843 us` |
+| `64 MB` | no (4 KiB pages) | `4,519 us` | `5,667 us` |
+| `256 MB` | yes | `465 us` | `1,369 us` |
+| `256 MB` | no | `23,278 us` | `28,970 us` |
+| `64 MB`, child writes 1 page in 64 | yes / no | `1,260` / `7,224 us` | `3,650` / `9,651 us` |
+
+So a fork costs about `70 us` of kernel time per MB of 4 KiB-mapped memory,
+and `15x` less on huge pages. The `./run` Bash (`thpcheck.sh`) has
+`Rss 69,252 kB, AnonHugePages 0 kB`: its heap grows by small `sbrk` steps, so
+no fault ever lands in a free, aligned 2 MiB range, and THP `always` never
+applies. `GLIBC_TUNABLES=glibc.malloc.hugetlb=1` alone changes nothing
+(`AnonHugePages 0 kB`; `sys` per run `2.86..3.08 s` vs `2.97..3.04 s`).
+
+`glibc.malloc.top_pad` makes `malloc` grow the heap in large steps, which lets
+THP back it. `forkbash.sh 1` (500 forks), `n = 3` per arm, interleaved, load
+`25..28`, `01:29Z`; source-only cost subtracted per arm (`0.34 s` none,
+`0.27 s` with the pad):
+
+| `GLIBC_TUNABLES` | `AnonHugePages` | `sys` per fork | `usr + sys` per fork | wall per fork |
+|---|---:|---:|---:|---:|
+| none | `0 kB` | `5.1 ms` (`2.80..2.91 s` per run) | `5.8 ms` | `6.0..6.7 ms` |
+| `glibc.malloc.top_pad=134217728` | `14,336 kB` | **`3.0 ms`** (`1.64..1.92 s`) | **`4.1 ms`** | **`4.0..4.8 ms`** |
+| `glibc.malloc.hugetlb=1:glibc.malloc.top_pad=33554432` | `14,336 kB` | `2.9..3.3 ms` (`1.73..1.98 s`) | - | `4.7..5.4 ms` |
+
+`-41%` `sys`, `-30%` CPU and `-33%` wall per fork, with RSS `+0.5..1.7 MB`. A
+plain `bash -c :` under the same pad keeps `Rss 3,088 kB, AnonHugePages 0 kB`
+(the pad reserves address space; pages are only used when touched). Only
+`14 MB` of the `69 MB` lands on huge pages; the rest was allocated before the
+heap crossed an aligned 2 MiB range, so a better placement may gain more
+(open item 5.4).
+
 ### 2.4 Candidates measured here that do not help
 
 | candidate | measurement | verdict |
 |---|---|---|
-| THP `never` / `madvise` | 2.2 and 2.3: no gain for short programs or big-Bash forks; `spool` takes `2x` the faults and `+31%` `sys` with THP off | keep `always` |
+| THP `never` / `madvise` | 2.2 and 2.3: no gain for short programs or big-Bash forks (their heap is not on huge pages at all, 2.5); `spool` takes `2x` the faults and `+31%` `sys` with THP off | keep `always`; 2.5 shows huge pages help, so turning them off is the wrong direction |
 | `LC_ALL=C` instead of `C.UTF-8` | `grep -ciE` over `2,323` tracked `.sh`, `n = 7` x 2: `C.UTF-8` `69..70 ms` CPU, `C` `81..82 ms` | no gain; keep |
 | I/O scheduler, `noatime`, `/tmp` placement, dirty ratios | `iowait 0.34%` over 11 days; I/O PSI `some avg300 4.2%` | below noise; not worth a change |
 | swap / zram | memory PSI `0.00`; `38 G` available | no speed gain (see 4, risk row) |
@@ -172,6 +217,7 @@ go first).
 | # | setting | expected gain | risk | where it would be configured |
 |---:|---|---|---|---|
 | 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.6` -> `0.3 ms` `sys` per fork inside `./run` (`19x`); box-wide est. `20..40%` of `sys` | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
+| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide est. `10..25%` of `sys` until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
 | 2 | Kernel command line `retbleed=off spec_rstack_overflow=off` (or `mitigations=off`) | est. `5..20%` of `sys` (Zen 2 return-thunk mitigations sit on every kernel return; `getppid` is `~240 ns` here); A/B on a throwaway `e2-standard-16` | **High**: removes protection between processes of the same VM; agents run third-party code (npm, pip) | new ansible role `12_kernel_cmdline` in `060-gcp-vm-satellite/roles/` (`/etc/default/grub.d/*.cfg`, `update-grub`, reboot); terraform step `060`, owner go |
 | 3 | Kernel command line `init_on_alloc=0` | est. `1..5%` of `sys` (zeroing of kernel allocations such as page tables on each fork) | Medium: loses a hardening default against info leaks | same role as #2 |
 | 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | est. same order as #2, plus faster cores; not an OS setting | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
@@ -192,15 +238,16 @@ every process for RAM (the CI workflow already moves job temp off it,
 2. A measured `hub-pg` suite run with and without `fsync=off` in a throwaway
    container (row 6).
 3. Anything in section 1 that is wrong, or a setting missing from section 4.
-4. Whether the `sys` per fork in 2.3 has a kernel-side cause worth a setting
-   (cgroup memory accounting, page-table zeroing) that a probe can isolate
-   without a reboot.
+4. Editor, v0.2: the cause in 2.3 is the 4 KiB page-table work on fork
+   (2.5), and `glibc.malloc.top_pad` moves `14 MB` of `69 MB` onto huge pages.
+   Open: a setting or allocation shape that puts more of the Bash heap on huge
+   pages, still per process and without a reboot.
 
 ## 6. Panel and versions
 
 | seat | vendor | version reviewed | verdict |
 |---|---|---|---|
-| `c-630@sat` | claude (editor) | `v0.1` | author |
+| `c-630@sat` | claude (editor) | `v0.1`, `v0.2` | author |
 | `g-631@sat` | grok | - | - |
 | mistral seat | mistral | - | - |
 | agy seat (desk box) | agy | - | - |

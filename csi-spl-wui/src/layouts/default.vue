@@ -439,6 +439,12 @@ const kbdFold = computed(() => sectionStrip.value && kbOpen.value)
    is a hold-drag (a card, a calendar event): the bars stay as they are, so
    nothing shifts under it. A scroll by code after the finger is up never
    counts: both bars are 119 px, enough to move a card from under a press. */
+/* SPL-5407: a pane scrolled to its end grows when the bars go, so the browser
+   pulls its scrollTop back to the new end. On a slow phone that lands after
+   STRIP_QUIET_MS and read as a scroll up (6x CPU: 4/10 came back). A move up
+   that stops exactly at the end is that pull-back: the reader's own scroll up
+   always leaves it. At the top (y 0) the strip still comes back, so a pane
+   that no longer scrolls never keeps the bars away. */
 const STRIP_INPUT_MS = 600
 const STRIP_QUIET_MS = 400
 const STRIP_HOLD_MS = 250
@@ -469,6 +475,7 @@ function onStripScroll(e: Event) {
   stripAnchor.set(el, next.anchor)
   const now = performance.now()
   if (next.hidden === stripHidden.value || now < stripQuietTill || !stripByReader(now)) return
+  if (!next.hidden && y > 0 && y >= el.scrollHeight - el.clientHeight - 1) return
   const strip = document.querySelector<HTMLElement>('.spool-shell > .sidebar')
   if (next.hidden && strip) strip.style.setProperty('--mobile-strip-h', `${strip.offsetHeight}px`)
   stripHidden.value = next.hidden

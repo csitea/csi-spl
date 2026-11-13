@@ -24,6 +24,8 @@
 // the finger is up leaves them as they are (merge-by-touch-drag and
 // calendar-phone-day read a card's place, then press it); a finger held
 // before it moves (a hold-drag) changes nothing.
+// SPL-5407: the browser pulling a pane back to its new end (the bars' room
+// given to it) late, under load, leaves both bars away.
 //
 //   BASE_URL=<generated mock bundle> node tests/e2e/section-strip-scroll-hide.test.mjs
 import { createRequire } from 'node:module'
@@ -144,6 +146,17 @@ const wheel = async (p, at, dy) => {
   await sleep(500)
 }
 
+/* SPL-5407: under load the 0.2 s slide can still be painting 500 ms after
+   the wheel (load 150: hidden=1, logo still at its place). Wait for it,
+   bounded, and only while the strip stays away: a strip that comes back
+   is read at once, and a logo that never leaves still fails after 3 s. */
+async function readAway(p, max = 3000) {
+  const end = Date.now() + max
+  let s = await read(p, true)
+  while (s.hidden === '1' && (s.painted || s.logo) && Date.now() < end) { await sleep(100); s = await read(p, true) }
+  return s
+}
+
 /* a real CDP touch: down at `at`, after `hold` ms moved by dy in 6 steps, up */
 async function swipe(p, at, dy, hold = 0) {
   const cdp = await p.createCDPSession()
@@ -184,7 +197,7 @@ try {
       await p.evaluate(() => { document.querySelector('[data-e2e-scroller]').scrollTop = 0 })
       await sleep(500)
       await wheel(p, s0.pane, 600)
-      const down = await read(p, true)
+      const down = await readAway(p)
       await wheel(p, s0.pane, -200)
       const up = await read(p, true)
       ok(`${tag} ${route}: a scroll by script leaves the strip painted`, byScript.painted && byScript.hidden === null, byScript)
@@ -213,6 +226,41 @@ try {
     await sleep(500)
     const tHold = await read(p)
     ok(`${tag} touch: a finger held 400 ms, then moved down, changes neither bar`, tHold.hidden === '1' && tHold.barsHidden === '1', { hidden: tHold.hidden, bars: tHold.barsHidden })
+    /* SPL-5407: a late pull-back. A pane at its end grows when the bars go and
+       the browser pulls scrollTop back to the new end; on a slow phone that
+       lands after the quiet window, a wheel still fresh. Planted: a 3000 px
+       spacer, a wheel 300 px past the pane's own range, so it stops within the
+       spacer (no pull-back of its own), then, past
+       STRIP_QUIET_MS and a new wheel event, the spacer shrinks so the pane's
+       end is 100 px above the reader. Red control: without the guard the
+       strip comes back. */
+    await p.goto(`${srv.base}${touchRoute}`, { waitUntil: 'networkidle2' }).catch(() => null)
+    const e0 = await settle(p)
+    const range = !e0.pane ? 0 : await p.evaluate(() => {
+      const sc = document.querySelector('[data-e2e-scroller]')
+      const d = document.createElement('div')
+      d.setAttribute('data-e2e-spacer', '')
+      d.style.height = '3000px'
+      const r = sc.scrollHeight - sc.clientHeight
+      sc.append(d)
+      return r
+    })
+    if (e0.pane) await wheel(p, e0.pane, range + 300)
+    await sleep(700)
+    const eAway = await read(p, true)
+    await p.evaluate(() => {
+      const sc = document.querySelector('[data-e2e-scroller]')
+      const d = document.querySelector('[data-e2e-spacer]')
+      if (!sc || !d) return
+      const cut = sc.scrollHeight - sc.clientHeight - (sc.scrollTop - 100)
+      document.dispatchEvent(new WheelEvent('wheel', { deltaY: 1 }))
+      d.style.height = `${Math.max(0, 3000 - cut)}px`
+    })
+    await sleep(700)
+    const eBack = await read(p, true)
+    ok(`${tag} ${touchRoute}: the browser pulling a pane back to its new end, late, leaves both bars away`,
+      Boolean(e0.pane) && eAway.hidden === '1' && eAway.barsHidden === '1' && eBack.pane && eBack.pane.sy < eAway.pane.sy - 50 && eBack.hidden === '1' && eBack.barsHidden === '1',
+      { away: eAway.hidden, sy: eAway.pane?.sy, after: eBack.hidden, bars: eBack.barsHidden, syAfter: eBack.pane?.sy })
     /* Back brings it back: Help, a tapped help page scrolled down, then Back */
     await p.goto(`${srv.base}/help`, { waitUntil: 'networkidle2' })
     await settle(p)

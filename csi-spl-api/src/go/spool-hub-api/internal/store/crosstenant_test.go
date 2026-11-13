@@ -355,6 +355,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// release_notes, estate_deploys (the contract, spec 143 row B-3): one commit of
+	// that repo and one deploy of it, written by the operator.
+	if err := pg.PutReleaseNotes(ctx, s.tenant, "csitea/repo-"+s.tenant, []ReleaseNote{noteOK(randSHA(), "", now)}, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := pg.PutEstateDeploy(ctx, EstateDeploy{TenantID: s.tenant, RepoSlug: "csitea/repo-" + s.tenant,
+		Env: "dev", Component: "hub", Version: "v1.0.0", CommitSHA: randSHA(), Status: "success"}); err != nil {
+		t.Fatal(err)
+	}
 	// box_locks, box_lock_audit (rdb 0213, spec 025 box owner lock): one
 	// signed lock of the seeded member, and its created audit row.
 	if err := pg.CreateBoxLock(ctx, newBoxLock(s.tenant, "box-a", testLockKey(t), hum), hum, now); err != nil {
@@ -726,9 +735,7 @@ func tenantTables(t *testing.T, pg *Postgres) []string {
 		if err := r.Scan(&n); err != nil {
 			return err
 		}
-		if !spl4808ExpandTables[n] {
-			out = append(out, n)
-		}
+		out = append(out, n)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -803,9 +810,11 @@ var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": 
 
 // tenantReadOnlyTables are read in a tenant's scope and written only in the
 // operator scope: their tenant_scope policy is FOR SELECT (rdb 0212
-// tenant_agent_caps, spec 147 P2; rdb 0266 software_projects, workspace_repos). A's unscoped UPDATE / DELETE reaches NONE
-// of its own rows: stronger than reaching only A's.
-var tenantReadOnlyTables = map[string]bool{"tenant_agent_caps": true, "software_projects": true, "workspace_repos": true}
+// tenant_agent_caps, spec 147 P2; rdb 0266 software_projects, workspace_repos;
+// row B-3 release_notes, estate_deploys). A's unscoped UPDATE / DELETE reaches
+// NONE of its own rows: stronger than reaching only A's.
+var tenantReadOnlyTables = map[string]bool{"tenant_agent_caps": true, "software_projects": true, "workspace_repos": true,
+	"release_notes": true, "estate_deploys": true}
 
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /

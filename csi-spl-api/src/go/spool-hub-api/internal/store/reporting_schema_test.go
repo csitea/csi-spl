@@ -13,8 +13,8 @@ import (
 // Postgres only (hub-pg.tst.sh). Each test is red before its migration: the
 // table or column it reads does not exist.
 
-const estateDeployInsert = `INSERT INTO estate_deploys (deploy_id, env, component, version, commit_sha, status, source)
-	VALUES ($1, 'prd', 'hub', 'v1.7.1', $2, 'success', $3)`
+const estateDeployInsert = `INSERT INTO estate_deploys (tenant_id, repo_slug, deploy_id, env, component, version, commit_sha, status, source)
+	VALUES ($4, 'csitea/csi-spl', $1, 'prd', 'hub', 'v1.7.1', $2, 'success', $3)`
 
 // scopes are the two non-operator scopes a hub statement can run in.
 func reportingScopes(pg *Postgres, tenant string) map[string]func(func(pgx.Tx) error) error {
@@ -32,44 +32,58 @@ func execIn(run func(func(pgx.Tx) error) error, sql string, args ...any) error {
 	})
 }
 
-// T001: estate_deploys. GATE: the operator writes a row, every scope reads
-// it, source defaults to ci and takes reconcile, a duplicate deploy_id is
-// the unique violation. RED CONTROL: an insert with no scope or in a
-// workspace scope is refused by RLS; a bad source or sha is refused.
+// T001: estate_deploys. GATE: the operator writes a row, its workspace reads
+// it (the contract, spec 143 row B-3), source defaults to ci and takes reconcile,
+// a duplicate deploy_id is the unique violation. RED CONTROL: an insert with
+// no scope or in a workspace scope is refused by RLS, and so is any update; no
+// scope and another workspace read 0; an insert naming no workspace, a bad
+// source or a bad sha is refused.
 func TestEstateDeploysSchema(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
+	own, other := newTenant(t, pg), newTenant(t, pg)
 	id, sha := uuid4(), strings.Repeat("ab", 20)
-	if _, err := pg.asOperator2(ctx, `INSERT INTO estate_deploys (deploy_id, env, component, version, commit_sha, status)
-		VALUES ($1, 'dev', 'wui', 'v1.7.1-c3', $2, 'success')`, id, sha); err != nil {
+	if _, err := pg.asOperator2(ctx, `INSERT INTO estate_deploys (tenant_id, repo_slug, deploy_id, env, component, version, commit_sha, status)
+		VALUES ($3, 'csitea/csi-spl', $1, 'dev', 'wui', 'v1.7.1-c3', $2, 'success')`, id, sha, own); err != nil {
 		t.Fatalf("operator insert: %v", err)
 	}
 	if n, err := pg.asOperator2(ctx, `SELECT 1 FROM estate_deploys WHERE deploy_id = $1 AND source = 'ci'`, id); err != nil || n != 1 {
 		t.Fatalf("source default: %d %v, want the ci row", n, err)
 	}
-	if _, err := pg.asOperator2(ctx, estateDeployInsert, uuid4(), sha, "reconcile"); err != nil {
+	if _, err := pg.asOperator2(ctx, estateDeployInsert, uuid4(), sha, "reconcile", own); err != nil {
 		t.Fatalf("a reconcile row: %v", err)
 	}
-	if _, err := pg.asOperator2(ctx, estateDeployInsert, id, sha, "ci"); err == nil || !strings.Contains(err.Error(), "estate_deploys_pkey") {
+	if _, err := pg.asOperator2(ctx, estateDeployInsert, id, sha, "ci", own); err == nil || !strings.Contains(err.Error(), "estate_deploys_pkey") {
 		t.Fatalf("duplicate deploy_id: %v, want the unique violation", err)
 	}
-	for _, bad := range [][]any{{uuid4(), sha, "manual"}, {uuid4(), "ABC", "ci"}, {"not-a-uuid", sha, "ci"}} {
+	if _, err := pg.asOperator2(ctx, `INSERT INTO estate_deploys (deploy_id, env, component, version, commit_sha, status)
+		VALUES ($1, 'dev', 'wui', 'v1.7.1', $2, 'success')`, uuid4(), sha); err == nil || !strings.Contains(err.Error(), "not-null") {
+		t.Errorf("an insert naming no workspace: %v, want the not-null refusal (no t1 default)", err)
+	}
+	for _, bad := range [][]any{{uuid4(), sha, "manual", own}, {uuid4(), "ABC", "ci", own}, {"not-a-uuid", sha, "ci", own}} {
 		if _, err := pg.asOperator2(ctx, estateDeployInsert, bad...); err == nil || !strings.Contains(err.Error(), "check constraint") {
 			t.Errorf("insert %v: %v, want a check violation", bad, err)
 		}
 	}
-	tenant := newTenant(t, pg)
-	for scope, run := range reportingScopes(pg, tenant) {
+	scopes := map[string]struct {
+		run   func(func(pgx.Tx) error) error
+		reads int
+	}{
+		"none":            {reportingScopes(pg, own)["none"], 0},
+		"own workspace":   {reportingScopes(pg, own)["workspace"], 1},
+		"other workspace": {reportingScopes(pg, other)["workspace"], 0},
+	}
+	for scope, sc := range scopes {
 		var n int
-		if err := run(func(tx pgx.Tx) error {
+		if err := sc.run(func(tx pgx.Tx) error {
 			return tx.QueryRow(ctx, `SELECT count(*) FROM estate_deploys WHERE deploy_id = $1`, id).Scan(&n)
-		}); err != nil || n != 1 {
-			t.Errorf("%s scope reads %d of the deploy (%v), want 1 (estate-wide read)", scope, n, err)
+		}); err != nil || n != sc.reads {
+			t.Errorf("%s scope reads %d of the deploy (%v), want %d", scope, n, err, sc.reads)
 		}
-		if err := execIn(run, estateDeployInsert, uuid4(), sha, "ci"); err == nil || !strings.Contains(err.Error(), "row-level security") {
+		if err := execIn(sc.run, estateDeployInsert, uuid4(), sha, "ci", own); err == nil || !strings.Contains(err.Error(), "row-level security") {
 			t.Errorf("%s scope insert: %v, want the RLS refusal", scope, err)
 		}
-		if err := execIn(run, `UPDATE estate_deploys SET status = 'failed' WHERE deploy_id = $1`, id); err != nil {
+		if err := execIn(sc.run, `UPDATE estate_deploys SET status = 'failed' WHERE deploy_id = $1`, id); err != nil {
 			t.Errorf("%s scope update: %v", scope, err)
 		}
 	}

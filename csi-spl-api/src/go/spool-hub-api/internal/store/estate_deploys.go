@@ -20,7 +20,8 @@ import (
 //	           row named (deployed_by 'hub-reconcile', run id 'reconcile')
 //
 // Each row names its workspace and repo (rdb 0267). The operator scope writes;
-// every read filters on tenant_id, and row B-3 adds the read policy.
+// every read filters on tenant_id, and the tenant read policy of row B-3's
+// contract scopes it too.
 
 // EstateDeploy is one estate_deploys row.
 type EstateDeploy struct {

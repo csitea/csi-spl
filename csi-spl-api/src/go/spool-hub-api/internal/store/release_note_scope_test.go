@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Spec 143 releases-projects.md row B-2 (SPL-5108): release notes are read and
@@ -195,10 +194,10 @@ func throwawayReleaseNotes(t *testing.T, pg *Postgres, key string) *Postgres {
 	return out
 }
 
-// Row B-2's test: one sha in two repos of a workspace keeps two rows. It runs
-// on row B-3's primary key in a throwaway schema, because the live table keeps
-// release_notes_pkey (sha) until B-3, whose lane re-proves it on the real key.
-// RED CONTROL: on spec 171's two-column key the same two writes read one row.
+// Row B-2's test: one sha in two repos of a workspace keeps two rows, on
+// throwaway tables keyed both ways (row B-3 proves the live key:
+// TestReleaseNotesLiveKey). RED CONTROL: on spec 171's two-column key the same
+// two writes read one row.
 func TestReleaseNotesSameSHATwoReposPostgres(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -226,24 +225,6 @@ func TestReleaseNotesSameSHATwoReposPostgres(t *testing.T) {
 	}
 }
 
-// Until row B-3 the live primary key is sha alone, so a second repo's row is
-// refused and no registration may reach it. B-3's swap turns this red on purpose.
-func TestReleaseNotesLivePkeyStillSHA(t *testing.T) {
-	pg := rlsStore(t)
-	ctx := context.Background()
-	now := time.Now().UTC()
-	sha := randSHA()
-	t.Cleanup(func() { pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = $1`, sha) }) //nolint:errcheck
-	if err := pg.PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{noteOK(sha, "", now)}, now); err != nil {
-		t.Fatal(err)
-	}
-	err := pg.PutReleaseNotes(ctx, relTenant, otherRepo, []ReleaseNote{noteOK(sha, "", now)}, now)
-	var pe *pgconn.PgError
-	if !errors.As(err, &pe) || pe.ConstraintName != "release_notes_pkey" {
-		t.Fatalf("a second repo on the live key: %v", err)
-	}
-}
-
 // The new list walks rdb 0270's index; a seq scan costs it about 100x (R7).
 func TestReleaseListPlanUsesGuardedIndex(t *testing.T) {
 	pg := rlsStore(t)
@@ -253,7 +234,8 @@ func TestReleaseListPlanUsesGuardedIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
+	ensureRelTenant(t, pg)
+	if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off; SET LOCAL app.rls_scope = 'operator'`); err != nil {
 		t.Fatal(err)
 	}
 	// Rows other tests left flip the plan on a small table, so the plan is read
@@ -267,6 +249,11 @@ func TestReleaseListPlanUsesGuardedIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := tx.Exec(ctx, `ANALYZE release_notes`); err != nil {
+		t.Fatal(err)
+	}
+	// The hub's list reads in the tenant's scope (queryTenant), so the plan is
+	// read there: the operator scope's policy plans another way.
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.rls_scope', '', true), set_config('app.tenant_id', 't1', true)`); err != nil {
 		t.Fatal(err)
 	}
 	vk := releaseKeySQL("version")

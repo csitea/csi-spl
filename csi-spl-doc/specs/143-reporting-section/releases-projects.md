@@ -1,6 +1,6 @@
 # Releases: software projects of a workspace, the project drop box (SPL-4963)
 
-Status: **Draft v0.2.2**. Row B-1 (the schema) is built, SPL-4983; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
+Status: **Draft v0.2.3**. Rows B-1 (the schema, SPL-4983), B-2 (store and hub scoped, SPL-5108) and B-3 (the contract, SPL-5475) are built; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
 Amends: [spec.md](spec.md) sections 2 and 6.1, and [spec 171](../171-workspace-own-repo/spec.md) where section 3 says so.
 Topic: `93b73456-c662-4785-85ea-00986338a550` (HUM-10, prd t1).
 
@@ -100,13 +100,13 @@ No archive column in v1: a later forward-only migration can add it when a projec
   - replace `workspace_repos_primary_slug_idx` with `CREATE UNIQUE INDEX workspace_repos_slug_once ON workspace_repos (repo_slug)` (A3), and drop the plain `workspace_repos_slug_idx` it makes redundant.
 - `is_primary` keeps spec 171's meaning, one per workspace: the repo that chat commit links, the settings page and an ingest naming no repo all use. A commit hash in chat still links to the primary repo only, so a hash from another repo gets a wrong link. That is a known v1 limit.
 - `release_notes`:
-  - Step A adds `CREATE UNIQUE INDEX release_notes_tenant_repo_sha ON release_notes (tenant_id, repo_slug, sha)` in place of spec 171's `release_notes_tenant_sha`, and Step C makes it the primary key. It must be an index and not a `UNIQUE` constraint: `ADD PRIMARY KEY USING INDEX` refuses a constraint's index with `index "..." is already associated with a constraint`;
+  - Step A adds `CREATE UNIQUE INDEX release_notes_tenant_repo_sha ON release_notes (tenant_id, repo_slug, sha)` in place of spec 171's `release_notes_tenant_sha`, and Step C makes it the primary key. It must be an index and not a `UNIQUE` constraint: `ADD PRIMARY KEY USING INDEX` refuses a constraint's index with `index "..." is already associated with a constraint`. Built (B-3, `*_release_notes_deploys_rls_contract.sql`): the key keeps the name `release_notes_pkey`, so the index is renamed to it, and a write that names no workspace now fails (no `t1` default);
   - add `body text NOT NULL DEFAULT '' CHECK (length(body) <= 2000)` (A6);
   - add `CREATE INDEX release_notes_tenant_repo_time ON release_notes (tenant_id, repo_slug, committed_at DESC)` for the report's window.
   - Step A does not rebuild `release_notes_release_key`: B-2's migration does, as amended in spec 171 section 3.3.1 step 4, because the old hub's list needs the old index until then.
 - `commit_token_burn`: `repo_slug` joins its primary key and its foreign key (A2).
 - No foreign key from `release_notes` or `estate_deploys` to `workspace_repos`, as in spec 171. The ingest refuses a `repo_slug` the workspace has not registered, extending spec 171's `409 repo_not_registered`.
-- Reporting's SQL tab admits `software_projects` and `workspace_repos`, a recorded choice: they hold a workspace's own rows and no secret column, so an admin there can read that workspace's `auth_mode`, `github_installation_id`, `live_url` and `sync_error`, which the member-facing projects answer (section 6.1) leaves out. `estate_deploys` stays refused there until B-3: from B-1 it has a `tenant_id` but its read policy is still `USING (true)`.
+- Reporting's SQL tab admits `software_projects` and `workspace_repos`, a recorded choice: they hold a workspace's own rows and no secret column, so an admin there can read that workspace's `auth_mode`, `github_installation_id`, `live_url` and `sync_error`, which the member-facing projects answer (section 6.1) leaves out. `estate_deploys` stayed refused there until B-3: from B-1 it had a `tenant_id` but its read policy was still `USING (true)`. From B-3 `release_notes` and `estate_deploys` read through `app.tenant_id`, so the tab admits both, scoped to the workspace.
 
 ### 4.4 How csi-spl maps in
 
@@ -282,4 +282,4 @@ No build row changes, and neither does the path in section 4.5; each answer is t
 - **Answer 6**: B-7's Unreleased card and repo pills are what the answer lists, and no row builds open work.
 - **Answer 4 with msg `cf6a27b3`**: no row builds a per-repo list. B-5's `notes_public` row stands, and section 6.4 names what it must read.
 
-<!-- version: 0.2.2 · updated: 2026-11-07 -->
+<!-- version: 0.2.3 · updated: 2026-11-14 -->

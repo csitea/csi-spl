@@ -65,9 +65,9 @@ var reportingSQLOwnerOnly = []string{"income_invoices"}
 // column, the owner-only ones ($2) and those with a per-member, per-person
 // or per-human policy (rdb 0176's hours tables read every member's rows when
 // no member is set; rdb 0255's Netvisor tables belong to one human, C7). A
-// table must also read through app.tenant_id: rdb 0267 gives estate_deploys a
-// tenant_id while its read policy is still USING (true), every workspace's
-// rows (spec 171 Step A, until row B-3's contract).
+// table must also read through app.tenant_id: a table whose read policy is
+// USING (true) shows every workspace's rows (estate_deploys from rdb 0267
+// until row B-3's contract, spec 171 Steps A and C).
 const pgReportingSQLRelations = `SELECT c.relname FROM pg_class c
 	JOIN pg_namespace n ON n.oid = c.relnamespace
 	WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND c.relrowsecurity AND c.relforcerowsecurity

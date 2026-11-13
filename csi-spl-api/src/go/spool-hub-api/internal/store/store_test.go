@@ -45,8 +45,22 @@ func drivers(t *testing.T) map[string]Store {
 		t.Fatalf("migrate: %v", err)
 	}
 	t.Cleanup(pg.Close)
+	ensureRelTenant(t, pg)
 	out["postgres"] = pg
 	return out
+}
+
+// ensureRelTenant stores the workspace the release note tests write to
+// (relTenant): since row B-3's contract a note's tenant_id is a foreign key.
+func ensureRelTenant(t *testing.T, pg *Postgres) {
+	t.Helper()
+	ctx := context.Background()
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey) VALUES ($1, $2) ON CONFLICT DO NOTHING`, relTenant, []byte(pubkey()))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func uid(prefix string) string {

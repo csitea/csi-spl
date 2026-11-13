@@ -224,7 +224,7 @@ else
     -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
   # shellcheck source=pg-throwaway.inc.sh
   source "$TEST_DIR/pg-throwaway.inc.sh"
-  PGPORT="$(pg_throwaway_port "$PG_CTR")"
+  PGPORT="$(pg_throwaway_port "$PG_CTR")" || exit 1
   for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
   OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
   RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"

@@ -184,7 +184,10 @@ spl_reflection_ended() {
 
 # spl_reflection_owner_msgs <since epoch> <until epoch>: msg_id, task_id,
 # received_at (TSV) of the posts by an owner of TENANT_ID in the window, read
-# as the env's project SA in a READ ONLY transaction, in a subshell.
+# as the env's project SA in a READ ONLY transaction, in a subshell. An owner
+# is a member whose role set (rdb 0201 tenant_member_roles) holds a tenant-owner
+# role (rbac_roles.tenant_owner, the hub's own test) or admin: the owner runs
+# t1 as admin, not biz_owner (SPL-5460). A tester or developer is left out.
 spl_reflection_owner_msgs() {
   [[ "${TENANT_ID:-}" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || return 1
   (
@@ -200,8 +203,9 @@ BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
 SELECT m.msg_id, m.task_id, to_char(m.received_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
   FROM messages m
-  JOIN tenant_memberships tm ON tm.tenant_id = m.tenant_id AND tm.human_id = m.from_id AND tm.role = 'owner'
  WHERE m.tenant_id = :'t' AND m.received_at >= to_timestamp(:since) AND m.received_at < to_timestamp(:until)
+   AND EXISTS (SELECT 1 FROM tenant_member_roles x JOIN rbac_roles r ON r.role_id = x.role_id
+                WHERE x.tenant_id = m.tenant_id AND x.human_id = m.from_id AND (r.tenant_owner OR x.role_id = 'admin'))
  ORDER BY m.received_at;
 ROLLBACK;
 SQL

@@ -29,6 +29,10 @@
 #  12. the brief names its discussion, the owner topic c0b0d572, on a
 #      Discussion: line, so li_discussion_from_brief never picks a topic of
 #      the gathered owner messages
+#  13. the owner SQL on a real Postgres (rdb migrations, runtime login): an
+#      owner with role admin and a biz_owner are listed; a tester, a developer,
+#      an older post, another workspace are not. Red control: the old
+#      role = 'owner' join lists nobody (SPL-5460)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -198,6 +202,73 @@ SPOOL_ROOT="$T/spool" bash "$O/src/bash/scripts/reflection-cron.sh" >"$T/cout" 2
   pass "11. REFLECTION_DRY_RUN=0 in lease.conf runs the action with DRY_RUN=0" || fail "11. lease knob: rc=$rc $(cat "$T/cout")"
 SPOOL_ROOT="$T/no-spool" bash "$O/src/bash/scripts/reflection-cron.sh" >"$T/cout" 2>&1
 grep -q 'reflection: DRY_RUN=1 ' "$T/cout" && pass "11. no lease knob: DRY_RUN=1" || fail "11. default dry: $(cat "$T/cout")"
+
+
+# --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
+# (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'
+# join listed nobody.) The real rdb migrations, the runtime login (RLS binds).
+FUNC="$PROJ_ROOT/src/bash/run/spl-reflection-gather.func.sh"
+PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"
+if ! command -v docker >/dev/null || ! docker image inspect "$PG_IMAGE" >/dev/null 2>&1 || ! command -v psql >/dev/null; then
+  echo "SKIP 13: no cached $PG_IMAGE image or no psql; the owner SQL is not run"
+else
+  export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+  # shellcheck source=../../../../csi-spl-api/src/bash/use-go-toolchain.sh
+  source "$APP_ROOT/csi-spl-api/src/bash/use-go-toolchain.sh"
+  spl_export_go_path || fail "13. no go toolchain"
+  BIN="$T/spool-bin"
+  (cd "$APP_ROOT/csi-spl-api/src/go/spool-hub-api" && go build -o "$BIN" ./cmd/spool) || fail "13. spool build"
+  PG_CTR="spl-reflection-pg-$$"
+  trap 'docker rm -fv "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"' EXIT
+  docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
+    -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
+  # shellcheck source=pg-throwaway.inc.sh
+  source "$TEST_DIR/pg-throwaway.inc.sh"
+  PGPORT="$(pg_throwaway_port "$PG_CTR")"
+  for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
+  OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
+  RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
+  q() { PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 -At "$OWNER_DSN" "$@"; }
+  "$BIN" migrate --db "$OWNER_DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || fail "13. migrate"
+  q -c "CREATE ROLE spool_rt LOGIN NOCREATEDB NOCREATEROLE PASSWORD 'rt'" >/dev/null
+  q -v runtime_role=spool_rt -f "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql" >/dev/null || fail "13. grants"
+  q -c "INSERT INTO humans (human_id) VALUES ('HUM-10'), ('HUM-5'), ('HUM-51'), ('HUM-46')" >/dev/null
+  q -c "INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('t1', decode(repeat('ab', 32), 'hex')), ('t2', decode(repeat('ac', 32), 'hex'))" >/dev/null
+  q -c "INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by) VALUES
+     ('t1', 'HUM-10', 'admin', 'operator'), ('t1', 'HUM-5', 'biz_owner', 'operator'),
+     ('t1', 'HUM-51', 'tester', 'operator'), ('t1', 'HUM-46', 'developer', 'operator'),
+     ('t2', 'HUM-10', 'admin', 'operator')" >/dev/null || fail "13. seed memberships"
+  # pm <tenant> <msg n> <from> <hours ago>
+  pm() { q -c "INSERT INTO messages (tenant_id, msg_id, task_id, ts, from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, received_at, expires_at)
+    VALUES ('$1', '20000000-0000-4000-8000-00000000000$2', '00000000-0000-4000-8000-00000000000$2', now(), 'box-wui', '$3', 'box-wui', 'c-001', 'note', 'b',
+            '{}'::jsonb, 'sig', '\x00', now() - interval '$4 hours', now() + interval '60 days')" >/dev/null || fail "13. seed msg $2"; }
+  pm t1 1 HUM-10 2    # listed: the owner, role admin
+  pm t1 2 HUM-5 3     # listed: a biz_owner (tenant_owner)
+  pm t1 3 HUM-51 1    # control: a tester
+  pm t1 4 HUM-46 1    # control: a developer
+  pm t1 5 HUM-10 30   # control: the owner, before the window
+  pm t2 6 HUM-10 1    # control: the owner in another workspace
+  now="$(date -u +%s)"
+  got="$(env FUNC="$FUNC" PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" bash -c '
+    set -uo pipefail; do_log() { :; }
+    source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"; source "$FUNC"
+    spl_reflection_owner_sql t1 "$1" "$2"' _ "$((now - 86400))" "$((now + 60))" 2>"$T/pgerr" | cut -f1 | sed 's/20000000-0000-4000-8000-00000000000//' | tr '
+' ' ')"
+  [[ "$got" == "2 1 " ]] &&
+    pass "13. on Postgres as the runtime login: the owner with role admin and a biz_owner are listed; a tester, a developer, an older post and another workspace are not" ||
+    fail "13. owner sql: got='$got' $(cat "$T/pgerr")"
+  # red control: the pre-fix predicate (role = 'owner') lists nobody on the same rows.
+  old="$(sed -n '/^spl_reflection_owner_sql()/,/^}/p' "$FUNC" | sed -n '/^SELECT/,/^ ORDER/p' |
+    sed -e '/AND EXISTS/,/tenant_owner OR/d' -e "s|^  FROM messages m|  FROM messages m JOIN tenant_memberships tm ON tm.tenant_id = m.tenant_id AND tm.human_id = m.from_id AND tm.role = 'owner'|")"
+  red="$(PGPASSWORD=rt psql -X -q -At "$RT_DSN" -v t=t1 -v since="$((now - 86400))" -v until="$((now + 60))" <<SQL 2>&1
+BEGIN; SET LOCAL app.rls_scope = 'operator';
+$old;
+ROLLBACK;
+SQL
+)"
+  grep -q "tm.role = 'owner'" <<<"$old" && [[ -z "$red" ]] &&
+    pass "13. red control: the old role = 'owner' join lists nobody on the same rows" || fail "13. red control: '$red' sql: $old"
+fi
 
 echo "---"
 [[ $fails == 0 ]] && echo "spl-reflection-gather: all passed" || echo "spl-reflection-gather: $fails FAILED"

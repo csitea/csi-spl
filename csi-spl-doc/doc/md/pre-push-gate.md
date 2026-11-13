@@ -78,7 +78,12 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   word. Before it, a change there made the orc map fall back to `full`,
   which the fast tier leaves to CI. spawn-agents (80 files) took 85 s on
   the first box at load 15.7, n=1; the budget is `PRE_PUSH_FEATURES_TIMEOUT`
-  (300 s). Print a selection:
+  (900 s on both tiers; SPL-5411 raised the fast tier from 300 s: on one
+  16-cpu box, 2026-10-28..11-12, 58 of 307 fast-tier runs TIMED OUT at
+  300 s, 16 of them on a tree whose trunk re-check was green, and the
+  slowest fast-tier green took 597 s; one spawn-agents run at load1
+  153..179, about 10 per cpu, took 1242 s, n=1: on a box that loaded, raise
+  `PRE_PUSH_FEATURES_TIMEOUT`). Print a selection:
   `FEATURES_RANGE=origin/master..HEAD ./run -a do_check_pre_push_features`.
   `PRE_PUSH_FEATURES=0` turns it off.
 - **The iac-cross part** runs the csi-spl-iac tests that read files of
@@ -163,8 +168,8 @@ the iac and orc parts on both tiers, get their own budget
 numbers and their measurements are in the comments there). A scaled budget
 is a base times the box load per cpu (`load1 / nproc`, read once per run)
 when that is over 1, never above a cap. The fast tier's other parts stay
-fixed: api 300 s, wui 420 s, wui-e2e 600 s, and orc-features 300 s unless
-`PRE_PUSH_FEATURES_TIMEOUT` is set.
+fixed: api 300 s, wui 420 s, wui-e2e 600 s, and orc-features 900 s (the
+same as its full tier) unless `PRE_PUSH_FEATURES_TIMEOUT` is set.
 
 | tier | part | base | cap | raise it with |
 |---|---|---|---|---|

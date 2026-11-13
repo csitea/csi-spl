@@ -23,7 +23,7 @@
 # @param PRE_PUSH_FEATURES (optional) - 0 = never select the part, default 1
 # @description A part that runs out of time names every file still running
 # @description (FAILED: <feature>/<file> (still running at the timeout)).
-# @param PRE_PUSH_FEATURES_TIMEOUT (optional) - seconds for the part, default 300, full tier 900
+# @param PRE_PUSH_FEATURES_TIMEOUT (optional) - seconds for the part, default 900 on both tiers
 # @example FEATURES_CHANGED="csi-spl-orc/src/bash/run/spl-lane-map.func.sh" ./run -a do_check_pre_push_features
 # @example FEATURES_RANGE=origin/master..HEAD ./run -a do_check_pre_push_features
 #------------------------------------------------------------------------------

@@ -538,8 +538,13 @@ _pp_budget() {  # <part-fn>
     _pp_part_wui) echo 420 ;;
     _pp_part_wui_e2e) echo 600 ;;
     # the full tier runs every feature: 308 s on sat at load 65..118 (16
-    # cpus, c-981, n=1) TIMED OUT at 300 s; 900 s is ~2.9x that
-    _pp_part_orc_features) if [[ -n "$full" ]]; then echo 900; else echo "$_pp_timeout"; fi ;;
+    # cpus, c-981, n=1) TIMED OUT at 300 s; 900 s is ~2.9x that. The fast
+    # tier gets the same 900 s (SPL-5411): on one 16-cpu box, 10-28..11-12,
+    # 58 of 307 fast-tier runs TIMED OUT at 300 s (16 of them on a tree whose
+    # trunk re-check was green); the slowest fast-tier green was 597 s.
+    # One run at load1 153..179 (~10/cpu, 500be8c0f, n=1) took 1242 s:
+    # past 900 s, so raise PRE_PUSH_FEATURES_TIMEOUT on a box that loaded.
+    _pp_part_orc_features) echo 900 ;;
     *) echo "$_pp_timeout" ;;
   esac
 }

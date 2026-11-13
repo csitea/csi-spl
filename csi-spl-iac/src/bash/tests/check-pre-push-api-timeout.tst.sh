@@ -14,7 +14,8 @@
 #      still yields 1200 on the full tier only
 #   8. orc part: full tier 4000 s on an idle box, fast tier 600 s idle
 #   8b. orc-features part: full tier 900 s (every feature ran 308 s on a
-#      loaded sat and TIMED OUT at 300 s), fast tier 300 s;
+#      loaded sat and TIMED OUT at 300 s), fast tier 900 s too (SPL-5411:
+#      58 of 307 fast-tier runs TIMED OUT at 300 s, slowest green 597 s);
 #      PRE_PUSH_FEATURES_TIMEOUT wins on both tiers
 #   9. CONTROL, real timeout: an iac suite that runs 2 s is TIMED OUT (rc 124)
 #      under a planted 1 s full-tier budget (the 300 s that was too short) and
@@ -100,7 +101,7 @@ check "7. iac full + PRE_PUSH_IAC_FULL_TIMEOUT" 1200 "$(budget _pp_part_iac full
 check "8. orc full tier -> 4000"                4000 "$(_PP_TIER=full _pp_budget _pp_part_orc)"
 check "8. orc fast tier -> 600"                 600  "$(_PP_TIER=fast _pp_budget _pp_part_orc)"
 check "8b. orc-features full tier -> 900"        900  "$(_PP_TIER=full _pp_budget _pp_part_orc_features)"
-check "8b. orc-features fast tier -> 300"        300  "$(_PP_TIER=fast _pp_budget _pp_part_orc_features)"
+check "8b. orc-features fast tier -> 900"        900  "$(_PP_TIER=fast _pp_budget _pp_part_orc_features)"
 check "8b. orc-features full + PRE_PUSH_FEATURES_TIMEOUT" 1800 "$(PRE_PUSH_FEATURES_TIMEOUT=1800 _PP_TIER=full _pp_budget _pp_part_orc_features)"
 check "8b. orc-features fast + PRE_PUSH_FEATURES_TIMEOUT" 50   "$(PRE_PUSH_FEATURES_TIMEOUT=50 _PP_TIER=fast _pp_budget _pp_part_orc_features)"
 

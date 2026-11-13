@@ -1,6 +1,6 @@
 # Spec 161: Cursor and Codex as Agent Vendors of the Fleet (Launcher, Routing, Quota)
 
-Version **v1.1** (2026-10-28; v1.1 records the owner answers and the letter `o`). Authored by seat a-513 (antigravity).
+Version **v1.2** (2026-11-13; v1.1 records the owner answers and the letter `o`; v1.2 adds 5.2.1, Codex in every settings list, SPL-5454). Authored by seat a-513 (antigravity).
 Placement slug: `c002-s161-cursor-codex-vendors-spec`.
 Epic: **SPL-2402**. Issue: **SPL-4010** (status wip). Kind: **specs_and_docs**.
 Authority: Dispatch task `dispatch-d60646d9` to current dispatch lease holder `c-002@sat`.
@@ -273,6 +273,18 @@ env:
 ```
 
 *(Note: Initial landing sets `cursor: 0` and `codex: 0` in all rows until live pilots pass and the owner decides on target weights via poll).*
+
+#### 5.2.1 As built: Codex in every settings list (SPL-5454, 2026-11-13)
+
+Owner HUM-10, t1 #spool-hub-devel 9130912f (2026-11-13): wherever a setting names Claude and another AI client, Codex (OpenAI) is listed too, with its priorities, order and kinds of work. Codex only; Cursor stays as section 10 left it.
+
+- **Weights** (cnf `env.box.agent_split_by_kind`, hub `DefaultSplitKinds`, WUI `DEFAULT_SPLIT_KINDS`): `tests` claude 70 / agy 15 / **codex 15**, `simple_coding` claude 44 / agy 41 / **codex 15**, both taken from claude (owner msg `ea50c4b0`, Q3 Option B); codex 0 in every other kind, and 0 in the flat `agent_split` row. No owner poll: `ea50c4b0` decided it (dispatch holder c-002, msg c691eae1).
+- **Off until the login** (owner msg `9c70e4f7`): enforced per box, not by a 0 in the cnf. `do_spl_lane_mix` marks codex out when the agent user has no `codex` CLI or no `auth_marker.codex` (`.codex/auth.json`) and gives its share to the row's backup, else claude. Measured 2026-11-13: sat has neither, so codex stays at 0 effective there.
+- **Gap, the backup**: Q3 named claude as codex's backup, but the backup is per task kind, not per vendor. The `tests` and `simple_coding` rows keep agy as their backup (owner msg `dc673043`); a per-vendor backup is not built.
+- **Data rule** (owner msg `1fe6abcf`): codex is never a weight or the backup in `secret` or `orchestration`: rdb 0178's CHECK (unchanged), the hub's `CheckSplitKind`, the conf-validator, lane-mix (`FATAL ... data rule`), and the takeover ladder (codex joins agy and qwen in the secret ban).
+- **Where it is listed**: rdb `0282_codex_settings_vendor.sql` (the flat split column `agent_split_codex`, the vendor CHECKs of the per-kind split, agent caps and vendor keys); hub `AgentKinds` (fleet load kinds off / paused, takeover ladder, split per kind), `AgentCapVendors`, `VendorKeyKinds` (listed; a key PUT still needs `VendorKeyAvailable`, which keeps codex out until the vendor's terms are cleared, so `keyexec` is unchanged); the flat split PATCH takes `codex` (optional: a five-number PATCH sets it 0); orc `do_spl_agent_split_show`, `do_spl_agent_caps_set`, `do_spl_hub_agent_kinds`; WUI Vendor split (both tables), Agent keys, Agent takeover, the operator caps form, Fleet load kinds, Monitoring allocation, and the `o-` kind label "Codex" (`agents.kinds.codex`); the help pages `agents`, `user-settings`, `boxes`, `connect-an-agent`, `agent-collaboration`, `index`.
+- **Not in this lane**: token burn, paid usage and `model_prices` (a Codex collector and an OpenAI price row; queued separately by the holder); a `/codex-spawn` command asset (row B5: lane-mix prints `launcher=/codex-spawn`, no such asset exists yet); the spawn placer's `[acgmq]` id regexes (c-001's lane c39fda07), so a codex pick is not yet seated by the placer.
+- Tests: `csi-spl-orc/src/bash/tests/spl-lane-mix.tst.sh` section 18, `csi-spl-cnf/src/python/conf-validator/tests/test_agent_split_by_kind.py`, `internal/store/codex_settings_vendor_migrate_test.go` (Postgres), `internal/hub/tenant_settings_test.go`, the WUI unit tests of the lists above.
 
 ### 5.3 Picker Mechanics (`do_spl_lane_mix`)
 

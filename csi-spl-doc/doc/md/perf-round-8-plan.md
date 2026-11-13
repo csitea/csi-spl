@@ -1,5 +1,7 @@
 # Perf round 8 (p8) - plan (4 rows)
 
+> Generated from qto doc `7cde6660-b9fa-4e72-b4f0-59b1de408f48`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -38,6 +40,7 @@ interleaved under the same load. The site files of rows 01-04 are unchanged on
 `c3083e6ca` (`git diff --stat f67ead04e c3083e6ca -- <the files>` prints nothing).
 The raw commands and outputs: [perf-round-8/editor.md](perf-round-8/editor.md).
 
+<a id="ws-doc-74e5a949-5aea-4bc2-afaa-bc63b77fbfb7"></a>
 ## 1. How to read this
 
 - A row is one logical change, one lane, subject
@@ -52,6 +55,7 @@ The raw commands and outputs: [perf-round-8/editor.md](perf-round-8/editor.md).
 - Paths: `orc/` = `csi-spl-orc/`, `run/` = `csi-spl-orc/src/bash/run/`,
   `wf10` = `.github/workflows/10_ci-quality.yml`.
 
+<a id="ws-doc-86661f48-53bb-4a46-89c0-d91e0c3535d9"></a>
 ## 2. Where the rows come from
 
 Inputs read (brief step 2), each carried finding re-checked on `f67ead04e`:
@@ -69,6 +73,7 @@ Inputs read (brief step 2), each carried finding re-checked on `f67ead04e`:
 | `lesson-speed-up-measure-first.md` | time the real waiting, count the cost, guard it with a counting test | applied: every row names a frequency and a counting test | - |
 | new, this seat | the pre-push `hygiene` part runs on every push: median 13 s, n=147 in 24 h | six whole-tree `grep -P` passes; one pre-filter pass first: -22% (n=5) | **row 03** |
 
+<a id="ws-doc-b30b0170-6c24-4609-a88c-661e6b053f32"></a>
 ## 3. The 4 rows
 
 | # | id | practice | baseline on `f67ead04e` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
@@ -81,6 +86,7 @@ Inputs read (brief step 2), each carried finding re-checked on `f67ead04e`:
 Rows 01-04 are claude: rulebook R14 (an established vendor for every row) and the
 owner's 10-17 rule (no mistral coding or testing).
 
+<a id="ws-doc-d9d861a7-a49c-4c94-947e-ae64453b4e7b"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: rows 01, 02, 03. No path is in two rows: 01 five `run/*.func.sh`
@@ -92,6 +98,7 @@ owner's 10-17 rule (no mistral coding or testing).
   `spl-lane-map.func.sh` (`:322-344`). The two rows touch different functions of
   one file, so they never run at once.
 
+<a id="ws-doc-93b51b6f-5af9-4eea-900f-094647f1f1c2"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-13, each with its time:
@@ -127,6 +134,7 @@ Read on 2026-11-13, each with its time:
 - **Slug** (19:10:40Z): `git log origin/master --oneline -E --grep='\(p8-'` -> 0
   lines.
 
+<a id="ws-doc-521823c3-f1a0-4565-bc89-d7e346a4c889"></a>
 ## 4. Per row: what the lane does
 
 - **01**: as p7-04 (`f0d0efa4e`): move each file's top-level dependency `source`
@@ -151,6 +159,7 @@ Read on 2026-11-13, each with its time:
   (`xargs -P 8` or background jobs with `wait -n`), each into its own temp file,
   joined in the old order. `same=yes` on the lane's tree before the push.
 
+<a id="ws-doc-f7316ebd-abf9-426e-8530-2de379b269e1"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-13 19:12Z: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
@@ -169,6 +178,7 @@ cf7a7ee5): I did not find a newer word lifting that pause.
 - **Row reviewers (2.7.2)**: every row's author is claude, so its reviewer is the
   grok seat, backup the agy seat. A row never pushes without that PASS (2.7.3).
 
+<a id="ws-doc-dcb668eb-1789-44c9-8e2a-6f916efdd014"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -181,6 +191,7 @@ cf7a7ee5): I did not find a newer word lifting that pause.
 | pre-push `commit-links` part (median 9 s, n=147) and `lint-trufflehog` (median 10 s, n=134) | counted, not probed: no before/after | input for round 9 |
 | spec 027 rows 2-4 and 7 | GCP / VM changes, or removes a guard (p7 section 6) | not round rows |
 
+<a id="ws-doc-c4c9a223-e3b3-445b-964a-6ea847a5670a"></a>
 ## 7. Counts
 
 - Rows: 4 (rulebook 1.1: at most 10). Batch 1: 3, Batch 2: 1.
@@ -189,6 +200,7 @@ cf7a7ee5): I did not find a newer word lifting that pause.
 - Status (R6): `git fetch origin master && git log origin/master --grep='(p8-' --format='%h %cI %s'`.
 - Review count (2.7.5): `git log origin/master --grep='p8-' --format=%B | grep -c '^review: '` must reach 4.
 
+<a id="ws-doc-faa19d57-16da-4a96-b1b8-5a3bff9b70a5"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -197,6 +209,7 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
 
 - v0.1 (c-101, 2026-11-13): first draft, 4 rows on `f67ead04e`.
 
+<a id="ws-doc-f512400c-addc-4905-9e1d-3799b3a7a1c0"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

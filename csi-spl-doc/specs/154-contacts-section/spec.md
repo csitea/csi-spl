@@ -1,5 +1,10 @@
 # 154 Contacts section, synced with Google Contacts
 
+Version v1.4 (2026-11-13, SPL-5431): adds section 12, contacts on in every
+workspace and every member's address on the member card, as built (owner
+HUM-10, t1 `30f935b4`, msg `4329fec1`). The text of v1.3 is unchanged
+except the section 4 routes table, which gains the card's row.
+
 Version v1.3 draft (2026-11-05, SPL-4896): adds section 11, import from a
 CSV file and online from Google, with pictures and the main attributes
 (owner HUM-10, t1 topic `b400601b`, msgs `bf20f1f2` and `900d2fd7`). Not
@@ -792,6 +797,7 @@ decides the kill switch (2.9), the Message match (O3) and the Invite target
 | `POST /v1/me/contacts/sync` | person | 202; 409 `sync_in_progress` while the lease is held; 409 `gcal_not_connected` when no binding is in this workspace |
 | `GET /v1/view/search?q=` | person | gains a `contact` section, own rows only |
 | `GET /v1/view/me` | member | (existing route) gains `contacts: true\|false`, the kill switch for the session's workspace (2.9) |
+| `GET /v1/view/members/{id}/card` | person, member of the session's workspace | `{human_id, display_name, email}` of a member of that same workspace; 404 for anyone else; email null in the demo workspace (section 12) |
 | `OPTIONS` on each `/v1/me/contacts*` path | browser preflight | as every `/v1/me` route (149 section 4) |
 
 Errors: `{"error":"<code>"}`: `not_found` 404 (workspace off, or not the
@@ -1498,4 +1504,81 @@ and read-only (11.4). Had the owner answered B or C, B13, B14, B15 and B8
 would have grown a child table `personal.contact_values` (kind, label,
 value, primary) and B6 would match every email; that path is not taken.
 
-<!-- version: 1.3 draft · updated: 2026-11-07 -->
+## 12. v1.4: People in every workspace, every member's address (SPL-5431)
+
+Owner HUM-10, t1 `30f935b4`, msg `4329fec1` (2026-11-12): "The people
+section should work the same way as the notes and the calendar between all
+of the workspaces. [...] the people who are in the workspace [...] should be
+visible to all of the people in the workspace." and "for the people who are
+in the workspace, once added to the workspace, at least their email and
+their names should be visible to all of the other people in the workspace."
+Plan `ed2db8d2`, GO by the dispatch holder (msg `1aafbc0d`). As built.
+
+### 12.1 Every workspace
+
+The kill switch (2.9) already took the one entry `all`
+(`hub/contacts.go`, `contactsListed`). cnf `contacts.workspaces` is now
+`[all]` in `dev.env.yaml` and `prd.env.yaml`, so 030 renders
+`SPOOL_HUB_CONTACTS_WORKSPACES=all`. That is the owner's go for step S4 in
+every workspace. The switch stays: `[]` turns contacts off and a list of ids
+limits them again. Contacts stay the person's own (2.6): nothing about who
+reads a list changes. The demo workspace is inside `all` too. A demo
+visitor's list is their own and goes with the human when the demo seat ends
+(2.6, item 1).
+
+### 12.2 The member card, with the address
+
+`GET /v1/view/members/{id}/card` (`hub/member_card.go`) answers
+`{human_id, display_name, email}`. `display_name` and `email` are null when
+none is on file.
+
+- **Who may read it.** A signed-in person with a cookie session, through
+  the same gate as the contacts routes (`personCaller` in
+  `hub/contacts.go`). A Bearer token (an agent, a box), an act-as session,
+  a live clone and an agent seat get 403 `person_only`. The caller must also
+  hold a live seat in the session's workspace; a seat that is suspended,
+  disabled or past its `access_until` gets 403 `not_member`. It is never
+  gated by `members.invite`, so a developer reads it as an owner does.
+- **Whose card.** Only a member of the session's workspace. The read is
+  `ListMembers(session workspace)` under that workspace's RLS scope.
+  Another workspace's member, a channel guest, a technical human and an
+  unknown id all get 404 `not_found`. A person who sits in W1 and W2 reads,
+  from a W2 session, only W2's members.
+- **The roster stays without the address.** `/v1/view/roster` is also read
+  through the token door by agents and boxes, so the address is not added
+  there.
+- **The demo workspace.** In the demo workspace the card's `email` is
+  always null. A visitor knows the others only by their pseudonym
+  (specs/077 FR-007), which `TestDemoVisitorsSeeOnlyPseudonyms` walks on
+  every read route.
+- **No log, no cache.** The address is never logged, and the answer is
+  `Cache-Control: no-store`.
+
+**Which address: `humans.email`.** It is the one address per human, and
+the admin's Users page already shows it (`GET /v1/members`). The first
+sign-in writes it from the provider-verified address (`recordIdentity`,
+`store/humans_postgres.go`). For a member who joined by invite it is the
+invited address, which that sign-in had to match as a verified address.
+`human_identities.email` can hold one address per provider, so picking one
+of them would be a guess. **Caveat:** a human that an operator provisioned
+and that has not signed in yet carries the invited address, which no
+provider has verified yet.
+
+**WUI.** The person card (`wui/pages/people/[id].vue`) shows an **Email**
+row with a `mailto:` link, read through `wui/utils/member-card-client.mjs`.
+It is not read under act-as. A refusal or a failed read only leaves the row
+out. The label reuses the existing key `settings.email`, so the change adds
+no new text to any locale.
+
+### 12.3 Cases (v1.4)
+
+| case | given | expect | proof |
+|---|---|---|---|
+| C40 | P1 (owner of W1) and Q (developer in W1) | each reads the other's card with the address; Q reads their own | `TestMemberCardSameWorkspace` |
+| C41 | P1's W2 session asks for Q (W1 only); R (another workspace) asks for Q and P1; an unknown id | 404 `not_found`, no `@` in the body | `TestMemberCardOtherWorkspaceIs404`; red control: a missing target answering the caller's own card turns it red |
+| C42 | the same browser with a Bearer token; P1's session as an act-as clone | 403 `person_only`, no address | `TestMemberCardPersonOnly`; twin: the plain session gets 200; red control: a gate that refuses no one turns it red |
+| C43 | any card read | `Cache-Control: no-store`; the address is not in the hub log | `TestMemberCardNoStoreNoLog` |
+| C44 | a demo visitor reads another visitor's card | 200 with `email` null, no address anywhere | `TestDemoVisitorsSeeOnlyPseudonyms` (it caught the first build, which carried the address) |
+| C45 | cnf `[all]` | 030 carries `SPOOL_HUB_CONTACTS_WORKSPACES="all"` for dev and prd | `csi-spl-iac/src/bash/tests/hub-contacts-030.tst.sh` |
+
+<!-- version: 1.4 · updated: 2026-11-13 -->

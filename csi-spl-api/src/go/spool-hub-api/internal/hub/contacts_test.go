@@ -47,6 +47,8 @@ type contactsCloneStore struct {
 	store.Gcal
 	store.MembershipLister
 	store.ContactMembers
+	// spec 154 section 12: the member card
+	store.MemberDirectory
 	mu    sync.Mutex
 	clone string
 }
@@ -120,6 +122,7 @@ func newContactsRig(t *testing.T, on func(w1, w2 string) []string) *contactsRig 
 		c.cs.PersonalContacts, c.cs.ContactsSyncs, c.cs.Gcal = o.Store.(store.PersonalContacts), o.Store.(store.ContactsSyncs), o.Store.(store.Gcal)
 		c.cs.MembershipLister = o.Store.(store.MembershipLister)
 		c.cs.ContactMembers = o.Store.(store.ContactMembers)
+		c.cs.MemberDirectory = o.Store.(store.MemberDirectory)
 		o.Store = c.cs
 	})
 	for _, id := range []string{c.w1, c.w2} {

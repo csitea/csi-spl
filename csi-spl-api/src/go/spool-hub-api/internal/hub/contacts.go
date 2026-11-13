@@ -85,34 +85,8 @@ func writeContactsNotPerson(w http.ResponseWriter) {
 // request, or answers: the person gate first, then the kill switch, so a
 // caller that is not a person is refused wherever it asks.
 func (s *Server) contactsCaller(w http.ResponseWriter, r *http.Request) (contactsMe, bool) {
-	s.allowOrigin(w, r)
-	w.Header().Set("Cache-Control", "no-store")
-	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-		writeContactsNotPerson(w)
-		return contactsMe{}, false
-	}
-	t, hum, ok := s.humanTenant(w, r)
+	t, hum, ok := s.personCaller(w, r, "contacts_caller")
 	if !ok {
-		return contactsMe{}, false
-	}
-	if hum == "" || s.o.Auth == nil {
-		writeContactsNotPerson(w)
-		return contactsMe{}, false
-	}
-	sess, ok := s.o.Auth.SessionFromRequest(r)
-	if !ok || sess.HumanID != hum {
-		writeContactsNotPerson(w)
-		return contactsMe{}, false
-	}
-	sess.Tenant = t.ID
-	refuse, err := s.realmRefuses(r.Context(), sess)
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("op", "contacts_caller").Msg("contacts")
-		writeErr(w, http.StatusServiceUnavailable, "contacts_unavailable", "contacts are unavailable")
-		return contactsMe{}, false
-	}
-	if refuse {
-		writeContactsNotPerson(w)
 		return contactsMe{}, false
 	}
 	pc, has := s.o.Store.(store.PersonalContacts)
@@ -121,6 +95,45 @@ func (s *Server) contactsCaller(w http.ResponseWriter, r *http.Request) (contact
 		return contactsMe{}, false
 	}
 	return contactsMe{person: hum, tenant: t.ID, st: pc}, true
+}
+
+// personCaller is the person gate of the contacts routes and of the member
+// card (spec 154 sections 4 and 12): a signed-in human's own cookie session
+// in its workspace, never a Bearer token, an act-as session, a live clone or
+// an agent seat (realmRefuses); those answer 403 person_only. It answers
+// the session's workspace and the person's HUM-*.
+func (s *Server) personCaller(w http.ResponseWriter, r *http.Request, op string) (store.Tenant, string, bool) {
+	s.allowOrigin(w, r)
+	w.Header().Set("Cache-Control", "no-store")
+	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		writeContactsNotPerson(w)
+		return store.Tenant{}, "", false
+	}
+	t, hum, ok := s.humanTenant(w, r)
+	if !ok {
+		return store.Tenant{}, "", false
+	}
+	if hum == "" || s.o.Auth == nil {
+		writeContactsNotPerson(w)
+		return store.Tenant{}, "", false
+	}
+	sess, ok := s.o.Auth.SessionFromRequest(r)
+	if !ok || sess.HumanID != hum {
+		writeContactsNotPerson(w)
+		return store.Tenant{}, "", false
+	}
+	sess.Tenant = t.ID
+	refuse, err := s.realmRefuses(r.Context(), sess)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("op", op).Msg("contacts")
+		writeErr(w, http.StatusServiceUnavailable, "contacts_unavailable", "contacts are unavailable")
+		return store.Tenant{}, "", false
+	}
+	if refuse {
+		writeContactsNotPerson(w)
+		return store.Tenant{}, "", false
+	}
+	return t, hum, true
 }
 
 // contactsLog is the one log line of a contacts write: ids and the outcome.
@@ -588,4 +601,5 @@ func (s *Server) routeContacts(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /v1/me/contacts/{id}", s.handlePatchContact)
 	mux.HandleFunc("DELETE /v1/me/contacts/{id}", s.handleDeleteContact)
 	mux.HandleFunc("OPTIONS /v1/me/contacts/{id}", s.gcalPreflight("GET, PATCH, DELETE"))
+	s.routeMemberCard(mux) // spec 154 section 12: GET /v1/view/members/{id}/card, member_card.go
 }

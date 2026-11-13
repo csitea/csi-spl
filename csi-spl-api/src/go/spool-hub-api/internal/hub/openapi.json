@@ -19227,6 +19227,49 @@
         ]
       }
     },
+    "/v1/view/members/{id}/card": {
+      "get": {
+        "description": "One member of the session's workspace, with the address on file (humans.email), for any member of that same workspace (not gated by members.invite). Another workspace's member, a channel guest, a technical human and an unknown id are 404 not_found. Cache-Control: no-store; the address is never logged. Spec 154 section 12. Human session only: 403 person_only for a Bearer token (an agent, a box), under act-as and for a live clone; 403 not_member when the caller's seat here is suspended, disabled or past its access end.",
+        "operationId": "getMemberCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: {human_id, display_name, email}; display_name and email null when none. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 12."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Get a member's card",
+        "tags": [
+          "view"
+        ]
+      }
+    },
     "/v1/view/messages/{msg_id}/move": {
       "get": {
         "operationId": "getViewMessagesByMsgIdMove",

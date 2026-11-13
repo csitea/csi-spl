@@ -69,7 +69,7 @@ the SA applied before SPL-5457: 2 to add (the key and the file).
 
 Destroy and recreate (owner msg 8d767855), the spec 057 path:
 
-    cd csi-spl-orc && ENV=prd STEP=002-gcp-billing-sa ./run -a do_tf_plan_destroy
+    cd csi-spl-orc && ENV=prd STEP=002-gcp-billing-sa make do-tf-plan-destroy
 
 then `make do-deprovision`, `make do-tf-plan` and `make do-provision`, each
 on the owner's go. A recreated SA has a new unique id: every grant outside

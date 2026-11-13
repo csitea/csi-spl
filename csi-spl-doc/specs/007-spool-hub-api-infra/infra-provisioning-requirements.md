@@ -69,13 +69,14 @@ Listed deviations (rule: keep csi-spl rules):
   set project`; every gcloud call carries `--account` (or a throwaway
   `CLOUDSDK_CONFIG`). Satisfies CLAUDE.md: never `gcloud config set`
   on the shared config.
-- terraform never creates a `google_service_account_key` (the relay SA
-  key is minted out of band). Satisfies CLAUDE.md: no key in git, in
-  terraform state or in a log.
+- terraform creates no `google_service_account_key` (the relay SA key is
+  minted out of band), with one exception the owner ordered (msg 8d767855):
+  step `002-gcp-billing-sa` makes the billing SA's key. Satisfies CLAUDE.md:
+  no key in git, in terraform state or in a log, but that one.
 
 **Source**: "battle tested for the last 5 years and refined ... they DO work, should you have the proper configs and setup", "Keep csi-spl rules"
 
-**CHECK**: `command grep -n 'do_tf_init' csi-spl-iac/src/bash/run/tf-plan.func.sh csi-spl-iac/src/bash/run/provision.func.sh` -> hits in both; `command grep -n GOOGLE_APPLICATION_CREDENTIALS csi-spl-iac/src/bash/run/tf-init.func.sh` is the export only (no extra `test -f` of that key vs csi-rel); `command grep -n 'gcloud config set' csi-spl-iac/src/bash/run/gcp-00*.func.sh` of live commands -> 0 (the gcp-000 hit is the comment that names the omission); `command grep -rn '^resource "google_service_account_key"' --include='*.tf' csi-spl-iac/src/terraform` -> 0; a red tf-* / gcp-* / provision / make action is diagnosed in `<env>.env.yaml`, the R1 key path, or `make do-setup-app-inf`, never by editing the copied script except the deviations listed above.
+**CHECK**: `command grep -n 'do_tf_init' csi-spl-iac/src/bash/run/tf-plan.func.sh csi-spl-iac/src/bash/run/provision.func.sh` -> hits in both; `command grep -n GOOGLE_APPLICATION_CREDENTIALS csi-spl-iac/src/bash/run/tf-init.func.sh` is the export only (no extra `test -f` of that key vs csi-rel); `command grep -n 'gcloud config set' csi-spl-iac/src/bash/run/gcp-00*.func.sh` of live commands -> 0 (the gcp-000 hit is the comment that names the omission); `command grep -rn '^resource "google_service_account_key"' --include='*.tf' csi-spl-iac/src/terraform` -> 1, `002-gcp-billing-sa/03-sa.tf` (`no-keys-in-tf.tst.sh` fails any other); a red tf-* / gcp-* / provision / make action is diagnosed in `<env>.env.yaml`, the R1 key path, or `make do-setup-app-inf`, never by editing the copied script except the deviations listed above.
 
 ## R5 Every terraform variable is in the rendered tfvars
 

@@ -6,7 +6,7 @@
 # @description
 # @description Runs as the dedicated billing SA ONLY (cnf env.cost.gcp.billing_sa,
 # @description made by terraform step 002-gcp-billing-sa): its key (BILLING_SA_KEY_FILE,
-# @description default the per-env key pattern) is activated in a throwaway
+# @description default ~/.gcp/.<org>/key-<org>-<app>-billing.json) is activated in a throwaway
 # @description CLOUDSDK_CONFIG, and every gcloud call carries --account. No
 # @description human login, never the owner account, never ~/.config/gcloud.
 # @description
@@ -27,7 +27,7 @@
 # @description Billing account ids are logged masked; the token is never logged.
 # @param BILLING_MONTHS (optional) - how many months, default 12
 # @param BILLING_TODAY (optional) - the day of the call, YYYY-MM-DD, default today (UTC)
-# @param BILLING_SA_KEY_FILE (optional) - the billing SA key, default the per-env pattern
+# @param BILLING_SA_KEY_FILE (optional) - the billing SA key, default ~/.gcp/.<org>/key-<org>-<app>-billing.json
 # @param BILLING_OUT_DIR (optional) - the out root, default under $HOME
 # @example ./run -a do_gcp_billing_invoices_fetch
 # @example BILLING_MONTHS=3 ./run -a do_gcp_billing_invoices_fetch
@@ -59,7 +59,7 @@ do_gcp_billing_invoices_fetch() {
 # identity is refused: ACCOUNT / GCP_ACCOUNT are dropped, never inherited.
 _gbf_pin() {
   [[ -f "${BILL_KEY}" ]] || {
-    do_log "FATAL no billing SA key (BILLING_SA_KEY_FILE, default the per-env key pattern): terraform step 002-gcp-billing-sa writes it on apply, see do_gcp_billing_sa_create"
+    do_log "FATAL no billing SA key ${BILL_KEY} (BILLING_SA_KEY_FILE): terraform step 002-gcp-billing-sa writes it on apply, see do_gcp_billing_sa_create"
     return 1
   }
   unset ACCOUNT GCP_ACCOUNT

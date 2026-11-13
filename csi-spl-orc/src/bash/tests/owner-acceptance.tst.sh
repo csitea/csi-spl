@@ -59,8 +59,13 @@ for bad in "'' box-desk CLE-00" "t1 box-wui CLE-00" "t1 box-desk box-desk"; do
 done
 
 # --- 3 + 4. the dry run is offline, and says which topic it would post into ---
+# The peer defaults to spl_role_seat 1, which reads LEASE_ORCH, else the LIVE
+# lease.conf: a vendor failover there (LEASE_ORCH=g-001) turned this red on
+# every gate (SPL-5466). Pin the seat and point LEASE_CONF at our own file.
+printf 'LEASE_ORCH=c-001\n' >"$T/lease.conf"
+PIN=(LEASE_ORCH=c-001 LEASE_CONF="$T/lease.conf")
 : >"$T/calls.log"
-out=$(SNIPPET='do_spl_owner_acceptance' in_orc TENANT_ID=t1 OA_TOPIC="$GOOD" 2>&1)
+out=$(SNIPPET='do_spl_owner_acceptance' in_orc "${PIN[@]}" TENANT_ID=t1 OA_TOPIC="$GOOD" 2>&1)
 rc=$?
 [[ $rc -eq 0 ]] && pass "the dry run succeeds without a cloud, a browser or a desk" ||
   fail "the dry run failed (rc=$rc): $out"
@@ -79,7 +84,7 @@ grep -q 'DRY_RUN=0' <<<"$out" && pass "the dry run says how to really run it" ||
   fail "CONTROL the stub log stayed empty — the dry-run check proves nothing"
 
 # --- 5. DRY_RUN=0 refuses before sending when the bot has no password ----------
-out=$(SNIPPET='do_spl_owner_acceptance' in_orc TENANT_ID=t1 OA_TOPIC="$GOOD" DRY_RUN=0 2>&1)
+out=$(SNIPPET='do_spl_owner_acceptance' in_orc "${PIN[@]}" TENANT_ID=t1 OA_TOPIC="$GOOD" DRY_RUN=0 2>&1)
 if [[ $? -ne 0 ]] && grep -qi 'password\|pw-human\|do_spl_m3_e2e' <<<"$out"; then
   pass "DRY_RUN=0 refuses before it sends when the bot member has no password on disk"
 else

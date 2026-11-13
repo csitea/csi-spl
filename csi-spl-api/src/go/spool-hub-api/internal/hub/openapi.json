@@ -5319,6 +5319,116 @@
         ]
       }
     },
+    "/v1/hours/norm": {
+      "get": {
+        "operationId": "getHoursNorm",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "max_minutes": {
+                      "description": "the highest value accepted, 1440",
+                      "type": "integer"
+                    },
+                    "norm_day_minutes": {
+                      "description": "the workspace's average minutes per day a member registers; 0 = no norm",
+                      "maximum": 1440,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the workspace's average hours per day, in minutes. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md section 22, FR-41."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the workspace's average hours per day (hours.norm)",
+        "tags": [
+          "hours"
+        ]
+      },
+      "put": {
+        "operationId": "putHoursNorm",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "norm_day_minutes": {
+                    "description": "the workspace's average minutes per day a member registers; 0 = no norm",
+                    "maximum": 1440,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "norm_day_minutes"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "max_minutes": {
+                      "description": "the highest value accepted, 1440",
+                      "type": "integer"
+                    },
+                    "norm_day_minutes": {
+                      "description": "the workspace's average minutes per day a member registers; 0 = no norm",
+                      "maximum": 1440,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the saved value. A soft norm: no hours entry is ever refused for it."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Set the workspace's average hours per day (hours.norm: biz owner, product owner, admin)",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
     "/v1/hours/periods": {
       "put": {
         "operationId": "putTeamHoursPeriods",

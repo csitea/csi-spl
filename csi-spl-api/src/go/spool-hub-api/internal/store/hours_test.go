@@ -335,12 +335,20 @@ func TestHoursSettingsKeys(t *testing.T) {
 					t.Errorf("%s=%v: %v", k, v, err)
 				}
 			}
+			// FR-41 (SPL-5440): the norm is 0..1440 whole minutes.
+			for _, v := range []any{-1, 1441, 7.5, "450"} {
+				if _, err := kv.SetTenantSettings(ctx, tid, TenantSettingsPatch{Set: map[string]any{HoursKeyNormDay: v}}); !errors.Is(err, ErrBadTenantSetting) {
+					t.Errorf("%s=%v: %v", HoursKeyNormDay, v, err)
+				}
+			}
 			if _, err := kv.SetTenantSettings(ctx, tid, TenantSettingsPatch{Set: map[string]any{HoursKeyPeriod: "month",
-				HoursKeyGraceDays: 0, HoursKeyIdleMinutes: 30, HoursKeyTZ: "America/Argentina/Buenos_Aires"}}); err != nil {
+				HoursKeyGraceDays: 0, HoursKeyIdleMinutes: 30, HoursKeyTZ: "America/Argentina/Buenos_Aires",
+				HoursKeyNormDay: 450}}); err != nil {
 				t.Fatal(err)
 			}
 			tn, _ = st.GetTenant(ctx, tid)
-			if hs := HoursSettingsOf(tn.Settings); hs != (HoursSettings{Period: "month", GraceDays: 0, IdleMinutes: 30, TZ: "America/Argentina/Buenos_Aires"}) {
+			if hs := HoursSettingsOf(tn.Settings); hs != (HoursSettings{Period: "month", GraceDays: 0, IdleMinutes: 30,
+				TZ: "America/Argentina/Buenos_Aires", NormDayMinutes: 450}) {
 				t.Fatalf("set: %+v", hs)
 			}
 		})

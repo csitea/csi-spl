@@ -24,8 +24,10 @@ import (
 //     the effective-freeze check: a day is frozen when a row covers it in
 //     state frozen or approved, or when no row covers it and its period's
 //     end + grace has passed in hours.tz. A returned period is editable;
-//   - the four registered workspace keys (spec 098) and N, the idle cutoff,
-//     with the member's own override (owner Q3 = B).
+//   - the registered workspace keys (spec 098) and N, the idle cutoff,
+//     with the member's own override (owner Q3 = B); hours.norm_day_minutes
+//     is the workspace's average hours per day (FR-41), a soft norm that
+//     refuses nothing.
 //
 //   - the spans of an entry (spec 107 3.4, rdb 0176 hours_entry_spans): its
 //     start and end times, written with the entry. An entry without spans
@@ -41,13 +43,20 @@ import (
 // member scope (inMember, rdb 0176's member_scope): a statement that forgot
 // its member_id still reads and writes 0 rows of another member.
 
-// The four workspace settings (spec 4.2), registered keys of tenants.settings.
+// The workspace settings (spec 4.2), registered keys of tenants.settings.
+// HoursKeyNormDay is FR-41 (SPL-5440): the average minutes a member
+// registers per day, 0 = no norm; set through PUT /v1/hours/norm by a holder
+// of hours.norm, or with the other keys by a holder of tenant.settings.
 const (
 	HoursKeyPeriod      = "hours.period"
 	HoursKeyGraceDays   = "hours.freeze_grace_days"
 	HoursKeyIdleMinutes = "hours.idle_minutes"
 	HoursKeyTZ          = "hours.tz"
+	HoursKeyNormDay     = "hours.norm_day_minutes"
 )
+
+// HoursNormDayMax is the largest norm, a whole day (the day cap).
+const HoursNormDayMax = 1440
 
 // Period kinds (hours.period).
 const (
@@ -74,6 +83,7 @@ func init() {
 		Min: HoursIdleMin, Max: HoursIdleMax})
 	RegisterTenantSetting(TenantSettingDef{Key: HoursKeyTZ, Kind: SettingString, Default: "UTC",
 		MaxLen: auth.TimeZoneMaxLen, Valid: auth.IsTimeZone, ValidHint: "an IANA zone name (e.g. Europe/Helsinki)"})
+	RegisterTenantSetting(TenantSettingDef{Key: HoursKeyNormDay, Kind: SettingInt, Default: 0, Min: 0, Max: HoursNormDayMax})
 }
 
 // Minute sources and entry / period states (rdb 0151 CHECKs).
@@ -280,18 +290,19 @@ var (
 
 // ---- settings ---------------------------------------------------------------
 
-// HoursSettings are the four keys in force.
+// HoursSettings are the keys in force. NormDayMinutes 0 = no norm.
 type HoursSettings struct {
-	Period      string
-	GraceDays   int
-	IdleMinutes int
-	TZ          string
+	Period         string
+	GraceDays      int
+	IdleMinutes    int
+	TZ             string
+	NormDayMinutes int
 }
 
 // HoursSettingsOf reads the keys from a tenant's settings (defaults applied).
 func HoursSettingsOf(v TenantSettingValues) HoursSettings {
 	return HoursSettings{Period: v.String(HoursKeyPeriod), GraceDays: v.Int(HoursKeyGraceDays),
-		IdleMinutes: v.Int(HoursKeyIdleMinutes), TZ: v.String(HoursKeyTZ)}
+		IdleMinutes: v.Int(HoursKeyIdleMinutes), TZ: v.String(HoursKeyTZ), NormDayMinutes: v.Int(HoursKeyNormDay)}
 }
 
 // Location is hours.tz; UTC when the zone is unknown to this binary.

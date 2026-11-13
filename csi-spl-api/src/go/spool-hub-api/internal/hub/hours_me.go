@@ -325,7 +325,10 @@ func (p *hoursPeriod) json(set store.HoursSettings) map[string]any {
 	case p.frozen[per.End]:
 		per.State = store.HoursFrozen // frozen by the clock; the sweep has not run
 	}
-	return map[string]any{"tz": p.loc.String(), "today": p.today, "period": per, "days": days}
+	// norm_day_minutes: the workspace's average hours per day (FR-41), 0 =
+	// none. A soft norm: the WUI shows each day against it, nothing refuses.
+	return map[string]any{"tz": p.loc.String(), "today": p.today, "period": per, "days": days,
+		"norm_day_minutes": set.NormDayMinutes}
 }
 
 func (p *hoursPeriod) dayJSON(d string, es []store.HoursEntry) hoursDayJSON {

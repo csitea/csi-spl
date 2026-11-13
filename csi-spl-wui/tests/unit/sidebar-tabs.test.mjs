@@ -151,7 +151,7 @@ describe('the strip is icons, in that order', () => {
     assert.doesNotMatch(vue, /icon: 'users'/)
     assert.doesNotMatch(vue, /data-testid="sidebar-panel-users"/)
     const strip = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))
-    assert.match(strip, /class="sidebar-rail__settings"[\s\S]{0,120}data-testid="tenant-settings-open"/)
+    assert.match(strip, /class="sidebar-rail__settings[ "][\s\S]{0,120}data-testid="tenant-settings-open"/)
     assert.match(strip, /role="tablist"/)
     const foot = vue.slice(vue.indexOf('<div class="sidebar-foot">'), vue.indexOf('</nav>'))
     assert.doesNotMatch(foot, /tenant-settings-open/)
@@ -161,9 +161,14 @@ describe('the strip is icons, in that order', () => {
     /* SPL-989: the only words are the phone strip's label, hidden above 820 px
        (CLE-77886: also on the phone strip's endless-roll copies) */
     /* SPL-5336 (t1 b3ed7ef5): and the docs link's word, on the real link and its copy */
-    const docsLabel = /<span class="sidebar-tab__label"[^>]*>\{\{ t\('docs\.title'\) \}\}<\/span>/g
-    assert.equal((rail.match(docsLabel) || []).length, 2)
-    assert.doesNotMatch(rail.replace(/<span class="sidebar-tab__label"[^>]*>\{\{ t\(item\.labelKey\) \}\}<\/span>/g, '').replace(docsLabel, ''), /\{\{\s*t\(/)
+    /* SPL-5429 (t1 6407fdbe): and Help's and the gear's word, the same way */
+    let named = rail.replace(/<span class="sidebar-tab__label"[^>]*>\{\{ t\(item\.labelKey\) \}\}<\/span>/g, '')
+    for (const key of ['docs.title', 'help.title', 'sidebar.settings']) {
+      const label = new RegExp(`<span class="sidebar-tab__label"[^>]*>\\{\\{ t\\('${key.replace('.', '\\.')}'\\) \\}\\}<\\/span>`, 'g')
+      assert.equal((rail.match(label) || []).length, 2, key)
+      named = named.replace(label, '')
+    }
+    assert.doesNotMatch(named, /\{\{\s*t\(/)
     const style = vue.slice(vue.indexOf('<style'))
     const outside = style.slice(0, style.indexOf('@media (max-width: 820px) {\n  .sidebar-main'))
     assert.match(outside, /\.sidebar-tab__label \{ display: none; \}/)

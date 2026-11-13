@@ -1,7 +1,11 @@
 # 047 — Ten steps to improve how spool-hub deploys (2026-11)
 
-Version **1.1** (2026-11-13): adds the DevX bar (section 2), one DevX line
-per step, and re-ranks the steps by it (section 3). v1.0: `57efca675`.
+Version **1.2** (2026-11-13): folds in the five notes of the grok R7 review
+of v1.1 (PASS, no blocking finding): the stable-lag dates (step 2), the
+wf 56 red count on master (step 3), the weights-file history (step 7), the
+fourth bind mount (step 8) and the `GCP_KEY_CSI_SPL` count (step 10).
+v1.1 (`23d7bf331`) added the DevX bar (section 2), one DevX line per step,
+and re-ranked the steps by it (section 3). v1.0: `57efca675`.
 
 Epic **SPL-57** (Deployability), issue **SPL-5408**. Discussion
 `7c09b274` (t1, #spool-hub-devel). The owner's asks (HUM-10, 2026-11-12 and
@@ -110,7 +114,10 @@ given in each heading.
   `stable-2026-10-12` (`grep -n ghcr.io/csitea docker-compose.yml` -> lines
   136, 179, 276, all `stable-2026-10-12@sha256:...`), while the newest release
   is `stable-2026-11-09` (`gh release list -L 6` -> `stable-2026-11-09 (v9.2.7)
-  Latest`). A new self-hoster starts **4 stables, 32 days behind**. The pin
+  Latest`). A new self-hoster starts **4 stables behind**: the pinned
+  stable was released 27 d 23.5 h before the newest (2026-10-12T07:20Z to
+  2026-11-09T06:51Z, `gh release list`), and is 32 days old on the day of
+  measurement (2026-11-13). The pin
   is a hand step: wf 56 only prints `PIN_TAG=<tag> DRY_RUN=0 ./run -a
   do_pin_compose_images` into its job summary
   (`.github/workflows/56_ghcr-images.yml:147`), and nobody has run it since
@@ -140,8 +147,10 @@ given in each heading.
   workflows 20 and 30 (`sed -n 27p
   csi-spl-orc/src/bash/run/spl-deploy-failure-poll.func.sh` -> `for wf in "20
   ci-cd: spool hub build + deploy" "30 ci-cd: spool wui build + deploy"`). The
-  two workflows that ship to self-hosters were red in **3 of 7** (wf 56, GHCR
-  images) and **1 of 8** (wf 55, stable) weekly runs, and no alarm fired for
+  two workflows that ship to self-hosters were red in **2 of 6** (wf 56, GHCR
+  images: master weekly runs, one more skipped; a 7th run, workflow_dispatch
+  37205358043 on branch `c-191-t015-ghcr-proof`, also failed and is not
+  counted; `gh run list -w 56_ghcr-images.yml -L 12`) and **1 of 8** (wf 55, stable) weekly runs, and no alarm fired for
   them.
 - **Change.** Add wf 55 and wf 56 to that list; the post already names the
   failing step and the sha.
@@ -242,8 +251,10 @@ given in each heading.
   headroom section): a 233 s spread. In run 43175952216, a code push, the
   slowest shard ran 18.4 min and the fastest 13.5 min. The weights file is
   refreshed by hand (`git log --format='%h %cs' --
-  csi-spl-wui/src/node/test/e2e-shard-weights.txt` -> 5 edits, the last
-  2026-11-10), so it drifts as specs grow between edits.
+  csi-spl-wui/src/node/test/e2e-shard-weights.txt` -> 13 commits, 7 of
+  them weight refreshes, the last refresh `81c58efff` on 2026-10-19; the
+  newest commit, `bc685b890` on 2026-11-10, is a feature commit that also
+  touched the file), so it drifts as specs grow between refreshes.
 - **Change.** A scheduled job rewrites the weights from the per-file times of
   the last green wf 10 runs (the runner already prints them, per its header)
   and lands the file when it moves by more than a set margin. The shard count
@@ -262,8 +273,9 @@ given in each heading.
 
 ### 3.8 Step 8 (was 7) — the compose stack runs without a repo checkout (spec 072 T033)
 
-- **Pain, measured.** `docker-compose.yml` still bind-mounts three files from
-  the checkout: `pg-init.sh` (line 86) and `secret-env.sh` (lines 116 and 159)
+- **Pain, measured.** `docker-compose.yml` still bind-mounts two files from
+  the checkout, in four mounts: `pg-init.sh` (line 86) and `secret-env.sh`
+  (lines 116, 159 and 248)
   (`grep -nE 'pg-init\.sh|secret-env\.sh' docker-compose.yml`). A self-hoster
   must clone the repo to run the stack: 133 MB shallow (6.2 s, n=1), and a
   full clone's `.git` is 614 MB (047 section 1.1). T033 is open (`grep -n
@@ -309,8 +321,10 @@ given in each heading.
 - **Pain, measured.** `gcp-001` still refuses to run without an org or folder
   (`csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh:62`: "GCP_ORG_ID
   or GCP_FOLDER_ID must have a value"). The workflows name our estate
-  directly: `GCP_KEY_CSI_SPL_` **83** times and `self-hosted` **44** times
-  (`grep -rn GCP_KEY_CSI_SPL .github/workflows/ | wc -l`; `cat
+  directly: `GCP_KEY_CSI_SPL_` **82** times (83 for the bare
+  `GCP_KEY_CSI_SPL`; the extra hit is a notice text in
+  `32_docs-publish.yml:60`) and `self-hosted` **44** times
+  (`grep -rn GCP_KEY_CSI_SPL_ .github/workflows/ | wc -l`; `cat
   .github/workflows/*.yml | grep -c self-hosted`), and 9 terraform files
   accept only `dev`/`prd`. These are 047 G3, G5 and G6; spec 072 D1 made
   byo-GCP a supported path. 047 puts the cost at 2-3 days for an expert
@@ -335,15 +349,15 @@ given in each heading.
 | # (was) | step | pain (measured) | DevX after | size |
 |---|---|---|---|---|
 | 1 (3) | the deploy reuses the gate's hub suite | 20.9 of 38.2 min push-to-prd is a second suite run; wf 20 p50 36.9 min | same push, ~16 min wait (estimate) | M |
-| 2 (1) | compose pins the newest stable (automate `do_pin_compose_images`) | default pull is `stable-2026-10-12`, newest `stable-2026-11-09`: 4 stables, 32 days behind | no hand step, no hand-edited pin | S |
-| 3 (6) | wf 55/56 reds alarm | the alarm polls only wf 20/30; wf 56 red 3 of 7, wf 55 1 of 8 | an `#alerts` post instead of `gh run list` | S |
+| 2 (1) | compose pins the newest stable (automate `do_pin_compose_images`) | default pull is `stable-2026-10-12`, newest `stable-2026-11-09`: 4 stables behind, released 28 days apart (32 days old on 11-13) | no hand step, no hand-edited pin | S |
+| 3 (6) | wf 55/56 reds alarm | the alarm polls only wf 20/30; wf 56 red 2 of 6 on master, wf 55 1 of 8 | an `#alerts` post instead of `gh run list` | S |
 | 4 (4) | the canary ends on traffic, not after 10 min | roll step 12.3 of 17.3 min; canary request count not measured | a rollback says why | S, then M |
 | 5 (5) | CI proves and times the README pull path | wf 50 builds from source; stranger time last measured 2026-09-28 (6 min 26 s) | the stranger's wait is a number per stable | S |
 | 6 (2) | one live buy on prd (W3) | 0 `payment_checkouts` rows on prd, ever | the check after the buy is one action | S (owner, 30 min) |
 | 7 (8) | e2e shard weights refresh themselves | shard p90 937..1170 s, 233 s spread; weights edited by hand | no hand edit; ~2-3 min less per push (estimate) | S |
-| 8 (7) | compose without a checkout (T033) | 3 bind mounts from the repo; 133 MB shallow clone | one file, one command | M |
+| 8 (7) | compose without a checkout (T033) | 4 bind mounts of 2 repo files; 133 MB shallow clone | one file, one command | M |
 | 9 (9) | cnf template + `do_spl_cnf_init` (T041) | 3018 cnf lines, `spool-hub.ai` in 19 files, no template | one action instead of 3018 lines by hand | M |
-| 10 (10) | byo-GCP: org optional, workflows read cnf (T026, T021) | org required; `GCP_KEY_CSI_SPL_` 83 and `self-hosted` 44 in workflows | one action that stops at the first missing prerequisite | L |
+| 10 (10) | byo-GCP: org optional, workflows read cnf (T026, T021) | org required; `GCP_KEY_CSI_SPL_` 82 and `self-hosted` 44 in workflows | one action that stops at the first missing prerequisite | L |
 
 Noted, not a step: the shown version wraps after `9.9.9` to `1.0.1` of the
 next cycle (`csi-spl-orc/src/bash/run/release-version.func.sh:13`). The

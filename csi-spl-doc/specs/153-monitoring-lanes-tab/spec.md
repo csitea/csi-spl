@@ -1,8 +1,8 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
 Addendum (2026-11-13, SPL-5467): `SectionClose.vue` is deleted; no section
-page has a close X (owner HUM-10 msg d93462e4). Where 3.1 and the P/C rows
-below cite it or an end close X, they record the header as it was.
+page has a close X (owner HUM-10 msg d93462e4). Where 3.1, 3.28 and the P/C
+rows below cite it or an end close X, they record the header as it was.
 
 Addendum (2026-11-12, SPL-5396): section 3.28 (no close X on the
 Monitoring header; each gap around `>>` is as wide as "Monitor" in the
@@ -2354,7 +2354,8 @@ and once again the same amount of white space till the tabs start".
   closes the way every route does: a pick of any other section on the rail
   (Issues, Archive, People, Channels, ...) navigates away and unmounts it.
   The Esc close key has no X to click on Monitoring any more. Reporting and
-  every other section keep their X.
+  every other section kept their X then; since SPL-5467 (2026-11-13) no
+  section page has one (see the addendum at the top).
 - The separator is three spans: a gap, `>>` (`data-test="monitoring-title-mark"`),
   a gap. Each gap (`.section-title-gap::before` in `main.css`) draws the
   word "Monitor" with `visibility: hidden` in the heading's font (weight

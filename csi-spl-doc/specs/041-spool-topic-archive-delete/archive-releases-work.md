@@ -122,7 +122,7 @@ a deleted discussion deletes its open issues, it no longer moves them to the bac
 discussion undelete is its own lane (3 A).
 
 It is the hub, in the store transaction of the discussion's own change, so the two never disagree
-(`internal/store/issue_follow.go`, rdb `0277_issue_discussion_closes.sql`):
+(`internal/store/issue_follow.go`, rdb `0279_issue_discussion_closes.sql`):
 
 - **Open** is `eval`, `todo`, `wip`, `blocked` or `onhold`. `done`, `diss` and `qas` stay as they
   are. An epic or a feature is never closed by one discussion (its children have their own), nor

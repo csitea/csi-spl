@@ -235,7 +235,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.MarkIssueOpened(ctx, s.tenant, hum, iss.Number, now); err != nil {
 		t.Fatal(err)
 	}
-	// issue_discussion_closes (rdb 0277, SPL-5284): the kept status of an
+	// issue_discussion_closes (rdb 0279, SPL-5284): the kept status of an
 	// issue its discussion's archive closed. A raw row under inTenant: the
 	// census needs the row, not the issue's status change.
 	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
@@ -550,7 +550,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := seedMarketing(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
-	// a linkedin_page channel (rdb 0277, spec 090 T041, SPL-5258): a LinkedIn
+	// a linkedin_page channel (rdb 0279, spec 090 T041, SPL-5258): a LinkedIn
 	// Company Page with its sealed bundle, through the store API.
 	if _, err := pg.ConnectMarketingChannel(ctx, MarketingChannel{Tenant: s.tenant, Platform: MarketingPlatformLinkedInPage,
 		AccountRef: "1001", AccountType: "page", AccountName: "Page " + s.marker, DelegatedBy: hum},

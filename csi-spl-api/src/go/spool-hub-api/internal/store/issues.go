@@ -642,7 +642,7 @@ type memIssues struct {
 	opened   map[[2]string]map[int]time.Time      // rdb 0184 issue_opens: (tenant, member) -> number -> opened_at
 	links    map[string]map[int][]IssueDiscussion // rdb 0194 issue_discussions
 	prioAt   map[string]map[int]time.Time         // rdb 0273 issues.priority_set_at
-	closes   map[string]map[int]issueFollowClose  // rdb 0277 issue_discussion_closes (SPL-5284)
+	closes   map[string]map[int]issueFollowClose  // rdb 0279 issue_discussion_closes (SPL-5284)
 }
 
 func (m *memIssues) init() {

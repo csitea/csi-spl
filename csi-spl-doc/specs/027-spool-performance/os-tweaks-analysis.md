@@ -1,6 +1,6 @@
 # OS Settings and Tweaks Analysis for the Fleet Boxes
 
-- **Version:** `v0.3` (folds the grok seat's review of `v0.1`; see 6.1)
+- **Version:** `v0.4` (folds the grok seat's reviews of `v0.1` and `v0.3`; see 6.1)
 - **Status:** Draft. Analysis only: nothing was changed on any box.
 - **Issue:** `SPL-5393` (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
@@ -77,7 +77,7 @@ Read with `cat /proc/sys/<key>`, `/sys/...`, `findmnt`, `systemctl show`
 | `/tmp` | tmpfs, `32 G`, `18 G` used (`df -h /tmp`), `nr_inodes=1048576`; no swap behind it | systemd `tmp.mount` (static) |
 | data disks | `/` ext4 `relatime,discard` on `sdb`; `/mnt/data`, `/opt`, `/var/csi`, `/var/spool-hub` ext4 `relatime,discard` on `sda` (bind mounts); `fstrim.timer` also active | image + role `01_data_disk` |
 | I/O scheduler | `none` on `sda`, `sdb` (virtio SCSI) | kernel default |
-| limits | `nofile` hard `524288`; soft depends on how the process started: of `515` processes of the box and agent users at `01:35Z`, `347` have soft `1024` (cron runs with `1024`), `8` have `65536`, `148` have `524287..524288` (login shells: `bash -lc 'ulimit -Sn'` -> `524288`); `ulimit -u 256960`; `kernel.pid_max = 4194304`, `threads-max = 513920`; `TasksMax` per user slice `169593`; `/etc/security/limits.d` holds only the Debian coredump file | defaults |
+| limits | `nofile` hard `524288`; soft depends on how the process started: per-process census (grok seat, `01:44Z`, `/proc/<pid>/limits`): box user soft `1024` x `259`, `524288` x `79`, `524287` x `4`, `1073741816` x `6`; agent user soft `1024` x `42`, `524288` x `47`, `524287` x `2`, `65536` x `10` (`27` unread). `1024` matches cron's own limit; a fresh `bash -lc 'ulimit -Sn'` inherits its caller (`65536` from the grok seat, `524288` from the editor's), so where the `524288` group comes from is not identified; `ulimit -u 256960`; `kernel.pid_max = 4194304`, `threads-max = 513920`; `TasksMax` per user slice `169593`; `/etc/security/limits.d` holds only the Debian coredump file | defaults |
 | inotify | `max_user_instances = 128`, `max_user_watches = 507546`; in use: `15` instances (agent user), `13` (box user) | default |
 | sysctl drop-ins | `/etc/sysctl.d/60-gce-network-security.conf` (network hardening, `kernel.randomize_va_space=2`, `kernel.panic=10`), `/usr/lib/sysctl.d/50-pid-max.conf` | GCE image |
 | cgroups | v2; user slices of the box user and the agent user: `CPUWeight` unset (100), `MemoryMax=infinity`; runner user slice `CPUWeight=25` | `do_gh_runner_add` for the runner only |
@@ -167,8 +167,10 @@ children that `_exit` at once (or first write one byte every 64 pages). The
 | `256 MB` | no | `23,278 us` | `28,970 us` |
 | `64 MB`, child writes 1 page in 64 | yes / no | `1,260` / `7,224 us` | `3,650` / `9,651 us` |
 
-So a fork costs about `70 us` of kernel time per MB of 4 KiB-mapped memory,
-and `15x` less on huge pages. The `./run` Bash (`thpcheck.sh`) has
+So a fork's kernel time grows with 4 KiB-mapped memory: `68 us` per MB from
+`0` to `64 MB` and `98 us` per MB from `64` to `256 MB` in this table (`n = 1`
+each); the grok seat's re-runs (load `57`) gave `59` and `78 us` per MB for
+the first `64 MB`. On huge pages it is `15x` less at `64 MB`. The `./run` Bash (`thpcheck.sh`) has
 `Rss 69,252 kB, AnonHugePages 0 kB`: its heap grows by small `sbrk` steps, so
 no fault ever lands in a free, aligned 2 MiB range, and THP `always` never
 applies. `GLIBC_TUNABLES=glibc.malloc.hugetlb=1` alone changes nothing
@@ -192,10 +194,11 @@ plain `bash -c :` under the same pad keeps `Rss 3,088 kB, AnonHugePages 0 kB`
 heap crossed an aligned 2 MiB range, so a better placement may gain more
 (open item 5.4).
 
-The grok seat's Python probe agrees (load `~50`, `n = 40`): a parent that
-touched a `64 MB` buffer forks with `0.45 ms` parent `sys`. A buffer that size
-comes from `mmap`, which THP `always` backs with huge pages, as in the
-`fkheap.c` THP row. The cost sits in memory on 4 KiB pages, which is what the
+The grok seat's Python probe agrees (`01:45Z`, load `49`, `n = 40`): a parent
+that touched a `64 MB` `bytearray` had `AnonHugePages 63,488 kB` and forked
+with `614 us` parent and `562 us` child `sys`, the huge-page arm of
+`fkheap.c`. Its page tables still grew `128 kB`, so page-table size alone is
+not the discriminator; 4 KiB-mapped memory is. The cost sits in memory on 4 KiB pages, which is what the
 Bash heap is.
 
 ### 2.4 Candidates measured here that do not help
@@ -229,8 +232,8 @@ go first).
 
 | # | setting | expected gain | risk | where it would be configured |
 |---:|---|---|---|---|
-| 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.1..5.6` -> `0.3 ms` `sys` per fork inside `./run` (`n = 2..3` per arm). Box-wide lower bound: `6,551` of `30,578` new pids seen in 30 s were `run` (forks of a `./run` Bash) = `>= 218 /s`; `218 x 4.8 ms` = `1.05` cores = `>= 16%` of the box's `6.7` cores of `sys` (`41.7% x 16`) | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
-| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `218 /s x 2.1 ms` = `0.46` cores = `>= 7%` of `sys` until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
+| 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.1..5.6` -> `0.3 ms` `sys` per fork inside `./run` (`n = 2..3` per arm). Box-wide lower bound: new pids named `run` or `bash` whose RSS was `>= 60 MB` when read (`pidscan-rss.py`, 30 s, `n = 2`, `01:53Z`, load `24..28`): `5,388` and `4,827` = `>= 161 /s`; `161 x 4.8 ms` = `0.77` cores = `>= 11%` of the box's `6.7` cores of `sys` (`41.7% x 16`). Assumes those forks cost like the `69 MB` parent of 2.3; exited pids (`~3,700..4,000` per run) not counted | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
+| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `161 /s x 2.1 ms` = `0.34` cores = `>= 5%` of `sys` (same count and assumption as row 1) until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
 | 2 | Kernel command line `retbleed=off spec_rstack_overflow=off` (the two still active; `meltdown`, `mds`, `l1tf`, `mmio`, `tsx`, `srbds`, `tsa` read `Not affected`) | Unknown: not computed, not measured. Only a throwaway `e2-standard-16` A/B can give it; never on a fleet box | **High**: removes protection between processes of the same VM; agents run third-party code (npm, pip) | new ansible role `12_kernel_cmdline` in `060-gcp-vm-satellite/roles/` (`/etc/default/grub.d/*.cfg`, `update-grub`, reboot); terraform step `060`, owner go |
 | 3 | Kernel command line `init_on_alloc=0` | Unknown: not measured (it zeroes kernel allocations such as page tables on each fork); same throwaway A/B | Medium: loses a hardening default against info leaks | same role as #2 |
 | 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | Unknown: not measured; not an OS setting | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
@@ -261,7 +264,7 @@ every process for RAM (the CI workflow already moves job temp off it,
 | seat | vendor | version reviewed | verdict |
 |---|---|---|---|
 | `c-630@sat` | claude (editor) | `v0.1`, `v0.2` | author |
-| `g-631@sat` | grok | `v0.1` (`411c67e4b`) | CHANGES (6 fail lines), all folded in `v0.3`; re-review asked |
+| `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`) | CHANGES both times (6, then 3 lines), all folded in `v0.3` and `v0.4`; sign-off on `v0.4` asked |
 | mistral seat | mistral | - | - |
 | agy seat (desk box) | agy | - | - |
 | codex seat (desk box) | codex | - | - |
@@ -282,3 +285,10 @@ can re-run them on its own box.
   `01:25Z` (`20 s`, `1,766` starts/s, `sys 54.7%`), THP fault and compaction
   counters (`thp_fault_alloc` `0.019%` of faults, `compact_stall 0`), the cgroup
   weights, the kernel config and the inotify counts.
+- `v0.4`, grok seat (review of `v0.3`, msg `d1d8aaac`): the limits census
+  replaces the editor's `bash -lc` claim (that command inherits its caller);
+  the per-MB fork cost is stated per step, not as a flat `70 us`; rows 1 and
+  1b counted forks by name only (`run` includes small processes: `48` of `181`
+  live ones were `>= 60 MB`), so the editor re-counted with RSS
+  (`pidscan-rss.py`) and the bounds fell from `16%` / `7%` to `11%` / `5%`.
+  Its `fkheap` re-runs and the Python `AnonHugePages` check confirm 2.5.

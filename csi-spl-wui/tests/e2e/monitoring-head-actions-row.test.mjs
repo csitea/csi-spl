@@ -86,11 +86,12 @@ const ROW_GAP = 4
 const TABS_MIN = 110
 /* each tab, its controls (data-test, in row order) and the one it moves to next */
 const TABS = [
-  { id: 'lanes', ready: 'lanes-row', controls: ['lanes-age', 'lanes-refresh'], phoneControls: ['lanes-age'], clearOnFilter: true, next: 'topics' },
-  { id: 'topics', ready: 'topics-row', controls: ['topics-refresh', 'topics-age', 'topics-filter-clear'], next: 'tokens' },
+  { id: 'lanes', ready: 'lanes-row', controls: ['lanes-age', 'lanes-refresh'], phoneControls: ['lanes-age'], clearOnFilter: true, filter: ['box', 'box-b'], next: 'topics' },
+  /* 3.29 (SPL-5430): Topics as Lanes: Clear filters only with a filter, a phone's Refresh at the bottom centre */
+  { id: 'topics', ready: 'topics-row', controls: ['topics-age', 'topics-refresh'], phoneControls: ['topics-age'], clearOnFilter: true, filter: ['workspace', 'w2'], next: 'tokens' },
   { id: 'tokens', ready: 'tokens-agent-row', controls: ['tokens-refresh', 'tokens-age'], next: 'lanes' },
 ]
-const ALL_CONTROLS = [...TABS.flatMap((t) => t.controls), 'lanes-filter-clear']
+const ALL_CONTROLS = [...TABS.flatMap((t) => t.controls), 'lanes-filter-clear', 'topics-filter-clear']
 /* the controls on the row at this size: Lanes' Refresh leaves it on a touch screen (SPL-5276) */
 const rowControls = (tab, touch) => (touch && tab.phoneControls) || tab.controls
 
@@ -239,13 +240,13 @@ async function checkWorks(p, tag, tab) {
   ok(`${tag}: 5 Clear filters brings every row back, and is disabled again`, back && (await disabled()) === true && (await count(p, `[data-test=${tab.id}-shown]`)) === 0)
 }
 
-/** 5 (SPL-5276, Lanes as the Event log): no Clear filters with no filter; a filter shows it before Refresh; a click clears it and it goes. */
+/** 5 (SPL-5276, Lanes as the Event log; SPL-5430, Topics as Lanes): no Clear filters with no filter; a filter shows it before Refresh; a click clears it and it goes. */
 async function checkClearOnFilter(p, tag, tab) {
   if (await p.$(`[data-test=${tab.id}-filters-open]`)) return /* a phone: Clear filters is in the Filters sheet (monitoring-lanes-url) */
   const clear = `[data-test=${tab.id}-filter-clear]`
   ok(`${tag}: 5 no Clear filters with no filter`, (await count(p, clear)) === 0)
   const rows = await count(p, `[data-test=${tab.ready}]`)
-  await p.select(`[data-test=${tab.id}-filter-box]`, 'box-b')
+  await p.select(`[data-test=${tab.id}-filter-${tab.filter[0]}]`, tab.filter[1])
   const narrowed = await p.waitForFunction((s, n) => document.querySelectorAll(s).length < n, { timeout: 5000 }, `[data-test=${tab.ready}]`, rows).then(() => true, () => false)
   const order = await p.$$eval('#monitoring-head-actions [data-test]', (els) => els.map((e) => e.getAttribute('data-test'))).catch(() => [])
   ok(`${tag}: 5 a filter shows Clear filters on the row, before Refresh (last)`, narrowed && order.indexOf(`${tab.id}-filter-clear`) >= 0
@@ -260,7 +261,7 @@ async function checkLeave(p, tag, tab) {
   await p.click(`[data-test=monitoring-tab-${tab.next}]`)
   await waitFor(p, `[data-test=${tab.next}-page]`)
   await sleep(300)
-  const own = TABS.find((t) => t.id === tab.next).controls.concat(['lanes-refresh'])
+  const own = TABS.find((t) => t.id === tab.next).controls.concat(['lanes-refresh', 'topics-refresh'])
   const left = await p.$$eval('#monitoring-head-actions [data-test]', (els, keep) => els.map((e) => e.getAttribute('data-test')).filter((id) => !keep.includes(id)), own).catch(() => ['?'])
   const stray = []
   for (const id of tab.controls) if ((await count(p, `[data-test=${id}]`)) > 0) stray.push(id)

@@ -36,7 +36,8 @@
      marked selected and scrolled into view once it is in the answer.
      Shareable list (3.15, SPL-4729; owner HUM-10, t1 0a730c21, msg
      ea87c5c1): the sort and the filter row live in the address
-     (utils/monitoring-lanes-url.mjs), so a copied URL opens the same list.
+     (utils/monitoring-lanes-url.mjs, composables/useSheetListUrl.ts), so a
+     copied URL opens the same list.
      A change replaces the address, never adds a history entry; a default
      writes no parameter; Clear filters drops them; ?lane= stays. The first
      answer sets back to All a box, vendor, state or workspace it does not
@@ -187,11 +188,10 @@ import { useAccessStore } from '~/stores/access'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
 import { LANE_AGE_COLUMNS, LANE_AGES, LANE_QUERY, LANE_SHEET_COLUMNS, LANES_DEFAULT_SORT, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssueRef, laneName, laneTopicRef, lanesFiltered, lanesStaleLevel, minutesAgo, readLanes, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
-import { lanesFiltersOffered, lanesStateFromQuery, lanesStateQuery, plainQuery, sameLanesQuery } from '~/utils/monitoring-lanes-url.mjs'
+import { LANES_URL_SPEC } from '~/utils/monitoring-lanes-url.mjs'
+import { useSheetListUrl } from '~/composables/useSheetListUrl'
 import { nextSheetSort, sheetSortLabel } from '~/utils/column-sheet.mjs'
 import { usePhone } from '~/composables/useTouchUi'
-import { currentQuery } from '~/composables/useIssueOpen'
-import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 import { useLaneLinks, type LaneLink } from '~/composables/useLaneLinks'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
@@ -263,74 +263,9 @@ const sortWords = computed(() => {
 })
 const rows = computed(() => (view.value ? sortLanes(filterLanes(view.value.lanes, filters, view.value.asOf), sort.value) : []))
 
-/* the sort and the filters follow the address and back (3.15, SPL-4729) */
-const router = useRouter()
-const listPath = route.path
-/* SPL-5276: the address, not the route, as the Issues list does
-   (useIssueListUrl, SPL-4648): closing a phone sheet steps Back over its
-   entry, so the route moves to the entry under it while useMobileStack puts
-   the sheet's address back; only the address keeps what the sheet wrote. */
-const addressQuery = () => (import.meta.client ? currentQuery() : plainQuery(route.query))
-const here = () => router.currentRoute.value.path === listPath
-/* replaces on their way: the route still names the state before them */
-let writing = 0
-/* the state is newer than the address: a navigation (the sheet's Back)
-   cancelled the replace, and it is owed once more */
-let owed = false
-/** the address's sort and filters, each value the answer does not offer set back to All */
-function readUrl() {
-  const q = lanesStateFromQuery(addressQuery())
-  if (q.sort.col !== sort.value.col || q.sort.dir !== sort.value.dir) sort.value = q.sort
-  const f = view.value ? lanesFiltersOffered(q.filters, choices.value) : q.filters
-  const now: Record<string, string> = filters
-  if (Object.entries(f).some(([k, v]) => now[k] !== v)) Object.assign(filters, f)
-}
-function writeUrl() {
-  if (!import.meta.client || !here()) return
-  const base = addressQuery()
-  const next = lanesStateQuery({ sort: sort.value, filters }, base)
-  if (!writing && sameLanesQuery(next, base)) { owed = false; return }
-  writing++
-  /* a pick that also closes its phone sheet: the sheet's history.back cancels
-     this replace; it stays owed, and follow() or the refusal sends it */
-  const landed = (failure?: unknown) => {
-    writing--
-    if (writing) return
-    if (isNavigationFailure(failure, NavigationFailureType.cancelled)) { owed = true; return }
-    owed = false
-    if (!failure) follow()
-  }
-  /* force: after a sheet's Back the route names the entry under it while the
-     address kept the sheet's query, so a Clear back to that route's query is a
-     "duplicate" the router would skip, and the address would keep the filter */
-  router.replace({ query: next, force: true }).then(landed, landed)
-}
-/* the address moved (Back, Forward, a link to this page) */
-function follow() {
-  if (writing || !here()) return
-  if (!owed) readUrl()
-  writeUrl()
-}
-readUrl()
-if (import.meta.client) {
-  /* a refused or aborted move: the address is still owed what changed meanwhile */
-  onBeforeUnmount(router.afterEach((_to, _from, failure) => {
-    if (failure && (owed || writing) && isNavigationFailure(failure, NavigationFailureType.aborted)) setTimeout(writeUrl, 0)
-  }))
-  watch(() => router.currentRoute.value.query, follow)
-}
-watch([sort, filters], writeUrl, { deep: true })
-/* the first answer checks the link's values against what it offers */
-let offeredChecked = false
-watch(view, (v) => {
-  if (!v || offeredChecked) return
-  offeredChecked = true
-  Object.assign(filters, lanesFiltersOffered({ ...filters }, choices.value))
-  /* SPL-5276: the address names what the page shows from its first answer on:
-     an old link's ?age= becomes ?updated=, its ?text= goes (nothing else
-     writes it while no sort or filter changes) */
-  writeUrl()
-})
+/* the sort and the filters follow the address and back (3.15, SPL-4729);
+   SPL-5430: the code is composables/useSheetListUrl.ts, shared with Topics */
+useSheetListUrl({ spec: LANES_URL_SPEC, sort, filters, answer: view, choices: () => choices.value })
 /** the age filter's choices in words */
 function ageLabel(a: string) {
   if (a === '1h') return t('monitoring.lanes.age_1h')

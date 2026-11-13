@@ -9,17 +9,55 @@
  * Last activity is lane activity: the newest token minute or row write of
  * the topic's lanes, not the topic's last message (the hub sends none).
  *
+ * 3.29 (SPL-5430; owner HUM-10, t1 5804c44c, msg b65c7989: "The visual
+ * layout of the topics in the monitoring should be quite similar to the
+ * visual layout of the lanes, and it should behave the same way"): the
+ * sheet is the Lanes page's, the Event log's (utils/column-sheet.mjs): each
+ * column sorts and has one filter under its name, the address carries both
+ * (utils/sheet-list-url.mjs, TOPICS_URL_SPEC).
+ *
  * Only the Topics page imports this file, so none of it rides the initial
  * JS (ci_initial_gzip_kb). Node tests import it.
  */
 
-import { ageMatches, laneName, laneState, sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
+import { LANE_AGES, ageMatches, laneName, laneState, sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
+import { emptySheetFilters, sheetFiltersActive, sheetRowMatches } from './column-sheet.mjs'
+
+/**
+ * The sheet's columns, in the table's order: a text filter for the topic,
+ * its lanes and its issues, a choice for the workspace, the channel and the
+ * last activity's age. The Lanes column's text finds a lane by id@box,
+ * vendor or state, so it holds the old box, vendor and state selects.
+ * @type {readonly { col: string, key: string, kind: 'text' | 'choice', words?: 'date' | 'num' | 'text' }[]}
+ */
+export const TOPIC_SHEET_COLUMNS = Object.freeze([
+  { col: 'topic', key: 'issues.discussion', kind: 'text' },
+  { col: 'workspace', key: 'sidebar.tenant', kind: 'choice' },
+  { col: 'channel', key: 'monitoring.topics.col_channel', kind: 'choice' },
+  { col: 'active', key: 'monitoring.topics.col_active', kind: 'choice', words: 'date' },
+  { col: 'lanes', key: 'monitoring.tab.lanes', kind: 'text', words: 'num' },
+  { col: 'issues', key: 'issues.title', kind: 'text' },
+])
 
 /** The sortable columns, in the table's order. */
-export const TOPIC_COLUMNS = ['topic', 'workspace', 'channel', 'active', 'lanes', 'issues']
+const TOPIC_COLUMNS = TOPIC_SHEET_COLUMNS.map((c) => c.col)
 
-/** No filter: every topic shows. */
-export const TOPICS_NO_FILTER = Object.freeze({ text: '', box: '', vendor: '', state: '', age: '' })
+/** The columns whose filter picks an age (LANE_AGES). */
+export const TOPIC_AGE_COLUMNS = ['active']
+
+/** The list's own order, the phone bar's words for no sort: Last activity, newest first. */
+export const TOPICS_DEFAULT_SORT = Object.freeze({ colKey: 'monitoring.topics.col_active', dirKey: 'issues_mobile.dir_date_desc' })
+
+/** No filter: every topic shows (one empty filter per column). */
+export const TOPICS_NO_FILTER = Object.freeze(emptySheetFilters(TOPIC_SHEET_COLUMNS))
+
+/** The Topics sheet's address (utils/sheet-list-url.mjs), as the Lanes sheet's. */
+export const TOPICS_URL_SPEC = Object.freeze({
+  columns: TOPIC_SHEET_COLUMNS,
+  ageColumns: TOPIC_AGE_COLUMNS,
+  ages: LANE_AGES,
+  noFilter: TOPICS_NO_FILTER,
+})
 
 const str = (v) => (typeof v === 'string' ? v : '')
 const timeOf = (iso) => {
@@ -106,31 +144,53 @@ export function sortTopics(rows, sort) {
   return sortRowsBy(rows, sort, TOPIC_COLUMNS, sortValue)
 }
 
-/** The words a text filter searches: the topic, channel, workspace, lanes and issue keys. */
-function topicWords(row) {
-  return [row.topicTitle, row.topicId, row.topicChannel, row.workspaceName, row.workspace,
-    ...row.lanes.map((l) => l.name), ...row.issues.map((i) => i.key)].join(' ').toLowerCase()
+/** A text column's words: the topic's title and id, its lanes (id@box, vendor, state), its issue keys. */
+function topicText(row, col) {
+  if (col === 'topic') return [row.topicTitle, row.topicId].filter(Boolean).join(' ')
+  if (col === 'lanes') return row.lanes.map((l) => [l.name, l.vendor, l.state].filter(Boolean).join(' ')).join(' ')
+  if (col === 'issues') return row.issues.map((i) => i.key).join(' ')
+  return ''
+}
+
+/** A choice column's value: the workspace id or the channel (the age is matched apart). */
+function topicChoice(row, col) {
+  if (col === 'workspace') return str(row.workspace)
+  if (col === 'channel') return str(row.topicChannel)
+  return ''
 }
 
 /**
- * The topics the filter row keeps: every word of `text` in the topic's
- * words; box, vendor and state each '' (any) or held by one of its lanes;
- * age '' or the newest activity's age in that band.
+ * The topics the filter row keeps: every column's filter must match (the
+ * Event log's rule, utils/column-sheet.mjs); Last activity's is the newest
+ * activity's age band.
  * @template T
  * @param {T[]} rows
- * @param {{ text?: string, box?: string, vendor?: string, state?: string, age?: string }} f
+ * @param {Record<string, string>} f
  * @returns {T[]}
  */
 export function filterTopics(rows, f) {
-  const words = str(f.text).toLowerCase().split(/\s+/).filter(Boolean)
-  const any = (r, k, v) => !v || r.lanes.some((l) => l[k] === v)
-  return rows.filter((r) => any(r, 'box', f.box) && any(r, 'vendor', f.vendor) && any(r, 'state', f.state)
-    && ageMatches(r, str(f.age))
-    && (words.length === 0 || words.every((w) => topicWords(r).includes(w))))
+  if (!topicsFiltered(f)) return rows.slice()
+  const cells = {
+    textOf: topicText,
+    choiceOf: topicChoice,
+    custom: (r, col, q) => (col === 'active' ? ageMatches(r, q) : undefined),
+  }
+  return rows.filter((r) => sheetRowMatches(r, f, TOPIC_SHEET_COLUMNS, cells))
 }
 
-/** Each select's choices: the distinct non-empty values across the topics' lanes, sorted. */
+/** True when any filter is set. */
+export function topicsFiltered(f) {
+  return sheetFiltersActive(f, TOPIC_SHEET_COLUMNS)
+}
+
+/** The workspaces in the topics, each once by id, shown by name (else the id), sorted by name. */
+function topicWorkspaceChoices(rows) {
+  const byId = new Map()
+  for (const r of rows) if (r.workspace && !byId.has(r.workspace)) byId.set(r.workspace, r.workspaceName || r.workspace)
+  return [...byId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+}
+
+/** Each choice column's options: the workspaces by id and name, the distinct channels, sorted. */
 export function topicFilterChoices(rows) {
-  const lanes = rows.flatMap((r) => r.lanes)
-  return { box: uniqSorted(lanes.map((l) => l.box)), vendor: uniqSorted(lanes.map((l) => l.vendor)), state: uniqSorted(lanes.map((l) => l.state)) }
+  return { workspace: topicWorkspaceChoices(rows), channel: uniqSorted(rows.map((r) => r.topicChannel)) }
 }

@@ -2375,6 +2375,64 @@ Tests: e2e `monitoring-costs` C2 (C140, C141) and C4 (no X, both close
 button settings), `section-exit` (C142); unit `monitoring-tabs`
 ("SPL-5396").
 
+### 3.29 Topics looks and behaves like Lanes, Refresh included (SPL-5430)
+
+Owner HUM-10, t1 5804c44c (2026-11-12, msg b65c7989): "The visual layout of
+the topics in the monitoring should be quite similar to the visual layout of
+the lanes, and it should behave the same way, including the refresh button."
+
+What differed, read on origin/master `ccef654f0`:
+
+| | Lanes (3.27, the reference) | Topics before |
+|---|---|---|
+| sort control | `SheetHead.vue`: the name is the button, ▲ / ▼ | `SheetSortButton` per column |
+| filters | one under every column (`SheetFilterField.vue`) | one text box over three columns, then age, box, vendor and state selects |
+| phone | `SheetPhoneBar.vue` (Sort and Filters sheets) over dense cards (3.25) | the names and the filter row above a table that scrolls sideways |
+| Clear filters (desktop) | on the tabs' row only while a filter is on, before Refresh | always on the row, disabled with no filter |
+| Refresh | last on the tabs' row (desktop), `PhoneDockButton.vue` at the bottom centre (phone) | first on the tabs' row, on a phone too |
+| URL | sort, dir and each filter (3.15) | none: a reload or a shared link lost the list |
+
+Now:
+
+- Topics uses the Lanes page's sheet and controls: `SheetHead.vue`,
+  `SheetPhoneBar.vue`, `PhoneDockButton.vue` and `utils/column-sheet.mjs`,
+  reused, never copied. The read, the minute's poll, the stale marker, the
+  rows, their links and their `data-test` names are unchanged.
+- Topics' columns (`TOPIC_SHEET_COLUMNS` in `wui/utils/monitoring-topics.mjs`):
+  text filters on Discussion (title and id), Lanes (each lane's id@box,
+  vendor and state, so it takes the old box, vendor and state selects) and
+  Issues (the keys); choice filters on Workspace (by name, matched on the
+  id), Channel and Last lane activity (an age: within 1 h, within 24 h, over
+  24 h). No sort reads "Last lane activity, newest first".
+- The address: the Lanes codec is now `wui/utils/sheet-list-url.mjs`, built
+  per sheet from its columns (`LANES_URL_SPEC`, `TOPICS_URL_SPEC`); the sync
+  (replace, never push; the phone sheet's Back; the first answer sets an
+  unoffered choice back to All) is `wui/composables/useSheetListUrl.ts`,
+  moved out of the Lanes page unchanged. Lanes' links, old ones included
+  (`age`, `text`), read and write as before.
+- A phone reads each topic as a card of three lines: the discussion and its
+  last activity; its lane chips and its issue chips (cut, every key in the
+  row); the channel and the workspace.
+- A row does not open a dialog: the Lanes dialog is one lane's (its console),
+  and a topic already links to its discussion and to each lane's row on
+  Lanes.
+- No new text key.
+
+| # | case | expected | red control |
+|---|---|---|---|
+| C143 | 1440: Topics has 6 sort names and a filter row, Refresh last on the tabs' row; 390: the phone bar, cards, Refresh at the bottom centre | as Lanes at the same size | master: FAILS (`SheetSortButton`, Refresh in the row on a phone) |
+| C144 | `?sort=lanes&dir=desc&lanes=claude&workspace=mock`, then Refresh, then reload | those controls set, one topic, the address kept | master: FAILS (no parameter read) |
+| C145 | a filter change, the workspace select, Clear filters, three sort clicks | the address follows, no history entry, the third click drops sort and dir | master: the run stops (no Lanes filter to type in) |
+
+Tests: e2e `monitoring-topics-like-lanes` (C143-C145, T1-T7 at 1440 and
+390, Topics and Lanes side by side), `monitoring-head-actions-row` (Topics
+now as Lanes: Clear filters only with a filter, a phone's Refresh off the
+row), `monitoring-costs` C46, and the Lanes specs (`monitoring-lanes-url`,
+`monitoring-lanes-phone`, `monitoring-lanes-like-events`, unchanged and
+green); unit `monitoring-topics` (the per-column filters, the codec over
+Topics' columns, the page reuses the sheet), `monitoring-lanes-url`
+(unchanged).
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on

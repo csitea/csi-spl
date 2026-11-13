@@ -15,53 +15,35 @@
  * the old row reads as far as it can: `age` is Updated's age; `text` (the
  * box over four columns, gone) is dropped.
  *
+ * SPL-5430 (3.29): the codec is utils/sheet-list-url.mjs, shared with
+ * Monitoring -> Topics; this file is the Lanes sheet's spec and names.
+ *
  * Only the Lanes page imports this file (C20: not in the initial JS).
  */
 
-import { LANE_AGE_COLUMNS, LANE_AGES, LANE_COLUMNS, LANE_SHEET_COLUMNS, LANES_NO_FILTER } from './monitoring-lanes.mjs'
+import { LANE_AGE_COLUMNS, LANE_AGES, LANE_SHEET_COLUMNS, LANES_NO_FILTER } from './monitoring-lanes.mjs'
+import { plainQuery, sameQuery, sheetFiltersOffered, sheetStateFromQuery, sheetStateQuery, sheetUrlParams } from './sheet-list-url.mjs'
+
+/** The Lanes sheet's address: its columns, `age` and `text` an old link's (read once, never written). */
+export const LANES_URL_SPEC = Object.freeze({
+  columns: LANE_SHEET_COLUMNS,
+  ageColumns: LANE_AGE_COLUMNS,
+  ages: LANE_AGES,
+  noFilter: LANES_NO_FILTER,
+  legacyParams: ['age', 'text'],
+  legacyAge: { updated: 'age' },
+})
 
 /** The parameters this file owns, in the order they are written (`age` and `text`: an old link's, read once, never written). */
-export const LANES_URL_PARAMS = ['sort', 'dir', ...LANE_COLUMNS, 'age', 'text']
-
-/** The filters whose value must be one of the answer's choices. */
-const CHOICE_FILTERS = ['box', 'priority', 'vendor', 'state', 'workspace']
-/** A box, vendor, state or workspace id as the hub writes one; anything else is not named. */
-const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,63}$/
-const TEXT_MAX = 200
-
-const one = (v) => {
-  const raw = Array.isArray(v) ? v[0] : v
-  return typeof raw === 'string' ? raw.trim() : ''
-}
-const token = (v) => (TOKEN_RE.test(v) ? v : '')
-
-/** A text filter as typed, spaces kept (the address follows each keystroke), at most 200 characters. */
-const typed = (v) => {
-  const raw = Array.isArray(v) ? v[0] : v
-  return typeof raw === 'string' && raw.trim() && raw.length <= TEXT_MAX ? raw : ''
-}
+export const LANES_URL_PARAMS = sheetUrlParams(LANES_URL_SPEC)
 
 /**
- * A route query as the list's sort and filters. A sort needs a sortable
- * column and asc or desc; an age column one of LANE_AGES; a choice a token;
- * a text at most 200 characters, kept as typed.
+ * A route query as the list's sort and filters.
  * @param {Record<string, unknown>} [q]
  * @returns {{ sort: { col: string, dir: string }, filters: Record<string, string> }}
  */
 export function lanesStateFromQuery(q = {}) {
-  const col = one(q.sort)
-  const dir = one(q.dir)
-  const sort = LANE_COLUMNS.includes(col) && (dir === 'asc' || dir === 'desc') ? { col, dir } : { col: '', dir: '' }
-  /** @type {Record<string, string>} */
-  const filters = { ...LANES_NO_FILTER }
-  for (const c of LANE_SHEET_COLUMNS) {
-    if (LANE_AGE_COLUMNS.includes(c.col)) {
-      /* an old link's `age` was Updated's */
-      const age = one(q[c.col]) || (c.col === 'updated' ? one(q.age) : '')
-      filters[c.col] = LANE_AGES.includes(age) ? age : ''
-    } else filters[c.col] = c.kind === 'choice' ? token(one(q[c.col])) : typed(q[c.col])
-  }
-  return { sort, filters }
+  return sheetStateFromQuery(LANES_URL_SPEC, q)
 }
 
 /**
@@ -72,15 +54,7 @@ export function lanesStateFromQuery(q = {}) {
  * @returns {Record<string, string>}
  */
 export function lanesStateQuery(s, base = {}) {
-  /** @type {Record<string, string>} */
-  const q = { ...base }
-  for (const k of LANES_URL_PARAMS) delete q[k]
-  if (s.sort && s.sort.col && s.sort.dir) { q.sort = s.sort.col; q.dir = s.sort.dir }
-  for (const k of LANE_COLUMNS) {
-    const v = String(s.filters[k] || '')
-    if (v.trim()) q[k] = v
-  }
-  return q
+  return sheetStateQuery(LANES_URL_SPEC, s, base)
 }
 
 /**
@@ -94,29 +68,10 @@ export function lanesStateQuery(s, base = {}) {
  * @returns {F}
  */
 export function lanesFiltersOffered(f, choices) {
-  /** @type {Record<string, string>} */
-  const out = { ...f }
-  for (const k of CHOICE_FILTERS) {
-    const offered = k === 'workspace' ? choices.workspace.map((w) => w.id) : choices[k]
-    if (out[k] && !offered.includes(out[k])) out[k] = ''
-  }
-  return /** @type {F} */ (out)
+  return sheetFiltersOffered(LANES_URL_SPEC, f, choices)
 }
 
-/**
- * A route query as plain strings (the first of a repeated key).
- * @param {Record<string, unknown>} [q]
- * @returns {Record<string, string>}
- */
-export function plainQuery(q = {}) {
-  /** @type {Record<string, string>} */
-  const out = {}
-  for (const [k, v] of Object.entries(q)) {
-    const raw = Array.isArray(v) ? v[0] : v
-    if (typeof raw === 'string') out[k] = raw
-  }
-  return out
-}
+export { plainQuery }
 
 /**
  * Whether two queries name the same parameters and values, in any order.
@@ -124,6 +79,5 @@ export function plainQuery(q = {}) {
  * @param {Record<string, string>} b
  */
 export function sameLanesQuery(a, b) {
-  const flat = (/** @type {Record<string, string>} */ q) => JSON.stringify(Object.keys(q).sort().map((k) => [k, String(q[k])]))
-  return flat(a) === flat(b)
+  return sameQuery(a, b)
 }

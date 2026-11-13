@@ -8,23 +8,37 @@
      with its state) and its issues (SPL-n chips, linked, with their status),
      newest activity first. The rows are the Lanes answer grouped by topic
      (utils/monitoring-topics.mjs): the same routes, readers, minute poll,
-     Refresh, stale marker, sort buttons and filter row as the Lanes page.
+     Refresh and stale marker as the Lanes page.
      Id links (SPL-4798): the discussion and the issue keys link through the
      one `type:id` renderer (composables/useLaneLinks.ts ->
-     utils/note-links.mjs) on their workspace's host, as on Lanes. -->
+     utils/note-links.mjs) on their workspace's host, as on Lanes.
+     Like Lanes (3.29, SPL-5430; owner HUM-10, t1 5804c44c, msg b65c7989:
+     "The visual layout of the topics in the monitoring should be quite
+     similar to the visual layout of the lanes, and it should behave the same
+     way, including the refresh button"): the Lanes page's sheet
+     (components/SheetHead.vue, SheetPhoneBar.vue, utils/column-sheet.mjs).
+     On a desktop each name sorts (▲, ▼, then newest activity first) and the
+     row under the names holds one filter per column; on a phone a bar shows
+     the sort in words and opens a Sort and a Filters sheet, and the rows are
+     cards. The sort and the filters live in the address
+     (composables/useSheetListUrl.ts) and survive the minute's refresh.
+     Clear filters shows while a filter is on, before Refresh; Refresh is
+     last on the tabs' row on a desktop and at the bottom centre above the
+     dock on a phone (components/PhoneDockButton.vue), as on Lanes. -->
 <template>
   <div class="monitoring-topics" data-test="topics-page">
-    <!-- 3.16 (SPL-4730): Refresh, its age and Clear filters on the tabs'
-         row, on the right, as on Lanes -->
+    <!-- 3.16 (SPL-4730): the age, Clear filters and Refresh on the tabs' row,
+         on the right, in the Lanes page's order (3.29) -->
     <ClientOnly>
       <Teleport to="#monitoring-head-actions" defer>
-        <button type="button" class="btn tp-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="topics-refresh" @click="refresh()">
+        <span v-if="view" class="tp-age" :data-stale="stale" data-test="topics-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
+        <button v-if="topics.length && !phone && filtered" type="button" class="btn ghost" data-test="topics-filter-clear" @click="clearFilters()">{{ t('issues.filter_clear') }}</button>
+        <button v-if="!phone" type="button" class="btn tp-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="topics-refresh" @click="refresh()">
           <UiIcon name="refresh" class="mh-icon" /><span class="mh-label">{{ t('monitoring.tokens.refresh') }}</span>
         </button>
-        <span v-if="view" class="tp-age" :data-stale="stale" data-test="topics-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
-        <button v-if="topics.length" type="button" class="btn ghost" :disabled="!filtered" data-test="topics-filter-clear" @click="clearFilters()"><UiIcon name="filter-x" class="mh-icon" /><span class="mh-label">{{ t('issues.filter_clear') }}</span></button>
       </Teleport>
     </ClientOnly>
+    <!-- the red stale line and "shown n of total" stay above the table, a row only while one shows -->
     <div v-if="view && (stale === 'red' || filtered)" class="tp-head">
       <span v-if="stale === 'red'" class="tp-stale" role="status" data-test="topics-stale-red">{{ t('monitoring.lanes.stale_red') }}</span>
       <span v-if="filtered" class="tp-age" role="status" data-test="topics-shown">{{ t('monitoring.topics.shown', { n: rows.length, total: topics.length }) }}</span>
@@ -40,51 +54,23 @@
     <template v-if="view && state !== 'forbidden'">
       <p v-if="topics.length === 0" class="muted" data-test="topics-empty">{{ t('monitoring.topics.empty') }}</p>
       <div v-else class="tp-table-wrap">
+        <SheetPhoneBar
+          v-if="phone"
+          :columns="sheetColumns"
+          :sort="sort"
+          :filters="filters"
+          prefix="topics"
+          :sort-words="sortWords"
+          :filters-on="filtered"
+          @sort="toggleSort"
+          @filter="onFilter"
+          @clear="clearFilters"
+        />
         <table class="tp-table" :aria-label="t('monitoring.topics.table_label')" data-test="topics-table">
-          <thead>
-            <tr>
-              <th
-                v-for="c in columns"
-                :key="c.col"
-                scope="col"
-                :class="c.cls"
-                :aria-sort="sort.col === c.col ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'"
-              >
-                <SheetSortButton :col="c.col" :name="c.name" :sort="sort" :test="'topics-sort-' + c.col" @sort="toggleSort" />
-              </th>
-            </tr>
-            <tr class="tp-frow" data-test="topics-filters">
-              <th colspan="3">
-                <input v-model="filters.text" type="search" class="tp-search" data-test="topics-filter-text" :placeholder="t('monitoring.topics.filter_text')" :aria-label="t('monitoring.topics.filter_text')">
-              </th>
-              <th>
-                <select v-model="filters.age" data-test="topics-filter-age" :aria-label="t('monitoring.lanes.filter_age')">
-                  <option value="">{{ t('issues.filter_all') }}</option>
-                  <option v-for="a in LANE_AGES" :key="a" :value="a">{{ ageLabel(a) }}</option>
-                </select>
-              </th>
-              <th>
-                <div class="tp-fl">
-                  <select v-model="filters.box" data-test="topics-filter-box" :aria-label="t('monitoring.lanes.filter_box')">
-                    <option value="">{{ t('issues.filter_all') }}</option>
-                    <option v-for="b in choices.box" :key="b" :value="b">{{ b }}</option>
-                  </select>
-                  <select v-model="filters.vendor" data-test="topics-filter-vendor" :aria-label="t('monitoring.lanes.filter_vendor')">
-                    <option value="">{{ t('issues.filter_all') }}</option>
-                    <option v-for="v in choices.vendor" :key="v" :value="v">{{ v }}</option>
-                  </select>
-                  <select v-model="filters.state" data-test="topics-filter-state" :aria-label="t('monitoring.lanes.filter_state')">
-                    <option value="">{{ t('issues.filter_all') }}</option>
-                    <option v-for="s in choices.state" :key="s" :value="s">{{ stateLabel(s) }}</option>
-                  </select>
-                </div>
-              </th>
-              <th />
-            </tr>
-          </thead>
+          <SheetHead :columns="sheetColumns" :sort="sort" :filters="filters" :phone="phone" prefix="topics" @sort="toggleSort" @filter="onFilter" />
           <tbody>
             <tr v-if="rows.length === 0">
-              <td :colspan="columns.length" class="muted" data-test="topics-no-match">{{ t('monitoring.topics.no_match') }}</td>
+              <td :colspan="sheetColumns.length" class="muted" data-test="topics-no-match">{{ t('monitoring.topics.no_match') }}</td>
             </tr>
             <tr v-for="r in rows" :key="r.topicId || '-'" class="tp-row" data-test="topics-row" :data-topic="r.topicId">
               <th scope="row" class="tp-cut" :title="r.topicTitle || r.topicId || undefined" data-test="topics-topic">
@@ -118,6 +104,11 @@
         </table>
       </div>
     </template>
+    <!-- the room the phone's Refresh needs under the last card -->
+    <div v-if="phone" class="tp-dock-room" aria-hidden="true" />
+    <PhoneDockButton v-if="phone" class="tp-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="topics-refresh" @click="refresh()">
+      {{ t('monitoring.tokens.refresh') }}
+    </PhoneDockButton>
   </div>
 </template>
 
@@ -128,8 +119,10 @@ import { useAccessStore } from '~/stores/access'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
 import { LANE_AGES, fleetLanesOf, laneDeepLink, laneIssueRef, laneTopicRef, lanesStaleLevel, minutesAgo, readLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
-import { TOPIC_COLUMNS, TOPICS_NO_FILTER, filterTopics, sortTopics, topicFilterChoices, topicsOf } from '~/utils/monitoring-topics.mjs'
-import { cycleSort } from '~/utils/sheet-sort.mjs'
+import { TOPIC_AGE_COLUMNS, TOPIC_SHEET_COLUMNS, TOPICS_DEFAULT_SORT, TOPICS_NO_FILTER, TOPICS_URL_SPEC, filterTopics, sortTopics, topicFilterChoices, topicsFiltered, topicsOf } from '~/utils/monitoring-topics.mjs'
+import { nextSheetSort, sheetSortLabel } from '~/utils/column-sheet.mjs'
+import { usePhone } from '~/composables/useTouchUi'
+import { useSheetListUrl } from '~/composables/useSheetListUrl'
 import { useLaneLinks, type LaneLink } from '~/composables/useLaneLinks'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
@@ -139,6 +132,7 @@ const DASH = '—'
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const operator = useOperatorPane()
+const phone = usePhone()
 /* SPL-4798: a row's ids as links, on the host of the workspace they belong to */
 const { pageTenant, linkOf } = useLaneLinks()
 type TopicRow = ReturnType<typeof topicsOf>[number]
@@ -156,28 +150,44 @@ const now = ref(Date.now())
 const lag = computed(() => (fetchedAt.value ? lagSeconds(fetchedAt.value, now.value) : 0))
 const stale = computed(() => lanesStaleLevel(lag.value))
 
-/* the sheet's columns, the sort (none = newest activity first) and the filter row */
-const COLUMN_NAMES: Record<string, { key: string, cls?: string }> = {
-  topic: { key: 'issues.discussion' },
-  workspace: { key: 'sidebar.tenant' },
-  channel: { key: 'monitoring.topics.col_channel' },
-  active: { key: 'monitoring.topics.col_active', cls: 'num' },
-  lanes: { key: 'monitoring.tab.lanes' },
-  issues: { key: 'issues.title' },
-}
-const columns = computed(() => TOPIC_COLUMNS.map((col: string) => ({ col, name: t(COLUMN_NAMES[col]!.key), cls: COLUMN_NAMES[col]!.cls })))
+/* the sheet's columns, the sort (none = newest activity first) and one
+   filter per column: the Lanes page's (3.29, utils/column-sheet.mjs) */
+const COLUMN_EXTRA: Record<string, { cls?: string }> = { active: { cls: 'num' } }
 const sort = ref<{ col: string, dir: string }>({ col: '', dir: '' })
 function toggleSort(col: string) {
-  sort.value = cycleSort(col, sort.value, TOPIC_COLUMNS)
+  sort.value = nextSheetSort(col, sort.value, TOPIC_SHEET_COLUMNS)
 }
-const filters = reactive({ ...TOPICS_NO_FILTER })
-const filtered = computed(() => Boolean(filters.text.trim() || filters.box || filters.vendor || filters.state || filters.age))
+const filters = reactive<Record<string, string>>({ ...TOPICS_NO_FILTER })
+const filtered = computed(() => topicsFiltered(filters))
+function onFilter(col: string, value: string) {
+  filters[col] = value
+}
 function clearFilters() {
   Object.assign(filters, TOPICS_NO_FILTER)
 }
 const topics = computed(() => (view.value ? topicsOf(view.value) : []))
 const choices = computed(() => topicFilterChoices(topics.value))
+/** a choice column's options: the answer's values, in words where the page has them */
+function choicesOf(col: string): { value: string, label: string }[] {
+  if (TOPIC_AGE_COLUMNS.includes(col)) return LANE_AGES.map((a) => ({ value: a, label: ageLabel(a) }))
+  if (col === 'workspace') return choices.value.workspace.map((w) => ({ value: w.id, label: w.name }))
+  return choices.value.channel.map((c) => ({ value: c, label: '#' + c }))
+}
+const sheetColumns = computed(() => TOPIC_SHEET_COLUMNS.map((c) => ({
+  col: c.col,
+  label: t(c.key),
+  kind: c.kind,
+  choices: c.kind === 'choice' ? choicesOf(c.col) : undefined,
+  ...COLUMN_EXTRA[c.col],
+})))
+const sortWords = computed(() => {
+  const bits = sheetSortLabel(sort.value, TOPIC_SHEET_COLUMNS, TOPICS_DEFAULT_SORT)
+  return t('issues_mobile.sort_now', { col: t(bits.colKey), dir: t(bits.dirKey) })
+})
 const rows = computed(() => sortTopics(filterTopics(topics.value, filters), sort.value))
+/* the sort and the filters follow the address and back, as on Lanes (3.15, 3.29) */
+useSheetListUrl({ spec: TOPICS_URL_SPEC, sort, filters, answer: view, choices: () => choices.value })
+
 function ageLabel(a: string) {
   if (a === '1h') return t('monitoring.lanes.age_1h')
   if (a === '24h') return t('monitoring.lanes.age_24h')
@@ -258,12 +268,12 @@ onBeforeUnmount(() => {
 .tp-age[data-stale="amber"] { color: var(--color-warn); }
 .tp-stale { padding: 0 8px; border-radius: var(--radius-pill); background: var(--color-danger); color: var(--color-danger-fg); font-size: 0.8125rem; font-weight: 600; }
 .tp-error { color: var(--color-danger); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-/* the table scrolls sideways inside itself, never the page (as the Lanes table) */
+/* the table scrolls sideways inside itself, never the page (as the Lanes table); a phone reads cards (below) */
 .tp-table-wrap { overflow-x: auto; max-width: 100%; }
 .tp-table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
-.tp-table th, .tp-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; }
+.tp-table :deep(th), .tp-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; }
 .tp-table tbody th { font-weight: 600; }
-.tp-table .num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tp-table :deep(.num) { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tp-mono { font-family: var(--font-mono); }
 /* a long title stays on one line, its full text in the title attribute */
 .tp-cut { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -273,8 +283,45 @@ onBeforeUnmount(() => {
 .tp-chip { display: inline-flex; align-items: baseline; gap: 4px; margin: 0 6px 2px 0; padding: 0 6px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); white-space: nowrap; font-family: var(--font-mono); }
 .tp-chip-state { color: var(--color-muted); font-family: inherit; font-size: 0.75rem; }
 .tp-chip-state:empty { display: none; }
-.tp-frow th { font-weight: normal; padding-top: 2px; }
-.tp-frow select, .tp-search { width: 100%; min-width: 5rem; max-width: 16rem; font: inherit; }
-.tp-fl { display: flex; flex-wrap: wrap; gap: 4px; }
-.tp-fl select { width: auto; }
+/* the filter row under the names is SheetHead.vue's, as on Lanes; a filter keeps a usable width */
+.tp-table :deep(.sheet-filter) { min-width: 5rem; max-width: 16rem; }
+/* the room under the last card for the phone's Refresh (PhoneDockButton) */
+.tp-dock-room { height: calc(var(--tap, 44px) + 16px); }
+
+/* 3.29 (SPL-5430): on a phone (the one 820 px breakpoint) the same table
+   reads as a list of dense cards, the whole width, nothing sideways, as the
+   Lanes cards (3.25). The phone bar sorts and filters above it; each row is
+   a card of three short lines:
+     1  topic (cut) ............................ last activity
+     2  lanes (chips) ............................... issues
+     3  #channel  workspace (cut)
+   Every cell, link and data-test stays as on the desktop. */
+@media (max-width: 820px) {
+  .tp-table-wrap { overflow-x: visible; }
+  .tp-table, .tp-table tbody { display: block; width: 100%; }
+  /* the names stay in the DOM for readers, visually hidden, as on Lanes */
+  .tp-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .tp-table tbody tr { display: block; }
+  .tp-table tbody .tp-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 6px 2px; font-size: 0.8125rem; border-bottom: 1px solid var(--color-border); }
+  .tp-row > th, .tp-row > td { padding: 0; border: 0; min-width: 0; }
+  .tp-row > td:empty { display: none; }
+  /* the two line breaks between the card's three lines */
+  .tp-row::before, .tp-row::after { content: ""; flex: 0 0 100%; height: 0; }
+  .tp-row::before { order: 10; }
+  .tp-row::after { order: 20; }
+  .tp-row > [data-test=topics-topic] { order: 1; flex: 1 1 5rem; max-width: none; }
+  .tp-row > [data-test=topics-active] { order: 2; margin-inline-start: auto; color: var(--color-muted); }
+  .tp-row > [data-test=topics-lanes] { order: 11; flex: 1 1 auto; }
+  .tp-row > [data-test=topics-issues] { order: 12; flex: 0 1 auto; max-width: 50%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tp-row .tp-chip { font-size: 0.75rem; }
+  .tp-row > [data-test=topics-channel] { order: 21; color: var(--color-muted); }
+  .tp-row > .tp-ws { order: 22; flex: 0 1 auto; min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; color: var(--color-muted); }
+}
 </style>

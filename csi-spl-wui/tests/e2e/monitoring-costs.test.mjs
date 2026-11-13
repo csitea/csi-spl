@@ -660,14 +660,17 @@ async function topicsTab(browser, base, size) {
       && (await text(p, '[data-test=topics-row][data-topic="0b0c0d0e-1111-4222-8333-444455556666"] [data-test=topics-issues]')) === 'SPL-3216')
     ok('C46 control: the lane with no topic has its own "No discussion" row', (await text(p, '[data-test=topics-row][data-topic=""] [data-test=topics-none]')) === 'No discussion'
       && (await text(p, '[data-test=topics-row][data-topic=""] [data-test=topics-lanes]')) === 'm-039@box-bLive')
-    await p.select('[data-test=topics-filter-vendor]', 'agy')
-    const kept = await p.waitForFunction(() => document.querySelectorAll('[data-test=topics-row]').length === 1, { timeout: 5000 }).then(() => true, () => false)
-    ok('topics: the vendor filter keeps the topic with an agy lane', kept && (await text(p, '[data-test=topics-shown]')) === '1 of 3 topics', await text(p, '[data-test=topics-shown]'))
-    await p.click('[data-test=topics-filter-clear]')
-    await p.click('[data-test=topics-sort-lanes]')
-    await p.click('[data-test=topics-sort-lanes]')
-    const byLanes = await p.waitForFunction((t) => document.querySelector('[data-test=topics-row]')?.getAttribute('data-topic') === t, { timeout: 5000 }, LANES_MOCK_TOPIC).then(() => true, () => false)
-    ok('topics: the Lanes column sorts (most lanes first, descending)', byLanes)
+    /* 3.29 (SPL-5430): the Lanes sheet, one filter per column; a phone's sheets: monitoring-topics-like-lanes */
+    if (size.width > 820) {
+      await p.type('[data-test=topics-filter-lanes]', 'agy')
+      const kept = await p.waitForFunction(() => document.querySelectorAll('[data-test=topics-row]').length === 1, { timeout: 5000 }).then(() => true, () => false)
+      ok('topics: the Lanes filter finds the topic with an agy lane', kept && (await text(p, '[data-test=topics-shown]')) === '1 of 3 topics', await text(p, '[data-test=topics-shown]'))
+      await p.click('[data-test=topics-filter-clear]')
+      await p.click('[data-test=topics-sort-lanes]')
+      await p.click('[data-test=topics-sort-lanes]')
+      const byLanes = await p.waitForFunction((t) => document.querySelector('[data-test=topics-row]')?.getAttribute('data-topic') === t, { timeout: 5000 }, LANES_MOCK_TOPIC).then(() => true, () => false)
+      ok('topics: the Lanes column sorts (most lanes first, descending)', byLanes)
+    }
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     ok('topics: no sideways page scroll', wide <= 0, wide)
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-topics-${size.width}.png`, fullPage: true })

@@ -10,7 +10,8 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LANES_MOCK_KEY, LANES_MOCK_OPERATOR_KEY, LANES_MOCK_TOPIC, fleetLanesOf, laneDeepLink, mockFleetLanes } from '../../src/utils/monitoring-lanes.mjs'
-import { TOPICS_NO_FILTER, filterTopics, sortTopics, topicFilterChoices, topicsOf } from '../../src/utils/monitoring-topics.mjs'
+import { TOPICS_NO_FILTER, TOPICS_URL_SPEC, TOPIC_SHEET_COLUMNS, filterTopics, sortTopics, topicFilterChoices, topicsFiltered, topicsOf } from '../../src/utils/monitoring-topics.mjs'
+import { sheetFiltersOffered, sheetStateFromQuery, sheetStateQuery } from '../../src/utils/sheet-list-url.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -71,20 +72,51 @@ describe('sort and filter: the Lanes engine, reused', () => {
     assert.equal(ids(sortTopics(rows, { col: 'active', dir: 'asc' })), ['-', T2, T1].join(','))
     assert.equal(ids(sortTopics(rows, { col: 'channel', dir: 'asc' })), [T1, T2, '-'].join(','), 'only T1 has a channel')
   })
-  it('box, vendor and state keep a topic when one of its lanes matches', () => {
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, box: 'box-b' })), [T1, T2].join(','))
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, vendor: 'grok' })), T2)
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, state: 'queued' })), T1)
+  /* 3.29 (SPL-5430): one filter per column, the Lanes sheet's */
+  it('one filter per column, every one empty by default', () => {
+    assert.deepEqual(Object.keys(TOPICS_NO_FILTER), ['topic', 'workspace', 'channel', 'active', 'lanes', 'issues'])
+    assert.equal(topicsFiltered(TOPICS_NO_FILTER), false)
+    assert.equal(topicsFiltered({ ...TOPICS_NO_FILTER, lanes: '  ' }), false, 'spaces are no filter')
+    assert.equal(topicsFiltered({ ...TOPICS_NO_FILTER, channel: 'dev' }), true)
   })
-  it('age is the newest activity\'s; text finds a lane, an issue key, a channel', () => {
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, age: '1h' })), [T1, T2].join(','))
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, age: 'older' })), '-')
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, text: 'spl-3' })), T1)
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, text: 'g-3@box-b' })), T2)
-    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, text: 'dev one' })), T1)
+  it('the Lanes column finds a lane by id@box, box, vendor or state', () => {
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, lanes: 'box-b' })), [T1, T2].join(','))
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, lanes: 'grok' })), T2)
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, lanes: 'queued' })), T1)
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, lanes: 'G-3@BOX-B' })), T2, 'any case')
   })
-  it('the selects offer the lanes\' values', () => {
-    assert.deepEqual(topicFilterChoices(rows), { box: ['box-a', 'box-b'], vendor: ['claude', 'grok', 'mistral'], state: ['live', 'queued'] })
+  it('Last activity picks an age band; the topic, the issues and the choices match their own cell', () => {
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, active: '1h' })), [T1, T2].join(','))
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, active: 'older' })), '-')
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, issues: 'spl-3' })), T1)
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, topic: 'two' })), T2)
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, channel: 'dev' })), T1)
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, workspace: 'w' })), [T1, T2, '-'].join(','))
+    assert.equal(ids(filterTopics(rows, { ...TOPICS_NO_FILTER, workspace: 'w', lanes: 'claude', issues: 'spl-1' })), T1, 'the filters combine')
+  })
+  it('the choices are the topics\' workspaces (id and name) and channels', () => {
+    assert.deepEqual(topicFilterChoices(rows), { workspace: [{ id: 'w', name: 'W' }], channel: ['dev'] })
+  })
+})
+
+describe('the address: the Lanes codec over the Topics columns (3.29)', () => {
+  const rows = topicsOf(fleetLanesOf(body()))
+  it('a link sets the sort and each filter; a bad value is not named', () => {
+    const s = sheetStateFromQuery(TOPICS_URL_SPEC, { sort: 'lanes', dir: 'desc', lanes: 'c-1 live', channel: 'dev', active: '1h', workspace: 'w', lane: 'x' })
+    assert.deepEqual(s.sort, { col: 'lanes', dir: 'desc' })
+    assert.deepEqual(s.filters, { ...TOPICS_NO_FILTER, lanes: 'c-1 live', channel: 'dev', active: '1h', workspace: 'w' })
+    const bad = sheetStateFromQuery(TOPICS_URL_SPEC, { sort: 'agent', dir: 'up', active: '2h', channel: '<x>' })
+    assert.deepEqual(bad, { sort: { col: '', dir: '' }, filters: { ...TOPICS_NO_FILTER } })
+  })
+  it('the state writes only what is set, every other parameter kept', () => {
+    const q = sheetStateQuery(TOPICS_URL_SPEC, { sort: { col: 'topic', dir: 'asc' }, filters: { ...TOPICS_NO_FILTER, issues: 'SPL-1' } }, { other: '1', channel: 'old' })
+    assert.deepEqual(q, { other: '1', sort: 'topic', dir: 'asc', issues: 'SPL-1' })
+    assert.deepEqual(sheetStateQuery(TOPICS_URL_SPEC, { sort: { col: '', dir: '' }, filters: { ...TOPICS_NO_FILTER } }), {})
+  })
+  it('a workspace or channel the answer does not offer goes back to All; the age stays', () => {
+    const f = sheetFiltersOffered(TOPICS_URL_SPEC, { ...TOPICS_NO_FILTER, workspace: 'w9', channel: 'gone', active: 'older' }, topicFilterChoices(rows))
+    assert.deepEqual(f, { ...TOPICS_NO_FILTER, active: 'older' })
+    assert.equal(TOPIC_SHEET_COLUMNS.length, Object.keys(TOPICS_NO_FILTER).length)
   })
 })
 
@@ -103,12 +135,16 @@ describe('the mock and the page', () => {
     assert.match(page, /readLanes\(/)
     assert.match(page, /startLanesPoll\(/)
     assert.match(page, /visibilitychange/)
+    /* 3.29 (SPL-5430): the Lanes page's sheet, phone bar, dock Refresh and address, reused, never forked */
+    for (const re of [/<SheetHead\b/, /<SheetPhoneBar\b/, /<PhoneDockButton\b/, /useSheetListUrl\(/, /usePhone\(/]) assert.match(page, re)
+    assert.doesNotMatch(page, /SheetSortButton|router\.replace/)
     assert.doesNotMatch(page, /:style=|v-bind:style/)
     assert.doesNotMatch(page, /useHead|useSeoMeta|definePageMeta/)
   })
   it('every key the page renders is in all 19 locales', () => {
-    /* t('<key>') calls and the column names' { key: '<key>' } */
-    const keys = [...new Set([...page.matchAll(/\b(?:t\(|key: )'([a-z0-9_.]+)'/g)].map((m) => m[1]))]
+    /* t('<key>') calls, the column names' { key: '<key>' } (3.29: in the util) and the phone bar's default sort words */
+    const src = page + read('src/utils/monitoring-topics.mjs')
+    const keys = [...new Set([...src.matchAll(/\b(?:t\(|key: |colKey: |dirKey: )'([a-z0-9_.]+)'/g)].map((m) => m[1]))]
     for (const k of ['monitoring.topics.empty', 'monitoring.topics.col_channel', 'monitoring.topics.col_active', 'monitoring.tab.lanes']) assert.ok(keys.includes(k), k)
     for (const loc of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
       const cat = JSON.parse(read('i18n/locales/' + loc + '.json'))

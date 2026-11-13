@@ -7,6 +7,7 @@ Run them in a scratch copy; none changes a system setting. Each per-process A/B
 | probe | run | measures |
 |---|---|---|
 | `bench.py` | `SPOOL_BIN=$(command -v spool) python3 -I bench.py 40` | wall, usr, sys, minor faults per start of common programs, THP on and off |
+| `syscall.c` | `gcc -O2 -o syscall syscall.c && ./syscall` | ns per `getppid()` (2,000,000 calls), plus fork and vfork+exec loops |
 | `fk.c` | `gcc -O2 -o fk fk.c && ./fk`, then `taskset -c 3 ./fk` | `fork`+`_exit` and `vfork`+`exec /bin/true` cost, unpinned and pinned |
 | `forkbash.sh` + `rus.py` | `python3 -I rus.py sys bash forkbash.sh 1 <checkout>` (and `0`, and `off` for THP off; `forkbash.sh 1 <checkout> 0` for the source-only cost) | `sys` per `$( )` fork from a plain Bash vs one that sourced every `orc` action |
 | `fkheap.c` | `gcc -O2 -o fkheap fkheap.c && ./fkheap <heap MB> <child writes every N pages, 0 = none> [1 = MADV_NOHUGEPAGE]` | fork cost against parent heap size, on huge pages and on 4 KiB pages |

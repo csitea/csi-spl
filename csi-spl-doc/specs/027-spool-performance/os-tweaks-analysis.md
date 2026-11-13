@@ -1,6 +1,6 @@
 # OS Settings and Tweaks Analysis for the Fleet Boxes
 
-- **Version:** `v0.2` (editor draft + editor addendum 2.5, not yet reviewed by the panel)
+- **Version:** `v0.3` (folds the grok seat's review of `v0.1`; see 6.1)
 - **Status:** Draft. Analysis only: nothing was changed on any box.
 - **Issue:** `SPL-5393` (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
@@ -32,9 +32,10 @@ measured. The cause is page-table work: the Bash heap sits on 4 KiB pages
 (`AnonHugePages: 0 kB`), and a fork's kernel cost grows with 4 KiB-mapped memory
 (2.5). One env-level setting, `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728`
 on the `./run` Bash, puts part of that heap on huge pages and cuts `sys` per
-fork by `41%` (measured, no reboot). The other OS-side candidates are smaller and mostly unmeasurable without a
-throwaway VM: the CPU vulnerability mitigations (`retbleed`, `SRSO`) and
-`init_on_alloc`, both boot parameters. Several popular tweaks were measured
+fork by `41%` (measured, no reboot). The other OS-side candidates are boot parameters
+(the CPU vulnerability mitigations `retbleed` and `SRSO`, and `init_on_alloc`);
+their gain is unknown until a throwaway VM measures it, so they rank below
+every measured row. Several popular tweaks were measured
 here and **do not help**: transparent huge pages off, `LC_ALL=C`, I/O
 scheduler, `noatime`, swap.
 
@@ -50,11 +51,14 @@ scheduler, `noatime`, swap.
 | Agent harness | `csi-spl-orc/src/bash/features/spool-install/` (`install.sh`, steps `y1..y20`) | Claude Code settings, guards, hooks; no OS tuning |
 | journald cap | `csi-spl-utl` `do_disk_journal_cap` -> `/etc/systemd/journald.conf.d/60-disk-hygiene.conf` (`SystemMaxUse=500M`, `SystemMaxFileSize=100M`) | yes, size only |
 | CI runner CPU share | `csi-spl-orc` `do_apply_gh_runner_cpu_budget` (`CPUQuota`/`CPUWeight` `--runtime` on the runner user's slice), `do_gh_runner_add` (`GH_RUNNER_CPU_WEIGHT`) | yes, the only cgroup tuning |
-| Crons | `csi-spl-orc/cnf/box-crons/box-crons.manifest` | `70` active lines in the two user crontabs (`sudo crontab -u <user> -l \| grep -vcE '^\s*(#\|$)'`) |
+| Crons | `csi-spl-orc/cnf/box-crons/box-crons.manifest` (`45` data rows, `14` every minute) | `70` active lines installed in the two user crontabs (`66` box user, `4` agent user; `20` every minute), so `25` installed lines are not in the manifest. Twenty every-minute jobs are `~0.02%` of the `~106k` starts a minute: thinning crons does not touch this tax (grok seat) |
 
 `git grep -lE 'sysctl\|transparent_hugepage\|limits\.d\|TasksMax\|vm\.swappiness' -- ':!*.md'`
-on `78225e997` finds no file that writes a kernel setting: the hits read
-`/proc`, set the runner slice, or test those.
+on `78225e997` finds no file that writes a host kernel setting: the hits read
+`/proc`, set the runner slice, or test those. One write exists inside a
+namespace: `do_gh_runner_add` sets `net.ipv4.ip_local_port_range` in the
+rootless dockerd's network namespace (`csi-spl-orc/src/bash/run/gh-runner-add.func.sh:255`),
+not on the host, and it does not touch process-start cost (grok seat).
 
 ### 1.2 What the box runs with (all defaults unless noted)
 
@@ -68,11 +72,12 @@ Read with `cat /proc/sys/<key>`, `/sys/...`, `findmnt`, `systemctl show`
 | kernel config | `CONFIG_INIT_ON_ALLOC_DEFAULT_ON=y`, `PREEMPT_VOLUNTARY` + `PREEMPT_DYNAMIC`, `HZ=250`, `SCHED_AUTOGROUP=y`, `DEBUG_LIST=y` (`/boot/config-$(uname -r)`) | Debian cloud kernel |
 | LSMs | `lockdown,capability,landlock,yama,apparmor,tomoyo,bpf,ipe,ima,evm`; AppArmor `112` profile lines; `auditd` not installed | image |
 | THP | `enabled = [always]`, `defrag = [madvise]`; KSM off | kernel default |
-| swap | none; `vm.swappiness = 60`, `vm.overcommit_memory = 1` | image |
+| swap | none; `vm.swappiness = 60` | default |
+| overcommit | `vm.overcommit_memory = 1`; `Committed_AS 45,234,276 kB` > `CommitLimit 32,924,440 kB` (`01:35Z`), so mode `0`/`2` could fail allocations: leave it | runtime value; no file sets it (`sudo grep -RlsE overcommit /etc/sysctl.conf /etc/sysctl.d /usr/lib/sysctl.d /run/sysctl.d /etc/systemd /usr/lib/systemd /etc/docker /etc/default` -> none) |
 | `/tmp` | tmpfs, `32 G`, `18 G` used (`df -h /tmp`), `nr_inodes=1048576`; no swap behind it | systemd `tmp.mount` (static) |
 | data disks | `/` ext4 `relatime,discard` on `sdb`; `/mnt/data`, `/opt`, `/var/csi`, `/var/spool-hub` ext4 `relatime,discard` on `sda` (bind mounts); `fstrim.timer` also active | image + role `01_data_disk` |
 | I/O scheduler | `none` on `sda`, `sdb` (virtio SCSI) | kernel default |
-| limits | `ulimit -n 524288`, `-u 256960`; `kernel.pid_max = 4194304`, `threads-max = 513920`; `TasksMax` per user slice `169593`; `/etc/security/limits.d` holds only the Debian coredump file | defaults |
+| limits | `nofile` hard `524288`; soft depends on how the process started: of `515` processes of the box and agent users at `01:35Z`, `347` have soft `1024` (cron runs with `1024`), `8` have `65536`, `148` have `524287..524288` (login shells: `bash -lc 'ulimit -Sn'` -> `524288`); `ulimit -u 256960`; `kernel.pid_max = 4194304`, `threads-max = 513920`; `TasksMax` per user slice `169593`; `/etc/security/limits.d` holds only the Debian coredump file | defaults |
 | inotify | `max_user_instances = 128`, `max_user_watches = 507546`; in use: `15` instances (agent user), `13` (box user) | default |
 | sysctl drop-ins | `/etc/sysctl.d/60-gce-network-security.conf` (network hardening, `kernel.randomize_va_space=2`, `kernel.panic=10`), `/usr/lib/sysctl.d/50-pid-max.conf` | GCE image |
 | cgroups | v2; user slices of the box user and the agent user: `CPUWeight` unset (100), `MemoryMax=infinity`; runner user slice `CPUWeight=25` | `do_gh_runner_add` for the runner only |
@@ -121,11 +126,13 @@ outside the probe changes). Load `29`, `01:15Z`.
 | `spool` (Go CLI, error path) | 57.0 | 31.50 | 18.89 | 1,980 | 58.4 / 24.78 / 4,057 |
 | `sudo -n -u <box-user> true` | 20.7 | 8.03 | 10.31 | 1,197 | 22.5 / 10.17 / 1,223 |
 
+C probe `syscall.c` (`2,000,000` `getppid()` calls, `n = 3`, load `26..29`):
+`236..255 ns` per call (grok seat: `255.1 ns`, `252.6 ns` pinned, load `43`).
 C probe `fk.c` (`gcc -O2`, `3,000` iterations, `n = 3` runs, load `27..29`):
-`getppid()` costs `236..255 ns`; `fork()` + `_exit` + `wait` costs
-`595..633 us` wall, `~140 us` kernel; pinned to one CPU with `taskset -c 3` it
-is `258..272 us` wall, so about half the unpinned wall is cross-CPU wake-up
-and migration on a saturated box.
+`fork()` + `_exit` + `wait` costs `595..633 us` wall, `~140 us` kernel; pinned
+to one CPU with `taskset -c 3` it is `258..272 us` wall. The unpinned excess
+is cross-CPU wake-up and migration, and it grows with load: about half at
+load `27..29`, `69%` at load `50` (grok seat: `869` vs `267 us`).
 
 ### 2.3 The fork from a big Bash (the dominant kernel cost)
 
@@ -185,6 +192,12 @@ plain `bash -c :` under the same pad keeps `Rss 3,088 kB, AnonHugePages 0 kB`
 heap crossed an aligned 2 MiB range, so a better placement may gain more
 (open item 5.4).
 
+The grok seat's Python probe agrees (load `~50`, `n = 40`): a parent that
+touched a `64 MB` buffer forks with `0.45 ms` parent `sys`. A buffer that size
+comes from `mmap`, which THP `always` backs with huge pages, as in the
+`fkheap.c` THP row. The cost sits in memory on 4 KiB pages, which is what the
+Bash heap is.
+
 ### 2.4 Candidates measured here that do not help
 
 | candidate | measurement | verdict |
@@ -216,11 +229,11 @@ go first).
 
 | # | setting | expected gain | risk | where it would be configured |
 |---:|---|---|---|---|
-| 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.6` -> `0.3 ms` `sys` per fork inside `./run` (`19x`); box-wide est. `20..40%` of `sys` | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
-| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide est. `10..25%` of `sys` until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
-| 2 | Kernel command line `retbleed=off spec_rstack_overflow=off` (or `mitigations=off`) | est. `5..20%` of `sys` (Zen 2 return-thunk mitigations sit on every kernel return; `getppid` is `~240 ns` here); A/B on a throwaway `e2-standard-16` | **High**: removes protection between processes of the same VM; agents run third-party code (npm, pip) | new ansible role `12_kernel_cmdline` in `060-gcp-vm-satellite/roles/` (`/etc/default/grub.d/*.cfg`, `update-grub`, reboot); terraform step `060`, owner go |
-| 3 | Kernel command line `init_on_alloc=0` | est. `1..5%` of `sys` (zeroing of kernel allocations such as page tables on each fork) | Medium: loses a hardening default against info leaks | same role as #2 |
-| 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | est. same order as #2, plus faster cores; not an OS setting | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
+| 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.1..5.6` -> `0.3 ms` `sys` per fork inside `./run` (`n = 2..3` per arm). Box-wide lower bound: `6,551` of `30,578` new pids seen in 30 s were `run` (forks of a `./run` Bash) = `>= 218 /s`; `218 x 4.8 ms` = `1.05` cores = `>= 16%` of the box's `6.7` cores of `sys` (`41.7% x 16`) | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
+| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `218 /s x 2.1 ms` = `0.46` cores = `>= 7%` of `sys` until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
+| 2 | Kernel command line `retbleed=off spec_rstack_overflow=off` (the two still active; `meltdown`, `mds`, `l1tf`, `mmio`, `tsx`, `srbds`, `tsa` read `Not affected`) | Unknown: not computed, not measured. Only a throwaway `e2-standard-16` A/B can give it; never on a fleet box | **High**: removes protection between processes of the same VM; agents run third-party code (npm, pip) | new ansible role `12_kernel_cmdline` in `060-gcp-vm-satellite/roles/` (`/etc/default/grub.d/*.cfg`, `update-grub`, reboot); terraform step `060`, owner go |
+| 3 | Kernel command line `init_on_alloc=0` | Unknown: not measured (it zeroes kernel allocations such as page tables on each fork); same throwaway A/B | Medium: loses a hardening default against info leaks | same role as #2 |
+| 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | Unknown: not measured; not an OS setting | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
 | 5 | `GOMAXPROCS=1` in the env of short `spool` CLI calls (never the hub server) | Measured `-29%` CPU per call (`n = 60` per arm); box share est. `< 0.5%` | Low (`spool` CLI calls that fan out goroutines lose parallelism) | `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh` |
 | 6 | Test Postgres with `-c fsync=off -c synchronous_commit=off` (and data dir on tmpfs) | est. small: `iowait 0.34%`; unmeasured for the `hub-pg` suite | Low (throwaway DB) | `csi-spl-api/src/bash/tests/hub-pg.tst.sh:59`, `csi-spl-api/src/bash/hub-live-stack.sh:59` |
 | 7 | `sudo` `Defaults !use_pty` and `!syslog` for the NOPASSWD users | Measured ceiling `0.7%` of the box (all sudo CPU) + `1.1%` of one core (journald) | Medium: `use_pty` guards against terminal injection | role `05_users` sudoers drop-in |
@@ -248,10 +261,24 @@ every process for RAM (the CI workflow already moves job temp off it,
 | seat | vendor | version reviewed | verdict |
 |---|---|---|---|
 | `c-630@sat` | claude (editor) | `v0.1`, `v0.2` | author |
-| `g-631@sat` | grok | - | - |
+| `g-631@sat` | grok | `v0.1` (`411c67e4b`) | CHANGES (6 fail lines), all folded in `v0.3`; re-review asked |
 | mistral seat | mistral | - | - |
 | agy seat (desk box) | agy | - | - |
 | codex seat (desk box) | codex | - | - |
 
 The probe scripts are in [os-tweaks-probes/](os-tweaks-probes/), so any seat
 can re-run them on its own box.
+
+### 6.1 Folds
+
+- `v0.3`, grok seat `g-631@sat` (review of `v0.1`, msg `1a53dc83`): soft
+  `nofile` is not `524288` for every process (the editor re-measured the
+  per-process spread, 1.2); `overcommit_memory` has no file behind it; the
+  rootless-netns port-range write is named (1.1); `getppid` has its own probe,
+  `syscall.c`; the migration share depends on load (2.2); `mitigations=off`
+  and every uncomputed gain are removed, and rows 1 and 1b carry their
+  arithmetic (4); manifest vs installed crons (1.1); its Python fork probe
+  corroborates 2.5. It also confirmed, independently: a `/proc/stat` window at
+  `01:25Z` (`20 s`, `1,766` starts/s, `sys 54.7%`), THP fault and compaction
+  counters (`thp_fault_alloc` `0.019%` of faults, `compact_stall 0`), the cgroup
+  weights, the kernel config and the inotify counts.

@@ -4,6 +4,9 @@
 // mailto: link, read from the member card route (the mock answers a HUM-<n>
 // with an example.com address). CONTROL: under act-as the card does not read
 // it and shows no Email row (the hub refuses it with 403 person_only).
+// Section 12.4 (owner t1 028ac340: "In the T1 workspace only the first name
+// and the last name ... Nothing else should be visible."): in t1 the card
+// shows the name and no Email row; the twin is the same card outside t1.
 // The hub's gates (same workspace only, person only) are hub tests:
 // hub/member_card_test.go. SHOT_DIR saves the screenshot.
 //
@@ -62,7 +65,8 @@ const emailRow = (p) => p.$eval('[data-test=person-email] a', (a) => ({ text: a.
 async function run(browser, base) {
   const p = await browser.newPage()
   await p.setViewport({ width: 1440, height: 900 })
-  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+  // w2, never t1: t1 is name-only (12.4) and a dev server defaults to t1
+  await p.goto(`${base}/?tenant=w2`, { waitUntil: 'networkidle2', timeout: NAV })
   await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
   if (!(await signIn(p))) throw new Error('no session store')
 
@@ -88,6 +92,20 @@ async function run(browser, base) {
   await sleep(800)
   check('CONTROL act-as: no Email row', !(await p.$('[data-test=person-email]')))
   await p.close()
+
+  // t1 is name-only (spec 154 12.4): the hub answers email null, so no row
+  const t1 = await browser.newPage()
+  await t1.setViewport({ width: 1440, height: 900 })
+  await t1.goto(`${base}/?tenant=t1`, { waitUntil: 'networkidle2', timeout: NAV })
+  await t1.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+  if (!(await signIn(t1))) throw new Error('no session store (t1)')
+  await go(t1, '/people/HUM-2')
+  await t1.waitForSelector('[data-test=person-role]', { timeout: NAV }).catch(() => null)
+  await sleep(800)
+  const t1Card = await t1.evaluate(() => ({ card: Boolean(document.querySelector('[data-test=person-role]')), email: Boolean(document.querySelector('[data-test=person-email]')), at: document.body.innerText.includes('@example.com') }))
+  check('t1: the card shows, with no Email row and no address', t1Card.card && !t1Card.email && !t1Card.at, t1Card)
+  if (process.env.SHOT_DIR) await t1.screenshot({ path: `${process.env.SHOT_DIR}/people-card-t1-name-only.png` })
+  await t1.close()
 }
 
 const server = await startServer()

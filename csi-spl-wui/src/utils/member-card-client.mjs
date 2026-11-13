@@ -7,8 +7,11 @@
  * workspace; another workspace's member is 404 not_found, a Bearer token or
  * an act-as session 403 person_only. No bearer here: the card is a person's.
  * Any refusal throws { status, error } (status 0 off the network); the person
- * card then shows no Email row. The mock (useMock) answers an example.com
- * address for a HUM-<n> id and 404 for anything else.
+ * card then shows no Email row. In a name-only workspace (section 12.4, the
+ * hub's SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES, t1 by default) the hub
+ * answers email null, and the card shows no Email row either. The mock
+ * (useMock) answers an example.com address for a HUM-<n> id, null in t1 like
+ * the hub, and 404 for anything else.
  */
 import { BOOT_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
@@ -30,7 +33,8 @@ function shaped(out) {
 export async function memberCard(api, id) {
   if (api.mock) {
     if (!/^HUM-\d+$/.test(String(id))) throw refused(404, 'not_found')
-    return { human_id: id, display_name: null, email: String(id).toLowerCase() + '@example.com' }
+    const email = api.tenant === 't1' ? null : String(id).toLowerCase() + '@example.com'
+    return { human_id: id, display_name: null, email }
   }
   let res
   try {

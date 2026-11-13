@@ -46,5 +46,7 @@ describe('member card client', () => {
   it('the mock answers a HUM-<n> with an example.com address, else 404', async () => {
     assert.equal((await memberCard({ mock: true }, 'HUM-2')).email, 'hum-2@example.com')
     await assert.rejects(memberCard({ mock: true }, 'CLE-07'), (e) => e.status === 404)
+    assert.equal((await memberCard({ mock: true, tenant: 't1' }, 'HUM-2')).email, null, 't1 is name-only (spec 154 12.4)')
+    assert.equal((await memberCard({ mock: true, tenant: 'w2' }, 'HUM-2')).email, 'hum-2@example.com')
   })
 })

@@ -63,6 +63,18 @@ const openTopic = (p, task) => p.evaluate(async (task) => {
 const options = (p) => p.evaluate(() => [...document.querySelectorAll('[data-test=mention-option]')]
   .map((b) => [b.getAttribute('data-id'), Boolean(b.querySelector('[data-testid=mention-self]'))]))
 
+/** A failed picker wait's evidence: the field and caret, the reader the roster knows, how many lists are open. */
+const pickerState = (p) => p.evaluate((sel) => {
+  const el = document.querySelector(sel)
+  const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+  return {
+    field: el?.value, caret: el?.selectionStart, focused: document.activeElement === el,
+    rosterSelf: pinia?._s.get('roster')?.self?.id ?? null,
+    draftPlace: pinia?._s.get('omnibox')?.target?.place?.() ?? null,
+    lists: document.querySelectorAll('[data-test=mention-list]').length,
+  }
+}, OMNI)
+
 /** Type into the omnibox from empty. */
 async function typeOmni(p, text) {
   await p.$eval(OMNI, (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })) })
@@ -79,16 +91,26 @@ try {
   await page.setViewport({ width: 1440, height: 900 })
   await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
   await page.waitForSelector(OMNI, { visible: true, timeout: NAV_TIMEOUT })
+  /* type only once the roster knows the reader and the box knows its draft place: a place that arrives
+     later swaps the box for that place's stored draft (useComposerDraft) and eats what was typed */
+  const settled = await page.waitForFunction((me) => {
+    const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+    return pinia?._s.get('roster')?.self?.id === me && Boolean(pinia?._s.get('omnibox')?.target?.place?.())
+  }, { timeout: NAV_TIMEOUT }, ME).then(() => true, () => false)
+  ok('the lobby knows the reader and its draft place before the test types', settled, settled ? undefined : await pickerState(page))
   await sleep(600)
 
   /* the picker: @me offers the reader first, marked as me */
   await typeOmni(page, '@me')
-  await page.waitForSelector('[data-test=mention-list]', { visible: true, timeout: 8000 }).catch(() => null)
-  /* under load the list can still show the bare-@ roster 300 ms after the keys: wait for the query to apply */
-  await page.waitForFunction(() => Boolean(document.querySelector('[data-test=mention-option] [data-testid=mention-self]')),
-    { timeout: 8000 }).catch(() => null)
+  const typed = await page.$eval(OMNI, (el) => el.value)
+  ok('the box holds the typed @me', typed === '@me', typed === '@me' ? undefined : await pickerState(page))
+  /* under load the list can still show the bare-@ roster 300 ms after the keys: wait for the `me` row; a
+     timeout is a FAIL, and its evidence says why (the field, the reader the roster knows, the rows) */
+  const meShown = await page.waitForFunction(() => Boolean(document.querySelector('[data-test=mention-option] [data-testid=mention-self]')),
+    { timeout: 8000 }).then(() => true, () => false)
   const meRows = await options(page)
-  ok('@me: the first row is the reader, marked me', meRows.length > 0 && meRows[0][0] === ME && meRows[0][1], meRows)
+  ok('@me: the first row is the reader, marked me', meShown && meRows.length > 0 && meRows[0][0] === ME && meRows[0][1],
+    { rows: meRows, ...(meShown ? {} : await pickerState(page)) })
   await page.evaluate(() => document.querySelector('[data-test=mention-option]')
     ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })))
   await sleep(200)
@@ -97,10 +119,13 @@ try {
 
   /* CONTROL: a bare @ never offers the reader */
   await typeOmni(page, '@')
-  await page.waitForFunction(() => !document.querySelector('[data-test=mention-option] [data-testid=mention-self]'),
-    { timeout: 8000 }).catch(() => null)
+  /* the roster must be listed first: an empty list would pass the control on nothing */
+  const bareShown = await page.waitForFunction(() => document.querySelectorAll('[data-test=mention-option]').length > 0 &&
+    !document.querySelector('[data-test=mention-option] [data-testid=mention-self]'), { timeout: 8000 }).then(() => true, () => false)
   const bare = await options(page)
-  ok('CONTROL: a bare @ offers no me row and not the reader', !bare.some(([id, me]) => me || id === ME), bare)
+  ok('CONTROL: a bare @ lists the roster, with no me row and not the reader',
+    bareShown && bare.length > 0 && !bare.some(([id, me]) => me || id === ME),
+    { rows: bare, ...(bareShown ? {} : await pickerState(page)) })
   await page.$eval(OMNI, (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })) })
 
   /* the mark: a post tagged only to its author */

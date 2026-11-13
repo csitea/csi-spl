@@ -507,7 +507,7 @@ _spl_sweep_private_sql() {
 
 # _spl_sweep_rows_tail <archived predicate>: the select list and joins of
 # both reads, over a CTE k holding (tenant_id, msg_id) of each last line.
-# Spec 042: a note to self (note_to_self, rdb 0276) is 'self' in column 9
+# Spec 042: a note to self (note_to_self, rdb 0277) is 'self' in column 9
 # and never the oldest-human anchor (columns 14/15): no agent is meant to
 # answer it, so it neither opens a topic nor ends one.
 _spl_sweep_rows_tail() {

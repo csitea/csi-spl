@@ -184,7 +184,7 @@ type Message struct {
 	MirrorOf  string
 	// CopiedFrom is the source msg_id of a spec 169 copy (rdb 0250); "" = not a copy.
 	CopiedFrom string
-	// NoteToSelf is messages.note_to_self (rdb 0276, spec 042 "Note to
+	// NoteToSelf is messages.note_to_self (rdb 0277, spec 042 "Note to
 	// self"): a person's post whose only @mention is its author. The hub sets
 	// it at the browser send; no agent delivery is built for it.
 	NoteToSelf bool

@@ -11,12 +11,12 @@ import (
 // no agent answers"; the f0fc6d7f answer at 11:51:26Z: "also let me tag my
 // second account outside the channel"). A person's browser post whose only
 // @mentions are the person, or the person's linked accounts (human_links,
-// rdb 0276, written only by the operator: poll 3193d41f answer C), is stored
+// rdb 0277, written only by the operator: poll 3193d41f answer C), is stored
 // and shown as usual, and:
 //
 //   - reaches no agent: wuiRoute builds no dispatch, no topic-agent reply and
 //     no channel fan-out for it, and the ordinary fallback is not sent;
-//   - carries messages.note_to_self (rdb 0276), the one flag every other
+//   - carries messages.note_to_self (rdb 0277), the one flag every other
 //     reader honours: the WUI marks the line, the operator replay of unsigned
 //     posts skips it (replay_postgres.go) and the unanswered sweep
 //     (do_spl_unanswered_sweep) never counts it.

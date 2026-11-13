@@ -1,4 +1,4 @@
--- 0276_note_to_self.sql - messages.note_to_self and human_links (spec 042
+-- 0277_note_to_self.sql - messages.note_to_self and human_links (spec 042
 -- section "Note to self", SPL-5372; owner HUM-10, t1 df36f210, msg 76800948:
 -- "a post tagged only to yourself is a note to self, no agent answers"; the
 -- f0fc6d7f answer at 11:51:26Z: "also let me tag my second account outside

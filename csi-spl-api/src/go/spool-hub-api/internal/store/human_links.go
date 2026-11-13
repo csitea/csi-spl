@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// HumanLinks is human_links (rdb 0276, spec 042 "Note to self"; owner HUM-10,
+// HumanLinks is human_links (rdb 0277, spec 042 "Note to self"; owner HUM-10,
 // t1 df36f210, poll 3193d41f answer C: "Operator-set link only, no
 // self-service"): two HUM ids that are one person. Only the operator route
 // (human_links_operator.go, do_spl_human_link) writes it; the mention rule

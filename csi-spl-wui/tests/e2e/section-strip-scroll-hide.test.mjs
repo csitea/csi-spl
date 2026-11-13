@@ -127,18 +127,48 @@ const read = (p, keep = false) => p.evaluate((keep) => {
   }
 }, keep)
 
+/* SPL-5441: a page still navigating (a goto that timed out under load, a
+   redirect of the app's own) destroys the context a read runs in. That is
+   "not settled yet", never a crash of the whole run: read again. */
+const NAVIGATING = /Execution context was destroyed|Cannot find context|detached Frame/
+async function readSafe(p, keep = false) {
+  try { return await read(p, keep) } catch (e) {
+    if (!NAVIGATING.test(String(e?.message))) throw e
+    return { shell: false, navigating: true, pane: null }
+  }
+}
+
 async function settle(p, max = 8000) {
   const end = Date.now() + max
   let prev = ''
   while (Date.now() < end) {
-    const s = await read(p)
+    const s = await readSafe(p)
     const key = JSON.stringify(s)
     if (s.shell && key === prev) return s
     prev = key
     await sleep(200)
   }
-  return read(p)
+  return readSafe(p)
 }
+
+/* SPL-5441: a goto that fails or times out is tried once more; a second
+   failure is returned, so its step fails with that message, and nothing
+   reads a page that is still navigating (1 of 4 runs died that way, load
+   150..214). */
+async function nav(p, url) {
+  let err = ''
+  for (let i = 0; i < 2; i++) {
+    try { await p.goto(url, { waitUntil: 'networkidle2' }); return '' } catch (e) { err = String(e?.message ?? e).split('\n')[0] }
+  }
+  return err
+}
+/* the marked pane, scrolled by code; false when the page lost it */
+const scrollBy = (p, dy, to) => p.evaluate((dy, to) => {
+  const sc = document.querySelector('[data-e2e-scroller]')
+  if (!sc) return false
+  sc.scrollTop = to ?? sc.scrollTop + dy
+  return true
+}, dy, to ?? null).catch(() => false)
 
 const wheel = async (p, at, dy) => {
   await p.mouse.move(at.x, at.y)
@@ -152,8 +182,8 @@ const wheel = async (p, at, dy) => {
    is read at once, and a logo that never leaves still fails after 3 s. */
 async function readAway(p, max = 3000) {
   const end = Date.now() + max
-  let s = await read(p, true)
-  while (s.hidden === '1' && (s.painted || s.logo) && Date.now() < end) { await sleep(100); s = await read(p, true) }
+  let s = await readSafe(p, true)
+  while (s.hidden === '1' && (s.painted || s.logo) && Date.now() < end) { await sleep(100); s = await readSafe(p, true) }
   return s
 }
 
@@ -185,7 +215,9 @@ const browsers = []
 try {
   /* one browser per width: the wheel is real input, and a background tab of
      a shared browser never gets it (Input.dispatchMouseEvent times out) */
-  await Promise.all([[390, 'dark', 'no-preference'], [360, 'light', 'reduce']].map(async ([width, scheme, motion]) => {
+  /* SPL-5441: a throw in one width is that width's FAIL line, never a run
+     that dies with no summary while the other width is still checking */
+  await Promise.all([[390, 'dark', 'no-preference'], [360, 'light', 'reduce']].map(([width, scheme, motion]) => (async () => {
     const tag = `${width}px ${scheme} motion=${motion}`
     const browser = await launch()
     browsers.push(browser)
@@ -198,19 +230,20 @@ try {
     const slideOk = (s) => motion === 'reduce' ? parseFloat(s.slide) < 0.01 : parseFloat(s.slide) >= 0.1
     let touchRoute = ''
     for (const route of ROUTES) {
-      await p.goto(`${srv.base}${route}`, { waitUntil: 'networkidle2' }).catch(() => null)
+      const navErr = await nav(p, `${srv.base}${route}`)
+      if (navErr) { ok(`${tag} ${route}: the page loads (2 tries)`, false, { error: navErr }); continue }
       const s0 = await settle(p)
       if (!s0.pane || !s0.painted) { flat.push(`${tag} ${route}`); continue }
       touchRoute ||= route
-      await p.evaluate(() => { document.querySelector('[data-e2e-scroller]').scrollTop += 150 })
+      const scrolled = await scrollBy(p, 150)
       await sleep(500)
-      const byScript = await read(p)
-      await p.evaluate(() => { document.querySelector('[data-e2e-scroller]').scrollTop = 0 })
+      const byScript = await readSafe(p)
+      if (!scrolled || !(await scrollBy(p, 0, 0))) { ok(`${tag} ${route}: its pane is still there to scroll`, false, { scrolled, ...byScript }); continue }
       await sleep(500)
       await wheel(p, s0.pane, 600)
       const down = await readAway(p)
       await wheel(p, s0.pane, -200)
-      const up = await read(p, true)
+      const up = await readSafe(p, true)
       ok(`${tag} ${route}: a scroll by script leaves the strip painted`, byScript.painted && byScript.hidden === null, byScript)
       ok(`${tag} ${route}: wheel down: strip away (hidden=1, not painted, inert), the pane takes its room${motion === 'reduce' ? ', no slide' : ''}`,
         down.hidden === '1' && !down.painted && down.inert && down.pane && down.pane.top < s0.pane.top - 30 && slideOk(down), { before: s0.pane.top, ...down })
@@ -222,20 +255,21 @@ try {
       ok(`${tag} ${route}: wheel up: the logo bar is painted again at the same y`, up.logo && up.barsHidden === null && up.logoTop === s0.logoTop, { before: s0.logoTop, logo: up.logo, logoTop: up.logoTop, barsHidden: up.barsHidden })
     }
     /* touch: a swipe hides both bars, a scroll by code after it moves nothing, nor does a hold-drag */
-    await p.goto(`${srv.base}${touchRoute}`, { waitUntil: 'networkidle2' }).catch(() => null)
+    const tNav = await nav(p, `${srv.base}${touchRoute}`)
     const t0 = await settle(p)
+    if (tNav) ok(`${tag} touch ${touchRoute}: the page loads (2 tries)`, false, { error: tNav })
     if (t0.pane) await swipe(p, t0.pane, -300)
     await sleep(500)
-    const tAway = await read(p)
+    const tAway = await readSafe(p)
     ok(`${tag} touch ${touchRoute}: a swipe up hides both bars`, Boolean(t0.pane) && tAway.hidden === '1' && tAway.barsHidden === '1' && !tAway.logo, { hidden: tAway.hidden, bars: tAway.barsHidden, logo: tAway.logo })
     await swipe(p, t0.pane || { x: 100, y: 400 }, -60)
-    await p.evaluate(() => { document.querySelector('[data-e2e-scroller]').scrollTop -= 120 })
+    await scrollBy(p, -120)
     await sleep(500)
-    const tCode = await read(p)
+    const tCode = await readSafe(p)
     ok(`${tag} touch: a scroll by code right after the finger is up leaves both bars away`, tCode.hidden === '1' && tCode.barsHidden === '1', { hidden: tCode.hidden, bars: tCode.barsHidden })
     await swipe(p, t0.pane || { x: 100, y: 400 }, 200, 400)
     await sleep(500)
-    const tHold = await read(p)
+    const tHold = await readSafe(p)
     ok(`${tag} touch: a finger held 400 ms, then moved down, changes neither bar`, tHold.hidden === '1' && tHold.barsHidden === '1', { hidden: tHold.hidden, bars: tHold.barsHidden })
     /* SPL-5407: a late pull-back. A pane at its end grows when the bars go and
        the browser pulls scrollTop back to the new end; on a slow phone that
@@ -245,10 +279,12 @@ try {
        STRIP_QUIET_MS and a new wheel event, the spacer shrinks so the pane's
        end is 100 px above the reader. Red control: without the guard the
        strip comes back. */
-    await p.goto(`${srv.base}${touchRoute}`, { waitUntil: 'networkidle2' }).catch(() => null)
+    const eNav = await nav(p, `${srv.base}${touchRoute}`)
     const e0 = await settle(p)
+    if (eNav) ok(`${tag} late pull-back ${touchRoute}: the page loads (2 tries)`, false, { error: eNav })
     const range = !e0.pane ? 0 : await p.evaluate(() => {
       const sc = document.querySelector('[data-e2e-scroller]')
+      if (!sc) return 0
       const d = document.createElement('div')
       d.setAttribute('data-e2e-spacer', '')
       d.style.height = '3000px'
@@ -258,7 +294,7 @@ try {
     })
     if (e0.pane) await wheel(p, e0.pane, range + 300)
     await sleep(700)
-    const eAway = await read(p, true)
+    const eAway = await readSafe(p, true)
     await p.evaluate(() => {
       const sc = document.querySelector('[data-e2e-scroller]')
       const d = document.querySelector('[data-e2e-spacer]')
@@ -268,12 +304,13 @@ try {
       d.style.height = `${Math.max(0, 3000 - cut)}px`
     })
     await sleep(700)
-    const eBack = await read(p, true)
+    const eBack = await readSafe(p, true)
     ok(`${tag} ${touchRoute}: the browser pulling a pane back to its new end, late, leaves both bars away`,
       Boolean(e0.pane) && eAway.hidden === '1' && eAway.barsHidden === '1' && eBack.pane && eBack.pane.sy < eAway.pane.sy - 50 && eBack.hidden === '1' && eBack.barsHidden === '1',
       { away: eAway.hidden, sy: eAway.pane?.sy, after: eBack.hidden, bars: eBack.barsHidden, syAfter: eBack.pane?.sy })
     /* Back brings it back: Help, a tapped help page scrolled down, then Back */
-    await p.goto(`${srv.base}/help`, { waitUntil: 'networkidle2' })
+    const hNav = await nav(p, `${srv.base}/help`)
+    if (hNav) ok(`${tag} /help: the page loads (2 tries)`, false, { error: hNav })
     await settle(p)
     const href = await p.evaluate(() => { const a = document.querySelector('.spool-main a[href*="/help/"]'); a?.click(); return a?.getAttribute('href') ?? null })
     const h2 = href ? await settlePane(p, href) : await settle(p)
@@ -284,7 +321,7 @@ try {
     ok(`${tag} a tapped help page (${href}) scrolled down: away; then Back: the strip is painted`, Boolean(h2.pane) && away.hidden === '1' && back.painted && back.hidden === null, { away: away.hidden, ...back })
     ok(`${tag} a tapped help page scrolled down: the logo bar away; then Back: the logo is painted`, away.barsHidden === '1' && !away.logo && back.logo && back.barsHidden === null, { away: away.barsHidden, awayLogo: away.logo, back: back.barsHidden, backLogo: back.logo })
     await p.close()
-  }))
+  })().catch((e) => ok(`${width}px ${scheme} motion=${motion}: the run completes`, false, { error: String(e?.message ?? e).split('\n')[0] }))))
 } finally {
   await Promise.all(browsers.map((b) => b.close()))
   await srv.stop()

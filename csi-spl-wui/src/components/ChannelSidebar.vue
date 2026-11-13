@@ -1186,7 +1186,9 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
 .people-tools { display: flex; align-items: center; gap: 8px; padding: 0 8px 8px; }
 .people-tools > .people-filter { flex: 1 1 auto; min-width: 0; }
 .people-filter { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 8px); }
-.people-filter__btn { flex: 1 1 0; min-width: 0; min-height: 32px; padding: 2px 6px; border: 0; border-radius: var(--radius-xs); background: transparent; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; }
+/* SPL-5428: each label sizes to its text and keeps one line (an ellipsis
+   only if a locale cannot fit) */
+.people-filter__btn { flex: 1 1 auto; min-width: 0; min-height: 32px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 0; border-radius: var(--radius-xs); background: transparent; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; }
 .people-filter__btn[aria-pressed="true"] { background: var(--color-surface-hover); font-weight: 600; }
 /* SPL-5279: the round + (the Issues + look, SPL-978) */
 .people-fab {
@@ -1194,8 +1196,8 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 50%;
   background: var(--color-accent);
   color: var(--color-on-accent);
@@ -1206,6 +1208,13 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
 .people-fab:hover { background: var(--color-accent-pressed); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22); }
 .people-fab:active { transform: scale(0.96); }
 @media (prefers-reduced-motion: reduce) { .people-fab { transition: none; } .people-fab:active { transform: none; } }
+/* SPL-5428: on a desktop the + shares the row with the filter in a 212px
+   panel (1440 wide), where "In this workspace" needs 126px: a smaller label,
+   tighter padding and gaps keep it whole on one line, 7px to spare */
+@media (min-width: 821px) {
+  .people-tools { gap: 4px; padding-inline: 4px; }
+  .people-filter__btn { padding: 2px 4px; font-size: 0.75rem; }
+}
 @media (max-width: 820px) {
   .people-filter__btn { min-height: var(--tap, 44px); }
   /* on a phone it floats bottom right, above the composer dock (as issues-fab, SPL-1005) */

@@ -601,7 +601,8 @@ inside each; the "in this workspace" filter shows groups 1 and 2.
   panel; on a phone it floats bottom right above the composer, and the list
   pads so its last row scrolls clear of it (SPL-5279). The panel has no
   PEOPLE heading: the selected rail tab already says People, as the Issues
-  panel has no ISSUES heading (owner, topic 355bed36, SPL-5428).
+  panel has no ISSUES heading (owner, topic 355bed36, SPL-5428). On a desktop
+  the filter labels keep one line beside the +, never wrapping under it.
 - **Kill switch** (2.9): in a workspace outside `contacts.workspaces` the
   panel shows only members, with no filter and no Add button, exactly as
   today apart from the new order. The WUI learns the switch from the

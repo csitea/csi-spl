@@ -124,10 +124,17 @@ try {
     const a = document.querySelector('[data-testid=people-add-contact]')
     const b = a.getBoundingClientRect()
     const r = panel.getBoundingClientRect()
-    return { headings: panel.querySelectorAll(':scope > :is(h1, h2, h3, .people-head), .sidebar-help, [data-testid=sidebar-help-people]').length, sameRow: b.top < f.bottom && b.bottom > f.top, rightGap: Math.round(r.right - b.right), label: a.getAttribute('aria-label') }
+    const w = document.querySelector('[data-testid=people-filter-workspace]')
+    const wr = w.getBoundingClientRect()
+    const range = document.createRange()
+    range.selectNodeContents(w)
+    const lines = new Set([...range.getClientRects()].map((q) => Math.round(q.top))).size
+    return { headings: panel.querySelectorAll(':scope > :is(h1, h2, h3, .people-head), .sidebar-help, [data-testid=sidebar-help-people]').length, sameRow: b.top < f.bottom && b.bottom > f.top, rightGap: Math.round(r.right - b.right), label: a.getAttribute('aria-label'), lines, clipped: w.scrollWidth > w.clientWidth, need: w.scrollWidth, has: w.clientWidth, panel: Math.round(r.width), filter: Math.round(f.width), fab: Math.round(b.width), overlap: wr.right > b.left && wr.left < b.right && wr.bottom > b.top && wr.top < b.bottom }
   })
   ok('C24-2a the People panel has no heading', head.headings === 0, head)
   ok('C24-2b the + is on the filter row at the right end, aria-label Add contact', head.sameRow && head.rightGap >= 0 && head.rightGap <= 24 && head.label === 'Add contact', head)
+  /* SPL-5428 follow-up (c-002 msg 9c5e6eaf): at 1440 "In this workspace" wrapped and ran under the + */
+  ok('C24-2c the In this workspace label keeps one line, whole, clear of the +', head.lines === 1 && !head.clipped && !head.overlap, head)
   await waitShown('[data-test=people-contact-row]')
   ok('C24-3 group 3 lists the others A-Z, the matched contact not twice', JSON.stringify(await rowNames()) === JSON.stringify(['Olive Outer', 'Zed Zeta']), await rowNames())
   ok('C24e the matched member carries the contact tag', await shown(`${member('HUM-2')} [data-testid=people-contact-tag]`))

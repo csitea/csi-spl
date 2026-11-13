@@ -141,7 +141,8 @@ describe('T012 pages/reporting.vue', () => {
   const page = read('src/pages/reporting.vue')
   it('the header, the tab bar from the one list, and the child route', () => {
     assert.match(page, /<MobileBack \/>/)
-    assert.match(page, /<SectionClose side="start" \/>/)
+    /* SPL-5467 (owner HUM-10 msg d93462e4): no close X; the left sections bar is the way */
+    assert.doesNotMatch(page, /<SectionClose/)
     assert.match(page, /data-test="reporting-heading">\{\{ t\('reporting\.title'\) \}\}/)
     assert.match(page, /:aria-label="t\('reporting\.tabs_label'\)"/)
     assert.match(page, /visibleReportingTabs\(\{/)

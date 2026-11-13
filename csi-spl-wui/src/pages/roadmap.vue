@@ -17,10 +17,7 @@
   <div class="feed-col roadmap-page" data-test="roadmap-page">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 data-test="roadmap-heading">{{ t('roadmap.title') }}</h2>
-      <span class="roadmap-spacer" />
-      <SectionClose side="end" />
     </header>
     <div class="feed-body roadmap-body">
       <div class="roadmap-bar">
@@ -119,7 +116,6 @@ useHead(() => ({ title: t('roadmap.title') }))
 </script>
 
 <style scoped>
-.roadmap-spacer { flex: 1 1 auto; }
 .roadmap-body { min-width: 0; }
 .roadmap-bar {
   display: flex;

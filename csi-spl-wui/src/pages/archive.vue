@@ -13,12 +13,10 @@
   <div class="feed-col" data-test="archive-page">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 class="archive-title">
         <UiIcon name="archive" :size="18" />
         <span>{{ t('archive.title') }}</span>
       </h2>
-      <SectionClose side="end" />
     </header>
     <div class="feed-body">
       <h3 class="archive-part__head">{{ t('nav.topics') }}</h3>

@@ -3,13 +3,12 @@
 // (Issues, Event log, Archive, People, Agents, Boxes, Help, Workspace
 // settings) fills the middle; the rail's Channels / Direct messages only
 // swapped the left list, so the page stayed and read as a dead end.
-// Now: every section page has the close X (the side Settings -> Behaviour
-// picks), which goes back to the conversation the reader left; Issues and
-// Monitoring have none (SPL-5425, SPL-5396: the left sections bar is the
-// way); Channels /
-// Direct messages / Flow on the rail bring that conversation back too; Esc
-// closes an open issue; browser Back still works. On a phone the section
-// strip is the way and no X renders.
+// Now: no section page has a close X (owner HUM-10, t1 fc38e637 msg d93462e4:
+// "the users should use only the left sections bar to navigate"; SPL-5396,
+// SPL-5425, then SPL-5467 for every other view). Channels / Direct messages /
+// Flow on the rail bring the conversation the reader left back; Esc closes an
+// open issue; browser Back still works. On a phone the section strip is the
+// way.
 //
 //   node tests/e2e/section-exit.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/section-exit.test.mjs
@@ -40,19 +39,31 @@ async function launch() {
 }
 
 const SESSION = { hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }
-/* noX: the owner took the page's X away; the rail is the way out */
+/* title: what the page still draws in its header once the X is gone */
 const PAGES = [
-  { name: 'Issues', tab: '[data-testid=sidebar-tab-issues]', path: '/issues', noX: true },
-  { name: 'Archive', tab: '[data-testid=sidebar-tab-archive]', path: '/archive' },
-  { name: 'People', tab: '[data-testid=sidebar-tab-people]', path: '/people' },
+  { name: 'Issues', tab: '[data-testid=sidebar-tab-issues]', path: '/issues', title: '[data-test=issues-heading]' },
+  { name: 'Archive', tab: '[data-testid=sidebar-tab-archive]', path: '/archive', title: '[data-test=archive-page] .archive-title' },
+  { name: 'People', tab: '[data-testid=sidebar-tab-people]', path: '/people', title: '[data-test=people-index] .feed-header h2' },
   /* SPL-2075: Agents and Boxes are Monitoring's tabs now; SPL-3250 the Event log too.
      SPL-5396: Monitoring has no X; it closes on another section (below) */
-  { name: 'Help', tab: '[data-testid=help-open]', path: '/help' },
-  { name: 'Workspace settings', tab: '[data-testid=tenant-settings-open]', path: '/tenant-settings' },
+  { name: 'Help', tab: '[data-testid=help-open]', path: '/help', title: '#help-h' },
+  { name: 'Workspace settings', tab: '[data-testid=tenant-settings-open]', path: '/tenant-settings', title: '#tenant-settings-h' },
+]
+/* the other views that had the X, each opened in the app by the router */
+const VIEWS = [
+  { name: 'Docs', path: '/docs/README.md', title: '#docs-h' },
+  { name: 'Embed', path: '/embed', title: '#embed-admin-h' },
+  { name: 'Expenses', path: '/expenses', title: '[data-test=expenses-heading]' },
+  { name: 'Goal', path: '/goals/G01', title: '[data-test=goal-heading]' },
+  { name: 'Notes', path: '/notes', title: '[data-test=notes-heading]' },
+  { name: 'Reporting', path: '/reporting', title: '[data-test=reporting-heading]' },
+  { name: 'Roadmap', path: '/roadmap', title: '[data-test=roadmap-heading]' },
+  { name: 'Calendar', path: '/calendar', title: '[data-test=calendar-view-tabs] [data-test=calendar-range]' },
 ]
 const path = (p) => p.evaluate(() => location.pathname)
 const closeX = (p) => p.evaluate(() => [...document.querySelectorAll('.spool-main [data-test=section-close]')]
   .filter((e) => e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility !== 'hidden').length)
+const shown = (p, sel) => p.evaluate((s) => (document.querySelector(s)?.getBoundingClientRect().width || 0) > 0, sel)
 /** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
     returns the last read. */
 async function until(read, want = () => true, hold = 300, max = 8000) {
@@ -87,20 +98,21 @@ try {
   await p.waitForSelector('[data-testid=sidebar-tab-issues]', { visible: true })
   await until(() => p.evaluate(() => location.pathname), (v) => v === '/channel/feedback')
 
+  /* SPL-5467 (owner HUM-10, t1 fc38e637 msg d93462e4: "remove the closing x
+     from this view - it is not needed and it is confusing ... the users should
+     use only the left sections bar to navigate"): no section has the X, its
+     title still renders. CONTROL: on cb23af0cc every one but Issues FAILS. */
   for (const s of PAGES) {
-    if (s.noX) continue
     await go(p, s.tab, s.path)
+    await p.waitForSelector(s.title, { visible: true, timeout: 8000 }).catch(() => null)
     const here = await path(p)
-    const x = await closeX(p)
-    ok(`1440 ${s.name}: the page shows exactly one close X`, (here === s.path || here.startsWith(s.path + '/')) && x === 1, { here, x })
-    await p.evaluate(() => document.querySelector('.spool-main [data-test=section-close]')?.click())
-    await p.waitForFunction(() => location.pathname === '/channel/feedback', { timeout: 15000 }).catch(() => null)
-    ok(`1440 ${s.name}: the X goes back to the channel the reader left`, (await path(p)) === '/channel/feedback', await path(p))
+    const ev = { here, x: await closeX(p), title: await shown(p, s.title) }
+    ok(`1440 ${s.name}: no close X, the title renders`, (here === s.path || here.startsWith(s.path + '/')) && ev.x === 0 && ev.title, ev)
+    await go(p, '[data-testid=sidebar-tab-channels]', '/channel/feedback')
+    ok(`1440 ${s.name} -> rail Channels: back in the channel the reader left`, (await path(p)) === '/channel/feedback', await path(p))
   }
 
-  /* SPL-5425 (owner HUM-10, t1 fc38e637 msg d93462e4: "remove the closing x
-     from this view ... the users should use only the left sections bar to
-     navigate"). CONTROL: on master the Issues header draws an X, so this FAILS there. */
+  /* SPL-5425: the Issues header keeps the rest */
   await go(p, '[data-testid=sidebar-tab-issues]', '/issues')
   const iss = await path(p)
   const issX = await p.evaluate(() => document.querySelectorAll('[data-test=issues-page] .issues-head [data-test=section-close]').length)
@@ -172,6 +184,30 @@ try {
   await until(() => m.evaluate(() => document.querySelector('[data-test=issues-page]')?.innerHTML.length || 0), (n) => n > 0)
   ok('390 no close X on a phone (the section strip is the way)', (await closeX(m)) === 0)
   await m.close()
+
+  /* SPL-5467: the other views, desktop. Each opens from the channel by the
+     router (what a link calls), so the rail's Channels then has the
+     conversation to go back to: with the X gone it is the way out.
+     CONTROL: on cb23af0cc each view draws an X, and Embed, Goal and Roadmap
+     stay put on Channels. */
+  const v = await browser.newPage()
+  v.setDefaultNavigationTimeout(NAV_TIMEOUT)
+  await v.evaluateOnNewDocument((s) => localStorage.setItem('spool.mock.session', JSON.stringify(s)), SESSION)
+  await v.setViewport({ width: 1440, height: 900 })
+  await v.goto(`${srv.base}/channel/feedback`, { waitUntil: 'networkidle2' })
+  await v.waitForSelector('[data-testid=sidebar-tab-channels]', { visible: true })
+  await until(() => path(v), (w) => w === '/channel/feedback')
+  for (const s of VIEWS) {
+    await v.evaluate((to) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(to), s.path)
+    await v.waitForSelector(s.title, { visible: true, timeout: 8000 }).catch(() => null)
+    /* the page has drawn and holds still before counting what it lacks */
+    await until(() => v.evaluate(() => [location.pathname, document.querySelectorAll('.spool-main [data-test=section-close]').length]))
+    const ev = { here: await path(v), x: await closeX(v), title: await shown(v, s.title) }
+    ok(`1440 ${s.name}: no close X, the title renders (SPL-5467)`, ev.here.startsWith(s.path) && ev.x === 0 && ev.title, ev)
+    await go(v, '[data-testid=sidebar-tab-channels]', '/channel/feedback')
+    ok(`1440 ${s.name} -> rail Channels: back in the channel the reader left`, (await path(v)) === '/channel/feedback', await path(v))
+  }
+  await v.close()
 } finally {
   await browser.close()
   await srv.stop()

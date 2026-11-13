@@ -10,9 +10,7 @@
   <div class="feed-col">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 id="embed-admin-h">{{ t('embed.title') }}</h2>
-      <SectionClose side="end" />
     </header>
     <div class="feed-body ea" data-test="embed-admin">
       <p class="muted">{{ t('embed.description') }}</p>

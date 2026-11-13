@@ -74,8 +74,10 @@ describe('calendar desktop views (SPL-4060)', () => {
   it('the desktop page has no header bar; the tab group holds its controls', () => {
     assert.doesNotMatch(page, /class="feed-header"/)
     const tabs = readFileSync(new URL('../../src/components/CalendarViewTabs.vue', import.meta.url), 'utf8')
-    for (const t of ['calendar-hours-toggle', 'calendar-today', 'calendar-prev', 'calendar-next', 'calendar-range', 'calendar-menu', 'aria-orientation="vertical"', '<SectionClose side="start" />']) {
+    for (const t of ['calendar-hours-toggle', 'calendar-today', 'calendar-prev', 'calendar-next', 'calendar-range', 'calendar-menu', 'aria-orientation="vertical"']) {
       assert.ok(tabs.includes(t), `CalendarViewTabs lacks ${t}`)
     }
+    /* SPL-5467 (owner HUM-10 msg d93462e4): no section close X; the left sections bar is the way */
+    assert.doesNotMatch(tabs, /<SectionClose|section-close/)
   })
 })

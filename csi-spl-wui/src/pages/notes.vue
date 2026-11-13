@@ -19,7 +19,6 @@
   <div class="feed-col notes-page" data-test="notes-page">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 class="notes-title" data-test="notes-heading">
         <UiIcon name="notes" :size="18" />
         <span>{{ t('notes.title') }}</span>
@@ -42,7 +41,6 @@
       >
         <UiIcon name="plus" :size="22" :stroke-width="2.5" />
       </button>
-      <SectionClose side="end" />
     </header>
     <div class="feed-body notes-body">
       <p v-if="store.state === 'off'" class="muted" data-test="notes-off">{{ t('notes.off') }}</p>

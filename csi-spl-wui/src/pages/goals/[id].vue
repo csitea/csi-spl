@@ -12,10 +12,7 @@
   <div class="feed-col goal-page" data-test="goal-page" :data-goal="id">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 data-test="goal-heading">{{ g ? (g.title || g.id) : t('goals.page_title', { id }) }}</h2>
-      <span class="goal-spacer" />
-      <SectionClose side="end" />
     </header>
     <div class="feed-body goal-body">
       <p class="goal-back"><NuxtLink :to="roadmapHref" data-test="goal-roadmap-link">{{ t('goals.back') }}</NuxtLink></p>
@@ -136,7 +133,6 @@ useHead(() => ({ title: g.value ? (g.value.title || g.value.id) : t('goals.page_
 </script>
 
 <style scoped>
-.goal-spacer { flex: 1 1 auto; }
 .goal-body { min-width: 0; overflow-wrap: anywhere; }
 .goal-back { margin: 0 0 0.75rem; }
 .goal-error { color: var(--color-danger); }

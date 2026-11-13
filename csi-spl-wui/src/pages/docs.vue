@@ -27,9 +27,7 @@
   <div class="feed-col">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 id="docs-h">{{ t('docs.title') }}</h2>
-      <SectionClose side="end" />
     </header>
     <div class="feed-body docs-page" data-test="docs" :data-state="state">
       <div class="docs-layout" :class="{ 'docs-layout--tree-open': treeOpen, 'docs-layout--tree-collapsed': treeFold.collapsed.value }" :data-tree-collapsed="treeFold.collapsed.value ? '1' : undefined" :style="{ '--docs-tree-w': `${treeW.width.value}px` }">

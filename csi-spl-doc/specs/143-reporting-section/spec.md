@@ -141,7 +141,7 @@ export function reportingTabFor(path) {
 
 ### 1.3 Section page wrapper: `pages/reporting.vue`
 
-`pages/reporting.vue` provides the standard feed layout, top bar with title and close affordances, tab navigation bar, and child route outlet (`<NuxtPage />`):
+`pages/reporting.vue` provides the standard feed layout, top bar with title (no close X since SPL-5467: the left sections bar is the way out), tab navigation bar, and child route outlet (`<NuxtPage />`):
 
 ```vue
 <!-- csi-spl-wui/src/pages/reporting.vue -->
@@ -149,9 +149,8 @@ export function reportingTabFor(path) {
   <div class="feed-col reporting-page" data-test="reporting-page">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
+      <!-- SPL-5467: no SectionClose; the left sections bar is the way out -->
       <h2 data-test="reporting-heading">{{ t('reporting.title') }}</h2>
-      <SectionClose side="end" />
     </header>
     <nav class="reporting-tabs" :aria-label="t('reporting.tabs_label')" data-test="reporting-tabs">
       <NuxtLink

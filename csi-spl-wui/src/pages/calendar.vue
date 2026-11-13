@@ -11,7 +11,7 @@
      089 T009 phone branch (the strip as a sheet, the main view's Day / Week
      list) is retired.
      SPL-4060 (owner HUM-10, t1 080e1f77 msg a62b3dce): no header bar on the
-     desktop: the section close and the Hours toggle moved into the main
+     desktop: the Hours toggle moved into the main
      view's vertical tab group (CalendarViewTabs), the title stays the
      document title and a heading for assistive tech. The view is in the URL
      too (?v=day|3day|month; Week has none), so a link keeps it. -->

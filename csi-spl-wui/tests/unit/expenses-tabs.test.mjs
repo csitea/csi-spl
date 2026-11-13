@@ -44,7 +44,7 @@ async function renderPage(operator) {
   const app = Vue.createSSRApp({ render: (_c, cache) => fn(scope, cache || []) })
   app.component('NuxtLink', { props: ['to'], setup: (p, { slots }) => () => Vue.h('a', { href: p.to }, slots.default?.()) })
   app.component('PaidItemsCard', { setup: () => () => Vue.h('div', { 'data-test': 'paid-card' }) })
-  for (const c of ['MobileBack', 'SectionClose']) app.component(c, { setup: () => () => null })
+  for (const c of ['MobileBack']) app.component(c, { setup: () => () => null })
   return renderToString(app)
 }
 

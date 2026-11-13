@@ -1,5 +1,9 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-13, SPL-5467): `SectionClose.vue` is deleted; no section
+page has a close X (owner HUM-10 msg d93462e4). Where 3.1 and the P/C rows
+below cite it or an end close X, they record the header as it was.
+
 Addendum (2026-11-12, SPL-5396): section 3.28 (no close X on the
 Monitoring header; each gap around `>>` is as wide as "Monitor" in the
 heading's font), cases C140-C142. A bug fix on 3.1 and SPL-4811, placed as

@@ -6,6 +6,12 @@
 
 Status vocabulary follows `../README.md` §2.3.
 
+Addendum (2026-11-13, SPL-5467): CLE-77886 also gave every section page a
+close X on the desktop (`SectionClose.vue`). The owner retired it (HUM-10, t1
+fc38e637 msg d93462e4: "the users should use only the left sections bar to
+navigate"): no section page has one, on a desktop or a phone; the left
+sections bar is the only way out. The phone rules below are unchanged.
+
 ## 1. The owner's request, verbatim
 
 prd t1 `#spool-hub-mobile`, topic `c397d781-5d22-4566-8aad-e1d0dfb7b760`, 2026-09-27 07:55-08:08Z:

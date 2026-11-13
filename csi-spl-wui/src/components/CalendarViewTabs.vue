@@ -1,7 +1,7 @@
 <!-- SPL-4060 (owner HUM-10, t1 080e1f77, poll 7c472af4): the desktop
      calendar's vertical tab group, a narrow strip at the grid's left edge
      (Q1). It replaced the page's header bar (msg a62b3dce) and the main
-     view's top bar, so it holds what they held: the section close, the
+     view's top bar, so it holds what they held: the
      views Day, 3 days, Week and Month, then Hours (the hours panel, msg
      a0a8fc08), then Today, previous / next and the period title (Q3), and
      the calendar menu (the trash) at the bottom. A view tab opens that view
@@ -9,10 +9,6 @@
      lazy chunk. -->
 <template>
   <nav class="cal-tabs" data-test="calendar-view-tabs" :aria-label="t('calendar.view')">
-    <div class="cal-tabs__close">
-      <SectionClose side="start" />
-      <SectionClose side="end" />
-    </div>
     <div class="cal-tabs__list" role="tablist" aria-orientation="vertical" :aria-label="t('calendar.view')" @keydown="onKey">
       <button
         v-for="v in CAL_DESK_VIEWS"
@@ -105,7 +101,6 @@ function onKey(e: KeyboardEvent) {
   min-height: 0;
   overflow-y: auto;
 }
-.cal-tabs__close { display: flex; justify-content: center; min-height: 0; }
 .cal-tabs__list { display: flex; flex-direction: column; gap: 2px; }
 .cal-tabs__tab {
   min-height: 2.25rem;

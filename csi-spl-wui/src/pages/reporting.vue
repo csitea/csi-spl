@@ -8,7 +8,6 @@
   <div class="feed-col reporting-page" data-test="reporting-page">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 class="section-title" data-test="reporting-heading">{{ t('reporting.title') }}</h2>
       <!-- SPL-4811 (owner HUM-10, t1 c7c44497, msg 416d130f): the tab bar on
            the heading's row, after "  >>  " (main.css .section-title-sep) -->
@@ -24,7 +23,6 @@
           :data-test="'reporting-tab-' + tab.id"
         >{{ t(tab.labelKey) }}</NuxtLink>
       </nav>
-      <SectionClose side="end" />
     </header>
     <div class="feed-body reporting-body">
       <NuxtPage />

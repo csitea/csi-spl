@@ -9,7 +9,7 @@ import { useSectionExit } from '~/composables/useSectionExit'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
-import { chatKind, isSectionPage } from '~/utils/section-strip.mjs'
+import { chatKind, isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { ARCHIVE_TAB, CALENDAR_TAB, EXPENSES_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
@@ -42,9 +42,14 @@ async function openSectionPage(next: string, phoneList: boolean, query: Record<s
    list on the left alone kept the page and read as a dead end. Owner
    (t1 777d6c9a): on a rail-only page (Docs (Qto) /workspace/docs, a Help
    or Docs document) the sidebar hides its list, so the tab alone changed
-   nothing and the rail read as frozen: leave it, to the lobby at least. */
+   nothing and the rail read as frozen: leave it, to the lobby at least.
+   SPL-5467 (owner HUM-10 msg d93462e4): no page has a close X now, so the
+   rail leaves the pages that had one and are no section page: a Workspace
+   settings section, Embed, Roadmap and a goal. */
+const X_GONE_PAGE = /^\/(embed|roadmap|goals\/[^/]+)$/
+const leavable = (path: string) => (isSectionPage(path) && productPath(path) !== '/') || railLinkSection(path) === 'settings' || X_GONE_PAGE.test(productPath(path))
 function sectionLeavePath(next: string, railOnlyPage: boolean, route: ReturnType<typeof useRoute>, sectionExit: ReturnType<typeof useSectionExit>, localePath: ReturnType<typeof useLocalePath>) {
-  if (!(next === 'channels' || next === 'dm' || next === 'flow') || !(railOnlyPage || (isSectionPage(route.path) && productPath(route.path) !== '/'))) return ''
+  if (!(next === 'channels' || next === 'dm' || next === 'flow') || !(railOnlyPage || leavable(route.path))) return ''
   const back = withoutQuery(sectionExit.target(next)) || (railOnlyPage ? '/lobby' : '')
   return back.startsWith('/lobby') ? localePath(back) : back
 }

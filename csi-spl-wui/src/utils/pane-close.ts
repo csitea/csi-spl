@@ -4,8 +4,7 @@
 // should close the right most pane - similarly to how Ctrl + W closes a tab".
 // Shift + W runs the X of the rightmost pane on screen, the same click as the
 // pane's own X: the topic pane (live, channel or the operator console), a
-// page's side pane (a user, the calendar hours), a section page's way out,
-// then the search results in the left panel. With no such X on screen, the
+// page's side pane (a user, the calendar hours), then the search results in the left panel. With no such X on screen, the
 // base view, it does nothing. Never while typing (a field types its capital
 // W), never on a phone, never over a menu or a dialog; Ctrl / Cmd + W stays
 // the browser's. The listener is composables/useGlobalKeys.ts.
@@ -19,7 +18,6 @@ export const PANE_CLOSE_X: string = [
   'button.topic-close',
   'button[data-test="users-pane-close"]',
   'button[data-test$="-panel-close"]',
-  'button[data-test="section-close"]',
   'button[data-testid="side-search-close"]',
 ].join(', ')
 

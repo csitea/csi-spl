@@ -16,7 +16,6 @@
   <div class="feed-col expenses-page" data-test="expenses-page">
     <header class="feed-header">
       <MobileBack />
-      <SectionClose side="start" />
       <h2 class="section-title" data-test="expenses-heading">{{ t('sidebar.expenses') }}</h2>
       <!-- the tab bar on the heading's row, as Reporting's (SPL-4811, main.css .section-title-sep) -->
       <span class="section-title-sep" aria-hidden="true" data-test="expenses-title-sep">{{ '  >>  ' }}</span>
@@ -31,7 +30,6 @@
           :data-test="'expenses-tab-' + tab.id"
         >{{ t(tab.labelKey) }}</NuxtLink>
       </nav>
-      <SectionClose side="end" />
     </header>
     <div class="feed-body expenses-body">
       <p v-if="!reader" class="muted" data-test="expenses-operators-only">{{ t('expenses.operators_only') }}</p>

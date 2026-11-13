@@ -103,6 +103,21 @@ describe('sectionLeavePath, through selectTab', () => {
     assert.deepEqual(calls.navigated, [])
   })
 
+  /* SPL-5467: these pages lost their close X; the rail's Channels / Flow is their way back */
+  for (const path of ['/tenant-settings/members', '/fi/tenant-settings/members', '/embed', '/roadmap', '/goals/G01']) {
+    it(`${path}: Channels goes back to the conversation left`, async () => {
+      const { calls, nav } = rig({ path })
+      await nav.selectTab('channels')
+      assert.deepEqual(calls.navigated, ['/channel/last'])
+    })
+  }
+
+  it('a person page (a drill-down, never had the X) still stays', async () => {
+    const { calls, nav } = rig({ path: '/people/HUM-2' })
+    await nav.selectTab('channels')
+    assert.deepEqual(calls.navigated, [])
+  })
+
   it('selectTab waits for the leave before it resolves', async () => {
     let release
     const { nav } = rig({ path: '/issues', navDone: new Promise((r) => { release = r }) })

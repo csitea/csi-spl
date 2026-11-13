@@ -8,7 +8,8 @@ type LastChat = { channel: string, dm: string, chat: string }
  * log, People, Help, ...) fills the middle; on a desktop the rail's Channels
  * / Direct messages only swapped the left list, so the page stayed and read
  * as a dead end. The sidebar notes every conversation route (`note`); the
- * rail and the section page's close X go back to it (`target`).
+ * rail goes back to it (`target`). A section page has no close X (SPL-5467,
+ * owner HUM-10 msg d93462e4): the left sections bar is the way out.
  */
 export function useSectionExit() {
   const last = useState<LastChat>('section-exit-last', () => ({ channel: '', dm: '', chat: '' }))

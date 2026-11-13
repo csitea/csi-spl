@@ -4,7 +4,9 @@
 // settings) fills the middle; the rail's Channels / Direct messages only
 // swapped the left list, so the page stayed and read as a dead end.
 // Now: every section page has the close X (the side Settings -> Behaviour
-// picks), which goes back to the conversation the reader left; Channels /
+// picks), which goes back to the conversation the reader left; Issues and
+// Monitoring have none (SPL-5425, SPL-5396: the left sections bar is the
+// way); Channels /
 // Direct messages / Flow on the rail bring that conversation back too; Esc
 // closes an open issue; browser Back still works. On a phone the section
 // strip is the way and no X renders.
@@ -38,8 +40,9 @@ async function launch() {
 }
 
 const SESSION = { hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }
+/* noX: the owner took the page's X away; the rail is the way out */
 const PAGES = [
-  { name: 'Issues', tab: '[data-testid=sidebar-tab-issues]', path: '/issues' },
+  { name: 'Issues', tab: '[data-testid=sidebar-tab-issues]', path: '/issues', noX: true },
   { name: 'Archive', tab: '[data-testid=sidebar-tab-archive]', path: '/archive' },
   { name: 'People', tab: '[data-testid=sidebar-tab-people]', path: '/people' },
   /* SPL-2075: Agents and Boxes are Monitoring's tabs now; SPL-3250 the Event log too.
@@ -85,6 +88,7 @@ try {
   await until(() => p.evaluate(() => location.pathname), (v) => v === '/channel/feedback')
 
   for (const s of PAGES) {
+    if (s.noX) continue
     await go(p, s.tab, s.path)
     const here = await path(p)
     const x = await closeX(p)
@@ -93,6 +97,17 @@ try {
     await p.waitForFunction(() => location.pathname === '/channel/feedback', { timeout: 15000 }).catch(() => null)
     ok(`1440 ${s.name}: the X goes back to the channel the reader left`, (await path(p)) === '/channel/feedback', await path(p))
   }
+
+  /* SPL-5425 (owner HUM-10, t1 fc38e637 msg d93462e4: "remove the closing x
+     from this view ... the users should use only the left sections bar to
+     navigate"). CONTROL: on master the Issues header draws an X, so this FAILS there. */
+  await go(p, '[data-testid=sidebar-tab-issues]', '/issues')
+  const iss = await path(p)
+  const issX = await p.evaluate(() => document.querySelectorAll('[data-test=issues-page] .issues-head [data-test=section-close]').length)
+  ok('1440 Issues: no close X in the header (SPL-5425)', iss === '/issues' && issX === 0 && (await closeX(p)) === 0, { iss, issX, x: await closeX(p) })
+  /* the header keeps its title, + and view toggles */
+  const kept = await p.evaluate(() => ['issues-heading', 'issues-new', 'issues-views'].filter((t) => document.querySelector(`.issues-head [data-test=${t}]`)?.getBoundingClientRect().width > 0))
+  ok('1440 Issues: the header keeps its title, + and view toggles', kept.length === 3, kept)
 
   /* SPL-5396 (owner HUM-10, t1 9d0d51e9: "the close button ( the x ) is not
      needed, it should [close] whenever one clicks on any other section in the
@@ -144,7 +159,7 @@ try {
   } else {
     ok('1440 an issue opens from its row', false)
   }
-  ok('1440 the Issues page keeps its close X with the list', (await closeX(p)) === 1)
+  ok('1440 the Issues page still has no close X with the list (SPL-5425)', (await closeX(p)) === 0)
   await p.close()
 
   /* phone: the strip is the way; no X */

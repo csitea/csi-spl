@@ -70,11 +70,18 @@
 # ships with docker.io), and the fonts the browser e2e draws in: the WUI ships
 # no webfont, so a box with only DejaVu lays every card out wider than the
 # others (card-edge-inset red on sat-spl-* only, 2026-10-03); Liberation Sans
-# is that test's MEASURE_FONT
+# is that test's MEASURE_FONT. _gh_runner_add_deps sets them on the first
+# call of do_gh_runner_add, not at source time, so the ./run loader keeps this
+# file lazy and sourcing it runs no dpkg (spec 027, p7-04)
 declare -F ghrb_place >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/apply-gh-runner-cpu-budget.func.sh"
 
-GH_RUNNER_PKGS="rootlesskit uidmap slirp4netns fonts-noto-core fonts-liberation"
+_gh_runner_add_deps() {
+  [[ -n "${_GHR_DEPS_DONE:-}" ]] && return 0
+  GH_RUNNER_PKGS="rootlesskit uidmap slirp4netns fonts-noto-core fonts-liberation"
+  ghr_docker_flavour
+  _GHR_DEPS_DONE=1
+}
 
 # ghr_docker_flavour - a box on Docker CE (docker-ce, e.g. the PC box) has no
 # docker.io contrib dir: its setuptool is /usr/bin/dockerd-rootless-setuptool.sh
@@ -92,7 +99,6 @@ ghr_docker_flavour() {
   fi
   GH_RUNNER_SETUPTOOL="${GH_RUNNER_SETUPTOOL:-/usr/share/docker.io/contrib/dockerd-rootless-setuptool.sh}"
 }
-ghr_docker_flavour
 
 # ghr_as <user> <cmd...> - run as the runner user, on its own systemd --user bus
 ghr_as() {
@@ -461,6 +467,7 @@ ghr_verify() {
 
 do_gh_runner_add() {
   do_require_bin gh systemctl sudo curl tar sha256sum || return 1
+  _gh_runner_add_deps
   GHR_REPO="${GH_RUNNER_REPO:-}" GHR_GROUP="${GH_RUNNER_GROUP:-}" GHR_N="${RUNNER_COUNT:-2}"
   GHR_USER="${GH_RUNNER_USER:-ghrunner}" GHR_ROOT="${GH_RUNNER_ROOT:-/srv/gh-runner}"
   GHR_DATA_ROOT="${GH_RUNNER_DATA_ROOT:-}" GHR_CPU_WEIGHT="${GH_RUNNER_CPU_WEIGHT:-}"

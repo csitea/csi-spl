@@ -230,7 +230,7 @@ gc begin $(( H0 + 1805 )) AGENT_ID=c-911
 gc restart $(( H0 + 1806 )) AGENT_ID=c-911
 sleep 0.3
 check "6. poked on an earlier pass, no progress = do_spl_agent_restart CAUSE=gc" '[ "$rc" = 0 ] && grep -q "restart ID=c-911 CAUSE=gc DRY_RUN=0 EV=gc .*no heartbeat progress" "$T/restart.log"'
-check "6. the restart path knows the cause gc" 'grep -qE "^ARS_CAUSES=\".* gc\"" "$PROJ_ROOT/src/bash/run/spl-agent-restart.func.sh"'
+check "6. the restart path knows the cause gc" 'grep -qE "^ *local ARS_CAUSES=\".* gc\"" "$PROJ_ROOT/src/bash/run/spl-agent-restart.func.sh"'
 gc begin $(( H0 + 1810 )) AGENT_ID=c-913
 gc poke $(( H0 + 1811 )) AGENT_ID=c-913 GC_HINT="h"
 progress c-913 $(( H0 + 2000 ))

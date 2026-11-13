@@ -25,8 +25,6 @@ declare -F do_spl_box_restart_check >/dev/null ||
 declare -F do_check_gh_runner >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-gh-runner.func.sh"
 
-SPL_BRX_AGENT_WIN_RE='^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
-
 do_spl_box_restart_after() {
   local root dir p utc rc=0
   root="${SPOOL_ROOT:-/var/spool-hub}"; dir="$root/dispatch/box-restart"; p="$dir/pending"
@@ -128,6 +126,7 @@ spl_brx_after_rerun() {
 # 5-minute desk tick re-seats them, said so.
 spl_brx_after_desk() {
   local end line cmd n=0 rc=0 app
+  local SPL_BRX_AGENT_WIN_RE='^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
   end=$(( $(spl_brx_clock) + ${BOX_RESTART_AGENT_WAIT:-900} ))
   until spl_brx_tmux_windows | grep -E "$SPL_BRX_AGENT_WIN_RE" >/dev/null; do
     (( $(spl_brx_clock) >= end )) && { do_log "WARN no agent window after ${BOX_RESTART_AGENT_WAIT:-900}s: no desk pass now, the desk-reconcile tick re-seats them"; return 0; }

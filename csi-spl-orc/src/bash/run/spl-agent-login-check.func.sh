@@ -65,13 +65,25 @@
 # @example ./run -a do_spl_agent_login_check
 # @example DRY_RUN=0 ./run -a do_spl_agent_login_check
 #------------------------------------------------------------------------------
-# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
-declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
-LC_FOOT_LOGIN_RE='login expired|please run /login|oauth (session|token) (has )?expired|could not be refreshed'
-LC_FOOT_LIMIT_RE='(you[^[:space:]]* )?hit your ([a-z]+ )?limit|usage limit reached'
+# _lc_deps: spl_role_seat, the role seat ids in their live vendor letter
+# (SPL-1695), sourced on the first call, not at source time, so the ./run
+# loader keeps this file lazy (spec 027, p7-04)
+_lc_deps() {
+  declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+}
+
+# _lc_foot_re login|limit: the footer regex of a pane stuck on an expired
+# login or a hit limit; spl_wd_login_human reads the login one too
+_lc_foot_re() {
+  case "$1" in
+    login) printf '%s' 'login expired|please run /login|oauth (session|token) (has )?expired|could not be refreshed' ;;
+    limit) printf '%s' '(you[^[:space:]]* )?hit your ([a-z]+ )?limit|usage limit reached' ;;
+  esac
+}
 
 do_spl_agent_login_check() {
   local dry="${DRY_RUN:-1}" every="${LOGIN_PROBE_EVERY:-300}" wait="${LOGIN_STOP_WAIT:-15}"
+  _lc_deps
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$every" =~ ^[0-9]+$ && "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL LOGIN_PROBE_EVERY and LOGIN_STOP_WAIT must be seconds"; return 1; }
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
@@ -152,8 +164,8 @@ _lc_scan() {
 _lc_stuck_now() {
   local pid="$1" pane="$2" foot what
   foot="$(_lc_capture "$pane" | grep -v '^[[:space:]]*$' | _lc_foot "${LOGIN_PANE_TAIL:-8}")"
-  if grep -qiE "$LC_FOOT_LOGIN_RE" <<<"$foot"; then what=login
-  elif grep -qiE "$LC_FOOT_LIMIT_RE" <<<"$foot"; then what=limit
+  if grep -qiE "$(_lc_foot_re login)" <<<"$foot"; then what=login
+  elif grep -qiE "$(_lc_foot_re limit)" <<<"$foot"; then what=limit
   else return 1; fi
   [[ "$(_lc_turn "$pid")" == error ]] || return 1
   echo "$what"

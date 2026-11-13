@@ -333,7 +333,7 @@ got="$( gh() { echo "v9.9.9 $tb_sha"; }
 [[ "$got" == "$T/tb/actions-runner-linux-x64-9.9.9.tar.gz" ]] && ok "ghr_tarball prints only the tarball path on stdout" || no "ghr_tarball stdout: $got"
 
 # Docker CE vs docker.io: which setuptool and packages
-flav() { env -u GH_RUNNER_SETUPTOOL PATH="$T/flav:$PATH" "$@" bash -c 'do_log() { :; }; source "'"$FUNC"'"; echo "$GH_RUNNER_SETUPTOOL|$GH_RUNNER_PKGS"'; }
+flav() { env -u GH_RUNNER_SETUPTOOL PATH="$T/flav:$PATH" "$@" bash -c 'do_log() { :; }; source "'"$FUNC"'"; _gh_runner_add_deps; echo "$GH_RUNNER_SETUPTOOL|$GH_RUNNER_PKGS"'; }
 mkdir -p "$T/flav"
 printf '#!/usr/bin/env bash\n[[ "$2" == docker-ce && -n "${HAS_CE:-}" ]]\n' >"$T/flav/dpkg"
 printf '#!/usr/bin/env bash\necho -n 5:29.5.2-1\n' >"$T/flav/dpkg-query"; chmod +x "$T/flav/dpkg" "$T/flav/dpkg-query"

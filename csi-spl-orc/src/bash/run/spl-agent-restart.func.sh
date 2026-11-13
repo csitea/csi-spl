@@ -80,9 +80,8 @@ declare -F do_spl_agent_handoff >/dev/null ||
 declare -F do_spl_lane_wip_push >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-wip-push.func.sh"
 
-ARS_CAUSES="rebirth hard-end S1 S3 S4 S5 S7 S9 reboot box-down login-reset gc"
-
 do_spl_agent_restart() {
+  local ARS_CAUSES="rebirth hard-end S1 S3 S4 S5 S7 S9 reboot box-down login-reset gc"
   local id="${ID:-}" cause="${CAUSE:-}" req="${REQ_FROM:-${SPOOL_AGENT_ID:-}}" box=""
   if [[ "$id" == *@* ]]; then box="${id#*@}"; id="${id%@*}"; fi
   [[ "$id" =~ ^[acgqm]-[0-9]{3}$ ]] || { do_log "FATAL ID must be an agent id (c-NNN), got: '${ID:-}'"; return 1; }

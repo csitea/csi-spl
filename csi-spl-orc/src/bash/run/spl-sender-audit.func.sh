@@ -21,13 +21,20 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example DRY_RUN=0 ./run -a do_spl_sender_audit
 #------------------------------------------------------------------------------
-_spl_sa_lib="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib"
-declare -F spl_role_seat >/dev/null || source "$_spl_sa_lib/spool-env.inc.sh"
-declare -F send_chain_caller >/dev/null || source "$_spl_sa_lib/spool-caller.inc.sh"
-declare -F spl_box_name >/dev/null || source "$_spl_sa_lib/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
+
+# _spl_sender_audit_deps: its libraries, sourced on the first call, not at
+# source time, so the ./run loader keeps this file lazy (spec 027, p7-04)
+_spl_sender_audit_deps() {
+  local lib
+  lib="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib"
+  declare -F spl_role_seat >/dev/null || source "$lib/spool-env.inc.sh"
+  declare -F send_chain_caller >/dev/null || source "$lib/spool-caller.inc.sh"
+  declare -F spl_box_name >/dev/null || source "$lib/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
+}
 
 do_spl_sender_audit() {
   local dry="${DRY_RUN:-1}" tmp rc=0
+  _spl_sender_audit_deps
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SA_JOURNAL="${SPOOL_SENDER_AUDIT:-/var/spool-hub/dispatch/sender-audit.jsonl}"
   do_require_bin jq || return 1

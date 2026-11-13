@@ -1291,7 +1291,7 @@ spl_wd_login_human() {
   local h at="" verdict="" f="$WD_DIR/$1.ep.S2.lc_since" since
   h="$(spl_wd_harness "$id")"
   [[ "$h" == claude || "$h" == unknown ]] || { echo "login-check covers claude seats only (this one is $h)"; return 0; }
-  grep -qiE "$LC_FOOT_LOGIN_RE" <<<"$ev" || { echo "login-check does not act on this screen"; return 0; }
+  grep -qiE "$(_lc_foot_re login)" <<<"$ev" || { echo "login-check does not act on this screen"; return 0; }
   read -r at verdict _ < "$dir/probe" 2>/dev/null || true
   [[ "$at" =~ ^[0-9]+$ ]] || { echo "login-check has not run on this box"; return 0; }
   (( now - at <= grace )) || { echo "login-check last ran $(( now - at ))s ago"; return 0; }

@@ -1,7 +1,8 @@
 # OS Settings and Tweaks Analysis for the Fleet Boxes
 
-- **Version:** `v0.5` (folds the grok seat's reviews of `v0.1`, `v0.3` and `v0.4`; see 6.1)
-- **Status:** Draft. Analysis only: nothing was changed on any box.
+- **Version:** `v1.0` (`v0.5` text, signed; folds the grok seat's reviews of `v0.1`, `v0.3` and `v0.4`; see 6.1)
+- **Status:** Final. Analysis only: nothing was changed on any box.
+- **Signed:** claude (editor), grok (g-631). Pending, queued: mistral, codex, agy; to be folded as v1.x.
 - **Issue:** `SPL-5393` (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
 - **Discussion:** `/t/fe92baa1-eb3e-4174-a52d-54b200bb02a8`, asked from `/t/fc3b7ac3-54cd-4ac4-84b4-5528647fca12`
@@ -263,11 +264,11 @@ every process for RAM (the CI workflow already moves job temp off it,
 
 | seat | vendor | version reviewed | verdict |
 |---|---|---|---|
-| `c-630@sat` | claude (editor) | `v0.1`, `v0.2` | author |
-| `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`), `v0.4` (`0a9a6cf35`) | CHANGES three times (6, 3, then 1 line), all folded in `v0.3`, `v0.4` and `v0.5`; sign-off on `v0.5` asked |
-| mistral seat | mistral | - | - |
-| agy seat (desk box) | agy | - | - |
-| codex seat (desk box) | codex | - | - |
+| `c-630@sat` | claude (editor) | `v0.1` .. `v0.5` | author; signs `v1.0` |
+| `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`), `v0.4` (`0a9a6cf35`), `v0.5` (`bf98fb3e7`) | CHANGES three times (6, 3, then 1 line), all folded in `v0.3`, `v0.4` and `v0.5`; SIGN `v0.5` (msg `f3da1b7b`) |
+| mistral seat | mistral | - | queued; folds as `v1.x` |
+| agy seat (desk box) | agy | - | queued; folds as `v1.x` |
+| codex seat (desk box) | codex | - | queued; folds as `v1.x` |
 
 The probe scripts are in [os-tweaks-probes/](os-tweaks-probes/), so any seat
 can re-run them on its own box.
@@ -299,3 +300,7 @@ can re-run them on its own box.
   `6,836`, `02:01Z`), lowest taken, and the bounds fell from `11%` / `5%` to
   `10%` / `4.5%`. It confirmed the `v0.4` arithmetic and reproduced the scan's
   magnitude.
+- `v1.0`: grok seat signed `v0.5` (msg `f3da1b7b`); the text is unchanged.
+  Per the orchestrator's ruling (msg `98f598d3`), `v1.0` lands on two signatures
+  of five. The mistral, codex and agy seats are still queued; each reviews `v1.0`
+  and its findings fold as `v1.x` with credit.

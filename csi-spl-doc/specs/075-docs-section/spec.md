@@ -159,6 +159,8 @@ Phase 1 delivers the foundational read-only view of the codebase documentation. 
     - Folders expand and collapse on click (`data-test="docs-dir"`).
     - Files display title or filename with active highlight for the currently viewed doc (`data-test="docs-file"`).
     - Responsive behavior: On viewports <= 820px, the tree collapses behind a "Folders" toggle button (`docs-tree-toggle`).
+    - Resizable (SPL-5410, owner t1 `e791b8a2`): on a desktop the tree | doc bar is the shell's `PaneDivider` with the Qto doc view's `useDocsTreeWidth`: a drag or the arrow keys set the tree's width (the channel sidebar's clamp, 180 px to 35% of the window), a double click resets it to 260 px, and the width is kept on the device (`spool.pane-widths` key `docsTree`, shared with the Qto view). There is no bar at <= 820 px.
+    - Collapsible (SPL-5410): the tree is a vertical panel with its own spec 050 bottom-corner triangle (`docs-tree-collapse`, `useDocsTreeCollapse`), the same as the channels panel. The corner follows the Win/Mac `close_buttons` rule. Open, the triangle points to inline-start. A click collapses the tree to the 24 px strip, where the triangle points to inline-end and expands the tree again. The state is kept on the device (`spool.docs-tree-collapsed`). The doc pane keeps the shell's middle triangle, and the folder chevrons are unchanged. Test: `csi-spl-wui/tests/e2e/docs-tree-pane.test.mjs`.
   - **Right Panel (Document Viewer)**:
     - Renders markdown content via `MarkdownBlock.vue` with current theme CSS variables (light and dark mode compatibility).
     - Displays repository path breadcrumb and document title.
@@ -574,5 +576,6 @@ How should documentation pages link to discussion topics?
 | v0.1.0 | 2026-10-04 | a-223 | Initial complete draft specification for the Docs section: captures verbatim owner requirements (topic `9f0d751c`), details Phase 1 implementation as built by lane `c-221`, specifies Phase 2 workspace docs schema and RLS architecture, details Phase 3 Omnisearch vs Google search trade-offs, specifies Phase 4 git-spec and topic linking flows, outlines Phase 5 enterprise vector search and IAM, provides requirements and acceptance matrix, and provides four concise blocking questions for the owner. |
 | v0.2.0 | 2026-10-04 | a-223 | Amended for owner decision (msg `9431127d`): Q1 resolved as (b) and "s3" resolved as GCS. Phase 2 updated to specify a dedicated GCS bucket per workspace (`csi-spl-<env>-docs-<tenant>`), docs only, accessed via Hub SA, with GCS generation preconditions for optimistic locking, `.history/` version audit, and dynamic/static bucket provisioning rules. Q2-Q4 kept open. |
 | v0.2.1 | 2026-10-04 | a-223 | Settled bucket naming convention per owner msg `b7c66282` ('similar to the DNSs'): analyzed GCS domain verification constraint for dotted names vs spec 074 DNS retirement, adopted dot-free host-derived format `<workspace-slug>-docs-<env>`, and added Q1b with dot-free recommended default. |
+| v0.2.2 | 2026-11-13 | c-642 | SPL-5410 (owner t1 `e791b8a2`): section 3.3 now describes the resizable tree | doc bar and the tree's own spec 050 collapse triangle. |
 
-<!-- version: 0.2.1 · updated: 2026-10-04 · last-edit: 2026-10-04T15:25:00Z -->
+<!-- version: 0.2.2 · updated: 2026-11-13 · last-edit: 2026-11-13T05:00:00Z -->

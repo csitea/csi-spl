@@ -32,7 +32,7 @@
       <SectionClose side="end" />
     </header>
     <div class="feed-body docs-page" data-test="docs" :data-state="state">
-      <div class="docs-layout" :class="{ 'docs-layout--tree-open': treeOpen }">
+      <div class="docs-layout" :class="{ 'docs-layout--tree-open': treeOpen, 'docs-layout--tree-collapsed': treeFold.collapsed.value }" :data-tree-collapsed="treeFold.collapsed.value ? '1' : undefined" :style="{ '--docs-tree-w': `${treeW.width.value}px` }">
         <button
           type="button"
           class="docs-tree-toggle"
@@ -102,6 +102,37 @@
             </li>
           </ul>
         </nav>
+        <!-- SPL-5410: the tree's spec 050 triangle (useDocsTreeCollapse), at
+             its bottom corner, like the channels panel's; the label is the
+             phone's Folders button's, its state is aria-expanded -->
+        <button
+          type="button"
+          class="pane-collapse docs-tree-collapse"
+          :class="[`pane-collapse--${treeFold.side.value}`, { 'pane-collapse--collapsed': treeFold.collapsed.value, 'pane-collapse--point-end': treeFold.pointsEnd.value, 'pane-collapse--point-start': !treeFold.pointsEnd.value }]"
+          data-test="docs-tree-collapse"
+          data-pane="docs-tree"
+          :data-collapse-side="treeFold.side.value"
+          :aria-expanded="treeFold.collapsed.value ? 'false' : 'true'"
+          aria-controls="docs-tree"
+          :aria-label="t('docs.folders')"
+          :title="t('docs.folders')"
+          @click="treeFold.toggle"
+        >
+          <span class="pane-collapse__tri" aria-hidden="true" />
+        </button>
+        <!-- SPL-5410 (owner, t1 e791b8a2): the tree | doc bar drags like the
+             shell's panes (PaneDivider + the Qto doc view's useDocsTreeWidth:
+             same clamp, keys, double-click reset, width kept on this device);
+             main.css hides a sidebar divider at <= 820 px; a strip has none -->
+        <PaneDivider
+          v-if="!treeFold.collapsed.value"
+          pane="sidebar"
+          :value="treeW.width.value"
+          :min="treeW.bounds.value.min"
+          :max="treeW.bounds.value.max"
+          @input="treeW.set"
+          @reset="treeW.reset"
+        />
         <article class="docs-content" aria-labelledby="docs-h" data-test="docs-content" :data-page="docPath">
           <ApiDocViewer v-if="apiPage && reader === 'in'" />
           <DocsWorkspaceDoc v-else-if="wsPath && reader === 'in'" :path="wsPath" />
@@ -165,6 +196,8 @@ import { useLiveFeed } from '~/stores/live'
 import { editBase, repoEditFiles, type RepoEditFile } from '~/utils/repo-edit.mjs'
 import { canWriteDocs } from '~/utils/ws-docs.mjs'
 import { useAccessStore } from '~/stores/access'
+import { useDocsTreeWidth } from '~/composables/usePaneWidths'
+import { useDocsTreeCollapse } from '~/composables/useDocsTreeCollapse'
 
 /* spec 075 repo-edit T11: the editor and its store load on Edit only */
 const RepoDocEditor = defineAsyncComponent(() => import('~/components/RepoDocEditor.vue'))
@@ -177,6 +210,8 @@ const ApiDocViewer = defineAsyncComponent(() => import('~/components/ApiDocViewe
 const DOCS_API = 'api'
 
 const { t } = useI18n({ useScope: 'global' })
+const treeW = useDocsTreeWidth()
+const treeFold = useDocsTreeCollapse()
 const localePath = useLocalePath()
 const current = useRoute()
 const router = useRouter()
@@ -350,8 +385,10 @@ useHead(() => ({ title: apiPage.value ? t('docs.api.title') : t('docs.title') })
 <style scoped>
 .docs-layout {
   display: grid;
-  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
-  gap: 24px;
+  /* SPL-5410: the tree takes the dragged width (useDocsTreeWidth) */
+  grid-template-columns: var(--docs-tree-w, 260px) auto minmax(0, 1fr);
+  column-gap: 0;
+  row-gap: 24px;
   align-items: start;
   min-width: 0;
 }
@@ -445,7 +482,22 @@ useHead(() => ({ title: apiPage.value ? t('docs.api.title') : t('docs.title') })
     overflow-y: auto;
     overscroll-behavior: contain;
   }
+  /* SPL-5410: the tree's triangle sits in its bottom corner (start: the
+     corner the shell's middle triangle also uses, so it moves in by the
+     channels triangle's shift; end: the tree's inner edge) */
+  .docs-layout { position: relative; }
+  .docs-layout .docs-tree-collapse { inset-inline-end: auto; inset-inline-start: calc(4px + var(--pane-collapse-shift, 42px)); }
+  .docs-layout .docs-tree-collapse.pane-collapse--end { inset-inline-start: calc(var(--docs-tree-w, 260px) - 28px); }
+  /* collapsed: centred in the strip, raised above the middle panel's
+     triangle, which the strip's left edge would otherwise overlap */
+  .docs-layout .docs-tree-collapse.pane-collapse--collapsed { inset-inline-start: 0; inset-block-end: 44px; }
+  /* collapsed: the tree is a strip, its rows hidden, the triangle the way back */
+  .docs-layout--tree-collapsed { grid-template-columns: var(--pane-strip-w, 24px) 0 minmax(0, 1fr); }
+  .docs-layout--tree-collapsed .docs-tree { padding: 0; overflow: hidden; }
+  .docs-layout--tree-collapsed .docs-tree > * { display: none; }
   .docs-content {
+    grid-column: -2;
+    padding-inline-start: 18px;
     max-width: none;
     min-height: 0;
     overflow-x: clip;

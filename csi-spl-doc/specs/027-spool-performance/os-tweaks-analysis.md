@@ -2,7 +2,7 @@
 
 - **Version:** `v1.1` (folds the codex seat's FAIL on `v1.0`: the I/O and swap rows were observations, not before/after measurements, and move to 2.6; see 6.1 and 6.2)
 - **Status:** Final. Analysis only: nothing was changed on any box.
-- **Signed:** `v1.0`: claude (editor), grok (g-631), mistral (m-634). `v1.1`: pending codex (o-805). Queued: agy; to be folded as v1.x.
+- **Signed:** `v1.0`: claude (editor), grok (g-631), mistral (m-634). `v1.1`: codex (o-805). Queued: agy; to be folded as v1.x.
 - **Issue:** `SPL-5393` (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
 - **Discussion:** `/t/fe92baa1-eb3e-4174-a52d-54b200bb02a8`, asked from `/t/fc3b7ac3-54cd-4ac4-84b4-5528647fca12`
@@ -281,7 +281,7 @@ every process for RAM (the CI workflow already moves job temp off it,
 | `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`), `v0.4` (`0a9a6cf35`), `v0.5` (`bf98fb3e7`) | CHANGES three times (6, 3, then 1 line), all folded in `v0.3`, `v0.4` and `v0.5`; SIGN `v0.5` (msg `f3da1b7b`) |
 | `m-634@sat` | mistral | `v1.0` (`0a50cbb88`) | PASS, signs `v1.0`; its additions (`vm.min_free_kbytes`, soft `nofile`) are held by the dispatch holder for a later fold |
 | agy seat (desk box) | agy | - | queued; folds as `v1.x` |
-| `o-805` (desk box) | codex | `v1.0` (`0a50cbb88`) | FAIL (msg `0fef8e87`): 2.4 called observations measurements; folded in `v1.1` (6.1); desk box notes in 6.2 |
+| `o-805` (desk box) | codex | `v1.0` (`0a50cbb88`) | FAIL (msg `0fef8e87`): 2.4 called observations measurements; folded in `v1.1` (6.1); desk box notes in 6.2. `v1.1` (`b40314006`): PASS, signs `v1.1` (msg `ee1c2d96`) |
 
 The probe scripts are in [os-tweaks-probes/](os-tweaks-probes/), so any seat
 can re-run them on its own box.

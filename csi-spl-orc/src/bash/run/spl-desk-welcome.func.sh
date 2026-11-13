@@ -288,8 +288,8 @@ spl_desk_greeter() {
 # live window, else nothing (the person waits for a tick).
 spl_desk_welcome_plan() {
   local spool="$1" g="$2"; shift 2
-  local live=" $* "
-  [[ -d "$spool/$g" && "$live" == *" $g "* ]] && printf '%s\n' "$g"
+  local live_set=" $* "
+  [[ -d "$spool/$g" && "$live_set" == *" $g "* ]] && printf '%s\n' "$g"
   return 0
 }
 

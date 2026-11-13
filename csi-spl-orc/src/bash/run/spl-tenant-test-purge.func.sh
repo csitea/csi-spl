@@ -102,15 +102,15 @@ SQL
   done < <(grep '^row ' <<<"$guard")
   (( bad == 0 )) || return 1
 
-  local tables q="" tb
+  local tables sql="" tb
   tables="$(_spl_tenant_test_purge_psql -c "SELECT table_name FROM information_schema.columns
     WHERE table_schema = 'public' AND column_name = 'tenant_id' ORDER BY table_name")" || return 1
-  q="SET app.rls_scope = 'operator';"$'\n'
+  sql="SET app.rls_scope = 'operator';"$'\n'
   for tb in $tables; do
     [[ "$tb" =~ ^[a-z_0-9]+$ ]] || continue
-    q+="SELECT json_build_object('table', '$tb', 'rows', coalesce(json_agg(x), '[]'::json)) FROM $tb x WHERE x.tenant_id = ANY($arr);"$'\n'
+    sql+="SELECT json_build_object('table', '$tb', 'rows', coalesce(json_agg(x), '[]'::json)) FROM $tb x WHERE x.tenant_id = ANY($arr);"$'\n'
   done
-  (umask 077 && _spl_tenant_test_purge_psql <<<"$q" >"$bk") || { do_log "FATAL backup failed: nothing deleted"; return 1; }
+  (umask 077 && _spl_tenant_test_purge_psql <<<"$sql" >"$bk") || { do_log "FATAL backup failed: nothing deleted"; return 1; }
   jq -e -s 'length > 0' "$bk" >/dev/null || { do_log "FATAL backup $bk is empty or not JSON: nothing deleted"; return 1; }
   do_log "INFO backup: $bk ($(jq -s '[.[].rows | length] | add' "$bk") rows over $(wc -l <"$bk") tables, mode $(stat -c %a "$bk"))"
   if [[ "$dry" == 1 ]]; then

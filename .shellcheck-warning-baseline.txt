@@ -93,13 +93,8 @@ SC2046|csi-spl-orc/src/bash/run/run.sh|1
 SC2155|csi-spl-orc/src/bash/run/run.sh|6
 SC2164|csi-spl-orc/src/bash/run/run.sh|2
 SC2319|csi-spl-orc/src/bash/run/run.sh|1
-SC2128|csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh|1
-SC2178|csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh|1
 SC2120|csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh|1
 SC2034|csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh|4
-SC2128|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
-SC2178|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|2
-SC2179|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
 SC2034|csi-spl-orc/src/bash/tests/dispatch-lease.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/fleet-lease.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/release-stable.tst.sh|4

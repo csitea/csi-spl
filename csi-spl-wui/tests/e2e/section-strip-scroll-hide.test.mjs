@@ -148,7 +148,10 @@ async function settle(p, max = 8000) {
     prev = key
     await sleep(200)
   }
-  return readSafe(p)
+  /* SPL-5441 (W2): no app shell after `max` ms is a page that never
+     settled; the caller fails it, never counts it as "nothing to scroll" */
+  const s = await readSafe(p)
+  return s.shell ? s : { ...s, unsettled: true }
 }
 
 /* SPL-5441: a goto that fails or times out is tried once more; a second
@@ -161,6 +164,14 @@ async function nav(p, url) {
     try { await p.goto(url, { waitUntil: 'networkidle2' }); return '' } catch (e) { err = String(e?.message ?? e).split('\n')[0] }
   }
   return err
+}
+/* SPL-5441: a step that cannot run (a goto that failed twice, a page that
+   never settled) is that step's FAIL line, and the block after it is not
+   run on a page that is not the one it checks. True when the step is good. */
+const step = (name, navErr, s) => {
+  if (navErr) { ok(`${name}: the page loads (2 tries)`, false, { error: navErr }); return false }
+  if (s?.unsettled) { ok(`${name}: the page settles (the app shell is there)`, false, s); return false }
+  return true
 }
 /* the marked pane, scrolled by code; false when the page lost it */
 const scrollBy = (p, dy, to) => p.evaluate((dy, to) => {
@@ -231,8 +242,9 @@ try {
     let touchRoute = ''
     for (const route of ROUTES) {
       const navErr = await nav(p, `${srv.base}${route}`)
-      if (navErr) { ok(`${tag} ${route}: the page loads (2 tries)`, false, { error: navErr }); continue }
+      if (!step(`${tag} ${route}`, navErr)) continue
       const s0 = await settle(p)
+      if (!step(`${tag} ${route}`, '', s0)) continue
       if (!s0.pane || !s0.painted) { flat.push(`${tag} ${route}`); continue }
       touchRoute ||= route
       const scrolled = await scrollBy(p, 150)
@@ -255,22 +267,27 @@ try {
       ok(`${tag} ${route}: wheel up: the logo bar is painted again at the same y`, up.logo && up.barsHidden === null && up.logoTop === s0.logoTop, { before: s0.logoTop, logo: up.logo, logoTop: up.logoTop, barsHidden: up.barsHidden })
     }
     /* touch: a swipe hides both bars, a scroll by code after it moves nothing, nor does a hold-drag */
-    const tNav = await nav(p, `${srv.base}${touchRoute}`)
-    const t0 = await settle(p)
-    if (tNav) ok(`${tag} touch ${touchRoute}: the page loads (2 tries)`, false, { error: tNav })
-    if (t0.pane) await swipe(p, t0.pane, -300)
-    await sleep(500)
-    const tAway = await readSafe(p)
-    ok(`${tag} touch ${touchRoute}: a swipe up hides both bars`, Boolean(t0.pane) && tAway.hidden === '1' && tAway.barsHidden === '1' && !tAway.logo, { hidden: tAway.hidden, bars: tAway.barsHidden, logo: tAway.logo })
-    await swipe(p, t0.pane || { x: 100, y: 400 }, -60)
-    await scrollBy(p, -120)
-    await sleep(500)
-    const tCode = await readSafe(p)
-    ok(`${tag} touch: a scroll by code right after the finger is up leaves both bars away`, tCode.hidden === '1' && tCode.barsHidden === '1', { hidden: tCode.hidden, bars: tCode.barsHidden })
-    await swipe(p, t0.pane || { x: 100, y: 400 }, 200, 400)
-    await sleep(500)
-    const tHold = await readSafe(p)
-    ok(`${tag} touch: a finger held 400 ms, then moved down, changes neither bar`, tHold.hidden === '1' && tHold.barsHidden === '1', { hidden: tHold.hidden, bars: tHold.barsHidden })
+    await (async () => {
+      const tNav = await nav(p, `${srv.base}${touchRoute}`)
+      if (!step(`${tag} touch ${touchRoute}`, tNav)) return
+      const t0 = await settle(p)
+      if (!step(`${tag} touch ${touchRoute}`, '', t0)) return
+      if (!t0.pane) { ok(`${tag} touch ${touchRoute}: a pane to swipe`, false, t0); return }
+      await swipe(p, t0.pane, -300)
+      await sleep(500)
+      const tAway = await readSafe(p)
+      ok(`${tag} touch ${touchRoute}: a swipe up hides both bars`, tAway.hidden === '1' && tAway.barsHidden === '1' && !tAway.logo, { hidden: tAway.hidden, bars: tAway.barsHidden, logo: tAway.logo })
+      await swipe(p, t0.pane, -60)
+      /* SPL-5441 (W3): a scroll by code that found no pane checked nothing */
+      const tScrolled = await scrollBy(p, -120)
+      await sleep(500)
+      const tCode = await readSafe(p)
+      ok(`${tag} touch: a scroll by code right after the finger is up leaves both bars away`, tScrolled && tCode.hidden === '1' && tCode.barsHidden === '1', { scrolled: tScrolled, hidden: tCode.hidden, bars: tCode.barsHidden })
+      await swipe(p, t0.pane, 200, 400)
+      await sleep(500)
+      const tHold = await readSafe(p)
+      ok(`${tag} touch: a finger held 400 ms, then moved down, changes neither bar`, tHold.hidden === '1' && tHold.barsHidden === '1', { hidden: tHold.hidden, bars: tHold.barsHidden })
+    })()
     /* SPL-5407: a late pull-back. A pane at its end grows when the bars go and
        the browser pulls scrollTop back to the new end; on a slow phone that
        lands after the quiet window, a wheel still fresh. Planted: a 3000 px
@@ -279,47 +296,55 @@ try {
        STRIP_QUIET_MS and a new wheel event, the spacer shrinks so the pane's
        end is 100 px above the reader. Red control: without the guard the
        strip comes back. */
-    const eNav = await nav(p, `${srv.base}${touchRoute}`)
-    const e0 = await settle(p)
-    if (eNav) ok(`${tag} late pull-back ${touchRoute}: the page loads (2 tries)`, false, { error: eNav })
-    const range = !e0.pane ? 0 : await p.evaluate(() => {
-      const sc = document.querySelector('[data-e2e-scroller]')
-      if (!sc) return 0
-      const d = document.createElement('div')
-      d.setAttribute('data-e2e-spacer', '')
-      d.style.height = '3000px'
-      const r = sc.scrollHeight - sc.clientHeight
-      sc.append(d)
-      return r
-    })
-    if (e0.pane) await wheel(p, e0.pane, range + 300)
-    await sleep(700)
-    const eAway = await readSafe(p, true)
-    await p.evaluate(() => {
-      const sc = document.querySelector('[data-e2e-scroller]')
-      const d = document.querySelector('[data-e2e-spacer]')
-      if (!sc || !d) return
-      const cut = sc.scrollHeight - sc.clientHeight - (sc.scrollTop - 100)
-      document.dispatchEvent(new WheelEvent('wheel', { deltaY: 1 }))
-      d.style.height = `${Math.max(0, 3000 - cut)}px`
-    })
-    await sleep(700)
-    const eBack = await readSafe(p, true)
-    ok(`${tag} ${touchRoute}: the browser pulling a pane back to its new end, late, leaves both bars away`,
-      Boolean(e0.pane) && eAway.hidden === '1' && eAway.barsHidden === '1' && eBack.pane && eBack.pane.sy < eAway.pane.sy - 50 && eBack.hidden === '1' && eBack.barsHidden === '1',
-      { away: eAway.hidden, sy: eAway.pane?.sy, after: eBack.hidden, bars: eBack.barsHidden, syAfter: eBack.pane?.sy })
+    await (async () => {
+      const eNav = await nav(p, `${srv.base}${touchRoute}`)
+      if (!step(`${tag} late pull-back ${touchRoute}`, eNav)) return
+      const e0 = await settle(p)
+      if (!step(`${tag} late pull-back ${touchRoute}`, '', e0)) return
+      /* SPL-5441 (W3): no pane, or a pane lost before the spacer, is a FAIL */
+      const range = !e0.pane ? null : await p.evaluate(() => {
+        const sc = document.querySelector('[data-e2e-scroller]')
+        if (!sc) return null
+        const d = document.createElement('div')
+        d.setAttribute('data-e2e-spacer', '')
+        d.style.height = '3000px'
+        const r = sc.scrollHeight - sc.clientHeight
+        sc.append(d)
+        return r
+      }).catch(() => null)
+      if (range === null) { ok(`${tag} late pull-back ${touchRoute}: its pane is there to plant the spacer in`, false, { pane: e0.pane }); return }
+      await wheel(p, e0.pane, range + 300)
+      await sleep(700)
+      const eAway = await readSafe(p, true)
+      const cut = await p.evaluate(() => {
+        const sc = document.querySelector('[data-e2e-scroller]')
+        const d = document.querySelector('[data-e2e-spacer]')
+        if (!sc || !d) return false
+        const cut = sc.scrollHeight - sc.clientHeight - (sc.scrollTop - 100)
+        document.dispatchEvent(new WheelEvent('wheel', { deltaY: 1 }))
+        d.style.height = `${Math.max(0, 3000 - cut)}px`
+        return true
+      }).catch(() => false)
+      await sleep(700)
+      const eBack = await readSafe(p, true)
+      ok(`${tag} ${touchRoute}: the browser pulling a pane back to its new end, late, leaves both bars away`,
+        cut && Boolean(eAway.pane) && eAway.hidden === '1' && eAway.barsHidden === '1' && Boolean(eBack.pane) && eBack.pane.sy < eAway.pane.sy - 50 && eBack.hidden === '1' && eBack.barsHidden === '1',
+        { cut, away: eAway.hidden, sy: eAway.pane?.sy, after: eBack.hidden, bars: eBack.barsHidden, syAfter: eBack.pane?.sy })
+    })()
     /* Back brings it back: Help, a tapped help page scrolled down, then Back */
-    const hNav = await nav(p, `${srv.base}/help`)
-    if (hNav) ok(`${tag} /help: the page loads (2 tries)`, false, { error: hNav })
-    await settle(p)
-    const href = await p.evaluate(() => { const a = document.querySelector('.spool-main a[href*="/help/"]'); a?.click(); return a?.getAttribute('href') ?? null })
-    const h2 = href ? await settlePane(p, href) : await settle(p)
-    if (h2.pane) await wheel(p, h2.pane, 600)
-    const away = await readAway(p)
-    await p.goBack().catch(() => null)
-    const back = await settle(p)
-    ok(`${tag} a tapped help page (${href}) scrolled down: away; then Back: the strip is painted`, Boolean(h2.pane) && away.hidden === '1' && back.painted && back.hidden === null, { away: away.hidden, ...back })
-    ok(`${tag} a tapped help page scrolled down: the logo bar away; then Back: the logo is painted`, away.barsHidden === '1' && !away.logo && back.logo && back.barsHidden === null, { away: away.barsHidden, awayLogo: away.logo, back: back.barsHidden, backLogo: back.logo })
+    await (async () => {
+      const hNav = await nav(p, `${srv.base}/help`)
+      if (!step(`${tag} /help`, hNav)) return
+      if (!step(`${tag} /help`, '', await settle(p))) return
+      const href = await p.evaluate(() => { const a = document.querySelector('.spool-main a[href*="/help/"]'); a?.click(); return a?.getAttribute('href') ?? null })
+      const h2 = href ? await settlePane(p, href) : await settle(p)
+      if (h2.pane) await wheel(p, h2.pane, 600)
+      const away = await readAway(p)
+      await p.goBack().catch(() => null)
+      const back = await settle(p)
+      ok(`${tag} a tapped help page (${href}) scrolled down: away; then Back: the strip is painted`, Boolean(h2.pane) && away.hidden === '1' && back.painted && back.hidden === null, { away: away.hidden, ...back })
+      ok(`${tag} a tapped help page scrolled down: the logo bar away; then Back: the logo is painted`, away.barsHidden === '1' && !away.logo && back.logo && back.barsHidden === null, { away: away.barsHidden, awayLogo: away.logo, back: back.barsHidden, backLogo: back.logo })
+    })()
     await p.close()
   })().catch((e) => ok(`${width}px ${scheme} motion=${motion}: the run completes`, false, { error: String(e?.message ?? e).split('\n')[0] }))))
 } finally {

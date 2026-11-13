@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -99,14 +100,70 @@ func BenchmarkFanoutIssue(b *testing.B) {
 	}
 }
 
+// benchChannelFrame is a sidebar `channel` frame as fanoutChannel builds it.
+func benchChannelFrame() map[string]any {
+	return map[string]any{"type": "channel", "channel": "c-0123456789", "name": "perf-round-7",
+		"description": strings.Repeat("a channel description ", 8), "created_by": "h1",
+		"created_at": "2026-11-13T00:00:00Z"}
+}
+
+// BenchmarkFanoutChannel: one channel frame to 10 sockets (perf round 7,
+// p7-01: encoded once, as fanoutIssue).
+//
+//	go test ./internal/hub -run '^$' -bench 'BenchmarkFanoutChannel$' -benchmem -count 5
+func BenchmarkFanoutChannel(b *testing.B) {
+	s, done := fanoutRig(b, 10, nil)
+	defer done()
+	ctx, frame := context.Background(), benchChannelFrame()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.fanoutChannelFrame(ctx, "t1", nil, frame)
+	}
+}
+
+// The channel fan-out to 10 sockets allocates at most the encode-once arm
+// (fanoutIssue, the same frame) plus 10 %; a marshal per socket is far above.
+// AllocsPerRun counts the whole process, so goroutines other tests left
+// running add to it: the arms alternate and each keeps its lowest of 5 rounds.
+func TestFanoutChannelEncodesOnce(t *testing.T) {
+	s, done := fanoutRig(t, 10, nil)
+	defer done()
+	ctx, frame := context.Background(), benchChannelFrame()
+	once, got := math.Inf(1), math.Inf(1)
+	for i := 0; i < 5; i++ {
+		once = math.Min(once, testing.AllocsPerRun(50, func() { s.fanoutIssue(ctx, "t1", frame) }))
+		got = math.Min(got, testing.AllocsPerRun(50, func() { s.fanoutChannelFrame(ctx, "t1", nil, frame) }))
+	}
+	if got > once*1.1 {
+		t.Fatalf("fanoutChannelFrame: %.0f allocs/run, encode-once arm %.0f (+10 %% = %.0f)", got, once, once*1.1)
+	}
+	t.Logf("fanoutChannelFrame %.0f allocs/run, encode-once arm %.0f", got, once)
+}
+
 // Every socket receives the same bytes, and they are what wsjson.Write sent
 // before G8: the JSON encoding plus the Encoder's trailing newline.
+// The channel frame (fanoutChannelFrame, p7-01) is pinned the same way.
 func TestFanoutSendsOneEncodingToEverySocket(t *testing.T) {
+	frame := map[string]any{"type": "issue", "n": 7, "html": "<b>&</b>"}
+	t.Run("issue", func(t *testing.T) {
+		assertOneEncoding(t, frame, func(s *Server) { s.fanoutIssue(context.Background(), "t1", frame) })
+	})
+	ch := benchChannelFrame()
+	ch["html"] = "<b>&</b>"
+	t.Run("channel", func(t *testing.T) {
+		assertOneEncoding(t, ch, func(s *Server) { s.fanoutChannelFrame(context.Background(), "t1", nil, ch) })
+	})
+}
+
+// assertOneEncoding runs fanout over 3 sockets and checks that each one got
+// frame as json.Encoder writes it, trailing newline included.
+func assertOneEncoding(t *testing.T, frame map[string]any, fanout func(*Server)) {
+	t.Helper()
 	got := make(chan []byte, 3)
 	s, done := fanoutRig(t, 3, got)
 	defer done()
-	frame := map[string]any{"type": "issue", "n": 7, "html": "<b>&</b>"}
-	s.fanoutIssue(context.Background(), "t1", frame)
+	fanout(s)
 	var want bytes.Buffer
 	json.NewEncoder(&want).Encode(frame) //nolint:errcheck
 	for i := 0; i < 3; i++ {

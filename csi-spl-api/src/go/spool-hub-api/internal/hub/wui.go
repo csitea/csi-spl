@@ -1326,6 +1326,7 @@ func (s *Server) fanoutChannel(ctx context.Context, tenant string, c store.Chann
 
 // fanoutChannelFrame writes frame to every browser socket of tenant whose
 // member is in members; nil members (a default channel) is every socket.
+// The frame is encoded once for all of them (perf round 7, p7-01).
 func (s *Server) fanoutChannelFrame(ctx context.Context, tenant string, members map[string]bool, frame map[string]any) {
 	s.mu.Lock()
 	var targets []*wuiConn
@@ -1339,8 +1340,15 @@ func (s *Server) fanoutChannelFrame(ctx context.Context, tenant string, members 
 		targets = append(targets, w)
 	}
 	s.mu.Unlock()
+	if len(targets) == 0 {
+		return
+	}
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, w := range targets {
-		w.write(ctx, frame) //nolint:errcheck
+		w.writeRaw(ctx, b) //nolint:errcheck
 	}
 }
 

@@ -252,10 +252,7 @@ func (s *Server) fanoutFlow(ctx context.Context, row store.Message) {
 			return
 		}
 		for member, p := range pushes {
-			frame := flowFrame(p.Counts, p.Unread, p.Keys, &p.Event)
-			for _, c := range socks[member] {
-				c.write(ctx, frame) //nolint:errcheck
-			}
+			writeFlowFrame(ctx, socks[member], flowFrame(p.Counts, p.Unread, p.Keys, &p.Event))
 		}
 	}()
 }
@@ -295,8 +292,20 @@ func (s *Server) pushFlowCounts(ctx context.Context, tenant, member string) {
 		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("flow counts push")
 		return
 	}
-	frame := flowFrame(p.Counts, p.Unread, p.Keys, nil)
+	writeFlowFrame(ctx, socks, flowFrame(p.Counts, p.Unread, p.Keys, nil))
+}
+
+// writeFlowFrame writes one member's flow frame to each of its sockets,
+// encoded once, not once per socket (perf round 7, p7-01).
+func writeFlowFrame(ctx context.Context, socks []*wuiConn, frame map[string]any) {
+	if len(socks) == 0 {
+		return
+	}
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, c := range socks {
-		c.write(ctx, frame) //nolint:errcheck
+		c.writeRaw(ctx, b) //nolint:errcheck
 	}
 }

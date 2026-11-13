@@ -110,12 +110,13 @@ func (s *Server) budgetNotice(ctx context.Context, tb store.TokenBudgets, tenant
 	frame := map[string]any{"type": "token_budget", "level": "low", "scope": budgetScope(u),
 		"channel": u.ChannelID, "limit": hit.Limit, "pct": hit.Pct(), "hard_stop": !u.Soft}
 	sent := 0
+	b, err := encodeFrame(frame) // once for every socket (perf round 7, p7-01)
 	for member, conns := range s.flowSockets(tenant) {
-		if !s.allowed(ctx, member, tenant, rbac.BillingManage) {
+		if err != nil || !s.allowed(ctx, member, tenant, rbac.BillingManage) {
 			continue
 		}
 		for _, c := range conns {
-			if c.write(ctx, frame) == nil {
+			if c.writeRaw(ctx, b) == nil {
 				sent++
 			}
 		}

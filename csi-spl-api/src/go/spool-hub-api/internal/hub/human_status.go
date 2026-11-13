@@ -84,7 +84,8 @@ func (s *Server) liveStatuses(ctx context.Context, tenant string) map[string]sto
 	return m
 }
 
-// broadcastStatus writes frames to every browser socket of tenant.
+// broadcastStatus writes frames to every browser socket of tenant, each
+// frame encoded once (perf round 7, p7-01).
 func (s *Server) broadcastStatus(ctx context.Context, tenant string, frames []statusMsg) {
 	if len(frames) == 0 {
 		return
@@ -97,9 +98,18 @@ func (s *Server) broadcastStatus(ctx context.Context, tenant string, frames []st
 		}
 	}
 	s.mu.Unlock()
+	if len(targets) == 0 {
+		return
+	}
+	enc := make([][]byte, 0, len(frames))
+	for i := range frames {
+		if b, err := encodeFrame(&frames[i]); err == nil {
+			enc = append(enc, b)
+		}
+	}
 	for _, c := range targets {
-		for i := range frames {
-			c.write(ctx, &frames[i]) //nolint:errcheck
+		for _, b := range enc {
+			c.writeRaw(ctx, b) //nolint:errcheck
 		}
 	}
 }

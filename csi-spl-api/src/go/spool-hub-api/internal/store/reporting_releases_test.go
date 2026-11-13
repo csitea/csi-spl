@@ -44,8 +44,9 @@ func seedDeploys(t *testing.T, st Store, ds ...ReleaseDeploy) {
 				return err
 			}
 			for _, d := range ds {
-				if _, err := tx.Exec(ctx, `INSERT INTO estate_deploys (deploy_id, env, component, version, commit_sha, deployed_at, status, source)
-					VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, uuid4(), d.Env, d.Component, d.Version, d.CommitSHA, d.DeployedAt, d.Status, d.Source); err != nil {
+				if _, err := tx.Exec(ctx, `INSERT INTO estate_deploys (tenant_id, repo_slug, deploy_id, env, component, version, commit_sha, deployed_at, status, source)
+					VALUES ($9, $10, $1, $2, $3, $4, $5, $6, $7, $8)`, uuid4(), d.Env, d.Component, d.Version, d.CommitSHA, d.DeployedAt, d.Status, d.Source,
+					relTenant, relRepo); err != nil {
 					return err
 				}
 			}

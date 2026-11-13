@@ -247,11 +247,14 @@ func TestSoftwareProjectsSeed(t *testing.T) {
 }
 
 // expandBefore undoes rdb 0267 on the tables in a rolled-back transaction, the
-// state a live database is in when the file applies. DROP COLUMN takes the new
-// indexes with it; the old version CHECKs come back as 0114 and 0202 wrote them.
-// The first UPDATE keeps 0267's own off the rows other tests committed in tags
-// the old CHECK refuses, which NOT VALID still enforces on an update.
-const expandBefore = `UPDATE release_notes SET issue_tenant = 't1' WHERE issue_tenant IS NULL;
+// state a live database is in when the file applies. Row B-3's contract goes
+// first (contractBefore): its policies and keys name the new columns. DROP
+// COLUMN takes the new indexes with it; the old version CHECKs come back as
+// 0114 and 0202 wrote them. The first UPDATE keeps 0267's own off the rows
+// other tests committed in tags the old CHECK refuses, which NOT VALID still
+// enforces on an update.
+const expandBefore = contractBefore + `;
+UPDATE release_notes SET issue_tenant = 't1' WHERE issue_tenant IS NULL;
 ALTER TABLE release_notes DROP COLUMN tenant_id, DROP COLUMN repo_slug, DROP COLUMN body;
 ALTER TABLE release_notes DROP CONSTRAINT release_notes_version_check;
 ALTER TABLE release_notes ADD CONSTRAINT release_notes_version_check

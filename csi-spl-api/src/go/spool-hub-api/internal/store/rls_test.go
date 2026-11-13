@@ -80,15 +80,8 @@ var rlsTables = []string{
 	"software_projects", "workspace_repos",
 	// rdb 0274, spec 090 section 22 (SPL-5240)
 	"marketing_drafts",
-}
-
-// spl4808ExpandTables carry a tenant_id but no tenant row security yet: rdb
-// 0267 (spec 171 Step A) expands them while the running hub still reads them
-// with no scope. Time-boxed: SPL-4808's Lane 2b (row B-3) forces both, moves
-// them to rlsTables and removes this map.
-var spl4808ExpandTables = map[string]bool{
-	"release_notes":  true, // SPL-4808 Lane 2b: no row security until the contract
-	"estate_deploys": true, // SPL-4808 Lane 2b: its read policy stays USING (true) until the contract
+	// the contract, spec 171 Step C, spec 143 releases-projects row B-3 (SPL-5475)
+	"release_notes", "estate_deploys",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must
@@ -111,9 +104,6 @@ func TestRLSCoversEveryTenantTable(t *testing.T) {
 			t.Fatal(err)
 		}
 		seen[name] = true
-		if spl4808ExpandTables[name] {
-			continue
-		}
 		if !on || !force {
 			t.Errorf("%s carries tenant_id but row security is enable=%v force=%v (add it in a new rdb migration)", name, on, force)
 		}

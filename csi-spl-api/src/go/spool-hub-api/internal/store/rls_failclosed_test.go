@@ -77,9 +77,6 @@ func tenantPolicyGaps(ctx context.Context, dsn string, setup func(pgx.Tx) error)
 			rows.Close()
 			return nil, err
 		}
-		if spl4808ExpandTables[tb.name] {
-			continue
-		}
 		tables = append(tables, tb)
 	}
 	rows.Close()

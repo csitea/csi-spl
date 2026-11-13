@@ -177,7 +177,7 @@ func TestFlowReleaseLines(t *testing.T) {
 			// the newest versions, so these rows go when the test ends.
 			if pg, ok := s.(*Postgres); ok {
 				t.Cleanup(func() {
-					pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = ANY($1)`, []string{a, b, c}) //nolint:errcheck
+					dropReleaseNotes(pg, []string{a, b, c}) //nolint:errcheck
 				})
 			}
 			// a is ingested before it has a version, then gets v..1 at base.
@@ -263,7 +263,7 @@ func TestFlowReleaseBadgeAndAssigneeWatch(t *testing.T) {
 				}
 				if pg, ok := s.(*Postgres); ok {
 					t.Cleanup(func() {
-						pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = ANY($1)`, shas) //nolint:errcheck
+						dropReleaseNotes(pg, shas) //nolint:errcheck
 					})
 				}
 				read := func() FlowCounts {
@@ -354,7 +354,7 @@ func TestFlowReleaseOneDeployOneLine(t *testing.T) {
 			}
 			if pg, ok := s.(*Postgres); ok {
 				t.Cleanup(func() {
-					pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = ANY($1)`, shas) //nolint:errcheck
+					dropReleaseNotes(pg, shas) //nolint:errcheck
 				})
 			}
 			if err := rn.PutReleaseNotes(ctx, tid, relRepo, window, hist); err != nil {

@@ -44,8 +44,8 @@ func releaseEnv(t *testing.T, mut ...func(*hub.Options)) (*env, string, string) 
 }
 
 // releaseSalt is the current releaseEnv's: the hub tests share one Postgres
-// database, whose release_notes_pkey (sha) holds until row B-3, so a sha one
-// test's workspace stored would refuse another test's.
+// database, so each test's shas are its own (the key was sha alone until row
+// B-3; it keeps the tests' rows apart).
 var releaseSalt = "000000"
 
 func releaseSHA(c string) string { return c + releaseSalt + strings.Repeat(c, 33) }

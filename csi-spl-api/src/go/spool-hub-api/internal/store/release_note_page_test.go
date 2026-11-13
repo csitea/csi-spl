@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // P5-08 (perf round 5): ListReleaseNotes numbers only its page, and its seq
@@ -48,7 +50,7 @@ func TestReleaseNotesPageSeqOracle(t *testing.T) {
 		shas[i] = n.SHA
 	}
 	t.Cleanup(func() {
-		if _, err := pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = ANY($1)`, shas); err != nil {
+		if err := dropReleaseNotes(pg, shas); err != nil {
 			t.Errorf("cleanup: %v", err)
 		}
 	})
@@ -57,19 +59,18 @@ func TestReleaseNotesPageSeqOracle(t *testing.T) {
 	}
 	oracle := func(versions []string) map[string]int {
 		t.Helper()
-		rows, err := pg.pool.Query(ctx, `SELECT sha, seq FROM (`+releaseNumberedSQL()+`) n WHERE version = ANY($2)`, relTenant, versions)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer rows.Close()
 		out := map[string]int{}
-		for rows.Next() {
-			var sha string
-			var seq int
-			if err := rows.Scan(&sha, &seq); err != nil {
-				t.Fatal(err)
-			}
-			out[sha] = seq
+		if err := pg.queryTenant(ctx, relTenant, `SELECT sha, seq FROM (`+releaseNumberedSQL()+`) n WHERE version = ANY($2)`,
+			[]any{relTenant, versions}, func(r pgx.Rows) error {
+				var sha string
+				var seq int
+				if err := r.Scan(&sha, &seq); err != nil {
+					return err
+				}
+				out[sha] = seq
+				return nil
+			}); err != nil {
+			t.Fatal(err)
 		}
 		return out
 	}

@@ -11,9 +11,9 @@ import (
 )
 
 // Postgres side of rdb 0108 and 0267: every row names its workspace and repo.
-// Row security on release_notes comes with row B-3; until then the WHERE
-// tenant_id of each read is what scopes it. Reads run in the tenant's scope,
-// writes in the operator's.
+// Row B-3's contract keys it on (tenant_id, repo_slug, sha) and forces row
+// security: reads run in the tenant's scope, which its read policy and the
+// WHERE tenant_id of each read both scope; writes run in the operator's.
 
 const releaseNoteCols = `tenant_id, repo_slug, sha, coalesce(version, ''), committed_at, kind, area, subject,
 	lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, coalesce(reverts, ''), link, ingested_at,

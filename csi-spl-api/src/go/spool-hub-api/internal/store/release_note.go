@@ -281,7 +281,8 @@ func numberReleaseNotes(all, out []ReleaseNote) {
 	}
 }
 
-// memReleaseKey is rdb 0267's unique index release_notes_tenant_repo_sha.
+// memReleaseKey is release_notes_pkey, rdb 0267's index release_notes_tenant_repo_sha
+// as row B-3's contract made it the primary key.
 type memReleaseKey struct{ tenant, repo, sha string }
 
 // Memory side: a per-store map beside the Memory struct, as the perf samples

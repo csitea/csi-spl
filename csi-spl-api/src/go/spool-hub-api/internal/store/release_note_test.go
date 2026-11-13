@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // TestReleaseNotesPinRdbChecks pins rdb 0108's CHECKs to the Go side (spec
@@ -343,6 +345,16 @@ func TestCheckReleaseNote(t *testing.T) {
 			t.Fatalf("accepted %+v", n)
 		}
 	}
+}
+
+// dropReleaseNotes deletes the shas a test stored, in the operator scope: since
+// row B-3's contract an unscoped DELETE reaches no row.
+func dropReleaseNotes(pg *Postgres, shas []string) error {
+	ctx := context.Background()
+	return pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM release_notes WHERE sha = ANY($1)`, shas)
+		return err
+	})
 }
 
 // relTenant and relRepo are the workspace and repo the release note tests

@@ -19,7 +19,7 @@ control, a candidate with no measured gain is dropped).
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Vendor claude for
   every row.**
 
-**Status: v1.0, the panel's warnings folded in (section 8).** Editor: c-660@sat (claude).
+**Status: v1.1, the panel's warnings folded in (section 8).** Editor: c-660@sat (claude).
 
 **Why now.** The holder's brief (c-002@sat, 2026-11-13 08:2xZ): the 4.4 check on
 `origin/master` 3783a6b72 printed `perf 0 refactor 137 perf-share 0.0% under-20`;
@@ -73,7 +73,7 @@ Inputs read (brief step 2), each carried finding re-checked on `ccef654f0`:
 | 02 | `perf(p7-02-orc-lane-map-local-rows-one-jq)` | one `jq` for all rows instead of one per worktree; names by parameter expansion, not `dirname`/`basename` forks | `spl_lane_local_rows` alone over `/opt/csi/csi-spl` (113 lane worktrees of 145): **4,365 ms (median, n=5; 3,008..4,650)**; the whole `lane-map.sh --check <one path> --agent c-660`: **8.97 s wall (median, n=5; 7.0..21.1), ~7 s CPU** | prototype (`printf` TSV, one `jq -R -s`): **79 ms (median, n=5; 61..101)**, output byte-identical to today's after `jq -S` (`same=yes` 5 of 5) | `run/spl-lane-map.func.sh:322-344` (`spl_lane_local_rows`, `spl_lane_local_row`) | a case in `orc/src/bash/tests/` (the lane-map suite) with 40 fixture worktrees and a `jq` PATH shim that counts calls: at most 1 `jq` for the rows (today 40), and the rows equal the old function's on the same fixture. Red: today's function -> 40 calls, FAIL | sat | claude / simple_coding | **2: after r58-07 lands** (it owns `spl-lane-map.func.sh:2`, section 3.2) |
 | 03 | `perf(p7-03-run-index-cache)` | cache the lazy loader's `awk` index, keyed by the file list with sizes and mtimes; rebuild on any change | phase probe of orc `./run` (the index `awk` pass alone): **165 ms (median, n=5; 160..177)** of a **950 ms** startup (`./run -a do_p7_no_such_action`, wall median n=5; 898..989); iac `21 ms`, utl `9 ms` (n=3) | the cache key (`find ... -printf '%T@ %s %p\0' \| sort -z \| md5sum`): **12 ms (median, n=5)**, so `~150 ms` off each orc `./run` start on a hit | `orc/src/bash/run/run.sh:717-731` (`do_load_functions`), the same lines in `csi-spl-iac/src/bash/run/run.sh` and `csi-spl-utl/src/bash/run/run.sh` (byte-identical copies) | `csi-spl-iac/src/bash/tests/run-lazy-loader.tst.sh`, new cases: a second start on an unchanged tree runs the index `awk` 0 times (PATH shim count), a touched, added or removed `*.func.sh` runs it once, and the stubs equal an uncached start's. Red: drop the cache read -> the second start counts 1, FAIL | sat | claude / complex_coding (R9: it changes the test runner's loader, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1 |
 | 04 | `perf(p7-04-orc-eager-top5-lazy)` | a file whose only top-level code is its dependency `source` lines and constants loads them on first call, so the lazy loader can stub it | per-file source time of the 98 eager orc files (phase probe, median of n=3): `spl-agent-restart` **121 ms**, `spl-sender-audit` **35**, `gh-runner-add` **33** (runs `dpkg -s docker-ce` at source time), `spl-box-restart-after` **25**, `spl-agent-login-check` **22**: **236 ms of the 494 ms eager phase (median, n=5; 478..516)** | not probed: the gain is the measured source time of the 5 files, less their stubs (`~0.1 ms` each, the loader's own measure); the lane re-measures | `run/spl-agent-restart.func.sh:76-83` (3 `source` lines, `ARS_CAUSES`), `run/spl-sender-audit.func.sh:24-27` (`readlink`/`dirname`, 3 `source` lines), `run/gh-runner-add.func.sh:74-77` and `:86-95` (`source`, `GH_RUNNER_PKGS`, `ghr_docker_flavour` with `dpkg -s docker-ce` at `:88`, called bare at `:95`), `run/spl-box-restart-after.func.sh:21-28` (3 `source` lines, `SPL_BRX_AGENT_WIN_RE`), `run/spl-agent-login-check.func.sh:69-71` (`source`, 2 regex constants) | new `orc/src/bash/tests/run-eager-files.tst.sh`: the index lists none of the 5 as eager, and the orc eager count is at most 93 (today 98); each file still works when sourced alone (its own tests run). Red: put one top-level `source` back -> that file reads eager, FAIL | sat | claude / simple_coding | 1 |
-| 05 | `perf(p7-05-spool-cli-gomaxprocs-1)` | a short Go CLI call runs on one P (spec 027 row 5) | `spool send` (binary 1.1.3) from `c-998` to `c-999` on a scratch `SPOOL_ROOT`, `SPOOL_NOTIFY_CMD=off`, as `spool-send.sh:533` runs it, 20 rounds interleaved (11:27Z): **75.0 ms CPU (user+sys), 69.5 ms wall (median, n=20)**; `spool recv` (v0.1's command, read only): **51.0 ms CPU, 67.5 ms wall (n=20)** | `GOMAXPROCS=1`: `send` **59.0 ms CPU (-21%), 64.0 ms wall (-8%)**; `recv` **35.5 ms CPU (-30%), 53.0 ms wall (-21%)** (median, n=20; the grok seat's `recv` re-measure, n=10: -37% CPU, -14% wall) | the two short-call execs of `$SPOOL_BIN`, there is no single wrapper: `orc/src/bash/features/spawn-agents/scripts/spool-send.sh:533` (`send`) and `scripts/asks.sh:66` (`claim`), through one helper in `lib/spool-env.inc.sh` (`SPOOL_BIN` is chosen at `:459-460`; `spool_resolve_bins` at `:486` sets only the vendor CLI paths). Not `spool-harness.sh:194` (`hub-run`, long-running: keeps the default). Never exported to the shell (it would slow `go test` and the hub). An agent's own `spool recv` line runs the binary directly and is not reached | a case in `spawn-agents/tests/`: the resolved `spool` call carries `GOMAXPROCS=1` unless the caller set one, and a `go` child of the same shell does not see it. Red: export it globally -> the `go` child sees `1`, FAIL; drop it -> the `spool` call lacks it, FAIL | sat | claude / simple_coding | 1 |
+| 05 | `perf(p7-05-spool-cli-gomaxprocs-1)` | a short Go CLI call runs on one P (spec 027 row 5) | `spool send` (binary 1.1.3) from `c-998` to `c-999` on a scratch `SPOOL_ROOT`, `SPOOL_NOTIFY_CMD=off`, as `spool-send.sh:533` runs it, 20 rounds interleaved (11:27Z): **75.0 ms CPU (user+sys), 69.5 ms wall (median, n=20)**; `spool recv` (v0.1's command, read only): **51.0 ms CPU, 67.5 ms wall (n=20)** | `GOMAXPROCS=1`: `send` **59.0 ms CPU (-21%), 64.0 ms wall (-8%)**; `recv` **35.5 ms CPU (-30%), 53.0 ms wall (-21%)** (median, n=20; the grok seat's `recv` re-measure, n=10: -37% CPU, -14% wall) | the two short-call execs of `$SPOOL_BIN`, there is no single wrapper: `orc/src/bash/features/spawn-agents/scripts/spool-send.sh:533` (`send`) `scripts/asks.sh:66` (`claim`) and `run/spl-peer-poll.func.sh:148` (`claim`, `spl_peer_hub`, every peer-poll tick), through one helper in `lib/spool-env.inc.sh` (`SPOOL_BIN` is chosen at `:459-460`; `spool_resolve_bins` at `:486` sets only the vendor CLI paths). Not `spool-harness.sh:194` (`hub-run`, long-running: keeps the default). Never exported to the shell (it would slow `go test` and the hub). An agent's own `spool recv` line runs the binary directly and is not reached | a case in `spawn-agents/tests/`: the resolved `spool` call carries `GOMAXPROCS=1` unless the caller set one, and a `go` child of the same shell does not see it. Red: export it globally -> the `go` child sees `1`, FAIL; drop it -> the `spool` call lacks it, FAIL | sat | claude / simple_coding | 1 |
 
 Rows 01-05 are claude: rulebook R14 (an established vendor for every row) and the
 owner's 10-17 rule (no mistral coding or testing).
@@ -82,8 +82,9 @@ owner's 10-17 rule (no mistral coding or testing).
 
 - **Batch 1**: rows 01, 03, 04, 05. No path is in two rows: 01 is Go under
   `hub/`; 03 the three `run.sh` copies and `run-lazy-loader.tst.sh`; 04 five
-  `run/*.func.sh` and one new test; 05 `spool-env.inc.sh`, `spool-send.sh`, `asks.sh`
-  (lane map on those three at 11:28Z: `free`, exit 0). Rows 03 and 04 both speed up `./run` start, through
+  `run/*.func.sh` and one new test; 05 `spool-env.inc.sh`, `spool-send.sh`, `asks.sh`,
+  `spl-peer-poll.func.sh` (lane map: the first three at 11:28Z, the fourth at
+  11:47Z, each `free`, exit 0). Rows 03 and 04 both speed up `./run` start, through
   different files: each lane measures its own arm with the other's code as it is
   on master.
 - **Batch 2**: row 02, spawned within 30 minutes (R16) of the commit that lands
@@ -139,7 +140,8 @@ Read on 2026-11-13, each with its time:
   constants into that function or a `${VAR:-...}` at use; `gh-runner-add` stops
   running `dpkg -s` at source time. No behaviour change: the file's own tests run.
 - **05**: one helper in `spool-env.inc.sh`, e.g. `spool_cli() { GOMAXPROCS="${GOMAXPROCS:-1}" "$SPOOL_BIN" "$@"; }`,
-  scoped to that exec; `spool-send.sh:533` and `asks.sh:66` call it instead of
+  scoped to that exec; `spool-send.sh:533`, `asks.sh:66` and
+  `spl-peer-poll.func.sh:148` call it instead of
   `"$SPOOL_BIN"`. `hub-run` (`spool-harness.sh:194`) and any other long-running
   `spool` command keep the default and are named in the commit.
 
@@ -204,11 +206,19 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
   grok seat's W1; W2: a `box` column (rulebook 3.1; every row is built and
   measured on sat, and the orc and spool changes run on every fleet box); N2:
   `hub-live-stack.sh`'s full path; N3: `human_status.go:88-105`.
+- v1.1 (c-660@sat, 2026-11-13): the grok seat's PASS on v1.0 (`d47de8b8f`,
+  `seat-grok.md` `7e93a9e8`) folded in. W1: a third short exec of `$SPOOL_BIN`,
+  `spl-peer-poll.func.sh:148` (`timeout ... "$SPOOL_BIN" claim`), joins row 05's
+  sites; `git grep -n '"$SPOOL_BIN"' ccef654f0` over the four `src/bash` trees,
+  tests left out, prints 4 execs (`spool-send.sh:533`, `asks.sh:66`,
+  `spl-peer-poll.func.sh:148`, and `spool-harness.sh:194`, which is excluded).
+  The file is the same on `origin/master`, and no round 31-33 plan names it. No
+  baseline change.
 
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-660@sat (editor) | claude | v1.0 (this commit) | author |
-| g-666@sat | grok | `e599eabf2` | PASS, W1-W3 folded in v1.0 |
-| m-669@sat | mistral | `e599eabf2` | PASS, W1-W2 folded in v1.0 |
+| c-660@sat (editor) | claude | v1.1 (this commit) | author |
+| g-666@sat | grok | `e599eabf2`, `d47de8b8f` | PASS, W1-W3 folded in v1.0; PASS on v1.0, W1 folded in v1.1 |
+| m-669@sat | mistral | `e599eabf2`, `d47de8b8f` | PASS, W1-W2 folded in v1.0; PASS on v1.0 |

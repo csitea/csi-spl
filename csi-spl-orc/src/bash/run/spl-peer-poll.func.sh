@@ -140,12 +140,12 @@ spl_peer_once() {
 # box identity, under a timeout so a hung dial never stalls the tick.
 spl_peer_hub() {
   if [[ -n "${PEER_HUB_CMD:-}" ]]; then "$PEER_HUB_CMD" claim "$@"; return; fi
+  declare -F spool_cli_timeout >/dev/null ||
+    source "$(dirname "$SPL_PEER_SRC")/../features/spawn-agents/lib/spool-env.inc.sh" || return 90
   if [[ -z "${SPOOL_BIN:-}" ]]; then
-    declare -F spool_env_resolve >/dev/null ||
-      source "$(dirname "$SPL_PEER_SRC")/../features/spawn-agents/lib/spool-env.inc.sh" || return 90
     spool_env_resolve >/dev/null 2>&1 || return 90
   fi
-  timeout "${PEER_HUB_TIMEOUT:-10}" "$SPOOL_BIN" claim "$@"
+  spool_cli_timeout "${PEER_HUB_TIMEOUT:-10}" claim "$@"
 }
 
 spl_peer_loop() {

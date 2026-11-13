@@ -429,6 +429,19 @@ spool_live_root_guard() {
   return 96
 }
 
+# Spec 027 row 5 (perf p7-05): a short `spool` CLI call runs on one P. Go
+# starts a P per core and a 50 ms call pays for them: GOMAXPROCS=1 cut `spool
+# send` 41 -> 31 ms CPU and `spool recv` 29 -> 20 ms (median, n=20, 2026-11-13).
+# Set on that one exec only, never exported: `go test` and the hub keep every
+# core. A caller's own GOMAXPROCS wins. Long-running calls (`hub-run` in
+# spool-harness.sh) do not use these.
+spool_cli() { GOMAXPROCS="${GOMAXPROCS:-1}" "$SPOOL_BIN" "$@"; }
+# The same under timeout(1), which execs its command and so cannot run spool_cli.
+spool_cli_timeout() {  # SECS ARGS...
+  local secs="$1"; shift
+  GOMAXPROCS="${GOMAXPROCS:-1}" timeout "$secs" "$SPOOL_BIN" "$@"
+}
+
 spool_env_resolve() {
   # exit, not return: callers source this and run unchecked, so a refusal that
   # returned would fall through to the send it exists to stop.

@@ -530,7 +530,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
     # specs/028 FR-008: the binary's own notify hook is OFF for this send. This
     # script rings the pane itself, below, so it can report the outcome as its
     # exit code; letting both fire would show the message twice.
-    out="$(SPOOL_ROOT="$SPOOL_ROOT" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" "${args[@]}")"; rc=$?
+    out="$(SPOOL_ROOT="$SPOOL_ROOT" SPOOL_NOTIFY_CMD=off spool_cli "${args[@]}")"; rc=$?
     if [ "$rc" -eq 4 ]; then
       echo "ERROR: ${TO} was retired on this machine less than ${SPOOL_ID_QUARANTINE_H:-24} h ago; nothing was delivered, a reject is in ${FROM}'s inbox" >&2
       exit 14

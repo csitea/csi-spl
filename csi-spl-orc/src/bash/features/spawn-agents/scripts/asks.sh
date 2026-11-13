@@ -63,7 +63,7 @@ asks_claim() {
     $ASKS_CLAIM_CMD claim "$@"; return
   fi
   [ -n "${SPOOL_BIN:-}" ] || spool_env_resolve >/dev/null 2>&1 || return 90
-  timeout "${ASKS_CLAIM_TIMEOUT:-15}" "$SPOOL_BIN" claim "$@"
+  spool_cli_timeout "${ASKS_CLAIM_TIMEOUT:-15}" claim "$@"
 }
 
 # The message leg of ack|done|decline in peers mode. Returns the exit code

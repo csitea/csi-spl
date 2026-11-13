@@ -110,7 +110,7 @@ The rule:
   or person, is a normal post.
 - N2 The hub decides it once, at the send (`wuiRoute`,
   `internal/hub/note_to_self.go`), and stores it as `messages.note_to_self`
-  (rdb `0277`). No agent gets it: no dispatch (an explicit addressee is dropped, as
+  (rdb `0278`). No agent gets it: no dispatch (an explicit addressee is dropped, as
   SPL-2423 does in a humans-only channel), no topic-agent reply, no channel fan-out,
   no fallback. The operator replay of unsigned posts skips it.
 - N3 Every other reader honours the flag: the WUI marks the line ("note to self",

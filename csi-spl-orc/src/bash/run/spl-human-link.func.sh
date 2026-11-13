@@ -7,7 +7,7 @@
 # @description self-service"), authenticated as the env's project service
 # @description account (do_gcp_pin_account, a Google id token for the hub URL;
 # @description never the owner account). The hub stores both directions
-# @description (human_links, rdb 0277); linking again changes nothing. A linked
+# @description (human_links, rdb 0278); linking again changes nothing. A linked
 # @description account's tag then reads as a note to self: no agent answers
 # @description it and no "does not belong to this channel" note. It changes no
 # @description membership. The audit is created_by "<AGENT_ID> for <ORDERED_BY>".

@@ -128,7 +128,7 @@ type ViewMsg struct {
 	// "" = NULL.
 	RefTaskID string
 	MirrorOf  string
-	// NoteToSelf is messages.note_to_self (rdb 0277): the WUI marks the line.
+	// NoteToSelf is messages.note_to_self (rdb 0278): the WUI marks the line.
 	NoteToSelf bool
 	// SPL-952 (rdb 0060): the kind as set after sending. All three are zero
 	// while nobody changed it, and the view then emits no override at all.

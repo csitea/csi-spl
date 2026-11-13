@@ -22,7 +22,7 @@
 #      before it as its anchor; a take is no reply, so a human post after
 #      one keeps the oldest anchor; a real answer after a take is 'agent'.
 #      CONTROL: an agent line that only starts "Taken by" is 'agent'
-#  10. spec 042 (rdb 0277): a note to self (note_to_self) last is 'self' and
+#  10. spec 042 (rdb 0278): a note to self (note_to_self) last is 'self' and
 #      never the anchor: alone it has none and is not listed; after a still
 #      unanswered real ask it is anchored on that ask, which is listed
 #   7. M3: columns 14/15 are the OLDEST human post after the last agent reply

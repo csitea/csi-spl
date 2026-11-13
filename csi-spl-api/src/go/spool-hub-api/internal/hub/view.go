@@ -1136,7 +1136,7 @@ type viewMsg struct {
 	// Omitted while unset.
 	RefTaskID string `json:"ref_task_id,omitempty"`
 	MirrorOf  string `json:"mirror_of,omitempty"`
-	// Spec 042 "Note to self" (rdb 0277): a person's post tagged only to its
+	// Spec 042 "Note to self" (rdb 0278): a person's post tagged only to its
 	// author; the WUI marks it. Omitted on every other line.
 	NoteToSelf bool `json:"note_to_self,omitempty"`
 	// SPL-952 (rdb 0060): the kind as set after sending. Omitted while it was

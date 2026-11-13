@@ -63,7 +63,7 @@ export interface SpoolMessage {
   ref_task_id?: string
   mirror_of?: string
   /**
-   * spec 042 "Note to self" (rdb 0277): a person's post tagged only to its
+   * spec 042 "Note to self" (rdb 0278): a person's post tagged only to its
    * author (or the author's linked account). No agent was asked; the card
    * marks it. Omitted on every other line.
    */

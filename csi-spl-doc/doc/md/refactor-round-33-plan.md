@@ -37,7 +37,7 @@ gate lines rows 01-02 leave. The Bash `LONG` list holds nothing left to split
 
 **Status: v1.0**, signed by the editor; the panel seat passed v0.2 (section 9). v1.0
 differs from v0.2 by this status line and sections 8 and 9 only. No row lane starts
-before the panel signs the plan sha.
+before the panel signs the plan sha. **Landed** as `ac029ec8c` (ACCEPTED 4d6fd30b by c-003).
 
 Editor: **c-615** (claude, on the box that has agy, not sat). Panel seat: g-630 (grok), section 5.
 
@@ -278,6 +278,8 @@ Go packages; row 04 its two unit files and the typecheck.
 
 ## 8. Changes
 
+- Landed: v1.0 on master as `ac029ec8c`, CI on it green (quality gate 43333628309,
+  docs publish 43333628403). Status line and this section only.
 - v1.0 (c-615): v0.2 passed by the panel seat (g-630 (on the agy box) grok PASS `73e2934a2`,
   msg 979a9cab, no W; N1-N8 are confirmations). v1.0 differs from v0.2 by the status
   line, this section and section 9 only. The panel's N3 reading of the lane map from

@@ -178,7 +178,30 @@ do_detect_log_mode() {
   export RUN_LOG_COMPACT
 }
 
+# do_run_top_pad <args>: re-exec this Bash once with
+# GLIBC_TUNABLES=...glibc.malloc.top_pad=134217728 when the variable carries
+# no top_pad yet. glibc reads the tunable only at exec, so an export alone
+# would reach the children and not this shell. With the pad, malloc grows the
+# heap in 128 MiB steps that transparent huge pages can back, and every fork
+# of a loaded ./run copies fewer 4 KiB page-table entries: -41% kernel time,
+# -33% wall per fork, +0.5..1.7 MB RSS (spec 027 os-tweaks-analysis.md 2.5,
+# row 1b, n = 3 per arm). An existing GLIBC_TUNABLES is appended to, never
+# replaced; one that already sets top_pad wins (top_pad=131072, glibc's
+# default, turns the pad off). Runs before anything is sourced; the pid guard
+# stops a loop when the environment drops the variable.
+do_run_top_pad() {
+  case ":${GLIBC_TUNABLES:-}:" in *:glibc.malloc.top_pad=*) return 0 ;; esac
+  [[ "${RUN_TOP_PAD_PID:-}" != "$$" ]] || return 0
+  export RUN_TOP_PAD_PID=$$
+  export GLIBC_TUNABLES="${GLIBC_TUNABLES:+${GLIBC_TUNABLES}:}glibc.malloc.top_pad=134217728"
+  local _o=()
+  [[ $- == *x* ]] && _o+=(-x)
+  [[ $- == *v* ]] && _o+=(-v)
+  exec "$BASH" "${_o[@]}" "$0" "$@"
+}
+
 main() {
+  do_run_top_pad "$@"
   do_detect_stdout_mode "$@"
   do_detect_log_mode
   [[ "${RUN_STDOUT_IS_DATA:-0}" == "1" || "$RUN_LOG_COMPACT" == "1" ]] || do_flush_screen
@@ -627,10 +650,13 @@ main "$@"
 
 #==============================================================================
 # run.sh — minimalistic bash framework
-# Version:  3.8.3
+# Version:  3.8.4
 # Upstream: a sibling project (its -utl, v3.8.2)
 #------------------------------------------------------------------------------
 # Version history (newest first):
+#   3.8.4  2026-11-13  ./run re-execs once with GLIBC_TUNABLES
+#                      glibc.malloc.top_pad=134217728 (do_run_top_pad),
+#                      spec 027 row 1b, SPL-5421.
 #   3.8.3  2026-10-22  ./run exits only after its stdout/stderr tees ended
 #                      (bounded, RUN_TEE_WAIT_S), SPL-2820.
 #   3.8.2  2026-10-21  One copy in csi-spl-iac, -orc and -utl, byte-identical
@@ -666,4 +692,4 @@ main "$@"
 # When copying this file into a downstream project: bump the version above and
 # append a new entry describing the local change. Keep the banner intact.
 #==============================================================================
-# csi-spl ::: v3.8.3
+# csi-spl ::: v3.8.4

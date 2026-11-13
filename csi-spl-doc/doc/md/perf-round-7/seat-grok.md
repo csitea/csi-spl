@@ -167,3 +167,40 @@ N9. Lane-map on the 14 paths was exit 4 (five unknown ids, zero owned), then lat
 ## Hygiene after this file
 
 After `git add` of this path, the same action printed the same `ok` lines (non-Csitea, personal-name, OS-user, home, mail, hidden-workspace, retired-relay, `.vibe`), then `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-666`, `hygiene_rc=0`.
+## v1.0 on d47de8b8f
+
+Plan: `d47de8b8f5a7cfba95a6ea05bc943604871680b1` (`review/c002-perf-round-7-planner`).
+`git merge-base --is-ancestor e599eabf239bec58e30581dacc256a13bd0ad6be d47de8b8f5a7cfba95a6ea05bc943604871680b1` printed `ANCESTOR_RC=0`.
+`git diff --stat` of those two shas printed `perf-round-7-plan.md` and `perf-round-7/editor.md`, `2 files changed, 54 insertions(+), 19 deletions(-)`.
+Verdict: **PASS**. W1 folds in before row 05 spawns.
+
+### Sites at ccef654f0
+
+`git grep -n '"$SPOOL_BIN"' ccef654f0329231cce02f9ec7a8f418c03dd62f0` over `csi-spl-{orc,api,iac,utl}/src/bash`, test paths excluded, printed seven lines. The four that exec the binary:
+
+- `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh:533` runs `"$SPOOL_BIN" "${args[@]}"` with `SPOOL_NOTIFY_CMD=off` (`send`).
+- `csi-spl-orc/src/bash/features/spawn-agents/scripts/asks.sh:66` runs `timeout ... "$SPOOL_BIN" claim "$@"`.
+- `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh:194` runs `setsid "$SPOOL_BIN" hub-run` (long; plan line 76 excludes it).
+- `csi-spl-orc/src/bash/run/spl-peer-poll.func.sh:148` runs `timeout "${PEER_HUB_TIMEOUT:-10}" "$SPOOL_BIN" claim "$@"`.
+
+`git show ccef654f0329231cce02f9ec7a8f418c03dd62f0:csi-spl-orc/src/bash/run/spl-peer-poll.func.sh | nl -ba | sed -n '139,149p'` printed `spl_peer_hub`. Line 148 is the `claim`. Plan line 76 says "the two short-call execs" and names only `spool-send.sh:533` and `asks.sh:66`. Plan line 142 says those two call the helper. Line 148 is a third short `claim`, same shape as line 66, inside the poll loop.
+
+`lane-map.sh --check` of `spool-env.inc.sh,spool-send.sh,asks.sh` printed `free`, `LANE_RC=0`. The same command on `spl-peer-poll.func.sh` printed `free`, `PEER_LANE_RC=0`. Both printed the stale-binary warning first.
+
+### Send baseline
+
+`editor.md` lines 186-197 (section 2.8) give medians and ranges for `spool send`, n=20, and no raw samples. This seat did not re-run `spool send`. Python `(59.0-75.0)/75.0*100` printed `cpu_pct=-21.3333`. Python `(64.0-69.5)/69.5*100` printed `wall_pct=-7.9137`. Plan line 76 says -21% and -8%.
+
+v0.1 W1 is in the table as 4,365 ms. v0.1 W2 file:line is on row 04. The box column is present. Row 01 reads 334,734 ns and 20,931 B. The `human_status.go` site is 88-105. Those match the v0.1 notes. Not re-opened.
+
+W1. Plan lines 76 and 142 omit `csi-spl-orc/src/bash/run/spl-peer-poll.func.sh:148`. Fold that `claim` onto the same helper before row 05 spawns. The file is lane-map free (exit 0). The measured `send` site at line 533 is right, so this is not a fail of that gain.
+
+N10. Section 2.8 publishes medians and ranges only (n=20, editor's run at 11:27Z). This seat's n for `spool send` is 0. The stated percents match those medians within a rounding point.
+
+N11. `spl-naming-migrate.func.sh:49` runs `"${SPOOL_BIN:-spool}" layout` once, not in a loop. `spool-fleet-relay.sh:223` runs `"$BIN" send`; line 201 sets `BIN` from `SPOOL_BIN` only as a fallback. The dispatch tick and the unanswered sweep call `spool-send.sh`, so they take line 533. Not part of W1.
+
+N12. Lane-map of the three row-05 files and of `spl-peer-poll.func.sh` was free, exit 0, after the stale-binary warning.
+
+## Hygiene after the v1.0 section
+
+After `git add` of this path, the same action printed the same `ok` lines (non-Csitea, personal-name, OS-user, home, mail, hidden-workspace, retired-relay, `.vibe`), then `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-666`, `HYGIENE_RC=0`.

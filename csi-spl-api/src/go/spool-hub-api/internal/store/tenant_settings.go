@@ -34,7 +34,7 @@ type TenantConfigPatch struct {
 	DisplayName        *string
 	DefaultLocale      *string
 	TopicArchivePolicy *string
-	// AgentSplit, when set, replaces all five shares. Nil leaves them.
+	// AgentSplit, when set, replaces all six shares. Nil leaves them.
 	AgentSplit *AgentSplit
 }
 
@@ -82,6 +82,8 @@ type AgentSplit struct {
 	Agy     int
 	Qwen    int
 	Mistral int
+	// Codex (rdb 0282, SPL-5454) is 0 unless an admin sets it.
+	Codex int
 }
 
 // DefaultAgentSplit is what a workspace has until an admin sets another.
@@ -89,14 +91,14 @@ func DefaultAgentSplit() AgentSplit {
 	return AgentSplit{Claude: 40, Grok: 50, Agy: 10, Qwen: 0}
 }
 
-// Valid reports whether each share is 0..100 and the five sum to 100.
+// Valid reports whether each share is 0..100 and the six sum to 100.
 func (a AgentSplit) Valid() bool {
-	for _, n := range []int{a.Claude, a.Grok, a.Agy, a.Qwen, a.Mistral} {
+	for _, n := range []int{a.Claude, a.Grok, a.Agy, a.Qwen, a.Mistral, a.Codex} {
 		if n < 0 || n > 100 {
 			return false
 		}
 	}
-	return a.Claude+a.Grok+a.Agy+a.Qwen+a.Mistral == 100
+	return a.Claude+a.Grok+a.Agy+a.Qwen+a.Mistral+a.Codex == 100
 }
 
 // TenantSettings is implemented by Memory and Postgres.
@@ -268,9 +270,11 @@ func (s *Postgres) TenantConfig(ctx context.Context, tenant string) (TenantConfi
 	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(display_name, ''), COALESCE(default_locale, ''),
 		COALESCE(topic_archive_policy, ''),
 		agent_split_claude, agent_split_grok, agent_split_agy, agent_split_qwen, agent_split_mistral,
+		agent_split_codex,
 		`+tenantSettingsCol(s.hasTenantSettings(ctx))+`
 		FROM tenants WHERE tenant_id = $1`, []any{tenant}, &c.DisplayName, &c.DefaultLocale, &c.TopicArchivePolicy,
-		&c.AgentSplit.Claude, &c.AgentSplit.Grok, &c.AgentSplit.Agy, &c.AgentSplit.Qwen, &c.AgentSplit.Mistral, &kv)
+		&c.AgentSplit.Claude, &c.AgentSplit.Grok, &c.AgentSplit.Agy, &c.AgentSplit.Qwen, &c.AgentSplit.Mistral,
+		&c.AgentSplit.Codex, &kv)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TenantConfig{}, ErrNotFound
 	}
@@ -286,7 +290,7 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 	// hot entry so a policy change takes effect at once.
 	defer s.hot.forget()
 	var name, loc, pol any
-	var claude, grok, agy, qwen, mistral any
+	var claude, grok, agy, qwen, mistral, codex any
 	if p.DisplayName != nil {
 		name = nullIfEmpty(*p.DisplayName)
 	}
@@ -302,6 +306,7 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 		agy = p.AgentSplit.Agy
 		qwen = p.AgentSplit.Qwen
 		mistral = p.AgentSplit.Mistral
+		codex = p.AgentSplit.Codex
 	}
 	tag, err := s.execTenant(ctx, tenant, `UPDATE tenants SET
 		display_name         = CASE WHEN $2 THEN $3::text ELSE display_name END,
@@ -311,9 +316,10 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 		agent_split_grok     = CASE WHEN $8 THEN $10::smallint ELSE agent_split_grok END,
 		agent_split_agy      = CASE WHEN $8 THEN $11::smallint ELSE agent_split_agy END,
 		agent_split_qwen     = CASE WHEN $8 THEN $12::smallint ELSE agent_split_qwen END,
-		agent_split_mistral  = CASE WHEN $8 THEN $13::smallint ELSE agent_split_mistral END
+		agent_split_mistral  = CASE WHEN $8 THEN $13::smallint ELSE agent_split_mistral END,
+		agent_split_codex    = CASE WHEN $8 THEN $14::smallint ELSE agent_split_codex END
 		WHERE tenant_id = $1`, tenant, p.DisplayName != nil, name, p.DefaultLocale != nil, loc,
-		p.TopicArchivePolicy != nil, pol, p.AgentSplit != nil, claude, grok, agy, qwen, mistral)
+		p.TopicArchivePolicy != nil, pol, p.AgentSplit != nil, claude, grok, agy, qwen, mistral, codex)
 	if err != nil {
 		return err
 	}

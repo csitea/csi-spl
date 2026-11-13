@@ -15,7 +15,7 @@ import (
 
 // The vendor split per task kind (spec 115 sections 2 and 3.2, rdb 0163,
 // 0178): for each of seven task kinds, how new agent work of that kind is shared
-// across the five vendors (AgentKinds), out of 100, and the backup vendor
+// across the vendors of AgentKinds, out of 100, and the backup vendor
 // that takes over after two failed tries of the main. The main is the one
 // vendor with the highest weight.
 //
@@ -71,15 +71,17 @@ func (k SplitKind) Main() string {
 // env.box.agent_split_by_kind), in SplitTaskKinds order, each Set false.
 // Mistral writes no code (owner HUM-10 msg 91bf8278, 2026-10-17): 0 and
 // never the backup outside specs_and_docs. agy takes grok's share and backup
-// in the coding kinds (owner HUM-10 msg dc673043, SPL-4826).
+// in the coding kinds (owner HUM-10 msg dc673043, SPL-4826). codex takes 15
+// of claude's share in tests and simple_coding (owner msg ea50c4b0, spec 161
+// Q3 Option B; SPL-5454) and is 0 elsewhere, never in a secret-class kind.
 func DefaultSplitKinds() []SplitKind {
 	row := func(kind, backup string, w map[string]int) SplitKind {
 		return SplitKind{Kind: kind, Weights: fullWeights(w), Backup: backup}
 	}
 	return []SplitKind{
 		row("specs_and_docs", "claude", map[string]int{"agy": 80, "mistral": 15, "claude": 5}),
-		row("tests", "agy", map[string]int{"claude": 85, "agy": 15}),
-		row("simple_coding", "agy", map[string]int{"claude": 59, "agy": 41}),
+		row("tests", "agy", map[string]int{"claude": 70, "agy": 15, "codex": 15}),
+		row("simple_coding", "agy", map[string]int{"claude": 44, "agy": 41, "codex": 15}),
 		row("complex_coding", "agy", map[string]int{"claude": 90, "agy": 10}),
 		row("i18n", "claude", map[string]int{"agy": 100}),
 		row("secret", "grok", map[string]int{"claude": 100}),

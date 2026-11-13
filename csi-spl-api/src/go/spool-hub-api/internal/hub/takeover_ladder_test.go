@@ -60,7 +60,7 @@ func TestTakeoverLadder(t *testing.T) {
 	assertRung(t, ks["complex_coding"], "mistral,agy,claude", 2, false)
 	assertRung(t, ks["i18n"], "agy,claude", 1, false)
 	assertRung(t, ks["secret"], "claude,mistral", 2, false)
-	if v, _ := body["vendors"].([]any); len(v) != 5 || body["max_failures_max"] != float64(10) {
+	if v, _ := body["vendors"].([]any); len(v) != 6 || body["max_failures_max"] != float64(10) {
 		t.Fatalf("vendors / max: %v %v", body["vendors"], body["max_failures_max"])
 	}
 

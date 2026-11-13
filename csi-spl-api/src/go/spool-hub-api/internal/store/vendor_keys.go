@@ -17,8 +17,9 @@ import (
 // ciphertext, the KMS-wrapped data key, last4 and the keyed fingerprint.
 // Every write and its audit row are one transaction.
 
-// VendorKeyKinds are the five kinds of rdb 0174's CHECK, in spec 127's order.
-var VendorKeyKinds = []string{"claude", "grok", "agy", "mistral", "qwen"}
+// VendorKeyKinds are the kinds of rdb 0174's CHECK (codex: rdb 0282,
+// SPL-5454), in spec 127's order. A key PUT also needs VendorKeyAvailable.
+var VendorKeyKinds = []string{"claude", "grok", "agy", "mistral", "qwen", "codex"}
 
 // Vendor key audit actions this file writes (rdb 0174 has the rest).
 const (

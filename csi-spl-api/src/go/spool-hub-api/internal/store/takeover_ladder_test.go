@@ -67,7 +67,7 @@ func TestTakeoverLadderStore(t *testing.T) {
 			want(l["complex_coding"], "mistral,agy,claude", 2, false)
 
 			// CONTROL: the data rule, before any write.
-			for _, bad := range [][]string{{"claude", "agy"}, {"qwen"}} {
+			for _, bad := range [][]string{{"claude", "agy"}, {"qwen"}, {"claude", "codex"}} {
 				_, err := TakeoverLadderPatch([]TakeoverRung{{Kind: "secret", Order: bad, MaxFailures: 2}}, nil)
 				if !errors.Is(err, ErrBadTenantSetting) || !strings.Contains(err.Error(), "never takes secret work") {
 					t.Fatalf("CONTROL secret %v: %v", bad, err)

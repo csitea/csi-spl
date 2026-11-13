@@ -1308,6 +1308,121 @@ jobs:
         run: bash csi-spl-orc/src/bash/features/run-ci-tests.sh
 
   # ===========================================================================
+  # The Rust pilot (SPL-5392; spec 011 rust-candidates-analysis.md 5.2, 6.1):
+  # csi-spl-orc/src/rust/spl-cmd-guard, the force-push guard of
+  # force-push-guard-hook.sh as one native process. rustup-init is pinned by
+  # sha256 like every downloaded tool here; it installs the EXACT toolchain of
+  # the crate's rust-toolchain.toml (rustup checks each component against the
+  # release manifest) into the runner's tool cache, so a warm runner fetches
+  # nothing. The build is static musl, linked by the toolchain's own rust-lld:
+  # the runner needs no C compiler. Then cargo fmt --check, clippy -D warnings,
+  # the unit tests, the release build (at most 5 MB), and parity/parity.sh:
+  # the four guard suites against the binary, the Python-vs-Rust differential
+  # and its red controls. Rides the orc part (the crate, the hook and the
+  # Python matcher are all csi-spl-orc paths). Each step prints its seconds.
+  # ===========================================================================
+  rust-suite:
+    name: "rust: spl-cmd-guard (fmt, clippy, test, parity with the Python guard)"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.run_orc != 'false' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      - name: Disk guard (CI_DISK_NEED_GB free, else "disk full before tests")
+        run: bash csi-spl-orc/src/bash/scripts/ci-disk-guard.sh
+
+      # rustup-init 1.29.3: the sha256 PINNED here agrees with the release's
+      # rustup-init.sha256 and with a download hashed on 2026-11-13; a bump
+      # pins the new one in the same commit, both sources agreeing.
+      - name: Cache rustup-init 1.29.3 release asset
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .release-asset-cache/rustup-init-1.29.3
+          key: release-asset-rustup-init-1.29.3-b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
+
+      - name: Install rustup-init 1.29.3
+        env:
+          ASSET_CACHE: ${{ github.workspace }}/.release-asset-cache/rustup-init-1.29.3
+        run: |
+          set -euo pipefail
+          v=1.29.3; dir="$RUNNER_TOOL_CACHE/rustup-init/$v"
+          sha=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
+          if [[ ! -x "$dir/rustup-init" ]]; then
+            url="https://static.rust-lang.org/rustup/archive/$v/x86_64-unknown-linux-gnu/rustup-init"
+            cached="${ASSET_CACHE:-$RUNNER_TEMP/asset-cache}/rustup-init"
+            if [[ -f "$cached" ]]; then
+              cp "$cached" "$RUNNER_TEMP/rustup-init"
+            else
+              curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/rustup-init" "$url" \
+                || { echo "::error::$url is unavailable and has no cached copy: the build cannot run"; exit 1; }
+            fi
+            echo "$sha  $RUNNER_TEMP/rustup-init" | sha256sum -c -
+            mkdir -p "$(dirname "$cached")" && cp "$RUNNER_TEMP/rustup-init" "$cached"
+            chmod +x "$RUNNER_TEMP/rustup-init"
+            mkdir -p "$dir.tmp.$$" "$(dirname "$dir")"
+            mv "$RUNNER_TEMP/rustup-init" "$dir.tmp.$$/rustup-init"
+            # a concurrent job may have put it there first: keep theirs
+            if ! mv -T "$dir.tmp.$$" "$dir" 2>/dev/null; then rm -rf "$dir.tmp.$$"; fi
+          fi
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: The pinned toolchain (rust-toolchain.toml), in the tool cache
+        working-directory: csi-spl-orc/src/rust/spl-cmd-guard
+        run: |
+          set -euo pipefail
+          t0=$SECONDS
+          rh="$RUNNER_TOOL_CACHE/rust"
+          {
+            echo "RUSTUP_HOME=$rh/rustup"
+            echo "CARGO_HOME=$rh/cargo"
+            echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target"
+          } >>"$GITHUB_ENV"
+          export RUSTUP_HOME="$rh/rustup" CARGO_HOME="$rh/cargo"
+          [[ -x "$CARGO_HOME/bin/rustup" ]] ||
+            rustup-init -y --no-modify-path --profile minimal --default-toolchain none
+          "$CARGO_HOME/bin/rustup" toolchain install
+          "$CARGO_HOME/bin/rustc" --version
+          echo "$CARGO_HOME/bin" >>"$GITHUB_PATH"
+          echo "toolchain: $((SECONDS - t0)) s"
+
+      - name: cargo fmt --check, clippy -D warnings, test, release build
+        working-directory: csi-spl-orc/src/rust/spl-cmd-guard
+        env:
+          SPL_CMD_GUARD_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          t0=$SECONDS; cargo fmt --check; echo "fmt: $((SECONDS - t0)) s"
+          t0=$SECONDS; cargo clippy --locked --offline --all-targets -- -D warnings; echo "clippy: $((SECONDS - t0)) s"
+          t0=$SECONDS; cargo test --locked --offline; echo "test: $((SECONDS - t0)) s"
+          t0=$SECONDS; cargo build --release --locked --offline; echo "build: $((SECONDS - t0)) s"
+
+      - name: The binary (static, at most 5 MB, --version, --self-test)
+        run: |
+          set -euo pipefail
+          b="$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release/spl-cmd-guard"
+          size=$(stat -c %s "$b")
+          echo "spl-cmd-guard: $size bytes"
+          (( size <= 5 * 1024 * 1024 )) || { echo "::error::spl-cmd-guard is $size bytes, over the 5 MB budget (6.3 row 4)"; exit 1; }
+          "$b" --version
+          "$b" --self-test
+          echo "SPL_CMD_GUARD_BIN=$b" >>"$GITHUB_ENV"
+
+      - name: parity.sh (the guard suites against Rust, the differential, red controls)
+        run: |
+          set -euo pipefail
+          t0=$SECONDS
+          bash csi-spl-orc/src/rust/spl-cmd-guard/parity/parity.sh
+          echo "parity: $((SECONDS - t0)) s"
+
+  # ===========================================================================
   # The CNF suite (016 T005): the conf-validator exit-code contract
   # (0 valid / 1 invalid / 2 could not check). The test refuses to skip: an
   # interpreter without the validator's dependencies is exit 2. The poetry

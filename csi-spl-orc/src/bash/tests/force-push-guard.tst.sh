@@ -14,24 +14,35 @@
 #   3. the direct CLI form (--check) answers the same, and a bad call is 64
 #   4. fail closed: with no python3 on PATH even a plain push is refused
 # Control: a matcher that allows everything fails every case in 1.
+# SPL_CMD_GUARD_TEST_BIN=<spl-cmd-guard>: sections 1-3 ask the Rust binary
+# instead (its `check` and usage forms); 4 stays the Python library's.
+# FORCE_PUSH_GUARD_TEST_DUMP=<file>: every case command is also appended
+# there, NUL-terminated (the differential corpus of spl-cmd-guard, SPL-5392).
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2016,SC1091  # the cases are literal commands, never expanded
 set -uo pipefail
 G="$(cd "$(dirname "$0")/../features/spawn-agents/lib" && pwd)/force-push-guard.inc.sh"
 # shellcheck source=../features/spawn-agents/lib/force-push-guard.inc.sh
 . "$G"
+RB="${SPL_CMD_GUARD_TEST_BIN:-}"
+if [ -n "$RB" ]; then
+  force_push_guard_check() { "$RB" check "${1-}"; }
+fi
+dump() { [ -z "${FORCE_PUSH_GUARD_TEST_DUMP:-}" ] || printf '%s\0' "$1" >>"$FORCE_PUSH_GUARD_TEST_DUMP"; }
 fails=0 n=0
 pass() { n=$((n + 1)); echo "PASS: $1"; }
 fail() { n=$((n + 1)); echo "FAIL: $1"; fails=$((fails + 1)); }
 
 refuse() {  # <command>
   local err rc
+  dump "$1"
   err="$(force_push_guard_check "$1" 2>&1 >/dev/null)"; rc=$?
   if [ "$rc" = 2 ] && [ "$(printf '%s\n' "$err" | wc -l)" = 1 ] && [[ "$err" == "force-push-guard: refused: "* ]]
   then pass "refused: $1"; else fail "should refuse (rc=$rc err=$err): $1"; fi
 }
 allow() {  # <command>
   local err rc
+  dump "$1"
   err="$(force_push_guard_check "$1" 2>&1 >/dev/null)"; rc=$?
   if [ "$rc" = 0 ] && [ -z "$err" ]; then pass "allowed: $1"; else fail "should allow (rc=$rc err=$err): $1"; fi
 }
@@ -263,11 +274,12 @@ refuse 'git push >/dev/null -f origin master'
 refuse 'if git push -f origin master; then echo x; fi'
 
 # 3. the CLI form
-bash "$G" --check 'git push -f origin master' 2>/dev/null; rc=$?
+cli() { if [ -n "$RB" ]; then "$RB" ${1+check} "$@"; else bash "$G" ${1+--check} "$@"; fi; }
+cli 'git push -f origin master' 2>/dev/null; rc=$?
 if [ "$rc" = 2 ]; then pass "--check refuses with rc 2"; else fail "--check refuse rc=$rc"; fi
-bash "$G" --check 'git push origin HEAD:master' 2>/dev/null; rc=$?
+cli 'git push origin HEAD:master' 2>/dev/null; rc=$?
 if [ "$rc" = 0 ]; then pass "--check allows with rc 0"; else fail "--check allow rc=$rc"; fi
-bash "$G" 2>/dev/null; rc=$?
+cli 2>/dev/null; rc=$?
 if [ "$rc" = 64 ]; then pass "a bad call is rc 64"; else fail "bad call rc=$rc"; fi
 
 # 4. fail closed without python3
@@ -278,5 +290,5 @@ err="$(PATH="$T" "$T/bash" -c '. "$1"; force_push_guard_check "git push origin H
 if [ "$rc" = 2 ] && [[ "$err" == *"fail closed"* ]]; then pass "no python3: refused (fail closed)"
 else fail "no python3: rc=$rc err=$err"; fi
 
-echo "force-push-guard: $((n - fails))/$n passed"
+echo "force-push-guard${RB:+ (spl-cmd-guard)}: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

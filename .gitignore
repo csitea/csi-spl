@@ -66,3 +66,6 @@ csi-spl-iac/src/bash/scripts/run-ansible-*.sh
 
 # scanner release assets restored by CI (SPL-5050)
 .release-asset-cache/
+
+# Cargo build output of the Rust crates (csi-spl-orc/src/rust/*), SPL-5392
+csi-spl-orc/src/rust/*/target/

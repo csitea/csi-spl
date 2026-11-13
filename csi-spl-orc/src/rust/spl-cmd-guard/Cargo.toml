@@ -1,0 +1,22 @@
+[package]
+name = "spl-cmd-guard"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100.0"
+description = "The force-push guard of force-push-guard-hook.sh as one native process (SPL-5392)"
+license = "AGPL-3.0-only"
+publish = false
+
+# No dependencies, on purpose: pure Rust, no -sys / cc crate, nothing to
+# fetch, so `cargo build --locked --offline` works on a box and in CI.
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+debug = 1

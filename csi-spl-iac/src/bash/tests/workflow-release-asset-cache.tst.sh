@@ -93,6 +93,7 @@ check_tool() {  # <workflow> <tool> <asset-name in cache> <fake extension>
 
 check_tool 10_ci-quality.yml gitleaks gitleaks.tgz tgz
 check_tool 10_ci-quality.yml trivy trivy_0.74.0_Linux-64bit.tar.gz tgz
+check_tool 10_ci-quality.yml rustup-init rustup-init bin
 check_tool 15_sec-deps-secrets.yml gitleaks gitleaks.tgz tgz
 check_tool 15_sec-deps-secrets.yml trivy trivy_0.74.0_Linux-64bit.tar.gz tgz
 check_tool 62_gosec.yml gosec gosec.tar.gz tgz

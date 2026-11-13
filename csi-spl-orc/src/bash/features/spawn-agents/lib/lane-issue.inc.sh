@@ -530,7 +530,9 @@ li_review_lane() {
   local life="$1/$2/lifetime" a
   [ "$(li_origin_of_agent "$1" "$2")" = "$3" ] || return 1
   grep -m1 '^# ' "$life/brief.md" 2>/dev/null | grep -qiE '\b(R7|re-?review(er)?|reviewer|language review|review seat|review only)\b' || return 1
-  a="$(grep -m1 -iE '^Author:' "$life/brief.md" | grep -oE '\b[acgmq]-[0-9]{3}\b' | grep -vx "$2" | sed -n 1p)"
+  # the id letters from their one home (SPL-5470: a codex o- author was missed)
+  [ -n "${SPOOL_AGENT_ID_NEW_RX:-}" ] || . "$(dirname "${BASH_SOURCE[0]}")/spool-env.inc.sh"
+  a="$(grep -m1 -iE '^Author:' "$life/brief.md" | grep -oE "\b${SPOOL_AGENT_ID_NEW_RX}\b" | grep -vx "$2" | sed -n 1p)"
   [ -n "$a" ] && printf '%s\n' "$a"
 }
 

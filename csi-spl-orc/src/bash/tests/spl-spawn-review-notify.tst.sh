@@ -133,6 +133,13 @@ run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
 (( rc == 0 )) && [[ "$(sends)" == 2 ]] && sent_to c-372 && sent_to c-168 && ! grep -q -- "--to c-168@" "$T/s/sends.log" &&
   pass "6. (author c-372, ...) and 'Author c-168@boxa.' found; c-372 has a spool dir: live; this box's @boxa goes out bare" ||
   fail "6. rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
+# SPL-5470: a codex (o-) author in either form is told
+reset; b="$(brief c002-cx-reviewer "Author: o-208@sat. on review/o-208-z
+| o-209@sat (codex) |")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=c-500; rc=$?
+(( rc == 0 )) && [[ "$(sends)" == 2 ]] && sent_to o-208@sat && sent_to o-209@sat &&
+  pass "6. codex authors: 'Author: o-208@sat' and '| o-209@sat (codex) |' both told" ||
+  fail "6. codex rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
 reset; b="$(brief c002-unk-reviewer "Author: c-999")"
 run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
 (( rc == 0 )) && [[ "$(sends)" == 0 ]] && grep -q 'SKIP: author c-999 unknown on boxa' "$T/out" &&

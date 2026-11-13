@@ -61,7 +61,12 @@
 # @description         <SPAWN_PLACE_WORKDIR> <brief> <slug>`; the new id -> done
 # @description         "placed: <ID>@<box>" and the sender is told; spawn-window's
 # @description         HOLD (exit 10) or a failure -> back in line (a failure
-# @description         also tells the holder). A HOLD's reason (e.g. "waiting:
+# @description         also tells the holder). The id is any letter of
+# @description         SPOOL_AGENT_ID_NEW_RX (o- codex included, SPL-5470); an
+# @description         exit 0 with no id read is held, acked, never retried
+# @description         (not even by 1. STALLED): one WARN with the output and
+# @description         one blocker asks the holder to record it with
+# @description         do_spl_spawn_placed. A HOLD's reason (e.g. "waiting:
 # @description         claude weekly >= 90% on box-a, box-b", SPL-2035) is kept
 # @description         in <asks dir>/.place.wait and do_spl_spawn_queue shows it.
 # @description         Only a launch starts the SPAWN_PLACE_GAP_MIN slot
@@ -502,16 +507,29 @@ spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
 ' ' ' <<<"$lines")"
 }
 
-# 1. Placing requests quiet SPAWN_PLACE_LOCK_MIN go back in line. 0 = one did.
+# 1. Placing requests quiet SPAWN_PLACE_LOCK_MIN go back in line, but for a
+# launch that exited 0 with no id read (spl_spawn_place_unread). 0 = one did.
 spl_spawn_place_stalled() {  # HOLDER ROWS
-  local id n=0 lock=$(( ${SPAWN_PLACE_LOCK_MIN:-30} * 60 ))
+  local id n=0 lock=$(( ${SPAWN_PLACE_LOCK_MIN:-30} * 60 )) unread
+  unread="$(spl_spawn_place_unread_keep "$2")"
   while IFS= read -r id; do
     [[ -n "$id" ]] || continue
     spl_spawn_q_op queue "$id" "$1" >/dev/null || continue
     do_log "INFO ask ${id:0:8} was not placed within ${SPAWN_PLACE_LOCK_MIN:-30} min: back in line at its place"
     n=$((n + 1))
-  done < <(jq -r --argjson l "$lock" '.[] | select(.state == "acked" and .quiet_s >= $l) | .ask_id' <<<"$2")
+  done < <(jq -r --argjson l "$lock" --argjson u "$unread" '.[] | select(.state == "acked" and .quiet_s >= $l
+    and (.ask_id as $i | $u | index($i) | not)) | .ask_id' <<<"$2")
   (( n > 0 ))
+}
+
+# <asks dir>/.place.unread pruned to the asks of ROWS, printed as a JSON array.
+spl_spawn_place_unread_keep() {  # ROWS
+  local f ids=()
+  f="$(spool_asks_dir)/.place.unread"
+  [[ -s "$f" ]] || { printf '[]'; return 0; }
+  mapfile -t ids < <(grep -xF -f <(jq -r '.[].ask_id' <<<"$1") "$f" | sort -u)
+  if { (( ${#ids[@]} == 0 )) || printf '%s\n' "${ids[@]}"; } >"$f.$$"; then mv -f "$f.$$" "$f"; else rm -f "$f.$$"; fi
+  spl_spawn_place_json_ids "${ids[@]}"
 }
 
 # 3. Prints why there is no room and returns 0; returns 1 when there is room.
@@ -542,7 +560,7 @@ spl_spawn_place_gap_hold() {
   (( now - last < floor )) && { printf 'the last placement started under %s min ago (the floor)' "${SPAWN_PLACE_GAP_FLOOR_MIN:-3}"; return 0; }
   if (( $(stat -c %Y "$d/.place.agent" 2>/dev/null || echo 0) >= last )); then
     agent="$(head -1 "$d/.place.agent" 2>/dev/null)"
-    [[ "$agent" =~ ^[acgmq]-[0-9]{3}(@[a-z0-9-]+)?$ ]] || agent=""
+    [[ "$agent" =~ ^${SPOOL_AGENT_ID_NEW_RX}(@[a-z0-9-]+)?$ ]] || agent=""
   fi
   [[ -n "$agent" ]] && spl_spawn_place_progress "$agent" "$last" && return 1
   printf 'the last placement started under %s min ago and %s has no heartbeat or token-burn progress since' "${SPAWN_PLACE_GAP_MIN:-10}" "${agent:-its lane}"
@@ -900,8 +918,8 @@ spl_spawn_place_authors() {  # BRIEF
   [[ -r "$1" ]] || return 0
   declare -F spl_kind_of_agent_id >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  ids="$(grep -m1 -iE '^Author:' "$1" | grep -oE '\b[acgmq]-[0-9]{3}\b')"
-  [[ -n "$ids" ]] || ids="$(grep -oE '\b[acgmq]-[0-9]{3}\b' "$1")"
+  ids="$(grep -m1 -iE '^Author:' "$1" | grep -oE "\b${SPOOL_AGENT_ID_NEW_RX}\b")"
+  [[ -n "$ids" ]] || ids="$(grep -oE "\b${SPOOL_AGENT_ID_NEW_RX}\b" "$1")"
   while read -r id; do
     [[ -n "$id" ]] && ! spl_is_role_seat "$id" || continue
     printf '%s\t%s\n' "$(spl_kind_of_agent_id "$id")" "$id"
@@ -1349,7 +1367,9 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
       "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err" 6>&-)" || rc=$?
   fi
   out="$out"$'\n'"$(tail -3 "$err")"; rm -f "$err"
-  agent="$(grep -oE '^[acgmq]-[0-9]{3}(@[a-z0-9][a-z0-9-]{0,31})?( |$)' <<<"$out" | tail -1 | tr -d ' ')"
+  # the id letters every launcher mints, from their one home (SPL-5470: o- was missing)
+  [[ -n "${SPOOL_AGENT_ID_NEW_RX:-}" ]] || source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+  agent="$(grep -oE "^${SPOOL_AGENT_ID_NEW_RX}(@[a-z0-9][a-z0-9-]{0,31})?( |\$)" <<<"$out" | tail -1 | tr -d ' ')"
   if (( rc == 0 )) && [[ -n "$agent" ]]; then
     [[ "$agent" == *@* ]] || agent="$agent@$ASKS_BOX"
     printf '%s\n' "$agent" >"$(spool_asks_dir)/.place.agent"
@@ -1360,6 +1380,7 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     spl_review_notify_placed "$holder" "$agent" "$4" "$5"
     return 0
   fi
+  (( rc != 0 )) || { spl_spawn_place_unread "$holder" "$id" "$3" "$4" "$out"; return 0; }
   spl_spawn_q_op queue "$id" "$holder" >/dev/null
   if (( rc == 10 )); then
     why="$(sed -n 's/^spawn-window: HOLD [^:]*: //p' <<<"$out" | tail -1 | sed 's/: queue the lane, spawn nothing.*$//; s/\. Queue it; nothing was spawned\.$//')"
@@ -1382,6 +1403,22 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   fi
   do_log "WARN ask ${id:0:8}: the launch of $3:$4 failed (exit $rc): back in line"
   spl_spawn_q_send "$holder" "$holder" blocker spawn-queue "**SPAWN QUEUE: the launch of ask ${id:0:8} ($3:$4) failed** (spawn-window exit $rc); it is back at position 1 and the placer retries it in ${SPAWN_PLACE_GAP_MIN:-10} min. Last lines: $(tail -3 <<<"$out" | tr '\n' ' ' | cut -c1-400)" || true
+}
+
+# 4a, exit 0 and no id: the launcher printed no agent id the placer reads. A zero
+# exit says it started something: before, the row went back in line as
+# "failed (exit 0)" and was launched again (SPL-5470: ask 2d10de53, its box
+# had answered o-805@<box>). Now the ask stays acked, handed (.place.handed: the line
+# moves on) and in .place.unread, which spl_spawn_place_stalled never puts back
+# in line; a human or the orch records it with do_spl_spawn_placed. One WARN
+# with the output, one blocker to the holder.
+spl_spawn_place_unread() {  # HOLDER ASK_ID VENDOR SLUG OUT
+  local d last
+  d="$(spool_asks_dir)"; last="$(tail -3 <<<"$5" | tr '\n' ' ' | cut -c1-400)"
+  printf '%s\n' "$2" >>"$d/.place.handed"
+  printf '%s\n' "$2" >>"$d/.place.unread"
+  do_log "WARN ask ${2:0:8}: the launch of $3:$4 exited 0 but printed no agent id; held, not retried, until it is recorded. Output: $last"
+  spl_spawn_q_send "$1" "$1" blocker spawn-queue "**SPAWN QUEUE: ask ${2:0:8} ($3:$4) exited 0 with no agent id read**: the launcher may have started a lane. The ask is held and never retried; find the lane, then record it: \`ASK_ID=${2:0:8} PLACED_AS=<ID>@<box> ./run -a do_spl_spawn_placed\`. Last lines: $last" || true
 }
 
 # <asks dir>/.place.dark (SPL-5143), one line per row waiting on a silent box:

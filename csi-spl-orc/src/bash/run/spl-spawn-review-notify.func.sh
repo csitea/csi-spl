@@ -94,11 +94,13 @@ spl_review_notify_placed() {  # HOLDER AGENT SLUG BRIEF
 # "author" (`Author: c-372@boxa`, `(author c-418, ...)`). Role seats and SELF
 # (the reviewer's bare id) are left out.
 spl_review_notify_authors() {  # BRIEF SELF
-  local cell='\|[[:space:]]*[acgmq]-[0-9]{3,}(@[A-Za-z0-9._-]+)?([[:space:]]*\([^)]+\))?[[:space:]]*\|'
-  local phrase='(^|[^A-Za-z])[Aa][Uu][Tt][Hh][Oo][Rr]:?[[:space:]]+[acgmq]-[0-9]{3,}(@[A-Za-z0-9._-]+)?'
+  # the id letters from their one home, SPOOL_AGENT_ID_NEW_RX (SPL-5470: o- was missing)
+  local l="${SPOOL_AGENT_ID_NEW_RX%%-*}"
+  local cell='\|[[:space:]]*'"$l"'-[0-9]{3,}(@[A-Za-z0-9._-]+)?([[:space:]]*\([^)]+\))?[[:space:]]*\|'
+  local phrase='(^|[^A-Za-z])[Aa][Uu][Tt][Hh][Oo][Rr]:?[[:space:]]+'"$l"'-[0-9]{3,}(@[A-Za-z0-9._-]+)?'
   local hit id box seen=" "
   while read -r hit; do
-    [[ "$hit" =~ ([acgmq]-[0-9]{3,})(@([A-Za-z0-9._-]*[A-Za-z0-9]))? ]] || continue
+    [[ "$hit" =~ ($l-[0-9]{3,})(@([A-Za-z0-9._-]*[A-Za-z0-9]))? ]] || continue
     id="${BASH_REMATCH[1]}"; box="${BASH_REMATCH[3]:-}"
     [[ "$id" == "$2" || "$seen" == *" $id "* ]] && continue
     spl_is_role_seat "$id" && continue

@@ -541,5 +541,10 @@ rv c-096 SPL-96 SPL-7 "$RV_H" 'Author: c-172@sat'
 gate "$T_SCRIPTS" c-096
 eq "R7 the origin is another key: refused" 3 "$RC"
 has "R7 ... by the issue gate" "issue SPL-96 is still wip" "$(cat "$T_TMP/e")"
+# SPL-5470: c-989 reviewed o-208's SPL-5304 and was refused as its owner
+rv c-097 SPL-97 SPL-97 "$RV_H" 'Author: o-208@sat (codex)'
+gate "$T_SCRIPTS" c-097
+eq "R8 a review lane of a codex author (Author: o-208@sat): exits" 0 "$RC"
+has "R8 ... the line names the codex author" "issue gate: SPL-97 is o-208's, this lane only reviews it" "$(cat "$T_TMP/e")"
 unset LI_HUB_STATUS_CMD
 t_done

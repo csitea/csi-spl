@@ -972,6 +972,49 @@ grep -qF 'echo "spawn-window: REFUSED ${TITLE} (${KIND}) on $1: $2 (measured the
   pass "12f. spawn-window's REFUSED line is the text the placer matches" ||
   fail "12f. the launcher's REFUSED line and the placer's match differ"
 
+# 12g. SPL-5470 (ask 2d10de53, 2026-11-13 06:23Z: its box answered o-805@<box>, the
+# placer logged "failed (exit 0)" and re-queued it): a codex seat id closes the
+# ask as placed. A launch that exits 0 with no id the placer can read is held,
+# acked, with one WARN and one blocker naming its output: no "failed" line, no
+# retry past SPAWN_PLACE_LOCK_MIN, the row behind it placed; do_spl_spawn_placed
+# closes it. CONTROL: a non-zero exit with no id still fails and re-queues.
+O1=5c5c5c5c-0000-4000-8000-000000000001; O2=5b5b5b5b-0000-4000-8000-000000000002; O3=5a5a5a5a-0000-4000-8000-000000000003; O4=59595959-0000-4000-8000-000000000004
+for n in 1 2 3; do printf 'brief text\n%s\n' "$ES" >"$T/briefs/cx$n.md"; done
+dk_clean
+dark_row "$O1" cx1
+out="$(dark_tick LAUNCH_DARK_SLUG= LAUNCH_ID=o-805@sat)"
+[[ "$(jq -r .reason <<<"$(hubrow "$O1")")" == "placed: o-805@sat" ]] && ! grep -q "failed (exit 0)" <<<"$out" && ! grep -q "(claude:cx1) failed" "$T/send.log" &&
+  pass "12g. the launcher prints a codex seat (o-805@sat), exit 0: the ask closes placed by o-805@sat, no failure blocker" ||
+  fail "12g. codex id: $out | $(hubrow "$O1") | $(sends)"
+dk_clean
+dark_row "$O2" cx2; dark_row "$O3" cx3
+out="$(dark_tick LAUNCH_DARK_SLUG= LAUNCH_ID=started)"
+[[ "$(jq -r .state <<<"$(hubrow "$O2")")" == acked ]] && ! grep -q "failed (exit 0)" <<<"$out" &&
+  grep -q "WARN ask ${O2:0:8}: the launch of claude:cx2 exited 0 but printed no agent id; held, not retried, until it is recorded. Output: .*started %42" <<<"$out" &&
+  grep -q "ask ${O2:0:8} (claude:cx2) exited 0 with no agent id read.*ASK_ID=${O2:0:8} PLACED_AS=<ID>@<box> ./run -a do_spl_spawn_placed" "$T/send.log" &&
+  pass "12g. exit 0 and no id read: the ask stays acked, one WARN with the output, one blocker with the record command" ||
+  fail "12g. unread: $out | $(hubrow "$O2") | $(sends)"
+: >"$T/launch.log"
+out="$(dark_tick LAUNCH_DARK_SLUG= LAUNCH_ID=c-530 HUB_SKEW=$((31 * 60)))"
+[[ "$(jq -r .state <<<"$(hubrow "$O2")")" == acked && "$(dark_placed "$O3")" == 1 ]] && ! grep -q " cx2$" "$T/launch.log" &&
+  ! grep -q "ask ${O2:0:8} was not placed within" <<<"$out" &&
+  pass "12g. past SPAWN_PLACE_LOCK_MIN it is not put back in line or launched again; the row behind it is placed" ||
+  fail "12g. no retry: $out | $(hubrow "$O2") | $(cat "$T/launch.log")"
+on pc do_spl_spawn_placed ASK_ID="${O2:0:8}" PLACED_AS=o-806@sat >/dev/null 2>&1
+[[ "$(jq -r .reason <<<"$(hubrow "$O2")")" == "placed: o-806@sat" ]] &&
+  pass "12g. do_spl_spawn_placed records the held ask" || fail "12g. record: $(hubrow "$O2")"
+dk_clean
+dark_row "$O4" cx1
+out="$(dark_tick LAUNCH_DARK_SLUG= LAUNCH_RC=3)"
+[[ "$(jq -r .state <<<"$(hubrow "$O4")")" == queued ]] && grep -q "the launch of claude:cx1 failed (exit 3): back in line" <<<"$out" &&
+  pass "12g. CONTROL: a non-zero exit with no id still fails and goes back in line" || fail "12g. control: $out | $(hubrow "$O4")"
+dk_clean
+printf '# R7 reviewer of SPL-5304\nAuthor: o-208@sat (codex)\nAlso names c-989.\n' >"$T/briefs/cx-reviewer.md"
+out="$(on pc "spl_spawn_place_authors '$T/briefs/cx-reviewer.md'" 2>&1)"
+[[ "$out" == "codex"$'\t'"o-208" ]] &&
+  pass "12g. a review brief with 'Author: o-208@sat': its author is the codex lane o-208, from the Author: line alone" ||
+  fail "12g. authors: [$out]"
+
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true
 # (APP_PATH=$T has no cnf: the default false); SPL-2942: agy for a

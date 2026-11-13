@@ -84,6 +84,9 @@ try {
   /* the picker: @me offers the reader first, marked as me */
   await typeOmni(page, '@me')
   await page.waitForSelector('[data-test=mention-list]', { visible: true, timeout: 8000 }).catch(() => null)
+  /* under load the list can still show the bare-@ roster 300 ms after the keys: wait for the query to apply */
+  await page.waitForFunction(() => Boolean(document.querySelector('[data-test=mention-option] [data-testid=mention-self]')),
+    { timeout: 8000 }).catch(() => null)
   const meRows = await options(page)
   ok('@me: the first row is the reader, marked me', meRows.length > 0 && meRows[0][0] === ME && meRows[0][1], meRows)
   await page.evaluate(() => document.querySelector('[data-test=mention-option]')
@@ -94,6 +97,8 @@ try {
 
   /* CONTROL: a bare @ never offers the reader */
   await typeOmni(page, '@')
+  await page.waitForFunction(() => !document.querySelector('[data-test=mention-option] [data-testid=mention-self]'),
+    { timeout: 8000 }).catch(() => null)
   const bare = await options(page)
   ok('CONTROL: a bare @ offers no me row and not the reader', !bare.some(([id, me]) => me || id === ME), bare)
   await page.$eval(OMNI, (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })) })

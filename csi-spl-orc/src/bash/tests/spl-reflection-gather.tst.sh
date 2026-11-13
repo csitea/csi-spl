@@ -21,6 +21,11 @@
 #      no ask, no queue op
 #   8. not the dispatch holder's box: nothing
 #   9. a reader that fails is one "(not read" line; the lane is still queued
+#   9b. sections 3, 4 and 5: a reader that fails says why, its last stderr
+#      line cut to 200 chars, with the state dir, the home dir and a key
+#      path masked (SPL-5469); a reader that failed through do_log (stdout,
+#      coloured, no stderr) gives its last stdout line. Red control: master's 2>/dev/null readers print
+#      the fixed "(not read: ...)" text, so the three cases fail there
 #  10. the lane mix gives no vendor fit for private data: nothing queued, rc 1,
 #      no stamp
 #  11. the cron row: manifest row reflection every 15 min after zombie-topics,
@@ -88,9 +93,10 @@ echo "2026-01-15T19:01:00Z OK zombie sweep, night of 2026-01-15 (DRY_RUN=1, cap 
 # $T/calls.log. The real do_spl_spawn_enqueue and its gate run.
 STUBS='
 spl_reflection_ci_report() { [[ "${CI_FAIL:-0}" == 1 ]] && { echo "gh: no token"; return 1; }; echo ci >>"$T/reads"; cat "$T/ci.txt"; }
-spl_reflection_owner_msgs() { cat "$T/owner.tsv"; }
-spl_reflection_ended_read() { cat "$T/diss.json"; }
-spl_reflection_share_line() { echo "share of 4 known live lanes: refactor 1 25%; phase night"; }
+spl_reflection_owner_msgs() { [[ "${OWNER_FAIL:-0}" == 1 ]] && { printf "psql: a first line\npsql: error: %0250d\n" 0 >&2; return 1; }; cat "$T/owner.tsv"; }
+spl_reflection_ended_read() { [[ "${ENDED_FAIL:-0}" == 2 ]] && { printf "\033[0;31m 💣 [FATAL] no desk for c-002 on box-a\033[0m\n"; return 1; }
+  [[ "${ENDED_FAIL:-0}" == 1 ]] && { echo "FATAL desk: cannot read $HOME/.gcp/.csi/key-csi-spl-dev.json: permission denied" >&2; return 1; }; cat "$T/diss.json"; }
+spl_reflection_share_line() { [[ "${SHARE_FAIL:-0}" == 1 ]] && { echo "spool: no queue db under $SPL_STATE_DIR/spawn-q in $HOME" >&2; return 1; }; echo "share of 4 known live lanes: refactor 1 25%; phase night"; }
 spl_spawn_q_init() { LANE_FLEET=main ASKS_BOX=box-a; }
 spl_asks_hub() { echo "hub $*" >>"$STUB_LOG"; }
 spl_asks_discussion_ok() { :; }
@@ -178,6 +184,22 @@ reset; run "$NIGHT_NOW" DRY_RUN=0 SPOOL_BOX_TAG=box-b
 reset; run "$NIGHT_NOW" DRY_RUN=0 CI_FAIL=1
 grep -q '^(not read: do_report_ci_gate failed: gh: no token)$' "$GF" 2>/dev/null && grep -q '^qop queue' "$T/calls.log" &&
   pass "9. a failed CI read is one (not read line; the lane is still queued" || fail "9. not read: $(cat "$GF" 2>/dev/null) $(cat "$T/out")"
+
+# --- 9b. sections 3, 4 and 5 say why (SPL-5469) -----------------------------------
+reset; run "$NIGHT_NOW" DRY_RUN=1 ENDED_FAIL=1 OWNER_FAIL=1 SHARE_FAIL=1
+grep -qxF '(not read: the diss issues were not listed: FATAL desk: cannot read <key>: permission denied)' "$GF" 2>/dev/null &&
+  pass "9b. section 3: the diss read's stderr line, the key path masked" || fail "9b. section 3: $(grep -F 'not read' "$GF" 2>/dev/null) $(tail -3 "$T/out")"
+L4="$(grep -F '(not read: the hub DB read failed: ' "$GF" 2>/dev/null)"
+W4="psql: error: $(printf '%0250d' 0)"
+[[ "$L4" == "(not read: the hub DB read failed: ${W4:0:200})" ]] &&
+  pass "9b. section 4: the hub read's last stderr line, cut to 200 chars" || fail "9b. section 4: ${L4:-$(grep -F 'not read' "$GF" 2>/dev/null)}"
+grep -qxF '(not read: do_spl_spawn_share failed: spool: no queue db under <state>/spawn-q in <home>)' "$GF" 2>/dev/null &&
+  pass "9b. section 5: the share's stderr line, the state and home dirs masked" || fail "9b. section 5: $(grep -F 'not read' "$GF" 2>/dev/null)"
+! grep -qF -e "$HOME" -e "$T/state" "$GF" 2>/dev/null && [[ -s "$GF" ]] &&
+  pass "9b. no home or state dir in the gathered file" || fail "9b. a path leaked: $(grep -F -e "$HOME" -e "$T/state" "$GF" 2>/dev/null)"
+reset; run "$NIGHT_NOW" DRY_RUN=1 ENDED_FAIL=2
+grep -qxF '(not read: the diss issues were not listed: 💣 [FATAL] no desk for c-002 on box-a)' "$GF" 2>/dev/null &&
+  pass "9b. section 3: a do_log FATAL on stdout (no stderr) is the reason, colours stripped" || fail "9b. stdout reason: $(grep -F 'not read' "$GF" 2>/dev/null | cat -v)"
 
 # --- 10. no vendor fit for private data ---------------------------------------------
 reset; run "$NIGHT_NOW" DRY_RUN=0 PICK=agy

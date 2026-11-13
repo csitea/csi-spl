@@ -20,7 +20,7 @@
 # @description that file, its Epic: and Spec: lines, and asks for the day's Qto
 # @description page plus at most 3 proposed rows. The ask goes through
 # @description do_spl_spawn_enqueue and its gates. A source that cannot be read
-# @description is one "(not read: ...)" line, never a stop. Nothing is written
+# @description is one "(not read: <its last stderr line>)" line, never a stop. Nothing is written
 # @description to git. The vendor is do_spl_lane_mix with LANE_MIX_SENSITIVE=1:
 # @description the owner's messages may carry private matter (data rule).
 # @description It acts only (section 4.4) in phase night (do_spl_rhythm_phase,
@@ -118,7 +118,8 @@ spl_reflection_iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
 
 # spl_reflection_gather_md <since> <until> <night>: the gathered file, markdown.
 spl_reflection_gather_md() {
-  local s="$1" u="$2" si ui out
+  local s="$1" u="$2" si ui out err
+  err="$(mktemp)" || err=/dev/null
   si="$(spl_reflection_iso "$s")"; ui="$(spl_reflection_iso "$u")"
   printf '# Reflection gather, night of %s\n\nWindow: %s .. %s (the last 24 h). Gathered by do_spl_reflection_gather (spec 166 row B8); never git.\n' "$3" "$si" "$ui"
   printf '\n## 1. CI reds per job (failed runs created in the window)\n\n'
@@ -126,18 +127,36 @@ spl_reflection_gather_md() {
   printf '\n## 2. Reverts on master\n\n'
   spl_reflection_reverts "$si" "$ui"
   printf '\n## 3. Lanes ended without landing (issues ended diss)\n\n'
-  if out="$(spl_reflection_ended_read 2>/dev/null)"; then spl_reflection_ended "$si" "$ui" <<<"$out"; else echo "(not read: the diss issues were not listed)"; fi
+  if out="$(spl_reflection_ended_read 2>"$err")"; then spl_reflection_ended "$si" "$ui" <<<"$out"; else echo "(not read: the diss issues were not listed: $(spl_reflection_why "$err" "$out"))"; fi
   printf '\n## 4. The owner'"'"'s messages in %s (ids only)\n\n' "${TENANT_ID:-?}"
-  if out="$(spl_reflection_owner_msgs "$s" "$u" 2>/dev/null)"; then
+  if out="$(spl_reflection_owner_msgs "$s" "$u" 2>"$err")"; then
     awk -F'\t' 'NF >= 3 { printf "- msg %s, topic %s, %s\n", $1, $2, $3; n++ } END { if (!n) print "(none)" }' <<<"$out"
   else
-    echo "(not read: the hub DB read failed)"
+    echo "(not read: the hub DB read failed: $(spl_reflection_why "$err" "$out"))"
   fi
   printf '\n## 5. Class share\n\n'
-  if out="$(spl_reflection_share_line 2>/dev/null)" && [[ -n "$out" ]]; then echo "$out"; else echo "(not read: do_spl_spawn_share failed)"; fi
+  if out="$(spl_reflection_share_line 2>"$err")" && [[ -n "$out" ]]; then echo "$out"; else echo "(not read: do_spl_spawn_share failed: $(spl_reflection_why "$err" "$out"))"; fi
   printf '\n## 6. Zombie sweep (row B6, its last summary)\n\n'
   out="$(grep -h 'OK zombie sweep, night of' "${REFLECTION_ZOMBIE_LOG:-/var/csi/csi-spl/zombie-topics/cron.log}" 2>/dev/null | tail -1)"
   echo "${out:-(no zombie sweep summary in the log)}"
+  [[ "$err" == /dev/null ]] || rm -f "$err"
+}
+
+# spl_reflection_why <stderr file> [stdout]: a failed reader's reason, its
+# last non-empty stderr line (else its last stdout line: do_log writes there),
+# colours stripped, cut to 200 chars, with the state dir, the home dir and any
+# key path masked as do_spl_desk_doctree masks the desk (no credential path,
+# no home dir in the gathered file). "no output" when it printed nothing.
+spl_reflection_why() {
+  local line
+  line="$(grep -v '^[[:space:]]*$' "$1" 2>/dev/null | tail -1)"
+  [[ -n "$line" ]] || line="$(grep -v '^[[:space:]]*$' <<<"${2:-}" | tail -1)"
+  line="$(sed -E 's/\x1b\[[0-9;]*m//g; s/^[[:space:]]+//' <<<"$line")"
+  [[ -n "$line" ]] || { echo "no output"; return 0; }
+  [[ -z "${SPL_STATE_DIR:-}" ]] || line="${line//"$SPL_STATE_DIR"/<state>}"
+  [[ -z "${HOME:-}" || "$HOME" == / ]] || line="${line//"$HOME"/<home>}"
+  sed -E -e 's#[^[:space:]"'"'"':=]*(key[^/[:space:]]*\.json|/keys(/[^[:space:]"'"'"':]*)?)#<key>#g' \
+    -e 's#/(home/[^/[:space:]"'"'"':]+)#<home>#g' <<<"$line" | cut -c1-200
 }
 
 # spl_reflection_ci_report: the CI gate report (csi-spl-iac), per job, with signatures.

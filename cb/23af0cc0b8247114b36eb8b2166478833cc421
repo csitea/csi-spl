@@ -1,0 +1,6 @@
+Lay-What: On a computer, the "In this workspace" filter in the People list now stays on one line next to the add-contact button.
+Lay-How: The two filter buttons and the add button were made a little smaller on wide screens so they all fit on one row.
+Lay-Why: The label wrapped onto a second line and ran under the add button, which looked broken.
+Tech-What: ChannelSidebar.vue .people-head: filter labels nowrap with ellipsis, 0.75rem with tighter padding at min-width 821px; the people-fab is 1.75rem on desktop, 56px fixed on phone.
+Tech-How: Base rule sets flex 1 1 auto, nowrap and ellipsis on the filter labels; the desktop media query tightens gap and padding; e2e C24-2c at 1440 checks one line, not clipped, clear of the +.
+Tech-Why: Root cause: the 212px panel left too little room for the + once the PEOPLE heading was removed and the + moved onto the filter row.

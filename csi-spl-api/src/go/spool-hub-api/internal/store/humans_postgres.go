@@ -445,29 +445,9 @@ func (s *Postgres) ProvisionMember(ctx context.Context, in ProvisionInput, now t
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('@email|' || $1, 0))`, email); err != nil {
 		return "", false, err
 	}
-	// A verified identity for the address (an earlier operator row, or a real
-	// one from a prior sign-in) names the human; else mint one.
-	var hum string
-	createdHuman := false
-	err = tx.QueryRow(ctx, `SELECT i.human_id FROM human_identities i JOIN humans h ON h.human_id = i.human_id
-		WHERE i.email = $1 AND i.email_verified ORDER BY i.created_at, i.provider, i.subject LIMIT 1`, email).Scan(&hum)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		if err := tx.QueryRow(ctx, `INSERT INTO humans (display_name, email, created_at)
-			VALUES (NULLIF($1, ''), $2, $3) RETURNING human_id`, in.DisplayName, email, now).Scan(&hum); err != nil {
-			return "", false, err
-		}
-		createdHuman = true
-	case err != nil:
+	hum, createdHuman, err := provisionHumanTx(ctx, tx, in, email, now)
+	if err != nil {
 		return "", false, err
-	default:
-		// Seed a name only when the human has none (their own name wins).
-		if in.DisplayName != "" {
-			if _, err := tx.Exec(ctx, `UPDATE humans SET display_name = COALESCE(display_name, NULLIF($2, '')),
-				email = COALESCE(email, $3) WHERE human_id = $1`, hum, in.DisplayName, email); err != nil {
-				return "", false, err
-			}
-		}
 	}
 	// The operator identity carries the verified address so a later Google /
 	// native sign-in LINKS here (findHuman), yet cannot itself sign in.
@@ -508,6 +488,33 @@ func (s *Postgres) ProvisionMember(ctx context.Context, in ProvisionInput, now t
 	}
 	s.hot.forget() // an already-seated hum may hold a cached channel_humans list
 	return hum, createdHuman, nil
+}
+
+// provisionHumanTx finds the human a verified identity for email names (an
+// earlier operator row, or a real one from a prior sign-in), else mints one,
+// inside ProvisionMember's open tx; created is true only for a new human.
+func provisionHumanTx(ctx context.Context, tx pgx.Tx, in ProvisionInput, email string, now time.Time) (hum string, created bool, err error) {
+	err = tx.QueryRow(ctx, `SELECT i.human_id FROM human_identities i JOIN humans h ON h.human_id = i.human_id
+		WHERE i.email = $1 AND i.email_verified ORDER BY i.created_at, i.provider, i.subject LIMIT 1`, email).Scan(&hum)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		if err := tx.QueryRow(ctx, `INSERT INTO humans (display_name, email, created_at)
+			VALUES (NULLIF($1, ''), $2, $3) RETURNING human_id`, in.DisplayName, email, now).Scan(&hum); err != nil {
+			return "", false, err
+		}
+		return hum, true, nil
+	case err != nil:
+		return "", false, err
+	default:
+		// Seed a name only when the human has none (their own name wins).
+		if in.DisplayName != "" {
+			if _, err := tx.Exec(ctx, `UPDATE humans SET display_name = COALESCE(display_name, NULLIF($2, '')),
+				email = COALESCE(email, $3) WHERE human_id = $1`, hum, in.DisplayName, email); err != nil {
+				return "", false, err
+			}
+		}
+	}
+	return hum, false, nil
 }
 
 // provisionCredentialTx writes the native email+password credential (email

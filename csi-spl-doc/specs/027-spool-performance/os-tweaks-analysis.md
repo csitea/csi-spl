@@ -280,6 +280,18 @@ Both rows are built in `run.sh` (one file, byte-identical in `csi-spl-iac`,
   698 files, `iac` 36 of 184, `utl` 14 of 29. Help, `-a`, PRE/POST/ARGS hooks
   and `type` checks find the stubs. Test:
   `csi-spl-iac/src/bash/tests/run-lazy-loader.tst.sh`.
+- **1c**, perf round 7 row 03 (`perf(p7-03-run-index-cache, SPL-5446)`): the
+  index of row 1 is cached per user and per tree in
+  `${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/run-index/`, keyed by the md5 of the
+  sorted `mtime size path` list of every `*.func.sh` plus the index's `awk`
+  program. A hit
+  sources the cached index instead of the `awk` pass; any touched, added or
+  removed file (or a changed index program) is a miss that runs the `awk` and rewrites
+  the cache atomically. A miss also drops the cache of a tree that is gone.
+  Measured on the satellite box, `2026-11-13T15:0xZ`, 1-minute load `82`, orc:
+  index phase miss `336` -> hit `105 ms` (median, `n = 7`), `./run` wall
+  `1657` -> `1369 ms` (median, `n = 11`, interleaved). Test: check 5 of
+  `run-lazy-loader.tst.sh`.
 
 Measured on the satellite box, `2026-11-13T08:04Z..08:12Z`, 1-minute load
 `31..46`, in a scratch copy of the tree with a probe action (500 x `x=$(:)`

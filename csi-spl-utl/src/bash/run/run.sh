@@ -714,6 +714,39 @@ FNR == 1 { flush(); file = FILENAME; eager = 0; nf = 0; st = "top"; nhd = 0; hi 
 END { flush(); for (k = 1; k <= nfile; k++) emit(k) }
 EOF_RUN_INDEX_AWK
 
+# _rl_index <dir...>: runs the index (_RUN_INDEX_AWK) in the caller's scope,
+# from a per-user cache when it is current (spec 027 perf round 7 row 03:
+# the awk pass is ~165 ms of a ~950 ms orc start, the key ~12 ms). The key
+# is the md5 of the sorted `mtime size path` list of every *.func.sh plus
+# the awk program itself (not run.sh's file: a test may source run.sh from
+# a pipe), so a touched, added or removed file or a new index rebuilds it. The cache file starts with a line that returns 9 unless _rl_key is
+# its key, so a stale one is never used; it is written atomically (mv),
+# and a cache dir that cannot be written only costs the awk pass. A failed
+# awk pass is not cached. A miss also drops the cache of a tree that is gone
+# (a retired lane worktree), so the dir does not grow with every lane.
+_rl_index() {
+  local _rl_key _rl_c _rl_t _rl_idx _rl_s
+  _rl_c="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/run-index"
+  _rl_key=$({ find "$@" -type f -name "*.func.sh" -printf '%T@ %s %p\0' 2>/dev/null | sort -z || :
+    printf '%s' "$_RUN_INDEX_AWK"; } | md5sum)
+  _rl_key=${_rl_key%% *}
+  _rl_t="$_rl_c/${PROJ_PATH//\//%}"
+  # shellcheck source=/dev/null # the cache file is written below
+  [[ -r "$_rl_t" ]] && source "$_rl_t" 2>/dev/null && return 0
+  _rl_idx=$(find "$@" -type f -name "*.func.sh" -print0 2>/dev/null | sort -z |
+    xargs -0 -r awk "$_RUN_INDEX_AWK") || _rl_t=""
+  eval "$_rl_idx"
+  [[ -n "$_rl_t" ]] || return 0
+  { mkdir -p "$_rl_c" &&
+    printf '[[ "$_rl_key" == %s ]] || return 9\n%s\n' "$_rl_key" "$_rl_idx" >"$_rl_t.$$" &&
+    mv -f "$_rl_t.$$" "$_rl_t"; } 2>/dev/null || rm -f "$_rl_t.$$" 2>/dev/null
+  for _rl_s in "$_rl_c"/%*; do
+    _rl_t=${_rl_s##*/}; _rl_t=${_rl_t//%//}
+    [[ -e "$_rl_s" && ! -d "$_rl_t" && ! -d "${_rl_t%.*}" ]] && rm -f "$_rl_s" 2>/dev/null
+  done
+  return 0
+}
+
 do_load_functions() {
   declare -gA _func_to_file
   declare -ga _rl_files=() _rl_done=()
@@ -722,8 +755,7 @@ do_load_functions() {
   [[ -d "${PROJ_PATH:-}/lib/bash/funcs" ]] && _rl_dirs+=("${PROJ_PATH}/lib/bash/funcs")
   [[ -d "${PROJ_PATH:-}/src/bash/run" ]]   && _rl_dirs+=("${PROJ_PATH}/src/bash/run")
   (( ${#_rl_dirs[@]} == 0 )) && return
-  eval "$(find "${_rl_dirs[@]}" -type f -name "*.func.sh" -print0 2>/dev/null | sort -z |
-    xargs -0 -r awk "$_RUN_INDEX_AWK")"
+  _rl_index "${_rl_dirs[@]}"
   for _rl_f in "${_rl_eager[@]}"; do
     # shellcheck source=/dev/null # the file list is found at run time
     source "$_rl_f"

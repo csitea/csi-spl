@@ -18,8 +18,15 @@
 #   On the real trees (iac, orc, utl): every file the index calls lazy,
 #   sourced alone, defines exactly the functions the index lists, sets no
 #   variable and prints nothing; and each lazy file has a stub per function.
+#     5. the index cache (perf round 7 row 03): a second start on an
+#        unchanged tree runs the index awk 0 times (PATH shim count); a
+#        touched, an added and a removed *.func.sh each run it once; the
+#        stubs, lazy files and action map of a cached start equal an
+#        uncached one's; an added file's action runs; a miss drops the
+#        cache file of a tree that is gone
 #   Controls: a run.sh whose index calls every file eager fails check 1; an
-#   index that drops the do_* names fails the real-tree check.
+#   index that drops the do_* names fails the real-tree check; a run.sh
+#   that never reads the cache fails check 5 (the second start counts 1).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -71,7 +78,54 @@ EOH
   echo "$P"
 }
 
-run_in() { (cd "$1" && shift && env HOME="$T/home" RUN_LOG=compact "$@" 2>&1); }
+run_in() { (cd "$1" && shift && env HOME="$T/home" XDG_CACHE_HOME="$T/home/.cache" RUN_LOG=compact "$@" 2>&1); }
+
+# A PATH shim that counts the index awk passes (its program has hd_scan)
+mkdir -p "$T/shim"
+printf '#!/usr/bin/env bash\ncase "$*" in *"function hd_scan"*) echo x >>"$AWK_COUNT" ;; esac\nexec %q "$@"\n' \
+  "$(command -v awk)" >"$T/shim/awk"
+chmod +x "$T/shim/awk"
+
+# idx_run <P> <cache dir> <action>: one start with the awk shim; prints the
+# action's output, then "AWK=<index passes>"
+idx_run() {
+  local c="$T/awk-count.$RANDOM"
+  : >"$c"
+  (cd "$1" && env HOME="$T/home" XDG_CACHE_HOME="$2" AWK_COUNT="$c" PATH="$T/shim:$PATH" \
+    RUN_LOG=compact ./run -a "$3" 2>&1)
+  echo "AWK=$(wc -l <"$c")"
+}
+
+# check_cache <mod> <P>: check 5; returns the number of failed checks
+check_cache() {
+  local mod="$1" P="$2" C="$T/$1-cache" R="$2/src/bash/run" out base n=0
+  printf '%s\n' 'do_dump() {' '  declare -p _rl_files | tr " " "\n"' \
+    '  for k in "${!_func_to_file[@]}"; do echo "MAP $k ${_func_to_file[$k]}"; done | sort' \
+    '  declare -f helper_b do_beta do_fill_01 do_guard_g' '}' >"$R/dump.func.sh"
+  base=$(idx_run "$P" "$T/$mod-nocache/file" do_dump)
+  grep -qx AWK=1 <<<"$base" || { fail "$mod: 5. an uncached start runs the index once" "$base"; n=$((n + 1)); }
+  out=$(idx_run "$P" "$C" do_dump)
+  grep -qx AWK=1 <<<"$out" || { fail "$mod: 5. the first start builds the cache" "$out"; n=$((n + 1)); }
+  out=$(idx_run "$P" "$C" do_dump)
+  if grep -qx AWK=0 <<<"$out" && [[ "$out" == "${base%AWK=1}AWK=0" ]]; then
+    pass "$mod: 5. a second start runs the index awk 0 times, same stubs, files and map"
+  else fail "$mod: 5. a second start runs the index awk 0 times, same stubs" "$(grep "^AWK=" <<<"$out") $(diff <(echo "$base") <(echo "$out") | sed -n 1,20p)"; n=$((n + 1)); fi
+  : >"$C/csi-spl/run-index/%no-such%tree"
+  touch "$R/fill-07.func.sh"
+  out=$(idx_run "$P" "$C" do_dump); grep -qx AWK=1 <<<"$out" || { fail "$mod: 5. a touched file rebuilds" "$out"; n=$((n + 1)); }
+  [[ ! -e "$C/csi-spl/run-index/%no-such%tree" ]] || { fail "$mod: 5. a miss drops the cache of a gone tree"; n=$((n + 1)); }
+  printf 'do_added() { echo ADDED; }\n' >"$R/added.func.sh"
+  out=$(idx_run "$P" "$C" do_added)
+  grep -qx AWK=1 <<<"$out" && grep -qx ADDED <<<"$out" || { fail "$mod: 5. an added file rebuilds, its action runs" "$out"; n=$((n + 1)); }
+  rm -f "$R/added.func.sh"
+  out=$(idx_run "$P" "$C" do_dump); grep -qx AWK=1 <<<"$out" || { fail "$mod: 5. a removed file rebuilds" "$out"; n=$((n + 1)); }
+  out=$(idx_run "$P" "$C" do_dump)
+  grep -qx AWK=0 <<<"$out" && [[ "$out" == "${base%AWK=1}AWK=0" ]] \
+    || { fail "$mod: 5. after the removal the cache hits again, same index" "$out"; n=$((n + 1)); }
+  rm -f "$R/dump.func.sh"
+  (( n == 0 )) && pass "$mod: 5. a touched, added and removed *.func.sh each run the index once; a gone tree's cache is dropped"
+  return "$n"
+}
 
 check_fixture() {
   local mod="$1" P="$2" out want
@@ -147,7 +201,9 @@ for mod in iac orc utl; do
   src="$REPO_ROOT/csi-spl-$mod/src/bash/run/run.sh"
   [ -f "$src" ] || { fail "$mod run.sh exists" "$src"; continue; }
   sed '/^main "\$@"$/d' "$src" >"$T/$mod-nomain.sh"
-  check_fixture "$mod" "$(fixture "$T/$mod" "$src")"
+  P=$(fixture "$T/$mod" "$src")
+  check_fixture "$mod" "$P"
+  check_cache "$mod" "$P"
   real_tree "$mod"
 done
 
@@ -172,6 +228,18 @@ else
   real_tree utl "$T/utl-drop.sh" >/dev/null
   if (( fails > before )); then fails=$before; pass "CONTROL an index missing do_* names fails the real-tree check"
   else fail "CONTROL an index missing do_* names fails the real-tree check" "it passed"; fi
+fi
+
+# Control: a run.sh that never reads the cache counts 1 on the second start
+sed '/^  \[\[ -r "\$_rl_t" \]\] && source "\$_rl_t" 2>\/dev\/null && return 0$/d' \
+  "$REPO_ROOT/csi-spl-iac/src/bash/run/run.sh" >"$T/run-nocache.sh"
+if cmp -s "$T/run-nocache.sh" "$REPO_ROOT/csi-spl-iac/src/bash/run/run.sh"; then
+  fail "CONTROL the cache-read plant applied" "sed matched nothing"
+else
+  before=$fails
+  check_cache ctl "$(fixture "$T/ctl" "$T/run-nocache.sh")" >/dev/null
+  if (( fails > before )); then fails=$before; pass "CONTROL a run.sh that never reads the cache fails check 5"
+  else fail "CONTROL a run.sh that never reads the cache fails check 5" "it passed"; fi
 fi
 
 [ "$fails" -eq 0 ] || { echo "$fails check(s) failed"; exit 1; }

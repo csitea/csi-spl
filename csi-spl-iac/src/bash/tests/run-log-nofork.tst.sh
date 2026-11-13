@@ -13,7 +13,8 @@
 #      (the one date is main's run stamp, not a log line; the two seds are
 #      the private-key masks of the out and err log tees, one per run, not
 #      per line: SPL-3614; the one awk is the lazy loader's index pass over
-#      every *.func.sh, one per run, spec 027 row 1, SPL-5421)
+#      every *.func.sh, one per run, spec 027 row 1, SPL-5421; on a fresh
+#      index cache, so a miss: a hit runs it 0 times, perf round 7 row 03)
 #   5. action names still split and normalise, a missing action still exits 1,
 #      and @arg flags still map to env vars with no awk
 #   Control: planted once, the pre-change run.sh is red. 8 do_log calls
@@ -167,7 +168,7 @@ MSGS
 
   # 4. The whole ./run, not-found path. date 1 is main'\''s stamp.
   calls="$T/$mod-run.calls"
-  with_shim "$calls" "$REPO_ROOT/csi-spl-$mod/run" -a do_no_such_action >/dev/null 2>&1
+  with_shim "$calls" env XDG_CACHE_HOME="$T/$mod-xdg" "$REPO_ROOT/csi-spl-$mod/run" -a do_no_such_action >/dev/null 2>&1
   rc=$?
   c_cut=$(count_of "$calls" cut)
   c_date=$(count_of "$calls" date)

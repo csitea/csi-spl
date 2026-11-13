@@ -92,6 +92,7 @@ type calendarEventJSON struct {
 	OriginalStart    string              `json:"original_start"`
 	Location         string              `json:"location"`
 	Color            string              `json:"color"`
+	Pinned           bool                `json:"pinned,omitempty"` // SPL-5453: leads its day
 	Reminders        []calendarReminder  `json:"reminders"`
 	Guests           []calendarGuestJSON `json:"guests"`
 	MyResponse       string              `json:"my_response"`
@@ -166,7 +167,7 @@ func toCalendarJSON(e store.CalendarEvent, now time.Time, viewer string) calenda
 		TopicID: e.TopicID, ReleaseVersion: e.ReleaseVersion, CreatedAt: rfc(e.CreatedAt), UpdatedAt: rfc(e.UpdatedAt),
 		TimeZone: tz, RRule: e.RRule, RecurringEventID: e.RecurringEventID, OriginalStart: optCalTime(e.OriginalStart),
 		Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
-		Reminders: eventReminders(e), Guests: guests, MyResponse: mine, DeletedAt: optCalTime(e.DeletedAt),
+		Pinned: propsPinned(e), Reminders: eventReminders(e), Guests: guests, MyResponse: mine, DeletedAt: optCalTime(e.DeletedAt),
 		SourceKey: e.SourceKey, RoadmapURL: propsString(e, calPropRoadmapURL),
 		Specs: store.CalendarPropStrings(e.Props, calSyncPropSpecs), DoneLines: store.CalendarPropStrings(e.Props, calSyncPropDoneLines),
 		OwnerID: owner, IssueKeys: keys}

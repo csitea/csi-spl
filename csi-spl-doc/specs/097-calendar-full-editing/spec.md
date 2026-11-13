@@ -193,9 +193,33 @@ and the store keeps a missing-column probe so a hub that rolls early answers
 | `location` | string | `""` | at most 300 characters |
 | `color` | string | `""` (= the `kind`'s colour) | one of 11 palette names (`tomato`, `flamingo`, `tangerine`, `banana`, `sage`, `basil`, `peacock`, `blueberry`, `lavender`, `grape`, `graphite`); the WUI maps each to a theme variable, light and dark |
 | `reminders` | array | `[]` | at most 5 of `{"amount": <whole number>, "unit": "minutes\|hours\|days", "method": "popup"}`, at most 4 weeks before (section 4.3); `method` widens later |
+| `pinned` | bool | `false` (dropped) | the event leads its day in every view (section 3.3.1); on the wire as `pinned`, omitted when false (SPL-5453) |
 
 An unknown key is `400 bad_event`. A key added later is one registry line and
 a test, no DDL. The size check (16 KB) keeps a row small.
+
+#### 3.3.1 The order of a day's events (SPL-5453)
+
+Owner HUM-10 (csitea `218fa45d`, 2026-11-13): "mark the calendar entries to be
+the first events for the days". The hub lists a range `ORDER BY starts_at,
+event_id`; every whole-day event starts at 00:00Z, so among them the order was
+the random uuid (measured on the csitea calendar: on 17 of 28 days the
+owner's Finland / Netherlands entry was not first). Every view now orders one
+day's events by one rule, `calDayCompare` in
+`csi-spl-wui/src/utils/calendar-phone-nav.mjs`:
+
+1. whole-day events before timed ones (phone Week also counts a carried-over
+   day of a multi-day event as whole-day);
+2. then `pinned` before not pinned;
+3. then by start, then by id.
+
+The views: desktop Day, 3 days and Week (the all-day row), desktop Month (a
+day cell), phone Month (the agenda and the dots), phone Week and phone Day
+(the all-day row). Before, phone Month and Week already put whole-day first;
+the desktop views and phone Day showed the hub's order. Nothing else changes
+for an event that is not pinned. `pinned` is set by an operator
+(`do_spl_calendar_event_pin`, section 4.10) or by any `props` write; the WUI
+has no control for it yet.
 
 ## 4. The calls
 
@@ -383,6 +407,31 @@ understand.
   `dry_run` preview, the rrule subset of 4.4; an item it cannot read is
   reported, not guessed) and a private "subscribe" link with its own
   revocable token (Q7).
+
+### 4.10 Operator writes on an existing event (SPL-5453)
+
+An agent creates an event with `POST /v1/operator/calendar/events`
+(`do_spl_calendar_event_add`). Two more operator routes change one
+(`csi-spl-api/src/go/spool-hub-api/internal/hub/calendar_operator_write.go`),
+with the create's auth (the env service account on the operator allow-list),
+its workspace scope (a host of another workspace is `403 tenant_mismatch`)
+and its log fields (`tenant`, `agent_id`, `ordered_by`, the operator):
+
+- `PATCH /v1/operator/calendar/events/{id}`, body `{tenant, agent_id,
+  ordered_by?, props: {"pinned": true|false}}`: sets `props.pinned` and
+  nothing else; another field is `400 bad_json`, another `props` key `400
+  bad_event`. Action: `cd csi-spl-orc && ENV=<env> TENANT_ID=<ws>
+  EVENT_IDS=<id,...> AGENT_ID=<id> ORDERED_BY=<HUM-n> ./run -a
+  do_spl_calendar_event_pin` (`PINNED=0` unpins).
+- `DELETE /v1/operator/calendar/events/{id}?tenant=&agent_id=&ordered_by=`:
+  the member delete of section 4.8. The event goes to the trash of
+  `ordered_by` when that human is a member of the workspace, so they see it
+  in their trash and can Undo it in the WUI; otherwise to the agent's.
+  Action: `do_spl_calendar_event_delete`, the same variables.
+- Both touch only a single event the operator can read: a private event is
+  `404`, a synced one `409 synced_read_only`, a repeating one `400
+  bad_event`. Both actions are a dry run unless `DRY_RUN=0`, take 1..200 ids
+  and read each one back (`GET`: pinned as asked; `404` once trashed).
 
 ## 5. The WUI editing surface
 
@@ -746,10 +795,11 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.6 | 2026-11-13 | c-687 | The order of a day's events in every view, whole-day then `pinned` first (3.3.1); the `pinned` props key; the operator pin and delete routes and actions (4.10). SPL-5453. |
 | v0.5 | 2026-10-28 | g-523 | Discussion link, issue keys and one owner on every calendar entry (SPL-4043). Catalogue strings in all 19 locales; outside English they are drafts, and an agy review has the last word on the wording. |
 | v0.4 | 2026-10-06 | a-424 | Mobile-first section 5.1 (phone layout, touch gestures, full-screen dialogs, thumb reach, 360/390 px acceptance checks for all 10 v1 features, owner questions M1..M5); owner HUM-10 approved feature list and mobile-first rule (msg `adf16567`). |
 | v0.3 | 2026-10-06 | c-363 | Owner answered Q1..Q9 "as proposed" (msg `92b3e0d6`): every row of section 10 DECIDED as proposed; with E1..E3 the spec is fully decided. |
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 0.5 · updated: 2026-10-28 -->
+<!-- version: 0.6 · updated: 2026-11-13 -->

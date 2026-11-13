@@ -7,7 +7,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  calPhoneDayHours, calPhoneEventDays, calPhoneFoldDays, calPhoneFoldLabel, calPhoneHourPreset,
+  calDayCompare, calPhoneDayHours, calPhoneEventDays, calPhoneFoldDays, calPhoneFoldLabel, calPhoneHourPreset,
   calPhoneMonthGrid, calPhoneNextFullHour, calPhoneRange, calPhoneSpanOf, calPhoneStep, calPhoneTitle,
   calPhoneWeekStrip,
 } from '../../src/utils/calendar-phone-nav.mjs'
@@ -202,5 +202,31 @@ describe('DST hour rows (S4-6)', () => {
     assert.equal(kolkata.length, 24)
     assert.equal(kolkata[0].label, '00:00', 'a :30 zone starts at its own midnight')
     assert.deepEqual(calPhoneDayHours('x', 'UTC'), [])
+  })
+})
+
+// SPL-5453 (spec 097 section 3.3.1): the one day order of every view.
+describe('day order', () => {
+  const ev = (id, starts_at, all_day, pinned) => ({ id, starts_at, all_day, pinned })
+  const order = (list, cmp = calDayCompare) => [...list].sort(cmp).map((e) => e.id)
+  const week = ev('week-47', '2026-11-30T00:00:00Z', true)
+  const pay = ev('48fa-pay', '2026-11-30T00:00:00Z', true)
+  const nl = ev('f9-nl', '2026-11-30T00:00:00Z', true, true)
+  const flight = ev('0a-flight', '2026-11-29T23:30:00Z', false)
+  it('whole-day before timed, pinned first among them, then start, then id', () => {
+    assert.deepEqual(order([flight, week, pay, nl]), ['f9-nl', '48fa-pay', 'week-47', '0a-flight'])
+    assert.deepEqual(order([week, pay, nl, flight].reverse()), ['f9-nl', '48fa-pay', 'week-47', '0a-flight'])
+  })
+  it('control: unpinned, the same day falls back to the id (the store order)', () => {
+    assert.deepEqual(order([week, pay, { ...nl, pinned: false }]), ['48fa-pay', 'f9-nl', 'week-47'])
+  })
+  it('a pinned timed event stays after the whole-day ones, ahead of other timed', () => {
+    const early = ev('a-early', '2026-11-30T08:00:00Z', false)
+    const late = ev('z-late', '2026-11-30T15:00:00Z', false, true)
+    assert.deepEqual(order([early, late, week]), ['week-47', 'z-late', 'a-early'])
+  })
+  it('the all overrides (phone Week): a carried-over day counts as whole-day', () => {
+    const rows = [{ ev: flight, all: true }, { ev: nl, all: true }, { ev: pay, all: false }]
+    assert.deepEqual([...rows].sort((a, b) => calDayCompare(a.ev, b.ev, a.all, b.all)).map((r) => r.ev.id), ['f9-nl', '0a-flight', '48fa-pay'])
   })
 })

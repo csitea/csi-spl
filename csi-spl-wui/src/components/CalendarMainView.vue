@@ -220,6 +220,7 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { calLoadWindow, calWeekday, calWeekStart } from '~/utils/calendar-year.mjs'
+import { calDayCompare } from '~/utils/calendar-phone-nav.mjs'
 import { CAL_DESK_MIN_HOUR_PX, CAL_DESK_OPEN_MIN, calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle } from '~/utils/calendar-desktop-view.mjs'
 import { isoClock } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
@@ -271,13 +272,15 @@ const liftedEv = computed(() => (preview.value ? items.value.find((x) => x.id ==
 const dropDay = computed(() => (dropped.value ? calEventDay(dropped.value) : ''))
 const dropBox = computed(() => (dropped.value && !dropped.value.all_day ? calDayLayout([dropped.value])[0] || null : null))
 /* each item on the day it starts: an all-day item (an official day) on its
-   UTC day, a timed one on the viewer's day, the zone its clock prints in */
+   UTC day, a timed one on the viewer's day, the zone its clock prints in;
+   each day in the one day order (calDayCompare: whole-day, pinned first) */
 const byDay = computed(() => {
   const out = new Map<string, CalendarItem[]>()
   for (const ev of items.value) {
     const day = calEventDay(ev)
     out.set(day, [...(out.get(day) || []), ev])
   }
+  for (const list of out.values()) list.sort((a, b) => calDayCompare(a, b))
   return out
 })
 const layouts = computed(() => {

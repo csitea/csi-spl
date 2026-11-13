@@ -216,4 +216,6 @@ func (s *Server) handleOperatorCalendarGet(w http.ResponseWriter, r *http.Reques
 func (s *Server) routeOperatorCalendar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/operator/calendar/events", s.handleOperatorCalendarCreate)
 	mux.HandleFunc("GET /v1/operator/calendar/events/{id}", s.handleOperatorCalendarGet)
+	mux.HandleFunc("PATCH /v1/operator/calendar/events/{id}", s.handleOperatorCalendarPin)
+	mux.HandleFunc("DELETE /v1/operator/calendar/events/{id}", s.handleOperatorCalendarDelete)
 }

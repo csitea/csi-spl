@@ -99,7 +99,7 @@ import type { HoursDay } from '~/composables/useCalendarHours'
 import { CAL_COLORS } from '~/utils/calendar-event-form.mjs'
 import { calWeekday } from '~/utils/calendar-year.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
-import { calPhoneEventDays, calPhoneFoldDays, calPhoneFoldLabel, calPhoneWeekStrip } from '~/utils/calendar-phone-nav.mjs'
+import { calDayCompare, calPhoneEventDays, calPhoneFoldDays, calPhoneFoldLabel, calPhoneWeekStrip } from '~/utils/calendar-phone-nav.mjs'
 
 type Fold = { kind: 'fold', from: string, to: string, days: string[] }
 type Row = { kind: 'day' | 'empty', iso: string } | Fold
@@ -133,7 +133,7 @@ function timeOn(ev: CalendarItem, list: string[], i: number): string {
 }
 
 /* every day of the week -> the events covering it (S4-3): all-day and
-   carried-over ones first, then by start */
+   carried-over ones first, pinned first among them (calDayCompare) */
 const byDay = computed(() => {
   const week = new Set(days.value.map((d) => d.iso))
   const out = new Map<string, Entry[]>()
@@ -146,7 +146,7 @@ const byDay = computed(() => {
     })
   }
   for (const list of out.values()) {
-    list.sort((a, b) => Number(b.all) - Number(a.all) || a.ev.starts_at.localeCompare(b.ev.starts_at) || a.ev.id.localeCompare(b.ev.id))
+    list.sort((a, b) => calDayCompare(a.ev, b.ev, a.all, b.all))
   }
   return out
 })

@@ -30,6 +30,9 @@ const (
 	calPropLocation  = "location"
 	calPropColor     = "color"
 	calPropReminders = "reminders"
+	// calPropPinned (SPL-5453): a pinned event leads its day in every view
+	// (spec 097 section 3.3.1); false is the default and is dropped.
+	calPropPinned = "pinned"
 
 	calendarLocationMax  = 300
 	calendarMaxReminders = 5
@@ -43,6 +46,7 @@ var calendarPropKeys = map[string]func(v any) (any, *issueErr){
 	calPropLocation:  propLocation,
 	calPropColor:     propColor,
 	calPropReminders: propReminders,
+	calPropPinned:    propPinned,
 }
 
 // calendarColors is Google's palette of 11 (spec 3.3, Q9); "" is the kind's.
@@ -92,6 +96,24 @@ func propColor(v any) (any, *issueErr) {
 		return nil, badCalendar("color must be one of " + strings.Join(calendarColors, ", "))
 	}
 	return s, nil
+}
+
+// propPinned checks the pinned flag: a JSON bool; false is its default.
+func propPinned(v any) (any, *issueErr) {
+	b, ok := v.(bool)
+	if !ok {
+		return nil, badCalendar("pinned must be true or false")
+	}
+	if !b {
+		return nil, nil
+	}
+	return true, nil
+}
+
+// propsPinned reads props.pinned of a stored event.
+func propsPinned(e store.CalendarEvent) bool {
+	b, _ := e.Props[calPropPinned].(bool)
+	return b
 }
 
 // wholeNumber reads a JSON number that is a whole number: a json.Number from
@@ -191,7 +213,7 @@ func mergeCalendarProps(cur, set map[string]any) (map[string]any, *issueErr) {
 	for _, k := range slices.Sorted(maps.Keys(set)) {
 		check, ok := calendarPropKeys[k]
 		if !ok {
-			return nil, badCalendar("props has no key " + k + " (known: location, color, reminders)")
+			return nil, badCalendar("props has no key " + k + " (known: location, color, reminders, pinned)")
 		}
 		v, ie := check(set[k])
 		if ie != nil {

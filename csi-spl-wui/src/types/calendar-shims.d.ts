@@ -31,6 +31,8 @@ declare module '~/utils/calendar-mock.mjs' {
     status?: string, assignee?: string,
     /** SPL-4043: issue keys of this workspace, and the one responsible member or agent */
     issue_keys?: string[], owner_id?: string,
+    /** SPL-5453: props.pinned, the event leads its day (absent = not pinned) */
+    pinned?: boolean,
   }
   export function mockCalendarItems(todayIso: string): CalendarItem[]
   export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, issue_keys?: string[], owner_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }): CalendarItem

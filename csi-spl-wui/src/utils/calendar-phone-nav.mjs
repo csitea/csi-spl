@@ -220,6 +220,23 @@ export function calPhoneEventDays(ev, zone = '') {
 }
 
 /**
+ * SPL-5453 (spec 097 section 3.3.1): the one order of a day's events, used
+ * by every calendar view, desktop and phone: whole-day before timed, then
+ * pinned (props.pinned, set by the hub) before not, then by start, then by
+ * id. `aAll` / `bAll` override all_day for a view that shows a carried-over
+ * day of a multi-day event in the whole-day group (phone Week).
+ * @param {{ id: string, starts_at: string, all_day?: boolean, pinned?: boolean }} a
+ * @param {{ id: string, starts_at: string, all_day?: boolean, pinned?: boolean }} b
+ * @param {boolean} [aAll]
+ * @param {boolean} [bAll]
+ * @returns {number}
+ */
+export function calDayCompare(a, b, aAll = !!a.all_day, bAll = !!b.all_day) {
+  return Number(bAll) - Number(aAll) || Number(!!b.pinned) - Number(!!a.pinned) ||
+    String(a.starts_at).localeCompare(String(b.starts_at)) || String(a.id).localeCompare(String(b.id))
+}
+
+/**
  * "Day X of Y" of a multi-day event on `day` (Week, S4-3); null when the
  * event lasts one day or does not cover `day`.
  * @param {{ starts_at?: string, ends_at?: string, all_day?: boolean }} ev

@@ -95,7 +95,7 @@ import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
 import type { HoursDay } from '~/composables/useCalendarHours'
 import { calAddDays, calWeekday } from '~/utils/calendar-year.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
-import { calPhoneEventDays, calPhoneMonthGrid, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
+import { calDayCompare, calPhoneEventDays, calPhoneMonthGrid, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { CAL_COLORS } from '~/utils/calendar-event-form.mjs'
 
 /* `day` is the selected day (the shell's shown day); a neighbour page
@@ -127,7 +127,7 @@ const dayName = (iso: string) => `${names.value.weekdays[calWeekday(iso) - 1] ||
 const grid = computed(() => calPhoneMonthGrid(props.day))
 const rows = computed(() => Array.from({ length: 6 }, (_, r) => grid.value.slice(r * 7, r * 7 + 7)))
 
-/* each day's events, all-day first, then by start; a multi-day event on
+/* each day's events in the one day order (calDayCompare: all-day, pinned first); a multi-day event on
    every day it covers (S4-3) */
 const byDay = computed(() => {
   const out = new Map<string, CalendarItem[]>()
@@ -142,7 +142,7 @@ const byDay = computed(() => {
     }
   }
   for (const list of out.values()) {
-    list.sort((a, b) => Number(b.all_day) - Number(a.all_day) || a.starts_at.localeCompare(b.starts_at) || a.id.localeCompare(b.id))
+    list.sort((a, b) => calDayCompare(a, b))
   }
   return out
 })

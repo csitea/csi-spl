@@ -145,7 +145,7 @@ import { CAL_COLORS } from '~/utils/calendar-event-form.mjs'
 import { useCalendarPhoneDayDrag } from '~/composables/useCalendarPhoneDayDrag'
 import { isoClock } from '~/utils/date-iso.mjs'
 import { isoSeconds } from '~/utils/iso-seconds.mjs'
-import { calPhoneDayHours, calPhoneEventDays, calPhoneHourPreset } from '~/utils/calendar-phone-nav.mjs'
+import { calDayCompare, calPhoneDayHours, calPhoneEventDays, calPhoneHourPreset } from '~/utils/calendar-phone-nav.mjs'
 import { calSwipeIsTap } from '~/utils/calendar-swipe.mjs'
 
 type Times = { starts_at: string, ends_at: string }
@@ -199,10 +199,10 @@ function atOf(y: number): number {
 
 const colorStyle = (ev: CalendarItem) => (ev.color && CAL_COLORS.includes(ev.color) ? { '--cal-ev-color': `var(--cal-color-${ev.color})` } : undefined)
 
-/* ---- the all-day row: by UTC date (S4-3), two lines then +n ---- */
+/* ---- the all-day row: by UTC date (S4-3), pinned first (calDayCompare), two lines then +n ---- */
 const allDayOpen = ref(false)
 watch(() => props.day, () => { allDayOpen.value = false })
-const allDay = computed(() => props.items.filter((ev) => ev.all_day && calPhoneEventDays(ev).includes(props.day)))
+const allDay = computed(() => props.items.filter((ev) => ev.all_day && calPhoneEventDays(ev).includes(props.day)).sort((a, b) => calDayCompare(a, b)))
 const allDayShown = computed(() => (allDayOpen.value || allDay.value.length <= ALL_DAY_LINES ? allDay.value : allDay.value.slice(0, ALL_DAY_LINES - 1)))
 const allDayMore = computed(() => allDay.value.length - allDayShown.value.length)
 

@@ -898,6 +898,57 @@ roles and their grants: spec 025 section 12.
      an `hr` row is a label and an amount, not a person;
   4. per-workspace hr costs (`cost_entries` has no `tenant_id`).
 
+### 16.2 Human costs per person, component and month, and the month lock (SPL-5433)
+
+Owner HUM-10, t1 #spool-hub-devel topic 2d974709, 2026-11-12 17:47Z: "the UI
+to insert the human costs ... remember the accounting peridos monthly and a
+total for both the start of the year till now and for the last 12 months".
+The design (v4) went to the owner as polls a82c0089, 2ff12c21 and 12c458ad,
+all answered 2026-11-13: one line per person (Q1 A); a month closes by itself
+on the 6th of the next month (Q2 B); the real name is stored, readable only
+by the accountants (Q3 B); the payroll is computed on both sides (Q4 B) for
+management reporting (Q5 A); the accountant files with their own tool, the
+hub holds no Incomes Register access (Q6 A). It is built in four steps:
+(a) this section, (b) the report's groups and last 12 months, (c) the
+employer side computed, (d) the worker side (tax cards, net pay, the payslip
+check).
+
+- **Store (rdb 0280).** `hr_cost_components`: the components in HUM-24's 8
+  groups (`salaries_wages`, `employer_contributions`,
+  `working_time_allowances`, `bonuses_incentives`, `leave_absence`,
+  `benefits_insurance`, `training_recruitment`, `transport_meals`), a row
+  per component, so another country adds rows, not code. `hr_people`: a
+  person as a code (`E-01`), department, employment type (`employee`,
+  `hourly`, `owner_management`, `contractor`), birth year. `hr_person_names`:
+  the real name, whose policy asks the operator scope AND
+  `app.costs_names = 'on'`, which the store sets only for a caller holding
+  `costs.write`. `cost_entries` gains, on `hr` lines only, `person_id` (none
+  = the organisation's line; a person's line needs a component),
+  `component`, `source` (e.g. "payslip 2026-10"), `account` (the ledger
+  account), `period_kind` (`month`, or `year` for a yearly total on the
+  year's January) and `corrects_period`.
+- **The month lock.** A month of `hr` lines closes by itself at 00:00
+  Europe/Helsinki on the 6th of the next month (`store.CostCloseDay`); the
+  hub computes it on each read and write, there is no cron. A yearly line
+  follows its year's December. Creating or deleting an `hr` line in a closed
+  month answers 409 `month_closed`; a late correction is a line in an open
+  month with `corrects_period` (4.5: a closed month is never rewritten).
+  Only the operator admin (`operatorWriteCaller`) reopens a month, with a
+  reason, and closes it again; both are logged. `cloud` entries are not
+  locked.
+- **Routes** (`internal/hub/hr_costs.go`, the cost entries' doors):
+  `GET /v1/operator/hr-components`; `GET /v1/operator/hr-people` (the names
+  only to a `costs.write` member, `names: true`); `POST
+  /v1/operator/hr-people` (a `costs.write` member only, 409 `code_taken`);
+  `GET /v1/operator/cost-periods/{month}`; `POST
+  /v1/operator/cost-periods/{month}/close|reopen` (the admin).
+- **The report.** A person's `hr` lines reach the month read summed per
+  component under the component's label, so no report row is a person's
+  (13.6); a yearly line is left out of the months. The name is never in a
+  log line, an export or a test (tests use `FirstName LastName`).
+- **Follow-up 3 above** is this section; follow-up 1 (the estate read for an
+  accountant) is step (b).
+
 ## 17. The biz owner and the internal accountant open Expenses (SPL-5420)
 
 Owner HUM-10, t1 #spool-hub-bugs ea5d52a7, 2026-11-12T16:18:08Z: "Add access

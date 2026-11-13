@@ -542,6 +542,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeFileStreams(mux)     // spec 160 3.4, B3: GET /v1/view/file-streams, file_streams_view.go
 	s.routeFleetPaid(mux)       // SPL-2342, rdb 0205: paid items + effective price, fleet_token_paid.go
 	s.routeCostEntries(mux)     // SPL-4383, rdb 0245: Cloud infra + HR cost entries, cost_entries.go
+	s.routeHRCosts(mux)         // SPL-5433, rdb 0280: hr people, components, the month lock, hr_costs.go
 	s.routeCostAllocations(mux) // SPL-5291, rdb 0275: an estate cost split to workspaces, cost_allocations.go
 	s.routeFleetDesks(mux)      // spec 158 4.2.2, rdb 0230: PUT/DELETE /v1/operator/fleet-desks/{box}, operator_fleet_desks.go
 	s.routeFleet(mux)           // spec 158 4.2.3-4, rdb 0243: GET /v1/fleet/workspaces, POST /v1/fleet/enrol, fleet_workspaces.go

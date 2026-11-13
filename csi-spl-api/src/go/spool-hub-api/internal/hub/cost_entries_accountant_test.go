@@ -27,6 +27,7 @@ func TestCostEntryAccountantRoles(t *testing.T) {
 	r := newFleetTokensRig(t)
 	entry := map[string]any{"type": "hr", "label": "contract staff", "amount": 3100, "currency": "EUR", "period": "2020-05", "note": "test fixture"}
 	acc := seat(t, r.e, r.op, rbac.InternalAccountant)
+	reopenMonth(t, r, "2020-05")
 	if code, got := call(t, r.e, r.op, http.MethodGet, "/v1/tenant/costs", acc, nil); code != http.StatusOK {
 		t.Errorf("cost report: %d %v, want 200", code, got)
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -285,6 +286,10 @@ func (s *Server) costEntryMonthParts(ctx context.Context, month, cur string) (sp
 	if err != nil || len(entries) == 0 {
 		return nil, nil, err
 	}
+	entries, err = s.hrReportEntries(ctx, entries)
+	if err != nil {
+		return nil, nil, err
+	}
 	parts, err := store.CostEntryParts(ctx, entries, cur, s.costEntryRate())
 	for _, p := range parts {
 		if p.Kind == "hr" {
@@ -384,4 +389,46 @@ func costMonthAnswer(win costMonthWindow, estate bool, cur string, cm store.Cost
 			Unrecorded: max(0, win.Ended-c.OK-c.Partial-c.Missing)})
 	}
 	return b
+}
+
+// hrReportEntries is entries as a report shows them (SPL-5433, spec 123
+// 16.2): a yearly hr line is left out of the month (it is booked for the
+// year), and the hr lines of a person are summed per component and currency
+// under the component's label, so no report row is a person's (spec 123
+// 13.6). The other lines pass unchanged.
+func (s *Server) hrReportEntries(ctx context.Context, entries []store.CostEntry) ([]store.CostEntry, error) {
+	labels := map[string]string{}
+	if hs, ok := s.o.Store.(store.HRCostStore); ok && slices.ContainsFunc(entries, func(e store.CostEntry) bool { return e.Component != "" }) {
+		cs, err := hs.ListHRComponents(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range cs {
+			labels[c.Component] = c.Label
+		}
+	}
+	out := make([]store.CostEntry, 0, len(entries))
+	merged := map[[2]string]int{}
+	for _, e := range entries {
+		if e.Type == "hr" && e.PeriodKind == "year" {
+			continue
+		}
+		if e.Type != "hr" || e.Component == "" {
+			out = append(out, e)
+			continue
+		}
+		label := labels[e.Component]
+		if label == "" {
+			label = e.Component
+		}
+		k := [2]string{label, e.Currency}
+		if i, ok := merged[k]; ok {
+			out[i].Amount += e.Amount
+			continue
+		}
+		merged[k] = len(out)
+		out = append(out, store.CostEntry{ID: e.ID, Type: "hr", Label: label, Amount: e.Amount, Currency: e.Currency, Period: e.Period,
+			CreatedBy: e.CreatedBy, CreatedAt: e.CreatedAt, Component: e.Component, PeriodKind: e.PeriodKind})
+	}
+	return out, nil
 }

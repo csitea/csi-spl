@@ -22,10 +22,11 @@ type operatorWrite struct {
 }
 
 // operatorWrites are the 5 writes; PATCH and DELETE aim at paid item paid
-// and cost entry ce.
+// and cost entry ce. The hr entry is dated this month, never closed (rdb
+// 0280 month lock, SPL-5433).
 func operatorWrites(paid, ce string) []operatorWrite {
 	return []operatorWrite{
-		{http.MethodPost, costEntryPath, map[string]any{"type": "hr", "label": "x", "amount": 1, "currency": "EUR", "period": "2011-03"}, http.StatusCreated},
+		{http.MethodPost, costEntryPath, map[string]any{"type": "hr", "label": "x", "amount": 1, "currency": "EUR", "period": time.Now().UTC().Format("2006-01")}, http.StatusCreated},
 		{http.MethodDelete, costEntryPath + "/" + ce, nil, http.StatusNoContent},
 		{http.MethodPost, fleetPaidPath, map[string]any{"vendor": "agy", "kind": "subscription", "plan_label": "agy monthly", "amount": 20, "currency": "USD",
 			"period_start": "2011-03-01", "period_end": "2011-03-31"}, http.StatusCreated},

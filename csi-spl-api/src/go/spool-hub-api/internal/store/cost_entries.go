@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -32,6 +33,14 @@ type CostEntry struct {
 	Note      string    `json:"note"`
 	CreatedBy string    `json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
+	// The hr line's fields (rdb 0280, SPL-5433); empty on a cloud entry.
+	// PersonID "" = the organisation's line; PeriodKind "" reads as month.
+	PersonID       string `json:"person_id,omitempty"`
+	Component      string `json:"component,omitempty"`
+	Source         string `json:"source,omitempty"`
+	Account        string `json:"account,omitempty"`
+	PeriodKind     string `json:"period_kind,omitempty"`
+	CorrectsPeriod string `json:"corrects_period,omitempty"`
 }
 
 // IsCostMonth is a month YYYY-MM.
@@ -57,8 +66,40 @@ func CheckCostEntry(e CostEntry) string {
 	case len(e.Note) > 2000:
 		return "note must be at most 2000 characters"
 	}
+	return checkHRLine(e)
+}
+
+// checkHRLine is rdb 0280's part of CheckCostEntry: the hr fields, on hr
+// lines only. A yearly line sits on the year's January; a correction names
+// an earlier month.
+func checkHRLine(e CostEntry) string {
+	hrOnly := e.PersonID != "" || e.Component != "" || e.Source != "" || e.Account != "" || e.CorrectsPeriod != "" || (e.PeriodKind != "" && e.PeriodKind != "month")
+	switch {
+	case e.Type != "hr" && hrOnly:
+		return "person_id, component, source, account, period_kind and corrects_period are for hr lines only"
+	case e.PersonID != "" && !uuidRe.MatchString(e.PersonID):
+		return "person_id must be a person's id"
+	case e.PersonID != "" && e.Component == "":
+		return "a person's line needs a component"
+	case e.Component != "" && !hrComponentRe.MatchString(e.Component):
+		return "component must be an hr component's id, e.g. monthly_salary"
+	case len(e.Source) > 200:
+		return "source must be at most 200 characters"
+	case len(e.Account) > 20:
+		return "account must be at most 20 characters"
+	case e.PeriodKind != "" && e.PeriodKind != "month" && e.PeriodKind != "year":
+		return "period_kind must be month or year"
+	case e.PeriodKind == "year" && !strings.HasSuffix(e.Period, "-01"):
+		return "a yearly line's period is the year's January, YYYY-01"
+	case e.CorrectsPeriod != "" && (!IsCostMonth(e.CorrectsPeriod) || e.CorrectsPeriod >= e.Period):
+		return "corrects_period must be a month YYYY-MM before the line's own"
+	}
 	return ""
 }
+
+// hrComponentRe is rdb 0280's component CHECK; the table's FK says whether it
+// exists (Postgres), the seed list does on Memory.
+var hrComponentRe = regexp.MustCompile(`^[a-z][a-z0-9_]{1,59}$`)
 
 // CostEntryStore is the store half of rdb 0245. Optional: the routes answer
 // unsupported on a store without it.
@@ -104,6 +145,15 @@ func (s *Memory) ListCostEntries(_ context.Context, typ, month string) ([]CostEn
 func (s *Memory) CreateCostEntry(_ context.Context, e CostEntry) (CostEntry, error) {
 	if why := CheckCostEntry(e); why != "" {
 		return CostEntry{}, fmt.Errorf("cost entry: %s", why)
+	}
+	if e.Component != "" && !slices.ContainsFunc(DefaultHRComponents, func(c HRComponent) bool { return c.Component == e.Component }) {
+		return CostEntry{}, fmt.Errorf("cost entry: no hr component %q", e.Component)
+	}
+	if e.PersonID != "" && !memHRPersonExists(s, e.PersonID) {
+		return CostEntry{}, fmt.Errorf("cost entry: no hr person %s", e.PersonID)
+	}
+	if e.Type == "hr" && e.PeriodKind == "" {
+		e.PeriodKind = "month"
 	}
 	memCostEntriesMu.Lock()
 	defer memCostEntriesMu.Unlock()

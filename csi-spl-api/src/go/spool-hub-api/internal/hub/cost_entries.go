@@ -47,6 +47,13 @@ type costEntryEdit struct {
 	Currency string  `json:"currency"`
 	Period   string  `json:"period"`
 	Note     string  `json:"note"`
+	// an hr line's (rdb 0280, SPL-5433, hr_costs.go)
+	PersonID       string `json:"person_id"`
+	Component      string `json:"component"`
+	Source         string `json:"source"`
+	Account        string `json:"account"`
+	PeriodKind     string `json:"period_kind"`
+	CorrectsPeriod string `json:"corrects_period"`
 }
 
 func (s *Server) routeCostEntries(mux *http.ServeMux) {
@@ -175,12 +182,16 @@ func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {
 		err = dec.Decode(&e)
 	}
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {type, label, amount, currency, period, note}: "+err.Error())
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {type, label, amount, currency, period, note, person_id?, component?, source?, account?, period_kind?, corrects_period?}: "+err.Error())
 		return
 	}
-	in := store.CostEntry{Type: e.Type, Label: e.Label, Amount: e.Amount, Currency: e.Currency, Period: e.Period, Note: e.Note, CreatedBy: who}
+	in := store.CostEntry{Type: e.Type, Label: e.Label, Amount: e.Amount, Currency: e.Currency, Period: e.Period, Note: e.Note, CreatedBy: who,
+		PersonID: e.PersonID, Component: e.Component, Source: e.Source, Account: e.Account, PeriodKind: e.PeriodKind, CorrectsPeriod: e.CorrectsPeriod}
 	if why := store.CheckCostEntry(in); why != "" {
 		writeErr(w, http.StatusBadRequest, "bad_cost_entry", why)
+		return
+	}
+	if s.hrLineRefs(w, r, in) || s.hrMonthClosed(w, r, in) {
 		return
 	}
 	out, err := ce.CreateCostEntry(r.Context(), in)
@@ -199,7 +210,18 @@ func (s *Server) handleCostEntryDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	err := ce.DeleteCostEntry(r.Context(), id)
+	hrs, err := ce.ListCostEntries(r.Context(), "hr", "")
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("cost entry delete")
+		writeErr(w, http.StatusInternalServerError, "internal", "cost entry not deleted")
+		return
+	}
+	for _, e := range hrs {
+		if e.ID == id && s.hrMonthClosed(w, r, e) {
+			return
+		}
+	}
+	err = ce.DeleteCostEntry(r.Context(), id)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no cost entry "+id)

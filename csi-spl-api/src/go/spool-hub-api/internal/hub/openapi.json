@@ -12836,9 +12836,23 @@
               "schema": {
                 "description": "One cost the operator entered (SPL-4383, rdb 0245): amount of currency paid for the month period. AI costs are the paid items of /v1/operator/fleet-tokens/paid. Checked by the hub (400 bad_cost_entry).",
                 "properties": {
+                  "account": {
+                    "description": "hr only: the ledger account",
+                    "maxLength": 20,
+                    "type": "string"
+                  },
                   "amount": {
                     "description": "above 0",
                     "type": "number"
+                  },
+                  "component": {
+                    "description": "hr only: an hr component, GET /v1/operator/hr-components",
+                    "type": "string"
+                  },
+                  "corrects_period": {
+                    "description": "hr only: the closed month a late correction is for",
+                    "pattern": "^[0-9]{4}-[0-9]{2}$",
+                    "type": "string"
                   },
                   "currency": {
                     "description": "an ISO 4217 code such as USD or EUR",
@@ -12857,6 +12871,23 @@
                   "period": {
                     "description": "the month YYYY-MM",
                     "pattern": "^[0-9]{4}-[0-9]{2}$",
+                    "type": "string"
+                  },
+                  "period_kind": {
+                    "description": "hr only: year = a yearly total, period the year's January",
+                    "enum": [
+                      "month",
+                      "year"
+                    ],
+                    "type": "string"
+                  },
+                  "person_id": {
+                    "description": "hr only (rdb 0280): the person's id; needs a component",
+                    "type": "string"
+                  },
+                  "source": {
+                    "description": "hr only: where the figure comes from, e.g. payslip 2026-10",
+                    "maxLength": 200,
                     "type": "string"
                   },
                   "type": {
@@ -12892,6 +12923,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Conflict: month_closed, an hr line in a closed month (SPL-5433)"
           }
         },
         "summary": "Enter a Cloud infra or HR cost entry",
@@ -12929,9 +12963,149 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: month_closed, an hr line in a closed month (SPL-5433)"
           }
         },
         "summary": "Delete a Cloud infra or HR cost entry",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-periods/{month}": {
+      "get": {
+        "operationId": "getOperatorCostPeriodsByMonth",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month YYYY-MM",
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {period, closed, closes_at, closed_at?, closed_by?, reopened_at?, reopened_by?, reopen_reason?}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "A month's lock state: closed by itself on the 6th of the next month, 00:00 Europe/Helsinki (SPL-5433)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-periods/{month}/close": {
+      "post": {
+        "operationId": "postOperatorCostPeriodsByMonthClose",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month YYYY-MM",
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the month's state"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Close a month of hr cost lines (operator admin, SPL-5433)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-periods/{month}/reopen": {
+      "post": {
+        "operationId": "postOperatorCostPeriodsByMonthReopen",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month YYYY-MM",
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "reason": {
+                    "maxLength": 500,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the month's state"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Reopen a closed month of hr cost lines, with a reason (operator admin, SPL-5433)",
         "tags": [
           "operator"
         ],
@@ -13844,6 +14018,144 @@
           }
         },
         "summary": "Write daily exchange rates {rows: [{day, quote, rate (quote units per USD), source (ECB | FED)}]} (the box feed)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-components": {
+      "get": {
+        "operationId": "getOperatorHrComponents",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {components}, each {component, group, label, default_account, sort_order}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the hr cost components in their groups (SPL-5433, rdb 0280)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-people": {
+      "get": {
+        "operationId": "getOperatorHrPeople",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {people, names}: names true when the names are included"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the hr people; the real names only to a costs.write member (SPL-5433)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "post": {
+        "operationId": "postOperatorHrPeople",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One person the accountant books human costs for (SPL-5433, rdb 0280). The name is readable only by a costs.write member.",
+                "properties": {
+                  "birth_year": {
+                    "maximum": 2100,
+                    "minimum": 1900,
+                    "type": "integer"
+                  },
+                  "code": {
+                    "description": "e.g. E-01",
+                    "pattern": "^[A-Z]{1,3}-[0-9]{2,4}$",
+                    "type": "string"
+                  },
+                  "department": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "employment_type": {
+                    "enum": [
+                      "employee",
+                      "hourly",
+                      "owner_management",
+                      "contractor"
+                    ],
+                    "type": "string"
+                  },
+                  "left_on": {
+                    "description": "a day YYYY-MM-DD",
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "name",
+                  "employment_type"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created: the person with its id"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Conflict: code_taken"
+          }
+        },
+        "summary": "Enter an hr person with its real name (SPL-5433, costs.write)",
         "tags": [
           "operator"
         ],

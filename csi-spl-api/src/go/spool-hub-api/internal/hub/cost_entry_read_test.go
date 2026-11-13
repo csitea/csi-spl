@@ -84,6 +84,7 @@ func entryParts(t *testing.T, r *fleetTokensRig, tid, hum, month string, labels 
 func TestCostReadAddsCostEntries(t *testing.T) {
 	r := newFleetTokensRig(t)
 	month, other := "2003-07", "2003-08"
+	reopenMonth(t, r, month)
 	cloud, hr, late := "ws cloud "+newTenantID("c"), "ws hr "+newTenantID("h"), "ws late "+newTenantID("l")
 	norate := "ws norate " + newTenantID("n")
 	for _, e := range []map[string]any{
@@ -135,6 +136,7 @@ func TestCostReadAddsCostEntries(t *testing.T) {
 func TestCostReadHREntryInHumanNotSpend(t *testing.T) {
 	r := newFleetTokensRig(t)
 	month := "2003-10"
+	reopenMonth(t, r, month)
 	hr, cloud, norate := "ws hr "+newTenantID("h"), "ws cloud "+newTenantID("c"), "ws norate "+newTenantID("n")
 	for _, e := range []map[string]any{
 		{"type": "hr", "label": hr, "amount": 30, "currency": "USD", "period": month},

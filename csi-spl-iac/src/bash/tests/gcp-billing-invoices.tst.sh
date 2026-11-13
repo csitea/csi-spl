@@ -162,9 +162,10 @@ grep -q '^rc=0$' "$T/o" && [[ -z "$(mutations)" ]] && grep -q 'WARN the SA and i
   && pass "sa_create: absent -> points to terraform step 002-gcp-billing-sa, no mutation" || fail "sa absent: $(cat "$T/o") / $(mutations)"
 grep -q "billing accounts add-iam-policy-binding <BILLING_ACCOUNT_ID> --member=serviceAccount:$SA --role=roles/billing.viewer --account=<OWNER_LOGIN>" "$T/o" \
   && grep -q 'role=roles/billing.user ' "$T/o" && grep -q 'role=roles/billing.projectManager ' "$T/o" \
-  && grep -q "keys create \"\$HOME/.gcp/.csi/key-csi-spl-billing.json\" --iam-account=$SA" "$T/o" \
+  && grep -q "KEY: terraform step 002-gcp-billing-sa makes it and writes $T/home/.gcp/.csi/key-csi-spl-billing.json (mode 0600)" "$T/o" \
+  && ! grep -q 'keys create' "$T/o" \
   && ! grep -qE '^gcloud billing accounts add-iam' "$T/log" \
-  && pass "sa_create: the owner steps (viewer, user, projectManager, the key) are printed, never run" || fail "owner steps: $(cat "$T/o")"
+  && pass "sa_create: the owner steps (viewer, user, projectManager) are printed, never run; the key is named as step 002's" || fail "owner steps: $(cat "$T/o")"
 run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P" STATE=present
 grep -q '^rc=0$' "$T/o" && [[ -z "$(mutations)" ]] && grep -q "OK $SA exists with jobUser on csi-spl-all (terraform step 002-gcp-billing-sa)" "$T/o" \
   && pass "sa_create: present -> OK, no mutation" || fail "sa present: $(cat "$T/o") / $(mutations)"

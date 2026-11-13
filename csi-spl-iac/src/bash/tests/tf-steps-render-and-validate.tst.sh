@@ -146,10 +146,14 @@ for env in dev prd; do
     && pass "$env box state bucket is csi-spl-$env-box-state, 30 days, written by csi-spl-$env-box-state" || fail "$env 056 tfvars"
 done
 # No secret may reach tf state: no password, no generated secret, no secret
-# VERSION, no SA key anywhere in the terraform tree.
-grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key)"|resource "google_sql_user"' "$TFD"/*/*.tf >/dev/null \
-  && fail "a state-borne secret resource appears in src/terraform: $(grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key|google_sql_user)"' "$TFD"/*/*.tf | tr '\n' ' ')" \
-  || pass "no password, secret version, SQL user or SA key resource in any step"
+# VERSION, no SA key anywhere in the terraform tree. One exception, the
+# owner's (msg 8d767855, SPL-5457): the billing SA's key in 002-gcp-billing-sa
+# (no-keys-in-tf.tst.sh holds the same exception with its controls).
+state_secrets=$(grep -oE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key|google_sql_user)"' "$TFD"/*/*.tf \
+  | sed "s#^$TFD/##" | grep -vx '002-gcp-billing-sa/[0-9a-z-]*\.tf:resource "google_service_account_key"' || true)
+[[ -n "$state_secrets" ]] \
+  && fail "a state-borne secret resource appears in src/terraform: $(tr '\n' ' ' <<<"$state_secrets")" \
+  || pass "no password, secret version, SQL user or SA key resource in any step (but the billing SA key of 002)"
 # M3 WUI Hosting (016/019): copy sibling-prj/csi-rel Hosting shape, not the shop.
 [[ -d "$TFD/016-firebase-deploy-iam" && -d "$TFD/019-firebase-static-site" ]] \
   && pass "016 and 019 WUI firebase steps exist" || fail "016/019 WUI firebase steps missing"

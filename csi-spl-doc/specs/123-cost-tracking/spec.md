@@ -767,7 +767,7 @@ to log in each time)".
   (`csi-spl-all`, the cnf's "-all").
 - Terraform step `002-gcp-billing-sa` (SPL-5265; owner, f655b326: "the sa
   account must be created as terraform step") creates it and grants
-  `roles/bigquery.jobUser` on csi-spl-all, and nothing else. It is rendered
+  `roles/bigquery.jobUser` on csi-spl-all, and its one key (below). It is rendered
   from prd only and runs as the csi-spl-all SA, its state in
   `csi-spl-all-tfstate` (the 059 pattern); its own state means adding it
   recreates no other step. Plan:
@@ -781,10 +781,16 @@ to log in each time)".
   project SA holds a role on a billing account:
   - `roles/billing.viewer` and `roles/billing.user` on each billing account;
   - `roles/billing.projectManager` on a project it is to move;
-  - BigQuery Data Viewer on the billing export dataset;
-  - its key, minted out of band as ONE key (not per env), beside the env
-    keys (`key-<org>-<app>-billing.json`), never by terraform and never in
-    git.
+  - BigQuery Data Viewer on the billing export dataset.
+- Its key is made by step 002 too (SPL-5457; owner HUM-10, #laskut
+  f655b326, msg 8d767855: "change the Terraform code to actually provision
+  the key on the file system while provisioning the account"). It is ONE
+  key (not per env), written to the applying user's
+  `~/.gcp/.<org>/key-<org>-<app>-billing.json`, mode 0600, never in git, an
+  output or a log. This is the one exception to the repo rule "no key in
+  terraform state": the private key is in the step's state,
+  `gs://csi-spl-all-tfstate/terraform/002-gcp-billing-sa`, readable by
+  csi-spl-all's owners and editors.
 - Moving a project's billing, and closing an account, are the owner's go for
   each call. No action here does either.
 

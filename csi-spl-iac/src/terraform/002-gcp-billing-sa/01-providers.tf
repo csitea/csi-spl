@@ -6,6 +6,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    # 03-sa.tf: writes the billing SA's key on the applying box (owner 8d767855)
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 
   backend "gcs" {}

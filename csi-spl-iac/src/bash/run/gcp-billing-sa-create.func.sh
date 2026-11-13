@@ -18,9 +18,9 @@
 # @description   - roles/billing.viewer and roles/billing.user on EACH billing
 # @description     account (read accounts, projects, spend; link projects);
 # @description   - roles/billing.projectManager on a project it is to move;
-# @description   - roles/bigquery.dataViewer on the billing export dataset;
-# @description   - its key, minted out of band to the per-env key pattern
-# @description     (do_gcp_billing_cnf: BILL_KEY), never terraform, never git.
+# @description   - roles/bigquery.dataViewer on the billing export dataset.
+# @description Its key is no owner step: step 002 makes it and writes it to
+# @description BILL_KEY (do_gcp_billing_cnf), owner msg 8d767855 (SPL-5457).
 # @description Billing account ids are never committed: the commands carry
 # @description <BILLING_ACCOUNT_ID>, read from `gcloud billing accounts list`.
 # @param DRY_RUN (optional) - 1 (default), the only value: 0 is refused, the step creates the SA.
@@ -95,5 +95,5 @@ _gbs_owner_steps() {
   do_log "INFO   (once per billing account; the ids: gcloud billing accounts list --account=<OWNER_LOGIN>)"
   do_log "INFO   gcloud projects add-iam-policy-binding <PROJECT_TO_MOVE> --member=${m} --role=roles/billing.projectManager --condition=None --account=<OWNER_LOGIN>"
   do_log "INFO   console: BigQuery > the billing export dataset > SHARE > ${BILL_EMAIL} as BigQuery Data Viewer"
-  do_log "INFO   gcloud iam service-accounts keys create \"\$HOME/.gcp/.${ORG}/key-${ORG}-${APP}-billing.json\" --iam-account=${BILL_EMAIL} --account=<OWNER_LOGIN>"
+  do_log "INFO KEY: terraform step ${_GBS_STEP} makes it and writes ${BILL_KEY} (mode 0600) on the box that applies (owner msg 8d767855); its private key is in that step's state"
 }

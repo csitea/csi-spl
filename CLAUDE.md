@@ -82,7 +82,13 @@ standards](csi-spl-doc/doc/md/developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-
   `CLOUDSDK_CONFIG`.** The box's `~/.config/gcloud` is shared by every agent;
   never `gcloud config set` anything in it.
 - **No key in git, in terraform state or in a log.** A service account key is
-  minted out of band; terraform never creates it.
+  minted out of band; terraform never creates it. One exception, the owner's
+  (HUM-10, #laskut f655b326, msg 8d767855): the billing SA's key is made by
+  step `002-gcp-billing-sa` and written to the applying user's
+  `~/.gcp/.csi/key-csi-spl-billing.json` (mode 0600). Its private key is
+  therefore in that step's state, `gs://csi-spl-all-tfstate/terraform/002-gcp-billing-sa`,
+  readable by csi-spl-all's owners and editors; never in git, an output or a
+  log. Every other key stays out of terraform.
 - Tests: `bash csi-spl-iac/src/bash/tests/run-all-tests.sh`. Keep them green.
 - **Run the cheap gate for the tree you touched, before you push.** Measured
   2026-09-21 (`csi-spl-doc/specs/016-spool-testability/ci-gate-reliability-2026-09-21.md`):

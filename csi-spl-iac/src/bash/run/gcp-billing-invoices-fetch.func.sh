@@ -59,7 +59,7 @@ do_gcp_billing_invoices_fetch() {
 # identity is refused: ACCOUNT / GCP_ACCOUNT are dropped, never inherited.
 _gbf_pin() {
   [[ -f "${BILL_KEY}" ]] || {
-    do_log "FATAL no billing SA key (BILLING_SA_KEY_FILE, default the per-env key pattern): the owner mints it, see do_gcp_billing_sa_create"
+    do_log "FATAL no billing SA key (BILLING_SA_KEY_FILE, default the per-env key pattern): terraform step 002-gcp-billing-sa writes it on apply, see do_gcp_billing_sa_create"
     return 1
   }
   unset ACCOUNT GCP_ACCOUNT

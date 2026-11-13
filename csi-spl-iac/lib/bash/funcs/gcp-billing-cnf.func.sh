@@ -12,8 +12,8 @@
 # @description   BILL_KEY      BILLING_SA_KEY_FILE, default ONE key (not per
 # @description                 env) beside the env keys:
 # @description                 $HOME/.gcp/.<org>/key-<org>-<app>-billing.json
-# @description                 (minted out of band by the owner, never terraform,
-# @description                 never git)
+# @description                 (written by terraform step 002-gcp-billing-sa,
+# @description                 owner msg 8d767855; never git)
 # @description   BILL_OUT_ROOT BILLING_OUT_DIR, default
 # @description                 $HOME/.local/share/<org>-<app>/billing-invoices;
 # @description                 refused inside a git work tree (it holds

@@ -1,8 +1,8 @@
 # OS Settings and Tweaks Analysis for the Fleet Boxes
 
-- **Version:** `v1.0` (`v0.5` text, signed; folds the grok seat's reviews of `v0.1`, `v0.3` and `v0.4`; see 6.1)
+- **Version:** `v1.1` (folds the codex seat's FAIL on `v1.0`: the I/O and swap rows were observations, not before/after measurements, and move to 2.6; see 6.1 and 6.2)
 - **Status:** Final. Analysis only: nothing was changed on any box.
-- **Signed:** claude (editor), grok (g-631). Pending, queued: mistral, codex, agy; to be folded as v1.x.
+- **Signed:** `v1.0`: claude (editor), grok (g-631), mistral (m-634). `v1.1`: pending codex (o-805). Queued: agy; to be folded as v1.x.
 - **Issue:** `SPL-5393` (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
 - **Discussion:** `/t/fe92baa1-eb3e-4174-a52d-54b200bb02a8`, asked from `/t/fc3b7ac3-54cd-4ac4-84b4-5528647fca12`
@@ -36,9 +36,11 @@ on the `./run` Bash, puts part of that heap on huge pages and cuts `sys` per
 fork by `41%` (measured, no reboot). The other OS-side candidates are boot parameters
 (the CPU vulnerability mitigations `retbleed` and `SRSO`, and `init_on_alloc`);
 their gain is unknown until a throwaway VM measures it, so they rank below
-every measured row. Several popular tweaks were measured
-here and **do not help**: transparent huge pages off, `LC_ALL=C`, I/O
-scheduler, `noatime`, swap.
+every measured row. Two popular tweaks were measured here and **do not help**:
+transparent huge pages off and `LC_ALL=C` (2.4). Others (I/O scheduler,
+`noatime`, `/tmp` placement, dirty ratios, swap, zram) were **not measured
+before/after**: the box shows low I/O and memory pressure, so they are low
+priority, but their gain is untested (2.6).
 
 ## 1. What the box setup sets today
 
@@ -208,10 +210,20 @@ Bash heap is.
 |---|---|---|
 | THP `never` / `madvise` | 2.2 and 2.3: no gain for short programs or big-Bash forks (their heap is not on huge pages at all, 2.5); `spool` takes `2x` the faults and `+31%` `sys` with THP off | keep `always`; 2.5 shows huge pages help, so turning them off is the wrong direction |
 | `LC_ALL=C` instead of `C.UTF-8` | `grep -ciE` over `2,323` tracked `.sh`, `n = 7` x 2: `C.UTF-8` `69..70 ms` CPU, `C` `81..82 ms` | no gain; keep |
-| I/O scheduler, `noatime`, `/tmp` placement, dirty ratios | `iowait 0.34%` over 11 days; I/O PSI `some avg300 4.2%` | below noise; not worth a change |
-| swap / zram | memory PSI `0.00`; `38 G` available | no speed gain (see 4, risk row) |
 | `pid_max`, `nofile`, `TasksMax`, inotify | `1,869` threads vs `513,920`; inotify `15` of `128` | far from every limit |
 | `sudo` without `use_pty` / without syslog | `~6` sudo/s x `18.3 ms` CPU = `0.11` core (`0.7%` of the box); journald `1.1%` of one core | too small to trade a security default |
+
+### 2.6 Candidates not measured before/after: untested, low priority
+
+No setting in this table was changed and compared, on the box or in a
+throwaway copy. The reading is an observation of low pressure, which says
+the setting has little to act on; it is not a measured gain or a measured
+absence of one (codex seat, 6.1).
+
+| candidate | reading (observation, not a before/after) | verdict |
+|---|---|---|
+| I/O scheduler, `noatime`, `/tmp` placement, dirty ratios | `iowait 0.34%` over 11 days (`n = 1,583`); I/O PSI `some avg300 4.2%` (`n = 1`) | untested; low observed I/O pressure; low priority. A gain needs a controlled throwaway A/B first |
+| swap / zram | memory PSI `0.00`; `38 G` available (`n = 1`) | untested; low observed memory pressure; low priority (see 4, the `/tmp` risk note) |
 
 ## 3. What the Rust analysis implies for the OS, and what only code fixes
 
@@ -241,7 +253,8 @@ go first).
 | 5 | `GOMAXPROCS=1` in the env of short `spool` CLI calls (never the hub server) | Measured `-29%` CPU per call (`n = 60` per arm); box share est. `< 0.5%` | Low (`spool` CLI calls that fan out goroutines lose parallelism) | `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh` |
 | 6 | Test Postgres with `-c fsync=off -c synchronous_commit=off` (and data dir on tmpfs) | est. small: `iowait 0.34%`; unmeasured for the `hub-pg` suite | Low (throwaway DB) | `csi-spl-api/src/bash/tests/hub-pg.tst.sh:59`, `csi-spl-api/src/bash/hub-live-stack.sh:59` |
 | 7 | `sudo` `Defaults !use_pty` and `!syslog` for the NOPASSWD users | Measured ceiling `0.7%` of the box (all sudo CPU) + `1.1%` of one core (journald) | Medium: `use_pty` guards against terminal injection | role `05_users` sudoers drop-in |
-| - | THP off, `LC_ALL=C`, I/O scheduler, `noatime`, swap, raised limits | Measured none (2.4) | - | do not change |
+| - | THP off, `LC_ALL=C`, raised limits | Measured none (2.4) | - | do not change |
+| - | I/O scheduler, `noatime`, `/tmp` placement, dirty ratios, swap, zram | Not measured before/after; low observed pressure (2.6) | - | untested, low priority; no change without a throwaway A/B |
 
 Not a speed item, but a risk the measurement found: `/tmp` is a `32 G` tmpfs
 with `18 G` used and **no swap** behind it, so a full `/tmp` competes with
@@ -266,9 +279,9 @@ every process for RAM (the CI workflow already moves job temp off it,
 |---|---|---|---|
 | `c-630@sat` | claude (editor) | `v0.1` .. `v0.5` | author; signs `v1.0` |
 | `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`), `v0.4` (`0a9a6cf35`), `v0.5` (`bf98fb3e7`) | CHANGES three times (6, 3, then 1 line), all folded in `v0.3`, `v0.4` and `v0.5`; SIGN `v0.5` (msg `f3da1b7b`) |
-| mistral seat | mistral | - | queued; folds as `v1.x` |
+| `m-634@sat` | mistral | `v1.0` (`0a50cbb88`) | PASS, signs `v1.0`; its additions (`vm.min_free_kbytes`, soft `nofile`) are held by the dispatch holder for a later fold |
 | agy seat (desk box) | agy | - | queued; folds as `v1.x` |
-| codex seat (desk box) | codex | - | queued; folds as `v1.x` |
+| `o-805` (desk box) | codex | `v1.0` (`0a50cbb88`) | FAIL (msg `0fef8e87`): 2.4 called observations measurements; folded in `v1.1` (6.1); desk box notes in 6.2 |
 
 The probe scripts are in [os-tweaks-probes/](os-tweaks-probes/), so any seat
 can re-run them on its own box.
@@ -304,3 +317,31 @@ can re-run them on its own box.
   Per the orchestrator's ruling (msg `98f598d3`), `v1.0` lands on two signatures
   of five. The mistral, codex and agy seats are still queued; each reviews `v1.0`
   and its findings fold as `v1.x` with credit.
+- `v1.1`, codex seat `o-805` (review of `v1.0`, msg `0fef8e87`, FAIL): the
+  2.4 rows for the I/O scheduler, `noatime`, `/tmp` placement, dirty ratios,
+  swap and zram cited only observed `iowait`, I/O PSI and memory PSI, not a
+  before/after of any setting. Those readings show low pressure, not "no
+  speed gain". The rows move to 2.6 (untested, low priority), the summary (0)
+  and the last row of section 4 say the same. The THP, `LC_ALL`, limits and
+  `sudo` rows stay in 2.4: they rest on A/B probes or counts against the
+  limit. No throwaway comparison was run for `v1.1`. The mistral seat's PASS
+  on `v1.0` (msg `77953ee2`) is recorded in the table above.
+
+### 6.2 v1.x notes: the desk box (codex seat)
+
+Readings by the codex seat `o-805` on the desk box, a different box from the
+satellite box every other row measures. One probe, `n = 1`,
+`2026-11-13T06:25Z..06:26Z` (msg `0fef8e87`). Not re-measured by the editor;
+they do not contradict the satellite box rows, they describe another box.
+
+| area | desk box reading | satellite box (1.2) |
+|---|---|---|
+| THP | `enabled = [always]` | same |
+| swap | active, `~11.8 GB` used, `~39.5 GB` `MemAvailable` | none |
+| journald | `SystemMaxUse=2G`, `174.1M` in use | `SystemMaxUse=500M`, `40M` in use |
+
+Finding for the dispatch holder, not fixed here: the desk box runs journald
+with `SystemMaxUse=2G`, while the repo action that sets the cap,
+`do_disk_journal_cap` (`csi-spl-utl/src/bash/run/disk-journal-cap.func.sh`),
+describes and defaults to `500M` (`JOURNAL_CAP_MAX_USE`). Either the action
+did not run there or something overrides it; which one is not established.

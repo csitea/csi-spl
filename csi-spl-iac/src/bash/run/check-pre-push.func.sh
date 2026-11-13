@@ -252,13 +252,15 @@ _pp_label() {  # <part>
 # What this push would carry: commits ahead of the base, plus staged, unstaged
 # and untracked working-tree changes (so it is useful before a commit too).
 # Returns 1 when the base ref is unknown, so the caller can widen to FULL.
+# --no-renames: a rename lists its OLD path too, as a delete + add would, so a
+# migration moved out of its dir is still selected (SPL-5409).
 _pp_changed() {  # <tree> <base>
   local tree="$1" base="$2"
   git -C "$tree" rev-parse --verify -q "$base^{commit}" >/dev/null 2>&1 || return 1
   {
-    git -C "$tree" diff --name-only "$base"...HEAD 2>/dev/null
-    git -C "$tree" diff --name-only HEAD 2>/dev/null
-    git -C "$tree" diff --name-only --cached 2>/dev/null
+    git -C "$tree" diff --name-only --no-renames "$base"...HEAD 2>/dev/null
+    git -C "$tree" diff --name-only --no-renames HEAD 2>/dev/null
+    git -C "$tree" diff --name-only --no-renames --cached 2>/dev/null
     git -C "$tree" ls-files --others --exclude-standard 2>/dev/null
   } | sort -u
 }
@@ -1218,6 +1220,9 @@ _pp_plan_parts() {  # <tree> <base> <only>
   all="hygiene blog iac orc orc-features wui-vendor wui wui-e2e api" parts="hygiene" changed=""
   if [[ "$mode" == full ]]; then
     parts="$all"
+    # full mode still diffs for lint-migration: say so, never a silent SKIP-untouched (SPL-5409)
+    _pp_changed "$tree" "$base" >/dev/null \
+      || do_log "WARN pre-push: cannot diff against '$base' (unknown ref?) -- full mode: lint-migration cannot tell which migrations changed and checks NONE"
   elif ! changed="$(_pp_changed "$tree" "$base")"; then
     do_log "WARN pre-push: cannot diff against '$base' (unknown ref?) -- widening to FULL so no gate is skipped silently"
     mode=full; parts="$all"

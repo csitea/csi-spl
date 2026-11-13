@@ -130,7 +130,7 @@ lint() {
   : >"$LOG"
   local out rc=0
   out="$(PATH="${PP_PATH:-$BASE_PATH}" PRE_PUSH_EXTRA_PATH='' PRE_PUSH_ONLY=lint PRE_PUSH_TREE="$R" \
-    PRE_PUSH_BASE=base PRE_PUSH_LOG="$LOG" PRE_PUSH_NO_CACHE=1 PRE_PUSH_CACHE="$T/cache" \
+    PRE_PUSH_BASE="${LINT_BASE:-base}" PRE_PUSH_LOG="$LOG" PRE_PUSH_NO_CACHE=1 PRE_PUSH_CACHE="$T/cache" \
     do_check_pre_push 2>&1)" || rc=$?
   printf '%s\n' "$out" >"$T/out"
   echo "$rc"
@@ -274,6 +274,19 @@ mig_repo; echo '{"a":1}' >"$R/seed.json"; commit no-mig
 rc="$(PRE_PUSH_MODE=full PRE_PUSH_LINT_ONLY=lint-migration lint)"
 [[ "$rc" == 0 && "$(verdict lint-migration)" != FAIL ]] \
   && pass "15f. full mode: a push with no migration change passes" || fail "15f. full-mode no migration" "rc=$rc verdict=$(verdict lint-migration)"
+# 15g. a migration renamed or moved OUT of the dir is refused too: a plain
+# `diff --name-only` names a rename by its NEW path only (SPL-5409 N1)
+for m in fast full; do
+  mig_repo; mkdir -p "$R/old"; git -C "$R" mv "$MIG/0001_a.sql" old/0001_a.sql; commit move-out
+  rc="$(PRE_PUSH_MODE=$m PRE_PUSH_LINT_ONLY=lint-migration lint)"
+  [[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] && grep -q "MIGRATION $MIG/0001_a.sql is already on base" "$T/out" \
+    && pass "15g. $m mode: a migration moved out of the dir is REFUSED (its old path)" || fail "15g. $m-mode move-out" "rc=$rc verdict=$(verdict lint-migration)"
+done
+# 15h. an unknown base in full mode is never a silent SKIP-untouched (SPL-5409 N2)
+mig_repo; echo '{"a":1}' >"$R/seed.json"; commit no-mig
+rc="$(LINT_BASE=no-such-ref PRE_PUSH_MODE=full PRE_PUSH_LINT_ONLY=lint-migration lint)"
+grep -q "WARN pre-push: cannot diff against 'no-such-ref'" "$T/out" \
+  && pass "15h. full mode: an unknown base logs the cannot-diff WARN" || fail "15h. full-mode unknown base" "rc=$rc verdict=$(verdict lint-migration) $(grep -c WARN "$T/out") WARN lines"
 
 # 23. migration prefixes (spec 072 A45)
 mig_repo; cp "$R/$MIG/0001_a.sql" "$R/$MIG/0001_x.sql"; commit copy-mig

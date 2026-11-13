@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The weekly security round starts itself (owner HUM-10, t1
 # @description #spool-hub-ops topic 3d0675ba msg 7ec35e69; day: Friday, poll
 # @description answer msg 3271f95a, "Friday, as a week-end check"). One run
@@ -39,6 +40,7 @@
 # @example ./run -a do_spl_security_round_queue
 # @example SECURITY_ROUND=on DRY_RUN=0 ./run -a do_spl_security_round_queue
 # @example SECURITY_ROUND_DATE=2026-10-23 ./run -a do_spl_security_round_queue
+#------------------------------------------------------------------------------
 
 SPL_SECURITY_ROUND_TOPIC=3d0675ba-6dab-46cc-92c9-2aba3ac7cd23
 

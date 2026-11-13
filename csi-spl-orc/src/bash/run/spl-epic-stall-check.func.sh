@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The stalled-epic check (SPL-2358; owner HUM-10, t1 d4c0c0a8
 # @description msg 7432ecd3, 2026-10-17: "Why did they stop?"). An epic run
 # @description "two lanes at a time" needs the dispatcher to queue the next
@@ -43,6 +44,7 @@
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER SPAWN_SHARE_DISPATCH SPAWN_QUEUE_SEND (optional) - as do_spl_spawn_place
 # @example ./run -a do_spl_epic_stall_check
 # @example DRY_RUN=0 ./run -a do_spl_epic_stall_check
+#------------------------------------------------------------------------------
 
 do_spl_epic_stall_check() {
   local dry="${DRY_RUN:-1}" holder to tmp rc=0

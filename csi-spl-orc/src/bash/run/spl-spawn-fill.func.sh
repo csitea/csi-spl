@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The idle filler (owner HUM-10, t1 71dbbf15, poll 41155726 answer
 # @description msg 3c91b4c1: "(A) Yes, from open issues (bugs and features),
 # @description within the share bands"). Spare box capacity becomes queued
@@ -51,6 +52,7 @@
 # @param SPAWN_SHARE_LANES_CMD ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER (optional) - as do_spl_spawn_place
 # @example ./run -a do_spl_spawn_fill
 # @example SPAWN_FILL=on DRY_RUN=0 ./run -a do_spl_spawn_fill
+#------------------------------------------------------------------------------
 
 do_spl_spawn_fill() {
   local dry="${DRY_RUN:-1}" on holder rows pick n share phase classes issues chosen

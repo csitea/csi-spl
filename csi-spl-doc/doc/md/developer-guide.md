@@ -344,6 +344,10 @@ Enforced by: `do_spl_push_master` (author and committer, `--no-mailmap`).
 Every GCP call runs as the environment's service account, from its key
 `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (minted out of band, mode 600);
 never as the owner account. No key in git, in terraform state or in a log.
+One exception, the owner's (HUM-10, msg 8d767855): terraform step
+`002-gcp-billing-sa` makes the billing SA's key, so that key is in the
+step's state; the repo `CLAUDE.md` rule names where the state lives and who
+reads it.
 
 Enforced by: `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`.
 

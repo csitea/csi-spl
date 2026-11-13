@@ -288,6 +288,10 @@ Enforced by: `do_spl_push_master` (author and committer, `--no-mailmap`).
 Every GCP call runs as the environment's service account, from its key
 `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (minted out of band, mode 600);
 never as the owner account. No key in git, in terraform state or in a log.
+One exception, the owner's (HUM-10, msg 8d767855): terraform step
+`002-gcp-billing-sa` makes the billing SA's key, so that key is in the
+step's state; the repo `CLAUDE.md` rule names where the state lives and who
+reads it.
 
 Enforced by: `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`.
 
@@ -630,6 +634,6 @@ date, and a re-run of `/speckit-analyze` on every in-flight spec. Complexity
 that deviates from a principle must be justified inline (`# WHY:`) and
 acknowledged in the spec's Clarifications section.
 
-**Version**: 0.3.1 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-07 (Coding Standards exported from developer-guide.md)
+**Version**: 0.3.2 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-13 (Coding Standards exported from developer-guide.md)
 
-<!-- version: 0.3.1 · updated: 2026-11-07 · last-edit: 2026-11-07T16:19:36Z -->
+<!-- version: 0.3.2 · updated: 2026-11-13 · last-edit: 2026-11-13T22:55:26Z -->

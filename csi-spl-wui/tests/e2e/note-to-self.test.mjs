@@ -73,7 +73,7 @@ const pickerState = (p) => p.evaluate((sel) => {
     draftPlace: pinia?._s.get('omnibox')?.target?.place?.() ?? null,
     lists: document.querySelectorAll('[data-test=mention-list]').length,
   }
-}, OMNI)
+}, OMNI).then((st) => ({ ...st, loads }))
 
 /** Type into the omnibox from empty. */
 async function typeOmni(p, text) {
@@ -83,21 +83,35 @@ async function typeOmni(p, text) {
   await sleep(300)
 }
 
+/** The lobby is settled: the roster knows the reader and the box knows its draft place. */
+const settle = (p) => p.waitForFunction((me) => {
+  const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+  return pinia?._s.get('roster')?.self?.id === me && Boolean(pinia?._s.get('omnibox')?.target?.place?.())
+}, { timeout: NAV_TIMEOUT }, ME).then(() => true, () => false)
+
+/* main-frame loads: under nuxi dev the first @ fetches the lazy status line (MessageComposer
+   LazyComposerStatusLine), and a reload there would leave the box "@", restored and blurred */
+let loads = 0
+
 const srv = await startServer()
 const browser = await launch()
 try {
   const page = await browser.newPage()
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) loads++ })
   page.setDefaultNavigationTimeout(NAV_TIMEOUT)
   await page.setViewport({ width: 1440, height: 900 })
   await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
   await page.waitForSelector(OMNI, { visible: true, timeout: NAV_TIMEOUT })
   /* type only once the roster knows the reader and the box knows its draft place: a place that arrives
      later swaps the box for that place's stored draft (useComposerDraft) and eats what was typed */
-  const settled = await page.waitForFunction((me) => {
-    const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
-    return pinia?._s.get('roster')?.self?.id === me && Boolean(pinia?._s.get('omnibox')?.target?.place?.())
-  }, { timeout: NAV_TIMEOUT }, ME).then(() => true, () => false)
+  const settled = await settle(page)
   ok('the lobby knows the reader and its draft place before the test types', settled, settled ? undefined : await pickerState(page))
+  /* load the chunks a typed @ needs (the status line) before the measured typing; settle again if that reloaded */
+  const before = loads
+  await typeOmni(page, '@')
+  await page.waitForNetworkIdle({ idleTime: 1000, timeout: NAV_TIMEOUT }).catch(() => {})
+  if (loads !== before) await page.waitForSelector(OMNI, { visible: true, timeout: NAV_TIMEOUT }).then(() => settle(page))
+  await page.$eval(OMNI, (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })) })
   await sleep(600)
 
   /* the picker: @me offers the reader first, marked as me */
@@ -115,7 +129,7 @@ try {
     ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })))
   await sleep(200)
   const picked = await page.$eval(OMNI, (el) => el.value)
-  ok('picking me writes the reader into the field, not "@me"', picked.startsWith('@') && !picked.startsWith('@me ') && picked.endsWith(' '), { picked })
+  ok('picking me writes the reader into the field, not "@me"', picked === `@${ME} `, { picked })
 
   /* CONTROL: a bare @ never offers the reader */
   await typeOmni(page, '@')

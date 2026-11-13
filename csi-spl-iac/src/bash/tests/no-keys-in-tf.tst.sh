@@ -96,9 +96,9 @@ printf '%s\n' 'resource "google_service_account_key" "billing" {' >"$tmp/x/030-c
 printf '%s\n' 'resource "google_service_account_key" "other" {' 'resource "tls_private_key" "k" {' >"$tmp/x/002-gcp-billing-sa/04-more.tf"
 hits=$(key_hits "$tmp/x" | drop_allowed)
 ok=1
-echo "$hits" | grep -q '^030-cloud-run-hub/03-sa.tf:' || { fail "control: the same key in another step was let through: ${hits:-<nothing>}"; ok=0; }
-echo "$hits" | grep -q 'google_service_account_key" "other"' || { fail "control: a second key in 002 was let through: ${hits:-<nothing>}"; ok=0; }
-echo "$hits" | grep -q 'tls_private_key' || { fail "control: a tls_private_key in 002 was let through: ${hits:-<nothing>}"; ok=0; }
+grep -q '^030-cloud-run-hub/03-sa.tf:' <<<"$hits" || { fail "control: the same key in another step was let through: ${hits:-<nothing>}"; ok=0; }
+grep -q 'google_service_account_key" "other"' <<<"$hits" || { fail "control: a second key in 002 was let through: ${hits:-<nothing>}"; ok=0; }
+grep -q 'tls_private_key' <<<"$hits" || { fail "control: a tls_private_key in 002 was let through: ${hits:-<nothing>}"; ok=0; }
 [[ "$ok" -eq 1 ]] && pass "control: the same key in another step, a second key and a tls_private_key in 002 are caught"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }

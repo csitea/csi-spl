@@ -1,4 +1,4 @@
--- 0276_issue_discussion_closes.sql - an issue follows its discussion
+-- 0277_issue_discussion_closes.sql - an issue follows its discussion
 -- (SPL-5284, spec 041 archive-releases-work.md). Forward-only.
 --
 -- The owner (HUM-10, t1 fcf09921, msgs a081dcf2 and eae27b5d, 2026-11-11):

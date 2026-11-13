@@ -315,8 +315,9 @@ can re-run them on its own box.
   magnitude.
 - `v1.0`: grok seat signed `v0.5` (msg `f3da1b7b`); the text is unchanged.
   Per the orchestrator's ruling (msg `98f598d3`), `v1.0` lands on two signatures
-  of five. The mistral, codex and agy seats are still queued; each reviews `v1.0`
-  and its findings fold as `v1.x` with credit.
+  of five. When `v1.0` landed, the mistral, codex and agy seats were still
+  queued, each to review `v1.0` and fold as `v1.x` with credit; their outcomes
+  since then are in the table above and the `v1.1` entry below.
 - `v1.1`, codex seat `o-805` (review of `v1.0`, msg `0fef8e87`, FAIL): the
   2.4 rows for the I/O scheduler, `noatime`, `/tmp` placement, dirty ratios,
   swap and zram cited only observed `iowait`, I/O PSI and memory PSI, not a

@@ -592,9 +592,11 @@ inside each; the "in this workspace" filter shows groups 1 and 2.
   and the 0193 links. The member card (`wui/pages/people/[id].vue`) gets one
   line, "In your contacts", linking to the contact card when one of the
   reader's contacts matches that member. **Add contact** is a round **+**
-  (the Issues + look) on the panel's PEOPLE heading row; on a phone it
-  floats bottom right above the composer, and the list pads so its last row
-  scrolls clear of it (SPL-5279).
+  (the Issues + look) at the right end of the filter row, top right of the
+  panel; on a phone it floats bottom right above the composer, and the list
+  pads so its last row scrolls clear of it (SPL-5279). The panel has no
+  PEOPLE heading: the selected rail tab already says People, as the Issues
+  panel has no ISSUES heading (owner, topic 355bed36, SPL-5428).
 - **Kill switch** (2.9): in a workspace outside `contacts.workspaces` the
   panel shows only members, with no filter and no Add button, exactly as
   today apart from the new order. The WUI learns the switch from the

@@ -519,24 +519,20 @@
         aria-labelledby="sidebar-tab-people"
         data-testid="sidebar-panel-people"
       >
-        <div class="people-head">
-          <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-people" aria-describedby="sidebar-help-people-tip">
-            {{ t('sidebar.people') }}
-            <span id="sidebar-help-people-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.people') }}</span>
-          </h2>
-          <!-- SPL-5279 (owner poll, option C): Add contact is one round +, like
-               the Issues + (issues-fab): on the heading row on a desktop, floating
-               bottom right on a phone. Import from file is in its form. -->
-          <NuxtLink v-if="contactsOn" class="people-fab" data-testid="people-add-contact" :to="localePath('/people/contact/new')" :aria-label="t('people.add_contact')" :title="t('people.add_contact')">
-            <UiIcon name="plus" :size="22" :stroke-width="2.5" />
-          </NuxtLink>
-        </div>
-        <!-- spec 154 2.7: the filter; outside contacts.workspaces, none -->
+        <!-- spec 154 2.7: the filter; outside contacts.workspaces, none. No PEOPLE
+             heading above it (owner, topic 355bed36, SPL-5428): the selected tab
+             already says People, as the Issues panel has no ISSUES heading. -->
         <div v-if="contactsOn" class="people-tools" data-testid="people-tools">
           <div class="people-filter" role="group" :aria-label="t('people.filter_label')">
             <button type="button" class="people-filter__btn" data-testid="people-filter-all" :aria-pressed="peopleFilter === PEOPLE_FILTER_ALL" @click="setPeopleFilter(PEOPLE_FILTER_ALL)">{{ t('people.filter_all') }}</button>
             <button type="button" class="people-filter__btn" data-testid="people-filter-workspace" :aria-pressed="peopleFilter === PEOPLE_FILTER_WORKSPACE" @click="setPeopleFilter(PEOPLE_FILTER_WORKSPACE)">{{ t('people.filter_workspace') }}</button>
           </div>
+          <!-- SPL-5279 (owner poll, option C): Add contact is one round +, like
+               the Issues + (issues-fab): top right, on the filter row, on a desktop,
+               floating bottom right on a phone. Import from file is in its form. -->
+          <NuxtLink class="people-fab" data-testid="people-add-contact" :to="localePath('/people/contact/new')" :aria-label="t('people.add_contact')" :title="t('people.add_contact')">
+            <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+          </NuxtLink>
         </div>
         <div class="sidebar-scroll" :class="{ 'people-scroll': contactsOn }">
           <p v-if="peopleMemberRows.length === 0" class="muted topic-empty">{{ t('people.none') }}</p>
@@ -1186,13 +1182,13 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
    last so the name keeps the width, and the 72px rail hides it like the DM tail. */
 .people-row__tag { margin-inline-start: auto; font-size: 11px; flex-shrink: 0; }
 .people-row__tag + .people-row__tag { margin-inline-start: 6px; }
-.people-tools { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
+/* SPL-5428: one row, the filter then the round + at its end (no heading row) */
+.people-tools { display: flex; align-items: center; gap: 8px; padding: 0 8px 8px; }
+.people-tools > .people-filter { flex: 1 1 auto; min-width: 0; }
 .people-filter { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 8px); }
 .people-filter__btn { flex: 1 1 0; min-width: 0; min-height: 32px; padding: 2px 6px; border: 0; border-radius: var(--radius-xs); background: transparent; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; }
 .people-filter__btn[aria-pressed="true"] { background: var(--color-surface-hover); font-weight: 600; }
-/* SPL-5279: the heading row carries the round + (the Issues + look, SPL-978) */
-.people-head { display: flex; align-items: center; gap: 8px; padding-inline-end: 8px; }
-.people-head > .sidebar-help { flex: 1 1 auto; min-width: 0; }
+/* SPL-5279: the round + (the Issues + look, SPL-978) */
 .people-fab {
   flex: 0 0 auto;
   display: inline-flex;

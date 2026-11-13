@@ -115,14 +115,19 @@ try {
   ok('C24f-5 twin: contacts true reads the list once', (await reads()) === 1, { reads: await reads() })
   ok('C24-1 no new rail tab', railOff > 0 && (await railCount()) === railOff, { off: railOff, on: await railCount() })
   ok('C24-2 the filter and Add contact show', await waitShown('[data-testid=people-filter-workspace]') && await shown('[data-testid=people-add-contact]'))
-  /* SPL-5279: on a desktop the + sits on the PEOPLE heading row, labelled for a reader */
+  /* SPL-5428 (owner, topic 355bed36): no PEOPLE heading, the selected tab says it
+     (the Contacts group heading inside the list stays);
+     on a desktop the + sits top right, on the filter row, labelled for a reader */
   const head = await p.evaluate(() => {
-    const h = document.querySelector('[data-testid=sidebar-help-people]').getBoundingClientRect()
+    const panel = document.querySelector('[data-testid=sidebar-panel-people]')
+    const f = document.querySelector('[data-testid=people-filter-all]').getBoundingClientRect()
     const a = document.querySelector('[data-testid=people-add-contact]')
     const b = a.getBoundingClientRect()
-    return { sameRow: b.top < h.bottom && b.bottom > h.top, label: a.getAttribute('aria-label') }
+    const r = panel.getBoundingClientRect()
+    return { headings: panel.querySelectorAll(':scope > :is(h1, h2, h3, .people-head), .sidebar-help, [data-testid=sidebar-help-people]').length, sameRow: b.top < f.bottom && b.bottom > f.top, rightGap: Math.round(r.right - b.right), label: a.getAttribute('aria-label') }
   })
-  ok('C24-2b the + is on the heading row, aria-label Add contact', head.sameRow && head.label === 'Add contact', head)
+  ok('C24-2a the People panel has no heading', head.headings === 0, head)
+  ok('C24-2b the + is on the filter row at the right end, aria-label Add contact', head.sameRow && head.rightGap >= 0 && head.rightGap <= 24 && head.label === 'Add contact', head)
   await waitShown('[data-test=people-contact-row]')
   ok('C24-3 group 3 lists the others A-Z, the matched contact not twice', JSON.stringify(await rowNames()) === JSON.stringify(['Olive Outer', 'Zed Zeta']), await rowNames())
   ok('C24e the matched member carries the contact tag', await shown(`${member('HUM-2')} [data-testid=people-contact-tag]`))
@@ -234,6 +239,7 @@ try {
   /* a phone deep link lands on the pane: the rail tab opens the list (section-strip-mobile) */
   await p.click('[data-testid=sidebar-tab-people]')
   ok('P-1 390 the tools show', await waitShown('[data-testid=people-tools]'))
+  ok('P-1b 390 the People panel has no heading', (await p.$eval('[data-testid=sidebar-panel-people]', (el) => el.querySelectorAll(':scope > :is(h1, h2, h3, .people-head), .sidebar-help, [data-testid=sidebar-help-people]').length)) === 0)
   await waitShown('[data-test=people-contact-row]')
   ok('P-2 390 no sideways scroll', await fits())
   ok('P-3 390 the filter is tall enough to tap', (await p.$eval('[data-testid=people-filter-all]', (b) => b.getBoundingClientRect().height)) >= 44)

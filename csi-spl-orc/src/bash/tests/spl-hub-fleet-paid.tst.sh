@@ -157,7 +157,9 @@ echo '{"error":"forbidden","detail":"98765.4321 XTS NOTE-SENTINEL LABEL-SENTINEL
 run_real() { # <name> <PAID_CMD> <body file> [VAR=value]... -> $T/real/<name>/{out,err,home,var,calls}
   local d="$T/real/$1" cmd="$2" body="$3"; shift 3
   rm -rf "$d"; mkdir -p "$d/home" "$d/var"
-  env HOME="$d/home" VAR_DIR="$d/var" PATH="$T/real/stub:$PATH" STUB_BODY_FILE="$body" STUB_CALLS="$d/calls" \
+  # the compact log form, whatever the caller's: an outer ./run on a tty
+  # exports RUN_LOG_COMPACT=0, and legs 8 and 9 grep the compact FATAL line
+  env RUN_LOG=compact RUN_LOG_COMPACT=1 HOME="$d/home" VAR_DIR="$d/var" PATH="$T/real/stub:$PATH" STUB_BODY_FILE="$body" STUB_CALLS="$d/calls" \
     GCP_ACCOUNT=sa@example.iam.gserviceaccount.com ENV=dev PAID_CMD="$cmd" "$@" "$PROJ_ROOT/run" -a do_spl_hub_fleet_paid >"$d/out" 2>"$d/err"
 }
 leaks() { # <dir> -> each file of the run holding a sentinel: out, err, anything under home / var

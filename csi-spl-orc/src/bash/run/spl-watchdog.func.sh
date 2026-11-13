@@ -76,8 +76,6 @@
 # @example WD_ONLY="c-981 c-982" WD_STATE_DIR=/var/tmp/wd-drill DRY_RUN=0 WD_TICKS=20 ./run -a do_spl_watchdog
 # @example WD_INST_START="1 2 3" ./run -a do_spl_watchdog
 #------------------------------------------------------------------------------
-# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
-declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
 declare -F spl_wd_log_rotate >/dev/null ||
@@ -91,9 +89,17 @@ declare -F spl_wd_self_update >/dev/null ||
 declare -F spl_wd_orch_outcome >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-orch-outcome.func.sh"
 
-SPL_WD_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# _spl_wd_deps: SPL_WD_RUN_DIR and spl_role_seat, the role seat ids in their
+# live vendor letter (SPL-1695), set on the first call, not at source time,
+# so the ./run loader keeps this file lazy (spec 027, p8-01)
+_spl_wd_deps() {
+  [[ -n "${SPL_WD_RUN_DIR:-}" ]] || SPL_WD_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+  return 0
+}
 
 do_spl_watchdog() {
+  _spl_wd_deps
   if [[ -n "${WD_INST_START:-}" ]]; then
     local i rc=0
     for i in $WD_INST_START; do spl_wd_inst_start "$i" || rc=1; done
@@ -142,6 +148,7 @@ spl_wd_keeper_lock() {
 }
 
 spl_wd_init() {
+  _spl_wd_deps
   spl_rotate_conf || return 1
   WD_DIR="${WD_STATE_DIR:-$LEASE_DIR/wd}"
   WD_LOG="$LEASE_DIR/wd.log"
@@ -982,7 +989,7 @@ spl_wd_lifetime() {
 spl_wd_idle_wait() {
   local id="$1" ctx="$2" d="$SPOOL_ROOT/$1" f r=""
   [[ ! -e "$ctx/seat" && "$(jq -r '.state // empty' "$ctx/heartbeat" 2>/dev/null)" == idle ]] || return 0
-  declare -F spl_lane_standing >/dev/null || source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"
+  declare -F spl_lane_standing >/dev/null || { _spl_wd_deps; source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"; }
   if spl_lane_standing "$id"; then : > "$ctx/standing"; return 0; fi
   [[ -d "$d/outbox" ]] || return 0
   while read -r _ f; do
@@ -1099,11 +1106,6 @@ spl_wd_rotating() {
 
 # ---- verdicts ----------------------------------------------------------------------
 
-# The order a verdict is picked in when several situations hit. S8 is never
-# the verdict: a silent hook is not a stuck agent (6.1). S7 before S9: a known
-# dialog gets its answer in one tick, S9 is the net for the rest (102 8.2).
-WD_ORDER="S3 S2 S7 S4 S5 S9 S1 S6"
-
 # The debounce of a code in ticks (6.1): S2, S3 and S8 2, the rest 1 (S1 and
 # S6 carry their own age).
 spl_wd_need() { case "$1" in S2|S3|S8) echo 2 ;; *) echo 1 ;; esac; }
@@ -1114,6 +1116,10 @@ spl_wd_need() { case "$1" in S2|S3|S8) echo 2 ;; *) echo 1 ;; esac; }
 # 2026-10-24, 15 ticks of "pending S2 1/2: kind=limit", SPL-3278).
 spl_wd_judge() {
   local id="$1" pid="$2" pane="$3" now="$4" ctx="$5" code ev cnt need main="" mainev="" pend="" extra="" act s2pend=""
+  # The order a verdict is picked in when several situations hit. S8 is never
+  # the verdict: a silent hook is not a stuck agent (6.1). S7 before S9: a known
+  # dialog gets its answer in one tick, S9 is the net for the rest (102 8.2).
+  local WD_ORDER="S3 S2 S7 S4 S5 S9 S1 S6"
   cat "$ctx"/out.s* 2>/dev/null | grep -E '^HIT S[0-9]+( |$)' | sort -u > "$ctx/hits" || true
   : > "$WD_DIR/$id.hits.new.$BASHPID"
   while read -r _ code ev; do
@@ -1960,8 +1966,8 @@ spl_wd_unfence_take() {
 # the lane rotation's check). A lane busy at the fence is restarted as before.
 spl_wd_unfence_done() {
   local id="$1" at="$2" st ts e
-  declare -F spl_ars_retired >/dev/null || source "$SPL_WD_RUN_DIR/spl-agent-restart.func.sh"
-  declare -F spl_lane_rotate_accepted >/dev/null || source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"
+  declare -F spl_ars_retired >/dev/null || { _spl_wd_deps; source "$SPL_WD_RUN_DIR/spl-agent-restart.func.sh"; }
+  declare -F spl_lane_rotate_accepted >/dev/null || { _spl_wd_deps; source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"; }
   if spl_ars_retired "$id"; then echo "retired: registry.retired.tsv, no open registry row"; return 0; fi
   read -r st ts < <(jq -r '[.state // "-", .ts // "-"] | join(" ")' "$SPOOL_ROOT/$id/heartbeat.json" 2>/dev/null) || return 0
   [[ "$st" == idle && "$at" =~ ^[0-9]+$ ]] || return 0
@@ -2074,7 +2080,7 @@ spl_wd_fence_is_seat() {
 # brief is read at its innermost section A, as spl_ars_brief_unnest cuts it).
 # One box 2026-11-11 05:04Z: the fence TERMed 5 such seats as lanes (SPL-5326).
 spl_wd_standing_seat() {
-  declare -F spl_lane_standing >/dev/null || source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"
+  declare -F spl_lane_standing >/dev/null || { _spl_wd_deps; source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"; }
   spl_lane_standing "$1" && return 0
   awk 'FNR == 1 && /^# Brief: you are / { nest = 1; next }
     nest && /^## A\. Your brief/ { h = ""; next }

@@ -35,8 +35,12 @@
 # @example ./run -a do_spl_box_leave
 # @example DRY_RUN=1 ./run -a do_spl_box_leave
 #------------------------------------------------------------------------------
-# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
-declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+# _spl_box_leave_deps: spl_role_seat, the role seat ids in their live vendor
+# letter (SPL-1695), sourced on the first call, not at source time, so the
+# ./run loader keeps this file lazy (spec 027, p8-01)
+_spl_box_leave_deps() {
+  declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+}
 # the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
 declare -F spl_lease_conf_write >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
@@ -108,6 +112,7 @@ do_spl_box_leave() {
 # The settings both actions use. SPL_BOX_ME is this machine's box (the <box> of
 # <ID>@<box>), as the lease loop names it.
 spl_box_init() {
+  _spl_box_leave_deps
   spl_lease_init ro || return 1
   SPL_BOX_MARK="$LEASE_DIR/box.leave"
   SPL_BOX_STATE="$LEASE_DIR/box-leave"

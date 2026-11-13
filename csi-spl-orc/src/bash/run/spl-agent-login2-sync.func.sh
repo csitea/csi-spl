@@ -33,13 +33,15 @@
 # @example ./run -a do_spl_agent_login2_sync
 # @example DRY_RUN=0 ./run -a do_spl_agent_login2_sync
 #------------------------------------------------------------------------------
-declare -F _spool_box_env_load >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
-
-# the files of a Claude config folder the copy carries; the credential first
-L2_FILES=(.credentials.json .claude.json settings.json)
+# _l2_deps: _spool_box_env_load, sourced on the first call, not at source
+# time, so the ./run loader keeps this file lazy (spec 027, p8-01)
+_l2_deps() {
+  declare -F _spool_box_env_load >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+}
 
 do_spl_agent_login2_sync() {
   local dry="${DRY_RUN:-1}" src dst user home sexp dexp
+  _l2_deps
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   user="${SPOOL_AGENT_USER:-}"
   [[ -n "$user" ]] || user="$(SPOOL_AGENT_USER=''; _spool_box_env_load; printf '%s' "${SPOOL_AGENT_USER:-}")"
@@ -103,6 +105,8 @@ _l2_utc() { if (( $1 > 0 )); then date -u -d "@$(( $1 / 1000 ))" +%Y-%m-%dT%H:%M
 # Each present file of the source, as the agent user: temp in DST + mv, 600.
 _l2_copy() {
   local src="$1" dst="$2" f tmp ts
+  # the files of a Claude config folder the copy carries; the credential first
+  local L2_FILES=(.credentials.json .claude.json settings.json)
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
   _l2_as mkdir -p "$dst" && _l2_as chmod 700 "$dst" || return 1
   if _l2_as test -e "$dst/.credentials.json"; then

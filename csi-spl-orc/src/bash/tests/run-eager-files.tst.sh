@@ -5,19 +5,22 @@
 #          dependency `source` lines and constants run on the first call, not
 #          at source time. Measured on ccef654f0: 236 ms of a 494 ms eager
 #          phase (n=5), 98 eager files.
-#   1. the run.sh index lists none of the five as eager
-#   2. the orc eager count is at most 93
+#   Round 8 row 01 (p8-01) stubs the next five (NEXT5) the same way.
+#   1. the run.sh index lists none of the five, nor of NEXT5, as eager
+#   2. the orc eager count is at most 88
 #   3. each file, sourced alone in a clean shell, prints nothing, runs no
 #      dpkg (gh-runner-add used to at source time) and defines its action
-#   Control: the same index over a copy of one file with a top-level
-#   `source` put back reads that file eager, and check 1 fails.
+#      (spl-rotate-lib, a library, its entry spl_rotate_conf)
+#   Control: the same index over a copy of one file of each list with a
+#   top-level `source` put back reads that file eager, and check 1 fails.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 RUN_DIR="$PROJ_ROOT/src/bash/run"
 FIVE=(spl-agent-restart spl-sender-audit gh-runner-add spl-box-restart-after spl-agent-login-check)
-MAX_EAGER=93
+NEXT5=(spl-watchdog spl-gc spl-agent-login2-sync spl-box-leave spl-rotate-lib)
+MAX_EAGER=88
 
 fails=0
 pass() { echo "PASS: $1"; }
@@ -34,10 +37,10 @@ eager_of() {
     printf "%s\n" "${_rl_eager[@]}"' _ "$T/nomain.sh" "$@"
 }
 
-# check_five <eager list> <label>: none of the five in the list
+# check_five <eager list> <label>: none of the five, nor of NEXT5, in the list
 check_five() {
   local hit="" f
-  for f in "${FIVE[@]}"; do grep -q "/$f\.func\.sh$" <<<"$1" && hit+=" $f"; done
+  for f in "${FIVE[@]}" "${NEXT5[@]}"; do grep -q "/$f\.func\.sh$" <<<"$1" && hit+=" $f"; done
   if [[ -z "$hit" ]]; then pass "$2: none of the five is eager"; else fail "$2: eager" "$hit"; fi
 }
 
@@ -51,24 +54,28 @@ else fail "2. orc eager files at most $MAX_EAGER" "$n"; fi
 # 3. sourced alone: a dpkg shim records any call
 mkdir -p "$T/shim"; printf '#!/bin/sh\necho "$0 $*" >>"%s/dpkg.log"\nexit 1\n' "$T" >"$T/shim/dpkg"
 cp "$T/shim/dpkg" "$T/shim/dpkg-query"; chmod +x "$T/shim/dpkg" "$T/shim/dpkg-query"
-for f in "${FIVE[@]}"; do
-  act="do_${f//-/_}"; : >"$T/dpkg.log"
+for f in "${FIVE[@]}" "${NEXT5[@]}"; do
+  act="do_${f//-/_}"; [[ "$f" == spl-rotate-lib ]] && act=spl_rotate_conf; : >"$T/dpkg.log"
   out=$(env -i HOME="$T" PATH="$T/shim:/usr/bin:/bin" bash -c 'do_log() { :; }; source "$1" </dev/null; declare -F "$2" >/dev/null || echo "NOACTION $2"' _ "$RUN_DIR/$f.func.sh" "$act" 2>&1)
   if [[ -z "$out" && ! -s "$T/dpkg.log" ]]; then pass "3. $f sourced alone: silent, no dpkg, defines $act"
   else fail "3. $f sourced alone" "out='$out' dpkg='$(cat "$T/dpkg.log")'"; fi
 done
 
 # Control: one top-level `source` put back reads that file eager
-cp "$RUN_DIR/spl-sender-audit.func.sh" "$T/spl-sender-audit.func.sh"
-sed -i '0,/^do_spl_sender_audit() {$/s//source \/dev\/null\n&/' "$T/spl-sender-audit.func.sh"
-planted=("${files[@]/#$RUN_DIR\/spl-sender-audit.func.sh/$T/spl-sender-audit.func.sh}")
-if ! grep -q '^source /dev/null$' "$T/spl-sender-audit.func.sh"; then fail "CONTROL the plant applied" "sed matched nothing"
-else
-  before=$fails
+# control <file> <its action>: plant it in a copy of <file>, re-index
+control() {
+  local f="$1" act="$2" planted
+  cp "$RUN_DIR/$f.func.sh" "$T/$f.func.sh"
+  sed -i "0,/^$act() {\$/s//source \/dev\/null\n&/" "$T/$f.func.sh"
+  planted=("${files[@]/#$RUN_DIR\/$f.func.sh/$T/$f.func.sh}")
+  if ! grep -q '^source /dev/null$' "$T/$f.func.sh"; then fail "CONTROL $f the plant applied" "sed matched nothing"; return; fi
+  local before=$fails
   check_five "$(eager_of "${planted[@]}")" "CONTROL planted" >/dev/null
-  if (( fails > before )); then fails=$before; pass "CONTROL a top-level source put back reads the file eager, check 1 fails"
-  else fail "CONTROL a top-level source put back fails check 1" "it passed"; fi
-fi
+  if (( fails > before )); then fails=$before; pass "CONTROL $f: a top-level source put back reads the file eager, check 1 fails"
+  else fail "CONTROL $f: a top-level source put back fails check 1" "it passed"; fi
+}
+control spl-sender-audit do_spl_sender_audit
+control spl-gc do_spl_gc
 
 [ "$fails" -eq 0 ] || { echo "$fails check(s) failed"; exit 1; }
 echo "all checks passed"

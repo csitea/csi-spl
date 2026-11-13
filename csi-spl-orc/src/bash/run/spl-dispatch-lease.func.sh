@@ -333,6 +333,18 @@ spl_lease_live_ids() {
 #   https://code.claude.com/docs/en/auto-mode-config). disableBundledSkills
 #   does not turn this command off. That page documents no environment
 #   variable for the offer.
+#   The second entry is the offer "We recommend compacting earlier" (SPL-5427,
+#   Claude Code 2.1.311; c-001@sat 2026-11-13 ~08:57Z, n=1), options "Keep
+#   auto (1m tokens)" and "Autocompact at < 400k > tokens", footer "esc not
+#   now". Escape answers it "not now": the window stays as it is, and after
+#   maxAsks (2) Escapes it is not offered again for that login and model.
+#   Enter is never safe: the option order is random per login
+#   ("autocompact-offer-order"), so the cursor may sit on 400k. No settings
+#   key turns it off (2.1.311 bundle, read 2026-11-13): it is skipped only
+#   when the window comes from CLAUDE_CODE_AUTO_COMPACT_WINDOW or a
+#   non-user settings file, either of which pins the window.
+#   An option line of a listed modal is never the trailing idle prompt:
+#   claude draws "❯ Keep auto (1m tokens)" unnumbered, like a composer.
 # - a MODAL screen (LEASE_BLOCK_RE: trust, onboarding, login picker) blocks
 #   every key, so it is a stall on sight; Escape is not sent (it can
 #   choose "No, exit");
@@ -375,6 +387,7 @@ spl_lease_modal_res() {
   else
     src="$(cat <<'EOF'
 teach auto mode about your environment	not now|don't show again
+we recommend compacting earlier	keep auto \([^)]*\)|autocompact at .* tokens
 EOF
 )"
   fi
@@ -466,11 +479,19 @@ spl_lease_modal_near() {
 # The first dismissable-modal match in <text>; nothing when none match.
 # A transcript mention of the title is not a match.
 spl_lease_modal_hit() {
-  local text="$1" entry title opt floor i n shown
-  local -a lines=()
+  local text="$1" entry title opt floor i n shown res
+  local -a lines=() bare=()
   mapfile -t lines <<<"$text"
   n=${#lines[@]}
-  floor="$(spl_lease_modal_floor "${lines[@]}")"
+  res="$(spl_lease_modal_res)"
+  bare=("${lines[@]}")
+  while IFS= read -r entry; do
+    [[ "$entry" == *$'\t'* ]] || continue
+    for ((i = 0; i < n; i++)); do
+      spl_lease_modal_line "${entry#*$'\t'}" "${bare[i]}" >/dev/null && bare[i]=""
+    done
+  done <<<"$res"
+  floor="$(spl_lease_modal_floor "${bare[@]}")"
   while IFS= read -r entry; do
     [[ -n "$entry" ]] || continue
     title="${entry%%$'\t'*}"
@@ -489,7 +510,7 @@ spl_lease_modal_hit() {
       printf '%s\n' "$shown"
       return 0
     done
-  done < <(spl_lease_modal_res)
+  done <<<"$res"
   return 0
 }
 

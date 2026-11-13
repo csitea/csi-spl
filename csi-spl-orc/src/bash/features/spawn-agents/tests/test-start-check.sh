@@ -70,6 +70,22 @@ limit_menu=" You've hit your weekly limit · resets Oct 28, 6pm (Europe/Amsterda
 # pane (SPL-4728, R7 c-750 N3); control for the numbered-option anchor
 quoted="2026-10-24T16:08:46Z 20261024T1601Z-failover SPAWN WAIT %1263: no input box within 45s and no known dialog; screen: ❯ 1. Stop and wait for limit to reset|2. Wait here|3. Switch to usage credits
 $ grep -n 'Switch to usage credits' start-check.inc.sh"
+# claude 2.1.311's autocompact offer, c-001@sat 2026-11-13 ~08:57Z (SPL-5427,
+# the watchdog's S9 snapshot c-001.s9.pane, n=1); the body lines trimmed
+compact="$R
+ We recommend compacting earlier
+
+   Want to autocompact at 400k tokens instead? Your model doesn't change. Switch back any time with /autocompact.
+
+   ❯ Keep auto (1m tokens)
+     Autocompact at ‹ 400k › tokens
+
+   ↑/↓ choose · ←/→ change size · enter confirm · esc not now"
+# its title quoted in a reply line: transcript, not the dialog
+compact_quoted="● The seat drew \"We recommend compacting earlier\" and S9 restarted it.
+$R
+❯ $(printf '\302\240')
+$R"
 plain="$R
 ❯ $(printf '\302\240\033[2m')Try \"refactor this\"$(printf '\033[0m')
 $R
@@ -83,6 +99,9 @@ eq "auto-mode offer named" "auto-mode offer" "$(spool_start_dialog <<<"$automode
 eq "not logged in (box drawn, login footer) named auth/login" "auth/login" "$(spool_start_dialog <<<"$nologin")"
 eq "usage limit named" "usage limit" "$(spool_start_dialog <<<"$limit")"
 eq "usage-limit menu named usage limit (SPL-4507)" "usage limit" "$(spool_start_dialog <<<"$limit_menu")"
+eq "autocompact offer named (SPL-5427)" "autocompact offer" "$(spool_start_dialog <<<"$compact")"
+eq "control: the autocompact offer's title quoted in a reply is no dialog" "" "$(spool_start_dialog <<<"$compact_quoted")"
+has "the autocompact hint says Escape, never the 400k option" 'Escape ("not now") answers it and changes nothing' "$(spool_start_hint 'autocompact offer')"
 eq "control: the plain input box is no dialog" "" "$(spool_start_dialog <<<"$plain")"
 eq "control: the menu's words quoted in a log line are no dialog (SPL-4728)" "" "$(spool_start_dialog <<<"$quoted")"
 check "control: the plain input box is a box (ghost text cut)" spool_screen_input_box <<<"$plain"

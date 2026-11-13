@@ -468,6 +468,14 @@ hit "S7 the auto-mode offer as a dialog" s7
 grep -q 'modal=1' <<<"$(run_s s7)" && pass "S7 the offer is dismissable (modal=1)" || fail "S7 modal=1"
 ctx s7c; cp "$FX/modal-mention.pane" "$C/pane"
 nohit "S7 control: the same words quoted in the transcript above the prompt" s7
+# the autocompact offer (SPL-5427, c-001@sat 2026-11-13): modal=1, so one
+# Escape ("not now"); its unnumbered "❯ Keep auto" is no composer
+ctx s7a; cp "$FX/modal-autocompact.pane" "$C/pane"
+grep -q '^HIT S7 modal=1 We recommend compacting earlier' <<<"$(run_s s7)" && pass "S7 the autocompact offer is dismissable (modal=1)" || fail "S7 autocompact: $(run_s s7)"
+ctx s7al; cp "$FX/modal-autocompact-lower.pane" "$C/pane"
+grep -q '^HIT S7 modal=1 We recommend compacting earlier' <<<"$(run_s s7)" && pass "S7 the autocompact offer, cursor on 400k: still modal=1" || fail "S7 autocompact lower: $(run_s s7)"
+ctx s7aq; cp "$FX/modal-autocompact-quote.pane" "$C/pane"
+nohit "S7 control: the autocompact offer quoted in a reply above the prompt" s7
 ctx s7t; cp "$FX/trust.pane" "$C/pane"
 grep -q '^HIT S7 modal=0' <<<"$(run_s s7)" && pass "S7 the trust screen blocks (modal=0: no Escape)" || fail "S7 trust"
 # the default-mode offer of 2026-10-06/07 (five seats frozen for hours)
@@ -756,6 +764,19 @@ out="$(WD_KEY_WAIT=0 wd)"; settle
   jq -e '.permissions.defaultMode == "auto"' "$T/home/.claude/settings.json" >/dev/null &&
   pass "4 S7 control: a quoted offer gets no key, no takeover, no settings write" || fail "4 S7 quote: $out"
 unset WD_SETTINGS_HOME
+
+# S7 the autocompact offer (SPL-5427): one Escape, never Enter, no takeover,
+# whichever option the cursor is on
+for scr in modal-autocompact modal-autocompact-lower; do
+  reset_box; agent c-917 %1 4017 claude 3600 "$FX/$scr.pane"
+  out="$(WD_KEY_WAIT=0 wd)"; settle
+  [[ "$(cat "$T/tmux/log" 2>/dev/null)" == 'keys %1 Escape' && ! -s "$T/takeovers" ]] && grep -q 'c-917 HIT S7 modal=1 .*-> esc' <<<"$out" &&
+    pass "4 S7 $scr: one Escape, no Enter, no takeover" || fail "4 S7 $scr: $out / $(cat "$T/tmux/log" 2>/dev/null)"
+done
+reset_box; agent c-918 %1 4018 claude 3600 "$FX/modal-autocompact-quote.pane"
+out="$(WD_KEY_WAIT=0 wd)"; settle
+[[ ! -s "$T/tmux/log" ]] && ! grep -q 'c-918 HIT S7' <<<"$out" &&
+  pass "4 S7 control: a quoted autocompact offer gets no key" || fail "4 S7 autocompact quote: $out"
 
 # settle() waits on the takeover's own done line, not a fixed 2 s (SPL-5341:
 # under load a takeover outlived the cap); a tick that started none returns at once

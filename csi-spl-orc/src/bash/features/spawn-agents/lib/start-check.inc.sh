@@ -68,6 +68,11 @@
 # menu's own words; never answered ("Switch to usage credits" spends money).
 # Only as the menu's numbered option line (SPL-4728): a screen that merely
 # quotes those words (a rotate.log line, a grep) is no dialog.
+# claude's autocompact offer (SPL-5427, Claude Code 2.1.311, c-001@sat
+# 2026-11-13 ~08:57Z, n=1): "We recommend compacting earlier" over "❯ Keep
+# auto (1m tokens)" / "Autocompact at ‹ 400k › tokens". Matched only as its
+# own title line. Never answered here; the watchdog's S7 sends Escape ("not
+# now"), never Enter (the option order is random, see spl_lease_modal_res).
 
 # The known dialogs, "<name>|<extended regex>"; the first match wins.
 SPOOL_START_DIALOGS=(
@@ -75,6 +80,7 @@ SPOOL_START_DIALOGS=(
   'Settings Error|Continue without these settings|Exit and fix manually'
   'trust prompt|Is this a project you created or one you trust|Yes, I trust this folder|Do you trust the files|Do you trust the contents of this directory|Trust this folder\?|Trust and continue'
   'auto-mode offer|Make auto mode your default permission mode'
+  'autocompact offer|^[[:space:]]*We recommend compacting earlier[[:space:]]*$'
   'bypass-permissions confirm|Yes, I accept'
   'auth/login|Not logged in|Select login method|[Pp]lease run /login|Invalid API key|OAuth token (has )?expired'
   'usage limit|[Uu]sage limit reached|limit reached[[:space:]]*·|limit resets|^[[:space:]]*(❯[[:space:]]*)?[0-9]\.[[:space:]]+(Stop and wait for limit to reset|Switch to usage credits)'
@@ -88,6 +94,7 @@ spool_start_hint() {
     'Settings Warning') printf ', the allow rules in the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json' ;;
     'Settings Error') printf ', a settings file the session cannot read or parse (its path is on the screen): the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json and the .claude/settings*.json of its working dir, their file modes included' ;;
     'auto-mode offer') printf ', permissions.disableAutoMode in ~/.claude/settings.json' ;;
+    'autocompact offer') printf ', claude'"'"'s offer to compact at 400k: Escape ("not now") answers it and changes nothing (the watchdog'"'"'s S7 sends it); no settings key turns it off' ;;
     'trust prompt') printf ', the agent user'"'"'s trust store for its working dir (trust-workdir.sh); grok and codex key a linked worktree on its main checkout, the dir the prompt names' ;;
     'auth/login') printf ', the agent user'"'"'s claude login' ;;
     'usage limit') printf ', its vendor'"'"'s login (claude'"'"'s for a claude seat) has no quota until its limit resets (the screen names when): the successor must be another vendor' ;;

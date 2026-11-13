@@ -11,6 +11,9 @@ screen and its transcripts are T001's, read from `../fleet-lease/`.
 | `modal-default-mode.pane` | "Make auto mode your default permission mode?", cursor on Yes | S7 hit (modal=2 cursor=yes) |
 | `modal-default-mode-no.pane` | the same dialog after Down: cursor on "No, keep bypass permissions" | S7 cursor=no, the Enter |
 | `modal-default-quote.pane` | the same dialog quoted in a reply, idle prompt below | S7 control: no hit, no key |
+| `modal-autocompact.pane` | claude 2.1.311's "We recommend compacting earlier" offer below the transcript, cursor on "Keep auto (1m tokens)" (c-001@sat 2026-11-13 ~08:57Z, the S9 snapshot's dialog lines, n=1; the transcript above rewritten) | S7 hit (modal=1), one Escape (SPL-5427) |
+| `modal-autocompact-lower.pane` | the same offer in its other order, cursor on "Autocompact at ‹ 400k › tokens" | S7 modal=1, still Escape and never Enter |
+| `modal-autocompact-quote.pane` | the offer's lines quoted in a reply, idle prompt below | S7 control: no hit, no key |
 | `trust.pane` | the trust screen (a blocking screen, no Escape) | S7 hit (modal=0) |
 | `working.pane` | a turn in progress: the spinner `(12s · ...)` | S2 / S1 spinner rows |
 | `limit-reset.pane` | a usage-limit banner with a reset time, idle | S2 kind=limit |

@@ -1,5 +1,7 @@
 # Refactoring round 33 - plan (6 actions)
 
+> Generated from qto doc `adec0479-6122-49e8-b94c-ac972e4af1e7`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/011-spool-project-refactor  
 Class: refactor  
@@ -47,6 +49,7 @@ unless stated. Go: go1.26.11. Reads are in this lane's worktree at that sha, cle
 row 03's probe ran on copies of its two files in the lane's scratch dir. Queue and
 lane readings are live state, so they carry their own time, not this sha.
 
+<a id="ws-doc-924fc1af-574d-42d7-8812-ec8c01c337d3"></a>
 ## 1. How to read this
 
 - **Slug prefix `r59`.** On `4061ee214`:
@@ -82,6 +85,7 @@ lane readings are live state, so they carry their own time, not this sha.
   control or break named here has been planted by this lane, and no case has been
   written.**
 
+<a id="ws-doc-c441b817-6fb3-4350-badf-a53a95ec37b1"></a>
 ## 2. Where the rows come from (measured on `4061ee214`)
 
 **Taken:**
@@ -111,6 +115,7 @@ lane readings are live state, so they carry their own time, not this sha.
 | rounds 29-31 6 | the other shellcheck codes | section 2 above | SC2034 114 (often read by a sourcing caller), SC2154 28 (set by `./run`), the vendored `run.sh` lines | **Left out**: deliberate or vendored, as the baseline's own header says |
 | round 32 6 | `hubclient` `writeAtomic`, `hold`; `provision-firebase-dns` | not re-measured | none | **Left out / dropped**, as round 32 |
 
+<a id="ws-doc-1e32adeb-4359-4697-b2e1-37951a007ce7"></a>
 ## 3. The 6 rows
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
@@ -122,6 +127,7 @@ lane readings are live state, so they carry their own time, not this sha.
 | 05 `refactor(r59-05-orc-action-header-spawn-place)` | a header `./run --help` can read (developer guide 2.4.2), as r58-05..07 | the one `[missing]` file round 32 left out as owned, with 0 `(required)` params | `orc:run/spl-spawn-place.func.sh:2`<br>`iac:tests/action-header-tags-baseline.txt:27` (on `4061ee214`; it moves when r58-05..07 land) | 1 file, 1 line | As r58-05: wrap the file's existing `@description` / `@param` / `@example` lines in a `#---` block right after the shebang, add an `@example` only where none parses, no other text change; delete its baseline line. Re-check `grep -ciE '^# *@param.*required'` -> 0 before the push. **Placed only after r58-07 lands (R1, R16) and when `lane-map.sh --check` on the file no longer names `c-567@sat` or another lane.** Tests: `bash iac:tests/action-header-tags.tst.sh` (`9 missing` after r58-05..07 and this); the 13 orc tests that name its basename or `do_spl_spawn_place` (section 3.3); `do_check_pre_push_lint`; `do_parse_metadata <f>` shows `description=` and `example=`. **Control:** as r58-05, the test's own rule: fixed and still listed -> `FAIL ... is listed under [missing] but now has both tags`, then deleted -> pass. | either | claude | simple_coding | 3 (after r58-07) |
 | 06 `test(r59-06-drop-gate-lines-of-r59)` | a gate's list holds no stale line (`r56-08`, `r57-06`, `r58-08`) | rows 01-02 leave 2 stale lines | `go:cleancode/cleancode_test.go:34-35` (`(*Server).Handler`, `(*Postgres).ProvisionMember`); lines as of `4061ee214`, they move when r57-06 and r58-08 land | 2 lines | Placed only after **r57-06, r58-08** and rows 01-02 are on trunk (R16); a row not landed keeps its line, and the lane says which. Delete exactly the lines the gate logs; `longFuncs` stays, empty, as the WUI `LONG` does. Tests: `go test -count=1 -v ./internal/cleancode/` (no `longFuncs` log after); `run-all-tests.sh`. R9: `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Red control:** delete a still-wide entry (`(*Memory).CASFleetLease`) -> the Go gate fails naming it, restored. A stale `longFuncs` entry is only logged, never failed (`cleancode_test.go:106-107`), so the lane quotes that log before and its absence after. | either | claude | tests | 3 (after r57-06, r58-08, 01-02) |
 
+<a id="ws-doc-a9a3a743-e7e6-46b8-9240-470c9d466ef1"></a>
 ### 3.1 Lanes and batches
 
 - **Batch 1: rows 02-04, no file in two rows.** Row 02 owns
@@ -138,6 +144,7 @@ lane readings are live state, so they carry their own time, not this sha.
   30 minutes of the last of r57-06, r58-08 and rows 01-02 landing (R16).
 - Rows 01-02 run the Go gate but do not edit it.
 
+<a id="ws-doc-69163c1e-5a30-4032-ae8b-070cb4567393"></a>
 ### 3.2 Off every live lane, every queued row and rounds 31-32 (R3)
 
 - **Unlanded rows** (2026-11-12T23:05:52Z, on `4061ee214`):
@@ -202,6 +209,7 @@ lane readings are live state, so they carry their own time, not this sha.
   --grep='8ebbed0e|permanent.perf'`), not in the queue at 23:09Z. This round has **no
   perf row** either way.
 
+<a id="ws-doc-24cdeb91-b120-421d-a111-443374a809e3"></a>
 ### 3.3 Tests per row, measured (R2, C4)
 
 Rows 03 and 05 list every test that names a file's bare basename or its `do_*`
@@ -218,6 +226,7 @@ On `4061ee214` (n=1 each): row 03 -> 4 tests (`tenant-test-purge`, `desk-welcome
 `spl-spawn-review-notify`, `watcher-feed`, each `.tst.sh`). Rows 01-02 run their whole
 Go packages; row 04 its two unit files and the typecheck.
 
+<a id="ws-doc-987526d3-92ce-4c77-b2be-aeddd6934503"></a>
 ## 4. Per row: what the lane does
 
 - **01:** `Handler`'s message routes in one named step; at most 75 lines.
@@ -227,6 +236,7 @@ Go packages; row 04 its two unit files and the typecheck.
 - **05:** After r58-07, and with its file free: `spl-spawn-place.func.sh`'s header parses.
 - **06:** After r57-06, r58-08 and 01-02: delete the two `longFuncs` lines.
 
+<a id="ws-doc-c5c0e0dd-f097-4e1d-82f0-f9d3d44b363e"></a>
 ## 5. Panel and reviewers (R7)
 
 - Editor: c-615 (claude, this box). Both seats sign the plan sha (rulebook 3.2).
@@ -249,6 +259,7 @@ Go packages; row 04 its two unit files and the typecheck.
   waiver does not make a row compliant (2.7.5 fails an equal pair; the retro names it).
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
 
+<a id="ws-doc-46c9e4f7-9d99-4b46-88da-1189aa2974ac"></a>
 ## 6. Left out, measured
 
 | what | why | measured by |
@@ -262,6 +273,7 @@ Go packages; row 04 its two unit files and the typecheck.
 | `do_provision_firebase_dns` (`LONG`, long example) | byte-pinned to csi-rel | round 30 section 2 |
 | `hubclient` `writeAtomic`, `hold` | no small case found | round 30 section 2 |
 
+<a id="ws-doc-91e5a19f-a9c5-46bf-af90-2d431e4b8787"></a>
 ## 7. Counts
 
 | metric | n |
@@ -276,6 +288,7 @@ Go packages; row 04 its two unit files and the typecheck.
 | action header `[missing]` | 10 after r58-05..07 -> 9 (row 05) |
 | measured on | `4061ee214`, n=1 per command unless stated |
 
+<a id="ws-doc-ae708d5b-ccca-4de3-8a94-1a2d494f2414"></a>
 ## 8. Changes
 
 - Landed: v1.0 on master as `ac029ec8c`, CI on it green (quality gate 43333628309,
@@ -296,6 +309,7 @@ Go packages; row 04 its two unit files and the typecheck.
   03-04); `spl-spawn-place.func.sh` taken on condition (row 05); `send`, the interface
   pairs, the `(required)` headers and the low packages left out with numbers.
 
+<a id="ws-doc-98d76c5d-2885-4ee4-ab29-7ff4059c038b"></a>
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).

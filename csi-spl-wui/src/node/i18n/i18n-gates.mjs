@@ -162,6 +162,14 @@ export function overBaseline(counts, baseline) {
     .map(([name, n]) => ({ name, count: n, baseline: baseline[name] ?? 0 }))
 }
 
+// The other half: a baseline line above its measured count (a file that no
+// longer exists or holds no hit measures 0) is stale, so the ratchet stays tight.
+export function staleBaseline(counts, baseline) {
+  return Object.entries(baseline)
+    .filter(([name, b]) => (counts[name] ?? 0) < b)
+    .map(([name, b]) => ({ name, count: counts[name] ?? 0, baseline: b }))
+}
+
 export function rawTextMarkdown(scan) {
   const rows = Object.entries(scan).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
   const total = rows.reduce((s, [, h]) => s + h.length, 0)

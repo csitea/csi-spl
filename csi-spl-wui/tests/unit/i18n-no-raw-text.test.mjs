@@ -11,7 +11,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  RAW_TEXT_BASELINE, overBaseline, rawTextScan, scriptHits, templateHits,
+  RAW_TEXT_BASELINE, overBaseline, rawTextScan, scriptHits, staleBaseline, templateHits,
 } from '../../src/node/i18n/i18n-gates.mjs'
 
 const baseline = JSON.parse(readFileSync(RAW_TEXT_BASELINE, 'utf8'))
@@ -24,6 +24,12 @@ describe('hard-coded UI text (ratchet)', () => {
       `${o.name}: ${o.count} > baseline ${o.baseline}: ${JSON.stringify(scan[o.name])}` +
       ' — use $t(\'key\') with the key in en.json and every locale, never a literal').join('\n'))
   })
+  it('no baseline line is above its measured count (stale)', () => {
+    const stale = staleBaseline(Object.fromEntries(Object.entries(scan).map(([f, h]) => [f, h.length])), baseline)
+    assert.deepEqual(stale, [], stale.map((o) =>
+      `${o.name}: measured ${o.count} < baseline ${o.baseline}` +
+      ` — lower the line to ${o.count} in i18n/i18n-raw-text-baseline.json, or delete it at 0`).join('\n'))
+  })
 })
 
 describe('scanner', () => {
@@ -31,6 +37,10 @@ describe('scanner', () => {
     assert.deepEqual(templateHits('<div class="x">{{ t(\'a\') }}</div>'), [])
     assert.deepEqual(templateHits('<div class="x">Hello</div>'), ['Hello'])
     assert.equal(overBaseline({ 'src/x.vue': 1 }, {}).length, 1)
+  })
+  it('red control: a baseline line against an empty scan is stale', () => {
+    assert.deepEqual(staleBaseline({}, { 'src/x.vue': 1 }), [{ name: 'src/x.vue', count: 0, baseline: 1 }])
+    assert.deepEqual(staleBaseline({ 'src/x.vue': 1 }, { 'src/x.vue': 1 }), [])
   })
   it('skips interpolation, comments, bound attrs and operators inside tags', () => {
     assert.deepEqual(templateHits('<!-- Some note --><p v-if="a > b" :title="t(\'k\')">{{ msg }} · {{ n }}</p>'), [])

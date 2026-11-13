@@ -477,7 +477,7 @@ function mockMarketing() {
 }
 
 export function createMockTenant() {
-  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 } }
+  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0, codex: 0 } }
   const channels = MOCK_CHANNELS.map((c) => ({ ...c }))
   const kv = {}
   const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), agent_split: { ...cfg.agent_split }, max_responders: 20, settings: { ...KV_DEFAULTS, ...kv } })
@@ -503,17 +503,19 @@ export function createMockTenant() {
       if (p.agent_split !== undefined) {
         const s = p.agent_split
         const keys = ['claude', 'grok', 'agy', 'qwen', 'mistral']
-        if (!s || typeof s !== 'object' || Object.keys(s).length !== keys.length || keys.some((k) => !Object.prototype.hasOwnProperty.call(s, k))) {
+        // codex is optional, as on the hub (SPL-5454): left out it is 0
+        const all = [...keys, 'codex']
+        if (!s || typeof s !== 'object' || keys.some((k) => !Object.prototype.hasOwnProperty.call(s, k)) || Object.keys(s).some((k) => !all.includes(k))) {
           throw mockErr(400, 'bad_split')
         }
         let sum = 0
-        for (const k of keys) {
-          const n = s[k]
+        for (const k of all) {
+          const n = k === 'codex' && s[k] === undefined ? 0 : s[k]
           if (!Number.isInteger(n) || n < 0 || n > 100) throw mockErr(400, 'bad_split')
           sum += n
         }
         if (sum !== 100) throw mockErr(400, 'bad_split')
-        cfg.agent_split = { claude: s.claude, grok: s.grok, agy: s.agy, qwen: s.qwen, mistral: s.mistral }
+        cfg.agent_split = { claude: s.claude, grok: s.grok, agy: s.agy, qwen: s.qwen, mistral: s.mistral, codex: s.codex ?? 0 }
       }
       if (p.responders !== undefined) {
         if (!p.responders.every(validResponderId)) throw mockErr(400, 'bad_responder')

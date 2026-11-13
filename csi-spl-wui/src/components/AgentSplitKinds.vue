@@ -1,5 +1,5 @@
 <!-- Tenant settings -> Vendor split, per task kind (spec 115 HUB-1, rdb 0163):
-     one row per task kind, its five vendor weights out of 100 and its
+     one row per task kind, its vendor weights (codex: SPL-5454) out of 100 and its
      backup. The main (the highest weight) is shown, not chosen. A row that
      breaks a spec 115 section 2 rule names the rule and blocks Save; the hub
      refuses the same rows. A kind the workspace has not set shows its

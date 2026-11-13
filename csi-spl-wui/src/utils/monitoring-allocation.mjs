@@ -13,7 +13,7 @@
 import { FLEET_AGENT_KINDS, fleetBoxBandOf, fleetBoxCpuOf } from './fleet-load.mjs'
 
 /** The vendors of the flat split, in the settings page's order. */
-export const SPLIT_VENDORS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral'])
+export const SPLIT_VENDORS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral', 'codex'])
 
 /** Where an admin edits each part (Workspace settings pages). */
 export const ALLOCATION_EDIT_PATHS = Object.freeze({

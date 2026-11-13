@@ -58,6 +58,8 @@ describe('agent-id grammar (spec 061 section 2)', () => {
     assert.deepEqual(['CLE-1', 'AGY-1', 'GRK-1', 'QWN-1', 'ORC-1'].map(agentKindOf), ['claude', 'antigravity', 'grok', 'qwen', 'agent'])
     assert.deepEqual(['c-004', 'CLE-1', 'HUM-2', 'x'].map(idPrefix), ['c', 'CLE', 'HUM', ''])
     assert.equal(agentKind('g-010'), 'grok')
+    // SPL-5454: an o- id is a Codex agent (spec 161); u- (Cursor) has no label yet
+    assert.deepEqual(['o-208', 'u-004'].map(agentKindOf), ['codex', 'agent'])
     assert.equal(kindIsAgentId('c-004'), true)
     assert.equal(kindIsAgentId('HUM-4'), false)
   })

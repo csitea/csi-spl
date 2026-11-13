@@ -30,7 +30,7 @@ const memStore = (seed = {}) => {
 }
 
 console.log('agent-caps')
-ok('five vendors, in form order', AGENT_CAP_VENDORS.join(',') === 'claude,grok,agy,mistral,qwen')
+ok('six vendors, in form order (codex: SPL-5454)', AGENT_CAP_VENDORS.join(',') === 'claude,grok,agy,mistral,qwen,codex')
 
 /* the spec 147 section 6.2 example: example-ws, claude 1 of 1 live */
 const body = {
@@ -43,7 +43,7 @@ const view = normalizeAgentCaps(body)
 ok('the tenant body reads caps and live', view.workspaceId === 'example-ws' && view.caps.agy === 2 && view.caps.qwen === null && view.live.qwen === 3)
 const rows = agentCapRows(view)
 ok('statuses: at limit, available, unlimited',
-  rows.map((r) => r.status).join(',') === 'at_limit,available,available,available,unlimited', rows.map((r) => r.status).join(','))
+  rows.map((r) => r.status).join(',') === 'at_limit,available,available,available,unlimited,unlimited', rows.map((r) => r.status).join(','))
 ok('a cap of 0 blocks: at limit with none live', agentCapStatus(0, 0) === 'at_limit')
 ok('no cap is unlimited', agentCapStatus(null, 99) === 'unlimited')
 
@@ -62,7 +62,7 @@ ok('the operator console has one number input per vendor', /v-for="v in AGENT_CA
 /* the PUT body */
 const draft = agentCapsDraft(view)
 ok('the draft: a number per cap, empty = unlimited', draft.claude === '1' && draft.qwen === '')
-ok('the body names every vendor, empty -> null', JSON.stringify(agentCapsPutBody(draft).body) === '{"caps":{"claude":1,"grok":1,"agy":2,"mistral":1,"qwen":null}}')
+ok('the body names every vendor, empty -> null', JSON.stringify(agentCapsPutBody(draft).body) === '{"caps":{"claude":1,"grok":1,"agy":2,"mistral":1,"qwen":null,"codex":null}}')
 ok('0 is a cap (blocks the vendor)', agentCapsPutBody({ ...draft, grok: '0' }).body?.caps.grok === 0)
 ok('a negative cap is refused', agentCapsPutBody({ ...draft, grok: '-1' }).error === 'operator.caps_error')
 ok('a fraction or a word is refused', agentCapsPutBody({ ...draft, agy: '1.5' }).error === 'operator.caps_error' && agentCapsPutBody({ ...draft, agy: 'two' }).error === 'operator.caps_error')

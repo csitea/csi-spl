@@ -13,7 +13,7 @@ import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
 const throws = (fn, token) => { try { fn(); return false } catch (e) { return e.token === token } }
-const w = (o) => ({ claude: 0, grok: 0, agy: 0, qwen: 0, mistral: 0, ...o })
+const w = (o) => ({ claude: 0, grok: 0, agy: 0, qwen: 0, mistral: 0, codex: 0, ...o })
 
 console.log('agent-split-kinds')
 
@@ -27,7 +27,7 @@ const body = { kinds: [{ kind: 'simple_coding', weights: { mistral: 60, claude: 
 const read = normalizeAgentSplitKinds(body).find((r) => r.kind === 'simple_coding')
 ok('a set kind reads its weights, backup and writer', read.set && read.weights.mistral === 60 && read.weights.grok === 10 && read.weights.agy === 0 && read.backup === 'claude' && read.updatedBy === 'HUM-1')
 ok('CONTROL: a broken row in the body reads as the default',
-  normalizeAgentSplitKinds({ kinds: [{ kind: 'tests', weights: { claude: 50, agy: 50 }, backup: 'mistral', set: true }] }).find((r) => r.kind === 'tests').weights.claude === 85)
+  normalizeAgentSplitKinds({ kinds: [{ kind: 'tests', weights: { claude: 50, agy: 50 }, backup: 'mistral', set: true }] }).find((r) => r.kind === 'tests').weights.claude === 70)
 
 // --- the rules --------------------------------------------------------------
 for (const k of SPLIT_TASK_KINDS) {

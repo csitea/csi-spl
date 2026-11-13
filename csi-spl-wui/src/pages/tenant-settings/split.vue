@@ -1,8 +1,9 @@
 <!-- Tenant settings -> Vendor split (owner t1 e837eeab): how new agent work
-     is shared across Claude, Grok, Antigravity, Qwen and Mistral (spec 110).
+     is shared across Claude, Grok, Antigravity, Qwen, Mistral (spec 110) and
+     Codex (OpenAI Codex CLI, spec 161; SPL-5454).
      First the split per task kind (spec 115 HUB-1, AgentSplitKinds), then
      the flat split below, the row for a kind the picker does not know.
-     The five whole
+     The six whole
      numbers sum to 100. They are a guideline, not a quota: nothing in the
      hub refuses a spawn that drifts. tenant.settings. -->
 <template>
@@ -35,6 +36,10 @@
           <span>{{ t('tenant_settings.split_mistral') }}</span>
           <input v-model.number="mistral" type="number" min="0" max="100" step="1" inputmode="numeric" data-test="tenant-split-mistral">
         </label>
+        <label class="ts-field">
+          <span>{{ t('tenant_settings.split_codex') }}</span>
+          <input v-model.number="codex" type="number" min="0" max="100" step="1" inputmode="numeric" data-test="tenant-split-codex">
+        </label>
       </div>
       <p :class="sumOk ? 'muted ts-hint' : 'ts-error'" data-test="tenant-split-sum">{{ t('tenant_settings.split_sum', { n: sumText }) }}</p>
       <div class="ts-actions">
@@ -63,6 +68,7 @@ const grok = ref<number | string>(50)
 const agy = ref<number | string>(10)
 const qwen = ref<number | string>(0)
 const mistral = ref<number | string>(0)
+const codex = ref<number | string>(0)
 const loading = ref(true)
 const loadError = ref('')
 const busy = ref(false)
@@ -82,12 +88,20 @@ const parsed = computed(() => ({
   agy: cell(agy.value),
   qwen: cell(qwen.value),
   mistral: cell(mistral.value),
+  codex: cell(codex.value),
 }))
 
+/** Every share parsed: the six numbers, or null while one is not 0..100. */
+function shares(p: typeof parsed.value) {
+  const { claude: c, grok: g, agy: a, qwen: q, mistral: m, codex: x } = p
+  if (c === null || g === null || a === null || q === null || m === null || x === null) return null
+  return { claude: c, grok: g, agy: a, qwen: q, mistral: m, codex: x }
+}
+
 const sum = computed(() => {
-  const p = parsed.value
-  if (p.claude === null || p.grok === null || p.agy === null || p.qwen === null || p.mistral === null) return null
-  return p.claude + p.grok + p.agy + p.qwen + p.mistral
+  const p = shares(parsed.value)
+  if (!p) return null
+  return p.claude + p.grok + p.agy + p.qwen + p.mistral + p.codex
 })
 
 const sumOk = computed(() => sum.value === 100)
@@ -95,10 +109,11 @@ const sumText = computed(() => (sum.value === null ? '—' : String(sum.value)))
 
 const dirty = computed(() => {
   const s = stored.value
-  const p = parsed.value
-  if (!s || p.claude === null || p.grok === null || p.agy === null || p.qwen === null || p.mistral === null) return false
+  const p = shares(parsed.value)
+  if (!s || !p) return false
   const a = s.agentSplit
-  return p.claude !== a.claude || p.grok !== a.grok || p.agy !== a.agy || p.qwen !== a.qwen || p.mistral !== a.mistral
+  return p.claude !== a.claude || p.grok !== a.grok || p.agy !== a.agy || p.qwen !== a.qwen || p.mistral !== a.mistral ||
+    p.codex !== a.codex
 })
 
 function take(s: TenantSettings) {
@@ -108,6 +123,7 @@ function take(s: TenantSettings) {
   agy.value = s.agentSplit.agy
   qwen.value = s.agentSplit.qwen
   mistral.value = s.agentSplit.mistral
+  codex.value = s.agentSplit.codex
 }
 
 async function load() {
@@ -123,14 +139,14 @@ async function load() {
 
 async function save() {
   const s = stored.value
-  const p = parsed.value
-  if (!s || busy.value || !sumOk.value || p.claude === null || p.grok === null || p.agy === null || p.qwen === null || p.mistral === null) return
+  const p = shares(parsed.value)
+  if (!s || busy.value || !sumOk.value || !p) return
   busy.value = true
   error.value = ''
   notice.value = ''
   try {
     take(normalizeTenantSettings(await api.patchTenantSettings({
-      agent_split: { claude: p.claude, grok: p.grok, agy: p.agy, qwen: p.qwen, mistral: p.mistral },
+      agent_split: p,
     })))
     notice.value = t('tenant_settings.saved')
   } catch (e) {
@@ -146,7 +162,7 @@ const { allowed, denied } = useTenantSectionGate('split', () => { void load() })
 <style scoped>
 .ts-form { display: flex; flex-direction: column; gap: 14px; }
 .ts-hint { margin: 0; }
-.ts-split { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; max-width: 525px; }
+.ts-split { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; max-width: 630px; }
 .ts-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ts-field input {
   width: 100%;

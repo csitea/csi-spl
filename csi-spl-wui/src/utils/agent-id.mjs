@@ -39,7 +39,7 @@ const NON_AGENT_RE = /^(HUM|GST|BOX)-[0-9]+$/
 
 /** letter (new) or prefix (legacy) -> kind key; its label is agents.kinds.<key>. */
 const KIND = Object.freeze({
-  a: 'antigravity', c: 'claude', g: 'grok', m: 'mistral', q: 'qwen',
+  a: 'antigravity', c: 'claude', g: 'grok', m: 'mistral', q: 'qwen', o: 'codex',
   AGY: 'antigravity', CLE: 'claude', GRK: 'grok', QWN: 'qwen',
 })
 

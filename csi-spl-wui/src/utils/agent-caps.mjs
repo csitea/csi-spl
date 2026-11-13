@@ -16,7 +16,7 @@ import { storageGetJson } from './prefs.mjs'
 import { OPERATOR_MOCK_KEY, OPERATOR_WS_ID_RE } from './operator-console.mjs'
 
 /** The five vendors, in the order the forms show them (spec 147 P1). */
-export const AGENT_CAP_VENDORS = Object.freeze(['claude', 'grok', 'agy', 'mistral', 'qwen'])
+export const AGENT_CAP_VENDORS = Object.freeze(['claude', 'grok', 'agy', 'mistral', 'qwen', 'codex'])
 /** The mock's caps per workspace, and its live counts per workspace (e2e). */
 export const AGENT_CAPS_MOCK_KEY = 'spool.mock.agent_caps'
 export const AGENT_CAPS_MOCK_LIVE_KEY = 'spool.mock.agent_caps_live'

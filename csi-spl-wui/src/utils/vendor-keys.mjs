@@ -19,8 +19,8 @@
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 import { mockMeGet } from './act-as-mock.mjs'
 
-/** The five kinds, in the order the page lists them (127 3). */
-export const VENDOR_KEY_KINDS = Object.freeze(['claude', 'grok', 'agy', 'mistral', 'qwen'])
+/** The kinds, in the order the page lists them (127 3; codex: rdb 0282, SPL-5454). */
+export const VENDOR_KEY_KINDS = Object.freeze(['claude', 'grok', 'agy', 'mistral', 'qwen', 'codex'])
 /** The permission every route needs (hub rbac.VendorKeysManage). */
 export const VENDOR_KEYS_PERM = 'vendor_keys.manage'
 /** The mock's stored rows per kind ({ last4, set_at, set_by, base_url, exhausted }). */

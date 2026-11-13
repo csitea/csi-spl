@@ -23,7 +23,7 @@ const VIEW = normalizeFleetLoad({
   low: 40, high: 70, box_order: ['box-b', 'box-a'], runner_cpu_pct: 80, ci_overflow: false, runner_cpus: 4,
   boxes: { 'box-a': { low: 20, high: 60, runner_cpu_pct: 50 } }, agent_kinds_off: ['qwen'],
 })
-const SPLIT = { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 }
+const SPLIT = { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0, codex: 0 }
 
 describe('monitoring allocation rows', () => {
   it('the fleet rows: band, runner CPU cap, CI overflow, runner cores', () => {
@@ -43,8 +43,8 @@ describe('monitoring allocation rows', () => {
     const kinds = agentKindRows(VIEW)
     assert.equal(kinds.find((r) => r.label === 'qwen').valueKey, 'tenant_settings.fleet_load_kind_off')
     assert.equal(kinds.find((r) => r.label === 'claude').valueKey, 'tenant_settings.fleet_load_kind_on')
-    assert.deepEqual(splitRows(SPLIT).map((r) => r.params.n), [40, 50, 10, 0, 0])
-    assert.deepEqual(SPLIT_VENDORS, ['claude', 'grok', 'agy', 'qwen', 'mistral'])
+    assert.deepEqual(splitRows(SPLIT).map((r) => r.params.n), [40, 50, 10, 0, 0, 0])
+    assert.deepEqual(SPLIT_VENDORS, ['claude', 'grok', 'agy', 'qwen', 'mistral', 'codex'])
   })
   it("a box's allocation: its own band or the fleet's, its own cap, its place in the order", () => {
     const a = boxAllocationRows(VIEW, 'box-a')

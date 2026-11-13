@@ -216,7 +216,7 @@ const page = readFileSync(new URL('../../src/pages/monitoring/boxes/[id].vue', i
 ok('the Boxes page loads the band block lazily', /defineAsyncComponent\(\(\) => import\('@\/components\/BoxLoadBand\.vue'\)\)/.test(page) && !/^import .*BoxLoadBand/m.test(page))
 
 // rdb 0149: agent kinds off, and the timed pauses a box reports.
-ok('kinds: the five kinds, in the hub order (spec 110)', FLEET_AGENT_KINDS.join() === 'claude,grok,agy,qwen,mistral')
+ok('kinds: the six kinds, in the hub order (spec 110; codex SPL-5454)', FLEET_AGENT_KINDS.join() === 'claude,grok,agy,qwen,mistral,codex')
 ok('kinds: a list keeps known kinds, distinct, in order', fleetKindList(['qwen', 'gpt', 'grok', 'grok']).join() === 'grok,qwen')
 ok('kinds: every kind off is refused, three off is fine', !fleetKindsOk(FLEET_AGENT_KINDS) && fleetKindsOk(['claude', 'grok', 'agy']))
 ok('CONTROL kinds: the old four off leaves mistral on, so it is fine', fleetKindsOk(['claude', 'grok', 'agy', 'qwen']) && fleetKindList(['mistral', 'qwen']).join() === 'qwen,mistral')

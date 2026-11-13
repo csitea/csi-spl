@@ -149,6 +149,10 @@ type meBody struct {
 	// OperatorReader is true when the caller reads the operator's costs,
 	// expenses and lanes (operator_read.go, SPL-5181): the WUI's signal.
 	OperatorReader bool `json:"operator_reader"`
+	// ExpensesReader is true when the caller reads the Expenses section
+	// (operator_read.go expensesReaders, SPL-5420): the operator reader, and
+	// the operator workspace's biz_owner and internal_accountant.
+	ExpensesReader bool `json:"expenses_reader"`
 }
 
 // operatorAdminOf is operatorActor's rule as a flag: a's role is admin and
@@ -196,6 +200,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		out.OperatorReader = s.operatorReaderOf(r.Context(), t.ID, a, out.ActAs != nil)
+		out.ExpensesReader = s.expensesReaderOf(r.Context(), t.ID, a, out.ActAs != nil)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

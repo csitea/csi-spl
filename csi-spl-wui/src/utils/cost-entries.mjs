@@ -13,7 +13,7 @@
  * it. Node tests import it.
  */
 
-import { mockError, mockGate, mockMoney, mockStore, moneyCell, moneyTotals } from './monitoring-paid.mjs'
+import { mockError, mockGate, mockMoney, mockReadGate, mockStore, moneyCell, moneyTotals } from './monitoring-paid.mjs'
 import { sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
 
 /** The types the tabs enter (store.CostEntryTypes). */
@@ -93,9 +93,9 @@ function mockWrite(store, list) {
   try { store.setItem(COST_ENTRIES_MOCK_KEY, JSON.stringify(list)) } catch { /* the mock forgets */ }
 }
 
-/** The mock's GET: one type's entries, priced (monitoring-paid.mjs mockMoney); 403 to anyone but an operator admin. */
+/** The mock's GET: one type's entries, priced (monitoring-paid.mjs mockMoney); 403 to anyone but an operator admin or an expenses reader. */
 export function mockCostEntryList(type, store = mockStore()) {
-  mockGate(store)
+  mockReadGate(store)
   return { entries: mockRead(store).filter((e) => e.type === type).map((e) => ({ ...e, ...mockMoney(e.amount, e.currency, undefined, e.period + '-01') })) }
 }
 

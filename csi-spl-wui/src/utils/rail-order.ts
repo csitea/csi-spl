@@ -50,7 +50,8 @@ export function settingsSectionListed(id: string): boolean {
     and parseRailOrder puts it back into a save, so the hub's CHECK still
     sees every id. Expenses is the same for anyone but an operator admin (spec
     143 costs-redesign.md 3.8, SPL-4382): its costs are the estate's, the Paid
-    card it holds was theirs alone. Hiding only, the hub's 403 is the control. */
+    card it holds was theirs alone; expensesOn is useExpensesReader (SPL-5420).
+    Hiding only, the hub's 403 is the control. */
 export function railOrderDrawn(order: readonly RailId[], notesOn: boolean, expensesOn: boolean): RailId[] {
   return order.filter((id) => (notesOn || id !== 'notes') && (expensesOn || id !== 'expenses'))
 }

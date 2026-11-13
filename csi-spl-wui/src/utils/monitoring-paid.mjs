@@ -17,6 +17,7 @@
  */
 
 import { TOKENS_MOCK_OPERATOR_KEY, TOKENS_VENDORS } from './monitoring-tokens.mjs'
+import { mockMeGet } from './act-as-mock.mjs'
 import { sortRowsBy, uniqSorted } from './monitoring-lanes.mjs'
 
 /** The item kinds (store.FleetPaidKinds). */
@@ -288,6 +289,12 @@ export function mockGate(store) {
   if (op !== '1') throw Object.assign(mockError(403, 'forbidden', 'only an admin of the operator workspace reads the fleet'), { permission: 'operator.workspaces' })
 }
 
+/** The Expenses reads' gate (SPL-5420): also a played me the hub calls expenses_reader (a biz_owner, an internal_accountant). */
+export function mockReadGate(store) {
+  if (mockMeGet(store)?.expenses_reader === true) return
+  mockGate(store)
+}
+
 function mockRead(store) {
   try {
     const v = JSON.parse((store && store.getItem(PAID_MOCK_KEY)) || '[]')
@@ -315,7 +322,7 @@ function mockCheck(b, store) {
 
 /** The mock's GET .../paid. */
 export function mockPaidList(store = mockStore()) {
-  mockGate(store)
+  mockReadGate(store)
   return { items: mockRead(store).map((it) => ({ ...it, ...mockMoney(it.amount, it.currency, undefined, it.period_start) })) }
 }
 
@@ -389,7 +396,7 @@ function mockVendorRow(vendor, items, from, to, n) {
 
 /** The mock's GET .../effective: the last 30 whole UTC days before today. */
 export function mockPaidEffective(store = mockStore(), now = new Date()) {
-  mockGate(store)
+  mockReadGate(store)
   const to = Math.floor(now.getTime() / DAY_MS) * DAY_MS
   const from = to - 30 * DAY_MS
   const items = mockRead(store)

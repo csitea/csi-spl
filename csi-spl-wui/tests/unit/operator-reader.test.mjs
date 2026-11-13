@@ -9,7 +9,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { normalizeMe, operatorReads } from '../../src/utils/access.mjs'
+import { expensesReads, normalizeMe, operatorReads } from '../../src/utils/access.mjs'
+import { mockPaidCreate, mockPaidList } from '../../src/utils/monitoring-paid.mjs'
+import { mockCostEntryList } from '../../src/utils/cost-entries.mjs'
 import { monitoringStaff, visibleMonitoringTabs } from '../../src/utils/monitoring-tabs.mjs'
 import { lanesReadPlan } from '../../src/utils/read-gates.mjs'
 
@@ -50,5 +52,38 @@ describe('operator reader', () => {
     const page = read('src/pages/expenses/[[tab]].vue')
     assert.ok(page.includes('<PaidItemsCard :readonly="!operator.visible" />'))
     assert.ok(page.includes(':type="entryType" :readonly="!operator.visible" />'))
+  })
+})
+
+// SPL-5420 (owner HUM-10, t1 ea5d52a7): the operator workspace's biz_owner and
+// internal_accountant open Expenses through the hub's expenses_reader, read
+// only, and are not made operator readers.
+describe('expenses reader', () => {
+  const bizOwner = normalizeMe({ human_id: 'h', role: 'biz_owner', roles: ['biz_owner'], permissions: [], operator_reader: false, expenses_reader: true })
+  const otherOwner = normalizeMe({ human_id: 'h', role: 'biz_owner', roles: ['biz_owner'], permissions: [], operator_reader: false, expenses_reader: false })
+  it('the hub flag decides; a hub that sends none falls back to the operator reader', () => {
+    assert.equal(expensesReads(bizOwner, false), true)
+    assert.equal(operatorReads(bizOwner, false), false, 'the biz_owner is no operator reader')
+    assert.equal(expensesReads(otherOwner, true), false, 'another workspace: the flag refuses whatever the probe says')
+    assert.equal(expensesReads(po, false), true, 'an older hub: operator_reader stands in')
+    assert.equal(expensesReads(otherPo, false), false)
+    assert.equal(expensesReads(normalizeMe({ role: 'admin' }), true), true)
+    assert.equal(expensesReads(null, false), false)
+  })
+  it('the rail and the page ask useExpensesReader, the page keeps the cards read only for a non-admin', () => {
+    assert.match(read('src/composables/useRailOrder.ts'), /useExpensesReader\(\)/)
+    const page = read('src/pages/expenses/[[tab]].vue')
+    assert.ok(page.includes('const reader = useExpensesReader()'))
+    assert.ok(page.includes('<PaidItemsCard :readonly="!operator.visible" />'))
+  })
+  it('the mock reads open to a played expenses reader; its writes do not', () => {
+    const mem = new Map()
+    const store = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) }
+    assert.throws(() => mockPaidList(store), (e) => e.status === 403)
+    assert.throws(() => mockCostEntryList('hr', store), (e) => e.status === 403)
+    mem.set('spool.mock.me', JSON.stringify({ role: 'biz_owner', permissions: [], expenses_reader: true }))
+    assert.deepEqual(mockPaidList(store).items, [])
+    assert.deepEqual(mockCostEntryList('hr', store).entries, [])
+    assert.throws(() => mockPaidCreate({ vendor: 'claude' }, store), (e) => e.status === 403)
   })
 })

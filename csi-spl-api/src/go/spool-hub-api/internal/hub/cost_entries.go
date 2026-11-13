@@ -17,8 +17,9 @@ import (
 // The Cloud infra and HR costs typed on the Expenses page (SPL-4383, rdb 0245;
 // owner HUM-10, t1 4f48f878 msg b0ccc0aa). The doors of GET
 // /v1/operator/fleet-tokens (fleetLoadCaller: the operator workspace's admin
-// or the operator service account; the GET also its product owner,
-// operator_read.go; a write never a live act-as clone, operator_write.go):
+// or the operator service account; the GET also its product owner, biz_owner
+// and internal_accountant, operator_read.go expensesReaders (SPL-5420); a
+// write never a live act-as clone, operator_write.go):
 //
 //	GET    /v1/operator/cost-entries?type=cloud|hr&month=YYYY-MM
 //	                                        {entries: [store.PricedCostEntry]}:
@@ -135,7 +136,7 @@ func (s *Server) costEntryCaller(w http.ResponseWriter, r *http.Request, gate op
 }
 
 func (s *Server) handleCostEntryList(w http.ResponseWriter, r *http.Request) {
-	ce, _, ok := s.costEntryCaller(w, r, s.operatorReadCaller)
+	ce, _, ok := s.costEntryCaller(w, r, s.expensesReadCaller)
 	if !ok {
 		return
 	}

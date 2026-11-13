@@ -891,3 +891,35 @@ roles and their grants: spec 025 section 12.
      `operator_reader`, there is no edit route (create and delete only), and
      an `hr` row is a label and an amount, not a person;
   4. per-workspace hr costs (`cost_entries` has no `tenant_id`).
+
+## 17. The biz owner and the internal accountant open Expenses (SPL-5420)
+
+Owner HUM-10, t1 #spool-hub-bugs ea5d52a7, 2026-11-12T16:18:08Z: "Add access
+to the expenses section to the business owners and the internal accountant
+roles owning persons."
+
+- **Who.** A member of the **operator** workspace holding `biz_owner` or
+  `internal_accountant`, never a live act-as clone, now reads the Expenses
+  section: `GET /v1/operator/` `fleet-tokens/paid`, `fleet-tokens/effective`
+  and `cost-entries`. The rule is `expensesReaders` in
+  `internal/hub/operator_read.go` (`expensesReadCaller`): section 14's admin
+  and product owner plus these two roles. `/v1/view/me` says it as
+  `expenses_reader`; the WUI's `useExpensesReader` draws the rail entry and
+  the page from it.
+- **No cross-workspace read.** The Expenses rows are the estate's (the paid
+  items, rdb 0205; the cost entries, rdb 0245, no `tenant_id`), so a
+  `biz_owner` or `internal_accountant` of any other workspace reads none of
+  them (403 `operator.workspaces`, `expenses_reader` false) and the WUI
+  draws no Expenses entry there. A workspace's own expenses need section 16's
+  follow-up 4 (per-workspace rows) first.
+- **Not widened.** `operator_reader` (section 14) is unchanged: the two roles
+  do not read the fleet tokens, the lanes, the estate month or the cloud days.
+- **Read only in the WUI.** The cards stay read only for anyone but the
+  operator admin (`readonly` = not the operator console). On the hub,
+  `costs.write` (section 16) already lets both roles of the operator
+  workspace create and delete a cost entry; the paid items' writes stay the
+  operator admin's. Whether the WUI draws the cost-entry form for them is
+  section 16's follow-up 3, not built here.
+- Tests: `TestExpensesReadGate`, `TestOperatorReadActAsClone`
+  (`internal/hub/operator_read_test.go`); `tests/unit/operator-reader.test.mjs`;
+  e2e `expensesBizOwner` in `tests/e2e/monitoring-costs.test.mjs`.

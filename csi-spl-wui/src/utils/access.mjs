@@ -46,6 +46,7 @@ export function normalizeMe(body) {
     topicArchivePolicy: archivePolicyOf(b.topic_archive_policy),
     operatorAdmin: typeof b.operator_admin === 'boolean' ? b.operator_admin : null,
     operatorReader: typeof b.operator_reader === 'boolean' ? b.operator_reader : null,
+    expensesReader: typeof b.expenses_reader === 'boolean' ? b.expenses_reader : null,
   }
 }
 
@@ -58,6 +59,18 @@ export function normalizeMe(body) {
  */
 export function operatorReads(me, operatorVisible) {
   return me?.operatorReader ?? operatorVisible === true
+}
+
+/**
+ * SPL-5420 (owner HUM-10, t1 ea5d52a7): whether the reader opens the Expenses
+ * section: the hub's expenses_reader (the operator reader, and the operator
+ * workspace's biz_owner and internal_accountant), or operatorReads when it
+ * was not sent.
+ * @param {{ operatorReader?: boolean | null, expensesReader?: boolean | null } | null | undefined} me normalizeMe() output
+ * @param {boolean} operatorVisible
+ */
+export function expensesReads(me, operatorVisible) {
+  return me?.expensesReader ?? operatorReads(me, operatorVisible)
 }
 
 /**

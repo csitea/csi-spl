@@ -8,7 +8,8 @@
      record, not four (ci_initial_gzip_kb sits on its ceiling); each tab's card
      is its own chunk, the wrappers keep the async components off a bare v-if.
      The bar reuses the Reporting bar's look. The operator workspace's admins,
-     and read only its product owners (SPL-5181; hiding only, the hub's 403 is
+     and read only its product owners (SPL-5181), biz_owners and internal
+     accountants (SPL-5420, useExpensesReader; hiding only, the hub's 403 is
      the control); /expenses itself, or a tab that does not
      exist, lands on AI costs, in the browser only. -->
 <template>
@@ -44,7 +45,7 @@
 
 <script setup lang="ts">
 import { useOperatorPane } from '~/stores/operator-pane'
-import { useOperatorReader } from '~/composables/useOperatorReader'
+import { useExpensesReader } from '~/composables/useExpensesReader'
 import { EXPENSES_DEFAULT_PATH, expensesTabFor, visibleExpensesTabs } from '~/utils/expenses-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
@@ -52,7 +53,7 @@ const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const localePath = useLocalePath()
 const operator = useOperatorPane()
-const reader = useOperatorReader()
+const reader = useExpensesReader()
 
 const tabs = computed(() => visibleExpensesTabs({ operator: reader.value }))
 const active = computed(() => expensesTabFor(route.path))

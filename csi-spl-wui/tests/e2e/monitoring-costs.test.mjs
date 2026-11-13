@@ -254,6 +254,33 @@ async function expensesSection(browser, base, size) {
   await ctx.close()
 }
 
+/** SPL-5420 (owner HUM-10, t1 ea5d52a7): the operator workspace's biz_owner (the hub's expenses_reader, no operator admin) opens Expenses from the rail and reads every tab, with no add control. CONTROL: the same biz_owner with expenses_reader false (another workspace's) gets no rail entry and the operators-only line; with useExpensesReader back to useOperatorReader the first half FAILS. */
+async function expensesBizOwner(browser, base, size) {
+  const me = (reader) => ({ role: 'biz_owner', permissions: ['topics.read', 'costs.read', 'costs.write'], expenses_reader: reader })
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { me: me(true) })
+    await open(p, base, '/reporting/releases')
+    const railTab = '[data-testid=sidebar-tab-expenses]'
+    ok('SPL-5420 biz_owner: an Expenses rail entry', await waitFor(p, railTab))
+    await p.click(railTab)
+    ok('SPL-5420 biz_owner: the rail opens /expenses -> AI costs, the Paid card', await waitWhere(p, '/expenses/ai') && await waitFor(p, '[data-test=expenses-ai] [data-test=paid-card]'), where(p))
+    const tabs = await p.$$eval('[data-test^=expenses-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('expenses-tab-'.length)))
+    ok('SPL-5420 biz_owner: AI costs, Cloud infra costs, HR costs', tabs.join(',') === 'ai,cloud,hr', tabs)
+    ok('SPL-5420 biz_owner: read only, no Paid add', (await count(p, '[data-test=paid-add]')) === 0 && (await count(p, '[data-test=expenses-operators-only]')) === 0)
+    await p.click('[data-test=expenses-tab-cloud]')
+    ok('SPL-5420 biz_owner: Cloud reads its list, no add', await waitWhere(p, '/expenses/cloud') && await waitFor(p, '[data-test=expenses-cloud] [data-test=cost-empty]')
+      && (await count(p, '[data-test=cost-add]')) === 0, where(p))
+    await ctx.close()
+  }
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { me: me(false) })
+    await open(p, base, '/expenses/ai')
+    ok('SPL-5420 control: another workspace\'s biz_owner: the operators-only line, no tab, no rail entry, no Paid card', await waitFor(p, '[data-test=expenses-operators-only]')
+      && (await count(p, '[data-test^=expenses-tab-]')) === 0 && (await count(p, '[data-testid=sidebar-tab-expenses]')) === 0 && (await count(p, '[data-test=paid-card]')) === 0)
+    await ctx.close()
+  }
+}
+
 /** SPL-4382: one tab's insert: a bad form is named and not sent, the hub's refusal shows, an entry lands in THIS tab's list only, delete asks first. CONTROL: on the shell before the forms there is no cost-add, so every check here FAILS. */
 async function costEntryRound(p, id, size) {
   const other = id === 'cloud' ? 'hr' : 'cloud'
@@ -839,6 +866,7 @@ try {
     await lanesSortFilter(browser, server.base, size)
     await costsS1(browser, server.base, size)
     await expensesSection(browser, server.base, size)
+    await expensesBizOwner(browser, server.base, size)
 
     /* the personal setting: Settings -> Appearance -> Second currency; SPL-5312: the header's second currency follows it, and so do the label's cells */
     {

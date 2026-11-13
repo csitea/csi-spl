@@ -2,9 +2,9 @@
 
 Verdict: **PASS** on `29030f9058b1ac927b50404dd9580747aef4b79f`.
 
-Read 2026-11-13T21:20:43Z from this worktree (`g-168-c002-perf-round-8-grok-panel-seat`, HEAD `cd727cfc424b8a43ca52534791d6caab6b9bcabe`, clean). The brief named `df5c90a743e41d274b1fb100bb5d2a43d7af480f`. That commit is the parent of the tip that was fetched (`git merge-base --is-ancestor` -> `ANC_NAMED=0`). `git diff --stat df5c90a743e41d274b1fb100bb5d2a43d7af480f 29030f9058b1ac927b50404dd9580747aef4b79f` prints one file, `csi-spl-doc/doc/md/perf-round-8-plan.md`, 4 lines, 2 insertions, 2 deletions: section 6, items 4 and 5. Rows 01-04 are the same text on both commits. This verdict signs the tip.
+Read 2026-11-13T21:20:43Z from this worktree (`g-168-c002-perf-round-8-grok-panel-seat`, HEAD `cd727cfc424b8a43ca52534791d6caab6b9bcabe`, clean). The brief named `df5c90a743e41d274b1fb100bb5d2a43d7af480f`. That commit is the parent of the tip that was fetched (`git merge-base --is-ancestor`, exit 0: the named sha is an ancestor). `git diff --stat df5c90a743e41d274b1fb100bb5d2a43d7af480f 29030f9058b1ac927b50404dd9580747aef4b79f` prints one file, `csi-spl-doc/doc/md/perf-round-8-plan.md`, 4 lines, 2 insertions, 2 deletions: section 6, items 4 and 5. Rows 01-04 are the same text on both commits. This verdict signs the tip.
 
-Measured sha in the plan: `f67ead04e1477b2e207447880f833e51d3627c9f`. It is an ancestor of `origin/master` (`ANC_MEAS=0`). `origin/master` at this reading is `cd727cfc424b8a43ca52534791d6caab6b9bcabe`.
+Measured sha in the plan: `f67ead04e1477b2e207447880f833e51d3627c9f`. It is an ancestor of `origin/master` (ancestor check exit 0). `origin/master` at this reading is `cd727cfc424b8a43ca52534791d6caab6b9bcabe`.
 
 Defects: none.
 

@@ -245,8 +245,8 @@ go first).
 
 | # | setting | expected gain | risk | where it would be configured |
 |---:|---|---|---|---|
-| 1 | Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.1..5.6` -> `0.3 ms` `sys` per fork inside `./run` (`n = 2..3` per arm). Box-wide lower bound: new pids named `run` (a directly executed `./run` and its subshells; `bash script` stays `bash`, so the `bash` band is not counted) whose RSS was `>= 60 MB` when read (`pidscan-rss.py`, 30 s, `n = 3`: `4,349` at `01:59Z`, load `24`, grok seat; `6,443` and `6,836` at `02:01Z`, load `33..35`, editor) = `>= 145 /s`; `145 x 4.8 ms` = `0.70` cores = `>= 10%` of the box's `6.7` cores of `sys` (`41.7% x 16`). Assumes those forks cost like the `69 MB` parent of 2.3; exited pids (`5,125..9,035` per run) not counted | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
-| 1b | `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `145 /s x 2.1 ms` = `0.30` cores = `>= 4.5%` of `sys` (same count and assumption as row 1) until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
+| 1 | **Built** (`SPL-5421`, 4.1). Not OS: `./run` lazy action index (Rust rank #3), so forks come from a small Bash | Measured `5.1..5.6` -> `0.3 ms` `sys` per fork inside `./run` (`n = 2..3` per arm). Box-wide lower bound: new pids named `run` (a directly executed `./run` and its subshells; `bash script` stays `bash`, so the `bash` band is not counted) whose RSS was `>= 60 MB` when read (`pidscan-rss.py`, 30 s, `n = 3`: `4,349` at `01:59Z`, load `24`, grok seat; `6,443` and `6,836` at `02:01Z`, load `33..35`, editor) = `>= 145 /s`; `145 x 4.8 ms` = `0.70` cores = `>= 10%` of the box's `6.7` cores of `sys` (`41.7% x 16`). Assumes those forks cost like the `69 MB` parent of 2.3; exited pids (`5,125..9,035` per run) not counted | Medium (Rust analysis rank #3) | `csi-spl-orc/run`, `csi-spl-iac/run` |
+| 1b | **Built** (`SPL-5421`, 4.1). `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `145 /s x 2.1 ms` = `0.30` cores = `>= 4.5%` of `sys` (same count and assumption as row 1) until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
 | 2 | Kernel command line `retbleed=off spec_rstack_overflow=off` (the two still active; `meltdown`, `mds`, `l1tf`, `mmio`, `tsx`, `srbds`, `tsa` read `Not affected`) | Unknown: not computed, not measured. Only a throwaway `e2-standard-16` A/B can give it; never on a fleet box | **High**: removes protection between processes of the same VM; agents run third-party code (npm, pip) | new ansible role `12_kernel_cmdline` in `060-gcp-vm-satellite/roles/` (`/etc/default/grub.d/*.cfg`, `update-grub`, reboot); terraform step `060`, owner go |
 | 3 | Kernel command line `init_on_alloc=0` | Unknown: not measured (it zeroes kernel allocations such as page tables on each fork); same throwaway A/B | Medium: loses a hardening default against info leaks | same role as #2 |
 | 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | Unknown: not measured; not an OS setting | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
@@ -260,6 +260,56 @@ Not a speed item, but a risk the measurement found: `/tmp` is a `32 G` tmpfs
 with `18 G` used and **no swap** behind it, so a full `/tmp` competes with
 every process for RAM (the CI workflow already moves job temp off it,
 `.github/workflows/10_ci-quality.yml:280`).
+
+### 4.1 Rows 1 and 1b, built (`SPL-5421`)
+
+Both rows are built in `run.sh` (one file, byte-identical in `csi-spl-iac`,
+`csi-spl-orc` and `csi-spl-utl`; `run` is a symlink to it):
+
+- **1b**, commit `perf(orc, SPL-5421): ./run re-execs once with GLIBC_TUNABLES ...`:
+  glibc reads `GLIBC_TUNABLES` only at exec, so `main` calls `do_run_top_pad`
+  first; when the variable carries no `top_pad` it appends
+  `glibc.malloc.top_pad=134217728` (an existing value is kept) and re-execs the
+  same Bash once. An existing `top_pad` wins (`131072`, glibc's default, turns
+  it off). Test: `csi-spl-iac/src/bash/tests/run-top-pad.tst.sh`.
+- **1**, commit `perf(orc, SPL-5421): ./run sources only the action files it needs (lazy loader)`:
+  one `awk` pass indexes every `*.func.sh`. A file with only function
+  definitions at top level is not sourced; each of its functions gets a stub
+  that sources the file on first call. A file with other top-level code (a
+  variable, a `source`, an `if`) is sourced at start as before: `orc` 98 of
+  698 files, `iac` 36 of 184, `utl` 14 of 29. Help, `-a`, PRE/POST/ARGS hooks
+  and `type` checks find the stubs. Test:
+  `csi-spl-iac/src/bash/tests/run-lazy-loader.tst.sh`.
+
+Measured on the satellite box, `2026-11-13T08:04Z..08:12Z`, 1-minute load
+`31..46`, in a scratch copy of the tree with a probe action (500 x `x=$(:)`
+inside the action; startup = median of 5 runs of the probe with 0 forks).
+Arms interleaved per round, `n = 3` rounds per arm; `row 1 only` = the built
+`run.sh` with `GLIBC_TUNABLES=glibc.malloc.top_pad=131072`. Values:
+min..max (median).
+
+| module | arm | RSS MiB | `sys` ms per fork | wall ms per fork | `./run` startup ms |
+|---|---|---|---|---|---|
+| orc | before (`origin/master`) | `70.6..70.7` | `5.34..7.46` (`5.60`) | `9.1..21.7` (`12.0`) | `2334..6292` (`3850`) |
+| orc | 1b only | `71.3..72.7` | `2.68..3.52` (`3.34`) | `7.5..10.5` (`9.3`) | `2748..2953` (`2884`) |
+| orc | row 1 only | `29.0..29.1` | `1.90..2.08` (`1.92`) | `4.5..7.6` (`6.2`) | `1616..2272` (`2152`) |
+| orc | both (built) | `29.5..29.6` | `1.56..1.80` (`1.80`) | `4.0..6.2` (`4.3`) | `1144..1298` (`1204`) |
+| iac | before (`origin/master`) | `15.4..15.5` | `0.92..1.10` (`1.04`) | `4.4..5.4` (`4.9`) | `462..672` (`599`) |
+| iac | 1b only | `15.9..17.3` | `0.60..0.76` (`0.72`) | `2.1..4.6` (`4.2`) | `370..838` (`532`) |
+| iac | row 1 only | `9.2..9.3` | `0.60..0.68` (`0.68`) | `1.7..3.7` (`3.5`) | `249..383` (`331`) |
+| iac | both (built) | `9.7..10.4` | `0.50..0.60` (`0.58`) | `1.6..2.3` (`2.2`) | `283..327` (`321`) |
+
+Read: in `orc`, both rows together cut `sys` per fork by `68%` (median `5.60`
+-> `1.80 ms`), RSS by `58%`, and the startup of `./run` by `69%`. Row 1 does
+most of it; 1b adds `6%` on top of row 1 (`1.92` -> `1.80 ms`), because a
+`29 MiB` Bash has little 4 KiB-mapped heap left to move. The load moved during
+the window (`31..46`), so the wall columns are noisier than `sys`. The box-wide
+bounds in the rows above (`>= 10%` and `>= 4.5%` of `sys`) are not re-measured
+here.
+
+Still eager, a follow-up outside `SPL-5421`: the 98 `orc` files with
+top-level code stay sourced at start; making them lazy needs edits to those
+`*.func.sh` bodies.
 
 ## 5. Open for the panel
 

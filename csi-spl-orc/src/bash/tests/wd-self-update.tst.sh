@@ -127,11 +127,17 @@ commit() { dc add -A; dc commit -qm "$1"; dc rev-parse HEAD; }
 
 export T FAKE_CRONTAB="$T/crontab"
 : > "$T/crontab"
+# WD_START_GRACE=0: a self-check judges c-901, the only agent, or it proves
+# nothing. On a loaded box one slow tick (a gap > 3 x WD_TICK, e.g. case 5's
+# pre-flight) stamps resume.<inst>, and for the default 180 s every tick of
+# that instance skips c-901 ("SKIP resume grace"): case 6's broken sha then
+# read green ("1 agent(s)": the SKIP line) and rolled to all 3 (SPL-5417: 10/10 red
+# at load 46..95 on 16 cpus). No case here tests a grace.
 wd_env=(SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" PATH="$T/cbin:$PATH"
   WD_PS_CMD="$T/bin/ps" ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" WD_TAKEOVER_CMD=true
   LEASE_TRANSCRIPT_CMD=true WD_RUN="$O/run" ROTATE_TERM_WAIT=1 ROTATE_BOX=box1
   DESK_CRON_SRC="$DC" WD_CRON_LOG_DIR="$T/log/wd" SPL_ORG_APP=csi-spl WD_INST_START_WAIT="$WAIT_S"
-  WD_SELF_UPDATE=1 WD_TICK="$TICK" WD_UPD_SLICE=1 CHILD_PEERS=1)
+  WD_SELF_UPDATE=1 WD_TICK="$TICK" WD_UPD_SLICE=1 CHILD_PEERS=1 WD_START_GRACE=0)
 starter() {
   env "${wd_env[@]}" PROJ_PATH="$O" bash -c '
     do_log() { echo "$*"; }

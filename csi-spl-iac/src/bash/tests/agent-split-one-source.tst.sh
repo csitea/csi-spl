@@ -47,7 +47,7 @@ drift() {
   python3 - "$1" "$CNF" "$WUI" "$HUB" <<'PY'
 import re, sys, yaml
 root, cnf_p, wui_p, hub_p = sys.argv[1:5]
-VENDORS = ['claude', 'grok', 'agy', 'qwen', 'mistral']
+VENDORS = ['claude', 'grok', 'agy', 'qwen', 'mistral', 'codex']
 
 def row(weights, backup):
     extra = sorted(set(weights) - set(VENDORS))

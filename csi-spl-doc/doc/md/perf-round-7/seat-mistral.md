@@ -239,3 +239,57 @@ Notes:
 
 Signed: m-669@sat (mistral), 2026-11-13, v1.0 sha
 `d47de8b8f5a7cfba95a6ea05bc943604871680b1`, verdict PASS.
+
+---
+
+## v1.1 sign-off: `dd82bb6044c82f1e1c0b5495f96706b7735e0c93`
+
+Verdict on v1.1 (branch `review/c002-perf-round-7-planner`, fast-forward from
+`d47de8b8f`): **PASS**, no defect. Fetch proof: `git fetch origin
+review/c002-perf-round-7-planner && git rev-parse FETCH_HEAD` ->
+`dd82bb6044c82f1e1c0b5495f96706b7735e0c93`; `git diff --stat
+d47de8b8f..dd82bb604` -> 1 file changed, 18 insertions(+), 8 deletions(-)
+(the plan only). The delta is exactly what the editor named: the status line,
+row 05's table cell (line 76), the section 3.1 batch line (line 85), the
+section 4 bullet, the section 8 v1.1 change line, and the section 9 consensus
+rows.
+
+Checks on `dd82bb604` (2026-11-13 ~11:50Z):
+
+1. New site: `csi-spl-orc/src/bash/run/spl-peer-poll.func.sh:148` =
+   `timeout "${PEER_HUB_TIMEOUT:-10}" "$SPOOL_BIN" claim "$@"` — read with
+   `git show <sha>:<file> | sed -n '148p'` at both `ccef654f0` and
+   `origin/master` (`baa073831`); the whole file is identical at the two
+   (`diff` of the two `git show` dumps -> no output). It is a short `claim`
+   exec, so joining row 05's sites is correct; `spool-harness.sh:194`
+   (`hub-run`) stays excluded.
+2. The editor's exec count: `git grep -n '"$SPOOL_BIN"' ccef654f0 --
+   'csi-spl-api/src/bash' 'csi-spl-orc/src/bash' 'csi-spl-iac/src/bash'
+   'csi-spl-utl/src/bash' ':!*tests*' ':!*test*'` prints 8 lines, of which 4
+   are execs — `asks.sh:66`, `spool-send.sh:533`, `spl-peer-poll.func.sh:148`,
+   `spool-harness.sh:194` (excluded) — the other 4 are `printf '%s'
+   "$SPOOL_BIN"` (`spool-env.inc.sh:612,616,618`) and `command -v "$SPOOL_BIN"`
+   (`spool-harness.sh:188`), not executions. The plan's "4 execs" holds.
+3. Row shape: row 05 now names 4 site files (`spool-env.inc.sh`,
+   `spool-send.sh`, `asks.sh`, `spl-peer-poll.func.sh`) — still at most 5;
+   baseline, test + red control, vendor claude, batch 1 unchanged; batches
+   still disjoint (`spl-peer-poll.func.sh` appears in no other row).
+4. Slug, fresh master `baa073831`: `git log origin/master --oneline -E
+   --grep='\(p7-' | wc -l` -> `0`; `git ls-remote origin 'refs/heads/*p7-[0-9][0-9]*' | wc -l`
+   -> `0`.
+5. R3: `lane-map.sh --check <all 17 row paths, incl. spl-peer-poll.func.sh>
+   --agent m-669` -> exit `0`, output `free`.
+6. The editor's "no round 31-33 plan names it": `git grep -l 'spl-peer-poll'
+   origin/master -- 'csi-spl-doc/doc/md/*round*plan*.md'
+   'csi-spl-doc/doc/md/perf-round-*.md' 'csi-spl-doc/doc/md/refactor-round-*.md'
+   'csi-spl-doc/doc/md/bug-round-*.md'` -> no match (only the incident runbook
+   and specs 070/093/101 name it).
+
+Note:
+
+- **N7**: the raw `git grep '"$SPOOL_BIN"'` prints 8 lines, not 4; 4 are execs
+  and 4 are `printf`/`command -v` lookups. The plan says "4 execs", which is
+  the correct count of executions.
+
+Signed: m-669@sat (mistral), 2026-11-13, v1.1 sha
+`dd82bb6044c82f1e1c0b5495f96706b7735e0c93`, verdict PASS.

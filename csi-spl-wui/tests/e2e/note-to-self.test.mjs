@@ -87,6 +87,7 @@ async function typeOmni(p, text) {
   for (const key of text) {
     await p.keyboard.type(key)
     await sleep(50)
+    /* nuxi dev only: a typed @ makes Vue move the textarea and drop its focus (orch finding msg ed8eb595, no lane) */
     refocused += await p.$eval(OMNI, (el) => {
       if (document.activeElement === el) return 0
       el.focus()

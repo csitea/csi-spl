@@ -67,11 +67,11 @@
 # @param LANE_MIX_TASK (optional) - the task_id: its failed tries pick the backup
 # @param LANE_MIX_BRIEF (optional) - the lane's brief file: naming csi-spl-wui/ makes it UI work
 # @param LANE_MIX_PATHS (optional) - the lane's paths, comma or space separated: one under csi-spl-wui/ makes it UI work
-# @param LANE_MIX_SPLIT_KIND (optional) - "claude=N grok=N agy=N qwen=N mistral=N
+# @param LANE_MIX_SPLIT_KIND (optional) - "claude=N grok=N agy=N qwen=N mistral=N codex=N
 # @param   backup=<vendor>", the kind's row (do_spl_agent_split_show --kind);
 # @param   overrides the cnf row. LANE_MIX_SPLIT is read the same way when it is
 # @param   unset; a line without backup keeps the cnf backup, one without
-# @param   mistral reads mistral=0
+# @param   mistral reads mistral=0, one without codex reads codex=0
 # @param LANE_MIX_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param LANE_MIX_REGISTRY (optional) - default $SPOOL_ROOT/registry.tsv
 # @param LANE_MIX_JOURNAL (optional) - the tries journal files (spl-lane-mix-journal.func.sh)
@@ -93,7 +93,9 @@
 # @example LANE_MIX_DIFFICULTY=70 ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 LANE_MIX_SENSITIVE=1 ./run -a do_spl_lane_mix
 #------------------------------------------------------------------------------
-LANE_MIX_VENDORS=(claude grok agy qwen mistral)
+# codex (OpenAI Codex CLI, spec 161; SPL-5454): weighed like the others; out on a
+# box without its CLI or its subscription login (auth_marker.codex)
+LANE_MIX_VENDORS=(claude grok agy qwen mistral codex)
 # owner HUM-10, t1 b61851fb, msg 91bf8278 (2026-10-17): mistral does docs and
 # reviews only; every kind but these is coding (spl_lane_mix_mistral_code_off)
 LANE_MIX_MISTRAL_KINDS=(specs_and_docs i18n)
@@ -163,7 +165,7 @@ _spl_lane_mix_kind() {
 # LANE_MIX_SPLIT_KIND (else LANE_MIX_SPLIT), checked by _spl_lane_mix_row_check
 _spl_lane_mix_target() {
   local cnf="$1" v line="${LANE_MIX_SPLIT_KIND:-${LANE_MIX_SPLIT:-}}"
-  local re='^claude=([0-9]+) grok=([0-9]+) agy=([0-9]+) qwen=([0-9]+)( mistral=([0-9]+))?( backup=([a-z]+))?$'
+  local re='^claude=([0-9]+) grok=([0-9]+) agy=([0-9]+) qwen=([0-9]+)( mistral=([0-9]+))?( codex=([0-9]+))?( backup=([a-z]+))?$'
   _LM_TOL="$(yq -r '.env.box.agent_split.tolerance // 5' "$cnf")"
   _LM_WIN="$(yq -r '.env.box.agent_split.window // 20' "$cnf")"
   for v in "${LANE_MIX_VENDORS[@]}"; do
@@ -173,11 +175,11 @@ _spl_lane_mix_target() {
   _LM_ROW="cnf env.box.agent_split_by_kind.$_LM_KIND"
   if [[ -n "$line" ]]; then
     [[ "$line" =~ $re ]] || {
-      do_log "FATAL LANE_MIX_SPLIT_KIND must read 'claude=N grok=N agy=N qwen=N mistral=N backup=<vendor>', got '$line'"; return 1; }
+      do_log "FATAL LANE_MIX_SPLIT_KIND must read 'claude=N grok=N agy=N qwen=N mistral=N codex=N backup=<vendor>', got '$line'"; return 1; }
     _LM_TGT[claude]="${BASH_REMATCH[1]}" _LM_TGT[grok]="${BASH_REMATCH[2]}"
     _LM_TGT[agy]="${BASH_REMATCH[3]}" _LM_TGT[qwen]="${BASH_REMATCH[4]}"
-    _LM_TGT[mistral]="${BASH_REMATCH[6]:-0}"
-    _LM_BACKUP="${BASH_REMATCH[8]:-$_LM_BACKUP}"
+    _LM_TGT[mistral]="${BASH_REMATCH[6]:-0}" _LM_TGT[codex]="${BASH_REMATCH[8]:-0}"
+    _LM_BACKUP="${BASH_REMATCH[10]:-$_LM_BACKUP}"
     _LM_ROW="$([[ -n "${LANE_MIX_SPLIT_KIND:-}" ]] && echo LANE_MIX_SPLIT_KIND || echo LANE_MIX_SPLIT)"
   fi
   [[ "$_LM_TOL" =~ ^[0-9]{1,2}$ && "$_LM_WIN" =~ ^[0-9]{1,3}$ && "$_LM_WIN" -gt 0 ]] || {
@@ -188,7 +190,8 @@ _spl_lane_mix_target() {
 # _spl_lane_mix_row_check -> _LM_MAIN, or a FATAL for a row that breaks the
 # spec 115 section 2 rules: whole numbers summing to 100, one strict maximum
 # (the main), a known backup other than the main, only claude, grok or
-# mistral in secret and orchestration (agy may code: owner msg dc673043)
+# mistral in secret and orchestration (agy may code: owner msg dc673043;
+# codex takes no secret-class work: owner msg 1fe6abcf, spec 161 5.1)
 _spl_lane_mix_row_check() {
   local v sum=0 top=-1 ties=0 at="agent_split_by_kind.$_LM_KIND ($_LM_ROW)"
   _LM_MAIN=""
@@ -204,8 +207,8 @@ _spl_lane_mix_row_check() {
     do_log "FATAL $at backup must be a vendor other than the main $_LM_MAIN, got '$_LM_BACKUP'"; return 1; }
   case "$_LM_KIND" in
     secret|orchestration)
-      (( _LM_TGT[agy] + _LM_TGT[qwen] == 0 )) && [[ "$_LM_BACKUP" =~ ^(claude|grok|mistral)$ ]] || {
-        do_log "FATAL $at: the data rule allows claude, grok or mistral only, agy=${_LM_TGT[agy]} qwen=${_LM_TGT[qwen]} backup=$_LM_BACKUP"; return 1; } ;;
+      (( _LM_TGT[agy] + _LM_TGT[qwen] + _LM_TGT[codex] == 0 )) && [[ "$_LM_BACKUP" =~ ^(claude|grok|mistral)$ ]] || {
+        do_log "FATAL $at: the data rule allows claude, grok or mistral only, agy=${_LM_TGT[agy]} qwen=${_LM_TGT[qwen]} codex=${_LM_TGT[codex]} backup=$_LM_BACKUP"; return 1; } ;;
   esac
   return 0
 }
@@ -577,7 +580,7 @@ _spl_lane_mix_cli() {
 # "<epoch>\t<id> S2 kind=limit <age> ago" for the newest watchdog verdict
 # (ctx*/<id>/out.s2) within LANE_MIX_LIMIT_FRESH s on one of that vendor's
 # lanes, else nothing. The vendor is the id's registry kind, else its prefix
-# (spec 061: c g a q; spec 110: m). <since> and <live>: _spl_lane_mix_verdict.
+# (spec 061: c g a q; spec 110: m; spec 161: o). <since> and <live>: _spl_lane_mix_verdict.
 _spl_lane_mix_limit() {
   local hit
   hit="$(_spl_lane_mix_verdict limit "$1" "$2" "$3" "${LANE_MIX_LIMIT_FRESH:-21600}" "${4:-0}" "${5:-}")"
@@ -623,7 +626,7 @@ _spl_lane_mix_verdict() {
         if (live != "" && index(live, "|" id "|") == 0) next
         kk = (id in k) ? k[id] : ""
         if (kk == "") { pre = substr(id, 1, 2)
-          kk = pre == "c-" ? "claude" : pre == "g-" ? "grok" : pre == "a-" ? "agy" : pre == "q-" ? "qwen" : pre == "m-" ? "mistral" : "" }
+          kk = pre == "c-" ? "claude" : pre == "g-" ? "grok" : pre == "a-" ? "agy" : pre == "q-" ? "qwen" : pre == "m-" ? "mistral" : pre == "o-" ? "codex" : "" }
         if (kk != v) next
         best = t; out = t ":" f "\t" id " S2 kind=" want " " int((now - t) / 60) "m ago" }
       END { if (out != "") print out }')" || true

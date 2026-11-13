@@ -5,7 +5,8 @@
 from typing import Dict, Literal, Optional
 from pydantic import BaseModel, Extra, conint, root_validator, validator
 
-VENDORS = ("agy", "mistral", "claude", "grok", "qwen")
+# codex: spec 161, SPL-5454 (never secret-class: SECRET_VENDORS below)
+VENDORS = ("agy", "mistral", "claude", "grok", "qwen", "codex")
 KINDS = (
     "specs_and_docs",
     "tests",
@@ -38,7 +39,8 @@ class KindRow(BaseModel, extra=Extra.forbid):
     claude: Weight = 0
     grok: Weight = 0
     qwen: Weight = 0
-    backup: Literal["agy", "mistral", "claude", "grok", "qwen"]
+    codex: Weight = 0
+    backup: Literal["agy", "mistral", "claude", "grok", "qwen", "codex"]
 
     @root_validator(skip_on_failure=True)
     def sums_to_100_with_one_main(cls, values):

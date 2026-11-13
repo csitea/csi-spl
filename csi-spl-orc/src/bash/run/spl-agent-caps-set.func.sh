@@ -19,7 +19,7 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - the workspace slug; or ALL=1 for every workspace (one of the two)
 # @param ALL (optional) - 1: every workspace of the env
-# @param CAPS_VENDOR - required: claude, grok, mistral, agy or qwen
+# @param CAPS_VENDOR - required: claude, grok, mistral, agy, qwen or codex
 # @param CAPS_MAX_LIVE - required: a whole number >= 0 (0 forbids the vendor), or none (uncapped)
 # @param AGENT_ID (DRY_RUN=0 only) - the acting agent (c-080, c-080@sat): the audit row's actor_hum
 # @param ORDERED_BY (DRY_RUN=0 only) - the HUM-n who ordered it
@@ -37,8 +37,8 @@ do_spl_agent_caps_set() {
     0) spl_require_tenant_slug "$tenant" || return 1 ;;
     *) do_log "FATAL ALL must be 0 or 1, got: '$all'"; return 1 ;;
   esac
-  [[ "$vendor" =~ ^(claude|grok|mistral|agy|qwen)$ ]] ||
-    { do_log "FATAL CAPS_VENDOR must be claude, grok, mistral, agy or qwen, got: '$vendor'"; return 1; }
+  [[ "$vendor" =~ ^(claude|grok|mistral|agy|qwen|codex)$ ]] ||
+    { do_log "FATAL CAPS_VENDOR must be claude, grok, mistral, agy, qwen or codex, got: '$vendor'"; return 1; }
   [[ "$n" =~ ^(0|[1-9][0-9]{0,3}|none)$ ]] ||
     { do_log "FATAL CAPS_MAX_LIVE must be a whole number 0..9999 or none, got: '$n'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

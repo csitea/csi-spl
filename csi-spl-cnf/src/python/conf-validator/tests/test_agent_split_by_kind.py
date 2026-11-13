@@ -29,8 +29,8 @@ SPEC_MAIN_BACKUP = {
 
 ROWS = {
     "specs_and_docs": {"agy": 80, "mistral": 15, "claude": 5, "backup": "claude"},
-    "tests": {"claude": 85, "agy": 15, "backup": "agy"},
-    "simple_coding": {"claude": 59, "agy": 41, "backup": "agy"},
+    "tests": {"claude": 70, "agy": 15, "codex": 15, "backup": "agy"},
+    "simple_coding": {"claude": 44, "agy": 41, "codex": 15, "backup": "agy"},
     "complex_coding": {"claude": 90, "agy": 10, "backup": "agy"},
     "i18n": {"agy": 100, "backup": "claude"},
     "secret": {"claude": 100, "backup": "grok"},
@@ -85,12 +85,12 @@ class AgentSplitByKindTest(unittest.TestCase):
 
     def test_a_row_not_summing_to_100_is_red(self):
         rows = copy.deepcopy(ROWS)
-        rows["tests"]["claude"] = 86
+        rows["tests"]["claude"] = 71
         self.assertRed(rows, "sum to 101")
 
     def test_a_tied_main_is_red(self):
         rows = copy.deepcopy(ROWS)
-        rows["tests"].update(claude=50, agy=50)
+        rows["tests"].update(claude=50, agy=50, codex=0)
         self.assertRed(rows, "tie")
 
     def test_backup_equal_to_main_is_red(self):
@@ -124,6 +124,29 @@ class AgentSplitByKindTest(unittest.TestCase):
         rows["secret"]["backup"] = "agy"
         self.assertRed(rows, "secret")
 
+    def test_all_env_yaml_gives_codex_15_in_tests_and_simple_coding(self):
+        # owner msg ea50c4b0 (spec 161 Q3 Option B), SPL-5454
+        rows = AllEnv.parse_raw(ALL_ENV.read_text()).env.box.agent_split_by_kind
+        got = {k: rows[k].codex for k in SPEC_MAIN_BACKUP}
+        want = {k: 0 for k in SPEC_MAIN_BACKUP}
+        want.update(tests=15, simple_coding=15)
+        self.assertEqual(got, want)
+
+    def test_codex_in_a_secret_class_kind_is_red(self):
+        # the data rule, owner msg 1fe6abcf: no secret or personal data
+        for kind in ("secret", "orchestration"):
+            rows = copy.deepcopy(ROWS)
+            rows[kind].update(claude=85, codex=15)
+            self.assertRed(rows, kind)
+            rows = copy.deepcopy(ROWS)
+            rows[kind]["backup"] = "codex"
+            self.assertRed(rows, kind)
+
+    def test_codex_as_a_coding_backup_is_green(self):
+        rows = copy.deepcopy(ROWS)
+        rows["complex_coding"] = {"claude": 80, "codex": 20, "backup": "codex"}
+        self.assertGreen(rows)
+
     def test_secret_with_grok_is_green(self):
         rows = copy.deepcopy(ROWS)
         rows["secret"] = {"grok": 60, "claude": 40, "backup": "claude"}
@@ -156,8 +179,9 @@ class AgentSplitByKindTest(unittest.TestCase):
     def test_mistral_in_a_coding_kind_is_red(self):
         for kind in NO_MISTRAL_KINDS:
             rows = copy.deepcopy(ROWS)
-            main = rows[kind].get("claude", 0)
-            rows[kind].update(claude=main - 5, mistral=5)
+            # the 5 comes from codex where it has a share, so the main stays
+            src = "codex" if rows[kind].get("codex") else "claude"
+            rows[kind].update({src: rows[kind][src] - 5, "mistral": 5})
             self.assertRed(rows, f"{kind}: mistral writes no code")
             rows = copy.deepcopy(ROWS)
             rows[kind]["backup"] = "mistral"

@@ -2,6 +2,8 @@
 # the desk path (spl_desk_dir) follows the desk user, also when sourced on its own
 declare -F spl_desk_dir >/dev/null ||
   source "${BASH_SOURCE[0]%/*}/spl-cloud-cnf.func.sh"
+declare -F spl_desk_action_hop_to >/dev/null ||
+  source "${BASH_SOURCE[0]%/*}/spl-desk-moved.func.sh"
 
 # spl_desk_issue <op> <spool issue args...>: the shared leg of the desk issue
 # actions (specs/039 FR-008, issues-v1 §6). A seated desk agent files and
@@ -54,6 +56,9 @@ spl_desk_issue_once() {
 # do_spl_issue_needs_owner died in json.load (SPL-2502).
 spl_desk_issue_run() {
   local op="$1"; shift
+  if [[ "$op" == list ]] && spl_desk_issue_hop_user; then
+    spl_desk_issue_list_hop "$@"; return $?
+  fi
   spl_desk_issue_once >&2 || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   spl_desk_validate "$tenant" "$box" "$agent" >&2 || return 1
@@ -85,6 +90,40 @@ print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "op"
 EOF_PY
   rm -f "$raw"
   return $prc
+}
+
+# spl_desk_issue_hop_user: 0 when this shell's desk lives under another
+# user's root (spl_desk_action_hop_to), that user in SPL_DESK_ISSUE_HOP_TO;
+# 1 when the read runs here. Asked once per env, workspace and desk id. Why
+# (SPL-5465): sat's night crons run as the crontab user, whose t1 root has no
+# seats; their issue reads said "FATAL no desk for" every night since
+# 2026-11-10 (zombie-topics, reflection section 3), the agent user read them.
+spl_desk_issue_hop_user() {
+  [[ "${SPL_DESK_ISSUE_READY:-}" == 1 ]] && return 1
+  local key="${ENV:-}/${TENANT_ID:-}/${DESK_BOX:-}"
+  if [[ "${SPL_DESK_ISSUE_HOP_KEY:-}" != "$key" ]]; then
+    do_spl_desk_cnf >&2 || return 1
+    SPL_DESK_ISSUE_HOP_TO="$(spl_desk_action_hop_to "${TENANT_ID:-}" "${DESK_BOX:-$(spl_desk_box_default)}")" || SPL_DESK_ISSUE_HOP_TO=""
+    SPL_DESK_ISSUE_HOP_KEY="$key"
+  fi
+  [[ -n "$SPL_DESK_ISSUE_HOP_TO" ]]
+}
+
+# spl_desk_issue_list_hop <list flags>: one `spool issue list` page read as
+# SPL_DESK_ISSUE_HOP_TO (do_spl_issue_list with SPL_ISSUE_RAW_ARGS); stdout is
+# its one JSON line, as spl_desk_issue_run prints it. Reads only: a write
+# never hops from here.
+spl_desk_issue_list_hop() {
+  local a out rc=0 box="${DESK_BOX:-$(spl_desk_box_default)}"
+  for a in "$@"; do
+    [[ "$a" != *$'\n'* ]] || { do_log "FATAL spool issue list: a flag holds a newline, it cannot hop to $SPL_DESK_ISSUE_HOP_TO" >&2; return 1; }
+  done
+  out="$(SPL_ISSUE_RAW_ARGS="$(printf '%s\n' "$@")" DRY_RUN=0 \
+    spl_desk_action_hop do_spl_issue_list "$SPL_DESK_ISSUE_HOP_TO" "${TENANT_ID:-}" "$box" "${DESK_AGENT:-}" SPL_ISSUE_RAW_ARGS)" || rc=$?
+  (( rc == 0 )) || { do_log "FATAL spool issue list as $SPL_DESK_ISSUE_HOP_TO: rc $rc" >&2; return "$rc"; }
+  out="$(grep '^{' <<<"$out" | tail -1)"
+  [[ -n "$out" ]] || { do_log "FATAL spool issue list as $SPL_DESK_ISSUE_HOP_TO: no JSON line" >&2; return 1; }
+  printf '%s\n' "$out"
 }
 
 # spl_issue_field_args: the create / update flags for every ISSUE_* variable

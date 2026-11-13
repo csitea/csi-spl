@@ -23,6 +23,12 @@
 do_spl_issue_list() {
   local -a args=()
   local lim dry=1
+  # the hop of spl_desk_issue_list_hop: one page, its flags as given
+  if [[ -n "${SPL_DESK_HOPPED:-}" && -n "${SPL_ISSUE_RAW_ARGS+x}" ]]; then
+    mapfile -t args < <(printf '%s' "$SPL_ISSUE_RAW_ARGS")
+    spl_desk_issue_run list "${args[@]}"
+    return $?
+  fi
   spl_issue_list_args args || return 1
   lim="$(spl_issue_limit)" || return 1
   args+=(--limit "$lim")

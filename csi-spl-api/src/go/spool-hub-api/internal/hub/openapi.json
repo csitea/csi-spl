@@ -12224,6 +12224,71 @@
       }
     },
     "/v1/operator/calendar/events/{id}": {
+      "delete": {
+        "operationId": "deleteOperatorCalendarEventsById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ordered_by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {event}, now in the trash of ordered_by (a member) or else of the agent"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: synced_read_only, or the event changed meanwhile"
+          }
+        },
+        "summary": "Move one single calendar event of a workspace to the trash (spec 097 section 4.10)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
       "get": {
         "operationId": "getOperatorCalendarEventsById",
         "parameters": [
@@ -12265,6 +12330,47 @@
           }
         },
         "summary": "Read one calendar event back",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "patch": {
+        "operationId": "patchOperatorCalendarEventsById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {event}; the body {tenant, agent_id, ordered_by?, props: {pinned}} sets props.pinned only"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: synced_read_only, or the event changed meanwhile"
+          }
+        },
+        "summary": "Pin or unpin one single calendar event of a workspace (spec 097 section 4.10)",
         "tags": [
           "operator"
         ],

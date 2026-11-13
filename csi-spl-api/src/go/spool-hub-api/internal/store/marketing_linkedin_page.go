@@ -9,7 +9,7 @@ import (
 
 // MarketingLinkedInPageDispatch is what the LinkedIn Company Page dispatcher
 // (spec 090 phase 4, T041, SPL-5258) reads beyond Marketing,
-// MarketingMetaDispatch and the token swap of MarketingXDispatch; rdb 0276
+// MarketingMetaDispatch and the token swap of MarketingXDispatch; rdb 0277
 // only widens the platform CHECK. A Page channel is never auto_publish, so
 // the personal-profile LinkedIn sweep never lists one.
 type MarketingLinkedInPageDispatch interface {

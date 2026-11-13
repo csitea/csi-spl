@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// SPL-5258 (rdb 0276): a LinkedIn Company Page channel, its dispatch list,
+// SPL-5258 (rdb 0277): a LinkedIn Company Page channel, its dispatch list,
 // tenant isolation under FORCE RLS and the token swap two refreshing hubs
-// race on. The Postgres cases run under hub-pg; on the schema without 0276
+// race on. The Postgres cases run under hub-pg; on the schema without 0277
 // (red control) the platform 'linkedin_page' is refused.
 
 func connectLinkedInPage(ctx context.Context, pg *Postgres, tenant, org string, tok MarketingToken) (MarketingChannel, error) {

@@ -1,4 +1,4 @@
--- 0276_marketing_linkedin_page.sql - spec 090 phase 4, T041 (SPL-5258, epic
+-- 0277_marketing_linkedin_page.sql - spec 090 phase 4, T041 (SPL-5258, epic
 -- SPL-2376; linkedin-company-page.md section 6.1): the marketing tables learn
 -- LinkedIn Company Pages. Forward-only: one CHECK swap to a wider list, so
 -- every existing row still passes. No new table or column, so the 0187 RLS

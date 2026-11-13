@@ -204,3 +204,39 @@ N12. Lane-map of the three row-05 files and of `spl-peer-poll.func.sh` was free,
 ## Hygiene after the v1.0 section
 
 After `git add` of this path, the same action printed the same `ok` lines (non-Csitea, personal-name, OS-user, home, mail, hidden-workspace, retired-relay, `.vibe`), then `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-666`, `HYGIENE_RC=0`.
+## v1.1 on dd82bb604
+
+Plan: `dd82bb6044c82f1e1c0b5495f96706b7735e0c93` (`review/c002-perf-round-7-planner`).
+`git merge-base --is-ancestor d47de8b8f5a7cfba95a6ea05bc943604871680b1 dd82bb6044c82f1e1c0b5495f96706b7735e0c93` printed `ANCESTOR_RC=0`.
+`git diff --stat` of those two shas printed `csi-spl-doc/doc/md/perf-round-7-plan.md | 26 ++++++++++++++++++--------` and `1 file changed, 18 insertions(+), 8 deletions(-)`.
+`git log -1 --format='%H %s'` of that sha printed `dd82bb6044c82f1e1c0b5495f96706b7735e0c93 docs(p7-plan, SPL-5424): perf round 7 plan v1.1, spl-peer-poll.func.sh:148 joins row 05`.
+Verdict: **PASS**. The third short `claim` is in the plan. No new hold on row 05.
+
+### Fold
+
+`git show dd82bb6044c82f1e1c0b5495f96706b7735e0c93:csi-spl-doc/doc/md/perf-round-7-plan.md | nl -ba | sed -n '68,160p;189,250p'` printed the row table and sections 8 and 9.
+
+- Line 76 names `run/spl-peer-poll.func.sh:148` (`claim`, `spl_peer_hub`, every peer-poll tick).
+- Section 3.1 (lines 85-87) adds `spl-peer-poll.func.sh` to batch 1, and says the lane map of the first three files was 11:28Z and of the fourth 11:47Z, each `free`, exit 0.
+- Section 4 (lines 143-144) says `spool-send.sh:533`, `asks.sh:66` and `spl-peer-poll.func.sh:148` call the helper.
+- Section 8 (lines 209-216) records the fold and the four-exec grep, with `spool-harness.sh:194` excluded. No baseline change.
+- Section 9 (lines 222-224) records this seat on `e599eabf2` and `d47de8b8f`. This seat did not open the other seat file.
+
+`git show ccef654f0329231cce02f9ec7a8f418c03dd62f0:csi-spl-orc/src/bash/run/spl-peer-poll.func.sh | nl -ba | sed -n '139,149p'` printed `spl_peer_hub`. Line 148 is `timeout "${PEER_HUB_TIMEOUT:-10}" "$SPOOL_BIN" claim "$@"`.
+`git rev-parse origin/master` printed `baa073831049e37b5983f421125254119b74c09e`.
+`git diff --stat ccef654f0329231cce02f9ec7a8f418c03dd62f0 origin/master -- csi-spl-orc/src/bash/run/spl-peer-poll.func.sh` printed nothing, `DIFF_RC=0`.
+
+`lane-map.sh --check` of `spool-env.inc.sh,spool-send.sh,asks.sh,spl-peer-poll.func.sh` printed a stale-binary line, then 24 `unknown:` lines, then `no live lane lists` those four paths, then `LANE_RC=4`. Zero `owned by` lines.
+
+N13. Line 76 still says "the two short-call execs" and names three paths. The word between `spool-send.sh:533` (`send`) and `scripts/asks.sh:66` is absent. Section 4 lists the three calls. Not a hold.
+
+N14. The red control stays "a case in `spawn-agents/tests/`" and does not name `spl_peer_hub`. Section 4 names the call at line 148. Same shape as v1.0.
+
+N15. The cell's change sites are five: `spool-send.sh:533`, `asks.sh:66`, `spl-peer-poll.func.sh:148`, `spool-env.inc.sh:459-460`, `spool-env.inc.sh:486`. That is the cap. `spool-harness.sh:194` is named as not changed.
+
+N16. This turn's four-file lane-map was exit 4 (24 unknown, 0 owned). The v1.0 checks of the same files printed `free` and exit 0. Section 3.2 already says exit 4 is re-read before each spawn.
+
+
+## Hygiene after the v1.1 section
+
+After `git add` of this path, the same action printed the `ok` lines (non-Csitea, personal-name, OS-user, home, mail, hidden-workspace, retired-relay, `.vibe`), then `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-666`, `HYGIENE_RC=0`.

@@ -73,13 +73,27 @@ const pickerState = (p) => p.evaluate((sel) => {
     draftPlace: pinia?._s.get('omnibox')?.target?.place?.() ?? null,
     lists: document.querySelectorAll('[data-test=mention-list]').length,
   }
-}, OMNI).then((st) => ({ ...st, loads }))
+}, OMNI).then((st) => ({ ...st, loads, refocused }))
 
-/** Type into the omnibox from empty. */
+/* keys after which the field had lost the focus: under nuxi dev (origin/master too) the first @ makes
+   Vue's keyed patch MOVE the omnibox textarea (patchKeyedChildren -> move -> insert), the browser drops
+   its focus to <body>, and the next keys went nowhere; the generated bundle keeps it */
+let refocused = 0
+
+/** Type into the omnibox from empty, a key at a time; a key that left the field blurred gets it back, caret at the end. */
 async function typeOmni(p, text) {
   await p.$eval(OMNI, (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })) })
   await p.click(OMNI)
-  await p.keyboard.type(text)
+  for (const key of text) {
+    await p.keyboard.type(key)
+    await sleep(50)
+    refocused += await p.$eval(OMNI, (el) => {
+      if (document.activeElement === el) return 0
+      el.focus()
+      el.setSelectionRange(el.value.length, el.value.length)
+      return 1
+    })
+  }
   await sleep(300)
 }
 
@@ -117,7 +131,7 @@ try {
   /* the picker: @me offers the reader first, marked as me */
   await typeOmni(page, '@me')
   const typed = await page.$eval(OMNI, (el) => el.value)
-  ok('the box holds the typed @me', typed === '@me', typed === '@me' ? undefined : await pickerState(page))
+  ok('the box holds the typed @me', typed === '@me', typed === '@me' ? { refocused } : await pickerState(page))
   /* under load the list can still show the bare-@ roster 300 ms after the keys: wait for the `me` row; a
      timeout is a FAIL, and its evidence says why (the field, the reader the roster knows, the rows) */
   const meShown = await page.waitForFunction(() => Boolean(document.querySelector('[data-test=mention-option] [data-testid=mention-self]')),

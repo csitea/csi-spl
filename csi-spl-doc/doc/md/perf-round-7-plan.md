@@ -1,5 +1,7 @@
 # Perf round 7 (p7) - plan (5 rows)
 
+> Generated from qto doc `167e29ab-c06b-462c-88c6-22f5dac96f17`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/011-spool-project-refactor  
 Class: refactor  
@@ -34,6 +36,7 @@ again 09:45Z, unchanged), on the satellite box (16 vCPU), 2026-11-13
 measurement); every before/after pair below was run interleaved or back to back
 under the same load. The raw commands and outputs: [perf-round-7/editor.md](perf-round-7/editor.md).
 
+<a id="ws-doc-428c69ba-64a6-4830-8fa3-fa7dd70b2a7f"></a>
 ## 1. How to read this
 
 - A row is one logical change, one lane, subject
@@ -48,6 +51,7 @@ under the same load. The raw commands and outputs: [perf-round-7/editor.md](perf
 - Paths: `hub/` = `csi-spl-api/src/go/spool-hub-api/internal/hub/`,
   `orc/` = `csi-spl-orc/`, `run/` = `csi-spl-orc/src/bash/run/`.
 
+<a id="ws-doc-964767e3-2b54-4eeb-8ce1-2d61871fcafd"></a>
 ## 2. Where the rows come from
 
 Inputs read (brief step 2), each carried finding re-checked on `ccef654f0`:
@@ -65,6 +69,7 @@ Inputs read (brief step 2), each carried finding re-checked on `ccef654f0`:
 | new, this seat | `lane-map.sh --check` (every agent before an edit, every spawn, R3) takes `~9 s` | the local-rows pass forks `jq`, `dirname`, `basename` per worktree | **row 02** |
 | new, this seat | `do_spl_desk_cnf` -> `spl_box_ws_guard` reads one cnf key with a `yq eval-all` merge of `130 KB` | measured below | section 6, not a row yet (how often it runs is not measured) |
 
+<a id="ws-doc-bd896fe0-54ea-4457-adb4-f8aab4be7a7c"></a>
 ## 3. The 5 rows
 
 | # | id | practice | baseline on `ccef654f0` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
@@ -78,6 +83,7 @@ Inputs read (brief step 2), each carried finding re-checked on `ccef654f0`:
 Rows 01-05 are claude: rulebook R14 (an established vendor for every row) and the
 owner's 10-17 rule (no mistral coding or testing).
 
+<a id="ws-doc-b924fbdc-3963-4ff7-b127-94027cd4c96e"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: rows 01, 03, 04, 05. No path is in two rows: 01 is Go under
@@ -91,6 +97,7 @@ owner's 10-17 rule (no mistral coding or testing).
   r58-07 (`refactor(r58-07-orc-action-headers-c)`), which edits
   `spl-lane-map.func.sh:2`.
 
+<a id="ws-doc-11095f38-3a68-4a83-8c03-1b4a18b984c0"></a>
 ### 3.2 Off every live lane, every queued row and rounds 31-33 (R3)
 
 Read on 2026-11-13, each with its time:
@@ -118,6 +125,7 @@ Read on 2026-11-13, each with its time:
 - **Slug** (09:45Z): `git log origin/master --oneline -E --grep='\(p7-'` -> 0
   lines.
 
+<a id="ws-doc-af5c604d-48cb-4996-bcb2-007a0e7c0ce3"></a>
 ## 4. Per row: what the lane does
 
 - **01**: as `fanoutIssue`: collect targets under the lock, `encodeFrame` once,
@@ -145,6 +153,7 @@ Read on 2026-11-13, each with its time:
   `"$SPOOL_BIN"`. `hub-run` (`spool-harness.sh:194`) and any other long-running
   `spool` command keep the default and are named in the commit.
 
+<a id="ws-doc-d34ef092-1199-4b6b-b793-1f31b5cde729"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-13: `prd` agent kinds off = `[qwen]` only (c-001 msg b06623f5,
@@ -164,6 +173,7 @@ did not check further.
   grok seat, backup an agy seat on the second box once its quota is back. Mistral is not a row reviewer
   while the code-review pause stands. A row never pushes without that PASS (2.7.3).
 
+<a id="ws-doc-46cd05f2-1411-45e1-b107-62816ec361df"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -178,6 +188,7 @@ did not check further.
 | spec 027 rows 2-4 (kernel command line, machine family) | a GCP / VM change: the owner's go, a throwaway VM A/B | not a round row |
 | spec 027 row 7 (`sudo` `!use_pty`) | removes a terminal-injection guard; ceiling `0.7%` of the box, no before/after | not a round row |
 
+<a id="ws-doc-647b86d2-b052-40f5-a7bd-2431d8ede965"></a>
 ## 7. Counts
 
 - Rows: 5 (rulebook 1.1: at most 10). Batch 1: 4, Batch 2: 1.
@@ -186,6 +197,7 @@ did not check further.
 - Status (R6): `git fetch origin master && git log origin/master --grep='(p7-' --format='%h %cI %s'`.
 - Review count (2.7.5): `git log origin/master --grep='p7-' --format=%B | grep -c '^review: '` must reach 5.
 
+<a id="ws-doc-333d46b2-2307-450d-ac4b-cd705b2be1f0"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -218,6 +230,7 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
   only change over the signed `dd82bb604`), CI on it green (quality gate
   43421848976, docs publish 43421849066). Status line and this entry only.
 
+<a id="ws-doc-51497156-f9d9-410e-b1c9-17cbfd43e535"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

@@ -1,6 +1,6 @@
 # Alert root causes and a 99.9% reliability architecture
 
-**Status:** Draft v0.4 · primary 30-day extract window 2026-10-13T09:11Z .. 2026-11-12T09:11Z · no implementation authorized by this document.
+**Status:** Draft v0.5 · primary 30-day extract window 2026-10-13T09:11Z .. 2026-11-12T09:11Z · no implementation authorized by this document.
 
 ## 1. Purpose and scope
 
@@ -27,7 +27,7 @@ The scrubbed extract SPL-5422 used `ENV=<env> SINCE=32d ./run -a do_gcp_list_ale
 
 The 18 policy incidents overlap and are not 18 distinct outages. The 12 5xx windows group as 1 on Oct 15, 6 on Oct 16, 3 on Oct 20 and 2 on Oct 22. All six Oct 16 windows fall within the triage's K3 incident span; the differing five-versus-six count is a window-cut difference, not an unassigned cause. The extract reports 3 prd error-log incidents: it identifies Oct 18 07:10Z as the planned apply and Oct 20 09:30Z as K1 DB starvation; the remaining incident is unattributed in the extract. On Oct 15, the 429 streak and health-check incidents overlap the sole five-minute majority-fail uptime episode attributed by the prior triage to D3/K2. Nov 3 17:14Z is a separate one-point 429 incident and remains unattributed. Incident open-to-last-violating-point spans use a five-minute grain and must not be treated as exact customer outage duration.
 
-The SPL-5422 extract bundle includes `data/mon/pull.sh` for the prd uptime pull and `data/an.py` for analysis: Monitoring API `projects/csi-spl-prd/timeSeries`, metric `monitoring.googleapis.com/uptime_check/check_passed`, `ALIGN_FRACTION_TRUE` at 60 seconds, in three 10-day slices. It covered **43,200 minutes**, 2026-10-13T09:12Z .. 2026-11-12T09:11Z. A read-only re-pull with the same query reproduced the extract's minute totals and additionally derived the any-checker-location variant below. The configured check has five checker locations in three regions.
+The SPL-5422 extract bundle includes `data/mon/pull.sh` for the prd uptime pull and `data/an.py` for analysis: Monitoring API `projects/csi-spl-prd/timeSeries`, metric `monitoring.googleapis.com/uptime_check/check_passed`, `ALIGN_FRACTION_TRUE` at 60 seconds, in three 10-day slices. It covered **43,200 minutes**, 2026-10-13T09:12Z .. 2026-11-12T09:11Z. The dispatch holder c-002 ran a read-only re-pull with the same query on 2026-11-13 at approximately 13:1xZ (n=1 pull). It reproduced the extract's minute totals and derived the any-checker-location variant below; the temporary minute files were not retained. The configured check has five checker locations in three regions.
 
 | Checker location | Region | Minutes with point (n) | Failing minutes (<1) | Fully failing minutes (=0) | Availability |
 |---|---|---:|---:|---:|---:|
@@ -222,4 +222,4 @@ Proof requires at least 90 days of retained minute-level SLI data, region and re
 - Measure Cloud SQL failover and restore time in an approved drill; do not propose enabling regional HA or PITR again.
 - Review additional runner capacity and second-region serving only after the per-job queue and outage-duration measurements show that each would reduce the budget burn enough to justify its recurring cost.
 
-<!-- version: 0.4.0 · updated: 2026-11-13 · last-edit: 2026-11-13T13:23Z -->
+<!-- version: 0.5.0 · updated: 2026-11-13 · last-edit: 2026-11-13T13:29Z -->

@@ -28,6 +28,11 @@
         <dl class="person-card__facts">
           <dt>{{ t('people.role') }}</dt>
           <dd data-test="person-role">{{ roleSet.length ? roleSet.map(roleName).join(', ') : (isOwner ? t('people.owner') : t('people.member')) }}</dd>
+          <!-- spec 154 section 12: every member of this workspace reads the address -->
+          <template v-if="email">
+            <dt>{{ t('settings.email') }}</dt>
+            <dd data-test="person-email"><a :href="'mailto:' + email">{{ email }}</a></dd>
+          </template>
           <dt>{{ t('people.last_seen') }}</dt>
           <dd data-test="person-last-seen">{{ lastSeen }}</dd>
           <dt>{{ t('settings.member_id') }}</dt>
@@ -95,6 +100,7 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import { CHANGE_PASSWORD_PATH, changePasswordOffered } from '~/utils/user-menu'
 import { useSessionStore } from '~/stores/session'
 import { contactsList } from '~/utils/contacts-client.mjs'
+import { memberCard } from '~/utils/member-card-client.mjs'
 
 const route = useRoute()
 const roster = useRosterStore()
@@ -151,6 +157,17 @@ watch([humanId, () => access.contacts && !access.me?.actAs], async ([member, on]
   if (!on) return
   const list = await contactsList(api, String(session.claims?.hum || '')).catch(() => [])
   if (member === humanId.value) myContactId.value = list.find((c: { member_id?: string | null }) => c.member_id === member)?.contact_id || ''
+}, { immediate: true })
+
+/* spec 154 section 12 (SPL-5431): the member's address, which the hub answers to
+   a person of this same workspace only. A refusal (403 under act-as, 404) or a
+   failed read only leaves the row out. */
+const email = ref('')
+watch([humanId, () => !access.me?.actAs], async ([member, person]) => {
+  email.value = ''
+  if (!person || !member) return
+  const card = await memberCard(api, member).catch(() => null)
+  if (member === humanId.value) email.value = card?.email || ''
 }, { immediate: true })
 
 /* SPL-5056: the member's whole role set. Only GET /v1/members carries it

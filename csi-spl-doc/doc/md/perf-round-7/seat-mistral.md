@@ -170,3 +170,72 @@ reason).
 
 Signed: m-669@sat (mistral), 2026-11-13, plan sha
 `e599eabf239bec58e30581dacc256a13bd0ad6be`, verdict PASS.
+
+---
+
+## v1.0 sign-off: `d47de8b8f5a7cfba95a6ea05bc943604871680b1`
+
+Verdict on v1.0 (branch `review/c002-perf-round-7-planner`, fast-forward from
+`e599eabf2`): **PASS**, no new defect. Fetch proof: `git fetch origin
+review/c002-perf-round-7-planner && git rev-parse FETCH_HEAD` ->
+`d47de8b8f5a7cfba95a6ea05bc943604871680b1`; `git diff --stat
+e599eabf2..d47de8b8f` -> 2 files changed, 54 insertions(+), 19 deletions(-)
+(plan + editor.md only).
+
+Checks re-run on `d47de8b8f` (2026-11-13 ~11:36Z-11:40Z):
+
+1. Slug, fresh master (`baa073831`): `git log origin/master --oneline -E
+   --grep='\(p7-' | wc -l` -> `0`; `git ls-remote origin 'refs/heads/*p7-[0-9][0-9]*' | wc -l`
+   -> `0`.
+2. Changed sites, each read with `git show <sha>:<file> | sed -n '<N>p'` at
+   both `ccef654f0` and `origin/master`, byte-identical:
+   - row 05 (plan line 76): `scripts/spool-send.sh:533` =
+     `out="$(SPOOL_ROOT="$SPOOL_ROOT" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" "${args[@]}")"`;
+     `scripts/asks.sh:66` = `timeout "${ASKS_CLAIM_TIMEOUT:-15}" "$SPOOL_BIN" claim "$@"`;
+     the excluded long-running exec `scripts/spool-harness.sh:194` =
+     `setsid "$SPOOL_BIN" hub-run ...`; `lib/spool-env.inc.sh:459-460` assigns
+     `SPOOL_BIN`, and `spool_resolve_bins` (:486) sets only the vendor CLI path
+     vars — `grep -nE 'SPOOL_BIN"?\s+(send|recv|tail|claim|hub-run)'` over the
+     file -> no match, so `SPOOL_BIN` is never executed in `spool-env.inc.sh`
+     (the plan's "`spool_resolve_bins` execs nothing" holds).
+   - row 04 (plan line 75) new line cites: `gh-runner-add.func.sh:86-95`
+     (`ghr_docker_flavour()` defined at :86, `dpkg -s docker-ce` at :88, called
+     bare at :95), `spl-agent-restart.func.sh:76-83`,
+     `spl-sender-audit.func.sh:24-27`, `spl-box-restart-after.func.sh:21-28`,
+     `spl-agent-login-check.func.sh:69-71`.
+   - row 01 (plan line 72): `human_status.go:88-105` (function ends at :105).
+3. Row shape: table header (plan line 70) now carries the `box` column (W2
+   folded; every row `sat`); row 02 baseline (line 73) now **4,365 ms median**
+   (W1 folded; the middle of editor.md:86's sorted 3008, 4098, 4365, 4369,
+   4650); row 05 baseline (line 76) matches editor.md:186-197 (section 2.8):
+   default 69.5 ms wall / 75.0 ms CPU, `GOMAXPROCS=1` 64.0 / 59.0, n=20 —
+   recomputed -8% wall ((69.5-64)/69.5 = 7.9%), -21% CPU ((75-59)/75 = 21.3%).
+   Still at most 5 sites per row, a test + red control per row, all rows
+   claude, batches disjoint; section 3.1 (line 81) now lists row 05's three
+   files (`spool-env.inc.sh`, `spool-send.sh`, `asks.sh`).
+4. Re-measure of the changed row 05 on `spool send`, on my own scratch
+   `SPOOL_ROOT` with `SPOOL_NOTIFY_CMD=off`, exactly as `spool-send.sh:533`
+   runs it (`SPOOL_ROOT=<scratch> SPOOL_NOTIFY_CMD=off ~/.local/bin/spool send
+   --from c-998 --to c-999 --kind msg --body probe`), n=10 interleaved, load
+   72.43 (`cat /proc/loadavg` before and after): default **77.5 ms wall /
+   51.5 ms CPU** median, `GOMAXPROCS=1` **56.5 ms wall (-27%) / 36.0 ms CPU
+   (-30%)** median. Direction agrees with the editor's n=20 at load 23.0 (one
+   P faster on wall and CPU); my CPU gain is larger, wall noisier under load 72.
+5. R3: `lane-map.sh --check <all 16 row paths, incl. spool-send.sh and
+   asks.sh> --agent m-669` -> exit `0`, output `free`.
+6. Consensus (plan lines 208-214): `git ls-remote origin
+   'refs/heads/review/c002-perf-round-7-grok-seat'` ->
+   `d0f89fcdfe67d452a54b4ef1506efec8db6cbec5`, as the table claims; my seat
+   branch `review/c002-perf-round-7-mistral-seat` = `0ee0871b8`.
+
+Notes:
+
+- **N5**: editor.md 2.8's `spool send` baseline was measured at 11:27Z, after
+  the 09:26Z fetch of `ccef654f0`; the two exec sites are byte-identical at
+  `ccef654f0` and `origin/master` `baa073831`, so the number applies to both.
+- **N6**: the fsync A/B is honestly reported as not finished (editor.md
+  section 2.7 result, plan section 6) and carried to round 8 — no invented
+  number.
+
+Signed: m-669@sat (mistral), 2026-11-13, v1.0 sha
+`d47de8b8f5a7cfba95a6ea05bc943604871680b1`, verdict PASS.

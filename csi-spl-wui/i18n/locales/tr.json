@@ -1713,6 +1713,7 @@
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
     "split_mistral": "Mistral",
+    "split_codex": "Codex",
     "split_hint": "Yeni ajan işi nasıl paylaşılır. Her iki yönde yaklaşık beş puan normaldir.",
     "performance": "Performans",
     "performance_title": "Kullanıcıların gördüğü performans",
@@ -1988,7 +1989,8 @@
         "grok": "Grok",
         "agy": "Antigravity",
         "mistral": "Mistral",
-        "qwen": "Qwen"
+        "qwen": "Qwen",
+        "codex": "Codex"
       },
       "state": {
         "set": "Ayarlı",
@@ -2366,6 +2368,7 @@
       "grok": "Grok",
       "qwen": "Qwen",
       "mistral": "Mistral",
+      "codex": "Codex",
       "agent": "Ajan"
     },
     "tabs_label": "Ajan kartı",

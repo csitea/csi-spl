@@ -1713,6 +1713,7 @@
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
     "split_mistral": "Mistral",
+    "split_codex": "Codex",
     "split_hint": "Så delas nytt agentarbete. Ungefär fem punkter åt vardera håll är normalt.",
     "performance": "Prestanda",
     "performance_title": "Prestanda som användarna upplever den",
@@ -1988,7 +1989,8 @@
         "grok": "Grok",
         "agy": "Antigravity",
         "mistral": "Mistral",
-        "qwen": "Qwen"
+        "qwen": "Qwen",
+        "codex": "Codex"
       },
       "state": {
         "set": "Angiven",
@@ -2366,6 +2368,7 @@
       "grok": "Grok",
       "qwen": "Qwen",
       "mistral": "Mistral",
+      "codex": "Codex",
       "agent": "Programagent"
     },
     "tabs_label": "Agentkort",

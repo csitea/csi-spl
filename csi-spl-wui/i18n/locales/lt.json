@@ -1713,6 +1713,7 @@
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
     "split_mistral": "Mistral",
+    "split_codex": "Codex",
     "split_hint": "Kaip dalijamas naujas agentų darbas. Maždaug penki punktai į bet kurią pusę yra įprasta.",
     "performance": "Našumas",
     "performance_title": "Našumas naudotojų akimis",
@@ -1988,7 +1989,8 @@
         "grok": "Grok",
         "agy": "Antigravity",
         "mistral": "Mistral",
-        "qwen": "Qwen"
+        "qwen": "Qwen",
+        "codex": "Codex"
       },
       "state": {
         "set": "Nustatytas",
@@ -2366,6 +2368,7 @@
       "grok": "Grok",
       "qwen": "Qwen",
       "mistral": "Mistral",
+      "codex": "Codex",
       "agent": "Agentas"
     },
     "tabs_label": "Agento kortelė",

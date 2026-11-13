@@ -1713,6 +1713,7 @@
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
     "split_mistral": "Mistral",
+    "split_codex": "Codex",
     "split_hint": "Hoe nieuw agentwerk wordt verdeeld. Ongeveer vijf punten naar beide kanten is normaal.",
     "performance": "Prestaties",
     "performance_title": "Prestaties zoals gebruikers ze ervaren",
@@ -1988,7 +1989,8 @@
         "grok": "Grok",
         "agy": "Antigravity",
         "mistral": "Mistral",
-        "qwen": "Qwen"
+        "qwen": "Qwen",
+        "codex": "Codex"
       },
       "state": {
         "set": "Ingesteld",
@@ -2366,6 +2368,7 @@
       "grok": "Grok",
       "qwen": "Qwen",
       "mistral": "Mistral",
+      "codex": "Codex",
       "agent": "Software-agent"
     },
     "tabs_label": "Agentkaart",

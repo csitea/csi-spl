@@ -1713,6 +1713,7 @@
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
     "split_mistral": "Mistral",
+    "split_codex": "Codex",
     "split_hint": "Πώς μοιράζεται η νέα δουλειά πρακτόρων. Περίπου πέντε μονάδες προς κάθε πλευρά είναι φυσιολογικό.",
     "performance": "Απόδοση",
     "performance_title": "Η απόδοση όπως τη βλέπουν οι χρήστες",
@@ -1988,7 +1989,8 @@
         "grok": "Grok",
         "agy": "Antigravity",
         "mistral": "Mistral",
-        "qwen": "Qwen"
+        "qwen": "Qwen",
+        "codex": "Codex"
       },
       "state": {
         "set": "Ορισμένο",
@@ -2366,6 +2368,7 @@
       "grok": "Grok",
       "qwen": "Qwen",
       "mistral": "Mistral",
+      "codex": "Codex",
       "agent": "Πράκτορας"
     },
     "tabs_label": "Κάρτα πράκτορα",

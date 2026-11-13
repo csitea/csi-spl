@@ -256,7 +256,31 @@ try {
   await p.waitForSelector('[data-test=tenant-split-mistral]', { visible: true, timeout: 10000 })
   await sleep(100)
   const moved = await splitOf()
-  ok('8h mistral 55, grok 0 is saved and read back', moved === 'claude=25 grok=0 agy=10 qwen=10 mistral=55', moved)
+  ok('8h mistral 55, grok 0 is saved and read back', moved === 'claude=25 grok=0 agy=10 qwen=10 mistral=55 codex=0', moved)
+
+  // SPL-5454 (rdb 0282): Codex is the sixth share, labelled, saved and read
+  // back; 16 sums to 101 and keeps Save off (the CONTROL).
+  const codexLabel = await p.$eval('[data-test=tenant-split-codex]', (el) => el.closest('label')?.querySelector('span')?.textContent?.trim() ?? '')
+  ok('8h2 the flat split has a Codex input', codexLabel === 'Codex', codexLabel)
+  await setNum('[data-test=tenant-split-mistral]', '40')
+  await setNum('[data-test=tenant-split-codex]', '16')
+  await sleep(100)
+  const c101 = { sum: await text(p, '[data-test=tenant-split-sum]'), disabled: await p.$eval('[data-test=tenant-split-save]', (el) => el.disabled) }
+  ok('8h3 CONTROL: codex 16 sums to 101 and keeps Save off', c101.sum.includes('101') && c101.disabled === true, c101)
+  await setNum('[data-test=tenant-split-codex]', '15')
+  await sleep(100)
+  await p.click('[data-test=tenant-split-save]')
+  await p.waitForFunction(() => document.querySelector('[data-test=tenant-split-save]')?.disabled === true, { timeout: 5000 }).catch(() => null)
+  await p.click('[data-test=tenant-settings-nav-channels]')
+  await p.waitForSelector('[data-test=tenant-channel-row]', { visible: true, timeout: 10000 })
+  await p.click('[data-test=tenant-settings-nav-split]')
+  await p.waitForSelector('[data-test=tenant-split-codex]', { visible: true, timeout: 10000 })
+  await sleep(100)
+  const withCodex = await splitOf()
+  ok('8h4 codex 15 is saved and read back', withCodex === 'claude=25 grok=0 agy=10 qwen=10 mistral=40 codex=15', withCodex)
+  await p.waitForSelector('[data-test=split-kind-tests-codex]', { visible: true, timeout: 10000 })
+  const testsCodex = await p.$eval('[data-test=split-kind-tests-codex]', (el) => el.value)
+  ok('8h5 the per-kind table has a Codex column, tests codex 15 (owner msg ea50c4b0)', testsCodex === String(cnfSplitKinds().tests.weights.codex) && testsCodex === '15', testsCodex)
 
   // spec 115 HUB-1: the split per task kind. The table shows the section 2
   // defaults; agy codes, so agy in a coding kind passes the rules (owner msg
@@ -302,6 +326,7 @@ try {
     await setNum('[data-test=split-kind-simple_coding-mistral]', '60')
     await setNum('[data-test=split-kind-simple_coding-claude]', '30')
     await setNum('[data-test=split-kind-simple_coding-grok]', '10')
+    await setNum('[data-test=split-kind-simple_coding-codex]', '0')
     await sleep(100)
     await p.click('[data-test=split-kinds-save]')
     await p.waitForSelector('[data-test=split-kinds-notice]', { visible: true, timeout: 5000 }).catch(() => null)
@@ -312,7 +337,7 @@ try {
   await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
   await sleep(100)
   const kinds1 = { simple: await kindRow('simple_coding'), reset: Boolean(await p.$('[data-test=split-kind-simple_coding-reset]')), tests: await kindRow('tests') }
-  ok('8o new per-kind weights save and read back', kinds1.simple === `claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=${simpleDef.backup}` && kinds1.reset && kinds1.tests === splitRowOf(cnfKinds.tests.weights, cnfKinds.tests.backup), kinds1)
+  ok('8o new per-kind weights save and read back', kinds1.simple === `claude=30 grok=10 agy=0 qwen=0 mistral=60 codex=0 backup=${simpleDef.backup}` && kinds1.reset && kinds1.tests === splitRowOf(cnfKinds.tests.weights, cnfKinds.tests.backup), kinds1)
   if (process.env.SPLIT_SHOT) await p.screenshot({ path: process.env.SPLIT_SHOT, fullPage: true })
 
   // 3c. SPL-2115 Agent takeover: per task kind the vendor order and the
@@ -522,7 +547,8 @@ try {
     r.dataset.vendor, r.querySelector('[data-test=tenant-agent-cap]').textContent.trim(),
     r.querySelector('[data-test=tenant-agent-cap-live]').textContent.trim(), r.dataset.status].join(':')))
   ok('17b Agents shows the workspace caps per vendor: cap, live and status (qwen unlimited)', capRows.join() ===
-    'claude:1:1:at_limit,grok:1:0:available,agy:2:1:available,mistral:1:0:available,qwen:' + capRows[4]?.split(':')[1] + ':2:unlimited' &&
+    'claude:1:1:at_limit,grok:1:0:available,agy:2:1:available,mistral:1:0:available,qwen:' + capRows[4]?.split(':')[1] + ':2:unlimited' +
+    ',codex:' + capRows[4]?.split(':')[1] + ':0:unlimited' &&
     !/^[0-9]+$/.test(capRows[4]?.split(':')[1] || '0'), capRows)
   const capControls = await q.$$eval('[data-test=tenant-settings-agent-caps] input, [data-test=tenant-settings-agent-caps] button, [data-test=tenant-settings-agent-caps] select', (xs) => xs.length).catch(() => -1)
   ok('17c the caps table is read-only: no input, button or select', capControls === 0, { capControls })

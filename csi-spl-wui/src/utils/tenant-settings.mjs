@@ -32,21 +32,22 @@ export function normalizeTenantSettings(body) {
 export const TOPIC_ARCHIVE_POLICY_OPTIONS = Object.freeze(['everyone', 'admins', 'starter'])
 
 /** Vendor kinds, in the order the settings page lists them. */
-export const AGENT_SPLIT_KINDS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral'])
+export const AGENT_SPLIT_KINDS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral', 'codex'])
 
-/** Owner's current split. qwen and mistral (spec 110) are 0 so the five sum to 100. */
-export const DEFAULT_AGENT_SPLIT = Object.freeze({ claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 })
+/** Owner's current split. qwen, mistral (spec 110) and codex (spec 161, rdb 0282) are 0 so the six sum to 100. */
+export const DEFAULT_AGENT_SPLIT = Object.freeze({ claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0, codex: 0 })
 
 /**
- * Five whole-number shares that sum to 100 (the hub refuses four, spec 110). Anything else (absent, a
- * fraction, a share outside 0..100, a sum other than 100) is the default.
+ * Six whole-number shares that sum to 100 (the hub refuses four, spec 110). Anything else (absent, a
+ * fraction, a share outside 0..100, a sum other than 100) is the default. codex left out (a hub
+ * before rdb 0282, SPL-5454) reads as 0.
  */
 export function agentSplitOf(raw) {
   const src = raw && typeof raw === 'object' ? raw : null
   if (!src) return { ...DEFAULT_AGENT_SPLIT }
   const out = {}
   for (const k of AGENT_SPLIT_KINDS) {
-    const n = src[k]
+    const n = k === 'codex' && src[k] === undefined ? 0 : src[k]
     if (!Number.isInteger(n) || n < 0 || n > 100) return { ...DEFAULT_AGENT_SPLIT }
     out[k] = n
   }
@@ -124,15 +125,16 @@ const SPLIT_SECRET_VENDORS = Object.freeze(['claude', 'grok', 'mistral'])
 
 /** spec 115 section 2: the row of a kind the workspace has not set (cnf
  * env.box.agent_split_by_kind, the one source; mistral writes no code, owner
- * msg 91bf8278; agy takes grok's coding share, owner msg dc673043). */
+ * msg 91bf8278; agy takes grok's coding share, owner msg dc673043; codex
+ * takes 15 of claude's in tests and simple_coding, owner msg ea50c4b0). */
 export const DEFAULT_SPLIT_KINDS = Object.freeze({
-  specs_and_docs: { weights: { claude: 5, grok: 0, agy: 80, qwen: 0, mistral: 15 }, backup: 'claude' },
-  tests: { weights: { claude: 85, grok: 0, agy: 15, qwen: 0, mistral: 0 }, backup: 'agy' },
-  simple_coding: { weights: { claude: 59, grok: 0, agy: 41, qwen: 0, mistral: 0 }, backup: 'agy' },
-  complex_coding: { weights: { claude: 90, grok: 0, agy: 10, qwen: 0, mistral: 0 }, backup: 'agy' },
-  i18n: { weights: { claude: 0, grok: 0, agy: 100, qwen: 0, mistral: 0 }, backup: 'claude' },
-  secret: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
-  orchestration: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
+  specs_and_docs: { weights: { claude: 5, grok: 0, agy: 80, qwen: 0, mistral: 15, codex: 0 }, backup: 'claude' },
+  tests: { weights: { claude: 70, grok: 0, agy: 15, qwen: 0, mistral: 0, codex: 15 }, backup: 'agy' },
+  simple_coding: { weights: { claude: 44, grok: 0, agy: 41, qwen: 0, mistral: 0, codex: 15 }, backup: 'agy' },
+  complex_coding: { weights: { claude: 90, grok: 0, agy: 10, qwen: 0, mistral: 0, codex: 0 }, backup: 'agy' },
+  i18n: { weights: { claude: 0, grok: 0, agy: 100, qwen: 0, mistral: 0, codex: 0 }, backup: 'claude' },
+  secret: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0, codex: 0 }, backup: 'grok' },
+  orchestration: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0, codex: 0 }, backup: 'grok' },
 })
 
 /** The vendor with the strict highest weight, '' on a tie. */

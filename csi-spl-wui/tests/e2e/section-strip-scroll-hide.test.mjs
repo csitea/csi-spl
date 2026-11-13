@@ -157,6 +157,17 @@ async function readAway(p, max = 3000) {
   return s
 }
 
+/* SPL-5407: under load settle() can return on a page whose content is not
+   in yet (4x CPU: 2 of 8 had no pane, so the wheel was skipped). Wait,
+   bounded, for the page at `path` and a pane of its own. */
+async function settlePane(p, path, max = 8000) {
+  const end = Date.now() + max
+  await p.waitForFunction((h) => location.pathname === h, { timeout: max }, path).catch(() => null)
+  let s = await settle(p)
+  while (!s.pane && Date.now() < end) { await sleep(200); s = await settle(p, 2000) }
+  return s
+}
+
 /* a real CDP touch: down at `at`, after `hold` ms moved by dy in 6 steps, up */
 async function swipe(p, at, dy, hold = 0) {
   const cdp = await p.createCDPSession()
@@ -265,9 +276,9 @@ try {
     await p.goto(`${srv.base}/help`, { waitUntil: 'networkidle2' })
     await settle(p)
     const href = await p.evaluate(() => { const a = document.querySelector('.spool-main a[href*="/help/"]'); a?.click(); return a?.getAttribute('href') ?? null })
-    const h2 = await settle(p)
+    const h2 = href ? await settlePane(p, href) : await settle(p)
     if (h2.pane) await wheel(p, h2.pane, 600)
-    const away = await read(p)
+    const away = await readAway(p)
     await p.goBack().catch(() => null)
     const back = await settle(p)
     ok(`${tag} a tapped help page (${href}) scrolled down: away; then Back: the strip is painted`, Boolean(h2.pane) && away.hidden === '1' && back.painted && back.hidden === null, { away: away.hidden, ...back })

@@ -56,7 +56,7 @@
       </div>
       <!-- W14 (spec 047): Help, one click for everyone; the gear below it -->
       <NuxtLink
-        class="sidebar-rail__help"
+        class="sidebar-rail__help sidebar-rail__named"
         data-testid="help-open"
         v-tap-anim="'bounce'"
         :to="localePath('/help')"
@@ -66,13 +66,16 @@
         :aria-label="t('help.title')"
       >
         <UiIcon name="help" :size="20" />
+        <!-- SPL-5429 (owner HUM-10, t1 6407fdbe): Help and the gear carry
+             their word too, as the docs link does (SPL-5336) -->
+        <span class="sidebar-tab__label" aria-hidden="true">{{ t('help.title') }}</span>
       </NuxtLink>
       <!-- Docs (Qto) (owner HUM-10, t1 4296200d): the workspace documents of
            spec 113 (/workspace/docs), for a signed-in member. SPL-1882 (t1
            2a2a4694): the one docs entry; the simple Docs (/docs) is gone -->
       <NuxtLink
         v-if="qtoShown"
-        class="sidebar-rail__qto"
+        class="sidebar-rail__qto sidebar-rail__named"
         data-testid="qto-open"
         v-tap-anim="'lift'"
         :to="localePath('/workspace/docs')"
@@ -90,7 +93,7 @@
            biz_owners only; owner 2026-09-28: a gear -->
       <NuxtLink
         v-if="tenantSettingsShown"
-        class="sidebar-rail__settings"
+        class="sidebar-rail__settings sidebar-rail__named"
         data-testid="tenant-settings-open"
         v-tap-anim="'bounce'"
         :to="localePath('/tenant-settings')"
@@ -100,6 +103,7 @@
         :aria-label="t('tenant_settings.title')"
       >
         <UiIcon name="settings" :size="20" />
+        <span class="sidebar-tab__label" aria-hidden="true">{{ t('sidebar.settings') }}</span>
       </NuxtLink>
       <!-- spec 074 T008 (owner HUM-10, t1 aa35699c): the operator console, a
            section of the right-most pane; only an admin of the operator
@@ -141,15 +145,17 @@
             <span v-else-if="railCount(item.id)" class="sidebar-tab__count" :class="{ 'sidebar-tab__count--link': item.id === 'issues' }" @click="onCountClick(item.id, $event)">{{ railCount(item.id) }}</span>
             <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" />
           </button>
-          <NuxtLink v-tap-anim="'bounce'" class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')" :data-current="railLinkOn('help') ? 'true' : undefined" :aria-current="undefined">
+          <NuxtLink v-tap-anim="'bounce'" class="sidebar-rail__help sidebar-rail__named" tabindex="-1" :to="localePath('/help')" :data-current="railLinkOn('help') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="help" :size="20" />
+            <span class="sidebar-tab__label">{{ t('help.title') }}</span>
           </NuxtLink>
-          <NuxtLink v-if="qtoShown" v-tap-anim="'lift'" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')" :data-current="railLinkOn('docs') ? 'true' : undefined" :aria-current="undefined">
+          <NuxtLink v-if="qtoShown" v-tap-anim="'lift'" class="sidebar-rail__qto sidebar-rail__named" tabindex="-1" :to="localePath('/workspace/docs')" :data-current="railLinkOn('docs') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="file-text" :size="20" />
             <span class="sidebar-tab__label">{{ t('docs.title') }}</span>
           </NuxtLink>
-          <NuxtLink v-if="tenantSettingsShown" v-tap-anim="'bounce'" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')" :data-current="railLinkOn('settings') ? 'true' : undefined" :aria-current="undefined">
+          <NuxtLink v-if="tenantSettingsShown" v-tap-anim="'bounce'" class="sidebar-rail__settings sidebar-rail__named" tabindex="-1" :to="localePath('/tenant-settings')" :data-current="railLinkOn('settings') ? 'true' : undefined" :aria-current="undefined">
             <UiIcon name="settings" :size="20" />
+            <span class="sidebar-tab__label">{{ t('sidebar.settings') }}</span>
           </NuxtLink>
         </div>
       </template>
@@ -1075,8 +1081,9 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
 /* SPL-5336: the docs link names itself under its icon on desktop too,
    in the "Show labels" style of the tabs (main.css); it stays a square
    like Help and the gear (aspect-ratio above), so with "Show labels" on
-   it is 71x71 as they are and Help does not move */
-.sidebar-rail__qto {
+   it is 71x71 as they are and Help does not move. SPL-5429: Help and the
+   gear do the same (sidebar-rail__named; the operator button is not one) */
+.sidebar-rail__named {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1087,8 +1094,8 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   line-height: 1.15;
   container-type: normal;
 }
-.sidebar-rail__qto :deep(svg) { width: 20px; height: 20px; flex: none; }
-.sidebar-rail__qto .sidebar-tab__label {
+.sidebar-rail__named :deep(svg) { width: 20px; height: 20px; flex: none; }
+.sidebar-rail__named .sidebar-tab__label {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -1600,7 +1607,7 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   .sidebar-tab__label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 0.6875rem; white-space: nowrap; }
   .sidebar-tab[aria-selected="true"] .sidebar-tab__label,
   .sidebar-tab[data-on="true"] .sidebar-tab__label,
-  .sidebar-rail__qto[data-current="true"] .sidebar-tab__label { font-weight: 700; }
+  .sidebar-rail__named[data-current="true"] .sidebar-tab__label { font-weight: 700; }
   /* the endless strip's copies: [before][real][after], one row, same gap */
   .sidebar-rail__loop { display: flex; flex: 0 0 auto; gap: inherit; }
   .sidebar-rail__loop[data-loop="before"] { order: -1; }
@@ -1619,10 +1626,11 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
   .sidebar-rail__help :deep(svg),
   .sidebar-rail__qto :deep(svg),
   .sidebar-rail__settings :deep(svg) { width: 22px; height: 22px; }
-  /* SPL-5336: the docs link is laid out as a named tab (icon over its word) */
-  .sidebar-rail__qto { padding: 4px 2px; aspect-ratio: auto; }
-  .sidebar-rail__qto .sidebar-tab__label { font-size: 0.6875rem; }
-  .sidebar-rail__qto[data-current="true"] :deep(svg) { width: 20px; height: 20px; }
+  /* SPL-5336, SPL-5429: docs, Help and the gear are laid out as named
+     tabs (icon over its word) */
+  .sidebar-rail__named { padding: 4px 2px; aspect-ratio: auto; }
+  .sidebar-rail__named .sidebar-tab__label { font-size: 0.6875rem; }
+  .sidebar-rail__named[data-current="true"] :deep(svg) { width: 20px; height: 20px; }
   .sidebar.sidebar--rail { width: 100%; max-width: 100%; }
   .sidebar-body { padding-top: 4px; }
   .nav-row > .nav-item { min-height: 48px; }

@@ -532,6 +532,7 @@
     "create_channel_busy": "Kuriama…",
     "you": "(jūs)",
     "flow": "Srautas",
+    "settings": "Nustatymai",
     "help": {
       "channels": "Spustelėkite kanalą, kad jį atidarytumėte. Eilutės meniu nukopijuoja nuorodą arba pažymi kaip perskaitytą. Vilkite eilutę, kad nustatytumėte tvarką; naujas kanalas lieka po sutvarkytomis eilutėmis. Spustelėjus ↑ ir ↓ atidaro kitą arba ankstesnį kanalą; Enter pereina į jo žinutes.",
       "direct_messages": "Spustelėkite asmenį arba botą, kad atidarytumėte pokalbį. Meniu gali užblokuoti, nutildyti arba prisegti, o administratorius gali ir pašalinti. Vilkite eilutę, kad nustatytumėte tvarką; naujas asmuo lieka po sutvarkytomis eilutėmis.",

@@ -19,7 +19,7 @@ control, a candidate with no measured gain is dropped).
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Vendor claude for
   every row.**
 
-**Status: v1.1, the panel's warnings folded in (section 8).** Editor: c-660@sat (claude).
+**Status: v1.1, landed** on `master` as `e7d5d3b2e` (both seats PASS on `dd82bb604`; ACCEPTED e741031b by c-002). Editor: c-660@sat (claude).
 
 **Why now.** The holder's brief (c-002@sat, 2026-11-13 08:2xZ): the 4.4 check on
 `origin/master` 3783a6b72 printed `perf 0 refactor 137 perf-share 0.0% under-20`;
@@ -214,6 +214,9 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
   `spl-peer-poll.func.sh:148`, and `spool-harness.sh:194`, which is excluded).
   The file is the same on `origin/master`, and no round 31-33 plan names it. No
   baseline change.
+- Landed (c-660@sat, 2026-11-13): v1.1 on `master` as `e7d5d3b2e` (section 9 the
+  only change over the signed `dd82bb604`), CI on it green (quality gate
+  43421848976, docs publish 43421849066). Status line and this entry only.
 
 ## 9. Consensus
 

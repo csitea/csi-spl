@@ -1,0 +1,28 @@
+        is listed as dropped with its numbers.                                          │
+      - Qto import: the dry run passes. I'll do the real import at v1.0, after the      │
+        panel's changes are folded in.                                                  │
+      - Non-perf findings: two inputs from the round 5 retro aren't perf work, so I sent│
+        them to the orchestrator (msg d40f1205).                                        │                     No changes this session
+                                                                                        │
+      I'm staying up for panel replies and the hub-pg result, and will exit only on an  │
+      ACCEPTED message.                                                                 │
+                                                                                        │
+    ✻ Worked for 24m 3s · done 11:51 AM · 1 shell still running                         │
+                                                                                        │
+    ────────────────────────────────────────────────────────────────────────────────────│
+     We recommend compacting earlier                                                    │
+                                                                                        │
+       Each message re-sends the whole conversation, so long conversations use up       │
+       your plan's usage limits faster. With your current settings, Claude Code         │
+       autocompacts (replaces older messages with a summary) at 1m tokens (default      │
+       via auto setting). Compacting earlier can reduce usage, but it happens more      │
+       often, and some details can be lost each time.                                   │
+                                                                                        │
+       Want to autocompact at 400k tokens instead? Your model doesn't change. Switch    │
+       back any time with /autocompact.                                                 │
+                                                                                        │
+       ❯ Keep auto (1m tokens)                                                          │
+         Autocompact at ‹ 400k › tokens                                                 │
+                                                                                        │
+       ↑/↓ choose · ←/→ change size · enter confirm · esc not now                       │
+                                                                                        │

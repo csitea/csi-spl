@@ -71,7 +71,8 @@
 # claude's autocompact offer (SPL-5427, Claude Code 2.1.311, c-001@sat
 # 2026-11-13 ~08:57Z, n=1): "We recommend compacting earlier" over "❯ Keep
 # auto (1m tokens)" / "Autocompact at ‹ 400k › tokens". Matched only as its
-# own title line. Never answered here; the watchdog's S7 sends Escape ("not
+# own title line; a pane in a vertical split ends each line in "│" (c-660@sat
+# ~10:00Z, n=2), so a │ may close or open it. Never answered here; the watchdog's S7 sends Escape ("not
 # now"), never Enter (the option order is random, see spl_lease_modal_res).
 
 # The known dialogs, "<name>|<extended regex>"; the first match wins.
@@ -80,7 +81,7 @@ SPOOL_START_DIALOGS=(
   'Settings Error|Continue without these settings|Exit and fix manually'
   'trust prompt|Is this a project you created or one you trust|Yes, I trust this folder|Do you trust the files|Do you trust the contents of this directory|Trust this folder\?|Trust and continue'
   'auto-mode offer|Make auto mode your default permission mode'
-  'autocompact offer|^[[:space:]]*We recommend compacting earlier[[:space:]]*$'
+  'autocompact offer|(^|│)[[:space:]]*We recommend compacting earlier[[:space:]]*(│|$)'
   'bypass-permissions confirm|Yes, I accept'
   'auth/login|Not logged in|Select login method|[Pp]lease run /login|Invalid API key|OAuth token (has )?expired'
   'usage limit|[Uu]sage limit reached|limit reached[[:space:]]*·|limit resets|^[[:space:]]*(❯[[:space:]]*)?[0-9]\.[[:space:]]+(Stop and wait for limit to reset|Switch to usage credits)'

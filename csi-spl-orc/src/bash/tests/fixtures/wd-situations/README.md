@@ -13,6 +13,7 @@ screen and its transcripts are T001's, read from `../fleet-lease/`.
 | `modal-default-quote.pane` | the same dialog quoted in a reply, idle prompt below | S7 control: no hit, no key |
 | `modal-autocompact.pane` | claude 2.1.311's "We recommend compacting earlier" offer below the transcript, cursor on "Keep auto (1m tokens)" (c-001@sat 2026-11-13 ~08:57Z, the S9 snapshot's dialog lines, n=1; the transcript above rewritten) | S7 hit (modal=1), one Escape (SPL-5427) |
 | `modal-autocompact-lower.pane` | the same offer in its other order, cursor on "Autocompact at ‹ 400k › tokens" | S7 modal=1, still Escape and never Enter |
+| `modal-autocompact-split.pane` | the same offer in a vertical split, every line ending in "│" (c-660@sat ~10:00Z, the last 28 lines of its S9 snapshot as c-001 relayed them, padding to the │ column rebuilt; n=2) | S7 modal=1, one Escape; start-check names it (SPL-5427) |
 | `modal-autocompact-quote.pane` | the offer's lines quoted in a reply, idle prompt below | S7 control: no hit, no key |
 | `trust.pane` | the trust screen (a blocking screen, no Escape) | S7 hit (modal=0) |
 | `working.pane` | a turn in progress: the spinner `(12s · ...)` | S2 / S1 spinner rows |

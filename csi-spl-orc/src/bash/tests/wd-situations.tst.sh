@@ -474,6 +474,9 @@ ctx s7a; cp "$FX/modal-autocompact.pane" "$C/pane"
 grep -q '^HIT S7 modal=1 We recommend compacting earlier' <<<"$(run_s s7)" && pass "S7 the autocompact offer is dismissable (modal=1)" || fail "S7 autocompact: $(run_s s7)"
 ctx s7al; cp "$FX/modal-autocompact-lower.pane" "$C/pane"
 grep -q '^HIT S7 modal=1 We recommend compacting earlier' <<<"$(run_s s7)" && pass "S7 the autocompact offer, cursor on 400k: still modal=1" || fail "S7 autocompact lower: $(run_s s7)"
+# the same offer in a vertical split (c-660@sat ~10:00Z, n=2): every line ends in │
+ctx s7as; cp "$FX/modal-autocompact-split.pane" "$C/pane"
+grep -q '^HIT S7 modal=1 We recommend compacting earlier' <<<"$(run_s s7)" && pass "S7 the autocompact offer in a split pane: modal=1" || fail "S7 autocompact split: $(run_s s7)"
 ctx s7aq; cp "$FX/modal-autocompact-quote.pane" "$C/pane"
 nohit "S7 control: the autocompact offer quoted in a reply above the prompt" s7
 ctx s7t; cp "$FX/trust.pane" "$C/pane"
@@ -767,7 +770,7 @@ unset WD_SETTINGS_HOME
 
 # S7 the autocompact offer (SPL-5427): one Escape, never Enter, no takeover,
 # whichever option the cursor is on
-for scr in modal-autocompact modal-autocompact-lower; do
+for scr in modal-autocompact modal-autocompact-lower modal-autocompact-split; do
   reset_box; agent c-917 %1 4017 claude 3600 "$FX/$scr.pane"
   out="$(WD_KEY_WAIT=0 wd)"; settle
   [[ "$(cat "$T/tmux/log" 2>/dev/null)" == 'keys %1 Escape' && ! -s "$T/takeovers" ]] && grep -q 'c-917 HIT S7 modal=1 .*-> esc' <<<"$out" &&

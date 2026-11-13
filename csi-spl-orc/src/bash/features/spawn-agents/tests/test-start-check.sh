@@ -100,6 +100,7 @@ eq "not logged in (box drawn, login footer) named auth/login" "auth/login" "$(sp
 eq "usage limit named" "usage limit" "$(spool_start_dialog <<<"$limit")"
 eq "usage-limit menu named usage limit (SPL-4507)" "usage limit" "$(spool_start_dialog <<<"$limit_menu")"
 eq "autocompact offer named (SPL-5427)" "autocompact offer" "$(spool_start_dialog <<<"$compact")"
+eq "autocompact offer in a split pane, trailing │ (c-660@sat ~10:00Z, SPL-5427)" "autocompact offer" "$(spool_start_dialog < "$T_FEAT/../../tests/fixtures/wd-situations/modal-autocompact-split.pane")"
 eq "control: the autocompact offer's title quoted in a reply is no dialog" "" "$(spool_start_dialog <<<"$compact_quoted")"
 has "the autocompact hint says Escape, never the 400k option" 'Escape ("not now") answers it and changes nothing' "$(spool_start_hint 'autocompact offer')"
 eq "control: the plain input box is no dialog" "" "$(spool_start_dialog <<<"$plain")"

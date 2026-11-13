@@ -179,6 +179,23 @@ full_page_writes=off` to the local `pg_ctl -o` and to the `docker run` line. Run
 interleaved A, B, A, B, A, B from 09:34Z; each run's wall time and exit code go
 here when it ends.
 
+Result: not finished. The editor seat's hourly rotation (10:58Z) stopped the run
+during arm A's first pass; its log ends at `store group d: 243 s` (10:01Z) and no
+B run started. No pair, no number: the candidate is carried (plan section 6).
+
+### 2.8 Row 05 on `spool send` (v1.0, the grok seat's W3)
+
+`spool send` (binary `1.1.3`, the agent user's `~/.local/bin/spool`) from `c-998` to
+`c-999` on a scratch `SPOOL_ROOT` with those two dirs, `SPOOL_NOTIFY_CMD=off`, as
+`spool-send.sh:533` runs it. Bash `TIMEFORMAT='%R %U %S'`, arms A (default) and B
+(`GOMAXPROCS=1`) interleaved, n=20 each, 2026-11-13T11:27:33Z, load 23.0. 40
+messages landed in the scratch inbox (plus 1 from the trial send).
+
+| arm | wall ms (median, range) | user+sys ms (median) |
+|---|---|---|
+| default | 69.5 (60..106) | 75.0 |
+| `GOMAXPROCS=1` | 64.0 (53..88) | 59.0 (-21%) |
+
 ## 3. Readings for R3
 
 The lane map, queue and slug readings, with their times: the plan's section 3.2.

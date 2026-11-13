@@ -52,12 +52,23 @@ declare -F spl_lease_conf_write >/dev/null ||
 declare -F spl_lease_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
 
-SPL_ROTATE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-declare -F spool_start_check >/dev/null ||
-  source "$SPL_ROTATE_LIB_DIR/../features/spawn-agents/lib/start-check.inc.sh"
-# the truth rule that leads both rotation heads (SPL-2097)
-declare -F spool_truth_rule >/dev/null ||
-  source "$SPL_ROTATE_LIB_DIR/../features/spawn-agents/lib/spool-env.inc.sh"
+# _spl_rotate_lib_deps: SPL_ROTATE_LIB_DIR (spl-agent-restart and
+# spl-lane-restart read it too) and the .inc.sh libraries, set on the first
+# call, not at source time, so the ./run loader keeps this file lazy (spec
+# 027, p8-01). spl_rotate_conf calls it first; so does each function here
+# that needs start-check.inc.sh or spool_truth_rule. The spl_role_seat_*
+# helpers (spl_rotate_vendor_id, spl_rotate_failover_seat,
+# spl_rotate_ack_seen) need no call: spl-dispatch-lease.func.sh, sourced
+# above, loads spool-env.inc.sh at source time.
+_spl_rotate_lib_deps() {
+  [[ -n "${SPL_ROTATE_LIB_DIR:-}" ]] || SPL_ROTATE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  declare -F spool_start_check >/dev/null ||
+    source "$SPL_ROTATE_LIB_DIR/../features/spawn-agents/lib/start-check.inc.sh"
+  # the truth rule that leads both rotation heads (SPL-2097)
+  declare -F spool_truth_rule >/dev/null ||
+    source "$SPL_ROTATE_LIB_DIR/../features/spawn-agents/lib/spool-env.inc.sh"
+  return 0
+}
 
 # ---- settings ----------------------------------------------------------------
 
@@ -65,6 +76,7 @@ declare -F spool_truth_rule >/dev/null ||
 # the environment wins, then <spool root>/dispatch/rotate.conf (KEY=value,
 # read, never sourced), then the defaults named in the spec.
 spl_rotate_conf() {
+  _spl_rotate_lib_deps
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
   ROTATE_FEAT="$(cd "$SPL_ROTATE_LIB_DIR/../features/spawn-agents" && pwd)"
   declare -F spool_env_resolve >/dev/null || source "$ROTATE_FEAT/lib/spool-env.inc.sh"
@@ -604,14 +616,14 @@ spl_agent_id_unlock() {
   return 0
 }
 
-# The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.
-# ROTATE_RUN_PID / ROTATE_RUN_START: the run that writes it (spl_rotate_run_mark).
-ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM ROTATE_SWITCH_TO ROTATE_RUN_PID ROTATE_RUN_START)
-# the orch family also keeps whether the run is a standby re-seat or refresh
-# (spec 060 R8), so a resumed CLOSE reads it; the dispatch family keeps its
-# own ROTATE_STANDBY in the run only (spl_disp_run_all), never in its ctx
-ROTATE_CTX_KEYS_ORCH=(ROTATE_STANDBY ROTATE_STANDBY_REFRESH)
 spl_rotate_ctx_keys() {  # FAMILY -> ROTATE_CTX_KEYS_OF
+  # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.
+  # ROTATE_RUN_PID / ROTATE_RUN_START: the run that writes it (spl_rotate_run_mark).
+  local ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM ROTATE_SWITCH_TO ROTATE_RUN_PID ROTATE_RUN_START)
+  # the orch family also keeps whether the run is a standby re-seat or refresh
+  # (spec 060 R8), so a resumed CLOSE reads it; the dispatch family keeps its
+  # own ROTATE_STANDBY in the run only (spl_disp_run_all), never in its ctx
+  local ROTATE_CTX_KEYS_ORCH=(ROTATE_STANDBY ROTATE_STANDBY_REFRESH)
   ROTATE_CTX_KEYS_OF=("${ROTATE_CTX_KEYS[@]}")
   [[ "$1" == orch ]] && ROTATE_CTX_KEYS_OF+=("${ROTATE_CTX_KEYS_ORCH[@]}")
   return 0
@@ -1202,6 +1214,7 @@ spl_rotate_lease_to() {
 # rotation does (spl_lane_rotate_prompt_head): a pointer to the seed was not
 # enough, n=4 new sessions on 2026-10-11 never opened it and never acked.
 spl_rotate_prompt_head() {
+  _spl_rotate_lib_deps
   printf '%s\n\nROTATION %s: you are the new %s session. Run the ack, exactly; run it before anything else (even the rename):\nACK-COMMAND: %s\nThen read your rotation seed %s (your role brief and the handoff) and continue.' \
     "$(spool_truth_rule)" "$ROTATE_RID" "$1" "$2" "$3"
 }
@@ -1227,6 +1240,7 @@ spl_rotate_spawn_head() {
 # shellcheck disable=SC2034 # ROTATE_ERR / ROTATE_NEW_DIALOG are read by the caller
 spl_rotate_start_check() {
   local pane="$1" out rc=0
+  _spl_rotate_lib_deps
   out="$(spool_start_check "$pane" "${ROTATE_START_CHECK_WAIT:-45}" spl_rotate_capture_e)" || rc=$?
   case "$rc" in
     0) return 0 ;;
@@ -1341,7 +1355,7 @@ spl_rotate_restore() {
 # spool_notify_strip_ghost's). Exit 1 when no box is on screen. Measured on a
 # throwaway claude 2026-10-02: an empty box is "❯<NBSP>ESC[2mTry ...", three
 # typed rows are "❯ a" / "  b" / "  c", and the slash menu draws ABOVE it.
-spl_rotate_input() { spl_rotate_capture_e "$1" | spool_screen_input_box; }
+spl_rotate_input() { _spl_rotate_lib_deps; spl_rotate_capture_e "$1" | spool_screen_input_box; }
 spl_rotate_capture_e() { spl_rotate_tmux capture-pane -p -e -t "$1" 2>/dev/null; }
 
 # spl_rotate_type PANE CMD: the WHOLE input box emptied, CMD typed, 0 only

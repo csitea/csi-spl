@@ -74,18 +74,23 @@
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
-declare -F spool_proc_env_get >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/proc-owner.inc.sh"
-declare -F spool_start_check >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/start-check.inc.sh"
 declare -F spl_lane_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
 
-SPL_GC_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SPL_GC_KNOBS="GC_AGENT_CAP GC_MAX_AGE GC_POKE_WAIT GC_SILENT_AGE GC_CLOSE_ASK_EVERY GC_START_CHECK_S"
+# _spl_gc_deps: its .inc.sh libraries and SPL_GC_RUN_DIR, set on the first
+# call, not at source time, so the ./run loader keeps this file lazy (spec
+# 027, p8-01)
+_spl_gc_deps() {
+  SPL_GC_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  declare -F spool_proc_env_get >/dev/null ||
+    source "$SPL_GC_RUN_DIR/../features/spawn-agents/lib/proc-owner.inc.sh"
+  declare -F spool_start_check >/dev/null ||
+    source "$SPL_GC_RUN_DIR/../features/spawn-agents/lib/start-check.inc.sh"
+}
 
 do_spl_gc() {
   local cmd="${GC_CMD:-status}"
+  _spl_gc_deps
   case "$cmd" in start|scan|begin|poke|restart|close-ask|done|status) ;;
     *) do_log "FATAL GC_CMD must be start, scan, begin, poke, restart, close-ask, done or status, got: '$cmd'"; return 1 ;;
   esac
@@ -103,6 +108,8 @@ do_spl_gc() {
 # ---- settings ----------------------------------------------------------------
 
 spl_gc_init() {
+  local SPL_GC_KNOBS="GC_AGENT_CAP GC_MAX_AGE GC_POKE_WAIT GC_SILENT_AGE GC_CLOSE_ASK_EVERY GC_START_CHECK_S"
+  _spl_gc_deps
   spl_rotate_conf || return 1
   GC_DIR="${GC_STATE_DIR:-$LEASE_DIR/gc}"
   GC_LOG="$GC_DIR/gc.log"

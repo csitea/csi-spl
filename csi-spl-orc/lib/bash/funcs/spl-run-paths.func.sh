@@ -21,11 +21,18 @@
 # @example spl_run_paths && echo "$SPL_WT_ROOT"
 #------------------------------------------------------------------------------
 
-# The checkout this file sits in (<top>/csi-spl-orc/lib/bash/funcs), taken
-# when it is sourced: the last resort of spl_main_checkout, so a script that
-# sources an action without ./run (a cron such as file-stream-follow-cron.sh)
-# still derives every path. -P resolves symlinks, as run.sh's abs_path does.
-SPL_RUN_PATHS_TOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." 2>/dev/null && pwd -P)"
+# _spl_run_paths_top -> the checkout this file sits in
+# (<top>/csi-spl-orc/lib/bash/funcs): the last resort of spl_main_checkout,
+# so a script that sources an action without ./run (a cron such as
+# file-stream-follow-cron.sh) still derives every path. SPL_RUN_PATHS_TOP
+# set (even empty) overrides it. -P resolves symlinks, as run.sh's abs_path
+# does. A function, not a top-level assignment: a file with only
+# definitions gets lazy stubs from the orc ./run index (spec 027,
+# run-eager-files.tst.sh); BASH_SOURCE[0] in a function is its own file.
+_spl_run_paths_top() {
+  if [[ -n "${SPL_RUN_PATHS_TOP+x}" ]]; then printf '%s\n' "$SPL_RUN_PATHS_TOP"; return 0; fi
+  (cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." 2>/dev/null && pwd -P)
+}
 
 # spl_main_checkout -> the main checkout of the git tree whose top is
 # dir = APP_PATH, else PROJ_PATH/.. (run.sh's PROJ_PATH is
@@ -38,7 +45,7 @@ spl_main_checkout() {
   local d g
   if [[ -n "${APP_PATH:-}" ]]; then d="$APP_PATH"
   elif [[ -n "${PROJ_PATH:-}" ]]; then d="${PROJ_PATH%/}/.."
-  else d="${SPL_RUN_PATHS_TOP:-}"; fi
+  else d="$(_spl_run_paths_top)"; fi
   [[ -n "$d" ]] || return 1
   d="${d%/}"
   [[ "$d" == */.. ]] && d="$(cd "$d" 2>/dev/null && pwd -P)"

@@ -110,6 +110,7 @@ func (s *Memory) FileReadableByHuman(_ context.Context, tenant, fileID, human st
 	return false, nil
 }
 
+// FileChannelCarriers implements FileDoor.FileChannelCarriers over the in-memory log.
 func (s *Memory) FileChannelCarriers(_ context.Context, tenant, fileID string, now time.Time) ([]FileCarrier, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -817,6 +817,7 @@ func (s *Postgres) FileReadableByBox(ctx context.Context, tenant, fileID, box st
 	return ok, err
 }
 
+// FileChannelCarriers implements FileDoor.FileChannelCarriers in SQL.
 func (s *Postgres) FileChannelCarriers(ctx context.Context, tenant, fileID string, now time.Time) ([]FileCarrier, error) {
 	var out []FileCarrier
 	err := s.queryTenant(ctx, tenant, `SELECT DISTINCT m.channel, m.task_id::text, m.from_box, m.from_id FROM messages m

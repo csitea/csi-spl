@@ -168,7 +168,7 @@ spl_wd_upd_snapshot() {
 # arithmetic ("value too great for base"), so every peer tick stalled on it.
 spl_wd_upd_state_read() {
   local line kv n='^(0|[1-9][0-9]*)$'
-  U_SHA="" U_NEXT="" U_STAGE="" U_PID="" U_SINCE="" U_START="" U_TRY=0
+  U_SHA="" U_NEXT="" U_STAGE="" U_PID="" U_SINCE="" U_START="" U_TRY=0 U_GRACE=""
   line="$(cat "$WD_DIR/update.state" 2>/dev/null || true)"
   [[ -n "$line" ]] || return 1
   for kv in $line; do
@@ -180,15 +180,19 @@ spl_wd_upd_state_read() {
       since=*) U_SINCE="${kv#since=}" ;;
       start=*) U_START="${kv#start=}" ;;
       try=*) U_TRY="${kv#try=}" ;;
+      grace=*) U_GRACE="${kv#grace=}" ;;
     esac
   done
   [[ "$U_SHA" =~ ^[0-9a-f]{40}$ && "$U_NEXT" =~ ^[1-3]$ && "$U_STAGE" =~ ^(exec|wait)$ && "$U_PID" =~ $n && "$U_SINCE" =~ $n && "$U_START" =~ $n && "$U_TRY" =~ $n ]] || return 1
+  [[ -z "$U_GRACE" || "$U_GRACE" =~ $n ]] || U_GRACE=""
   return 0
 }
 
+# spl_wd_upd_state_write SHA NEXT STAGE PID SINCE START [TRY] [GRACE]: GRACE,
+# when given, is when the self-check step began its grace wait (SPL-5491)
 spl_wd_upd_state_write() {
   local f="$WD_DIR/update.state"
-  echo "sha=$1 next=$2 stage=$3 pid=$4 since=$5 start=$6 try=${7:-0}" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  echo "sha=$1 next=$2 stage=$3 pid=$4 since=$5 start=$6 try=${7:-0}${8:+ grace=$8}" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
 }
 
 # spl_wd_upd_load: the box load for a timeout line, "load <1 min>/<n> cpus"
@@ -533,6 +537,10 @@ spl_wd_upd_checked() {
     fi
     why+=", try $(( U_TRY + 1 )) of $WD_UPD_STEP_TRIES"
   fi
+  if [[ -z "$why" ]] && spl_wd_upd_grace_wait "$tick" "$sha" "$now"; then
+    exec 5>&-
+    return 0
+  fi
   if [[ -n "$why" ]]; then
     spl_wd_upd_fail "$sha" "$now" "instance $WD_INST failed its self-check tick: $why"
     exec 5>&-
@@ -541,6 +549,39 @@ spl_wd_upd_checked() {
   fi
   spl_wd_upd_pass "$sha" "$now" "$took" "${n:-0}"
   exec 5>&-
+  return 0
+}
+
+# spl_wd_upd_grace_wait TICK SHA NOW: 0 when the self-check tick waits past
+# a grace instead of ending (SPL-5491). An agent in its start or resume grace
+# is a SKIP line: no situation script ran on it, so a tick whose every agent
+# sat in a grace judged none (10.4.4 step 3) and a broken sha showed no
+# script error. One slow tick (a gap over 3 x WD_TICK) stamps resume.<inst>
+# and skips every agent for WD_START_GRACE s, so a rollout right after it
+# went green on a broken sha. Such a tick is not green: the next tick checks
+# again, no try spent (the box's grace, not the commit), its window from
+# that tick as in spl_wd_upd_check_again, the wait's start kept as grace= in
+# update.state. Waiting, not failing: a grace ends by itself, and a
+# quarantine is for good. A grace stamped before the wait began ends within
+# WD_START_GRACE s, so past WD_START_GRACE + WD_TICK of waiting the tick
+# fails closed: it sets the caller's why (quarantine and rollback), returns 1.
+# A tick that judged 1 agent, or skipped none for a grace, is not touched.
+# Under update.lock (fd 5).
+spl_wd_upd_grace_wait() {
+  local tick="$1" sha="$2" now="$3" j g first bound
+  local -a f=("$tick"/out.*)
+  [[ -e "${f[0]}" ]] || return 1
+  read -r j g < <(awk 'FNR == 1 && NF { if ($2 != "SKIP") j++; else if ($0 ~ / SKIP (start|resume) grace: /) g++ }
+    END { print j + 0, g + 0 }' "${f[@]}" 2>/dev/null || echo "1 0")
+  (( ${j:-1} == 0 && ${g:-0} > 0 )) || return 1
+  first="${U_GRACE:-$now}" bound=$(( WD_START_GRACE + ${WD_TICK:-30} ))
+  if (( now - first > bound )); then
+    why="it judged no agent ($g in a start or resume grace) after waiting $(( now - first ))s, past WD_START_GRACE + WD_TICK (${bound}s)"
+    return 1
+  fi
+  spl_wd_upd_state_write "$sha" "$WD_INST" exec "$$" "$(( now + ${WD_TICK:-30} ))" "$U_START" "$U_TRY" "$first"
+  export WD_UPD_EXEC="$sha" WD_UPD_ROLE=forward WD_UPD_T0="$now"
+  spl_wd_upd_log "WAIT ${sha:0:9}: instance $WD_INST: its self-check tick judged no agent ($g in a start or resume grace), waited $(( now - first ))s of ${bound}s; not green, its next tick checks again"
   return 0
 }
 

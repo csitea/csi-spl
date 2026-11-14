@@ -876,6 +876,18 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
        Its tick gap is measured from the exec, not from the tick before the
        pre-flight: a slow pre-flight on a loaded box is no resume, whose grace
        would skip every agent and leave the check judging none (SPL-3332).
+       An agent skipped for its start or resume grace (`SKIP start grace`,
+       `SKIP resume grace`) is not judged: none of its situation scripts ran,
+       so a broken sha shows no script error on it. A check tick whose every
+       agent sat in a grace (a real resume, one slow tick before the rollout,
+       stamps `resume.<inst>` and skips every agent for `WD_START_GRACE`, 180 s)
+       is therefore not green: it waits past the grace (`WAIT` line; the next
+       tick checks again, no try spent, the wait's start kept as `grace=` in
+       `update.state`), and still judging none after `WD_START_GRACE + WD_TICK`
+       of waiting it fails closed, as a failed self-check (SPL-5491). It waits
+       rather than fails at once because a grace ends by itself and a
+       quarantine is for good. A tick that judged at least 1 agent, or skipped
+       none for a grace, is unchanged.
     4. Baton handoff: Instance 1 writes `update.next = 2`. Instances 2 and 3
        sleep in 5 s slices; Instance 2 detects the baton, self-execs into candidate,
        and completes its self-check tick ($\le 20\text{ s}$).

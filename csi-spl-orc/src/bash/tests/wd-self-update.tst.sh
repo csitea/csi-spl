@@ -317,6 +317,38 @@ out="$(lib "$chk" X=$X AGO=30 DRY_RUN=1 WD_UPD_CHECK_MAX=20 WD_UPD_STEP_MAX=45)"
 out="$(lib "$chk" X=$X AGO=1 ERRLINE="s1.sh: line 3: nosuchcmd: command not found" DRY_RUN=1)"
 [[ "$out" == *"BAD instance 1 failed its self-check tick: script errors"* ]] && grep -qx 'STATE ' <<<"$out" &&
   pass "1 control: a fast tick with a script error is red, quarantined" || fail "1 broken: $out"
+# SPL-5491: one slow tick before a rollout stamps resume.<inst>; for
+# WD_START_GRACE s every agent is then "SKIP resume grace" and no situation
+# script runs, so a broken sha shows no script error and its self-check went
+# green on a tick that judged no agent. It waits past the grace instead: the
+# next tick checks again, no try spent, the wait's start kept in the state
+# (grace=); waited past WD_START_GRACE + WD_TICK it fails closed. chk3: tick
+# 1 shows OUT1 (+ EXTRA on c-902), tick 2 (re-armed by the code) OUT2.
+chk3='export LEASE_NOW="${LEASE_NOW:-$(date +%s)}"; mkdir -p "$WD_DIR/tick.u"; : > "$WD_DIR/tick.u/err"; rm -f "$WD_DIR/tick.u"/out.*
+  [[ -z "$OUT1" ]] || echo "$OUT1" > "$WD_DIR/tick.u/out.c-901"; [[ -z "${EXTRA:-}" ]] || echo "$EXTRA" > "$WD_DIR/tick.u/out.c-902"
+  WD_INST=1; WD_CODE_SHA=$X; n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=$$ since=$(( n - 5 )) start=$n${GRACE:+ grace=$(( n - GRACE ))}" > "$WD_DIR/update.state"
+  WD_UPD_EXEC=$X WD_UPD_ROLE=forward; spl_wd_upd_checked "$WD_DIR/tick.u" $(( n - 5 ))
+  echo "STATE1 $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD1 $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; echo "REARMED ${WD_UPD_EXEC:-none}"
+  rm -f "$WD_DIR/tick.u"/out.*; echo "${OUT2:-c-901 ok}" > "$WD_DIR/tick.u/out.c-901"; [[ -z "${WD_UPD_EXEC:-}" ]] || spl_wd_upd_checked "$WD_DIR/tick.u" $(( n - 5 ))
+  echo "STATE2 $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD2 $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -rf "$WD_DIR/code/$X.bad" "$WD_DIR/update.state" "$WD_DIR/tick.u"'
+for sk in "resume grace: box back 20s ago" "start grace: session 12s old"; do
+  : > "$LOG"
+  out="$(lib "$chk3" X=$X OUT1="c-901 SKIP $sk" LEASE_NOW=2000000000 DRY_RUN=1 WD_TICK=30 WD_START_GRACE=180)"
+  [[ "$out" == *"STATE1 sha=$X next=1 stage=exec pid="*" since=2000000030 start=2000000000 try=0 grace=2000000000"* && "$out" == *"REARMED $X"* ]] && grep -qx 'BAD1 ' <<<"$out" &&
+    [[ "$out" == *"STATE2 sha=$X next=2 stage=wait"* ]] && grep -qx 'BAD2 ' <<<"$out" &&
+    grep -q "WAIT ${X:0:9}: instance 1: its self-check tick judged no agent (1 in a start or resume grace), waited 0s of 210s; not green, its next tick checks again" "$LOG" &&
+    pass "1 a self-check tick whose only agent sat in its ${sk%%:*} judged none: not green, it waits, the next tick that judges it passes" ||
+    fail "1 grace wait (${sk%%:*}): $out / $(grep UPDATE "$LOG")"
+done
+out="$(lib "$chk3" X=$X OUT1="c-901 SKIP resume grace: box back 20s ago" GRACE=211 LEASE_NOW=2000000000 DRY_RUN=1 WD_TICK=30 WD_START_GRACE=180)"
+[[ "$out" == *"BAD1 instance 1 failed its self-check tick: it judged no agent (1 in a start or resume grace) after waiting 211s, past WD_START_GRACE + WD_TICK (210s)"* && "$out" == *"REARMED none"* ]] && grep -qx 'STATE1 ' <<<"$out" &&
+  pass "1 a self-check still judging no agent 211 s into its grace wait (bound 210) fails closed: quarantined" || fail "1 grace bound: $out"
+out="$(lib "$chk3" X=$X OUT1="c-901 SKIP resume grace: box back 20s ago" EXTRA="c-902 ok" LEASE_NOW=2000000000 DRY_RUN=1 WD_TICK=30 WD_START_GRACE=180)"
+[[ "$out" == *"STATE1 sha=$X next=2 stage=wait"* && "$out" == *"REARMED none"* ]] && grep -qx 'BAD1 ' <<<"$out" &&
+  pass "1 control: one agent in its grace, one judged -> the tick judged 1 agent, green as before" || fail "1 grace control judged: $out"
+out="$(lib "$chk3" X=$X OUT1="" LEASE_NOW=2000000000 DRY_RUN=1 WD_TICK=30 WD_START_GRACE=180)"
+[[ "$out" == *"STATE1 sha=$X next=2 stage=wait"* && "$out" == *"REARMED none"* ]] && grep -qx 'BAD1 ' <<<"$out" &&
+  pass "1 control: a tick with no agent to judge and none in a grace is green as before" || fail "1 grace control empty: $out"
 # SPL-4434 (a desk box 2026-10-24..30: 4 commits quarantined at the 45 s
 # step bound, one touching no watchdog code, load 49 on 16 cpus): a step
 # that only TIMES OUT is retried; a failed check is not. chk2: the first

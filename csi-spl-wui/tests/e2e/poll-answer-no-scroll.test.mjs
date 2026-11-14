@@ -8,9 +8,10 @@
 //
 // A 6-question ```poll form, taller than the phone screen, in the open topic
 // pane (where the form's answers land as replies). The reader scrolls to
-// question 3 and picks an option; after the answer reply is in the feed,
-// question 4's start sits at the top of the pane (within a few px), in both
-// message orders. The last question (6) answered: it stays where it was. Then
+// question 3 and picks an option; question 4's start then sits at the top of
+// the pane (within a few px), in both message orders. SPL-5517: a radio form
+// of several questions keeps that pick as a draft (no reply posted until it
+// locks: poll-form-one-answer.test.mjs), the glide stays. The last question (6) answered: it stays where it was. Then
 // a checkbox form (lock-in on Send): the form stays put. Desktop the same.
 // "live send": the mock store appends the reply as a plain row; the live
 // store first shows OUR row pending (the feed follows its own sends to the
@@ -270,7 +271,7 @@ async function radioCase(browser, vp, tag, order, live = false) {
   const after = await where(p, form, 3)
   const n1 = await replies(p, seeded.msg_id)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-no-scroll-${tag}-${order}-radio-after.png`) })
-  ok(`${tag} ${order} radio: the form is taller than its pane and the answer reply landed`, tall.form > tall.pane && n1 === n0 + 1, { tall, n0, n1 })
+  ok(`${tag} ${order} radio: the form is taller than its pane and the pick is a draft (SPL-5517: no reply until the form locks)`, tall.form > tall.pane && n1 === n0, { tall, n0, n1 })
   ok(`${tag} ${order} radio: after answering question 3, question 4 starts at the top of the pane (<= ${TOLERANCE_PX} px)`, atTop(before, after), { before, after })
   /* the next answer, to question 4: question 5 comes up the same way */
   const before2 = await where(p, form, 4)

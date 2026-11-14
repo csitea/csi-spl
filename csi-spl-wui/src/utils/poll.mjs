@@ -18,9 +18,11 @@
  * still reads as questions with lettered options.
  *
  * The answer is a normal reply in the poll's topic, posted by the click
- * (radio, fire and forget, owner msg 87b56449) or when a checkbox form locks
- * in (45 s per question after the first click, or its Send; owner msg
- * 8f0da7ca). Its lines are the machine-readable marker:
+ * (a radio form of ONE question, fire and forget, owner msg 87b56449) or when
+ * the form locks in (45 s per question after the first click, or its Send;
+ * owner msg 8f0da7ca). A radio form of several questions locks too, and also
+ * as soon as every question holds a pick (SPL-5517: one answer per form, not
+ * one post per click). Its lines are the machine-readable marker:
  *
  *   Poll: <msg_id>                the form's message
  *   Answer: A — Deploy now        one question (checkbox: `A,C — x; y`, `none`)
@@ -281,7 +283,23 @@ export function chatPicks(poll, rows, msgId, from) {
   return chats.map((ts) => (ts > answered ? ts : ''))
 }
 
-/** the lock-in wait of a checkbox form: 45 s per question in it */
+/**
+ * SPL-5517: how a form sends its answer. 'click': a radio form of one
+ * question posts on the click. 'lock': a checkbox form, or a radio form of
+ * several questions, keeps the picks as a draft and posts ONE answer when it
+ * locks (its Send, the lock-in timer, or, radio only, every question
+ * answered).
+ */
+export function answerMode(poll) {
+  return !poll.multi && poll.questions.length === 1 ? 'click' : 'lock'
+}
+
+/** SPL-5517: a radio form of several questions locks once every question holds a pick */
+export function locksWhenComplete(poll, picks) {
+  return !poll.multi && poll.questions.length > 1 && poll.questions.every((_, i) => (picks[i] || []).length > 0)
+}
+
+/** the lock-in wait of a form that locks: 45 s per question in it */
 export function lockSeconds(questions) {
   return LOCK_SECONDS_PER_QUESTION * Math.max(1, Number(questions) || 1)
 }

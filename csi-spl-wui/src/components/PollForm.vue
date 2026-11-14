@@ -64,8 +64,9 @@
       </template>
     </fieldset>
     <div class="poll-foot">
-      <!-- owner 8f0da7ca: a checkbox form also has a Send; a radio form never -->
-      <button v-if="form.multi && canAnswer" type="submit" class="poll-send btn ghost" data-testid="poll-send" :disabled="!pending">{{ t('poll.send') }}</button>
+      <!-- owner 8f0da7ca: a checkbox form also has a Send; SPL-5517: so has a
+           radio form of several questions; a one-question radio form never -->
+      <button v-if="locks && canAnswer" type="submit" class="poll-send btn ghost" data-testid="poll-send" :disabled="!pending">{{ t('poll.send') }}</button>
       <span v-if="pending && left > 0" class="poll-lock" data-testid="poll-lock" role="timer">{{ t('poll.lock_in', { s: left }) }}</span>
       <span class="poll-state" role="status" data-testid="poll-state" :data-state="state || undefined">{{ state === 'sent' ? t('poll.sent') : state === 'failed' ? t('poll.failed') : '' }}</span>
     </div>
@@ -87,20 +88,25 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { dmPeerOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui'
 import { POLL_HOST, POLL_ROWS } from '~/utils/poll-fence.mjs'
-import { answerBody, chatBody, chatPicks, lockSeconds, pollAnswers } from '~/utils/poll.mjs'
+import { answerBody, answerMode, chatBody, chatPicks, lockSeconds, locksWhenComplete, pollAnswers } from '~/utils/poll.mjs'
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import type { PollShape } from '~/components/PollBody.vue'
 import type { SpoolMessage } from '~/types/spool'
 
 /* SPL-1637 poll-control (owner HUM-10, t1 aab3d88b). One form per message.
-   A radio click posts the answer at once, fire and forget (owner 87b56449);
-   a checkbox form locks in 45 s per question after its first click, or on
-   its Send (owner 8f0da7ca). The answer is a plain reply in the form's topic
-   whose marker agents parse (utils/poll.mjs); it carries the sender's whole
-   current form, so re-answering replaces. Native inputs at text size (owner
+   A radio click on a one-question form posts the answer at once, fire and
+   forget (owner 87b56449); a checkbox form locks in 45 s per question after
+   its first click, or on its Send (owner 8f0da7ca). SPL-5517: a radio form
+   of several questions keeps its clicks as a draft and locks the same way,
+   or as soon as every question holds a pick: ONE answer per form, not one
+   post per click (poll 05640e4b took 8 posts in about 72 s). The answer
+   is a plain reply in the form's topic whose marker agents parse
+   (utils/poll.mjs); it carries the sender's whole current form, so
+   re-answering replaces. Native inputs at text size (owner
    f20e1dc1: not too big), labels the click target, Tab / arrows / Space as
    the browser gives them. */
 const props = defineProps<{ form: PollShape }>()
+const locks = computed(() => answerMode(props.form) === 'lock')
 const formEl = ref<HTMLFormElement | null>(null)
 const { t } = useI18n({ useScope: 'global' })
 const uid = `poll-${useId()}`
@@ -266,8 +272,14 @@ function onPick(qi: number, key: string, on: boolean) {
   else next[qi] = [key]
   picks.value = next
   state.value = ''
-  if (props.form.multi) arm()
-  else void post(qi)
+  if (!locks.value) return void post(qi)
+  if (locksWhenComplete(props.form, next)) {
+    stopTimer()
+    return void post(qi)
+  }
+  arm()
+  /* a draft click posts nothing: the next question still glides up */
+  if (!props.form.multi) holdPlace(qi)()
 }
 
 /* "Chat about this": the topic opens, the reply box takes the caret with the

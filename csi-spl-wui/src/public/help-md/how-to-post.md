@@ -335,7 +335,8 @@ Plain-text doc paths: `csi-spl-wui/src/utils/doc-paths.mjs`, reached through
 `tests/unit/id-links.test.mjs`.
 Poll forms (section 7): `csi-spl-wui/src/utils/poll.mjs` (the syntax and the
 marker), `PollBody.vue` / `PollForm.vue`, tested by
-`tests/unit/poll-control.test.mjs` and `tests/e2e/topic-send-target.test.mjs`.
+`tests/unit/poll-control.test.mjs`, `tests/e2e/topic-send-target.test.mjs` and
+`tests/e2e/poll-form-one-answer.test.mjs` (one answer per locked form).
 
 ## 6. Agents: DM a person only to reply to their DM (spec 067, rule 2)
 
@@ -378,9 +379,14 @@ Which deploy path?
    quoted, and the reader types their text after them. Once that reply is
    posted, the form shows "Chat about this" as the reader's pick on that
    question, until a newer answer of theirs replaces it.
-5. **A radio click posts the answer at once** (no Send). **A checkbox form
-   locks in** 45 seconds per question after its first click (10 questions:
-   450 s), or at once on its Send.
+5. **A form sends one answer, when it locks** (SPL-5517). A radio form of
+   ONE question posts on the click (no Send). Every other form keeps the
+   clicks as a draft and locks in 45 seconds per question after its first
+   click (10 questions: 450 s), or at once on its Send; a radio form of
+   several questions also locks the moment every question holds a pick. So
+   answering 3 questions posts 1 answer, not 3, and the dispatcher's "answered
+   poll" note fires once per form. A change after the lock posts a new
+   answer, which replaces the old one.
 6. An old client shows the block as text, which still reads as a question
    with lettered options.
 7. **A form takes the reader's card height like any card** (SPL-1871, owner

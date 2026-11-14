@@ -18,7 +18,7 @@
 # @description      did not start after that id's latest retire (a reused id's
 # @description      spawn has no registry row yet, SPL-5060), OR
 # @description   2. Process working directory (/proc/<pid>/cwd) points to a
-# @description      removed worktree (/opt/csi/csi-spl-wt/* (deleted)), AND
+# @description      removed worktree (<worktree root>/* (deleted)), AND
 # @description   3. Process is NOT on the explicit never-list:
 # @description      - tmux (server daemon and client panes, matched on comm/argv0)
 # @description      - systemd (system and user daemons, sd-pam)
@@ -39,7 +39,7 @@
 # @param ORPHAN_PROC_DIR (optional) - procfs root, default /proc
 # @param ORPHAN_ACTIVE_REGISTRY (optional) - default $SPOOL_ROOT/registry.tsv
 # @param ORPHAN_RETIRED_REGISTRY (optional) - default $SPOOL_ROOT/registry.retired.tsv
-# @param ORPHAN_WT_ROOT (optional) - worktree root, default /opt/csi/csi-spl-wt
+# @param ORPHAN_WT_ROOT (optional) - worktree root, default SPOOL_WT_ROOT, else SPL_WT_ROOT (<main checkout>-wt, spl_run_paths)
 # @param ORPHAN_PROCESS_STATE_DIR (optional) - default <SPL_STATE_DIR or
 # @param   $HOME/.local/state/csi-spl>/orphan-process
 # @param ORPHAN_PROCESS_THROTTLE_S (optional) - default 1800
@@ -55,6 +55,7 @@ type do_log &>/dev/null || do_log() { echo "$*"; }
 
 # spl_box_name: the box name from the config, never the hostname (SPL-4201)
 declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh"
 
 orphan_process_ms() { local t="${EPOCHREALTIME/[.,]/}"; printf '%s' "$((10#$t / 1000))"; }
 
@@ -271,7 +272,7 @@ orphan_process_cwd_candidates() {
     c_target="${c_target#\"}"; c_target="${c_target%\"}"
     c_clean="${c_target% (deleted)}"
 
-    # Must point to a worktree path (/opt/csi/csi-spl-wt/* or */csi-spl-wt/* or */wt/[acgmq]-[0-9]*)
+    # Must point to a worktree path (<wt_root>/* or */csi-spl-wt/* or */wt/[acgmq]-[0-9]*)
     if [[ "$c_clean" != "$wt_root"/* && "$c_clean" != */csi-spl-wt/* && ! "$c_clean" =~ /wt/([acgmq]-[0-9]+|[^/]+) ]]; then
       continue
     fi
@@ -444,7 +445,9 @@ do_fleet_orphan_process_reap() {
   local proc_dir="${ORPHAN_PROC_DIR:-/proc}"
   local active_tsv="${ORPHAN_ACTIVE_REGISTRY:-${SPOOL_ROOT:-/var/spool-hub}/registry.tsv}"
   local retired_tsv="${ORPHAN_RETIRED_REGISTRY:-${SPOOL_ROOT:-/var/spool-hub}/registry.retired.tsv}"
-  local wt_root="${ORPHAN_WT_ROOT:-${SPOOL_WT_ROOT:-/opt/csi/csi-spl-wt}}"
+  spl_run_paths >/dev/null 2>&1 || true
+  local wt_root="${ORPHAN_WT_ROOT:-${SPOOL_WT_ROOT:-${SPL_WT_ROOT:-}}}"
+  [[ -n "$wt_root" ]] || { echo "FATAL orphan-process-reap: no worktree root (set ORPHAN_WT_ROOT; no APP_PATH to derive it)"; return 1; }
   local dry="${DRY_RUN:-1}"
   local t0 ms scanned_pids=0
   local json_mode=0

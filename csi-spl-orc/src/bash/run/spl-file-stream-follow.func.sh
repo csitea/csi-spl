@@ -233,7 +233,9 @@ spl_file_stream_cnf() {
 # spl_file_stream_folders <cnf>: the allowed folders of web globs (spec 160
 # 3.8.2) as a JSON list: env FILE_STREAMS_FOLDERS (JSON), else box.env
 # FILE_STREAMS_FOLDERS (space separated; the box's own file, never written
-# from the hub), else the cnf. The follower checks every entry itself.
+# from the hub), else the cnf, its ${SPL_VAR_APP_DIR} token expanded
+# (spl_cnf_path_expand, SPL-5527). The follower checks every entry itself.
+declare -F spl_cnf_path_expand >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
 spl_file_stream_folders() {
   local v
   if [[ -n "${FILE_STREAMS_FOLDERS:-}" ]]; then printf '%s' "$FILE_STREAMS_FOLDERS"; return 0; fi
@@ -242,7 +244,7 @@ spl_file_stream_folders() {
     printf '%s' "$v" | jq -R -c 'split(" ") | map(select(length > 0))'
     return 0
   fi
-  v="$(yq -o json -I0 '.env.box.file_streams.folders // []' "$1" 2>/dev/null)"
+  v="$(yq -o json -I0 '.env.box.file_streams.folders // []' "$1" 2>/dev/null | spl_cnf_path_expand)"
   printf '%s' "${v:-[]}"
 }
 
@@ -259,7 +261,7 @@ spl_file_stream_env() {
     [[ "$v" =~ ^[0-9]+$ ]] || { echo "FATAL file-streams: $k must be a whole number, got: '$v'"; return 1; }
     envs+=("FILE_STREAMS_$k=$v")
   done
-  allow="${FILE_STREAMS_ALLOW:-$(yq -o json -I0 '.env.box.file_streams.allow // []' "$cnf" 2>/dev/null)}"
+  allow="${FILE_STREAMS_ALLOW:-$(yq -o json -I0 '.env.box.file_streams.allow // []' "$cnf" 2>/dev/null | spl_cnf_path_expand)}"
   envs+=("FILE_STREAMS_ALLOW=${allow:-[]}")
   envs+=("FILE_STREAMS_FOLDERS=$(spl_file_stream_folders "$cnf")")
   # The deny list's extra roots: the cnf spool root and workspace bases,

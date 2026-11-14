@@ -637,7 +637,9 @@ spl_lane_issue_landed() {
 # lane must not point a known name at a repo it controls. Its rows keep src
 # box, so no message has to name them (SPL-5083). A test sandbox
 # (SPOOL_TEST=1) reads LANE_LANDED_CNF and a set SPOOL_LANDED_REPOS_FILE only,
-# else no cnf: never the live clones.
+# else no cnf: never the live clones. A cnf src_dir is ${SPL_ORG_DIR}/<repo>,
+# expanded here (spl_cnf_path_expand, SPL-5527: no literal path in the cnf).
+declare -F spl_cnf_path_expand >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
 spl_landed_repo_rows() {
   local d f bf
   local -a cnfs=()
@@ -657,7 +659,7 @@ spl_landed_repo_rows() {
       yq -r '.env.box.landed_repos[]? | select(has("github") and (has("src_dir") | not)) |
         [(.name // ""), "gh:" + .github, (.trunk // ""), (.box // ""), "box"] | @tsv' "$bf" 2>/dev/null
     fi
-  } | awk -F'\t' -v OFS='\t' '($2 ~ /^\// || ($5 ~ /^(gh|box)$/ && $2 ~ /^gh:[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/)) &&
+  } | spl_cnf_path_expand | awk -F'\t' -v OFS='\t' '($2 ~ /^\// || ($5 ~ /^(gh|box)$/ && $2 ~ /^gh:[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/)) &&
     $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ && $2 !~ /\.\./ {
     if ($5 == "box" && ($1 in seen)) { print "WARN a row of the box-side landed-repos file takes a name an earlier row has: dropped" > "/dev/stderr"; next }
     seen[$1] = 1

@@ -22,7 +22,7 @@
 # @example ./run -a do_rdb_migration_next
 # @example DRY_RUN=0 AGENT_ID=c-123 ./run -a do_rdb_migration_next
 #------------------------------------------------------------------------------
-_RDB_MIG_DIR="csi-spl-rdb/src/sql/postgres/spool-hub"
+_rdb_mig_dir() { echo "csi-spl-rdb/src/sql/postgres/spool-hub"; }
 
 do_rdb_migration_next() {
   do_require_bin git || return 1
@@ -40,7 +40,7 @@ do_rdb_migration_next() {
     fi
     _rdb_claim_push "$APP_PATH" "$remote" "$n"; rc=$?
     case "$rc" in
-      0) do_log "OK claimed migration $n on $remote (refs/rdb-claims/$n): name the new file $_RDB_MIG_DIR/${n}_<name>.sql" >&2
+      0) do_log "OK claimed migration $n on $remote (refs/rdb-claims/$n): name the new file $(_rdb_mig_dir)/${n}_<name>.sql" >&2
          echo "$n"; return 0 ;;
       2) do_log "INFO $n was claimed by another lane meanwhile, taking the next one" >&2 ;;
       *) do_log "FATAL the claim of $n was refused: $_RDB_CLAIM_ERR" >&2; return 1 ;;
@@ -56,7 +56,7 @@ _rdb_head() {
   while IFS= read -r n; do
     n="${n##*/}"
     [[ "$n" =~ ^([0-9]{4})_ ]] && ((10#${BASH_REMATCH[1]} > head)) && head=$((10#${BASH_REMATCH[1]}))
-  done < <(git -C "$1" ls-tree --name-only "$2" -- "$_RDB_MIG_DIR/" 2>/dev/null)
+  done < <(git -C "$1" ls-tree --name-only "$2" -- "$(_rdb_mig_dir)/" 2>/dev/null)
   echo "$head"
 }
 

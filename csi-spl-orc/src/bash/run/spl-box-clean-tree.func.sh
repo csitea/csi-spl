@@ -18,7 +18,7 @@
 # @description   3. "CLEAN: every live lane pushed" (exit 0) or "NOT CLEAN: <n>
 # @description      live lanes hold unpushed or dirty work" (exit 3).
 # @description Read-only: it writes nothing, sends nothing, fetches nothing.
-# @param SPOOL_WT_ROOT (optional) - the worktree root, default /opt/csi/csi-spl-wt
+# @param SPOOL_WT_ROOT (optional) - the worktree root, default SPL_WT_ROOT (<main checkout>-wt, spl_run_paths)
 # @param SPOOL_ROOT (optional) - the spool root (its registry.tsv), default /var/spool-hub
 # @param CLEAN_TREE_LIST_RETIRED (optional) - 1 = also list the dirty retired ids; default 0
 # @param LEASE_PROC_ROOT (tests) - the /proc to read the live ids from
@@ -28,9 +28,11 @@
 # spl_box_pushed / spl_box_rundir (and spl_lease_live_ids through it)
 declare -F spl_box_pushed >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-box-leave.func.sh"
+declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
 
 do_spl_box_clean_tree() {
-  local root="${SPOOL_WT_ROOT:-/opt/csi/csi-spl-wt}" list="${CLEAN_TREE_LIST_RETIRED:-0}"
+  spl_run_paths || { do_log "FATAL cannot derive the worktree root (no APP_PATH)"; return 1; }
+  local root="${SPOOL_WT_ROOT:-$SPL_WT_ROOT}" list="${CLEAN_TREE_LIST_RETIRED:-0}"
   [[ "$list" =~ ^[01]$ ]] || { do_log "FATAL CLEAN_TREE_LIST_RETIRED must be 0 or 1, got '$list'"; return 1; }
   local -a ids=() rest=()
   local id d p bad=0 seen=" " scanned=0 dirty=0

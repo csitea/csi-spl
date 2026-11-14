@@ -72,7 +72,9 @@ fails=0
 R0="$T/repo0"; mkdir -p "$R0"; echo a >"$R0/a.md"
 git -C "$R0" init -q && git -C "$R0" add a.md && git -C "$R0" -c user.name=t -c user.email=t@example.com commit -qm a
 SHA="$(git -C "$R0" rev-parse HEAD)"
-chk() { SNIPPET='do_spl_review_line_check' in_orc REVIEW_LINE_BOX=box-a SPOOL_ROOT="$T" REVIEW_LINE_REPO="$R0" "$@" 2>&1; }
+# the fixtures name lanes under /opt/csi/csi-spl-wt: pin the worktree root (else
+# derived from this checkout, SPL-5527, which differs on a CI runner)
+chk() { SNIPPET='do_spl_review_line_check' in_orc SPOOL_WT_ROOT=/opt/csi/csi-spl-wt REVIEW_LINE_BOX=box-a SPOOL_ROOT="$T" REVIEW_LINE_REPO="$R0" "$@" 2>&1; }
 line() { echo "review: m-159@box-a mistral PASS $SHA ran: $1 | read: 9 PASS | log: m-159@${3:-box-a}:$2"; }
 TST=csi-spl-orc/src/bash/tests/git-prune-round-branches.tst.sh
 

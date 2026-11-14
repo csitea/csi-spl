@@ -272,9 +272,12 @@ _spl_review_line_names() {
 # when the log belongs to another agent than the reviewer, else prints MISSING
 # per name that no "command" in the log names, then the count; exit 0 all
 # found, 3 any missing. With an owner only this read runs through
-# `sudo -n -u <owner>`.
+# `sudo -n -u <owner>`. The worktree root a log's cwd must sit in is
+# SPOOL_WT_ROOT, else derived (SPL_WT_ROOT, spl_run_paths, SPL-5527).
+declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
 _spl_review_line_match() {
-  _spl_review_line_as "${2:-}" python3 -I -c "$_SPL_REVIEW_LINE_PY" "$1" "${3:-}"
+  spl_run_paths >/dev/null 2>&1 || true
+  _spl_review_line_as "${2:-}" python3 -I -c "$_SPL_REVIEW_LINE_PY" "$1" "${3:-}" "${SPOOL_WT_ROOT:-${SPL_WT_ROOT:-}}"
 }
 
 # shellcheck disable=SC2016
@@ -282,6 +285,7 @@ _SPL_REVIEW_LINE_PY='
 import json, os, re, sys
 path = sys.argv[1]
 rid = sys.argv[2] if len(sys.argv) > 2 else ""
+wt_root = (sys.argv[3] if len(sys.argv) > 3 else "").rstrip("/")
 names = [l.split(" ", 1) for l in sys.stdin.read().splitlines() if " " in l]
 cmds = []
 def agy(v):
@@ -310,7 +314,7 @@ def walk(v):
         except ValueError:
             pass
 ID = r"([acgmq]-[0-9]{3,})(?![0-9])"
-WT = "/opt/csi/csi-spl-wt/" + ID
+WT = (re.escape(wt_root) if wt_root else "-wt") + "/" + ID
 def load(f):
     try:
         with open(f, encoding="utf-8", errors="replace") as fh:

@@ -9,8 +9,8 @@
 do_load_config() {
   # Auto-derive project identity. APP_PATH and PROJ_PATH are set by run.sh
   # before this function runs. Examples:
-  #   APP_PATH=/opt/csi/csi-spl              -> ORG=csi, APP=csi-spl
-  #   PROJ_PATH=/opt/csi/csi-spl/csi-spl-iac -> PROJ=csi-spl-iac
+  #   APP_PATH=<base>/csi/csi-spl            -> ORG=csi, APP=csi-spl
+  #   PROJ_PATH=<base>/csi/csi-spl/csi-spl-iac -> PROJ=csi-spl-iac
   # If a caller has already exported any of these, we respect their values.
   if [[ -n "${APP_PATH:-}" ]]; then
     : "${ORG:=$(basename "$(dirname "$APP_PATH")")}"

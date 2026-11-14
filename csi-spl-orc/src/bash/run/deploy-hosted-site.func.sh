@@ -31,6 +31,8 @@
 # @example ENV=dev ./run -a do_deploy_hosted_site
 # @example ENV=dev DRY_RUN=0 SITE=ws-hidden-12 ./run -a do_deploy_hosted_site
 #------------------------------------------------------------------------------
+# the src_dir token ${SPL_ORG_DIR} (SPL-5527) is expanded by spl_cnf_path_expand
+declare -F spl_cnf_path_expand >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
 do_deploy_hosted_site() {
   spl_require_cloud_env || return 1
   local dry=1
@@ -41,7 +43,7 @@ do_deploy_hosted_site() {
   local cfg name site_id src noindex host sha
   cfg="$(_hosted_site_cfg "$SPL_CNF" "$SPL_PROJECT" "${SITE:-}")" || return 1
   name="$(_hosted_site_val "$cfg" name)"; site_id="$(_hosted_site_val "$cfg" site_id)"
-  src="$(_hosted_site_val "$cfg" src_dir)"; noindex="$(_hosted_site_val "$cfg" noindex)"
+  src="$(_hosted_site_val "$cfg" src_dir | spl_cnf_path_expand)"; noindex="$(_hosted_site_val "$cfg" noindex)"
   host="$name.$SPL_FQDN"
   [[ -d "$src/.git" ]] || { do_log "FATAL cnf src_dir $src of site $site_id is not a git repo on this box"; return 1; }
   sha="$(git -C "$src" rev-parse --verify -q "${SITE_SHA:-HEAD}^{commit}")" ||

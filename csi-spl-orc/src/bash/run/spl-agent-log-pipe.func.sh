@@ -47,9 +47,11 @@ do_spl_agent_log_pipe() {
 }
 
 # spl_agent_log_pipe_paths <cnf>: the full-output log paths, one per line:
-# each allow path whose last segment is <agent id>.log.
+# each allow path whose last segment is <agent id>.log, its cnf
+# ${SPL_VAR_APP_DIR} token expanded (spl_cnf_path_expand, SPL-5527).
+declare -F spl_cnf_path_expand >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
 spl_agent_log_pipe_paths() {
-  yq -r '.env.box.file_streams.allow // [] | .[].path' "$1" 2>/dev/null |
+  yq -r '.env.box.file_streams.allow // [] | .[].path' "$1" 2>/dev/null | spl_cnf_path_expand |
     grep -E '/[acgmq]-[0-9]{3}\.log$' || true
 }
 

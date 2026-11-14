@@ -6,7 +6,7 @@
 # @description `PASS|FAIL <check>` line each; returns non-zero on any FAIL:
 # @description   VM RUNNING, no public IP, the ONE ingress rule = tcp/22 from
 # @description   the IAP range, ssh over IAP, the data disk on /mnt/data + /opt +
-# @description   /var/spool-hub + /var/csi, claude / spool / spool-agent present,
+# @description   /var/spool-hub + <var>/<org>, claude / spool / spool-agent present,
 # @description   SPOOL_BOX_TAG=sat, the pushed keys 0600, the budget exists;
 # @description   then the replica of the box PC (owner topic 5fe56859): every
 # @description   tool of cnf/satellite-replica.tsv, its version on THIS box and
@@ -14,7 +14,7 @@
 # @description   playbook (box-playbook.yaml 05, owner topic 6f10f92b): owner +
 # @description   agent from /etc/csi-spl-satellite.env, uid, home on the data
 # @description   disk, NOPASSWD sudo, docker, linger, spool + spool-agent for the
-# @description   owner (the box user runs the desks), /opt/csi/csi-spl on a clean
+# @description   owner (the box user runs the desks), the clone on a clean
 # @description   master at trunk; and, AS THE AGENT, the AI-user setup
 # @description   (home dirs on the data disk, ~/.claude config + skills +
 # @description   memory, tmux, git identity, gh auth, docker, tpl-gen, and
@@ -23,11 +23,19 @@
 # @param        account; without it (or without that right) the budget check
 # @param        reads step 059's terraform state instead, and says so
 # @param SATELLITE_REPO_LAG (optional) - commits the clone may trail trunk (default 10)
+# @description The satellite's paths are this box's, derived at run time
+# @description (spl_run_paths, SPL-5527): the clone <org dir>/<app>, the
+# @description state dir <var>/<org>/<app>; the satellite has the same layout.
 # @example ./run -a do_satellite_verify
 #------------------------------------------------------------------------------
+declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh"
 do_satellite_verify() {
   command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
   local proj zone vm iap tag="${SATELLITE_BOX_TAG:-sat}" fails=0 out key sa
+  # the paths the checks name, read by the helpers below (dynamic scope)
+  local sv_clone sv_org sv_var
+  spl_run_paths || { do_log "FATAL cannot derive the box paths (no APP_PATH)"; return 1; }
+  sv_clone="$(spl_main_checkout)"; sv_org="$SPL_ORG_DIR"; sv_var="$SPL_VAR_APP_DIR"
   proj=$(do_satellite_cnf gcp_project) || return 1
   zone=$(do_satellite_cnf gcp_zone) || return 1
   vm=$(do_satellite_cnf vm_name) || return 1
@@ -59,16 +67,16 @@ do_satellite_verify() {
   local remote
   _satellite_verify_users
   # shellcheck disable=SC2016
-  remote=$("${SATELLITE_AS_AGENT[@]}" 2>/dev/null <<'REMOTE'
-for m in /mnt/data /opt /var/spool-hub /var/csi; do mountpoint -q "$m" && echo "mnt $m ok" || echo "mnt $m no"; done
+  remote=$({ printf "VAR_ORG='%s'\n" "${sv_var%/*}"; cat <<'REMOTE'
+for m in /mnt/data /opt /var/spool-hub "$VAR_ORG"; do mountpoint -q "$m" && echo "mnt $m ok" || echo "mnt $m no"; done
 for b in claude spool spool-agent; do [ -x "$HOME/.local/bin/$b" ] && echo "bin $b ok" || echo "bin $b no"; done
 grep -h "^export SPOOL_BOX_TAG=" /etc/profile.d/csi-spl-satellite.sh "$HOME/.bashrc" 2>/dev/null | head -n 1 | sed "s/^export /tag /"
 for f in .gcp/.csi/key-csi-spl-dev.json .gcp/.csi/key-csi-spl-prd.json .github/token; do echo "key $f $(stat -c %a "$HOME/$f" 2>/dev/null || echo missing)"; done
 REMOTE
-)
+} | "${SATELLITE_AS_AGENT[@]}" 2>/dev/null)
   if [[ -n "$remote" ]]; then ok "ssh over IAP as the ${proj} SA"; else ko "ssh over IAP as the ${proj} SA"; fi
   local m b f
-  for m in /mnt/data /opt /var/spool-hub /var/csi; do grep -qx "mnt $m ok" <<<"$remote" && ok "data disk mounted on $m" || ko "data disk mounted on $m"; done
+  for m in /mnt/data /opt /var/spool-hub "${sv_var%/*}"; do grep -qx "mnt $m ok" <<<"$remote" && ok "data disk mounted on $m" || ko "data disk mounted on $m"; done
   for b in claude spool spool-agent; do grep -qx "bin $b ok" <<<"$remote" && ok "$b installed for ${SATELLITE_AGENT}" || ko "$b installed for ${SATELLITE_AGENT}"; done
   grep -qx "tag SPOOL_BOX_TAG=${tag}" <<<"$remote" && ok "SPOOL_BOX_TAG=${tag}" || ko "SPOOL_BOX_TAG=${tag}"
   for f in .gcp/.csi/key-csi-spl-dev.json .gcp/.csi/key-csi-spl-prd.json .github/token; do
@@ -129,7 +137,7 @@ _satellite_verify_replica() {
   local remote repo
   repo=$(do_satellite_cnf gh_repo 120-github-general-secrets) || return 1
   # shellcheck disable=SC2016
-  remote=$({ printf "DIR='%s'\n" "/opt/csi/${repo##*/}"; cat <<'REMOTE'
+  remote=$({ printf "DIR='%s'\n" "${sv_org}/${repo##*/}"; cat <<'REMOTE'
 export PATH="$HOME/.local/bin:$PATH"
 [ -s "$HOME/.claude/CLAUDE.md" ] && echo "cfg claude-md ok"
 jq -e . "$HOME/.claude/settings.json" >/dev/null 2>&1 && echo "cfg settings ok"
@@ -181,7 +189,7 @@ _satellite_verify_users() {
   # the names go AFTER sudo: sudo drops env set before it (run 4: 13 false FAILs)
   # terraform / pnpm / google-chrome: the box user runs the iac, api and WUI suites too (satellite gaps 10, 13, 14)
   local owner_tools="yq jq python3 psql pandoc curl git gh docker setsid flock sha256sum setfacl getfacl crontab openssl perl tmux terraform pnpm google-chrome zstd gcloud"
-  out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n env O='${owner}' A='${agent}' OWNER_TOOLS='${owner_tools}' bash -s" 2>/dev/null <<'REMOTE'
+  out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n env O='${owner}' A='${agent}' OWNER_TOOLS='${owner_tools}' C='${sv_clone}' OD='${sv_org}' V='${sv_var}' bash -s" 2>/dev/null <<'REMOTE'
 for u in "$O" "$A"; do
   id "$u" >/dev/null 2>&1 || { echo "user $u missing"; continue; }
   echo "user $u uid $(id -u "$u")"
@@ -191,7 +199,7 @@ for u in "$O" "$A"; do
   [ -f "/var/lib/systemd/linger/$u" ] && echo "user $u linger"
 done
 id -nG "$A" 2>/dev/null | tr ' ' '\n' | grep -qx "$O" && echo "agent in-owner-group"
-[ "$(stat -c %U /opt/csi 2>/dev/null)" = "$O" ] && echo "owner owns /opt/csi"
+[ "$(stat -c %U "$OD" 2>/dev/null)" = "$O" ] && echo "owner owns org-dir"
 [ "$(stat -c %U:%G /var/spool-hub 2>/dev/null)" = "$O:spool-agents" ] && echo "owner owns /var/spool-hub"
 echo "hostname $(hostname -s)"
 grep -h '^SPOOL_DESK_BOX=' /var/spool-hub/box.env 2>/dev/null | sed 's/^/boxenv /'
@@ -205,12 +213,12 @@ for b in $OWNER_TOOLS; do sudo -n -u "$O" -i bash -lc "command -v $b" >/dev/null
 echo "owner tools-checked"
 # the run actions' state + log dir: writable by the owner, and by the agent
 # through the owner's group (2026-10-02: desk-reconcile could not be created)
-for u in "$O" "$A"; do sudo -n -u "$u" test -w /var/csi/csi-spl && echo "varcsi writable $u"; done
+for u in "$O" "$A"; do sudo -n -u "$u" test -w "$V" && echo "varcsi writable $u"; done
 # the owner's tmux session main, kept by the systemd user unit tmux-main (role 08)
 sudo -n -u "$O" tmux -S "/tmp/tmux-$(id -u "$O")/default" has-session -t main 2>/dev/null && echo "owner tmux-main"
 sudo -n -u "$O" env XDG_RUNTIME_DIR="/run/user/$(id -u "$O")" systemctl --user is-enabled -q tmux-main.service 2>/dev/null && echo "owner tmux-unit"
 # the clone: on master, clean, and its HEAD (compared with trunk on this box)
-r=/opt/csi/csi-spl
+r="$C"
 g() { git -c safe.directory="$r" -C "$r" "$@"; }
 echo "repo branch $(g rev-parse --abbrev-ref HEAD 2>/dev/null)"
 echo "repo head $(g rev-parse HEAD 2>/dev/null)"
@@ -226,7 +234,7 @@ REMOTE
     done
   done
   grep -qx "agent in-owner-group" <<<"$out" && ok "$agent is in $owner's group" || ko "$agent is in $owner's group"
-  grep -qx "owner owns /opt/csi" <<<"$out" && ok "/opt/csi belongs to $owner" || ko "/opt/csi belongs to $owner"
+  grep -qx "owner owns org-dir" <<<"$out" && ok "$sv_org belongs to $owner" || ko "$sv_org belongs to $owner"
   grep -qx "owner owns /var/spool-hub" <<<"$out" && ok "/var/spool-hub is $owner:spool-agents" || ko "/var/spool-hub is $owner:spool-agents"
   local box
   box=$(sed -n 's/^BOX_TAG=\([a-z0-9-]*\)$/\1/p' <<<"$envf")
@@ -237,7 +245,7 @@ REMOTE
 
 
 # The owner-side rows of _satellite_verify_users (its remote script's output):
-# the box user's harness and tools, its tmux main, /var/csi, the clone.
+# the box user's harness and tools, its tmux main, the state dir, the clone.
 _satellite_verify_owner_rows() {
   local out="$1" owner="$2" agent="$3" b u
   for b in spool spool-agent; do
@@ -250,12 +258,12 @@ _satellite_verify_owner_rows() {
   grep -qx "owner tmux-main" <<<"$out" && ok "$owner's tmux session main runs" || ko "$owner's tmux session main runs"
   grep -qx "owner tmux-unit" <<<"$out" && ok "$owner's systemd user unit tmux-main is enabled (back after a reboot)" || ko "$owner's systemd user unit tmux-main is enabled"
   for u in "$owner" "$agent"; do
-    grep -qx "varcsi writable $u" <<<"$out" && ok "/var/csi/csi-spl is writable by $u (the run actions' state + logs)" || ko "/var/csi/csi-spl is writable by $u (the run actions' state + logs)"
+    grep -qx "varcsi writable $u" <<<"$out" && ok "$sv_var is writable by $u (the run actions' state + logs)" || ko "$sv_var is writable by $u (the run actions' state + logs)"
   done
   _satellite_verify_repo "$out"
 }
 
-# The clone at /opt/csi/csi-spl: on master, clean, and at trunk. Trunk is
+# The clone (sv_clone, <org dir>/<app>): on master, clean, and at trunk. Trunk is
 # read on THIS box (git fetch origin master here), so the satellite needs no
 # extra credential for the check. "At trunk" allows SATELLITE_REPO_LAG
 # commits (default 10): trunk moves every few minutes, and the commits pushed
@@ -263,16 +271,16 @@ _satellite_verify_owner_rows() {
 _satellite_verify_repo() {
   local out="$1" br head dirty behind lag="${SATELLITE_REPO_LAG:-10}" top
   br=$(sed -n 's/^repo branch //p' <<<"$out"); head=$(sed -n 's/^repo head //p' <<<"$out"); dirty=$(sed -n 's/^repo dirty //p' <<<"$out")
-  [[ "$br" == master ]] && ok "/opt/csi/csi-spl is on master" || ko "/opt/csi/csi-spl is on master (is ${br:-unreadable})"
-  [[ "$dirty" == 0 ]] && ok "/opt/csi/csi-spl has no local changes" || ko "/opt/csi/csi-spl has no local changes (${dirty:-?} paths)"
+  [[ "$br" == master ]] && ok "$sv_clone is on master" || ko "$sv_clone is on master (is ${br:-unreadable})"
+  [[ "$dirty" == 0 ]] && ok "$sv_clone has no local changes" || ko "$sv_clone has no local changes (${dirty:-?} paths)"
   top=$(cd "$PROJ_PATH" && git rev-parse --show-toplevel 2>/dev/null)
   git -C "$top" fetch -q origin master 2>/dev/null
   if [[ "$head" =~ ^[0-9a-f]{40}$ ]] && git -C "$top" merge-base --is-ancestor "$head" origin/master 2>/dev/null; then
     behind=$(git -C "$top" rev-list --count "$head..origin/master")
-    (( behind <= lag )) && ok "/opt/csi/csi-spl is at trunk (${behind} behind, <= ${lag})" \
-      || ko "/opt/csi/csi-spl is at trunk (${behind} behind: re-run ./run -a do_satellite_playbook)"
+    (( behind <= lag )) && ok "$sv_clone is at trunk (${behind} behind, <= ${lag})" \
+      || ko "$sv_clone is at trunk (${behind} behind: re-run ./run -a do_satellite_playbook)"
   else
-    ko "/opt/csi/csi-spl is at trunk (HEAD ${head:-unreadable} is not on origin/master)"
+    ko "$sv_clone is at trunk (HEAD ${head:-unreadable} is not on origin/master)"
   fi
 }
 
@@ -286,7 +294,7 @@ _satellite_verify_repo() {
 _satellite_verify_claude_start() {
   local out
   # shellcheck disable=SC2016
-  out=$("${SATELLITE_AS_AGENT[@]}" 2>/dev/null <<'REMOTE'
+  out=$({ printf "C='%s'\n" "$sv_clone"; cat <<'REMOTE'
 export PATH="$HOME/.local/bin:$PATH"
 # </dev/null on every command: this script itself arrives on stdin (bash -s),
 # and claude reads stdin - it swallowed the rest of the script (2026-10-02,
@@ -294,7 +302,7 @@ export PATH="$HOME/.local/bin:$PATH"
 p=$(timeout 120 claude -p "Reply with exactly the word ok" </dev/null 2>&1 | tr -d '\r' | tr '[:upper:]' '[:lower:]' | head -c 300)
 grep -qw ok <<<"$p" && echo "print ok" || echo "print fail $(tr '\n' ' ' <<<"$p" | cut -c1-120)"
 d=$(mktemp -d)
-bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/trust-workdir.sh "$d" "$(id -un)" claude </dev/null >/dev/null 2>&1
+bash "$C/csi-spl-orc/src/bash/features/spawn-agents/scripts/trust-workdir.sh" "$d" "$(id -un)" claude </dev/null >/dev/null 2>&1
 s="verify-smoke-$$"
 tmux -L "$s" new-session -d -s smoke -x 200 -y 50 -c "$d" "$HOME/.local/bin/claude" </dev/null 2>/dev/null
 sleep 20
@@ -306,7 +314,7 @@ if [ -z "$screen" ]; then echo "smoke none"
 elif [ -n "$hit" ]; then echo "smoke onboarding $hit"
 else echo "smoke ok"; fi
 REMOTE
-)
+} | "${SATELLITE_AS_AGENT[@]}" 2>/dev/null)
   grep -qx "print ok" <<<"$out" && ok "${SATELLITE_AGENT}: claude --print answers" || ko "${SATELLITE_AGENT}: claude --print answers ($(sed -n 's/^print fail //p' <<<"$out"))"
   if grep -qx "smoke ok" <<<"$out"; then ok "${SATELLITE_AGENT}: an interactive claude starts with no first-run menu (20 s)"
   else ko "${SATELLITE_AGENT}: an interactive claude starts with no first-run menu ($(sed -n 's/^smoke //p' <<<"$out" | cut -c1-120))"; fi

@@ -218,7 +218,19 @@ A sub-project lives at `${BASE_PATH}/${ORG}/${APP}/${APP}-${PROJ_KIND}`
 (kinds `api`, `wui`, `iac`, `cnf`, `utl`, `orc`, `dat`, `doc`). A script
 derives its paths from where it sits in the tree, never from a box path.
 
-Enforced by: `csi-spl-iac/src/bash/tests/no-box-path-source.tst.sh`.
+Paths come from `run.sh` at start: `do_set_vars` derives `PROJ_PATH`,
+`APP_PATH`, `ORG_PATH`, `BASE_PATH` and `VAR_DIR` from the real path of
+`./run`. A path that must read the same in every agent worktree comes from
+`spl_run_paths` (`csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh`), which
+starts from the main checkout: `SPL_ORG_DIR` (the org's repos),
+`SPL_VAR_APP_DIR` (`<var>/<org>/<app>`, state and logs), `SPL_WT_ROOT` (the
+lane worktrees) and `SPL_DESK_DIR` (the desk checkout); an env var of the
+same name wins. No action carries a literal `/opt/<org>` or `/var/<org>`
+path; the files that still do are listed in a baseline that only shrinks.
+
+Enforced by: `csi-spl-iac/src/bash/tests/no-box-path-source.tst.sh`,
+`csi-spl-orc/src/bash/tests/no-literal-paths.tst.sh` (its
+`no-literal-paths.baseline`), `csi-spl-orc/src/bash/tests/spl-run-paths.tst.sh`.
 
 <a id="ws-doc-8dc0d812-b124-4417-9005-1b9bc2920385"></a>
 #### 2.3.2 Fail fast, no default host
@@ -239,8 +251,15 @@ rendered files) are re-rendered in the same commit:
 `cd csi-spl-iac && ENV=<env> ./run -a do_tpl_gen`, then
 `git diff --exit-code`.
 
+The cnf holds no box paths. A value that names one is a token form,
+`${SPL_ORG_DIR}/<repo>` or `${SPL_VAR_APP_DIR}/<file>`, and its reader
+expands it with `spl_cnf_path_expand` (a literal replace, never `eval`).
+The one exception is the spool root (`env.box.spool_root`), an owner
+decision.
+
 Enforced by: the tfvars parity check of the `iac-suite` CI job
-(a fresh tpl-gen render).
+(a fresh tpl-gen render); `no-literal-paths.tst.sh` and
+`spl-run-paths.tst.sh` (csi-spl-orc) for the paths.
 
 <a id="ws-doc-5c533000-3c58-45f9-a9d7-66227bcc4958"></a>
 ### 2.4 Shell scripting and run actions

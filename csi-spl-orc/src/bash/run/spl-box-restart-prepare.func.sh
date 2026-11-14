@@ -15,7 +15,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param BOX_RESTART_FROM (optional) - the sender of the notes; default SPOOL_AGENT_ID
 # @param BOX_RESTART_TASK (optional) - the task_id of the notes
-# @param BOX_RESTART_DESK (optional) - default /opt/csi/csi-spl-desk-cron
+# @param BOX_RESTART_DESK (optional) - default SPL_DESK_DIR (<main checkout>-desk-cron, spl_run_paths)
 # @example ./run -a do_spl_box_restart_prepare
 # @example DRY_RUN=0 BOX_RESTART_FROM=c-001 ./run -a do_spl_box_restart_prepare
 #------------------------------------------------------------------------------
@@ -47,7 +47,8 @@ do_spl_box_restart_prepare() {
 
 # (a) the desk-cron checkout on origin/master (the dry run only prints it).
 spl_brs_desk() {
-  local dry="$1" desk="${BOX_RESTART_DESK:-/opt/csi/csi-spl-desk-cron}"
+  local dry="$1" desk
+  desk="$(spl_brs_desk_dir)"
   if [[ "$dry" == 1 ]]; then
     do_log "INFO PLAN git -C $desk fetch -q origin master && git -C $desk checkout -q --detach origin/master"
   elif ! { git -C "$desk" fetch -q origin master && git -C "$desk" checkout -q --detach origin/master; }; then
@@ -58,9 +59,17 @@ spl_brs_desk() {
   return 0
 }
 
-spl_brs_desk_sha() { git -C "${BOX_RESTART_DESK:-/opt/csi/csi-spl-desk-cron}" rev-parse --short HEAD 2>/dev/null || echo none; }
+# spl_brs_desk_dir -> the desk-cron checkout: BOX_RESTART_DESK, else derived
+# from this tree (SPL_DESK_DIR, spl_run_paths; no literal path, SPL-5527).
+declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+spl_brs_desk_dir() {
+  spl_run_paths >/dev/null 2>&1 || true
+  printf '%s\n' "${BOX_RESTART_DESK:-${SPL_DESK_DIR:-}}"
+}
+
+spl_brs_desk_sha() { git -C "$(spl_brs_desk_dir)" rev-parse --short HEAD 2>/dev/null || echo none; }
 spl_brs_desk_pass() {
-  grep -c spl_wd_boot_pass "${BOX_RESTART_DESK:-/opt/csi/csi-spl-desk-cron}/csi-spl-orc/src/bash/run/spl-watchdog.func.sh" 2>/dev/null || echo 0
+  grep -c spl_wd_boot_pass "$(spl_brs_desk_dir)/csi-spl-orc/src/bash/run/spl-watchdog.func.sh" 2>/dev/null || echo 0
 }
 
 # (b) the snapshot, on stdout: btime, the desk sha and count, one agent line

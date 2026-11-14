@@ -52,7 +52,7 @@
 # @param   end (do_check_qto_doc_drift QTO_DRIFT_LIVE=1, SPL-2164). Pictures
 # @param   are not compared.
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-914 ./run -a do_spl_doctree_export_md
-# @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-914 QTO_PRIVATE_REPO_DIR=/opt/csi/csitea-ws-docs QTO_MAP_SEED=1 ./run -a do_spl_doctree_export_md
+# @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-914 QTO_PRIVATE_REPO_DIR=<org dir>/csitea-ws-docs QTO_MAP_SEED=1 ./run -a do_spl_doctree_export_md
 #------------------------------------------------------------------------------
 do_spl_doctree_export_md() {
   do_require_bin python3 || return 1

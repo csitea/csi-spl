@@ -3784,6 +3784,7 @@
       },
       "period": "Ajanjakso",
       "period_ytd": "Vuoden alusta ({year})",
+      "period_l12m": "Viimeiset 12 kuukautta",
       "col_item": "Erä",
       "col_share": "Osuus",
       "pie_label": "Kunkin erän osuus ajanjakson kuluista",

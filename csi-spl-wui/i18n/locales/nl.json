@@ -3784,6 +3784,7 @@
       },
       "period": "Periode",
       "period_ytd": "Sinds het begin van het jaar ({year})",
+      "period_l12m": "Laatste 12 maanden",
       "col_item": "Post",
       "col_share": "Aandeel",
       "pie_label": "Het aandeel van elke post in de kosten van de periode",

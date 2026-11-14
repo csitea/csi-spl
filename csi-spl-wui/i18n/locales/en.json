@@ -3784,6 +3784,7 @@
       },
       "period": "Period",
       "period_ytd": "Year to date ({year})",
+      "period_l12m": "Last 12 months",
       "col_item": "Item",
       "col_share": "Share",
       "pie_label": "Each item's share of the period's cost",

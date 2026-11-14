@@ -3784,6 +3784,7 @@
       },
       "period": "Obdobie",
       "period_ytd": "Od začiatku roka ({year})",
+      "period_l12m": "Posledných 12 mesiacov",
       "col_item": "Položka",
       "col_share": "Podiel",
       "pie_label": "Podiel každej položky na nákladoch obdobia",

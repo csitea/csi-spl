@@ -10,13 +10,15 @@
      for the last 12 months and from the start of the year"): the picker is
      the period, the year to date first (`?month=ytd`), then the current
      month "so far" and the 11 before it; an older month from a link is
-     kept. -->
+     kept. SPL-5433 step b: "the last 12 months" (`?month=l12m`) second,
+     the 12 months of the picker side by side. -->
 <template>
   <div class="costs-header" data-test="costs-header">
     <label class="costs-header-month">
       <span>{{ t('reporting.costs.period') }}</span>
       <select :value="month" data-test="costs-header-month" @change="pickMonth">
         <option :value="COSTS_YTD" data-test="costs-period-ytd">{{ t('reporting.costs.period_ytd', { year: months[0].slice(0, 4) }) }}</option>
+        <option :value="COSTS_L12M" data-test="costs-period-l12m">{{ t('reporting.costs.period_l12m') }}</option>
         <option v-for="(m, i) in months" :key="m" :value="m">{{ i === 0 ? t('monitoring.costs.month_so_far', { month: m }) : m }}</option>
       </select>
     </label>
@@ -40,7 +42,7 @@
 <script setup lang="ts">
 import type { LocationQueryRaw } from 'vue-router'
 import { useSessionStore } from '~/stores/session'
-import { COSTS_YTD, costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions, costsPeriod, costsQueryWith } from '~/utils/reporting-costs.mjs'
+import { COSTS_L12M, COSTS_YTD, costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions, costsPeriod, costsQueryWith } from '~/utils/reporting-costs.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()

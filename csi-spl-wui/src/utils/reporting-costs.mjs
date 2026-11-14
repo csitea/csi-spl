@@ -74,6 +74,12 @@ const COSTS_MONTHS_MAX = 12
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 /** The period "from the start of the year" (SPL-5312), `?month=ytd`. */
 export const COSTS_YTD = 'ytd'
+/** The period "the last 12 months" (SPL-5433 step b, owner t1 2d974709: "a total
+ *  for both the start of the year till now and for the last 12 months"), `?month=l12m`:
+ *  the current month so far and the 11 before it. */
+export const COSTS_L12M = 'l12m'
+/** The periods that span months; anything else is one month. */
+const COSTS_SPANS = Object.freeze([COSTS_YTD, COSTS_L12M])
 
 /** A valid YYYY-MM (the first of an array query), else ''. */
 export function costsMonth(v) {
@@ -103,17 +109,23 @@ export function costsMonthOptions(now = new Date(), keep = '') {
   return out
 }
 
-/** The period a query names: 'ytd', a month not in the future, else '' (the current month). @param {unknown} v @param {Date} [now] */
+/** The period a query names: 'ytd', 'l12m', a month not in the future, else '' (the current month). @param {unknown} v @param {Date} [now] */
 export function costsPeriod(v, now = new Date()) {
   const s = Array.isArray(v) ? v[0] : v
-  if (s === COSTS_YTD) return COSTS_YTD
+  if (COSTS_SPANS.includes(s)) return s
   const m = costsMonth(s)
   return m && m <= monthOf(now) ? m : ''
 }
 
-/** The months a period reads, oldest first: the year to date is January to the current month. @param {string} period @param {Date} [now] */
+/**
+ * The months a period reads, oldest first: the year to date is January to the
+ * current month, the last 12 months the picker's 12.
+ * @param {string} period
+ * @param {Date} [now]
+ */
 export function costsPeriodMonths(period, now = new Date()) {
   const cur = monthOf(now)
+  if (period === COSTS_L12M) return costsMonthOptions(now).reverse()
   if (period !== COSTS_YTD) return [costsPeriod(period, now) || cur]
   const out = []
   for (let m = 1; m <= now.getUTCMonth() + 1; m++) out.push(cur.slice(0, 5) + String(m).padStart(2, '0'))
@@ -139,7 +151,7 @@ export function costsCurrency(v, options) {
 }
 
 /**
- * The query after a header pick: `month` (a month or 'ytd') dropped for the current month,
+ * The query after a header pick: `month` (a month, 'ytd' or 'l12m') dropped for the current month,
  * `currency` dropped for USD, every other key kept.
  * @param {Record<string, unknown>} query
  * @param {{ month?: string, currency?: string, current?: string }} pick
@@ -147,7 +159,7 @@ export function costsCurrency(v, options) {
 export function costsQueryWith(query, { month, currency, current } = {}) {
   const q = { ...query }
   if (month !== undefined) {
-    if ((!costsMonth(month) && month !== COSTS_YTD) || month === current) delete q.month
+    if ((!costsMonth(month) && !COSTS_SPANS.includes(month)) || month === current) delete q.month
     else q.month = month
   }
   if (currency !== undefined) {

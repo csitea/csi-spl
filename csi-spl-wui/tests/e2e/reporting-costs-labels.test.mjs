@@ -170,9 +170,12 @@ async function period(browser, base, size) {
   const now = new Date()
   const cur = now.toISOString().slice(0, 7)
   const year = cur.slice(0, 4)
-  ok('period: the year to date, then the current month "so far" and the 11 before it', opts.length === 13 && opts[0][0] === 'ytd' && opts[0][1] === `Year to date (${year})`
-    && opts[1][0] === cur && /so far/.test(opts[1][1]), opts.map((o) => o[0]))
+  ok('period: the year to date, the last 12 months, then the current month "so far" and the 11 before it', opts.length === 14 && opts[0][0] === 'ytd' && opts[0][1] === `Year to date (${year})`
+    && opts[1][0] === 'l12m' && opts[1][1] === 'Last 12 months'
+    && opts[2][0] === cur && /so far/.test(opts[2][1]), opts.map((o) => o[0]))
   ok('period: the current month is picked and marked "so far"', (await p.$eval('[data-test=costs-header-month]', (e) => e.value)) === cur && await waitFor(p, '[data-test=costs-so-far]'))
+  await act('select [data-test=costs-header-month] l12m', () => p.select('[data-test=costs-header-month]', 'l12m'))
+  ok('period: picking the last 12 months writes ?month=l12m', await waitWhere(p, '/reporting/costs/total?month=l12m'), where(p))
   await act('select [data-test=costs-header-month]', () => p.select('[data-test=costs-header-month]', 'ytd'))
   ok('period: picking the year to date writes ?month=ytd', await waitWhere(p, '/reporting/costs/total?month=ytd'), where(p))
   const n = now.getUTCMonth() + 1

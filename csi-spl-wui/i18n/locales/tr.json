@@ -3784,6 +3784,7 @@
       },
       "period": "Dönem",
       "period_ytd": "Yıl başından beri ({year})",
+      "period_l12m": "Son 12 ay",
       "col_item": "Kalem",
       "col_share": "Pay",
       "pie_label": "Her kalemin dönem maliyetindeki payı",

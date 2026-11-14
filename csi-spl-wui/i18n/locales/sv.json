@@ -3784,6 +3784,7 @@
       },
       "period": "Tidsperiod",
       "period_ytd": "Hittills i år ({year})",
+      "period_l12m": "Senaste 12 månaderna",
       "col_item": "Post",
       "col_share": "Andel",
       "pie_label": "Varje posts andel av periodens kostnad",

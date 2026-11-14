@@ -3784,6 +3784,7 @@
       },
       "period": "Periods",
       "period_ytd": "No gada sākuma ({year})",
+      "period_l12m": "Pēdējie 12 mēneši",
       "col_item": "Pozīcija",
       "col_share": "Daļa",
       "pie_label": "Katras pozīcijas daļa perioda izmaksās",

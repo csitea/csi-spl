@@ -186,6 +186,28 @@ func TestCostReadEstateScope(t *testing.T) {
 	}
 }
 
+// TestCostReadEstateAccountant (spec 123 section 16 follow-up 1, SPL-5433
+// step b): the operator workspace's internal_accountant (who enters the hr
+// lines) reads the estate answer; another workspace's reads its own row only.
+// (The external_accountant is refused at the browser door until follow-up 2.)
+// CONTROL: the same seat with only regular_user reads the workspace answer,
+// so the estate is the accountant role's, not the seat's.
+func TestCostReadEstateAccountant(t *testing.T) {
+	e, op, other, who, _, _ := costReadEnv(t)
+	for _, c := range []struct {
+		tid, hum, want string
+	}{
+		{op, seat(t, e, op, rbac.InternalAccountant), "estate"},
+		{other, seat(t, e, other, rbac.InternalAccountant), "workspace"},
+		{op, who[rbac.RegularUser], "workspace"},
+	} {
+		code, body := call(t, e, c.tid, http.MethodGet, costPath, c.hum, nil)
+		if code != http.StatusOK || body["scope"] != c.want {
+			t.Errorf("%s in %s: %d scope %v, want 200 %s", c.hum, c.tid, code, body["scope"], c.want)
+		}
+	}
+}
+
 // TestCostReadMonth: a bad or future month is 400; no month is the current
 // UTC month so far, N = the days that ended; a past month has ended.
 func TestCostReadMonth(t *testing.T) {

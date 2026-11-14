@@ -108,6 +108,7 @@ function sourceLabel(s: string) {
 function display(r: Row) {
   if (props.section === 'total') return t('reporting.costs.label.' + r.key)
   if (props.section === 'tokens') return `${sourceLabel(String(r.source))} · ${r.name || '-'}`
+  if (props.section === 'persons' && r.group && te('expenses.hr.group.' + r.group)) return t('expenses.hr.group.' + r.group)
   return r.name
 }
 function sub(r: Row) {

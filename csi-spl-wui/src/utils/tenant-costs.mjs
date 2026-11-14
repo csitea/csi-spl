@@ -93,6 +93,8 @@ function costPartOf(p) {
     entryMicros: int(r.entry_micros),
     entryCurrency: str(r.entry_currency),
     unpriced: r.unpriced === true,
+    /* SPL-5433 step b: an hr part's group (rdb 0280), Persons' row; '' = a line without a component */
+    group: str(r.group),
     pct: typeof r.pct === 'number' && Number.isFinite(r.pct) ? r.pct : null,
     ...costSecondOf(r),
   }

@@ -61,6 +61,18 @@ describe('the rows of each label, one month', () => {
     assert.equal(rows[1].pct, null)
     assert.equal(rows[0].entryCurrency, 'EUR')
   })
+  it('SPL-5433 step b: Persons is a row per hr group, its components summed, never a person', () => {
+    const hr = (component, group, amount) => ({ estate: true, source: 'cost_entry', project_or_vendor: component + ' label', kind: 'hr', origin: 'hand',
+      usd_micros: amount, eur_micros: amount, entry_micros: amount, entry_currency: 'EUR', component, group })
+    const m = costMonthOf({ month: '2026-10', scope: 'estate', parts: [], human: [
+      hr('monthly_salary', 'salaries_wages', 3_000_000), hr('hourly_pay', 'salaries_wages', 1_000_000),
+      hr('tyel', 'employer_contributions', 500_000), { ...hr('', '', 200_000), project_or_vendor: 'Old free line' }] })
+    const rows = costsLabelRows('persons', [m])
+    assert.deepEqual(keys(rows), ['hr-group:salaries_wages', 'hr-group:employer_contributions', 'hr:Old free line'])
+    assert.equal(rows[0].total.v, 4_000_000, 'the two salaries_wages components are one row')
+    assert.equal(rows[0].group, 'salaries_wages')
+    assert.equal(rows[2].group, undefined, 'a line without a component keeps its own label')
+  })
   it('Cloud: one row per GCP project (its box apart) and per entry; a project drills to its services', () => {
     const rows = costsLabelRows('cloud', [SEP])
     assert.deepEqual(keys(rows), ['project-prd', 'entry:Workspace suite', 'project-all', 'project-dev', 'entry:Domain suite'])

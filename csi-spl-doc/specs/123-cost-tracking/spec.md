@@ -969,7 +969,30 @@ check).
   readers'. The strings are in every locale (agy reviews them before they
   ship, the language rule).
 - **Follow-up 3 above** is this section; follow-up 1 (the estate read for an
-  accountant) is step (b).
+  accountant) is step (b), 16.3.
+
+### 16.3 Step (b): the report's groups, the last 12 months, the accountant's estate read (SPL-5433)
+
+- **The accountant reads the estate.** `GET /v1/tenant/costs` answers the
+  estate scope to the operator workspace's `internal_accountant` and
+  `external_accountant` too (`costEstateReaders`, `readsCostEstate` in
+  `internal/hub/operator_read.go`), never to an act-as clone, so the person
+  who enters the hr lines sees them on Total and Persons (follow-up 1). Not
+  every `costs.write` holder: the operator workspace's `biz_owner` keeps its
+  own row only (spec 140 3.10, `TestCostReadEstateScope`). The lanes and the
+  other operator reads keep `readsOperatorEstate`. The external accountant is
+  still refused at the browser door until follow-up 2 exists.
+- **Groups.** Each part of the month answer's `human` list carries its
+  `component` and that component's `group` (one of the 8 of 16.2, from
+  `hr_cost_components`). Reporting -> Costs -> Persons shows one row per
+  group, its components summed, labelled by `expenses.hr.group.<group>`; a
+  line without a component keeps its own label as its row. Still no row is a
+  person's (13.6).
+- **The last 12 months.** The Costs header's period gains "Last 12 months"
+  (`?month=l12m`, `COSTS_L12M` in `utils/reporting-costs.mjs`): the current
+  month so far and the 11 before it, oldest first, beside the year to date.
+  The one new string, `reporting.costs.period_l12m`, is in every locale and
+  reviewed by agy before it ships (the language rule).
 
 ## 17. The biz owner and the internal accountant open Expenses (SPL-5420)
 

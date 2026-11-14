@@ -3784,6 +3784,7 @@
       },
       "period": "Perioadă",
       "period_ytd": "De la începutul anului ({year})",
+      "period_l12m": "Ultimele 12 luni",
       "col_item": "Element",
       "col_share": "Pondere",
       "pie_label": "Ponderea fiecărui element în costul perioadei",

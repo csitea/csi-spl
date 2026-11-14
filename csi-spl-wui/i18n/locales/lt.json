@@ -3784,6 +3784,7 @@
       },
       "period": "Laikotarpis",
       "period_ytd": "Nuo metų pradžios ({year})",
+      "period_l12m": "Paskutiniai 12 mėnesių",
       "col_item": "Įrašas",
       "col_share": "Dalis",
       "pie_label": "Kiekvieno įrašo dalis laikotarpio išlaidose",

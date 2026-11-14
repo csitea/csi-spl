@@ -407,7 +407,7 @@ cost split to workspaces by hand, is the separate lane c003-feat-costs-workspace
 | label | path | its items (one table row each) | was |
 |---|---|---|---|
 | **Total** (default) | `/reporting/costs/total` | Persons, Cloud, Tokens, and Other when a part fits none (agent hours, a count) | Spend's total |
-| **Persons** | `/reporting/costs/persons` | each hand-entered `hr` cost (the month answer's `human` list, SPL-4840) | Human |
+| **Persons** | `/reporting/costs/persons` | each hand-entered `hr` cost (the month answer's `human` list, SPL-4840); since SPL-5433 step b one row per hr group (spec 123 16.3) | Human |
 | **Cloud** | `/reporting/costs/cloud` | each GCP project (its box apart) and each hand-entered `cloud` cost; a project's link opens its services (`?project=`), and for a single month a service's link its days (`&kind=`) | Cloud |
 | **Tokens** | `/reporting/costs/tokens` | each token part: the burn per vendor (`fleet_tokens`, its tokens and list price under its name, never added), the paid AI items (`ai_paid`) or a workspace's share of them (`ai_share`) | AI tokens; Price per token |
 
@@ -435,7 +435,8 @@ cost split to workspaces by hand, is the separate lane c003-feat-costs-workspace
   rate, never a guess) sorts last both ways and its title says why; a total
   that leaves out an unpriced entry says how many (SPL-4824).
 - **The period**, the header's one dropdown (`?month=`): the year to date
-  (`ytd`, 1 January to now, one month read each, in parallel), then the
+  (`ytd`, 1 January to now, one month read each, in parallel), the last 12
+  months (`l12m`, SPL-5433 step b, spec 123 16.3), then the
   current month "so far" and the 11 before it. An older month from a link is
   kept. The floor of October 2026 (rule 3.1.2) is gone: a month before the
   first cost line reads as empty. The currency switch stays.
@@ -457,7 +458,7 @@ the allocation feeds; the pie, the sort, the day level, the burn),
 `composables/useCostsPeriod.ts` (the period's month answers),
 `components/reporting/costs/CostsLabel.vue`, `CostsMonthTable.vue`,
 `CostsLabelExtras.vue`, the four one-line pages. Strings
-`reporting.costs.label.*` and `reporting.costs.{period,period_ytd,col_item,
+`reporting.costs.label.*` and `reporting.costs.{period,period_ytd,period_l12m,col_item,
 col_share,pie_label,table_label,no_pie,empty,no_split,tokens_sub,price_link}`
 in all 19 locales (agy review last). Tests: `tests/unit/costs-labels.test.mjs`,
 `reporting-costs.test.mjs`, `tests/e2e/reporting-costs-labels.test.mjs`

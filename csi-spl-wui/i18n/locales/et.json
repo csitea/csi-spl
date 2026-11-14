@@ -3784,6 +3784,7 @@
       },
       "period": "Periood",
       "period_ytd": "Aasta algusest ({year})",
+      "period_l12m": "Viimased 12 kuud",
       "col_item": "Kirje",
       "col_share": "Osakaal",
       "pie_label": "Iga kirje osakaal perioodi kuludes",

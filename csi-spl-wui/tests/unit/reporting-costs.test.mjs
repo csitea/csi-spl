@@ -13,7 +13,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  COSTS_PAGES, COSTS_DEFAULT_PATH, COSTS_REDIRECTS, COSTS_YTD, visibleCostsPages, costsPageFor, legacyCostsPath,
+  COSTS_PAGES, COSTS_DEFAULT_PATH, COSTS_REDIRECTS, COSTS_YTD, COSTS_L12M, visibleCostsPages, costsPageFor, legacyCostsPath,
   costsMonth, costsMonthOptions, costsPeriod, costsPeriodMonths, costsCurrencyOptions, costsCurrency, costsQueryWith,
 } from '../../src/utils/reporting-costs.mjs'
 import { reportingTabFor } from '../../src/utils/reporting-tabs.mjs'
@@ -118,6 +118,13 @@ describe('the header: one period, one currency, in the query', () => {
     assert.deepEqual(costsPeriodMonths('2026-09', NOW), ['2026-09'])
     assert.deepEqual(costsPeriodMonths('', NOW), ['2026-11'])
   })
+  it('SPL-5433 step b: the last 12 months is the picker\'s 12, oldest first', () => {
+    assert.equal(costsPeriod(COSTS_L12M, NOW), 'l12m')
+    assert.equal(costsPeriod(['l12m'], NOW), 'l12m')
+    assert.deepEqual(costsPeriodMonths('l12m', NOW), ['2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'])
+    assert.deepEqual(costsPeriodMonths('l12m', new Date(Date.UTC(2027, 0, 2))).slice(0, 2), ['2026-02', '2026-03'])
+    assert.deepEqual(costsQueryWith({}, { month: 'l12m', current: '2026-11' }), { month: 'l12m' })
+  })
   it('currency: USD (default) or the reader\'s second currency, EUR unless picked', () => {
     assert.deepEqual(costsCurrencyOptions(''), ['USD', 'EUR'])
     assert.deepEqual(costsCurrencyOptions('SEK'), ['USD', 'SEK'])
@@ -147,11 +154,12 @@ describe('the header: one period, one currency, in the query', () => {
     assert.match(c2, /costsPeriod\(route\.query\.month, new Date\(\)\)/)
     assert.doesNotMatch(read('src/components/reporting/costs/CostsLabel.vue'), /<select/)
     assert.match(h, /:value="COSTS_YTD"/)
+    assert.match(h, /:value="COSTS_L12M"/)
   })
   it('every new string is in every locale', () => {
     const dir = join(WUI, 'i18n/locales')
     const keys = ['reporting.tab.costs', 'reporting.costs.pages_label', 'reporting.costs.currency', ...COSTS_PAGES.map((p) => p.labelKey),
-      ...['label.other', 'period', 'period_ytd', 'col_item', 'col_share', 'pie_label', 'table_label', 'no_pie', 'empty', 'no_split', 'tokens_sub', 'price_link'].map((k) => 'reporting.costs.' + k)]
+      ...['label.other', 'period', 'period_ytd', 'period_l12m', 'col_item', 'col_share', 'pie_label', 'table_label', 'no_pie', 'empty', 'no_split', 'tokens_sub', 'price_link'].map((k) => 'reporting.costs.' + k)]
     const files = readdirSync(dir).filter((x) => x.endsWith('.json'))
     assert.equal(files.length, 19)
     for (const f of files) {

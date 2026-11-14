@@ -3784,6 +3784,7 @@
       },
       "period": "Okres",
       "period_ytd": "Od początku roku ({year})",
+      "period_l12m": "Ostatnie 12 miesięcy",
       "col_item": "Pozycja",
       "col_share": "Udział",
       "pie_label": "Udział każdej pozycji w kosztach okresu",

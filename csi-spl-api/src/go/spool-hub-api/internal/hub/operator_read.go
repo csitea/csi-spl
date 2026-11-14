@@ -44,6 +44,24 @@ func (s *Server) readsOperatorEstate(ctx context.Context, op, tenant string, a r
 	return operatorReadRole(op, tenant, a) && !s.readerIsActAsClone(ctx, tenant, a.HumanID)
 }
 
+// costEstateReaders are the roles readsCostEstate adds: the accountants of
+// the operator workspace, who enter the hr lines (spec 123 section 16
+// follow-up 1, SPL-5433 step b). Not every costs.write holder: the operator
+// workspace's biz_owner keeps its own row only (spec 140 3.10, owner msg
+// 96d69790, TestCostReadEstateScope).
+var costEstateReaders = []string{rbac.InternalAccountant, rbac.ExternalAccountant}
+
+// readsCostEstate is Costs' estate scope (GET /v1/tenant/costs): the rule
+// above, plus an accountant of the operator workspace, so they read the hr
+// entries on Total and Persons. Never an act-as clone; the lanes and the
+// other operator reads keep readsOperatorEstate.
+func (s *Server) readsCostEstate(ctx context.Context, op, tenant string, a rbac.Access) bool {
+	if !operatorReadRole(op, tenant, a) && !readRole(costEstateReaders, op, tenant, a) {
+		return false
+	}
+	return !s.readerIsActAsClone(ctx, tenant, a.HumanID)
+}
+
 // readerOf is the rule for roles as a /v1/view/me flag. An act-as session is
 // known there without a lookup (TestRoundTripsPerRequest); a failed read of
 // the operator workspace reads false.

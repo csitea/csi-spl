@@ -54,6 +54,16 @@ function itemOf(label, p, project) {
   if (of !== label) return null
   if (label === 'cloud') return cloudItemOf(p, project)
   if (label === 'tokens') return { key: [p.source, p.projectOrVendor, p.kind].join('|'), name: p.projectOrVendor, source: p.source, kind: p.kind }
+  return personsItemOf(p)
+}
+
+/**
+ * Persons: a row per hr group (SPL-5433 step b, spec 123 16.3), never a
+ * person; a line without a component (before rdb 0280, or the
+ * organisation's free label) keeps its own label as its row.
+ */
+function personsItemOf(p) {
+  if (p.group) return { key: 'hr-group:' + p.group, name: p.group, group: p.group }
   return { key: 'hr:' + p.projectOrVendor, name: p.projectOrVendor }
 }
 

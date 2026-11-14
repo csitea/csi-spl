@@ -3784,6 +3784,7 @@
       },
       "period": "Periodo",
       "period_ytd": "Desde el inicio del año ({year})",
+      "period_l12m": "Últimos 12 meses",
       "col_item": "Concepto",
       "col_share": "Proporción",
       "pie_label": "La proporción de cada concepto en el coste del periodo",

@@ -112,6 +112,20 @@ func TestHRCostsLockAndNames(t *testing.T) {
 	if c != http.StatusOK || strings.Contains(string(raw), code) || !strings.Contains(string(raw), "Hourly pay (hours x rate)") {
 		t.Errorf("month report: %d; want the component's label and never the code %s: %s", c, code, raw)
 	}
+	// step b: each human part says its component and group (Persons' rows),
+	// and the accountant reads the same estate answer (follow-up 1)
+	for who, hum := range map[string]string{"admin": r.admin, "accountant": acc} {
+		c, rep := call(t, r.e, r.op, http.MethodGet, "/v1/tenant/costs?month=2026-10", hum, nil)
+		hs, _ := rep["human"].([]any)
+		if c != http.StatusOK || rep["scope"] != "estate" || len(hs) == 0 {
+			t.Fatalf("%s: month report %d scope %v, %d human parts", who, c, rep["scope"], len(hs))
+		}
+		for _, h := range hs {
+			if p := h.(map[string]any); p["component"] != "hourly_pay" || p["group"] != "salaries_wages" {
+				t.Errorf("%s: human part %v, want component hourly_pay in group salaries_wages", who, p)
+			}
+		}
+	}
 }
 
 // digits4 is 4 digits made from s.

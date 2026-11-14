@@ -180,8 +180,9 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// a live act-as clone of an operator reader reads the workspace answer,
-	// never the estate's (SPL-4187, c-504 W1)
-	estate := s.readsOperatorEstate(r.Context(), op, t.ID, a)
+	// never the estate's (SPL-4187, c-504 W1); the accountant (costs.write)
+	// reads the estate's too (SPL-5433 step b)
+	estate := s.readsCostEstate(r.Context(), op, t.ID, a)
 	cur, err := s.secondCurrency(r.Context(), a.HumanID, t.ID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("cost.read_currency_failed")
@@ -286,12 +287,15 @@ func (s *Server) costEntryMonthParts(ctx context.Context, month, cur string) (sp
 	if err != nil || len(entries) == 0 {
 		return nil, nil, err
 	}
-	entries, err = s.hrReportEntries(ctx, entries)
+	entries, groups, err := s.hrReportEntries(ctx, entries)
 	if err != nil {
 		return nil, nil, err
 	}
 	parts, err := store.CostEntryParts(ctx, entries, cur, s.costEntryRate())
-	for _, p := range parts {
+	for i, p := range parts { // one part per entry, in order (CostEntryParts)
+		if p.Kind == "hr" && entries[i].Component != "" {
+			p.Component, p.Group = entries[i].Component, groups[entries[i].Component]
+		}
 		if p.Kind == "hr" {
 			human = append(human, p)
 		} else {
@@ -395,16 +399,17 @@ func costMonthAnswer(win costMonthWindow, estate bool, cur string, cm store.Cost
 // 16.2): a yearly hr line is left out of the month (it is booked for the
 // year), and the hr lines of a person are summed per component and currency
 // under the component's label, so no report row is a person's (spec 123
-// 13.6). The other lines pass unchanged.
-func (s *Server) hrReportEntries(ctx context.Context, entries []store.CostEntry) ([]store.CostEntry, error) {
-	labels := map[string]string{}
+// 13.6). The other lines pass unchanged. groups is each component's group
+// (step b: Persons' rows).
+func (s *Server) hrReportEntries(ctx context.Context, entries []store.CostEntry) ([]store.CostEntry, map[string]string, error) {
+	labels, groups := map[string]string{}, map[string]string{}
 	if hs, ok := s.o.Store.(store.HRCostStore); ok && slices.ContainsFunc(entries, func(e store.CostEntry) bool { return e.Component != "" }) {
 		cs, err := hs.ListHRComponents(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, c := range cs {
-			labels[c.Component] = c.Label
+			labels[c.Component], groups[c.Component] = c.Label, c.Group
 		}
 	}
 	out := make([]store.CostEntry, 0, len(entries))
@@ -430,5 +435,5 @@ func (s *Server) hrReportEntries(ctx context.Context, entries []store.CostEntry)
 		out = append(out, store.CostEntry{ID: e.ID, Type: "hr", Label: label, Amount: e.Amount, Currency: e.Currency, Period: e.Period,
 			CreatedBy: e.CreatedBy, CreatedAt: e.CreatedAt, Component: e.Component, PeriodKind: e.PeriodKind})
 	}
-	return out, nil
+	return out, groups, nil
 }

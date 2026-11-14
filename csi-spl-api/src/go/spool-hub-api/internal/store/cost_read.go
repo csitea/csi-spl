@@ -70,6 +70,10 @@ type CostPart struct {
 	// share in basis points.
 	AllocatedSource string `json:"allocated_source,omitempty"`
 	ShareBP         int    `json:"share_bp,omitempty"`
+	// An hr part's component and its group (SPL-5433 step b, rdb 0280
+	// hr_cost_components.grp): Persons shows a row per group. Never a person.
+	Component string `json:"component,omitempty"`
+	Group     string `json:"group,omitempty"`
 }
 
 // CostSourceDays is one source's cost_coverage rows in the month, per state.

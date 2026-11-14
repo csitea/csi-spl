@@ -465,26 +465,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/wui/pubkey", s.handleWUIPubkey)
 	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
 	mux.HandleFunc("POST /v1/channels", s.handleCreateChannel)
-	mux.HandleFunc("PATCH /v1/messages/{msg_id}", s.handleEditMessage) // specs/032
-	mux.HandleFunc("DELETE /v1/messages/{msg_id}", s.handleDeleteMessage)
-	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}", s.editPreflight)
-	mux.HandleFunc("DELETE /v1/attachments/{file_id}", s.handleRemoveAttachment) // SPL-1560
-	mux.HandleFunc("OPTIONS /v1/attachments/{file_id}", s.attachmentPreflight)
-	mux.HandleFunc("POST /v1/messages/{msg_id}/merge", s.handleMergeMessage)
-	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/merge", s.mergePreflight)
-	mux.HandleFunc("PATCH /v1/messages/{msg_id}/kind", s.handleSetMessageKind) // SPL-952
-	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/kind", s.kindPreflight)
-	mux.HandleFunc("POST /v1/messages/{msg_id}/issue", s.handleMakeBlockerIssue) // t1 5ea2e615: the owner decides
-	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/issue", s.makeIssuePreflight)
-	mux.HandleFunc("PUT /v1/messages/{msg_id}/reactions", s.handlePutReaction)
-	mux.HandleFunc("PUT /v1/messages/{msg_id}/archive", s.handleArchiveTopic) // specs/041
-	mux.HandleFunc("DELETE /v1/messages/{msg_id}/archive", s.handleArchiveTopic)
-	mux.HandleFunc("DELETE /v1/messages/{msg_id}/topic", s.handleDeleteTopic)
-	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/archive", s.topicPreflight)
-	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/topic", s.topicPreflight)
-	s.routeMoves(mux)   // specs/045 + 714c7028
-	s.routePromote(mux) // 8f588edd
-	s.routeMe(mux)      // SPL-1034, spec 096
+	s.routeMessages(mux) // edit, delete, merge, kind, issue, archive, topic
+	s.routeMoves(mux)    // specs/045 + 714c7028
+	s.routePromote(mux)  // 8f588edd
+	s.routeMe(mux)       // SPL-1034, spec 096
 	s.routeTeamHours(mux)
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/reactions", s.handleDeleteReaction)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/reactions", s.reactionPreflight)
@@ -515,6 +499,28 @@ func (s *Server) Handler() http.Handler {
 		return s.middleware(compressJSON(s.authCORS(inner)))
 	}
 	return s.middleware(compressJSON(inner))
+}
+
+// routeMessages mounts the per-message routes (and the attachment remove),
+// in the order Handler registered them before r59-01 (SPL-5485).
+func (s *Server) routeMessages(mux *http.ServeMux) {
+	mux.HandleFunc("PATCH /v1/messages/{msg_id}", s.handleEditMessage) // specs/032
+	mux.HandleFunc("DELETE /v1/messages/{msg_id}", s.handleDeleteMessage)
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}", s.editPreflight)
+	mux.HandleFunc("DELETE /v1/attachments/{file_id}", s.handleRemoveAttachment) // SPL-1560
+	mux.HandleFunc("OPTIONS /v1/attachments/{file_id}", s.attachmentPreflight)
+	mux.HandleFunc("POST /v1/messages/{msg_id}/merge", s.handleMergeMessage)
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/merge", s.mergePreflight)
+	mux.HandleFunc("PATCH /v1/messages/{msg_id}/kind", s.handleSetMessageKind) // SPL-952
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/kind", s.kindPreflight)
+	mux.HandleFunc("POST /v1/messages/{msg_id}/issue", s.handleMakeBlockerIssue) // t1 5ea2e615: the owner decides
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/issue", s.makeIssuePreflight)
+	mux.HandleFunc("PUT /v1/messages/{msg_id}/reactions", s.handlePutReaction)
+	mux.HandleFunc("PUT /v1/messages/{msg_id}/archive", s.handleArchiveTopic) // specs/041
+	mux.HandleFunc("DELETE /v1/messages/{msg_id}/archive", s.handleArchiveTopic)
+	mux.HandleFunc("DELETE /v1/messages/{msg_id}/topic", s.handleDeleteTopic)
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/archive", s.topicPreflight)
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/topic", s.topicPreflight)
 }
 
 // routeSections mounts the self-contained sections, one routeX each, so

@@ -96,14 +96,15 @@ try {
     localStorage.removeItem('spool.mock.vendor_keys_unconfirmed')
   }, BIZ)
 
-  // 1. a biz_owner: the section is in the nav and the page lists the five kinds
+  // 1. a biz_owner: the section is in the nav and the page lists the six kinds
+  // (codex the sixth, SPL-5454; not available for workspace keys yet)
   await p.goto(server.base + '/tenant-settings/agent-keys', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=vk-row]', { visible: true, timeout: 15000 }).catch(() => null)
   const nav = await attrs(p, '[data-test=tenant-settings-nav] a', 'data-test')
   const kinds = await attrs(p, '[data-test=vk-row]', 'data-kind')
-  ok('1 a biz_owner sees Agent keys in the nav and the five kinds', nav.includes('tenant-settings-nav-agent-keys') && kinds.join() === 'claude,grok,agy,mistral,qwen', { nav, kinds })
+  ok('1 a biz_owner sees Agent keys in the nav and the six kinds', nav.includes('tenant-settings-nav-agent-keys') && kinds.join() === 'claude,grok,agy,mistral,qwen,codex', { nav, kinds })
   const states = await attrs(p, '[data-test=vk-row]', 'data-state')
-  ok('1b claude and qwen can take a key; grok, agy, mistral are not available', states.join() === 'not_set,not_available,not_available,not_available,not_set', states)
+  ok('1b claude and qwen can take a key; grok, agy, mistral, codex are not available', states.join() === 'not_set,not_available,not_available,not_available,not_set,not_available', states)
   const agyWhy = await text(p, '[data-test=vk-row][data-kind=agy] [data-test=vk-unavailable]')
   const grokWhy = await text(p, '[data-test=vk-row][data-kind=grok] [data-test=vk-unavailable]')
   ok('1c agy says "not supported"; grok says it waits for the vendor\'s terms', agyWhy.length > 0 && grokWhy.length > 0 && agyWhy !== grokWhy && !(await p.$('[data-test=vk-row][data-kind=grok] [data-test=vk-input]')), { agyWhy, grokWhy })

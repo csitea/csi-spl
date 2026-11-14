@@ -15,7 +15,7 @@ import (
 // before it archives one. Read only: this route archives nothing.
 //
 //	GET /v1/operator/zombie-topics?idle_days=<1..3650, default 7>&limit=<1..5000, default 500>&order=<oldest|newest, default oldest>&scope=<all|open, default all>
-//	  200 {"as_of", "idle_days", "limit", "order", "scope", "idle_before", "topics": [{task_id, last_at}]}
+//	  200 {"as_of", "idle_days", "limit", "order", "scope", "idle_before", "topics": [{task_id, last_at, last_msg_id}]}
 //	  400 bad_query    idle_days or limit not a whole number in its range, order not oldest or newest, scope not all or open
 //	  501 unsupported  the hub's store keeps no topic heads (the memory store)
 //

@@ -13,10 +13,13 @@ import (
 // (row B6). It reads topic_heads (rdb 0144) and topic_priorities (rdb 0214)
 // and writes nothing.
 
-// ZombieTopic is one idle topic head: its task id and its latest line's time.
+// ZombieTopic is one idle topic head: its task id, its latest line's time and
+// msg_id. LastMsgID lets a box whose own tail misses that line (a post routed
+// only to another box) see that it does (spec 041 section 7, SPL-5520 R7 W1).
 type ZombieTopic struct {
-	TaskID string    `json:"task_id"`
-	LastAt time.Time `json:"last_at"`
+	TaskID    string    `json:"task_id"`
+	LastAt    time.Time `json:"last_at"`
+	LastMsgID string    `json:"last_msg_id"`
 }
 
 // ZombieTopicLister is implemented by Postgres only: the heads exist there.
@@ -32,7 +35,7 @@ type ZombieTopicLister interface {
 var _ ZombieTopicLister = (*Postgres)(nil)
 
 // zombieTopicsWhere is conditions 1, 2 and 6 of spec 166 3.2.
-const zombieTopicsWhere = `SELECT h.task_id::text, h.last_at FROM topic_heads h
+const zombieTopicsWhere = `SELECT h.task_id::text, h.last_at, h.last_msg_id::text FROM topic_heads h
 	WHERE h.tenant_id = $1 AND h.last_at < $2 AND NOT h.card_archived AND h.dm_last_at IS NULL
 	  AND NOT EXISTS (SELECT 1 FROM topic_priorities p WHERE p.tenant_id = h.tenant_id AND p.task_id = h.task_id)`
 
@@ -73,7 +76,7 @@ func (s *Postgres) ZombieTopics(ctx context.Context, tenant string, idleBefore t
 	q += order
 	err := s.queryTenant(ctx, tenant, q, []any{tenant, idleBefore.UTC(), limit}, func(r pgx.Rows) error {
 		var z ZombieTopic
-		err := r.Scan(&z.TaskID, &z.LastAt)
+		err := r.Scan(&z.TaskID, &z.LastAt, &z.LastMsgID)
 		z.LastAt = z.LastAt.UTC()
 		out = append(out, z)
 		return err

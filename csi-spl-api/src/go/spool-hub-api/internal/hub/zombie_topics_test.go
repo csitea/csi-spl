@@ -23,8 +23,9 @@ import (
 const zombiePath = "/v1/operator/zombie-topics"
 
 // zombiePut stores one line of task at, the topic's card (msg_id = task id)
-// when card is set: channel "" is a DM line between two agents.
-func zombiePut(t *testing.T, r *fleetTokensRig, task, channel string, card bool, at time.Time) {
+// when card is set: channel "" is a DM line between two agents. It answers
+// the line's msg_id.
+func zombiePut(t *testing.T, r *fleetTokensRig, task, channel string, card bool, at time.Time) string {
 	t.Helper()
 	id := uuidV4()
 	if card {
@@ -43,6 +44,7 @@ func zombiePut(t *testing.T, r *fleetTokensRig, task, channel string, card bool,
 	if _, err := r.e.st.InsertMessage(context.Background(), m); err != nil {
 		t.Fatal(err)
 	}
+	return id
 }
 
 type zombieList struct {
@@ -51,8 +53,9 @@ type zombieList struct {
 	Order    string `json:"order"`
 	Scope    string `json:"scope"`
 	Topics   []struct {
-		TaskID string `json:"task_id"`
-		LastAt string `json:"last_at"`
+		TaskID    string `json:"task_id"`
+		LastAt    string `json:"last_at"`
+		LastMsgID string `json:"last_msg_id"`
 	} `json:"topics"`
 }
 
@@ -93,6 +96,7 @@ func TestZombieTopicsListsIdleHeads(t *testing.T) {
 	days := func(d int) time.Time { return now.Add(-time.Duration(d) * 24 * time.Hour) }
 	idle, archived, dm, prio, young := uuidV4(), uuidV4(), uuidV4(), uuidV4(), uuidV4()
 	zombiePut(t, r, idle, store.ChannelLobby, true, days(8))
+	idleLast := zombiePut(t, r, idle, store.ChannelLobby, false, days(8).Add(time.Minute))
 	zombiePut(t, r, archived, store.ChannelLobby, true, days(8))
 	zombiePut(t, r, dm, "", true, days(8))
 	zombiePut(t, r, prio, store.ChannelLobby, true, days(8))
@@ -111,6 +115,11 @@ func TestZombieTopicsListsIdleHeads(t *testing.T) {
 	if !slices.Equal(ids, []string{idle}) {
 		t.Fatalf("idle_days=7 listed %v, want only the idle topic %s (archived %s, dm %s, prioritised %s, idle 6 days %s)",
 			ids, idle, archived, dm, prio, young)
+	}
+	// last_msg_id is the topic's latest line, not its card (SPL-5520 R7 W1:
+	// a box tail that ends elsewhere keeps the topic).
+	if got := v.Topics[0].LastMsgID; got != idleLast {
+		t.Fatalf("idle topic last_msg_id %q, want its latest line %s (card %s)", got, idleLast, idle)
 	}
 	if v.IdleDays != 7 || v.Limit != 500 {
 		t.Fatalf("answer idle_days %d limit %d, want 7 and the default 500", v.IdleDays, v.Limit)

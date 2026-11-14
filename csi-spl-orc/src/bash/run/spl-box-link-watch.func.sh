@@ -4,9 +4,10 @@
 # @description 0956269e msg 7e8d02b4: a problem in the relay or the connection
 # @description for more than 7 minutes must reach the owner in the topic). A
 # @description non-intelligence check, run every minute from cron (box-crons
-# @description manifest row box-link-watch). READ-ONLY on the relay: it reads
-# @description the hub's logs, the received box logs, the results dir and the
-# @description process list, and never touches the relay or the box.
+# @description manifest row box-link-watch). It reads the hub's logs, the
+# @description received box logs, the results dir and the process list; its
+# @description one write to the relay is the restart of SPL-5522 (only with a
+# @description box-local BOX_LINK_WATCH_RESTART_ACTION; else READ-ONLY).
 # @description For each box the hub serves it raises ONE incident when, for
 # @description more than BOX_LINK_WATCH_LIMIT_MIN: (a) a sent bundle/command
 # @description has no receipt (a command: no receipt, START or result); (b) a
@@ -78,7 +79,7 @@ do_spl_box_link_watch() {
   [[ "$dry" == 1 || "$from" =~ ^[A-Za-z0-9_-]+(@[a-z0-9-]+)?$ ]] ||
     { do_log "FATAL no sender id: set BOX_LINK_WATCH_FROM or LEASE_ORCH in the dispatch lease.conf"; return 1; }
   mkdir -p "$(dirname "$st")" || { do_log "FATAL cannot create the dir of $st"; return 1; }
-  exec 8>"$st.lock"
+  { exec 8>"$st.lock"; } 2>/dev/null || { do_log "FATAL cannot open $st.lock (state dir not writable?): no run"; return 1; }
   flock -n 8 || { do_log "INFO another box link watch run holds $st.lock - skipped"; exec 8>&-; return 0; }
   GW_ROOT="$BOX_LINK_WATCH_ROOT" GW_LOG_DIR="$BOX_LINK_WATCH_LOG_DIR" GW_LOG_GLOB="${BOX_LINK_WATCH_LOG_GLOB:-*.out.log}" \
     GW_RESULTS="${BOX_LINK_WATCH_RESULTS:-}" GW_STATE="$st" GW_LIMIT_MIN="$lim" \

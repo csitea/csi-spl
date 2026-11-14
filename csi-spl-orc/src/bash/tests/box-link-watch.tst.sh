@@ -38,10 +38,13 @@
 #      workspace is dropped
 #  22. SPL-5522: stuck 9 min -> no restart; 11 min -> ONE run of the link's
 #      restart action and ONE LINK RESTARTED note (before/after); stuck again
-#      within 30 min -> no second restart; no action / DRY_RUN -> none
+#      within 30 min -> no second restart; no action / DRY_RUN -> none; an
+#      unwritable state dir -> no restart (it is recorded first), rc 1; an
+#      uncreatable lock -> FATAL; after: uses the incident's own filter
 #   RED CONTROL: case 2 with the state file gone sends a second blocker, so
 #   case 2's silence is the state's doing. Case 22 on the watcher before
-#   SPL-5522: no restart at 11 min.
+#   SPL-5522: no restart at 11 min. On 03643ed75: 3 restarts in 3 min with
+#   a read-only state dir, rc 0 on the lock, a quiet box log in after: (3 fail).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -325,5 +328,27 @@ fresh; logl 11 "sent r3.zip hub -> box (10 B, sha256 aa) as b-33 in 1 s, waiting
 out="$(rrun BOX_LINK_WATCH_RESTART_ACTION='x; rm -rf /')"; rc=$?
 [ "$rc" != 0 ] && [ "$(rs)" = 0 ] && grep -q 'FATAL BOX_LINK_WATCH_RESTART_ACTION must be an action name' <<<"$out" \
   && pass "22. a restart action that is not an action name -> refused" || fail "22. bad action (rc $rc: $out)"
+
+# W1 (R7 a-668): a state dir that cannot be written, with st.json and its
+# lock left from earlier runs -> the restart is not recorded, so it never
+# runs: 0 restarts in 3 one-minute ticks (was 3), a WARN, rc 1.
+fresh; rm -f "$T/restarts"; rm -rf "$T/ro"; mkdir -p "$T/ro"; echo '{}' >"$T/ro/st.json"; : >"$T/ro/st.json.lock"; chmod 0555 "$T/ro"
+logl 11 "sent r4.zip hub -> box (10 B, sha256 aa) as b-34 in 1 s, waiting for the box's receipt"
+rcs=""; for _ in 1 2 3; do out="$(rrun BOX_LINK_WATCH_STATE="$T/ro/st.json")"; rcs="$rcs$?"; later 1; done
+chmod 0755 "$T/ro"
+[ "$(rs)" = 0 ] && [ "$rcs" = 111 ] && grep -q 'the restart could not be recorded in .*: no restart' <<<"$out" && ! grep -q RESTARTED "$T/sent" \
+  && pass "22. state dir not writable -> no restart in 3 runs (never one per run), a WARN, rc 1" || fail "22. ro state ($(rs) restarts, rcs $rcs: $out)"
+rm -rf "$T/ro"; mkdir -p "$T/ro"; chmod 0555 "$T/ro"; out="$(rrun BOX_LINK_WATCH_STATE="$T/ro/st.json")"; rc=$?; chmod 0755 "$T/ro"
+[ "$rc" = 1 ] && [ "$(rs)" = 0 ] && grep -q "FATAL cannot open $T/ro/st.json.lock" <<<"$out" && ! grep -q 'another box link watch run holds' <<<"$out" \
+  && pass "22. the lock file cannot be created -> FATAL rc 1, not 'another run holds it'" || fail "22. ro lock (rc $rc: $out)"
+# W2 (R7 a-668): after a restart that delivers the bundle, a box log quiet
+# for 5 min (> GW_QUIET_S, nothing left in flight) is no condition: after
+# says "no condition left", as the next run's CLEARED does.
+fresh; rm -f "$T/restarts" "$T/effect"
+logl 11 "sent r5.zip hub -> box (10 B, sha256 aa) as b-35 in 1 s, waiting for the box's receipt"
+touch -d "@$(( NOW - 300 ))" "$R/box/inbound/archived/<x>-log.box.h1.20261104.log"
+effect "delivered r5.zip to box1: marked sent; relay blob deleted"; out="$(rrun)"
+[ "$(rs)" = 1 ] && grep -q -- '- after: no condition left' <<<"$(last)" && ! grep -q -- '- after: the box log' <<<"$(last)" \
+  && pass "22. after the restart a quiet box log with nothing in flight is no condition -> after: no condition left" || fail "22. after filter ($(rs): $(last); $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

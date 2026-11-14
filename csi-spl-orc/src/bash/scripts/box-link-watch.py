@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """box-link-watch.py - the 7-min box link watcher (SPL-4816), the core of
-do_spl_box_link_watch. Read-only on the relay: it reads the hub's own logs, the
-received box logs, the results dir and the process list, and never touches
-the relay, its queues or the box.
+do_spl_box_link_watch. It reads the hub's own logs, the received box logs,
+the results dir and the process list. Its one write to the relay is the
+SPL-5522 restart action (GW_RESTART_ACTION; unset = read-only on the relay).
 
 For each box the hub serves (a dir under GW_ROOT with inbound/ and outbound/)
 it raises ONE incident when one of these lasts longer than GW_LIMIT_MIN:
@@ -390,8 +390,36 @@ def restart_link(home, action):
     return p.returncode, clean(lines[-1]) if lines else ""
 
 
+def in_flight(conds):
+    """(conds, quiet): the conditions an incident counts. A running command
+    (r:*) has no condition of its own; a quiet box log (c:box-log) counts
+    only while something is in flight, then since the oldest of those."""
+    conds = dict(conds)
+    quiet = conds.pop("c:box-log", None)
+    busy = [conds.pop(k) for k in sorted(conds) if k.startswith("r:")]
+    if quiet and (conds or busy):
+        quiet["since"] = max(
+            quiet["since"], min(c["since"] for c in list(conds.values()) + busy)
+        )
+        conds["c:box-log"] = quiet
+    return conds, quiet
+
+
+def write_state(path, state):
+    """Atomic: a temp file, then os.replace. Raises OSError."""
+    tmp = "%s.tmp.%d" % (path, os.getpid())
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(state, fh, indent=1, sort_keys=True)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 class Run:
-    def __init__(self):
+    def __init__(self, path="", saved=None):
+        self.path, self.saved = path, dict(saved or {})
         self.now = int(env("GW_NOW") or time.time())
         self.limit = int(float(env("GW_LIMIT_MIN", "7")) * 60)
         self.dry = env("DRY_RUN", "1") != "0"
@@ -453,14 +481,8 @@ class Run:
                 "what": what,
                 "ev": ev,
             }
-        quiet = conds.pop("c:box-log", None)
-        busy = [conds.pop(k) for k in sorted(conds) if k.startswith("r:")]
-        if quiet and (conds or busy):
-            quiet["since"] = max(
-                quiet["since"], min(c["since"] for c in list(conds.values()) + busy)
-            )
-            conds["c:box-log"] = quiet
-        elif quiet:
+        conds, quiet = in_flight(conds)
+        if quiet and "c:box-log" not in conds:
             print("INFO %s: %s, nothing in flight: no incident" % (box, quiet["what"]))
         for key in sorted(conds):
             print(
@@ -517,6 +539,8 @@ class Run:
         old = [c for c in conds.values() if self.now - c["since"] > self.restart_after]
         if not (old and home and action):
             return last
+        if last and int(last) > self.now:
+            last = self.now
         if last and self.now - int(last) < self.restart_every:
             print(
                 "INFO %s: stuck, but the link was restarted at %s (< %d min ago): no restart"
@@ -532,11 +556,16 @@ class Run:
                 % (box, what, iso(first), before)
             )
             return last
+        if not self.reserve(box):
+            return last
         rc, tail = restart_link(home, action)
-        left = conditions(box, self.now, inc)
-        after = (
-            "; ".join(w for _, (_, w, _) in sorted(left.items())) or "no condition left"
+        left, _ = in_flight(
+            {
+                k: {"since": since or self.now, "what": w, "ev": ev}
+                for k, (since, w, ev) in conditions(box, self.now, inc).items()
+            }
         )
+        after = "; ".join(left[k]["what"] for k in sorted(left)) or "no condition left"
         body = (
             "LINK RESTARTED on box `%s`: stuck %d min (since %s), ran %s -> exit %d%s.\n"
             "- before: %s\n- after: %s\n"
@@ -557,6 +586,24 @@ class Run:
         self.deliver(box, "note", body)
         return self.now
 
+    def reserve(self, box):
+        """Record the restart in GW_STATE BEFORE it runs: a state dir that
+        cannot be written (read-only, full) gives no restart, never one per
+        run."""
+        saved = dict(self.saved)
+        saved[box] = dict(saved.get(box, {}), restarted=self.now)
+        try:
+            write_state(self.path, saved)
+        except OSError as e:
+            print(
+                "WARN %s: stuck, but the restart could not be recorded in %s (%s): no restart"
+                % (box, self.path, clean(str(e)))
+            )
+            self.rc = 1
+            return False
+        self.saved = saved
+        return True
+
 
 def main():
     path = env("GW_STATE")
@@ -565,7 +612,9 @@ def main():
             state = json.load(fh)
     except (OSError, ValueError):
         state = {}
-    run = Run()
+    if not isinstance(state, dict):
+        state = {}
+    run = Run(path, state)
     new_state = {b: run.box(b, state.get(b, {})) for b in boxes(env("GW_ROOT"))}
     if not new_state:
         print(
@@ -575,10 +624,7 @@ def main():
     if run.dry:
         print("OK DRY_RUN: nothing sent, no state written. Re-run with DRY_RUN=0.")
         return run.rc
-    tmp = "%s.tmp.%d" % (path, os.getpid())
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(new_state, fh, indent=1, sort_keys=True)
-    os.replace(tmp, path)
+    write_state(path, new_state)
     return run.rc
 
 

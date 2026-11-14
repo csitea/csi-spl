@@ -68,10 +68,17 @@ the 12 stayed open longer than 10 min, 6 longer than 2 h (153 to 3397 min).
   never in this tree; with none set there is no restart, as before.
 - At most one restart per box per `BOX_LINK_WATCH_RESTART_EVERY_S` (default
   1800 s): the state file keeps the time of the last one, across incidents.
+  The time is written to the state file BEFORE the action runs; when that
+  write fails (the state dir is read-only or full) there is no restart and
+  the run warns, exit 1, so a broken state dir never gives one restart per
+  run. A lock file that cannot be created stops the run (FATAL, exit 1). A
+  last restart time in the future (the clock stepped back) counts as now.
 - Each restart sends ONE note to the same receiver as the alert:
   `LINK RESTARTED on box <box>: stuck N min ..., ran ... -> exit <rc>`, with
   `before:` (the stuck conditions) and `after:` (the conditions read again
-  right after the action, or `no condition left`).
+  right after the action, counted as the incident counts them: a running
+  command is no condition, a quiet box log only while something is in
+  flight; else `no condition left`).
 - The STUCK blocker and the CLEARED note are unchanged; a dry run prints
   `PLAN restart ...` and runs nothing.
 - An action name that is not `[a-z][a-z0-9_-]*` is refused (exit 1).
@@ -168,6 +175,12 @@ SPL-5522 case 22 runs a stub `<home>/run` and moves the clock with `GW_NOW`:
 stuck 9 min -> the blocker, no restart; 11 min -> one restart and one
 `LINK RESTARTED` note (before: the bundle, after: nothing left); stuck again
 12 min after the restart -> no second restart; 32 min after it -> the next;
-no action set or a dry run -> none; a bad action name -> refused. Red
-control: the watcher before SPL-5522 runs no restart at 11 min.
+no action set or a dry run -> none; a bad action name -> refused; a state
+dir that cannot be written -> no restart in 3 runs, a WARN, rc 1; a lock
+that cannot be created -> FATAL rc 1; after a restart that delivers the
+bundle, a box log quiet 5 min with nothing in flight -> `after: no condition
+left`. Red control: the watcher before SPL-5522 runs no restart at 11 min;
+the first SPL-5522 watcher (03643ed75) restarts 3 times in 3 min with a
+read-only state dir, returns 0 on the lock and reports the quiet box log in
+`after:` (3 cases fail).
 

@@ -603,6 +603,19 @@ inside each; the "in this workspace" filter shows groups 1 and 2.
   PEOPLE heading: the selected rail tab already says People, as the Issues
   panel has no ISSUES heading (owner, topic 355bed36, SPL-5428). On a desktop
   the filter labels keep one line beside the +, never wrapping under it.
+- **The contact form, as built** (SPL-5504, owner, topic 50a68313: "the
+  height of the textboxes should be 30% bigger and their length 35% smaller.
+  Make it look cooler"). Measured before, in Chrome on the mock bundle: each
+  input 608 x 21 px at 1440 (the whole 640 px card minus its 16 px padding),
+  346 x 21 px at 390. Now, in the scoped style of
+  `wui/pages/people/contact/[id].vue` only (the shared `.input` class is
+  untouched), the new and the edit form are a card (surface background,
+  soft 1 px edge drawn as a shadow so the field width does not move,
+  `--radius-lg`): each input is 65% of its field (395.2 px at 1440 and at
+  1920) and 27.3 px tall (21 x 1.30), rounded, with a strong-border edge,
+  the accent on hover and the theme focus ring on focus; Save and Cancel
+  share one row exactly the input width. At 480 px and below the inputs and
+  that row fill the card. Case C49.
 - **Kill switch** (2.9): in a workspace outside `contacts.workspaces` the
   panel shows only members, with no filter and no Add button, exactly as
   today apart from the new order. The WUI learns the switch from the
@@ -1610,6 +1623,7 @@ and the demo stays pseudonymous.
 | C46 | W1 is name-only; P1 and Q (W1) read each other's and their own card | 200, `display_name` set, `email` null, no `@` in the body, no `phone` key | `TestMemberCardNameOnlyWorkspace`; twin: P1's W2 session (not name-only) reads the address |
 | C47 | `SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES` unset, empty, or `t1,w9` | `[t1]`, `[t1]`, `[t1 w9]` | `TestLoadHubMemberCardNameOnlyWorkspaces` |
 | C48 | the WUI in t1 opens a member's card | the card, no Email row, no address on the page | `csi-spl-wui/tests/e2e/people-email.test.mjs`; twin: the same card outside t1 shows the row |
+| C49 | the Add contact form and the edit form at 1440, 1920 and 390 (SPL-5504) | input / field width 0.65 +-0.01 and 27.3 px tall on a desktop, 395.2 px at 1440, Save / Cancel the input width; at 390 the input fills the card, no sideways scroll | `csi-spl-wui/tests/e2e/contact-form-size.test.mjs`; red control on e9ea1ef32 (608 x 21) |
 | C45 | cnf `[all]` | 030 carries `SPOOL_HUB_CONTACTS_WORKSPACES="all"` for dev and prd | `csi-spl-iac/src/bash/tests/hub-contacts-030.tst.sh` |
 
-<!-- version: 1.4 · updated: 2026-11-13 -->
+<!-- version: 1.4 · updated: 2026-11-14 -->

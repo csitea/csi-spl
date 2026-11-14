@@ -13,7 +13,7 @@
     <div class="feed-body">
       <p v-if="view === 'loading'" class="muted contact-card">{{ t('common.loading') }}</p>
       <p v-else-if="view === 'missing'" class="muted contact-card" data-test="contact-missing">{{ t('contacts.not_found') }}</p>
-      <form v-else-if="view === 'form'" class="contact-card" data-test="contact-form" novalidate @submit.prevent="save">
+      <form v-else-if="view === 'form'" class="contact-card contact-card--form" data-test="contact-form" novalidate @submit.prevent="save">
         <!-- SPL-5279: the panel's Import from file moved here, onto the new contact form -->
         <div v-if="isNew" class="contact-card__import">
           <button type="button" class="btn ghost" data-testid="people-import-contacts" :disabled="busy" @click="importOpen = true">
@@ -25,7 +25,7 @@
           <input v-model="form[f.key]" class="input" :type="f.type" autocomplete="off" :data-test="'contact-input-' + f.key">
         </label>
         <p v-if="error" class="contact-card__error" role="alert" data-test="contact-error">{{ t(error) }}</p>
-        <div class="contact-card__actions">
+        <div class="contact-card__actions contact-card__actions--form">
           <button type="submit" class="btn" data-test="contact-save" :disabled="busy">{{ t('contacts.save') }}</button>
           <button type="button" class="btn ghost" data-test="contact-cancel" :disabled="busy" @click="cancel">{{ t('common.cancel') }}</button>
         </div>
@@ -244,8 +244,46 @@ onMounted(() => {
 .contact-card__import .btn { min-height: var(--tap, 44px); }
 .contact-card__error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
 .contact-card__said { margin: 0; overflow-wrap: anywhere; }
+/* SPL-5504 (owner, topic 50a68313): the form's inputs 30% taller and 35%
+   narrower than the browser default they had (measured 608 x 21 px, the full
+   field width), in a card; on a phone they fill the card. The card keeps its
+   640 px and 16 px padding, so 65% of the field is 65% of the old input.
+   The soft edge is a box-shadow, not a border, so the field width is unchanged.
+   This page only, never the shared .input class. */
+.contact-card--form {
+  --contact-input-h: 27.3px;
+  margin-top: 4px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px var(--color-border), 0 4px 16px rgb(0 0 0 / 0.08);
+}
+.contact-card--form .contact-card__field { gap: 6px; }
+.contact-card--form .contact-card__field span { font-weight: 600; letter-spacing: 0.01em; }
+.contact-card--form .input,
+.contact-card__actions--form { box-sizing: border-box; width: 65%; }
+.contact-card--form .input {
+  height: var(--contact-input-h);
+  padding: 0 10px;
+  font-size: 0.875rem;
+  color: var(--color-fg);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.contact-card--form .input:hover { border-color: var(--color-accent); }
+.contact-card--form .input:focus { outline: none; }
+.contact-card--form .input:focus-visible {
+  border-color: var(--color-accent);
+  outline: var(--focus-ring-w) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+.contact-card__actions--form { flex-wrap: nowrap; margin-top: 4px; }
+.contact-card__actions--form .btn { flex: 1 1 0; justify-content: center; min-width: 0; }
 @media (max-width: 480px) {
   .contact-card__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .contact-card__facts dd + dt { margin-top: 8px; }
+  .contact-card--form .input,
+  .contact-card__actions--form { width: 100%; }
 }
 </style>

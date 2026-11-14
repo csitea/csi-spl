@@ -558,7 +558,16 @@ _do_log_emit_full() {
 do_set_vars() {
   set -u -o pipefail
   do_read_cmd_args "$@"
-  unit_run_dir=$(perl -e 'use File::Basename; use Cwd "abs_path"; print dirname(abs_path(@ARGV[0]));' -- "$0")
+  # Follow $0's symlinks one hop at a time and stop at the first file in a
+  # <dir>/src/bash/run/ dir: only that dir is abs_path-resolved, never the
+  # file, so a module whose src/bash/run/run.sh links to another module's
+  # run.sh keeps its own paths and actions (SPL-5536). Today's layout
+  # (./run -> src/bash/run/run.sh) resolves exactly as abs_path did. One perl,
+  # as before.
+  unit_run_dir=$(perl -e 'use File::Basename; use Cwd "abs_path"; my $p = $ARGV[0];
+    for (1 .. 40) { last if dirname($p) =~ m{(^|/)src/bash/run$} || !-l $p;
+      my $t = readlink $p; $p = $t =~ m{^/} ? $t : dirname($p) . "/$t"; }
+    print abs_path(dirname($p));' -- "$0")
   # Parameter expansion, not basename/dirname: each $(basename ...) is a fork
   # + exec, and every ./run pays them before it does anything (perf round 4 C1).
   # unit_run_dir is already abs_path-resolved, so ${x##*/} is its basename.

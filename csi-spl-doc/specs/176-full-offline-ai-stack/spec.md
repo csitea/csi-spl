@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.1** (2026-11-13), the editor's draft for the panel. Editor: c-690
+Version **v0.2** (2026-11-14), the grok seat's findings folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -162,7 +162,7 @@ or an on-prem firewall) plus a logged count of denied packets, which must be
             |                                     ^                                     |
             |                     spool / desk    |                                     |
             |   agent box: tmux lanes  -----------+                                     |
-            |     claude | codex | mistral | qwen CLI                                  |
+            |     claude | codex | mistral | qwen | grok CLI                           |
             |        |  base URL + stack token                                          |
             |        v                                                                  |
             |   model gateway (optional, P2)  --->  model server(s): vLLM on GPU        |
@@ -184,6 +184,15 @@ or an on-prem firewall) plus a logged count of denied packets, which must be
 One engine family per host role keeps the images, the health check and the
 flag contract to two (vLLM, llama.cpp).
 
+**Pin the engine version (P0).** vLLM documents `/v1/responses`
+(docs.vllm.ai/en/stable/serving/online_serving/, read 2026-11-14), the wire
+the Grok CLI (`api_backend = responses`) and Codex (`wire_api = responses`)
+can use. Multi-turn Responses bugs were reported (vllm-project/vllm issue
+33089, 2026-01-26); a comment of 2026-06-05 says 0.20.1 fixed several. So
+the engine image is pinned by version and digest, and each launcher pins the
+API it speaks (`api_backend` / `wire_api`) to what that pinned server
+passes in P0. (Grok seat g-434, v0.2.)
+
 **Gateway.** vLLM and llama.cpp each speak both APIs, so phase 1 needs no
 gateway. A gateway (LiteLLM proxy or similar) earns its place in phase 2,
 when there are several model servers to route between, per-lane token
@@ -195,15 +204,34 @@ decision record (section 9.2, D-1).
 | CLI | local endpoint | how (source, read 2026-11-13) | fleet status |
 |---|---|---|---|
 | Claude Code (`c-`) | yes, Anthropic Messages API | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (docs.ollama.com/integrations/claude-code) | spawnable; **client terms with a non-Anthropic model are open question Q7** |
-| Codex CLI (`o-`) | yes, OpenAI API | `--oss` with `oss_provider`, or `[model_providers.<id>] base_url` in `config.toml` (developers.openai.com/codex/config-advanced) | spawnable, off by weight (spec 161 2.2.6) |
+| Codex CLI (`o-`) | yes, OpenAI API | a vLLM or llama.cpp server is a custom `[model_providers.<id>]` entry with `base_url` and `wire_api` in `config.toml` (developers.openai.com/codex/config-advanced); `--oss` is the **Ollama path only**: it checks that Ollama is running (developers.openai.com/codex/cli/reference, read 2026-11-14) | spawnable, off by weight (spec 161 2.2.6) |
 | Mistral Vibe (`m-`) | yes, OpenAI-compatible | a `local` provider + model preset in `config.toml`; "the CLI does not contact `mistral.ai` or any other external service" (docs.mistral.ai/vibe/code/cli/offline-models) | spawnable; no coding (cnf, 2.1) |
 | Qwen Code (`q-`) | yes, OpenAI-compatible | `--auth-type openai` + `OPENAI_BASE_URL` (our own `keyexec/env.go:101-102`) | spawnable, weight 0 everywhere |
-| Grok CLI (`g-`) | **unverified**: no documented local endpoint found | the grok seat to confirm | spawnable |
+| Grok CLI (`g-`) | yes, OpenAI-compatible or Anthropic Messages | a custom model `[model.<id>]` with `model`, `base_url`, `name`, `env_key` and `api_backend` (`chat_completions`, `responses` or `messages`) in the **user** config (`~/.grok/config.toml` or `$GROK_HOME/config.toml`; a project `.grok/config.toml` carries only MCP servers, plugins and permissions), selected by `[models] default` or `-m <id>` (docs.x.ai/build/overview "Custom models"; docs.x.ai/build/settings/reference, last updated 2026-10-13; both read 2026-11-14 by the grok seat) | spawnable |
 | agy (`a-`) | **unverified**: no documented local endpoint found | the agy seat to confirm | spawnable |
 
-So four of six CLIs can run a lane on a local model with a config change and
+So five of six CLIs can run a lane on a local model with a config change and
 no code of ours beyond the launcher. The **client** of a local lane is a cnf
 choice (`env.box.local_ai.client`), not hard-wired.
+
+**Grok CLI offline caveats** (the grok seat, settings reference read
+2026-11-14). A local `base_url` is not proof that the binary stays silent;
+whether it still calls `api.x.ai` (updates, login, web search, docs MCP) is
+**unverified** (n = 0 packet captures). The grok launcher's local profile
+therefore:
+
+- sets `GROK_DISABLE_AUTOUPDATER` and `[cli] auto_update = false` (updates
+  are on by default);
+- sets `supports_backend_search = false` on the local model;
+- points `[models] web_search`, `session_summary` and `image_description` at
+  the local model too, never at a cloud model id;
+- passes the token by `env_key` from the launcher environment, never in the
+  toml or argv (4.7); with an API key set, first launch should not open the
+  browser login (**unverified**);
+- leaves `GROK_XAI_API_BASE_URL` (default `https://api.x.ai/v1`) as a known
+  call-home candidate for the egress test.
+
+The egress-deny run (3.3) is the proof; these switches are not.
 
 ### 4.4 Routing and fallback
 
@@ -316,14 +344,18 @@ dev applied before prd.
 
 | option | unit price (source, read 2026-11-13) | always on | business hours (220 h) |
 |---|---|---|---|
-| G4 `g4-standard-48`, 1 x RTX PRO 6000 96 GB (class S/M) | ~$4.50/h on-demand, region column not confirmed (cloud.google.com/products/compute/pricing/accelerator-optimized via search; vpsbenchmarks.com); spot ~$0.86-2.34/h (gcloud-compute.com) | ~$3,300 | ~$1,000 |
+| G4 `g4-standard-48`, 1 x RTX PRO 6000 96 GB (class S/M), **europe-north1** | ~$4.95/h on-demand, spot ~$2.00/h, **third-party VM-hour**, not an official SKU read (gcloud-compute.com/europe-north1/g4-standard-48.html, read 2026-11-14 by the grok seat: 4.9499 and 1.9967; that page's month: 3,613.44, spot 1,457.62) | ~$3,600 (spot ~$1,460) | ~$1,090 (spot ~$440) |
 | A4 `a4-highgpu-8g`, 8 x B200 (class L) | ~$34.24/h on-demand **us-central1**, third-party (devzero.io, spheron.network; Google publishes no static A4 table) | ~$25,000 | ~$7,500 |
 | CPU llama.cpp on an existing agent box (class S, slow) | $0 extra; takes cores from lanes | $0 | $0 |
 | Data disk for weights, 500 GB pd-balanced | **unverified**, to price in the calculator (T0.4) | - | - |
 | On-prem 1 x 96 GB GPU workstation | capex **unverified** | power only | - |
 
 The europe-north1 prices must be read from the pricing calculator before a
-budget is asked (task T0.4); the figures above are directional.
+budget is asked (task T0.4); the figures above are directional. v0.1 printed
+~$4.50/h for G4: that was the same third-party site's **us-central1**
+VM-hour (4.4999), and its spot band ~$0.86-2.34/h matched neither region's
+VM-hour; v0.2 prints the europe-north1 figures (grok seat). The 220 h column
+is 220 x the hourly figure, rounded.
 
 ## 6. Requirements (status)
 
@@ -331,7 +363,7 @@ budget is asked (task T0.4); the figures above are directional.
 |---|---|---|
 | FR-01 | A model server serves pinned open-weight models over OpenAI and Anthropic APIs on a private network | Planned |
 | FR-02 | Vendor `local` in cnf, conf-validator, lane-mix, journal and the WUI split page | Planned |
-| FR-03 | Launchers start the configured client CLI against the local endpoint with the stack token, telemetry/update/error reporting off | Planned |
+| FR-03 | Launchers start the configured client CLI against the local endpoint with the stack token, telemetry/update/error reporting off. A local profile does not require the vendor's cloud login file: today `auth_marker` skips a vendor without it (e.g. `grok: .grok/auth.json`, `all.env.yaml:1368`), so the skip rule for `local` reads the endpoint check (FR-04), not that marker. Grok: the launcher writes the user config of 4.3 (custom model, `env_key`, pinned `api_backend`, updater and backend search off, no cloud model id left in `[models]`) | Planned |
 | FR-04 | `local` is skipped at once when its endpoint check fails | Planned |
 | FR-05 | Weights pinned by revision and sha256, with a licence gate | Planned |
 | FR-06 | Step `062-gcp-vm-model-server`, dev first | Planned |
@@ -369,10 +401,10 @@ budget is asked (task T0.4); the figures above are directional.
 
 | key | question | options |
 |---|---|---|
-| Q1 | Which CLI runs the first local lanes? | `cdx` Codex (OpenAI API, `--oss`), `cla` Claude Code (Anthropic API), `mis` Mistral Vibe (docs only, per cnf), `qwn` Qwen Code |
+| Q1 | Which CLI runs the first local lanes? | `cdx` Codex (a custom `model_providers` entry for vLLM; `--oss` only for Ollama), `cla` Claude Code (Anthropic API), `grk` Grok CLI (custom model, `base_url`), `mis` Mistral Vibe (docs only, per cnf), `qwn` Qwen Code |
 | Q2 | Agent id of a local lane | `cli` keep the client's letter + a model tag, `l` new letter `l-NNN` |
 | Q3 | May `local` take secret and orchestration work (data stays on our hardware)? | `yes`, `no`, `aft` after the P0 report |
-| Q4 | GPU budget envelope for P0-P1 | `on` G4 always on (~$3.3k/mo), `biz` business hours (~$1k/mo), `spt` spot only, `cpu` no GPU until P0 on CPU |
+| Q4 | GPU budget envelope for P0-P1 (G4 europe-north1, third-party VM-hour, T0.4 confirms) | `on` G4 always on (~$3.6k/mo), `biz` business hours (~$1.1k/mo), `spt` spot only (~$1.5k/mo always on), `cpu` no GPU until P0 on CPU |
 | Q5 | Region for GPUs | `n1` europe-north1 only (G4, A4), `w4` europe-west4 allowed too |
 | Q6 | Full offline scope first | `one` one box (private hub + model server), `lan` multi-box with git server and local CA |
 | Q7 | Who is full offline for? | `flt` our own fleet, `cus` a customer workspace (on-prem product), `bot` both |
@@ -398,7 +430,10 @@ own file under this folder unless said otherwise:
 ## 10. Sources (read 2026-11-13)
 
 - Ollama, Claude Code integration: docs.ollama.com/integrations/claude-code; Ollama blog: registry.ollama.ai/blog/claude; Habr 988538 (Anthropic API in Ollama, January 2026).
-- OpenAI Codex advanced configuration: developers.openai.com/codex/config-advanced.
+- OpenAI Codex advanced configuration: developers.openai.com/codex/config-advanced; CLI reference (`--oss`): developers.openai.com/codex/cli/reference (read 2026-11-14).
+- Grok CLI custom models: docs.x.ai/build/overview; settings reference docs.x.ai/build/settings/reference (last updated 2026-10-13); upstream guide github.com/xai-org/grok-build `.../user-guide/11-custom-models.md` (search snippet only). Read 2026-11-14 by the grok seat.
+- vLLM Responses API: docs.vllm.ai/en/stable/serving/online_serving/; issue vllm-project/vllm#33089 (read 2026-11-14).
+- G4 europe-north1 VM-hour: gcloud-compute.com/europe-north1/g4-standard-48.html (read 2026-11-14).
 - Mistral Vibe offline models: docs.mistral.ai/vibe/code/cli/offline-models.
 - vLLM Anthropic Messages endpoint: github.com/vllm-project/vllm/pull/22627 (merged 2025-10-22); issue 21313.
 - llama.cpp Anthropic Messages API: huggingface.co/blog/ggml-org/anthropic-messages-api-in-llamacpp.
@@ -412,7 +447,7 @@ own file under this folder unless said otherwise:
 | seat | vendor | findings folded | PASS on sha |
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
-| grok seat | grok | - | - |
+| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca) | - |
 | mistral seat | mistral | - | - |
 | codex seat | codex | - | - |
 | agy seat (signs last) | agy | - | - |
@@ -420,5 +455,12 @@ own file under this folder unless said otherwise:
 ### 11.1 Changelog
 
 - v0.1 (2026-11-13): editor's draft from its own research of brief items 1-5.
+- v0.2 (2026-11-14): grok seat g-434 (CHANGES: 2 findings). Finding 1:
+  the Grok CLI does document a local endpoint (4.3, 4.1, FR-03, Q1, sources).
+  Finding 2: the G4 price was a third-party us-central1 VM-hour; now the
+  europe-north1 one (5.3, Q4). Also folded: Codex `--oss` is the Ollama path
+  only; pin the vLLM version and the client API in P0 (4.2). Tree line
+  numbers in 2.1 stay as measured on `f0d0efa4e` (the grok seat re-ran them:
+  `SPOOL_SPAWN_KINDS` is now line 542, same value).
 
-<!-- version: 0.1.0 · updated: 2026-11-13 · last-edit: 2026-11-13T15:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-11-14 · last-edit: 2026-11-14T10:30:00Z -->

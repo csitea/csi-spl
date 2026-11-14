@@ -122,12 +122,12 @@ seq_out 3 $'t1|simple_coding|claude|20|false\nt1|tests|claude|50|true'
 in_orc 'do_spl_agent_split_reset --kind simple_coding --kind tests' TENANT_ID=t1 DRY_RUN=0; rc=$?
 cnf_sc="$(sed -n '/^after simple_coding:$/{n;p}' "$T/out")"
 [[ $rc -eq 0 ]] \
-  && [[ "$(sed -n '/^before simple_coding:$/{n;p}' "$T/out")" == 'claude=20 grok=30 agy=0 qwen=0 mistral=50 backup=grok' ]] \
-  && [[ "$(sed -n '/^before tests:$/{n;p}' "$T/out")" == 'claude=50 grok=20 agy=0 qwen=0 mistral=30 backup=claude' ]] \
+  && [[ "$(sed -n '/^before simple_coding:$/{n;p}' "$T/out")" == 'claude=20 grok=30 agy=0 qwen=0 mistral=50 codex=0 backup=grok' ]] \
+  && [[ "$(sed -n '/^before tests:$/{n;p}' "$T/out")" == 'claude=50 grok=20 agy=0 qwen=0 mistral=30 codex=0 backup=claude' ]] \
   && [[ "$(grep -c 'source=workspace' "$T/out")" -eq 2 ]] \
   && grep -qx 'deleted t1|tests|claude|50|true' "$T/out" \
   && grep -q 'OK deleted 2 row(s) of t1 kinds simple_coding,tests on csi-spl-dev' "$T/out" \
-  && [[ "$cnf_sc" =~ ^claude=[0-9]+\ grok=[0-9]+\ agy=[0-9]+\ qwen=[0-9]+\ mistral=[0-9]+\ backup=[a-z]+$ ]] \
+  && [[ "$cnf_sc" =~ ^claude=[0-9]+\ grok=[0-9]+\ agy=[0-9]+\ qwen=[0-9]+\ mistral=[0-9]+\ codex=[0-9]+\ backup=[a-z]+$ ]] \
   && grep -q '^after tests:$' "$T/out" \
   && [[ "$(grep -c 'source=cnf' "$T/out")" -eq 2 ]] \
   && [[ "$(grep -c '^psql' "$T/calls.log")" -eq 5 ]] \

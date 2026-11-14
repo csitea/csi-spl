@@ -234,6 +234,43 @@ func TestCostAllocationRLS(t *testing.T) {
 	}
 }
 
+// SPL-5513: TestCostEstateLineKnown draws its month from costTestMonth instead
+// of seeding fixed 2004-05 dates inside the 2001..2019 pool, so an operator
+// CostMonthRead on 2004-05 (slot 20, wf 20 run 43596303051) never reads its
+// extra cloud_run estate row.
+func TestCostEstateLineKnownUsesMonthPool(t *testing.T) {
+	_ = rlsStore(t)
+	const may2004Slot = int64((2004-2001)*12+5-1) / costTestMonthStep
+	var freeSlot int64 = -1
+	var blocked []int64
+	for s := int64(0); s < costTestMonthSlots; s++ {
+		if s == may2004Slot {
+			if _, taken := costMonthsTaken.LoadOrStore(s, true); !taken {
+				blocked = append(blocked, s)
+			}
+			continue
+		}
+		if _, taken := costMonthsTaken.Load(s); !taken && freeSlot < 0 {
+			freeSlot = s
+			continue
+		}
+		if _, taken := costMonthsTaken.LoadOrStore(s, true); !taken {
+			blocked = append(blocked, s)
+		}
+	}
+	t.Cleanup(func() {
+		for _, s := range blocked {
+			if s != may2004Slot {
+				costMonthsTaken.Delete(s)
+			}
+		}
+	})
+	TestCostEstateLineKnown(t)
+	costMonthsTaken.Store(freeSlot, true)
+	costMonthsTaken.Delete(may2004Slot)
+	TestCostMonthReadRLS(t)
+}
+
 // TestCostEstateLineKnown (R7 N3): an estate line of any day makes its key
 // known; another kind, a workspace's own line and a superseded line do not.
 // RED CONTROL: without "tenant_id IS NULL" the workspace's line counts and
@@ -241,11 +278,12 @@ func TestCostAllocationRLS(t *testing.T) {
 func TestCostEstateLineKnown(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
+	_, _, day := costTestMonth(t)
 	tenant := newTenant(t, pg)
 	src, pov, wpov, gone := uid("gcp-"), uid("csi-spl-"), uid("ws-"), uid("gone-")
-	costSeed(t, pg, "", "2004-05-03", src, pov, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
-	costSeed(t, pg, tenant, "2004-05-03", src, wpov, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
-	costSeed(t, pg, "", "2004-05-04", src, gone, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
+	costSeed(t, pg, "", day(3), src, pov, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
+	costSeed(t, pg, tenant, day(3), src, wpov, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
+	costSeed(t, pg, "", day(4), src, gone, "cloud_run", "billing_export", 0, 1_000_000, 900_000)
 	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `UPDATE cost_lines SET superseded_by = (SELECT min(id) FROM cost_lines WHERE project_or_vendor = $2)
 			WHERE project_or_vendor = $1`, gone, pov)

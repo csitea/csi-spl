@@ -192,6 +192,7 @@ Your days follow your own time zone when you set one, otherwise the
 workspace's. A change of period starts after the last frozen period: days
 already passed never move into a new period.
 
+<a id="ws-doc-eb8f4d97-ea87-443b-bd78-fd64f2420bce"></a>
 ### 7.3 Average hours per day (biz owner, product owner or admin)
 
 **Workspace settings → Hours → Average hours per day** sets the hours a

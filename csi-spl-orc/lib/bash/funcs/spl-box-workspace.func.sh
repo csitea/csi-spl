@@ -24,15 +24,24 @@
 # spl_box_ws_cnf <key>: env.box.<key> of all.env.yaml under <ENV>.env.yaml.
 # Read straight from the cnf files: the guard runs before do_spl_desk_cnf,
 # because it picks the state dir that resolver writes into.
+# The keys read are scalars: the env file's value when it sets the key
+# (has(), so "" and null count as set), else all.env.yaml's. That equals the
+# deep merge's value with one plain yq per file and no eval-all (perf p8-02);
+# a map key would need the merge and is not read here.
 spl_box_ws_cnf() {
-  local proj dir
+  local proj dir out
   proj="$(basename "${PROJ_PATH:-}")"
   [[ "$proj" =~ ^([a-z]+)-([a-z]+)-orc$ ]] || return 0
   dir="${APP_PATH:-}/${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-cnf/${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
-  local -a files=("$dir/all.env.yaml")
-  [[ -f "${files[0]}" ]] || return 0
-  [[ -n "${ENV:-}" && -f "$dir/$ENV.env.yaml" ]] && files+=("$dir/$ENV.env.yaml")
-  yq eval-all -r ". as \$i ireduce ({}; . * \$i) | .env.box.$1 // \"\"" "${files[@]}" 2>/dev/null
+  [[ -f "$dir/all.env.yaml" ]] || return 0
+  if [[ -n "${ENV:-}" && -f "$dir/$ENV.env.yaml" ]]; then
+    out="$(yq -r "(.env.box // {} | has(\"$1\")), (.env.box.$1 // \"\")" "$dir/$ENV.env.yaml" 2>/dev/null)" || return
+    case "$out" in
+      true) printf '\n'; return 0 ;;
+      true$'\n'*) printf '%s\n' "${out#true$'\n'}"; return 0 ;;
+    esac
+  fi
+  yq -r ".env.box.$1 // \"\"" "$dir/all.env.yaml" 2>/dev/null
 }
 
 # spl_box_ws_base: the enrolment base dir, or nothing.

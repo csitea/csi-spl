@@ -18,6 +18,10 @@
 #      gets EACCES on workspace A's spool root, listing and message.
 #      CONTROL: A's own user reads both. And desk-up on box A as a user that
 #      is not A's refuses. CONTROL: the guard passes on a dir the caller owns
+#   4. (n=4) perf p8-02: spl_box_ws_cnf reads one key with no yq eval-all (a
+#      PATH shim counts them: 0), and its value equals the deep merge's for an
+#      env file that sets the key, does not set it, sets it to "" or to null.
+#      RED: the eval-all merge reader counts 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -108,6 +112,25 @@ if sudo -n sh -c "command -v useradd" >/dev/null 2>&1; then
 else
   skip "part 3 needs passwordless sudo and useradd"
 fi
+
+# --- 4. spl_box_ws_cnf: one plain read per file, the merge's value --------------------
+real_yq=$(command -v yq)
+mkdir -p "$T/yqshim" "$T/app/xx-yy-cnf/xx-yy" "$T/app/xx-yy-orc"
+printf '#!/bin/sh\nprintf "%%s\\n" "$1" >>"%s"\nexec "%s" "$@"\n' "$T/yq.log" "$real_yq" >"$T/yqshim/yq"
+chmod +x "$T/yqshim/yq"
+C="$T/app/xx-yy-cnf/xx-yy"
+printf 'env:\n  box:\n    workspace_base: /all/base\n' >"$C/all.env.yaml"
+for v in 'workspace_base: /env/base' 'workspace_user_prefix: x-' 'workspace_base: ""' 'workspace_base: null'; do
+  printf 'env:\n  box:\n    %s\n' "$v" >"$C/dev.env.yaml"
+  want=$("$real_yq" eval-all -r '. as $i ireduce ({}; . * $i) | .env.box.workspace_base // ""' "$C/all.env.yaml" "$C/dev.env.yaml")
+  : >"$T/yq.log"
+  got=$(PATH="$T/yqshim:$PATH" PROJ_PATH="$T/app/xx-yy-orc" APP_PATH="$T/app" ENV=dev bash -c \
+    'source "$1"; spl_box_ws_cnf workspace_base' _ "$TEST_DIR/../../../lib/bash/funcs/spl-box-workspace.func.sh")
+  n=$(grep -c '^eval-all$' "$T/yq.log")
+  [[ "$got" == "$want" && "$n" -eq 0 ]] &&
+    pass "spl_box_ws_cnf ($v): '$got' equals the merge, $n eval-all" ||
+    fail "spl_box_ws_cnf ($v): got '$got' want '$want', $n eval-all (want 0)"
+done
 
 echo "=== $( ((fails)) && echo "$fails FAILED" || echo "all passed") ==="
 exit $((fails > 0))

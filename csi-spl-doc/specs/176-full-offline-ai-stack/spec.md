@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.8** (2026-11-14), the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
+Version **v0.9** (2026-11-14), the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -93,7 +93,7 @@ Read for this section: specs [110](../110-mistral-vendor/spec.md),
 
 | fact | command -> result |
 |---|---|
-| Terraform steps | `ls csi-spl-iac/src/terraform | grep -cE '^[0-9]{3}-'` -> 30 steps (plus `modules` and `marketplace-spool-vm`), `000-gcp-remote-bucket` .. `120-github-general-secrets`; the hub is `030-cloud-run-hub`, the db `040-cloud-sql-postgres`, the vendor-key KMS `057-gcp-kms-vendor-keys`, the agent boxes `060-gcp-vm-satellite` and `061-gcp-vm-wine-box` |
+| Terraform steps | `ls csi-spl-iac/src/terraform \| grep -cE '^[0-9]{3}-'` -> 30 steps (plus `modules` and `marketplace-spool-vm`), `000-gcp-remote-bucket` .. `120-github-general-secrets`; the hub is `030-cloud-run-hub`, the db `040-cloud-sql-postgres`, the vendor-key KMS `057-gcp-kms-vendor-keys`, the agent boxes `060-gcp-vm-satellite` and `061-gcp-vm-wine-box` |
 | The agent box is a CPU VM, no GPU | `grep -rn 'guest_accelerator\|gpu' csi-spl-iac/src/terraform/060-gcp-vm-satellite csi-spl-iac/src/terraform/061-gcp-vm-wine-box` -> 0 lines; `prd.env.yaml:226` `machine_type: e2-standard-16` |
 | The agent box lives in the estate project, one box for dev and prd | `prd.env.yaml` near line 217: `gcp_project: csi-spl-all`; `060-gcp-vm-satellite/03-vm.tf:1`: "ONE always-on agent box for dev and prd, ssh only" |
 | Region | repo `CLAUDE.md`: `europe-north1` |
@@ -483,10 +483,10 @@ own file under this folder unless said otherwise:
 | seat | vendor | findings folded | PASS on sha |
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
-| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672), v0.6 `93d886bb0` (note 7a40372e); re-sign on the final sha |
+| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672), v0.6 `93d886bb0` (note 7a40372e), v0.7 `efe28a084` (note 8b922972); re-sign on the final sha |
 | mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c), v0.6 `93d886bb0` (msg 9f323c4a), v0.7 `efe28a084` (msg 11ea4e24); re-sign on the final sha |
 | codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867) | v0.6 `93d886bb0` (note c029a520); v0.8: 4.4 / 4.8 the agy review stays the last step in mode B (note f37936db); re-sign on the final sha |
-| agy seat a-513 (signs last) | agy | v0.7: 4.3 agy row (Gemini wire; local only behind a P2 translating gateway), 2.1 `vendorVars`, 4.4 and 4.8 mode B for `i18n` / `specs_and_docs`, Q10 client terms and Q11 further documents (Q7 references fixed), 3.3 box background probes and FR-10, FR-13 Qto import, 2.2 step count, 5.3 G2 / Cloud Run L4 rows (note 29fd824e) | - |
+| agy seat a-513 (signs last) | agy | v0.7: 4.3 agy row (Gemini wire; local only behind a P2 translating gateway), 2.1 `vendorVars`, 4.4 and 4.8 mode B for `i18n` / `specs_and_docs`, Q10 client terms and Q11 further documents (Q7 references fixed), 3.3 box background probes and FR-10, FR-13 Qto import, 2.2 step count, 5.3 G2 / Cloud Run L4 rows (note 29fd824e); v0.9: 2.2 `\|` escaped in the terraform row (note 1f8cb11b) | - |
 
 ### 11.1 Changelog
 
@@ -538,5 +538,11 @@ own file under this folder unless said otherwise:
   gateway, or holds (4.4, 4.8). Editor checked the rule:
   `grep -n "never ships unreviewed" .../spawn-an-agent.md` -> line 61.
   Also recorded: m-724 PASS on v0.7 (msg 11ea4e24).
+- v0.9 (2026-11-14): agy seat a-513 (CHANGES: 1 rendering finding on
+  v0.7, note 1f8cb11b; its five v0.7 folds verified). The 2.2 terraform
+  row carried an unescaped `|` inside its command, which cut the row in
+  the WUI's `renderMarkdown`; now escaped as `\|`, like the 2.1 row.
+  The footer timestamp is now taken from `date -u` at commit. Also
+  recorded: g-434 PASS on v0.7 (note 8b922972).
 
-<!-- version: 0.8.0 · updated: 2026-11-14 · last-edit: 2026-11-14T13:00:00Z -->
+<!-- version: 0.9.0 · updated: 2026-11-14 · last-edit: 2026-11-14T11:30:08Z -->

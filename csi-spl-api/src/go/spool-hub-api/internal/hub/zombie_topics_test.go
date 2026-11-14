@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -47,6 +49,7 @@ type zombieList struct {
 	IdleDays int    `json:"idle_days"`
 	Limit    int    `json:"limit"`
 	Order    string `json:"order"`
+	Scope    string `json:"scope"`
 	Topics   []struct {
 		TaskID string `json:"task_id"`
 		LastAt string `json:"last_at"`
@@ -143,7 +146,7 @@ func TestZombieTopicsListsIdleHeads(t *testing.T) {
 // another workspace and an anonymous caller (R7 W1).
 func TestZombieTopicsRefusals(t *testing.T) {
 	r := newFleetTokensRig(t)
-	for _, q := range []string{"?idle_days=0", "?idle_days=x", "?idle_days=3651", "?limit=0", "?limit=5001", "?limit=-1", "?order=random", "?order=NEWEST"} {
+	for _, q := range []string{"?idle_days=0", "?idle_days=x", "?idle_days=3651", "?limit=0", "?limit=5001", "?limit=-1", "?order=random", "?order=NEWEST", "?scope=private", "?scope=OPEN"} {
 		if code, _, _ := getZombies(t, r, zombiePath+q); code != http.StatusBadRequest {
 			t.Errorf("GET %s%s: %d, want 400", zombiePath, q, code)
 		}
@@ -152,5 +155,59 @@ func TestZombieTopicsRefusals(t *testing.T) {
 		if code, body := call(t, r.e, who[0], http.MethodGet, zombiePath, who[1], nil); code != http.StatusForbidden || body["permission"] != "operator.workspaces" {
 			t.Errorf("GET %s as %s: %d %v, want 403 operator.workspaces", zombiePath, name, code, body)
 		}
+	}
+}
+
+// TestZombieTopicsOpenScope: scope=open (spec 041 section 7, SPL-5520 R7
+// W4) lists only a topic any desk agent may post in; scope=all (the default)
+// lists every idle topic as before.
+func TestZombieTopicsOpenScope(t *testing.T) {
+	if os.Getenv("SPOOL_TEST_PG_DSN") == "" {
+		t.Skip("topic heads need Postgres (SPOOL_TEST_PG_DSN)")
+	}
+	r := newFleetTokensRig(t)
+	ctx := context.Background()
+	st := r.e.st.(*store.Postgres)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	at := now.Add(-2 * 24 * time.Hour)
+	for _, c := range []string{"open-ch", "members", "humans", "ai-off", "scoped", "topic-scoped"} {
+		if err := st.CreateChannel(ctx, store.Channel{TenantID: r.op, ChannelID: c, Name: c, CreatedBy: "HUM-2", CreatedAt: at}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err := pgx.BeginFunc(ctx, st.Pool(), func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT set_config('app.rls_scope', 'operator', true)`); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `UPDATE channels SET is_private = true WHERE tenant_id = $1 AND channel_id = 'members'`, r.op)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetChannelHumansOnly(ctx, r.op, "humans", true, at); err != nil {
+		t.Fatal(err)
+	}
+	off := false
+	if err := st.SetChannelAIAgents(ctx, r.op, "ai-off", &off, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetPrivateScope(ctx, r.op, store.ScopeChannel, "scoped", true, at); err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]string{}
+	for _, c := range []string{"open-ch", "members", "humans", "ai-off", "scoped", "topic-scoped", store.ChannelLobby} {
+		ids[c] = uuidV4()
+		zombiePut(t, r, ids[c], c, true, at)
+	}
+	if err := st.SetPrivateScope(ctx, r.op, store.ScopeTopic, ids["topic-scoped"], true, at); err != nil {
+		t.Fatal(err)
+	}
+	code, v, got := getZombies(t, r, zombiePath+"?idle_days=1&order=newest&scope=open")
+	if code != http.StatusOK || v.Scope != "open" || !slices.Equal(got, []string{ids["open-ch"]}) {
+		t.Fatalf("scope=open: %d %q %v, want 200 open [%s] (topics %v)", code, v.Scope, got, ids["open-ch"], ids)
+	}
+	if _, v, got = getZombies(t, r, zombiePath+"?idle_days=1"); v.Scope != "all" || len(got) != len(ids) {
+		t.Fatalf("default scope: %q %v, want all and the %d topics %v", v.Scope, got, len(ids), ids)
 	}
 }

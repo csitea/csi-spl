@@ -15,7 +15,7 @@
 # @param PRE_PUSH_PIDFILE (optional) - pidfile, default ~/.cache/csi-spl/pre-push.<tree-hash>.pid
 # @param PRE_PUSH_STOP_GRACE (optional) - seconds between TERM and KILL, default 5
 # @example ./run -a do_stop_pre_push
-# @example PRE_PUSH_TREE=/opt/csi/csi-spl-wt/<ID> ./run -a do_stop_pre_push
+# @example PRE_PUSH_TREE=<worktree root>/<ID> ./run -a do_stop_pre_push
 #------------------------------------------------------------------------------
 
 declare -F _pp_pidfile >/dev/null 2>&1 \

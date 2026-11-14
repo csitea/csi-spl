@@ -206,7 +206,7 @@ v="$PROJ_PATH/src/bash/run/satellite-verify.func.sh"
 grep -q '^_satellite_verify_users()' "$v" && grep -q '/etc/csi-spl-satellite.env' "$v" && grep -q '/etc/csi-spl-satellite.env' "$R/05_users/tasks/main.yml" \
   && pass "verify reads the users the playbook recorded" || fail "verify has no users block"
 grep -qF "sudo -n -u \${agent} -H bash -c 'cd \\\"\\\$HOME\\\" && exec bash -s'" "$v" && pass "verify runs the replica checks as the agent, from its home (run 4)" || fail "verify does not check as the agent from its home"
-grep -qF "sudo -n env O='\${owner}' A='\${agent}' OWNER_TOOLS='\${owner_tools}' bash -s" "$v" && pass "verify passes the user names through sudo (env, run 4)" || fail "verify sets the user names before sudo (sudo drops them)"
+grep -qF "sudo -n env O='\${owner}' A='\${agent}' OWNER_TOOLS='\${owner_tools}' C='\${sv_clone}' OD='\${sv_org}' V='\${sv_var}' bash -s" "$v" && pass "verify passes the user names through sudo (env, run 4)" || fail "verify sets the user names before sudo (sudo drops them)"
 
 # 7. the repo at trunk, and the box user's harness (CLE-77911)
 gs="$STEP/tasks/git-sync.yml"; h8="$R/08_spool_harness/tasks/main.yml"
@@ -263,7 +263,7 @@ grep -q '{ src: var-csi, dst: /var/csi }' "$R/01_data_disk/tasks/main.yml" && gr
   && pass "role 01 binds /var/csi onto the data disk" || fail "role 01 does not put /var/csi on the data disk"
 grep -q 'path: /var/csi/csi-spl' "$R/05_users/tasks/main.yml" && grep -A5 'path: /var/csi/csi-spl$' "$R/05_users/tasks/main.yml" | grep 'mode: "2775"' >/dev/null \
   && pass "role 05 gives /var/csi/csi-spl to the owner, 2775" || fail "role 05 has no owner-writable /var/csi/csi-spl"
-grep -q 'test -w /var/csi/csi-spl && echo "varcsi writable $u"' "$v" && grep -q 'for m in /mnt/data /opt /var/spool-hub /var/csi; do grep' "$v" \
+grep -qF 'test -w "$V" && echo "varcsi writable $u"' "$v" && grep -qF 'for m in /mnt/data /opt /var/spool-hub "${sv_var%/*}"; do grep' "$v" \
   && pass "verify checks /var/csi is mounted and writable by both users" || fail "verify lacks the /var/csi rows"
 # every /var/<org>/<org>-<app> path the orc actions write sits under the dir role 05 makes
 bad=$(grep -rhoE '/var/(\$\{?[A-Za-z_%*-]+\}?|csi)/[^ "]*(desk-reconcile|unanswered-sweep|weekly-scan|backup|tenants)' "$PROJ_PATH/../csi-spl-orc/src/bash" "$PROJ_PATH/src/bash" | grep -vE '^/var/(csi/csi-spl|\$\{?(org|ORG|SPL_ORG_APP%%-\*|ORG_APP%%-\*)\}?/)' || true)
@@ -288,7 +288,7 @@ sys.exit(0 if ok else 1)" && [[ "$o1" == CHANGED* && "$o2" == OK && "$(stat -c %
   && pass "10. the first-run seed sets onboarding + version, keeps every other key (the login too), 0600, idempotent" || fail "10. first-run seed: o1=$o1 o2=$o2 $(cat "$H/.claude.json")"
 grep -qF 'has-session -t main 2>/dev/null || /usr/bin/tmux -S /tmp/tmux-%U/default new-session -d -s main' "$h8" && grep -q 'Type=oneshot' "$h8" && grep -q 'KillMode=process' "$h8" && ! grep -q '^      ExecStop=' "$h8" && ! grep -q '^      ExecStart=.*\$' "$h8" && grep -q 'systemctl --user enable -q tmux-main.service' "$h8" \
   && pass "10. role 08 keeps the owner's tmux main as an enabled systemd user unit: adopts an existing main, agents survive a unit restart" || fail "10. no tmux-main user unit"
-grep -q '^_satellite_verify_claude_start()' "$v" && grep -q 'claude -p "Reply with exactly the word ok"' "$v" && grep -q 'select login method' "$v" && grep -q 'trust-workdir.sh "$d"' "$v" && grep -q 'owner tmux-unit' "$v" \
+grep -q '^_satellite_verify_claude_start()' "$v" && grep -q 'claude -p "Reply with exactly the word ok"' "$v" && grep -q 'select login method' "$v" && grep -qF 'trust-workdir.sh" "$d"' "$v" && grep -q 'owner tmux-unit' "$v" \
   && pass "10. verify: claude --print, the interactive no-menu smoke (pre-trusted dir), tmux main + its unit" || fail "10. verify lacks the claude-start or tmux rows"
 
 # 11. the order bug of 203b20f2: the unit's dir is made BEFORE the unit is copied

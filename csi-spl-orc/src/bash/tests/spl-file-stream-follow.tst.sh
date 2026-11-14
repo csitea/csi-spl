@@ -1002,7 +1002,8 @@ if command -v yq >/dev/null; then
     fail "action no SPOOL_ROOT: rc=$rc out='$out'"
   # spec 160 3.8.2 (row B10): the allowed folders reach the follower from the
   # cnf (Q5 B: the box log folder and /var/log); box.env replaces them
-  folders_got() { env SPOOL_TEST=1 FILE_STREAMS_FOLDERS= "$@" bash -c 'source "$1"; spl_file_stream_folders "$2"' _ \
+  # the cnf folder is ${SPL_VAR_APP_DIR} (SPL-5527): pinned to the box value
+  folders_got() { env SPOOL_TEST=1 FILE_STREAMS_FOLDERS= SPL_VAR_APP_DIR=/var/csi/csi-spl "$@" bash -c 'source "$1"; spl_file_stream_folders "$2"' _ \
     "$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh" "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"; }
   printf 'FILE_STREAMS_FOLDERS="/var/log /srv/app"\n' >"$d/box.env"
   [[ "$(folders_got)" == '["/var/csi/csi-spl","/var/log"]' && "$(folders_got SPOOL_BOX_ENV="$d/box.env")" == '["/var/log","/srv/app"]' &&
@@ -1087,7 +1088,8 @@ if command -v yq >/dev/null; then
     mkdir -p "$co/src/bash/run" "$co/src/bash/scripts" "$co/lib/bash/funcs"
     cp "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$co/src/bash/run/"
     cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow.py" "$co/src/bash/scripts/"
-    cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" "$co/lib/bash/funcs/"
+    cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" \
+      "$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh" "$co/lib/bash/funcs/"
     ln -sfn "$PROJ_ROOT/src/bash/features" "$co/src/bash/features"
   }
   hd="$(newcase)"; hubcase "$hd"; ctree "$hd"
@@ -1183,7 +1185,10 @@ if command -v yq >/dev/null; then
   # spec 160 3.9 (SPL-4693): every shipped allow entry is well formed and
   # passes the deny list, the two agent-logs files of c-141 among them, one
   # id per file (CONTROL: the base cnf has no agent-logs entry)
-  al="$(yq -o json -I0 '.env.box.file_streams.allow' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
+  # its paths are ${SPL_VAR_APP_DIR}/... (SPL-5527), expanded as the action
+  # does, pinned to the box value (a CI checkout would derive a home path)
+  al="$(yq -o json -I0 '.env.box.file_streams.allow' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" |
+    SPL_VAR_APP_DIR=/var/csi/csi-spl bash -c 'source "$1"; spl_cnf_path_expand' _ "$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh")"
   bad="$(FILE_STREAMS_ALLOW="$al" python3 - "$PY_REAL" <<'EOF'
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("follow", sys.argv[1])
@@ -1209,7 +1214,8 @@ fi
 # ------------------------------------------------------------------ cron
 W="$T/x-wt/c-1/csi-spl-orc/src/bash"
 mkdir -p "$W/scripts" "$W/run" "$W/../../lib/bash/funcs"
-cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" "$W/../../lib/bash/funcs/"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" \
+  "$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh" "$W/../../lib/bash/funcs/"
 cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh" "$W/scripts/"
 cp "$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh" "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$W/run/"
 out="$(bash "$W/scripts/file-stream-follow-cron.sh" 2>&1)"

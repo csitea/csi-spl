@@ -154,14 +154,18 @@ grep -q '^codex ' "$T/calls.log" && ! grep -qE '^(codex|npm) .*key-in-env=yes' "
 { cat "$T/o.env"; echo "token $AUTH"; } >"$T/o.planted"
 no_leak "$T/o.planted" && fail "6: CONTROL: the planted echo was NOT caught" || pass "6: CONTROL: the leak check catches a planted echo"
 
-# --- 7. the real cnf: pinned, a marker, no weight ------------------------------------------------------
+# --- 7. the real cnf: pinned, a marker, weighted only where SPL-5454 put it --------------------------------------------------
 REAL="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
 v="$(yq -r '.env.box.openai_codex.version // ""' "$REAL")"
 [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && pass "7: the real cnf pins one X.Y.Z ($v)" || fail "7: real pin '$v'"
 [[ "$(yq -r '.env.box.agent_split.auth_marker.codex' "$REAL")" == .codex/auth.json ]] &&
   pass "7: auth_marker.codex = .codex/auth.json" || fail "7: marker: $(yq -r '.env.box.agent_split.auth_marker.codex' "$REAL")"
-w="$(yq -r '[.env.box.agent_split.codex, (.env.box.agent_split_by_kind[] | (.codex, (.backup | select(. == "codex"))))] | map(select(. != null)) | length' "$REAL")"
-[[ "$w" == 0 ]] && pass "7: codex has no weight and is no backup in agent_split or any agent_split_by_kind row" || fail "7: codex weighted in $w place(s)"
+# SPL-5454 (spec 161 section 5.2.1, GO c-002 msg c691eae1): flat row 0, 15 in tests and simple_coding only, never a backup.
+w="$(yq -r '[.env.box.agent_split_by_kind | to_entries[] | select((.value.codex // 0) > 0) | "\(.key)=\(.value.codex)"] | sort | join(",")' "$REAL")"
+[[ "$w" == "simple_coding=15,tests=15" ]] && pass "7: codex weighs 15 in tests and simple_coding, no other kind" || fail "7: codex weighted in: '$w'"
+[[ "$(yq -r '.env.box.agent_split.codex // 0' "$REAL")" == 0 ]] && pass "7: the flat agent_split row gives codex 0" || fail "7: flat codex: $(yq -r '.env.box.agent_split.codex' "$REAL")"
+b="$(yq -r '[.env.box.agent_split_by_kind[] | select(.backup == "codex")] | length' "$REAL")"
+[[ "$b" == 0 ]] && pass "7: codex is no backup in any agent_split_by_kind row" || fail "7: codex is backup in $b row(s)"
 printf 'env:\n  box:\n    agent_split_by_kind:\n      tests: { claude: 85, codex: 15, backup: grok }\n' >"$T/w.yaml"
 w="$(yq -r '[.env.box.agent_split.codex, (.env.box.agent_split_by_kind[] | (.codex, (.backup | select(. == "codex"))))] | map(select(. != null)) | length' "$T/w.yaml")"
 [[ "$w" == 1 ]] && pass "7: CONTROL: a row with codex: 15 is caught by the same query" || fail "7: control read $w"

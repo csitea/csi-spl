@@ -36,8 +36,12 @@
 #      bad one) or no topic row: nothing reaches the hub, a WARN, rc 1
 #  21. the topics file gives each box its topic and workspace; a bad
 #      workspace is dropped
+#  22. SPL-5522: stuck 9 min -> no restart; 11 min -> ONE run of the link's
+#      restart action and ONE LINK RESTARTED note (before/after); stuck again
+#      within 30 min -> no second restart; no action / DRY_RUN -> none
 #   RED CONTROL: case 2 with the state file gone sends a second blocker, so
-#   case 2's silence is the state's doing.
+#   case 2's silence is the state's doing. Case 22 on the watcher before
+#   SPL-5522: no restart at 11 min.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -277,5 +281,49 @@ got="$(SNIPPET="spl_box_link_watch_topics $T/topics.tsv" in_orc)"
 [ "$got" = "box=0956269e/csitea,b2=abcd1234/,b3=12345678/" ] && pass "21. the topics file -> box=topic8/workspace; a bad or missing workspace is empty" || fail "21. ($got)"
 [ "$(SNIPPET="spl_box_link_watch_topics $PROJ_ROOT/cnf/box-link-watch/topics.tsv" in_orc)" = "box=0956269e/csitea" ] \
   && pass "21. the shipped row: box -> topic 0956269e in workspace csitea" || fail "21. shipped"
+
+# 22. SPL-5522: the link's restart action. A stub `<home>/run` records each
+# call and appends the effect line (a receipt) to the hub log. The clock is
+# GW_NOW, never a sleep.
+#   stuck 9 min -> the blocker, no restart; 11 min -> ONE restart and ONE
+#   LINK RESTARTED note (before: the bundle; after: nothing left); stuck again
+#   11 min later, within 30 min of the restart -> no second restart; 32 min
+#   after the restart -> the next one; no action configured -> never; DRY_RUN
+#   -> only the plan.
+mkdir -p "$T/relay"
+printf '#!/bin/sh\necho "$*" >>%q\n[ -f %q ] && cat %q >>%q\necho "OK now: the loop ran the cycle"\n' \
+  "$T/restarts" "$T/effect" "$T/effect" "$L/rel.sh.20261104_100000.out.log" >"$T/relay/run"
+chmod +x "$T/relay/run"
+rs() { cat "$T/restarts" 2>/dev/null | grep -c . || true; }
+effect() { printf ' INFO  %s UTC [rel][@box] [42] %s\n' "$(stamp 0)" "$1" >"$T/effect"; }
+rrun() { run BOX_LINK_WATCH_RESTART_ACTION=kick-now "$@"; }
+fresh; rm -f "$T/restarts" "$T/effect"
+logl 9 "sent r1.zip hub -> box (10 B, sha256 aa) as b-31 in 1 s, waiting for the box's receipt"
+out="$(rrun)"
+[ "$(n)" = 1 ] && [ "$(rs)" = 0 ] && grep -q 'LINK STUCK' "$T/sent" && pass "22. stuck 9 min -> the blocker, no restart" || fail "22. 9 min ($(rs) restarts, $(n): $out)"
+later 2; effect "delivered r1.zip to box1: marked sent; relay blob deleted"
+out="$(rrun)"
+[ "$(rs)" = 1 ] && grep -qx -- '-a kick-now' "$T/restarts" && [ "$(n)" = 2 ] \
+  && grep -q '|--kind|note|--task|box-link-watch-abcd1234|--body|LINK RESTARTED on box `box`: stuck 11 min (since .*), ran `run -a kick-now` in the link checkout -> exit 0: `OK now: the loop ran the cycle`' "$T/sent" \
+  && grep -q -- '- before: bundle r1.zip sent, no receipt' "$T/sent" && grep -q -- '- after: no condition left' "$T/sent" \
+  && pass "22. stuck 11 min -> ONE restart of the link, ONE LINK RESTARTED note with the state before and after" || fail "22. 11 min ($(rs) restarts, $(n): $(cat "$T/sent"); $out)"
+rm -f "$T/effect"; later 1; out="$(rrun)"
+[ "$(rs)" = 1 ] && grep -q 'LINK CLEARED' <<<"$(last)" && pass "22. ...the next run: CLEARED, no second restart" || fail "22. clear ($(rs) restarts: $(cat "$T/sent"); $out)"
+logl 0 "sent r2.zip hub -> box (10 B, sha256 aa) as b-32 in 1 s, waiting for the box's receipt"
+later 11; out="$(rrun)"
+[ "$(rs)" = 1 ] && grep -q 'no restart' <<<"$out" && grep -q 'bundle r2.zip sent, no receipt, since' "$T/sent" \
+  && pass "22. stuck again 11 min, 12 min after the restart -> the blocker, no second restart" || fail "22. within 30 ($(rs) restarts: $out)"
+later 20; out="$(rrun)"
+[ "$(rs)" = 2 ] && grep -q -- '- before: bundle r2.zip sent, no receipt' <<<"$(last)" && grep -q -- '- after: bundle r2.zip sent, no receipt' <<<"$(last)" \
+  && pass "22. 32 min after the restart, still stuck -> the next restart; after names what is left" || fail "22. after 30 ($(rs) restarts: $(last); $out)"
+fresh; rm -f "$T/restarts"; logl 11 "sent r3.zip hub -> box (10 B, sha256 aa) as b-33 in 1 s, waiting for the box's receipt"
+out="$(run)"
+[ "$(rs)" = 0 ] && [ "$(n)" = 1 ] && ! grep -q RESTARTED "$T/sent" && pass "22. no restart action configured -> no restart (alert only)" || fail "22. none ($(rs): $out)"
+fresh; logl 11 "sent r3.zip hub -> box (10 B, sha256 aa) as b-33 in 1 s, waiting for the box's receipt"; out="$(rrun DRY_RUN=1)"
+[ "$(rs)" = 0 ] && grep -q '^PLAN restart box box: `run -a kick-now` in the link checkout (stuck since .*: bundle r3.zip sent, no receipt)' <<<"$out" \
+  && pass "22. DRY_RUN -> the restart is only planned" || fail "22. dry ($(rs): $out)"
+out="$(rrun BOX_LINK_WATCH_RESTART_ACTION='x; rm -rf /')"; rc=$?
+[ "$rc" != 0 ] && [ "$(rs)" = 0 ] && grep -q 'FATAL BOX_LINK_WATCH_RESTART_ACTION must be an action name' <<<"$out" \
+  && pass "22. a restart action that is not an action name -> refused" || fail "22. bad action (rc $rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

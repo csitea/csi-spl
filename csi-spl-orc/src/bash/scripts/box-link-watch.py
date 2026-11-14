@@ -23,6 +23,13 @@ topic that owns the box, listing every condition over the limit, and one more
 (kind note) when none is left ("cleared after N min"). The state file keeps what
 was sent, so a second run on the same state sends nothing.
 
+Restart (SPL-5522): a box stuck longer than GW_RESTART_AFTER_S (600) has the
+link's own restart action run, `<GW_RESTART_HOME>/run -a <GW_RESTART_ACTION>`
+(box-local, never in this tree; no action = no restart), at most once per
+GW_RESTART_EVERY_S (1800) per box, and ONE note "LINK RESTARTED" naming the
+stuck conditions before it and those left after it. The STUCK and CLEARED
+messages are unchanged. A dry run only plans it.
+
 Workspace (SPL-4880): each topic names its workspace. A send to a seat or the
 fallback on another machine goes through that workspace's desk only
 (GW_RELAY <workspace>, as spool-send.sh's SPOOL_FLEET_RELAY_CMD), never
@@ -34,6 +41,8 @@ Environment (the action sets the defaults):
   GW_ROOT, GW_LOG_DIR, GW_LOG_GLOB, GW_RESULTS, GW_STATE, GW_LIMIT_MIN, GW_WINDOW_H,
   GW_QUIET_S, GW_TOPICS ("box=topic8/workspace,..."), GW_LANES_CMD,
   GW_FALLBACK, GW_SEND, GW_RELAY, GW_FROM, GW_PS_CMD, GW_RADIATE_RX,
+  GW_RESTART_HOME, GW_RESTART_ACTION, GW_RESTART_AFTER_S, GW_RESTART_EVERY_S,
+  GW_RESTART_TIMEOUT_S,
   GW_NOW (tests),
   DRY_RUN (1 = print the plan only)
 A box with no topic row goes to GW_FALLBACK on task box-link-watch-<box>.
@@ -362,6 +371,25 @@ def send(to, kind, task, body, ws):
     )
 
 
+def restart_link(home, action):
+    """(rc, last output line) of `<home>/run -a <action>`, run in HOME."""
+    try:
+        p = subprocess.run(
+            [os.path.join(home, "run"), "-a", action],
+            cwd=home,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=int(env("GW_RESTART_TIMEOUT_S", "300")),
+        )
+    except subprocess.TimeoutExpired:
+        return 124, "timed out"
+    except OSError as e:
+        return 127, clean(str(e))
+    lines = (p.stdout + p.stderr).strip().splitlines()
+    return p.returncode, clean(lines[-1]) if lines else ""
+
+
 class Run:
     def __init__(self):
         self.now = int(env("GW_NOW") or time.time())
@@ -375,6 +403,8 @@ class Run:
                 ok = re.match(r"^[a-z0-9][a-z0-9-]{0,31}$", ws) and env("GW_RELAY")
                 self.topics[box] = (topic, ws if ok else "")
         self.seats, self.rc = {}, 0
+        self.restart_after = int(env("GW_RESTART_AFTER_S", "600"))
+        self.restart_every = int(env("GW_RESTART_EVERY_S", "1800"))
 
     def deliver(self, box, kind, body):
         """True when sent (never in a dry run)."""
@@ -473,7 +503,59 @@ class Run:
                 "INFO %s: incident open since %s, alerted %s"
                 % (box, iso(inc["since"]), iso(inc["alerted"]))
             )
-        return {"conds": conds, "incident": inc} if inc else {"conds": conds}
+        out = {"conds": conds, "incident": inc} if inc else {"conds": conds}
+        last = self.restart(box, conds, inc, old.get("restarted"))
+        if last:
+            out["restarted"] = last
+        return out
+
+    def restart(self, box, conds, inc, last):
+        """SPL-5522: run the link's restart action once the box is stuck
+        longer than GW_RESTART_AFTER_S, at most once per GW_RESTART_EVERY_S.
+        Returns the epoch of the last restart to keep (None = none yet)."""
+        home, action = env("GW_RESTART_HOME"), env("GW_RESTART_ACTION")
+        old = [c for c in conds.values() if self.now - c["since"] > self.restart_after]
+        if not (old and home and action):
+            return last
+        if last and self.now - int(last) < self.restart_every:
+            print(
+                "INFO %s: stuck, but the link was restarted at %s (< %d min ago): no restart"
+                % (box, iso(int(last)), self.restart_every // 60)
+            )
+            return last
+        first = min(c["since"] for c in old)
+        before = "; ".join(c["what"] for c in sorted(old, key=lambda c: c["since"]))
+        what = "`run -a %s` in the link checkout" % action
+        if self.dry:
+            print(
+                "PLAN restart box %s: %s (stuck since %s: %s)"
+                % (box, what, iso(first), before)
+            )
+            return last
+        rc, tail = restart_link(home, action)
+        left = conditions(box, self.now, inc)
+        after = (
+            "; ".join(w for _, (_, w, _) in sorted(left.items())) or "no condition left"
+        )
+        body = (
+            "LINK RESTARTED on box `%s`: stuck %d min (since %s), ran %s -> exit %d%s.\n"
+            "- before: %s\n- after: %s\n"
+            "(do_spl_box_link_watch, SPL-5522: at most one restart per %d min)"
+            % (
+                box,
+                (self.now - first) // 60,
+                iso(first),
+                what,
+                rc,
+                (": `%s`" % tail) if tail else "",
+                before,
+                after,
+                self.restart_every // 60,
+            )
+        )
+        print("INFO %s: restarted the link: exit %d" % (box, rc))
+        self.deliver(box, "note", body)
+        return self.now
 
 
 def main():

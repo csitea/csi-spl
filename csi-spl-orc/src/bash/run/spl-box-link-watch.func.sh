@@ -25,6 +25,11 @@
 # @description the KEY=VALUE file BOX_LINK_WATCH_ENV. No relay configured ->
 # @description nothing to watch, exit 0. A lock keeps two runs apart. Dry run
 # @description unless DRY_RUN=0. Core: src/bash/scripts/box-link-watch.py.
+# @description SPL-5522: a box stuck for more than BOX_LINK_WATCH_RESTART_AFTER_S
+# @description has the link's own restart action run (`<HOME>/run -a
+# @description <BOX_LINK_WATCH_RESTART_ACTION>`, box-local; unset = no restart),
+# @description at most once per BOX_LINK_WATCH_RESTART_EVERY_S per box, and one
+# @description LINK RESTARTED note with the state before and after it.
 # @param BOX_LINK_WATCH_ENV (optional) - the box-local file, default $XDG_CONFIG_HOME/csi-spl/box-link-watch.env
 # @param BOX_LINK_WATCH_ROOT (env or file) - the hub's box dirs (<root>/<box>/{inbound,outbound}); unset = nothing to watch
 # @param BOX_LINK_WATCH_LOG_DIR (env or file, required with ROOT) - the hub's own logs
@@ -32,6 +37,9 @@
 # @param BOX_LINK_WATCH_RESULTS (env or file, optional) - the run-on-box results dir (<dir>/<id>/result.json)
 # @param BOX_LINK_WATCH_HOME (env or file, required with ROOT) - the relay checkout whose `run -a radiate` must run
 # @param BOX_LINK_WATCH_LIMIT_MIN (optional) - minutes before an alert, default 7
+# @param BOX_LINK_WATCH_RESTART_ACTION (env or file, optional) - the action of the relay checkout that restarts the link; unset = no restart
+# @param BOX_LINK_WATCH_RESTART_AFTER_S (optional) - seconds stuck before the restart, default 600
+# @param BOX_LINK_WATCH_RESTART_EVERY_S (optional) - at most one restart per box per this many seconds, default 1800
 # @param BOX_LINK_WATCH_TOPICS (optional) - "box=topic8/workspace,...", default cnf/box-link-watch/topics.tsv
 # @param BOX_LINK_WATCH_STATE (optional) - default $XDG_STATE_HOME/csi-spl/box-link-watch.json
 # @param BOX_LINK_WATCH_FROM (optional) - the sender id, default LEASE_ORCH of the dispatch lease.conf
@@ -52,7 +60,12 @@ do_spl_box_link_watch() {
   local sa="$PROJ_PATH/src/bash/features/spawn-agents/scripts" topics from home
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$lim" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL BOX_LINK_WATCH_LIMIT_MIN must be whole minutes, got: '$lim'"; return 1; }
+  local rsa="${BOX_LINK_WATCH_RESTART_AFTER_S:-600}" rse="${BOX_LINK_WATCH_RESTART_EVERY_S:-1800}"
+  [[ "$rsa" =~ ^[1-9][0-9]*$ && "$rse" =~ ^[1-9][0-9]*$ ]] ||
+    { do_log "FATAL BOX_LINK_WATCH_RESTART_AFTER_S and _EVERY_S must be whole seconds, got: '$rsa' '$rse'"; return 1; }
   spl_box_link_watch_env "$cf"
+  [[ -z "${BOX_LINK_WATCH_RESTART_ACTION:-}" || "$BOX_LINK_WATCH_RESTART_ACTION" =~ ^[a-z][a-z0-9_-]*$ ]] ||
+    { do_log "FATAL BOX_LINK_WATCH_RESTART_ACTION must be an action name, got: '$BOX_LINK_WATCH_RESTART_ACTION'"; return 1; }
   [[ -n "${BOX_LINK_WATCH_ROOT:-}" ]] ||
     { do_log "OK no relay configured on this box (no BOX_LINK_WATCH_ROOT, no $cf): nothing to watch"; return 0; }
   [[ -n "${BOX_LINK_WATCH_LOG_DIR:-}" && -n "${BOX_LINK_WATCH_HOME:-}" ]] ||
@@ -73,6 +86,7 @@ do_spl_box_link_watch() {
     GW_RELAY="${BOX_LINK_WATCH_RELAY:-$PROJ_PATH/src/bash/scripts/box-link-watch-relay.sh}" \
     GW_LANES_CMD="${BOX_LINK_WATCH_LANES_CMD:-bash $sa/lane-map.sh list --json}" \
     GW_FALLBACK="${BOX_LINK_WATCH_FALLBACK:-$(spl_box_link_watch_holder)}" \
+    GW_RESTART_HOME="$home" GW_RESTART_ACTION="${BOX_LINK_WATCH_RESTART_ACTION:-}" GW_RESTART_AFTER_S="$rsa" GW_RESTART_EVERY_S="$rse" \
     GW_PS_CMD="${BOX_LINK_WATCH_PS_CMD:-ps -eo args=}" GW_RADIATE_RX="^\\S*bash ${home//./\\.}/run -a (do-)?radiate( |\$)" \
     DRY_RUN="$dry" SPOOL_ROOT="$SPOOL_ROOT" python3 "$PROJ_PATH/src/bash/scripts/box-link-watch.py"
   local rc=$?
@@ -83,13 +97,14 @@ do_spl_box_link_watch() {
 }
 
 # The box-local KEY=VALUE file: sets each BOX_LINK_WATCH_{ROOT,LOG_DIR,
-# LOG_GLOB,RESULTS,HOME} the environment left unset. Read, never sourced.
+# LOG_GLOB,RESULTS,HOME,RESTART_ACTION} the environment left unset. Read,
+# never sourced.
 spl_box_link_watch_env() {  # FILE
   local k v
   [[ -r "$1" ]] || return 0
   while IFS='=' read -r k v; do
     case "$k" in
-      BOX_LINK_WATCH_ROOT|BOX_LINK_WATCH_LOG_DIR|BOX_LINK_WATCH_LOG_GLOB|BOX_LINK_WATCH_RESULTS|BOX_LINK_WATCH_HOME)
+      BOX_LINK_WATCH_ROOT|BOX_LINK_WATCH_LOG_DIR|BOX_LINK_WATCH_LOG_GLOB|BOX_LINK_WATCH_RESULTS|BOX_LINK_WATCH_HOME|BOX_LINK_WATCH_RESTART_ACTION)
         [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "${v//\$HOME/$HOME}" ;;
     esac
   done < <(grep -E '^BOX_LINK_WATCH_[A-Z_]+=[^[:space:];|&`]+$' "$1")

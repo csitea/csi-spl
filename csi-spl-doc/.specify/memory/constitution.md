@@ -199,7 +199,8 @@ The cnf holds no box paths. A value that names one is a token form,
 `${SPL_ORG_DIR}/<repo>` or `${SPL_VAR_APP_DIR}/<file>`, and its reader
 expands it with `spl_cnf_path_expand` (a literal replace, never `eval`).
 The one exception is the spool root (`env.box.spool_root`), an owner
-decision.
+decision. An OS path such as `/var/log` (a file-stream folder) is not a
+box path and stays as written.
 
 Enforced by: the tfvars parity check of the `iac-suite` CI job
 (a fresh tpl-gen render); `no-literal-paths.tst.sh` and
@@ -659,6 +660,6 @@ date, and a re-run of `/speckit-analyze` on every in-flight spec. Complexity
 that deviates from a principle must be justified inline (`# WHY:`) and
 acknowledged in the spec's Clarifications section.
 
-**Version**: 0.3.3 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-14 (Coding Standards exported from developer-guide.md)
+**Version**: 0.3.4 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-14 (Coding Standards exported from developer-guide.md)
 
-<!-- version: 0.3.3 · updated: 2026-11-14 · last-edit: 2026-11-14T13:45:38Z -->
+<!-- version: 0.3.4 · updated: 2026-11-14 · last-edit: 2026-11-14T19:53:25Z -->

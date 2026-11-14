@@ -14,6 +14,8 @@
 #      ${SPL_ORG_DIR}/<repo> row resolves to the clone; red control: a
 #      non-absolute org dir drops the row, never a relative path),
 #      spl_file_stream_folders and spl_agent_log_pipe_paths.
+#      W1-W3 of the R7 review (a-718): a cron without ./run, PROJ_PATH alone,
+#      box restart's desk step fail fast; N2 the agent-log filter.
 #   4. the live cnf: every src_dir / file_streams path value is a token form.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -32,8 +34,21 @@ want="$B/opt/acme|$B/var/acme/acme-app|$M-wt|$M-desk-cron"
 [[ "$(paths "$W")" == "$want" ]] && pass "1. its worktree derives the same paths" || fail "1. worktree: $(paths "$W")"
 [[ "$(dirname "$W")" != "$B/opt/acme" ]] && pass "1. red control: run.sh's ORG_PATH rule on the worktree reads $(dirname "$W"), not the org dir" || fail "1. red control"
 [[ "$(paths "$W" SPL_WT_ROOT=/x/wt)" == "$B/opt/acme|$B/var/acme/acme-app|/x/wt|$M-desk-cron" ]] && pass "1. an env SPL_WT_ROOT wins" || fail "1. env override: $(paths "$W" SPL_WT_ROOT=/x/wt)"
-out="$(env -u APP_PATH -u PROJ_PATH bash -c 'source "$0"; spl_run_paths; echo rc=$?' "$LIB")"
-[[ "$out" == "rc=1" ]] && pass "1. no APP_PATH and no dir: rc 1" || fail "1. no tree: $out"
+out="$(env -u APP_PATH -u PROJ_PATH bash -c 'source "$0"; SPL_RUN_PATHS_TOP=; spl_run_paths; echo rc=$?' "$LIB")"
+[[ "$out" == "rc=1" ]] && pass "1. no APP_PATH, no PROJ_PATH, no file dir: rc 1" || fail "1. no tree: $out"
+# W2 (R7 a-718): run.sh's PROJ_PATH is <top>/<module>, so the tree is its parent
+mkdir -p "$W/csi-spl-orc"
+out="$(env -u SPL_ORG_DIR -u SPL_VAR_APP_DIR -u SPL_WT_ROOT -u SPL_DESK_DIR -u APP_PATH PROJ_PATH="$W/csi-spl-orc" bash -c 'source "$0"; spl_run_paths && echo "$SPL_ORG_DIR|$SPL_VAR_APP_DIR|$SPL_WT_ROOT|$SPL_DESK_DIR"' "$LIB")"
+[[ "$out" == "$want" ]] && pass "1. PROJ_PATH=<worktree>/csi-spl-orc alone derives the same paths" || fail "1. PROJ_PATH only: $out"
+# a relative gitdir: line (git worktree --relative-paths) resolves too
+R="$B/opt/acme/acme-app-wt/c-902"; mkdir -p "$R"; printf 'gitdir: ../../acme-app/.git/worktrees/c-902\n' >"$R/.git"
+[[ "$(paths "$R")" == "$want" ]] && pass "1. a worktree with a relative gitdir derives the same paths" || fail "1. relative gitdir: $(paths "$R")"
+# W1 (R7 a-718): a cron that sources an action without ./run (no APP_PATH,
+# no PROJ_PATH) still expands the cnf tokens, from the checkout the helper
+# file sits in. Red control: without that fallback the token stays literal.
+mine="$(APP_PATH="$APP_ROOT" bash -c 'source "$0"; spl_run_paths && echo "$SPL_VAR_APP_DIR"' "$LIB")"
+cron_folders() { env -u APP_PATH -u PROJ_PATH -u SPL_ORG_DIR -u SPL_VAR_APP_DIR -u SPL_WT_ROOT -u SPL_DESK_DIR SPOOL_TEST=1 FILE_STREAMS_FOLDERS= SPOOL_BOX_ENV=/nonexistent \
+  bash -c 'source "$1"; [[ -n "$3" ]] && SPL_RUN_PATHS_TOP=; spl_file_stream_folders "$2"' _ "$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh" "$T/cnf.yaml" "${1:-}" 2>/dev/null; }
 
 # shellcheck disable=SC2016 # the tokens are literal
 got="$(printf '%s\n' 'a ${SPL_ORG_DIR}/r' '"${SPL_VAR_APP_DIR}/x.log" $HOME ${OTHER}' | APP_PATH="$W" bash -c 'source "$0"; spl_cnf_path_expand' "$LIB")"
@@ -65,6 +80,20 @@ out="$(SNIPPET='spl_file_stream_folders "$CNF"' in_orc FILE_STREAMS_FOLDERS= SPO
 [[ "$out" == "[\"$B/var/acme/acme-app\",\"/var/log\"]" ]] && pass "3. file-stream folders expanded" || fail "3. folders: $out"
 out="$(SNIPPET='spl_agent_log_pipe_paths "$CNF"' in_orc CNF="$T/cnf.yaml" APP_PATH="$W" 2>/dev/null)"
 [[ "$out" == "$B/var/acme/acme-app/agent-logs/c-901.log" ]] && pass "3. agent-log-pipe paths expanded" || fail "3. log pipe: $out"
+out="$(cron_folders)"
+[[ -n "$mine" && "$out" == "[\"$mine\",\"/var/log\"]" ]] && pass "3. W1: sourced without ./run (cron), the folders expand to $mine" || fail "3. W1 cron folders: '$out' (want $mine)"
+out="$(cron_folders red)"
+# shellcheck disable=SC2016 # the token is literal
+[[ "$out" == *'${SPL_VAR_APP_DIR}'* ]] && pass "3. W1 red control: with no file-dir fallback the token stays literal" || fail "3. W1 red control: $out"
+# shellcheck disable=SC2016 # the token is literal: a value that could not be derived
+out="$(SPL_VAR_APP_DIR='${SPL_VAR_APP_DIR}' bash -c 'source "$0"; spl_agent_log_pipe_paths "$1"; echo "rc=$?"' "$PROJ_ROOT/src/bash/run/spl-agent-log-pipe.func.sh" "$T/cnf.yaml" 2>/dev/null)"
+[[ "$out" == "rc=0" ]] && pass "3. N2: an unexpanded token is not an agent-log path (only absolute paths pass)" || fail "3. N2 relative path passed: $out"
+# W3 (R7 a-718): box restart's desk step fails fast on a desk that is not a
+# directory, and never runs git on the caller's tree (git -C "" = $PWD)
+C="$T/caller"; git init -q "$C" && git -C "$C" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m a
+out="$(cd "$C" && BOX_RESTART_DESK="$T/no-desk" bash -c 'do_log(){ echo "$*"; }; source "$0"; spl_brs_desk 0; echo rc=$?' "$PROJ_ROOT/src/bash/run/spl-box-restart-prepare.func.sh" 2>&1)"
+[[ "$out" == *"rc=1"* && "$out" == *"ERROR the desk-cron checkout is not known"* && "$(git -C "$C" symbolic-ref -q HEAD)" == refs/heads/* ]] &&
+  pass "3. W3: a missing desk dir: rc 1, ERROR, the caller's checkout untouched" || fail "3. W3: $out"
 
 # 4. the live cnf
 bad="$(yq -r '.. | select(tag == "!!map") | (.src_dir // empty), (.path // empty)' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" 2>/dev/null |

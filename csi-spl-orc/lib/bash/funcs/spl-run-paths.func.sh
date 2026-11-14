@@ -21,19 +21,33 @@
 # @example spl_run_paths && echo "$SPL_WT_ROOT"
 #------------------------------------------------------------------------------
 
+# The checkout this file sits in (<top>/csi-spl-orc/lib/bash/funcs), taken
+# when it is sourced: the last resort of spl_main_checkout, so a script that
+# sources an action without ./run (a cron such as file-stream-follow-cron.sh)
+# still derives every path. -P resolves symlinks, as run.sh's abs_path does.
+SPL_RUN_PATHS_TOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." 2>/dev/null && pwd -P)"
+
 # spl_main_checkout -> the main checkout of the git tree whose top is
-# dir = APP_PATH, else PROJ_PATH: dir itself when dir/.git is a
-# directory; for a worktree (dir/.git is a file "gitdir: <main>/.git/
-# worktrees/<id>") its shared clone. Read from the file, no git call: git
-# refuses a tree another user owns. Neither: dir; no dir: rc 1.
+# dir = APP_PATH, else PROJ_PATH/.. (run.sh's PROJ_PATH is
+# <top>/csi-spl-<module>), else the checkout this file sits in. dir itself
+# when dir/.git is a directory; for a worktree (dir/.git is a file "gitdir:
+# <main>/.git/worktrees/<id>", absolute or relative to dir) its shared
+# clone. Read from the file, no git call: git refuses a tree another user
+# owns. rc 1 only when no dir is known at all.
 spl_main_checkout() {
-  local d="${APP_PATH:-${PROJ_PATH:-}}" g
+  local d g
+  if [[ -n "${APP_PATH:-}" ]]; then d="$APP_PATH"
+  elif [[ -n "${PROJ_PATH:-}" ]]; then d="${PROJ_PATH%/}/.."
+  else d="${SPL_RUN_PATHS_TOP:-}"; fi
   [[ -n "$d" ]] || return 1
   d="${d%/}"
+  [[ "$d" == */.. ]] && d="$(cd "$d" 2>/dev/null && pwd -P)"
+  [[ -n "$d" ]] || return 1
   if [[ -f "$d/.git" ]]; then
     IFS= read -r g <"$d/.git" 2>/dev/null || g=""
     g="${g#gitdir: }"
-    [[ "$g" == /*/.git/worktrees/* ]] && { printf '%s\n' "${g%%/.git/worktrees/*}"; return 0; }
+    [[ -n "$g" && "$g" != /* ]] && g="$d/$g"
+    [[ "$g" == /*/.git/worktrees/* ]] && { g="${g%%/.git/worktrees/*}"; printf '%s\n' "$(cd "$g" 2>/dev/null && pwd -P || printf '%s' "$g")"; return 0; }
   fi
   printf '%s\n' "$d"
 }

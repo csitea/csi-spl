@@ -1,9 +1,9 @@
 # OS Settings and Tweaks Analysis for the Fleet Boxes
 
-- **Version:** `v1.1` (folds the codex seat's FAIL on `v1.0`: the I/O and swap rows were observations, not before/after measurements, and move to 2.6; see 6.1 and 6.2)
+- **Version:** `v1.2` (folds the agy seat's FAIL on `v1.1`: the huge-page share in 2.5, the journald cap in 6.2 and the inotify reading in 2.4, plus its desk box measurements in 2.7; see 6.1)
 - **Status:** Final. Analysis only: nothing was changed on any box.
-- **Signed:** `v1.0`: claude (editor), grok (g-631), mistral (m-634). `v1.1`: codex (o-805). Queued: agy; to be folded as v1.x.
-- **Issue:** `SPL-5393` (Epic `SPL-45`)
+- **Signed:** `v1.0`: claude (editor), grok (g-631), mistral (m-634). `v1.1`: codex (o-805). `v1.2`: agy (a-813) re-review pending.
+- **Issue:** `SPL-5393` (`v1.0`, `v1.1`), `SPL-5484` (`v1.2`) (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
 - **Discussion:** `/t/fe92baa1-eb3e-4174-a52d-54b200bb02a8`, asked from `/t/fc3b7ac3-54cd-4ac4-84b4-5528647fca12`
 - **Input:** [rust-candidates-analysis.md](../011-spool-project-refactor/rust-candidates-analysis.md) `v1.0` (`SPL-5274`), section 2
@@ -11,7 +11,8 @@
 - **Box and window of every measurement in this draft:** the satellite box `sat`
   (GCE `e2-standard-16`, 16 vCPU AMD EPYC 7B12, 62 GiB RAM, Debian 13, kernel
   `6.12.115+deb13.1-cloud-amd64`), `2026-11-13T01:14Z..01:22Z`, 1-minute load
-  `27..38`, unless a row says otherwise. Every probe was read-only or ran in the
+  `27..38`, unless a row says otherwise. Sections 2.7 and 6.2 are the desk
+  box, a different box, and say so on every row. Every probe was read-only or ran in the
   editor's own scratch directory; per-process A/B switches (`prctl`, env vars)
   changed only the probe process.
 
@@ -193,9 +194,15 @@ THP back it. `forkbash.sh 1` (500 forks), `n = 3` per arm, interleaved, load
 `-41%` `sys`, `-30%` CPU and `-33%` wall per fork, with RSS `+0.5..1.7 MB`. A
 plain `bash -c :` under the same pad keeps `Rss 3,088 kB, AnonHugePages 0 kB`
 (the pad reserves address space; pages are only used when touched). Only
-`14 MB` of the `69 MB` lands on huge pages; the rest was allocated before the
-heap crossed an aligned 2 MiB range, so a better placement may gain more
-(open item 5.4).
+`14 MB` of the `69 MB` lands on huge pages. Why the rest does not is open
+(5.4). It is **not** heap placement: under the pad the heap is one `131,076 kB`
+`[heap]` VMA whose first aligned 2 MiB boundary lies `< 2 MiB` from its start
+(agy seat, desk box, `2026-11-13T23:57Z`, `n = 1`: `1.4 MiB`; editor re-run
+on the desk box, `2026-11-14T02:06Z`, load `11..13`, `n = 6`: `Rss
+65,712..67,364 kB`, `AnonHugePages 10,240..18,432 kB`, every heap start
+`< 2 MiB` below its next boundary). The agy seat's explanation, copy-on-write
+splitting of huge pages while a forked child shares the parent's memory, is
+recorded in 6.1 (`v1.2`); the editor did not reproduce it.
 
 The grok seat's Python probe agrees (`01:45Z`, load `49`, `n = 40`): a parent
 that touched a `64 MB` `bytearray` had `AnonHugePages 63,488 kB` and forked
@@ -210,7 +217,7 @@ Bash heap is.
 |---|---|---|
 | THP `never` / `madvise` | 2.2 and 2.3: no gain for short programs or big-Bash forks (their heap is not on huge pages at all, 2.5); `spool` takes `2x` the faults and `+31%` `sys` with THP off | keep `always`; 2.5 shows huge pages help, so turning them off is the wrong direction |
 | `LC_ALL=C` instead of `C.UTF-8` | `grep -ciE` over `2,323` tracked `.sh`, `n = 7` x 2: `C.UTF-8` `69..70 ms` CPU, `C` `81..82 ms` | no gain; keep |
-| `pid_max`, `nofile`, `TasksMax`, inotify | `1,869` threads vs `513,920`; inotify `15` of `128` | far from every limit |
+| `pid_max`, `nofile`, `TasksMax`, inotify | satellite box: `1,869` threads vs `513,920`; inotify `15` of `128` instances. Desk box: the agent user holds `53` of `128` inotify instances (agy seat, `2026-11-13T23:54Z`, `n = 1`; editor, `2026-11-14T02:05Z`, `n = 1`: `71`), and `/usr/lib/sysctl.d/30-localsearch.conf` sets `max_user_watches = 65536` (`7.7x` below the satellite box's `507,546`) | no speed gain from raising them. Far from every limit on the satellite box; on the desk box inotify instances are not, a headroom risk rather than a speed item: proposal P1 in 4 |
 | `sudo` without `use_pty` / without syslog | `~6` sudo/s x `18.3 ms` CPU = `0.11` core (`0.7%` of the box); journald `1.1%` of one core | too small to trade a security default |
 
 ### 2.6 Candidates not measured before/after: untested, low priority
@@ -224,6 +231,74 @@ absence of one (codex seat, 6.1).
 |---|---|---|
 | I/O scheduler, `noatime`, `/tmp` placement, dirty ratios | `iowait 0.34%` over 11 days (`n = 1,583`); I/O PSI `some avg300 4.2%` (`n = 1`) | untested; low observed I/O pressure; low priority. A gain needs a controlled throwaway A/B first |
 | swap / zram | memory PSI `0.00`; `38 G` available (`n = 1`) | untested; low observed memory pressure; low priority (see 4, the `/tmp` risk note) |
+
+### 2.7 The desk box: the same probes on another CPU (agy seat)
+
+Measured by the agy seat `a-813` on the desk box (msg `cea3316a`), read-only
+on the host; the A/B probes ran in its scratch directory or in throwaway
+`--rm` `postgres:16-alpine` containers. Window `2026-11-13T23:53Z..2026-11-14T00:01Z`,
+1-minute load `20.0..51.7`, stated per probe. Not re-measured by the editor
+except where a row says so. Answers open items 5.1 and 5.2.
+
+Box: `16` cores (`1` thread per core), `Intel Core Ultra 7 255H`, bare metal,
+`62.3 GiB` RAM, `889G` NVMe ext4 `/`, kernel `6.12.90+deb13.1-amd64`
+(`HZ=250`, `PREEMPT_DYNAMIC`, `INIT_ON_ALLOC_DEFAULT_ON=y`).
+
+| area | desk box | satellite box (1.2) |
+|---|---|---|
+| CPU mitigations | `retbleed: Not affected`, `spec_rstack_overflow: Not affected` (editor re-read, `02:04Z`: same), `spectre_v2: Enhanced / Automatic IBRS` | `retbleed: untrained return thunk`, `spec_rstack_overflow: Safe RET`, `spectre_v2: Retpolines` |
+| THP and VM | THP `[always]`, defrag `[madvise]`; `vm.overcommit_memory = 0` (`Committed_AS 72.2G` < `CommitLimit 84.2G`, which the `49.2 GiB` swap partition raises) | THP same; `overcommit_memory = 1`, no swap |
+| `/tmp` | `32G` tmpfs, `2.1G` used, swap behind it | `32G` tmpfs, `18G` used, no swap |
+| limits | `DefaultLimitNOFILE=524288` (`systemctl show`; editor re-read: hard `524288`, soft `DefaultLimitNOFILESoft=1024`). The seat reads `systemd --user` and its children at `524288:524288`, Go binaries raising soft to hard at start (`524287`), cron jobs at `1024`; not re-read by the editor. A likely source of the `524288` soft group of 1.2, not checked on the satellite box | not read |
+| inotify | agent user `53` of `128` instances; `max_user_watches = 65536` from `/usr/lib/sysctl.d/30-localsearch.conf` (editor re-read: same file and value) | `15` of `128`; `507,546` |
+| crons | `76` active crontab lines (`21` every minute) | `70` (`20`) |
+| journald | `SystemMaxUse=2G`, written by `do_disk_journal_cap` (6.2) | `500M` |
+
+Load and per-start kernel cost, from `sysstat` (`sadf -d -- -u` joined with
+`-w` by timestamp, `2026-10-31T23:10Z..2026-11-13T23:50Z`, `n = 1,668`
+ten-minute samples):
+
+| measure | desk box | satellite box (2.1) |
+|---|---|---|
+| process starts / s | mean `2,108`, median `1,997`, p90 `3,293`, max `5,432` | mean `1,443` |
+| CPU split | `user 37.0%`, `sys 31.5%`, `iowait 0.16%`, `steal 0.00%`, `idle 31.3%`; `idle < 5%` in `19%` of samples | `sys 41.7%`; `idle < 5%` in `41%` |
+| `sys` vs starts | Pearson `r = 0.71`; **`1.33` core-ms `sys` per start** (intercept `14.0%`) | `r = 0.88`; `2.93` core-ms |
+| `user` vs starts | `r = 0.41`; `1.23` core-ms per start | `1.62` core-ms |
+
+The same probes at about the same load (desk box load `21..27`, satellite box
+`24..29`; `n = 3` unless stated):
+
+| probe | desk box | satellite box (2.2, 2.3, 2.5) | ratio |
+|---|---|---|---|
+| `syscall.c` `getppid()` | `84..94 ns` pinned | `236..255 ns` | `2.7x..2.9x` |
+| `fk.c` `fork()` + `_exit` + `wait`, pinned | `81..110 us` wall, `23..35 us` `sys` | `258..272 us` wall | `2.6x` wall |
+| `bench.py 40` `sys`: `/bin/true`, `bash -c :`, `python3 -I -S` (load `21`) | `0.34`, `1.50`, `3.97 ms` | `1.49`, `3.10`, `6.32 ms` | `1.6x..4.4x` |
+| `spool version`, THP `always` vs off | `12.10` vs `14.77 ms` `sys` (`+22%` off), faults `2.0x` | `+31%` off, faults `2.0x` | keep THP `always` (2.4) |
+| `fkheap.c` `64 MB`, huge vs 4 KiB pages | `123..131` vs `1,010..1,395 us` `sys` (`8x..11x`) | `301` vs `4,519 us` (`15x`) | 2.5 holds on both CPUs |
+| `fkheap.c` `256 MB` | `199..224` vs `11,057..11,703 us` `sys` (`~52x`) | `465` vs `23,278 us` (`50x`) | same |
+| `forkbash.sh`, `sys` per fork (`n = 2`, load `47..52`): plain, eager (`69.4 MB`), eager + `top_pad` | `0.17`, `1.65`, `1.27 ms` (`-23%`) | `0.3`, `5.6`, `3.0 ms` (`-41%`) | 2.3 and 2.5 hold |
+
+Reading: per process start the desk box spends `2.2x` less kernel time than
+the satellite box over 13 days, and `2.5x..2.9x` less in the syscall and fork
+probes at matching load. The two boxes differ in CPU generation, in the
+`retbleed` and `SRSO` return thunks and in bare metal vs a GCE VM, so these
+numbers bound what row 4 can gain; they do not split it between those causes.
+
+Test Postgres, row 6 (open item 5.2): the box path of `hub-pg.tst.sh:59` and
+`hub-live-stack.sh:59` runs `postgres:16-alpine` in docker (the desk box has
+no local `initdb`). Interleaved, `n = 3` rounds, `2026-11-13T23:59Z`, load
+`46.6`; container boot, a full `spool migrate` of
+`csi-spl-rdb/src/sql/postgres/spool-hub`, then `200` autocommit `INSERT`s.
+Median (min..max), ms:
+
+| arm | boot | migrate | `200` `INSERT`s | total |
+|---|---:|---:|---:|---:|
+| default (`fsync=on`, overlay) | `3,323` (`2,293..3,630`) | `4,274` (`3,705..4,345`) | `324` (`283..346`) | `7,310` (`6,961..8,251`) |
+| `--tmpfs` data dir + `fsync=off`, `synchronous_commit=off`, `full_page_writes=off` | `1,659` (`1,478..1,765`) | `2,575` (`2,392..2,637`) | `166` (`123..206`) | **`4,440`** (`4,035..4,525`), **`-39%`** |
+
+The CI path with a local `initdb` (`hub-pg.tst.sh:51-53`) would need
+`initdb --no-sync` and the same `-c` flags on `pg_ctl` to get the same cut;
+not measured.
 
 ## 3. What the Rust analysis implies for the OS, and what only code fixes
 
@@ -249,11 +324,12 @@ go first).
 | 1b | **Built** (`SPL-5421`, 4.1). `GLIBC_TUNABLES=glibc.malloc.top_pad=134217728` exported by `csi-spl-orc/run` and `csi-spl-iac/run` before they source the action files (also usable by the Bash test runners) | Measured `-41%` `sys`, `-33%` wall per fork inside `./run` (2.5, `n = 3` per arm); box-wide lower bound `145 /s x 2.1 ms` = `0.30` cores = `>= 4.5%` of `sys` (same count and assumption as row 1) until row 1 lands, less after | Low: per-process, no reboot, rollback = drop the export; RSS `+0.5..1.7 MB` per `./run`; children inherit it (programs that `malloc` a lot keep a larger free top) | `csi-spl-orc/run`, `csi-spl-iac/run` (a code change, not a box setting; a box-wide `/etc/environment` line would reach every glibc program and is not proposed) |
 | 2 | Kernel command line `retbleed=off spec_rstack_overflow=off` (the two still active; `meltdown`, `mds`, `l1tf`, `mmio`, `tsx`, `srbds`, `tsa` read `Not affected`) | Unknown: not computed, not measured. Only a throwaway `e2-standard-16` A/B can give it; never on a fleet box | **High**: removes protection between processes of the same VM; agents run third-party code (npm, pip) | new ansible role `12_kernel_cmdline` in `060-gcp-vm-satellite/roles/` (`/etc/default/grub.d/*.cfg`, `update-grub`, reboot); terraform step `060`, owner go |
 | 3 | Kernel command line `init_on_alloc=0` | Unknown: not measured (it zeroes kernel allocations such as page tables on each fork); same throwaway A/B | Medium: loses a hardening default against info leaks | same role as #2 |
-| 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | Unknown: not measured; not an OS setting | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
+| 4 | Machine family with a newer CPU (Zen 3/4 needs no `retbleed` return thunk) | Not measured on a GCE A/B; not an OS setting. Bounded by the desk box (2.7): `1.33` vs `2.93` core-ms `sys` per start over 13 days (`n = 1,668`), `getppid` `2.7x..2.9x` and pinned fork `2.6x` faster at matching load (`n = 3`); that gap mixes CPU generation, the return thunks and bare metal vs VM, so only a throwaway GCE A/B gives the row's gain | Low technical, cost change | cnf `env.*.machine_type`, terraform `060` |
 | 5 | **Built** (`SPL-5448`, perf round 7 row 05). `GOMAXPROCS=1` in the env of short `spool` CLI calls (never the hub server): `spool_cli` / `spool_cli_timeout` set it on that one exec, never exported, a caller's own value wins; used by `spool-send.sh` (`send`), `asks.sh` and the peer poll (`claim`); `hub-run` keeps the default | Measured `-29%` CPU per call (`n = 60` per arm); re-measured 2026-11-13 (`n = 20` per arm, load `23`): `spool send` `41` -> `31 ms` CPU, `spool recv` `29` -> `20 ms`; box share est. `< 0.5%` | Low (`spool` CLI calls that fan out goroutines lose parallelism) | `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh`; test `spawn-agents/tests/test-spool-cli-gomaxprocs.sh` |
-| 6 | Test Postgres with `-c fsync=off -c synchronous_commit=off` (and data dir on tmpfs) | est. small: `iowait 0.34%`; unmeasured for the `hub-pg` suite | Low (throwaway DB) | `csi-spl-api/src/bash/tests/hub-pg.tst.sh:59`, `csi-spl-api/src/bash/hub-live-stack.sh:59` |
+| 6 | Test Postgres with `-c fsync=off -c synchronous_commit=off -c full_page_writes=off` and the data dir on tmpfs | Measured on the desk box (2.7, `n = 3`, load `47`): container boot + full migrate + `200` `INSERT`s `7.31` -> `4.44 s` median (`-39%`) per database start; box `sys` share not measured | Low (throwaway DB) | `csi-spl-api/src/bash/tests/hub-pg.tst.sh:59`, `csi-spl-api/src/bash/hub-live-stack.sh:59` |
 | 7 | `sudo` `Defaults !use_pty` and `!syslog` for the NOPASSWD users | Measured ceiling `0.7%` of the box (all sudo CPU) + `1.1%` of one core (journald) | Medium: `use_pty` guards against terminal injection | role `05_users` sudoers drop-in |
-| - | THP off, `LC_ALL=C`, raised limits | Measured none (2.4) | - | do not change |
+| - | THP off, `LC_ALL=C`, raised limits | Measured none (2.4) | - | do not change for speed |
+| P1 | **Proposal, not built; nothing changes on any box.** `fs.inotify.max_user_instances = 1024`, `fs.inotify.max_user_watches = 524288` in one drop-in, which also outranks `30-localsearch.conf` on the desk box | No speed gain: headroom. Desk box agent user at `53` of `128` instances (2.4, agy seat, `n = 1`), watches capped at `65,536`; at the 40-seat ceiling, `~2..3` instances per seat (agy seat's estimate, not measured) would reach `EMFILE` on `inotify_init1` | Low: no CPU cost; rollback = remove the drop-in, `sysctl --system` | `/etc/sysctl.d/60-csi-spl.conf` on each box; on the satellite box a new sysctl role in `060-gcp-vm-satellite/` (none exists, 1.1); a box setting, so the owner's go first |
 | - | I/O scheduler, `noatime`, `/tmp` placement, dirty ratios, swap, zram | Not measured before/after; low observed pressure (2.6) | - | untested, low priority; no change without a throwaway A/B |
 
 Not a speed item, but a risk the measurement found: `/tmp` is a `32 G` tmpfs
@@ -325,15 +401,26 @@ top-level code stay sourced at start; making them lazy needs edits to those
 
 ## 5. Open for the panel
 
-1. The desk box: the same probes (`fk.c`, `bench.py`, the `sadf` regression)
-   on a different CPU and load, to separate mitigation cost from load.
-2. A measured `hub-pg` suite run with and without `fsync=off` in a throwaway
-   container (row 6).
+1. Answered in `v1.2` (2.7, agy seat): the desk box spends `1.33` core-ms
+   `sys` per start against `2.93` on the satellite box (`n = 1,668` each
+   way, 13 and 11 days), and the probes agree at matching load. Still open:
+   how much of that is the return thunks and how much the CPU and the VM;
+   only a throwaway GCE A/B (row 4) splits it.
+2. Answered in `v1.2` (2.7, agy seat): tmpfs + `fsync=off` cuts a test
+   database's boot, migrate and `200` `INSERT`s by `39%` (`n = 3`), on the
+   docker path only. Not measured: a whole `hub-pg` suite run, and the CI
+   `initdb` path.
 3. Anything in section 1 that is wrong, or a setting missing from section 4.
 4. Editor, v0.2: the cause in 2.3 is the 4 KiB page-table work on fork
    (2.5), and `glibc.malloc.top_pad` moves `14 MB` of `69 MB` onto huge pages.
    Open: a setting or allocation shape that puts more of the Bash heap on huge
-   pages, still per process and without a reboot.
+   pages, still per process and without a reboot. `v1.2`: heap placement is
+   ruled out (2.5); the agy seat found no allocator setting that does it
+   (`MADV_HUGEPAGE` on `[heap]`, `mmap_threshold`, a larger pad and
+   `trim_threshold`: at most `20,480 kB`, `n = 1..3`) and names copy-on-write
+   splits as the cause, not reproduced by the editor (6.1). Its remedy is the
+   code path that already exists: a smaller parent (row 1) and fewer eager
+   files (4.1).
 
 ## 6. Panel and versions
 
@@ -342,7 +429,7 @@ top-level code stay sourced at start; making them lazy needs edits to those
 | `c-630@sat` | claude (editor) | `v0.1` .. `v0.5` | author; signs `v1.0` |
 | `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`), `v0.4` (`0a9a6cf35`), `v0.5` (`bf98fb3e7`) | CHANGES three times (6, 3, then 1 line), all folded in `v0.3`, `v0.4` and `v0.5`; SIGN `v0.5` (msg `f3da1b7b`) |
 | `m-634@sat` | mistral | `v1.0` (`0a50cbb88`) | PASS, signs `v1.0`; its additions (`vm.min_free_kbytes`, soft `nofile`) are held by the dispatch holder for a later fold |
-| agy seat (desk box) | agy | - | queued; folds as `v1.x` |
+| `a-813` (desk box) | agy | `v1.1` (`4c49d4ae1`, read on `origin/master` `0380b833e`) | FAIL (msg `cea3316a`): 3 lines (2.5 and 5.4, 6.2, 2.4 and 4); folded in `v1.2` with its desk box measurements (2.7, 6.1). `v1.2`: re-review pending |
 | `o-805` (desk box) | codex | `v1.0` (`0a50cbb88`) | FAIL (msg `0fef8e87`): 2.4 called observations measurements; folded in `v1.1` (6.1); desk box notes in 6.2. `v1.1` (`b40314006`): PASS, signs `v1.1` (msg `ee1c2d96`) |
 
 The probe scripts are in [os-tweaks-probes/](os-tweaks-probes/), so any seat
@@ -389,13 +476,49 @@ can re-run them on its own box.
   `sudo` rows stay in 2.4: they rest on A/B probes or counts against the
   limit. No throwaway comparison was run for `v1.1`. The mistral seat's PASS
   on `v1.0` (msg `77953ee2`) is recorded in the table above.
+- `v1.2`, agy seat `a-813` (review of `v1.1`, msg `cea3316a`, FAIL), each
+  claim re-checked by the editor (`c-296`) on the desk box before folding:
+  1. 2.5 and 5.4 said the `56 MB` not on huge pages was allocated before the
+     heap crossed an aligned 2 MiB range. Holds: under the pad the heap is
+     one `131,076 kB` VMA that crosses its first boundary within `2 MiB`
+     (editor, `n = 6`, 2.5). Folded: placement is ruled out. Not folded as
+     established: the seat's cause, copy-on-write splitting of huge pages
+     (`thp_split_pmd`) while a forked child shares the heap. Its control was
+     `n = 1` (one child plus one write dropped `AnonHugePages` by `2,048 kB`).
+     The editor removed the one long-lived child of `thpcheck.sh` (its
+     `< <(find ...)`, the file list read from a file instead): `AnonHugePages`
+     `16,384`, `18,432`, `12,288 kB` without it against `10,240`, `16,384`,
+     `18,432 kB` with it (`n = 3` each, interleaved, `2026-11-14T02:06Z`, load
+     `11..13`), no consistent gain. The `98` eager files still fork `$( )`
+     during `source`, so the cause stays a hypothesis and 5.4 stays open.
+  2. 6.2 said the desk box's `2G` journald cap came from the action not
+     running or an override. Holds: `/etc/systemd/journald.conf.d/60-disk-hygiene.conf`
+     (mtime `2026-11-07`) carries the header the action renders
+     (`disk-journal-cap.func.sh:37`) and `SystemMaxUse=2G`, and
+     `systemd-analyze cat-config systemd/journald.conf` shows no other
+     `SystemMaxUse` (editor, `2026-11-14T02:05Z`). Folded in 6.2.
+  3. 2.4 and the limits row of 4 said "far from every limit" for both boxes.
+     Holds for inotify on the desk box: `max_user_instances = 128`,
+     `max_user_watches = 65536` from `/usr/lib/sysctl.d/30-localsearch.conf`
+     (editor re-read). The instance count differs: the editor's census
+     (`anon_inode:inotify` fds per `/proc/<pid>/fd`, read with `sudo`,
+     `2026-11-14T02:05Z`, `n = 1`) gives the agent user `71` and the box user
+     `71`, against the seat's `53` and `0`. An fd inherited across a fork
+     counts twice, so both are upper bounds, and the box user's `0` is not
+     reproduced. Folded in 2.4 and as proposal P1 in 4.
+
+  Also folded: the desk box answers to open items 5.1 and 5.2 and the
+  limits note (2.7), and rows 4 and 6 of section 4 now carry them.
 
 ### 6.2 v1.x notes: the desk box (codex seat)
 
 Readings by the codex seat `o-805` on the desk box, a different box from the
 satellite box every other row measures. One probe, `n = 1`,
-`2026-11-13T06:25Z..06:26Z` (msg `0fef8e87`). Not re-measured by the editor;
-they do not contradict the satellite box rows, they describe another box.
+`2026-11-13T06:25Z..06:26Z` (msg `0fef8e87`); the journald row was re-read
+by the agy seat (`2026-11-13T23:53Z`, `197.9M` in use) and the editor
+(`2026-11-14T02:05Z`, `213.9M`). They do not contradict the satellite box
+rows, they describe another box; the agy seat's fuller desk box readings are
+in 2.7.
 
 | area | desk box reading | satellite box (1.2) |
 |---|---|---|
@@ -403,8 +526,14 @@ they do not contradict the satellite box rows, they describe another box.
 | swap | active, `~11.8 GB` used, `~39.5 GB` `MemAvailable` | none |
 | journald | `SystemMaxUse=2G`, `174.1M` in use | `SystemMaxUse=500M`, `40M` in use |
 
-Finding for the dispatch holder, not fixed here: the desk box runs journald
-with `SystemMaxUse=2G`, while the repo action that sets the cap,
+The desk box's `2G` cap was written by the repo action itself,
 `do_disk_journal_cap` (`csi-spl-utl/src/bash/run/disk-journal-cap.func.sh`),
-describes and defaults to `500M` (`JOURNAL_CAP_MAX_USE`). Either the action
-did not run there or something overrides it; which one is not established.
+whose default is `500M`: the drop-in
+`/etc/systemd/journald.conf.d/60-disk-hygiene.conf` (mtime `2026-11-07`)
+carries the action's own header line and `SystemMaxUse=2G`, and no other
+journald file sets `SystemMaxUse` (`systemd-analyze cat-config
+systemd/journald.conf`; agy seat `2026-11-13T23:53Z`, editor
+`2026-11-14T02:05Z`). So the action ran with `JOURNAL_CAP_MAX_USE=2G` and
+nothing overrides it (`v1.1` left both open). No file in the repo sets that
+value (`git grep -n JOURNAL_CAP_MAX_USE` -> only the action, its test and
+this doc), so the run was by hand; who ran it is not established.

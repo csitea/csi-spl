@@ -536,7 +536,7 @@ T16B=(LEASE_MIRROR_TENANTS="csitea" HUB_SLOW_TENANT=csitea HUB_SLOW_S=6)
 rm -f "$T/hub/slow.done" "$T/hub/slow.go"; tick pc 40000 "${T16B[@]}" HUB_SLOW_S=60 LEASE_MIRROR_TIMEOUT=120
 back_early=$([[ -e "$T/hub/slow.done" ]] && echo no || echo yes); : >"$T/hub/slow.go"
 [[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc && "$back_early" == yes ]] &&
-  pass "16b. a tenant answering in 6 s: the tick is back before it answers, with both own writes done" ||
+  pass "16b. a tenant held until slow.go (HUB_SLOW_S=60): the tick is back before it answers, with both own writes done" ||
   fail "16b. slow tenant: back before its answer=$back_early, hub $(hubh dispatch)/$(hubh orch)"
 copies_landed() { [[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy csitea orch)" == CLE-001@pc ]]; }
 wait_event 20 copies_landed

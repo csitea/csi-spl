@@ -203,7 +203,7 @@ settled || fail "4 settle: $(ls "$W")"
 b="$(seqs)"
 # shellcheck disable=SC2086 # one seq per word
 wait_event "$WAIT_S" ticked 4 $b || fail "4 the loops did not tick 4 times: $(seqs) from $b"
-[[ "$(cnt RESTART "$W/peers.log")" == 0 ]] && pass "4 control: 3 healthy loops for 3 full ticks -> 0 restarts" || fail "4 healthy loops: $(cat "$W/peers.log")"
+[[ "$(cnt RESTART "$W/peers.log")" == 0 ]] && pass "4 control: 3 healthy loops for 4 ticks each -> 0 restarts" || fail "4 healthy loops: $(cat "$W/peers.log")"
 p2="$(pidof_inst 2)"; t0=$(date +%s)
 kill -9 "$p2"
 if wait_new 2 "$WAIT_S" "$p2"; then

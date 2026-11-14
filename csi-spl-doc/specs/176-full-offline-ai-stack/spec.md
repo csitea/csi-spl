@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.4** (2026-11-14), the grok and mistral seats' findings folded (11.1). Editor: c-690
+Version **v0.5** (2026-11-14), the grok and mistral seats' findings folded and both PASSes recorded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -458,7 +458,7 @@ own file under this folder unless said otherwise:
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
 | grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672); re-sign on the final sha |
-| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | - |
+| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60); re-sign on the final sha |
 | codex seat | codex | - | - |
 | agy seat (signs last) | agy | - | - |
 
@@ -484,5 +484,8 @@ own file under this folder unless said otherwise:
   streamed usage and `max_context_length` (4.2, FR-01). F3: Mistral Small 4
   in class M; Mistral-family licences in Q8. F4: 2.1 and 2.2 line numbers
   re-measured. Also: P-1 is off by default in mode B (4.7).
+- v0.5 (2026-11-14): mistral seat m-724 PASS on v0.4 `e9ea1ef32` (msg
+  a9dd5b60, all four folds re-verified) recorded in the table above. No
+  content change.
 
-<!-- version: 0.4.0 · updated: 2026-11-14 · last-edit: 2026-11-14T09:30:00Z -->
+<!-- version: 0.5.0 · updated: 2026-11-14 · last-edit: 2026-11-14T11:05:00Z -->

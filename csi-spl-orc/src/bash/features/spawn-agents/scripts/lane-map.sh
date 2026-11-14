@@ -13,7 +13,8 @@
 #       <branch>` per overlap (exit 3; an empty row's worktree edits count),
 #       or `unknown: <ID>@<box> <branch> has no files recorded; ask it or read
 #       its brief` per live lane, no files, no clean worktree (exit 4, NOT free);
-#       the hub silent 3 tries: `LOCAL-ONLY: ...` first, exit 5 for free
+#       the hub silent 3 tries: `LOCAL-ONLY: ...` first, exit 5 for free;
+#       no answer in LANE_CHECK_TIMEOUT s (default 60): `LOCAL-ONLY: ...`, exit 5
 #       (--agent: the caller, never its own)
 #   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T] [--issue K] [--origin-issue K]
 #       write that agent's row, state live (the spawn path); K is its issue key, e.g. SPL-12
@@ -26,9 +27,9 @@
 # $SPOOL_BOX_USER; spec 069 section 8.3): the desk keys that sign the hub call
 # are theirs. Exit codes: the action's own (0 ok, 1 refused, 2 hub did not take a
 # write, 3 collision, 4 a live lane with no files: scope unknown, 5 nothing
-# owned on THIS machine but the hub did not answer: other machines unread,
-# NOT free, 6 done: the hub answered and holds no row of the id on this box,
-# nothing to close); 64 usage, or a box setting that is not ONE box id.
+# owned on THIS machine but the hub did not answer, or --check did not finish
+# in LANE_CHECK_TIMEOUT s: other machines unread, NOT free, 6 done: the hub
+# answered and holds no row of the id on this box, nothing to close); 64 usage, or a box setting that is not ONE box id.
 #
 # LANE_MAP_ORC (tests): the csi-spl-orc dir whose ./run is called.
 set -uo pipefail
@@ -37,7 +38,7 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-usage() { sed -n '9,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n '9,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 
 verb=list
 case "${1:-}" in list|put|done) verb="$1"; shift ;; -h|--help) usage ;; esac
@@ -96,13 +97,33 @@ for k in LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX LANE_REPO_DIRS S
   [ -n "${!k:-}" ] && vars+=("$k=${!k}")
 done
 vars+=("SPOOL_ROOT=$SPOOL_ROOT")
+# --check answers within LANE_CHECK_TIMEOUT s (default 60), or says LOCAL-ONLY
+# and exits 5: a stalled action (SPL-5519: the worktree scan waited on run.sh's
+# log tees, forever) must never block the lane that asked; not free, ask c-001.
+# timeout signals its whole process group, so the action's jobs go with it.
+check_limit=()
+if [ ${#quiet[@]} -gt 0 ]; then
+  lim="${LANE_CHECK_TIMEOUT:-60}"
+  [[ "$lim" =~ ^[1-9][0-9]*$ ]] || { echo "lane-map.sh: LANE_CHECK_TIMEOUT must be whole seconds, got '$lim'" >&2; exit 64; }
+  check_limit=(timeout -k 5 "$lim")
+fi
 # --check answers one question, so stdout carries only the verdict: --quiet
 # moves ./run's framework lines to stderr, and of those only a WARN / FATAL
 # (the hub did not answer, a refusal) is passed on.
 if [ ${#quiet[@]} -gt 0 ]; then exec 2> >(grep --line-buffered -E 'WARN|FATAL|NOK' >&2); fi
+run_action() {  # CMD...
+  [ ${#check_limit[@]} -gt 0 ] || exec "$@"
+  local rc
+  "${check_limit[@]}" "$@"; rc=$?
+  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    echo "LOCAL-ONLY: lane-map --check did not finish in $lim s (LANE_CHECK_TIMEOUT); no lane was read: not free, ask c-001"
+    exit 5
+  fi
+  exit "$rc"
+}
 desk_user="$(spool_desk_user)"
 if [ "$(id -un)" != "$desk_user" ] && [ -z "${LANE_MAP_ORC:-}" ]; then
   home="$(_spool_home_of "$desk_user")"
-  cd "$orc" && exec sudo -n -u "$desk_user" env HOME="$home" "${vars[@]}" ./run -a "$action" "${quiet[@]}"
+  cd "$orc" && run_action sudo -n -u "$desk_user" env HOME="$home" "${vars[@]}" ./run -a "$action" "${quiet[@]}"
 fi
-cd "$orc" && exec env "${vars[@]}" ./run -a "$action" "${quiet[@]}"
+cd "$orc" && run_action env "${vars[@]}" ./run -a "$action" "${quiet[@]}"

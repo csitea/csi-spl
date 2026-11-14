@@ -713,8 +713,11 @@ spl_lane_wt_changes() {  # WT
 # The repo tops are read once; the worktrees' git reads run LANE_WT_JOBS
 # (default 8) at a time, each into its own file, joined in the rows' order
 # (perf p8-04: 26 worktrees were 52 repo_tops calls and 78 git reads in turn).
+# It waits on its own workers' pids only, never a bare `wait` / `wait -n`:
+# under ./run those also wait on run.sh's two log tees, which live until the
+# action exits, so the scan hung forever (SPL-5519).
 spl_lane_wt_scan() {  # ROWS
-  local id repo wt tops tmp n=0 run=0 i wt_rows=() wt_ids=()
+  local id repo wt tops tmp n=0 i j done_pid wt_rows=() wt_ids=() pids=() running=()
   tops="$(spl_lane_repo_tops)"
   tmp="$(mktemp -d)" || return 1
   mapfile -t wt_rows < <(jq -r --arg b "$LANE_BOX" '.[] | select(.agent_box == $b) | [.agent_id, .repo] | @tsv' <<<"$1")
@@ -722,11 +725,16 @@ spl_lane_wt_scan() {  # ROWS
     IFS=$'\t' read -r id repo <<<"$i"
     wt="$(spl_lane_wt_dir "$id" "$repo" "$tops")" || continue
     n=$((n + 1)); wt_ids[n]="$id"
-    (( run >= ${LANE_WT_JOBS:-8} )) && { wait -n; run=$((run - 1)); }
+    if (( ${#running[@]} >= ${LANE_WT_JOBS:-8} )); then
+      done_pid=""
+      wait -n -p done_pid "${running[@]}"
+      [[ -n "$done_pid" ]] || running=()
+      for j in "${!running[@]}"; do [[ "${running[j]}" == "$done_pid" ]] && unset 'running[j]'; done
+    fi
     { spl_lane_wt_changes "$wt" >"$tmp/$n.out" && : >"$tmp/$n.ok"; } &
-    run=$((run + 1))
+    pids+=("$!") running+=("$!")
   done
-  wait
+  (( ${#pids[@]} == 0 )) || wait "${pids[@]}"
   for ((i = 1; i <= n; i++)); do
     [[ -e "$tmp/$i.ok" ]] || continue
     jq -R -s -c --arg id "${wt_ids[i]}" '{($id): (split("\n") | map(select(length > 0)) | .[0:200])}' <"$tmp/$i.out"

@@ -22,26 +22,35 @@ type ZombieTopic struct {
 // ZombieTopicLister is implemented by Postgres only: the heads exist there.
 type ZombieTopicLister interface {
 	// ZombieTopics answers at most limit topics of tenant, oldest last_at
-	// first, whose head is not card-archived, whose latest line is before
-	// idleBefore, that are no DM thread (dm_last_at IS NULL) and that have no
-	// topic_priorities row.
-	ZombieTopics(ctx context.Context, tenant string, idleBefore time.Time, limit int) ([]ZombieTopic, error)
+	// first (newest first when newest is set), whose head is not
+	// card-archived, whose latest line is before idleBefore, that are no DM
+	// thread (dm_last_at IS NULL) and that have no topic_priorities row.
+	ZombieTopics(ctx context.Context, tenant string, idleBefore time.Time, limit int, newest bool) ([]ZombieTopic, error)
 }
 
 var _ ZombieTopicLister = (*Postgres)(nil)
 
-// zombieTopicsSQL walks topic_heads_last (tenant_id, last_at DESC) from the
-// old end: conditions 1, 2 and 6 of spec 166 3.2.
-const zombieTopicsSQL = `SELECT h.task_id::text, h.last_at FROM topic_heads h
+// zombieTopicsWhere is conditions 1, 2 and 6 of spec 166 3.2.
+const zombieTopicsWhere = `SELECT h.task_id::text, h.last_at FROM topic_heads h
 	WHERE h.tenant_id = $1 AND h.last_at < $2 AND NOT h.card_archived AND h.dm_last_at IS NULL
-	  AND NOT EXISTS (SELECT 1 FROM topic_priorities p WHERE p.tenant_id = h.tenant_id AND p.task_id = h.task_id)
-	ORDER BY h.last_at, h.task_id
-	LIMIT $3`
+	  AND NOT EXISTS (SELECT 1 FROM topic_priorities p WHERE p.tenant_id = h.tenant_id AND p.task_id = h.task_id)`
+
+// zombieTopicsSQL walks topic_heads_last (tenant_id, last_at DESC) from the
+// old end; zombieTopicsNewestSQL from the young end (spec 041 section 7, the
+// archive suggestion: a backlog over the limit hid the newest idle topics).
+const (
+	zombieTopicsSQL       = zombieTopicsWhere + "\n\tORDER BY h.last_at, h.task_id\n\tLIMIT $3"
+	zombieTopicsNewestSQL = zombieTopicsWhere + "\n\tORDER BY h.last_at DESC, h.task_id\n\tLIMIT $3"
+)
 
 // ZombieTopics implements ZombieTopicLister, in the workspace's own scope.
-func (s *Postgres) ZombieTopics(ctx context.Context, tenant string, idleBefore time.Time, limit int) ([]ZombieTopic, error) {
+func (s *Postgres) ZombieTopics(ctx context.Context, tenant string, idleBefore time.Time, limit int, newest bool) ([]ZombieTopic, error) {
 	out := []ZombieTopic{}
-	err := s.queryTenant(ctx, tenant, zombieTopicsSQL, []any{tenant, idleBefore.UTC(), limit}, func(r pgx.Rows) error {
+	q := zombieTopicsSQL
+	if newest {
+		q = zombieTopicsNewestSQL
+	}
+	err := s.queryTenant(ctx, tenant, q, []any{tenant, idleBefore.UTC(), limit}, func(r pgx.Rows) error {
 		var z ZombieTopic
 		err := r.Scan(&z.TaskID, &z.LastAt)
 		z.LastAt = z.LastAt.UTC()

@@ -15411,11 +15411,24 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "oldest",
+              "enum": [
+                "oldest",
+                "newest"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK: the operator workspace's idle topic heads (spec 166 3.2 conditions 1, 2 and 6): as_of, idle_days, limit, idle_before and topics, oldest last_at first, each task_id and last_at. Listed: not card-archived, latest line older than idle_days, no DM thread, no topic priority. Read only: it archives nothing"
+            "description": "OK: the operator workspace's idle topic heads (spec 166 3.2 conditions 1, 2 and 6): as_of, idle_days, limit, order, idle_before and topics, oldest last_at first (newest first with order=newest, spec 041 section 7), each task_id and last_at. Listed: not card-archived, latest line older than idle_days, no DM thread, no topic priority. Read only: it archives nothing"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"

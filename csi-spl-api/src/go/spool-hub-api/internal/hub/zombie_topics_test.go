@@ -44,8 +44,9 @@ func zombiePut(t *testing.T, r *fleetTokensRig, task, channel string, card bool,
 }
 
 type zombieList struct {
-	IdleDays int `json:"idle_days"`
-	Limit    int `json:"limit"`
+	IdleDays int    `json:"idle_days"`
+	Limit    int    `json:"limit"`
+	Order    string `json:"order"`
 	Topics   []struct {
 		TaskID string `json:"task_id"`
 		LastAt string `json:"last_at"`
@@ -121,6 +122,17 @@ func TestZombieTopicsListsIdleHeads(t *testing.T) {
 	if _, _, ids = getZombies(t, r, zombiePath+"?idle_days=5&limit=1"); !slices.Equal(ids, []string{idle}) {
 		t.Fatalf("idle_days=5&limit=1 listed %v, want [%s]", ids, idle)
 	}
+	// order=newest (spec 041 section 7, SPL-5520): the young end first, so a
+	// limit keeps the newest idle topic; order=oldest is the default.
+	if _, v, ids = getZombies(t, r, zombiePath+"?idle_days=5&order=newest"); !slices.Equal(ids, []string{young, idle}) || v.Order != "newest" {
+		t.Fatalf("idle_days=5&order=newest listed %v (order %q), want [%s %s] newest", ids, v.Order, young, idle)
+	}
+	if _, _, ids = getZombies(t, r, zombiePath+"?idle_days=5&order=newest&limit=1"); !slices.Equal(ids, []string{young}) {
+		t.Fatalf("idle_days=5&order=newest&limit=1 listed %v, want [%s]", ids, young)
+	}
+	if _, v, _ = getZombies(t, r, zombiePath+"?idle_days=5"); v.Order != "oldest" {
+		t.Fatalf("the default order is %q, want oldest", v.Order)
+	}
 	// Read only: the listed topic is still unarchived after every read.
 	if _, _, ids = getZombies(t, r, zombiePath); !slices.Equal(ids, []string{idle}) {
 		t.Fatalf("a second read listed %v: a read changed a head", ids)
@@ -131,7 +143,7 @@ func TestZombieTopicsListsIdleHeads(t *testing.T) {
 // another workspace and an anonymous caller (R7 W1).
 func TestZombieTopicsRefusals(t *testing.T) {
 	r := newFleetTokensRig(t)
-	for _, q := range []string{"?idle_days=0", "?idle_days=x", "?idle_days=3651", "?limit=0", "?limit=5001", "?limit=-1"} {
+	for _, q := range []string{"?idle_days=0", "?idle_days=x", "?idle_days=3651", "?limit=0", "?limit=5001", "?limit=-1", "?order=random", "?order=NEWEST"} {
 		if code, _, _ := getZombies(t, r, zombiePath+q); code != http.StatusBadRequest {
 			t.Errorf("GET %s%s: %d, want 400", zombiePath, q, code)
 		}

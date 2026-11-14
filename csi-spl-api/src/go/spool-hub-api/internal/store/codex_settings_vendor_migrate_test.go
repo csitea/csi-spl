@@ -66,6 +66,16 @@ func TestCodexSettingsVendor0282(t *testing.T) {
 	if err := pg.SetTenantConfig(ctx, tid, TenantConfigPatch{AgentSplit: &split}); err != nil {
 		t.Fatalf("set split with codex: %v", err)
 	}
+	// The tenant outlives the test (newTenant never deletes it), and
+	// TestMistralKind0155 replays 0155's five-column sum CHECK against every
+	// tenant: a row left at codex 15 sums to 85 there (23514, R7 g-514 W1).
+	// Hand codex's points back to claude so the five columns read 100 again.
+	t.Cleanup(func() {
+		back := AgentSplit{Claude: 45, Grok: 0, Agy: 5, Qwen: 10, Mistral: 40, Codex: 0}
+		if err := pg.SetTenantConfig(context.Background(), tid, TenantConfigPatch{AgentSplit: &back}); err != nil {
+			t.Errorf("reset split to codex 0: %v", err)
+		}
+	})
 	cfg, err := pg.TenantConfig(ctx, tid)
 	if err != nil || cfg.AgentSplit != split {
 		t.Fatalf("split = %+v, %v; want %+v", cfg.AgentSplit, err, split)

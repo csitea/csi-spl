@@ -1935,7 +1935,7 @@
     "hours_tz": "Laika josla",
     "hours_tz_hint": "Dienas un iesaldēšana seko šai joslai.",
     "hours_norm": "Vidējais stundu skaits dienā",
-    "hours_norm_hint": "Stundas, ko cilvēks reģistrē vidējā dienā, piem., 7:30. Dienai, kas to pārsniedz, rāda brīdinājumu; nevienu stundu neatraida. Atstājiet tukšu, ja vidējā nav.",
+    "hours_norm_hint": "Stundas, ko cilvēks vidēji reģistrē dienā, piem., 7:30. Dienai, kas to pārsniedz, rāda brīdinājumu; nevienu stundu nenoraida. Atstājiet tukšu, ja vidējā nav.",
     "hours_norm_placeholder": "7:30",
     "hours_norm_invalid": "Ievadiet stundas formā h:mm (piem., 7:30) vai kā skaitli (piem., 7,5), ne vairāk kā 24:00.",
     "split_kinds_title": "Piegādātāja sadalījums pēc uzdevuma veida",

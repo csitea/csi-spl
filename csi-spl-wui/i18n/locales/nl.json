@@ -1935,7 +1935,7 @@
     "hours_tz": "Tijdzone",
     "hours_tz_hint": "De dagen en het bevriezen volgen deze zone.",
     "hours_norm": "Gemiddeld aantal uren per dag",
-    "hours_norm_hint": "De uren die iemand op een gemiddelde dag registreert, bijv. 7:30. Een dag daarboven toont een waarschuwing; er worden geen uren geweigerd. Laat leeg voor geen gemiddelde.",
+    "hours_norm_hint": "De uren die iemand op een gemiddelde dag registreert, bijv. 7:30. Een dag daarboven toont een waarschuwing; er worden geen uren geweigerd. Laat leeg als er geen gemiddelde is.",
     "hours_norm_placeholder": "7:30",
     "hours_norm_invalid": "Typ de uren als u:mm (bijv. 7:30) of als getal (bijv. 7,5), hoogstens 24:00.",
     "split_kinds_title": "Verdeling leverancier per taaktype",

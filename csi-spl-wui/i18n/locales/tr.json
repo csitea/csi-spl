@@ -3104,7 +3104,7 @@
     "total": "Toplam",
     "norm_of": "günlük ortalama: {norm}",
     "norm_over": "Çalışma alanının günlük {norm} ortalamasının {over} üzerinde. Saatleriniz korunur.",
-    "norm_over_short": "{norm} ortalamanın {over} üzerinde",
+    "norm_over_short": "{norm} ortalamasının {over} üzerinde",
     "period_total": "Dönem toplamı",
     "empty": "Bu gün için henüz saat yok.",
     "rows": "Tartışmaya göre süre",

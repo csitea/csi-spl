@@ -3103,7 +3103,7 @@
     "tab_download": "Descarcă",
     "total": "Total ore",
     "norm_of": "din media de {norm} pe zi",
-    "norm_over": "{over} peste media spațiului de lucru de {norm} pe zi. Orele dvs. sunt păstrate.",
+    "norm_over": "{over} peste media spațiului de lucru de {norm} pe zi. Orele tale sunt păstrate.",
     "norm_over_short": "{over} peste media de {norm}",
     "period_total": "Total perioadă",
     "empty": "Încă nu există ore în această zi.",

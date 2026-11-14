@@ -89,7 +89,7 @@ do_spl_desk_poll_ack() {
   # fleet desk has moved, every live desk is its owner's: scan as that user.
   local hop_to
   if [[ -n "${LEASE_TENANT:-}" ]] && hop_to="$(spl_desk_action_hop_to "$LEASE_TENANT" "$box")"; then
-    spl_desk_action_hop do_spl_desk_poll_ack "$hop_to" "$LEASE_TENANT" "$box" "$agent" POLL_ACK_MAX_AGE POLL_ACK_FROM POLL_ACK_SEND SPOOL_CHANNEL_RULES_MAP; return $?
+    spl_desk_action_hop do_spl_desk_poll_ack "$hop_to" "$LEASE_TENANT" "$box" "$agent" POLL_ACK_MAX_AGE POLL_ACK_FROM POLL_ACK_SEND SPOOL_CHANNEL_RULES_MAP ACK_DEFER_S POLL_ACK_NOW; return $?
   fi
   local log="$LEASE_DIR/automation.log"
   if [[ "$dry" == 0 ]]; then
@@ -98,6 +98,7 @@ do_spl_desk_poll_ack() {
     flock -n 7 || { do_log "INFO another poll ack run holds $LEASE_DIR/poll-ack.lock - skipped"; return 0; }
   fi
   local spool tenant rows tenant_n=0 seen=" " n=0 msg task from ts poll keys defer
+  declare -F spl_take_defer_s >/dev/null || source "$PROJ_PATH/src/bash/run/spl-take.func.sh"
   defer="$(spl_take_defer_s)"
   while IFS= read -r -u 9 spool; do
     [[ -d "$spool" ]] || continue
@@ -190,14 +191,18 @@ EOF_PY
 # _spl_poll_ack_topic <poll id> <answer ts> <authors>, the topic's hub-tail
 # NDJSON on stdin: "ok" when one of <authors> (space separated bare ids)
 # posted that poll in the topic and no agent posted after the answer;
-# "answered", "other <id>" (another agent's poll) or "nopoll" otherwise. A
-# person is HUM-, RSP- or GST-; every other sender is an agent.
+# "answered", "acked" (only ack lines after it: a take line or a "noted"
+# line, SPL-5514: an ack is not an answer, and a second ack is noise),
+# "other <id>" (another agent's poll) or "nopoll" otherwise. A person is
+# HUM-, RSP- or GST-; every other sender is an agent. A post to another
+# agent (a relay) answers nobody.
 _spl_poll_ack_topic() {
   python3 -c '
-import json, sys
+import json, re, sys
 poll, ts, authors = sys.argv[1], sys.argv[2], sys.argv[3].split()
 people = ("HUM-", "RSP-", "GST-")
-found = answered = False
+ACK = re.compile(r"^(Taken by .*: .* I post the result here\.|\*\*In progress\*\*: noted \(.*\)\.)$", re.S)
+found = answered = acked = False
 other = ""
 for line in sys.stdin:
     try:
@@ -212,9 +217,13 @@ for line in sys.stdin:
             found = True
         else:
             other = frm
-    if str(m.get("ts", "")) > ts:
-        answered = True
-print("answered" if answered else "ok" if found else "other " + other if other else "nopoll")' "$1" "$2" "$3"
+    to = str(m.get("to", "")).split("@")[0]
+    if str(m.get("ts", "")) > ts and (to in ("", "ALL-0") or to.startswith(people)):
+        if ACK.match(str(m.get("body", ""))):
+            acked = True
+        else:
+            answered = True
+print("answered" if answered else "acked" if acked and found else "ok" if found else "other " + other if other else "nopoll")' "$1" "$2" "$3"
 }
 
 # _spl_poll_ack_authors <agent>: the ids whose poll the holder acknowledges,
@@ -292,6 +301,11 @@ _spl_poll_ack_one() {
   case "$verdict" in
     ok) ;;
     answered) do_log "INFO msg $msg: an agent already posted in topic $task after the answer"; return 1 ;;
+    acked) [[ "$dry" == 1 ]] && { echo "PLAN $tenant topic $task: an ack line already follows $from's vote $msg: no second line, wakes $agent"; return 0; }
+      _spl_poll_ack_wake "$agent" "$tenant" "$task" "$from" "$msg" "$poll" "$keys" acked || wrc=$?
+      printf '%s poll-ack %s action=acked actor=%s@%s tenant=%s topic=%s poll=%s from=%s keys=%s reply_rc=- wake_rc=%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg" "$agent" "$box" "$tenant" "$task" "$poll" "$from" "$keys" "$wrc" >>"$log"
+      do_log "OK msg $msg: an ack line already follows the answer in topic $task: no second line, $agent woken"; return 0 ;;
     other*) do_log "INFO msg $msg: poll $poll in topic $task was posted by ${verdict#other }, not by $agent: its poster answers it, not acknowledged"; return 1 ;;
     *) do_log "INFO msg $msg: topic $task holds no poll $poll from an agent: not acknowledged"; return 1 ;;
   esac
@@ -314,13 +328,14 @@ _spl_poll_ack_one() {
   do_log "OK msg $msg: $agent acknowledged $from's poll answer $keys in topic $task"
 }
 
-# _spl_poll_ack_wake <agent> <tenant> <task> <from> <msg> <poll> <keys>: a
-# spool note to the holder on task dispatch-<topic8> (never the owner topic's
-# own id: that would show in the owner's topic).
+# _spl_poll_ack_wake <agent> <tenant> <task> <from> <msg> <poll> <keys>
+# [acked]: a spool note to the holder on task dispatch-<topic8> (never the
+# owner topic's own id: that would show in the owner's topic). acked: the
+# desk posted nothing, an ack line was already there.
 _spl_poll_ack_wake() {
   local send="${POLL_ACK_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   local who="${POLL_ACK_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$who" --to "$1" --kind note --task "dispatch-${3:0:8}" \
-    --body "$4 answered poll $6 with $7 (msg $5, $2 topic $3). The desk posted **In progress**: noted. Act on the answer now." \
+    --body "$4 answered poll $6 with $7 (msg $5, $2 topic $3). $([[ "${8:-}" == acked ]] && echo 'An ack line is already in the topic, the desk posted none.' || echo 'The desk posted **In progress**: noted.') Act on the answer now." \
     >/dev/null 2>&1 7>&- 8>&- 9>&- || { do_log "WARN could not wake $1 about msg $5"; return 1; }
 }

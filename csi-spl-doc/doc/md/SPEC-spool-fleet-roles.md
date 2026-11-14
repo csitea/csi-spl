@@ -227,17 +227,23 @@ machine's trio while this one holds it) reads and takes nothing.
 `DESK_TASK`, `TAKE_PLAN`) before any other work. It posts one line in that
 topic to that human through `do_spl_desk_reply` ("Taken by <id>@<box>:
 <plan>. I post the result here."), once per unanswered human post, whoever
-takes it (ledger `dispatch/take.log`; a re-run on the same post, or another
-seat's take of it, posts nothing; a later post gets its own line), and with
+takes it (ledger `dispatch/take.log`; a re-run on the same post, another
+seat's take of it, or an ack line after it already in the topic from any
+box, posts nothing; a later post gets its own line), and with
 `TAKE_NOTIFY` tells the agents by spool note in the same call. A note to the
 agents alone is not a take.
 
 **The take line waits** (SPL-5514, owner poll d0c7b716 item 1): it is posted
 only when no agent has answered the post `env.box.desk_ack_defer_s` seconds
 (cnf, 300) after it. A `do_spl_take` before then returns at once
-(`TAKE-DEFERRED`) and a background run posts the line at that time, or
-nothing (`TAKE-QUIET`) when an agent answered first. The poll acknowledgement
-(`do_spl_desk_poll_ack`, "**In progress**: noted") waits the same way. In the
+(`TAKE-DEFERRED`; a second call for the same post on the box prints
+`TAKEN-ALREADY`) and one background run posts the line at that time, or
+nothing (`TAKE-QUIET`) when an agent answered that post first. The poll
+acknowledgement (`do_spl_desk_poll_ack`, "**In progress**: noted") waits the
+same way. A take line or a "noted" line is an acknowledgement, never an
+answer, and one is enough: neither posts after the other. The wait is longer
+than the 2-minute backstop and the 3-minute rule above; SPL-5514's review
+(W3) put that to the owner. In the
 week to 2026-11-14, 37 of 54 such lines were followed by an answer within 5
 minutes (c-518's count, n=54).
 

@@ -8,7 +8,8 @@
 # @description no agent reply yet (no OD owns it), it runs do_spl_take at once:
 # @description "Taken by <id>@<box>: I read your post now. I post the result
 # @description here." The holder's model still answers; its own do_spl_take
-# @description then prints TAKEN-ALREADY. do_spl_take defers the line to
+# @description then prints TAKEN-ALREADY (the deferred take of that post is
+# @description already pending, or posted). do_spl_take defers the line to
 # @description cnf env.box.desk_ack_defer_s after the post and drops it when
 # @description an agent answers first (SPL-5514: 37 of 54 take and noted
 # @description lines of the week to 2026-11-14 had an answer within 5 min,

@@ -539,6 +539,7 @@ flowchart LR
    - Complements the standing `do_spl_unanswered_sweep` cron (which sweeps and escalates unanswered owner posts across topics on an interval) by providing sub-minute instant acknowledgment to satisfy human interactive responsiveness.
 7. **Deferred, not instant (SPL-5514, owner poll d0c7b716 item 1)**:
    - An answer younger than cnf `env.box.desk_ack_defer_s` seconds (300; `ACK_DEFER_S` overrides it) is left for a later cron tick. When an agent posts in the topic inside that window, the de-duplication check (step 3) finds it and no acknowledgement is posted at all; otherwise exactly one is posted on the first tick past the window. The wake (step 5) goes with that acknowledgement.
+   - Only an answer counts: a take line or an earlier "noted" line after the vote is an acknowledgement already, so the tick posts no second line and still wakes the holder (log `action=acked`); a post to another agent answers nobody.
    - Why: c-518 counted 55 take and noted lines in csitea in the week to 2026-11-14; 37 of the 54 that an agent post followed got a real answer within 5 minutes anyway. The take line (`do_spl_take`, [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md) section 3) waits the same way.
    - Test: `csi-spl-orc/src/bash/tests/spl-ack-take-quiet.tst.sh` (cases a and b, poll part).
 

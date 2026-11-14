@@ -13,6 +13,8 @@ a new post (a new topic, or a topic no OD owns) is taken by the dispatch lease
 holder at once, with the take line of `do_spl_take`. Until this change the
 holder's model ran `do_spl_take`, so the 3-minute answer waited on the
 model. Now the box posts the take line itself; the model only answers.
+Since SPL-5514 the line waits 5 minutes for an answer first (2.1), so a post
+that gets no answer in that time shows nothing in its topic until then.
 
 ## 2. How it works
 
@@ -37,20 +39,30 @@ topic and taker.
 Owner poll d0c7b716 item 1 (csitea topic 48d75e5f): the take line is posted
 only when no agent answers the post within cnf `env.box.desk_ack_defer_s`
 seconds (300) of it. `do_spl_take` checks the topic: before that time it
-starts itself again, detached (`TAKE_DEFER_DUE`, `TAKE_DEFER_POST`), prints
-`TAKE-DEFERRED` and returns. The detached run sleeps until then, reads the
-topic again and posts the line only when the same post is still the newest
-unanswered one; otherwise it prints `TAKE-QUIET` and posts nothing. A post
-the first topic read cannot name is taken at once, as before.
+starts itself again, detached (`TAKE_DEFER_DUE`, `TAKE_DEFER_POST`), writes
+the row `<due> <topic> <post> <id>@<box>` to `dispatch/take-defer.pending`,
+sends the `TAKE_NOTIFY` note, prints `TAKE-DEFERRED` and returns. A second
+call for that post on the box (the model after `do_spl_take_auto`, another
+seat) finds the row and prints `TAKEN-ALREADY`: one detached run per post.
+That run is one `sleep` until then, which then execs `./run -a do_spl_take`;
+it reads the topic again for that post only (`DESK_TAKE_AFTER`: a later human
+post does not hide it) and posts the line only when no agent answered it;
+otherwise it prints `TAKE-QUIET` and posts nothing. A post the first topic
+read cannot name is taken at once, as before.
 
 One line per post, whoever takes it: a `dispatch/take.log` row naming the
 post covers every taker on the box. Before, the row covered only its own
 taker, so on 2026-11-09 two seats took post 382450e2 of topic 965283be on
-one box, 108 s apart. The ledger is per box: a take on another box is not
-seen.
+one box, 108 s apart. The ledger is per box, so the topic counts too: an ack
+line after the post (a take line, or the poll "**In progress**: noted" line,
+from any seat on any box) makes `do_spl_take_post` print `TAKE-ACKED` and
+`do_spl_take` print `TAKEN-ALREADY`. An ack line is never an answer. Two
+boxes that read the topic within the same few seconds, before either line
+shows in hub-tail, can still both post.
 
 Test: `csi-spl-orc/src/bash/tests/spl-ack-take-quiet.tst.sh` (red on the
-code before it for cases a and c).
+code before it for cases a and c; case d, the R7 defects W1-W4, red on the
+reviewed head b6f1787d6, 8 failed).
 
 ## 3. When it takes nothing
 

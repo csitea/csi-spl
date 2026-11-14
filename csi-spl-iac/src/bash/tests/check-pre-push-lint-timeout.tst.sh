@@ -59,10 +59,20 @@ do_sec_shellcheck() {
     missing) return 127 ;;
     hang)
       echo "$BASHPID" >"$LINT_TO_DIR/part.pid"
-      cp "$(command -v sleep)" "$LINT_TO_DIR/go"
-      "$LINT_TO_DIR/go" 45 </dev/null >/dev/null 2>&1 &
+      # ubuntu 26.04's /usr/bin/sleep is the uutils multicall binary. A copy
+      # named go exits at once, so the comm file stays empty (comm=missing on
+      # the hosted runner). GNU sleep on this box keeps running under the new
+      # name. A bash child sets its own comm and stays that process; bash
+      # would otherwise exec a trailing sleep and the name would become sleep.
+      bash -c 'printf %s go >/proc/self/comm; : >"$1"; while :; do sleep 1; done' \
+        _ "$LINT_TO_DIR/go.ready" </dev/null >/dev/null 2>&1 &
       echo $! >"$LINT_TO_DIR/go.pid"
-      ps -p "$!" -o comm= >"$LINT_TO_DIR/go.comm" 2>/dev/null || true
+      _i=0
+      while [[ "$_i" -lt 20 && ! -f "$LINT_TO_DIR/go.ready" ]]; do
+        sleep 0.05
+        _i=$((_i + 1))
+      done
+      tr -d '[:space:]' <"/proc/$!/comm" >"$LINT_TO_DIR/go.comm" 2>/dev/null || true
       sleep 45
       return 0
       ;;

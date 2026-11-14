@@ -258,7 +258,7 @@ try {
   const moved = await splitOf()
   ok('8h mistral 55, grok 0 is saved and read back', moved === 'claude=25 grok=0 agy=10 qwen=10 mistral=55 codex=0', moved)
 
-  // SPL-5454 (rdb 0282): Codex is the sixth share, labelled, saved and read
+  // SPL-5454 (rdb 0283): Codex is the sixth share, labelled, saved and read
   // back; 16 sums to 101 and keeps Save off (the CONTROL).
   const codexLabel = await p.$eval('[data-test=tenant-split-codex]', (el) => el.closest('label')?.querySelector('span')?.textContent?.trim() ?? '')
   ok('8h2 the flat split has a Codex input', codexLabel === 'Codex', codexLabel)

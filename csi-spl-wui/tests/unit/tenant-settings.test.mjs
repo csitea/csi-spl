@@ -56,7 +56,7 @@ ok('vendor split: absent = the default 40/50/10/0/0', s.agentSplit.claude === 40
 ok('vendor split: a saved 100 is kept', normalizeTenantSettings({ agent_split: { claude: 30, grok: 40, agy: 20, qwen: 10, mistral: 0 } }).agentSplit.qwen === 10)
 // spec 110 7g: grok's share moves to mistral, five numbers.
 ok('vendor split: mistral 55, grok 0 is kept', JSON.stringify(normalizeTenantSettings({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 10, mistral: 55 } }).agentSplit) === '{"claude":30,"grok":0,"agy":5,"qwen":10,"mistral":55,"codex":0}')
-// SPL-5454 (rdb 0282): codex is the sixth share; a hub before 0282 leaves it out (0).
+// SPL-5454 (rdb 0283): codex is the sixth share; a hub before 0283 leaves it out (0).
 ok('vendor split: codex 15 is kept', normalizeTenantSettings({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 10, mistral: 40, codex: 15 } }).agentSplit.codex === 15)
 ok('vendor split: no codex field reads codex 0', normalizeTenantSettings({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 10, mistral: 55 } }).agentSplit.codex === 0)
 ok('CONTROL vendor split: six that sum to 101 is the default', normalizeTenantSettings({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 10, mistral: 40, codex: 16 } }).agentSplit.claude === 40)

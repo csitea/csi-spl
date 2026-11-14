@@ -329,7 +329,7 @@ func TestTenantSettingsAgentSplit(t *testing.T) {
 	assertSplit(t, body, 30, 0, 5, 10, 55)
 	assertCodex(t, body, 0)
 
-	// SPL-5454 (rdb 0282): codex is the sixth share. Set, it is stored and
+	// SPL-5454 (rdb 0283): codex is the sixth share. Set, it is stored and
 	// read back; a five-number PATCH (a WUI built before codex) sets it 0.
 	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{
 		"agent_split": map[string]int{"claude": 30, "grok": 0, "agy": 5, "qwen": 10, "mistral": 40, "codex": 15},

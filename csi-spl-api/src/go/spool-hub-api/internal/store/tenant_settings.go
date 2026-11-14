@@ -82,7 +82,7 @@ type AgentSplit struct {
 	Agy     int
 	Qwen    int
 	Mistral int
-	// Codex (rdb 0282, SPL-5454) is 0 unless an admin sets it.
+	// Codex (rdb 0283, SPL-5454) is 0 unless an admin sets it.
 	Codex int
 }
 

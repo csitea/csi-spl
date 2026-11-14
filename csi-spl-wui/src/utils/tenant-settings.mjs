@@ -34,13 +34,13 @@ export const TOPIC_ARCHIVE_POLICY_OPTIONS = Object.freeze(['everyone', 'admins',
 /** Vendor kinds, in the order the settings page lists them. */
 export const AGENT_SPLIT_KINDS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral', 'codex'])
 
-/** Owner's current split. qwen, mistral (spec 110) and codex (spec 161, rdb 0282) are 0 so the six sum to 100. */
+/** Owner's current split. qwen, mistral (spec 110) and codex (spec 161, rdb 0283) are 0 so the six sum to 100. */
 export const DEFAULT_AGENT_SPLIT = Object.freeze({ claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0, codex: 0 })
 
 /**
  * Six whole-number shares that sum to 100 (the hub refuses four, spec 110). Anything else (absent, a
  * fraction, a share outside 0..100, a sum other than 100) is the default. codex left out (a hub
- * before rdb 0282, SPL-5454) reads as 0.
+ * before rdb 0283, SPL-5454) reads as 0.
  */
 export function agentSplitOf(raw) {
   const src = raw && typeof raw === 'object' ? raw : null

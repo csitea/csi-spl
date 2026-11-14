@@ -263,7 +263,7 @@ type agentSplitPatch struct {
 	Qwen    *int `json:"qwen"`
 	Mistral *int `json:"mistral"`
 	// Codex is optional (SPL-5454): a five-number PATCH from a WUI built
-	// before rdb 0282 sets codex 0, so the sum still has to reach 100.
+	// before rdb 0283 sets codex 0, so the sum still has to reach 100.
 	Codex *int `json:"codex"`
 }
 

@@ -1,4 +1,4 @@
--- 0282_codex_settings_vendor.sql - codex (OpenAI Codex CLI, o-NNN, spec 161)
+-- 0283_codex_settings_vendor.sql - codex (OpenAI Codex CLI, o-NNN, spec 161)
 -- becomes a vendor in every workspace setting that names the other agent
 -- vendors (SPL-5454, owner HUM-10 t1 9130912f: "put here the OpenAI app
 -- as well as an AI client"). Forward-only; 0109, 0155, 0163, 0174 and 0212

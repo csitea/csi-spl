@@ -7,18 +7,18 @@ import (
 	"time"
 )
 
-// rdb 0282 (SPL-5454): codex is a vendor in every workspace setting that
+// rdb 0283 (SPL-5454): codex is a vendor in every workspace setting that
 // names the other agent vendors. Postgres only.
 //
 // Catalog (n=1 per table): every CHECK of the five setting tables whose
 // text names 'mistral' also names 'codex', except the 0178 secret-class
-// CHECK, which must NOT (the data rule, spec 161 5.1). A constraint 0282
+// CHECK, which must NOT (the data rule, spec 161 5.1). A constraint 0283
 // failed to drop (a wrong auto-generated name) would still list five
 // vendors and fail here.
 //
 // Round trips (n=1 each): the flat split with codex 15 is stored and read
 // back; a codex cap of 2 is stored and read back.
-func TestCodexSettingsVendor0282(t *testing.T) {
+func TestCodexSettingsVendor0283(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
 
@@ -54,7 +54,7 @@ func TestCodexSettingsVendor0282(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	// tenants' vendor list is fleet_agent_kinds_off (0238); the others are 0282's.
+	// tenants' vendor list is fleet_agent_kinds_off (0238); the others are 0283's.
 	for _, rel := range []string{"tenants", "tenant_agent_split_kind", "tenant_agent_caps", "workspace_vendor_keys", "workspace_vendor_key_audit"} {
 		if !seen[rel] {
 			t.Errorf("%s: no CHECK names the vendors; the catalog query read nothing", rel)

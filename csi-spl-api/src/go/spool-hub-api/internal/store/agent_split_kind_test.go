@@ -116,7 +116,7 @@ func TestSplitKinds(t *testing.T) {
 			if err := sk.SetSplitKinds(ctx, tid, SplitKindPatch{Set: []SplitKind{
 				{Kind: "complex_coding", Weights: map[string]int{"claude": 80, "agy": 20}, Backup: "agy"},
 				{Kind: "tests", Weights: map[string]int{"claude": 70, "mistral": 30}, Backup: "agy"},
-				// codex (rdb 0282, SPL-5454): a weight and the backup in a coding kind.
+				// codex (rdb 0283, SPL-5454): a weight and the backup in a coding kind.
 				{Kind: "specs_and_docs", Weights: map[string]int{"agy": 60, "codex": 40}, Backup: "codex"},
 			}, By: "HUM-1"}, now); err != nil {
 				t.Fatalf("agy in the coding kinds: %v", err)

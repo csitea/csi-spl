@@ -3,7 +3,7 @@
 # @description READ-ONLY: print one workspace's agent vendor split (rdb 0109)
 # @description as one line the orchestrator can read:
 # @description   claude=40 grok=50 agy=10 qwen=0 mistral=0 codex=0
-# @description The six whole numbers (mistral: rdb 0155, spec 110; codex: rdb 0282, SPL-5454) are a guideline, not a quota. They sum
+# @description The six whole numbers (mistral: rdb 0155, spec 110; codex: rdb 0283, SPL-5454) are a guideline, not a quota. They sum
 # @description to 100. The hub stores them and does not refuse a spawn that
 # @description drifts; spawn routing reads this line. Through the Cloud SQL
 # @description proxy as the env's project service account, one SELECT, values

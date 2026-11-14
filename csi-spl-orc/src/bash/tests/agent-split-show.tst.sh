@@ -114,7 +114,7 @@ in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|0|0|10'; r
   && pass "3. a row that does not sum to 100 is not printed" || fail "3. sum: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|0|0'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'no agent split row for tenant t1' "$T/out" && ! grep -q '^claude=' "$T/out" \
-  && pass "3. control: a five-column row (no codex, rdb 0282) is not read as a split" || fail "3. five: rc=$rc $(cat "$T/out")"
+  && pass "3. control: a five-column row (no codex, rdb 0283) is not read as a split" || fail "3. five: rc=$rc $(cat "$T/out")"
 
 # --- 4. --kind (spec 115 HUB-1) ---------------------------------------------
 in_orc 'do_spl_agent_split_show --kind=opus' TENANT_ID=t1; rc=$?

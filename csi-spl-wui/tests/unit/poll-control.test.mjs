@@ -8,7 +8,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  answerBody, chatBody, chatPicks, lockSeconds, mayHavePoll, parseAnswer, parsePoll, pollAnswers, pollProblems, splitPolls,
+  answerBody, answerMode, chatBody, chatPicks, lockSeconds, locksWhenComplete, mayHavePoll, parseAnswer, parsePoll, pollAnswers, pollProblems, splitPolls,
 } from '../../src/utils/poll.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -200,10 +200,47 @@ describe('the WUI wiring', () => {
     assert.doesNotMatch(src, /utils\/poll\.mjs/)
     assert.match(src, /defineAsyncComponent\(\(\) => import\('~\/components\/PollBody\.vue'\)\)/)
   })
-  it('the form has no Send on radios, always offers "Chat about this"', () => {
+  it('the form has a Send only when it locks (no Send on a one-question radio form), always offers "Chat about this"', () => {
     const src = readFileSync(join(WUI, 'src/components/PollForm.vue'), 'utf8')
     assert.match(src, /poll\.chat/)
-    assert.match(src, /v-if="form\.multi[^"]*"[^>]*data-testid="poll-send"|data-testid="poll-send"[^>]*v-if="form\.multi/)
+    assert.match(src, /v-if="locks[^"]*"[^>]*data-testid="poll-send"|data-testid="poll-send"[^>]*v-if="locks/)
+    assert.match(src, /const locks = computed\(\(\) => answerMode\(props\.form\) === 'lock'\)/)
+  })
+})
+
+/* SPL-5517 (csitea 48d75e5f item 3): poll 05640e4b, a radio form of 7
+   questions, took 8 answer posts in about 72 s, each one re-read by the
+   dispatcher. A radio form of several questions now keeps the clicks as a
+   draft and sends ONE answer when it locks. */
+describe('SPL-5517: a multi-question form sends one answer when it locks', () => {
+  const R1 = parsePoll(RADIO)
+  const R3 = parsePoll('Q1\n(A) a\n(B) b\nQ2\n(A) a\n(B) b\nQ3\n(A) a\n(B) b')
+  const C2 = parsePoll(CHECK)
+  it('a one-question radio form posts on the click; every other form locks', () => {
+    assert.equal(answerMode(R1), 'click')
+    assert.equal(answerMode(R3), 'lock')
+    assert.equal(answerMode(C2), 'lock')
+    assert.equal(answerMode(parsePoll('Only one\n[A] a\n[B] b')), 'lock')
+  })
+  it('a radio form of several questions locks once every question holds a pick, not before', () => {
+    assert.equal(locksWhenComplete(R3, [['A'], [], []]), false)
+    assert.equal(locksWhenComplete(R3, [['A'], [], ['B']]), false)
+    assert.equal(locksWhenComplete(R3, [['A'], ['B'], ['B']]), true)
+  })
+  it('control: a checkbox form never locks on its picks alone (owner 8f0da7ca: its Send or the timer); a one-question radio form has nothing to lock', () => {
+    assert.equal(locksWhenComplete(C2, [['A'], ['1']]), false)
+    assert.equal(locksWhenComplete(R1, [['A']]), false)
+  })
+  it('the one answer a locked form posts holds every question', () => {
+    assert.equal(answerBody(R3, [['A'], ['B'], ['B']], MID), `Poll: ${MID}\nAnswer 1: A — a\nAnswer 2: B — b\nAnswer 3: B — b`)
+  })
+  it('the WUI wiring: a draft click arms the lock, a complete radio form posts at once, only a click form posts per click', () => {
+    const src = readFileSync(join(WUI, 'src/components/PollForm.vue'), 'utf8')
+    const body = src.slice(src.indexOf('function onPick('), src.indexOf('function onChat('))
+    assert.match(body, /if \(!locks\.value\) return void post\(qi\)/)
+    assert.match(body, /if \(locksWhenComplete\(props\.form, next\)\) \{\s*stopTimer\(\)\s*return void post\(qi\)/)
+    assert.match(body, /\barm\(\)/)
+    assert.equal((body.match(/post\(/g) || []).length, 2)
   })
 })
 

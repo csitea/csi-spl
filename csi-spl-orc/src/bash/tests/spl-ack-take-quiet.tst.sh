@@ -21,6 +21,8 @@
 #         poll: a take line after the vote posts no "noted" but wakes the
 #         holder; a relay to another agent answers nothing
 #      W4 a take line of another box in the topic: TAKEN-ALREADY, 0 lines
+#   e. R7 a-770 delta W1: a real sleep; the call returns at once, the take
+#      ledger's lock is free during the sleep, the deferred run gets it
 #   RED CONTROL: ACK_QUIET_TAKE_FUNC / ACK_QUIET_POLL_FUNC point at another
 #   copy of the actions; origin/master's copies turn a and c red (the commit
 #   that added this file carries that run).
@@ -143,6 +145,23 @@ b="$(n "$R")"
 take DRY_RUN=0 DESK_TASK="$D4" TAKE_POST_CMD="$T/parse.sh" TAKE_DEFER_DUE="$((now - 1))" TAKE_DEFER_POST=m-d6
 [[ "$(n "$R")" == "$b" ]] && grep -q "^TAKEN-ALREADY $D4" "$T/o" &&
   pass "d. W3: a noted line is an ack, not an answer: no second ack line" || fail "d. W3 take: $(( $(n "$R") - b )) lines: $(cat "$T/o")"
+
+# --- e. R7 a-770 delta W1: the deferred run holds no fd of the caller --------
+# A real sleep and a run that takes the take ledger's lock: the call returns
+# while the sleep runs, the lock is free during it, the run gets it at <due>.
+printf '#!/bin/sh\nexec 9>>"$LOCK_FILE"\nflock -n 9 && echo LOCKED >>"$LOCK_LOG" || echo BUSY >>"$LOCK_LOG"\n' >"$T/lockrun.sh"
+chmod +x "$T/lockrun.sh"
+E1=00000000-0000-4000-8000-00000000e001 LL="$T/locks.log"
+echo "TAKE-POST post-e1 $(date +%s)" >"$P"; b="$(n "$R")"; t0=$(date +%s)
+take DRY_RUN=0 DESK_TASK="$E1" ACK_DEFER_S=3 TAKE_DEFER_SLEEP=sleep TAKE_DEFER_RUN="$T/lockrun.sh" \
+  LOCK_FILE="$S/dispatch/take.log.lock" LOCK_LOG="$LL"
+el=$(( $(date +%s) - t0 ))
+(( el < 3 )) && grep -q "^TAKE-DEFERRED $E1" "$T/o" &&
+  pass "e. W1: the call returns while the deferred sleep runs (${el} s)" || fail "e. W1: the call took ${el} s: $(cat "$T/o")"
+flock -n "$S/dispatch/take.log.lock" true && pass "e. W1: the take ledger's lock is free during the sleep" || fail "e. W1: the lock is held during the sleep"
+wait_n "$LL" 1; sleep 0.2
+[[ "$(cat "$LL" 2>/dev/null)" == LOCKED && "$(n "$R")" == "$b" ]] &&
+  pass "e. W1: at <due> the deferred run gets the take ledger's lock" || fail "e. W1 lock: $(cat "$LL" 2>/dev/null)"
 
 # --- the poll ack stubs (as spl-desk-poll-ack.tst.sh) -------------------------
 TOPIC=11111111-2222-4333-8444-555555555555 POLL=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee

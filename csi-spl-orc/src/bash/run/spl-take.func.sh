@@ -191,11 +191,13 @@ spl_take_defer() {
     { [[ -f "$pend" ]] && awk -F'\t' -v old="$(( $(date +%s) - 3600 ))" '$1 + 0 >= old' "$pend"
       printf '%s\t%s\t%s\t%s\n' "$due" "$task" "$post" "$by"; } >"$pend.tmp" && mv "$pend.tmp" "$pend" ||
       { echo "FATAL could not record the deferred take in $pend"; exit 1; }
+    # One simple command behind the &: a "cd / && ..." list would background a
+    # bash that keeps this lock (fd 9) and the $( ) pipe until the run ends.
     # shellcheck disable=SC2016,SC2086 # sh expands its own args; $run is a command line, split on purpose
-    ( cd / && TAKE_DEFER_DUE="$due" TAKE_DEFER_POST="$post" TAKE_PLAN="$plan" TAKE_BOX="$box" TAKE_NOTIFY="" DRY_RUN=0 \
-        setsid sh -c 'sl="$1" left="$2"; shift 2; $sl "$left"; exec "$@"' sh "${TAKE_DEFER_SLEEP:-sleep}" \
-        "$(( due > $(date +%s) ? due - $(date +%s) : 0 ))" $run -a do_spl_take \
-        </dev/null >>"$LEASE_DIR/take-defer.out" 2>&1 7>&- 8>&- 9>&- & ) 2>/dev/null
+    TAKE_DEFER_DUE="$due" TAKE_DEFER_POST="$post" TAKE_PLAN="$plan" TAKE_BOX="$box" TAKE_NOTIFY="" DRY_RUN=0 \
+      setsid sh -c 'cd / || exit 1; sl="$1" left="$2"; shift 2; "$sl" "$left"; exec "$@"' sh "${TAKE_DEFER_SLEEP:-sleep}" \
+      "$(( due > $(date +%s) ? due - $(date +%s) : 0 ))" $run -a do_spl_take \
+      </dev/null >>"$LEASE_DIR/take-defer.out" 2>&1 7>&- 8>&- 9>&- &
     echo "TAKE-DEFERRED $task by $by: the take line waits until $when for post $post; none if an agent answers first"
   ) 9> "$f.lock" )" || rc=$?
   echo "$out"

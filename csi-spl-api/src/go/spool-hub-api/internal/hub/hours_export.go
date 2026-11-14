@@ -2,6 +2,7 @@ package hub
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -48,25 +49,35 @@ type hoursExportLine struct {
 func (l hoursExportLine) hours() float64 { return math.Round(float64(l.Minutes)*100/60) / 100 }
 
 // hoursExportGroups orders lines: by member, target or day, then the rest.
+// Numbered HUM-<n> member ids sort by <n>, so HUM-999 precedes HUM-1000.
 var hoursExportGroups = map[string]func(a, b hoursExportLine) bool{
 	"member": func(a, b hoursExportLine) bool {
-		return lessKeys([]string{a.Member, a.Date, a.TargetType, a.TargetID}, []string{b.Member, b.Date, b.TargetType, b.TargetID})
+		return cmp.Or(cmpHumID(a.Member, b.Member), cmp.Compare(a.Date, b.Date),
+			cmp.Compare(a.TargetType, b.TargetType), cmp.Compare(a.TargetID, b.TargetID)) < 0
 	},
 	"target": func(a, b hoursExportLine) bool {
-		return lessKeys([]string{a.TargetType, a.TargetID, a.Member, a.Date}, []string{b.TargetType, b.TargetID, b.Member, b.Date})
+		return cmp.Or(cmp.Compare(a.TargetType, b.TargetType), cmp.Compare(a.TargetID, b.TargetID),
+			cmpHumID(a.Member, b.Member), cmp.Compare(a.Date, b.Date)) < 0
 	},
 	"day": func(a, b hoursExportLine) bool {
-		return lessKeys([]string{a.Date, a.Member, a.TargetType, a.TargetID}, []string{b.Date, b.Member, b.TargetType, b.TargetID})
+		return cmp.Or(cmp.Compare(a.Date, b.Date), cmpHumID(a.Member, b.Member),
+			cmp.Compare(a.TargetType, b.TargetType), cmp.Compare(a.TargetID, b.TargetID)) < 0
 	},
 }
 
-func lessKeys(a, b []string) bool {
-	for i := range a {
-		if a[i] != b[i] {
-			return a[i] < b[i]
-		}
+// cmpHumID orders HUM-<n> member ids by <n>; non-numbered ids sort a-z after them.
+func cmpHumID(a, b string) int {
+	na, nb := humNumber(a), humNumber(b)
+	if na > 0 && nb > 0 {
+		return cmp.Or(cmp.Compare(na, nb), cmp.Compare(a, b))
 	}
-	return false
+	if na > 0 {
+		return -1
+	}
+	if nb > 0 {
+		return 1
+	}
+	return cmp.Compare(a, b)
 }
 
 // hoursTargetParts splits a target into the download's type and id.

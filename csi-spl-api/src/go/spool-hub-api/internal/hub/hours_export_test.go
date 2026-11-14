@@ -2,6 +2,7 @@ package hub_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"io"
 	"net/http"
@@ -172,5 +173,38 @@ func TestHoursExportTopicName(t *testing.T) {
 	}
 	if len(cells) != 2 || cells[1][5] != "fix the login page" {
 		t.Fatalf("xlsx cells: %v", cells)
+	}
+}
+
+// SPL-5513: numbered HUM-<n> member ids sort by <n>, not as text, so HUM-999
+// precedes HUM-1000 across every group mode when a workspace crosses a digit
+// boundary.
+func TestHoursExportMemberNumberOrder(t *testing.T) {
+	e, tid := hoursEnv(t)
+	owner := seat(t, e, tid, rbac.BizOwner)
+	ctx := context.Background()
+	hs := hoursStore(e)
+	for _, m := range []struct{ id, state, by string }{
+		{"HUM-999", store.HoursApproved, owner},
+		{"HUM-1000", store.HoursFrozen, store.HoursSweepBy},
+	} {
+		if err := hs.PutHoursEntries(ctx, tid, m.id, []store.HoursEntry{{
+			Day: "2026-09-29", Target: "t:task-x", Minutes: 90, State: store.HoursApproved,
+		}}, m.id, time.Date(2026, 9, 29, 17, 0, 0, 0, time.UTC)); err != nil {
+			t.Fatalf("%s entry: %v", m.id, err)
+		}
+		if _, err := hs.CreateHoursPeriod(ctx, tid, store.HoursPeriod{
+			Member: m.id, Start: hoursPrevWeek, End: "2026-10-04",
+			State: m.state, Minutes: 90, DecidedBy: m.by, DecidedAt: hoursNow,
+		}); err != nil {
+			t.Fatalf("%s period: %v", m.id, err)
+		}
+	}
+	for _, q := range []string{"", "&group=member", "&group=day", "&group=target"} {
+		resp, body := export(t, e, tid, owner, "?period="+hoursPrevWeek+"&final=false"+q)
+		rows := csvLines(t, body)
+		if resp.StatusCode != http.StatusOK || len(rows) != 3 || rows[1][1] != "HUM-999" || rows[2][1] != "HUM-1000" {
+			t.Fatalf("export%s: %d %v", q, resp.StatusCode, rows)
+		}
 	}
 }

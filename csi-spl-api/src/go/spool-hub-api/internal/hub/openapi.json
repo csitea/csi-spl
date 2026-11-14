@@ -12310,6 +12310,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "SPL-5498: an agent id; a private event is read only when it is the event's creator agent",
+            "in": "query",
+            "name": "as",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {

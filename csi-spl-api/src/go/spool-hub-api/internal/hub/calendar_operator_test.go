@@ -129,3 +129,81 @@ func TestOperatorCalendarOwnerDefault(t *testing.T) {
 		t.Fatalf("named owner: %d %v", code, got)
 	}
 }
+
+// SPL-5498: an agent writes a PRIVATE event that names its humans in
+// mentions; ordered_by must be one of them, every mention a member. Only the
+// creating agent reads it back through the operator (?as=); a mention, a
+// human or another agent is 404 there. The mentioned members see it in
+// their calendar, a member who is not named does not. CONTROLS: the refusals
+// write nothing.
+func TestOperatorCalendarPrivate(t *testing.T) {
+	e := rbacEnv(t, func(o *hub.Options) {
+		o.OperatorEmails = []string{operatorSA}
+		o.OperatorAudience = "https://api.dev.example"
+		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
+			if token == "good" {
+				return operatorSA, nil
+			}
+			return "", errors.New("token rejected")
+		}
+	})
+	ta, _ := e.tenant()
+	tb, _ := e.tenant()
+	boss, her, other := seat(t, e, ta, rbac.Developer), seat(t, e, ta, rbac.Developer), seat(t, e, ta, rbac.Developer)
+	outsider := seat(t, e, tb, rbac.Developer)
+	body := func(title string, mentions []any, orderedBy string) map[string]any {
+		b := map[string]any{"tenant": ta, "agent_id": "c-840", "title": title, "all_day": true,
+			"audience": "private", "mentions": mentions, "owner_id": boss,
+			"starts_at": "2026-11-20T00:00:00Z", "ends_at": "2026-11-21T00:00:00Z"}
+		if orderedBy != "" {
+			b["ordered_by"] = orderedBy
+		}
+		return b
+	}
+	code, out := opCall(t, e, ta, http.MethodPost, "/v1/operator/calendar/events", "good", body("NL", []any{boss, her}, boss))
+	ev, _ := out["event"].(map[string]any)
+	if code != http.StatusCreated || ev == nil || ev["audience"] != "private" || ev["creator_id"] != "c-840" || ev["owner_id"] != boss {
+		t.Fatalf("private create: %d %v", code, out)
+	}
+	id := ev["id"].(string)
+	get := "/v1/operator/calendar/events/" + id + "?tenant=" + ta
+	if code, got := opCall(t, e, ta, http.MethodGet, get+"&as=c-840", "good", nil); code != http.StatusOK ||
+		got["event"].(map[string]any)["audience"] != "private" || len(got["event"].(map[string]any)["mentions"].([]any)) != 2 {
+		t.Fatalf("creator agent reads it back: %d %v", code, got)
+	}
+	for _, as := range []string{"", "&as=c-841", "&as=" + boss, "&as=" + her} {
+		if code, got := opCall(t, e, ta, http.MethodGet, get+as, "good", nil); code != http.StatusNotFound {
+			t.Fatalf("operator read %q of a private event: %d %v, want 404", as, code, got)
+		}
+	}
+	if code, got := opCall(t, e, ta, http.MethodGet, get+"&as=nobody", "good", nil); code != http.StatusBadRequest || got["error"] != "bad_viewer" {
+		t.Fatalf("as=nobody: %d %v", code, got)
+	}
+	const day = "/v1/calendar/events?start=2026-11-20T00:00:00Z&end=2026-11-21T00:00:00Z"
+	for _, m := range []string{boss, her} {
+		if _, got := call(t, e, ta, http.MethodGet, day, m, nil); calTitles(got, "events") != "NL" {
+			t.Fatalf("mention %s does not see it: %v", m, got)
+		}
+	}
+	if _, got := call(t, e, ta, http.MethodGet, day, other, nil); calTitles(got, "events") != "" {
+		t.Fatalf("a member nobody named sees the private event: %v", got)
+	}
+
+	for _, c := range []struct {
+		name string
+		body map[string]any
+	}{
+		{"no mention", body("x", []any{}, boss)},
+		{"no ordered_by", body("x", []any{boss}, "")},
+		{"ordered_by not mentioned", body("x", []any{her}, boss)},
+		{"a mention of another workspace", body("x", []any{boss, outsider}, boss)},
+		{"an agent mention", body("x", []any{boss, "c-840"}, boss)},
+	} {
+		if code, got := opCall(t, e, ta, http.MethodPost, "/v1/operator/calendar/events", "good", c.body); code != http.StatusBadRequest || got["error"] != "bad_event" {
+			t.Fatalf("%s: %d %v, want 400 bad_event", c.name, code, got)
+		}
+	}
+	if _, got := call(t, e, ta, http.MethodGet, day, boss, nil); calTitles(got, "events") != "NL" {
+		t.Fatalf("a refusal wrote: %v", got)
+	}
+}

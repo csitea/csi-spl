@@ -424,3 +424,33 @@ func TestCalendarLinksColumns0247(t *testing.T) {
 		t.Fatalf("B sees A's row: %d %v", n, err)
 	}
 }
+
+// SPL-5498: an agent's private event (the operator create) is read by its
+// creator agent and its mentioned humans only; a member it does not name,
+// another agent and the empty viewer read nothing.
+func TestCalendarAgentPrivate(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			cal := st.(Calendar)
+			tid := newTenant(t, st)
+			e := calEvent("agent-priv")
+			e.CreatorType, e.CreatorID, e.OwnerID = "agent", calAgent, "HUM-10"
+			e.Audience, e.Mentions, e.AllDay = CalendarPrivate, []string{"HUM-10", "HUM-42"}, true
+			got, err := cal.CreateCalendarEvent(ctx, tid, e, calT0)
+			if err != nil || got.CreatorType != "agent" || got.Audience != CalendarPrivate {
+				t.Fatalf("create: %+v %v", got, err)
+			}
+			for _, v := range []string{calAgent, "HUM-10", "HUM-42"} {
+				if r, err := cal.GetCalendarEvent(ctx, tid, v, got.ID); err != nil || r.Title != "agent-priv" || len(r.Mentions) != 2 {
+					t.Fatalf("%s reads it: %+v %v", v, r, err)
+				}
+			}
+			for _, v := range []string{"", calMember, "HUM-11", "c-043"} {
+				if _, err := cal.GetCalendarEvent(ctx, tid, v, got.ID); !errors.Is(err, ErrNotFound) {
+					t.Fatalf("%q reads an agent's private event: %v", v, err)
+				}
+			}
+		})
+	}
+}

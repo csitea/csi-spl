@@ -27,9 +27,13 @@
 # @param   empty sends an empty list; unset omits the field
 # @param EVENT_OWNER (optional) - the responsible member (HUM-n) or agent id;
 # @param   empty or unset leaves the hub default (ORDERED_BY when that human is a member, else the agent)
+# @param AUDIENCE (optional) - workspace (the hub default when unset), internal or private (SPL-5498)
+# @param MENTIONS (optional) - comma-separated HUM-* members of TENANT_ID who see the event; AUDIENCE=private
+# @param   needs it, with ORDERED_BY among them. A private event is read back as AGENT_ID (?as=), its creator
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=<tenant> TITLE='Payment due' DAY=2026-10-12 AGENT_ID=c-042 ./run -a do_spl_calendar_event_add
 # @example ENV=dev TENANT_ID=<tenant> TITLE='Payment due' DAY=2026-10-12 AGENT_ID=c-042 ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_calendar_event_add
+# @example ENV=dev TENANT_ID=<tenant> TITLE='Trip' DAY=2026-11-20 AGENT_ID=c-042 ORDERED_BY=HUM-10 AUDIENCE=private MENTIONS=HUM-10,HUM-42 ./run -a do_spl_calendar_event_add
 #------------------------------------------------------------------------------
 do_spl_calendar_event_add() {
   do_require_bin yq jq curl gcloud || return 1
@@ -56,12 +60,14 @@ do_spl_calendar_event_add() {
   esac
   id="$(jq -r '.event.id // ""' <<<"$SPL_HUB_OP_BODY")"
   [[ "$id" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL the hub answered 201 with no event id: $SPL_HUB_OP_BODY"; return 1; }
-  spl_hub_operator_call GET "/v1/operator/calendar/events/$id?tenant=$TENANT_ID" || return 1
+  local as=""
+  [[ "${AUDIENCE:-}" != private ]] || as="&as=$AGENT_ID"
+  spl_hub_operator_call GET "/v1/operator/calendar/events/$id?tenant=$TENANT_ID$as" || return 1
   [[ "$SPL_HUB_OP_STATUS" == 200 && "$(jq -r '.event.id // ""' <<<"$SPL_HUB_OP_BODY")" == "$id" ]] \
     || { do_log "FATAL event $id was written but its read-back answered http $SPL_HUB_OP_STATUS: $SPL_HUB_OP_BODY"; return 1; }
   local link
   link="$(_spl_calendar_event_link "$TENANT_ID" "$(jq -r '.event.starts_at // ""' <<<"$SPL_HUB_OP_BODY")" "$id")" || return 1
-  jq -c --arg link "$link" '.event | {id, title, starts_at, ends_at, all_day, creator_type, creator_id, topic_id, owner_id, issue_keys, audience, link: $link}' <<<"$SPL_HUB_OP_BODY"
+  jq -c --arg link "$link" '.event | {id, title, starts_at, ends_at, all_day, creator_type, creator_id, topic_id, owner_id, issue_keys, mentions, audience, link: $link}' <<<"$SPL_HUB_OP_BODY"
   echo "link=$link"
   do_log "OK event $id in $TENANT_ID ($ENV), read back through the hub, creator $(jq -r '.event.creator_type + " " + .event.creator_id' <<<"$SPL_HUB_OP_BODY")"
 }
@@ -133,13 +139,39 @@ _spl_calendar_event_owner() {
   return 1
 }
 
+# _spl_calendar_mentions <ordered_by> (SPL-5498): print the JSON array of
+# MENTIONS (HUM-* ids, deduped), or nothing when unset. AUDIENCE=private needs
+# at least one, ORDERED_BY among them. A refusal logs FATAL and returns 1.
+_spl_calendar_mentions() {
+  local tok
+  local -a out=() toks=()
+  case "${AUDIENCE:-}" in
+    ''|workspace|internal|private) ;;
+    *) do_log "FATAL AUDIENCE must be workspace, internal or private, got: '${AUDIENCE}'"; return 1 ;;
+  esac
+  if [[ -n "${MENTIONS:-}" ]]; then
+    IFS=, read -ra toks <<<"$MENTIONS"
+    for tok in "${toks[@]}"; do
+      tok="${tok// /}"
+      [[ "$tok" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL MENTIONS takes HUM-* ids, got: '$tok'"; return 1; }
+      [[ " ${out[*]} " == *" $tok "* ]] || out+=("$tok")
+    done
+  fi
+  if [[ "${AUDIENCE:-}" == private && ( -z "$1" || " ${out[*]} " != *" $1 "* ) ]]; then
+    do_log "FATAL AUDIENCE=private needs ORDERED_BY and MENTIONS with ORDERED_BY among them"
+    return 1
+  fi
+  [[ -v MENTIONS ]] || return 0
+  jq -cn '$ARGS.positional' --args "${out[@]}" || { do_log "FATAL could not encode MENTIONS"; return 1; }
+}
+
 # _spl_calendar_event_body: set the caller's local body to the request body
 # (compact JSON) from the env vars; every refusal is made here, before cnf,
 # gcloud or the hub.
 _spl_calendar_event_body() {
   local tenant="${TENANT_ID:-}" title="${TITLE:-}" day="${DAY:-}" all="${ALL_DAY:-1}" agent="${AGENT_ID:-}"
   local ordby="${ORDERED_BY:-}" topic="${TOPIC_ID:-}" start="${STARTS_AT:-}" end="${ENDS_AT:-}"
-  local issues="" owner=""
+  local issues="" owner="" mentions=""
   spl_require_cloud_env || return 1
   spl_require_tenant_slug "$tenant" || return 1
   [[ -n "${title// /}" ]] || { do_log "FATAL TITLE is required"; return 1; }
@@ -160,13 +192,17 @@ _spl_calendar_event_body() {
   esac
   issues="$(_spl_calendar_issue_keys)" || { printf '%s\n' "$issues"; return 1; }
   owner="$(_spl_calendar_event_owner)" || { printf '%s\n' "$owner"; return 1; }
+  mentions="$(_spl_calendar_mentions "$ordby")" || { printf '%s\n' "$mentions"; return 1; }
   body="$(jq -cn --arg tenant "$tenant" --arg agent "$agent" --arg ordby "$ordby" --arg title "$title" \
+    --arg aud "${AUDIENCE:-}" --argjson mentions "${mentions:-null}" \
     --arg desc "${DESCRIPTION:-}" --arg start "$start" --arg end "$end" --arg topic "$topic" --arg owner "$owner" \
     --argjson all "$([[ "$all" == 1 ]] && echo true || echo false)" --argjson issues "${issues:-null}" '
       {tenant: $tenant, agent_id: $agent, title: $title, description: $desc, starts_at: $start, ends_at: $end, all_day: $all}
       + (if $ordby != "" then {ordered_by: $ordby} else {} end)
       + (if $topic != "" then {topic_id: $topic} else {} end)
       + (if $issues == null then {} else {issue_keys: $issues} end)
-      + (if $owner != "" then {owner_id: $owner} else {} end)')" \
+      + (if $owner != "" then {owner_id: $owner} else {} end)
+      + (if $aud != "" then {audience: $aud} else {} end)
+      + (if $mentions == null then {} else {mentions: $mentions} end)')" \
     || { do_log "FATAL could not build the request body"; return 1; }
 }

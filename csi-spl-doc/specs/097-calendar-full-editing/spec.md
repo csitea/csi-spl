@@ -433,6 +433,25 @@ and its log fields (`tenant`, `agent_id`, `ordered_by`, the operator):
   bad_event`. Both actions are a dry run unless `DRY_RUN=0`, take 1..200 ids
   and read each one back (`GET`: pinned as asked; `404` once trashed).
 
+A private event from an agent (SPL-5498). The create takes the member
+create's `audience` (`workspace` by default) and `mentions`, with three
+operator checks, each a `400 bad_event`: every mention is a `HUM-n` member of
+the workspace; a `private` event names at least one; and `ordered_by` is set
+and is one of them, so the human who ordered it can read it. The creator stays
+the agent. The read-back `GET /v1/operator/calendar/events/{id}?tenant=&as=<agent id>`
+reads a private event only when `as` is its creator and that creator is an
+agent: an agent reads back what it wrote. Any other `as` (another agent, a
+human, a mention included) and no `as` is `404` on a private event, so the
+operator never reads a human's private event. Workspace and internal events
+read as before. The pin and delete routes above still refuse a private event
+(`404`): a private copy stays unpinned. Who sees a private event in the WUI is
+unchanged (the creator and the mentions). Because the creator is the agent,
+FR-010 (only the creator sets or clears private) means the mentioned humans
+cannot move such an event out of private in the WUI. Action:
+`do_spl_calendar_event_add` with `AUDIENCE=workspace|internal|private` and
+`MENTIONS=HUM-n,...`; `AUDIENCE=private` needs `ORDERED_BY` among `MENTIONS`
+(checked before any call), and its read-back passes `as=$AGENT_ID`.
+
 ## 5. The WUI editing surface
 
 All of it is calendar code, loaded on route entry, outside the 155 KB
@@ -795,6 +814,7 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.7 | 2026-11-14 | c-437 | A private event from an agent through the operator routes: mention checks, the creator-only `?as=` read-back, `AUDIENCE` / `MENTIONS` on `do_spl_calendar_event_add` (4.10). SPL-5498. |
 | v0.6 | 2026-11-13 | c-687 | The order of a day's events in every view, whole-day then `pinned` first (3.3.1); the `pinned` props key; the operator pin and delete routes and actions (4.10). SPL-5453. |
 | v0.5 | 2026-10-28 | g-523 | Discussion link, issue keys and one owner on every calendar entry (SPL-4043). Catalogue strings in all 19 locales; outside English they are drafts, and an agy review has the last word on the wording. |
 | v0.4 | 2026-10-06 | a-424 | Mobile-first section 5.1 (phone layout, touch gestures, full-screen dialogs, thumb reach, 360/390 px acceptance checks for all 10 v1 features, owner questions M1..M5); owner HUM-10 approved feature list and mobile-first rule (msg `adf16567`). |

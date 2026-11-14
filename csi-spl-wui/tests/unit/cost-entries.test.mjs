@@ -107,7 +107,7 @@ describe('the wiring', () => {
     assert.doesNotMatch(read('src/utils/spool-client.mjs'), /[cC]ostEntr/)
   })
   it('the page mounts the card with the open tab\'s type, keyed so a tab switch re-reads; Costs holds no form', () => {
-    assert.match(read('src/pages/expenses/[[tab]].vue'), /<CostEntriesCard :key="entryType" :type="entryType" :readonly="!operator\.visible" \/>/)
+    assert.match(read('src/pages/expenses/[[tab]].vue'), /<CostEntriesCard :key="entryType" :type="entryType" :readonly="!operator\.visible && !writer" :admin="operator\.visible" \/>/)
     for (const p of ['spend', 'cloud', 'tokens', 'human', 'price']) assert.doesNotMatch(read(`src/pages/reporting/costs/${p}.vue`), /CostEntriesCard|entry_create/, p)
   })
 })

@@ -51,12 +51,19 @@ export function costEntriesOf(body) {
     /* the day of the rate that made each ('' = none or not converted) */
     usdRateDay: str(e.usd_rate_day),
     eurRateDay: str(e.eur_rate_day),
+    /* SPL-5433 (rdb 0279): an hr line's person, component, source, account, kind, correction */
+    personId: str(e.person_id),
+    component: str(e.component),
+    source: str(e.source),
+    account: str(e.account),
+    periodKind: str(e.period_kind),
+    correctsPeriod: str(e.corrects_period),
   })).sort((a, b) => b.period.localeCompare(a.period))
 }
 
 /** An empty form: this UTC month, USD. */
 export function emptyCostEntryForm(now = new Date()) {
-  return { label: '', amount: '', currency: 'USD', period: now.toISOString().slice(0, 7), note: '' }
+  return { label: '', amount: '', currency: 'USD', period: now.toISOString().slice(0, 7), note: '', personId: '', component: '', source: '', account: '', periodKind: 'month', correctsPeriod: '' }
 }
 
 /**
@@ -72,12 +79,24 @@ export function checkCostEntryForm(f, currencies = ['USD']) {
   if (!CUR_RE.test(str(f.currency)) || !currencies.includes(f.currency)) return 'err_currency'
   if (!MONTH_RE.test(str(f.period))) return 'err_period'
   if (bytes(str(f.note)) > NOTE_MAX) return 'err_note'
+  /* SPL-5433: the hr line's own fields (rdb 0279's CHECKs) */
+  if (str(f.personId) && !str(f.component)) return 'err_component'
+  if (bytes(str(f.source)) > 200 || bytes(str(f.account)) > 20) return 'err_source'
+  if (f.periodKind === 'year' && !str(f.period).endsWith('-01')) return 'err_year'
+  if (str(f.correctsPeriod) && (!MONTH_RE.test(f.correctsPeriod) || f.correctsPeriod >= f.period)) return 'err_corrects'
   return ''
 }
 
 /** The POST body of a checked form, for one tab's type. */
 export function costEntryBody(type, f) {
-  return { type, label: str(f.label).trim(), amount: Number(f.amount), currency: f.currency, period: f.period, note: str(f.note) }
+  const body = { type, label: str(f.label).trim(), amount: Number(f.amount), currency: f.currency, period: f.period, note: str(f.note) }
+  if (type !== 'hr') return body
+  /* SPL-5433: only the hr fields that are set */
+  for (const [k, v] of [['person_id', f.personId], ['component', f.component], ['source', str(f.source).trim()], ['account', str(f.account).trim()], ['corrects_period', f.correctsPeriod]]) {
+    if (str(v)) body[k] = v
+  }
+  if (f.periodKind === 'year') body.period_kind = 'year'
+  return body
 }
 
 function mockRead(store) {

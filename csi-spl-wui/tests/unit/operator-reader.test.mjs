@@ -51,7 +51,7 @@ describe('operator reader', () => {
     ]) for (const m of marks) assert.ok(read(file).includes(m), file + ': ' + m)
     const page = read('src/pages/expenses/[[tab]].vue')
     assert.ok(page.includes('<PaidItemsCard :readonly="!operator.visible" />'))
-    assert.ok(page.includes(':type="entryType" :readonly="!operator.visible" />'))
+    assert.ok(page.includes(':type="entryType" :readonly="!operator.visible && !writer"'))
   })
 })
 

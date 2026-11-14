@@ -4178,9 +4178,61 @@
       "total": "Spolu",
       "converted": "Prepočítané z {currency} kurzom z {day}",
       "no_rate": "Pre {currency} nie je uložený výmenný kurz",
-      "total_no_rate": "Bez súčtu: jeden mesiac nemá výmenný kurz"
+      "total_no_rate": "Bez súčtu: jeden mesiac nemá výmenný kurz",
+      "err_component": "Vyberte zložku pre riadok osoby.",
+      "err_source": "Zdroj má najviac 200 znakov, účet najviac 20.",
+      "err_year": "Ročný súčet sa účtuje na január daného roka.",
+      "err_corrects": "Opravovaný mesiac musí byť pred mesiacom riadku."
     },
     "operators_only": "Výdavky sú len pre administrátorov a vlastníkov produktu operátora.",
-    "tokens_link": "Zaplatené predplatné a dobitia sa zadávajú v časti Výdavky → Náklady na AI."
+    "tokens_link": "Zaplatené predplatné a dobitia sa zadávajú v časti Výdavky → Náklady na AI.",
+    "hr": {
+      "person": "Osoba",
+      "person_none": "Organizácia (bez osoby)",
+      "component": "Zložka",
+      "source": "Zdroj (napr. výplatná páska)",
+      "account": "Účet hlavnej knihy",
+      "kind": "Účtuje sa za",
+      "kind_month": "Mesiac",
+      "kind_year": "Celý rok",
+      "corrects": "Opravuje mesiac (voliteľné)",
+      "corrects_month": "opravuje {month}",
+      "month_open": "{month} je otvorený; zatvorí sa {day}.",
+      "month_closed": "{month} je zatvorený.",
+      "reopened": "Znova otvorený: {why}",
+      "close": "Zatvoriť mesiac",
+      "reopen": "Znova otvoriť",
+      "reopen_reason": "Dôvod opätovného otvorenia",
+      "people": "Osoby ({n})",
+      "codes_only": "Mená vidia iba účtovníci.",
+      "code": "Kód, napr. E-01",
+      "name": "Celé meno",
+      "department": "Oddelenie",
+      "employment": "Druh pracovného pomeru",
+      "birth_year": "Rok narodenia",
+      "add_person": "Pridať osobu",
+      "err_code": "Kód má 1 až 3 veľké písmená, pomlčku a 2 až 4 číslice, napr. E-01.",
+      "err_code_taken": "Tento kód je už obsadený.",
+      "err_name": "Zadajte meno (do 200 znakov).",
+      "err_department": "Oddelenie má najviac 100 znakov.",
+      "err_type": "Vyberte druh pracovného pomeru.",
+      "err_birth_year": "Rok narodenia je medzi 1900 a 2100.",
+      "type": {
+        "employee": "Zamestnanec",
+        "hourly": "Hodinová mzda",
+        "owner_management": "Vlastník alebo vedenie",
+        "contractor": "Dodávateľ"
+      },
+      "group": {
+        "salaries_wages": "Mzdy a platy",
+        "employer_contributions": "Odvody zamestnávateľa",
+        "working_time_allowances": "Príplatky za pracovný čas",
+        "bonuses_incentives": "Bonusy a stimuly",
+        "leave_absence": "Dovolenky a neprítomnosť",
+        "benefits_insurance": "Benefity a poistenie",
+        "training_recruitment": "Vzdelávanie a nábor",
+        "transport_meals": "Doprava a stravovanie"
+      }
+    }
   }
 }

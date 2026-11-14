@@ -4178,9 +4178,61 @@
       "total": "סה״כ",
       "converted": "הומר מ־{currency} לפי שער {day}",
       "no_rate": "אין שער חליפין שמור עבור {currency}",
-      "total_no_rate": "אין סה״כ: לחודש אחד אין שער חליפין"
+      "total_no_rate": "אין סה״כ: לחודש אחד אין שער חליפין",
+      "err_component": "בחרו רכיב לשורה של אדם.",
+      "err_source": "המקור הוא עד 200 תווים, והחשבון עד 20.",
+      "err_year": "סכום שנתי נרשם בינואר של אותה שנה.",
+      "err_corrects": "החודש המתוקן חייב להיות לפני חודש השורה."
     },
     "operators_only": "ההוצאות מיועדות למנהלי המפעיל ולבעלי המוצר שלו בלבד.",
-    "tokens_link": "מינויים וטעינות ששולמו מוזנים תחת הוצאות → עלויות בינה מלאכותית."
+    "tokens_link": "מינויים וטעינות ששולמו מוזנים תחת הוצאות → עלויות בינה מלאכותית.",
+    "hr": {
+      "person": "אדם",
+      "person_none": "הארגון (ללא אדם)",
+      "component": "רכיב",
+      "source": "מקור (למשל תלוש שכר)",
+      "account": "חשבון בהנהלת החשבונות",
+      "kind": "נרשם עבור",
+      "kind_month": "החודש",
+      "kind_year": "כל השנה",
+      "corrects": "מתקן חודש (רשות)",
+      "corrects_month": "מתקן את {month}",
+      "month_open": "{month} פתוח; הוא ייסגר ב־{day}.",
+      "month_closed": "{month} סגור.",
+      "reopened": "נפתח מחדש: {why}",
+      "close": "סגירת החודש",
+      "reopen": "פתיחה מחדש",
+      "reopen_reason": "סיבה לפתיחה מחדש",
+      "people": "אנשים ({n})",
+      "codes_only": "השמות מוצגים לרואי החשבון בלבד.",
+      "code": "קוד, למשל E-01",
+      "name": "שם מלא",
+      "department": "מחלקה",
+      "employment": "סוג העסקה",
+      "birth_year": "שנת לידה",
+      "add_person": "הוספת אדם",
+      "err_code": "הקוד הוא 1 עד 3 אותיות לטיניות גדולות, מקף ו־2 עד 4 ספרות, למשל E-01.",
+      "err_code_taken": "הקוד הזה כבר בשימוש.",
+      "err_name": "הזינו את השם (עד 200 תווים).",
+      "err_department": "אורך המחלקה הוא עד 100 תווים.",
+      "err_type": "בחרו את סוג ההעסקה.",
+      "err_birth_year": "שנת הלידה היא בין 1900 ל־2100.",
+      "type": {
+        "employee": "עובד",
+        "hourly": "שעתי",
+        "owner_management": "בעלים או הנהלה",
+        "contractor": "קבלן"
+      },
+      "group": {
+        "salaries_wages": "משכורות ושכר",
+        "employer_contributions": "הפרשות מעסיק",
+        "working_time_allowances": "תוספות שעות עבודה",
+        "bonuses_incentives": "בונוסים ותמריצים",
+        "leave_absence": "חופשות והיעדרויות",
+        "benefits_insurance": "הטבות וביטוחים",
+        "training_recruitment": "הדרכה וגיוס",
+        "transport_meals": "נסיעות וארוחות"
+      }
+    }
   }
 }

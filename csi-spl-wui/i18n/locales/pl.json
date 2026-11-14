@@ -4178,9 +4178,61 @@
       "total": "Razem",
       "converted": "Przeliczono z {currency} po kursie z {day}",
       "no_rate": "Brak zapisanego kursu wymiany dla {currency}",
-      "total_no_rate": "Brak sumy: jeden miesiąc nie ma kursu wymiany"
+      "total_no_rate": "Brak sumy: jeden miesiąc nie ma kursu wymiany",
+      "err_component": "Wybierz składnik dla wiersza osoby.",
+      "err_source": "Źródło ma najwyżej 200 znaków, konto najwyżej 20.",
+      "err_year": "Suma roczna jest księgowana na styczeń danego roku.",
+      "err_corrects": "Korygowany miesiąc musi być wcześniejszy niż miesiąc wiersza."
     },
     "operators_only": "Wydatki są tylko dla administratorów i właścicieli produktu operatora.",
-    "tokens_link": "Opłacone subskrypcje i doładowania wprowadza się w Wydatki → Koszty AI."
+    "tokens_link": "Opłacone subskrypcje i doładowania wprowadza się w Wydatki → Koszty AI.",
+    "hr": {
+      "person": "Osoba",
+      "person_none": "Organizacja (bez osoby)",
+      "component": "Składnik",
+      "source": "Źródło (np. pasek płacowy)",
+      "account": "Konto księgowe",
+      "kind": "Księgowane na",
+      "kind_month": "Miesiąc",
+      "kind_year": "Cały rok",
+      "corrects": "Koryguje miesiąc (opcjonalnie)",
+      "corrects_month": "koryguje {month}",
+      "month_open": "{month} jest otwarty; zamknie się {day}.",
+      "month_closed": "{month} jest zamknięty.",
+      "reopened": "Ponownie otwarty: {why}",
+      "close": "Zamknij miesiąc",
+      "reopen": "Otwórz ponownie",
+      "reopen_reason": "Powód ponownego otwarcia",
+      "people": "Osoby ({n})",
+      "codes_only": "Nazwiska widzą tylko księgowi.",
+      "code": "Kod, np. E-01",
+      "name": "Imię i nazwisko",
+      "department": "Dział",
+      "employment": "Rodzaj zatrudnienia",
+      "birth_year": "Rok urodzenia",
+      "add_person": "Dodaj osobę",
+      "err_code": "Kod to od 1 do 3 wielkich liter, myślnik i od 2 do 4 cyfr, np. E-01.",
+      "err_code_taken": "Ten kod jest już zajęty.",
+      "err_name": "Wpisz imię i nazwisko (do 200 znaków).",
+      "err_department": "Dział ma najwyżej 100 znaków.",
+      "err_type": "Wybierz rodzaj zatrudnienia.",
+      "err_birth_year": "Rok urodzenia mieści się między 1900 a 2100.",
+      "type": {
+        "employee": "Pracownik",
+        "hourly": "Stawka godzinowa",
+        "owner_management": "Właściciel lub zarząd",
+        "contractor": "Wykonawca"
+      },
+      "group": {
+        "salaries_wages": "Wynagrodzenia",
+        "employer_contributions": "Składki pracodawcy",
+        "working_time_allowances": "Dodatki za czas pracy",
+        "bonuses_incentives": "Premie i zachęty",
+        "leave_absence": "Urlopy i nieobecności",
+        "benefits_insurance": "Świadczenia i ubezpieczenia",
+        "training_recruitment": "Szkolenia i rekrutacja",
+        "transport_meals": "Transport i posiłki"
+      }
+    }
   }
 }

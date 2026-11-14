@@ -946,6 +946,18 @@ check).
   component under the component's label, so no report row is a person's
   (13.6); a yearly line is left out of the months. The name is never in a
   log line, an export or a test (tests use `FirstName LastName`).
+- **The screen** (Expenses -> HR costs, `components/expenses/`): the month's
+  lock state ("2026-10 is open; it closes on 2026-11-06", or closed), with
+  Close month and Reopen (a reason) for the operator admin; the People list
+  (codes for everyone, names only when the hub sends `names: true`) and its
+  Add person form for a `costs.write` member; the add form's hr fields
+  (person, component by group, source, ledger account, month or whole year,
+  corrects month); each row's second line (code, component, source,
+  correction). `/v1/view/me` carries `cost_writer` (costs.write in the
+  operator workspace, no act-as clone), which opens Expenses with its Cloud
+  infra and HR tabs to the accountants; AI costs stays the operator
+  readers'. The strings are in every locale (agy reviews them before they
+  ship, the language rule).
 - **Follow-up 3 above** is this section; follow-up 1 (the estate read for an
   accountant) is step (b).
 

@@ -4178,9 +4178,61 @@
       "total": "Totalt",
       "converted": "Omräknat från {currency} till kursen den {day}",
       "no_rate": "Ingen växelkurs sparad för {currency}",
-      "total_no_rate": "Ingen summa: en månad saknar växelkurs"
+      "total_no_rate": "Ingen summa: en månad saknar växelkurs",
+      "err_component": "Välj en kostnadsdel för en persons rad.",
+      "err_source": "Källan är högst 200 tecken, kontot högst 20.",
+      "err_year": "En årssumma bokförs på januari det året.",
+      "err_corrects": "Den rättade månaden måste ligga före radens månad."
     },
     "operators_only": "Utgifter är bara för operatörens administratörer och produktägare.",
-    "tokens_link": "Betalda abonnemang och påfyllningar förs in under Utgifter → AI-kostnader."
+    "tokens_link": "Betalda abonnemang och påfyllningar förs in under Utgifter → AI-kostnader.",
+    "hr": {
+      "person": "Person",
+      "person_none": "Organisationen (ingen person)",
+      "component": "Kostnadsdel",
+      "source": "Källa (t.ex. lönebesked)",
+      "account": "Bokföringskonto",
+      "kind": "Bokförs för",
+      "kind_month": "Månaden",
+      "kind_year": "Hela året",
+      "corrects": "Rättar månad (valfritt)",
+      "corrects_month": "rättar {month}",
+      "month_open": "{month} är öppen; den stängs {day}.",
+      "month_closed": "{month} är stängd.",
+      "reopened": "Återöppnad: {why}",
+      "close": "Stäng månad",
+      "reopen": "Återöppna",
+      "reopen_reason": "Skäl att återöppna",
+      "people": "Personer ({n})",
+      "codes_only": "Namn visas bara för redovisningsekonomerna.",
+      "code": "Kod, t.ex. E-01",
+      "name": "Fullständigt namn",
+      "department": "Avdelning",
+      "employment": "Anställningsform",
+      "birth_year": "Födelseår",
+      "add_person": "Lägg till person",
+      "err_code": "Koden är 1–3 versaler, ett bindestreck och 2–4 siffror, t.ex. E-01.",
+      "err_code_taken": "Koden används redan.",
+      "err_name": "Ange namnet (högst 200 tecken).",
+      "err_department": "Avdelningen är högst 100 tecken.",
+      "err_type": "Välj anställningsform.",
+      "err_birth_year": "Födelseåret ligger mellan 1900 och 2100.",
+      "type": {
+        "employee": "Anställd",
+        "hourly": "Timavlönad",
+        "owner_management": "Ägare eller ledning",
+        "contractor": "Uppdragstagare"
+      },
+      "group": {
+        "salaries_wages": "Löner",
+        "employer_contributions": "Arbetsgivaravgifter",
+        "working_time_allowances": "Arbetstidstillägg",
+        "bonuses_incentives": "Bonusar och incitament",
+        "leave_absence": "Ledighet och frånvaro",
+        "benefits_insurance": "Förmåner och försäkringar",
+        "training_recruitment": "Utbildning och rekrytering",
+        "transport_meals": "Resor och måltider"
+      }
+    }
   }
 }

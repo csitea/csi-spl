@@ -153,12 +153,28 @@ type meBody struct {
 	// (operator_read.go expensesReaders, SPL-5420): the operator reader, and
 	// the operator workspace's biz_owner and internal_accountant.
 	ExpensesReader bool `json:"expenses_reader"`
+	// CostWriter is true when the caller holds costs.write in the operator
+	// workspace and is no act-as clone (costEntryGate's rule, SPL-5433): the
+	// WUI opens Expenses -> Cloud infra and HR to the accountants. Only a
+	// costs.write holder pays the cached operator lookup.
+	CostWriter bool `json:"cost_writer"`
 }
 
 // operatorAdminOf is operatorActor's rule as a flag: a's role is admin and
 // tenant is the operator workspace in force. A failed lookup reads false.
 func (s *Server) operatorAdminOf(ctx context.Context, tenant string, a rbac.Access) bool {
 	if a.Role != rbac.Admin {
+		return false
+	}
+	op, err := s.operatorTenant(ctx)
+	return err == nil && op != "" && op == tenant
+}
+
+// costWriterOf is costEntryGate's rule as a flag: a holds costs.write,
+// tenant is the operator workspace, and the session is no act-as clone. A
+// failed lookup reads false.
+func (s *Server) costWriterOf(ctx context.Context, tenant string, a rbac.Access, actAs bool) bool {
+	if actAs || !a.Can(rbac.CostsWrite) {
 		return false
 	}
 	op, err := s.operatorTenant(ctx)
@@ -201,6 +217,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 		}
 		out.OperatorReader = s.operatorReaderOf(r.Context(), t.ID, a, out.ActAs != nil)
 		out.ExpensesReader = s.expensesReaderOf(r.Context(), t.ID, a, out.ActAs != nil)
+		out.CostWriter = s.costWriterOf(r.Context(), t.ID, a, out.ActAs != nil)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

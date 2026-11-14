@@ -1464,7 +1464,7 @@ declare module '~/utils/access.mjs' {
   export function archivePolicyOf(v: unknown): string
   export type ActAs = { targetHum: string, targetName: string, expiresAt: string }
   export function normalizeActAs(a: unknown): ActAs | null
-  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null, operatorReader: boolean | null, expensesReader: boolean | null, topicArchivePolicy: string, operatorAdmin: boolean | null }
+  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null, operatorReader: boolean | null, expensesReader: boolean | null, topicArchivePolicy: string, operatorAdmin: boolean | null, costWriter: boolean }
   export function operatorReads(me: { operatorReader?: boolean | null } | null | undefined, operatorVisible: boolean): boolean
   export function expensesReads(me: { operatorReader?: boolean | null, expensesReader?: boolean | null } | null | undefined, operatorVisible: boolean): boolean
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean

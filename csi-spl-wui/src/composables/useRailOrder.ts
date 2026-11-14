@@ -5,6 +5,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAddToNote } from '~/composables/useAddToNote'
 import { useExpensesReader } from '~/composables/useExpensesReader'
+import { useCostWriter } from '~/composables/useOperatorReader'
 import { perfWhenIdle } from '~/utils/perf-idle.mjs'
 import { applyRailOrder, parseRailOrder, pinRailOrder, railOrderDrawn, type RailId } from '~/utils/rail-order'
 
@@ -13,7 +14,9 @@ export function useRailOrder() {
   const auth = useAuthClient()
   const notes = useAddToNote()
   const expensesReader = useExpensesReader()
-  const order = computed<RailId[]>(() => railOrderDrawn(parseRailOrder(session.claims?.rail_order), notes.offered.value, expensesReader.value))
+  /* SPL-5433: a costs.write member of the operator workspace opens Expenses too */
+  const costWriter = useCostWriter()
+  const order = computed<RailId[]>(() => railOrderDrawn(parseRailOrder(session.claims?.rail_order), notes.offered.value, expensesReader.value || costWriter.value))
   const custom = computed(() => Array.isArray(session.claims?.rail_order) && session.claims.rail_order.length > 0)
   const saving = ref(false)
 

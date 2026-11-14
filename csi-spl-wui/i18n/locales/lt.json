@@ -4178,9 +4178,61 @@
       "total": "Iš viso",
       "converted": "Konvertuota iš {currency} pagal {day} kursą",
       "no_rate": "Nėra išsaugoto {currency} valiutos kurso",
-      "total_no_rate": "Nėra sumos: vienam mėnesiui nėra valiutos kurso"
+      "total_no_rate": "Nėra sumos: vienam mėnesiui nėra valiutos kurso",
+      "err_component": "Pasirinkite asmens eilutės komponentą.",
+      "err_source": "Šaltinis – ne daugiau kaip 200 simbolių, sąskaita – ne daugiau kaip 20.",
+      "err_year": "Metinė suma registruojama už tų metų sausį.",
+      "err_corrects": "Taisomas mėnuo turi būti ankstesnis už eilutės mėnesį."
     },
     "operators_only": "Išlaidos skirtos tik operatoriaus administratoriams ir produkto savininkams.",
-    "tokens_link": "Apmokėtos prenumeratos ir papildymai įvedami skiltyje Išlaidos → DI išlaidos."
+    "tokens_link": "Apmokėtos prenumeratos ir papildymai įvedami skiltyje Išlaidos → DI išlaidos.",
+    "hr": {
+      "person": "Asmuo",
+      "person_none": "Organizacija (be asmens)",
+      "component": "Komponentas",
+      "source": "Šaltinis (pvz., atlyginimo lapelis)",
+      "account": "Buhalterinė sąskaita",
+      "kind": "Registruojama už",
+      "kind_month": "Mėnesį",
+      "kind_year": "Visus metus",
+      "corrects": "Taiso mėnesį (nebūtina)",
+      "corrects_month": "taiso {month}",
+      "month_open": "{month} atidarytas; uždaromas {day}.",
+      "month_closed": "{month} uždarytas.",
+      "reopened": "Atidarytas iš naujo: {why}",
+      "close": "Uždaryti mėnesį",
+      "reopen": "Atidaryti iš naujo",
+      "reopen_reason": "Atidarymo iš naujo priežastis",
+      "people": "Asmenys ({n})",
+      "codes_only": "Vardus mato tik buhalteriai.",
+      "code": "Kodas, pvz., E-01",
+      "name": "Vardas ir pavardė",
+      "department": "Skyrius",
+      "employment": "Įdarbinimo tipas",
+      "birth_year": "Gimimo metai",
+      "add_person": "Pridėti asmenį",
+      "err_code": "Kodą sudaro 1–3 didžiosios raidės, brūkšnelis ir 2–4 skaitmenys, pvz., E-01.",
+      "err_code_taken": "Šis kodas jau užimtas.",
+      "err_name": "Įveskite vardą ir pavardę (iki 200 simbolių).",
+      "err_department": "Skyrius – ne daugiau kaip 100 simbolių.",
+      "err_type": "Pasirinkite įdarbinimo tipą.",
+      "err_birth_year": "Gimimo metai – nuo 1900 iki 2100.",
+      "type": {
+        "employee": "Darbuotojas",
+        "hourly": "Valandinis",
+        "owner_management": "Savininkas ar vadovybė",
+        "contractor": "Rangovas"
+      },
+      "group": {
+        "salaries_wages": "Darbo užmokestis",
+        "employer_contributions": "Darbdavio įmokos",
+        "working_time_allowances": "Priedai už darbo laiką",
+        "bonuses_incentives": "Premijos ir paskatos",
+        "leave_absence": "Atostogos ir nebuvimas",
+        "benefits_insurance": "Naudos ir draudimas",
+        "training_recruitment": "Mokymai ir atranka",
+        "transport_meals": "Transportas ir maitinimas"
+      }
+    }
   }
 }

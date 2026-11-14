@@ -4178,9 +4178,61 @@
       "total": "Total",
       "converted": "Converted from {currency} at the rate of {day}",
       "no_rate": "No exchange rate stored for {currency}",
-      "total_no_rate": "No total: a month has no exchange rate"
+      "total_no_rate": "No total: a month has no exchange rate",
+      "err_component": "Pick a component for a person's line.",
+      "err_source": "Source is at most 200 characters, account at most 20.",
+      "err_year": "A yearly total goes on the year's January.",
+      "err_corrects": "The corrected month must be before the line's month."
     },
     "operators_only": "Expenses are for operator admins and product owners only.",
-    "tokens_link": "Paid subscriptions and top-ups are entered under Expenses → AI costs."
+    "tokens_link": "Paid subscriptions and top-ups are entered under Expenses → AI costs.",
+    "hr": {
+      "person": "Person",
+      "person_none": "The organisation (no person)",
+      "component": "Component",
+      "source": "Source (e.g. payslip)",
+      "account": "Ledger account",
+      "kind": "Booked for",
+      "kind_month": "The month",
+      "kind_year": "The whole year",
+      "corrects": "Corrects month (optional)",
+      "corrects_month": "corrects {month}",
+      "month_open": "{month} is open; it closes on {day}.",
+      "month_closed": "{month} is closed.",
+      "reopened": "Reopened: {why}",
+      "close": "Close month",
+      "reopen": "Reopen",
+      "reopen_reason": "Reason to reopen",
+      "people": "People ({n})",
+      "codes_only": "Names are shown to the accountants only.",
+      "code": "Code, e.g. E-01",
+      "name": "Full name",
+      "department": "Department",
+      "employment": "Employment type",
+      "birth_year": "Birth year",
+      "add_person": "Add person",
+      "err_code": "The code is 1 to 3 capital letters, a dash and 2 to 4 digits, e.g. E-01.",
+      "err_code_taken": "That code is taken.",
+      "err_name": "Enter the name (up to 200 characters).",
+      "err_department": "The department is at most 100 characters.",
+      "err_type": "Pick the employment type.",
+      "err_birth_year": "The birth year is between 1900 and 2100.",
+      "type": {
+        "employee": "Employee",
+        "hourly": "Hourly",
+        "owner_management": "Owner or management",
+        "contractor": "Contractor"
+      },
+      "group": {
+        "salaries_wages": "Salaries and wages",
+        "employer_contributions": "Employer contributions",
+        "working_time_allowances": "Working-time allowances",
+        "bonuses_incentives": "Bonuses and incentives",
+        "leave_absence": "Leave and absence",
+        "benefits_insurance": "Benefits and insurance",
+        "training_recruitment": "Training and recruitment",
+        "transport_meals": "Transport and meals"
+      }
+    }
   }
 }

@@ -4178,9 +4178,61 @@
       "total": "Toplam",
       "converted": "{currency} biriminden {day} tarihli kurla çevrildi",
       "no_rate": "{currency} için kayıtlı döviz kuru yok",
-      "total_no_rate": "Toplam yok: bir ayın döviz kuru yok"
+      "total_no_rate": "Toplam yok: bir ayın döviz kuru yok",
+      "err_component": "Bir kişinin satırı için bir kalem seçin.",
+      "err_source": "Kaynak en fazla 200, hesap en fazla 20 karakterdir.",
+      "err_year": "Yıllık toplam, yılın ocak ayına kaydedilir.",
+      "err_corrects": "Düzeltilen ay, satırın ayından önce olmalıdır."
     },
     "operators_only": "Giderler yalnızca operatör yöneticileri ve ürün sahipleri içindir.",
-    "tokens_link": "Ödenen abonelikler ve yüklemeler Giderler → Yapay zekâ maliyetleri altında girilir."
+    "tokens_link": "Ödenen abonelikler ve yüklemeler Giderler → Yapay zekâ maliyetleri altında girilir.",
+    "hr": {
+      "person": "Kişi",
+      "person_none": "Kuruluş (kişi yok)",
+      "component": "Kalem",
+      "source": "Kaynak (ör. bordro)",
+      "account": "Muhasebe hesabı",
+      "kind": "Kayıt dönemi",
+      "kind_month": "Ay",
+      "kind_year": "Tüm yıl",
+      "corrects": "Düzelttiği ay (isteğe bağlı)",
+      "corrects_month": "{month} düzeltmesi",
+      "month_open": "{month} açık; {day} tarihinde kapanır.",
+      "month_closed": "{month} kapalı.",
+      "reopened": "Yeniden açıldı: {why}",
+      "close": "Ayı kapat",
+      "reopen": "Yeniden aç",
+      "reopen_reason": "Yeniden açma nedeni",
+      "people": "Kişiler ({n})",
+      "codes_only": "İsimleri yalnızca muhasebeciler görür.",
+      "code": "Kod, ör. E-01",
+      "name": "Tam ad",
+      "department": "Departman",
+      "employment": "Çalışma türü",
+      "birth_year": "Doğum yılı",
+      "add_person": "Kişi ekle",
+      "err_code": "Kod 1–3 büyük harf, bir tire ve 2–4 rakamdır, ör. E-01.",
+      "err_code_taken": "Bu kod zaten kullanılıyor.",
+      "err_name": "Adı girin (en fazla 200 karakter).",
+      "err_department": "Departman en fazla 100 karakterdir.",
+      "err_type": "Çalışma türünü seçin.",
+      "err_birth_year": "Doğum yılı 1900 ile 2100 arasındadır.",
+      "type": {
+        "employee": "Çalışan",
+        "hourly": "Saatlik",
+        "owner_management": "Sahip veya yönetim",
+        "contractor": "Yüklenici"
+      },
+      "group": {
+        "salaries_wages": "Maaş ve ücretler",
+        "employer_contributions": "İşveren katkıları",
+        "working_time_allowances": "Çalışma saati ek ödemeleri",
+        "bonuses_incentives": "Primler ve teşvikler",
+        "leave_absence": "İzin ve devamsızlık",
+        "benefits_insurance": "Yan haklar ve sigorta",
+        "training_recruitment": "Eğitim ve işe alım",
+        "transport_meals": "Ulaşım ve yemek"
+      }
+    }
   }
 }

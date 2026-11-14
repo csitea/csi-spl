@@ -23,6 +23,7 @@
     "tail -f": "command name, a code (spec 160 file streams list, SPL-4124)"
   },
   "keys": {
+    "expenses.hr.person": "sv spells the word Person like en (agy a-302, msg 8da43e07, SPL-5433)",
     "topic.priority.short": "the bar's short label 'Prio' (owner HUM-10, t1 2fafde5c msg 0b66d67c): nl and sv use the same short word, a dictionary clipping (SPL-5288; agy a-612, msg 79c3221c; fi reads 'Prior.')",
     "auth.native.dev": "environment code 'dev:'",
     "feed.live_state.mock": "connection state code shown as is",

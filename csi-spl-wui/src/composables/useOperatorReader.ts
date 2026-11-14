@@ -12,3 +12,9 @@ export function useOperatorReader() {
   const operator = useOperatorPane()
   return computed(() => operatorReads(access.me, operator.visible))
 }
+
+/** SPL-5433: whether this reader holds costs.write in the operator workspace (the hub's cost_writer). */
+export function useCostWriter() {
+  const access = useAccessStore()
+  return computed(() => access.me?.costWriter === true)
+}

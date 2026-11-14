@@ -4178,9 +4178,61 @@
       "total": "Totalul",
       "converted": "Convertit din {currency} la cursul din {day}",
       "no_rate": "Nu există curs de schimb salvat pentru {currency}",
-      "total_no_rate": "Fără total: o lună nu are curs de schimb"
+      "total_no_rate": "Fără total: o lună nu are curs de schimb",
+      "err_component": "Alege o componentă pentru rândul unei persoane.",
+      "err_source": "Sursa are cel mult 200 de caractere, contul cel mult 20.",
+      "err_year": "Un total anual se înregistrează în luna ianuarie a anului respectiv.",
+      "err_corrects": "Luna corectată trebuie să fie înaintea lunii rândului."
     },
     "operators_only": "Cheltuielile sunt doar pentru administratorii și proprietarii de produs ai operatorului.",
-    "tokens_link": "Abonamentele și reîncărcările plătite se introduc la Cheltuieli → Costuri IA."
+    "tokens_link": "Abonamentele și reîncărcările plătite se introduc la Cheltuieli → Costuri IA.",
+    "hr": {
+      "person": "Persoană",
+      "person_none": "Organizația (fără persoană)",
+      "component": "Componentă",
+      "source": "Sursă (de ex. fluturaș de salariu)",
+      "account": "Cont contabil",
+      "kind": "Înregistrat pentru",
+      "kind_month": "Lună",
+      "kind_year": "Tot anul",
+      "corrects": "Corectează luna (opțional)",
+      "corrects_month": "corectează {month}",
+      "month_open": "Luna {month} este deschisă; se închide pe {day}.",
+      "month_closed": "Luna {month} este închisă.",
+      "reopened": "Redeschisă: {why}",
+      "close": "Închide luna",
+      "reopen": "Redeschide",
+      "reopen_reason": "Motivul redeschiderii",
+      "people": "Persoane ({n})",
+      "codes_only": "Numele sunt vizibile doar contabililor.",
+      "code": "Cod, de ex. E-01",
+      "name": "Nume complet",
+      "department": "Departament",
+      "employment": "Tip de angajare",
+      "birth_year": "Anul nașterii",
+      "add_person": "Adaugă persoană",
+      "err_code": "Codul are 1–3 majuscule, o cratimă și 2–4 cifre, de ex. E-01.",
+      "err_code_taken": "Codul este deja folosit.",
+      "err_name": "Introdu numele (până la 200 de caractere).",
+      "err_department": "Departamentul are cel mult 100 de caractere.",
+      "err_type": "Alege tipul de angajare.",
+      "err_birth_year": "Anul nașterii este între 1900 și 2100.",
+      "type": {
+        "employee": "Angajat",
+        "hourly": "Plătit cu ora",
+        "owner_management": "Proprietar sau conducere",
+        "contractor": "Colaborator"
+      },
+      "group": {
+        "salaries_wages": "Salarii",
+        "employer_contributions": "Contribuțiile angajatorului",
+        "working_time_allowances": "Sporuri pentru programul de lucru",
+        "bonuses_incentives": "Bonusuri și stimulente",
+        "leave_absence": "Concedii și absențe",
+        "benefits_insurance": "Beneficii și asigurări",
+        "training_recruitment": "Formare și recrutare",
+        "transport_meals": "Transport și masă"
+      }
+    }
   }
 }

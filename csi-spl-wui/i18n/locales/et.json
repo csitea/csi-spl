@@ -4178,9 +4178,61 @@
       "total": "Kokku",
       "converted": "Teisendatud valuutast {currency} kuupäeva {day} kursiga",
       "no_rate": "Valuuta {currency} vahetuskurssi pole salvestatud",
-      "total_no_rate": "Kokkuvõte puudub: ühel kuul pole vahetuskurssi"
+      "total_no_rate": "Kokkuvõte puudub: ühel kuul pole vahetuskurssi",
+      "err_component": "Vali isiku reale kulukomponent.",
+      "err_source": "Allikas on kuni 200 märki, konto kuni 20.",
+      "err_year": "Aasta kogusumma kirjendatakse selle aasta jaanuarisse.",
+      "err_corrects": "Parandatav kuu peab olema enne rea kuud."
     },
     "operators_only": "Kulud on ainult operaatori administraatoritele ja tooteomanikele.",
-    "tokens_link": "Makstud tellimused ja laadimised sisestatakse jaotises Kulud → Tehisintellekti kulud."
+    "tokens_link": "Makstud tellimused ja laadimised sisestatakse jaotises Kulud → Tehisintellekti kulud.",
+    "hr": {
+      "person": "Isik",
+      "person_none": "Organisatsioon (isikuta)",
+      "component": "Kulukomponent",
+      "source": "Allikas (nt palgaleht)",
+      "account": "Raamatupidamiskonto",
+      "kind": "Kirjendatakse",
+      "kind_month": "Kuule",
+      "kind_year": "Kogu aastale",
+      "corrects": "Parandab kuud (valikuline)",
+      "corrects_month": "parandab kuud {month}",
+      "month_open": "{month} on avatud; see suletakse {day}.",
+      "month_closed": "{month} on suletud.",
+      "reopened": "Uuesti avatud: {why}",
+      "close": "Sulge kuu",
+      "reopen": "Ava uuesti",
+      "reopen_reason": "Uuesti avamise põhjus",
+      "people": "Isikud ({n})",
+      "codes_only": "Nimesid näevad ainult raamatupidajad.",
+      "code": "Kood, nt E-01",
+      "name": "Täisnimi",
+      "department": "Osakond",
+      "employment": "Töösuhte liik",
+      "birth_year": "Sünniaasta",
+      "add_person": "Lisa isik",
+      "err_code": "Kood on 1–3 suurtähte, sidekriips ja 2–4 numbrit, nt E-01.",
+      "err_code_taken": "See kood on juba kasutusel.",
+      "err_name": "Sisesta nimi (kuni 200 märki).",
+      "err_department": "Osakond on kuni 100 märki.",
+      "err_type": "Vali töösuhte liik.",
+      "err_birth_year": "Sünniaasta on vahemikus 1900–2100.",
+      "type": {
+        "employee": "Töötaja",
+        "hourly": "Tunnitasuline",
+        "owner_management": "Omanik või juhtkond",
+        "contractor": "Töövõtja"
+      },
+      "group": {
+        "salaries_wages": "Palgad",
+        "employer_contributions": "Tööandja maksed",
+        "working_time_allowances": "Tööaja lisatasud",
+        "bonuses_incentives": "Preemiad ja stiimulid",
+        "leave_absence": "Puhkused ja puudumised",
+        "benefits_insurance": "Hüved ja kindlustused",
+        "training_recruitment": "Koolitus ja värbamine",
+        "transport_meals": "Transport ja toitlustus"
+      }
+    }
   }
 }

@@ -4178,9 +4178,61 @@
       "total": "Totaal",
       "converted": "Omgerekend uit {currency} tegen de koers van {day}",
       "no_rate": "Geen wisselkoers opgeslagen voor {currency}",
-      "total_no_rate": "Geen totaal: een maand heeft geen wisselkoers"
+      "total_no_rate": "Geen totaal: een maand heeft geen wisselkoers",
+      "err_component": "Kies een kostensoort voor de regel van een persoon.",
+      "err_source": "De bron is hoogstens 200 tekens, de rekening hoogstens 20.",
+      "err_year": "Een jaartotaal wordt geboekt op januari van dat jaar.",
+      "err_corrects": "De gecorrigeerde maand moet vóór de maand van de regel liggen."
     },
     "operators_only": "Uitgaven zijn alleen voor beheerders en producteigenaren van de operator.",
-    "tokens_link": "Betaalde abonnementen en opwaarderingen voer je in onder Uitgaven → AI-kosten."
+    "tokens_link": "Betaalde abonnementen en opwaarderingen voer je in onder Uitgaven → AI-kosten.",
+    "hr": {
+      "person": "Persoon",
+      "person_none": "De organisatie (geen persoon)",
+      "component": "Kostensoort",
+      "source": "Bron (bijv. loonstrook)",
+      "account": "Grootboekrekening",
+      "kind": "Geboekt voor",
+      "kind_month": "De maand",
+      "kind_year": "Het hele jaar",
+      "corrects": "Corrigeert maand (optioneel)",
+      "corrects_month": "corrigeert {month}",
+      "month_open": "{month} is open; deze sluit op {day}.",
+      "month_closed": "{month} is gesloten.",
+      "reopened": "Heropend: {why}",
+      "close": "Maand sluiten",
+      "reopen": "Heropenen",
+      "reopen_reason": "Reden om te heropenen",
+      "people": "Personen ({n})",
+      "codes_only": "Alleen de boekhouders zien de namen.",
+      "code": "Code, bijv. E-01",
+      "name": "Volledige naam",
+      "department": "Afdeling",
+      "employment": "Soort dienstverband",
+      "birth_year": "Geboortejaar",
+      "add_person": "Persoon toevoegen",
+      "err_code": "De code is 1 tot 3 hoofdletters, een streepje en 2 tot 4 cijfers, bijv. E-01.",
+      "err_code_taken": "Die code is al in gebruik.",
+      "err_name": "Vul de naam in (tot 200 tekens).",
+      "err_department": "De afdeling is hoogstens 100 tekens.",
+      "err_type": "Kies het soort dienstverband.",
+      "err_birth_year": "Het geboortejaar ligt tussen 1900 en 2100.",
+      "type": {
+        "employee": "Werknemer",
+        "hourly": "Per uur",
+        "owner_management": "Eigenaar of directie",
+        "contractor": "Opdrachtnemer"
+      },
+      "group": {
+        "salaries_wages": "Salarissen en lonen",
+        "employer_contributions": "Werkgeverslasten",
+        "working_time_allowances": "Toeslagen voor werktijden",
+        "bonuses_incentives": "Bonussen en prikkels",
+        "leave_absence": "Verlof en afwezigheid",
+        "benefits_insurance": "Voordelen en verzekeringen",
+        "training_recruitment": "Opleiding en werving",
+        "transport_meals": "Vervoer en maaltijden"
+      }
+    }
   }
 }

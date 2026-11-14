@@ -4178,9 +4178,61 @@
       "total": "Kopā",
       "converted": "Konvertēts no {currency} pēc {day} kursa",
       "no_rate": "Valūtai {currency} nav saglabāta valūtas kursa",
-      "total_no_rate": "Nav kopsummas: vienam mēnesim nav valūtas kursa"
+      "total_no_rate": "Nav kopsummas: vienam mēnesim nav valūtas kursa",
+      "err_component": "Izvēlieties komponentu personas rindai.",
+      "err_source": "Avots ir līdz 200 rakstzīmēm, konts līdz 20.",
+      "err_year": "Gada kopsummu grāmato tā gada janvārī.",
+      "err_corrects": "Labojamam mēnesim jābūt pirms rindas mēneša."
     },
     "operators_only": "Izdevumi ir tikai operatora administratoriem un produkta īpašniekiem.",
-    "tokens_link": "Apmaksātie abonementi un papildinājumi tiek ievadīti sadaļā Izdevumi → MI izmaksas."
+    "tokens_link": "Apmaksātie abonementi un papildinājumi tiek ievadīti sadaļā Izdevumi → MI izmaksas.",
+    "hr": {
+      "person": "Persona",
+      "person_none": "Organizācija (bez personas)",
+      "component": "Komponents",
+      "source": "Avots (piem., algas lapiņa)",
+      "account": "Grāmatvedības konts",
+      "kind": "Grāmato par",
+      "kind_month": "Mēnesi",
+      "kind_year": "Visu gadu",
+      "corrects": "Labo mēnesi (pēc izvēles)",
+      "corrects_month": "labo {month}",
+      "month_open": "{month} ir atvērts; tas tiks slēgts {day}.",
+      "month_closed": "{month} ir slēgts.",
+      "reopened": "Atvērts atkārtoti: {why}",
+      "close": "Slēgt mēnesi",
+      "reopen": "Atvērt atkārtoti",
+      "reopen_reason": "Atkārtotas atvēršanas iemesls",
+      "people": "Personas ({n})",
+      "codes_only": "Vārdus redz tikai grāmatveži.",
+      "code": "Kods, piem., E-01",
+      "name": "Vārds un uzvārds",
+      "department": "Nodaļa",
+      "employment": "Nodarbinātības veids",
+      "birth_year": "Dzimšanas gads",
+      "add_person": "Pievienot personu",
+      "err_code": "Kods ir 1–3 lielie burti, defise un 2–4 cipari, piem., E-01.",
+      "err_code_taken": "Šis kods jau ir aizņemts.",
+      "err_name": "Ievadiet vārdu un uzvārdu (līdz 200 rakstzīmēm).",
+      "err_department": "Nodaļa ir līdz 100 rakstzīmēm.",
+      "err_type": "Izvēlieties nodarbinātības veidu.",
+      "err_birth_year": "Dzimšanas gads ir no 1900 līdz 2100.",
+      "type": {
+        "employee": "Darbinieks",
+        "hourly": "Stundu darbs",
+        "owner_management": "Īpašnieks vai vadība",
+        "contractor": "Darbuzņēmējs"
+      },
+      "group": {
+        "salaries_wages": "Algas",
+        "employer_contributions": "Darba devēja iemaksas",
+        "working_time_allowances": "Piemaksas par darba laiku",
+        "bonuses_incentives": "Prēmijas un stimuli",
+        "leave_absence": "Atvaļinājumi un prombūtne",
+        "benefits_insurance": "Labumi un apdrošināšana",
+        "training_recruitment": "Apmācība un atlase",
+        "transport_meals": "Transports un ēdināšana"
+      }
+    }
   }
 }

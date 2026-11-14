@@ -4178,9 +4178,61 @@
       "total": "Suma total",
       "converted": "Convertido desde {currency} al tipo del {day}",
       "no_rate": "No hay tipo de cambio guardado para {currency}",
-      "total_no_rate": "Sin total: un mes no tiene tipo de cambio"
+      "total_no_rate": "Sin total: un mes no tiene tipo de cambio",
+      "err_component": "Elige un componente para la línea de una persona.",
+      "err_source": "La fuente tiene como máximo 200 caracteres y la cuenta 20.",
+      "err_year": "Un total anual se registra en enero de ese año.",
+      "err_corrects": "El mes corregido debe ser anterior al mes de la línea."
     },
     "operators_only": "Los gastos son solo para administradores y propietarios de producto del operador.",
-    "tokens_link": "Las suscripciones y recargas pagadas se introducen en Gastos → Costes de IA."
+    "tokens_link": "Las suscripciones y recargas pagadas se introducen en Gastos → Costes de IA.",
+    "hr": {
+      "person": "Persona",
+      "person_none": "La organización (sin persona)",
+      "component": "Componente",
+      "source": "Fuente (p. ej., nómina)",
+      "account": "Cuenta contable",
+      "kind": "Se registra para",
+      "kind_month": "El mes",
+      "kind_year": "Todo el año",
+      "corrects": "Corrige el mes (opcional)",
+      "corrects_month": "corrige {month}",
+      "month_open": "{month} está abierto; se cierra el {day}.",
+      "month_closed": "{month} está cerrado.",
+      "reopened": "Reabierto: {why}",
+      "close": "Cerrar mes",
+      "reopen": "Reabrir",
+      "reopen_reason": "Motivo para reabrir",
+      "people": "Personas ({n})",
+      "codes_only": "Solo los contables ven los nombres.",
+      "code": "Código, p. ej., E-01",
+      "name": "Nombre completo",
+      "department": "Departamento",
+      "employment": "Tipo de empleo",
+      "birth_year": "Año de nacimiento",
+      "add_person": "Añadir persona",
+      "err_code": "El código tiene de 1 a 3 mayúsculas, un guion y de 2 a 4 dígitos, p. ej., E-01.",
+      "err_code_taken": "Ese código ya está en uso.",
+      "err_name": "Escribe el nombre (hasta 200 caracteres).",
+      "err_department": "El departamento tiene como máximo 100 caracteres.",
+      "err_type": "Elige el tipo de empleo.",
+      "err_birth_year": "El año de nacimiento está entre 1900 y 2100.",
+      "type": {
+        "employee": "Empleado",
+        "hourly": "Por horas",
+        "owner_management": "Propietario o dirección",
+        "contractor": "Contratista"
+      },
+      "group": {
+        "salaries_wages": "Sueldos y salarios",
+        "employer_contributions": "Cotizaciones del empleador",
+        "working_time_allowances": "Pluses por horario",
+        "bonuses_incentives": "Bonificaciones e incentivos",
+        "leave_absence": "Vacaciones y ausencias",
+        "benefits_insurance": "Beneficios y seguros",
+        "training_recruitment": "Formación y selección",
+        "transport_meals": "Transporte y comidas"
+      }
+    }
   }
 }

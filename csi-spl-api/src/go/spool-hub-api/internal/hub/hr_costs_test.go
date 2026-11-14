@@ -131,3 +131,26 @@ func reopenMonth(t *testing.T, r *fleetTokensRig, month string) {
 		t.Fatalf("reopen %s: %d %v", month, c, got)
 	}
 }
+
+// SPL-5433: /v1/view/me's cost_writer is true for a costs.write member of the
+// operator workspace (the internal_accountant, the admin), false for its
+// product owner and for an accountant of another workspace: the WUI opens
+// Expenses -> Cloud infra and HR on it. RED CONTROL: without the line that
+// sets CostWriter in handleViewMe the accountant reads false.
+func TestViewMeCostWriter(t *testing.T) {
+	r := newFleetTokensRig(t)
+	for _, c := range []struct {
+		name, tenant, as string
+		want             bool
+	}{
+		{"operator internal_accountant", r.op, seat(t, r.e, r.op, rbac.InternalAccountant), true},
+		{"operator admin", r.op, r.admin, true},
+		{"operator product owner", r.op, seat(t, r.e, r.op, rbac.ProductOwner), false},
+		{"another workspace's accountant", r.other, seat(t, r.e, r.other, rbac.InternalAccountant), false},
+	} {
+		code, got := call(t, r.e, c.tenant, http.MethodGet, "/v1/view/me", c.as, nil)
+		if code != http.StatusOK || got["cost_writer"] != c.want {
+			t.Errorf("%s: %d cost_writer %v, want %v", c.name, code, got["cost_writer"], c.want)
+		}
+	}
+}

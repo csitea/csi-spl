@@ -313,9 +313,9 @@ async function costEntryRound(p, id, size) {
   ok(`SPL-4382 ${id}: the other tab does not list it`, await waitFor(p, `[data-test=expenses-${other}] [data-test=cost-empty]`))
   await p.click(`[data-test=expenses-tab-${id}]`)
   await waitFor(p, '[data-test=cost-row]')
-  await p.click('[data-test=cost-delete]')
+  await tap(p, '[data-test=cost-delete]')
   ok(`SPL-4382 ${id}: Delete asks first`, await waitFor(p, '[data-test=cost-delete-yes]') && (await rows()) === 1)
-  await p.click('[data-test=cost-delete-yes]')
+  await tap(p, '[data-test=cost-delete-yes]')
   ok(`SPL-4382 ${id}: deleted, the list is empty again`, await waitFor(p, '[data-test=cost-empty]'))
 }
 

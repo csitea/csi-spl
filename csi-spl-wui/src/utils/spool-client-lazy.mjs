@@ -2120,6 +2120,11 @@ async function reportingSql(ctx, query) {
  *   'entries', type       GET    /v1/operator/cost-entries?type= (SPL-4382, Expenses)
  *   'entry_create', body  POST   /v1/operator/cost-entries
  *   'entry_delete', id    DELETE /v1/operator/cost-entries/{id}
+ *   'hr_components'       GET    /v1/operator/hr-components (SPL-5433, the HR tab)
+ *   'hr_people'           GET    /v1/operator/hr-people
+ *   'hr_person_create', b POST   /v1/operator/hr-people
+ *   'hr_period', month    GET    /v1/operator/cost-periods/{month}
+ *   'hr_period_set', m, b POST   /v1/operator/cost-periods/{m}/{b.op} ({reason} on a reopen)
  *   'alloc', door, month  GET    /v1/<door>/cost-allocations?month= (SPL-5291)
  *   'alloc_put', door, b  PUT    /v1/<door>/cost-allocations
  * Operator admin only, as getFleetTokens; the alloc ops' door 'tenant' is a
@@ -2144,6 +2149,21 @@ async function fleetPaid(ctx, op, a, b) {
     const path = '/v1/' + door + '/cost-allocations'
     if (op === 'alloc') return live(path + (b ? '?month=' + encodeURIComponent(b) : ''))
     if (op === 'alloc_put') return live(path, json('PUT', b))
+    throw new Error('fleetPaid: unknown op ' + op)
+  }
+  if (op.startsWith('hr_')) {
+    if (mock) {
+      const h = await import('./hr-costs.mjs')
+      const ops = { hr_components: () => h.mockHrComponents(), hr_people: () => h.mockHrPeople(), hr_person_create: () => h.mockHrPersonCreate(a), hr_period: () => h.mockHrPeriod(a), hr_period_set: () => h.mockHrPeriodSet(a, b && b.op, b && b.reason) }
+      if (!ops[op]) throw new Error('fleetPaid: unknown op ' + op)
+      return ops[op]()
+    }
+    const period = '/v1/operator/cost-periods/' + encodeURIComponent(a)
+    if (op === 'hr_components') return live('/v1/operator/hr-components')
+    if (op === 'hr_people') return live('/v1/operator/hr-people')
+    if (op === 'hr_person_create') return live('/v1/operator/hr-people', json('POST', a))
+    if (op === 'hr_period') return live(period)
+    if (op === 'hr_period_set' && b && (b.op === 'close' || b.op === 'reopen')) return live(period + '/' + b.op, json('POST', b.op === 'reopen' ? { reason: b.reason } : {}))
     throw new Error('fleetPaid: unknown op ' + op)
   }
   if (mock && op.startsWith('entr')) {

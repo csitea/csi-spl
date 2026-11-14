@@ -11,6 +11,11 @@
       <button v-if="!adding && !readonly" type="button" class="btn" data-test="cost-add" @click="openForm()">{{ t('expenses.entries.add') }}</button>
     </div>
     <p class="muted ce-intro">{{ t('expenses.entries.intro_' + type) }}</p>
+    <template v-if="type === 'hr'">
+      <!-- SPL-5433: the month lock and the people of the HR tab -->
+      <HrPeriodBar :month="adding ? f.period : thisMonth" :admin="admin" @changed="load()" />
+      <HrPeopleCard :people="hr.people" :names="hr.names" :readonly="readonly" @added="loadHr()" />
+    </template>
     <p v-if="state === 'loading'" class="muted" data-test="cost-loading">{{ t('expenses.entries.loading') }}</p>
     <p v-else-if="state === 'error'" class="ce-error" data-test="cost-error">
       {{ t('expenses.entries.error') }}
@@ -38,6 +43,7 @@
           <span>{{ t('expenses.entries.col_period') }}</span>
           <input v-model="f.period" type="month" data-test="cost-f-period">
         </label>
+        <HrLineFields v-if="type === 'hr'" :form="f" :people="hr.people" :components="hr.components" />
         <label class="ce-wide">
           <span>{{ t('monitoring.tokens.paid.col_note') }}</span>
           <textarea v-model="f.note" rows="2" maxlength="2000" data-test="cost-f-note" />
@@ -93,7 +99,10 @@
                 <td :colspan="readonly ? 6 : 7" class="muted" data-test="cost-no-match">{{ t('expenses.entries.no_match') }}</td>
               </tr>
               <tr v-for="e in rows" :key="e.id" data-test="cost-row" :data-id="e.id">
-                <th scope="row" class="ce-text" data-test="cost-row-label">{{ e.label }}</th>
+                <th scope="row" class="ce-text">
+                  <span data-test="cost-row-label">{{ e.label }}</span>
+                  <div v-if="hrSub(e)" class="muted ce-sub" data-test="cost-row-hr">{{ hrSub(e) }}</div>
+                </th>
                 <td class="num" :data-label="t('expenses.entries.col_amount')" data-test="cost-row-amount">{{ fmtMoney(e.amount, e.currency, locale) }}</td>
                 <td
                   v-for="cur in CURS"
@@ -143,12 +152,17 @@ import {
   checkCostEntryForm, COST_ENTRY_COLUMNS, COST_ENTRY_NO_FILTER, costEntriesFiltered, costEntriesOf, costEntryBody, costEntryCell,
   costEntryFilterChoices, costEntryTotals, emptyCostEntryForm, filterCostEntries, sortCostEntries,
 } from '~/utils/cost-entries.mjs'
+import { hrComponentsOf, hrLineLabel, hrPeopleOf } from '~/utils/hr-costs.mjs'
+import HrLineFields from '~/components/expenses/HrLineFields.vue'
+import HrPeriodBar from '~/components/expenses/HrPeriodBar.vue'
+import HrPeopleCard from '~/components/expenses/HrPeopleCard.vue'
 
 /* readonly (SPL-5181): the operator's product owner reads the list, no add or delete */
-const props = defineProps<{ type: 'cloud' | 'hr', readonly?: boolean }>()
+/* admin (SPL-5433): the operator admin, who reopens and closes an hr month */
+const props = defineProps<{ type: 'cloud' | 'hr', readonly?: boolean, admin?: boolean }>()
 /* the lazy client's one paid method (spool-client-lazy.mjs fleetPaid): no new stub in the initial chunk */
 type CostApi = {
-  fleetPaid: (op: 'entries' | 'entry_create' | 'entry_delete', a?: unknown) => Promise<unknown>
+  fleetPaid: (op: 'entries' | 'entry_create' | 'entry_delete' | 'hr_people' | 'hr_components', a?: unknown) => Promise<unknown>
   getFxCurrencies: () => Promise<unknown>
 }
 
@@ -164,6 +178,27 @@ const refused = ref('')
 const actionError = ref('')
 const confirming = ref('')
 const busy = ref(false)
+/* SPL-5433: the HR tab's people (names only for a costs.write reader) and components */
+type HrPerson = { id: string, code: string, name: string, department: string, employmentType: string, birthYear: number | null }
+type HrComponent = { component: string, group: string, label: string }
+const hr = reactive({ people: [] as HrPerson[], names: false, components: [] as HrComponent[] })
+const thisMonth = new Date().toISOString().slice(0, 7)
+async function loadHr() {
+  if (props.type !== 'hr') return
+  try {
+    const [p, c] = await Promise.all([api().fleetPaid('hr_people'), api().fleetPaid('hr_components')])
+    const got = hrPeopleOf(p) as { names: boolean, people: HrPerson[] }
+    Object.assign(hr, got, { components: hrComponentsOf(c) as HrComponent[] })
+  } catch { /* the list's own read reports the hub's refusal */ }
+}
+/* an hr row's second line: the person's code, the component, the source, the correction */
+function hrSub(e: Row) {
+  if (props.type !== 'hr') return ''
+  const person = hr.people.find((p) => p.id === e.personId)
+  const comp = hr.components.find((c) => c.component === e.component)
+  return [person?.code, comp?.label || e.component, e.source, e.periodKind === 'year' ? t('expenses.hr.kind_year') : '',
+    e.correctsPeriod ? t('expenses.hr.corrects_month', { month: e.correctsPeriod }) : ''].filter(Boolean).join(' · ')
+}
 
 /* SPL-5198 (owner HUM-10, t1 965283be msg 382450e2): sort and filter as
    the Issues and Lanes sheets (SheetSortButton, cycleSort), each amount in
@@ -229,6 +264,9 @@ function openForm() {
 
 async function submit() {
   refused.value = ''
+  if (props.type === 'hr' && !f.label.trim() && f.component) {
+    f.label = hrLineLabel(hr.people.find((p) => p.id === f.personId), hr.components.find((c) => c.component === f.component))
+  }
   problem.value = checkCostEntryForm(f, currencies.value)
   if (problem.value) return
   busy.value = true
@@ -259,7 +297,7 @@ async function remove(id: string) {
 
 onMounted(async () => {
   void api().getFxCurrencies().then((b) => { currencies.value = paidCurrencies(b) }, () => { currencies.value = ['USD'] })
-  await load()
+  await Promise.all([load(), loadHr()])
 })
 </script>
 
@@ -271,6 +309,7 @@ onMounted(async () => {
 .ce-intro { margin: 0; font-size: 0.8125rem; }
 .ce-error { margin: 0; color: var(--color-danger); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; overflow-wrap: anywhere; }
 .ce-text { overflow-wrap: anywhere; max-width: 20rem; }
+.ce-sub { font-weight: normal; font-size: 0.8125rem; }
 .ce-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; white-space: nowrap; }
 .ce-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ce-form { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }

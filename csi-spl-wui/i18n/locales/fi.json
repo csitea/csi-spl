@@ -4178,9 +4178,61 @@
       "total": "Yhteensä",
       "converted": "Muunnettu valuutasta {currency} päivän {day} kurssilla",
       "no_rate": "Valuutalle {currency} ei ole tallennettu vaihtokurssia",
-      "total_no_rate": "Ei yhteissummaa: jollakin kuukaudella ei ole vaihtokurssia"
+      "total_no_rate": "Ei yhteissummaa: jollakin kuukaudella ei ole vaihtokurssia",
+      "err_component": "Valitse henkilön riville kustannuslaji.",
+      "err_source": "Lähde on enintään 200 merkkiä, tili enintään 20.",
+      "err_year": "Vuoden kokonaissumma kirjataan vuoden tammikuulle.",
+      "err_corrects": "Korjattavan kuukauden on oltava ennen rivin kuukautta."
     },
     "operators_only": "Kulut ovat vain operaattorin ylläpitäjille ja tuoteomistajille.",
-    "tokens_link": "Maksetut tilaukset ja lisäostot kirjataan kohdassa Kulut → Tekoälykulut."
+    "tokens_link": "Maksetut tilaukset ja lisäostot kirjataan kohdassa Kulut → Tekoälykulut.",
+    "hr": {
+      "person": "Henkilö",
+      "person_none": "Organisaatio (ei henkilöä)",
+      "component": "Kustannuslaji",
+      "source": "Lähde (esim. palkkalaskelma)",
+      "account": "Kirjanpitotili",
+      "kind": "Kirjataan",
+      "kind_month": "Kuukaudelle",
+      "kind_year": "Koko vuodelle",
+      "corrects": "Korjaa kuukauden (valinnainen)",
+      "corrects_month": "korjaa kuukauden {month}",
+      "month_open": "{month} on auki; se suljetaan {day}.",
+      "month_closed": "{month} on suljettu.",
+      "reopened": "Avattu uudelleen: {why}",
+      "close": "Sulje kuukausi",
+      "reopen": "Avaa uudelleen",
+      "reopen_reason": "Syy uudelleenavaamiseen",
+      "people": "Henkilöt ({n})",
+      "codes_only": "Nimet näkyvät vain kirjanpitäjille.",
+      "code": "Tunnus, esim. E-01",
+      "name": "Koko nimi",
+      "department": "Osasto",
+      "employment": "Työsuhteen tyyppi",
+      "birth_year": "Syntymävuosi",
+      "add_person": "Lisää henkilö",
+      "err_code": "Tunnus on 1–3 isoa kirjainta, väliviiva ja 2–4 numeroa, esim. E-01.",
+      "err_code_taken": "Tunnus on jo käytössä.",
+      "err_name": "Anna nimi (enintään 200 merkkiä).",
+      "err_department": "Osasto on enintään 100 merkkiä.",
+      "err_type": "Valitse työsuhteen tyyppi.",
+      "err_birth_year": "Syntymävuosi on välillä 1900–2100.",
+      "type": {
+        "employee": "Työntekijä",
+        "hourly": "Tuntipalkkainen",
+        "owner_management": "Omistaja tai johto",
+        "contractor": "Alihankkija"
+      },
+      "group": {
+        "salaries_wages": "Palkat",
+        "employer_contributions": "Työnantajamaksut",
+        "working_time_allowances": "Työaikakorvaukset",
+        "bonuses_incentives": "Bonukset ja kannustimet",
+        "leave_absence": "Lomat ja poissaolot",
+        "benefits_insurance": "Edut ja vakuutukset",
+        "training_recruitment": "Koulutus ja rekrytointi",
+        "transport_meals": "Matkat ja ateriat"
+      }
+    }
   }
 }

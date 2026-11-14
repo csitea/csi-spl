@@ -47,6 +47,8 @@ export function normalizeMe(body) {
     operatorAdmin: typeof b.operator_admin === 'boolean' ? b.operator_admin : null,
     operatorReader: typeof b.operator_reader === 'boolean' ? b.operator_reader : null,
     expensesReader: typeof b.expenses_reader === 'boolean' ? b.expenses_reader : null,
+    /* SPL-5433: costs.write in the operator workspace (the accountants, the admin) */
+    costWriter: b.cost_writer === true,
   }
 }
 

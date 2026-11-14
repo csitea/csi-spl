@@ -86,7 +86,7 @@ describe('the tabs: one per cost type (owner msg 50d84663: "at least 3 different
   it('AI costs holds the paid subscriptions and top-ups (the Paid card); Cloud and HR the cost entries, each card its own chunk', () => {
     const page = read('src/pages/expenses/[[tab]].vue')
     assert.match(page, /<div class="tk-lazy"><PaidItemsCard :readonly="!operator\.visible" \/><\/div>/)
-    assert.match(page, /<div v-else-if="entryType" class="tk-lazy"><CostEntriesCard :key="entryType" :type="entryType" :readonly="!operator\.visible" \/><\/div>/)
+    assert.match(page, /<div v-else-if="entryType" class="tk-lazy"><CostEntriesCard :key="entryType" :type="entryType" :readonly="!operator\.visible && !writer" :admin="operator\.visible" \/><\/div>/)
     assert.match(page, /defineAsyncComponent\(\(\) => import\('~\/components\/expenses\/CostEntriesCard\.vue'\)\)/)
   })
   it('operator admins only, as the Paid card was; anyone else sees no tab', () => {

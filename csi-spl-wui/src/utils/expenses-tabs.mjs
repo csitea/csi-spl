@@ -19,16 +19,17 @@ export const EXPENSES_TABS = Object.freeze([
   /* the paid subscriptions and top-ups (spec 140 3.8, SPL-2567), moved here
      from Monitoring -> Tokens */
   Object.freeze({ id: 'ai', path: '/expenses/ai', labelKey: 'expenses.tab.ai', operatorsOnly: true }),
-  Object.freeze({ id: 'cloud', path: '/expenses/cloud', labelKey: 'expenses.tab.cloud', operatorsOnly: true }),
-  Object.freeze({ id: 'hr', path: '/expenses/hr', labelKey: 'expenses.tab.hr', operatorsOnly: true }),
+  /* costWriters (SPL-5433): a costs.write member of the operator workspace enters these too */
+  Object.freeze({ id: 'cloud', path: '/expenses/cloud', labelKey: 'expenses.tab.cloud', operatorsOnly: true, costWriters: true }),
+  Object.freeze({ id: 'hr', path: '/expenses/hr', labelKey: 'expenses.tab.hr', operatorsOnly: true, costWriters: true }),
 ])
 
 /** Where /expenses itself goes. */
 export const EXPENSES_DEFAULT_PATH = EXPENSES_TABS[0].path
 
-/** The tabs the bar draws for this reader. @param {{ operator?: boolean }} [who] */
+/** The tabs the bar draws for this reader (costs: a costs.write member of the operator workspace, SPL-5433). @param {{ operator?: boolean, costs?: boolean }} [who] */
 export function visibleExpensesTabs(who = {}) {
-  return EXPENSES_TABS.filter((tab) => !tab.operatorsOnly || who.operator === true)
+  return EXPENSES_TABS.filter((tab) => !tab.operatorsOnly || who.operator === true || (tab.costWriters === true && who.costs === true))
 }
 
 /**

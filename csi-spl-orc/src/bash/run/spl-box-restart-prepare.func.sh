@@ -49,6 +49,8 @@ do_spl_box_restart_prepare() {
 spl_brs_desk() {
   local dry="$1" desk
   desk="$(spl_brs_desk_dir)"
+  # Fail fast: git -C "" runs on the caller's $PWD and would detach it.
+  [[ -n "$desk" && -d "$desk" ]] || { do_log "ERROR the desk-cron checkout is not known or not a directory ('$desk'): set BOX_RESTART_DESK"; return 1; }
   if [[ "$dry" == 1 ]]; then
     do_log "INFO PLAN git -C $desk fetch -q origin master && git -C $desk checkout -q --detach origin/master"
   elif ! { git -C "$desk" fetch -q origin master && git -C "$desk" checkout -q --detach origin/master; }; then
@@ -67,9 +69,15 @@ spl_brs_desk_dir() {
   printf '%s\n' "${BOX_RESTART_DESK:-${SPL_DESK_DIR:-}}"
 }
 
-spl_brs_desk_sha() { git -C "$(spl_brs_desk_dir)" rev-parse --short HEAD 2>/dev/null || echo none; }
+spl_brs_desk_sha() {
+  local d; d="$(spl_brs_desk_dir)"
+  [[ -n "$d" && -d "$d" ]] || { echo none; return 0; }
+  git -C "$d" rev-parse --short HEAD 2>/dev/null || echo none
+}
 spl_brs_desk_pass() {
-  grep -c spl_wd_boot_pass "$(spl_brs_desk_dir)/csi-spl-orc/src/bash/run/spl-watchdog.func.sh" 2>/dev/null || echo 0
+  local d; d="$(spl_brs_desk_dir)"
+  [[ -n "$d" ]] || { echo 0; return 0; }
+  grep -c spl_wd_boot_pass "$d/csi-spl-orc/src/bash/run/spl-watchdog.func.sh" 2>/dev/null || echo 0
 }
 
 # (b) the snapshot, on stdout: btime, the desk sha and count, one agent line

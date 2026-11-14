@@ -5,7 +5,7 @@
 # should be no paths in the configuration files"). Paths come from run.sh at
 # start and from spl_run_paths (csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh);
 # a cnf value carries ${SPL_ORG_DIR} / ${SPL_VAR_APP_DIR} instead.
-#   Scanned: every git-tracked csi-spl-cnf/**/*.yaml and **/*.func.sh.
+#   Scanned: every git-tracked csi-spl-cnf/**/*.{yaml,yml,json} and **/*.func.sh.
 #   Banned: /opt/<org> and /var/<org> (<org> = the prefix of the app name of
 #   the <app>-orc dir, csi), comment lines included (a comment is copied).
 #   Ratchet: no-literal-paths.baseline holds "<lines> <file>" for today's
@@ -33,7 +33,7 @@ nlp_org() {
 # nlp_counts <root> <org> -> "<lines> <file>" per tracked file with a literal
 nlp_counts() {
   local root="$1" org="$2"
-  git -C "$root" ls-files -z -- 'csi-spl-cnf/*.yaml' '*.func.sh' |
+  git -C "$root" ls-files -z -- 'csi-spl-cnf/*.yaml' 'csi-spl-cnf/*.yml' 'csi-spl-cnf/*.json' '*.func.sh' |
     (cd "$root" && xargs -0 -r grep -cE "/(opt|var)/${org}(\$|[^A-Za-z0-9_-])" 2>/dev/null) |
     awk -F: '$NF > 0 { n = $NF; sub(/:[0-9]+$/, ""); print n " " $0 }' | sort -k2
 }

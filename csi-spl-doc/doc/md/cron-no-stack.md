@@ -86,7 +86,8 @@ Left as they were, because they already lock the whole line or cannot stack:
 
 - `flock -n` in the line already: `spawn-place`, `accepted-close`,
   `desk-poll-ack`, `review-go`, `spawn-fill`, `security-round`, `box-update`,
-  `cost-rollup`, `shadow-feed`.
+  `cost-rollup`, `shadow-feed`, `topic-archive-suggest` (hourly,
+  `do_spl_topic_archive_suggest_install_cron`, spec 041 section 7).
 - `desk-reconcile[-<env>]`: the tick takes its own non-blocking holder lock
   (`desk-reconcile-cron.sh`), and its checkout move waits on the checkout lock
   (`flock -w 300`) on purpose.

@@ -1,6 +1,6 @@
 # Feature Specification: Archive and Delete a Topic
 
-**Feature ID**: `041-spool-topic-archive-delete` · **Milestone**: M3 · **Status**: Implemented (live dev + prd, `tasks.md` T001–T011); §3.5 (SPL-986) `tasks.md` T012–T016
+**Feature ID**: `041-spool-topic-archive-delete` · **Milestone**: M3 · **Status**: Implemented (live dev + prd, `tasks.md` T001–T011); §3.5 (SPL-986) `tasks.md` T012–T016; §7 (SPL-5520) the daily archive suggestion, default off
 **Created**: 2026-09-26 · **Lane**: TOPIC-ARCHIVE (hub + DB + browser) · **Issue**: SPL-983 (epic 51, spec 033)
 **Authority**: this file for the rule; `contracts/topic-archive-v1.md` for the wire; `tasks.md` for what is built and where.
 
@@ -185,4 +185,71 @@ transaction, after the set is walked in the same transaction (§2).
   archive -> hidden -> unarchive; delete -> the card and N children gone, measured with a
   DB count before and after (`do_spl_db_query`).
 
-<!-- version: 0.2.0 · updated: 2026-09-27 · last-edit: 2026-09-26T20:20:00Z -->
+## 7. The daily archive suggestion (SPL-5520)
+
+csitea topic `48d75e5f`, item 5 of the owner's weekly list (HUM-10 ticked it,
+msg `457da676`): "A daily archive suggestion: a topic with its result posted,
+no open ask and 24 h quiet gets one archive poll". The evidence, c-518's count
+(SPL-5505), not re-measured here: the owner asked to archive or close a topic
+9 times.
+
+`cd csi-spl-orc && ./run -a do_spl_topic_archive_suggest`
+(`src/bash/run/spl-topic-archive-suggest.func.sh`) runs on the box of the
+dispatch lease holder and posts, as the holder's desk agent, ONE poll into a
+topic when all three hold:
+
+1. **the last agent post is a result**: kind `result`, or a body that opens
+   with `**Done**`, `**Live**`, `**Answered**`, `**Answer**` or a `## Result`
+   heading;
+2. **no open ask names the topic**: no ask in state open, acked, queued,
+   placing or needs_owner whose `topic` or `summary` carries its uuid or its
+   first 8 hex digits as a whole token (the zombie sweep's rule, spec 166
+   row B6);
+3. **24 h without a post** (`ARCHIVE_SUGGEST_QUIET_H`).
+
+The candidates are the hub's 500 newest idle topic heads,
+`GET /v1/operator/zombie-topics?idle_days=1&order=newest` (spec 166 row B5:
+not archived, no DM, not prioritised). `order=newest` is new with this
+section: oldest first, the 5000-row list ended at 2026-11-13T00:35Z while its
+`idle_before` was 13:55Z (prd, n=1, 2026-11-14): the topics that went quiet
+the day before, the ones this rule is for, were cut off. A topic with no post
+from a person is no owner topic and gets no poll; the poll is addressed to
+the topic's newest person poster.
+
+```text
+**Archive suggestion**: the last agent post here is a result, no ask is open on this topic and nobody has posted for 24 h.
+
+(poll) Archive this topic?
+(A) Archive
+(B) Keep (no suggestion for 7 days)
+```
+
+- **Archive** (`Answer: A` to that poll, from a person): the topic is
+  archived through `do_spl_topic_archive` as the dispatch holder (section 3).
+- **Keep** (`Answer: B`): no suggestion for that topic for 7 days
+  (`ARCHIVE_SUGGEST_MUTE_D`); after that it may be polled again once a new
+  result makes it qualify.
+- **Never twice**: the ledger `$SPOOL_ROOT/dispatch/archive-suggest.tsv`
+  (append only: topic, state `asked` | `archived` | `keep`, time, poll id,
+  tenant; the last row of a topic wins). An asked topic is never polled
+  again; an archived one never.
+- **Cadence**: every run reads the answers of the asked topics (the topic's
+  `hub-tail`); the new polls go out once a UTC day (stamp
+  `dispatch/archive-suggest.last`, written by `DRY_RUN=0` only), at most
+  `ARCHIVE_SUGGEST_MAX` (10) of them, newest topic first.
+- **Default off**: `DRY_RUN=1` (the default) posts and archives nothing and
+  prints the PLAN lines. The cron, `do_spl_topic_archive_suggest_install_cron`
+  (hourly at minute 17, `# csi-spl:topic-archive-suggest`, not installed by
+  any other action), runs `src/bash/scripts/topic-archive-suggest-cron.sh`,
+  which stays dry until the dispatch `lease.conf` says
+  `ARCHIVE_SUGGEST_DRY_RUN=0`: the owner's switch.
+
+Test: `csi-spl-orc/src/bash/tests/spl-topic-archive-suggest.tst.sh` (a stub
+hub; each condition excludes its topic; one poll per topic; a second run
+posts nothing; A archives, B mutes 7 days; red controls: a code variant
+without condition 1, 2 or 3, or without the ledger check, polls the topic it
+kept). Hub: `TestZombieTopicsListsIdleHeads` (`order=newest`) and
+`TestZombieTopicsRefusals` (a bad `order` is 400) in
+`csi-spl-api/src/go/spool-hub-api/internal/hub/zombie_topics_test.go`.
+
+<!-- version: 0.3.0 · updated: 2026-11-14 · last-edit: 2026-11-14T16:30:00Z -->

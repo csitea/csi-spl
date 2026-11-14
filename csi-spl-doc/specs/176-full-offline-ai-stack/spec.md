@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.6** (2026-11-14), the grok, mistral and codex seats' findings folded (11.1). Editor: c-690
+Version **v0.7** (2026-11-14), the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -81,6 +81,7 @@ last.
 | The hub calls no model API | `grep -rnoE 'https://[a-z0-9.-]*(anthropic\|openai\|mistral\|x\.ai)' csi-spl-api/src/go csi-spl-wui/src` -> 0 lines; spec 161 1.2: "the hub Cloud Run API does not call Cursor or Codex directly; execution is local to agent boxes" |
 | Workspace keys already carry an endpoint, not only a key | `csi-spl-api/src/go/spool-hub-api/internal/keyexec/env.go:101`: qwen gets `OPENAI_API_KEY` and `OPENAI_BASE_URL` from the lease; line 98 refuses a base URL that is not `https://` |
 | `ANTHROPIC_BASE_URL` and `OPENAI_BASE_URL` are stripped from every seat before its own kind's are set | `keyexec/env.go:29,32` (`vendorVars`) |
+| `GEMINI_API_KEY` and `AGY_ADC_AUTH` are stripped too, but **not** `GOOGLE_GEMINI_BASE_URL`; `codex` is not a lease kind | `keyexec/env.go:33-34` (`vendorVars`); `env.go:13` `Kinds = claude grok agy mistral qwen` |
 
 Read for this section: specs [110](../110-mistral-vendor/spec.md),
 [115](../115-vendor-split-by-task-kind/spec.md),
@@ -92,7 +93,7 @@ Read for this section: specs [110](../110-mistral-vendor/spec.md),
 
 | fact | command -> result |
 |---|---|
-| Terraform steps | `ls csi-spl-iac/src/terraform` -> 30 steps, `000-gcp-remote-bucket` .. `120-github-general-secrets`; the hub is `030-cloud-run-hub`, the db `040-cloud-sql-postgres`, the vendor-key KMS `057-gcp-kms-vendor-keys`, the agent boxes `060-gcp-vm-satellite` and `061-gcp-vm-wine-box` |
+| Terraform steps | `ls csi-spl-iac/src/terraform | grep -cE '^[0-9]{3}-'` -> 30 steps (plus `modules` and `marketplace-spool-vm`), `000-gcp-remote-bucket` .. `120-github-general-secrets`; the hub is `030-cloud-run-hub`, the db `040-cloud-sql-postgres`, the vendor-key KMS `057-gcp-kms-vendor-keys`, the agent boxes `060-gcp-vm-satellite` and `061-gcp-vm-wine-box` |
 | The agent box is a CPU VM, no GPU | `grep -rn 'guest_accelerator\|gpu' csi-spl-iac/src/terraform/060-gcp-vm-satellite csi-spl-iac/src/terraform/061-gcp-vm-wine-box` -> 0 lines; `prd.env.yaml:226` `machine_type: e2-standard-16` |
 | The agent box lives in the estate project, one box for dev and prd | `prd.env.yaml` near line 217: `gcp_project: csi-spl-all`; `060-gcp-vm-satellite/03-vm.tf:1`: "ONE always-on agent box for dev and prd, ssh only" |
 | Region | repo `CLAUDE.md`: `europe-north1` |
@@ -144,6 +145,7 @@ the boundary. The cloud vendors are not reachable and not configured.
 | Telemetry | off where the CLI allows (2.1) | off **and** blocked by the egress-deny | the egress test (G3) is the proof, not the switches |
 | Git and CI | GitHub, GitHub Actions | a git server inside the boundary; CI optional | **open question Q6** |
 | Time, DNS | GCP / public | a local NTP and DNS | on-prem guide |
+| Box background probes | `external_api_check` probes api.anthropic.com, generativelanguage.googleapis.com and api.github.com (`all.env.yaml:1225-1236`, run by `reliability-check-cron.sh:33`); `fx-rates-fetch-cron.sh:28` fetches FX rates daily; `vendor-terms-check-cron.sh:24` fetches vendor terms monthly | `external_api_check.endpoints: []`, both crons off or fed from the local mirror | each would trip G3 / FR-10 during a lane run (agy seat) |
 
 **Proof of offline.** A switch list can only show what someone thought to
 switch off; it cannot prove that nothing leaves ("a control that can only
@@ -212,15 +214,16 @@ decision record (section 9.2, D-1).
 
 | CLI | local endpoint | how (source, read 2026-11-13) | fleet status |
 |---|---|---|---|
-| Claude Code (`c-`) | yes, Anthropic Messages API | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (docs.ollama.com/integrations/claude-code) | spawnable; **client terms with a non-Anthropic model are open question Q7** |
+| Claude Code (`c-`) | yes, Anthropic Messages API | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (docs.ollama.com/integrations/claude-code) | spawnable; **client terms with a non-Anthropic model are open question Q10** |
 | Codex CLI (`o-`) | yes, **Responses API only** (not any OpenAI-compatible server) | a vLLM or llama.cpp server is a custom `[model_providers.<id>]` entry with `base_url` and `wire_api = "responses"`, the only supported value (developers.openai.com/codex/config-reference, read 2026-11-14), so the server must implement `/v1/responses`. The entry and `model_provider` go in the **user-level** `$CODEX_HOME/config.toml` or as launcher `-c` overrides: a project `.codex/config.toml` ignores `model_provider` and `model_providers` with a startup warning (developers.openai.com/codex/config-advanced, read 2026-11-14). Today `spawn-codex.sh:60` sets only `-c analytics.enabled=false -c check_for_update_on_startup=false`; no local provider config exists yet (planned, FR-03); `--oss` is the local-provider path for **LM Studio or Ollama**, chosen by `--local-provider` or `oss_provider`; vLLM stays off `--oss` (developers.openai.com/codex/cli/reference, read 2026-11-14) | spawnable, off by weight (spec 161 2.2.6) |
 | Mistral Vibe (`m-`) | yes, OpenAI-compatible | a `[[providers]]` entry (`name = "local"`, `api_base`, `api_style = "openai"`, `backend = "generic"`, no `api_key_env_var` when the server needs no key) plus a `[[models]]` preset with `provider = "local"` and `max_context_length`, in `config.toml`. With telemetry and update checks off, "the CLI does not contact `mistral.ai` or any other external service", **but** "skills, MCP servers, and connectors that reach external systems must be disabled separately" (docs.mistral.ai/vibe/code/cli/offline-models, read 2026-11-14; provider shape from the Vibe 2.26.0 bundled docs, mistral seat m-724) | spawnable; no coding (cnf, 2.1) |
 | Qwen Code (`q-`) | yes, OpenAI-compatible | `--auth-type openai` + `OPENAI_BASE_URL` (our own `keyexec/env.go:101-102`) | spawnable, weight 0 everywhere |
 | Grok CLI (`g-`) | yes, OpenAI-compatible or Anthropic Messages | a custom model `[model.<id>]` with `model`, `base_url`, `name`, `env_key` and `api_backend` (`chat_completions`, `responses` or `messages`) in the **user** config (`~/.grok/config.toml` or `$GROK_HOME/config.toml`; a project `.grok/config.toml` carries only MCP servers, plugins and the `[permission]` section), selected by `[models] default` or `-m <id>` (docs.x.ai/build/overview "Custom models"; docs.x.ai/build/settings/reference, last updated 2026-10-13; both read 2026-11-14 by the grok seat) | spawnable |
-| agy (`a-`) | **unverified**: no documented local endpoint found | the agy seat to confirm | spawnable |
+| agy (`a-`) | **no, not directly**: agy speaks the **Gemini API** wire, while vLLM and llama.cpp serve OpenAI and Anthropic endpoints | `modelProvider: "gemini"` in `settings.json` with `GEMINI_API_KEY` (antigravity.google/docs/cli/reference, read 2026-11-14 by the editor); a custom endpoint through `GOOGLE_GEMINI_BASE_URL`, or an admin-managed enterprise model gateway (`https://` unless on localhost; admin settings `gateway.routeWebFetch`, `featureControls.remoteControlEnabled: false`): from `agy changelog` of agy 1.5.9, measured by the agy seat (n = 1; the editor could not re-run it, no agy on its box). So agy runs local only in **P2, behind a Gemini-to-OpenAI translating gateway** (D-1), gated by its own multi-turn tool-call probe like T0.5 and the egress-deny test | spawnable |
 
 So five of six CLIs can run a lane on a local model with a config change and
-no code of ours beyond the launcher. The **client** of a local lane is a cnf
+no code of ours beyond the launcher, talking to vLLM or llama.cpp directly
+(P1); the sixth, agy, needs the translating gateway (P2). The **client** of a local lane is a cnf
 choice (`env.box.local_ai.client`), not hard-wired.
 
 **Grok CLI offline caveats** (the grok seat, settings reference read
@@ -262,6 +265,13 @@ The egress-deny run (3.3) is the proof; these switches are not.
 - **Agent id letter**: a local lane is run by some client CLI, so either it
   keeps the client's letter (`o-`, `c-`, ...) with a `model=local:<name>`
   tag in its registry row, or it gets its own letter (`l-NNN`). **Q2.**
+- **Mode B and the agy-led kinds** (agy seat): today `all.env.yaml:1421`
+  `i18n: { agy: 100, backup: claude }` and `:1417` `specs_and_docs: { agy:
+  80, mistral: 15, claude: 5, backup: claude }`, and the global rule gives
+  agy the final review of multilingual text. In mode B, without the P2
+  gateway, agy is skipped and cloud claude is unreachable, so `i18n` and
+  `specs_and_docs`, the final language review included, route to `local`
+  only after a candidate passes the multilingual slice of 4.8.
 
 ### 4.5 Model classes and sizing
 
@@ -318,7 +328,9 @@ A kind routes to `local` only after a model passes, for that kind, the
 on the candidate (client + model), judged by the same cross-vendor review the
 fleet uses. The report records version, tree and n (the fleet's "cross-lane
 finding states three fields" rule). The pass bar per kind is an owner choice
-made from the first report, not fixed here.
+made from the first report, not fixed here. The replay set carries a
+**multilingual (`i18n`) slice**, which gates the agy-led kinds in mode B
+(4.4).
 
 ## 5. Infrastructure
 
@@ -355,6 +367,9 @@ dev applied before prd.
 |---|---|---|---|
 | G4 `g4-standard-48`, 1 x RTX PRO 6000 96 GB (class S/M), **europe-north1** | ~$4.95/h on-demand, spot ~$2.00/h, **third-party VM-hour**, not an official SKU read (gcloud-compute.com/europe-north1/g4-standard-48.html, read 2026-11-14 by the grok seat: 4.9499 and 1.9967; that page's month: 3,613.44, spot 1,457.62) | ~$3,600 (spot ~$1,460) | ~$1,090 (spot ~$440) |
 | A4 `a4-highgpu-8g`, 8 x B200 (class L) | ~$34.24/h on-demand **us-central1**, third-party (devzero.io, spheron.network; Google publishes no static A4 table) | ~$25,000 | ~$7,500 |
+| G2 `g2-standard-8`, 1 x L4 24 GB (class S, 4-bit), **europe-west4** (Q5) | ~$0.85-0.90/h, spot ~$0.51-0.54/h, **third-party VM-hour** (gcloud-compute.com, read 2026-11-14 by the agy seat; not re-read by the editor) | ~$620-655 (spot ~$370-395) | ~$190-200 |
+| G2 `g2-standard-24`, 2 x L4 48 GB, **europe-west4** | ~$2.00-2.10/h, same source | ~$1,460-1,535 | ~$440-460 |
+| Cloud Run with 1 x L4, europe-west4, scale to zero | ~$0.672/h for the GPU plus CPU and memory (cloud.google.com/run/pricing, cited by the agy seat; **unverified** by the editor, the page did not render) | per use | per use |
 | CPU llama.cpp on an existing agent box (class S, slow) | $0 extra; takes cores from lanes | $0 | $0 |
 | Data disk for weights, 500 GB pd-balanced | **unverified**, to price in the calculator (T0.4) | - | - |
 | On-prem 1 x 96 GB GPU workstation | capex **unverified** | power only | - |
@@ -379,9 +394,10 @@ is 220 x the hourly figure, rounded.
 | FR-07 | The same playbook installs on an on-prem host from an inventory | Planned |
 | FR-08 | The private hub serves a LAN with a local-CA certificate | Planned |
 | FR-09 | Package and weight mirror inside the boundary | Planned |
-| FR-10 | Egress-deny proof: a full lane run with 0 denied packets | Planned |
+| FR-10 | Egress-deny proof: a full lane run with 0 denied packets; mode B cnf turns the box background probes off first (3.3) | Planned |
 | FR-11 | Per-kind evaluation report gates any non-zero `local` weight | Planned |
 | FR-12 | The private hub with no cloud dependency, one box | **Implemented** (guides/local-hub.md; `local_hub_signin_test.go`) |
+| FR-13 | R7: on panel sign-off this spec is imported into Qto (`do_spl_doctree_import_md`, `QTO_FS=repo`) and its `qto-docs.tsv` row is committed; today `grep -c 176-full-offline csi-spl-doc/doc/md/qto-docs.tsv` -> 0. Run by the dispatch holder, not the panel lane | Planned |
 
 ## 7. Risks
 
@@ -390,7 +406,7 @@ is 220 x the hourly figure, rounded.
 | Open models do worse than the cloud vendors on our lanes | the per-kind gate (4.8); mode A keeps the cloud backup |
 | A GPU VM left on burns money | scheduled stop; budget alert like steps 058/059 |
 | A CLI calls home despite its switches | egress-deny proof (3.3); a denied packet is a defect |
-| A client's terms forbid a non-vendor model | Q7 before that client gets weight |
+| A client's terms forbid a non-vendor model | Q10 before that client gets weight |
 | GPU capacity in europe-north1 runs out | Q5 (another region) |
 
 ## 8. Phasing
@@ -419,6 +435,8 @@ is 220 x the hourly figure, rounded.
 | Q7 | Who is full offline for? | `flt` our own fleet, `cus` a customer workspace (on-prem product), `bot` both |
 | Q8 | Model licence allow-list (Devstral Small 2, Devstral 2 and Mistral Small 4 are Apache-2.0, per their model cards read 2026-11-14 by the mistral seat) | `osi` Apache-2.0 / MIT only, `opn` any open-weight licence the panel reviews per model |
 | Q9 | Where does the model server live? | `all` the estate project with the agent boxes, `env` one per env (dev, prd) |
+| Q10 | Client terms with a non-vendor model | `oss` start with the Apache-2.0 CLIs only (Codex, Vibe, Qwen Code), `chk` a terms review before Claude Code or Grok CLI get `local` weight, `all` any capable CLI in our own fleet |
+| Q11 | Which further documents (9.2, R8) to commission | `all` all seven, `p0` items 1, 2, 4 and 7 first, `min` decision records and `tasks.md` only |
 
 ### 9.2 Further documentation artifacts (the editor's proposal, R8)
 
@@ -439,10 +457,12 @@ own file under this folder unless said otherwise:
 ## 10. Sources (read 2026-11-13)
 
 - Ollama, Claude Code integration: docs.ollama.com/integrations/claude-code; Ollama blog: registry.ollama.ai/blog/claude; Habr 988538 (Anthropic API in Ollama, January 2026).
-- OpenAI Codex advanced configuration: developers.openai.com/codex/config-advanced (project-config ignored keys); config reference (`wire_api`: `responses` only): developers.openai.com/codex/config-reference; CLI reference (`--oss`): developers.openai.com/codex/cli/reference (read 2026-11-14; the first two redirect to learn.chatgpt.com/docs/config-file/).
+- OpenAI Codex advanced configuration: developers.openai.com/codex/config-advanced (project-config ignored keys); config reference (`wire_api`: `responses` only): developers.openai.com/codex/config-reference; CLI reference (`--oss`): developers.openai.com/codex/cli/reference (read 2026-11-14; the first two redirect to learn.chatgpt.com/docs/config-file/config-advanced and .../config-file/config-reference).
 - Grok CLI custom models: docs.x.ai/build/overview; settings reference docs.x.ai/build/settings/reference (last updated 2026-10-13); upstream guide github.com/xai-org/grok-build `.../user-guide/11-custom-models.md` (search snippet only). Read 2026-11-14 by the grok seat.
 - vLLM Responses API: docs.vllm.ai/en/stable/serving/online_serving/; issue vllm-project/vllm#33089 (read 2026-11-14).
 - G4 europe-north1 VM-hour: gcloud-compute.com/europe-north1/g4-standard-48.html (read 2026-11-14).
+- Antigravity CLI reference (`modelProvider`, `GEMINI_API_KEY`): antigravity.google/docs/cli/reference (read 2026-11-14). `GOOGLE_GEMINI_BASE_URL` and the enterprise gateway: `agy changelog`, agy 1.5.9, run by the agy seat 2026-11-14.
+- G2 europe-west4 VM-hour: gcloud-compute.com (agy seat, read 2026-11-14); Cloud Run GPU: cloud.google.com/run/pricing (agy seat, read 2026-11-14).
 - Mistral Vibe offline models: docs.mistral.ai/vibe/code/cli/offline-models (re-read 2026-11-14).
 - Model cards (licence, size), read 2026-11-14 by the mistral seat: huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512, huggingface.co/mistralai/Devstral-2-123B-Instruct-2512, huggingface.co/mistralai/Mistral-Small-4-119B-2603.
 - vLLM Anthropic Messages endpoint: github.com/vllm-project/vllm/pull/22627 (merged 2025-10-22); issue 21313.
@@ -457,10 +477,10 @@ own file under this folder unless said otherwise:
 | seat | vendor | findings folded | PASS on sha |
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
-| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672); re-sign on the final sha |
-| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c); re-sign on the final sha |
-| codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867) | - |
-| agy seat a-513 (signs last) | agy | - | - |
+| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672), v0.6 `93d886bb0` (note 7a40372e); re-sign on the final sha |
+| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c), v0.6 `93d886bb0` (msg 9f323c4a); re-sign on the final sha |
+| codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867) | v0.6 `93d886bb0` (note c029a520); re-sign on the final sha |
+| agy seat a-513 (signs last) | agy | v0.7: 4.3 agy row (Gemini wire; local only behind a P2 translating gateway), 2.1 `vendorVars`, 4.4 and 4.8 mode B for `i18n` / `specs_and_docs`, Q10 client terms and Q11 further documents (Q7 references fixed), 3.3 box background probes and FR-10, FR-13 Qto import, 2.2 step count, 5.3 G2 / Cloud Run L4 rows (note 29fd824e) | - |
 
 ### 11.1 Changelog
 
@@ -494,5 +514,16 @@ own file under this folder unless said otherwise:
   user-level `$CODEX_HOME/config.toml` or `-c` overrides, since a project
   config ignores them (4.3, FR-03). Both doc claims re-read by the editor
   2026-11-14. Also recorded: m-724 PASS on v0.5 (msg c38f161c).
+- v0.7 (2026-11-14): agy seat a-513 (CHANGES: 5 findings, note 29fd824e).
+  F1: agy speaks the Gemini wire, so it runs local only behind a P2
+  translating gateway; mode B routes the agy-led kinds to `local` after a
+  multilingual slice (2.1, 4.3, 4.4, 4.8). F2: Q10 client terms, Q11
+  further documents, the Q7 references fixed (4.3, 7, 9.1). F3: box
+  background probes in 3.3 and FR-10. F4: FR-13, the Qto import. F5: the
+  2.2 step count and the 5.3 G2 / Cloud Run L4 rows. The editor re-ran every
+  tree claim on `93d886bb0` (all held; the split lines are 1417 and 1421)
+  and re-read the Antigravity CLI reference; the agy changelog and the G2
+  prices are the agy seat's reads. Also recorded: v0.6 PASSes of g-434
+  (with its source-URL wording note), m-724 and o-515.
 
-<!-- version: 0.6.0 · updated: 2026-11-14 · last-edit: 2026-11-14T12:00:00Z -->
+<!-- version: 0.7.0 · updated: 2026-11-14 · last-edit: 2026-11-14T12:45:00Z -->

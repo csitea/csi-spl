@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.7** (2026-11-14), the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
+Version **v0.8** (2026-11-14), the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -269,9 +269,15 @@ The egress-deny run (3.3) is the proof; these switches are not.
   `i18n: { agy: 100, backup: claude }` and `:1417` `specs_and_docs: { agy:
   80, mistral: 15, claude: 5, backup: claude }`, and the global rule gives
   agy the final review of multilingual text. In mode B, without the P2
-  gateway, agy is skipped and cloud claude is unreachable, so `i18n` and
-  `specs_and_docs`, the final language review included, route to `local`
-  only after a candidate passes the multilingual slice of 4.8.
+  gateway, agy is skipped and cloud claude is unreachable. A local model
+  may then **draft** `i18n` and `specs_and_docs` work, but only after it
+  passes the multilingual slice of 4.8. The **final language review is not
+  moved**: multilingual user-facing text ships only after an agy review,
+  which in mode B means the agy client through the offline translating
+  gateway (P2, 4.3). Until that runs, the text holds. The language rule
+  (`spawn-an-agent.md:61`: "it never ships unreviewed") stays as it is; a
+  local model's replay score is not the agy review. Changing that rule is
+  the owner's call, not this spec's (codex seat).
 
 ### 4.5 Model classes and sizing
 
@@ -329,8 +335,8 @@ on the candidate (client + model), judged by the same cross-vendor review the
 fleet uses. The report records version, tree and n (the fleet's "cross-lane
 finding states three fields" rule). The pass bar per kind is an owner choice
 made from the first report, not fixed here. The replay set carries a
-**multilingual (`i18n`) slice**, which gates the agy-led kinds in mode B
-(4.4).
+**multilingual (`i18n`) slice**, which gates a local model **drafting**
+the agy-led kinds in mode B; it never stands in for the agy review (4.4).
 
 ## 5. Infrastructure
 
@@ -478,8 +484,8 @@ own file under this folder unless said otherwise:
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
 | grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672), v0.6 `93d886bb0` (note 7a40372e); re-sign on the final sha |
-| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c), v0.6 `93d886bb0` (msg 9f323c4a); re-sign on the final sha |
-| codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867) | v0.6 `93d886bb0` (note c029a520); re-sign on the final sha |
+| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c), v0.6 `93d886bb0` (msg 9f323c4a), v0.7 `efe28a084` (msg 11ea4e24); re-sign on the final sha |
+| codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867) | v0.6 `93d886bb0` (note c029a520); v0.8: 4.4 / 4.8 the agy review stays the last step in mode B (note f37936db); re-sign on the final sha |
 | agy seat a-513 (signs last) | agy | v0.7: 4.3 agy row (Gemini wire; local only behind a P2 translating gateway), 2.1 `vendorVars`, 4.4 and 4.8 mode B for `i18n` / `specs_and_docs`, Q10 client terms and Q11 further documents (Q7 references fixed), 3.3 box background probes and FR-10, FR-13 Qto import, 2.2 step count, 5.3 G2 / Cloud Run L4 rows (note 29fd824e) | - |
 
 ### 11.1 Changelog
@@ -525,5 +531,12 @@ own file under this folder unless said otherwise:
   and re-read the Antigravity CLI reference; the agy changelog and the G2
   prices are the agy seat's reads. Also recorded: v0.6 PASSes of g-434
   (with its source-URL wording note), m-724 and o-515.
+- v0.8 (2026-11-14): codex seat o-515 (CHANGES: 1 finding on v0.7, note
+  f37936db). v0.7 let a local model take the final language review in mode
+  B, which conflicts with the language rule. Now a local model may only
+  draft; multilingual text ships after an agy review through the offline
+  gateway, or holds (4.4, 4.8). Editor checked the rule:
+  `grep -n "never ships unreviewed" .../spawn-an-agent.md` -> line 61.
+  Also recorded: m-724 PASS on v0.7 (msg 11ea4e24).
 
-<!-- version: 0.7.0 · updated: 2026-11-14 · last-edit: 2026-11-14T12:45:00Z -->
+<!-- version: 0.8.0 · updated: 2026-11-14 · last-edit: 2026-11-14T13:00:00Z -->

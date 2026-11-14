@@ -49,6 +49,7 @@
 # @param LANE_CHECK (optional) - comma-separated paths the caller is about to own; exit 3 on an overlap with another live lane, exit 4 when none overlaps but a live build lane has no files recorded
 # @param LANE_AGENT (optional) - the caller's own id, skipped by LANE_CHECK
 # @param LANE_REPO_DIRS (optional) - space-separated repos whose local worktrees join the map; default the repo holding this tree
+# @param LANE_WT_JOBS (optional) - how many lane worktrees --check reads at a time, default 8
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `lane <args>`, prints the hub's answer
 # @param LANE_HUB_TRIES / LANE_HUB_BACKOFF / LANE_HUB_BUDGET (optional) - the hub read: tries (default 3), seconds between them (default "1 2"), total seconds (default 15: 4 s a try)
 # @param LANE_ALERT_GAP_S (optional) - at most one hub-down #alerts note per box in this many seconds, default 900
@@ -679,9 +680,12 @@ spl_lane_clean_here() {  # ROWS LIVE_HERE (JSON array)
 
 # The worktree of lane ID here: <top>-wt/<ID> of a LANE_REPO_DIRS repo, or
 # <repo>-wt/<ID> beside it for the row's REPO. Fails when there is none.
-spl_lane_wt_dir() {  # ID REPO
-  local top d
-  for top in $(spl_lane_repo_tops); do
+# TOPS (spl_lane_repo_tops' lines) is read when not given: a scan passes it
+# once, not two git calls per worktree (perf p8-04).
+spl_lane_wt_dir() {  # ID REPO [TOPS]
+  local top d tops
+  if (( $# >= 3 )); then tops="$3"; else tops="$(spl_lane_repo_tops)"; fi
+  for top in $tops; do
     for d in "${top}-wt/$1" ${2:+"$(dirname "$top")/$2-wt/$1"}; do
       [[ -e "$d/.git" ]] && { printf '%s\n' "$d"; return 0; }
     done
@@ -706,13 +710,28 @@ spl_lane_wt_changes() {  # WT
 
 # {"<id>": [changed paths, at most 200]} for the rows of this box in ROWS
 # (a JSON array) whose worktree is here; a lane git cannot read is left out.
+# The repo tops are read once; the worktrees' git reads run LANE_WT_JOBS
+# (default 8) at a time, each into its own file, joined in the rows' order
+# (perf p8-04: 26 worktrees were 52 repo_tops calls and 78 git reads in turn).
 spl_lane_wt_scan() {  # ROWS
-  local id repo wt paths
-  while IFS=$'\t' read -r id repo; do
-    wt="$(spl_lane_wt_dir "$id" "$repo")" || continue
-    paths="$(spl_lane_wt_changes "$wt")" || continue
-    jq -R -s -c --arg id "$id" '{($id): (split("\n") | map(select(length > 0)) | .[0:200])}' <<<"$paths"
-  done < <(jq -r --arg b "$LANE_BOX" '.[] | select(.agent_box == $b) | [.agent_id, .repo] | @tsv' <<<"$1") | jq -s -c 'add // {}'
+  local id repo wt tops tmp n=0 run=0 i wt_rows=() wt_ids=()
+  tops="$(spl_lane_repo_tops)"
+  tmp="$(mktemp -d)" || return 1
+  mapfile -t wt_rows < <(jq -r --arg b "$LANE_BOX" '.[] | select(.agent_box == $b) | [.agent_id, .repo] | @tsv' <<<"$1")
+  for i in "${wt_rows[@]}"; do
+    IFS=$'\t' read -r id repo <<<"$i"
+    wt="$(spl_lane_wt_dir "$id" "$repo" "$tops")" || continue
+    n=$((n + 1)); wt_ids[n]="$id"
+    (( run >= ${LANE_WT_JOBS:-8} )) && { wait -n; run=$((run - 1)); }
+    { spl_lane_wt_changes "$wt" >"$tmp/$n.out" && : >"$tmp/$n.ok"; } &
+    run=$((run + 1))
+  done
+  wait
+  for ((i = 1; i <= n; i++)); do
+    [[ -e "$tmp/$i.ok" ]] || continue
+    jq -R -s -c --arg id "${wt_ids[i]}" '{($id): (split("\n") | map(select(length > 0)) | .[0:200])}' <"$tmp/$i.out"
+  done | jq -s -c 'add // {}'
+  i=$?; rm -rf "$tmp"; return "$i"
 }
 
 # One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`;

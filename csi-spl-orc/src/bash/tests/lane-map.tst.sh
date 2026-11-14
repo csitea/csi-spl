@@ -103,6 +103,13 @@
 #      <repo>-wt) are 40 rows from ONE jq call (a PATH shim counts them),
 #      byte-identical to the per-row jq form it replaced. RED on the function
 #      before it: 41 calls (one per lane, one to join them)
+#  22. the worktree scan reads the repo tops once (perf p8-04): 12 lane
+#      worktrees (clean, a commit, a staged, an untracked and an edited file)
+#      plus one git cannot read, one with no worktree here and one row of
+#      another box are at most 2 `rev-parse --git-common-dir` calls per scan
+#      (a PATH shim counts them), and the JSON is byte-identical to the
+#      scan it replaced, also one job at a time (LANE_WT_JOBS=1). RED on the
+#      functions before it: 28 calls (two per row of this box)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -828,6 +835,58 @@ calls="$(wc -l <"$T/jq.calls")"
 [[ "$(jq length <<<"$got")" == 40 && "$calls" -le 1 ]] &&
   pass "40 lane worktrees are 40 local rows from $calls jq call (not one per lane)" || fail "local rows: $calls jq calls, $(jq length <<<"$got") rows"
 [[ "$got" == "$want" ]] && pass "the rows are byte-identical to the per-row jq form" || fail "local rows differ: $(diff <(jq -c '.[]' <<<"$want") <(jq -c '.[]' <<<"$got") | sed -n 1,4p)"
+
+# 22. the worktree scan reads the repo tops once (perf p8-04)
+machine scan
+git -C "$T/scan/csi-spl" update-ref refs/remotes/origin/master HEAD
+for i in $(seq 861 872); do lane scan "c-$i" "slug-$i"; done
+w="$T/scan/csi-spl-wt"
+echo u >"$w/c-861/untracked.txt"
+echo c >"$w/c-862/committed.txt" && git -C "$w/c-862" add committed.txt &&
+  git -C "$w/c-862" -c user.email=t@example.com -c user.name=t commit -q -m c
+echo s >"$w/c-863/staged.txt" && git -C "$w/c-863" add staged.txt
+mkdir -p "$w/c-864/d" && echo n >"$w/c-864/d/new.txt" && echo m >"$w/c-864/a.txt"
+mkdir -p "$w/c-873" && echo 'gitdir: /nonexistent' >"$w/c-873/.git"
+jq -n -c '[range(861; 874) | {agent_id: "c-\(.)", agent_box: "box-desk", repo: "csi-spl"}]
+  + [{agent_id: "c-899", agent_box: "box-desk", repo: "csi-spl"}, {agent_id: "c-862", agent_box: "sat", repo: "csi-spl"}]' >"$T/scan-rows.json"
+mkdir -p "$T/gitshim"
+printf '#!/usr/bin/env bash\n[[ " $* " == *" rev-parse "* && " $* " == *" --git-common-dir "* ]] && echo tops >>"%s/git.calls"\nexec %q "$@"\n' \
+  "$T" "$(command -v git)" >"$T/gitshim/git"
+chmod +x "$T/gitshim/git"
+# the scan it replaced, as the reference: repo_tops per worktree, the git reads in turn
+cat >"$T/ref-scan.sh" <<'REF'
+ref_wt_dir() {
+  local top d
+  for top in $(spl_lane_repo_tops); do
+    for d in "${top}-wt/$1" ${2:+"$(dirname "$top")/$2-wt/$1"}; do
+      [[ -e "$d/.git" ]] && { printf '%s\n' "$d"; return 0; }
+    done
+  done
+  return 1
+}
+ref_wt_scan() {
+  local id repo wt paths
+  while IFS=$'\t' read -r id repo; do
+    wt="$(ref_wt_dir "$id" "$repo")" || continue
+    paths="$(spl_lane_wt_changes "$wt")" || continue
+    jq -R -s -c --arg id "$id" '{($id): (split("\n") | map(select(length > 0)) | .[0:200])}' <<<"$paths"
+  done < <(jq -r --arg b "$LANE_BOX" '.[] | select(.agent_box == $b) | [.agent_id, .repo] | @tsv' <<<"$1") | jq -s -c 'add // {}'
+}
+REF
+scan() { on scan ': >"'"$T"'/git.calls"; '"$1"' "$(cat "'"$T"'/scan-rows.json")"' LANE_REPO_DIRS= LANE_BOX=box-desk PATH="$T/gitshim:$PATH" "${@:2}"; }
+want="$(scan 'source "'"$T"'/ref-scan.sh"; ref_wt_scan')"
+refcalls="$(wc -l <"$T/git.calls")"
+got="$(scan spl_lane_wt_scan)"
+calls="$(wc -l <"$T/git.calls")"
+[[ "$calls" -le 2 && "$(jq length <<<"$got")" == 12 ]] &&
+  pass "12 lane worktrees: $calls repo-tops git reads per scan (the old shape: $refcalls)" ||
+  fail "worktree scan: $calls rev-parse --git-common-dir calls (at most 2), $(jq length <<<"$got") lanes"
+[[ -n "$got" && "$got" == "$want" ]] && pass "the scan's JSON is byte-identical to the old scan's" ||
+  fail "scan differs: want $want got $got"
+got1="$(scan spl_lane_wt_scan LANE_WT_JOBS=1)"
+[[ "$got1" == "$want" && "$(jq -c '."c-862", ."c-864", ."c-873"' <<<"$got")" == $'["committed.txt"]\n["a.txt","d/new.txt"]\nnull' ]] &&
+  pass "one job at a time is the same JSON; a commit, the untracked files are there, an unreadable worktree is left out" ||
+  fail "jobs=1 or content: $got1 / $(jq -c '."c-862", ."c-864", ."c-873"' <<<"$got")"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "lane-map: all passed"; exit 0; fi

@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// An issue follows its discussion (SPL-5284, rdb 0281, spec 041
+// An issue follows its discussion (SPL-5284, rdb 0282, spec 041
 // archive-releases-work.md). The owner (HUM-10, t1 fcf09921, msgs a081dcf2
 // and eae27b5d; poll 063a4bdd 1 B, 2 A, 3 A):
 //

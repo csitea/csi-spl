@@ -235,7 +235,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.MarkIssueOpened(ctx, s.tenant, hum, iss.Number, now); err != nil {
 		t.Fatal(err)
 	}
-	// issue_discussion_closes (rdb 0281, SPL-5284): the kept status of an
+	// issue_discussion_closes (rdb 0282, SPL-5284): the kept status of an
 	// issue its discussion's archive closed. A raw row under inTenant: the
 	// census needs the row, not the issue's status change.
 	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {

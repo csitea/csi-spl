@@ -82,7 +82,7 @@ unset PRE_PUSH_PART_TIMEOUT
 got="$(_pp_budget _pp_part_lint_shellcheck)"
 [[ "$got" == 300 ]] && pass "0. unset budget is the part default 300" \
   || fail "0. default budget" "got $got"
-PRE_PUSH_PART_TIMEOUT=2
+export PRE_PUSH_PART_TIMEOUT=2
 got="$(_pp_budget _pp_part_lint_shellcheck)"
 why="$(_pp_budget_why _pp_part_lint_shellcheck)"
 [[ "$got" == 2 && "$why" == PRE_PUSH_PART_TIMEOUT ]] \

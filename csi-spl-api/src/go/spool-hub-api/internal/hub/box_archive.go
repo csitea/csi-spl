@@ -139,18 +139,57 @@ func (s *Server) boxMemberReadsCard(ctx context.Context, x *session, as, task st
 	if err != nil || !slices.Contains(members[x.box], as) {
 		return false
 	}
+	return s.seatReadsTopic(ctx, x.tenant, x.box, as, task, ch)
+}
+
+// seatReadsTopic is the rest of the channel half for agent as, already a
+// member of channel ch on box: the topic is in no private scope and the agent
+// is dedicated to no other scope. A store that cannot say so fails closed.
+func (s *Server) seatReadsTopic(ctx context.Context, tenant, box, as, task, ch string) bool {
 	ds, ok := s.o.Store.(store.DedicatedStore)
 	if !ok {
 		return false
 	}
-	if private, err := ds.IsPrivateScope(ctx, x.tenant, store.ScopeTopic, task); err != nil || private {
+	if private, err := ds.IsPrivateScope(ctx, tenant, store.ScopeTopic, task); err != nil || private {
 		return false
 	}
-	b, err := ds.GetDedicatedBinding(ctx, x.tenant, as, x.box)
+	b, err := ds.GetDedicatedBinding(ctx, tenant, as, box)
 	if errors.Is(err, store.ErrNotFound) {
 		return true
 	}
 	return err == nil && b.ScopeType == store.ScopeChannel && b.ScopeID == ch
+}
+
+// boxMemberReadsFile is the channel half of the FILE door (SPL-5521), the
+// card's rule above applied to a file: a box that seats an agent of the
+// channel a carrier was posted in reads its file. The back-fill (SPL-987)
+// hands a newly seated box the channel's earlier posts, files[] and all,
+// with no delivery row, so the delivery rule alone answered not_found to the
+// very box holding the post: a prd picture posted into a new channel a
+// second before its agents were invited could not be fetched by them.
+func (s *Server) boxMemberReadsFile(ctx context.Context, tenant, fileID, box string, now time.Time) (bool, error) {
+	carriers, err := s.o.Store.FileChannelCarriers(ctx, tenant, fileID, now)
+	if err != nil {
+		return false, err
+	}
+	members := map[string]map[string][]string{}
+	for _, c := range carriers {
+		ch := store.NormalizeChannel(c.Channel)
+		if ch == "" || store.ChannelHidden(ch) {
+			continue
+		}
+		if _, read := members[ch]; !read {
+			if members[ch], err = s.o.Store.ChannelMembers(ctx, tenant, ch); err != nil {
+				return false, err
+			}
+		}
+		for _, as := range members[ch][box] {
+			if s.seatReadsTopic(ctx, tenant, box, as, c.TaskID, ch) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // boxMayArchive is "Who can archive topics" for a box that reads the card.

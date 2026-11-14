@@ -445,7 +445,12 @@ A file is readable when **any** of:
 
 Principals: a **box**, by its upload token — a message with that box at either
 end, or delivered to it (a channel post is addressed to `box-wui` and reaches
-member boxes as delivery rows). **`box-wui` is not a principal here**: a
+member boxes as delivery rows), or a channel post in a channel this box seats
+an agent of (SPL-5521: the card door's channel half of SPL-3965, with its
+private-topic and dedicated-agent limits). The last rule covers the
+back-fill (SPL-987): it hands a newly seated box the channel's earlier posts
+with their `files[]` but writes no delivery row, so without it the box held a
+post whose picture it could not fetch. **`box-wui` is not a principal here**: a
 browser holds a `box-wui` upload token from its `welcome` frame and downloads
 with its session cookie, never that token, so honouring it would hand every
 member a key that walks past the human door standing next to it. A **human

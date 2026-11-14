@@ -65,6 +65,26 @@ func TestFileDoorAnswers(t *testing.T) {
 					t.Fatalf("FileReadableByBox %s… %s: %v %v, want %v", c.file[:4], c.box, got, err, c.want)
 				}
 			}
+			// SPL-5521: the channel topics carrying a file; a DM, an expired
+			// carrier and a file nobody carries name none.
+			for _, c := range []struct {
+				file, want string
+			}{{bySHA, "ops"}, {byID, ""}, {gone, ""}, {none, ""}} {
+				got, err := s.FileChannelCarriers(ctx, tid, c.file, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var chans []string
+				for _, g := range got {
+					if g.TaskID == "" {
+						t.Fatalf("FileChannelCarriers %s…: a carrier without its topic: %+v", c.file[:4], g)
+					}
+					chans = append(chans, g.Channel)
+				}
+				if strings.Join(chans, ",") != c.want {
+					t.Fatalf("FileChannelCarriers %s…: %v, want %q", c.file[:4], chans, c.want)
+				}
+			}
 		})
 	}
 }

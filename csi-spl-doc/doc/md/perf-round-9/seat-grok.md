@@ -1,10 +1,61 @@
 # Perf round 9 grok seat
 
-Verdict: **PASS** on `8c19c904732343c1b1e0b8e32d32e8d24a6f5c53` (plan v0.1, parent `e9ea1ef32bb4c5e21abcdd3a03f30a486bcfc9df`).
+Verdict: **PASS** on `89f8cef1495819e8b85d0644a8bf7000e77f6cb7` (plan v0.2). Parent is `8c19c904732343c1b1e0b8e32d32e8d24a6f5c53` (the v0.1 sha this seat already signed). Sections 1 to 6 are that v0.1 review. Section 0 is the re-sign.
 
 Panel: g-751@sat, grok. Issue SPL-5502. Epic SPL-2402. Spec `csi-spl-doc/specs/027-spool-performance`.
 
-No defects. Notes N1 to N10 are citation and measurement gaps. They do not change the row shape, the file split, or the direction of the measured gain.
+No defects. N1 to N3 were citation gaps and v0.2 closes them. N4 to N11 do not change the row shape, the file split, or the direction of the measured gain.
+
+## 0. Re-sign of v0.2
+
+Asked by c-723 note `0e1905c3-11e9-4bf3-bed3-6eb46a0726bc` on task `dispatch-perf-r9`.
+
+```
+git fetch -q origin review/c002-perf-round-9-planner review/c002-perf-round-9-grok-seat master
+git rev-parse origin/review/c002-perf-round-9-planner
+git rev-parse 89f8cef1495819e8b85d0644a8bf7000e77f6cb7^
+git merge-base --is-ancestor 8c19c904732343c1b1e0b8e32d32e8d24a6f5c53 89f8cef1495819e8b85d0644a8bf7000e77f6cb7
+git diff --stat 8c19c904732343c1b1e0b8e32d32e8d24a6f5c53 89f8cef1495819e8b85d0644a8bf7000e77f6cb7
+git log --oneline 8c19c904732343c1b1e0b8e32d32e8d24a6f5c53..89f8cef1495819e8b85d0644a8bf7000e77f6cb7
+```
+
+Printed:
+
+```
+PLANNER:89f8cef1495819e8b85d0644a8bf7000e77f6cb7
+PARENT:8c19c904732343c1b1e0b8e32d32e8d24a6f5c53
+ANCESTOR_OK
+ csi-spl-doc/doc/md/perf-round-9-plan.md | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+89f8cef14 docs(p9-plan, SPL-5502): perf round 9 plan v0.2, g-751's N1-N3 citations fixed
+```
+
+`git diff -U0` of that range has five changed lines. Three replace a citation and keep the same baseline, after number, n, vendor, kind and batch:
+
+- Row 01 test range `:83-108` became `:83-105`.
+- Row 03 site range `wf10:1708-1735` became `wf10:1708-1736`.
+- Section 4 caller `:1763` became `:1769`.
+
+The other two added lines are the section 8 v0.2 note and the section 9 row for this seat's v0.1 PASS. Row 02 is not in the diff.
+
+Re-read at `1638ca3a7` with `git show 1638ca3a7651ace34e8f16dd84e0c49988e6df4f:<file> | sed -n`:
+
+```
+1708: sweep() {
+1717: hits="$(grep -rnIoP ..."
+1735: fi
+1736: }
+1763: elif pats="$(spl_private_gate_patterns "$base")"
+1769: LC_ALL="$gate_loc" sweep ... "$(paste -sd'|' <<<"$pats")"
+83: # --- 6. gate patterns
+105: pass "6. a forms_only slug is never matched as the plain word"
+106: blank
+107: # --- 7. the tracked cnf
+```
+
+Those tags match the v0.2 cites. N1, N2 and N3 are closed. No new defect.
+
+`lane-map.sh --check csi-spl-doc/doc/md/perf-round-9/seat-grok.md --agent g-751` (desk-cron copy, `timeout 90`) printed the spool-env warning and `LANE_MAP_EXIT:124`. Empty stdout. Same hang as section 5. Not a collision verdict. This path is the one file this brief assigns to g-751.
 
 ## 1. Slug p9 unused
 
@@ -153,9 +204,19 @@ N9. The first hygiene run was on HEAD `dd314df8e`, four commits behind `origin/m
 
 N10. The plan states there is no p7 or p8 retro. This seat did not re-run the why-now share figure. The consensus table has only the editor until the seats sign.
 
+N11. The v0.2 re-sign in section 0 did not re-run the row 01, 02 or 03 probes. The diff changes three citations and adds the section 8 and section 9 lines. The baseline, after number, n, vendor, kind and batch text is the same on both sides of the row hunks.
+
 ## Hygiene after add
 
 On this index, after `git add` of this file, HEAD `8c19c904732343c1b1e0b8e32d32e8d24a6f5c53`:
+
+```
+cd csi-spl-iac && ./run -a do_check_dist_hygiene
+```
+
+Printed `ok` for each sweep and `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-751`. `HYG_EXIT:0`. The allowed lines were the owner-approved cnf keys only (9 personal-name lines, 4 OS-user or box lines, 6 mail lines).
+
+The v0.2 re-sign run, after `git add` of this file, HEAD `b0eff100de0d9a100f157fe89c3a32b273c89049`:
 
 ```
 cd csi-spl-iac && ./run -a do_check_dist_hygiene

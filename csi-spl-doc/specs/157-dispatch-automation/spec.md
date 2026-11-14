@@ -1,7 +1,7 @@
 # Spec 157: Dispatch Automation — Deterministic Execution of Mechanical Dispatch Procedures
 
-**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.6 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
-**Created**: 2026-10-25 · **Updated**: 2026-10-25 (incorporating cross-vendor review feedback from `c-220@sat` resolving Z1–Z3) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
+**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.7 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
+**Created**: 2026-10-25 · **Updated**: 2026-11-14 (v0.7: section 4.1, the owner's prio word, SPL-5524; v0.6 2026-10-25: cross-vendor review feedback from `c-220@sat` resolving Z1–Z3) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
 **Related Specs & Docs**:  
 - [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md) (Fleet roles, 3-minute SLA, routing rules, lease failover, owner go gates, and asks ledger)  
 - [spec 060 Role Rotation](../060-role-rotation/spec.md) (Hourly rotation, standby states, handoff files)  
@@ -617,6 +617,17 @@ In message `604472ca`, standby dispatcher `c-003@sat` highlighted seven candidat
 2. `c002-bug-lane-issue-end-apply-only`: touches `spl-lane-issue.func.sh`. Build rows B1–B6 touch neither file.
 3. `c002-bug-placer-brief-other-box` (Resolves N4, X4): touches `spl-spawn-place.func.sh`. Row B6 (Rule 3) touches `spl-spawn-place.func.sh:584` (`spl_spawn_place_launch`) and is therefore **strictly ordered AFTER `c002-bug-placer-brief-other-box`**.
 4. `c-184@sat` lease scripts (Resolves N10, X6): rows B1–B6 do NOT touch `spl-dispatch-lease*` or `spl-orch-lease*`. They perform read-only lease queries via `do_spl_dispatch_lease show`.
+
+### 4.1 The owner's prio word puts its ask at the head of the queue (v0.7, SPL-5524)
+
+Origin: csitea weekly item 10 (topic `48d75e5f`, poll `d0c7b716`, ticked by HUM-10 in msg `457da676`). Evidence (c-518's, not re-measured): queue positions up to 74 of 80, and "priority one" written twice by the owner (`89bedc75`, `28ad6624`) before a dispatcher acted on it.
+
+- **Trigger**: a browser post, stored, whose author is a signed-in member that owns the workspace (`rbac` TenantOwner) or is the biz owner of the operator workspace. A member, an admin, a guest socket or an agent never triggers it. The body holds one word of the hub list `SPOOL_HUB_OWNER_PRIO_WORDS` (default `prio,priority one,urgent`) as a whole word: no letter, digit or underscore on either side, any case, a space inside a word matching any white space. `prioritize`, `priority` and `urgently` do not match. Only the owner's own words count: a fenced code block, an inline code span and a `>` quote line (a reply quoting a post, the WUI's "Chat about this" prefill) are dropped before the match. A note to self and the lobby topic set nothing.
+- **Effect, at once, in the hub** (`csi-spl-api/src/go/spool-hub-api/internal/hub/owner_prio_word.go`, after the ack of the send): the topic's priority is set to 1, as `PUT /v1/topics/{task_id}/priority` would (its issues and lanes follow; open views get the `topic_priority` frame). The queue ranks by the discussion's priority first (`askPositions`), so every queued ask on that topic leads the queue on the next list. The hub logs `owner prio word: topic priority 1` and one `owner prio word: queued ask moved` line per queued ask, with its position. A topic already at 1 logs one line and writes nothing.
+- **Across workspaces** (R7 W1, item 10's own case: the topic is in csitea, the spawn queue in the operator workspace): when the poster owns the operator workspace and the topic is in another workspace, the hub also sets the topic's priority 1 in the operator workspace, whose queue ranks its asks by that row, and logs the operator workspace's asks it moved. Another workspace's own owner sets the topic in that workspace only and never reorders the operator workspace's queue.
+- **Placement**: the placer (`spl_spawn_place_band`) takes a priority 1 head as it is, after a `ci` or flagged head and before a review seat and the class bands, logging `INFO priority 1 head`.
+- **Limits**: two topics at priority 1 share the head in the hub's order (class, then time in line). The word list is a hub env var, not yet a `csi-spl-cnf` key; set and empty turns the feature off (unset = the default words).
+- **Tests**: `TestOwnerPrioWordMovesAskToHead`, `TestOwnerPrioWordRefusals`, `TestOwnerPrioWordOff`, `TestOwnerPrioWordOperatorQueue` (`owner_prio_word_test.go`), `TestLoadHubOwnerPrioWords` (`internal/config`); `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh`. Red controls: without the hook the ask stays at position 2; a substring match moves it on `prioritize`; without the owner check a developer's or an admin's post moves it; origin/master's placer takes the review seat over a priority 1 head; without the operator workspace step the operator owner's post leaves op's ask at 2; without `prioOwnText` the quoted, code span and fence posts move it; without the empty-value check `SPOOL_HUB_OWNER_PRIO_WORDS=""` loads the 3 defaults.
 
 ---
 

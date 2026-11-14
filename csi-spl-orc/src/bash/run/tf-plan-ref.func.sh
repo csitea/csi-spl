@@ -20,7 +20,10 @@
 #   - ACTION set to anything but "plan" is refused (do_tf_plan runs with
 #     ACTION=provision inside, as make do-tf-plan does),
 #   - ENV=prd is refused until a dev plan of the SAME sha and step exited 0
-#     here; that run leaves a marker <state>/<sha>.<step>.dev.ok,
+#     here; that run leaves a marker <state>/<sha>.<step>.dev.ok. A prd-only
+#     step (the ref's dev vars render is the stub marked `# prd-only-step`,
+#     spec 057; its dev plan is refused by design) has no dev counterpart and
+#     needs no marker, as in do_check_dev_leads_prd (SPL-5506),
 #   - the make apply targets refuse while PLAN_REF is set (tf-tasks.func.mk).
 # @description The tfvars are the ref's committed render: CI's tpl-gen gate
 # @description (`do_tpl_gen` then `git diff --exit-code`) keeps them equal to
@@ -70,10 +73,8 @@ do_tf_plan_ref() {
 
   local state="${TF_PLAN_REF_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/tf-plan-ref}"
   local marker="$state/$sha.$step.dev.ok"
-  if [[ "$env_name" == prd && ! -f "$marker" ]]; then
-    do_log "FATAL REFUSED: no clean dev plan of ${sha:0:12} STEP=$step yet. Run first: PLAN_REF=$ref ENV=dev STEP=$step make do-tf-plan"
-    return 1
-  fi
+  [[ "$env_name" == prd && ! -f "$marker" ]] && ! _tf_plan_ref_prd_only "$root" "$sha" "$step" &&
+    { do_log "FATAL REFUSED: no clean dev plan of ${sha:0:12} STEP=$step yet. Run first: PLAN_REF=$ref ENV=dev STEP=$step make do-tf-plan"; return 1; }
 
   # The scratch dir must be ignored by the mounted tree: an export that showed
   # in its `git status` would read as someone's untracked work.
@@ -130,4 +131,10 @@ _tf_plan_ref_mount() {
     [[ -n "$src" && "$dst" != /home/* && -d "$src/csi-spl-iac" ]] && { echo "$src|$dst"; return 0; }
   done < <(docker inspect -f '{{range .Mounts}}{{.Source}}|{{.Destination}}{{"\n"}}{{end}}' "$1" 2>/dev/null)
   return 1
+}
+
+# _tf_plan_ref_prd_only <root> <sha> <step>: 0 when the ref's dev vars render
+# of the step is the prd-only stub (spec 057), as do_check_dev_leads_prd reads it.
+_tf_plan_ref_prd_only() {
+  grep -qx '# prd-only-step' <<<"$(git -C "$1" show "$2:csi-spl-cnf/csi-spl/dev/tf/$3.vars.tfvars" 2>/dev/null)"
 }

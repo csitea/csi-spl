@@ -12,7 +12,8 @@
 #   3. the checkout's HEAD, index and tracked files are unchanged
 #   4. ACTION=apply / destroy / provision -> refused, docker never called
 #   5. ENV=prd -> refused until a dev plan of the same sha + step exited 0;
-#      a failed dev plan leaves no marker
+#      a failed dev plan leaves no marker; a prd-only step (the ref's dev
+#      render is the `# prd-only-step` stub) plans prd with no marker
 #   6. a checkout that does not ignore .tf-plan-ref/ -> refused, nothing made
 #   7. an unknown ref / a step the ref lacks -> refused; origin/<ref> resolves
 #   8. the mount is found from `docker inspect` and mapped into the container
@@ -47,6 +48,9 @@ mk_repo() { # <dir> <ignore 0|1>
   git -C "$r" checkout -qb review/fails master
   echo fails >"$r/csi-spl-iac/src/terraform/$STEP/main.tf"
   git -C "$r" -c user.name=t -c user.email=t@t commit -qam fails
+  git -C "$r" checkout -qb review/prdonly master
+  printf '# header\n# prd-only-step\n' >"$r/csi-spl-cnf/csi-spl/dev/tf/$STEP.vars.tfvars"
+  git -C "$r" -c user.name=t -c user.email=t@t commit -qam prdonly
   git -C "$r" checkout -q master
   git -C "$r" update-ref refs/remotes/origin/review/remote-only review/b
 }
@@ -186,6 +190,13 @@ mkdir -p "$T/state" && : >"$T/state/$FAIL_SHA.$STEP.dev.ok"
 out=$(run_action PLAN_REF=review/fails ENV=prd STEP=$STEP); rc=$?
 [[ $rc -eq 0 && $(calls) -eq 1 ]] && pass "CONTROL: with the marker planted, prd of that sha runs (the gate reads the marker)" || fail "control prd marker: rc=$rc"
 rm -f "$T/state/$FAIL_SHA.$STEP.dev.ok"
+
+# 5c. a prd-only step plans prd with no dev marker (5a is its control: the
+#     same call on a ref whose dev render is no stub is refused)
+PO_SHA=$(git -C "$ROOT" rev-parse review/prdonly)
+out=$(run_action PLAN_REF=review/prdonly ENV=prd STEP=$STEP); rc=$?
+[[ $rc -eq 0 && $(calls) -eq 1 && ! -e "$T/state/$PO_SHA.$STEP.dev.ok" ]] \
+  && pass "prd of a prd-only step (dev render = the stub) -> plans with no dev marker" || fail "prd-only: rc=$rc $(tail -2 <<<"$out")"
 
 # 9. make routing
 cd "$ORC" || exit 1

@@ -154,7 +154,9 @@ mount the tree that last ran `make do-setup-app-inf`.
   `ACTION` other than `plan` is refused, every apply-type make target refuses
   while `PLAN_REF` is set, and `ENV=prd` is refused until a dev plan of the
   same sha and step exited 0 (marker
-  `${XDG_STATE_HOME:-~/.local/state}/csi-spl/tf-plan-ref/<sha>.<step>.dev.ok`).
+  `${XDG_STATE_HOME:-~/.local/state}/csi-spl/tf-plan-ref/<sha>.<step>.dev.ok`);
+  a prd-only step (the ref's dev render is the `# prd-only-step` stub, e.g.
+  002) needs no marker, as in `do_check_dev_leads_prd` (SPL-5506).
   Steps reading `var.proj_path` (036, 060, 061) show that path as a change.
   Applying a ref still means landing it and applying from the main checkout
   with the owner's go. Test: `csi-spl-orc/src/bash/tests/tf-plan-ref.tst.sh`.

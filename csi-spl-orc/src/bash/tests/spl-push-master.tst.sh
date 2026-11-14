@@ -3,8 +3,9 @@
 # Purpose: do_spl_push_master (SPL-1578) on a temp bare origin, the pre-push
 # hook stubbed by a script whose mode a file selects.
 #   1. a clean push -> PUSHED <sha>, landed_rc=0, tries=1
-#   2. start returns within seconds while the hook sleeps; status says
-#      RUNNING (exit 3) meanwhile, then PUSHED
+#   2. start returns within 10 s while the hook holds (until the test
+#      releases it, 20 s cap); status says RUNNING (exit 3) meanwhile, then
+#      PUSHED
 #   3. a race: origin moves while the hook runs -> rebase + retry -> PUSHED,
 #      both commits on origin; control: the same race with PUSH_RETRIES=1
 #      -> GAVE-UP (the retry is what lands it)
@@ -127,7 +128,7 @@ echo "override=\${SPL_PREPUSH_OVERRIDE:-unset}" >>"$T/hook.calls"
 echo "agent=\${AGENT_ID:-unset}" >>"$T/hook.calls"
 mode="\$(cat "$T/hook.mode" 2>/dev/null || echo ok)"
 case "\$mode" in
-  sleep) sleep 6 ;;
+  sleep) for _ in \$(seq 1 200); do [ -e "$T/hook.release" ] && break; sleep 0.1; done ;;
   race|race-always)
     [ "\$mode" = race ] && echo ok >"$T/hook.mode"
     n=\$(date +%s%N)
@@ -170,13 +171,18 @@ sha="$(git -C "$L" rev-parse HEAD)"
   && pass "1. a clean push -> PUSHED <sha>, landed_rc=0, tries=1" || fail "1. clean push (rc $rc/$vrc: $out | $v)"
 
 # 2
-echo sleep >"$T/hook.mode"; commit two
+# The hook holds until $T/hook.release (20 s cap), written only after start
+# returned: a start that waits for the hook takes >= 20 s, a loaded box's
+# start (4 s seen at load 38, c-567 v14) stays far under the 10 s budget, and
+# the suite never waits the cap out.
+echo sleep >"$T/hook.mode"; rm -f "$T/hook.release"; commit two
 t0=$(date +%s); out="$(run)"; rc=$?; dt=$(( $(date +%s) - t0 ))
 mid="$(run PUSH_CMD=status)"; mrc=$?
-[ "$rc" -eq 0 ] && [ "$dt" -le 3 ] && pass "2. start returned in ${dt} s while the hook sleeps 6 s" || fail "2. start took ${dt} s (rc $rc: $out)"
+[ "$rc" -eq 0 ] && [ "$dt" -le 10 ] && pass "2. start returned in ${dt} s (budget 10) while the hook holds up to 20 s" || fail "2. start took ${dt} s, budget 10 (rc $rc: $out)"
 [ "$mrc" -eq 3 ] && grep -qx RUNNING <<<"$mid" && pass "2. status meanwhile: RUNNING, exit 3" || fail "2. mid status (rc $mrc: $mid)"
 out="$(run)"; rc=$?
 [ "$rc" -eq 3 ] && grep -q 'already running' <<<"$out" && pass "2. a second start while one runs -> exit 3, no second worker" || fail "2. second start (rc $rc: $out)"
+touch "$T/hook.release"
 v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" && pass "2. then PUSHED" || fail "2. verdict (rc $vrc: $v)"
 

@@ -362,6 +362,10 @@ type Hub struct {
 	// SPL-2584: the human post guard (hub/human_post_guard.go, how-to-post.md
 	// rule 18). false = the off switch; the hub applies neither rule.
 	HumanPostGuard bool `env:"SPOOL_HUB_HUMAN_POST_GUARD" envDefault:"true"`
+	// SPL-5524 (spec 157): a workspace owner's browser post carrying one of
+	// these words (whole words, any case) marks its topic priority 1, so its
+	// queued spawn asks rank first (hub/owner_prio_word.go). Empty = off.
+	OwnerPrioWords []string `env:"SPOOL_HUB_OWNER_PRIO_WORDS" envSeparator:"," envDefault:"prio,priority one,urgent"`
 	// SPL-1225: the relay also escalates a signed human post that no agent
 	// replied to in its topic within this grace to the tenant's responder,
 	// regardless of what the (stale, dir-derived) box-desk roster says about

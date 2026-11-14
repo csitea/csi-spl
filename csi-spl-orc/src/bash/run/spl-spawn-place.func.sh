@@ -389,13 +389,18 @@ spl_spawn_place_dispatch() {
   return 0
 }
 
-# 3b. The row the bands pick, HEAD when it is ci or flagged, a review seat on
-# the owner's review-seat GO next, or HEAD when the share cannot be read (the
-# hub's order holds). The share goes to jq as a file, never argv: its bypass
+# 3b. The row the bands pick, HEAD when it is ci or flagged, or at priority 1
+# (its discussion's, e.g. set by the owner's prio word, SPL-5524), a review
+# seat on the owner's review-seat GO next, or HEAD when the share cannot be
+# read (the hub's order holds). The share goes to jq as a file, never argv: its bypass
 # list is over one argument's 128 KiB (171 KB on sat 2026-10-29, SPL-4156).
 spl_spawn_place_band() {  # HEAD ROWS
   local share pick
   if jq -e '(.class // "") == "ci" or (.flag // "") != ""' >/dev/null <<<"$1"; then printf '%s' "$1"; return 0; fi
+  if jq -e '(.priority // 3) == 1' >/dev/null <<<"$1"; then
+    do_log "INFO priority 1 head: ask $(jq -r '"\(.ask_id[0:8]) (\(.class // "") \(.placement // ""))"' <<<"$1") is placed first, ahead of the bands (SPL-5524)" >&2
+    printf '%s' "$1"; return 0
+  fi
   pick="$(spl_spawn_place_seat "$2")"
   if [[ -n "$pick" ]]; then
     do_log "INFO review-seat pick: ask $(jq -r '"\(.ask_id[0:8]) (\(.class // "") \(.placement), queue position \(.position))"' <<<"$pick") on owner GO ${SPL_SPAWN_REVIEW_SEAT_GO:0:8}, ahead of the bands" >&2

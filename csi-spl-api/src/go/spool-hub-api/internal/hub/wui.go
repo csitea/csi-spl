@@ -650,6 +650,7 @@ func (s *Server) wuiAfterStore(ctx context.Context, c *wuiConn, rt wuiRouted, en
 	}
 	s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
 	s.noteMentionAgentsHumansOnly(ctx, c.tenant, rt.channel, m)     // SPL-2423
+	s.ownerPrioWord(ctx, c.tenant, c.member, m)                     // SPL-5524
 }
 
 // wuiRefuse logs one line for a browser send the hub did not store and

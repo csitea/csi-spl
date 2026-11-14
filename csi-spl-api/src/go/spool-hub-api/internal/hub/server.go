@@ -99,6 +99,9 @@ type Options struct {
 	// that person already got from an agent in the last 24 h. false = off
 	// (the zero value: test rigs post agent DMs as fixtures).
 	HumanPostGuard bool
+	// OwnerPrioWords (SPL-5524, owner_prio_word.go): a workspace owner's
+	// browser post holding one of them sets its topic to priority 1. nil = off.
+	OwnerPrioWords []string
 	// UnansweredGrace (SPL-1225): a signed human post that no agent replied to
 	// in its topic within this grace is escalated to the tenant's responder by
 	// the relay sweep, whatever the (stale) roster says about who is online.

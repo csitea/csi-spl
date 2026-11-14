@@ -371,6 +371,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		Wake:            hc.Wake,
 		WakeWUI:         hc.WakeWUI,
 		HumanPostGuard:  hc.HumanPostGuard,
+		OwnerPrioWords:  hc.OwnerPrioWords,
 		UnansweredGrace: hc.UnansweredGrace,
 		ReescalateEvery: hc.ReescalateEvery,
 		ReescalateMax:   hc.ReescalateMax,

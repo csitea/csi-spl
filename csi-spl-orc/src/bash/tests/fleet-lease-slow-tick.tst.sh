@@ -35,6 +35,8 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+# shellcheck source=wait-event.inc.sh
+source "$TEST_DIR/wait-event.inc.sh"
 SRC="${LEASE_SRC:-$PROJ_ROOT/src/bash/run/spl-dispatch-lease.func.sh}"
 fails=0
 pass() { echo "PASS: $1"; }
@@ -210,15 +212,18 @@ tick_at 3120
 row c-002@sat 30 1000 dispatch; echo 1000 >"$D/fleet.dispatch.ok"; echo "c-002@sat 1000" >"$D/fleet.dispatch.keep-holder"
 : >"$K/hub/calls"
 lease_env "$K"
-env "${LE[@]}" LEASE_NOW=1100 HUB_NOW=1100 LEASE_PERIOD=60 LEASE_STALE=180 LEASE_KEEP=1 LEASE_KEEP_EVERY=1 bash -c '
+env "${LE[@]}" LEASE_NOW=1100 HUB_NOW=1100 LEASE_PERIOD=60 LEASE_STALE=180 LEASE_KEEP=1 LEASE_KEEP_EVERY=1 \
+  WAIT_FN="$(declare -f wait_event pid_gone)" bash -c '
   set -uo pipefail
   do_log() { :; }
-  source "$SRC"
+  source "$SRC"; eval "$WAIT_FN"
   spl_lease_init && spl_lease_ids master failover orch && spl_fleet_ids && spl_fleet_hub_init || exit 1
-  # the trailing true: bash -c would exec a last "sleep" and never reap the
-  # dead loop, and kill -0 on a zombie succeeds
-  sleep 0.3 & spl_fleet_keeper_start "$!"; sleep 2.5; true' >>"$T/out" 2>&1
-[[ "$(n_calls)" == 0 && "$(cut -d' ' -f2 "$K/hub/main.dispatch")" == 30 ]] &&
+  # the event, not a nap (SPL-5525): the keeper ends once it sees the loop
+  # gone, so its exit is when "no pass" is final. The trailing true: bash -c
+  # would exec a last command and never reap the dead loop.
+  sleep 0.3 & spl_fleet_keeper_start "$!"; k=$!
+  wait_event 30 pid_gone "$k" || echo "KEEPER-STILL-RUNNING"; true' >>"$T/out" 2>&1
+[[ "$(n_calls)" == 0 && "$(cut -d' ' -f2 "$K/hub/main.dispatch")" == 30 ]] && ! grep -q KEEPER-STILL-RUNNING "$T/out" &&
   pass "6. the loop gone 0.3 s into the keeper's 1 s sleep: no keeper pass, no hub call" ||
   fail "6. dead loop: calls $(cat "$K/hub/calls") hub $(cat "$K/hub/main.dispatch")"
 

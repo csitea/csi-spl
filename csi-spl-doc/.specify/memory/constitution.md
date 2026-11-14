@@ -551,6 +551,22 @@ A Go package's coverage never falls below its floor in
 Enforced by: `csi-spl-api/src/bash/tests/run-all-tests.sh` (its coverage
 check).
 
+#### 2.12.6 Wait on events, never sleep
+
+A test waits on the event it then asserts: a file appears, a line lands in
+a log, a pid exits, a lock is held, a loop's heartbeat `tick_seq` moves on.
+It never waits with a fixed `sleep N` or times wall clock: a loaded runner
+outlasts any nap and an idle one wastes it (the watchdog and lease fixes
+1638ca3a7, 3f8948542, b0f0c5c46, 7318acddb and 0bb9d4773 were each a nap
+that lost to load). The one bounded poll is `wait_event <seconds> <cmd>` in
+`csi-spl-orc/src/bash/tests/wait-event.inc.sh`, with `env_idle` for "every
+process the sandbox started has ended"; its budget is a cap, not the wait.
+A negative claim ("nothing restarted") waits for the event that makes it
+final: N more ticks, or every launched process gone. A `sleep` inside a stub
+that plays a hung or slow peer is a fixture, not a wait.
+
+Enforced by: review only.
+
 <!-- END CODING STANDARDS -->
 
 ## Additional Constraints
@@ -634,6 +650,6 @@ date, and a re-run of `/speckit-analyze` on every in-flight spec. Complexity
 that deviates from a principle must be justified inline (`# WHY:`) and
 acknowledged in the spec's Clarifications section.
 
-**Version**: 0.3.2 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-13 (Coding Standards exported from developer-guide.md)
+**Version**: 0.3.3 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-14 (Coding Standards exported from developer-guide.md)
 
-<!-- version: 0.3.2 · updated: 2026-11-13 · last-edit: 2026-11-13T22:55:26Z -->
+<!-- version: 0.3.3 · updated: 2026-11-14 · last-edit: 2026-11-14T15:25:01Z -->

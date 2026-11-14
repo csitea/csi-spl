@@ -147,6 +147,8 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+# shellcheck source=wait-event.inc.sh
+source "$TEST_DIR/wait-event.inc.sh"
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
@@ -171,13 +173,16 @@ STUB
 # cas, as another machine winning the race would. A call to another tenant
 # (LEASE_HUB_TENANT, the copies of section 16) has its own file
 # <tenant>.<fleet>.<role>, is logged to calls, and HUB_DOWN_TENANT=<tenant>
-# fails it. HUB_SLOW_TENANT=<tenant> delays it HUB_SLOW_S (6) s.
+# fails it. HUB_SLOW_TENANT=<tenant> holds it until $HUB_DIR/slow.go exists,
+# HUB_SLOW_S (6) s at most, then marks $HUB_DIR/slow.done: a tick back before
+# that mark did not wait for it.
 cat >"$T/bin/hub" <<'STUB'
 #!/bin/sh
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
 [ -s "${HUB_FAILS:-/nonexistent}" ] && n=$(cat "$HUB_FAILS") && [ "$n" -gt 0 ] && { echo $((n - 1)) >"$HUB_FAILS"; echo "dial: lookup hub: no such host" >&2; exit 1; }
 [ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_DOWN_TENANT:-}" ] && { echo "dial: i/o timeout" >&2; exit 1; }
-[ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_SLOW_TENANT:-}" ] && sleep "${HUB_SLOW_S:-6}"
+[ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_SLOW_TENANT:-}" ] && {
+  i=0; while [ ! -e "$HUB_DIR/slow.go" ] && [ "$i" -lt "$(( ${HUB_SLOW_S:-6} * 10 ))" ]; do sleep 0.1; i=$((i + 1)); done; : >"$HUB_DIR/slow.done"; }
 [ -n "${LEASE_HUB_TENANT:-}" ] && echo "$LEASE_HUB_TENANT" >>"$HUB_DIR/calls"
 shift
 fleet="" role="" holder="" ifgen=""
@@ -341,7 +346,7 @@ ens() {
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
     spl_lease_init && LEASE_CMD=ensure do_spl_dispatch_lease' >>"$T/out" 2>&1
 }
-ens; sleep 1
+ens; wait_event 10 test -s "$E/spool/dispatch/fleet.pid"
 [[ "$(cat "$E/runlog" 2>/dev/null)" == "fleet main pc pc,sat" ]] &&
   pass "11. ensure starts ONE fleet loop with the conf's fleet settings (no renew, no watch)" || fail "11. runlog: $(cat "$E/runlog" 2>&1)"
 env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$E/spool" bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; LEASE_CMD=stop do_spl_dispatch_lease' >/dev/null 2>&1
@@ -478,7 +483,7 @@ tick sat 31691 "${T15[@]}"
 rm -rf "$T/hub"/*; rm -f "$T/asksrun.log"; agent pc 100 CLE-001; echo 31700 >"$T/act/100"
 tick pc 31700 LEASE_ACTIVITY_CMD="$T/bin/act"; kill_agent pc 100
 tick sat 31900 LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER=HUM-10 ASKS_OWNER=HUM-10
-for _ in $(seq 1 50); do grep -q failover "$T/asksrun.log" 2>/dev/null && break; sleep 0.1; done
+wait_event 5 grep -q failover "$T/asksrun.log" 2>/dev/null
 [[ "$(hubh orch)" == CLE-001@sat && "$(grep -c '^-a do_spl_fleet_notice | DESK_TO= DESK_KIND=note | Orchestrator failover: CLE-001@sat took over' "$T/asksrun.log" 2>/dev/null)" == 1 &&
    "$(grep -c 'DESK_TO=HUM' "$T/asksrun.log" 2>/dev/null)" == 0 && "$(dms)" == 2 ]] &&
   pass "15. the take-over notice goes to the ops channel (do_spl_fleet_notice), no DM to the owner" ||
@@ -525,11 +530,16 @@ got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" SPL_STATE_DIR="$S" LEA
 rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane"
 agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
 T16B=(LEASE_MIRROR_TENANTS="csitea" HUB_SLOW_TENANT=csitea HUB_SLOW_S=6)
-t0=$SECONDS; tick pc 40000 "${T16B[@]}"; took=$((SECONDS - t0))
-[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc && "$took" -lt 5 ]] &&
-  pass "16b. a tenant answering in 6 s: the tick is back in ${took}s with both own writes done" ||
-  fail "16b. slow tenant: ${took}s, hub $(hubh dispatch)/$(hubh orch)"
-for _ in $(seq 1 100); do [[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy csitea orch)" == CLE-001@pc ]] && break; sleep 0.2; done
+# the event, not a stopwatch (SPL-5525): the slow tenant answers only once
+# slow.go exists (60 s at most), made after the tick is back; a tick back
+# with no slow.done did not wait for it
+rm -f "$T/hub/slow.done" "$T/hub/slow.go"; tick pc 40000 "${T16B[@]}" HUB_SLOW_S=60 LEASE_MIRROR_TIMEOUT=120
+back_early=$([[ -e "$T/hub/slow.done" ]] && echo no || echo yes); : >"$T/hub/slow.go"
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc && "$back_early" == yes ]] &&
+  pass "16b. a tenant answering in 6 s: the tick is back before it answers, with both own writes done" ||
+  fail "16b. slow tenant: back before its answer=$back_early, hub $(hubh dispatch)/$(hubh orch)"
+copies_landed() { [[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy csitea orch)" == CLE-001@pc ]]; }
+wait_event 20 copies_landed
 [[ "$(copy csitea dispatch)" == CLE-002@pc && "$(copy csitea orch)" == CLE-001@pc ]] &&
   pass "16b. the copies still land, behind the tick" || fail "16b. copies: $(copy csitea dispatch)/$(copy csitea orch)"
 : >"$T/hub/calls"
@@ -539,22 +549,22 @@ exec 7>"$T/pc/spool/dispatch/fleet.dispatch.mirror.lock"; flock -w 30 7
 # Each pass of this tick inherits fd 6, so EOF on it = every pass has ended, skip
 # logged or not. Released earlier, a late dispatch pass finds the lock free (SPL-5185).
 tick pc 40060 LEASE_MIRROR_TENANTS=csitea 6> >(exec 7>&-; cat >/dev/null; : >"$T/tick.ended")
-for _ in $(seq 1 300); do [[ -e "$T/tick.ended" ]] && break; sleep 0.1; done
+wait_event 30 test -e "$T/tick.ended"
 exec 7>&-
 [[ "$(copy csitea dispatch 3)" == 40000 && "$(copy csitea orch 3)" == 40060 && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 40060 ]] &&
   pass "16b. a pass still running: the next one for that role is skipped, the own write and the other role are not" ||
   fail "16b. single flight: dispatch copy at $(copy csitea dispatch 3), orch copy at $(copy csitea orch 3), own at $(cut -d' ' -f3 "$T/hub/main.dispatch")"
 [[ "$(logc pc 'COPY-SKIPPED dispatch: the previous pass still runs')" == 1 ]] &&
   pass "16b. a skipped pass says so in the log" || fail "16b. skip log: $(grep COPY "$T/pc/spool/dispatch/lease.log")"
-got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" bash -c '
-  do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init
-  spl_fleet_mirror_out() { sleep 3; }
+got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" WAIT_FN="$(declare -f wait_event)" bash -c '
+  do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; eval "$WAIT_FN"
+  spl_fleet_mirror_out() { : >"$LEASE_DIR/out.started"; sleep 3; }
   for n in 7 8; do eval "exec $n>\"\$LEASE_DIR/held.$n\""; flock "$n"; done
-  spl_fleet_mirror_bg fd-role CLE-002@pc; sleep 0.5; exec 7>&- 8>&-
+  spl_fleet_mirror_bg fd-role CLE-002@pc; wait_event 10 test -e "$LEASE_DIR/out.started"; exec 7>&- 8>&-
   for n in 7 8; do flock -n "$LEASE_DIR/held.$n" true && echo -n "free " || echo -n "held "; done' 2>&1)
 [[ "$got" == "free free " ]] && pass "16b. a running pass does not keep the loop's lock fds" || fail "16b. lock fds: '$got'"
-t0=$SECONDS; tick pc 40120 "${T16B[@]}" LEASE_MIRROR_WAIT=1; took=$((SECONDS - t0))
-(( took >= 6 )) && pass "16b. control: copies waited for on the loop thread take the tick ${took}s" || fail "16b. control: ${took}s"
+rm -f "$T/hub/slow.done" "$T/hub/slow.go"; tick pc 40120 "${T16B[@]}" LEASE_MIRROR_WAIT=1
+[[ -e "$T/hub/slow.done" ]] && pass "16b. control: copies waited for on the loop thread hold the tick until the slow tenant answers" || fail "16b. control: the tick was back before the slow tenant answered"
 
 # --- 17. a stuck dispatch seat is no candidate --------------------------------------------
 rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/act"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane" "$T/act"

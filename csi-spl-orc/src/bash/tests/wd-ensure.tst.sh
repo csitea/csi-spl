@@ -29,6 +29,8 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+# shellcheck source=wait-event.inc.sh
+source "$TEST_DIR/wait-event.inc.sh"
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
@@ -93,27 +95,18 @@ run_act() { "$T/bin/act" "$@"; }
 # held = the lock is taken AND run.pid names a live process: the new loop
 # takes the lock before it writes run.pid, so a stale pid from the loop
 # stop_loop killed must not count (wf 10 38996027956: case 5 met case 4's loop)
-wait_held() {
-  local pid n=0
-  while (( n < 50 )); do
-    pid="$(cat "$D/run.pid" 2>/dev/null || true)"
-    [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && ! flock -n "$D/run.lock" true && return 0
-    sleep 0.1
-    n=$((n + 1))
-  done
-  return 1
+loop_holds() {
+  local pid
+  pid="$(cat "$D/run.pid" 2>/dev/null || true)"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && ! flock -n "$D/run.lock" true
 }
+wait_held() { wait_event 5 loop_holds; }
 stop_loop() {
-  local pid n=0
+  local pid
   pid="$(cat "$D/run.pid" 2>/dev/null || true)"
   if [[ "$pid" =~ ^[0-9]+$ ]]; then kill "$pid" 2>/dev/null || true; fi
   [[ -e "$D/run.lock" ]] || return 0
-  while (( n < 50 )); do
-    if flock -n "$D/run.lock" true; then return 0; fi
-    sleep 0.1
-    n=$((n + 1))
-  done
-  return 1
+  wait_event 5 flock -n "$D/run.lock" true
 }
 
 # --- 1-5. the keeper ----------------------------------------------------------

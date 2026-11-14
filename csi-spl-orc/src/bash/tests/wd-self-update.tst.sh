@@ -71,7 +71,7 @@ printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\nSPOOL_BOX_TAG=box1\nSPOOL_DESK_B
 # tick: a cap only bounds a wait, it costs nothing on green.
 TICK="${WD_UPD_TEST_TICK:-5}" WT="${WD_UPD_TEST_TICK:-5}"
 (( WT < 10 )) && WT=10
-WAIT_S=60 WAIT_N=600
+WAIT_S=60
 
 # ---- stubs -------------------------------------------------------------------
 : > "$T/ps"; : > "$T/tmux/panes"
@@ -167,65 +167,52 @@ held() { [[ -f "$1" ]] && ! flock -n "$1" true; }
 live() { local n=0 i; for i in 1 2 3; do held "$W/run.$i.lock" && n=$((n + 1)); done; echo "$n"; }
 # on_good <seconds>: every heartbeat on SHA_C or SHA_D: after 4 the two
 # carry the same csi-spl-orc, so an instance on C is on good code
-on_good() {
-  local i j ok
-  for (( j = 0; j < $1 * 5; j++ )); do
-    ok=1
-    for i in 1 2 3; do [[ "$(hb_sha "$i")" == "${SHA_C:0:9}" || "$(hb_sha "$i")" == "${SHA_D:0:9}" ]] || ok=0; done
-    (( ok )) && return 0
-    sleep 0.2
-  done
-  return 1
+good_all() {
+  local i
+  for i in 1 2 3; do [[ "$(hb_sha "$i")" == "${SHA_C:0:9}" || "$(hb_sha "$i")" == "${SHA_D:0:9}" ]] || return 1; done
 }
+on_good() { wait_event "$1" good_all; }
 # alive <n> <seconds>: n instances whose run.<inst>.pid is a live process
 # (no lock probe: a probe holds a free lock for an instant, and a loop a
 # peer is starting in that instant exits "already runs")
-alive() {
-  local i j c
-  for (( j = 0; j < $2 * 5; j++ )); do
-    c=0; for i in 1 2 3; do kill -0 "$(cat "$W/run.$i.pid" 2>/dev/null || echo 0)" 2>/dev/null && c=$((c + 1)); done
-    (( c == $1 )) && return 0
-    sleep 0.2
-  done
-  return 1
+alive_n() {
+  local i c=0
+  for i in 1 2 3; do kill -0 "$(cat "$W/run.$i.pid" 2>/dev/null || echo 0)" 2>/dev/null && c=$((c + 1)); done
+  (( c == $1 ))
 }
+alive() { wait_event "$2" alive_n "$1"; }
 pids() { cat "$W/run.1.pid" "$W/run.2.pid" "$W/run.3.pid" 2>/dev/null | tr '\n' ' '; }
 hb_sha() { jq -r '.git_sha' "$W/heartbeat.$1.json" 2>/dev/null; }
+# tick_seq <inst>: the loop's tick count, from its heartbeat (0 before one)
+tick_seq() { local n; n="$(jq -r '.tick_seq // 0' "$W/heartbeat.$1.json" 2>/dev/null)"; echo "${n:-0}"; }
+seqs() { echo "$(tick_seq 1) $(tick_seq 2) $(tick_seq 3)"; }
+# ticked <n> <seq 1> <seq 2> <seq 3>: every loop has started n ticks past
+# those: the event "n ticks went by", not a nap of n ticks' length (SPL-5525)
+ticked() {
+  local n="$1" i=1 s; shift
+  for s in "$@"; do (( $(tick_seq "$i") >= s + n )) || return 1; i=$((i + 1)); done
+}
 cnt() { local n; n="$(grep -cE -- "$1" "$2" 2>/dev/null)"; echo "${n:-0}"; }
 link() { basename "$(readlink "$W/code/$1" 2>/dev/null)" 2>/dev/null; }
 # wait_for <regex> <seconds>: a wd.log line
-wait_for() {
-  local i
-  for (( i = 0; i < $2 * 5; i++ )); do grep -qE -- "$1" "$LOG" 2>/dev/null && return 0; sleep 0.2; done
-  return 1
-}
+wait_for() { wait_event "$2" grep -qE -- "$1" "$LOG"; }
 # sent_once <regex>: exactly one alert matches, once the send that follows
 # the wd.log line has landed (up to 10 s)
-sent_once() {
-  local i
-  for (( i = 0; i < 50; i++ )); do [[ "$(cnt "$1" "$T/sent")" -ge 1 ]] && break; sleep 0.2; done
-  [[ "$(cnt "$1" "$T/sent")" == 1 ]]
-}
+sent_at_least() { (( $(cnt "$1" "$T/sent") >= 1 )); }
+sent_once() { wait_event 10 sent_at_least "$1"; [[ "$(cnt "$1" "$T/sent")" == 1 ]]; }
 # all_on <sha> <seconds>: the 3 heartbeats on <sha>
-all_on() {
-  local i
-  for (( i = 0; i < $2 * 5; i++ )); do
-    [[ "$(hb_sha 1)" == "${1:0:9}" && "$(hb_sha 2)" == "${1:0:9}" && "$(hb_sha 3)" == "${1:0:9}" ]] && return 0
-    sleep 0.2
-  done
-  return 1
-}
+on_sha() { [[ "$(hb_sha 1)" == "${1:0:9}" && "$(hb_sha 2)" == "${1:0:9}" && "$(hb_sha 3)" == "${1:0:9}" ]]; }
+all_on() { wait_event "$2" on_sha "$1"; }
 sandbox_pids() { grep -lzxF -- "SPOOL_ROOT=$S" /proc/[0-9]*/environ 2>/dev/null | cut -d/ -f3; }
-stop_all() {
+# kill_round: one round of kills; true once none is left
+kill_round() {
   local p
-  for _ in $(seq 1 "$WAIT_N"); do
-    p="$(sandbox_pids)"
-    # shellcheck disable=SC2086 # one pid per word
-    [[ -n "$p" ]] && kill -KILL $p 2>/dev/null
-    [[ -z "$p" ]] && ! held "$W/run.1.lock" && ! held "$W/run.2.lock" && ! held "$W/run.3.lock" && break
-    sleep 0.1
-  done
+  p="$(sandbox_pids)"
+  # shellcheck disable=SC2086 # one pid per word
+  [[ -n "$p" ]] && kill -KILL $p 2>/dev/null
+  [[ -z "$p" ]] && ! held "$W/run.1.lock" && ! held "$W/run.2.lock" && ! held "$W/run.3.lock"
 }
+stop_all() { wait_event "$WAIT_S" kill_round; }
 trap 'stop_all; rm -rf "$T"' EXIT
 
 # ---- 1. units ------------------------------------------------------------------
@@ -240,13 +227,17 @@ out="$(lib "set -- $SHA_A; "'for t in 08 8 0; do echo "sha=$1 next=1 stage=exec 
 [[ "$out" == *"T08 garbled"* && "$out" == *"T8 read 8"* && "$out" == *"T0 read 0"* ]] &&
   pass "1 try=08 (a leading zero) is a garbled update.state, not an arithmetic error; try=8 and try=0 read" || fail "1 try leading zero: $out"
 
-out="$(lib 'echo "sha=x next=2 stage=wait pid=0 since=1 start=1" > "$WD_DIR/update.state"; s=$(date +%s); spl_wd_upd_sleep 20; echo "SLEPT $(( $(date +%s) - s ))"; rm -f "$WD_DIR/update.state"' WD_INST=2 WD_UPD_SLICE=1)"
+# SPL-5525: the slices are counted (a sleep stub logs each), not timed, so a
+# loaded runner cannot stretch a 1 s slice past the bound
+SLICES='sleep() { echo "$1" >> "$WD_DIR/slept"; }; rm -f "$WD_DIR/slept"; '
+slept='echo "SLEPT $(cat "$WD_DIR/slept" 2>/dev/null | paste -sd+ - | bc)"'
+out="$(lib "$SLICES"'echo "sha=x next=2 stage=wait pid=0 since=1 start=1" > "$WD_DIR/update.state"; spl_wd_upd_sleep 20; '"$slept"'; rm -f "$WD_DIR/update.state"' WD_INST=2 WD_UPD_SLICE=1)"
 n="$(sed -n 's/.*SLEPT //p' <<<"$out")"
 [[ "$n" =~ ^[0-9]+$ ]] && (( n <= 2 )) && pass "1 sliced sleep ends on the baton (${n}s of 20)" || fail "1 sleep baton: $out"
-out="$(lib 'touch "$WD_DIR/code/$WD_CODE_SHA.bad"; s=$(date +%s); spl_wd_upd_sleep 20; echo "SLEPT $(( $(date +%s) - s ))"; rm -f "$WD_DIR/code/$WD_CODE_SHA.bad"' WD_INST=3 WD_UPD_SLICE=1)"
+out="$(lib "$SLICES"'touch "$WD_DIR/code/$WD_CODE_SHA.bad"; spl_wd_upd_sleep 20; '"$slept"'; rm -f "$WD_DIR/code/$WD_CODE_SHA.bad"' WD_INST=3 WD_UPD_SLICE=1)"
 n="$(sed -n 's/.*SLEPT //p' <<<"$out")"
 [[ "$n" =~ ^[0-9]+$ ]] && (( n <= 2 )) && pass "1 sliced sleep ends on a quarantined sha (${n}s of 20)" || fail "1 sleep bad: $out"
-out="$(lib 'echo "sha=x next=3 stage=wait pid=0 since=1 start=1" > "$WD_DIR/update.state"; s=$(date +%s); spl_wd_upd_sleep 3; echo "SLEPT $(( $(date +%s) - s ))"; rm -f "$WD_DIR/update.state"' WD_INST=2 WD_UPD_SLICE=1)"
+out="$(lib "$SLICES"'echo "sha=x next=3 stage=wait pid=0 since=1 start=1" > "$WD_DIR/update.state"; spl_wd_upd_sleep 3; '"$slept"'; rm -f "$WD_DIR/update.state"' WD_INST=2 WD_UPD_SLICE=1)"
 n="$(sed -n 's/.*SLEPT //p' <<<"$out")"
 [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 3 )) && pass "1 control: the baton names another instance -> the full sleep (${n}s)" || fail "1 sleep control: $out"
 
@@ -290,7 +281,7 @@ jl='if flock -n 6; then echo FREE; else touch "$GO"; if spl_wd_upd_lock_wait 6; 
 hold_judge() {
   rm -f "$T/judge.go"
   flock "$W/c-901.judge.lock" bash -c 'until [[ -e "$1" ]]; do sleep 0.05; done' _ "$T/judge.go" & JH=$!
-  for _ in $(seq 1 "$WAIT_N"); do held "$W/c-901.judge.lock" && break; sleep 0.1; done
+  wait_event "$WAIT_S" held "$W/c-901.judge.lock"
 }
 hold_judge
 out="$(lib 'WD_UPD_EXEC=x WD_UPD_ROLE=forward; exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl" GO="$T/judge.go")"
@@ -462,7 +453,7 @@ rm -rf "$BQ"
 
 # ---- 2. bootstrap ------------------------------------------------------------
 starter >/dev/null
-for i in 1 2 3; do for _ in $(seq 1 "$WAIT_N"); do held "$W/run.$i.lock" && break; sleep 0.1; done; done
+for i in 1 2 3; do wait_event "$WAIT_S" held "$W/run.$i.lock"; done
 [[ "$(live)" == 3 ]] && pass "2 the starter runs 3 loops from the checkout (no code/good yet)" || fail "2 start: live $(live)"
 wait_for "good := ${SHA_A:0:9} \(first snapshot\)" $(( 2 * WT + 10 )) && [[ "$(link good)" == "$SHA_A" && -x "$W/code/$SHA_A/csi-spl-orc/run" ]] &&
   pass "2 bootstrap: good := ${SHA_A:0:9}, the sha instance 1 runs" || fail "2 bootstrap: $(tail -n 5 "$LOG" 2>/dev/null)"
@@ -511,7 +502,9 @@ sed -i '2i exit 3' "$O/run"; SHA_E="$(commit E)"
 wait_for "FAILED ${SHA_E:0:9}: pre-flight" "$UPD_WAIT" && [[ -f "$W/code/$SHA_E.bad" && "$(link good)" == "$SHA_D" ]] &&
   pass "5 bad commit: pre-flight fails, ${SHA_E:0:9} quarantined, good stays ${SHA_D:0:9}" || fail "5 preflight: $(tail -n 4 "$LOG")"
 sent_once "commit ${SHA_E:0:9} failed" && pass "5 ONE admin alert names the commit" || fail "5 alert: $(cat "$T/sent")"
-sleep $(( TICK + 2 ))
+b="$(seqs)"
+# shellcheck disable=SC2086 # one seq per word
+wait_event "$UPD_WAIT" ticked 2 $b || fail "5 the loops did not tick twice more: $(seqs) from $b"
 [[ "$(cnt "EXEC.*${SHA_E:0:9}" "$LOG")" == 0 && "$(cnt "FAILED ${SHA_E:0:9}" "$LOG")" == 1 && "$(pids)" == "$P0" ]] && alive 3 1 && sent_once "commit ${SHA_E:0:9} failed" &&
   pass "5 no instance ran it, never retried a tick later, the same 3 alive" || fail "5 after: $(tail -n 4 "$LOG")"
 

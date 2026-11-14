@@ -59,6 +59,8 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+# shellcheck source=wait-event.inc.sh
+source "$TEST_DIR/wait-event.inc.sh"
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
@@ -212,9 +214,8 @@ alive() { local v; for v in renew watch; do flock -n "$D/$v.run" true 2>/dev/nul
 # written just after the lock is taken)
 ready() { alive && local v && for v in renew watch; do [[ -s "$D/$v.pid" && -s "$D/$v.ver" ]] || return 1; done; }
 fresh() { rm -f "$D"/renew.pid "$D"/watch.pid "$D"/renew.ver "$D"/watch.ver; }
-waitfor() { local i; for i in $(seq 1 50); do "$@" && return 0; sleep 0.1; done; return 1; }
 LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
-waitfor ready && [[ "$(grep -c 'loop started' "$T/o")" == 2 ]] &&
+wait_event 5 ready && [[ "$(grep -c 'loop started' "$T/o")" == 2 ]] &&
   pass "10. ensure starts renew + watch" || fail "10. start: $(cat "$T/o" "$D"/*.out 2>&1)"
 p1="$(cat "$D/renew.pid")"
 LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
@@ -222,28 +223,28 @@ LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
   pass "10. a second ensure starts nothing" || fail "10. idempotent: $(cat "$T/o")"
 LM='' LF='' LO='' timeout 10 bash -c "$(declare -f lease); $(declare -p T P D PROJ_ROOT); lease LEASE_CMD=renew ${E[*]}" >"$T/o" 2>&1
 grep -q 'already runs' "$T/o" && pass "10. a second renew loop exits at once" || fail "10. dup loop: $(cat "$T/o")"
-waitfor bash -c "grep -q '^M-1 ' '$D/lease'" && pass "10. the started renew loop renews" || fail "10. no renewal: $(cat "$D/lease.log")"
+wait_event 5 bash -c "grep -q '^M-1 ' '$D/lease'" && pass "10. the started renew loop renews" || fail "10. no renewal: $(cat "$D/lease.log")"
 LM='' LF='' LO='' lease LEASE_CMD=stop >/dev/null 2>&1
 dead() { ! flock -n "$D/renew.run" true 2>/dev/null && return 1; ! flock -n "$D/watch.run" true 2>/dev/null && return 1; return 0; }
-waitfor dead && pass "10. stop ends both loops (the reboot)" || fail "10. still running after stop"
+wait_event 5 dead && pass "10. stop ends both loops (the reboot)" || fail "10. still running after stop"
 fresh
 LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
-waitfor ready && [[ "$(grep -c 'loop started' "$T/o")" == 2 && "$(cat "$D/renew.pid")" != "$p1" ]] &&
+wait_event 5 ready && [[ "$(grep -c 'loop started' "$T/o")" == 2 && "$(cat "$D/renew.pid")" != "$p1" ]] &&
   pass "10. the next ensure brings both back" || fail "10. restart: $(cat "$T/o")"
-LM='' LF='' LO='' lease LEASE_CMD=stop >/dev/null 2>&1; waitfor dead; fresh
+LM='' LF='' LO='' lease LEASE_CMD=stop >/dev/null 2>&1; wait_event 5 dead; fresh
 
 # --- 14. a piped caller is not held ------------------------------------------------------
 t0=$(date +%s)
 LM='' LF='' LO='' timeout 20 bash -c "$(declare -f lease); $(declare -p T P D PROJ_ROOT); lease LEASE_CMD=ensure WRAP_TEE=1 ${E[*]} 2>&1 | cat" >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && $(( $(date +%s) - t0 )) -lt 10 ]] && grep -q 'loop started' "$T/o" &&
   pass "14. 'ensure | cat' under run.sh's tee returns at once" || fail "14. rc=$rc after $(( $(date +%s) - t0 ))s: $(cat "$T/o")"
-waitfor ready || fail "14. the loops did not start: $(ls -la "$D"; tail -5 "$D/lease.log"; cat "$D"/watch.out "$D"/renew.out)"
+wait_event 5 ready || fail "14. the loops did not start: $(ls -la "$D"; tail -5 "$D/lease.log"; cat "$D"/watch.out "$D"/renew.out)"
 
 # --- 16. old code is replaced, stop by pid file ---------------------------------------------
 p1="$(cat "$D/renew.pid")"; echo oldcode >"$D/renew.ver"
 LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
 newpid() { alive && [[ -s "$D/renew.pid" && "$(cat "$D/renew.pid")" != "$p1" ]]; }
-waitfor newpid && [[ "$(logc 'ensure replaces renew (code oldcode')" == 1 ]] && ! kill -0 "$p1" 2>/dev/null &&
+wait_event 5 newpid && [[ "$(logc 'ensure replaces renew (code oldcode')" == 1 ]] && ! kill -0 "$p1" 2>/dev/null &&
   pass "16. a loop on older code is replaced" || fail "16. replace: $(cat "$T/o") $(tail -3 "$D/lease.log")"
 LM='' LF='' LO='' lease LEASE_CMD=stop >/dev/null 2>&1
 dead && [[ "$(logc 'stop renew pid=')" -ge 1 ]] && pass "16. stop ends both loops by pid file" || fail "16. stop"
@@ -629,7 +630,8 @@ D20="$T/r20/dispatch/agent-run-$(date -u -d @1791007260 +%F).log"
   pass "20. each report appends '<epoch> <id> run|stop' to the UTC day log, the killed one gone (spec 123 4.3)" || fail "20. day log: $(cat "$D20" 2>&1)"
 [[ "$(env PROJ_PATH="$PROJ_ROOT" SPOOL_TEST=1 SPOOL_ROOT="$T/r20b" bash -c '
     do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init >/dev/null
-    spl_lease_agent_run_tick; sleep 0.2; ls "$LEASE_DIR"/agent-run.tsv 2>/dev/null | wc -l')" == 0 ]] &&
+    # EOF on the pipe = every pass the tick forked has ended, not a 0.2 s nap (SPL-5525)
+    spl_lease_agent_run_tick | cat >/dev/null; ls "$LEASE_DIR"/agent-run.tsv 2>/dev/null | wc -l')" == 0 ]] &&
   pass "20. the tick writes nothing under SPOOL_TEST=1 unless LEASE_AGENT_RUN=1" || fail "20. tick ran under SPOOL_TEST"
 
 # --- 21. an m- lane (vibe) is reported run (t1 5c3bb16a) ---------------------

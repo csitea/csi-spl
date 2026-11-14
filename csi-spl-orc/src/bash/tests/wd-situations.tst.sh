@@ -618,13 +618,18 @@ reset_box; agent c-905 %5 4005
 printf '%%5\t5005\t$1\tbash\tsh\n' > "$T/tmux/panes"
 out="$(wd)"
 grep -qx "c-905	4005	%5" "$D/wd/tick/agents" && grep -q '^c-905 OK' <<<"$out" && pass "3 a process-only agent is checked in its pane (ppid chain)" || fail "3 proc-only: $(cat "$D/wd/tick/agents") / $out"
-s0=$SECONDS
+# The event, not a stopwatch (SPL-5525): the tick has returned while the
+# process substitution (its pid in subst.pid) still runs, so it did not wait
+# for it. A tick that waited returns only once that sleep has ended.
+rm -f "$T/subst.pid"
 env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" WD_PS_CMD="$T/bin/ps" \
-  ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_NOW="$T0" WD_TICKS=1 bash -c '
+  ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_NOW="$T0" WD_TICKS=1 SUBST_PID="$T/subst.pid" bash -c '
   do_log() { echo "$*"; }
-  exec > >(cat) 2> >(sleep 60)
+  exec > >(cat) 2> >(echo "$BASHPID" > "$SUBST_PID"; exec sleep 60)
   source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; do_spl_watchdog' >/dev/null 2>&1
-(( SECONDS - s0 < 20 )) && pass "3 a tick under a long-lived process substitution ends ($((SECONDS - s0))s)" || fail "3 the tick waited for a process substitution ($((SECONDS - s0))s)"
+wait_event 5 test -s "$T/subst.pid"; sp="$(cat "$T/subst.pid" 2>/dev/null)"
+[[ "$sp" =~ ^[0-9]+$ ]] && kill -0 "$sp" 2>/dev/null && pass "3 a tick under a long-lived process substitution ends while it still runs" || fail "3 the tick waited for a process substitution (pid '${sp}' gone)"
+[[ "$sp" =~ ^[0-9]+$ ]] && kill "$sp" 2>/dev/null
 
 # 3. a drill beside the live loop: WD_ONLY checks the named ids only, and
 # WD_STATE_DIR keeps its own lock; control: without WD_ONLY every agent
@@ -844,7 +849,8 @@ lim() {
     spl_wd_takeover c-931 S3 "evidence"; echo "rc=$?"'
 }
 # cnt N: wait (60 s at most) until N takeovers of c-931 finished (its takeovers.done lines)
-cnt() { for _ in $(seq 1 600); do [[ "$(grep -cx c-931 "$T/takeovers.done" 2>/dev/null)" == "$1" ]] && return; sleep 0.1; done; }
+done_is() { [[ "$(grep -cx c-931 "$T/takeovers.done" 2>/dev/null)" == "$1" ]]; }
+cnt() { wait_event 60 done_is "$1"; }
 r1="$(lim "$T0")"; cnt 1; r2="$(lim $((T0 + 600)))"; cnt 2; r3="$(lim $((T0 + 900)))"; cnt 3; r4="$(lim $((T0 + 1200)))"; settle
 [[ "$r1" == rc=0 && "$r2" == rc=0 && "$r3" == rc=0 ]] && pass "6 control: three restarts in an hour run (the third is under the limit)" || fail "6 first three: $r1 / $r2 / $r3"
 [[ "$r4" == *"held out: 3 restarts"*"rc=1" ]] && [[ "$(grep -c . "$T/takeovers")" == 3 ]] && pass "6 the fourth is not done: held out" || fail "6 fourth: $r4 / $(cat "$T/takeovers")"
@@ -859,11 +865,16 @@ grep -q 'would takeover (held out after 2 takeovers' <<<"$out" && pass "6 a take
 out="$(TICK=2000 NOW=$((T0 + 3630)) wd)"
 grep -q 'c-931 HIT S3 .*-> takeover$' <<<"$out" && pass "6 control: an hour later that hold has expired" || fail "6 legacy control: $out"
 
-# 7. FR-014: a script that sleeps 60 s costs the tick its timeout only
+# 7. FR-014: a script that never ends costs the tick its timeout only
 reset_box; agent c-941 %1 -; agent c-942 %2 -
-cp -r "$SIT" "$T/sit"; printf '#!/usr/bin/env bash\nsleep 60\n' > "$T/sit/s9.sh"
-s0=$SECONDS; out="$(export WD_SITUATIONS="$T/sit" WD_SCRIPT_TIMEOUT=2; wd)"; el=$((SECONDS - s0))
-(( el < 30 )) && pass "7 FR-014: the tick ends in ${el}s with a 60 s script (< 30 s)" || fail "7 tick took ${el}s"
+# a script that runs until released (300 s at most, then it marks s9.capped):
+# the tick has ended before the script could, or it waited for it (SPL-5525:
+# the event, not a "< 30 s" stopwatch)
+cp -r "$SIT" "$T/sit"; rm -f "$T/s9.release" "$T/s9.capped"
+printf '#!/usr/bin/env bash\nfor _ in $(seq 3000); do [[ -e "$T/s9.release" ]] && exit 0; sleep 0.1; done\ntouch "$T/s9.capped"\n' > "$T/sit/s9.sh"
+out="$(export WD_SITUATIONS="$T/sit" WD_SCRIPT_TIMEOUT=2; wd)"
+[[ ! -e "$T/s9.capped" ]] && pass "7 FR-014: the tick ends (WD_SCRIPT_TIMEOUT=2) before a script that never finishes" || fail "7 the tick waited for the script to end"
+touch "$T/s9.release"
 grep -q 'c-941 OK (pending S3' <<<"$out" && grep -q 'c-942 OK (pending S3' <<<"$out" && [[ -s "$D/wd.c-941" && -s "$D/wd.c-942" ]] &&
   pass "7 the other scripts' verdicts are written" || fail "7 verdicts: $out"
 
@@ -1049,7 +1060,10 @@ if command -v tmux >/dev/null; then
   p3="$(tmux -S "$SOCK" new-window -d -t t: -n c-963 -P -F '#{pane_id}' "sh -c 'cat $FX/s9-unknown-dialog.pane; sleep 600'")"
   mkdir -p "$SR/c-963/inbox"
   printf 'c-961\tclaude\t%s\t/x\t20260101T000000Z\nc-962\tclaude\t%s\t/x\t20260101T000000Z\nc-963\tclaude\t%s\t/x\t20260101T000000Z\n' "$p1" "$p2" "$p3" > "$SR/registry.tsv"
-  sleep 0.3
+  # the panes are up: each runs its command and c-963 shows its dialog (SPL-5525)
+  pane_cmd() { tmux -S "$SOCK" display -p -t "$1" '#{pane_current_command}' 2>/dev/null; }
+  panes_up() { [[ "$(pane_cmd "$p1")" == sleep && "$(pane_cmd "$p2")" == bash ]] && [[ "$(tmux -S "$SOCK" capture-pane -p -t "$p3" 2>/dev/null)" == *[![:space:]]* ]]; }
+  wait_event 10 panes_up || fail "8 the tmux panes did not come up: $(pane_cmd "$p1") $(pane_cmd "$p2")"
   ssend() { env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID -u SPOOL_BOX_ENV SPOOL_TEST=1 SPOOL_ROOT="$SR" SPOOL_TMUX_SOCKET="$SOCK" \
     SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)" SPOOL_BOX_TAG="" \
     bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spool-send.sh" --poke-only --from c-900 --to "$1" >/dev/null 2>&1; }

@@ -77,7 +77,8 @@ wd() {
   if grep -q ERR-TRAP "$T/out"; then fail "the ERR trap fired: $(grep -m3 ERR-TRAP "$T/out")"; fi
 }
 started() { grep -c . "$T/takeovers" 2>/dev/null || echo 0; }
-settle() { for _ in $(seq 1 40); do (( $(started) >= $1 )) && break; sleep 0.05; done; sleep 0.3; }
+landed() { (( $(started) >= $1 )); }
+settle() { wait_event 10 landed "$1"; wait_event 10 env_idle "SPOOL_ROOT=$S"; }
 ids() { awk '{print $2}' "$T/takeovers" 2>/dev/null | sort | paste -sd' ' -; }
 boot() { wd $(( BT + 60 )); wd $(( BT + 300 )); settle "$1"; }
 

@@ -186,7 +186,7 @@ ticks 150 150 silent
 ticks 180 180 ok
 [[ ! -e "$T/wd/fenced" ]] && grep -q UNFENCED "$T/wd.log" && pass "4. the next ack lifts the fence" || fail "4. still fenced after an ack"
 out="$(LEASE_NOW=$(( T0 + 190 )) wd spl_wd_takeover c-050 S3 "dead")"
-for _ in $(seq 50); do [[ -s "$T/restarts" ]] && break; sleep 0.1; done   # the restart starts detached
+wait_event 5 test -s "$T/restarts"   # the restart starts detached
 grep -q "restart c-050 S3" "$T/restarts" 2>/dev/null && pass "4. control: unfenced, the takeover runs" || fail "4. control: no takeover after the fence lifted ($out)"
 reset
 echo $(( T0 - 3600 )) > "$T/wd/beat.ack"
@@ -231,7 +231,8 @@ mkdir -p "$T/tick7" "$T/cli"
 # "claude" (SPL-3297). It blocks on a read of a fifo, so it has no child.
 cp "$(command -v bash)" "$T/cli/claude"; mkfifo "$T/cli/claude.fifo"
 bash -c '"$1" -c "exec 3<>\"\$1\"; read -r -t 300 -u 3 _" _ "$2"; :' _ "$T/cli/claude" "$T/cli/claude.fifo" 2>/dev/null & wrap=$!
-for _ in $(seq 50); do cli="$(ps -o pid= --ppid "$wrap" | tr -d ' ')"; [[ -n "$cli" ]] && break; sleep 0.1; done
+cli_up() { cli="$(ps -o pid= --ppid "$wrap" | tr -d ' ')"; [[ -n "$cli" ]]; }
+wait_event 5 cli_up
 printf 'c-070\t%s\t%%7\n' "$wrap" > "$T/tick7/agents"
 WD_FENCE_TERM_WAIT=3 fence7 "$T/tick7"
 if ps -o pid= -p "$cli" >/dev/null; then
@@ -243,7 +244,8 @@ kill -KILL "$wrap" "$cli" 2>/dev/null; wait "$wrap" 2>/dev/null
 reset
 printf '#!/bin/bash\ntrap "" TERM\nwhile :; do sleep 0.2; done\n' > "$T/cli/agy"; chmod +x "$T/cli/agy"
 "$T/cli/agy" & ign=$!
-for _ in $(seq 50); do [[ "$(ps -o comm= -p "$ign")" == agy ]] && break; sleep 0.1; done
+is_agy() { [[ "$(ps -o comm= -p "$ign")" == agy ]]; }
+wait_event 5 is_agy
 printf 'a-071\t%s\t%%8\n' "$ign" > "$T/tick7/agents"
 WD_FENCE_TERM_WAIT=1 fence7 "$T/tick7"
 grep -q "FENCE a-071: pid $ign still alive after TERM" "$T/wd.log" &&
@@ -331,7 +333,7 @@ ticks 180 180 ok
   pass "10. the next ack lifts the hold (UNHELD), still nothing TERMed" ||
   fail "10. after the ack: held=$([[ -e "$T/wd/held" ]] && echo yes || echo no) unheld=$(n wd.log UNHELD) acts=$(n acts .)"
 out="$(LEASE_NOW=$(( T0 + 190 )) wd spl_wd_takeover c-050 S3 "dead")"
-for _ in $(seq 50); do [[ -s "$T/restarts" ]] && break; sleep 0.1; done   # the restart starts detached
+wait_event 5 test -s "$T/restarts"   # the restart starts detached
 grep -q "restart c-050 S3" "$T/restarts" 2>/dev/null && pass "10. control: unheld, the takeover runs" || fail "10. no takeover after the hold lifted ($out)"
 reset
 ticks 0 0 ok

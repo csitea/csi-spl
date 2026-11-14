@@ -13,13 +13,10 @@ csi-spl-iac/src/bash/run/gcp-tail-logs.func.sh
 csi-spl-orc/src/bash/run/spl-ask-ack.func.sh
 csi-spl-orc/src/bash/run/spl-ask-close.func.sh
 csi-spl-orc/src/bash/run/spl-ask-put.func.sh
-csi-spl-orc/src/bash/run/spl-lane-map.func.sh
 csi-spl-orc/src/bash/run/spl-lane-put.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-group-put.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-place.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-placed.func.sh
-csi-spl-orc/src/bash/run/spl-spawn-queue.func.sh
-csi-spl-orc/src/bash/run/spl-spawn-share.func.sh
 [long-example]
 csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh

@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The fleet-wide lane map: who owns what, on EVERY machine of the
 # @description fleet (CLE-77920, specs/058 G4 / N2). `git worktree list` sees one
 # @description machine's lanes only, so a scope check on the home box was blind
@@ -60,6 +61,7 @@
 # @example ./run -a do_spl_lane_map
 # @example LANE_CHECK=csi-spl-orc/src/bash/run/,csi-spl-doc/specs/058-multi-machine-fleet/ LANE_AGENT=CLE-77920 ./run -a do_spl_lane_map
 # @example LANE_FORMAT=json LANE_ALL=1 ./run -a do_spl_lane_map
+#------------------------------------------------------------------------------
 
 declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"

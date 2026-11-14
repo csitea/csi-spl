@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The spawn queue, priority first (owner HUM-10, t1 c9beaa77 msg
 # @description ca668844: "you are in line ... some kind scheduling structure in
 # @description the db, where once resources are free they will be just taken").
@@ -29,6 +30,7 @@
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_spawn_queue
 # @example SPAWN_QUEUE_FORMAT=json ./run -a do_spl_spawn_queue
+#------------------------------------------------------------------------------
 
 do_spl_spawn_queue() {
   local fmt="${SPAWN_QUEUE_FORMAT:-table}" rows share

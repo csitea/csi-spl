@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The share of the live lanes per work class, against the owner's
 # @description bands (SPL-1817; owner HUM-10 t1 3209f8b8, binding msg
 # @description 8cb6cc7d: "20% to 30% refactoring, 20% to 30% bug fixing ...
@@ -31,6 +32,7 @@
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_spawn_share
 # @example SPAWN_SHARE_FORMAT=json ./run -a do_spl_spawn_share
+#------------------------------------------------------------------------------
 
 # The bands: class lower upper (percent of the known live lanes). The rule's
 # one home is fleet-rules-index.md; these numbers are its code.

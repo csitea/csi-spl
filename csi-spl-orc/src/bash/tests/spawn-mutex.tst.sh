@@ -103,8 +103,12 @@ act() {
   echo $? >"$T/rc"
 }
 rc() { cat "$T/rc"; }
+# SPOOL_VENDOR_CLIS_CMD: the box's vendor-CLI probe (spool_vendor_clis) says
+# claude is here; the real one refused every spawn on a box whose agent user
+# has no claude (sat, SPL-5539). test-spawn-placement.sh proves the refusal.
 spawnw() {
-  penv SPAWN_TEST_SANDBOX=1 SPAWN_ORC_RUN="$T/bin/orc-run" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" SPOOL_SESSION='' SPAWN_DRY_RUN=1 "$@" \
+  penv SPAWN_TEST_SANDBOX=1 SPAWN_ORC_RUN="$T/bin/orc-run" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" SPOOL_SESSION='' SPAWN_DRY_RUN=1 \
+    SPOOL_VENDOR_CLIS_CMD="echo claude" "$@" \
     bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" claude auto "$T" >"$T/so" 2>&1
   echo $? >"$T/src"
 }

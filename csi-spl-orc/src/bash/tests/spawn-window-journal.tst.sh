@@ -43,7 +43,10 @@ STUB
 chmod +x "$T/bin/tmux"
 
 # sw <script> <title> [VAR=value...]: one spawn into spool root $T/spool,
-# its rc in $T/rc
+# its rc in $T/rc. SPOOL_VENDOR_CLIS_CMD: the box's vendor-CLI probe
+# (spool_vendor_clis) says claude is here; the real one refused every spawn on
+# a box whose agent user has no claude (sat, SPL-5539).
+# test-spawn-placement.sh proves the refusal.
 sw() {
   local script="$1" title="$2"; shift 2
   env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID -u MCP_BOT_AGENT_ID -u SPAWN_REQUESTER \
@@ -51,7 +54,7 @@ sw() {
     -u LANE_FLEET -u SPAWN_BOX PATH="$T/bin:$PATH" SPOOL_TEST=1 SPAWN_TEST_SANDBOX=1 \
     SPOOL_ROOT="$T/spool" SPOOL_BOX_USER="$(id -un)" SPOOL_TMUX_SOCKET="$T/tmux.sock" \
     SPOOL_SESSION= SPOOL_BIN=/bin/true SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_SHOW_PANE=0 \
-    SPAWN_BOX_PICK=0 "$@" bash "$script" claude "$title" "$T" >"$T/so" 2>&1
+    SPAWN_BOX_PICK=0 SPOOL_VENDOR_CLIS_CMD="echo claude" "$@" bash "$script" claude "$title" "$T" >"$T/so" 2>&1
   echo $? >"$T/rc"
 }
 fresh() { rm -rf "$T/spool" "$T/no-pane" "$T/no-session"; mkdir -p "$T/spool/dispatch"; }
@@ -115,7 +118,7 @@ for i in 1 2 3 4 5 6 7 8; do
   ( env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID -u MCP_BOT_AGENT_ID -u SPAWN_REQUESTER -u SPOOL_BOX_TAG -u LANE_FLEET -u SPAWN_BOX \
       PATH="$T/bin:$PATH" SPOOL_TEST=1 SPAWN_TEST_SANDBOX=1 SPOOL_ROOT="$T/spool" SPOOL_BOX_USER="$(id -un)" \
       SPOOL_TMUX_SOCKET="$T/tmux.sock" SPOOL_SESSION= SPOOL_BIN=/bin/true SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 \
-      SPOOL_SHOW_PANE=0 SPAWN_BOX_PICK=0 LANE_MIX_TASK="$TASK" bash "$SW" claude "c-90$i" "$T" >/dev/null 2>&1 ) &
+      SPOOL_SHOW_PANE=0 SPAWN_BOX_PICK=0 SPOOL_VENDOR_CLIS_CMD="echo claude" LANE_MIX_TASK="$TASK" bash "$SW" claude "c-90$i" "$T" >/dev/null 2>&1 ) &
 done
 wait
 [ "$(rows)" = 8 ] && [ "$(awk -F'\t' 'NF == 8' "$J" | cut -f4 | sort -u | wc -l)" = 8 ] &&

@@ -404,8 +404,14 @@ one continues the head (`<head+1>_<name>.sql` in
 `csi-spl-rdb/src/sql/postgres/spool-hub/`) and parses with the PostgreSQL 16
 grammar. A store or migration change runs `PRE_PUSH_TIER=full`.
 
-Enforced by: `lint-migration`; the hub refuses a changed migration sha256
-at deploy.
+Take the number with `cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next`
+before you write the file: it claims the next free number on the remote
+(`refs/rdb-claims/NNNN`, the way `do_release_version` claims a tag), so two
+lanes never write the same one. A new file may skip only numbers that are
+claimed there.
+
+Enforced by: `lint-migration` (it names the next unclaimed number); the hub
+refuses a changed migration sha256 at deploy.
 
 <a id="ws-doc-3f669947-a9b9-4895-a56d-b88ff4fd5eab"></a>
 ### 2.9 Git trunk workflow
@@ -634,6 +640,6 @@ date, and a re-run of `/speckit-analyze` on every in-flight spec. Complexity
 that deviates from a principle must be justified inline (`# WHY:`) and
 acknowledged in the spec's Clarifications section.
 
-**Version**: 0.3.2 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-13 (Coding Standards exported from developer-guide.md)
+**Version**: 0.3.3 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-14 (Coding Standards exported from developer-guide.md)
 
-<!-- version: 0.3.2 · updated: 2026-11-13 · last-edit: 2026-11-13T22:55:26Z -->
+<!-- version: 0.3.3 · updated: 2026-11-14 · last-edit: 2026-11-14T13:45:38Z -->

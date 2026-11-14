@@ -30,7 +30,9 @@
 #  23. migration prefixes (spec 072 A45): a copied prefix is REFUSED naming
 #      both files; a new file below the head (a late 0002 past 0003) or one
 #      that skips a number is REFUSED; the grandfathered 0021 pair passes and
-#      a third 0021 does not
+#      a third 0021 does not; a hole whose numbers are all claimed on the
+#      remote (refs/rdb-claims/, SPL-5515) passes, an unclaimed one and a
+#      copied prefix are REFUSED naming the next unclaimed number
 #  17. a docker-compose file with an unknown service key -> lint-compose FAIL
 #      (when docker compose is installed)
 #  20. lint-py (real ruff, when installed): an undefined name in a new .py,
@@ -311,6 +313,29 @@ prefixes && pass "23d. the grandfathered 0021 pair + new 0022, 0023 pass" || fai
 printf 'SELECT 1;\n' >"$R/$MIG/0021_third.sql"; commit third
 ! prefixes && grep -q 'prefix 0021 is taken' "$T/out" \
   && pass "23e. a third 0021 is REFUSED (the pair is grandfathered by name)" || fail "23e. third 0021" "$(cat "$T/out")"
+# 23f-i. claims on the remote (do_rdb_migration_next, SPL-5515): a bare
+# origin whose refs/rdb-claims/NNNN are root commits, as the action pushes them
+claim() {  # <NNNN...> on $T/origin.git
+  local n o
+  for n in "$@"; do
+    o="$(git -C "$R" commit-tree "$(git -C "$R" mktree </dev/null)" -m "rdb-claim $n")"
+    git -C "$R" push -q --no-verify "$T/origin.git" "$o:refs/rdb-claims/$n"
+  done
+}
+mig_claims_repo() { mig_repo; rm -rf "$T/origin.git"; git init -q --bare "$T/origin.git"; git -C "$R" remote add origin "$T/origin.git"; }
+mig_claims_repo; claim 0002; printf 'SELECT 1;\n' >"$R/$MIG/0003_c.sql"; commit claimed-hole
+PRE_PUSH_MIG_REMOTE=origin prefixes && pass "23f. a new 0003 over a 0002 claimed on the remote passes" || fail "23f. claimed hole" "$(cat "$T/out")"
+PRE_PUSH_MIG_REMOTE=none-such prefixes && fail "23f. control: the same hole with no readable claims passes" "$(cat "$T/out")" \
+  || pass "23f. control: the same hole with no readable claims is REFUSED (strict head+1)"
+mig_claims_repo; claim 0002; printf 'SELECT 1;\n' >"$R/$MIG/0004_d.sql"; commit unclaimed-hole
+! PRE_PUSH_MIG_REMOTE=origin prefixes && grep -q '0004_d.sql is new but its prefix is not 0002 (the head on base is 0001; the next unclaimed number is 0003)' "$T/out" \
+  && grep -q 'do_rdb_migration_next' "$T/out" \
+  && pass "23g. a hole with an UNclaimed 0003 is REFUSED, naming the next unclaimed number and the action" || fail "23g. unclaimed hole" "$(cat "$T/out")"
+mig_claims_repo; claim 0002 0003; cp "$R/$MIG/0001_a.sql" "$R/$MIG/0001_x.sql"; commit dup-claimed
+! PRE_PUSH_MIG_REMOTE=origin prefixes && grep -q 'prefix 0001 is taken by more than one file: 0001_a.sql 0001_x.sql -- renumber the new one to 0004, the next unclaimed number' "$T/out" \
+  && pass "23h. a number master already has is REFUSED, naming both files and the next unclaimed number (0004 past claims 0002, 0003)" || fail "23h. dup names free" "$(cat "$T/out")"
+mig_claims_repo; claim 0002; printf 'SELECT 1;\n' >"$R/$MIG/0002_b.sql"; commit own-claim
+PRE_PUSH_MIG_REMOTE=origin prefixes && pass "23i. a new 0002 on its own claim passes (head+1)" || fail "23i. own claim" "$(cat "$T/out")"
 if [[ -n "$XDG_CACHE_HOME_SAVED" ]]; then export XDG_CACHE_HOME="$XDG_CACHE_HOME_SAVED"; else unset XDG_CACHE_HOME; fi
 if [[ -x "$PGPY" ]]; then
   mig_repo; printf 'CREATE TABLE b (id int);\n' >"$R/$MIG/0002_b.sql"; commit new-mig

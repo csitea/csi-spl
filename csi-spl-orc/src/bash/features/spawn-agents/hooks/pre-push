@@ -213,11 +213,13 @@ fi
 # date ref) and will send nothing, so there is nothing to gate; it ran the whole
 # gate for 19+ min. A line with no remote ref is not that case: it stays gated,
 # and so does stdin that failed to read or holds only blanks: not git's empty.
+# A migration number claim, refs/rdb-claims/NNNN (do_rdb_migration_next,
+# SPL-5515), is skipped the same way: an empty-tree commit, no file to gate.
 _pp_wip=0
 if [ "$_pp_read_rc" != 0 ] || [ -n "$_pp_refs" ]; then _pp_wip=2; fi
 while read -r _pp_lref _ _pp_rref _; do
   [ -n "${_pp_lref:-}" ] || continue
-  case "${_pp_rref:-}" in refs/heads/wip/?*) _pp_wip=1 ;; *) _pp_wip=2; break ;; esac
+  case "${_pp_rref:-}" in refs/heads/wip/?*|refs/rdb-claims/[0-9][0-9][0-9][0-9]) _pp_wip=1 ;; *) _pp_wip=2; break ;; esac
 done <<<"$_pp_refs"
 if [ "$_pp_wip" = 0 ]; then
   _pp_logline "SKIP-NOREFS $PWD HEAD=$head remote=$_pp_remote -- no ref line on stdin, git sends nothing"
@@ -225,8 +227,8 @@ if [ "$_pp_wip" = 0 ]; then
   exit 0
 fi
 if [ "$_pp_wip" = 1 ]; then
-  _pp_logline "SKIP-WIP $PWD HEAD=$head remote=$_pp_remote -- every ref is refs/heads/wip/*"
-  echo "pre-push: every ref is refs/heads/wip/* -- the deploy-gate is skipped (spec 102 5.4)" >&2
+  _pp_logline "SKIP-WIP $PWD HEAD=$head remote=$_pp_remote -- every ref is refs/heads/wip/* or refs/rdb-claims/NNNN"
+  echo "pre-push: every ref is refs/heads/wip/* or refs/rdb-claims/NNNN -- the deploy-gate is skipped (spec 102 5.4)" >&2
   exit 0
 fi
 

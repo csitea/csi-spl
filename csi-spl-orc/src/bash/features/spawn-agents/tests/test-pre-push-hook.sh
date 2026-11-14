@@ -17,6 +17,7 @@
 #    16. SPL-5163: real pushes through git: wip-only and no-ref pushes are never
 #        gated, the ref lines are logged; mixed, master and malformed stay gated;
 #        the non-ff, R7 and owner-order guards still come first (red controls)
+#        16n-p. SPL-5515: a refs/rdb-claims/NNNN-only push is not gated; mixed or misnamed is
 #   INSTALLER
 #     6. installs core.hooksPath for ONE worktree only, others untouched
 #     7. idempotent (second run still 0)
@@ -312,6 +313,16 @@ L="$ROOT/l16e"; push16 "$HOOK" "$L" "$B16:refs/heads/lane16" "$C16:refs/heads/wi
 eq "16e. ... GATED" gated "$(gated16 "$L")"; eq "16e. ... no SKIP line" 0 "$(logged16 "$L" ' SKIP-')"
 L="$ROOT/l16f"; push16 "$HOOK" "$L" "$B16:refs/heads/master"; eq "16f. master push -> pushed" 0 "$?"
 eq "16f. ... GATED" gated "$(gated16 "$L")"
+# 16n. a migration number claim (do_rdb_migration_next, SPL-5515): an
+# empty-tree root commit to refs/rdb-claims/NNNN is not gated; mixed with a
+# lane ref, or under a name that is not NNNN, it is
+K16="$(git -C "$R16/c" commit-tree "$(git -C "$R16/c" mktree </dev/null)" -m "rdb-claim 0042")"
+L="$ROOT/l16n"; push16 "$HOOK" "$L" "$K16:refs/rdb-claims/0042"; eq "16n. claim-only push -> pushed" 0 "$?"
+eq "16n. ... not gated" no "$(gated16 "$L")"; eq "16n. ... SKIP-WIP" 1 "$(logged16 "$L" ' SKIP-WIP ')"
+L="$ROOT/l16o"; push16 "$HOOK" "$L" "$K16:refs/rdb-claims/0043" "$C16:refs/heads/lane16o"; eq "16o. claim + lane ref -> pushed" 0 "$?"
+eq "16o. ... GATED" gated "$(gated16 "$L")"
+L="$ROOT/l16p"; push16 "$HOOK" "$L" "$K16:refs/rdb-claims/x"; eq "16p. a claim ref not named NNNN -> pushed" 0 "$?"
+eq "16p. ... GATED" gated "$(gated16 "$L")"
 
 # The rest by hand on the hook's stdin; the guards are stubbed in the pushing
 # tree's own files, as the hook sources them.

@@ -257,6 +257,36 @@ comments and issue descriptions.
    the box"). A lane placed on a `dispatch-*` task does not show under the
    topic in the web UI: name its agent id.
 
+22. **A post that says work is done says how it was checked** (owner HUM-10,
+   csitea topic 48d75e5f, item 4 of the weekly analysis, SPL-5518: 7
+   Correction posts in one week took back a first post, e.g. "the desk is
+   running normally again", taken back by 7a49e5cb because nobody had
+   tested that it answers). When the first line of a post claims done work,
+   with a word of `csi-spl-orc/cnf/desk-reply/done-claim-words.txt` (done,
+   live, landed, fixed, running normally), the body carries a **`checked:`**
+   line (`Checked how:` also counts) that names what was run or read and
+   what it showed. A case nobody checked goes on a `not checked:` line, never
+   into the claim (rule 16 asks both of a **Live** post).
+   - Not a claim: a `blocker`, a question (the first line ends with `?`),
+     the word after `not`, `never`, `will be` or `to be`, the word before
+     `, not` (rule 16's **Landed, not live yet**) or before a `?` in its
+     clause (`Live now? no: ...`), and a claim word below the first line.
+     `**Done.** Not a hub bug.` is still a claim: only `, not` exempts.
+   - Not a `checked:` line: an empty one, and one quoted from an earlier
+     post (`> checked: ...`); `` `checked:` `` in backticks counts.
+   - `do_spl_desk_reply` refuses the post otherwise (FATAL on stderr,
+     nothing sent) and names the claim word
+     (`_spl_desk_reply_checked_how` in
+     `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`, tested by
+     `csi-spl-orc/src/bash/tests/desk-reply-checked-how.tst.sh`). A word is
+     added to the list, not to the code.
+
+   ```text
+   **Fixed:** the footer shows the version again (SPL-n).
+   checked: opened /about on dev and prd, both show v1.4.2
+   not checked: the phone view
+   ```
+
 <a id="ws-doc-43f5533b-1a5a-4696-8073-42c6814ab84a"></a>
 ## 2. Example
 

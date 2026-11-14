@@ -1,0 +1,12 @@
+# The words that make a desk post's first line a done claim (SPL-5518,
+# how-to-post.md rule 22). do_spl_desk_reply refuses a post whose first line
+# carries one of them, as a whole word, unless the body has a `checked:` line.
+# One word or phrase per line, matched case-insensitively; `#` starts a
+# comment. A word right after "not", "never", "will be" or "to be" is no claim.
+done
+live
+landed
+fixed
+# 29355715 (csitea 13a90dc3, 2026-11-10): "the desk is running normally
+# again", taken back by 7a49e5cb: nobody had tested that it answers.
+running normally

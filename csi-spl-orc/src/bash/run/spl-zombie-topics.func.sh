@@ -185,12 +185,13 @@ spl_zombie_read() {
 # spl_zombie_hub_list: GET /v1/operator/zombie-topics (row B5) as the env's
 # project service account (do_gcp_pin_account, never the owner account), in a
 # subshell so the pinned gcloud config and the hub URL stay in it. ZOMBIE_ORDER
-# (optional, oldest | newest) picks the end; the sweep leaves it unset.
+# (optional, oldest | newest) picks the end, ZOMBIE_SCOPE (optional, all |
+# open) the topics any agent may post in; the sweep leaves both unset.
 spl_zombie_hub_list() {
   (
     do_spl_cloud_cnf >/dev/null 2>&1 && spl_hub_operator_url >/dev/null 2>&1 || exit 1
     do_gcp_pin_account "$SPL_CNF" >/dev/null 2>&1 || exit 1
-    spl_hub_operator_call GET "/v1/operator/zombie-topics?idle_days=$ZOMBIE_IDLE_DAYS&limit=$ZOMBIE_LIST_LIMIT${ZOMBIE_ORDER:+&order=$ZOMBIE_ORDER}" >/dev/null 2>&1 || exit 1
+    spl_hub_operator_call GET "/v1/operator/zombie-topics?idle_days=$ZOMBIE_IDLE_DAYS&limit=$ZOMBIE_LIST_LIMIT${ZOMBIE_ORDER:+&order=$ZOMBIE_ORDER}${ZOMBIE_SCOPE:+&scope=$ZOMBIE_SCOPE}" >/dev/null 2>&1 || exit 1
     [[ "$SPL_HUB_OP_STATUS" == 200 ]] || { echo "zombie-topics: the hub answered $SPL_HUB_OP_STATUS: $SPL_HUB_OP_BODY" >&2; exit 1; }
     printf '%s' "$SPL_HUB_OP_BODY"
   )

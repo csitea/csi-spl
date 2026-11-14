@@ -22,6 +22,12 @@
 #      ARCHIVE_SUGGEST_DRY_RUN from lease.conf (default 1: off)
 #   9. do_spl_topic_archive_suggest_install_cron: dry diff, one exact hourly
 #      line, idempotent, check, remove
+#  10. R7 W1: a person's post after the result, or a post younger than 24 h
+#      in the tail (it came after the list), keeps the topic; red control
+#  11. R7 W2: two polls to one person are two texts (the hub's
+#      duplicate_to_human); a failed poll still stamps the day, rc 1
+#  12. R7 W3: a held run lock does nothing; a live run needs this box to be
+#      ARCHIVE_SUGGEST_BOX; an archive poll as the last post is polled already
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -78,19 +84,20 @@ suggest() {
     source "$FUNC"
     do_spl_desk_cnf() { :; }
     spl_desk_action_hop_to() { return 1; }
-    spl_zombie_hub_list() { echo "hub $ZOMBIE_IDLE_DAYS ${ZOMBIE_ORDER:-} $ZOMBIE_LIST_LIMIT" >>"$T/reads"; cat "$T/cands.json"; }
+    spl_zombie_hub_list() { echo "hub $ZOMBIE_IDLE_DAYS ${ZOMBIE_ORDER:-} ${ZOMBIE_SCOPE:-} $ZOMBIE_LIST_LIMIT" >>"$T/reads"; cat "$T/cands.json"; }
     do_spl_asks_open() { echo "INFO a log line"; cat "$T/asks.json"; }
     spl_archive_suggest_tail() { cat "$T/tails/$1.ndjson"; }
     do_spl_desk_reply() {
       echo "$DESK_TASK $DESK_TO $DESK_AGENT $TENANT_ID $ENV $DESK_KIND" >>"$T/posted"
-      printf "%s\n" "$DESK_BODY" >"$T/body"
+      printf "%s\n" "$DESK_BODY" >"$T/body"; sed -n 1p <<<"$DESK_BODY" >>"$T/bodies"
+      [[ -z "${POST_FAIL:-}" || "$DESK_TASK" != "$POST_FAIL" ]] || { echo "FATAL 409 duplicate_to_human"; return 7; }
       echo "{\"send\": {\"msg_id\": \"poll-${DESK_TASK:0:8}\"}}"
     }
     do_spl_topic_archive() { echo "$TOPIC $MODE $DRY_RUN $DESK_AGENT $TENANT_ID" >>"$T/archived"; }
     eval "$SNIPPET"
     do_spl_topic_archive_suggest' >"$T/out" 2>&1
 }
-reset() { rm -f "$T/posted" "$T/archived" "$T/reads" "$T/body" "$T/spool/dispatch/archive-suggest.tsv" "$T/spool/dispatch/archive-suggest.last"; }
+reset() { rm -f "$T/posted" "$T/archived" "$T/reads" "$T/body" "$T/bodies" "$T/spool/dispatch/archive-suggest.tsv" "$T/spool/dispatch/archive-suggest.last"; }
 posted() { [[ -f "$T/posted" ]] && cut -d' ' -f1 "$T/posted" | tr '\n' ' ' | sed 's/ $//'; }
 LED="$T/spool/dispatch/archive-suggest.tsv"
 
@@ -106,7 +113,7 @@ grep -q "keep.$B.last agent post is no result" "$T/out" && grep -q "keep.$C.ask 
 grep -q '^```poll$' "$T/body" && grep -q '^(A) Archive$' "$T/body" && grep -q '^(B) Keep (no suggestion for 7 days)$' "$T/body" &&
   pass "1. the body is a poll form: (A) Archive, (B) Keep" || fail "1. body: $(cat "$T/body" 2>/dev/null)"
 grep -q "^$A	asked	$NOW	poll-a1a1a1a1	t1$" "$LED" 2>/dev/null && pass "1. the ledger holds the asked row with the poll id" || fail "1. ledger: $(cat "$LED" 2>/dev/null)"
-grep -q '^hub 1 newest 500$' "$T/reads" && pass "1. the hub list is read with idle_days=1 (24 h), order=newest, limit 500" || fail "1. reads: $(cat "$T/reads" 2>/dev/null)"
+grep -q '^hub 1 newest open 500$' "$T/reads" && pass "1. the hub list is read with idle_days=1 (24 h), order=newest, scope=open (R7 W4), limit 500" || fail "1. reads: $(cat "$T/reads" 2>/dev/null)"
 [[ "$(cat "$T/spool/dispatch/archive-suggest.last" 2>/dev/null)" == 2026-11-14 ]] && pass "1. the day is stamped" || fail "1. stamp"
 
 # --- 2. one poll per topic ---------------------------------------------------------
@@ -115,13 +122,13 @@ suggest DRY_RUN=0; rc=$?
 [[ $rc == 0 && ! -e "$T/posted" ]] && grep -q "keep.$A.polled $NOW" "$T/out" &&
   pass "2. a second run (forced past the stamp) posts nothing: $A is polled already" || fail "2. second run: rc=$rc $(cat "$T/posted" "$T/out" 2>/dev/null)"
 rm -f "$T/posted" "$T/reads"; sed -i "/^$A	/d" "$LED"
-suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0; rc=$?
+suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0 ARCHIVE_SUGGEST_BOX=box-a; rc=$?
 [[ $rc == 0 && ! -e "$T/posted" && ! -e "$T/reads" ]] && grep -q 'polls of 2026-11-14 were already posted' "$T/out" &&
   pass "2. without force the day stamp alone stops a second run" || fail "2. stamp: rc=$rc $(cat "$T/out")"
 
 # --- 3. red controls: drop one condition, its case is polled -----------------------
 reset; fixture4
-suggest DRY_RUN=0 -- "$(variant spl_archive_suggest_judge 's/not result(agents\[-1\])/False/')"
+suggest DRY_RUN=0 -- "$(variant spl_archive_suggest_judge 's/not result(msgs\[-1\])/False/')"
 grep -q "^$B " "$T/posted" 2>/dev/null && pass "3. red control: without condition 1 (result) $B is polled" || fail "3. cond 1 red: $(cat "$T/posted" 2>/dev/null)"
 reset; fixture4
 suggest DRY_RUN=0 -- "$(variant spl_archive_suggest_pick 's/or ask_on(u) //')"
@@ -149,11 +156,11 @@ reset; fixture4; suggest DRY_RUN=0
 answer "$A" B
 suggest DRY_RUN=0 ARCHIVE_SUGGEST_NOW=2026-11-14T10:00:00Z
 [[ ! -e "$T/archived" ]] && grep -q "^$A	keep	2026-11-14T10:00:00Z	" "$LED" && pass "4. answer B keeps: no archive, a keep row" || fail "4. B: $(cat "$LED" "$T/out")"
-sed -i "/^a-$A/d; s/Answer: B/x/" "$T/tails/$A.ndjson"
+sed -i "s/Answer: B/x/" "$T/tails/$A.ndjson"; line "r-$A" c-002@sat result 2026-11-15T10:00:00Z "done again" >>"$T/tails/$A.ndjson"
 rm -f "$T/posted"; suggest DRY_RUN=0 ARCHIVE_SUGGEST_NOW=2026-11-20T10:00:00Z
 ! grep -q "^$A " "$T/posted" 2>/dev/null && grep -q "keep.$A.muted" "$T/out" && pass "4. 6 days after Keep the topic is muted" || fail "4. muted: $(cat "$T/out")"
 suggest DRY_RUN=0 ARCHIVE_SUGGEST_NOW=2026-11-21T10:00:01Z
-grep -q "^$A " "$T/posted" 2>/dev/null && pass "4. 7 days after Keep it may be polled again" || fail "4. unmuted: $(cat "$T/out")"
+grep -q "^$A " "$T/posted" 2>/dev/null && pass "4. 7 days after Keep, with a new result as its last post, it may be polled again" || fail "4. unmuted: $(cat "$T/out")"
 reset; fixture4; suggest DRY_RUN=0
 line "c-$A" HUM-10 msg 2026-11-14T09:00:00Z "Chat: wants to discuss\\nPoll: poll-a1a1a1a1" >>"$T/tails/$A.ndjson"
 line "o-$A" HUM-10 msg 2026-11-14T09:01:00Z "Poll: other\\nAnswer: A" >>"$T/tails/$A.ndjson"
@@ -193,6 +200,64 @@ asks '[]'
 suggest DRY_RUN=0 ARCHIVE_SUGGEST_MAX=1
 [[ "$(posted)" == "$B" ]] && grep -q "keep.$A.no human post" "$T/out" && grep -q "keep.$E.poll cap" "$T/out" &&
   pass "7. no human post: no owner topic; the cap keeps the older $E (a ## Result note counts as a result)" || fail "7. cap: '$(posted)' $(cat "$T/out")"
+
+# --- 10. R7 W1: a person still using the topic ------------------------------------------
+reset; asks '[]'
+cands "$(topic "$A" "$OLD"), $(topic "$B" "$OLD")"
+tail_of "$A" result "all done"; line "f-$A" HUM-10 msg 2026-11-12T11:00:00Z "wait, X is still broken" >>"$T/tails/$A.ndjson"
+tail_of "$B" result "all done"; line "f-$B" HUM-10 msg 2026-11-14T07:59:00Z "one more thing" >>"$T/tails/$B.ndjson"
+suggest DRY_RUN=0; rc=$?
+[[ $rc == 0 && ! -e "$T/posted" ]] && grep -q "keep.$A.last post is a person's" "$T/out" && grep -q "keep.$B.quiet 2026-11-14T07:59:00Z in the tail, under 24 h" "$T/out" &&
+  pass "10. a person's follow-up after the result, or a post since the list, keeps the topic" || fail "10. W1: rc=$rc '$(posted)' $(cat "$T/out")"
+reset; asks '[]'
+cands "$(topic "$A" "$OLD")"
+tail_of "$A" result "all done"; line "f-$A" HUM-10 msg 2026-11-12T11:00:00Z "wait, X is still broken" >>"$T/tails/$A.ndjson"
+suggest DRY_RUN=0 -- "$(variant spl_archive_suggest_judge 's/elif str(msgs\[-1\].get("from", "")).startswith(people):/elif False:/; s/not result(msgs\[-1\])/not any(map(result, agents[-1:]))/')"
+grep -q "^$A " "$T/posted" 2>/dev/null && pass "10. red control: judged on the last agent post (the old code), the follow-up topic $A is polled" || fail "10. W1 red: $(cat "$T/out")"
+
+# --- 11. R7 W2: one text per poll; a failed poll waits a day -------------------------------
+reset; asks '[]'
+cands "$(topic "$A" "$OLD"), $(topic "$B" "$OLD")"
+tail_of "$A" result "all done"; tail_of "$B" result "done too"
+suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0 ARCHIVE_SUGGEST_BOX=box-a; rc=$?
+[[ $rc == 0 && "$(sort -u "$T/bodies" 2>/dev/null | wc -l)" == 2 ]] && grep -q "topic \`${A:0:8}\`: its last post is the result \`m2-a1a1a\`" "$T/bodies" &&
+  pass "11. two polls to HUM-10, two texts: each names its topic and its result" || fail "11. bodies: rc=$rc $(cat "$T/bodies" "$T/out" 2>/dev/null)"
+reset; asks '[]'
+cands "$(topic "$A" "$OLD"), $(topic "$B" "$OLD")"
+tail_of "$A" result "all done"; tail_of "$B" result "done too"
+suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0 ARCHIVE_SUGGEST_BOX=box-a POST_FAIL="$B"; rc=$?
+[[ $rc == 1 && "$(cat "$T/spool/dispatch/archive-suggest.last" 2>/dev/null)" == 2026-11-14 ]] && grep -q "^$A	asked" "$LED" && ! grep -q "^$B	" "$LED" &&
+  grep -q 'posted 1 poll(s), failed 1' "$T/out" &&
+  pass "11. a failed poll: rc 1, the day stamped all the same (no hourly retry), no ledger row for it" || fail "11. W2 stamp: rc=$rc $(cat "$T/out")"
+rm -f "$T/posted" "$T/reads"
+suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0 ARCHIVE_SUGGEST_BOX=box-a ARCHIVE_SUGGEST_NOW=2026-11-14T09:00:00Z; rc=$?
+[[ $rc == 0 && ! -e "$T/reads" && ! -e "$T/posted" ]] && pass "11. the next hourly run reads nothing: the day is done" || fail "11. hourly: rc=$rc $(cat "$T/out")"
+
+# --- 12. R7 W3: one run, one box -----------------------------------------------------------
+reset; fixture4
+( exec 8>>"$T/spool/dispatch/archive-suggest.lock"; flock -n 8; suggest DRY_RUN=0; echo "rc=$?" >"$T/lockrc" )
+[[ "$(cat "$T/lockrc")" == rc=0 && ! -e "$T/reads" && ! -e "$T/posted" ]] && grep -q 'another run holds' "$T/out" &&
+  pass "12. a run while another holds the lock reads and posts nothing" || fail "12. lock: $(cat "$T/lockrc") $(cat "$T/out")"
+reset; fixture4
+suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0; rc=$?
+[[ $rc == 0 && ! -e "$T/reads" && ! -e "$T/posted" ]] && grep -q 'no ARCHIVE_SUGGEST_BOX' "$T/out" &&
+  pass "12. no ARCHIVE_SUGGEST_BOX: no live run" || fail "12. no pin: rc=$rc $(cat "$T/out")"
+reset; fixture4
+suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0 ARCHIVE_SUGGEST_BOX=box-b; rc=$?
+[[ $rc == 0 && ! -e "$T/reads" && ! -e "$T/posted" ]] && grep -q 'ARCHIVE_SUGGEST_BOX is box-b, not this box' "$T/out" &&
+  pass "12. ARCHIVE_SUGGEST_BOX another box: the holder's box posts nothing" || fail "12. other pin: rc=$rc $(cat "$T/out")"
+reset; fixture4; echo ARCHIVE_SUGGEST_BOX=box-a >>"$T/spool/dispatch/lease.conf"
+suggest DRY_RUN=0 ARCHIVE_SUGGEST_FORCE=0; rc=$?
+sed -i '/^ARCHIVE_SUGGEST_BOX=/d' "$T/spool/dispatch/lease.conf"
+[[ $rc == 0 && "$(posted)" == "$A" ]] && pass "12. ARCHIVE_SUGGEST_BOX=this box in lease.conf: the live run posts" || fail "12. pin: rc=$rc $(cat "$T/out")"
+reset; fixture4
+suggest ARCHIVE_SUGGEST_FORCE=0; rc=$?
+[[ $rc == 0 ]] && grep -q "PLAN poll $A" "$T/out" && pass "12. a dry run needs no ARCHIVE_SUGGEST_BOX" || fail "12. dry: rc=$rc $(cat "$T/out")"
+reset; asks '[]'
+cands "$(topic "$A" "$OLD")"
+tail_of "$A" result "all done"; line "p-$A" c-003@box-b note 2026-11-12T12:00:00Z "**Archive suggestion** for topic x" >>"$T/tails/$A.ndjson"
+suggest DRY_RUN=0
+[[ ! -e "$T/posted" ]] && grep -q "keep.$A.already polled" "$T/out" && pass "12. an archive poll of another box as the last post: polled already" || fail "12. polled: $(cat "$T/out")"
 
 # --- 8. the cron script -----------------------------------------------------------------
 CRON="$PROJ_ROOT/src/bash/scripts/topic-archive-suggest-cron.sh"

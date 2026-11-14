@@ -5,17 +5,24 @@
 # @description the owner asked to archive or close a finished topic 9 times).
 # @description A topic gets ONE archive poll, addressed to its newest human
 # @description poster, when all three hold:
-# @description   1. the last agent post is a result: kind result, or a body
-# @description      that opens with **Done**, **Live**, **Answered**,
-# @description      **Answer** or a `## Result` heading,
+# @description   1. the topic's LAST post is an agent's result (no person
+# @description      wrote after it): kind result, or a body that opens with
+# @description      **Done**, **Live**, **Answered**, **Answer** or a
+# @description      `## Result` heading,
 # @description   2. no open ask names it (do_spl_asks_open: open, acked,
 # @description      queued, placing or needs_owner; its full uuid or its first
 # @description      8 hex digits as a whole token, as the zombie sweep),
-# @description   3. 24 h (ARCHIVE_SUGGEST_QUIET_H) without a post.
+# @description   3. 24 h (ARCHIVE_SUGGEST_QUIET_H) without a post: in the
+# @description      hub's list and again in the tail read (a post that came
+# @description      in between keeps the topic).
 # @description The candidates are the hub's 500 newest idle topic heads (GET
-# @description /v1/operator/zombie-topics?idle_days=1&order=newest: not
-# @description archived, no DM, not prioritised); a topic with no human post
-# @description is no owner topic and is skipped. The poll:
+# @description /v1/operator/zombie-topics?idle_days=1&order=newest&scope=open:
+# @description not archived, no DM, not prioritised, no #lobby, member-only,
+# @description humans-only, AI-off or private-scope topic); a topic with no
+# @description human post is no owner topic and is skipped, one whose last
+# @description post is an archive poll (any box's) is polled already. The
+# @description poll names its topic and its result (no two polls to one
+# @description person are the same text: the hub's duplicate_to_human). The poll:
 # @description   (A) Archive -> do_spl_topic_archive, as the dispatch holder
 # @description   (B) Keep    -> no suggestion for that topic for 7 days
 # @description Never twice: the ledger $SPOOL_ROOT/dispatch/archive-suggest.tsv
@@ -24,10 +31,16 @@
 # @description a kept one is muted ARCHIVE_SUGGEST_MUTE_D days. Each run first
 # @description reads the answers of the asked topics (hub-tail: the newest
 # @description `Poll: <id>` / `Answer: <key>` of a person), then, once a UTC
-# @description day (the stamp archive-suggest.last, written only by DRY_RUN=0),
-# @description posts at most ARCHIVE_SUGGEST_MAX new polls. It acts only on the
-# @description box of the dispatch lease holder (ARCHIVE_SUGGEST_FORCE=1 skips
-# @description the box and the day stamp). DRY_RUN=1 (default) posts and
+# @description day (the stamp archive-suggest.last, written only by DRY_RUN=0,
+# @description also when a poll failed: that topic waits a day, never an
+# @description hourly retry), posts at most ARCHIVE_SUGGEST_MAX new polls. One
+# @description run at a time ($SPOOL_ROOT/dispatch/archive-suggest.lock; a
+# @description second run says OK and does nothing). The ledger is one box's:
+# @description it acts only on the box of the dispatch lease holder, and with
+# @description DRY_RUN=0 only when that box is ARCHIVE_SUGGEST_BOX (lease.conf
+# @description or env; unset = no live run): while the lease sits on another
+# @description box, polls and answers wait (ARCHIVE_SUGGEST_FORCE=1 skips the
+# @description boxes and the day stamp). DRY_RUN=1 (default) posts and
 # @description archives nothing and prints the PLAN lines only. Default off:
 # @description its cron (do_spl_topic_archive_suggest_install_cron) runs it dry
 # @description until lease.conf says ARCHIVE_SUGGEST_DRY_RUN=0.
@@ -39,6 +52,7 @@
 # @param ARCHIVE_SUGGEST_SCAN (optional) - topics whose tail is read a day, 1..500, default 60
 # @param ARCHIVE_SUGGEST_QUIET_H (optional) - hours without a post, 1..720, default 24
 # @param ARCHIVE_SUGGEST_MUTE_D (optional) - days a Keep mutes a topic, 1..365, default 7
+# @param ARCHIVE_SUGGEST_BOX (optional) - the one box whose ledger posts (DRY_RUN=0); default lease.conf ARCHIVE_SUGGEST_BOX
 # @param ARCHIVE_SUGGEST_FORCE (optional) - 1 runs on any box and ignores the day stamp
 # @param ARCHIVE_SUGGEST_NOW (optional) - the moment judged, ISO UTC (tests)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -59,7 +73,7 @@ do_spl_topic_archive_suggest() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_archive_suggest_conf || return 1
   read -r holder _ <"$root/dispatch/lease" 2>/dev/null || holder=""
-  [[ "${ARCHIVE_SUGGEST_FORCE:-0}" == 1 ]] || spl_archive_suggest_gate "$root" "$holder" || return 0
+  [[ "${ARCHIVE_SUGGEST_FORCE:-0}" == 1 ]] || spl_archive_suggest_gate "$root" "$holder" "$dry" || return 0
   export ENV="${ENV:-$(spl_owner_digest_lease_conf "$root" LEASE_ENV prd)}"
   export TENANT_ID="${TENANT_ID:-$(spl_owner_digest_lease_conf "$root" LEASE_TENANT "")}"
   export DESK_AGENT="${DESK_AGENT:-${holder%@*}}"
@@ -74,39 +88,51 @@ do_spl_topic_archive_suggest() {
       ARCHIVE_SUGGEST_MAX ARCHIVE_SUGGEST_SCAN ARCHIVE_SUGGEST_QUIET_H ARCHIVE_SUGGEST_MUTE_D \
       ARCHIVE_SUGGEST_FORCE ARCHIVE_SUGGEST_NOW; return $?
   fi
-  local work rc=0
-  work="$(mktemp -d)" || return 1
+  local work rc=0 lock
+  exec {lock}>>"$root/dispatch/archive-suggest.lock" || { do_log "FATAL archive-suggest: cannot open $root/dispatch/archive-suggest.lock"; return 1; }
+  flock -n "$lock" || { echo "OK archive-suggest: another run holds $root/dispatch/archive-suggest.lock: nothing"; exec {lock}>&-; return 0; }
+  work="$(mktemp -d)" || { exec {lock}>&-; return 1; }
   spl_archive_suggest_run "$work" "$dry" "$root" || rc=$?
   rm -rf "$work"
+  exec {lock}>&-
   return "$rc"
 }
 
 # spl_archive_suggest_run <work> <dry> <root>: the answers every run, the new
 # polls once a UTC day (the stamp, written by DRY_RUN=0 only).
 spl_archive_suggest_run() {
-  local work="$1" dry="$2" root="$3" today stamp="$3/dispatch/archive-suggest.last" rc=0
+  local work="$1" dry="$2" root="$3" today stamp="$3/dispatch/archive-suggest.last" rc=0 prc
   spl_archive_suggest_answers "$work" "$dry" "$root" || rc=$?
   today="$(date -u -d "${ARCHIVE_SUGGEST_NOW:-now}" +%F)" || return 1
   if [[ "${ARCHIVE_SUGGEST_FORCE:-0}" != 1 && "$(cat "$stamp" 2>/dev/null)" == "$today" ]]; then
     echo "archive-suggest: OK the polls of $today were already posted"
-  elif spl_archive_suggest_polls "$work" "$dry" "$root"; then
-    ((dry)) || printf '%s\n' "$today" >"$stamp" || do_log "WARN archive-suggest: cannot write the stamp $stamp"
   else
-    rc=1
+    spl_archive_suggest_polls "$work" "$dry" "$root" && prc=0 || prc=$?
+    # rc 2 = a poll failed after the judging: the day is done all the same.
+    ((dry || prc == 1)) || printf '%s\n' "$today" >"$stamp" || do_log "WARN archive-suggest: cannot write the stamp $stamp"
+    ((prc == 0)) || rc=1
   fi
   return "$rc"
 }
 
-# spl_archive_suggest_gate <root> <holder>: 0 when this box holds the
-# dispatch lease; else one OK line on stderr, rc 1.
+# spl_archive_suggest_gate <root> <holder> <dry>: 0 when this box holds the
+# dispatch lease and, for a live run, is ARCHIVE_SUGGEST_BOX (the one box
+# whose ledger posts: the ledger and the stamp are box-local files); else one
+# OK line on stderr, rc 1.
 spl_archive_suggest_gate() {
-  local root="$1" holder="$2" box hbox
+  local root="$1" holder="$2" dry="$3" box hbox pin
   [[ "$holder" =~ ^[A-Za-z][A-Za-z0-9-]*(@[a-z0-9][a-z0-9-]*)?$ ]] ||
     { echo "OK archive-suggest: no dispatch lease holder in $root/dispatch/lease: nothing" >&2; return 1; }
   box="$(spl_owner_digest_box "$root")"
   hbox="${holder#*@}"; [[ "$holder" == *@* ]] || hbox="$box"
   [[ "$hbox" == "$box" ]] ||
     { echo "OK archive-suggest: the dispatch holder $holder is not on this box ($box); its box suggests" >&2; return 1; }
+  ((dry)) && return 0
+  pin="${ARCHIVE_SUGGEST_BOX:-$(spl_owner_digest_lease_conf "$root" ARCHIVE_SUGGEST_BOX "")}"
+  [[ -n "$pin" ]] ||
+    { echo "OK archive-suggest: no ARCHIVE_SUGGEST_BOX in $root/dispatch/lease.conf: no live run (one box keeps the ledger)" >&2; return 1; }
+  [[ "$pin" == "$box" ]] ||
+    { echo "OK archive-suggest: ARCHIVE_SUGGEST_BOX is $pin, not this box ($box): polls and answers wait for the lease there" >&2; return 1; }
 }
 
 # spl_archive_suggest_conf: the ARCHIVE_SUGGEST_* numbers, defaults filled,
@@ -156,7 +182,8 @@ spl_archive_suggest_ledger() {
     END { for (i = 1; i <= n; i++) print last[order[i]] }' "$1"
 }
 
-# spl_archive_suggest_polls <work> <dry> <root>: read, judge, post.
+# spl_archive_suggest_polls <work> <dry> <root>: read, judge, post; rc 1
+# when the topics were not read or judged, rc 2 when a poll failed.
 spl_archive_suggest_polls() {
   local work="$1" dry="$2" led="$3/dispatch/archive-suggest.tsv" topic human why poll n=0 bad=0 now
   spl_archive_suggest_read "$work" || return 1
@@ -171,7 +198,7 @@ spl_archive_suggest_polls() {
   now="$(date -u -d "${ARCHIVE_SUGGEST_NOW:-now}" +%Y-%m-%dT%H:%M:%SZ)" || return 1
   while IFS=$'\t' read -r _ topic human why; do
     if ((dry)); then echo "archive-suggest: PLAN poll $topic to $human ($why)"; n=$((n + 1)); continue; fi
-    if poll="$(spl_archive_suggest_post "$topic" "$human" "$work")"; then
+    if poll="$(spl_archive_suggest_post "$topic" "$human" "$work" "${why#result }")"; then
       printf '%s\tasked\t%s\t%s\t%s\n' "$topic" "$now" "${poll:--}" "$TENANT_ID" >>"$led"
       n=$((n + 1)); echo "archive-suggest: polled $topic to $human (poll ${poll:-?})"
     else
@@ -180,7 +207,7 @@ spl_archive_suggest_polls() {
   done < <(grep '^poll' "$work/verdict.tsv")
   if ((dry)); then echo "archive-suggest: OK $(grep -c . "$work/cands.ids") idle topic(s) read; would post $n poll(s) (DRY_RUN)"
   else echo "archive-suggest: OK $(grep -c . "$work/cands.ids") idle topic(s) read; posted $n poll(s), failed $bad"; fi
-  ((bad == 0))
+  ((bad == 0)) || return 2
 }
 
 # spl_archive_suggest_read <work>: cands.json (the hub's 500 newest idle
@@ -189,7 +216,7 @@ spl_archive_suggest_polls() {
 # read.
 spl_archive_suggest_read() {
   local w="$1" out
-  out="$(ZOMBIE_IDLE_DAYS=$(((ARCHIVE_SUGGEST_QUIET_H + 23) / 24)) ZOMBIE_LIST_LIMIT=500 ZOMBIE_ORDER=newest spl_zombie_hub_list)" ||
+  out="$(ZOMBIE_IDLE_DAYS=$(((ARCHIVE_SUGGEST_QUIET_H + 23) / 24)) ZOMBIE_LIST_LIMIT=500 ZOMBIE_ORDER=newest ZOMBIE_SCOPE=open spl_zombie_hub_list)" ||
     { do_log "FATAL archive-suggest: the hub's idle topic list was not read"; return 1; }
   jq -e '.topics | type == "array"' <<<"$out" >/dev/null 2>&1 || { do_log "FATAL archive-suggest: the hub's answer has no topics list"; return 1; }
   printf '%s\n' "$out" >"$w/cands.json"
@@ -259,12 +286,23 @@ PY
 
 # spl_archive_suggest_judge <work>: for each scanned topic (newest first),
 # `poll<TAB><uuid><TAB><human><TAB><why>` for at most ARCHIVE_SUGGEST_MAX,
-# else `keep<TAB><uuid><TAB><reason>`: condition 1 (the last agent post is a
-# result), an owner topic (a person posted), a readable tail, the poll cap.
+# else `keep<TAB><uuid><TAB><reason>`: condition 1 (the topic's last post is
+# an agent's result), condition 3 again on the tail (a post since the list),
+# an owner topic (a person posted), not polled already (an archive poll of
+# any box is the last post), a readable tail, the poll cap. A poll is no
+# result: after a Keep only a new result makes the topic a candidate again.
 spl_archive_suggest_judge() {
-  python3 - "$1" "$ARCHIVE_SUGGEST_MAX" <<'PY'
-import json, os, re, sys
-w, cap = sys.argv[1], int(sys.argv[2])
+  python3 - "$1" "$ARCHIVE_SUGGEST_MAX" "${ARCHIVE_SUGGEST_NOW:-}" "$ARCHIVE_SUGGEST_QUIET_H" <<'PY'
+import datetime as dt, json, os, re, sys
+w, cap, now, quiet_h = sys.argv[1], int(sys.argv[2]), sys.argv[3], int(sys.argv[4])
+def when(s):
+    return dt.datetime.fromisoformat(str(s).replace("Z", "+00:00")).astimezone(dt.timezone.utc)
+now = when(now) if now else dt.datetime.now(dt.timezone.utc)
+def young(m):
+    try:
+        return now - when(m.get("ts")) < dt.timedelta(hours=quiet_h)
+    except (TypeError, ValueError):
+        return True
 people = ("HUM-", "RSP-", "GST-")
 RESULT = re.compile(r"\s*(\*\*(Done|Live|Answered|Answer)\b|#{1,3}\s+Result\b)")
 def result(m):
@@ -291,14 +329,20 @@ for line in open(f"{w}/pick.tsv"):
     agents = [m for m in msgs if not str(m.get("from", "")).startswith(people)]
     if not humans:
         why = "no human post"
-    elif not agents or not result(agents[-1]):
+    elif str(msgs[-1].get("body", "")).startswith("**Archive suggestion**"):
+        why = "already polled"
+    elif young(msgs[-1]):
+        why = f"quiet {msgs[-1].get('ts', '?')} in the tail, under {quiet_h} h"
+    elif str(msgs[-1].get("from", "")).startswith(people):
+        why = "last post is a person's"
+    elif not result(msgs[-1]):
         why = "last agent post is no result"
     elif n >= cap:
         why = "poll cap"
     else:
         n += 1
         who = str(humans[-1].get("from", "")).split("@")[0]
-        print(f"poll\t{u}\t{who}\tresult {agents[-1].get('msg_id', '?')}")
+        print(f"poll\t{u}\t{who}\tresult {msgs[-1].get('msg_id', '?')}")
         continue
     print(f"keep\t{u}\t{why}")
 PY
@@ -344,11 +388,14 @@ spl_archive_suggest_tail() {
   spl_desk_spool "$d" "$DESK_BOX" "$TENANT_ID" "$SPL_HUB_URL" -- hub-tail --task "$1" --json 2>/dev/null
 }
 
-# spl_archive_suggest_post <topic> <human> <work>: the poll, posted by the
-# desk agent into the topic and addressed to <human>; prints its msg id.
+# spl_archive_suggest_post <topic> <human> <work> <result msg id>: the poll,
+# posted by the desk agent into the topic and addressed to <human>; prints
+# its msg id. The body names the topic and the result: the hub refuses a
+# second box post of the same text to one person within 24 h
+# (duplicate_to_human), and one person gets up to ARCHIVE_SUGGEST_MAX polls.
 spl_archive_suggest_post() {
   local body
-  body="**Archive suggestion**: the last agent post here is a result, no ask is open on this topic and nobody has posted for ${ARCHIVE_SUGGEST_QUIET_H} h.
+  body="**Archive suggestion** for topic \`${1:0:8}\`: its last post is the result \`${4:0:8}\`, no ask is open on it and nobody has posted for ${ARCHIVE_SUGGEST_QUIET_H} h.
 
 \`\`\`poll
 Archive this topic?

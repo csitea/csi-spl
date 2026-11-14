@@ -198,18 +198,23 @@ no open ask and 24 h quiet gets one archive poll". The evidence, c-518's count
 dispatch lease holder and posts, as the holder's desk agent, ONE poll into a
 topic when all three hold:
 
-1. **the last agent post is a result**: kind `result`, or a body that opens
-   with `**Done**`, `**Live**`, `**Answered**`, `**Answer**` or a `## Result`
-   heading;
+1. **the topic's last post is an agent's result**, nobody wrote after it:
+   kind `result`, or a body that opens with `**Done**`, `**Live**`,
+   `**Answered**`, `**Answer**` or a `## Result` heading. A person's
+   follow-up after the result keeps the topic (R7 W1);
 2. **no open ask names the topic**: no ask in state open, acked, queued,
    placing or needs_owner whose `topic` or `summary` carries its uuid or its
    first 8 hex digits as a whole token (the zombie sweep's rule, spec 166
    row B6);
-3. **24 h without a post** (`ARCHIVE_SUGGEST_QUIET_H`).
+3. **24 h without a post** (`ARCHIVE_SUGGEST_QUIET_H`), in the hub's list
+   and again on the tail read: a post that came in between keeps the topic.
 
 The candidates are the hub's 500 newest idle topic heads,
-`GET /v1/operator/zombie-topics?idle_days=1&order=newest` (spec 166 row B5:
-not archived, no DM, not prioritised). `order=newest` is new with this
+`GET /v1/operator/zombie-topics?idle_days=1&order=newest&scope=open` (spec
+166 row B5: not archived, no DM, not prioritised; `scope=open`, R7 W4: no
+topic in `#lobby`, in a member-only, humans-only, AI-off or private-scope
+channel, or with a private-scope line, so the desk agent never posts where
+it is not invited). `order=newest` is new with this
 section: oldest first, the 5000-row list ended at 2026-11-13T00:35Z while its
 `idle_before` was 13:55Z (prd, n=1, 2026-11-14): the topics that went quiet
 the day before, the ones this rule is for, were cut off. A topic with no post
@@ -217,12 +222,17 @@ from a person is no owner topic and gets no poll; the poll is addressed to
 the topic's newest person poster.
 
 ```text
-**Archive suggestion**: the last agent post here is a result, no ask is open on this topic and nobody has posted for 24 h.
+**Archive suggestion** for topic `<topic8>`: its last post is the result `<result8>`, no ask is open on it and nobody has posted for 24 h.
 
 (poll) Archive this topic?
 (A) Archive
 (B) Keep (no suggestion for 7 days)
 ```
+
+The topic and the result in the first line make each poll its own text: the
+hub refuses a second box post of the same body to one person within 24 h
+(`409 duplicate_to_human`), and one person may get up to 10 polls a day (R7
+W2).
 
 - **Archive** (`Answer: A` to that poll, from a person): the topic is
   archived through `do_spl_topic_archive` as the dispatch holder (section 3).
@@ -232,24 +242,37 @@ the topic's newest person poster.
 - **Never twice**: the ledger `$SPOOL_ROOT/dispatch/archive-suggest.tsv`
   (append only: topic, state `asked` | `archived` | `keep`, time, poll id,
   tenant; the last row of a topic wins). An asked topic is never polled
-  again; an archived one never.
+  again; an archived one never. A topic whose last post is an archive poll
+  (any box's) is polled already. One run at a time: the action holds
+  `dispatch/archive-suggest.lock` (`flock -n`; a second run, cron or by
+  hand, says OK and does nothing). The ledger and the stamp are box-local
+  files, so a live run (`DRY_RUN=0`) needs this box to be
+  `ARCHIVE_SUGGEST_BOX` (lease.conf or env; unset = no live run) as well as
+  the dispatch holder's: while the lease sits on another box, polls and
+  answers wait (R7 W3).
 - **Cadence**: every run reads the answers of the asked topics (the topic's
   `hub-tail`); the new polls go out once a UTC day (stamp
-  `dispatch/archive-suggest.last`, written by `DRY_RUN=0` only), at most
+  `dispatch/archive-suggest.last`, written by `DRY_RUN=0` only, also when a
+  poll failed: that topic waits a day, never an hourly retry), at most
   `ARCHIVE_SUGGEST_MAX` (10) of them, newest topic first.
 - **Default off**: `DRY_RUN=1` (the default) posts and archives nothing and
   prints the PLAN lines. The cron, `do_spl_topic_archive_suggest_install_cron`
   (hourly at minute 17, `# csi-spl:topic-archive-suggest`, not installed by
   any other action), runs `src/bash/scripts/topic-archive-suggest-cron.sh`,
   which stays dry until the dispatch `lease.conf` says
-  `ARCHIVE_SUGGEST_DRY_RUN=0`: the owner's switch.
+  `ARCHIVE_SUGGEST_DRY_RUN=0` and names `ARCHIVE_SUGGEST_BOX`: the owner's
+  switch.
 
 Test: `csi-spl-orc/src/bash/tests/spl-topic-archive-suggest.tst.sh` (a stub
 hub; each condition excludes its topic; one poll per topic; a second run
 posts nothing; A archives, B mutes 7 days; red controls: a code variant
 without condition 1, 2 or 3, or without the ledger check, polls the topic it
-kept). Hub: `TestZombieTopicsListsIdleHeads` (`order=newest`) and
-`TestZombieTopicsRefusals` (a bad `order` is 400) in
+kept; R7 cases 10-12: a follow-up or a young tail keeps the topic, with a red
+control; two polls are two texts; a failed poll stamps the day; the lock;
+`ARCHIVE_SUGGEST_BOX`; another box's poll). Hub:
+`TestZombieTopicsListsIdleHeads` (`order=newest`), `TestZombieTopicsOpenScope`
+(`scope=open`, red without the filter) and `TestZombieTopicsRefusals` (a bad
+`order` or `scope` is 400) in
 `csi-spl-api/src/go/spool-hub-api/internal/hub/zombie_topics_test.go`.
 
-<!-- version: 0.3.0 · updated: 2026-11-14 · last-edit: 2026-11-14T16:30:00Z -->
+<!-- version: 0.3.1 · updated: 2026-11-14 · last-edit: 2026-11-14T22:30:00Z -->

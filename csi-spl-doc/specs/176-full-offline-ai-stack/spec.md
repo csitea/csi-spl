@@ -1,5 +1,7 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
+> Generated from qto doc `a9b0c6e3-9ed5-44d1-9174-57709b90af9e`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Version **v1.0** (2026-11-14), **signed by all five panel seats on the content sha `dd314df8e`** (section 11); the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
@@ -14,6 +16,7 @@ re-measured on `6494175f2` (2.1 spawn kinds, 2.2 machine type). Vendor and model
 date it was read; a fact the editor could not confirm is marked
 **unverified** and is a job for the panel.
 
+<a id="ws-doc-f722c646-1db3-451b-b1b3-8d341952b65c"></a>
 ## 0. The owner's words (HUM-10, t1 topic 4187ab15, 2026-11-13, verbatim)
 
 | time (Z) | text |
@@ -28,6 +31,7 @@ Poll `b866f988` (14:15:03Z): the panel is one seat per vendor (agy, claude,
 grok, mistral, codex); start now; agy joins when its quota is back and signs
 last.
 
+<a id="ws-doc-8781f387-2751-461b-a224-e40a6775080b"></a>
 ### 0.1 What the words require
 
 | id | requirement | from |
@@ -41,8 +45,10 @@ last.
 | R7 | The document lives **in Qto and in the md docs** | 14:10:34 |
 | R8 | The editor **asks the owner** which further documentation artifacts are needed | 14:10:34 |
 
+<a id="ws-doc-f11da06d-e7d1-447f-9d24-31ce8e1760da"></a>
 ## 1. Goals and non-goals
 
+<a id="ws-doc-a4ebbce8-da4c-4a29-985c-0161675e9022"></a>
 ### 1.1 Goals
 
 | id | goal | measured by (when built) |
@@ -54,6 +60,7 @@ last.
 | G5 | **On-premises**: the same images, ansible roles and actions run on a Debian host the operator owns, with no GCP API call | the on-prem install guide (section 9) replayed on a box outside GCP |
 | G6 | **Quality is measured, not assumed**: no kind routes to a local model until it passes the per-kind evaluation of section 4.8 | the evaluation report, per kind and model |
 
+<a id="ws-doc-7eb6ac9c-7f26-44e7-90d2-2e589c7844af"></a>
 ### 1.2 Non-goals
 
 - Training or fine-tuning models. Serving only.
@@ -63,8 +70,10 @@ last.
   (section 4.3); this spec only points them at a local endpoint.
 - Any change to prd or the hub in this lane.
 
+<a id="ws-doc-2cdd6de7-0263-4999-836a-4886211cc0d6"></a>
 ## 2. Today, measured
 
+<a id="ws-doc-e80c070d-4cec-4aa5-ba27-6209598e898e"></a>
 ### 2.1 How the fleet runs AI now
 
 | fact | command -> result |
@@ -89,6 +98,7 @@ Read for this section: specs [110](../110-mistral-vendor/spec.md),
 [159](../159-byo-ai-keys/spec.md),
 [161](../161-cursor-codex-vendors/spec.md).
 
+<a id="ws-doc-08d54e1f-eb89-4bb1-a6f3-1c1c6513a3ee"></a>
 ### 2.2 The hub/box split and the GCP estate
 
 | fact | command -> result |
@@ -101,6 +111,7 @@ Read for this section: specs [110](../110-mistral-vendor/spec.md),
 | Its sign-in works without an outside identity provider | `csi-spl-api/.../internal/auth/local_hub_signin_test.go` header: "Native sign-in on, nothing delivers mail ... The owner's verified credential and seat come from the operator CLI (spool hub-provision-member --password-stdin)" |
 | The generated WUI loads no third-party asset by URL | `grep -rnoE 'fonts\.(googleapis\|gstatic)\.com\|googletagmanager\|sentry' csi-spl-wui/nuxt.config.ts csi-spl-wui/src` -> 0 lines (a static grep; a served-bundle network trace is task T0.3) |
 
+<a id="ws-doc-ffbe0cf9-5e23-4d1c-b77a-25993af7f1ed"></a>
 ### 2.3 What is missing
 
 1. No model server, no GPU host, no terraform step for one.
@@ -111,8 +122,10 @@ Read for this section: specs [110](../110-mistral-vendor/spec.md),
    install or update anything.
 6. No evaluation of any open-weight model on our own tasks.
 
+<a id="ws-doc-e517271b-8b87-4061-8d9c-6f1795ca94e3"></a>
 ## 3. The two modes
 
+<a id="ws-doc-f31f25b6-712e-45c8-a3ae-d682a2584783"></a>
 ### 3.1 Mode A, mixed
 
 Local model servers sit next to the cloud vendors. A local model is one more
@@ -122,6 +135,7 @@ Local model servers sit next to the cloud vendors. A local model is one more
 deploys stay as they are (Cloud Run, Firebase, GitHub). Traffic to the cloud
 vendors continues for every lane not on `local`.
 
+<a id="ws-doc-5bffc527-7fa3-479c-a6cd-bbf13815321b"></a>
 ### 3.2 Mode B, full offline
 
 Everything runs inside one network boundary (a GCP VPC with egress denied,
@@ -129,6 +143,7 @@ or an on-prem LAN): the private hub (2.2), the generated WUI, the model
 servers, the agent boxes and the package and weight mirrors. No byte leaves
 the boundary. The cloud vendors are not reachable and not configured.
 
+<a id="ws-doc-edad337e-613f-4c5a-a7e3-0cc5dfb85411"></a>
 ### 3.3 What "offline" means, per part
 
 | part | mode A (mixed) | mode B (full offline) | gap today |
@@ -154,8 +169,10 @@ proof is an **egress-deny** boundary (a VPC firewall that denies all egress,
 or an on-prem firewall) plus a logged count of denied packets, which must be
 0 for a full lane run. A denied packet names the leak.
 
+<a id="ws-doc-0ae85f74-a3ad-425b-9569-ec6f61c1bf64"></a>
 ## 4. Architecture
 
+<a id="ws-doc-839c61d5-f728-4d54-b9be-afde8028f66c"></a>
 ### 4.1 Overview
 
 ```text
@@ -175,6 +192,7 @@ or an on-prem firewall) plus a logged count of denied packets, which must be
   mode A only:  agent CLIs on vendor lanes --> vendor clouds (unchanged)
 ```
 
+<a id="ws-doc-4364dc76-4e37-4543-81ff-45ba93fbebdb"></a>
 ### 4.2 Model serving layer
 
 | candidate | APIs (source, read 2026-11-13) | fit | verdict |
@@ -210,6 +228,7 @@ when there are several model servers to route between, per-lane token
 accounting (specs 123, 140) and one stack token to rotate. Its choice is a
 decision record (section 9.2, D-1).
 
+<a id="ws-doc-9923925f-c821-4d97-b83e-1e44bd73bb8a"></a>
 ### 4.3 The client side: which CLI can talk to a local endpoint
 
 | CLI | local endpoint | how (source, read 2026-11-13) | fleet status |
@@ -245,6 +264,7 @@ therefore:
 
 The egress-deny run (3.3) is the proof; these switches are not.
 
+<a id="ws-doc-25a7a3dd-de37-4bb4-8549-9eacca8c3c88"></a>
 ### 4.4 Routing and fallback
 
 - **A new vendor key `local`** in `agent_split` and every
@@ -279,6 +299,7 @@ The egress-deny run (3.3) is the proof; these switches are not.
   local model's replay score is not the agy review. Changing that rule is
   the owner's call, not this spec's (codex seat).
 
+<a id="ws-doc-ddc733b2-b9fd-4ccf-89a3-c15a020323dd"></a>
 ### 4.5 Model classes and sizing
 
 Weights in GB are roughly parameters (billions) times bytes per parameter
@@ -303,6 +324,7 @@ move monthly (the editor's search of 2026-11-13 found SWE-bench figures for
 the same model families differing widely between sources); the P0
 evaluation on our own tasks decides, per kind.
 
+<a id="ws-doc-63999676-d511-4368-9b1b-c947a33301d1"></a>
 ### 4.6 Model storage and updates
 
 - Weights live on a **dedicated data disk** of the model server (a pd on
@@ -316,6 +338,7 @@ evaluation on our own tasks decides, per kind.
 - **Licence gate**: each pinned model carries its licence id in cnf; the
   conf-validator refuses a licence not on the owner's allow-list (**Q8**).
 
+<a id="ws-doc-20aedc66-efa6-4b05-a92d-0b0e1d4b92ec"></a>
 ### 4.7 Security and data boundaries
 
 | boundary | rule |
@@ -327,6 +350,7 @@ evaluation on our own tasks decides, per kind.
 | Tenancy | one model server may serve many workspaces only if no state crosses tenants (P-1, prefix-cache sharing across tenants: **off by default in mode B**, by one server per workspace or prefix caching disabled; mistral seat m-724 concurs it is a real boundary risk) |
 | Supply chain | engine images pinned by digest; weights by sha256; packages from the mirror at pinned versions only |
 
+<a id="ws-doc-7abb302d-b906-4656-9afb-e7e40040f9ea"></a>
 ### 4.8 Evaluation (the quality gate)
 
 A kind routes to `local` only after a model passes, for that kind, the
@@ -338,8 +362,10 @@ made from the first report, not fixed here. The replay set carries a
 **multilingual (`i18n`) slice**, which gates a local model **drafting**
 the agy-led kinds in mode B; it never stands in for the agy review (4.4).
 
+<a id="ws-doc-c78e2f31-677d-468a-b5b5-01cfa6d06426"></a>
 ## 5. Infrastructure
 
+<a id="ws-doc-f87944ee-a61b-4992-8fc8-91efdfffdf46"></a>
 ### 5.1 On GCP, by our existing path
 
 | piece | how | new or existing |
@@ -357,6 +383,7 @@ Every rule of the repo holds: terraform only in the tf-runner, the per-env
 SA key, `--account` on every gcloud call, the owner's go for every apply,
 dev applied before prd.
 
+<a id="ws-doc-066cf257-0e65-4624-8c84-9493f8131d17"></a>
 ### 5.2 On-premises: what changes, what stays
 
 | stays | changes |
@@ -367,6 +394,7 @@ dev applied before prd.
 | the private hub (guides/local-hub.md) | the hub binds the LAN with a local-CA certificate (FR-08) |
 | lane-mix, launchers, routing | no Cloud KMS: the private hub's at-rest encryption (local-hub 1.3) and file keys |
 
+<a id="ws-doc-2619c88a-155d-4e15-b812-9375c3b9150d"></a>
 ### 5.3 Costs (rough, monthly, 730 h)
 
 | option | unit price (source, read 2026-11-13) | always on | business hours (220 h) |
@@ -387,6 +415,7 @@ VM-hour (4.4999), and its spot band ~$0.86-2.34/h matched neither region's
 VM-hour; v0.2 prints the europe-north1 figures (grok seat). The 220 h column
 is 220 x the hourly figure, rounded.
 
+<a id="ws-doc-46becb65-aef0-4fe7-a9b3-8102294714f3"></a>
 ## 6. Requirements (status)
 
 | id | requirement | status |
@@ -405,6 +434,7 @@ is 220 x the hourly figure, rounded.
 | FR-12 | The private hub with no cloud dependency, one box | **Implemented** (guides/local-hub.md; `local_hub_signin_test.go`) |
 | FR-13 | R7: on panel sign-off this spec is imported into Qto (`do_spl_doctree_import_md`, `QTO_FS=repo`) and its `qto-docs.tsv` row is committed; today `grep -c 176-full-offline csi-spl-doc/doc/md/qto-docs.tsv` -> 0. Run by the dispatch holder, not the panel lane | Planned |
 
+<a id="ws-doc-20aea94c-2e57-4183-bbe0-047b9870c463"></a>
 ## 7. Risks
 
 | risk | mitigation |
@@ -415,6 +445,7 @@ is 220 x the hourly figure, rounded.
 | A client's terms forbid a non-vendor model | Q10 before that client gets weight |
 | GPU capacity in europe-north1 runs out | Q5 (another region) |
 
+<a id="ws-doc-e547652e-02fc-4ab1-a5de-2e84e01e0d2a"></a>
 ## 8. Phasing
 
 | phase | content | exit |
@@ -426,8 +457,10 @@ is 220 x the hourly figure, rounded.
 | **P4 on-prem** | FR-07, the on-prem guide, replayed on a non-GCP host | G5 proof |
 | **P5 prd** | prd after dev, per the owner's go | live |
 
+<a id="ws-doc-cbbbb061-994d-419c-a20b-4b49fcf4e645"></a>
 ## 9. Open questions for the owner (poll-ready) and further documents
 
+<a id="ws-doc-c327a782-71c6-4445-b4fb-cc3d03b93cbf"></a>
 ### 9.1 Questions
 
 | key | question | options |
@@ -444,6 +477,7 @@ is 220 x the hourly figure, rounded.
 | Q10 | Client terms with a non-vendor model | `oss` start with the Apache-2.0 CLIs only (Codex, Vibe, Qwen Code), `chk` a terms review before Claude Code or Grok CLI get `local` weight, `all` any capable CLI in our own fleet |
 | Q11 | Which further documents (9.2, R8) to commission | `all` all seven, `p0` items 1, 2, 4 and 7 first, `min` decision records and `tasks.md` only |
 
+<a id="ws-doc-399e7505-e7f5-49a5-9233-a53cc6a5f697"></a>
 ### 9.2 Further documentation artifacts (the editor's proposal, R8)
 
 An architecture spec alone does not carry this feature. Proposed, each its
@@ -460,6 +494,7 @@ own file under this folder unless said otherwise:
 6. **Model update runbook**: pin, pull, verify, roll back.
 7. **tasks.md**: the build tasks of section 8, one issue each.
 
+<a id="ws-doc-2631e6b8-fdee-4b1b-bc01-805aa0494e7f"></a>
 ## 10. Sources (read 2026-11-13)
 
 - Ollama, Claude Code integration: docs.ollama.com/integrations/claude-code; Ollama blog: registry.ollama.ai/blog/claude; Habr 988538 (Anthropic API in Ollama, January 2026).
@@ -478,6 +513,7 @@ own file under this folder unless said otherwise:
 - GCP accelerator pricing: cloud.google.com/products/compute/pricing/accelerator-optimized; vpsbenchmarks.com (g4-standard-48); gcloud-compute.com/g4-standard-48.html (spot range); devzero.io/instances/gcp/a4-highgpu-8g and spheron.network (A4, us-central1).
 - Open-weight coding model families (families only, no score relied on): modal.com/resources/best-open-source-models-swe-bench-coding-agents; morphllm.com/best-ai-model-for-coding.
 
+<a id="ws-doc-aea3bf36-1520-4378-96c4-492af3df3964"></a>
 ## 11. Panel and consensus
 
 | seat | vendor | findings folded | PASS on sha |
@@ -488,6 +524,7 @@ own file under this folder unless said otherwise:
 | codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867); v0.8: 4.4 / 4.8 the agy review stays the last step in mode B (note f37936db) | v0.6 `93d886bb0` (note c029a520); **FINAL PASS `dd314df8e`** (note 470aea04) |
 | agy seat a-513 (signs last) | agy | v0.7: 4.3 agy row (Gemini wire; local only behind a P2 translating gateway), 2.1 `vendorVars`, 4.4 and 4.8 mode B for `i18n` / `specs_and_docs`, Q10 client terms and Q11 further documents (Q7 references fixed), 3.3 box background probes and FR-10, FR-13 Qto import, 2.2 step count, 5.3 G2 / Cloud Run L4 rows (note 29fd824e); v0.9: 2.2 `\|` escaped in the terraform row (note 1f8cb11b) | **FINAL PASS `dd314df8e`**, signed last (note 1e3f14fc) |
 
+<a id="ws-doc-93db6ed0-9579-4cb4-b499-f93f9a05ed8f"></a>
 ### 11.1 Changelog
 
 - v0.1 (2026-11-13): editor's draft from its own research of brief items 1-5.

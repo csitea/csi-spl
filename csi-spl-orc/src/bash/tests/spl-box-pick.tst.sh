@@ -53,6 +53,9 @@
 #          fallback places with its WARN, a recovering box before a degraded one.
 #          the bench removed the last box that could take the lane -> pick=hold
 #          naming the hold, never nokind or the plain overflow reason.
+#          21. a vendor's own weekly mark (SPL-5432): grok 95 -> 94 % places,
+#          95 % waits, no reading waits; RED CONTROLs without the mark (90 holds
+#          94, unknown places); grok's reading from its CLI's billing log.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -1044,6 +1047,94 @@ wait20="$(cat "$T/asks/.place.wait" 2>/dev/null)"
 left="$(pin20 "$out21")"
 [[ "$(jq -r '.[0].ask_id' <<<"$left")" == aaaaaaaa-0001 && ! -s "$T/asks/.place.wait" ]] &&
   pass "20. the same row is released when the hold ends, its wait line gone" || fail "20. pin release: left=$left wait=$(cat "$T/asks/.place.wait")"
+
+# 21. a vendor's own weekly mark (SPL-5432, owner t1 b122105a: "start
+#     utilizing grok once again and stop when its usage is at 95% on weekly
+#     limit"): env.box.quota.vendor_weekly_max_pct.grok 95 replaces
+#     weekly_max_pct for grok lanes, and a grok lane never goes to a box with
+#     no grok reading. The counting test: 94 places, 95 waits, unknown waits.
+target 50 75 '["box-a","box-b"]'
+stats "box-a:2:8" "box-b:4.4:8"
+printf 'env:\n  box:\n    fleet_load:\n      box_order: [box-a, box-b]\n    quota:\n      weekly_max_pct: 90\n' >"$T/cnf21-plain.yaml"
+cp "$T/cnf21-plain.yaml" "$T/cnf21.yaml"
+printf '      vendor_weekly_max_pct:\n        grok: 95\n' >>"$T/cnf21.yaml"
+g21() { run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_CNF="$T/cnf21.yaml" BOX_PICK_KIND=grok "$@"; }
+for c in 94:box-a 95:box-b 96:box-b; do
+  wk "box-a:grok=${c%%:*}:60" "box-b:grok=40:60"
+  out="$(g21)"
+  [[ "$(pick "$out")" == "${c#*:}" ]] && pass "21. grok mark 95, box-a at ${c%%:*} % -> pick=${c#*:}" || fail "21. grok ${c%%:*}: $out"
+done
+grep -q '^BOX box-a .*  grok weekly 96% >= 95%: not picked$' <<<"$out" && pass "21. box-a's line names grok's own mark, 95" || fail "21. line: $out"
+wk "box-a:grok=94:60" "box-b:grok=40:60"
+out="$(g21 BOX_PICK_CNF="$T/cnf21-plain.yaml")"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  grok weekly 94% >= 90%: not picked$' <<<"$out" &&
+  pass "21. RED CONTROL no vendor mark (before SPL-5432): grok at 94 % holds at weekly_max_pct 90" || fail "21. plain 94: $out"
+wk "box-a:grok=95:60" "box-b:grok=99:60"
+out="$(g21)"
+[[ "$(pick "$out")" == hold ]] && grep -q '^pick=hold reason=waiting: grok weekly >= 95% on box-a, box-b \[box-a 95% source not stated; box-b 99% source not stated\]' <<<"$out" &&
+  pass "21. every box at or over 95 -> pick=hold, waiting on grok's mark" || fail "21. all over: $out"
+wk "box-a::60" "box-b::60"
+out="$(g21)"
+[[ "$(pick "$out")" == hold ]] && grep -q '^BOX box-a .*  grok weekly unknown, its own mark 95%: not picked$' <<<"$out" &&
+  grep -q '^pick=hold reason=waiting: grok weekly >= 95% or unknown on box-a, box-b \[box-a unknown (no reading); box-b unknown (no reading)\]' <<<"$out" &&
+  pass "21. no grok reading anywhere, a mark set -> unknown waits (pick=hold), the line says why" || fail "21. unknown: $out"
+out="$(g21 BOX_PICK_CNF="$T/cnf21-plain.yaml")"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: grok weekly usage unknown' <<<"$out" &&
+  pass "21. RED CONTROL no vendor mark: unknown is placed, as before SPL-5432" || fail "21. plain unknown: $out"
+wk "box-a::60" "box-b:grok=40:60"
+out="$(g21)"
+[[ "$(pick "$out")" == box-b ]] && pass "21. box-a unknown, box-b at 40 % -> box-b" || fail "21. one unknown: $out"
+wk "box-a:grok=94:4000" "box-b::60"
+out="$(g21)"
+[[ "$(pick "$out")" == hold ]] && pass "21. a 94 % on an hour-old row with no reset is unknown -> waits" || fail "21. stale: $out"
+wk "box-a:claude=94:60" "box-b:claude=40:60"
+out="$(g21 BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  claude weekly 94% >= 90%: not picked$' <<<"$out" &&
+  pass "21. CONTROL claude has no own mark: a claude lane still holds at 90 %" || fail "21. claude: $out"
+wk "box-a::60" "box-b::60"
+out="$(g21 BOX_PICK_KIND=claude)"
+[[ "$(pick "$out")" == box-a ]] && pass "21. CONTROL claude unknown is still placed (no own mark)" || fail "21. claude unknown: $out"
+wk "box-a:grok=96:60" "box-b:grok=40:60"
+out="$(g21 BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97)"
+[[ "$(pick "$out")" == box-a ]] && pass "21. BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97 overrides the cnf: box-a at 96 % is picked" || fail "21. env: $out"
+out="$(g21 BOX_QUOTA_WEEKLY_MAX_PCT_GROK=x9)"
+[[ "$(pick "$out")" == box-b ]] && pass "21. a vendor mark that is no number falls back to the cnf's 95" || fail "21. bad env: $out"
+wk "box-a:grok=95:60" "box-b:grok=95:60"
+out="$(g21 BOX_PICK_REVIEW_SEAT=1 BOX_QUOTA_REVIEW_SEAT_MAX_PCT=91)"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: grok weekly >= 95% on' <<<"$out" &&
+  pass "21. a review seat's mark is never under the vendor's own (91 -> 95)" || fail "21. seat: $out"
+
+# 21. the grok reading: its CLI's billing log (spl_box_quota_grok_read)
+gl() {  # TS_AGE_S PCT PERIOD_END_OFFSET_S [TYPE] -> one unified.jsonl billing line
+  jq -nc --arg ts "$(date -u -d "-$1 seconds" +%Y-%m-%dT%H:%M:%S.123Z)" --argjson p "$2" \
+    --arg end "$(date -u -d "+$3 seconds" +%Y-%m-%dT%H:%M:%S.581549+00:00)" --arg ty "${4:-USAGE_PERIOD_TYPE_WEEKLY}" \
+    '{ts: $ts, src: "shell", lvl: "info", msg: "billing: fetched credits config",
+      ctx: {config: {creditUsagePercent: $p, currentPeriod: {type: $ty, start: "2026-11-07T06:30:07.5+00:00", end: $end}}}}'
+}
+gread() { bash -c 'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_grok_read' 2>&1; }
+GL="$T/grok-unified.jsonl"
+{ echo '{"ts":"2026-11-13T02:23:03.331Z","msg":"other"}'; gl 7200 15 86400; gl 600 27.6 86400; echo '{"msg":"later, not billing"}'; } >"$GL"
+r="$(gread <"$GL")"
+[[ "$r" =~ ^27@[0-9]+~billing~[0-9]+$ ]] && pass "21. the newest billing entry -> $r (27.6 floored)" || fail "21. read: '$r'"
+[[ -z "$(gl 600 27 -60 | gread)" ]] && pass "21. a week that ended -> no reading" || fail "21. ended"
+[[ -z "$(gl 40000 27 86400 | gread)" ]] && pass "21. an entry older than the lapse (11 h) -> no reading" || fail "21. old"
+[[ "$(gl 40000 27 86400 | LANE_QUOTA_GROK_LOG_MAX_S=50000 gread)" == 27@* ]] && pass "21. LANE_QUOTA_GROK_LOG_MAX_S widens it" || fail "21. max"
+[[ -z "$(gl 600 27 86400 USAGE_PERIOD_TYPE_MONTHLY | gread)" ]] && pass "21. a period that is not weekly -> no reading" || fail "21. monthly"
+[[ "$(gl 600 130 86400 | gread)" == 100@* ]] && pass "21. over 100 reads 100" || fail "21. 130"
+[[ -z "$(echo '{"msg":"nothing here"}' | gread)" ]] && pass "21. no billing entry -> no reading" || fail "21. none"
+# this box's live reading: the log read through spl_box_quota_read -> wk=, the pick
+gq() { run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD= LANE_PANES_CMD=true \
+  LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_STATE="$T/kept21.tsv" LANE_QUOTA_GROK_LOG="$GL" BOX_PICK_CNF="$T/cnf21.yaml" BOX_PICK_KIND=grok; }
+wk "box-a::60" "box-b:grok=40:60"
+gl 300 94 86400 >"$GL"; rm -f "$T/kept21.tsv"
+out="$(gq)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^BOX box-a .*  grok weekly 94%  <- pick$' <<<"$out" &&
+  pass "21. this box's grok log at 94 % -> box-a picked" || fail "21. live 94: $out"
+gl 60 95 86400 >"$GL"
+out="$(gq)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  grok weekly 95% >= 95%: not picked$' <<<"$out" &&
+  grep -q $'^grok\t95\t' "$T/kept21.tsv" && pass "21. this box's grok log at 95 % -> not picked, kept with its source" || fail "21. live 95: $out $(cat "$T/kept21.tsv")"
+grep -q 'billing' "$T/kept21.tsv" && pass "21. the kept row names its source, billing" || fail "21. src: $(cat "$T/kept21.tsv")"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

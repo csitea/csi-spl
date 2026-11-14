@@ -70,6 +70,12 @@
 # @description SPL-4966): the weekly mark is cnf env.box.quota.review_seat_max_pct
 # @description (95, at most 99, spl_box_quota_seat_max), so at 100% it holds too.
 # @description No other rule of the pick changes.
+# @description A vendor with its own mark, cnf env.box.quota.vendor_weekly_max_pct
+# @description (grok 95, SPL-5432), is held at that mark in place of
+# @description weekly_max_pct, and a box with no reading for it is not picked
+# @description either ("<kind> weekly unknown, its own mark N%: not picked"):
+# @description every box like that -> `pick=hold reason=waiting: <kind> weekly
+# @description >= N% or unknown on <boxes>`.
 # @description A CORDONED box is never picked (sat alone panel row 01, SPL-2629):
 # @description do_spl_box_cordon's live marker <spool root>/dispatch/cordon/<box>
 # @description (spl-box-cordon.func.sh). Its line says "CORDONED (until <UTC>)";
@@ -87,6 +93,7 @@
 # @param BOX_PICK_OVERFLOW (optional) - the overflow mark as % of each box's high mark, default 200 (100 = hold at high)
 # @param BOX_PICK_KIND (optional) - claude|grok|agy|qwen|mistral: leave out the boxes measured without its CLI or at its weekly limit
 # @param BOX_QUOTA_WEEKLY_MAX_PCT (optional) - overrides cnf env.box.quota.weekly_max_pct, default 90
+# @param BOX_QUOTA_WEEKLY_MAX_PCT_<KIND> (optional) - overrides cnf env.box.quota.vendor_weekly_max_pct.<kind> (e.g. _GROK); set = no placement on an unknown reading
 # @param BOX_PICK_REVIEW_SEAT (optional) - 1: a logged review seat, the weekly mark is the review seats', default 0
 # @param BOX_QUOTA_REVIEW_SEAT_MAX_PCT (optional) - overrides cnf env.box.quota.review_seat_max_pct; unset everywhere = weekly_max_pct, no pass
 # @param LANE_QUOTA_LAPSE_S (optional) - s a kept reading with a reset stands with no re-read, default 36000 (0 = until its reset)
@@ -149,15 +156,17 @@ do_spl_box_pick() {
     "$(jq -r .max_age_s <<<"$cicnf")" "$LANE_BOX" "$(spl_box_ci_jobs)")"
   spl_box_pick_decide "$target" "$stats" "$seed" "$since" "$overflow" "$health" "$ci" "$cicnf" \
     "$(spl_box_pick_nokind "$rows" "${BOX_PICK_KIND:-}")" "${BOX_PICK_KIND:-}" \
-    "$(spl_box_pick_quota "$rows" "${BOX_PICK_KIND:-}")" "$(spl_box_pick_wkmax "$cnf")" "$(spl_box_cordon_active)" \
+    "$(spl_box_pick_quota "$rows" "${BOX_PICK_KIND:-}")" "$(spl_box_pick_wkmax "$cnf" "${BOX_PICK_KIND:-}")" "$(spl_box_cordon_active)" \
     "$(spl_box_disk_from_stats "$stats")" "$(spl_box_disk_marks | cut -d' ' -f1)" \
-    "$(spl_box_pick_quota_why "$rows" "${BOX_PICK_KIND:-}")"
+    "$(spl_box_pick_quota_why "$rows" "${BOX_PICK_KIND:-}")" \
+    "$([[ -n "$(spl_box_quota_vendor_max "$cnf" "${BOX_PICK_KIND:-}")" ]] && echo true || echo false)"
 }
 
-# spl_box_pick_wkmax CNF -> this pick's weekly mark: the review seats' for a
-# logged review seat (BOX_PICK_REVIEW_SEAT=1), else weekly_max_pct.
+# spl_box_pick_wkmax CNF [KIND] -> this pick's weekly mark: the review seats' for a
+# logged review seat (BOX_PICK_REVIEW_SEAT=1), else KIND's own mark when it has
+# one (vendor_weekly_max_pct, SPL-5432), else weekly_max_pct.
 spl_box_pick_wkmax() {
-  if [[ "${BOX_PICK_REVIEW_SEAT:-0}" == 1 ]]; then spl_box_quota_seat_max "$1"; else spl_box_quota_max "$1"; fi
+  if [[ "${BOX_PICK_REVIEW_SEAT:-0}" == 1 ]]; then spl_box_quota_seat_max "$1" "${2:-}"; else spl_box_quota_max "$1" "${2:-}"; fi
 }
 
 # spl_box_pick_quota ROWS KIND -> KIND's weekly usage per box, {"<box>": pct}
@@ -194,7 +203,7 @@ spl_box_pick_nokind() {
     + (if $hc != "?" and ($hc | lacks) then [$here] else [] end)' <<<"${1:-{\}}" 2>/dev/null || echo '[]'
 }
 
-# spl_box_pick_decide TARGET STATS SEED SINCE [OVERFLOW] [HEALTH] [CI] [CICNF] [NOKIND] [KIND] [QUOTA] [WKMAX] [CORDON] [DISK] [DISKMAX] [WKWHY]
+# spl_box_pick_decide TARGET STATS SEED SINCE [OVERFLOW] [HEALTH] [CI] [CICNF] [NOKIND] [KIND] [QUOTA] [WKMAX] [CORDON] [DISK] [DISKMAX] [WKWHY] [WKSTRICT]
 # -> the band line, one line per box in fill order, a WARN per box with no
 # sample, then the pick line. HEALTH is spl_box_health_verdicts' object: a
 # "degraded" or "recovering" box is left out of the pick unless every box with
@@ -211,13 +220,15 @@ spl_box_pick_nokind() {
 # (the guard's high mark, 85): never picked, like a cordon; a box absent
 # from DISK has no disk sample and is judged as before. WKWHY
 # (spl_box_pick_quota_why): each reading's source and read time, named on the
-# weekly hold line (SPL-4965).
+# weekly hold line (SPL-4965). WKSTRICT (true when KIND has its own weekly
+# mark, SPL-5432): a box with no KIND reading is not picked either, so an
+# unknown never places a lane past the stop the owner set.
 spl_box_pick_decide() {
   jq -r --argjson seed "$3" --arg since "$4" --argjson over "${5:-200}" --argjson hl "${6:-{\}}" \
     --argjson ci "${7:-{\}}" --argjson cc "${8:-{\"max_agents\":12,\"low\":25,\"high\":50\}}" \
     --argjson nk "${9:-[]}" --arg kind "${10:-}" --argjson wq "${11:-{\}}" --argjson wmax "${12:-90}" \
     --argjson cd "${13:-{\}}" --argjson dk "${14:-{\}}" --argjson dmax "${15:-$SPL_BOX_DISK_HIGH_PCT}" \
-    --argjson wy "${16:-{\}}" --slurpfile st <(printf '%s' "$2") '
+    --argjson wy "${16:-{\}}" --argjson ws "${17:-false}" --slurpfile st <(printf '%s' "$2") '
     def ago: (now - .) | floor | if . < 0 then 0 else . end
       | if . >= 3600 then "\(. / 3600 | floor)h\(. % 3600 / 60 | floor)m" else "\(. / 60 | floor)m" end;
     . as $t
@@ -241,7 +252,7 @@ spl_box_pick_decide() {
              why: ($hl[$b].why // ""),
              jobs: $jobs, agents: $r.agents_live, capped: ($jobs > 0 and ($r.agents_live // 0) >= $cc.max_agents),
              nokind: ($nk | index($b) != null), wk: $wq[$b],
-             wkover: ($kind != "" and $wq[$b] != null and $wq[$b] >= $wmax)}
+             wkover: ($kind != "" and (if $wq[$b] == null then $ws else $wq[$b] >= $wmax end))}
           end] as $rows
     | ([$rows[] | select(.miss | not)]) as $all
     | [$all[] | select(.cord | not)] as $uncord
@@ -258,7 +269,7 @@ spl_box_pick_decide() {
     | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), \(($t.boxes // {}) | length) per-box band(s), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
       ($rows[] | if .miss then "WARN box \(.box): no load sample in the last \($since), skipped"
         else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high)\(if .band.aim < .band.high then " aim \(.band.aim)" else "" end) (\(.band.src))\(if .cord then "  CORDONED (until \(.until | todate))" else "" end)\(if .dfull then "  DISK \(.disk.mount) \(.disk.pct)% >= \($dmax)%: not picked" else "" end)\(if .down then "  DEGRADED (\(.why))" elif .sick then "  RECOVERING (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if .nokind then "  no \($kind) CLI: not picked" else "" end)\(
-          if $kind == "" or .nokind then "" elif .wk == null then "  \($kind) weekly unknown" elif .wkover then "  \($kind) weekly \(.wk)% >= \($wmax)%: not picked" else "  \($kind) weekly \(.wk)%" end)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
+          if $kind == "" or .nokind then "" elif .wk == null and $ws then "  \($kind) weekly unknown, its own mark \($wmax)%: not picked" elif .wk == null then "  \($kind) weekly unknown" elif .wkover then "  \($kind) weekly \(.wk)% >= \($wmax)%: not picked" else "  \($kind) weekly \(.wk)%" end)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
       (if ($open | length) > 0 and all($open[]; .sick) then "WARN every box with a load sample is degraded or recovering: the pick ignores the bench" else empty end),
       (if $pick != null and $kind != "" and $pick.wk == null then "INFO \($pick.box): \($kind) weekly usage unknown (never measured, its reset passed, it lapsed with no re-read, or its BOX-0 row is an hour old): placed anyway" else empty end),
       (if $pick == null and ($all | length) > 0 and ($uncord | length) == 0 then
@@ -270,7 +281,7 @@ spl_box_pick_decide() {
        elif $pick == null and ($seen0 | length) > 0 and ($kinded | length) == 0 then
          "pick=nokind reason=no box with room has a \($kind) CLI for the agent user (measured without it: \($nk | join(" "))): spawn nothing"
        elif $pick == null and ($kinded | length) > 0 and ($seen | length) == 0 then
-         "pick=hold reason=waiting: \($kind) weekly >= \($wmax)% on \([$kinded[].box] | join(", ")) [\([$kinded[] | "\(.box) \(.wk)% \(if $wy[.box] != null then "\($wy[.box].src) read \($wy[.box].at | ago) ago" else "source not stated" end)"] | join("; "))]: queue the lane, spawn nothing"
+         "pick=hold reason=waiting: \($kind) weekly >= \($wmax)%\(if $ws and any($kinded[]; .wk == null) then " or unknown" else "" end) on \([$kinded[].box] | join(", ")) [\([$kinded[] | "\(.box) \(if .wk == null then "unknown (no reading)" else "\(.wk)% \(if $wy[.box] != null then "\($wy[.box].src) read \($wy[.box].at | ago) ago" else "source not stated" end)" end)"] | join("; "))]: queue the lane, spawn nothing"
        elif $pick == null then
          "pick=hold reason=no box with a sample is below its overflow mark (\($over)% of its high)\(if any($all[]; .capped) then " or under its CI-busy agent cap" else "" end): queue the lane, spawn nothing"
        elif $pick.why == "over" then

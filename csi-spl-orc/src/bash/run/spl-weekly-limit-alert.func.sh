@@ -113,8 +113,10 @@ spl_weekly_alert_due() {  # PCT FIRED PCTS
 spl_weekly_alert_text() {  # KIND PCT THRESHOLD RESET_EPOCH
   local when="reset time unknown"
   [[ "$4" =~ ^[0-9]+$ ]] && when="resets $(date -u -d "@$4" +%Y-%m-%dT%H:%MZ)"
-  printf '**WEEKLY LIMIT** %s on %s: %s%% of its weekly limit used (crossed %s%%), %s. New %s lanes skip a box at %s%%+ (env.box.quota.weekly_max_pct).' \
-    "$1" "$LANE_BOX" "$2" "$3" "$when" "$1" "$(spl_box_quota_max "${SPL_CNF:-}")"
+  local key=weekly_max_pct
+  [[ -n "$(spl_box_quota_vendor_max "${SPL_CNF:-}" "$1")" ]] && key="vendor_weekly_max_pct.$1"
+  printf '**WEEKLY LIMIT** %s on %s: %s%% of its weekly limit used (crossed %s%%), %s. New %s lanes skip a box at %s%%+ (env.box.quota.%s).' \
+    "$1" "$LANE_BOX" "$2" "$3" "$when" "$1" "$(spl_box_quota_max "${SPL_CNF:-}" "$1")" "$key"
 }
 
 # The disagree alarm: one post per kind and kept %, again only after the two

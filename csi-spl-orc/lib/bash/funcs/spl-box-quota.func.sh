@@ -32,7 +32,10 @@
 #     screen must not stop future work. A newer reading under the threshold
 #     than the one that holds is an alarm (spl_box_quota_disagree).
 # Settings: cnf env.box.quota.weekly_max_pct, env BOX_QUOTA_WEEKLY_MAX_PCT
-# overrides, default 90.
+# overrides, default 90. A vendor's own mark (SPL-5432, spl_box_quota_vendor_max:
+# cnf env.box.quota.vendor_weekly_max_pct.<kind>, grok 95) replaces it for that
+# vendor, and makes "unknown" wait. grok's reading also comes from its CLI's
+# billing log (spl_box_quota_grok_read), so no grok pane is needed.
 #------------------------------------------------------------------------------
 
 # spl_box_quota_reset_at WHEN TZ NOW: the banner's reset ("Oct 17 11am", or a
@@ -230,6 +233,50 @@ spl_box_quota_claude_json() {
     SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
     spool_agent_exec 'jq -c "{cachedUsageUtilization: {accountUuid: .cachedUsageUtilization.accountUuid, fetchedAtMs: .cachedUsageUtilization.fetchedAtMs, utilization: {seven_day: .cachedUsageUtilization.utilization.seven_day}}, oauthAccount: {accountUuid: .oauthAccount.accountUuid}}" "$HOME/.claude.json"' </dev/null 2>/dev/null
   )
+}
+
+# spl_box_quota_grok_read [NOW]: grok's weekly usage from its own log
+# (SPL-5432). grok shows its weekly % only in a footer or on its limit screen,
+# so a box with no grok pane read "grok weekly unknown". The grok CLI fetches
+# the account's credits config at start and now and then after, and logs each
+# fetch to ~/.grok/logs/unified.jsonl as "billing: fetched credits config" with
+# ctx.config.creditUsagePercent and currentPeriod {type, end} (grok 1.0.77; sat
+# 2026-11-13: 110 fetches from 21 grok processes between 02:23Z and 09:33Z, 15
+# -> 27 %). The log on stdin -> "<pct>@<period end>~billing~<the entry's epoch>"
+# from its newest such entry, or nothing when there is none, its period is not
+# USAGE_PERIOD_TYPE_WEEKLY, its end has passed, or it is LANE_QUOTA_GROK_LOG_MAX_S
+# old or older (default spl_box_quota_lapse_s: the age a kept reading lapses at).
+spl_box_quota_grok_read() {
+  local now="${1:-$(date +%s)}" max="${LANE_QUOTA_GROK_LOG_MAX_S:-$(spl_box_quota_lapse_s)}"
+  [[ "$max" =~ ^[0-9]+$ ]] || max="$(spl_box_quota_lapse_s)"
+  { grep -F '"billing: fetched credits config"' || true; } | tail -n 1 | jq -r --argjson now "$now" --argjson max "$max" '
+    def ep: sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601;
+    (.ctx.config // {}) as $c
+    | select(($c.creditUsagePercent | type) == "number" and ($c.currentPeriod.type // "") == "USAGE_PERIOD_TYPE_WEEKLY")
+    | (.ts | ep) as $t | ($c.currentPeriod.end | ep) as $at
+    | select($at > $now and ($now - $t) < $max)
+    | "\([[$c.creditUsagePercent | floor, 100] | min, 0] | max)@\($at)~billing~\($t)"' 2>/dev/null
+  return 0
+}
+
+# spl_box_quota_grok_log [NOW]: spl_box_quota_grok_read of the agent user's
+# ~/.grok/logs/unified.jsonl, read as that user (only the newest billing line
+# leaves its shell). Seam (tests): LANE_QUOTA_GROK_LOG reads that file as this
+# user; a test that fakes the panes (LANE_PANES_CMD) or the reading
+# (LANE_QUOTA_CMD) without it reads nothing.
+spl_box_quota_grok_log() {
+  local now="${1:-$(date +%s)}"
+  if [[ -n "${LANE_QUOTA_GROK_LOG:-}" ]]; then
+    spl_box_quota_grok_read "$now" <"$LANE_QUOTA_GROK_LOG" 2>/dev/null; return 0
+  fi
+  [[ -z "${LANE_PANES_CMD:-}${LANE_QUOTA_CMD:-}" ]] || return 0
+  declare -F spool_agent_exec >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+  (
+    [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
+    SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
+    spool_agent_exec 'grep -F "\"billing: fetched credits config\"" "$HOME/.grok/logs/unified.jsonl" | tail -n 1' </dev/null 2>/dev/null
+  ) | spl_box_quota_grok_read "$now"
 }
 
 # spl_box_quota_here: THIS box's weekly usage as it shows NOW, "claude:96,grok:4"
@@ -497,8 +544,9 @@ spl_box_quota_banner_dated() {
 # spl_box_quota_read: the read itself, with where each number came from and
 # when it was really read: "claude:97@<reset>~banner~<epoch>,claude:5@<reset>~cache~<epoch>",
 # each kind highest first, a kind's lower readings after it (SPL-4965). Reads
-# the box user's tmux (spl_lane_tm), claude's transcripts (spl_box_quota_log)
-# and claude's cached usage (spl_box_quota_cache). Seam (tests): LANE_QUOTA_CMD
+# the box user's tmux (spl_lane_tm), claude's transcripts (spl_box_quota_log),
+# claude's cached usage (spl_box_quota_cache) and grok's billing log
+# (spl_box_quota_grok_log, SPL-5432). Seam (tests): LANE_QUOTA_CMD
 # prints the answer (no source: read now); a test that fakes the panes
 # (LANE_PANES_CMD) reads only LANE_QUOTA_LOG_DIR; LANE_QUOTA_BANNERS_CMD prints
 # the screen (vendor TAB id TAB value) in place of tmux.
@@ -513,6 +561,8 @@ spl_box_quota_read() {
     for t in "$(BOX_QUOTA_RESET=1 spl_box_quota_log "$now")" "$(BOX_QUOTA_RESET=1 spl_box_quota_cache "$now")"; do
       [[ -n "$t" ]] && echo "claude:$t"
     done
+    t="$(spl_box_quota_grok_log "$now")"
+    [[ -n "$t" ]] && echo "grok:$t"
     spl_box_quota_banners "$now"
   } | awk -F'[:@~]' '{ print $1, $2 + 0, $NF, $0 }' | sort -k1,1 -k2,2nr -k3,3nr | awk '!s[$1, $2]++ { print $4 }' | paste -sd, -
 }
@@ -552,15 +602,36 @@ spl_box_quota_live() {
   spl_box_quota_top "$(spl_box_quota_read)"
 }
 
-# spl_box_quota_max [CNF]: the threshold, a whole % (default 90).
+# spl_box_quota_max [CNF [KIND]]: the threshold, a whole % (default 90). With
+# KIND: that vendor's own mark when one is set (spl_box_quota_vendor_max),
+# which wins over the all-vendor weekly_max_pct.
 spl_box_quota_max() {
-  local v="${BOX_QUOTA_WEEKLY_MAX_PCT:-}"
+  local v="${BOX_QUOTA_WEEKLY_MAX_PCT:-}" own
+  own="$(spl_box_quota_vendor_max "${1:-}" "${2:-}")"
+  [[ -n "$own" ]] && { echo "$own"; return 0; }
   [[ -z "$v" && -r "${1:-}" ]] && command -v yq >/dev/null && v="$(yq '.env.box.quota.weekly_max_pct // ""' "$1" 2>/dev/null)"
   [[ "$v" =~ ^[0-9]+$ ]] || v=90
   echo "$v"
 }
 
-# spl_box_quota_seat_max [CNF]: the weekly mark of a logged review seat (SPL-4966;
+# spl_box_quota_vendor_max CNF KIND: KIND's own weekly mark, a whole %, or
+# nothing (SPL-5432, owner b122105a: "start utilizing grok once again and stop
+# when its usage is at 95% on weekly limit"): cnf
+# env.box.quota.vendor_weekly_max_pct.<kind>, env BOX_QUOTA_WEEKLY_MAX_PCT_<KIND>
+# (upper case) overrides. Not a number or over 3 digits = unset. A vendor with
+# its own mark is never placed on an unknown reading (do_spl_box_pick): the mark
+# is a stop the owner asked for, and "unknown" would place with no stop at all.
+spl_box_quota_vendor_max() {
+  local k="${2:-}" v="" ev
+  [[ "$k" =~ ^[a-z]+$ ]] || return 0
+  ev="BOX_QUOTA_WEEKLY_MAX_PCT_${k^^}"
+  v="${!ev:-}"
+  [[ -z "$v" && -r "${1:-}" ]] && command -v yq >/dev/null && v="$(yq ".env.box.quota.vendor_weekly_max_pct.$k // \"\"" "$1" 2>/dev/null)"
+  [[ "$v" =~ ^[0-9]{1,3}$ ]] && echo "$(( 10#$v ))"
+  return 0
+}
+
+# spl_box_quota_seat_max [CNF [KIND]]: the weekly mark of a logged review seat (SPL-4966;
 # spec 146, what-broke-20261106 section 7 item 3), a whole %: cnf
 # env.box.quota.review_seat_max_pct, env BOX_QUOTA_REVIEW_SEAT_MAX_PCT overrides.
 # A seat finishes work already written, so it passes the hold between
@@ -575,7 +646,7 @@ spl_box_quota_max() {
 # digits (bash arithmetic wraps) = weekly_max_pct: no pass.
 spl_box_quota_seat_max() {
   local v="${BOX_QUOTA_REVIEW_SEAT_MAX_PCT:-}" max
-  max="$(spl_box_quota_max "${1:-}")"
+  max="$(spl_box_quota_max "${1:-}" "${2:-}")"
   [[ -z "$v" && -r "${1:-}" ]] && command -v yq >/dev/null && v="$(yq '.env.box.quota.review_seat_max_pct // ""' "$1" 2>/dev/null)"
   [[ "$max" =~ ^[0-9]{1,3}$ ]] || max=99
   [[ "$v" =~ ^[0-9]{1,3}$ ]] || v="$max"

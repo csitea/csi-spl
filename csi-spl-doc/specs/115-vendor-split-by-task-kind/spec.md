@@ -347,3 +347,69 @@ These are coded checks with tests, never an agent's judgement (owner
 
 **Q2. Multilingual text that carries personal data.** (msg 8c99399f)
 "2b" - the language rule wins; agy reviews the text after the personal data is masked out.
+
+## 11. A vendor's own weekly stop mark (SPL-5432)
+
+Owner HUM-10, t1 #spool-hub-ops topic b122105a (2026-11-12T17:44:05Z):
+"start uitlizing grok once again and stop when it's usage is at 95% on
+weekliy limit". Built 2026-11-13.
+
+### 11.1 The mark
+
+- cnf `env.box.quota.vendor_weekly_max_pct.<vendor>` (`csi-spl-cnf/csi-spl/all.env.yaml`):
+  that vendor's lanes stop at this %, in place of the all-vendor
+  `env.box.quota.weekly_max_pct` (90). Set today: `grok: 95`.
+  `BOX_QUOTA_WEEKLY_MAX_PCT_<VENDOR>` (upper case, for example
+  `BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97`) overrides the cnf for one run.
+- `do_spl_box_pick` with `BOX_PICK_KIND=grok` does not pick a box at or over
+  95 %: 94 % places, 95 % waits.
+- **A vendor with its own mark never goes to a box with no reading.** For
+  other vendors "no reading" is unknown and the lane is placed, as before. For
+  grok the mark would then stop nothing, so the box line says
+  `grok weekly unknown, its own mark 95%: not picked`. With every box like that,
+  the result is `pick=hold reason=waiting: grok weekly >= 95% or unknown on ...`.
+- A logged review seat's mark (`review_seat_max_pct`) is never under the
+  vendor's own mark.
+- The `#alerts` weekly line names the mark that applies
+  (`env.box.quota.vendor_weekly_max_pct.grok`).
+
+Code: `spl_box_quota_vendor_max` and `spl_box_quota_max CNF KIND` in
+`csi-spl-orc/lib/bash/funcs/spl-box-quota.func.sh`, and `spl_box_pick_wkmax`
+plus `spl_box_pick_decide` (WKSTRICT) in
+`csi-spl-orc/src/bash/run/spl-box-pick.func.sh`.
+
+### 11.2 Where grok's weekly % comes from
+
+grok shows its weekly % only in a pane footer (`Weekly limit left: N%`) or on
+its limit screen. A box with no grok pane open read `grok weekly unknown`. The
+grok CLI (1.0.77) fetches the account's credits config when it starts and
+from time to time after that, and logs each fetch to the agent user's
+`~/.grok/logs/unified.jsonl` as `billing: fetched credits config`, with
+`ctx.config.creditUsagePercent` and `currentPeriod` (`type`
+`USAGE_PERIOD_TYPE_WEEKLY`, `end`). Measured on sat on 2026-11-13: 110 fetches
+from 21 grok processes between 02:23Z and 09:33Z, reading 15 % then 27 %.
+
+`spl_box_quota_grok_read` takes the newest such entry and gives
+`grok:<pct>@<week end>~billing~<entry time>`. It gives nothing when the week
+has ended, when the period is not weekly, or when the entry is older than
+`LANE_QUOTA_GROK_LOG_MAX_S` (default: the 10 h lapse of a kept reading).
+`spl_box_quota_read` adds that token to the reading, so it shows in the BOX-0
+row's `wk=` and `wkr=` (source `billing`) like claude's cache.
+
+`grok usage` (the CLI's own usage command) does not work here:
+on this box it answers ``Error: `grok usage` can't show your plan's usage
+here yet. Run /usage inside grok instead.`` and exits 1. That is the shell
+route; the command works only on grok's daemon route.
+
+Limit: a box where no grok process has run for 10 h has no reading, so a grok
+lane waits there until a grok process runs again. That is the intended
+"unknown waits". To start grok again on that box, a lane placed by hand (a
+seat, a restore) fetches a fresh reading.
+
+### 11.3 Tests
+
+`csi-spl-orc/src/bash/tests/spl-box-pick.tst.sh` section 21: the counting
+cases (94 places, 95 waits, unknown waits), RED CONTROLs without the mark (90
+holds 94, unknown places), claude unchanged, the env override, the review
+seat, the log reader's edges, and this box's log read live into the pick.
+Against the code before this change, section 21 fails 18 of its 25 checks.

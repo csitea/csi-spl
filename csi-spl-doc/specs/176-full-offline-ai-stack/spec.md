@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.2** (2026-11-14), the grok seat's findings folded (11.1). Editor: c-690
+Version **v0.3** (2026-11-14), the grok seat's findings and wording notes folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -204,10 +204,10 @@ decision record (section 9.2, D-1).
 | CLI | local endpoint | how (source, read 2026-11-13) | fleet status |
 |---|---|---|---|
 | Claude Code (`c-`) | yes, Anthropic Messages API | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (docs.ollama.com/integrations/claude-code) | spawnable; **client terms with a non-Anthropic model are open question Q7** |
-| Codex CLI (`o-`) | yes, OpenAI API | a vLLM or llama.cpp server is a custom `[model_providers.<id>]` entry with `base_url` and `wire_api` in `config.toml` (developers.openai.com/codex/config-advanced); `--oss` is the **Ollama path only**: it checks that Ollama is running (developers.openai.com/codex/cli/reference, read 2026-11-14) | spawnable, off by weight (spec 161 2.2.6) |
+| Codex CLI (`o-`) | yes, OpenAI API | a vLLM or llama.cpp server is a custom `[model_providers.<id>]` entry with `base_url` and `wire_api` in `config.toml` (developers.openai.com/codex/config-advanced); `--oss` is the local-provider path for **LM Studio or Ollama**, chosen by `--local-provider` or `oss_provider`; vLLM stays off `--oss` (developers.openai.com/codex/cli/reference, read 2026-11-14) | spawnable, off by weight (spec 161 2.2.6) |
 | Mistral Vibe (`m-`) | yes, OpenAI-compatible | a `local` provider + model preset in `config.toml`; "the CLI does not contact `mistral.ai` or any other external service" (docs.mistral.ai/vibe/code/cli/offline-models) | spawnable; no coding (cnf, 2.1) |
 | Qwen Code (`q-`) | yes, OpenAI-compatible | `--auth-type openai` + `OPENAI_BASE_URL` (our own `keyexec/env.go:101-102`) | spawnable, weight 0 everywhere |
-| Grok CLI (`g-`) | yes, OpenAI-compatible or Anthropic Messages | a custom model `[model.<id>]` with `model`, `base_url`, `name`, `env_key` and `api_backend` (`chat_completions`, `responses` or `messages`) in the **user** config (`~/.grok/config.toml` or `$GROK_HOME/config.toml`; a project `.grok/config.toml` carries only MCP servers, plugins and permissions), selected by `[models] default` or `-m <id>` (docs.x.ai/build/overview "Custom models"; docs.x.ai/build/settings/reference, last updated 2026-10-13; both read 2026-11-14 by the grok seat) | spawnable |
+| Grok CLI (`g-`) | yes, OpenAI-compatible or Anthropic Messages | a custom model `[model.<id>]` with `model`, `base_url`, `name`, `env_key` and `api_backend` (`chat_completions`, `responses` or `messages`) in the **user** config (`~/.grok/config.toml` or `$GROK_HOME/config.toml`; a project `.grok/config.toml` carries only MCP servers, plugins and the `[permission]` section), selected by `[models] default` or `-m <id>` (docs.x.ai/build/overview "Custom models"; docs.x.ai/build/settings/reference, last updated 2026-10-13; both read 2026-11-14 by the grok seat) | spawnable |
 | agy (`a-`) | **unverified**: no documented local endpoint found | the agy seat to confirm | spawnable |
 
 So five of six CLIs can run a lane on a local model with a config change and
@@ -401,7 +401,7 @@ is 220 x the hourly figure, rounded.
 
 | key | question | options |
 |---|---|---|
-| Q1 | Which CLI runs the first local lanes? | `cdx` Codex (a custom `model_providers` entry for vLLM; `--oss` only for Ollama), `cla` Claude Code (Anthropic API), `grk` Grok CLI (custom model, `base_url`), `mis` Mistral Vibe (docs only, per cnf), `qwn` Qwen Code |
+| Q1 | Which CLI runs the first local lanes? | `cdx` Codex (a custom `model_providers` entry for vLLM; `--oss` only for LM Studio or Ollama), `cla` Claude Code (Anthropic API), `grk` Grok CLI (custom model, `base_url`), `mis` Mistral Vibe (docs only, per cnf), `qwn` Qwen Code |
 | Q2 | Agent id of a local lane | `cli` keep the client's letter + a model tag, `l` new letter `l-NNN` |
 | Q3 | May `local` take secret and orchestration work (data stays on our hardware)? | `yes`, `no`, `aft` after the P0 report |
 | Q4 | GPU budget envelope for P0-P1 (G4 europe-north1, third-party VM-hour, T0.4 confirms) | `on` G4 always on (~$3.6k/mo), `biz` business hours (~$1.1k/mo), `spt` spot only (~$1.5k/mo always on), `cpu` no GPU until P0 on CPU |
@@ -447,7 +447,7 @@ own file under this folder unless said otherwise:
 | seat | vendor | findings folded | PASS on sha |
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
-| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca) | - |
+| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672); re-sign on the final sha |
 | mistral seat | mistral | - | - |
 | codex seat | codex | - | - |
 | agy seat (signs last) | agy | - | - |
@@ -462,5 +462,10 @@ own file under this folder unless said otherwise:
   only; pin the vLLM version and the client API in P0 (4.2). Tree line
   numbers in 2.1 stay as measured on `f0d0efa4e` (the grok seat re-ran them:
   `SPOOL_SPAWN_KINDS` is now line 542, same value).
+- v0.3 (2026-11-14): grok seat g-434 PASS on v0.2 `13d1a83b3` (note
+  9df3e672, 0 counted findings) and its two wording notes: the grok project
+  config section is `[permission]` (4.3), and Codex `--oss` picks LM Studio
+  or Ollama by `--local-provider` / `oss_provider`, vLLM stays a custom
+  `model_providers` entry (4.3, Q1).
 
-<!-- version: 0.2.0 · updated: 2026-11-14 · last-edit: 2026-11-14T10:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-11-14 · last-edit: 2026-11-14T08:35:00Z -->

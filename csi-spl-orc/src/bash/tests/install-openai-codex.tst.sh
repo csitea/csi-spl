@@ -20,8 +20,10 @@
 #      no output and no stub log; codex and npm never run with the key
 #      (CONTROL: the same check catches a planted echo)
 #   7. the real cnf: a pinned X.Y.Z, auth_marker.codex = .codex/auth.json,
-#      and codex has no weight in agent_split or any agent_split_by_kind row
-#      (off until the owner's login is on the box)
+#      codex 0 in the flat agent_split, 15 in agent_split_by_kind tests and
+#      simple_coding, no other kind, never a backup
+#      (SPL-5454; a box without the login hands its share to
+#      the row's backup)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)

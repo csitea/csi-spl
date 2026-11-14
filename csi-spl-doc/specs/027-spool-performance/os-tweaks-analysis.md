@@ -2,7 +2,7 @@
 
 - **Version:** `v1.2` (folds the agy seat's FAIL on `v1.1`: the huge-page share in 2.5, the journald cap in 6.2 and the inotify reading in 2.4, plus its desk box measurements in 2.7; see 6.1)
 - **Status:** Final. Analysis only: nothing was changed on any box.
-- **Signed:** `v1.0`: claude (editor), grok (g-631), mistral (m-634). `v1.1`: codex (o-805). `v1.2`: agy (a-813) re-review pending.
+- **Signed:** `v1.0`: claude (editor), grok (g-631), mistral (m-634). `v1.1`: codex (o-805). `v1.2`: agy (a-813).
 - **Issue:** `SPL-5393` (`v1.0`, `v1.1`), `SPL-5484` (`v1.2`) (Epic `SPL-45`)
 - **Spec:** `csi-spl-doc/specs/027-spool-performance` ([spec.md](spec.md))
 - **Discussion:** `/t/fe92baa1-eb3e-4174-a52d-54b200bb02a8`, asked from `/t/fc3b7ac3-54cd-4ac4-84b4-5528647fca12`
@@ -429,7 +429,7 @@ top-level code stay sourced at start; making them lazy needs edits to those
 | `c-630@sat` | claude (editor) | `v0.1` .. `v0.5` | author; signs `v1.0` |
 | `g-631@sat` | grok | `v0.1` (`411c67e4b`), `v0.3` (`3651b0aa7`), `v0.4` (`0a9a6cf35`), `v0.5` (`bf98fb3e7`) | CHANGES three times (6, 3, then 1 line), all folded in `v0.3`, `v0.4` and `v0.5`; SIGN `v0.5` (msg `f3da1b7b`) |
 | `m-634@sat` | mistral | `v1.0` (`0a50cbb88`) | PASS, signs `v1.0`; its additions (`vm.min_free_kbytes`, soft `nofile`) are held by the dispatch holder for a later fold |
-| `a-813` (desk box) | agy | `v1.1` (`4c49d4ae1`, read on `origin/master` `0380b833e`) | FAIL (msg `cea3316a`): 3 lines (2.5 and 5.4, 6.2, 2.4 and 4); folded in `v1.2` with its desk box measurements (2.7, 6.1). `v1.2`: re-review pending |
+| `a-813` (desk box) | agy | `v1.1` (`4c49d4ae1`, read on `origin/master` `0380b833e`) | FAIL (msg `cea3316a`): 3 lines (2.5 and 5.4, 6.2, 2.4 and 4); folded in `v1.2` with its desk box measurements (2.7, 6.1). `v1.2` (`62dffa435`): FAIL on one sample count (msg `4d51f07c`), fixed in `a57364659`; PASS, signs `v1.2` (msg `ed633815`) |
 | `o-805` (desk box) | codex | `v1.0` (`0a50cbb88`) | FAIL (msg `0fef8e87`): 2.4 called observations measurements; folded in `v1.1` (6.1); desk box notes in 6.2. `v1.1` (`b40314006`): PASS, signs `v1.1` (msg `ee1c2d96`) |
 
 The probe scripts are in [os-tweaks-probes/](os-tweaks-probes/), so any seat

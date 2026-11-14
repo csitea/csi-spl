@@ -819,11 +819,12 @@ func (s *Postgres) FileReadableByBox(ctx context.Context, tenant, fileID, box st
 
 func (s *Postgres) FileChannelCarriers(ctx context.Context, tenant, fileID string, now time.Time) ([]FileCarrier, error) {
 	var out []FileCarrier
-	err := s.queryTenant(ctx, tenant, `SELECT DISTINCT m.channel, m.task_id::text FROM messages m
-		WHERE m.tenant_id = $1 AND m.expires_at > $3 AND m.channel IS NOT NULL AND `+fileCarrier+`
-		LIMIT $4`, []any{tenant, fileID, now, MaxFileCarriers}, func(rows pgx.Rows) error {
+	err := s.queryTenant(ctx, tenant, `SELECT DISTINCT m.channel, m.task_id::text, m.from_box, m.from_id FROM messages m
+		WHERE m.tenant_id = $1 AND m.expires_at > $3 AND m.channel IS NOT NULL
+			AND m.channel NOT IN ($5, $6) AND `+fileCarrier+`
+		LIMIT $4`, []any{tenant, fileID, now, MaxFileCarriers, ChannelIssues, ChannelTasks}, func(rows pgx.Rows) error {
 		var c FileCarrier
-		if err := rows.Scan(&c.Channel, &c.TaskID); err != nil {
+		if err := rows.Scan(&c.Channel, &c.TaskID, &c.FromBox, &c.FromID); err != nil {
 			return err
 		}
 		out = append(out, c)

@@ -34,6 +34,8 @@ func TestFileDoorAnswers(t *testing.T) {
 			put("ops", "CLE-07", "HUM-2", "box-c", `[{"mode":"blob","kind":"file","sha256":"`+bySHA+`","name":"b.pdf"}]`, live)
 			put("tasks", "CLE-07", "HUM-2", "box-c", `[{"mode":"blob","kind":"file","file_id":"`+gone+`"}]`, now.Add(-time.Minute))
 			put("tasks", "CLE-07", "HUM-2", "box-c", `[]`, live)
+			hidden := strings.Repeat("e5", 32)
+			put(ChannelIssues, "CLE-07", "HUM-2", "box-c", `[{"mode":"blob","kind":"file","file_id":"`+hidden+`"}]`, live)
 
 			attached := map[string]bool{byID: true, bySHA: true, gone: false, none: false}
 			for id, want := range attached {
@@ -65,19 +67,20 @@ func TestFileDoorAnswers(t *testing.T) {
 					t.Fatalf("FileReadableByBox %s… %s: %v %v, want %v", c.file[:4], c.box, got, err, c.want)
 				}
 			}
-			// SPL-5521: the channel topics carrying a file; a DM, an expired
-			// carrier and a file nobody carries name none.
+			// SPL-5521: the channel topics carrying a file, with the sender the
+			// box lock judges; a DM, a hidden channel, an expired carrier and a
+			// file nobody carries name none.
 			for _, c := range []struct {
 				file, want string
-			}{{bySHA, "ops"}, {byID, ""}, {gone, ""}, {none, ""}} {
+			}{{bySHA, "ops"}, {byID, ""}, {hidden, ""}, {gone, ""}, {none, ""}} {
 				got, err := s.FileChannelCarriers(ctx, tid, c.file, now)
 				if err != nil {
 					t.Fatal(err)
 				}
 				var chans []string
 				for _, g := range got {
-					if g.TaskID == "" {
-						t.Fatalf("FileChannelCarriers %s…: a carrier without its topic: %+v", c.file[:4], g)
+					if g.TaskID == "" || g.FromBox != "box-a" || g.FromID != "CLE-07" {
+						t.Fatalf("FileChannelCarriers %s…: a carrier without its topic or sender: %+v", c.file[:4], g)
 					}
 					chans = append(chans, g.Channel)
 				}

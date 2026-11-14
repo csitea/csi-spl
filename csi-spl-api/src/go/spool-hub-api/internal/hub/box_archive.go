@@ -166,20 +166,31 @@ func (s *Server) seatReadsTopic(ctx context.Context, tenant, box, as, task, ch s
 // hands a newly seated box the channel's earlier posts, files[] and all,
 // with no delivery row, so the delivery rule alone answered not_found to the
 // very box holding the post: a prd picture posted into a new channel a
-// second before its agents were invited could not be fetched by them.
+// second before its agents were invited could not be fetched by them. It
+// admits only what the back-fill would have handed the box: the channel's
+// agents hear (SPL-1684 / SPL-2423), its box pins admit the box (spec 164
+// 5.3) and the box's lock admits the carrier's sender (spec 025 B3). A lock
+// or pin that cannot be read refuses (fail closed).
 func (s *Server) boxMemberReadsFile(ctx context.Context, tenant, fileID, box string, now time.Time) (bool, error) {
 	carriers, err := s.o.Store.FileChannelCarriers(ctx, tenant, fileID, now)
-	if err != nil {
+	if err != nil || len(carriers) == 0 {
 		return false, err
 	}
-	members := map[string]map[string][]string{}
+	lock, err := s.boxLock(ctx, tenant, box)
+	if err != nil {
+		return false, nil
+	}
+	members := map[string]map[string][]string{} // nil value = the box may not read the channel
 	for _, c := range carriers {
 		ch := store.NormalizeChannel(c.Channel)
 		if ch == "" || store.ChannelHidden(ch) {
 			continue
 		}
+		if ok, _, _, _ := lockAdmits(lock, c.FromBox, c.FromID); !ok {
+			continue
+		}
 		if _, read := members[ch]; !read {
-			if members[ch], err = s.o.Store.ChannelMembers(ctx, tenant, ch); err != nil {
+			if members[ch], err = s.fileChannelSeats(ctx, tenant, ch, box); err != nil {
 				return false, err
 			}
 		}
@@ -190,6 +201,19 @@ func (s *Server) boxMemberReadsFile(ctx context.Context, tenant, fileID, box str
 		}
 	}
 	return false, nil
+}
+
+// fileChannelSeats is channel ch's members when box may receive its posts
+// (the agents switch is on, not humans-only, the box pins admit box); nil
+// otherwise, and nil with no error when the pins are unreadable.
+func (s *Server) fileChannelSeats(ctx context.Context, tenant, ch, box string) (map[string][]string, error) {
+	if !s.channelAgentsHear(ctx, tenant, ch) {
+		return nil, nil
+	}
+	if allowed, err := s.channelBoxAllowed(ctx, tenant, ch, box); err != nil || !allowed {
+		return nil, nil
+	}
+	return s.o.Store.ChannelMembers(ctx, tenant, ch)
 }
 
 // boxMayArchive is "Who can archive topics" for a box that reads the card.

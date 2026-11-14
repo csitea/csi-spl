@@ -2,6 +2,7 @@ package hub_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"net/http"
 	"strings"
@@ -147,6 +148,83 @@ func TestFileDoorSeatedChannelBoxRefusals(t *testing.T) {
 		{"a box of another workspace", other, chFile, foreign, http.StatusNotFound},
 	} {
 		if got, _ := e.getFile(tc.tenant, tc.file, e.uploadToken(tc.tenant, tc.b)); got != tc.want {
+			t.Errorf("%s: got %d, want %d", tc.what, got, tc.want)
+		}
+	}
+}
+
+// The channel half admits only what the back-fill would have handed the box
+// (R7 of SPL-5521): a box outside the channel's box pins (spec 164 5.3), a
+// channel whose AI agents are off (SPL-1684) or that is humans-only
+// (SPL-2423), and a locked box asked for a non-owner's post (spec 025 B3)
+// stay 404 although the box seats a member. The CONTROLS are the pinned box
+// and the locked box reading its owner's post.
+func TestFileDoorSeatedChannelBoxChannelRules(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	for _, ch := range []string{"ledger", "quiet", "hush", "open"} {
+		if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: ch,
+			Name: ch, CreatedBy: "HUM-1", CreatedAt: now}); err != nil {
+			t.Fatalf("channel %s: %v", ch, err)
+		}
+	}
+	seat := func(boxID, agent, ch string) *box {
+		t.Helper()
+		b := e.box(tid, boxID, agent)
+		e.pin(tid, b)
+		if err := e.st.InviteChannelAgent(ctx, tid, ch, boxID, agent, now); err != nil {
+			t.Fatalf("invite %s: %v", agent, err)
+		}
+		return b
+	}
+	pinned, unpinned := seat("box-pin", "CLE-31", "ledger"), seat("box-unpin", "CLE-33", "ledger")
+	quiet, hush := seat("box-quiet", "CLE-35", "quiet"), seat("box-hush", "CLE-37", "hush")
+	locked := seat("box-locked", "CLE-39", "open")
+	tokens := map[*box]string{}
+	for _, b := range []*box{pinned, unpinned, quiet, hush, locked} { // before the lock: a locked box dials with an unlock proof
+		tokens[b] = e.uploadToken(tid, b)
+	}
+	if err := e.st.(store.ChannelBoxPins).SetChannelBoxPins(ctx, tid, "ledger", []string{"box-pin"}, "HUM-1"); err != nil {
+		t.Fatal(err)
+	}
+	off := false
+	if err := e.st.(store.ChannelAIAgents).SetChannelAIAgents(ctx, tid, "quiet", &off, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.(store.ChannelHumansOnly).SetChannelHumansOnly(ctx, tid, "hush", true, now); err != nil {
+		t.Fatal(err)
+	}
+	_, klock, _ := ed25519.GenerateKey(nil)
+	_, kbox, _ := ed25519.GenerateKey(nil)
+	l := store.BoxLock{TenantID: tid, BoxID: "box-locked", LockPubKey: lb64(klock.Public().(ed25519.PublicKey)),
+		BoxPubKey: lb64(kbox.Public().(ed25519.PublicKey)), Owners: []string{"HUM-1"}, HidePosts: true, Version: 1}
+	l.SignedBody = store.BoxLockBody(l)
+	l.Signature = lb64(ed25519.Sign(klock, []byte(l.SignedBody)))
+	if err := e.st.(store.BoxLockStore).CreateBoxLock(ctx, l, "HUM-1", now); err != nil {
+		t.Fatal(err)
+	}
+	pinFile, quietFile, hushFile := strings.Repeat("a1", 32), strings.Repeat("a2", 32), strings.Repeat("a3", 32)
+	ownerFile, otherFile := strings.Repeat("a4", 32), strings.Repeat("a5", 32)
+	for _, r := range []struct{ ch, from, file string }{{"ledger", "HUM-1", pinFile}, {"quiet", "HUM-1", quietFile},
+		{"hush", "HUM-1", hushFile}, {"open", "HUM-1", ownerFile}, {"open", "HUM-2", otherFile}} {
+		putFileRow(t, e, tid, uuidV4(), r.ch, r.from, "box-wui", r.file, now)
+		ageBlob(t, e, tid, r.file, now.Add(-2*hub.FileUploadGrace))
+	}
+	for _, tc := range []struct {
+		what, file string
+		b          *box
+		want       int
+	}{
+		{"a box in the channel's pins (CONTROL)", pinFile, pinned, http.StatusOK},
+		{"a box outside the channel's pins", pinFile, unpinned, http.StatusNotFound},
+		{"a channel with its AI agents off", quietFile, quiet, http.StatusNotFound},
+		{"a humans-only channel", hushFile, hush, http.StatusNotFound},
+		{"a locked box, its owner's post (CONTROL)", ownerFile, locked, http.StatusOK},
+		{"a locked box, a non-owner's post", otherFile, locked, http.StatusNotFound},
+	} {
+		if got, _ := e.getFile(tid, tc.file, tokens[tc.b]); got != tc.want {
 			t.Errorf("%s: got %d, want %d", tc.what, got, tc.want)
 		}
 	}

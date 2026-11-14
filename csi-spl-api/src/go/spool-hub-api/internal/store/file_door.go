@@ -41,17 +41,20 @@ type FileDoor interface {
 	// this box at either end, or was delivered to it (a channel post is
 	// addressed to box-wui and reaches member boxes as delivery rows).
 	FileReadableByBox(ctx context.Context, tenantID, fileID, boxID string, now time.Time) (bool, error)
-	// FileChannelCarriers: the channel and topic of the messages in
-	// retention that carry fileID in a channel (a DM carries none), at most
-	// MaxFileCarriers of them. The box door's channel half (SPL-5521) asks
-	// it: a back-filled post reaches a newly seated box with no delivery row.
+	// FileChannelCarriers: the channel, topic and sender of the messages in
+	// retention that carry fileID in a visible channel (a DM, #issues and
+	// #tasks carry none), at most MaxFileCarriers of them. The box door's
+	// channel half (SPL-5521) asks it: a back-filled post reaches a newly
+	// seated box with no delivery row, and the box lock judges the sender.
 	FileChannelCarriers(ctx context.Context, tenantID, fileID string, now time.Time) ([]FileCarrier, error)
 }
 
-// FileCarrier is one channel topic whose messages carry a file.
+// FileCarrier is one channel topic and sender whose messages carry a file.
 type FileCarrier struct {
 	Channel string
 	TaskID  string
+	FromBox string
+	FromID  string
 }
 
 // MaxFileCarriers bounds FileChannelCarriers: a content-addressed blob can
@@ -113,8 +116,8 @@ func (s *Memory) FileChannelCarriers(_ context.Context, tenant, fileID string, n
 	var out []FileCarrier
 	seen := map[FileCarrier]bool{}
 	for _, m := range s.liveLocked(tenant, now) {
-		c := FileCarrier{Channel: m.Channel, TaskID: m.TaskID}
-		if c.Channel == "" || seen[c] || !carriesFile(m.Files, fileID) {
+		c := FileCarrier{Channel: m.Channel, TaskID: m.TaskID, FromBox: m.FromBox, FromID: m.FromID}
+		if c.Channel == "" || ChannelHidden(c.Channel) || seen[c] || !carriesFile(m.Files, fileID) {
 			continue
 		}
 		seen[c] = true

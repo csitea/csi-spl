@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.3** (2026-11-14), the grok seat's findings and wording notes folded (11.1). Editor: c-690
+Version **v0.4** (2026-11-14), the grok and mistral seats' findings folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -9,7 +9,8 @@ Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc99
 model and changes no infra ([README.md](../README.md) section 2.4). Every
 change it needs is written as a phase task (section 8). Claims about our
 tree cite the command and its output, measured on `origin/master`
-`f0d0efa4e`, n = 1 per command. Vendor and model facts cite a source and the
+`f0d0efa4e`, n = 1 per command; the two lines that drifted since were
+re-measured on `6494175f2` (2.1 spawn kinds, 2.2 machine type). Vendor and model facts cite a source and the
 date it was read; a fact the editor could not confirm is marked
 **unverified** and is a job for the panel.
 
@@ -68,7 +69,7 @@ last.
 
 | fact | command -> result |
 |---|---|
-| Spawnable agent kinds | `grep -n "SPOOL_SPAWN_KINDS=" csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh` -> `529:SPOOL_SPAWN_KINDS='claude grok agy qwen mistral codex'` |
+| Spawnable agent kinds | `grep -n "SPOOL_SPAWN_KINDS=" csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh` -> `542:SPOOL_SPAWN_KINDS='claude grok agy qwen mistral codex'` |
 | One launcher per CLI | `ls csi-spl-orc/src/bash/features/spawn-agents/scripts/ \| grep -E '^spawn-(claude\|grok\|agy\|qwen\|mistral\|codex)\.sh$'` -> 6 files |
 | Every CLI talks to its vendor's cloud; no local endpoint is configured anywhere | `grep -rnE 'ollama\|vllm\|llama' csi-spl-orc/src csi-spl-api/src csi-spl-cnf` -> 0 lines |
 | The flat split | `csi-spl-cnf/csi-spl/all.env.yaml` lines 1359-1365: `claude: 60, grok: 0, agy: 20, qwen: 0, mistral: 20` |
@@ -92,7 +93,7 @@ Read for this section: specs [110](../110-mistral-vendor/spec.md),
 | fact | command -> result |
 |---|---|
 | Terraform steps | `ls csi-spl-iac/src/terraform` -> 30 steps, `000-gcp-remote-bucket` .. `120-github-general-secrets`; the hub is `030-cloud-run-hub`, the db `040-cloud-sql-postgres`, the vendor-key KMS `057-gcp-kms-vendor-keys`, the agent boxes `060-gcp-vm-satellite` and `061-gcp-vm-wine-box` |
-| The agent box is a CPU VM, no GPU | `grep -rn 'guest_accelerator\|gpu' csi-spl-iac/src/terraform/060-gcp-vm-satellite csi-spl-iac/src/terraform/061-gcp-vm-wine-box` -> 0 lines; `prd.env.yaml:225` `machine_type: e2-standard-16` |
+| The agent box is a CPU VM, no GPU | `grep -rn 'guest_accelerator\|gpu' csi-spl-iac/src/terraform/060-gcp-vm-satellite csi-spl-iac/src/terraform/061-gcp-vm-wine-box` -> 0 lines; `prd.env.yaml:226` `machine_type: e2-standard-16` |
 | The agent box lives in the estate project, one box for dev and prd | `prd.env.yaml` near line 217: `gcp_project: csi-spl-all`; `060-gcp-vm-satellite/03-vm.tf:1`: "ONE always-on agent box for dev and prd, ssh only" |
 | Region | repo `CLAUDE.md`: `europe-north1` |
 | **A private hub with no cloud dependency already exists** | [guides/local-hub.md](../../doc/md/guides/local-hub.md) 1: "hub, Postgres, the generated Web UI and a GCS emulator, all in Docker, with a local database and no cloud dependency. Nothing listens beyond `127.0.0.1`" |
@@ -176,7 +177,7 @@ or an on-prem firewall) plus a logged count of denied packets, which must be
 
 | candidate | APIs (source, read 2026-11-13) | fit | verdict |
 |---|---|---|---|
-| **vLLM** | OpenAI-compatible server; Anthropic `/v1/messages` added by PR #22627, merged 2025-10-22 (github.com/vllm-project/vllm/pull/22627) | GPU, batching across many lanes, tool-call parsers, the engine Mistral recommends for Devstral (docs.mistral.ai/vibe/code/cli/offline-models) | **primary** on GPU hosts |
+| **vLLM** | OpenAI-compatible server; Anthropic `/v1/messages` added by PR #22627, merged 2025-10-22 (github.com/vllm-project/vllm/pull/22627) | GPU, batching across many lanes, tool-call parsers, the engine Mistral recommends for Devstral; Mistral-family models need `--tool-call-parser mistral --enable-auto-tool-choice`, else tool calls break (docs.mistral.ai/vibe/code/cli/offline-models, read 2026-11-14) | **primary** on GPU hosts |
 | **llama.cpp** (`llama-server`) | OpenAI-compatible; Anthropic Messages API (huggingface.co/blog/ggml-org/anthropic-messages-api-in-llamacpp) | CPU or one small GPU, GGUF quantised weights, one static binary | **secondary**: CPU boxes, lde, small on-prem |
 | Ollama | OpenAI-compatible; Anthropic Messages API since January 2026 (docs.ollama.com/integrations/claude-code; Habr article 988538) | easy for one developer; pulls from its own registry by default | **lde only**; not on a stack host (its registry pull is a hidden egress) |
 | SGLang, LMDeploy | OpenAI-compatible; LMDeploy also lists `/v1/messages` (lmdeploy.readthedocs.io) | alternatives to vLLM | panel to weigh; not chosen in v0.1 |
@@ -193,6 +194,14 @@ the engine image is pinned by version and digest, and each launcher pins the
 API it speaks (`api_backend` / `wire_api`) to what that pinned server
 passes in P0. (Grok seat g-434, v0.2.)
 
+**Server flags and wire the clients need (P0).** Beyond the tool-call
+parser above, the tuning flags are `--tensor-parallel-size`, `--dtype` and
+`--max-model-len`. The server must report token usage in streamed replies
+(`stream_options.include_usage`), and a Vibe `[[models]]` preset sets
+`max_context_length` to the server's context length
+(docs.mistral.ai/vibe/code/cli/offline-models, read 2026-11-14). (Mistral
+seat m-724, v0.4.)
+
 **Gateway.** vLLM and llama.cpp each speak both APIs, so phase 1 needs no
 gateway. A gateway (LiteLLM proxy or similar) earns its place in phase 2,
 when there are several model servers to route between, per-lane token
@@ -205,7 +214,7 @@ decision record (section 9.2, D-1).
 |---|---|---|---|
 | Claude Code (`c-`) | yes, Anthropic Messages API | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (docs.ollama.com/integrations/claude-code) | spawnable; **client terms with a non-Anthropic model are open question Q7** |
 | Codex CLI (`o-`) | yes, OpenAI API | a vLLM or llama.cpp server is a custom `[model_providers.<id>]` entry with `base_url` and `wire_api` in `config.toml` (developers.openai.com/codex/config-advanced); `--oss` is the local-provider path for **LM Studio or Ollama**, chosen by `--local-provider` or `oss_provider`; vLLM stays off `--oss` (developers.openai.com/codex/cli/reference, read 2026-11-14) | spawnable, off by weight (spec 161 2.2.6) |
-| Mistral Vibe (`m-`) | yes, OpenAI-compatible | a `local` provider + model preset in `config.toml`; "the CLI does not contact `mistral.ai` or any other external service" (docs.mistral.ai/vibe/code/cli/offline-models) | spawnable; no coding (cnf, 2.1) |
+| Mistral Vibe (`m-`) | yes, OpenAI-compatible | a `[[providers]]` entry (`name = "local"`, `api_base`, `api_style = "openai"`, `backend = "generic"`, no `api_key_env_var` when the server needs no key) plus a `[[models]]` preset with `provider = "local"` and `max_context_length`, in `config.toml`. With telemetry and update checks off, "the CLI does not contact `mistral.ai` or any other external service", **but** "skills, MCP servers, and connectors that reach external systems must be disabled separately" (docs.mistral.ai/vibe/code/cli/offline-models, read 2026-11-14; provider shape from the Vibe 2.26.0 bundled docs, mistral seat m-724) | spawnable; no coding (cnf, 2.1) |
 | Qwen Code (`q-`) | yes, OpenAI-compatible | `--auth-type openai` + `OPENAI_BASE_URL` (our own `keyexec/env.go:101-102`) | spawnable, weight 0 everywhere |
 | Grok CLI (`g-`) | yes, OpenAI-compatible or Anthropic Messages | a custom model `[model.<id>]` with `model`, `base_url`, `name`, `env_key` and `api_backend` (`chat_completions`, `responses` or `messages`) in the **user** config (`~/.grok/config.toml` or `$GROK_HOME/config.toml`; a project `.grok/config.toml` carries only MCP servers, plugins and the `[permission]` section), selected by `[models] default` or `-m <id>` (docs.x.ai/build/overview "Custom models"; docs.x.ai/build/settings/reference, last updated 2026-10-13; both read 2026-11-14 by the grok seat) | spawnable |
 | agy (`a-`) | **unverified**: no documented local endpoint found | the agy seat to confirm | spawnable |
@@ -264,7 +273,7 @@ measurement; P0 measures it (T0.2).
 | class | example open-weight families (sources in 10) | total params | weights FP8 / 4-bit | host shape |
 |---|---|---|---|---|
 | S | Devstral Small 2 (24B), Qwen3-Coder 30B-A3B, gpt-oss-20b | 20-32B | ~24-32 / ~12-16 GB | 1 GPU of 48-96 GB, or CPU + 64 GB RAM at low speed |
-| M | Devstral 2 (123B), gpt-oss-120b | 100-130B | ~120-130 / ~60-65 GB | 1 x 96 GB GPU at 4-bit, 2 at FP8 |
+| M | Devstral 2 (123B, dense), gpt-oss-120b, Mistral Small 4 (119B MoE, ~6.5B active, 256k context) | 100-130B | ~120-130 / ~60-65 GB | 1 x 96 GB GPU at 4-bit, 2 at FP8; an MoE with few active parameters is the faster fit on one G4 |
 | L | Qwen3-Coder 480B-A35B, DeepSeek, GLM, Kimi class | 400B-1T (MoE) | 400 GB-1 TB / 200-500 GB | one 8-GPU node (8 x B200) |
 
 **GPU availability in our region** (docs.cloud.google.com/compute/docs/gpus/gpu-regions-zones,
@@ -297,9 +306,9 @@ evaluation on our own tasks decides, per kind.
 |---|---|
 | Endpoint exposure | the model server listens on the stack's private network only (VPC-internal IP on GCP, LAN on-prem); never a public IP; admin by IAP / ssh like the agent boxes |
 | Auth to the endpoint | one stack token per env, minted out of band like every key, delivered to the seat by the launcher's env (never argv, never a pane), rotated by an action |
-| Transport | TLS from a stack-internal CA (needed anyway by env.go:98's `https://` check) |
+| Transport | plain http on the stack's private network is enough for a client that allows it (Vibe documents `http://localhost:8080/v1`); TLS from a stack-internal CA where a client requires `https://` (the qwen lease check, `keyexec/env.go:98`) |
 | Prompts and outputs | not logged by the server beyond counts (tokens, latency, status); request bodies are never logged |
-| Tenancy | one model server may serve many workspaces only if no state crosses tenants (prefix-cache sharing across tenants: **open for the panel**, P-1) |
+| Tenancy | one model server may serve many workspaces only if no state crosses tenants (P-1, prefix-cache sharing across tenants: **off by default in mode B**, by one server per workspace or prefix caching disabled; mistral seat m-724 concurs it is a real boundary risk) |
 | Supply chain | engine images pinned by digest; weights by sha256; packages from the mirror at pinned versions only |
 
 ### 4.8 Evaluation (the quality gate)
@@ -361,9 +370,9 @@ is 220 x the hourly figure, rounded.
 
 | id | requirement | status |
 |---|---|---|
-| FR-01 | A model server serves pinned open-weight models over OpenAI and Anthropic APIs on a private network | Planned |
+| FR-01 | A model server serves pinned open-weight models over OpenAI and Anthropic APIs on a private network, with the tool-call parser each model family needs and token usage in streamed replies (4.2) | Planned |
 | FR-02 | Vendor `local` in cnf, conf-validator, lane-mix, journal and the WUI split page | Planned |
-| FR-03 | Launchers start the configured client CLI against the local endpoint with the stack token, telemetry/update/error reporting off. A local profile does not require the vendor's cloud login file: today `auth_marker` skips a vendor without it (e.g. `grok: .grok/auth.json`, `all.env.yaml:1368`), so the skip rule for `local` reads the endpoint check (FR-04), not that marker. Grok: the launcher writes the user config of 4.3 (custom model, `env_key`, pinned `api_backend`, updater and backend search off, no cloud model id left in `[models]`) | Planned |
+| FR-03 | Launchers start the configured client CLI against the local endpoint with the stack token, telemetry/update/error reporting off, and every skill, MCP server and connector that reaches an outside system off (4.3, Vibe). A local profile does not require the vendor's cloud login file: today `auth_marker` skips a vendor without it (e.g. `grok: .grok/auth.json`, `all.env.yaml:1368`), so the skip rule for `local` reads the endpoint check (FR-04), not that marker. Grok: the launcher writes the user config of 4.3 (custom model, `env_key`, pinned `api_backend`, updater and backend search off, no cloud model id left in `[models]`) | Planned |
 | FR-04 | `local` is skipped at once when its endpoint check fails | Planned |
 | FR-05 | Weights pinned by revision and sha256, with a licence gate | Planned |
 | FR-06 | Step `062-gcp-vm-model-server`, dev first | Planned |
@@ -408,7 +417,7 @@ is 220 x the hourly figure, rounded.
 | Q5 | Region for GPUs | `n1` europe-north1 only (G4, A4), `w4` europe-west4 allowed too |
 | Q6 | Full offline scope first | `one` one box (private hub + model server), `lan` multi-box with git server and local CA |
 | Q7 | Who is full offline for? | `flt` our own fleet, `cus` a customer workspace (on-prem product), `bot` both |
-| Q8 | Model licence allow-list | `osi` Apache-2.0 / MIT only, `opn` any open-weight licence the panel reviews per model |
+| Q8 | Model licence allow-list (Devstral Small 2, Devstral 2 and Mistral Small 4 are Apache-2.0, per their model cards read 2026-11-14 by the mistral seat) | `osi` Apache-2.0 / MIT only, `opn` any open-weight licence the panel reviews per model |
 | Q9 | Where does the model server live? | `all` the estate project with the agent boxes, `env` one per env (dev, prd) |
 
 ### 9.2 Further documentation artifacts (the editor's proposal, R8)
@@ -434,7 +443,8 @@ own file under this folder unless said otherwise:
 - Grok CLI custom models: docs.x.ai/build/overview; settings reference docs.x.ai/build/settings/reference (last updated 2026-10-13); upstream guide github.com/xai-org/grok-build `.../user-guide/11-custom-models.md` (search snippet only). Read 2026-11-14 by the grok seat.
 - vLLM Responses API: docs.vllm.ai/en/stable/serving/online_serving/; issue vllm-project/vllm#33089 (read 2026-11-14).
 - G4 europe-north1 VM-hour: gcloud-compute.com/europe-north1/g4-standard-48.html (read 2026-11-14).
-- Mistral Vibe offline models: docs.mistral.ai/vibe/code/cli/offline-models.
+- Mistral Vibe offline models: docs.mistral.ai/vibe/code/cli/offline-models (re-read 2026-11-14).
+- Model cards (licence, size), read 2026-11-14 by the mistral seat: huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512, huggingface.co/mistralai/Devstral-2-123B-Instruct-2512, huggingface.co/mistralai/Mistral-Small-4-119B-2603.
 - vLLM Anthropic Messages endpoint: github.com/vllm-project/vllm/pull/22627 (merged 2025-10-22); issue 21313.
 - llama.cpp Anthropic Messages API: huggingface.co/blog/ggml-org/anthropic-messages-api-in-llamacpp.
 - LMDeploy Anthropic-compatible endpoints: lmdeploy.readthedocs.io/en/stable/llm/api_server_anthropic.html.
@@ -448,7 +458,7 @@ own file under this folder unless said otherwise:
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
 | grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672); re-sign on the final sha |
-| mistral seat | mistral | - | - |
+| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | - |
 | codex seat | codex | - | - |
 | agy seat (signs last) | agy | - | - |
 
@@ -467,5 +477,12 @@ own file under this folder unless said otherwise:
   config section is `[permission]` (4.3), and Codex `--oss` picks LM Studio
   or Ollama by `--local-provider` / `oss_provider`, vLLM stays a custom
   `model_providers` entry (4.3, Q1).
+- v0.4 (2026-11-14): mistral seat m-724 (CHANGES: 4 findings, msg
+  0fe8de28). F1: the Vibe offline claim holds only with skills, MCP and
+  connectors off (4.3, FR-03); plain http is the documented local transport,
+  TLS only where a client requires https (4.7). F2: vLLM tool-call flags,
+  streamed usage and `max_context_length` (4.2, FR-01). F3: Mistral Small 4
+  in class M; Mistral-family licences in Q8. F4: 2.1 and 2.2 line numbers
+  re-measured. Also: P-1 is off by default in mode B (4.7).
 
-<!-- version: 0.3.0 · updated: 2026-11-14 · last-edit: 2026-11-14T08:35:00Z -->
+<!-- version: 0.4.0 · updated: 2026-11-14 · last-edit: 2026-11-14T09:30:00Z -->

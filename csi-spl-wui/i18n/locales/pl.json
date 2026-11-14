@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Świadczenia i ubezpieczenia",
         "training_recruitment": "Szkolenia i rekrutacja",
         "transport_meals": "Transport i posiłki"
+      },
+      "payroll": {
+        "title": "Część pracodawcy, {month}",
+        "flags": "Do sprawdzenia: {n}",
+        "loading": "Obliczanie części pracodawcy…",
+        "empty": "Nikt nie ma pozycji płacowych za {month}.",
+        "col_person": "Osoba",
+        "col_gross": "Wynagrodzenie brutto",
+        "col_employer": "Część pracodawcy",
+        "col_other": "Inne koszty",
+        "col_cost": "Koszt całkowity",
+        "total": "Razem ({currency})",
+        "note_computed": "obliczone",
+        "note_typed": "z paska płacowego",
+        "note_booked": "zaksięgowane",
+        "note_diff": "pasek płacowy różni się o {amount}",
+        "note_stale": "nieaktualne, teraz {amount}",
+        "note_no_rate": "brak stawki w tym roku",
+        "closed": "Miesiąc jest zamknięty; nic więcej nie jest księgowane.",
+        "book": "Zaksięguj obliczone kwoty ({n})",
+        "booked": "Zaksięgowano: {n}, zastąpiono: {m}.",
+        "rates": "Stawki na {year}",
+        "rates_none": "Brak jeszcze stawek na {year}; nic nie jest obliczane.",
+        "rate_pct": "Stawka %",
+        "rate_applies": "Dotyczy",
+        "rate_source": "Źródło, np. pismo ubezpieczyciela",
+        "rate_save": "Zapisz stawkę",
+        "rate_delete": "Usuń",
+        "err_rate_component": "Wybierz składkę pracodawcy.",
+        "err_rate_pct": "Stawka to procent od 0 do poniżej 100, z maksymalnie 4 miejscami po przecinku.",
+        "err_rate_types": "Wybierz co najmniej jeden rodzaj zatrudnienia.",
+        "err_rate_source": "Źródło ma najwyżej 200 znaków."
       }
     }
   }

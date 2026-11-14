@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Beneficios y seguros",
         "training_recruitment": "Formación y selección",
         "transport_meals": "Transporte y comidas"
+      },
+      "payroll": {
+        "title": "Parte del empleador, {month}",
+        "flags": "Por revisar: {n}",
+        "loading": "Calculando la parte del empleador…",
+        "empty": "Nadie tiene líneas de nómina en {month}.",
+        "col_person": "Persona",
+        "col_gross": "Salario bruto",
+        "col_employer": "Parte del empleador",
+        "col_other": "Otros costes",
+        "col_cost": "Coste total",
+        "total": "Suma ({currency})",
+        "note_computed": "calculado",
+        "note_typed": "de la nómina",
+        "note_booked": "contabilizado",
+        "note_diff": "la nómina difiere en {amount}",
+        "note_stale": "desactualizado, ahora {amount}",
+        "note_no_rate": "sin tipo este año",
+        "closed": "El mes está cerrado; no se contabiliza nada más.",
+        "book": "Contabilizar los importes calculados ({n})",
+        "booked": "Contabilizados: {n}, sustituidos: {m}.",
+        "rates": "Tipos para {year}",
+        "rates_none": "Aún no hay tipos para {year}; no se calcula nada.",
+        "rate_pct": "Tipo %",
+        "rate_applies": "Se aplica a",
+        "rate_source": "Fuente, p. ej., la carta de la aseguradora",
+        "rate_save": "Guardar tipo",
+        "rate_delete": "Quitar",
+        "err_rate_component": "Elija una cotización del empleador.",
+        "err_rate_pct": "El tipo es un porcentaje de 0 a menos de 100, con hasta 4 decimales.",
+        "err_rate_types": "Elija al menos un tipo de empleo.",
+        "err_rate_source": "La fuente tiene como máximo 200 caracteres."
       }
     }
   }

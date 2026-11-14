@@ -4277,6 +4277,38 @@
         "benefits_insurance": "הטבות וביטוחים",
         "training_recruitment": "הדרכה וגיוס",
         "transport_meals": "נסיעות וארוחות"
+      },
+      "payroll": {
+        "title": "חלק המעסיק, {month}",
+        "flags": "לבדיקה: {n}",
+        "loading": "מחשב את חלק המעסיק…",
+        "empty": "לאף אחד אין שורות שכר עבור {month}.",
+        "col_person": "אדם",
+        "col_gross": "שכר ברוטו",
+        "col_employer": "חלק המעסיק",
+        "col_other": "עלויות אחרות",
+        "col_cost": "עלות כוללת",
+        "total": "סה״כ ({currency})",
+        "note_computed": "מחושב",
+        "note_typed": "מתלוש השכר",
+        "note_booked": "נרשם",
+        "note_diff": "תלוש השכר שונה ב-{amount}",
+        "note_stale": "לא עדכני, כעת {amount}",
+        "note_no_rate": "אין שיעור השנה",
+        "closed": "החודש סגור; לא נרשם דבר נוסף.",
+        "book": "רשום את הסכומים המחושבים ({n})",
+        "booked": "נרשמו: {n}, הוחלפו: {m}.",
+        "rates": "שיעורים לשנת {year}",
+        "rates_none": "אין עדיין שיעורים לשנת {year}; דבר אינו מחושב.",
+        "rate_pct": "שיעור %",
+        "rate_applies": "חל על",
+        "rate_source": "מקור, למשל מכתב המבטח",
+        "rate_save": "שמור שיעור",
+        "rate_delete": "הסר",
+        "err_rate_component": "בחר הפרשת מעסיק.",
+        "err_rate_pct": "השיעור הוא אחוז מ-0 ועד פחות מ-100, עם עד 4 ספרות אחרי הנקודה.",
+        "err_rate_types": "בחר לפחות סוג העסקה אחד.",
+        "err_rate_source": "המקור הוא עד 200 תווים."
       }
     }
   }

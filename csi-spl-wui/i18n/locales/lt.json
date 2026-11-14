@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Naudos ir draudimas",
         "training_recruitment": "Mokymai ir atranka",
         "transport_meals": "Transportas ir maitinimas"
+      },
+      "payroll": {
+        "title": "Darbdavio dalis, {month}",
+        "flags": "Patikrinti: {n}",
+        "loading": "Skaičiuojama darbdavio dalis…",
+        "empty": "Niekas neturi {month} atlyginimo eilučių.",
+        "col_person": "Asmuo",
+        "col_gross": "Bruto atlyginimas",
+        "col_employer": "Darbdavio dalis",
+        "col_other": "Kitos išlaidos",
+        "col_cost": "Bendra kaina",
+        "total": "Iš viso ({currency})",
+        "note_computed": "apskaičiuota",
+        "note_typed": "iš atlyginimo lapelio",
+        "note_booked": "užregistruota",
+        "note_diff": "atlyginimo lapelis skiriasi {amount}",
+        "note_stale": "pasenę, dabar {amount}",
+        "note_no_rate": "šiais metais tarifo nėra",
+        "closed": "Mėnuo uždarytas; daugiau nieko neregistruojama.",
+        "book": "Užregistruoti apskaičiuotas sumas ({n})",
+        "booked": "Užregistruota: {n}, pakeista: {m}.",
+        "rates": "{year} m. tarifai",
+        "rates_none": "{year} m. tarifų dar nėra; niekas neskaičiuojama.",
+        "rate_pct": "Tarifas %",
+        "rate_applies": "Taikoma",
+        "rate_source": "Šaltinis, pvz., draudiko laiškas",
+        "rate_save": "Išsaugoti tarifą",
+        "rate_delete": "Pašalinti",
+        "err_rate_component": "Pasirinkite darbdavio įmoką.",
+        "err_rate_pct": "Tarifas yra procentai nuo 0 iki mažiau nei 100, ne daugiau kaip 4 skaitmenys po kablelio.",
+        "err_rate_types": "Pasirinkite bent vieną darbo santykių tipą.",
+        "err_rate_source": "Šaltinis – ne daugiau kaip 200 simbolių."
       }
     }
   }

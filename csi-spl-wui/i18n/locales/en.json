@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Benefits and insurance",
         "training_recruitment": "Training and recruitment",
         "transport_meals": "Transport and meals"
+      },
+      "payroll": {
+        "title": "Employer side, {month}",
+        "flags": "To check: {n}",
+        "loading": "Computing the employer side…",
+        "empty": "No person has pay lines in {month}.",
+        "col_person": "Person",
+        "col_gross": "Gross pay",
+        "col_employer": "Employer side",
+        "col_other": "Other costs",
+        "col_cost": "Total cost",
+        "total": "Total ({currency})",
+        "note_computed": "computed",
+        "note_typed": "from the payslip",
+        "note_booked": "booked",
+        "note_diff": "the payslip differs by {amount}",
+        "note_stale": "out of date, now {amount}",
+        "note_no_rate": "no rate this year",
+        "closed": "The month is closed; nothing more is booked.",
+        "book": "Book the computed amounts ({n})",
+        "booked": "Booked: {n}, replaced: {m}.",
+        "rates": "Rates for {year}",
+        "rates_none": "No rates for {year} yet; nothing is computed.",
+        "rate_pct": "Rate %",
+        "rate_applies": "Applies to",
+        "rate_source": "Source, e.g. the insurer's letter",
+        "rate_save": "Save rate",
+        "rate_delete": "Remove",
+        "err_rate_component": "Pick an employer contribution.",
+        "err_rate_pct": "The rate is a percent from 0 to below 100, with up to 4 decimals.",
+        "err_rate_types": "Pick at least one employment type.",
+        "err_rate_source": "The source is at most 200 characters."
       }
     }
   }

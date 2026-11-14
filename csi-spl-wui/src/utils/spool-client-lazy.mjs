@@ -2125,6 +2125,11 @@ async function reportingSql(ctx, query) {
  *   'hr_person_create', b POST   /v1/operator/hr-people
  *   'hr_period', month    GET    /v1/operator/cost-periods/{month}
  *   'hr_period_set', m, b POST   /v1/operator/cost-periods/{m}/{b.op} ({reason} on a reopen)
+ *   'hr_rates', year      GET    /v1/operator/hr-rates?year= (SPL-5433 step c)
+ *   'hr_rate_set', y, b   PUT    /v1/operator/hr-rates/{y}/{b.component} ({rate_pct, applies_to, source})
+ *   'hr_rate_delete', y, c DELETE /v1/operator/hr-rates/{y}/{c}
+ *   'hr_payroll', month   GET    /v1/operator/hr-payroll/{month}
+ *   'hr_payroll_book', m  POST   /v1/operator/hr-payroll/{m}/book
  *   'alloc', door, month  GET    /v1/<door>/cost-allocations?month= (SPL-5291)
  *   'alloc_put', door, b  PUT    /v1/<door>/cost-allocations
  * Operator admin only, as getFleetTokens; the alloc ops' door 'tenant' is a
@@ -2154,7 +2159,9 @@ async function fleetPaid(ctx, op, a, b) {
   if (op.startsWith('hr_')) {
     if (mock) {
       const h = await import('./hr-costs.mjs')
-      const ops = { hr_components: () => h.mockHrComponents(), hr_people: () => h.mockHrPeople(), hr_person_create: () => h.mockHrPersonCreate(a), hr_period: () => h.mockHrPeriod(a), hr_period_set: () => h.mockHrPeriodSet(a, b && b.op, b && b.reason) }
+      const ops = { hr_components: () => h.mockHrComponents(), hr_people: () => h.mockHrPeople(), hr_person_create: () => h.mockHrPersonCreate(a), hr_period: () => h.mockHrPeriod(a), hr_period_set: () => h.mockHrPeriodSet(a, b && b.op, b && b.reason),
+        hr_rates: () => h.mockHrRates(a), hr_rate_set: () => h.mockHrRateSet(a, b && b.component, b), hr_rate_delete: () => h.mockHrRateDelete(a, b),
+        hr_payroll: () => h.mockHrPayroll(a), hr_payroll_book: () => h.mockHrPayrollBook(a) }
       if (!ops[op]) throw new Error('fleetPaid: unknown op ' + op)
       return ops[op]()
     }
@@ -2164,6 +2171,13 @@ async function fleetPaid(ctx, op, a, b) {
     if (op === 'hr_person_create') return live('/v1/operator/hr-people', json('POST', a))
     if (op === 'hr_period') return live(period)
     if (op === 'hr_period_set' && b && (b.op === 'close' || b.op === 'reopen')) return live(period + '/' + b.op, json('POST', b.op === 'reopen' ? { reason: b.reason } : {}))
+    const rate = (y, c) => '/v1/operator/hr-rates/' + encodeURIComponent(y) + '/' + encodeURIComponent(c)
+    const payroll = '/v1/operator/hr-payroll/' + encodeURIComponent(a)
+    if (op === 'hr_rates') return live('/v1/operator/hr-rates?year=' + encodeURIComponent(a))
+    if (op === 'hr_rate_set' && b) return live(rate(a, b.component), json('PUT', { rate_pct: b.rate_pct, applies_to: b.applies_to, source: b.source }))
+    if (op === 'hr_rate_delete') return live(rate(a, b), { method: 'DELETE' })
+    if (op === 'hr_payroll') return live(payroll)
+    if (op === 'hr_payroll_book') return live(payroll + '/book', json('POST', {}))
     throw new Error('fleetPaid: unknown op ' + op)
   }
   if (mock && op.startsWith('entr')) {

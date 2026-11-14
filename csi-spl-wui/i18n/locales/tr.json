@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Yan haklar ve sigorta",
         "training_recruitment": "Eğitim ve işe alım",
         "transport_meals": "Ulaşım ve yemek"
+      },
+      "payroll": {
+        "title": "İşveren payı, {month}",
+        "flags": "Kontrol edilecek: {n}",
+        "loading": "İşveren payı hesaplanıyor…",
+        "empty": "{month} için kimsenin ücret satırı yok.",
+        "col_person": "Kişi",
+        "col_gross": "Brüt ücret",
+        "col_employer": "İşveren payı",
+        "col_other": "Diğer maliyetler",
+        "col_cost": "Toplam maliyet",
+        "total": "Toplam ({currency})",
+        "note_computed": "hesaplandı",
+        "note_typed": "bordrodan",
+        "note_booked": "kaydedildi",
+        "note_diff": "bordro {amount} farklı",
+        "note_stale": "güncel değil, şimdi {amount}",
+        "note_no_rate": "bu yıl oran yok",
+        "closed": "Ay kapalı; artık bir şey kaydedilmez.",
+        "book": "Hesaplanan tutarları kaydet ({n})",
+        "booked": "Kaydedilen: {n}, değiştirilen: {m}.",
+        "rates": "{year} oranları",
+        "rates_none": "{year} için henüz oran yok; hiçbir şey hesaplanmaz.",
+        "rate_pct": "Oran %",
+        "rate_applies": "Uygulandığı",
+        "rate_source": "Kaynak, ör. sigortacının mektubu",
+        "rate_save": "Oranı kaydet",
+        "rate_delete": "Kaldır",
+        "err_rate_component": "Bir işveren katkısı seçin.",
+        "err_rate_pct": "Oran, 0'dan 100'ün altına kadar, en fazla 4 ondalıklı bir yüzdedir.",
+        "err_rate_types": "En az bir çalışma türü seçin.",
+        "err_rate_source": "Kaynak en fazla 200 karakterdir."
       }
     }
   }

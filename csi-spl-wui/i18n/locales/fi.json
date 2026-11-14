@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Edut ja vakuutukset",
         "training_recruitment": "Koulutus ja rekrytointi",
         "transport_meals": "Matkat ja ateriat"
+      },
+      "payroll": {
+        "title": "Työnantajan osuus, {month}",
+        "flags": "Tarkistettavia: {n}",
+        "loading": "Lasketaan työnantajan osuutta…",
+        "empty": "Kenelläkään ei ole palkkarivejä kuukaudelle {month}.",
+        "col_person": "Henkilö",
+        "col_gross": "Bruttopalkka",
+        "col_employer": "Työnantajan osuus",
+        "col_other": "Muut kulut",
+        "col_cost": "Kokonaiskustannus",
+        "total": "Yhteensä ({currency})",
+        "note_computed": "laskettu",
+        "note_typed": "palkkalaskelmasta",
+        "note_booked": "kirjattu",
+        "note_diff": "palkkalaskelma poikkeaa {amount}",
+        "note_stale": "vanhentunut, nyt {amount}",
+        "note_no_rate": "ei maksuprosenttia tälle vuodelle",
+        "closed": "Kuukausi on suljettu; mitään ei enää kirjata.",
+        "book": "Kirjaa lasketut summat ({n})",
+        "booked": "Kirjattu: {n}, korvattu: {m}.",
+        "rates": "Maksuprosentit vuodelle {year}",
+        "rates_none": "Vuodelle {year} ei ole vielä maksuprosentteja; mitään ei lasketa.",
+        "rate_pct": "Prosentti %",
+        "rate_applies": "Koskee",
+        "rate_source": "Lähde, esim. vakuutusyhtiön kirje",
+        "rate_save": "Tallenna prosentti",
+        "rate_delete": "Poista",
+        "err_rate_component": "Valitse työnantajamaksu.",
+        "err_rate_pct": "Prosentti on 0:sta alle 100:aan, enintään 4 desimaalia.",
+        "err_rate_types": "Valitse vähintään yksi työsuhteen tyyppi.",
+        "err_rate_source": "Lähde on enintään 200 merkkiä."
       }
     }
   }

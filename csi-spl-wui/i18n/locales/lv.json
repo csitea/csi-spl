@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Labumi un apdrošināšana",
         "training_recruitment": "Apmācība un atlase",
         "transport_meals": "Transports un ēdināšana"
+      },
+      "payroll": {
+        "title": "Darba devēja daļa, {month}",
+        "flags": "Jāpārbauda: {n}",
+        "loading": "Aprēķina darba devēja daļu…",
+        "empty": "Nevienam nav algas rindu par {month}.",
+        "col_person": "Persona",
+        "col_gross": "Bruto alga",
+        "col_employer": "Darba devēja daļa",
+        "col_other": "Citas izmaksas",
+        "col_cost": "Kopējās izmaksas",
+        "total": "Kopā ({currency})",
+        "note_computed": "aprēķināts",
+        "note_typed": "no algas lapiņas",
+        "note_booked": "iegrāmatots",
+        "note_diff": "algas lapiņa atšķiras par {amount}",
+        "note_stale": "novecojis, tagad {amount}",
+        "note_no_rate": "šogad nav likmes",
+        "closed": "Mēnesis ir slēgts; vairāk nekas netiek iegrāmatots.",
+        "book": "Iegrāmatot aprēķinātās summas ({n})",
+        "booked": "Iegrāmatots: {n}, aizstāts: {m}.",
+        "rates": "Likmes {year}. gadam",
+        "rates_none": "{year}. gadam vēl nav likmju; nekas netiek aprēķināts.",
+        "rate_pct": "Likme %",
+        "rate_applies": "Attiecas uz",
+        "rate_source": "Avots, piem., apdrošinātāja vēstule",
+        "rate_save": "Saglabāt likmi",
+        "rate_delete": "Noņemt",
+        "err_rate_component": "Izvēlieties darba devēja iemaksu.",
+        "err_rate_pct": "Likme ir procenti no 0 līdz mazāk nekā 100, ne vairāk kā 4 decimāldaļas.",
+        "err_rate_types": "Izvēlieties vismaz vienu nodarbinātības veidu.",
+        "err_rate_source": "Avots ir ne vairāk kā 200 rakstzīmes."
       }
     }
   }

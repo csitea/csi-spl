@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Voordelen en verzekeringen",
         "training_recruitment": "Opleiding en werving",
         "transport_meals": "Vervoer en maaltijden"
+      },
+      "payroll": {
+        "title": "Werkgeversdeel, {month}",
+        "flags": "Te controleren: {n}",
+        "loading": "Werkgeversdeel wordt berekend…",
+        "empty": "Niemand heeft loonregels in {month}.",
+        "col_person": "Persoon",
+        "col_gross": "Brutoloon",
+        "col_employer": "Werkgeversdeel",
+        "col_other": "Overige kosten",
+        "col_cost": "Totale kosten",
+        "total": "Totaal ({currency})",
+        "note_computed": "berekend",
+        "note_typed": "van de loonstrook",
+        "note_booked": "geboekt",
+        "note_diff": "de loonstrook wijkt {amount} af",
+        "note_stale": "verouderd, nu {amount}",
+        "note_no_rate": "geen tarief dit jaar",
+        "closed": "De maand is gesloten; er wordt niets meer geboekt.",
+        "book": "Boek de berekende bedragen ({n})",
+        "booked": "Geboekt: {n}, vervangen: {m}.",
+        "rates": "Tarieven voor {year}",
+        "rates_none": "Nog geen tarieven voor {year}; er wordt niets berekend.",
+        "rate_pct": "Tarief %",
+        "rate_applies": "Geldt voor",
+        "rate_source": "Bron, bijv. de brief van de verzekeraar",
+        "rate_save": "Tarief opslaan",
+        "rate_delete": "Verwijderen",
+        "err_rate_component": "Kies een werkgeversbijdrage.",
+        "err_rate_pct": "Het tarief is een percentage van 0 tot onder 100, met maximaal 4 decimalen.",
+        "err_rate_types": "Kies minstens één soort dienstverband.",
+        "err_rate_source": "De bron is maximaal 200 tekens."
       }
     }
   }

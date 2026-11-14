@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Förmåner och försäkringar",
         "training_recruitment": "Utbildning och rekrytering",
         "transport_meals": "Resor och måltider"
+      },
+      "payroll": {
+        "title": "Arbetsgivarens del, {month}",
+        "flags": "Att kontrollera: {n}",
+        "loading": "Beräknar arbetsgivarens del…",
+        "empty": "Ingen har lönerader för {month}.",
+        "col_person": "Medarbetare",
+        "col_gross": "Bruttolön",
+        "col_employer": "Arbetsgivarens del",
+        "col_other": "Övriga kostnader",
+        "col_cost": "Total kostnad",
+        "total": "Totalt ({currency})",
+        "note_computed": "beräknat",
+        "note_typed": "från lönebeskedet",
+        "note_booked": "bokfört",
+        "note_diff": "lönebeskedet avviker med {amount}",
+        "note_stale": "inaktuellt, nu {amount}",
+        "note_no_rate": "ingen sats i år",
+        "closed": "Månaden är stängd; inget mer bokförs.",
+        "book": "Bokför de beräknade beloppen ({n})",
+        "booked": "Bokfört: {n}, ersatt: {m}.",
+        "rates": "Satser för {year}",
+        "rates_none": "Inga satser för {year} ännu; inget beräknas.",
+        "rate_pct": "Sats %",
+        "rate_applies": "Gäller",
+        "rate_source": "Källa, t.ex. försäkringsbolagets brev",
+        "rate_save": "Spara sats",
+        "rate_delete": "Ta bort",
+        "err_rate_component": "Välj en arbetsgivaravgift.",
+        "err_rate_pct": "Satsen är en procent från 0 till under 100, med högst 4 decimaler.",
+        "err_rate_types": "Välj minst en anställningsform.",
+        "err_rate_source": "Källan är högst 200 tecken."
       }
     }
   }

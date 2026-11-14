@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Hüved ja kindlustused",
         "training_recruitment": "Koolitus ja värbamine",
         "transport_meals": "Transport ja toitlustus"
+      },
+      "payroll": {
+        "title": "Tööandja osa, {month}",
+        "flags": "Kontrollida: {n}",
+        "loading": "Arvutan tööandja osa…",
+        "empty": "Kellelgi pole kuu {month} palgaridu.",
+        "col_person": "Isik",
+        "col_gross": "Brutopalk",
+        "col_employer": "Tööandja osa",
+        "col_other": "Muud kulud",
+        "col_cost": "Kogukulu",
+        "total": "Kokku ({currency})",
+        "note_computed": "arvutatud",
+        "note_typed": "palgalehelt",
+        "note_booked": "kirjendatud",
+        "note_diff": "palgaleht erineb {amount} võrra",
+        "note_stale": "aegunud, nüüd {amount}",
+        "note_no_rate": "sel aastal määr puudub",
+        "closed": "Kuu on suletud; rohkem ei kirjendata.",
+        "book": "Kirjenda arvutatud summad ({n})",
+        "booked": "Kirjendatud: {n}, asendatud: {m}.",
+        "rates": "Määrad aastaks {year}",
+        "rates_none": "Aastaks {year} pole veel määrasid; midagi ei arvutata.",
+        "rate_pct": "Määr %",
+        "rate_applies": "Kehtib",
+        "rate_source": "Allikas, nt kindlustusandja kiri",
+        "rate_save": "Salvesta määr",
+        "rate_delete": "Eemalda",
+        "err_rate_component": "Vali tööandja makse.",
+        "err_rate_pct": "Määr on protsent 0-st kuni alla 100, kuni 4 komakohta.",
+        "err_rate_types": "Vali vähemalt üks töösuhte liik.",
+        "err_rate_source": "Allikas on kuni 200 märki."
       }
     }
   }

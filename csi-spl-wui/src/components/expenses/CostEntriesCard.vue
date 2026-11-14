@@ -15,6 +15,8 @@
       <!-- SPL-5433: the month lock and the people of the HR tab -->
       <HrPeriodBar :month="adding ? f.period : thisMonth" :admin="admin" @changed="load()" />
       <HrPeopleCard :people="hr.people" :names="hr.names" :readonly="readonly" @added="loadHr()" />
+      <!-- SPL-5433 step c: the month's employer side, computed from the year's rates -->
+      <HrPayrollCard ref="payrollCard" :month="adding ? f.period : thisMonth" :people="hr.people" :components="hr.components" :readonly="readonly" @booked="load()" />
     </template>
     <p v-if="state === 'loading'" class="muted" data-test="cost-loading">{{ t('expenses.entries.loading') }}</p>
     <p v-else-if="state === 'error'" class="ce-error" data-test="cost-error">
@@ -156,6 +158,7 @@ import { hrComponentsOf, hrLineLabel, hrPeopleOf } from '~/utils/hr-costs.mjs'
 import HrLineFields from '~/components/expenses/HrLineFields.vue'
 import HrPeriodBar from '~/components/expenses/HrPeriodBar.vue'
 import HrPeopleCard from '~/components/expenses/HrPeopleCard.vue'
+import HrPayrollCard from '~/components/expenses/HrPayrollCard.vue'
 
 /* readonly (SPL-5181): the operator's product owner reads the list, no add or delete */
 /* admin (SPL-5433): the operator admin, who reopens and closes an hr month */
@@ -183,6 +186,8 @@ type HrPerson = { id: string, code: string, name: string, department: string, em
 type HrComponent = { component: string, group: string, label: string }
 const hr = reactive({ people: [] as HrPerson[], names: false, components: [] as HrComponent[] })
 const thisMonth = new Date().toISOString().slice(0, 7)
+/* SPL-5433 step c: an hr line added or deleted moves the employer side; the card reads again once opened */
+const payrollCard = ref<{ reload: () => unknown } | null>(null)
 async function loadHr() {
   if (props.type !== 'hr') return
   try {
@@ -274,6 +279,7 @@ async function submit() {
     await api().fleetPaid('entry_create', costEntryBody(props.type, f))
     adding.value = false
     await load()
+    void payrollCard.value?.reload()
   } catch (e) {
     refused.value = hubWhy(e)
   } finally {
@@ -288,6 +294,7 @@ async function remove(id: string) {
     await api().fleetPaid('entry_delete', id)
     confirming.value = ''
     await load()
+    void payrollCard.value?.reload()
   } catch (e) {
     actionError.value = hubWhy(e)
   } finally {

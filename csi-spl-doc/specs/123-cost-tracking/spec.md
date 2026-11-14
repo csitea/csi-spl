@@ -1048,12 +1048,28 @@ check) is step (d).
     `POST /v1/operator/hr-payroll/{month}/book`: the cost entries' write
     doors (a `costs.write` member of the operator workspace, or the operator
     admin).
+- **The screen** (Expenses -> HR costs, `components/expenses/HrPayrollCard.vue`):
+  "Employer side, <month>", read when opened.
+  - **The table.** One row per person: the code, and the name to a reader
+    who holds it. The columns are gross pay, the employer side (each
+    contribution with its rate and amount, marked computed, from the
+    payslip, booked, "the payslip differs by", or "out of date"), other
+    costs and total cost, with a total row per currency.
+  - **For a `costs.write` reader:** "Book the computed amounts (n)", where n
+    counts the amounts to book and the stale booked lines. A closed month
+    offers no booking.
+  - **The year's rates** are listed for everyone, and a `costs.write` reader
+    sets or removes them in a form (component, rate %, applies to, source).
+  - The strings are in every locale (`expenses.hr.payroll.*`).
 - **Tests.**
   - `store/hr_payroll_test.go` covers the calculation, flags and bookings,
     the rate checks, and the rate store on both drivers.
   - `hub/hr_payroll_test.go` covers rates, payroll, book, rebook and the
     closed month, with made-up figures in 2007-04. Red control: without the
     stale removal, the rebook leaves two tyel lines.
+  - `csi-spl-wui/tests/unit/hr-payroll.test.mjs` covers the rate form, the
+    payroll answer as read, and the mock's calculation and book, which follow
+    the hub's.
 - **Not here.**
   - The unemployment insurance's two payroll bands: the accountant sets the
     band's rate.

@@ -240,6 +240,7 @@ async function expensesSection(browser, base, size) {
     ok(`SPL-4382 ${id}: its own path, its empty list, no Paid card`, await waitWhere(p, `/expenses/${id}`)
       && await waitFor(p, `[data-test=expenses-${id}] [data-test=cost-empty]`) && (await count(p, '[data-test=paid-card]')) === 0, where(p))
     await costEntryRound(p, id, size)
+    if (id === 'hr') await hrPayrollRound(p)
   }
   await p.goBack()
   ok('SPL-4382 back: Cloud infra costs again', await waitWhere(p, '/expenses/cloud'), where(p))
@@ -279,6 +280,20 @@ async function expensesBizOwner(browser, base, size) {
       && (await count(p, '[data-test^=expenses-tab-]')) === 0 && (await count(p, '[data-testid=sidebar-tab-expenses]')) === 0 && (await count(p, '[data-test=paid-card]')) === 0)
     await ctx.close()
   }
+}
+
+/** SPL-5433 step c (spec 123 16.4): the HR tab's Employer side opens on its month with no pay lines and no rates; an empty rate form is named and not sent; a rate saves and is listed, and Remove takes it away again. CONTROL: without HrPayrollCard in CostEntriesCard.vue there is no hr-payroll, so every check here FAILS. */
+async function hrPayrollRound(p) {
+  await tap(p, '[data-test=hr-payroll] > summary')
+  ok('SPL-5433 c: Employer side opens: no pay lines, no rates for the year', await waitFor(p, '[data-test=hr-payroll-empty]') && await waitFor(p, '[data-test=hr-rates-none]'))
+  await tap(p, '[data-test=hr-rate-save]')
+  ok('SPL-5433 c: an empty rate form is named, nothing stored', await waitFor(p, '[data-test=hr-rate-error]') && (await count(p, '[data-test=hr-rate]')) === 0)
+  await p.select('[data-test=hr-rate-component]', 'tyel_employer')
+  await setField(p, '[data-test=hr-rate-pct]', '17.5')
+  await tap(p, '[data-test=hr-rate-save]')
+  ok('SPL-5433 c: Save lists the rate', await waitFor(p, '[data-test=hr-rate]') && (await count(p, '[data-test=hr-rate-error]')) === 0)
+  await tap(p, '[data-test=hr-rate-delete]')
+  ok('SPL-5433 c: Remove takes it away', await waitFor(p, '[data-test=hr-rates-none]') && (await count(p, '[data-test=hr-rate]')) === 0)
 }
 
 /** SPL-4382: one tab's insert: a bad form is named and not sent, the hub's refusal shows, an entry lands in THIS tab's list only, delete asks first. CONTROL: on the shell before the forms there is no cost-add, so every check here FAILS. */

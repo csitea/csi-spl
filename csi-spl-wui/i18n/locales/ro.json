@@ -4277,6 +4277,38 @@
         "benefits_insurance": "Beneficii și asigurări",
         "training_recruitment": "Formare și recrutare",
         "transport_meals": "Transport și masă"
+      },
+      "payroll": {
+        "title": "Partea angajatorului, {month}",
+        "flags": "De verificat: {n}",
+        "loading": "Se calculează partea angajatorului…",
+        "empty": "Nimeni nu are linii salariale în {month}.",
+        "col_person": "Persoană",
+        "col_gross": "Salariu brut",
+        "col_employer": "Partea angajatorului",
+        "col_other": "Alte costuri",
+        "col_cost": "Cost total",
+        "total": "Suma totală ({currency})",
+        "note_computed": "calculat",
+        "note_typed": "din fluturaș",
+        "note_booked": "înregistrat",
+        "note_diff": "fluturașul diferă cu {amount}",
+        "note_stale": "depășit, acum {amount}",
+        "note_no_rate": "fără cotă anul acesta",
+        "closed": "Luna este închisă; nu se mai înregistrează nimic.",
+        "book": "Înregistrează sumele calculate ({n})",
+        "booked": "Înregistrate: {n}, înlocuite: {m}.",
+        "rates": "Cote pentru {year}",
+        "rates_none": "Încă nu există cote pentru {year}; nu se calculează nimic.",
+        "rate_pct": "Cotă %",
+        "rate_applies": "Se aplică la",
+        "rate_source": "Sursă, de ex. scrisoarea asigurătorului",
+        "rate_save": "Salvează cota",
+        "rate_delete": "Elimină",
+        "err_rate_component": "Alegeți o contribuție a angajatorului.",
+        "err_rate_pct": "Cota este un procent de la 0 până sub 100, cu cel mult 4 zecimale.",
+        "err_rate_types": "Alegeți cel puțin un tip de angajare.",
+        "err_rate_source": "Sursa are cel mult 200 de caractere."
       }
     }
   }

@@ -15,7 +15,8 @@ relay's paths are box-local, in env or a file outside git.
 sends) runs every minute from the box-crons manifest row `box-link-watch`
 (`src/bash/scripts/box-link-watch-cron.sh`; core
 `src/bash/scripts/box-link-watch.py`). It is read-only on the relay: it never
-touches the relay, its queues or the box.
+touches the relay, its queues or the box, except to run the link's own restart
+action when one is configured (section 1.1).
 
 For each box the hub serves (a dir `<root>/<box>/` with `inbound/` and
 `outbound/`) it tracks four conditions:
@@ -53,6 +54,33 @@ When none is left: one note, `LINK CLEARED on box <box> after N min`. The
 state file (`$XDG_STATE_HOME/csi-spl/box-link-watch.json`) keeps what was
 sent; a send that fails is retried next run. A lock keeps two runs apart.
 
+### 1.1 It restarts a link stuck for 10 min (SPL-5522)
+
+Owner HUM-10, csitea topic 48d75e5f (msg 457da676, item 6): the watcher
+restarts a stuck relay link instead of only reporting it. The evidence, the
+hub box's `cron.log` read 2026-11-14 (n=12 incidents, 2026-11-05..13): 11 of
+the 12 stayed open longer than 10 min, 6 longer than 2 h (153 to 3397 min).
+
+- When any condition of a box is older than `BOX_LINK_WATCH_RESTART_AFTER_S`
+  (default 600 s), the watcher runs the link's own restart action once:
+  `<BOX_LINK_WATCH_HOME>/run -a <BOX_LINK_WATCH_RESTART_ACTION>`, in that
+  checkout, with a 300 s timeout. The action name is box-local (section 2),
+  never in this tree; with none set there is no restart, as before.
+- At most one restart per box per `BOX_LINK_WATCH_RESTART_EVERY_S` (default
+  1800 s): the state file keeps the time of the last one, across incidents.
+- Each restart sends ONE note to the same receiver as the alert:
+  `LINK RESTARTED on box <box>: stuck N min ..., ran ... -> exit <rc>`, with
+  `before:` (the stuck conditions) and `after:` (the conditions read again
+  right after the action, or `no condition left`).
+- The STUCK blocker and the CLEARED note are unchanged; a dry run prints
+  `PLAN restart ...` and runs nothing.
+- An action name that is not `[a-z][a-z0-9_-]*` is refused (exit 1).
+
+What a restart can fix depends on the action the box names. An action that
+only asks the running loop for a cycle at once cannot bring back a loop
+that is gone (condition d, no process): starting the loop again takes the
+owner's session token, which the hub does not keep.
+
 ## 2. Configure a box
 
 `$XDG_CONFIG_HOME/csi-spl/box-link-watch.env` (default
@@ -66,6 +94,7 @@ sourced; env wins over it:
 | `BOX_LINK_WATCH_HOME` | the relay checkout whose `run -a radiate` must run |
 | `BOX_LINK_WATCH_RESULTS` | the run-on-box results dir (optional) |
 | `BOX_LINK_WATCH_LOG_GLOB` | the hub log names (optional, default `*.out.log`) |
+| `BOX_LINK_WATCH_RESTART_ACTION` | the relay checkout's action that restarts the link (optional; unset = no restart, section 1.1) |
 
 No `BOX_LINK_WATCH_ROOT` -> nothing to watch, exit 0: the cron is a no-op on
 every box without the file.
@@ -134,4 +163,11 @@ csitea desks. A csitea topic's alert to a seat on another machine, and its
 fallback, go through the csitea desk only. With no workspace, nothing reaches
 the hub. Red control: the watcher from before SPL-4880 sends the same alerts
 as `t1 send ...` (13 cases fail).
+
+SPL-5522 case 22 runs a stub `<home>/run` and moves the clock with `GW_NOW`:
+stuck 9 min -> the blocker, no restart; 11 min -> one restart and one
+`LINK RESTARTED` note (before: the bundle, after: nothing left); stuck again
+12 min after the restart -> no second restart; 32 min after it -> the next;
+no action set or a dry run -> none; a bad action name -> refused. Red
+control: the watcher before SPL-5522 runs no restart at 11 min.
 

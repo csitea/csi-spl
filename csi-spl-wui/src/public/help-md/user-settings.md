@@ -294,9 +294,11 @@ permission. Its sections are:
   agent's machine.
 - **Vendor split**: how new agent work is shared among Claude, Grok, Antigravity,
   Qwen, Mistral and Codex (OpenAI). The six numbers add up to 100. They are a
-  guideline, not a quota. Per task kind, Codex has 15 of tests and simple coding
-  by default and never takes secrets or personal data; a box without the Codex
-  sign-in gives its share to the row's backup.
+  guideline, not a quota. In **Vendor split per task kind** (each row out of
+  100, with a backup vendor), Codex defaults to 15 out of 100 in **Tests** and
+  15 out of 100 in **Simple coding**, and never takes secrets, personal data or
+  orchestration; on a box where Codex is not installed or signed in, Codex's
+  share goes to that row's backup.
 - **Agent keys** (`/tenant-settings/agent-keys`): the workspace's own API key
   for each kind of agent, so the agents working for this workspace run on its
   own vendor account. Only admins and business owners see it. Each kind reads

@@ -124,10 +124,11 @@ back() {
   printf '%s 1 60 sh\n%s %s 60 claude\n' "$2" "$(( $2 + 1 ))" "$2" >> "$T/ps"
   mkdir -p "$T/proc/$(( $2 + 1 ))"; printf 'SPOOL_AGENT_ID=%s\0' "$1" > "$T/proc/$(( $2 + 1 ))/environ"
 }
-# settle <n>: the detached takeovers have landed (n lines) and every process
-# the ticks started has ended, so a stray is waited for, not raced (SPL-5525)
-landed() { (( $(started) >= $1 )); }
-settle() { wait_event 10 landed "$1"; wait_event 10 env_idle "SPOOL_ROOT=$S"; }
+# settle <n>: every process the ticks started (the detached takeovers among
+# them) has ended, so the takeover count is final and a stray is waited for,
+# not raced (SPL-5525). <n> is the most a case may make, kept as a note: a
+# control makes fewer, so waiting for n lines would run out the budget.
+settle() { wait_event 10 env_idle "SPOOL_ROOT=$S"; }
 ids() { awk '{print $2}' "$T/takeovers" 2>/dev/null | sort | paste -sd' ' -; }
 # mutant <function> <sed>: WD_EXTRA that redefines <function> with one check
 # cut out by <sed> (the control shown red)

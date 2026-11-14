@@ -48,13 +48,15 @@ mkdir -p "$T/spool/dispatch" "$T/tails"
 echo "c-002@box-a 1793464017" >"$T/spool/dispatch/lease"
 printf 'LEASE_ORCH=c-001\nLEASE_ENV=dev\nLEASE_TENANT=t1\n' >"$T/spool/dispatch/lease.conf"
 
-topic() { printf '{"task_id": "%s", "last_at": "%s"}' "$1" "$2"; }
+# topic <uuid> <last_at> [last_msg_id]: a hub list row; with no third
+# argument the stub hub names the tail's newest line (the hub sees every box).
+topic() { printf '{"task_id": "%s", "last_at": "%s"%s}' "$1" "$2" "${3:+, \"last_msg_id\": \"$3\"}"; }
 line() { printf '{"msg_id": "%s", "from": "%s", "kind": "%s", "ts": "%s", "body": "%s"}\n' "$@"; }
 # tail_of <uuid> <last agent kind> <last agent body> [human]: a topic where the
 # human asks and an agent answers last.
 tail_of() {
   { [[ "${4:-HUM-10}" == none ]] || line "m1-$1" "${4:-HUM-10}" msg 2026-11-12T09:00:00Z "please check"
-    line "m2-$1" c-002@sat "$2" 2026-11-12T10:00:00Z "$3"; } >"$T/tails/$1.ndjson"
+    line "m2-$1" c-002@box-a "$2" 2026-11-12T10:00:00Z "$3"; } >"$T/tails/$1.ndjson"
 }
 asks() { printf '{"fleet": "main", "hub": "%s", "asks": %s}\n' "${ASKS_HUB:-ok}" "$1" >"$T/asks.json"; }
 cands() { printf '{"topics": [%s]}\n' "$1" >"$T/cands.json"; }
@@ -84,7 +86,16 @@ suggest() {
     source "$FUNC"
     do_spl_desk_cnf() { :; }
     spl_desk_action_hop_to() { return 1; }
-    spl_zombie_hub_list() { echo "hub $ZOMBIE_IDLE_DAYS ${ZOMBIE_ORDER:-} ${ZOMBIE_SCOPE:-} $ZOMBIE_LIST_LIMIT" >>"$T/reads"; cat "$T/cands.json"; }
+    spl_zombie_hub_list() { echo "hub $ZOMBIE_IDLE_DAYS ${ZOMBIE_ORDER:-} ${ZOMBIE_SCOPE:-} $ZOMBIE_LIST_LIMIT" >>"$T/reads"; hub_heads; }
+    hub_heads() { python3 -c "
+import json, os, sys
+d = json.load(open(sys.argv[1]))
+for t in d[\"topics\"]:
+    p = sys.argv[2] + \"/\" + t[\"task_id\"] + \".ndjson\"
+    if \"last_msg_id\" not in t and os.path.exists(p):
+        ms = sorted((json.loads(x) for x in open(p) if x.strip()), key=lambda m: (m[\"ts\"], m[\"msg_id\"]))
+        t[\"last_msg_id\"] = ms[-1][\"msg_id\"] if ms else None
+print(json.dumps(d))" "$T/cands.json" "$T/tails"; }
     do_spl_asks_open() { echo "INFO a log line"; cat "$T/asks.json"; }
     spl_archive_suggest_tail() { cat "$T/tails/$1.ndjson"; }
     do_spl_desk_reply() {
@@ -156,7 +167,7 @@ reset; fixture4; suggest DRY_RUN=0
 answer "$A" B
 suggest DRY_RUN=0 ARCHIVE_SUGGEST_NOW=2026-11-14T10:00:00Z
 [[ ! -e "$T/archived" ]] && grep -q "^$A	keep	2026-11-14T10:00:00Z	" "$LED" && pass "4. answer B keeps: no archive, a keep row" || fail "4. B: $(cat "$LED" "$T/out")"
-sed -i "s/Answer: B/x/" "$T/tails/$A.ndjson"; line "r-$A" c-002@sat result 2026-11-15T10:00:00Z "done again" >>"$T/tails/$A.ndjson"
+sed -i "s/Answer: B/x/" "$T/tails/$A.ndjson"; line "r-$A" c-002@box-a result 2026-11-15T10:00:00Z "done again" >>"$T/tails/$A.ndjson"
 rm -f "$T/posted"; suggest DRY_RUN=0 ARCHIVE_SUGGEST_NOW=2026-11-20T10:00:00Z
 ! grep -q "^$A " "$T/posted" 2>/dev/null && grep -q "keep.$A.muted" "$T/out" && pass "4. 6 days after Keep the topic is muted" || fail "4. muted: $(cat "$T/out")"
 suggest DRY_RUN=0 ARCHIVE_SUGGEST_NOW=2026-11-21T10:00:01Z
@@ -255,9 +266,28 @@ suggest ARCHIVE_SUGGEST_FORCE=0; rc=$?
 [[ $rc == 0 ]] && grep -q "PLAN poll $A" "$T/out" && pass "12. a dry run needs no ARCHIVE_SUGGEST_BOX" || fail "12. dry: rc=$rc $(cat "$T/out")"
 reset; asks '[]'
 cands "$(topic "$A" "$OLD")"
-tail_of "$A" result "all done"; line "p-$A" c-003@box-b note 2026-11-12T12:00:00Z "**Archive suggestion** for topic x" >>"$T/tails/$A.ndjson"
+tail_of "$A" result "all done"; line "p-$A" c-003@box-a note 2026-11-12T12:00:00Z "**Archive suggestion** for topic x" >>"$T/tails/$A.ndjson"
 suggest DRY_RUN=0
-[[ ! -e "$T/posted" ]] && grep -q "keep.$A.already polled" "$T/out" && pass "12. an archive poll of another box as the last post: polled already" || fail "12. polled: $(cat "$T/out")"
+[[ ! -e "$T/posted" ]] && grep -q "keep.$A.already polled" "$T/out" && pass "12. an archive poll as the last post: polled already" || fail "12. polled: $(cat "$T/out")"
+
+# --- 13. R7 delta W1: the box tail misses another box's last post -----------------------
+# hub-tail is box-scoped (BoxTaskEnvelopes): an untagged desk reply or poll
+# from another box, or a post delivered only there, is not in this box's
+# tail. The hub list names the topic's real last post (topic_heads).
+reset; asks '[]'
+cands "$(topic "$A" "$OLD" p-other-box), $(topic "$B" "$OLD" n-other-box)"
+tail_of "$A" result "all done"; tail_of "$B" result "all done"
+suggest DRY_RUN=0; rc=$?
+[[ $rc == 0 && ! -e "$T/posted" ]] && grep -q "keep.$A.the box tail misses the last post p-other-" "$T/out" && grep -q "keep.$B.the box tail misses" "$T/out" &&
+  pass "13. a last post this box's tail does not hold (another box's poll or note) keeps the topic" || fail "13. W1: rc=$rc '$(posted)' $(cat "$T/out")"
+suggest DRY_RUN=0 -- "$(variant spl_archive_suggest_judge 's/elif not msgs or str(msgs\[-1\].get("msg_id", "")) != last:/elif False:/')"
+grep -q "^$A " "$T/posted" 2>/dev/null && pass "13. red control: without the last-post check the topic is polled again" || fail "13. W1 red: $(cat "$T/out")"
+reset; asks '[]'
+cands '{"task_id": "'"$A"'", "last_at": "'"$OLD"'", "last_msg_id": null}'
+tail_of "$A" result "all done"
+suggest DRY_RUN=0; rc=$?
+[[ $rc == 0 && ! -e "$T/posted" ]] && grep -q "keep.$A.the hub list names no last post" "$T/out" &&
+  pass "13. a hub list without last_msg_id (an older hub) polls nothing" || fail "13. no last id: rc=$rc $(cat "$T/out")"
 
 # --- 8. the cron script -----------------------------------------------------------------
 CRON="$PROJ_ROOT/src/bash/scripts/topic-archive-suggest-cron.sh"

@@ -20,7 +20,11 @@
 # @description not archived, no DM, not prioritised, no #lobby, member-only,
 # @description humans-only, AI-off or private-scope topic); a topic with no
 # @description human post is no owner topic and is skipped, one whose last
-# @description post is an archive poll (any box's) is polled already. The
+# @description post is an archive poll is polled already. A topic whose
+# @description box tail (hub-tail: only the posts from, to or delivered to
+# @description this box) does not end on the hub's last post of it
+# @description (last_msg_id of the list) is kept: a post sent from or routed
+# @description only to another box, its reply or its poll, is unseen. The
 # @description poll names its topic and its result (no two polls to one
 # @description person are the same text: the hub's duplicate_to_human). The poll:
 # @description   (A) Archive -> do_spl_topic_archive, as the dispatch holder
@@ -86,7 +90,7 @@ do_spl_topic_archive_suggest() {
   if hop_to="$(spl_desk_action_hop_to "$TENANT_ID" "$DESK_BOX")"; then
     spl_desk_action_hop do_spl_topic_archive_suggest "$hop_to" "$TENANT_ID" "$DESK_BOX" "$DESK_AGENT" \
       ARCHIVE_SUGGEST_MAX ARCHIVE_SUGGEST_SCAN ARCHIVE_SUGGEST_QUIET_H ARCHIVE_SUGGEST_MUTE_D \
-      ARCHIVE_SUGGEST_FORCE ARCHIVE_SUGGEST_NOW; return $?
+      ARCHIVE_SUGGEST_BOX ARCHIVE_SUGGEST_FORCE ARCHIVE_SUGGEST_NOW; return $?
   fi
   local work rc=0 lock
   exec {lock}>>"$root/dispatch/archive-suggest.lock" || { do_log "FATAL archive-suggest: cannot open $root/dispatch/archive-suggest.lock"; return 1; }
@@ -190,7 +194,7 @@ spl_archive_suggest_polls() {
   spl_archive_suggest_ledger "$led" >"$work/ledger.tsv"
   spl_archive_suggest_pick "$work" >"$work/pick.tsv" || { do_log "FATAL archive-suggest: the candidates could not be judged"; return 1; }
   mkdir -p "$work/tails"
-  while IFS=$'\t' read -r _ topic; do
+  while IFS=$'\t' read -r _ topic _; do
     spl_archive_suggest_tail "$topic" >"$work/tails/$topic.ndjson" 2>/dev/null || rm -f "$work/tails/$topic.ndjson"
   done < <(grep '^scan' "$work/pick.tsv")
   spl_archive_suggest_judge "$work" >"$work/verdict.tsv" || { do_log "FATAL archive-suggest: the topics could not be judged"; return 1; }
@@ -227,7 +231,8 @@ spl_archive_suggest_read() {
   printf '%s\n' "$out" >"$w/asks.json"
 }
 
-# spl_archive_suggest_pick <work>: newest first, `scan<TAB><uuid>` for at most
+# spl_archive_suggest_pick <work>: newest first, `scan<TAB><uuid><TAB><last
+# msg id>` (the hub's last post of it, `-` when the list has none) for at most
 # ARCHIVE_SUGGEST_SCAN topics, `keep<TAB><uuid><TAB><reason>` for the rest:
 # condition 2 (ask <id>), condition 3 (quiet), the ledger (polled, muted,
 # archived) and the scan cap.
@@ -280,7 +285,7 @@ for t in cands:
         print(f"keep\t{u}\t{why}")
     else:
         n += 1
-        print(f"scan\t{u}")
+        print(f"scan\t{u}\t{t.get('last_msg_id') or '-'}")
 PY
 }
 
@@ -288,8 +293,10 @@ PY
 # `poll<TAB><uuid><TAB><human><TAB><why>` for at most ARCHIVE_SUGGEST_MAX,
 # else `keep<TAB><uuid><TAB><reason>`: condition 1 (the topic's last post is
 # an agent's result), condition 3 again on the tail (a post since the list),
-# an owner topic (a person posted), not polled already (an archive poll of
-# any box is the last post), a readable tail, the poll cap. A poll is no
+# an owner topic (a person posted), not polled already (an archive poll is
+# the last post), a readable tail that ends on the hub's last post (a box
+# tail misses a post sent from or routed only to another box), the poll
+# cap. A poll is no
 # result: after a Keep only a new result makes the topic a candidate again.
 spl_archive_suggest_judge() {
   python3 - "$1" "$ARCHIVE_SUGGEST_MAX" "${ARCHIVE_SUGGEST_NOW:-}" "$ARCHIVE_SUGGEST_QUIET_H" <<'PY'
@@ -312,7 +319,7 @@ for line in open(f"{w}/pick.tsv"):
     f = line.rstrip("\n").split("\t")
     if f[0] != "scan":
         continue
-    u, path = f[1], f"{w}/tails/{f[1]}.ndjson"
+    u, last, path = f[1], (f[2:3] or ["-"])[0], f"{w}/tails/{f[1]}.ndjson"
     if not os.path.exists(path):
         print(f"keep\t{u}\ttail unreadable")
         continue
@@ -324,10 +331,14 @@ for line in open(f"{w}/pick.tsv"):
             continue
         if isinstance(m, dict):
             msgs.append(m)
-    msgs.sort(key=lambda m: str(m.get("ts", "")))
+    msgs.sort(key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
     humans = [m for m in msgs if str(m.get("from", "")).startswith(people)]
     agents = [m for m in msgs if not str(m.get("from", "")).startswith(people)]
-    if not humans:
+    if last == "-":
+        why = "the hub list names no last post"
+    elif not msgs or str(msgs[-1].get("msg_id", "")) != last:
+        why = f"the box tail misses the last post {last[:8]} (another box's)"
+    elif not humans:
         why = "no human post"
     elif str(msgs[-1].get("body", "")).startswith("**Archive suggestion**"):
         why = "already polled"

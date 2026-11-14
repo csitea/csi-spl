@@ -243,7 +243,15 @@ W2).
   (append only: topic, state `asked` | `archived` | `keep`, time, poll id,
   tenant; the last row of a topic wins). An asked topic is never polled
   again; an archived one never. A topic whose last post is an archive poll
-  (any box's) is polled already. One run at a time: the action holds
+  is polled already. **The box tail is not the topic** (R7 delta W1):
+  `hub-tail` holds only the posts from, to or delivered to this box
+  (`BoxTaskEnvelopes`), so an untagged desk reply or poll from another box,
+  or a person's post delivered only to another box's seats, is missing from
+  it. The hub list carries each topic's real last post
+  (`topic_heads.last_msg_id`, field `last_msg_id`); a topic whose box tail
+  does not end on it is kept, and so is one the list names no last post for
+  (an older hub). The answers have the same limit: a person's `Answer:`
+  that reaches only another box is read when it is in this box's tail. One run at a time: the action holds
   `dispatch/archive-suggest.lock` (`flock -n`; a second run, cron or by
   hand, says OK and does nothing). The ledger and the stamp are box-local
   files, so a live run (`DRY_RUN=0`) needs this box to be
@@ -269,10 +277,12 @@ posts nothing; A archives, B mutes 7 days; red controls: a code variant
 without condition 1, 2 or 3, or without the ledger check, polls the topic it
 kept; R7 cases 10-12: a follow-up or a young tail keeps the topic, with a red
 control; two polls are two texts; a failed poll stamps the day; the lock;
-`ARCHIVE_SUGGEST_BOX`; another box's poll). Hub:
-`TestZombieTopicsListsIdleHeads` (`order=newest`), `TestZombieTopicsOpenScope`
+`ARCHIVE_SUGGEST_BOX`; an archive poll last; case 13: a last post the box
+tail lacks, or no `last_msg_id`, keeps the topic, with a red control). Hub:
+`TestZombieTopicsListsIdleHeads` (`order=newest`, `last_msg_id` = the
+latest line, not the card), `TestZombieTopicsOpenScope`
 (`scope=open`, red without the filter) and `TestZombieTopicsRefusals` (a bad
 `order` or `scope` is 400) in
 `csi-spl-api/src/go/spool-hub-api/internal/hub/zombie_topics_test.go`.
 
-<!-- version: 0.3.1 · updated: 2026-11-14 · last-edit: 2026-11-14T22:30:00Z -->
+<!-- version: 0.3.2 · updated: 2026-11-14 · last-edit: 2026-11-14T23:10:00Z -->

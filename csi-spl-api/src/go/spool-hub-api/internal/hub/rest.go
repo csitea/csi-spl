@@ -269,7 +269,9 @@ func (s *Server) fileReader(w http.ResponseWriter, r *http.Request) (store.Tenan
 //
 //   - a BOX, by its upload token: a message with that box at either end, or
 //     one delivered to it (a channel post is addressed to box-wui and reaches
-//     member boxes as delivery rows).
+//     member boxes as delivery rows), or a channel post in a channel the box
+//     seats an agent of (boxMemberReadsFile, SPL-5521: the back-fill writes
+//     no delivery row).
 //   - box-wui, the virtual browser audience, is NOT a principal here. A
 //     browser holds a box-wui upload token from its `welcome` frame, and the
 //     WUI downloads with its session cookie, never that token - so honouring
@@ -324,6 +326,9 @@ func (s *Server) fileReadableBy(ctx context.Context, tenant, fileID, box, hum st
 	var err error
 	if box != "" {
 		may, err = s.o.Store.FileReadableByBox(ctx, tenant, fileID, box, now)
+		if err == nil && !may {
+			may, err = s.boxMemberReadsFile(ctx, tenant, fileID, box, now)
+		}
 	} else {
 		var mine []string
 		if mine, err = s.readerChannels(ctx, tenant, hum); err == nil {

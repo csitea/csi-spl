@@ -364,7 +364,9 @@ type Hub struct {
 	HumanPostGuard bool `env:"SPOOL_HUB_HUMAN_POST_GUARD" envDefault:"true"`
 	// SPL-5524 (spec 157): a workspace owner's browser post carrying one of
 	// these words (whole words, any case) marks its topic priority 1, so its
-	// queued spawn asks rank first (hub/owner_prio_word.go). Empty = off.
+	// queued spawn asks rank first (hub/owner_prio_word.go). Set and empty
+	// = off (LoadHub; the library would read "" as the default); unset = the
+	// default words.
 	OwnerPrioWords []string `env:"SPOOL_HUB_OWNER_PRIO_WORDS" envSeparator:"," envDefault:"prio,priority one,urgent"`
 	// SPL-1225: the relay also escalates a signed human post that no agent
 	// replied to in its topic within this grace to the tenant's responder,
@@ -720,6 +722,16 @@ func (h *Hub) WUIPrivateKey() (ed25519.PrivateKey, error) {
 	return nil, nil
 }
 
+// ownerPrioWordsOff honours SPOOL_HUB_OWNER_PRIO_WORDS set to "" (or only
+// commas and spaces) as off: env/v10 replaces an empty value with the
+// envDefault (SPL-5524 R7 W3).
+func (h *Hub) ownerPrioWordsOff() {
+	v, ok := os.LookupEnv("SPOOL_HUB_OWNER_PRIO_WORDS")
+	if ok && strings.Trim(v, ", \t") == "" {
+		h.OwnerPrioWords = nil
+	}
+}
+
 // LoadHub parses the hub environment and fails fast on a missing or
 // contradictory value.
 func LoadHub() (*Hub, error) {
@@ -730,6 +742,7 @@ func LoadHub() (*Hub, error) {
 	if h.Port != "" {
 		h.ListenAddr = ":" + h.Port
 	}
+	h.ownerPrioWordsOff()
 	for _, check := range []func() error{h.checkStorage, h.checkLimits, h.checkViews, h.checkWUIKey, h.checkLeak} {
 		if err := check(); err != nil {
 			return nil, err

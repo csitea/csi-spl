@@ -29,6 +29,7 @@
 #        own poll included; an ordinary channel with the map -> 1; the
 #        holder as the sole seat -> 1; fail closed: a malformed column 6, or
 #        a spool binary without --with-channel while the map exists -> 0
+#   ACK_DEFER_S=0: the deferral (SPL-5514) is spl-ack-take-quiet.tst.sh's.
 #   POLL_ACK_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -80,7 +81,7 @@ run() {
   # shellcheck disable=SC2016 # the script is single-quoted on purpose
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPOOL_ROOT="$T/s/spool" SPL_STATE_DIR="$T/s/state" \
     POLL_ACK_NOW="$NOW" POLL_ACK_SEND="$T/send.sh" WAKE_LOG="$T/s/wakes.log" REPLY_LOG="$T/s/replies.log" \
-    TAILS="$T/s/tails" SPL_SPOOL=/nonexistent/spool DESK_BOX=boxa DRY_RUN=0 "$@" bash -c '
+    TAILS="$T/s/tails" SPL_SPOOL=/nonexistent/spool DESK_BOX=boxa DRY_RUN=0 ACK_DEFER_S=0 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }

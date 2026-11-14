@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	uuid "github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
@@ -50,12 +51,13 @@ func IsCostMonth(v string) bool {
 }
 
 // CheckCostEntry names the first thing it may not carry ("" = fine): the Go
-// side of rdb 0245's CHECKs.
+// side of rdb 0245's CHECKs. Lengths are characters, as length() counts
+// them there, never UTF-8 bytes (SPL-5488).
 func CheckCostEntry(e CostEntry) string {
 	switch {
 	case !slices.Contains(CostEntryTypes, e.Type):
 		return "type must be cloud or hr"
-	case strings.TrimSpace(e.Label) == "" || len(e.Label) > 100:
+	case strings.TrimSpace(e.Label) == "" || utf8.RuneCountInString(e.Label) > 100:
 		return "label must be 1..100 characters"
 	case math.IsNaN(e.Amount) || math.IsInf(e.Amount, 0) || e.Amount <= 0 || e.Amount >= 1e10:
 		return "amount must be a number above 0"
@@ -63,7 +65,7 @@ func CheckCostEntry(e CostEntry) string {
 		return "currency must be an ISO 4217 code such as USD or EUR"
 	case !IsCostMonth(e.Period):
 		return "period must be a month YYYY-MM"
-	case len(e.Note) > 2000:
+	case utf8.RuneCountInString(e.Note) > 2000:
 		return "note must be at most 2000 characters"
 	}
 	return checkHRLine(e)

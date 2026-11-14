@@ -38,7 +38,7 @@
 #      := it, nothing restarts
 #   3. a desk-cron commit that changes csi-spl-orc -> rolling restart
 #      1 -> 2 -> 3 (EXEC lines in that order, each self-check tick green),
-#      DONE in < 70 s, instance 1's check time is its own tick (not the
+#      DONE within 3 x UPD_WAIT (the action's own budget), instance 1's check time is its own tick (not the
 #      pre-flight before its exec), all 3 heartbeats on the new sha, the same 3 pids
 #      (exec, not restart), never fewer than 2 live instances (sampled
 #      every 0.2 s), good := new sha, no candidate, no update.state
@@ -282,14 +282,23 @@ out="$(lib 'spl_wd_inst_runner "$WD_DIR"')"
 [[ "$out" == "$W/code/good/csi-spl-orc/run" ]] && pass "1 a (re)started instance runs code/good, never the candidate" || fail "1 runner: $out"
 # the self-check tick waits out a peer's judge lock (it must judge 1 agent);
 # control: an ordinary tick skips the held agent at once
-jl='if flock -n 6; then echo FREE; elif spl_wd_upd_lock_wait 6; then echo WAITED; else echo SKIPPED; fi'
-flock "$W/c-901.judge.lock" sleep 2 & JH=$!; sleep 0.3
-out="$(lib 'WD_UPD_EXEC=x WD_UPD_ROLE=forward; exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl")"
-wait "$JH"
+# No wall time (SPL-5493: a "sleep 0.3" head start and a 2 s hold went red at
+# load ~75): the peer holds the lock until the tick has seen it held and
+# touched judge.go, so FREE, WAITED and SKIPPED each say what the tick did.
+jl='if flock -n 6; then echo FREE; else touch "$GO"; if spl_wd_upd_lock_wait 6; then echo WAITED; else echo SKIPPED; fi; fi'
+# hold_judge: a peer holds c-901's judge lock until $T/judge.go exists
+hold_judge() {
+  rm -f "$T/judge.go"
+  flock "$W/c-901.judge.lock" bash -c 'until [[ -e "$1" ]]; do sleep 0.05; done' _ "$T/judge.go" & JH=$!
+  for _ in $(seq 1 "$WAIT_N"); do held "$W/c-901.judge.lock" && break; sleep 0.1; done
+}
+hold_judge
+out="$(lib 'WD_UPD_EXEC=x WD_UPD_ROLE=forward; exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl" GO="$T/judge.go")"
+touch "$T/judge.go"; wait "$JH"
 [[ "$out" == *WAITED* ]] && pass "1 the self-check tick waits for a peer's judge lock" || fail "1 lock wait: $out"
-flock "$W/c-901.judge.lock" sleep 2 & JH=$!; sleep 0.3
-out="$(lib 'exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl")"
-wait "$JH"
+hold_judge
+out="$(lib 'exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl" GO="$T/judge.go")"
+touch "$T/judge.go"; wait "$JH"
 [[ "$out" == *SKIPPED* ]] && pass "1 control: an ordinary tick skips an agent a peer judges" || fail "1 lock control: $out"
 # the first tick after an exec measures its gap from the exec, not from the
 # tick before the pre-flight: a slow pre-flight (a loaded box) read as a
@@ -464,12 +473,16 @@ P0="$(pids)"
 echo '# v3' >> "$O/sit/s1.sh"; SHA_C="$(commit C)"; t0="$(date +%s)"
 : > "$T/live"
 ( while :; do live >> "$T/live"; sleep 0.2; done ) & SAMPLER=$!
-wait_for "DONE instances 1 2 3 on ${SHA_C:0:9}" 100; t1="$(date +%s)"
+# ROLL_WAIT: the action's own budget for 3 instances, each one at most a
+# whole verdict (UPD_WAIT); a fixed "< 70 s" read 71..73 s at load ~75
+# (SPL-5493). The order and the green ticks are asserted below.
+ROLL_WAIT=$(( 3 * UPD_WAIT ))
+wait_for "DONE instances 1 2 3 on ${SHA_C:0:9}" "$ROLL_WAIT"; t1="$(date +%s)"
 kill "$SAMPLER" 2>/dev/null; wait "$SAMPLER" 2>/dev/null
 grep "UPDATE" "$LOG" | sed -n '/START '"${SHA_C:0:9}"'/,$p' > "$T/roll"
 cp "$T/roll" "${WD_UPD_TEST_KEEP:-/dev/null}" 2>/dev/null || true
-[[ "$(cnt "DONE instances 1 2 3 on ${SHA_C:0:9}" "$LOG")" == 1 ]] && (( t1 - t0 < 70 )) &&
-  pass "3 rolling restart DONE in $(( t1 - t0 ))s after the commit (< 70 s, tick ${TICK}s)" || fail "3 done: $(( t1 - t0 ))s; $(tail -n 8 "$LOG")"
+[[ "$(cnt "DONE instances 1 2 3 on ${SHA_C:0:9}" "$LOG")" == 1 ]] && (( t1 - t0 <= ROLL_WAIT )) &&
+  pass "3 rolling restart DONE in $(( t1 - t0 ))s after the commit (budget ${ROLL_WAIT}s, tick ${TICK}s)" || fail "3 done: $(( t1 - t0 ))s; $(tail -n 8 "$LOG")"
 # instance 1's check time runs from its exec, not from the tick start before the pre-flight
 e1="$(grep -m1 'instance 1: EXEC forward' "$T/roll" | cut -c1-20)"; g1="$(grep -m1 'instance 1: instance 1 on .*self-check tick green' "$T/roll")"
 took1="$(sed -n 's/.*green in \([0-9]*\)s.*/\1/p' <<<"$g1")"

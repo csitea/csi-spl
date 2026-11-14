@@ -81,7 +81,7 @@ wd() {
     source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"
     do_spl_watchdog' 2>&1 | tee -a "$T/all.out"
 }
-settle() { for _ in $(seq 1 20); do [[ -s "$T/takeovers" ]] && return; sleep 0.1; done; }
+settle() { wait_event 10 test -s "$T/takeovers"; }
 human='a human client was active 20s ago'
 
 # 1. S1: a lane's task waits 130 s past its last progress -> the ring

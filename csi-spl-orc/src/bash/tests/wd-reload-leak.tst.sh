@@ -114,21 +114,11 @@ old_tees() {
   echo "$n"
 }
 # settle PID WANT: kids PID drops to WANT within 5 s; prints the last count
-settle() {
-  local i k
-  for (( i = 0; i < 50; i++ )); do
-    k="$(kids "$1")"
-    (( k <= $2 )) && break
-    sleep 0.1
-  done
-  echo "$k"
-}
+kids_at_most() { (( $(kids "$1") <= $2 )); }
+settle() { wait_event 5 kids_at_most "$1" "$2"; kids "$1"; }
 execs_n() { wc -l < "$W/execs" 2>/dev/null || echo 0; }
-wait_execs() {
-  local i
-  for (( i = 0; i < 100; i++ )); do (( $(execs_n) >= $1 )) && return 0; sleep 0.1; done
-  return 1
-}
+execs_at_least() { (( $(execs_n) >= $1 )); }
+wait_execs() { wait_event 10 execs_at_least "$1"; }
 held() { [[ -f "$1" ]] && ! flock -n "$1" true; }
 
 PID=""

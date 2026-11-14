@@ -71,19 +71,20 @@ printf '#!/usr/bin/env bash\ncase "${1:-}" in --norm|--scrub) cat ;; *) [[ -e "$
 cat > "$T/bin/takeover" <<STUB
 #!/usr/bin/env bash
 id="\$ID" T="$T" H="$D/rotate.hold" got=""
+trap 'echo "\$id" >> "\$T/exited"' EXIT
 echo "\$id cause=\$CAUSE" >> "\$T/takeovers"
 mkdir -p "$S/\$id/lifetime"; echo "\$LEASE_NOW \$CAUSE" >> "$S/\$id/lifetime/restarts"
-if [[ -e "\$T/fail.\$id" ]]; then echo "2027-01-15T08:05:00Z x-rs-\$id RS-SPAWN FAIL no mistral session carrying \$id started in %5 within 120s"; exit 1; fi
+if [[ -e "\$T/fail.\$id" ]]; then echo "\$id" >> "\$T/gated"; echo "2027-01-15T08:05:00Z x-rs-\$id RS-SPAWN FAIL no mistral session carrying \$id started in %5 within 120s"; exit 1; fi
 first=1 last=4; [[ "\$id" =~ -00[1-4]\$ ]] && first=0 last=0
 mkdir -p "$S/peer"
 for (( n = first; n <= last; n++ )); do
   exec 6>> "$S/peer/restart.slot.\$n"; if flock -n 6; then got=\$n; break; fi; exec 6>&-
 done
-refuse() { echo "REFUSED \$id: \$1"; echo "\$id \$1" >> "\$T/refused"; exit 4; }
+refuse() { echo "REFUSED \$id: \$1"; echo "\$id \$1" >> "\$T/refused"; echo "\$id" >> "\$T/gated"; exit 4; }
 [[ -n "\$got" ]] || refuse "no free restart slot (peer/restart.slot.\$first..\$last are held)"
 if [[ -s "\$H" ]]; then read -r hid _ < "\$H"; [[ "\$hid" == "\$id" ]] || refuse "rotate.hold names \$hid: a rotation runs on this box"; fi
 [[ "\$id" =~ -00[1-3]\$ ]] && echo "\$id $(( BT + 1 )) rid" > "\$H"
-echo "\$id" >> "\$T/ran"
+echo "\$id" >> "\$T/ran"; echo "\$id" >> "\$T/gated"
 for _ in \$(seq 1 400); do [[ -e "\$T/go.\$id" ]] && break; sleep 0.05; done
 [[ "\$id" =~ -00[1-3]\$ ]] && rm -f "\$H"
 touch "\$T/end.\$id"
@@ -95,7 +96,7 @@ IDS="c-001 c-002 c-003 c-101 c-102 c-103 c-104 c-105 c-106 c-107 c-108"
 # box: the box after the boot BT; every id of IDS ran here just before it
 box() {
   local id
-  rm -rf "${S:?}" "${T:?}/proc" "${T:?}/wt" "$T"/takeovers "$T"/refused "$T"/ran "$T"/go.* "$T"/end.*
+  rm -rf "${S:?}" "${T:?}/proc" "${T:?}/wt" "$T"/takeovers "$T"/refused "$T"/ran "$T"/go.* "$T"/end.* "$T"/gated "$T"/exited
   mkdir -p "$W" "$T/proc" "$T/wt" "$S/peer"; : > "$T/ps"; : > "$T/tmux/panes"; : > "$S/registry.tsv"
   touch "$T/tmux/up"; rm -f "$T"/fail.*
   cp "$T/box.env" "$S/box.env"
@@ -124,18 +125,25 @@ wd() {
 }
 n_of() { grep -c . "$1" 2>/dev/null || echo 0; }
 started() { n_of "$T/takeovers"; }
-# settle <n>: n restarts have passed the stub's gate (ran or refused)
-settle() {
-  for _ in $(seq 1 100); do (( $(n_of "$T/ran") + $(n_of "$T/refused") >= $1 )) && break; sleep 0.05; done
-  sleep 0.2
-}
+# launched: the restarts the ticks started since box(); the TAKEOVER line is
+# written right before the detached start, so it is complete once wd returns
+launched() { local n; n="$(grep -cE '^[^ ]+ TAKEOVER ' "$D/wd.log" 2>/dev/null)"; echo "${n:-0}"; }
+# settle <n>: n restarts have passed the stub's gate (ran or refused) and every
+# restart the ticks launched has reached its gate (ran, refused or failed): a
+# stray is waited for, not raced with a nap (SPL-5525)
+gated_all() { (( $(n_of "$T/ran") + $(n_of "$T/refused") >= $1 && $(n_of "$T/gated") >= $(launched) )); }
+settle() { wait_event 10 gated_all "$1"; }
+# quiet: every restart the ticks launched has exited (a failed spawn has
+# written its FAIL line for the next tick to read)
+exited_all() { (( $(n_of "$T/exited") >= $(launched) )); }
+quiet() { wait_event 20 exited_all; }
 pid=7000
 # release <id>...: each restart ends, the id runs again (a window and a process)
 release() {
   local id
   for id in "$@"; do
     touch "$T/go.$id"
-    for _ in $(seq 1 100); do [[ -e "$T/end.$id" ]] && break; sleep 0.05; done
+    wait_event 5 test -e "$T/end.$id"
     pid=$(( pid + 2 ))
     printf '%%%s\t%s\t$1\t%s@box1\tclaude\n' "$pid" "$pid" "$id" >> "$T/tmux/panes"
     printf '%s 1 60 sh\n%s %s 60 claude\n' "$pid" "$(( pid + 1 ))" "$pid" >> "$T/ps"
@@ -145,7 +153,7 @@ release() {
 # new_ids <before>: the ids started since line <before> of takeovers
 new_ids() { tail -n +$(( $1 + 1 )) "$T/takeovers" 2>/dev/null | awk '{print $1}' | sort | paste -sd' ' -; }
 last_sum() { grep 'BOOT .*started' "$D/wd.log" | tail -1 | sed 's/.*Z: //; s/.*Z done: //'; }
-cleanup_stubs() { local id; for id in $IDS; do touch "$T/go.$id"; done; sleep 0.3; }
+cleanup_stubs() { local id; for id in $IDS; do touch "$T/go.$id"; done; quiet; }
 
 # ---- 1. the queue ----------------------------------------------------------------
 echo "=== 1. 11 ids at boot, 4 lane slots: all restarted over the ticks, 0 refused"
@@ -225,9 +233,9 @@ kill_daemons() { local p; while read -r p; do kill "$p" 2>/dev/null; done < "$T/
 # drill4 [WD_EXTRA [label]]: m-617 ran before the boot, no tmux server, every spawn fails
 drill4() {
   IDS="m-617"; box; rm -f "$T/tmux/up"; touch "$T/fail.m-617"; wd $(( BT + 60 ))
-  WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 300 )); sleep 0.3
+  WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 300 )); quiet
   [[ -e "$T/tmux/up" ]] && grep -q "session 'main' created" "$D/wd.log" && pass "${2:-}tick 1: the pass made the tmux server" || fail "${2:-}tick 1: no tmux session ($(last_sum))"
-  WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 330 )); sleep 0.3
+  WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 330 )); quiet
   WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 360 ))
 }
 drill4
@@ -253,7 +261,7 @@ window_only() {
   local id
   for id in "$@"; do
     touch "$T/go.$id"
-    for _ in $(seq 1 100); do [[ -e "$T/end.$id" ]] && break; sleep 0.05; done
+    wait_event 5 test -e "$T/end.$id"
     pid=$(( pid + 2 ))
     printf '%%%s\t%s\t$1\t%s@box1\tsh\n' "$pid" "$pid" "$id" >> "$T/tmux/panes"
     printf '%s 1 60 sh\n' "$pid" >> "$T/ps"
@@ -280,7 +288,7 @@ echo "=== 6. drill 6: an m- seat with only a node (MCP) child carrying its id ->
 proc_only() {
   local id="$1" c; shift
   touch "$T/go.$id"
-  for _ in $(seq 1 100); do [[ -e "$T/end.$id" ]] && break; sleep 0.05; done
+  wait_event 5 test -e "$T/end.$id"
   pid=$(( pid + 2 ))
   printf '%%%s\t%s\t$1\t%s@box1\tsh\n' "$pid" "$pid" "$id" >> "$T/tmux/panes"
   printf '%s 1 60 sh\n' "$pid" >> "$T/ps"
@@ -309,7 +317,7 @@ echo "=== 7. drill 7: a dead seat's S3 before the boot pass -> waits, not counte
 # spawn fails; four ticks inside the boot pass's start grace, S3 hitting
 pre_boot() {
   IDS="c-002"; box; rm -f "$T/tmux/up" "$W/last.tick"; echo c-002 > "$S/peer/seats"; touch "$T/s3hit" "$T/fail.c-002" "$T/go.c-002"
-  local s; for s in 60 90 120 150; do WD_EXTRA="${1:-}" wd $(( BT + s )); sleep 0.3; done
+  local s; for s in 60 90 120 150; do WD_EXTRA="${1:-}" wd $(( BT + s )); quiet; done
 }
 lt() { grep -c "$1" "$S/c-002/lifetime/restarts" 2>/dev/null || echo 0; }
 pre_boot 'spl_wd_boot_pending() { return 0; }'
@@ -326,7 +334,7 @@ wd $(( BT + 330 ))
 [[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" ]] && grep -q 'done: 1 restart(s) started, 0 refused, 1 back' "$D/wd.log" && pass "boot done, the done line counts the whole boot (1 started, 1 back)" || fail "done: $(last_sum)"
 # control: c-002 dead again after the boot pass (its window and process gone)
 : > "$T/tmux/panes"; : > "$T/ps"; touch "$T/s3hit"; rm -f "$T/go.c-002"; touch "$T/go.c-002"
-for s in 660 690 720; do wd $(( BT + s )); sleep 0.3; done
+for s in 660 690 720; do wd $(( BT + s )); quiet; done
 [[ "$(lt S3)" == 1 ]] && pass "control: after the boot pass S3 restarts the dead seat (cause S3)" || fail "control: post-boot S3: $(cat "$S/c-002/lifetime/restarts" 2>/dev/null)"
 rm -f "$T/s3hit"; cleanup_stubs
 

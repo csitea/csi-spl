@@ -37,7 +37,8 @@ shift 2
 chmod 700 "$RB"; "\$@"; rc=\$?; chmod 000 "$RB"; exit \$rc
 STUB
 printf '#!/bin/sh\nexit 1\n' >"$T/stub/as-refused"
-printf '#!/bin/sh\nexec sleep 20\n' >"$T/stub/as-hang"
+# hangs 20 s, then marks hang.done: a call back before that mark was cut
+printf '#!/bin/sh\nsleep 20\n: >"%s/hang.done"\n' "$T" >"$T/stub/as-hang"
 chmod +x "$T/stub/"*
 printf 'SPOOL_AGENT_USER=%s\n' "$DU" >"$T/box.env"
 
@@ -72,8 +73,8 @@ got="$(tenants "$T/stub/as")"
   fail "1-2. tenants: '$got'"
 got="$(tenants "$T/stub/as-refused")"
 [[ "$got" == "both own-a " ]] && pass "3. no sudo rule: this user's own tenants, as before" || fail "3. refused: '$got'"
-t0=$SECONDS; got="$(tenants "$T/stub/as-hang")"; took=$((SECONDS - t0))
-[[ "$got" == "both own-a " && "$took" -lt 8 ]] && pass "3. a hop that hangs is cut at its limit (${took}s)" || fail "3. hang: '$got' ${took}s"
+got="$(tenants "$T/stub/as-hang")"
+[[ "$got" == "both own-a " && ! -e "$T/hang.done" ]] && pass "3. a hop that hangs is cut at its limit (back before the hop ends)" || fail "3. hang: '$got', waited for the hop: $([[ -e "$T/hang.done" ]] && echo yes || echo no)"
 
 lines() { grep -c "$1" "$T/spool/dispatch/lease.log" 2>/dev/null; }
 [[ "$(lines 'COPY-ROOT-UNREAD .*the hop to t-desk-user failed (rc 1)')" == 1 && "$(lines 'COPY-ROOT-UNREAD')" == 1 ]] &&

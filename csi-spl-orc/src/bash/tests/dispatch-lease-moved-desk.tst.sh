@@ -206,11 +206,11 @@ in_orc "$T/box.env.half" as 'LEASE_ORCH=c-001 spl_fleet_alert_post "bench line" 
 has "5a. the #alerts post runs as B, B's HOME" "RUN HOME=$HB -a do_spl_desk_post" "$(cat "$T/runs")"
 : >"$T/runs"
 in_orc "$T/box.env.half" as 'LEASE_ASKS=1 spl_lease_asks_tick' >/dev/null
-for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -s "$T/runs" ]] && break; sleep 0.2; done
+wait_event 10 test -s "$T/runs"
 has "5b. the asks tick runs as B, B's HOME" "RUN HOME=$HB -a do_spl_asks_tick" "$(cat "$T/runs")"
 : >"$T/runs"
 in_orc "$T/box.env.half" as 'spl_fleet_owner_dm c-001@sat "notice text"' >/dev/null
-for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -s "$T/runs" ]] && break; sleep 0.2; done
+wait_event 10 test -s "$T/runs"
 has "5c. the ops notice runs as B, B's HOME" "RUN HOME=$HB -a do_spl_fleet_notice" "$(cat "$T/runs")"
 chmod 700 "$RB"
 

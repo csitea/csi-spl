@@ -174,12 +174,11 @@ hb() {  # hb <id> <state> <progress age> [jq extra]
 loop() {  # loop <id>: a running poll loop of <id>
   local d="$S/peer/$1"; mkdir -p "$d"
   setsid bash -c 'exec 7> "$1"; flock 7; echo $$ > "$2"; exec sleep 300' _ "$d/poll.run" "$d/poll.pid" &
-  for _ in $(seq 1 30); do [[ -s "$d/poll.pid" ]] && break; sleep 0.1; done
+  wait_event 10 test -s "$d/poll.pid"
 }
 take() { env "$@" "$T/bin/act" > "$T/o" 2>&1; echo $?; }
 alive() { [[ -d "$T/proc/$1" ]]; }
 win() { awk -F'\t' -v p="$1" '$1 == p {print $4}' "$T/tmux/panes"; }
-waitfor() { for _ in $(seq 1 50); do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.1; done; return 1; }
 
 # proof of a done takeover: proof <desc> <id> <old pid|-> <old pane> <code>
 proof() {
@@ -237,7 +236,7 @@ world; echo "c-004 claude" > "$S/peer/seats"; agent c-004 %4 4004; hb c-004 in-t
 loop c-004; lpid="$(cat "$S/peer/c-004/poll.pid")"
 rc="$(take ID=c-004 REASON=S4 DRY_RUN=0 REQ_FROM=c-002)"
 proof "2. a seat (c-004, S4, requested by seat c-002): a fresh session" c-004 4004 %4 S4
-! kill -0 "$lpid" 2>/dev/null && grep -q 'WD-LOOP OK the c-004 poll loop is stopped' "$T/o" && waitfor "$T/run.log" '^do_spl_peer_poll PEER_SEAT=c-004 ' &&
+! kill -0 "$lpid" 2>/dev/null && grep -q 'WD-LOOP OK the c-004 poll loop is stopped' "$T/o" && wait_event 5 grep -q '^do_spl_peer_poll PEER_SEAT=c-004 ' "$T/run.log" &&
   pass "2. its poll loop stopped first, started again after" || fail "2. loop: $(cat "$T/o")"
 grep -qx "$T0" "$D/wd/c-004.takeovers" && pass "2. a seat's request is counted in the hourly limit" || fail "2. count: $(cat "$D/wd/c-004.takeovers" 2>/dev/null)"
 

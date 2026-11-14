@@ -122,8 +122,10 @@ both() {
 # made their last write. One still running when the next case resets the box
 # lands in the new rotate.log and that judge skips the id (gate 10 run
 # 37969307772: '4 S9:  /' after the S9 control's two restarts)
-settle() { local n="${1:-1}"; for _ in $(seq 1 300); do (( $(grep -c . "$T/takeover.done" 2>/dev/null || true) >= n )) && return; sleep 0.1; done; }
+done_n() { local c; c="$(grep -c . "$T/takeover.done" 2>/dev/null)"; (( ${c:-0} >= $1 )); }
+settle() { wait_event 30 done_n "${1:-1}"; }
 held() { [[ -f "$1" ]] && ! flock -n "$1" true; }
+none_held() { ! held "$W/run.1.lock" && ! held "$W/run.2.lock" && ! held "$W/run.3.lock"; }
 cnt() { local n; n="$(grep -c -- "$1" "$2" 2>/dev/null)"; echo "${n:-0}"; }
 
 # ---- 1. three instances at once, by spl_wd_inst_start ---------------------------
@@ -134,7 +136,7 @@ stop_all() {
     p="$(cat "$W/run.$i.pid" 2>/dev/null || true)"
     [[ "$p" =~ ^[0-9]+$ ]] && { kill -- "-$p" 2>/dev/null || kill "$p" 2>/dev/null; }
   done
-  for _ in $(seq 1 50); do held "$W/run.1.lock" || held "$W/run.2.lock" || held "$W/run.3.lock" || return 0; sleep 0.1; done
+  wait_event 5 none_held
 }
 trap 'stop_all; rm -rf "$T"' EXIT
 start() { env "${wd_env[@]}" WD_RUN="$T/bin/run" WD_TICK=2 WD_INST_START="$1" bash -c '
@@ -150,13 +152,15 @@ p1="$(cat "$W/run.1.pid" 2>/dev/null)"; p2="$(cat "$W/run.2.pid" 2>/dev/null)"; 
   pass "1 three live pids in run.<inst>.pid" || fail "1 pids: '$p1' '$p2' '$p3'"
 sids="$(for p in "$p1" "$p2" "$p3"; do ps -o sid= -p "$p" | tr -d ' '; done | tr '\n' ' ')"
 [[ "$sids" == "$p1 $p2 $p3 " ]] && pass "1 each instance runs detached in its own session (setsid)" || fail "1 sessions: '$sids' for '$p1 $p2 $p3'"
-for _ in $(seq 1 60); do [[ -s "$W/heartbeat.1.json" && -s "$W/heartbeat.2.json" && -s "$W/heartbeat.3.json" ]] && break; sleep 0.1; done
+beats() { [[ -s "$W/heartbeat.1.json" && -s "$W/heartbeat.2.json" && -s "$W/heartbeat.3.json" ]]; }
+wait_event 6 beats
 ok=1; for i in 1 2 3; do
   jq -e --argjson i "$i" --argjson p "$(cat "$W/run.$i.pid")" '.instance == $i and .pid == $p and .status == "ok" and (.tick_seq >= 1) and (.git_sha | length > 0)' \
     "$W/heartbeat.$i.json" >/dev/null 2>&1 || ok=0
 done
 (( ok )) && pass "1 heartbeat.<inst>.json per instance names its instance and pid" || fail "1 heartbeats: $(cat "$W"/heartbeat.*.json 2>/dev/null)"
-for _ in $(seq 1 60); do [[ -d "$W/tick.1" && -d "$W/tick.2" && -d "$W/tick.3" && -s "$W/last.tick.3" ]] && break; sleep 0.1; done
+ticks_up() { [[ -d "$W/tick.1" && -d "$W/tick.2" && -d "$W/tick.3" && -s "$W/last.tick.3" ]]; }
+wait_event 6 ticks_up
 ok=1; for i in 1 2 3; do [[ -d "$W/tick.$i" && -d "$W/ctx.$i" && -s "$W/last.tick.$i" ]] || ok=0; done
 [[ $ok == 1 && ! -e "$W/tick" && ! -e "$W/ctx" ]] && pass "1 isolated scratch: tick.<inst>/, ctx.<inst>/, last.tick.<inst> per instance, no shared tick/ or ctx/" ||
   fail "1 scratch: $(ls "$W" | tr '\n' ' ')"
@@ -169,7 +173,7 @@ out="$(env "${wd_env[@]}" WD_INST=2 WD_TICKS=1 WD_TICK=1 bash -c 'do_log() { ech
 grep -q 'instance 2 already runs' <<<"$out" && pass "1 a second loop of instance 2 starts nothing" || fail "1 second loop: $out"
 out="$(env "${wd_env[@]}" WD_TICKS=1 WD_TICK=1 bash -c 'do_log() { echo "$*"; }; source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; do_spl_watchdog' 2>&1)"
 grep -q 'instance 1 runs on this box' <<<"$out" && pass "1 a 093 loop (no WD_INST) beside instance 1 starts nothing" || fail "1 093 loop: $out"
-kill -- "-$p2" 2>/dev/null; for _ in $(seq 1 50); do held "$W/run.2.lock" || break; sleep 0.1; done
+kill -- "-$p2" 2>/dev/null; wait_event 5 eval '! held "$W/run.2.lock"'
 out="$(start "1 2 3")"
 n2="$(cat "$W/run.2.pid")"
 [[ "$n2" != "$p2" ]] && kill -0 "$n2" 2>/dev/null && [[ "$(cat "$W/run.1.pid") $(cat "$W/run.3.pid")" == "$p1 $p3" ]] && grep -q 'instance 2 started' <<<"$out" &&

@@ -35,6 +35,9 @@ export SPOOL_NOW="${SPOOL_NOW:-2026-10-01T00:00:00Z}"
 export SPOOL_TEST=1
 : "${SPOOL_BOX_ENV=}"
 export SPOOL_BOX_ENV
+# SPL-5525: wait_event, the one bounded poll (wait on the event, never sleep N)
+# shellcheck source=wait-event.inc.sh
+source "$TEST_DIR/wait-event.inc.sh"
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

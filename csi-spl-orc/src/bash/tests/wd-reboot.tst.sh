@@ -124,8 +124,10 @@ back() {
   printf '%s 1 60 sh\n%s %s 60 claude\n' "$2" "$(( $2 + 1 ))" "$2" >> "$T/ps"
   mkdir -p "$T/proc/$(( $2 + 1 ))"; printf 'SPOOL_AGENT_ID=%s\0' "$1" > "$T/proc/$(( $2 + 1 ))/environ"
 }
-# settle <n>: the detached takeovers have landed (n lines), then a short wait for strays
-settle() { for _ in $(seq 1 40); do (( $(started) >= $1 )) && break; sleep 0.05; done; sleep 0.3; }
+# settle <n>: the detached takeovers have landed (n lines) and every process
+# the ticks started has ended, so a stray is waited for, not raced (SPL-5525)
+landed() { (( $(started) >= $1 )); }
+settle() { wait_event 10 landed "$1"; wait_event 10 env_idle "SPOOL_ROOT=$S"; }
 ids() { awk '{print $2}' "$T/takeovers" 2>/dev/null | sort | paste -sd' ' -; }
 # mutant <function> <sed>: WD_EXTRA that redefines <function> with one check
 # cut out by <sed> (the control shown red)
@@ -308,7 +310,8 @@ chmod +x "$T/bin/tmux9" "$T/bin/takeover9"
 wd_env0=("${wd_env[@]}")
 wd_env+=(ROTATE_TMUX="$T/bin/tmux9" WD_TAKEOVER_CMD="$T/bin/takeover9")
 # outs <n>: n restart outputs carry a FAIL line
-outs() { for _ in $(seq 1 40); do (( $(cat "$W"/restart.*.out 2>/dev/null | grep -c 'FAIL') >= $1 )) && break; sleep 0.05; done; sleep 0.3; }
+failed_n() { (( $(cat "$W"/restart.*.out 2>/dev/null | grep -c 'FAIL') >= $1 )); }
+outs() { wait_event 10 failed_n "$1"; wait_event 10 env_idle "SPOOL_ROOT=$S"; }
 box9() { box "$BT"; rm -f "$T/tmux/server" "$T/tmux/opts" "$T"/failonce.*; }
 
 box9; wd $(( BT + 60 )); wd $(( BT + 300 )); settle 2

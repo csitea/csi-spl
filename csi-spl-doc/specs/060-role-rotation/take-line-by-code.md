@@ -32,6 +32,26 @@ its own take line. A row with no post id covers a post no newer than the row;
 a topic that cannot be read, or has nothing unanswered, keeps one line per
 topic and taker.
 
+### 2.1 The line waits; one line per post (SPL-5514)
+
+Owner poll d0c7b716 item 1 (csitea topic 48d75e5f): the take line is posted
+only when no agent answers the post within cnf `env.box.desk_ack_defer_s`
+seconds (300) of it. `do_spl_take` checks the topic: before that time it
+starts itself again, detached (`TAKE_DEFER_DUE`, `TAKE_DEFER_POST`), prints
+`TAKE-DEFERRED` and returns. The detached run sleeps until then, reads the
+topic again and posts the line only when the same post is still the newest
+unanswered one; otherwise it prints `TAKE-QUIET` and posts nothing. A post
+the first topic read cannot name is taken at once, as before.
+
+One line per post, whoever takes it: a `dispatch/take.log` row naming the
+post covers every taker on the box. Before, the row covered only its own
+taker, so on 2026-11-09 two seats took post 382450e2 of topic 965283be on
+one box, 108 s apart. The ledger is per box: a take on another box is not
+seen.
+
+Test: `csi-spl-orc/src/bash/tests/spl-ack-take-quiet.tst.sh` (red on the
+code before it for cases a and c).
+
 ## 3. When it takes nothing
 
 Each decision is one line in `<spool root>/dispatch/take-auto.log`

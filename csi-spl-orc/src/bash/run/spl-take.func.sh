@@ -28,6 +28,18 @@
 # @description A take of a post one person addressed to another (to_id HUM-n, or
 # @description @-mentions of people only) is refused by do_spl_desk_reply's
 # @description human-to-human gate and not recorded (SPL-3967).
+# @description One line per POST, whoever takes it (SPL-5514): a ledger row of
+# @description another taker that names the same post covers it too (one box,
+# @description 2026-11-09: seats c-003 and c-002 each took post 382450e2 of
+# @description topic 965283be, 108 s apart; the check was per taker).
+# @description Deferred (SPL-5514, owner poll d0c7b716 item 1): the take line
+# @description waits until cnf env.box.desk_ack_defer_s seconds after the human
+# @description post. A call before then starts itself again in the background
+# @description (TAKE-DEFERRED) and returns at once; that run waits, reads the
+# @description topic again and posts only when the post is still unanswered.
+# @description An agent answer inside the window means no take line at all
+# @description (TAKE-QUIET), and so does a topic the deferred run cannot read.
+# @description A post the first read cannot name is taken at once, as before.
 # @param ENV - required: dev, prd or self (passed on to do_spl_desk_reply)
 # @param TENANT_ID - required: the workspace of the topic
 # @param DESK_AGENT - required: the taker's agent id (its desk)
@@ -40,6 +52,8 @@
 # @param TAKE_SEND (optional) - replaces spool-send.sh (tests)
 # @param TAKE_POST_CMD (optional) - replaces "<proj>/run -a do_spl_take_post" (tests); under SPOOL_TEST=1 with none the topic is not read
 # @param TAKE_POST_TIMEOUT (optional) - seconds for that read, default 20
+# @param ACK_DEFER_S (optional) - replaces cnf env.box.desk_ack_defer_s (0 = post at once)
+# @param TAKE_DEFER_RUN (optional) - replaces "<proj>/run" for the deferred run (tests)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-002 DESK_TO=HUM-10 DESK_TASK=<full topic uuid> TAKE_PLAN='I read the hub logs' DRY_RUN=0 ./run -a do_spl_take
 #------------------------------------------------------------------------------
@@ -66,9 +80,17 @@ do_spl_take() {
   fi
   local by="$agent@$box" body post="" post_at=""
   body="Taken by $by: $plan. I post the result here."
+  spl_take_defer_wait
   IFS=$'\t' read -r post post_at < <(spl_take_post "$task") || true
+  if [[ -n "${TAKE_DEFER_POST:-}" && "$post" != "$TAKE_DEFER_POST" ]]; then
+    echo "TAKE-QUIET $task: post $TAKE_DEFER_POST was answered in time, no take line"; return 0
+  fi
   if spl_take_seen "$f" "$task" "$by" "$post" "$post_at"; then
     echo "TAKEN-ALREADY $task by $by: no second take line"; return 0
+  fi
+  local due
+  if due="$(spl_take_defer_due "$post" "$post_at")"; then
+    spl_take_defer "$task" "$by" "$plan" "$box" "$post" "$due"; return
   fi
   if [[ "${DRY_RUN:-1}" != 0 ]]; then
     do_log "INFO DRY_RUN would post to $to in topic $task ($TENANT_ID): $body"
@@ -91,13 +113,61 @@ do_spl_take() {
   spl_take_notify "$task" "$by" "$to" "$plan"
 }
 
-# 0 when the ledger <f> already holds a take of <topic> by <id>@<box> that
-# covers [post] (posted at epoch [post at]): a row naming that post, or a row
-# with no post id no older than it. With no [post], any row of the pair.
+# 0 when the ledger <f> already holds a take of <topic> that covers [post]
+# (posted at epoch [post at]): a row naming that post, by any taker, or a row
+# of <id>@<box> with no post id no older than it. With no [post], any row of
+# the pair.
 spl_take_seen() {
   [[ -f "$1" ]] && awk -F'\t' -v t="$2" -v b="$3" -v p="${4:-}" -v at="${5:-0}" '
-    $2 == t && $3 == b && (p == "" || $5 == p || ($5 == "" && $1 + 0 >= at + 0)) { f = 1 }
+    $2 == t && p != "" && $5 == p { f = 1 }
+    $2 == t && $3 == b && (p == "" || ($5 == "" && $1 + 0 >= at + 0)) { f = 1 }
     END { exit !f }' "$1"
+}
+
+# The deferred run (TAKE_DEFER_DUE set): sleep until the due epoch.
+spl_take_defer_wait() {
+  local left
+  [[ "${TAKE_DEFER_DUE:-}" =~ ^[0-9]+$ ]] || return 0
+  left=$((TAKE_DEFER_DUE - $(date +%s)))
+  (( left > 0 )) && sleep "$left"
+  return 0
+}
+
+# Print the deferral seconds: ACK_DEFER_S, else cnf env.box.desk_ack_defer_s;
+# 0 when neither is a number (no cnf on the box: post at once, as before).
+spl_take_defer_s() {
+  local s="${ACK_DEFER_S:-}"
+  if [[ -z "$s" ]]; then
+    declare -F spl_box_ws_cnf >/dev/null || source "$PROJ_PATH/lib/bash/funcs/spl-box-workspace.func.sh" 2>/dev/null
+    declare -F spl_box_ws_cnf >/dev/null && s="$(spl_box_ws_cnf desk_ack_defer_s)"
+  fi
+  [[ "$s" =~ ^[0-9]+$ ]] && echo "$s" || echo 0
+}
+
+# Print the epoch the take line of [post] (posted at [post at]) is due and
+# exit 0 when that is still ahead; exit 1 = post now (no post id, no
+# deferral, the window is over, or this is the deferred run itself).
+spl_take_defer_due() {
+  local post="$1" at="${2:-0}" s
+  [[ -n "$post" && -z "${TAKE_DEFER_DUE:-}" && "$at" =~ ^[0-9]+$ ]] || return 1
+  s="$(spl_take_defer_s)"
+  (( s > 0 && at + s > $(date +%s) )) || return 1
+  echo $((at + s))
+}
+
+# Start do_spl_take again, detached, to post at <due> unless the post is
+# answered by then; return at once. Dry: say so, start nothing.
+spl_take_defer() {
+  local task="$1" by="$2" plan="$3" box="$4" post="$5" due="$6" when run="${TAKE_DEFER_RUN:-$PROJ_PATH/run}"
+  when="$(date -u -d "@$due" +%H:%M:%SZ)"
+  if [[ "${DRY_RUN:-1}" != 0 ]]; then
+    do_log "INFO DRY_RUN would wait until $when, then post the take line in $task unless an agent answers post $post first"
+    return 0
+  fi
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  ( cd / && TAKE_DEFER_DUE="$due" TAKE_DEFER_POST="$post" TAKE_PLAN="$plan" TAKE_BOX="$box" DRY_RUN=0 \
+      setsid $run -a do_spl_take </dev/null >>"$LEASE_DIR/take-defer.out" 2>&1 & ) 2>/dev/null
+  echo "TAKE-DEFERRED $task by $by: the take line waits until $when for post $post; none if an agent answers first"
 }
 
 # Print "<msg id>\t<epoch>" of the post to take in <topic>; nothing when the

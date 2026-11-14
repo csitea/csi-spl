@@ -10,7 +10,11 @@
 # @description This action, on the machine that holds the dispatch lease, reads
 # @description the holder's desk spools (every workspace, its inbox and
 # @description archive), and for each such answer from a person (HUM-<n>) newer
-# @description than POLL_ACK_MAX_AGE minutes:
+# @description than POLL_ACK_MAX_AGE minutes and at least ACK_DEFER_S seconds
+# @description old (cnf env.box.desk_ack_defer_s; SPL-5514: a younger answer is
+# @description left for a later run, so an agent reply inside the window means
+# @description no ack line at all; 37 of 54 such lines in the week to
+# @description 2026-11-14 had an answer within 5 min, c-518's count):
 # @description   1. skips it when $SPOOL_ROOT/dispatch/automation.log already
 # @description      has a poll-ack line for its msg_id (a vote seen once is
 # @description      acknowledged once), or another answer in the same topic
@@ -57,6 +61,7 @@
 # @description The cron line: do_spl_desk_poll_ack_install_cron.
 # @param ENV (optional) - dev or prd; default lease.conf LEASE_ENV, else prd
 # @param POLL_ACK_MAX_AGE (optional) - minutes; older answers are ignored, default 30
+# @param ACK_DEFER_S (optional) - replaces cnf env.box.desk_ack_defer_s; younger answers wait (0 = ack at once)
 # @param POLL_ACK_FROM (optional) - the wake note's sender, default lease.conf LEASE_ORCH, else role seat 1
 # @param POLL_ACK_SEND (optional) - the sender script, default spawn-agents/scripts/spool-send.sh (tests)
 # @param DESK_BOX (optional) - the desk box, default lease.conf LEASE_DESK_BOX, else this machine's desk box
@@ -92,7 +97,8 @@ do_spl_desk_poll_ack() {
     exec 7>"$LEASE_DIR/poll-ack.lock"
     flock -n 7 || { do_log "INFO another poll ack run holds $LEASE_DIR/poll-ack.lock - skipped"; return 0; }
   fi
-  local spool tenant rows tenant_n=0 seen=" " n=0 msg task from ts poll keys
+  local spool tenant rows tenant_n=0 seen=" " n=0 msg task from ts poll keys defer
+  defer="$(spl_take_defer_s)"
   while IFS= read -r -u 9 spool; do
     [[ -d "$spool" ]] || continue
     tenant="${spool%/"$box"/spool/"$agent"}"; tenant="${tenant##*/}"
@@ -103,11 +109,23 @@ do_spl_desk_poll_ack() {
       [[ -n "$msg" ]] || continue
       if grep -q " poll-ack $msg " "$log" 2>/dev/null; then continue; fi
       [[ "$seen" == *" $tenant/$task "* ]] && { do_log "INFO msg $msg: topic $task already acknowledged in this run"; continue; }
+      _spl_poll_ack_due "$ts" "$defer" ||
+        { do_log "INFO msg $msg: answered at $ts, under ${defer}s ago: a later run acks it unless an agent answers first"; continue; }
       _spl_poll_ack_one "$tenant" "$box" "$agent" "$msg" "$task" "$from" "$ts" "$poll" "$keys" "$log" "$dry" &&
         { seen+="$tenant/$task "; n=$((n + 1)); }
     done <<<"$rows"
   done 9< <(spl_desk_glob "*/$box/spool/$agent")
   do_log "OK poll ack: holder $agent on $box, $tenant_n workspace(s) read, $n answer(s) acknowledged$([[ "$dry" == 1 ]] && echo ' (DRY_RUN: planned, nothing sent)')"
+}
+
+# _spl_poll_ack_due <answer ts> <defer s>: 0 when the answer is at least
+# <defer s> old (POLL_ACK_NOW pins the clock, tests); 1 = not yet.
+_spl_poll_ack_due() {
+  local at now
+  (( ${2:-0} > 0 )) || return 0
+  at="$(date -u -d "$1" +%s 2>/dev/null)" || return 0
+  now="$(date -u -d "${POLL_ACK_NOW:-now}" +%s)"
+  (( now - at >= $2 ))
 }
 
 # _spl_poll_ack_holder: the bare id of the dispatch lease holder when it is

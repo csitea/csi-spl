@@ -26,6 +26,10 @@
 #------------------------------------------------------------------------------
 
 # _scg_build: build spl-cmd-guard with the pinned toolchain; prints its path.
+# cargo runs in a subshell with the crate dir as its cwd (SPL-5487): only
+# there does rustup read rust-toolchain.toml and cargo .cargo/config.toml
+# (the musl target, rust-lld). From another dir it found no toolchain, or
+# built a glibc binary outside the musl path printed below.
 _scg_build() {
   local rh="${SPL_RUST_HOME:-}" crate="$PROJ_PATH/src/rust/spl-cmd-guard"
   if [[ -z "$rh" ]]; then
@@ -33,9 +37,10 @@ _scg_build() {
     mountpoint -q /mnt/data 2>/dev/null && rh=/mnt/data/var/csi/rust
   fi
   command -v cargo >/dev/null 2>&1 || { do_log "FATAL no cargo: install rustup with do_box_pkg_install"; return 1; }
-  RUSTUP_HOME="$rh/rustup" CARGO_HOME="$rh/cargo" CARGO_TARGET_DIR="$rh/target/spl-cmd-guard" \
-    CARGO_INCREMENTAL=0 SPL_CMD_GUARD_COMMIT="$(git -C "$PROJ_PATH" rev-parse --short=12 HEAD 2>/dev/null)" \
-    cargo build --release --locked --offline --manifest-path "$crate/Cargo.toml" >&2 || return 1
+  ( cd "$crate" || exit 1
+    RUSTUP_HOME="$rh/rustup" CARGO_HOME="$rh/cargo" CARGO_TARGET_DIR="$rh/target/spl-cmd-guard" \
+      CARGO_INCREMENTAL=0 SPL_CMD_GUARD_COMMIT="$(git -C "$PROJ_PATH" rev-parse --short=12 HEAD 2>/dev/null)" \
+      cargo build --release --locked --offline ) >&2 || return 1
   printf '%s\n' "$rh/target/spl-cmd-guard/x86_64-unknown-linux-musl/release/spl-cmd-guard"
 }
 

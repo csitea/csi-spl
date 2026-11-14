@@ -80,11 +80,24 @@ cd csi-spl-orc && SPL_CMD_GUARD_IMPL=shadow DRY_RUN=0 ./run -a do_spl_cmd_guard_
 ```
 
 It builds the binary with the pinned toolchain (`SPL_RUST_HOME`, default
-`/mnt/data/var/csi/rust` where `/mnt/data` is mounted, else `/var/csi/rust`;
-the toolchain needs `rustup` from `do_box_pkg_install` and `rustup toolchain
-install` once in the crate dir), checks `--self-test`, installs it next to
-both users' installed hooks with a `.bak`, and writes `spl-cmd-guard.impl`.
-Without `DRY_RUN=0` it prints the plan. Rollback:
+`/mnt/data/var/csi/rust` where `/mnt/data` is mounted, else `/var/csi/rust`),
+checks `--self-test`, installs it next to both users' installed hooks with a
+`.bak`, and writes `spl-cmd-guard.impl`. Without `DRY_RUN=0` it prints the
+plan. cargo runs with the crate dir as its cwd (SPL-5487), so the crate's
+`rust-toolchain.toml` (1.100.0) and `.cargo/config.toml` (the musl target,
+`rust-lld`) apply and the binary lands at
+`<SPL_RUST_HOME>/target/spl-cmd-guard/x86_64-unknown-linux-musl/release/spl-cmd-guard`.
+
+First time on a box, before the command above (measured on a satellite box,
+2026-11-13, Debian rustup 1.27.1):
+
+1. `cd csi-spl-iac && BOX_PKG=rustup BOX_PKG_REASON="<why>" AGENT_ID=<id> ./run -a do_box_pkg_install`
+   (the manifest row is in `csi-spl-iac/cnf/box-pkgs/<class>.tsv`).
+2. Install the pinned toolchain once, from the crate dir, into the same
+   homes the action uses: `cd csi-spl-orc/src/rust/spl-cmd-guard && RUSTUP_HOME=<SPL_RUST_HOME>/rustup CARGO_HOME=<SPL_RUST_HOME>/cargo rustup show`.
+   `rustup show` reads `rust-toolchain.toml` and installs its channel,
+   components and musl target. `rustup toolchain install` with no argument
+   prints only its usage there, and no `rustup default` is needed. Rollback:
 `SPL_CMD_GUARD_IMPL=py DRY_RUN=0 ./run -a do_spl_cmd_guard_mode`.
 Read the burn-in: `grep -c $'\tmatch=1\t' <log>` and `grep -v $'\tmatch=1\t' <log>`.
 

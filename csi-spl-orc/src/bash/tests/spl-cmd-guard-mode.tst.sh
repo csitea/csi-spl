@@ -12,6 +12,9 @@
 #   5. refusals: a bad mode or DRY_RUN is rc 2; a home with no installed hook
 #      is rc 3; a binary that fails --self-test is rc 4 and changes nothing
 #      (RED control: the same call with a passing binary installs it)
+#   6. with no SPL_CMD_GUARD_BIN the build runs cargo (a stub on PATH) with
+#      the crate dir as its cwd, so rust-toolchain.toml and .cargo/config.toml
+#      apply, and plans the musl binary it printed (SPL-5487)
 #------------------------------------------------------------------------------
 set -uo pipefail
 ORC="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -89,6 +92,24 @@ bash "$SA/scripts/spl-cmd-guard-install.sh" "$T/h1" shadow "$T/good1" 0 >/dev/nu
   fail "control rc=$rc"
 bash "$SA/scripts/spl-cmd-guard-install.sh" "$T/h1" shadow - 0 2>/dev/null; rc=$?
 [ "$rc" = 4 ] && pass "shadow with no binary is rc 4" || fail "no binary rc=$rc"
+
+# 6. the build runs cargo in the crate dir (SPL-5487)
+mkdir -p "$T/stubbin" "$T/rh"
+cat >"$T/stubbin/cargo" <<'STUB'
+#!/usr/bin/env bash
+pwd >"$SCG_TEST_CWD"
+printf '%s\n' "$*" >"$SCG_TEST_ARGS"
+d="$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release"
+mkdir -p "$d" && cp "$SCG_TEST_GOOD" "$d/spl-cmd-guard"
+STUB
+chmod +x "$T/stubbin/cargo"
+out="$(PATH="$T/stubbin:$PATH" SPL_RUST_HOME="$T/rh" SCG_TEST_CWD="$T/cargo.cwd" SCG_TEST_ARGS="$T/cargo.args" \
+  SCG_TEST_GOOD="$T/good1" SPL_CMD_GUARD_IMPL=shadow mode)"; rc=$?
+musl="$T/rh/target/spl-cmd-guard/x86_64-unknown-linux-musl/release/spl-cmd-guard"
+if [ "$rc" = 0 ] && [ "$(cat "$T/cargo.cwd" 2>/dev/null)" = "$ORC/src/rust/spl-cmd-guard" ] &&
+  [[ "$out" == *"PLAN $G1/spl-cmd-guard <- $musl (spl-cmd-guard v1)"* ]]; then
+  pass "the build runs cargo with the crate dir as cwd and plans the musl binary"
+else fail "build cwd: rc=$rc cwd=$(cat "$T/cargo.cwd" 2>/dev/null) args=$(cat "$T/cargo.args" 2>/dev/null) $out"; fi
 
 echo "spl-cmd-guard-mode: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

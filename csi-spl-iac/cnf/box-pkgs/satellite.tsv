@@ -41,6 +41,7 @@ apt	python3-pip		backfill	unknown (backfill)		2026-10-17 backfill SPL-2271
 apt	python3-venv		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-2271
 apt	rootlesskit		do_gh_runner_add	do_gh_runner_add (rootless docker)		2026-10-17 SPL-2271
 apt	rsync		play 02_os_binaries	do_spl_box_state_restore (rsync -cn)		2026-10-17 SPL-2271
+apt	rustup		do_box_pkg_install	lane SPL-5392 (spl-cmd-guard, do_spl_cmd_guard_mode)		2026-11-13 SPL-5392
 apt	slirp4netns		do_gh_runner_add	do_gh_runner_add (rootless docker)		2026-10-17 SPL-2271
 apt	sudo		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-2271
 apt	sysstat		do_setup_box_sysstat	do_report_box_sar		2026-10-17 SPL-2271

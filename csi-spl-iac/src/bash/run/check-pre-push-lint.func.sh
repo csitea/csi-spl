@@ -537,27 +537,60 @@ _ppl_migration_prefixes() {  # <tree> <base>
   return "$rc"
 }
 
+# Bound one lint part. timeout cannot run a shell function, and a fresh bash
+# drops _PPL_FILES, _PP_TOP and this file's BASH_SOURCE (the scanners resolve
+# their scripts and baselines from it), so the part runs in a forked subshell
+# in its own process group. GNU timeout bounds the wait; 124/137 kills that
+# group (TERM, then KILL after 10s, timeout's -k) and is the part's rc, so
+# the gate logs TIMED OUT. rc 0, 1 and 127 pass through.
+_ppl_run_timed() {  # <scanner> <tree>  caller is _pp_part_lint_*
+  local sc="$1" tree="$2" pg tw rc=0 trc=0 i
+  set -m
+  ( set +m; _ppl_run_one "$sc" "$tree" ) &
+  pg=$!
+  set +m
+  timeout -k 10 "$(_pp_budget "${FUNCNAME[1]}")" tail --pid="$pg" -f /dev/null >/dev/null 2>&1 &
+  tw=$!
+  while kill -0 "$pg" 2>/dev/null && kill -0 "$tw" 2>/dev/null; do sleep 0.1; done
+  if ! kill -0 "$pg" 2>/dev/null; then
+    wait "$pg" 2>/dev/null || rc=$?
+    kill "$tw" 2>/dev/null || true
+    wait "$tw" 2>/dev/null || true
+    return "$rc"
+  fi
+  wait "$tw" 2>/dev/null || trc=$?
+  kill -TERM -- "-$pg" 2>/dev/null || true
+  for ((i = 0; i < 100; i++)); do
+    kill -0 "$pg" 2>/dev/null || break
+    sleep 0.1
+  done
+  kill -KILL -- "-$pg" 2>/dev/null || true
+  wait "$pg" 2>/dev/null || true
+  [[ "$trc" -eq 137 ]] && return 137
+  return 124
+}
+
 # One function per lint part, the shape _pp_run calls: <fn> <tree>.
-_pp_part_lint_syntax()     { _ppl_run_one lint-syntax "$1"; }
-_pp_part_lint_shellcheck() { _ppl_run_one lint-shellcheck "$1"; }
-_pp_part_lint_actionlint() { _ppl_run_one lint-actionlint "$1"; }
-_pp_part_lint_hadolint()   { _ppl_run_one lint-hadolint "$1"; }
-_pp_part_lint_eslint()     { _ppl_run_one lint-eslint "$1"; }
-_pp_part_lint_trufflehog() { _ppl_run_one lint-trufflehog "$1"; }
-_pp_part_lint_mdlinks()    { _ppl_run_one lint-mdlinks "$1"; }
-_pp_part_lint_migration()  { _ppl_run_one lint-migration "$1"; }
-_pp_part_lint_compose()    { _ppl_run_one lint-compose "$1"; }
-_pp_part_lint_gitleaks()   { _ppl_run_one lint-gitleaks "$1"; }
-_pp_part_lint_py()         { _ppl_run_one lint-py "$1"; }
-_pp_part_lint_tf()         { _ppl_run_one lint-tf "$1"; }
-_pp_part_lint_wui_syntax() { _ppl_run_one lint-wui-syntax "$1"; }
-_pp_part_lint_wui_lock()   { _ppl_run_one lint-wui-lock "$1"; }
-_pp_part_lint_checkov()    { _ppl_run_one lint-checkov "$1"; }
-_pp_part_lint_semgrep()    { _ppl_run_one lint-semgrep "$1"; }
-_pp_part_lint_gomod()      { _ppl_run_one lint-gomod "$1"; }
-_pp_part_lint_gosec()      { _ppl_run_one lint-gosec "$1"; }
-_pp_part_lint_sigpipe()    { _ppl_run_one lint-sigpipe "$1"; }
-_pp_part_lint_tmp_path()   { _ppl_run_one lint-tmp-path "$1"; }
+_pp_part_lint_syntax()     { _ppl_run_timed lint-syntax "$1"; }
+_pp_part_lint_shellcheck() { _ppl_run_timed lint-shellcheck "$1"; }
+_pp_part_lint_actionlint() { _ppl_run_timed lint-actionlint "$1"; }
+_pp_part_lint_hadolint()   { _ppl_run_timed lint-hadolint "$1"; }
+_pp_part_lint_eslint()     { _ppl_run_timed lint-eslint "$1"; }
+_pp_part_lint_trufflehog() { _ppl_run_timed lint-trufflehog "$1"; }
+_pp_part_lint_mdlinks()    { _ppl_run_timed lint-mdlinks "$1"; }
+_pp_part_lint_migration()  { _ppl_run_timed lint-migration "$1"; }
+_pp_part_lint_compose()    { _ppl_run_timed lint-compose "$1"; }
+_pp_part_lint_gitleaks()   { _ppl_run_timed lint-gitleaks "$1"; }
+_pp_part_lint_py()         { _ppl_run_timed lint-py "$1"; }
+_pp_part_lint_tf()         { _ppl_run_timed lint-tf "$1"; }
+_pp_part_lint_wui_syntax() { _ppl_run_timed lint-wui-syntax "$1"; }
+_pp_part_lint_wui_lock()   { _ppl_run_timed lint-wui-lock "$1"; }
+_pp_part_lint_checkov()    { _ppl_run_timed lint-checkov "$1"; }
+_pp_part_lint_semgrep()    { _ppl_run_timed lint-semgrep "$1"; }
+_pp_part_lint_gomod()      { _ppl_run_timed lint-gomod "$1"; }
+_pp_part_lint_gosec()      { _ppl_run_timed lint-gosec "$1"; }
+_pp_part_lint_sigpipe()    { _ppl_run_timed lint-sigpipe "$1"; }
+_pp_part_lint_tmp_path()   { _ppl_run_timed lint-tmp-path "$1"; }
 
 # Spelling: WARN only (owner: no CI gate yet). typos-cli with the repo-root
 # _typos.toml on the touched whole files, reporting only the lines the push

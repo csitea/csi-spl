@@ -201,6 +201,7 @@ A part that runs out logs
 `TIMED OUT after <n>s (<why>)`: the why names the variable that set the
 budget, or, for a default budget, the default and the variable that raises
 it (for a load-scaled one also the base, the load it read and the cap).
+A lint part has no own variable and runs under that same timeout (SPL-5529): the budget is `PRE_PUSH_PART_TIMEOUT` when set, otherwise the part default of 300 s, a hang returns 124 or 137 so the gate logs `TIMED OUT` and the part's process group, including a scanner child, is killed, and because `PRE_PUSH_PART_TIMEOUT` also binds every other part with no more specific variable (full-tier orc, api and iac) it must not be set to cap a full-tier orc run (raise that with `PRE_PUSH_ORC_FULL_TIMEOUT`); a full-tier `lint-gosec` measured past 300 s can now log `TIMED OUT` at the 300 s default.
 
 A process a part leaves behind (a test's `setsid` child, a test daemon that
 escaped its cleanup) can no longer hold the hook past the part's budget

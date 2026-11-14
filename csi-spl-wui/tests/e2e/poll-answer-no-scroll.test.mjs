@@ -279,6 +279,16 @@ async function radioCase(browser, vp, tag, order, live = false) {
   await sleep(1500)
   const after2 = await where(p, form, 4)
   ok(`${tag} ${order} radio: the next answer (question 4) brings question 5 to the top too`, atTop(before2, after2), { before2, after2 })
+  /* questions 1, 2 and 5 picked too (still a draft), so the tap on question 6
+     completes the form: it locks and posts ONE reply, the real send (pending
+     row + echo with liveSend) runs under the reader's view */
+  await p.evaluate((form) => {
+    const qs = document.querySelectorAll(`${form} [data-testid=poll-question]`)
+    for (const qi of [0, 1, 4]) qs[qi].querySelector('[data-testid=poll-option][data-poll-key=A] input').click()
+  }, form)
+  await sleep(500)
+  const n2 = await replies(p, seeded.msg_id)
+  ok(`${tag} ${order} radio: questions 1, 2 and 5 picked, still a draft (no reply yet)`, n2 === n0, { n0, n2 })
   /* the last question: nothing below it, the reader stays where they are */
   await placeQuestion(p, form, 5, Math.round(vp.height * 0.4))
   await rest(p, whereNow, form, 5)
@@ -286,7 +296,9 @@ async function radioCase(browser, vp, tag, order, live = false) {
   await tapOption(p, form, 5, 'A', touch)
   await sleep(1500)
   const after3 = await where(p, form, 5)
-  ok(`${tag} ${order} radio: answering the last question (6) does not move the reader (<= ${TOLERANCE_PX} px; at the pane's end <= ${END_SLACK_PX} px down)`, stillOrEnd(before3, after3), { before3, after3 })
+  const n3 = await replies(p, seeded.msg_id)
+  ok(`${tag} ${order} radio: answering the last question (6) completes the form and posts ONE reply`, n3 === n0 + 1, { n0, n3 })
+  ok(`${tag} ${order} radio: answering the last question (6) does not move the reader across the send (<= ${TOLERANCE_PX} px; at the pane's end <= ${END_SLACK_PX} px down)`, stillOrEnd(before3, after3), { before3, after3 })
   ok(`${tag} ${order} radio: no page error`, errors.length === 0, errors)
   await p.close()
 }

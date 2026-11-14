@@ -60,6 +60,11 @@
 # @description book shows queued, not placed, is refused (FATAL with its
 # @description position and hold reason, nothing sent; spl_desk_running_ask;
 # @description how-to-post.md rule 15, SPL-3819).
+# @description A body whose first line claims done work (a word of
+# @description cnf/desk-reply/done-claim-words.txt: done, live, landed, ...) is
+# @description refused (FATAL, nothing sent) without a `checked:` line saying
+# @description how it was checked; a blocker and a question are exempt
+# @description (_spl_desk_reply_checked_how; how-to-post.md rule 22, SPL-5518).
 # @description A body that says released / deployed with a commit sha but no
 # @description /releases/ link for it gets a WARN per sha (spec 065 7.3, L9):
 # @description ask the lane to add the line do_release_note_link prints. A
@@ -164,6 +169,7 @@ do_spl_desk_reply() {
   spl_desk_placed_check "$body" || return 1
   spl_desk_planned_ask "$body" || return 1
   spl_desk_running_ask "$body" || return 1
+  _spl_desk_reply_checked_how "$body" "$kind" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"
@@ -482,6 +488,43 @@ _spl_desk_reply_check_args() {
   spl_desk_attach_check "$@" || return 1
   _spl_desk_reply_release_warn "$body"
   return 0
+}
+
+# _spl_desk_reply_checked_how <body> <kind>: SPL-5518 (how-to-post.md rule
+# 22; csitea topic 48d75e5f item 4: 7 Correction posts in a week took back a
+# done claim, e.g. 7a49e5cb). A post whose first line claims done work, a word
+# of cnf/desk-reply/done-claim-words.txt, carries a `checked:` line (or
+# `checked how:`) saying how it was checked; else one FATAL on stderr and 1,
+# nothing sent. A blocker and a question (the first line ends with "?") are no
+# claim; a word after "not", "never", "will be" or "to be" is none either,
+# nor one before ", not" (rule 16's **Landed, not live yet**) or a "?" in
+# its clause ("Live now? no: ...").
+_spl_desk_reply_checked_how() {
+  local body="$1" kind="$2" words="${DESK_DONE_WORDS_FILE:-$PROJ_PATH/cnf/desk-reply/done-claim-words.txt}" hit rc=0
+  [[ "$kind" == blocker ]] && return 0
+  [[ -r "$words" ]] || { do_log "FATAL nothing was sent: cannot read the done-claim word list $words (SPL-5518)" >&2; return 1; }
+  hit="$(python3 -c '
+import re, sys
+words = [l.strip() for l in open(sys.argv[1]) if l.strip() and not l.lstrip().startswith("#")]
+lines = sys.argv[2].splitlines()
+first = next((l for l in lines if l.strip()), "")
+first = re.sub(r"[*_`]", "", re.sub(r"^\s*(@[A-Za-z0-9_-]+[\s,:]*)*", "", first)).strip()
+if first.endswith("?") or any(re.match(r"[\s>*_-]*checked(\s+how)?[*_]*\s*:[*_\s]*[^*_\s]", l, re.I) for l in lines):
+    sys.exit(1)
+for w in words:
+    for m in re.finditer(r"(?<![\w-])" + r"\s+".join(map(re.escape, w.split())) + r"(?![\w-])", first, re.I):
+        if not re.search(r"\b(not|never|will be|to be)\s+$", first[:m.start()], re.I) and \
+           not re.match(r"[\s.,:;]*not\b|[^.!:;]*\?", first[m.end():], re.I):
+            print(m.group(0))
+            sys.exit(0)
+sys.exit(1)' "$words" "$body")" || rc=$?
+  (( rc == 1 )) && return 0
+  if (( rc == 0 )); then
+    do_log "FATAL nothing was sent: the first line claims '$hit' but no 'checked:' line says how it was checked; add 'checked: <what you ran and saw>', or open with what is proven (how-to-post.md rule 22, SPL-5518)" >&2
+  else
+    do_log "FATAL nothing was sent: the done-claim check failed (rc $rc, SPL-5518)" >&2
+  fi
+  return 1
 }
 
 # _spl_desk_reply_release_warn <body>: spec 065 7.3 (L9). A post that says

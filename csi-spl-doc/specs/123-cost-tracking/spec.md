@@ -994,6 +994,72 @@ check).
   The one new string, `reporting.costs.period_l12m`, is in every locale and
   reviewed by agy before it ships (the language rule).
 
+### 16.4 Step (c): the employer side computed (SPL-5433)
+
+The owner's Q4 B (poll 2ff12c21): the hub computes the payroll, and a typed
+payslip value wins with its difference flagged. Step (c) is the employer
+side. The worker side (tax cards, the employee's shares, net pay, the payslip
+check) is step (d).
+
+- **The rates (rdb 0284 `hr_rates`).** One row per year and employer
+  contribution: `rate_pct` (a percent with up to 4 decimals), `applies_to`
+  (the employment types it is levied for, default `employee` and `hourly`),
+  `source` (where the accountant read it) and who set it. Only a component of
+  the `employer_contributions` group takes a rate. `yel` takes none, because
+  it is the entrepreneur's own pension and not a share of gross. No rate is
+  seeded: the accountant sets each year's rates from the pension insurer's,
+  the accident insurer's and the Tax Administration's letters. With no rate,
+  nothing is computed for that component.
+  - The design (v4 point 3) put the rates in cnf. They live in the hub
+    instead, because a cnf value reaches the hub only as a Cloud Run env var
+    through terraform, which needs an owner's go per change. A rate changes
+    once a year, and the accountant changes it without a deploy.
+- **The calculation (`store.ComputeHRPayroll`, pure).** For each person,
+  month and currency:
+  - **Gross** is the sum of the person's monthly lines in the groups
+    `salaries_wages`, `working_time_allowances`, `bonuses_incentives` and
+    `leave_absence`. Benefits, training and travel lines are cost
+    (**other**) but not gross. A yearly line is not a month's.
+  - **Each rated contribution** is computed as gross x rate / 100, rounded
+    to cents, when the person's employment type is in `applies_to`.
+  - **A typed line wins.** A line of that component whose source does not
+    start with `computed:` (a payslip's value) replaces the computed amount.
+    A difference above one cent is flagged `diff`.
+  - **A booked line counts until it goes stale.** A line whose source starts
+    with `computed:` was booked from the calculation, and its amount counts.
+    It is flagged `stale` once the calculation moves away from it, or once
+    no rate computes that component for the person any more.
+  - **The totals.** The employer total is the sum of the amounts that count.
+    The cost is gross + employer total + other (Q5 A: the company's cost).
+- **Booking.** The cost reports sum `cost_entries`, so a computed amount
+  reaches them only once it is booked. Booking a month does three things:
+  - it writes one `hr` line for each computed amount that has neither a
+    typed line nor an up-to-date booked line (label = the component's,
+    account = its `default_account`, source `computed: <year> rates`);
+  - first, it removes the month's stale booked lines;
+  - it never touches a typed line.
+
+  A second booking with nothing changed writes nothing. A closed month
+  answers 409 `month_closed`, as for a typed line.
+- **Routes** (`internal/hub/hr_payroll.go`):
+  - `GET /v1/operator/hr-rates?year=` and `GET /v1/operator/hr-payroll/{month}`:
+    the hr reads' doors. The payroll carries codes, never names.
+  - `PUT` and `DELETE /v1/operator/hr-rates/{year}/{component}`, and
+    `POST /v1/operator/hr-payroll/{month}/book`: the cost entries' write
+    doors (a `costs.write` member of the operator workspace, or the operator
+    admin).
+- **Tests.**
+  - `store/hr_payroll_test.go` covers the calculation, flags and bookings,
+    the rate checks, and the rate store on both drivers.
+  - `hub/hr_payroll_test.go` covers rates, payroll, book, rebook and the
+    closed month, with made-up figures in 2007-04. Red control: without the
+    stale removal, the rebook leaves two tyel lines.
+- **Not here.**
+  - The unemployment insurance's two payroll bands: the accountant sets the
+    band's rate.
+  - A rate per insurer policy: one rate per component and year.
+  - The worker side: step (d).
+
 ## 17. The biz owner and the internal accountant open Expenses (SPL-5420)
 
 Owner HUM-10, t1 #spool-hub-bugs ea5d52a7, 2026-11-12T16:18:08Z: "Add access

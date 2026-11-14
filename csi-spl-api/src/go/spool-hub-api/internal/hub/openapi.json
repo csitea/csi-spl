@@ -14330,6 +14330,87 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/hr-payroll/{month}": {
+      "get": {
+        "operationId": "getOperatorHrPayrollByMonth",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month YYYY-MM",
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {month, year, rates, people, totals, flags, period}; people[] {person_id, code, employment_type, currency, gross, employer[], employer_total, other, cost, flags}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "A month's employer side per person: gross, each contribution computed, typed or booked, flags (SPL-5433 step c)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-payroll/{month}/book": {
+      "post": {
+        "operationId": "postOperatorHrPayrollByMonthBook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month YYYY-MM",
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {booked, removed, payroll}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "month_closed"
+          }
+        },
+        "summary": "Book a month's computed employer contributions as hr lines, replacing stale booked ones (SPL-5433 step c)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/hr-people": {
       "get": {
         "operationId": "getOperatorHrPeople",
@@ -14433,6 +14514,181 @@
           }
         },
         "summary": "Enter an hr person with its real name (SPL-5433, costs.write)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-rates": {
+      "get": {
+        "operationId": "getOperatorHrRates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the year YYYY (default: the current year)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {year, rates}, each {year, component, rate_pct, applies_to, source, set_by, set_at}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List a year's employer contribution rates (SPL-5433 step c, rdb 0284)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-rates/{year}/{component}": {
+      "delete": {
+        "operationId": "deleteOperatorHrRatesByYearByComponent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the year YYYY",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "an employer contribution component, e.g. tyel_employer",
+            "in": "path",
+            "name": "component",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "deleted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "no such rate"
+          }
+        },
+        "summary": "Remove a year's rate of an employer contribution (SPL-5433 step c)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "put": {
+        "operationId": "putOperatorHrRatesByYearByComponent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the year YYYY",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "an employer contribution component, e.g. tyel_employer",
+            "in": "path",
+            "name": "component",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "applies_to": {
+                    "items": {
+                      "enum": [
+                        "employee",
+                        "hourly",
+                        "owner_management",
+                        "contractor"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 4,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "rate_pct": {
+                    "exclusiveMaximum": true,
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "source": {
+                    "maxLength": 200,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "rate_pct"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the rate"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Set a year's rate of an employer contribution (costs.write or the operator admin, SPL-5433 step c)",
         "tags": [
           "operator"
         ],

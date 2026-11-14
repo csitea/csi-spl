@@ -84,3 +84,70 @@ func TestFileDoorSeatedChannelBoxReadsBackfilledFile(t *testing.T) {
 		}
 	}
 }
+
+// The other refused classes of the channel half, each on its own box so no
+// seat leaks into another case: an agent dedicated to another channel, a
+// hidden channel (#issues: it takes no agents, so the box is seated in
+// #ledger and the carrier is an issue discussion), a seat that was removed again, and a box of
+// another workspace seated in a same-named channel there. The CONTROL is an
+// agent dedicated to the carrier's own channel, which reads it.
+func TestFileDoorSeatedChannelBoxRefusals(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	other, _ := e.tenant()
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	for _, c := range []struct{ tenant, ch string }{{tid, "ledger"}, {tid, "elsewhere"}, {other, "ledger"}} {
+		if err := e.st.CreateChannel(ctx, store.Channel{TenantID: c.tenant, ChannelID: c.ch,
+			Name: c.ch, CreatedBy: "HUM-1", CreatedAt: now}); err != nil {
+			t.Fatalf("channel %s: %v", c.ch, err)
+		}
+	}
+	chFile, hidFile := strings.Repeat("f1", 32), strings.Repeat("f2", 32)
+	putFileRow(t, e, tid, uuidV4(), "ledger", "HUM-1", "box-wui", chFile, now)
+	putFileRow(t, e, tid, uuidV4(), store.ChannelIssues, "HUM-1", "box-wui", hidFile, now)
+	ds := e.st.(store.DedicatedStore)
+	seat := func(tenant, boxID, agent, ch string) *box {
+		t.Helper()
+		b := e.box(tenant, boxID, agent)
+		e.pin(tenant, b)
+		if err := e.st.InviteChannelAgent(ctx, tenant, ch, boxID, agent, now); err != nil {
+			t.Fatalf("invite %s: %v", agent, err)
+		}
+		return b
+	}
+	bind := func(boxID, agent, ch string) {
+		t.Helper()
+		if _, err := ds.SetDedicatedBinding(ctx, store.DedicatedBinding{TenantID: tid, AgentID: agent, BoxID: boxID,
+			ScopeType: store.ScopeChannel, ScopeID: ch, BoundBy: "HUM-1", BoundAt: now}); err != nil {
+			t.Fatalf("bind %s: %v", agent, err)
+		}
+	}
+	own, away := seat(tid, "box-own", "CLE-21", "ledger"), seat(tid, "box-away", "CLE-23", "ledger")
+	bind("box-own", "CLE-21", "ledger")
+	bind("box-away", "CLE-23", "elsewhere")
+	hidden := seat(tid, "box-hidden", "CLE-25", "ledger")
+	left := seat(tid, "box-left", "CLE-27", "ledger")
+	if err := e.st.RemoveChannelAgent(ctx, tid, "ledger", "box-left", "CLE-27", now); err != nil {
+		t.Fatal(err)
+	}
+	foreign := seat(other, "box-own", "CLE-21", "ledger")
+	for _, id := range []string{chFile, hidFile} {
+		ageBlob(t, e, tid, id, now.Add(-2*hub.FileUploadGrace))
+	}
+	for _, tc := range []struct {
+		what, tenant, file string
+		b                  *box
+		want               int
+	}{
+		{"an agent dedicated to the carrier's channel (CONTROL)", tid, chFile, own, http.StatusOK},
+		{"an agent dedicated to another channel", tid, chFile, away, http.StatusNotFound},
+		{"a carrier in a hidden channel", tid, hidFile, hidden, http.StatusNotFound},
+		{"a seat removed again", tid, chFile, left, http.StatusNotFound},
+		{"a box of another workspace", other, chFile, foreign, http.StatusNotFound},
+	} {
+		if got, _ := e.getFile(tc.tenant, tc.file, e.uploadToken(tc.tenant, tc.b)); got != tc.want {
+			t.Errorf("%s: got %d, want %d", tc.what, got, tc.want)
+		}
+	}
+}

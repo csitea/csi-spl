@@ -6,9 +6,13 @@
 // A 3-question x 4-radio ```poll form as a topic card in the middle pane at
 // the 5-row height (the default): the card shows at most 5 rows and is cut
 // (fade + grip, as a card with link previews is); a radio inside the shown
-// rows answers; the answers line shows inside the 5 rows; the grip (the
-// card's "see all") opens it all in place and a radio of the last question
-// answers too. 1440 desktop and 390 phone, no sideways scroll.
+// rows takes the click; the grip (the card's "see all") opens it all in
+// place and the radios of the other questions take theirs. SPL-5517: a radio
+// form of several questions keeps its clicks as a draft and posts ONE answer
+// when every question holds a pick, so the first click posts nothing, the
+// cut card stays within its 5 rows, and the last pick posts the one reply
+// whose answers line then shows inside the card. 1440 desktop and 390
+// phone, no sideways scroll.
 //
 // Cause (v9.0.2): MessageCard.vue exempted a card holding a ```poll form
 // from the clip (SPL-1637 `!hasPoll`), so the form drew at full height.
@@ -154,6 +158,14 @@ function optionSpot(p, sel, qi, key) {
   }, sel, qi, key)
 }
 
+/* whether option `key` of question `qi` is checked */
+function picked(p, sel, qi, key) {
+  return p.evaluate((sel, qi, key) => {
+    const q = document.querySelector(sel).querySelectorAll('[data-testid=poll-question]')[qi]
+    return Boolean(q.querySelector(`[data-testid=poll-option][data-poll-key=${key}] input`)?.checked)
+  }, sel, qi, key)
+}
+
 async function tap(p, spot, touch) {
   if (touch) await p.touchscreen.tap(spot.x, spot.y)
   else await p.mouse.click(spot.x, spot.y)
@@ -172,14 +184,17 @@ async function clipCase(browser, vp, tag) {
   ok(`${tag}: the card with a 3-question form shows at most ${ROWS} rows, cut, with the grip`, cut.clip === 'cut' && cut.lh > 0 && cut.bodyH <= maxH && cut.formH > cut.bodyH && cut.grip, { ...cut, maxH })
   ok(`${tag}: no sideways scroll (page and card)`, cut.pageX <= 0 && cut.cardX <= 0, { pageX: cut.pageX, cardX: cut.cardX })
 
-  /* a radio inside the shown rows answers, as it does today */
+  /* a radio inside the shown rows takes the click: a draft, no reply yet
+     (SPL-5517: the form posts once, when every question holds a pick) */
   const a = await optionSpot(p, sel, 0, 'A')
   await tap(p, a, touch)
-  const n1 = await waitReplies(p, id, 1)
-  const answered = await rest(p, sel)
-  if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-card-clip-${tag}-answered.png`) })
-  ok(`${tag}: a radio inside the ${ROWS} rows answers (one reply)`, a.inside && n1 === 1, { a, n1 })
-  ok(`${tag}: the answered form shows its answers line within the ${ROWS} rows`, answered.clip === 'cut' && answered.bodyH <= maxH && Boolean(answered.answers) && answered.answers.bottom <= answered.bodyH, { answers: answered.answers, bodyH: answered.bodyH })
+  const aOn = await picked(p, sel, 0, 'A')
+  await sleep(1500)
+  const n1 = await replies(p, id)
+  const drafted = await rest(p, sel)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-card-clip-${tag}-drafted.png`) })
+  ok(`${tag}: a radio inside the ${ROWS} rows takes the click as a draft (picked, no reply)`, a.inside && aOn && n1 === 0, { a, aOn, n1 })
+  ok(`${tag}: the drafted form stays cut within the ${ROWS} rows`, drafted.clip === 'cut' && drafted.bodyH <= maxH, { clip: drafted.clip, bodyH: drafted.bodyH, maxH })
 
   /* see all: the grip opens the whole card in place */
   await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=card-grip]`)?.click(), sel)
@@ -187,10 +202,18 @@ async function clipCase(browser, vp, tag) {
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-card-clip-${tag}-all.png`) })
   const last = all.questions[all.questions.length - 1]
   ok(`${tag}: the grip shows all of it: every question inside the card`, all.clip === 'fits' && all.questions.length === 3 && Boolean(last) && last.bottom <= all.bodyH, { clip: all.clip, bodyH: all.bodyH, last })
+  const b = await optionSpot(p, sel, 1, 'B')
+  await tap(p, b, touch)
+  await rest(p, sel)
   const c = await optionSpot(p, sel, 2, 'C')
   await tap(p, c, touch)
-  const n2 = await waitReplies(p, id, 2)
-  ok(`${tag}: after see all, a radio of the last question answers`, c.inside && n2 === 2, { c, n2 })
+  const n2 = await waitReplies(p, id, 1)
+  await sleep(1000)
+  const n3 = await replies(p, id)
+  const answered = await rest(p, sel)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-card-clip-${tag}-answered.png`) })
+  ok(`${tag}: after see all, the last question's radio completes the form: ONE reply`, b.inside && c.inside && n2 === 1 && n3 === 1, { b, c, n2, n3 })
+  ok(`${tag}: the answered form shows its answers line inside the card`, Boolean(answered.answers) && answered.answers.bottom <= answered.bodyH, { answers: answered.answers, bodyH: answered.bodyH })
   const after = await rest(p, sel)
   ok(`${tag}: no sideways scroll after see all`, after.pageX <= 0 && after.cardX <= 0, { pageX: after.pageX, cardX: after.cardX })
   ok(`${tag}: no page error`, errors.length === 0, errors)

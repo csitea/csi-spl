@@ -98,6 +98,11 @@
 #      row could tell apart; LANE_ALL=1 shows it, src local. --check reads its
 #      changed path free with either read, as before SPL-4630 (a dead pane is
 #      not busy, spl_lane_check), so the live read costs a map row, no verdict
+#  21. the local rows fork one jq for all lanes (perf p7-02): 40 lane
+#      worktrees plus two that are no lane (not an agent id, not under
+#      <repo>-wt) are 40 rows from ONE jq call (a PATH shim counts them),
+#      byte-identical to the per-row jq form it replaced. RED on the function
+#      before it: 41 calls (one per lane, one to join them)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -792,6 +797,37 @@ out="$(dchk pc n/no-row.txt "cat $T/panes-n")"; rc=$?
 out2="$(dchk pc n/no-row.txt "cat $T/panes-n" LANE_ALL=1)"; rc2=$?
 [[ $rc -eq 0 && "$(head -1 <<<"$out")" == free && $rc2 -eq 0 && "$(head -1 <<<"$out2")" == free ]] &&
   pass "--check on its changed path: free with the live read and with every row, as before SPL-4630" || fail "check parity (rc=$rc/$rc2): $out / $out2"
+
+# 21. one jq for the local rows (perf p7-02)
+machine many
+for i in $(seq 801 840); do lane many "c-$i" "slug-$i"; done
+git -C "$T/many/csi-spl" worktree add -q -b not-an-id "$T/many/csi-spl-wt/notes" >/dev/null 2>&1
+git -C "$T/many/csi-spl" worktree add -q -b elsewhere "$T/many/other/c-899" >/dev/null 2>&1
+mkdir -p "$T/jqshim"
+printf '#!/usr/bin/env bash\necho jq >>"%s/jq.calls"\nexec %q "$@"\n' "$T" "$(command -v jq)" >"$T/jqshim/jq"
+chmod +x "$T/jqshim/jq"
+# the per-row form it replaced, as the reference: one jq per lane, one to join
+ref_rows() {
+  local top="$1" wt br
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt="${line#worktree }" br="" ;;
+      "branch "*) br="${line#branch refs/heads/}" ;;
+      "") [[ -n "$wt" && "$(dirname "$wt")" == "${top}-wt" && "$(basename "$wt")" =~ ^c-[0-9]{3}$ ]] &&
+            jq -n -c --arg a "$(basename "$wt")" --arg b box-desk --arg r "$(basename "$top")" --arg br "$br" \
+              '{agent_id: $a, agent_box: $b, repo: $r, branch: $br, scope: "", files: [], topic: "", state: "live", age_s: -1, src: "local"}'
+          wt="" ;;
+    esac
+  done < <(git -C "$top" worktree list --porcelain; echo) | jq -s -c '.'
+}
+want="$(ref_rows "$T/many/csi-spl")"
+: >"$T/jq.calls"
+got="$(on many 'source "'"$PROJ_ROOT"'/src/bash/features/spawn-agents/lib/spool-env.inc.sh" >/dev/null 2>&1; : >"'"$T"'/jq.calls"; spl_lane_local_rows' \
+  LANE_BOX=box-desk PATH="$T/jqshim:$PATH")"
+calls="$(wc -l <"$T/jq.calls")"
+[[ "$(jq length <<<"$got")" == 40 && "$calls" -le 1 ]] &&
+  pass "40 lane worktrees are 40 local rows from $calls jq call (not one per lane)" || fail "local rows: $calls jq calls, $(jq length <<<"$got") rows"
+[[ "$got" == "$want" ]] && pass "the rows are byte-identical to the per-row jq form" || fail "local rows differ: $(diff <(jq -c '.[]' <<<"$want") <(jq -c '.[]' <<<"$got") | sed -n 1,4p)"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "lane-map: all passed"; exit 0; fi

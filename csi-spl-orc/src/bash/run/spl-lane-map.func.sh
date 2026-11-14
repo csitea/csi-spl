@@ -332,17 +332,20 @@ spl_lane_local_rows() {
         "") spl_lane_local_row "$top" "$wt" "$br"; wt="" ;;
       esac
     done < <(git -C "$top" worktree list --porcelain 2>/dev/null; echo)
-  done | jq -s -c '.'
+  done | jq -R -s -c --arg b "$LANE_BOX" '[split("\n")[] | select(length > 0) | split("\t")
+    | {agent_id: .[0], agent_box: $b, repo: .[1], branch: .[2], scope: "", files: [], topic: "", state: "live", age_s: -1, src: "local"}]'
 }
 
+# One TSV line per lane worktree: id, repo, branch (a git ref holds no tab or
+# newline). Names by parameter expansion and one jq for all rows, not a
+# dirname/basename/jq fork per worktree (perf p7-02: 113 lanes were 4.4 s).
 spl_lane_local_row() {
   local top="$1" wt="$2" br="$3" id
-  [[ -n "$wt" && "$(dirname "$wt")" == "${top}-wt" ]] || return 0
-  id="$(basename "$wt")"
+  [[ -n "$wt" && "${wt%/*}" == "${top}-wt" ]] || return 0
+  id="${wt##*/}"
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   [[ "$id" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] || return 0
-  jq -n -c --arg a "$id" --arg b "$LANE_BOX" --arg r "$(basename "$top")" --arg br "$br" \
-    '{agent_id: $a, agent_box: $b, repo: $r, branch: $br, scope: "", files: [], topic: "", state: "live", age_s: -1, src: "local"}'
+  printf '%s\t%s\t%s\n' "$id" "${top##*/}" "$br"
 }
 
 # Hub rows win for an agent the hub knows; a local worktree the hub has no

@@ -103,6 +103,7 @@ do_tf_plan_ref() {
       -e "ORG=$org" -e "ENV=$env_name" -e "APP=${app#*-}" -e "STEP=$step" \
       -e ACTION=provision \
       -e "TF_VAR_billing_account_id=${GCP_BILLING_ACCOUNT_ID:-}" \
+      -e "TF_VAR_billing_account_ids=${GCP_BILLING_ACCOUNT_IDS:-}" \
       "$con" ./run -a do_tf_plan
   ) || rc=$?
 

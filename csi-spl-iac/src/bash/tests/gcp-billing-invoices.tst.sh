@@ -160,12 +160,14 @@ run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P"
 grep -q '^rc=0$' "$T/o" && [[ -z "$(mutations)" ]] && grep -q 'WARN the SA and its jobUser missing: terraform step 002-gcp-billing-sa creates them: cd csi-spl-orc && ENV=prd STEP=002-gcp-billing-sa make do-tf-plan' "$T/o" \
   && grep -q 'nothing was changed' "$T/o" \
   && pass "sa_create: absent -> points to terraform step 002-gcp-billing-sa, no mutation" || fail "sa absent: $(cat "$T/o") / $(mutations)"
-grep -q "billing accounts add-iam-policy-binding <BILLING_ACCOUNT_ID> --member=serviceAccount:$SA --role=roles/billing.viewer --account=<OWNER_LOGIN>" "$T/o" \
-  && grep -q 'role=roles/billing.user ' "$T/o" && grep -q 'role=roles/billing.projectManager ' "$T/o" \
+grep -q "billing accounts add-iam-policy-binding <BILLING_ACCOUNT_ID> --member=serviceAccount:$P --role=roles/billing.admin --account=<OWNER_LOGIN>" "$T/o" \
+  && grep -q "step 002-gcp-billing-sa grants $SA roles/billing.viewer + roles/billing.user on each (owner msg a508c121)" "$T/o" \
+  && ! grep -q -- "--member=serviceAccount:$SA --role=roles/billing.viewer" "$T/o" \
+  && grep -q 'role=roles/billing.projectManager ' "$T/o" \
   && grep -q "KEY: terraform step 002-gcp-billing-sa makes it and writes $T/home/.gcp/.csi/key-csi-spl-billing.json (mode 0600)" "$T/o" \
   && ! grep -q 'keys create' "$T/o" \
   && ! grep -qE '^gcloud billing accounts add-iam' "$T/log" \
-  && pass "sa_create: the owner steps (viewer, user, projectManager) are printed, never run; the key is named as step 002's" || fail "owner steps: $(cat "$T/o")"
+  && pass "sa_create: the owner steps (billing admin for the csi-spl-all SA, projectManager) are printed, never run; viewer + user and the key are named as step 002's" || fail "owner steps: $(cat "$T/o")"
 run "$T/o" do_gcp_billing_sa_create STUB_PIN="$P" STATE=present
 grep -q '^rc=0$' "$T/o" && [[ -z "$(mutations)" ]] && grep -q "OK $SA exists with jobUser on csi-spl-all (terraform step 002-gcp-billing-sa)" "$T/o" \
   && pass "sa_create: present -> OK, no mutation" || fail "sa present: $(cat "$T/o") / $(mutations)"

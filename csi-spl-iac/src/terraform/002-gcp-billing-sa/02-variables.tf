@@ -38,3 +38,15 @@ variable "billing_sa" {
     error_message = "billing_sa must be a service account id (6..30 chars, a-z 0-9 -)."
   }
 }
+
+variable "billing_account_ids" {
+  type        = string
+  description = "The billing accounts spl-billing gets roles/billing.viewer and roles/billing.user on, comma separated (owner a508c121). GCP_BILLING_ACCOUNT_IDS at run time (make passes it as TF_VAR_billing_account_ids; do_gcp_billing_sa_tf reads it as the csi-spl-all SA), never cnf: no default, an empty value is refused."
+
+  validation {
+    condition = length(compact(split(",", replace(var.billing_account_ids, " ", "")))) > 0 && alltrue([
+      for id in compact(split(",", replace(var.billing_account_ids, " ", ""))) : can(regex("^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", id))
+    ])
+    error_message = "billing_account_ids must be set from GCP_BILLING_ACCOUNT_IDS: one or more XXXXXX-XXXXXX-XXXXXX, comma separated."
+  }
+}

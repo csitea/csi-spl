@@ -771,15 +771,25 @@ to log in each time)".
   from prd only and runs as the csi-spl-all SA, its state in
   `csi-spl-all-tfstate` (the 059 pattern); its own state means adding it
   recreates no other step. Plan:
-  `cd csi-spl-orc && ENV=prd STEP=002-gcp-billing-sa make do-tf-plan`; the
-  apply is the owner's go. Its README:
+  `cd csi-spl-iac && ./run -a do_gcp_billing_sa_tf` (it lists the billing
+  account ids as the csi-spl-all SA and runs
+  `make do-tf-plan ENV=prd STEP=002-gcp-billing-sa`, the ids masked); the
+  apply is the owner's go.
+- The step also grants `roles/billing.viewer` and `roles/billing.user` to
+  the billing SA on EACH billing account (SPL-5506; owner HUM-10, #laskut
+  f655b326, msg a508c121: "I grant csi-spl-all Billing Admin once; Terraform
+  does the rest"). Precondition, the owner's one manual grant: the csi-spl-all
+  SA holds Billing Account Administrator on that account. The ids are never
+  committed: `var.billing_account_ids` (no default, refused when empty) comes
+  from `GCP_BILLING_ACCOUNT_IDS` at run time (`TF_VAR_billing_account_ids`). Its README:
   `csi-spl-iac/src/terraform/002-gcp-billing-sa/README.md`.
 - `do_gcp_billing_sa_create` creates nothing since then (`DRY_RUN=0` is
   refused), so the step is the one creator. As the csi-spl-all SA it reports
   whether the SA and its jobUser exist, names the step when they do not, and
-  PRINTS the owner's own steps, which stay outside terraform because no
-  project SA holds a role on a billing account:
-  - `roles/billing.viewer` and `roles/billing.user` on each billing account;
+  PRINTS the owner's own steps, which stay outside terraform:
+  - Billing Account Administrator for the csi-spl-all SA on each billing
+    account, once (owner msg a508c121): step 002 then makes the viewer and
+    user roles;
   - `roles/billing.projectManager` on a project it is to move;
   - BigQuery Data Viewer on the billing export dataset.
 - Its key is made by step 002 too (SPL-5457; owner HUM-10, #laskut

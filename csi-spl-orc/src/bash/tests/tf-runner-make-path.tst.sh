@@ -147,5 +147,22 @@ for tgt in do-deprovision do-tf-plan-destroy; do
   fi
 done
 
+# 6. step 002's billing account ids (SPL-5506, owner a508c121) reach the
+#    tf-runner as TF_VAR_billing_account_ids from GCP_BILLING_ACCOUNT_IDS, on
+#    every target that plans, applies or destroys; unset, it is passed empty
+#    so the step's validation refuses it (no prompt, no default).
+ids=0A1B2C-3D4E5F-678901,ABCDEF-012345-6789AB
+out=$(GCP_BILLING_ACCOUNT_IDS="$ids" run_plan 002-gcp-billing-sa)
+grep -qF -- "-e TF_VAR_billing_account_ids=$ids " <<<"$out" \
+  && pass "002 plan forwards GCP_BILLING_ACCOUNT_IDS as TF_VAR_billing_account_ids" || fail "002 plan ids forward: $(tr '\n' ' ' <<<"$out")"
+out=$(unset GCP_BILLING_ACCOUNT_IDS; run_plan 002-gcp-billing-sa)
+grep -qF -- "-e TF_VAR_billing_account_ids= " <<<"$out" \
+  && pass "002 plan with GCP_BILLING_ACCOUNT_IDS unset passes it empty" || fail "002 plan unset ids: $(tr '\n' ' ' <<<"$out")"
+for tgt in do-provision do-deprovision do-tf-plan-destroy do-tf-plan-pending; do
+  rec=$(ENV=prd STEP=002-gcp-billing-sa GITHUB_TOKEN=x make --no-print-directory -n "$tgt" 2>/dev/null)
+  grep -qF -- '-e TF_VAR_billing_account_ids="${GCP_BILLING_ACCOUNT_IDS:-}"' <<<"$rec" \
+    && pass "make $tgt forwards GCP_BILLING_ACCOUNT_IDS" || fail "make $tgt does not forward GCP_BILLING_ACCOUNT_IDS"
+done
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

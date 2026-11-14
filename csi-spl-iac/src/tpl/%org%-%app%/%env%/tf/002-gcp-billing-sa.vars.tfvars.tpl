@@ -13,6 +13,7 @@ env         = "{{ ENV }}"
 gcp_project = "{{ gcp["gcp_project"] }}"
 gcp_region  = "{{ gcp["gcp_region"] }}"
 {% else %}
+# runtime-vars: billing_account_ids
 org         = "{{ ORG }}"
 app         = "{{ APP }}"
 env         = "{{ ENV }}"

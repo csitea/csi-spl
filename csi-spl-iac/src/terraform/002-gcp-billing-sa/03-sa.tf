@@ -9,10 +9,15 @@
 #     is written, never printed: no output, a local_sensitive_file, mode
 #     0600, under the applying user's ~/.gcp/.<org>/ (the tf-runner mounts
 #     that user's ~/.gcp at its own $HOME/.gcp and runs as its uid).
-#   - NO billing-account role (billing.viewer, billing.user), no
-#     billing.projectManager and no dataset dataViewer: no project SA holds a
-#     role on a billing account, so those stay the owner's own steps, printed
-#     by do_gcp_billing_sa_create.
+#   - roles/billing.viewer and roles/billing.user on EACH billing account
+#     (SPL-5506; owner HUM-10, #laskut f655b326, msg a508c121: "I grant
+#     csi-spl-all Billing Admin once; Terraform does the rest"). Precondition,
+#     the owner's one manual grant: the csi-spl-all SA this step runs as holds
+#     Billing Account Administrator on that account. The ids are never
+#     committed: var.billing_account_ids, from GCP_BILLING_ACCOUNT_IDS
+#     (do_gcp_billing_sa_tf lists them as the csi-spl-all SA).
+#   - NO billing.projectManager and no dataset dataViewer: those stay the
+#     owner's own steps, printed by do_gcp_billing_sa_create.
 resource "google_service_account" "billing" {
   account_id   = var.billing_sa
   display_name = var.billing_sa
@@ -23,6 +28,25 @@ resource "google_project_iam_member" "billing_job_user" {
   project = var.gcp_project
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.billing.email}"
+}
+
+locals {
+  billing_account_ids = toset(compact(split(",", replace(var.billing_account_ids, " ", ""))))
+}
+
+# Read the accounts, their projects and spend (viewer); link projects (user).
+resource "google_billing_account_iam_member" "billing_viewer" {
+  for_each           = local.billing_account_ids
+  billing_account_id = each.value
+  role               = "roles/billing.viewer"
+  member             = "serviceAccount:${google_service_account.billing.email}"
+}
+
+resource "google_billing_account_iam_member" "billing_user" {
+  for_each           = local.billing_account_ids
+  billing_account_id = each.value
+  role               = "roles/billing.user"
+  member             = "serviceAccount:${google_service_account.billing.email}"
 }
 
 # The one key; do_gcp_billing_invoices_fetch reads it (BILL_KEY of

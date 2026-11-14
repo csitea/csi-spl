@@ -36,6 +36,7 @@ do-tf-plan: demand_var-ENV demand_var-STEP
 		-e STEP=$(STEP) \
 		-e ACTION=provision \
 		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
+		-e TF_VAR_billing_account_ids="$${GCP_BILLING_ACCOUNT_IDS:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_plan \
 	'
@@ -53,6 +54,7 @@ do-tf-plan-pending: demand_var-ENV demand_var-STEP
 		-e STEP=$(STEP) \
 		-e ACTION=provision \
 		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
+		-e TF_VAR_billing_account_ids="$${GCP_BILLING_ACCOUNT_IDS:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_plan_pending \
 	'
@@ -109,6 +111,7 @@ do-provision: no-plan-ref demand_var-ENV demand_var-STEP
 		-e ACTION=provision \
 		-e ENV_ORDER_OVERRIDE="$${ENV_ORDER_OVERRIDE:-}" \
 		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
+		-e TF_VAR_billing_account_ids="$${GCP_BILLING_ACCOUNT_IDS:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_provision \
 	'
@@ -150,6 +153,7 @@ do-deprovision: no-plan-ref demand_var-ENV demand_var-STEP
 		-e STEP=$(STEP) \
 		-e GIT_REF=$(GIT_REF) \
 		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
+		-e TF_VAR_billing_account_ids="$${GCP_BILLING_ACCOUNT_IDS:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_divest \
 	'
@@ -167,6 +171,7 @@ do-tf-plan-destroy: demand_var-ENV demand_var-STEP
 		-e STEP=$(STEP) \
 		-e ACTION=provision \
 		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
+		-e TF_VAR_billing_account_ids="$${GCP_BILLING_ACCOUNT_IDS:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_plan_destroy \
 	'

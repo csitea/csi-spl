@@ -5,6 +5,7 @@
 # so this renders the header only and the step's env validation refuses a
 # dev plan.
 
+# runtime-vars: billing_account_ids
 org         = "csi"
 app         = "spl"
 env         = "prd"

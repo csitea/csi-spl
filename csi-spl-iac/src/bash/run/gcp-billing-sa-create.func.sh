@@ -12,11 +12,13 @@
 # @description Read only, as export_project's SA from its key
 # @description (do_gcp_pin_account), never the owner: it reports whether the SA
 # @description and the jobUser binding exist (absent -> points to the step),
-# @description then PRINTS, never runs, the owner's own steps: no project SA
-# @description holds a role on a billing account, so only the owner can grant
-# @description one. Each is an exact command for an owner GO form:
-# @description   - roles/billing.viewer and roles/billing.user on EACH billing
-# @description     account (read accounts, projects, spend; link projects);
+# @description then PRINTS, never runs, the owner's own steps. Each is an
+# @description exact command for an owner GO form:
+# @description   - roles/billing.admin for the export_project SA on EACH
+# @description     billing account, once: step 002 then grants the billing SA
+# @description     roles/billing.viewer + roles/billing.user there (SPL-5506,
+# @description     owner msg a508c121: "I grant csi-spl-all Billing Admin
+# @description     once; Terraform does the rest"), via do_gcp_billing_sa_tf;
 # @description   - roles/billing.projectManager on a project it is to move;
 # @description   - roles/bigquery.dataViewer on the billing export dataset.
 # @description Its key is no owner step: step 002 makes it and writes it to
@@ -87,12 +89,10 @@ _gbs_job_user() {
 
 # _gbs_owner_steps - printed only: the owner runs each, with his own login.
 _gbs_owner_steps() {
-  local m="serviceAccount:${BILL_EMAIL}" r
+  local m="serviceAccount:${BILL_EMAIL}"
   do_log "INFO OWNER STEPS (never run by this action; each needs the owner's own login, <OWNER_LOGIN>):"
-  for r in roles/billing.viewer roles/billing.user; do
-    do_log "INFO   gcloud billing accounts add-iam-policy-binding <BILLING_ACCOUNT_ID> --member=${m} --role=${r} --account=<OWNER_LOGIN>"
-  done
-  do_log "INFO   (once per billing account; the ids: gcloud billing accounts list --account=<OWNER_LOGIN>)"
+  do_log "INFO   gcloud billing accounts add-iam-policy-binding <BILLING_ACCOUNT_ID> --member=serviceAccount:${GCP_ACCOUNT} --role=roles/billing.admin --account=<OWNER_LOGIN>"
+  do_log "INFO   (once per billing account; the ids: gcloud billing accounts list --account=<OWNER_LOGIN>). Then step ${_GBS_STEP} grants ${BILL_EMAIL} roles/billing.viewer + roles/billing.user on each (owner msg a508c121): cd csi-spl-iac && ./run -a do_gcp_billing_sa_tf"
   do_log "INFO   gcloud projects add-iam-policy-binding <PROJECT_TO_MOVE> --member=${m} --role=roles/billing.projectManager --condition=None --account=<OWNER_LOGIN>"
   do_log "INFO   console: BigQuery > the billing export dataset > SHARE > ${BILL_EMAIL} as BigQuery Data Viewer"
   do_log "INFO KEY: terraform step ${_GBS_STEP} makes it and writes ${BILL_KEY} (mode 0600) on the box that applies (owner msg 8d767855); its private key is in that step's state"

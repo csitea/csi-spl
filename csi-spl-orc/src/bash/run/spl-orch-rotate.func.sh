@@ -498,7 +498,7 @@ spl_orch_rotate_from_ack() {
 # CLOSE (FR-017): the retiring window by pane id when /exit-clean's own
 # close has not run, then the three checks, then DONE + a result note.
 spl_orch_rotate_close() {
-  local id="$LEASE_ORCH" n lp mp holder warn=""
+  local id="$LEASE_ORCH" n lp mp holder rung warn=""
   if spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{pane_id}' >/dev/null 2>&1; then
     spl_rotate_tmux kill-window -t "$ROTATE_OLD_PANE" 2>/dev/null || true
   fi
@@ -514,13 +514,15 @@ spl_orch_rotate_close() {
   fi
   mp="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"
   [[ "$mp" == "$ROTATE_NEW_PANE" ]] || warn+=" map=${mp:-none}"
+  # a doorbell that rang the old pane after the handoff rings the new one (SPL-5523)
+  rung="$(spl_rotate_reping "$id")"
   # a seat switch: the old id's identity record must not outlive its process,
   # or the watchdog (agents/*.json) would bring the old id back
   if [[ -n "${ROTATE_SWITCH_TO:-}" && -e "$SPOOL_ROOT/agents/$ROTATE_SWITCH_FROM.json" ]] &&
      [[ -z "$(spl_rotate_pids "$ROTATE_SWITCH_FROM")" ]]; then
     spl_rotate_ai retire "$ROTATE_SWITCH_FROM" "$ROTATE_RID" >/dev/null 2>&1 || warn+=" identity-$ROTATE_SWITCH_FROM-kept"
   fi
-  spl_orch_rotate_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, lease follows pid $ROTATE_NEW_PID, map -> $ROTATE_NEW_PANE}"
+  spl_orch_rotate_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, lease follows pid $ROTATE_NEW_PID, map -> $ROTATE_NEW_PANE}; inbox rung again: ${rung:-0}"
   spl_lease_log "ROTATE orch $id $ROTATE_RID: pid $ROTATE_OLD_PID -> $ROTATE_NEW_PID"
   spl_orch_rotate_step DONE OK "$id@$ROTATE_BOX is pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE"
   spl_rotate_note "$id" "$(spl_rotate_ack_task "$ROTATE_RID")" \
@@ -659,5 +661,7 @@ ACK-COMMAND: $ack
 5. Standing rules: agents run as the agent user only; one agent = one small
    task; the memory files named in the handoff section 9.
 6. The orchestrator never runs terraform itself: $ROTATE_SPEC section 1.4.
+
+$(spl_rotate_open_takes_seed)
 EOF
 }

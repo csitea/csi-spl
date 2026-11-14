@@ -699,6 +699,21 @@ lines:
 | 7 | hold notes: per `dispatch/hold/<topic>/`, its title line and its `NEXT` lines | files | 20 topics |
 | 8 | the session tail: the last 10 user lines and the last 10 assistant text blocks of the old transcript, 300 chars each (`jq` over the jsonl, tool calls skipped) | the transcript | 20 blocks |
 | 9 | memory files by name only | the agent user's memory dir | names |
+| 10 | **open takes** (SPL-5523): each post `<ID>@<box>` took in the last `ROTATE_TAKES_HOURS` (48) h and has not answered since: topic, workspace, human, take time, plan, newest first. An answer is a later post of the id in that topic to a person or the channel that is not a take line (the test of `do_spl_take_post`); a take with no desk record is listed with `?` | `dispatch/take.log` (`do_spl_take`), the take line and the answers in the id's desk outboxes | 20 rows |
+
+The role seeds (dispatch and orch) print section 10 again under "Open
+takes": the new session owns those topics and answers each one there; with
+none, the seed says `Open takes: none`.
+
+After CLOSE (old window gone), `spl_rotate_reping` rings the new pane again
+for every message still in `<ID>/inbox` that came in after the handoff was
+written (`spool-notify.sh`, at most `ROTATE_REPING_MAX`, 10), and the CLOSE
+line says how many (`inbox rung again: N`). Between the ack and the CLOSE
+both sessions are alive, and a doorbell may ring the old one: on 2026-11-11
+HUM-24's post e3347dc8 rang the retiring c-002 pane at 08:46:57Z, 38 s
+after the new session's ack; it declined the post (381296b6) and left it
+unread, and the new pane heard nothing until the owner named it at 09:01Z.
+Test: `csi-spl-orc/src/bash/tests/rotate-open-takes.tst.sh`.
 
 A source that errors prints `UNAVAILABLE: <reason>`, and the rotation goes
 on. The handoff is a local file. It is never posted and never sent through

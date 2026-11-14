@@ -795,7 +795,7 @@ spl_disp_from_ack() {
 
 # CLOSE (FR-017), then RELEASE for the master.
 spl_disp_close() {
-  local role id n mp warn=""
+  local role id n mp rung warn=""
   role="$(spl_disp_role)"; id="$(spl_rotate_role_id "$role")"
   if spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{pane_id}' >/dev/null 2>&1; then
     spl_rotate_tmux kill-window -t "$ROTATE_OLD_PANE" 2>/dev/null || true
@@ -804,12 +804,14 @@ spl_disp_close() {
   [[ "$n" == 1 ]] || warn+=" processes=$n"
   mp="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"
   [[ "$mp" == "$ROTATE_NEW_PANE" ]] || warn+=" map=${mp:-none}"
+  # a doorbell that rang the old pane after the handoff rings the new one (SPL-5523)
+  rung="$(spl_rotate_reping "$id")"
   # a seat switch: the old id's identity record must not outlive its process
   if [[ -n "${ROTATE_SWITCH_TO:-}" && -e "$SPOOL_ROOT/agents/$ROTATE_SWITCH_FROM.json" ]] &&
      [[ -z "$(spl_rotate_pids "$ROTATE_SWITCH_FROM")" ]]; then
     spl_rotate_ai retire "$ROTATE_SWITCH_FROM" "$ROTATE_RID" >/dev/null 2>&1 || warn+=" identity-$ROTATE_SWITCH_FROM-kept"
   fi
-  spl_disp_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, map -> $ROTATE_NEW_PANE}"
+  spl_disp_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, map -> $ROTATE_NEW_PANE}; inbox rung again: ${rung:-0}"
   # this id's swap is over: a restart of it may run from here on
   spl_agent_id_unlock "$id"
   spl_lease_log "ROTATE $role $id $ROTATE_RID: pid $ROTATE_OLD_PID -> $ROTATE_NEW_PID"
@@ -951,6 +953,8 @@ run the ack below. Do not greet; post nothing about the rotation. Without the
 ack in ${ROTATE_ACK_TIMEOUT}s you are closed and the previous session keeps
 the role.
 ACK-COMMAND: $ack
+
+$(spl_rotate_open_takes_seed)
 
 Standing rules: agents run as the agent user only; one agent = one small
 task. Real lane work is spawned by the dispatcher that took it

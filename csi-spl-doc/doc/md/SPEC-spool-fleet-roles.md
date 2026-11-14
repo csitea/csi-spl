@@ -243,6 +243,13 @@ lane's result in the topic. What stays with `c-001`: prd operations a
 dispatcher's harness refuses, and decisions; a question only the owner can
 answer is posted as a blocker in the topic.
 
+**Work expected to take over about 10 minutes goes to a lane**, even when
+it is no code change (an analysis, a report, a pack of files). A dispatcher
+session is rotated every 30 minutes (section 4.4), and a long task in it is
+cut off: the csitea weekly analysis of 2026-11-14 was cut off twice
+(e361e5da, b144a3ae) before a lane finished it (SPL-5523). The taker still
+takes the post, owns the topic and posts the lane's result there.
+
 **The owner record.** Spec 068's claim is the record: a human channel post
 in a seated workspace is a peer message, and the seat that claims it is
 stored in `messages.responsible` (`<id>@<box>`, rdb 0110,
@@ -985,6 +992,17 @@ it is not restated here.
   fleet lease) it is refused, exit 3. The dispatch pair's standby swap is
   `do_spl_dispatch_rotate`'s (SPL-1777). Test: `orch-rotate.tst.sh`
   section 21;
+- **the open takes go with the rotation** (SPL-5523): the handoff's
+  section 10 lists every post the seat (`<ID>@<box>`) took with
+  `do_spl_take` in the last 48 h and has not answered since: topic,
+  workspace, human, take time and plan, read from `dispatch/take.log` and
+  the seat's desk outbox. The new session's seed says they are its own: it
+  answers each one in its topic and never takes it again. After CLOSE, every
+  message that came into the seat's inbox after the handoff was written is
+  rung again on the new pane: from the ack to the CLOSE both sessions live,
+  and on 2026-11-11 a post rang the retiring pane 38 s after the ack, which
+  declined it (381296b6) while the new pane heard nothing for 15 minutes.
+  The contract: [spec 060](../../specs/060-role-rotation/spec.md) section 6;
 - what ran: `<spool root>/dispatch/rotate.log`, one line per step;
 - stop it: `ROTATE=0` (or `ROTATE_DISPATCH=0`) in
   `<spool root>/dispatch/rotate.conf` (060 FR-090);

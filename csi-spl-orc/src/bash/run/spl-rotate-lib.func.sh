@@ -24,6 +24,8 @@
 #   spl_rotate_detach_if_inside FAM ID PANE.. a run inside a pane it quiesces re-runs itself detached (SPL-1837)
 #   spl_rotate_quiesce PANE                 grace, Escape, re-wait; prints idle|interrupted|busy-rotated (FR-011)
 #   spl_rotate_handoff ROLE ID RID OUT      the handoff file, spec section 6 (FR-012, FR-025)
+#   spl_rotate_open_takes ID                the topics ID@box took and has not answered (SPL-5523), ROTATE_OPEN_TAKES
+#   spl_rotate_reping ID                    the inbox messages that came in after the handoff, rung again on the new pane
 #   spl_rotate_spawn ID SEED                rename the old window, spawn under the same id, adopt it in the map (FR-006, FR-007, FR-013)
 #   spl_rotate_start_check PANE             a known dialog on the new pane fails the start at once (ROTATE_ERR names it)
 #   spl_rotate_restore ID OLD_PANE NEW_PANE the failure path: new closed, old name and map entry back (FR-013, FR-014, FR-027)
@@ -35,12 +37,13 @@
 #
 # The globals a rotation sets and these read: ROTATE_RID, ROTATE_OLD_PID,
 # ROTATE_OLD_PANE, ROTATE_OLD_NAME, ROTATE_NEW_PID, ROTATE_NEW_PANE,
-# ROTATE_QUIESCE, ROTATE_HANDOFF and, for orch, ROTATE_STANDBY and
+# ROTATE_QUIESCE, ROTATE_HANDOFF, ROTATE_OPEN_TAKES and, for orch, ROTATE_STANDBY and
 # ROTATE_STANDBY_REFRESH (spl_rotate_ctx_save / _load keep them for a
 # resume). The outside world is replaceable for the tests: ROTATE_TMUX (tmux),
 # ROTATE_SPAWN (spawn-window.sh), ROTATE_RUN (./run), ROTATE_SEND
 # (spool-send.sh), ROTATE_KILL (kill), ROTATE_AI (the identity-map calls),
-# LEASE_PROC_ROOT (/proc).
+# LEASE_PROC_ROOT (/proc), ROTATE_NOTIFY (spool-notify.sh),
+# ROTATE_TAKES_OUTBOXES (the desk outbox walk of spl_rotate_open_takes).
 #
 # NOTE ./run runs every action under `set -E` and an ERR trap that exits: a
 # plain command that fails ends the whole action. Every probe here that may
@@ -937,6 +940,8 @@ spl_rotate_handoff() {
   asks="$(spl_rotate_json "ASKS_ROLE=${ROTATE_ASKS_ROLE:-orch}" ASKS_FORMAT=json -a do_spl_asks_open)"
   lanes="$(spl_rotate_json LANE_FORMAT=json -a do_spl_lane_map)"
   tr="$(spl_rotate_transcript "$id")"
+  # read by the role seeds too: the new session is told these are its own
+  ROTATE_OPEN_TAKES="$(spl_rotate_open_takes "$id")"
   # "-" prints: never `> /dev/stdout`, which truncates a stdout that is a file
   if [[ "$out" == - ]]; then spl_rotate_handoff_body; else spl_rotate_handoff_body > "$out"; fi
   return 0
@@ -989,8 +994,145 @@ spl_rotate_handoff_body() {
     spl_rotate_as_agent find "$ROTATE_MEMORY_DIR" -maxdepth 1 -name '*.md' ! -name MEMORY.md -printf '%f\n' 2>/dev/null |
       sort | sed 's/\.md$//' | tr '\n' ' ' | fold -s -w 110 || true
     echo
+    echo
+    echo "## 10. Open takes: yours now, answer each in its topic (do_spl_take ledger, last ${ROTATE_TAKES_HOURS:-48} h)"
+    spl_rotate_open_takes_md
   }
   return 0
+}
+
+# ---- OPEN TAKES (SPL-5523) ---------------------------------------------------
+
+# spl_rotate_open_takes ID: the topics ID@ROTATE_BOX took (do_spl_take's
+# ledger, ROTATE_TAKE_LOG = <lease dir>/take.log) in the last
+# ROTATE_TAKES_HOURS (48) hours and has not answered since, newest first, at
+# most 20: "<topic>\t<workspace>\t<human>\t<take epoch>\t<plan>" per line.
+# The workspace and the human come from the take line in ID's desk outbox
+# (<desk root>/desk/<workspace>/<desk box>/spool/ID/outbox). An answer is a
+# later post of ID in that topic to a person or the channel that is not a
+# take line: the answer test of do_spl_take_post. A take with no desk record
+# is listed with "?" for both: nothing proves it answered. Before SPL-5523
+# the handoff had no such list, so a take stayed with the old session.
+spl_rotate_open_takes() {
+  local id="$1" f="${ROTATE_TAKE_LOG:-$LEASE_DIR/take.log}" since
+  [[ -s "$f" ]] || return 0
+  since=$(( $(date +%s) - ${ROTATE_TAKES_HOURS:-48} * 3600 ))
+  # no take of ours in the window: no desk walk
+  awk -F'\t' -v b="$id@$ROTATE_BOX" -v s="$since" '$3 == b && $1 + 0 >= s { f = 1 } END { exit !f }' "$f" || return 0
+  local -a outs=()
+  mapfile -t outs < <(spl_rotate_take_outboxes "$id")
+  python3 - "$f" "$id@$ROTATE_BOX" "$since" "${outs[@]}" 2>/dev/null <<'EOF_OPEN_TAKES' || true
+import calendar, json, os, re, sys, time
+log, by, since = sys.argv[1], sys.argv[2], int(sys.argv[3])
+TAKE = re.compile(r"^Taken by .*: .* I post the result here\.$", re.S)
+takes = {}
+for line in open(log, encoding="utf-8", errors="replace"):
+    f = line.rstrip("\n").split("\t")
+    if len(f) < 4 or f[2] != by or not f[0].isdigit() or int(f[0]) < since:
+        continue
+    t = f[1].lower()
+    if t not in takes or int(f[0]) >= takes[t]["at"]:
+        takes[t] = {"at": int(f[0]), "plan": f[3], "ws": "?", "to": "?", "line": 0}
+def epoch(ts):
+    try:
+        return calendar.timegm(time.strptime(str(ts)[:19], "%Y-%m-%dT%H:%M:%S"))
+    except ValueError:
+        return 0
+answers = {}
+for o in sys.argv[4:]:
+    ws, _, d = o.partition("\t")
+    try:
+        names = os.listdir(d)
+    except OSError:
+        continue
+    for n in names:
+        if not n.endswith(".json"):
+            continue
+        try:
+            m = json.load(open(os.path.join(d, n), encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        t = str(m.get("task_id", "")).lower()
+        if t not in takes:
+            continue
+        at, body, to = epoch(m.get("ts")), str(m.get("body", "")), str(m.get("to", "")).split("@")[0]
+        k = takes[t]
+        if TAKE.match(body) and body.startswith("Taken by " + by + ":"):
+            # the take line the ledger row records: the newest one up to it
+            if k["line"] <= at <= k["at"] + 60:
+                k.update(ws=ws, to=to, line=at)
+        elif to == "ALL-0" or to.startswith("HUM-"):
+            answers[t] = max(answers.get(t, 0), at)
+rows = []
+for t, k in takes.items():
+    if answers.get(t, 0) > (k["line"] or k["at"]):
+        continue
+    rows.append((k["at"], "\t".join([t, k["ws"], k["to"], str(k["at"]), k["plan"]])))
+for _, r in sorted(rows, reverse=True)[:20]:
+    print(r)
+EOF_OPEN_TAKES
+  return 0
+}
+
+# spl_rotate_take_outboxes ID: "<workspace>\t<ID's desk outbox>" per desk of
+# this box (ROTATE_DESK_ENV, default prd). ROTATE_TAKES_OUTBOXES replaces it.
+spl_rotate_take_outboxes() {
+  if [[ -n "${ROTATE_TAKES_OUTBOXES+x}" ]]; then
+    [[ -n "$ROTATE_TAKES_OUTBOXES" ]] && printf '%s\n' "$ROTATE_TAKES_OUTBOXES"
+    return 0
+  fi
+  declare -F spl_desk_glob >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-cloud-cnf.func.sh" 2>/dev/null || return 0
+  local p ws
+  while IFS= read -r p; do
+    ws="${p%/*/spool/*/outbox}"; ws="${ws##*/}"
+    printf '%s\t%s\n' "$ws" "$p"
+  done < <(spl_desk_glob "*/$(spl_desk_box_default)/spool/$1/outbox" "${ROTATE_DESK_ENV:-prd}" 2>/dev/null || true)
+  return 0
+}
+
+# The handoff's section 10 from ROTATE_OPEN_TAKES; the seeds print the same.
+spl_rotate_open_takes_md() {
+  [[ -n "${ROTATE_OPEN_TAKES:-}" ]] || { echo "none"; return 0; }
+  local t ws to at plan
+  while IFS=$'\t' read -r t ws to at plan; do
+    [[ -n "$t" ]] || continue
+    echo "- topic $t, workspace $ws, $to, taken $(date -u -d "@$at" +%Y-%m-%dT%H:%MZ 2>/dev/null || echo "$at"): ${plan:0:160}"
+  done <<<"$ROTATE_OPEN_TAKES"
+  return 0
+}
+
+# The seed lines on the open takes (dispatch and orch seeds).
+spl_rotate_open_takes_seed() {
+  if [[ -z "${ROTATE_OPEN_TAKES:-}" ]]; then
+    echo "Open takes: none (handoff section 10)."
+    return 0
+  fi
+  echo "Open takes: the previous session took these posts and has not answered them."
+  echo "They are yours now: you own each topic, answer each one there yourself (handoff"
+  echo "section 10). Never take them again, and never leave them for another seat:"
+  spl_rotate_open_takes_md
+}
+
+# spl_rotate_reping ID: once the old window is closed, the messages still in
+# ID's inbox that came in after the handoff was written are rung again on the
+# new pane (spool-notify.sh, ROTATE_NOTIFY), oldest first, at most
+# ROTATE_REPING_MAX (10). From the ack to the CLOSE both sessions live, and a
+# doorbell may ring the old one: 2026-11-11, HUM-24's post e3347dc8 at
+# 08:46:56Z rang the retiring c-002 pane 37 s after the new session's ack.
+# It declined (381296b6) and left the post unread; the new pane heard nothing
+# until the owner named it at 09:01Z. Prints the count rung.
+spl_rotate_reping() {
+  local id="$1" f n=0 notify="${ROTATE_NOTIFY:-${ROTATE_FEAT:-}/scripts/spool-notify.sh}" a=()
+  [[ -n "${ROTATE_HANDOFF:-}" && -e "$ROTATE_HANDOFF" && -d "$SPOOL_ROOT/$id/inbox" ]] || { echo 0; return 0; }
+  while IFS= read -r f; do
+    mapfile -d '' -t a < <(jq -j '[.from, .kind, .task_id, .msg_id, .body] | map((. // "" | tostring) + "\u0000") | add' "$f" 2>/dev/null || true)
+    (( ${#a[@]} == 5 )) || continue
+    bash "$notify" --to "$id" --from "${a[0]}" --kind "${a[1]}" --task "${a[2]}" --msg-id "${a[3]}" --body "${a[4]}" \
+      >/dev/null 2>&1 7>&- 8>&- 9>&- && n=$((n + 1))
+  done < <(find "$SPOOL_ROOT/$id/inbox" -maxdepth 1 -name '*.json' -newer "$ROTATE_HANDOFF" -printf '%f\n' 2>/dev/null |
+    sort | sed -n "1,${ROTATE_REPING_MAX:-10}s|^|$SPOOL_ROOT/$id/inbox/|p")
+  echo "$n"
 }
 
 spl_rotate_handoff_asks() {

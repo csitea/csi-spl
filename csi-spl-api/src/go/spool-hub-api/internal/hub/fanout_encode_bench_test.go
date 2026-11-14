@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -122,26 +122,32 @@ func BenchmarkFanoutChannel(b *testing.B) {
 	}
 }
 
-// The channel fan-out to 10 sockets allocates no more than the encode-once
-// arm (fanoutIssue, the same frame) plus half of what 9 more encodings, one
-// per extra socket, would add. AllocsPerRun counts the whole process, the rig's
-// reader goroutines included, so a fixed margin flaked (CI 149 vs 133 + 10 %):
-// the bound is measured in encodings, and every arm keeps its lowest of 5 rounds.
+// The channel frame to 10 sockets is encoded once, not once per socket: it
+// counts the encodings (countingJSON) and checks every socket got the frame.
+// It was an allocation bound, but AllocsPerRun counts the whole process, the
+// rig's reader goroutines included, and under -race their spread (got minus
+// the encode-once arm -87..+117, n=200) outgrew 4.5 encodings (SPL-5499).
 func TestFanoutChannelEncodesOnce(t *testing.T) {
-	s, done := fanoutRig(t, 10, nil)
+	got := make(chan []byte, 10)
+	s, done := fanoutRig(t, 10, got)
 	defer done()
-	ctx, frame := context.Background(), benchChannelFrame()
-	once, got, enc := math.Inf(1), math.Inf(1), math.Inf(1)
-	for i := 0; i < 5; i++ {
-		once = math.Min(once, testing.AllocsPerRun(50, func() { s.fanoutIssue(ctx, "t1", frame) }))
-		got = math.Min(got, testing.AllocsPerRun(50, func() { s.fanoutChannelFrame(ctx, "t1", nil, frame) }))
-		enc = math.Min(enc, testing.AllocsPerRun(50, func() { encodeFrame(frame) })) //nolint:errcheck
+	var n atomic.Int32
+	frame := benchChannelFrame()
+	frame["probe"] = countingJSON{&n}
+	s.fanoutChannelFrame(context.Background(), "t1", nil, frame)
+	for i := 0; i < 10; i++ {
+		select {
+		case p := <-got:
+			if !strings.Contains(string(p), `"probe":"x"`) {
+				t.Fatalf("socket %d got %q", i, p)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("socket %d: no frame", i)
+		}
 	}
-	limit := once + 4.5*enc
-	if got > limit {
-		t.Fatalf("fanoutChannelFrame: %.0f allocs/run, encode-once arm %.0f + 4.5 encodings of %.0f = %.0f", got, once, enc, limit)
+	if got := n.Load(); got != 1 {
+		t.Fatalf("channel frame encoded %d times for 10 sockets, want 1", got)
 	}
-	t.Logf("fanoutChannelFrame %.0f allocs/run, encode-once arm %.0f, one encoding %.0f, limit %.0f", got, once, enc, limit)
 }
 
 // Every socket receives the same bytes, and they are what wsjson.Write sent

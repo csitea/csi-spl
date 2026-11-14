@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.5** (2026-11-14), the grok and mistral seats' findings folded and both PASSes recorded (11.1). Editor: c-690
+Version **v0.6** (2026-11-14), the grok, mistral and codex seats' findings folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -213,7 +213,7 @@ decision record (section 9.2, D-1).
 | CLI | local endpoint | how (source, read 2026-11-13) | fleet status |
 |---|---|---|---|
 | Claude Code (`c-`) | yes, Anthropic Messages API | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (docs.ollama.com/integrations/claude-code) | spawnable; **client terms with a non-Anthropic model are open question Q7** |
-| Codex CLI (`o-`) | yes, OpenAI API | a vLLM or llama.cpp server is a custom `[model_providers.<id>]` entry with `base_url` and `wire_api` in `config.toml` (developers.openai.com/codex/config-advanced); `--oss` is the local-provider path for **LM Studio or Ollama**, chosen by `--local-provider` or `oss_provider`; vLLM stays off `--oss` (developers.openai.com/codex/cli/reference, read 2026-11-14) | spawnable, off by weight (spec 161 2.2.6) |
+| Codex CLI (`o-`) | yes, **Responses API only** (not any OpenAI-compatible server) | a vLLM or llama.cpp server is a custom `[model_providers.<id>]` entry with `base_url` and `wire_api = "responses"`, the only supported value (developers.openai.com/codex/config-reference, read 2026-11-14), so the server must implement `/v1/responses`. The entry and `model_provider` go in the **user-level** `$CODEX_HOME/config.toml` or as launcher `-c` overrides: a project `.codex/config.toml` ignores `model_provider` and `model_providers` with a startup warning (developers.openai.com/codex/config-advanced, read 2026-11-14). Today `spawn-codex.sh:60` sets only `-c analytics.enabled=false -c check_for_update_on_startup=false`; no local provider config exists yet (planned, FR-03); `--oss` is the local-provider path for **LM Studio or Ollama**, chosen by `--local-provider` or `oss_provider`; vLLM stays off `--oss` (developers.openai.com/codex/cli/reference, read 2026-11-14) | spawnable, off by weight (spec 161 2.2.6) |
 | Mistral Vibe (`m-`) | yes, OpenAI-compatible | a `[[providers]]` entry (`name = "local"`, `api_base`, `api_style = "openai"`, `backend = "generic"`, no `api_key_env_var` when the server needs no key) plus a `[[models]]` preset with `provider = "local"` and `max_context_length`, in `config.toml`. With telemetry and update checks off, "the CLI does not contact `mistral.ai` or any other external service", **but** "skills, MCP servers, and connectors that reach external systems must be disabled separately" (docs.mistral.ai/vibe/code/cli/offline-models, read 2026-11-14; provider shape from the Vibe 2.26.0 bundled docs, mistral seat m-724) | spawnable; no coding (cnf, 2.1) |
 | Qwen Code (`q-`) | yes, OpenAI-compatible | `--auth-type openai` + `OPENAI_BASE_URL` (our own `keyexec/env.go:101-102`) | spawnable, weight 0 everywhere |
 | Grok CLI (`g-`) | yes, OpenAI-compatible or Anthropic Messages | a custom model `[model.<id>]` with `model`, `base_url`, `name`, `env_key` and `api_backend` (`chat_completions`, `responses` or `messages`) in the **user** config (`~/.grok/config.toml` or `$GROK_HOME/config.toml`; a project `.grok/config.toml` carries only MCP servers, plugins and the `[permission]` section), selected by `[models] default` or `-m <id>` (docs.x.ai/build/overview "Custom models"; docs.x.ai/build/settings/reference, last updated 2026-10-13; both read 2026-11-14 by the grok seat) | spawnable |
@@ -372,7 +372,7 @@ is 220 x the hourly figure, rounded.
 |---|---|---|
 | FR-01 | A model server serves pinned open-weight models over OpenAI and Anthropic APIs on a private network, with the tool-call parser each model family needs and token usage in streamed replies (4.2) | Planned |
 | FR-02 | Vendor `local` in cnf, conf-validator, lane-mix, journal and the WUI split page | Planned |
-| FR-03 | Launchers start the configured client CLI against the local endpoint with the stack token, telemetry/update/error reporting off, and every skill, MCP server and connector that reaches an outside system off (4.3, Vibe). A local profile does not require the vendor's cloud login file: today `auth_marker` skips a vendor without it (e.g. `grok: .grok/auth.json`, `all.env.yaml:1368`), so the skip rule for `local` reads the endpoint check (FR-04), not that marker. Grok: the launcher writes the user config of 4.3 (custom model, `env_key`, pinned `api_backend`, updater and backend search off, no cloud model id left in `[models]`) | Planned |
+| FR-03 | Launchers start the configured client CLI against the local endpoint with the stack token, telemetry/update/error reporting off, and every skill, MCP server and connector that reaches an outside system off (4.3, Vibe). A local profile does not require the vendor's cloud login file: today `auth_marker` skips a vendor without it (e.g. `grok: .grok/auth.json`, `all.env.yaml:1368`), so the skip rule for `local` reads the endpoint check (FR-04), not that marker. Grok: the launcher writes the user config of 4.3 (custom model, `env_key`, pinned `api_backend`, updater and backend search off, no cloud model id left in `[models]`). Codex: the launcher writes the custom `[model_providers.<id>]` (`base_url`, `wire_api = "responses"`) and `model_provider` to the seat's user-level `$CODEX_HOME/config.toml` or passes them as `-c` overrides, never a project `.codex/config.toml`, which ignores them (4.3) | Planned |
 | FR-04 | `local` is skipped at once when its endpoint check fails | Planned |
 | FR-05 | Weights pinned by revision and sha256, with a licence gate | Planned |
 | FR-06 | Step `062-gcp-vm-model-server`, dev first | Planned |
@@ -397,7 +397,7 @@ is 220 x the hourly figure, rounded.
 
 | phase | content | exit |
 |---|---|---|
-| **P0 measure** | T0.1 replay-set harness (4.8); T0.2 run 2-3 class S/M models on a G4 dev VM (**only with the owner's go**), or on CPU for class S; T0.3 served WUI network trace; T0.4 europe-north1 prices | evaluation report per kind |
+| **P0 measure** | T0.1 replay-set harness (4.8); T0.2 run 2-3 class S/M models on a G4 dev VM (**only with the owner's go**), or on CPU for class S; T0.3 served WUI network trace; T0.4 europe-north1 prices; T0.5 Codex probe: a multi-turn tool-call lane against the pinned server's `/v1/responses` passes (4.2, 4.3) | evaluation report per kind |
 | **P1 mixed, one client** | FR-01 (vLLM), FR-02, FR-03 for the Q1 client, FR-04, FR-05, FR-06 in dev | one kind at a small `local` weight in dev, journal rows |
 | **P2 mixed, all clients** | FR-03 for every capable CLI, gateway decision D-1, token accounting | `local` in the owner's chosen kinds |
 | **P3 full offline on GCP** | FR-08, FR-09, FR-10 in a dev project with egress denied | G3 proof |
@@ -439,7 +439,7 @@ own file under this folder unless said otherwise:
 ## 10. Sources (read 2026-11-13)
 
 - Ollama, Claude Code integration: docs.ollama.com/integrations/claude-code; Ollama blog: registry.ollama.ai/blog/claude; Habr 988538 (Anthropic API in Ollama, January 2026).
-- OpenAI Codex advanced configuration: developers.openai.com/codex/config-advanced; CLI reference (`--oss`): developers.openai.com/codex/cli/reference (read 2026-11-14).
+- OpenAI Codex advanced configuration: developers.openai.com/codex/config-advanced (project-config ignored keys); config reference (`wire_api`: `responses` only): developers.openai.com/codex/config-reference; CLI reference (`--oss`): developers.openai.com/codex/cli/reference (read 2026-11-14; the first two redirect to learn.chatgpt.com/docs/config-file/).
 - Grok CLI custom models: docs.x.ai/build/overview; settings reference docs.x.ai/build/settings/reference (last updated 2026-10-13); upstream guide github.com/xai-org/grok-build `.../user-guide/11-custom-models.md` (search snippet only). Read 2026-11-14 by the grok seat.
 - vLLM Responses API: docs.vllm.ai/en/stable/serving/online_serving/; issue vllm-project/vllm#33089 (read 2026-11-14).
 - G4 europe-north1 VM-hour: gcloud-compute.com/europe-north1/g4-standard-48.html (read 2026-11-14).
@@ -458,9 +458,9 @@ own file under this folder unless said otherwise:
 |---|---|---|---|
 | editor c-690 | claude | v0.1 author | - |
 | grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672); re-sign on the final sha |
-| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60); re-sign on the final sha |
-| codex seat | codex | - | - |
-| agy seat (signs last) | agy | - | - |
+| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c); re-sign on the final sha |
+| codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867) | - |
+| agy seat a-513 (signs last) | agy | - | - |
 
 ### 11.1 Changelog
 
@@ -487,5 +487,12 @@ own file under this folder unless said otherwise:
 - v0.5 (2026-11-14): mistral seat m-724 PASS on v0.4 `e9ea1ef32` (msg
   a9dd5b60, all four folds re-verified) recorded in the table above. No
   content change.
+- v0.6 (2026-11-14): codex seat o-515 (CHANGES: 2 findings, note
+  7aa4e867). F1: the Codex local route needs a server with the Responses
+  API; `wire_api = "responses"` is the only value; P0 adds T0.5, a
+  multi-turn tool-call probe (4.3, 8). F2: Codex provider settings go in the
+  user-level `$CODEX_HOME/config.toml` or `-c` overrides, since a project
+  config ignores them (4.3, FR-03). Both doc claims re-read by the editor
+  2026-11-14. Also recorded: m-724 PASS on v0.5 (msg c38f161c).
 
-<!-- version: 0.5.0 · updated: 2026-11-14 · last-edit: 2026-11-14T11:05:00Z -->
+<!-- version: 0.6.0 · updated: 2026-11-14 · last-edit: 2026-11-14T12:00:00Z -->

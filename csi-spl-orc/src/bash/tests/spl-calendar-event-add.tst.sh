@@ -11,6 +11,9 @@
 #      workspace) fail the action with no read-back
 #   5. SPL-2282: the written entry's clickable link, on a workspace host and
 #      on the apex for t1, its day from the event's start
+#   6. SPL-5498: AUDIENCE and MENTIONS go into the body; private needs
+#      MENTIONS with ORDERED_BY among them (else fail fast); a private event
+#      is read back as its creator (?as=AGENT_ID), any other event without it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -104,5 +107,24 @@ run "${SET[@]}" DRY_RUN=0 TENANT_ID=t1 STUB_BODY="$EV_T1"; rc=$?
   && pass "5. a t1 entry links on the apex, day from its start" || fail "5. t1 link: rc=$rc $(cat "$T/o")"
 run "${SET[@]}" DRY_RUN=1; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q 'link=' "$T/o" && pass "5. DRY_RUN writes nothing, prints no link" || fail "5. dry link: $(cat "$T/o")"
+
+# --- 6. AUDIENCE and MENTIONS (SPL-5498) ---------------------------------------
+PRIV=(AUDIENCE=private MENTIONS='HUM-10, HUM-42,HUM-10')
+run "${SET[@]}" "${PRIV[@]}"; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -qF '"ordered_by":"HUM-10","audience":"private","mentions":["HUM-10","HUM-42"]}' "$T/o" \
+  && pass "6. a private DRY_RUN sends audience and the deduped mentions, 0 calls" || fail "6. private dry: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" AUDIENCE=internal; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '"audience":"internal"}' "$T/o" && ! grep -q mentions "$T/o" \
+  && pass "6. AUDIENCE=internal, no MENTIONS: no mentions field" || fail "6. internal: rc=$rc $(cat "$T/o")"
+for bad in "AUDIENCE=public" "AUDIENCE=Private" "MENTIONS=bob" "MENTIONS=HUM-10,,HUM-42" "MENTIONS=c-840" \
+           "MENTIONS=" "MENTIONS=HUM-42" "ORDERED_BY="; do
+  run "${SET[@]}" "${PRIV[@]}" DRY_RUN=0 "$bad"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q FATAL "$T/o" && pass "6. private $bad fails fast, no call" || fail "6. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
+EV_P="${EV/\"audience\":\"workspace\"/\"audience\":\"private\",\"mentions\":[\"HUM-10\",\"HUM-42\"]}"
+run "${SET[@]}" "${PRIV[@]}" DRY_RUN=0 STUB_BODY="$EV_P"; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF "hub GET /v1/operator/calendar/events/0a1b2c3d?tenant=wa&as=c-840 " "$T/calls" \
+  && grep -qF '"mentions":["HUM-10","HUM-42"],"audience":"private"' "$T/o" \
+  && pass "6. a private event is read back as its creator agent, mentions printed" || fail "6. private read-back: rc=$rc $(cat "$T/calls" "$T/o")"
 
 (( fails == 0 )) && echo "ALL PASS: spl-calendar-event-add" || { echo "FAILED: $fails"; exit 1; }

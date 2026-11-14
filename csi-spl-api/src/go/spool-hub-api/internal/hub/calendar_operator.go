@@ -3,6 +3,7 @@ package hub
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -34,6 +35,12 @@ import (
 //     lands in or points into another.
 //   - The event body is the member create's (calendarRequest, spec 6.1.2)
 //     less guests: an agent invites nobody.
+//   - Audience (SPL-5498): the member create's, workspace by default. Every
+//     mention is a HUM-* member of the workspace. A private event names at
+//     least one, and ordered_by is one of them, so the human who ordered it
+//     reads it. The read-back takes ?as=<agent id>: an agent reads back the
+//     private event it created, and no other. The operator never reads a
+//     private event as a human (as=HUM-n is 404 on one).
 
 // operatorCalendarRequest is the create body: the target and the event.
 type operatorCalendarRequest struct {
@@ -108,7 +115,8 @@ func (s *Server) handleOperatorCalendarCreate(w http.ResponseWriter, r *http.Req
 		return
 	}
 	e.CreatorType = "agent"
-	if !s.operatorOwnerDefault(w, r, t.ID, orderedBy, e.CreatorID, q.OwnerID, &e) ||
+	if !s.operatorCalendarAudienceOK(w, r, t.ID, orderedBy, e) ||
+		!s.operatorOwnerDefault(w, r, t.ID, orderedBy, e.CreatorID, q.OwnerID, &e) ||
 		!s.bindEventLinks(w, r, t.ID, e.CreatorID, &e) {
 		return
 	}
@@ -195,8 +203,40 @@ func (s *Server) operatorOwnerDefault(w http.ResponseWriter, r *http.Request, te
 	return true
 }
 
+// operatorCalendarAudienceOK (SPL-5498): every mention is a HUM-* member of
+// tenant; a private event names at least one, ordered_by among them. It
+// writes the refusal.
+func (s *Server) operatorCalendarAudienceOK(w http.ResponseWriter, r *http.Request, tenant, orderedBy string, e store.CalendarEvent) bool {
+	if e.Audience == store.CalendarPrivate && (orderedBy == "" || !slices.Contains(e.Mentions, orderedBy)) {
+		writeIssueErr(w, badCalendar("a private event of an agent names ordered_by in mentions"))
+		return false
+	}
+	if len(e.Mentions) == 0 {
+		return true
+	}
+	members := map[string]bool{}
+	if md, ok := s.o.Store.(store.MemberDirectory); ok {
+		ms, err := md.ListMembers(r.Context(), tenant)
+		if err != nil {
+			s.writeCalendarErr(w, tenant, "mentions", err)
+			return false
+		}
+		for _, m := range ms {
+			members[m.HumanID] = true
+		}
+	}
+	for _, m := range e.Mentions {
+		if !humanIDRe.MatchString(m) || !members[m] {
+			writeIssueErr(w, badCalendar("mention "+m+" is not a member (HUM-*) of this workspace"))
+			return false
+		}
+	}
+	return true
+}
+
 // handleOperatorCalendarGet reads one event back as the operator sees it:
-// workspace and internal events, never a private one.
+// workspace and internal events; a private one only with ?as= naming the
+// agent that created it (SPL-5498), never as a human.
 func (s *Server) handleOperatorCalendarGet(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.operatorAuth(w, r); !ok {
 		return
@@ -205,7 +245,15 @@ func (s *Server) handleOperatorCalendarGet(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	e, err := c.GetCalendarEvent(r.Context(), t.ID, "", r.PathValue("id"))
+	as := strings.TrimSpace(r.URL.Query().Get("as"))
+	if as != "" && !humanIDRe.MatchString(as) && !agentid.IsAgent(as) {
+		writeErr(w, http.StatusBadRequest, "bad_viewer", "as must be an agent id")
+		return
+	}
+	e, err := c.GetCalendarEvent(r.Context(), t.ID, as, r.PathValue("id"))
+	if err == nil && e.Audience == store.CalendarPrivate && (e.CreatorType != "agent" || e.CreatorID != as) {
+		err = store.ErrNotFound // a mention, another agent or a human: the operator reads no one's private event
+	}
 	if err != nil {
 		s.writeCalendarErr(w, t.ID, "operator get", err)
 		return

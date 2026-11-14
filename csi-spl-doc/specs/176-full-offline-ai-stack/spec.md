@@ -1,6 +1,6 @@
 # Spec 176: Full Offline AI Stack (local model servers, mixed with the cloud vendors)
 
-Version **v0.9** (2026-11-14), the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
+Version **v1.0** (2026-11-14), **signed by all five panel seats on the content sha `dd314df8e`** (section 11); the findings of all four peer seats (grok, mistral, codex, agy) folded (11.1). Editor: c-690
 (claude seat). Placement slug `c002-4187ab15-offline-ai-panel-editor`.
 Epic: **SPL-2402**. Issue: **SPL-5455** (wip). Kind: `specs_and_docs`.
 Task: `dispatch-4187ab15`. Discussion: t1 topic `4187ab15-e3bc-4ae8-a4b2-c44bc9911b28`.
@@ -482,11 +482,11 @@ own file under this folder unless said otherwise:
 
 | seat | vendor | findings folded | PASS on sha |
 |---|---|---|---|
-| editor c-690 | claude | v0.1 author | - |
-| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672), v0.6 `93d886bb0` (note 7a40372e), v0.7 `efe28a084` (note 8b922972); re-sign on the final sha |
-| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c), v0.6 `93d886bb0` (msg 9f323c4a), v0.7 `efe28a084` (msg 11ea4e24); re-sign on the final sha |
-| codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867) | v0.6 `93d886bb0` (note c029a520); v0.8: 4.4 / 4.8 the agy review stays the last step in mode B (note f37936db); re-sign on the final sha |
-| agy seat a-513 (signs last) | agy | v0.7: 4.3 agy row (Gemini wire; local only behind a P2 translating gateway), 2.1 `vendorVars`, 4.4 and 4.8 mode B for `i18n` / `specs_and_docs`, Q10 client terms and Q11 further documents (Q7 references fixed), 3.3 box background probes and FR-10, FR-13 Qto import, 2.2 step count, 5.3 G2 / Cloud Run L4 rows (note 29fd824e); v0.9: 2.2 `\|` escaped in the terraform row (note 1f8cb11b) | - |
+| editor c-690 | claude | v0.1 author | **FINAL PASS `dd314df8e`** (editor, this commit) |
+| grok seat g-434 | grok | v0.2: 4.3 Grok CLI row (local `base_url`), five of six, 4.1 diagram, grok offline caveats, FR-03 (no cloud auth file), Q1 `grk` and `cdx`, Codex `--oss` = Ollama only, vLLM pin, 5.3 G4 europe-north1 cost and Q4 (notes ce50f5b0, 0830cdca); v0.3: `[permission]` section name, Codex `--oss` = LM Studio or Ollama (wording notes in 9df3e672) | v0.2 `13d1a83b3` (note 9df3e672), v0.6 `93d886bb0` (note 7a40372e), v0.7 `efe28a084` (note 8b922972); **FINAL PASS `dd314df8e`** (note ce10ac54) |
+| mistral seat m-724 | mistral | v0.4: 4.3 Vibe row (connectors, MCP and skills off; provider shape), FR-03, 4.7 transport (http where allowed), 4.2 vLLM flags and `include_usage`, FR-01, 4.5 Mistral Small 4, Q8 licences, P-1 off by default in mode B, 2.1/2.2 line drift (msg 0fe8de28) | v0.4 `e9ea1ef32` (msg a9dd5b60), v0.5 `d334be07e` (msg c38f161c), v0.6 `93d886bb0` (msg 9f323c4a), v0.7 `efe28a084` (msg 11ea4e24); **FINAL PASS `dd314df8e`** (msgs 1402c0de, 70e07491) |
+| codex seat o-515 | codex | v0.6: 4.3 Codex row (Responses API only, `wire_api = "responses"`; provider config user-level or `-c`, never project), FR-03 Codex, P0 T0.5 multi-turn tool-call probe, sources (note 7aa4e867); v0.8: 4.4 / 4.8 the agy review stays the last step in mode B (note f37936db) | v0.6 `93d886bb0` (note c029a520); **FINAL PASS `dd314df8e`** (note 470aea04) |
+| agy seat a-513 (signs last) | agy | v0.7: 4.3 agy row (Gemini wire; local only behind a P2 translating gateway), 2.1 `vendorVars`, 4.4 and 4.8 mode B for `i18n` / `specs_and_docs`, Q10 client terms and Q11 further documents (Q7 references fixed), 3.3 box background probes and FR-10, FR-13 Qto import, 2.2 step count, 5.3 G2 / Cloud Run L4 rows (note 29fd824e); v0.9: 2.2 `\|` escaped in the terraform row (note 1f8cb11b) | **FINAL PASS `dd314df8e`**, signed last (note 1e3f14fc) |
 
 ### 11.1 Changelog
 
@@ -544,5 +544,10 @@ own file under this folder unless said otherwise:
   the WUI's `renderMarkdown`; now escaped as `\|`, like the 2.1 row.
   The footer timestamp is now taken from `date -u` at commit. Also
   recorded: g-434 PASS on v0.7 (note 8b922972).
+- v1.0 (2026-11-14): consensus. All five seats PASS the content sha
+  `dd314df8e` (v0.9) with 0 findings: grok g-434 (note ce10ac54), mistral
+  m-724 (msgs 1402c0de, 70e07491), codex o-515 (note 470aea04), the
+  editor, and agy a-513 last (note 1e3f14fc, poll b866f988). This commit
+  only records the signatures; the spec text is that of `dd314df8e`.
 
-<!-- version: 0.9.0 · updated: 2026-11-14 · last-edit: 2026-11-14T11:30:08Z -->
+<!-- version: 1.0.0 · updated: 2026-11-14 · last-edit: 2026-11-14T11:39:57Z -->

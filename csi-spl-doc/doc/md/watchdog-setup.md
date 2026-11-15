@@ -198,6 +198,14 @@ All runtime files live under `<spool root>/dispatch/wd/` (default `/var/spool-hu
 └── inst.<n>.down_since        # Epoch timestamp recording when instance <n> became down
 ```
 
+A snapshot lives only until the self-update prunes it (two rollouts later),
+so nothing that outlives a tick may name a `code/<sha>/` path. A restart or
+rotation run from a snapshot spawns the new session with the desk-cron
+checkout's `spawn-window.sh` and `spool-send.sh` (`DESK_CRON_SRC`, else
+`starter.src`; `spl_rotate_seed_feat` in `spl-rotate-lib.func.sh`), so the
+seed and its `prompt.txt` name that checkout (SPL-5569). Test:
+`csi-spl-orc/src/bash/tests/wd-restart-seed-stable-paths.tst.sh`.
+
 <a id="ws-doc-a1ccac63-ee66-409f-b4e8-a0c9fff8e8b5"></a>
 ### 3.2 Heartbeat Schema (`heartbeat.<inst>.json`)
 Each instance updates its heartbeat at tick start and after each evaluated agent:

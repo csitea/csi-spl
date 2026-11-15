@@ -115,9 +115,33 @@ spl_rotate_conf() {
   ROTATE_MEMORY_DIR="${ROTATE_MEMORY_DIR:-$ROTATE_AGENT_HOME/.claude/projects/-opt/memory}"
   local app; app="$(basename "$PROJ_PATH")"; app="${app%-orc}"
   ROTATE_SPEC="${ROTATE_SPEC:-$(cd "$PROJ_PATH/.." && pwd)/$app-doc/doc/md/SPEC-spool-fleet-roles.md}"
-  ROTATE_SPAWN="${ROTATE_SPAWN:-$ROTATE_FEAT/scripts/spawn-window.sh}"
+  local seed_feat; seed_feat="$(spl_rotate_seed_feat)"
+  ROTATE_SPAWN="${ROTATE_SPAWN:-$seed_feat/scripts/spawn-window.sh}"
   ROTATE_RUN="${ROTATE_RUN:-$PROJ_PATH/run}"
-  ROTATE_SEND="${ROTATE_SEND:-$ROTATE_FEAT/scripts/spool-send.sh}"
+  ROTATE_SEND="${ROTATE_SEND:-$seed_feat/scripts/spool-send.sh}"
+  return 0
+}
+
+# spl_rotate_seed_feat: the spawn-agents dir a new session's seed names (its
+# spool-send.sh, lane-map.sh, git-fetch-fresh.sh: spawn-window.sh names the
+# dir it runs from). Run from a watchdog code snapshot (<wd>/code/<sha>/,
+# which holds .sha), that is the stable desk-cron checkout the snapshot came
+# from (DESK_CRON_SRC, else <wd>/starter.src), never the snapshot: the
+# self-update prunes a snapshot after two rollouts, and every seed that
+# named it lost its scripts (SPL-5569: a lane restarted 2026-11-15 11:53Z naming
+# wd/code/ccef654f..., pruned ~40 min later, and another seed the same). Not in a
+# snapshot, or no checkout with that dir: ROTATE_FEAT.
+spl_rotate_seed_feat() {
+  local root rel src s
+  root="$(cd "$SPL_ROTATE_LIB_DIR/../../../.." 2>/dev/null && pwd)" || root=""
+  s="$(cat "$root/.sha" 2>/dev/null || true)"
+  src="${DESK_CRON_SRC:-$(cat "${WD_STATE_DIR:-${LEASE_DIR:-$SPOOL_ROOT/dispatch}/wd}/starter.src" 2>/dev/null || true)}"
+  rel="${ROTATE_FEAT#"$root"/}"
+  if [[ "$s" =~ ^[0-9a-f]{40}$ && -n "$src" && "$rel" != "$ROTATE_FEAT" && -d "$src/$rel/scripts" ]]; then
+    echo "$src/$rel"
+  else
+    echo "$ROTATE_FEAT"
+  fi
   return 0
 }
 

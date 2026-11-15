@@ -1,10 +1,10 @@
 # Perf round 9 grok seat
 
-Verdict: **REVIEW PASS** on `2c11ec7ba9d00e623a12683f539c6ab17d7c4918` (plan v0.5). The **FAIL** on `060a8cddcc80b021944c032b467f88a8df268ad7` (plan v0.4) stands. The **FAIL** on `d6c1bee7a8b7d1a091d9efc38230d23de752c542` (plan v0.3) stands. The **PASS** on `89f8cef1495819e8b85d0644a8bf7000e77f6cb7` (plan v0.2) stands. Sections 1 to 6 are the v0.1 review. Section 0 is the v0.2 re-sign. Section 7 is the v0.3 delta. Section 8 is the v0.4 delta. Section 9 is the v0.5 delta.
+Verdict: **REVIEW PASS** on `729af997995f1f2ba992c6fd1b63063a972ea464` (plan v0.6). The **PASS** on `2c11ec7ba9d00e623a12683f539c6ab17d7c4918` (plan v0.5) stands. The **FAIL** on `060a8cddcc80b021944c032b467f88a8df268ad7` (plan v0.4) stands. The **FAIL** on `d6c1bee7a8b7d1a091d9efc38230d23de752c542` (plan v0.3) stands. The **PASS** on `89f8cef1495819e8b85d0644a8bf7000e77f6cb7` (plan v0.2) stands. Sections 1 to 6 are the v0.1 review. Section 0 is the v0.2 re-sign. Section 7 is the v0.3 delta. Section 8 is the v0.4 delta. Section 9 is the v0.5 delta. Section 10 is the v0.6 delta.
 
 Panel: g-751@sat, grok. Issue SPL-5502. Epic SPL-2402. Spec `csi-spl-doc/specs/027-spool-performance`.
 
-v0.1 and v0.2: no defects. N1 to N3 were citation gaps and v0.2 closes them. N4 to N11 do not change the row shape, the file split, or the direction of the measured gain. v0.3: W1 and W2 in section 7. v0.4: W2 is answered. W1 remains. Section 8. v0.5: W1 is answered. Section 9.
+v0.1 and v0.2: no defects. N1 to N3 were citation gaps and v0.2 closes them. N4 to N11 do not change the row shape, the file split, or the direction of the measured gain. v0.3: W1 and W2 in section 7. v0.4: W2 is answered. W1 remains. Section 8. v0.5: W1 is answered. Section 9. v0.6: the four findings are answered in the plan text. Section 10. N12 to N14 do not change the row.
 
 ## 0. Re-sign of v0.2
 
@@ -410,6 +410,74 @@ Lane-map of this file exited 4. No live lane lists it. 10 live lanes record no f
 ## Hygiene after the v0.5 sign
 
 On this index, after `git add` of this file, HEAD `7cedf5ab1823389d98daf5b24935d3d5e3aa6336`:
+
+```
+cd csi-spl-iac && ./run -a do_check_dist_hygiene
+```
+
+Printed `ok` for each sweep and `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-751`. `HYG_EXIT:0`. The allowed lines were the owner-approved cnf keys only (9 personal-name lines, 4 OS-user or box lines, 6 mail lines).
+
+## 10. Delta review of v0.6
+
+Asked by c-002 msg `37fd562b-fe76-4760-b7fb-d8016458d584` on task `dispatch-perf-r9`. Review the delta of `729af9979` against the four findings on v0.5, and that nothing else changed. Checked 2026-11-15 from `/opt/csi/csi-spl-wt/g-751`. GNU grep 3.11 (`/usr/bin/grep`).
+
+```
+git merge-base --is-ancestor 2c11ec7ba9d00e623a12683f539c6ab17d7c4918 729af997995f1f2ba992c6fd1b63063a972ea464
+git diff --name-only 2c11ec7ba9d00e623a12683f539c6ab17d7c4918 729af997995f1f2ba992c6fd1b63063a972ea464
+git diff --stat 2c11ec7ba9d00e623a12683f539c6ab17d7c4918 729af997995f1f2ba992c6fd1b63063a972ea464
+git merge-base origin/master 729af997995f1f2ba992c6fd1b63063a972ea464
+git diff --name-only e9ea1ef32bb4c5e21abcdd3a03f30a486bcfc9df 729af997995f1f2ba992c6fd1b63063a972ea464 | grep -c csi-spl-wui
+git rev-parse origin/master
+git rev-parse origin/review/c002-perf-round-9-planner
+git diff --stat 1638ca3a7 a86e50da8 -- .github/workflows/10_ci-quality.yml
+git ls-tree -r --name-only a86e50da8 | wc -l
+git archive a86e50da8 | tar -t | grep -v '/$' | wc -l
+bash /var/tmp/c723-probe/foldprobe.sh
+bash csi-spl-iac/src/bash/tests/sec-trufflehog.tst.sh
+bash csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh
+```
+
+Printed:
+
+```
+ANCESTOR:OK
+NAMES: csi-spl-doc/doc/md/perf-round-9-plan.md csi-spl-doc/doc/md/perf-round-9/editor.md
+2 files changed, 66 insertions(+), 26 deletions(-)
+MB:e9ea1ef32bb4c5e21abcdd3a03f30a486bcfc9df
+WUI:0
+MASTER:a86e50da87cf8d3e7471397995d0cd6e24b76013
+PLANNER:729af997995f1f2ba992c6fd1b63063a972ea464
+WF10: 1 file changed, 31 insertions(+)
+LSTREE:9660
+ARCHIVE:9660
+C.UTF-8: 0 1 3 0 1
+C: 0 0 0 0 0
+FOLD_EXIT:0
+TH_PASS:7
+TH_EXIT:0
+HYT_PASS:14
+HYT_EXIT:0
+```
+
+`729af9979` is one commit on top of `2c11ec7ba`. The author address and the committer address are the same address. The diff is those two files and nothing else. From the merge-base with `origin/master` (`e9ea1ef32`) to `729af9979`, `git diff --name-only` names no path under `csi-spl-wui/`.
+
+On `a86e50da8` the wf10 lines classify as: `sweep()` at `:1708`, the shared `grep` at `:1717`, the close at `:1736`, sweep calls at `:1737`, `:1738`, `:1740`, `:1742` and `:1743`, continuations at `:1739` and `:1741`, one locale-prefixed sweep at `:1769`, and one bare sweep at `:1787`. Those twelve lines are byte-identical to `1638ca3a7`. The 31 insertions in wf10 sit outside them. Row 03 does not put `LC_ALL=C` on `:1717`. `:1769` and `:1787` keep the locale they have. The five calls are the ones that take `LC_ALL=C` in the plan text. The row 03 finding is answered.
+
+The fold probe prints the plan's pinned string, n=1. Per plant line, the same five patterns: `:1738` matches one U+017F line under `C.UTF-8` and none under C; `:1740` matches three U+017F lines under `C.UTF-8` and none under C, and both U+212A lines under neither locale; `:1743` matches one U+212A line under `C.UTF-8` and none under C, and the other U+212A line under neither locale; `:1737` and `:1742` match nothing in the plant. The pinned `0 1 3 0 1` is the three `:1740` lines, the one `:1738` line and the one `:1743` line. N12: the row sentence that a word of `:1738`, `:1740` or `:1743` spelled with U+212A stops matching does not hold for the U+212A line that matches no sweep under either locale. The measured hit string is the one the row pins.
+
+The raw `loc5-a86e50da8-run1.txt` and `run2.txt` (14 lines each) sort to the editor table. Run 1 load 46.27..60.37, medians 4,325 and 2,971, B below paired A in 7 of 7. Run 2 load 55.98..71.30, medians 5,400 and 4,038, B below paired A in 7 of 7. One hash on all 28 lines: `d41d1d142a9ad41d8fb2`. The plan cell leads with the 5,400 / 4,038 run and calls the other run a second run; the editor numbers them run 1 and run 2 the other way. The samples are the same. N13: 60.37 is written 61 and 55.98 is written 56. (4,038-5,400)/5,400 is -25.2%, written -25%. (2,971-4,325)/4,325 is -31.3%, written -31%. This seat did not re-time the sweeps.
+
+N14: editor 2.4.1 says the `git archive` of `a86e50da8` is 9,654 files. `git ls-tree -r --name-only a86e50da8 | wc -l` prints 9660. `git archive a86e50da8 | tar -t | grep -v '/$' | wc -l` prints 9660. The count does not move the medians or the hash.
+
+On `a86e50da8`, `sec-trufflehog.func.sh` has `command -v` at `:30`, `_sec_trufflehog_count` at `:55` (the close is `:62`), `do_sec_trufflehog` at `:64`, the default bare name at `:65`, the need call at `:66`, the control start at `:73`, and the scan reuse at `:93`. The file has no `sha256sum` and no `BASH_SOURCE`. The row 02 key (resolved binary, this func file, version) and its two new cases are plan text. The cell says the second `sha256sum` is not re-measured. `sec-trufflehog.tst.sh` on this tree has none of those new cases. The existing file exits 0 (7 PASS lines). NOT RUN: the new resolved-binary case and the new func-file case.
+
+`check-pre-push.func.sh` on `a86e50da8`: `:115` is `declare -F _ppl_plan`, `:124` names the cross func file, `:159` is `_PP_WUI_EXT_RE`, `:160` is `_pp_wui_external` and `:182` closes it, `:826` is `_pp_part_commit_links`, `:832` is the `do_spl_commit_links_check` call. `:816` on this sha is the unknown-base return. That matches the section 6 cites that name `a86e50da8`. The citation finding is answered. `check-dist-hygiene.tst.sh` on this tree has no locale-shim case. The existing file exits 0 (14 PASS lines). NOT RUN: the locale-shim case. It is plan text.
+
+The row count stays 3. The v0.6 consensus row is still pending.
+
+## Hygiene after the v0.6 sign
+
+On this index, after `git add` of this file, HEAD `e374dc780f94daf7d45603d574c853d1423467dd`:
 
 ```
 cd csi-spl-iac && ./run -a do_check_dist_hygiene

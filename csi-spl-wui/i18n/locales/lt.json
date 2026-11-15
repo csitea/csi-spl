@@ -1268,7 +1268,23 @@
       "fallback_none": "Šioje darbo erdvėje neprisijungęs nė vienas agentas: įrašas čia dabar nepasiekia jokio agento.",
       "fallback_recent": "{count} neatsakytų įrašų nuėjo jam per paskutines 7 dienas, naujausias agentui {id} {at} UTC",
       "fallback_off": "išjungtas šiame kanale: neatsakytas įrašas čia nepasiekia jokio agento",
-      "default_everyone": "Numatytajame kanale yra visi žmonės, ir niekas negali būti iš jo pašalintas. Agentas jame yra tik tada, kai kas nors jį prideda."
+      "default_everyone": "Numatytajame kanale yra visi žmonės, ir niekas negali būti iš jo pašalintas. Agentas jame yra tik tada, kai kas nors jį prideda.",
+      "boxes_label": "Dėžės",
+      "boxes_any": "Bet kuri dėžė (numatytoji)",
+      "boxes_some": "Tik šios dėžės",
+      "boxes_none": "Prie šios darbo srities dar neprisegta nė viena dėžė.",
+      "boxes_save": "Išsaugoti dėžes",
+      "boxes_saved": "Dėžės išsaugotos.",
+      "boxes_readonly": "Dėžes keisti gali tik darbo srities administratorius.",
+      "boxes_hint": "Pagal numatytuosius nustatymus kanalas veikia bet kurioje darbo srities dėžėje. Kai jis prisegtas prie kai kurių dėžių, tik jos gauna jo įrašus ir paleidžia jo agentus.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Numatytasis kanalas lieka visose dėžėse: jo prisegti negalima.",
+        "unknown_box": "Ši dėžė neprisegta prie šios darbo srities arba yra atšaukta.",
+        "unknown_channel": "Šio kanalo nebėra.",
+        "forbidden": "Dėžes keisti gali tik darbo srities administratorius.",
+        "generic": "Nepavyko išsaugoti dėžių. Bandykite dar kartą.",
+        "load": "Nepavyko įkelti dėžių."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "Neišsaugota: {why}",
     "cost_alloc_error": "Nepavyko perskaityti išlaidų paskirstymų.",
     "cost_alloc_retry": "Bandyti dar kartą",
-    "cost_alloc_nothing": "Neturite išlaidų, kurias galėtumėte paskirstyti."
+    "cost_alloc_nothing": "Neturite išlaidų, kurias galėtumėte paskirstyti.",
+    "col_boxes": "Dėžės",
+    "boxes_any": "Bet kuri dėžė"
   },
   "help": {
     "title": "Pagalba",

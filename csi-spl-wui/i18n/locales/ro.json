@@ -1268,7 +1268,23 @@
       "fallback_none": "Niciun agent nu este online în acest spațiu de lucru: o postare aici nu ajunge acum la niciun agent.",
       "fallback_recent": "{count} postări fără răspuns au ajuns la el în ultimele 7 zile, cea mai nouă la {id} la {at} UTC",
       "fallback_off": "dezactivat pentru acest canal: o postare fără răspuns de aici nu ajunge la niciun agent",
-      "default_everyone": "Toți oamenii sunt într-un canal implicit și nimeni nu poate fi eliminat din el. Un agent este în el doar după ce cineva îl adaugă."
+      "default_everyone": "Toți oamenii sunt într-un canal implicit și nimeni nu poate fi eliminat din el. Un agent este în el doar după ce cineva îl adaugă.",
+      "boxes_label": "Boxuri",
+      "boxes_any": "Orice box (implicit)",
+      "boxes_some": "Doar aceste boxuri",
+      "boxes_none": "Niciun box nu este încă fixat la acest spațiu de lucru.",
+      "boxes_save": "Salvează boxurile",
+      "boxes_saved": "Boxurile au fost salvate.",
+      "boxes_readonly": "Doar un administrator al spațiului de lucru poate schimba boxurile.",
+      "boxes_hint": "Implicit, un canal rulează pe orice box al spațiului de lucru. Când este fixat pe anumite boxuri, doar acestea primesc postările lui și îi rulează agenții.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Un canal implicit rămâne pe toate boxurile: nu poate fi fixat.",
+        "unknown_box": "Acel box nu este fixat la acest spațiu de lucru sau a fost revocat.",
+        "unknown_channel": "Acest canal nu mai există.",
+        "forbidden": "Doar un administrator al spațiului de lucru poate schimba boxurile.",
+        "generic": "Boxurile nu au putut fi salvate. Încercați din nou.",
+        "load": "Boxurile nu au putut fi încărcate."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "Nu s-a salvat: {why}",
     "cost_alloc_error": "Alocările de costuri nu au putut fi citite.",
     "cost_alloc_retry": "Reîncearcă",
-    "cost_alloc_nothing": "Nu aveți niciun cost de alocat."
+    "cost_alloc_nothing": "Nu aveți niciun cost de alocat.",
+    "col_boxes": "Boxuri",
+    "boxes_any": "Orice box"
   },
   "help": {
     "title": "Ajutor",

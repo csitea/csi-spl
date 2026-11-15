@@ -1268,7 +1268,23 @@
       "fallback_none": "W tym obszarze roboczym żaden agent nie jest online: wpis tutaj nie trafia teraz do żadnego agenta.",
       "fallback_recent": "{count} wpisów bez odpowiedzi trafiło do niego w ciągu ostatnich 7 dni, najnowszy do {id} o {at} UTC",
       "fallback_off": "wyłączony w tym kanale: wpis bez odpowiedzi nie trafia tu do żadnego agenta",
-      "default_everyone": "Wszyscy ludzie są w kanale domyślnym i nikogo nie można z niego usunąć. Agent jest w nim dopiero wtedy, gdy ktoś go doda."
+      "default_everyone": "Wszyscy ludzie są w kanale domyślnym i nikogo nie można z niego usunąć. Agent jest w nim dopiero wtedy, gdy ktoś go doda.",
+      "boxes_label": "Boxy",
+      "boxes_any": "Dowolny box (domyślnie)",
+      "boxes_some": "Tylko te boxy",
+      "boxes_none": "Do tego obszaru roboczego nie przypięto jeszcze żadnego boxa.",
+      "boxes_save": "Zapisz boxy",
+      "boxes_saved": "Boxy zapisane.",
+      "boxes_readonly": "Tylko administrator obszaru roboczego może zmieniać boxy.",
+      "boxes_hint": "Domyślnie kanał działa na dowolnym boxie obszaru roboczego. Po przypięciu do wybranych boxów tylko one otrzymują jego wpisy i uruchamiają jego agentów.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Kanał domyślny zostaje na każdym boxie: nie można go przypiąć.",
+        "unknown_box": "Ten box nie jest przypięty do tego obszaru roboczego albo został unieważniony.",
+        "unknown_channel": "Ten kanał już nie istnieje.",
+        "forbidden": "Tylko administrator obszaru roboczego może zmieniać boxy.",
+        "generic": "Nie udało się zapisać boxów. Spróbuj ponownie.",
+        "load": "Nie udało się wczytać boxów."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "Nie zapisano: {why}",
     "cost_alloc_error": "Nie udało się odczytać podziałów kosztów.",
     "cost_alloc_retry": "Ponów",
-    "cost_alloc_nothing": "Nie masz żadnego kosztu do podziału."
+    "cost_alloc_nothing": "Nie masz żadnego kosztu do podziału.",
+    "col_boxes": "Boxy",
+    "boxes_any": "Dowolny box"
   },
   "help": {
     "title": "Pomoc",

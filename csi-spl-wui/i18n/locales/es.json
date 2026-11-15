@@ -1268,7 +1268,23 @@
       "fallback_none": "Ningún agente está conectado en este espacio de trabajo: una publicación aquí no llega ahora a ningún agente.",
       "fallback_recent": "{count} publicaciones sin respuesta le llegaron en los últimos 7 días, la más reciente a {id} el {at} UTC",
       "fallback_off": "desactivado en este canal: una publicación sin respuesta aquí no llega a ningún agente",
-      "default_everyone": "Todas las personas están en un canal predeterminado y nadie puede ser eliminado de él. Un agente está en él solo cuando alguien lo añade."
+      "default_everyone": "Todas las personas están en un canal predeterminado y nadie puede ser eliminado de él. Un agente está en él solo cuando alguien lo añade.",
+      "boxes_label": "Equipos",
+      "boxes_any": "Cualquier equipo (predeterminado)",
+      "boxes_some": "Solo estos equipos",
+      "boxes_none": "Todavía no hay ningún equipo fijado a este espacio de trabajo.",
+      "boxes_save": "Guardar equipos",
+      "boxes_saved": "Equipos guardados.",
+      "boxes_readonly": "Solo un administrador del espacio de trabajo puede cambiar los equipos.",
+      "boxes_hint": "De forma predeterminada, un canal funciona en cualquier equipo del espacio de trabajo. Si se fija a algunos equipos, solo esos reciben sus publicaciones y ejecutan sus agentes.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Un canal predeterminado se queda en todos los equipos: no se puede fijar.",
+        "unknown_box": "Ese equipo no está fijado a este espacio de trabajo o se ha revocado.",
+        "unknown_channel": "Este canal ya no existe.",
+        "forbidden": "Solo un administrador del espacio de trabajo puede cambiar los equipos.",
+        "generic": "No se pudieron guardar los equipos. Inténtalo de nuevo.",
+        "load": "No se pudieron cargar los equipos."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "No se guardó: {why}",
     "cost_alloc_error": "No se pudieron leer las asignaciones de costes.",
     "cost_alloc_retry": "Reintentar",
-    "cost_alloc_nothing": "No tienes ningún coste que asignar."
+    "cost_alloc_nothing": "No tienes ningún coste que asignar.",
+    "col_boxes": "Equipos",
+    "boxes_any": "Cualquier equipo"
   },
   "help": {
     "title": "Ayuda",

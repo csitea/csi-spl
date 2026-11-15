@@ -1268,7 +1268,23 @@
       "fallback_none": "Bu çalışma alanında çevrimiçi ajan yok: buradaki bir gönderi şu anda hiçbir ajana ulaşmaz.",
       "fallback_recent": "Son 7 günde {count} yanıtsız gönderi ona gitti, en yenisi {at} UTC'de {id} ajanına",
       "fallback_off": "bu kanal için kapalı: buradaki yanıtsız bir gönderi hiçbir ajana ulaşmaz",
-      "default_everyone": "Varsayılan kanalda tüm kişiler vardır ve kimse ondan çıkarılamaz. Bir ajan, ancak biri onu eklediğinde kanalda olur."
+      "default_everyone": "Varsayılan kanalda tüm kişiler vardır ve kimse ondan çıkarılamaz. Bir ajan, ancak biri onu eklediğinde kanalda olur.",
+      "boxes_label": "Kutular",
+      "boxes_any": "Herhangi bir kutu (varsayılan)",
+      "boxes_some": "Yalnızca bu kutular",
+      "boxes_none": "Bu çalışma alanına henüz hiçbir kutu sabitlenmedi.",
+      "boxes_save": "Kutuları kaydet",
+      "boxes_saved": "Kutular kaydedildi.",
+      "boxes_readonly": "Kutuları yalnızca çalışma alanı yöneticisi değiştirebilir.",
+      "boxes_hint": "Varsayılan olarak bir kanal çalışma alanının herhangi bir kutusunda çalışır. Bazı kutulara sabitlendiğinde yalnızca onlar gönderilerini alır ve ajanlarını çalıştırır.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Varsayılan bir kanal her kutuda kalır: sabitlenemez.",
+        "unknown_box": "Bu kutu bu çalışma alanına sabitlenmemiş ya da iptal edilmiş.",
+        "unknown_channel": "Bu kanal artık yok.",
+        "forbidden": "Kutuları yalnızca çalışma alanı yöneticisi değiştirebilir.",
+        "generic": "Kutular kaydedilemedi. Yeniden deneyin.",
+        "load": "Kutular yüklenemedi."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "Kaydedilmedi: {why}",
     "cost_alloc_error": "Maliyet dağıtımları okunamadı.",
     "cost_alloc_retry": "Tekrar dene",
-    "cost_alloc_nothing": "Dağıtabileceğiniz bir maliyet yok."
+    "cost_alloc_nothing": "Dağıtabileceğiniz bir maliyet yok.",
+    "col_boxes": "Kutular",
+    "boxes_any": "Herhangi bir kutu"
   },
   "help": {
     "title": "Yardım",

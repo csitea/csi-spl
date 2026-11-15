@@ -142,6 +142,9 @@ const LAZY_METHODS = [
   'createIssueLabel',
   'listFlow',
   'markFlow',
+  'listPins',
+  'getChannelBoxPins',
+  'setChannelBoxPins',
 ]
 
 function uuid() {

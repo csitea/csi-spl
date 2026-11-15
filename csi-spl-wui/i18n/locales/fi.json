@@ -1268,7 +1268,23 @@
       "fallback_none": "Tässä työtilassa ei ole yhtään agenttia paikalla: täällä julkaistu viesti ei nyt tavoita agenttia.",
       "fallback_recent": "{count} vastaamatonta viestiä meni sille viimeisen 7 päivän aikana, uusin agentille {id} {at} UTC",
       "fallback_off": "pois päältä tällä kanavalla: vastaamaton viesti ei täällä tavoita agenttia",
-      "default_everyone": "Oletuskanavalla ovat kaikki ihmiset, eikä ketään voi poistaa sieltä. Agentti on kanavalla vasta, kun joku lisää sen."
+      "default_everyone": "Oletuskanavalla ovat kaikki ihmiset, eikä ketään voi poistaa sieltä. Agentti on kanavalla vasta, kun joku lisää sen.",
+      "boxes_label": "Koneet",
+      "boxes_any": "Mikä tahansa kone (oletus)",
+      "boxes_some": "Vain nämä koneet",
+      "boxes_none": "Tähän työtilaan ei ole vielä kiinnitetty yhtään konetta.",
+      "boxes_save": "Tallenna koneet",
+      "boxes_saved": "Koneet tallennettu.",
+      "boxes_readonly": "Vain työtilan ylläpitäjä voi muuttaa koneita.",
+      "boxes_hint": "Oletuksena kanava toimii millä tahansa työtilan koneella. Kun se kiinnitetään joihinkin koneisiin, vain ne saavat sen viestit ja ajavat sen agentteja.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Oletuskanava pysyy kaikilla koneilla: sitä ei voi kiinnittää.",
+        "unknown_box": "Tätä konetta ei ole kiinnitetty tähän työtilaan, tai se on peruttu.",
+        "unknown_channel": "Tätä kanavaa ei ole enää.",
+        "forbidden": "Vain työtilan ylläpitäjä voi muuttaa koneita.",
+        "generic": "Koneita ei voitu tallentaa. Yritä uudelleen.",
+        "load": "Koneita ei voitu ladata."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "Ei tallennettu: {why}",
     "cost_alloc_error": "Kulujen kohdistuksia ei voitu lukea.",
     "cost_alloc_retry": "Yritä uudelleen",
-    "cost_alloc_nothing": "Sinulla ei ole kohdistettavia kuluja."
+    "cost_alloc_nothing": "Sinulla ei ole kohdistettavia kuluja.",
+    "col_boxes": "Koneet",
+    "boxes_any": "Mikä tahansa kone"
   },
   "help": {
     "title": "Ohje",

@@ -2483,4 +2483,48 @@ export const lazySpoolMethods = {
   linkIssueDiscussion,
   unlinkIssueDiscussion,
   createIssueLabel,
+  listPins,
+  getChannelBoxPins,
+  setChannelBoxPins,
+}
+
+/* spec 164 row B6 (SPL-5560): a channel's box pins (hub routes of row B2).
+   No pin = the channel runs on any box of the workspace. */
+
+/** GET /v1/pins: the workspace's active box pins, { pins: [{ box_id, pubkey }] }. */
+async function listPins(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).pins()
+  return live('/v1/pins')
+}
+
+/** GET /v1/channels/{ch}/box-pins → { channel, box_pins, is_pinned }; box_pins [] = any box. */
+async function getChannelBoxPins(ctx, channel) {
+  const { live, mock, tenantMock } = ctx
+  const ch = String(channel || '')
+  if (mock) return (await tenantMock()).channelBoxPins(ch)
+  return live(`/v1/channels/${encodeURIComponent(ch)}/box-pins`)
+}
+
+/**
+ * PUT /v1/channels/{ch}/box-pins { box_pins } (tenant.settings); [] clears
+ * the pin. The hub refuses a default channel (400 channel_default_unpinnable)
+ * and a box not pinned to the workspace (400 unknown_box).
+ */
+async function setChannelBoxPins(ctx, channel, boxes) {
+  const { live, mock, tenantMock } = ctx
+  const ch = String(channel || '')
+  const body = { box_pins: (Array.isArray(boxes) ? boxes : []).map((b) => String(b)) }
+  if (mock) {
+    const me = mockMeGet()
+    if (me && !me.permissions.includes('tenant.settings')) {
+      throw Object.assign(new Error('only a workspace admin pins a channel to boxes'), { status: 403, token: 'forbidden', permission: 'tenant.settings' })
+    }
+    return (await tenantMock()).setChannelBoxPins(ch, body.box_pins)
+  }
+  return live(`/v1/channels/${encodeURIComponent(ch)}/box-pins`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }

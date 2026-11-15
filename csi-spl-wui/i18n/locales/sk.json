@@ -1268,7 +1268,23 @@
       "fallback_none": "V tomto pracovnom priestore nie je online žiadny agent: príspevok tu teraz nedosiahne žiadneho agenta.",
       "fallback_recent": "{count} príspevkov bez odpovede k nemu prišlo za posledných 7 dní, najnovší k {id} o {at} UTC",
       "fallback_off": "vypnutý pre tento kanál: príspevok bez odpovede tu nedosiahne žiadneho agenta",
-      "default_everyone": "V predvolenom kanáli sú všetci ľudia a nikoho z neho nemožno odstrániť. Agent je v ňom, až keď ho niekto pridá."
+      "default_everyone": "V predvolenom kanáli sú všetci ľudia a nikoho z neho nemožno odstrániť. Agent je v ňom, až keď ho niekto pridá.",
+      "boxes_label": "Boxy",
+      "boxes_any": "Ľubovoľný box (predvolené)",
+      "boxes_some": "Iba tieto boxy",
+      "boxes_none": "K tomuto pracovnému priestoru ešte nie je pripnutý žiadny box.",
+      "boxes_save": "Uložiť boxy",
+      "boxes_saved": "Boxy sú uložené.",
+      "boxes_readonly": "Boxy môže meniť iba správca pracovného priestoru.",
+      "boxes_hint": "Predvolene kanál beží na ľubovoľnom boxe pracovného priestoru. Keď je pripnutý k niektorým boxom, iba tie dostávajú jeho príspevky a spúšťajú jeho agentov.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Predvolený kanál zostáva na každom boxe: nedá sa pripnúť.",
+        "unknown_box": "Tento box nie je pripnutý k tomuto pracovnému priestoru alebo bol odvolaný.",
+        "unknown_channel": "Tento kanál už neexistuje.",
+        "forbidden": "Boxy môže meniť iba správca pracovného priestoru.",
+        "generic": "Boxy sa nepodarilo uložiť. Skúste to znova.",
+        "load": "Boxy sa nepodarilo načítať."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "Neuložené: {why}",
     "cost_alloc_error": "Rozdelenia nákladov sa nepodarilo načítať.",
     "cost_alloc_retry": "Skúsiť znova",
-    "cost_alloc_nothing": "Nemáte žiadny náklad na rozdelenie."
+    "cost_alloc_nothing": "Nemáte žiadny náklad na rozdelenie.",
+    "col_boxes": "Boxy",
+    "boxes_any": "Ľubovoľný box"
   },
   "help": {
     "title": "Pomoc",

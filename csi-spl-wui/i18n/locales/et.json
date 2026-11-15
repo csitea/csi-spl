@@ -1268,7 +1268,23 @@
       "fallback_none": "Selles tööruumis pole ükski agent võrgus: siinne postitus ei jõua praegu ühegi agendini.",
       "fallback_recent": "{count} vastamata postitust läks talle viimase 7 päeva jooksul, uusim agendile {id} ajal {at} UTC",
       "fallback_off": "selles kanalis väljas: vastamata postitus ei jõua siin ühegi agendini",
-      "default_everyone": "Vaikekanalis on kõik inimesed ja kedagi ei saa sealt eemaldada. Agent on seal alles siis, kui keegi ta lisab."
+      "default_everyone": "Vaikekanalis on kõik inimesed ja kedagi ei saa sealt eemaldada. Agent on seal alles siis, kui keegi ta lisab.",
+      "boxes_label": "Kastid",
+      "boxes_any": "Mis tahes kast (vaikimisi)",
+      "boxes_some": "Ainult need kastid",
+      "boxes_none": "Selle tööruumi külge pole veel ühtegi kasti kinnitatud.",
+      "boxes_save": "Salvesta kastid",
+      "boxes_saved": "Kastid on salvestatud.",
+      "boxes_readonly": "Kaste saab muuta ainult tööruumi administraator.",
+      "boxes_hint": "Vaikimisi töötab kanal tööruumi mis tahes kastis. Kui see on mõne kasti külge kinnitatud, saavad ainult need selle postitusi ja käitavad selle agente.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Vaikekanal jääb igasse kasti: seda ei saa kinnitada.",
+        "unknown_box": "See kast pole selle tööruumi külge kinnitatud või on tühistatud.",
+        "unknown_channel": "Seda kanalit enam ei ole.",
+        "forbidden": "Kaste saab muuta ainult tööruumi administraator.",
+        "generic": "Kaste ei õnnestunud salvestada. Proovi uuesti.",
+        "load": "Kaste ei õnnestunud laadida."
+      }
     }
   },
   "users": {
@@ -2110,7 +2126,9 @@
     "cost_alloc_refused": "Ei salvestatud: {why}",
     "cost_alloc_error": "Kulude jaotusi ei õnnestunud lugeda.",
     "cost_alloc_retry": "Proovi uuesti",
-    "cost_alloc_nothing": "Sul pole ühtegi kulu, mida jaotada."
+    "cost_alloc_nothing": "Sul pole ühtegi kulu, mida jaotada.",
+    "col_boxes": "Kastid",
+    "boxes_any": "Mis tahes kast"
   },
   "help": {
     "title": "Abi",

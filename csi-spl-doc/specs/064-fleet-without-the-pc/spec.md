@@ -173,6 +173,20 @@ failover) and once after L1..L6 (measures the target).
 No lane touches `csi-spl-api/**`, `csi-spl-wui/**`, the hub, or the fleet
 lease loop (c-075's knobs suffice).
 
+**L2, a desk never pinned (SPL-5586).** On the lease holder,
+`do_spl_responder_sweep` seats a down RSP sidecar again only when its desk
+holds a `pinned` file. Before this change, a desk with no pin at all failed
+every tick with `FAIL <box> of <tenant> is not pinned` and exit 1. That was
+the dev sweep on sat after the 11-14 desk move: the dev responder was never
+set up there. In **dev**, a desk with no `pinned` file now writes one line,
+`OK <box> of <tenant> is not set up in dev: skipped; pin it with
+do_spl_desk_pin to enable`, and the sweep exits 0. In **prd** a missing pin
+is still a `FAIL` and exit 1: a prd responder that disappears without a red
+is worse than the red. In both envs, a pinned desk that fails to seat still
+fails. The summary line counts the skips: `<n>/<m> tenant(s) handled,
+<k> not set up, <f> failed`. Test: cases 3 to 5 of
+`csi-spl-orc/src/bash/tests/responder-sweep.tst.sh`.
+
 ## 7. Risks
 
 - **One VM becomes the whole fleet.** sat down (GCP maintenance, a full

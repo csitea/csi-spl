@@ -12,6 +12,12 @@
 # @description the desk reconcile (box user Linger=no, no user bus over sudo).
 # @description The always-on service reacts in seconds; this cron is the belt.
 # @description A tenant whose RSP desk is not seated is logged and skipped.
+# @description An RSP desk NEVER pinned in this env (no <desk>/pinned file) is
+# @description not set up here: in dev one OK line ("not set up in dev:
+# @description skipped") and the sweep does not fail (SPL-5586); in prd it
+# @description stays a FAIL (rc 1), since a prd responder that silently
+# @description vanishes is worse than a red. A pinned desk that fails to seat
+# @description fails the sweep in both envs.
 # @description ONE machine answers (specs/064 L2). The hub keeps one socket
 # @description per (tenant, box), so only the machine holding the fleet's
 # @description dispatch lease (do_spl_dispatch_lease) keeps an RSP sidecar up:
@@ -53,7 +59,7 @@ do_spl_responder_sweep() {
   # Every tenant with a seated box-rsp spool is in scope. The reconcile seats
   # them; we only drain and answer (and, in fleet mode, keep the sidecar on
   # the lease holder only).
-  local seated=0 swept=0 fails=0 tenant d
+  local seated=0 swept=0 skipped=0 fails=0 tenant d src
   while IFS= read -r -u 9 d; do
     d="${d%/spool}"; tenant="${d%/*}"; tenant="${tenant##*/}"
     [[ -d "$d/spool" ]] || continue
@@ -63,7 +69,9 @@ do_spl_responder_sweep() {
       continue
     fi
     if [[ "$role" == holder ]] && ! spl_desk_alive "$d/spool/.hub/hub-run.pid"; then
-      spl_rsp_seat "$d" "$tenant" "$box" "$agent" "$dry" || { fails=$((fails + 1)); continue; }
+      spl_rsp_seat "$d" "$tenant" "$box" "$agent" "$dry"; src=$?
+      (( src == 2 )) && { skipped=$((skipped + 1)); continue; }
+      (( src == 0 )) || { fails=$((fails + 1)); continue; }
     fi
     if TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$agent" do_spl_responder_run; then
       swept=$((swept + 1))
@@ -77,7 +85,7 @@ do_spl_responder_sweep() {
     do_log "OK responder sweep ($ENV): no $box desk seated on this box yet (the reconcile seats it)"
     return 0
   fi
-  do_log "OK responder sweep ($ENV, $role): $swept/$seated tenant(s) handled, $fails failed"
+  do_log "OK responder sweep ($ENV, $role): $swept/$seated tenant(s) handled, $skipped not set up, $fails failed"
   (( fails == 0 ))
 }
 
@@ -122,9 +130,14 @@ spl_rsp_down() {
 
 # spl_rsp_seat <desk dir> <tenant> <box> <agent> <dry>: the holder seats its
 # RSP desk again. Only a desk already pinned (<desk>/pinned): the first pin
-# needs the tenant root key, which is never fetched here.
+# needs the tenant root key, which is never fetched here. Returns 0 seated
+# (or dry run), 1 failed, 2 never pinned outside prd (not set up: skipped).
 spl_rsp_seat() {
   local d="$1" t="$2" b="$3" a="$4" dry="$5" rc=0
+  if [[ ! -e "$d/pinned" && "$ENV" != prd ]]; then
+    do_log "OK $b of $t is not set up in $ENV: skipped; pin it with do_spl_desk_pin to enable"
+    return 2
+  fi
   [[ -s "$d/pinned" ]] || { do_log "FAIL $b of $t is not pinned: pin it first (do_spl_desk_pin)"; return 1; }
   if (( dry )); then do_log "INFO DRY_RUN would: seat $a on $b of $t (lease holder)"; return 0; fi
   exec 7>"$d/up-all.lock" || { do_log "FATAL cannot open $d/up-all.lock"; return 1; }

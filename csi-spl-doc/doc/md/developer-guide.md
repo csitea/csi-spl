@@ -301,7 +301,7 @@ pass through, as does everything after a bare `--`. With several actions in
 one run, each one checks the flags against its own header. The flag names
 do not follow the caller's locale: the parse runs under `LC_ALL=C`. The code:
 `execute_step_parse_args` in `csi-spl-orc/src/bash/run/run.sh`
-(byte-identical in iac and utl).
+(byte-identical in iac, utl and the repo-root `src/bash/run/run.sh`).
 
 Enforced by: `csi-spl-iac/src/bash/tests/action-header-tags.tst.sh` (run by
 `run-all-tests.sh`): every `do_*()` action file of iac, orc and utl

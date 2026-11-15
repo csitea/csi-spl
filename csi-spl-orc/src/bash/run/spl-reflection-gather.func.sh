@@ -17,7 +17,11 @@
 # @description into one file under the spool root (REFLECTION_DIR), and queues
 # @description ONE lane (class refactor, kind specs_and_docs) whose brief,
 # @description rendered from features/dispatch/brief-reflection.tpl.md, carries
-# @description that file, its Epic: and Spec: lines, and asks for the day's Qto
+# @description that file, its Epic: and Spec: lines, its Discussion: line (cnf
+# @description env.rhythm.reflection_discussion, a live topic: the placer refuses
+# @description a lane with no discussion, an archived one raises the archived-seat
+# @description blocker, SPL-5646; not a uuid = FATAL, nothing gathered or
+# @description queued), and asks for the day's Qto
 # @description page plus at most 3 proposed rows. The ask goes through
 # @description do_spl_spawn_enqueue and its gates. A source that cannot be read
 # @description is one "(not read: <its last stderr line>)" line, never a stop. Nothing is written
@@ -41,6 +45,7 @@
 # @param REFLECTION_REF (optional) - default origin/master (fetched first, unless REFLECTION_FETCH=0)
 # @param REFLECTION_ZOMBIE_LOG (optional) - default /var/csi/csi-spl/zombie-topics/cron.log
 # @param REFLECTION_TPL (optional) - the brief template, default features/dispatch/brief-reflection.tpl.md
+# @param REFLECTION_CNF (optional) - the cnf holding env.rhythm.reflection_discussion, default <checkout>/<org>-<app>-cnf/<org>-<app>/all.env.yaml
 # @param REFLECTION_MIX_CMD (optional, tests) - prints the lane mix (gets LANE_MIX_KIND, LANE_MIX_SENSITIVE)
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where the brief goes, default <spool root>/dispatch/briefs
 # @param RHYTHM_NOW RHYTHM_CNF (optional) - as do_spl_rhythm_phase (tests: the moment judged, the window's end)
@@ -58,7 +63,7 @@ declare -F spl_zombie_night >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-zombie-topics.func.sh"
 
 do_spl_reflection_gather() {
-  local root="${SPOOL_ROOT:-/var/spool-hub}" dry=1 night holder until since dir gather brief
+  local root="${SPOOL_ROOT:-/var/spool-hub}" dry=1 night holder until since dir gather brief disc
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   read -r holder _ <"$root/dispatch/lease" 2>/dev/null || holder=""
   if [[ "${REFLECTION_FORCE:-0}" != 1 ]]; then
@@ -69,6 +74,7 @@ do_spl_reflection_gather() {
   export ENV="${ENV:-$(spl_owner_digest_lease_conf "$root" LEASE_ENV prd)}"
   export TENANT_ID="${TENANT_ID:-$(spl_owner_digest_lease_conf "$root" LEASE_TENANT "")}"
   export DESK_AGENT="${DESK_AGENT:-${holder%@*}}"
+  disc="$(spl_reflection_discussion)" || return 1
   until="$(date -u -d "${RHYTHM_NOW:-now}" +%s)" || { do_log "FATAL reflection: RHYTHM_NOW is not a date"; return 1; }
   since=$((until - 86400))
   dir="${REFLECTION_DIR:-$root/dispatch/reflection}"
@@ -77,7 +83,7 @@ do_spl_reflection_gather() {
     { do_log "FATAL reflection: the gathered file $gather was not written"; return 1; }
   echo "OK reflection: gathered $gather ($(grep -c '^- ' "$gather") item line(s))"
   brief="$(mktemp)" || return 1
-  spl_reflection_brief "$night" "$gather" "$since" "$until" >"$brief" || { rm -f "$brief"; return 1; }
+  DISCUSSION="$disc" spl_reflection_brief "$night" "$gather" "$since" "$until" >"$brief" || { rm -f "$brief"; return 1; }
   local rc=0
   if ((dry)); then
     echo "PLAN reflection: would queue reflection-$night (refactor, specs_and_docs) with this brief:"
@@ -94,6 +100,19 @@ do_spl_reflection_gather() {
 
 spl_reflection_state() {
   echo "${REFLECTION_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/reflection.last}"
+}
+
+# spl_reflection_discussion: the brief's discussion, cnf
+# env.rhythm.reflection_discussion (SPL-5646: the template named an owner topic
+# that was archived on 2026-11-04, so every night's lane sat on an archived
+# discussion). A full uuid on stdout, else one FATAL line, rc 1.
+spl_reflection_discussion() {
+  local oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:-csi-spl-orc}")}" cnf v
+  oa="${oa%-orc}"; cnf="${REFLECTION_CNF:-${APP_PATH:-.}/$oa-cnf/$oa/all.env.yaml}"
+  v="$(yq -r '.env.rhythm.reflection_discussion // ""' "$cnf" 2>/dev/null)"
+  [[ "$v" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] ||
+    { do_log "FATAL reflection: cnf env.rhythm.reflection_discussion in $cnf must be a live topic's uuid, got: '${v:0:80}'" >&2; return 1; }
+  echo "$v"
 }
 
 # spl_reflection_gate <root> <holder>: the night's date on stdout when this
@@ -240,6 +259,7 @@ spl_reflection_share_line() {
 spl_reflection_brief() {
   local tpl="${REFLECTION_TPL:-$PROJ_PATH/src/bash/features/dispatch/brief-reflection.tpl.md}"
   [[ -r "$tpl" ]] || { do_log "FATAL reflection: no brief template $tpl"; return 1; }
+  [[ -n "${DISCUSSION:-}" ]] || { do_log "FATAL reflection: no DISCUSSION for the brief"; return 1; }
   NIGHT="$1" GATHER_FILE="$2" SINCE="$(spl_reflection_iso "$3")" UNTIL="$(spl_reflection_iso "$4")" \
     python3 - "$tpl" <<'PY'
 import os, sys
@@ -248,7 +268,7 @@ e = os.environ
 gather = open(e["GATHER_FILE"], encoding="utf-8").read().rstrip("\n")
 # the gathered file's own headings sit two levels below the brief's section
 gather = "\n".join("##" + l if l.startswith("#") else l for l in gather.splitlines())
-for k, v in {"NIGHT": e["NIGHT"], "SINCE": e["SINCE"], "UNTIL": e["UNTIL"],
+for k, v in {"NIGHT": e["NIGHT"], "SINCE": e["SINCE"], "UNTIL": e["UNTIL"], "DISCUSSION": e["DISCUSSION"],
              "GATHER_FILE": e["GATHER_FILE"], "GATHER": gather}.items():
     s = s.replace("{" + k + "}", v)
 sys.stdout.write(s)

@@ -31,9 +31,16 @@
 #  11. the cron row: manifest row reflection every 15 min after zombie-topics,
 #      its script is executable, refuses a worktree, passes REFLECTION_DRY_RUN
 #      from lease.conf
-#  12. the brief names its discussion, the owner topic c0b0d572, on a
-#      Discussion: line, so li_discussion_from_brief never picks a topic of
-#      the gathered owner messages
+#  12. the brief names its discussion on a Discussion: line, the topic in
+#      cnf env.rhythm.reflection_discussion, so li_discussion_from_brief never
+#      picks a topic of the gathered owner messages (SPL-5646)
+#  12b. the template's Discussion: line holds no fixed uuid. Red control: the
+#      old line back (the owner topic c0b0d572, archived 2026-11-04) renders
+#      a brief whose Discussion: is not the cnf topic, and the template check
+#      names the uuid
+#  12c. a cnf with no reflection_discussion, or one that is not a uuid: FATAL,
+#      rc 1, no gathered file, no queue op, no stamp
+#  12d. the real all.env.yaml names a uuid that is not c0b0d572
 #  13. the owner SQL on a real Postgres (rdb migrations, runtime login): an
 #      owner with role admin and a biz_owner are listed; a tester, a developer,
 #      an older post, another workspace are not. Red control: the old
@@ -87,6 +94,8 @@ cat >"$T/diss.json" <<'EOF'
  {"key": "SPL-901", "title": "a lane dropped by its gate", "status": "diss", "canceled_at": "2026-01-15T12:00:00.5Z", "updated_at": "2026-01-15T12:00:01Z"},
  {"key": "SPL-800", "title": "an old one", "status": "diss", "canceled_at": "2026-01-10T12:00:00Z", "updated_at": "2026-01-10T12:00:00Z"}]}}
 EOF
+DISC=33333333-0000-4000-8000-000000000003
+printf 'env:\n  rhythm:\n    reflection_discussion: %s\n' "$DISC" >"$T/cnf.yaml"
 echo "2026-01-15T19:01:00Z OK zombie sweep, night of 2026-01-15 (DRY_RUN=1, cap 500, idle 7 d): 3 candidate(s); would archive 1" >"$T/zombie.log"
 
 # The hub and the readers, replaced (SNIPPET of in_orc): calls land in
@@ -113,7 +122,7 @@ run() {
   local now="$1"; shift
   SNIPPET="$STUBS" in_orc T="$T" RHYTHM_NOW="$now" SPOOL_ROOT="$T/spool" SPOOL_BOX_TAG=box-a \
     REFLECTION_STATE="$T/stamp" REFLECTION_DIR="$T/spool/dispatch/reflection" SPAWN_PLACE_BRIEF_DIR="$T/briefs" \
-    REFLECTION_REPO="$R" REFLECTION_ZOMBIE_LOG="$T/zombie.log" REFLECTION_MIX_CMD="$T/bin/mix" \
+    REFLECTION_REPO="$R" REFLECTION_ZOMBIE_LOG="$T/zombie.log" REFLECTION_MIX_CMD="$T/bin/mix" REFLECTION_CNF="$T/cnf.yaml" \
     LI_SPEC_REPO="$R" LI_SPEC_FETCH_TIMEOUT=5 ENV= TENANT_ID= DESK_AGENT= "$@" >"$T/out" 2>&1
   rc=$?
 }
@@ -142,14 +151,41 @@ grep -q "^qop queue .* c-001@box-a  claude:$SLUG refactor" "$T/calls.log" &&
   pass "2. it passes the enqueue gate: the queue op takes refactor, claude:$SLUG" || fail "2. qop: $(cat "$T/calls.log") $(cat "$T/out")"
 [[ "$(grep -c '^hub put .*--topic '"$SLUG" "$T/calls.log")" == 1 ]] && grep -qx 'mix kind=specs_and_docs sensitive=1' "$T/mix.log" &&
   pass "2. one ask put on the hub, topic $SLUG; the vendor asked as specs_and_docs on private data" || fail "2. hub: $(cat "$T/calls.log")"
-# --- 12. the brief's discussion is its Discussion: line ---------------------------
+# --- 12. the brief's discussion is its Discussion: line, the cnf topic ------------
 LIB="$PROJ_ROOT/src/bash/features/spawn-agents/lib/lane-issue.inc.sh"
-got="$(bash -c 'do_log() { :; }; . "$1"; li_discussion_from_brief "$2"' _ "$LIB" "$B" 2>/dev/null)"
-[[ "$got" == c0b0d572-c575-4849-8792-4c3ce4d170f2 ]] && grep -qx 'Discussion: c0b0d572-c575-4849-8792-4c3ce4d170f2' "$B" &&
-  pass "12. the brief's discussion is the owner topic c0b0d572 (its Discussion: line)" || fail "12. discussion: '$got'"
+disc_of() { bash -c 'do_log() { :; }; . "$1"; li_discussion_from_brief "$2"' _ "$LIB" "$1" 2>/dev/null; }
+got="$(disc_of "$B")"
+[[ "$got" == "$DISC" ]] && grep -qx "Discussion: $DISC" "$B" &&
+  pass "12. the brief's discussion is the cnf topic (its Discussion: line)" || fail "12. discussion: '$got'"
 [[ "$(cat "$T/stamp" 2>/dev/null)" == "$NIGHT" ]] && pass "2. the night is stamped $NIGHT" || fail "2. stamp: $(cat "$T/stamp" 2>/dev/null)"
 [[ "$(snap)" == "$BEFORE" ]] && pass "3. nothing is written to git (fixture refs and status, this checkout's status)" ||
   fail "3. git changed: $(diff <(echo "$BEFORE") <(snap))"
+
+# --- 12b. no fixed uuid on the template's Discussion: line; red control: the old line
+fixed_disc() { grep -oE '^Discussion: .*[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}' "$1"; }
+[[ -z "$(fixed_disc "$TPL")" ]] && grep -qx 'Discussion: {DISCUSSION}' "$TPL" &&
+  pass "12b. the template's Discussion: line is {DISCUSSION}, no fixed topic uuid" || fail "12b. template: $(fixed_disc "$TPL")"
+reset; sed 's/^Discussion: .*/Discussion: c0b0d572-c575-4849-8792-4c3ce4d170f2/' "$TPL" >"$T/old.tpl.md"
+run "$NIGHT_NOW" DRY_RUN=0 REFLECTION_TPL="$T/old.tpl.md"
+got="$(disc_of "$T/briefs/$SLUG.md")"
+[[ "$got" != "$DISC" && -n "$(fixed_disc "$T/old.tpl.md")" ]] &&
+  pass "12b. red control: the old Discussion: line renders '$got', not the cnf topic, and the template check names it" ||
+  fail "12b. red control did not go red: '$got'"
+
+# --- 12c. no reflection_discussion in the cnf, or not a uuid: nothing ---------------
+for bad in 'env:\n  rhythm:\n    zombie_max: 500\n' 'env:\n  rhythm:\n    reflection_discussion: c0b0d572\n'; do
+  reset; printf "$bad" >"$T/bad.yaml"
+  run "$NIGHT_NOW" DRY_RUN=0 REFLECTION_CNF="$T/bad.yaml"
+  [[ $rc != 0 && ! -e "$GF" && ! -e "$T/stamp" ]] && ! grep -q '^qop\|^hub' "$T/calls.log" &&
+    grep -q 'FATAL reflection: cnf env.rhythm.reflection_discussion .* must be a live topic' "$T/out" &&
+    pass "12c. cnf '$(tail -1 <<<"$(printf "$bad")" | sed 's/^ *//')': FATAL, no gathered file, no queue op, no stamp" ||
+    fail "12c. rc=$rc $(cat "$T/calls.log") $(cat "$T/out")"
+done
+
+# --- 12d. the real cnf names a uuid, not the archived owner topic -------------------
+real="$(yq -r '.env.rhythm.reflection_discussion // ""' "$PROJ_ROOT/../csi-spl-cnf/csi-spl/all.env.yaml" 2>/dev/null)"
+[[ "$real" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ && "$real" != c0b0d572-* ]] &&
+  pass "12d. all.env.yaml names reflection_discussion $real" || fail "12d. all.env.yaml: '$real'"
 
 # --- 4. red control: the brief without its Spec: line is refused by the gate -------
 reset; grep -v '^Spec:' "$TPL" >"$T/nospec.tpl.md"

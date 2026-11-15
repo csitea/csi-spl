@@ -35,6 +35,8 @@ Which lane owns what: `{SPOOL_ROOT}/registry.tsv`, the tmux window names, the br
 
 A brief that names an owner topic also quotes the owner's words; the launcher adds the topic text (fleet-rules-index.md).
 
+A brief that touches GCP follows the GCP brief checklist (`csi-spl-doc/specs/139-sa-least-privilege/spec.md` section 9).
+
 <a id="ws-doc-9656aade-d2f2-4434-b916-5856fc88eb7f"></a>
 ## Verify before you post a "done/live" claim
 A WUI change is live only when `https://<workspace host>/build.json` serves a commit that contains the agent's sha (`git merge-base --is-ancestor <sha> <served>`); a hub change via `/version`. Not proven = send it back to the agent, do not post it.

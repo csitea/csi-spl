@@ -1,7 +1,8 @@
 # 139: Least privilege for the per-env project service account
 
-Status: **v0.1, draft for the security session of 2026-10-16** (round 1, row
-1, "L, start only"). Issue: SPL-1970. Source: t1 #spool-hub-ops topic
+Status: **v0.2, 2026-11-15** (v0.1 draft for the security session of
+2026-10-16, round 1, row 1, "L, start only", SPL-1970; v0.2 adds section 9,
+the brief checklist for GCP work, SPL-5584). Source: t1 #spool-hub-ops topic
 `3d0675ba`, poll `0c9aa04c`, owner answer `c5d869f5` (all 8 actions picked).
 This spec changes no IAM, no key and no service account; it measures and
 proposes. Every change in section 5 is a separate run the owner approves.
@@ -192,3 +193,63 @@ What breaks at each step, if the role list is short:
   `review/sec-r1-prd-account`.
 - The two reports and the prep note: work notes,
   `work/security-round/2026-10-16/prep-prd-account.md`.
+
+## 9. Brief checklist for GCP work
+
+**One home and why**: this section is the single home of the GCP lane-brief
+checklist, chosen over the Qto-exported brief-writing docs in
+`csi-spl-doc/doc/md/fleet-rules-index.md` (`spawn-an-agent.md`,
+`runbook-dispatcher.md`, `workspace-rules.md`) because this spec owns GCP
+service-account identities, keys and rollout rules and stays in plain git
+Markdown (spec 137); `csi-spl-orc/src/bash/features/dispatch/brief-dispatcher.tpl.md`
+points here in one line and never copies it.
+
+**Evidence** (`n = 3` owner redirects by HUM-10 in topic `f655b326` on the
+billing service account, re-checked against the prd hub; plus repo `CLAUDE.md`
+"Nothing ad hoc" and "No key in git"):
+
+- `5f333733` (2026-11-11, SPL-5265): the service account must be created as a
+  terraform step in `iac/`, not by an ad-hoc script.
+- `8d767855` (2026-11-12, SPL-5457): when the owner orders a filesystem key
+  (`002-gcp-billing-sa`), terraform provisions the key alongside the account
+  in that same step rather than leaving key creation to a separate manual or
+  follow-up step.
+- `b67fbcaf` (2026-11-14, SPL-5506, paired with `a508c121`): when terraform
+  creates the account, the IAM grants its runner SA can make belong in that
+  same terraform step from the start.
+
+Every lane brief that touches GCP (a service account, IAM binding, API,
+bucket, secret, Cloud SQL, Cloud Run, DNS, KMS or billing resource) states all
+five items before the lane starts:
+
+1. **The terraform step first**: every GCP resource, service account and IAM
+   binding is defined in a terraform step under `iac/src/terraform/<NNN-step>/`
+   and run in `tf-runner` (`make do-tf-*`), with its `./run` wrapper and test
+   in the same commit (repo `CLAUDE.md` "Nothing ad hoc") — never an ad-hoc
+   `gcloud` create or grant script (`5f333733`).
+2. **The key and its grants in that same step**: specify how the identity
+   authenticates and put every IAM binding the step's runner SA can grant into
+   that same terraform step from day one (`b67fbcaf`), never split across
+   follow-up lanes (recreating an SA later mints a new `uniqueId` and breaks
+   external bindings). Authentication is keyless (WIF or impersonation,
+   section 4) or an out-of-band key (`CLAUDE.md` "No key in git", enforced by
+   `iac/src/bash/tests/no-keys-in-tf.tst.sh`); only when the owner explicitly
+   orders terraform to provision the key on disk (`8d767855`, step
+   `002-gcp-billing-sa`) does that same step define
+   `google_service_account_key` + `local_sensitive_file` (mode `0600`, no
+   output, no log) together with the `CLAUDE.md` exception and narrowed
+   `no-keys-in-tf.tst.sh` rule.
+3. **The owner's one human step named up front**: any bootstrap grant or
+   external precondition that terraform's runner SA cannot grant itself (for
+   example, granting the runner SA Billing Account Administrator once so
+   terraform manages the remaining bindings, `a508c121`) is stated up front in
+   the brief as one exact human step or command, separate from what terraform
+   owns.
+4. **Plan before any GO**: the lane runs read-only `make do-tf-plan` first
+   (`ENV=dev` before `ENV=prd` so dev equals or leads prd, or a `# prd-only-step`
+   stub per spec 057; sensitive account ids passed via fail-fast env vars and
+   masked in output) and reports the plan diff before asking for an apply GO.
+5. **Apply only on the owner's go with its msg id**: `make do-provision` (or
+   `do-deprovision`, `gcp-*`, billing or IAM mutation) runs only after the
+   owner's explicit GO for that step and environment, citing the owner's `msg`
+   id (`ENV=dev` applied and proven before `ENV=prd`).

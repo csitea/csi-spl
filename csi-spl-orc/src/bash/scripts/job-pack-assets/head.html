@@ -1,0 +1,16 @@
+  <style>
+  :root { --ink:#323e4f; --muted:#6b7280; --line:#dde3ea; --bg:#f4f6f8; --card:#ffffff; --accent:#1f6f5c; --head:#e8eef3; }
+  * { box-sizing:border-box; }
+  html { background:var(--bg); }
+  body { max-width:1000px; margin:32px auto; padding:28px 32px; background:var(--card); border:1px solid var(--line); border-radius:10px; color:var(--ink); font:15px/1.55 "Carlito", Calibri, "Liberation Sans", Roboto, Arial, sans-serif; }
+  header#title-block-header { display:none; }
+  h1 { font-size:24px; margin:4px 0 8px; }
+  h2 { font-size:18px; margin:22px 0 8px; color:var(--accent); }
+  p { margin:4px 0 8px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:6px 0 12px; }
+  th, td { text-align:left !important; padding:7px 9px; border-bottom:1px solid var(--line); vertical-align:top; }
+  thead th { background:var(--head); font-weight:600; }
+  em { color:var(--muted); }
+  @media print { html { background:#fff; } body { border:0; margin:0; padding:0; max-width:none; } }
+  @media (max-width:640px) { body { margin:12px; padding:16px 14px; } table { font-size:13px; } }
+  </style>

@@ -1,0 +1,12 @@
+<script>
+  function wire(btnId, cardId, label, doneLabel) {
+    var b = document.getElementById(btnId);
+    b.addEventListener("click", function () {
+      var el = document.getElementById(cardId);
+      var done = function () { b.textContent = doneLabel; setTimeout(function () { b.textContent = label; }, 1800); };
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(el.innerText).then(done); }
+      else { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand("copy"); s.removeAllRanges(); done(); }
+    });
+  }
+  wire("copy", "msg-en", "Copy EN", "Copied ✓");
+</script>

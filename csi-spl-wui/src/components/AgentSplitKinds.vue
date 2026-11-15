@@ -162,9 +162,13 @@ watch(() => session.state, (st) => {
 .ts-hint { margin: 0; }
 .sk-wrap { max-width: 100%; overflow-x: auto; }
 .sk-table { border-collapse: collapse; font-size: 0.9em; }
-.sk-table th, .sk-table td { padding: 4px 4px; text-align: left; vertical-align: middle; }
-.sk-table thead th { font-weight: 600; white-space: nowrap; }
-.sk-table tbody th { font-weight: 500; min-width: 7em; }
+.sk-table th, .sk-table td { padding: 4px 3px; text-align: left; vertical-align: middle; }
+/* SPL-5454: six vendor columns, a Backup and a Main fit the 720 px card at
+   1400 px under the e2e font, DejaVu Sans (0.85em headers, narrower number boxes, select and kind
+   column, 3px cells); below that the table scrolls
+   inside .sk-wrap, never the page. */
+.sk-table thead th { font-weight: 600; white-space: nowrap; font-size: 0.85em; }
+.sk-table tbody th { font-weight: 500; min-width: 6.5em; }
 .sk-sub { display: block; font-size: 0.85em; font-weight: 400; }
 .sk-reset {
   padding: 0;
@@ -175,14 +179,22 @@ watch(() => session.state, (st) => {
   cursor: pointer;
 }
 .sk-table input {
-  width: 4.2em;
-  padding: 4px 6px;
+  width: 3.4em;
+  padding: 4px 4px;
   background: var(--color-surface);
   color: var(--color-fg);
   border: 1px solid var(--color-border-strong);
+  /* no spin buttons: they eat the box and clip "100" to "10" at 3.4em */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.sk-table input::-webkit-inner-spin-button,
+.sk-table input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .sk-table select {
-  padding: 4px 6px;
+  padding: 4px 4px;
   background: var(--color-surface);
   color: var(--color-fg);
   border: 1px solid var(--color-border-strong);

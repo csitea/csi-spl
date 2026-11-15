@@ -281,6 +281,18 @@ try {
   await p.waitForSelector('[data-test=split-kind-tests-codex]', { visible: true, timeout: 10000 })
   const testsCodex = await p.$eval('[data-test=split-kind-tests-codex]', (el) => el.value)
   ok('8h5 the per-kind table has a Codex column, tests codex 15 (owner msg ea50c4b0)', testsCodex === String(cnfSplitKinds().tests.weights.codex) && testsCodex === '15', testsCodex)
+  // SPL-5454: the sixth vendor column clipped Main at 1400 px (c-003 msg
+  // 998a5b16). At this viewport every Main cell lies inside the card, and no
+  // weight box clips its digits ("100" read "10" when the spin buttons ate it).
+  const fit = await p.evaluate(() => {
+    const w = document.querySelector('.sk-wrap')
+    const wr = w.getBoundingClientRect()
+    const mains = [...document.querySelectorAll('[data-test$=-main]')].filter((e) => e.closest('.sk-table'))
+    const out = mains.filter((e) => { const r = e.getBoundingClientRect(); return r.left < wr.left - 1 || r.right > wr.right + 1 }).map((e) => e.getAttribute('data-test'))
+    const clipped = [...document.querySelectorAll('.sk-table input')].filter((e) => e.scrollWidth > e.clientWidth).map((e) => `${e.getAttribute('data-test')}=${e.value}`)
+    return { vw: innerWidth, mains: mains.length, wrapScroll: w.scrollWidth, wrapClient: w.clientWidth, out, clipped }
+  })
+  ok('8h6 at 1400 px the per-kind table fits its card: Main whole, no clipped weight box', fit.vw === 1400 && fit.mains > 0 &&fit.wrapScroll <= fit.wrapClient && fit.out.length === 0 && fit.clipped.length === 0, fit)
 
   // spec 115 HUB-1: the split per task kind. The table shows the section 2
   // defaults; agy codes, so agy in a coding kind passes the rules (owner msg

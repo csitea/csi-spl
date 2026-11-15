@@ -20,12 +20,23 @@ _dns_ensure_helpers() {
   if declare -f _dns_normalize_set >/dev/null 2>&1; then
     return 0
   fi
-  # The helpers live in lib/bash/funcs, which ./run loads first; a bare
-  # source of this file (a test, another caller) loads them from there.
-  local here
-  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # shellcheck disable=SC1091
-  source "${here}/../../../lib/bash/funcs/dns-resolver-sets.func.sh"
+  # The helpers live in lib/bash/funcs. Under ./run they are already
+  # defined, so the check above returns; a bare source of this file (a
+  # test, another caller) loads them here. readlink -f: a symlinked copy
+  # still finds the lib of the real tree. A failed load fails the action.
+  local here lib
+  here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+  lib="${here}/../../../lib/bash/funcs/dns-resolver-sets.func.sh"
+  # shellcheck disable=SC1090
+  if source "$lib" && declare -f _dns_normalize_set >/dev/null 2>&1; then
+    return 0
+  fi
+  if declare -f do_log >/dev/null 2>&1; then
+    do_log "ERROR resolver-set helpers not loaded from ${lib}"
+  else
+    printf 'ERROR resolver-set helpers not loaded from %s\n' "$lib" >&2
+  fi
+  return 1
 }
 
 # Resolve con-<org>-<app>[-<tree-slug>]-tf-runner. TREE_SLUG covers the
@@ -70,7 +81,7 @@ _dns_wait_tf_runner() {
 }
 
 do_check_container_dns() {
-  _dns_ensure_helpers
+  _dns_ensure_helpers || return 1
 
   _dns_check_skipped && return 0
 

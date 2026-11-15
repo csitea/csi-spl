@@ -28,7 +28,12 @@
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
 # @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the
 # @description               repo files the unit tests read (unit tests + typecheck)
-# @description   wui-e2e     csi-spl-wui/: the browser e2e files the change maps
+# @description   wui-lang-review csi-spl-wui/i18n/locales/, every tier (~ms): an
+# @description               outgoing commit that adds or changes a locale key
+# @description               with no 'Lang-review: a-NNN <msg id>' line is
+# @description               REFUSED (SPL-5551); never cached --
+# @description               check-pre-push-lang-review.func.sh
+# @description   wui-e2e    csi-spl-wui/: the browser e2e files the change maps
 # @description               to, on a cached mock bundle, under a time cap --
 # @description               check-pre-push-e2e.func.sh (spec 133 action 7)
 # @description   api         csi-spl-api/ csi-spl-rdb/ .version
@@ -117,6 +122,8 @@ declare -F _ppf_parts >/dev/null 2>&1 \
   || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-features.func.sh"
 declare -F _ppx_parts >/dev/null 2>&1 \
   || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-cross.func.sh"
+declare -F _pp_part_wui_lang_review >/dev/null 2>&1 \
+  || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-lang-review.func.sh"
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
@@ -235,6 +242,7 @@ _pp_label() {  # <part>
     stale-tree) echo "stale-tree (outgoing commits that set paths back)" ;;
     owner-orders) echo "owner-orders (outgoing commits on paths an owner order covers)" ;;
     commit-links) echo "commit-links (outgoing commits cite an issue that links a discussion)" ;;
+    wui-lang-review) echo "wui-lang-review (outgoing locale key changes carry their agy language review)" ;;
     iac)        echo "csi-spl-iac suite" ;;
     iac-cross)  echo "csi-spl-iac tests that read the touched files of other parts" ;;
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
@@ -354,7 +362,8 @@ _pp_gate_id() {
   cat "$_PP_SELF_DIR/check-pre-push.func.sh" "$_PP_SELF_DIR/check-pre-push-lint.func.sh" \
     "$_PP_SELF_DIR/check-release-note.func.sh" "$_PP_SELF_DIR/check-pre-push-stale-tree.func.sh" \
     "$_PP_SELF_DIR/check-pre-push-e2e.func.sh" "$_PP_SELF_DIR/check-pre-push-features.func.sh" \
-    "$_PP_SELF_DIR/check-pre-push-cross.func.sh" 2>/dev/null | sha1sum | cut -c1-40
+    "$_PP_SELF_DIR/check-pre-push-cross.func.sh" "$_PP_SELF_DIR/check-pre-push-lang-review.func.sh" \
+    2>/dev/null | sha1sum | cut -c1-40
 }
 _pp_tree_key() {  # <tree> <tier> <parts> <base>
   local tree="$1" tier="$2" parts="$3" base="$4" st t mb ids=""
@@ -366,6 +375,10 @@ _pp_tree_key() {  # <tree> <tier> <parts> <base>
     local pn; pn="$(_pp_pnpm 2>/dev/null)" || pn=""
     ids="node=$(node -v 2>/dev/null || echo -) pnpm=$([[ -n "$pn" ]] && "$pn" -v 2>/dev/null || echo -)"
   fi
+  # wui-lang-review reads the commit messages, which the tree does not hold:
+  # a reword that drops the Lang-review line must not re-use the pass
+  [[ " $parts " == *" wui-lang-review "* ]] \
+    && ids+=" msgs=$(git -C "$tree" log --format=%B "$base..HEAD" 2>/dev/null | sha1sum | cut -c1-40)"
   printf '%s' "tree-pass v$_PP_CACHE_V gate=$(_pp_gate_id) tree=$t tier=$tier base=$mb parts=$parts $ids" \
     | sha1sum | cut -c1-40
 }
@@ -425,6 +438,9 @@ _pp_missing_tools() {  # <part> <tree>
       _pp_need jq "apt-get install jq"
       _pp_need timeout "apt-get install coreutils" ;;
     wui-vendor) _pp_need grep "install grep" ;;
+    wui-lang-review)
+      _pp_need jq "apt-get install jq"
+      _pp_need python3 "apt-get install python3" ;;
     blog)
       _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
       _pp_need jq "apt-get install jq"
@@ -823,7 +839,7 @@ _pp_fn() {  # <part>
   case "$1" in
     hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;; cnf) echo _pp_part_cnf ;;
     orc) echo _pp_part_orc ;; stale-tree) echo _pp_part_stale_tree ;; owner-orders) echo _pp_part_owner_orders ;;
-    commit-links) echo _pp_part_commit_links ;;
+    commit-links) echo _pp_part_commit_links ;; wui-lang-review) echo _pp_part_wui_lang_review ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;; blog) echo _pp_part_blog ;;
     wui-e2e) echo _pp_part_wui_e2e ;; orc-features) echo _pp_part_orc_features ;;
     iac-cross) echo _pp_part_iac_cross ;;
@@ -1217,7 +1233,7 @@ _pp_compare() {  # <label> <part> <secs> <note> <base> <bsha> <tree-sig> <base-s
 # hygiene: seconds, and the likeliest red.
 _pp_plan_parts() {  # <tree> <base> <only>
   local tree="$1" base="$2" only="$3" p sel lint_all
-  all="hygiene blog iac orc orc-features wui-vendor wui wui-e2e api" parts="hygiene" changed=""
+  all="hygiene blog iac orc orc-features wui-vendor wui-lang-review wui wui-e2e api" parts="hygiene" changed=""
   if [[ "$mode" == full ]]; then
     parts="$all"
     # full mode still diffs for lint-migration: say so, never a silent SKIP-untouched (SPL-5409)
@@ -1236,6 +1252,8 @@ _pp_plan_parts() {  # <tree> <base> <only>
       # shellcheck disable=SC2046
       _pp_touches "$sel" $(_pp_paths "$p") && parts+=" $p"
     done
+    # reads the outgoing commits, not paths (no _pp_paths: never cached)
+    _pp_touches "$changed" "$_PPR_LOCALES" && parts+=" wui-lang-review"
     # a cnf path in a mixed push keeps the cnf render check too: the iac fast
     # tier skips the slow render-parity tests, and a rename into cnf from
     # outside lists both paths (SPL-5409)
@@ -1251,7 +1269,7 @@ _pp_plan_parts() {  # <tree> <base> <only>
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene stale-tree owner-orders commit-links $lint_all blog cnf iac iac-cross orc orc-features wui-vendor wui wui-e2e api"
+    all="hygiene stale-tree owner-orders commit-links $lint_all blog cnf iac iac-cross orc orc-features wui-vendor wui-lang-review wui wui-e2e api"
     parts="${parts/hygiene/hygiene stale-tree owner-orders commit-links${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi

@@ -1,0 +1,5 @@
+{
+  "_doc": "wui-lang-review allow-list (SPL-5551, csi-spl-iac/src/bash/run/check-pre-push-lang-review.func.sh): a commit that adds or changes a key in csi-spl-wui/i18n/locales/*.json needs a 'Lang-review: a-NNN <msg id>' line, unless every key it adds or changes is in en.json and listed under 'keys' (an en-only typo fix), or its full sha is under 'commits' (a landed commit whose agy review was recorded afterwards). Every entry carries its reason.",
+  "keys": {},
+  "commits": {}
+}

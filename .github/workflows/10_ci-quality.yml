@@ -1869,3 +1869,34 @@ jobs:
       - name: Every baseline entry since the anchor names its ticket
         working-directory: csi-spl-iac
         run: ./run -a do_check_baseline_growth
+
+  # ===========================================================================
+  # New WUI text carries its agy language review (SPL-5551, csitea weekly
+  # item 11): a commit that adds or changes a key in
+  # csi-spl-wui/i18n/locales/*.json names the review in a
+  # 'Lang-review: a-NNN <msg id>' line. The pre-push part wui-lang-review
+  # checks it before a push; this job holds it when the hook did not run.
+  # Compared from a fixed anchor (the commit that added
+  # csi-spl-wui/i18n/i18n-lang-review-exempt.json), not github.event.before:
+  # superseded push runs are cancelled, and a range check would let the
+  # skipped pushes through. A landed commit without the line is fixed by
+  # listing its sha, with the review, under 'commits' in that file.
+  # fetch-depth 0: the anchor is in the history.
+  # CONTROL: csi-spl-iac/src/bash/tests/check-pre-push-lang-review.tst.sh
+  # ===========================================================================
+  wui-lang-review:
+    name: "wui: new locale text carries its agy language review"
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      - name: Every locale key change since the anchor names its language review
+        working-directory: csi-spl-iac
+        run: ./run -a do_check_wui_lang_review

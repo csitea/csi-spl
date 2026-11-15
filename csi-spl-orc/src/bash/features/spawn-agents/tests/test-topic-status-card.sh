@@ -6,7 +6,9 @@
 #   topic with no recent move get no card; a box that does not hold the
 #   dispatch lease touches nothing; a source that cannot be read touches no
 #   card; a failed edit is retried, never re-posted; a card whose author
-#   left after the lease moved is re-posted ONCE by the new holder.
+#   left after the lease moved is re-posted ONCE by the new holder; a topic
+#   where only a spawn ask moved gets its card too, edited as the ask lands
+#   (SPL-5542).
 # The hub is a stub: hub.tsv holds one row per message (msg id, topic, body
 # sha); post appends a row, edit rewrites the row of its id.
 set -uo pipefail
@@ -46,6 +48,7 @@ EOF
 printf '#!/usr/bin/env bash\ncat "$CARD_T_DIR/src/issues.json"\n' >"$B/issues"
 printf '#!/usr/bin/env bash\ncat "$CARD_T_DIR/src/lanes.json"\n' >"$B/lanes"
 printf '#!/usr/bin/env bash\ncat "$CARD_T_DIR/src/queue.json"\n' >"$B/queue"
+printf '#!/usr/bin/env bash\ncat "$CARD_T_DIR/src/asks.json"\n' >"$B/asks"
 printf '#!/usr/bin/env bash\necho "$CARD_T_LEASE 6"\n' >"$B/lease"
 printf '#!/usr/bin/env bash\necho "$1 $2" >>"$CARD_T_DIR/lag.log"; echo "$1 hub current served=x"; echo "$1 wui current served=x"\n' >"$B/lag"
 }
@@ -68,6 +71,7 @@ put_issues() {  # STATUS_OF_SPL-11
 }
 put_issues wip
 printf '{"lanes":[{"agent_id":"c-601","agent_box":"pc","scope":"Lane brief: row 07","state":"live","updated_at":"2026-10-16T03:00:00Z"}]}\n' >"$T_TMP/src/lanes.json"
+printf '{"asks":[]}\n' >"$T_TMP/src/asks.json"
 printf '{"queue":[{"position":2,"queue_len":3,"state":"queued","topic":"22222222","summary":"Lane brief: row 10"}]}\n' >"$T_TMP/src/queue.json"
 mkdir -p "$SPOOL_ROOT/c-777/lifetime" && echo SPL-12 >"$SPOOL_ROOT/c-777/lifetime/issue"
 
@@ -76,6 +80,7 @@ export CARD_STATE_DIR="$T_TMP/state" CARD_GIT_DIR="$G" CARD_FETCH=0
 CARD_NOW="$(date -u -d 2026-10-16T04:00:00Z +%s)"; export CARD_NOW
 export CARD_POST_CMD="$B/post" CARD_EDIT_CMD="$B/edit" CARD_ISSUES_CMD="$B/issues"
 export CARD_LANES_CMD="$B/lanes" CARD_QUEUE_CMD="$B/queue" CARD_LEASE_CMD="$B/lease" CARD_LAG_CMD="$B/lag"
+export CARD_ASKS_CMD="$B/asks"
 tick() { bash "$R" "$@" 2>&1; }
 rows() { wc -l <"$H" | tr -d ' '; }
 calls() { wc -l <"$L" | tr -d ' '; }
@@ -198,6 +203,48 @@ post $T1 by c-002" "$(sort "$L")"
 put_issues blocked; : >"$L"; tick >/dev/null
 hasnt "DM topic: never tried again" "$T2" "$(cat "$L")"
 rm -f "$T_TMP/post.dm"
+
+# 12. SPL-5542: a topic carried over with a spawn ask and no issue gets ONE
+#   card (red on the old code: only a moved issue kept a topic), and that card
+#   is edited in place as the ask is placed and its lane's issue lands. An ask
+#   with no move in the window, or of the default discussion, adds no card.
+export CARD_STATE_DIR="$T_TMP/state12"; : >"$L"
+T3=44444444-4444-4444-8444-444444444444
+ask() {  # ID TOPIC STATE UPDATED REASON [POSITION]
+  printf '{"ask_id":"%s","kind":"task","topic":"dispatch-x","discussion":"%s","state":"%s","summary":"carry over: row 11","reason":"%s","position":%s,"queue_len":2,"created_at":"%s","updated_at":"%s"}' \
+    "$1" "$2" "$3" "$5" "${6:-0}" "$4" "$4"
+}
+put_asks() {  # STATE REASON [POSITION]
+  printf '{"asks":[%s,%s,%s,%s]}\n' \
+    "$(ask 55555555-5555-4555-8555-555555555555 "$T3" "$1" 2026-10-16T03:30:00Z "$2" "${3:-0}")" \
+    "$(ask 66666666-6666-4666-8666-666666666666 "$TOLD" queued 2026-10-10T03:00:00Z '' 2)" \
+    "$(ask 77777777-7777-4777-8777-777777777777 "$DEF" queued 2026-10-16T03:30:00Z '' 2)" \
+    '{"ask_id":"88888888-8888-4888-8888-888888888888","kind":"blocker","discussion":"99999999-9999-4999-8999-999999999999","state":"open","updated_at":"2026-10-16T03:30:00Z"}' \
+    >"$T_TMP/src/asks.json"
+}
+put_issues wip; put_asks queued '' 1
+out="$(tick)"; rc=$?
+eq "ask-only topic: the tick exits 0" 0 "$rc"
+eq "ask-only topic: one card posted there" 1 "$(grep -c "$T3" "$L")"
+hasnt "ask-only: an ask with no move in the window adds no card" "$TOLD" "$(cat "$L")"
+hasnt "ask-only: an ask of the default discussion adds no card" "$DEF" "$(cat "$L")"
+hasnt "ask-only: a blocker ask adds no card" "99999999" "$(cat "$L")"
+has "ask-only card: the queued ask, its place in line" "| - | carry over: row 11 | queued | - | 1/2 | - | - | - |" "$(tick --print)"
+id3="$(sed -n 1p "$CARD_STATE_DIR/$T3.card")"
+printf '{"lanes":[{"agent_id":"c-888","agent_box":"pc","scope":"x","issue_key":"SPL-15","state":"live","updated_at":"2026-10-16T03:40:00Z"}]}\n' >"$T_TMP/src/lanes.json"
+put_asks 'done' 'placed: c-888@pc'; : >"$L"
+out="$(tick)"
+eq "ask placed: one edit of the same card, no post" "edit $id3 by c-002" "$(grep "$T3\|$id3" "$L")"
+has "ask placed: the lane and its issue" "| SPL-15 | carry over: row 11 | placed | c-888@pc (live) | - | - | - | - |" "$(cat "$T_TMP/last-edit.md")"
+gc "fix(orc, SPL-15): the carried-over work"; sha15="$(git -C "$G" rev-parse HEAD)"; : >"$L"
+tick >/dev/null
+eq "ask landed: one edit of the same card, no post" "edit $id3 by c-002" "$(grep "$T3\|$id3" "$L")"
+has "ask landed: the landed sha, served dev and prd" "| c-888@pc (live) | - | \`${sha15:0:12}\` | yes | yes |" "$(cat "$T_TMP/last-edit.md")"
+: >"$L"; tick >/dev/null
+eq "ask landed, unchanged: no hub call" 0 "$(calls)"
+out="$(CARD_ASKS_CMD=false tick)"; rc=$?
+eq "asks book unreadable: exits 1" 1 "$rc"
+has "asks book unreadable: one WARN line" "WARN the asks book could not be read" "$out"
 
 eq "usage is refused" 64 "$(bash "$R" --bogus >/dev/null 2>&1; echo $?)"
 t_done

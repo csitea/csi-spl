@@ -8,13 +8,19 @@
 #   1. reads the tenant's issues (do_spl_issue_list, every status, kind issue)
 #      and keeps the topics (rdb 0194 discussions) where one of them moved in
 #      the last CARD_WINDOW_H hours; the tenant's default discussion is left
-#      out (every unlinked issue lands there);
+#      out (every unlinked issue lands there); a topic where only a spawn ask
+#      moved is kept too (SPL-5542: the asks book, do_spl_asks_open ASKS_ALL=1,
+#      kind task, its rdb 0241 discussion; a topic carried over with an ask and
+#      no issue had no card and the owner asked for its status 3 days later);
 #   2. per issue of such a topic: its status, the lane that carries it (the
 #      fleet lane map: a lane's scope is the brief heading its issue was titled
 #      with; else this box's <spool root>/<id>/lifetime/issue), the landed sha
 #      (li_landed: the landed-fix rule) and whether dev and prd serve it
 #      (do_check_deploy_lag); queued spawn asks of the topic
-#      (do_spl_spawn_queue) add a row with their place in line;
+#      (do_spl_spawn_queue) add a row with their place in line; per spawn ask
+#      of the topic one row: its state (placed once done "placed: <ID>@<box>"),
+#      the lane it placed and that lane's issue, the landed sha and dev / prd
+#      once that issue landed (the newest CARD_CLOSED_MAX closed asks shown);
 #   3. posts the card ONCE per topic (do_spl_desk_reply, kind note) and from
 #      then on EDITS that same message in place (do_spl_desk_edit, the pattern
 #      of spl_asks_alert_clear in spl-asks-tick.func.sh): no new message row,
@@ -50,7 +56,7 @@
 #   the newest done/diss issues shown per card, the rest counted), CARD_NOW
 #   (epoch, tests).
 #   Each source is a command, replaceable (tests): CARD_LEASE_CMD,
-#   CARD_ISSUES_CMD, CARD_LANES_CMD, CARD_QUEUE_CMD, CARD_LAG_CMD (args: ENV
+#   CARD_ISSUES_CMD, CARD_LANES_CMD, CARD_QUEUE_CMD, CARD_ASKS_CMD, CARD_LAG_CMD (args: ENV
 #   SHA), CARD_POST_CMD (args: TOPIC BODY_FILE), CARD_EDIT_CMD (args: MSG
 #   BODY_FILE); post and edit run with DESK_AGENT set to the card's author.
 # Exit: 0 ran, or nothing to do on this box; 1 a source or the hub failed
@@ -108,6 +114,11 @@ card_queue() {
   _card_run SPAWN_QUEUE_FORMAT=json SPAWN_QUEUE_SHARE=0 do_spl_spawn_queue | grep '^{' | tail -1
 }
 
+card_asks() {
+  if [ -n "${CARD_ASKS_CMD:-}" ]; then $CARD_ASKS_CMD; return; fi
+  _card_run "SPOOL_ROOT=$SPOOL_ROOT" ASKS_ALL=1 ASKS_FORMAT=json do_spl_asks_open | grep '^{' | tail -1
+}
+
 # card_served ENV SHA -> yes (every component current), pending, lagging or ?.
 card_served() {
   local out
@@ -135,6 +146,45 @@ card_lane() {
   printf '%s' "${id:--}"
 }
 
+# card_lane_issue ID@BOX -> "<issue key>\t<state>" of the lane ID@BOX: the
+# lane map, else this box's <spool root>/<id>/lifetime/issue; "-" for unknown.
+card_lane_issue() {
+  local key=- st=-
+  IFS=$'\t' read -r key st < <(jq -r --arg a "${1%@*}" --arg b "${1#*@}" '[.lanes[]? | select(.agent_id == $a and .agent_box == $b)]
+    | sort_by(.updated_at) | last | if . == null then "-\t-" else "\(.issue_key // "" | if . == "" then "-" else . end)\t\(.state // "-")" end' <<<"$CARD_LANES")
+  if [ "${key:--}" = - ] && [ "${1#*@}" = "$CARD_HERE" ]; then
+    key="$(head -1 "$SPOOL_ROOT/${1%@*}/lifetime/issue" 2>/dev/null)"
+  fi
+  printf '%s\t%s' "${key:--}" "${st:--}"
+}
+
+# card_ask_rows TOPIC -> one card row per spawn ask of TOPIC: its issue (the
+# placed lane's), summary, state, lane, place in line, landed sha, dev, prd.
+card_ask_rows() {
+  local st sum lane q key ls sha landed dev prd
+  while IFS=$'\t' read -r st sum lane q; do
+    key=- landed=- dev=- prd=-
+    if [ "$lane" != - ]; then
+      IFS=$'\t' read -r key ls <<<"$(card_lane_issue "$lane")"
+      [ "$ls" != - ] && lane="$lane ($ls)"
+    fi
+    if [[ "$key" =~ ^[A-Z]+-[0-9]+$ ]]; then
+      sha="$(card_landed "$key")"
+      [ -n "$sha" ] && { landed="\`${sha:0:12}\`"; dev="$(card_served dev "$sha")"; prd="$(card_served prd "$sha")"; }
+    fi
+    printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' "$key" "${sum:0:60}" "$st" "$lane" "$q" "$landed" "$dev" "$prd"
+  done < <(jq -r --arg t "$1" --argjson n "${CARD_CLOSED_MAX:-10}" '[.[] | select(.discussion == $t)] | sort_by(.created_at)
+    | ([.[] | select(.state | IN("done", "declined", "dead"))] | .[0:(length - $n | if . < 0 then 0 else . end)] | map(.ask_id)) as $old
+    | .[] | select(.ask_id as $k | $old | index($k) | not)
+    | [ (if .state == "done" and (.reason | startswith("placed: ")) then "placed" else .state end),
+        (.summary | gsub("[\t\n|]"; " ")),
+        ([.reason | capture("^placed: (?<a>[A-Za-z0-9-]+@[a-z0-9-]+)") | .a][0] // "-"),
+        (if .state == "queued" and (.position // 0) > 0 then "\(.position)/\(.queue_len)"
+         elif .state == "acked" and .enqueued_at != "" then "placing" else "-" end) ] | @tsv' <<<"$CARD_ASKS")
+  jq -r --arg t "$1" --argjson n "${CARD_CLOSED_MAX:-10}" '[.[] | select(.discussion == $t and (.state | IN("done", "declined", "dead")))]
+    | length - $n | select(. > 0) | "| +\(.) | older closed spawn asks not shown | | | | | | |"' <<<"$CARD_ASKS"
+}
+
 # card_landed KEY -> the newest trunk sha that closes KEY, or nothing. A
 # landed key stays landed: landed.tsv caches it, so a tick walks the history
 # only for the keys that have not landed yet.
@@ -160,7 +210,7 @@ card_row() {
 
 # card_body TOPIC -> the card of TOPIC, without its "as of" line.
 card_body() {
-  local key st title
+  local key st title ids
   printf '**Status card**: edited in place as the work moves, no need to ask.\n\n'
   printf '| issue | what | state | lane | queue | landed | dev | prd |\n|---|---|---|---|---|---|---|---|\n'
   while IFS=$'\t' read -r key st title; do
@@ -170,20 +220,24 @@ card_body() {
     | .[] | select(.key as $k | $old | index($k) | not) | [.key, .status, .title] | @tsv' <<<"$CARD_ROWS")
   jq -r --arg t "$1" --argjson n "${CARD_CLOSED_MAX:-10}" '[.[] | select(.topic == $t and (.status == "done" or .status == "diss"))]
     | length - $n | select(. > 0) | "| +\(.) | older done/diss issues not shown | | | | | | |"' <<<"$CARD_ROWS"
-  jq -r --arg t "$1" '.queue[]? | select((.topic // "") as $q | $q != "" and ($t | startswith($q[0:8])))
+  card_ask_rows "$1"
+  ids="$(jq -c --arg t "$1" '[.[] | select(.discussion == $t) | .ask_id]' <<<"$CARD_ASKS")"
+  jq -r --arg t "$1" --argjson ids "$ids" '.queue[]? | select((.ask_id // "") as $i | $ids | index($i) | not)
+    | select((.topic // "") as $q | $q != "" and ($t | startswith($q[0:8])))
     | "| - | \(.summary // "" | gsub("[\t\n|]"; " ") | .[0:60]) | queued | - | \(if .state == "acked" then "placing" else "\(.position)/\(.queue_len)" end) | - | - | - |"' <<<"$CARD_QUEUE"
 }
 
-# card_rows ISSUES_JSON -> [{topic,key,status,title}]: every issue of a topic
-# where one issue moved inside the window, the default discussion left out.
+# card_rows ISSUES_JSON ASK_TOPICS_JSON -> [{topic,key,status,title}]: every
+# issue of a topic where one issue (or a spawn ask: ASK_TOPICS_JSON) moved
+# inside the window, the default discussion left out.
 card_rows() {
   local now="${CARD_NOW:-$(date +%s)}" win="${CARD_WINDOW_H:-24}"
-  jq -c --argjson since "$(( now - win * 3600 ))" '.result as $r
+  jq -c --argjson since "$(( now - win * 3600 ))" --argjson asked "${2:-[]}" '.result as $r
     | [$r.issues[]? | select((.kind // "issue") == "issue") | . as $i
        | (.discussions // [])[] | select(.task_id != ($r.default_discussion // ""))
        | {topic: .task_id, key: $i.key, status: $i.status, title: ($i.title // "" | gsub("[\t\n|]"; " ")),
           at: (($i.updated_at // "") | sub("\\.[0-9]+"; "") | (fromdateiso8601? // 0))}]
-    | ([.[] | select(.at >= $since) | .topic] | unique) as $moved
+    | ([.[] | select(.at >= $since) | .topic] + $asked | unique) as $moved
     | [.[] | select(.topic as $t | $moved | index($t)) | del(.at)]
     | sort_by(.key | ltrimstr("SPL-") | tonumber? // 0)' <<<"$1"
 }
@@ -251,16 +305,33 @@ _card_array() {
   return 1
 }
 
-# card_sources -> CARD_ROWS, CARD_LANES, CARD_QUEUE, or 1 with one WARN line.
+# card_ask_topics ISSUES_JSON -> the topics where a spawn ask of CARD_ASKS
+# moved inside the window, the default discussion left out, as a JSON array.
+card_ask_topics() {
+  local now="${CARD_NOW:-$(date +%s)}" win="${CARD_WINDOW_H:-24}"
+  jq -c --argjson since "$(( now - win * 3600 ))" --arg def "$(jq -r '.result.default_discussion // ""' <<<"$1")" \
+    '[.[] | select(.discussion != $def and ((.updated_at | sub("\\.[0-9]+"; "") | fromdateiso8601? // 0) >= $since))
+      | .discussion] | unique' <<<"$CARD_ASKS"
+}
+
+# card_sources -> CARD_ROWS, CARD_LANES, CARD_QUEUE, CARD_ASKS (the spawn
+# asks that name their topic) and CARD_TOPICS, or 1 with one WARN line.
 card_sources() {
-  local issues
+  local issues asked
   issues="$(card_issues)" || issues=""
   _card_array "$issues" .result.issues "the issue list" || return 1
   CARD_LANES="$(card_lanes)" || CARD_LANES=""
   _card_array "$CARD_LANES" .lanes "the lane map" || return 1
   CARD_QUEUE="$(card_queue)" || CARD_QUEUE=""
   _card_array "$CARD_QUEUE" .queue "the spawn queue" || return 1
-  CARD_ROWS="$(card_rows "$issues")"
+  CARD_ASKS="$(card_asks)" || CARD_ASKS=""
+  _card_array "$CARD_ASKS" .asks "the asks book" || return 1
+  CARD_ASKS="$(jq -c --arg u "${CARD_UUID:1:-1}" '[.asks[] | select((.kind // "") == "task" and (.discussion // "" | test("^" + $u + "$")))
+    | {ask_id, discussion, state, summary: (.summary // ""), reason: (.reason // ""), position, queue_len,
+       enqueued_at: (.enqueued_at // ""), created_at: (.created_at // ""), updated_at: (.updated_at // "")}]' <<<"$CARD_ASKS")"
+  asked="$(card_ask_topics "$issues")"
+  CARD_ROWS="$(card_rows "$issues" "$asked")"
+  CARD_TOPICS="$(jq -r --argjson a "$asked" '[.[].topic] + $a | unique | .[]' <<<"$CARD_ROWS")"
 }
 
 card_main() {
@@ -281,7 +352,7 @@ card_main() {
     timeout 60 git -C "$CARD_GIT" fetch -q origin master 2>/dev/null || say "WARN git fetch failed; landed shas as of the last fetch"
   fi
   card_sources || return 1
-  for topic in $(jq -r '[.[].topic] | unique | .[]' <<<"$CARD_ROWS"); do
+  for topic in $CARD_TOPICS; do
     [[ "$topic" =~ $CARD_UUID ]] || continue
     [ -e "$CARD_DIR/$topic.dm" ] && continue
     body="$CARD_DIR/.body.$topic.$$"

@@ -195,7 +195,7 @@ rm -f "$T/state/$FAIL_SHA.$STEP.dev.ok"
 #     same call on a ref whose dev render is no stub is refused)
 PO_SHA=$(git -C "$ROOT" rev-parse review/prdonly)
 out=$(run_action PLAN_REF=review/prdonly ENV=prd STEP=$STEP); rc=$?
-[[ $rc -eq 0 && $(calls) -eq 1 && ! -e "$T/state/$PO_SHA.$STEP.dev.ok" ]] \
+[[ $rc -eq 0 && $(calls) -eq 1 && ! -e "$T/state/$PO_SHA.$STEP.dev.ok" && "$out" == *"dev check skipped: STEP=$STEP is prd-only"* ]] \
   && pass "prd of a prd-only step (dev render = the stub) -> plans with no dev marker" || fail "prd-only: rc=$rc $(tail -2 <<<"$out")"
 
 # 9. make routing

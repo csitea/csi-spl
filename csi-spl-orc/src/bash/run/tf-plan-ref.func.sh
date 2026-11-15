@@ -73,8 +73,7 @@ do_tf_plan_ref() {
 
   local state="${TF_PLAN_REF_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/tf-plan-ref}"
   local marker="$state/$sha.$step.dev.ok"
-  [[ "$env_name" == prd && ! -f "$marker" ]] && ! _tf_plan_ref_prd_only "$root" "$sha" "$step" &&
-    { do_log "FATAL REFUSED: no clean dev plan of ${sha:0:12} STEP=$step yet. Run first: PLAN_REF=$ref ENV=dev STEP=$step make do-tf-plan"; return 1; }
+  [[ "$env_name" == prd && ! -f "$marker" ]] && { _tf_plan_ref_prd_gate "$root" "$sha" "$step" "$ref" || return 1; }
 
   # The scratch dir must be ignored by the mounted tree: an export that showed
   # in its `git status` would read as someone's untracked work.
@@ -131,6 +130,14 @@ _tf_plan_ref_mount() {
     [[ -n "$src" && "$dst" != /home/* && -d "$src/csi-spl-iac" ]] && { echo "$src|$dst"; return 0; }
   done < <(docker inspect -f '{{range .Mounts}}{{.Source}}|{{.Destination}}{{"\n"}}{{end}}' "$1" 2>/dev/null)
   return 1
+}
+
+# _tf_plan_ref_prd_gate <root> <sha> <step> <ref>: a prd plan with no dev
+# marker. A prd-only step passes, logged; any other step is refused.
+_tf_plan_ref_prd_gate() {
+  _tf_plan_ref_prd_only "$1" "$2" "$3" ||
+    { do_log "FATAL REFUSED: no clean dev plan of ${2:0:12} STEP=$3 yet. Run first: PLAN_REF=$4 ENV=dev STEP=$3 make do-tf-plan"; return 1; }
+  do_log "INFO dev check skipped: STEP=$3 is prd-only in ${2:0:12} (its dev render is the '# prd-only-step' stub, spec 057), no dev plan exists to wait for"
 }
 
 # _tf_plan_ref_prd_only <root> <sha> <step>: 0 when the ref's dev vars render

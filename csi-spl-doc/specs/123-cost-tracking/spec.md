@@ -1003,8 +1003,9 @@ should be fetched from the db". Before this, Persons showed each
 hand-entered line's one free-text label, in whatever language it was typed.
 
 - **Tables (rdb 0285).** `cost_label_settings` holds the estate's master
-  locale, the language `cost_entries.label` is written in (one row; the
-  owner's answer to poll 1e669c40). `cost_entry_labels` holds one label per
+  locale, the language `cost_entries.label` is written in (one row,
+  seeded `en`: the owner's answer to poll 1e669c40, csitea msg 98e46028,
+  2026-11-15, "B — English (en)"). `cost_entry_labels` holds one label per
   (entry, locale); `hr_cost_component_labels` one per (component, locale),
   `en` seeded from rdb 0280. Operator scope, like rdb 0245. The migration
   copies every existing `cost_entries.label` once as its master-locale row,

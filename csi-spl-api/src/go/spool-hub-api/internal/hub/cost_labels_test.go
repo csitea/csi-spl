@@ -37,9 +37,10 @@ func humanLabel(t *testing.T, r *fleetTokensRig, month, q, text string) (labelle
 
 // SPL-5546 (owner HUM-10, csitea 720fa031: "the labels in this view should
 // be in the language of the interface"): an hr entry's text is its master
-// (bg) label; the admin sets an English one with PATCH .../labels; the list
-// carries both and master_locale; the month read in ?locale=en shows the
-// English label beside the unchanged key, and in fi (no label) falls back to
+// (en, the owner's answer to poll 1e669c40) label; the admin sets a
+// Bulgarian one with PATCH .../labels; the list carries both and
+// master_locale; the month read in ?locale=bg shows the Bulgarian label
+// beside the unchanged key, and in fi (no label) falls back to
 // the master text (no label field). The master's text is never edited (400),
 // an unknown entry is 404, and the operator developer is refused (403).
 // RED CONTROL: L2 fails when handleCostRead does not call costLocalizeParts.
@@ -47,7 +48,7 @@ func TestCostEntryLabelsRoute(t *testing.T) {
 	r := newFleetTokensRig(t)
 	month := "2003-11"
 	reopenMonth(t, r, month)
-	text := "Заплата " + newTenantID("s")
+	text := "Owner salary " + newTenantID("s")
 	code, got := call(t, r.e, r.op, http.MethodPost, costEntryPath, r.admin,
 		map[string]any{"type": "hr", "label": text, "amount": 45, "currency": "EUR", "period": month})
 	id, _ := got["id"].(string)
@@ -56,11 +57,11 @@ func TestCostEntryLabelsRoute(t *testing.T) {
 	}
 	t.Cleanup(func() { call(t, r.e, r.op, http.MethodDelete, costEntryPath+"/"+id, r.admin, nil) })
 	path := costEntryPath + "/" + id + "/labels"
-	if code, got := call(t, r.e, r.op, http.MethodPatch, path, r.admin, map[string]any{"labels": map[string]string{"en": "Owner salary", "bg": text}}); code != http.StatusOK {
+	if code, got := call(t, r.e, r.op, http.MethodPatch, path, r.admin, map[string]any{"labels": map[string]string{"bg": "Заплата", "en": text}}); code != http.StatusOK {
 		t.Fatalf("L1 patch: %d %v", code, got)
 	}
 	code, got = call(t, r.e, r.op, http.MethodGet, costEntryPath+"?type=hr&month="+month, r.admin, nil)
-	if code != http.StatusOK || got["master_locale"] != "bg" {
+	if code != http.StatusOK || got["master_locale"] != "en" {
 		t.Fatalf("L1 list: %d master_locale %v", code, got["master_locale"])
 	}
 	var labels map[string]any
@@ -69,11 +70,11 @@ func TestCostEntryLabelsRoute(t *testing.T) {
 			labels, _ = m["labels"].(map[string]any)
 		}
 	}
-	if len(labels) != 2 || labels["en"] != "Owner salary" || labels["bg"] != text {
-		t.Errorf("L1 the entry's labels: %v, want en + bg", labels)
+	if len(labels) != 2 || labels["bg"] != "Заплата" || labels["en"] != text {
+		t.Errorf("L1 the entry's labels: %v, want bg + en", labels)
 	}
-	if p, ok := humanLabel(t, r, month, "&locale=en", text); !ok || p.Label != "Owner salary" {
-		t.Errorf("L2 the month read in en: %v %+v, want label Owner salary beside key %q", ok, p, text)
+	if p, ok := humanLabel(t, r, month, "&locale=bg", text); !ok || p.Label != "Заплата" {
+		t.Errorf("L2 the month read in bg: %v %+v, want label Заплата beside key %q", ok, p, text)
 	}
 	if p, ok := humanLabel(t, r, month, "&locale=fi", text); !ok || p.Label != "" {
 		t.Errorf("L3 the month read in fi (no label): %v %+v, want the master text alone", ok, p)
@@ -83,7 +84,7 @@ func TestCostEntryLabelsRoute(t *testing.T) {
 		body      map[string]any
 		want      int
 	}{
-		"the master's text":      {r.admin, path, map[string]any{"labels": map[string]string{"bg": "Друго"}}, http.StatusBadRequest},
+		"the master's text":      {r.admin, path, map[string]any{"labels": map[string]string{"en": "Other"}}, http.StatusBadRequest},
 		"an unknown locale":      {r.admin, path, map[string]any{"labels": map[string]string{"xx": "x"}}, http.StatusBadRequest},
 		"an unknown field":       {r.admin, path, map[string]any{"labels": map[string]string{}, "label": "x"}, http.StatusBadRequest},
 		"no such entry":          {r.admin, costEntryPath + "/00000000-0000-4000-8000-000000000000/labels", map[string]any{"labels": map[string]string{"en": "x"}}, http.StatusNotFound},

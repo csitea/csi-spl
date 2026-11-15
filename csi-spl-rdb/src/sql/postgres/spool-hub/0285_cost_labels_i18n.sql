@@ -51,8 +51,9 @@ CREATE TABLE IF NOT EXISTS hr_cost_component_labels (
     PRIMARY KEY (component, locale)
 );
 
--- the master language: the owner's answer to poll 1e669c40 (csitea 720fa031)
-INSERT INTO cost_label_settings (id, master_locale, updated_by) VALUES (true, 'bg', 'rdb 0285')
+-- the master language: the owner's answer to poll 1e669c40 (csitea msg
+-- 98e46028, 2026-11-15: "B — English (en)")
+INSERT INTO cost_label_settings (id, master_locale, updated_by) VALUES (true, 'en', 'rdb 0285')
     ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO cost_entry_labels (entry_id, locale, label, updated_by)

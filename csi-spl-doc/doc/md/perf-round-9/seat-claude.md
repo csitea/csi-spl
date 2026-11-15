@@ -1,5 +1,8 @@
 # Perf round 9 claude seat
 
+Verdict: **PASS** on `729af997995f1f2ba992c6fd1b63063a972ea464` (plan v0.6),
+section 9. Sections 0 to 8 are the v0.5 review:
+
 Verdict: **FAIL** on `2c11ec7ba9d00e623a12683f539c6ab17d7c4918` (plan v0.5), two
 defects, W1 (row 03) and W2 (row 02), both fixable in the plan text. No separate
 verdict on `89f8cef14`: the brief named it, but the editor had moved the branch
@@ -218,3 +221,83 @@ cd csi-spl-iac && ./run -a do_check_dist_hygiene
 Printed `EXIT=0`, ending `INFO distribution-hygiene: clean over the tracked tree
 of <this worktree>`, at `a86e50da8` before this file was added. The re-run with
 this file staged is in the commit body.
+
+## 9. v0.6 delta: PASS on `729af997995f1f2ba992c6fd1b63063a972ea464`
+
+Asked by c-002@sat (dispatch holder) msg ff919a84 on task `dispatch-perf-r9`.
+Verdict: **PASS** on `729af9979` (plan v0.6). The FAIL on `2c11ec7ba` (v0.5)
+stands for that sha. W1, W2, N1 and N2 are fixed; nothing changed outside the
+diff.
+
+```
+git fetch -q origin review/c002-perf-round-9-planner
+git rev-parse origin/review/c002-perf-round-9-planner 729af9979^
+git diff --name-only 2c11ec7ba 729af9979
+```
+
+Printed: `729af997995f1f2ba992c6fd1b63063a972ea464`,
+`2c11ec7ba9d00e623a12683f539c6ab17d7c4918` (one commit, fast-forward, author and
+committer the address of the repo CLAUDE.md "Commits:" line), and only
+`csi-spl-doc/doc/md/perf-round-9-plan.md` and
+`csi-spl-doc/doc/md/perf-round-9/editor.md`. I read the whole diff: row 01 is
+not in it; besides rows 02 and 03, sections 3.1, 4, 6 and 8, it changes the
+status line, the One sha paragraph, the Retros paragraph and the consensus
+table.
+
+**W1 fixed.** Row 03 covers the five sweeps `:1737`, `:1738`, `:1740`, `:1742`,
+`:1743` (section 2 of this file: the five calls on `a86e50da8`); `:1787` and
+`:1769` keep their locale (row 03, section 3.1, section 4: "`sweep()`, `:1769`
+and `:1787` are not edited"). The fold narrowing is named in the row and pinned
+in its test. I re-checked it myself with GNU grep 3.11, the words written into
+the plant through shell variables:
+
+```
+LC_ALL=<loc> /usr/bin/grep -rnIoP "<:1740 pattern>" .   (plant: <w3> with U+017F for s; a Latin-1 file holding <w3>)
+LC_ALL=<loc> /usr/bin/grep -rnIoP "<:1743 pattern>" .   (plant: the :1743 domain with U+212A for k)
+```
+
+Printed:
+
+```
+P3 [C.UTF-8] ./fold.txt:1 ./latin1.txt:1
+P3 [C] ./latin1.txt:1
+P5 [C.UTF-8] ./fold.txt:3
+P5 [C]
+```
+
+So U+212A folds too, as v0.6 says. A Latin-1 (invalid UTF-8) file is swept
+under both locales (`latin1.txt:1` hits in both), so `-I` does not skip more or
+fewer files under C: the change has no other effect. The editor's re-measure
+(editor 2.4.1: -31% and -25%, n=7 each, on `a86e50da8`) agrees with my n=7
+six-sweep run (-22%, section 4); I did not re-run the five-sweep probe.
+
+**W2 and N1 fixed.** Row 02's key is the sha256 of `$(command -v "$bin")`, the
+sha256 of `${BASH_SOURCE[0]}` and `_SEC_TRUFFLEHOG_VER` (row 02, section 4).
+`${BASH_SOURCE[0]}` inside a sourced function is the file that defines it:
+`printf 'fn(){ echo "${BASH_SOURCE[0]}"; }' > $f; bash -c "source $f; fn"` printed
+the temp file's path. The two new test cases (bare name and full path -> one
+key; one byte changed in the func file -> the control runs again) are the
+red-control cases W2 and N1 asked for. Arm B was not re-measured with the second
+`sha256sum`; the row says so.
+
+**N2 fixed.** `git show a86e50da8:csi-spl-iac/src/bash/run/check-pre-push.func.sh | cat -n | sed -n '115p;124p;160p;182p;832p'`
+printed the `declare -F _ppl_plan` line, the `check-pre-push-cross.func.sh`
+source line, `_pp_wui_external() {  # <tree>`, `}`, and the
+`COMMIT_LINKS_RANGE="$base..HEAD" ./run -a do_spl_commit_links_check` line, the
+v0.6 cites `:115-124`, `:160-182`, `:832`.
+
+**New claims in the delta, checked.** `git ls-tree -r --name-only a86e50da8 | grep -c 'perf-round-[78]-retro'`
+-> `2`; `git log --diff-filter=A` on both retros -> `8fc934b9e 2026-11-15T02:33:14+02:00`
+(00:33Z, as the plan says). `75a38b791` (p8-04, 10:18Z) and `82bb33d70` are
+both ancestors of `a86e50da8` (`git merge-base --is-ancestor` -> 0).
+
+**Row tests as they are today** (the existing CONTROLs the rows build on):
+`bash csi-spl-iac/src/bash/tests/sec-trufflehog.tst.sh` -> exit 0, `PASS: all
+sec-trufflehog.tst.sh assertions`; `bash csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh`
+-> exit 0, `PASS: all check-dist-hygiene.tst.sh assertions`.
+
+**N5** (row 03, for the lane): write the U+017F / U+212A plant in
+`check-dist-hygiene.tst.sh` with `printf` escapes or variables, not as
+literals. The test file is not excluded from the sweep, and a literal fold
+spelling there hits under the UTF-8 locale. If row 03 were ever reverted, the
+gate would go red on its own test.

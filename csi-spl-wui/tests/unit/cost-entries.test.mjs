@@ -37,8 +37,8 @@ describe('the form checks what the hub checks', () => {
   it('a good form passes', () => assert.equal(checkCostEntryForm(good, CUR), ''))
   for (const [name, patch, want] of [
     ['no label', { label: '  ' }, 'err_label'],
-    ['101 bytes', { label: 'x'.repeat(101) }, 'err_label'],
-    ['51 two-byte letters count as the hub counts them', { label: 'я'.repeat(51) }, 'err_label'],
+    ['101 characters', { label: 'x'.repeat(101) }, 'err_label'],
+    ['101 Cyrillic characters', { label: 'я'.repeat(101) }, 'err_label'],
     ['no amount', { amount: '' }, 'err_amount'],
     ['amount 0', { amount: '0' }, 'err_amount'],
     ['a negative amount', { amount: '-1' }, 'err_amount'],
@@ -48,8 +48,19 @@ describe('the form checks what the hub checks', () => {
     ['no month', { period: '' }, 'err_period'],
     ['month 13', { period: '2026-13' }, 'err_period'],
     ['a day', { period: '2026-01-01' }, 'err_period'],
-    ['2001 bytes of note', { note: 'x'.repeat(2001) }, 'err_note'],
+    ['2001 characters of note', { note: 'x'.repeat(2001) }, 'err_note'],
+    ['2001 Cyrillic characters of note', { note: 'я'.repeat(2001) }, 'err_note'],
+    ['201 Cyrillic characters of source', { source: 'я'.repeat(201) }, 'err_source'],
+    ['21 Cyrillic characters of account', { account: 'я'.repeat(21) }, 'err_source'],
   ]) it(name, () => assert.equal(checkCostEntryForm({ ...good, ...patch }, CUR), want))
+  /* SPL-5639: the hub counts characters (utf8.RuneCountInString), so the form does too */
+  for (const [name, patch] of [
+    ['100 Cyrillic characters of label', { label: 'я'.repeat(100) }],
+    ['2000 Cyrillic characters of note', { note: 'я'.repeat(2000) }],
+    ['200 Cyrillic characters of source', { source: 'я'.repeat(200) }],
+    ['20 Cyrillic characters of account', { account: 'я'.repeat(20) }],
+    ['100 astral characters of label (one code point, two UTF-16 units each)', { label: '😀'.repeat(100) }],
+  ]) it(name + ' pass', () => assert.equal(checkCostEntryForm({ ...good, ...patch }, CUR), ''))
   it('the empty form is this UTC month and is not sendable', () => {
     const f = emptyCostEntryForm(new Date('2026-11-07T10:00:00Z'))
     assert.equal(f.period, '2026-11')

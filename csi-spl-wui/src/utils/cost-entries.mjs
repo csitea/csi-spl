@@ -29,8 +29,8 @@ const AMOUNT_MAX = 1e10
 const LABEL_MAX = 100
 const NOTE_MAX = 2000
 const str = (v) => (typeof v === 'string' ? v : '')
-/* the hub counts bytes (Go len), so a Cyrillic label reaches its limit sooner */
-const bytes = (s) => new TextEncoder().encode(s).length
+/* the hub counts characters (Go utf8.RuneCountInString, SPL-5488, SPL-5583): code points, not bytes or UTF-16 units */
+const chars = (s) => [...s].length
 const micro = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
 /** GET .../cost-entries ({entries: [...]}) as rows, the newest month first; an entry with no id is dropped. */
@@ -74,14 +74,14 @@ export function emptyCostEntryForm(now = new Date()) {
 export function checkCostEntryForm(f, currencies = ['USD']) {
   const label = str(f.label).trim()
   const amount = Number(f.amount)
-  if (!label || bytes(label) > LABEL_MAX) return 'err_label'
+  if (!label || chars(label) > LABEL_MAX) return 'err_label'
   if (f.amount === '' || !Number.isFinite(amount) || amount <= 0 || amount >= AMOUNT_MAX) return 'err_amount'
   if (!CUR_RE.test(str(f.currency)) || !currencies.includes(f.currency)) return 'err_currency'
   if (!MONTH_RE.test(str(f.period))) return 'err_period'
-  if (bytes(str(f.note)) > NOTE_MAX) return 'err_note'
+  if (chars(str(f.note)) > NOTE_MAX) return 'err_note'
   /* SPL-5433: the hr line's own fields (rdb 0279's CHECKs) */
   if (str(f.personId) && !str(f.component)) return 'err_component'
-  if (bytes(str(f.source)) > 200 || bytes(str(f.account)) > 20) return 'err_source'
+  if (chars(str(f.source)) > 200 || chars(str(f.account)) > 20) return 'err_source'
   if (f.periodKind === 'year' && !str(f.period).endsWith('-01')) return 'err_year'
   if (str(f.correctsPeriod) && (!MONTH_RE.test(f.correctsPeriod) || f.correctsPeriod >= f.period)) return 'err_corrects'
   return ''

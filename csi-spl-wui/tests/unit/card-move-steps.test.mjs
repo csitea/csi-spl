@@ -17,6 +17,7 @@ const MOVE_CTX = { channel: 'ops', opener: 'card-1', topic: 'task-of-pane' }
 
 let mobile
 let lifts
+let lands
 let buzzes
 let keydown
 let mod
@@ -39,7 +40,7 @@ before(async () => {
         over: ref(null),
         lift: (drag) => lifts.push(drag),
         track: () => {},
-        land: () => {},
+        land: (ok) => lands.push(ok),
         run: async () => {},
       }),
     },
@@ -55,16 +56,17 @@ after(() => {
 })
 
 /** A card of `props` as MessageCard wires it, on a viewport `phone` or not. */
-function card(props, phone = false) {
+function card(props, phone = false, pickerOpen = ref(false)) {
   mobile = ref(phone)
   lifts = []
+  lands = []
   buzzes = 0
   keydown = null
   const rowCancels = { count: 0 }
   const flags = mod.useCardMoveFlags(props, ref(false), ref(false), ref(VIEWER), ACCESS)
   const peer = { swipeDown: () => {}, cancelRowDrag: () => { rowCancels.count += 1 } }
   const menu = { close: () => {} }
-  return { mv: mod.useCardMove(props, flags, ref('the title'), ref(false), menu, peer), rowCancels }
+  return { mv: mod.useCardMove({ props, flags, title: ref('the title'), pickerOpen }, menu, peer), rowCancels }
 }
 
 const pointer = (over) => ({ pointerId: 1, pointerType: 'mouse', button: 0, clientX: 0, clientY: 0, preventDefault: () => {}, currentTarget: null, ...over })
@@ -120,5 +122,23 @@ describe('useCardMove: what a drag does', () => {
     assert.equal(buzzes, 1)
     assert.equal(lifts.length, 0)
     assert.equal(mv.dragging.value, false)
+  })
+
+  it('(D) a lift carries the title passed in and closes an open picker', () => {
+    const pickerOpen = ref(true)
+    const { mv } = card({ msg: TOPIC_CARD, topicMenu: true }, false, pickerOpen)
+    dragWithMouse(mv)
+    assert.equal(lifts[0].title, 'the title')
+    assert.equal(pickerOpen.value, false)
+  })
+
+  it('(E) a drop lands the move once and ends the drag', () => {
+    const { mv } = card({ msg: TOPIC_CARD, topicMenu: true })
+    dragWithMouse(mv)
+    assert.equal(mv.dragging.value, true)
+    mv.onHandleUp(pointer({ clientX: 20 }))
+    assert.deepEqual(lands, [true])
+    assert.equal(mv.dragging.value, false)
+    assert.equal(keydown, null)
   })
 })

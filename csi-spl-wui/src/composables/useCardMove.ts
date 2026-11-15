@@ -66,13 +66,16 @@ export function useCardMoveFlags(props: CardMoveProps, editing: Ref<boolean>, in
 /** `peer.swipeDown` starts the card's swipe from the handle (a thumb's swipe
     often starts on the edge); `peer.cancelRowDrag` drops a phone's touch lift. */
 export function useCardMove(
-  props: CardMoveProps,
-  flags: ReturnType<typeof useCardMoveFlags>,
-  title: Ref<string>,
-  pickerOpen: Ref<boolean>,
+  card: {
+    props: CardMoveProps,
+    flags: ReturnType<typeof useCardMoveFlags>,
+    title: Ref<string>,
+    pickerOpen: Ref<boolean>,
+  },
   menu: CardMenu,
   peer: { swipeDown: (ev: PointerEvent) => void, cancelRowDrag: () => void },
 ) {
+  const { props, flags, title, pickerOpen } = card
   const { move, canMoveTopic, movable } = flags
   const { close: closeMenu } = menu
   const mobile = useMobileStack().isMobile

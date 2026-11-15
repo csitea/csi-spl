@@ -185,7 +185,7 @@ MSGS
   extract "$src" do_run_actions "$disp" || { fail "$mod: extract do_run_actions"; continue; }
   extract "$src" execute_step "$argsrc" || { fail "$mod: extract execute_step"; continue; }
   # r12-07: the hooks and the @arg parse are execute_step's own helper steps.
-  for step in execute_step_hook execute_step_parse_args; do
+  for step in execute_step_hook execute_step_flag_maps execute_step_flag_owned execute_step_flag_unknown execute_step_parse_args; do
     extract "$src" "$step" "$argsrc.$step" || { fail "$mod: extract $step"; continue 2; }
     cat "$argsrc.$step" >>"$argsrc"
   done

@@ -284,12 +284,30 @@ Each action opens with its header comment: `@description`, one `@param`
 per env var it reads (required or optional, with its default) and at least
 one `@example`.
 
+Every upper-case `@param NAME` is also a command-line flag, so these two
+runs are the same:
+
+- `IMAGE_REF=reg/x:1 DRY_RUN=0 ./run -a do_<verb>_<noun>`
+- `./run -a do_<verb>_<noun> --image-ref reg/x:1 --dry-run 0`
+
+`--name value` and `--name=value` export `NAME`; a bare `--name` (last, or
+followed by another `--flag`) exports `NAME=true`. A flag beats an env var
+of the same name that the caller set. An explicit `@arg --flag VAR` line
+wins over the derived flag of the same spelling. An unknown `--flag` fails
+the run (exit 11) and names the flags the action takes; a flag the action
+parses from `"$@"` itself (written in its own file, or an `@param --flag`
+line) and the framework's `--json` / `--quiet` pass through, as does
+everything after a bare `--`. With several actions in one run, each one
+checks the flags against its own header. The code:
+`execute_step_parse_args` in `csi-spl-orc/src/bash/run/run.sh`
+(byte-identical in iac and utl).
+
 Enforced by: `csi-spl-iac/src/bash/tests/action-header-tags.tst.sh` (run by
 `run-all-tests.sh`): every `do_*()` action file of iac, orc and utl
 `src/bash/run/` carries `description=` and `example=`, with `example=` at
 most 200 characters; today's exceptions are listed in
 `action-header-tags-baseline.txt` (sections `missing`, `long-example`), and
-that list only shrinks.
+that list only shrinks. The flag form: `csi-spl-orc/src/bash/tests/run-param-flags.tst.sh`.
 
 <a id="ws-doc-252415a0-f93b-44a4-a7ca-f8fe6c78b3ef"></a>
 #### 2.4.3 Bash that fails safely

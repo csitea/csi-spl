@@ -480,7 +480,8 @@ function liveReader({ conn, root, configError, hubFetch }, firstScreenMs, now) {
       throw err
     }
     const headers = { accept: 'application/json', ...(opts && opts.headers) }
-    if (conn.token) headers.authorization = `Bearer ${conn.token}`
+    // an explicit authorization wins: GET /v1/pins takes the upload token, not the view token (SPL-5560)
+    if (conn.token && !headers.authorization) headers.authorization = `Bearer ${conn.token}`
     const held = validated.ask(opts, path, headers)
     const res = await fetchOnce(fn, `${root}${path}`, { credentials: credentialsFor(conn.door), ...opts, headers })
     if (held && res.status === 304) return cloneBody(held.body)

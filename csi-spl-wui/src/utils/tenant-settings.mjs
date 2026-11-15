@@ -220,6 +220,17 @@ export function normalizeChannelBoxPins(body) {
 }
 
 /**
+ * A channel's pins from a GET /v1/tenant/channels body (the admin view, spec
+ * 164 4.2.3): how a tenant.settings admin who is not a member of a private
+ * channel reads them, since its GET box-pins answers 404. null = not listed.
+ */
+export function tenantChannelBoxPins(body, channel) {
+  const rows = body && typeof body === 'object' && Array.isArray(body.channels) ? body.channels : []
+  const row = rows.find((c) => c && typeof c === 'object' && c.channel === channel)
+  return row ? boxIdsOf(row.box_pins) : null
+}
+
+/**
  * The boxes the dialog offers: every pinned box of the workspace, plus a
  * channel pin whose box left the workspace (so the admin sees and can drop it).
  */

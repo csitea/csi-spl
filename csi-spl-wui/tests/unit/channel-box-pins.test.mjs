@@ -9,8 +9,12 @@
 // Red controls (each turns this file red; restored -> green):
 //   - setChannelBoxPins sends a body without box_pins  -> "the PUT carries box_pins"
 //   - listPins is missing from the lazy client          -> "listPins is a lazy client method"
+//   - listPins drops its upload token (live('/v1/pins')) -> "listPins sends the upload token" and
+//     "a live client sends GET /v1/pins with the upload token, not the view token" (R7 W1)
+//   - tenantChannelBoxPins returns null                  -> "an admin reads a channel's pins from the tenant list" (R7 W2)
 // Run: node tests/unit/channel-box-pins.test.mjs
 import { readFileSync } from 'node:fs'
+import { createSpoolClient } from '../../src/utils/spool-client.mjs'
 import { lazySpoolMethods } from '../../src/utils/spool-client-lazy.mjs'
 import {
   boxIdsOf,
@@ -19,6 +23,7 @@ import {
   channelBoxPinsErrorKey,
   normalizeChannelBoxPins,
   normalizeTenantChannels,
+  tenantChannelBoxPins,
   workspaceBoxIds,
 } from '../../src/utils/tenant-settings.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
@@ -41,7 +46,24 @@ const stubs = read('src/utils/spool-client.mjs')
 ok('the first-load client has a stub for each (LAZY_METHODS)', ['listPins', 'getChannelBoxPins', 'setChannelBoxPins'].every((n) => stubs.includes(`'${n}',`)))
 
 if (lazySpoolMethods.listPins) await lazySpoolMethods.listPins(ctx)
-ok('listPins reads GET /v1/pins', calls.at(-1)?.path === '/v1/pins' && !calls.at(-1)?.opts.method, JSON.stringify(calls.at(-1)))
+ok('listPins reads GET /v1/pins', calls.at(-1)?.path === '/v1/pins' && !calls.at(-1)?.opts?.method, JSON.stringify(calls.at(-1)))
+if (lazySpoolMethods.listPins) await lazySpoolMethods.listPins(ctx, 'up-tok')
+ok('listPins sends the upload token', calls.at(-1)?.opts?.headers?.authorization === 'Bearer up-tok', JSON.stringify(calls.at(-1)))
+
+/* R7 W1: the hub serves GET /v1/pins only to the WS upload token (tokenTenant
+   -> bearerAny), so the credential is checked on the real client's fetch, not
+   on the mock. The view token still rides on every other call. */
+const seen = []
+const hubFetch = async (url, opts = {}) => {
+  seen.push({ url, auth: opts.headers?.authorization || '' })
+  return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ pins: [], box_pins: [] }) }
+}
+const client = createSpoolClient({ fetchFn: hubFetch, mock: false, token: 'view-tok' })
+await client.listPins('up-tok')
+const pinsCall = seen.find((c) => c.url.endsWith('/v1/pins'))
+ok('a live client sends GET /v1/pins with the upload token, not the view token', pinsCall?.auth === 'Bearer up-tok', JSON.stringify(seen))
+await client.getChannelBoxPins('design')
+ok('the channel GET keeps the view token', seen.at(-1)?.url.endsWith('/v1/channels/design/box-pins') && seen.at(-1)?.auth === 'Bearer view-tok', JSON.stringify(seen.at(-1)))
 await lazySpoolMethods.getChannelBoxPins(ctx, 'team a')
 ok('getChannelBoxPins reads GET /v1/channels/{ch}/box-pins (encoded)', calls.at(-1)?.path === '/v1/channels/team%20a/box-pins' && !calls.at(-1)?.opts.method, JSON.stringify(calls.at(-1)))
 await lazySpoolMethods.setChannelBoxPins(ctx, 'design', ['box-b', 'box-a'])
@@ -72,6 +94,12 @@ ok('anything else is the generic line', channelBoxPinsErrorKey(new Error('x')) =
 /* ---- Workspace settings -> Channels: the Boxes column's data ---- */
 const rows = normalizeTenantChannels({ channels: [{ channel: 'design', box_pins: ['box-b', 'box-a'] }, { channel: 'lobby', visibility: 'default' }] })
 ok('a tenant channel row carries its boxes', rows.find((r) => r.channel === 'design').boxPins.join() === 'box-a,box-b')
+const adminList = { channels: [{ channel: 'secret', box_pins: ['box-desk', 'box-a'] }, { channel: 'open', box_pins: [] }] }
+ok("an admin reads a channel's pins from the tenant list", tenantChannelBoxPins(adminList, 'secret')?.join() === 'box-a,box-desk')
+ok('an unpinned listed channel is [] and an unlisted one is null', tenantChannelBoxPins(adminList, 'open')?.length === 0 && tenantChannelBoxPins(adminList, 'gone') === null)
+const dialog = read('src/components/ChannelPropertiesDialog.vue')
+ok('the dialog reads the workspace pins with the upload token', /api\.listPins\(await live\.freshUploadToken\(\)\)/.test(dialog))
+ok('the dialog falls back to the tenant list on a 404 for an admin', dialog.includes('api.listTenantChannels()') && dialog.includes('tenantChannelBoxPins('))
 ok('a row without box_pins is unpinned (Any box)', rows.find((r) => r.channel === 'lobby').boxPins.length === 0)
 
 /* ---- the mock hub keeps the B2 rules (spec 164 4.1) ---- */

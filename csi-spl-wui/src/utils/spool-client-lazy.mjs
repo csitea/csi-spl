@@ -2491,11 +2491,16 @@ export const lazySpoolMethods = {
 /* spec 164 row B6 (SPL-5560): a channel's box pins (hub routes of row B2).
    No pin = the channel runs on any box of the workspace. */
 
-/** GET /v1/pins: the workspace's active box pins, { pins: [{ box_id, pubkey }] }. */
-async function listPins(ctx) {
+/**
+ * GET /v1/pins: the workspace's active box pins, { pins: [{ box_id, pubkey }] }.
+ * The hub serves it only to the WS upload token (tokenTenant), never to the
+ * view token, so the caller passes useLive().freshUploadToken().
+ */
+async function listPins(ctx, uploadToken) {
   const { live, mock, tenantMock } = ctx
   if (mock) return (await tenantMock()).pins()
-  return live('/v1/pins')
+  const tok = String(uploadToken || '')
+  return live('/v1/pins', tok ? { headers: { authorization: `Bearer ${tok}` } } : undefined)
 }
 
 /** GET /v1/channels/{ch}/box-pins → { channel, box_pins, is_pinned }; box_pins [] = any box. */

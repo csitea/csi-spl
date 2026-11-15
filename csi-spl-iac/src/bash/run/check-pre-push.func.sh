@@ -998,22 +998,39 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     _pp_capture "$bout" "$fn" "$bwt" || brc=$?
     bsig="$(_pp_sig "$bout" "$bwt")"
   else
-    do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as NEW"
+    do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as $([[ "$rc" -eq 124 || "$rc" -eq 137 ]] && echo 'a timeout, not proven your break' || echo NEW)"
   fi
   rm -f "$out" ${bout:+"$bout"}
   el=$((SECONDS - start))
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
+    _pp_timed_out "$label" "$part" "$el" "$note" "$base" "$bsha" "$brc" "$bwt"; return 0
+  fi
   if [[ "$brc" -eq 0 ]]; then
     _pp_record "$label" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
     [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-green $(_pp_sig_names "$tsig")"
-    if [[ ( "$rc" -eq 124 || "$rc" -eq 137 ) && -n "$bwt" ]]; then
-      # a timeout under box load is not proven a break (SPL-3115): refuse, never blame
-      do_log "FATAL pre-push: FAIL $label ($note) -- it timed out on your tree and passed on $base ($bsha): box load or a slower test, not proven your break; re-run it, or raise its timeout budget"
-    else
-      do_log "FATAL pre-push: FAIL $label ($note) -- a NEW failure your commits introduce"
-    fi
+    do_log "FATAL pre-push: FAIL $label ($note) -- a NEW failure your commits introduce"
     return 0
   fi
   _pp_compare "$label" "$part" "$el" "$note" "$base" "$bsha" "$tsig" "$bsig"
+}
+
+# A part that TIMED OUT on the tree is refused, never blamed on the lane
+# (SPL-3115, SPL-5588): its output was cut wherever the budget ran out, so its
+# signature is not comparable with the base's, and on a red base the verdict
+# read NEW or pre-existing by where the cut fell (one HEAD read both, n=2).
+# Whatever the base did (green, red, or no base tree) the verdict is FAIL
+# with the base's state and no new= / failing= field; the log says re-run it
+# or raise its budget (the note already names the variable that raises it).
+_pp_timed_out() {  # <label> <part> <secs> <note> <base> <bsha> <base-rc> <base-wt>
+  local label="$1" part="$2" el="$3" note="$4" base="$5" bsha="$6" brc="$7" bwt="$8" trunk did
+  if [[ -z "$bwt" ]]; then trunk="none"; did="no $base tree to compare it with"
+  elif [[ "$brc" -eq 0 ]]; then trunk="$bsha-green"; did="passed on $base ($bsha)"
+  else trunk="$bsha-red"; did="$base ($bsha) is red too, and a cut-off run is not comparable with it"
+  fi
+  _pp_record "$label (TIMED OUT: not proven your break)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
+  [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$trunk timed-out-not-compared"
+  do_log "FATAL pre-push: FAIL $label ($note) -- it timed out on your tree and $did: box load or a slower test, not proven your break; re-run it, or raise its timeout budget"
+  return 0
 }
 
 # A part's output is tee'd to <file> as it streams (stdout + stderr), and the

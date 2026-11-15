@@ -201,6 +201,17 @@ A part that runs out logs
 `TIMED OUT after <n>s (<why>)`: the why names the variable that set the
 budget, or, for a default budget, the default and the variable that raises
 it (for a load-scaled one also the base, the load it read and the cap).
+A part that TIMED OUT (rc 124 or 137) on your tree is never compared by
+signature (SPL-5588): its output stops wherever the budget ran out, so it is
+FAILed as "not proven your break; re-run it, or raise its timeout budget",
+whatever the trunk re-run did. Its verdict reads
+`trunk=<sha>-green|<sha>-red|none timed-out-not-compared`, with no `new=` count.
+Before this, only a green trunk got that verdict; on a red trunk the cut-off
+run went to the signature compare, and one HEAD (5b647ab99, box sat,
+2026-11-14) read `WARN-pre-existing` once and `new=1` 20 min later (n=2).
+A test's planted control prints no `FAIL` line either: a killed unit run has
+no runner summary, so every printed `FAIL` counts
+(`auth-i18n-keys.test.mjs` now runs its control silently).
 A lint part has no own variable and runs under that same timeout (SPL-5529): the budget is `PRE_PUSH_PART_TIMEOUT` when set, otherwise its table row (`lint_<scanner>_<tier>`, else `default`), a hang returns 124 or 137 so the gate logs `TIMED OUT` and the part's process group, including a scanner child, is killed, and because `PRE_PUSH_PART_TIMEOUT` also binds every other part with no more specific variable (full-tier orc, api and iac) it must not be set to cap a full-tier orc run (raise that with `PRE_PUSH_ORC_FULL_TIMEOUT`); the full-tier `lint-gosec` has its own row (`lint_gosec_full`).
 
 A process a part leaves behind (a test's `setsid` child, a test daemon that

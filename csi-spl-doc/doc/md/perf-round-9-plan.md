@@ -19,7 +19,7 @@ no measured gain is dropped).
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Vendor claude for
   every row.**
 
-**Status: v0.5, draft** on `review/c002-perf-round-9-planner`. Editor: c-723@sat
+**Status: v0.6, draft** on `review/c002-perf-round-9-planner`. Editor: c-723@sat
 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 09:1xZ, answering c-001 spawn-share
@@ -33,15 +33,22 @@ no measured gain is dropped).
 (16 cpus), 2026-11-14 09:1xZ-09:2xZ, under a 1-minute load of 25..63 printed beside
 each run; every before/after pair ran interleaved (AB on odd runs, BA on even) under
 the same load. The site files of rows 01-03 are unchanged on `e9ea1ef32`
-(`git diff --stat 1638ca3a7 e9ea1ef32 -- <the files>` prints nothing). The raw
+(`git diff --stat 1638ca3a7 e9ea1ef32 -- <the files>` prints nothing); on
+`a86e50da8` (`origin/master`, 2026-11-15 07:38Z) the same diff prints wf10 only, one
+hunk at `:1872`, below every row site. Row 03's v0.6 numbers were measured on
+`a86e50da8` (section 3, row 03). The raw
 commands and outputs: [perf-round-9/editor.md](perf-round-9/editor.md); the probe
 scripts and raw result files: `/var/tmp/c723-probe/` on sat.
 
-**Retros.** There is no `perf-round-7-retro.md` and no `perf-round-8-retro.md` on
-the tree (`git ls-tree -r --name-only origin/master | grep -c 'perf-round-[78]-retro'`
--> 0). Round 8 is not served: p8-01 `8c39ee3ef` and p8-02 `1e1cf16f8` landed, p8-03
-was dropped by its own drop rule, p8-04 is live (c-721@sat). This plan reads the two
-plans and the landed commits, not a retro.
+**Retros.** On `1638ca3a7` there was no `perf-round-7-retro.md` and no
+`perf-round-8-retro.md` (`git ls-tree -r --name-only <sha> | grep -c
+'perf-round-[78]-retro'` -> 0); on `a86e50da8` -> 2, both added by `8fc934b9e`
+(2026-11-15 00:33Z). v0.1 read the two plans and the landed commits. Since v0.3 the
+plan reads round 8's retro section 8 (a-827's five inputs, section 6). In v0.6 it
+reads round 7's retro section 7. Its carried items are the ones section 6 already
+carries (`fsync=off`, the lab-Postgres and bundle items, `_spool_bin_stale`, spec 027
+rows 2-4 and 7). p8-04 landed after the plan sha: `75a38b791` (2026-11-14 10:18Z) and
+its fix `82bb33d70`; `spl-lane-map.func.sh` is not a row file.
 
 <a id="p9-how-to-read"></a>
 ## 1. How to read this
@@ -87,8 +94,8 @@ Inputs read (brief step 2), each carried finding re-checked on `1638ca3a7`:
 | # | id | practice | baseline on `1638ca3a7` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 | `perf(p9-01-iac-hidden-sweep-one-lookaround)` | the hidden-workspace word slugs share ONE lookbehind and ONE lookahead, `(?i)(?<![\p{L}\p{N}])(?:s1\|s2\|...)(?![\p{L}\p{N}])`, instead of one `(?i)(?<!...)slug(?!...)` alternative per slug | `hwprobe.sh` arm A (editor 2.2): wf10's hidden-workspace sweep as it runs today (`grep -rnIoP`, wf10's excludes, the gate's UTF-8 locale, the box overlay's 26 patterns, 14 of them word slugs) over a tracked-file export of 9,589 files plus a 144-line plant: **3,951 ms (median, n=10; 3,207..5,442)**. It is the costliest sweep: 4.58 s of the 9.40 s the sweep step spends in `grep` (one trace, n=1); the whole `do_check_dist_hygiene` 9.9..11.4 s (n=3) | arm B, the 14 word slugs factored: **2,086 ms (median, n=10; 1,680..2,795), -47%**; the hit set identical 10 of 10 (79 hits on the plant, accented-letter cases included) | `iac/lib/bash/funcs/spl-private-cnf.func.sh:157-173` (`spl_private_gate_patterns`, the word form at `:169`); its comment `:145-156` | `iac/src/bash/tests/spl-private-cnf.tst.sh` section 6 (`:83-105`), a new case: the builder's output for the fixture's word slugs carries **1** `(?<![\p{L}\p{N}])` (today one per word slug); every hit and no-hit case of section 6 still holds, the Unicode ones included. Red: today's builder -> one per slug, FAIL. `hygiene-hidden-workspaces.tst.sh` runs unchanged | either fleet box | claude / simple_coding (R9: a gate's pattern, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1 |
-| 02 | `perf(p9-02-iac-trufflehog-control-once-per-binary)` | the control's verdict is kept per trufflehog binary (its sha256, and `_SEC_TRUFFLEHOG_VER`): a binary that already detected the planted pair is not started again for the control; a failed control is never kept | the part's two scanner starts on 2 files (control on the planted pair, then the `--only-verified` scan; `th-ab` arm A, editor 2.3): **10,415 ms (median, n=7; 9,014..10,755)**; each start alone ~7 s (control 7,034 ms, scan 7,135 ms, medians, n=5) | arm B, `sha256sum` of the binary + the same scan: **5,318 ms (median, n=7; 4,541..6,647), -49%**; the ranges do not overlap | `iac/src/bash/run/sec-trufflehog.func.sh:64-78` (`do_sec_trufflehog`, the control block `:70-78`) | `iac/src/bash/tests/sec-trufflehog.tst.sh`, a new case: the stub logs each call's `SEC_TRUFFLEHOG_PHASE`; two runs with one stub and one `XDG_CACHE_HOME` -> **1** control call (today 2); a changed stub (new sha256) -> the control runs again; the existing CONTROL (a silent stub fails) still fails on its second run. Red: today's code -> 2 control calls, FAIL | either fleet box | claude / simple_coding (R9: a lint part) | 1 |
-| 03 | `perf(p9-03-ci-hygiene-ascii-sweeps-c-locale)` | the six ASCII sweeps (`:1737-1743`, `:1787`) run `grep -P` under `LC_ALL=C`; the hidden-workspace sweep keeps its UTF-8 gate locale (`:1769`) | `locprobe.sh` arm A (editor 2.4): the six sweeps' `grep -rnIoP` with wf10's excludes under `C.UTF-8` (the box default; the pre-push runs under it) on the planted export: **5,375 ms (median, n=10; 4,970..6,298)** | arm B, the same six under `LC_ALL=C`: **3,989 ms (median, n=10; 3,518..4,483), -26%**; the six hit sets identical 10 of 10, including 12 planted lines that put the sweeps' ASCII words next to multibyte letters; the ranges do not overlap | `wf10:1708-1736` (`sweep()`, its `grep` at `:1717`), `:1769` (the hidden-workspace call) | `iac/src/bash/tests/check-dist-hygiene.tst.sh`, a new case: a `grep` PATH shim logs the locale of each recursive call: the six ASCII sweeps **0** calls under a UTF-8 locale (today 6), the hidden-workspace sweep still **1** under the gate locale; the planted hits of the `hygiene-*.tst.sh` fixtures still reported. Red: today's step -> 6, FAIL | either fleet box | claude / simple_coding (R9: a CI gate) | 1 |
+| 02 | `perf(p9-02-iac-trufflehog-control-once-per-binary)` | the control's verdict is kept per (binary, control code): the key is the sha256 of the RESOLVED binary (`command -v "$bin"`, since `bin` defaults to the bare name, `:65`, `:30`), the sha256 of `sec-trufflehog.func.sh` itself (the control's flags `:73` and `_sec_trufflehog_count` `:55-62`, which the scan reuses at `:93`), and `_SEC_TRUFFLEHOG_VER`; a key that already detected the planted pair does not start the scanner again for the control; a failed control is never kept | the part's two scanner starts on 2 files (control on the planted pair, then the `--only-verified` scan; `th-ab` arm A, editor 2.3): **10,415 ms (median, n=7; 9,014..10,755)**; each start alone ~7 s (control 7,034 ms, scan 7,135 ms, medians, n=5) | arm B, `sha256sum` of the binary + the same scan: **5,318 ms (median, n=7; 4,541..6,647), -49%**; the ranges do not overlap. v0.6 adds a second `sha256sum` (the func file) to the key: not re-measured | `iac/src/bash/run/sec-trufflehog.func.sh:64-78` (`do_sec_trufflehog`, the control block `:70-78`) | `iac/src/bash/tests/sec-trufflehog.tst.sh`, a new case: the stub logs each call's `SEC_TRUFFLEHOG_PHASE`; two runs with one stub and one `XDG_CACHE_HOME` -> **1** control call (today 2); a changed stub (new sha256) -> the control runs again; the same stub reached by its bare name on `PATH` and by its full path -> one key; a changed copy of the func file (one byte in a comment) -> the control runs again; the existing CONTROL (a silent stub fails) still fails on its second run. Red: today's code -> 2 control calls, FAIL | either fleet box | claude / simple_coding (R9: a lint part) | 1 |
+| 03 | `perf(p9-03-ci-hygiene-ascii-sweeps-c-locale)` | the FIVE ASCII-literal sweeps (`:1737`, `:1738`, `:1740`, `:1742`, `:1743`) run under `LC_ALL=C`; the retired-relay sweep (`:1787`, its `\x80-\xff` class means bytes under C but U+0080..U+00FF under UTF-8) and the hidden-workspace sweep (`:1769`, its gate locale) keep the locale they run under today. **A named narrowing, not hit-identical**: under C, `(?i)` folds ASCII only, so a word of `:1738`, `:1740` or `:1743` spelled with U+017F (folds to `s`) or U+212A (folds to `k`) stops matching | `locprobe5.sh` arm A (editor 2.4): the five sweeps' `grep -rnIoP` with wf10's excludes under `C.UTF-8` (the box default; the pre-push runs under it) on a tracked-file export of **`a86e50da8`** (9,654 files), GNU grep 3.11, ABAB/BABA, load 56..71: **5,400 ms (median, n=7; 4,322..6,529)**; a second run, load 46..61: **4,325 ms (n=7; 3,625..4,981)** | arm B, the same five under `LC_ALL=C`: **4,038 ms (n=7; 3,422..5,022), -25%**, B below its paired A in 7 of 7 pairs; second run **2,971 ms (n=7; 2,729..3,176), -31%**, ranges apart. The five hit sets on the tree identical 14 of 14. A 6-line plant of U+017F / U+212A spellings of the five sweeps' words: hits per sweep `0 1 3 0 1` under `C.UTF-8`, `0 0 0 0 0` under C (n=1, deterministic): the narrowing above | `wf10:1737`, `:1738`, `:1740`, `:1742`, `:1743` (the five calls); `sweep()` `:1708-1736` unchanged | `iac/src/bash/tests/check-dist-hygiene.tst.sh`, a new case: a `grep` PATH shim logs the locale of each recursive call: the five ASCII sweeps **5** calls under `C` (today 0), the retired-relay and the hidden-workspace sweeps each still **1** under their locale today; the planted hits of the `hygiene-*.tst.sh` fixtures still reported; the U+017F / U+212A plant pinned as NOT reported by the five (the narrowing, stated in the test). Red: today's step -> 0 calls under `C`, FAIL | either fleet box | claude / simple_coding (R9: a CI gate) | 1 |
 
 Rows 01-03 are claude: rulebook R14 (an established vendor for every row) and the
 owner's 10-17 rule (no mistral coding or testing).
@@ -99,11 +106,11 @@ owner's 10-17 rule (no mistral coding or testing).
 - **Batch 1**: rows 01, 02, 03. No path is in two rows: 01
   `spl-private-cnf.func.sh` and `spl-private-cnf.tst.sh`; 02 `sec-trufflehog.func.sh`
   and `sec-trufflehog.tst.sh`; 03 wf10 and `check-dist-hygiene.tst.sh`.
-- Rows 01 and 03 speed up two different sweeps of one step: 01 the hidden-workspace
-  pattern, 03 the six ASCII ones. Each lane measures its arm with the other's code
-  as it is on master. Row 03 must not put `LC_ALL=C` on the shared `grep` line
-  unconditionally: the hidden-workspace call passes its own locale (`:1769`), which
-  has to win (section 4).
+- Rows 01 and 03 speed up different sweeps of one step: 01 the hidden-workspace
+  pattern, 03 the five ASCII-literal ones. Each lane measures its arm with the other's
+  code as it is on master. Row 03 must not put `LC_ALL=C` on the shared `grep` line
+  (`:1717`): the retired-relay sweep (`:1787`) and the hidden-workspace sweep
+  (`:1769`) keep their locale (section 4).
 
 <a id="p9-r3"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
@@ -143,18 +150,20 @@ Read on 2026-11-14, each with its time:
   re-runs `hwprobe.sh` (n=10) on its tree and states the hit set is identical on
   the box overlay; it prints no slug.
 - **02**: after a control that found at least one detection, `do_sec_trufflehog`
-  writes a mark named for the binary's sha256 and `_SEC_TRUFFLEHOG_VER` under
+  writes a mark named for the key (sha256 of `$(command -v "$bin")`, sha256 of
+  `${BASH_SOURCE[0]}`, `_SEC_TRUFFLEHOG_VER`) under
   `${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/trufflehog-control/`; when the mark for
   this binary exists, the control is skipped and the log says so (`control: kept for
   <sha8>`). No mark on a failed control, and an unwritable cache dir only costs the
   control run. The scan is unchanged.
-- **03**: `sweep()` runs its `grep` under `LC_ALL="${sweep_loc:-C}"`; the
-  hidden-workspace call sets `sweep_loc="$gate_loc"` (in place of today's
-  `LC_ALL="$gate_loc" sweep`). A comment at `sweep()` says the six patterns are
-  ASCII and why C is their locale (bytes, no UTF-8 decoding); a non-ASCII pattern
-  added later passes its locale. `do_check_dist_hygiene` reads the step out of wf10,
-  so it follows without an edit. The lane re-runs `locprobe.sh` (n=10) and
-  states the six hit sets are identical.
+- **03**: the five calls at `:1737`, `:1738`, `:1740`, `:1742`, `:1743` get the
+  prefix `LC_ALL=C sweep ...`, the form `:1769` already uses; `sweep()`, `:1769` and
+  `:1787` are not edited. A comment above the five says their patterns are ASCII,
+  why C is their locale (bytes, no UTF-8 decoding), and the narrowing: `(?i)` folds
+  ASCII only under C, so U+017F / U+212A spellings are not caught; `:1787` stays off
+  C because of its `\x80-\xff` class. `do_check_dist_hygiene` reads the step out of
+  wf10, so it follows without an edit. The lane re-runs `locprobe5.sh` (n=7) on its
+  tree and states the five hit sets on the tree are identical.
 
 <a id="p9-panel"></a>
 ## 5. Panel and reviewers (R7)
@@ -182,11 +191,11 @@ it).
 | candidate | why not a row | measurement |
 |---|---|---|
 | p8-01 again: the next five eager orc files (`spl-agent-settings-check`, `spl-dispatch-lease`, `spl-wd-ensure`, `spl-box-restart-prepare`, `spl-asks-open`; per-file medians 73, 54, 41, 41, 40 ms, n=7) | **dropped, no gain**: the per-file costs are shared work (the first file to source a common include pays for it), so skipping the five moves most of it to other files | eager loop with and without the five, n=15 interleaved, load 55..61: **380 ms vs 347 ms (-9%)**, ranges 288..787 / 298..714; whole start `./run -a do_p9_no_such_action` **753 vs 736 ms (-2%)** (editor 2.5) |
-| a-827's input 1 (`perf-round-8-retro.md` section 8 as on origin/master, blob `2013b5b30`): `do_spl_commit_links_check` runs `do_spl_cloud_cnf` in `_spl_cl_hub` (`spl-commit-links-check.func.sh:141`) before it reads the range, and again in `_spl_cl_hub_read` (`:168`). a-827, local only, zero prd hub calls (medians, n=5, on `8247621e2`, load ~17): empty range (`HEAD..HEAD`) 619 ms with the default hub vs 344 ms with `COMMIT_LINKS_HUB=none` (-275 ms, -44%); one commit with `COMMIT_LINKS_HUB=none` 378 ms | **a candidate, not a row in v0.5**: the -275 ms is the cost of the FIRST `do_spl_cloud_cnf` and its key-file lookup in `_spl_cl_hub` (`:141`), and every push pays it: `hub="$(_spl_cl_hub)"` runs at `:42`, before the range is read at `:51`, and `_pp_part_commit_links` (`check-pre-push.func.sh:816`) passes `PRE_PUSH_BASE..HEAD` with `COMMIT_LINKS_HUB` unset. Still open before it is a row: no after arm (the hub choice made without `do_spl_cloud_cnf`) is probed, and the lane map exits 4 for `spl-commit-links-check.func.sh` (no lane lists it; 11 live lanes record no files; no queued ask names it, queue read 2026-11-15). The SECOND call (`:168`, inside the hub read, guarded at `:59`) ran in neither arm of section 8 (both `HEAD..HEAD`): a separate cost, not measured | the part I could time without the key: `ENV=prd ./run -a do_spl_cloud_cnf` vs `./run -a do_p9_no_such_action`, interleaved, n=10, load 48..58, on `89f8cef14` (both files identical on `db1f49cf5`): **783 vs 586 ms**, about **198 ms** per call. Input for round 10: a measurement lane that may read the key |
+| a-827's input 1 (`perf-round-8-retro.md` section 8 as on origin/master, blob `2013b5b30`): `do_spl_commit_links_check` runs `do_spl_cloud_cnf` in `_spl_cl_hub` (`spl-commit-links-check.func.sh:141`) before it reads the range, and again in `_spl_cl_hub_read` (`:168`). a-827, local only, zero prd hub calls (medians, n=5, on `8247621e2`, load ~17): empty range (`HEAD..HEAD`) 619 ms with the default hub vs 344 ms with `COMMIT_LINKS_HUB=none` (-275 ms, -44%); one commit with `COMMIT_LINKS_HUB=none` 378 ms | **a candidate, not a row in v0.5**: the -275 ms is the cost of the FIRST `do_spl_cloud_cnf` and its key-file lookup in `_spl_cl_hub` (`:141`), and every push pays it: `hub="$(_spl_cl_hub)"` runs at `:42`, before the range is read at `:51`, and `_pp_part_commit_links` (`check-pre-push.func.sh:832` on `a86e50da8`, the call; `:816` on the plan sha) passes `PRE_PUSH_BASE..HEAD` with `COMMIT_LINKS_HUB` unset. Still open before it is a row: no after arm (the hub choice made without `do_spl_cloud_cnf`) is probed, and the lane map exits 4 for `spl-commit-links-check.func.sh` (no lane lists it; 11 live lanes record no files; no queued ask names it, queue read 2026-11-15). The SECOND call (`:168`, inside the hub read, guarded at `:59`) ran in neither arm of section 8 (both `HEAD..HEAD`): a separate cost, not measured | the part I could time without the key: `ENV=prd ./run -a do_spl_cloud_cnf` vs `./run -a do_p9_no_such_action`, interleaved, n=10, load 48..58, on `89f8cef14` (both files identical on `db1f49cf5`): **783 vs 586 ms**, about **198 ms** per call. Input for round 10: a measurement lane that may read the key |
 | a-827's input 2: `do_check_fleet_rules_drift` `grep -r` and per-line forks, 1,564 ms (median, n=5, on `5815e76c5`) | **not here (R3)**: its test `check-fleet-rules-drift.tst.sh` is named by queued bug ask 68f1dea2 (`c001-bug-tpl-gen-symlink-not-ignored`, 2/61 at 00:06Z 2026-11-15) | no after-probe; carried until that lane lands |
-| a-827's input 3: `_pp_wui_external` (`check-pre-push.func.sh:153-175`), per-line `grep`/`sed`, 730 ms (median, n=5) | **not here (R3)**: `check-pre-push.func.sh` is named by three queued bug asks, dc8568f5, 20db36c3 and 7e0d6251 (queue read 00:06Z 2026-11-15) | no after-probe; carried |
+| a-827's input 3: `_pp_wui_external` (`check-pre-push.func.sh:160-182` on `a86e50da8`; `:153-175` on the plan sha), per-line `grep`/`sed`, 730 ms (median, n=5) | **not here (R3)**: `check-pre-push.func.sh` is named by three queued bug asks, dc8568f5, 20db36c3 and 7e0d6251 (queue read 00:06Z 2026-11-15) | no after-probe; carried |
 | a-827's input 4: the next five eager orc files (`spl-wd-takeover`, `spl-peer-crons`, `spl-wd-peers`, `spl-wd-ensure`, `spl-asks-open`): 379 ms summed isolated medians, 183.1 ms incremental inside the 483.1 ms 88-file loop (n=5, on `5815e76c5`) | **a candidate, not a row in v0.4**: unlike the "p8-01 again" five above, this set does cut the eager loop (measurement). Still open before it is a row: the whole `./run` start with and without the five is not probed, and the lane map exits 4 for the five files (no lane lists them; 11 live lanes record no files) | the 88 eager files of origin/master `d99a6febb` (the `_RUN_INDEX_AWK` eager list) sourced in one fresh shell, with and without the five, n=15 interleaved (ABAB / BABA), load 39..41: **336 vs 261 ms (-75 ms, -22%)**, ranges 295..385 / 242..314 |
-| a-827's input 5: `csi-spl-iac` `./run` eagerly sources 36 of 185 files, 411 ms no-op start (median, n=5) | **not here**: its named top cost, `check-pre-push.func.sh:110-119`, is held by the three queued asks of input 3 (R3); and an isolated cost does not size the gain (input 4: 379 ms isolated, 75 ms cut from the loop): it needs an interleaved with/without probe | carried: round 10, after those lanes land |
+| a-827's input 5: `csi-spl-iac` `./run` eagerly sources 36 of 185 files, 411 ms no-op start (median, n=5) | **not here**: its named top cost, `check-pre-push.func.sh:115-124` on `a86e50da8` (`:110-119` on the plan sha), is held by the three queued asks of input 3 (R3); and an isolated cost does not size the gain (input 4: 379 ms isolated, 75 ms cut from the loop): it needs an interleaved with/without probe | carried: round 10, after those lanes land |
 | p8-03, the joined pre-filter pass | dropped by its drop rule in round 8 | c-290: -3.3% / -10.2%, n=10, on `91cfe055b` |
 | pre-push full tier `orc` part | 10 full-tier runs on sat from 2026-11-13T09:00Z to 2026-11-14T09:11Z, none green: 4 TIMED OUT at 12,023..12,032 s, 6 ran 9,950..13,709 s to FAIL or WARN-pre-existing; the green fast tier ran 516 s (mean, n=18). Counted, not probed: which files take the time on a loaded box needs the suite's own slowest-10 list under the full tier | input for round 10. CI's two runs on `1638ca3a7` (n=2) give the green per-file walls; sleep-bound files there (wall far above cpu): `wd-fence` 226 / 192 s wall vs 43 / 32 s cpu, `fleet-lease-slow-tick` 87 s vs 5 s (a scaled real clock by design, not a cut) |
 | pre-push `api` part | PASS mean 1,172 s (n=31), FAIL mean 2,488 s (n=20) in 24 h; not probed (whether the Go test cache serves an unchanged package under the part's flags was not checked) | input for round 10 |
@@ -218,6 +227,7 @@ the primary copy.
 - v0.3 (c-723@sat, 2026-11-15, holder c-002 msg eac5eb25: push now, the claude seat reviews this head): panel line (section 5) and section 9 name the claude seat: same vendor as the editor, the panel's other seat is grok. The seat replaced the mistral seat, then the agy seat. Section 6 takes a-827's five measured inputs (sent by holder c-002 msg a6c68bfe): none becomes a row; the row count stays 3. Its reasons for inputs 1 and 4 were wrong (g-751 W1, W2), corrected in v0.4.
 - v0.4 (c-723@sat, 2026-11-15, g-751 FAIL on `d6c1bee7a`, msg f4c6019b): section 6 cites a-827's inputs from `perf-round-8-retro.md` section 8 as on origin/master (blob `2013b5b30`), not the review-branch copy at `3aeabc558`, which is not on master. W1: input 1's reason was changed, and was wrong again (g-751 FAIL on `060a8cddc`), corrected in v0.5. W2: input 4 was not "no gain": probed with and without its own five files, the loop drops 336 to 261 ms (-75 ms, -22%, n=15); it stays a candidate, not a row (whole start not probed, lane map exit 4). Input 5's reason no longer leans on "no gain". The row count stays 3.
 - v0.5 (c-723@sat, 2026-11-15, g-751 FAIL on `060a8cddc`, msg 9d647bc6): W1 again. Input 1's measured -275 ms is the cost of the first `do_spl_cloud_cnf` (`spl-commit-links-check.func.sh:141`), which runs on every push, empty range or not (`:42` before `:51`; `check-pre-push.func.sh:816` leaves `COMMIT_LINKS_HUB` unset). It is a candidate, not a row: no after arm probed, lane map exit 4. The second call (`:168`) is a separate cost, not measured. The row count stays 3.
+- v0.6 (c-723@sat, 2026-11-15, claude seat c-076 FAIL on `2c11ec7ba`, msg c8d5898b, seat `52f79a71c`): W1, row 03 was not hit-identical: `:1787`'s `\x80-\xff` class and the `(?i)` fold of U+017F / U+212A differ under C. Row 03 now covers five sweeps; `:1787` keeps its locale. The fold narrowing of the five is named in the row and pinned in its test. Re-measured on `a86e50da8`: -25% and -31% (n=7 each). W2 and N1: row 02's key is the resolved binary's sha256, the func file's sha256 and the version, with two test cases added. N2: section 6 re-cites `check-pre-push.func.sh` on `a86e50da8`. The Retros paragraph now names the two retros added by `8fc934b9e` and p8-04's landing. The row count stays 3.
 
 <a id="p9-consensus"></a>
 ## 9. Consensus
@@ -229,4 +239,5 @@ the primary copy.
 | g-751@sat | grok | `89f8cef14` (v0.2) | PASS (seat `a6a2f0998`) |
 | g-751@sat | grok | `d6c1bee7a` (v0.3) | FAIL on the delta, W1 and W2 (seat `9c4b5c074`), folded in v0.4 |
 | g-751@sat | grok | `060a8cddc` (v0.4) | FAIL on the delta, W1 only, W2 answered (seat `7cedf5ab1`), folded in v0.5 |
-| claude panel seat | claude, same vendor as the editor; the panel's other seat is grok | v0.5 head | pending |
+| c-076@sat (claude panel seat) | claude, same vendor as the editor; the panel's other seat is grok | `2c11ec7ba` (v0.5) | FAIL, W1 W2 N1 N2 (seat `52f79a71c`), folded in v0.6 |
+| c-076@sat / g-751@sat | claude / grok | v0.6 head | pending |

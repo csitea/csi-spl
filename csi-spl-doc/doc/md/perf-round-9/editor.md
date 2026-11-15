@@ -129,6 +129,35 @@ has no hit, the other five do). Per sweep, `persweep.sh`, n=2 per locale: 472 /
 `C.UTF-8`; 331 / 339, 456 / 457, 699 / 682, 246 / 215, 291 / 311, 949 / 1054 ms
 under `C`.
 
+### 2.4.1 v0.6: row 03 is five sweeps, re-measured on `a86e50da8` (n=7, twice)
+
+The claude seat c-076 (msg c8d5898b) showed the six were not hit-identical under C:
+`:1787`'s `\x80-\xff` class is bytes under C and U+0080..U+00FF under UTF-8, and
+`(?i)` folds U+017F to `s` (and U+212A to `k`) under UTF-8 only. `:1787` leaves the
+row.
+
+`/var/tmp/c723-probe/locprobe5.sh <tree> <n>`: as `locprobe.sh`, the five patterns
+of wf10 `:1737`, `:1738`, `:1740`, `:1742`, `:1743` read from `pats5.txt` (copied
+verbatim). GNU grep 3.11 (`/usr/bin/grep`). The tree: `git archive a86e50da8`,
+9,654 files, no plant; run 1's export (the previous editor session) and run 2's
+are identical (`diff -rq` prints nothing). Raw: `loc5-a86e50da8-run1.txt`,
+`loc5-a86e50da8-run2.txt`.
+
+| run | load | arm | ms, sorted | median |
+|---|---|---|---|---|
+| 1 | 46..61 | A (`C.UTF-8`) | 3625 4015 4059 4325 4354 4537 4981 | **4,325** |
+| 1 | | B (`C`) | 2729 2886 2969 2971 3016 3090 3176 | **2,971** (-31%) |
+| 2 | 56..71 | A (`C.UTF-8`) | 4322 5370 5391 5400 6280 6318 6529 | **5,400** |
+| 2 | | B (`C`) | 3422 3957 3967 4038 4121 4589 5022 | **4,038** (-25%) |
+
+B is below its paired A in 7 of 7 pairs in each run. The five hashes
+`d41d1d142a9ad41d8fb2` in all 28 runs (sweeps 1 and 4 have no hit on the tree).
+
+The narrowing, `/var/tmp/c723-probe/foldprobe.sh` (n=1, deterministic): a 6-line
+plant, `fold-plant.txt`, holds the five sweeps' words that contain `s` or `k`, with
+`s` -> U+017F and `k` -> U+212A. Hits per sweep: `C.UTF-8: 0 1 3 0 1`,
+`C: 0 0 0 0 0`.
+
 ### 2.5 Not a row: the next five eager orc files (n=15, interleaved)
 
 A copy of `csi-spl-orc/src/bash/run/run.sh` in the export (never in a worktree)

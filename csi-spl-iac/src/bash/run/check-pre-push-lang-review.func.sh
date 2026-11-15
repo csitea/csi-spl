@@ -32,8 +32,8 @@
 # @param LANG_REVIEW_TREE (optional) - checkout root, default $APP_PATH
 # @param LANG_REVIEW_RANGE (optional) - the commits to check, default <the
 # @param        commit that added the exempt list>..HEAD (needs fetch-depth 0)
-# @example ./run -a do_check_wui_lang_review
-# @example LANG_REVIEW_RANGE=origin/master..HEAD ./run -a do_check_wui_lang_review
+# @example ./run -a do_check_pre_push_lang_review
+# @example LANG_REVIEW_RANGE=origin/master..HEAD ./run -a do_check_pre_push_lang_review
 #------------------------------------------------------------------------------
 
 _PPR_LOCALES=csi-spl-wui/i18n/locales
@@ -117,7 +117,7 @@ _ppr_anchor() {  # <tree>
   git -C "$1" log --diff-filter=A --format=%H -- "$_PPR_EXEMPT" 2>/dev/null | tail -n 1
 }
 
-do_check_wui_lang_review() {
+do_check_pre_push_lang_review() {
   local tree="${LANG_REVIEW_TREE:-$APP_PATH}" range="${LANG_REVIEW_RANGE:-}" anchor
   local t; for t in jq python3; do
     command -v "$t" >/dev/null 2>&1 || { do_log "FATAL wui-lang-review: $t not found (apt-get install $t)"; return 1; }

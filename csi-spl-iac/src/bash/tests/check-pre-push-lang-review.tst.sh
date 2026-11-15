@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: the wui-lang-review part of do_check_pre_push and its CI action
-#          do_check_wui_lang_review (SPL-5551): a commit that adds or changes
+#          do_check_pre_push_lang_review (SPL-5551): a commit that adds or changes
 #          a key in csi-spl-wui/i18n/locales/*.json carries a
 #          'Lang-review: a-NNN <msg id>' line.
 #   1. plan: a push touching a locale file selects wui-lang-review; a push
@@ -20,6 +20,8 @@
 #  10. the CI action: default range starts at the commit that added the exempt
 #      list (an older commit without the line is not checked, a newer one is)
 #  11. a malformed line (no msg id, a claude seat) does not count
+#  12. the action CI workflow 10 calls resolves through ./run (the loader maps
+#      do_a_b to a-b.func.sh; a name that maps nowhere is "NOT found" in CI)
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
@@ -124,18 +126,26 @@ A="$ROOT/a"; git init -q "$A"; mkdir -p "$A/$L"
 printf '{"k":"one"}\n' >"$A/$L/en.json"; git -C "$A" add -A; git -C "$A" commit -qm seed
 printf '{"k":"one","old":"before the gate"}\n' >"$A/$L/en.json"; git -C "$A" commit -qam "feat(wui): before the gate"
 mkdir -p "$(dirname "$A/$X")"; printf '{"keys":{},"commits":{}}\n' >"$A/$X"; git -C "$A" add -A; git -C "$A" commit -qm "feat(iac): the gate"
-LANG_REVIEW_TREE="$A" do_check_wui_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: a commit before the anchor is not checked -> PASS" 0 "$?"
+LANG_REVIEW_TREE="$A" do_check_pre_push_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: a commit before the anchor is not checked -> PASS" 0 "$?"
 printf '{"k":"one","old":"before the gate","new":"after"}\n' >"$A/$L/en.json"; git -C "$A" commit -qam "feat(wui): after the gate"
-LANG_REVIEW_TREE="$A" do_check_wui_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: a commit after the anchor with no line -> FAIL" 1 "$?"
+LANG_REVIEW_TREE="$A" do_check_pre_push_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: a commit after the anchor with no line -> FAIL" 1 "$?"
 grep -q 'commits=1 refused=1' "$ROOT/ci" && pass "10. ... checked exactly that one" || fail "10. ... checked one" "$(cat "$ROOT/ci")"
 git -C "$A" commit -q --amend -m "feat(wui): after the gate" -m "Lang-review: a-511 d30773a7"
-LANG_REVIEW_TREE="$A" do_check_wui_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: with the line -> PASS" 0 "$?"
-LANG_REVIEW_TREE="$ROOT/none" do_check_wui_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: no anchor (shallow clone) -> FAIL" 1 "$?"
+LANG_REVIEW_TREE="$A" do_check_pre_push_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: with the line -> PASS" 0 "$?"
+LANG_REVIEW_TREE="$ROOT/none" do_check_pre_push_lang_review >"$ROOT/ci" 2>&1; eq "10. CI: no anchor (shallow clone) -> FAIL" 1 "$?"
 
 # 11. malformed lines
 reset; printf '{"a":{"b":"Hello","c":"Bye","g":"Bad"}}\n' >"$R/$L/en.json"
 git -C "$R" add -A; git -C "$R" commit -qm "feat(wui): bad lines" -m "Lang-review: a-511" -m "Lang-review: c-896 d30773a7" -m "reviewed by agy (Lang-review: a-511 d30773a7)"
 part; eq "11. no msg id / a claude seat / not at line start -> FAIL" 1 "$?"
+
+# 12. the workflow's action, through the real ./run loader
+WF="$PROJ_ROOT/../.github/workflows/10_ci-quality.yml"
+act=$(sed -n '/^  wui-lang-review:/,/^  [a-z]/s/.*run: \.\/run -a \(do_[a-z_]*\).*/\1/p' "$WF")
+eq "12. workflow 10 job wui-lang-review names do_check_pre_push_lang_review" do_check_pre_push_lang_review "$act"
+( cd "$PROJ_ROOT" && LANG_REVIEW_TREE="$A" ./run -a "${act:-none}" ) >"$ROOT/run" 2>&1
+eq "12. ... ./run -a $act resolves and passes" 0 "$?"
+grep -q 'NOT found' "$ROOT/run" && fail "12. ... no 'NOT found'" "$(tail -3 "$ROOT/run")" || pass "12. ... no 'NOT found'"
 
 echo "check-pre-push-lang-review: $fails failure(s)"
 ((fails == 0))

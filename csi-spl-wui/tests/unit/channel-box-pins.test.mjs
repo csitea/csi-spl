@@ -19,6 +19,7 @@ import { lazySpoolMethods } from '../../src/utils/spool-client-lazy.mjs'
 import {
   boxIdsOf,
   channelBoxChoices,
+  channelBoxesLoadErrorKey,
   channelBoxPinsBody,
   channelBoxPinsErrorKey,
   normalizeChannelBoxPins,
@@ -90,6 +91,10 @@ ok('"Only these boxes" saves the ticked boxes', channelBoxPinsBody(false, ['box-
 ok('a default channel shows the hub refusal', channelBoxPinsErrorKey({ token: 'channel_default_unpinnable' }) === 'channels.properties.boxes_error.channel_default_unpinnable')
 ok('an unknown box shows its refusal', channelBoxPinsErrorKey({ token: 'unknown_box' }) === 'channels.properties.boxes_error.unknown_box')
 ok('anything else is the generic line', channelBoxPinsErrorKey(new Error('x')) === 'channels.properties.boxes_error.generic')
+// SPL-5589: a failed load names a cause the hub gave; only an unknown one (a
+// fetch TypeError, as the CORS refusal of GET /v1/pins was) is the bare line.
+ok('a load refused as unknown_channel says so', channelBoxesLoadErrorKey({ status: 404, token: 'unknown_channel' }) === 'channels.properties.boxes_error.unknown_channel')
+ok('a load with no hub answer is the load line', channelBoxesLoadErrorKey(new TypeError('Failed to fetch')) === 'channels.properties.boxes_error.load')
 
 /* ---- Workspace settings -> Channels: the Boxes column's data ---- */
 const rows = normalizeTenantChannels({ channels: [{ channel: 'design', box_pins: ['box-b', 'box-a'] }, { channel: 'lobby', visibility: 'default' }] })
@@ -100,6 +105,7 @@ ok('an unpinned listed channel is [] and an unlisted one is null', tenantChannel
 const dialog = read('src/components/ChannelPropertiesDialog.vue')
 ok('the dialog reads the workspace pins with the upload token', /api\.listPins\(await live\.freshUploadToken\(\)\)/.test(dialog))
 ok('the dialog falls back to the tenant list on a 404 for an admin', dialog.includes('api.listTenantChannels()') && dialog.includes('tenantChannelBoxPins('))
+ok('the dialog maps a failed load through channelBoxesLoadErrorKey', dialog.includes('boxes.error = channelBoxesLoadErrorKey(e)'))
 ok('a row without box_pins is unpinned (Any box)', rows.find((r) => r.channel === 'lobby').boxPins.length === 0)
 
 /* ---- the mock hub keeps the B2 rules (spec 164 4.1) ---- */

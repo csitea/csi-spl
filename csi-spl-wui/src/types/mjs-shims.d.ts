@@ -1530,6 +1530,7 @@ declare module '~/utils/tenant-settings.mjs' {
   export function channelBoxChoices(workspace: string[], pinned: string[]): string[]
   export function channelBoxPinsBody(anyBox: boolean, ticked: string[]): { box_pins: string[] }
   export function channelBoxPinsErrorKey(err: unknown): string
+  export function channelBoxesLoadErrorKey(err: unknown): string
   export type SplitKindRow = { kind: string, weights: AgentSplit, backup: string, main: string, set: boolean, updatedBy: string, updatedAt: string }
   export const SPLIT_TASK_KINDS: readonly string[]
   export const DEFAULT_SPLIT_KINDS: Readonly<Record<string, { weights: AgentSplit, backup: string }>>

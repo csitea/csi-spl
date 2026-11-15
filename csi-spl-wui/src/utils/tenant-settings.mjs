@@ -249,3 +249,13 @@ export function channelBoxPinsErrorKey(err) {
   const known = ['channel_default_unpinnable', 'unknown_box', 'unknown_channel', 'forbidden']
   return 'channels.properties.boxes_error.' + (known.includes(token) ? token : 'generic')
 }
+
+/**
+ * The i18n key for a failed read of the dialog's Boxes (SPL-5589): a refusal
+ * the hub names says why in words; only an unknown cause (no hub answer, e.g.
+ * a network or CORS failure) keeps the bare "could not be loaded" line.
+ */
+export function channelBoxesLoadErrorKey(err) {
+  const token = err && typeof err.token === 'string' ? err.token : ''
+  return 'channels.properties.boxes_error.' + (token === 'unknown_channel' ? token : 'load')
+}

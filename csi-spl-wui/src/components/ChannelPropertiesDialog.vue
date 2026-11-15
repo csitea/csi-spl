@@ -428,7 +428,7 @@ import { useChannelPersonPick } from '~/composables/useChannelPersonPick'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { channelBoxChoices, channelBoxPinsBody, channelBoxPinsErrorKey, normalizeChannelBoxPins, tenantChannelBoxPins, workspaceBoxIds } from '~/utils/tenant-settings.mjs'
+import { channelBoxChoices, channelBoxesLoadErrorKey, channelBoxPinsBody, channelBoxPinsErrorKey, normalizeChannelBoxPins, tenantChannelBoxPins, workspaceBoxIds } from '~/utils/tenant-settings.mjs'
 import HumanName from '~/components/HumanName.vue'
 
 const props = defineProps<{
@@ -636,10 +636,10 @@ async function loadBoxes() {
     if (my !== ticket) return
     showBoxPins(boxPins)
     boxes.choices = channelBoxChoices(workspaceBoxIds(all), boxPins)
-  } catch {
+  } catch (e) {
     if (my !== ticket) return
     boxes.failed = true
-    boxes.error = 'channels.properties.boxes_error.load'
+    boxes.error = channelBoxesLoadErrorKey(e)
   } finally {
     if (my === ticket) boxes.loaded = true
   }

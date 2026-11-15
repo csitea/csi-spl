@@ -883,10 +883,40 @@ calls="$(wc -l <"$T/git.calls")"
   fail "worktree scan: $calls rev-parse --git-common-dir calls (at most 2), $(jq length <<<"$got") lanes"
 [[ -n "$got" && "$got" == "$want" ]] && pass "the scan's JSON is byte-identical to the old scan's" ||
   fail "scan differs: want $want got $got"
+# 8 jobs over 12 worktrees: without the prune, 9 of 10 scans said it (n=10)
+err="$(for _ in 1 2 3 4 5; do scan spl_lane_wt_scan 2>&1 >/dev/null; done)"
+[[ -z "$err" ]] && pass "5 scans write nothing to stderr (no \"wait: no such job\" for a worker it reaped)" ||
+  fail "the scan wrote to stderr: $(head -3 <<<"$err")"
 got1="$(scan spl_lane_wt_scan LANE_WT_JOBS=1)"
 [[ "$got1" == "$want" && "$(jq -c '."c-862", ."c-864", ."c-873"' <<<"$got")" == $'["committed.txt"]\n["a.txt","d/new.txt"]\nnull' ]] &&
   pass "one job at a time is the same JSON; a commit, the untracked files are there, an unreadable worktree is left out" ||
   fail "jobs=1 or content: $got1 / $(jq -c '."c-862", ."c-864", ."c-873"' <<<"$got")"
+
+# 23. an interrupted scan leaves no temp dir (SPL-5624): a git diff that hangs
+# holds the scan mid-way, its process group then gets INT (a Ctrl-C) or TERM;
+# the scan's mktemp dir under TMPDIR must be gone once the group has stopped
+mkdir -p "$T/slowshim"
+printf '#!/usr/bin/env bash\nif [[ " $* " == *" diff "* ]]; then : >>"%s/slow.started"; exec sleep 30; fi\nexec %q "$@"\n' \
+  "$T" "$(command -v git)" >"$T/slowshim/git"
+chmod +x "$T/slowshim/git"
+for sig in INT TERM; do
+  td="$T/tmp-$sig"; mkdir -p "$td"; rm -f "$T/slow.started"
+  set -m
+  on scan 'spl_lane_wt_scan "$(cat "'"$T"'/scan-rows.json")" >/dev/null' \
+    LANE_REPO_DIRS= LANE_BOX=box-desk TMPDIR="$td" PATH="$T/slowshim:$PATH" &
+  pg=$!
+  set +m
+  for _ in $(seq 100); do [[ -e "$T/slow.started" ]] && break; sleep 0.1; done
+  mid="$(find "$td" -mindepth 1 -maxdepth 1 | wc -l)"
+  kill -"$sig" -- -"$pg" 2>/dev/null
+  wait "$pg" 2>/dev/null
+  for _ in $(seq 50); do [[ -z "$(ls -A "$td")" ]] && break; sleep 0.1; done
+  left="$(find "$td" -mindepth 1 -maxdepth 1 | wc -l)"
+  kill -KILL -- -"$pg" 2>/dev/null
+  [[ "$mid" -ge 1 && "$left" -eq 0 ]] &&
+    pass "a scan stopped by $sig mid-way removes its temp dir ($mid there during the scan, $left left)" ||
+    fail "a scan stopped by $sig left $left temp entr(ies) under TMPDIR ($mid there during the scan): $(ls -A "$td" | tr '\n' ' ')"
+done
 
 echo
 if [ "$fails" -eq 0 ]; then echo "lane-map: all passed"; exit 0; fi

@@ -370,10 +370,15 @@ spl_lane_local_row() {
 # MAX_ARG_STRLEN (32 pages; 131072 bytes when the page is 4096) makes the
 # kernel refuse the exec ("Argument list too long") and the map dies before
 # it prints. The fleet's hub answer crossed that line; either input can.
-spl_lane_merge() {  # HUB_JSON LOCAL_ROWS [LIVE_HERE (JSON array or null)]
-  local hubf locf rc=1
-  hubf="$(mktemp)" || return 1
-  locf="$(mktemp)" || { rm -f "$hubf"; return 1; }
+# A subshell body with its own EXIT trap: the two files go on an INT or a TERM
+# too, and a caller's traps stay (SPL-5624).
+spl_lane_merge() (  # HUB_JSON LOCAL_ROWS [LIVE_HERE (JSON array or null)]
+  local hubf="" locf="" rc=1
+  trap 'rm -f ${hubf:+"$hubf"} ${locf:+"$locf"}' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  hubf="$(mktemp)" || exit 1
+  locf="$(mktemp)" || exit 1
   # slurpfile yields a one-element array of the JSON value in the file.
   if printf '%s\n' "$1" >"$hubf" && printf '%s\n' "$2" >"$locf" &&
     jq -c -n --slurpfile hub "$hubf" --slurpfile loc "$locf" --argjson up "${3:-null}" --argjson liveonly "$([[ "${LANE_HUB_LIVE:-0}" == 1 ]] && echo true || echo false)" '
@@ -390,9 +395,8 @@ spl_lane_merge() {  # HUB_JSON LOCAL_ROWS [LIVE_HERE (JSON array or null)]
       | map(. as $r | if $r.src == "hub" and ($here | index($r.agent_id)) != null then .src = "hub+local" else . end)'; then
     rc=0
   fi
-  rm -f "$hubf" "$locf"
-  return "$rc"
-}
+  exit "$rc"
+)
 
 spl_lane_table() {
   jq -r '
@@ -716,10 +720,19 @@ spl_lane_wt_changes() {  # WT
 # It waits on its own workers' pids only, never a bare `wait` / `wait -n`:
 # under ./run those also wait on run.sh's two log tees, which live until the
 # action exits, so the scan hung forever (SPL-5519).
-spl_lane_wt_scan() {  # ROWS
-  local id repo wt tops tmp n=0 i j done_pid wt_rows=() wt_ids=() pids=() running=()
+# The body is a subshell with its own EXIT trap, so the temp dir goes on every
+# exit, an INT or a TERM too, and a caller's traps are left as they were
+# (SPL-5624: an interrupted scan left a /tmp/tmp.* dir behind). A subshell
+# drops a finished job it did not wait on from its job table, and `wait -n`
+# then says "no such job" for it and keeps it in the pool, so a worker that
+# is gone (kill -0 fails: reaped) leaves `running` before each wait.
+spl_lane_wt_scan() (  # ROWS
+  local id repo wt tops tmp="" n=0 i j done_pid wt_rows=() wt_ids=() pids=() running=()
+  trap '[[ -z "$tmp" ]] || rm -rf "$tmp"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   tops="$(spl_lane_repo_tops)"
-  tmp="$(mktemp -d)" || return 1
+  tmp="$(mktemp -d)" || exit 1
   mapfile -t wt_rows < <(jq -r --arg b "$LANE_BOX" '.[] | select(.agent_box == $b) | [.agent_id, .repo] | @tsv' <<<"$1")
   for i in "${wt_rows[@]}"; do
     IFS=$'\t' read -r id repo <<<"$i"
@@ -727,7 +740,8 @@ spl_lane_wt_scan() {  # ROWS
     n=$((n + 1)); wt_ids[n]="$id"
     if (( ${#running[@]} >= ${LANE_WT_JOBS:-8} )); then
       done_pid=""
-      wait -n -p done_pid "${running[@]}"
+      for j in "${!running[@]}"; do kill -0 "${running[j]}" 2>/dev/null || unset 'running[j]'; done
+      (( ${#running[@]} == 0 )) || wait -n -p done_pid "${running[@]}"
       [[ -n "$done_pid" ]] || running=()
       for j in "${!running[@]}"; do [[ "${running[j]}" == "$done_pid" ]] && unset 'running[j]'; done
     fi
@@ -739,8 +753,7 @@ spl_lane_wt_scan() {  # ROWS
     [[ -e "$tmp/$i.ok" ]] || continue
     jq -R -s -c --arg id "${wt_ids[i]}" '{($id): (split("\n") | map(select(length > 0)) | .[0:200])}' <"$tmp/$i.out"
   done | jq -s -c 'add // {}'
-  i=$?; rm -rf "$tmp"; return "$i"
-}
+)
 
 # One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`;
 # a box read from its rows (no BOX-0 row) says so.
@@ -764,8 +777,13 @@ spl_lane_load_header() {
 #     instead of `free`; a caller that reads any non-zero as taken stays safe
 # Seats (001-003, lease.conf ids) run the fleet and never count; nor do old
 # `live` rows with no pane.
-spl_lane_check() {  # ROWS LOAD (spl_lane_load)
-  local rows="$1" load="${2:-[]}" cand hits unknown chf
+# A subshell body with its own EXIT trap: the scan's file goes on an INT or a
+# TERM mid-scan too, and a caller's traps stay (SPL-5624).
+spl_lane_check() (  # ROWS LOAD (spl_lane_load)
+  local rows="$1" load="${2:-[]}" cand hits unknown chf=""
+  trap '[[ -z "$chf" ]] || rm -f "$chf"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   cand="$(jq -c --arg me "${LANE_AGENT:-}" --argjson load "$load" '
     [.[] | select(.state == "live" and .agent_id != $me and (.files | length) == 0) as $l
      | select(any($load[]; .box == $l.agent_box and ((.busy_ids // []) | index($l.agent_id)) != null))]' <<<"$rows")"
@@ -786,7 +804,6 @@ spl_lane_check() {  # ROWS LOAD (spl_lane_load)
     .[] | select((.agent_box == $here and $ch[0][.agent_id] != null) | not) as $l
     | select(any($load[]; .box == $l.agent_box and ((.clean_ids // []) | index($l.agent_id)) != null) | not)
     | "unknown: \(.agent_id)@\(.agent_box) \(.branch) has no files recorded; ask it or read its brief"' <<<"$cand" | sort -u)"
-  rm -f "$chf"
   if [[ "$LANE_HUB_STATE" == unreachable ]]; then
     do_log "WARN the collision check saw this machine only (the hub did not answer)"
     spl_lane_local_only_line
@@ -807,4 +824,4 @@ spl_lane_check() {  # ROWS LOAD (spl_lane_load)
   fi
   echo free
   do_log "INFO no live lane of another agent owns $LANE_CHECK"
-}
+)

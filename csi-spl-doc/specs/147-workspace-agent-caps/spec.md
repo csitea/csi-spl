@@ -1,6 +1,6 @@
 # Feature Specification: Per-Workspace Agent Caps by Kind
 
-**Feature ID**: `147-workspace-agent-caps` · **Milestone**: M3 / M4 · **Status**: Planned (Spec Only) · **Version**: 1.1.0
+**Feature ID**: `147-workspace-agent-caps` · **Milestone**: M3 / M4 · **Status**: Planned (Spec Only) · **Version**: 1.1.1
 **Created**: 2026-10-19 · **Updated**: 2026-10-19 · **Epic**: SPL-2400 · **Issue**: SPL-2586 · **Lane**: a-799-c002-spec-workspace-agent-caps
 **Authority**: this file for system behaviour, database schema, protocol rules, API contracts, and enforcement semantics. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 **Reviews**: [review-claude.md](review-claude.md) (c-864, R7 seat, signed off on master in commit 0a97ae54d).
@@ -267,7 +267,7 @@ Implementation logic for `vendorCapGate`:
 3. Compute the prospective agent set: replace existing agents for `box` with the incoming `agents` list.
 4. Count prospective agents per vendor using `agentid.Kind(agent_id)`.
 5. For each vendor $V$, if configured cap $max\_live(V)$ exists and $Count(V) > max\_live(V)$, return `store.ErrVendorCapExceeded{Vendor: V, Cap: max_live, Live: Count(V)}`.
-6. **In `onAnnounce` (`ws.go:485`):** If `errors.As(err, &capErr)`, fail the announcement frame with HTTP 409 Conflict (`billing.TokenQuota` / `"vendor_cap_exceeded"`), naming the vendor, cap, and requested count.
+6. **In `onAnnounce` (`ws.go:485`):** If `errors.Is(err, store.ErrVendorCapExceeded)`, trim the announce exactly as item 7 trims a hello (`admitUnderCaps`): keep the box's already-seated agents, seat each addition the caps still admit, leave out only the capped ones with a hub log line naming each (P6 text in the log), and answer no error frame. Changed by SPL-5642 (R5 below): the first build failed the whole announce 409 `vendor_cap_exceeded`.
 7. **In `seatRoster` (`ws.go:517`):** When handling `wire.THello`, trim incoming agents that would violate the vendor cap, seat only the allowed subset (retaining previously seated agents on that box), and pass only the trimmed admitted agent list to `SetSubscriptions` (`ws.go:339`).
 
 ### 5.2 Host Desk Seating Action (`do_spl_desk_up`)
@@ -545,6 +545,8 @@ The work is partitioned into 6 build rows across 2 designated lanes with complet
 - **R3** (Lane A, c-594, SPL-2675): `spool caps` (JSON) and `spool caps check <agent>` (exit 3 at the cap, `cmd/spool/caps.go`); `do_spl_agent_caps` and `spl_desk_cap_check` (`csi-spl-orc/src/bash/run/spl-agent-caps.func.sh`), called in `do_spl_desk_up` after the spool binary and before any desk dir or process. The pre-check steps aside (INFO / WARN, the hub gate decides) when the desk box is not pinned on this machine yet, when the agent's desk dir is already there (a re-seat) or when the hub does not answer the caps lane. Test: `csi-spl-orc/src/bash/tests/desk-agent-caps.tst.sh`.
 - **R4** (c-080, SPL-4801): `do_spl_agent_caps_set` (`csi-spl-orc/src/bash/run/spl-agent-caps-set.func.sh`) sets ONE vendor's cap in one workspace (`TENANT_ID`) or in every workspace (`ALL=1`) of a cloud env, `CAPS_MAX_LIVE` a whole number or `none` (uncapped). The PUT of R2 takes only the operator workspace admin's member session, which no agent holds; this action writes the same rows as `store.SetAgentCaps` (the cap and one `operator_audit` row per changed workspace) through the Cloud SQL proxy as the env's project service account, under the operator RLS scope, in one transaction that prints `<ws> | <before> -> <after>` and reads every workspace back. `DRY_RUN=1` (default) rolls the same writes back. Each use is recorded with the acting agent and the owner's message (owner HUM-10, t1 476aff8f, poll d3540746 = A, msg d131a690: "keep it as the one named way for an agent to apply your order; each use is recorded with the agent and your message"): `DRY_RUN=0` needs `AGENT_ID` (an agent id, never a `HUM-`: the audit `actor_hum` and the cap's `updated_by`), `ORDERED_BY` (`HUM-n`) and `OWNER_MSG_ID` (the order's message uuid), both in the audit `detail`. First use (f89387cb0, before this rule): owner HUM-10, t1 476aff8f, "do not use grok until further notice", grok `max_live` 0 in every prd workspace. Test: `csi-spl-orc/src/bash/tests/agent-caps-set.tst.sh` (real Postgres, runtime login: RLS binds).
 
+- **R5** (c-328, SPL-5642): an announce over a vendor cap is trimmed like a hello, not refused whole (section 5.1 item 6). Found on prd, 2026-11-12..15, workspace `csitea` (grok `max_live` 0): sat's desk sidecar announced `c-001,c-002,c-003,g-940`, `g-940` being a stale desk spool dir from 2026-10-13 that `dropDead` keeps for `agent_drop_after_minutes` after each sidecar start. Each announce was refused 409 whole, and because that error frame carries no `msg_id`, a `spool send` in flight on the same socket took it as its own answer: `do_spl_desk_reply` reported `vendor_cap_exceeded` for a message the hub had written. Test: `internal/hub/agent_caps_ws_test.go` `TestVendorCapAnnounceAndHello` (an announce adding a capped claude and an uncapped qwen seats the qwen, pushes the roster, sends no error frame; red on the R1 code).
+
 ### 12.4 Sign-Off
 
 - **Specification Author**: a-799 (Gemini 3.8 Flash High)
@@ -552,4 +554,4 @@ The work is partitioned into 6 build rows across 2 designated lanes with complet
 
 ---
 
-<!-- version: 1.1.0 · updated: 2026-10-19 · last-edit: 2026-10-19T17:48:00Z -->
+<!-- version: 1.1.1 · updated: 2026-11-16 · last-edit: 2026-10-19T17:48:00Z -->

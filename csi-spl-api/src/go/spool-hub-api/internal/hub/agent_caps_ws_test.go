@@ -2,7 +2,6 @@ package hub_test
 
 import (
 	"context"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -16,8 +15,8 @@ import (
 
 // Spec 147 5.1 (FR-004, FR-005): with claude capped at 1, a hello seats the
 // first claude and the uncapped agents and drops the 2nd claude, the socket
-// stays up; an announce adding a claude is 409 vendor_cap_exceeded naming
-// vendor, cap and count, and the roster stands.
+// stays up; an announce adding a claude does the same (SPL-5642): only the
+// capped claude stays out, the rest of the box's roster is seated.
 func TestVendorCapAnnounceAndHello(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
@@ -45,31 +44,27 @@ func TestVendorCapAnnounceAndHello(t *testing.T) {
 	if roster() != "c-004,q-004" {
 		t.Fatalf("hello over the claude cap: roster %q, want c-004,q-004", roster())
 	}
-	// CONTROL: an announce adding a claude is refused, the roster stands.
-	wsjson.Write(ctx, c, wire.Frame{Type: wire.TAnnounce, Agents: []string{"c-004", "c-006", "q-004"}}) //nolint:errcheck
+	// SPL-5642: an announce adding a claude over the cap AND an uncapped
+	// agent seats the uncapped one and keeps only the claude out: no error
+	// frame (one with no msg_id answered a send in flight), the box's roster
+	// push comes back. Before the fix the whole replace was refused 409.
+	wsjson.Write(ctx, c, wire.Frame{Type: wire.TAnnounce, Agents: []string{"c-004", "c-006", "q-004", "q-005"}}) //nolint:errcheck
 	var f wire.Frame
-	for f.Type != wire.TError {
+	for f.Type != wire.TRoster {
 		rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		err := wsjson.Read(rctx, c, &f)
 		cancel()
 		if err != nil {
-			t.Fatalf("no error frame for an announce over the cap: %v", err)
+			t.Fatalf("no roster push for an announce over the cap: %v", err)
+		}
+		if f.Type == wire.TError {
+			t.Fatalf("announce over the cap answered an error frame: %+v", f)
 		}
 	}
-	if f.Error != "vendor_cap_exceeded" || f.Status != http.StatusConflict ||
-		!strings.Contains(f.Detail, "claude agent cap reached for workspace "+tid+": max 1 live, requested 2 live") {
-		t.Fatalf("announce over the cap: %+v", f)
-	}
-	if roster() != "c-004,q-004" {
-		t.Fatalf("refused announce changed the roster: %q", roster())
-	}
-	// An uncapped addition is admitted.
-	wsjson.Write(ctx, c, wire.Frame{Type: wire.TAnnounce, Agents: []string{"c-004", "q-004", "q-005"}}) //nolint:errcheck
-	deadline := time.Now().Add(2 * time.Second)
-	for roster() != "c-004,q-004,q-005" && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
+	if got := strings.Join(f.Roster["box-a"], ","); got != "c-004,q-004,q-005" {
+		t.Fatalf("announce over the claude cap: pushed roster %q, want c-004,q-004,q-005", got)
 	}
 	if roster() != "c-004,q-004,q-005" {
-		t.Fatalf("uncapped addition: %q", roster())
+		t.Fatalf("announce over the claude cap: roster %q, want c-004,q-004,q-005", roster())
 	}
 }

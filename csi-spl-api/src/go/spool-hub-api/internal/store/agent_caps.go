@@ -31,7 +31,8 @@ const CapPresenceTTL = 60 * time.Second
 
 // ErrVendorCapExceeded refuses a roster replace that adds an agent of a
 // vendor already at its workspace cap. Nothing was written. errors.As with
-// *VendorCapError gives the detail; the hub answers 409 vendor_cap_exceeded.
+// *VendorCapError gives the detail; the hub seats the rest of the roster
+// without the capped additions (hub admitUnderCaps, SPL-5642).
 var ErrVendorCapExceeded = errors.New("vendor cap exceeded")
 
 // ErrBadCapVendor / ErrBadCapValue refuse a SetAgentCaps request before any

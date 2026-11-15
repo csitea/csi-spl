@@ -491,15 +491,17 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 	}
 	agents = s.dropRetiredIDs(x.tenant, x.box, agents)
 	before, _ := s.o.Store.Roster(ctx, x.tenant)
-	var capErr *store.VendorCapError
-	if err := s.o.Store.SetRoster(ctx, x.tenant, x.box, agents, s.o.Now()); errors.Is(err, store.ErrSeatQuota) {
+	err := s.o.Store.SetRoster(ctx, x.tenant, x.box, agents, s.o.Now())
+	if errors.Is(err, store.ErrVendorCapExceeded) {
+		// A new agent over its vendor's workspace cap (spec 147 5.1,
+		// SPL-5642): only that id stays out, as on a hello. Refusing the
+		// whole replace kept a box's every new agent out for one stale id,
+		// and its MsgID-less error frame answered a send in flight.
+		agents, err = s.admitUnderCaps(ctx, x.tenant, x.box, before[x.box], agents, s.o.Now())
+	}
+	if errors.Is(err, store.ErrSeatQuota) {
 		// A new bot seat over the M4 cap (009 D-3): the previous roster stands.
 		x.fail(ctx, "", billing.TokenQuota, billing.HTTPSeatQuota, "bot seat cap reached: roster not updated")
-		return
-	} else if errors.As(err, &capErr) {
-		// A new agent over its vendor's workspace cap (spec 147 5.1): the
-		// previous roster stands; the detail names vendor, cap and count (P6).
-		x.fail(ctx, "", "vendor_cap_exceeded", http.StatusConflict, capErr.Error()+": roster not updated")
 		return
 	} else if err != nil {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "roster not stored")
@@ -541,24 +543,40 @@ func (s *Server) seatRoster(ctx context.Context, tenant, box string, agents []st
 	if err != nil {
 		return nil, err
 	}
-	had := map[string]bool{}
-	for _, a := range before[box] {
-		had[a] = true
+	if vendorCap {
+		return s.admitUnderCaps(ctx, tenant, box, before[box], agents, now)
 	}
-	keep := []string{}
-	var extra []string
+	keep, _ := splitSeated(before[box], agents)
+	s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Int("announced", len(agents)).Int("seated", len(keep)).
+		Msg("ws hello over bot seat cap: new agents not seated")
+	return keep, s.o.Store.SetRoster(ctx, tenant, box, keep, now)
+}
+
+// splitSeated splits agents into those already seated on the box (had) and
+// the additions, both in agents' order.
+func splitSeated(had, agents []string) (keep, extra []string) {
+	seated := map[string]bool{}
+	for _, a := range had {
+		seated[a] = true
+	}
+	keep = []string{}
 	for _, a := range agents {
-		if had[a] {
+		if seated[a] {
 			keep = append(keep, a)
 		} else {
 			extra = append(extra, a)
 		}
 	}
-	if !vendorCap {
-		s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Int("announced", len(agents)).Int("seated", len(keep)).
-			Msg("ws hello over bot seat cap: new agents not seated")
-		return keep, s.o.Store.SetRoster(ctx, tenant, box, keep, now)
-	}
+	return keep, extra
+}
+
+// admitUnderCaps seats a roster a workspace agent cap refused whole (spec
+// 147 5.1): the box's already-seated agents (had ∩ agents), then each
+// addition the caps still admit, one at a time; an addition over a cap is
+// left out with a log line naming it. Hello and announce both use it, so
+// one capped id never keeps the rest of a box's roster out (SPL-5642).
+func (s *Server) admitUnderCaps(ctx context.Context, tenant, box string, had, agents []string, now time.Time) ([]string, error) {
+	keep, extra := splitSeated(had, agents)
 	if err := s.o.Store.SetRoster(ctx, tenant, box, keep, now); err != nil {
 		return keep, err
 	}
@@ -567,7 +585,7 @@ func (s *Server) seatRoster(ctx context.Context, tenant, box string, agents []st
 		err := s.o.Store.SetRoster(ctx, tenant, box, try, now)
 		if errors.Is(err, store.ErrVendorCapExceeded) || errors.Is(err, store.ErrSeatQuota) {
 			s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Str("agent", a).Err(err).
-				Msg("ws hello over a workspace agent cap: agent not seated")
+				Msg("roster over a workspace agent cap: agent not seated")
 			continue
 		}
 		if err != nil {

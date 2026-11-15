@@ -42,18 +42,14 @@ var longFuncs = map[string]bool{
 // Memory / Postgres pairs (MoveMessage, MergeTopic, CASFleetLease,
 // IssueToken) implement one interface and leave the list together.
 var wideFuncs = map[string]bool{
-	"internal/auth/native_store.go (*MemoryCredStore).IssueToken":          true,
-	"internal/auth/native_store_postgres.go (PgCredStore).IssueToken":      true,
-	"internal/hub/memberactivity.go (authActivityAdapter).RecordAuthEvent": true,
-	"internal/hub/merge.go (*Server).fanoutMerged":                         true,
-	"internal/hub/merge.go (*Server).mergePair":                            true,
-	"internal/hub/view.go (*Server).inlineMessages":                        true,
-	"internal/store/fleet_lease.go (*Memory).CASFleetLease":                true,
-	"internal/store/fleet_lease_postgres.go (*Postgres).CASFleetLease":     true,
-	"internal/store/message_move.go (*Memory).MoveMessage":                 true,
-	"internal/store/message_move_postgres.go (*Postgres).MoveMessage":      true,
-	"internal/store/topic_merge.go (*Memory).MergeTopic":                   true,
-	"internal/store/topic_merge_postgres.go (*Postgres).MergeTopic":        true,
+	"internal/auth/native_store.go (*MemoryCredStore).IssueToken":      true,
+	"internal/auth/native_store_postgres.go (PgCredStore).IssueToken":  true,
+	"internal/store/fleet_lease.go (*Memory).CASFleetLease":            true,
+	"internal/store/fleet_lease_postgres.go (*Postgres).CASFleetLease": true,
+	"internal/store/message_move.go (*Memory).MoveMessage":             true,
+	"internal/store/message_move_postgres.go (*Postgres).MoveMessage":  true,
+	"internal/store/topic_merge.go (*Memory).MergeTopic":               true,
+	"internal/store/topic_merge_postgres.go (*Postgres).MergeTopic":    true,
 }
 
 // folded are helpers that exist ONCE; the pattern may appear only in the

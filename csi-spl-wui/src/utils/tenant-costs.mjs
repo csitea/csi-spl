@@ -42,9 +42,16 @@ export function costCurrency(v) {
   return CUR_RE.test(c) ? c : ''
 }
 
-/** The query of one month ('' = the hub's default, the current month so far). */
-export function costsQuery(month = '') {
-  return MONTH_RE.test(String(month)) ? '?month=' + month : ''
+/**
+ * The query of one month ('' = the hub's default, the current month so far)
+ * and the reader's locale, the language of the hand-entered labels (SPL-5546).
+ */
+export function costsQuery(month = '', locale = '') {
+  const q = new URLSearchParams()
+  if (MONTH_RE.test(String(month))) q.set('month', String(month))
+  if (/^[a-z]{2}$/.test(String(locale))) q.set('locale', String(locale))
+  const s = q.toString()
+  return s ? '?' + s : ''
 }
 
 /** micros -> "$1,234.56" / "1 234,56 €" in the reader's locale; '' for a missing amount. */
@@ -95,6 +102,8 @@ function costPartOf(p) {
     unpriced: r.unpriced === true,
     /* SPL-5433 step b: an hr part's group (rdb 0280), Persons' row; '' = a line without a component */
     group: str(r.group),
+    /* SPL-5546: a hand-entered item's label in the reader's locale ('' = projectOrVendor, the master text and the key) */
+    label: str(r.label),
     pct: typeof r.pct === 'number' && Number.isFinite(r.pct) ? r.pct : null,
     ...costSecondOf(r),
   }
@@ -345,6 +354,22 @@ const MOCK_EUR_PER_USD = 0.92
 /** The mock's rates (units per USD), the currencies its picker lists (dev holds 28 real ones). */
 export const MOCK_FX_RATES = Object.freeze({ EUR: MOCK_EUR_PER_USD, GBP: 0.79, SEK: 10.5, BGN: 1.8, JPY: 150 })
 
+/*
+ * SPL-5546: the mock's labels of its hand-entered items per locale; its
+ * master locale is en, so the item's own text is the English one.
+ */
+const MOCK_ENTRY_LABELS = Object.freeze({
+  'Design contract': Object.freeze({ bg: 'Договор за дизайн', fi: 'Suunnittelusopimus' }),
+})
+
+/** Sets each mock entry part's label in locale where it has one, as the hub does. */
+function mockLocalize(parts, locale) {
+  for (const p of parts) {
+    const v = p.source === 'cost_entry' ? MOCK_ENTRY_LABELS[p.project_or_vendor]?.[locale] : ''
+    if (v && v !== p.project_or_vendor) p.label = v
+  }
+}
+
 /* SPL-4824: a hand-entered cloud cost of the mock month (source cost_entry);
    a currency the mock holds no rate of is unpriced: USD 0, the row says so */
 function mockEntryPart(label, amount, currency, kind = 'cloud') {
@@ -407,7 +432,7 @@ function mockSecond(parts, cur, w, scenario) {
  * `currency` is the reader's second currency (the hub reads it from the
  * session; the mock is handed it).
  */
-export function mockTenantCostsBody(month = '', scenario = '', now = new Date(), currency = COST_SECOND_DEFAULT) {
+export function mockTenantCostsBody(month = '', scenario = '', now = new Date(), currency = COST_SECOND_DEFAULT, locale = '') {
   const m = MONTH_RE.test(month) ? month : costMonthOptions(now, 1)[0]
   const w = mockWindow(m, now)
   if (scenario === 'share' || scenario === 'share_none') return mockShareBody(m, w, scenario, currency)
@@ -438,6 +463,7 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
     p.pct = usd > 0 && !p.unpriced ? Math.round((p.usd_micros * 1000) / usd) / 10 : null
   }
   for (const p of human) Object.assign(p, { hand: true, pct: null })
+  mockLocalize([...parts, ...human], locale)
   const cur = costCurrency(currency) || COST_SECOND_DEFAULT
   const second = mockSecond(parts, cur, w, scenario)
   mockSecond(human, cur, w, scenario)
@@ -511,14 +537,14 @@ function costsError(status, token, detail, permission) {
  * the opt-in mock { permissions } (act-as-mock.mjs mockMeGet); `currency`
  * the reader's second currency (the session's second_currency).
  */
-export function mockTenantCosts(month = '', { me = null, now = new Date(), scenario, currency = '' } = {}) {
+export function mockTenantCosts(month = '', { me = null, now = new Date(), scenario, currency = '', locale = '' } = {}) {
   if (me && Array.isArray(me.permissions) && !me.permissions.includes(COSTS_READ)) {
     throw costsError(403, 'forbidden', 'your role in this tenant does not grant ' + COSTS_READ, COSTS_READ)
   }
   if (month && !MONTH_RE.test(month)) throw costsError(400, 'bad_query', 'month must be YYYY-MM')
   if (month && month > costMonthOptions(now, 1)[0]) throw costsError(400, 'bad_query', 'month ' + month + ' has not started')
   const sc = scenario === undefined ? String(storageGet(COSTS_MOCK_KEY, '') || '') : scenario
-  return mockTenantCostsBody(month, sc, now, currency || COST_SECOND_DEFAULT)
+  return mockTenantCostsBody(month, sc, now, currency || COST_SECOND_DEFAULT, locale)
 }
 
 /** The mock GET /v1/tenant/fx/currencies. */

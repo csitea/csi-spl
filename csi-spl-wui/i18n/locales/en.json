@@ -4190,7 +4190,16 @@
       "err_component": "Pick a component for a person's line.",
       "err_source": "Source is at most 200 characters, account at most 20.",
       "err_year": "A yearly total goes on the year's January.",
-      "err_corrects": "The corrected month must be before the line's month."
+      "err_corrects": "The corrected month must be before the line's month.",
+      "labels_toggle": "Other languages ({n})",
+      "labels_master": "Master language, {lang}: {label}",
+      "labels_locale": "Language",
+      "labels_text": "Label in this language",
+      "labels_add": "Add a language",
+      "labels_remove": "Remove",
+      "labels_save": "Save labels",
+      "labels_saved": "Labels saved",
+      "err_labels_locale": "Pick each language once, never the master language"
     },
     "operators_only": "Expenses are for operator admins and product owners only.",
     "tokens_link": "Paid subscriptions and top-ups are entered under Expenses → AI costs.",

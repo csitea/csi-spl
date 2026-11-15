@@ -58,7 +58,52 @@ export function costEntriesOf(body) {
     account: str(e.account),
     periodKind: str(e.period_kind),
     correctsPeriod: str(e.corrects_period),
+    /* SPL-5546 (rdb 0285): the label per locale, the master's included */
+    labels: labelsOf(e.labels),
   })).sort((a, b) => b.period.localeCompare(a.period))
+}
+
+/** A {locale: text} map with only two-letter locales and string texts. */
+function labelsOf(v) {
+  const out = {}
+  if (v && typeof v === 'object') for (const [k, t] of Object.entries(v)) if (/^[a-z]{2}$/.test(k) && typeof t === 'string' && t) out[k] = t
+  return out
+}
+
+/** The estate's master label locale of a list answer ('' = none). */
+export function costEntriesMasterOf(body) {
+  const m = body && typeof body === 'object' ? str(body.master_locale) : ''
+  return /^[a-z]{2}$/.test(m) ? m : ''
+}
+
+/**
+ * SPL-5546: the label editor's rows of one entry, every locale but the
+ * master's (whose text is the entry's own label, the item's key).
+ */
+export function costLabelRows(entry, master) {
+  return Object.entries((entry && entry.labels) || {}).filter(([loc]) => loc !== master).map(([locale, text]) => ({ locale, text }))
+    .sort((a, b) => a.locale.localeCompare(b.locale))
+}
+
+/**
+ * The first thing the label rows may not send, an i18n key under
+ * expenses.entries ('' = fine): store.CheckCostEntryLabels, plus one row per
+ * locale and none for the master's.
+ */
+export function checkCostLabelRows(rows, master, locales) {
+  const seen = new Set()
+  for (const r of rows) {
+    const text = str(r.text).trim()
+    if (!locales.includes(r.locale) || r.locale === master || seen.has(r.locale)) return 'err_labels_locale'
+    if (!text || [...text].length > LABEL_MAX) return 'err_label'
+    seen.add(r.locale)
+  }
+  return ''
+}
+
+/** The PATCH body of checked label rows. */
+export function costLabelsBody(rows) {
+  return { labels: Object.fromEntries(rows.map((r) => [r.locale, str(r.text).trim()])) }
 }
 
 /** An empty form: this UTC month, USD. */
@@ -112,10 +157,32 @@ function mockWrite(store, list) {
   try { store.setItem(COST_ENTRIES_MOCK_KEY, JSON.stringify(list)) } catch { /* the mock forgets */ }
 }
 
+/** The mock's master label locale (SPL-5546; the hub's is rdb 0285's). */
+export const MOCK_COST_LABEL_MASTER = 'en'
+
 /** The mock's GET: one type's entries, priced (monitoring-paid.mjs mockMoney); 403 to anyone but an operator admin or an expenses reader. */
 export function mockCostEntryList(type, store = mockStore()) {
   mockReadGate(store)
-  return { entries: mockRead(store).filter((e) => e.type === type).map((e) => ({ ...e, ...mockMoney(e.amount, e.currency, undefined, e.period + '-01') })) }
+  return {
+    entries: mockRead(store).filter((e) => e.type === type).map((e) => ({
+      ...e, ...mockMoney(e.amount, e.currency, undefined, e.period + '-01'), labels: { ...(e.labels || {}), [MOCK_COST_LABEL_MASTER]: e.label },
+    })),
+    master_locale: MOCK_COST_LABEL_MASTER,
+  }
+}
+
+/** The mock's PATCH .../{id}/labels: every locale but the master's replaced; 404 on an unknown id. */
+export function mockCostEntryLabels(id, body, store = mockStore()) {
+  mockGate(store)
+  const list = mockRead(store)
+  const e = list.find((x) => x.id === id)
+  if (!e) throw mockError(404, 'not_found', 'no cost entry ' + id)
+  const labels = { ...((body && body.labels) || {}) }
+  if (MOCK_COST_LABEL_MASTER in labels && labels[MOCK_COST_LABEL_MASTER] !== e.label) throw mockError(400, 'bad_cost_labels', "the master language's label is the entry's own label")
+  delete labels[MOCK_COST_LABEL_MASTER]
+  e.labels = labels
+  mockWrite(store, list)
+  return { id, labels: { ...labels, [MOCK_COST_LABEL_MASTER]: e.label } }
 }
 
 /** The mock's POST: stores the body, or refuses once when COST_ENTRIES_MOCK_REFUSE_KEY is set. */

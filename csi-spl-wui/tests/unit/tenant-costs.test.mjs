@@ -196,6 +196,10 @@ describe('the month picker and the query', () => {
     assert.equal(costsQuery('2026-09'), '?month=2026-09')
     assert.equal(costsQuery(''), '')
     assert.equal(costsQuery('2026-13'), '')
+    /* SPL-5546: the interface language rides as ?locale= */
+    assert.equal(costsQuery('2026-09', 'bg'), '?month=2026-09&locale=bg')
+    assert.equal(costsQuery('', 'fi'), '?locale=fi')
+    assert.equal(costsQuery('', 'b g'), '')
   })
   it('the current month is "so far", an earlier one ended', () => {
     assert.equal(mockTenantCostsBody('2026-10', '', NOW).status, 'so_far')

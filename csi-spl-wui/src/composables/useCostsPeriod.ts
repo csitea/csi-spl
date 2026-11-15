@@ -11,12 +11,14 @@ import { useSessionStore } from '~/stores/session'
 import { costsCurrency, costsCurrencyOptions, costsMonthOptions, costsPeriod, costsPeriodMonths } from '~/utils/reporting-costs.mjs'
 import { COSTS_READ, costMonthOf } from '~/utils/tenant-costs.mjs'
 
-type CostsApi = { getTenantCosts: (month?: string, secondCurrency?: string) => Promise<unknown> }
+type CostsApi = { getTenantCosts: (month?: string, secondCurrency?: string, locale?: string) => Promise<unknown> }
 export type CostMonth = ReturnType<typeof costMonthOf>
 
 export function useCostsPeriod() {
   const route = useRoute()
   const session = useSessionStore()
+  /* SPL-5546: the hand-entered labels come in the interface language */
+  const { locale } = useI18n({ useScope: 'global' })
   /* the reader's second currency: the hub converts by the session's, the mock is handed it */
   const pick = computed(() => String(session.claims?.second_currency || ''))
   const current = costsMonthOptions(new Date())[0]
@@ -33,7 +35,7 @@ export function useCostsPeriod() {
     state.value = 'loading'
     const api = useSpoolApi() as unknown as CostsApi
     try {
-      const bodies = await Promise.all(months.value.map((m) => api.getTenantCosts(m === current ? '' : m, pick.value)))
+      const bodies = await Promise.all(months.value.map((m) => api.getTenantCosts(m === current ? '' : m, pick.value, locale.value)))
       if (mine !== seq) return
       views.value = bodies.map((b) => costMonthOf(b))
       state.value = 'ok'
@@ -47,7 +49,7 @@ export function useCostsPeriod() {
   }
 
   onMounted(() => {
-    watch(() => [months.value.join(','), pick.value], () => { void load() }, { immediate: true })
+    watch(() => [months.value.join(','), pick.value, locale.value], () => { void load() }, { immediate: true })
   })
   return { period, months, currency, current, pick, views, state, forbiddenPerm }
 }

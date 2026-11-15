@@ -4190,7 +4190,16 @@
       "err_component": "Izvēlieties komponentu personas rindai.",
       "err_source": "Avots ir līdz 200 rakstzīmēm, konts līdz 20.",
       "err_year": "Gada kopsummu grāmato tā gada janvārī.",
-      "err_corrects": "Labojamam mēnesim jābūt pirms rindas mēneša."
+      "err_corrects": "Labojamam mēnesim jābūt pirms rindas mēneša.",
+      "labels_toggle": "Citas valodas ({n})",
+      "labels_master": "Galvenā valoda, {lang}: {label}",
+      "labels_locale": "Valoda",
+      "labels_text": "Nosaukums šajā valodā",
+      "labels_add": "Pievienot valodu",
+      "labels_remove": "Noņemt",
+      "labels_save": "Saglabāt nosaukumus",
+      "labels_saved": "Nosaukumi saglabāti",
+      "err_labels_locale": "Izvēlieties katru valodu vienu reizi, bet ne galveno valodu"
     },
     "operators_only": "Izdevumi ir tikai operatora administratoriem un produkta īpašniekiem.",
     "tokens_link": "Apmaksātie abonementi un papildinājumi tiek ievadīti sadaļā Izdevumi → MI izmaksas.",

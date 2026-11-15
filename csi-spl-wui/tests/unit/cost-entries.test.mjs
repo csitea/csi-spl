@@ -20,6 +20,12 @@ import {
   mockCostEntryCreate,
   mockCostEntryDelete,
   mockCostEntryList,
+  mockCostEntryLabels,
+  MOCK_COST_LABEL_MASTER,
+  checkCostLabelRows,
+  costEntriesMasterOf,
+  costLabelRows,
+  costLabelsBody,
 } from '../../src/utils/cost-entries.mjs'
 import { TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 
@@ -95,6 +101,42 @@ describe('the list', () => {
   })
   it('an amount that is no number stays null, never 0', () => {
     assert.equal(costEntriesOf({ entries: [{ id: 'a', amount: 'x' }] })[0].amount, null)
+  })
+})
+
+// SPL-5546 (rdb 0285): the labels per locale, the master's the entry's own text
+describe('the labels in other languages', () => {
+  const LOCS = ['bg', 'en', 'fi']
+  it('the list carries each entry\'s labels and the master locale; a bad label map is dropped', () => {
+    const body = { master_locale: 'bg', entries: [{ id: 'a', label: 'Заплата', labels: { bg: 'Заплата', en: 'Salary', 'x-y': 'no', fi: 3 } }] }
+    assert.equal(costEntriesMasterOf(body), 'bg')
+    assert.equal(costEntriesMasterOf({ master_locale: 'bulgarian' }), '')
+    const [e] = costEntriesOf(body)
+    assert.deepEqual(e.labels, { bg: 'Заплата', en: 'Salary' })
+    assert.deepEqual(costLabelRows(e, 'bg'), [{ locale: 'en', text: 'Salary' }], 'the master\'s row is not an editor row')
+  })
+  for (const [name, rows, want] of [
+    ['two languages', [{ locale: 'en', text: 'Salary' }, { locale: 'fi', text: 'Palkka' }], ''],
+    ['none (all removed)', [], ''],
+    ['the master language', [{ locale: 'bg', text: 'x' }], 'err_labels_locale'],
+    ['a language twice', [{ locale: 'en', text: 'a' }, { locale: 'en', text: 'b' }], 'err_labels_locale'],
+    ['an unknown language', [{ locale: 'xx', text: 'a' }], 'err_labels_locale'],
+    ['an empty label', [{ locale: 'en', text: '  ' }], 'err_label'],
+    ['101 characters', [{ locale: 'en', text: 'я'.repeat(101) }], 'err_label'],
+  ]) it(`label rows: ${name}`, () => assert.equal(checkCostLabelRows(rows, 'bg', LOCS), want))
+  it('the PATCH body trims each label; the mock keeps the master\'s text and refuses a change to it', () => {
+    assert.deepEqual(costLabelsBody([{ locale: 'en', text: ' Salary ' }]), { labels: { en: 'Salary' } })
+    const store = memStore()
+    const e = mockCostEntryCreate(costEntryBody('hr', good), store)
+    assert.deepEqual(mockCostEntryLabels(e.id, { labels: { fi: 'Lasku' } }, store).labels, { fi: 'Lasku', [MOCK_COST_LABEL_MASTER]: good.label })
+    assert.deepEqual(mockCostEntryList('hr', store).entries[0].labels, { fi: 'Lasku', [MOCK_COST_LABEL_MASTER]: good.label })
+    assert.throws(() => mockCostEntryLabels(e.id, { labels: { [MOCK_COST_LABEL_MASTER]: 'Other' } }, store), (x) => x.status === 400)
+    assert.throws(() => mockCostEntryLabels('nope', { labels: {} }, store), (x) => x.status === 404)
+  })
+  it('the client op reaches PATCH .../{id}/labels; the components ask in the locale', () => {
+    const lazy = read('src/utils/spool-client-lazy.mjs')
+    assert.match(lazy, /op === 'entry_labels'\) return live\(entries \+ '\/' \+ encodeURIComponent\(a\) \+ '\/labels', json\('PATCH', b\)\)/)
+    assert.match(lazy, /'\/v1\/operator\/hr-components' \+ \(\/\^\[a-z\]\{2\}\$\/\.test/)
   })
 })
 

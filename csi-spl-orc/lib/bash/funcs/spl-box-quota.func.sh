@@ -456,7 +456,7 @@ spl_box_quota_note_lapsed() {
   (( lapse > 0 )) || return 0
   { : >>"$1.lapsed"; } 2>/dev/null || return 0
   awk -F'\t' -v OFS='\t' -v max="$(spl_box_quota_max "${SPL_CNF:-}")" -v now="$4" -v lapse="$lapse" -v lifted=",$5," \
-    -v marks="$(spl_box_quota_marks "${SPL_CNF:-}" "$(cut -f1 <<<"$2" 2>/dev/null)")" "$SPL_BOX_QUOTA_MARKS_AWK"'
+    -v marks="$(spl_box_quota_marks "${SPL_CNF:-}" "$(cut -f1 <<<"$2" 2>/dev/null)")" "$(spl_box_quota_marks_awk)"'
     FNR == NR { if (NF) cur[$1] = $2; next }
     { mx = ($1 in m) ? m[$1] : max }
     $2 + 0 >= mx && $3 + 0 > now && now - $4 >= lapse && !index(lifted, "," $1 ",") && cur[$1] + 0 < mx {
@@ -516,7 +516,7 @@ spl_box_quota_disagree() {
   local f
   f="$(spl_box_quota_keep_file)"
   [[ -n "$f" && -r "$f" ]] || return 0
-  awk -F'\t' -v OFS='\t' -v max="$1" -v marks="$(spl_box_quota_marks "${2:-}" "$(cut -f1 "$f")")" "$SPL_BOX_QUOTA_MARKS_AWK"'
+  awk -F'\t' -v OFS='\t' -v max="$1" -v marks="$(spl_box_quota_marks "${2:-}" "$(cut -f1 "$f")")" "$(spl_box_quota_marks_awk)"'
     { mx = ($1 in m) ? m[$1] : max }
     $2 + 0 >= mx && $7 != "" && $7 + 0 < mx && $8 + 0 > $4 + 0 {
     print $1, $2, ($6 != "" ? $6 : "kept"), $4, $7, ($9 != "" ? $9 : "kept"), $8 }' "$f"
@@ -655,8 +655,13 @@ spl_box_quota_marks() {
   done
   echo "$out"
 }
-# The awk BEGIN block that loads spl_box_quota_marks's -v marks into m[kind].
-SPL_BOX_QUOTA_MARKS_AWK='BEGIN { n = split(marks, a, " "); for (i = 1; i <= n; i++) { split(a[i], kv, "="); m[kv[1]] = kv[2] } }'
+# spl_box_quota_marks_awk: the awk BEGIN block that loads spl_box_quota_marks's
+# -v marks into m[kind]. A function, not a top-level constant: a top-level
+# statement makes the run.sh index source this file eager (SPL-5620,
+# run-eager-files.tst.sh MAX_EAGER).
+spl_box_quota_marks_awk() {
+  echo 'BEGIN { n = split(marks, a, " "); for (i = 1; i <= n; i++) { split(a[i], kv, "="); m[kv[1]] = kv[2] } }'
+}
 
 # spl_box_quota_seat_max [CNF [KIND]]: the weekly mark of a logged review seat (SPL-4966;
 # spec 146, what-broke-20261106 section 7 item 3), a whole %: cnf

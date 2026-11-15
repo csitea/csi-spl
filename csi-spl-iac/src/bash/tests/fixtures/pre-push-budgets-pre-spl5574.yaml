@@ -1,0 +1,21 @@
+# The pre-push part budgets as code held them before SPL-5574 moved them into
+# the cnf table env.prepush.part_budget_s. The budget-rule tests (api-timeout,
+# part-timeout, timeout-label, ...) read this fixture via PRE_PUSH_BUDGET_CNF,
+# so they test the rule (own var > PRE_PUSH_PART_TIMEOUT > row, load scaling,
+# caps) independently of the measured values in the live table.
+env:
+  prepush:
+    part_budget_s:
+      default: 300
+      api_full: 1950
+      api_full_cap: 2700
+      iac_fast: 500
+      iac_fast_cap: 1200
+      iac_full: 600
+      orc_fast: 600
+      orc_fast_cap: 1500
+      orc_full: 4000
+      orc_full_cap: 6000
+      orc_features: 900
+      wui: 420
+      wui_e2e: 600

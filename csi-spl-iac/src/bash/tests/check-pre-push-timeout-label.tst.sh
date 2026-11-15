@@ -27,6 +27,7 @@
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+export PRE_PUSH_BUDGET_CNF="$TEST_DIR/fixtures/pre-push-budgets-pre-spl5574.yaml"  # the pre-SPL-5574 values: these cases test the rule, not the measured table
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 FUNC="$PROJ_ROOT/src/bash/run/check-pre-push.func.sh"
 
@@ -84,9 +85,9 @@ check "5. an env budget is named in the note" "TIMED OUT after 2s (PRE_PUSH_API_
   "$(PRE_PUSH_API_FULL_TIMEOUT=2 _PP_TIER=full full_note_of _pp_part_api)"
 
 check "6. a passing suite logs no TIMED OUT note" "" \
-  "$(R="$T/quick0"; _pp_timeout=30; note_of _pp_part_iac)"
+  "$(R="$T/quick0"; _pp_b_default=30; note_of _pp_part_iac)"
 check "7. a suite failing with rc 1 logs no TIMED OUT note" "" \
-  "$(R="$T/quick1"; _pp_timeout=30; note_of _pp_part_iac)"
+  "$(R="$T/quick1"; _pp_b_default=30; note_of _pp_part_iac)"
 
 check "8. orc full tier names the variable that raises its budget" \
   "TIMED OUT after 4000s (orc full default 4000s x load 0.5/16 cpus, cap 6000s; raise it with PRE_PUSH_ORC_FULL_TIMEOUT)" \

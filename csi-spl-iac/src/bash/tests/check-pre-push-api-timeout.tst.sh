@@ -65,6 +65,7 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+export PRE_PUSH_BUDGET_CNF="$TEST_DIR/fixtures/pre-push-budgets-pre-spl5574.yaml"  # the pre-SPL-5574 values: these cases test the rule, not the measured table
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 FUNC="$PROJ_ROOT/src/bash/run/check-pre-push.func.sh"
 
@@ -216,7 +217,7 @@ timeout() {  # -k <k> <budget s> <cmd...>: the real timeout, budget / 1000
   local k="$2" b="$3"; shift 3
   command timeout -k "$k" "$(awk -v b="$b" 'BEGIN { printf "%.3f", b / 1000 }')" "$@"
 }
-rc=0; ( _pp_orc_full_base=1800; _PP_TIER=full _pp_part_orc "$T" ) >/dev/null 2>&1 || rc=$?
+rc=0; ( _pp_b_orc_full=1800; _PP_TIER=full _pp_part_orc "$T" ) >/dev/null 2>&1 || rc=$?
 check "15. CONTROL: the 2274 s suite under the old 1800 s base -> TIMED OUT (rc 124)" 124 "$rc"
 rc=0; ( _PP_TIER=full _pp_part_orc "$T" ) >/dev/null 2>&1 || rc=$?
 check "15. the 2274 s suite under the default full-tier orc budget -> passes" 0 "$rc"

@@ -35,13 +35,13 @@
 # @description rebase over non-WUI commits reuse it; the files run through
 # @description csi-spl-orc's wui-e2e-mock-serve.sh, as wf 10 runs them. The
 # @description whole part runs under _pp_budget: PRE_PUSH_E2E_TIMEOUT, else
-# @description PRE_PUSH_PART_TIMEOUT, else 600 s (SPL-5238). The cache keeps the
+# @description PRE_PUSH_PART_TIMEOUT, else cnf row wui_e2e_<tier> (SPL-5238, SPL-5574). The cache keeps the
 # @description newest 3 bundles; a run holds its bundle (a shared flock on
 # @description <cache>/.locks/<key>) until it ends, and the prune skips a held one.
 # @param PRE_PUSH_E2E (optional) - 0 = never select the part, default 1
 # @param PRE_PUSH_E2E_MAX (optional) - most files run, default 6
 # @param PRE_PUSH_E2E_BUDGET (optional) - CI seconds the files may sum to, default 240
-# @param PRE_PUSH_E2E_TIMEOUT (optional) - seconds for the whole part; wins over PRE_PUSH_PART_TIMEOUT, default 600
+# @param PRE_PUSH_E2E_TIMEOUT (optional) - seconds for the whole part; wins over PRE_PUSH_PART_TIMEOUT, default cnf row wui_e2e_<tier>
 # @param PRE_PUSH_E2E_BUNDLES (optional) - bundle cache dir, default ~/.cache/csi-spl/wui-e2e-bundle
 # @param PRE_PUSH_E2E_GENERATE (optional) - the build command (tests), default the mock generate
 # @param PRE_PUSH_E2E_RUNNER (optional) - the run command (tests), default mock-serve + run-e2e-tests.mjs

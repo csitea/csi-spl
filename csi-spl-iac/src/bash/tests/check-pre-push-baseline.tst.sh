@@ -48,6 +48,7 @@ set -uo pipefail
 # it here too so the test is safe however it is invoked.
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+export PRE_PUSH_BUDGET_CNF="$TEST_DIR/fixtures/pre-push-budgets-pre-spl5574.yaml"  # the pre-SPL-5574 values: these cases test the rule, not the measured table
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 FUNC="$PROJ_ROOT/src/bash/run/check-pre-push.func.sh"
 
@@ -234,7 +235,7 @@ eq "12d. an unclosed perf section: the part's FAILED: lines after it still count
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.
 FT="$ROOT/faketree"; mkdir -p "$FT/csi-spl-iac/src/bash/tests"
 printf '#!/usr/bin/env bash\nsleep 30\n' >"$FT/csi-spl-iac/src/bash/tests/run-all-tests.sh"
-# The fast iac budget is load-scaled from 500 s, so a planted _pp_timeout no
+# The fast iac budget is load-scaled from 500 s, so a planted _pp_b_default no
 # longer shortens it. PRE_PUSH_PART_TIMEOUT=1 is set only inside the subshell:
 # a prefix on the function would stay set in this shell and the full-tier case
 # below would then take the override instead of PRE_PUSH_IAC_FULL_TIMEOUT.

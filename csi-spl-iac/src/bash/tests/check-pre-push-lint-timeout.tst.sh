@@ -21,6 +21,7 @@ for v in $(compgen -e); do [[ "$v" == PRE_PUSH_* ]] && unset "$v"; done
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+export PRE_PUSH_BUDGET_CNF="$TEST_DIR/fixtures/pre-push-budgets-pre-spl5574.yaml"  # the pre-SPL-5574 values: these cases test the rule, not the measured table
 RUN_DIR=$(cd "$TEST_DIR/../run" && pwd)
 fails=0
 pass() { echo "PASS: $1"; }

@@ -86,17 +86,19 @@
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, every part on both tiers, unless that
 # @param        part's own variable is set: PRE_PUSH_{API,IAC,ORC}_FULL_TIMEOUT (full tier),
 # @param        PRE_PUSH_WUI_TIMEOUT, PRE_PUSH_E2E_TIMEOUT, PRE_PUSH_FEATURES_TIMEOUT win over it
-# @param        (unset keeps that part's own default; the shared fast default is 300)
-# @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier; default 1950 x the load per cpu
+# @param        (unset keeps that part's row in the cnf table env.prepush.part_budget_s:
+# @param        <part>_<tier>, else <part>, else default; do_report_pre_push_part_times)
+# @param PRE_PUSH_BUDGET_CNF (optional) - the yaml holding env.prepush.part_budget_s, default csi-spl-cnf/csi-spl/all.env.yaml of this tree
+# @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier; default row api_full x the load per cpu
 # @param        (loadavg 1 min / nproc, when over 1), at most PRE_PUSH_API_FULL_CAP
-# @param PRE_PUSH_API_FULL_CAP (optional) - seconds the load-scaled api full-tier default never exceeds, default 2700
-# @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default 600
-# @param PRE_PUSH_IAC_FAST_CAP (optional) - seconds the load-scaled iac fast-tier default never exceeds, default 1200
-# @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier; default 4000 x the load per cpu
+# @param PRE_PUSH_API_FULL_CAP (optional) - seconds the load-scaled api full-tier default never exceeds, default row api_full_cap
+# @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default row iac_full
+# @param PRE_PUSH_IAC_FAST_CAP (optional) - seconds the load-scaled iac fast-tier default never exceeds, default row iac_fast_cap
+# @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier; default row orc_full x the load per cpu
 # @param        (when over 1), at most PRE_PUSH_ORC_FULL_CAP
-# @param PRE_PUSH_ORC_FULL_CAP (optional) - seconds the load-scaled orc full-tier default never exceeds, default 6000
-# @param PRE_PUSH_ORC_FAST_CAP (optional) - seconds the load-scaled orc fast-tier default never exceeds, default 1500
-# @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
+# @param PRE_PUSH_ORC_FULL_CAP (optional) - seconds the load-scaled orc full-tier default never exceeds, default row orc_full_cap
+# @param PRE_PUSH_ORC_FAST_CAP (optional) - seconds the load-scaled orc fast-tier default never exceeds, default row orc_fast_cap
+# @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default row wui_<tier>
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
 # @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
 # @param        (what the hook still runs under SPL_PREPUSH_OVERRIDE=1; PRE_PUSH_LINT=0 cannot drop them)
@@ -475,7 +477,7 @@ _pp_missing_tools() {  # <part> <tree>
 
 # Every part runs under a hard timeout so the hook can never block a push
 # forever: `timeout` returns 124, reported as "TIMED OUT", never a hang.
-_pp_timeout="${PRE_PUSH_PART_TIMEOUT:-300}"
+# The budgets are cnf, not code (SPL-5574): see "The part budgets" below.
 # hygiene is ~1 s and cannot hang, so it runs directly (no timeout, no subshell).
 # The fleet rules drift check (csi-spl-orc, csi-spl-doc/doc/md/fleet-rules-index.md)
 # rides along: under a second, read-only, red when two rule copies disagree.
@@ -495,34 +497,54 @@ _pp_part_hygiene() {
   fi
   return "$rc"
 }
-# The FULL-tier api suite cannot fit 300 s: the hub Postgres gate alone is
-# ~384 s. Measured uncapped on sat (n=3, GOFLAGS=-timeout=15m): 514 s at load
-# 1.85 (master 712ff98d), 319 s at load 13.08 (848e20c0), 318 s (d5611241).
-# 900 s is 1.75x the slowest; every full-tier push timed out at 300 s.
-# The FULL-tier iac suite (IAC_TEST_TIER=full, 119 files) on sat, run alone
-# (n=3, master 672ad2598): 191 s at load 18.7..37.6, 213 s at 37.6..16.8,
-# 148 s at 16.8..15.7. Inside the gate at 00:10Z (2026-10-10) it passed 300 s
-# and TIMED OUT, so every full-tier iac push failed (r5-07). 600 s is 1.75x
-# that censored 300+ s (525 s), rounded up.
-# The fast tier's iac and orc budgets scale like the full tier, from a lower
-# base. Counted in the pre-push log 2026-10-22..28 (iac PASS wall, n=91):
-# p50 138 s, the 81st is 286 s, the 82nd (smallest rank at or above 90%) is
-# 288 s, max 433 s, against the old 300 s budget. 500 s is 1.75 x 286 s,
-# used as 500 s. The same window, TIMED OUT after 300s: iac 13 (2 with the
-# trunk re-check green, 11 not), orc 29 (15 with the trunk re-check green).
-# Two iac runs on 2026-10-28 logged 626 s (13:56Z, trunk 6fa3d938b; 14:14Z,
-# trunk c3815a9f0); both trunk re-checks were unparseable. sar that day, 16
-# cpus, 10-min load1: 13:50 10.04, 14:00 23.47, 14:10 13.89. The 13:50 sample
-# is 0.63 per cpu, so the load factor is 1 and would not have raised a 300 s
-# budget: the base was too low. The orc base 600 s is a placeholder: those
-# green-trunk timeouts were cut at 300 s, so their real time is not in the
-# log. Both bases are interim until tier= on the PART line gives a
-# fast-tier-only distribution; then each base becomes 1.75x the slowest
-# fast-tier green, as the full-tier bases are.
+# The part budgets (s) are ONE cnf table, env.prepush.part_budget_s in
+# csi-spl-cnf/csi-spl/all.env.yaml (rendered into <env>.env.json by tpl-gen),
+# each the measured p95 x 1.5 of do_report_pre_push_part_times; the table's
+# comment holds the measurement. Their history (the hand-measured bases of
+# SPL-5238, SPL-5411, SPL-3748) is in git log. A part's row is
+# <part>_<tier>, else <part>, else default (<part> is the part function's name
+# after _pp_part_). A load-scaled part also has <row>_cap: its budget is the
+# row x max(1, load1 / nproc), rounded up, at most the cap
+# (PRE_PUSH_<ROW>_CAP wins), never under the row. The table is read once per
+# gate run into _pp_b_<row>; a variable already set (a test's plant) is kept.
+# Guard: tests/check-pre-push-budget-table.tst.sh (no part carries a literal).
+_pp_budget_cnf() {
+  # -P: a test tree that symlinks src/bash/run still finds this repo's cnf
+  local here; here="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && cd ../../../.. && pwd)"
+  echo "${PRE_PUSH_BUDGET_CNF:-$here/csi-spl-cnf/csi-spl/all.env.yaml}"
+}
+# <yaml> -> "<row> <seconds>" lines of env.prepush.part_budget_s (awk: no yq
+# needed in a git hook; the guard compares it with yq).
+_pp_budget_table() {
+  awk '
+    /^[^ #]/ { e = ($0 ~ /^env:/); p = 0; t = 0; next }
+    e && /^  [^ #]/ { p = ($0 ~ /^  prepush:/); t = 0; next }
+    p && /^    [^ #]/ { t = ($0 ~ /^    part_budget_s:/); next }
+    t && /^      [a-z0-9_]+:[ ]*[0-9]+[ ]*(#.*)?$/ { k = $1; sub(/:$/, "", k); print k, $2 }
+  ' "$1" 2>/dev/null
+}
+_pp_budgets_load() {
+  [[ -n "${_PP_BUDGETS_LOADED:-}" ]] && return 0
+  local row s v
+  while read -r row s; do
+    [[ "$row" =~ ^[a-z0-9_]+$ && "$s" =~ ^[1-9][0-9]*$ ]] || continue
+    v="_pp_b_$row"; [[ -n "${!v:-}" ]] || printf -v "$v" '%s' "$s"
+  done < <(_pp_budget_table "$(_pp_budget_cnf)")
+  _PP_BUDGETS_LOADED=1
+}
+_pp_budget_row() {  # <part-fn> -> its table row on this tier; rc 1 when the table has none
+  local part="${1#_pp_part_}" r v
+  _pp_budgets_load
+  for r in "${part}_${_PP_TIER:-fast}" "$part" default; do
+    v="_pp_b_$r"; [[ -n "${!v:-}" ]] && { echo "$r"; return 0; }
+  done
+  echo "pre-push: no budget for $part: env.prepush.part_budget_s.default missing in $(_pp_budget_cnf)" >&2
+  return 1
+}
 # One rule for every part, on both tiers (SPL-5238): the part's own variable
 # (_pp_part_var), when set, wins; else PRE_PUSH_PART_TIMEOUT; else the part's
-# default. wui and wui-e2e used to read only their own variable, so a push
-# with PRE_PUSH_PART_TIMEOUT=1500 still TIMED OUT at 420 s and 600 s (c-463).
+# row in the table. wui and wui-e2e used to read only their own variable, so a
+# push with PRE_PUSH_PART_TIMEOUT=1500 still TIMED OUT at 420 s and 600 s (c-463).
 _pp_part_var() {  # <part-fn> -> the variable that sets this part's budget on this tier, if any
   local full=""; [[ "${_PP_TIER:-fast}" == full ]] && full=1
   case "$1" in
@@ -540,54 +562,23 @@ _pp_part_var() {  # <part-fn> -> the variable that sets this part's budget on th
 # part, so lanes whose api (900 s) or wui (420 s) budget ran out raised the
 # wrong number (c-448, c-464, c-465, 2026-10-07).
 _pp_budget() {  # <part-fn>
-  local var; var="$(_pp_part_var "$1")"
+  local var row base cap
+  var="$(_pp_part_var "$1")"
   if [[ -n "$var" && -n "${!var:-}" ]]; then echo "${!var}"; return 0; fi
   if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"; return 0; fi
-  local full=""; [[ "${_PP_TIER:-fast}" == full ]] && full=1
-  case "$1" in
-    _pp_part_api) if [[ -n "$full" ]]; then _pp_api_full_default; else echo "$_pp_timeout"; fi ;;
-    _pp_part_iac)
-      if [[ -n "$full" ]]; then echo 600
-      else _pp_load_scaled "$_pp_iac_fast_base" "${PRE_PUSH_IAC_FAST_CAP:-1200}"; fi ;;
-    # the full tier runs every orc file: ~32..38 min on sat when idle
-    _pp_part_orc)
-      if [[ -n "$full" ]]; then _pp_orc_full_default
-      else _pp_load_scaled "$_pp_orc_fast_base" "${PRE_PUSH_ORC_FAST_CAP:-1500}"; fi ;;
-    _pp_part_wui) echo 420 ;;
-    _pp_part_wui_e2e) echo 600 ;;
-    # the full tier runs every feature: 308 s on sat at load 65..118 (16
-    # cpus, c-981, n=1) TIMED OUT at 300 s; 900 s is ~2.9x that. The fast
-    # tier gets the same 900 s (SPL-5411): on one 16-cpu box, 10-28..11-12,
-    # 58 of 307 fast-tier runs TIMED OUT at 300 s (16 of them on a tree whose
-    # trunk re-check was green); the slowest fast-tier green was 597 s.
-    # One run at load1 153..179 (~10/cpu, 500be8c0f, n=1) took 1242 s:
-    # past 900 s, so raise PRE_PUSH_FEATURES_TIMEOUT on a box that loaded.
-    _pp_part_orc_features) echo 900 ;;
-    *) echo "$_pp_timeout" ;;
-  esac
+  _pp_budgets_load  # here: _pp_budget_row runs in a subshell
+  row="$(_pp_budget_row "$1")" || return 1
+  base="_pp_b_$row"; cap="$(_pp_budget_cap "$row")"
+  if [[ -n "$cap" ]]; then _pp_load_scaled "${!base}" "$cap"; else echo "${!base}"; fi
 }
-# The api full-tier default fits the box load, as the watchdog pre-flight
-# limit does (8012d2419): 900 s on an idle box is not enough on a loaded one.
-# Measured (api suite alone, SPL_API_TEST_TIER=full, wall s at mean load1/cpu):
-# sat 16 cpus, e872c5b9d, n=3: 858 s at 1.82, 796 s at 2.74, 682 s at 1.90;
-# sat pre-push log + sar, n=3: 820 s at ~2.1, 746 s at ~1.9, 862 s at ~1.5
-# (two of them c-778's, which TIMED OUT at 900 s); the second desk box, 16
-# cpus, n=2 full tier: 450 s, 472 s at ~1.5; c-873 there TIMED OUT at 900 s
-# (load up to ~90, 5.6/cpu).
-# The slowest point, 862 s, sits at 96% of 900 s: no headroom once loaded.
-# The base, re-measured 2026-10-23 on the first desk box (16 cpus, trunk
-# 814d8fe84, n=2, run alone): 1111 s at load1 5.3..9.4 (0.33..0.59/cpu, the
-# first run, cold build cache) and 842 s at 9.4..7.9. Below 1/cpu the factor
-# is 1, so the 900 s base timed out a green trunk (c-878, n=3, at 7/16 cpus).
-# 1950 s is 1.75x the slowest, 1111 s, rounded up to the next 50 s.
-# The cap 2700 s (3x): 862 s scaled linearly to 5.6/cpu is ~2640 s (the wall
-# grows far slower than the load: 514 s at 0.12/cpu, 858 s at 1.82); sat's
-# 10-min load was over 3/cpu in 33 of 915 sar samples (10-04..10-11). A hung
-# suite still stops, after at most 45 min.
-# 1950 s x (load1 / nproc when over 1), rounded up, at most PRE_PUSH_API_FULL_CAP
-# (default 2700 s), never under 1950 s. The load is read ONCE per gate run
-# (_PP_LOAD), so the part's `timeout` and its TIMED OUT note show the same
-# number; _pp_budget_why names the budget and the load it came from.
+_pp_budget_cap() {  # <row> -> its cap (PRE_PUSH_<ROW>_CAP wins), empty when the row is not load-scaled
+  local c="_pp_b_${1}_cap" env="PRE_PUSH_${1^^}_CAP"
+  [[ -n "${!c:-}" ]] || return 0
+  echo "${!env:-${!c}}"
+}
+# The load is read ONCE per gate run (_PP_LOAD), so the part's `timeout` and
+# its TIMED OUT note show the same number; _pp_budget_why names the budget and
+# the load it came from.
 _pp_load_read() {  # sets _PP_LOAD="<load1> <nproc>", once
   [[ -n "${_PP_LOAD:-}" ]] && return 0
   local l1 np
@@ -605,48 +596,20 @@ _pp_load_scaled() {  # <base s> <cap s> -> base x max(1, load1/nproc), rounded u
     if (x > c) x = c; if (x < b) x = b
     print x }'
 }
-_pp_api_full_base=1950
-_pp_api_full_default() { _pp_load_scaled "$_pp_api_full_base" "${PRE_PUSH_API_FULL_CAP:-2700}"; }
-# The orc full-tier default scales the same way (c-001@sat, 2026-10-26, note
-# 834cc140): on sat at load1 14..52 on 16 cpus (0.9..3.3/cpu) the orc part
-# TIMED OUT at the fixed 1800 s on 4 of 4 runs of c-168's tree (9ef87b9d6) and
-# on 2 of 2 trunk re-checks. A hung suite still stops, after at most 100 min.
-# The base, re-measured 2026-10-27 (c-360, SPL-3748): the full-tier orc PASSes
-# in the box user's pre-push log on sat (16 cpus), against sar's load1 over each run,
-# 10-14..10-27: n=12 ran below 1 load per cpu, where the factor is 1, in
-# 1941..2274 s (2274 s at 0.97/cpu, 2234 s at 0.93, 2029 s at 0.43); one more
-# TIMED OUT at 1800 s at 0.59/cpu (c-168, 9ef87b9d6). So the 1800 s base
-# (a CI shard's time, not a whole-suite run) timed out every green full-tier
-# run on an idle box. 4000 s is 1.75x the slowest, 2274 s, rounded up, as the
-# api and iac bases are. CI for scale: master d56ef1fcb, run 40452091167, 552
-# files in 3 shards, sum wall 7709 s, cpu 6472 s.
-# The cap 6000 s (1.5x): the loaded runs grow ~1070 s per extra load/cpu
-# (2274 s at 0.97, 2679 s at 1.58, 3159 s at 1.80), so ~6040 s at 4.5/cpu,
-# the highest mean load seen over a run (c-908, 10-14).
-_pp_orc_full_base=4000
-_pp_iac_fast_base=500
-_pp_orc_fast_base=600
-_pp_orc_full_default() { _pp_load_scaled "$_pp_orc_full_base" "${PRE_PUSH_ORC_FULL_CAP:-6000}"; }
 _pp_budget_why() {  # <part-fn> -> where its budget came from, and the variable that raises it
-  local part base cap var scale="" own
+  local own row base cap
   own="$(_pp_part_var "$1")"
   if [[ -n "$own" && -n "${!own:-}" ]]; then echo "$own"; return 0; fi
   if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "PRE_PUSH_PART_TIMEOUT"; return 0; fi
-  case "$1:${_PP_TIER:-fast}" in
-    _pp_part_api:full)
-      part=api base="$_pp_api_full_base" cap="${PRE_PUSH_API_FULL_CAP:-2700}" var=PRE_PUSH_API_FULL_TIMEOUT scale=full ;;
-    _pp_part_orc:full)
-      part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-6000}" var=PRE_PUSH_ORC_FULL_TIMEOUT scale=full ;;
-    # FAST_CAP does not bind at load/cpu <= 1, nor while the scaled base is
-    # under it: the fast orc and iac raise knob is PRE_PUSH_PART_TIMEOUT.
-    _pp_part_orc:*)
-      part=orc base="$_pp_orc_fast_base" cap="${PRE_PUSH_ORC_FAST_CAP:-1500}" var=PRE_PUSH_PART_TIMEOUT scale=fast ;;
-    _pp_part_iac:fast)
-      part=iac base="$_pp_iac_fast_base" cap="${PRE_PUSH_IAC_FAST_CAP:-1200}" var=PRE_PUSH_PART_TIMEOUT scale=fast ;;
-    *) echo "part default $(_pp_budget "$1")s; raise it with ${own:-PRE_PUSH_PART_TIMEOUT}"; return 0 ;;
-  esac
+  _pp_budgets_load
+  row="$(_pp_budget_row "$1")" || return 0
+  base="_pp_b_$row"; cap="$(_pp_budget_cap "$row")"
+  if [[ -z "$cap" ]]; then
+    echo "part default ${!base}s; raise it with ${own:-PRE_PUSH_PART_TIMEOUT}"; return 0
+  fi
   _pp_load_read
-  echo "$part $scale default ${base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s; raise it with $var"
+  # FAST rows have no own variable: their raise knob is PRE_PUSH_PART_TIMEOUT.
+  echo "${1#_pp_part_} ${_PP_TIER:-fast} default ${!base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s; raise it with ${own:-PRE_PUSH_PART_TIMEOUT}"
 }
 _pp_part_api() {
   _pp_load_read
@@ -1334,6 +1297,7 @@ do_check_pre_push() {
   local _PP_TIER="${PRE_PUSH_TIER:-fast}"
   case "$mode" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_MODE must be fast or full (got '$mode')"; return 2 ;; esac
   case "$_PP_TIER" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_TIER must be fast or full (got '$_PP_TIER')"; return 2 ;; esac
+  _pp_budgets_load  # once, so every part's $(_pp_budget) subshell reads it, not the cnf
   git -C "$tree" rev-parse --git-dir >/dev/null 2>&1 \
     || { do_log "FATAL pre-push: $tree is not a git checkout"; return 2; }
   # A git hook can inherit a stripped PATH (measured 2026-10-01: a lane's push

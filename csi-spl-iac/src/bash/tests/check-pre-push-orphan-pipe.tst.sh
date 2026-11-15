@@ -18,6 +18,7 @@
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+export PRE_PUSH_BUDGET_CNF="$TEST_DIR/fixtures/pre-push-budgets-pre-spl5574.yaml"  # the pre-SPL-5574 values: these cases test the rule, not the measured table
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 FUNC="$PROJ_ROOT/src/bash/run/check-pre-push.func.sh"
 
@@ -34,7 +35,7 @@ cleanup() {
 trap cleanup EXIT
 
 # _pp_budget prefers a part's own variable, then PRE_PUSH_PART_TIMEOUT, over
-# _pp_timeout: a caller that exports one (lanes raise them under load) would
+# _pp_b_default (the table's default row): a caller that exports one (lanes raise them under load) would
 # turn the 2 s budget into theirs and case 2 red (SPL-5571). Unset every one
 # _pp_part_var can name, read from the function itself so a new part is covered.
 budget_vars="PRE_PUSH_PART_TIMEOUT $(sed -n '/^_pp_part_var()/,/^}/p' "$FUNC" \
@@ -48,7 +49,7 @@ set -uo pipefail
 unset $budget_vars _PP_TIER
 do_log() { echo "\$*" >>"$T/log"; }
 . "$FUNC"
-_pp_timeout=2 PRE_PUSH_ORPHAN_GRACE=1
+_pp_b_default=2 PRE_PUSH_ORPHAN_GRACE=1
 _pp_fake_part() { $1; }
 _PP_NAMES=() _PP_STAT=() _PP_SECS=() _PP_FAILED=0 _PP_BASE_WT=""
 _pp_run fake _pp_fake_part "$T/tree" nobase

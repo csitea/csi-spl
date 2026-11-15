@@ -24,6 +24,7 @@
 set -uo pipefail
 unset PRE_PUSH_NO_CACHE PRE_PUSH_MODE PRE_PUSH_SKIP_PASSED PRE_PUSH_ONLY PRE_PUSH_LINT PRE_PUSH_LINT_ONLY PRE_PUSH_CROSS PRE_PUSH_E2E PRE_PUSH_FEATURES 2>/dev/null || true  # SPL-5063: the caller's gate switches must not change these verdicts; a case sets its own
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+export PRE_PUSH_BUDGET_CNF="$TEST_DIR/fixtures/pre-push-budgets-pre-spl5574.yaml"  # the pre-SPL-5574 values: these cases test the rule, not the measured table
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 
 fails=0
@@ -33,7 +34,7 @@ eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "want '$2' got '$3'"; }
 
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
 do_log() { :; }
-_pp_timeout=60
+_pp_b_default=60
 _pp_budget() { echo 60; }
 # shellcheck source=../run/check-pre-push-features.func.sh
 . "$PROJ_ROOT/src/bash/run/check-pre-push-features.func.sh"

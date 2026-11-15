@@ -77,13 +77,9 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   features whose `tests/test-*.sh` name its basename or stem as a whole
   word. Before it, a change there made the orc map fall back to `full`,
   which the fast tier leaves to CI. spawn-agents (80 files) took 85 s on
-  the first box at load 15.7, n=1; the budget is `PRE_PUSH_FEATURES_TIMEOUT`
-  (900 s on both tiers; SPL-5411 raised the fast tier from 300 s: on one
-  16-cpu box, 2026-10-28..11-12, 58 of 307 fast-tier runs TIMED OUT at
-  300 s, 16 of them on a tree whose trunk re-check was green, and the
-  slowest fast-tier green took 597 s; one spawn-agents run at load1
-  153..179, about 10 per cpu, took 1242 s, n=1: on a box that loaded, raise
-  `PRE_PUSH_FEATURES_TIMEOUT`). Print a selection:
+  the first box at load 15.7, n=1; the budget is the table rows
+  `orc_features_fast` and `orc_features_full` (section 1.4), raised by
+  `PRE_PUSH_FEATURES_TIMEOUT`. Print a selection:
   `FEATURES_RANGE=origin/master..HEAD ./run -a do_check_pre_push_features`.
   `PRE_PUSH_FEATURES=0` turns it off.
 - **The iac-cross part** runs the csi-spl-iac tests that read files of
@@ -160,34 +156,38 @@ killed by the part's timeout prints no closing line; the runner's
 See `_pp_sig` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`.
 
 <a id="ws-doc-caf371ff-0217-4092-b7c8-5f2bdc81e685"></a>
-### 1.4 The full tier's part budgets
+### 1.4 The part budgets: one cnf table
 
-`PRE_PUSH_TIER=full` runs every test file of a part. The api full tier, and
-the iac and orc parts on both tiers, get their own budget
-(`_pp_budget` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`; the
-numbers and their measurements are in the comments there). A scaled budget
-is a base times the box load per cpu (`load1 / nproc`, read once per run)
-when that is over 1, never above a cap. The fast tier's other parts stay
-fixed: api 300 s, wui 420 s, wui-e2e 600 s, and orc-features 900 s (the
-same as its full tier) unless `PRE_PUSH_FEATURES_TIMEOUT` is set.
+Every part runs under a budget in seconds, and every budget is a row of ONE
+cnf table, `env.prepush.part_budget_s` in
+`csi-spl-cnf/csi-spl/all.env.yaml` (SPL-5574; tpl-gen renders it into
+`<env>.env.json`). No budget is a literal in code: `_pp_budget` in
+`csi-spl-iac/src/bash/run/check-pre-push.func.sh` reads the table once per
+gate run, and `csi-spl-iac/src/bash/tests/check-pre-push-budget-table.tst.sh`
+fails a part that carries its own number. A part's row is `<part>_<tier>`,
+else `<part>`, else `default` (`<part>` is the part function's name after
+`_pp_part_`, e.g. `wui_e2e`, `lint_gosec`). A row with a `<row>_cap` is
+load-scaled: the row times the box load per cpu (`load1 / nproc`, read once
+per run) when that is over 1, never above the cap
+(`PRE_PUSH_<ROW>_CAP`, e.g. `PRE_PUSH_API_FULL_CAP`, wins over it).
 
-| tier | part | base | cap | raise it with |
-|---|---|---|---|---|
-| full | api | 1950 s | 2700 s (`PRE_PUSH_API_FULL_CAP`) | `PRE_PUSH_API_FULL_TIMEOUT` |
-| full | orc | 4000 s | 6000 s (`PRE_PUSH_ORC_FULL_CAP`) | `PRE_PUSH_ORC_FULL_TIMEOUT` |
-| full | iac | 600 s | — | `PRE_PUSH_IAC_FULL_TIMEOUT` |
-| fast | iac | 500 s | 1200 s (`PRE_PUSH_IAC_FAST_CAP`) | `PRE_PUSH_PART_TIMEOUT` |
-| fast | orc | 600 s | 1500 s (`PRE_PUSH_ORC_FAST_CAP`) | `PRE_PUSH_PART_TIMEOUT` |
+Each row is the measured p95 times 1.5, rounded up to 10 s, of the part's
+last 50 runs that PASSed on that tier:
 
-The fast iac and orc bases are interim until `tier=` on the PART line gives
-a fast-tier distribution; then each base becomes 1.75 times the slowest
-fast-tier green, as the full-tier bases are. The orc fast base of 600 s is
-a placeholder: the green-trunk timeouts it replaces were cut at 300 s, so
-their real time is not in the log.
+`cd csi-spl-iac && ./run -a do_report_pre_push_part_times`
+
+It reads the gate's PART lines (`PRE_PUSH_TIMES_LOGS`, a space-separated
+list of logs, one per box user; default the caller's
+`~/.cache/csi-spl/pre-push.log`; `PRE_PUSH_TIMES_N`, default 50) and prints
+per part and tier n, p50, p95, max, how many runs in that window TIMED OUT,
+and the budget. A TIMED OUT run's real time is not in the log, so p95 is a
+floor where that count is not 0. The table's comment holds the measurement
+the rows came from; re-measure and update the rows there, never in code.
+`default` (300 s) is kept above p95 times 1.5 of every part that reads it.
 
 One rule sets every part's budget, on both tiers (`_pp_part_var` and
 `_pp_budget`, SPL-5238): the part's own variable, when set, wins; else
-`PRE_PUSH_PART_TIMEOUT`; else the part's default. The own variables are
+`PRE_PUSH_PART_TIMEOUT`; else the part's row in the table. The own variables are
 `PRE_PUSH_API_FULL_TIMEOUT`, `PRE_PUSH_IAC_FULL_TIMEOUT` and
 `PRE_PUSH_ORC_FULL_TIMEOUT` (full tier only), `PRE_PUSH_WUI_TIMEOUT`,
 `PRE_PUSH_E2E_TIMEOUT` (wui-e2e) and `PRE_PUSH_FEATURES_TIMEOUT`
@@ -196,12 +196,12 @@ wui-e2e parts ignored `PRE_PUSH_PART_TIMEOUT`: a push with 1500 still TIMED
 OUT at 420 s and 600 s (c-463, n=1); the wui-e2e part's own `timeout` now
 reads `_pp_budget` too (`check-pre-push-e2e.func.sh`). The rule cuts both
 ways: a variable you set can also lower a budget, so
-`PRE_PUSH_PART_TIMEOUT=100` gives wui 100 s instead of its 420 s default.
+`PRE_PUSH_PART_TIMEOUT=100` gives wui 100 s instead of its row.
 A part that runs out logs
 `TIMED OUT after <n>s (<why>)`: the why names the variable that set the
 budget, or, for a default budget, the default and the variable that raises
 it (for a load-scaled one also the base, the load it read and the cap).
-A lint part has no own variable and runs under that same timeout (SPL-5529): the budget is `PRE_PUSH_PART_TIMEOUT` when set, otherwise the part default of 300 s, a hang returns 124 or 137 so the gate logs `TIMED OUT` and the part's process group, including a scanner child, is killed, and because `PRE_PUSH_PART_TIMEOUT` also binds every other part with no more specific variable (full-tier orc, api and iac) it must not be set to cap a full-tier orc run (raise that with `PRE_PUSH_ORC_FULL_TIMEOUT`); a full-tier `lint-gosec` measured past 300 s can now log `TIMED OUT` at the 300 s default.
+A lint part has no own variable and runs under that same timeout (SPL-5529): the budget is `PRE_PUSH_PART_TIMEOUT` when set, otherwise its table row (`lint_<scanner>_<tier>`, else `default`), a hang returns 124 or 137 so the gate logs `TIMED OUT` and the part's process group, including a scanner child, is killed, and because `PRE_PUSH_PART_TIMEOUT` also binds every other part with no more specific variable (full-tier orc, api and iac) it must not be set to cap a full-tier orc run (raise that with `PRE_PUSH_ORC_FULL_TIMEOUT`); the full-tier `lint-gosec` has its own row (`lint_gosec_full`).
 
 A process a part leaves behind (a test's `setsid` child, a test daemon that
 escaped its cleanup) can no longer hold the hook past the part's budget
@@ -213,13 +213,6 @@ the same grace, and the log names each one: `WARN pre-push: orphan pid <pid>
 (<command>) still held the part's output pipe ...`. That line points at the
 test that leaks a process; fix the test, the hook only cleans up after it.
 The orc runner hands a test no fd beyond its own stdout and stderr.
-
-The orc base was 1800 s, a CI shard's time rather than the whole suite's.
-On the first desk box (16 cpus) every green full-tier orc run took longer:
-1941..2274 s at under 1 load per cpu (n=12, 2026-10-14..27), so a lane could
-not pass the full tier without being told to set `PRE_PUSH_ORC_FULL_TIMEOUT`
-(SPL-3748). 4000 s is 1.75 times the slowest of those runs, as the api and
-iac bases are; a hung suite still stops at the cap, after 100 minutes.
 
 <a id="ws-doc-2a614fe9-783d-4d85-bc3f-8d6843822bcf"></a>
 ## 2. Lint parts

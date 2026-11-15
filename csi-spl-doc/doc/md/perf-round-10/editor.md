@@ -97,7 +97,9 @@ retired-relay sweep, `/var/tmp/c209-probe/plant.txt`, copied into the export at
 run time), n=1, load 15.87: A 4,856 ms, B 1,581 ms, rc 1 / 1, the 17-line outputs
 identical (`diff` empty, sha `c52bfd09` both): every `::error::` and `ok -` line
 in the same order. Two runs before the series (n=2, load 17.18..17.81, same
-plant): A 4,089 / 4,056 ms, B 1,399 / 1,555 ms, outputs identical.
+plant): A 4,089 / 4,056 ms, B 1,399 / 1,555 ms, outputs identical; these two are
+terminal output only, kept in no file (g-223 N3). The file-backed plant run is
+`parab-plant.txt`, n=1.
 
 A temporary assignment before a function call reaches a background child forked
 inside it, also after the function returned:

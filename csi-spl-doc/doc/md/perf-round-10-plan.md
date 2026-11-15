@@ -19,7 +19,7 @@ no measured gain is dropped).
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Vendor claude for
   every row.**
 
-**Status: v0.1, draft** on `review/c002-perf-round-10-planner`. Editor: c-209@PC
+**Status: v1.0, for re-signing** on `review/c002-perf-round-10-planner`. Editor: c-209@PC
 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 17:4xZ, answering c-001 SPAWN SUPPLY
@@ -88,7 +88,7 @@ Inputs read (brief step 2), each carried finding re-checked on `0d5d699d6`:
 
 | # | id | practice | baseline on `0d5d699d6` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 | `perf(p10-01-ci-hygiene-sweeps-concurrent)` | the seven sweeps of the Sweep step run at once: `sweep()` forks its body into the background, which writes its output and its verdict to a numbered file; one join before the `.vibe/` check waits for them, prints the outputs in call order and folds the verdicts into `fail`. The seven call lines stay byte for byte | `parab.sh` arm A (editor 2.3): wf10's Sweep step as it runs today (`cd <export> && bash <step>`, the step read out of wf10 with `do_check_dist_hygiene`'s own `yq` line) over a tracked-file export: **3,397 ms (median, n=7; 3,083..4,804)** | arm B: **1,361 ms (median, n=7; 1,149..1,789), -60%**, B below its paired A 7 of 7; the whole output (stdout+stderr) identical 7 of 7 on the clean tree and 3 of 3 with a 6-line plant (rc 1 both, every `::error::` and `ok -` line in the same order) | `wf10:1708-1744` (`sweep()`), the join before `:1804` (the `.vibe/` check); the calls `:1745`, `:1746`, `:1748`, `:1750`, `:1751`, `:1777`, `:1795` unchanged | `iac/src/bash/tests/check-dist-hygiene.tst.sh`, a new case: a `grep` PATH shim whose recursive calls wait, bounded (`wait_event`), until a second recursive call has begun: the seven sweeps -> **2 or more** calls in flight and no call that timed out alone (today **1** in flight: every call times out alone); with a plant in the first and the last sweep, both hits printed, in wf10's order, and the step exits 1. Red: today's step -> 1 in flight, FAIL. The four readers of the call lines (below) and the `hygiene-*.tst.sh` controls run unchanged | either fleet box | claude / simple_coding (R9: a CI gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1 |
+| 01 | `perf(p10-01-ci-hygiene-sweeps-concurrent)` | the seven sweeps of the Sweep step run at once: `sweep()` forks its body into the background, which writes its output and its verdict to the next numbered slot of one temp dir; the step's own `echo` lines between the sweeps (the hidden-workspace block `:1769-1786`) go to a slot too, so the output keeps today's order on every branch; the join runs in the step's EXIT trap, after whatever `sweep` ran last, prints the slots in order and folds every verdict into the exit status; HUP / INT / TERM traps stop the step's own sweep jobs and remove the dir. The seven call lines stay byte for byte (W1-W3, section 4) | `parab.sh` arm A (editor 2.3): wf10's Sweep step as it runs today (`cd <export> && bash <step>`, the step read out of wf10 with `do_check_dist_hygiene`'s own `yq` line) over a tracked-file export: **3,397 ms (median, n=7; 3,083..4,804)** | arm B: **1,361 ms (median, n=7; 1,149..1,789), -60%**, B below its paired A 7 of 7; the whole output (stdout+stderr) identical 7 of 7 on the clean tree and 3 of 3 with a 6-line plant (rc 1 both, every `::error::` and `ok -` line in the same order) | `wf10:1708-1736` (`sweep()`), `:1769-1786` (the hidden-workspace block's `echo` branches), the traps and the join near the step's start (`:1681`, after `fail=0`); 3 edit ranges. Unchanged: the calls `:1745`, `:1746`, `:1748`, `:1750`, `:1751`, `:1777`, `:1795`, `allowed()` `:1702-1707` and `exit "$fail"` `:1813` | `iac/src/bash/tests/check-dist-hygiene.tst.sh`, a new case: a 7-way barrier, a `grep` PATH shim whose recursive calls each wait, bounded (`wait_event`, `csi-spl-orc/src/bash/tests/wait-event.inc.sh:17`, or the same bounded poll), until 7 recursive calls are in flight; run over `$T/loc` with an overlay fixture (`$T/overlay.yaml`) so all seven sweeps run -> **7** in flight, **0** timeouts (today **1** in flight, every call times out); on the no-overlay branch the `::warning::` line still prints between sweep 5's verdict and sweep 7's; with a plant in the first and the last sweep both hits print in wf10's order and the step exits 1. Red: today's step -> 1 in flight, FAIL. Also run unchanged and green: CONTROL a (`:118`, the doctored `sweep` above `exit "$fail"`), `hygiene-killed-cleanup.tst.sh` (`:41-55`, nothing left in `$TMPDIR` after a kill), the `hygiene-*.tst.sh` controls, `oss-export-gate.tst.sh` (its parser, `oss-gate.func.sh:104-118`, reads the Sweep output), and the readers of the call lines: `repodocs/sync-hygiene.sh --check`, `go test -count=1 ./internal/repodocs/`, `release-note-bans-seed.tst.sh`, `blog-check.tst.sh` | either fleet box | claude / simple_coding (R9: a CI gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1, after R3 (below: ask c-244 first) |
 | 02 | `perf(p10-02-iac-cleancode-walk-one-awk)` | `measure()` runs ONE `awk` over every file (the same three rules on `FNR`, and `FNR == 1` resets the open function and sets the file's repo-relative name) instead of one `awk` per file | `bcc.sh` arm A (editor 2.4): today's `measure` over the walk's **1,200** files: **1,577 ms (median, n=15; 1,331..2,236)**; the whole `bash-cleancode.tst.sh`: **1,437 ms (median, n=7; 1,174..2,235)** | arm B: `measure` **37 ms (median, n=15; 33..53)**, the 7,013 output lines identical 15 of 15; the whole test **173 ms (median, n=7; 161..309), -88%**, rc 0 and the same 13 `PASS` lines | `iac/src/bash/tests/bash-cleancode.tst.sh:42-51` (`measure`), its comment `:36-41` | the same file, a new CONTROL: an `awk` PATH shim that logs each call, then runs the real `awk`: `measure` over 3 fixture files -> **1** call (today **3**); and a fixture whose first file ends inside an open function and whose second file starts with a `}` line -> no line for the open function (the per-file reset). Red: today's `measure` -> 3 calls, FAIL. The existing CONTROLs (4-line, one-liner then 100, inline close, subshell body, the `LONG` ceiling) still pass | either fleet box | claude / simple_coding (R9: a gate test) | 1, after R3 (below) |
 
 Rows 01-02 are claude: rulebook R14 (an established vendor for every row) and the
@@ -100,8 +100,9 @@ owner's 10-17 rule (no mistral coding or testing).
 - **Batch 1**: rows 01, 02. No path is in two rows: 01 wf10 and
   `check-dist-hygiene.tst.sh`; 02 `bash-cleancode.tst.sh`.
 - Row 02's file is also the file of **r58-08** (`refactor-round-32-plan.md` row 08,
-  not landed: it deletes stale lines of the `LONG` list, `:8-13` today, and waits for
-  r57-06). The two hunks do not meet (`LONG` at `:8-13`, `measure()` at `:42-51`),
+  not landed: it deletes stale lines of the `LONG` list, `:25-30` today (the row cites
+  `:27-29`), and waits for r57-06). The two hunks do not meet (`LONG` at `:25-30`,
+  `measure()` and its comment at `:36-51`),
   but R1 serialises a shared file: row 02 is placed only while r58-08 is neither
   live nor queued (R3 re-read before the spawn); if r58-08 is placed first, row 02
   waits until it lands.
@@ -143,22 +144,45 @@ Read on 2026-11-15, each with its time:
 - **01**: `sweep()` keeps its body and runs it in a background subshell, `( fail=0;
   <body>; echo "$fail" >"$d/<n>.rc" ) >"$d/<n>.out" 2>&1 &`, numbered in call order
   under one `mktemp -d`; the `grep failed (rc > 1)` path still sets the sweep's
-  verdict to fail. A new join (one function, e.g. `sweep_wait`, a name the four
-  readers' `sweep[ \t]+"` match cannot take) runs once before the `.vibe/` check:
-  `wait`, then each `<n>.out` in order, and `fail=1` for any verdict that is not
-  `0` or is missing; it removes the dir. `skip_re` (set around `:1777`) is read by
-  that sweep's subshell when it forks, as today. The comment above `sweep()` says
-  the sweeps run at once, why (seven passes over one tree, none reads another's
-  result), and that the output order is the call order. `do_check_dist_hygiene`
-  reads the step out of wf10, so it follows without an edit. The four readers of
-  the call lines, `repodocs/sync-hygiene.sh:30`, `repodocs/drift_test.go:17`,
-  `spl-release-note-bans-seed.func.sh:75` and `blog-check.tst.sh:46`, are in the
-  test column and run unchanged. The lane re-runs `parab.sh` (n=7) on its tree and
-  states the outputs are identical.
-- **02**: `measure()` becomes one `awk -v root="$APP_ROOT/" '...' "$@"`; the rules
-  are today's with `FNR` for `NR`, plus `FNR == 1 { n = ""; f = <FILENAME without
-  root> }`, so a function left open at the end of one file is never closed by the
-  next file, as today. The callers (`:89`, the CONTROLs at `:103-123`, `grown()`)
+  verdict to fail. `skip_re` (set around `:1777`) is read by that sweep's subshell
+  when it forks, as today.
+  - **Order on every branch (W3.1).** The step's own lines between the sweeps, the
+    `echo` branches of the hidden-workspace block (`:1770`, `:1780`, `:1783`,
+    `:1785`), are written to the next numbered slot too (one small helper), so a
+    run without the private overlay (every pull request, `11_ci-public.yml`,
+    `oss_gate_hygiene` without an overlay, `check-dist-hygiene.tst.sh` cases 1-4)
+    prints today's lines in today's order. The `.vibe/` check after `:1795` stays in
+    the foreground and prints after the slots, as today.
+  - **The join is in the exit path (W1).** Near the step's start (after `fail=0`,
+    `:1681`) the step makes the dir and sets the traps. The EXIT trap is the join:
+    `wait` for the sweep jobs, print every slot in order, remove the dir, and exit
+    1 if `$fail` is set or any verdict is not `0` or is missing, else with the
+    status the step was leaving with. A `sweep` added anywhere above
+    `exit "$fail"`, as CONTROL a (`check-dist-hygiene.tst.sh:118`) adds one, is
+    joined like the seven; CONTROL a needs no edit.
+  - **Killed cleanly (W2).** `trap 'exit 129' HUP`, `'exit 130' INT`,
+    `'exit 143' TERM`, the `test-lib.inc.sh` `tmp_dir` form; on those the step
+    stops its own sweep jobs (`jobs -p`, its own children only) before the EXIT
+    trap removes the dir, so `hygiene-killed-cleanup.tst.sh` (`:41-55`) still finds
+    nothing left in `$TMPDIR`.
+  - The new helper and join take names the readers' `sweep[ \t]+"` match cannot
+    take (e.g. `sweep_join`). The comment above `sweep()` says the sweeps run at
+    once, why (seven passes over one tree, none reads another's result), that the
+    output order is the call order and where the join is. `do_check_dist_hygiene`
+    reads the step out of wf10, so it follows without an edit. The lane re-runs
+    `parab.sh` (n=7) on its tree and states the outputs are identical, also on the
+    no-overlay branch.
+  - **Before the spawn (R3, N3):** c-244@sat (`c001-bug-prepush-commit-body-hygiene`,
+    `unknown:` in the lane map) is asked whether it touches wf10 or
+    `check-dist-hygiene.tst.sh`; the row waits for its answer.
+- **02**: `measure()` becomes one `awk -v root="$APP_ROOT/" '...' "$@"`, guarded
+  `(( $# )) || return 0` (one `awk` with no file reads stdin); the rules are
+  today's with `FNR` for `NR`, with `FNR == 1 { n = ""; f = FILENAME; strip root }`
+  FIRST, before the function-header rule, so a function left open at the end of
+  one file is never closed by the next file, as today. `root` is stripped as a
+  literal (`index()` / `substr()`), never as a regex (`$T` paths hold `.`); the
+  probe ran under mawk 1.3.4, the box's `awk`; gawk is not on the box and was not
+  checked. The callers (`:89`, the CONTROLs at `:103-123`, `grown()`)
   need no edit; the 4-line CONTROL already accepts both name forms. The comment
   above `measure()` says one `awk` reads every file and why (one process per file
   cost 1.6 s of 1.2..3.3 s). The lane re-runs `bcc.sh` (n=15) on its tree and
@@ -176,9 +200,7 @@ cf7a7ee5; I found no newer word lifting it). The editor's box (PC) has agy
 - **Plan panel (rulebook 3.2)**: editor c-209@PC (claude). Seats asked of the
   dispatch holder c-002@sat: one **grok** seat and one **agy** seat, the agy seat
   on PC, where agy runs. Each seat signs the plan sha in `perf-round-10/<seat>.md`.
-  If no agy seat is placed by the end of the day phase, the holder may place a
-  claude seat in its place, as p9 did (the panel's other seat is then grok); that
-  is the holder's call, said in section 9.
+  Placed: **g-223@PC** (grok, ask b871d750) and **a-225@PC** (agy, ask 863edc86).
 - **Row reviewers (2.7.2)**: every row's author is claude, so its primary reviewer
   is the grok seat; the backup is the agy seat, or a second grok seat (mistral
   code reviews are paused). A row never pushes without that PASS (2.7.3).
@@ -188,7 +210,7 @@ cf7a7ee5; I found no newer word lifting it). The editor's box (PC) has agy
 
 | candidate | why not a row | measurement |
 |---|---|---|
-| a-827's input 4 (`perf-round-8-retro.md` section 8, carried in p9 section 6): the five eager orc files `spl-wd-takeover`, `spl-peer-crons`, `spl-wd-peers`, `spl-wd-ensure`, `spl-asks-open` | **dropped, no gain**: p9 measured the eager loop (-75 ms); the whole `./run` start does not move | whole start `./run -a do_p10_no_such_action` with and without the five (a probe-only skip in the eager loop), n=15 interleaved, load 15.60..17.95: **214 vs 209 ms** (medians), ranges 187..424 / 176..448 (editor 2.5). c-207's lane (SPL-5620, `review/c207-spl5620-orc-eager-88`, pushed 18:13Z) works the orc eager list outside this round |
+| a-827's input 4 (`perf-round-8-retro.md` section 8, carried in p9 section 6): the five eager orc files `spl-wd-takeover`, `spl-peer-crons`, `spl-wd-peers`, `spl-wd-ensure`, `spl-asks-open` | **dropped, no gain**: p9 measured the eager loop (-75 ms); the whole `./run` start does not move | whole start `./run -a do_p10_no_such_action` with and without the five (a probe-only skip in the eager loop), n=15 interleaved, load 15.60..17.95: **214 vs 209 ms** (medians), ranges 187..424 / 176..448 (editor 2.5). c-207's lane (SPL-5620, `review/c207-spl5620-orc-eager-88`, pushed 18:13Z) works the orc eager list outside this round; it landed as `e62583e01` (a-225 N5) |
 | a-827's input 1: `commit-links`' prd key lookup and hub call | **not here**: the part is 4 s (n=19, since p9) to 6 s (n=184, 24 h); with `COMMIT_LINKS_HUB=none` the action takes 362 ms (median, n=5), so ~3.5 s or more is the key lookup (`_spl_cl_hub`) and the hub call (`_spl_cl_hub_read`: cloud cnf, account pin, token, POST). Measuring it reads the prd key; this seat does not | input for round 11: a secret-class measurement lane (claude or grok) that times the two steps |
 | `iac-cross`'s `gcloud-account-pinned.tst.sh` (a `.` row: every push) | counted, not probed: no after arm. Its static scans are 475..731 ms of 1,511..2,474 ms (n=5); the rest is ~30 `bash -c` resolver cases | input for round 11 |
 | the hygiene part's two drift checks run after the dist sweep, one after the other | not here (R3): running them beside the sweep edits `check-pre-push.func.sh` (`_pp_part_hygiene`), named by queued asks f356b137 (orphan-pipe test, part timeout) and 2a38e34c (`_ppf_select` pipefail), queue read 18:13Z | fleet-rules drift 426..911 ms, Qto drift 244..391 ms (n=3, editor 2.2); carried |
@@ -221,6 +243,24 @@ and it lands on `master`, not from the review branch, as rounds 8 and 9 did; fro
 then on the Qto doc is the primary copy.
 
 - v0.1 (c-209@PC, 2026-11-15): first draft, 2 rows on `0d5d699d6`.
+- v1.0 (c-209@PC, 2026-11-15; g-223 PASS on `1fae9045a`, seat `fc4d19265`;
+  a-225 FAIL on `1fae9045a`, seat `b5ecd1db0`). Row 01's mechanism re-specified,
+  its gain unchanged: W1, the join moves from a fixed line before the `.vibe/`
+  check into the step's EXIT trap, so CONTROL a's doctored `sweep` above
+  `exit "$fail"` is joined; W2, HUP / INT / TERM traps stop the step's sweep jobs
+  and the dir is removed, `hygiene-killed-cleanup.tst.sh` in the test column;
+  W3.1, the hidden-workspace block's `echo` lines go to slots, so the output keeps
+  today's order on every branch, `oss-export-gate.tst.sh` in the test column;
+  W3.2, the test is a 7-way barrier over `$T/loc` with an overlay fixture (7 in
+  flight, 0 timeouts; today 1), `wait_event` cited at its orc path. W4 = g-223 N1:
+  the `LONG` list is `bash-cleancode.tst.sh:25-30`, not `:8-13`. a-225 N1: the
+  `sweep()` range is `:1708-1736`; `allowed()` named as unchanged. N2: the readers
+  are named by their runnable tests. N3: row 01's batch cell and section 4 carry
+  the c-244 pre-spawn ask. N4: row 02's zero-argument guard, `FNR == 1` first,
+  `root` stripped literally. N5: `e62583e01` landed. g-223 N3: editor 2.3 says the
+  two pre-series plant runs are terminal output, not a file. g-223 N2 and N4,
+  a-225's re-measure of row 02 (`measure` 1,646 -> 40.5 ms, n=10; whole test
+  1,504 -> 219 ms, n=7): no change needed. The row count stays 2.
 
 <a id="p10-consensus"></a>
 ## 9. Consensus
@@ -228,5 +268,6 @@ then on the Qto doc is the primary copy.
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
 | c-209@PC (editor) | claude | v0.1 | author |
-| grok seat | grok | v0.1 head | pending (asked of the holder) |
-| agy seat | agy | v0.1 head | pending (asked of the holder) |
+| g-223@PC | grok | `1fae9045a` (v0.1) | PASS, N1-N4 (seat `fc4d19265`), folded in v1.0 |
+| a-225@PC | agy | `1fae9045a` (v0.1) | FAIL, W1-W4 N1-N5 (seat `b5ecd1db0`), folded in v1.0 |
+| g-223@PC / a-225@PC | grok / agy | v1.0 head | pending |

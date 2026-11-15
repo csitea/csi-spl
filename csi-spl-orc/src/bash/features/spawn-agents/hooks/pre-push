@@ -181,40 +181,19 @@ _pp_gate() {  # <PRE_PUSH_ONLY> <PRE_PUSH_SKIP_PASSED>
       PRE_PUSH_PASS="$_pp_log_dir/pre-push.tree.pass" PRE_PUSH_SKIP_PASSED="$2" ./run -a do_check_pre_push )
 }
 
-# Poisoned shared git config guard -- BEFORE trusting show-toplevel, because a
-# core.worktree in the COMMON config points every worktree at ONE tree (measured:
-# core.worktree=<one lane> made every lane's git read that lane's files), and it
-# would otherwise pass every check below against the WRONG tree. A main checkout
-# misdetected as bare breaks git here too. Under the override these skip the
-# gate entirely (audited), so whoever is fixing the config can push the fix.
-common="$(git rev-parse --git-common-dir 2>/dev/null)"
-if [ "$_pp_override" = 1 ] && { { [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; } \
-     || [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; }; then
-  _pp_logline "OVERRIDE $PWD HEAD=$head remote=$_pp_remote -- SPL_PREPUSH_OVERRIDE=1 on a broken git config, gate SKIPPED"
-  echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- git config is broken here, deploy-gate SKIPPED (audited in $_pp_log)" >&2
-  exit 0
-fi
-if [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; then
-  _pp_logline "REFUSE $PWD -- common git config has core.worktree (poisoned shared tree)"
-  echo "pre-push: REFUSED -- the SHARED git config ($common/config) has core.worktree set; it points every worktree at one tree. Fix it ('git config -f $common/config --unset-all core.worktree') and tell the orchestrator. Override once with SPL_PREPUSH_OVERRIDE=1 only if you are the one fixing it." >&2
-  exit 1
-fi
-if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; then
-  _pp_logline "REFUSE $PWD -- git does not see a work tree here (bare misdetection?)"
-  echo "pre-push: REFUSED -- git does not resolve a working tree here (the shared config may have core.bare=true without the main worktree pinned false). Fix it and tell the orchestrator." >&2
-  exit 1
-fi
-
-# Commit-message hygiene (SPL-5613) -- before the wip skip and the override
-# branch: a push of ANY ref publishes its commit messages (2026-11-14: a wip
+# Commit-message hygiene (SPL-5613) -- before the poisoned-config guard, the
+# wip skip and the override branch: a push of ANY ref publishes its commit
+# messages (2026-11-14: a wip
 # push published a hidden workspace slug in a commit body, every gate green),
-# so SPL_PREPUSH_OVERRIDE=1 and a wip-only push do not skip it. Only the
+# so SPL_PREPUSH_OVERRIDE=1 (even on a poisoned shared config, R7 g-252 W1:
+# the sweep reads each message by sha, a wrong tree is no reason to skip it)
+# and a wip-only push do not skip it. No resolvable top: the hook's cwd. Only the
 # commits each ref adds: <remote sha>..<local sha>; a new ref, the commits not
 # on <remote>/master (origin/master when the remote is a URL); a delete
 # nothing. The sweep is do_check_commit_msg_hygiene of the pushing tree (the
 # file sweep's own patterns); a hit names the sha, the line and the pattern
 # label, never the text. A tree without that action is not asked.
-_pp_mtop="$(git rev-parse --show-toplevel 2>/dev/null)"
+_pp_mtop="$(git rev-parse --show-toplevel 2>/dev/null)" || _pp_mtop="$PWD"
 if [ -n "$_pp_mtop" ] && [ -r "$_pp_mtop/csi-spl-iac/src/bash/run/check-commit-msg-hygiene.func.sh" ] && [ -x "$_pp_mtop/csi-spl-iac/run" ]; then
   _pp_mrem="${1:-origin}"; case "$_pp_mrem" in */*|*:*) _pp_mrem=origin ;; esac
   _pp_mr=""
@@ -238,6 +217,30 @@ if [ -n "$_pp_mtop" ] && [ -r "$_pp_mtop/csi-spl-iac/src/bash/run/check-commit-m
       exit 1
     fi
   fi
+fi
+
+# Poisoned shared git config guard -- BEFORE trusting show-toplevel, because a
+# core.worktree in the COMMON config points every worktree at ONE tree (measured:
+# core.worktree=<one lane> made every lane's git read that lane's files), and it
+# would otherwise pass every check below against the WRONG tree. A main checkout
+# misdetected as bare breaks git here too. Under the override these skip the
+# gate entirely (audited), so whoever is fixing the config can push the fix.
+common="$(git rev-parse --git-common-dir 2>/dev/null)"
+if [ "$_pp_override" = 1 ] && { { [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; } \
+     || [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; }; then
+  _pp_logline "OVERRIDE $PWD HEAD=$head remote=$_pp_remote -- SPL_PREPUSH_OVERRIDE=1 on a broken git config, gate SKIPPED"
+  echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- git config is broken here, deploy-gate SKIPPED (audited in $_pp_log)" >&2
+  exit 0
+fi
+if [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; then
+  _pp_logline "REFUSE $PWD -- common git config has core.worktree (poisoned shared tree)"
+  echo "pre-push: REFUSED -- the SHARED git config ($common/config) has core.worktree set; it points every worktree at one tree. Fix it ('git config -f $common/config --unset-all core.worktree') and tell the orchestrator. Override once with SPL_PREPUSH_OVERRIDE=1 only if you are the one fixing it." >&2
+  exit 1
+fi
+if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; then
+  _pp_logline "REFUSE $PWD -- git does not see a work tree here (bare misdetection?)"
+  echo "pre-push: REFUSED -- git does not resolve a working tree here (the shared config may have core.bare=true without the main worktree pinned false). Fix it and tell the orchestrator." >&2
+  exit 1
 fi
 
 # Spec 102 section 5.4: a push whose remote refs are ALL refs/heads/wip/* (the

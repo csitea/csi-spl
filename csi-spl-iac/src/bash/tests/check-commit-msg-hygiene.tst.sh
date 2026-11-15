@@ -19,7 +19,8 @@
 #      the stderr names the sha and the pattern, the remote ref is not made
 #   7. a clean wip push, and a lane push over a remote that already holds
 #      the planted commit, -> pushed (only <remote sha>..<local sha> is read)
-#   8. SPL_PREPUSH_OVERRIDE=1 does not skip it
+#   8. SPL_PREPUSH_OVERRIDE=1 does not skip it, also on a poisoned shared
+#      config (core.worktree in the common config; R7 g-252 W1)
 #   The banned literal is assembled at run time, so this file carries none.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -137,6 +138,14 @@ grep -qw "$banned" "$T/out" && fail "6. the hook output prints the matched liter
 push SPL_PREPUSH_OVERRIDE=1 -- "$WBAD:refs/heads/wip/c-999-x"; rc=$?
 [[ $rc -ne 0 ]] && grep -q "$WBAD" "$T/out" && pass "8. SPL_PREPUSH_OVERRIDE=1 does not skip it" \
   || { fail "8. the override skipped the message sweep (rc=$rc)"; show; }
+# R7 g-252 W1: the override on a POISONED shared config (core.worktree in the
+# common config) exits before the gate; the sweep runs before that guard
+git -C "$R" config core.worktree "$R"
+push SPL_PREPUSH_OVERRIDE=1 -- "$WBAD:refs/heads/wip/c-999-x"; rc=$?
+git -C "$R" config --unset core.worktree
+[[ $rc -ne 0 ]] && grep -q "\./$WBAD\.msg:3" "$T/out" && ! git -C "$REM" rev-parse -q --verify refs/heads/wip/c-999-x >/dev/null \
+  && pass "8. SPL_PREPUSH_OVERRIDE=1 on a poisoned shared config does not skip it either" \
+  || { fail "8. the override on a poisoned config skipped the message sweep (rc=$rc)"; show; }
 push X=1 -- "$CLEAN:refs/heads/wip/c-999-y"; rc=$?
 [[ $rc -eq 0 ]] && pass "7. a clean wip push goes through (the remote's master holds the planted commit: not re-read)" \
   || { fail "7. a clean wip push was refused (rc=$rc)"; show; }

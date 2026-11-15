@@ -121,8 +121,9 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
     on those messages, so a reword re-runs the gate.
   - the hook itself, uncached, over exactly what each pushed ref adds:
     `<remote sha>..<local sha>`, and for a new ref the commits not on
-    `<remote>/master`. It runs before the wip skip and the override, so
-    neither `SPL_PREPUSH_OVERRIDE=1` nor a wip-only push skips it.
+    `<remote>/master`. It runs before the poisoned-config guard, the wip
+    skip and the override, so neither `SPL_PREPUSH_OVERRIDE=1` (on any git
+    config) nor a wip-only push skips it.
   A refused watchdog wip push (`do_spl_lane_wip_push`) keeps the work local.
   It sends ONE blocker to the lane and the orchestrator, naming the sha:line
   and the pattern, on task `wip-hygiene-<id>`. The same hits are not sent
@@ -144,7 +145,9 @@ push again, and the hook's refusal says so.
 On 2026-10-04 an override that skipped everything landed a duplicate
 migration 0119. Only a poisoned shared git config (`core.worktree` in the
 common config), which makes the gate read the wrong tree, skips them too
-(audited) so whoever fixes it can push the fix.
+(audited) so whoever fixes it can push the fix. The commit-message sweep
+(section 1.1) runs before that guard: it reads each message by sha, so the
+poisoned config never skips it.
 
 <a id="ws-doc-0c7adbf7-0d0b-408b-be5a-fd5b40ff37da"></a>
 ### 1.3 Pre-existing on trunk: same failures, not the same exit code

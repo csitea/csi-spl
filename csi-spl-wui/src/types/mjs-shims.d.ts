@@ -142,6 +142,10 @@ declare module '~/utils/spool-client.mjs' {
     listTenantChannels(): Promise<unknown>
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>
     archiveTenantChannel(channel: string): Promise<null>
+    /* spec 164 B6: GET /v1/pins and a channel's box pins (hub routes of B2) */
+    listPins(): Promise<{ pins?: Array<{ box_id: string, pubkey?: string }> }>
+    getChannelBoxPins(channel: string): Promise<{ channel?: string, box_pins?: string[], is_pinned?: boolean }>
+    setChannelBoxPins(channel: string, boxes: string[]): Promise<{ channel?: string, box_pins?: string[], is_pinned?: boolean }>
     getPerfSummary(opts?: { days?: number, build?: string, buildB?: string }): Promise<unknown>
     /** HUM-10: GET /v1/tenant/box-stats (rdb 0117); mock: no history. */
     boxStats(opts?: { box?: string, since?: string }): Promise<unknown>
@@ -1511,7 +1515,7 @@ declare module '~/utils/tenant-settings.mjs' {
   export const AGENT_SPLIT_KINDS: readonly string[]
   export const DEFAULT_AGENT_SPLIT: AgentSplit
   export function agentSplitOf(raw: unknown): AgentSplit
-  export type TenantChannel = { channel: string, name: string, description: string, visibility: 'default' | 'members', members: number, agents: number, messages: number, noFallback: boolean, createdBy: string, lastTs: string, archivable: boolean }
+  export type TenantChannel = { channel: string, name: string, description: string, visibility: 'default' | 'members', members: number, agents: number, messages: number, noFallback: boolean, createdBy: string, lastTs: string, archivable: boolean, boxPins: string[] }
   export function normalizeTenantSettings(body: unknown): TenantSettings
   export function normalizeTenantChannels(body: unknown): TenantChannel[]
   export function validResponderId(s: unknown): boolean
@@ -1519,6 +1523,13 @@ declare module '~/utils/tenant-settings.mjs' {
   export function moveItem<T>(list: T[], i: number, delta: number): T[]
   export function tenantSettingsErrorKey(err: unknown): string
   export function marketingSaysWhy(part: 'switch' | 'publish', err: unknown): boolean
+  /* spec 164 B6: a channel's box pins ([] = any box of the workspace) */
+  export function boxIdsOf(list: unknown): string[]
+  export function workspaceBoxIds(body: unknown): string[]
+  export function normalizeChannelBoxPins(body: unknown): { boxPins: string[], pinned: boolean }
+  export function channelBoxChoices(workspace: string[], pinned: string[]): string[]
+  export function channelBoxPinsBody(anyBox: boolean, ticked: string[]): { box_pins: string[] }
+  export function channelBoxPinsErrorKey(err: unknown): string
   export type SplitKindRow = { kind: string, weights: AgentSplit, backup: string, main: string, set: boolean, updatedBy: string, updatedAt: string }
   export const SPLIT_TASK_KINDS: readonly string[]
   export const DEFAULT_SPLIT_KINDS: Readonly<Record<string, { weights: AgentSplit, backup: string }>>

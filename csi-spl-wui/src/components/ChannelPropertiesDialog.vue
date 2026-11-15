@@ -326,6 +326,69 @@
         </label>
         <p class="muted" data-testid="channel-ai-agents-hint">{{ t(aiAgentsOn ? 'channels.properties.ai_agents_on_hint' : 'channels.properties.ai_agents_off_hint') }}</p>
         <p v-if="loaded && !canEditAIAgents" class="muted" data-testid="channel-ai-agents-edit-only">{{ t('channels.properties.ai_agents_edit_only') }}</p>
+        <!-- spec 164 B6: the boxes this channel runs on. Any box of the
+             workspace by default; a workspace admin (tenant.settings) may fix
+             it to some of them. A default channel's save shows the hub's
+             refusal (channel_default_unpinnable), never a silent save. -->
+        <fieldset class="channel-boxes" data-testid="channel-boxes">
+          <legend class="channel-boxes__label">{{ t('channels.properties.boxes_label') }}</legend>
+          <p v-if="!boxes.loaded" class="muted">{{ t('common.loading') }}</p>
+          <template v-else-if="!boxes.failed">
+            <label class="channel-properties__check">
+              <input
+                type="radio"
+                name="channel-boxes-mode"
+                data-testid="channel-boxes-any"
+                :checked="boxes.any"
+                :disabled="!canEditBoxes || busy"
+                @change="boxes.any = true"
+              >
+              <span>{{ t('channels.properties.boxes_any') }}</span>
+            </label>
+            <label class="channel-properties__check">
+              <input
+                type="radio"
+                name="channel-boxes-mode"
+                data-testid="channel-boxes-some"
+                :checked="!boxes.any"
+                :disabled="!canEditBoxes || busy"
+                @change="boxes.any = false"
+              >
+              <span>{{ t('channels.properties.boxes_some') }}</span>
+            </label>
+            <div
+              v-if="!boxes.any"
+              class="channel-boxes__list"
+              role="group"
+              :aria-label="t('channels.properties.boxes_some')"
+              data-testid="channel-boxes-list"
+            >
+              <label v-for="box in boxes.choices" :key="box" class="channel-properties__check">
+                <input
+                  v-model="boxes.ticked"
+                  type="checkbox"
+                  :value="box"
+                  :data-testid="'channel-box-' + box"
+                  :disabled="!canEditBoxes || busy"
+                >
+                <span>{{ box }}</span>
+              </label>
+              <p v-if="boxes.choices.length === 0" class="muted" data-testid="channel-boxes-none">{{ t('channels.properties.boxes_none') }}</p>
+            </div>
+            <button
+              v-if="canEditBoxes"
+              type="button"
+              class="btn channel-boxes__save"
+              data-testid="channel-boxes-save"
+              :disabled="busy || !boxesDirty || (!boxes.any && boxes.ticked.length === 0)"
+              @click="saveBoxes"
+            >{{ t('channels.properties.boxes_save') }}</button>
+            <p v-else class="muted" data-testid="channel-boxes-readonly">{{ t('channels.properties.boxes_readonly') }}</p>
+          </template>
+          <p class="muted" data-testid="channel-boxes-hint">{{ t('channels.properties.boxes_hint') }}</p>
+          <p v-if="boxes.notice" class="channel-boxes__notice" role="status" data-testid="channel-boxes-saved">{{ t(boxes.notice) }}</p>
+          <p v-if="boxes.error" class="invite-error" role="alert" data-testid="channel-boxes-error">{{ t(boxes.error) }}</p>
+        </fieldset>
       </div>
     </div>
   </UiDialog>
@@ -365,6 +428,7 @@ import { useChannelPersonPick } from '~/composables/useChannelPersonPick'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanNames } from '~/composables/useHumanNames'
+import { channelBoxChoices, channelBoxPinsBody, channelBoxPinsErrorKey, normalizeChannelBoxPins, workspaceBoxIds } from '~/utils/tenant-settings.mjs'
 import HumanName from '~/components/HumanName.vue'
 
 const props = defineProps<{
@@ -486,6 +550,21 @@ const { personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson } = 
   api, props, people, busy, canAdd, error, selfId, localMembers, localInvited, chosenPerson, personQuery,
 })
 
+// spec 164 B6 (SPL-5560): the channel's box pins, read when the Settings
+// tab is first shown. [] = any box of the workspace (the default). Declared
+// before the immediate open watcher below, which resets it on mount.
+const canEditBoxes = computed(() => access.can('tenant.settings'))
+const boxes = reactive({ asked: false, loaded: false, failed: false, any: true, ticked: [] as string[], saved: [] as string[], choices: [] as string[], error: '', notice: '' })
+const boxesDirty = computed(() => (boxes.any ? boxes.saved.length > 0 : [...boxes.ticked].sort().join() !== boxes.saved.join()))
+function resetBoxes() {
+  Object.assign(boxes, { asked: false, loaded: false, failed: false, any: true, ticked: [], saved: [], choices: [], error: '', notice: '' })
+}
+function showBoxPins(pins: string[]) {
+  boxes.saved = pins
+  boxes.ticked = [...pins]
+  boxes.any = pins.length === 0
+}
+
 // immediate: SPL-1204 gates this dialog behind v-if in the sidebar, so it now
 // mounts with open already true (channel_id and open are set in the same tick).
 // Without immediate the false->true transition happens before this watcher
@@ -513,6 +592,7 @@ watch(() => props.open, async (isOpen) => {
   personQuery.value = ''
   chosenAgent.value = null
   agentQuery.value = ''
+  resetBoxes()
   try {
     // SPL-3717: the roster is read into the shared store, so its presence is
     // fresh on open and the badges below stay live with the socket's frames.
@@ -547,6 +627,46 @@ watch(() => props.open, async (isOpen) => {
     if (my === ticket) loaded.value = true
   }
 }, { immediate: true })
+
+async function loadBoxes() {
+  const my = ticket
+  boxes.asked = true
+  try {
+    const [mine, all] = await Promise.all([
+      withSessionRetry(api, () => api.getChannelBoxPins(props.channelId)),
+      withSessionRetry(api, () => api.listPins()),
+    ])
+    if (my !== ticket) return
+    const { boxPins } = normalizeChannelBoxPins(mine)
+    showBoxPins(boxPins)
+    boxes.choices = channelBoxChoices(workspaceBoxIds(all), boxPins)
+  } catch {
+    if (my !== ticket) return
+    boxes.failed = true
+    boxes.error = 'channels.properties.boxes_error.load'
+  } finally {
+    if (my === ticket) boxes.loaded = true
+  }
+}
+watch(() => props.open && tab.value === 'settings', (shown) => {
+  if (shown && !boxes.asked) void loadBoxes()
+}, { immediate: true })
+async function saveBoxes() {
+  if (!canEditBoxes.value || busy.value || boxes.failed) return
+  busy.value = true
+  boxes.error = ''
+  boxes.notice = ''
+  try {
+    const body = channelBoxPinsBody(boxes.any, boxes.ticked)
+    const saved = await withSessionRetry(api, () => api.setChannelBoxPins(props.channelId, body.box_pins))
+    showBoxPins(normalizeChannelBoxPins(saved).boxPins)
+    boxes.notice = 'channels.properties.boxes_saved'
+  } catch (e) {
+    boxes.error = channelBoxPinsErrorKey(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 async function onToggleAIAgents(ev: Event) {
   const input = ev.target
@@ -661,6 +781,26 @@ async function onToggle(ev: Event) {
 .agent-state--online { color: var(--color-ok); }
 .agent-state--offline { color: var(--color-warn); }
 .agent-state--unseated { color: var(--color-danger); }
+/* spec 164 B6: the Boxes choice in the Settings tab. */
+.channel-boxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.channel-boxes__label { padding: 0; font-weight: 600; }
+.channel-boxes__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-inline-start: 1.5rem;
+  min-width: 0;
+}
+.channel-boxes__save { align-self: flex-start; }
+.channel-boxes__notice { margin: 0; color: var(--color-ok); }
 /* SPL-997: the fallback responder line under the agent list. */
 .fallback-line {
   display: flex;
@@ -769,6 +909,8 @@ async function onToggle(ev: Event) {
   .invite-add__option { min-height: var(--tap, 44px); }
   .invite-add__chevron { min-width: var(--tap, 44px); }
   .member-rows li { min-height: var(--tap, 44px); }
+  .channel-boxes .channel-properties__check,
+  .channel-boxes__save { min-height: var(--tap, 44px); align-items: center; }
   .member-rows .icon-btn,
   .channel-properties__head .icon-btn { width: var(--tap, 44px); height: var(--tap, 44px); }
 }

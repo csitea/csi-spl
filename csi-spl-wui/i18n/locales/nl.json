@@ -1268,7 +1268,23 @@
       "fallback_none": "Er is geen agent online in deze werkruimte: een bericht hier bereikt nu geen agent.",
       "fallback_recent": "{count} onbeantwoorde berichten gingen er de afgelopen 7 dagen naartoe, het nieuwste naar {id} om {at} UTC",
       "fallback_off": "uit voor dit kanaal: een onbeantwoord bericht hier bereikt geen agent",
-      "default_everyone": "Iedereen zit in een standaardkanaal en niemand kan eruit worden verwijderd. Een agent zit er pas in als iemand hem toevoegt."
+      "default_everyone": "Iedereen zit in een standaardkanaal en niemand kan eruit worden verwijderd. Een agent zit er pas in als iemand hem toevoegt.",
+      "boxes_label": "Boxen",
+      "boxes_any": "Elke box (standaard)",
+      "boxes_some": "Alleen deze boxen",
+      "boxes_none": "Er is nog geen box aan deze werkruimte vastgezet.",
+      "boxes_save": "Boxen opslaan",
+      "boxes_saved": "Boxen opgeslagen.",
+      "boxes_readonly": "Alleen een beheerder van de werkruimte kan de boxen wijzigen.",
+      "boxes_hint": "Standaard draait een kanaal op elke box van de werkruimte. Als het op enkele boxen is vastgezet, ontvangen alleen die de berichten ervan en draaien alleen die de agents ervan.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Een standaardkanaal blijft op elke box: het kan niet worden vastgezet.",
+        "unknown_box": "Die box is niet aan deze werkruimte vastgezet, of is ingetrokken.",
+        "unknown_channel": "Dit kanaal bestaat niet meer.",
+        "forbidden": "Alleen een beheerder van de werkruimte kan de boxen wijzigen.",
+        "generic": "De boxen konden niet worden opgeslagen. Probeer het opnieuw.",
+        "load": "De boxen konden niet worden geladen."
+      }
     }
   },
   "users": {
@@ -2112,7 +2128,9 @@
     "cost_alloc_refused": "Niet opgeslagen: {why}",
     "cost_alloc_error": "De kostenverdelingen konden niet worden gelezen.",
     "cost_alloc_retry": "Opnieuw proberen",
-    "cost_alloc_nothing": "Er zijn geen kosten die jij kunt verdelen."
+    "cost_alloc_nothing": "Er zijn geen kosten die jij kunt verdelen.",
+    "col_boxes": "Boxen",
+    "boxes_any": "Elke box"
   },
   "help": {
     "title": "Hulp",

@@ -76,6 +76,8 @@ export function normalizeTenantChannels(body) {
     createdBy: str(c.created_by),
     lastTs: str(c.last_ts),
     archivable: c.archivable === true,
+    /* spec 164 B6: [] = any box of the workspace (the default) */
+    boxPins: boxIdsOf(c.box_pins),
   }))
   rows.sort((a, b) => (a.visibility === b.visibility ? a.name.localeCompare(b.name) : a.visibility === 'default' ? -1 : 1))
   return rows
@@ -193,4 +195,46 @@ export function normalizeAgentSplitKinds(body) {
     }
     return { kind, weights, backup, main: splitMainOf(weights), set: src.set === true, updatedBy: str(src.updated_by), updatedAt: str(src.updated_at) }
   })
+}
+
+/* spec 164 row B6 (SPL-5560): a channel's box pins. No pin = any box of the
+   workspace (owner HUM-10, t1 021d4921 msg 6b6d092c); an admin may fix a
+   channel to some of the workspace's pinned boxes. */
+
+/** A list of box ids, trimmed, deduped and sorted; anything else is []. */
+export function boxIdsOf(list) {
+  const ids = (Array.isArray(list) ? list : []).filter((b) => typeof b === 'string').map((b) => b.trim()).filter(Boolean)
+  return [...new Set(ids)].sort()
+}
+
+/** A GET /v1/pins body ({ pins: [{ box_id, pubkey }] }) → the workspace's box ids. */
+export function workspaceBoxIds(body) {
+  const pins = body && typeof body === 'object' && Array.isArray(body.pins) ? body.pins : []
+  return boxIdsOf(pins.map((p) => (p && typeof p === 'object' ? p.box_id : '')))
+}
+
+/** A GET/PUT /v1/channels/{channel}/box-pins body → { boxPins, pinned }. */
+export function normalizeChannelBoxPins(body) {
+  const boxPins = boxIdsOf(body && typeof body === 'object' ? body.box_pins : [])
+  return { boxPins, pinned: boxPins.length > 0 }
+}
+
+/**
+ * The boxes the dialog offers: every pinned box of the workspace, plus a
+ * channel pin whose box left the workspace (so the admin sees and can drop it).
+ */
+export function channelBoxChoices(workspace, pinned) {
+  return boxIdsOf([...boxIdsOf(workspace), ...boxIdsOf(pinned)])
+}
+
+/** The box_pins a save sends: [] for "any box", else the ticked boxes. */
+export function channelBoxPinsBody(anyBox, ticked) {
+  return { box_pins: anyBox ? [] : boxIdsOf(ticked) }
+}
+
+/** The i18n key for a refused box-pin call's hub token (the default channels' refusal included). */
+export function channelBoxPinsErrorKey(err) {
+  const token = err && typeof err.token === 'string' ? err.token : ''
+  const known = ['channel_default_unpinnable', 'unknown_box', 'unknown_channel', 'forbidden']
+  return 'channels.properties.boxes_error.' + (known.includes(token) ? token : 'generic')
 }

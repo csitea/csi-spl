@@ -1268,7 +1268,23 @@
       "fallback_none": "No agent is online in this workspace: a post here reaches no agent now.",
       "fallback_recent": "{count} unanswered posts went to it in the last 7 days, the newest to {id} at {at} UTC",
       "fallback_off": "off for this channel: an unanswered post here reaches no agent",
-      "default_everyone": "Every person is in a default channel, and nobody can be removed from it. An agent is in it only once someone adds it."
+      "default_everyone": "Every person is in a default channel, and nobody can be removed from it. An agent is in it only once someone adds it.",
+      "boxes_label": "Boxes",
+      "boxes_any": "Any box (default)",
+      "boxes_some": "Only these boxes",
+      "boxes_none": "No box is pinned to this workspace yet.",
+      "boxes_save": "Save boxes",
+      "boxes_saved": "Boxes saved.",
+      "boxes_readonly": "Only a workspace admin can change the boxes.",
+      "boxes_hint": "By default a channel runs on any box of the workspace. Pinned to some boxes, only those receive its posts and run its agents.",
+      "boxes_error": {
+        "channel_default_unpinnable": "A default channel stays on every box: it cannot be pinned.",
+        "unknown_box": "That box is not pinned to this workspace, or it was revoked.",
+        "unknown_channel": "This channel no longer exists.",
+        "forbidden": "Only a workspace admin can change the boxes.",
+        "generic": "The boxes could not be saved. Try again.",
+        "load": "The boxes could not be loaded."
+      }
     }
   },
   "users": {
@@ -2112,7 +2128,9 @@
     "cost_alloc_refused": "Not saved: {why}",
     "cost_alloc_error": "Cost allocations could not be read.",
     "cost_alloc_retry": "Retry",
-    "cost_alloc_nothing": "There is no cost for you to allocate."
+    "cost_alloc_nothing": "There is no cost for you to allocate.",
+    "col_boxes": "Boxes",
+    "boxes_any": "Any box"
   },
   "help": {
     "title": "Help",

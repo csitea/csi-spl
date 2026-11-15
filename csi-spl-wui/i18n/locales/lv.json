@@ -1268,7 +1268,23 @@
       "fallback_none": "Šajā darbvietā neviens aģents nav tiešsaistē: ieraksts šeit tagad nesasniedz nevienu aģentu.",
       "fallback_recent": "{count} neatbildēti ieraksti pēdējās 7 dienās nonāca pie tā, jaunākais pie {id} {at} UTC",
       "fallback_off": "izslēgts šajā kanālā: neatbildēts ieraksts šeit nesasniedz nevienu aģentu",
-      "default_everyone": "Noklusējuma kanālā ir visi cilvēki, un nevienu no tā nevar noņemt. Aģents tajā ir tikai tad, kad kāds to pievieno."
+      "default_everyone": "Noklusējuma kanālā ir visi cilvēki, un nevienu no tā nevar noņemt. Aģents tajā ir tikai tad, kad kāds to pievieno.",
+      "boxes_label": "Kastes",
+      "boxes_any": "Jebkura kaste (noklusējums)",
+      "boxes_some": "Tikai šīs kastes",
+      "boxes_none": "Šai darbvietai vēl nav piesprausta neviena kaste.",
+      "boxes_save": "Saglabāt kastes",
+      "boxes_saved": "Kastes saglabātas.",
+      "boxes_readonly": "Kastes var mainīt tikai darbvietas administrators.",
+      "boxes_hint": "Pēc noklusējuma kanāls darbojas jebkurā darbvietas kastē. Ja tas ir piesprausts dažām kastēm, tikai tās saņem tā ziņas un palaiž tā aģentus.",
+      "boxes_error": {
+        "channel_default_unpinnable": "Noklusējuma kanāls paliek visās kastēs: to nevar piespraust.",
+        "unknown_box": "Šī kaste nav piesprausta šai darbvietai vai ir atsaukta.",
+        "unknown_channel": "Šis kanāls vairs nepastāv.",
+        "forbidden": "Kastes var mainīt tikai darbvietas administrators.",
+        "generic": "Kastes neizdevās saglabāt. Mēģiniet vēlreiz.",
+        "load": "Kastes neizdevās ielādēt."
+      }
     }
   },
   "users": {
@@ -2112,7 +2128,9 @@
     "cost_alloc_refused": "Nav saglabāts: {why}",
     "cost_alloc_error": "Izmaksu sadales neizdevās nolasīt.",
     "cost_alloc_retry": "Mēģināt vēlreiz",
-    "cost_alloc_nothing": "Jums nav izmaksu, ko sadalīt."
+    "cost_alloc_nothing": "Jums nav izmaksu, ko sadalīt.",
+    "col_boxes": "Kastes",
+    "boxes_any": "Jebkura kaste"
   },
   "help": {
     "title": "Palīdzība",

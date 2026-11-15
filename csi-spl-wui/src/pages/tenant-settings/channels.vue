@@ -2,7 +2,8 @@
      tenant, the private ones the admin is not in too (names and counts only,
      never a message): visibility, members, agents, the no-fallback flag
      (SPL-997 FR-039), and Archive (the 041-style soft delete, behind a
-     confirm). Default channels cannot be archived. tenant.settings. -->
+     confirm). Default channels cannot be archived. tenant.settings.
+     spec 164 B6: the Boxes column, "Any box" for an unpinned channel. -->
 <template>
   <SettingsSection id="tenant-channels" :title="t('tenant_settings.channels_title')" data-test="tenant-settings-channels">
     <p v-if="denied" class="muted" role="alert" data-test="tenant-section-forbidden">{{ t('tenant_settings.forbidden') }}</p>
@@ -17,6 +18,7 @@
             <th scope="col" class="ts-num">{{ t('tenant_settings.col_members') }}</th>
             <th scope="col" class="ts-num">{{ t('tenant_settings.col_agents') }}</th>
             <th scope="col">{{ t('tenant_settings.col_fallback') }}</th>
+            <th scope="col">{{ t('tenant_settings.col_boxes') }}</th>
             <th scope="col"><span class="sr-only">{{ t('tenant_settings.col_actions') }}</span></th>
           </tr>
         </thead>
@@ -40,6 +42,10 @@
                 >
                 <span>{{ c.noFallback ? t('tenant_settings.fallback_off') : t('tenant_settings.fallback_on') }}</span>
               </label>
+            </td>
+            <td class="ts-boxes" data-test="tenant-channel-boxes">
+              <span v-if="c.boxPins.length === 0" class="muted">{{ t('tenant_settings.boxes_any') }}</span>
+              <span v-else>{{ c.boxPins.join(', ') }}</span>
             </td>
             <td class="ts-act">
               <button
@@ -145,6 +151,7 @@ const { denied } = useTenantSectionGate('channels', () => { void load() })
 .ts-id { font-size: 0.75rem; }
 .ts-check { display: inline-flex; align-items: center; gap: 6px; }
 .ts-act { text-align: end; }
+.ts-boxes { overflow-wrap: anywhere; }
 .ts-danger { color: var(--color-danger); border-color: var(--color-danger); }
 .ts-hint { margin: 10px 0 0; }
 .ts-notice { margin: 8px 0 0; color: var(--color-ok); }

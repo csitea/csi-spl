@@ -476,7 +476,34 @@ function mockMarketing() {
   }
 }
 
+/* spec 164 B6: the hub's default channels, which stay on every box (B2's
+   400 channel_default_unpinnable), and the mock workspace's pinned boxes
+   (MOCK_ROSTER's machine boxes). */
+const MOCK_DEFAULT_CHANNELS = Object.freeze(['lobby', 'alerts', 'feedback', 'public', 'issues'])
+const MOCK_PINNED_BOXES = Object.freeze(['box-a', 'box-b', 'box-desk'])
+
+/** spec 164 B6: GET /v1/pins and a channel's box pins, with the hub's refusals (spec 164 4.1). */
+function mockChannelBoxPins() {
+  const pinned = {}
+  const boxPinsOf = (ch) => (pinned[ch] || []).slice()
+  return {
+    boxPinsOf,
+    pins: () => ({ pins: MOCK_PINNED_BOXES.map((box_id) => ({ box_id, pubkey: '' })) }),
+    channelBoxPins: (ch) => ({ channel: ch, box_pins: boxPinsOf(ch), is_pinned: boxPinsOf(ch).length > 0 }),
+    setChannelBoxPins(ch, boxes) {
+      if (!ch) throw mockErr(404, 'unknown_channel')
+      if (MOCK_DEFAULT_CHANNELS.includes(ch)) throw mockErr(400, 'channel_default_unpinnable')
+      const list = [...new Set(boxes.map((b) => String(b).trim()))].sort()
+      if (list.some((b) => !MOCK_PINNED_BOXES.includes(b))) throw mockErr(400, 'unknown_box')
+      if (list.length) pinned[ch] = list
+      else delete pinned[ch]
+      return { channel: ch, box_pins: boxPinsOf(ch), is_pinned: list.length > 0 }
+    },
+  }
+}
+
 export function createMockTenant() {
+  const boxPins = mockChannelBoxPins()
   const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0, codex: 0 } }
   const channels = MOCK_CHANNELS.map((c) => ({ ...c }))
   const kv = {}
@@ -525,7 +552,8 @@ export function createMockTenant() {
       return settings()
     },
     ...mockMarketing(),
-    channels: () => ({ tenant_id: 'mock', channels: channels.map((c) => ({ ...c })) }),
+    ...boxPins,
+    channels: () => ({ tenant_id: 'mock', channels: channels.map((c) => ({ ...c, box_pins: boxPins.boxPinsOf(c.channel) })) }),
     setNoFallback(id, off) {
       const c = channels.find((x) => x.channel === id)
       if (!c) throw mockErr(404, 'unknown_channel')

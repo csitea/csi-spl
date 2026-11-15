@@ -1268,7 +1268,23 @@
       "fallback_none": "Ingen agent är online i den här arbetsytan: ett inlägg här når ingen agent nu.",
       "fallback_recent": "{count} obesvarade inlägg gick till den de senaste 7 dagarna, det senaste till {id} kl. {at} UTC",
       "fallback_off": "av för den här kanalen: ett obesvarat inlägg här når ingen agent",
-      "default_everyone": "Alla personer är med i en standardkanal, och ingen kan tas bort från den. En agent är med först när någon lägger till den."
+      "default_everyone": "Alla personer är med i en standardkanal, och ingen kan tas bort från den. En agent är med först när någon lägger till den.",
+      "boxes_label": "Maskiner",
+      "boxes_any": "Vilken maskin som helst (standard)",
+      "boxes_some": "Bara de här maskinerna",
+      "boxes_none": "Ingen maskin är fäst vid den här arbetsytan än.",
+      "boxes_save": "Spara maskiner",
+      "boxes_saved": "Maskinerna har sparats.",
+      "boxes_readonly": "Bara en administratör för arbetsytan kan ändra maskinerna.",
+      "boxes_hint": "Som standard körs en kanal på vilken maskin som helst i arbetsytan. När den är fäst vid några maskiner tar bara de emot dess inlägg och kör dess agenter.",
+      "boxes_error": {
+        "channel_default_unpinnable": "En standardkanal finns kvar på alla maskiner: den kan inte fästas.",
+        "unknown_box": "Den maskinen är inte fäst vid den här arbetsytan, eller så har den återkallats.",
+        "unknown_channel": "Den här kanalen finns inte längre.",
+        "forbidden": "Bara en administratör för arbetsytan kan ändra maskinerna.",
+        "generic": "Maskinerna kunde inte sparas. Försök igen.",
+        "load": "Maskinerna kunde inte läsas in."
+      }
     }
   },
   "users": {
@@ -2112,7 +2128,9 @@
     "cost_alloc_refused": "Inte sparad: {why}",
     "cost_alloc_error": "Kostnadsfördelningarna kunde inte läsas.",
     "cost_alloc_retry": "Försök igen",
-    "cost_alloc_nothing": "Det finns ingen kostnad för dig att fördela."
+    "cost_alloc_nothing": "Det finns ingen kostnad för dig att fördela.",
+    "col_boxes": "Maskiner",
+    "boxes_any": "Vilken maskin som helst"
   },
   "help": {
     "title": "Hjälp",

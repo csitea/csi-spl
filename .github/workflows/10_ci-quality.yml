@@ -1734,13 +1734,21 @@ jobs:
               echo "ok - ${label}"
             fi
           }
-          sweep "non-Csitea org or bank reference" '(?i)nordea|\.op\.fi|op-pohjola'
-          sweep "personal name"                    '(?i)yordan|georgiev|sandholm|\bpetri\b' \
+          # SPL-5585 (perf round 9 row 03): these five patterns are ASCII, so
+          # they run under LC_ALL=C: grep -P reads bytes and decodes no UTF-8,
+          # -25..-31% on the tree with the same hits. The named narrowing:
+          # under C, (?i) folds ASCII only, so a word spelled with U+017F
+          # (folds to s) or U+212A (folds to k) is no longer caught. The
+          # retired-relay sweep below stays off C: its \x80-\xff class means
+          # bytes under C but U+0080..U+00FF under UTF-8.
+          # CONTROL: csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh
+          LC_ALL=C sweep "non-Csitea org or bank reference" '(?i)nordea|\.op\.fi|op-pohjola'
+          LC_ALL=C sweep "personal name"                    '(?i)yordan|georgiev|sandholm|\bpetri\b' \
                 "$allow_line" "gcp_account_owner_email key"
-          sweep "literal OS user / box / AD id"    '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\bz013503\b|wmpf5jz555|\btnk\b' \
+          LC_ALL=C sweep "literal OS user / box / AD id"    '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\bz013503\b|wmpf5jz555|\btnk\b' \
                 "$allow_user_line" "box_owner_user / box_agent_user keys"
-          sweep "personal home directory"          '/home/(?!runner\b)[a-z][a-z0-9_-]*/'
-          sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi' \
+          LC_ALL=C sweep "personal home directory"          '/home/(?!runner\b)[a-z][a-z0-9_-]*/'
+          LC_ALL=C sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi' \
                 "$allow_line" "gcp_account_owner_email key"
           # SPL-1874 (owner HUM-10, poll 6c701ac9): the hidden workspaces. Their
           # names are never in git, so the patterns come from the PRIVATE

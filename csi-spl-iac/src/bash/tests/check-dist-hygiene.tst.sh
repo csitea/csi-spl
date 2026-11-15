@@ -10,6 +10,12 @@
 #   4. spec 110 2.3: a tracked .vibe/hooks.toml (at the root or nested) -> rc 1
 #      naming it; the same file untracked, or a dir merely named like it
 #      (my.vibe/), -> rc 0
+#   5. SPL-5585 (perf round 9 row 03): the five ASCII sweeps run under
+#      LC_ALL=C -- a grep PATH shim logs the locale of each recursive call:
+#      5 calls under C, the retired-relay and hidden-workspace sweeps 1 call
+#      each under the locale they ran under before; a plant of one hit per
+#      ASCII sweep is still reported; the named narrowing is pinned: the
+#      same words spelled with U+017F / U+212A are NOT reported under C
 #   CONTROLS -- the check cannot pass vacuously:
 #     a. the action reads the GIVEN workflow's patterns, not a copy: a pattern
 #        that exists only in a doctored workflow still fails the tree
@@ -18,6 +24,8 @@
 #     d. a tree that is not a git checkout is REFUSED, not passed
 #     e. the .vibe/ rule is the workflow's: a Sweep step with it removed lets
 #        the planted .vibe/hooks.toml pass -- the action holds no second list
+#     f. the step with its LC_ALL=C prefixes stripped (the step before
+#        SPL-5585) makes 0 calls under C and reports the U+017F / U+212A plant
 #   The banned literal is assembled at run time, so this file carries none.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -161,6 +169,68 @@ if [[ $rc_real -ne 0 && $rc_novibe -eq 0 ]]; then
 else
   fail "CONTROL e. the .vibe/ verdict did not follow the given workflow (real rc=$rc_real, rule removed rc=$rc_novibe)"
   sed 's/^/    | /' "$T/out"
+fi
+
+# --- 5. the five ASCII sweeps run under LC_ALL=C (SPL-5585) -------------------
+# A grep shim first on PATH logs "<LC_ALL>\t<pattern>" for each recursive call
+# (the sweeps' grep -rnIoP), then runs the real grep. The tree carries the
+# overlay library and a synthetic overlay, so the hidden-workspace sweep runs.
+real_grep=$(type -P grep)
+mkdir -p "$T/shim"
+printf '#!/usr/bin/env bash\n[[ "$1" == -rnIoP ]] && printf "%%s\\t%%s\\n" "${LC_ALL-<unset>}" "${*: -2:1}" >>"$GREP_LOG"\nexec %q "$@"\n' \
+  "$real_grep" >"$T/shim/grep"
+chmod +x "$T/shim/grep"
+hidden="zq""-hidden-loc"
+printf 'workspaces:\n  ws-hidden-01: %s\n' "$hidden" >"$T/overlay.yaml"
+cp -a "$T/clean" "$T/loc"
+mkdir -p "$T/loc/csi-spl-iac/lib/bash/funcs" "$T/loc/csi-spl-cnf/csi-spl"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-private-cnf.func.sh" "$T/loc/csi-spl-iac/lib/bash/funcs/"
+printf 'env:\n  dns:\n    BASE_DOMAIN: example.test\n' >"$T/loc/csi-spl-cnf/csi-spl/all.env.yaml"
+# one hit per ASCII sweep, assembled so this file carries none
+printf '%s\n' "a ""nor""dea line" "a sand""holm line" "run as $banned" "see /ho""me/someone/x" "mail flo""k.fi" >"$T/loc/hits.md"
+# the same words with s -> U+017F and k -> U+212A: the narrowing under C
+printf '%b\n' 'a \xc5\xbfand''holm line' 'run as y\xc5\xbfg' 'mail flo\xe2\x84\xaa.fi' >"$T/loc/fold.md"
+git -C "$T/loc" add -A
+loc_check() { # loc_check <workflow> -> rc; calls logged in $T/grep.log
+  : >"$T/grep.log"
+  PATH="$T/shim:$PATH" GREP_LOG="$T/grep.log" SPL_PRIVATE_CNF="$T/overlay.yaml" check "$T/loc" "$1"
+}
+gate_loc=$(source "$PROJ_ROOT/lib/bash/funcs/spl-private-cnf.func.sh" && spl_private_gate_locale)
+loc_today="${LC_ALL-<unset>}"
+loc_check "$WF"; rc=$?
+n_c=$(awk -F'\t' '$1 == "C"' "$T/grep.log" | wc -l)
+relay_word="git""-rel"   # assembled: the retired-relay sweep would flag this file
+n_relay=$(awk -F'\t' -v l="$loc_today" -v r="$relay_word" '$1 == l && index($2, r)' "$T/grep.log" | wc -l)
+n_hidden=$(awk -F'\t' -v l="$gate_loc" -v h="$hidden" '$1 == l && index($2, h)' "$T/grep.log" | wc -l)
+if [[ $n_c -eq 5 && $n_relay -eq 1 && $n_hidden -eq 1 ]]; then
+  pass "5. the five ASCII sweeps run under C (5 calls), retired relay 1 call under '$loc_today', hidden workspace 1 call under '$gate_loc'"
+else
+  fail "5. locale per sweep: $n_c call(s) under C (want 5), relay $n_relay under '$loc_today' (want 1), hidden $n_hidden under '$gate_loc' (want 1)"
+  sed 's/^/    | /' "$T/grep.log"
+fi
+missing=""
+for n in 1 2 3 4 5; do grep -q "\./hits\.md:$n\$" "$T/out" || missing+=" hits.md:$n"; done
+if [[ $rc -ne 0 && -z "$missing" ]]; then
+  pass "5. a plant of one hit per ASCII sweep is still reported under C (rc=$rc, hits.md:1..5)"
+else
+  fail "5. the ASCII plant under C: rc=$rc, not reported:${missing:- none}"; sed 's/^/    | /' "$T/out"
+fi
+# The narrowing SPL-5585 names: under C, (?i) folds ASCII only.
+if ! grep -q '\./fold\.md:' "$T/out"; then
+  pass "5. the named narrowing: the U+017F / U+212A spellings (fold.md) are NOT reported under C"
+else
+  fail "5. fold.md was reported -- the narrowing this case pins has changed"; grep '\./fold\.md:' "$T/out" | sed 's/^/    | /'
+fi
+
+# --- CONTROL f. the step before SPL-5585: no LC_ALL=C prefix ------------------
+doctor 's|^LC_ALL=C sweep |sweep |' "$T/wf-noc.yml"
+loc_check "$T/wf-noc.yml"; rc=$?
+n_c=$(awk -F'\t' '$1 == "C"' "$T/grep.log" | wc -l)
+if [[ $n_c -eq 0 ]] && grep -q '\./fold\.md:' "$T/out"; then
+  pass "CONTROL f. the prefixes stripped: 0 calls under C and the U+017F / U+212A plant IS reported (rc=$rc) -- case 5 sees the locale"
+else
+  fail "CONTROL f. the prefixes stripped: $n_c call(s) under C (want 0), fold.md reported: $(grep -c '\./fold\.md:' "$T/out")"
+  sed 's/^/    | /' "$T/grep.log"
 fi
 
 if [[ $fails -eq 0 ]]; then

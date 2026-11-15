@@ -3,8 +3,9 @@
 # Purpose: the local dev mode one-liner works where spec 148 4.1 says it
 # does, from the clone root (SPL-4756, findings D2 + D3 of SPL-4533). A
 # clone root had no `run`: `./run -a do_dev_mode_up` there was rc 127.
-#   1. the root `run` is tracked as a symbolic link to csi-spl-orc/run, so a
-#      fresh clone has it
+#   1. the root `run` is tracked as a symbolic link to the root's own
+#      src/bash/run/run.sh (SPL-5550; it hands the action to csi-spl-orc,
+#      run-root-dispatch.tst.sh), so a fresh clone has it
 #   2. the command spec 148 4.1 documents is `./run -a do_dev_mode_up`, and
 #      DEPLOY.md, CONTRIBUTING.md and the local dev mode guide name it
 #   3. that command, run from the clone root, reaches the prerequisite check:
@@ -26,8 +27,8 @@ SPEC="$APP_ROOT/csi-spl-doc/specs/148-local-dev-mode/spec.md"
 # --- 1. the root link is tracked ----------------------------------------------------
 ent=$(git -C "$APP_ROOT" ls-files -s -- run)
 tgt=$(git -C "$APP_ROOT" cat-file -p "$(awk '{print $2}' <<<"$ent")" 2>/dev/null)
-[[ "$ent" == 120000\ * && "$tgt" == csi-spl-orc/run ]] &&
-  pass "1. root run is a tracked link to csi-spl-orc/run" || fail "1. root run in the index: '$ent' -> '$tgt'"
+[[ "$ent" == 120000\ * && "$tgt" == src/bash/run/run.sh ]] &&
+  pass "1. root run is a tracked link to src/bash/run/run.sh" || fail "1. root run in the index: '$ent' -> '$tgt'"
 
 # --- 2. the documented command --------------------------------------------------------
 cmd=$(awk '/^### 4.1 /{s=1} s && /^```bash/{getline; print; exit}' "$SPEC")

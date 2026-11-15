@@ -251,7 +251,156 @@ do_run_top_pad() {
   exec "$BASH" "${_o[@]}" "$0" "$@"
 }
 
+# Repo-root ./run (SPL-5550, spec 011). The repo root carries its own copy of
+# this file (src/bash/run/run.sh, the root ./run points to it); a module's
+# ./run is unchanged. The copy knows it is the root when the dir of its ./run
+# has module children (<dir>/*/src/bash/run/run.sh), read from $0 before
+# anything else runs: no fork, so a module pays two globs and nothing more.
+# At the root:
+#   - an action defined in the root's own src/bash/run/*.func.sh runs here;
+#   - `./run -a do_x` execs the ./run of the one module that defines do_x
+#     (its src/bash/run/ or lib/bash/funcs/<name>.func.sh, as the module's
+#     loader finds it) with the same argv and env, `-m <module>` left out;
+#   - two or more owners: named, refused (exit 2) unless `-m <module>` picks
+#     one (orc, csi-spl-orc); no owner: the modules' "NOT found" and exit 1;
+#   - `./run`, `./run --help`: the actions grouped by module.
+# Guard: csi-spl-orc/src/bash/tests/run-root-dispatch.tst.sh.
+do_root_dispatch() {
+  local _rd_root _rd_mods=() _rd_argv=() _rd_acts=() _rd_pick="" _rd_help=0
+  do_root_find_modules || return 0
+  while (($# > 0)); do
+    case "$1" in
+    -m | --module) _rd_pick="${2:-}"; shift; (($# > 0)) && shift ;;
+    -a | --actions)
+      local _rd_w=()
+      read -r -a _rd_w <<<"${2:-}" || true
+      _rd_acts+=("${_rd_w[@]}"); _rd_argv+=("$1" "${2:-}")
+      shift; (($# > 0)) && shift ;;
+    -h | --help) _rd_help=1; _rd_argv+=("$1"); shift ;;
+    *) _rd_argv+=("$1"); shift ;;
+    esac
+  done
+  if ((_rd_help == 1 || ${#_rd_acts[@]} == 0)); then
+    do_root_help
+    exit 0
+  fi
+  shopt -s globstar nullglob
+  local _rd_to
+  _rd_to=$(do_root_pick_target) || exit $?
+  shopt -u globstar nullglob
+  [[ "$_rd_to" == "$_rd_root" ]] && return 0
+  exec "$_rd_to/run" "${_rd_argv[@]}"
+}
+
+# do_root_find_modules: sets _rd_root (the dir of this ./run) and _rd_mods
+# (its module dirs); returns 1 when this ./run is not the root.
+do_root_find_modules() {
+  local _rd_m
+  _rd_root="${0%/*}"
+  [[ "$_rd_root" == "$0" ]] && _rd_root=.
+  [[ "$_rd_root" == src/bash/run ]] && _rd_root=.
+  [[ "$_rd_root" == */src/bash/run ]] && _rd_root="${_rd_root%/src/bash/run}"
+  for _rd_m in "$_rd_root"/*/src/bash/run/run.sh; do
+    [[ -e "$_rd_m" ]] && _rd_mods+=("${_rd_m%/src/bash/run/run.sh}")
+  done
+  ((${#_rd_mods[@]} > 0))
+}
+
+# do_root_pick_target: prints the dir whose ./run runs every action of
+# _rd_acts (_rd_root for the root's own), or names why not and returns
+# 1 (no owner) or 2 (two owners, an unknown -m, actions of two modules).
+do_root_pick_target() {
+  local _rd_a _rd_own=() _rd_to="" _rd_m
+  if [[ -n "$_rd_pick" ]]; then
+    for _rd_m in "${_rd_mods[@]}"; do
+      [[ "${_rd_m##*/}" == "$_rd_pick" || "${_rd_m##*/}" == *-"$_rd_pick" ]] && { echo "$_rd_m"; return 0; }
+    done
+    echo "FATAL -m $_rd_pick: no such module; modules: $(do_root_names "${_rd_mods[@]}")" >&2
+    return 2
+  fi
+  for _rd_a in "${_rd_acts[@]}"; do
+    do_root_owners "$_rd_a"
+    if ((${#_rd_own[@]} == 0)); then
+      echo "FATAL action(s) requested: \"$_rd_a\" NOT found !!!" >&2
+      echo "FATAL 1. check the spelling of your action" >&2
+      echo "FATAL 2. check the available actions by: ./run --help" >&2
+      echo "FATAL the run failed !" >&2
+      return 1
+    fi
+    if ((${#_rd_own[@]} > 1)); then
+      echo "FATAL action \"$_rd_a\" is defined in $(do_root_names "${_rd_own[@]}"): pick one with -m <module>" >&2
+      return 2
+    fi
+    if [[ -n "$_rd_to" && "$_rd_to" != "${_rd_own[0]}" ]]; then
+      echo "FATAL the actions run in $(do_root_names "$_rd_to" "${_rd_own[0]}"): one ./run call per module" >&2
+      return 2
+    fi
+    _rd_to="${_rd_own[0]}"
+  done
+  echo "$_rd_to"
+}
+
+# do_root_owners <action>: sets _rd_own to the dirs (root, then modules)
+# with a <name>.func.sh that defines the action, the file the loader maps it
+# from: do_a_b is defined in an a-b or a_b file, .func.sh. Needs globstar and nullglob.
+do_root_owners() {
+  local _rd_n="$1" _rd_g _rd_m _rd_f _rd_body
+  _rd_own=()
+  [[ "$_rd_n" != do_* ]] && _rd_n="do_${_rd_n//-/_}"
+  _rd_n="${_rd_n//-/_}"
+  [[ "$_rd_n" =~ ^do_[A-Za-z0-9_]+$ ]] || return 0
+  _rd_g="${_rd_n#do_}" && _rd_g="${_rd_g//_/[-_]}"
+  for _rd_m in "$_rd_root" "${_rd_mods[@]}"; do
+    for _rd_f in "$_rd_m"/src/bash/run/**/$_rd_g.func.sh "$_rd_m"/lib/bash/funcs/**/$_rd_g.func.sh; do
+      _rd_body=""
+      read -r -d '' _rd_body <"$_rd_f" || true
+      if [[ "$_rd_body" =~ (^|$'\n')[[:space:]]*(function[[:space:]]+)?${_rd_n}[[:space:]]*\(\) ]]; then
+        _rd_own+=("$_rd_m")
+        break
+      fi
+    done
+  done
+  return 0
+}
+
+# do_root_names <dir...>: the dirs' names, comma separated ("." = the root).
+do_root_names() {
+  local _rd_out="" _rd_d _rd_b
+  for _rd_d in "$@"; do
+    _rd_b="${_rd_d##*/}"
+    [[ "$_rd_d" == "$_rd_root" ]] && _rd_b="the repo root"
+    _rd_out="${_rd_out:+$_rd_out, }$_rd_b"
+  done
+  echo "$_rd_out"
+}
+
+# do_root_help: the actions of the root and of each module, grouped, one
+# line per name the module's ./run dispatches from its src/bash/run/.
+do_root_help() {
+  local _rd_m _rd_f _rd_b _rd_n _rd_body _rd_list
+  echo "   Usage: ./run -a <action> [-m <module>]"
+  echo "   At the repo root, ./run hands the action to the module that defines it."
+  shopt -s globstar nullglob
+  for _rd_m in "$_rd_root" "${_rd_mods[@]}"; do
+    _rd_list=""
+    for _rd_f in "$_rd_m"/src/bash/run/**/*.func.sh; do
+      _rd_b="${_rd_f##*/}" && _rd_b="${_rd_b%.func.sh}"
+      [[ "$_rd_b" == *.pre || "$_rd_b" == *.post ]] && continue
+      _rd_n="do_${_rd_b//-/_}" && _rd_body=""
+      read -r -d '' _rd_body <"$_rd_f" || true
+      [[ "$_rd_body" =~ (^|$'\n')[[:space:]]*(function[[:space:]]+)?${_rd_n}[[:space:]]*\(\) ]] &&
+        _rd_list+="	 ./run -a ${_rd_n}"$'\n'
+    done
+    [[ -n "$_rd_list" ]] || continue
+    echo ""
+    echo "   $(do_root_names "$_rd_m"):"
+    printf '%s' "$_rd_list" | sort -u
+  done
+  shopt -u globstar nullglob
+}
+
 main() {
+  do_root_dispatch "$@"
   do_run_top_pad "$@"
   do_detect_stdout_mode "$@"
   do_detect_log_mode
@@ -857,10 +1006,14 @@ main "$@"
 
 #==============================================================================
 # run.sh — minimalistic bash framework
-# Version:  3.9.0
+# Version:  3.10.0
 # Upstream: a sibling project (its -utl, v3.8.2)
 #------------------------------------------------------------------------------
 # Version history (newest first):
+#   3.10.0 2026-11-15  The repo root carries its own copy: at the root, ./run
+#                      hands -a do_x to the module that defines it (-m picks
+#                      one of two), --help groups the actions by module
+#                      (do_root_dispatch). SPL-5550.
 #   3.9.0  2026-11-13  Lazy loader: a *.func.sh with only function definitions
 #                      is sourced on the first call of one of them (stubs,
 #                      _rl_load); one awk pass indexes the files. Spec 027
@@ -903,4 +1056,4 @@ main "$@"
 # When copying this file into a downstream project: bump the version above and
 # append a new entry describing the local change. Keep the banner intact.
 #==============================================================================
-# csi-spl ::: v3.9.0
+# csi-spl ::: v3.10.0

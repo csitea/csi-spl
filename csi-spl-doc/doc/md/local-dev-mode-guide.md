@@ -18,7 +18,8 @@ From the root of a clone of the repository:
 ./run -a do_dev_mode_up
 ```
 
-The root `run` is a link to `csi-spl-orc/run`, so
+The root `run` hands an action to the module that defines it
+(`do_dev_mode_up` is csi-spl-orc's), so
 `cd csi-spl-orc && ./run -a do_dev_mode_up` is the same command.
 
 It runs in this order and stops at the first problem:

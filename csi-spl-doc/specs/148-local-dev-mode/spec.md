@@ -367,7 +367,8 @@ From the root of a fresh clone of the repository:
 ```bash
 ./run -a do_dev_mode_up
 ```
-The root `run` is a symbolic link to `csi-spl-orc/run` (SPL-4756), so this is
+The root `run` (SPL-4756) hands an action to the module that defines it
+(SPL-5550, `csi-spl-doc/specs/011-spool-project-refactor/root-run.md`), so this is
 the same action as `cd csi-spl-orc && ./run -a do_dev_mode_up`. Test:
 `csi-spl-orc/src/bash/tests/dev-mode-root-one-liner.tst.sh`.
 Under the hood, the action executes preflight checks, then starts the stack:

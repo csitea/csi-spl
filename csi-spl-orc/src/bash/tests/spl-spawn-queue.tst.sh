@@ -115,7 +115,7 @@
 #      still placed
 #  19. SPL-3349: the owner's review-seat GO (msg 994f2257) takes a review
 #      seat (a placement slug ending in -reviewer) of class bug: queued
-#      unflagged on the hub, in the local bypass log, listed by
+#      as feature + bypass on the hub (SPL-5638), in the local bypass log, listed by
 #      do_spl_spawn_share; the GO on a non-seat or with no placement, and
 #      another owner id on a seat, are still refused; bug OVER its band and
 #      feature UNDER, the bypassed seat is placed before the feature (CONTROL:
@@ -123,6 +123,10 @@
 #      SPL-3762: a -reviewer placement queued with no SPAWN_BYPASS gets the
 #      standing GO at enqueue (logged, one INFO line) and is placed first;
 #      SPAWN_URGENT on a seat and a non-reviewer slug are unchanged
+#      SPL-5638: a bug or refactor seat queued with no SPAWN_BYPASS goes to
+#      the hub as feature + bypass, one INFO line names the class change
+#      (RED CONTROL: the old unflagged queue of the seat); a feature seat
+#      logs its bypass as before (CONTROL)
 #  20. spec 150 C405: do_spl_spawn_queue prints PRIO, the hub's discussion
 #      priority 1..5 (3 without one), next to POS; the json view carries it
 #      (RED CONTROL: the column dropped)
@@ -873,8 +877,10 @@ done
 dark_row "$D5" dark-behind; dark_row "$D6" hand-sat-dark-seat-reviewer
 printf '2026-01-15T12:00Z\t%s\t%s\tc-001@box-desk\n' "$D6" "$(sed -n 's/^SPL_SPAWN_REVIEW_SEAT_GO=//p' "$PROJ_ROOT/src/bash/run/spl-spawn-enqueue.func.sh")" >>"$T/pc/spool/asks/bypass.tsv"
 out="$(dark_tick "LAUNCH_DARK_SLUG=dark-pin dark-seat-reviewer" LAUNCH_ID=c-504)"
-grep -q "review-seat pick: ask ${D6:0:8}" <<<"$out" && [[ "$(jq -r .state <<<"$(hubrow "$D6")")" == queued && "$(dark_placed "$D5")" == 1 ]] &&
-  pass "12d. a review seat picked ahead of the bands, its box silent: the next row is placed in the same tick" ||
+# the seat is a feature + bypass on the hub (SPL-5638): taken as the flagged head, held first
+grep -q "hold: ask ${D6:0:8}: no reply from sat" <<<"$out" && ! grep -q "band pick: ask ${D6:0:8}" <<<"$out" &&
+  [[ "$(jq -r '"\(.state) \(.class) \(.flag)"' <<<"$(hubrow "$D6")")" == "queued feature bypass" && "$(dark_placed "$D5")" == 1 ]] &&
+  pass "12d. a review seat taken ahead of the bands, its box silent: the next row is placed in the same tick" ||
   fail "12d. seat pick: $out | $(hubrow "$D5")"
 sed -i "/$D6/d" "$T/pc/spool/asks/bypass.tsv"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$D6" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null
@@ -1826,9 +1832,10 @@ for b in seat-r7-reviewer seat2-reviewer seat3-r7-reviewer bug-fix-x feat-x; do 
 for i in "$S1" "$N1" "$O1" "$FE" "$S2"; do put "$i" c-002@box-desk "dispatch-enqueue-review-bypass" "SPAWN REQUEST ${i:0:8}"; done
 out="$(on pc do_spl_spawn_enqueue ASK_ID="$S1" SPAWN_CLASS=bug SPAWN_BYPASS=$SEAT_GO SPAWN_PLACE=claude:seat-r7-reviewer 2>&1)"; rc=$?
 r="$(hubrow "$S1")"
-[[ $rc -eq 0 && "$(jq -r .state <<<"$r")" == queued && "$(jq -r '.flag // ""' <<<"$r")" == "" ]] &&
-  grep -q "$S1"$'\t'"$SEAT_GO"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" && grep -q "is a bug review-seat BYPASS on owner msg 994f2257: recorded" <<<"$out" &&
-  pass "19a. a bug review seat on the review-seat GO is queued, unflagged on the hub (bypass is a feature flag there), in the local bypass log" ||
+[[ $rc -eq 0 && "$(jq -r .state <<<"$r")" == queued && "$(jq -r '"\(.class) \(.flag // "")"' <<<"$r")" == "feature bypass" ]] &&
+  grep -q "$S1"$'\t'"$SEAT_GO"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" && grep -q "is a review-seat BYPASS on owner msg 994f2257: recorded" <<<"$out" &&
+  grep -q "ask ${S1:0:8} is a bug review seat (claude:seat-r7-reviewer): queued as feature + bypass on the review-seat GO 994f2257" <<<"$out" &&
+  pass "19a. a bug review seat on the review-seat GO is queued as feature + bypass on the hub (bypass is a feature flag there), in the local bypass log" ||
   fail "19a. seat enqueue: rc=$rc $out | $r"
 [[ "$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>/dev/null | jq -r --arg a "$S1" '[.bypasses[] | select(.ask == $a) | "\(.msg) \(.state)"] | join(",")')" == "$SEAT_GO queued" ]] &&
   pass "19a. do_spl_spawn_share lists the review-seat bypass (owner msg, ask), its state from the hub row" || fail "19a. share: $(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>&1)"
@@ -1849,15 +1856,16 @@ SEAT_LANES='[{"agent_id": "c-304", "agent_box": "box-desk", "state": "live"}, {"
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=c-521 LANES="$SEAT_LANES" 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$S1")")" == "placed: c-521@box-desk" && "$(jq -r .state <<<"$(hubrow "$FE")")" == queued ]] &&
-  grep -q "^claude auto $T $T/briefs/seat-r7-reviewer.md seat-r7-reviewer$" "$T/launch.log" && grep -q "review-seat pick: ask ${S1:0:8} (bug claude:seat-r7-reviewer" <<<"$out" &&
+  grep -q "^claude auto $T $T/briefs/seat-r7-reviewer.md seat-r7-reviewer$" "$T/launch.log" &&
   pass "19d. bug OVER its band, feature UNDER: the bypassed bug review seat is placed ahead of the queued feature row" ||
   fail "19d. seat pick: $out | $(hubrow "$S1") | $(cat "$T/launch.log")"
 # 19e. SPL-3762: a review seat queued with NO SPAWN_BYPASS gets the standing GO at enqueue
 # the run's real do_log (DO_LOG_REAL): it sets the global msg, the stub does not (c-001 msg d4bff1c7)
 out="$(on pc do_spl_spawn_enqueue DO_LOG_REAL=1 LOG_DIR="$T/log" ASK_ID="$S2" SPAWN_CLASS=bug SPAWN_PLACE=claude:seat3-r7-reviewer 2>&1)"; rc=$?
-[[ $rc -eq 0 && "$(jq -r '.flag // ""' <<<"$(hubrow "$S2")")" == "" ]] && grep -q "$S2"$'\t'"$SEAT_GO"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" &&
+[[ $rc -eq 0 && "$(jq -r '"\(.class) \(.flag // "")"' <<<"$(hubrow "$S2")")" == "feature bypass" ]] && grep -q "$S2"$'\t'"$SEAT_GO"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" &&
   grep -q "ask ${S2:0:8} is a review seat (claude:seat3-r7-reviewer) with no SPAWN_BYPASS: the standing review-seat GO 994f2257 applies" <<<"$out" &&
-  grep -q "ask ${S2:0:8} is a bug review-seat BYPASS on owner msg 994f2257: recorded" <<<"$out" && ! grep -q FATAL <<<"$out" &&
+  grep -q "ask ${S2:0:8} is a review-seat BYPASS on owner msg 994f2257: recorded, listed by do_spl_spawn_share, placed ahead of the bands" <<<"$out" &&
+  grep -q "ask ${S2:0:8} is a bug review seat (claude:seat3-r7-reviewer): queued as feature + bypass" <<<"$out" && ! grep -q FATAL <<<"$out" &&
   pass "19e. a -reviewer placement queued without SPAWN_BYPASS (the real do_log): the standing review-seat GO is in the local bypass log, one INFO line" ||
   fail "19e. default GO: rc=$rc $out | $(hubrow "$S2")"
 printf 'Class: bug\n%s\n' "$ES" >"$T/briefs/seat4-reviewer.md"
@@ -1872,7 +1880,6 @@ out="$(on pc do_spl_spawn_enqueue ASK_ID="$N1" SPAWN_CLASS=bug SPAWN_PLACE=claud
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=c-522 LANES="$SEAT_LANES" 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$S2")")" == "placed: c-522@box-desk" && "$(jq -r .state <<<"$(hubrow "$FE")")" == queued ]] &&
-  grep -q "review-seat pick: ask ${S2:0:8} (bug claude:seat3-r7-reviewer" <<<"$out" &&
   pass "19e. bug OVER its band, feature UNDER: the review seat queued without SPAWN_BYPASS is placed ahead of the feature" ||
   fail "19e. default seat pick: $out | $(hubrow "$S2") | $(cat "$T/launch.log")"
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
@@ -1881,6 +1888,31 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=c-523 LANES="$SEAT_LANES" 2>&1)"
   grep -q "band pick: ask ${FE:0:8} (feature at 25%" <<<"$out" &&
   pass "19e. control: a non-reviewer bug queued without the GO waits; the band pick places the feature (bug 50% OVER, feature 25% UNDER)" ||
   fail "19e. control: $out | $(hubrow "$FE") | $(cat "$T/launch.log")"
+
+# 19f. SPL-5638 (n = 4, asks 50345d38, 95ac791c, 6c7430d3): a bug or refactor review
+# seat queued with no SPAWN_BYPASS reaches the hub as feature + bypass, its one flag
+# ahead of the bands; logged unflagged, it sat at its class's place (26/39)
+R1=56380001-0000-4000-8000-000000000001; R2=56380002-0000-4000-8000-000000000002; R3=56380003-0000-4000-8000-000000000003
+for b in seat5-reviewer seat6-reviewer seat7-reviewer; do printf 'Class: bug\n%s\n' "$ES" >"$T/briefs/$b.md"; done
+for i in "$R1" "$R2" "$R3"; do put "$i" c-002@box-desk "dispatch-enqueue-review-bypass" "SPAWN REQUEST ${i:0:8}"; done
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$R1" SPAWN_CLASS=bug SPAWN_PLACE=grok:seat5-reviewer 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r '"\(.class) \(.flag // "") \(.flag_msg // "")"' <<<"$(hubrow "$R1")")" == "feature bypass $SEAT_GO" ]] &&
+  [[ "$(grep -c "INFO ask ${R1:0:8} is a bug review seat (grok:seat5-reviewer): queued as feature + bypass on the review-seat GO 994f2257" <<<"$out")" == 1 ]] &&
+  grep -q "OK ask ${R1:0:8} queued (feature, bypass)" <<<"$out" &&
+  pass "19f. a bug review seat with no SPAWN_BYPASS: the hub row is feature + bypass on the GO, one INFO line names the class change" ||
+  fail "19f. bug seat: rc=$rc $out | $(hubrow "$R1")"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$R2" SPAWN_CLASS=refactor SPAWN_PLACE=grok:seat6-reviewer 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r '"\(.class) \(.flag // "")"' <<<"$(hubrow "$R2")")" == "feature bypass" ]] &&
+  grep -q "ask ${R2:0:8} is a refactor review seat (grok:seat6-reviewer): queued as feature + bypass" <<<"$out" &&
+  pass "19f. a refactor review seat with no SPAWN_BYPASS: the hub row is feature + bypass too" ||
+  fail "19f. refactor seat: rc=$rc $out | $(hubrow "$R2")"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$R3" SPAWN_CLASS=feature SPAWN_PLACE=grok:seat7-reviewer 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r '"\(.class) \(.flag // "")"' <<<"$(hubrow "$R3")")" == "feature bypass" ]] &&
+  grep -q "ask ${R3:0:8} is a feature BYPASS on owner msg 994f2257: recorded, listed by do_spl_spawn_share" <<<"$out" &&
+  ! grep -q "queued as feature + bypass" <<<"$out" && ! grep -q "ahead of the bands" <<<"$out" &&
+  pass "19f. control: a feature review seat logs its bypass as before, no class change" ||
+  fail "19f. feature seat: rc=$rc $out | $(hubrow "$R3")"
+jq --arg a "$R1" --arg b "$R2" --arg c "$R3" '(.[] | select(.ask_id == $a or .ask_id == $b or .ask_id == $c)) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
 
 # 20. spec 150 C405: the PRIO column ------------------------------------------------
 # The hub's list carries each ask's discussion priority (1..5, 3 without one,

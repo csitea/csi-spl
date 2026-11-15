@@ -27,7 +27,7 @@
 # @description (SPL-5325; the placer's check, spl_spawn_place_no_links).
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
-# @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
+# @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349), queued as a feature + bypass, the hub's one flag ahead of the bands (SPL-5638); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits (do_spl_asks_open prints them)
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
 # @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
@@ -109,6 +109,10 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   [[ "$flag" != bypass || "$class" == feature || -n "$seat" ]] ||
     { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only (the review-seat GO ${SPL_SPAWN_REVIEW_SEAT_GO:0:8} also takes a review seat: a SPAWN_PLACE slug ending in -reviewer)" >&2; return 1; }
   [[ -z "$bymsg" || "$5" != 1 ]] || { do_log "FATAL SPAWN_URGENT and SPAWN_BYPASS exclude each other" >&2; return 1; }
+  if [[ -n "$seat" ]]; then  # the hub flags bypass on a feature only (rdb 0195): an unflagged seat sat at its class's place (SPL-5638)
+    do_log "INFO ask ${id:0:8} is a $class review seat ($place): queued as feature + bypass on the review-seat GO ${bymsg:0:8} (SPL-5638)" >&2
+    class=feature
+  fi
   if [[ -n "$place" ]]; then  # the placer files the lane's issue from this brief: refuse it here, not at placement
     . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 1
     declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
@@ -119,16 +123,12 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
     [[ -z "$brief" ]] || spl_spawn_q_enqueue_links "$id" "$brief" || return 1
   fi
-  if [[ -n "$seat" ]]; then  # the hub takes bypass on a feature only (rdb 0195): the seat goes unflagged, the log records it
-    row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "" "")" || rc=$?
-  else
-    row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$bymsg")" || rc=$?
-  fi
+  row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$bymsg")" || rc=$?
   (( rc == 0 )) || return "$rc"
   if [[ "$flag" == bypass ]]; then
-    local what="feature "; [[ -z "$seat" ]] || what="$class review-seat "
+    local what="feature "; [[ -z "$seat" ]] || what="review-seat "
     spl_spawn_share_bypass_record "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$bymsg" "$by" "$(jq -r '.summary // ""' <<<"$row")" ||
-      do_log "WARN the bypass of ask ${id:0:8} is not in the local bypass log${seat:+ (a review seat: the placer will not take it first)}" >&2
+      do_log "WARN the bypass of ask ${id:0:8} is not in the local bypass log" >&2
     do_log "INFO ask ${id:0:8} is a ${what}BYPASS on owner msg ${bymsg:0:8}: recorded, listed by do_spl_spawn_share${seat:+, placed ahead of the bands}" >&2
   fi
   do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
@@ -155,7 +155,10 @@ spl_spawn_q_enqueue_links() {  # ID BRIEF
 # seat is a placement whose slug ends in -reviewer: mechanical, the slug is in
 # hand at enqueue and at placement; a brief's Kind:/title is not (Kind:
 # specs_and_docs is every docs lane too). Any other bypass id stays
-# feature-only. The placer takes a logged seat first (spl_spawn_place_band).
+# feature-only. A refactor or bug seat is queued as a feature + bypass: the hub
+# flags bypass on a feature only (rdb 0195), and an unflagged seat sat at its
+# class's queue place (SPL-5638, n = 4). The placer also takes a logged seat
+# first (spl_spawn_place_band).
 SPL_SPAWN_REVIEW_SEAT_GO=994f2257-8ad1-4010-88c8-4f0a16230937
 spl_spawn_q_review_seat_go() {  # PLACE MSG -> 0: the review-seat GO on a review seat
   [[ "$2" == "$SPL_SPAWN_REVIEW_SEAT_GO" && -n "$1" && "${1#*:}" =~ -reviewer$ ]]

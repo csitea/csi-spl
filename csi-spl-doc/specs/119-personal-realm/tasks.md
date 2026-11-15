@@ -264,4 +264,188 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
 | T010 | J: WUI receipts + erasure | grok / mistral | T009 | none | BUILD |
 | T011 | 118 routes + `/me/hours` | (118's lanes) | 118 tasks.md | all | see 118 |
 
-<!-- version: 1.1.0 · updated: 2026-10-13 · last-edit: 2026-10-13 -->
+## Calendar across workspaces
+v0.5 (SPL-5599). The owner answered Q1 `1a`, Q2 `2a`, Q3 `3c`, Q5 `5a`
+(HUM-10 msg `76f7af1c`) and Q4 `4b` (msg `f94ea39e`): pop-ups from every
+workspace plus a mute per workspace, so T016 and T018 are BUILD. v0.4 and
+v0.5 fold the agy reviews of v0.3 (a-277) and v0.4 (a-293): file
+ownership, paths, order and tests below.
+Not ready to place until the spec lands on master.
+None waits on T005..T010. Tests are that file's section 10.
+
+**Shared registries.** `GO/hub/openapi.json` (one operation per route) and
+`GO/hub/channel_order.go` (one `s.routeRealmCalendar*(mux)` line per lane;
+each lane's routes and `OPTIONS` preflights register in its own file) are
+edited by the three hub lanes T013, T014 and T016, each adding only its own
+operations and its one line. They run **one after another** (T013, then
+T014, then T016), so no two of them edit those files at once; each owns
+its rows, never another lane's.
+
+The 19 `csi-spl-wui/i18n/locales/*.json` files (19-locale parity,
+`i18n-parity.test.mjs`) are the same kind of registry for the WUI lanes:
+T015, T017 and T018 each add only their own key prefix and run **one
+after another** (T015, then T017, then T018). If 119's T009 or T010 is
+live in a lane when one of these starts, it asks the orchestrator for the
+order first.
+
+- [ ] T012 **Lane K: the "mine" read in the calendar store** (claude, store;
+  Q1 `1a`). A `Mine` option on `CalendarRange`: one predicate
+  `(creator_id = viewer OR owner_id = viewer OR viewer = ANY (mentions))`
+  added with AND after `calendarPrivateSQL` in the single, series and marks reads;
+  issue deadlines are not a store read (the hub's T013 filters them).
+  Files (owns): `GO/store/calendar_postgres.go`, `GO/store/calendar_memory.go`,
+  `GO/store/calendar.go`, their tests.
+  Done: T-CAL1, T-CAL2 on Postgres with red controls; `PRE_PUSH_TIER=full`.
+
+- [ ] T013 **Lane L: `GET /v1/me/realm/calendar/events` and `/marks`**
+  (claude, hub; waits on T012 and T015). The fan-out of section 4: the 4.2
+  gate (`realmCaller`, `realmClone` over every seat, 400 `workspace_named`,
+  `realmCalendarPreflight` with `If-Match`, all in this lane's file and
+  used by T014 and T016), `Memberships`, the per-workspace
+  `topics.read` gate, at most 20, 2 in flight, one workspace-scoped read
+  each plus the issue deadlines from the existing `s.deadlinesIn` kept to
+  `Assignee == P` (called as is, `GO/hub/calendar.go` not edited), `unavailable` and `truncated` states, `demo_user` strip; the
+  events answer with `workspace_id` and `workspace_ids`, the marks answer
+  of section 4 (`days[].workspace_ids`, 5-year bound). Shares the bound and
+  the fan-out helper with `hub/realm_hours_read.go` rather than copying
+  it. Google duplicates fold in the answer (Q5 `5a`, section 6); each
+  `workspaces[]` entry carries the effective `color` from T015.
+  Files (owns): `GO/hub/realm_calendar_read.go` (handlers, preflights,
+  `routeRealmCalendarRead`) and its test; its operations in
+  `GO/hub/openapi.json` and its line in `GO/hub/channel_order.go`.
+  Must not touch: `GO/hub/realm_hours_read.go` beyond extracting the shared
+  helper (ask its last lane, else the orchestrator).
+  Done: T-CAL1b, T-CAL3..T-CAL6, T-CAL8..T-CAL10 (T-CAL4 for its two
+  routes), each with the red control section 10 names; the timing record
+  of section 9.
+
+- [ ] T014 **Lane M: realm calendar writes** (claude, hub; Q2 `2a`; waits
+  on T013 landed). `POST|PATCH|DELETE /v1/me/realm/calendar/{workspace_id}/events[/{id}]`,
+  `restore`, `rsvp`, `people?q=`: the 4.2 gate, the membership check, the
+  `topics.read` check in W, then the workspace route's own handler body with
+  the workspace as an argument (409 `synced_read_only` comes with it).
+  `people?q=` is a new handler with section 5's contract over
+  `ListMembers` + `Roster` (no workspace people search exists to reuse).
+  Topic links use 118's existing `GET /v1/me/realm/targets`; no issue
+  search route (section 5).
+  Files (owns): `GO/hub/realm_calendar_write.go` (handlers, preflights,
+  `routeRealmCalendarWrite`) and its test; the refactor of the calendar
+  handlers in `GO/hub/calendar.go` to take the workspace; its operations in
+  `GO/hub/openapi.json` and its line in `GO/hub/channel_order.go`.
+  Done: T-CAL7 (red control: skip the membership check, the foreign write
+  lands), T-CAL4 for its routes (red control: `realmPreflight` on the event
+  paths, the `If-Match` assertion fails), T-CAL9's 409 half (red control:
+  skip the `source_key` guard, the `PATCH` returns 200), T-CAL8's write
+  half; the existing calendar hub tests unchanged and green.
+
+- [ ] T015 **Lane N: the workspace colour `calendar.color`** (claude, store
+  + WUI settings row; Q3 `3c`). `RegisterTenantSetting` of
+  `calendar.color` (string, default `""`, one of `""` or the 11 palette
+  names of 097 section 6), registered in its own store file as
+  `store/blocker_issue.go` does; the effective colour (the set name, else
+  the palette name from the first 4 bytes of `sha256(workspace_id)` modulo
+  11); its row in spec 098 section 10; one swatch row on the workspace
+  settings General page, shown to holders of `tenant.settings`, written
+  through the existing `PATCH /v1/tenant/settings`. No migration, no realm
+  table, no hub file.
+  Files (owns): `GO/store/calendar_color.go` and its test,
+  `WUI/components/CalendarColorSetting.vue`, its line in
+  `WUI/pages/tenant-settings/general.vue`, its keys under
+  `tenant.calendar_color.*` in the 19 locale files (first of the serial
+  WUI lanes), and the `calendar.color` row in
+  `csi-spl-doc/specs/098-tenant-settings-jsonb/spec.md` section 10.
+  Done: T-CAL11; `pnpm run typecheck`; agy review of the strings.
+
+- [ ] T016 **Lane O: realm reminders and the mute** (claude, auth + hub;
+  Q4 `4b`; waits on T013 and T014 landed). `GET
+  /v1/me/realm/calendar/reminders`: the T013 fan-out over the hub's
+  `s.reminderEvents` + `reminderFires` (never `store.CalendarReminders`
+  alone), at most 31 days, the 400s and answer of section 4.1, a muted
+  workspace read from `Membership.Settings` and skipped with no
+  transaction (state `muted`). The key `calendar_reminders_muted` as a
+  `*bool` field of `auth.MembershipSettings` and `HumanSettings`
+  (`Overlay`), so `GET /api/v1/auth/session` returns it; admitted by the
+  preferences parser as `true`, `false` or `null` (`false` and `null`
+  remove it: unlike `parseHoursReading`, which stores `false`), answered
+  by the session and by the native login answer. `PUT
+  /v1/me/realm/calendar/{workspace_id}/reminders {"muted": true|false}`
+  with the 4.2 gate, the membership and `topics.read` checks, the 400s and
+  the 200 body of 4.1.
+  Files (owns): `GO/hub/realm_calendar_reminders.go` (handlers, preflights,
+  `routeRealmCalendarReminders`) and its test; the new field in
+  `GO/auth/settings.go` and its `Overlay` line; the new key in
+  `GO/auth/handler.go` `preferencesReq` and its parse test; its field in
+  `GO/auth/native.go` `loginResp`; its operations
+  in `GO/hub/openapi.json` and its line in `GO/hub/channel_order.go`.
+  Done: T-CAL12 on Postgres with both red controls; T-CAL4 for its two
+  routes.
+
+- [ ] T017 **Lane P: the `/me/calendar` page** (claude, WUI; waits on T013
+  deployed, on T014 / T016 deployed for their parts, and on T015 landed:
+  the serial locale order). Lazy route chunk, its own store keyed by
+  `(workspace_id, event id)`. The page has its **own components**: the
+  workspace calendar's (`CalendarMainView.vue`, `CalendarEventDialog.vue`,
+  `CalendarEventPopover.vue`, `CalendarPhone*.vue`) call
+  `/v1/calendar/*` of the active workspace, key items by event id and read
+  that workspace's roster, so they are neither edited nor mounted here.
+  The new components may import a calendar component that takes all its
+  data by props and calls no route; they copy no store. Workspace chips
+  (colour, name, count, hide toggle in `localStorage`, the mute bell
+  writing T016's `PUT .../reminders`); the merged grid in the shipped view
+  ids; issue deadlines read only and not draggable; Google imports read
+  only ("change it in Google"); the 106 phone layout at 360 / 390 px; the
+  create / edit dialog (Q2 `2a`, workspace first, section 5's pickers);
+  the "All my workspaces" link in the desktop workspace calendar's tab
+  group.
+  Files (owns): `WUI/pages/me/calendar.vue`, `WUI/stores/realm-calendar.ts`,
+  `WUI/utils/realm-calendar-api.mjs`, `WUI/components/RealmCalendarChips.vue`,
+  `WUI/components/RealmCalendarDesk.vue`, `WUI/components/RealmCalendarPhone.vue`,
+  `WUI/components/RealmCalendarSheet.vue`, `WUI/components/RealmCalendarDialog.vue`,
+  the link in `WUI/components/CalendarViewTabs.vue`; tests
+  `csi-spl-wui/tests/unit/realm-calendar.test.mjs` and
+  `csi-spl-wui/tests/e2e/realm-calendar.test.mjs`; its keys under
+  `realm.calendar.*` (not `realm.calendar.reminders.*`) in the 19 locale
+  files (second of the serial WUI lanes).
+  Must not touch: the workspace calendar store and the components named
+  above; 119 T009's frame files (the realm navigation entry: ask T009's
+  lane).
+  Done: `pnpm run typecheck`; `perf-budget.py` initial JS unchanged;
+  the unit test (two workspaces, the same event id in each: both kept) and
+  `BASE_URL=<bundle> pnpm run test:e2e` (section 10's e2e: merged view,
+  chips, sheet, same-id events, a deadline that does not drag, the bell);
+  red control: key the store by event id alone, the unit and e2e same-id
+  cases fail; agy review of the strings (language rule); deployed dev and
+  prd.
+
+- [ ] T018 **Lane Q: reminder timer reads the realm route, pop-up and
+  settings row** (claude, WUI; Q4 `4b`; waits on T016 deployed and on T017
+  landed: the serial locale order). The timer
+  reads `/v1/me/realm/calendar/reminders` (today's
+  `/v1/calendar/reminders` under act-as); `reminderKey` becomes
+  `<workspace_id>/<event id>@<remind_at>`; the pop-up names the workspace
+  with its colour and opens the entry in `/me/calendar` (today it links
+  `/calendar?event=`); one "Mute reminders of this workspace" row in the
+  notification settings, written through `PUT /api/v1/auth/preferences`
+  and read from the session claim. The chip bell is T017's.
+  Files (owns): `WUI/utils/calendar-reminders.mjs`,
+  `WUI/utils/calendar-reminder-timer.ts`,
+  `WUI/plugins/calendar-reminders.client.ts`,
+  `WUI/utils/calendar-reminders-mock.mjs`,
+  `WUI/components/CalendarReminderPopup.vue`, the mute row in
+  `WUI/components/settings/notifications.vue`, the one optional
+  `calendar_reminders_muted?: boolean | null` claim and its mirror in
+  `WUI/stores/session.ts` (an initial-bundle file at 153.4 / 155 KB: the
+  addition stays a few bytes, checked by `perf-budget.py`); tests
+  `csi-spl-wui/tests/unit/calendar-reminders.test.mjs` and
+  `csi-spl-wui/tests/e2e/calendar-reminder.test.mjs`; its keys under
+  `realm.calendar.reminders.*` in the 19 locale files (last of the serial
+  WUI lanes).
+  Done: the unit test (two workspaces, the same event id in each: both
+  pop; a `muted` workspace: none) and the e2e (a reminder of a workspace
+  that is not open pops and names it; muted, it does not); red control:
+  point the timer back at `/v1/calendar/reminders`, the unit and e2e
+  cases for the other workspace fail. `pnpm run typecheck`;
+  `perf-budget.py` initial JS within the ceiling; agy review of the
+  strings (language rule); deployed dev and prd.
+
+<!-- version: 1.2.0 · updated: 2026-11-15 · last-edit: 2026-11-15 -->

@@ -60,6 +60,9 @@
 //	box-presence
 //	          hub mode: this box's own presence, {box, socket, agents}: socket = a role=box
 //	          socket on the answering hub instance, never last_hello_at (SPL-5318)
+//	channel-pins --channel <c>
+//	          hub mode: one channel's box pins in this box's workspace, {channel, box_pins,
+//	          is_pinned}; non-zero when the hub does not answer (spec 164 4.3)
 //	fleet-tokens push --json <file|->
 //	          hub mode: push the box collector's live token burn buckets (spec 140 3.4)
 //	file-streams push --json <file|->
@@ -183,6 +186,7 @@ on a box (an agent's machine):
   caps                print the workspace's agent caps by vendor, or check one agent against them (check <id>)
   box-beat            beat this box once and print the hub's ack (put --pid), or read the beats (list)
   box-presence        print whether the hub holds this box's socket, and its seated agents
+  channel-pins        print the boxes a channel is pinned to (--channel <c>); [] = any box
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   fleet-tokens        push the box collector's token burn buckets (push --json <file|->)
   file-streams        send the box file follower's announce or lines (push --json <file|->)
@@ -356,7 +360,7 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLease(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
-	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams", "box-presence":
+	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams", "box-presence", "channel-pins":
 		return runFleetCmd(cfg, cmd, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
@@ -392,6 +396,8 @@ func runFleetCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdFleetLoad(cfg, rest)
 	case "box-presence": // SPL-5318
 		return cmdBoxPresence(cfg, rest)
+	case "channel-pins": // spec 164 4.3
+		return cmdChannelPins(cfg, rest)
 	case "file-streams": // spec 160 3.3, rdb 0237
 		return cmdFileStreams(cfg, rest)
 	default: // fleet-tokens: spec 140 3.4, rdb 0199

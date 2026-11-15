@@ -109,6 +109,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onBoxPresenceLane(ctx, x, f)
 		return
 	}
+	if isBoxChannelPinsLaneOp(f.LaneOp) { // spec 164 4.3 (B4): a channel's box pins, read by the placer
+		s.onBoxChannelPinsLane(ctx, x, f)
+		return
+	}
 	id := f.MsgID
 	if !uuidRe.MatchString(id) {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "a lane frame needs msg_id (a UUID) to pair the reply")

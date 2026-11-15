@@ -248,5 +248,30 @@ No blocking defect (W). The doc's section 7 can be queued as ranked.
 
 ## 9. v0.2 sign-off
 
-Signed in the second commit on this branch: verdict on
-`fc4e2718ef2870e30bd91f851861a351e65296c7` (v0.2).
+Verdict on `fc4e2718ef2870e30bd91f851861a351e65296c7` (v0.2, the branch tip
+at fetch time): **PASS** — no blocking defect.
+
+Checked the v0.2 delta (`git diff 62397a34c fc4e2718e`, 53 insertions, 9
+deletions, one file):
+
+- F2 row now carries the exact measured delays "16 min 18 s and 17 min 40 s"
+  — both match this seat's own `gh run list --commit <sha> --workflow
+  10_ci-quality.yml` measurements (N3 closed).
+- The section 2 cause-vs-first-red note is present and its run ids check out:
+  `43680212480` 2026-11-15T05:14:25Z cancelled on `d6bcf4309`,
+  `43662660943` 2026-11-15T01:20:51Z failure on `d99a6febb` (N5 closed).
+- Section 5 states the U rounding rule and why rows 4 and 8 rank below rows
+  2 and 3 despite T1's U; the job counts (39, 16) are disclosed as the
+  editor's extract, not rebuilt — consistent with N6.
+- Section 9 seats table names the grok seat file on
+  `review/ci-failures-50-grok-seat` (`git ls-remote origin` ->
+  `542855f62c4e8495394dd04a20dcf48914c891d6`) and this seat as not placed
+  yet at 14:3xZ.
+- N1 (rate-table header command) and N2 (D3 advisory-time citation) are
+  unchanged in v0.2 (line 65 still cites `git show -s dcd2df6c5` for
+  11-13 18:11Z); both values remain true per the commands in N1/N2. Carried
+  as notes for v0.3.
+
+All section 1-8 checks above were run against v0.1's claims; the v0.2 edits
+touch only the status header, section 2 note, section 5 notes and the seats
+table, none of which invalidates a check.

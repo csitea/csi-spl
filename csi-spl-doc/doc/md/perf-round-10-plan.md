@@ -168,7 +168,8 @@ Read on 2026-11-15, each with its time:
     stops its own sweep jobs (`jobs -p`, its own children only) and sets a flag
     (e.g. `sweep_killed=1`), so the EXIT trap skips the join and the verdict fold
     (a killed sweep has no verdict) and only removes the dir, keeping 129 / 130 /
-    143 (`hygiene-killed-cleanup.tst.sh:51`); the test (`:41-55`) still finds
+    143, the step's own traps (`hygiene-killed-cleanup.tst.sh:51` accepts 124 or
+    143 after a TERM, not 129 or 130; g-223 N1); the test (`:41-55`) still finds
     nothing left in `$TMPDIR`.
   - The new helper and join take names the readers' `sweep[ \t]+"` match cannot
     take (e.g. `sweep_join`). The comment above `sweep()` says the sweeps run at
@@ -284,4 +285,8 @@ then on the Qto doc is the primary copy.
 | a-225@PC | agy | `1fae9045a` (v0.1) | FAIL, W1-W4 N1-N5 (seat `b5ecd1db0`), folded in v1.0 |
 | g-223@PC | grok | `7cd0b3ef0` (v1.0) | PASS (seat `f600bd802`) |
 | a-225@PC | agy | `7cd0b3ef0` (v1.0) | FAIL, W5 (seat `af10b1577`), folded in v1.1 |
-| g-223@PC / a-225@PC | grok / agy | v1.1 head | pending |
+| a-225@PC | agy | `4c321482b` (v1.1) | **PASS**, 0 W, 0 N (seat `6ff8816b2`) |
+| g-223@PC | grok | `4c321482b` (v1.1) | **PASS**, 0 W, N1 (seat `f2a75f8b2`): the `:51` cite wording, folded record-only |
+
+**Signed: v1.1 `4c321482b`, both panel seats PASS.** The commit after it records
+this table and g-223's N1 wording only; no row, gain or mechanism changed.

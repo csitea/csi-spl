@@ -3,8 +3,8 @@ package hub_test
 // SPL-1560 (owner HUM-10 t1 d74ecae5): the X on an attachment removes it from
 // the system. DELETE /v1/attachments/{file_id} takes the file off every
 // message the caller may change that carries it, and deletes the blob once no
-// message carries it. The uploader (the author of the carrying message) and a
-// workspace admin may; nobody else.
+// message carries it. The uploader (the author of the carrying message) may;
+// nobody else, not an admin either (SPL-5570, author_only_test.go).
 //
 // Each refusal is paired with the same call by someone who may make it, so a
 // handler that refused everyone would fail this file too.
@@ -120,15 +120,14 @@ func blobExists(t *testing.T, e *env, tid, fileID string) bool {
 	return ok
 }
 
-// TestRemoveAttachmentUploaderAndAdmin — a stranger is refused and nothing
-// changes; the uploader removes one of two files (the other stays on the
-// card); an admin removes another member's file; each blob goes with it.
-func TestRemoveAttachmentUploaderAndAdmin(t *testing.T) {
+// TestRemoveAttachmentUploader — a stranger is refused and nothing changes;
+// the uploader removes one of two files (the other stays on the card) and its
+// blob goes with it.
+func TestRemoveAttachmentUploader(t *testing.T) {
 	e := rolesEnv(t)
 	tid, _ := e.tenant()
-	keep, gone, byAdmin := strings.Repeat("1", 64), strings.Repeat("2", 64), strings.Repeat("3", 64)
+	keep, gone := strings.Repeat("1", 64), strings.Repeat("2", 64)
 	id := putAttachRow(t, e, tid, "lobby", "HUM-54", keep, gone)
-	other := putAttachRow(t, e, tid, "lobby", "HUM-54", byAdmin)
 
 	// A regular member who did not upload it: 403, file and blob untouched.
 	if code, out := removeAttachment(t, e, tid, gone, "HUM-58"); code != http.StatusForbidden || out["error"] != "not_author" {
@@ -160,14 +159,6 @@ func TestRemoveAttachmentUploaderAndAdmin(t *testing.T) {
 	// A second remove of the same file: nothing carries it any more.
 	if code, _ := removeAttachment(t, e, tid, gone, "HUM-54"); code != http.StatusNotFound {
 		t.Fatalf("second remove: %d, want 404", code)
-	}
-
-	// A workspace admin removes another member's file.
-	if code, out := removeAttachment(t, e, tid, byAdmin, "HUM-53"); code != http.StatusOK || out["blob_deleted"] != true {
-		t.Fatalf("admin: %d %v (want 200, blob deleted)", code, out)
-	}
-	if col, _ := storedFileIDs(t, e, tid, other); len(col) != 0 {
-		t.Fatalf("admin remove left %v on the row", col)
 	}
 }
 

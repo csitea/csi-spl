@@ -175,18 +175,17 @@ func (s *Server) editTarget(w http.ResponseWriter, r *http.Request, tenant, hum,
 	if !s.messageDoor(w, r, tenant, m) { // the read door before rule 6
 		return m, nil, false
 	}
-	// Rule 6 (SPL-1291, owner 2026-09-30 "it MUST work for all the other roles
-	// as well"): the author edits their own message and the title of the topics
-	// they started (a title is the first line of the root message); the tenant
-	// owner and an admin edit anyone's, the same author/owner/admin rule that
-	// already governs topic archive/merge/move (041 mayChangeTopic). Every human
-	// role holds notes.send (rule 4), so this gives EVERY role its own; agents
-	// stay out via rule 7 below (a non-box-wui or box-signed envelope the hub
-	// cannot re-sign is 409 not_editable). The token stays not_author: it is the
-	// one the WUI already maps and it still means "you are not allowed to edit
-	// this one".
-	if !s.mayChangeTopic(r.Context(), tenant, hum, from, m.FromID) { // rule 6
-		writeErr(w, http.StatusForbidden, "not_author", "only the author, the tenant owner or an admin may edit this message")
+	// Rule 6 (SPL-5570, owner HUM-10 2026-11-13, #spool-hub-bugs c418ebfd:
+	// "Every user should have the right to edit their own messages" and no
+	// one else's, "nor even of AI"): the AUTHOR edits their own message and
+	// the title of the topics they started (a title is the first line of the
+	// root message), and nobody else does - not the tenant owner, not an
+	// admin. This reverses SPL-1291's owner/admin widening for message edits
+	// only; topic archive/merge/move keep mayChangeTopic (spec 041). An
+	// agent's message has an agent from_id, so no human ever passes here for
+	// it. The token stays not_author: the WUI already maps it.
+	if !isAuthor(from, m.FromID) { // rule 6
+		writeErr(w, http.StatusForbidden, "not_author", "only the author may edit this message")
 		return m, nil, false
 	}
 	if !s.topicOpenDoor(w, r, tenant, m.MsgID, m.TaskID) { // SPL-4954
@@ -233,6 +232,12 @@ func (s *Server) editedEnvelope(m store.EditableMessage, body string, pub ed2551
 // editorID is the v:1 agent id the caller's messages are stamped with. It is
 // resolved exactly as the browser socket resolves it (wui.go), so the id the
 // send path wrote as from_id is the id the edit path compares against.
+// isAuthor is edit rule 6 (SPL-5570): the caller's v:1 id is the message's
+// from_id. An empty caller id is never an author.
+func isAuthor(from, author string) bool {
+	return from != "" && from == author
+}
+
 func (s *Server) editorID(r *http.Request, tenant string) (string, bool) {
 	sess, err := s.wuiSession(r, tenant)
 	if err != nil || sess == "" {

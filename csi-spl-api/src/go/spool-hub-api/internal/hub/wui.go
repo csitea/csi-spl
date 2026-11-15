@@ -1393,18 +1393,67 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// mayDeleteFile is mayReadFile for a delete. A box token is judged as the
-// box (the files it may read); the box-wui token names no one - every
-// signed-in browser holds it - so the browser's delete is judged as the
-// SIGNED-IN HUMAN whose session cookie rides with it, by the same door their
-// download passes. No session in the session door = refused.
+// mayDeleteFile is mayReadFile for a delete, narrowed to the UPLOADER
+// (SPL-5570, owner HUM-10 2026-11-13: "nobody should have the right to
+// delete attachments, neither agents' nor other users', only their own"). A
+// box token is judged as the box (the files it may read); the box-wui token
+// names no one - every signed-in browser holds it - so the browser's delete
+// is judged as the SIGNED-IN HUMAN whose session cookie rides with it, by the
+// same door their download passes. No session in the session door = refused.
+// Past the read door, uploadedBy decides.
 func (s *Server) mayDeleteFile(r *http.Request, tenant, fileID string) (bool, error) {
-	if _, box, _, ok := s.bearerAny(r); ok && box == WUIBox {
-		asHuman := r.Clone(r.Context())
-		asHuman.Header.Del("Authorization")
-		return s.mayReadFile(asHuman, tenant, fileID)
+	_, box, _, _ := s.bearerAny(r)
+	asCaller := r
+	if box == WUIBox {
+		asCaller = r.Clone(r.Context())
+		asCaller.Header.Del("Authorization")
 	}
-	return s.mayReadFile(r, tenant, fileID)
+	if may, err := s.mayReadFile(asCaller, tenant, fileID); err != nil || !may {
+		return false, err
+	}
+	return s.uploadedBy(asCaller, tenant, fileID, box)
+}
+
+// uploadedBy reports whether the caller sent EVERY message in retention that
+// carries fileID. The hub keeps no uploader column; a file is uploaded by
+// whoever sends it, so its uploader is the author of its carriers (the rule
+// of DELETE /v1/attachments, attachment_remove.go). A blob is
+// content-addressed, so the same bytes on someone else's message keep it:
+// deleting it would take their attachment too. A box (box != box-wui) is the
+// uploader of the rows its box sent; a browser is the signed-in member, the
+// author (from_id) of box-wui rows. No carrier at all is a fresh upload not
+// sent yet (or an avatar), which mayReadFile has already judged. With the
+// view door off (lde) and no member session there is no one to judge, and
+// the delete passes as the read did (privacy.go readerID).
+func (s *Server) uploadedBy(r *http.Request, tenant, fileID, box string) (bool, error) {
+	ctx, now := r.Context(), s.o.Now()
+	ids, err := s.o.Store.FileCarriers(ctx, tenant, fileID, now)
+	if err != nil || len(ids) == 0 {
+		return err == nil, err
+	}
+	from := ""
+	if box == "" || box == WUIBox {
+		if from, _ = s.editorID(r, tenant); from == "" {
+			hum, ok := s.readerID(r, tenant)
+			return ok && hum == "", nil
+		}
+	}
+	for _, id := range ids {
+		m, err := s.o.Store.GetEditable(ctx, tenant, id, now)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			continue
+		case err != nil:
+			return false, err
+		}
+		if from == "" && m.FromBox != box {
+			return false, nil
+		}
+		if from != "" && (m.FromBox != WUIBox || !isAuthor(from, m.FromID)) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // filesPreflight answers CORS preflight for POST /v1/files and

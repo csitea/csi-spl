@@ -228,6 +228,13 @@ The hub requires **all** of the following, in this order:
 
 (A box edits its own messages over its socket instead — §10.)
 
+Rule 6 is the author and nobody else. SPL-1291 (owner HUM-10, 2026-09-30) had widened it
+in code to the tenant owner and an admin (specs/041 `mayChangeTopic`); SPL-5570 (owner
+HUM-10, 2026-11-13, #spool-hub-bugs: "Neither should one user have the right to edit
+messages of other users, nor even of AI. Every user should have the right to edit their own
+messages") restored the strict author test: `edit.go` `isAuthor`. Topic archive, merge and
+move keep `mayChangeTopic`.
+
 Rule 7 is not a policy choice, it is arithmetic: a box-authored envelope carries that
 box's Ed25519 signature over the canonical inner bytes. Change the body and the signature
 no longer verifies, and the hub holds no key that could re-sign for that box. A message

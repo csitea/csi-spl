@@ -25,11 +25,12 @@ import (
 // issue description's file rides on), each row re-signed as an edit would be,
 // and the stored blob is deleted once no message carries it any more.
 //
-// Who may: the uploader and workspace admins. The hub keeps no uploader
-// column; a file is uploaded by the member who sends it, so the uploader of
-// an attachment is the author of the message that carries it. That is the
-// edit rule (mayChangeTopic: the author, the tenant owner or an admin), never
-// wider. A row the caller may read but not change keeps the file, and so
+// Who may: the uploader only (SPL-5570, owner HUM-10 2026-11-13: "nobody
+// should have the right to delete attachments, neither agents' nor other
+// users', only their own"). The hub keeps no uploader column; a file is
+// uploaded by the member who sends it, so the uploader of an attachment is
+// the author of the message that carries it. That is the edit rule (isAuthor,
+// edit.go rule 6); the tenant owner and an admin no longer may. A row the caller may read but not change keeps the file, and so
 // does a box-signed row (the hub cannot re-sign an agent's envelope); either
 // keeps the blob alive, and the answer counts them in `kept`.
 //
@@ -68,7 +69,7 @@ func (s *Server) handleRemoveAttachment(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusInternalServerError, "internal", "remove failed")
 		return
 	}
-	res, err := s.detachEverywhere(r.Context(), t.ID, hum, from, reader, fileID)
+	res, err := s.detachEverywhere(r.Context(), t.ID, from, reader, fileID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("file_id", fileID).Msg("attachment remove")
 		writeErr(w, http.StatusInternalServerError, "internal", "remove failed")
@@ -82,7 +83,7 @@ func (s *Server) handleRemoveAttachment(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be changed by its box")
 		return
 	case len(res.removed) == 0:
-		writeErr(w, http.StatusForbidden, "not_author", "only the uploader, the tenant owner or an admin may remove this attachment")
+		writeErr(w, http.StatusForbidden, "not_author", "only the uploader may remove this attachment")
 		return
 	}
 	blobGone, err := s.dropBlobIfFree(r.Context(), t.ID, fileID)
@@ -118,7 +119,7 @@ type detachResult struct {
 // detachEverywhere takes fileID off every carrier the caller may change, and
 // pushes each changed row to its viewers as a message_edited frame (the
 // frame replaces a held row, so the card loses the file live).
-func (s *Server) detachEverywhere(ctx context.Context, tenant, hum, from, reader, fileID string) (detachResult, error) {
+func (s *Server) detachEverywhere(ctx context.Context, tenant, from, reader, fileID string) (detachResult, error) {
 	var res detachResult
 	now := s.o.Now()
 	ids, err := s.o.Store.FileCarriers(ctx, tenant, fileID, now)
@@ -146,7 +147,7 @@ func (s *Server) detachEverywhere(ctx context.Context, tenant, hum, from, reader
 			res.boxSigned++
 			continue
 		}
-		if !s.mayChangeTopic(ctx, tenant, hum, from, m.FromID) {
+		if !isAuthor(from, m.FromID) {
 			continue
 		}
 		if m.EnvSig == "" {

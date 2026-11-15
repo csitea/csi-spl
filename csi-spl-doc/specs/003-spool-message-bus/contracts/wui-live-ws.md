@@ -157,6 +157,12 @@ Presence example (v0.3):
 - **Delete** (owner-requested, beyond the original no-delete default):
   `DELETE /v1/files/{file_id}` with a valid upload token of the tenant (box or
   `box-wui`) -> `204`; absent -> `404 not_found`; another tenant's id -> `404`.
+  Only the uploader deletes (SPL-5570): a box deletes a file only when every
+  message in retention that carries it was sent by that box; a browser
+  (`box-wui` token plus the member session) only when the signed-in member is
+  the author of every carrier. Any other caller, a reader of the file
+  included, gets the same `404` as for an absent file. A file no message
+  carries yet (a fresh upload) follows the read door.
   Messages that referenced it keep the ref; a later GET is `404`.
 
 ## 6. Box agents in the lobby

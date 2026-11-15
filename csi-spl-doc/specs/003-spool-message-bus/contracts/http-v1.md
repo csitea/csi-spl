@@ -332,9 +332,11 @@ the default; Windows = right), and asks before it calls this.
 - The hub lists every message in retention that carries the file (by
   `file_id` or `sha256`). For each one the caller may READ (the read door of
   rdb 0028/0030):
-  - it may CHANGE it when it is the uploader (the author of that message: a
-    file is uploaded by the member who sends it) or the tenant owner or an
-    admin (the 041 author/owner/admin rule);
+  - it may CHANGE it only when it is the uploader (the author of that
+    message: a file is uploaded by the member who sends it). The tenant owner
+    and an admin may not (SPL-5570, owner HUM-10 2026-11-13: "nobody should
+    have the right to delete attachments, neither agents' nor other users',
+    only their own"; it was the 041 author/owner/admin rule before);
   - a box-signed message keeps the file: the hub cannot re-sign an agent's
     envelope (032 rule 7). A browser-signed one is re-signed;
   - a changed row loses the file from `files[]`, from its inner object and

@@ -47,7 +47,8 @@
 #      this box = delivered, the body naming c-507@box-a. An owner pane seat
 #      (c-004's brief line) = hinted idle by design, poke / restart /
 #      close-ask refused; a standing seat (heading, "Standing seat: stay up",
-#      lifetime/standing, "# Brief: the standing ... seat") = no close-ask;
+#      lifetime/standing, "# Brief: the standing ... seat", a bare "# Seat
+#      brief" heading, the lane rotation's one rule SPL-5577) = no close-ask;
 #      CONTROL: a plain lane, and lanes whose title or heading only names a
 #      standing seat, are closed. A box tag != its machine: <id>@<machine> is
 #      this box for begin and poke
@@ -515,6 +516,11 @@ standing18 c-988 '# Lane brief: a CI caps test races the hub log\n\n## The red (
 check "18. CONTROL: lanes whose title or a heading only names a standing seat = close-ask sent (x3)" '[ "$r1$r2$r3" = 000 ] && [ "$(sent "--task gc-c-98[678]")" = 3 ]'
 standing18 c-989 '# Brief: the standing CI-refactor seat - one measured CI change per round (claude, complex_coding, CI only)\n'
 check "18. a \"# Brief: the standing ... seat\" title = no close-ask (exit 4)" '[ "$rc" = 4 ] && [ "$(sent "--task gc-c-989")" = 0 ]'
+# SPL-5577: one rule with the lane rotation and the watchdog (spl_seat_standing):
+# a bare "# Seat brief" heading, no "(standing seat" in it, is standing too.
+# Red control (origin/master 163f10dc8): close-ask sent.
+standing18 c-990 '# Seat brief: acme #ops topic 0123abcd - answer the posts in this one topic (claude)\n'
+check "18. a bare \"# Seat brief\" heading = no close-ask (exit 4), the heading named" '[ "$rc" = 4 ] && [ "$(sent "--task gc-c-990")" = 0 ] && grep -q "REFUSED close-ask c-990@box-a: a standing seat is never done.*# Seat brief: acme" "$D/gc/gc.log"'
 # N3: the box tag (SPOOL_BOX_TAG) differs from the machine (ROTATE_BOX); a
 # qualified <id>@<machine> is this box for begin and poke, the body names the tag.
 reset; lane c-507; gc start "$H0" SPOOL_BOX_TAG=tag-a

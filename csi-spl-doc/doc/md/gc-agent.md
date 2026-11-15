@@ -121,11 +121,15 @@ An id with 2+ panes is judged in the pane whose process carries `SPOOL_AGENT_ID=
   marking the seat itself standing ("(standing seat, ...", "# Brief: the
   standing ... seat" or "# Seat brief: ... standing ... seat"), "You are a
   STANDING seat", a "- STANDING seat:" item or "Standing seat: stay up"
-  opening a line or a sentence refuse `close-ask`, ACCEPTED or not (11-11,
-  c-981). A title or heading that only
+  opening a line or a sentence, or a brief whose own heading opens "# Seat
+  brief" refuse `close-ask`, ACCEPTED or not (11-11, c-981). A title or
+  heading that only
   names a standing seat ("Lane brief: bug - the watchdog restarts an idle
   standing seat") and a brief quoting another seat's "Standing seat: stay
-  up" are lanes, closed as any lane.
+  up" are lanes, closed as any lane. This is one rule,
+  `spl_seat_standing` (`csi-spl-orc/src/bash/run/spl-lane-rotate.func.sh`),
+  read the same way by the hourly lane rotation (a standing seat is rotated
+  past a per-item ACCEPTED) and by the watchdog's fence and S1 (SPL-5577).
 - **Never kill by pattern**: the restart is the fleet's one restart path.
 
 <a id="ws-doc-560b258f-ba09-42fe-92fa-652c9b3a7a9f"></a>

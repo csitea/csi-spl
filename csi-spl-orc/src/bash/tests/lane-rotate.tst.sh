@@ -81,6 +81,11 @@
 #      a reused pid, a pid-only file and a suffixed name count 0; a dead one
 #      is swept (not on a dry run); a worker drops its own file on exit; 3
 #      stale files leave the slots to a 4th lane. Red control: origin/master.
+#  31. SPL-5577: a seat standing by its brief alone (no lifetime/standing)
+#      with a per-item ACCEPTED is rotated, as the GC and the watchdog read
+#      it (spl_seat_standing): a "# Seat brief" heading, "You are a STANDING
+#      seat"; control: a plain lane with ACCEPTED is still skipped. Red
+#      control (origin/master 163f10dc8): both seats SKIP accepted.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -787,6 +792,21 @@ read -r wp ws <"$L/run.c-315"
 check "30i. a started worker records its pid and /proc start time" '[ -n "$ws" ] && [ "$ws" = "$(sed "s/^.*) //" "/proc/$wp/stat" | cut -d" " -f20)" ]'
 check "30i. the started worker is in flight" '[ "$(inflight /proc)" = c-315 ]'
 kill "$wp" 2>/dev/null
+
+# --- 31. a seat standing by its brief alone is rotated past ACCEPTED (SPL-5577) ---
+acc31() { echo "{\"v\":1,\"from\":\"c-002\",\"to\":\"$1\",\"kind\":\"note\",\"task_id\":\"t\",\"body\":\"ACCEPTED: row 4 answered. The seat stays up.\"}" >"$S/$1/archive/a.json"; }
+reset; lane c-316 50; acc31 c-316
+printf '# Seat brief: acme #ops topic 0123abcd - answer the posts in this one topic (claude)\n\nWork.\n' >"$S/c-316/lifetime/brief.md"
+tick
+check "31a. a \"# Seat brief\" seat, per-item ACCEPTED, no lifetime/standing: rotated" '[ ! -e "$S/c-316/lifetime/standing" ] && grep -q "lane-c-316 DONE OK" "$D/rotate.log" && ! grep -q "c-316 SKIP accepted" "$T/tick.out"'
+reset; lane c-317 50; acc31 c-317
+printf '# Lane brief: the #dev reviewer\n\nYou are a STANDING seat: review each post.\n' >"$S/c-317/lifetime/brief.md"
+tick
+check "31b. a \"You are a STANDING seat\" brief, ACCEPTED: rotated" 'grep -q "lane-c-317 DONE OK" "$D/rotate.log" && ! grep -q "c-317 SKIP accepted" "$T/tick.out"'
+reset; lane c-318 50; acc31 c-318
+printf '# Lane brief: bug - lane-rotate skips standing seats\n\nThe standing seat c-614 is never rotated.\n' >"$S/c-318/lifetime/brief.md"
+tick
+check "31c. control: a plain lane (its brief only names a standing seat) with ACCEPTED: skipped" 'grep -q "c-318 SKIP accepted" "$T/tick.out" && ! grep -q "lane-c-318 DONE" "$D/rotate.log"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

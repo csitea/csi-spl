@@ -473,12 +473,44 @@ spl_lane_rotate_recent() {
   return 0
 }
 
-# 0 when ID is a standing seat (SPL-2004): $SPOOL_ROOT/<id>/lifetime/standing
-# exists. The one rule; the watchdog's S1 reads it too (SPL-3737).
-spl_lane_standing() { [[ -f "$SPOOL_ROOT/$1/lifetime/standing" ]]; }
+# spl_seat_standing ID: the marker that makes ID a standing seat, printed,
+# else rc 1. The one rule (SPL-5577) of the lane rotation, the GC
+# (spl_gc_standing, which prints the marker) and the watchdog
+# (spl_wd_standing_seat, its S1 and fence):
+#   lifetime/standing (SPL-2004);
+#   the brief's title marking the seat itself standing ("(standing seat, ..."
+#     or "# Brief: the standing ... seat"), "You are a STANDING seat", a
+#     "- STANDING seat:" item or "Standing seat: stay up" opening a line or a
+#     sentence (a brief that quotes it about another seat is no marker; a
+#     title that only names a standing seat is a lane);
+#   the brief's own heading opens "# Seat brief" (SPL-5326; a restart seed
+#     nested over the brief is read at its innermost section A, as
+#     spl_ars_brief_unnest cuts it).
+# One box 2026-11-15: c-614 and c-981, standing by the brief only, logged
+# "SKIP accepted" on a per-item ACCEPTED and were never rotated again.
+spl_seat_standing() {
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" q
+  [[ -f "$SPOOL_ROOT/$1/lifetime/standing" ]] && { echo "lifetime/standing"; return 0; }
+  [[ -f "$b" ]] || return 1
+  if q="$(grep -m1 -iE '^# .*\(standing seat\b|^# (seat )?brief:.*\bstanding\b[^.]*\bseat\b' "$b" 2>/dev/null)" ||
+    q="$(grep -m1 -oiE 'you are a standing seat[^.]*|^[-*] +standing seat:[^.]*|(^|[.;] +)standing seat: *stay up[^.]*' "$b" 2>/dev/null)"; then
+    q="$(sed -E 's/^[.;] +//' <<<"$q")"
+  else
+    q="$(awk 'FNR == 1 && /^# Brief: you are / { nest = 1; next }
+      nest && /^## A\. Your brief/ { h = ""; next }
+      /^# / && h == "" { h = $0 } END { if (tolower(h) ~ /^# +seat brief([^[:alnum:]]|$)/) print h }' "$b" 2>/dev/null)"
+    [[ -n "$q" ]] || return 1
+  fi
+  printf '%s\n' "${q:0:160}"
+}
+
+# 0 when ID is a standing seat (spl_seat_standing); the watchdog's S1 reads
+# it too (SPL-3737).
+spl_lane_standing() { spl_seat_standing "$1" >/dev/null; }
 
 # 0 when ID's inbox or archive holds an ACCEPTED newer than any REJECT / SEND-BACK,
-# unless ID is a standing seat (lifetime/standing exists).
+# unless ID is a standing seat (spl_lane_standing): a per-item ACCEPTED never
+# ends a standing seat.
 spl_lane_rotate_accepted() {
   local a r
   # Standing seat: rotate even if ACCEPTED exists

@@ -87,7 +87,9 @@
 #      brief opens "# Seat brief:", or it carries lifetime/standing, or a
 #      restart seed nests over its seat brief: no wip push, no TERM, not in
 #      the FENCED note. Control: a "# Lane brief:" lane and a lane with no
-#      brief are pushed and TERMed as in 3
+#      brief are pushed and TERMed as in 3. SPL-5577: the one rule of the lane
+#      rotation and the GC (spl_seat_standing): a lane brief that says "You
+#      are a STANDING seat" is not TERMed either (red on origin/master 163f10dc8)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -581,9 +583,10 @@ for g in 601 700 800; do WD_GAP_LOG_MAX=2 gap16 $(( T0 - g )) "$T0"; done
 
 # ---- 17. a standing seat spawned as a lane id is never TERMed (SPL-5326) -------
 reset
-printf 'c-001\t101\t%%1\nc-050\t150\t%%2\nc-051\t151\t%%3\nc-507\t157\t%%4\nc-545\t145\t%%5\nc-981\t198\t%%6\n' > "$T/tick/agents"
-printf '101 1 500 claude\n150 1 500 claude\n151 1 500 claude\n157 1 500 claude\n145 1 500 claude\n198 1 500 claude\n' > "$T/tick/ps"
-mkdir -p "$T/spool/c-050/lifetime" "$T/spool/c-507/lifetime" "$T/spool/c-545/lifetime" "$T/spool/c-981/lifetime"
+printf 'c-001\t101\t%%1\nc-050\t150\t%%2\nc-051\t151\t%%3\nc-507\t157\t%%4\nc-545\t145\t%%5\nc-981\t198\t%%6\nc-614\t164\t%%7\n' > "$T/tick/agents"
+printf '101 1 500 claude\n150 1 500 claude\n151 1 500 claude\n157 1 500 claude\n145 1 500 claude\n198 1 500 claude\n164 1 500 claude\n' > "$T/tick/ps"
+mkdir -p "$T/spool/c-050/lifetime" "$T/spool/c-507/lifetime" "$T/spool/c-545/lifetime" "$T/spool/c-981/lifetime" "$T/spool/c-614/lifetime"
+printf '# Lane brief: the #dev reviewer\n\nYou are a STANDING seat: review each post.\n' > "$T/spool/c-614/lifetime/brief.md"
 printf '# Lane brief: bug - the fence TERMs standing seats\n\nWork.\n' > "$T/spool/c-050/lifetime/brief.md"
 printf '# Seat brief: acme #ops topic 0123abcd - answer the posts in this one topic (standing seat, claude, runs ON box1)\n\nWork.\n' > "$T/spool/c-507/lifetime/brief.md"
 : > "$T/spool/c-545/lifetime/standing"
@@ -595,6 +598,7 @@ ticks 30 120 silent
 [[ "$(n acts 'c-507\| 157$')" == 0 ]] && pass "17. a '# Seat brief:' lane id is not pushed or TERMed" || fail "17. seat brief touched: $(cat "$T/acts")"
 [[ "$(n acts 'c-545\| 145$')" == 0 ]] && pass "17. lifetime/standing: not pushed or TERMed" || fail "17. standing touched: $(cat "$T/acts")"
 [[ "$(n acts 'c-981\| 198$')" == 0 ]] && pass "17. a restart seed nested over a seat brief: not TERMed" || fail "17. nested seed touched: $(cat "$T/acts")"
+[[ "$(n acts 'c-614\| 164$')" == 0 ]] && pass "17. a 'You are a STANDING seat' lane brief: not pushed or TERMed (SPL-5577)" || fail "17. standing brief touched: $(cat "$T/acts")"
 printf 'c-001\t101\t%%1\nc-050\t150\t%%2\nc-051\t151\t%%3\n' > "$T/tick/agents"
 printf '101 1 500 claude\n150 1 500 claude\n151 1 500 claude\n' > "$T/tick/ps"
 

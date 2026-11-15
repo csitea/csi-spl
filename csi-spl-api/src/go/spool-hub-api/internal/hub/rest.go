@@ -391,6 +391,7 @@ func (s *Server) isTenantAvatar(ctx context.Context, tenant, fileID string) (boo
 // agent join tokens (join_tokens.go, spec 073).
 func (s *Server) routePins(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/pins", s.handleListPins)
+	mux.HandleFunc("OPTIONS /v1/pins", s.preflight) // SPL-5589: the WUI reads it cross-origin with Authorization
 	mux.HandleFunc("POST /v1/pins", s.handlePin)
 	mux.HandleFunc("DELETE /v1/pins/{box_id}", s.handleRevoke)
 	s.routeJoinTokens(mux)
@@ -398,6 +399,7 @@ func (s *Server) routePins(mux *http.ServeMux) {
 
 // GET /v1/pins: the tenant's active box pubkeys (authorized_keys sync).
 func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
+	s.allowOrigin(w, r)                  // SPL-5589: the WUI's channel Boxes read; a box sends no Origin
 	t, tokBox, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
 	if !ok {
 		return

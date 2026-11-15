@@ -208,8 +208,18 @@ func TestViewAPI(t *testing.T) {
 	if _, hd, _ = viewGet(t, e, tid, "/v1/view/topics", "Origin", "http://evil.test"); hd.Get("Access-Control-Allow-Origin") != "" {
 		t.Fatalf("unlisted origin got CORS: %v", hd)
 	}
-	if _, hd, _ = viewGet(t, e, tid, "/v1/pins", "Origin", wuiOrigin); hd.Get("Access-Control-Allow-Origin") != "" {
-		t.Fatalf("/v1/pins answered CORS: %v", hd)
+	// SPL-5589: the WUI reads GET /v1/pins (spec 164 B6), so it is a CORS read
+	// now (pins_cors_test.go); a pin write stays box-only: no preflight allows POST.
+	pinPre, _ := http.NewRequest(http.MethodOptions, e.url(tid)+"/v1/pins", nil)
+	pinPre.Header.Set("Origin", wuiOrigin)
+	pinPre.Header.Set("Access-Control-Request-Method", "POST")
+	pinResp, pinErr := e.client.Do(pinPre)
+	if pinErr != nil {
+		t.Fatal(pinErr)
+	}
+	pinResp.Body.Close()
+	if m := pinResp.Header.Get("Access-Control-Allow-Methods"); strings.Contains(m, "POST") {
+		t.Fatalf("OPTIONS /v1/pins allows a browser POST: %q", m)
 	}
 	pre, _ := http.NewRequest(http.MethodOptions, e.url(tid)+"/v1/view/topics", nil)
 	pre.Header.Set("Origin", wuiOrigin)

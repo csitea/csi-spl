@@ -70,6 +70,18 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   selection:
   `WUI_E2E_RANGE=origin/master..HEAD ./run -a do_check_pre_push_e2e`.
   `PRE_PUSH_E2E=0` turns it off.
+- **The orc part**, fast tier, runs the orc `*.tst.sh` that name a touched
+  file or a function it defines, plus the always-run list
+  (`run-all-tests.sh --changed`; the map is
+  `csi-spl-orc/src/bash/tests/changed-tests.sh`, the list its
+  `ORC_TEST_ALWAYS`). When the map answers `full` (a touched orc file that no
+  test names), the whole suite is left to CI workflow 10 or
+  `PRE_PUSH_TIER=full`, and the fast tier still runs the always-run list and
+  prints it (`the fast tier still runs the always-run list: ...`); an empty
+  list prints that no orc test runs (SPL-5607). Before it, a `full` plan ran
+  no orc test: 33 of 150 orc commits (22%), and whole-tree guards such as
+  `run-eager-files.tst.sh` reached trunk red
+  ([ci-failures-50](ci-failures-50-2026-11-15.md) T2).
 - **The orc-features part** (spec 133 F1) runs wf 10's orc feature tests
   (`features/run-ci-tests.sh`) for the features a csi-spl-orc change maps
   to: a file under `features/<f>/` selects `<f>`, a file directly under

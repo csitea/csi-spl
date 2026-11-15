@@ -17,6 +17,9 @@
 #   8c. (r5-07) an orc-only change selects the orc part (no iac, no api)
 #   11. (r5-07) the real orc part on a temp repo: green on trunk, REFUSES a
 #       lane break a test names, and never runs a test naming no touched file
+#   12. (SPL-5607) a `full` orc plan (a touched orc file no test names): the
+#       fast tier still runs the always-run list and says so, a planted red in
+#       an always-run test fails the part, an empty list runs nothing
 #   do_log and do_check_dist_hygiene are stubbed; PLAN mode returns before
 #   either would run, so the routing is all that is under test.
 #------------------------------------------------------------------------------
@@ -201,6 +204,28 @@ grep -q ran-unrelated "$O/out" && fail "11. CONTROL: a test naming no touched fi
   || pass "11. CONTROL: a test naming no touched file did not run"
 echo 'do_foo_x() { echo BROKEN; }' >"$OR/csi-spl-orc/lib/bash/funcs/foo.func.sh"
 orc && fail "11. orc part REFUSES a lane break foo.tst.sh catches" "$(cat "$O/out")" || pass "11. orc part refuses a lane break foo.tst.sh catches"
+
+# 12. SPL-5607 (SPL-5587 T2): a touched orc file that no test names makes the
+#     map answer `full`. Before, the fast tier then ran NO orc test, so a
+#     whole-tree guard (run-eager-files.tst.sh) never ran before a push.
+#     eager.tst.sh stands in for it: it names no file and fails when a run/
+#     file carries the word EAGER.
+git -C "$OR" checkout -q -- .
+mkdir -p "$OR/csi-spl-orc/src/bash/run"
+printf '%s\n' 'd="$(dirname "$0")/../run"' '! grep -rqw EAGER "$d" 2>/dev/null' >"$OD/eager.tst.sh"
+git -C "$OR" add -A; git -C "$OR" commit -qm eager; git -C "$OR" branch -f trunk
+echo 'zzz_new_fn() { :; }' >"$OR/csi-spl-orc/src/bash/run/zzz-new.func.sh"
+ORC_TEST_ALWAYS=eager.tst.sh orc && pass "12. full plan: the always-run list passes" || fail "12. full plan: the always-run list passes" "$(cat "$O/out")"
+grep -q 'falls back to every file' "$O/out" && pass "12. ... the map answered full" || fail "12. ... the map answered full" "$(cat "$O/out")"
+grep -q 'still runs the always-run list: eager.tst.sh' "$O/out" && pass "12. ... it says it runs the always-run list" || fail "12. ... says always-run" "$(cat "$O/out")"
+grep -q 'changed-only: run eager.tst.sh' "$O/out" && pass "12. ... it ran eager.tst.sh" || fail "12. ... ran eager.tst.sh" "$(cat "$O/out")"
+grep -qE 'ran-unrelated|=== foo.tst.sh' "$O/out" && fail "12. CONTROL: only the always-run list runs" "$(cat "$O/out")" \
+  || pass "12. CONTROL: only the always-run list ran"
+echo 'zzz_new_fn() { :; } # EAGER' >"$OR/csi-spl-orc/src/bash/run/zzz-new.func.sh"
+ORC_TEST_ALWAYS=eager.tst.sh orc && fail "12. full plan: a planted eager red FAILS the part" "$(cat "$O/out")" || pass "12. full plan: a planted eager red fails the part"
+ORC_TEST_ALWAYS='' orc && pass "12. full plan, empty always-run list: passes" || fail "12. full plan, empty always-run list: passes" "$(cat "$O/out")"
+grep -q 'always-run list (ORC_TEST_ALWAYS) is empty' "$O/out" && ! grep -q '^=== ' "$O/out" \
+  && pass "12. ... it says so and runs no orc test" || fail "12. ... empty list says so, runs none" "$(cat "$O/out")"
 rm -rf "$O"
 
 echo "-- check-pre-push.tst.sh: $fails failed"

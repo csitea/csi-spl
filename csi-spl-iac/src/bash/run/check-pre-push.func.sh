@@ -635,12 +635,37 @@ _pp_part_iac() {
 # FAST tier: the orc *.tst.sh that name a touched file or a function it
 # defines, plus the always-run list (run-all-tests.sh --changed; the map is
 # changed-tests.sh). When a touched orc file is named by no test the map falls
-# back to every file (~10 min): the fast tier says so and leaves the suite to
-# CI. FULL tier: every file, as CI runs it. Both then run bash-cleancode.
+# back to every file (~10 min): the fast tier says so, leaves the whole suite to
+# CI and still runs the always-run list (_pp_orc_always). Before SPL-5607 a
+# `full` plan ran no orc test at all: 22% of orc pushes (n=150, SPL-5587 T2).
+# FULL tier: every file, as CI runs it. Both then run bash-cleancode.
 # The agent's SPOOL_* env is dropped (CI has none; an inherited SPOOL_BOX_TAG
 # reddens orch-rotate). On the base-ref tree nothing has changed, so it is
 # handed this push's change list: the trunk re-check runs the same files.
 # <base> is _pp_run's own (bash scoping).
+# On a `full` plan the fast tier runs the always-run list only: the map is
+# asked again with a change set that names no orc file (_PP_ORC_ALWAYS_ONLY,
+# a path outside csi-spl-orc that no test names), so only ORC_TEST_ALWAYS
+# (changed-tests.sh's default when unset) joins the plan. It adds that change
+# set to the caller's envv and returns 0 when the list is not empty; 1 (run
+# nothing) when it is empty or the map still answers `full`.
+# <tree> <orc tests dir>; envv is _pp_part_orc's own (bash scoping).
+_PP_ORC_ALWAYS_ONLY="pre-push-always-run-only"
+_pp_orc_always() {
+  local plan list
+  plan="$(cd "$1" && "${envv[@]}" ORC_TEST_FILES="$_PP_ORC_ALWAYS_ONLY" bash "$2/changed-tests.sh")"
+  if grep -q '^full' <<<"$plan"; then
+    echo "pre-push orc: the always-run list cannot be planned either ($(grep '^full' <<<"$plan" | cut -f2)): no orc test runs"
+    return 1
+  fi
+  list="$(awk -F'\t' '$1 == "run" { printf "%s ", $2 }' <<<"$plan")"
+  if [[ -z "$list" ]]; then
+    echo "pre-push orc: the always-run list (ORC_TEST_ALWAYS) is empty: no orc test runs"
+    return 1
+  fi
+  echo "pre-push orc: the fast tier still runs the always-run list: ${list% }"
+  envv+=(ORC_TEST_FILES="$_PP_ORC_ALWAYS_ONLY")
+}
 _pp_part_orc() {  # <tree>
   local t="$1/csi-spl-orc/src/bash/tests" rc=0 plan files="" v
   _pp_load_read
@@ -652,8 +677,8 @@ _pp_part_orc() {  # <tree>
     [[ -n "$files" ]] && envv+=(ORC_TEST_FILES="$files")
     plan="$(cd "$1" && "${envv[@]}" bash "$t/changed-tests.sh")"
     if grep -q '^full' <<<"$plan"; then
-      echo "pre-push orc: $(grep '^full' <<<"$plan" | cut -f2) -- the orc map falls back to every file: left to CI workflow 10 (or PRE_PUSH_TIER=full)"
-      args=()
+      echo "pre-push orc: $(grep '^full' <<<"$plan" | cut -f2) -- the orc map falls back to every file: the whole suite is left to CI workflow 10 (or PRE_PUSH_TIER=full)"
+      _pp_orc_always "$1" "$t" || args=()
     fi
   fi
   if [[ "${_PP_TIER:-fast}" == full || "${#args[@]}" -gt 0 ]]; then

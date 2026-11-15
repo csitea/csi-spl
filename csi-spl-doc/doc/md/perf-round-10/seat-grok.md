@@ -156,3 +156,48 @@ Printed `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-
 - N2. Row 01's sites cell lists the sweep range, the join, and seven unchanged call lines. The edit is two sites. The seven lines are a do-not-edit constraint, which is why the count stays inside the 5-site cap. Moving them out of the sites cell in v1.0 would make the cap obvious.
 - N3. The plant "3 of 3" adds two runs that are prose in editor 2.3 (A 4089 and 4056 ms, B 1399 and 1555 ms). The only plant file is `parab-plant.txt`, n=1, shas equal, rc 1/1. The clean series is file-backed 7/7. One backed plant run is enough for the identical-output claim; the other two are not in a file.
 - N4. This remeasure is n=7 at load 9.21..9.66, not the editor's n=15 at load 24.85..30.49. Medians 1060 ms and 25 ms versus 1577 ms and 37 ms. Same files, same 7013 lines, same direction.
+
+## 7. Re-sign of plan v1.0
+
+Verdict: **REVIEW PASS** on `7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12`.
+
+The v0.1 verdict above stays. This section signs the fast-forward.
+
+```
+git fetch -q origin review/c002-perf-round-10-planner master
+git rev-parse origin/review/c002-perf-round-10-planner
+git rev-parse origin/master
+git merge-base --is-ancestor 1fae9045a4c5710debfcb0a93a6c2046ac19c117 7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12
+git log --format='%H %s' -1 7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12
+git diff --stat 1fae9045a4c5710debfcb0a93a6c2046ac19c117 7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12
+git diff --stat 5f46a4eac06b0aa0bdcf6054e1d9bf3b0f9cacba origin/master -- .github/workflows/10_ci-quality.yml csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh
+git merge-base --is-ancestor e62583e01 origin/master
+```
+
+Printed: planner `7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12`, master `83cb219456a64f358f20ec35aee58030c7cc9ac0`. Both ancestor checks exited 0. The one commit's subject is `docs(p10, SPL-5619): perf round 10 plan v1.0, a-225 W1-W4 and both seats' notes folded`. Diff stat: `perf-round-10-plan.md` (93), `perf-round-10/editor.md` (4), 2 files changed, 70 insertions, 27 deletions. The row-file stat from `5f46a4eac` to that master printed nothing.
+
+On `83cb21945`, `bash-cleancode.tst.sh` still has `LONG="` at lines 25-30, the comment at 36-41, and `measure()` at 42-51. wf10 still has `fail=0` at 1681, `sweep()` at 1708-1736, the seven call lines at 1745, 1746, 1748, 1750, 1751, 1777 and 1795, the hidden-workspace echoes at 1770, 1780, 1783 and 1785, and `exit "$fail"` at 1813.
+
+### N1 fixed
+
+Plan lines 103-105 say r58-08 deletes stale `LONG` lines at `:25-30` today (the row cites `:27-29`), and `measure()` and its comment are at `:36-51`. Changelog lines 255-256 say the list is `:25-30`, not `:8-13`. Those numbers match the file on `83cb21945`. The file-level wait is unchanged.
+
+### N2 fixed in the sites cell
+
+Plan line 91 names 3 edit ranges: `wf10:1708-1736` (`sweep()`), `:1769-1786` (the hidden-workspace echo branches), and the traps and the join near `:1681` after `fail=0`. It lists as unchanged the calls `:1745`, `:1746`, `:1748`, `:1750`, `:1751`, `:1777`, `:1795`, `allowed()` `:1702-1707`, and `exit "$fail"` `:1813`. Three ranges are inside the 5-site cap. `sweep()` closing at 1736 matches the function on `83cb21945` (line 1736 is the closing brace; line 1744 is the CONTROL comment). Changelog lines 261-263 group N2 with N4 as "no change needed". The sites cell did change, and that change is this note's fix.
+
+### N3 fixed as a disclosure
+
+Editor lines 100-102 say the two runs before the series are terminal output only, kept in no file, and the file-backed plant run is `parab-plant.txt`, n=1. Changelog lines 260-261 say the same. No new measurement.
+
+### N4 unchanged on purpose
+
+Row 02's medians stay 1,577 ms (n=15) and 37 ms (n=15), and the whole test stays 1,437 ms and 173 ms (n=7). This seat's remeasure (section 4) already agreed in direction. Changelog lines 261-263 leave the numbers. Plan lines 178-183 add a zero-argument guard and put `FNR == 1` first, with a literal root strip. This seat did not re-time that new text. It does not contradict the identical-output remeasure of the one-awk shape.
+
+### Other folds, seen as text
+
+The same commit's changelog (lines 246-263) records the other seat's W1-W4 and N1-N5: the join in the Sweep EXIT trap, HUP/INT/TERM traps plus `hygiene-killed-cleanup.tst.sh`, echo lines into slots plus `oss-export-gate.tst.sh`, a 7-way barrier on `$T/loc` with an overlay, the LONG cite above, readers named by runnable tests, the c-244 ask before the spawn, the row 02 guard and `FNR == 1` order, and `e62583e01` landed. Row 01's gain numbers are unchanged. None of that text undoes N1-N4. This re-sign does not re-measure those folds.
+
+Consensus table line 273 still marks the v1.0 head pending. This file is the grok sign of that head.
+
+`cd csi-spl-iac && ./run -a do_check_dist_hygiene` on this text printed `INFO distribution-hygiene: clean` and `HYGIENE_EXIT:0`.

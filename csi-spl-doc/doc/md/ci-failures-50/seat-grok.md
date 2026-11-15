@@ -125,3 +125,36 @@ N12. `hub-pg.tst.sh:186-195` are comments plus two `source` lines, and those com
 N13. The cost-read CONTROL log line shows an estate row. The part count was not counted (the line is truncated in the saved extract).
 
 N14. D8 orc conclusions on run `43645173322` were not read. The iac log on that run shows `comm=missing`.
+
+
+## Signature on v0.2
+
+Verdict: PASS on `fc4e2718ef2870e30bd91f851861a351e65296c7`.
+
+`git rev-parse fc4e2718ef2870e30bd91f851861a351e65296c7^` printed `62397a34ce67260efd00c18fe00ac0c0e6bb5b8e`. `git diff --stat 62397a34ce67260efd00c18fe00ac0c0e6bb5b8e fc4e2718ef2870e30bd91f851861a351e65296c7` printed one file, `csi-spl-doc/doc/md/ci-failures-50-2026-11-15.md`, 53 insertions, 9 deletions. `git ls-remote origin refs/heads/review/ci-failures-50-panel` printed `fc4e2718ef2870e30bd91f851861a351e65296c7`.
+
+The fold of N1..N14 matches the v0.1 notes. Checks on this sha:
+
+N2. `git log --oneline d6bcf43095fb82c67d4e98aa1c0f266beb9eb9ea..26128ed71205b5a0b6c6d610fcd7ae61ee9c59f5` printed `26128ed71`, `1ff69545a`, `1f14bce2e`, all docs. `git diff --name-only` between those ends printed only `csi-spl-doc/specs/177-reporter-role/checklist.md` and `spec.md`. Doc lines 84-86 hold.
+
+N3. `git log -1 --oneline d99a6febb2879288b5692769c2313647151329c4` printed `refactor(orc, SPL-5536)`. `git diff --name-only 035dc15012686aac430500ddbda3a5d06b456ced d99a6febb2879288b5692769c2313647151329c4` printed `csi-spl-iac/src/bash/run/run.sh`, `csi-spl-orc/src/bash/run/run.sh`, `csi-spl-orc/src/bash/tests/run-paths-symlink.tst.sh`, `csi-spl-utl/src/bash/run/run.sh`. One commit. Doc lines 87-88 and the section 9 row hold.
+
+N4. `git log --oneline 5eff7c9df5e01423d8eb28401807d8a9eb5bb1e0..4d90d24d78b4a503822c0736ba42cedd3a3185a2` printed `4d90d24d7` then `97b08fd88`. Doc lines 89-90 hold.
+
+N5. `git show origin/master:csi-spl-wui/tests/e2e/docs.test.mjs | sed -n 88,91p` printed the wait for `[data-testid=md-block][data-rendered=true]` with timeout 15000. Doc line 256 holds.
+
+N6. Doc line 72 says 16 min 18 s and 17 min 40 s. That is the v0.1 measurement.
+
+N7. Doc line 74 names runs `43626368359` at 18:23:51Z and `43628359772` at 18:45:21Z. The gap is 21 min 30 s. The cell says 21 min (N15). The push green is earlier.
+
+F1 next sha. `git rev-list --ancestry-path --reverse 48125658af91a37f5bf39f291af11e495d8acc36..origin/master | head -1` printed `5815e76c5eb582a1c71b6df486155d2989b503c3`. `gh run list --commit 5815e76c5eb582a1c71b6df486155d2989b503c3 --workflow '10 ci: quality gate'` printed push success `43654121250` at `2026-11-14T23:36:53Z` and schedule success `43654784788` at `2026-11-14T23:45:07Z`. The child of `dbea8ac1f9271f6571d69a12d3545edbb7c4ed92` is `28fdf1e4220d148e9042d1d4fcef782dd5ee1d2f`. The same list printed push success `43702641891` at `2026-11-15T10:08:48Z`. Doc line 71 holds for those two. The 11-13 case was not re-measured.
+
+N8. Section 7 ranks row 1 at U 207, rows 2 and 3 at U 85, row 4 at U 207, row 8 at U 207 in batch 2. Doc lines 278-285 match that table. Job counts 39 and 16 stay the editor's extract.
+
+Section 9 line 343 cites PASS on `62397a34c` and seat commit `5aaea2672`. That commit is this file's parent.
+
+No blocking defect.
+
+N15. F4's two times are 21 min 30 s apart. Line 74 says 21 min.
+
+The mistral row on line 344 was not re-checked.

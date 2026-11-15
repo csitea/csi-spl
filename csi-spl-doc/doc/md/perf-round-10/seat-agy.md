@@ -1,5 +1,11 @@
 # Perf round 10: agy panel seat (a-225@PC)
 
+Verdict: **FAIL** on `7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12` (plan v1.0), one
+defect (`W5` on row 01's foreground `.vibe/` order vs `EXIT`-only join and 3-site
+count, section 9). `W2`–`W4` and `N1`–`N5` from v0.1 are verified fixed in v1.0,
+and `W1`'s `CONTROL a` case passes, leaving only `W5` to fix in the plan text.
+Sections 0 to 8 are the v0.1 review:
+
 Verdict: **FAIL** on `1fae9045a4c5710debfcb0a93a6c2046ac19c117` (plan v0.1), four
 defects (`W1`–`W3` on row 01, `W4` on section 3.1's `LONG` line range), all
 fixable in the plan text before v1.0.
@@ -297,3 +303,126 @@ cd csi-spl-iac && ./run -a do_check_dist_hygiene
 
 Printed `EXIT=0`, all 7 sweeps `ok` + `ok - no tracked .vibe/ dir`, ending
 `INFO distribution-hygiene: clean over the tracked tree of <this worktree>`.
+
+## 9. v1.0 delta review (`7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12`)
+
+```text
+git fetch origin master review/c002-perf-round-10-planner
+git rev-parse origin/review/c002-perf-round-10-planner origin/master
+git log --oneline --stat 1fae9045a4c5710debfcb0a93a6c2046ac19c117..7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12
+git diff --stat 0d5d699d6 origin/master -- \
+  .github/workflows/10_ci-quality.yml \
+  csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh \
+  csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh \
+  csi-spl-iac/src/bash/run/check-dist-hygiene.func.sh
+```
+
+Printed:
+
+```text
+7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12
+83cb219456a64f358f20ec35aee58030c7cc9ac0
+7cd0b3ef0 docs(p10, SPL-5619): perf round 10 plan v1.0, a-225 W1-W4 and both seats' notes folded
+ csi-spl-doc/doc/md/perf-round-10-plan.md   | 93 +++++++++++++++++++++---------
+ csi-spl-doc/doc/md/perf-round-10/editor.md |  4 +-
+ 2 files changed, 70 insertions(+), 27 deletions(-)
+```
+
+and empty diff on the four files (`0` lines drifted on `83cb21945`).
+
+All newly cited `file:line` references in `7cd0b3ef0` checked on `0d5d699d6` and
+`83cb21945` with `git show <rev>:<file> | sed -n '<N>p'`:
+- `wf10:1681` -> `fail=0` (match)
+- `wf10:1702,1707` -> `allowed() { ... }` (match)
+- `wf10:1769,1770,1780,1783,1785,1786` -> hidden-workspace `if` and its four `echo` branches (match)
+- `wf10:1813` -> `exit "$fail"` (match)
+- `check-dist-hygiene.tst.sh:118` -> `doctor "s|^exit \"\\\$fail\"\$|sweep \"control pattern\" '$token'\nexit \"\$fail\"|" "$T/wf-extra.yml"` (match)
+- `hygiene-killed-cleanup.tst.sh:41,55` -> `kill_once()` timeout invocation and `$tmp` leak check (match)
+- `oss-gate.func.sh:104,118` -> `while IFS= read -r line; do` .. `fi` Sweep output parser (match)
+- `csi-spl-orc/src/bash/tests/wait-event.inc.sh:17` -> `wait_event() {` (match)
+
+Distribution hygiene on an archive export of `7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12`:
+
+```text
+git archive 7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12 | tar -xf - -C "$td"
+git -C "$td" init -q && git -C "$td" add .
+(cd csi-spl-iac && HYGIENE_TREE="$td" ./run -a do_check_dist_hygiene)
+```
+
+Printed `ARCHIVE_HYGIENE_EXIT=0` (all 7 sweeps `ok` + `ok - no tracked .vibe/ dir`).
+
+### v0.1 findings verified fixed in `7cd0b3ef0`
+
+- **W2 fixed:** `:91` and `:163-167` specify `HUP` / `INT` / `TERM` + `EXIT`
+  traps cleaning `$d` and list `hygiene-killed-cleanup.tst.sh` (`:41-55`) in Row 01's
+  test column.
+- **W3.1 and W3.2 fixed:** `:91` and `:149-154` route `:1770,1780,1783,1785` to
+  numbered slots and add `oss-export-gate.tst.sh` (`oss-gate.func.sh:104-118`) to the
+  test column; `:91` specifies a 7-way barrier over `$T/loc` with `$T/overlay.yaml`
+  (`7` in flight, `0` timeouts vs `1` on serial red control) and cites
+  `csi-spl-orc/src/bash/tests/wait-event.inc.sh:17`.
+- **W4, N1–N5 fixed:** `:103-104` cites `LONG` at `bash-cleancode.tst.sh:25-30`;
+  `:91` narrows `sweep()` to `wf10:1708-1736` with `allowed()` `:1702-1707`
+  unchanged; `:91` names runnable tests (`sync-hygiene.sh --check`,
+  `go test -count=1 ./internal/repodocs/`, `release-note-bans-seed.tst.sh`,
+  `blog-check.tst.sh`, `oss-export-gate.tst.sh`); `:91` and `:175-177` carry the
+  `c-244@sat` pre-spawn check; `:178-185` adds `(( $# )) || return 0`, `FNR == 1`
+  first, and literal `index()`/`substr()` under `mawk 1.3.4`; `:213` records
+  `e62583e01` landed (`g-223` `N3` also folded in `editor.md:99-102`).
+
+### Defect remaining in `7cd0b3ef0`
+
+- **W5, row 01 (`perf-round-10-plan.md:91`, `:154-166`, `:173-174`): keeping
+  `.vibe/` (`:1804-1812`) unslotted in the foreground while running the join only
+  in the `EXIT` trap prints `.vibe/` BEFORE sweep 1 instead of last, contradicting
+  `:154-155` and breaking `parab.sh` output identity (`:91`, `:173-174`) unless a
+  4th `wf10` edit site is listed.**
+  Lines `154-155` state *"The `.vibe/` check after `:1795` stays in the foreground
+  and prints after the slots, as today"*, lines `157-159` state *"The EXIT trap is
+  the join: `wait` for the sweep jobs, print every slot in order..."*, and line `91`
+  lists only `3 edit ranges` (`:1681`, `:1708-1736`, `:1769-1786`), leaving `:1804`
+  untouched. In bash (`GNU bash 5.2`), `:1804-1812` runs **before** `exit "$fail"`
+  (`:1813`) fires `EXIT`, so `ok - no tracked .vibe/ dir` prints on **line 1**
+  above sweep 1 rather than on the last line after sweep 7; if the row lane adds a
+  4th edit site at `:1804` to fix the order, R7 **C1** fails against `:91`'s
+  `3 edit ranges` (R4 copies `:91` verbatim). Tested both variants on `wf10` from
+  `0d5d699d6` (n=1 each, plus full `check-dist-hygiene.tst.sh`):
+  ```text
+  python3 <scratch>/test-v10.py
+  ```
+  Printed:
+  ```text
+  === literal_3_ranges stdout (rc=0) ===
+  ok - no tracked .vibe/ dir
+  ok - non-Csitea org or bank reference
+  ok - personal name
+  ok - literal OS user / box / AD id
+  ok - personal home directory
+  ok - owner mail address or domain
+  ::warning::hygiene: hidden workspaces NOT swept -- no private overlay or no ./csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh (SPL-1874)
+  ok - retired relay estate (SPL-1910)
+  === literal_3_ranges check-dist-hygiene.tst.sh rc=0 ===
+     PASS: all check-dist-hygiene.tst.sh assertions
+  === with_4th_range_before_1804 stdout (rc=0) ===
+  ok - non-Csitea org or bank reference
+  ok - personal name
+  ok - literal OS user / box / AD id
+  ok - personal home directory
+  ok - owner mail address or domain
+  ::warning::hygiene: hidden workspaces NOT swept -- no private overlay or no ./csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh (SPL-1874)
+  ok - retired relay estate (SPL-1910)
+  ok - no tracked .vibe/ dir
+  === with_4th_range_before_1804 check-dist-hygiene.tst.sh rc=0 ===
+     PASS: all check-dist-hygiene.tst.sh assertions
+  ```
+  Also note on `:158-166`: when `HUP` / `INT` / `TERM` triggers `exit 129` / `130` /
+  `143`, the killed sweeps have missing `.rc` files, so the `EXIT` trap must skip
+  `sweep_join` / the missing-`.rc` -> `exit 1` fold on signal exit (e.g. a
+  `sweep_killed=1` flag in the signal traps) and only `rm -rf "$d"; exit "$st"`,
+  preserving `129`/`130`/`143` (`hygiene-killed-cleanup.tst.sh:51`).
+  **Fix in the plan (3 lines):** add the 4th `wf10` edit site (`4 <= 5`) to `:91`
+  and `:154-166` — either call `sweep_join` once right before `:1804` (flushing
+  slots `1..N` without removing `$d`) AND again in `EXIT` (flushing any slot added
+  above `exit "$fail"` by `CONTROL a`, then `rm -rf "$d"`), OR write `:1804-1812`'s
+  `echo` lines to a slot too — and specify that `EXIT` skips the join/verdict fold
+  when exiting on `HUP`/`INT`/`TERM`.

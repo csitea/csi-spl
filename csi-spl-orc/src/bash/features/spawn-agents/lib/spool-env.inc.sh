@@ -9,8 +9,9 @@
 #   SPOOL_ROOT          message root (spec 002, local-folder-layout.md)
 #                                                   default /var/spool-hub
 #   SPOOL_BOX_USER      OS user that owns the tmux server the windows go into
-#                       default: the owner of $SPOOL_ROOT (the box user owns
-#                       the spool root), else the current user
+#                       default: the owner of $SPOOL_FLEET_ROOT when that is a
+#                       directory (a desk sidecar, SPL-5609), else the owner
+#                       of $SPOOL_ROOT, else the current user
 #   SPOOL_AGENT_USER    OS user the agent CLIs run as
 #                       default: the box config (below), else $SPOOL_BOX_USER (no hop)
 #   SPOOL_RUN_AS_AGENT  su-dash | sudo-i            how to hop to the agent user

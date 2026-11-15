@@ -596,7 +596,7 @@ repair, `spl-desk-up-all.func.sh:61-69`).
 #### 8.2.3 Who reaches a desk through `sudo -u <box-user>`
 
 The box user is resolved once: `SPOOL_BOX_USER` = owner of `$SPOOL_ROOT`
-(`spool-env.inc.sh:379-381`), or the owner of the orc checkout
+(`spool_env_resolve` in `spool-env.inc.sh`), or the owner of the orc checkout
 (`spool-agent.sh:102`); the MCP reads `SPOOL_MCP_BOX_USER` from
 `~<agent-user>/.config/spool-mcp/env` (both boxes: `=<box-user>`, serve half
 `~<box-user>/.local/share/csi-spl/mcp/spool-mcp.sh`).

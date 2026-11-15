@@ -9,7 +9,10 @@
 # @description This file also keeps the spl_brx_* helpers the other two share.
 # @description do_spl_box_restart_run - the restart: (1) wait until no wf 20/30
 # @description deploy is queued or running and no terraform process runs
-# @description (the tf-runner container's), (2) drain this box's GitHub runners:
+# @description (the tf-runner container's); a ghost queued run (0 jobs, older
+# @description than BOX_RESTART_GHOST_AGE or than the newest completed run of
+# @description its workflow: GitHub never starts it and refuses to cancel or
+# @description delete it) is skipped with a WARN line, (2) drain this box's GitHub runners:
 # @description first their custom labels (spool-ci) come off, so no queued job
 # @description matches them any more, then each runner unit is stopped the
 # @description moment the API reports it idle: no running job is killed, and
@@ -37,6 +40,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0; the tick always runs with 0
 # @param BOX_RESTART_WAIT (optional) - seconds to wait for deploys / the drain, default 1800
 # @param BOX_RESTART_POLL (optional) - seconds between the waits' polls, default 30
+# @param BOX_RESTART_GHOST_AGE (optional) - seconds after which a queued deploy run with 0 jobs no longer blocks, default 10800 (3 h)
 # @param BOX_RESTART_GRACE (optional) - seconds between the notes and the reboot, default 300
 # @param BOX_RESTART_REPO (optional) - <owner>/<repo>; default cnf github_repository, else gh repo view
 # @param BOX_RESTART_INHIBITORS (optional) - respect | ignore; default cnf env.box.restart.inhibitors, else respect
@@ -94,11 +98,12 @@ do_spl_box_restart_run() {
   spl_brx_pending_get "$dir/pending" week > "$dir/last-week"
 }
 
-# SPL_BRX_REPO / _WAIT / _POLL / _GRACE / _FROM / _WFS, each checked.
+# SPL_BRX_REPO / _WAIT / _POLL / _GRACE / _GHOST_AGE / _FROM / _WFS, each checked.
 spl_brx_conf() {
   local k v
   SPL_BRX_WAIT="${BOX_RESTART_WAIT:-1800}" SPL_BRX_POLL="${BOX_RESTART_POLL:-30}" SPL_BRX_GRACE="${BOX_RESTART_GRACE:-300}"
-  for k in SPL_BRX_WAIT SPL_BRX_POLL SPL_BRX_GRACE; do
+  SPL_BRX_GHOST_AGE="${BOX_RESTART_GHOST_AGE:-10800}"
+  for k in SPL_BRX_WAIT SPL_BRX_POLL SPL_BRX_GRACE SPL_BRX_GHOST_AGE; do
     v="${!k}"; [[ "$v" =~ ^[0-9]+$ ]] || { do_log "FATAL ${k/SPL_BRX_/BOX_RESTART_} must be a number of seconds, got: '$v'"; return 1; }
   done
   SPL_BRX_FROM="${BOX_RESTART_FROM:-${SPOOL_AGENT_ID:-$(spl_role_seat 1)}}"
@@ -173,17 +178,48 @@ spl_brx_inhibited() {
 
 # What blocks a restart, one line each, nothing when quiet: a queued or
 # running deploy (wf 20/30), a terraform process. A gh error counts as busy.
+# A ghost queued run (spl_brx_queued_live) is skipped with a WARN.
 spl_brx_inflight() {
   local wf st ids
   for wf in $SPL_BRX_WFS; do
     for st in in_progress queued; do
-      if ! ids="$(gh run list -R "$SPL_BRX_REPO" --workflow "$wf" --status "$st" --json databaseId --jq '.[].databaseId' 2>/dev/null)"; then
+      if [[ "$st" == queued ]]; then
+        ids="$(spl_brx_queued_live "$wf")" || { echo "deploy $wf: gh run list failed (counted as busy)"; continue; }
+      elif ! ids="$(gh run list -R "$SPL_BRX_REPO" --workflow "$wf" --status "$st" --json databaseId --jq '.[].databaseId' 2>/dev/null)"; then
         echo "deploy $wf: gh run list failed (counted as busy)"; continue
       fi
       [[ -n "$ids" ]] && echo "deploy $wf $st: run(s) ${ids//$'\n'/ }"
     done
   done
   spl_brs_ps | awk '$3 == "terraform" {print "terraform pid " $1}'
+  return 0
+}
+
+# spl_brx_queued_live WF: the queued run ids of WF that still block, one per
+# line; non-zero when gh run list fails. A queued run with 0 jobs that is
+# older than SPL_BRX_GHOST_AGE, or older than the newest completed run of WF,
+# can never start (sat 2026-11-15: run 43096022723, 0 jobs, queued 3 days,
+# cancel/force-cancel/delete all refused, every slot deferred on it): it is
+# skipped with one WARN line. A fresh run, an unreadable createdAt and a
+# failed jobs read still block.
+spl_brx_queued_live() {
+  local wf="$1" rows id c t now age jobs newest="" nq=0
+  rows="$(gh run list -R "$SPL_BRX_REPO" --workflow "$wf" --status queued --json databaseId,createdAt \
+    --jq '.[] | "\(.databaseId)\t\(.createdAt)"' 2>/dev/null)" || return 1
+  now="$(spl_brx_now)"
+  while IFS=$'\t' read -r id c; do
+    [[ -n "$id" ]] || continue
+    t="$(date -u -d "${c:-x}" +%s 2>/dev/null)" || { echo "$id"; continue; }
+    age=$(( now - t ))
+    if (( age <= SPL_BRX_GHOST_AGE )); then
+      (( nq++ )) || newest="$(gh run list -R "$SPL_BRX_REPO" --workflow "$wf" --status completed --limit 1 \
+        --json createdAt --jq '.[0].createdAt // ""' 2>/dev/null)"
+      [[ -n "$newest" && "$c" < "$newest" ]] || { echo "$id"; continue; }
+    fi
+    jobs="$(gh api "repos/$SPL_BRX_REPO/actions/runs/$id/jobs" --jq '.total_count' 2>/dev/null)"
+    [[ "$jobs" == 0 ]] || { echo "$id"; continue; }
+    do_log "WARN skip ghost queued run $id ($wf): 0 jobs, queued ${age}s (over BOX_RESTART_GHOST_AGE=${SPL_BRX_GHOST_AGE}s or older than the newest completed run ${newest:-?}); it can never start" >&2
+  done <<<"$rows"
   return 0
 }
 

@@ -37,6 +37,11 @@
 #      last-week once the box has booted; gh: the token file when gh is not
 #      logged in, the repo from cnf. Control: the success path reboots with
 #      the plain command and writes last-week
+#   7. a ghost queued run (sat 2026-11-15, run 43096022723: 0 jobs, queued 3 days,
+#      cancel/delete refused) no longer defers every slot: skipped with a WARN when
+#      older than BOX_RESTART_GHOST_AGE or than the newest completed run; a fresh
+#      queued run, one with a job, a failed jobs read, in_progress and a gh error
+#      still block
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -276,6 +281,60 @@ out="$(run 'spl_brx_conf && echo "repo=$SPL_BRX_REPO tok=$GH_TOKEN mode=$SPL_BRX
 out="$(run 'spl_brx_conf && echo "repo=$SPL_BRX_REPO"' PATH="$S6:$PATH" GH_TOKEN= GH_BOX_TOKEN_FILE="$T/no-crs6" BOX_RESTART_INHIBITORS=)"; rc=$?
 [ "$rc" = 1 ] && grep -q 'FATAL no GitHub token for gh' <<<"$out" && ! grep -q 'repo=' <<<"$out" \
   && pass "6. red control: no crs file -> refused, no fallback" || fail "6. no crs (rc $rc: $out)"
+
+# ---- 7. a ghost queued run ----------------------------------------------------------
+# sat 2026-11-15: run 43096022723 of wf 30, queued since 2026-11-11 with 0
+# jobs (cancel, force-cancel and DELETE all refused), deferred every slot.
+# The stub gh answers each --status from a file in $G7 (as gh would after
+# its --jq); a jobs read of a run with no jobs.<id> file fails.
+S7="$T/s7" G7="$T/g7" L7="$T/calls7.log"; mkdir -p "$S7" "$G7"
+cat >"$S7/gh" <<EOF
+#!/bin/bash
+echo "gh \$*" >>"$L7"
+case "\$*" in
+  "run list -R o/r --workflow wf30 --status "*) st=\$(sed -n 's/.*--status \([a-z_]*\).*/\1/p' <<<"\$*")
+    [ -f "$G7/\$st.fail" ] && exit 1; cat "$G7/\$st" 2>/dev/null; exit 0 ;;
+  "api repos/o/r/actions/runs/"*) id=\${2#repos/o/r/actions/runs/}; cat "$G7/jobs.\${id%/jobs}" 2>/dev/null ;;
+esac
+EOF
+chmod +x "$S7/gh"
+NOW7=1794711600 # 2026-11-15T03:00:00Z
+reset7() { rm -f "$L7" "${G7:?}"/*; }
+run7() {
+  run 'SPL_BRX_REPO=o/r SPL_BRX_WFS=wf30 SPL_BRX_GHOST_AGE=10800; spl_brx_inflight' \
+    PATH="$S7:$PATH" BOX_RESTART_EPOCH="$NOW7" BOX_RESTART_PS_CMD="cat $T/ps.base"
+}
+reset7; printf '43096022723\t2026-11-11T20:26:02Z\n' >"$G7/queued"; echo 0 >"$G7/jobs.43096022723"
+out="$(run7)"
+! grep -q '^deploy' <<<"$out" && grep -q 'WARN skip ghost queued run 43096022723 (wf30): 0 jobs, queued 282838s' <<<"$out" \
+  && pass "7. a ghost queued run (0 jobs, 3 days old) no longer blocks; one WARN names id, workflow, age" || fail "7. ghost ($out)"
+reset7; printf '501\t2026-11-15T02:00:00Z\n' >"$G7/queued"; echo 0 >"$G7/jobs.501"
+printf '2026-11-15T02:30:00Z\n' >"$G7/completed"
+out="$(run7)"
+! grep -q '^deploy' <<<"$out" && grep -q 'WARN skip ghost queued run 501 (wf30): 0 jobs, queued 3600s .*newest completed run 2026-11-15T02:30:00Z' <<<"$out" \
+  && pass "7. a 1 h old 0-job queued run older than the newest completed run is a ghost too" || fail "7. ghost by completed ($out)"
+reset7; printf '502\t2026-11-15T02:50:00Z\n' >"$G7/queued"; echo 0 >"$G7/jobs.502"
+printf '2026-11-15T02:30:00Z\n' >"$G7/completed"
+out="$(run7)"
+grep -qx 'deploy wf30 queued: run(s) 502' <<<"$out" && ! grep -q WARN <<<"$out" && ! grep -q 'runs/502/jobs' "$L7" \
+  && pass "7. a fresh queued run (10 min, newer than the last completed) still blocks, its jobs not even read" || fail "7. fresh ($out)"
+reset7; printf '503\t2026-11-11T20:26:02Z\n' >"$G7/queued"; echo 1 >"$G7/jobs.503"
+out="$(run7)"
+grep -qx 'deploy wf30 queued: run(s) 503' <<<"$out" && ! grep -q WARN <<<"$out" \
+  && pass "7. an old queued run that has a job (waiting for a runner) still blocks" || fail "7. old with job ($out)"
+reset7; printf '504\t2026-11-11T20:26:02Z\n505\tnot-a-date\n' >"$G7/queued"
+out="$(run7)"
+grep -qx 'deploy wf30 queued: run(s) 504 505' <<<"$out" && ! grep -q WARN <<<"$out" \
+  && pass "7. a failed jobs read and an unreadable createdAt still block" || fail "7. jobs error ($out)"
+reset7; printf '4711\n' >"$G7/in_progress"
+out="$(run7)"
+grep -qx 'deploy wf30 in_progress: run(s) 4711' <<<"$out" && pass "7. an in_progress run still blocks" || fail "7. in_progress ($out)"
+reset7; touch "$G7/queued.fail"
+out="$(run7)"
+grep -qx 'deploy wf30: gh run list failed (counted as busy)' <<<"$out" && pass "7. a gh run list error on queued still counts as busy" || fail "7. gh error ($out)"
+out="$(run 'spl_brx_conf' BOX_RESTART_GHOST_AGE=3h)"; rc=$?
+[ "$rc" = 1 ] && grep -q "FATAL BOX_RESTART_GHOST_AGE must be a number of seconds, got: '3h'" <<<"$out" \
+  && pass "7. BOX_RESTART_GHOST_AGE must be seconds" || fail "7. bad age (rc $rc: $out)"
 
 echo "box-restart: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

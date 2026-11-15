@@ -264,12 +264,12 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
 | T010 | J: WUI receipts + erasure | grok / mistral | T009 | none | BUILD |
 | T011 | 118 routes + `/me/hours` | (118's lanes) | 118 tasks.md | all | see 118 |
 
-## Calendar across workspaces (draft, Q4 open)
+## Calendar across workspaces
 
 Rows for [calendar-across-workspaces.md](calendar-across-workspaces.md)
-v0.2 (SPL-5599). The owner answered Q1 `1a`, Q2 `2a`, Q3 `3c`, Q5 `5a`
-(HUM-10 msg `76f7af1c`); **Q4 is open, the owner is discussing it**, so
-T016 and T018 wait on it. Not ready to place until the spec lands on master.
+v0.3 (SPL-5599). The owner answered Q1 `1a`, Q2 `2a`, Q3 `3c`, Q5 `5a`
+(HUM-10 msg `76f7af1c`) and Q4 `4b` (msg `f94ea39e`): pop-ups from every
+workspace plus a mute per workspace, so T016 and T018 are BUILD. Not ready to place until the spec lands on master.
 None waits on T005..T010. Tests are that file's section 10.
 
 - [ ] T012 **Lane K: the "mine" read in the calendar store** (claude, store;
@@ -316,10 +316,17 @@ None waits on T005..T010. Tests are that file's section 10.
   `WUI/pages/tenant-settings.vue`, i18n keys under `tenant.calendar_color.*`.
   Done: T-CAL11; `pnpm run typecheck`; agy review of the strings.
 
-- [ ] T016 **Lane O: realm reminders** (claude, hub; waits on Q4, open, and
-  on T013). Built only if the owner picks `4a`.
-  `GET /v1/me/realm/calendar/reminders`, the same fan-out over
-  `CalendarReminders`, at most 31 days. Dropped under `4b`.
+- [ ] T016 **Lane O: realm reminders and the mute** (claude, auth + hub;
+  Q4 `4b`; waits on T013). `GET /v1/me/realm/calendar/reminders`, the T013
+  fan-out over `CalendarReminders`, at most 31 days, skipping a workspace
+  whose membership setting `calendar_reminders_muted` is true (state
+  `muted`); the key admitted by the preferences parser (boolean or null);
+  `PUT /v1/me/realm/calendar/{workspace_id}/reminders {"muted"}` with the
+  membership check. Section 4.1.
+  Files (owns): `GO/hub/realm_calendar_reminders.go` and its test, its rows
+  in `GO/hub/openapi.json` and `GO/hub/server.go`, the new key in
+  `GO/auth/handler.go` `preferencesReq` and its parse test.
+  Done: T-CAL12 on Postgres with its red control.
 
 - [ ] T017 **Lane P: the `/me/calendar` page** (claude, WUI; waits on T013
   deployed, and on T015 / T014 for their parts). Lazy route chunk, its own
@@ -333,9 +340,14 @@ None waits on T005..T010. Tests are that file's section 10.
   `BASE_URL=<bundle> pnpm run test:e2e`; agy review of the strings
   (language rule); deployed dev and prd.
 
-- [ ] T018 **Lane Q: reminder timer reads the realm route** (claude, WUI;
-  waits on Q4, open, and on T016 deployed). `WUI/utils/calendar-reminders.mjs` and
-  `calendar-reminder-timer.ts` read `/v1/me/realm/calendar/reminders`, the
-  pop-up names the workspace. Dropped under `4b`.
+- [ ] T018 **Lane Q: reminder timer reads the realm route, mute toggles**
+  (claude, WUI; Q4 `4b`; waits on T016 deployed and on T017 for the chip).
+  `WUI/utils/calendar-reminders.mjs` and `calendar-reminder-timer.ts` read
+  `/v1/me/realm/calendar/reminders` (the workspace route under act-as); the
+  pop-up names the workspace with its colour; the bell on each workspace
+  chip of `/me/calendar` and one row in the person's settings of the
+  workspace set the mute. New i18n keys under `realm.calendar.reminders.*`.
+  Done: `pnpm run typecheck`; e2e of a muted and an unmuted workspace;
+  agy review of the strings (language rule); deployed dev and prd.
 
 <!-- version: 1.1.0 · updated: 2026-10-13 · last-edit: 2026-10-13 -->

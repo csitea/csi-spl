@@ -379,11 +379,12 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 The owner's ask of 2026-11-15 (t1 #spool-hub-ui `26b46de6`, HUM-10: "I
 should be able to see all of my calendar entries in one place regardless of
 how many workspaces I do have access to") is specified in its own file,
-[calendar-across-workspaces.md](calendar-across-workspaces.md) (v0.2 draft,
+[calendar-across-workspaces.md](calendar-across-workspaces.md) (v0.3,
 SPL-5599): a personal view that reads each workspace's own calendar in its
 own scope, copies nothing into the realm, and leaves every entry under its
-workspace's rules. The owner answered four of its five questions; Q4
-(reminder pop-ups) is open (its section 11). Its build rows are in
+workspace's rules. The owner answered all five of its questions (its
+section 11); Q4 `4b`: reminder pop-ups from every workspace, with a mute
+switch per workspace (its section 4.1). Its build rows are in
 [tasks.md](tasks.md), "Calendar across workspaces".
 
 <!-- version: 1.2.0 · updated: 2026-10-11 · last-edit: 2026-10-11T09:20:00Z -->

@@ -1,10 +1,11 @@
 # 119 addition: my calendar across workspaces
 
-**Status**: v0.2 draft, 2026-11-15, c-203 (SPL-5599, epic SPL-2396). Docs
-only: builds nothing. Owner answers folded (HUM-10, poll `75b0d544`, msg
-`76f7af1c`, 16:20:00Z): Q1 `1a`, Q2 `2a`, Q3 `3c`, Q5 `5a`. **Q4 open, the
-owner is discussing it** (section 11). Build rows: [tasks.md](tasks.md),
-section "Calendar across workspaces".
+**Status**: v0.3, 2026-11-15, c-203 (SPL-5599, epic SPL-2396). Docs
+only: builds nothing. All five owner answers folded (HUM-10): Q1 `1a`,
+Q2 `2a`, Q3 `3c`, Q5 `5a` (poll `75b0d544`, msg `76f7af1c`, 16:20:00Z) and
+Q4 `4b` (poll `555f92f9`, msg `f94ea39e`): pop-ups from every workspace,
+with a mute switch per workspace (section 4.1). Build rows:
+[tasks.md](tasks.md), section "Calendar across workspaces".
 Topic: t1 #spool-hub-ui `26b46de6-28b4-4bdf-93f2-c85346f2a13d`.
 
 Part of [119 personal realm](spec.md) (section 15 links here). Builds on,
@@ -48,7 +49,8 @@ would break the workspace isolation every calendar rule rests on (section 1).
 | 118's cross-workspace read is built: at most 20 workspaces (400 `too_many_workspaces`), a failed one `unavailable`, 403 `person_only` under act-as | `hub/realm_hours_read.go` lines 23..50, 178..193 | the calendar read reuses the same shape and limits |
 | Calendar routes read the session's **active** workspace; `X-Spool-Tenant` is for boxes | 089 6.1; 118 5.1 (`hub/resolve.go`) | the existing routes cannot reach a second workspace: the view needs realm routes that name the workspace per call (sections 4, 5) |
 | Google Calendar imports are per member **per workspace** connection, stored as that member's `private` events in that workspace | 149 sections 2.1, 2.10 B (`source_key gcal:<connection>:src.<hash>.<google id>`) | a person connected in two workspaces holds the same Google event twice (section 6, Q5) |
-| Reminder pop-ups read the active workspace only | 089 4.3, `GET /v1/calendar/reminders`; `csi-spl-wui/src/utils/calendar-reminders.mjs` | reminders across workspaces are a choice (Q4) |
+| Reminder pop-ups read the active workspace only | 089 4.3, `GET /v1/calendar/reminders`; `csi-spl-wui/src/utils/calendar-reminders.mjs` | the realm reminders read of 4.1 (Q4 `4b`) |
+| A person's per-workspace setting is one key of `tenant_memberships.settings` jsonb, written by `PUT /api/v1/auth/preferences` for the active workspace; the hub admits only known keys | rdb `0078_membership_settings.sql`; `auth/handler.go` `preferencesReq` (`time_zone`, `pane_sizes` live there) | the per-workspace mute is one new key, no DDL (4.1) |
 | One list read returns at most 2000 events | `store/calendar.go:278` `calendarMaxEvents` | per-workspace cap in the view (section 9) |
 | No workspace colour exists | `grep -rln "workspace_color\|workspaceColor\|tenantColor" csi-spl-wui/src csi-spl-api/src/go/spool-hub-api/internal` -> none | the source marker is new (section 3.3) |
 | A workspace setting that is not a column is one key of `tenants.settings` jsonb; the hub registers its kind, default and check; an absent key reads as the default | rdb `0136_tenant_settings_jsonb.sql`; `store/tenant_kv.go` `RegisterTenantSetting`; spec 098 sections 3, 10 | the workspace colour is a new key, no DDL (section 3.3) |
@@ -179,6 +181,44 @@ realm's per-person colour, and no person can change it for themselves.
 - Nothing is written by a read; no log line carries a title or a description
   (workspace id, counts and timings only).
 
+### 4.1 Reminder pop-ups across workspaces (owner: Q4 `4b`)
+
+The owner chose `4b`: P gets the pop-ups of the entries of every workspace
+P belongs to, whichever workspace is open, and can mute any one workspace.
+
+- **Read**: `GET /v1/me/realm/calendar/reminders?from=&to=`, at most 31
+  days, the section 4 fan-out over the existing `CalendarReminders` (089
+  4.3): the same who (human session only, 403 `person_only` under act-as,
+  agent, box), the same `Memberships` list, at most 20 workspaces, 2 in
+  flight, one workspace-scoped transaction each, `unavailable` per failed
+  workspace. "Mine" (3.1) is not applied: a reminder is sent today to
+  whoever the workspace route sends it to, and that set is kept per
+  workspace; the view only stops being limited to the open one.
+- **Each pop-up names its workspace** (name and the 3.3 colour) and opens
+  the entry in the personal view's sheet (section 5's rules).
+- **One Google event in two workspaces pops once** (Q5 `5a`), from the
+  first unmuted workspace that holds it.
+- **The mute switch**: one boolean key `calendar_reminders_muted` in P's
+  `tenant_memberships.settings` of W (rdb 0078, the per-workspace override
+  that already holds `time_zone`; no DDL). Absent or `false` = not muted, so
+  nothing changes for anyone until they mute. Read inside W's own
+  transaction of the fan-out: a muted W is skipped before its reminders
+  read, and comes back as `{"workspace_id": W, "state": "muted"}`.
+- **What mute means**: no pop-up from W at all, including while W is open.
+  Muting changes pop-ups only: W's entries still show in the personal view
+  and in W's calendar, and nothing in W changes for any other member.
+- **Where it is set**: a bell toggle on W's chip in the personal view
+  (section 9) and one row in P's own settings of W. The chip toggle writes
+  `PUT /v1/me/realm/calendar/{workspace_id}/reminders {"muted": true|false}`:
+  membership check (403 `not_a_member`), then the same settings write that
+  `PUT /api/v1/auth/preferences` does, in W's scope. A member of W sets only
+  their own key; no admin sets it for another member.
+- **Act-as, agents, boxes**: the realm route is 403 for them, so the WUI's
+  timer keeps reading today's `GET /v1/calendar/reminders` of the open
+  workspace under act-as; that route is unchanged and ignores the mute.
+- **Nothing flows down** (section 8): the reminders read of W1 never reads
+  W2's rows; W1 never learns whether P muted W2.
+
 ## 5. Writing from the view (owner: Q2 `2a`)
 
 The owner chose `2a`: yes, under that workspace's own rules; a new entry asks
@@ -257,7 +297,7 @@ leaving (097 4.9); the view builds no export of its own.
 ## 9. Phone, desktop, performance
 
 **Desktop (> 820 px)**: the merged grid; a row of workspace chips above it
-(colour, name, a count for the window) that toggles a workspace on or off in
+(colour, name, a count for the window, a bell for the 4.1 mute) that toggles a workspace on or off in
 the view (remembered per browser, 3.3); an unavailable workspace is a grey chip
 "could not be read, retry". The pop-over shows the workspace first, then the
 089 / 097 details.
@@ -319,12 +359,19 @@ px; swipe for the previous or next week.
   `tenant.settings` gets 403 on setting it; a name outside the palette is 400
   `bad_setting`; `null` returns it to the default. Red control: drop the key's
   `OneOf`, the bad name is stored.
+- **T-CAL12** reminders and mute (Q4 `4b`): P in W1 and W2 with W1 open
+  gets W2's reminder from the realm route, the pop-up naming W2; after P
+  mutes W2, W2 is `muted` and none of its reminders comes back, while W1's
+  still do; Q in W2 still gets W2's reminders; unmute returns them. A
+  non-boolean `muted` is 400; a W not in `Memberships` is 403
+  `not_a_member` and writes nothing. Red control: drop the mute check from
+  the fan-out, W2's reminders return while muted.
 - **e2e** at 390 px and desktop: the merged agenda, the chips, the sheet.
 
 ## 11. Questions for the owner
 
-Answered by HUM-10 on 2026-11-15 16:20:00Z (t1 `26b46de6`, poll `75b0d544`,
-msg `76f7af1c`), verbatim:
+All five answered by HUM-10 on 2026-11-15 in t1 `26b46de6`. Q1, Q2, Q3,
+Q5 at 16:20:00Z (poll `75b0d544`, msg `76f7af1c`), verbatim:
 
 > Answer 1: 1A — Events I made, own, am a guest of or am @mentioned on, plus
 > deadlines of issues assigned to me
@@ -334,23 +381,28 @@ msg `76f7af1c`), verbatim:
 > everyone
 > Answer 5: 5A — Shown once, marked with both workspaces
 
+Q4 (blocker poll `555f92f9`, re-asked by the dispatcher at 18:31Z with
+options A every workspace, B A + mute per workspace, C as today; msg
+`f94ea39e`), verbatim:
+
+> Poll: 555f92f9-d8d9-4724-938b-c488715b428c Answer: B — The same as A,
+> plus a mute switch per workspace
+
 | question | answer | folded into |
 |---|---|---|
 | Q1 what counts as "my" entry | `1a` (recommended) | 3.1, T-CAL1, T012 |
 | Q2 create and edit from the view | `2a` (recommended) | 5, T-CAL7, T014 |
 | Q3 how each entry's workspace is shown | `3c` (not the recommended `3a`) | 3.3, T-CAL11, T015 |
-| Q4 reminder pop-ups across workspaces | **open: owner discussing** | T016, T018 wait |
+| Q4 reminder pop-ups across workspaces | `4b` (poll option B) | 4.1, T-CAL12, T016, T018 |
 | Q5 a Google event through two workspaces | `5a` (recommended) | 6, T-CAL9, T013 |
 
-**Q4. Reminder pop-ups across workspaces?** Open: the owner is discussing it
-(HUM-10 16:19:54Z: "Chat: wants to discuss / Reminder pop-ups across
-workspaces?"). No default is picked; nothing in this spec assumes either
-option, and the rows that depend on it (T016, T018) wait.
-- `4a`: I get the pop-ups of all my workspaces' entries, whichever
-  workspace is open. The WUI's reminder timer would read
-  `GET /v1/me/realm/calendar/reminders?from=&to=` (at most 31 days, the same
-  fan-out over `CalendarReminders`) instead of the workspace route.
-- `4b`: as today, only the open workspace's.
+**Q4. Reminder pop-ups across workspaces?** The poll's three options, kept
+here with this file's keys: `4a` the pop-ups of all my workspaces'
+entries, whichever workspace is open; `4b` (chosen) `4a` plus a mute switch
+per workspace; `4c` as today, only the open workspace's. Folded as section
+4.1. One reading is this file's, not the owner's words, and is open to the
+review seats: a muted workspace gives no pop-up even while it is the open
+one.
 
 ## 12. Version log
 
@@ -358,5 +410,6 @@ option, and the rows that depend on it (T016, T018) wait.
 |---|---|---|---|
 | 0.1 | 2026-11-15 | c-203 | draft: view, "mine", workspace kept, read and write paths, Google duplicates, leavers, privacy, phone and desktop, budgets, tests, Q1..Q5 |
 | 0.2 | 2026-11-15 | c-203 | owner answers folded: Q1 `1a` (issue deadlines by `assignee`), Q2 `2a`, Q3 `3c` (new 3.3: `tenants.settings` key `calendar.color`, set with `tenant.settings`, default from the workspace id; no realm table), Q5 `5a`; Q4 open, owner discussing; T-CAL11 |
+| 0.3 | 2026-11-15 | c-203 | Q4 folded: `4b` (poll `555f92f9`, msg `f94ea39e`), pop-ups from every workspace plus a mute per workspace; new 4.1 (realm reminders read, `calendar_reminders_muted` key in `tenant_memberships.settings`, chip bell, `muted` state); fact row for rdb 0078; T-CAL12; Q4 options renamed to the poll's three (`4a`..`4c`) |
 
-<!-- version: 0.2.0 · updated: 2026-11-15 -->
+<!-- version: 0.3.0 · updated: 2026-11-15 -->

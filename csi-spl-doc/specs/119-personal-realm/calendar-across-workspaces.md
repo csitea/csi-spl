@@ -1,8 +1,10 @@
 # 119 addition: my calendar across workspaces
 
-**Status**: v0.1 draft, 2026-11-15, c-203 (SPL-5599, epic SPL-2396). Docs
-only: builds nothing. Owner questions in section 11, unanswered. Draft build
-rows: [tasks.md](tasks.md), section "Calendar across workspaces".
+**Status**: v0.2 draft, 2026-11-15, c-203 (SPL-5599, epic SPL-2396). Docs
+only: builds nothing. Owner answers folded (HUM-10, poll `75b0d544`, msg
+`76f7af1c`, 16:20:00Z): Q1 `1a`, Q2 `2a`, Q3 `3c`, Q5 `5a`. **Q4 open, the
+owner is discussing it** (section 11). Build rows: [tasks.md](tasks.md),
+section "Calendar across workspaces".
 Topic: t1 #spool-hub-ui `26b46de6-28b4-4bdf-93f2-c85346f2a13d`.
 
 Part of [119 personal realm](spec.md) (section 15 links here). Builds on,
@@ -42,13 +44,17 @@ would break the workspace isolation every calendar rule rests on (section 1).
 | An event has a responsible `owner_id` beside `creator_id` | rdb `0247_calendar_event_links.sql` | "mine" can include "I own it" |
 | A person is one `HUM-*` id in every workspace | 118 5.1; `store/rls.go` `personIDRe` | no id mapping |
 | The person's workspaces: `Memberships(ctx, human)`, the one allow-listed operator read; it already drops a disabled membership, a disabled human and a membership past `access_until` | `store/memberships.go` line 51 (`h.disabled_at IS NULL AND m.disabled_at IS NULL`), rdb 0113 | no new operator read; leavers fall out by themselves (section 7) |
-| The person scope is built: `inPerson`, `pgScopePerson`, rdb 0168 | `store/rls.go` lines 56..75; 119 tasks T001..T004 `[x]` | the realm pieces this needs (only under Q3 `3a`) sit on built ground |
+| The person scope is built: `inPerson`, `pgScopePerson`, rdb 0168 | `store/rls.go` lines 56..75; 119 tasks T001..T004 `[x]` | the realm is not touched by this view: under Q3 `3c` no realm table is added (section 3.3) |
 | 118's cross-workspace read is built: at most 20 workspaces (400 `too_many_workspaces`), a failed one `unavailable`, 403 `person_only` under act-as | `hub/realm_hours_read.go` lines 23..50, 178..193 | the calendar read reuses the same shape and limits |
 | Calendar routes read the session's **active** workspace; `X-Spool-Tenant` is for boxes | 089 6.1; 118 5.1 (`hub/resolve.go`) | the existing routes cannot reach a second workspace: the view needs realm routes that name the workspace per call (sections 4, 5) |
 | Google Calendar imports are per member **per workspace** connection, stored as that member's `private` events in that workspace | 149 sections 2.1, 2.10 B (`source_key gcal:<connection>:src.<hash>.<google id>`) | a person connected in two workspaces holds the same Google event twice (section 6, Q5) |
 | Reminder pop-ups read the active workspace only | 089 4.3, `GET /v1/calendar/reminders`; `csi-spl-wui/src/utils/calendar-reminders.mjs` | reminders across workspaces are a choice (Q4) |
 | One list read returns at most 2000 events | `store/calendar.go:278` `calendarMaxEvents` | per-workspace cap in the view (section 9) |
-| No workspace colour exists | `grep -rln "workspace_color\|workspaceColor\|tenantColor" csi-spl-wui/src csi-spl-api/src/go/spool-hub-api/internal` -> none | the source marker is new (Q3) |
+| No workspace colour exists | `grep -rln "workspace_color\|workspaceColor\|tenantColor" csi-spl-wui/src csi-spl-api/src/go/spool-hub-api/internal` -> none | the source marker is new (section 3.3) |
+| A workspace setting that is not a column is one key of `tenants.settings` jsonb; the hub registers its kind, default and check; an absent key reads as the default | rdb `0136_tenant_settings_jsonb.sql`; `store/tenant_kv.go` `RegisterTenantSetting`; spec 098 sections 3, 10 | the workspace colour is a new key, no DDL (section 3.3) |
+| `PATCH /v1/tenant/settings {settings: {key: value \| null}}` checks `tenant.settings`, held by default by `biz_owner` and `admin` | `hub/tenant_settings.go` `handlePatchTenantSettings`; `rbac/rbac.go` `Defaults` | who may set the colour, no new route or permission |
+| The event colour is one of 11 palette names, each a theme variable in light and dark | 097 section 6 (`color`: `tomato` .. `graphite`) | the workspace colour takes the same palette |
+| An issue deadline is `issues.deadline` of an issue whose `assignee` is a `HUM-*` id | rdb `0047_issues.sql` lines 57, 61; 089 6.1.1 (`source = issue`) | "assigned to me" is `assignee = P` |
 | Initial JS: ceiling 155 KB gzip, last metric 153.4 KB | `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json` `ci_initial_gzip_kb` | the page adds 0 bytes to first paint (section 9) |
 
 `store/` and `hub/` are under `csi-spl-api/src/go/spool-hub-api/internal/`.
@@ -68,7 +74,7 @@ says where entries come from.
 
 ## 3. Which entries count as "mine"
 
-### 3.1 The rule (recommended, Q1 `1a`)
+### 3.1 The rule (owner: Q1 `1a`)
 
 An event E of workspace W is **mine** for person P when, inside W's scope:
 
@@ -76,8 +82,10 @@ An event E of workspace W is **mine** for person P when, inside W's scope:
 - P is its responsible owner (`owner_id = P`, rdb 0247), or
 - P is a guest or `@`-mentioned on it (`P = ANY (mentions)`; guests are a
   subset, 097 3.2), or
-- (Q1 `1a` only) it is an issue deadline (089 4.1) of an issue in W assigned
-  to P.
+- it is an issue deadline (089 4.1, `source = issue`) of an issue in W
+  whose `assignee = P` and whose `deadline` falls in the window. It stays
+  read only here as on the workspace grid, except that moving it is an edit
+  of that issue under W's issue rules (section 5).
 
 Not mine: a `workspace`, `internal` or `public` event P can merely read.
 Official days are not shown (they are a workspace's region tint, 089 4.1,
@@ -85,7 +93,8 @@ and two regions would clash). A Google import (149) is P's own private event
 in W, so it counts.
 
 The store gets one predicate, added with AND after the private filter:
-`(creator_id = $2 OR owner_id = $2 OR $2 = ANY (mentions))`. Every event it
+`(creator_id = $2 OR owner_id = $2 OR $2 = ANY (mentions))`; the issue
+read gets `assignee = $2`. Every event it
 returns already passes `calendarPrivateSQL` for the same viewer, so the view
 can never show an event the workspace calendar would hide from P.
 
@@ -95,7 +104,7 @@ can never show an event the workspace calendar would hide from P.
   `personal.*` table holds an event, a title or a time. The view is a live
   read (section 4); reload it and it reflects each workspace's current rows.
 - **Marked with its workspace.** Every chip carries its workspace's colour
-  bar (Q3) and the pop-over names the workspace. The event's own colour (097
+  bar (section 3.3) and the pop-over names the workspace. The event's own colour (097
   3.3 `props.color`) stays the chip fill, so both read at once.
 - **Identity** is the pair `(workspace_id, event_id)`, never `event_id`
   alone, on the wire and in the WUI store.
@@ -103,6 +112,38 @@ can never show an event the workspace calendar would hide from P.
   097 4.5 `notes.send`), owner-only `private`, guests from that workspace
   only, its trash and undo. A rule a workspace has is never relaxed, and a
   workspace never learns that the change came from the personal view.
+
+### 3.3 The workspace colour (owner: Q3 `3c`)
+
+The owner chose `3c`, not the recommended `3a`: the colour is a **workspace
+setting** an admin sets, the same for every member. It is not the personal
+realm's per-person colour, and no person can change it for themselves.
+
+- **Where it is stored**: one key of the workspace's generic settings,
+  `tenants.settings -> 'calendar.color'` (rdb 0136, spec 098), registered in
+  the hub as `RegisterTenantSetting({Key: "calendar.color", Kind:
+  SettingString, Default: "", OneOf: ["", <the 11 palette names of 097
+  section 6>]})`. No DDL, no realm table, no new column; a 098 section 10
+  row. It rides the cached tenant row, so the read in section 4 costs no
+  extra query.
+- **Who may set it**: whoever holds `tenant.settings` in that workspace
+  (by default `biz_owner` and `admin`, `rbac.Defaults`), through the
+  existing `PATCH /v1/tenant/settings {"settings": {"calendar.color":
+  "peacock"}}`; `null` resets it to the default. One row on the workspace
+  settings page (palette swatches, >= 44 px). No new route or permission.
+- **The default** when no admin has set one (`""`): the hub picks a palette
+  name from the workspace id (the first 4 bytes of `sha256(workspace_id)`
+  modulo 11), so it is stable and the same for every member and device
+  without a write. Two workspaces may get the same default colour; the name
+  in the chip row and the pop-over still tells them apart, and an admin can
+  pick another.
+- **On the wire**: each `workspaces[]` entry of section 4 carries `color`,
+  the effective palette name (set or default), never `""`.
+- **Hiding a workspace** in the view (the chip toggle, section 9) is a
+  per-browser convenience in `localStorage`, not a stored preference: under
+  `3c` nothing per person is written to the hub.
+- The event's own colour (097 `props.color`) stays the chip fill and the
+  workspace colour is the bar, so the two do not compete.
 
 ## 4. The read path, RLS unchanged
 
@@ -124,12 +165,11 @@ can never show an event the workspace calendar would hide from P.
   workspace route does. At most **2 workspaces in flight** (the 118 bound,
   pool 8). Never `asOperator`, never `app.rls_scope = operator`.
 - `app.person_id` is never set in a calendar transaction: the read touches no
-  realm table, except the Q3 `3a` preference row, read in its own `inPerson`
-  transaction.
+  realm table (under Q3 `3c` there is none to read).
 - **A failed workspace** (store error, timeout, membership removed
   mid-request) comes back as `{"workspace_id": W, "state": "unavailable"}`,
   never a silent empty list and never retried under a broader scope.
-- **Answer**: `{"start","end","workspaces":[{"workspace_id","name","state"}],
+- **Answer**: `{"start","end","workspaces":[{"workspace_id","name","color","state"}],
   "events":[event + "workspace_id"]}`, events by `starts_at`, then
   `workspace_id`, then `id`. The event object is 089 6.1.1 plus
   `workspace_id`. Mention and guest names are resolved inside W's read only.
@@ -139,9 +179,10 @@ can never show an event the workspace calendar would hide from P.
 - Nothing is written by a read; no log line carries a title or a description
   (workspace id, counts and timings only).
 
-## 5. Writing from the view (Q2)
+## 5. Writing from the view (owner: Q2 `2a`)
 
-Under Q2 `2a` (recommended):
+The owner chose `2a`: yes, under that workspace's own rules; a new entry asks
+for the workspace first.
 
 - **Edit, move, resize, delete, restore, RSVP**:
   `PATCH|DELETE /v1/me/realm/calendar/{workspace_id}/events/{id}`,
@@ -161,10 +202,8 @@ Under Q2 `2a` (recommended):
 - **No move between workspaces.** An event's workspace cannot change: moving
   it is a delete in A and a create in B, two visible writes (118 7.4).
 - Drag across days in the merged grid writes only to that event's workspace.
-
-Under `2b` the view is read-only plus RSVP and every edit opens the event in
-its workspace's calendar (switching the active workspace); under `2c` it is
-read-only.
+- An issue deadline (3.1) moved in the view is `PATCH` of that issue's
+  `deadline` in W, under W's issue rules, as the workspace grid does (089).
 
 ## 6. Google Calendar imports (149)
 
@@ -173,11 +212,10 @@ read-only.
   events from that workspace's connection.
 - A Google event P imports through connections in A and B is two private
   rows (one per workspace) with the same calendar hash and Google id at the
-  end of `source_key`. Under Q5 `5a` (recommended) the view shows it
-  **once**, marked "Google", listing the workspaces it came through; an edit
-  goes to the copy of the first listed workspace and the next sync carries
-  the change through Google to the other. Under `5b` each copy shows with its
-  workspace.
+  end of `source_key`. The owner chose Q5 `5a`: the view shows it **once**,
+  marked "Google", with both (all) the workspaces it came through, each with
+  its colour (3.3); an edit goes to the copy of the first listed workspace
+  and the next sync carries the change through Google to the other.
 - Match key: `src.<12 hex>.<google id>` (the part after
   `gcal:<connection>:`), compared only among P's own rows. No new column.
 
@@ -220,7 +258,7 @@ leaving (097 4.9); the view builds no export of its own.
 
 **Desktop (> 820 px)**: the merged grid; a row of workspace chips above it
 (colour, name, a count for the window) that toggles a workspace on or off in
-the view (remembered per person, Q3); an unavailable workspace is a grey chip
+the view (remembered per browser, 3.3); an unavailable workspace is a grey chip
 "could not be read, retry". The pop-over shows the workspace first, then the
 089 / 097 details.
 
@@ -252,7 +290,8 @@ px; swipe for the previous or next week.
 ## 10. Tests (for the build rows; Postgres, runtime role)
 
 - **T-CAL1** "mine": in W, P sees events P made, owns, is a guest of and is
-  mentioned on; P does not see a `workspace` event of Q's. Red control: drop
+  mentioned on, and the deadline of an issue assigned to P; P does not see a
+  `workspace` event of Q's nor the deadline of an issue assigned to Q. Red control: drop
   the predicate, P's list grows.
 - **T-CAL2** private never leaks: Q's private event in W (P neither owner nor
   named) is in no answer of P's. Red control: drop `calendarPrivateSQL` from
@@ -266,65 +305,58 @@ px; swipe for the previous or next week.
   W's events are absent; after re-enable they return.
 - **T-CAL6** unavailable: a stubbed failure in W returns W `unavailable` and
   the others' events.
-- **T-CAL7** writes (Q2 `2a`): a write to a W not in `Memberships` is 403
+- **T-CAL7** writes: a write to a W not in `Memberships` is 403
   `not_a_member` and writes nothing; a non-owner setting `private` through the
   realm route is 403 as on the workspace route (one handler, both routes).
 - **T-CAL8** guest seat: a guest or demo seat in W gets no `internal` item of
   W in the view.
-- **T-CAL9** Google (Q5 `5a`): one Google event imported in A and B shows
+- **T-CAL9** Google: one Google event imported in A and B shows
   once with both workspaces.
 - **T-CAL10** nothing flows down: W1's workspace calendar, reminders and
   marks for P are byte-identical with and without P's W2 events.
+- **T-CAL11** workspace colour: an unset `calendar.color` reads the same
+  default for two members and twice in a row; a member without
+  `tenant.settings` gets 403 on setting it; a name outside the palette is 400
+  `bad_setting`; `null` returns it to the default. Red control: drop the key's
+  `OneOf`, the bad name is stored.
 - **e2e** at 390 px and desktop: the merged agenda, the chips, the sheet.
 
 ## 11. Questions for the owner
 
-Each with lettered options, the recommended one first. Keys at most 3
-characters.
+Answered by HUM-10 on 2026-11-15 16:20:00Z (t1 `26b46de6`, poll `75b0d544`,
+msg `76f7af1c`), verbatim:
 
-**Q1. What counts as "my" calendar entry?**
-- `1a` (recommended): events I made, own, am a guest of or am @mentioned on,
-  plus deadlines of issues assigned to me.
-- `1b`: the same without issue deadlines.
-- `1c`: only events I made or own.
-- `1d`: everything I can read in each workspace (every workspace calendar
-  merged).
+> Answer 1: 1A — Events I made, own, am a guest of or am @mentioned on, plus
+> deadlines of issues assigned to me
+> Answer 2: 2A — Yes, under that workspace's own rules; a new entry asks for
+> the workspace first
+> Answer 3: 3C — A colour per workspace set by its admin, the same for
+> everyone
+> Answer 5: 5A — Shown once, marked with both workspaces
 
-**Q2. Can I create and edit entries from the personal view?**
-- `2a` (recommended): yes, under that workspace's own rules; a new entry asks
-  for the workspace first.
-- `2b`: read and answer invitations only; editing opens the event in its
-  workspace's calendar.
-- `2c`: read only.
+| question | answer | folded into |
+|---|---|---|
+| Q1 what counts as "my" entry | `1a` (recommended) | 3.1, T-CAL1, T012 |
+| Q2 create and edit from the view | `2a` (recommended) | 5, T-CAL7, T014 |
+| Q3 how each entry's workspace is shown | `3c` (not the recommended `3a`) | 3.3, T-CAL11, T015 |
+| Q4 reminder pop-ups across workspaces | **open: owner discussing** | T016, T018 wait |
+| Q5 a Google event through two workspaces | `5a` (recommended) | 6, T-CAL9, T013 |
 
-**Q3. How is each entry's workspace shown?**
-- `3a` (recommended): each workspace gets a colour (picked automatically; I
-  may change it and hide a workspace in my view; kept in my personal realm,
-  the same on every device), plus the workspace name in the details.
-- `3b`: the workspace name as a text label only, no colour.
-- `3c`: a colour per workspace set by that workspace's admin, the same for
-  everyone.
-
-**Q4. Reminder pop-ups across workspaces?**
-- `4a` (recommended): I get the pop-ups of all my workspaces' entries,
-  whichever workspace is open.
+**Q4. Reminder pop-ups across workspaces?** Open: the owner is discussing it
+(HUM-10 16:19:54Z: "Chat: wants to discuss / Reminder pop-ups across
+workspaces?"). No default is picked; nothing in this spec assumes either
+option, and the rows that depend on it (T016, T018) wait.
+- `4a`: I get the pop-ups of all my workspaces' entries, whichever
+  workspace is open. The WUI's reminder timer would read
+  `GET /v1/me/realm/calendar/reminders?from=&to=` (at most 31 days, the same
+  fan-out over `CalendarReminders`) instead of the workspace route.
 - `4b`: as today, only the open workspace's.
-
-**Q5. A Google Calendar event that comes in through two workspaces?**
-- `5a` (recommended): shown once, marked with both workspaces.
-- `5b`: shown twice, once per workspace.
-
-Under `3a` the realm gains one table, `personal.calendar_prefs (person_id
-PK, prefs jsonb <= 4 KB)` holding `{workspace_id: {color, hidden}}`, in the
-rdb 0225 shape (FK to `humans`, no `tenant_id`, the 0168 `person_scope`
-policy, named grants). Under `4a` the WUI's reminder timer reads
-`GET /v1/me/realm/calendar/reminders?from=&to=` (at most 31 days, the same
-fan-out over `CalendarReminders`) instead of the workspace route.
 
 ## 12. Version log
 
 | version | date | by | what |
 |---|---|---|---|
 | 0.1 | 2026-11-15 | c-203 | draft: view, "mine", workspace kept, read and write paths, Google duplicates, leavers, privacy, phone and desktop, budgets, tests, Q1..Q5 |
+| 0.2 | 2026-11-15 | c-203 | owner answers folded: Q1 `1a` (issue deadlines by `assignee`), Q2 `2a`, Q3 `3c` (new 3.3: `tenants.settings` key `calendar.color`, set with `tenant.settings`, default from the workspace id; no realm table), Q5 `5a`; Q4 open, owner discussing; T-CAL11 |
 
-<!-- version: 0.1.0 · updated: 2026-11-15 -->
+<!-- version: 0.2.0 · updated: 2026-11-15 -->

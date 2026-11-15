@@ -360,7 +360,17 @@ weekliy limit". Built 2026-11-13.
   that vendor's lanes stop at this %, in place of the all-vendor
   `env.box.quota.weekly_max_pct` (90). Set today: `grok: 95`.
   `BOX_QUOTA_WEEKLY_MAX_PCT_<VENDOR>` (upper case, for example
-  `BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97`) overrides the cnf for one run.
+  `BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97`) overrides the cnf for one run; an env
+  value that is not a whole number of at most 3 digits is ignored, and the
+  cnf's mark stands. The all-vendor `BOX_QUOTA_WEEKLY_MAX_PCT` overrides
+  `weekly_max_pct` the same way.
+- **Both env knobs reach the placer.** `spawn-window.sh` runs the pick as the
+  desk user through the pick hop (`sudo -n -u <desk user> env ...`), which
+  passes only what it names. It names `BOX_QUOTA_WEEKLY_MAX_PCT` and every
+  `BOX_QUOTA_WEEKLY_MAX_PCT_<VENDOR>` set in the spawner's env (SPL-5604),
+  so a knob set on the placer's cron line holds the pick. Before SPL-5604 the
+  hop dropped them, and the pick held at the cnf's mark. `BOX_QUOTA_RESET` and
+  `BOX_QUOTA_REVIEW_SEAT_MAX_PCT` are not passed.
 - `do_spl_box_pick` with `BOX_PICK_KIND=grok` does not pick a box at or over
   95 %: 94 % places, 95 % waits.
 - **A vendor with its own mark never goes to a box with no reading.** For
@@ -371,7 +381,10 @@ weekliy limit". Built 2026-11-13.
 - A logged review seat's mark (`review_seat_max_pct`) is never under the
   vendor's own mark.
 - The `#alerts` weekly line names the mark that applies
-  (`env.box.quota.vendor_weekly_max_pct.grok`).
+  (`env.box.quota.vendor_weekly_max_pct.grok`). The disagree and lapse alarms,
+  and the re-read of a kept claude hold, compare a vendor's readings to its
+  own mark too (SPL-5604): a grok reading of 92 % holds nothing under its
+  95 % mark, so it raises no alarm.
 
 Code: `spl_box_quota_vendor_max` and `spl_box_quota_max CNF KIND` in
 `csi-spl-orc/lib/bash/funcs/spl-box-quota.func.sh`, and `spl_box_pick_wkmax`
@@ -386,7 +399,7 @@ grok CLI (1.0.77) fetches the account's credits config when it starts and
 from time to time after that, and logs each fetch to the agent user's
 `~/.grok/logs/unified.jsonl` as `billing: fetched credits config`, with
 `ctx.config.creditUsagePercent` and `currentPeriod` (`type`
-`USAGE_PERIOD_TYPE_WEEKLY`, `end`). Measured on sat on 2026-11-13: 110 fetches
+`USAGE_PERIOD_TYPE_WEEKLY`, `end`). Measured on one box on 2026-11-13: 110 fetches
 from 21 grok processes between 02:23Z and 09:33Z, reading 15 % then 27 %.
 
 `spl_box_quota_grok_read` takes the newest such entry and gives

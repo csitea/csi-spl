@@ -240,7 +240,7 @@ spl_box_quota_claude_json() {
 # so a box with no grok pane read "grok weekly unknown". The grok CLI fetches
 # the account's credits config at start and now and then after, and logs each
 # fetch to ~/.grok/logs/unified.jsonl as "billing: fetched credits config" with
-# ctx.config.creditUsagePercent and currentPeriod {type, end} (grok 1.0.77; sat
+# ctx.config.creditUsagePercent and currentPeriod {type, end} (grok 1.0.77; one box
 # 2026-11-13: 110 fetches from 21 grok processes between 02:23Z and 09:33Z, 15
 # -> 27 %). The log on stdin -> "<pct>@<period end>~billing~<the entry's epoch>"
 # from its newest such entry, or nothing when there is none, its period is not
@@ -350,7 +350,7 @@ spl_box_quota_keep() {
   fi
   if spl_box_quota_outdated "$pct" "$seen" "$login" "$acct" "$json" "$now"; then lifted=claude
   elif [[ -n "$pct" ]] && (( pct >= 100 )) && spl_box_quota_lifted "$seen"; then lifted=claude
-  elif [[ -n "$pct" ]] && (( pct >= $(spl_box_quota_max "${SPL_CNF:-}") && rst > now )); then
+  elif [[ -n "$pct" ]] && (( pct >= $(spl_box_quota_max "${SPL_CNF:-}" claude) && rst > now )); then
     # a hold shows on no screen once a seat stops; the probe saying limited is
     # its re-read. Any limit counts, not only the weekly one (LC_LIMITED_RE):
     # a lane placed on a limited login stalls anyway, and the hold still ends
@@ -455,9 +455,11 @@ spl_box_quota_note_lapsed() {
   lapse="$(spl_box_quota_lapse_s)"
   (( lapse > 0 )) || return 0
   { : >>"$1.lapsed"; } 2>/dev/null || return 0
-  awk -F'\t' -v OFS='\t' -v max="$(spl_box_quota_max "${SPL_CNF:-}")" -v now="$4" -v lapse="$lapse" -v lifted=",$5," '
+  awk -F'\t' -v OFS='\t' -v max="$(spl_box_quota_max "${SPL_CNF:-}")" -v now="$4" -v lapse="$lapse" -v lifted=",$5," \
+    -v marks="$(spl_box_quota_marks "${SPL_CNF:-}" "$(cut -f1 <<<"$2" 2>/dev/null)")" "$SPL_BOX_QUOTA_MARKS_AWK"'
     FNR == NR { if (NF) cur[$1] = $2; next }
-    $2 + 0 >= max && $3 + 0 > now && now - $4 >= lapse && !index(lifted, "," $1 ",") && cur[$1] + 0 < max {
+    { mx = ($1 in m) ? m[$1] : max }
+    $2 + 0 >= mx && $3 + 0 > now && now - $4 >= lapse && !index(lifted, "," $1 ",") && cur[$1] + 0 < mx {
       print $1, $2, ($6 != "" ? $6 : "kept"), $4, cur[$1] }' <(printf '%s\n' "$3" 2>/dev/null) <(printf '%s\n' "$2" 2>/dev/null) 2>/dev/null >>"$1.lapsed" || true
   [[ -s "$1.lapsed" ]] || rm -f "$1.lapsed" 2>/dev/null
   return 0
@@ -502,17 +504,21 @@ spl_box_quota_wkr() {
   awk -F'\t' '{ printf "%s%s:%s:%s", (NR > 1 ? "," : ""), $1, ($6 != "" ? $6 : "kept"), $4 } END { if (NR) print "" }' "$f"
 }
 
-# spl_box_quota_disagree MAX: the kept readings at or over MAX that a NEWER
-# reading under MAX contradicts, one per line: kind TAB pct TAB source TAB read
-# at TAB lower pct TAB its source TAB its read at. Usage only climbs inside a
-# week, so that is a limit that moved or a screen that lies, and a hold stands
-# on it (11-06: the alert read 0 % while the placer held on 97 % for over 2 h).
+# spl_box_quota_disagree MAX [CNF]: the kept readings at or over MAX that a NEWER
+# reading under MAX contradicts (with CNF, a kind with its own weekly mark,
+# spl_box_quota_vendor_max, is held to that mark instead of MAX), one per line:
+# kind TAB pct TAB source TAB read at TAB lower pct TAB its source TAB its read at.
+# Usage only climbs inside a week, so that is a limit that moved or a screen
+# that lies, and a hold stands on it (11-06: the alert read 0 % while the
+# placer held on 97 % for over 2 h).
 # A lower reading OLDER than the kept one is only lag, and says nothing.
 spl_box_quota_disagree() {
   local f
   f="$(spl_box_quota_keep_file)"
   [[ -n "$f" && -r "$f" ]] || return 0
-  awk -F'\t' -v OFS='\t' -v max="$1" '$2 + 0 >= max && $7 != "" && $7 + 0 < max && $8 + 0 > $4 + 0 {
+  awk -F'\t' -v OFS='\t' -v max="$1" -v marks="$(spl_box_quota_marks "${2:-}" "$(cut -f1 "$f")")" "$SPL_BOX_QUOTA_MARKS_AWK"'
+    { mx = ($1 in m) ? m[$1] : max }
+    $2 + 0 >= mx && $7 != "" && $7 + 0 < mx && $8 + 0 > $4 + 0 {
     print $1, $2, ($6 != "" ? $6 : "kept"), $4, $7, ($9 != "" ? $9 : "kept"), $8 }' "$f"
 }
 
@@ -618,7 +624,9 @@ spl_box_quota_max() {
 # nothing (SPL-5432, owner b122105a: "start utilizing grok once again and stop
 # when its usage is at 95% on weekly limit"): cnf
 # env.box.quota.vendor_weekly_max_pct.<kind>, env BOX_QUOTA_WEEKLY_MAX_PCT_<KIND>
-# (upper case) overrides. Not a number or over 3 digits = unset. A vendor with
+# (upper case) overrides; an env that is not a number or is over 3 digits is
+# unset, so the cnf's mark stands (SPL-5604: a typo never drops the owner's
+# stop), and so is such a cnf value. A vendor with
 # its own mark is never placed on an unknown reading (do_spl_box_pick): the mark
 # is a stop the owner asked for, and "unknown" would place with no stop at all.
 spl_box_quota_vendor_max() {
@@ -626,10 +634,29 @@ spl_box_quota_vendor_max() {
   [[ "$k" =~ ^[a-z]+$ ]] || return 0
   ev="BOX_QUOTA_WEEKLY_MAX_PCT_${k^^}"
   v="${!ev:-}"
+  [[ "$v" =~ ^[0-9]{1,3}$ ]] || v=""
   [[ -z "$v" && -r "${1:-}" ]] && command -v yq >/dev/null && v="$(yq ".env.box.quota.vendor_weekly_max_pct.$k // \"\"" "$1" 2>/dev/null)"
   [[ "$v" =~ ^[0-9]{1,3}$ ]] && echo "$(( 10#$v ))"
   return 0
 }
+
+# spl_box_quota_marks CNF KINDS: "kind=mark ..." for each of KINDS (whitespace
+# separated, a repeat once) with its own weekly mark (spl_box_quota_vendor_max),
+# for the awk readers that hold each kind to its own stop: the hold re-read, the
+# lapse and the disagree alarm (SPL-5604, review N2 of SPL-5432). A kind with no
+# mark is left out: its reader falls back to weekly_max_pct.
+spl_box_quota_marks() {
+  local k v out="" seen=" "
+  for k in $2; do
+    [[ "$seen" == *" $k "* ]] && continue
+    seen+="$k "
+    v="$(spl_box_quota_vendor_max "${1:-}" "$k")"
+    [[ -n "$v" ]] && out+="${out:+ }$k=$v"
+  done
+  echo "$out"
+}
+# The awk BEGIN block that loads spl_box_quota_marks's -v marks into m[kind].
+SPL_BOX_QUOTA_MARKS_AWK='BEGIN { n = split(marks, a, " "); for (i = 1; i <= n; i++) { split(a[i], kv, "="); m[kv[1]] = kv[2] } }'
 
 # spl_box_quota_seat_max [CNF [KIND]]: the weekly mark of a logged review seat (SPL-4966;
 # spec 146, what-broke-20261106 section 7 item 3), a whole %: cnf

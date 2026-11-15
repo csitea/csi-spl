@@ -348,6 +348,13 @@ place_box() {
       for k in ENV BOX_PICK_SINCE BOX_PICK_OVERFLOW BOX_PICK_CNF BOX_PICK_KIND BOX_PICK_REVIEW_SEAT LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX SPOOL_BOX_ENV; do
         [ -n "${!k:-}" ] && pick_hop+=("$k=${!k}")
       done
+      # The weekly stop knobs beat cnf weekly_max_pct (spl_box_quota_max,
+      # spl_box_quota_vendor_max): without them the hop dropped an owner's
+      # "95% for 5 hours" and the pick held at the cnf's 90 (SPL-5604). Only
+      # these two names: BOX_QUOTA_RESET and _REVIEW_SEAT_MAX_PCT stay out.
+      for k in $(compgen -v BOX_QUOTA_WEEKLY_MAX_PCT); do
+        [[ "$k" =~ ^BOX_QUOTA_WEEKLY_MAX_PCT(_[A-Z]+)?$ && -n "${!k:-}" ]] && pick_hop+=("$k=${!k}")
+      done
     fi
     if [ -n "${SPAWN_BOX_PICK_CMD:-}" ]; then
       # shellcheck disable=SC2086 # a command line, split on purpose

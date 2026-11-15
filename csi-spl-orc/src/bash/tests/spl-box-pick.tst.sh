@@ -1097,8 +1097,12 @@ out="$(g21 BOX_PICK_KIND=claude)"
 wk "box-a:grok=96:60" "box-b:grok=40:60"
 out="$(g21 BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97)"
 [[ "$(pick "$out")" == box-a ]] && pass "21. BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97 overrides the cnf: box-a at 96 % is picked" || fail "21. env: $out"
+# SPL-5604 (review N3 of SPL-5432): both boxes over 90 and under 96, so only
+# the hold line tells 95 from weekly_max_pct's 90.
+wk "box-a:grok=96:60" "box-b:grok=95:60"
 out="$(g21 BOX_QUOTA_WEEKLY_MAX_PCT_GROK=x9)"
-[[ "$(pick "$out")" == box-b ]] && pass "21. a vendor mark that is no number falls back to the cnf's 95" || fail "21. bad env: $out"
+[[ "$(pick "$out")" == hold ]] && grep -q 'waiting: grok weekly >= 95% on' <<<"$out" &&
+  pass "21. RED CONTROL a vendor mark env that is no number is ignored: the cnf's 95 stands" || fail "21. bad env: $out"
 wk "box-a:grok=95:60" "box-b:grok=95:60"
 out="$(g21 BOX_PICK_REVIEW_SEAT=1 BOX_QUOTA_REVIEW_SEAT_MAX_PCT=91)"
 [[ "$(pick "$out")" == hold ]] && grep -q 'waiting: grok weekly >= 95% on' <<<"$out" &&

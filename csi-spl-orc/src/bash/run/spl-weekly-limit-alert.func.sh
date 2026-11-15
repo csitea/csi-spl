@@ -137,7 +137,7 @@ spl_weekly_alert_disagree() {  # STATE_FILE DRY NOW
     else
       do_log "WARN the $k disagree alarm did not post; retried next tick"
     fi
-  done < <(spl_box_quota_disagree "$(spl_box_quota_max "${SPL_CNF:-}")")
+  done < <(spl_box_quota_disagree "$(spl_box_quota_max "${SPL_CNF:-}")" "${SPL_CNF:-}")
   [[ "$2" == 1 ]] && return 0
   printf '%s' "$keep" >"$1.tmp.$$" 2>/dev/null && mv -f "$1.tmp.$$" "$1" 2>/dev/null || rm -f "$1.tmp.$$"
   return 0

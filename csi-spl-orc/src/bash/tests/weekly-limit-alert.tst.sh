@@ -18,6 +18,8 @@
 #      another login's cache, a 6 h old one or a passed reset is no reading
 #  10. (SPL-4965) a kept reading at or over the threshold that a newer reading
 #      under it contradicts posts ONE alarm naming both, until they agree
+#  12. (SPL-5604) the disagree and lapse alarms hold a kind with its own weekly
+#      mark to that mark, a kind with none to weekly_max_pct
 #   RED CONTROL: the same "90 again" tick with the state file gone posts a
 #   second line, so case 1's "nothing" is the state's doing.
 #------------------------------------------------------------------------------
@@ -199,6 +201,27 @@ lapn11 "" 40; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 40%" "$T/posts" 
 lapn11 40 ""; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 40%" "$T/posts" && pass "11. N11: a 40, then an empty row -> names the 40" || fail "11. N11 40 first ($(nlap): $(cat "$T/posts"))"
 lapn11 "" 0; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 0%" "$T/posts" && pass "11. RED CONTROL N11: an empty row, then a 0 -> names the 0" || fail "11. N11 zero ($(nlap): $(cat "$T/posts"))"
 lapn11 9 40; [ "$(nlap)" = 1 ] && grep -qF "this box now reads 40%" "$T/posts" && pass "11. RED CONTROL N12: two different current % -> one alarm, the higher, as a number" || fail "11. N12 two readings ($(nlap): $(cat "$T/posts"))"
+
+# 12. (SPL-5604, review N2 of SPL-5432) the disagree and lapse alarms hold a
+# kind with its own weekly mark (BOX_QUOTA_WEEKLY_MAX_PCT_GROK=95) to that mark,
+# not to weekly_max_pct 90, as the pick does; a kind with none stays on the 90.
+kg() {  # KIND PCT AGE_S: one kept row
+  printf '%s\t%s\t%s\t%s\t\tbanner\n' "$1" "$2" "$FUT" "$(( NOW - $3 ))" >"$KP"; }
+dis12() {  # KIND KEPT_PCT -> the disagree posts for KIND, a newer 50 under it
+  : >"$T/posts"; rm -f "$T/st.tsv" "$T/st.tsv.disagree" "$KP.lapsed"; kg "$1" "$2" 8100
+  tick "$1:50@$FUT~banner~$(( NOW - 120 ))" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null \
+    BOX_QUOTA_WEEKLY_MAX_PCT_GROK=95 WEEKLY_ALERT_KINDS="$1" >/dev/null
+  grep -c "WEEKLY READINGS DISAGREE\*\* $1 " "$T/posts"; }
+[ "$(dis12 grok 92)" = 0 ] && pass "12. RED CONTROL N2: grok kept 92 under its own 95 mark, a newer 50 -> no disagree alarm" || fail "12. grok 92: $(cat "$T/posts")"
+[ "$(dis12 grok 96)" = 1 ] && pass "12. grok kept 96 at its 95 mark, a newer 50 -> the disagree alarm" || fail "12. grok 96: $(cat "$T/posts")"
+[ "$(dis12 mistral 92)" = 1 ] && pass "12. CONTROL a kind with no own mark: kept 92 over 90, a newer 50 -> the disagree alarm" || fail "12. mistral 92: $(cat "$T/posts")"
+lap12() {  # KIND KEPT_PCT -> the lapse posts for KIND, kept 12 h ago, nothing re-read
+  : >"$T/posts"; rm -f "$T/st.tsv" "$T/st.tsv.disagree" "$KP.lapsed"; kg "$1" "$2" 43200
+  tick "" LANE_QUOTA_STATE="$KP" LANE_QUOTA_CLAUDE_JSON=/dev/null BOX_QUOTA_WEEKLY_MAX_PCT_GROK=95 WEEKLY_ALERT_KINDS="$1" >/dev/null
+  grep -c "WEEKLY HOLD LAPSED\*\* $1 " "$T/posts"; }
+[ "$(lap12 grok 92)" = 0 ] && pass "12. RED CONTROL N2: grok kept 92 under its own 95 mark lapses -> no lapse alarm (it held nothing)" || fail "12. lapse grok 92: $(cat "$T/posts")"
+[ "$(lap12 grok 96)" = 1 ] && pass "12. grok kept 96 at its 95 mark lapses -> the lapse alarm" || fail "12. lapse grok 96: $(cat "$T/posts")"
+[ "$(lap12 mistral 92)" = 1 ] && pass "12. CONTROL a kind with no own mark: kept 92 lapses -> the lapse alarm" || fail "12. lapse mistral 92: $(cat "$T/posts")"
 
 # 8. the cron row
 grep -qE "^weekly-limit-alert +\| \*/5 \* \* \* \* +\| src/bash/scripts/weekly-limit-alert-cron.sh +\| weekly-limit-alert/cron.log" "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" \

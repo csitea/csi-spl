@@ -14,6 +14,9 @@
 #      its HOME, not to SPOOL_BOX_USER; a desk user = the spawner hops nowhere
 #      though SPOOL_BOX_USER is another user. CONTROL the old code hopped to
 #      SPOOL_BOX_USER in both
+#   6d. the weekly stop knobs (BOX_QUOTA_WEEKLY_MAX_PCT, _<KIND>) cross the
+#      hop, which resets the env as sudo does; BOX_QUOTA_RESET and the review
+#      seat mark do not (SPL-5604)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -122,6 +125,33 @@ DESK_ENV=(SPOOL_DESK_USER="$(id -un)")
 agent_spawn "$DESK_USER"
 check "6b. desk user = the spawner, box user another: no hop" test ! -e "$T_TMP/hop.calls"
 DESK_ENV=()
+
+# 6d. (SPL-5604) the weekly stop knobs reach the pick. The hop here resets the
+#     env the way sudo does (env -i, PATH kept), so only what the hop's command
+#     line names arrives; the pick stub records the BOX_QUOTA_* it sees.
+cat > "$T_TMP/bin/hop-reset" <<STUB
+#!/usr/bin/env bash
+echo "\$*" >> "$T_TMP/hop.calls"
+shift; exec env -i PATH="\$PATH" "\$@"
+STUB
+cat > "$T_TMP/bin/orc-run-env" <<STUB
+#!/usr/bin/env bash
+[ "\$1 \$2" = "-a do_spl_box_pick" ] || exit 0
+env | grep '^BOX_QUOTA_' | sort > "$T_TMP/pick.env"
+echo "pick=$OTHER reason=$OTHER is below its low mark (10% < 50%)"
+STUB
+chmod +x "$T_TMP/bin/hop-reset" "$T_TMP/bin/orc-run-env"
+rm -f "$T_TMP/pick.env"
+OUT="$(env -u SPAWN_BOX_PICK_CMD -u SPAWN_REMOTE_CMD SPOOL_DESK_USER="$DESK_USER" SPOOL_BOX_USER="$(id -un)" \
+  BOX_QUOTA_WEEKLY_MAX_PCT=93 BOX_QUOTA_WEEKLY_MAX_PCT_CLAUDE=95 BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97 \
+  BOX_QUOTA_RESET=1 BOX_QUOTA_REVIEW_SEAT_MAX_PCT=98 SPAWN_ORC_RUN="$T_TMP/bin/orc-run-env" \
+  SPAWN_PICK_HOP_CMD="$T_TMP/bin/hop-reset" SPAWN_DRY_RUN=1 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
+PE="$(cat "$T_TMP/pick.env" 2>/dev/null)"
+has "6d. RED CONTROL the hop carries BOX_QUOTA_WEEKLY_MAX_PCT_CLAUDE to the pick (SPL-5604)" "BOX_QUOTA_WEEKLY_MAX_PCT_CLAUDE=95" "$PE"
+has "6d. ... and BOX_QUOTA_WEEKLY_MAX_PCT_GROK" "BOX_QUOTA_WEEKLY_MAX_PCT_GROK=97" "$PE"
+has "6d. ... and the all-vendor BOX_QUOTA_WEEKLY_MAX_PCT" "BOX_QUOTA_WEEKLY_MAX_PCT=93" "$PE"
+check "6d. ... but not BOX_QUOTA_RESET nor BOX_QUOTA_REVIEW_SEAT_MAX_PCT" eval '[[ "$PE" != *BOX_QUOTA_RESET* && "$PE" != *REVIEW_SEAT* ]]'
+has "6d. ... and the pick is used" "placing auto on $OTHER" "$OUT"
 
 # 7. CI busy (owner HUM-10, t1 f67e3656): a hold for CI holds a NEW lane only;
 #    the hourly rotation (its own id, SPAWN_REUSE_ID=1) replaces a session and

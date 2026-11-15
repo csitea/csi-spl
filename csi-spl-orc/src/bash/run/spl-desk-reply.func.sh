@@ -105,7 +105,8 @@
 # @description nothing sent; spl_desk_undelivered_refuse, SPL-5115).
 # @description A send the spool CLI reports refused for this desk box's ROSTER
 # @description write ("roster not updated", "roster not stored", "subscriptions
-# @description not stored": an announce's refusal, read as the send's answer)
+# @description not stored", roster_duplicate: an announce's refusal, read as the
+# @description send's answer)
 # @description is checked against the topic: when its newest post from the
 # @description agent in the last 15 min carries this body, the post is stored,
 # @description so it is reported as sent (exit 0, its msg_id in the JSON line)
@@ -349,13 +350,14 @@ _spl_desk_reply_send_to() {
 # frame that names no msg_id, and the send in flight on that socket may take
 # it as its own answer: prd csitea 2026-11-15, "vendor_cap_exceeded (...:
 # roster not updated)" exit 1 while the post was stored (msg 0a7efcb5), so
-# the seats retried a landed post. Only on such a roster refusal, 0 when
+# the seats retried a landed post. Only on such a roster refusal (those
+# details, or the token roster_duplicate), 0 when
 # <task>'s newest post from the agent in the last 15 min carries <body>: the
 # caller's sent is that post ({"msg_id","delivery":"sent"}) and a WARN names
 # the refusal. 1 otherwise, the send stays failed.
 _spl_desk_reply_landed() {
   local errf="$1" task="$2" text="$3" why out id
-  why="$(grep -m1 -E 'roster not (updated|stored)|subscriptions not stored' "$errf")" || return 1
+  why="$(grep -m1 -E 'roster not (updated|stored)|subscriptions not stored|roster_duplicate' "$errf")" || return 1
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-tail --task "$task" --json 2>/dev/null)" || return 1
   id="$(SPL_TAIL="$out" python3 - "$agent" "$text" <<'EOF_PY'
 import datetime as dt, json, os, sys

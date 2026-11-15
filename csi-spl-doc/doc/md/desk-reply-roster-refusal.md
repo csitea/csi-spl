@@ -26,16 +26,21 @@ already landed.
 ## 2. What the desk does now
 
 When the send's error names a roster write (`roster not updated`,
-`roster not stored` or `subscriptions not stored`), `do_spl_desk_reply`
+`roster not stored`, `subscriptions not stored` or the token
+`roster_duplicate`), `do_spl_desk_reply`
 reads the topic (`spool hub-tail --task <topic> --json`). If the newest post
 from the agent in the last 15 minutes has the same body:
 
-- it exits 0 and prints the usual JSON line, with that post's `msg_id` and
-  permalink;
+- it exits 0 and prints the usual JSON line, with that post's `msg_id`
+  (and its permalink when the workspace has a WUI link base, as for any
+  reply);
 - it logs `WARN the post IS stored in topic <topic> as msg <id>; only this
   desk box's roster write was refused, do not post it again: <refusal>`;
 - it does not send again, and does not fall back to the DM (spec 067
   edge 2).
+
+Only a post from the answering agent counts: the same body from another
+agent in that topic is not this post.
 
 Any other refusal, or no such post in the topic, still exits 1 with the
 FATAL. Callers that branch on the exit code read 0 as posted and need no
@@ -43,5 +48,5 @@ change.
 
 Code: `_spl_desk_reply_landed` in
 `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`. Test:
-`csi-spl-orc/src/bash/tests/desk-reply-roster-refusal.tst.sh` (cases 1 and 2
-fail on the old action; 3 to 5 are controls).
+`csi-spl-orc/src/bash/tests/desk-reply-roster-refusal.tst.sh` (cases 1, 2 and
+6 fail on the old action; 3 to 5 and 7 are controls).

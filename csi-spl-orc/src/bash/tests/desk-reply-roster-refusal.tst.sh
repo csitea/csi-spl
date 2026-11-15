@@ -15,6 +15,9 @@
 #   4. CONTROL: another refusal with the post in the tail -> exit 1, the tail
 #      is not read
 #   5. CONTROL: an older (> 15 min) post with the same body -> exit 1
+#   6. roster_duplicate (an announce with a bad or duplicate id) + the post
+#      in the tail -> exit 0, WARN names roster_duplicate
+#   7. CONTROL: the same body from ANOTHER agent in the tail -> exit 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -36,12 +39,13 @@ json.dump([{"v": 1, "msg_id": "m-1", "task_id": sys.argv[2], "ts": "2026-10-19T0
             "body": "is this deployed?", "files": []}], open(sys.argv[1], "w"))
 EOF_PY
 
-# tail_line <msg id> <body> [age minutes]: one hub-tail --json line from c-002.
+# tail_line <msg id> <body> [age minutes] [from]: one hub-tail --json line,
+# from c-002 unless named.
 tail_line() {
-  python3 - "$1" "$2" "${3:-1}" <<'EOF_PY'
+  python3 - "$1" "$2" "${3:-1}" "${4:-c-002}" <<'EOF_PY'
 import datetime as dt, json, sys
 ts = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=int(sys.argv[3]))).strftime("%Y-%m-%dT%H:%M:%SZ")
-print(json.dumps({"v": 1, "msg_id": sys.argv[1], "from": "c-002", "to": "HUM-10", "ts": ts, "body": sys.argv[2]}))
+print(json.dumps({"v": 1, "msg_id": sys.argv[1], "from": sys.argv[4], "to": "HUM-10", "ts": ts, "body": sys.argv[2]}))
 EOF_PY
 }
 
@@ -101,6 +105,17 @@ reply DESK_TO=HUM-10 DESK_TASK="$DM" SEND_ERR="hub refused: unpinned_box" TAIL="
 reply DESK_TO=HUM-10 DESK_TASK="$DM" SEND_ERR="$ROSTER_ERR" TAIL="$(tail_line s-6 "$BODY" 30)"
 [[ "$(cat "$T/rc")" == 1 ]] && ! grep -q 'IS stored' "$T/o" &&
   pass "5. CONTROL: a 30-min-old post with the same body: exit 1" || fail "5. rc=$(cat "$T/rc") out=$(cat "$T/o")"
+
+# --- 6. roster_duplicate is a roster-write refusal too ---------------------------------
+reply DESK_TO=HUM-10 DESK_TASK="$DM" SEND_ERR="hub refused: roster_duplicate (invalid or duplicate agent id in roster)" \
+  TAIL="$(tail_line s-5 "$BODY")"
+[[ "$(cat "$T/rc")" == 0 && "$(sends)" == 1 ]] && grep -q "stored in topic $DM as msg s-5" "$T/o" && grep -q 'roster_duplicate' "$T/o" &&
+  pass "6. roster_duplicate with the post stored: exit 0, WARN names it" || fail "6. rc=$(cat "$T/rc") out=$(cat "$T/o")"
+
+# --- 7. CONTROL: the same body from another agent is not this post ---------------------
+reply DESK_TO=HUM-10 DESK_TASK="$DM" SEND_ERR="$ROSTER_ERR" TAIL="$(tail_line s-4 "$BODY" 1 c-003)"
+[[ "$(cat "$T/rc")" == 1 ]] && ! grep -q 'IS stored' "$T/o" &&
+  pass "7. CONTROL: the same body from c-003: exit 1" || fail "7. rc=$(cat "$T/rc") out=$(cat "$T/o")"
 
 echo
 if (( fails > 0 )); then echo "FAILED: $fails"; exit 1; fi

@@ -15,6 +15,12 @@
 #   3. a link to B/run from outside the tree (a bin dir) still lands in B
 #   4. an ancestor dir reached through a link resolves to its real path, as
 #      before
+#   5. B's run.sh called by a path that does not spell src/bash/run (bash
+#      run.sh, ./run.sh, bash run/run.sh, a link to B's run dir) is B; a link
+#      dir that only spells src/bash/run is followed through
+#   6. a dangling $0 whose dir does not exist fails, never PROJ_PATH=/
+# The probe clears ORG, APP, PROJ_KIND and XDG_CACHE_HOME: run.sh honours
+# them, and a caller's ./run (do_check_pre_push) exports them.
 # Each case runs against the orc, iac and utl run.sh (kept in lockstep,
 # csi-spl-iac run-sh-parity.tst.sh), in a throwaway tree.
 #------------------------------------------------------------------------------
@@ -38,9 +44,10 @@ EOF
   echo "$d"
 }
 
-# probe <run> <out> -- run the probe action through <run>
+# probe <run> <out> [<interpreter>] -- run the probe action through <run>
 probe() {
-  HOME="$T/home" VAR_DIR="$T/var" "$1" -a do_paths_probe </dev/null >"$2" 2>&1
+  env -u ORG -u APP -u PROJ_KIND -u XDG_CACHE_HOME HOME="$T/home" VAR_DIR="$T/var" \
+    ${3:-} "$1" -a do_paths_probe </dev/null >"$2" 2>&1
 }
 
 # want <label> <out> <tag> <proj-path> <kind>
@@ -75,6 +82,25 @@ for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
   ln -s "$r/csi-x" "$r/csi-x-link"
   probe "$r/csi-x-link/csi-x-orc/run" "$T/out"
   want "$m: B reached through a linked ancestor is B's real path" "$T/out" B "$rb" orc
+
+  (cd "$b/src/bash/run" && probe run.sh "$T/out" bash)
+  want "$m: bash run.sh in B's run dir is B" "$T/out" B "$rb" orc
+  (cd "$b/src/bash/run" && probe ./run.sh "$T/out")
+  want "$m: ./run.sh in B's run dir is B" "$T/out" B "$rb" orc
+  (cd "$b/src/bash" && probe run/run.sh "$T/out" bash)
+  want "$m: bash run/run.sh in B's src/bash is B" "$T/out" B "$rb" orc
+  ln -s "$b/src/bash/run" "$r/run-dir-link"
+  probe "$r/run-dir-link/run.sh" "$T/out"
+  want "$m: a link to B's run dir is B" "$T/out" B "$rb" orc
+
+  mkdir -p "$r/shim/src/bash" && ln -s "$r/bin" "$r/shim/src/bash/run"
+  probe "$r/shim/src/bash/run/xrun" "$T/out"
+  want "$m: a link dir that only spells src/bash/run is followed to B" "$T/out" B "$rb" orc
+
+  ln -s /nonexistent-spl5536/foo/run "$r/dang"
+  probe "$r/dang" "$T/out" && rc=0 || rc=$?
+  ((rc != 0)) && ! grep -q 'PROJ_PATH=/ ' "$T/out" && pass "$m: a dangling \$0 fails" ||
+    fail "$m: a dangling \$0 exited $rc: $(sed -n 1p "$T/out")"
 done
 
 echo "run-paths-symlink: $fails failure(s)"

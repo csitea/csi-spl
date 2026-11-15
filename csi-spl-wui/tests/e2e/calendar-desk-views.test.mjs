@@ -14,6 +14,12 @@
 //     middle one (msg 37951fb6); the + is round at the grid's bottom right
 //     (Q4).
 //
+// (todo) spec 170 row B2 (SPL-5595): /calendar?k=todo is the To-do view: a
+//     switch above the four views, overdue tasks on top of today's, mine
+//     with a switch to everyone's, the ranges keep ?k=todo, a row opens its
+//     issue and Back returns. Control: on origin/master before B2 there is
+//     no switch and ?k=todo shows the week grid, so every (todo) check FAILS.
+//
 // Control: on the tree before SPL-4060 (48 px hours, a surface-coloured
 // block, the feed-header bar, no tab group) every check below but the
 // overlap one FAILS.
@@ -236,10 +242,130 @@ async function run(browser, base, theme) {
   await p.close()
 }
 
+/* Spec 170 row B2 (SPL-5595): the To-do view, ?k=todo. Mock tasks with
+   deadlines (spool.mock.issues-due, utils/issues.mjs); the page runs in UTC
+   on the pinned clock, today = E2E_TODAY 10:00Z. */
+const nextMonth = calAddDays(`${today.slice(0, 7)}-01`, 40)
+const TASKS = [
+  { title: 'B2 today mine', deadline: at(today, '15:00'), mine: true, priority: 2 },
+  { title: 'B2 earlier today mine', deadline: at(today, '09:00'), mine: true, status: 'wip' },
+  { title: 'B2 overdue mine', deadline: at(calAddDays(today, -4), '09:00'), mine: true },
+  { title: 'B2 tomorrow mine', deadline: at(calAddDays(today, 1), '09:00'), mine: true },
+  { title: 'B2 today teammate', deadline: at(today, '12:00') },
+  { title: 'B2 epic mine', deadline: at(today, '11:00'), mine: true, kind: 'epic' },
+  { title: 'B2 done mine', deadline: at(today, '11:00'), mine: true, status: 'done' },
+  { title: 'B2 next month mine', deadline: at(nextMonth, '09:00'), mine: true },
+]
+const todoReady = (p) => p.waitForFunction(() => document.querySelector('[data-test=calendar-todo]')?.getAttribute('data-state') === 'ready', { timeout: 10000 }).then(() => true, () => false)
+/* the titles listed, top to bottom, with the section each sits in */
+const todoRows = (p) => p.$$eval('[data-test=calendar-todo-row]', (els) => els.map((e) => {
+  const s = e.closest('[data-test=calendar-todo-overdue],[data-test=calendar-todo-day]')
+  return { t: e.querySelector('.cal-todo__name')?.textContent?.trim(), in: s?.getAttribute('data-test') === 'calendar-todo-overdue' ? 'overdue' : s?.getAttribute('data-day') }
+})).catch(() => [])
+const titles = (rows) => rows.map((r) => r.t)
+const query = (p) => p.evaluate(() => Object.fromEntries(new URLSearchParams(location.search)))
+
+async function runTodo(browser, base, theme) {
+  console.log(`-- To-do view 1440x900 ${theme}`)
+  const p = await browser.newPage()
+  await pinClock(p)
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
+  await p.evaluateOnNewDocument((t, tasks) => {
+    try {
+      localStorage.setItem('spool-theme', t)
+      localStorage.setItem('spool.mock.issues-due', JSON.stringify(tasks))
+    } catch { /* private mode */ }
+  }, theme, TASKS)
+  await p.goto(`${base}/calendar?k=todo&v=day`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const ready = await todoReady(p)
+  await shot(p, `todo-day-${theme}`)
+  const g = await p.evaluate(() => {
+    const el = document.querySelector('[data-test=calendar-view-tabs]')
+    const kindBtn = el?.querySelector('[data-test=calendar-kind-todo]')
+    const list = el?.querySelector('[role=tablist]')
+    return {
+      pressed: kindBtn?.getAttribute('aria-pressed'),
+      above: Boolean(kindBtn && list && kindBtn.getBoundingClientRect().bottom <= list.getBoundingClientRect().top + 1),
+      tabs: [...(list?.querySelectorAll('[role=tab]') || [])].map((x) => x.getAttribute('data-test')),
+      selected: list?.querySelector('[aria-selected=true]')?.getAttribute('data-test') || '',
+      grid: Boolean(document.querySelector('[data-test=calendar-week]')),
+      plus: Boolean(document.querySelector('[data-test=calendar-new]')),
+    }
+  })
+  ok(`(todo) ${theme}: /calendar?k=todo&v=day opens the To-do view, its switch on, above the four views (Day selected)`,
+    ready && g.pressed === 'true' && g.above && g.tabs.length === 4 && g.selected === 'calendar-view-day' && !g.grid && !g.plus, g)
+  const day = await todoRows(p)
+  ok(`(todo) ${theme}: Day lists the overdue task on top, then today's, earliest first`,
+    JSON.stringify(day) === JSON.stringify([{ t: 'B2 overdue mine', in: 'overdue' }, { t: 'B2 earlier today mine', in: today }, { t: 'B2 today mine', in: today }]), day)
+  ok(`(todo) ${theme}: no epic, no closed task, no teammate's task, no other day`,
+    !titles(day).some((x) => /epic|done|teammate|tomorrow|next month/.test(x || '')), titles(day))
+  const row = await p.$$eval('[data-test=calendar-todo-row]', (els) => {
+    const e = els.find((x) => x.textContent.includes('B2 today mine'))
+    return e ? { text: [...e.querySelectorAll('a > span')].map((x) => x.textContent.trim()).join(' '), href: e.querySelector('a')?.getAttribute('href') || '', key: e.getAttribute('data-key') } : null
+  }).catch(() => null)
+  ok(`(todo) ${theme}: a row shows the time, key, title, status and priority, and links to the issue`,
+    Boolean(row && /^15:00 SPL-\d+ B2 today mine 02-todo P2$/.test(row.text) && row.href.endsWith(`/issues?issue=${row.key}`)), row)
+
+  /* Q2 = A: mine, with a switch to everyone's */
+  await p.click('[data-test=calendar-todo-all]').catch(() => {})
+  await p.waitForFunction(() => document.querySelector('[data-test=calendar-todo]')?.getAttribute('data-mine') === 'false' && document.querySelector('[data-test=calendar-todo]')?.getAttribute('data-state') === 'ready', { timeout: 8000 }).catch(() => {})
+  const all = await todoRows(p)
+  const who = await p.$$eval('[data-test=calendar-todo-assignee]', (els) => els.length).catch(() => 0)
+  ok(`(todo) ${theme}: the "Everyone's" chip adds the teammate's task, each row naming its assignee`,
+    titles(all).includes('B2 today teammate') && who === all.length && all.length === day.length + 1, { all: titles(all), who })
+  await p.click('[data-test=calendar-todo-mine]').catch(() => {})
+  await p.waitForFunction(() => document.querySelector('[data-test=calendar-todo]')?.getAttribute('data-mine') === 'true', { timeout: 8000 }).catch(() => {})
+  await todoReady(p)
+
+  /* the ranges keep ?k=todo */
+  await p.click(tab('week')).catch(() => {})
+  await p.waitForFunction(() => new URLSearchParams(location.search).get('v') === null, { timeout: 8000 }).catch(() => {})
+  await todoReady(p)
+  await new Promise((r) => setTimeout(r, 200))
+  const week = await todoRows(p)
+  ok(`(todo) ${theme}: Week keeps ?k=todo and lists overdue, today and tomorrow, each task once`,
+    (await query(p)).k === 'todo' && JSON.stringify(titles(week)) === JSON.stringify(['B2 overdue mine', 'B2 earlier today mine', 'B2 today mine', 'B2 tomorrow mine']), { q: await query(p), week: titles(week) })
+  await shot(p, `todo-week-${theme}`)
+  await p.click('[data-test=calendar-next]').catch(() => {})
+  await p.waitForFunction(() => new URLSearchParams(location.search).get('d') !== null, { timeout: 8000 }).catch(() => {})
+  await todoReady(p)
+  const empty = await p.evaluate(() => ({ overdue: Boolean(document.querySelector('[data-test=calendar-todo-overdue]')), empty: Boolean(document.querySelector('[data-test=calendar-todo-empty]')) }))
+  ok(`(todo) ${theme}: next week keeps ?k=todo, has no overdue section and says it is empty`, (await query(p)).k === 'todo' && !empty.overdue && empty.empty, empty)
+  await p.click(tab('month')).catch(() => {})
+  await todoReady(p)
+  await p.click('[data-test=calendar-next]').catch(() => {})
+  await p.waitForFunction((d) => new URLSearchParams(location.search).get('d')?.slice(0, 7) === d.slice(0, 7), { timeout: 8000 }, nextMonth).catch(() => {})
+  await todoReady(p)
+  await new Promise((r) => setTimeout(r, 200))
+  const month = await todoRows(p)
+  ok(`(todo) ${theme}: Month, one on, lists that month's task under its day`, JSON.stringify(month) === JSON.stringify([{ t: 'B2 next month mine', in: nextMonth }]), month)
+
+  /* a row opens the issue; Back returns to the same view */
+  await p.click('[data-test=calendar-today]').catch(() => {})
+  /* Today drops ?d; the view is still ready from the month before, so wait for the URL, not the state */
+  await p.waitForFunction(() => new URLSearchParams(location.search).get('d') === null, { timeout: 8000 }).catch(() => {})
+  await todoReady(p)
+  const before = await query(p)
+  await p.click('[data-test=calendar-todo-row] a').catch(() => {})
+  const opened = await p.waitForFunction(() => location.pathname.endsWith('/issues') && new URLSearchParams(location.search).get('issue'), { timeout: 10000 }).then(() => true, () => false)
+  await p.goBack({ waitUntil: 'networkidle2' }).catch(() => {})
+  const back = await todoReady(p)
+  ok(`(todo) ${theme}: a row opens its issue; Back returns to the To-do view on the same range`, opened && back && JSON.stringify(await query(p)) === JSON.stringify(before), { opened, back, before, after: await query(p) })
+
+  /* the switch off: the event views again, ?k gone */
+  await p.click('[data-test=calendar-kind-todo]').catch(() => {})
+  const off = await p.waitForSelector('[data-test=calendar-week],[data-test=calendar-month-grid]', { timeout: 8000 }).then(() => true, () => false)
+  ok(`(todo) ${theme}: the switch off shows the event views and drops ?k`, off && !(await p.$('[data-test=calendar-todo]')) && (await query(p)).k === undefined, await query(p))
+  ok(`(todo) ${theme}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
   for (const theme of ['light', 'dark']) await run(browser, server.base, theme)
+  for (const theme of ['light', 'dark']) await runTodo(browser, server.base, theme)
 } finally {
   await browser.close()
   await server.stop()

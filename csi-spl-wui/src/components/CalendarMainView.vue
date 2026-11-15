@@ -33,7 +33,10 @@
      right. The time grid shows 8 hours at once and opens on 09:00; a timed
      block is tinted in its colour with the text in the theme's foreground,
      so a 30-min entry reads (>= 4.5:1 in both themes). Month is
-     CalendarDeskMonth. -->
+     CalendarDeskMonth.
+     Spec 170 row B2 (SPL-5595): with `kind` todo (?k=todo) the body is
+     CalendarTodoView, its own lazy chunk; the tabs stay, the events are not
+     read and the + is hidden. -->
 <template>
   <section
     class="cal-main"
@@ -49,6 +52,8 @@
       :title="range"
       :hours-open="hoursOpen"
       :menu-open="menu !== null"
+      :kind="kind"
+      @kind="(k) => emit('kind', k)"
       @view="(v) => emit('view', v)"
       @hours="emit('hours')"
       @today="emit('move', today)"
@@ -64,8 +69,9 @@
         <button v-else type="button" class="btn ghost cal-main__open" data-test="calendar-notice-open-issue" disabled :title="t('calendar_event.open_issue_denied')">{{ t('calendar_event.open_issue') }}</button>
       </template>
     </p>
+    <CalendarTodoView v-if="kind === 'todo'" :focus="focus" :today="today" :view="view" />
     <CalendarDeskMonth
-      v-if="view === 'month'"
+      v-else-if="view === 'month'"
       :focus="focus"
       :today="today"
       :by-day="byDay"
@@ -171,7 +177,7 @@
     </div>
       <!-- SPL-3396 (owner, t1 2fc43707): a plain round +, the Issues (issues-fab) and Docs (wsdocs-fab) pattern;
            SPL-4060 (poll 7c472af4 Q4): it floats at the grid's bottom right -->
-      <button type="button" class="cal-main__new" data-test="calendar-new" :aria-label="t('calendar_event.new')" :title="t('calendar_event.new')" @click="openCreate(focus)">
+      <button v-if="kind !== 'todo'" type="button" class="cal-main__new" data-test="calendar-new" :aria-label="t('calendar_event.new')" :title="t('calendar_event.new')" @click="openCreate(focus)">
         <UiIcon name="plus" :size="22" :stroke-width="2.5" />
       </button>
     </div>
@@ -239,9 +245,11 @@ import { useCalendarDrag } from '~/composables/useCalendarDrag'
 import { useCalendarDeepLinks } from '~/composables/useCalendarDeepLinks'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 
-const props = defineProps<{ focus: string, today: string, view: string, hoursOpen: boolean }>()
+const props = defineProps<{ focus: string, today: string, view: string, hoursOpen: boolean, kind?: string }>()
 /* view: a tab picked (the period holding today) or a month's day number (that day) */
-const emit = defineEmits<{ move: [iso: string], view: [v: string, iso?: string], hours: [] }>()
+const emit = defineEmits<{ move: [iso: string], view: [v: string, iso?: string], hours: [], kind: [k: 'todo' | 'events'] }>()
+/* spec 170 B2: the To-do view, a chunk of its own, fetched only for ?k=todo */
+const CalendarTodoView = defineAsyncComponent(() => import('~/components/CalendarTodoView.vue'))
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
@@ -308,6 +316,11 @@ let seq = 0
    never fetched. The mock workspace answers from calendar-mock. */
 async function load(deadlinesOnly = false) {
   const mine = ++seq
+  /* spec 170 B2: the To-do view reads its own tasks, not the events */
+  if (props.kind === 'todo') {
+    state.value = 'ready'
+    return
+  }
   const r = calDeskRange(props.view, props.focus)
   const { start, end } = (r && calLoadWindow(r.from, r.to)) || { start: '', end: '' }
   if (!deadlinesOnly) state.value = 'loading'
@@ -338,7 +351,7 @@ async function load(deadlinesOnly = false) {
     state.value = 'failed'
   }
 }
-watch(() => days.value.join(), () => { void load() })
+watch(() => [days.value.join(), props.kind], () => { void load() })
 onMounted(() => { void load() })
 /* SPL-2034: a deadline saved on Issues (this tab) or elsewhere (another tab,
    seen on focus) shows without a reload */

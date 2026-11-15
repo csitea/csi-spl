@@ -6,9 +6,19 @@
      a0a8fc08), then Today, previous / next and the period title (Q3), and
      the calendar menu (the trash) at the bottom. A view tab opens that view
      on the period holding today (msg 396e95d3). Part of CalendarMainView's
-     lazy chunk. -->
+     lazy chunk.
+     Spec 170 row B2 (SPL-5595): a To-do switch above the four views turns
+     the To-do view (?k=todo) on and off; the views, Today, previous / next
+     and the title drive both kinds. -->
 <template>
   <nav class="cal-tabs" data-test="calendar-view-tabs" :aria-label="t('calendar.view')">
+    <button
+      type="button"
+      class="cal-tabs__tab cal-tabs__kind"
+      data-test="calendar-kind-todo"
+      :aria-pressed="kind === 'todo' ? 'true' : 'false'"
+      @click="emit('kind', kind === 'todo' ? 'events' : 'todo')"
+    >{{ t('calendar_todo.kind') }}</button>
     <div class="cal-tabs__list" role="tablist" aria-orientation="vertical" :aria-label="t('calendar.view')" @keydown="onKey">
       <button
         v-for="v in CAL_DESK_VIEWS"
@@ -61,8 +71,8 @@
 <script setup lang="ts">
 import { CAL_DESK_VIEWS } from '~/utils/calendar-desktop-view.mjs'
 
-const props = defineProps<{ view: string, title: string[], hoursOpen: boolean, menuOpen: boolean }>()
-const emit = defineEmits<{ view: [v: string], hours: [], today: [], step: [dir: 1 | -1], menu: [e: MouseEvent] }>()
+const props = defineProps<{ view: string, title: string[], hoursOpen: boolean, menuOpen: boolean, kind?: string }>()
+const emit = defineEmits<{ view: [v: string], hours: [], today: [], step: [dir: 1 | -1], menu: [e: MouseEvent], kind: [k: 'todo' | 'events'] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const LABELS: Record<string, string> = {
@@ -125,6 +135,7 @@ function onKey(e: KeyboardEvent) {
   font-weight: 600;
 }
 .cal-tabs__hours { margin-top: 4px; }
+.cal-tabs__kind { margin-bottom: 4px; }
 .cal-tabs__rule { height: 1px; margin: 6px 0; background: var(--color-border); }
 .cal-tabs__today { min-height: 2.25rem; padding: 4px 6px; font-size: 0.8125rem; }
 .cal-tabs__step { display: flex; justify-content: space-between; }

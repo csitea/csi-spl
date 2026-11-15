@@ -2729,6 +2729,19 @@
     "empty": "Prügikast on tühi.",
     "hint": "Kustutatud sündmused jäävad siia 30 päevaks, seejärel eemaldatakse need lõplikult."
   },
+  "calendar_todo": {
+    "kind": "Ülesanded",
+    "title": "Tähtajaga ülesanded",
+    "whose": "Kelle ülesanded",
+    "mine": "Minu",
+    "all": "Kõigi",
+    "overdue": "Hilinenud",
+    "empty_day": "Sel päeval pole ühtegi tähtajaga ülesannet.",
+    "empty_range": "Selles perioodis pole ühtegi tähtajaga ülesannet.",
+    "load_failed": "Ülesandeid ei õnnestunud laadida.",
+    "priority": "P{n}",
+    "unassigned": "Määramata"
+  },
   "calendar_reminder": {
     "label": "Meeldetuletus",
     "open": "Ava",

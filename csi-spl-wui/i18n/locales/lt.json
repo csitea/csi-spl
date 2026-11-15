@@ -2729,6 +2729,19 @@
     "empty": "Šiukšlinė tuščia.",
     "hint": "Ištrinti įvykiai čia lieka 30 dienų, po to pašalinami visam laikui."
   },
+  "calendar_todo": {
+    "kind": "Darbai",
+    "title": "Užduotys su terminu",
+    "whose": "Kieno užduotys",
+    "mine": "Mano",
+    "all": "Visų",
+    "overdue": "Pradelstos",
+    "empty_day": "Šią dieną nėra užduočių su terminu.",
+    "empty_range": "Šiuo laikotarpiu nėra užduočių su terminu.",
+    "load_failed": "Nepavyko įkelti užduočių.",
+    "priority": "P{n}",
+    "unassigned": "Nepriskirta"
+  },
   "calendar_reminder": {
     "label": "Priminimas",
     "open": "Atidaryti",

@@ -9,4 +9,18 @@ declare module '~/utils/day-tasks.mjs' {
   ): { day: string, tasks: T[] }[]
   export function overdue<T = unknown>(issues: unknown, now: Date | number, zone?: string): T[]
   export function dueTodayCounts(issues: unknown, now: Date | number, zone?: string): { today: number, overdue: number }
+  export function taskFilters(o: {
+    range: { from: string, to: string } | null | undefined
+    today: string
+    mine: boolean
+    zone?: string
+  }): { window: Record<string, unknown>, overdue: Record<string, unknown> | null } | null
+  export function todoSections<T = unknown>(o: {
+    rows: unknown
+    late: unknown
+    range: { from: string, to: string } | null | undefined
+    now: Date | number
+    zone?: string
+    keepEmpty?: boolean
+  }): { day: string, overdue: boolean, tasks: T[] }[]
 }

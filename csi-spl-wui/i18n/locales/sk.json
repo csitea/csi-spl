@@ -2729,6 +2729,19 @@
     "empty": "Kôš je prázdny.",
     "hint": "Odstránené udalosti tu zostávajú 30 dní, potom sa odstránia natrvalo."
   },
+  "calendar_todo": {
+    "kind": "Úlohy",
+    "title": "Úlohy s termínom",
+    "whose": "Čie úlohy",
+    "mine": "Moje",
+    "all": "Všetkých",
+    "overdue": "Po termíne",
+    "empty_day": "V tento deň nie sú žiadne úlohy s termínom.",
+    "empty_range": "V tomto období nie sú žiadne úlohy s termínom.",
+    "load_failed": "Úlohy sa nepodarilo načítať.",
+    "priority": "P{n}",
+    "unassigned": "Nepriradené"
+  },
   "calendar_reminder": {
     "label": "Pripomienka",
     "open": "Otvoriť",

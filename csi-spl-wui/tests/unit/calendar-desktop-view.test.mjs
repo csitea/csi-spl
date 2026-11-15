@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   CAL_DESK_MIN_HOUR_PX, CAL_DESK_OPEN_MIN, CAL_DESK_VIEWS, CAL_DESK_WINDOW_H,
-  calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle, calDeskView, calTodoKind,
+  calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle, calDeskView, calTodoKind, calTodoRange,
 } from '../../src/utils/calendar-desktop-view.mjs'
 
 const main = readFileSync(new URL('../../src/components/CalendarMainView.vue', import.meta.url), 'utf8')
@@ -79,5 +79,19 @@ describe('calendar desktop views (SPL-4060)', () => {
     }
     /* SPL-5467 (owner HUM-10 msg d93462e4): no section close X; the left sections bar is the way */
     assert.doesNotMatch(tabs, /<SectionClose|section-close/)
+  })
+})
+
+describe('calTodoRange: the days the To-do view lists (spec 170 B2)', () => {
+  it('Day, 3 days and Week are the event views\' ranges', () => {
+    for (const v of ['day', '3day', 'week']) assert.deepEqual(calTodoRange(v, '2026-11-04'), calDeskRange(v, '2026-11-04'), v)
+  })
+  it('Month is the month itself, December rolls into January', () => {
+    assert.deepEqual(calTodoRange('month', '2026-11-04'), { from: '2026-11-01', to: '2026-12-01' })
+    assert.deepEqual(calTodoRange('month', '2026-12-31'), { from: '2026-12-01', to: '2027-01-01' })
+  })
+  it('not a day is null', () => {
+    assert.equal(calTodoRange('month', 'x'), null)
+    assert.equal(calTodoRange('week', ''), null)
   })
 })

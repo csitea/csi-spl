@@ -391,6 +391,8 @@ export const MOCK_ISSUES_SHAPED_KEY = 'spool.mock.issues-shaped'
 /** the rows a list-URL test tells apart: one field of the match changed per row */
 const MOCK_SHAPED_MATCH = { status: 'wip', priority: 2, assignee: 'HUM-1', labels: ['bug'], deadline: '2026-12-01T10:00:00Z', epic: 'SPL-1' }
 const MOCK_SHAPED_OFF = [{}, { status: 'todo' }, { priority: 3 }, { assignee: MOCK_TEAMMATE }, { labels: [] }, { deadline: '2027-06-01T10:00:00Z' }, { epic: '' }]
+/** localStorage key (spec 170 B2): a JSON list of tasks with deadlines the mock tenant starts with, for the Calendar's To-do view. */
+const MOCK_ISSUES_DUE_KEY = 'spool.mock.issues-due'
 /** the agent the mock's agent-filed issues come from */
 const MOCK_AGENT = 'c-007'
 
@@ -408,6 +410,19 @@ export function issueByAgent(issue) {
 /** a localStorage count, 0..max; 0 without storage */
 function mockStoredCount(key, max) {
   try { return Math.min(max, Number(globalThis.localStorage?.getItem(key)) || 0) } catch { return 0 }
+}
+
+/* spec 170 B2: `spool.mock.issues-due` = [{ title, deadline, status?, kind?,
+   priority?, mine? }, ...] (at most 50) plays tasks due on given days; mine
+   assigns the row to me, else to the teammate */
+function mockDueIssues(issues, me, now) {
+  let rows = []
+  try { rows = JSON.parse(globalThis.localStorage?.getItem(MOCK_ISSUES_DUE_KEY) || '[]') } catch { rows = [] }
+  for (const r of Array.isArray(rows) ? rows.slice(0, 50) : []) {
+    if (!r || typeof r !== 'object') continue
+    const { mine, ...body } = r
+    issues.push(mockNewIssue({ status: 'todo', priority: 3, ...body, assignee: mine ? me : MOCK_TEAMMATE, discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, MOCK_TEAMMATE, now()))
+  }
 }
 
 /** The mock tenant's first issues, numbered from 1 with no gap. */
@@ -444,6 +459,7 @@ function mockSeedIssues(me, now) {
       issues.push(mockNewIssue({ ...MOCK_SHAPED_MATCH, title: `shaped ${issues.length + 1}`, discussions: [{ task_id: MOCK_DEFAULT_TOPIC }], ...off }, issues.length + 1, me, now()))
     }
   }
+  mockDueIssues(issues, me, now)
   return issues
 }
 

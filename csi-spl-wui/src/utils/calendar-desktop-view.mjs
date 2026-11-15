@@ -41,6 +41,23 @@ export function calTodoKind(query) {
 }
 
 /**
+ * Spec 170 row B2: the days the To-do view lists for a range, as [from, to).
+ * Day, 3 days and Week are calDeskRange's; Month is the month of `iso` only,
+ * not the 6x7 grid's days of the months around it. null when not a day.
+ * @param {string} view
+ * @param {string} iso
+ * @returns {{ from: string, to: string } | null}
+ */
+export function calTodoRange(view, iso) {
+  if (view !== 'month') return calDeskRange(view, iso)
+  if (Number.isNaN(calDayMs(iso))) return null
+  const y = Number(iso.slice(0, 4))
+  const m = Number(iso.slice(5, 7))
+  const next = m === 12 ? `${y + 1}-01-01` : `${iso.slice(0, 4)}-${String(m + 1).padStart(2, '0')}-01`
+  return { from: `${iso.slice(0, 7)}-01`, to: next }
+}
+
+/**
  * The days a view shows: Day is `iso`, 3 days the day before, `iso` and
  * the day after (owner msg 37951fb6), Week Monday..Sunday of `iso`, Month
  * its 6x7 Monday-first grid. [] when not a day.

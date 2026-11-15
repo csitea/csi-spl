@@ -12,7 +12,7 @@
 
 import { calAddDays, calDayMs } from './calendar-year.mjs'
 import { isoDateTimeIn } from './date-iso-zone.mjs'
-import { openIssueCount } from './my-issues-count.mjs'
+import { OPEN_ISSUE_STATUSES, openIssueCount } from './my-issues-count.mjs'
 
 const MINUTE_MS = 60000
 /* The first instant of a day is within this of its 00:00 UTC: the offsets run
@@ -122,4 +122,50 @@ export function dueTodayCounts(issues, now, zone = '') {
     today: issues.filter((i) => isTask(i) && taskDay(i, zone) === today).length,
     overdue: overdue(issues, now, zone).length,
   }
+}
+
+/* Spec 170 row B2: what the desktop To-do view reads and shows. */
+
+/** True when `day` is one of the [from, to) days of `range`. */
+const holds = (range, day) => Boolean(range) && range.from <= day && day < range.to
+
+/**
+ * The two GET /v1/issues filters of a To-do range (spec 170 section 11.2):
+ * `window` = the open tasks due in [first day, day after the last) and, when
+ * the range holds `today`, `overdue` = the open tasks due before today (else
+ * null). Epics and features are left out by the hub (`kind`) and again by
+ * isTask. `mine` adds assignee=me (owner Q2 = A: mine, with a switch). null
+ * when `range` is not two days.
+ * @param {{ range: { from: string, to: string } | null | undefined, today: string, mine: boolean, zone?: string }} o
+ * @returns {{ window: Record<string, unknown>, overdue: Record<string, unknown> | null } | null}
+ */
+export function taskFilters({ range, today, mine, zone = '' }) {
+  const from = range ? dayBounds(range.from, zone) : null
+  const to = range ? dayBounds(range.to, zone) : null
+  if (!from || !to) return null
+  const base = { kind: 'issue,subtask', status: [...OPEN_ISSUE_STATUSES], assignee: mine ? ['me'] : [] }
+  const start = holds(range, today) ? dayBounds(today, zone) : null
+  return {
+    window: { ...base, deadlineAfter: from.start, deadlineBefore: to.start },
+    overdue: start ? { ...base, deadlineBefore: start.start } : null,
+  }
+}
+
+/**
+ * The sections of a To-do range, top to bottom (spec 170 sections 4.3, 4.4):
+ * when the range holds `today`, the overdue tasks first (`overdue: true`,
+ * day ''), then the days from today on, so a task is listed once; else
+ * every day. `keepEmpty` keeps a day with no task (the Day range says so in
+ * one line); the longer ranges leave it out.
+ * @param {{ rows: unknown, late: unknown, range: { from: string, to: string } | null | undefined, now: Date | number, zone?: string, keepEmpty?: boolean }} o
+ * @returns {{ day: string, overdue: boolean, tasks: any[] }[]}
+ */
+export function todoSections({ rows, late, range, now, zone = '', keepEmpty = false }) {
+  const today = dayIn(now, zone)
+  const holdsToday = holds(range, today)
+  const days = groupByDay(rows, range, zone)
+    .filter((g) => (!holdsToday || g.day >= today) && (keepEmpty || g.tasks.length > 0))
+    .map((g) => ({ ...g, overdue: false }))
+  const lateTasks = holdsToday ? overdue(late, now, zone) : []
+  return lateTasks.length ? [{ day: '', overdue: true, tasks: lateTasks }, ...days] : days
 }

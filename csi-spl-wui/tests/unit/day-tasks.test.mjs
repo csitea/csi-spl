@@ -9,8 +9,8 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { dayBounds, dueTodayCounts, groupByDay, isTask, overdue } from '../../src/utils/day-tasks.mjs'
-import { calDeskRange } from '../../src/utils/calendar-desktop-view.mjs'
+import { dayBounds, dueTodayCounts, groupByDay, isTask, overdue, taskFilters, todoSections } from '../../src/utils/day-tasks.mjs'
+import { calDeskRange, calTodoRange } from '../../src/utils/calendar-desktop-view.mjs'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -195,8 +195,8 @@ describe('the list and the number agree (spec 170 section 5)', () => {
   })
 })
 
-describe('lazy: not in the initial JS yet (row B1)', () => {
-  it('no source imports the module', () => {
+describe('lazy: never in the initial JS (rows B1, B2)', () => {
+  it('only the To-do view imports the module, and it is loaded async', () => {
     const importers = []
     const walk = (dir) => {
       for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -207,6 +207,78 @@ describe('lazy: not in the initial JS yet (row B1)', () => {
       }
     }
     walk(join(WUI, 'src'))
-    assert.deepEqual(importers, [])
+    assert.deepEqual(importers.map((p) => p.slice(WUI.length + 1)), ['src/components/CalendarTodoView.vue'])
+    const main = readFileSync(join(WUI, 'src/components/CalendarMainView.vue'), 'utf8')
+    assert.match(main, /defineAsyncComponent\(\(\) => import\('~\/components\/CalendarTodoView\.vue'\)\)/)
+    for (const f of ['src/pages/calendar.vue', 'src/components/CalendarMainView.vue', 'src/components/CalendarViewTabs.vue']) {
+      assert.doesNotMatch(readFileSync(join(WUI, f), 'utf8'), /^import .*CalendarTodoView/m, f)
+    }
+  })
+})
+
+describe('taskFilters: what the To-do view asks the hub for (row B2)', () => {
+  const zone = 'Europe/Helsinki'
+  it('the range is [start of the first day, start of the day after the last), open tasks, mine', () => {
+    const f = taskFilters({ range: calTodoRange('week', '2026-11-04'), today: '2026-11-04', mine: true, zone })
+    assert.deepEqual(f.window, {
+      kind: 'issue,subtask', status: ['eval', 'todo', 'wip', 'blocked', 'onhold', 'qas'], assignee: ['me'],
+      deadlineAfter: '2026-11-01T22:00:00.000Z', deadlineBefore: '2026-11-08T22:00:00.000Z',
+    })
+  })
+  it('a range that holds today also reads the overdue ones, before the start of today', () => {
+    const f = taskFilters({ range: calTodoRange('day', '2026-11-04'), today: '2026-11-04', mine: true, zone })
+    assert.equal(f.overdue.deadlineBefore, '2026-11-03T22:00:00.000Z')
+    assert.equal(f.overdue.deadlineAfter, undefined)
+    assert.deepEqual(f.overdue.assignee, ['me'])
+  })
+  it('a range without today reads no overdue', () => {
+    assert.equal(taskFilters({ range: calTodoRange('day', '2026-11-05'), today: '2026-11-04', mine: true, zone }).overdue, null)
+    assert.equal(taskFilters({ range: calTodoRange('week', '2026-10-28'), today: '2026-11-04', mine: true, zone }).overdue, null)
+  })
+  it('the switch on everyone drops assignee=me', () => {
+    const f = taskFilters({ range: calTodoRange('day', '2026-11-04'), today: '2026-11-04', mine: false, zone })
+    assert.deepEqual(f.window.assignee, [])
+    assert.deepEqual(f.overdue.assignee, [])
+  })
+  it('not a range is null', () => {
+    assert.equal(taskFilters({ range: null, today: '2026-11-04', mine: true }), null)
+  })
+})
+
+describe('todoSections: what the To-do view lists (row B2)', () => {
+  const zone = 'Europe/Helsinki'
+  const now = Date.UTC(2026, 10, 4, 8, 0) /* Wed 2026-11-04 10:00 in Helsinki */
+  const rows = [
+    task('2026-11-02T08:00:00Z'), /* Monday: overdue */
+    task('2026-11-04T07:00:00Z'), /* today 09:00, still today at 10:00 */
+    task('2026-11-06T10:00:00Z', { status: 'wip' }),
+    task('2026-11-06T09:00:00Z'),
+    task('2026-11-05T09:00:00Z', { kind: 'epic' }),
+    task('2026-11-05T09:00:00Z', { status: 'diss' }),
+  ]
+  it('a range with today: overdue first, then the days from today, each task once, empty days out', () => {
+    const late = [task('2026-10-20T08:00:00Z'), task('2026-11-02T08:00:00Z')]
+    const s = todoSections({ rows, late, range: calTodoRange('week', '2026-11-04'), now, zone })
+    assert.deepEqual(s.map((x) => [x.day, x.overdue, x.tasks.map((t) => t.deadline)]), [
+      ['', true, ['2026-10-20T08:00:00Z', '2026-11-02T08:00:00Z']],
+      ['2026-11-04', false, ['2026-11-04T07:00:00Z']],
+      ['2026-11-06', false, ['2026-11-06T09:00:00Z', '2026-11-06T10:00:00Z']],
+    ])
+  })
+  it('the Day range keeps an empty day, so it can say so', () => {
+    const s = todoSections({ rows: [], late: [], range: calTodoRange('day', '2026-11-05'), now, zone, keepEmpty: true })
+    assert.deepEqual(s, [{ day: '2026-11-05', overdue: false, tasks: [] }])
+  })
+  it('a range without today has no overdue section and keeps its past days', () => {
+    const s = todoSections({ rows, late: [task('2026-10-20T08:00:00Z')], range: calTodoRange('day', '2026-11-02'), now, zone })
+    assert.deepEqual(s.map((x) => [x.day, x.overdue, x.tasks.length]), [['2026-11-02', false, 1]])
+  })
+  it('a closed or epic row in the overdue read is not listed', () => {
+    const late = [task('2026-11-01T08:00:00Z', { status: 'done' }), task('2026-11-01T08:00:00Z', { kind: 'feature' })]
+    assert.deepEqual(todoSections({ rows: [], late, range: calTodoRange('day', '2026-11-04'), now, zone }), [])
+  })
+  it('Month lists the month only, not the grid days around it', () => {
+    const s = todoSections({ rows: [task('2026-10-31T08:00:00Z'), task('2026-11-30T08:00:00Z')], late: [], range: calTodoRange('month', '2026-11-04'), now, zone })
+    assert.deepEqual(s.map((x) => x.day), ['2026-11-30'])
   })
 })

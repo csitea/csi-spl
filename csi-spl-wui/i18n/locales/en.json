@@ -2729,6 +2729,19 @@
     "empty": "The trash is empty.",
     "hint": "Deleted events stay here for 30 days, then they are removed for good."
   },
+  "calendar_todo": {
+    "kind": "To-do",
+    "title": "Tasks due",
+    "whose": "Whose tasks",
+    "mine": "Mine",
+    "all": "Everyone's",
+    "overdue": "Overdue",
+    "empty_day": "Nothing due this day.",
+    "empty_range": "No tasks due in this period.",
+    "load_failed": "The tasks could not be loaded.",
+    "priority": "P{n}",
+    "unassigned": "Unassigned"
+  },
   "calendar_reminder": {
     "label": "Reminder",
     "open": "Open",

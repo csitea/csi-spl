@@ -14,7 +14,9 @@
      desktop: the Hours toggle moved into the main
      view's vertical tab group (CalendarViewTabs), the title stays the
      document title and a heading for assistive tech. The view is in the URL
-     too (?v=day|3day|month; Week has none), so a link keeps it. -->
+     too (?v=day|3day|month; Week has none), so a link keeps it.
+     Spec 170 row B2 (SPL-5595): ?k=todo is the To-do view (calTodoKind);
+     the range moves keep it, the switch in the tabs sets or clears it. -->
 <template>
   <div class="feed-col calendar-page" :class="{ 'calendar-page--desk': !phone }" data-test="calendar-page">
     <CalendarPhone v-if="phone" :focus="focus" :today="today" @move="show" />
@@ -28,7 +30,7 @@
       />
       <div class="calendar-body__main">
         <!-- spec 107 v1.2 T011 (owner R11): its Hours tab shows or hides the hours panel -->
-        <CalendarMainView ref="mainView" :focus="focus" :today="today" :view="view" :hours-open="hoursPanel" @move="show" @view="pickView" @hours="toggleHours" />
+        <CalendarMainView ref="mainView" :focus="focus" :today="today" :view="view" :kind="kind" :hours-open="hoursPanel" @move="show" @view="pickView" @hours="toggleHours" @kind="pickKind" />
       </div>
       <CalendarHoursPanel v-if="hoursPanel" class="calendar-body__hours" :focus="focus" :today="today" closable @open-day="openHoursDay" @close="toggleHours" />
     </div>
@@ -49,7 +51,7 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { PUBLIC_CALENDAR_PATH, signedOutCalendarTarget } from '~/utils/public-calendar.mjs'
 import { wasSignedIn } from '~/utils/session-recover.mjs'
-import { calDeskView } from '~/utils/calendar-desktop-view.mjs'
+import { calDeskView, calTodoKind } from '~/utils/calendar-desktop-view.mjs'
 import { useOmniboxStore } from '~/stores/omnibox'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 
@@ -85,6 +87,12 @@ const view = computed(() => calDeskView(route.query.v))
 async function pickView(v: string, iso = today) {
   const next = calDeskView(v)
   await router.replace({ query: { ...route.query, v: next === 'week' ? undefined : next, d: iso === today ? undefined : iso } })
+}
+
+/* spec 170 B2: the view kind, ?k=todo (the event views when absent) */
+const kind = computed(() => calTodoKind(route.query))
+async function pickKind(k: string) {
+  await router.replace({ query: { ...route.query, k: k === 'todo' ? 'todo' : undefined } })
 }
 
 /* a day picked in the strip, or the main view's Today / previous / next */

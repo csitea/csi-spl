@@ -2729,6 +2729,19 @@
     "empty": "Çöp kutusu boş.",
     "hint": "Silinen etkinlikler burada 30 gün kalır, ardından kalıcı olarak kaldırılır."
   },
+  "calendar_todo": {
+    "kind": "Görevler",
+    "title": "Son tarihli görevler",
+    "whose": "Kimin görevleri",
+    "mine": "Benim",
+    "all": "Herkesin",
+    "overdue": "Gecikmiş",
+    "empty_day": "Bu gün için görev yok.",
+    "empty_range": "Bu dönemde son tarihli görev yok.",
+    "load_failed": "Görevler yüklenemedi.",
+    "priority": "P{n}",
+    "unassigned": "Atanmamış"
+  },
   "calendar_reminder": {
     "label": "Hatırlatıcı",
     "open": "Aç",

@@ -2729,6 +2729,19 @@
     "empty": "Atkritne ir tukša.",
     "hint": "Izdzēstie notikumi šeit paliek 30 dienas, pēc tam tie tiek dzēsti neatgriezeniski."
   },
+  "calendar_todo": {
+    "kind": "Darāmie darbi",
+    "title": "Uzdevumi ar termiņu",
+    "whose": "Kam piešķirtie uzdevumi",
+    "mine": "Mani",
+    "all": "Visu",
+    "overdue": "Nokavēti",
+    "empty_day": "Šajā dienā nav uzdevumu ar termiņu.",
+    "empty_range": "Šajā periodā nav uzdevumu ar termiņu.",
+    "load_failed": "Uzdevumus neizdevās ielādēt.",
+    "priority": "P{n}",
+    "unassigned": "Nav piešķirts"
+  },
   "calendar_reminder": {
     "label": "Atgādinājums",
     "open": "Atvērt",

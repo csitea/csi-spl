@@ -2729,6 +2729,19 @@
     "empty": "Roskakori on tyhjä.",
     "hint": "Poistetut tapahtumat säilyvät täällä 30 päivää, minkä jälkeen ne poistetaan lopullisesti."
   },
+  "calendar_todo": {
+    "kind": "Tehtävät",
+    "title": "Erääntyvät tehtävät",
+    "whose": "Kenen tehtävät",
+    "mine": "Omat",
+    "all": "Kaikkien",
+    "overdue": "Myöhässä",
+    "empty_day": "Ei erääntyviä tehtäviä tänä päivänä.",
+    "empty_range": "Ei erääntyviä tehtäviä tällä jaksolla.",
+    "load_failed": "Tehtäviä ei voitu ladata.",
+    "priority": "P{n}",
+    "unassigned": "Ei vastuuhenkilöä"
+  },
   "calendar_reminder": {
     "label": "Muistutus",
     "open": "Avaa",

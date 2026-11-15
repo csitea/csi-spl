@@ -2729,6 +2729,19 @@
     "empty": "De prullenbak is leeg.",
     "hint": "Verwijderde afspraken blijven hier 30 dagen en worden daarna definitief verwijderd."
   },
+  "calendar_todo": {
+    "kind": "Taken",
+    "title": "Taken met deadline",
+    "whose": "Van wie",
+    "mine": "Mijn",
+    "all": "Van iedereen",
+    "overdue": "Te laat",
+    "empty_day": "Geen taken met een deadline op deze dag.",
+    "empty_range": "Geen taken met een deadline in deze periode.",
+    "load_failed": "De taken konden niet worden geladen.",
+    "priority": "P{n}",
+    "unassigned": "Niet toegewezen"
+  },
   "calendar_reminder": {
     "label": "Herinnering",
     "open": "Openen",

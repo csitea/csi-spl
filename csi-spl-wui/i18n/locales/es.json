@@ -2729,6 +2729,19 @@
     "empty": "La papelera está vacía.",
     "hint": "Los eventos eliminados se quedan aquí 30 días y después se borran definitivamente."
   },
+  "calendar_todo": {
+    "kind": "Pendientes",
+    "title": "Tareas con vencimiento",
+    "whose": "De quién",
+    "mine": "Mías",
+    "all": "De todos",
+    "overdue": "Vencidas",
+    "empty_day": "Ninguna tarea vence este día.",
+    "empty_range": "Ninguna tarea vence en este periodo.",
+    "load_failed": "No se pudieron cargar las tareas.",
+    "priority": "P{n}",
+    "unassigned": "Sin asignar"
+  },
   "calendar_reminder": {
     "label": "Recordatorio",
     "open": "Abrir",

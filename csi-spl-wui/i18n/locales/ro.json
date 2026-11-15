@@ -2729,6 +2729,19 @@
     "empty": "Coșul este gol.",
     "hint": "Evenimentele șterse rămân aici 30 de zile, apoi sunt eliminate definitiv."
   },
+  "calendar_todo": {
+    "kind": "De făcut",
+    "title": "Sarcini cu termen",
+    "whose": "Ale cui",
+    "mine": "Ale mele",
+    "all": "Ale tuturor",
+    "overdue": "Întârziate",
+    "empty_day": "Nicio sarcină scadentă în această zi.",
+    "empty_range": "Nicio sarcină scadentă în această perioadă.",
+    "load_failed": "Sarcinile nu au putut fi încărcate.",
+    "priority": "P{n}",
+    "unassigned": "Fără responsabil"
+  },
   "calendar_reminder": {
     "label": "Memento",
     "open": "Deschide",

@@ -2729,6 +2729,19 @@
     "empty": "Papperskorgen är tom.",
     "hint": "Borttagna händelser ligger kvar här i 30 dagar och tas sedan bort för gott."
   },
+  "calendar_todo": {
+    "kind": "Att göra",
+    "title": "Uppgifter med deadline",
+    "whose": "Vems uppgifter",
+    "mine": "Mina",
+    "all": "Allas",
+    "overdue": "Försenade",
+    "empty_day": "Inga uppgifter förfaller den här dagen.",
+    "empty_range": "Inga uppgifter förfaller under perioden.",
+    "load_failed": "Uppgifterna kunde inte läsas in.",
+    "priority": "P{n}",
+    "unassigned": "Ej tilldelad"
+  },
   "calendar_reminder": {
     "label": "Påminnelse",
     "open": "Öppna",

@@ -2729,6 +2729,19 @@
     "empty": "Kosz jest pusty.",
     "hint": "Usunięte wydarzenia zostają tu przez 30 dni, potem są usuwane na stałe."
   },
+  "calendar_todo": {
+    "kind": "Do zrobienia",
+    "title": "Zadania z terminem",
+    "whose": "Czyje zadania",
+    "mine": "Moje",
+    "all": "Wszystkich",
+    "overdue": "Zaległe",
+    "empty_day": "Brak zadań na ten dzień.",
+    "empty_range": "Brak zadań z terminem w tym okresie.",
+    "load_failed": "Nie udało się wczytać zadań.",
+    "priority": "P{n}",
+    "unassigned": "Nieprzypisane"
+  },
   "calendar_reminder": {
     "label": "Przypomnienie",
     "open": "Otwórz",

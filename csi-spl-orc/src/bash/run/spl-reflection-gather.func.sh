@@ -7,9 +7,11 @@
 # @description workspace, never git, the repo is public). It gathers the last
 # @description 24 h mechanically, no tokens:
 # @description   1. CI reds per job (csi-spl-iac do_report_ci_gate, its failed
-# @description      runs created in the window),
+# @description      runs created in the window); a job stopped by the gate's
+# @description      fail-fast is counted on one line, not listed,
 # @description   2. reverts on master (git log --grep='^Revert' in the window),
-# @description   3. lanes that ended without landing (issues ended diss),
+# @description   3. lanes that ended without landing (issues ended diss), each
+# @description      with who set the diss when the issue list can tell,
 # @description   4. the owner's messages in the lease's workspace, ids only (a
 # @description      READ ONLY hub DB read as the env's project service account),
 # @description   5. the class share and the last 24 h share (do_spl_spawn_share),
@@ -165,12 +167,19 @@ spl_reflection_ci_report() {
 }
 
 # spl_reflection_ci_reds <since iso> <until iso> < report: one line per red
-# job of the report's "failed runs" list created in the window.
+# job of the report's "failed runs" list created in the window. A job the
+# gate stopped for another job's red is counted on one line, not listed: its
+# signature is the annotation do_report_ci_gate tells a stop by,
+# "gate fail-fast: stopped" (_rcg_stop_marks); the 2026-11-15 reflection
+# counted 19 such lines of 52.
 spl_reflection_ci_reds() {
   awk -v s="$1" -v u="$2" '
     /^== / { inr = ($0 ~ /^== failed runs, newest first/); next }
-    inr && $1 ~ /^[0-9]+$/ && $2 >= s && $2 < u { sub(/^ +/, ""); print "- run " $0; n++ }
-    END { if (!n) print "(none)" }'
+    inr && $1 ~ /^[0-9]+$/ && $2 >= s && $2 < u {
+      if (index($0, "gate fail-fast: stopped")) { st++; next }
+      sub(/^ +/, ""); print "- run " $0; n++
+    }
+    END { if (!n) print "(none)"; if (st) print st " stopped by fail-fast, not listed" }'
 }
 
 # spl_reflection_reverts <since iso> <until iso>: the reverts on REFLECTION_REF.
@@ -191,14 +200,26 @@ spl_reflection_ended_read() {
   spl_desk_issue_run list --status diss --sort updated --limit 200
 }
 
-# spl_reflection_ended <since iso> <until iso> < issues JSON: the ones ended in the window.
+# spl_reflection_ended <since iso> <until iso> < issues JSON: the ones ended
+# in the window, each "by <actor>" when the list can tell who set the diss.
+# Every diss write stamps canceled_at and updated_at with one time and sets
+# updated_by (store applyPatch, txCloseTree, issue_follow), so updated_at ==
+# canceled_at makes updated_by the actor. A later write hides it: the agent
+# issue ops have no history read (issue_events is the members' History tab),
+# so that line has no "by" and the section says why once.
 spl_reflection_ended() {
   jq -r --arg s "${1:0:19}" --arg u "${2:0:19}" '
     [((.result // .).issues // [])[]
      | ((if (.canceled_at // "") != "" then .canceled_at else (.updated_at // "") end) | .[0:19]) as $at
      | select($at >= $s and $at < $u)
-     | "- \(.key) ended diss \($at)Z: \((.title // "") | gsub("[\r\n]"; " "))"]
-    | if length == 0 then "(none)" else .[] end'
+     | ((.updated_by // "") | gsub("[[:space:]]"; "")) as $ub
+     | (if (.canceled_at // "") != "" and .canceled_at == .updated_at and $ub != "" then " by \($ub)" else "" end) as $by
+     | {by: $by, line: "- \(.key) ended diss \($at)Z\($by): \((.title // "") | gsub("[\r\n]"; " "))"}]
+    | if length == 0 then "(none)" else
+        (.[].line),
+        ([.[] | select(.by == "")] | length | select(. > 0)
+         | "(no actor on \(.) line(s): the issue changed after its diss; the issue list names only its last writer, and agents have no issue history read)")
+      end'
 }
 
 # spl_reflection_owner_msgs <since epoch> <until epoch>: msg_id, task_id,

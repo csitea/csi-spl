@@ -38,6 +38,13 @@
 #      owner with role admin and a biz_owner are listed; a tester, a developer,
 #      an older post, another workspace are not. Red control: the old
 #      role = 'owner' join lists nobody (SPL-5460)
+#  14. section 1 counts fail-fast stops apart (SPL-5648): a report with 1 red
+#      and 2 "gate fail-fast: stopped" lines in the window lists the red and
+#      says "2 stopped by fail-fast, not listed". Red control: master listed 3
+#  15. section 3 names who set each diss (SPL-5648): updated_by when the
+#      issue's updated_at is its canceled_at (the diss was its last write),
+#      "by HUM-10"; a later write leaves the line without "by" and the
+#      section says why once. Red control: master named no actor
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -84,7 +91,8 @@ M2=22222222-0000-4000-8000-000000000002
 printf '%s\tt-aaaa\t2026-01-15T07:00:00Z\n%s\tt-bbbb\t2026-01-15T11:00:00Z\n' "$M1" "$M2" >"$T/owner.tsv"
 cat >"$T/diss.json" <<'EOF'
 {"op": "list", "result": {"issues": [
- {"key": "SPL-901", "title": "a lane dropped by its gate", "status": "diss", "canceled_at": "2026-01-15T12:00:00.5Z", "updated_at": "2026-01-15T12:00:01Z"},
+ {"key": "SPL-902", "title": "set by the owner", "status": "diss", "canceled_at": "2026-01-15T13:00:00Z", "updated_at": "2026-01-15T13:00:00Z", "updated_by": "HUM-10"},
+ {"key": "SPL-901", "title": "a lane dropped by its gate", "status": "diss", "canceled_at": "2026-01-15T12:00:00.5Z", "updated_at": "2026-01-15T12:00:01Z", "updated_by": "c-002"},
  {"key": "SPL-800", "title": "an old one", "status": "diss", "canceled_at": "2026-01-10T12:00:00Z", "updated_at": "2026-01-10T12:00:00Z"}]}}
 EOF
 echo "2026-01-15T19:01:00Z OK zombie sweep, night of 2026-01-15 (DRY_RUN=1, cap 500, idle 7 d): 3 candidate(s); would archive 1" >"$T/zombie.log"
@@ -226,10 +234,43 @@ SPOOL_ROOT="$T/no-spool" bash "$O/src/bash/scripts/reflection-cron.sh" >"$T/cout
 grep -q 'reflection: DRY_RUN=1 ' "$T/cout" && pass "11. no lease knob: DRY_RUN=1" || fail "11. default dry: $(cat "$T/cout")"
 
 
+# --- 14. section 1: fail-fast stops counted, not listed (SPL-5648) ----------------
+FUNC="$PROJ_ROOT/src/bash/run/spl-reflection-gather.func.sh"
+fn() { bash -c 'do_log() { :; }; source "$1"; shift; "$@"' _ "$FUNC" "$@"; }
+cat >"$T/ci-ff.txt" <<'CI'
+== failed runs, newest first
+   9101  2026-01-15T10:00:00Z  abc1234  wui-e2e  || FAIL: a shard
+   9101  2026-01-15T10:00:00Z  abc1234  iac-suite  || gate fail-fast: stopped, so the next gate run starts; red in this run: wui-e2e
+   9101  2026-01-15T10:00:00Z  abc1234  api-suite  || gate fail-fast: stopped, so the next gate run starts; red in this run: wui-e2e
+   8100  2026-01-10T10:00:00Z  abc0000  old-job  || gate fail-fast: stopped, so the next gate run starts; red in this run: x
+== first red per JOB, over the 1 failed run(s)
+CI
+got="$(fn spl_reflection_ci_reds 2026-01-14T19:30:00Z 2026-01-15T19:30:00Z <"$T/ci-ff.txt")"
+[[ "$got" == "- run 9101  2026-01-15T10:00:00Z  abc1234  wui-e2e  || FAIL: a shard
+2 stopped by fail-fast, not listed" ]] &&
+  pass "14. 1 red + 2 fail-fast stops in the window: the red listed, '2 stopped by fail-fast, not listed', the older stop not counted" ||
+  fail "14. ci reds: $got"
+got="$(grep -v 'FAIL: a shard' "$T/ci-ff.txt" | fn spl_reflection_ci_reds 2026-01-14T19:30:00Z 2026-01-15T19:30:00Z)"
+[[ "$got" == "(none)
+2 stopped by fail-fast, not listed" ]] && pass "14. only stops in the window: (none) and the count" || fail "14. stops only: $got"
+
+# --- 15. section 3: who set each diss (SPL-5648) ----------------------------------
+got="$(fn spl_reflection_ended 2026-01-14T19:30:00Z 2026-01-15T19:30:00Z <"$T/diss.json")"
+grep -qxF -- '- SPL-902 ended diss 2026-01-15T13:00:00Z by HUM-10: set by the owner' <<<"$got" &&
+  pass "15. the diss was the issue's last write: 'by HUM-10' (its updated_by)" || fail "15. actor: $got"
+grep -qxF -- '- SPL-901 ended diss 2026-01-15T12:00:00Z: a lane dropped by its gate' <<<"$got" &&
+  [[ "$(grep -c '^(no actor on 1 line' <<<"$got")" == 1 ]] && ! grep -q 'c-002' <<<"$got" &&
+  pass "15. written after its diss: no 'by' (updated_by c-002 not guessed), the section says why once" || fail "15. no actor: $got"
+reset; run "$NIGHT_NOW"
+grep -qxF -- '- SPL-902 ended diss 2026-01-15T13:00:00Z by HUM-10: set by the owner' "$GF" 2>/dev/null &&
+  grep -q '^(no actor on 1 line' "$GF" && pass "15. the gathered file carries the actor and the note" ||
+  fail "15. gathered: $(sed -n '/^## 3/,/^## 4/p' "$GF" 2>/dev/null)"
+got="$(printf '{"result":{"issues":[]}}' | fn spl_reflection_ended 2026-01-14T19:30:00Z 2026-01-15T19:30:00Z)"
+[[ "$got" == "(none)" ]] && pass "15. no diss in the window: (none), no note" || fail "15. empty: $got"
+
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
 # (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'
 # join listed nobody.) The real rdb migrations, the runtime login (RLS binds).
-FUNC="$PROJ_ROOT/src/bash/run/spl-reflection-gather.func.sh"
 PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"
 if ! command -v docker >/dev/null || ! docker image inspect "$PG_IMAGE" >/dev/null 2>&1 || ! command -v psql >/dev/null; then
   echo "SKIP 13: no cached $PG_IMAGE image or no psql; the owner SQL is not run"

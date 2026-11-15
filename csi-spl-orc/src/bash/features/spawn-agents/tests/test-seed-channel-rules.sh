@@ -7,7 +7,9 @@
 # SPAWN_PLAN_DIR (the export lands in the plan dir) and a stub export
 # (CHANNEL_RULES_EXPORT_CMD). Cases: the mapped seat gets the line and a
 # non-empty file; a seat on another channel, or with no Channel: line, gets
-# no change; a failed and an empty export are FATAL and write no seed; a
+# no change; a failed and an empty export are FATAL and write no seed; an
+# export that fails once is retried and passes, one that always fails names
+# its last error line in the FATAL (SPL-5545; delays 0 here); a
 # rotation seed (a BRIEF with no Channel: line) still gets it from the
 # recorded task brief. Control: spawn-core without the CHANNEL_RULES slot ->
 # the line is missing.
@@ -16,6 +18,7 @@ set -uo pipefail
 t_sandbox
 export SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool
 export SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>'
+export CHANNEL_RULES_RETRY_DELAYS=0
 DOC=0a1b2c3d-1111-2222-3333-444455556666
 printf 'acme\tops\t%s\tprd\tc-900\n' "$DOC" > "$SPOOL_ROOT/channel-rules.tsv"
 export CHANNEL_RULES_EXPORT_CMD='printf "# 1 Rules of %s\n\n- rule one, doc %s, env %s, as %s\n" "$CR_TENANT" "$CR_DOC" "$CR_ENV" "$CR_AGENT"'
@@ -59,6 +62,23 @@ s="$(CHANNEL_RULES_EXPORT_CMD='printf "  \n\n"' seed "$T_SCRIPTS" c-905 "$T_TMP/
 eq "empty export: the spawn fails" 1 "$(cat "$T_TMP/rc")"
 has "... with a FATAL" "or is empty" "$(cat "$T_TMP/p5/out")"
 check "... and writes no seed" test ! -e "$T_TMP/p5/prompt.txt"
+
+# A transient failure (a hub dial timeout) is retried: the first try fails,
+# the second exports. Control: today's single try fails this spawn.
+once="$T_TMP/once.n"
+s="$(CHANNEL_RULES_EXPORT_CMD="n=\$(cat $once 2>/dev/null || echo 0); echo \$((n + 1)) > $once; [ \"\$n\" -ge 1 ] || { echo 'dial tcp: i/o timeout' >&2; exit 1; }; printf '# 1 Rules\n\n- rule once\n'" seed "$T_SCRIPTS" c-911 "$T_TMP/ops.md" "$T_TMP/p11")"
+eq "export that fails once: the spawn passes" 0 "$(cat "$T_TMP/rc")"
+eq "... after 2 tries" 2 "$(cat "$once" 2>/dev/null)"
+has "... and the rules file holds the export" "rule once" "$(cat "$T_TMP/p11/channel-rules.md" 2>/dev/null)"
+has "... the retry is named with its error" "try 1 of 3, failed (exit 1) or is empty, last error: dial tcp: i/o timeout" "$(cat "$T_TMP/p11/out")"
+
+always="$T_TMP/always.n"
+s="$(CHANNEL_RULES_EXPORT_CMD="echo x >> $always; echo 'first line' >&2; echo 'dial tcp 10.0.0.1:443: connect: timed out' >&2; exit 1" seed "$T_SCRIPTS" c-912 "$T_TMP/ops.md" "$T_TMP/p12")"
+eq "export that always fails: the spawn fails" 1 "$(cat "$T_TMP/rc")"
+eq "... after CHANNEL_RULES_TRIES tries (3)" 3 "$(wc -l < "$always" 2>/dev/null)"
+has "... the FATAL names its last error line" "after 3 tries, last error: dial tcp 10.0.0.1:443: connect: timed out" "$(cat "$T_TMP/p12/out")"
+check "... and writes no seed" test ! -e "$T_TMP/p12/prompt.txt"
+check "... and leaves no tmp or err file" test -z "$(find "$T_TMP/p12" -name '*.tmp.*' -o -name '*.err.*')"
 
 printf 'acme\tops\tnot-a-uuid\tprd\tc-900\n' > "$T_TMP/bad.tsv"
 s="$(SPOOL_CHANNEL_RULES_MAP="$T_TMP/bad.tsv" seed "$T_SCRIPTS" c-906 "$T_TMP/ops.md" "$T_TMP/p6")"

@@ -23,8 +23,8 @@
 # do_spl_lane_restart for its distil) exports the doc to a file next to the
 # seed, readable by the agent user, and the seed names that file. The doc
 # stays the one source: no rule of it is copied into seed text. No `Channel:`
-# line, or no map row for it: nothing changes. A failed or empty export is a
-# FATAL, never a seed naming an empty file.
+# line, or no map row for it: nothing changes. A failed or empty export is
+# tried again (cr_export) and then a FATAL, never a seed naming an empty file.
 #
 # Seam: CHANNEL_RULES_EXPORT_CMD, a command run with CR_ENV, CR_TENANT,
 # CR_DOC and CR_AGENT set that prints the doc's markdown (tests).
@@ -129,21 +129,43 @@ _cr_export_desk() {
       DOCTREE_ARGS="export $CR_DOC" ./run -a do_spl_desk_doctree ) </dev/null
 }
 
-# cr_export TENANT DOC ENV AGENT OUT: the doc's markdown into OUT (0664),
-# replaced only by a non-empty export. 1 and a FATAL on stderr otherwise.
-cr_export() {
-  local tmp="$5.tmp.$$" rc=0
-  export CR_TENANT="$1" CR_DOC="$2" CR_ENV="$3" CR_AGENT="$4"
+# _cr_export_once TMP ERR: one export try, its stdout to TMP, stderr to ERR.
+_cr_export_once() {
   if [ -n "${CHANNEL_RULES_EXPORT_CMD:-}" ]; then
-    timeout "${CHANNEL_RULES_TIMEOUT:-90}" bash -c "$CHANNEL_RULES_EXPORT_CMD" >"$tmp" 2>/dev/null </dev/null || rc=$?
+    timeout "${CHANNEL_RULES_TIMEOUT:-90}" bash -c "$CHANNEL_RULES_EXPORT_CMD" >"$1" 2>"$2" </dev/null
   else
-    _cr_export_desk >"$tmp" 2>/dev/null || rc=$?
+    _cr_export_desk >"$1" 2>"$2"
   fi
-  if [ "$rc" -ne 0 ] || ! grep -q '[^[:space:]]' "$tmp" 2>/dev/null; then
-    rm -f "$tmp"
-    echo "FATAL channel rules: the export of qto doc $2 ($1, ENV=$3, as $4) failed (exit $rc) or is empty; no seed names an empty rules file" >&2
-    return 1
-  fi
+}
+
+# cr_export TENANT DOC ENV AGENT OUT: the doc's markdown into OUT (0664),
+# replaced only by a non-empty export. 1 and a FATAL on stderr otherwise, the
+# FATAL naming the last stderr line of the last try. A failed or empty export
+# is tried again (SPL-5545: one transient box->hub dial timeout failed whole
+# seat spawns): CHANNEL_RULES_TRIES tries in all (default 3), sleeping the
+# next word of CHANNEL_RULES_RETRY_DELAYS seconds before each retry (default
+# "5 15"; the last word repeats when retries outnumber the words).
+cr_export() {
+  local tmp="$5.tmp.$$" err="$5.err.$$" rc=0 try=1 tries="${CHANNEL_RULES_TRIES:-3}" last="" d=0
+  local -a delays
+  read -r -a delays <<<"${CHANNEL_RULES_RETRY_DELAYS:-5 15}"
+  export CR_TENANT="$1" CR_DOC="$2" CR_ENV="$3" CR_AGENT="$4"
+  while :; do
+    rc=0
+    _cr_export_once "$tmp" "$err" || rc=$?
+    if [ "$rc" -eq 0 ] && grep -q '[^[:space:]]' "$tmp" 2>/dev/null; then break; fi
+    last="$(grep '[^[:space:]]' "$err" 2>/dev/null | tail -n 1)"
+    if [ "$try" -ge "$tries" ]; then
+      rm -f "$tmp" "$err"
+      echo "FATAL channel rules: the export of qto doc $2 ($1, ENV=$3, as $4) failed (exit $rc) or is empty after $try tries, last error: ${last:-none}; no seed names an empty rules file" >&2
+      return 1
+    fi
+    [ "${#delays[@]}" -eq 0 ] || d="${delays[$((try <= ${#delays[@]} ? try - 1 : ${#delays[@]} - 1))]}"
+    echo "WARN channel rules: the export of qto doc $2, try $try of $tries, failed (exit $rc) or is empty, last error: ${last:-none}; retrying in ${d}s" >&2
+    sleep "$d"
+    try=$((try + 1))
+  done
+  rm -f "$err"
   chmod 0664 "$tmp" 2>/dev/null || true
   mv -f "$tmp" "$5" || { rm -f "$tmp"; echo "FATAL channel rules: cannot write $5" >&2; return 1; }
 }

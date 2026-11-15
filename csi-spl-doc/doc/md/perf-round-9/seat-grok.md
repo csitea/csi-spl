@@ -1,10 +1,10 @@
 # Perf round 9 grok seat
 
-Verdict: **REVIEW FAIL** on `060a8cddcc80b021944c032b467f88a8df268ad7` (plan v0.4). The **FAIL** on `d6c1bee7a8b7d1a091d9efc38230d23de752c542` (plan v0.3) stands. The **PASS** on `89f8cef1495819e8b85d0644a8bf7000e77f6cb7` (plan v0.2) stands. Sections 1 to 6 are the v0.1 review. Section 0 is the v0.2 re-sign. Section 7 is the v0.3 delta. Section 8 is the v0.4 delta.
+Verdict: **REVIEW PASS** on `2c11ec7ba9d00e623a12683f539c6ab17d7c4918` (plan v0.5). The **FAIL** on `060a8cddcc80b021944c032b467f88a8df268ad7` (plan v0.4) stands. The **FAIL** on `d6c1bee7a8b7d1a091d9efc38230d23de752c542` (plan v0.3) stands. The **PASS** on `89f8cef1495819e8b85d0644a8bf7000e77f6cb7` (plan v0.2) stands. Sections 1 to 6 are the v0.1 review. Section 0 is the v0.2 re-sign. Section 7 is the v0.3 delta. Section 8 is the v0.4 delta. Section 9 is the v0.5 delta.
 
 Panel: g-751@sat, grok. Issue SPL-5502. Epic SPL-2402. Spec `csi-spl-doc/specs/027-spool-performance`.
 
-v0.1 and v0.2: no defects. N1 to N3 were citation gaps and v0.2 closes them. N4 to N11 do not change the row shape, the file split, or the direction of the measured gain. v0.3: W1 and W2 in section 7. v0.4: W2 is answered. W1 remains. Section 8.
+v0.1 and v0.2: no defects. N1 to N3 were citation gaps and v0.2 closes them. N4 to N11 do not change the row shape, the file split, or the direction of the measured gain. v0.3: W1 and W2 in section 7. v0.4: W2 is answered. W1 remains. Section 8. v0.5: W1 is answered. Section 9.
 
 ## 0. Re-sign of v0.2
 
@@ -338,6 +338,78 @@ Lane-map of this file, `lane-map.sh --check csi-spl-doc/doc/md/perf-round-9/seat
 ## Hygiene after the v0.4 sign
 
 On this index, after `git add` of this file, HEAD `9c4b5c074cb57885a001b0796bb756485d5b615b`:
+
+```
+cd csi-spl-iac && ./run -a do_check_dist_hygiene
+```
+
+Printed `ok` for each sweep and `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-751`. `HYG_EXIT:0`. The allowed lines were the owner-approved cnf keys only (9 personal-name lines, 4 OS-user or box lines, 6 mail lines).
+
+## 9. Delta review of v0.5
+
+Asked by c-002 msg `c69f1067-0720-43ea-ae09-91e5fce139ec` on task `dispatch-perf-r8`. Review only the delta of `2c11ec7ba` against W1 in section 8. Checked 2026-11-15 from `/opt/csi/csi-spl-wt/g-751`.
+
+```
+git fetch -q origin review/c002-perf-round-9-planner review/c002-perf-round-9-grok-seat master
+git rev-parse origin/review/c002-perf-round-9-planner
+git rev-parse 2c11ec7ba9d00e623a12683f539c6ab17d7c4918^
+git merge-base --is-ancestor 060a8cddcc80b021944c032b467f88a8df268ad7 2c11ec7ba9d00e623a12683f539c6ab17d7c4918
+git diff --stat 060a8cddcc80b021944c032b467f88a8df268ad7 2c11ec7ba9d00e623a12683f539c6ab17d7c4918 -- csi-spl-doc/doc/md/perf-round-9-plan.md
+git rev-parse origin/master
+git rev-parse origin/master:csi-spl-doc/doc/md/perf-round-8-retro.md
+git grep -e 'never gives' 2c11ec7ba9d00e623a12683f539c6ab17d7c4918 -- csi-spl-doc/doc/md/perf-round-9-plan.md
+git grep -e cross-vendor 2c11ec7ba9d00e623a12683f539c6ab17d7c4918 -- csi-spl-doc/doc/md/perf-round-9-plan.md
+git grep -n -e 'p9-0' 2c11ec7ba9d00e623a12683f539c6ab17d7c4918 -- csi-spl-doc/doc/md/perf-round-9-plan.md
+git show origin/master:csi-spl-iac/src/bash/run/check-pre-push.func.sh | nl -ba | sed -n '811p;814,816p'
+git show origin/master:csi-spl-orc/src/bash/run/spl-commit-links-check.func.sh | nl -ba | sed -n '42p;51p;59p;141p;168p'
+lane-map.sh --check csi-spl-orc/src/bash/run/spl-commit-links-check.func.sh --agent g-751
+lane-map.sh --check csi-spl-doc/doc/md/perf-round-9/seat-grok.md --agent g-751
+```
+
+Printed:
+
+```
+PLANNER:2c11ec7ba9d00e623a12683f539c6ab17d7c4918
+PARENT:060a8cddcc80b021944c032b467f88a8df268ad7
+ANCESTOR_OK
+ csi-spl-doc/doc/md/perf-round-9-plan.md | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+MASTER:d99a6febb2879288b5692769c2313647151329c4
+RETRO_BLOB:2013b5b30ee0f71a84ae74537303b87ad4dd805a
+NEVER_RC:1
+CROSS_RC:1
+ROWS:p9-01 p9-02 p9-03
+FUNC_LANE_RC:4
+SEAT_LANE_RC:4
+```
+
+`git log -1 --format='%H %ci %s' 2c11ec7ba` prints `2c11ec7ba9d00e623a12683f539c6ab17d7c4918 2026-11-15 03:39:32 +0200 docs(p9-plan, SPL-5502): perf round 9 plan v0.5, input 1's measured cost is the first cnf call every push pays (g-751 W1)`. Parent of v0.5 is the v0.4 sha. One file, 6 insertions, 4 deletions. Retro blob on `origin/master` is still `2013b5b30`. `git grep -e 'never gives'` prints nothing (rc 1). `git grep -e cross-vendor` prints nothing (rc 1). Row headings stay p9-01, p9-02 and p9-03. The diff does not touch those headings. Panel lines 168-170 still say "claude seat, same vendor as the editor; the panel's other seat is grok". The plan's consensus section records this seat's FAIL on `060a8cddc` (seat `7cedf5ab1`).
+
+The numbered lines on `origin/master` `d99a6febb` print:
+
+```
+   811	  local tree="$1" base="${PRE_PUSH_BASE:-origin/master}"
+   814	  git -C "$tree" rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1 ||
+   815	    { echo "commit-links: WARN unknown base '$base' -- no outgoing commits to check"; return 0; }
+   816	  ( cd "$tree/csi-spl-orc" && COMMIT_LINKS_HARD=0 COMMIT_LINKS_REPO="$tree" COMMIT_LINKS_RANGE="$base..HEAD" ./run -a do_spl_commit_links_check )
+    42	  hub="$(_spl_cl_hub)" || return 1
+    51	  mapfile -t shas < <(git -C "$repo" rev-list --no-merges --reverse "$range")
+    59	  if [[ "$hub" != none && -n "$all" ]]; then
+   141	    ( ENV=prd; do_spl_cloud_cnf >/dev/null 2>&1 && do_gcp_sa_key_file "$SPL_CNF" >/dev/null 2>&1 ) && h=prd
+   168	    do_spl_cloud_cnf || exit 1
+```
+
+W1 is answered. Input 1 now says the -275 ms is the first `do_spl_cloud_cnf` and its key-file lookup at line 141, and that a push which reaches line 816 pays it: line 816 does not set `COMMIT_LINKS_HUB`, so line 42 runs line 141 before line 51 reads the range. That matches the code above. Line 141 is `do_spl_cloud_cnf` and `do_gcp_sa_key_file` in one subshell. The figures stay the section 8 ones: empty range 619 ms vs 344 ms with `COMMIT_LINKS_HUB=none` (-275 ms, -44%), and one commit with `COMMIT_LINKS_HUB=none` at 378 ms, n=5, on `8247621e2`, load ~17. The changelog no longer says the measured gain needs an empty range.
+
+Line 814 returns before line 816 when the base is not a commit, so that push does not pay line 141. An empty range is not that case. Once line 816 runs, line 141 runs whether the range is empty or not. Section 8 ran both arms as `HEAD..HEAD`, so `$all` was empty, the guard at line 59 was false, and line 168 ran in neither arm. The plan calls that second call a separate cost, not measured. This seat did not time it.
+
+The cell keeps input 1 as a candidate, not a row: no after arm (the hub choice made without `do_spl_cloud_cnf`) is probed. Lane-map of `csi-spl-orc/src/bash/run/spl-commit-links-check.func.sh` exited 4. No live lane lists that path. 10 live lanes record no files. The plan's "11" is the editor's earlier read. Exit 4 is unknown scope, not an owner of the file. The queue sentence in that cell was not re-read. Ask ids `68f1dea2`, `dc8568f5`, `20db36c3` and `7e0d6251` were not re-read.
+
+Lane-map of this file exited 4. No live lane lists it. 10 live lanes record no files. Exit 4 is unknown scope, not an owner of this file.
+
+## Hygiene after the v0.5 sign
+
+On this index, after `git add` of this file, HEAD `7cedf5ab1823389d98daf5b24935d3d5e3aa6336`:
 
 ```
 cd csi-spl-iac && ./run -a do_check_dist_hygiene

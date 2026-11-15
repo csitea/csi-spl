@@ -95,53 +95,22 @@ export function isOwnMessage(msg, viewer) {
 }
 
 /**
- * Roles that, besides the author, may edit anyone's message or topic title: the
- * tenant owner and an admin. SPL-1291, owner HUM-10 2026-09-30 ("this works for
- * some roles, it MUST work for all the other roles as well") — the same
- * author/owner/admin rule the hub enforces (edit.go rule 6) and topic
- * archive/merge/move already share (topic-archive.mjs TOPIC_ADMIN_ROLES).
- */
-export const EDIT_ADMIN_ROLES = Object.freeze(['biz_owner', 'admin'])
-
-/**
- * Is the viewer the tenant owner or an admin? `me` is utils/access.mjs
- * normalizeMe ({ role, tenantOwner, … }); null (not loaded yet) is not one, so
- * the menu never offers what the hub would refuse.
- */
-function isEditModerator(me) {
-  if (!me || typeof me !== 'object') return false
-  return me.tenantOwner === true || EDIT_ADMIN_ROLES.includes(String(me.role || ''))
-}
-
-/**
- * A browser-authored HUMAN message an owner/admin may edit. Agents stay out
- * ("of course msgs sent by bots should not be editable"): a human message is
- * box-wui with a HUM- author (the hub's fallback.go boundary), and the hub still
- * re-checks — a box-signed or non-box-wui envelope it cannot re-sign is 409
- * not_editable, so this never offers an editor the hub will refuse.
- */
-function isHumanBrowserMessage(msg) {
-  const m = msg || {}
-  if (String(m.from_box || '') !== BROWSER_BOX) return false
-  return String(m.from || '').startsWith('HUM-')
-}
-
-/**
- * May the viewer edit this row? No expiry (see the header). Every role edits its
- * OWN (author-only); the tenant owner and an admin edit anyone's human,
- * browser-authored message — the title of the topics it opens included. `me` is
- * the normalizeMe snapshot; omitted (or null) it is author-only, the shape the
- * unit tests pin and the safe default before /v1/view/me has answered.
+ * May the viewer edit this row? No expiry (see the header). AUTHOR-ONLY, for
+ * every role: SPL-5570, owner HUM-10 2026-11-13 ("Neither should one user
+ * have the right to edit messages of other users, nor even of AI. Every user
+ * should have the right to edit their own messages"). That reverses SPL-1291's
+ * tenant-owner/admin widening; the hub enforces the same rule (edit.go rule 6,
+ * 403 not_author), and this only mirrors it so no editor opens that the hub
+ * would refuse.
  *
  * A row still in flight (`pending`: sent, not yet echoed by the hub) has no
  * confirmed identity to edit, so it is refused until the echo lands.
  */
-export function canEditMessage(msg, viewer, me = null) {
+export function canEditMessage(msg, viewer) {
   const m = msg || {}
   if (!m.msg_id) return false
   if (m.pending) return false
-  if (isOwnMessage(m, viewer)) return true
-  return isEditModerator(me) && isHumanBrowserMessage(m)
+  return isOwnMessage(m, viewer)
 }
 
 /**

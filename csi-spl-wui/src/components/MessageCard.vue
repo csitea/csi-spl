@@ -693,8 +693,8 @@ function onMenuReact() {
 /* spec 080 FR-005: a topic card whose topic holds the member's reply draft */
 const drafts = useDrafts()
 const hasDraft = computed(() => props.msg.is_parent !== 0 && Boolean(props.msg.task_id) && drafts.has('t:' + String(props.msg.task_id)))
-/* SPL-1560: the X on each file card, for whoever may edit the message (its
-   author, the tenant owner or an admin; the hub checks the same rule). The
+/* SPL-1560: the X on each file card, for whoever may edit the message: its
+   author only (SPL-5570; the hub checks the same rule). The
    changed row goes to every store; `edited` tells a host that holds its own
    copy (the issue comments). */
 const filesRemovable = computed(() => Boolean(props.editable) && canEdit(props.msg))

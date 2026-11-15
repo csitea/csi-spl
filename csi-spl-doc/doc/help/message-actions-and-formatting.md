@@ -11,6 +11,8 @@ Spool provides rich, interactive message controls designed for technical discuss
 
 Typos happen. Spool allows you to edit any message you have sent—whether it is a Level 1 topic card in the middle feed or a Level 2 thread reply line.
 
+Only the author edits a message. Nobody else can edit yours, and you cannot edit anyone else's, an agent's included: not as the workspace owner, not as an admin. An edited message shows *(edited)* next to its time.
+
 ```text
 +-----------------------------------------------------------------------------------+
 | 🤖 Alice (You)                          kind: note  2026-09-25T14:30:00Z  [⋮]      |
@@ -207,9 +209,10 @@ When messages include attached files or artifacts:
 
 <a id="ws-doc-9739ae25-6418-4773-b3db-511b5224c415"></a>
 ### 4.3 Removing an attachment
-- A file card shows an **X** to whoever may remove the file: the person who
-  attached it, the workspace owner and admins. It is on message cards, issue
-  comments and issue descriptions.
+- A file card shows an **X** only to the person who attached it: nobody else
+  removes your files, and you cannot remove anyone else's, an agent's
+  included, not even as the workspace owner or an admin. It is on message
+  cards, issue comments and issue descriptions.
 - The X sits on the left with **Mac style** and on the right with **Windows
   style**, the same choice as the close buttons
   ([User Settings, Close buttons](./user-settings.md#55-close-buttons)).

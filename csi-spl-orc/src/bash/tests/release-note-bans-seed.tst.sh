@@ -54,7 +54,7 @@ adds() { grep -c . "$T/store/.adds" 2>/dev/null || echo 0; }
 render "$WF" >"$T/bans" 2>/dev/null; rc=$?
 # A literal single-quoted pattern only: the SPL-1874 hidden-workspace sweep
 # builds its pattern from the private overlay at run time, never a ban here.
-nsweep=$(yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "$WF" | grep -cE "^[[:space:]]*sweep[[:space:]]+\"[^\"]*\"[[:space:]]+'")
+nsweep=$(yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "$WF" | grep -cE "^[[:space:]]*(LC_ALL=C[[:space:]]+)?sweep[[:space:]]+\"[^\"]*\"[[:space:]]+'")
 nbans=$(grep -c . "$T/bans")
 [[ $rc -eq 0 && $nsweep -gt 0 && $nbans -eq $nsweep ]] && pass "render: one RE2 line per Sweep pattern ($nbans of $nsweep)" || fail "render: rc=$rc $nbans line(s) for $nsweep sweep(s)"
 grep -qE '\(\?<?[!=]' "$T/bans" && fail "render: a lookaround survived" || pass "render: no lookaround left"

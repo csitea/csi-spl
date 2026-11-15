@@ -72,7 +72,7 @@ spl_release_note_bans_render() {
   local wf="$1" body pats p out=""
   [[ -f "$wf" ]] || { do_log "FATAL no workflow at $wf"; return 1; }
   body="$(yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "$wf" 2>/dev/null)"
-  pats="$(sed -nE "s/^[[:space:]]*sweep[[:space:]]+\"[^\"]*\"[[:space:]]+'([^']+)'([[:space:]].*)?$/\1/p" <<<"$body")"
+  pats="$(sed -nE "s/^[[:space:]]*(LC_ALL=C[[:space:]]+)?sweep[[:space:]]+\"[^\"]*\"[[:space:]]+'([^']+)'([[:space:]].*)?$/\2/p" <<<"$body")"
   [[ -n "$pats" ]] || { do_log "FATAL no distribution-hygiene Sweep patterns in $wf -- nothing to seed"; return 1; }
   while IFS= read -r p; do
     # lookarounds only NARROW a ban; RE2 has none, so drop them (a wider ban)

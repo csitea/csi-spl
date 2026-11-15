@@ -43,7 +43,7 @@ git -C "$R" update-ref refs/remotes/origin/master HEAD
 # A planted personal name: the first plain alternative of the Sweep's own
 # "personal name" pattern, so no name is written in this file.
 NAME=$(yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "$WF" |
-  sed -nE "s/^sweep \"personal name\"[[:space:]]+'\(\?i\)([a-z]+)\|.*/\1/p")
+  sed -nE "s/^(LC_ALL=C[[:space:]]+)?sweep \"personal name\"[[:space:]]+'\(\?i\)([a-z]+)\|.*/\2/p")
 BOX=$(sed -nE 's/^[[:space:]]*vm_hostname:[[:space:]]*"?([A-Za-z0-9-]+).*/\1/p' "$R"/csi-spl-cnf/csi-spl/*.env.yaml | sed -n 1p)
 BAN_WORD=zqxblorp
 printf '(?i)\\b%s\\b\n' "$BAN_WORD" >"$T/store/csi-spl-hub-release-note-bans"

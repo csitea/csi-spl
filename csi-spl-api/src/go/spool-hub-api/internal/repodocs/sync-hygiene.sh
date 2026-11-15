@@ -27,7 +27,7 @@ render() {
   while IFS=$'\t' read -r label pattern; do
     printf '%s\t%s\n' "$label" "$(printf '%s' "$pattern" | base64 -w0)"
     n=$((n + 1))
-  done < <(sed -nE "s/^[[:space:]]*sweep[[:space:]]+\"([^\"]+)\"[[:space:]]+'([^']+)'.*/\1\t\2/p" "$wf")
+  done < <(sed -nE "s/^[[:space:]]*(LC_ALL=C[[:space:]]+)?sweep[[:space:]]+\"([^\"]+)\"[[:space:]]+'([^']+)'.*/\2\t\3/p" "$wf")
   # No pattern found is a REFUSAL: an empty list would gate nothing.
   (( n > 0 )) || { echo "FATAL no sweep \"<label>\" '<pattern>' line in $wf" >&2; return 1; }
 }

@@ -13,8 +13,8 @@ import (
 // relative to this package.
 const sweepWorkflow = "../../../../../../.github/workflows/10_ci-quality.yml"
 
-// sweepLineRe is sync-hygiene.sh's sed expression: sweep "<label>" '<pattern>'.
-var sweepLineRe = regexp.MustCompile(`(?m)^[ \t]*sweep[ \t]+"([^"]+)"[ \t]+'([^']+)'`)
+// sweepLineRe is sync-hygiene.sh's sed expression: [LC_ALL=C ]sweep "<label>" '<pattern>'.
+var sweepLineRe = regexp.MustCompile(`(?m)^[ \t]*(?:LC_ALL=C[ \t]+)?sweep[ \t]+"([^"]+)"[ \t]+'([^']+)'`)
 
 // renderPatterns is what sync-hygiene.sh writes for a workflow's text.
 func renderPatterns(workflow string) (string, error) {

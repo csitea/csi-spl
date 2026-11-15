@@ -67,7 +67,9 @@ mk_tree() {
   done
   rm -f "$r/lib/bash/funcs" -r
   printf '%s\n' "$LIB" >"$r/src/bash/run/root-fixture-lib.func.sh"
-  mk_action "$r/alpha" only_a "echo \"ONLY-A-RAN in \$PROJ args=\$* foo=\${FIXTURE_FOO:-}\""
+  # do_only_a reads its own --flag from "\$@" (SPL-5548 refuses a flag
+  # that the action neither declares nor reads)
+  mk_action "$r/alpha" only_a "case \"\${2:-}\" in --flag) : ;; esac; echo \"ONLY-A-RAN in \$PROJ args=\$* foo=\${FIXTURE_FOO:-}\""
   mk_action "$r/beta" only_b "echo \"ONLY-B-RAN in \$PROJ\""
   mk_action "$r" root_own "echo \"ROOT-OWN-RAN in \$PROJ\""
 }

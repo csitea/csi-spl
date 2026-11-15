@@ -523,4 +523,34 @@ run22 DST_LIST="$T/acme2.json"; rc=$?
   ! grep -q '^in-tenant acme' "$T/calls.log" && grep -qx "SPL-40	$S40	noop" "$T/s22/closed.tsv" &&
   pass "22. the new key is not open in acme: a no-op naming the move, nothing called there" ||
   fail "22. new key not open (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
+# 23. Red case (SPL-5547): t1 green, the workspace acme red on every tick; the
+# alarm said "(prd t1)" and "The FATAL lines are in the closer's cron log",
+# which held none: the workspace run's STOP said rc=1 and no reason. Now the
+# alarm names the run that failed and its STOP line carries the run's error.
+printf '#!/bin/sh\necho "ws noise for $ISSUE_CLOSE_WORKSPACE"\necho "ERROR: hub refused $ISSUE_CLOSE_WORKSPACE: 403" >&2\necho "trailing line"\nexit 1\n' >"$T/ws-run23"
+printf '#!/bin/sh\necho "only line of $ISSUE_CLOSE_WORKSPACE"\nexit 1\n' >"$T/ws-run23b"
+chmod +x "$T/ws-run23" "$T/ws-run23b"
+tick23() { rm -rf "$T/s23"; : >"$T/send.log"; CRON_LOG="$T/cron.log" SEND_LOG="$T/send.log" SPOOL_ROOT="$T/root18" ISSUE_CLOSE_SEND="$T/send" \
+  ISSUE_CLOSE_STATE_DIR="$T/s23" ISSUE_CLOSE_ALERT_AFTER=1 ISSUE_CLOSE_ALERT_FROM=c-009 "$@" \
+  bash "$F/src/bash/scripts/issue-close-landed-cron.sh" >"$T/o23" 2>&1; }
+tick23 env FAKE_RC=0 ISSUE_CLOSE_WS_RUN="$T/ws-run23"; rc=$?
+[ "$rc" = 1 ] && grep -q -- '--body ISSUE CLOSER RED on box .*the runs that failed: workspace acme 1/1\.' "$T/send.log" &&
+  ! grep -q 't1' "$T/send.log" && ! grep -q 'The FATAL lines are in' "$T/send.log" &&
+  grep -q ' STOP issue-close-landed rc=0$' "$T/o23" &&
+  pass "23. t1 green, the workspace acme red: the alarm names workspace acme (1/1), not t1, and claims no FATAL lines" ||
+  fail "23. alarm names the run (rc $rc): $(cat "$T/send.log") // $(cat "$T/o23")"
+grep -q ' STOP issue-close-landed workspace acme rc=1 why: ERROR: hub refused acme: 403$' "$T/o23" && grep -q '^trailing line$' "$T/o23" &&
+  pass "23. a red workspace run's STOP line carries its error line (the last ERROR/FATAL), its output stays in the log" ||
+  fail "23. why on STOP: $(cat "$T/o23")"
+tick23 env FAKE_RC=0 ISSUE_CLOSE_WS_RUN="$T/ws-run23b"; rc=$?
+grep -q ' STOP issue-close-landed workspace acme rc=1 why: only line of acme$' "$T/o23" &&
+  pass "23. no ERROR/FATAL line: the STOP carries the run's last output line" || fail "23. why fallback (rc $rc): $(cat "$T/o23")"
+rm -rf "$T/s23"; : >"$T/send.log"
+for r in 1 0; do CRON_LOG="$T/cron.log" SEND_LOG="$T/send.log" SPOOL_ROOT="$T/root18" ISSUE_CLOSE_SEND="$T/send" ISSUE_CLOSE_STATE_DIR="$T/s23" \
+  ISSUE_CLOSE_ALERT_AFTER=2 ISSUE_CLOSE_ALERT_FROM=c-009 FAKE_RC=$r ISSUE_CLOSE_WS_RUN="$T/ws-run23" \
+  bash "$F/src/bash/scripts/issue-close-landed-cron.sh" >"$T/o23" 2>&1; done
+grep -q 'the last 2 ticks of do_spl_issue_close_landed were red; the runs that failed: prd t1 1/2, workspace acme 2/2\.' "$T/send.log" &&
+  grep -q ' STOP issue-close-landed rc=0$' "$T/o23" &&
+  pass "23. control: over the streak the alarm counts each failed run (prd t1 1/2, workspace acme 2/2)" || fail "23. tally: $(cat "$T/send.log") // $(cat "$T/o23")"
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

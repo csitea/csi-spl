@@ -33,8 +33,11 @@
 # workspace-repo.inc.sh) whose clone is on THIS box gets its own run in
 # workspace mode (ISSUE_CLOSE_WORKSPACE=<tenant>): its repo's trunk closes
 # that workspace's issues, as the map's desk. A red one is logged and counts
-# as a red tick; the others still run. ISSUE_CLOSE_WS_RUN replaces the
-# action for them (tests).
+# as a red tick; the others still run. A red run's STOP line carries its
+# reason (SPL-5547): the run's last FATAL/ERROR line, else its last output
+# line. The alert names the runs that failed in the red streak and how often
+# (red.runs in the state dir), never "t1" for a workspace's red.
+# ISSUE_CLOSE_WS_RUN replaces the action for them (tests).
 #
 # Exit: 0 ran (or not this box, or another run held the lock), 1 the action
 # failed, 2 a refusal (worktree, no ./run).
@@ -73,19 +76,45 @@ lease_id() {
   [[ "$id" =~ ^[a-z]-[0-9]{3}$ ]] && printf '%s\n' "$id"
 }
 
+# run_why LOG: the reason a run failed, from its output: the last FATAL or
+# ERROR line, else the last non-blank line, else a note that it printed none.
+run_why() {
+  local w
+  w="$(grep -E 'FATAL|ERROR' "$1" 2>/dev/null | tail -n 1)"
+  [ -n "$w" ] || w="$(grep -v '^[[:space:]]*$' "$1" 2>/dev/null | tail -n 1)"
+  printf '%s\n' "${w:-the run printed nothing}" | cut -c1-400
+}
+
+# run_logged NAME CMD...: run CMD, its output to this log, then the STOP line
+# for NAME (empty: the t1 run); a red run's STOP carries run_why and the run
+# joins $failed.
+run_logged() {
+  local name="$1" out wrc; shift
+  out="$(mktemp "$state/run.XXXXXX")" || out=/dev/null
+  "$@" </dev/null >"$out" 2>&1; wrc=$?
+  [ "$out" = /dev/null ] || cat "$out"
+  if [ "$wrc" = 0 ]; then say "STOP issue-close-landed${name:+ $name} rc=0"
+  else say "STOP issue-close-landed${name:+ $name} rc=$wrc why: $(run_why "$out")"; failed+=("${name:-$env_name $tenant}"); fi
+  [ "$out" = /dev/null ] || rm -f "$out"
+  return "$wrc"
+}
+
 # red_tick RC: count consecutive red ticks; at ISSUE_CLOSE_ALERT_AFTER of them
 # send one blocker to the orchestrator, then at most one an hour while red.
+# The runs that failed ($failed) are tallied in red.runs for the alert.
 red_tick() {
-  local n now last after="${ISSUE_CLOSE_ALERT_AFTER:-6}" from send tried="" why="" src body
-  if [ "$1" = 0 ]; then rm -f "$state/red.count" "$state/red.alerted"; return 0; fi
+  local n now last after="${ISSUE_CLOSE_ALERT_AFTER:-6}" from send tried="" why="" src body runs f
+  if [ "$1" = 0 ]; then rm -f "$state/red.count" "$state/red.alerted" "$state/red.runs"; return 0; fi
   [[ "$after" =~ ^[1-9][0-9]*$ ]] || after=6
   n="$(cat "$state/red.count" 2>/dev/null)"; [[ "$n" =~ ^[0-9]+$ ]] || n=0
   n=$((n + 1)); printf '%s\n' "$n" >"$state/red.count"
+  for f in "${failed[@]}"; do printf '%s\n' "$f"; done >>"$state/red.runs"
   (( n >= after )) || return 0
   now="$(date -u +%s)"; last="$(cat "$state/red.alerted" 2>/dev/null)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
   (( now - last >= 3600 )) || return 0
   send="${ISSUE_CLOSE_SEND:-$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  body="ISSUE CLOSER RED on box $(box_env SPOOL_BOX_TAG): the last $n ticks of do_spl_issue_close_landed ($env_name $tenant) failed, so no landed fix closes its issue. The FATAL lines are in the closer's cron log (crontab row csi-spl:box-cron:issue-close-landed)."
+  runs="$(sort "$state/red.runs" 2>/dev/null | uniq -c | awk -v n="$n" '{c=$1; $1=""; sub(/^ /,""); printf "%s%s %d/%d", sep, $0, c, n; sep=", "}')"
+  body="ISSUE CLOSER RED on box $(box_env SPOOL_BOX_TAG): the last $n ticks of do_spl_issue_close_landed were red; the runs that failed: ${runs:-none named}. Their issues get no close from a landed fix. Each red run's reason is on its STOP line (why: ...) in the closer's cron log (crontab row csi-spl:box-cron:issue-close-landed)."
   if [ -n "${ISSUE_CLOSE_ALERT_FROM:-}" ]; then src="$ISSUE_CLOSE_ALERT_FROM"
   else
     src="$(lease_id "$root/dispatch/lease"; lease_id "$root/dispatch/lease.orch"
@@ -106,11 +135,12 @@ red_tick() {
 }
 
 rsp="$(box_env SPOOL_RSP_BOX)"
+failed=()
 say "START issue-close-landed $env_name $tenant"
-( cd "$ORC" && env ENV="$env_name" TENANT_ID="$tenant" DESK_AGENT="${ISSUE_CLOSE_AGENT:-$SPL_RSP_AGENT}" \
+# shellcheck disable=SC2016 # $1 and $@ expand in the inner bash
+run_logged "" bash -c 'cd "$1" && shift && exec "$@"' _ "$ORC" env ENV="$env_name" TENANT_ID="$tenant" DESK_AGENT="${ISSUE_CLOSE_AGENT:-$SPL_RSP_AGENT}" \
     DESK_BOX="${ISSUE_CLOSE_BOX:-${rsp:-box-rsp}}" ISSUE_CLOSE_STATE_DIR="$state" ISSUE_CLOSE_HOLDER=1 DRY_RUN=0 \
-    timeout 900 ./run -a do_spl_issue_close_landed ); rc=$?
-say "STOP issue-close-landed rc=$rc"
+    timeout 900 ./run -a do_spl_issue_close_landed; rc=$?
 
 wrl="$ORC/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh"
 if [ -r "$wrl" ]; then
@@ -121,15 +151,17 @@ else
 fi
 while read -r ws; do
   [ -n "$ws" ] || continue
-  row="$(SPOOL_ROOT="$root" wr_row "$ws")" || { say "WARN workspace $ws: its map row is malformed, skipped"; rc=1; continue; }
+  row="$(SPOOL_ROOT="$root" wr_row "$ws")" || { say "WARN workspace $ws: its map row is malformed, skipped"; failed+=("workspace $ws (malformed map row)"); rc=1; continue; }
   [ -d "$(wr_field "$row" 3)/.git" ] || continue
   say "START issue-close-landed workspace $ws"
   if [ -n "${ISSUE_CLOSE_WS_RUN:-}" ]; then
-    SPOOL_ROOT="$root" ISSUE_CLOSE_WORKSPACE="$ws" $ISSUE_CLOSE_WS_RUN; wrc=$?
+    # shellcheck disable=SC2086 # ISSUE_CLOSE_WS_RUN is a command line (tests)
+    run_logged "workspace $ws" env SPOOL_ROOT="$root" ISSUE_CLOSE_WORKSPACE="$ws" $ISSUE_CLOSE_WS_RUN; wrc=$?
   else
-    ( cd "$ORC" && env SPOOL_ROOT="$root" ISSUE_CLOSE_WORKSPACE="$ws" DRY_RUN=0 timeout 900 ./run -a do_spl_issue_close_landed ); wrc=$?
+    # shellcheck disable=SC2016 # $1 and $@ expand in the inner bash
+    run_logged "workspace $ws" bash -c 'cd "$1" && shift && exec "$@"' _ "$ORC" env SPOOL_ROOT="$root" ISSUE_CLOSE_WORKSPACE="$ws" \
+      DRY_RUN=0 timeout 900 ./run -a do_spl_issue_close_landed; wrc=$?
   fi
-  say "STOP issue-close-landed workspace $ws rc=$wrc"
   [ "$wrc" = 0 ] || rc=1
 done < <(SPOOL_ROOT="$root" wr_tenants)
 red_tick "$rc"

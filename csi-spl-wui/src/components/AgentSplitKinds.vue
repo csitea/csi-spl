@@ -162,10 +162,12 @@ watch(() => session.state, (st) => {
 .ts-hint { margin: 0; }
 .sk-wrap { max-width: 100%; overflow-x: auto; }
 .sk-table { border-collapse: collapse; font-size: 0.9em; }
-.sk-table th, .sk-table td { padding: 4px 3px; text-align: left; vertical-align: middle; }
+.sk-table th, .sk-table td { padding: 4px 2px; text-align: left; vertical-align: middle; }
 /* SPL-5454: six vendor columns, a Backup and a Main fit the 720 px card at
    1400 px under the e2e font, DejaVu Sans (0.85em headers, narrower number boxes, select and kind
-   column, 3px cells); below that the table scrolls
+   column, 2px cells; SPL-5596: the CI runner rendered it 11 px wider than
+   sat, 687 px; 2px cells take 18 px off, sat min-content 676 -> 658 px,
+   so the runner fits too); below that the table scrolls
    inside .sk-wrap, never the page. */
 .sk-table thead th { font-weight: 600; white-space: nowrap; font-size: 0.85em; }
 .sk-table tbody th { font-weight: 500; min-width: 6.5em; }

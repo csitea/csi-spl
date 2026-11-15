@@ -18,7 +18,7 @@ func TestCostEntryLabels(t *testing.T) {
 			if err != nil || master != MemCostLabelMaster {
 				t.Fatalf("master: %q %v, want %q (rdb 0285 seed)", master, err, MemCostLabelMaster)
 			}
-			text := "Заплата " + uid("")[:8]
+			text := "Salary " + uid("")[:8]
 			e, err := ce.CreateCostEntry(ctx, CostEntry{Type: "hr", Label: text, Amount: 10, Currency: "EUR", Period: "2026-10", CreatedBy: "op"})
 			if err != nil {
 				t.Fatal(err)
@@ -27,28 +27,28 @@ func TestCostEntryLabels(t *testing.T) {
 			if err != nil || len(all[e.ID]) != 1 || all[e.ID][master] != text {
 				t.Fatalf("a new entry's labels: %v %v, want only {%s: %s}", all[e.ID], err, master, text)
 			}
-			if err := cl.SetCostEntryLabels(ctx, e.ID, map[string]string{"en": "Salary", "fi": "Palkka", master: text}, "acc"); err != nil {
+			if err := cl.SetCostEntryLabels(ctx, e.ID, map[string]string{"bg": "Заплата", "fi": "Palkka", master: text}, "acc"); err != nil {
 				t.Fatal(err)
 			}
-			if err := cl.SetCostEntryLabels(ctx, e.ID, map[string]string{"en": "Gross salary"}, "acc"); err != nil {
+			if err := cl.SetCostEntryLabels(ctx, e.ID, map[string]string{"bg": "Брутна заплата"}, "acc"); err != nil {
 				t.Fatal(err)
 			}
 			all, _ = cl.CostEntryLabels(ctx)
-			if got := all[e.ID]; len(got) != 2 || got["en"] != "Gross salary" || got[master] != text {
-				t.Fatalf("replaced labels: %v, want en + the master's only (fi dropped)", got)
+			if got := all[e.ID]; len(got) != 2 || got["bg"] != "Брутна заплата" || got[master] != text {
+				t.Fatalf("replaced labels: %v, want bg + the master's only (fi dropped)", got)
 			}
-			for want, loc := range map[string]string{"Gross salary": "en", text + "|fi": "fi", text + "|": ""} {
+			for want, loc := range map[string]string{"Брутна заплата": "bg", text + "|fi": "fi", text + "|": ""} {
 				in, err := cl.CostLabelsIn(ctx, loc)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got, ok := in[text]; (want == "Gross salary") != ok || (ok && got != want) {
+				if got, ok := in[text]; (want == "Брутна заплата") != ok || (ok && got != want) {
 					t.Errorf("CostLabelsIn(%q)[text] = %q %v; want %q (the master's text is no entry)", loc, got, ok, want)
 				}
 			}
 			for why, bad := range map[string]map[string]string{
 				"the master's text changed": {master: "Other"}, "an unknown locale": {"xx": "x"},
-				"an empty label": {"en": " "}, "a 101-character label": {"en": string(make([]rune, 101))},
+				"an empty label": {"bg": " "}, "a 101-character label": {"bg": string(make([]rune, 101))},
 			} {
 				if err := cl.SetCostEntryLabels(ctx, e.ID, bad, "acc"); err == nil || errors.Is(err, ErrNotFound) {
 					t.Errorf("%s: %v, want a check error", why, err)

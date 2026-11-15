@@ -69,7 +69,7 @@ func costLabelPick(labels map[string]string, locale, master, text string) string
 }
 
 // MemCostLabelMaster is the Memory driver's master locale, rdb 0285's seed.
-const MemCostLabelMaster = "bg"
+const MemCostLabelMaster = "en"
 
 // The Memory driver's labels beside the store: entry id -> locale -> text,
 // and component -> locale -> text.

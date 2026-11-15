@@ -142,6 +142,13 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- set _ = bl_ents.append(e["tenant"] ~ ":" ~ e["box"] ~ ":" ~ e["lock_pubkey"]) %}
 {%- endfor %}
 {%- set _ = run_env.update({"SPOOL_HUB_BOX_LOCKS_EXPECTED": bl_ents | join(",")}) %}
+{#- SPL-5594 (owner poll answer B on SPL-5514): the take / ack deferral, cnf
+    box.desk_ack_defer_s seconds, reaches the hub as a Go duration; the
+    unanswered escalation waits it plus SPOOL_HUB_UNANSWERED_GRACE. No key =
+    no variable (the hub's 0s: no wait) #}
+{%- if box is defined and box["desk_ack_defer_s"] is defined %}
+{%- set _ = run_env.update({"SPOOL_HUB_DESK_ACK_DEFER": (box["desk_ack_defer_s"] | int | string) ~ "s"}) %}
+{%- endif %}
 {#- spec 075 repo-edit T01: the GitHub App key's slot is 07's own resource
     (imported, never in auth_secret_ids); SPOOL_GITHUB_APP_KEY is injected
     only while docs.repo_edit.inject is "true" (a version exists) #}

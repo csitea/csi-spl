@@ -542,6 +542,10 @@ flowchart LR
    - Only an answer counts: a take line or an earlier "noted" line after the vote is an acknowledgement already, so the tick posts no second line and still wakes the holder (log `action=acked`); a post to another agent answers nobody.
    - Why: c-518 counted 55 take and noted lines in csitea in the week to 2026-11-14; 37 of the 54 that an agent post followed got a real answer within 5 minutes anyway. The take line (`do_spl_take`, [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md) section 3) waits the same way.
    - Test: `csi-spl-orc/src/bash/tests/spl-ack-take-quiet.tst.sh` (cases a and b, poll part).
+8. **The escalations wait for the deferral (SPL-5594, owner poll answer B on SPL-5514, msg 207e98c8)**:
+   - The hub's unanswered escalation (`internal/hub/relay.go` `escalateUnanswered`) waits `env.box.desk_ack_defer_s` plus `SPOOL_HUB_UNANSWERED_GRACE` (300 s + 120 s): step 030 renders the cnf key as `SPOOL_HUB_DESK_ACK_DEFER` for dev and prd, and `hub.UnansweredAfter` adds it to the grace. Test: `internal/hub/unanswered_defer_test.go`; the render: `csi-spl-iac/src/bash/tests/hub-desk-ack-defer-030.tst.sh`.
+   - `do_spl_unanswered_sweep` lists and escalates a post only after the same deferral plus `SWEEP_DEFER_MARGIN` (60 s), whatever `SWEEP_MIN_AGE` / `SWEEP_ESCALATE_AGE` say: with the cron's 3 / 5 minutes it lists at minute 6 and escalates at minute 7. Test: `csi-spl-orc/src/bash/tests/unanswered-sweep-defer.tst.sh`.
+   - The hub value reaches Cloud Run with the next step 030 apply on each env; the CI hub deploy rolls only the image.
 
 #### 3. Refusals & Escalations
 - **Non-Owner Response**: If poll answer is from an agent or non-owner, ignore.

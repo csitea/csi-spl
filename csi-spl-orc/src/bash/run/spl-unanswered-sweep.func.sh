@@ -56,6 +56,10 @@
 # @description With SWEEP_ESCALATE_AGE an item is escalated, once, as soon as
 # @description its oldest unanswered post is that many minutes old (the cron
 # @description line: SWEEP_MIN_AGE=3, SWEEP_ESCALATE_AGE=5, every minute).
+# @description Neither comes before the take / ack deferral (cnf
+# @description env.box.desk_ack_defer_s) plus SWEEP_DEFER_MARGIN: the
+# @description deferred take line lands first (SPL-5594, owner poll B on
+# @description SPL-5514).
 # @description The memory is <spool root>/dispatch/unanswered.state (an item is
 # @description a topic's oldest unanswered human post: more human posts keep
 # @description it one item; one after an agent reply is a new item),
@@ -90,6 +94,8 @@
 # @param SWEEP_RESEND (optional) - seconds before a re-send and again before the escalation, default 7200
 # @param SWEEP_TAKE_GRACE (optional) - minutes a take line holds its topic before it is open again, default 30
 # @param SWEEP_ESCALATE_AGE (optional) - minutes from the oldest unanswered post to the escalation; unset = the two-SWEEP_RESEND path
+# @param ACK_DEFER_S (optional) - replaces cnf env.box.desk_ack_defer_s, the take / ack deferral in seconds; listing and escalation wait it plus SWEEP_DEFER_MARGIN (SPL-5594); 0 = no wait
+# @param SWEEP_DEFER_MARGIN (optional) - seconds after the deferral before a post is listed or escalated, default 60
 # @param SWEEP_SKIP_TENANTS (optional) - space-separated test workspaces, default e2e; <spool root>/dispatch/test-workspaces adds to it (one id per line)
 # @param SWEEP_SKIP_RE (optional) - a workspace id or name matching this ERE is a test one, default (^|[-_ ])(e2e|test|proof)([-_ ]|$)
 # @param SWEEP_SKIP_CHANNELS (optional) - default "issues tasks probe" (probe: wf 30's live proof posts, SPL-1632)
@@ -112,6 +118,9 @@ do_spl_unanswered_sweep() {
   [[ "$deliver" == 0 || "$deliver" == 1 ]] || { do_log "FATAL DELIVER must be 0 or 1"; return 1; }
   for v in SWEEP_MIN_AGE SWEEP_DAYS SWEEP_RESEND SWEEP_MAX_ITEMS SWEEP_ESCALATE_AGE SWEEP_TAKE_GRACE SWEEP_FULL_EVERY SWEEP_OVERLAP; do
     [[ -z "${!v:-}" || "${!v}" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL $v must be a positive integer, got: '${!v}'"; return 1; }
+  done
+  for v in ACK_DEFER_S SWEEP_DEFER_MARGIN; do
+    [[ -z "${!v:-}" || "${!v}" =~ ^[0-9]+$ ]] || { do_log "FATAL $v must be a whole number of seconds, got: '${!v}'"; return 1; }
   done
   spl_lease_init ro || return 1
   spl_lease_conf
@@ -569,12 +578,24 @@ _spl_sweep_take_sql() {
   printf "(%s.typed_by IS NULL AND %s.from_id NOT LIKE 'HUM-%%' AND %s.from_id NOT LIKE 'GST-%%' AND %s.body LIKE 'Taken by %%: %% I post the result here.')" "$1" "$1" "$1" "$1"
 }
 
+# spl_sweep_defer_s: the take / ack deferral in seconds (SPL-5594): ACK_DEFER_S,
+# else cnf env.box.desk_ack_defer_s (the key do_spl_take and
+# do_spl_desk_poll_ack wait on); 0 when neither is a number.
+spl_sweep_defer_s() {
+  local s="${ACK_DEFER_S:-}"
+  if [[ -z "$s" ]]; then
+    declare -F spl_box_ws_cnf >/dev/null || source "${PROJ_PATH:-}/lib/bash/funcs/spl-box-workspace.func.sh" 2>/dev/null
+    declare -F spl_box_ws_cnf >/dev/null && s="$(spl_box_ws_cnf desk_ack_defer_s)"
+  fi
+  [[ "$s" =~ ^[0-9]+$ ]] && echo "$s" || echo 0
+}
+
 # spl_sweep_classify <rows> <state> <outdir>: writes report.md, holder.md,
 # orch.md (empty = nothing to send), state.new and last into <outdir>.
 spl_sweep_classify() {
   SKIP_T="$(spl_test_workspaces)" SKIP_RE="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}" \
   SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks probe}" ACKS="$LEASE_DIR/unanswered.acks" \
   SKIP_HUM="${SWEEP_SKIP_HUMANS-$([[ "${ENV:-}" == prd ]] && echo HUM-1)}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" ESC_AGE="${SWEEP_ESCALATE_AGE:-}" \
-  TAKE_GRACE="${SWEEP_TAKE_GRACE:-30}" \
+  TAKE_GRACE="${SWEEP_TAKE_GRACE:-30}" DEFER_S="$(spl_sweep_defer_s)" DEFER_MARGIN_S="${SWEEP_DEFER_MARGIN:-60}" \
   MAX_ITEMS="${SWEEP_MAX_ITEMS:-40}" python3 "$(dirname "${BASH_SOURCE[0]}")/../scripts/unanswered-sweep-classify.py" "$@"
 }

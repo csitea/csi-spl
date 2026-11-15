@@ -375,6 +375,10 @@ type Hub struct {
 	// the backstop against a post reaching no live agent AND no fallback.
 	// 0 = off. Requires Fallback.
 	UnansweredGrace time.Duration `env:"SPOOL_HUB_UNANSWERED_GRACE" envDefault:"120s"`
+	// SPL-5594 (owner poll answer B on SPL-5514): the take / ack deferral, cnf
+	// env.box.desk_ack_defer_s rendered by step 030 as "<n>s". The escalation
+	// waits DeskAckDefer + UnansweredGrace (hub.UnansweredAfter). 0 = no wait.
+	DeskAckDefer time.Duration `env:"SPOOL_HUB_DESK_ACK_DEFER" envDefault:"0s"`
 	// SPL-1225 miss fix (prd t1 4b0ba40a): a post escalated but still unanswered
 	// (its poke was refused and dropped) is re-escalated - re-poked, rotating to
 	// the next responder / any awake agent - REESCALATE_EVERY after its last

@@ -4,7 +4,7 @@
 Run by spl_sweep_classify <rows> <state> <outdir> (spl-unanswered-sweep.func.sh),
 which passes its settings as environment (SWEEP_NOW, MIN_AGE, RESEND,
 MAX_ITEMS, SKIP_T, SKIP_RE, SKIP_CH, SKIP_HUM, ACKS, SWEEP_TO_ID,
-SWEEP_ORCH_ID, ENVN, ESC_AGE). Writes report.md, holder.md, orch.md (empty = nothing
+SWEEP_ORCH_ID, ENVN, ESC_AGE, DEFER_S, DEFER_MARGIN_S). Writes report.md, holder.md, orch.md (empty = nothing
 to send), state.new and last into <outdir>.
 
 A row is the topic's last message (13 columns) plus, from the hub, the time
@@ -33,6 +33,16 @@ now = int(e["SWEEP_NOW"])
 min_age = int(e["MIN_AGE"]) * 60
 resend = int(e["RESEND"])
 esc_age = int(e.get("ESC_AGE") or 0) * 60
+# SPL-5594 (owner poll answer B on SPL-5514): a post is listed and escalated
+# only once the take / ack deferral (cnf env.box.desk_ack_defer_s, DEFER_S)
+# plus DEFER_MARGIN_S has passed, so the deferred take line lands first.
+# DEFER_S 0 (no cnf) keeps MIN_AGE and ESC_AGE as they are.
+defer_floor = int(e.get("DEFER_S") or 0)
+if defer_floor > 0:
+    defer_floor += int(e.get("DEFER_MARGIN_S") or 0)
+min_age = max(min_age, defer_floor)
+if esc_age:
+    esc_age = max(esc_age, defer_floor)
 take_grace = int(e.get("TAKE_GRACE") or 30) * 60
 max_items = int(e["MAX_ITEMS"])
 skip_t = set(e["SKIP_T"].split())

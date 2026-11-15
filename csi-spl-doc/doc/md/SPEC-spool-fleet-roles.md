@@ -217,7 +217,7 @@ it, so a post never gets two answers:
 | in a topic an OD already owns | the owner (below); every other OD that receives it leaves it, and forwards it to the owner if it reached only them |
 | new (a new topic, or a topic no OD owns) | the dispatch lease holder (section 4), at once |
 | names an OD (`@c-001`) | that OD |
-| still unanswered after 2 minutes (no agent reply in the topic) | the orchestrator lease holder, as the 3-minute backstop; it then owns the topic |
+| still unanswered after the take line's wait plus 2 minutes (no agent reply in the topic; the hub escalation, below) | the orchestrator lease holder, as the backstop; it then owns the topic |
 
 A seat on standby (the failover while the master holds the lease, the other
 machine's trio while this one holds it) reads and takes nothing.
@@ -242,8 +242,13 @@ nothing (`TAKE-QUIET`) when an agent answered that post first. The poll
 acknowledgement (`do_spl_desk_poll_ack`, "**In progress**: noted") waits the
 same way. A take line or a "noted" line is an acknowledgement, never an
 answer, and one is enough: neither posts after the other. The wait is longer
-than the 2-minute backstop and the 3-minute rule above; SPL-5514's review
-(W3) put that to the owner. In the
+than the 3-minute rule above; SPL-5514's review (W3) put that to the owner,
+who answered **B** (msg 207e98c8: "Keep 5 min; hub escalation and sweep wait
+for it"; SPL-5594): the hub's unanswered escalation fires only after the
+same `env.box.desk_ack_defer_s` plus `SPOOL_HUB_UNANSWERED_GRACE` (step 030
+renders the key as `SPOOL_HUB_DESK_ACK_DEFER`, `hub.UnansweredAfter`), and
+the unanswered sweep (3.2) lists and escalates a post only after the
+deferral plus `SWEEP_DEFER_MARGIN`, so the take line lands first. In the
 week to 2026-11-14, 37 of 54 such lines were followed by an answer within 5
 minutes (c-518's count, n=54).
 
@@ -327,7 +332,7 @@ topic whose LAST message is a human's and older than 15 minutes.
 | a human's post addressed to another human (a DM or a channel post to `HUM-n`), or in `#issues` / `#tasks` | leaves it |
 | a post by the probe human (`SWEEP_SKIP_HUMANS`, default `HUM-1` on prd) | leaves it |
 | a post a dispatcher acked (`do_spl_unanswered_ack`) | leaves it: handled, until a new human post in that topic |
-| a human's, younger than 15 minutes | leaves it: the live delivery has it |
+| a human's, younger than 15 minutes (`SWEEP_MIN_AGE`), and never younger than the take line's wait `env.box.desk_ack_defer_s` plus `SWEEP_DEFER_MARGIN` (60 s; SPL-5594) | leaves it: the live delivery has it |
 | a pure acknowledgement ("ok", "thanks", emoji only) | lists it in its own table, never sends it |
 | any other human post | sends it to the lease holder |
 

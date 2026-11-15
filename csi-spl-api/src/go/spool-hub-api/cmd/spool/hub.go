@@ -372,7 +372,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		WakeWUI:         hc.WakeWUI,
 		HumanPostGuard:  hc.HumanPostGuard,
 		OwnerPrioWords:  hc.OwnerPrioWords,
-		UnansweredGrace: hc.UnansweredGrace,
+		UnansweredGrace: hub.UnansweredAfter(hc.UnansweredGrace, hc.DeskAckDefer),
 		ReescalateEvery: hc.ReescalateEvery,
 		ReescalateMax:   hc.ReescalateMax,
 		AllowTextOnly:   hc.AllowTextOnly, Version: version, Commit: commit, BuiltAt: builtAt,

@@ -45,14 +45,45 @@ func (e *metaPubEnv) metaSchedule(t *testing.T, ch store.MarketingChannel, ref s
 	}
 }
 
+// ownMails is the env's mails to the workspace's admin (the Page's
+// holder): on a shared Postgres the sweep also reports other tests'
+// tenants (SPL-5628), so an assert counts only this tenant's.
+func (e *metaPubEnv) ownMails(t *testing.T) []string {
+	t.Helper()
+	members, err := e.st.(store.MemberDirectory).ListMembers(context.Background(), e.tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to := ""
+	for _, m := range members {
+		if m.HumanID == e.admin {
+			to = m.Email
+		}
+	}
+	var out []string
+	for _, m := range *e.mails {
+		if to != "" && strings.HasPrefix(m, to+"|") {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 // N2: a post in flight on the channel (claimed, its Meta call not answered
-// yet) takes the cap's one place: an approval meanwhile posts nothing.
+// yet) takes the cap's one place: an approval meanwhile posts nothing. The
+// claim is finished at the end, so no other test's stuck sweep counts it
+// (SPL-5628).
 func TestMarketingMetaCapCountsInFlight(t *testing.T) {
 	e := newMetaPubEnv(t)
 	e.metaSchedule(t, e.page, "2026-10-28-third")
-	if due, err := e.st.(store.Marketing).ClaimMarketingPosts(context.Background(), e.tid, e.page.ID, e.clock.Now()); err != nil || len(due) != 1 {
+	mk := e.st.(store.Marketing)
+	due, err := mk.ClaimMarketingPosts(context.Background(), e.tid, e.page.ID, e.clock.Now())
+	if err != nil || len(due) != 1 {
 		t.Fatalf("in-flight claim: %+v, %v", due, err)
 	}
+	t.Cleanup(func() {
+		_ = mk.FinishMarketingPost(context.Background(), e.tid, due[0].ID, store.MarketingOutcome{Error: "test over"}, e.clock.Now())
+	})
 	code, body := e.publish(t, e.owner, "2026-10-30-hello", e.page)
 	if code != http.StatusOK || body["published"] != float64(0) || body["deferred"] != float64(1) {
 		t.Fatalf("approval while a post is in flight: %d %v, want published 0, deferred 1", code, body)
@@ -83,13 +114,19 @@ func TestMarketingMetaCapUnderRace(t *testing.T) {
 }
 
 // N3: a post the cap holds back in a sweep's batch spends no attempt and is
-// not retried before the window frees.
+// not retried before the window frees. The two posts are scheduled a minute
+// apart, so the oldest-first pick has no created_at tie (SPL-5628), and the
+// Page posts are counted on this test's own fake Meta.
 func TestMarketingMetaCapHoldsBackWithoutAttempt(t *testing.T) {
 	e := newMetaPubEnv(t)
 	e.metaSchedule(t, e.page, "2026-10-28-third")
+	e.clock.add(time.Minute)
 	e.metaSchedule(t, e.page, "2026-10-30-hello")
-	if r := e.sweep(); r.Published != 1 || r.Retried != 0 || r.Failed != 0 {
+	if r := e.sweep(); r.Published != 1 || r.Retried != 0 {
 		t.Fatalf("sweep of two due posts under cap 1: %+v, want published 1, nothing retried", r)
+	}
+	if feeds, _, _ := e.fake.counts(); feeds != 1 {
+		t.Fatalf("%d Page posts from one sweep of two due posts, want 1 (cap 1)", feeds)
 	}
 	held := e.post(t, e.page, "2026-10-30-hello")
 	if held.Status != store.MarketingScheduled || held.Attempts != 0 || held.LastError != "" {
@@ -180,15 +217,15 @@ func TestMarketingMetaStuckNamesPlatform(t *testing.T) {
 		t.Fatalf("claim: %+v, %v", due, err)
 	}
 	e.clock.add(16 * time.Minute)
-	if r := e.sweep(); r.Failed != 1 {
+	if r := e.sweep(); r.Failed < 1 { // the stuck sweep spans tenants: own post and mail below
 		t.Fatalf("sweep of a stuck post: %+v, want failed 1", r)
 	}
 	p := e.post(t, e.page, "2026-10-30-hello")
 	if !strings.Contains(p.LastError, "during the Facebook call") || strings.Contains(p.LastError, "LinkedIn") {
 		t.Fatalf("stuck Meta post error %q, want it to name Facebook", p.LastError)
 	}
-	if len(*e.mails) != 1 || !strings.Contains((*e.mails)[0], "during the Facebook call") {
-		t.Fatalf("mails %v, want one naming the Facebook call", *e.mails)
+	if own := e.ownMails(t); len(own) != 1 || !strings.Contains(own[0], "during the Facebook call") {
+		t.Fatalf("mails to the Page holder %v, want one naming the Facebook call", own)
 	}
 }
 

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -159,11 +160,19 @@ func metaCapTimes(ctx context.Context, tx pgx.Tx, c MetaClaim) ([]time.Time, err
 
 // metaClaimTx claims at most room due posts (the one c.PostID, or the
 // channel's oldest) and writes their post_dispatched events.
+//
+// The sweep's pick is a MATERIALIZED CTE, run once (SPL-5628): as
+// `WHERE post_id IN (SELECT ... LIMIT $4 FOR UPDATE SKIP LOCKED)` the
+// planner may put the subquery on the inner side of a nested loop and run
+// it again for each outer row; each run then skips the rows this UPDATE
+// already changed and returns the next one, so one sweep claimed (and
+// published) every due post of a channel capped at 1.
 func metaClaimTx(ctx context.Context, tx pgx.Tx, c MetaClaim, room int) ([]MarketingPost, error) {
-	q := `UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1, claimed_at = $3, updated_at = $3
-		WHERE post_id IN (SELECT post_id FROM marketing_posts WHERE tenant_id = $1 AND channel_id = $2::uuid
+	q := `WITH pick AS MATERIALIZED (SELECT post_id AS pick_id FROM marketing_posts WHERE tenant_id = $1 AND channel_id = $2::uuid
 			AND status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)
 			ORDER BY created_at LIMIT $4 FOR UPDATE SKIP LOCKED)
+		UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1, claimed_at = $3, updated_at = $3
+		FROM pick WHERE post_id = pick.pick_id AND tenant_id = $1
 		RETURNING ` + mktPostCols
 	args := []any{c.Tenant, c.ChannelID, c.Now, room}
 	if c.PostID != "" { // a plain UPDATE waits for a racing lock on the row, then re-reads its status
@@ -173,7 +182,11 @@ func metaClaimTx(ctx context.Context, tx pgx.Tx, c MetaClaim, room int) ([]Marke
 		RETURNING ` + mktPostCols
 		args[3] = c.PostID
 	}
-	return mktClaimTx(ctx, tx, c.Tenant, q, args)
+	posts, err := mktClaimTx(ctx, tx, c.Tenant, q, args)
+	if err == nil && len(posts) > room { // never publish past the cap: the error rolls the claim back
+		return nil, fmt.Errorf("meta claim of channel %s took %d posts, room for %d: rolled back", c.ChannelID, len(posts), room)
+	}
+	return posts, err
 }
 
 // metaDueLeft: a due post of the claim is still scheduled (the cap held it).

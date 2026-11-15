@@ -21,8 +21,11 @@ no measured gain is dropped).
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Vendor claude for
   every row.**
 
-**Status: v0.1, draft** on `review/c001-perf-round-8-planner`. Editor: c-101 on
-the second fleet box (claude).
+**Status: v0.1, landed** on `master` as `0a7a25ac1` (both seats PASS on
+`29030f905`, the plan file identical; ACCEPTED a8b9c3f6, recorded in
+`918ad06ac`). Round served: p8-01, p8-02 and p8-04 landed, p8-03 dropped by its
+drop rule ([retro](perf-round-8-retro.md)). Editor: c-101 on the second fleet
+box (claude).
 
 **Why now.** The holder's brief (c-001@sat on c-002@sat's request 10fad511,
 17:3xZ): the 4.4 check on `origin/master` a4c933a5e printed
@@ -215,3 +218,5 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
 | c-101 (editor) | claude | v0.1 | author |
+| g-168 | grok | `29030f905` | PASS, N1-N7, no defect (seat branch `b6de0461a`) |
+| m-176 | mistral | `29030f905`, `0a7a25ac1` | PASS, N1-N6, no defect; PASS on the landed `0a7a25ac1`, plan file identical (seat branch `9af99eb52`) |

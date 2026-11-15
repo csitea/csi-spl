@@ -16,19 +16,31 @@
 # @example CON_TF_RUNNER=con-org-app-tf-runner ./run -a do_check_container_dns
 #------------------------------------------------------------------------------
 
+# The helpers this action calls, each defined by its real body: under ./run
+# a not-yet-loaded lib function is a lazy stub (`_rl_load <k> <fn>`), which
+# `declare -f` also reports, so a stub does not count as loaded.
+_dns_helpers_loaded() {
+  local f body
+  for f in _dns_normalize_set _dns_host_nameservers_from_file \
+    _dns_container_nameservers_from_resolv; do
+    body="$(declare -f "$f" 2>/dev/null)" || return 1
+    [[ "$body" == *_rl_load* ]] && return 1
+  done
+  return 0
+}
+
 _dns_ensure_helpers() {
-  if declare -f _dns_normalize_set >/dev/null 2>&1; then
-    return 0
-  fi
-  # The helpers live in lib/bash/funcs. Under ./run they are already
-  # defined, so the check above returns; a bare source of this file (a
-  # test, another caller) loads them here. readlink -f: a symlinked copy
-  # still finds the lib of the real tree. A failed load fails the action.
+  _dns_helpers_loaded && return 0
+  # The helpers live in lib/bash/funcs. A bare source of this file (a test,
+  # another caller) has none; under ./run they are lazy stubs. Either way,
+  # source the lib and require the real bodies: a missing or broken lib
+  # fails the action instead of skipping it. readlink -f: a symlinked copy
+  # still finds the lib of the real tree.
   local here lib
   here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
   lib="${here}/../../../lib/bash/funcs/dns-resolver-sets.func.sh"
   # shellcheck disable=SC1090
-  if source "$lib" && declare -f _dns_normalize_set >/dev/null 2>&1; then
+  if source "$lib" && _dns_helpers_loaded; then
     return 0
   fi
   if declare -f do_log >/dev/null 2>&1; then

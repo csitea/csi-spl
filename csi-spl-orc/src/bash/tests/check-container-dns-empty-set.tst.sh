@@ -8,6 +8,9 @@
 #          nothing real is restarted.
 #------------------------------------------------------------------------------
 set -uo pipefail
+# The expected set strings below are in C collation order (sort -u in the
+# resolver helpers follows the locale): pin it so en_US hosts agree.
+export LC_ALL=C
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 fails=0

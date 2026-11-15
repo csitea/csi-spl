@@ -5,8 +5,9 @@
 #          _dns_ensure_helpers loads lib/bash/funcs/dns-resolver-sets.func.sh,
 #          and do_check_container_dns runs its mismatch path end to end, also
 #          through a symlinked copy; with the lib file absent it fails fast
-#          (rc 1, ERROR) instead of skipping. DRY_RUN=1 and a docker stub:
-#          nothing real is restarted.
+#          (rc 1, ERROR) instead of skipping. Under ./run the lib helpers are
+#          lazy stubs, so a syntax-broken lib must still fail (rc 1, ERROR),
+#          never skip. DRY_RUN=1 and a docker stub: nothing real is restarted.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -118,6 +119,49 @@ if grep -q 'skipping' "$work/log" 2>/dev/null; then
   fail "lib absent: logged a silent skip: $(cat "$work/log")"
 else
   pass "lib absent: no skip logged"
+fi
+
+# 5. through ./run (a minimal tree: run.sh, this action, lib/bash/funcs):
+# the lib helpers are lazy stubs there, so `declare -f` alone is no proof.
+# Lib intact: the mismatch path runs. Lib syntax-broken: rc 1 + ERROR.
+tree="$work/runtree"
+mkdir -p "$tree/src/bash/run" "$tree/lib/bash"
+cp "$PROJ_ROOT/src/bash/run/run.sh" "$func" "$tree/src/bash/run/"
+cp -r "$PROJ_ROOT/lib/bash/funcs" "$tree/lib/bash/"
+ln -s src/bash/run/run.sh "$tree/run"
+# prints rc; stdout+stderr in $work/out, docker restarts in $work/restarts
+run_via_run() {
+  rm -f "$work/out" "$work/restarts"
+  (cd "$tree" && env -i PATH="$work/bin:$PATH" HOME="$work" \
+    CON_RESOLV_FILE="$work/con.conf" DOCKER_RESTARTS="$work/restarts" \
+    CON_TF_RUNNER=con-test-tf-runner HOST_RESOLV_CONF="$work/host.conf" \
+    DRY_RUN=1 DNS_CHECK_FORCE_HOST=1 SKIP_CONTAINER_DNS_CHECK=0 \
+    ./run -a do_check_container_dns) >"$work/out" 2>&1
+  echo "$?"
+}
+rc=$(run_via_run)
+if [[ $rc -eq 0 ]] && grep -q 'DRY_RUN: would docker restart con-test-tf-runner' "$work/out"; then
+  pass "./run, lib intact: mismatch takes the restart path"
+else
+  fail "./run, lib intact: rc $rc; out: $(cat "$work/out")"
+fi
+sed -i '/^_dns_normalize_set() {/a if true; then' \
+  "$tree/lib/bash/funcs/dns-resolver-sets.func.sh"
+rc=$(run_via_run)
+if [[ $rc -ne 0 ]] && grep -q 'ERROR resolver-set helpers not loaded from ' "$work/out"; then
+  pass "./run, lib syntax-broken: fails (rc $rc) with ERROR"
+else
+  fail "./run, lib syntax-broken: rc $rc; out: $(cat "$work/out")"
+fi
+if grep -q 'skipping' "$work/out"; then
+  fail "./run, lib syntax-broken: logged a silent skip: $(cat "$work/out")"
+else
+  pass "./run, lib syntax-broken: no skip logged"
+fi
+if [[ ! -s "$work/restarts" ]]; then
+  pass "./run: docker restart never called"
+else
+  fail "./run: docker restart called: $(cat "$work/restarts")"
 fi
 
 if [[ $fails -eq 0 ]]; then

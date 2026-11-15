@@ -20,10 +20,12 @@ _dns_ensure_helpers() {
   if declare -f _dns_normalize_set >/dev/null 2>&1; then
     return 0
   fi
+  # The helpers live in lib/bash/funcs, which ./run loads first; a bare
+  # source of this file (a test, another caller) loads them from there.
   local here
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck disable=SC1091
-  source "${here}/flush-dns.func.sh"
+  source "${here}/../../../lib/bash/funcs/dns-resolver-sets.func.sh"
 }
 
 # Resolve con-<org>-<app>[-<tree-slug>]-tf-runner. TREE_SLUG covers the

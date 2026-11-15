@@ -1701,14 +1701,14 @@ jobs:
             sweep_n=$((sweep_n + 1))
             printf '%s\n' "$1" >"$sweep_dir/$sweep_n.out"; echo 0 >"$sweep_dir/$sweep_n.rc"
           }
-          # shellcheck disable=SC2317  # called by the traps below
+          # shellcheck disable=SC2317,SC2329  # called by the traps below
           sweep_stop() { # <exit code>
             local p
             sweep_killed=1
             for p in $(jobs -p); do kill "$p" 2>/dev/null || true; done
             exit "$1"
           }
-          # shellcheck disable=SC2317  # called by the traps below
+          # shellcheck disable=SC2317,SC2329  # called by the traps below
           sweep_exit() {
             local rc=$?
             if (( ! sweep_killed )); then sweep_join; (( fail )) && rc=1; fi

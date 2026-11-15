@@ -27,8 +27,13 @@
 # It FAILS SAFE to `full`: no git tree, no merge-base, the ./run dispatcher
 # changed, or a changed file under csi-spl-orc (not a .md) that no test
 # names. A file outside csi-spl-orc that no orc test names is ignored, with
-# its reason.
-# The always-run tests (ORC_TEST_ALWAYS, space separated) join any selection.
+# its reason. So is a feature test file no test names
+# (src/bash/features/<f>/tests/...): the pre-push part orc-features runs
+# feature <f>'s tests, so it does not force `full` (a `full` plan runs no orc
+# test before the push; 17 of 150 orc commits, SPL-5606).
+# The always-run tests (ORC_TEST_ALWAYS, space separated) join any selection:
+# require-cloud-env.tst.sh and run-eager-files.tst.sh (3 s), which measures
+# the whole ./run index and so names no file a map could select it by.
 # A test that reaches the changed file only through another file is NOT
 # selected: CI and the default mode still run the whole suite.
 # ORC_TEST_FILES (repo paths, space or newline separated) replaces the git
@@ -37,7 +42,7 @@
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 base_ref="${ORC_TEST_BASE:-origin/master}"
-always="${ORC_TEST_ALWAYS-require-cloud-env.tst.sh}"
+always="${ORC_TEST_ALWAYS-require-cloud-env.tst.sh run-eager-files.tst.sh}"
 # the action dispatcher every ./run -a test goes through: a change there is
 # a change to every action
 shared=' run src/bash/run/run.sh '
@@ -47,6 +52,7 @@ full() { printf 'full\t%s\n' "$1"; exit 0; }
 top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || full "not a git tree"
 tests_rel=$(git -C "$dir" rev-parse --show-prefix)   # <orc>/src/bash/tests/
 orc="${tests_rel%src/bash/tests/}"                   # <orc>/
+feat="${orc}src/bash/features/"                      # <orc>/src/bash/features/
 base=$(git -C "$top" merge-base "$base_ref" HEAD 2>/dev/null) || full "no merge-base with $base_ref (git fetch origin master first)"
 
 if [[ -n "${ORC_TEST_FILES:-}" ]]; then
@@ -98,6 +104,8 @@ while IFS= read -r f; do
     while IFS= read -r t; do add "$t" "names $f"; done <<<"$hits"
   elif [[ "$f" == *.md ]]; then
     printf 'ignore\t%s\t%s\n' "$f" "doc"
+  elif [[ "$f" == "$feat"*/tests/* && "${f#"$feat"*/}" == tests/* ]]; then
+    printf 'ignore\t%s\t%s\n' "$f" "feature test, run by the pre-push part orc-features"
   elif [[ "$f" == "$orc"* ]]; then
     full "no test names $f"
   else

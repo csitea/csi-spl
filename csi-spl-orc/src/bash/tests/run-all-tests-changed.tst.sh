@@ -26,6 +26,12 @@
 #      select every test that names do_log (SPL-5321: 389 orc files for one
 #      relay change); CONTROL: a function only the script defines still
 #      selects its test
+#  12. a feature test file no test names (features/<f>/tests/...) is left
+#      to the pre-push part orc-features, not a fallback to every file, and
+#      run-eager-files.tst.sh joins the always-run list (SPL-5606, the D7 red
+#      of 035dc1501 forced `full`, so no orc test ran before its push);
+#      CONTROL: a feature file outside tests/ that no test names still falls
+#      back to every file
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -123,6 +129,21 @@ grep -q 'log.tst.sh' <<<"$plan11" && fail "11 a do_log stand-in must not select 
   || pass "11 a stand-in for a dispatcher function selects no test that names it"
 [ "$plan11" = "$(printf 'run\thop.tst.sh\tnames csi-spl-orc/src/bash/scripts/relay.sh')" ] \
   && pass "11 CONTROL a function only the script defines selects its test" || fail "11 control" "$plan11"
+g reset -q --hard master; g clean -qfd
+# 12
+F="$O/src/bash/features/demo"; mkdir -p "$F/tests" "$F/lib"
+printf '#!/usr/bin/env bash\necho eager\n' >"$D/run-eager-files.tst.sh"
+printf '#!/usr/bin/env bash\necho t\n' >"$F/tests/test-demo-thing.sh"
+printf 'demo_thing_fn() { :; }\n' >"$F/lib/demo-thing.inc.sh"
+g add -A; g commit -qm 'a feature with a test, the eager test'
+printf 'echo t2\n' >>"$F/tests/test-demo-thing.sh"; g add -A; g commit -qm 'feature test'
+plan12=$( (cd "$R" && ORC_TEST_BASE=HEAD~1 bash "$D/changed-tests.sh") )
+[ "$plan12" = "$(printf 'ignore\tcsi-spl-orc/src/bash/features/demo/tests/test-demo-thing.sh\tfeature test, run by the pre-push part orc-features\nrun\trequire-cloud-env.tst.sh\talways-run\nrun\trun-eager-files.tst.sh\talways-run')" ] \
+  && pass "12 a feature test file is left to orc-features; run-eager-files.tst.sh is always-run" || fail "12 feature test" "$plan12"
+printf 'demo_thing_fn2() { :; }\n' >>"$F/lib/demo-thing.inc.sh"; g add -A; g commit -qm 'feature lib'
+plan12c=$( (cd "$R" && ORC_TEST_BASE=HEAD~1 bash "$D/changed-tests.sh") )
+[ "$plan12c" = "$(printf 'full\tno test names csi-spl-orc/src/bash/features/demo/lib/demo-thing.inc.sh')" ] \
+  && pass "12 CONTROL a feature file outside tests/ no test names still falls back to every file" || fail "12 control" "$plan12c"
 g reset -q --hard master; g clean -qfd
 # 8
 printf 'do_foo() { echo foo4; }\n' >"$O/lib/bash/funcs/foo.func.sh"

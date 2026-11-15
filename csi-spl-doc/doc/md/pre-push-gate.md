@@ -76,7 +76,14 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   `features/` selects all of them, and any other orc file selects the
   features whose `tests/test-*.sh` name its basename or stem as a whole
   word. Before it, a change there made the orc map fall back to `full`,
-  which the fast tier leaves to CI. spawn-agents (80 files) took 85 s on
+  which the fast tier leaves to CI. The orc map
+  (`csi-spl-orc/src/bash/tests/changed-tests.sh`) therefore ignores a
+  feature test file no orc test names (`features/<f>/tests/...`) instead
+  of answering `full`, so the orc part still runs what the rest of the
+  change selects, and `run-eager-files.tst.sh` (3 s, it names no file) is
+  on its always-run list with `require-cloud-env.tst.sh` (SPL-5606: the
+  feature test of 035dc1501 forced `full`, so `lane-restart.tst.sh`, which
+  went red on trunk, ran only in CI). spawn-agents (80 files) took 85 s on
   the first box at load 15.7, n=1; the budget is the table rows
   `orc_features_fast` and `orc_features_full` (section 1.4), raised by
   `PRE_PUSH_FEATURES_TIMEOUT`. Print a selection:

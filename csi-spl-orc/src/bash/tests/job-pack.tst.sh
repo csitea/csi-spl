@@ -23,12 +23,15 @@
 #      years differ (CHECK), a vacancy technology the CV lacks (CHECK); WARN
 #      on stdout. Years in words back ("five years" = 5); months are not
 #      years ("3 months" against 3 is a CHECK); a row with no number is a
-#      CHECK, never a silent keep
+#      CHECK, never a silent keep; years() on a table of cells: number
+#      words as whole words, longest first ("fourteen" is 14, "someone 5
+#      years" is 5, "none" is no number)
 #   6. a rebuild replaces its own out/; a foreign out/ is refused (rc 2); a
 #      CONTENT lacking a key (rc 2, names it); a replace text not in the base
 #      CV (rc 2); an unreadable vacancy (rc 3); a missing pandoc or chrome
 #      (rc 2, FATAL job-pack, no traceback); a ROLE that is not a plain name
-#      (rc 2, nothing written outside OUT_DIR)
+#      (rc 2, nothing written outside OUT_DIR), nor a LANGS or DATE that
+#      is a path (rc 2, nothing written outside OUT_DIR)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -151,6 +154,18 @@ fit="$(cat "$T/w1/internal/fit.md" 2>/dev/null)"
    "$fit" == *"| Kafka | yes | 3 | 3 months | CHECK: master CV says 3 |"* &&
    "$fit" == *"| Kafka | yes | 3 | pitkä kokemus | CHECK: the pack gives no years |"* ]] &&
   pass "5. fit: years in words back, months and no number are CHECK" || fail "5. fit words (rc $rc): $fit"
+yr="$(python3 -I - "$PROJ_ROOT/src/bash/scripts/job-pack.py" <<'EOF'
+import importlib.util as u, sys
+s = u.spec_from_file_location("jp", sys.argv[1]); m = u.module_from_spec(s); s.loader.exec_module(m)
+want = {"fourteen years": 14, "sixteen years": 16, "seventeen": 17, "eighteen years": 18,
+        "nineteen years": 19, "twenty years": 20, "none": None, "someone 5 years": 5,
+        "five years": 5, "viisi vuotta": 5, "kymmenen vuotta": 10, "5+ years": 5,
+        "2,5 years": 2.5, "6 months": 0.5, "pitkä kokemus": None}
+bad = [f"{k!r}={m.years(k)!r}" for k, v in want.items() if m.years(k) != v]
+print("BAD " + " ".join(bad) if bad else "OK")
+EOF
+)"
+[[ "$yr" == OK ]] && pass "5. years(): whole number words, longest first" || fail "5. years(): $yr"
 grep -q "sha256 \`[0-9a-f]\{64\}\`" "$P/internal/files.md" && pass "5. files.md: the zip sha256" || fail "5. files.md"
 
 # --- 6. rebuild and refusals -----------------------------------------------------------------
@@ -176,8 +191,16 @@ for tool in pandoc chrome; do
 done
 sed 's#^ROLE = .*#ROLE = "../../escaped"#' "$FX/content.py" >"$T/bad-role.py"
 out="$(act OUT_DIR="$T/r1/x" VACANCY_URL="file://$FX/vacancy.html" MASTER_CV_DIR="$FX/master-cvs" CONTENT="$T/bad-role.py")"; rc=$?
-[[ "$rc" == 2 && "$out" == *"is not a plain name"* && -z "$(find "$T/r1" -maxdepth 1 -mindepth 1 ! -name x)" ]] &&
+[[ "$rc" == 2 && "$out" == *"ROLE '../../escaped' is not"* && -z "$(find "$T/r1" -maxdepth 1 -mindepth 1 ! -name x)" ]] &&
   pass "6. a ROLE with ../: rc 2, nothing outside OUT_DIR" || fail "6. role (rc $rc: $out)"
+for bad in 'LANGS = ["en", "../../zz"]' 'DATE = "../../zz"'; do
+  k="${bad%% *}"; rm -rf "$T/t-$k"; mkdir -p "$T/t-$k"
+  { cat "$FX/content.py"; echo "$bad"; } >"$T/bad-$k.py"
+  out="$(act OUT_DIR="$T/t-$k/x" VACANCY_URL="file://$FX/vacancy.html" MASTER_CV_DIR="$FX/master-cvs" CONTENT="$T/bad-$k.py")"; rc=$?
+  [[ "$rc" == 2 && "$out" == *"$k '../../zz' is not"* && -z "$(find "$T/t-$k" "$T" -maxdepth 1 -name zz)" &&
+     -z "$(find "$T/t-$k" -maxdepth 1 -mindepth 1 ! -name x)" ]] &&
+    pass "6. a $k with ../: rc 2, nothing outside OUT_DIR" || fail "6. $k (rc $rc: $out)"
+done
 
 [[ "$fails" == 0 ]] && echo "OK job-pack: all passed" || echo "FAIL job-pack: $fails failed"
 ((fails == 0))

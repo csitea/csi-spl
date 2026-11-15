@@ -43,6 +43,9 @@ DOCS = {
 }
 MARKER = ".job-pack"
 EMAIL_RX = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PLAIN_RX = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+LANG_TOKEN_RX = re.compile(r"[a-z]{2}")
+DATE_RX = re.compile(r"\d{4}-\d{2}-\d{2}")
 LANG_RX = re.compile(r"(?i)(?:^|[-_.])(en|fi|sv)(?:[-_.]|$)")
 REQUIRED = (
     "NAME",
@@ -194,11 +197,6 @@ class Pack:
             datetime.timezone.utc
         ).strftime("%Y-%m-%d")
         self.role = c["ROLE"]
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", self.role):
-            raise PackError(
-                f"ROLE {self.role!r} is not a plain name (letters, digits, . _ -): "
-                "it names files and dirs under out/"
-            )
         self.pack = f"{self.slug}-{self.role}-{self.date}"
         self.letter = c.get("LETTER") or c["W"]
         self.dst = os.path.join(out, "out")
@@ -503,7 +501,9 @@ NUM_WORDS = {
     for i, w in enumerate(ws.split())
 }
 YEARS_RX = re.compile(
-    r"(?i)(\d+(?:[.,]\d+)?|" + "|".join(NUM_WORDS) + r")\s*\+?\s*(\w*)"
+    r"(?i)(?<![\w.,])(\d+(?:[.,]\d+)?)\s*\+?\s*(\w*)|\b("
+    + "|".join(sorted(NUM_WORDS, key=len, reverse=True))
+    + r")\b\s*\+?\s*(\w*)"
 )
 
 
@@ -513,9 +513,10 @@ def years(s):
     m = YEARS_RX.search(s or "")
     if not m:
         return None
-    n = m[1].lower()
-    v = NUM_WORDS[n] if n in NUM_WORDS else float(n.replace(",", "."))
-    unit = m[2].lower()
+    if m[1]:
+        v, unit = float(m[1].replace(",", ".")), m[2].lower()
+    else:
+        v, unit = NUM_WORDS[m[3].lower()], m[4].lower()
     if unit.startswith(("month", "kuukau", "kk", "mån")):
         v /= 12
     return v
@@ -664,6 +665,15 @@ def load_content(p):
         raise PackError(
             f"CONTENT {p} lacks {', '.join(missing)} (contract: csi-spl-doc/doc/md/job-pack.md section 3)"
         )
+    # these name files and dirs under out/: plain tokens only, never a path
+    tokens = [("ROLE", c["ROLE"], PLAIN_RX)]
+    tokens += [("LANGS", l, LANG_TOKEN_RX) for l in c["LANGS"]]
+    tokens += [("DATE", c["DATE"], DATE_RX)] if c.get("DATE") else []
+    for k, v, rx in tokens:
+        if not isinstance(v, str) or not rx.fullmatch(v):
+            raise PackError(
+                f"CONTENT {p}: {k} {v!r} is not {rx.pattern}: it names files and dirs under out/"
+            )
     return c
 
 

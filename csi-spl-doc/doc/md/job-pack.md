@@ -69,8 +69,9 @@ cd csi-spl-orc && OUT_DIR=<work dir> MASTER_CV_DIR=<cv dir> CONTENT=<work dir>/c
 Exit: 0 done, 1 a usage refusal, 2 a build refusal (the CONTENT lacks a key,
 a base CV lacks what the CV step needs, a replace text is not found exactly
 once, a foreign `out/`, pandoc or Chrome cannot be run, a `ROLE` that is not
-a plain name of letters, digits, `.`, `_` and `-`), 3 the ad could not be
-fetched. A missing pdfinfo only leaves the page counts as `–`.
+a plain name of letters, digits, `.`, `_` and `-`, a `LANGS` entry that is
+not two lower-case letters, a `DATE` that is not `YYYY-MM-DD`), 3 the ad
+could not be fetched. A missing pdfinfo only leaves the page counts as `–`.
 
 The pick: per language, the base CV whose skills table (`<table
 class="skills">`, first cell of each row) names the most technologies the ad
@@ -129,10 +130,13 @@ generalised by the dispatch holder (SPL-5555, msg fd94e292):
    language's base CV skills table (`backed`, or `CHECK: master CV says N`,
    or `CHECK: not in the master CV skills table`, or `CHECK: the pack gives
    no years` / `CHECK: the master CV gives no years`) and lists each
-   technology the ad names that the CV lacks; the run ends with
-   `WARN fit: <n> row(s) to CHECK`. Years are read as a number or a number
-   word (`5`, `5+ years`, `five years`, `viisi vuotta`); months count as a
-   twelfth of a year, so `3 months` against a master 3 is a CHECK. A CHECK row
+   technology the ad names (`CHECK: the vacancy names it, the CV does not`,
+   or `in the CV skills table only` when the CV lists it but the key table
+   does not); the run ends with `WARN fit: <n> row(s) to CHECK`. Years are
+   read as a number or a whole number word, en up to twenty, fi up to ten
+   (`5`, `5+ years`, `fourteen years`, `viisi vuotta`; `none` or
+   `someone` names no number); months count as a twelfth of a year, so
+   `3 months` against a master 3 is a CHECK. A CHECK row
    is put to the owner as a question before the pack goes out; the action
    never changes a number by itself.
 5. The deliverable is the whole zip plus the recipient address from the ad

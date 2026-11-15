@@ -220,7 +220,7 @@ func TestMarketingMetaApprovalHold(t *testing.T) {
 		Status: store.MarketingAwaitingApproval}, e.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if r1, r2 := e.sweep(), e.sweep(); r1 != (hub.MarketingShareResult{}) || r2 != (hub.MarketingShareResult{}) {
+	if r1, r2 := e.sweepOwn(t, e.page, "2026-10-30-hello"), e.sweepOwn(t, e.page, "2026-10-30-hello"); r1 != (metaOwn{}) || r2 != (metaOwn{}) {
 		t.Fatalf("the sweep acted on a held post: %+v then %+v", r1, r2)
 	}
 	if due, err := mk.ClaimMarketingPosts(context.Background(), e.tid, e.page.ID, e.clock.Now().Add(time.Hour)); err != nil || len(due) != 0 {
@@ -250,7 +250,7 @@ func TestMarketingMetaApprovalHold(t *testing.T) {
 	if code, _ := e.publish(t, e.owner, "2026-10-30-hello", e.page); code != http.StatusConflict {
 		t.Fatalf("second publish: %d, want 409", code)
 	}
-	if r := e.sweep(); r.Published != 0 {
+	if r := e.sweepOwn(t, e.page, "2026-10-30-hello"); r.Published != 0 {
 		t.Fatalf("a sweep re-published: %+v", r)
 	}
 	if feeds, _, _ := e.fake.counts(); feeds != 1 {
@@ -327,7 +327,7 @@ func TestMarketingMetaDailyCap(t *testing.T) {
 		t.Fatalf("second publish the same day: %d %v, want deferred 1", code, body)
 	}
 	e.clock.add(23 * time.Hour)
-	if r := e.sweep(); r.Published != 0 {
+	if r := e.sweepOwn(t, e.page, "2026-10-28-third"); r.Published != 0 {
 		t.Fatalf("published inside the window: %+v", r)
 	}
 	if feeds, _, _ := e.fake.counts(); feeds != 1 {
@@ -337,7 +337,7 @@ func TestMarketingMetaDailyCap(t *testing.T) {
 		t.Fatalf("the waiting post: %+v (never claimed, no attempt spent)", p)
 	}
 	e.clock.add(time.Hour + time.Minute)
-	if r := e.sweep(); r.Published != 1 {
+	if r := e.sweepOwn(t, e.page, "2026-10-28-third"); r.Published != 1 {
 		t.Fatalf("after the window: %+v, want 1 published", r)
 	}
 }
@@ -390,8 +390,8 @@ func TestMarketingMetaRefusedTokenWaitsForReconnect(t *testing.T) {
 			t.Fatalf("channel after 190: %+v, want expired", ch)
 		}
 	}
-	if len(*e.mails) != 1 || !strings.Contains((*e.mails)[0], "https://api.example.com/v1/marketing/facebook/connect?workspace="+e.tid) {
-		t.Fatalf("mails %v, want one re-connect link", *e.mails)
+	if mails := e.ownMails(t); len(mails) != 1 || !strings.Contains(mails[0], "https://api.example.com/v1/marketing/facebook/connect?workspace="+e.tid) {
+		t.Fatalf("mails %v, want one re-connect link", mails)
 	}
 	if p := e.post(t, e.page, "2026-10-30-hello"); p.Status != store.MarketingScheduled {
 		t.Fatalf("post after 190: %+v, want scheduled (waiting)", p)
@@ -405,7 +405,7 @@ func TestMarketingMetaRefusedTokenWaitsForReconnect(t *testing.T) {
 	if _, err := e.st.(store.Marketing).ConnectMarketingChannel(context.Background(), e.page, store.MarketingToken{Ciphertext: sealed, KMSKeyID: keyID}, e.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if r := e.sweep(); r.Published != 1 {
+	if r := e.sweepOwn(t, e.page, "2026-10-30-hello"); r.Published != 1 {
 		t.Fatalf("after the re-connect: %+v, want published 1", r)
 	}
 }
@@ -422,11 +422,11 @@ func TestMarketingMetaRateLimitRetriesAnd500NeverResent(t *testing.T) {
 	}
 	e.fake.set(func(f *metaPubFake) { f.feedFail = nil })
 	e.clock.add(time.Minute)
-	if r := e.sweep(); r.Published != 0 {
+	if r := e.sweepOwn(t, e.page, "2026-10-30-hello"); r.Published != 0 {
 		t.Fatalf("retried before Retry-After: %+v", r)
 	}
 	e.clock.add(2 * time.Minute)
-	if r := e.sweep(); r.Published != 1 {
+	if r := e.sweepOwn(t, e.page, "2026-10-30-hello"); r.Published != 1 {
 		t.Fatalf("after Retry-After: %+v, want published 1", r)
 	}
 
@@ -437,8 +437,8 @@ func TestMarketingMetaRateLimitRetriesAnd500NeverResent(t *testing.T) {
 	}
 	f.clock.add(time.Hour)
 	f.sweep()
-	if feeds, _, _ := f.fake.counts(); feeds != 1 || len(*f.mails) != 1 || !strings.Contains((*f.mails)[0], "will not retry it") {
-		t.Fatalf("after a 500: %d Page posts, mails %v; want 1 and one failure mail", feeds, *f.mails)
+	if feeds, _, _ := f.fake.counts(); feeds != 1 || len(f.ownMails(t)) != 1 || !strings.Contains(f.ownMails(t)[0], "will not retry it") {
+		t.Fatalf("after a 500: %d Page posts, mails %v; want 1 and one failure mail", feeds, f.ownMails(t))
 	}
 }
 

@@ -4,7 +4,11 @@
 # @description gitleaks history scan. Runs a negative control first: a planted
 # @description AWS key pair TruffleHog MUST detect (offline, --no-verification).
 # @description A tool that reports nothing on it proves nothing and the action
-# @description fails closed. Then it scans the working tree for VERIFIED (live)
+# @description fails closed. A control that detected is kept: a mark per key (sha256
+# @description of the resolved binary and of this file, plus the pinned version)
+# @description under ${XDG_CACHE_HOME:-~/.cache}/csi-spl/trufflehog-control/ skips it
+# @description next time; a failed control is never kept. Then it scans the working
+# @description tree for VERIFIED (live)
 # @description secrets only (--only-verified) and fails on any. A missing tool
 # @description fails closed; it is never a skip. Secrets are never printed --
 # @description only the detector type and file path.
@@ -61,13 +65,28 @@ for line in sys.stdin:
 print(n)'
 }
 
-do_sec_trufflehog() {
-  local bin="${SEC_TRUFFLEHOG_BIN:-trufflehog}"
-  _sec_trufflehog_need "$bin" || return 1
-  local root ctl rc n
-  root=$(_sec_trufflehog_root) || return 1
+# The control's verdict key: sha256 of the RESOLVED binary (bin defaults to the
+# bare name), of this file (the control's flags and _sec_trufflehog_count, which
+# the scan reuses) and the pinned version. No key (so no mark) when either file
+# cannot be read, e.g. bin is a shell function.
+_sec_trufflehog_control_key() {
+  local path sums
+  path=$(command -v "$1" 2>/dev/null) || return 1
+  sums=$(sha256sum "$path" "${BASH_SOURCE[0]}" 2>/dev/null) || return 1
+  printf '%s\n%s\n' "$sums" "$_SEC_TRUFFLEHOG_VER" | cut -d' ' -f1 | sha256sum | cut -c1-64
+}
 
-  # --- control: TruffleHog must detect the planted pair (offline) -----------
+# The negative control, skipped when a mark for this key says it already
+# detected the planted pair. A failed control writes no mark; an unwritable
+# cache dir only costs the control run.
+_sec_trufflehog_control() {
+  local bin=$1 key dir ctl n
+  dir="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/trufflehog-control"
+  key=$(_sec_trufflehog_control_key "$bin") || key=""
+  if [[ -n "$key" && -f "$dir/$key" ]]; then
+    do_log "INFO trufflehog control: kept for ${key:0:8}"
+    return 0
+  fi
   ctl=$(_sec_trufflehog_control_dir) || return 1
   do_log "INFO trufflehog $_SEC_TRUFFLEHOG_VER control (want a detection, --no-verification)"
   n=$(SEC_TRUFFLEHOG_PHASE=control "$bin" filesystem "$ctl" --no-update --no-verification --json 2>/dev/null | _sec_trufflehog_count)
@@ -76,6 +95,18 @@ do_sec_trufflehog() {
     do_log "FATAL control: trufflehog detected nothing on a planted key pair (found=${n:-0}) -- the check proved nothing"
     return 1
   fi
+  [[ -z "$key" ]] || { mkdir -p "$dir" && : >"$dir/$key"; } 2>/dev/null || true
+  return 0
+}
+
+do_sec_trufflehog() {
+  local bin="${SEC_TRUFFLEHOG_BIN:-trufflehog}"
+  _sec_trufflehog_need "$bin" || return 1
+  local root n
+  root=$(_sec_trufflehog_root) || return 1
+
+  # --- control: TruffleHog must detect the planted pair (offline) -----------
+  _sec_trufflehog_control "$bin" || return 1
 
   # --- scan: verified (live) secrets in the working tree only ---------------
   local exclude; exclude=$(mktemp)

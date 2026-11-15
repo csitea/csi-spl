@@ -30,6 +30,7 @@ apt	google-cloud-cli		play 02_os_binaries	do_satellite_verify (replica: gcloud)	
 apt	htop		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-2271
 apt	imagemagick		do_box_pkg_install	csi-rel photo work (lane SPL-21)		2026-11-08 SPL-5088
 apt	jq		play 02_os_binaries	do_satellite_verify (replica)		2026-10-17 SPL-2271
+apt	locales		do_box_pkg_install	lane SPL-5548 (run-param-flags.tst.sh case 7 builds tr_TR)		2026-11-15 SPL-5548
 apt	make		play 02_os_binaries	do_satellite_verify (replica)		2026-10-17 SPL-2271
 apt	nodejs		play 02_os_binaries	do_satellite_verify (replica)		2026-10-17 SPL-2271
 apt	npm		play 02_os_binaries	do_satellite_verify (replica)		2026-10-17 SPL-2271

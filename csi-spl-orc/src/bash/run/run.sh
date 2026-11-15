@@ -81,7 +81,7 @@ execute_step_flag_unknown() {
   [[ "$_list" == *[![:space:]]* ]] || _list=""
   do_log "FATAL $1: unknown flag $2"
   do_log "FATAL $1 takes: ${_list:-(no flags)}"
-  do_log "INFO  each @param NAME is also --name value (a bare --name is true); --json and --quiet are the framework's"
+  do_log "INFO  each @param NAME is also --name value (a bare --name is true); --json, --quiet, --help and --actions are the framework's"
 }
 
 # execute_step_parse_args <func_name> <func_file> <args...>: every
@@ -91,7 +91,8 @@ execute_step_flag_unknown() {
 # derived flag of the same spelling. A flag beats an env var of the same name
 # set by the caller. An unknown --flag fails (return 11). A bare `--` ends the
 # flags. Positional args are left alone, and every arg still reaches the
-# action. No --flag in the args: no header parse at all.
+# action. No --flag in the args: no header parse at all. The parse runs
+# under LC_ALL=C, so the flag names never follow the caller's locale.
 execute_step_parse_args() {
   local func_name=$1 func_file=$2
   shift 2
@@ -99,7 +100,9 @@ execute_step_parse_args() {
   for _a in "${args[@]}"; do [[ "$_a" == --?* ]] && break; done
   [[ -n "$func_file" && "$_a" == --?* ]] || return 0
   declare -A _xs_arg=() _xs_par=() _xs_own=()
-  local _xs_src _i=0 _flag _val _var _next _eq
+  # LC_ALL=C for the parse only: under tr_TR `${IMAGE_REF,,}` gives a
+  # dotless i and [A-Z] misses, so the derived flags would follow the locale.
+  local LC_ALL=C _xs_src _i=0 _flag _val _var _next _eq
   execute_step_flag_maps "$func_file"
   while (( _i < ${#args[@]} )); do
     _flag="${args[$_i]}"

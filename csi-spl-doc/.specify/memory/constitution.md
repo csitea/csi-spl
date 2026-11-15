@@ -240,9 +240,10 @@ of the same name that the caller set. An explicit `@arg --flag VAR` line
 wins over the derived flag of the same spelling. An unknown `--flag` fails
 the run (exit 11) and names the flags the action takes; a flag the action
 parses from `"$@"` itself (written in its own file, or an `@param --flag`
-line) and the framework's `--json` / `--quiet` pass through, as does
-everything after a bare `--`. With several actions in one run, each one
-checks the flags against its own header. The code:
+line) and the framework's `--json`, `--quiet`, `--help` and `--actions`
+pass through, as does everything after a bare `--`. With several actions in
+one run, each one checks the flags against its own header. The flag names
+do not follow the caller's locale: the parse runs under `LC_ALL=C`. The code:
 `execute_step_parse_args` in `csi-spl-orc/src/bash/run/run.sh`
 (byte-identical in iac and utl).
 
@@ -678,6 +679,6 @@ date, and a re-run of `/speckit-analyze` on every in-flight spec. Complexity
 that deviates from a principle must be justified inline (`# WHY:`) and
 acknowledged in the spec's Clarifications section.
 
-**Version**: 0.3.5 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-15 (Coding Standards exported from developer-guide.md)
+**Version**: 0.3.6 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-15 (Coding Standards exported from developer-guide.md)
 
-<!-- version: 0.3.5 · updated: 2026-11-15 · last-edit: 2026-11-15T01:48:54Z -->
+<!-- version: 0.3.6 · updated: 2026-11-15 · last-edit: 2026-11-15T02:42:16Z -->

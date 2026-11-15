@@ -11,6 +11,8 @@
 #   5. a param with no flag is still read from the env
 #   6. a flag the action parses itself (`--kind)` arm, `@param --flag` line)
 #      and the framework's --json pass through; a bare `--` ends the flags
+#   7. the flag names do not follow the caller's locale: under tr_TR.UTF-8
+#      (I lower-cases to a dotless i) --image-ref still maps (review N2)
 # Each case runs against the orc, iac AND utl run.sh (kept byte-identical),
 # in a throwaway tree with a probe action.
 #------------------------------------------------------------------------------
@@ -70,6 +72,20 @@ check() {
   if grep -qF -- "$2" <<<"$3"; then pass "$1"; else fail "$1: want '$2', got: $(grep -E 'PROBE|FATAL|RC=' <<<"$3" | tr '\n' ' ')"; fi
 }
 
+# tr_locale: a tr_TR.UTF-8 built into $T (LOCPATH), echoed when it really
+# lower-cases I to a dotless i; empty (case 7 skipped, said so) when the box
+# has no locale sources (apt `locales`) to build it from.
+tr_locale() {
+  local l="$T/locale"
+  mkdir -p "$l"
+  localedef -i tr_TR -f UTF-8 "$l/tr_TR.UTF-8" >/dev/null 2>&1 || true
+  # shellcheck disable=SC2016 # the expansion runs in the tr_TR child shell
+  [[ "$(LOCPATH="$l" LC_ALL=tr_TR.UTF-8 bash -c 'w=I; echo "${w,,}"' 2>/dev/null)" == "ı" ]] && echo "$l"
+  return 0
+}
+TR_LOC="$(tr_locale)"
+[[ -n "$TR_LOC" ]] || echo "SKIP: 7 (tr_TR locale): localedef cannot build tr_TR.UTF-8 on this box"
+
 for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
   d="$(probe_tree "$m")"
 
@@ -98,6 +114,12 @@ for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
   out="$(probe "$d" -- --kind k1 --from a --json --image-ref i3 -- --nope)"
   check "$m: 6 own flags, --json and args after -- pass through" "IMAGE_REF=i3 PROBE_MODE= PROBE_OTHER= ENV_ONLY= PROBE_BOOL= kind=k1" "$out"
   check "$m: 6 own flags exit 0" "RC=0" "$out"
+
+  if [[ -n "$TR_LOC" ]]; then
+    out="$(probe "$d" LOCPATH="$TR_LOC" LC_ALL=tr_TR.UTF-8 -- --image-ref i4)"
+    check "$m: 7 under tr_TR --image-ref still maps" "PROBE IMAGE_REF=i4 " "$out"
+    check "$m: 7 under tr_TR the flags exit 0" "RC=0" "$out"
+  fi
 done
 
 if cmp -s "$APP_ROOT/csi-spl-orc/src/bash/run/run.sh" "$APP_ROOT/csi-spl-iac/src/bash/run/run.sh" &&

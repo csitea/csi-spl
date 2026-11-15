@@ -296,9 +296,10 @@ of the same name that the caller set. An explicit `@arg --flag VAR` line
 wins over the derived flag of the same spelling. An unknown `--flag` fails
 the run (exit 11) and names the flags the action takes; a flag the action
 parses from `"$@"` itself (written in its own file, or an `@param --flag`
-line) and the framework's `--json` / `--quiet` pass through, as does
-everything after a bare `--`. With several actions in one run, each one
-checks the flags against its own header. The code:
+line) and the framework's `--json`, `--quiet`, `--help` and `--actions`
+pass through, as does everything after a bare `--`. With several actions in
+one run, each one checks the flags against its own header. The flag names
+do not follow the caller's locale: the parse runs under `LC_ALL=C`. The code:
 `execute_step_parse_args` in `csi-spl-orc/src/bash/run/run.sh`
 (byte-identical in iac and utl).
 

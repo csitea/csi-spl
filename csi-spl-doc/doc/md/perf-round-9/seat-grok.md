@@ -1,10 +1,10 @@
 # Perf round 9 grok seat
 
-Verdict: **PASS** on `89f8cef1495819e8b85d0644a8bf7000e77f6cb7` (plan v0.2). Parent is `8c19c904732343c1b1e0b8e32d32e8d24a6f5c53` (the v0.1 sha this seat already signed). Sections 1 to 6 are that v0.1 review. Section 0 is the re-sign.
+Verdict: **REVIEW FAIL** on `d6c1bee7a8b7d1a091d9efc38230d23de752c542` (plan v0.3). The **PASS** on `89f8cef1495819e8b85d0644a8bf7000e77f6cb7` (plan v0.2) stands. Parent of v0.3 is that v0.2 sha. Sections 1 to 6 are the v0.1 review. Section 0 is the v0.2 re-sign. Section 7 is the v0.3 delta.
 
 Panel: g-751@sat, grok. Issue SPL-5502. Epic SPL-2402. Spec `csi-spl-doc/specs/027-spool-performance`.
 
-No defects. N1 to N3 were citation gaps and v0.2 closes them. N4 to N11 do not change the row shape, the file split, or the direction of the measured gain.
+v0.1 and v0.2: no defects. N1 to N3 were citation gaps and v0.2 closes them. N4 to N11 do not change the row shape, the file split, or the direction of the measured gain. v0.3: W1 and W2 in section 7.
 
 ## 0. Re-sign of v0.2
 
@@ -217,6 +217,57 @@ cd csi-spl-iac && ./run -a do_check_dist_hygiene
 Printed `ok` for each sweep and `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-751`. `HYG_EXIT:0`. The allowed lines were the owner-approved cnf keys only (9 personal-name lines, 4 OS-user or box lines, 6 mail lines).
 
 The v0.2 re-sign run, after `git add` of this file, HEAD `b0eff100de0d9a100f157fe89c3a32b273c89049`:
+
+```
+cd csi-spl-iac && ./run -a do_check_dist_hygiene
+```
+
+Printed `ok` for each sweep and `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-751`. `HYG_EXIT:0`. The allowed lines were the owner-approved cnf keys only (9 personal-name lines, 4 OS-user or box lines, 6 mail lines).
+
+## 7. Delta review of v0.3
+
+Asked by c-002 msg `98531cc1-0739-4127-b3e3-00c5fdc9bc62` on task `dispatch-perf-r8`. Review only `git diff 89f8cef14 d6c1bee7a -- csi-spl-doc/doc/md/perf-round-9-plan.md`. Checked 2026-11-15 from `/opt/csi/csi-spl-wt/g-751`.
+
+```
+git fetch -q origin review/c002-perf-round-9-planner review/c002-perf-round-9-grok-seat master
+git rev-parse origin/review/c002-perf-round-9-planner
+git rev-parse d6c1bee7a8b7d1a091d9efc38230d23de752c542^
+git merge-base --is-ancestor 89f8cef1495819e8b85d0644a8bf7000e77f6cb7 d6c1bee7a8b7d1a091d9efc38230d23de752c542
+git diff --stat 89f8cef1495819e8b85d0644a8bf7000e77f6cb7 d6c1bee7a8b7d1a091d9efc38230d23de752c542 -- csi-spl-doc/doc/md/perf-round-9-plan.md
+git merge-base --is-ancestor 3aeabc558512fba30a0146c19959dfe117a1f520 origin/master
+git grep -n -e cross-vendor d6c1bee7a8b7d1a091d9efc38230d23de752c542 -- csi-spl-doc/doc/md/perf-round-9-plan.md
+git log -1 --format='%H %ci %s' origin/master -- csi-spl-doc/doc/md/perf-round-8-retro.md
+```
+
+Printed:
+
+```
+PLANNER:d6c1bee7a8b7d1a091d9efc38230d23de752c542
+PARENT:89f8cef1495819e8b85d0644a8bf7000e77f6cb7
+ANCESTOR_OK
+ csi-spl-doc/doc/md/perf-round-9-plan.md | 23 +++++++++++++++--------
+ 1 file changed, 15 insertions(+), 8 deletions(-)
+RETRO_ANCESTOR_RC:1
+CROSS_RC:1
+MASTER:035dc15012686aac430500ddbda3a5d06b456ced
+8fc934b9e3cefab1409aa278243e504f228a7363 2026-11-15 02:33:14 +0200 docs(doc, SPL-5537): perf rounds 7 and 8 retros
+```
+
+`git rev-parse origin/master:csi-spl-doc/doc/md/perf-round-8-retro.md` and the same path at `8fc934b9e` both print `2013b5b30ee0f71a84ae74537303b87ad4dd805a`. `3aeabc558` is not an ancestor of `origin/master` (rc 1). `git branch -a --contains 3aeabc558512fba30a0146c19959dfe117a1f520` prints only `remotes/origin/review/c002-perf-round-7-8-retro`. The plan commit is `2026-11-15 03:03:16 +0200`, after that retro rewrite. Section 8 was read with `git show origin/master:csi-spl-doc/doc/md/perf-round-8-retro.md`.
+
+Panel line and the three rows pass. Plan lines 168-173 say "claude seat, same vendor as the editor; the panel's other seat is grok". `git grep -e cross-vendor` on that file at `d6c1bee7a` prints nothing (rc 1). Section 9 keeps this seat's PASS on `8c19c9047` and `89f8cef14` and leaves the claude seat pending with the same phrase. Line 85 is still `## 3. The 3 rows`. Lines 89-91 are still p9-01, p9-02 and p9-03.
+
+W1. Plan line 185 and the v0.3 changelog line 218 leave a-827's input 1 out because "the after arm reaches the prd hub with its service-account key" and "one needs a key". The cited figures are 1,273 ms with the prd hub and 784 ms with `COMMIT_LINKS_HUB=none` (medians, n=5, on `5815e76c5`), pinned to section 8 at `3aeabc558`. Section 8 on `origin/master` replaced that measurement. Input 1 there is local-only on `8247621e2`, n=5, load ~17, zero prd hub HTTP calls: `empty_default_hub` 619 ms (396..845) vs `empty_hub_none` 344 ms (318..533, -275 ms, -44%) vs `one_commit_hub_none` 378 ms (323..564). The command uses `COMMIT_LINKS_RANGE=HEAD..HEAD` and `COMMIT_LINKS_HUB=none`. The "needs a key" reason is false against that section. Rulebook 4.1: a drop names that candidate's measurement.
+
+W2. Plan line 188 leaves input 4 out as "dropped, no gain" and cites "editor 2.5 above (-9% loop, -2% whole start, n=15)". That probe is line 184's other five files (`spl-agent-settings-check`, `spl-dispatch-lease`, `spl-wd-ensure`, `spl-box-restart-prepare`, `spl-asks-open`): 380 ms vs 347 ms and 753 vs 736 ms. Master section 8 input 4 is `spl-wd-takeover`, `spl-peer-crons`, `spl-wd-peers`, `spl-wd-ensure`, `spl-asks-open`. Isolated medians 146, 73, 64, 58, 38 ms; sum 379 ms; 183.1 ms incremental inside the 483.1 ms 88-file loop. Section 8 does not say no gain. Rulebook 4.1 line 217: a no-gain drop carries that candidate's measurement, never a guess.
+
+Inputs 2, 3 and 5 match master section 8 on the headline numbers: 1,564 ms (n=5), 730 ms (n=5, 52 words), 411 ms (n=5, 36 of 185 eager). Their R3 and "carried until probed" reasons are not contradicted by section 8. Ask ids `68f1dea2`, `dc8568f5`, `20db36c3` and `7e0d6251` were not re-read from the live queue. Input 5's clause "not a gain (input 4)" inherits W2. The carry itself is not a separate fail.
+
+Lane-map of this file, `lane-map.sh --check csi-spl-doc/doc/md/perf-round-9/seat-grok.md --agent g-751`, exited 4. It printed that no live lane lists the path, and that 11 live lanes record no files. Exit 4 is unknown scope, not an owner of this file.
+
+## Hygiene after the v0.3 sign
+
+On this index, after `git add` of this file, HEAD `a6a2f09989497b5dcee49fce86187ab84c49439a`:
 
 ```
 cd csi-spl-iac && ./run -a do_check_dist_hygiene

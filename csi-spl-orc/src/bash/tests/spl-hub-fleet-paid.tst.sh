@@ -151,9 +151,14 @@ while (( $# )); do case "$1" in -o) out="$2"; shift ;; -X) echo "curl $2" >>"$ST
 echo "url $url" >>"$STUB_CALLS"; cp "$STUB_BODY_FILE" "$out"; echo "mode $(stat -c %a "$out")" >>"$STUB_CALLS"; printf '%s' "${STUB_CODE:-200}"
 STUB
 chmod +x "$T/real/stub/gcloud" "$T/real/stub/curl"
-SECRET_ITEM='{"id":"'$ID'","vendor":"agy","kind":"topup","plan_label":"LABEL-SENTINEL","quantity":4321,"amount":98765.4321,"currency":"XTS","note":"NOTE-SENTINEL","period_start":"2020-01-01","period_end":"2020-01-02","created_by":"sa@example.iam.gserviceaccount.com"}'
+# The figures are 9-digit runs and the currency a non-word, so no log line
+# holds one by chance: a pid is at most 7 digits (pid_max 4194304), and
+# leaks() matches a figure only between non-digits. Short figures (4321)
+# flaked: the day log's [<pid>] read 14321 on one CI run (SPL-5544).
+QTY=731984605 AMT=864209753.31864 CUR=QZX
+SECRET_ITEM='{"id":"'$ID'","vendor":"agy","kind":"topup","plan_label":"LABEL-SENTINEL","quantity":'$QTY',"amount":'$AMT',"currency":"'$CUR'","note":"NOTE-SENTINEL","period_start":"2020-01-01","period_end":"2020-01-02","created_by":"sa@example.iam.gserviceaccount.com"}'
 echo "{\"items\":[$SECRET_ITEM]}" >"$T/real/items.json"
-echo '{"error":"forbidden","detail":"98765.4321 XTS NOTE-SENTINEL LABEL-SENTINEL"}' >"$T/real/refusal.json"
+echo '{"error":"forbidden","detail":"'"$AMT $CUR"' NOTE-SENTINEL LABEL-SENTINEL"}' >"$T/real/refusal.json"
 run_real() { # <name> <PAID_CMD> <body file> [VAR=value]... -> $T/real/<name>/{out,err,home,var,calls}
   local d="$T/real/$1" cmd="$2" body="$3"; shift 3
   rm -rf "$d"; mkdir -p "$d/home" "$d/var"
@@ -163,7 +168,7 @@ run_real() { # <name> <PAID_CMD> <body file> [VAR=value]... -> $T/real/<name>/{o
     GCP_ACCOUNT=sa@example.iam.gserviceaccount.com ENV=dev PAID_CMD="$cmd" "$@" "$PROJ_ROOT/run" -a do_spl_hub_fleet_paid >"$d/out" 2>"$d/err"
 }
 leaks() { # <dir> -> each file of the run holding a sentinel: out, err, anything under home / var
-  grep -rlE '98765|4321|XTS|NOTE-SENTINEL|LABEL-SENTINEL' "$1/out" "$1/err" "$1/home" "$1/var" 2>/dev/null
+  grep -rlE "(^|[^0-9])(${QTY}|${AMT%.*})([^0-9]|\$)|(^|[^A-Za-z])${CUR}([^A-Za-z]|\$)|NOTE-SENTINEL|LABEL-SENTINEL" "$1/out" "$1/err" "$1/home" "$1/var" 2>/dev/null
 }
 logs() { find "$1/home" "$1/var" -type f -name '*.log' | wc -l; }
 run_real index index "$T/real/items.json"; rc=$?
@@ -185,15 +190,24 @@ found=$(leaks "$T/real/list")
 [[ $rc -eq 0 ]] && grep -qxF "$T/real/list/out" <<<"$found" \
   && pass "8. red control: the same check finds PAID_CMD=list's figures ($(wc -l <<<"$found") files)" \
   || fail "8. red control: rc=$rc, list showed no sentinel, so the check proves nothing"
+# the check itself (SPL-5544): a log line of pids, times and a 10-digit epoch
+# that hold the digits by chance is no leak; the figures in a log line are
+d="$T/real/chance"; mkdir -p "$d/home" "$d/var"; : >"$d/out"; : >"$d/err"
+echo "[INFO] 2026-11-14 18:43:21 EET [14321] [${QTY}0] 1${QTY} TEXTS ${CUR}X" >"$d/var/day.log"
+[[ -z "$(leaks "$d")" ]] && pass "8. a chance digit run in a log line (pid, time, a longer number) is no leak" || fail "8. chance match: $(leaks "$d")"
+for leak in "$QTY" "$AMT" "x ${AMT%.*}.3" "$CUR"; do
+  echo "[INFO] 2026-11-14 18:43:21 EET [14321] item $leak" >"$d/var/day.log"
+  [[ "$(leaks "$d")" == "$d/var/day.log" ]] && pass "8. red control: a log line holding '$leak' is a leak" || fail "8. red control: '$leak' in a log line not found"
+done
 
 # --- 9. index when the hub breaks its contract (SPL-5084) ---------------------------
-echo '{"error":"line_one\nline_two","detail":"98765.4321 XTS"}' >"$T/real/multiline.json"
+echo '{"error":"line_one\nline_two","detail":"'"$AMT $CUR"'"}' >"$T/real/multiline.json"
 run_real multiline index "$T/real/multiline.json" STUB_CODE=403; rc=$?
 d="$T/real/multiline"; found=$(leaks "$d")
 [[ $rc -ne 0 && -z "$found" ]] && grep -q 'FATAL the hub answered 403 to the paid item index' "$d/out" && ! grep -q 'line_' "$d/out" \
   && pass "9. a multi-line error is left out, the log line stays whole" \
   || fail "9. multi-line: rc=$rc leaks=$found"
-echo '{"items":[{"id":{"amount":98765.4321},"vendor":"agy","kind":"topup","period_start":"2020-01-01","period_end":"2020-01-02"}]}' >"$T/real/objfield.json"
+echo '{"items":[{"id":{"amount":'$AMT'},"vendor":"agy","kind":"topup","period_start":"2020-01-01","period_end":"2020-01-02"}]}' >"$T/real/objfield.json"
 run_real objfield index "$T/real/objfield.json"; rc=$?
 d="$T/real/objfield"; found=$(leaks "$d")
 [[ $rc -eq 0 && -z "$found" ]] && grep -qxF "  ? agy topup [2020-01-01, 2020-01-02)" "$d/out" \
@@ -210,7 +224,7 @@ d="$T/real/nonobj"
   && pass "9. the body file is written 0600 under a caller's umask 022" \
   || fail "9. body mode: rc=$rc $(grep '^mode' "$T/real/mode/calls")"
 strid() { printf '{"items":[{"id":%s,"vendor":"agy","kind":"topup","period_start":"2020-01-01","period_end":"2020-01-02"}]}\n' "$1"; }
-strid '"98765.4321 XTS"' >"$T/real/strfield.json"
+strid "\"$AMT $CUR\"" >"$T/real/strfield.json"
 run_real strfield index "$T/real/strfield.json"; rc=$?
 d="$T/real/strfield"; found=$(leaks "$d")
 [[ $rc -eq 0 && -z "$found" ]] && grep -qxF "  ? agy topup [2020-01-01, 2020-01-02)" "$d/out" \
@@ -220,7 +234,7 @@ strid '"a\nFORGED line"' >"$T/real/forge.json"
 run_real forge index "$T/real/forge.json"; rc=$?
 d="$T/real/forge"
 [[ $rc -eq 0 ]] && ! grep -q 'FORGED' "$d/out" && pass "9. a newline in a field forges no line" || fail "9. forged line: rc=$rc"
-printf '{"items":98765.4321}\n{"items":[]}\n' >"$T/real/twodocs.json"
+printf '{"items":%s}\n{"items":[]}\n' "$AMT" >"$T/real/twodocs.json"
 run_real twodocs index "$T/real/twodocs.json"; rc=$?
 d="$T/real/twodocs"; found=$(leaks "$d")
 [[ $rc -ne 0 && -z "$found" ]] && grep -q 'FATAL the paid item list is not' "$d/out" && ! grep -q 'paid items:' "$d/out" \

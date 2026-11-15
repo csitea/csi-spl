@@ -187,6 +187,20 @@ fails. The summary line counts the skips: `<n>/<m> tenant(s) handled,
 <k> not set up, <f> failed`. Test: cases 3 to 5 of
 `csi-spl-orc/src/bash/tests/responder-sweep.tst.sh`.
 
+**The desk reconcile, same cause (SPL-5649).** `do_spl_desk_up_all` asks
+the hub once per tick whether a desk with no `pinned` file was pinned from
+another box (`spl_desk_pin_check`). Not pinned used to end the tick with
+exit 3. On sat that was every dev tick for both desks: 10766
+`do_spl_desk_up_all exit 3` lines in `cron.out` on 2026-11-15. Now the same
+test as the sweep applies: in **dev**, a desk with no `pinned` file on this
+box logs `INFO <box> of <tenant> is not set up in dev: skipped (<agents>);
+pin it with do_spl_desk_pin to enable`, nothing goes to `failed`, and the
+tick exits 0. The pin check still runs first, so a key pinned from another
+box still seats on the next tick, and its admin line with the `BOX_PUBKEY`
+still prints. In **prd**, and for a desk with a local `pinned` file that the
+hub refuses, it stays a `FAIL` with exit 3. Test: section 13 of
+`csi-spl-orc/src/bash/tests/desk-up-all.tst.sh`.
+
 ## 7. Risks
 
 - **One VM becomes the whole fleet.** sat down (GCP maintenance, a full

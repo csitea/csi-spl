@@ -75,7 +75,10 @@
 # @param ROOT_KEY_JSON (optional) - only for the FIRST run of a desk box. Without
 # @param   it an unpinned desk asks the hub once per tick (spl_desk_pin_check):
 # @param   a key an admin pinned from another box seats on the next tick; until
-# @param   then ONE line names the admin command and the action exits 3
+# @param   then ONE line names the admin command and the action exits 3. A
+# @param   desk never pinned on this box (no <desk>/pinned) outside prd is
+# @param   "not set up in <env>: skipped" instead: one INFO line, exit 0
+# @param   (SPL-5649, as the responder sweep's SPL-5586); prd stays exit 3
 # @param SPOOL_RSP_BOX (box config, $SPOOL_BOX_ENV) - this machine's responder
 # @param   box (e.g. <box>-rsp). The main pass (not DESK_SEATED_ONLY) gives it
 # @param   a key and the same pin check, so do_spl_responder_sweep can seat it
@@ -100,7 +103,7 @@ do_spl_desk_up_all() {
   if mv="$(spl_desk_moved_to "$tenant" "$box")"; then
     spl_desk_moved_note "$tenant" "$box" "${mv%%$'\t'*}" "${mv#*$'\t'}"; return 0
   fi
-  local -a live=() seat=() seated=() failed=() retired=()
+  local -a live=() seat=() seated=() failed=() retired=() notset=()
   mapfile -t live < <(spl_desk_live_agents)
   if [[ ${#live[@]} -eq 0 ]]; then
     do_log "FAIL no live agent window on the box user's tmux socket: nothing to seat, and nothing is retired either - a tmux server that is not answering is not the same fact as a box with no agents"
@@ -160,7 +163,10 @@ do_spl_desk_up_all() {
 # Exit 3 from do_spl_desk_up is "this desk is not pinned at the hub" (SPL-2634):
 # the same answer for every agent of the desk, so the rest are not tried, and
 # the caller's unpinned is set. Before, sat logged 3 FAIL lines per tick on dev
-# with the cause swallowed (spl_desk_pin).
+# with the cause swallowed (spl_desk_pin). A desk NEVER pinned on this box (no
+# <desk>/pinned file, the responder sweep's "not set up" test, SPL-5586) outside
+# prd is not set up here: one INFO line, its agents go to the caller's notset[],
+# not failed[], and the tick exits 0 (SPL-5649). In prd it stays exit 3.
 _spl_desk_up_all_seat() {
   local d="$1" tenant="$2" box="$3" poke="$4" mute="$5" only="$6" a i urc apoke
   for ((i = 0; i < ${#seat[@]}; i++)); do
@@ -171,6 +177,10 @@ _spl_desk_up_all_seat() {
       DESK_WAIT_SECS="${DESK_WAIT_SECS:-30}" DRY_RUN=0 do_spl_desk_up || urc=$?
     if (( urc == 0 )); then
       seated+=("$a")
+    elif (( urc == 3 )) && [[ ! -e "$d/pinned" && "$ENV" != prd ]]; then
+      notset+=("${seat[@]:$i}")
+      do_log "INFO $box of $tenant is not set up in $ENV: skipped (${seat[*]:$i}); pin it with do_spl_desk_pin to enable (the BOX_PUBKEY line above)"
+      return 0
     elif (( urc == 3 )); then
       unpinned=1; failed+=("${seat[@]:$i}")
       do_log "FAIL $box in $tenant ($ENV) is not pinned at the hub: none of ${seat[*]:$i} can be seated until a tenant admin pins it (the do_spl_desk_pin line above)"
@@ -389,6 +399,7 @@ EOF_PY
     do_log "FAIL $box was stranded and the restart did not bring its hub session back: see $d/spool/.hub/hub-run.log"
     return 1
   fi
+  [[ ${#notset[@]} -gt 0 ]] && do_log "OK $box in $tenant is not set up in $ENV: ${#notset[@]} agent(s) skipped, none failed"
   if [[ ${#retired[@]} -gt 0 ]]; then
     do_log "OK ${#seated[@]} agent(s) seated on $box in $tenant ($ENV), ${#retired[@]} retired: ${retired[*]}"
   else

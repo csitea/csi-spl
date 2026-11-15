@@ -44,6 +44,9 @@
 #      stderr (never the captured stdout), one seat try per tick. The box
 #      config's SPOOL_RSP_BOX gets the same check. CONTROLS: a pinned desk asks
 #      nothing, a non-pin failure still tries every agent, box-rsp never minted
+#      SPL-5649: a desk never pinned on this box (no pin file) outside prd is
+#      skipped, one line, exit 0. CONTROLS: locally pinned + refused and prd
+#      still exit 3
 # No real crontab, no real tmux, no cloud call: crontab and tmux are stubs.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -551,6 +554,19 @@ out=$(upall 3); rc=$?
 out=$(upall 1); rc=$?
 [[ $rc -eq 1 && "$(grep -c '^CALL up' <<<"$out")" == 3 && "$(grep -c 'could not seat' <<<"$out")" == 3 ]] &&
   pass "CONTROL any other seat failure still tries every agent and exits 1" || fail "CONTROL up_all rc 1 (rc=$rc): $out"
+# SPL-5649: a desk NEVER pinned on this box (no pin file; the responder
+# sweep's "not set up" test, SPL-5586) is skipped outside prd: sat dev exited 3
+# on every tick (10766 lines in cron.out, 2026-11-15). The cases above ran with
+# the pin file the "pinned elsewhere" case wrote: a locally pinned desk the hub
+# refuses stays exit 3.
+rm -f "$PD/pinned"
+out=$(upall 3); rc=$?
+[[ $rc -eq 0 && "$(grep -c '^CALL up' <<<"$out")" == 1 && "$out" == *"box-desk of t1 is not set up in dev: skipped (c-001 c-002 c-003); pin it with do_spl_desk_pin"* &&
+   "$out" == *'"failed": []'* && "$out" != *"FAIL box-desk"* ]] &&
+  pass "a desk never pinned on this box, dev: one seat try, one skip line, nothing failed, exit 0" || fail "up_all never pinned dev (rc=$rc): $out"
+out=$(upall 3 ENV=prd); rc=$?
+[[ $rc -eq 3 && "$out" == *"not pinned at the hub: none of c-001 c-002 c-003 can be seated"* && "$out" != *"not set up"* ]] &&
+  pass "CONTROL the same never-pinned desk in prd still FAILs with exit 3" || fail "CONTROL up_all never pinned prd (rc=$rc): $out"
 
 # The responder box of the box config gets its key and the same check.
 RB="$T/pin/dev/desk/t1/x-rsp"

@@ -42,6 +42,31 @@ func costTestMonth(t *testing.T) (from, to string, day func(int) string) {
 		func(d int) string { return fmt.Sprintf("%04d-%02d-%02d", y, m, d) }
 }
 
+// costTestMonthClean is costTestMonth for a test that reads the month's
+// estate rows: costMonthsTaken is per process, so on a reused database an
+// earlier run's estate rows of the same month (and of its To day) are still
+// there and land in the read (SPL-5618: 4 of 15 runs red on one database).
+// It deletes them first; the month is this test's alone in this run.
+func costTestMonthClean(t *testing.T, pg *Postgres) (from, to string, day func(int) string) {
+	t.Helper()
+	from, to, day = costTestMonth(t)
+	costClearEstateMonth(t, pg, from, to)
+	return from, to, day
+}
+
+// costClearEstateMonth deletes the estate cost lines from <from> to <to>,
+// both days included; workspace lines stay.
+func costClearEstateMonth(t *testing.T, pg *Postgres, from, to string) {
+	t.Helper()
+	ctx := context.Background()
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM cost_lines WHERE day >= $1::date AND day <= $2::date AND tenant_id IS NULL`, from, to)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // costMonthIndex takes a random free slot of <slots> in <taken> and returns
 // its month index (months since 2001-01), slot * <step>.
 func costMonthIndex(t *testing.T, taken *sync.Map, slots, step int64) int64 {
@@ -130,7 +155,7 @@ func partsBy(parts []CostPart) map[string]CostPart {
 func TestCostMonthReadSums(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
-	from, to, day := costTestMonth(t)
+	from, to, day := costTestMonthClean(t, pg)
 	a := newTenant(t, pg)
 	pov, gcp, tok := uid("csi-spl-"), uid("gcp-"), uid("fleet_tokens.")
 	costSeed(t, pg, "", day(1), gcp, pov, "cloud_run", "billing_export", 0, 1_500_000, 1_380_000)
@@ -193,7 +218,7 @@ func TestCostMonthReadSums(t *testing.T) {
 func TestCostMonthReadRLS(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
-	from, to, day := costTestMonth(t)
+	from, to, day := costTestMonthClean(t, pg)
 	a, b := newTenant(t, pg), newTenant(t, pg)
 	gcp, hand := uid("gcp-"), uid("hand-")
 	costSeed(t, pg, "", day(5), gcp, uid("csi-spl-"), "cloud_sql", "billing_export", 0, 3_000_000, 2_760_000)
@@ -238,7 +263,7 @@ func TestCostMonthReadRLS(t *testing.T) {
 func TestCostCloudDays(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
-	from, to, day := costTestMonth(t)
+	from, to, day := costTestMonthClean(t, pg)
 	a := newTenant(t, pg)
 	pov := uid("csi-spl-") + "/box=b1"
 	costSeed(t, pg, "", day(1), "gcp", pov, "compute-engine", "billing_export", 0, 1_000_000, 920_000)

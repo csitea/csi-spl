@@ -168,7 +168,7 @@ func ptrStr[T any](p *T) string {
 func TestCostMonthReadSecondCurrency(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
-	from, to, day := costTestMonth(t)
+	from, to, day := costTestMonthClean(t, pg)
 	q := fxTestQuote(t, pg)
 	a := newTenant(t, pg)
 	fri := fxFriday(t, from)

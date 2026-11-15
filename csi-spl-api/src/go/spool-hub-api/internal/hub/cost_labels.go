@@ -28,7 +28,7 @@ import (
 //
 // The reader's locale is ?locale=, else X-Locale, else Accept-Language; a
 // label falls back to the master locale's, then to the entry's own text. The
-// PUT has the cost entries' write door (costEntryGate). A label is display
+// PATCH has the cost entries' write door (costEntryGate). A label is display
 // text, not a booked amount, so a closed month does not refuse it.
 
 // costLabelLocale is the reader's locale ("" = none asked: the master's).

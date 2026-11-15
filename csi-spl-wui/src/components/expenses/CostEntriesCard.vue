@@ -104,6 +104,8 @@
                 <th scope="row" class="ce-text">
                   <span data-test="cost-row-label">{{ e.label }}</span>
                   <div v-if="hrSub(e)" class="muted ce-sub" data-test="cost-row-hr">{{ hrSub(e) }}</div>
+                  <!-- SPL-5546: the line's label in the other languages -->
+                  <CostEntryLabels v-if="master" :entry="e" :master="master" :readonly="readonly" @saved="load()" />
                 </th>
                 <td class="num" :data-label="t('expenses.entries.col_amount')" data-test="cost-row-amount">{{ fmtMoney(e.amount, e.currency, locale) }}</td>
                 <td
@@ -152,13 +154,14 @@ import { paidCurrencies } from '~/utils/monitoring-paid.mjs'
 import { cycleSort } from '~/utils/sheet-sort.mjs'
 import {
   checkCostEntryForm, COST_ENTRY_COLUMNS, COST_ENTRY_NO_FILTER, costEntriesFiltered, costEntriesOf, costEntryBody, costEntryCell,
-  costEntryFilterChoices, costEntryTotals, emptyCostEntryForm, filterCostEntries, sortCostEntries,
+  costEntriesMasterOf, costEntryFilterChoices, costEntryTotals, emptyCostEntryForm, filterCostEntries, sortCostEntries,
 } from '~/utils/cost-entries.mjs'
 import { hrComponentsOf, hrLineLabel, hrPeopleOf } from '~/utils/hr-costs.mjs'
 import HrLineFields from '~/components/expenses/HrLineFields.vue'
 import HrPeriodBar from '~/components/expenses/HrPeriodBar.vue'
 import HrPeopleCard from '~/components/expenses/HrPeopleCard.vue'
 import HrPayrollCard from '~/components/expenses/HrPayrollCard.vue'
+import CostEntryLabels from '~/components/expenses/CostEntryLabels.vue'
 
 /* readonly (SPL-5181): the operator's product owner reads the list, no add or delete */
 /* admin (SPL-5433): the operator admin, who reopens and closes an hr month */
@@ -173,6 +176,8 @@ const { t, locale } = useI18n({ useScope: 'global' })
 const api = () => useSpoolApi() as unknown as CostApi
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const entries = ref<ReturnType<typeof costEntriesOf>>([])
+/* SPL-5546 (rdb 0285): the language each entry's own label is written in ('' = the hub has no labels) */
+const master = ref('')
 const currencies = ref<string[]>(['USD'])
 const adding = ref(false)
 const f = reactive(emptyCostEntryForm())
@@ -191,7 +196,7 @@ const payrollCard = ref<{ reload: () => unknown } | null>(null)
 async function loadHr() {
   if (props.type !== 'hr') return
   try {
-    const [p, c] = await Promise.all([api().fleetPaid('hr_people'), api().fleetPaid('hr_components')])
+    const [p, c] = await Promise.all([api().fleetPaid('hr_people'), api().fleetPaid('hr_components', locale.value)])
     const got = hrPeopleOf(p) as { names: boolean, people: HrPerson[] }
     Object.assign(hr, got, { components: hrComponentsOf(c) as HrComponent[] })
   } catch { /* the list's own read reports the hub's refusal */ }
@@ -251,7 +256,9 @@ const hubWhy = (e: unknown) => {
 
 async function load() {
   try {
-    entries.value = costEntriesOf(await api().fleetPaid('entries', props.type))
+    const body = await api().fleetPaid('entries', props.type)
+    entries.value = costEntriesOf(body)
+    master.value = costEntriesMasterOf(body)
     state.value = 'ok'
   } catch (e) {
     state.value = (e as { status?: number })?.status === 403 ? 'forbidden' : 'error'
@@ -301,6 +308,9 @@ async function remove(id: string) {
     busy.value = false
   }
 }
+
+/* SPL-5546: the component names follow the interface language */
+watch(locale, () => { void loadHr() })
 
 onMounted(async () => {
   void api().getFxCurrencies().then((b) => { currencies.value = paidCurrencies(b) }, () => { currencies.value = ['USD'] })

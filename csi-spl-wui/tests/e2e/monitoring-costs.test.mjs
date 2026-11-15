@@ -311,6 +311,15 @@ async function costEntryRound(p, id, size) {
   ok(`SPL-4382 ${id}: the hub's refusal shows as it came`, await waitFor(p, '[data-test=cost-form-refused]'))
   await p.click('[data-test=cost-save]')
   ok(`SPL-4382 ${id}: Save lists the entry`, await waitFor(p, '[data-test=cost-row]') && (await p.$eval('[data-test=cost-row-label]', (e) => e.textContent)) === `E2E ${id}`)
+  /* SPL-5546: the row's label in another language, saved and read back; the master text stays the entry's own. CONTROL: red before the card mounts CostEntryLabels, no cost-labels */
+  await tap(p, '[data-test=cost-labels-toggle]')
+  ok(`SPL-5546 ${id}: the row names its master text`, await waitFor(p, '[data-test=cost-labels-master]') && (await text(p, '[data-test=cost-labels-master]')).endsWith(`: E2E ${id}`), await text(p, '[data-test=cost-labels-master]'))
+  await tap(p, '[data-test=cost-label-add]')
+  await setField(p, '[data-test=cost-label-locale]', 'bg')
+  await setField(p, '[data-test=cost-label-text]', `Етикет ${id}`)
+  await tap(p, '[data-test=cost-label-save]')
+  ok(`SPL-5546 ${id}: the bg label is saved, the entry's own text unchanged`, await waitFor(p, '[data-test=cost-labels-toggle]') && await p.waitForFunction((k, t) => (JSON.parse(localStorage.getItem(k) || '[]').find((e) => e.label === t) || {}).labels?.bg === 'Етикет ' + t.slice(4), { timeout: 10000 }, 'spool.mock.cost_entries', `E2E ${id}`).then(() => true, () => false)
+    && (await p.$eval('[data-test=cost-row-label]', (e) => e.textContent)) === `E2E ${id}`)
   /* SPL-5198: the USD entry in EUR too, converted and marked; a filter that matches nothing says so. CONTROL: red before it, there is no cost-row-eur */
   const eurCell = await p.$eval('[data-test=cost-row-eur]', (e) => [e.textContent.trim(), e.getAttribute('data-converted')]).catch(() => [])
   ok(`SPL-5198 ${id}: USD as entered, EUR converted and marked`, (await text(p, '[data-test=cost-row-usd]')) === '$64.80' && /^≈ €\d/.test(eurCell[0] || '') && eurCell[1] === 'true', [await text(p, '[data-test=cost-row-usd]'), eurCell])

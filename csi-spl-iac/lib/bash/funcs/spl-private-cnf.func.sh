@@ -154,8 +154,12 @@ spl_private_add() {
 # only: after "í" a slug that ends a Spanish word is no word (SPL-4249). Run
 # them with grep -P under LC_ALL="$(spl_private_gate_locale)", or \p{L} reads
 # bytes and the accented letter is a boundary again.
+# The word slugs share ONE line, one lookbehind and one lookahead around
+# (?:s1|s2|...) in map order: the same hits as one lookaround per slug, but
+# grep tries the boundary once per position instead of once per slug, and
+# this is the gate's costliest sweep (perf round 9 row 01, about -47%).
 spl_private_gate_patterns() {
-  local base="${1:-}" map forms slug b
+  local base="${1:-}" map forms slug b words=""
   map="$(spl_private_map)" || return 1
   forms=" $(spl_private_list forms_only | tr '\n' ' ') "
   b="${base//./\\.}"
@@ -166,9 +170,10 @@ spl_private_gate_patterns() {
         "(?i)\"name\":\\s*\"$slug\""
       [[ -n "$b" ]] && printf '%s\n' "(?i)(?<![\\p{L}\\p{N}-])$slug\\.(?:dev\\.)?$b"
     else
-      printf '%s\n' "(?i)(?<![\\p{L}\\p{N}])$slug(?![\\p{L}\\p{N}])"
+      words+="${words:+|}$slug"
     fi
   done <<<"$map"
+  [[ -n "$words" ]] && printf '%s\n' "(?i)(?<![\\p{L}\\p{N}])(?:$words)(?![\\p{L}\\p{N}])"
   spl_private_list deny
 }
 

@@ -13,7 +13,8 @@
 #   6. gate patterns: a word slug matches as a word only; a forms_only slug
 #      matches as a workspace-list entry, a DNS record name and a tenant host,
 #      never as the plain word; the boundaries are Unicode letters and
-#      digits under the gate's UTF-8 locale (SPL-4249)
+#      digits under the gate's UTF-8 locale (SPL-4249); the word slugs
+#      share one lookbehind and one lookahead (perf round 9 row 01)
 #   7. the tracked cnf of this repo: every placeholder it names is a token
 #      shape the resolver knows (no stray ws-hidden-x form)
 #------------------------------------------------------------------------------
@@ -87,6 +88,11 @@ hit() { grep -qP "$alt" <<<"$1"; }
 [[ $rc -eq 0 ]] && hit 'owner zz-alpha said' && hit 'zz-gamma-utl' && hit 'a zz-delta line' && hit 'Zz-Alpha' &&
   pass "6. a word slug and a deny entry match, any case" || fail "6. word: $pats"
 ! hit 'zz-alphabet' && ! hit 'xzz-alpha' && pass "6. a word slug only as a word" || fail "6. word boundary"
+# perf round 9 row 01: the word slugs share ONE lookbehind / lookahead, in
+# map order (one per word slug tried the boundary once per slug per position)
+nlb=$(grep -oF '(?<![\p{L}\p{N}])' <<<"$pats" | wc -l)
+[[ "$nlb" == 1 ]] && grep -qxF '(?i)(?<![\p{L}\p{N}])(?:zz-alpha|zz-gamma)(?![\p{L}\p{N}])' <<<"$pats" &&
+  pass "6. the word slugs share one lookaround, in map order" || fail "6. word lookbehinds=$nlb: $pats"
 # SPL-4249: the word boundary is Unicode, under the gate's own UTF-8 locale
 # whatever the caller's (a slug that ends a Spanish word after an accented
 # letter is no hit); the run starts from LC_ALL=C on purpose

@@ -1,7 +1,8 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.5 (2026-11-02). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**;
-owner Q1, Q2, Q3, Q4 answered (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
+Version: v1.6 (2026-11-15). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**;
+owner Q1, Q2, Q3, Q4 answered; the morning card (B5) dropped by owner poll
+acef24b9 = A (1.2). Built: B0, B1; B2 in its lane. Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
 
@@ -72,6 +73,11 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
 - Poll `e3b1370c` (Q3), answer **A** (HUM-10, msg
   `446d58a3-0fe7-4d4c-a8cf-cd01bb74f1d2`): "Show them above today's tasks,
   marked overdue, and count them in the signal".
+- Poll `acef24b9-58e1-4df6-a906-18f0f963f871`, answer **A** (HUM-10, msg
+  `ce993dde`, 2026-11-15T10:38Z), verbatim: "The daily note replaces the
+  morning card (B5); keep the To-do views (B2, B3)". The Reporter role
+  (spec 177) writes each member a daily task-list note, so the in-app
+  morning card of 5.1 / 11.4 is not built; the To-do view of section 4 is.
 
 ### 1.3 Panel defaults
 
@@ -215,7 +221,10 @@ today's list. (For HOW: an unknown `?v=` opens Week today,
 ## 5. The day signal: what tells the person, and when
 
 The owner chose 5.1, the morning reminder (Q1 = A, section 1.2). 5.2 and
-5.3 stay below as the options weighed; they are not built.
+5.3 stay below as the options weighed; they are not built. Then 5.1 itself
+was dropped (owner poll acef24b9 = A, 2026-11-15, section 1.2): the
+Reporter's daily note (spec 177) replaces the morning card. 5.1 stays below
+as the design weighed; the To-do view of section 4 is still built.
 
 5.1 **Morning reminder with a link** (HUM-24 `1715819f`, HUM-10
 `61878905`). Once a day, in the morning, the person is told how many tasks
@@ -354,6 +363,12 @@ Each seat signs a version with its own commit on branch
 | reviewer | c-880 | HOW v0.3 | 262d3309a |
 
 ## 10. Changes
+
+- v1.6: owner poll acef24b9 = A (HUM-10, msg ce993dde, 2026-11-15) folded by
+  the B2 lane c-170 (SPL-5595): B5 DROPPED, the Reporter's daily note
+  (spec 177) replaces the morning card; 1.2, 5 and 11.4 say so, 11.4 names
+  what stays unused (B0's two columns, `dueTodayCounts`); B2 and B3 stay.
+  Removals only; the seats' signatures stand for what remains.
 
 - v1.5: owner Q3 = A folded by the dispatch holder c-002: the default,
   confirmed, so no behaviour changes and the seats' signatures stand. The
@@ -520,7 +535,26 @@ Kept as the design weighed, not built.
 - A timer re-computes at local midnight, so the mark moves to the new day
   without a reload.
 
-### 11.4 The morning reminder (WHAT 5.1; chosen, Q1 = A)
+### 11.4 The morning reminder (WHAT 5.1): DROPPED, owner poll acef24b9 = A
+
+DROPPED (owner poll acef24b9 = A, 2026-11-15): the Reporter's daily note
+(spec 177) replaces the morning card. Kept below as the design weighed, not
+built. What stays unused because of it:
+
+- the plugin, the `kind` field on `CalendarReminderPopup.vue` and the card
+  text: not written;
+- `PUT /v1/me/day-tasks-seen`, the `day_tasks_reminder` ViewPrefs key and
+  its switch in Settings: not written;
+- B0's two humans columns, `day_tasks_seen_on` and `day_tasks_reminder`
+  (rdb 0252, `6231710ad`), are on dev and prd and stay empty: nothing reads
+  or writes them. Migrations are forward-only (developer guide 2.8.3), so
+  they stay; a later spec may use them or drop them in a new migration;
+- `dueTodayCounts` of B1's `day-tasks.mjs` has no caller in B2; it stays,
+  unit-tested, for whatever counts the day later.
+
+The To-do view still keeps its `/calendar?k=todo&v=day` address (WHAT 4.8),
+so any page or note can link to today's list.
+
 
 - **Delivery (owner Q4 = C: the in-app card only).** A small client plugin, the same
   shape as `plugins/calendar-reminders.client.ts`: on app ready and signed
@@ -594,10 +628,11 @@ prd.
 | B2 | desktop To-do view: tab, `?k=todo`, `CalendarTodoView.vue`, rows, live re-read, i18n | B1 | extend `tests/e2e/calendar-desk-views.test.mjs` (no new e2e file); chunk budget |
 | B3 | phone To-do view, four ranges for the To-do kind, `?k=todo&v=` sets the visit's range | B2 | extend an existing `calendar-phone-*` e2e file; the reminder link opens Day on a phone whose stored range is Week |
 | B4 | DROPPED (Q1 = A): due-today mark on the Issues icon | - | unit over `my-issues-count.mjs`; e2e on the rail |
-| B5 | morning card, seen-today endpoint, off switch | B0, B1, B2 | hub test for the endpoint (Postgres tier); e2e: shown once, not after the view was opened |
+| B5 | DROPPED (owner poll acef24b9 = A, 2026-11-15): the Reporter's daily note (spec 177) replaces the morning card | - | - |
 | B6 | DROPPED (owner Q4 = C): email at 08:00 local | - | - |
 
-Order: B1, then B2 and B0 in parallel, then B3 and B5.
+Order: B1, then B2 and B0 in parallel, then B3. (B0 and B1 are on master,
+`6231710ad` and `82822fc4b`; B5 is dropped, so B0's columns stay unused, 11.4.)
 Out of these rows: the deadline-input zone edge (WHAT 2) and `isOverdue`
 (WHAT 2) each get their own issue.
 

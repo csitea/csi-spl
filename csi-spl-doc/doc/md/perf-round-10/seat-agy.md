@@ -1,5 +1,9 @@
 # Perf round 10: agy panel seat (a-225@PC)
 
+Verdict: **PASS** on `4c321482b69c335f8a396e85355cb3eb44ff198b` (plan v1.1),
+section 10 (`W1`–`W5` and `N1`–`N5` all verified fixed, zero open defects).
+Section 9 is the v1.0 review; sections 0 to 8 are the v0.1 review:
+
 Verdict: **FAIL** on `7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12` (plan v1.0), one
 defect (`W5` on row 01's foreground `.vibe/` order vs `EXIT`-only join and 3-site
 count, section 9). `W2`–`W4` and `N1`–`N5` from v0.1 are verified fixed in v1.0,
@@ -426,3 +430,55 @@ Printed `ARCHIVE_HYGIENE_EXIT=0` (all 7 sweeps `ok` + `ok - no tracked .vibe/ di
   above `exit "$fail"` by `CONTROL a`, then `rm -rf "$d"`), OR write `:1804-1812`'s
   `echo` lines to a slot too — and specify that `EXIT` skips the join/verdict fold
   when exiting on `HUP`/`INT`/`TERM`.
+
+## 10. v1.1 re-sign (`4c321482b69c335f8a396e85355cb3eb44ff198b`)
+
+Verdict: **PASS** on `4c321482b69c335f8a396e85355cb3eb44ff198b` (plan v1.1).
+
+```text
+git fetch origin master review/c002-perf-round-10-planner
+git rev-parse origin/review/c002-perf-round-10-planner origin/master
+git log --oneline --stat 7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12..4c321482b69c335f8a396e85355cb3eb44ff198b
+git diff --stat 0d5d699d6 origin/master -- \
+  .github/workflows/10_ci-quality.yml \
+  csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh \
+  csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh \
+  csi-spl-iac/src/bash/run/check-dist-hygiene.func.sh
+```
+
+Printed:
+
+```text
+4c321482b69c335f8a396e85355cb3eb44ff198b
+01906d740c58432c0e576ff5b8a8f8636b09fb97
+4c321482b docs(p10, SPL-5619): perf round 10 plan v1.1, a-225 W5 folded
+ csi-spl-doc/doc/md/perf-round-10-plan.md | 40 +++++++++++++++++++++-----------
+ 1 file changed, 27 insertions(+), 13 deletions(-)
+```
+
+and empty diff on the four files (`0` lines drifted on `01906d740`).
+
+Newly cited lines in `4c321482b` checked on `0d5d699d6` and `01906d740` with
+`git show <rev>:<file> | sed -n '<N>p'`:
+- `wf10:1804,1812` -> `vibe="$(find . -path ./.git -prune ...)" || true` .. `fi` (match)
+- `hygiene-killed-cleanup.tst.sh:51` -> `if [[ $rc -ne 124 && $rc -ne 143 ]]; then echo "rc=$rc, not stopped by the TERM"; return; fi` (match)
+
+Distribution hygiene on an archive export of `4c321482b69c335f8a396e85355cb3eb44ff198b`:
+
+```text
+git archive 4c321482b69c335f8a396e85355cb3eb44ff198b | tar -xf - -C "$td"
+git -C "$td" init -q && git -C "$td" add .
+(cd csi-spl-iac && HYGIENE_TREE="$td" ./run -a do_check_dist_hygiene)
+```
+
+Printed `ARCHIVE_HYGIENE_EXIT=0` (all 7 sweeps `ok` + `ok - no tracked .vibe/ dir`).
+
+- **W5 verified fixed (`perf-round-10-plan.md:91`, `:154-172`):** `:91` lists the
+  4th `wf10` edit site (`sweep_join` right before `:1804`, `4 <= 5` sites);
+  `sweep_join` is idempotent and runs both before `:1804` (keeping `.vibe/` last,
+  matching `with_4th_range_before_1804` in section 9 above where all
+  `check-dist-hygiene.tst.sh` assertions pass with `rc=0`) and in `EXIT` (joining
+  `CONTROL a`'s doctored `sweep` above `exit "$fail"` and removing `$d`); and on
+  `HUP`/`INT`/`TERM` a flag (`sweep_killed=1`) makes `EXIT` skip `sweep_join` and
+  the verdict fold, preserving `129`/`130`/`143` (`hygiene-killed-cleanup.tst.sh:51`).
+- No remaining defects or open notes.

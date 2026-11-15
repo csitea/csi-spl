@@ -379,7 +379,7 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 The owner's ask of 2026-11-15 (t1 #spool-hub-ui `26b46de6`, HUM-10: "I
 should be able to see all of my calendar entries in one place regardless of
 how many workspaces I do have access to") is specified in its own file,
-[calendar-across-workspaces.md](calendar-across-workspaces.md) (v0.4,
+[calendar-across-workspaces.md](calendar-across-workspaces.md) (v0.5,
 SPL-5599): a personal view that reads each workspace's own calendar in its
 own scope, copies nothing into the realm, and leaves every entry under its
 workspace's rules. The owner answered all five of its questions (its

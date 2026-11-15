@@ -1,11 +1,12 @@
 # 119 addition: my calendar across workspaces
 
-**Status**: v0.4, 2026-11-15, c-203 (SPL-5599, epic SPL-2396). Docs
+**Status**: v0.5, 2026-11-15, c-203 (SPL-5599, epic SPL-2396). Docs
 only: builds nothing. All five owner answers folded (HUM-10): Q1 `1a`,
 Q2 `2a`, Q3 `3c`, Q5 `5a` (poll `75b0d544`, msg `76f7af1c`, 16:20:00Z) and
 Q4 `4b` (poll `555f92f9`, msg `f94ea39e`): pop-ups from every workspace,
 with a mute switch per workspace (section 4.1). v0.4 folds the agy spec
-review of v0.3 (a-277, FAIL W1..W6, N1..N5; section 12). Build rows:
+review of v0.3 (a-277, FAIL W1..W6, N1..N5), v0.5 the delta review of v0.4
+(a-293, FAIL W1..W7, N1..N3); section 12. Build rows:
 [tasks.md](tasks.md), section "Calendar across workspaces".
 Topic: t1 #spool-hub-ui `26b46de6-28b4-4bdf-93f2-c85346f2a13d`.
 
@@ -37,7 +38,7 @@ workspace they belong to. Each entry stays in, and is governed by, its own
 workspace. Nothing becomes a "global" row: a cross-workspace event table
 would break the workspace isolation every calendar rule rests on (section 1).
 
-## 1. Facts from the code (origin/master `a6dd716b3`; v0.4 rows rechecked on `5d0525c7d`; read, not run)
+## 1. Facts from the code (origin/master `a6dd716b3`; v0.4 rows rechecked on `5d0525c7d`, v0.5 rows on `1a96997ba`; read, not run)
 
 | fact | check | so |
 |---|---|---|
@@ -47,6 +48,11 @@ would break the workspace isolation every calendar rule rests on (section 1).
 | Audiences today: `public` (signed-out visitors), `workspace` (default), `internal`, `private` | rdb `0161_calendar_web_to_public.sql` (the 0159 rename) | a `demo_user` seat in a workspace still gets no `internal` item there |
 | Every browser door into a workspace, the calendar routes included, needs `topics.read` in that workspace | `hub/view.go` `viewDoor` -> `s.permit(..., rbac.TopicsRead)`; `hub/resolve.go`; calendar routes are `viewHandler` (`hub/calendar.go` `routeCalendar`) | the realm read skips a workspace where P lacks it (section 4) |
 | Seats without `topics.read`: `channel_guest` (no permission at all), `time_accountant`, `external_accountant`; `demo_user` has it and only it enters calendar routes with `internal` stripped | `rbac/rbac.go` lines 136..160; `hub/calendar.go` `isDemoVisitor` | the per-workspace gate is `topics.read`, the strip is `demo_user` (section 4) |
+| `Memberships` leaves out a `channel_guest` seat but returns `time_accountant` and `external_accountant` seats | `store/memberships.go` `membershipsSQL` (`m.role <> 'channel_guest'`) | those two reach the realm routes and are stopped by the `topics.read` gate, reads and writes alike (sections 4, 4.1, 5) |
+| The 119 realm gate is `realmCaller`: 400 `tenant_named` / `member_named`, 403 `person_only` for a bearer token, an act-as session, a non-`HUM-*` id, a live act-as clone in the session's workspace, or seats that are all `pure_agent` / `time_accountant`; 401 `door`; `no-store` | `hub/realm.go` lines 62..124 (`realmCaller`, `realmRefuses`, `realmSeatsNotPerson`, `realmPersonRe`) | the calendar routes use it, plus 118's `realmClone` over every seat (4.2) |
+| `realmPreflight` allows `Authorization, Content-Type, X-Locale` only; the workspace calendar's `calendarPreflight` adds `If-Match` | `hub/realm.go` line 422; `hub/calendar.go` lines 1230..1238 | the realm calendar routes need their own preflight with `If-Match` (4.2) |
+| Issue deadlines are read in the **hub**, not the calendar store: `s.deadlinesIn(ctx, tenant, range)` over `s.o.Issues.ListIssues` | `hub/calendar.go` lines 648..661, 740, 831; `store/calendar*.go` never reads `issues` | the "assigned to me" filter is a hub step (3.1, T013) |
+| No people-search route exists for the calendar; the guest check reads `ListMembers` and `Roster` of the workspace | `hub/calendar.go` `routeCalendar` (lines 1241..1259), `checkGuestsInWorkspace` (line 464) | the realm `people` route is new and its contract is in section 5 |
 | Guests are a subset of `mentions` | 097 section 3.2 | `viewer = ANY (mentions)` covers guests; GIN index `calendar_events_mentions` (0125 line 42) |
 | An event has a responsible `owner_id` beside `creator_id` | rdb `0247_calendar_event_links.sql` | "mine" can include "I own it" |
 | A person is one `HUM-*` id in every workspace | 118 5.1; `store/rls.go` `personIDRe` | no id mapping |
@@ -80,8 +86,9 @@ would break the workspace isolation every calendar rule rests on (section 1).
 A realm page, **My calendar** (`/me/calendar`), one lazy chunk. It shows the
 signed-in person's own entries (section 3) from every workspace in
 `Memberships(caller)`, merged on one grid, each marked with its workspace
-(section 3.2). Week, month and agenda views as the workspace calendar has
-(089 2, 097 5.1 on desktop; 106 on the phone). Entry points: the realm's
+(section 3.2). The views the workspace calendar ships, with the same ids:
+`day`, `3day`, `week`, `month` on desktop (`CalendarViewTabs.vue`), and
+`month`, `week`, `day` on the phone (106, `CalendarPhone.vue`). Entry points: the realm's
 navigation (119 T009); an "All my workspaces" link for a person with 2+
 workspaces, on desktop in the workspace calendar's vertical tab group
 (`CalendarViewTabs.vue`; there is no header bar on desktop, SPL-4060). The
@@ -115,8 +122,10 @@ and two regions would clash). A Google import (149) is P's own private event
 in W, so it counts.
 
 The store gets one predicate, added with AND after the private filter:
-`(creator_id = $2 OR owner_id = $2 OR $2 = ANY (mentions))`; the issue
-read gets `assignee = $2`. Every event it
+`(creator_id = $2 OR owner_id = $2 OR $2 = ANY (mentions))`. Issue
+deadlines are not a store read (section 1): the realm read calls the hub's
+existing `s.deadlinesIn(ctx, W, range)` in W and keeps only the issues
+whose `Assignee == P`. Every event the store
 returns already passes `calendarPrivateSQL` for the same viewer, so the view
 can never show an event the workspace calendar would hide from P.
 
@@ -171,8 +180,7 @@ realm's per-person colour, and no person can change it for themselves.
 
 `GET /v1/me/realm/calendar/events?start=<ISO>&end=<ISO>`
 
-- **Who**: the gate of 4.2 (human session only, `person_only`,
-  `person_scope`). The person is the session's human, never a request
+- **Who**: the gate of 4.2 (`realmCaller`, then `realmClone`). The person is the session's human, never a request
   field (119 7.2).
 - **Window**: `start < end`, at most 62 days (a month grid with its spill
   is 42), the 118 5.2 bound.
@@ -182,14 +190,16 @@ realm's per-person colour, and no person can change it for themselves.
   (`TestOperatorScopeCallers` gains nothing).
 - **How**: for each workspace W, the existing `ListCalendarEvents(ctx, W,
   caller, range)` in W's own workspace scope with the "mine" predicate on
-  (3.1), recurrence expanded as today (`calendarWithSeries`). For a seat whose
+  (3.1), recurrence expanded as today (`calendarWithSeries`), plus the
+  deadlines of W's issues assigned to P (`s.deadlinesIn`, filtered in the
+  hub, 3.1). For a seat whose
   primary role in W is `demo_user`, the hub drops `internal` items as the
   workspace route does (`isDemoVisitor`).
 - **Per-workspace gate**: a workspace W where P lacks `topics.read`
   (`s.allowed(ctx, P, W, rbac.TopicsRead)`, the check of every browser door,
-  section 1) is skipped before any read: a `channel_guest`,
-  `time_accountant` or `external_accountant` seat cannot read W's calendar
-  through the realm route either. It is left out of `workspaces[]`
+  section 1) is skipped before any read: a `time_accountant` or
+  `external_accountant` seat cannot read W's calendar through the realm
+  route either (`Memberships` never returns a `channel_guest` seat). It is left out of `workspaces[]`
   altogether, read nothing, and does not count toward the 20.
 - **Concurrency**: at most **2 workspaces in flight** (the 118 bound,
   pool 8). Never `asOperator`, never `app.rls_scope = operator`.
@@ -235,7 +245,7 @@ P belongs to, whichever workspace is open, and can mute any one workspace.
 - **400s**: `bad_range` on a missing or unparseable `from` or `to`, on
   `from >= to` and on `to - from > 31 days` (the workspace route's own
   parse, `calendarRange(r, "from", "to", calendarMaxReminderDays)`); `too_many_workspaces` on a
-  21st gated workspace; the 4.2 header and parameter refusals.
+  21st gated workspace; the 4.2 refusals.
 - **Answer**: `{"from","to","workspaces":[{"workspace_id","name","color","state"}],
   "reminders":[<the workspace route's reminder item> + "workspace_id"]}`,
   `state` one of `ok`, `muted`, `unavailable`; reminders by fire time, then
@@ -253,8 +263,12 @@ P belongs to, whichever workspace is open, and can mute any one workspace.
   `tenant_memberships.settings` of W (rdb 0078, the per-workspace override
   that already holds `time_zone` and `hours_reading`; no DDL). It is a field
   of `auth.MembershipSettings` (`*bool`, `omitempty`) and of
-  `HumanSettings` through `Overlay`, so `GET /api/v1/auth/session` returns
-  it for the active workspace and the settings dialog shows its state.
+  `HumanSettings` through `Overlay`, and it is answered both by
+  `GET /api/v1/auth/session` (`auth/handler.go`) and by the native login
+  answer (`auth/native.go` `loginResp`, which mirrors every session
+  preference, `hours_reading` at line 444, because the WUI adopts it
+  without a second `/session` read). So the settings dialog shows its state
+  right after sign-in.
   Absent = not muted, so nothing changes for anyone until they mute.
 - **Read without a transaction**: the fan-out decodes the key from
   `Membership.Settings`, already in the `Memberships(caller)` list. A muted
@@ -269,15 +283,20 @@ P belongs to, whichever workspace is open, and can mute any one workspace.
   - The chip writes `PUT /v1/me/realm/calendar/{workspace_id}/reminders`
     with body `{"muted": true}` or `{"muted": false}`. The gate of 4.2;
     then W in `Memberships(caller)` (else 403 `not_a_member`, nothing
-    written); 400 `bad_request` on a missing or non-boolean `muted` and on
+    written); then `topics.read` in W (else 403 `forbidden`, as for every
+    realm calendar route that names W, so an accountant seat cannot mute a
+    calendar it cannot see); 400 `bad_request` on a missing or non-boolean
+    `muted` and on
     any other key. `true` stores `true`; `false` removes the key (one
     "not muted" state, never a stored `false`). It writes in W's scope the
     same way `PUT /api/v1/auth/preferences` does. 200
     `{"workspace_id": W, "muted": true|false}`.
   - The settings row writes `PUT /api/v1/auth/preferences
     {"calendar_reminders_muted": true | false | null}` for the active
-    workspace, the parser's usual three (`false` and `null` both remove the
-    key, as `null` does for `hours_reading`).
+    workspace. Its parser departs from `parseHoursReading` on purpose:
+    that one stores `false` (`auth/hours_reading.go` line 30); this one
+    turns both `false` and `null` into "remove the key", so a stored
+    `false` never exists and the session answers `null` when not muted.
   - A member of W sets only their own key; no admin sets it for another
     member.
 - **Act-as, agents, boxes**: the realm routes are 403 for them (4.2), so
@@ -290,17 +309,31 @@ P belongs to, whichever workspace is open, and can mute any one workspace.
 ### 4.2 The gate every realm calendar route shares
 
 Every route under `/v1/me/realm/calendar/` (sections 4, 4.1, 5) starts
-with the same check, the 118 / 119 realm gate (`hub/realm_hours_read.go`
-`realmPerson`, reused as is), before anything is read or written:
+with the same check before anything is read or written:
 
-- human session only: 403 `person_only` under act-as (spec 054) and for
-  a box or agent credential; 401 `view_door` with no session;
-- 400 `person_scope` on an `X-Spool-Tenant` header and on a `member=` or a
-  `workspace=` parameter (the workspace is the path segment on writes,
-  never a parameter);
-- `Cache-Control: no-store` on every answer;
-- each path has its `OPTIONS` preflight (`realmPreflight`), so the browser
-  reaches it (SPL-5589).
+1. **`realmCaller`** (`hub/realm.go`, 119's realm gate), as is: 400
+   `tenant_named` on an `X-Spool-Tenant` header, 400 `member_named` on a
+   `member=` parameter; 403 `person_only` for a bearer (box or agent)
+   token, an act-as session, an id that is not `HUM-*` (`realmPersonRe`),
+   a live act-as clone in the session's workspace, and a person whose
+   seats are all `pure_agent` or `time_accountant` (`realmSeatsNotPerson`);
+   401 `door` with no session; `Cache-Control: no-store`. (118's
+   `realmPerson` is not used: it checks none of the last three.)
+2. **`realmClone` over every seat**: after `Memberships(caller)`, a live
+   act-as clone in any of P's workspaces is 403 `person_only`, as 118's
+   hours read does (`hub/realm_hours_read.go` line 183).
+3. **No workspace parameter**: 400 `workspace_named` on a `workspace=`
+   parameter (new code, the same shape as `member_named`); a route that
+   acts on one workspace names it in the path, never in the query.
+4. **Its own preflight**: `realmCalendarPreflight(methods)`, which is
+   `realmPreflight` plus `If-Match` in `Access-Control-Allow-Headers` (as
+   `calendarPreflight` has), registered as `OPTIONS` on every path. Without
+   `If-Match` the browser's `PATCH` and `DELETE` of section 5 fail their
+   preflight (SPL-5589 was the same class of fault).
+
+Each route that names a workspace W then checks W is in
+`Memberships(caller)` (403 `not_a_member`) and that P holds `topics.read`
+in W (403 `forbidden`).
 
 ## 5. Writing from the view (owner: Q2 `2a`)
 
@@ -310,9 +343,8 @@ for the workspace first.
 - **Edit, move, resize, delete, restore, RSVP**:
   `PATCH|DELETE /v1/me/realm/calendar/{workspace_id}/events/{id}`,
   `POST .../{id}/restore`, `POST .../{id}/rsvp`. The hub runs the 4.2
-  gate, checks `workspace_id` is in `Memberships(caller)` (else 403
-  `not_a_member`, nothing read or written) and that P holds `topics.read`
-  in W (else 403 `forbidden`, as the workspace door answers), then runs the **same** store call and the same checks as
+  gate with its membership (403 `not_a_member`, nothing read or written)
+  and `topics.read` (403 `forbidden`) checks on W, then runs the **same** store call and the same checks as
   the workspace route, in W's own workspace scope: `If-Match` (097),
   owner-only `private` (089 4.2), the edit permission, edit scopes of a
   series (097 4.4), guest notices (097 4.5), 409 `synced_read_only` on an
@@ -324,12 +356,23 @@ for the workspace first.
   preselected: the last one used, else the one the person came from).
   Every picker reads that workspace only, and changing the workspace
   clears what was picked:
-  - guests and mentions: `GET /v1/me/realm/calendar/{workspace_id}/people?q=`
-    (new, T014), the workspace calendar's people search run in W's scope,
-    behind the 4.2 gate, the membership check and `topics.read` in W;
+  - guests and mentions: `GET /v1/me/realm/calendar/{workspace_id}/people?q=`,
+    a **new** route (no workspace people search exists to reuse, section
+    1). The 4.2 gate with its checks on W. It reads W's active human
+    members (`ListMembers`) and roster agents (`Roster`), the same two
+    lists `checkGuestsInWorkspace` checks a guest against, so whoever it
+    offers the write accepts. `q`: 1..64 characters after trimming (400
+    `bad_query` otherwise), matched case-insensitively as a substring of
+    the display name or the id. Answer: `{"workspace_id": W, "people":
+    [{"id", "type", "display_name"}]}`, `type` `human` or `agent`, at
+    most 20, by display name then id; never an email or another field of
+    the member row;
   - topic links: the topic entries of 118's existing
     `GET /v1/me/realm/targets?workspace=<W>&q=` (membership-checked, read
-    under `inTenant(W)`);
+    under `inTenant(W)`). Known and accepted: that route refuses W for any
+    seat that holds `time_accountant`, even beside a member role
+    (`seatAccountant`, `hub/realm_hours_write.go`), so such a person types
+    the topic ref instead, resolved in W on save as issue refs are;
   - issue links: no cross-workspace issue search in this version. P types
     the issue ref; the write resolves it in W under the workspace route's
     own link check, so an unknown ref is refused exactly as there.
@@ -355,7 +398,9 @@ for the workspace first.
 - **Read only, as in 149**: a Google import is never edited, moved or
   deleted in Spool (409 `synced_read_only` on the realm routes as on the
   workspace routes; 149 sections 2.5, 2.10 B). The sheet says to change it
-  in Google; the next sync brings the change into each workspace.
+  in Google; the next sync brings the change into each workspace. (Today's
+  popover line for a synced event reads "change it in the repo", written
+  for 112's repo sync; the realm sheet says Google for a `gcal:` key.)
 - Match key: `src.<12 hex>.<google id>` (the part after
   `gcal:<connection>:`), compared only among P's own rows. No new column.
 
@@ -402,8 +447,8 @@ the view (remembered per browser, 3.3); an unavailable workspace is a grey chip
 "could not be read, retry". The pop-over shows the workspace first, then the
 089 / 097 details.
 
-**Phone (<= 820 px, 360 and 390 px)**: the 106 phone calendar
-(`CalendarPhone.vue`'s list and sheet), agenda by day by default, each row
+**Phone (<= 820 px, 360 and 390 px)**: laid out as the 106 phone
+calendar (its `month` / `week` / `day` views, `day` first, and its sheet), each row
 with the workspace colour bar and name; the workspace chips wrap, never
 scroll sideways; the event opens the 106 sheet; controls 44..48 px; swipe
 for the previous or next week.
@@ -431,11 +476,13 @@ for the previous or next week.
 
 ## 10. Tests (for the build rows; Postgres, runtime role)
 
-- **T-CAL1** "mine": in W, P sees events P made, owns, is a guest of
-  (declined included) and is mentioned on, and the deadline of an issue
-  assigned to P; P does not see a `workspace` event of Q's nor the deadline
-  of an issue assigned to Q. Red control: drop the predicate, P's list
+- **T-CAL1** "mine" (store, T012): in W, P sees events P made, owns, is
+  a guest of (declined included) and is mentioned on; P does not see a
+  `workspace` event of Q's. Red control: drop the predicate, P's list
   grows.
+- **T-CAL1b** deadlines (hub, T013): the realm read returns the deadline
+  of an issue in W assigned to P and not that of an issue assigned to Q.
+  Red control: drop the `Assignee == P` filter, Q's deadline appears.
 - **T-CAL2** private never leaks: Q's private event in W (P neither owner nor
   named) is in no answer of P's. Red control: drop `calendarPrivateSQL` from
   the per-workspace read.
@@ -443,9 +490,13 @@ for the previous or next week.
   `app.tenant_id` each, none with `app.person_id` alongside, none operator.
 - **T-CAL4** routes: on every realm calendar route (events, marks,
   reminders, the mute `PUT`, each write, `people`): 403 `person_only` under
-  act-as, for an agent, a box token; 400 on `X-Spool-Tenant`, `member=`,
-  `workspace=`; an `OPTIONS` preflight answers 204. 400 on a 63-day events
-  window, a 5-year marks range and a 21st workspace.
+  act-as (session provider and a store clone row in a second workspace),
+  for a box token, for a non-`HUM-*` id and for a person whose seats are
+  all `pure_agent`; 400 `tenant_named`, `member_named`, `workspace_named`;
+  the `OPTIONS` preflight answers 204 and its `Access-Control-Allow-Headers`
+  contains `If-Match`. 400 on a 63-day events window, a 5-year marks range,
+  a 21st workspace and a 65-character `q`. Red control: register the
+  event paths with `realmPreflight`, the `If-Match` assertion fails.
 - **T-CAL5** leavers: after removal, after `access_until`, while disabled,
   W's events are absent; after re-enable they return.
 - **T-CAL6** unavailable: a stubbed failure in W returns W `unavailable` and
@@ -453,15 +504,19 @@ for the previous or next week.
 - **T-CAL7** writes: a write to a W not in `Memberships` is 403
   `not_a_member` and writes nothing; a non-owner setting `private` through the
   realm route is 403 as on the workspace route (one handler, both routes);
-  act-as and an agent get 403 `person_only` on each write.
+  act-as and an agent get 403 `person_only` on each write; `people?q=` in
+  W returns W's members and agents only, never one of W2. Red control:
+  skip the membership check, the write to the foreign W lands.
 - **T-CAL8** seats: a `demo_user` seat in W gets no `internal` item of W;
-  a `time_accountant`, `external_accountant` or `channel_guest` seat in W
-  gets nothing of W from events, marks or reminders (W absent from
-  `workspaces[]`) and 403 on a write to W. Red control: drop the
+  a `time_accountant` or `external_accountant` seat in W (beside a member
+  seat in W2) gets nothing of W from events, marks or reminders (W absent
+  from `workspaces[]`) and 403 `forbidden` on every route naming W: each
+  write, `people`, and the mute `PUT`. Red control: drop the
   `topics.read` gate, the accountant seat reads W's `workspace` events.
 - **T-CAL9** Google: one Google event imported in A and B shows once, with
   `workspace_ids` = [A, B]; `PATCH` and `DELETE` of it through the realm
-  route are 409 `synced_read_only`.
+  route are 409 `synced_read_only`. Red control: skip the `source_key`
+  guard in the shared handler body, the `PATCH` returns 200.
 - **T-CAL10** nothing flows down: W1's workspace calendar, reminders and
   marks for P are byte-identical with and without P's W2 events.
 - **T-CAL11** workspace colour: an unset `calendar.color` reads the same
@@ -478,13 +533,17 @@ for the previous or next week.
   extra key in the body is 400; a W not in `Memberships` is 403
   `not_a_member` and writes nothing; `GET /api/v1/auth/session` with W2
   active shows `calendar_reminders_muted: true`; `PUT
-  /api/v1/auth/preferences` with `null` clears it. 400 `bad_range` on a
+  /api/v1/auth/preferences` with `false` or with `null` removes it (the
+  stored settings hold no `calendar_reminders_muted` key); the native
+  login answer carries it as the session does. 400 `bad_range` on a
   32-day window and on `from >= to`. Red controls: drop the mute check from
   the fan-out, W2's reminders return while muted; read with
   `store.CalendarReminders` alone, the `props.reminders` fire is missing.
-- **e2e** at 390 px and desktop: the merged agenda, the chips, the sheet;
-  an issue deadline does not drag; the reminder pop-up names its workspace
-  and a muted workspace gives none (T018).
+- **e2e** at 390 px and desktop (T017): the merged view, the chips, the
+  sheet; two workspaces holding an event with the same id show both,
+  each with its own workspace bar; an issue deadline does not drag. Red
+  control: key the store by event id alone, one of the two events is
+  lost. The reminder e2e is T018's.
 
 ## 11. Questions for the owner
 
@@ -531,5 +590,6 @@ dispatcher (c-002) adopted it in the post to the owner.
 | 0.2 | 2026-11-15 | c-203 | owner answers folded: Q1 `1a` (issue deadlines by `assignee`), Q2 `2a`, Q3 `3c` (new 3.3: `tenants.settings` key `calendar.color`, set with `tenant.settings`, default from the workspace id; no realm table), Q5 `5a`; Q4 open, owner discussing; T-CAL11 |
 | 0.3 | 2026-11-15 | c-203 | Q4 folded: `4b` (poll `555f92f9`, msg `f94ea39e`), pop-ups from every workspace plus a mute per workspace; new 4.1 (realm reminders read, `calendar_reminders_muted` key in `tenant_memberships.settings`, chip bell, `muted` state); fact row for rdb 0078; T-CAL12; Q4 options renamed to the poll's three (`4a`..`4c`) |
 | 0.4 | 2026-11-15 | c-203 | agy spec review of v0.3 folded (a-277, FAIL on `83fbfca9c`): W1 Google imports read only (409 `synced_read_only`, 149), no edit of a folded import; W2 issue deadlines read only and not draggable (SPL-2034); W3 new 4.2 gate on every realm calendar route (`person_only`, 400s, preflight) and the per-workspace `topics.read` gate; W4 mute key in `auth.MembershipSettings` / session overlay, read from `Membership.Settings`, full 400 / 200 contracts, `false` removes the key; W5 build rows (tasks.md); W6 `reminderEvents` + `reminderFires`, `workspace_ids`, `/marks` shape, pickers. N1 `demo_user`; N2 declined RSVP stays mine, 5-year strip, 106 for the phone; N3 line cite; N4 footers |
+| 0.5 | 2026-11-15 | c-203 | agy delta review of v0.4 folded (a-293, FAIL on `ffccfc1cb`): W1 own preflight `realmCalendarPreflight` with `If-Match`; W2 4.2 is `realmCaller` (not `realmPerson`) plus `realmClone` over every seat, 400 `workspace_named`; W3 deadline filter in the hub over `s.deadlinesIn`, T-CAL1b; W4 WUI files and serial locale lanes (tasks.md); W5 red controls on T-CAL4, T-CAL7, T-CAL9 and the e2e, spec 098 row owned by T015; W6 native login answer, parser departs from `parseHoursReading`, `topics.read` on the mute `PUT`; W7 the `people` route is new and has its contract. N1 shipped view ids; N2 `targets` refuses an accountant add-on seat, accepted |
 
-<!-- version: 0.4.0 · updated: 2026-11-15 -->
+<!-- version: 0.5.0 · updated: 2026-11-15 -->

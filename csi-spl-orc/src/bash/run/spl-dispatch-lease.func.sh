@@ -2379,7 +2379,7 @@ spl_fleet_role_hub() {
   fi
   [[ -n "$want" || -z "$cand" ]] && rm -f "$LEASE_DIR/fleet.$role.hold" "$LEASE_DIR/fleet.$role.hold-int" "$LEASE_DIR/fleet.$role.fallback-wait"
   [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal" "$LEASE_DIR/fleet.$role.nolocal-limit"
-  [[ "$hm" == "$me" && -z "$cand" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal-alert"
+  [[ "$hm" == "$me" && -z "$cand" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal-alert" "$LEASE_DIR/fleet.$role.nolocal-ticks" "$LEASE_DIR/fleet.$role.nolocal-hold"
   local won=false
   if [[ -n "$want" ]]; then
     local before="$FH" age="$FA"
@@ -2488,7 +2488,7 @@ spl_fleet_nocand() {
   [[ "$2" == "$LEASE_MACHINE" ]] && FWANT="$(spl_fleet_handoff "$1" "$3")" && return 0
   [[ "$2" == "$LEASE_MACHINE" && -n "$dead" ]] && FWANT="$(spl_fleet_dead_handoff "$1" "$3" "$dead")" && return 0
   FWANT=""
-  [[ "$2" == "$LEASE_MACHINE" ]] && spl_fleet_nolocal "$1"
+  [[ "$2" == "$LEASE_MACHINE" ]] && spl_fleet_nolocal "$1" "$3"
   spl_fleet_switch_tick "$1"
 }
 
@@ -2704,14 +2704,44 @@ spl_fleet_fresh_other() {
   return 1
 }
 
-# spl_fleet_nolocal <role>: the NO-LOCAL-AGENT line (once), and the alert when
-# no other box can take the role.
+# ---- a busy tick holds the NO-LOCAL alert (SPL-5640) -------------------------
+# 2026-11-14 07:22Z sat posted "NO-LOCAL-AGENT orch on sat ... Nobody acts as
+# orch" (owner: "Why ?!", msg 43a2229f): c-001 was working through a
+# 39-message backlog, one message sat unread over 2 min, the watchdog's S1 hit
+# was fresh, and one tick judged the seat not able. Now, while a seat of the
+# role still has a live process here (or is under a rotation hold), the alert
+# waits until no seat has been able for LEASE_NOLOCAL_TICKS consecutive ticks
+# (default 3; 1 = the old first-tick alert). The count is
+# fleet.<role>.nolocal-ticks ("<n> <last>"); an able tick or the role leaving
+# this machine clears it, a gap over LEASE_STALE (the box was off) restarts
+# it. No seat with a process at all is no busy tick: the alert as before. The
+# NO-LOCAL-AGENT log line is not held.
+
+# spl_fleet_nolocal_hold <role> <now>: rc 0 holds the alert this tick.
+spl_fleet_nolocal_hold() {
+  local role="$1" now="$2" f="$LEASE_DIR/fleet.$1.nolocal-ticks" n="" last="" id live=false want="${LEASE_NOLOCAL_TICKS:-3}"
+  for id in $(spl_fleet_role_agents "$role"); do
+    [[ -n "$(spl_lease_agent_pid "$id")" || -n "$(spl_lease_held "$id")" ]] && { live=true; break; }
+  done
+  $live || { rm -f "$f"; return 1; }
+  read -r n last < "$f" 2>/dev/null || true
+  [[ "$n" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && (( now - last <= LEASE_STALE )) || n=0
+  n=$((n + 1)); echo "$n $now" > "$f"
+  [[ "$want" =~ ^[0-9]+$ ]] || want=3
+  (( n < want )) || return 1
+  spl_fleet_once "$role.nolocal-hold" "NO-LOCAL-HOLD $role: a seat of $role here still runs; the alert waits for $want ticks with no seat able (LEASE_NOLOCAL_TICKS)"
+  return 0
+}
+
+# spl_fleet_nolocal <role> [now]: the NO-LOCAL-AGENT line (once), and the
+# alert when no other box can take the role (after the busy hold above).
 spl_fleet_nolocal() {
-  local role="$1" me="$LEASE_MACHINE" rc=0 to v others text k="LEASE_PRIORITY_${1^^}" lim limtxt="" until
+  local role="$1" now="${2:-}" me="$LEASE_MACHINE" rc=0 to v others text k="LEASE_PRIORITY_${1^^}" lim limtxt="" until
+  [[ -n "$now" ]] || now="$(spl_lease_now)"
   [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
   # every seat on a vendor limit (SPL-3345): the line names the reset, once
   # (also when the limit is read only after the first line)
-  if lim="$(spl_fleet_role_limit "$role" "$(spl_lease_now)")"; then
+  if lim="$(spl_fleet_role_limit "$role" "$now")"; then
     limtxt="; every seat of $role here sits on a vendor limit until $(spl_fleet_utc "$lim")"
     [[ -f "$LEASE_DIR/fleet.$role.nolocal" ]] &&
       spl_fleet_once "$role.nolocal-limit" "NO-LOCAL-AGENT $role: $FH$limtxt, no vendor switch took"
@@ -2719,6 +2749,7 @@ spl_fleet_nolocal() {
   fi
   spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role"))$limtxt; it goes stale in ${LEASE_STALE}s"
   [[ -f "$LEASE_DIR/fleet.$role.nolocal-alert" ]] && return 0
+  spl_fleet_nolocal_hold "$role" "$now" && return 0
   spl_fleet_fresh_other "$role" >/dev/null || rc=$?
   (( rc == 1 )) || return 0
   v="$(spl_fleet_health_get)"

@@ -308,6 +308,26 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
 (after B2, same file), B6 (after B5), B8. The rows that touch
 `box-crons.manifest` (B6, B8) land one after the other.
 
+### 5.1 Rows from the nightly reflection
+
+- **R1 of 2026-11-14** Implemented (SPL-5640): the NO-LOCAL-AGENT alert
+  fired on one busy tick. At 07:22Z sat posted "NO-LOCAL-AGENT orch on sat
+  ... Nobody acts as orch" (owner: "Why ?!", msg 43a2229f) while c-001 was
+  working through a 39-message backlog: one message unread over 2 min, the
+  watchdog's S1 hit fresh, one tick judged the seat not able. Now
+  `spl_fleet_nolocal` (`csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`)
+  holds the alert (the #alerts post and the note to the orch holder) while a
+  seat of the role still has a live process on the box (or is under a
+  rotation hold), until no seat has been able for `LEASE_NOLOCAL_TICKS`
+  consecutive ticks (default 3; 1 = the old first-tick alert). It logs
+  `NO-LOCAL-HOLD <role>: ...` once per episode; the `NO-LOCAL-AGENT` log
+  line is not held. An able tick or the role leaving the box clears the
+  count (`fleet.<role>.nolocal-ticks`); a gap over `LEASE_STALE` restarts
+  it. No seat with a process at all is no busy tick: the alert comes on the
+  first tick, as before. Test:
+  `csi-spl-orc/src/bash/tests/fleet-lease-nolocal-hold.tst.sh` (red on the
+  old code: cases 1 to 3 post on the first busy tick).
+
 ## 6. Not fixed here (reported)
 
 - Manifest row `issue-key-rate` (`box-crons.manifest:31`) is in neither box's

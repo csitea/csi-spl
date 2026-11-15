@@ -210,8 +210,8 @@ func (s *Server) handleKeyAdd(w http.ResponseWriter, r *http.Request) {
 		req.Source = store.KeySourceUploaded
 	}
 	if (req.Source != store.KeySourceGenerated && req.Source != store.KeySourceUploaded) ||
-		len(req.Label) > keysLabelMax || !utf8.ValidString(req.Label) {
-		writeErr(w, http.StatusBadRequest, "bad_request", "source must be generated or uploaded; label at most 80 bytes")
+		!utf8.ValidString(req.Label) || utf8.RuneCountInString(req.Label) > keysLabelMax {
+		writeErr(w, http.StatusBadRequest, "bad_request", "source must be generated or uploaded; label at most 80 characters")
 		return
 	}
 	pub, err := sign.ParsePublic(req.PublicKey)

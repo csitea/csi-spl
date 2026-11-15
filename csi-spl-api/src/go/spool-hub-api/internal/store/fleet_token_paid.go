@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	uuid "github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -70,7 +71,7 @@ func CheckFleetPaidItem(it FleetPaidItem) string {
 		return "vendor must be one of " + strings.Join(wire.FleetTokenVendors, ", ")
 	case !slices.Contains(FleetPaidKinds, it.Kind):
 		return "kind must be subscription or topup"
-	case strings.TrimSpace(it.PlanLabel) == "" || len(it.PlanLabel) > 100:
+	case strings.TrimSpace(it.PlanLabel) == "" || utf8.RuneCountInString(it.PlanLabel) > 100:
 		return "plan_label must be 1..100 characters"
 	case it.Quantity < 1 || it.Quantity > 1000:
 		return "quantity must be 1..1000"

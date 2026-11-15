@@ -85,9 +85,9 @@ func checkHRLine(e CostEntry) string {
 		return "a person's line needs a component"
 	case e.Component != "" && !hrComponentRe.MatchString(e.Component):
 		return "component must be an hr component's id, e.g. monthly_salary"
-	case len(e.Source) > 200:
+	case utf8.RuneCountInString(e.Source) > 200:
 		return "source must be at most 200 characters"
-	case len(e.Account) > 20:
+	case utf8.RuneCountInString(e.Account) > 20:
 		return "account must be at most 20 characters"
 	case e.PeriodKind != "" && e.PeriodKind != "month" && e.PeriodKind != "year":
 		return "period_kind must be month or year"

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"time"
+	"unicode/utf8"
 )
 
 // The Netvisor finance store (spec 125 v0.1 sections 3, 4, 5.2, build row
@@ -244,7 +245,7 @@ func normNetvisorItem(it *NetvisorForecastItem) error {
 		return nvsBad("forecast sign")
 	case !nvsAmountRe.MatchString(it.Amount) || !nvsCurrencyRe.MatchString(it.Currency):
 		return nvsBad("forecast amount")
-	case len(it.Label) > 200:
+	case utf8.RuneCountInString(it.Label) > 200:
 		return nvsBad("forecast label")
 	}
 	return nil

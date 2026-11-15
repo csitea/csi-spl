@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"time"
+	"unicode/utf8"
 )
 
 // A human's Ed25519 PUBLIC keys and their history (specs/023 T010/T011,
@@ -61,8 +62,8 @@ func checkHumanKey(k HumanKey) error {
 		return errors.New("human key: fingerprint must be SHA256:<base64>")
 	case k.Source != KeySourceGenerated && k.Source != KeySourceUploaded:
 		return errors.New("human key: source must be generated or uploaded")
-	case len(k.Label) > 80:
-		return errors.New("human key: label is at most 80 bytes")
+	case utf8.RuneCountInString(k.Label) > 80:
+		return errors.New("human key: label is at most 80 characters")
 	case k.HumanID == "":
 		return errors.New("human key: human_id is required")
 	}

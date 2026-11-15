@@ -53,5 +53,5 @@ Same box, the same hour, load average 35..41 (n = 12 per arm, interleaved,
 At that load the four arms fall within each other's noise. Measured alone, the
 root's lookup and refusal, `./run -a do_no_such_action` at the root, has a
 median of 28 ms (n = 20; a bare `bash -c 'exit 0'` was 10 ms), against 584 ms
-for an orc `./run` (n = 20). A module pays two globs and no fork
+for an orc `./run` (n = 20). A module pays one glob and no fork
 (`csi-spl-iac/src/bash/tests/run-loader-no-fork.tst.sh` stays green).

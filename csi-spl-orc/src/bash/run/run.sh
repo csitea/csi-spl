@@ -255,7 +255,7 @@ do_run_top_pad() {
 # this file (src/bash/run/run.sh, the root ./run points to it); a module's
 # ./run is unchanged. The copy knows it is the root when the dir of its ./run
 # has module children (<dir>/*/src/bash/run/run.sh), read from $0 before
-# anything else runs: no fork, so a module pays two globs and nothing more.
+# anything else runs: no fork, so a module pays one glob and nothing more.
 # At the root:
 #   - an action defined in the root's own src/bash/run/*.func.sh runs here;
 #   - `./run -a do_x` execs the ./run of the one module that defines do_x

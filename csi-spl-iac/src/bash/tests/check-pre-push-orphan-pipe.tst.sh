@@ -33,11 +33,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# _pp_budget prefers a part's own variable, then PRE_PUSH_PART_TIMEOUT, over
+# _pp_timeout: a caller that exports one (lanes raise them under load) would
+# turn the 2 s budget into theirs and case 2 red (SPL-5571). Unset every one
+# _pp_part_var can name, read from the function itself so a new part is covered.
+budget_vars="PRE_PUSH_PART_TIMEOUT $(sed -n '/^_pp_part_var()/,/^}/p' "$FUNC" \
+  | grep -oE 'PRE_PUSH_[A-Z0-9_]+_TIMEOUT' | sort -u | tr '\n' ' ')"
+
 # One run of _pp_run on a stub part, in its own bash bounded by `timeout`, so a
 # hang reads as rc 124 here instead of hanging this test.
 run_part() {  # <part body>
   cat >"$T/run.sh" <<EOF
 set -uo pipefail
+unset $budget_vars _PP_TIER
 do_log() { echo "\$*" >>"$T/log"; }
 . "$FUNC"
 _pp_timeout=2 PRE_PUSH_ORPHAN_GRACE=1

@@ -11,8 +11,8 @@
 # @description SHRED=1 (the prd call, after dev holds the key) shreds KEY_FILE
 # @description once the version is in; refused on any other env.
 # @description DRY_RUN=1 (default): names the secret, compares, changes nothing.
-# @param ENV - required: dev or prd
-# @param KEY_FILE - required: the App's .pem, as downloaded from GitHub
+# @param ENV (required) - dev or prd
+# @param KEY_FILE (required) - the App's .pem, as downloaded from GitHub
 # @param SHRED (optional) - 0 (default) or 1; 1 only with ENV=prd
 # @param GH_APP_SECRET (optional) - overrides the cnf slot id
 # @param DRY_RUN (optional) - 1 (default) or 0

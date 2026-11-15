@@ -10,8 +10,8 @@
 # @description argv, stdout or a log) only when the latest differs (sha256), then
 # @description verified by sha256. do_spl_gh_app_manifest calls it per env.
 # @description DRY_RUN=1 (default): read and compare, change nothing.
-# @param ENV - required: dev or prd
-# @param KEY_FILE - required: the App's .pem
+# @param ENV (required) - dev or prd
+# @param KEY_FILE (required) - the App's .pem
 # @param GH_APP_SECRET (optional) - default spool-hub-github-app-key
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev KEY_FILE=$HOME/.github/.csi/<app-slug>.pem DRY_RUN=0 ./run -a do_spl_gh_app_key_put

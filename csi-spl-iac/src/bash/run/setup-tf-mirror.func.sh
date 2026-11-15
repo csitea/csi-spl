@@ -12,7 +12,7 @@
 # @description serialised by a lock; the mirror only ever gains files, so a
 # @description reader is never handed a half-written tree.
 # @description The CI iac-suite job (10_ci-quality.yml) runs this action.
-# @param TF_MIRROR_ROOT - required, no default: e.g. $RUNNER_TOOL_CACHE/csi-spl-tf
+# @param TF_MIRROR_ROOT (required) - e.g. $RUNNER_TOOL_CACHE/csi-spl-tf
 # @param TF_BIN (optional) - default: terraform on PATH
 # @example TF_MIRROR_ROOT=$HOME/.cache/csi-spl/tf ./run -a do_setup_tf_mirror
 #------------------------------------------------------------------------------

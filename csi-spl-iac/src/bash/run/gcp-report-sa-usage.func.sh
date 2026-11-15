@@ -18,7 +18,7 @@
 # @description Every number carries the command that produced it. Writes the
 # @description slim entries and the report 0600 under SA_USAGE_DIR (0700).
 # @description Mutates nothing in GCP.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SA_USAGE_DAYS (optional) - window in days, default 30 (1..400)
 # @param SA_USAGE_TARGET (optional) - principal to report, default the env SA
 # @param SA_USAGE_DIR (optional) - default $HOME/.local/share/<org>-<app>/sa-usage

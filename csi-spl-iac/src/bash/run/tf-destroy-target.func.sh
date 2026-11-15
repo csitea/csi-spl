@@ -7,7 +7,9 @@
 # @description A dry run unless DRY_RUN=0: by default each target gets a
 # @description `plan -destroy -target=<t>` (shows what would go, changes
 # @description nothing); DRY_RUN=0 runs `apply -destroy -target=<t>`.
-# @param ENV STEP TARGET - required
+# @param ENV (required) - dev or prd
+# @param STEP (required) - the terraform step
+# @param TARGET (required) - the resource address(es) to destroy, comma separated
 # @param DRY_RUN 1 (default) plans only, 0 destroys
 # @example ENV=prd STEP=007-dns \
 # @example   TARGET=google_dns_record_set.api_prd,google_dns_record_set.api_tst \

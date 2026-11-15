@@ -17,8 +17,8 @@
 # @description The new version itself is added by the secret's seed action
 # @description first; status names it. Runs as the env's project SA in a
 # @description private gcloud config.
-# @param ENV - required: dev or prd
-# @param SECRET - required: a secret id the hub pins, e.g. csi-spl-hub-wui-key
+# @param ENV (required) - dev or prd
+# @param SECRET (required) - a secret id the hub pins, e.g. csi-spl-hub-wui-key
 # @param ROTATE_STEP (optional) - status (default), pin, verify or disable
 # @param DRY_RUN (optional) - 1 (default) or 0: pin and disable change nothing at 1
 # @example ENV=dev SECRET=csi-spl-hub-wui-key ./run -a do_spl_secret_rotate

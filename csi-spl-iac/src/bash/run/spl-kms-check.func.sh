@@ -11,7 +11,7 @@
 # @description gcloud config, impersonating the runtime SA: 055 grants the
 # @description project SA serviceAccountTokenCreator on that SA only.
 # @description Read-only: nothing in GCP changes.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @example ENV=dev ./run -a do_spl_kms_check
 #------------------------------------------------------------------------------
 # shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh

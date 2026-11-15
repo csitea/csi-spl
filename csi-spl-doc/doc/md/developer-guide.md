@@ -310,6 +310,19 @@ most 200 characters; today's exceptions are listed in
 `action-header-tags-baseline.txt` (sections `missing`, `long-example`), and
 that list only shrinks. The flag form: `csi-spl-orc/src/bash/tests/run-param-flags.tst.sh`.
 
+A required env var is said in one form only: `# @param NAME (required) - <text>`.
+`./run` then refuses to start the action while NAME is unset or empty
+(`do_validate_params` in `lib/bash/funcs/validate-params.func.sh`, exit 11).
+Write it only when the action refuses without NAME on every path, dry run
+included. A need that holds only sometimes is written without the word, e.g.
+`# @param NAME (optional) - <text>; needed with DRY_RUN=0`, and a param with a
+default never says required. Enforced by:
+`csi-spl-iac/src/bash/tests/param-required.tst.sh` (each module's suite runs
+it through its own `param-required.tst.sh`): any other form ("- required:",
+"(REQUIRED)", "required when ...") fails, and an unset `(required)` var must
+stop a fixture action before its body runs; today's exceptions are listed in
+`param-required-baseline.txt`, and that list only shrinks.
+
 <a id="ws-doc-252415a0-f93b-44a4-a7ca-f8fe6c78b3ef"></a>
 #### 2.4.3 Bash that fails safely
 

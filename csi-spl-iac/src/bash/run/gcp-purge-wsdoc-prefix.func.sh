@@ -21,9 +21,9 @@
 # @description through the hub and expire on their own (a purge leaves every
 # @description generation it deleted soft-deleted for that retention).
 # @description Object names (paths) are printed, never an object's content.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug, one of 052's workspaces
-# @param WSDOC_PREFIX - required: a relative doc prefix ending in /, e.g. <prefix>/
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug, one of 052's workspaces
+# @param WSDOC_PREFIX (required) - a relative doc prefix ending in /, e.g. <prefix>/
 # @param DRY_RUN (optional) - 1 (default): list and count. 0: delete.
 # @example ENV=prd TENANT_ID=t1 WSDOC_PREFIX='<prefix>/' ./run -a do_gcp_purge_wsdoc_prefix
 # @example ENV=prd TENANT_ID=t1 WSDOC_PREFIX='<prefix>/' DRY_RUN=0 ./run -a do_gcp_purge_wsdoc_prefix

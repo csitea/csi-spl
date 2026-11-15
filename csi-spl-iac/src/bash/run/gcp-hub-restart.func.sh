@@ -19,7 +19,7 @@
 # @description 2 min apart. HUB_RESTART_FORCE=1 restarts anyway.
 # @description Terraform drift: SPOOL_HUB_RESTART_AT is not in the 030 tf, so
 # @description the next 030 apply (and any CI deploy) drops it again. Harmless.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param HEALTH_TRIES (optional) - /v1/health attempts, 2 s apart (default 15)
 # @param HUB_RESTART_MIN_AGE_S (optional) - refuse while the ready revision's

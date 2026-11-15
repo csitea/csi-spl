@@ -10,10 +10,10 @@
 # @description is by sha256. A version is added only when the target's latest
 # @description differs. The target secret must exist (terraform owns slots).
 # @description DRY_RUN=1 (default): read and compare, add nothing.
-# @param ENV - required: dev or prd (the target project, from cnf)
-# @param SRC_PROJECT - required: the source GCP project, e.g. csi-rel-prd
-# @param SRC_SECRET - required: the source secret id
-# @param TGT_SECRET - required: the target secret id in this env's project,
+# @param ENV (required) - dev or prd (the target project, from cnf)
+# @param SRC_PROJECT (required) - the source GCP project, e.g. csi-rel-prd
+# @param SRC_SECRET (required) - the source secret id
+# @param TGT_SECRET (required) - the target secret id in this env's project,
 # @param   e.g. the cnf slot mail.secret_env.SPOOL_HUB_MAIL_SMTP_PASSWORD
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd SRC_PROJECT=csi-rel-prd SRC_SECRET=csi-rel-smtp-pass TGT_SECRET=csi-spl-hub-mail-smtp-password ./run -a do_gcp_copy_secret

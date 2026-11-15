@@ -6,7 +6,7 @@
 # @description Idempotent: a clone already at the pin is kept; a clone at any
 # @description other sha is REFUSED, never moved (it may be someone's work).
 # @description The CI iac-suite job (10_ci-quality.yml) runs this action.
-# @param TPL_GEN_REPO_URL - required, no default: the tpl-gen git remote
+# @param TPL_GEN_REPO_URL (required) - the tpl-gen git remote
 # @param TPL_GEN_PATH (optional) - default: $APP_PATH/tpl-gen
 # @param TPL_GEN_PIP_PKGS (optional) - default: the do_tpl_gen dependency list
 # @example TPL_GEN_REPO_URL=https://github.com/<ORG>/tpl-gen.git ./run -a do_setup_tpl_gen

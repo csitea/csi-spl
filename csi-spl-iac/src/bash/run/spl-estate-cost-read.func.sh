@@ -38,7 +38,7 @@
 # @description write; DRY_RUN=0 writes, through the Cloud SQL proxy as the <ENV>
 # @description project SA (csi-spl-orc spl_via_proxy, the runtime login) in the
 # @description operator RLS scope. COST_DB_DSN (a local Postgres) skips the proxy.
-# @param ENV - required: dev or prd, the hub DB written
+# @param ENV (required) - dev or prd, the hub DB written
 # @param DAY (optional) - last UTC day of the window, default yesterday (UTC)
 # @param DRY_RUN (optional) - 1 (default): read and print. 0: write the rows.
 # @param COST_READER_KEY_FILE (optional) - the reader SA key

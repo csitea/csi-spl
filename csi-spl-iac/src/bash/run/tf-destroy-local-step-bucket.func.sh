@@ -5,7 +5,8 @@
 # @description A dry run unless DRY_RUN=0: by default `plan -destroy` shows
 # @description what would go and the saved local state is left as it was;
 # @description DRY_RUN=0 runs `destroy` and saves the state it leaves.
-# @param ENV STEP - required
+# @param ENV (required) - dev or prd
+# @param STEP (required) - the terraform step, e.g. 040-cloud-sql-postgres
 # @param DRY_RUN 1 (default) plans only, 0 destroys
 # @example ENV=dev STEP=<step>-remote-bucket DRY_RUN=0 ./run -a do_tf_destroy_local_step_bucket
 #------------------------------------------------------------------------------

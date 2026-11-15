@@ -12,8 +12,8 @@
 # @description A clean plan of a clean tree is cached for the order gate
 # @description (do_check_dev_leads_prd). Runs in the tf-runner
 # @description (make do-tf-plan-pending), never on the host.
-# @param ENV - required: dev or prd
-# @param STEP - required: the terraform step, e.g. 030-cloud-run-hub
+# @param ENV (required) - dev or prd
+# @param STEP (required) - the terraform step, e.g. 030-cloud-run-hub
 # @example ENV=dev STEP=030-cloud-run-hub make do-tf-plan-pending
 #------------------------------------------------------------------------------
 declare -F env_order_cache_put >/dev/null ||

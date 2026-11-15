@@ -13,8 +13,8 @@
 # @description DRY_RUN=1 (default) names each version it would disable, by
 # @description number and create date only; DRY_RUN=0 disables them and checks
 # @description each now reads DISABLED.
-# @param ENV - required: dev or prd
-# @param SECRET - required: the secret id, e.g. csi-spl-hub-stripe-secret-key
+# @param ENV (required) - dev or prd
+# @param SECRET (required) - the secret id, e.g. csi-spl-hub-stripe-secret-key
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd SECRET=csi-spl-hub-stripe-secret-key ./run -a do_spl_secret_version_disable_old
 # @example ENV=prd SECRET=csi-spl-hub-stripe-secret-key DRY_RUN=0 ./run -a do_spl_secret_version_disable_old

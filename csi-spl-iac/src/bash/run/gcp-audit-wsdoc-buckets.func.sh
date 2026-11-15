@@ -24,7 +24,7 @@
 # @description only, never a doc's content). gcloud runs as the env's project
 # @description service account (do_gcp_pin_account, --account on every call) in
 # @description a throwaway gcloud config. Mutates nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @example ENV=prd ./run -a do_gcp_audit_wsdoc_buckets
 #------------------------------------------------------------------------------
 # shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh

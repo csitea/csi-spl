@@ -9,7 +9,7 @@
 # @description <env>.env.json is rewritten only when a value changed, so an
 # @description equal render keeps the committed bytes (SPL-5199); without jq
 # @description it refuses before any write (SPL-5242).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TPL_GEN_PATH (optional) - default: $APP_PATH/tpl-gen
 # @example ENV=dev ./run -a do_tpl_gen
 #------------------------------------------------------------------------------

@@ -17,8 +17,8 @@
 # @description   3 refused: dev has pending changes for the step
 # @description   1 refused: the dev plan failed, cannot tell
 # @description The plan itself is read-only (do_tf_plan_pending); nothing applied.
-# @param ENV - required: the env being applied; only prd is gated
-# @param STEP - required: the terraform step
+# @param ENV (required) - the env being applied; only prd is gated
+# @param STEP (required) - the terraform step
 # @param ENV_ORDER_OVERRIDE (optional) - the owner's msg id approving THIS
 # @param   emergency prd apply ahead of dev (8+ hex). Logged to
 # @param   dat/log/env-order-override.log and as a WARN line; never a default

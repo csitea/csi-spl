@@ -8,7 +8,7 @@
 # @description live-credential pre-flight, --account on every call, and no
 # @description write to the shared gcloud config or ADC (csi-rel's
 # @description `auth application-default set-quota-project` is dropped).
-# @param ENV - required: dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
+# @param ENV (required) - dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): the identity that enables the services
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: enable.
 # @example ENV=dev GCP_ACCOUNT=admin@example.com DRY_RUN=0 ./run -a do_gcp_004_project_apis_enable

@@ -20,8 +20,8 @@
 # @description the call it would make; DRY_RUN=0 makes it. A missing
 # @description monitoring.snoozes.create / .update permission is reported,
 # @description never worked around with another account.
-# @param ENV - required: dev or prd
-# @param SNOOZE_CMD - required: start or end
+# @param ENV (required) - dev or prd
+# @param SNOOZE_CMD (required) - start or end
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param ALERT_SNOOZE_MAX_MIN (optional) - the window start opens, minutes (default 60)
 # @param ALERT_SNOOZE_AFTER_MIN (optional) - minutes the snooze lasts after end (default 15)

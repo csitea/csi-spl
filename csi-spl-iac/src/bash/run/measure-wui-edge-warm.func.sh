@@ -18,7 +18,7 @@
 # @description Reports per arm and class (document, /_nuxt): n, median TTFB
 # @description (whole, and server-side = TTFB minus TLS connect) and HIT share;
 # @description writes every sample as TSV.
-# @param ENV (required unless MEASURE_WUI_URL) - dev|prd; host from cnf
+# @param ENV (needed unless MEASURE_WUI_URL) - dev|prd; host from cnf
 # @param        env.dns.fqdn (see warm-wui-edge.func.sh)
 # @param MEASURE_WUI_URL (optional) - base URL, overrides cnf
 # @param MEASURE_WUI_ARMS (optional) - both (default, interleaved) | cold | warm

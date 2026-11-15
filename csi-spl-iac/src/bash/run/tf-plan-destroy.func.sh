@@ -5,7 +5,8 @@
 # @description the step's key (do_tf_init: tf_key_project or the env project).
 # @description The read-only first half of `make do-deprovision` (spec 057:
 # @description the owner's "destroy and recreate it" goes plan -> destroy).
-# @param ENV STEP - required
+# @param ENV (required) - dev or prd
+# @param STEP (required) - the terraform step
 # @example ENV=prd STEP=060-gcp-vm-satellite ./run -a do_tf_plan_destroy
 #------------------------------------------------------------------------------
 do_tf_plan_destroy() {

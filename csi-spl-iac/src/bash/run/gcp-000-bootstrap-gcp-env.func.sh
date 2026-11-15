@@ -8,10 +8,10 @@
 # @description earlier step's unread state. Ported from csi-rel-iac gcp-000, minus its interactive
 # @description login and `gcloud config set account`: the caller proves the
 # @description identity (gcloud auth login GCP_ACCOUNT, as the box user) first.
-# @param ENV - required: dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
+# @param ENV (required) - dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email, an org-level human identity; the ONLY actions that may resolve the owner)
 # @param GCP_ORG_ID (optional) - overrides cnf env.gcp.gcp_org_id (gcp-002 sets the org policy there; gcp-001 parent)
-# @param GCP_BILLING_ACCOUNT_ID - required by gcp-001
+# @param GCP_BILLING_ACCOUNT_ID - needed by gcp-001
 # @param DRY_RUN (optional) - 1 (default) for every step. 0: mutate.
 # @example ENV=dev GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_000_bootstrap_gcp_env
 #------------------------------------------------------------------------------

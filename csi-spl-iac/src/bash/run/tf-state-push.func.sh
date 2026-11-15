@@ -5,7 +5,9 @@
 # @description This command also works with local state. https://developer.hashicorp.com/terraform/cli/commands/state/push
 # @description A dry run unless DRY_RUN=0: by default it inits the step and
 # @description pushes nothing. The push runs with -lock=false.
-# @param ENV STEP TFSTATE_FILE - required; TFSTATE_FILE is relative to PROJ_PATH
+# @param ENV (required) - dev or prd
+# @param STEP (required) - the terraform step
+# @param TFSTATE_FILE (required) - the state file, relative to PROJ_PATH
 # @param DRY_RUN 1 (default) pushes nothing, 0 pushes
 # @example cd csi-spl-orc && ENV=<env> STEP=<step> TFSTATE_FILE=<file> make do-tf-state-push
 #------------------------------------------------------------------------------

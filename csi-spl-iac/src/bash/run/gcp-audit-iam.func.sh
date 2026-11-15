@@ -13,7 +13,7 @@
 # @description and deleted principals, grants a step expects but the policy
 # @description lacks, and the diff against IAM_BASELINE when given.
 # @description Every resource name comes from the effective cnf. Mutates nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param IAM_TAG (optional) - label of this dump, default the UTC timestamp
 # @param IAM_BASELINE (optional) - an earlier dump to diff against
 # @param IAM_AUDIT_DIR (optional) - default $HOME/.local/share/<org>-<app>/iam

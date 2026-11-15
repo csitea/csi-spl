@@ -18,7 +18,7 @@
 # @description           CI itself: the caller passes them)
 # @description The key is never printed. Runs as the env's project SA
 # @description (do_gcp_pin_account), never the owner account.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param ROTATE_STEP (optional) - status (default), mint, prove or retire
 # @param DRY_RUN (optional) - 1 (default) or 0: mint and retire change nothing at 1
 # @param OLD_KEY_ID (retire) - the key id to delete

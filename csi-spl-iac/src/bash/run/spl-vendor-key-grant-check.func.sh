@@ -19,7 +19,7 @@
 # @description project owner is the stated residual of 5.1); their member
 # @description COUNT is logged. Runs as the env's project SA in a private gcloud
 # @description config. Read-only: nothing in GCP changes. Workflow 48 runs it daily.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @example ENV=dev ./run -a do_spl_vendor_key_grant_check
 #------------------------------------------------------------------------------
 # shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh

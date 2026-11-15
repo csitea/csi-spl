@@ -23,7 +23,7 @@
 # @description parallel from one box, then most connects timed out). Each worker
 # @description is ONE curl on one kept-alive connection, paced by --rate; at most
 # @description 2 workers. Read-only GETs, no credentials.
-# @param ENV (required unless WARM_WUI_URLS) - dev|prd; the host is cnf
+# @param ENV (needed unless WARM_WUI_URLS) - dev|prd; the host is cnf
 # @param        env.dns.fqdn in csi-spl-cnf/csi-spl/<env>.env.json, so no
 # @param        host literal lives here
 # @param WARM_WUI_URLS (optional) - space-separated base URLs, overrides cnf

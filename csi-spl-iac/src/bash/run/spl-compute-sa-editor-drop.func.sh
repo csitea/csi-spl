@@ -15,7 +15,7 @@
 # @description does not manage it. Runs as the env's project SA in a private
 # @description gcloud config. DRY_RUN=1 (default) prints the measurement and the
 # @description command; DRY_RUN=0 runs it and re-reads the policy.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param AUDIT_DAYS (optional) - the audit window in days (default 30)
 # @example ENV=prd ./run -a do_spl_compute_sa_editor_drop

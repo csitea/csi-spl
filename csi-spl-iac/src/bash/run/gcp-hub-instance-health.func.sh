@@ -13,7 +13,7 @@
 # @description last seen (an instance id is shown by its last 8 chars, the
 # @description way the incident posts cite it); plus a WARN line for every instance with >= WARN_MIN_WS
 # @description WS requests and 0 upgrades. Mutates nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SINCE (optional) - RFC3339 time or a duration like 30m, 2h, 1d (default 30m)
 # @param UNTIL (optional) - RFC3339 time, the window end (default: now)
 # @param WARN_MIN_WS (optional) - WS requests before 0 upgrades is a WARN (default 5)

@@ -13,7 +13,7 @@
 # @description nothing when an enabled version exists: a new pepper changes every
 # @description stored fingerprint, so rotation is a separate, later action.
 # @description DRY_RUN=1 (default): read and report, change nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_vendor_key_pepper_put
 #------------------------------------------------------------------------------

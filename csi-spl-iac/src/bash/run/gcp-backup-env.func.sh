@@ -17,7 +17,7 @@
 # @description RESTORE_CHECK_PG_CONTAINER restores the dump into a scratch DB
 # @description of that LOCAL postgres container, compares row counts, and
 # @description drops the scratch DB; the container's own data is not touched.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param BACKUP_ROOT (optional) - default /var/<org>/<org>-<app>/backup; the run
 # @param   writes <BACKUP_ROOT>/<env>/<utc-ts>/
 # @param RESTORE_CHECK_PG_CONTAINER (optional) - local postgres container name

@@ -5,7 +5,8 @@
 # @description This command also works with local state. https://developer.hashicorp.com/terraform/cli/commands/state/pull
 # @description Read-only (it writes only the local copy under dat/tmp), so it
 # @description has no DRY_RUN gate.
-# @param ENV STEP - required
+# @param ENV (required) - dev or prd
+# @param STEP (required) - the terraform step
 # @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub make do-tf-state-pull
 #------------------------------------------------------------------------------
 do_tf_state_pull() {

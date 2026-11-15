@@ -12,7 +12,7 @@
 # @description The master ruleset of do_spl_gh_master_ruleset (no force push, no
 # @description deletion, NO bypass by design: owner go 2026-10-10) is skipped
 # @description by its name, never given a bypass actor.
-# @param GH_APP_SLUG - required: the App's slug (do_spl_gh_app_manifest prints it)
+# @param GH_APP_SLUG (required) - the App's slug (do_spl_gh_app_manifest prints it)
 # @param GH_APP_REPO (optional) - <owner>/<repo>, default: the origin remote
 # @param GH_APP_WAIT (optional) - seconds to wait for the install (default 0)
 # @param DRY_RUN (optional) - 1 (default) or 0

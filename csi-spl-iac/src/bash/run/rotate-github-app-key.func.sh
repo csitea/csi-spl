@@ -11,8 +11,8 @@
 # @description 3. a reminder to delete the OLD key in GitHub once both envs run
 # @description the new one - the old key signs until it is deleted there.
 # @description Run ENV=dev, then ENV=prd SHRED=1. DRY_RUN=1 (default) changes nothing.
-# @param ENV - required: dev or prd
-# @param KEY_FILE - required: the NEW .pem
+# @param ENV (required) - dev or prd
+# @param KEY_FILE (required) - the NEW .pem
 # @param SHRED (optional) - 0 (default) or 1; 1 only with ENV=prd
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev KEY_FILE=$HOME/Downloads/<app-slug>.private-key.pem ./run -a do_rotate_github_app_key

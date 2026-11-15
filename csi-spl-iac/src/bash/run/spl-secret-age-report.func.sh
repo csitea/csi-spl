@@ -17,7 +17,7 @@
 # @description Metadata only: it never runs `versions access`, so no value is
 # @description read. Runs as the env's project SA in a private gcloud config.
 # @description Exit 1 when anything is OVER, else 0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SECRET_AGE_NOW (optional) - the UTC instant ages count to (tests), default now
 # @example ENV=prd ./run -a do_spl_secret_age_report
 #------------------------------------------------------------------------------

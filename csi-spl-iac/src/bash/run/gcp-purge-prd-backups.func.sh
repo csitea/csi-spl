@@ -22,7 +22,7 @@
 # @description project (steps.046.tf_key_project, key-<project>.json), both in
 # @description a throwaway gcloud config, --account on every call. A missing
 # @description permission is a FATAL, never retried as another account.
-# @param ENV - required: prd. Any other env is refused.
+# @param ENV (required) - prd. Any other env is refused.
 # @param DRY_RUN (optional) - 1 (default): list and report. 0: delete.
 # @param SPL_PURGE_NOW (optional) - tests only: "now" as epoch seconds
 # @example ENV=prd ./run -a do_gcp_purge_prd_backups

@@ -15,7 +15,7 @@
 #                  checkout).
 #              FQDN defaults to the zone apex (prd <domain>, dev dev.<domain>),
 #              exactly as csi-rel. Spec 007 §3 (owner: WUI domains as csi-rel).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @example ENV=prd ./run -a do_provision_firebase_dns_env
 #------------------------------------------------------------------------------
 do_provision_firebase_dns_env() {

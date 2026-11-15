@@ -4,7 +4,7 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 
 #------------------------------------------------------------------------------
 # @description delete a GCP project (30-day grace period, can be undeleted)
-# @param ENV - target environment (required)
+# @param ENV (required) - target environment
 # @param GCP_PROJECT - GCP project override (default: {ORG}-{APP}-{ENV})
 # @param FORCE - skip confirmation prompt (default: false)
 # @example ENV=prd ./run -a do_gcp_project_delete

@@ -6,7 +6,9 @@
 # @description A dry run unless DRY_RUN=0: by default each target gets a
 # @description `plan -replace=<t>` (shows what would change, changes nothing);
 # @description DRY_RUN=0 runs `apply -auto-approve -replace=<t>`.
-# @param ENV STEP TARGET - required
+# @param ENV (required) - dev or prd
+# @param STEP (required) - the terraform step
+# @param TARGET (required) - the resource address(es) to replace, comma separated
 # @param DRY_RUN 1 (default) plans only, 0 replaces
 # @example ENV=dev STEP=031-gcp-hub-ingress TARGET=<addr>,<addr> \
 # @example   DRY_RUN=0 ./run -a do_tf_replace_target

@@ -6,7 +6,7 @@
 # @description gcp-billing-export-setup). The per-env project SA only
 # @description (do_gcp_pin_account), --account on every call, never the owner.
 # @description Idempotent, and a DRY RUN unless DRY_RUN=0.
-# @param ENV - required: dev, prd, bkp or all (the project <org>-<app>-<env>)
+# @param ENV (required) - dev, prd, bkp or all (the project <org>-<app>-<env>)
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: enable.
 # @example ENV=dev ./run -a do_gcp_cloud_billing_api_enable
 # @example ENV=dev DRY_RUN=0 ./run -a do_gcp_cloud_billing_api_enable

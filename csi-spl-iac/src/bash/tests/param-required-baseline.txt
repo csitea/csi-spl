@@ -1,0 +1,10 @@
+# param-required.tst.sh exceptions: "<path> <NAME>", one per @param that
+# still says required in another form. Only shrinks: fix the header, delete
+# the line. These files were open in another lane (c-688) on 2026-11-15.
+csi-spl-orc/src/bash/run/spl-agent-caps-set.func.sh CAPS_MAX_LIVE
+csi-spl-orc/src/bash/run/spl-agent-caps-set.func.sh CAPS_VENDOR
+csi-spl-orc/src/bash/run/spl-agent-caps-set.func.sh ENV
+csi-spl-orc/src/bash/run/spl-agent-split-show.func.sh ENV
+csi-spl-orc/src/bash/run/spl-agent-split-show.func.sh TENANT_ID
+csi-spl-orc/src/bash/run/spl-hub-agent-kinds.func.sh ENV
+csi-spl-orc/src/bash/run/spl-hub-agent-kinds.func.sh ORDERED_BY

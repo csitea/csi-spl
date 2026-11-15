@@ -24,10 +24,10 @@
 # @description env.gcp.gcp_project (spec 072 A8): GCP ids are global, so a clone
 # @description names its own; <org>-<app>-<env> is only the fallback when the cnf
 # @description has none, and a malformed id is refused.
-# @param ENV - required: an env the cnf declares (<env>.env.yaml, lde excepted), bkp (<org>-<app>-bkp, the off-project backups of iac 046) or all (<org>-<app>-all, the satellite of spec 057)
+# @param ENV (required) - an env the cnf declares (<env>.env.yaml, lde excepted), bkp (<org>-<app>-bkp, the off-project backups of iac 046) or all (<org>-<app>-all, the satellite of spec 057)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): the identity that creates the project and links billing
 # @param GCP_ORG_ID or GCP_FOLDER_ID - the parent of the project, exactly one; GCP_ORG_ID defaults to cnf env.gcp.gcp_org_id when GCP_FOLDER_ID is unset
-# @param GCP_BILLING_ACCOUNT_ID - required: XXXXXX-XXXXXX-XXXXXX
+# @param GCP_BILLING_ACCOUNT_ID (required) - XXXXXX-XXXXXX-XXXXXX
 # @param DRY_RUN (optional) - 1 (default): print the mutating commands, run none of them. 0: mutate.
 # @example ENV=dev GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_001_create_project
 #------------------------------------------------------------------------------

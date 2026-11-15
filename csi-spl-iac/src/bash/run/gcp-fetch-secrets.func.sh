@@ -1,7 +1,7 @@
 #!/bin/env bash
 #------------------------------------------------------------------------------
 # @description fetch secrets from GCP Secret Manager and export as environment variables
-# @param ENV - target environment (required: dev, tst — never prd)
+# @param ENV (required) - target environment (dev, tst — never prd)
 # @param SECRETS_FILTER - only fetch secrets containing this substring (optional, e.g., "test")
 # @param GCP_PROJECT - GCP project override (optional, default: ORG-APP-ENV)
 # @example ENV=dev ./run -a do_gcp_fetch_secrets

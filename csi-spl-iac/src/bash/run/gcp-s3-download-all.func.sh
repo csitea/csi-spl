@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description download all GCS buckets from a GCP project to local /var/ storage
-# @param ENV - target environment (required: dev, tst, prd, all)
+# @param ENV (required) - target environment (dev, tst, prd, all)
 # @param GCP_PROJECT - GCP project override (default: {ORG}-{APP}-{ENV})
 # @param TARGET_BASE - base directory override (default: /var/{ORG}/{ORG}-{APP})
 # @param SKIP_EMPTY - skip empty buckets (default: true)

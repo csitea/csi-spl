@@ -25,7 +25,7 @@
 # @description file only whether a credential field NAME occurs. No value is
 # @description ever printed. Runs as the env's project SA in a private gcloud
 # @description config, never the owner account. Exit 0, or 1 when a list fails.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SECRET_UNUSED_REPO (optional) - the repo grepped for consumers, default $APP_PATH
 # @param SECRET_UNUSED_BOX (optional) - the box name in the table, default
 # @param   SPOOL_DESK_BOX / SPOOL_BOX_TAG, else those lines of $SPOOL_BOX_ENV (/var/spool-hub/box.env), else hostname -s (spl_box_name)

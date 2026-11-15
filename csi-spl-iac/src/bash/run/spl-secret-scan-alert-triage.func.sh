@@ -14,7 +14,7 @@
 # @description DRY_RUN=1 (default) prints the proof and the resolution it would
 # @description make; DRY_RUN=0 resolves the alert as used_in_tests, and only
 # @description when the proof holds. Anything else is refused.
-# @param ALERT - required: the alert number
+# @param ALERT (required) - the alert number
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SM_ENVS (optional) - the envs whose secrets are compared (default "dev prd")
 # @param GH_REPO (optional) - owner/repo (default: this checkout's origin, via gh)

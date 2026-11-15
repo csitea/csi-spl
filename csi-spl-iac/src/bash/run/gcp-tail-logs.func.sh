@@ -7,7 +7,7 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 #              Authenticates with the per-environment service account key and
 #              runs `gcloud logging read` with sensible defaults.
 #
-# @param ENV        - target environment: dev | tst | prd | all  (required);
+# @param ENV (required) - target environment: dev | tst | prd | all
 #                     each env reads as its own project SA (ACCOUNT /
 #                     GCP_ACCOUNT override it); all refuses GCP_SA_KEY_FILE,
 #                     PROJ_ID, SPL_PROJECT and GCP_PROJECT (one project)

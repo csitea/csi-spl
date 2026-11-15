@@ -17,7 +17,7 @@
 # @description every gcloud call; the client id is never printed.
 # @description Returns 0 when every scripted check holds, 3 when one does not,
 # @description 1 on an error (bad input, no cnf value, no account).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: also enable the API.
 # @example ENV=dev ./run -a do_gcp_gcal_connect_check
 # @example ENV=prd DRY_RUN=0 ./run -a do_gcp_gcal_connect_check

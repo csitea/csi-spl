@@ -10,7 +10,7 @@
 # @description would go and removes nothing. A set that matches nothing is
 # @description named in a WARNING and the other set still goes; when neither
 # @description matches, it refuses (non-zero) and removes nothing.
-# @param STEP - required; an empty STEP would match every step
+# @param STEP (required) - an empty STEP would match every step
 # @param DRY_RUN 1 (default) lists only, 0 removes
 # @example STEP=007-dns DRY_RUN=0 ./run -a do_tf_remove_step
 #------------------------------------------------------------------------------

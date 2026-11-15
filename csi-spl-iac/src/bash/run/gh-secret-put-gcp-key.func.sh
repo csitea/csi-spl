@@ -16,7 +16,7 @@
 # @description gh must already be authenticated for the repo: its error is
 # @description reported, never worked around with another token.
 # @description Dry run unless DRY_RUN=0 (the dry run makes no gh secret set).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param GH_SECRET_REPO (optional) - <owner>/<repo>, default: parsed from the
 # @param        checkout's `origin` remote (no literal default)
 # @param DRY_RUN (optional) - 1 (default) or 0

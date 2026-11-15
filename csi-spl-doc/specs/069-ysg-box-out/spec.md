@@ -601,6 +601,15 @@ The box user is resolved once: `SPOOL_BOX_USER` = owner of `$SPOOL_ROOT`
 `~<agent-user>/.config/spool-mcp/env` (both boxes: `=<box-user>`, serve half
 `~<box-user>/.local/share/csi-spl/mcp/spool-mcp.sh`).
 
+Since SPL-5609 (2026-11-15): a desk sidecar runs with `SPOOL_ROOT` = the desk
+spool, which is owned by the DESK user once the desks move (8.3). So when
+`SPOOL_FLEET_ROOT` names a directory, the box user is that directory's owner,
+not the desk spool's. Before this, every desk sidecar on a moved box took the
+desk user, looked for panes on that user's tmux server, found none, and typed
+no channel post into any seat. It was measured on prd on 2026-11-14 as 3 of 3
+owner posts in a topic seat's own topic, each in its desk inbox within 0.2 s
+and none typed. Test: `spawn-agents/tests/test-spool-env-desk-box-user.sh`.
+
 `git grep -n -E 'sudo[^|;]*-u "?\$\{?[A-Za-z_]*(BOX_USER|...)' 8bd808cbf` over
 non-test `.sh`/`.py` -> **29 lines in 22 files**. Classified by reading each:
 

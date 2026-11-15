@@ -451,8 +451,17 @@ spool_env_resolve() {
   _spool_box_env_load
   # Not $SUDO_USER: under `sudo -u <box user>` that names the CALLER, and an
   # agent calling spool-send.sh as itself would ring its own (empty) tmux.
+  # The desk sidecar (spl-desk-up, spl-desk-rebox) runs with SPOOL_ROOT = the
+  # desk spool, owned by the DESK user (spec 069 8.3), and is given the box's
+  # fleet root as SPOOL_FLEET_ROOT. The agents' panes are on the box user's
+  # tmux, so the box user is the fleet root's owner. Read from the desk spool
+  # it was the desk user: on a box whose desks moved to that user, every desk
+  # poke looked in the desk user's tmux, found no pane, and a seat never saw
+  # a post in its own topic (SPL-5609).
   if [ -z "${SPOOL_BOX_USER:-}" ]; then
-    SPOOL_BOX_USER="$(stat -c %U "$SPOOL_ROOT" 2>/dev/null || true)"
+    local _bu_root="$SPOOL_ROOT"
+    [ -n "${SPOOL_FLEET_ROOT:-}" ] && [ -d "$SPOOL_FLEET_ROOT" ] && _bu_root="$SPOOL_FLEET_ROOT"
+    SPOOL_BOX_USER="$(stat -c %U "$_bu_root" 2>/dev/null || true)"
     case "$SPOOL_BOX_USER" in ''|root|UNKNOWN) SPOOL_BOX_USER="$(id -un)" ;; esac
   fi
   SPOOL_AGENT_USER="${SPOOL_AGENT_USER:-$SPOOL_BOX_USER}"

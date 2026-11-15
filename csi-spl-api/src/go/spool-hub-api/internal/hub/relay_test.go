@@ -36,13 +36,14 @@ type relayPeer struct {
 	srv    *hub.Server
 	client *http.Client
 	skew   atomic.Int64 // ns added to the peer's clock
+	log    lockedBuf    // the peer's log: helloDone reads it
 }
 
 func newRelayPeer(t *testing.T, e *env, key ed25519.PrivateKey) *relayPeer {
 	t.Helper()
 	p := &relayPeer{}
 	o := hub.Options{
-		Store: e.st, Blob: blob.Dir{Root: e.blobs}, Log: zerolog.Nop(),
+		Store: e.st, Blob: blob.Dir{Root: e.blobs}, Log: zerolog.New(&p.log),
 		TenantHostPattern: "{tenant}" + domain, HelloSkew: 300 * time.Second, HelloTimeout: 2 * time.Second,
 		UploadTokenTTL: 5 * time.Minute, QueueTTL: 7 * 24 * time.Hour, QueueMaxPerBox: 1000,
 		RetentionAlerts: 7 * 24 * time.Hour, RetentionChannels: 30 * 24 * time.Hour, Version: "test-next",
@@ -110,7 +111,25 @@ func newRelayRig(t *testing.T, deskAgents ...string) *relayRig {
 		t.Fatal(err)
 	}
 	t.Cleanup(s.Close)
+	// SPL-5581: Dial returns on the welcome, but the peer's hello goes on
+	// after it to drain box-desk's queue and run its back-fill (ws.go). Under
+	// load that tail ran after the test had queued its post and delivered it
+	// without a relay tick, failing the controls (12 in 800 at load ~40).
+	// The peer logs "ws hello accepted" once both have returned.
+	eventually(t, "the peer finished box-desk's hello", func() bool { return r.peer.helloDone(t, "box-desk") })
 	return r
+}
+
+// helloDone reports whether the peer has finished the hello of box: its
+// drain and back-fill have run.
+func (p *relayPeer) helloDone(t *testing.T, box string) bool {
+	t.Helper()
+	for _, l := range p.log.lines(t) {
+		if l["message"] == "ws hello accepted" && l["box"] == box {
+			return true
+		}
+	}
+	return false
 }
 
 // openTo sends a new topic addressed to one person, as the 11:37:10 opening.

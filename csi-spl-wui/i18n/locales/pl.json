@@ -4298,15 +4298,15 @@
         "closed": "Miesiąc jest zamknięty; nic więcej nie jest księgowane.",
         "book": "Zaksięguj obliczone kwoty ({n})",
         "booked": "Zaksięgowano: {n}, zastąpiono: {m}.",
-        "rates": "Stawki na {year}",
-        "rates_none": "Brak jeszcze stawek na {year}; nic nie jest obliczane.",
+        "rates": "Stawki na rok {year}",
+        "rates_none": "Nie ma jeszcze stawek na rok {year}; nic nie jest obliczane.",
         "rate_pct": "Stawka %",
         "rate_applies": "Dotyczy",
         "rate_source": "Źródło, np. pismo ubezpieczyciela",
         "rate_save": "Zapisz stawkę",
         "rate_delete": "Usuń",
         "err_rate_component": "Wybierz składkę pracodawcy.",
-        "err_rate_pct": "Stawka to procent od 0 do poniżej 100, z maksymalnie 4 miejscami po przecinku.",
+        "err_rate_pct": "Stawka to wartość procentowa od 0 do mniej niż 100, z najwyżej 4 miejscami po przecinku.",
         "err_rate_types": "Wybierz co najmniej jeden rodzaj zatrudnienia.",
         "err_rate_source": "Źródło ma najwyżej 200 znaków."
       }

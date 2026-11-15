@@ -4306,7 +4306,7 @@
         "rate_save": "Saglabāt likmi",
         "rate_delete": "Noņemt",
         "err_rate_component": "Izvēlieties darba devēja iemaksu.",
-        "err_rate_pct": "Likme ir procenti no 0 līdz mazāk nekā 100, ne vairāk kā 4 decimāldaļas.",
+        "err_rate_pct": "Likme ir procentos no 0 līdz mazāk nekā 100, ar ne vairāk kā 4 zīmēm aiz komata.",
         "err_rate_types": "Izvēlieties vismaz vienu nodarbinātības veidu.",
         "err_rate_source": "Avots ir ne vairāk kā 200 rakstzīmes."
       }

@@ -4287,7 +4287,7 @@
         "col_gross": "Bruto atlyginimas",
         "col_employer": "Darbdavio dalis",
         "col_other": "Kitos išlaidos",
-        "col_cost": "Bendra kaina",
+        "col_cost": "Bendros išlaidos",
         "total": "Iš viso ({currency})",
         "note_computed": "apskaičiuota",
         "note_typed": "iš atlyginimo lapelio",
@@ -4299,15 +4299,15 @@
         "book": "Užregistruoti apskaičiuotas sumas ({n})",
         "booked": "Užregistruota: {n}, pakeista: {m}.",
         "rates": "{year} m. tarifai",
-        "rates_none": "{year} m. tarifų dar nėra; niekas neskaičiuojama.",
+        "rates_none": "{year} m. tarifų dar nėra; nieko neskaičiuojama.",
         "rate_pct": "Tarifas %",
         "rate_applies": "Taikoma",
         "rate_source": "Šaltinis, pvz., draudiko laiškas",
         "rate_save": "Išsaugoti tarifą",
         "rate_delete": "Pašalinti",
         "err_rate_component": "Pasirinkite darbdavio įmoką.",
-        "err_rate_pct": "Tarifas yra procentai nuo 0 iki mažiau nei 100, ne daugiau kaip 4 skaitmenys po kablelio.",
-        "err_rate_types": "Pasirinkite bent vieną darbo santykių tipą.",
+        "err_rate_pct": "Tarifas – procentas nuo 0 iki mažiau nei 100, su ne daugiau kaip 4 skaitmenimis po kablelio.",
+        "err_rate_types": "Pasirinkite bent vieną įdarbinimo tipą.",
         "err_rate_source": "Šaltinis – ne daugiau kaip 200 simbolių."
       }
     }

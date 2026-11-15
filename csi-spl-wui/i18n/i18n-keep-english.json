@@ -25,6 +25,8 @@
   },
   "keys": {
     "expenses.hr.person": "sv spells the word Person like en (agy a-302, msg 8da43e07, SPL-5433)",
+    "expenses.hr.payroll.col_person": "sv spells the word Person like en, as expenses.hr.person (agy a-126, msg 5606ae4e, SPL-5433)",
+    "expenses.hr.payroll.total": "es and ro spell Total ({currency}) like en, as reporting.costs.label.total (agy a-126, msg 5606ae4e, SPL-5433)",
     "topic.priority.short": "the bar's short label 'Prio' (owner HUM-10, t1 2fafde5c msg 0b66d67c): nl and sv use the same short word, a dictionary clipping (SPL-5288; agy a-612, msg 79c3221c; fi reads 'Prior.')",
     "auth.native.dev": "environment code 'dev:'",
     "feed.live_state.mock": "connection state code shown as is",

@@ -4300,13 +4300,13 @@
         "booked": "Kirjattu: {n}, korvattu: {m}.",
         "rates": "Maksuprosentit vuodelle {year}",
         "rates_none": "Vuodelle {year} ei ole vielä maksuprosentteja; mitään ei lasketa.",
-        "rate_pct": "Prosentti %",
+        "rate_pct": "Maksu-%",
         "rate_applies": "Koskee",
         "rate_source": "Lähde, esim. vakuutusyhtiön kirje",
-        "rate_save": "Tallenna prosentti",
+        "rate_save": "Tallenna maksuprosentti",
         "rate_delete": "Poista",
         "err_rate_component": "Valitse työnantajamaksu.",
-        "err_rate_pct": "Prosentti on 0:sta alle 100:aan, enintään 4 desimaalia.",
+        "err_rate_pct": "Maksuprosentti on vähintään 0 ja alle 100 %, enintään 4 desimaalia.",
         "err_rate_types": "Valitse vähintään yksi työsuhteen tyyppi.",
         "err_rate_source": "Lähde on enintään 200 merkkiä."
       }

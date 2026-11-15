@@ -4288,7 +4288,7 @@
         "col_employer": "Parte del empleador",
         "col_other": "Otros costes",
         "col_cost": "Coste total",
-        "total": "Suma ({currency})",
+        "total": "Total ({currency})",
         "note_computed": "calculado",
         "note_typed": "de la nómina",
         "note_booked": "contabilizado",
@@ -4305,9 +4305,9 @@
         "rate_source": "Fuente, p. ej., la carta de la aseguradora",
         "rate_save": "Guardar tipo",
         "rate_delete": "Quitar",
-        "err_rate_component": "Elija una cotización del empleador.",
+        "err_rate_component": "Elige una cotización del empleador.",
         "err_rate_pct": "El tipo es un porcentaje de 0 a menos de 100, con hasta 4 decimales.",
-        "err_rate_types": "Elija al menos un tipo de empleo.",
+        "err_rate_types": "Elige al menos un tipo de empleo.",
         "err_rate_source": "La fuente tiene como máximo 200 caracteres."
       }
     }

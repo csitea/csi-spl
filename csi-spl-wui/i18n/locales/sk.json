@@ -4295,7 +4295,7 @@
         "note_diff": "výplatná páska sa líši o {amount}",
         "note_stale": "neaktuálne, teraz {amount}",
         "note_no_rate": "tento rok bez sadzby",
-        "closed": "Mesiac je uzavretý; už sa nič nezaúčtuje.",
+        "closed": "Mesiac je zatvorený; už sa nič neúčtuje.",
         "book": "Zaúčtovať vypočítané sumy ({n})",
         "booked": "Zaúčtované: {n}, nahradené: {m}.",
         "rates": "Sadzby na rok {year}",
@@ -4307,7 +4307,7 @@
         "rate_delete": "Odstrániť",
         "err_rate_component": "Vyberte odvod zamestnávateľa.",
         "err_rate_pct": "Sadzba je percento od 0 do menej ako 100, najviac so 4 desatinnými miestami.",
-        "err_rate_types": "Vyberte aspoň jeden typ pracovného pomeru.",
+        "err_rate_types": "Vyberte aspoň jeden druh pracovného pomeru.",
         "err_rate_source": "Zdroj má najviac 200 znakov."
       }
     }

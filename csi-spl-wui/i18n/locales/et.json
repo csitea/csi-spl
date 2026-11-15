@@ -4281,7 +4281,7 @@
       "payroll": {
         "title": "Tööandja osa, {month}",
         "flags": "Kontrollida: {n}",
-        "loading": "Arvutan tööandja osa…",
+        "loading": "Tööandja osa arvutamine…",
         "empty": "Kellelgi pole kuu {month} palgaridu.",
         "col_person": "Isik",
         "col_gross": "Brutopalk",
@@ -4306,7 +4306,7 @@
         "rate_save": "Salvesta määr",
         "rate_delete": "Eemalda",
         "err_rate_component": "Vali tööandja makse.",
-        "err_rate_pct": "Määr on protsent 0-st kuni alla 100, kuni 4 komakohta.",
+        "err_rate_pct": "Määr on vähemalt 0% ja alla 100%, kuni 4 komakohaga.",
         "err_rate_types": "Vali vähemalt üks töösuhte liik.",
         "err_rate_source": "Allikas on kuni 200 märki."
       }

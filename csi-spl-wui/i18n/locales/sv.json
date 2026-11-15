@@ -4283,7 +4283,7 @@
         "flags": "Att kontrollera: {n}",
         "loading": "Beräknar arbetsgivarens del…",
         "empty": "Ingen har lönerader för {month}.",
-        "col_person": "Medarbetare",
+        "col_person": "Person",
         "col_gross": "Bruttolön",
         "col_employer": "Arbetsgivarens del",
         "col_other": "Övriga kostnader",
@@ -4306,7 +4306,7 @@
         "rate_save": "Spara sats",
         "rate_delete": "Ta bort",
         "err_rate_component": "Välj en arbetsgivaravgift.",
-        "err_rate_pct": "Satsen är en procent från 0 till under 100, med högst 4 decimaler.",
+        "err_rate_pct": "Satsen är en procentsats från 0 till under 100, med högst 4 decimaler.",
         "err_rate_types": "Välj minst en anställningsform.",
         "err_rate_source": "Källan är högst 200 tecken."
       }

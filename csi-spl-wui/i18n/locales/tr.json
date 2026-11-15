@@ -4301,12 +4301,12 @@
         "rates": "{year} oranları",
         "rates_none": "{year} için henüz oran yok; hiçbir şey hesaplanmaz.",
         "rate_pct": "Oran %",
-        "rate_applies": "Uygulandığı",
+        "rate_applies": "Uygulandığı türler",
         "rate_source": "Kaynak, ör. sigortacının mektubu",
         "rate_save": "Oranı kaydet",
         "rate_delete": "Kaldır",
         "err_rate_component": "Bir işveren katkısı seçin.",
-        "err_rate_pct": "Oran, 0'dan 100'ün altına kadar, en fazla 4 ondalıklı bir yüzdedir.",
+        "err_rate_pct": "Oran, 0 ile 100 arasında (100 hariç), en fazla 4 ondalık basamaklı bir yüzdedir.",
         "err_rate_types": "En az bir çalışma türü seçin.",
         "err_rate_source": "Kaynak en fazla 200 karakterdir."
       }

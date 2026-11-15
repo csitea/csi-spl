@@ -4296,7 +4296,7 @@
         "note_stale": "verouderd, nu {amount}",
         "note_no_rate": "geen tarief dit jaar",
         "closed": "De maand is gesloten; er wordt niets meer geboekt.",
-        "book": "Boek de berekende bedragen ({n})",
+        "book": "Berekende bedragen boeken ({n})",
         "booked": "Geboekt: {n}, vervangen: {m}.",
         "rates": "Tarieven voor {year}",
         "rates_none": "Nog geen tarieven voor {year}; er wordt niets berekend.",

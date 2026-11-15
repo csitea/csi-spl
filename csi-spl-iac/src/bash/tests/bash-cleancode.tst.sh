@@ -39,15 +39,18 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 # closes the function still open (length = header line - start), and `^) }`
 # closes like `^}` (r9-05): a body closed inline (`' "$1"; }`) or a subshell
 # body (`f() { (` ... `) }`) hid every function after it.
+# ONE awk reads every file (p10-02): one process per file cost 1.6 s of the
+# test's 1.2..3.3 s. `FNR == 1` comes first: it drops a function left open at
+# the end of the previous file and strips APP_ROOT as a literal, never a regex.
+# No file, no awk: awk with no file reads stdin.
 measure() {
-  local f
-  for f in "$@"; do
-    awk -v f="${f#$APP_ROOT/}" '
-      /^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{/ { if (n) print NR - s, f, n
-        n = $1; sub(/\(\).*/, "", n); s = NR
-        if ($0 ~ /\}[[:space:]]*(#.*)?$/) { print 1, f, n; n = "" } }
-      /^(\)[[:space:]]*)?\}/ { if (n) { print NR - s + 1, f, n; n = "" } }' "$f"
-  done
+  (( $# )) || return 0
+  awk -v root="$APP_ROOT/" '
+    FNR == 1 { n = ""; f = FILENAME; if (index(f, root) == 1) f = substr(f, length(root) + 1) }
+    /^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{/ { if (n) print FNR - s, f, n
+      n = $1; sub(/\(\).*/, "", n); s = FNR
+      if ($0 ~ /\}[[:space:]]*(#.*)?$/) { print 1, f, n; n = "" } }
+    /^(\)[[:space:]]*)?\}/ { if (n) { print FNR - s + 1, f, n; n = "" } }' "$@"
 }
 
 # check_long <measured> <long-list>: a function over MAX_LINES fails unless the
@@ -129,6 +132,19 @@ out=$(check_long "$(grown 90)" "g.sh g 90")
 [[ "$out" != *FAIL* && "$out" != *NOTE* ]] && pass "CONTROL: a listed function at its ceiling passes" || fail "CONTROL: at the ceiling: $out"
 out=$(check_long "$(grown 89)" "g.sh g 90")
 [[ "$out" != *FAIL* && "$out" == *"lower the ceiling to 89"* ]] && pass "CONTROL: a listed function under its ceiling prints the NOTE" || fail "CONTROL: under the ceiling: $out"
+
+# Red control (p10-02): one awk for every file, and a function left open at the
+# end of one file is dropped, never closed by the next file's `}` line. A PATH
+# shim logs each awk call, then runs the real one.
+mkdir -p "$T/bin"; real_awk=$(command -v awk)
+printf '#!/usr/bin/env bash\necho x >>"%s"\nexec "%s" "$@"\n' "$T/awk.log" "$real_awk" >"$T/bin/awk"; chmod +x "$T/bin/awk"
+printf 'f1() {\n  :\n}\n' >"$T/c1.sh"; printf 'f2() { :; }\n' >"$T/c2.sh"; printf 'f3() {\n}\n' >"$T/c3.sh"
+got=$(PATH="$T/bin:$PATH" APP_ROOT="$T" measure "$T/c1.sh" "$T/c2.sh" "$T/c3.sh")
+calls=$(grep -c . "$T/awk.log")
+[[ "$calls" == 1 && "$got" == $'3 c1.sh f1\n1 c2.sh f2\n2 c3.sh f3' ]] && pass "CONTROL: measure over 3 files runs 1 awk" || fail "CONTROL: measure over 3 files ran $calls awk, measured '$got'"
+printf 'open() {\n  :\n' >"$T/r1.sh"; printf '}\nr2() { :; }\n' >"$T/r2.sh"
+got=$(APP_ROOT="$T" measure "$T/r1.sh" "$T/r2.sh")
+[[ "$got" == "1 r2.sh r2" ]] && pass "CONTROL: a function left open at a file's end is not closed by the next file" || fail "CONTROL: per-file reset measured '$got'"
 
 [[ "$fails" -eq 0 ]] && echo "PASS: all $(basename "$0") assertions"
 exit "$fails"

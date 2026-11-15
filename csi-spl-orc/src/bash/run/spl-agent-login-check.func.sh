@@ -91,7 +91,7 @@ do_spl_agent_login_check() {
   # shellcheck source=../features/spawn-agents/lib/agent-identity.inc.sh
   source "$feat/lib/agent-identity.inc.sh" || return 1
   if [[ "${SPOOL_TEST:-}" == 1 ]]; then spool_test_guard || return 96; fi
-  LC_STATE="${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}"
+  LC_STATE="$(_lc_state_dir)"
   LC_CRED="${LOGIN_CRED_CMD:-bash $PROJ_PATH/src/bash/scripts/agent-login-cred.sh}"
   mkdir -p "$LC_STATE" 2>/dev/null || { do_log "FATAL cannot create $LC_STATE"; return 1; }
   exec 8>>"$LC_STATE/tick.lock" || return 1
@@ -211,6 +211,9 @@ _lc_probe() {
   echo "$line"
 }
 
+# The login-check state dir: LOGIN_STATE_DIR, else the box default.
+_lc_state_dir() { echo "${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}"; }
+
 # spl_lc_login_ok_after T NOW: 0 when this box's probe (<state>/probe) says
 # ok, was taken after epoch T and not after NOW, at most WD_LOGIN_HEAL_GRACE
 # s (900) before NOW: a usage limit marked at T is over (SPL-5617, sat
@@ -218,7 +221,7 @@ _lc_probe() {
 # seats). 1 otherwise: no probe, an older or stale one, any other verdict.
 spl_lc_login_ok_after() {
   local t="$1" now="$2" at="" verdict=""
-  read -r at verdict _ < "${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}/probe" 2>/dev/null || return 1
+  read -r at verdict _ < "$(_lc_state_dir)/probe" 2>/dev/null || return 1
   [[ "$at" =~ ^[0-9]+$ && "$t" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ && "$verdict" == ok ]] || return 1
   (( at > t && at <= now && now - at <= ${WD_LOGIN_HEAL_GRACE:-900} ))
 }

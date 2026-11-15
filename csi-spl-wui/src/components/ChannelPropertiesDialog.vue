@@ -428,7 +428,7 @@ import { useChannelPersonPick } from '~/composables/useChannelPersonPick'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { channelBoxChoices, channelBoxPinsBody, channelBoxPinsErrorKey, normalizeChannelBoxPins, workspaceBoxIds } from '~/utils/tenant-settings.mjs'
+import { channelBoxChoices, channelBoxPinsBody, channelBoxPinsErrorKey, normalizeChannelBoxPins, tenantChannelBoxPins, workspaceBoxIds } from '~/utils/tenant-settings.mjs'
 import HumanName from '~/components/HumanName.vue'
 
 const props = defineProps<{
@@ -632,12 +632,8 @@ async function loadBoxes() {
   const my = ticket
   boxes.asked = true
   try {
-    const [mine, all] = await Promise.all([
-      withSessionRetry(api, () => api.getChannelBoxPins(props.channelId)),
-      withSessionRetry(api, () => api.listPins()),
-    ])
+    const [boxPins, all] = await Promise.all([readChannelBoxPins(), readWorkspacePins()])
     if (my !== ticket) return
-    const { boxPins } = normalizeChannelBoxPins(mine)
     showBoxPins(boxPins)
     boxes.choices = channelBoxChoices(workspaceBoxIds(all), boxPins)
   } catch {
@@ -646,6 +642,28 @@ async function loadBoxes() {
     boxes.error = 'channels.properties.boxes_error.load'
   } finally {
     if (my === ticket) boxes.loaded = true
+  }
+}
+// The channel's pins. An admin who is not a member of a private channel gets
+// 404 on its GET (channelDoor) yet may PUT (membersActor): read the admin list.
+async function readChannelBoxPins(): Promise<string[]> {
+  try {
+    return normalizeChannelBoxPins(await withSessionRetry(api, () => api.getChannelBoxPins(props.channelId))).boxPins
+  } catch (e) {
+    if (!canEditBoxes.value || (e as { status?: number })?.status !== 404) throw e
+    const pins = tenantChannelBoxPins(await withSessionRetry(api, () => api.listTenantChannels()), props.channelId)
+    if (!pins) throw e
+    return pins
+  }
+}
+// GET /v1/pins takes the upload token; a 401 door redials for a fresh one once,
+// as a file upload does (upload-fail.mjs).
+async function readWorkspacePins() {
+  try {
+    return await api.listPins(await live.freshUploadToken())
+  } catch (e) {
+    if ((e as { status?: number })?.status !== 401) throw e
+    return api.listPins(await live.freshUploadToken(true))
   }
 }
 watch(() => props.open && tab.value === 'settings', (shown) => {

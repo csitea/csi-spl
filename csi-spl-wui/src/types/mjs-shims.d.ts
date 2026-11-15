@@ -143,7 +143,7 @@ declare module '~/utils/spool-client.mjs' {
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>
     archiveTenantChannel(channel: string): Promise<null>
     /* spec 164 B6: GET /v1/pins and a channel's box pins (hub routes of B2) */
-    listPins(): Promise<{ pins?: Array<{ box_id: string, pubkey?: string }> }>
+    listPins(uploadToken?: string): Promise<{ pins?: Array<{ box_id: string, pubkey?: string }> }>
     getChannelBoxPins(channel: string): Promise<{ channel?: string, box_pins?: string[], is_pinned?: boolean }>
     setChannelBoxPins(channel: string, boxes: string[]): Promise<{ channel?: string, box_pins?: string[], is_pinned?: boolean }>
     getPerfSummary(opts?: { days?: number, build?: string, buildB?: string }): Promise<unknown>
@@ -1527,6 +1527,7 @@ declare module '~/utils/tenant-settings.mjs' {
   export function boxIdsOf(list: unknown): string[]
   export function workspaceBoxIds(body: unknown): string[]
   export function normalizeChannelBoxPins(body: unknown): { boxPins: string[], pinned: boolean }
+  export function tenantChannelBoxPins(body: unknown, channel: string): string[] | null
   export function channelBoxChoices(workspace: string[], pinned: string[]): string[]
   export function channelBoxPinsBody(anyBox: boolean, ticked: string[]): { box_pins: string[] }
   export function channelBoxPinsErrorKey(err: unknown): string

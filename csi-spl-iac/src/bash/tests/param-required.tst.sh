@@ -113,13 +113,13 @@ hdr '# @param GOOD (required) - the good one
 out=$(check_form "$T/f" "$T/base.txt" iac)
 if grep -q '^FAIL' <<<"$out"; then fail "CONTROL: the canonical form fails: $out"
 else pass "CONTROL: the canonical form passes, and a word inside a name (OPT_REQUIRED, discussion_required) is not a marker"; fi
-bad=('# @param X - required: dev or prd' '# @param X (REQUIRED) - dev or prd' '# @param X - required when DRY_RUN=0: the id'
+bad=('# @param X - required: dev or prd' '# @param X (REQUIRED) - dev or prd' '# @param X (Required) - dev or prd' '# @param X - required when DRY_RUN=0: the id'
   '# @param X - dev or prd (required)' '# @param X  (required) - two spaces' '# @param X (required)'
   '# @param X (required for set) - the doc' "# @param X - the id
 #   (required on the first run)")
 for b in "${bad[@]}"; do
   hdr "$b" >"$T/f/csi-spl-iac/src/bash/run/bad.func.sh"
-  line=$(check_form "$T/f" "$T/base.txt" iac | grep -m1 '^FAIL')
+  out=$(check_form "$T/f" "$T/base.txt" iac); line=$(grep -m1 '^FAIL' <<<"$out")
   if [[ -n "$line" ]]; then pass "RED CONTROL '${b//$'\n'/ \\n }' -> FAIL"; else fail "RED CONTROL '${b//$'\n'/ \\n }' passed"; fi
 done
 hdr '# @param X - required: dev or prd' >"$T/f/csi-spl-iac/src/bash/run/bad.func.sh"
@@ -127,7 +127,7 @@ echo "csi-spl-iac/src/bash/run/bad.func.sh X" >"$T/base.txt"
 out=$(check_form "$T/f" "$T/base.txt" iac)
 if grep -q '^FAIL' <<<"$out"; then fail "CONTROL: a listed line fails: $out"; else pass "CONTROL: a listed line passes"; fi
 hdr '# @param X (required) - dev or prd' >"$T/f/csi-spl-iac/src/bash/run/bad.func.sh"
-line=$(check_form "$T/f" "$T/base.txt" iac | grep -m1 '^FAIL')
+out=$(check_form "$T/f" "$T/base.txt" iac); line=$(grep -m1 '^FAIL' <<<"$out")
 if [[ -n "$line" ]]; then pass "RED CONTROL a listed line fixed -> $line"; else fail "RED CONTROL a listed line fixed passed"; fi
 
 # --- 2. enforced: control and red control ------------------------------------

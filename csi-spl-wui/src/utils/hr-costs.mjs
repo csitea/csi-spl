@@ -357,6 +357,8 @@ export function mockHrPayroll(month, store = mockStore(), now = new Date()) {
     out.people.push(row)
   }
   out.totals = Object.values(totals).sort((x, y) => x.currency.localeCompare(y.currency))
+  /* the mock plays an accountant (names: true), so its payroll carries the worker side (step d) */
+  out.worker = mockHrWorker(out, store)
   return out
 }
 
@@ -385,4 +387,291 @@ export function mockHrPayrollBook(month, store = mockStore(), now = new Date()) 
   }))
   mockWrite(store, COST_ENTRIES_MOCK_KEY, keep)
   return { booked: add.length, removed, payroll: mockHrPayroll(month, store, now) }
+}
+
+/* ---- SPL-5433 step d (spec 123 16.5; owner poll 2ff12c21 answer 4 B): the
+   worker side, over the hub's /v1/operator/hr-worker-rates, /hr-tax-cards,
+   /hr-payslips and the payroll's "worker" (fleetPaid 'hr_worker_rates*',
+   'hr_tax_card*', 'hr_payslip*'). The employee's shares by age band, the tax
+   from the year's card over the year-to-date gross, the net, each checked
+   against the payslip. A costs.write member's only; never in a total. ---- */
+
+export const HR_WORKER_KINDS = Object.freeze(['tyel_employee', 'unemployment_employee'])
+const HR_WORKER_TYPES = Object.freeze(['employee', 'hourly'])
+const HR_TAXED_TYPES = Object.freeze(['employee', 'hourly', 'owner_management'])
+export const HR_PAYSLIP_FIELDS = Object.freeze(['tyel_employee', 'unemployment_employee', 'tax_withheld', 'net_pay'])
+const HR_WORKER_RATES_MOCK_KEY = 'spool.mock.hr_worker_rates'
+const HR_TAX_CARDS_MOCK_KEY = 'spool.mock.hr_tax_cards'
+const HR_PAYSLIPS_MOCK_KEY = 'spool.mock.hr_payslips'
+const CURRENCY_RE = /^[A-Z]{3}$/
+
+/* a typed decimal ("12,5" or "12.5"), NaN when not a number, null when empty */
+const decimalOf = (v) => {
+  if (typeof v === 'number') return v
+  const s = String(v ?? '').replace(',', '.').trim()
+  return s === '' ? null : Number(s)
+}
+const decimals = (v, n) => Math.abs(v * 10 ** n - Math.round(v * 10 ** n)) <= 1e-6
+
+function workerLineOf(l) {
+  return {
+    kind: str(l && l.kind), ratePct: numOrNull(l && l.rate_pct), computed: num(l && l.computed), typed: numOrNull(l && l.typed),
+    amount: num(l && l.amount), diff: num(l && l.diff), flag: l && l.flag === 'diff' ? 'diff' : '',
+  }
+}
+
+/** The payroll's worker side (a costs.write reader's only; [] when the hub sent none). */
+export function hrWorkerOf(body) {
+  const b = body && typeof body === 'object' ? body : {}
+  return (Array.isArray(b.worker) ? b.worker : []).filter((w) => w && str(w.person_id)).map((w) => {
+    const c = w.tax_card && typeof w.tax_card === 'object' ? w.tax_card : null
+    return {
+      personId: str(w.person_id), code: str(w.code), currency: str(w.currency), age: num(w.age), gross: num(w.gross),
+      ytdBefore: num(w.ytd_before), ytd: num(w.ytd),
+      taxCard: c ? { basePct: num(c.base_pct), extraPct: num(c.extra_pct), incomeLimit: num(c.income_limit) } : null,
+      shares: (Array.isArray(w.shares) ? w.shares : []).map(workerLineOf), tax: workerLineOf(w.tax), net: workerLineOf(w.net),
+      missing: (Array.isArray(w.missing) ? w.missing : []).filter((m) => m === 'tax_card' || m === 'birth_year'),
+      flags: num(w.flags),
+    }
+  })
+}
+
+/** A worker-side value as words: its own i18n key and amount (the card renders it). */
+export function hrWorkerLineNote(l) {
+  if (l.flag === 'diff') return { key: 'diff', amount: Math.abs(l.diff) }
+  if (l.typed !== null) return { key: 'typed', amount: l.typed }
+  return { key: 'computed', amount: l.computed }
+}
+
+/** The hub's worker-share bands ({year, rates}), by kind then age. */
+export function hrWorkerRatesOf(body) {
+  const b = body && typeof body === 'object' ? body : {}
+  return (Array.isArray(b.rates) ? b.rates : []).filter((r) => r && HR_WORKER_KINDS.includes(r.kind)).map((r) => ({
+    kind: r.kind, ageFrom: num(r.age_from), ageTo: num(r.age_to), ratePct: num(r.rate_pct), source: str(r.source),
+  })).sort((x, y) => x.kind.localeCompare(y.kind) || x.ageFrom - y.ageFrom)
+}
+
+/** The hub's tax cards ({year, tax_cards}). */
+export function hrTaxCardsOf(body) {
+  const b = body && typeof body === 'object' ? body : {}
+  return (Array.isArray(b.tax_cards) ? b.tax_cards : []).filter((c) => c && str(c.person_id)).map((c) => ({
+    personId: str(c.person_id), basePct: num(c.base_pct), extraPct: num(c.extra_pct), incomeLimit: num(c.income_limit), source: str(c.source),
+  }))
+}
+
+/** A blank band form. */
+export function emptyHrBandForm() {
+  return { kind: 'tyel_employee', ageFrom: '', ageTo: '', ratePct: '', source: '' }
+}
+
+/** The bands of kind after adding the form's band to the current ones, or an i18n key suffix of what is wrong (rdb 0285's CHECKs). */
+export function hrBandsWith(f, current) {
+  if (!HR_WORKER_KINDS.includes(f.kind)) return { problem: 'err_band_kind' }
+  const from = decimalOf(f.ageFrom)
+  const to = decimalOf(f.ageTo)
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to > 120 || to < from) return { problem: 'err_band_ages' }
+  const pct = decimalOf(f.ratePct)
+  if (pct === null || !Number.isFinite(pct) || pct < 0 || pct >= 100 || !decimals(pct, 4)) return { problem: 'err_band_pct' }
+  if (bytes(str(f.source)) > 200) return { problem: 'err_band_source' }
+  const same = (current || []).filter((r) => r.kind === f.kind)
+  if (same.some((r) => from <= r.ageTo && to >= r.ageFrom)) return { problem: 'err_band_overlap' }
+  if (same.length >= 10) return { problem: 'err_band_many' }
+  const bands = [...same.map((r) => ({ age_from: r.ageFrom, age_to: r.ageTo, rate_pct: r.ratePct })), { age_from: from, age_to: to, rate_pct: pct }]
+  bands.sort((x, y) => x.age_from - y.age_from)
+  return { problem: '', bands }
+}
+
+/** A blank tax card form. */
+export function emptyHrTaxCardForm() {
+  return { personId: '', basePct: '', extraPct: '', incomeLimit: '', source: '' }
+}
+
+/** The first thing wrong with a tax card form, as an i18n key suffix ('' = fine). */
+export function checkHrTaxCardForm(f) {
+  if (!str(f.personId)) return 'err_card_person'
+  for (const [k, why] of [['basePct', 'err_card_base'], ['extraPct', 'err_card_extra']]) {
+    const v = decimalOf(f[k])
+    if (v === null || !Number.isFinite(v) || v < 0 || v >= 100 || !decimals(v, 2)) return why
+  }
+  const lim = decimalOf(f.incomeLimit)
+  if (lim === null || !Number.isFinite(lim) || lim < 0 || lim >= 1e10 || !decimals(lim, 2)) return 'err_card_limit'
+  if (bytes(str(f.source)) > 200) return 'err_card_source'
+  return ''
+}
+
+/** The PUT body of a checked tax card form. */
+export function hrTaxCardBody(f) {
+  return { base_pct: decimalOf(f.basePct), extra_pct: decimalOf(f.extraPct), income_limit: decimalOf(f.incomeLimit), source: str(f.source).trim() }
+}
+
+/** A blank payslip form. */
+export function emptyHrPayslipForm() {
+  return { personId: '', currency: 'EUR', tyel_employee: '', unemployment_employee: '', tax_withheld: '', net_pay: '' }
+}
+
+/** The first thing wrong with a payslip form, as an i18n key suffix ('' = fine). */
+export function checkHrPayslipForm(f) {
+  if (!str(f.personId)) return 'err_slip_person'
+  if (!CURRENCY_RE.test(str(f.currency))) return 'err_slip_currency'
+  let any = false
+  for (const k of HR_PAYSLIP_FIELDS) {
+    const v = decimalOf(f[k])
+    if (v === null) continue
+    any = true
+    if (!Number.isFinite(v) || Math.abs(v) >= 1e10 || !decimals(v, 2) || (v < 0 && k !== 'net_pay')) return 'err_slip_amount'
+  }
+  return any ? '' : 'err_slip_empty'
+}
+
+/** The PUT body of a checked payslip form: the values typed, nothing for the empty ones. */
+export function hrPayslipBody(f) {
+  const out = { currency: f.currency }
+  for (const k of HR_PAYSLIP_FIELDS) {
+    const v = decimalOf(f[k])
+    if (v !== null) out[k] = v
+  }
+  return out
+}
+
+function mockMap(store, key) {
+  const v = mockRead(store, key)
+  return v && !Array.isArray(v) ? v : {}
+}
+
+/** The mock's bands of a year. */
+export function mockHrWorkerRates(year, store = mockStore()) {
+  mockGate(store)
+  const y = Number(year)
+  return { year: y, rates: Object.values(mockMap(store, HR_WORKER_RATES_MOCK_KEY)).flat().filter((r) => r.year === y) }
+}
+
+/** The mock's bands set: replaces the year's bands of kind. */
+export function mockHrWorkerRatesSet(year, body, store = mockStore(), now = new Date()) {
+  mockGate(store)
+  const kind = body && body.kind
+  if (!HR_WORKER_KINDS.includes(kind)) throw mockError(400, 'bad_hr_worker_rate', 'kind must be tyel_employee or unemployment_employee')
+  const rates = ((body && body.bands) || []).map((b) => ({ year: Number(year), kind, age_from: b.age_from, age_to: b.age_to, rate_pct: b.rate_pct,
+    source: str(body.source), set_by: 'HUM-1', set_at: now.toISOString() }))
+  mockWrite(store, HR_WORKER_RATES_MOCK_KEY, { ...mockMap(store, HR_WORKER_RATES_MOCK_KEY), [year + '/' + kind]: rates })
+  return { year: Number(year), kind, rates }
+}
+
+/** The mock's tax cards of a year. */
+export function mockHrTaxCards(year, store = mockStore()) {
+  mockGate(store)
+  const y = Number(year)
+  return { year: y, tax_cards: Object.values(mockMap(store, HR_TAX_CARDS_MOCK_KEY)).filter((c) => c.year === y) }
+}
+
+/** The mock's tax card set: 404 for no such person, the form's checks. */
+export function mockHrTaxCardSet(year, body, store = mockStore(), now = new Date()) {
+  mockGate(store)
+  const pid = str(body && body.person_id)
+  if (!mockHrPeople(store).people.some((p) => p.id === pid)) throw mockError(404, 'not_found', 'no such person')
+  const why = checkHrTaxCardForm({ personId: pid, basePct: body.base_pct, extraPct: body.extra_pct, incomeLimit: body.income_limit, source: body.source })
+  if (why) throw mockError(400, 'bad_hr_tax_card', why)
+  const c = { person_id: pid, year: Number(year), base_pct: body.base_pct, extra_pct: body.extra_pct, income_limit: body.income_limit,
+    source: str(body.source), set_by: 'HUM-1', set_at: now.toISOString() }
+  mockWrite(store, HR_TAX_CARDS_MOCK_KEY, { ...mockMap(store, HR_TAX_CARDS_MOCK_KEY), [pid + '/' + year]: c })
+  return c
+}
+
+/** The mock's tax card delete: 404 when none. */
+export function mockHrTaxCardDelete(year, personId, store = mockStore()) {
+  mockGate(store)
+  const all = mockMap(store, HR_TAX_CARDS_MOCK_KEY)
+  const k = personId + '/' + year
+  if (!all[k]) throw mockError(404, 'not_found', 'no tax card for that person and ' + year)
+  const { [k]: _gone, ...rest } = all
+  mockWrite(store, HR_TAX_CARDS_MOCK_KEY, rest)
+  return null
+}
+
+/** The mock's payslip set: 404 for no such person, 409 in a closed month. */
+export function mockHrPayslipSet(month, body, store = mockStore(), now = new Date()) {
+  mockGate(store)
+  const pid = str(body && body.person_id)
+  if (!mockHrPeople(store).people.some((p) => p.id === pid)) throw mockError(404, 'not_found', 'no such person')
+  const why = checkHrPayslipForm({ personId: pid, ...body })
+  if (why) throw mockError(400, 'bad_hr_payslip', why)
+  if (mockHrPeriod(month, store, now).closed) throw mockError(409, 'month_closed', 'the month ' + month + ' is closed')
+  const s = { person_id: pid, month, ...hrPayslipBody({ ...body }), set_by: 'HUM-1', set_at: now.toISOString() }
+  mockWrite(store, HR_PAYSLIPS_MOCK_KEY, { ...mockMap(store, HR_PAYSLIPS_MOCK_KEY), [pid + '/' + month + '/' + s.currency]: s })
+  return s
+}
+
+/** The mock's payslip delete: 404 when none, 409 in a closed month. */
+export function mockHrPayslipDelete(month, body, store = mockStore(), now = new Date()) {
+  mockGate(store)
+  if (mockHrPeriod(month, store, now).closed) throw mockError(409, 'month_closed', 'the month ' + month + ' is closed')
+  const all = mockMap(store, HR_PAYSLIPS_MOCK_KEY)
+  const k = str(body && body.person_id) + '/' + month + '/' + (str(body && body.currency) || 'EUR')
+  if (!all[k]) throw mockError(404, 'not_found', 'no payslip for that person, month and currency')
+  const { [k]: _gone, ...rest } = all
+  mockWrite(store, HR_PAYSLIPS_MOCK_KEY, rest)
+  return null
+}
+
+/** One checked worker-side value: the payslip's typed value wins, a difference above a cent is flagged. */
+function mockWorkerLine(kind, computed, typed, pct) {
+  const l = { kind, computed, amount: computed, diff: 0 }
+  if (pct !== undefined) l.rate_pct = pct
+  if (typeof typed === 'number') {
+    l.typed = cents(typed)
+    l.amount = l.typed
+    l.diff = cents(l.typed - computed)
+    if (Math.abs(l.diff) > 0.011) l.flag = 'diff'
+  }
+  return l
+}
+
+/** The mock's worker side of a payroll (store.ComputeHRWorker over the mock's rows). */
+function mockHrWorker(payroll, store = mockStore()) {
+  const month = payroll.month
+  const year = Number(String(month).slice(0, 4))
+  const groups = Object.fromEntries(mockHrComponents(store).components.map((c) => [c.component, c.group]))
+  const people = Object.fromEntries(mockHrPeople(store).people.map((p) => [p.id, p]))
+  const bands = mockHrWorkerRates(year, store).rates
+  const cards = Object.fromEntries(mockHrTaxCards(year, store).tax_cards.map((c) => [c.person_id, c]))
+  const slips = mockMap(store, HR_PAYSLIPS_MOCK_KEY)
+  const lines = mockRead(store, COST_ENTRIES_MOCK_KEY)
+  const ytd = {}
+  for (const e of Array.isArray(lines) ? lines : []) {
+    if (!e || e.type !== 'hr' || e.period_kind === 'year' || e.period < year + '-01' || e.period >= month || !GROSS_GROUPS.includes(groups[e.component])) continue
+    const k = e.person_id + '|' + e.currency
+    ytd[k] = cents((ytd[k] || 0) + num(e.amount))
+  }
+  return payroll.people.map((row) => {
+    const person = people[row.person_id] || {}
+    const slip = slips[row.person_id + '/' + month + '/' + row.currency] || {}
+    const before = ytd[row.person_id + '|' + row.currency] || 0
+    const age = Number(person.birth_year) > 0 ? year - Number(person.birth_year) : 0
+    const w = { person_id: row.person_id, code: row.code, currency: row.currency, gross: row.gross, ytd_before: before, ytd: cents(before + row.gross), shares: [], missing: [], flags: 0 }
+    if (age) w.age = age
+    let shares = 0
+    if (HR_WORKER_TYPES.includes(row.employment_type)) {
+      for (const kind of HR_WORKER_KINDS) {
+        const of = bands.filter((b) => b.kind === kind)
+        if (!of.length) continue
+        const band = age ? of.find((b) => age >= b.age_from && age <= b.age_to) : undefined
+        if (!age && !w.missing.includes('birth_year')) w.missing.push('birth_year')
+        const l = mockWorkerLine(kind, band ? cents(row.gross * band.rate_pct / 100) : 0, slip[kind], band ? band.rate_pct : undefined)
+        shares += l.amount
+        w.shares.push(l)
+      }
+    }
+    let tax = 0
+    const card = cards[row.person_id]
+    if (HR_TAXED_TYPES.includes(row.employment_type)) {
+      if (card) {
+        w.tax_card = card
+        const under = Math.max(0, Math.min(row.gross, card.income_limit - before))
+        tax = cents(under * card.base_pct / 100 + (row.gross - under) * card.extra_pct / 100)
+      } else w.missing.push('tax_card')
+    }
+    w.tax = mockWorkerLine('tax_withheld', tax, slip.tax_withheld)
+    w.net = mockWorkerLine('net_pay', cents(row.gross - shares - w.tax.amount), slip.net_pay)
+    w.flags = [...w.shares, w.tax, w.net].filter((l) => l.flag).length
+    return w
+  })
 }

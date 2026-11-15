@@ -1132,6 +1132,19 @@ accountant sees it.
     the employer side as before.
   - The log names the year or month and who acted, never a card's or a
     payslip's figures.
+- **The screen** (Expenses -> HR costs, `components/expenses/HrWorkerCard.vue`):
+  "Worker side and payslip check, <month>", read when opened, and mounted
+  for a names reader (`costs.write`) only.
+  - **The table.** One row per person and currency: the code and the name,
+    gross pay, the year's income (and the part before this month), each
+    employee's share with its rate, the tax withheld with the card's figures,
+    and the net. Each value is marked computed, from the payslip, or "the
+    payslip differs by"; a missing tax card or birth year is named.
+  - **The forms:** the month's payslip values (person, currency, any of the
+    four values; Remove), the year's tax cards (listed; person, base %,
+    extra %, income limit, source; Remove), and the year's age bands per
+    share (listed; share, ages, rate %, source; Remove).
+  - The strings are in every locale (`expenses.hr.worker.*`).
 - **Tests.**
   - `store/hr_worker_test.go` covers the calculation (age bands, the limit
     crossed in a month, owner and contractor, a missing birth year or card),
@@ -1142,6 +1155,9 @@ accountant sees it.
     with no worker side, and the closed month, plus every wrong caller on
     every new route. Red control: without the `readsHRNames` check in
     `handleHRPayroll`, the product owner's payroll carries `worker`.
+  - `csi-spl-wui/tests/unit/hr-worker.test.mjs` covers the three forms, the
+    worker side as read, and the mock's calculation (the hub test's figures).
+    The e2e opens the card and adds and removes a band.
 - **Not here.**
   - Filing to the Incomes Register (Q6): the accountant files with their own
     tool.

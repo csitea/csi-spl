@@ -75,6 +75,17 @@ func (s *Server) hoursCaller(w http.ResponseWriter, r *http.Request) (hoursMe, b
 	return hoursMe{tenant: t, hum: hum, st: hs, set: store.HoursSettingsOf(t.Settings)}, true
 }
 
+// withMemberNorm is c with set.NormDayMinutes the member's effective norm
+// (their own override, else the workspace's; SPL-5558).
+func (c hoursMe) withMemberNorm(ctx context.Context) (hoursMe, error) {
+	norms, err := c.st.HoursMemberNorms(ctx, c.tenant.ID, []string{c.hum})
+	if err != nil {
+		return c, err
+	}
+	c.set.NormDayMinutes = norms[c.hum].Effective
+	return c, nil
+}
+
 // hoursFail answers a store error.
 func (s *Server) hoursFail(w http.ResponseWriter, tenant, op string, err error) {
 	switch {
@@ -325,8 +336,9 @@ func (p *hoursPeriod) json(set store.HoursSettings) map[string]any {
 	case p.frozen[per.End]:
 		per.State = store.HoursFrozen // frozen by the clock; the sweep has not run
 	}
-	// norm_day_minutes: the workspace's average hours per day (FR-41), 0 =
-	// none. A soft norm: the WUI shows each day against it, nothing refuses.
+	// norm_day_minutes: the member's average hours per day (FR-41), their
+	// own (SPL-5558) else the workspace's; 0 = none. A soft norm: the WUI
+	// shows each day against it, nothing refuses.
 	return map[string]any{"tz": p.loc.String(), "today": p.today, "period": per, "days": days,
 		"norm_day_minutes": set.NormDayMinutes}
 }
@@ -400,6 +412,9 @@ func (s *Server) handleGetMyHours(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	p, err := s.loadHoursPeriod(ctx, c, loc, day, now)
+	if err == nil {
+		c, err = c.withMemberNorm(ctx)
+	}
 	if err != nil {
 		s.hoursFail(w, c.tenant.ID, "read", err)
 		return
@@ -636,6 +651,9 @@ func (s *Server) handlePutMyHours(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := s.loadHoursPeriod(ctx, c, loc, first, now)
+	if err == nil {
+		c, err = c.withMemberNorm(ctx)
+	}
 	if err != nil {
 		s.hoursFail(w, c.tenant.ID, "read back", err)
 		return

@@ -395,6 +395,85 @@ func TestHoursMemberIdleMinutes(t *testing.T) {
 	}
 }
 
+// hoursAdmitMember admits a developer to tid and returns their id.
+func hoursAdmitMember(t *testing.T, st Store, tid string) string {
+	t.Helper()
+	ctx, now := context.Background(), time.Now()
+	hum := st.(Humans)
+	email := uid("h") + "@example.com"
+	if err := hum.PutInvite(ctx, Invite{TenantID: tid, Email: email, Role: "developer", InvitedBy: AdmittedOperator,
+		ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+		t.Fatal(err)
+	}
+	member, err := hum.Admit(ctx, Identity{Provider: "google", Subject: "s-" + email, Email: email}, tid, AdmitPolicy{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return member
+}
+
+// TestHoursMemberNorm (FR-41, SPL-5558): a member's own norm wins over the
+// workspace's, 0 included; cleared, the workspace's is back; it is kept per
+// workspace; out of 0..1440 it is refused; no membership is ErrNotFound.
+func TestHoursMemberNorm(t *testing.T) {
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			h, tid, other := hoursStore(t, st), newTenant(t, st), newTenant(t, st)
+			member, peer := hoursAdmitMember(t, st, tid), hoursAdmitMember(t, st, tid)
+			if _, err := st.(TenantKV).SetTenantSettings(ctx, tid, TenantSettingsPatch{Set: map[string]any{HoursKeyNormDay: 450}}); err != nil {
+				t.Fatal(err)
+			}
+			norm := func(m string) HoursNorm {
+				t.Helper()
+				got, err := h.HoursMemberNorms(ctx, tid, []string{m})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return got[m]
+			}
+			if n := norm(member); n.Own != nil || n.Workspace != 450 || n.Effective != 450 {
+				t.Fatalf("no override: %+v", n)
+			}
+			for _, own := range []int{360, 0, HoursNormDayMax} {
+				if err := h.SetHoursMemberNorm(ctx, tid, member, &own); err != nil {
+					t.Fatal(err)
+				}
+				if n := norm(member); n.Own == nil || *n.Own != own || n.Workspace != 450 || n.Effective != own {
+					t.Fatalf("own %d: %+v", own, n)
+				}
+			}
+			if n := norm(peer); n.Own != nil || n.Effective != 450 {
+				t.Fatalf("the peer moved: %+v", n)
+			}
+			if err := h.SetHoursMemberNorm(ctx, tid, member, nil); err != nil {
+				t.Fatal(err)
+			}
+			if n := norm(member); n.Own != nil || n.Effective != 450 {
+				t.Fatalf("cleared: %+v", n)
+			}
+			for _, bad := range []int{-1, HoursNormDayMax + 1} {
+				if err := h.SetHoursMemberNorm(ctx, tid, member, &bad); !errors.Is(err, ErrHoursBad) {
+					t.Fatalf("own %d: %v", bad, err)
+				}
+			}
+			// Another workspace: the member is no member there, and an override
+			// set in tid does not reach it.
+			own := 300
+			if err := h.SetHoursMemberNorm(ctx, other, member, &own); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("other workspace: %v", err)
+			}
+			if err := h.SetHoursMemberNorm(ctx, tid, member, &own); err != nil {
+				t.Fatal(err)
+			}
+			got, err := h.HoursMemberNorms(ctx, other, []string{member})
+			if err != nil || got[member].Own != nil || got[member].Effective != 0 {
+				t.Fatalf("other workspace read: %+v %v", got, err)
+			}
+		})
+	}
+}
+
 func TestHoursPeriodBounds(t *testing.T) {
 	d := func(s string) time.Time { x, _ := ParseHoursDay(s); return x }
 	for _, c := range []struct{ kind, day, start, end string }{

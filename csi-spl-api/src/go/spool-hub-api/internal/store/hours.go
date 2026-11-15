@@ -75,6 +75,11 @@ const (
 // (rdb 0078 jsonb, owner Q3 = B); absent or out of range = the workspace's.
 const HoursMemberIdleKey = "hours_idle_minutes"
 
+// HoursMemberNormKey is the membership settings key of a member's own norm
+// (rdb 0078 jsonb, FR-41, SPL-5558); absent = the workspace's
+// hours.norm_day_minutes. 0 = no norm for this member.
+const HoursMemberNormKey = "hours_norm_day_minutes"
+
 func init() {
 	RegisterTenantSetting(TenantSettingDef{Key: HoursKeyPeriod, Kind: SettingString, Default: HoursPeriodWeek,
 		OneOf: []string{HoursPeriodWeek, HoursPeriodTwoWeeks, HoursPeriodMonth}})
@@ -281,6 +286,12 @@ type Hours interface {
 	// HoursIdleMinutes is N for the member: their own override, else the
 	// workspace's hours.idle_minutes.
 	HoursIdleMinutes(ctx context.Context, tenant, member string) (int, error)
+	// HoursMemberNorms is each member's norm (FR-41, SPL-5558): their own
+	// override, else the workspace's hours.norm_day_minutes.
+	HoursMemberNorms(ctx context.Context, tenant string, members []string) (map[string]HoursNorm, error)
+	// SetHoursMemberNorm sets the member's own norm, 0..HoursNormDayMax; nil
+	// clears it. ErrNotFound: no such membership. ErrHoursBad: out of range.
+	SetHoursMemberNorm(ctx context.Context, tenant, member string, own *int) error
 }
 
 var (
@@ -322,6 +333,25 @@ func memberIdleMinutes(ms auth.MembershipSettings) (int, bool) {
 	return n, n >= HoursIdleMin && n <= HoursIdleMax
 }
 
+// HoursNorm is a member's average minutes per day: Own is their override
+// (nil = none), Workspace the workspace's, Effective the one in force.
+type HoursNorm struct {
+	Own       *int
+	Workspace int
+	Effective int
+}
+
+// HoursNormOf is the member's norm: their own when it is set and in range,
+// else the workspace's.
+func HoursNormOf(set HoursSettings, ms auth.MembershipSettings) HoursNorm {
+	n := HoursNorm{Workspace: set.NormDayMinutes, Effective: set.NormDayMinutes}
+	if own := ms.HoursNormDayMinutes; own != nil && *own >= 0 && *own <= HoursNormDayMax {
+		v := *own
+		n.Own, n.Effective = &v, v
+	}
+	return n
+}
+
 // hoursSettingsSource is what the shared reads need of a store.
 type hoursSettingsSource interface {
 	GetTenant(ctx context.Context, tenantID string) (Tenant, error)
@@ -342,6 +372,33 @@ func hoursIdleMinutes(ctx context.Context, st hoursSettingsSource, tenant, membe
 		return n, nil
 	}
 	return HoursSettingsOf(t.Settings).IdleMinutes, nil
+}
+
+func hoursMemberNorms(ctx context.Context, st hoursSettingsSource, tenant string, members []string) (map[string]HoursNorm, error) {
+	t, err := st.GetTenant(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	set, out := HoursSettingsOf(t.Settings), make(map[string]HoursNorm, len(members))
+	for _, m := range members {
+		ms, err := st.MembershipSettings(ctx, m, tenant)
+		if err != nil {
+			return nil, err
+		}
+		out[m] = HoursNormOf(set, ms)
+	}
+	return out, nil
+}
+
+func setHoursMemberNorm(ctx context.Context, st membershipSettingsStore, tenant, member string, own *int) error {
+	var v any // nil drops the key: the workspace's norm again
+	if own != nil {
+		if *own < 0 || *own > HoursNormDayMax {
+			return fmt.Errorf("%w: norm_day_minutes %d is outside 0..%d", ErrHoursBad, *own, HoursNormDayMax)
+		}
+		v = *own
+	}
+	return st.SetMembershipSettings(ctx, member, tenant, map[string]any{HoursMemberNormKey: v})
 }
 
 // ---- periods and the freeze -------------------------------------------------

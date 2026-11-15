@@ -90,6 +90,10 @@ type MembershipSettings struct {
 	// HoursIdleMinutes: the member's own idle cutoff N (spec 107, owner Q3 =
 	// B), nil = the workspace's hours.idle_minutes. Read by the hours store.
 	HoursIdleMinutes *int `json:"hours_idle_minutes,omitempty"`
+	// HoursNormDayMinutes: the member's own average minutes per day (spec 107
+	// FR-41, SPL-5558), set by a hours.norm holder on the People card, never
+	// by the member's own settings; nil = the workspace's hours.norm_day_minutes.
+	HoursNormDayMinutes *int `json:"hours_norm_day_minutes,omitempty"`
 	// AwaitAnims: the ticked "Thinking animation" ids (SPL-2113), nil = the WUI's default.
 	AwaitAnims []string `json:"await_anims,omitempty"`
 }

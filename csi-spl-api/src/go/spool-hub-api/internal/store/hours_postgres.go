@@ -351,6 +351,16 @@ func (s *Postgres) HoursIdleMinutes(ctx context.Context, tenant, member string) 
 	return hoursIdleMinutes(ctx, s, tenant, member)
 }
 
+// HoursMemberNorms implements Hours (SPL-5558).
+func (s *Postgres) HoursMemberNorms(ctx context.Context, tenant string, members []string) (map[string]HoursNorm, error) {
+	return hoursMemberNorms(ctx, s, tenant, members)
+}
+
+// SetHoursMemberNorm implements Hours (SPL-5558).
+func (s *Postgres) SetHoursMemberNorm(ctx context.Context, tenant, member string, own *int) error {
+	return setHoursMemberNorm(ctx, s, tenant, member, own)
+}
+
 // hoursPGErr maps a foreign-key violation (no such tenant) to ErrNotFound and
 // a CHECK violation to ErrHoursBad; the store's own checks run first, so
 // either means the row was refused by rdb 0151 or 0218.

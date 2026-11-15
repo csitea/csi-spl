@@ -102,6 +102,7 @@ type hoursTeamData struct {
 	members []string                     // current members plus any with a row or an entry
 	rows    map[string]store.HoursPeriod // member -> the row covering q.day
 	entries []store.HoursTeamEntry
+	norms   map[string]store.HoursNorm // member -> norm (SPL-5558)
 }
 
 func (s *Server) loadHoursTeam(ctx context.Context, c hoursTeamCaller, q hoursTeamQuery) (*hoursTeamData, error) {
@@ -124,7 +125,11 @@ func (s *Server) loadHoursTeam(ctx context.Context, c hoursTeamCaller, q hoursTe
 	for _, p := range rows {
 		d.rows[p.Member] = p
 	}
-	return d, s.hoursTeamMembers(ctx, c, d)
+	if err := s.hoursTeamMembers(ctx, c, d); err != nil {
+		return nil, err
+	}
+	d.norms, err = c.st.HoursMemberNorms(ctx, c.tenant.ID, d.members)
+	return d, err
 }
 
 // hoursTeamMembers fills names and members: every current human member, plus
@@ -180,6 +185,9 @@ type hoursTeamMemberJSON struct {
 	Note        string `json:"note,omitempty"`
 	DecidedBy   string `json:"decided_by,omitempty"`
 	DecidedAt   string `json:"decided_at,omitempty"`
+	// NormDay: the member's average minutes per day, their own else the
+	// workspace's (FR-41, SPL-5558); 0 = none.
+	NormDay int `json:"norm_day_minutes"`
 }
 
 type hoursTeamEntryJSON struct {
@@ -201,7 +209,8 @@ func (d *hoursTeamData) json(set store.HoursSettings, now time.Time) map[string]
 	}
 	members := make([]hoursTeamMemberJSON, 0, len(d.members))
 	for _, id := range d.members {
-		m := hoursTeamMemberJSON{Member: id, Name: d.names[id], State: d.state(id, set, now), Minutes: total[id]}
+		m := hoursTeamMemberJSON{Member: id, Name: d.names[id], State: d.state(id, set, now), Minutes: total[id],
+			NormDay: d.norms[id].Effective}
 		if p, ok := d.rows[id]; ok {
 			m.PeriodStart, m.PeriodEnd, m.RowMinutes, m.Note = p.Start, p.End, p.Minutes, p.Note
 			m.DecidedBy, m.DecidedAt = p.DecidedBy, p.DecidedAt.UTC().Format(time.RFC3339)

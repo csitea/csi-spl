@@ -331,3 +331,13 @@ func (s *Memory) HoursFrozenDays(ctx context.Context, tenant, member string, day
 func (s *Memory) HoursIdleMinutes(ctx context.Context, tenant, member string) (int, error) {
 	return hoursIdleMinutes(ctx, s, tenant, member)
 }
+
+// HoursMemberNorms implements Hours (SPL-5558).
+func (s *Memory) HoursMemberNorms(ctx context.Context, tenant string, members []string) (map[string]HoursNorm, error) {
+	return hoursMemberNorms(ctx, s, tenant, members)
+}
+
+// SetHoursMemberNorm implements Hours (SPL-5558).
+func (s *Memory) SetHoursMemberNorm(ctx context.Context, tenant, member string, own *int) error {
+	return setHoursMemberNorm(ctx, s, tenant, member, own)
+}

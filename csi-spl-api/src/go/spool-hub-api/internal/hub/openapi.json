@@ -1049,6 +1049,10 @@
                 "name": {
                   "type": "string"
                 },
+                "norm_day_minutes": {
+                  "description": "the member's average minutes per day: their own, else the workspace's (FR-41, SPL-5558); 0 = no norm",
+                  "type": "integer"
+                },
                 "note": {
                   "type": "string"
                 },
@@ -10647,6 +10651,163 @@
         "summary": "The member, or an admin, adds a PENDING sign-in email; one provider sign-in makes it active",
         "tags": [
           "members"
+        ]
+      }
+    },
+    "/v1/members/{human_id}/hours/norm": {
+      "get": {
+        "operationId": "getHoursMemberNorm",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "effective_norm_day_minutes": {
+                      "description": "the norm in force for the member: their own, else the workspace's",
+                      "type": "integer"
+                    },
+                    "max_minutes": {
+                      "description": "the highest value accepted, 1440",
+                      "type": "integer"
+                    },
+                    "member_id": {
+                      "type": "string"
+                    },
+                    "norm_day_minutes": {
+                      "description": "the member's own average minutes per day; null = none, the workspace's value is in force; 0 = no norm for this member",
+                      "maximum": 1440,
+                      "minimum": 0,
+                      "nullable": true,
+                      "type": "integer"
+                    },
+                    "workspace_norm_day_minutes": {
+                      "description": "the workspace's hours.norm_day_minutes; 0 = no norm",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the member's average hours per day, in minutes. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md section 22, FR-41 (per member, SPL-5558)."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a member's own average hours per day (hours.norm)",
+        "tags": [
+          "hours"
+        ]
+      },
+      "put": {
+        "operationId": "putHoursMemberNorm",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "norm_day_minutes": {
+                    "description": "the member's own average minutes per day; null = none, the workspace's value is in force; 0 = no norm for this member",
+                    "maximum": 1440,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "norm_day_minutes"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "effective_norm_day_minutes": {
+                      "description": "the norm in force for the member: their own, else the workspace's",
+                      "type": "integer"
+                    },
+                    "max_minutes": {
+                      "description": "the highest value accepted, 1440",
+                      "type": "integer"
+                    },
+                    "member_id": {
+                      "type": "string"
+                    },
+                    "norm_day_minutes": {
+                      "description": "the member's own average minutes per day; null = none, the workspace's value is in force; 0 = no norm for this member",
+                      "maximum": 1440,
+                      "minimum": 0,
+                      "nullable": true,
+                      "type": "integer"
+                    },
+                    "workspace_norm_day_minutes": {
+                      "description": "the workspace's hours.norm_day_minutes; 0 = no norm",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the saved value. A soft norm: no hours entry is ever refused for it."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set or clear a member's own average hours per day (hours.norm)",
+        "tags": [
+          "hours"
         ]
       }
     },

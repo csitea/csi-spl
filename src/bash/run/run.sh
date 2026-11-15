@@ -33,49 +33,102 @@ execute_step_hook() {
   do_log "INFO STOP  ::: running $label :: $hook"
 }
 
-# execute_step_parse_args <func_file> <args...>: map the action's @arg
-# --flag value pairs to env vars.
+# execute_step_flag_maps <func_file>: ONE header parse of the action fills the
+# caller's maps (a flag on the command line never re-parses the header):
+#   _xs_arg  an explicit `@arg --flag VAR` line         --flag -> VAR
+#   _xs_par  every upper-case `@param NAME`             --name -> NAME
+#            (IMAGE_REF -> --image-ref; an @arg on the same flag wins)
+#   _xs_own  an `@param --flag ...` line: a flag the action reads from "$@"
+execute_step_flag_maps() {
+  local _line _w1 _w2 _rest _f
+  while IFS= read -r _line; do
+    case "$_line" in
+      arg=*)
+        read -r _w1 _w2 _rest <<< "${_line#arg=}" || true
+        [[ -n "$_w1" && -n "$_w2" ]] && _xs_arg["$_w1"]="$_w2"
+        ;;
+      param=*)
+        read -r _w1 _rest <<< "${_line#param=}" || true
+        if [[ "$_w1" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+          _f="${_w1,,}"
+          _xs_par["--${_f//_/-}"]="$_w1"
+        elif [[ "$_w1" == --?* ]]; then
+          _xs_own["$_w1"]=1
+        fi
+        ;;
+    esac
+  done <<< "$(do_parse_metadata "$1" 2>/dev/null)"
+  return 0
+}
+
+# execute_step_flag_owned <func_file> <flag>: 0 when <flag> is not a variable
+# flag but is taken as it is: a framework flag (--json, --quiet), an
+# `@param --flag` line, or the flag written in the action's own file (a
+# `--kind)` case arm, a `== --purge` test). The file is read once, no fork.
+execute_step_flag_owned() {
+  case "$2" in --json | --quiet | --help | --actions) return 0 ;; esac
+  [[ -n "${_xs_own[$2]:-}" ]] && return 0
+  [[ -n "${_xs_src+x}" ]] || _xs_src="$(<"$1")"
+  [[ "$_xs_src" =~ (^|[^a-zA-Z0-9_-])"$2"([^a-zA-Z0-9_-]|$) ]]
+}
+
+# execute_step_flag_unknown <func_name> <flag>: the FATAL of an unknown flag,
+# naming every flag the action takes. A typo must not run the action with
+# the variable silently unset or left at the caller's env value.
+execute_step_flag_unknown() {
+  local _list
+  _list="$(printf '%s\n' "${!_xs_arg[@]}" "${!_xs_par[@]}" "${!_xs_own[@]}" | sort -u | tr '\n' ' ')"
+  [[ "$_list" == *[![:space:]]* ]] || _list=""
+  do_log "FATAL $1: unknown flag $2"
+  do_log "FATAL $1 takes: ${_list:-(no flags)}"
+  do_log "INFO  each @param NAME is also --name value (a bare --name is true); --json and --quiet are the framework's"
+}
+
+# execute_step_parse_args <func_name> <func_file> <args...>: every
+# `@param NAME` of the action is also a flag: `--name value` (or
+# `--name=value`) exports NAME=value, a bare `--name` (last, or followed by
+# another --flag) exports NAME=true. An explicit `@arg --flag VAR` wins over a
+# derived flag of the same spelling. A flag beats an env var of the same name
+# set by the caller. An unknown --flag fails (return 11). A bare `--` ends the
+# flags. Positional args are left alone, and every arg still reaches the
+# action. No --flag in the args: no header parse at all.
 execute_step_parse_args() {
-  local func_file=$1
-  shift
-  local args=("$@")
-  local _arg_lines
-  _arg_lines=$(do_parse_metadata "$func_file" "arg" 2>/dev/null)
-  [[ -n "$_arg_lines" ]] || return 0
-  # Build associative array of flag→var mappings
-  declare -A _arg_map
-  while IFS= read -r _aline; do
-    local _adef="${_aline#arg=}"
-    local _aflag _avar _aextra
-    # awk '{print $1}' / '{print $2}' with no fork. The third name keeps
-    # the second field from swallowing the rest of the line.
-    read -r _aflag _avar _aextra <<< "$_adef" || true
-    [[ -n "$_aflag" && -n "$_avar" ]] && _arg_map["$_aflag"]="$_avar"
-  done <<< "$_arg_lines"
-  # Parse CLI args against the map. Boolean support: a known flag
-  # followed by end-of-args or another --flag is treated as a true bool.
-  local _i=0
-  while [[ $_i -lt ${#args[@]} ]]; do
-    local _flag="${args[$_i]}"
-    if [[ "$_flag" == --* && -n "${_arg_map[$_flag]:-}" ]]; then
-      local _var="${_arg_map[$_flag]}"
-      local _next=""
-      (( _i + 1 < ${#args[@]} )) && _next="${args[$_i + 1]}"
+  local func_name=$1 func_file=$2
+  shift 2
+  local args=("$@") _a=""
+  for _a in "${args[@]}"; do [[ "$_a" == --?* ]] && break; done
+  [[ -n "$func_file" && "$_a" == --?* ]] || return 0
+  declare -A _xs_arg=() _xs_par=() _xs_own=()
+  local _xs_src _i=0 _flag _val _var _next _eq
+  execute_step_flag_maps "$func_file"
+  while (( _i < ${#args[@]} )); do
+    _flag="${args[$_i]}"
+    _i=$((_i + 1))
+    [[ "$_flag" == -- ]] && break
+    [[ "$_flag" == --?* ]] || continue
+    _eq=0
+    if [[ "$_flag" == *=* ]]; then
+      _val="${_flag#*=}" _flag="${_flag%%=*}" _eq=1
+    fi
+    _var="${_xs_arg[$_flag]:-${_xs_par[$_flag]:-}}"
+    if [[ -z "$_var" ]]; then
+      execute_step_flag_owned "$func_file" "$_flag" && continue
+      execute_step_flag_unknown "$func_name" "$_flag"
+      return 11
+    fi
+    if (( _eq == 0 )); then
+      _next="${args[$_i]:-}"
       if [[ -n "$_next" && "$_next" != --* ]]; then
-        export "$_var"="$_next"
-        do_log "DEBUG Parsed: $_flag $_next → $_var=$_next"
-        _i=$((_i + 2))
-        continue
-      else
-        export "$_var"="true"
-        do_log "DEBUG Parsed: $_flag (boolean) → $_var=true"
+        _val="$_next"
         _i=$((_i + 1))
-        continue
+      else
+        _val=true
       fi
     fi
-    _i=$((_i + 1))
+    export "$_var"="$_val"
+    do_log "DEBUG Parsed: $_flag -> $_var"
   done
-  unset _arg_map
+  return 0
 }
 
 # Execution Wrapper
@@ -95,11 +148,9 @@ execute_step() {
     "${func_name}_args" "${args[@]}" || return $?
   fi
 
-  # Parse @arg metadata: map --flag value pairs to env vars
+  # Map the action's --flag value pairs (@param NAME, @arg) to env vars
   local func_file="${_func_to_file[$func_name]:-}"
-  if [[ -n "$func_file" && ${#args[@]} -gt 0 ]]; then
-    execute_step_parse_args "$func_file" "${args[@]}"
-  fi
+  execute_step_parse_args "$func_name" "$func_file" "${args[@]}" || return $?
 
   # Validate required @param metadata before running (if available)
   if [[ -n "$func_file" ]] && type do_validate_params &>/dev/null; then

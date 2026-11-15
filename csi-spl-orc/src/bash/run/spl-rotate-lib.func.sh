@@ -43,7 +43,8 @@
 # ROTATE_SPAWN (spawn-window.sh), ROTATE_RUN (./run), ROTATE_SEND
 # (spool-send.sh), ROTATE_KILL (kill), ROTATE_AI (the identity-map calls),
 # LEASE_PROC_ROOT (/proc), ROTATE_NOTIFY (spool-notify.sh),
-# ROTATE_TAKES_OUTBOXES (the desk outbox walk of spl_rotate_open_takes).
+# ROTATE_TAKES_OUTBOXES (the desk outbox walk of spl_rotate_open_takes),
+# ROTATE_SUDO (sudo, the read of a desk outbox as its owner).
 #
 # NOTE ./run runs every action under `set -E` and an ERR trap that exits: a
 # plain command that fails ends the whole action. Every probe here that may
@@ -1037,17 +1038,23 @@ spl_rotate_handoff_body() {
 # take line: the answer test of do_spl_take_post. A take with no desk record
 # is listed with "?" for both: nothing proves it answered. Before SPL-5523
 # the handoff had no such list, so a take stayed with the old session.
+# The rotation runs as the box user (its crontab), the desks belong to the
+# desk user (SPOOL_DESK_USER, 0700): an outbox the caller cannot read is read
+# as its owner (spl_rotate_take_outboxes, `sudo -n -u`, nothing chmod-ed).
+# When even that fails the one line is "!unreadable\t<caller>\t<owner>\t<n
+# takes>" and section 10 says the takes are unverified, never lists each take
+# as open (SPL-5629: 2026-11-15 every handoff listed ~20 answered takes).
 spl_rotate_open_takes() {
   local id="$1" f="${ROTATE_TAKE_LOG:-$LEASE_DIR/take.log}" since
   [[ -s "$f" ]] || return 0
   since=$(( $(date +%s) - ${ROTATE_TAKES_HOURS:-48} * 3600 ))
   # no take of ours in the window: no desk walk
   awk -F'\t' -v b="$id@$ROTATE_BOX" -v s="$since" '$3 == b && $1 + 0 >= s { f = 1 } END { exit !f }' "$f" || return 0
-  local -a outs=()
-  mapfile -t outs < <(spl_rotate_take_outboxes "$id")
-  python3 - "$f" "$id@$ROTATE_BOX" "$since" "${outs[@]}" 2>/dev/null <<'EOF_OPEN_TAKES' || true
-import calendar, json, os, re, sys, time
-log, by, since = sys.argv[1], sys.argv[2], int(sys.argv[3])
+  # the script is an argument: stdin is the message stream
+  local py
+  py="$(cat <<'EOF_OPEN_TAKES'
+import calendar, json, re, sys, time
+log, by, since, me = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
 TAKE = re.compile(r"^Taken by .*: .* I post the result here\.$", re.S)
 takes = {}
 for line in open(log, encoding="utf-8", errors="replace"):
@@ -1062,31 +1069,32 @@ def epoch(ts):
         return calendar.timegm(time.strptime(str(ts)[:19], "%Y-%m-%dT%H:%M:%S"))
     except ValueError:
         return 0
-answers = {}
-for o in sys.argv[4:]:
-    ws, _, d = o.partition("\t")
+answers, deny = {}, ""
+for raw in sys.stdin:
     try:
-        names = os.listdir(d)
-    except OSError:
+        m = json.loads(raw)
+    except ValueError:
         continue
-    for n in names:
-        if not n.endswith(".json"):
-            continue
-        try:
-            m = json.load(open(os.path.join(d, n), encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        t = str(m.get("task_id", "")).lower()
-        if t not in takes:
-            continue
-        at, body, to = epoch(m.get("ts")), str(m.get("body", "")), str(m.get("to", "")).split("@")[0]
-        k = takes[t]
-        if TAKE.match(body) and body.startswith("Taken by " + by + ":"):
-            # the take line the ledger row records: the newest one up to it
-            if k["line"] <= at <= k["at"] + 60:
-                k.update(ws=ws, to=to, line=at)
-        elif to == "ALL-0" or to.startswith("HUM-"):
-            answers[t] = max(answers.get(t, 0), at)
+    if not isinstance(m, dict):
+        continue
+    if m.get("_unreadable"):
+        deny = deny or str(m["_unreadable"])
+        continue
+    t = str(m.get("task_id", "")).lower()
+    if t not in takes:
+        continue
+    at, body, to = epoch(m.get("ts")), str(m.get("body", "")), str(m.get("to", "")).split("@")[0]
+    k = takes[t]
+    if TAKE.match(body) and body.startswith("Taken by " + by + ":"):
+        # the take line the ledger row records: the newest one up to it
+        if k["line"] <= at <= k["at"] + 60:
+            k.update(ws=str(m.get("ws", "?")), to=to, line=at)
+    elif to == "ALL-0" or to.startswith("HUM-"):
+        answers[t] = max(answers.get(t, 0), at)
+if deny:
+    # an outbox nobody could read: no take is proven open or answered
+    print("\t".join(["!unreadable", me, deny, str(len(takes))]))
+    sys.exit(0)
 rows = []
 for t, k in takes.items():
     if answers.get(t, 0) > (k["line"] or k["at"]):
@@ -1095,32 +1103,113 @@ for t, k in takes.items():
 for _, r in sorted(rows, reverse=True)[:20]:
     print(r)
 EOF_OPEN_TAKES
+)"
+  spl_rotate_take_msgs "$id" | python3 -c "$py" "$f" "$id@$ROTATE_BOX" "$since" "$(id -un)" 2>/dev/null || true
   return 0
 }
 
-# spl_rotate_take_outboxes ID: "<workspace>\t<ID's desk outbox>" per desk of
-# this box (ROTATE_DESK_ENV, default prd). ROTATE_TAKES_OUTBOXES replaces it.
+# spl_rotate_take_outboxes ID: "<workspace>\t<ID's desk outbox>\t<read as>"
+# per desk of this box (ROTATE_DESK_ENV, default prd); <read as> is empty for
+# an outbox the caller reads itself, else the root's owner. A desk root the
+# caller cannot enter is globbed as its owner (spl_rotate_as_user); the desk
+# user's (SPOOL_DESK_USER) that even that cannot list prints "!\t<user>\t<root>".
+# ROTATE_TAKES_OUTBOXES replaces it (same lines; the third field optional).
 spl_rotate_take_outboxes() {
   if [[ -n "${ROTATE_TAKES_OUTBOXES+x}" ]]; then
     [[ -n "$ROTATE_TAKES_OUTBOXES" ]] && printf '%s\n' "$ROTATE_TAKES_OUTBOXES"
     return 0
   fi
-  declare -F spl_desk_glob >/dev/null ||
+  declare -F spl_desk_roots >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-cloud-cnf.func.sh" 2>/dev/null || return 0
-  local p ws
-  while IFS= read -r p; do
-    ws="${p%/*/spool/*/outbox}"; ws="${ws##*/}"
-    printf '%s\t%s\n' "$ws" "$p"
-  done < <(spl_desk_glob "*/$(spl_desk_box_default)/spool/$1/outbox" "${ROTATE_DESK_ENV:-prd}" 2>/dev/null || true)
+  declare -F spl_desk_box_default >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh" 2>/dev/null || return 0
+  local me du box u r ru p ws list
+  me="$(id -un)" du="$(spl_desk_user 2>/dev/null)" box="$(spl_desk_box_default 2>/dev/null)"
+  [[ -n "$box" ]] || return 0
+  while IFS=$'\t' read -r u r; do
+    [[ -n "$r" ]] || continue
+    ru=""
+    if ! spl_rotate_can_enter "$r/desk"; then
+      [[ -n "$u" && "$u" != "$me" ]] || continue
+      ru="$u"
+    fi
+    # shellcheck disable=SC2016 # expanded by the inner bash
+    if ! list="$(spl_rotate_as_user "$ru" bash -c '[ -d "$1/desk" ] || exit 0
+      [ -x "$1/desk" ] && [ -r "$1/desk" ] || exit 3
+      for p in "$1"/desk/*/"$2"/spool/"$3"/outbox; do [ -d "$p" ] && printf "%s\n" "$p"; done; exit 0' _ "$r" "$box" "$1" 2>/dev/null)"; then
+      # only the desk user's root is a loss: the agent and box user roots are best-effort (spl_desk_dir)
+      [[ -n "$ru" && "$ru" == "$du" ]] && printf '!\t%s\t%s\n' "$ru" "$r"
+      continue
+    fi
+    while IFS= read -r p; do
+      [[ -n "$p" ]] || continue
+      ws="${p%/*/spool/*/outbox}"; ws="${ws##*/}"
+      # every root's copy is read, none hides another: a half-moved box keeps a
+      # stale twin desk under the box user, and its outbox must not hide the
+      # desk user's live one (a message read twice changes no answer)
+      printf '%s\t%s\t%s\n' "$ws" "$p" "$ru"
+    done <<<"$list"
+  done < <(spl_desk_roots "${ROTATE_DESK_ENV:-prd}" 2>/dev/null || true)
+  return 0
+}
+
+# spl_rotate_can_enter DIR: the caller can list DIR, or DIR's deepest
+# existing ancestor (spl_desk_root_enterable); false = another user's 0700.
+spl_rotate_can_enter() {
+  if declare -F spl_desk_root_enterable >/dev/null; then spl_desk_root_enterable "$1"
+  else [[ ! -e "$1" || ( -x "$1" && -r "$1" ) ]]; fi
+}
+
+# spl_rotate_as_user USER CMD..: CMD as USER (`sudo -n -u`, ROTATE_SUDO), or
+# as the caller when USER is empty or the caller. Never a password prompt.
+spl_rotate_as_user() {
+  local u="$1"; shift
+  if [[ -z "$u" || "$u" == "$(id -un)" ]]; then "$@"
+  else "${ROTATE_SUDO:-sudo}" -n -u "$u" "$@"; fi
+}
+
+# spl_rotate_take_msgs ID: one JSON line {ws, task_id, ts, body, to} per
+# message in ID's desk outboxes (spl_rotate_take_outboxes), each outbox read
+# as its <read as> user; {"_unreadable": <user>} for an outbox (or the desk
+# user's root) that could not be read, so the takes are reported unverified.
+spl_rotate_take_msgs() {
+  local ws d ru
+  while IFS=$'\t' read -r ws d ru; do
+    [[ -n "$ws" ]] || continue
+    if [[ "$ws" == '!' ]]; then printf '{"_unreadable":"%s"}\n' "$d"; continue; fi
+    spl_rotate_as_user "$ru" python3 -c '
+import json, os, sys
+d, ws = sys.argv[1], sys.argv[2]
+try:
+    names = os.listdir(d)
+except OSError:
+    sys.exit(3)
+for n in names:
+    if not n.endswith(".json"):
+        continue
+    try:
+        m = json.load(open(os.path.join(d, n), encoding="utf-8"))
+    except (OSError, ValueError):
+        continue
+    if isinstance(m, dict):
+        print(json.dumps({"ws": ws, "task_id": m.get("task_id", ""), "ts": m.get("ts", ""),
+                          "body": m.get("body", ""), "to": m.get("to", "")}))
+' "$d" "$ws" 2>/dev/null || printf '{"_unreadable":"%s"}\n' "${ru:-$(id -un)}"
+  done < <(spl_rotate_take_outboxes "$1")
   return 0
 }
 
 # The handoff's section 10 from ROTATE_OPEN_TAKES; the seeds print the same.
+# "!unreadable" (spl_rotate_open_takes): one warning line, no take rows.
 spl_rotate_open_takes_md() {
   [[ -n "${ROTATE_OPEN_TAKES:-}" ]] || { echo "none"; return 0; }
   local t ws to at plan
   while IFS=$'\t' read -r t ws to at plan; do
     [[ -n "$t" ]] || continue
+    if [[ "$t" == '!unreadable' ]]; then
+      echo "- outboxes unreadable as $ws: takes unverified ($at take(s) in the ledger; the desk outboxes are $to's and \`sudo -n -u $to\` failed; check each taken topic yourself)"
+      continue
+    fi
     echo "- topic $t, workspace $ws, $to, taken $(date -u -d "@$at" +%Y-%m-%dT%H:%MZ 2>/dev/null || echo "$at"): ${plan:0:160}"
   done <<<"$ROTATE_OPEN_TAKES"
   return 0
@@ -1130,6 +1219,11 @@ spl_rotate_open_takes_md() {
 spl_rotate_open_takes_seed() {
   if [[ -z "${ROTATE_OPEN_TAKES:-}" ]]; then
     echo "Open takes: none (handoff section 10)."
+    return 0
+  fi
+  if [[ "$ROTATE_OPEN_TAKES" == '!unreadable'* ]]; then
+    echo "Open takes: unverified (handoff section 10): the rotation could not read the desk outboxes."
+    spl_rotate_open_takes_md
     return 0
   fi
   echo "Open takes: the previous session took these posts and has not answered them."

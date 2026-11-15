@@ -699,11 +699,26 @@ lines:
 | 7 | hold notes: per `dispatch/hold/<topic>/`, its title line and its `NEXT` lines | files | 20 topics |
 | 8 | the session tail: the last 10 user lines and the last 10 assistant text blocks of the old transcript, 300 chars each (`jq` over the jsonl, tool calls skipped) | the transcript | 20 blocks |
 | 9 | memory files by name only | the agent user's memory dir | names |
-| 10 | **open takes** (SPL-5523): each post `<ID>@<box>` took in the last `ROTATE_TAKES_HOURS` (48) h and has not answered since: topic, workspace, human, take time, plan, newest first. An answer is a later post of the id in that topic to a person or the channel that is not a take line (the test of `do_spl_take_post`); a take with no desk record is listed with `?` | `dispatch/take.log` (`do_spl_take`), the take line and the answers in the id's desk outboxes | 20 rows |
+| 10 | **open takes** (SPL-5523): each post `<ID>@<box>` took in the last `ROTATE_TAKES_HOURS` (48) h and has not answered since: topic, workspace, human, take time, plan, newest first. An answer is a later post of the id in that topic to a person or the channel that is not a take line (the test of `do_spl_take_post`); a take with no desk record is listed with `?`; outboxes the rotation cannot read give one `takes unverified` line instead (SPL-5629) | `dispatch/take.log` (`do_spl_take`), the take line and the answers in the id's desk outboxes | 20 rows |
 
 The role seeds (dispatch and orch) print section 10 again under "Open
 takes": the new session owns those topics and answers each one there; with
 none, the seed says `Open takes: none`.
+
+**Reading the desk outboxes (SPL-5629).** The rotation runs as the box
+user (its crontab), and the desks belong to the desk user
+(`SPOOL_DESK_USER` in `box.env`, dirs 0700). The outbox walk
+(`spl_rotate_take_outboxes`) tries every desk root of `spl_desk_roots`: a
+root the caller cannot enter is globbed, and its outboxes read, as that
+root's owner with `sudo -n -u <owner>` (`spl_rotate_take_msgs`); nothing is
+chmod-ed. Every root's copy of a workspace is read, so a stale twin desk under
+the box user never hides the desk user's live outbox. When the desk user's
+root or one of its outboxes cannot be read even that way, section 10 is ONE
+line, `outboxes unreadable as <caller>: takes unverified (<n> take(s) in the
+ledger; ...)`, with no take rows, and the seed says `Open takes: unverified`.
+Before the fix the walk failed silently and every take in the window was
+listed as open: on 2026-11-15 each handoff on one box listed ~20 takes, 18 of
+them answered.
 
 After CLOSE (old window gone), `spl_rotate_reping` rings the new pane again
 for every message still in `<ID>/inbox` that came in after the handoff was

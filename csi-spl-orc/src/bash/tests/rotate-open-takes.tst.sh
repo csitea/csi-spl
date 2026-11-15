@@ -17,8 +17,14 @@
 #   (d) no take at all: section 10 says none, the seed says none
 #   (e) after CLOSE the inbox message that came in after the handoff is rung
 #       again on the new pane; one from before is not
+#   (f) SPL-5629: the desk root belongs to the desk user and the caller (the
+#       rotation, the box user) cannot enter it: the outbox is read as the
+#       desk user (sudo -n -u), so an answered take is not listed
+#   (g) SPL-5629: that read fails too: section 10 is ONE warning line
+#       "outboxes unreadable as <caller>: takes unverified", no take rows
 #
-# Red control: ROTATE_LIB=<origin/master's spl-rotate-lib.func.sh> lists 0.
+# Red control: ROTATE_LIB=<origin/master's spl-rotate-lib.func.sh> lists 0;
+# the lib before SPL-5629 fails (f) and (g).
 # Run: bash csi-spl-orc/src/bash/tests/rotate-open-takes.tst.sh </dev/null
 # shellcheck disable=SC2034 # the ROTATE_* / LEASE_* globals are read by the sourced lib
 set -uo pipefail
@@ -107,6 +113,43 @@ rung="$(spl_rotate_reping "$ID" 2>/dev/null)"
   ! grep -q old-1 "$T/notify.log" &&
   pass "(e) the post that came in after the handoff is rung on the new pane, the older one not" ||
   fail "(e) rung=${rung:-none}: $(cat "$T/notify.log" 2>/dev/null)"
+
+# (f) and (g): the real outbox walk (no ROTATE_TAKES_OUTBOXES) over a desk
+# root the caller cannot enter; the box config and sudo are stubs
+unset ROTATE_TAKES_OUTBOXES
+DU=desk-usr R="$T/desk-user-root"
+spl_desk_roots() { printf '%s\t%s\n' "$(id -un)" "$T/caller-root" "$DU" "$R"; }
+spl_desk_user() { echo "$DU"; }
+spl_desk_box_default() { echo "$BOX"; }
+spl_rotate_can_enter() { [[ "$1" != "$R"* ]]; }
+printf '#!/bin/bash\necho "$*" >> %s/sudo.log\n[[ -e %s/sudo.deny || "$1 $2 $3" != "-n -u %s" ]] && exit 1\nshift 3; exec "$@"\n' "$T" "$T" "$DU" > "$T/sudo"
+chmod +x "$T/sudo"
+ROTATE_SUDO="$T/sudo"
+F=ffffffff-0000-4000-8000-000000000006
+: > "$LEASE_DIR/take.log"
+take $((now - 500)) "$F" "$ID@$BOX" "I answer the invoice"
+fpost() {
+  n=$((n + 1)); mkdir -p "$R/desk/t1/$BOX/spool/$ID/outbox"
+  jq -n --arg ts "$(date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ)" --arg t "$F" --arg to HUM-10 --arg b "$2" --arg id "m-$n" \
+    '{v: 1, msg_id: $id, task_id: $t, ts: $ts, from: "c-902", to: $to, kind: "note", body: $b, files: []}' \
+    > "$R/desk/t1/$BOX/spool/$ID/outbox/$n.json"
+}
+fpost $((now - 500)) "$(line 'I answer the invoice')"
+fpost $((now - 450)) "**Done:** the invoice is attached."
+spl_rotate_handoff master "$ID" rid-3 "$T/handoff3.md" >/dev/null 2>&1 || true
+sec="$(sed -n '/^## 10\. Open takes/,$p' "$T/handoff3.md" 2>/dev/null)"
+grep -qx none <<<"$sec" && grep -q -- "-n -u $DU" "$T/sudo.log" 2>/dev/null &&
+  pass "(f) a desk root the caller cannot enter is read as the desk user: the answered take is not listed" ||
+  fail "(f) want none, read as $DU; got: $sec; sudo: $(cat "$T/sudo.log" 2>/dev/null)"
+touch "$T/sudo.deny"
+spl_rotate_handoff master "$ID" rid-4 "$T/handoff4.md" >/dev/null 2>&1 || true
+sec="$(sed -n '/^## 10\. Open takes/,$p' "$T/handoff4.md" 2>/dev/null)"
+seed="$(spl_rotate_open_takes_seed 2>/dev/null)"
+[[ "$(grep -c '^- topic ' <<<"$sec")" == 0 ]] &&
+  [[ "$(grep -c "^- outboxes unreadable as $(id -un): takes unverified (1 take(s)" <<<"$sec")" == 1 ]] &&
+  grep -q '^Open takes: unverified' <<<"$seed" && ! grep -q 'They are yours now' <<<"$seed" &&
+  pass "(g) unreadable outboxes: one warning line, no take rows, the seed says unverified" ||
+  fail "(g) section 10: $sec; seed: $seed"
 
 echo
 (( fails == 0 )) && { echo "rotate-open-takes: all passed"; exit 0; }

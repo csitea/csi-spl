@@ -164,7 +164,16 @@ func (s *Memory) CreateCostEntry(_ context.Context, e CostEntry) (CostEntry, err
 	}
 	e.ID, e.CreatedAt = uuid.New(), time.Now().UTC().Truncate(time.Microsecond)
 	memCostEntries[s][e.ID] = e
+	memCostLabelSet(s, e.ID, e.Label) // rdb 0285: the master locale's label
 	return e, nil
+}
+
+// memCostEntry is Memory s's entry id, false when there is none.
+func memCostEntry(s *Memory, id string) (CostEntry, bool) {
+	memCostEntriesMu.Lock()
+	defer memCostEntriesMu.Unlock()
+	e, ok := memCostEntries[s][id]
+	return e, ok
 }
 
 // DeleteCostEntry is CostEntryStore on Memory.
@@ -175,6 +184,9 @@ func (s *Memory) DeleteCostEntry(_ context.Context, id string) error {
 		return ErrNotFound
 	}
 	delete(memCostEntries[s], id)
+	memCostLabelsMu.Lock()
+	delete(memCostLabels[s], id) // rdb 0285's ON DELETE CASCADE
+	memCostLabelsMu.Unlock()
 	return nil
 }
 

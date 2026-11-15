@@ -13081,7 +13081,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: {entries}, the cost entries (SPL-4383, rdb 0245), period then created_at order"
+            "description": "OK: {entries, master_locale}, the cost entries (SPL-4383, rdb 0245), period then created_at order; each with its labels per locale (SPL-5546, rdb 0285)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -13245,6 +13245,71 @@
           }
         },
         "summary": "Delete a Cloud infra or HR cost entry",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-entries/{id}/labels": {
+      "patch": {
+        "operationId": "patchOperatorCostEntriesByIdLabels",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "The entry's labels per locale (SPL-5546, rdb 0285): every locale but the master's is replaced; the master locale's label is the entry's own text and may only be sent unchanged. Checked by the hub (400 bad_cost_labels).",
+                "properties": {
+                  "labels": {
+                    "additionalProperties": {
+                      "maxLength": 100,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "description": "locale (one of the 19) -> label",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "labels"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {id, labels}, the entry's labels after the change"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set a cost entry's labels in other languages",
         "tags": [
           "operator"
         ],

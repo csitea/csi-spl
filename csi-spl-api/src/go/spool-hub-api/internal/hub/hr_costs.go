@@ -92,6 +92,16 @@ func (s *Server) handleHRComponents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cs, err := hs.ListHRComponents(r.Context())
+	if cl := s.costLabels(); err == nil && cl != nil { // SPL-5546: the reader's locale
+		var in map[string]string
+		if in, err = cl.HRComponentLabelsIn(r.Context(), costLabelLocale(r)); err == nil {
+			for i := range cs {
+				if v := in[cs[i].Component]; v != "" {
+					cs[i].Label = v
+				}
+			}
+		}
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Msg("hr components")
 		writeErr(w, http.StatusInternalServerError, "internal", "hr components unavailable")

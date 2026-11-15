@@ -46,7 +46,7 @@ for (const s of [0, 'x', 30, 61, 600]) same('retryAfter ' + s, retryAfterKey(s),
 
 // CONTROL: an unknown key must be reported, not rendered as ''.
 const before = failed
-render({ key: 'auth.native_error.__control_missing__', params: {} })
+{ const log = console.log; console.log = () => {}; try { render({ key: 'auth.native_error.__control_missing__', params: {} }) } finally { console.log = log } } // silent: the pre-push gate reads a printed FAIL as a failure (SPL-5588)
 if (failed === before + 1) { failed--; pass('CONTROL: a missing key fails') } else fail('CONTROL: a missing key fails', 'not detected')
 
 if (failed) { console.error(`\n${failed} failure(s)`); process.exit(1) }

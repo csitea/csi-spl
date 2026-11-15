@@ -103,6 +103,14 @@
 # @description A desk nothing serves (the caller's unpinned stub, no live sidecar
 # @description and no pinned copy to hop to) is refused, dry run too (FATAL, rc 1,
 # @description nothing sent; spl_desk_undelivered_refuse, SPL-5115).
+# @description A send the spool CLI reports refused for this desk box's ROSTER
+# @description write ("roster not updated", "roster not stored", "subscriptions
+# @description not stored": an announce's refusal, read as the send's answer)
+# @description is checked against the topic: when its newest post from the
+# @description agent in the last 15 min carries this body, the post is stored,
+# @description so it is reported as sent (exit 0, its msg_id in the JSON line)
+# @description with a WARN naming the refusal, and never re-sent or sent as a
+# @description DM (_spl_desk_reply_landed, SPL-5644). Else it stays exit 1.
 # @description Exit 3 when nothing newer than this desk's last answer is
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
@@ -304,16 +312,18 @@ _spl_desk_reply_send_to() {
     sent_task="$(_spl_desk_reply_welcome_task "$tenant" "$ans_task" "$ans_to")" || { do_log "FATAL no DM topic id for $ans_to"; return 1; }
     sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
       --task "$sent_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" --ref "$ans_ref" 2>>"$errf")" || rc=$?
-    (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in the DM about welcome topic $ans_ref: $sent"; return 1; }
+    (( rc == 0 )) || _spl_desk_reply_landed "$errf" "$sent_task" "$body" ||
+      { do_log "FATAL send $agent -> $ans_to in the DM about welcome topic $ans_ref: $sent"; return 1; }
     do_log "INFO $ans_task is a #lobby welcome topic: $agent answers $ans_to in DM $sent_task, not in front of every member (SPL-2553)"
     return 0
   fi
   if [[ -n "$ans_ref" ]]; then
     if _spl_desk_reply_can_read "$d" "$box" "$tenant" "$hub" "$ans_ref"; then
+      local tagged; tagged="$(_spl_desk_reply_tag "$ans_to" "$body")"
       sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
-        --task "$ans_ref" --to-box box-wui --kind "$kind" --body "$(_spl_desk_reply_tag "$ans_to" "$body")" "${ids[@]}" 2>>"$errf")" || rc=$?
-      if (( rc == 0 )); then
-        route=topic; sent_task="$ans_ref"
+        --task "$ans_ref" --to-box box-wui --kind "$kind" --body "$tagged" "${ids[@]}" 2>>"$errf")" || rc=$?
+      if (( rc == 0 )) || _spl_desk_reply_landed "$errf" "$ans_ref" "$tagged"; then
+        route=topic; sent_task="$ans_ref"; rc=0
       elif grep -q 'duplicate_to_human' "$errf"; then
         return 1
       else
@@ -330,7 +340,42 @@ _spl_desk_reply_send_to() {
     sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
       --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" "${ref_args[@]}" 2>>"$errf")" || rc=$?
   fi
-  (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
+  (( rc == 0 )) || _spl_desk_reply_landed "$errf" "$ans_task" "$body" ||
+    { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
+}
+
+# _spl_desk_reply_landed <send stderr file> <task> <body>: SPL-5644. The hub
+# answers a refused announce (this desk box's roster write) with an error
+# frame that names no msg_id, and the send in flight on that socket may take
+# it as its own answer: prd csitea 2026-11-15, "vendor_cap_exceeded (...:
+# roster not updated)" exit 1 while the post was stored (msg 0a7efcb5), so
+# the seats retried a landed post. Only on such a roster refusal, 0 when
+# <task>'s newest post from the agent in the last 15 min carries <body>: the
+# caller's sent is that post ({"msg_id","delivery":"sent"}) and a WARN names
+# the refusal. 1 otherwise, the send stays failed.
+_spl_desk_reply_landed() {
+  local errf="$1" task="$2" text="$3" why out id
+  why="$(grep -m1 -E 'roster not (updated|stored)|subscriptions not stored' "$errf")" || return 1
+  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-tail --task "$task" --json 2>/dev/null)" || return 1
+  id="$(SPL_TAIL="$out" python3 - "$agent" "$text" <<'EOF_PY'
+import datetime as dt, json, os, sys
+agent, text = sys.argv[1:]
+since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=15)
+hit = ""
+for line in os.environ.get("SPL_TAIL", "").splitlines():
+    try:
+        m = json.loads(line)
+        ts = dt.datetime.fromisoformat(str(m.get("ts", "")).replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        continue
+    if m.get("from") == agent and m.get("body") == text and ts >= since:
+        hit = str(m.get("msg_id", ""))
+print(hit)
+EOF_PY
+)" || return 1
+  [[ -n "$id" ]] || return 1
+  sent="{\"msg_id\":\"$id\",\"delivery\":\"sent\"}"
+  do_log "WARN the post IS stored in topic $task as msg $id; only this desk box's roster write was refused, do not post it again: ${why#spool: }"
 }
 
 # _spl_desk_reply_is_welcome <state dir> <box> <tenant> <hub> <agent> <task>:

@@ -87,6 +87,16 @@
 #      read from the pane only, whose banner goes at the reset: S1 holds (no
 #      ring before reset + 120 s, a ring after, no takeover before
 #      2 x WD_JOB_WAIT past it); control: past that the takeover comes back
+#  13. a stale limit stamp (SPL-5617, sat 2026-11-14, n=9 seats: stamps for
+#      11-19, login-check's probe ok at 18:22Z): (a) a dead seat (shell, no
+#      harness) with the old banner is restarted (S3) once the box's probe
+#      says ok since the stamp; control: probe limited, it waits; (b) a
+#      resumed session's old limit error before its SessionStart: no S2, no
+#      stamp; control: no SessionStart, S2 + stamp; (c) S1: a stamp older
+#      than the harness process, or one the probe said ok after, excuses
+#      nothing; control: a stamp of this process, probe limited, excuses;
+#      (d) the lease reads no limit from a stamp the probe said ok after;
+#      control: probe limited. Red on origin/master: (a), (b), (c), (d)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -507,6 +517,8 @@ nohit "S8 control: an idle agent (no progress for an hour) is not a gap" s8
 # ---- 3..7: the watchdog -----------------------------------------------------------
 S="$T/spool"; D="$S/dispatch"
 mkdir -p "$T/bin" "$T/proc" "$T/tmux" "$D" "$S/peer"
+# login-check's probe of this sandbox (none unless a case writes one): never the box's
+export LOGIN_STATE_DIR="$T/lc"
 printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\nSPOOL_BOX_TAG=box1\nSPOOL_DESK_BOX=box1\n' "$(id -un)" "$(id -un)" > "$S/box.env"
 # ps: "$T/ps" lines "pid ppid etimes comm"
 printf '#!/usr/bin/env bash\ncat "%s/ps"\n' "$T" > "$T/bin/ps"
@@ -1327,6 +1339,80 @@ out="$(at $((U0 + 300)))"; settle
 [[ ! -s "$T/takeovers" ]] && grep -q 'c-984 HIT S1 .*ring done ' <<<"$out" && pass "12 (b) reset + 300 s: still no takeover" || fail "12 (b) 300: $out"
 out="$(at $((U0 + 361)))"; settle
 grep -qx 'takeover c-984 S1' "$T/takeovers" && pass "12 (b) control: 2 x WD_JOB_WAIT past reset + grace, no progress: the takeover comes back" || fail "12 (b) control: $out / $(cat "$T/takeovers" 2>/dev/null)"
+
+# 13. a stale limit marker (SPL-5617; sat 2026-11-14, n=9 seats): the S2
+# stamps said 11-19, login-check's probe said ok at 18:22Z. The clock is T0
+# + n (the probe is compared with the stamps' real mtime: T0 is after it).
+LR13="$(date -u -d 2027-01-19T09:00:00Z +%s)"
+lprobe() { mkdir -p "$LOGIN_STATE_DIR"; echo "$1 $2 probe" > "$LOGIN_STATE_DIR/probe"; }   # lprobe <epoch> <verdict>
+wlimit_pane() { printf "● Waiting on the deploy.\n\n  ⎿  You've hit your weekly limit · resets Jan 19, 9am (UTC)\n\n────\n❯ \n────\n" > "$T/limit.pane"; }
+# (a) a dead seat (its pane on a shell, no harness) with the old banner on
+# screen: S3 and S2 kind=limit hit together. Control: the probe limited, the
+# seat waits for the reset; then the probe ok since the stamp: S3 restarts it
+reset_box; rm -f "$LOGIN_STATE_DIR/probe"; wlimit_pane; agent c-985 %1 - claude 3600 "$T/limit.pane"
+for n in 0 30; do out="$(at $((T0 + n)))"; done; settle
+grep -q 'c-985 HIT S2 kind=limit pane: .*not able until the reset 2027-01-19T09:00:00Z' <<<"$out" && [[ -e "$D/wd/c-985.ep.S2.reset" ]] ||
+  fail "13 (a) setup: $out"
+lprobe $((T0 + 40)) limited
+out="$(at $((T0 + 60)))"; settle
+[[ ! -s "$T/takeovers" ]] && grep -q 'c-985 HIT S2 kind=limit .*not able until the reset' <<<"$out" &&
+  pass "13 (a) control: stale banner + no harness, the box's probe limited: S2 waits for the reset, no restart" || fail "13 (a) control: $out / $(cat "$T/takeovers" 2>/dev/null)"
+lprobe $((T0 + 70)) ok
+out="$(at $((T0 + 90)))"; settle
+grep -qx 'takeover c-985 S3' "$T/takeovers" && grep -q 'c-985 HIT S3 limit over (login probe ok) and no harness: ' <<<"$out" &&
+  pass "13 (a) the probe ok since the stamp, the reset 4 days away: the dead seat is restarted (S3)" || fail "13 (a): $out / $(cat "$T/takeovers" 2>/dev/null)"
+# (b) a resumed session: its transcript's old limit error comes before its
+# SessionStart, the resume prompt's UserPromptSubmit re-reads it into
+# api_error, the old banner is still on the pane: no S2, no stamp. Control:
+# the same without the SessionStart entry hits S2 and writes the stamp
+for v in resumed plain; do
+  reset_box; rm -f "$LOGIN_STATE_DIR/probe"; wlimit_pane; agent c-986 %1 4086 claude 600 "$T/limit.pane"
+  if [[ "$v" == resumed ]]; then cp "$FX/limit-resumed.jsonl" "$T/tr.4086"; else grep -v SessionStart "$FX/limit-resumed.jsonl" > "$T/tr.4086"; fi
+  uhook c-986 4086 UserPromptSubmit $((T0 - 5)) "{\"transcript_path\":\"$T/tr.4086\"}"
+  [[ -n "$(jq -r '.api_error // empty' "$S/c-986/heartbeat.json")" ]] || fail "13 (b) $v setup: the hook set no api_error"
+  for n in 0 30 60; do out="$(at $((T0 + n)))"; done; settle
+  if [[ "$v" == resumed ]]; then
+    ! grep -q 'c-986 HIT S2' <<<"$out" && [[ ! -e "$D/wd/c-986.limit" && ! -s "$D/wd/ctx/c-986/out.s2" ]] &&
+      pass "13 (b) a resumed session's old limit error (before its SessionStart): no S2, no limit stamp" || fail "13 (b): $out / $(cat "$D/wd/c-986.limit" 2>/dev/null)"
+  else
+    grep -q "c-986 HIT S2 kind=limit transcript: You've hit your weekly limit" <<<"$out" && [[ -s "$D/wd/c-986.limit" ]] &&
+      pass "13 (b) control: the same error with no SessionStart after it: S2 kind=limit, stamp written" || fail "13 (b) control: $out"
+  fi
+done
+# (c) S1 and the stamp (the addendum, c-001@sat 2026-11-14 07:21Z): a job
+# unread 300 s, the stamp's reset 4 days away. A stamp older than the harness
+# process, or one the probe said ok after, excuses nothing (S1 takes over at
+# 2 x WD_JOB_WAIT). Control: a stamp of this process, probe limited: excused
+s1stamp() {  # s1stamp <id> <pid> <stamp age s>: a live idle seat, its job unread 300 s, a stamp
+  reset_box; agent "$1" %1 "$2" claude 600 "$FX/idle.pane"
+  uhook "$1" "$2" PostToolUse $((T0 - 900)) '{"tool_name":"Bash"}'
+  echo '{"v":1,"kind":"task","from":"c-002","to":"'"$1"'","body":"go"}' > "$S/$1/inbox/r.json"; touch -d "@$((T0 - 300))" "$S/$1/inbox/r.json"
+  mkdir -p "$D/wd"; echo "$LR13" > "$D/wd/$1.limit"; touch -d "@$((T0 - $3))" "$D/wd/$1.limit"
+}
+s1stamp c-987 4087 3600; lprobe $((T0 - 30)) limited
+out="$(at "$T0")"; settle
+grep -qx 'takeover c-987 S1' "$T/takeovers" && ! grep -q 'c-987 .*on its usage limit' <<<"$out" &&
+  pass "13 (c) a stamp older than the harness process (restarted since): no S1 excuse, the takeover" || fail "13 (c) old stamp: $out / $(cat "$T/takeovers" 2>/dev/null)"
+s1stamp c-988 4088 300; lprobe $((T0 - 30)) limited
+out="$(at "$T0")"; settle
+[[ ! -s "$T/takeovers" ]] && grep -q 'c-988 HIT S1 age=300 .*-> on its usage limit until 2027-01-19T09:00:00Z + 120s: no ring, no restart$' <<<"$out" &&
+  pass "13 (c) control: a stamp of this session, the probe limited: S1 still excused" || fail "13 (c) control: $out / $(cat "$T/takeovers" 2>/dev/null)"
+s1stamp c-989 4089 300; lprobe $((T0 - 30)) ok
+out="$(at "$T0")"; settle
+grep -qx 'takeover c-989 S1' "$T/takeovers" && ! grep -q 'c-989 .*on its usage limit' <<<"$out" &&
+  pass "13 (c) the same stamp, the probe ok since it: no S1 excuse, the takeover" || fail "13 (c) probe ok: $out / $(cat "$T/takeovers" 2>/dev/null)"
+# (d) the lease reads the same stamp (spl_fleet_seat_limit, the limit
+# handoff): a stamp the probe said ok after is no limit. Control: probe limited
+lease_limit() {
+  env SPOOL_ROOT="$S" LEASE_DIR="$D" LEASE_NOW="$T0" LOGIN_STATE_DIR="$LOGIN_STATE_DIR" bash -c '
+    source "'"$PROJ_ROOT"'/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_fleet_seat_limit c-990 "$LEASE_NOW"; echo "rc=$?"'
+}
+reset_box; mkdir -p "$D/wd"; echo "wd S2: HIT 5s ago" > "$D/able.c-990"; echo "$LR13" > "$D/wd/c-990.limit"; touch -d "@$((T0 - 600))" "$D/wd/c-990.limit"
+lprobe $((T0 - 30)) limited
+[[ "$(lease_limit)" == "$LR13"$'\n'"rc=0" ]] && pass "13 (d) control: the lease reads the stamp as a limit while the probe says limited" || fail "13 (d) control: $(lease_limit)"
+lprobe $((T0 - 30)) ok
+[[ "$(lease_limit)" == "rc=1" ]] && pass "13 (d) the probe ok since the stamp: the lease reads no limit (no handoff, no NO-LOCAL on it)" || fail "13 (d): $(lease_limit)"
 
 grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")" || pass "no tick fired ./run's ERR trap"
 

@@ -1,0 +1,6 @@
+{"type":"assistant","timestamp":"2026-11-14T17:40:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"Waiting on the hub deploy."}]}}
+{"type":"user","timestamp":"2026-11-14T17:53:09.608Z","message":{"role":"user","content":": 'SPOOL c-900: note from c-001 :: run: spool recv --as c-900'"}}
+{"type":"assistant","timestamp":"2026-11-14T17:53:10.443Z","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence","type":"message","content":[{"type":"text","text":"You've hit your weekly limit · resets Nov 19, 11am (Europe/Helsinki)"}]},"error":"rate_limit","isApiErrorMessage":true,"apiErrorStatus":429}
+{"type":"system","subtype":"turn_duration","timestamp":"2026-11-14T17:53:10.467Z"}
+{"type":"attachment","timestamp":"2026-11-14T18:22:43.337Z","attachment":{"type":"hook_success","hookName":"SessionStart:resume","hookEvent":"SessionStart","content":""}}
+{"type":"user","timestamp":"2026-11-14T18:22:43.987Z","message":{"role":"user","content":"Read and follow your restore note: <spool root>/c-900/lifetime/kick.txt"}}

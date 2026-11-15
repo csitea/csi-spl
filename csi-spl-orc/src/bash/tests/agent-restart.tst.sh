@@ -92,6 +92,9 @@
 #      limit): the seat's OWN fresh S2 kind=limit verdict refuses even when
 #      another claude seat wrote a newer 0-byte out.s2. Red control
 #      (origin/master): restarted
+#      SPL-5617 (sat 2026-11-14, n=9): the box's login probe ok since that
+#      own verdict opens the gate (restarted); control: probe limited ->
+#      refused. Red control (origin/master): refused with the probe ok
 #  21. S3 left behind is never a live harness (SPL-4248; g-523 main box
 #      2026-10-29, n=1): the id's first window shows the ended screen, its
 #      live grok runs in a second pane: exit 3 no S3 hit, nothing spawned,
@@ -239,7 +242,7 @@ export T S PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEA
   ROTATE_HOLD_DIR="$T/hold" ROTATE_MEMORY_DIR="$T/mem" ROTATE_AS_AGENT_DIRECT=1 ROTATE_POLL=1 ROTATE_TERM_WAIT=2 \
   ROTATE_NEW_EXIT_WAIT=1 ROTATE_ACK_TIMEOUT=3 WD_START_WAIT=3 LEASE_NOW="$T0" ROTATE_TRANSCRIPT="$T/old.jsonl" \
   HANDOFF_CAPTURE_CMD="echo working on the brief" WIP_GIT_NAME="FirstName LastName" WIP_GIT_EMAIL="dev@example.com" \
-  GIT_CONFIG_GLOBAL=/dev/null
+  GIT_CONFIG_GLOBAL=/dev/null LOGIN_STATE_DIR="$T/lc"
 unset SPOOL_AGENT_ID REQ_FROM WD_EVIDENCE CLAUDE_BIN DRY_RUN
 
 git init -q --bare "$T/remote.git"
@@ -751,6 +754,23 @@ rc="$(go ID=c-966 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
 [[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && grep -q 'RS-GATE SKIP vendor limit: claude cannot act (c-966 S2 kind=limit 10m ago: usage limit reached)' "$D/rotate.log" 2>/dev/null &&
   pass "20. SPL-3276: the seat's own limit verdict refuses, another seat's newer 0-byte out.s2 does not open the gate" ||
   fail "20. own limit rc=$rc $(tail -3 "$T/o") $(grep -a c-966 "$D/rotate.log" 2>/dev/null | cut -d' ' -f3- | tr '\n' ';')"
+# SPL-5617 (sat 2026-11-14, n=9): a dead seat runs S3 alone, so its newest
+# out.s2 is the limit verdict from before it died; the box's login probe ok
+# since that verdict opens the gate. Control: the probe limited still refuses.
+# Red control (origin/master): refused with the probe ok too
+for v in limited ok; do
+  limit20 c-967 %67; rm -f "$T/tmux/screen.%3967"; verdict c-967 600 'S2 kind=limit usage limit reached'
+  mkdir -p "$T/lc"; echo "$(( $(date +%s) - 60 )) $v probe" > "$T/lc/probe"
+  rc="$(go ID=c-967 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
+  if [[ "$v" == limited ]]; then
+    [[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && grep -q 'RS-GATE SKIP vendor limit: claude cannot act (c-967 S2 kind=limit 10m ago' "$D/rotate.log" 2>/dev/null &&
+      pass "20. SPL-5617 control: the seat's own limit verdict, the box's probe limited: still refused" || fail "20. probe limited rc=$rc $(tail -3 "$T/o")"
+  else
+    [[ "$rc" == 0 ]] && grep -q '^spawn claude c-967 ' "$T/spawn.log" && ! grep -q 'RS-GATE SKIP' "$D/rotate.log" &&
+      pass "20. SPL-5617: the box's login probe ok since the seat's own limit verdict -> restarted to DONE OK" || fail "20. probe ok rc=$rc $(tail -3 "$T/o")"
+  fi
+  rm -f "$T/lc/probe"
+done
 
 # --- 22. a restart the box caused is not counted (SPL-4359) -----------------------------------
 # one box 2026-10-30 (n=2 seats): a DNS outage fenced the box, the fence TERMed 16

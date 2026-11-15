@@ -135,13 +135,21 @@ wd_progress() {
 # "ok" when the transcript's last assistant entry is a real reply,
 # "error<TAB><its text>" for an isApiErrorMessage one, nothing when unknown.
 # A grok session's entries (.grok, SPL-1696) carry no API error: unknown.
+# "resumed" when that API error is older than the newest SessionStart (its
+# hook's attachment, hookEvent SessionStart) and no assistant entry came
+# since: a resumed session's OLD error, not this session's (SPL-5617, c-688
+# sat 2026-11-14 19:50Z: re-marked limited right after its resume).
 wd_last_turn() {
   wd_has transcript || return 0
   jq -Rrn '
-    [inputs | fromjson? // empty | select(type == "object" and .type == "assistant" and .grok == null)] | last
-    | if . == null then empty
-      elif .isApiErrorMessage == true then
-        "error\t" + ([.message.content[]? | select(type == "object") | .text // empty] | join(" ") | .[0:120])
+    [inputs | fromjson? // empty | select(type == "object")
+      | select((.type == "assistant" and .grok == null) or (.type == "attachment" and .attachment.hookEvent? == "SessionStart"))]
+    | (map(.type == "assistant") | rindex(true)) as $a
+    | (map(.type == "attachment") | rindex(true)) as $s
+    | if $a == null then empty
+      elif .[$a].isApiErrorMessage == true then
+        if $s != null and $s > $a then "resumed"
+        else "error\t" + ([.[$a].message.content[]? | select(type == "object") | .text // empty] | join(" ") | .[0:120]) end
       else "ok" end' "$WD_CTX/transcript" 2>/dev/null
   return 0
 }

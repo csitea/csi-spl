@@ -2548,6 +2548,20 @@ spl_fleet_dead_handoff() {
   echo "$seat@$box"
 }
 
+# spl_fleet_limit_read <id> <now>: the reset epoch of <wd dir>/<id>.limit;
+# rc 1 when there is none, or when the box's login probe has said ok since
+# the watchdog wrote it (spl_lc_login_ok_after): a stale stamp is no limit
+# (SPL-5617, sat 2026-11-13/14 07:2xZ: NO-LOCAL-AGENT orch on an old stamp).
+spl_fleet_limit_read() {
+  local f="${WD_STATE_DIR:-$LEASE_DIR/wd}/$1.limit" r="" t
+  read -r r < "$f" 2>/dev/null || return 1
+  [[ "$r" =~ ^[0-9]+$ ]] || return 1
+  declare -F spl_lc_login_ok_after >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-agent-login-check.func.sh"
+  t="$(stat -c %Y "$f" 2>/dev/null)" || return 1
+  spl_lc_login_ok_after "$t" "$2" && return 1
+  echo "$r"
+}
+
 # spl_fleet_seat_limit <id> <now>: prints the reset epoch while <id> sits on a
 # watchdog S2 kind=limit verdict (able.<id> "wd S2: HIT", <wd dir>/<id>.limit)
 # that resets after <now>; rc 1 otherwise.
@@ -2555,8 +2569,8 @@ spl_fleet_seat_limit() {
   local why="" r=""
   read -r why < "$LEASE_DIR/able.$1" 2>/dev/null || true
   [[ "$why" == "wd S2: HIT"* ]] || return 1
-  read -r r < "${WD_STATE_DIR:-$LEASE_DIR/wd}/$1.limit" 2>/dev/null || return 1
-  [[ "$r" =~ ^[0-9]+$ ]] && (( r > $2 )) || return 1
+  r="$(spl_fleet_limit_read "$1" "$2")" || return 1
+  (( r > $2 )) || return 1
   echo "$r"
 }
 
@@ -2584,8 +2598,8 @@ spl_fleet_handoff() {
   for id in $(spl_fleet_role_agents "$role"); do
     why="$(cat "$LEASE_DIR/able.$id" 2>/dev/null)"
     [[ "$why" == "wd S2: HIT"* ]] || return 1
-    read -r r < "${WD_STATE_DIR:-$LEASE_DIR/wd}/$id.limit" 2>/dev/null || return 1
-    [[ "$r" =~ ^[0-9]+$ ]] && (( r - now > LEASE_STALE )) || return 1
+    r="$(spl_fleet_limit_read "$id" "$now")" || return 1
+    (( r - now > LEASE_STALE )) || return 1
     [[ -z "$until" ]] || (( r < until )) && until="$r"
   done
   [[ -n "$until" ]] || return 1

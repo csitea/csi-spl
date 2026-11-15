@@ -1165,16 +1165,31 @@ spl_wd_judge() {
 # vendor gate). Past it S3 is: a restore in place, and this tick's out.s2 is
 # emptied, else the restart's own-limit gate (spl_ars_own_limit) reads the
 # stale transcript as a live limit and refuses every takeover for good (one
-# box 2026-10-27: 9 lanes left on a bare shell past the reset).
+# box 2026-10-27: 9 lanes left on a bare shell past the reset). The box's
+# login probe ok since the limit was marked (spl_wd_limit_healed) ends it
+# before the reset too: a dead seat with a stale banner is restarted.
 spl_wd_limit_dead() {
-  local id="$1" now="$2" ctx="$3" c="$3/confirmed" r
+  local id="$1" now="$2" ctx="$3" c="$3/confirmed" r over
   grep -q '^S3'$'\t' "$c" 2>/dev/null && grep -q '^HIT S2 kind=limit' "$ctx/hits" 2>/dev/null || return 0
   r="$(cat "$WD_DIR/$id.ep.S2.reset" 2>/dev/null || true)"; r="${r%b}"
-  if [[ ! "$r" =~ ^[0-9]+$ ]] || (( now < r + ${WD_LIMIT_GRACE:-120} )); then
+  if [[ "$r" =~ ^[0-9]+$ ]] && (( now >= r + ${WD_LIMIT_GRACE:-120} )); then over="reset $(date -u -d "@$r" +%FT%TZ)"
+  elif spl_wd_limit_healed "$id" "$now"; then over="login probe ok"
+  else
     awk -F'\t' '$1 != "S3"' "$c" > "$c.tmp" && mv -f "$c.tmp" "$c"; return 0
   fi
-  awk -F'\t' -v OFS='\t' -v r="$(date -u -d "@$r" +%FT%TZ)" '$1 == "S2" {next} $1 == "S3" {$2 = "limit over (reset " r ") and no harness: " $2} {print}' "$c" > "$c.tmp" && mv -f "$c.tmp" "$c"
+  awk -F'\t' -v OFS='\t' -v o="$over" '$1 == "S2" {next} $1 == "S3" {$2 = "limit over (" o ") and no harness: " $2} {print}' "$c" > "$c.tmp" && mv -f "$c.tmp" "$c"
   : > "$ctx/out.s2"
+}
+
+# spl_wd_limit_healed ID NOW: 0 when the box's login probe has said ok since
+# ID's limit was marked (the mtime of <WD_DIR>/<id>.ep.S2.reset, else of
+# <id>.limit): the limit is over before its reset (SPL-5617, sat 2026-11-14:
+# login-check's probe ok at 18:22Z, the stamps said 11-19). 1 otherwise.
+spl_wd_limit_healed() {
+  local f="$WD_DIR/$1.ep.S2.reset" t
+  [[ -e "$f" ]] || f="$WD_DIR/$1.limit"
+  t="$(stat -c %Y "$f" 2>/dev/null)" || return 1
+  spl_lc_login_ok_after "$t" "$2"
 }
 
 # <spool root>/dispatch/wd.<id>: "HIT <code> <epoch>" or "OK <epoch>", atomically.
@@ -1323,6 +1338,8 @@ spl_wd_login_human() {
 # wake, S6's shape: C-c a box holding text, then ring. A dialog on the screen
 # (an S7 hit) is never typed into. No reset time readable: the reset is the
 # episode start + WD_LIMIT_BACKOFF (3600), and one wd.log line names the text.
+# The box's login probe ok since the episode began (spl_wd_limit_healed) is
+# the same as past the reset: the ONE wake, before the reset (SPL-5617).
 spl_wd_s2_limit() {
   local id="$1" ev="$2" pane="$3" now="$4" ctx="$5" f="$WD_DIR/$1.ep.S2.reset" r txt b=""
   if [[ ! -e "$f" ]]; then
@@ -1340,7 +1357,7 @@ spl_wd_s2_limit() {
   [[ "$r" =~ ^[0-9]+$ ]] || return 0
   txt="$(spl_wd_once "$id" S2 blocker "$now" "$ctx" spl_wd_send orchestrator alarm "$id" \
     "WATCHDOG (093 S2 kind=limit): $id is on its usage limit until $(date -u -d "@$r" +%FT%TZ)$b: ${ev#kind=limit }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. No restart: a restart hits the same limit. The watchdog waits, wakes it once ${WD_LIMIT_GRACE:-120}s past the reset, and holds S1 until then.")"
-  if (( now < r + ${WD_LIMIT_GRACE:-120} )); then
+  if (( now < r + ${WD_LIMIT_GRACE:-120} )) && ! spl_wd_limit_healed "$id" "$now"; then
     echo "not able until the reset $(date -u -d "@$r" +%FT%TZ)$b + ${WD_LIMIT_GRACE:-120}s; no restart; $txt"; return 0
   fi
   if grep -q '^HIT S7' "$ctx/hits" 2>/dev/null; then echo "past the reset, a dialog is up: no wake (S7)"; return 0; fi
@@ -1355,16 +1372,27 @@ spl_wd_s2_limit() {
 # WD_JOB_WAIT past it; a job that arrived after that counts as usual. It
 # acts and prints the verdict: before that point no action, after it a ring
 # (once). 1: no limit excuses the wait, nothing done.
+# A stale stamp excuses nothing (SPL-5617; c-001@sat 2026-11-14 07:21Z,
+# stamp 11-10T16:20Z, reset days away): before the reset it excuses only
+# while the stamp is not older than the harness process (CTX/proc_age: the
+# seat restarted since) and the box's login probe has not said ok since it
+# (spl_wd_limit_healed). Past the reset the window is as before.
 spl_wd_s1_limit() {
-  local id="$1" age="$2" now="$3" r end
+  local id="$1" age="$2" now="$3" ctx="$4" r end t p
   r="$(cat "$WD_DIR/$id.limit" 2>/dev/null || true)"
   [[ "$r" =~ ^[0-9]+$ && "$age" =~ ^[0-9]+$ ]] || return 1
   end=$(( r + ${WD_LIMIT_GRACE:-120} ))
   (( now - end < 2 * WD_JOB_WAIT && age > now - end )) || return 1
+  if (( now < r )); then
+    t="$(stat -c %Y "$WD_DIR/$id.limit" 2>/dev/null)" || return 1
+    p="$(cat "$ctx/proc_age" 2>/dev/null || true)"
+    [[ "$p" =~ ^[0-9]+$ ]] && (( t < now - p )) && return 1
+    spl_wd_limit_healed "$id" "$now" && return 1
+  fi
   if (( now < end )); then
     echo "on its usage limit until $(date -u -d "@$r" +%FT%TZ) + ${WD_LIMIT_GRACE:-120}s: no ring, no restart"
   else
-    echo "usage limit ended $(( now - end ))s ago, waits from then: $(spl_wd_once "$id" S1 ring "$now" "$4" spl_wd_ring "$id"), no takeover before $(( 2 * WD_JOB_WAIT ))s"
+    echo "usage limit ended $(( now - end ))s ago, waits from then: $(spl_wd_once "$id" S1 ring "$now" "$ctx" spl_wd_ring "$id"), no takeover before $(( 2 * WD_JOB_WAIT ))s"
   fi
 }
 

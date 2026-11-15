@@ -211,6 +211,18 @@ _lc_probe() {
   echo "$line"
 }
 
+# spl_lc_login_ok_after T NOW: 0 when this box's probe (<state>/probe) says
+# ok, was taken after epoch T and not after NOW, at most WD_LOGIN_HEAL_GRACE
+# s (900) before NOW: a usage limit marked at T is over (SPL-5617, sat
+# 2026-11-14: probe ok at 18:22Z, the 11-19 limit stamps still held the
+# seats). 1 otherwise: no probe, an older or stale one, any other verdict.
+spl_lc_login_ok_after() {
+  local t="$1" now="$2" at="" verdict=""
+  read -r at verdict _ < "${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}/probe" 2>/dev/null || return 1
+  [[ "$at" =~ ^[0-9]+$ && "$t" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ && "$verdict" == ok ]] || return 1
+  (( at > t && at <= now && now - at <= ${WD_LOGIN_HEAL_GRACE:-900} ))
+}
+
 # One credential op on box DEST ("" = this box): stat | probe | get | put.
 _lc_cred_at() {
   local dest="$1" op="$2" script

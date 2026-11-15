@@ -243,7 +243,7 @@ spl_ars_vendor_gate() {
   local why=""
   case "$PEER_HARNESS" in
     claude) why="$(spl_ars_own_limit "$1")"
-      [[ -n "$why" ]] || { why="$(spl_rotate_claude_out)"; [[ "$why" =~ ^[^\ ]+\ S2\ kind=limit\  ]] || why=""; } ;;
+      [[ -n "$why" ]] || { why="$(spl_rotate_claude_out)"; spl_ars_box_limit "$why" || why=""; } ;;
     grok) why="$(spl_rotate_grok_out)" ;;
   esac
   [[ -n "$why" ]] || return 0
@@ -251,10 +251,24 @@ spl_ars_vendor_gate() {
   spl_ars_refuse "$1" 4 "vendor limit: $PEER_HARNESS cannot act ($why)"
 }
 
+# spl_ars_box_limit WHY: 0 when spl_rotate_claude_out's answer WHY is a
+# limit verdict ("<id> S2 kind=limit <n>m ago: ...", its other answers are no
+# limit) that the box's login probe has not said ok since (SPL-5617: a box
+# whose only claude verdicts are dead seats' old ones).
+spl_ars_box_limit() {
+  local now
+  [[ "$1" =~ ^[^\ ]+\ S2\ kind=limit\ ([0-9]+)m\ ago ]] || return 1
+  now="$(date +%s)"
+  ! spl_lc_login_ok_after $(( now - 10#${BASH_REMATCH[1]} * 60 )) "$now"
+}
+
 # spl_ars_own_limit ID: "<id> S2 kind=limit <age>m ago: <evidence>" when the
 # newest watchdog verdict of ID itself (ctx*/<ID>/out.s2) is S2 kind=limit
 # within ROTATE_CLAUDE_LIMIT_FRESH s (21600); nothing otherwise. Only a newer
-# verdict of the same seat or the window clears it, never another seat's.
+# verdict of the same seat, the window or the box's login probe ok since
+# that verdict (spl_lc_login_ok_after) clears it, never another seat's: a
+# dead seat runs S3 alone, so its newest out.s2 is the one from before it
+# died (SPL-5617, sat 2026-11-14: probe ok at 18:22Z).
 spl_ars_own_limit() {
   local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" f t best=-1 bestf="" hit
   for f in "$wd"/ctx*/"$1"/out.s2; do
@@ -266,6 +280,7 @@ spl_ars_own_limit() {
   (( best >= 0 && $(date +%s) - best <= ${ROTATE_CLAUDE_LIMIT_FRESH:-21600} )) || return 0
   hit="$(grep -m1 -E '^HIT S2 kind=limit( |$)' "$bestf" 2>/dev/null || true)"
   [[ -n "$hit" ]] || return 0
+  spl_lc_login_ok_after "$best" "$(date +%s)" && return 0
   hit="${hit#HIT S2 }"
   echo "$1 S2 ${hit%% *} $(( ($(date +%s) - best) / 60 ))m ago: ${hit#* }"
 }

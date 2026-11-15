@@ -9,6 +9,10 @@
 # login (spec 132 section 7): no restart, one blocker to the dispatcher, and
 # lane-mix skips the kind until a re-key. agy's "Individual quota reached"
 # names no "limit" in its match: a quota is kind=limit too (SPL-3022).
+# A resumed session whose transcript's last API error is older than its
+# newest SessionStart (wd_last_turn "resumed") is no hit at all (SPL-5617):
+# the heartbeat's api_error (the resume prompt's UserPromptSubmit re-reads
+# that old entry) and the pane's old banner are that same old error.
 # Usage: s2.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh
 . "$(dirname "$0")/lib.inc.sh"
@@ -18,6 +22,7 @@ kind() {
   else echo login; fi
 }
 last="$(wd_last_turn)"
+[[ "$last" == resumed ]] && exit 0
 if [[ "$last" == error$'\t'* ]]; then
   txt="${last#error$'\t'}"
   if grep -qiE -- "$WD_STALL_RE" <<<"$txt"; then

@@ -74,6 +74,10 @@ type CostPart struct {
 	// hr_cost_components.grp): Persons shows a row per group. Never a person.
 	Component string `json:"component,omitempty"`
 	Group     string `json:"group,omitempty"`
+	// A hand-entered item's label in the reader's locale (SPL-5546, rdb
+	// 0285), where it differs from ProjectOrVendor; ProjectOrVendor stays
+	// the item's key (the master text).
+	Label string `json:"label,omitempty"`
 }
 
 // CostSourceDays is one source's cost_coverage rows in the month, per state.

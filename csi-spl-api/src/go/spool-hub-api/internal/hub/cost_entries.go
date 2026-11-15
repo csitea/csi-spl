@@ -28,6 +28,8 @@ import (
 //	POST   /v1/operator/cost-entries        {type, label, amount, currency,
 //	                                         period: YYYY-MM, note?} -> 201 the entry
 //	DELETE /v1/operator/cost-entries/{id}   -> 204
+//	PATCH  /v1/operator/cost-entries/{id}/labels  the labels per locale
+//	                                        (SPL-5546, cost_labels.go)
 //
 // AI costs are the paid items of fleet_token_paid.go, not these.
 //
@@ -60,6 +62,8 @@ func (s *Server) routeCostEntries(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/operator/cost-entries", s.handleCostEntryList)
 	mux.HandleFunc("POST /v1/operator/cost-entries", s.handleCostEntryCreate)
 	mux.HandleFunc("DELETE /v1/operator/cost-entries/{id}", s.handleCostEntryDelete)
+	mux.HandleFunc("PATCH /v1/operator/cost-entries/{id}/labels", s.handleCostEntryLabels)
+	mux.HandleFunc("OPTIONS /v1/operator/cost-entries/{id}/labels", s.operatorWorkspacesPreflight)
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries", s.operatorWorkspacesPreflight)
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries/{id}", s.operatorWorkspacesPreflight)
 }
@@ -161,12 +165,17 @@ func (s *Server) handleCostEntryList(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		priced, err = store.PriceCostEntries(r.Context(), entries, s.costEntryRate())
 	}
+	var out []costEntryOut
+	master := ""
+	if err == nil {
+		out, master, err = s.costEntriesWithLabels(r.Context(), priced) // SPL-5546, cost_labels.go
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Msg("cost entry list")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost entries unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"entries": priced})
+	writeJSON(w, http.StatusOK, map[string]any{"entries": out, "master_locale": master})
 }
 
 func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {

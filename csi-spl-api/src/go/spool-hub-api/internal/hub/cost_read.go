@@ -198,12 +198,17 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		d, err = s.costReadGather(r.Context(), op, t.ID, estate, win, cur)
 	}
+	var body costMonthBody
+	if err == nil {
+		body = costReadBody(win, estate, cur, cm, d)
+		err = s.costLocalizeParts(r.Context(), costLabelLocale(r), body.Parts, body.Human) // SPL-5546
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost report unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, costReadBody(win, estate, cur, cm, d))
+	writeJSON(w, http.StatusOK, body)
 }
 
 // costReadParts is what the month answer adds to the cost lines: the token

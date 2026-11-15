@@ -994,6 +994,54 @@ check).
   The one new string, `reporting.costs.period_l12m`, is in every locale and
   reviewed by agy before it ships (the language rule).
 
+### 16.5 The cost labels in the interface language, with a master language (SPL-5546)
+
+Owner HUM-10, csitea 720fa031, 2026-11-14: "the labels in this view should
+be in the language of the interface"; "the data those labels must be stored
+in language aware table"; "there should be a master language where those
+should be fetched from the db". Before this, Persons showed each
+hand-entered line's one free-text label, in whatever language it was typed.
+
+- **Tables (rdb 0285).** `cost_label_settings` holds the estate's master
+  locale, the language `cost_entries.label` is written in (one row; the
+  owner's answer to poll 1e669c40). `cost_entry_labels` holds one label per
+  (entry, locale); `hr_cost_component_labels` one per (component, locale),
+  `en` seeded from rdb 0280. Operator scope, like rdb 0245. The migration
+  copies every existing `cost_entries.label` once as its master-locale row,
+  untranslated: other languages are entered by the accountant.
+- **The master text is the key.** Cost allocations match an item on
+  `project_or_vendor`, the entry's own text (`hub/cost_allocations.go`), so
+  that text never changes with the reader's language: the master locale's
+  label equals it, is written when the entry is entered, and is never edited
+  through the labels.
+- **Reading.** The reader's locale is `?locale=`, else `X-Locale`, else
+  `Accept-Language`. A label is that locale's, else the master locale's,
+  else the entry's own text (a component's: then `en`, then its seed).
+  `GET /v1/tenant/costs` gives each hand-entered part (its own or a
+  workspace's share of one) a `label` where that differs from
+  `project_or_vendor`; `GET /v1/operator/hr-components` answers the labels
+  in the locale; `GET /v1/operator/cost-entries` gives each entry its
+  `labels` map and the answer its `master_locale`.
+- **Writing.** `PATCH /v1/operator/cost-entries/{id}/labels {labels:
+  {locale: text}}` replaces every locale but the master's (1..100
+  characters, one of the 19 locales; a master-locale text other than the
+  entry's own is 400 `bad_cost_labels`). It has the cost entries' write
+  door (costs.write in the operator workspace). A label is display text,
+  not a booked amount, so a closed month does not refuse it, and no
+  amount, period, person or split changes.
+- **WUI.** The Costs label pages read in the interface language
+  (`useCostsPeriod` sends `?locale=` and reloads on a language switch);
+  Persons and Cloud show `label`, keyed by `project_or_vendor`. Expenses
+  shows, under each hand-entered line, "Other languages": the master text
+  and a row per other language to add, edit or remove
+  (`components/expenses/CostEntryLabels.vue`). Its strings are in every
+  locale and reviewed by agy before they ship (the language rule).
+- **Tests.** `store/cost_labels_test.go` (both drivers),
+  `hub/cost_labels_test.go`, `tests/unit/cost-entries.test.mjs`,
+  `tests/unit/costs-labels.test.mjs`, the e2e
+  `tests/e2e/reporting-costs-labels.test.mjs` (`personsLanguage`: Persons
+  in `/bg/` reads the bg label, the keys unchanged).
+
 ## 17. The biz owner and the internal accountant open Expenses (SPL-5420)
 
 Owner HUM-10, t1 #spool-hub-bugs ea5d52a7, 2026-11-12T16:18:08Z: "Add access

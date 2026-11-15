@@ -57,6 +57,10 @@ func (s *Postgres) CreateCostEntry(ctx context.Context, e CostEntry) (CostEntry,
 				nullif($9, '')::uuid, nullif($10, ''), $11, $12, $13, to_date(nullif($14, ''), 'YYYY-MM')) RETURNING `+costEntryCols,
 			uuid.New(), e.Type, e.Label, e.Amount, e.Currency, e.Period, e.Note, e.CreatedBy,
 			e.PersonID, e.Component, e.Source, e.Account, kind, e.CorrectsPeriod))
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, pgCostLabelMasterInsert, out.ID, out.Label, out.CreatedBy)
 		return err
 	})
 	return out, err

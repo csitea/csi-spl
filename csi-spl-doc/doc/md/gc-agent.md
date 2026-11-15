@@ -34,10 +34,30 @@ The slots and their vendor live in ONE place, `csi-spl-orc/cnf/gc/gc.conf`:
 |---|---|
 | `slot 00 claude` | at :00 the GC is a claude session |
 | `slot 30 grok` | at :30 the GC is a grok session |
+| `slot 30 agy hours=03,09,15,21` | at 03:30, 09:30, 15:30 and 21:30 UTC the GC is an agy session |
+| `slot 30 grok box=sat hours=03,09,15,21` | except on sat, which keeps grok at those times |
 | `fallback claude` | the vendor when the slot's CLI is not installed on the box |
 | `GC_AGENT_CAP=180` | the owner's 3 minutes per agent |
 | `GC_MAX_AGE=1500` | a GC older than this is ended by the next start |
 | `GC_POKE_WAIT=1200` | a restart needs a poke from an earlier pass, at least this old |
+
+A slot line is `slot <MM> <vendor> [box=<tag>[,<tag>]] [hours=<HH>[,<HH>]]`
+(SPL-5600). `box=` limits it to those box tags (the GC's box, `SPOOL_BOX_TAG`,
+else the lease machine), `hours=` to those UTC hours; a line without them is
+every box, every hour, as before. Of the lines that match this box and hour,
+the most specific one at a minute wins (`box=` and `hours=` count one each; a
+tie, the later line). A junk `box=` or `hours=`, a key twice or any other
+word after the vendor stops the start with a `FATAL` naming the line; a `#`
+ends a line.
+
+The agy lines are the owner's (HUM-10, t1 4ffc314b, 2026-11-14T08:40:41Z:
+"Well, this check should use Claude AGy or Grok.", and 09:51:40Z: "And also
+anti-gravity from time to time"). agy is installed on the `<pc box>` only,
+and no box name other than sat goes in git (distribution hygiene), so the
+agy line names no box and the `box=sat` line keeps sat on grok: the `<pc
+box>` runs agy 4 times a day and grok at every other :30. A box without the
+agy CLI, or agy off, paused or at its limit, starts the fallback (claude)
+with its `FALLBACK` line, below.
 
 A slot's vendor that is not the fallback starts only when the instance
 setting has it on (SPL-5241; owner HUM-10, t1 476aff8f, 11-04: grok off).

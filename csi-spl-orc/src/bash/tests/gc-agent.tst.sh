@@ -52,6 +52,16 @@
 #      CONTROL: a plain lane, and lanes whose title or heading only names a
 #      standing seat, are closed. A box tag != its machine: <id>@<machine> is
 #      this box for begin and poke
+#  19. a slot per box and hour (SPL-5600, owner HUM-10 t1 4ffc314b "And also
+#      anti-gravity from time to time"), on the SHIPPED cnf/gc/gc.conf: a box
+#      that is not sat (box-b stands for the <pc box>) = agy at 03/09/15/21:30,
+#      grok at 04:30, claude at 03:00, agy at 03:47; sat = grok at 03:30 and
+#      21:30; agy off = the claude FALLBACK. A box= line: box-b agy, sat grok
+#      (CONTROL for the box filter); the most specific line wins in any order;
+#      an old-format cnf unchanged; a junk box= / hours= / word / key twice =
+#      refused, the line named. The other sections run on the shipped cnf
+#      minus its hours= lines (H0 is 21:00, an agy hour), so they keep
+#      testing the :00 claude / :30 grok mechanics
 #  15. close-ask with a landed claim (SPL-3270), in a throwaway repo: a sha
 #      on origin/master = sent; a sha on a side branch only = refused, nothing
 #      sent; an 8-hex msg id that is no commit = sent; no sha = sent
@@ -152,6 +162,10 @@ export GC_PROC_ROOT="$T/proc" SPOOL_OWNER_HOP=0 PROJ_PATH="$PROJ_ROOT" SPOOL_ROO
   ROTATE_TMUX="$T/bin/tmux" GC_SEND="$T/bin/send" GC_RESTART_CMD="$T/bin/restart" GC_CLOSE_DELAY=0 \
   LANE_HUB_CMD="$T/bin/hub" GC_START_CHECK_S=0 START_CHECK_POLL=0.1
 unset LANE_FLEET LANE_ENV LANE_TENANT LANE_MODE SPOOL_AGENT_ID SPOOL_BOX_TAG MCP_BOT_AGENT_ID TMUX TMUX_PANE GC_VENDOR GC_CONF GC_RUN_ID
+# the shipped cnf minus its per-hour lines (section 19 tests those): H0 is 21:00
+REAL_CONF="$PROJ_ROOT/cnf/gc/gc.conf"
+grep -v 'hours=' "$REAL_CONF" >"$T/base.conf"
+export GC_CONF="$T/base.conf"
 # gc <cmd> <now> [VAR=value ...]: one action run, its output in $T/out, its exit in rc
 gc() { local c="$1" t="$2"; shift 2; rc=0; env GC_CMD="$c" GC_NOW="$t" DRY_RUN="${DRY:-0}" "$@" "$T/bin/act" >"$T/out" 2>&1 || rc=$?; cat "$T/out" >>"$T/all.out"; }
 n() { if [ -f "$1" ]; then grep -c -- "${2:-.}" "$1" || true; else echo 0; fi; }
@@ -533,6 +547,39 @@ check "18. tag != machine: poke c-507@box-b = refused (exit 4), no second note" 
 check "18. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 check "14. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
+
+# --- 19. a slot per box and hour (SPL-5600) ----------------------------------------
+# at <HH:MM>: 2026-10-14 at that UTC time; v19 <tag> <HH:MM> [VAR=value ...]: a dry start's vendor
+at() { date -u -d "2026-10-14T$1:00Z" +%s; }
+v19() { local b="$1" t="$2"; shift 2; DRY=1 gc start "$(at "$t")" SPOOL_BOX_TAG="$b" GC_CONF="$REAL_CONF" "$@"; sed -n 's/^PLAN start .* vendor=\([a-z]*\) .*/\1/p' "$T/out"; }
+reset
+got=""; for h in 03 09 15 21; do got="$got $(v19 box-b "$h:30")"; done
+check "19. the shipped cnf: box-b (the <pc box>) at 03/09/15/21:30 = agy x4 (got:$got)" '[ "$got" = " agy agy agy agy" ]'
+got="$(v19 box-b 04:30) $(v19 box-b 20:30) $(v19 box-b 03:00) $(v19 box-b 03:47)"
+check "19. the shipped cnf: box-b 04:30 and 20:30 = grok, 03:00 = claude, 03:47 = the 03:30 agy (got: $got)" '[ "$got" = "grok grok claude agy" ]'
+got="$(v19 sat 03:30) $(v19 sat 21:30) $(v19 sat 04:30) $(v19 sat 03:00)"
+check "19. the shipped cnf: sat 03:30 and 21:30 = grok, 04:30 = grok, 03:00 = claude, as before (got: $got)" '[ "$got" = "grok grok grok claude" ]'
+kinds '{"agent_kinds_off":["agy"],"agent_kinds_paused":{}}'
+got="$(v19 box-b 09:30)"
+check "19. agy off = the cnf fallback claude, a FALLBACK line names agy" '[ "$got" = claude ] && grep -q "^FALLBACK .*-gc-box-b agy -> claude: agy off" "$T/out"'
+rm -f "$T/kinds.json"
+printf 'slot 00 claude\nslot 30 grok\nslot 30 agy box=box-b hours=03\nfallback claude\n' >"$T/box.conf"
+got="$(v19 box-b 03:30 GC_CONF="$T/box.conf") $(v19 sat 03:30 GC_CONF="$T/box.conf") $(v19 box-b 04:30 GC_CONF="$T/box.conf")"
+check "19. box=box-b hours=03: box-b 03:30 = agy, sat 03:30 = grok (CONTROL: the box filter), box-b 04:30 = grok (got: $got)" '[ "$got" = "agy grok grok" ]'
+printf 'slot 30 agy box=box-b,box-c hours=03\nslot 30 claude hours=03\nslot 30 grok\nslot 00 claude\n' >"$T/order.conf"
+got="$(v19 box-c 03:30 GC_CONF="$T/order.conf") $(v19 sat 03:30 GC_CONF="$T/order.conf") $(v19 sat 05:30 GC_CONF="$T/order.conf")"
+check "19. the most specific line wins whatever the order: box-c agy, sat claude (hours only beats bare), sat 05:30 grok (got: $got)" '[ "$got" = "agy claude grok" ]'
+printf 'slot 00 claude\nslot 30 grok # a trailing comment\nfallback claude\n' >"$T/old.conf"
+got="$(v19 box-b 03:30 GC_CONF="$T/old.conf") $(v19 sat 21:00 GC_CONF="$T/old.conf")"
+check "19. an old-format cnf (a trailing comment too): every box, every hour, as before (got: $got)" '[ "$got" = "grok claude" ]'
+DRY=1 gc status "$H0" GC_CONF="$REAL_CONF"
+check "19. status lists the per-hour slots" 'grep -q "slots: .*30 agy - 03,09,15,21;30 grok sat 03,09,15,21;" "$T/out"'
+for junk in 'hours=24' 'hours=3' 'hours=03,' 'hours=' 'box=' 'box=Box_B' 'colour=red' 'hours=03 hours=04' 'box=sat box=box-b'; do
+  printf 'slot 00 claude\nslot 30 agy %s\nfallback claude\n' "$junk" >"$T/junk.conf"
+  DRY=1 gc start "$(at 03:30)" GC_CONF="$T/junk.conf"
+  check "19. junk '$junk' = refused, the line named, nothing planned" '[ "$rc" != 0 ] && grep -qF "FATAL $T/junk.conf line 2 (slot 30 agy $junk): \"" "$T/out" && ! grep -q "^PLAN" "$T/out"'
+done
+check "19. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 echo "---"
 if [ "$fails" -eq 0 ]; then echo "gc-agent: all checks passed"; exit 0; fi

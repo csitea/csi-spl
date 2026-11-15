@@ -127,11 +127,11 @@ spl_gc_init() {
   mkdir -p "$GC_DIR" || { do_log "FATAL cannot create $GC_DIR"; return 1; }
 }
 
-# spl_gc_conf: GC_SLOTS ("MM vendor" lines), GC_FALLBACK and the knobs: the
-# environment wins, then gc.conf (read, never sourced).
+# spl_gc_conf: GC_SLOTS ("MM vendor box hours" lines, `-` = any), GC_FALLBACK
+# and the knobs: the environment wins, then gc.conf (read, never sourced).
 spl_gc_conf() {
   local k v
-  GC_SLOTS="$(awk '$1 == "slot" && $2 ~ /^[0-5][0-9]$/ && $3 ~ /^[a-z]+$/ {print $2, $3}' "$GC_CONF")"
+  GC_SLOTS="$(spl_gc_conf_slots)" || return 1
   GC_FALLBACK="$(awk '$1 == "fallback" {v = $2} END {print v}' "$GC_CONF")"
   GC_FALLBACK="${GC_FALLBACK:-claude}"
   [[ -n "$GC_SLOTS" ]] || { do_log "FATAL $GC_CONF names no slot (slot <MM> <vendor>)"; return 1; }
@@ -145,12 +145,42 @@ spl_gc_conf() {
   done
 }
 
-# The vendor of the slot this minute falls in: the last slot at or before it.
+# spl_gc_conf_slots: the slot lines of gc.conf as "MM vendor box hours" (`-`
+# = any). `slot <MM> <vendor> [box=<b>[,<b>]] [hours=<HH>[,<HH>]]` (SPL-5600):
+# box= names the box tags (GC_BOX) the slot is for, hours= the UTC hours. A
+# line without them is every box, every hour, as before. A junk box= or hours=,
+# a key twice or any other word after the vendor (a `#` ends the line) =
+# FATAL naming the line.
+spl_gc_conf_slots() {
+  local out
+  out="$(awk '$1 != "slot" || $2 !~ /^[0-5][0-9]$/ || $3 !~ /^[a-z]+$/ {next}
+    {b = "-"; h = "-"; bad = ""
+     for (i = 4; i <= NF; i++) {
+       if ($i ~ /^#/) break
+       else if ($i ~ /^box=[a-z0-9][a-z0-9-]*(,[a-z0-9][a-z0-9-]*)*$/ && b == "-") b = substr($i, 5)
+       else if ($i ~ /^hours=([01][0-9]|2[0-3])(,([01][0-9]|2[0-3]))*$/ && h == "-") h = substr($i, 7)
+       else {bad = $i; break}
+     }
+     if (bad != "") {err = "BAD line " NR " (" $0 "): \"" bad "\" is not box=<tag>[,<tag>] or hours=<00-23>[,<HH>], each once"; exit}
+     buf = buf $2 " " $3 " " b " " h "\n"}
+    END {printf "%s", (err != "" ? err : buf)}' "$GC_CONF")"
+  if [[ "$out" == BAD* ]]; then do_log "FATAL $GC_CONF ${out#BAD }" >&2; return 1; fi
+  printf '%s\n' "$out"
+}
+
+# The vendor of the slot this minute falls in: of the slots for this box
+# (GC_BOX) and this UTC hour, the last minute at or before it; at one minute the
+# most specific line wins (box= and hours= count one each; a tie, the later).
 spl_gc_slot_vendor() {
-  local m
-  m="$(date -u -d "@$GC_NOW" +%M)"
-  awk -v m="$((10#$m))" -v best=-1 -v last=-1 '{s = $1 + 0; if (s <= m && s > best) {best = s; v = $2}; if (s > last) {last = s; lv = $2}}
-    END {print (v != "" ? v : lv)}' <<<"$GC_SLOTS"
+  local m h
+  m="$(date -u -d "@$GC_NOW" +%M)"; h="$(date -u -d "@$GC_NOW" +%H)"
+  awk -v m="$((10#$m))" -v h="$h" -v box="$GC_BOX" -v best=-1 -v last=-1 '
+    function has(list, x,   a, n, i) {n = split(list, a, ","); for (i = 1; i <= n; i++) if (a[i] == x) return 1; return 0}
+    ($3 != "-" && !has($3, box)) || ($4 != "-" && !has($4, h)) {next}
+    {s = $1 + 0; sp = ($3 != "-") + ($4 != "-")
+     if (!(s in spec) || sp >= spec[s]) {spec[s] = sp; ven[s] = $2}}
+    END {for (s in ven) {s += 0; if (s <= m && s > best) best = s; if (s > last) last = s}
+         print (best >= 0 ? ven[best] : (last >= 0 ? ven[last] : ""))}' <<<"$GC_SLOTS"
 }
 
 spl_gc_log() { echo "$(date -u -d "@$GC_NOW" +%FT%TZ) $*" >> "$GC_LOG"; }

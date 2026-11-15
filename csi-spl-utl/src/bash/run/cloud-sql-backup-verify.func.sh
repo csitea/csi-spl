@@ -14,7 +14,7 @@
 # @description and the newest SUCCESSFUL one is judged instead; with none, it alerts.
 # @description Exits 0 when backup < 26h; exits 1 with alert if backup is stale,
 # @description missing, non-successful, or unreachable; strictly read-only.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param CLOUD_SQL_INSTANCE (optional) - instance name override, default from cnf
 # @param CLOUD_SQL_PROJECT (optional) - project override, default from cnf
 # @param CLOUD_SQL_BACKUP_MAX_AGE_HOURS (optional) - max backup age in hours, default 26

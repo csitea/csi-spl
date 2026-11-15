@@ -16,6 +16,12 @@
 #      each under the locale they ran under before; a plant of one hit per
 #      ASCII sweep is still reported; the named narrowing is pinned: the
 #      same words spelled with U+017F / U+212A are NOT reported under C
+#   6. SPL-5631 (perf round 10 row 01): the sweeps run at once -- a grep PATH
+#      shim holds each recursive call at a barrier until 7 are in flight: with
+#      the overlay all seven sweeps reach it (7 in flight, 0 timeouts); a plant
+#      in the first and the last sweep prints both, every verdict in the
+#      workflow's call order, rc 1; without the overlay the ::warning:: line
+#      still prints between sweep 5's verdict and sweep 7's
 #   CONTROLS -- the check cannot pass vacuously:
 #     a. the action reads the GIVEN workflow's patterns, not a copy: a pattern
 #        that exists only in a doctored workflow still fails the tree
@@ -26,6 +32,8 @@
 #        the planted .vibe/hooks.toml pass -- the action holds no second list
 #     f. the step with its LC_ALL=C prefixes stripped (the step before
 #        SPL-5585) makes 0 calls under C and reports the U+017F / U+212A plant
+#     g. the step with its sweeps in the foreground (the step before
+#        SPL-5631) reaches the barrier 1 call at a time: every call times out
 #   The banned literal is assembled at run time, so this file carries none.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -231,6 +239,75 @@ if [[ $n_c -eq 0 ]] && grep -q '\./fold\.md:' "$T/out"; then
 else
   fail "CONTROL f. the prefixes stripped: $n_c call(s) under C (want 0), fold.md reported: $(grep -c '\./fold\.md:' "$T/out")"
   sed 's/^/    | /' "$T/grep.log"
+fi
+
+# --- 6. the sweeps run at once (SPL-5631) -------------------------------------
+# A grep shim holds each recursive call (the sweeps' grep -rnIoP) until
+# $BAR_N are in flight, bounded by $BAR_CAP s (a cap, not the wait: the call
+# goes on the moment the barrier fills), and logs "<released|timeout> <peak>".
+mkdir -p "$T/bshim"
+cat >"$T/bshim/grep" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == -rnIoP ]]; then
+  shopt -s nullglob
+  : >"\$BAR_DIR/in.\$\$"; peak=0; how=timeout
+  for (( i = 0; i < BAR_CAP * 20; i++ )); do
+    f=("\$BAR_DIR"/in.*); (( \${#f[@]} > peak )) && peak=\${#f[@]}
+    if (( \${#f[@]} >= BAR_N )); then : >"\$BAR_DIR/open"; how=released; break; fi
+    [[ -e "\$BAR_DIR/open" ]] && { how=released; break; }
+    sleep 0.05
+  done
+  rm -f "\$BAR_DIR/in.\$\$"
+  echo "\$how \$peak" >>"\$BAR_DIR/log"
+fi
+exec $(printf %q "$real_grep") "\$@"
+EOF
+chmod +x "$T/bshim/grep"
+bar_check() { # bar_check <tree> <workflow> <n> <cap> <overlay> -> rc; calls in $T/bar/log
+  rm -rf "$T/bar"; mkdir -p "$T/bar"; : >"$T/bar/log"
+  PATH="$T/bshim:$PATH" BAR_DIR="$T/bar" BAR_N="$3" BAR_CAP="$4" SPL_PRIVATE_CNF="$5" check "$1" "$2"
+}
+bar_peak() { awk 'BEGIN { m = 0 } $2 > m { m = $2 } END { print m }' "$T/bar/log"; }
+# the verdict labels in output order; the call lines' labels in workflow order
+out_labels() { sed -nE 's/^::error::hygiene: (.*) -- [0-9]+ line\(s\)$/\1/p; s/^ok - //p' "$T/out" | grep -v '^no tracked \.vibe/ dir$'; }
+wf_labels() { sed -nE "s/^[[:space:]]*(LC_ALL=[^ ]+[[:space:]]+)?sweep[[:space:]]+\"([^\"]+)\".*/\2/p" "$T/body.sh"; }
+cp -a "$T/loc" "$T/conc"
+printf 'an old %s line\n' "$relay_word" >"$T/conc/relay.md"   # a hit for the last sweep, assembled in case 5
+git -C "$T/conc" add relay.md
+bar_check "$T/conc" "$WF" 7 10 "$T/overlay.yaml"; rc=$?
+n_calls=$(wc -l <"$T/bar/log"); n_to=$(grep -c '^timeout' "$T/bar/log"); peak=$(bar_peak)
+if [[ $n_calls -eq 7 && $peak -eq 7 && $n_to -eq 0 ]]; then
+  pass "6. the seven sweeps run at once: $peak recursive calls in flight at the barrier, $n_to timeouts"
+else
+  fail "6. the sweeps at the barrier: $n_calls call(s), peak $peak in flight (want 7), $n_to timeout(s) (want 0)"
+  sed 's/^/    | /' "$T/bar/log"
+fi
+l_first=$(grep -n '^  \./hits\.md:1$' "$T/out" | cut -d: -f1); l_last=$(grep -n '^  \./relay\.md:1$' "$T/out" | cut -d: -f1)
+if [[ $rc -eq 1 && -n "$l_first" && -n "$l_last" && $l_first -lt $l_last && "$(out_labels)" == "$(wf_labels)" ]]; then
+  pass "6. a plant in the first and the last sweep: both printed (lines $l_first, $l_last), $(wf_labels | wc -l) verdicts in the workflow's call order, rc 1"
+else
+  fail "6. the plant in the first and last sweep: rc=$rc (want 1), first at '${l_first}', last at '${l_last}', order of verdicts differs: $([[ "$(out_labels)" == "$(wf_labels)" ]] && echo no || echo yes)"
+  sed 's/^/    | /' "$T/out"
+fi
+bar_check "$T/conc" "$WF" 6 10 "$T/no-overlay.yaml"; rc=$?
+l_warn=$(grep -n '^::warning::hygiene: hidden workspaces NOT swept' "$T/out" | cut -d: -f1)
+l_5=$(grep -n 'owner mail address or domain -- ' "$T/out" | cut -d: -f1); l_7=$(grep -n 'retired relay estate (SPL-1910) -- ' "$T/out" | cut -d: -f1)
+if [[ -n "$l_warn" && -n "$l_5" && -n "$l_7" && $l_5 -lt $l_warn && $l_warn -lt $l_7 && $(bar_peak) -eq 6 ]]; then
+  pass "6. no overlay: the ::warning:: line (line $l_warn) prints between sweep 5's verdict ($l_5) and sweep 7's ($l_7), the six sweeps at once"
+else
+  fail "6. no overlay: warning at '${l_warn}', sweep 5 at '${l_5}', sweep 7 at '${l_7}', peak $(bar_peak) (want 6)"
+  sed 's/^/    | /' "$T/out"
+fi
+
+# --- CONTROL g. the step before SPL-5631: the sweeps in the foreground ---------
+doctor 's|2>&1 &$|2>\&1|' "$T/wf-serial.yml"
+bar_check "$T/conc" "$T/wf-serial.yml" 7 1 "$T/overlay.yaml"; rc=$?
+n_calls=$(wc -l <"$T/bar/log"); n_to=$(grep -c '^timeout' "$T/bar/log"); peak=$(bar_peak)
+if [[ $n_calls -eq 7 && $peak -eq 1 && $n_to -eq 7 && $rc -eq 1 ]]; then
+  pass "CONTROL g. the sweeps in the foreground: peak $peak in flight, $n_to of $n_calls calls time out at the barrier -- case 6 sees the concurrency"
+else
+  fail "CONTROL g. the sweeps in the foreground: $n_calls call(s), peak $peak (want 1), $n_to timeout(s) (want 7), rc=$rc (want 1)"
+  sed 's/^/    | /' "$T/bar/log"
 fi
 
 if [[ $fails -eq 0 ]]; then

@@ -1679,6 +1679,44 @@ jobs:
                 --exclude=10_ci-quality.yml --exclude=test-hygiene.sh
                 --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=tpl-gen)
           fail=0
+          # SPL-5631 (perf round 10 row 01): the sweeps write their output and
+          # verdict to numbered slots here; sweep_join prints the slots not yet
+          # printed, in call order, and folds their verdicts into fail. It runs
+          # before the .vibe/ check and again on EXIT, which joins a sweep added
+          # after it, removes the dir and exits 1 on any failed verdict. A
+          # HUP / INT / TERM stops the step's own sweep jobs and leaves with
+          # 129 / 130 / 143: a killed sweep has no verdict to fold.
+          sweep_dir="$(mktemp -d)"; sweep_n=0; sweep_shown=0; sweep_killed=0
+          sweep_join() {
+            local i v
+            wait
+            for (( i = sweep_shown + 1; i <= sweep_n; i++ )); do
+              cat "$sweep_dir/$i.out" 2>/dev/null || true
+              v=""; [[ -f "$sweep_dir/$i.rc" ]] && read -r v <"$sweep_dir/$i.rc"
+              [[ "$v" == 0 ]] || fail=1
+            done
+            sweep_shown=$sweep_n
+          }
+          sweep_say() { # <line>: the step's own line, in the next slot, so it keeps its place
+            sweep_n=$((sweep_n + 1))
+            printf '%s\n' "$1" >"$sweep_dir/$sweep_n.out"; echo 0 >"$sweep_dir/$sweep_n.rc"
+          }
+          # shellcheck disable=SC2317  # called by the traps below
+          sweep_stop() { # <exit code>
+            local p
+            sweep_killed=1
+            for p in $(jobs -p); do kill "$p" 2>/dev/null || true; done
+            exit "$1"
+          }
+          # shellcheck disable=SC2317  # called by the traps below
+          sweep_exit() {
+            local rc=$?
+            if (( ! sweep_killed )); then sweep_join; (( fail )) && rc=1; fi
+            rm -rf "$sweep_dir"
+            exit "$rc"
+          }
+          trap sweep_exit EXIT
+          trap 'sweep_stop 129' HUP; trap 'sweep_stop 130' INT; trap 'sweep_stop 143' TERM
           # Owner-approved exception (owner decision 2026-09-19, "in the yaml,
           # relax the gate"): the owner's gcloud account is config, key
           # env.gcp.gcp_account_owner_email. A hit is allowed ONLY when it is
@@ -1705,7 +1743,16 @@ jobs:
             [[ "$f" =~ $allow_file ]] || return 1
             [[ "$(sed -n "${n}p" "$f")" =~ $re ]]
           }
+          # The seven sweeps run at once: each is a pass over the same tree and
+          # none reads another's result. sweep() forks sweep_one into the
+          # background, into the next slot (skip_re and a LC_ALL= prefix are
+          # read when it forks); the output keeps the call order, printed by
+          # sweep_join before the .vibe/ check and on EXIT.
           sweep() { # <label> <pattern> [<allowed line regex> <what it allows>]
+            sweep_n=$((sweep_n + 1))
+            ( fail=0; sweep_one "$@"; echo "$fail" >"$sweep_dir/$sweep_n.rc" ) >"$sweep_dir/$sweep_n.out" 2>&1 &
+          }
+          sweep_one() {
             local label="$1" pattern="$2" re="${3:-}" what="${4:-}" hits rc=0 h kept="" n_allowed=0
             # grep exits 1 on NO match -- the clean case. The step shell is
             # `bash -e` and pipefail carries grep's status out of the
@@ -1767,7 +1814,7 @@ jobs:
           if [[ -f "$lib" ]] && source "$lib" && [[ -s "$(spl_private_cnf_path)" ]]; then
             base="$(sed -n 's/^ *BASE_DOMAIN: *"\{0,1\}\([^"# ]*\).*/\1/p' csi-spl-cnf/csi-spl/all.env.yaml | head -1)"
             if ! gate_loc="$(spl_private_gate_locale)"; then
-              echo "::error::hygiene: no UTF-8 locale for grep -P -- the hidden-workspace sweep proved nothing"; fail=1
+              sweep_say "::error::hygiene: no UTF-8 locale for grep -P -- the hidden-workspace sweep proved nothing"; fail=1
             elif pats="$(spl_private_gate_patterns "$base")" && [[ -n "$pats" ]]; then
               # 0051 is a forward-only migration: its sha256 is pinned in every
               # env's spool_schema_migrations, so its comment cannot change.
@@ -1777,12 +1824,12 @@ jobs:
               LC_ALL="$gate_loc" sweep "hidden workspace or private literal (SPL-1874)" "$(paste -sd'|' <<<"$pats")"
               skip_re=''
             else
-              echo "::error::hygiene: the private overlay does not parse -- the hidden-workspace sweep proved nothing"; fail=1
+              sweep_say "::error::hygiene: the private overlay does not parse -- the hidden-workspace sweep proved nothing"; fail=1
             fi
           elif [[ "${SPL_PRIVATE_REQUIRED:-0}" == 1 ]]; then
-            echo "::error::hygiene: no private overlay (secret SPL_PRIVATE_CNF_YAML) or no $lib -- the hidden-workspace sweep proved nothing"; fail=1
+            sweep_say "::error::hygiene: no private overlay (secret SPL_PRIVATE_CNF_YAML) or no $lib -- the hidden-workspace sweep proved nothing"; fail=1
           else
-            echo "::warning::hygiene: hidden workspaces NOT swept -- no private overlay or no $lib (SPL-1874)"
+            sweep_say "::warning::hygiene: hidden workspaces NOT swept -- no private overlay or no $lib (SPL-1874)"
           fi
           # SPL-1910 (owner order 2026-10-14: "remove all of the traces for
           # this code from the spool-hub"): the retired relay estate, its
@@ -1801,6 +1848,7 @@ jobs:
           # checkout, and do_check_dist_hygiene runs this same step over a
           # tracked-file export -- one rule, one place.
           # CONTROL: csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh
+          sweep_join
           vibe="$(find . -path ./.git -prune -o ! -type d -print | sed 's|^\./||' | grep -E '(^|/)\.vibe/' | sort)" || true
           if [[ -n "$vibe" ]]; then
             while IFS= read -r f; do

@@ -19,11 +19,16 @@
 #      row gone, a dropped skill gone, a replace applied; a key table put
 #      after the tagline where the base has none), the letter (recipient,
 #      name), the index (links to every language)
-#   5. the fit table: a key row the master backs, one whose years differ
-#      (CHECK), a vacancy technology the CV lacks (CHECK); WARN on stdout
+#   5. the fit table, per language: a key row the master backs, one whose
+#      years differ (CHECK), a vacancy technology the CV lacks (CHECK); WARN
+#      on stdout. Years in words back ("five years" = 5); months are not
+#      years ("3 months" against 3 is a CHECK); a row with no number is a
+#      CHECK, never a silent keep
 #   6. a rebuild replaces its own out/; a foreign out/ is refused (rc 2); a
 #      CONTENT lacking a key (rc 2, names it); a replace text not in the base
-#      CV (rc 2); an unreadable vacancy (rc 3)
+#      CV (rc 2); an unreadable vacancy (rc 3); a missing pandoc or chrome
+#      (rc 2, FATAL job-pack, no traceback); a ROLE that is not a plain name
+#      (rc 2, nothing written outside OUT_DIR)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -135,8 +140,17 @@ idx="$(cat "$P/out/index.fi.html" 2>/dev/null)"
 # --- 5. the fit table -----------------------------------------------------------------------
 fit="$(cat "$P/internal/fit.md" 2>/dev/null)"
 [[ "$fit" == *"| Terraform | yes | 5 | 5 years | backed |"* && "$fit" == *"| Kafka | yes | 3 | 4 years | CHECK: master CV says 3 |"* &&
-   "$fit" == *"| Rust | yes | – | – | CHECK: the vacancy names it, the CV does not |"* && "$out" == *"WARN fit: 2 row(s) to CHECK"* ]] &&
-  pass "5. fit: backed, years differ, missing technology" || fail "5. fit: $fit"
+   "$fit" == *"| Rust | yes | – | – | CHECK: the vacancy names it, the CV does not |"* && "$out" == *"WARN fit: 4 row(s) to CHECK"* &&
+   "$fit" == *"## fi"* && "$fit" == *"| Kafka | yes | 3 | 4 vuotta | CHECK: master CV says 3 |"* ]] &&
+  pass "5. fit: backed, years differ, missing technology, every language" || fail "5. fit: $fit"
+sed -e 's/("Terraform", "5", "5 years"/("Terraform", "5", "five years"/' -e 's/("Kafka", "4", "4 years"/("Kafka", "4", "3 months"/' \
+    -e 's/("Kafka", "4", "4 vuotta"/("Kafka", "4", "pitkä kokemus"/' "$FX/content.py" >"$T/words.py"
+out="$(act OUT_DIR="$T/w1" VACANCY_URL="file://$FX/vacancy.html" MASTER_CV_DIR="$FX/master-cvs" CONTENT="$T/words.py")"; rc=$?
+fit="$(cat "$T/w1/internal/fit.md" 2>/dev/null)"
+[[ "$rc" == 0 && "$fit" == *"| Terraform | yes | 5 | five years | backed |"* &&
+   "$fit" == *"| Kafka | yes | 3 | 3 months | CHECK: master CV says 3 |"* &&
+   "$fit" == *"| Kafka | yes | 3 | pitkä kokemus | CHECK: the pack gives no years |"* ]] &&
+  pass "5. fit: years in words back, months and no number are CHECK" || fail "5. fit words (rc $rc): $fit"
 grep -q "sha256 \`[0-9a-f]\{64\}\`" "$P/internal/files.md" && pass "5. files.md: the zip sha256" || fail "5. files.md"
 
 # --- 6. rebuild and refusals -----------------------------------------------------------------
@@ -153,6 +167,17 @@ out="$(act OUT_DIR="$T/c2" MASTER_CV_DIR="$FX/master-cvs" CONTENT="$T/bad-replac
 [[ "$rc" == 2 && "$out" == *"occurs 0 times"* ]] && pass "6. a replace text not in the base CV: rc 2" || fail "6. replace (rc $rc: $out)"
 out="$(act OUT_DIR="$T/c3" VACANCY_URL="file://$T/no-such-vacancy.html")"; rc=$?
 [[ "$rc" == 3 && "$out" == *"cannot fetch the vacancy"* ]] && pass "6. an unreadable vacancy: rc 3" || fail "6. fetch (rc $rc: $out)"
+
+for tool in pandoc chrome; do
+  [[ "$tool" == pandoc ]] && miss=(JOB_PACK_PANDOC=/nonexistent/pandoc) || miss=(JOB_PACK_CHROME=/nonexistent/chrome)
+  out="$(act OUT_DIR="$T/m-$tool" VACANCY_URL="file://$FX/vacancy.html" MASTER_CV_DIR="$FX/master-cvs" CONTENT="$FX/content.py" "${miss[@]}")"; rc=$?
+  [[ "$rc" == 2 && "$out" == *"FATAL job-pack: cannot run /nonexistent/$tool"* && "$out" != *Traceback* ]] &&
+    pass "6. a missing $tool: rc 2, reported" || fail "6. missing $tool (rc $rc: $out)"
+done
+sed 's#^ROLE = .*#ROLE = "../../escaped"#' "$FX/content.py" >"$T/bad-role.py"
+out="$(act OUT_DIR="$T/r1/x" VACANCY_URL="file://$FX/vacancy.html" MASTER_CV_DIR="$FX/master-cvs" CONTENT="$T/bad-role.py")"; rc=$?
+[[ "$rc" == 2 && "$out" == *"is not a plain name"* && -z "$(find "$T/r1" -maxdepth 1 -mindepth 1 ! -name x)" ]] &&
+  pass "6. a ROLE with ../: rc 2, nothing outside OUT_DIR" || fail "6. role (rc $rc: $out)"
 
 [[ "$fails" == 0 ]] && echo "OK job-pack: all passed" || echo "FAIL job-pack: $fails failed"
 ((fails == 0))

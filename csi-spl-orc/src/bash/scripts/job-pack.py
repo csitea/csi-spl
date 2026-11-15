@@ -194,6 +194,11 @@ class Pack:
             datetime.timezone.utc
         ).strftime("%Y-%m-%d")
         self.role = c["ROLE"]
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", self.role):
+            raise PackError(
+                f"ROLE {self.role!r} is not a plain name (letters, digits, . _ -): "
+                "it names files and dirs under out/"
+            )
         self.pack = f"{self.slug}-{self.role}-{self.date}"
         self.letter = c.get("LETTER") or c["W"]
         self.dst = os.path.join(out, "out")
@@ -386,7 +391,10 @@ class Pack:
     # --- rendering: md -> html/docx (pandoc), html -> pdf (chrome) ----------------
 
     def run(self, *cmd):
-        r = subprocess.run(list(cmd), capture_output=True, text=True)
+        try:
+            r = subprocess.run(list(cmd), capture_output=True, text=True)
+        except OSError as e:
+            raise PackError(f"cannot run {cmd[0]}: {e.strerror or e}") from e
         if r.returncode != 0:
             raise PackError(
                 f"{os.path.basename(cmd[0])} failed (rc {r.returncode}): {r.stderr.strip()[:300]}"
@@ -485,9 +493,36 @@ class Pack:
 # --- the fit table and the file report ---------------------------------------------
 
 
-def first_int(s):
-    m = re.search(r"\d+", s or "")
-    return int(m[0]) if m else None
+NUM_WORDS = {
+    w: i
+    for ws in (
+        "zero one two three four five six seven eight nine ten eleven twelve "
+        "thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty",
+        "nolla yksi kaksi kolme neljä viisi kuusi seitsemän kahdeksan yhdeksän kymmenen",
+    )
+    for i, w in enumerate(ws.split())
+}
+YEARS_RX = re.compile(
+    r"(?i)(\d+(?:[.,]\d+)?|" + "|".join(NUM_WORDS) + r")\s*\+?\s*(\w*)"
+)
+
+
+def years(s):
+    """Years in an experience cell: '5', '5+ years', 'five years', '6 months' ->
+    5, 5, 5, 0.5; None when it names no number (a CHECK, never a silent keep)."""
+    m = YEARS_RX.search(s or "")
+    if not m:
+        return None
+    n = m[1].lower()
+    v = NUM_WORDS[n] if n in NUM_WORDS else float(n.replace(",", "."))
+    unit = m[2].lower()
+    if unit.startswith(("month", "kuukau", "kk", "mån")):
+        v /= 12
+    return v
+
+
+def num(v):
+    return f"{v:g}" if isinstance(v, (int, float)) else "–"
 
 
 def master_match(tech, skills):
@@ -495,47 +530,58 @@ def master_match(tech, skills):
     return max(hits, key=len) if hits else None
 
 
+def fit_status(exp, m, theirs):
+    if m is None:
+        return "CHECK: not in the master CV skills table"
+    mine = years(exp)
+    if theirs is None:
+        return "CHECK: the master CV gives no years"
+    if mine is None:
+        return "CHECK: the pack gives no years"
+    if abs(mine - theirs) > 1e-9:
+        return f"CHECK: master CV says {num(theirs)}"
+    return "backed"
+
+
 def fit(c, bases, text, out):
-    """Rule 4 (years only as the master CVs back them) made visible: each key-table
-    row against the base CV's skills table, then the vacancy's other technologies."""
-    l = c["LANGS"][0]
-    skills = skills_rows(read(bases[l]))
-    rows = [
-        "| technology | named in vacancy | master CV years | pack says | status |",
-        "|:--|:--|--:|:--|:--|",
-    ]
-    checks, seen = 0, set()
-    for tech, _, exp, _, _ in c.get("CV", {}).get("key", {}).get(l.upper(), []):
-        m = master_match(tech, skills)
-        mine, theirs = first_int(exp), (first_int(skills[m][1]) if m else None)
-        if m is None:
-            status = "CHECK: not in the master CV skills table"
-        elif mine is None or mine == theirs:
-            status = "backed"
-        else:
-            status = f"CHECK: master CV says {theirs}"
-        checks += status.startswith("CHECK")
-        seen.add((m or tech).lower())
-        in_vac = named(tech, text) or (m is not None and named(m, text))
-        rows.append(
-            f"| {tech} | {'yes' if in_vac else 'no'} | {'–' if theirs is None else theirs} | {exp} | {status} |"
-        )
-    for t in c.get("KEYWORDS") or [t for t in skills if named(t, text)]:
-        if t.lower() in seen:
-            continue
-        m = master_match(t, skills)
-        status = (
-            "in the CV skills table only"
-            if m
-            else "CHECK: the vacancy names it, the CV does not"
-        )
-        checks += m is None
-        rows.append(
-            f"| {t} | {'yes' if named(t, text) else 'no'} | {skills[m][1] if m else '–'} | – | {status} |"
-        )
+    """Rule 4 (years only as the master CVs back them) made visible: per language,
+    each key-table row against the base CV's skills table, then the vacancy's other
+    technologies."""
+    checks, parts = 0, []
+    for l in c["LANGS"]:
+        skills = skills_rows(read(bases[l]))
+        rows = [
+            "| technology | named in vacancy | master CV years | pack says | status |",
+            "|:--|:--|--:|:--|:--|",
+        ]
+        seen = set()
+        for tech, _, exp, _, _ in c.get("CV", {}).get("key", {}).get(l.upper(), []):
+            m = master_match(tech, skills)
+            theirs = years(skills[m][1]) if m else None
+            status = fit_status(exp, m, theirs)
+            checks += status.startswith("CHECK")
+            seen.add((m or tech).lower())
+            in_vac = named(tech, text) or (m is not None and named(m, text))
+            rows.append(
+                f"| {tech} | {'yes' if in_vac else 'no'} | {num(theirs)} | {exp} | {status} |"
+            )
+        for t in c.get("KEYWORDS") or [t for t in skills if named(t, text)]:
+            if t.lower() in seen:
+                continue
+            m = master_match(t, skills)
+            status = (
+                "in the CV skills table only"
+                if m
+                else "CHECK: the vacancy names it, the CV does not"
+            )
+            checks += m is None
+            rows.append(
+                f"| {t} | {'yes' if named(t, text) else 'no'} | {skills[m][1] if m else '–'} | – | {status} |"
+            )
+        parts.append(f"## {l}\n\n" + "\n".join(rows) + "\n")
     write(
         os.path.join(out, "internal", "fit.md"),
-        f"# Fit table ({l})\n\n" + "\n".join(rows) + "\n",
+        "# Fit table\n\n" + "\n".join(parts),
     )
     return checks
 

@@ -3,7 +3,7 @@
 # @description List the env's box state bucket (iac 056) with gcloud storage,
 # @description mounted or not: object names, sizes and times only, never
 # @description content. Read as the env's project SA (--account pinned).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param PREFIX (optional) - a relative object path, e.g. shared/ or box1/2026-10-10/
 # @param RECURSIVE (optional) - 1 lists every object under PREFIX (default 0: one level)
 # @example ENV=dev ./run -a do_spl_box_state_ls

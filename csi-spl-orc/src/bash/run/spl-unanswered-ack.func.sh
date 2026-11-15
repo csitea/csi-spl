@@ -8,8 +8,8 @@
 # @description received up to that moment out (column "handled"), so it is not
 # @description re-sent or escalated. A NEW human post in the topic opens it again.
 # @description Local, no hub call. ACK_LIST=1 prints the acks instead.
-# @param TOPIC - required: the topic (task) uuid, or its first 8+ hex characters as the sweep note shows it
-# @param REASON - required: why it needs no reply, one line
+# @param TOPIC (optional) - the topic (task) uuid, or its first 8+ hex characters as the sweep note shows it; needed unless ACK_LIST=1
+# @param REASON (optional) - why it needs no reply, one line; needed unless ACK_LIST=1
 # @param ACK_BY (optional) - who acks; default SPOOL_AGENT_ID, else the login
 # @param ACK_LIST (optional) - 1 prints the acks and exits
 # @param SPOOL_ROOT (optional) - default /var/spool-hub

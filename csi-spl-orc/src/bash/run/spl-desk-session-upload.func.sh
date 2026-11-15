@@ -17,10 +17,10 @@
 # @description Prints one JSON line (agent, human, task_id, msg_id, bytes,
 # @description redaction counts). The markdown stays in the seat's .mirror/
 # @description dir (0600). Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent id whose session is uploaded
-# @param SESSION_TOKEN - required: a string only this agent's transcript holds
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent id whose session is uploaded
+# @param SESSION_TOKEN (required) - a string only this agent's transcript holds
 # @param   (its brief path, one of its own inbox message paths), or the
 # @param   transcript's path
 # @param DESK_BOX (optional) - default box-desk

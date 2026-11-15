@@ -28,7 +28,7 @@
 # @description in a private temp dir removed on return. gcloud runs as the
 # @description env's project service account (do_gcp_pin_account), --account
 # @description on every call.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) export and check locally, upload nothing; 0 upload
 # @param TENANT_ID (optional) - this workspace only; default every workspace with a doc
 # @param WSDOC_BACKUP_DATE (optional) - the yyyy-mm-dd prefix; default today (UTC)

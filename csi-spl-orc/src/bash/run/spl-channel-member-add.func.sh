@@ -16,9 +16,9 @@
 # @description app.tenant_id for the transaction (rdb 0014). This is the
 # @description OPERATOR path: outside the hub's mayInviteChannel check.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param CHANNEL - required: the channel id
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param CHANNEL (required) - the channel id
 # @param HUMAN_ID - a human id, e.g. HUM-4. Set this or EMAIL, not both.
 # @param EMAIL - the human's email. Resolved through human_identities to
 # @param   exactly one human_id, or the run refuses. Set this or HUMAN_ID,

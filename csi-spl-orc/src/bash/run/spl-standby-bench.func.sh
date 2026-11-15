@@ -19,7 +19,7 @@
 # @description (p50 / p95 / max per vendor and model, n, the tree sha, the CLI
 # @description versions, a verdict per vendor) to BENCH_REPORT. Model calls
 # @description only: no hub, no spool, no cloud. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd (opt-in with BENCH_PRD_CONFIRM, concurrency <= 3, n <= 50)
+# @param ENV (required) - dev or prd (opt-in with BENCH_PRD_CONFIRM, concurrency <= 3, n <= 50)
 # @param BENCH_N (optional) - call responses per model, >= 20, default 20
 # @param BENCH_MODELS (optional) - vendor:model list, default
 # @param                           "claude:haiku claude:sonnet grok:grok-4.7-build-fast grok:grok-4.7"

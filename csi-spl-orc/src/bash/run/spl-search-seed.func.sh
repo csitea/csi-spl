@@ -12,7 +12,7 @@
 # @description Runs as the hub's runtime login under the operator RLS scope,
 # @description in SEED_BATCH-row statements; re-running resumes (ON CONFLICT DO
 # @description NOTHING). Dry run unless DRY_RUN=0: prints the plan and the SQL.
-# @param ENV - required: dev (prd is refused)
+# @param ENV (required) - dev (prd is refused)
 # @param SEED_TENANT (optional) - default seed-search; must match ^seed-[a-z0-9-]{1,26}$
 # @param SEED_MSGS (optional) - messages, 1..2000000, default 1000000
 # @param SEED_TOPICS (optional) - tasks, 1..100000, default 10000

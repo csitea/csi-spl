@@ -19,8 +19,8 @@
 # @description The sidecar is stopped at the end; the channel stays (a test
 # @description tenant's probe channel). Prints one JSON verdict. Use the dev
 # @description test tenant or the prd e2e tenant only. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (dev t1 / prd e2e)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (dev t1 / prd e2e)
 # @param PROBE_POSTS (optional) - posts before the invite, 1..20, default 3
 # @param PROBE_BOX (optional) - the probe box id, default box-bfprobe
 # @param PROBE_POSTER (optional) - default PRB-9871

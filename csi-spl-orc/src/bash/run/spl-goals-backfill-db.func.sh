@@ -19,8 +19,8 @@
 # @description With KEPT_FILE set, the WRITE half instead (8.2 step 4): the rows
 # @description a human kept of that file go to PUT /v1/calendar/sync, see
 # @description spl_goals_backfill_db_write below.
-# @param ENV - required: dev or prd
-# @param WORKSPACE - required, no default: the tenant slug to read, and the workspace each db: event names
+# @param ENV (required) - dev or prd
+# @param WORKSPACE (required) - the tenant slug to read, and the workspace each db: event names
 # @param KEPT_FILE (optional) - the write half: a candidates file of WORKSPACE, under $HOME, 0600
 # @param SINCE (optional) - only messages after this ISO-8601 UTC time (the incremental run)
 # @param GOALS_BACKFILL_DIR (optional) - output dir under $HOME, default $HOME/.csi-spl/goals-backfill

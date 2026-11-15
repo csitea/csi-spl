@@ -8,7 +8,7 @@
 #              --format='value(nameServers)'`). Changing them moves every
 #              public record at once: a wrong value takes the domain offline
 #              for up to the TLD NS TTL.
-# @param NAMESERVERS - required: comma-separated NS hostnames
+# @param NAMESERVERS (required) - comma-separated NS hostnames
 # @param DOMAIN - optional: override cnf env.dns.BASE_DOMAIN
 # @param CONFIRM - optional: yes to apply
 # @example NAMESERVERS=<ns1>,<ns2>,<ns3>,<ns4> ./run -a do_gandi_set_nameservers

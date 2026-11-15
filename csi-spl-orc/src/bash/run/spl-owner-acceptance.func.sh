@@ -30,9 +30,9 @@
 # @description
 # @description It posts real messages into a real tenant's topic, so it is a
 # @description DRY RUN unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param OA_TOPIC - required: the task UUID of the topic to run in (the
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param OA_TOPIC (required) - the task UUID of the topic to run in (the
 # @param   `?topic=` of the URL the owner is watching)
 # @param OA_AGENT (optional) - the desk agent to talk to, default c-001 (the orchestrator seat)
 # @param OA_BOX (optional) - the desk box, default box-desk

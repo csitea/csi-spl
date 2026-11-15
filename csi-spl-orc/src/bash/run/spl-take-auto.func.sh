@@ -33,12 +33,12 @@
 # @description     cannot be read holds every channel: fail closed, no post
 # @description   - the topic holds an agent reply to a human or the channel: owned
 # @description Dry run unless DRY_RUN=0 (the notifier passes DRY_RUN=0).
-# @param TAKE_AUTO_TO - required: the seat the post was delivered to
-# @param TAKE_AUTO_FROM - required: the human who posted (HUM-n)
-# @param TAKE_AUTO_TASK - required: the full topic uuid
-# @param TAKE_AUTO_DESK_ROOT - required: the desk sidecar's SPOOL_ROOT (<state>/<env>/desk/<tenant>/<box>/spool)
-# @param SPOOL_BOX_ID - required: the desk box (the sidecar's)
-# @param SPOOL_TENANT - required: the workspace (the sidecar's)
+# @param TAKE_AUTO_TO (required) - the seat the post was delivered to
+# @param TAKE_AUTO_FROM (required) - the human who posted (HUM-n)
+# @param TAKE_AUTO_TASK (required) - the full topic uuid
+# @param TAKE_AUTO_DESK_ROOT (required) - the desk sidecar's SPOOL_ROOT (<state>/<env>/desk/<tenant>/<box>/spool)
+# @param SPOOL_BOX_ID (required) - the desk box (the sidecar's)
+# @param SPOOL_TENANT (required) - the workspace (the sidecar's)
 # @param SPOOL_ROOT (optional) - the box spool root that holds dispatch/, default /var/spool-hub
 # @param TAKE_AUTO_BODY (optional) - the post's text, for the @mention check
 # @param TAKE_AUTO_MSGID (optional) - the post's msg_id: its row in the hub tail names its channel (else the poster's rows)

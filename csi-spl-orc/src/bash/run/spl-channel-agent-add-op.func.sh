@@ -22,10 +22,10 @@
 # @description every agent) takes the add by hand and loses the mark; the
 # @description desk reconcile's add (do_spl_dispatch_subscribe) is skipped there.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param CHANNEL - required: the channel id
-# @param AGENTS - required: space-separated agent ids, e.g. "CLE-7 CLE-8"
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param CHANNEL (required) - the channel id
+# @param AGENTS (required) - space-separated agent ids, e.g. "CLE-7 CLE-8"
 # @param AGENT_BOX (optional) - default box-desk. box-wui is reserved.
 # @param ALLOW_DEFAULT_CHANNEL (optional) - 1 seats agents in a default channel
 # @param   (lobby, alerts, feedback; general is lobby) the way the hub's

@@ -11,7 +11,7 @@
 # @description it, else `archived` (SPL-2558: the placer reopens only the
 # @description first); exit 1 when the hub read fails or has no status.
 # @description A read, so it calls the hub without DRY_RUN=0.
-# @param ISSUE_REF - required: the issue key, e.g. SPL-12
+# @param ISSUE_REF (required) - the issue key, e.g. SPL-12
 # @param ENV TENANT_ID (optional) - default LEASE_ENV / LEASE_TENANT of <spool root>/dispatch/lease.conf
 # @param DESK_AGENT (optional) - default the lease's first seated desk on this box
 # @param DESK_BOX (optional) - default this box's desk box

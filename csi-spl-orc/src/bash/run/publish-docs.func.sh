@@ -26,7 +26,7 @@
 # @description (the bucket above, the default) or do_docs_publish_none (a
 # @description self-host box: the stage is mirrored into a local dir, e.g. the
 # @description hub's mounted docs volume - no gcloud, no cnf switch).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): stage and print tree.json, upload nothing; 0: upload
 # @param DOCS_SHA (optional) - the commit tree.json names, default HEAD
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account

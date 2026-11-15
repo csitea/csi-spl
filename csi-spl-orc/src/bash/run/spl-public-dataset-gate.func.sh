@@ -33,12 +33,12 @@
 # @description matched text (CI logs are public). The core is
 # @description src/bash/scripts/public-dataset-gate.py; this action reads the
 # @description database facts it needs and writes nothing to any bucket.
-# @param ENV - required: dev or prd (the cnf: workspaces, caps, allow-list version)
-# @param PD_GATE_FILE - required: the candidate seed file (.sql or .sql.gz)
-# @param PD_GATE_OUT - required: where the cleaned file goes (must not exist)
-# @param PD_GATE_REPORT - required: the gate report JSON (counts, removed by class)
-# @param PD_NAMES_FILE - required: the names step's list (do_spl_public_dataset_names)
-# @param PD_EXPORT_DSN - required: the export login (spool_public_export) DSN, e.g. through the proxy
+# @param ENV (required) - dev or prd (the cnf: workspaces, caps, allow-list version)
+# @param PD_GATE_FILE (required) - the candidate seed file (.sql or .sql.gz)
+# @param PD_GATE_OUT (required) - where the cleaned file goes (must not exist)
+# @param PD_GATE_REPORT (required) - the gate report JSON (counts, removed by class)
+# @param PD_NAMES_FILE (required) - the names step's list (do_spl_public_dataset_names)
+# @param PD_EXPORT_DSN (required) - the export login (spool_public_export) DSN, e.g. through the proxy
 # @param PD_PREV_MANIFEST (optional) - the previous published manifest (size check)
 # @example ENV=dev PD_GATE_FILE=cand.sql.gz PD_GATE_OUT=clean.sql PD_GATE_REPORT=gate.json PD_NAMES_FILE=names.tsv PD_EXPORT_DSN=postgres://... ./run -a do_spl_public_dataset_gate
 #------------------------------------------------------------------------------

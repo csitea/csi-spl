@@ -21,7 +21,7 @@
 # @description do_secrets_seed_none: the self-host .env (mode 600) gets the
 # @description missing Postgres passwords and the state dir its session.key,
 # @description with no gcloud at all.
-# @param ENV - required (gcp): dev or prd
+# @param ENV - needed (gcp): dev or prd
 # @param SPOOL_CLOUD_PROVIDER (optional) - gcp (default) | none | aws, else the cnf env.cloud.provider
 # @param SPOOL_SELF_HOST_DIR (optional, none) - the dir holding .env (default: this checkout)
 # @param SPOOL_STATE_DIR (optional, none) - the hub state dir holding session.key (default /var/lib/spool/state)

@@ -33,7 +33,7 @@
 # @description             standby" must never kill the only "Seen");
 # @description   one machine - no lease, or a bare holder id: as before.
 # @description Dry run unless DRY_RUN=0 (the seat/down steps too).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DESK_BOX (optional) - the responder box, default SPOOL_RSP_BOX
 # @param   from the box config ($SPOOL_BOX_ENV, default <spool root>/box.env), else box-rsp
 # @param DESK_AGENT (optional) - the responder agent, default SPL_RSP_AGENT

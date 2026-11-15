@@ -18,7 +18,7 @@
 # @description DSN from Secret Manager, the Cloud SQL proxy on 127.0.0.1.
 # @description DRY_RUN=1 (default): count the topics it would pass, in a READ
 # @description ONLY transaction, and write nothing.
-# @param ENV - required: dev or prd (prd only with the owner's go: spec 099 Q4)
+# @param ENV (required) - dev or prd (prd only with the owner's go: spec 099 Q4)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param REBUILD (optional) - all: also delete heads whose topic is gone; default: messages only
 # @param TOPIC_HEAD_CHUNK (optional) - topics per chunk, default 100 (1..1000)

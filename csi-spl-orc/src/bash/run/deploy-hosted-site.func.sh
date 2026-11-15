@@ -21,7 +21,7 @@
 # @description      / -> 200; the custom host too once it serves (a WARN
 # @description      until Firebase has verified it and minted its cert)
 # @description DRY_RUN=1 (default) prints the plan and touches nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SITE (optional) - the site's cnf name (placeholder or slug) or site_id; default: the only site
 # @param SITE_SHA (optional) - the src_dir commit to ship, default its HEAD
 # @param DRY_RUN (optional) - 1 (default): print the plan; 0: deploy

@@ -64,9 +64,9 @@
 # @description roster: do_spl_box_purge with BOX_IDS naming both boxes, for
 # @description the same ENV and TENANT_ID; it is a dry run unless DRY_RUN=0
 # @description (pin-semantics.md 6). box-wui is NOT a rig: leave it pinned.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - dev: required (t1). prd: a test tenant ^e2e(-[a-z0-9]+)?$, default e2e
-# @param ROOT_KEY_JSON - dev: required; prd: default the newest
+# @param ENV (required) - dev or prd
+# @param TENANT_ID - dev: needed (t1). prd: a test tenant ^e2e(-[a-z0-9]+)?$, default e2e
+# @param ROOT_KEY_JSON - dev: needed; prd: default the newest
 # @param   $SPL_TENANTS_DIR/<tenant>.*.json. The 0600 JSON do_spl_tenant_create
 # @param   wrote (field root_private_key); or ROOT_KEY = a root.key file instead
 # @param M3_CREATE_TENANT (optional) - prd: 1 = create the test tenant when no key JSON exists

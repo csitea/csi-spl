@@ -24,11 +24,11 @@
 # @description partial publish is safe: copies never overwrite, and a different
 # @description file under a published name is refused. Output names classes and
 # @description object names, never row content (section 5.6).
-# @param ENV - required: dev or prd
-# @param PD_TOPIC - required: the dataset topic's task uuid
-# @param TENANT_ID - required: the workspace of the dataset topic
-# @param DESK_AGENT - required: the desk agent that reads the topic and posts the note
-# @param GCP_SA_KEY_FILE - required unless GCP_ACCOUNT is the publish SA: the publish SA's key
+# @param ENV (required) - dev or prd
+# @param PD_TOPIC (required) - the dataset topic's task uuid
+# @param TENANT_ID (optional) - the workspace of the dataset topic; needed with DRY_RUN=0
+# @param DESK_AGENT (optional) - the desk agent that reads the topic and posts the note; needed with DRY_RUN=0
+# @param GCP_SA_KEY_FILE - needed unless GCP_ACCOUNT is the publish SA: the publish SA's key
 # @param DRY_RUN (optional) - 1 (default): resolve the cnf and name the buckets, no cloud. 0: publish.
 # @param PD_CANDIDATE (optional) - <YYYY-MM-DD>-v<X.Y.Z>; default the newest staged candidate
 # @param PUBLIC_DATASET_FORCE (optional) - 1: dev only, run although cnf public_dataset.enabled is false

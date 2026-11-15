@@ -16,7 +16,7 @@
 # @description env injected redacts none of them, so this fails before the
 # @description apply and passes after it. Authenticated as the env's project
 # @description service account (operator id token), never the owner account.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account
 # @example ENV=dev ./run -a do_spl_release_note_bans_check
 #------------------------------------------------------------------------------

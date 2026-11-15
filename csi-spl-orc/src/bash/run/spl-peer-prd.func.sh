@@ -10,7 +10,7 @@
 # @description action never starts.
 # @description With no <spool root>/peer/seats (order A) the gate is a no-op
 # @description and this is exactly `ENV=prd ./run -a <action>`.
-# @param PRD_ACTION - required: the ./run action, do_<name>
+# @param PRD_ACTION (required) - the ./run action, do_<name>
 # @param PRD_TARGET (optional) - the mutex target, default <name> in kebab case (the role is prd-<target>, up to 32)
 # @param PRD_ENV (optional) - the ENV the action runs under, default prd
 # @param PEER_SEAT / PEER_MSG / PEER_GEN - the seat and the message it acts for (do_spl_peer_gate)

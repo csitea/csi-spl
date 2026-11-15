@@ -15,9 +15,9 @@
 # @description email (or, with no email, its first and last name).
 # @description Prints one JSON line of counts and contact ids, never a value
 # @description (spec 154 2.6, C12); psql errors print their SQLSTATE only.
-# @param ENV - required: dev or prd
-# @param CONTACTS_PERSON - required: the person whose list gets the rows, HUM-<n>
-# @param CONTACTS_FILE - required: the CSV file path (keep it mode 600)
+# @param ENV (required) - dev or prd
+# @param CONTACTS_PERSON (required) - the person whose list gets the rows, HUM-<n>
+# @param CONTACTS_FILE (required) - the CSV file path (keep it mode 600)
 # @param DRY_RUN (optional) - 1 (default): count in a READ ONLY transaction, add nothing
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA (do_gcp_account)
 # @example ENV=dev CONTACTS_PERSON=HUM-4 CONTACTS_FILE=<file> ./run -a do_spl_contacts_seed

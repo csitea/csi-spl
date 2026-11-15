@@ -31,11 +31,11 @@
 # @description spec 108 3.5) any other TENANT_ID is refused, the action runs as
 # @description that workspace's OS user, and its state dir is the workspace's.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self for a self-hosted hub (SPOOL_HUB_URL,
+# @param ENV (required) - dev or prd, or self for a self-hosted hub (SPOOL_HUB_URL,
 # @param   no cnf: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant slug the agent is seated in
-# @param DESK_AGENT - required: the agent id of the pane (spl_is_agent_id)
-# @param ROOT_KEY_JSON - required on the FIRST run of a desk (the 0600 JSON
+# @param TENANT_ID (required) - the tenant slug the agent is seated in
+# @param DESK_AGENT (required) - the agent id of the pane (spl_is_agent_id)
+# @param ROOT_KEY_JSON - needed on the FIRST run of a desk (the 0600 JSON
 # @param   do_spl_tenant_create wrote, field root_private_key); later runs reuse
 # @param   the pin and need no key. `-` reads it from stdin (spec 069 8.3: a
 # @param   desk user hands over a root key it cannot read; copied to a 0600

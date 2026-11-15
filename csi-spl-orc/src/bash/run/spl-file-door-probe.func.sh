@@ -17,8 +17,8 @@
 # @description TEARDOWN: the self-note expires with retention and the hub's
 # @description file sweep then deletes its blob; the boxes stay pinned until
 # @description do_spl_box_purge (pin-semantics.md 6).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param PROBE_BOX (optional) - the sender, default box-orc-probe
 # @param STRANGER_BOX (optional) - the non-end, default box-orc-stranger
 # @param PROBE_AGENT (optional) - default c-903: legacy test ids such as ORC-1

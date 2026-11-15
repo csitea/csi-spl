@@ -9,8 +9,8 @@
 # @description the env SA); a workspace reads them here or in its
 # @description settings. The hub refuses a seat over a cap on every path
 # @description (SetRoster); do_spl_desk_up also checks first (spl_desk_cap_check).
-# @param ENV - required: dev or prd, or self for a self-hosted hub
-# @param TENANT_ID - required: the workspace slug
+# @param ENV (required) - dev or prd, or self for a self-hosted hub
+# @param TENANT_ID (required) - the workspace slug
 # @param DESK_BOX (optional) - default box-desk: a desk box of this machine
 # @param   that is pinned in TENANT_ID (do_spl_desk_up pins it)
 # @example ENV=dev TENANT_ID=example-ws ./run -a do_spl_agent_caps

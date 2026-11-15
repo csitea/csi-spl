@@ -19,8 +19,8 @@
 # @description      mode, owner, the client_email DOMAIN and "sha256_equal=
 # @description      yes|no"; never the key, its email or its sha.
 # @description Dry run unless DRY_RUN=0 (the dry run makes no ssh call).
-# @param KEY_NAME - required: one file name, ^key-csi-spl-[a-z0-9-]+\.json$ (no path, no glob)
-# @param TO_BOX - required: the target box id (its BOX_TAG, e.g. sat)
+# @param KEY_NAME (required) - one file name, ^key-csi-spl-[a-z0-9-]+\.json$ (no path, no glob)
+# @param TO_BOX (required) - the target box id (its BOX_TAG, e.g. sat)
 # @param BOX_SSH_<BOX> (optional) - the ssh destination of that box (<BOX>: upper case, - as _), default the satellite alias
 # @param SATELLITE_ALIAS (optional) - default satellite (do_satellite_ssh_config)
 # @param GCP_KEY_DIR (optional) - the source dir, default $HOME/.gcp/.csi

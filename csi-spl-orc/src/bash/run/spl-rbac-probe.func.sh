@@ -6,8 +6,8 @@
 # @description permissions it lists (channels.manage via an invalid channel
 # @description name, members.roles via HUM-0: neither can write anything).
 # @description The password is read from a 0600 file and never printed.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param PROBE_EMAIL (optional) - default m3-e2e-human@example.com (the M3 e2e member)
 # @param PROBE_PW_FILE (optional) - default the M3 e2e file <state>/m3-e2e/<tenant>/pw-human
 # @param PROBE_EXPECT_ROLE (optional) - fail unless /v1/view/me answers this role

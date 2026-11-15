@@ -10,8 +10,8 @@
 #   A NEW TOOL, not a csi-rel port (csi-rel has no importer for these steps);
 #   its model is csi-rel's tf-030 importer.
 #   Steps: 040-cloud-sql-postgres.
-# @param ENV - dev or prd [required]
-# @param STEP - 040-cloud-sql-postgres [required]
+# @param ENV (required) - dev or prd
+# @param STEP (required) - 040-cloud-sql-postgres
 # @param DRY_RUN - 1 = read the state and print the plan, import nothing [default: 0]
 # @param CON_TF_RUNNER - tf-runner container [default: con-<ORG>-<APP>-tf-runner]
 # @example ENV=dev STEP=040-cloud-sql-postgres DRY_RUN=1 ./run -a do_tf_import_existing

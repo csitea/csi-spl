@@ -19,7 +19,7 @@
 # @description second run of the same tree adds 0 events.
 # @description Authenticated as the env's project service account (operator id
 # @description token, spl_hub_operator_call), never the owner account.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): print the batch, call nothing; 0: PUT it
 # @param GOALS_DIR (optional) - default $APP_PATH/csi-spl-doc/goals
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account

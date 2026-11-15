@@ -21,9 +21,9 @@
 # @description ISSUE_KEYS_ONLY=1 makes that file the selection instead: its open
 # @description keys, without the recency cutoff, the wip window or the sha guard;
 # @description the keep label, a live assignee and an open child still keep one.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent the hub reads and writes as
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent the hub reads and writes as
 # @param ISSUE_STALE_BEFORE (optional) - cutoff date or RFC 3339 UTC time, default 2026-09-30
 # @param ISSUE_KEEP_LABELS (optional) - comma list, default needs-owner,keep
 # @param ISSUE_WIP_DAYS (optional) - default 7

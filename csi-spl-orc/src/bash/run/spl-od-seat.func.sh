@@ -23,7 +23,7 @@
 # @description A seat marked od/<id>/retire (an extra seat after a vendor came
 # @description back, 4.3) takes no new job; the supervisor retires it once it
 # @description holds none. od/<id>/seat.log keeps one line per change.
-# @param OD_SEAT_ID - required (default SPOOL_AGENT_ID): the seat, c-NNN or g-NNN
+# @param OD_SEAT_ID (optional) - (default SPOOL_AGENT_ID): the seat, c-NNN or g-NNN
 # @param OD_VENDOR (optional) - claude or grok, default from the id letter
 # @param OD_TICK (optional) - seconds between ticks, default 15
 # @param OD_PROGRESS_MAX (optional) - seconds without heartbeat progress before a held job stops renewing, default 900

@@ -20,9 +20,9 @@
 # @description (never the shared e2e, t1 or a customer workspace); both are
 # @description checked before any cnf, gcloud or psql call. A prd run with
 # @description DRY_RUN=0 writes: it needs the owner's go first.
-# @param ENV - required: dev, or prd with PURGE_PRD_GO=1
+# @param ENV (required) - dev, or prd with PURGE_PRD_GO=1
 # @param PURGE_PRD_GO (prd only) - 1 confirms the prd purge
-# @param PURGE_TENANTS - required: space-separated tenant ids (prd: e2e-<x> only)
+# @param PURGE_TENANTS (required) - space-separated tenant ids (prd: e2e-<x> only)
 # @param PURGE_BACKUP (optional) - backup file, default <state dir>/backups/tenant-test-purge.<utc>.jsonl
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev PURGE_TENANTS="m2card3 m2card4" DRY_RUN=0 ./run -a do_spl_tenant_test_purge

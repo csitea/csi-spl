@@ -21,8 +21,8 @@
 # @description owner account. Dry run unless DRY_RUN=0: the same checks run in
 # @description a READ ONLY transaction that is rolled back, so the plan names
 # @description the refusal a real run would hit.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug
 # @param DEDICATED_CMD (optional) - bind (default) | unbind | list
 # @param AGENT_ID - bind / unbind: the agent id, e.g. c-123
 # @param BOX_ID - bind / unbind: the box the agent is seated on

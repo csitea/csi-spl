@@ -27,7 +27,7 @@
 # @description migration head is the newest migration file at that commit.
 # @description Output names classes, tables and counts, never row content (CI
 # @description logs are public, section 5.6).
-# @param ENV - required: dev or prd (the database read and the staging bucket)
+# @param ENV (required) - dev or prd (the database read and the staging bucket)
 # @param DRY_RUN (optional) - 1 (default): resolve the cnf, version and names, no database, no upload. 0: export.
 # @param PUBLIC_DATASET_FORCE (optional) - 1: run although cnf public_dataset.enabled is false (dev, CI)
 # @param PD_DATE (optional) - the file's date YYYY-MM-DD, default today (UTC)

@@ -12,13 +12,13 @@
 # @description the timer runs: check and report here, at once. DRY_RUN=1
 # @description (default): print the schedule (or, for now, the report), send
 # @description and schedule nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (optional) - dev or prd; needed for the member lookup (MEMBER_EMAIL, a future CHECK_AT, DRY_RUN=0)
+# @param TENANT_ID (required) - the tenant slug
 # @param MEMBER_EMAIL - the member's email; or HUMAN_ID (e.g. HUM-4), not both
-# @param CHECK_AT - required: RFC 3339 UTC, in the future; or 'now'
-# @param REPORT_FROM - required: the spool id that sends the report
-# @param REPORT_TO - required: the spool id that gets it
-# @param REPORT_TASK - required: the topic (task_id) of the report
+# @param CHECK_AT (required) - RFC 3339 UTC, in the future; or 'now'
+# @param REPORT_FROM (required) - the spool id that sends the report
+# @param REPORT_TO (required) - the spool id that gets it
+# @param REPORT_TASK (required) - the topic (task_id) of the report
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=<tenant> HUMAN_ID=HUM-4 CHECK_AT=2026-10-07T06:05:00Z REPORT_FROM=c-001 REPORT_TO=c-001 REPORT_TASK=<task-id> DRY_RUN=0 ./run -a do_spl_hub_member_access_schedule_check
 #------------------------------------------------------------------------------

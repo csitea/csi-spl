@@ -33,10 +33,10 @@
 # @description LINK RESTARTED note with the state before and after it.
 # @param BOX_LINK_WATCH_ENV (optional) - the box-local file, default $XDG_CONFIG_HOME/csi-spl/box-link-watch.env
 # @param BOX_LINK_WATCH_ROOT (env or file) - the hub's box dirs (<root>/<box>/{inbound,outbound}); unset = nothing to watch
-# @param BOX_LINK_WATCH_LOG_DIR (env or file, required with ROOT) - the hub's own logs
+# @param BOX_LINK_WATCH_LOG_DIR (env or file, needed with ROOT) - the hub's own logs
 # @param BOX_LINK_WATCH_LOG_GLOB (env or file, optional) - the hub log names, default *.out.log
 # @param BOX_LINK_WATCH_RESULTS (env or file, optional) - the run-on-box results dir (<dir>/<id>/result.json)
-# @param BOX_LINK_WATCH_HOME (env or file, required with ROOT) - the relay checkout whose `run -a radiate` must run
+# @param BOX_LINK_WATCH_HOME (env or file, needed with ROOT) - the relay checkout whose `run -a radiate` must run
 # @param BOX_LINK_WATCH_LIMIT_MIN (optional) - minutes before an alert, default 7
 # @param BOX_LINK_WATCH_RESTART_ACTION (env or file, optional) - the action of the relay checkout that restarts the link; unset = no restart
 # @param BOX_LINK_WATCH_RESTART_AFTER_S (optional) - seconds stuck before the restart, default 600

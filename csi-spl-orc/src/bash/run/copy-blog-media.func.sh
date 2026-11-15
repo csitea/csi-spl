@@ -33,7 +33,7 @@
 # @description No index, or no post with a picture: an INFO and rc 0.
 # @description As the env's project service account (GCP_SA_KEY_FILE in CI),
 # @description never the owner account.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param BLOG_MEDIA_OUT (optional) - the generated site, default <wui>/.output/public
 # @param GCP_SA_KEY_FILE / GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account
 # @example ENV=dev GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" ./run -a do_copy_blog_media

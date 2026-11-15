@@ -20,8 +20,8 @@
 # @description the env's project service account, through the Cloud SQL proxy.
 # @description lock_timeout 5s on the ALTER. Prints the triggers' states.
 # @description DRY_RUN=1 (default): the /version check, then print the plan.
-# @param ENV - required: dev or prd (prd only with the owner's go)
-# @param OP - required: disable or enable
+# @param ENV (required) - dev or prd (prd only with the owner's go)
+# @param OP (required) - disable or enable
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param TOPIC_HEAD_VERSION_URL (optional) - the /version URL, default https://<env.dns.api_fqdn>/version
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

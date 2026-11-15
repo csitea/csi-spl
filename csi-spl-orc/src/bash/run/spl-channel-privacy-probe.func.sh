@@ -15,9 +15,9 @@
 # @description   not an end of, and none of them may appear.
 # @description Nothing is written; the password is read from a 0600 file and
 # @description never printed.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param TASK_ID - required: the task_id to read
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param TASK_ID (optional) - the task_id to read; needed unless FILE_ID is set
 # @param FILE_ID (optional) - check the ATTACHMENT door instead: GET /v1/files/{id} must answer FILE_WANT
 # @param FILE_WANT (optional) - with FILE_ID: 200 (readable) or 404 (refused)
 # @param DENY_FROM (optional) - a from id whose DM messages must NOT appear

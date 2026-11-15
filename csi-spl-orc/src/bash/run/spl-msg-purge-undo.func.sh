@@ -7,8 +7,8 @@
 # @description refused when any journaled message exists again.
 # @description DRY_RUN=1 (default): restores inside the transaction, prints the
 # @description counts, rolls back.
-# @param ENV - required: dev or prd
-# @param JOURNAL - required: the .undo.tsv the purge run printed
+# @param ENV (required) - dev or prd
+# @param JOURNAL (required) - the .undo.tsv the purge run printed
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd JOURNAL=~/.local/share/csi-spl/cloud/prd/msg-purge/prd-t1-20261013T120000Z.undo.tsv DRY_RUN=0 ./run -a do_spl_msg_purge_undo
 #------------------------------------------------------------------------------

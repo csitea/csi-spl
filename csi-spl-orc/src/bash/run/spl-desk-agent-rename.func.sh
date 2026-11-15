@@ -28,7 +28,7 @@
 # @description .no-poke with it: the mute state of <old> is the one that
 # @description carries. <new> held by anything else: FAIL, nothing moved.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd (prd needs the owner's go)
+# @param ENV (required) - dev or prd (prd needs the owner's go)
 # @param DESK_RENAME (optional) - "<old>:<new> ...", default
 # @param   "RSP-01:$SPL_RSP_AGENT OPS-01:$SPL_OPS_AGENT"
 # @param TENANT_ID (optional) - only this tenant's desks (default every one)

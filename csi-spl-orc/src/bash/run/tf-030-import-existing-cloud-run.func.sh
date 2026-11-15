@@ -11,7 +11,7 @@
 #   decommissioned inf SA key; credentials are the per-env key under
 #   $HOME/.gcp/.<org>/key-<gcp-project>.json.
 # @output run log - $LOG_DIR/$PROJ.YYYYMMDD.log (do_log; LOG_DIR is $PROJ_PATH/dat/log/bash)
-# @param ENV - target environment (dev or prd) [required]
+# @param ENV (required) - target environment (dev or prd)
 # @param TF_IMAGE - terraform image (optional; default hashicorp/terraform:1.9)
 # @param TF_030_WORK - scratch work dir (optional; default /var/tmp/tf-030-<env>)
 # @example ENV=dev ./run -a do_tf_030_import_existing_cloud_run

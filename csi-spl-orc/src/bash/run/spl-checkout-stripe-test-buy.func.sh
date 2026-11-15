@@ -22,7 +22,7 @@
 # @param   and read back from GET /checkout/{id} `locale`, which this action
 # @param   ASSERTS. The claim mail and its link prefix follow it. Unset = say
 # @param   nothing: the mail stays on SPOOL_HUB_DEFAULT_LOCALE.
-# @param STRIPE_API_BASE - required, no default: the Stripe REST base URL
+# @param STRIPE_API_BASE (required) - the Stripe REST base URL
 # @param ENV (optional) - dev (default; the only env)
 # @param STRIPE_KEY_APP / STRIPE_SHARED_ACCOUNT_OK (optional) - as do_spl_payment_secret_seed
 # @param TEST_PAYMENT_METHOD (optional) - Stripe test payment method id (default: the vendor's generic test visa id)

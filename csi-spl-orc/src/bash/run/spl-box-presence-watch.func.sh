@@ -8,8 +8,8 @@
 # @description revision) the offline windows per box: n, min, median, max
 # @description seconds, plus any offline run with no roll near it. WATCH_SUMMARY
 # @description re-summarises a recorded file with no network.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (optional) - dev or prd; needed unless WATCH_SUMMARY is set
+# @param TENANT_ID (optional) - the tenant slug; needed unless WATCH_SUMMARY is set
 # @param WATCH_SECS (optional) - default 5400
 # @param WATCH_EVERY (optional) - default 5
 # @param WATCH_OUT (optional) - default <state>/box-presence/<env>-<tenant>-<utc>.jsonl

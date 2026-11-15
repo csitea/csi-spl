@@ -15,10 +15,10 @@
 # @description   4. hub-tail again: none of the deleted ids may still be there
 # @description Prints one JSON line (env, tenant, box, agent, topic, the ids,
 # @description deleted, left). Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent whose own messages go
-# @param TOPIC - required: the topic's task uuid
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent whose own messages go
+# @param TOPIC (required) - the topic's task uuid
 # @param MSG_IDS (optional) - space- or comma-separated msg ids or prefixes (8+ hex);
 # @param   default every message DESK_AGENT sent in TOPIC
 # @param DESK_BOX (optional) - default the desk box, the same value do_spl_desk_up used

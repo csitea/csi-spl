@@ -17,12 +17,12 @@
 # @description cannot read), comments the reason, sets diss,
 # @description never deletes, and writes a 0600 undo file, one command per
 # @description item. A re-run finds no open item left and changes nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (e.g. t1)
-# @param DESK_AGENT - required: the agent the desk writes as
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (e.g. t1)
+# @param DESK_AGENT (required) - the agent the desk writes as
 # @param ISSUE_EPIC_NUM (optional) - the blocker epic's number, default 2394 (SPL-2394)
 # @param ISSUE_EXTRA_NUMS (optional) - more issue numbers, comma separated, default 1555; '' for none. Each one is a candidate in ANY open status: review the plan before DRY_RUN=0
-# @param ISSUE_OWNER_GO - required with DRY_RUN=0: the owner's go message uuid, cited in each comment
+# @param ISSUE_OWNER_GO - needed with DRY_RUN=0: the owner's go message uuid, cited in each comment
 # @param ISSUE_REASON (optional) - the comment, default the RCA's; the owner go is appended to it either way
 # @param ISSUE_PLAN (optional) - default $SPL_STATE_DIR/issue-blocker-rca/<tenant>-<utc>.plan.tsv
 # @param SPL_STATE_DIR (optional) - set by do_spl_cloud_cnf from ENV; the plan's default dir

@@ -15,8 +15,8 @@
 # @description no verb for it, see spl_db_health_metrics) with a token for the
 # @description env SA in a 0600 -K file, and one `gcloud logging read`; or no
 # @description cloud call at all when DBW_JSON_IN names a saved read.
-# @param ENV - required: dev or prd
-# @param DBW_SINCE - required: RFC 3339 UTC start, e.g. 2026-10-22T09:20:00Z
+# @param ENV (optional) - dev or prd; needed unless DBW_JSON_IN is set
+# @param DBW_SINCE (required) - RFC 3339 UTC start, e.g. 2026-10-22T09:20:00Z
 # @param DBW_MINUTES (optional) - window length in minutes, default 60 (1..1440)
 # @param DBW_STEP (optional) - alignment period in seconds, default 60 (60..3600)
 # @param DBW_PART (optional) - all (default) | metrics | log

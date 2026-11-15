@@ -8,8 +8,8 @@
 # @description the desk is 0700 under that user, so the box user's placer cron
 # @description would find no seated desk (R7 W1 of SPL-4985).
 # @description A dry run (the default) prints what it would do and calls no hub.
-# @param EPIC_KEY - required: the epic, e.g. SPL-12
-# @param EPIC_COMMENT - required: the comment that says why it was reopened
+# @param EPIC_KEY (required) - the epic, e.g. SPL-12
+# @param EPIC_COMMENT (required) - the comment that says why it was reopened
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param ENV TENANT_ID (optional) - default LEASE_ENV / LEASE_TENANT of <spool root>/dispatch/lease.conf
 # @param DESK_AGENT (optional) - default the lease's first seated desk on this box

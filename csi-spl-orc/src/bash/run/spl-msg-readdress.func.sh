@@ -15,11 +15,11 @@
 # @description rolled back.
 # @description DRY_RUN=1 (default): print the matching rows (ids and to_id,
 # @description never a body), n and the UPDATE; change nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param FROM_ID - required: the sender, e.g. HUM-46
-# @param NEW_TO - required: the new recipient, e.g. HUM-10
-# @param MSG_IDS - required: comma list of full msg uuids or 8-hex prefixes
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param FROM_ID (required) - the sender, e.g. HUM-46
+# @param NEW_TO (required) - the new recipient, e.g. HUM-10
+# @param MSG_IDS (required) - comma list of full msg uuids or 8-hex prefixes
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=t1 FROM_ID=HUM-46 NEW_TO=HUM-10 MSG_IDS=86abbd6a,b7b1b5e7 ./run -a do_spl_msg_readdress

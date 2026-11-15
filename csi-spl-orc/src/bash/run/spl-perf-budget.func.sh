@@ -16,8 +16,8 @@
 # @description runs `perf-budget.py bundle` on the mock nuxt generate output,
 # @description which is the check that fails a push when the initial JS gzip
 # @description exceeds ci_initial_gzip_kb. This action is the dev measurement.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the member signs in to
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the member signs in to
 # @param PERF_N (optional) - scored samples, 8..40, default 12
 # @param PERF_WARMUP (optional) - discarded samples before those, 0..5, default 1
 # @param PERF_EMAIL (optional) - default m3-e2e-human@example.com
@@ -27,7 +27,7 @@
 # @param PERF_OUT (optional) - where the JSON report is written
 # @param PERF_WUI_URL / PERF_API_URL (optional) - override the cnf hosts
 # @param PERF_POST (optional) - 1 posts the one-line summary into a topic
-# @param PERF_POST_AGENT / PERF_POST_TO / PERF_POST_TASK - required when posting
+# @param PERF_POST_AGENT / PERF_POST_TO / PERF_POST_TASK - needed when posting
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_perf_budget
 #------------------------------------------------------------------------------

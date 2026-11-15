@@ -18,10 +18,10 @@
 # @description (probe-invited beside it, outside probe/) is refused: run
 # @description do_spl_probe_member_seat first, which moves it out.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev
-# @param TENANT_ID - required: the tenant the account signs in to
-# @param RESET_EMAIL - required: the account's email (do_spl_hub_member_list shows it)
-# @param RESET_PW_FILE - required: where its password is kept, e.g. <state>/m3-e2e/t1/pw-human
+# @param ENV (required) - dev
+# @param TENANT_ID (required) - the tenant the account signs in to
+# @param RESET_EMAIL (required) - the account's email (do_spl_hub_member_list shows it)
+# @param RESET_PW_FILE (required) - where its password is kept, e.g. <state>/m3-e2e/t1/pw-human
 # @param RESET_CMD (optional) - the reset script (the tests' seam)
 # @param RESET_VIA (optional) - operator (default) or debug_token (an lde hub that still answers one)
 # @param DRY_RUN (optional) - 1 (default) or 0

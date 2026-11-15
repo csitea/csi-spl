@@ -9,10 +9,10 @@
 # @description later human post does not replace it (the deferred take run).
 # @description Read only, through the desk (hub-tail), as the desk's user: a
 # @description moved desk re-runs this as its owner, like do_spl_desk_reply.
-# @param ENV - required: dev, prd or self
-# @param TENANT_ID - required: the workspace of the topic
-# @param DESK_AGENT - required: the seat's agent id
-# @param DESK_TASK - required: the full topic uuid
+# @param ENV (required) - dev, prd or self
+# @param TENANT_ID (required) - the workspace of the topic
+# @param DESK_AGENT (required) - the seat's agent id
+# @param DESK_TASK (required) - the full topic uuid
 # @param DESK_BOX (optional) - the desk box, default this machine's desk box id
 # @param DESK_TAKE_AFTER (optional) - judge this post msg id, not the newest one
 # @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-002 DESK_TASK=<full topic uuid> ./run -a do_spl_take_post

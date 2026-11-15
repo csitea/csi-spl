@@ -33,8 +33,8 @@
 # @description down (_spl_desk_up_all_no_window): the box is reachable from the
 # @description first tick after a boot, not from the first agent window. "tmux is not answering" and "this box has no agents"
 # @description are different facts and only one of them means retire.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desks are seated in
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desks are seated in
 # @param DESK_BOX (optional) - default box-desk
 # @param DESK_POKE (optional) - 1 (default) or 0. An AGENT's only input is its
 # @param   prompt, so 0 means every DM is shown in the strip and the agent is

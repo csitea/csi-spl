@@ -20,9 +20,9 @@
 # @description Prints one TSV row per qas issue (key, moved | would-move | kept,
 # @description detail) and a summary line. Reads the issue list, gh and
 # @description build.json even with DRY_RUN=1; writes only with DRY_RUN=0.
-# @param ENV - required: dev or prd, the hub of the issues
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent that comments and moves (the pane's id)
+# @param ENV (required) - dev or prd, the hub of the issues
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent that comments and moves (the pane's id)
 # @param DESK_BOX (optional) - default the box's desk (spl_desk_box_default)
 # @param QAS_REF (optional) - the trunk ref the commits are read from, default origin/master
 # @param QAS_FETCH (optional) - 1 (default) fetches QAS_REF's remote first, 0 does not

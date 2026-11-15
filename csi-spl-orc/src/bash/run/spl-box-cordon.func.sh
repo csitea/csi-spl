@@ -15,7 +15,7 @@
 # @description box) the cordon is set from another box, for one that may be
 # @description switched off already. It stops no lane and moves no lease.
 # @param CORDON_CMD (optional) - show (default) | on | off
-# @param BOX (on/off: required; show: optional) - the box id, e.g. <pc box>
+# @param BOX (on/off: needed; show: optional) - the box id, e.g. <pc box>
 # @param CORDON_MIN (optional) - on: minutes until it expires, 1..10080, default 240
 # @param DRY_RUN (optional) - on/off: 1 (default) prints what it would do, 0 writes
 # @param SPOOL_ROOT (optional) - default /var/spool-hub

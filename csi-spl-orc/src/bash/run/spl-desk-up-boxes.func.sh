@@ -22,7 +22,7 @@
 # @description that agent's hand mute (.no-poke) and the live sidecar's
 # @description SPOOL_POKE / SPOOL_NOTIFY_CMD. Never seats a new agent.
 # @description Prints one line per box. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DESK_BOX (optional) - the default desk box, left out; default
 # @param   spl_desk_box_default
 # @param DRY_RUN (optional) - 1 (default) or 0

@@ -15,9 +15,9 @@
 # @description (FLEET_CONFIG_SSH_<BOX>, no default host; its root is
 # @description FLEET_CONFIG_ROOT_<BOX>, default /var/spool-hub). A box with
 # @description no way in is refused before anything is written.
-# @param FLEET_CONFIG_FILE - required: the file under the spool root, peer/<name> or dispatch/<name> (e.g. peer/seats, dispatch/lease.conf)
-# @param FLEET_CONFIG_SRC - required: a local file holding the new content
-# @param FLEET_CONFIG_BOXES - required: the boxes, space-separated (e.g. "sat pc")
+# @param FLEET_CONFIG_FILE (required) - the file under the spool root, peer/<name> or dispatch/<name> (e.g. peer/seats, dispatch/lease.conf)
+# @param FLEET_CONFIG_SRC (required) - a local file holding the new content
+# @param FLEET_CONFIG_BOXES (required) - the boxes, space-separated (e.g. "sat pc")
 # @param FLEET_CONFIG_ROOT_<BOX> / FLEET_CONFIG_SSH_<BOX> (optional) - how a box is reached (<BOX>: upper case, - as _)
 # @param FLEET_CONFIG_SSH_CMD (optional) - the ssh binary, default ssh
 # @param PEER_SEAT / PEER_MSG / PEER_GEN - the seat and the message it acts for (do_spl_peer_gate)

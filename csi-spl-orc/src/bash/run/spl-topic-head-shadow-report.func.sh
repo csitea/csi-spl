@@ -14,7 +14,7 @@
 # @description all six shapes, 0 mismatches, >= 24 h.
 # @description Exit 0 when nothing mismatched, 3 when anything did, 1 on error.
 # @description Nothing is mutated: one `gcloud logging read` as the env SA.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SHADOW_HOURS (optional) - window in hours ending now, default 24 (1..168)
 # @param SHADOW_LIMIT (optional) - log entries read at most, default 50000
 # @example ENV=dev ./run -a do_spl_topic_head_shadow_report

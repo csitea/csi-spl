@@ -4,8 +4,8 @@
 # @description line each: tenant | box | human | granted_by | granted_at. Runs
 # @description in BEGIN READ ONLY .. ROLLBACK in the tenant's RLS scope, as the
 # @description env's project SA. Exit 2 when there is none.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param BOX_ID (optional) - only this box
 # @example ENV=prd TENANT_ID=t1 ./run -a do_spl_box_operator_list
 #------------------------------------------------------------------------------

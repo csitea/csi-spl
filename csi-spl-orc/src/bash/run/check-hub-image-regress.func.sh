@@ -27,7 +27,7 @@
 # @description   3 diverged - tags do not compare (repository change): refused
 # @description   1          - cannot tell (no service, no access, bad cnf)
 # @description Read-only: describe only, no update, no create, no IAM.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param ALLOW_IMAGE_REGRESS (optional) - 1 permits a deliberate rollback; the
 # @param   verdict is still printed, so the intent stays visible in the log
 # @param SPL_TF030_FILE (optional) - the 030 service .tf to read the lifecycle from (tests)

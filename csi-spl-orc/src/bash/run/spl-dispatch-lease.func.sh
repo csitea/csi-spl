@@ -45,7 +45,7 @@
 # @description else from <dir>/lease.conf (KEY=value lines, never sourced).
 # @description ensure does nothing while lease.conf is absent: that file is
 # @description the opt-in, so a box without dispatchers starts no loop.
-# @param LEASE_CMD - required: show, renew, watch, ensure or stop
+# @param LEASE_CMD (required) - show, renew, watch, ensure or stop
 # @param SPOOL_ROOT (optional) - default /var/spool-hub; the lease dir is <root>/dispatch
 # @param LEASE_MASTER (optional) - the master's agent id (else lease.conf)
 # @param LEASE_FAILOVER (optional) - the failover's agent id (else lease.conf)

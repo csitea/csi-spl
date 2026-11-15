@@ -23,10 +23,10 @@
 # @description switch being off must not hold back removing a bad file. It runs
 # @description as the per-env project SA, since the publish SA can only create.
 # @description A downloaded copy cannot be recalled (section 10).
-# @param ENV - required: dev or prd
-# @param TAKEDOWN_FILE - required: spool-hub-public-<YYYY-MM-DD>-v<X.Y.Z>.sql.gz
-# @param TAKEDOWN_GO - required: the same file name, set only after the orchestrator relays the owner's go
-# @param TAKEDOWN_OWNER_MSG - required: the id of the owner's message giving the go (8+ hex)
+# @param ENV (required) - dev or prd
+# @param TAKEDOWN_FILE (required) - spool-hub-public-<YYYY-MM-DD>-v<X.Y.Z>.sql.gz
+# @param TAKEDOWN_GO (required) - the same file name, set only after the orchestrator relays the owner's go
+# @param TAKEDOWN_OWNER_MSG (required) - the id of the owner's message giving the go (8+ hex)
 # @param DRY_RUN (optional) - 1 (default): name what would go, no cloud. 0: delete.
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)
 # @example ENV=dev TAKEDOWN_FILE=spool-hub-public-2026-11-03-v1.5.0.sql.gz TAKEDOWN_GO=spool-hub-public-2026-11-03-v1.5.0.sql.gz TAKEDOWN_OWNER_MSG=<owner msg id> ./run -a do_spl_public_dataset_takedown

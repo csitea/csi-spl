@@ -7,9 +7,9 @@
 # @description never spliced into the SQL. Exactly one row must change, or
 # @description the transaction is rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param DISPLAY_NAME - required: the name to show, 1..200 characters, one line
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param DISPLAY_NAME (required) - the name to show, 1..200 characters, one line
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DISPLAY_NAME=csitea DRY_RUN=0 ./run -a do_spl_tenant_display_name
 #------------------------------------------------------------------------------

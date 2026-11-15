@@ -19,11 +19,11 @@
 # @description owner's Publish button, does. Never reads or prints a token.
 # @description Prints one JSON line (env, tenant, post, for, agent, box,
 # @description title, url, dry_run, desk, result).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the marketing workspace (cnf marketing.workspaces)
-# @param POST_ID - required: the live blog post id, YYYY-MM-DD-slug
-# @param FOR_HUM - required: the workspace owner who connected LinkedIn (HUM-...)
-# @param DESK_AGENT - required: the publishing agent's desk seat (the dispatcher)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the marketing workspace (cnf marketing.workspaces)
+# @param POST_ID (required) - the live blog post id, YYYY-MM-DD-slug
+# @param FOR_HUM (required) - the workspace owner who connected LinkedIn (HUM-...)
+# @param DESK_AGENT (required) - the publishing agent's desk seat (the dispatcher)
 # @param CHANNEL_ID (optional) - a connected channel id: publish on it (--channel), e.g. a LinkedIn company page (SPL-5258)
 # @param DESK_BOX (optional) - default the desk box, the same value do_spl_desk_up used
 # @param DRY_RUN (optional) - 1 (default) prints what it would publish; 0 publishes

@@ -7,9 +7,9 @@
 # @description travel as psql variables (:'var'), never spliced into the SQL.
 # @description Exactly one row must change, or the transaction is rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param HUMAN_ID - required: e.g. HUM-4
-# @param THEME - required: dark, light, light-violet, light-green,
+# @param ENV (required) - dev or prd
+# @param HUMAN_ID (required) - e.g. HUM-4
+# @param THEME (required) - dark, light, light-violet, light-green,
 # @param   light-yellow, light-orange, or light-red. light is the light-blue
 # @param   palette. Compared lower-cased.
 # @param DRY_RUN (optional) - 1 (default) or 0

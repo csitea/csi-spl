@@ -8,9 +8,9 @@
 # @description an open child skips the epic and is never cascaded. DRY_RUN=1
 # @description (the default) lists and prints the count and keys, and archives
 # @description nothing. A real run appends the archived keys to a journal.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent (the pane's id)
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent (the pane's id)
 # @param ISSUE_REF (optional) - one issue key, e.g. SPL-12
 # @param ISSUE_STATUS (optional) - bulk filter; done archives the done issues
 # @param ISSUE_ASSIGNEE (optional) - bulk only; default everyone (empty)

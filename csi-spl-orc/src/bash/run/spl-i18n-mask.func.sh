@@ -26,8 +26,8 @@
 # @description (never the value) and no agy/ at all. Binary files are left out.
 # @description A term the list does not name is NOT masked: the list is the
 # @description drafter's to complete (names, workspace names, anything else).
-# @param I18N_MASK_SRC - required: the drafted text, a file or a directory
-# @param I18N_MASK_TERMS - required: the term list (may be empty, must exist)
+# @param I18N_MASK_SRC (required) - the drafted text, a file or a directory
+# @param I18N_MASK_TERMS (required) - the term list (may be empty, must exist)
 # @param I18N_MASK_OUT (optional) - default $SPOOL_ROOT/dispatch/<LANE_MIX_TASK>/i18n-mask
 # @param LANE_MIX_TASK (optional) - the task_id, for the default I18N_MASK_OUT
 # @example I18N_MASK_SRC=<work>/locales I18N_MASK_TERMS=<work>/pii-terms.txt LANE_MIX_TASK=<task_id> ./run -a do_spl_i18n_mask

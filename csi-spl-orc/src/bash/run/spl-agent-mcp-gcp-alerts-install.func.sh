@@ -25,7 +25,7 @@
 # @description checkout (a lane worktree is swept 24 h after its lane), or set
 # @description GCP_ALERTS_IAC. A running CLI loads the server after a restart.
 # @description Dry run unless DRY_RUN=0.
-# @param AGENT_USER - required: the OS user the agent CLIs run as (no default)
+# @param AGENT_USER (required) - the OS user the agent CLIs run as (no default)
 # @param GCP_ALERTS_IAC (optional) - default $APP_PATH/<org>-<app>-iac
 # @param SPL_AGENT_MCP_HOME, SPL_AGENT_MCP_BUILD (optional) - tests: the agent
 # @param   home and the build script

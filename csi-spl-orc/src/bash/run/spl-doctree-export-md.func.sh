@@ -28,14 +28,14 @@
 # @description is (not even rewritten); a changed node changes only its lines.
 # @description It writes the worktree only; committing the result is the
 # @description caller's (explicit pathspec).
-# @param ENV - required: dev or prd (the hub the qto docs live on; t1's are prd)
-# @param TENANT_ID - required: the workspace, e.g. t1; refused unless cnf
+# @param ENV (required) - dev or prd (the hub the qto docs live on; t1's are prd)
+# @param TENANT_ID (required) - the workspace, e.g. t1; refused unless cnf
 # @param   docs.repo_export_tenants lists it (the workspaces the owner allows
 # @param   into the PUBLIC repository, spec 114 section 9.4.2), in compare mode too
 # @param   A workspace that cnf docs.private_repos maps to a PRIVATE repository
 # @param   (owner HUM-10, csitea 8c223c17 msg 2b3de92e, SPL-3543) is exported
 # @param   into a clone of THAT repository instead, never into this one
-# @param QTO_PRIVATE_REPO_DIR - required for a mapped workspace: the clone of
+# @param QTO_PRIVATE_REPO_DIR - needed for a mapped workspace: the clone of
 # @param   its private repository (its origin must be that repository; this
 # @param   repository, a path inside it, or a clone of csi-spl is refused); the
 # @param   md paths and the map (<clone>/qto-docs.tsv) are relative to it
@@ -43,7 +43,7 @@
 # @param   export, add a map row docs/<title slug>.md for every doc of the
 # @param   workspace (doctree list) that has none
 # @param QTO_TENANT_CNF (optional) - default <repo>/csi-spl-cnf/csi-spl/all.env.yaml
-# @param DESK_AGENT - required: a seat of this box's desk (do_spl_desk_doctree)
+# @param DESK_AGENT (required) - a seat of this box's desk (do_spl_desk_doctree)
 # @param QTO_DOC (optional) - export this doc id only; default every map row
 # @param QTO_MAP (optional) - default <repo>/csi-spl-doc/doc/md/qto-docs.tsv
 # @param QTO_CHECK (optional) - 1: compare only, write nothing: each file

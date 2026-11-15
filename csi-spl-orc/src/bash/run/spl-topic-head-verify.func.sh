@@ -10,7 +10,7 @@
 # @description error). T005's head read waits for 0 mismatches on dev.
 # @description Same path as do_spl_db_query: the env's project service account,
 # @description the Cloud SQL proxy, BEGIN READ ONLY in the operator RLS scope.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TOPIC_HEAD_SHOW (optional) - mismatches listed at most, default 20
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_topic_head_verify

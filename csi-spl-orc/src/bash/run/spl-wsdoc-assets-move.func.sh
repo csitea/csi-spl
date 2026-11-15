@@ -24,7 +24,7 @@
 # @description picture's bytes or a doc's text; the downloads sit in a private
 # @description temp dir removed on return. gcloud runs as the env's project
 # @description service account (do_gcp_pin_account), --account on every call.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) verify and report only; 0 copy
 # @example ENV=prd ./run -a do_spl_wsdoc_assets_move
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_wsdoc_assets_move

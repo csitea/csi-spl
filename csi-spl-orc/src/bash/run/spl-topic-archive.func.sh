@@ -19,10 +19,10 @@
 # @description Prints one JSON line (env, tenant, box, agent, mode, the hub's
 # @description answer: msg_id, task_id, archived, archived_at, archived_by).
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the acting agent (archived_by)
-# @param TOPIC - required: the topic's task uuid (the ?topic= of the WUI URL)
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the acting agent (archived_by)
+# @param TOPIC (required) - the topic's task uuid (the ?topic= of the WUI URL)
 # @param MODE (optional) - archive (default) or unarchive
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DRY_RUN (optional) - 1 (default) or 0

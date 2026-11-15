@@ -18,7 +18,7 @@
 # @description machine sends, as the sweep does. Dry run unless DRY_RUN=0: the
 # @description report and the plan, nothing sent or written. The sweep's cron
 # @description script (unanswered-sweep-cron.sh) runs it every minute.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SEAT_ALARM_DAYS (optional) - member posts younger than this count, default 7
 # @param SEAT_ALARM_REALERT (optional) - seconds before a workspace still on the list is alarmed again, default 3600
 # @param SEAT_ALARM_TO (optional) - who gets the blocker, default LEASE_ORCH (lease.conf), else the orchestrator seat

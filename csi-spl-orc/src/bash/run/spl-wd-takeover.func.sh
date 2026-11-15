@@ -35,8 +35,8 @@
 # @description last line DONE. An id on another box (ID=<id>@<box>) is relayed
 # @description as a spool task to that box (section 10). Dry run unless DRY_RUN=0.
 # @description Exit: 0 done (or planned), 1 failed, 3 no situation hits, 4 refused by a guard or a limit.
-# @param ID - required: the agent id; <id>@<box> for an agent on another box
-# @param REASON - required: a situation code (S1, S3, S4, S5, S7 modal=2) or a short text
+# @param ID (required) - the agent id; <id>@<box> for an agent on another box
+# @param REASON (required) - a situation code (S1, S3, S4, S5, S7 modal=2) or a short text
 # @param DRY_RUN (optional) - 1 (default): PLAN lines, nothing touched; 0: act
 # @param WD_EVIDENCE (optional) - the watchdog's evidence line (set by do_spl_watchdog)
 # @param WD_START_WAIT (optional) - seconds for the fresh session to start, default 120

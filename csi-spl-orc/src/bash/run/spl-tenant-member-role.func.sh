@@ -8,10 +8,10 @@
 # @description (:'var', quoted by psql), never spliced into the SQL. Exactly one
 # @description row must change, or the transaction is rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param HUMAN_ID - required: e.g. HUM-4
-# @param MEMBER_ROLE - required: a role id (biz_owner|product_owner|admin|
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param HUMAN_ID (required) - e.g. HUM-4
+# @param MEMBER_ROLE (required) - a role id (biz_owner|product_owner|admin|
 # @param   developer|tester|pure_agent|biz_customer|regular_user; legacy owner|member map); an unknown id
 # @param   fails on the rbac_roles FK and nothing changes
 # @param FROM_ROLE (optional) - only change the row while it holds this role

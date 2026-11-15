@@ -14,10 +14,10 @@
 # @description must be returned, or the transaction is rolled back.
 # @description Per env the ids differ: nothing here defaults a HUM id.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param BOX_ID - required: the box whose terminals the human types into
-# @param HUMAN_ID - required: e.g. HUM-4 (a member of TENANT_ID)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param BOX_ID (required) - the box whose terminals the human types into
+# @param HUMAN_ID (required) - e.g. HUM-4 (a member of TENANT_ID)
 # @param GRANTED_BY (optional) - 'operator' (default) or the granting owner /
 # @param   admin HUM-*
 # @param DRY_RUN (optional) - 1 (default) or 0

@@ -32,9 +32,9 @@
 # @description      password printed ONCE on stdout with how to sign in.
 # @description The schema comes from the repo's migrations (spool migrate),
 # @description never from the file.
-# @param SEED_FILE - required: path or https URL of spool-hub-public-*.sql.gz
-# @param SEED_ADMIN_EMAIL - required, no default: the first admin's sign-in
-# @param SPOOL_HUB_DB_DSN - required: the fresh database, migration owner login
+# @param SEED_FILE (required) - path or https URL of spool-hub-public-*.sql.gz
+# @param SEED_ADMIN_EMAIL (required) - the first admin's sign-in
+# @param SPOOL_HUB_DB_DSN (required) - the fresh database, migration owner login
 # @param SEED_MANIFEST (optional) - path or URL; default <file minus .sql.gz>.manifest.json, then <file>.manifest.json
 # @param SEED_ROOT_KEY_OUT (optional) - default $HOME/.spool/seed/<workspace>-root.key; must not exist
 # @param SEED_ALLOW_UNVERIFIED (optional) - 1: skip the verdict check; refused unless CI=true (T011 round trip)

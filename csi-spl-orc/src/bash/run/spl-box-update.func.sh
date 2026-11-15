@@ -27,7 +27,7 @@
 # @description               the workflow (do_release_version), never here.
 # @description Every step runs; the exit code is non-zero when any failed.
 # @description Dry run unless DRY_RUN=0 (every step prints its plan).
-# @param ENV - required: dev or prd (the box's desk env, for step 3)
+# @param ENV (required) - dev or prd (the box's desk env, for step 3)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param BOX_UPDATE_LAG_ENVS (optional) - default "dev prd"
 # @param BOX_UPDATE_GRACE (optional) - minutes, default 45 (do_check_deploy_lag)

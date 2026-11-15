@@ -18,8 +18,8 @@
 # @description class and every ambiguous and archived hit; writes the rewrite plan (ids and
 # @description offsets, no text) to SCAN_PLAN. Writes nothing to the hub: a
 # @description DRY_RUN other than 1 is refused (the writer is its own action).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug (e.g. csitea)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug (e.g. csitea)
 # @param OLD_PREFIX (optional) - the prefix the keys used before, default SPL
 # @param SCAN_SAMPLES (optional) - samples per class, 1..100, default 10
 # @param SCAN_PLAN (optional) - the plan file, default a new file under ${TMPDIR:-/tmp}

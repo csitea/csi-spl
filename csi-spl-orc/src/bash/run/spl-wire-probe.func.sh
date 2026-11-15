@@ -38,9 +38,9 @@
 # @description GET /v1/view/roster - only removing the pin row does). The purge
 # @description refuses a box that said hello in the last 24 h; PURGE_MIN_IDLE_HOURS=0
 # @description overrides that when the rig is finished rather than merely idle.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug the probe box is pinned in
-# @param ROOT_KEY_JSON - required on the FIRST run (the 0600 JSON
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug the probe box is pinned in
+# @param ROOT_KEY_JSON - needed on the FIRST run (the 0600 JSON
 # @param   do_spl_tenant_create wrote, field root_private_key); later runs reuse
 # @param   the pin and need no key
 # @param WIRE_BOX (optional) - default box-wire-probe

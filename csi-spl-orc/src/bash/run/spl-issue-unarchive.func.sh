@@ -4,10 +4,10 @@
 # @description `spool issue unarchive --as <agent> --ref <key>` for each key
 # @description in ISSUE_KEYS_FILE, last key first. DRY_RUN=1 (the default)
 # @description prints the count and the keys and restores nothing.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent (the pane's id)
-# @param ISSUE_KEYS_FILE - required: the journal do_spl_issue_archive wrote
+# @param ENV (optional) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf); needed with DRY_RUN=0
+# @param TENANT_ID (optional) - the tenant the desk is seated in; needed with DRY_RUN=0
+# @param DESK_AGENT (optional) - the agent (the pane's id); needed with DRY_RUN=0
+# @param ISSUE_KEYS_FILE (required) - the journal do_spl_issue_archive wrote
 # @param ISSUE_ARCHIVE_JOBS (optional) - how many restores run at once, default 4
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0

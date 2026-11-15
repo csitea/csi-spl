@@ -25,7 +25,7 @@
 # @description prd is refused: a prd drill takes the owner's go per run.
 # @description Exit: 0 green, 1 a setup step, 4 not gzip, 5 empty dump, no
 # @description table or a core table empty, 8 schema mismatch, 9 migrate failed.
-# @param ENV - required: dev (prd is refused)
+# @param ENV (required) - dev (prd is refused)
 # @param BACKUP_URI (optional) - a gs:// .sql.gz under gs://<045 bucket>/dev/, or latest (default)
 # @param SPL_RESTORE_DRILL_SPOOL (optional) - the spool binary that migrates, default `spool` on the PATH
 # @param SPL_RESTORE_DRILL_NONEMPTY (optional) - tables that must hold rows, default "tenants messages"

@@ -4,9 +4,9 @@
 #              REFUSES apex @ A/AAAA/CNAME and www A/AAAA/CNAME (Gandi parking
 #              / webredir). Tenant records are * / dev / *.dev, including the
 #              wildcard A/CNAME/TXT the follow-up allows.
-# @param RRSET_NAME - required: relative name (e.g. * or dev)
-# @param RRSET_TYPE - required: A, CNAME, TXT, ...
-# @param RRSET_VALUES - required: comma-separated rdata
+# @param RRSET_NAME (required) - relative name (e.g. * or dev)
+# @param RRSET_TYPE (required) - A, CNAME, TXT, ...
+# @param RRSET_VALUES (required) - comma-separated rdata
 # @param RRSET_TTL - optional: seconds (default 300)
 # @param CONFIRM - optional: yes to apply
 # @param DOMAIN - optional: override cnf env.dns.BASE_DOMAIN

@@ -23,8 +23,8 @@
 # @description one JSON verdict. Dev t1 is refused (its list is the
 # @description orchestrator's): use the prd e2e tenant or another test tenant.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: a TEST tenant slug (prd e2e); t1 is refused
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - a TEST tenant slug (prd e2e); t1 is refused
 # @param PROBE_BOX (optional) - the probe box id, default box-fbp-<utc stamp>:
 # @param   one per run, since each run mints a new key and the hub refuses to
 # @param   re-pin a box id to another key (pin_conflict)

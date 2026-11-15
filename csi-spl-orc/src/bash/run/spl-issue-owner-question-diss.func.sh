@@ -17,13 +17,13 @@
 # @description DRY_RUN=0 re-reads each MOVE item first (skips one that is
 # @description already done or diss), comments the reason, sets diss, never
 # @description deletes, and writes a 0600 undo file, one command per item.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (e.g. t1)
-# @param DESK_AGENT - required: the agent the desk writes as
-# @param OWNER_ID - required: the owner's member id (the assignee)
-# @param ISSUE_CREATED_DAY - required: YYYY-MM-DD, the UTC day the escalation filed them
-# @param ISSUE_NUM_FROM - required: the first issue number
-# @param ISSUE_NUM_TO - required: the last issue number
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (e.g. t1)
+# @param DESK_AGENT (required) - the agent the desk writes as
+# @param OWNER_ID (required) - the owner's member id (the assignee)
+# @param ISSUE_CREATED_DAY (required) - YYYY-MM-DD, the UTC day the escalation filed them
+# @param ISSUE_NUM_FROM (required) - the first issue number
+# @param ISSUE_NUM_TO (required) - the last issue number
 # @param ISSUE_SKIP_KEYS_FILE (optional) - keys another mover owns, one a line
 # @param ISSUE_REASON (optional) - the comment, default the owner's rule
 # @param ISSUE_PLAN (optional) - default $SPL_STATE_DIR/issue-owner-question/<tenant>-<utc>.plan.tsv

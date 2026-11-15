@@ -17,7 +17,7 @@
 # @description While cnf steps.046.copy_enabled is false (csi-spl-bkp not yet
 # @description bootstrapped + applied) it logs that and exits 0, so the daily
 # @description workflow 45 stays green; SPL_OFFSITE_REQUIRED=1 makes it exit 2.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): count what is missing, copy nothing
 # @param SPL_OFFSITE_REQUIRED (optional) - 1: a disabled copy is an error (exit 2)
 # @param SPL_OFFSITE_PARTS (optional) - "db files" (default), or one of them

@@ -40,7 +40,7 @@
 # @param ALERT_ISSUE_FIRST_SINCE_S (optional) - how far a first tick reads back, default 5400
 # @param ALERT_ISSUE_EPIC (optional) - the epic of a filed issue, default SPL-2364 (also lease.conf)
 # @param ALERT_ISSUE_SPEC (optional) - the spec of a filed issue, default csi-spl-doc/specs/146-reliability-round
-# @param ALERT_ISSUE_DISCUSSION (required when DRY_RUN=0) - the topic (a lowercase UUID) a disk or GCP alert's issue links; an #alerts alert links its own topic (also lease.conf)
+# @param ALERT_ISSUE_DISCUSSION (needed when DRY_RUN=0) - the topic (a lowercase UUID) a disk or GCP alert's issue links; an #alerts alert links its own topic (also lease.conf)
 # @param ALERT_ISSUE_GCP (optional) - 0 skips the GCP incident read, default 1
 # @param ALERT_ISSUE_GCP_ENVS (optional) - the envs the GCP read lists, each by its own project key, default "dev prd"
 # @param SPOOL_BIN SPL_SPOOL (optional) - the spool binary of the disk read; default spool-env's, for the user running the tick

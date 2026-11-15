@@ -22,7 +22,7 @@
 # @description URLs are re-asked as evidence, 10 s apart, 2 times. The check still
 # @description fails whatever the re-asks say. It cannot read the `release
 # @description complete` time: that line is earlier in the same job log.
-# @param BLOG_SITE_URL - required: the served site, e.g. https://<site>.web.app (no default)
+# @param BLOG_SITE_URL (required) - the served site, e.g. https://<site>.web.app (no default)
 # @param BLOG_SERVED_MAX_TIME (optional) - seconds per request, default 20
 # @param BLOG_SERVED_REASK_WAIT (optional) - seconds before each re-ask, default 10
 # @param BLOG_SERVED_REASK_URLS (optional) - failing URLs to re-ask, the first ones, default 6

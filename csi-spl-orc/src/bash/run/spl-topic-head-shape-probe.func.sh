@@ -16,8 +16,8 @@
 # @description The hub logs topic_head_shadow per instance on the first compare
 # @description 10 min after its window opened: run the report >= 10 min later
 # @description (any list read then flushes the counters).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param PROBE_N (optional) - reads per shape, 1..500, default 10
 # @param PROBE_SHAPES (optional) - comma list, default all six
 # @param PROBE_CHANNEL / PROBE_AGENT / PROBE_PARENT (optional) - the channel,

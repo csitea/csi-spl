@@ -10,10 +10,10 @@
 # @description The post itself is do_spl_desk_post (its go-ask and **Live**
 # @description guards apply). FLEET_NOTICE_CMD replaces the post (tests): it
 # @description gets the channel and the kind as arguments, the body on stdin.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the posting agent id (a member of the channel)
-# @param DESK_BODY - required: the notice text
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the posting agent id (a member of the channel)
+# @param DESK_BODY (required) - the notice text
 # @param DESK_BOX (optional) - default this machine's desk box
 # @param DESK_KIND (optional) - note (default) | blocker
 # @param FLEET_NOTICE_CMD (optional) - replaces the post (tests)

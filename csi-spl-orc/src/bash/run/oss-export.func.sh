@@ -11,7 +11,7 @@
 # @description An allow-list entry that is missing at the ref fails the export
 # @description unless it is marked optional ('?'). An entry that names a path
 # @description outside the repo, or an absolute path, is refused.
-# @param OUT_DIR - required: a new or empty dir OUTSIDE this checkout
+# @param OUT_DIR (required) - a new or empty dir OUTSIDE this checkout
 # @param OSS_REF (optional) - default HEAD; e.g. origin/master
 # @param OSS_ALLOW_LIST (optional) - default csi-spl-orc/cnf/oss/export-allow-list.txt
 # @param OSS_EXPORT_SCRUB (optional) - default csi-spl-orc/cnf/oss/export-scrub.tsv:

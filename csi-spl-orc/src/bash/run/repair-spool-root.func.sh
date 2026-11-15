@@ -13,7 +13,7 @@
 # @description A running process keeps the groups it started with: after
 # @description DRY_RUN=0 every member restarts its agents / re-logs in, or it
 # @description loses the spool. So run it in a QUIET WINDOW (no agent live).
-# @param SPOOL_ROOT_MEMBERS (required unless every member is already in the group) - OS users to add, space separated
+# @param SPOOL_ROOT_MEMBERS (needed unless every member is already in the group) - OS users to add, space separated
 # @param DRY_RUN (optional) - 1 (default) plan only, 0 apply
 # @param SPOOL_ROOT_DIR / SPOOL_ROOT_GROUP / SPOOL_ROOT_OTHER (optional) - override cnf env.box
 # @example ./run -a do_repair_spool_root

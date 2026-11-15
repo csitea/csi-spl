@@ -16,9 +16,9 @@
 # @description for the hub's URL), never the owner account.
 # @description DRY_RUN=1 (default) asks the hub for the list only (dry_run:
 # @description true): nothing is signed or delivered.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug
-# @param SINCE - required: RFC 3339 UTC, e.g. 2026-09-29T12:00:00Z (at most 30 days back)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug
+# @param SINCE (required) - RFC 3339 UTC, e.g. 2026-09-29T12:00:00Z (at most 30 days back)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=<t> SINCE=2026-09-29T12:00:00Z ./run -a do_spl_replay_unsigned
 # @example ENV=prd TENANT_ID=<t> SINCE=2026-09-29T12:00:00Z DRY_RUN=0 ./run -a do_spl_replay_unsigned

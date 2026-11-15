@@ -5,8 +5,8 @@
 # @description decides), from the member list (do_spl_hub_member_list).
 # @description Exit 0 when the access HAS ended, 1 when it has not (no end, or
 # @description an end still ahead), 2 when the member could not be read.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param MEMBER_EMAIL - the member's email; or HUMAN_ID (e.g. HUM-4), not both
 # @example ENV=prd TENANT_ID=<tenant> HUMAN_ID=HUM-4 ./run -a do_spl_hub_member_access_check
 #------------------------------------------------------------------------------

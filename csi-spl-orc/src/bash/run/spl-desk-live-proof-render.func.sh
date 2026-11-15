@@ -26,9 +26,9 @@
 # @description 1 refused (SHA, LIVE_CHECKED or LIVE_NOT_CHECKED missing, SHA
 # @description not a commit, the fetch failed); 2 refused (not on origin/master).
 # @description Reads only: one fetch, local git, the deploy-lag probes, gh.
-# @param SHA - required: the landed commit
-# @param LIVE_CHECKED - required: the measured cases (rule 16)
-# @param LIVE_NOT_CHECKED - required: what was not measured; literal `none` when all was
+# @param SHA (required) - the landed commit
+# @param LIVE_CHECKED (required) - the measured cases (rule 16)
+# @param LIVE_NOT_CHECKED (required) - what was not measured; literal `none` when all was
 # @param LANE_WT - optional: the git checkout to read (default: APP_PATH)
 # @param LANE_REMOTE / LANE_BRANCH - optional: the trunk (default: origin / master)
 # @param LANE_ENVS - optional: the envs to probe (default: "dev prd")

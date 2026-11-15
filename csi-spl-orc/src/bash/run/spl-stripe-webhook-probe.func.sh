@@ -17,8 +17,8 @@
 # @description reaching 0 (every endpoint answered 2xx). The intent is then
 # @description cancelled. Read the hub side with do_gcp_tail_logs and the
 # @description printed event id. The secret key reaches curl on stdin only.
-# @param ENV - required: dev or prd
-# @param STRIPE_API_BASE - required, no default: the Stripe REST base URL
+# @param ENV (required) - dev or prd
+# @param STRIPE_API_BASE (required) - the Stripe REST base URL
 # @param PROBE_PAYMENT_METHOD (optional) - the vendor's test decline payment method id (default pm_card_chargeDeclined)
 # @param PROBE_AMOUNT (optional) - minor units, default 100 (never charged)
 # @param PROBE_WAIT (optional) - seconds to wait for the delivery, default 90

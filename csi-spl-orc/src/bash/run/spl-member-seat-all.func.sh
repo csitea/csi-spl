@@ -17,13 +17,13 @@
 # @description passes: the on-sign-in seat of an open invite.
 # @description DRY_RUN=1 (default): the lookup reads (read-only transaction),
 # @description each write is the named action's own DRY_RUN plan.
-# @param ENV - required: dev or prd
-# @param TENANT_IDS - required: space-separated tenant slugs, e.g. 'acme demo'
+# @param ENV (required) - dev or prd
+# @param TENANT_IDS (required) - space-separated tenant slugs, e.g. 'acme demo'
 # @param HUMAN_ID - a human id, e.g. HUM-4. Set this or EMAIL, not both.
 # @param EMAIL - the invitee's email (lower-cased), resolved through
 # @param   human_identities to exactly one human; none yet = pending (exit 3)
-# @param MEMBER_ROLE - required: the role id in every tenant of TENANT_IDS
-# @param ORDERED_BY - required when DRY_RUN=0: the HUM-* who ordered the seat
+# @param MEMBER_ROLE (required) - the role id in every tenant of TENANT_IDS
+# @param ORDERED_BY - needed when DRY_RUN=0: the HUM-* who ordered the seat
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order
 # @param WATCH (optional) - 1: repeat while pending; 0 (default): one pass
 # @param WATCH_INTERVAL (optional) - seconds between passes, default 300

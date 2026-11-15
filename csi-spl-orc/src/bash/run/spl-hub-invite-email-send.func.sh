@@ -14,9 +14,9 @@
 # @description it carries no token. The invitee address is never logged beyond
 # @description this box's own echo. DRY_RUN=1 (default): print what would be
 # @description asked of the hub, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param EMAIL - required: the invitee's email (the invite key)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param EMAIL (optional) - the invitee's email (the invite key); needed unless INVITE_EMAIL is set
 # @param LOCALE (optional) - mail locale; default the tenant's default locale
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 EMAIL=<invitee-email> ./run -a do_spl_hub_invite_email_send

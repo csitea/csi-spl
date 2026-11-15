@@ -8,9 +8,9 @@
 # @description that is not deleted is a no-op that says so. Values travel as
 # @description psql variables, in the tenant's RLS scope.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param CHANNEL - required: the channel id (slug)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param CHANNEL (required) - the channel id (slug)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 CHANNEL=release-notes DRY_RUN=0 ./run -a do_spl_channel_restore
 #------------------------------------------------------------------------------

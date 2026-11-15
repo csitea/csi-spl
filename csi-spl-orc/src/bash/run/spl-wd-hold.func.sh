@@ -5,7 +5,7 @@
 # @description watchdog still writes its verdict, but sends it no key, no ring
 # @description and no takeover. Writes <spool root>/<id>/.human-hold holding
 # @description the epoch the hold ends at; MIN=0 lifts it.
-# @param ID - required: the agent id
+# @param ID (required) - the agent id
 # @param MIN (optional) - minutes, default 30; 0 lifts the hold
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ID=c-007 ./run -a do_spl_wd_hold

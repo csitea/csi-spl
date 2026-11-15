@@ -23,7 +23,7 @@
 # @description and is verified by sha256 afterwards. After it: PROVIDER stripe
 # @description + the publishable key in <env>.env.yaml, render, 030 apply.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param STRIPE_KEY_APP (optional) - read the key files of that app of the org in place (e.g. rel); needs STRIPE_SHARED_ACCOUNT_OK=1; its whsec_ is never used
 # @param STRIPE_SHARED_ACCOUNT_OK (optional) - 1: allow a key another app also uses (owner go only)
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)

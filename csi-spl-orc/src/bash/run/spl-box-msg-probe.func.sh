@@ -34,9 +34,9 @@
 # @description the same ENV and TENANT_ID; it is a dry run unless DRY_RUN=0
 # @description (pin-semantics.md 6: a signed revoke would NOT take it out of
 # @description GET /v1/view/roster - only removing the pin row does).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param ROOT_KEY_JSON - required: the 0600 JSON do_spl_tenant_create wrote (root_private_key)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param ROOT_KEY_JSON (required) - the 0600 JSON do_spl_tenant_create wrote (root_private_key)
 # @param PROBE_BOX (optional) - default box-orc-probe
 # @param PROBE_AGENT (optional) - default c-901: legacy test ids such as ORC-1
 #   ended with specs/061 section 0 and move to c-9NN (061 section 2); an agent

@@ -23,7 +23,7 @@
 # @description both tenant rows (ON DELETE CASCADE takes their rows, the journal
 # @description and the redirects) and their blobs. Dry run unless DRY_RUN=0:
 # @description prints the SQL, calls no cloud.
-# @param ENV - required: dev (prd is refused)
+# @param ENV (required) - dev (prd is refused)
 # @param REHEARSAL_CMD (optional) - seed (default) or purge
 # @param REHEARSAL_MSGS (optional) - the channel's posts, 100..20000, default 3650 (spec F13's largest channel)
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

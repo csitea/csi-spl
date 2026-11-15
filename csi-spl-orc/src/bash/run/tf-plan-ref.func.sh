@@ -30,9 +30,9 @@
 # @description its cnf yaml. Steps whose terraform reads var.proj_path (036,
 # @description 060, 061) show that path change in the plan: an artefact of the
 # @description scratch dir, not a change of the ref.
-# @param PLAN_REF - required: a branch, tag or sha the mounted tree's repo knows
-# @param ENV - required: dev or prd (prd only after a clean dev plan of the sha)
-# @param STEP - required: the terraform step, e.g. 070-gcp-monitoring
+# @param PLAN_REF (required) - a branch, tag or sha the mounted tree's repo knows
+# @param ENV (required) - dev or prd (prd only after a clean dev plan of the sha)
+# @param STEP (required) - the terraform step, e.g. 070-gcp-monitoring
 # @param TF_PLAN_REF_ROOT - the mounted tree on the host [default: the tf-runner's mount that holds csi-spl-iac]
 # @param TF_PLAN_REF_CON_ROOT - the same tree inside the container [default: its mount destination]
 # @param TF_PLAN_REF_STATE - dev-clean markers [default: ${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/tf-plan-ref]

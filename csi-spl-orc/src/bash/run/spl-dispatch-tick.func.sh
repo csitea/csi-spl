@@ -28,7 +28,7 @@
 # @description dispatcher opt-in, as do_spl_dispatch_lease ensure). Every
 # @description line meant for the cron log starts with "DISPATCH "; a quiet
 # @description tick prints none. Exit 1 only when the subscribe failed.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DISPATCH_* (optional) - as do_spl_dispatch_subscribe / do_spl_dispatch_check
 # @param DISPATCH_TICK_GAPS (optional) - 0 turns steps 2 and 3 off, default 1
 # @param DISPATCH_TICK_NOTE (optional) - 0 sends no note (the log lines stay); default 1 on prd, 0 on dev

@@ -18,8 +18,8 @@
 # @description transaction rolls back. Who (the OS user + the pinned SA) and
 # @description when (the server timestamp) are logged; no secret is printed.
 # @description DRY_RUN=1 (default): print the plan, call no cloud.
-# @param ENV - required: dev or prd
-# @param EMAIL - required: the credential's address (lower-cased; 3..320 chars, per 0009)
+# @param ENV (required) - dev or prd
+# @param EMAIL (required) - the credential's address (lower-cased; 3..320 chars, per 0009)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd EMAIL=facebook-test-user@facebook.com DRY_RUN=0 ./run -a do_spl_native_email_verify
 #------------------------------------------------------------------------------

@@ -20,7 +20,7 @@
 # @description ~/.docker/config.json). The repository's tags are immutable:
 # @description re-pushing an existing tag fails; a deploy pushes the version
 # @description it minted (workflow 20).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that pushes (artifactregistry.writer)
 # @param SPL_HUB_IMAGE_TAG (optional) - the release version CI minted (do_release_version): the image tag AND the version baked into the binary (a cycle suffix -c<N> is dropped from the baked version: tag 1.0.1-c2 bakes 1.0.1); unset = cnf hub.image.tag / .version
 # @param DRY_RUN (optional) - 1 (default): build only. 0: build + push.

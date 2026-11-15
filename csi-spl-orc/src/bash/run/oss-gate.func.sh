@@ -30,7 +30,7 @@
 # @description be measured (a tool, workflow or input missing) - never a pass.
 # @description Writes nothing into DIR and needs no network once gitleaks is
 # @description cached (first run downloads the pinned tarball, sha256-checked).
-# @param DIR - required: the exported tree (not a git checkout)
+# @param DIR (required) - the exported tree (not a git checkout)
 # @param OSS_GATE_REPORT (optional) - default: <DIR>.oss-gate-report.tsv (beside DIR, never in it)
 # @param OSS_GATE_RULES (optional) - default: csi-spl-orc/cnf/oss/banned-literals.tsv
 # @param OSS_GATE_CNF (optional) - default: csi-spl-cnf/csi-spl/all.env.yaml, resolves

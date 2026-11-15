@@ -16,11 +16,11 @@
 # @description owner did it); the status stays unless ISSUE_STATUS is set.
 # @description The issue is read even in a dry run; DRY_RUN=1 (default) prints
 # @description the change and writes nothing.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent the desk writes as (the pane's id)
-# @param ISSUE_REF - required: the issue key, e.g. SPL-12
-# @param OWNER_STEP - required unless OWNER_STEP_CLEAR=1: one line, the exact
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent the desk writes as (the pane's id)
+# @param ISSUE_REF (required) - the issue key, e.g. SPL-12
+# @param OWNER_STEP - needed unless OWNER_STEP_CLEAR=1: one line, the exact
 # @param   command or click the owner has to make (markdown, `code` allowed)
 # @param OWNER_STEP_CLEAR (optional) - 1 removes the label and the line
 # @param ISSUE_STATUS (optional) - overrides the status rule above

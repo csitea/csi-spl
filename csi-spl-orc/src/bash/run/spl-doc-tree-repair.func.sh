@@ -20,8 +20,8 @@
 # @description in a dry run inside the rolled-back transaction, with DRY_RUN=0
 # @description a fresh check after the commit. Dry run unless DRY_RUN=0;
 # @description DRY_RUN=0 on prd is an owner go (repo rule).
-# @param ENV - required: dev or prd
-# @param DOC_ID - required: the doc (uuid)
+# @param ENV (required) - dev or prd
+# @param DOC_ID (required) - the doc (uuid)
 # @param DRY_RUN (optional) - 1 (default): the same statements, rolled back
 # @example ENV=dev DOC_ID=<doc uuid> ./run -a do_spl_doc_tree_repair
 # @example ENV=dev DOC_ID=<doc uuid> DRY_RUN=0 ./run -a do_spl_doc_tree_repair

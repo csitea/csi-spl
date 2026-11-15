@@ -23,8 +23,8 @@
 # @description data: no value is ever printed (psql VERBOSITY terse, line
 # @description numbers only in refusals), the SQL is built in a 0700 temp dir
 # @description that is removed on every way out.
-# @param ENV - required: dev or prd
-# @param REINSERT_FILE - required: the reinsert .sql file (no default)
+# @param ENV (required) - dev or prd
+# @param REINSERT_FILE (required) - the reinsert .sql file (no default)
 # @param REINSERT_MD5 (optional) - the file's md5; refused when it differs
 # @param REINSERT_EXPECT (optional) - the row count it must hold (default: what it holds)
 # @param REINSERT_DROP_UPDATES (optional) - the exact count of UPDATE cost_lines lines to drop, default 0

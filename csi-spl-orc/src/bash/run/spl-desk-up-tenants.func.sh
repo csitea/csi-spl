@@ -17,7 +17,7 @@
 # @description muted by hand (.no-poke) stays muted, except an orchestrator or
 # @description dispatcher seat (lease.conf), which is un-muted on every pass.
 # @description Prints one line per tenant. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DESK_BOX (optional) - default box-desk
 # @param DESK_SKIP_TENANTS (optional) - space-separated tenant slugs to leave
 # @param   out, e.g. the main tenant the cron has just reconciled

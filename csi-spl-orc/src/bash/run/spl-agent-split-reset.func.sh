@@ -9,9 +9,9 @@
 # @description kind's do_spl_agent_split_show line before and after (after:
 # @description source=cnf). Through the Cloud SQL proxy as the env's project
 # @description service account; tenant and kinds travel as psql variables.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param --kind <k> - required, repeatable: specs_and_docs, tests,
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param --kind <k> - repeatable, at least one: specs_and_docs, tests,
 # @param   simple_coding, complex_coding, i18n, secret or orchestration (the
 # @param   picker's aliases spec, hard and default are read as in the show)
 # @param DRY_RUN (optional) - 1 (default) or 0

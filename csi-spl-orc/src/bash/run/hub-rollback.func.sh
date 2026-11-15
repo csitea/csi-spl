@@ -25,8 +25,8 @@
 # @description      do_check_hub_deploy and GET /version .commit == the target
 # @description Identity: the env's project SA (do_gcp_pin_account), --account on
 # @description every gcloud call; never the owner account.
-# @param ENV - required: dev or prd
-# @param TO - required: v<X.Y.Z>[-c<N>] | <trunk sha> | previous | <revision name>
+# @param ENV (required) - dev or prd
+# @param TO (required) - v<X.Y.Z>[-c<N>] | <trunk sha> | previous | <revision name>
 # @param DRY_RUN (optional) - 1 (default): print the plan; 0: roll
 # @param ROLLBACK_SCHEMA_OK (optional) - 1: roll back over a non-additive newer migration (after reading it)
 # @param ENV_ORDER_OVERRIDE (optional) - <owner msg id>: prd without dev first (an emergency)

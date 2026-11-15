@@ -11,7 +11,7 @@
 # @description fingerprint are printed. The message is read with
 # @description do_spl_db_query (read-only, the KEY_ENV project SA).
 # @description Terraform runs only through make / tf-runner, dev only.
-# @param KEY_MSG_ID - required: the msg_id (uuid) whose body is the key
+# @param KEY_MSG_ID (required) - the msg_id (uuid) whose body is the key
 # @param KEY_ENV (optional) - the hub env that holds the message, default prd
 # @param TF_VERB (optional) - plan (default) or provision (apply)
 # @example KEY_MSG_ID=<uuid> ./run -a do_spl_wine_box_tester_tf

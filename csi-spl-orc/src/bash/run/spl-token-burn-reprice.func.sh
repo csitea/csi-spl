@@ -19,9 +19,9 @@
 # @description owner account), the Cloud SQL proxy, the DSN in the environment
 # @description only. The spool binary is the state dir's (spl_host_spool), or
 # @description TOKEN_REPRICE_SPOOL; it must know the verb.
-# @param ENV - required: dev or prd
-# @param TOKEN_REPRICE_MODELS - required: the stored model names, comma separated (no default); a name may end in agy's effort label, e.g. gemini-4-argon-(medium) (SPL-5314)
-# @param TOKEN_REPRICE_FROM - required: the first minute, YYYY-MM-DD (UTC) or YYYY-MM-DDTHH:MM:SSZ (no default)
+# @param ENV (required) - dev or prd
+# @param TOKEN_REPRICE_MODELS (required) - the stored model names, comma separated (no default); a name may end in agy's effort label, e.g. gemini-4-argon-(medium) (SPL-5314)
+# @param TOKEN_REPRICE_FROM (required) - the first minute, YYYY-MM-DD (UTC) or YYYY-MM-DDTHH:MM:SSZ (no default)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param TOKEN_REPRICE_SPOOL (optional) - the spool binary, default the state dir's
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

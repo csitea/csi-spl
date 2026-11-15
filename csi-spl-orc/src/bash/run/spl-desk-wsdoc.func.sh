@@ -32,12 +32,12 @@
 # @description /var/spool-hub/dispatch, or inside the desk state. A write with
 # @description DRY_RUN=0 is refused unless DESK_AGENT is the caller itself
 # @description (do_spl_desk_doctree's caller check, SPL-2078); so is a delete.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent the verb runs for (a seat of the desk)
-# @param WSDOC_ARGS - required: the verb and its path, e.g. `list ws/agents/`
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent the verb runs for (a seat of the desk)
+# @param WSDOC_ARGS (required) - the verb and its path, e.g. `list ws/agents/`
 # @param   or `read ws/agents/join-your-agents.md`
-# @param WSDOC_IN (optional) - write only, and required there: the body file
+# @param WSDOC_IN (optional) - write only, and needed there: the body file
 # @param DESK_BOX (optional) - default this machine's desk box (spl_desk_box_default)
 # @param DRY_RUN (optional) - 1 (default) or 0; write and delete only, list and read ignore it
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-200 WSDOC_ARGS='list ws/agents/' ./run -a do_spl_desk_wsdoc

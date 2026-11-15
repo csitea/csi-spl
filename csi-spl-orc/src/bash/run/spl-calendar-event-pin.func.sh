@@ -9,10 +9,10 @@
 # @description is read back (GET, pinned as asked). The per-id driver is
 # @description _spl_calendar_event_each (spl-calendar-event-delete.func.sh).
 # @description DRY_RUN=1 (default): print what it would send, write nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug
-# @param EVENT_IDS - required: 1..200 event ids (uuids), comma- or space-separated
-# @param AGENT_ID - required: the agent doing it, e.g. c-042
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug
+# @param EVENT_IDS (required) - 1..200 event ids (uuids), comma- or space-separated
+# @param AGENT_ID (required) - the agent doing it, e.g. c-042
 # @param ORDERED_BY (optional) - the human who ordered it, a HUM-* id (logged by the hub)
 # @param PINNED (optional) - 1 (default) pins, 0 unpins
 # @param DRY_RUN (optional) - 1 (default) or 0

@@ -54,7 +54,7 @@
 # @description                this checkout -- a shallow clone, so fetch-depth 0)
 # @description Reads only: one HTTPS GET per component and local git. No GCP
 # @description call, no credential, nothing mutated.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SHA - optional: the commit that must be live (default: HEAD)
 # @param COMPONENT - optional: hub | wui | all (default all)
 # @param GRACE_MINUTES - optional: minutes of grace for a fresh commit (default 45)

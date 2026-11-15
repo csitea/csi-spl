@@ -36,9 +36,9 @@
 # @description DRY_RUN=1 (default) prints the tenant's FULL pin list with a
 # @description purge/keep column - the enumeration to read before a prd run -
 # @description and deletes nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param BOX_IDS - required: space-separated box ids, explicitly named
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param BOX_IDS (required) - space-separated box ids, explicitly named
 # @param PURGE_MIN_IDLE_HOURS (optional) - refuse a box that said hello more recently; default 24
 # @param PURGE_KEEP_STATE (optional) - 1 keeps the local probe/e2e state dirs; default 0 (remove them)
 # @param DRY_RUN (optional) - 1 (default) or 0

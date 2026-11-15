@@ -19,8 +19,8 @@
 # @description Google keeps do_spl_auth_secrets_seed (its client file + the
 # @description session key); this action never mints the session key.
 # @description Dry run unless DRY_RUN=0.
-# @param IDP - required: facebook | microsoft | linkedin | xai
-# @param ENV - required: dev or prd
+# @param IDP (required) - facebook | microsoft | linkedin | xai
+# @param ENV (required) - dev or prd
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
 # @param DRY_RUN (optional) - 1 (default): report only. 0: add the version.
 # @example IDP=linkedin ENV=dev ./run -a do_spl_auth_idp_secret_seed

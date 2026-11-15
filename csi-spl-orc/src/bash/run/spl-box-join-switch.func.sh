@@ -12,9 +12,9 @@
 # @description transaction is rolled back. The hub route for the same switch
 # @description is PATCH /v1/operator/workspaces/{id} {"box_join_enabled": ...}.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug
-# @param BOX_JOIN - required: on or off
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug
+# @param BOX_JOIN (required) - on or off
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=acme BOX_JOIN=on DRY_RUN=0 ./run -a do_spl_box_join_switch
 #------------------------------------------------------------------------------

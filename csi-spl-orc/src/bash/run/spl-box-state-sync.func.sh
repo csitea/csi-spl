@@ -9,9 +9,9 @@
 # @description changed file needs the step 056 grant on the RW prefix.
 # @description Refused (exit 3, nothing sent) when anything under SRC is a
 # @description secret: spl_box_state_upload_scan, c-846's one exclude list.
-# @param ENV - required: dev or prd
-# @param SRC - required: the local dir
-# @param PREFIX - required: a relative path under rw_prefix (a sync owns its prefix)
+# @param ENV (required) - dev or prd
+# @param SRC (required) - the local dir
+# @param PREFIX (required) - a relative path under rw_prefix (a sync owns its prefix)
 # @param DRY_RUN (optional) - 1 (default): scan and print the plan; 0 syncs
 # @example ENV=dev SRC=/var/tmp/notes PREFIX=notes ./run -a do_spl_box_state_sync
 # @example ENV=dev SRC=/var/tmp/notes PREFIX=notes DRY_RUN=0 ./run -a do_spl_box_state_sync

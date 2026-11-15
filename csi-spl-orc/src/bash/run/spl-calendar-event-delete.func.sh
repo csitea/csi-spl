@@ -9,10 +9,10 @@
 # @description refused by the hub. Each id is read back: GET answers 404 once
 # @description it is in the trash. DRY_RUN=1 (default): print what it would
 # @description send, call no cloud, write nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug
-# @param EVENT_IDS - required: 1..200 event ids (uuids), comma- or space-separated
-# @param AGENT_ID - required: the agent doing it, e.g. c-042
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug
+# @param EVENT_IDS (required) - 1..200 event ids (uuids), comma- or space-separated
+# @param AGENT_ID (required) - the agent doing it, e.g. c-042
 # @param ORDERED_BY (optional) - the human who ordered it, a HUM-* id: their trash
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=<tenant> EVENT_IDS=<uuid>,<uuid> AGENT_ID=c-042 ORDERED_BY=HUM-10 ./run -a do_spl_calendar_event_delete

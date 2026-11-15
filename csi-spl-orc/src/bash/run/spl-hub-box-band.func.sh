@@ -14,12 +14,12 @@
 # @description BAND or cap change keeps it. None of BAND, AIM and
 # @description RUNNER_CPU_PCT: read only. DRY_RUN=1 (default) reads, prints
 # @description the PATCH body, writes nothing.
-# @param ENV - required: dev or prd
-# @param BOX - required: the box id ([a-z0-9-], up to 32)
+# @param ENV (required) - dev or prd
+# @param BOX (required) - the box id ([a-z0-9-], up to 32)
 # @param BAND (optional) - <low>..<high>, % of cores (low 1..99, high 2..100, low < high), or 'default' to drop the box's entry, cap and all (the fleet band and cap apply)
 # @param AIM (optional) - 1..100 within the band (low <= aim <= high), or 'default' to drop the box's aim (the pick reads it as high)
 # @param RUNNER_CPU_PCT (optional) - 1..100, or 'default' to drop the box's own cap (the fleet's applies)
-# @param ORDERED_BY - required when DRY_RUN=0: the human who ordered it, a HUM-* id
+# @param ORDERED_BY - needed when DRY_RUN=0: the human who ordered it, a HUM-* id
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order, at most 64 chars
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev BOX=box-a ./run -a do_spl_hub_box_band

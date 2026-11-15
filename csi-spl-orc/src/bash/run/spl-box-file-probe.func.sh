@@ -19,8 +19,8 @@
 # @description Dry run unless DRY_RUN=0.
 # @description TEARDOWN: this reuses the box do_spl_box_msg_probe pinned; it
 # @description leaves the roster only with do_spl_box_purge (pin-semantics.md 6).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param PROBE_BOX (optional) - default box-orc-probe
 # @param PROBE_AGENT (optional) - default c-902: legacy test ids such as ORC-1
 #   ended with specs/061 section 0 and move to c-9NN (061 section 2); c-902 is

@@ -51,12 +51,12 @@
 # @description too (TAKEN-ALREADY): the take ledger is per box, the topic is
 # @description not. Two boxes that read the topic in the same few seconds,
 # @description before either line shows in hub-tail, can still both post.
-# @param ENV - required: dev, prd or self (passed on to do_spl_desk_reply)
-# @param TENANT_ID - required: the workspace of the topic
-# @param DESK_AGENT - required: the taker's agent id (its desk)
-# @param DESK_TO - required: the human who wrote the post (HUM-n)
-# @param DESK_TASK - required: the full topic uuid
-# @param TAKE_PLAN - required: the one-line plan, e.g. "I read the hub logs"
+# @param ENV (required) - dev, prd or self (passed on to do_spl_desk_reply)
+# @param TENANT_ID (required) - the workspace of the topic
+# @param DESK_AGENT (required) - the taker's agent id (its desk)
+# @param DESK_TO (required) - the human who wrote the post (HUM-n)
+# @param DESK_TASK (required) - the full topic uuid
+# @param TAKE_PLAN (required) - the one-line plan, e.g. "I read the hub logs"
 # @param TAKE_BOX (optional) - the taker's box; default this machine's desk box id
 # @param TAKE_NOTIFY (optional) - space-separated agent ids told by spool note that DESK_AGENT owns the topic
 # @param TAKE_REPLY_CMD (optional) - replaces "<proj>/run -a do_spl_desk_reply" (tests)

@@ -17,9 +17,9 @@
 # @description Refuses an agent not seated on that desk, and an orchestrator or
 # @description dispatcher seat (lease.conf): those carry the owner's posts.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the ONE agent id to unseat
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the ONE agent id to unseat
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-175 ./run -a do_spl_desk_unseat

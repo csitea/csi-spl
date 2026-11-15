@@ -17,7 +17,7 @@
 # @description workspace needs another machine. Idempotent for the same one.
 # @description Seating a desk afterwards runs as the workspace user; the
 # @description action prints that line. Dry run unless DRY_RUN=0.
-# @param TENANT_ID - required: the workspace slug this box belongs to
+# @param TENANT_ID (required) - the workspace slug this box belongs to
 # @param SPL_WS_BASE (optional) - override cnf env.box.workspace_base
 # @param SPL_WS_USER (optional) - override the derived workspace OS user
 # @param SPL_WS_USER_PREFIX (optional) - override cnf env.box.workspace_user_prefix

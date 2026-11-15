@@ -3,7 +3,7 @@
 # @description Unmount what do_spl_box_state_mount mounted (fusermount -u). A
 # @description folder that is not mounted is OK. An open file keeps a mount
 # @description busy: the action then fails and names the folder.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param MOUNT (optional) - ro, rw or both (default both)
 # @example ENV=dev ./run -a do_spl_box_state_unmount
 #------------------------------------------------------------------------------

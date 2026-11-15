@@ -24,11 +24,11 @@
 # @description Prints one JSON line (env, tenant, box, agent, the edit result:
 # @description msg_id, task_id, from, revision). No secret is read.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent that wrote the message (the edit is
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent that wrote the message (the edit is
 # @param   refused locally when the stored author is someone else)
-# @param MSG_ID - required: the message's lowercase UUID
+# @param MSG_ID (required) - the message's lowercase UUID
 # @param DESK_BODY - the new text (or DESK_BODY_FILE) (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param DESK_BODY_FILE - read the new text from this file (exclusive with DESK_BODY)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used

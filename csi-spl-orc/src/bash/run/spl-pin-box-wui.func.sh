@@ -15,7 +15,7 @@
 # @description a private key.
 # @param TENANT_ID (optional) - default cnf env.lde.smoke_tenant
 # @param ROOT_KEY (optional) - the tenant root private key file; default the
-# @param   smoke tenant's, $LDE_STATE_DIR/hello/root.key (other tenants: required)
+# @param   smoke tenant's, $LDE_STATE_DIR/hello/root.key (other tenants: needed)
 # @param SPOOL_BIN (optional) - spool CLI; default the host build do_setup_app_inf made
 # @example LDE_WUI_DISPATCH=1 ./run -a do_setup_app_inf && ./run -a do_spl_pin_box_wui
 # @example TENANT_ID=acme ROOT_KEY=/path/to/acme-root.key ./run -a do_spl_pin_box_wui

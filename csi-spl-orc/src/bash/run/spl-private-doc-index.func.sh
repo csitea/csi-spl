@@ -14,10 +14,10 @@
 # @description the index file only. A dry run (the default) calls nothing.
 # @description Rebuild it often: a public heading added after the build that a
 # @description private doc also has fails the check until the next build.
-# @param ENV - required: dev or prd (the hub the workspaces live on)
-# @param PRIVATE_INDEX_TENANTS - required: the private workspaces, space
+# @param ENV (required) - dev or prd (the hub the workspaces live on)
+# @param PRIVATE_INDEX_TENANTS (required) - the private workspaces, space
 # @param   separated; one in docs.repo_export_tenants is refused
-# @param PRIVATE_INDEX_SEAT - required: the seat (an agent id) seated in each
+# @param PRIVATE_INDEX_SEAT (required) - the seat (an agent id) seated in each
 # @param   of those workspaces' desks on this box (do_spl_desk_doctree)
 # @param QTO_PRIVATE_INDEX (optional) - the index file; default
 # @param   ${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/qto-private-index.txt;

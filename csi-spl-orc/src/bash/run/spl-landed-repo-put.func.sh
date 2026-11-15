@@ -7,13 +7,13 @@
 # @description a re-run is a no-op; a name a cnf or workspace map row has is
 # @description refused. A dry run (the default) writes nothing. Never in git:
 # @description the row's values are given here and no line printed repeats them.
-# @param LANDED_REPO_NAME - required: the name lanes pass as LANE_LANDED_REPO
-# @param LANDED_REPO_GITHUB - required: <owner>/<repo>
-# @param LANDED_REPO_TRUNK - required: the trunk branch
-# @param LANDED_REPO_BOX - required: the box the repo's work lands from
+# @param LANDED_REPO_NAME (required) - the name lanes pass as LANE_LANDED_REPO
+# @param LANDED_REPO_GITHUB (required) - <owner>/<repo>
+# @param LANDED_REPO_TRUNK (required) - the trunk branch
+# @param LANDED_REPO_BOX (required) - the box the repo's work lands from
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
-# @param SPOOL_LANDED_REPOS_FILE (optional) - default <spool root>/landed-repos.yaml; required under SPOOL_TEST=1
+# @param SPOOL_LANDED_REPOS_FILE (optional) - default <spool root>/landed-repos.yaml; needed under SPOOL_TEST=1
 # @example LANDED_REPO_NAME=<name> LANDED_REPO_GITHUB=<owner>/<repo> LANDED_REPO_TRUNK=master LANDED_REPO_BOX=<box> ./run -a do_spl_landed_repo_put
 # @example LANDED_REPO_NAME=<name> LANDED_REPO_GITHUB=<owner>/<repo> LANDED_REPO_TRUNK=master LANDED_REPO_BOX=<box> DRY_RUN=0 ./run -a do_spl_landed_repo_put
 #------------------------------------------------------------------------------

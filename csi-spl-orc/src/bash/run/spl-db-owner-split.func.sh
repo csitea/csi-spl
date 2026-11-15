@@ -33,7 +33,7 @@
 # @description Cloud SQL Admin API + a new owner-slot version, older owner
 # @description versions disabled. Refused while another session is logged in
 # @description as the owner (a hub not yet rolled would lose new connections).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param ROLLBACK (optional) - 1: undo the split (see above)
 # @param ROTATE_OWNER (optional) - 1: rotate the owner password (see above)

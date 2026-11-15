@@ -14,11 +14,11 @@
 # @description channel_guest are exclusive (0201 trigger 2): the insert fails
 # @description and nothing changes.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param HUMAN_ID - required: e.g. HUM-4 (a member: an invite turns into one
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param HUMAN_ID (required) - e.g. HUM-4 (a member: an invite turns into one
 # @param   when it is accepted)
-# @param MEMBER_ROLE - required: the role id to add (biz_owner|product_owner|
+# @param MEMBER_ROLE (required) - the role id to add (biz_owner|product_owner|
 # @param   admin|developer|tester|pure_agent|biz_customer|regular_user; legacy
 # @param   owner|member map); an unknown id fails on the rbac_roles FK
 # @description This is the OPERATOR path: it is outside the hub's RBAC checks.

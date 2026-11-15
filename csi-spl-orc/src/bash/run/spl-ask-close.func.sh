@@ -9,7 +9,7 @@
 # @description answer.
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits
 # @param ASK_STATE (optional) - done (default) or declined
-# @param ASK_REASON (optional for done, required for declined) - one line: what was done or why not
+# @param ASK_REASON (optional for done, needed for declined) - one line: what was done or why not
 # @param ASK_BY (optional) - the acting agent, <ID>@<box>; default this machine's orchestrator at its box
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ASK_ID=39451306 ASK_REASON='given to CLE-77915, 50-commit target' ./run -a do_spl_ask_close

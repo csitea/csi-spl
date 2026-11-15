@@ -18,10 +18,10 @@
 # @description (operator id token, spl_hub_operator_call), never the owner
 # @description account; the key comes from the repo secret
 # @description GCP_KEY_CSI_SPL_<ENV> through google-github-actions/auth.
-# @param ENV - required: dev or prd, the hub reported to (and its project SA)
+# @param ENV (required) - dev or prd, the hub reported to (and its project SA)
 # @param DEPLOY_ENV (optional) - dev or prd, the env that was deployed, default ENV
-# @param DEPLOY_COMPONENT - required: hub or wui
-# @param DEPLOY_VERSION - required: the minted version, 3.2.5 or v3.2.5 (-c<N> past the wrap)
+# @param DEPLOY_COMPONENT (required) - hub or wui
+# @param DEPLOY_VERSION (required) - the minted version, 3.2.5 or v3.2.5 (-c<N> past the wrap)
 # @param DEPLOY_SHA (optional) - the deployed commit, default $GITHUB_SHA, else HEAD
 # @param DEPLOY_STATUS (optional) - success (default) or failed
 # @param DEPLOY_RUN_ID (optional) - the workflow run id, default $GITHUB_RUN_ID

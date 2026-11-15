@@ -26,7 +26,7 @@
 # @description      DISPATCH_SWEEP=0 skips)
 # @description Dry run unless DRY_RUN=0: prints one "PLAN <step> <what>" line
 # @description per action and touches nothing. Verify with do_spl_dispatch_check.
-# @param ENV - required: dev or prd, the hub the desks seat at
+# @param ENV (required) - dev or prd, the hub the desks seat at
 # @param DISPATCH_MASTER (optional) - default lease.conf LEASE_MASTER, else c-002
 # @param DISPATCH_FAILOVER (optional) - default lease.conf LEASE_FAILOVER, else c-003
 # @param DISPATCH_ORCH (optional) - default lease.conf LEASE_ORCH, else c-001

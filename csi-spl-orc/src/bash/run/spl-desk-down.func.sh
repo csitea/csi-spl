@@ -29,8 +29,8 @@
 # @description sidecar was running at all). Idempotent: a desk that is already
 # @description down is OK, not an error.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_AGENT (optional) - the agent that leaves: its seat is released; the sidecar stops only when no other agent shares it
 # @param DESK_ALL (optional) - 1 = stop the sidecar although other agents are seated on it

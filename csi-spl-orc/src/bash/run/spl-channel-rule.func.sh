@@ -17,11 +17,11 @@
 # @description free every other channel); 3 the channel has another row, and
 # @description CHANNEL_RULE_REPLACE=1 not set.
 # @param CHANNEL_RULE_CMD (optional) - check (default) or set
-# @param CHANNEL_RULE_TENANT (required for set) - workspace id
-# @param CHANNEL_RULE_CHANNEL (required for set) - channel name, or * for the whole workspace
-# @param CHANNEL_RULE_DOC (required for set, not for *) - the qto doc uuid of the channel's rules
-# @param CHANNEL_RULE_ENV (required for set, not for *) - dev or prd
-# @param CHANNEL_RULE_AGENT (required for set, not for *) - the desk agent the export runs as
+# @param CHANNEL_RULE_TENANT (needed for set) - workspace id
+# @param CHANNEL_RULE_CHANNEL (needed for set) - channel name, or * for the whole workspace
+# @param CHANNEL_RULE_DOC (needed for set, not for *) - the qto doc uuid of the channel's rules
+# @param CHANNEL_RULE_ENV (needed for set, not for *) - dev or prd
+# @param CHANNEL_RULE_AGENT (needed for set, not for *) - the desk agent the export runs as
 # @param CHANNEL_RULE_SOLE (optional) - the sole seat, <agent id>@<box>, default -
 # @param CHANNEL_RULE_NO_AUTO_POST (optional) - 1: column 7 is no-auto-post; a * row always is
 # @param CHANNEL_RULE_REPLACE (optional) - 1 replaces the channel's row

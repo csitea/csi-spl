@@ -29,7 +29,7 @@
 # @description   fixes it); per workspace: every such OD seat seated (rostered)
 # @description Read-only: one read of the hub DB per workspace (as the env SA,
 # @description DISPATCH_CHECK_SUBS=0 skips it), no write.
-# @param ENV - required: dev or prd, the hub the desks seat at
+# @param ENV (required) - dev or prd, the hub the desks seat at
 # @param DISPATCH_MASTER / DISPATCH_FAILOVER / DISPATCH_ORCH (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_TENANTS (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_MODEL (optional) - when set, a dispatcher on another model is a GAP

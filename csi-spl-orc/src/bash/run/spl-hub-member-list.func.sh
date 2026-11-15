@@ -13,8 +13,8 @@
 # @description Manager into a local, the Cloud SQL Auth Proxy on 127.0.0.1,
 # @description psql in BEGIN READ ONLY with default_transaction_read_only=on.
 # @description Prints no secret. Exit 2 when nothing matches.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (e.g. t1)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (e.g. t1)
 # @param MATCH (optional) - keep only rows whose email or display name
 # @param   contains this text (case-insensitive; letters, digits, . _ @ + -)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json

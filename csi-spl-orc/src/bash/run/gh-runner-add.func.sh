@@ -24,8 +24,8 @@
 # @description Idempotent: a runner already configured here is kept (its env
 # @description refreshed, its service started); APPLY twice = one set.
 # @description Dry run unless APPLY=1. Needs sudo and gh with admin:org.
-# @param GH_RUNNER_REPO - required: <owner>/<repo> the runners serve (the org is <owner>)
-# @param GH_RUNNER_GROUP - required: the org runner group they join
+# @param GH_RUNNER_REPO (required) - <owner>/<repo> the runners serve (the org is <owner>)
+# @param GH_RUNNER_GROUP (required) - the org runner group they join
 # @param RUNNER_COUNT (optional) - how many runners this box carries, default 2
 # @param GH_RUNNER_USER (optional) - the dedicated OS user, default ghrunner
 # @param GH_RUNNER_ROOT (optional) - runner dirs, default /srv/gh-runner

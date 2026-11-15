@@ -39,7 +39,7 @@
 # @description pool-serve pid is refused when it, or an ancestor, is a tmux
 # @description pane's process, or its cmdline is not `spool pool serve`.
 # @description Dry run unless DRY_RUN=0 (prints each call it would make).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param POOL_CMD (optional) - status (default) | start | stop | restart | ensure
 # @param POOL_TENANT (optional) - the tenant start seats live agents in;
 # @param   default LEASE_TENANT in lease.conf, else t1

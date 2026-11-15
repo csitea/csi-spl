@@ -12,9 +12,9 @@
 # @description (boxes.<box>.runner_cpu_pct) is part of the boxes map, not set
 # @description here. RUNNER_CPU_PCT unset: read only. DRY_RUN=1 (default) with
 # @description RUNNER_CPU_PCT: print the change, call no cloud.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param RUNNER_CPU_PCT (optional) - 1..100, or 'default' to reset it (80); unset = read
-# @param ORDERED_BY - required when DRY_RUN=0: the human who ordered it, a HUM-* id
+# @param ORDERED_BY - needed when DRY_RUN=0: the human who ordered it, a HUM-* id
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order, at most 64 chars
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev ./run -a do_spl_hub_runner_cpu

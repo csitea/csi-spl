@@ -14,10 +14,10 @@
 # @description checkout with one. Random passwords, never printed or kept.
 # @description dev only (prd checkouts are real).
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev
-# @param TENANT_ID - required: the tenant the test checkout bought
-# @param BUYER_EMAIL - required: that checkout's email (no account yet), <relay>+<tag>@<relay domain>
-# @param OTHER_EMAIL - required: a second address with no invite (no account yet), also a relay plus-address
+# @param ENV (required) - dev
+# @param TENANT_ID (required) - the tenant the test checkout bought
+# @param BUYER_EMAIL (required) - that checkout's email (no account yet), <relay>+<tag>@<relay domain>
+# @param OTHER_EMAIL (required) - a second address with no invite (no account yet), also a relay plus-address
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=w1probe1 BUYER_EMAIL=<buyer> OTHER_EMAIL=<other> DRY_RUN=0 ./run -a do_spl_paid_owner_probe
 #------------------------------------------------------------------------------

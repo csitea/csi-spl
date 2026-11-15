@@ -10,7 +10,7 @@
 # @description   BOXJOIN <env> total seated=<n> switch_on=<n>
 # @description Inside BEGIN READ ONLY .. ROLLBACK with the operator RLS scope,
 # @description through the Cloud SQL proxy as the env's project SA.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @example ENV=prd ./run -a do_spl_box_join_report
 #------------------------------------------------------------------------------
 do_spl_box_join_report() {

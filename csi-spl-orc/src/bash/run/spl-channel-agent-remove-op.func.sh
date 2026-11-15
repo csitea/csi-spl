@@ -16,10 +16,10 @@
 # @description live seats found, or the transaction rolls back. Values travel
 # @description as psql variables (:'var'), never spliced into the SQL.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param CHANNEL - required: the channel id
-# @param AGENTS - required: space-separated agent ids, e.g. "CLE-7 CLE-8"
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param CHANNEL (required) - the channel id
+# @param AGENTS (required) - space-separated agent ids, e.g. "CLE-7 CLE-8"
 # @param AGENT_BOX (optional) - default box-desk. box-wui is reserved.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 CHANNEL=spool-hub-devel AGENTS=CLE-001 DRY_RUN=0 ./run -a do_spl_channel_agent_remove_op

@@ -13,12 +13,12 @@
 # @description do_spl_hub_member_access_check; schedule that confirmation with
 # @description do_spl_hub_member_access_schedule_check. DRY_RUN=1 (default):
 # @description print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param MEMBER_EMAIL - the member's email; or HUMAN_ID (e.g. HUM-4), not both
-# @param ACCESS_UNTIL - required: RFC 3339 UTC (2026-10-07T06:00:00Z), or
+# @param ACCESS_UNTIL (required) - RFC 3339 UTC (2026-10-07T06:00:00Z), or
 # @param   'clear' for no end
-# @param ORDERED_BY - required when DRY_RUN=0: the human who ordered it, a HUM-* id
+# @param ORDERED_BY - needed when DRY_RUN=0: the human who ordered it, a HUM-* id
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order, at most 64 chars
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=<tenant> MEMBER_EMAIL=<email> ACCESS_UNTIL=2026-10-07T06:00:00Z ORDERED_BY=HUM-10 ORDERED_VIA=c-001 DRY_RUN=0 ./run -a do_spl_hub_member_access_until

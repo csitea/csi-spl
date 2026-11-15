@@ -24,7 +24,7 @@
 # @description of its issue prefix, and Reporting -> Releases links them.
 # @description Authenticated as the env's project service account (operator
 # @description id token, spl_hub_operator_call), never the owner account.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): print the request bodies, call nothing; 0: POST them
 # @param RELEASE_SHA (optional) - the newest commit to send, default HEAD
 # @param RELEASE_NOTE_DEPTH (optional) - how many first-parent commits back, default 500

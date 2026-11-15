@@ -14,9 +14,9 @@
 # @description reversible); the publish step (T008) deletes both. The output
 # @description gives counts, never a name. Refused when the staging bucket is
 # @description unset or is the public bucket.
-# @param ENV - required: dev or prd
-# @param PD_CANDIDATE - required: the candidate's id, e.g. 2026-10-25-v1.4.0 (the staging prefix)
-# @param PD_NAMES_DIR - required: an existing local directory for the two files
+# @param ENV (required) - dev or prd
+# @param PD_CANDIDATE (required) - the candidate's id, e.g. 2026-10-25-v1.4.0 (the staging prefix)
+# @param PD_NAMES_DIR (required) - an existing local directory for the two files
 # @param DRY_RUN (optional) - 1 (default): check the cnf and the arguments, no cloud. 0: read and write.
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

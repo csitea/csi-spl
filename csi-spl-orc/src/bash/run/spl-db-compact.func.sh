@@ -19,7 +19,7 @@
 # @description refused unless ALLOW_PRD=1 (a prd rewrite is a planned window,
 # @description announced first). DRY_RUN=1 (default) prints the sizes and what
 # @description it would run, and changes nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TABLE (optional) - messages (default) | deliveries | message_revisions | issues | human_events
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param ALLOW_PRD (optional) - 1 lets ENV=prd run for real

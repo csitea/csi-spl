@@ -42,7 +42,7 @@
 # @description human post. Dry run unless DRY_RUN=0: the plan per workspace,
 # @description nothing posted, sent or written. The cron line is
 # @description do_spl_workspace_delivery_probe_install_cron.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param PROBE_TO (optional) - the dispatcher DMed and checked, default LEASE_MASTER (lease.conf), else c-002
 # @param PROBE_ASK_TO (optional) - who gets the ask, default LEASE_ORCH, else c-001
 # @param PROBE_FROM (optional) - the ask's sender, default PROBE_TO

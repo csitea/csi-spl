@@ -20,9 +20,9 @@
 # @description Exit: 0 go, 1 usage / config, 3 fence lost, 4 fence
 # @description unconfirmed (never act on it), 5 mutex held by another seat,
 # @description 6 mutex unreachable.
-# @param PEER_GATE_ROLE - required: spawn, fleet-config or prd-<target>
+# @param PEER_GATE_ROLE (required) - spawn, fleet-config or prd-<target>
 # @param PEER_SEAT (optional) - the acting seat, default SPOOL_AGENT_ID
-# @param PEER_MSG / PEER_GEN - required for a seat: the message it acts for and the responsible_gen it holds
+# @param PEER_MSG / PEER_GEN - needed for a seat: the message it acts for and the responsible_gen it holds
 # @param PEER_MUTEX_TTL (optional) - seconds a mutex is held, default 120
 # @param PEER_MUTEX_WAIT (optional) - seconds to wait for a held mutex, default 0 (refuse at once)
 # @param PEER_GATE_DRY (optional) - 1: fence and READ the mutex, write nothing (a dry run)

@@ -8,8 +8,8 @@
 # @description Uploads as the box writer SA (the project SA impersonates it).
 # @description Refused (exit 3, nothing sent) when anything under SRC is a
 # @description secret: spl_box_state_upload_scan, c-846's one exclude list.
-# @param ENV - required: dev or prd
-# @param SRC - required: the local file or dir
+# @param ENV (required) - dev or prd
+# @param SRC (required) - the local file or dir
 # @param PREFIX (optional) - a relative path under rw_prefix (default: its root)
 # @param DRY_RUN (optional) - 1 (default): scan and print the plan; 0 uploads
 # @example ENV=dev SRC=/var/tmp/report.md PREFIX=reports ./run -a do_spl_box_state_put

@@ -57,7 +57,7 @@
 # @description the desk user's tree as that user. Unset: as before, and a
 # @description state-root left by an earlier set run is removed.
 # @description Dry run unless DRY_RUN=0.
-# @param AGENT_USER - required: the OS user the agent CLIs run as (no default)
+# @param AGENT_USER (required) - the OS user the agent CLIs run as (no default)
 # @param MCP_ENVS (optional) - default "dev prd"
 # @param MCP_CLIS (optional) - default "claude grok agy qwen mistral"; a CLI that is
 # @param   not at <agent home>/.local/bin/<cli> (where their installers put them;

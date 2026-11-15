@@ -20,8 +20,8 @@
 # @description      "sha256_equal=yes|no" (do_box_copy_gcp_key's shape); never
 # @description      the key, its email or its sha.
 # @description Dry run unless DRY_RUN=0 (the dry run makes no sudo call).
-# @param KEY_NAME - required: one file name, ^key-csi-spl-[a-z0-9-]+\.json$ (no path, no glob)
-# @param TO_USER - required: the second local user of this box (e.g. <AGENT_USER>)
+# @param KEY_NAME (required) - one file name, ^key-csi-spl-[a-z0-9-]+\.json$ (no path, no glob)
+# @param TO_USER (required) - the second local user of this box (e.g. <AGENT_USER>)
 # @param GCP_KEY_DIR (optional) - the source dir, default $HOME/.gcp/.csi
 # @param FORCE (optional) - 1 replaces a different key on the target (kept as .prev), default 0
 # @param DRY_RUN (optional) - 1 (default) or 0

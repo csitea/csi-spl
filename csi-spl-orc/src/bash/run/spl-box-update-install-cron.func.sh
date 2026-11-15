@@ -12,7 +12,7 @@
 # @description linked worktree the install is refused (its path vanishes with
 # @description it). do_spl_box_deploy installs it on every box.
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
-# @param ENV - required for install: dev or prd, baked into the line
+# @param ENV - needed for install: dev or prd, baked into the line
 # @param BOX_UPDATE_CRON_ACTION (optional) - install (default) | remove | check
 # @param BOX_UPDATE_CRON_SCHEDULE (optional) - five cron fields, default "0 0,12 * * *"
 # @param BOX_UPDATE_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/box-update

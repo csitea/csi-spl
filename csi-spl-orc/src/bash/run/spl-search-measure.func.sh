@@ -13,8 +13,8 @@
 # @description section both BEFORE (full aggregate) and AFTER (topicCandidates
 # @description prefilter), so one run gives the before/after pair.
 # @description Network time and the hub's own work are not in these numbers.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant measured (e.g. seed-search)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant measured (e.g. seed-search)
 # @param MEASURE_N (optional) - samples per query, 3..50, default 15
 # @param MEASURE_ONLY (optional) - a comma list of query names; default all
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per query

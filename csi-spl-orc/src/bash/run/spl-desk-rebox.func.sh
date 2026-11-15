@@ -40,12 +40,12 @@
 # @description statement sets app.tenant_id (rdb 0014).
 # @description Dry run unless DRY_RUN=0: prints the step, calls no cloud
 # @description (verify is read-only and always runs).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug, or `all`: every tenant whose
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug, or `all`: every tenant whose
 # @param   FROM_BOX desk is pinned here (<state>/desk/*/FROM_BOX/pinned), one
 # @param   after the other, stopping at the first failure
-# @param REBOX_STEP - required: pin | copy | drain | seat | resume | verify | retire
-# @param FROM_BOX - required: the old box id (e.g. box-desk). No default: no desk
+# @param REBOX_STEP (required) - pin | copy | drain | seat | resume | verify | retire
+# @param FROM_BOX (required) - the old box id (e.g. box-desk). No default: no desk
 # @param   action keeps a literal box-desk default (specs/058, test-desk-box-default case 8)
 # @param TO_BOX (optional) - default spl_desk_box_default; never box-desk, never FROM_BOX
 # @param ROOT_KEY_JSON (optional) - pin / retire: the tenant's 0600 create JSON;

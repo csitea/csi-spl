@@ -16,7 +16,7 @@
 # @description Next: do_spl_public_export_role sets the logins' passwords from
 # @description these slots (run it after every ROTATE=1).
 # @description Dry run unless DRY_RUN=0 (a dry run still reads slot states).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param ROTATE (optional) - 1: add a new password even when one exists
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)
 # @param DRY_RUN (optional) - 1 (default): report only. 0: create / add.

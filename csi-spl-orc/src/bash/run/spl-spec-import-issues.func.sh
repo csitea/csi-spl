@@ -20,10 +20,10 @@
 # @description A spec whose spec.md pins its epic ('Epic SPL-n') and whose epic
 # @description the hub auto-closed (SPL-1729) gets it reopened, never a second
 # @description one (SPL-3060); a dry run says it would.
-# @param ENV - required on a live run: dev or prd
-# @param TENANT_ID - required on a live run
-# @param DESK_AGENT - required on a live run: the seated agent id
-# @param ISSUE_DISCUSSIONS - required on a live run that creates: the topic(s) every issue it creates links (do_spl_issue_create; the hub refuses an issue with none)
+# @param ENV - needed on a live run: dev or prd
+# @param TENANT_ID - needed on a live run
+# @param DESK_AGENT - needed on a live run: the seated agent id
+# @param ISSUE_DISCUSSIONS - needed on a live run that creates: the topic(s) every issue it creates links (do_spl_issue_create; the hub refuses an issue with none)
 # @param SPEC_DIR (optional) - specs root; default $APP_PATH/csi-spl-doc/specs
 # @param SPEC_IMPORT_SPECS (optional) - comma list of NNN to limit the run
 # @param SPEC_IMPORT_LABELS (optional) - comma list of extra labels put on every

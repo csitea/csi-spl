@@ -20,11 +20,11 @@
 # @description EMAIL carries requested:true.
 # @description DRY_RUN=1 (default): print the body it would send (masked) and
 # @description the human's current list (a read), write nothing.
-# @param ENV - required: dev or prd
-# @param HUMAN_ID - required: the HUM-* id of the human the address goes to
-# @param EMAIL - required: the address to add (lower-cased)
-# @param ORDERED_BY - required: the HUM-* id of the human who ordered it
-# @param AGENT_ID - required: the agent that carries the order, e.g. c-042
+# @param ENV (required) - dev or prd
+# @param HUMAN_ID (required) - the HUM-* id of the human the address goes to
+# @param EMAIL (required) - the address to add (lower-cased)
+# @param ORDERED_BY (required) - the HUM-* id of the human who ordered it
+# @param AGENT_ID (required) - the agent that carries the order, e.g. c-042
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev HUMAN_ID=HUM-4 EMAIL=someone@example.com ORDERED_BY=HUM-10 AGENT_ID=c-042 ./run -a do_spl_human_email_add
 # @example ENV=dev HUMAN_ID=HUM-4 EMAIL=someone@example.com ORDERED_BY=HUM-10 AGENT_ID=c-042 DRY_RUN=0 ./run -a do_spl_human_email_add

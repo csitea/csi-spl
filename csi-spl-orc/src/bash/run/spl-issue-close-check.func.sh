@@ -13,11 +13,11 @@
 # @description Exit 0 when every key is closed (or none is named), 3 when one
 # @description is OPEN, 1 when a read failed. Read-only: it calls the hub's
 # @description issue get, so like every desk read it needs DRY_RUN=0.
-# @param ENV - required: dev or prd, the hub of the issues
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent that reads (a desk seated on this box)
+# @param ENV (optional) - dev or prd, the hub of the issues; needed with DRY_RUN=0 when the commits name an issue key
+# @param TENANT_ID (optional) - the tenant the desk is seated in; needed with DRY_RUN=0 when the commits name an issue key
+# @param DESK_AGENT (optional) - the agent that reads (a desk seated on this box); needed with DRY_RUN=0 when the commits name an issue key
 # @param DESK_BOX (optional) - default the box's desk (spl_desk_box_default)
-# @param ISSUE_CLOSE_SHAS - required: the lane's landed commits, space or comma separated
+# @param ISSUE_CLOSE_SHAS (required) - the lane's landed commits, space or comma separated
 # @param ISSUE_CLOSE_STATE_DIR (optional) - as do_spl_issue_close_landed (the ledger)
 # @param DRY_RUN (optional) - must be 0 for the hub read; 1 prints the keys only
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci ISSUE_CLOSE_SHAS=47f124353 DRY_RUN=0 ./run -a do_spl_issue_close_check

@@ -34,7 +34,7 @@
 # @description FIRST (do_spl_db_backup into <env>/pre-msg-dedup-<utc date>/):
 # @description no backup, no delete. It is NOT do_spl_msg_wipe, which deletes
 # @description every message. Runs under the operator RLS scope.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - one tenant slug; empty covers every tenant
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param MSG_DEDUP_CONFIRM (DRY_RUN=0 only) - "<env>/<tenant>" or "<env>/all"

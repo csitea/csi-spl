@@ -27,8 +27,8 @@
 # @description The lines stay until the hub's sweep removes them (7 days, or
 # @description the caps). Dry run unless DRY_RUN=0 (it gates the fill only:
 # @description the other steps read).
-# @param ENV - required: dev (any other env is refused: the fill is dev-only)
-# @param TENANT_ID - required: the tenant the probe box is pinned in
+# @param ENV (required) - dev (any other env is refused: the fill is dev-only)
+# @param TENANT_ID (required) - the tenant the probe box is pinned in
 # @param PROBE_BOX (optional) - default box-orc-probe
 # @param MEASURE_STEPS (optional) - comma list of fill,size,time,conns
 # @param MEASURE_LINES (optional) - 1000..500000, default 500000

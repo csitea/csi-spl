@@ -10,9 +10,9 @@
 # @description be deleted, or the transaction is rolled back. The DSN is
 # @description never logged. DRY_RUN=1 (default): print the revoke, call no
 # @description cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param INVITE_EMAIL - required: the invitee's email
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param INVITE_EMAIL (required) - the invitee's email
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=t1 INVITE_EMAIL=<email> DRY_RUN=0 ./run -a do_spl_hub_invite_revoke

@@ -19,8 +19,8 @@
 # @description never at a human's conversation. Reads no database. The
 # @description password is read from a file and never printed. Dry run unless
 # @description DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (dev: t1)
+# @param ENV (optional) - dev or prd; needed with DRY_RUN=0
+# @param TENANT_ID (required) - the tenant slug (dev: t1)
 # @param PROBE_CHANNEL (optional) - default live-proof: a channel the member may post in and DESK_BOX's agents are members of
 # @param DESK_BOX (optional) - the desk box that reads hub-tail, default spl_desk_box_default
 # @param PROBE_EMAIL (optional) - default the M3 e2e file <state>/m3-e2e/<tenant>/human-email, else m3-e2e-human@example.com

@@ -12,8 +12,8 @@
 # @description before the 429s.
 # @description Nothing is mutated: one `gcloud logging read` as the env SA, or
 # @description none when REQ_JSON_IN names a saved read.
-# @param ENV - required: dev or prd
-# @param REQ_SINCE - required: RFC 3339 UTC start, e.g. 2026-10-15T07:15:00Z
+# @param ENV (optional) - dev or prd; needed unless REQ_JSON_IN is set
+# @param REQ_SINCE (required) - RFC 3339 UTC start, e.g. 2026-10-15T07:15:00Z
 # @param REQ_MINUTES (optional) - window length in minutes, default 30 (1..360)
 # @param REQ_LIMIT (optional) - log entries read at most, default 100000
 # @param REQ_TOP (optional) - routes per minute, default 3; callers listed = 5 x this

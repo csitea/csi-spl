@@ -94,22 +94,22 @@
 # @description     A Workspace: line with no map row: refused, nothing filed.
 # @description Landing moves the issue on (the landed-fix rule: a commit on
 # @description master that cites the key). Dry run unless DRY_RUN=0.
-# @param AGENT_ID - required: the lane's spool id, e.g. c-123
+# @param AGENT_ID (required) - the lane's spool id, e.g. c-123
 # @param LANE_ISSUE_OP (optional) - place (default) | discussion | end
 # @param BRIEF (optional, place) - the brief file; default <spool root>/<id>/lifetime/brief.md
 # @param LANE_ISSUE_KEY (optional, place) - an existing key to link, e.g. SPL-123; default the brief's Issue: line
-# @param LANE_ISSUE_SPEC (place: default the brief's; required, discussion) - the spec folder, csi-spl-doc/specs/NNN-<slug>, on origin/master
+# @param LANE_ISSUE_SPEC (place: default the brief's; needed, discussion) - the spec folder, csi-spl-doc/specs/NNN-<slug>, on origin/master
 # @param LANE_ISSUE_EPIC (optional, place/discussion) - the level-1 epic key; default the brief's Epic: line, the spec's pin, the hub's "Spec NNN - ..." epic
 # @param LANE_ISSUE_TOPIC (optional, place) - the discussion's topic id or its 8-hex short id; default the first one after "topic" (or "dispatch-") in the brief. The issue links it (SPL-1593, rdb 0194); none, or one the hub cannot resolve to exactly one topic of the tenant, links the tenant's default discussion and logs one WARN line naming the brief - a placement never fails on the link
 # @param LANE_ISSUE_POST (optional, place/discussion) - 0: do not post a filed key back in its topic (default 1)
 # @param LANE_ISSUE_ANSWER (optional, place/discussion) - 1: label the filed issue `answer` (an evaluation, an answer to the owner)
-# @param LANE_ISSUE_TITLE (required, discussion) - what the work is
+# @param LANE_ISSUE_TITLE (needed, discussion) - what the work is
 # @param LANE_ISSUE_TEXT (optional, discussion) - the owner's words that ask for it
 # @param LANE_ISSUE_STATUS (optional, end) - diss (default) | onhold | blocked | done (landed in another repo, or applied)
-# @param LANE_ISSUE_REASON (required, end; optional with done) - why the lane ends without landing
-# @param LANE_LANDED_REPO (required, end done in another repo) - the repo's cnf name, e.g. csi-rel or dvn-web
-# @param LANE_LANDED_SHA (required, end done in another repo) - the landed commit, 7-40 hex
-# @param LANE_APPLIED_EVIDENCE (required, end done applied) - "owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>"
+# @param LANE_ISSUE_REASON (needed, end; optional with done) - why the lane ends without landing
+# @param LANE_LANDED_REPO (needed, end done in another repo) - the repo's cnf name, e.g. csi-rel or dvn-web
+# @param LANE_LANDED_SHA (needed, end done in another repo) - the landed commit, 7-40 hex
+# @param LANE_APPLIED_EVIDENCE (needed, end done applied) - "owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>"
 # @param LANE_APPLIED_OWNER_TENANT (optional, end done applied) - the workspace whose hub holds the owner msg, e.g. csitea; default TENANT_ID (the ACCEPTED is always read in TENANT_ID)
 # @param ENV TENANT_ID (optional) - default LEASE_ENV / LEASE_TENANT of <spool root>/dispatch/lease.conf
 # @param DESK_AGENT (optional) - the seated desk that files it; default the first seated of LEASE_MASTER, LEASE_ORCH, LEASE_FAILOVER

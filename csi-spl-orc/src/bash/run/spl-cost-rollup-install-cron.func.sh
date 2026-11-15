@@ -15,7 +15,7 @@
 # @description From a linked worktree the install is refused. Dry run unless
 # @description DRY_RUN=0 (prints the crontab diff). A prd install is the
 # @description operator's (the brief of spec 123 lane 4: never from a lane).
-# @param ENV - required for install: dev or prd, baked into the line
+# @param ENV - needed for install: dev or prd, baked into the line
 # @param COST_ROLLUP_CRON_ACTION (optional) - install (default) | remove | check
 # @param COST_ROLLUP_CRON_SCHEDULE (optional) - five cron fields, replaces the cnf time
 # @param COST_SOURCES (optional) - space-separated source names baked into

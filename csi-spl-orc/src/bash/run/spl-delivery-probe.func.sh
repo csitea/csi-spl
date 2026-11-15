@@ -14,7 +14,7 @@
 # @description
 # @description It sends real messages, into a TEST tenant only (e2e, or
 # @description e2e-<x>); it is a dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - default e2e; must match ^e2e(-[a-z0-9]+)?$
 # @param PROBE_N (optional) - sends, default 20
 # @param PROBE_GAP (optional) - seconds between sends, default 20

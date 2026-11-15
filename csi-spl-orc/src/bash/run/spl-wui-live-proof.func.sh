@@ -20,7 +20,7 @@
 # @description renders /lobby and opens a topic there, it posts nothing.
 # @description Create the channel once per env with do_spl_channel_create
 # @description (ORDERED_BY = the probe member, so only it is seated).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SPL_PROBE_PW (optional) - the probe member's password; empty = skip
 # @param LIVE_PROOF_BASE (optional) - default https://<cnf env.dns.fqdn>
 # @param LIVE_PROOF_SURFACES (optional) - default channel,lobby,home,t

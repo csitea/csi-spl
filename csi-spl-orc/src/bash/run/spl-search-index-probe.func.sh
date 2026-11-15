@@ -51,7 +51,7 @@
 # @description ROLE to the runtime login, no insert, no temp
 # @description table; a script holding a write statement is refused before
 # @description psql runs. prd probes a test workspace only (e2e, e2e-*).
-# @param ENV - required: dev (the DDL probe) or prd (read-only, PROBE_PRD_GO=1)
+# @param ENV (required) - dev (the DDL probe) or prd (read-only, PROBE_PRD_GO=1)
 # @param PROBE_PRD_GO (optional) - 1 = run the read-only check on prd
 # @param TENANT_ID (optional) - the tenant probed, default t1 (dev), e2e (prd)
 # @param PROBE_WORD (optional) - the rare word; default: a word found in one

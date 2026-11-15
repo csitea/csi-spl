@@ -83,7 +83,7 @@
 # @description of the hub (FR9 W5). The cache meta records v=2; a cache without
 # @description it is replaced by a full read, so an excerpt saved earlier does
 # @description not stay.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DELIVER (optional) - 1 sends and records; default 0 (report only)
 # @param SWEEP_MIN_AGE (optional) - minutes a human post waits before it counts, default 15
 # @param SWEEP_DAYS (optional) - lookback in days, default 7

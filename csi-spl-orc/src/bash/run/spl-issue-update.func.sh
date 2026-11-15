@@ -10,12 +10,12 @@
 # @description ISSUE_QAS_ASKED_BY (HUM-n or the msg id), unless the issue is
 # @description already in qas. Prints one JSON line with the issue. Dry run
 # @description unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent (the pane's id)
-# @param ISSUE_REF - required: the issue key, e.g. SPL-12
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent (the pane's id)
+# @param ISSUE_REF (required) - the issue key, e.g. SPL-12
 # @param ISSUE_TITLE ISSUE_DESCRIPTION ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_PRIORITY ISSUE_LEVEL ISSUE_ASSIGNEE ISSUE_LABELS ISSUE_DEADLINE ISSUE_EPIC ISSUE_KIND (optional) - as for do_spl_issue_create (ISSUE_EPIC moves it to another epic)
-# @param ISSUE_QAS_ASKED_BY (optional) - required with ISSUE_STATUS=qas: the human (HUM-n) or the msg id that asked for the review
+# @param ISSUE_QAS_ASKED_BY (optional) - needed with ISSUE_STATUS=qas: the human (HUM-n) or the msg id that asked for the review
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_REF=SPL-12 ISSUE_STATUS=wip DRY_RUN=0 ./run -a do_spl_issue_update

@@ -26,7 +26,7 @@
 # @description session cookie live only in that 0700 temp dir, removed.
 # @description An absent password or cnf member SKIPS with a ::notice:: and
 # @description returns 0; a check that runs and fails returns 1.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SPL_PROBE_ADMIN_PW (optional) - the admin member's password; empty = skip
 # @param JOIN_CHECK_HUB (optional) - default https://<cnf env.dns.api_fqdn>
 # @param JOIN_CHECK_BOX (optional) - default ci-join-<GITHUB_RUN_ID or epoch>-<env>

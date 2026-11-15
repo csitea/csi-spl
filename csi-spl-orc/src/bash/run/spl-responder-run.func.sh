@@ -48,8 +48,8 @@
 # @description RESP_ALERT_AFTER) is do_spl_report_unheard + do_spl_desk_post,
 # @description driven by the watchdog, not this hot path.
 # @description Sends real messages, so it is a DRY RUN unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant whose RSP desk to drain
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant whose RSP desk to drain
 # @param DESK_AGENT (optional) - the responder agent, default SPL_RSP_AGENT
 # @param   (lib/bash/funcs/spl-desk-agents.func.sh)
 # @param DESK_BOX (optional) - the responder box, default box-rsp

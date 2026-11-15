@@ -12,16 +12,16 @@
 # @description printed (SPL-2282): link=https://<host>/calendar?d=<start day>&event=<id>,
 # @description host = <tenant>.<env.dns.fqdn>, the apex for t1. DRY_RUN=1 (default):
 # @description print the request it would send, call no cloud, write nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug
-# @param TITLE - required: the event title (the hub takes 1..200 characters)
-# @param DAY - required with ALL_DAY=1: the day, YYYY-MM-DD
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug
+# @param TITLE (required) - the event title (the hub takes 1..200 characters)
+# @param DAY - needed with ALL_DAY=1: the day, YYYY-MM-DD
 # @param ALL_DAY (optional) - 1 (default): DAY 00:00Z to the next day 00:00Z;
 # @param   0: a timed event from STARTS_AT to ENDS_AT
-# @param STARTS_AT, ENDS_AT - required with ALL_DAY=0: RFC 3339 UTC (2026-10-12T09:00:00Z)
+# @param STARTS_AT, ENDS_AT - needed with ALL_DAY=0: RFC 3339 UTC (2026-10-12T09:00:00Z)
 # @param DESCRIPTION (optional) - the event text, e.g. a link to the source message
 # @param TOPIC_ID (optional) - a topic of TENANT_ID: a full id, or an 8-hex short id that matches exactly one topic there
-# @param AGENT_ID - required: the agent shown as the creator, e.g. c-042
+# @param AGENT_ID (required) - the agent shown as the creator, e.g. c-042
 # @param ORDERED_BY (optional) - the human who ordered it, a HUM-* id (logged by the hub)
 # @param ISSUE_KEYS (optional) - comma-separated issue keys of TENANT_ID (at most 20);
 # @param   empty sends an empty list; unset omits the field

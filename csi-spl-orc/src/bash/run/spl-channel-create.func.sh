@@ -12,15 +12,15 @@
 # @description channel is read back through GET /v1/operator/channels/<channel>.
 # @description DRY_RUN=1 (default): print the request it would send, call no
 # @description cloud, write nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug
-# @param CHANNEL - required: the channel id, ^[a-z0-9][a-z0-9-]{0,63}$; not a
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug
+# @param CHANNEL (required) - the channel id, ^[a-z0-9][a-z0-9-]{0,63}$; not a
 # @param   default (lobby, alerts, feedback), general, issues or tasks
 # @param NAME (optional) - the display name, at most 80 characters (default CHANNEL)
 # @param DESCRIPTION (optional) - what the channel is for, at most 500 characters
 # @param PRIVACY (optional) - members (the default and the only value: a created
 # @param   channel is members-only; only the default channels are public)
-# @param ORDERED_BY - required on DRY_RUN=0: the HUM-* id of the human who ordered it
+# @param ORDERED_BY - needed on DRY_RUN=0: the HUM-* id of the human who ordered it
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=<tenant> CHANNEL=trading ORDERED_BY=HUM-10 ./run -a do_spl_channel_create
 # @example ENV=dev TENANT_ID=<tenant> CHANNEL=trading ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_channel_create

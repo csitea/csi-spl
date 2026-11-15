@@ -14,11 +14,11 @@
 # @description Both runs print the read-back, GET /v1/operator/humans/<human_id>/links.
 # @description DRY_RUN=1 (default): print the body it would send and the current
 # @description links (a read), write nothing.
-# @param ENV - required: dev or prd
-# @param HUMAN_ID - required: the HUM-* id of the person's first account
-# @param LINKED_HUMAN_ID - required: the HUM-* id of the same person's other account
-# @param ORDERED_BY - required: the HUM-* id of the human who ordered it
-# @param AGENT_ID - required: the agent that carries the order, e.g. c-042
+# @param ENV (required) - dev or prd
+# @param HUMAN_ID (required) - the HUM-* id of the person's first account
+# @param LINKED_HUMAN_ID (required) - the HUM-* id of the same person's other account
+# @param ORDERED_BY (required) - the HUM-* id of the human who ordered it
+# @param AGENT_ID (required) - the agent that carries the order, e.g. c-042
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev HUMAN_ID=HUM-10 LINKED_HUMAN_ID=HUM-5 ORDERED_BY=HUM-10 AGENT_ID=c-042 ./run -a do_spl_human_link
 # @example ENV=dev HUMAN_ID=HUM-10 LINKED_HUMAN_ID=HUM-5 ORDERED_BY=HUM-10 AGENT_ID=c-042 DRY_RUN=0 ./run -a do_spl_human_link

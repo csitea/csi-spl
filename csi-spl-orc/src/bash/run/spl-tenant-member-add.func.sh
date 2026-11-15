@@ -16,17 +16,17 @@
 # @description statement sets app.tenant_id for the transaction (rdb 0014).
 # @description This is the OPERATOR path: outside the hub's RBAC checks.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param HUMAN_ID - a human id, e.g. HUM-4. Set this or EMAIL, not both.
 # @param EMAIL - the human's email. Resolved through human_identities to
 # @param   exactly one human_id, or the run refuses. Set this or HUMAN_ID,
 # @param   not both. Stored and compared lower-cased.
-# @param MEMBER_ROLE - required: a role id (biz_owner|product_owner|admin|
+# @param MEMBER_ROLE (required) - a role id (biz_owner|product_owner|admin|
 # @param   developer|tester|pure_agent|biz_customer|regular_user; legacy
 # @param   owner|member map). An unknown id fails on the rbac_roles FK and
 # @param   nothing changes.
-# @param ORDERED_BY - required when DRY_RUN=0: the human who ordered this seat,
+# @param ORDERED_BY - needed when DRY_RUN=0: the human who ordered this seat,
 # @param   a HUM-* id (CLE-77778 provenance). Recorded on the accepted invite
 # @param   (coalesced: an existing invite orderer is kept). A direct seat with
 # @param   no pending invite has nowhere in the DB to store it — the operator
@@ -41,7 +41,7 @@
 # @param   yet the identity itself can never sign in), the membership, and
 # @param   accepts any pending invite. Idempotent. No mail. Default 0 (the
 # @param   SQL path above, which needs an existing human_identities row).
-# @param DISPLAY_NAME - required with CREATE_HUMAN=1: the member's shown name.
+# @param DISPLAY_NAME - needed with CREATE_HUMAN=1: the member's shown name.
 # @param PASSWORD_FILE (optional, CREATE_HUMAN=1 only) - a 0600 file holding a
 # @param   native password. The member also gets an email+password credential
 # @param   (email pre-verified, NO mail), so a first native login lands on the

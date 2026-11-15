@@ -19,7 +19,7 @@
 # @description the env's project service account, in a rolled-back READ ONLY
 # @description transaction (like do_spl_db_query). It never writes and never
 # @description prints the DSN.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - one tenant slug; default every tenant
 # @param UNHEARD_WINDOW (optional) - lookback interval, default '7 days'
 # @param UNHEARD_GRACE (optional) - reply grace, default '2 minutes'

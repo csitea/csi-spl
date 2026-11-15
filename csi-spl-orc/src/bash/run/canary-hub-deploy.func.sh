@@ -28,8 +28,8 @@
 # @description tag, probe_interval_s, metrics_lag_s, max_5xx, max_5xx_pct).
 # @description Identity: the env's project SA (do_gcp_pin_account), --account
 # @description on every gcloud call; never the owner account.
-# @param ENV - required: dev or prd
-# @param IMAGE_REF - required for run: the minted image to canary
+# @param ENV (required) - dev or prd
+# @param IMAGE_REF - needed for run: the minted image to canary
 # @param CANARY_CMD (optional) - run (default) | rollback (pin the 100 % revision of a split, drop the tag) | status (read only)
 # @param EXPECT_COMMIT (optional) - the commit the new revision's /version must report
 # @param DRY_RUN (optional) - 1 (default): print every mutation, make none; 0: make them

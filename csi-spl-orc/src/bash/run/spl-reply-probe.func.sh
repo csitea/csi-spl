@@ -20,8 +20,8 @@
 # @description needs a browser and a box on different Cloud Run revisions, which
 # @description only a deploy makes; internal/hub/relay_test.go replays that.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: a TEST tenant slug (prd e2e); t1 is refused
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - a TEST tenant slug (prd e2e); t1 is refused
 # @param PROBE_BOX (optional) - default box-rpp-<utc stamp> (one per run: pin_conflict)
 # @param PROBE_MEMBER (optional) - the channel's member agent, default PRB-9975
 # @param PROBE_OPEN_TO (optional) - the opening's addressee, default HUM-27

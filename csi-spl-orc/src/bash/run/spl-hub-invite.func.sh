@@ -13,16 +13,16 @@
 # @description address is never logged beyond this box's own echo. Resend the
 # @description mail: do_spl_hub_invite_email_send. DRY_RUN=1 (default): print the
 # @description invite, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param INVITE_EMAIL - required: the human's email
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param INVITE_EMAIL (required) - the human's email
 # @param INVITE_ROLE (optional) - a role id (specs/025): biz_owner (the tenant
 # @param   owner), product_owner, admin, developer (default), tester,
 # @param   pure_agent, biz_customer, regular_user; legacy owner|member map to biz_owner|developer.
 # @param INVITED_BY (optional) - who is recorded as the inviter: a HUM-* id or
 # @param   'operator' (default). The owner wants a real HUM-* here, not
 # @param   'operator', when a human ordered the seat.
-# @param ORDERED_BY - required when DRY_RUN=0: the human who ordered this
+# @param ORDERED_BY - needed when DRY_RUN=0: the human who ordered this
 # @param   invite, a HUM-* id (CLE-77778 provenance).
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order,
 # @param   e.g. CLE-34967 or '[terminal]'. At most 64 chars.

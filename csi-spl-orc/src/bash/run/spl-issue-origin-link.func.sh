@@ -7,11 +7,11 @@
 # @description only the orchestrator runs this; a lane sends it the command.
 # @description Nothing printed or logged names the origin workspace or topic.
 # @description DRY_RUN=1 (default): check the input, call no cloud, write nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace that owns the issue
-# @param ISSUE_KEY - required: the issue, e.g. SPL-123
-# @param ORIGIN_TENANT - required: the workspace the topic lives in
-# @param DISCUSSION - required: a topic id, its 8-hex short id or a /t/ link
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace that owns the issue
+# @param ISSUE_KEY (required) - the issue, e.g. SPL-123
+# @param ORIGIN_TENANT (required) - the workspace the topic lives in
+# @param DISCUSSION (required) - a topic id, its 8-hex short id or a /t/ link
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=<tenant> ISSUE_KEY=SPL-123 ORIGIN_TENANT=<other> DISCUSSION=<topic id> ./run -a do_spl_issue_origin_link
 #------------------------------------------------------------------------------

@@ -34,7 +34,7 @@
 # @description read whole. Deletes go in atomic pushes of PRUNE_BATCH refs.
 # @description PRUNE_UNLANDED=1 is refused in this mode. The box cron row
 # @description git-prune-merged (cnf/box-crons/box-crons.manifest) runs it.
-# @param ROUND (required, or ROUNDS) - the round(s), e.g. 8, "7,8", 01, r01, sdlc or b01
+# @param ROUND (optional) - the round(s), e.g. 8, "7,8", 01, r01, sdlc or b01; needed unless ROUNDS or PRUNE_ALL_MERGED=1 is set
 # @param ROUND a number N means prefix r<N> as written (01 = r01, not r1); a
 # @param ROUND prefix is [a-z][a-z0-9]+ (2+ characters), r0 / 00 refused
 # @param ROUNDS (optional) - the same list under its plural name, e.g. "7 8";

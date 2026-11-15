@@ -10,10 +10,10 @@
 # @description may add agents; the hub answers 403 otherwise.
 # @description The password is read from a 0600 file and never printed.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param CHANNEL - required: the channel id
-# @param AGENTS - required: space-separated agent ids, e.g. "CLE-555 CLE-666"
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param CHANNEL (required) - the channel id
+# @param AGENTS (required) - space-separated agent ids, e.g. "CLE-555 CLE-666"
 # @param AGENT_BOX (optional) - default box-desk
 # @param CHANNEL_CREATE (optional) - 1 = create the channel first, default 0
 # @param MEMBER_EMAIL (optional) - default m3-e2e-human@example.com (the M3 e2e member)

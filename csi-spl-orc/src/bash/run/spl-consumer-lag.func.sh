@@ -14,7 +14,7 @@
 # @description CLOUDSDK_CONFIG, the DSN from Secret Manager, the Cloud SQL Auth
 # @description Proxy on 127.0.0.1, psql in BEGIN READ ONLY with the operator
 # @description row-level-security scope. Prints no message body.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param LAG_ALERT_MIN (optional) - alert age of a live box's oldest uncommitted row, minutes (1..10080, default 30)
 # @param LAG_DEAD_HOURS (optional) - no hello for this long = a dead box, hours (1..8760, default 72)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json

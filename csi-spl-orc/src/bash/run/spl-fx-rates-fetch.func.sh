@@ -24,7 +24,7 @@
 # @description {from} and {to} filled as MM/DD/YYYY), posted in the same
 # @description chunks and UPSERT. The one-off backfill of a hub; the daily cron
 # @description row never sets it.
-# @param ENV - required: dev or prd, the hub written
+# @param ENV (required) - dev or prd, the hub written
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param FX_DAYS (optional) - the days back from today posted, 1..90, default cnf env.fx.days
 # @param FX_FROM (optional) - YYYY-MM-DD, 1999-01-04..today: post every day since it (not with FX_DAYS)

@@ -28,7 +28,7 @@
 # @description address, or e2e / proof in the address or the display name)
 # @description unless WELCOME_INCLUDE_TEST=1, which is for a live proof only.
 # @description Run by desk-reconcile-cron.sh every tick. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - space-separated tenants; default every tenant
 # @param   with a pinned desk on DESK_BOX in this env's state dir
 # @param DESK_BOX (optional) - default box-desk

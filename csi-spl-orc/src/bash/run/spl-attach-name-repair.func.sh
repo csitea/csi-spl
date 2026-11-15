@@ -22,7 +22,7 @@
 # @description type, unknown, 5 sample before/after names, failures, left).
 # @description Dry run unless DRY_RUN=0: the dry run reads and sniffs, and
 # @description sends nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_IDS (optional) - space- or comma-separated workspaces; default every
 # @param   workspace whose DESK_BOX desk is pinned here (<state>/desk/*/<box>/pinned)
 # @param DESK_BOX (optional) - default the desk box, the same value do_spl_desk_up used

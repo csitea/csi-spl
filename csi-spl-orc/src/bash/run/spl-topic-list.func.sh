@@ -9,10 +9,10 @@
 # @description seated in on that box; any other channel lists 0 topics.
 # @description Read-only, but like every desk action it calls the hub only
 # @description with DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param CHANNEL - required: the channel, with or without its #
-# @param DESK_AGENT - required: the agent the hub reads as (seated on DESK_BOX)
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param CHANNEL (required) - the channel, with or without its #
+# @param DESK_AGENT (required) - the agent the hub reads as (seated on DESK_BOX)
 # @param DESK_BOX (optional) - default SPOOL_DESK_BOX of box.env, else box-desk
 # @param TOPIC_LIMIT (optional) - page size 1..100, default 50
 # @param TOPIC_BEFORE (optional) - the "next" cursor of a previous page

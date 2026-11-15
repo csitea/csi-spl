@@ -24,8 +24,8 @@
 # @description another app's dir needs STRIPE_SHARED_ACCOUNT_OK=1) and reaches curl
 # @description on stdin (--config -), never argv. The endpoint URL is
 # @description https://<env.dns.api_fqdn>/api/v1/webhooks/payment/stripe from cnf.
-# @param ENV - required: dev or prd
-# @param STRIPE_API_BASE - required, no default: the Stripe REST base URL (e.g. the vendor's public API base, or a local mock)
+# @param ENV (required) - dev or prd
+# @param STRIPE_API_BASE (required) - the Stripe REST base URL (e.g. the vendor's public API base, or a local mock)
 # @param WEBHOOK_URL (optional) - override the endpoint URL (https only)
 # @param RECREATE (optional) - 1: delete this action's endpoint and make a new one (the only way to recover a lost whsec_)
 # @param STRIPE_KEY_APP (optional) - use that app's key files in place (e.g. rel: the owner-approved shared account); needs STRIPE_SHARED_ACCOUNT_OK=1. The endpoint is still OURS (tagged managed_by=<org>-<app>), so events never mix

@@ -15,7 +15,7 @@
 # @description                /v1/openapi.json
 # @description One line per check, "<check> <PASS|FAIL|SKIP> <detail>"; exit 0
 # @description only when no check failed. The cookie is never printed.
-# @param ENV - required: dev or prd (prd needs API_SMOKE_PRD_GO=1)
+# @param ENV (required) - dev or prd (prd needs API_SMOKE_PRD_GO=1)
 # @param API_SMOKE_PRD_GO (optional) - 1 = the operator opts in to prd
 # @param TENANT (optional) - the test workspace of the member tier, default e2e
 # @param API_SMOKE_COOKIE_FILE (optional) - a 0600 file holding

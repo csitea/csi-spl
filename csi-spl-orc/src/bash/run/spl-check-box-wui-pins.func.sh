@@ -14,7 +14,7 @@
 # @description PINS_DAYS days. Exit 1 when any row is a GAP.
 # @description Read-only: GET /v1/wui/pubkey, and one READ ONLY transaction in
 # @description operator RLS scope as the env SA.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param PINS_DAYS (optional) - the unsigned-post look-back, default 7
 # @param PINS_ROWS_FILE (optional) - rows instead of the hub DB, one per line:
 # @param   <tenant>|<box-wui pubkey b64 or empty>|<revoked or empty>|<unsigned count>

@@ -15,7 +15,7 @@
 # @description so a box cannot change or remove a backup through either.
 # @description Not POSIX: no locks, a rename is a copy + delete, a write
 # @description reaches the bucket on close. Already mounted = OK, unchanged.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param MOUNT (optional) - ro, rw or both (default both)
 # @example ENV=dev ./run -a do_spl_box_state_mount
 # @example ENV=dev MOUNT=ro ./run -a do_spl_box_state_mount

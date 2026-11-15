@@ -49,16 +49,16 @@
 # @description ends with a retention, its days, read from the cnf and as the
 # @description per-env service account; a value it cannot read is not sent and
 # @description prints as "RETENTION <copy>: not read: <reason>".
-# @param ENV - required: dev or prd
-# @param CHANNEL - required: <SRC>/<channel id>, the workspace and channel to move
-# @param TO - required: the <DST> workspace slug
+# @param ENV (required) - dev or prd
+# @param CHANNEL (optional) - <SRC>/<channel id>, the workspace and channel to move; needed unless MOVE_CMD=probe
+# @param TO (required) - the <DST> workspace slug
 # @param MOVE_MODE (optional) - move (default) or copy
 # @param MOVE_CMD (optional) - plan (default) or run
 # @param TO_NAME (optional) - the channel id in <DST> when <channel id> is taken there
 # @param MOVE_FROM (optional) - restart at this step (P1..P7, P2b) instead of the journal's
-# @param MOVE_GO_MSG - required for run with DRY_RUN=0: the owner's GO poll answer msg id
-# @param MOVE_CALLER - required for a move with DRY_RUN=0: the <DST> orchestrator seat, <agent id>[@<box>], the probe DMs go to
-# @param AGENT_ID - required for a move with DRY_RUN=0: the agent id the lane key notes come from
+# @param MOVE_GO_MSG - needed for run with DRY_RUN=0: the owner's GO poll answer msg id
+# @param MOVE_CALLER - needed for a move with DRY_RUN=0: the <DST> orchestrator seat, <agent id>[@<box>], the probe DMs go to
+# @param AGENT_ID - needed for a move with DRY_RUN=0: the agent id the lane key notes come from
 # @param CHANNEL_MOVE_HUB_CMD (optional, tests) - a command in place of the T7 call: the request JSON on stdin, the answer JSON on stdout, non-zero = refused
 # @param CHANNEL_MOVE_STATE (optional) - the box journal dir, default $SPOOL_ROOT/channel-move
 # @param PROBE_AGENT, PROBE_TO, PROBE_MOVE (MOVE_CMD=probe only) - the seat, the recipient <agent id>[@<box>], the move id

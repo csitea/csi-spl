@@ -9,7 +9,7 @@
 # @description the gate itself; this catches a new domain or prefix.
 # @description Output is counts only, never a value (cron and CI logs).
 # @description No overlay, or no customer_strings or customer_channels: FATAL.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param PD_CUSTOMER_NEW_OUT (optional) - a new file (mode 600) listing what is uncovered, for the overlay's editor
 # @example ENV=prd ./run -a do_spl_public_dataset_customer_check
 #------------------------------------------------------------------------------

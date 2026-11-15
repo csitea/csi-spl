@@ -45,7 +45,7 @@
 # @description   --check --seat S --msg M --gen G -> exit 0 still mine, 1 lost
 # @description   --adopt --seat S --msg M -> set responsible if absent
 # @description Any other exit, or a timeout, is "hub down".
-# @param PEER_SEAT - required: this seat's agent id (c-001 .. g-004)
+# @param PEER_SEAT (optional) - this seat's agent id (c-001 .. g-004)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param PEER_BOX (optional) - this machine's box, default its desk box id
 # @param PEER_POLL_SEC (optional) - seconds between ticks, default 5

@@ -13,7 +13,7 @@
 # @description request of every round lands in <out>/first-load-net.json. It loads
 # @description and reads, it never posts. prd t1 is refused (the owner's tenant):
 # @description measure prd in its test tenant e2e.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - default t1 on dev, e2e on prd
 # @param PFL_N (optional) - rounds per profile and cache, 1..50, default 10
 # @param PFL_PROFILES (optional) - d1440,m390 (default) or one of them

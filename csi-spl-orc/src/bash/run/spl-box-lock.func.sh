@@ -14,15 +14,15 @@
 # @description cnf entry, the box_locks row and its audit summary, and whether
 # @description the row matches cnf (the hub refuses the box when it does not).
 # @description Owners are named by HUM-* id only.
-# @param BOX_LOCK_CMD - required: create | show
-# @param BOX_LOCK_OWNERS - create: required, comma-separated HUM-* owners
+# @param BOX_LOCK_CMD (required) - create | show
+# @param BOX_LOCK_OWNERS - create: needed, comma-separated HUM-* owners
 # @param BOX_LOCK_PEER_BOXES (optional) - create: comma-separated peer box ids
 # @param BOX_LOCK_HIDE_POSTS (optional) - create: true (default) | false
 # @param SPOOL_BIN (optional) - create: the spool binary, default spool on PATH
 # @param SPOOL_KEYS_DIR (optional) - create: the box keys dir, default $HOME/.spool/keys (as spool)
-# @param ENV - show: required, dev or prd
-# @param BOX_LOCK_TENANT - show: required, the workspace id
-# @param BOX_LOCK_BOX - show: required, the box id
+# @param ENV - show: needed, dev or prd
+# @param BOX_LOCK_TENANT - show: needed, the workspace id
+# @param BOX_LOCK_BOX - show: needed, the box id
 # @example BOX_LOCK_CMD=create BOX_LOCK_OWNERS=HUM-1 ./run -a do_spl_box_lock
 # @example ENV=dev BOX_LOCK_CMD=show BOX_LOCK_TENANT=t1 BOX_LOCK_BOX=box-a ./run -a do_spl_box_lock
 #------------------------------------------------------------------------------

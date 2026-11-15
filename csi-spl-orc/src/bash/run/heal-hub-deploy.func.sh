@@ -15,7 +15,7 @@
 # @description (429 streak after the restart, the window ending on a non-200,
 # @description or cannot read the service). SPOOL_HUB_RESTART_AT is terraform
 # @description drift until the next 030 apply; harmless.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): watch only, print the restart it would make; 0: make it
 # @param GCP_ACCOUNT (optional) - the identity (the deploy job passes its deploy SA)
 # @param HEAL_WINDOW_S (optional) - seconds watched per pass (default 60)

@@ -22,7 +22,7 @@
 # @description      /build.json .commit must be the sha, / must be 200
 # @description  10. do_publish_docs + do_release_note_ingest (WARN only, as in 30)
 # @description DRY_RUN=1 (default) prints the plan and touches nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SHA (optional) - the commit to deploy, default origin/master head; must be on origin/master
 # @param DRY_RUN (optional) - 1 (default): print the plan; 0: deploy
 # @param WUI_SUITE (optional) - 1 (default): unit tests + typecheck before the mint; 0: skip

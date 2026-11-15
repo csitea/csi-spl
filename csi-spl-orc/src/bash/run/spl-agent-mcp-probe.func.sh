@@ -15,9 +15,9 @@
 # @description     put -> sent attached -> got back, sha256 compared
 # @description Without MCP_TO nothing is sent and it runs for real. With MCP_TO
 # @description it sends real messages into the tenant: dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param AGENT_USER - required: the OS user the agent CLIs run as
-# @param MCP_AS - required: the seated agent id to act as
+# @param ENV (required) - dev or prd
+# @param AGENT_USER (required) - the OS user the agent CLIs run as
+# @param MCP_AS (required) - the seated agent id to act as
 # @param MCP_CONTROL_AS (optional) - another agent id; its inbox must be refused
 # @param MCP_TO / MCP_TO_BOX (optional) - the recipient and its box for the sends
 # @param MCP_TASK (optional) - the topic uuid for the sends, default a new one

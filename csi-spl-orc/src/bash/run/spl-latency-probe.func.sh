@@ -33,9 +33,9 @@
 # @description
 # @description It sends real messages into the tenant, so it is a dry run
 # @description unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param LAT_AGENT - required: the seated agent id to DM
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param LAT_AGENT (required) - the seated agent id to DM
 # @param LAT_BOX (optional) - default box-desk, the value do_spl_desk_up used
 # @param LAT_N (optional) - spaced single sends, default 12
 # @param LAT_GAP (optional) - seconds between single sends, default 1.5

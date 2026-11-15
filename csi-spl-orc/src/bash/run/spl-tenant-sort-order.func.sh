@@ -8,9 +8,9 @@
 # @description the SQL. Exactly one row must change, or the transaction is
 # @description rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param SORT_ORDER - required: 1..100000, or none
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param SORT_ORDER (required) - 1..100000, or none
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 SORT_ORDER=1 DRY_RUN=0 ./run -a do_spl_tenant_sort_order
 #------------------------------------------------------------------------------

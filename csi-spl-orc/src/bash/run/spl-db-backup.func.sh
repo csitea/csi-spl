@@ -32,7 +32,7 @@
 # @description
 # @description DRY_RUN=1 (the default) resolves and prints the target object
 # @description and touches nothing. DRY_RUN=0 performs the export.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) plan only; 0 export
 # @param SPL_BACKUP_PREFIX (optional) - object prefix, default <env>/
 # @param SPL_BACKUP_MIN_BYTES (optional) - refuse a dump smaller than this, default 4096

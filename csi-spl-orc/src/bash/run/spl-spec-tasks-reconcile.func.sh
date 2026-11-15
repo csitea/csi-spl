@@ -18,14 +18,14 @@
 # @description DRY_RUN=0 applies the closes, then writes a journal and one
 # @description undo command that puts each issue back.
 # @description The contract of this action is this header.
-# @param ENV - required on a live run and on an apply: dev or prd
-# @param TENANT_ID - required on a live run and on an apply
-# @param DESK_AGENT - required on a live run and on an apply: the seated agent
+# @param ENV - needed on a live run and on an apply: dev or prd
+# @param TENANT_ID - needed on a live run and on an apply
+# @param DESK_AGENT - needed on a live run and on an apply: the seated agent
 # @param SPEC_DIR (optional) - a specs root to read instead of origin/master
 # @param SPEC_RECONCILE_REF (optional) - git ref to read, default origin/master
 # @param SPEC_RECONCILE_SHA (optional) - the sha named in the comment; default
 # @param SPEC_RECONCILE_SHA   the resolved ref, or "fixture" when SPEC_DIR is set
-# @param SPEC_RECONCILE_LIST (optional) - issue-list JSON; required when
+# @param SPEC_RECONCILE_LIST (optional) - issue-list JSON; needed when
 # @param SPEC_RECONCILE_LIST   SPEC_RECONCILE_OFFLINE=1, else the hub is listed
 # @param SPEC_RECONCILE_OFFLINE (optional) - 1: no hub read and no re-read
 # @param SPEC_RECONCILE_OUT (optional) - the TSV table; default under SPL_STATE_DIR

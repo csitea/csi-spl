@@ -12,8 +12,8 @@
 # @description the SQL; a key that is not given keeps its stored value.
 # @description Exactly one row must change, or the transaction is rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param HUMAN_ID - required: e.g. HUM-4
+# @param ENV (required) - dev or prd
+# @param HUMAN_ID (required) - e.g. HUM-4
 # @param SUBMIT_KEY - enter (Enter sends, Shift+Enter adds a line) or
 # @param   ctrl-enter (Enter adds a line, Ctrl/Cmd+Enter sends). Lower-cased.
 # @param RAIL_ORDER - the seven rail ids, comma separated, each once:
@@ -22,7 +22,7 @@
 # @param   picked, the WUI default). Lower-cased.
 # @param COMPOSER_POSITION - top or bottom, or default (NULL). Lower-cased.
 # @param   At least one of SUBMIT_KEY, RAIL_ORDER, MESSAGE_ORDER and
-# @param   COMPOSER_POSITION is required.
+# @param   COMPOSER_POSITION must be set.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0 ./run -a do_spl_human_behaviour
 # @example ENV=dev HUMAN_ID=HUM-4 RAIL_ORDER=topics,dm,channels,issues,flow,events,archive ./run -a do_spl_human_behaviour

@@ -24,10 +24,10 @@
 # @description
 # @description DRY_RUN=1 (default) prints the tenant's FULL seat list for that
 # @description box with a prune/keep column and deletes nothing.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param BOX_ID - required: the box the seats are on
-# @param AGENT_IDS - required: space-separated agent ids, explicitly named
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param BOX_ID (required) - the box the seats are on
+# @param AGENT_IDS (required) - space-separated agent ids, explicitly named
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=e2e BOX_ID=box-a AGENT_IDS="CLE-35013 CLE-35014" ./run -a do_spl_agent_seats_prune

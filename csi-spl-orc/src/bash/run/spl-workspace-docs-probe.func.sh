@@ -16,8 +16,8 @@
 # @description Dry run unless DRY_RUN=0. TEARDOWN: step 4 deletes the doc; the
 # @description bucket keeps its old generation and the hub's .history/ record
 # @description (versioning is the point of 052), nothing else is left.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (its 052 bucket must exist)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (its 052 bucket must exist)
 # @param DESK_BOX (optional) - the seat box, default spl_desk_box_default
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_workspace_docs_probe

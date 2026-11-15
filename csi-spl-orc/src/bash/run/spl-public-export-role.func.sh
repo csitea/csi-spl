@@ -25,7 +25,7 @@
 # @description stdout or a log. Idempotent.
 # @description Also FAILs when PUBLIC holds any privilege on a table or column
 # @description of the schema (every login would inherit it).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): check the files and cnf, no cloud. 0: apply + verify.
 # @param VERIFY_ONLY (optional) - 1: read back and probe, apply nothing
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)

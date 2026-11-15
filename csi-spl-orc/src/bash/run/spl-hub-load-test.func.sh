@@ -22,7 +22,7 @@
 # @description cnf env.box.join_check_email in join_check_tenant; else the probe
 # @description member files <state>/m3-e2e/<tenant>/probe/{human-email,pw-human}.
 # @description Never a person's own login. The password is never printed.
-# @param ENV - required: dev
+# @param ENV (required) - dev
 # @param LOAD_RPS (optional) - requests a second, 1..50, default 20
 # @param LOAD_CONCURRENCY (optional) - in flight at most, 1..50, default 10
 # @param LOAD_SECONDS (optional) - 1..900, default 60

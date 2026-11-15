@@ -9,7 +9,7 @@
 # @description of RELEASE_SHA: one row per commit, its version the first
 # @description v-tag that shipped it, idempotent (the hub upserts by sha and
 # @description keeps a row's first version). Safe to re-run.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): print the request bodies, call nothing; 0: POST them
 # @param RELEASE_SHA (optional) - the newest commit to send, default HEAD
 # @param RELEASE_NOTE_BATCH (optional) - rows per request, default 100 (hub max 500)

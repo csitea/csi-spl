@@ -11,9 +11,9 @@
 # @description after it. The server's own time per query is
 # @description do_spl_hub_route_latency ROUTE_QUERY=1. Nothing is written;
 # @description the password is read from a file and never printed.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param PROBE_TERMS - required: comma list of search terms, e.g. archive,spool,deploy
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param PROBE_TERMS (required) - comma list of search terms, e.g. archive,spool,deploy
 # @param PROBE_N (optional) - searches per term and call, 1..50, default 5
 # @param PROBE_EMAIL (optional) - default the e2e member's stored address
 # @param PROBE_PW_FILE (optional) - default <state>/m3-e2e/<tenant>/pw-human

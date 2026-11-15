@@ -14,8 +14,8 @@
 # @description DRY_RUN=0 copies the staging tree onto the target root; with the
 # @description root / it runs as root (sudo -n) and keeps the archive's owners.
 # @description It never deletes a file the archive does not hold.
-# @param ENV - required: dev or prd
-# @param DATE - required: YYYY-MM-DD, the night to restore
+# @param ENV (required) - dev or prd
+# @param DATE (required) - YYYY-MM-DD, the night to restore
 # @param BOX (optional) - the box whose state to restore; default this box
 # @param DRY_RUN (optional) - 1 (default): stage and compare, change nothing
 # @param BOX_STATE_STAGING (optional) - the staging dir (default a new mktemp dir)

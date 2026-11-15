@@ -28,7 +28,7 @@
 # @param ORDER_PATHS (add, match) - comma-separated repo-relative paths; for add, globs (* one segment, ** any depth, ? one char)
 # @param ORDER_PATHS_FILE (optional, add, match) - the same, one per line (a path may hold a comma)
 # @param ORDER_TEXT / ORDER_TEXT_FILE (add) - the order word for word; with ORDER_FROM_HUB it may be left out (the whole body) or be a contiguous part of it
-# @param ORDER_FROM_HUB (optional for add; required to lift a go or content order) - dev | prd: read the message from that hub (read-only do_spl_db_query); unset = source "given"
+# @param ORDER_FROM_HUB (optional for add; needed to lift a go or content order) - dev | prd: read the message from that hub (read-only do_spl_db_query); unset = source "given"
 # @param ORDER_OWNER ORDER_TS ORDER_TOPIC (add, without ORDER_FROM_HUB) - HUM-<n>, ISO UTC send time, topic uuid (optional)
 # @param ORDER_GATE (optional, add) - go (default: any uncited change refused) | content (a pure rename passes, a content change needs the go) | none
 # @param ORDER_EXPIRES ORDER_NOTE (optional, add) - ISO UTC end of the order; the writer's one line
@@ -40,7 +40,7 @@
 # @param ORDER_SYNC_FROM_BOX (optional, sync) - this box's id, default spool_fleet_box
 # @param ORDER_SYNC_SSH_CMD (optional, sync) - default "ssh -o BatchMode=yes -o ConnectTimeout=15" (tests)
 # @param ORDER_OUT (optional, list, match) - a file to append the full orders (text included) to as JSON lines, mode 600; keep it outside OWNER_ORDER_DIR (list reads every *.jsonl there)
-# @param AGENT_ID (required for add, lift) - the writer
+# @param AGENT_ID (needed for add, lift) - the writer
 # @param OWNER_ORDER_DIR (optional) - default $SPOOL_ROOT/owner-orders
 # @param DRY_RUN (optional) - default 1
 # @example ORDER_CMD=list ./run -a do_spl_owner_order

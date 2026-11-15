@@ -23,7 +23,7 @@
 # @description A green workflow run is not proof of a deploy (a skipped deploy
 # @description job is green too); this is. It only DESCRIBES: no update, no
 # @description create, no IAM. Spec 008 FR-P09.
-# @param ENV - required: dev or prd
+# @param ENV (optional) - dev or prd; needed for the gcp provider (the default)
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that reads (run.viewer is enough)
 # @param SPL_HUB_IMAGE_TAG (optional) - require exactly this release key (do_release_version `key`; 1.0.1-c2 past 9.9.9, while /version shows 1.0.1)
 # @description Spec 076 T008: routed by provider (do_spl_cloud_dispatch

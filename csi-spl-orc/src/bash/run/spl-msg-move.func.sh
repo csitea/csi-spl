@@ -18,11 +18,11 @@
 # @description topic must open in a channel the mover may post in.
 # @description Prints one JSON line (env, tenant, box, agent, to_task, the
 # @description hub's answer). Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the acting agent (moved_by)
-# @param MSG_ID - required: the message's uuid
-# @param TO_TASK - required: the target topic's task uuid (the ?topic= of the WUI URL)
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the acting agent (moved_by)
+# @param MSG_ID (required) - the message's uuid
+# @param TO_TASK (required) - the target topic's task uuid (the ?topic= of the WUI URL)
 # @param ACT_FOR (optional) - the HUM-* owner / admin the agent acts for
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DRY_RUN (optional) - 1 (default) or 0

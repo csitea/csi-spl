@@ -12,8 +12,8 @@
 # @description Unarchive needs an admin, so the login must hold
 # @description tenant.settings. The password is read from a file and never
 # @description printed. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (dev: t1)
+# @param ENV (optional) - dev or prd; needed with DRY_RUN=0
+# @param TENANT_ID (required) - the tenant slug (dev: t1)
 # @param PROBE_EMAIL (optional) - default the file <state>/m3-e2e/<tenant>/probe/human-email
 # @param PROBE_PW_FILE (optional) - default <state>/m3-e2e/<tenant>/probe/pw-human
 # @param DRY_RUN (optional) - 1 (default) or 0

@@ -20,8 +20,8 @@
 # @description The sidecar is stopped at the end; the channel stays (a test
 # @description tenant's probe channel). Dev t1 / prd t1 are refused.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: a TEST tenant slug (prd e2e); t1 is refused
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - a TEST tenant slug (prd e2e); t1 is refused
 # @param PROBE_BOX (optional) - default box-rcp-<utc stamp> (one per run: pin_conflict)
 # @param PROBE_MEMBER (optional) - the channel's member agent, default PRB-9976
 # @param PROBE_HUMAN (optional) - the HUM-* id the agent replies are addressed to, default HUM-1

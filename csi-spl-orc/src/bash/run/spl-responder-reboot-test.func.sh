@@ -20,7 +20,7 @@
 # @description its FILE to the orchestrator within 60 s; the visible "Seen" is
 # @description off by default, RESP_SEEN_REPLY) is REBOOT_TEST_LIVE=1 DRY_RUN=0, a prod
 # @description leg the box operator runs; the default here is the safe audit.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DESK_BOX (optional) - the responder box to expect, default box-rsp
 # @param RSP_REQUIRE_SEATED (optional) - 1 = a missing box-rsp desk is a FAIL
 # @param   (after step 4 seats it); default 0 (its absence is a WARN while the

@@ -10,13 +10,13 @@
 # @description commits carry a CLE-/GRK-/AGY-/QWN-/SPL- tag, e.g.
 # @description "fix(orc, CLE-77793): ..." -- and falls back to the commit author
 # @description when no tag is present.
-# @param FAIL_RUN_URL - required: the failed run's html_url
+# @param FAIL_RUN_URL (required) - the failed run's html_url
 # @param FAIL_WORKFLOW (optional) - the workflow name (e.g. "20 ci-cd: ...")
 # @param FAIL_SHA (optional) - the breaking commit sha
 # @param FAIL_COMMIT_SUBJECT (optional) - its first message line (carries the tag)
 # @param FAIL_STEP (optional) - the failing job/step name
 # @param FAIL_AUTHOR (optional) - the commit author, the fallback "from"
-# @param TENANT_ID / DESK_AGENT / DESK_BOX - required to actually post
+# @param TENANT_ID / DESK_AGENT / DESK_BOX - needed to actually post (DESK_BOX: default the box desk)
 # @param DESK_CHANNEL (optional) - default cnf env.ops_alarms.channel (alerts;
 # @param   spl_ops_alarm_channel); an unset key is a FATAL
 # @param OPS_POST_FN (optional, testing) - the poster; default do_spl_desk_post

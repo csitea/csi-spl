@@ -31,7 +31,7 @@
 # @description or domain: the box tag is spl_desk_box_default, the user $USER,
 # @description the paths $HOME / $APP_PATH / $SPOOL_ROOT, the rest the cnf.
 # @description Dry run unless DRY_RUN=0 (every installer then prints its plan).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param BOX_DEPLOY_CMD (optional) - check (default) | install | remove
 # @param DRY_RUN (optional) - 1 (default) or 0; check ignores it
 # @param BOX_DEPLOY_TOOLS (optional) - the tools 5.1 needs, default

@@ -14,7 +14,7 @@
 # @description LOCAL_HUB_RESTORE_LIVE=1 restores into the live DB instead
 # @description (pg_restore --clean, one transaction): only with the hub
 # @description stopped and LOCAL_HUB_RESTORE_CONFIRM=<the live DB name>.
-# @param LOCAL_HUB_BACKUP_IDENTITY_FILE - required: the passphrase-wrapped age identity
+# @param LOCAL_HUB_BACKUP_IDENTITY_FILE (required) - the passphrase-wrapped age identity
 # @param LOCAL_HUB_RESTORE_FILE (optional) - a dump name; default latest
 # @param LOCAL_HUB_RESTORE_DB (optional) - the scratch DB; default <db>_restore_<stamp>
 # @param LOCAL_HUB_RESTORE_KEEP (optional) - 1 keeps the scratch DB

@@ -28,7 +28,7 @@
 # @description tees every line into ~/var/log/<proj>/run.sh.<ts>.{out,err}.log.
 # @description A dry create prints: OK DRY_RUN would POST
 # @description /v1/operator/cost-entries period=<p> type=<t> label=<l> to <hub> ...
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param COST_CMD (optional) - list | index | create | delete
 # @param COST_TYPE (optional) - list and index filter, or create: cloud | hr
 # @param COST_MONTH (optional) - list and index filter: YYYY-MM

@@ -26,7 +26,7 @@
 # @description with that migration; it is not a failure. A table the dump's
 # @description level should already hold, missing, still fails the check.
 # @description The full per-table table is printed so drift is visible.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param OBJECT (optional) - the gs:// uri to verify; default the newest in the bucket
 # @param SPL_RESTORE_IMAGE (optional) - default postgres:16-alpine
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

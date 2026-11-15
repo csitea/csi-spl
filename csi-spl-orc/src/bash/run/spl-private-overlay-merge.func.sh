@@ -13,7 +13,7 @@
 # @description ACL, and prints the section name and counts, never the content.
 # @description It does not copy to the other user, box or the CI secret
 # @description (csi-spl-doc/doc/md/private-overlay.md section 4).
-# @param OVERLAY_SECTION_FILE - required: a YAML file holding the one section
+# @param OVERLAY_SECTION_FILE (required) - a YAML file holding the one section
 # @param SPL_PRIVATE_CNF (optional) - the overlay, default the user's own
 # @param SPL_PRIVATE_MASTER_BOX (optional) - default sat
 # @param DRY_RUN (optional) - 1 (default): validate and report, write nothing. 0: merge.

@@ -13,8 +13,8 @@
 # @description     mirror hooks (a CLI reads them when it starts)
 # @description Reads local files only: no cloud call, no send. One JSON line per
 # @description agent, then one summary line.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desk is seated in
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desk is seated in
 # @param DESK_BOX (optional) - default box-desk
 # @param DESK_AGENT (optional) - one agent; default every seat on the desk
 # @param SESSION_AGENT_USER (optional) - whose ~/.claude/settings.json to read,

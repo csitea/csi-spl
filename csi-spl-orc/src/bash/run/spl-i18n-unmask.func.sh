@@ -8,7 +8,7 @@
 # @description The helpers and the matcher live in spl-i18n-mask.func.sh (./run
 # @description sources every *.func.sh): one action per file for the loader.
 # @param I18N_MASK_OUT (optional) - as do_spl_i18n_mask
-# @param I18N_UNMASK_DST - required: where the unmasked text goes, outside agy/
+# @param I18N_UNMASK_DST (required) - where the unmasked text goes, outside agy/
 # @example I18N_UNMASK_DST=<work>/locales.reviewed LANE_MIX_TASK=<task_id> ./run -a do_spl_i18n_unmask
 #------------------------------------------------------------------------------
 do_spl_i18n_unmask() {

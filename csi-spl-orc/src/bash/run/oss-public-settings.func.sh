@@ -27,7 +27,7 @@
 # @description Prints one line per check (OK / FAIL / PENDING-PUBLIC). Exit 0 =
 # @description every applicable check holds, 1 = one does not.
 # @description Dry run unless DRY_RUN=0: then it only READS and reports.
-# @param OSS_PUBLIC_REPO - required: <owner>/<repo> of the public product repo
+# @param OSS_PUBLIC_REPO (required) - <owner>/<repo> of the public product repo
 # @param OSS_RUNNER_GROUP (optional) - the org runner group the self-hosted runners are in
 # @param OSS_TRUSTED_TEAM (optional) - org team slug whose members bypass the trunk ruleset
 # @param OSS_RULESET_NAME (optional) - the ruleset's name, default "trunk"

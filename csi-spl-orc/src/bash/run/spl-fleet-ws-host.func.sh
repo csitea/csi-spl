@@ -25,13 +25,13 @@
 # @description box and is refused (exit 3). DRY_RUN=0 writes root files on this
 # @description box: it needs the owner's go for this box (spec 159 12.2), named
 # @description by OWNER_GO. Dry run unless DRY_RUN=0. Idempotent.
-# @param TENANT_ID - required: the workspace slug to host here
-# @param ENV - required for the desk: dev or prd
-# @param DESK_BOX - required for the desk: the box id W's desk pins as
-# @param DESK_AGENT - required for the desk: the agent id the desk seats
+# @param TENANT_ID (required) - the workspace slug to host here
+# @param ENV - needed for the desk: dev or prd
+# @param DESK_BOX - needed for the desk: the box id W's desk pins as
+# @param DESK_AGENT - needed for the desk: the agent id the desk seats
 # @param SPOOL_JOIN_TOKEN_FILE (optional) - a file holding W's join token for
 # @param   this box (spj1.<tenant>.<secret>); needed on the first desk start only
-# @param OWNER_GO (optional) - required with DRY_RUN=0: the owner's msg id
+# @param OWNER_GO (optional) - needed with DRY_RUN=0: the owner's msg id
 # @param   (8+ hex) of the go for this box
 # @param FLEET_WS_DESK (optional) - 1 (default) starts the desk; 0 only the user
 # @param SPL_FLEET_WS_BASE (optional) - override cnf env.box.fleet_workspace_base

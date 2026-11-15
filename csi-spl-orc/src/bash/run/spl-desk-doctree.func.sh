@@ -42,10 +42,10 @@
 # @description Qto under c-001's seat). A lane with no seat of its own sends
 # @description the DRY_RUN=0 command list to the orchestrator (spec 137
 # @description unified-fs.md section 6).
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent the verb runs for (a seat of the desk)
-# @param DOCTREE_ARGS - required: the verb and its flags, shell-quoted, e.g.
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent the verb runs for (a seat of the desk)
+# @param DOCTREE_ARGS (required) - the verb and its flags, shell-quoted, e.g.
 # @param   `create --title "Rebuild guide"` or `add <doc> --kind para`
 # @param DOCTREE_IN (optional) - the one file the verb may read (a body, a
 # @param   picture). When DOCTREE_ARGS names no --file / --path it is passed as

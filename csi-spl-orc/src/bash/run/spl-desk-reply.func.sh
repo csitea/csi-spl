@@ -107,10 +107,10 @@
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the answering agent id (the pane's id)
-# @param DESK_BODY - required unless DESK_BODY_FILE: the answer text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the answering agent id (the pane's id)
+# @param DESK_BODY - needed unless DESK_BODY_FILE: the answer text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param DESK_BODY_FILE (optional) - read the answer text from this file instead
 # @param   (the dispatcher's one-command form: no $(cat ...) for the harness to judge).
 # @param   A missing file and a file this run user cannot read are different

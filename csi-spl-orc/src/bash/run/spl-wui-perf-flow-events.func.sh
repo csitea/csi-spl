@@ -13,7 +13,7 @@
 # @description fired; every sample lands in <out>/timing.json. It clicks and
 # @description reads, it never posts. prd t1 is refused (the owner's tenant):
 # @description measure prd in its test tenant e2e.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - default t1 on dev, e2e on prd
 # @param PF_N (optional) - rounds per profile, 1..50, default 10
 # @param PF_PROFILES (optional) - d1440,m390 (default) or one of them

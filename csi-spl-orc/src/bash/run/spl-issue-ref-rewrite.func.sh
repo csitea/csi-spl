@@ -22,9 +22,9 @@
 # @description Only the plan's keys change; the ambiguous and t1 keys were never
 # @description in it. A plan with a key above the workspace's last_number is
 # @description refused whole. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace slug (e.g. csitea)
-# @param SCAN_PLAN - required: the plan file do_spl_issue_ref_scan wrote
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the workspace slug (e.g. csitea)
+# @param SCAN_PLAN (required) - the plan file do_spl_issue_ref_scan wrote
 # @param DESK_BOX (optional) - this host's desk box, default spl_desk_box_default
 # @param ISSUE_AGENT (optional) - the seated desk agent that edits the issues
 # @param   (e.g. c-002), one THIS box's desk announces (else the hub refuses

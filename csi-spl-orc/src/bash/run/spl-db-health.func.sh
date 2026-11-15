@@ -19,7 +19,7 @@
 # @description psql runs with ON_ERROR_ROLLBACK=on, so each statement has its
 # @description own savepoint. "Not permitted" is itself a finding, so it is
 # @description printed rather than hidden.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SECTION (optional) - all (default) | size | load | vacuum | structure | cloudsql
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_db_health

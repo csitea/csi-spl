@@ -33,7 +33,7 @@
 # @description (the SA key activation) is tried 3 times, waits 10 and 30 s.
 # @description DRY_RUN=1 (default): read every source, post nothing, prune
 # @description nothing, and the gcp source reads without writing.
-# @param ENV - required: dev or prd, the hub written
+# @param ENV (required) - dev or prd, the hub written
 # @param DAY (optional) - UTC day YYYY-MM-DD, default yesterday (UTC); a DAY
 # @param   given posts that day only, no backfill
 # @param DRY_RUN (optional) - 1 (default) or 0

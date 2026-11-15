@@ -15,8 +15,8 @@
 # @description roadmap switch (HUB-2), and refuses a roadmap event that names
 # @description one. The keys are stable and the batch has no clock in it, so a
 # @description second run upserts the same keys and adds 0 events.
-# @param ENV - required: dev or prd
-# @param WORKSPACE - required, no default: the tenant slug the events go to
+# @param ENV (required) - dev or prd
+# @param WORKSPACE (required) - the tenant slug the events go to
 # @param BACKFILL_REPO (optional) - the git checkout to read; default APP_PATH
 # @param DRY_RUN (optional) - 1 prints the batch and sends nothing
 # @example ENV=dev WORKSPACE=t1 DRY_RUN=1 ./run -a do_spl_goals_backfill_git

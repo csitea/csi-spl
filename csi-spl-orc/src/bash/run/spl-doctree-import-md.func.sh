@@ -29,12 +29,12 @@
 # @description carries its "generated from" line in the same run.
 # @description Every hub call goes through do_spl_desk_doctree (no key path).
 # @description Dry run unless DRY_RUN=0: prints the sections it would write.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the workspace, e.g. t1; refused (before any
+# @param ENV (optional) - dev or prd; needed with DRY_RUN=0
+# @param TENANT_ID (required) - the workspace, e.g. t1; refused (before any
 # @param   hub call, in a dry run too) unless cnf docs.repo_export_tenants lists it;
 # @param   a workspace of cnf docs.private_repos is refused too (export only, SPL-3543)
-# @param DESK_AGENT - required: a seat of this box's desk (do_spl_desk_doctree)
-# @param MD_PATH - required: the md page, repo-relative, e.g. csi-spl-doc/doc/md/runbook-dispatcher.md or README.md
+# @param DESK_AGENT (optional) - a seat of this box's desk (do_spl_desk_doctree); needed with DRY_RUN=0
+# @param MD_PATH (required) - the md page, repo-relative, e.g. csi-spl-doc/doc/md/runbook-dispatcher.md or README.md
 # @param QTO_FS (optional) - the tree: workspace (default) or repo, the
 # @param   repository docs (the system tenant, spec 137 T030a); repo adds the
 # @param   map row with a third column "repo"; workspace adds it with the

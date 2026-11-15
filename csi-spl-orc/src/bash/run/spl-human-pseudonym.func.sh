@@ -19,12 +19,12 @@
 # @description names the human_id and the new name only, never the email or
 # @description the old name. DRY_RUN=1 (default): print the change, call no
 # @description cloud.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param HUMAN_ID - a human id, e.g. HUM-4. Set this or EMAIL, not both.
 # @param EMAIL - the human's email, resolved through human_identities to
 # @param   exactly one human_id. Set this or HUMAN_ID, not both. Compared
 # @param   lower-cased.
-# @param DISPLAY_NAME - required: 1..200 characters after trimming, no
+# @param DISPLAY_NAME (required) - 1..200 characters after trimming, no
 # @param   control or direction-override characters (auth.ValidDisplayName)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd HUMAN_ID=HUM-4 DISPLAY_NAME='FirstName LastName' DRY_RUN=0 ./run -a do_spl_human_pseudonym

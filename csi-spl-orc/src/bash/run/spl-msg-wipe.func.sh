@@ -24,7 +24,7 @@
 # @description (do_spl_db_backup into <env>/pre-msg-wipe-<utc date>/): no backup,
 # @description no wipe. The delete runs under the operator RLS scope, the same
 # @description scope do_spl_db_query reads under.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - one tenant slug; empty wipes every tenant
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param MSG_WIPE_CONFIRM (DRY_RUN=0 only) - "<env>/<tenant>" or "<env>/all"

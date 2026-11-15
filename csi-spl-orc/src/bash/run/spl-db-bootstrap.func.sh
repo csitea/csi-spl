@@ -26,7 +26,7 @@
 # @description Secret Manager. Under gcp the calls are unchanged.
 # @description
 # @description DRY_RUN=1 (default): print the IDs it would touch, call no cloud.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account) (cloudsql.admin + secretmanager.admin + cloudsql.client)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

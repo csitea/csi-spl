@@ -12,9 +12,9 @@
 # @description status; the hub's epic close (SPL-1643) archives the epic and
 # @description its issues. It writes an undo file (0600): the keys for
 # @description do_spl_issue_unarchive and one status command per epic.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent the hub reads and writes as
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent the hub reads and writes as
 # @param ISSUE_KEYS (optional) - comma list: only those epics, when the rule also selects them
 # @param ISSUE_EMPTY_KEYS (optional) - comma list of open epics with NO live issue to close as done too (the hub never does; only a decision names them)
 # @param ISSUE_LIMIT (optional) - list page size 1..500, default 50

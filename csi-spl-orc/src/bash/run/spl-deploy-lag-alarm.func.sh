@@ -13,9 +13,9 @@
 # @description (the workflow caches it); the box cron keeps it on disk.
 # @description The post goes through do_spl_desk_post, so it is DRY_RUN=1 (prints
 # @description what it would post) until a seated ops desk exists and DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required to actually post: the tenant the ops desk is in
-# @param DESK_AGENT - required to actually post: the CI ops agent id
+# @param ENV (required) - dev or prd
+# @param TENANT_ID - needed to actually post: the tenant the ops desk is in
+# @param DESK_AGENT - needed to actually post: the CI ops agent id
 # @param DESK_BOX (optional) - default box-desk; the seated ops box
 # @param DESK_CHANNEL (optional) - default cnf env.ops_alarms.channel (alerts,
 # @param   SPL-4700; spl_ops_alarm_channel); an unset key is a FATAL

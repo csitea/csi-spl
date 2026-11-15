@@ -12,10 +12,10 @@
 # @description must be a commit on trunk, visible in git history, before the
 # @description row can go. A dry run (the default) reads the row only.
 # @description Not built: the post to the owner's DM (8.3); the action says so.
-# @param ENV - required: dev or prd
-# @param BOX_LOCK_TENANT - required: the workspace id
-# @param BOX_LOCK_BOX - required: the box id
-# @param BOX_LOCK_GO - required with DRY_RUN=0: the owner's go (message id)
+# @param ENV (required) - dev or prd
+# @param BOX_LOCK_TENANT (required) - the workspace id
+# @param BOX_LOCK_BOX (required) - the box id
+# @param BOX_LOCK_GO - needed with DRY_RUN=0: the owner's go (message id)
 # @param DRY_RUN (optional) - 1 (default): read only; 0: delete the row
 # @param BOX_LOCK_REPO (optional) - the git checkout whose origin/master cnf is checked, default this repo
 # @example ENV=dev BOX_LOCK_TENANT=t1 BOX_LOCK_BOX=box-a ./run -a do_spl_box_lock_break

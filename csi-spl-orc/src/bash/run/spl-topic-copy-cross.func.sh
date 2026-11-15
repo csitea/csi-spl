@@ -36,13 +36,13 @@
 # @description Dry run unless DRY_RUN=0: the dry run reads the source and lists
 # @description every post it would make (msg id, header, first characters), and
 # @description sends nothing.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param SRC_TENANT - required: the workspace the topic is in
-# @param SRC_TOPIC_ID - required: the topic's task uuid (the ?topic= of the WUI URL)
-# @param DST_TENANT - required: the workspace to copy it into (not SRC_TENANT)
-# @param DST_CHANNEL - required: the target channel id (a leading # is dropped)
-# @param SRC_DESK_AGENT - required unless DESK_AGENT: the source desk's agent (link-back, archive)
-# @param DST_DESK_AGENT - required unless DESK_AGENT: the target desk's agent, a member of DST_CHANNEL
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param SRC_TENANT (required) - the workspace the topic is in
+# @param SRC_TOPIC_ID (required) - the topic's task uuid (the ?topic= of the WUI URL)
+# @param DST_TENANT (required) - the workspace to copy it into (not SRC_TENANT)
+# @param DST_CHANNEL (required) - the target channel id (a leading # is dropped)
+# @param SRC_DESK_AGENT - needed unless DESK_AGENT: the source desk's agent (link-back, archive)
+# @param DST_DESK_AGENT - needed unless DESK_AGENT: the target desk's agent, a member of DST_CHANNEL
 # @param MSG_IDS (optional) - space- or comma-separated source msg ids (or unique
 # @param   prefixes of 8+ hex) to copy, kept in source order; default every message
 # @param TITLE (optional) - the opening title of the new topic (one line, <= 200 chars)

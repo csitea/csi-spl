@@ -10,8 +10,8 @@
 # @description project service account in a throwaway CLOUDSDK_CONFIG, the DSN
 # @description from Secret Manager, the Cloud SQL Auth Proxy on 127.0.0.1, psql
 # @description in BEGIN READ ONLY with the operator row-level-security scope.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (e.g. t1)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (e.g. t1)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_db_period_count_check

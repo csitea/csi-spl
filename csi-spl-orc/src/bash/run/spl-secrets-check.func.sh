@@ -16,7 +16,7 @@
 # @description is the gcp adapter; under SPOOL_CLOUD_PROVIDER=none it is
 # @description do_secrets_check_none (the self-host .env and the state-volume
 # @description session key, no gcloud at all).
-# @param ENV - required (gcp): dev or prd
+# @param ENV - needed (gcp): dev or prd
 # @param SPOOL_CLOUD_PROVIDER (optional) - gcp (default) | none | aws, else the cnf env.cloud.provider
 # @param SPOOL_SELF_HOST_DIR (optional, none) - the dir holding .env (default: this checkout)
 # @param SPOOL_STATE_DIR (optional, none) - the hub state dir holding session.key (default /var/lib/spool/state)

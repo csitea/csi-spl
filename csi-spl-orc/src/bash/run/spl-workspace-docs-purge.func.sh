@@ -30,8 +30,8 @@
 # @description NOT touched: the image bytes in the workspace bucket
 # @description (.doctree/<doc>/, wsdoc_media.go), unreachable once the doc is gone.
 # @description DRY_RUN=0 on prd is an owner go (repo rule).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: exactly ONE workspace slug ("all" or a list is refused)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - exactly ONE workspace slug ("all" or a list is refused)
 # @param DRY_RUN (optional) - 1 (default): export only, nothing deleted
 # @param PURGE_EXPORT_DIR (optional) - default /var/csi/csi-spl/workspace-docs-purge/<env>/<tenant>/<utc ts>
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_workspace_docs_purge

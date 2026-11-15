@@ -52,7 +52,7 @@
 # @description One read per workspace, through ONE proxy session, which the
 # @description dry run makes too (read-only) to compute the plan. DRY_RUN=1
 # @description (default) prints the plan; DRY_RUN=0 applies it in that session.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DISPATCH_MASTER / DISPATCH_FAILOVER / DISPATCH_ORCH (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_TENANTS (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_FLEET_BOXES (optional) - the fleet's boxes, space or comma separated; default above

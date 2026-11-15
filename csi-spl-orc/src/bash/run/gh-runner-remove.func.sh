@@ -19,7 +19,7 @@
 # @description Tokens are short-lived, fetched per runner and never logged.
 # @description Never touches the runner group's repo or workflow restriction.
 # @description Needs sudo and gh with admin:org. Dry run unless DRY_RUN=0.
-# @param GH_RUNNER_ORG - required: the org the runners are registered on
+# @param GH_RUNNER_ORG (required) - the org the runners are registered on
 # @param GH_RUNNER_NAMES (optional) - space-separated runner names, default
 # @param   every runner unit of GH_RUNNER_ORG on this box
 # @param GH_RUNNER_WAIT (optional) - seconds to wait for a busy runner, default 1800

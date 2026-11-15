@@ -20,8 +20,8 @@
 # @description works before the deploy (7.2).
 # @description An unknown sha, or a SHA that is not 7..40 hex, is FATAL, rc 1.
 # @description Only the line goes to stdout; every log line goes to stderr.
-# @param SHA - required: the commit, a 7..40 char hex sha or prefix
-# @param ENV - required: dev or prd, the WUI the commit was released to
+# @param SHA (required) - the commit, a 7..40 char hex sha or prefix
+# @param ENV (required) - dev or prd, the WUI the commit was released to
 # @param RELEASE_REMOTE (optional) - the remote holding the tags, default origin
 # @example SHA=9f175b2e ENV=prd ./run -a do_release_note_link
 #------------------------------------------------------------------------------

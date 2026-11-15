@@ -10,8 +10,8 @@
 # @description do_spl_box_purge, and the way to check a roster without psql.
 # @description The JSON goes to stdout; the password and the session cookie
 # @description are never printed.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param PROBE_EMAIL (optional) - default m3-e2e-human@example.com (the M3 e2e member)
 # @param PROBE_PW_FILE (optional) - default the M3 e2e file <state>/m3-e2e/<tenant>/pw-human
 # @param PROBE_API (optional) - overrides https://<env.dns.api_fqdn>

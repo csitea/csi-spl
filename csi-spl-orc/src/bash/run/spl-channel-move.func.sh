@@ -12,7 +12,7 @@
 # @description other commands (move, status, resume, back, clean, ack) run the
 # @description hook cm_cmd_<command> when a later row defines it, else exit 4.
 # @param CHANNEL (required) - <tenant>/<channel>
-# @param TO (required for plan) - the box the channel moves to
+# @param TO (needed for plan) - the box the channel moves to
 # @param MOVE_CMD (optional) - plan (default), move, status, resume, back, clean, ack
 # @param DRY_RUN (optional) - default 1; a changing command without DRY_RUN=0 prints the plan
 # @param MOVE_ID (optional) - the move (resume, back, clean, ack, status)

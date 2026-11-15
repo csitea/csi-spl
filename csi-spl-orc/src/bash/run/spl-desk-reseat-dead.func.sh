@@ -29,7 +29,7 @@
 # @description run at 20:28Z: the box user's reconcile skips a moved desk and the
 # @description agent user runs no reconcile.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DESK_RESEAT_OTHERS (optional) - 1: re-seat the other users' desks
 # @param   (see above); default 0, the caller's own
 # @param SPL_DESK_AS_CMD (optional) - the hop, default `sudo -n -u`

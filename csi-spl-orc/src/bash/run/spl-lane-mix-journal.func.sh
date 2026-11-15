@@ -10,7 +10,7 @@
 # @description and $SPOOL_ROOT/<id>/attempts.tsv (where spawn-window.sh writes
 # @description it today). An S2 verdict (limit, auth, login) is never a row: a
 # @description vendor that is out is skipped by availability, not counted.
-# @param LANE_MIX_TASK - required: the task_id
+# @param LANE_MIX_TASK (required) - the task_id
 # @param LANE_MIX_JOURNAL (optional) - the journal files, space-separated;
 # @param   default the two places above
 # @example LANE_MIX_TASK=caef117a-6767-57f3-b805-b4ed1bc96608 ./run -a do_spl_lane_mix_journal

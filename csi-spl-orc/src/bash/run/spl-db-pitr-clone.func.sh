@@ -21,8 +21,8 @@
 # @description then it is read and deleted like a new one.
 # @description DRY_RUN=1 (the default) validates and prints the plan: no
 # @description gcloud mutation, no proxy.
-# @param ENV - required: dev or prd
-# @param PITR_AT - required: the UTC point in time, YYYY-MM-DDTHH:MM:SSZ, inside the PITR window
+# @param ENV (required) - dev or prd
+# @param PITR_AT (required) - the UTC point in time, YYYY-MM-DDTHH:MM:SSZ, inside the PITR window
 # @param PITR_CLONE (optional) - adopt this earlier run's clone (<src>-pitr-<stamp>) instead of making one: wait on it, read, delete
 # @param SQL (optional) - one SELECT statement
 # @param SQL_FILE (optional) - a file of SELECT statements, each ended by ';' (one clone serves all)

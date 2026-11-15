@@ -19,7 +19,7 @@
 # @description manifest row msg-unreadable (do_install_box_crons).
 # @description Read-only on the hub: one statement in a READ ONLY transaction,
 # @description operator RLS scope, as the env SA.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DELIVER (optional) - 1 sends and records; default 0 (report only)
 # @param UNREADABLE_DAYS (optional) - lookback in days, default 30
 # @param UNREADABLE_MAX_ITEMS (optional) - rows per note, default 40

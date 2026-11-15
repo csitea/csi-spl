@@ -10,9 +10,9 @@
 # @description as the env's project SA into a 0600 file removed after the
 # @description run (spl_m3_imap_pass). The token goes to MAIL_TOKEN_FILE (0600)
 # @description only, never stdout or a log.
-# @param ENV - required: dev or prd
-# @param MAIL_TOKEN_EMAIL - required: <relay>+<tag>@<relay domain>, with no earlier mail
-# @param MAIL_TOKEN_FILE - required: absolute path the token is written to (0600)
+# @param ENV (required) - dev or prd
+# @param MAIL_TOKEN_EMAIL (required) - <relay>+<tag>@<relay domain>, with no earlier mail
+# @param MAIL_TOKEN_FILE (required) - absolute path the token is written to (0600)
 # @param M3_IMAP_TIMEOUT (optional) - seconds to wait for the mail (default 240)
 # @example ENV=dev MAIL_TOKEN_EMAIL=<relay>+wui-proof-1@<relay domain> MAIL_TOKEN_FILE=/tmp/x/token ./run -a do_spl_mail_verify_token
 #------------------------------------------------------------------------------

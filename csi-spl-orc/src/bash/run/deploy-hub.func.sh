@@ -25,7 +25,7 @@
 # @description in a throwaway CLOUDSDK_CONFIG, --account on every call; never
 # @description the owner account. DRY_RUN=1 (default) prints the plan and
 # @description touches nothing: no tag, no image, no roll.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SHA (optional) - the commit to deploy, default origin/master head; must be on origin/master
 # @param DRY_RUN (optional) - 1 (default): print the plan; 0: deploy
 # @param DEPLOY_GUARD (optional) - 1 (default): forward-only guard; 0: deploy even when the env serves it or a later hub

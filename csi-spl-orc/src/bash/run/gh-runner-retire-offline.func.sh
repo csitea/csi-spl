@@ -14,7 +14,7 @@
 # @description that variable is set and names no self-hosted label; every
 # @description workflow that still names self-hosted is printed as a WARN.
 # @description Dry run unless DRY_RUN=0. Needs gh with admin:org and sudo.
-# @param GH_RUNNER_ORG - required: the org the runners are registered on
+# @param GH_RUNNER_ORG (required) - the org the runners are registered on
 # @param GH_RUNNER_REPO (optional) - <owner>/<repo> of SPOOL_CI_RUNNER, default: the origin remote
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example GH_RUNNER_ORG=<org> ./run -a do_gh_runner_retire_offline

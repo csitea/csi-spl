@@ -8,7 +8,7 @@
 # @description p95 / max of Postgres' own Execution Time. MEASURE_REF_SQL names
 # @description a second statement (e.g. the previous text, from git show) run
 # @description interleaved with it, so a before/after pair sees the same cache.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param MEASURE_N (optional) - samples per statement, 3..50, default 20
 # @param MEASURE_REF_SQL (optional) - a file holding a reference statement (psql variable :days)
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per statement

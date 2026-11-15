@@ -17,7 +17,7 @@
 # @description do_spl_tenant_create's output was saved to (root_private_key),
 # @description copied into a 0600 scratch file and shredded. Prints only
 # @description public values. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID - the tenant slug
 # @param TENANT_FILE - the tenant's saved create JSON (0600)
 # @param FORCE (optional) - 1: replace a different existing box-wui pin

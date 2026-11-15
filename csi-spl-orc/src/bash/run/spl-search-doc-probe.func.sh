@@ -11,8 +11,8 @@
 # @description section 14). Writes only that one document, as the member, and
 # @description deletes it; dry run unless DRY_RUN=0. The password is read from
 # @description a file and never printed.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param PROBE_EMAIL (optional) - default <pw dir>/human-email, else m3-e2e-human@example.com
 # @param PROBE_PW_FILE (optional) - default <state>/m3-e2e/<tenant>/pw-human
 # @param PROBE_NONCE (optional) - the random words' seed, default a fresh one

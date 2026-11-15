@@ -15,7 +15,7 @@
 # @description     may list it, the env's prefix of the 046 off-project copy.
 # @description One TSV line per object: env, bucket, object, bytes, public.
 # @description Names and sizes only: no object is downloaded or opened.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @example ENV=prd ./run -a do_spl_db_export_audit
 #------------------------------------------------------------------------------
 do_spl_db_export_audit() {

@@ -11,10 +11,10 @@
 # @description as the send id. DRY_RUN=1 (default): print the whole message
 # @description and the relay, call no cloud and dial no SMTP.
 # @description do_spl_hub_invite_email_send stays the path for invitations.
-# @param ENV - required: dev or prd
-# @param TO - required: the one recipient address
-# @param SUBJECT - required: one line, UTF-8
-# @param BODY_FILE - required: the plain-text (UTF-8) body
+# @param ENV (required) - dev or prd
+# @param TO (required) - the one recipient address
+# @param SUBJECT (required) - one line, UTF-8
+# @param BODY_FILE (required) - the plain-text (UTF-8) body
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TO=<address> SUBJECT='Test box access' BODY_FILE=/path/body.txt ./run -a do_spl_mail_send
 # @example ENV=prd TO=<address> SUBJECT='Test box access' BODY_FILE=/path/body.txt DRY_RUN=0 ./run -a do_spl_mail_send

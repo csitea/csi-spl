@@ -8,11 +8,11 @@
 # @description opening post names the source as /t/<source id> (the follow-up), in
 # @description the desk's workspace; a source with none writes nothing and a
 # @description priority the target has is kept. Prints the hub's JSON line.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the desk agent that acts
-# @param PRIORITY_FROM - required: the archived topic's uuid
-# @param PRIORITY_TO - required: the live topic's uuid
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the desk agent that acts
+# @param PRIORITY_FROM (required) - the archived topic's uuid
+# @param PRIORITY_TO (required) - the live topic's uuid
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=c-002 PRIORITY_FROM=<uuid> PRIORITY_TO=<uuid> DRY_RUN=0 ./run -a do_spl_topic_inherit_priority

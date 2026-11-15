@@ -21,9 +21,9 @@
 # @description BLOG_IMG_REPLACE=1. After the put the object is read back and
 # @description its sha256 must equal the source's: the read-back is the
 # @description verdict, not the exit code of the upload.
-# @param ENV - required: dev or prd
-# @param BLOG_IMG_SRC - required: the local .webp (or .jpg) file
-# @param BLOG_IMG_NAME - required: the object name, e.g. 2026-10-09-hello-world.webp
+# @param ENV (required) - dev or prd
+# @param BLOG_IMG_SRC (required) - the local .webp (or .jpg) file
+# @param BLOG_IMG_NAME (required) - the object name, e.g. 2026-10-09-hello-world.webp
 # @param DRY_RUN (optional) - default 1: checks and reads only, writes nothing
 # @param BLOG_IMG_REPLACE (optional) - 1 overwrites an object with another sha256
 # @example ENV=dev BLOG_IMG_SRC=/tmp/x.webp BLOG_IMG_NAME=2026-10-09-hello-world.webp ./run -a do_spl_blog_media_put

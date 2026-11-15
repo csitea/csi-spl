@@ -25,8 +25,8 @@
 # @description with the relay password (spl_m3_imap_pass: the prd project SA,
 # @description a 0600 file in probe/ removed when the run ends).
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev, or prd for a test workspace only
-# @param TENANT_ID - required: the workspace slug (prd: ^e2e(-[a-z0-9]+)?$)
+# @param ENV (required) - dev, or prd for a test workspace only
+# @param TENANT_ID (required) - the workspace slug (prd: ^e2e(-[a-z0-9]+)?$)
 # @param PROBE_MEMBER_EMAIL (optional) - default the one in probe/human-email,
 # @param   else delivery-probe-<box>@example.com (prd: <relay local>+spl-probe-<ws>@<relay domain>)
 # @param PROBE_MEMBER_ROLE (optional) - the invite role, default member; e.g. biz_owner

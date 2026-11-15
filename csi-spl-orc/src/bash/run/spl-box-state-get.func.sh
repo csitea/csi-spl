@@ -4,9 +4,9 @@
 # @description box state bucket (iac 056) to a local dir with gcloud storage,
 # @description mounted or not. Read as the env's project SA (--account pinned).
 # @description The dir is created 0700: a backup holds agent transcripts.
-# @param ENV - required: dev or prd
-# @param SRC - required: a relative object path; ending in / = a whole prefix
-# @param DEST - required: the local dir to download into
+# @param ENV (required) - dev or prd
+# @param SRC (required) - a relative object path; ending in / = a whole prefix
+# @param DEST (required) - the local dir to download into
 # @param DRY_RUN (optional) - 1 (default): print the plan; 0 downloads
 # @example ENV=dev SRC=shared/notes/ DEST=/var/tmp/notes ./run -a do_spl_box_state_get
 # @example ENV=dev SRC=shared/notes/ DEST=/var/tmp/notes DRY_RUN=0 ./run -a do_spl_box_state_get

@@ -7,9 +7,9 @@
 # @description next_cursor so a done list does not close the hub socket.
 # @description Read-only, but like every desk action it calls the hub only
 # @description with DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent (the pane's id)
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent (the pane's id)
 # @param ISSUE_ASSIGNEE (optional) - default me; any id, none, or '' for everyone
 # @param ISSUE_STATUS (optional) - comma list; default eval,todo,wip,blocked,onhold,qas (the open ones)
 # @param ISSUE_PRIORITY ISSUE_LEVEL ISSUE_LABEL ISSUE_EPIC (optional) - comma lists

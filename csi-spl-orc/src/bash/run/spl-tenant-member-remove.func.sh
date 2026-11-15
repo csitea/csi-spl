@@ -19,8 +19,8 @@
 # @description transaction (rdb 0014). This is the OPERATOR path: outside the
 # @description hub's RBAC checks (no self-removal rule, no demo ban).
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param HUMAN_ID - a human id, e.g. HUM-4. Set this or EMAIL, not both.
 # @param EMAIL - the human's email, resolved through human_identities to
 # @param   exactly one human_id, or the run refuses. Lower-cased.

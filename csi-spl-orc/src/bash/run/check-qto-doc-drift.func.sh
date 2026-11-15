@@ -47,7 +47,7 @@
 # @param QTO_PRIVATE_INDEX (optional) - rule 7's index; default
 #   ${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/qto-private-index.txt
 # @param QTO_DRIFT_LIVE (optional) - 1: also the live check; then ENV,
-#   TENANT_ID and DESK_AGENT are required (do_spl_doctree_export_md)
+#   TENANT_ID and DESK_AGENT must be set (do_spl_doctree_export_md)
 # @param QTO_DRIFT_FS (optional) - live only: repo or workspace; default both
 # @example ./run -a do_check_qto_doc_drift
 # @example QTO_DRIFT_LIVE=1 ENV=prd TENANT_ID=t1 DESK_AGENT=<seat> ./run -a do_check_qto_doc_drift

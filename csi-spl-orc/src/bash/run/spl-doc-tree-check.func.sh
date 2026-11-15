@@ -15,7 +15,7 @@
 # @description   I5 follows from I4; I6 is derived at read, nothing stored.
 # @description Exit 0 clean, 1 on any violation, 2 on docs=0 (the scope or the
 # @description DOC_ID found nothing) unless EXPECT_EMPTY=1.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DOC_ID (optional) - one doc (uuid); default: every doc
 # @param EXPECT_EMPTY (optional) - 1: docs=0 exits 0
 # @example ENV=dev ./run -a do_spl_doc_tree_check

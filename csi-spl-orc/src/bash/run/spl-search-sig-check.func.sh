@@ -20,7 +20,7 @@
 # @description or the env's project SA key (do_gcp_pin_account). Reads as the
 # @description runtime login over the Cloud SQL Auth Proxy, psql in BEGIN READ
 # @description ONLY with the operator row-level-security scope (spl_psql_ro).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account)
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @param SPL_SEARCH_SIG_PASSED_ON (optional) - the fingerprint the last full compare passed on, default: SPL_SEARCH_SIG_PASSED_ON_RECORDED

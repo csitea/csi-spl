@@ -26,9 +26,9 @@
 # @description Read-only. DESK_REPAIR=1 with DRY_RUN=0 restarts a desk that is
 # @description stranded or down, which is the documented recovery until the box
 # @description client detects a dead session by itself.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the seated agent id
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the seated agent id
 # @param DESK_BOX (optional) - default box-desk
 # @param DESK_REPAIR (optional) - 1 = restart a stranded/down desk (needs DRY_RUN=0)
 # @description Also reports sidecar_stale_build: the bytes the process is

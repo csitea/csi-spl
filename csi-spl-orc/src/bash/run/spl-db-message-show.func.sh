@@ -17,8 +17,8 @@
 # @description and its picture in `files` (owner topic 3eb98913, msg 9ef7aac9).
 # @description Select by MSG_ID, or TASK_ID, or the LAST n (default 5) rows of
 # @description the tenant. Exit 2 when nothing matches.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (e.g. t1)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (e.g. t1)
 # @param MSG_ID (optional) - one message uuid
 # @param TASK_ID (optional) - every message of one task/topic uuid
 # @param LAST (optional) - the newest n messages of the tenant (1..50, default 5)

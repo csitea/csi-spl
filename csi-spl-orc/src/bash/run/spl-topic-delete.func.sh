@@ -25,9 +25,9 @@
 # @description (do_spl_db_backup into <env>/pre-topic-delete-<utc date>/): no
 # @description backup, no delete. The delete runs under the operator RLS scope,
 # @description the same do_spl_db_query reads under, in ONE transaction.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug the topic is in (never crosses tenants)
-# @param TASK_ID - required: the topic's task uuid (the ?topic= of the WUI URL)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug the topic is in (never crosses tenants)
+# @param TASK_ID (required) - the topic's task uuid (the ?topic= of the WUI URL)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param TOPIC_DELETE_CONFIRM (DRY_RUN=0 only) - "<env>/<tenant>/<task>"
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

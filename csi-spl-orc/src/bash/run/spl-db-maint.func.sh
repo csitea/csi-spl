@@ -33,7 +33,7 @@
 # @description window is refused unless MAINT_FORCE=1. Every step runs (a
 # @description failed one never holds back the rest) and any failure makes the
 # @description action exit non-zero.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default) plan only; 0 run it
 # @param MAINT_FORCE (optional) - 1 lets DRY_RUN=0 run outside the window (not MAINT_HEAVY)
 # @param MAINT_HEAVY (optional) - 1 also runs the VACUUM FULL steps (window only)

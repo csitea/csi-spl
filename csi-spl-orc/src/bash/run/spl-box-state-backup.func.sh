@@ -24,7 +24,7 @@
 # @description The object: <box>/<YYYY-MM-DD>/<box>-<YYYYMMDDTHHMMSSZ>.tar.zst.
 # @description The upload runs as the env's project SA impersonating the
 # @description write-only box writer SA (056: objectCreator only, no key).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param DRY_RUN (optional) - 1 (default): pack and scan, upload nothing
 # @param BOX (optional) - the box name; default SPOOL_BOX_TAG, BOX_TAG,
 # @param   SPOOL_BOX_TAG in $SPOOL_ROOT/box.env, else hostname -s

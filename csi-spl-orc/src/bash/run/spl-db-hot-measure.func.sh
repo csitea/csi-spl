@@ -29,9 +29,9 @@
 # @description first channel member with no DM part, else a reader in none:
 # @description the walk reads every DM head) and walk_parent_head (parent=, the
 # @description children of the tenant's topic with the most child topics).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant measured (e.g. t1)
-# @param READER - required: the human the read door is evaluated for (e.g. HUM-10)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant measured (e.g. t1)
+# @param READER (required) - the human the read door is evaluated for (e.g. HUM-10)
 # @param MEASURE_N (optional) - samples per statement, 3..50, default 10
 # @param MEASURE_ONLY (optional) - a comma list of statement names; default all
 # @param MEASURE_JIT (optional) - hub (default: the statement's own scope) | on | off | both

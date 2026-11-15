@@ -10,7 +10,7 @@
 # @description time and by calls. Query text arrives NORMALISED by Cloud SQL
 # @description (literals replaced), so no tenant data is printed.
 # @description Nothing is mutated: one token for the env SA, GETs only.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param INSIGHTS_HOURS (optional) - window in hours, default 24 (max 168)
 # @param INSIGHTS_TOP (optional) - rows per table, default 15
 # @param INSIGHTS_WIDTH (optional) - query text width, default 110

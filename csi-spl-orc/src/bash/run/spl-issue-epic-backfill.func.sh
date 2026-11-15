@@ -28,9 +28,9 @@
 # @description tried.tsv (ISSUE_PLAN_DIR's, else every run's of the workspace)
 # @description is not live under its epic. Archived issues are hidden from
 # @description every hub read, so the plan neither sees nor links them.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the workspace the desk is seated in
-# @param DESK_AGENT - required: the agent the hub reads and writes as
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the workspace the desk is seated in
+# @param DESK_AGENT (required) - the agent the hub reads and writes as
 # @param ISSUE_BACKFILL_CMD (optional) - plan (default) or verify
 # @param ISSUE_BACKFILL_LIMIT (optional) - links per DRY_RUN=0 run, default 100, 0 = all
 # @param ISSUE_BACKFILL_SKIP (optional) - comma list of workspaces left alone, default e2e (the test workspace)

@@ -14,7 +14,7 @@
 # @description version (sha256). After it exists: mail TRANSPORT "smtp" and
 # @description native ENABLED "true" in <env>.env.yaml, render, 030 apply.
 # @description Dry run unless DRY_RUN=0 (dry run still probes when asked).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SMTP_TEST_RCPT (optional) - send the probe mail to this address
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account
 # @param DRY_RUN (optional) - 1 (default): no version added. 0: add it.

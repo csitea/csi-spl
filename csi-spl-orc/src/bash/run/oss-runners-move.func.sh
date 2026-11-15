@@ -17,8 +17,8 @@
 # @description Tokens are short-lived (1 h), fetched per runner and never logged.
 # @description Needs sudo and gh with repo admin on both repos.
 # @description Dry run unless DRY_RUN=0.
-# @param OSS_RUNNER_FROM - required: <owner>/<repo> the runners serve now
-# @param OSS_RUNNER_TO - required: <owner>/<repo> they must serve, OR an org
+# @param OSS_RUNNER_FROM (required) - <owner>/<repo> the runners serve now
+# @param OSS_RUNNER_TO (required) - <owner>/<repo> they must serve, OR an org
 # @param   name (no slash) together with OSS_RUNNER_GROUP: the runners then
 # @param   register on the org, in that runner group (whose repo + workflow
 # @param   restriction decides who may use them)

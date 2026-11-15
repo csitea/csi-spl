@@ -14,8 +14,8 @@
 # @description      PROBE_WAIT_SECS
 # @description The sidecar is stopped at the end; the topic stays. Prints one
 # @description JSON verdict. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant whose m3-e2e member and root key are in <state>/m3-e2e/<tenant>
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant whose m3-e2e member and root key are in <state>/m3-e2e/<tenant>
 # @param PROBE_BOX (optional) - the probe box id, default box-trp-<utc stamp> (one per run: a box id cannot be re-pinned to a new key)
 # @param PROBE_AGENT (optional) - the probe agent, default q-998
 # @param PROBE_WAIT_SECS (optional) - 1..600, default 30

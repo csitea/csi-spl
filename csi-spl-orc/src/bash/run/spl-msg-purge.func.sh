@@ -19,10 +19,10 @@
 # @description child) go to an undo journal, PURGE_JOURNAL_DIR/<env>-<tenant>-
 # @description <utc>.undo.tsv; do_spl_msg_purge_undo puts them back.
 # @description DRY_RUN=1 (default): the per-tenant counts, nothing changed.
-# @param ENV - required: dev or prd
-# @param LIST_FILE - required: the "<tenant> <msg_id> <task_id>" list
-# @param EXPECT_N - required: the number of rows LIST_FILE must hold
-# @param ARCHIVED_BY - required: the archived_by stamp, e.g. HUM-10
+# @param ENV (required) - dev or prd
+# @param LIST_FILE (required) - the "<tenant> <msg_id> <task_id>" list
+# @param EXPECT_N (required) - the number of rows LIST_FILE must hold
+# @param ARCHIVED_BY (required) - the archived_by stamp, e.g. HUM-10
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param PURGE_JOURNAL_DIR (optional) - default: $SPL_STATE_DIR/msg-purge
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port

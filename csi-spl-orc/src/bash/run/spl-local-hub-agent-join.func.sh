@@ -19,10 +19,10 @@
 # @description ENV other than self, ROOT_KEY_JSON, SPOOL_JOIN_TOKEN in the
 # @description environment (the token comes from a 0600 file and never reaches
 # @description argv or output). Dry run unless DRY_RUN=0.
-# @param LOCAL_HUB_TENANT - required, no default: the workspace slug, from the operator
+# @param LOCAL_HUB_TENANT (required) - the workspace slug, from the operator
 # @param   (the hub user's private config is not readable by an agent user)
-# @param DESK_AGENT - required: the agent id of the pane to seat
-# @param LOCAL_HUB_JOIN_TOKEN_FILE - required on the first join of the agent's
+# @param DESK_AGENT (required) - the agent id of the pane to seat
+# @param LOCAL_HUB_JOIN_TOKEN_FILE - needed on the first join of the agent's
 # @param   box: a 0600 file holding the join token spj1.<workspace>.<secret>
 # @param LOCAL_HUB_HUB_PORT (optional) - the hub's loopback port; default cnf
 # @param   env.lde.local_hub.hub_port (spl_local_hub_cnf), else 58180

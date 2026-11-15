@@ -15,7 +15,7 @@
 # @description DRY_RUN=1 (default): print, per workspace, how many members
 # @description hold a pick (an array) or the key at all, in a READ ONLY
 # @description transaction, and write nothing.
-# @param ENV - required: dev or prd (prd only with the owner's go)
+# @param ENV (required) - dev or prd (prd only with the owner's go)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_await_anims_reset

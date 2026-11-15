@@ -18,7 +18,7 @@
 # @description Read-only against GCP: no gcloud call at all.
 # @description Exit: 0 measured (or control held), 3 inconsistent samples or the
 # @description control saw no 429, 1 cannot tell (probe off, unreachable, bad cnf).
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param HUB_URL (optional) - default https://<cnf env.dns.api_fqdn>
 # @param PROBE_N (optional) - samples / control requests, default 3
 # @param PROBE_MODE (optional) - measure (default) or spoof-control

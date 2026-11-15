@@ -19,18 +19,18 @@
 # @description is in a linked discussion of TENANT_ID (read as the desk,
 # @description hub-tail) from a HUM-<n>, with ONE description source; the epic is still
 # @description needed and the description's first line becomes `Owner order: <uuid>`.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent filing it (the pane's id)
-# @param ISSUE_TITLE - required: the title
-# @param ISSUE_DISCUSSIONS - required: the discussions it links, topic ids or /t/<id> links, comma separated (at least one; the hub refuses none: discussion_required). A /t/<id> link in the description stands in for it
-# @param ISSUE_EPIC (required for a level-2 issue) - the level-1 row (epic or feature) above it, e.g. SPL-17; a level-2 issue without it is refused (owner t1 7a98c2d1 msg 5863d0d6)
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the agent filing it (the pane's id)
+# @param ISSUE_TITLE (required) - the title
+# @param ISSUE_DISCUSSIONS - needed: the discussions it links, topic ids or /t/<id> links, comma separated (at least one; the hub refuses none: discussion_required). A /t/<id> link in the description stands in for it
+# @param ISSUE_EPIC (needed for a level-2 issue) - the level-1 row (epic or feature) above it, e.g. SPL-17; a level-2 issue without it is refused (owner t1 7a98c2d1 msg 5863d0d6)
 # @param ISSUE_OWNER_GO (optional) - the full lowercase uuid of the owner's (HUM-<n>) message that ordered this issue, in one of ISSUE_DISCUSSIONS (or a /t/<id> of the description): a level-2 issue then needs no git spec (SPL-4443); refused in t1 and with both ISSUE_DESCRIPTION and ISSUE_DESCRIPTION_FILE; an original post, never a spec 169 copy (its messages row, do_spl_db_message_show as the env SA, says copied_from null); read from the hub only when DRY_RUN=0
 # @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
-# @param ISSUE_DESCRIPTION (required for a level-2 issue: it names the spec, `Spec: csi-spl-doc/specs/NNN-<slug>`) - markdown, no fence needed (csi-spl-doc/doc/help/how-to-post.md); or ISSUE_DESCRIPTION_FILE
+# @param ISSUE_DESCRIPTION (needed for a level-2 issue: it names the spec, `Spec: csi-spl-doc/specs/NNN-<slug>`) - markdown, no fence needed (csi-spl-doc/doc/help/how-to-post.md); or ISSUE_DESCRIPTION_FILE
 # @param ISSUE_STATUS (optional) - eval (default) | todo | wip | diss | blocked | onhold | qas | done  (01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done)
-# @param ISSUE_QAS_ASKED_BY (optional) - required with ISSUE_STATUS=qas: the human (HUM-n) or the msg id that asked for the review (spec 135 Q7)
+# @param ISSUE_QAS_ASKED_BY (optional) - needed with ISSUE_STATUS=qas: the human (HUM-n) or the msg id that asked for the review (spec 135 Q7)
 # @param ISSUE_PRIORITY (optional) - prio 1 (highest) .. 5 (lowest); unset: the highest prio set on a linked discussion, else the class label (bug/alert 1, refactor 2), else 5 (SPL-4725)
 # @param ISSUE_LEVEL (optional) - 1 epic / feature, 2 issue, 3 subtask: the hub derives it from the tree and refuses any other
 # @param ISSUE_ASSIGNEE (optional) - a member HUM-* or an agent id

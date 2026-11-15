@@ -30,8 +30,8 @@
 # @description list does not grow by one per run.
 # @description Engine: csi-spl-orc/src/bash/scripts/invite-e2e.py (stdlib,
 # @description reuses m3-e2e.py). Offline tests: tests/invite-e2e.tst.sh.
-# @param ENV - required: dev, or prd in a test workspace (its other tenants are real)
-# @param TENANT_ID - required: the tenant the invitee joins; on prd a test
+# @param ENV (required) - dev, or prd in a test workspace (its other tenants are real)
+# @param TENANT_ID (required) - the tenant the invitee joins; on prd a test
 # @param   workspace (spl_invite_e2e_test_workspace), refused before any call
 # @param ROOT_KEY_JSON (optional) - the tenant's 0600 key JSON (field
 # @param   root_private_key); default the newest $SPL_TENANTS_DIR/<tenant>.*.json

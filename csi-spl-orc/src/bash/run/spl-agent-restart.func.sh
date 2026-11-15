@@ -57,8 +57,8 @@
 # @description (lifetime/heldout, until the admin clears it) and the admin
 # @description gets ONE message. Dry run unless DRY_RUN=0.
 # @description Exit: 0 done (or planned), 1 failed, 3 nothing to restart (no hit, done, retired), 4 refused by a guard, a lock or a limit.
-# @param ID - required: the agent id (<id>@<this box> accepted)
-# @param CAUSE - required: rebirth | hard-end | S1 | S3 | S4 | S5 | S7 | S9 | reboot | box-down | login-reset | gc (the GC agent: poked on an earlier pass, no progress since; spl-gc.func.sh)
+# @param ID (required) - the agent id (<id>@<this box> accepted)
+# @param CAUSE (required) - rebirth | hard-end | S1 | S3 | S4 | S5 | S7 | S9 | reboot | box-down | login-reset | gc (the GC agent: poked on an earlier pass, no progress since; spl-gc.func.sh)
 # @param DRY_RUN (optional) - 1 (default): PLAN lines, nothing touched; 0: act
 # @param WD_EVIDENCE (optional) - the watchdog's evidence line (set by do_spl_watchdog)
 # @param RESTART_SLOTS (optional) - lane restarts at once on this box, default 4

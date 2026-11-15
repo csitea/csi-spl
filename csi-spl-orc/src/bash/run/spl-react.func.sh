@@ -20,12 +20,12 @@
 # @description line on stdout: RESULT <added|already|removed|absent|present|failed>
 # @description emoji=<e> msg=<id> task=<id> by=<actors with that emoji>.
 # @description Dry run unless DRY_RUN=0 (MODE=check never writes).
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the acting agent (the reaction's actor)
-# @param TOPIC - the topic's task uuid (the ?topic= of the WUI URL); required unless MSG is set
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the acting agent (the reaction's actor)
+# @param TOPIC - the topic's task uuid (the ?topic= of the WUI URL); needed unless MSG is set
 # @param MSG (optional) - the message uuid to react to (default: TOPIC's opening message)
-# @param EMOJI - required: one picker glyph, e.g. ⏸️ (on hold)
+# @param EMOJI (required) - one picker glyph, e.g. ⏸️ (on hold)
 # @param MODE (optional) - add (default), remove, or check (read-only)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DRY_RUN (optional) - 1 (default) or 0

@@ -22,12 +22,12 @@
 # @description (spl_go_ask_check, spawn-agents/lib/go-ask-guard.inc.sh, SPL-2280).
 # @description Prints one JSON line (env, tenant, box, agent, channel, kind,
 # @description the send result). No secret is read. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the posting agent id (the pane's id)
-# @param DESK_CHANNEL - required: the channel id, e.g. spool-hub-devel ('#' and
+# @param ENV (required) - dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the posting agent id (the pane's id)
+# @param DESK_CHANNEL (required) - the channel id, e.g. spool-hub-devel ('#' and
 # @param   upper case are accepted and normalized)
-# @param DESK_BODY - required unless DESK_BODY_FILE: the post text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
+# @param DESK_BODY - needed unless DESK_BODY_FILE: the post text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param DESK_BODY_FILE (optional) - read the post text from this file instead,
 # @param   the same rule as do_spl_desk_reply (missing, and exists but not
 # @param   readable by this run user, are different FATALS)

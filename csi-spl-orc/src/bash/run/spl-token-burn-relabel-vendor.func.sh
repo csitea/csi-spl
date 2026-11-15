@@ -15,13 +15,13 @@
 # @description DRY_RUN=0: ONE operator transaction; requires TOKEN_RELABEL_EXPECT
 # @description matching the row count, updates vendor + agent_id, re-rolls
 # @description affected UTC days in fleet_token_burn_daily, and commits.
-# @param ENV - required: dev or prd
-# @param TOKEN_RELABEL_MODEL - required: stored model name (no default), e.g. gemini-3.8-flash
-# @param TOKEN_RELABEL_FROM_VENDOR - required: wrong stored vendor (claude|mistral|grok|agy|qwen)
-# @param TOKEN_RELABEL_TO_VENDOR - required: target vendor (distinct from TOKEN_RELABEL_FROM_VENDOR)
-# @param TOKEN_RELABEL_FROM - required: first minute, YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (UTC)
+# @param ENV (required) - dev or prd
+# @param TOKEN_RELABEL_MODEL (required) - stored model name (no default), e.g. gemini-3.8-flash
+# @param TOKEN_RELABEL_FROM_VENDOR (required) - wrong stored vendor (claude|mistral|grok|agy|qwen)
+# @param TOKEN_RELABEL_TO_VENDOR (required) - target vendor (distinct from TOKEN_RELABEL_FROM_VENDOR)
+# @param TOKEN_RELABEL_FROM (required) - first minute, YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (UTC)
 # @param TOKEN_RELABEL_BOX (optional) - restrict to one box_tag ([a-z0-9_-]{1,32})
-# @param TOKEN_RELABEL_EXPECT - required on DRY_RUN=0 (optional on DRY_RUN=1): exact matched row count
+# @param TOKEN_RELABEL_EXPECT - needed on DRY_RUN=0 (optional on DRY_RUN=1): exact matched row count
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=prd TOKEN_RELABEL_MODEL=gemini-3.8-flash TOKEN_RELABEL_FROM_VENDOR=claude TOKEN_RELABEL_TO_VENDOR=agy TOKEN_RELABEL_FROM=2026-11-01 ./run -a do_spl_token_burn_relabel_vendor

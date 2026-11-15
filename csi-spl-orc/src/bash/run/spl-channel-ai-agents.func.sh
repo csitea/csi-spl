@@ -15,9 +15,9 @@
 # @description account; values travel as psql variables. Exactly one row must
 # @description change, or the transaction is rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param AI_AGENTS - required: on, off or default (default = remove the value)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param AI_AGENTS (required) - on, off or default (default = remove the value)
 # @param CHANNEL (optional) - the channel id; unset = the workspace default
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 AI_AGENTS=off DRY_RUN=0 ./run -a do_spl_channel_ai_agents

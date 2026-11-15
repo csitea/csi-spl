@@ -14,7 +14,7 @@
 # @description   4. the check: the --name, the window's first token, lease.conf
 # @description Go one role at a time, dispatchers first (the failover, then the
 # @description master), the orchestrator last. Dry run unless DRY_RUN=0.
-# @param ROLE_ID - required: the legacy role id (CLE-003) or its new id (c-003)
+# @param ROLE_ID (required) - the legacy role id (CLE-003) or its new id (c-003)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SWITCH_DESK_ENVS (optional) - default "dev prd"
 # @param SPOOL_ROOT (optional) - default /var/spool-hub

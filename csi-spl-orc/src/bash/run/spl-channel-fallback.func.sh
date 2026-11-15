@@ -10,10 +10,10 @@
 # @description service account; values travel as psql variables. Exactly one
 # @description row must change, or the transaction is rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param CHANNEL - required: the channel id (e.g. live-proof)
-# @param NO_FALLBACK - required: 1 (switch the fallback off) or 0 (back on)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param CHANNEL (required) - the channel id (e.g. live-proof)
+# @param NO_FALLBACK (required) - 1 (switch the fallback off) or 0 (back on)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 CHANNEL=live-proof NO_FALLBACK=1 DRY_RUN=0 ./run -a do_spl_channel_fallback
 #------------------------------------------------------------------------------

@@ -14,7 +14,7 @@
 # @description over the printed window with do_spl_db_window, and a quiet
 # @description window of the same length before it.
 # @description Refused for any ENV but dev. A dry run unless DRY_RUN=0.
-# @param ENV - required: dev (any other env is refused)
+# @param ENV (required) - dev (any other env is refused)
 # @param DBL_MINUTES (optional) - run length, 1..15, default 10
 # @param DBL_CLIENTS (optional) - concurrent sessions, 1..12, default 8
 # @param DBL_IMAGE (optional) - the image pgbench runs from, default postgres:16-alpine

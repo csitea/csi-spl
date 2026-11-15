@@ -17,7 +17,7 @@
 # @description keeps the hub in step. After a version exists: set
 # @description hub.release_note_bans.inject "true" in <env>.env.yaml,
 # @description re-render, plan + apply 030. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)
 # @param DRY_RUN (optional) - 1 (default): report only. 0: add the version.
 # @param HYGIENE_WORKFLOW (optional) - default: $APP_PATH/.github/workflows/10_ci-quality.yml

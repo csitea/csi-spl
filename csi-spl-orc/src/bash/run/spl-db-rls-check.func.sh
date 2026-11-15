@@ -28,7 +28,7 @@
 # @description skipped). Exit 4: EXPECT_RLS=1 and a tenant_id or personal table lacks
 # @description ENABLE + FORCE (0014 not applied, or a table added without it).
 # @description Exit 5: EXPECT_NOT_LIFTABLE=1 and the login can lift RLS.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param EXPECT_RLS (optional) - 1: also require every tenant_id table forced
 # @param EXPECT_NOT_LIFTABLE (optional) - 1: also require that the login cannot lift RLS
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json

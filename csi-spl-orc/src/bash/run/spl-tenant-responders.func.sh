@@ -12,9 +12,9 @@
 # @description rolled back. An agent id need not be seated today: the hub
 # @description skips an id that is not online.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param AGENTS - required: space-separated agent ids, first = first choice
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
+# @param AGENTS (required) - space-separated agent ids, first = first choice
 # @param   (at most 20, no repeats), or none
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 AGENTS="CLE-001" DRY_RUN=0 ./run -a do_spl_tenant_responders

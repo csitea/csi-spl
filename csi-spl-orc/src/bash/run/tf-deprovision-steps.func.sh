@@ -10,7 +10,7 @@
 # @description STEPS has NO default, and DRY_RUN=1 (the default) only lists what
 # @description each step holds. Take do_gcp_backup_env and do_gcp_audit_iam first.
 # @description Same one-sweep-per-box rule as do_tf_sweep_steps.
-# @param STEPS - required: space-separated steps, destroyed in the order given
+# @param STEPS (required) - space-separated steps, destroyed in the order given
 # @param ENVS (optional) - default "dev prd"
 # @param DRY_RUN (optional) - 1 (default): state list only. 0: destroy.
 # @param TF_SWEEP_LOG_DIR (optional) - default $HOME/.local/share/<org>-<app>/tf-sweep

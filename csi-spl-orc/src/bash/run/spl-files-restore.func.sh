@@ -18,7 +18,7 @@
 # @description 0700 temp dir, the target leg uploads from it. Afterwards every
 # @description source name must be present in the target (exit 3 otherwise).
 # @description DRY_RUN=1 (the default) counts the source and touches nothing.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param SOURCE (optional) - bkp (default) | env
 # @param TARGET (optional) - local (default) | local:<absolute dir> | env
 # @param PREFIX (optional) - restore only names under it, e.g. t/t1/

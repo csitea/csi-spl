@@ -22,9 +22,9 @@
 # @description              there needs the owner's go for that delete.
 # @description DRY_RUN=1 (the default) prints the plan and deletes nothing.
 # @description Never opens, copies or hashes the file: names only.
-# @param FILE_ID - required: 64 lowercase hex
-# @param ENV - required for HUB_LEG/BKP_LEG: dev or prd
-# @param TENANT (or TENANT_ID) - required for HUB_LEG/BKP_LEG: the tenant slug
+# @param FILE_ID (required) - 64 lowercase hex
+# @param ENV - needed for HUB_LEG/BKP_LEG: dev or prd
+# @param TENANT (or TENANT_ID) - needed for HUB_LEG/BKP_LEG: the tenant slug
 # @param HUB_LEG, BOX_LEG, BKP_LEG (optional) - 1 (default) or 0
 # @param FILE_ERASE_ROOTS (optional) - colon list of roots to search, replacing
 #   the default (every real home, /root, /var/spool-hub, /var/tmp, /tmp,

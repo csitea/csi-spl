@@ -14,9 +14,9 @@
 # @description never rides argv: curl reads it from the 0700 temp dir
 # @description (--data @file), so ps and /proc/<pid>/cmdline show no row.
 # @description DRY_RUN=1 (default): check and summarise, send nothing.
-# @param ENV - required: dev or prd, the hub written
-# @param INCOMES_TENANT - required: the workspace id the rows belong to
-# @param INCOMES_FILE - required: the TSV path
+# @param ENV (required) - dev or prd, the hub written
+# @param INCOMES_TENANT (required) - the workspace id the rows belong to
+# @param INCOMES_FILE (required) - the TSV path
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev INCOMES_TENANT=<tenant> INCOMES_FILE=<tsv> ./run -a do_spl_incomes_import
 #------------------------------------------------------------------------------

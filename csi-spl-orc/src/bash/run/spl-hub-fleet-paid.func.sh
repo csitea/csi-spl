@@ -16,7 +16,7 @@
 # @description   update     PATCH item PAID_ID with only the fields given
 # @description              (SPL-3890; DRY_RUN=1 default prints the body)
 # @description   delete     DELETE item PAID_ID (DRY_RUN=1 default prints it)
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param PAID_CMD (optional) - list | index | effective | create | update | delete
 # @param FROM, TO (optional) - effective: UTC days YYYY-MM-DD, TO excluded
 # @param VENDOR KIND PLAN_LABEL AMOUNT CURRENCY PERIOD_START PERIOD_END - create

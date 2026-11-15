@@ -24,7 +24,7 @@
 # @description   SIGNIN_CMD=status signed in or not, and the modes; never a
 # @description                     file's content
 # @description It prints no file content and no token. Dry run unless DRY_RUN=0.
-# @param TENANT_ID - required: the workspace slug
+# @param TENANT_ID (required) - the workspace slug
 # @param SIGNIN_CMD (optional) - in, out or status (default)
 # @param SPL_CLAUDE_BIN (optional) - the CLI, default `claude` on PATH
 # @param SPL_CLAUDE_SIGNIN_TENANTS (optional) - replaces the cnf switch (tests)

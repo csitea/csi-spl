@@ -19,9 +19,9 @@
 # @description The probe writes results.json next to the desk state and prints
 # @description one PASS/FAIL line per step. It sends real messages into the
 # @description tenant, so it is a dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the seated agent id
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant the desk is seated in
+# @param DESK_AGENT (required) - the seated agent id
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_HUMAN_EMAIL (optional) - the member that DMs the agent; default the
 # @param   m3-e2e member of this state dir (m3-e2e-human@example.com on dev).

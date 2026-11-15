@@ -12,7 +12,7 @@
 # @description This is the per-route before/after of a hub change: run it over
 # @description a window before the roll and over one after it.
 # @description Nothing is mutated: one `gcloud logging read` as the env SA.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param ROUTE_HOURS (optional) - window in hours ending now, default 6 (1..168)
 # @param ROUTE_SINCE (optional) - an RFC 3339 UTC start instead (e.g. 2026-09-27T21:00:00Z); ROUTE_HOURS then sets the window's length
 # @param ROUTE_TOP (optional) - rows printed, default 30

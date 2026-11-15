@@ -14,9 +14,9 @@
 # @description FLEET_DESK_CMD=list reads only. add / remove: DRY_RUN=1
 # @description (default) prints the change and calls no cloud. Adding a real
 # @description box on dev or prd is the orchestrator's, with the owner's go.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param FLEET_DESK_CMD (optional) - list (default), add or remove
-# @param BOX_ID - required for add and remove: the box id, ^[a-z0-9][a-z0-9-]{0,31}$
+# @param BOX_ID - needed for add and remove: the box id, ^[a-z0-9][a-z0-9-]{0,31}$
 # @param DRY_RUN (optional) - 1 (default) or 0, for add and remove
 # @example ENV=dev ./run -a do_spl_fleet_desk_box
 # @example ENV=dev FLEET_DESK_CMD=add BOX_ID=desk-a ./run -a do_spl_fleet_desk_box

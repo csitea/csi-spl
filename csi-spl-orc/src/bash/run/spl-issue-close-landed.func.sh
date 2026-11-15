@@ -58,11 +58,11 @@
 # @description noop | skip | failed, sha(s), detail) and a summary line. Reads
 # @description the issue list and git even with DRY_RUN=1; writes the hub, the
 # @description ledger and the cursor only with DRY_RUN=0.
-# @param ENV - required: dev or prd, the hub of the issues
+# @param ENV (optional) - dev or prd, the hub of the issues; needed unless ISSUE_CLOSE_WORKSPACE is set
 # @description A workspace whose map row names a desk on another box is skipped
 # @description with one WARN and rc 0: that box closes its issues (SPL-5093).
-# @param TENANT_ID - required: the tenant the desk is seated in
-# @param DESK_AGENT - required: the agent that comments and moves
+# @param TENANT_ID (optional) - the tenant the desk is seated in; needed unless ISSUE_CLOSE_WORKSPACE is set
+# @param DESK_AGENT (optional) - the agent that comments and moves; needed unless ISSUE_CLOSE_WORKSPACE is set
 # @param DESK_BOX (optional) - default the box's desk (spl_desk_box_default)
 # @param ISSUE_CLOSE_REF (optional) - the trunk ref read, default origin/master
 # @param ISSUE_CLOSE_FETCH (optional) - 1 (default) fetches the ref's remote first

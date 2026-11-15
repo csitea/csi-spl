@@ -20,8 +20,8 @@
 # @description tenant carrying a human's conversation. It reads no database;
 # @description check the register with do_spl_db_query against the msg_id it
 # @description prints. The password is read from a 0600 file and never printed.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug (use the m3-e2e test tenant)
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug (use the m3-e2e test tenant)
 # @param PROBE_EMAIL (optional) - default the M3 e2e file <state>/m3-e2e/<tenant>/human-email, else m3-e2e-human@example.com
 # @param PROBE_PW_FILE (optional) - default the M3 e2e file <state>/m3-e2e/<tenant>/pw-human
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_msg_edit_probe

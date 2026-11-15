@@ -35,9 +35,9 @@
 # @description            other copy of the old key stops being accepted. The
 # @description            live run needs DRY_RUN=0 AND DESK_REPIN_OWNER_MSG
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd; or self - a self-hosted hub at
+# @param ENV (required) - dev or prd; or self - a self-hosted hub at
 # @param   SPOOL_HUB_URL, any host, no cnf (specs/047 W4, do_spl_desk_cnf)
-# @param TENANT_ID - required: the tenant slug
+# @param TENANT_ID (required) - the tenant slug
 # @param DESK_BOX (optional) - default box-desk
 # @param ROOT_KEY_JSON (optional) - the tenant's 0600 create JSON (root_private_key),
 # @param   or a 0600 bare base64 key file (the compose stack's tenant-root.key)
@@ -49,10 +49,10 @@
 # @param SPOOL_HUB_URL (optional) - dev / prd: when set it must equal the cnf
 # @param   hub (https://<env.dns.api_fqdn>): a mismatch is refused, because the
 # @param   desk would run against the cnf hub anyway. ENV=self: the hub itself
-# @param   (required on the first run, saved for later ones)
+# @param   (needed on the first run, saved for later ones)
 # @param DESK_REPIN (optional) - 1: repin mode (needs ROOT_KEY_JSON; no
 # @param   BOX_PUBKEY, PIN_REVOKE or SPOOL_JOIN_TOKEN). Default 0
-# @param DESK_REPIN_OWNER_MSG (optional) - repin mode, required with DRY_RUN=0:
+# @param DESK_REPIN_OWNER_MSG (optional) - repin mode, needed with DRY_RUN=0:
 # @param   the owner's message id (8 hex or a full uuid) that approved this re-pin
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_BOX=box-alice DRY_RUN=0 ./run -a do_spl_desk_pin

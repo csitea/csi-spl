@@ -12,8 +12,8 @@
 # @description box's rows are left to that box (do_spl_attach_name_repair) and
 # @description counted in live_box. Prints the hub's JSON per workspace.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
-# @param TENANT_IDS - required: space- or comma-separated workspace slugs
+# @param ENV (required) - dev or prd
+# @param TENANT_IDS (required) - space- or comma-separated workspace slugs
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_IDS='t1 csitea csi-rel' ./run -a do_spl_attach_name_repair_revoked
 # @example ENV=prd TENANT_IDS=t1 DRY_RUN=0 ./run -a do_spl_attach_name_repair_revoked

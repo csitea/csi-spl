@@ -7,9 +7,9 @@
 # @description travel as psql variables (:'var'), never spliced into the SQL.
 # @description Exactly one row must change, or the transaction is rolled back.
 # @description DRY_RUN=1 (default): print the change, call no cloud.
-# @param ENV - required: dev or prd
-# @param HUMAN_ID - required: e.g. HUM-4
-# @param LOCALE - required: one of the 0017 locales (bg|fi|ru|en|sv|he|tr|mk|
+# @param ENV (required) - dev or prd
+# @param HUMAN_ID (required) - e.g. HUM-4
+# @param LOCALE (required) - one of the 0017 locales (bg|fi|ru|en|sv|he|tr|mk|
 # @param   el|lt|et|lv|sr|ro|uk|sk|pl|es|nl). Compared lower-cased.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd HUMAN_ID=HUM-4 LOCALE=bg DRY_RUN=0 ./run -a do_spl_human_locale

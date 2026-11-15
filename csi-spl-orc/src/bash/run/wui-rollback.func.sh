@@ -25,8 +25,8 @@
 # @description from an older version's CSP.
 # @description Identity: the env's project SA (do_gcp_pin_account), its token
 # @description on stdin of curl (never argv); never the owner account.
-# @param ENV - required: dev or prd
-# @param TO - required: v<X.Y.Z>[-c<N>] | <trunk sha> | previous | <Firebase version id>
+# @param ENV (required) - dev or prd
+# @param TO (required) - v<X.Y.Z>[-c<N>] | <trunk sha> | previous | <Firebase version id>
 # @param DRY_RUN (optional) - 1 (default): print the plan; 0: release
 # @param ENV_ORDER_OVERRIDE (optional) - <owner msg id>: prd without dev first (an emergency)
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA (never the owner account)

@@ -39,7 +39,7 @@
 # @description of the dump) and RTO (download/import -> counted).
 # @description DRY_RUN=1 (the default) resolves the dump and the target and
 # @description touches nothing.
-# @param ENV - required: dev or prd, the env whose dump is restored
+# @param ENV (required) - dev or prd, the env whose dump is restored
 # @param BACKUP_URI (optional) - a gs:// .sql.gz in the chosen source, or latest (default)
 # @param BACKUP_SOURCE (optional) - env | bkp; default bkp when cnf 046 copy_enabled is true, else env
 # @param TARGET (optional) - local (default) | database:spool_restore_<x> | env

@@ -14,7 +14,7 @@
 # @description read is a member session of a workspace admin (the same door the
 # @description WUI's Performance page uses); the password and the session
 # @description cookie are never printed. Nothing is written but the session.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID (optional) - the workspace slug, default the cnf's
 # @param   steps.019 wui_default_tenant
 # @param PERF_DAYS (optional) - the window, 1..30 days, default 7

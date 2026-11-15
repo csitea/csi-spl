@@ -1015,6 +1015,16 @@ out="$(on pc "spl_spawn_place_authors '$T/briefs/cx-reviewer.md'" 2>&1)"
   pass "12g. a review brief with 'Author: o-208@sat': its author is the codex lane o-208, from the Author: line alone" ||
   fail "12g. authors: [$out]"
 
+# 12h. SPL-5576: the 40-window ceiling count (spl_spawn_place_windows) counts a
+# codex window (o-NNN), tagged or not. CONTROL: a non-agent letter (x-123) and a
+# plain shell window are not counted.
+mkdir -p "$T/tmux12h"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "c-100 fix x" "boxa: o-805 codex seat" "o-806" "g-012 y" "AGY-3 z" "x-123 not an agent" "bash"\n' >"$T/tmux12h/tmux"
+chmod +x "$T/tmux12h/tmux"
+out="$(on pc spl_spawn_place_windows SPAWN_PLACE_WINDOWS_CMD= PATH="$T/tmux12h:$PATH" 2>&1)"
+[[ "$out" == 5 ]] && pass "12h. the ceiling count reads 5 windows: c-100, both codex o-805 (tagged) and o-806, g-012, AGY-3; not x-123 or bash" ||
+  fail "12h. window count: [$out], want 5"
+
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true
 # (APP_PATH=$T has no cnf: the default false); SPL-2942: agy for a

@@ -51,7 +51,7 @@
 # @description sha, reviewer = log: owner, the vendor is the id's and any
 # @description registry.tsv row of it, ran: names a test (`SYNTAX OK`, exit 0;
 # @description `SYNTAX FAIL <why>`, exit 1); the run itself stays unchecked.
-# @description The reviewer part (a `<[acgmq]-NNN>@<box>` id = the log: owner,
+# @description The reviewer part (a `<[acgmoqu]-NNN>@<box>` id = the log: owner,
 # @description the vendor of the id and of its registry row) is checked on
 # @description both branches: on this box a failure is `SYNTAX FAIL`, exit 1.
 # @description Exit 1: no line, no `log:`, or the log cannot be read, not even
@@ -196,11 +196,20 @@ _spl_review_line_defects() {
   return 1
 }
 
+# _spl_review_line_env - loads the agent id letters' one home, spool-env.inc.sh
+# (SPOOL_AGENT_ID_NEW_RX, spl_kind_of_agent_id; SPL-5576: o- codex was refused).
+# Call it directly, never in $(...): the source must reach the caller.
+_spl_review_line_env() {
+  declare -F spl_kind_of_agent_id >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+}
+
 # _spl_review_line_syntax <line> - the plan section 1 format, header id@box =
-# log: id@box, the vendor is the id's (a agy, c claude, g grok, m mistral,
-# q qwen) and any registry row of the id here, ran: names a test.
+# log: id@box, the vendor is the id's (spl_kind_of_agent_id) and any registry
+# row of the id here, ran: names a test.
 _spl_review_line_syntax() {
-  local rx='^review: ([acgmq]-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) (PASS|FAIL) [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@]+)@([^[:space:]:]+):/[^[:space:]]+$'
+  _spl_review_line_env
+  local rx='^review: ('"${SPOOL_AGENT_ID_NEW_RX%%-*}"'-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) (PASS|FAIL) [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@]+)@([^[:space:]:]+):/[^[:space:]]+$'
   [[ "$1" =~ $rx ]] ||
     { echo "SYNTAX FAIL not 'review: <id>@<box> <vendor> PASS|FAIL <40-hex sha> ran: ... | read: ... | log: <id>@<box>:/<path>'"; return 1; }
   _spl_review_line_reviewer "$1" || return 1
@@ -218,17 +227,19 @@ _spl_review_line_syntax() {
 }
 
 # _spl_review_line_reviewer <line> - the header reviewer is an agent id
-# <[acgmq]-NNN>@<box>, the same as the log: owner, and the vendor is the id's
-# (a agy, c claude, g grok, m mistral, q qwen) and any registry row of it here.
+# <[acgmoqu]-NNN>@<box>, the same as the log: owner, and the vendor is the id's
+# (spl_kind_of_agent_id: o codex too) and any registry row of it here.
 _spl_review_line_reviewer() {
   local id vendor reg want who owner
   local rx='^review: ([^[:space:]@]+)@([^[:space:]]+) ([a-z]+) (PASS|FAIL) .* \| log: ([^[:space:]@]+)@([^[:space:]:]+):'
   [[ "$1" =~ $rx ]] || { echo "SYNTAX FAIL no 'review: <id>@<box> <vendor> PASS|FAIL ... | log: <id>@<box>:<path>'"; return 1; }
   id="${BASH_REMATCH[1]}" vendor="${BASH_REMATCH[3]}"
   who="$id@${BASH_REMATCH[2]}" owner="${BASH_REMATCH[5]}@${BASH_REMATCH[6]}"
-  [[ "$id" =~ ^[acgmq]-[0-9]{3,}$ ]] || { echo "SYNTAX FAIL reviewer '$who' is not an agent id <[acgmq]-NNN>@<box>"; return 1; }
+  _spl_review_line_env
+  local ids="${SPOOL_AGENT_ID_NEW_RX%%-*}"
+  [[ "$id" =~ ^${ids}-[0-9]{3,}$ ]] || { echo "SYNTAX FAIL reviewer '$who' is not an agent id <${ids}-NNN>@<box>"; return 1; }
   [[ "$who" == "$owner" ]] || { echo "SYNTAX FAIL reviewer $who is not the log: owner $owner"; return 1; }
-  case "${id%%-*}" in a) want=agy ;; c) want=claude ;; g) want=grok ;; m) want=mistral ;; q) want=qwen ;; esac
+  want="$(spl_kind_of_agent_id "$id")"
   [[ "$vendor" == "$want" ]] || { echo "SYNTAX FAIL vendor '$vendor' is not $id's ($want)"; return 1; }
   reg="$(awk -F'\t' -v i="$id" '{k = $1; sub(/@.*/, "", k)} k == i {v = $2} END {print v}' \
     "${SPOOL_ROOT:-/var/spool-hub}"/registry{,.retired}.tsv 2>/dev/null)"

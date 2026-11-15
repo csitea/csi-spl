@@ -5,7 +5,8 @@
 # it (row r11-05). Real `git push` into a bare temp remote with the hook as
 # core.hooksPath; the scratch repo carries the real spl-push-master.func.sh at
 # its tree path (the hook sources it from there; it sources its sibling
-# spl-review-line-check.func.sh, copied too), no csi-spl-iac/run, so the
+# spl-review-line-check.func.sh, copied too, which sources the agent id
+# letters' home spool-env.inc.sh, copied too), no csi-spl-iac/run, so the
 # gate itself fail-opens and only the review-line block decides.
 #   1. a row commit with no review line              -> REFUSED, remote unchanged
 #   2. ... with a typed sha that does not resolve    -> REFUSED
@@ -27,6 +28,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$(cd "$HERE/../hooks" && pwd)/pre-push"
 HELPER="$(cd "$HERE/../../../run" && pwd)/spl-push-master.func.sh"
 CHECKER="${HELPER%/*}/spl-review-line-check.func.sh"
+SPOOLENV="$(cd "$HERE/../lib" && pwd)/spool-env.inc.sh"
 
 fails=0
 pass() { echo "ok   - $1"; }
@@ -48,7 +50,8 @@ grep -q '_spl_push_master_unreviewed' "$OLD/pre-push" && fail "control hook stil
 git init -q --bare "$ROOT/remote.git"
 A="$ROOT/a"; git clone -q "$ROOT/remote.git" "$A" 2>/dev/null
 git -C "$A" checkout -q -b master
-mkdir -p "$A/csi-spl-orc/src/bash/run"; cp "$HELPER" "$CHECKER" "$A/csi-spl-orc/src/bash/run/"
+mkdir -p "$A/csi-spl-orc/src/bash/run" "$A/csi-spl-orc/src/bash/features/spawn-agents/lib"
+cp "$HELPER" "$CHECKER" "$A/csi-spl-orc/src/bash/run/"; cp "$SPOOLENV" "$A/csi-spl-orc/src/bash/features/spawn-agents/lib/"
 git -C "$A" add csi-spl-orc; git -C "$A" commit -q -m "base"; git -C "$A" push -q origin master 2>/dev/null
 c() { git -C "$A" commit -q --allow-empty -m "$1" ${2:+-m "$2"}; }
 push() {  # <hooksdir> [env...] -- <push args...>

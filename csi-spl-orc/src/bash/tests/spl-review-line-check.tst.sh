@@ -180,6 +180,16 @@ out="$(syn "review: m-159@box-b mistral PASS $SHA $R | log: m-159@box-b:/r/j.jso
   && pass "8. REVIEW_LINE_SYNTAX=1: a well-formed line from box-b -> SYNTAX OK, rc 0, the peer query" || fail "8. syntax ok (rc $rc: $out)"
 out="$(syn "review: a-218@box-b agy PASS $SHA $R | log: a-218@box-b:/r/transcript.jsonl")"; rc=$?
 [[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "8. a reviewer registered here with the line's vendor -> rc 0" || fail "8. registered (rc $rc: $out)"
+# SPL-5576: a codex (o-) reviewer is an agent id, its vendor is codex
+out="$(syn "review: o-159@box-b codex PASS $SHA $R | log: o-159@box-b:/r/j.jsonl")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "8. a codex reviewer o-159 codex -> SYNTAX OK, rc 0" || fail "8. codex (rc $rc: $out)"
+bad=0
+for l in "review: o-159@box-b claude PASS $SHA $R | log: o-159@box-b:/r/j.jsonl" \
+         "review: x-159@box-b codex PASS $SHA $R | log: x-159@box-b:/r/j.jsonl"; do
+  out="$(syn "$l")"; rc=$?
+  [[ $rc -eq 1 && "$out" == "SYNTAX FAIL"* ]] || { bad=1; echo "  rc $rc: $out <- $l"; }
+done
+[[ $bad -eq 0 ]] && pass "8. CONTROL o-159 claiming claude, and a non-agent letter x-159 -> SYNTAX FAIL, rc 1" || fail "8. codex controls"
 bad=0
 for l in "review: m-159@box-b mistral PASS ${SHA:0:9} $R | log: m-159@box-b:/r/j.jsonl" \
          "review: m-159@box-b mistral PASS $SHA $R | log: m-160@box-b:/r/j.jsonl" \

@@ -628,7 +628,8 @@ spl_spawn_place_burn_hub() {
   )
 }
 
-# The agent windows on this box (the fleet's ceiling count).
+# The agent windows on this box (the fleet's ceiling count). The id letters
+# come from their one home, SPOOL_AGENT_ID_NEW_RX (SPL-5576: o- codex was not counted).
 spl_spawn_place_windows() {
   if [[ -n "${SPAWN_PLACE_WINDOWS_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
@@ -636,7 +637,8 @@ spl_spawn_place_windows() {
   fi
   local sock="${SPAWN_PLACE_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" names
   names="$(tmux -S "$sock" list-windows -a -F '#{window_name}' 2>/dev/null)" || return 0
-  grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)' <<<"$names"
+  [[ -n "${SPOOL_AGENT_ID_NEW_RX:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  grep -cE "^([A-Za-z0-9][A-Za-z0-9._-]*: )?(${SPOOL_AGENT_ID_NEW_RX}|(CLE|GRK|AGY|QWN)-[0-9]+)" <<<"$names"
 }
 
 # The fleet load target's pick: "<box> ..." or "hold ...", "" when it said nothing.

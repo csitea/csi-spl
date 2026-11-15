@@ -45,10 +45,11 @@
 do_spl_spawn_review_notify() {
   local brief="${REVIEW_NOTIFY_BRIEF:-}" rev="${REVIEW_NOTIFY_REVIEWER:-}" dry="${DRY_RUN:-1}"
   [[ -r "$brief" ]] || { do_log "FATAL REVIEW_NOTIFY_BRIEF must be a readable brief file, got: '$brief'"; return 1; }
-  [[ "$rev" =~ ^[acgmq]-[0-9]{3,}(@[a-z0-9][a-z0-9-]{0,31})?$ ]] || { do_log "FATAL REVIEW_NOTIFY_REVIEWER must be <ID>[@<box>], got: '$rev'"; return 1; }
-  [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   declare -F spl_is_role_seat >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  # the id letters from their one home, SPOOL_AGENT_ID_NEW_RX (SPL-5576: o- codex was refused)
+  [[ "$rev" =~ ^${SPOOL_AGENT_ID_NEW_RX%%-*}-[0-9]{3,}(@[a-z0-9][a-z0-9-]{0,31})?$ ]] || { do_log "FATAL REVIEW_NOTIFY_REVIEWER must be <ID>[@<box>], got: '$rev'"; return 1; }
+  [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   declare -F spl_spawn_q_send >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-queue.func.sh"
   local d="${SPOOL_ROOT:-/var/spool-hub}/dispatch" box from task branch authors
   box="${ASKS_BOX:-$(spl_desk_box_default)}"

@@ -21,7 +21,7 @@
 #     7. the dry run plans, sends nothing, logs nothing
 #     8. the dispatcher defaults to the dispatch lease holder
 #     9. a failed send is logged send-failed and exits 1; the others are sent
-#    10. bad args are refused
+#    10. bad args are refused; a codex (o-) reviewer is not (SPL-5576)
 #    11. the placer's hook: a -reviewer seat tells its authors, a coding lane
 #        sends nothing; the hook line sits in spl_spawn_place_launch
 #   REVIEW_NOTIFY_FUNC points the test at another copy of the action: the red
@@ -170,6 +170,13 @@ run REVIEW_NOTIFY_BRIEF="$T/nope.md" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
 (( rc == 1 )) && grep -q 'FATAL REVIEW_NOTIFY_BRIEF' "$T/out" && pass "10. a missing brief is refused" || fail "10. brief rc=$rc"
 run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER='g-500;rm'; rc=$?
 (( rc == 1 )) && grep -q 'FATAL REVIEW_NOTIFY_REVIEWER' "$T/out" && [[ "$(sends)" == 0 ]] && pass "10. a bad reviewer id is refused" || fail "10. reviewer rc=$rc"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=x-500; rc=$?
+(( rc == 1 )) && grep -q 'FATAL REVIEW_NOTIFY_REVIEWER' "$T/out" && [[ "$(sends)" == 0 ]] && pass "10. CONTROL a non-agent letter (x-500) is refused" || fail "10. x-500 rc=$rc"
+# SPL-5576: a codex (o-) reviewer is an agent id, its authors are told
+reset; b="$(brief c002-good-reviewer "$GOOD")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=o-500@boxa; rc=$?
+(( rc == 0 )) && [[ "$(sends)" == 2 ]] && grep -q 'reviewer \*\*o-500@boxa\*\* started' "$T/s/sends.log" &&
+  pass "10. a codex reviewer o-500@boxa is accepted, its 2 authors told" || fail "10. codex reviewer rc=$rc: $(cat "$T/out")"
 
 # 11. the placer's hook
 reset; b="$(brief c002-good-reviewer "$GOOD")"

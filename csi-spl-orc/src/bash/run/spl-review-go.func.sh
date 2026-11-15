@@ -206,7 +206,8 @@ _spl_review_go_here() { echo "${LEASE_MACHINE:-$(spl_desk_box_default)}"; }
 # reviewer's placed brief. On this box: its lifetime copy, else (a retired
 # seat's lifetime dir is gone) dispatch/briefs/<slug>.md, the slug being the
 # title of its live identity record or of its newest retired one
-# (agents/retired/<id>.<spawned>.json). A seat of another box is never read
+# (agents/retired/<id>.<spawned>.json), or its one hand-<box>-<slug>.md
+# (_spl_review_go_slug_brief). A seat of another box is never read
 # from this box's records: the same id here may be another seat (SPL-4427).
 # Then the lane map's briefs (_spl_review_go_lane_briefs): the first whose
 # row matches the sha or task, else the first. A seat of another box with
@@ -218,7 +219,7 @@ _spl_review_go_brief() {
   if [[ "$2" == "$here" ]]; then
     [[ -s "$b" ]] && { echo "$b"; return 0; }
     slug="$(_spl_review_go_title "$1")"
-    [[ -n "$slug" ]] && { echo "$SPOOL_ROOT/dispatch/briefs/$slug.md"; return 0; }
+    [[ -n "$slug" ]] && { _spl_review_go_slug_brief "$slug"; return 0; }
   fi
   lb="$(_spl_review_go_lane_briefs "$1" "$2" all)" || lrc=$?
   (( lrc == 2 )) || while IFS= read -r c; do
@@ -229,6 +230,20 @@ _spl_review_go_brief() {
   [[ -n "$first" ]] && { echo "$first"; return 0; }
   [[ "$2" == "$here" ]] || { (( lrc == 2 )) && { echo "$lb"; return 2; }; return 1; }
   echo "$b"
+}
+
+# _spl_review_go_slug_brief <slug>: dispatch/briefs/<slug>.md; when it does
+# not exist and EXACTLY one hand-<box>-<slug>.md does (a hand placement pins
+# the box in the brief's name, the window title drops it, SPL-5645), that one.
+_spl_review_go_slug_brief() {
+  local d="$SPOOL_ROOT/dispatch/briefs" f hits=()
+  if [[ ! -e "$d/$1.md" ]]; then
+    for f in "$d"/hand-*-"$1".md; do
+      [[ -f "$f" && "${f#"$d"/hand-}" =~ ^[A-Za-z0-9._]+-"$1.md"$ ]] && hits+=("$f")
+    done
+    (( ${#hits[@]} == 1 )) && { echo "${hits[0]}"; return 0; }
+  fi
+  echo "$d/$1.md"
 }
 
 # _spl_review_go_lanes: the fleet lane map's hub rows (JSON, `.lanes`), read

@@ -74,6 +74,12 @@
 #        at the reviewed sha -> GO; a brief naming no branch (with or without
 #        an author box) -> rc 5 on branch 'none', never the task id as the
 #        branch; control: `origin/master` is never the review branch
+#    22. a hand-placed retired reviewer (SPL-5645, g-257: title
+#        `c002-spl5612-review-go-grok-reviewer`, brief
+#        `hand-sat-c002-spl5612-review-go-grok-reviewer.md`): RED CONTROL its
+#        only brief is hand-<box>-<title>.md -> found, GO; controls: two
+#        hand-*-<title>.md -> no guess (rc 3 on <title>.md); a longer
+#        hand-<box>-<x>-<title>.md is not the title's
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -701,6 +707,22 @@ run REVIEW_GO_MSG="$f"; nobranch21 "21. no author box and no branch: neither emp
 reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude) at \`$SHA\`, rebased on \`origin/master\`. $ab21"
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 21000000-0000-4000-8000-000000000006)
 run REVIEW_GO_MSG="$f"; nobranch21 "21. control: \`origin/master\` is never read as the review branch" $?
+
+# --- 22. a hand-placed retired reviewer: hand-<box>-<title>.md ------------------------------------------------
+reset22() { reset14; rm -f "$S/dispatch/briefs/c002-x-grok-reviewer.md"; pbrief hand-sat-c002-x-grok-reviewer "$(prose)"; }
+reset22
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 22000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && grep -qxF "SEND --from c-002 --to c-222@boxa --kind task --task $TASK --body GO $SHA" "$T/s/sent.log" &&
+  grep -qE "^PASS [^ ]+ 22000000-0000-4000-8000-000000000001 $TASK c-222 g-111 $SHA$" "$LOG" &&
+  pass "22. RED CONTROL: a retired reviewer whose only brief is hand-sat-<title>.md -> found, [3] passes, GO" ||
+  fail "22. hand brief rc=$rc sent=$(cat "$T/s/sent.log") out=$(tail -3 "$T/out")"
+reset22; pbrief hand-boxb-c002-x-grok-reviewer "$(prose)"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 22000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; refused "22. two hand-*-<title>.md: no guess, today's <title>.md path" $? 3 "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
+reset22; rm -f "$S/dispatch/briefs/hand-sat-c002-x-grok-reviewer.md"; pbrief hand-sat-y-c002-x-grok-reviewer "$(prose)"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 22000000-0000-4000-8000-000000000003)
+run REVIEW_GO_MSG="$f"; refused "22. hand-<box>-<x>-<title>.md is another slug's brief" $? 3 "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

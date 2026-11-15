@@ -4192,14 +4192,14 @@
       "err_year": "Yıllık toplam, yılın ocak ayına kaydedilir.",
       "err_corrects": "Düzeltilen ay, satırın ayından önce olmalıdır.",
       "labels_toggle": "Diğer diller ({n})",
-      "labels_master": "Ana dil, {lang}: {label}",
+      "labels_master": "Birincil dil ({lang}): {label}",
       "labels_locale": "Dil",
       "labels_text": "Bu dildeki etiket",
       "labels_add": "Dil ekle",
       "labels_remove": "Kaldır",
       "labels_save": "Etiketleri kaydet",
       "labels_saved": "Etiketler kaydedildi",
-      "err_labels_locale": "Her dili bir kez seçin, ana dili asla seçmeyin"
+      "err_labels_locale": "Her dili yalnızca bir kez seçin, birincil dili asla seçmeyin."
     },
     "operators_only": "Giderler yalnızca operatör yöneticileri ve ürün sahipleri içindir.",
     "tokens_link": "Ödenen abonelikler ve yüklemeler Giderler → Yapay zekâ maliyetleri altında girilir.",

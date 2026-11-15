@@ -4192,14 +4192,14 @@
       "err_year": "En årssumma bokförs på januari det året.",
       "err_corrects": "Den rättade månaden måste ligga före radens månad.",
       "labels_toggle": "Andra språk ({n})",
-      "labels_master": "Huvudspråk, {lang}: {label}",
+      "labels_master": "Huvudspråk ({lang}): {label}",
       "labels_locale": "Språk",
       "labels_text": "Etikett på detta språk",
       "labels_add": "Lägg till ett språk",
       "labels_remove": "Ta bort",
       "labels_save": "Spara etiketter",
       "labels_saved": "Etiketterna har sparats",
-      "err_labels_locale": "Välj varje språk en gång, aldrig huvudspråket"
+      "err_labels_locale": "Välj varje språk bara en gång, aldrig huvudspråket."
     },
     "operators_only": "Utgifter är bara för operatörens administratörer och produktägare.",
     "tokens_link": "Betalda abonnemang och påfyllningar förs in under Utgifter → AI-kostnader.",

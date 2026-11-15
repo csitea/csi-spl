@@ -451,11 +451,16 @@ _spl_review_go_tied() {
 # the brief's `| author | ... |` table row for the review: its sha / head /
 # commits cell holds an abbreviation of <sha> (7+ hex), else its task cell is
 # <task>. No such row: the prose form placement briefs use (`Author
-# c-805@<box> (claude)`, `Branch `review/<slug>``), only when the brief names
+# c-805@<box> (claude)`, `Branch `review/<slug>``, else a bare review/... or
+# wip/... branch, else a backticked `origin/<branch>`; one leading origin/ is
+# stripped, SPL-5612), only when the brief names
 # one author and holds an abbreviation of <sha> or <task>. Nothing printed,
 # rc 1, when neither matches. With a 4th argument, for a brief where neither
 # matched: its one author and where the sha and task are missing from
 # (_spl_review_go_unplaced); never a row, so it cannot place a reviewer.
+# Fields are tab-separated and may be empty (author box, branch): a reader
+# turns tabs into \037 before `IFS=... read`, since tab is IFS whitespace and
+# an empty field would collapse, shifting the task into the branch (SPL-5612).
 _spl_review_go_row() {
   python3 - "$1" "$2" "$3" "${4:-}" <<'EOF_PY'
 import re, sys
@@ -498,8 +503,12 @@ if why:
     sys.exit(0)
 if len({i for i, _ in named}) != 1 or not said:
     sys.exit(1)
-br = re.search(r"(?i)\bbranch[ \t]+`([A-Za-z0-9._/-]+)`", text) or re.search(r"\b(review/[A-Za-z0-9._/-]*[A-Za-z0-9_-])", text)
-print("\t".join((named[0][0], next((b for _, b in named if b), ""), br.group(1) if br else "", task)))
+br = (re.search(r"(?i)\bbranch[ \t]+`([A-Za-z0-9._/-]+)`", text)
+      or re.search(r"\b((?:review|wip)/[A-Za-z0-9._/-]*[A-Za-z0-9_-])", text)
+      or re.search(r"`origin/(?!(?:master|main|HEAD)`)([A-Za-z0-9._/-]+)`", text))
+br = br.group(1) if br else ""
+br = br[len("origin/"):] if br.startswith("origin/") else br
+print("\t".join((named[0][0], next((b for _, b in named if b), ""), br, task)))
 EOF_PY
 }
 
@@ -508,7 +517,7 @@ EOF_PY
 # "author not assigned" though their briefs name the author).
 _spl_review_go_unplaced() {
   local a where
-  IFS=$'\t' read -r a where < <(_spl_review_go_row "$1" "$2" "$3" why)
+  IFS=$'\037' read -r a where < <(_spl_review_go_row "$1" "$2" "$3" why | tr '\t' '\037')
   if [[ -n "${a:-}" ]]; then
     echo "reviewed sha ${2:0:12} and task $3 are $where $1; its author is $a"
   else
@@ -565,7 +574,7 @@ _spl_review_go_one() {
   (( rc == 2 )) && { _spl_review_go_hold "$@" 3 "reviewer $rid@$mbox runs on box $mbox: no brief for it on this box $here, and the $brief: not judged"; return 3; }
   (( rc == 0 )) ||
     { _spl_review_go_hold "$@" 3 "reviewer $rid@$mbox runs on box $mbox: no brief for it on this box $here (its records here are not read for another box's seat; the lane map names no dispatch/briefs copy): brief on another box, not judged"; return 3; }
-  IFS=$'\t' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task")
+  IFS=$'\037' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task" | tr '\t' '\037')
   [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "$(_spl_review_go_unplaced "$brief" "$sha" "$task")"; return 3; }
   [[ "${author%%-*}" != "${rid%%-*}" ]] || { _spl_review_go_hold "$@" 2 "reviewer $rid ($rven) shares the vendor of author $author"; return 2; }
   abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox" "$branch" "$sha")"; rc=$?

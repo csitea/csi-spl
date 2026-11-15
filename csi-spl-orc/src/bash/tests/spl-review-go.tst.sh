@@ -69,6 +69,11 @@
 #        a PASS on a sha and task it does not name -> rc 3 saying so and
 #        naming the author, not "author not assigned"; the sha only outside
 #        the table -> "in no author row"; control: no author -> the old reason
+#    21. the prose branch (SPL-5612): RED CONTROLS a brief naming
+#        `origin/wip/<x>`, only `origin/<branch>`, or Branch `origin/review/<x>`
+#        at the reviewed sha -> GO; a brief naming no branch (with or without
+#        an author box) -> rc 5 on branch 'none', never the task id as the
+#        branch; control: `origin/master` is never the review branch
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -661,6 +666,41 @@ reset14; pbrief c002-x-grok-reviewer "Branch \`review/c002-x\` at \`0123456789ab
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 20000000-0000-4000-8000-000000000003)
 run REVIEW_GO_MSG="$f"; refused "20. control: a brief with no author keeps the old reason" $? 3 \
   "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
+
+# --- 21. the prose branch: origin/<branch>, wip/..., none (SPL-5612) ---------------------------------------
+# g-831's PASS 12fe2be4 held rc 5 on the TASK id: the brief named `origin/wip/<x>`, no prose regex matched, the
+# empty branch field collapsed under IFS tab and the task was read as the branch; msg 998dca8c the same with
+# `origin/<x>`; PASS fd236740 asked origin for refs/heads/origin/review/<x>.
+# go21 <case> <msg id> <rc>: one GO to c-222 and the PASS record
+go21() {
+  (( $3 == 0 )) && [[ $(gos) == 1 ]] && grep -qE "^PASS [^ ]+ $2 $TASK c-222 g-111 $SHA$" "$LOG" &&
+    pass "$1" || fail "$1: rc=$3 sent=$(cat "$T/s/sent.log") log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
+}
+"${G[@]}" -C "$T/repo" push -q origin "$SHA:refs/heads/wip/c-222-x" "$SHA:refs/heads/c-222-plain"
+ab21="Author brief: $S/dispatch/briefs/c002-x.md;"
+reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude). Review \`origin/wip/c-222-x\` at \`$SHA\`. $ab21"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 21000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; go21 "21. RED CONTROL: a brief naming \`origin/wip/<x>\` at its tip passes [5] -> GO" 21000000-0000-4000-8000-000000000001 $?
+reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude). Head \`origin/c-222-plain\` = \`$SHA\`. $ab21"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 21000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; go21 "21. RED CONTROL: a brief naming only \`origin/<branch>\` (msg 998dca8c) -> GO" 21000000-0000-4000-8000-000000000002 $?
+reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude). Branch \`origin/review/c002-x\` at \`$SHA\`. $ab21"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 21000000-0000-4000-8000-000000000003)
+run REVIEW_GO_MSG="$f"; go21 "21. RED CONTROL: Branch \`origin/review/<x>\` resolves to review/<x> (PASS fd236740) -> GO" 21000000-0000-4000-8000-000000000003 $?
+# nobranch21 <case> <rc>: rc 5 naming no branch, never the task id as one
+nobranch21() {
+  refused "$1" "$2" 5 "branch 'none' on origin is missing"
+  grep -q "branch '$TASK'" "$LOG" && fail "$1: the task id read as the branch: $(cat "$LOG")" || pass "$1: the task id is not read as the branch"
+}
+reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude) at \`$SHA\`. $ab21"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 21000000-0000-4000-8000-000000000004)
+run REVIEW_GO_MSG="$f"; nobranch21 "21. RED CONTROL: a brief naming no branch holds on the missing branch" $?
+reset14; pbrief c002-x-grok-reviewer "Author c-222 (claude) at \`$SHA\`. $ab21"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 21000000-0000-4000-8000-000000000005)
+run REVIEW_GO_MSG="$f"; nobranch21 "21. no author box and no branch: neither empty field takes the task" $?
+reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude) at \`$SHA\`, rebased on \`origin/master\`. $ab21"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 21000000-0000-4000-8000-000000000006)
+run REVIEW_GO_MSG="$f"; nobranch21 "21. control: \`origin/master\` is never read as the review branch" $?
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

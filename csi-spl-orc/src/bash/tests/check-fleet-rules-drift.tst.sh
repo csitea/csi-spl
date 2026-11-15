@@ -59,8 +59,10 @@ stub_refs() {  # <dir>
     case "$kind" in
       path)
         # a git-ignored path (a sibling clone such as tpl-gen/) stays out of
-        # the copy, where the box has it or not: the check counts it ignored
-        git -C "$APP_ROOT" check-ignore "$ref" "$ref/" >/dev/null 2>&1 && continue
+        # the copy, where the box has it or not, as a dir or a symlink (a lane
+        # worktree's): the check counts it ignored. One path per call: "$ref/"
+        # beyond a symlink is fatal (rc 128) for the whole call (SPL-5543).
+        { git -C "$APP_ROOT" check-ignore -q "$ref" || git -C "$APP_ROOT" check-ignore -q "$ref/"; } 2>/dev/null && continue
         for c in "${comps[@]}"; do [[ -e "$APP_ROOT/$c$ref" ]] && break; c=-; done
         [[ "$c" == - || -e "$d/$c$ref" ]] && continue
         if [[ -d "$APP_ROOT/$c$ref" ]]; then mkdir -p "$d/$c$ref"; else mkdir -p "$(dirname "$d/$c$ref")"; touch "$d/$c$ref"; fi ;;
@@ -89,6 +91,15 @@ run "$T/base"; rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'OK commit-address' "$T/out" && grep -q 'OK repo-refs: .* (1 git-ignored, skipped)' "$T/out"; then
   pass "2: the copied tree is green, commit-address compared, $(grep -oE 'repo-refs: [0-9]+ references' "$T/out")"
 else fail "2: the copied tree is not green"; sed 's/^/    /' "$T/out"; fi
+
+# 2b. A source tree whose sibling clone is a SYMLINK (a lane worktree's
+# tpl-gen -> the main checkout's) copies just as green: still skipped, ignored.
+mkdir -p "$T/clone"; cp -a "$T/base" "$T/symsrc"; ln -s "$T/clone" "$T/symsrc/tpl-gen"
+(APP_ROOT="$T/symsrc"; mk_tree "$T/sym")
+run "$T/sym"; rc=$?
+if [[ $rc -eq 0 ]] && [[ ! -e "$T/sym/tpl-gen" ]] && grep -q 'OK repo-refs: .* (1 git-ignored, skipped)' "$T/out"; then
+  pass "2b: a symlinked tpl-gen in the source stays git-ignored, $(grep -oE 'repo-refs: [0-9]+ references' "$T/out")"
+else fail "2b: a symlinked tpl-gen in the source is not skipped as git-ignored (rc=$rc)"; sed 's/^/    /' "$T/out"; fi
 
 plant() { rm -rf "$T/p"; cp -a "$T/base" "$T/p"; }
 

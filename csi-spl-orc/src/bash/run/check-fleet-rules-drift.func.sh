@@ -284,7 +284,8 @@ _frd_path_ok() {
   local t="$1" p="$2" c
   [[ -e "$t/$p" ]] && return 0
   for c in "$t"/csi-spl-*/; do [[ -e "$c$p" ]] && return 0; done
-  git -C "$t" check-ignore "$p" "$p/" >/dev/null 2>&1 && return 2
+  # one path per call: "$p/" beyond a symlink is fatal (rc 128) for the whole call
+  { git -C "$t" check-ignore -q "$p" || git -C "$t" check-ignore -q "$p/"; } 2>/dev/null && return 2
   grep -qxF -e "/$p/" -e "/$p" -e "$p/" "$t/.gitignore" 2>/dev/null && return 2  # a tree with no git
   return 1
 }

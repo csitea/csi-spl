@@ -93,7 +93,7 @@ git -C "$A" cat-file -e "$rev^{commit}" 2>/dev/null && fail "the reviewed sha is
 # 4. full sha, no '| log:'
 redo; c "$ROW" "review: m-000@box mistral PASS $rev ran: x | read: ok"
 push "$NEW" -- master; eq "4. no '| log:' -> refused" 1 "$(( $? != 0 ))"
-grep -q "no '| log: <id>@<box>:<path>'" "$ROOT/err" && pass "4. ... names the missing log" || fail "4. ... names the missing log" "$(cat "$ROOT/err")"
+grep -qF "no '| log: <id>[@<box>]:<path>'" "$ROOT/err" && pass "4. ... names the missing log" || fail "4. ... names the missing log" "$(cat "$ROOT/err")"
 
 # 5a. a brace-token ran: names no test for the checker
 redo; before="$(rtip master)"

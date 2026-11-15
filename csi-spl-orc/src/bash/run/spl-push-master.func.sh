@@ -12,7 +12,7 @@
 # @description when <branch> is not on origin yet: the push creates it, SPL-4317) -> the
 # @description identity check (%ae and %ce, --no-mailmap) -> the R7 review-line
 # @description check (a round row `<type>(rNN-NN-...`, or bNN-NN / pNN-NN for a bug / perf round, needs a `review: ... PASS
-# @description <40-hex sha> ... | log: <id>@<box>:<path>` body line whose sha
+# @description <40-hex sha> ... | log: <id>[@<box>]:<path>` body line (a commit carries the box-free form, SPL-5634) whose sha
 # @description resolves after fetching `review/rNN-NN`, and that do_spl_review_line_check's
 # @description syntax path (REVIEW_LINE_SYNTAX=1) passes, so `ran:` names a test, SPL-4066;
 # @description rounds-rulebook.md 2.7.4; skipped only when <branch> is review/*, where the R7
@@ -290,18 +290,19 @@ _spl_push_master_unreviewed() {
 
 # _spl_push_master_review_why <body> <round row, e.g. rNN-NN> <remote> - prints why the body's
 # review line is void, nothing when it is checkable: the plan section 1 format
-# `review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... | read: ... | log:
-# <id>@<box>:<path>`, its sha a commit here after fetching `review/<rNN-NN>`,
+# `review: <id>[@<box>] <vendor> PASS <40-hex sha> ran: ... | read: ... | log:
+# <id>[@<box>]:<path>` (the box-free `<id>` and a `~/` path in a commit
+# message, which the commit-message sweep reads, SPL-5634), its sha a commit here after fetching `review/<rNN-NN>`,
 # and then whatever the retro checker's syntax path refuses (SPL-4066).
 _spl_push_master_review_why() {
   local line sha
-  line="$(grep -m 1 -E '^review: \S+@\S+ \S+ PASS ' <<<"$1")" ||
-    { echo "none of the form 'review: <id>@<box> <vendor> PASS <sha> ...'"; return 0; }
+  line="$(grep -m 1 -E '^review: \S+ \S+ PASS ' <<<"$1")" ||
+    { echo "none of the form 'review: <id>[@<box>] <vendor> PASS <sha> ...'"; return 0; }
   sha="$(awk '{print $5}' <<<"$line")"
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "sha '$sha' is not 40 hex"; return 0; }
   git fetch -q "$3" "+refs/heads/review/$2:refs/remotes/$3/review/$2" >/dev/null 2>&1
   git rev-parse --verify -q "$sha^{commit}" >/dev/null || { echo "sha $sha does not resolve (fetched review/$2)"; return 0; }
-  grep -qE '\| log: \S+@\S+:\S+' <<<"$line" || { echo "no '| log: <id>@<box>:<path>'"; return 0; }
+  grep -qE '\| log: [^[:space:]@:]+(@[^[:space:]:]+)?:\S+' <<<"$line" || { echo "no '| log: <id>[@<box>]:<path>'"; return 0; }
   _spl_push_master_review_syntax "$line"
 }
 

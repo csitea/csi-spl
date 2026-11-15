@@ -3,7 +3,14 @@
 # @description Check an R7 review line against the reviewer's own session
 # @description journal, read-only (refactor round 11 row 06; plan section 1:
 # @description `review: <id>@<box> <vendor> PASS|FAIL <sha> ran: <commands> |
-# @description read: <output> | log: <id>@<box>:<path>`). The dispatcher read
+# @description read: <output> | log: <id>@<box>:<path>`). A commit message
+# @description carries the box-free form (SPL-5634: the commit-message sweep bans
+# @description a box shorthand and a /home/<user>/ path): `review: <id> <vendor>
+# @description ... | log: <id>:~/<path>`. A bare <id> is on this box when this
+# @description box's registry{,.retired}.tsv has a row of it, else on another box
+# @description (exit 2 as for a named one); `~/<path>` is read under the first
+# @description home (this user's, then each passwd user's, uid 1000..59999)
+# @description holding it. Header and log: use the same form. The dispatcher read
 # @description journals by hand 4 times in round 10; this is that read, named.
 # @description A FAIL line names its defects: no `W<n>` anywhere in REVIEW_LINE
 # @description is `SYNTAX FAIL`, exit 1 (spec 157 Rule 1, SPL-4251).
@@ -72,17 +79,20 @@
 # @param REVIEW_LINE_BOX (optional) - this box; default SPOOL_BOX_TAG, else box.env, else hostname -s
 # @param REVIEW_LINE_REPO (optional) - the repo the line's sha is read in; default this checkout
 # @example REVIEW_LINE='review: m-159@box-a mistral PASS <sha> ran: bash spl-review-line-check.tst.sh | read: 3 PASS | log: m-159@box-a:/path/journal' ./run -a do_spl_review_line_check
+# @example REVIEW_LINE='review: m-159 mistral PASS <sha> ran: bash spl-review-line-check.tst.sh | read: 3 PASS | log: m-159:~/path/journal' ./run -a do_spl_review_line_check
 #------------------------------------------------------------------------------
 do_spl_review_line_check() {
   local line="${REVIEW_LINE:-}" ran box path me names rid owner=
   [[ -n "$line" ]] || { echo "FATAL REVIEW_LINE must be set (the 'review: ...' line)"; return 1; }
   line="${line#"${line%%review: *}"}"
   [[ "$line" == "review: "* ]] || { echo "FATAL REVIEW_LINE holds no 'review: ' line"; return 1; }
-  [[ "$line" =~ \|\ log:\ ([^[:space:]@]+)@([^[:space:]:]+):([^[:space:]]+) ]] ||
-    { echo "FATAL the line has no '| log: <id>@<box>:<path>'"; return 1; }
-  rid="${BASH_REMATCH[1]}" box="${BASH_REMATCH[2]}" path="${BASH_REMATCH[3]}"
+  [[ "$line" =~ \|\ log:\ ([^[:space:]@:]+)(@([^[:space:]:]+))?:([^[:space:]]+) ]] ||
+    { echo "FATAL the line has no '| log: <id>[@<box>]:<path>'"; return 1; }
+  rid="${BASH_REMATCH[1]}" box="${BASH_REMATCH[3]}" path="${BASH_REMATCH[4]}"
   me="$(_spl_review_line_box)"
-  [[ "$box" == "$me" ]] || { _spl_review_line_remote "$line" "$box" "$me"; return $?; }
+  [[ -n "${BASH_REMATCH[2]}" ]] || box="$(_spl_review_line_id_box "$rid" "$me")"
+  [[ "$box" == "$me" ]] || { _spl_review_line_remote "$line" "${box:-the box of $rid (no registry row here)}" "$me"; return $?; }
+  path="$(_spl_review_line_tilde "$path")"
   _spl_review_line_reviewer "${line%%$'\n'*}" || return 1
   _spl_review_line_defects "$line" || return 1
   ran="${line#* ran: }"
@@ -151,6 +161,28 @@ _spl_review_line_e2e_files() {
   rm -rf "$tmp"
 }
 
+# _spl_review_line_id_box <id> <this box> - this box when its registry
+# (live or retired) has a row of the bare <id>, else empty (another box).
+_spl_review_line_id_box() {
+  awk -F'\t' -v i="$1" '{k = $1; sub(/@.*/, "", k)} k == i {f = 1} END {exit !f}' \
+    "${SPOOL_ROOT:-/var/spool-hub}"/registry{,.retired}.tsv 2>/dev/null && printf '%s' "$2"
+}
+
+# _spl_review_line_tilde <path> - a `~/<rest>` log path as the first home
+# holding <rest>: this user's, then each passwd user's (uid 1000..59999), read
+# as is or through `sudo -n -u <user>`; none holds it: this user's. Any other
+# path as is.
+_spl_review_line_tilde() {
+  [[ $1 == \~/* ]] || { printf '%s' "$1"; return 0; }
+  local rest="${1#\~/}" u h
+  [[ -e "$HOME/$rest" ]] && { printf '%s' "$HOME/$rest"; return 0; }
+  while IFS=: read -r u h; do
+    [[ -n "$h" && "$h" != "$HOME" && -d "$h" ]] || continue
+    { [[ -e "$h/$rest" ]] || sudo -n -u "$u" test -e "$h/$rest"; } 2>/dev/null && { printf '%s' "$h/$rest"; return 0; }
+  done < <(getent passwd 2>/dev/null | awk -F: '$3 >= 1000 && $3 < 60000 {print $1 ":" $6}')
+  printf '%s' "$HOME/$rest"
+}
+
 # _spl_review_line_owner <path> - the user whose passwd home the path is under
 # (the longest home that prefixes it), else the owner of its nearest existing
 # parent; empty when neither is found.
@@ -204,14 +236,15 @@ _spl_review_line_env() {
     source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
 }
 
-# _spl_review_line_syntax <line> - the plan section 1 format, header id@box =
-# log: id@box, the vendor is the id's (spl_kind_of_agent_id) and any registry
-# row of the id here, ran: names a test.
+# _spl_review_line_syntax <line> - the plan section 1 format (or its box-free
+# commit-message form, SPL-5634), header id[@box] = log: id[@box], the vendor
+# is the id's (spl_kind_of_agent_id) and any registry row of the id here, ran:
+# names a test.
 _spl_review_line_syntax() {
   _spl_review_line_env
-  local rx='^review: ('"${SPOOL_AGENT_ID_NEW_RX%%-*}"'-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) (PASS|FAIL) [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@]+)@([^[:space:]:]+):/[^[:space:]]+$'
+  local rx='^review: ('"${SPOOL_AGENT_ID_NEW_RX%%-*}"'-[0-9]{3,})(@[A-Za-z0-9._-]+)? ([a-z]+) (PASS|FAIL) [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@:]+)(@[^[:space:]:]+)?:(/|~/)[^[:space:]]+$'
   [[ "$1" =~ $rx ]] ||
-    { echo "SYNTAX FAIL not 'review: <id>@<box> <vendor> PASS|FAIL <40-hex sha> ran: ... | read: ... | log: <id>@<box>:/<path>'"; return 1; }
+    { echo "SYNTAX FAIL not 'review: <id>[@<box>] <vendor> PASS|FAIL <40-hex sha> ran: ... | read: ... | log: <id>[@<box>]:/<path> or ~/<path>'"; return 1; }
   _spl_review_line_reviewer "$1" || return 1
   local names out
   names="$(_spl_review_line_names "${1#* ran: }")"
@@ -227,17 +260,18 @@ _spl_review_line_syntax() {
 }
 
 # _spl_review_line_reviewer <line> - the header reviewer is an agent id
-# <[acgmoqu]-NNN>@<box>, the same as the log: owner, and the vendor is the id's
-# (spl_kind_of_agent_id: o codex too) and any registry row of it here.
+# <[acgmoqu]-NNN>, with or without @<box>, the same as the log: owner (in the
+# same form), and the vendor is the id's (spl_kind_of_agent_id: o codex too)
+# and any registry row of it here.
 _spl_review_line_reviewer() {
   local id vendor reg want who owner
-  local rx='^review: ([^[:space:]@]+)@([^[:space:]]+) ([a-z]+) (PASS|FAIL) .* \| log: ([^[:space:]@]+)@([^[:space:]:]+):'
-  [[ "$1" =~ $rx ]] || { echo "SYNTAX FAIL no 'review: <id>@<box> <vendor> PASS|FAIL ... | log: <id>@<box>:<path>'"; return 1; }
+  local rx='^review: ([^[:space:]@]+)(@[^[:space:]]+)? ([a-z]+) (PASS|FAIL) .* \| log: ([^[:space:]@:]+)(@[^[:space:]:]+)?:'
+  [[ "$1" =~ $rx ]] || { echo "SYNTAX FAIL no 'review: <id>[@<box>] <vendor> PASS|FAIL ... | log: <id>[@<box>]:<path>'"; return 1; }
   id="${BASH_REMATCH[1]}" vendor="${BASH_REMATCH[3]}"
-  who="$id@${BASH_REMATCH[2]}" owner="${BASH_REMATCH[5]}@${BASH_REMATCH[6]}"
+  who="$id${BASH_REMATCH[2]}" owner="${BASH_REMATCH[5]}${BASH_REMATCH[6]}"
   _spl_review_line_env
   local ids="${SPOOL_AGENT_ID_NEW_RX%%-*}"
-  [[ "$id" =~ ^${ids}-[0-9]{3,}$ ]] || { echo "SYNTAX FAIL reviewer '$who' is not an agent id <${ids}-NNN>@<box>"; return 1; }
+  [[ "$id" =~ ^${ids}-[0-9]{3,}$ ]] || { echo "SYNTAX FAIL reviewer '$who' is not an agent id <${ids}-NNN>[@<box>]"; return 1; }
   [[ "$who" == "$owner" ]] || { echo "SYNTAX FAIL reviewer $who is not the log: owner $owner"; return 1; }
   want="$(spl_kind_of_agent_id "$id")"
   [[ "$vendor" == "$want" ]] || { echo "SYNTAX FAIL vendor '$vendor' is not $id's ($want)"; return 1; }
@@ -407,7 +441,7 @@ except OSError as e:
     print("FATAL cannot read the log: %s" % e)
     sys.exit(1)
 REVIEW_VAR = r"\bREVIEW_LINE=(?:\x27[^\x27]*\x27|\"(?:\\[\s\S]|[^\"\\])*\"|\S+)"
-REVIEW_TEXT = r"\breview:\s+\S+@\S+\s+[a-z]+\s+(?:PASS|FAIL)\s[^\n]*?\bran:(?:[^\n]*?\|\s*log:\s*[^\s\x27\"\\]+|[^\x27\"\n]*)"
+REVIEW_TEXT = r"\breview:\s+\S+\s+[a-z]+\s+(?:PASS|FAIL)\s[^\n]*?\bran:(?:[^\n]*?\|\s*log:\s*[^\s\x27\"\\]+|[^\x27\"\n]*)"
 runs = [re.sub(REVIEW_VAR, "\0", re.sub(REVIEW_TEXT, "\0", c)) for c in cmds]
 def found(kind, name):
     n = re.escape(name)

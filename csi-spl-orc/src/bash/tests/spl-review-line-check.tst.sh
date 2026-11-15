@@ -62,6 +62,14 @@
 #      the line posted, committed or partial -> MISSING; controls: a real run
 #      beside the line in one command or one bash -c -> OK; the documented
 #      limit: a name inside another command (grep, cat, echo) still counts
+#  16. the box-free commit-message form (SPL-5634: the commit-message sweep
+#      bans a box shorthand and a /home/<user>/ path): `review: m-160 mistral
+#      ... | log: m-160:~/j16.jsonl`, m-160 in this box's registry, the log
+#      under HOME -> OK 1 of 1; red controls: a bare id with no registry row
+#      here -> exit 2 (another box), SYNTAX OK with REVIEW_LINE_SYNTAX=1; a
+#      header and log: in different forms -> SYNTAX FAIL; a `~/` path under
+#      no home -> not readable, exit 1; a log whose only command is the check
+#      of the box-free line -> MISSING (its text is cut too)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -440,6 +448,30 @@ out="$(chk REVIEW_LINE="$L15T")"; rc=$?
 cmd15 "grep -c x $TST" >"$J15"
 out="$(chk REVIEW_LINE="$L15T")"; rc=$?
 [[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "15. documented limit: a name inside another command (grep, cat, echo) still counts" || fail "15. documented limit (rc $rc: $out)"
+
+# 16. the box-free form ----------------------------------------------------------
+H16="$T/home16"; mkdir -p "$H16"
+printf 'm-160\tmistral\t%%3\t/x\t20261115T000000Z\n' >>"$T/registry.tsv"
+printf '%s\n' '{"input":{"command":"cd /x && bash '"$TST"'"}}' >"$H16/j16.jsonl"
+L16="review: m-160 mistral PASS $SHA ran: bash $TST | read: 9 PASS | log: m-160:~/j16.jsonl"
+out="$(chk HOME="$H16" REVIEW_LINE="$L16")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* && "$out" == *"$H16/j16.jsonl"* ]] \
+  && pass "16. box-free id in this box's registry, ~/ log under HOME -> OK 1 of 1" || fail "16. box-free OK (rc $rc: $out)"
+out="$(chk HOME="$H16" REVIEW_LINE="${L16//m-160/m-161}")"; rc=$?
+[[ $rc -eq 2 && "$out" == *"the box of m-161 (no registry row here)"* ]] \
+  && pass "16. red: a bare id with no registry row here -> exit 2 (another box)" || fail "16. unregistered (rc $rc: $out)"
+out="$(chk HOME="$H16" REVIEW_LINE_SYNTAX=1 REVIEW_LINE="${L16//m-160/m-161}")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] \
+  && pass "16. the same with REVIEW_LINE_SYNTAX=1 -> SYNTAX OK" || fail "16. unregistered syntax (rc $rc: $out)"
+out="$(chk HOME="$H16" REVIEW_LINE="${L16/log: m-160:/log: m-160@box-a:}")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"SYNTAX FAIL reviewer m-160 is not the log: owner m-160@box-a"* ]] \
+  && pass "16. red: header box-free, log: with a box -> SYNTAX FAIL" || fail "16. mixed forms (rc $rc: $out)"
+out="$(chk HOME="$H16" REVIEW_LINE="${L16/j16.jsonl/none16.jsonl}")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"not readable"* ]] && pass "16. red: a ~/ path under no home -> exit 1, not readable" || fail "16. missing ~ (rc $rc: $out)"
+printf '%s\n' '{"input":{"command":"REVIEW_LINE='"'$L16'"' ./run -a do_spl_review_line_check"}}' >"$H16/j16.jsonl"
+out="$(chk HOME="$H16" REVIEW_LINE="$L16")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING git-prune-round-branches.tst.sh"* ]] \
+  && pass "16. red: a log whose only command is the check of the box-free line -> MISSING" || fail "16. own check (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

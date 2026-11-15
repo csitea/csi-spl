@@ -98,6 +98,13 @@
 #      W1): PASS text, then the gate's REFUSED -> REFUSED; REFUSED text, then
 #      the gate's PASS -> GAVE-UP, `the hook passed`; a quoted `[rejected]`
 #      that is not git's own status line -> GAVE-UP
+#  20. a reviewer on a box the sweep bans (SPL-5634, c-228's g-247 line in
+#      95eba2875). Red control: that line verbatim (box shorthand, OS user and
+#      /home/<user>/ path assembled at run time, so this file carries none)
+#      fails do_check_commit_msg_hygiene (csi-spl-iac). The same review in the
+#      box-free form (`review: g-247 grok ...| log: g-247:~/...`, its sha
+#      the temp repo's review/r99-01 head) passes that sweep and the R7 gate:
+#      PUSHED; the old `<id>@<box>` form stays accepted (case 8)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -251,10 +258,10 @@ red8() {
     && pass "8. red control: $1 -> REFUSED round row $short review line: $3" || fail "8. red control $1 (rc $vrc: $v)"
 }
 rcommit eight 'refactor(r99-01-x): a round row'
-red8 'no PASS line' 'review: m-999 mistral FAIL 0123456 no box, no PASS' "none of the form 'review: <id>@<box> <vendor> PASS <sha> ...'"
+red8 'no PASS line' 'review: m-999 mistral FAIL 0123456 no box, no PASS' "none of the form 'review: <id>[@<box>] <vendor> PASS <sha> ...'"
 red8 'a 39-char sha' "review: m-999@sat mistral PASS ${RS:0:39} $TAIL" "sha '${RS:0:39}' is not 40 hex"
 red8 'an unresolvable 40-char sha' "review: m-999@sat mistral PASS $(printf 'f%.0s' $(seq 40)) $TAIL" "sha $(printf 'f%.0s' $(seq 40)) does not resolve (fetched review/r99-01)"
-red8 'no log:' "review: m-999@sat mistral PASS $RS ran: tests | read: diff" "no '| log: <id>@<box>:<path>'"
+red8 'no log:' "review: m-999@sat mistral PASS $RS ran: tests | read: diff" "no '| log: <id>[@<box>]:<path>'"
 red8 'a brace-token ran: (c-585, SPL-4066)' "review: m-999@sat mistral PASS $RS $BRACE" \
   'checker: ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run)'
 # The checker itself, on the same two lines: the gate refuses what it refuses.
@@ -475,7 +482,7 @@ run PUSH_BRANCH=review/c-999-s18 >/dev/null; v="$(verdict)"; vrc=$?
   && [ "$(git --git-dir="$B" rev-parse master)" = "$m18" ] \
   && pass "18. a round row with no review line to review/c-999-s18 -> PUSHED, master unchanged" \
   || fail "18. review/ target (rc $vrc: $v)"
-NOLINE="REFUSED round row $short review line: none of the form 'review: <id>@<box> <vendor> PASS <sha> ...'"
+NOLINE="REFUSED round row $short review line: none of the form 'review: <id>[@<box>] <vendor> PASS <sha> ...'"
 for tgt in master feat-s18; do
   run PUSH_BRANCH="$tgt" >/dev/null; v="$(verdict)"; vrc=$?
   [ "$vrc" -eq 1 ] && grep -qxF "$NOLINE" <<<"$v" && [ "$(git --git-dir="$B" rev-parse master)" = "$m18" ] \
@@ -505,6 +512,35 @@ check19 dead-nested "$SAIDNO"
 check19 dead-late-pass "$PASSED"
 check19 dead-quoted "$PASSED"
 echo ok >"$T/git.mode"
+
+# 20 a reviewer on a box the sweep bans: the box-free line passes the sweep and the gate
+IAC="$APP_ROOT/csi-spl-iac/src/bash/run"
+msg_hyg() {  # <range> -> rc of do_check_commit_msg_hygiene over $L, output in $T/hyg.out
+  env HYGIENE_TREE="$L" HYGIENE_MSG_RANGES="$1" HYGIENE_WORKFLOW="$APP_ROOT/.github/workflows/10_ci-quality.yml" APP_PATH="$L" bash -c '
+    do_log() { echo "$*"; }
+    source "'"$IAC"'/check-dist-hygiene.func.sh"; source "'"$IAC"'/check-commit-msg-hygiene.func.sh"
+    do_check_commit_msg_hygiene' >"$T/hyg.out" 2>&1
+}
+git -C "$L" reset -q --hard "$(git --git-dir="$B" rev-parse master)"
+echo ok >"$T/hook.mode"
+BX="t""nk" AU="ai""-usr"
+RAN20='node --test tests/unit/card-move-steps.test.mjs ; pnpm run typecheck ; node tests/unit/cleancode.test.mjs ; pnpm run generate ; ./run -a do_check_dist_hygiene ; bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh node src/node/test/run-e2e-tests.mjs tests/e2e/mobile-messages.test.mjs tests/e2e/issues-mobile.test.mjs tests/e2e/ui-micro-animations.test.mjs tests/e2e/topic-unread-live.test.mjs tests/e2e/card-header-menu-row.test.mjs tests/e2e/msg-edit-empty.test.mjs'
+READ20='card-move-steps 5 pass rc 0; red land(true) removed useCardMove.ts:98 only (E) card-move-steps.test.mjs:140 rc 1 restored n=1; red pickerOpen.value=false removed useCardMove.ts:91 only (D) card-move-steps.test.mjs:132 rc 1 restored n=1; red endDrag() removed in onDrop only (E) card-move-steps.test.mjs:141 dragging stayed true rc 1 restored n=1; typecheck rc 0; cleancode rc 0 NOTE WIDE useCardMove left; hygiene clean rc 0; generate rc 0; e2e mobile-messages 39/39 issues-mobile 54/54 ui-micro-animations 55/55 topic-unread-live 28/28 card-header-menu-row 136/136 msg-edit-empty 12/12 runner 6 files passed rc 0'
+LOG20='.grok/sessions/%2Fopt%2Fcsi%2Fcsi-spl-wt%2Fg-247/01a1e0ab-b51c-71f3-909e-d75d6a7ffd23'
+OLD20="review: g-247@$BX grok PASS b2315c1017e4d324621a25e14d6f0f2036c5597a ran: $RAN20 | read: $READ20 | log: g-247@$BX:/ho""me/$AU/$LOG20"
+NEW20="review: g-247 grok PASS $RS ran: $RAN20 | read: $READ20 | log: g-247:~/$LOG20"
+base20="$(git -C "$L" rev-parse HEAD)"
+rcommit twenty 'refactor(r99-01-x): a round row reviewed on a banned box' "$OLD20"
+msg_hyg "$base20..HEAD"; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'literal OS user / box / AD id' "$T/hyg.out" && grep -q 'personal home directory' "$T/hyg.out" \
+  && pass "20. red control: g-247's line verbatim fails the commit-message sweep (box, user, home)" \
+  || fail "20. red control: the verbatim line (rc $rc: $(cat "$T/hyg.out"))"
+git -C "$L" "${G[@]}" commit -q --amend -m 'refactor(r99-01-x): a round row reviewed on a banned box' -m "$NEW20"
+msg_hyg "$base20..HEAD"; rc=$?
+[ "$rc" -eq 0 ] && pass "20. the box-free line passes the commit-message sweep" || fail "20. box-free sweep (rc $rc: $(cat "$T/hyg.out"))"
+run >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" \
+  && pass "20. the box-free line passes the R7 gate -> PUSHED" || fail "20. box-free gate (rc $vrc: $v)"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

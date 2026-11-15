@@ -264,4 +264,70 @@ T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
 | T010 | J: WUI receipts + erasure | grok / mistral | T009 | none | BUILD |
 | T011 | 118 routes + `/me/hours` | (118's lanes) | 118 tasks.md | all | see 118 |
 
+## Calendar across workspaces (draft, waits on the owner's Q1..Q5)
+
+Rows for [calendar-across-workspaces.md](calendar-across-workspaces.md)
+v0.1 (SPL-5599). **Not ready to place**: each row names the owner answer it
+assumes (the recommended one); a different answer changes or drops the row.
+None waits on T005..T010. Tests are that file's section 10.
+
+- [ ] T012 **Lane K: the "mine" read in the calendar store** (claude, store;
+  waits on Q1). A `Mine` option on `CalendarRange`: one predicate
+  `(creator_id = viewer OR owner_id = viewer OR viewer = ANY (mentions))`
+  added with AND after `calendarPrivateSQL` in the single, series and marks reads;
+  under `1a`, issue deadlines assigned to the viewer.
+  Files (owns): `GO/store/calendar_postgres.go`, `GO/store/calendar_memory.go`,
+  `GO/store/calendar.go`, their tests.
+  Done: T-CAL1, T-CAL2 on Postgres with red controls; `PRE_PUSH_TIER=full`.
+
+- [ ] T013 **Lane L: `GET /v1/me/realm/calendar/events` and `/marks`**
+  (claude, hub; waits on T012). The fan-out of section 4: `Memberships`, at
+  most 20, 2 in flight, one workspace-scoped read each, `unavailable` and
+  `truncated` states; act-as / agent / box 403 `person_only`; 400 on
+  `X-Spool-Tenant`, `member=`, `workspace=`. Shares the bound and the
+  fan-out helper with `hub/realm_hours_read.go` rather than copying it.
+  Under Q5 `5a`, Google duplicates fold in the answer (section 6).
+  Files (owns): `GO/hub/realm_calendar_read.go` and its test, its rows in
+  `GO/hub/openapi.json` and `GO/hub/server.go`.
+  Must not touch: `GO/hub/realm_hours_read.go` beyond extracting the shared
+  helper (ask its last lane, else the orchestrator).
+  Done: T-CAL3..T-CAL6, T-CAL8..T-CAL10; the timing record of section 9.
+
+- [ ] T014 **Lane M: realm calendar writes** (claude, hub; waits on Q2 `2a`
+  and T013). `POST|PATCH|DELETE /v1/me/realm/calendar/{workspace_id}/events[/{id}]`,
+  `restore`, `rsvp`, `people?q=`: membership check, then the workspace
+  route's own handler body with the workspace as an argument.
+  Files (owns): `GO/hub/realm_calendar_write.go` and its test; the
+  refactor of the calendar handlers to take the workspace.
+  Done: T-CAL7; the existing calendar hub tests unchanged and green.
+  Dropped under `2c`; under `2b` only `rsvp`.
+
+- [ ] T015 **Lane N: `personal.calendar_prefs`** (claude, rdb + store + hub;
+  waits on Q3 `3a`). One migration (number from `do_rdb_migration_next`) in
+  the rdb 0225 shape; `GET`/`PUT /v1/me/realm/calendar/prefs` under
+  `inPerson`. Applied on dev and prd before the code lane pushes.
+  Done: 119's T-C1, T-C2, T-C3 cover the new table; T-N1, T-N2 seeded for it.
+  Dropped under `3b`, `3c` (`3c` is a workspace setting, a 098 row instead).
+
+- [ ] T016 **Lane O: realm reminders** (claude, hub; waits on Q4 `4a` and
+  T013). `GET /v1/me/realm/calendar/reminders`, the same fan-out over
+  `CalendarReminders`, at most 31 days. Dropped under `4b`.
+
+- [ ] T017 **Lane P: the `/me/calendar` page** (claude, WUI; waits on T013
+  deployed, and on T015 / T014 for their parts). Lazy route chunk, its own
+  store keyed by person; workspace chips, merged grid (the existing calendar
+  chunk), phone agenda at 360 / 390 px; the create / edit dialog under
+  `2a`; an "All my workspaces" link in the workspace calendar header.
+  Files (owns): `WUI/pages/me/calendar.vue`, `WUI/stores/realm-calendar.ts`,
+  their e2e case; new i18n keys under `realm.calendar.*` only.
+  Must not touch: the workspace calendar store; 119 T009's frame files.
+  Done: `pnpm run typecheck`; `perf-budget.py` initial JS unchanged;
+  `BASE_URL=<bundle> pnpm run test:e2e`; agy review of the strings
+  (language rule); deployed dev and prd.
+
+- [ ] T018 **Lane Q: reminder timer reads the realm route** (claude, WUI;
+  waits on T016 deployed). `WUI/utils/calendar-reminders.mjs` and
+  `calendar-reminder-timer.ts` read `/v1/me/realm/calendar/reminders`, the
+  pop-up names the workspace. Dropped under `4b`.
+
 <!-- version: 1.1.0 · updated: 2026-10-13 · last-edit: 2026-10-13 -->

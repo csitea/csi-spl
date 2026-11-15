@@ -374,4 +374,15 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 | 1.2 | 2026-10-11 | c-153 | owner fold, msg 23d782e1 "Yes all a" on the 118-shared questions: OQ-2 A no spans (8.2); OQ-3 A approver name kept for `hours.retention_years` (8.2); OQ-6 A receipts on workspace delete (6.1 REQ-4, 8.1); OQ-8 A no download in v1 (6.2 Q2); OQ-11 A one `rev = 1` refresh (8.3); answers in 13 |
 | 1.3 | 2026-10-11 | a-202 | owner fold, msg 9d7436e5: OQ-3 decided B in place (13); 8.2 approver name kept |
 
+## 15. My calendar across workspaces
+
+The owner's ask of 2026-11-15 (t1 #spool-hub-ui `26b46de6`, HUM-10: "I
+should be able to see all of my calendar entries in one place regardless of
+how many workspaces I do have access to") is specified in its own file,
+[calendar-across-workspaces.md](calendar-across-workspaces.md) (v0.1 draft,
+SPL-5599): a personal view that reads each workspace's own calendar in its
+own scope, copies nothing into the realm, and leaves every entry under its
+workspace's rules. Its owner questions are open there (section 11); its draft
+build rows are in [tasks.md](tasks.md), "Calendar across workspaces".
+
 <!-- version: 1.2.0 · updated: 2026-10-11 · last-edit: 2026-10-11T09:20:00Z -->

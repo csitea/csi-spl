@@ -31,7 +31,7 @@
 # @description scope cites the key, back to back); the hub only names keys.
 # @description Detail: scripts/local-replay.py, csi-spl-doc/specs/176-full-offline-ai-stack/replay-harness.md.
 # @param REPLAY_CMD (optional) - prepare (default), pick, run, judge, keymap
-# @param REPLAY_KIND (required but for keymap) - the task kind, e.g. complex_coding
+# @param REPLAY_KIND (optional) - the task kind, e.g. complex_coding; every REPLAY_CMD but keymap refuses to run without it
 # @param REPLAY_N (optional) - lanes of the kind, default 5
 # @param REPLAY_I18N (optional) - lanes of the i18n slice, default 1 (none for kind i18n)
 # @param REPLAY_DIR (optional) - default SPL_VAR_APP_DIR/local-replay
@@ -40,7 +40,7 @@
 # @param REPLAY_REPO (optional) - the git tree, default this checkout
 # @param REPLAY_REF (optional) - default origin/master
 # @param REPLAY_MAX_LINES (optional) - largest landed diff taken, default 1500 changed lines
-# @param REPLAY_CANDIDATE (required for run) - the command a case runs
+# @param REPLAY_CANDIDATE (optional) - the command a case runs; REPLAY_CMD=run refuses to run without it
 # @param REPLAY_TIMEOUT (optional) - seconds per case, default 3600
 # @param REPLAY_LABEL (optional) - the candidate, e.g. claude-code+<model>@<rev>, for the report
 # @param REPLAY_KEYMAP_MAX (optional) - hub lookups for keymap, default 300

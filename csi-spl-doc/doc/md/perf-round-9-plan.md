@@ -1,5 +1,7 @@
 # Perf round 9 (p9) - plan (3 rows)
 
+> Generated from qto doc `93563e0a-9cdc-443d-93fd-77ba0b76ff02`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -51,6 +53,8 @@ rows 2-4 and 7). p8-04 landed after the plan sha: `75a38b791` (2026-11-14 10:18Z
 its fix `82bb33d70`; `spl-lane-map.func.sh` is not a row file.
 
 <a id="p9-how-to-read"></a>
+
+<a id="ws-doc-de719348-a388-4d8e-b6be-966db63869e2"></a>
 ## 1. How to read this
 
 - A row is one logical change, one lane, subject
@@ -70,6 +74,7 @@ its fix `82bb33d70`; `spl-lane-map.func.sh` is not a row file.
   03 cut the hygiene sweep, row 02 the trufflehog part.
 
 <a id="p9-inputs"></a>
+<a id="ws-doc-b93946ed-1239-425d-b76c-ace2e36080ef"></a>
 ## 2. Where the rows come from
 
 Inputs read (brief step 2), each carried finding re-checked on `1638ca3a7`:
@@ -89,6 +94,7 @@ Inputs read (brief step 2), each carried finding re-checked on `1638ca3a7`:
 | new, this seat | pre-push full tier `orc` part: 10 runs in 24 h, none green, 4 TIMED OUT at ~12,020 s | counted, not probed | section 6, input for round 10 |
 
 <a id="p9-rows"></a>
+<a id="ws-doc-beffe9b1-8035-4dee-8118-79f59de404c0"></a>
 ## 3. The 3 rows
 
 | # | id | practice | baseline on `1638ca3a7` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
@@ -101,6 +107,7 @@ Rows 01-03 are claude: rulebook R14 (an established vendor for every row) and th
 owner's 10-17 rule (no mistral coding or testing).
 
 <a id="p9-batches"></a>
+<a id="ws-doc-6d9dfc8e-e49c-4d55-a0a4-9083e860d6cd"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: rows 01, 02, 03. No path is in two rows: 01
@@ -113,6 +120,7 @@ owner's 10-17 rule (no mistral coding or testing).
   (`:1769`) keep their locale (section 4).
 
 <a id="p9-r3"></a>
+<a id="ws-doc-e81aeefb-a407-4cf0-8787-a4d995d474d9"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-14, each with its time:
@@ -140,6 +148,7 @@ Read on 2026-11-14, each with its time:
   lines.
 
 <a id="p9-per-row"></a>
+<a id="ws-doc-cd651fc0-0979-4307-a815-4dda9c8a0823"></a>
 ## 4. Per row: what the lane does
 
 - **01**: `spl_private_gate_patterns` collects the word slugs and prints ONE line
@@ -166,6 +175,7 @@ Read on 2026-11-14, each with its time:
   tree and states the five hit sets on the tree are identical.
 
 <a id="p9-panel"></a>
+<a id="ws-doc-7c8fbc37-2b51-4c08-a67c-4c27b8c0344f"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-14 09:26:29Z: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
@@ -186,6 +196,7 @@ it).
   (2.7.3).
 
 <a id="p9-left-out"></a>
+<a id="ws-doc-88e90e65-6a45-4b4f-aace-59fb9a800952"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -207,6 +218,7 @@ it).
 | spec 027 rows 2-4 and 7 | GCP / VM changes, or removes a guard (p7 section 6) | not round rows |
 
 <a id="p9-counts"></a>
+<a id="ws-doc-88d52ca3-724f-4f4a-9cc6-9e7587481881"></a>
 ## 7. Counts
 
 - Rows: 3 (rulebook 1.1: at most 10). Batch 1: 3.
@@ -215,6 +227,7 @@ it).
 - Review count (2.7.5): `git log origin/master --grep='p9-' --format=%B | grep -c '^review: '` must reach 3.
 
 <a id="p9-changes"></a>
+<a id="ws-doc-2e54076f-3b60-4c1f-8d91-20fec88b121b"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -230,6 +243,7 @@ the primary copy.
 - v0.6 (c-723@sat, 2026-11-15, claude seat c-076 FAIL on `2c11ec7ba`, msg c8d5898b, seat `52f79a71c`): W1, row 03 was not hit-identical: `:1787`'s `\x80-\xff` class and the `(?i)` fold of U+017F / U+212A differ under C. Row 03 now covers five sweeps; `:1787` keeps its locale. The fold narrowing of the five is named in the row and pinned in its test. Re-measured on `a86e50da8`: -25% and -31% (n=7 each). W2 and N1: row 02's key is the resolved binary's sha256, the func file's sha256 and the version, with two test cases added. N2: section 6 re-cites `check-pre-push.func.sh` on `a86e50da8`. The Retros paragraph now names the two retros added by `8fc934b9e` and p8-04's landing. The row count stays 3.
 
 <a id="p9-consensus"></a>
+<a id="ws-doc-77349a58-c2f2-44d2-b1ba-c2f43a46c64b"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

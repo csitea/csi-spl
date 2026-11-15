@@ -4227,7 +4227,16 @@
       "err_component": "Kies een kostensoort voor de regel van een persoon.",
       "err_source": "De bron is hoogstens 200 tekens, de rekening hoogstens 20.",
       "err_year": "Een jaartotaal wordt geboekt op januari van dat jaar.",
-      "err_corrects": "De gecorrigeerde maand moet vóór de maand van de regel liggen."
+      "err_corrects": "De gecorrigeerde maand moet vóór de maand van de regel liggen.",
+      "labels_toggle": "Andere talen ({n})",
+      "labels_master": "Hoofdtaal, {lang}: {label}",
+      "labels_locale": "Taal",
+      "labels_text": "Label in deze taal",
+      "labels_add": "Taal toevoegen",
+      "labels_remove": "Verwijderen",
+      "labels_save": "Labels opslaan",
+      "labels_saved": "Labels opgeslagen",
+      "err_labels_locale": "Kies elke taal één keer, nooit de hoofdtaal"
     },
     "operators_only": "Uitgaven zijn alleen voor beheerders en producteigenaren van de operator.",
     "tokens_link": "Betaalde abonnementen en opwaarderingen voer je in onder Uitgaven → AI-kosten.",

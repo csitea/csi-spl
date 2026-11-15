@@ -4227,7 +4227,16 @@
       "err_component": "Vyberte zložku pre riadok osoby.",
       "err_source": "Zdroj má najviac 200 znakov, účet najviac 20.",
       "err_year": "Ročný súčet sa účtuje na január daného roka.",
-      "err_corrects": "Opravovaný mesiac musí byť pred mesiacom riadku."
+      "err_corrects": "Opravovaný mesiac musí byť pred mesiacom riadku.",
+      "labels_toggle": "Ďalšie jazyky ({n})",
+      "labels_master": "Hlavný jazyk, {lang}: {label}",
+      "labels_locale": "Jazyk",
+      "labels_text": "Označenie v tomto jazyku",
+      "labels_add": "Pridať jazyk",
+      "labels_remove": "Odstrániť",
+      "labels_save": "Uložiť označenia",
+      "labels_saved": "Označenia sú uložené",
+      "err_labels_locale": "Každý jazyk vyberte raz, nikdy nie hlavný jazyk"
     },
     "operators_only": "Výdavky sú len pre administrátorov a vlastníkov produktu operátora.",
     "tokens_link": "Zaplatené predplatné a dobitia sa zadávajú v časti Výdavky → Náklady na AI.",

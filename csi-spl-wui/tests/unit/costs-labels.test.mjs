@@ -61,6 +61,13 @@ describe('the rows of each label, one month', () => {
     assert.equal(rows[1].pct, null)
     assert.equal(rows[0].entryCurrency, 'EUR')
   })
+  it('SPL-5546: a hand-entered row reads in the interface language, its key the master text; no label = the master text', () => {
+    const bg = costMonthOf(mockTenantCostsBody('2026-09', 'entries', NOW, 'EUR', 'bg'))
+    const rows = costsLabelRows('persons', [bg])
+    assert.deepEqual(keys(rows), ['hr:Design contract', 'hr:Support contract'])
+    assert.deepEqual(rows.map((r) => r.name), ['Договор за дизайн', 'Support contract'])
+    assert.deepEqual(costsLabelRows('persons', [SEP]).map((r) => r.name), ['Design contract', 'Support contract'])
+  })
   it('SPL-5433 step b: Persons is a row per hr group, its components summed, never a person', () => {
     const hr = (component, group, amount) => ({ estate: true, source: 'cost_entry', project_or_vendor: component + ' label', kind: 'hr', origin: 'hand',
       usd_micros: amount, eur_micros: amount, entry_micros: amount, entry_currency: 'EUR', component, group })

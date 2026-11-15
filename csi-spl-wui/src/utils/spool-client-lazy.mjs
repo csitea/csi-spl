@@ -1903,13 +1903,14 @@ async function getFleetLoad(ctx) {
  * the current month so far. The mock answers from tenant-costs.mjs, which
  * loads only here and on the costs page. `secondCurrency` is the reader's
  * pick (spec 123 5.4): the hub converts by the session's own, so only the
- * mock reads it.
+ * mock reads it. `locale` is the interface language: the hand-entered
+ * items' labels come in it (SPL-5546).
  */
-async function getTenantCosts(ctx, month = '', secondCurrency = '') {
+async function getTenantCosts(ctx, month = '', secondCurrency = '', locale = '') {
   const { live, mock } = ctx
   const tc = await import('./tenant-costs.mjs')
-  if (mock) return tc.mockTenantCosts(month, { me: mockMeGet(), currency: secondCurrency })
-  return live('/v1/tenant/costs' + tc.costsQuery(month))
+  if (mock) return tc.mockTenantCosts(month, { me: mockMeGet(), currency: secondCurrency, locale })
+  return live('/v1/tenant/costs' + tc.costsQuery(month, locale))
 }
 
 /**
@@ -2120,6 +2121,7 @@ async function reportingSql(ctx, query) {
  *   'entries', type       GET    /v1/operator/cost-entries?type= (SPL-4382, Expenses)
  *   'entry_create', body  POST   /v1/operator/cost-entries
  *   'entry_delete', id    DELETE /v1/operator/cost-entries/{id}
+ *   'entry_labels', id, b PATCH  /v1/operator/cost-entries/{id}/labels (SPL-5546)
  *   'hr_components'       GET    /v1/operator/hr-components (SPL-5433, the HR tab)
  *   'hr_people'           GET    /v1/operator/hr-people
  *   'hr_person_create', b POST   /v1/operator/hr-people
@@ -2166,7 +2168,8 @@ async function fleetPaid(ctx, op, a, b) {
       return ops[op]()
     }
     const period = '/v1/operator/cost-periods/' + encodeURIComponent(a)
-    if (op === 'hr_components') return live('/v1/operator/hr-components')
+    /* SPL-5546: a = the interface locale, the components' labels come in it */
+    if (op === 'hr_components') return live('/v1/operator/hr-components' + (/^[a-z]{2}$/.test(String(a || '')) ? '?locale=' + a : ''))
     if (op === 'hr_people') return live('/v1/operator/hr-people')
     if (op === 'hr_person_create') return live('/v1/operator/hr-people', json('POST', a))
     if (op === 'hr_period') return live(period)
@@ -2182,7 +2185,7 @@ async function fleetPaid(ctx, op, a, b) {
   }
   if (mock && op.startsWith('entr')) {
     const c = await import('./cost-entries.mjs')
-    const ops = { entries: () => c.mockCostEntryList(a), entry_create: () => c.mockCostEntryCreate(a), entry_delete: () => c.mockCostEntryDelete(a) }
+    const ops = { entries: () => c.mockCostEntryList(a), entry_create: () => c.mockCostEntryCreate(a), entry_delete: () => c.mockCostEntryDelete(a), entry_labels: () => c.mockCostEntryLabels(a, b) }
     if (!ops[op]) throw new Error('fleetPaid: unknown op ' + op)
     return ops[op]()
   }
@@ -2200,6 +2203,7 @@ async function fleetPaid(ctx, op, a, b) {
   if (op === 'entries') return live(entries + '?type=' + encodeURIComponent(a))
   if (op === 'entry_create') return live(entries, json('POST', a))
   if (op === 'entry_delete') return live(entries + '/' + encodeURIComponent(a), { method: 'DELETE' })
+  if (op === 'entry_labels') return live(entries + '/' + encodeURIComponent(a) + '/labels', json('PATCH', b))
   throw new Error('fleetPaid: unknown op ' + op)
 }
 

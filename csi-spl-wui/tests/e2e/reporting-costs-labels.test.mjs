@@ -19,6 +19,9 @@
 //     to its days; Persons lists the hr entries, an unpriced one a dash;
 //     Tokens links Price per token to Expenses -> AI costs; a customer
 //     workspace reads its own Tokens and is told Persons has no split;
+//   - SPL-5546: Persons reads its hand-entered rows in the interface
+//     language (/bg/... the bg label), a row with no label its master text,
+//     the row keys unchanged;
 //   - the currency switch writes ?currency= and the cells follow; no
 //     sideways page scroll; without costs.read the 403 line.
 //
@@ -242,6 +245,24 @@ async function cloudPersonsTokens(browser, base, size) {
   await ctx.close()
 }
 
+/* SPL-5546 (owner HUM-10, csitea 720fa031: "the labels in this view should be in the language of the interface") */
+async function personsLanguage(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size, { operator: true, scenario: 'entries' })
+  const names = () => p.$$eval('[data-test=cmt-row] .cmt-name > span:first-child, [data-test=cmt-row] .cmt-name > a', (els) => els.map((e) => e.textContent.trim()))
+  await open(p, base, '/reporting/costs/persons?month=2026-09')
+  await ready(p)
+  ok('Persons in English: the master text', (await names(p)).join('|') === 'Design contract|Support contract', await names(p))
+  await shot(p, 'persons-en', size)
+  await open(p, base, '/bg/reporting/costs/persons?month=2026-09')
+  await ready(p)
+  const bg = await p.waitForFunction(() => [...document.querySelectorAll('[data-test=cmt-row] .cmt-name > span:first-child')].some((e) => e.textContent.trim() === 'Договор за дизайн'), { timeout: 15000 }).then(() => true, () => false)
+  ok('Persons in Bulgarian: the bg label; a row with none keeps the master text', bg && (await names(p)).join('|') === 'Договор за дизайн|Support contract', await names(p))
+  ok('Persons in Bulgarian: the row keys stay the master text', (await rowKeys(p)).join(',') === 'hr:Design contract,hr:Support contract', await rowKeys(p))
+  ok('Persons in Bulgarian: the pie legend reads the bg label', (await text(p, '[data-test=costs-page]')).includes('Договор за дизайн'))
+  await shot(p, 'persons-bg', size)
+  await ctx.close()
+}
+
 async function workspaceAndForbidden(browser, base, size) {
   {
     /* a customer workspace (mock 'share', last month): its own Tokens; Persons and Cloud say they have no split */
@@ -270,7 +291,7 @@ const browser = await launch()
 try {
   for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     console.log(`-- ${size.width}x${size.height}`)
-    for (const section of [redirects, totalLabel, period, cloudPersonsTokens, workspaceAndForbidden]) {
+    for (const section of [redirects, totalLabel, period, cloudPersonsTokens, personsLanguage, workspaceAndForbidden]) {
       // a section that still throws is one FAIL, and the sections after it run (N5)
       await section(browser, server.base, size).catch((e) => ok(`${section.name} ran to its end`, false, String(e && e.message || e).slice(0, 160)))
     }

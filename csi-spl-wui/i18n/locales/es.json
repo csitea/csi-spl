@@ -4227,7 +4227,16 @@
       "err_component": "Elige un componente para la línea de una persona.",
       "err_source": "La fuente tiene como máximo 200 caracteres y la cuenta 20.",
       "err_year": "Un total anual se registra en enero de ese año.",
-      "err_corrects": "El mes corregido debe ser anterior al mes de la línea."
+      "err_corrects": "El mes corregido debe ser anterior al mes de la línea.",
+      "labels_toggle": "Otros idiomas ({n})",
+      "labels_master": "Idioma principal, {lang}: {label}",
+      "labels_locale": "Idioma",
+      "labels_text": "Etiqueta en este idioma",
+      "labels_add": "Añadir un idioma",
+      "labels_remove": "Quitar",
+      "labels_save": "Guardar etiquetas",
+      "labels_saved": "Etiquetas guardadas",
+      "err_labels_locale": "Elija cada idioma una vez, nunca el idioma principal"
     },
     "operators_only": "Los gastos son solo para administradores y propietarios de producto del operador.",
     "tokens_link": "Las suscripciones y recargas pagadas se introducen en Gastos → Costes de IA.",

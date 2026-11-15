@@ -4227,7 +4227,16 @@
       "err_component": "Pasirinkite asmens eilutės komponentą.",
       "err_source": "Šaltinis – ne daugiau kaip 200 simbolių, sąskaita – ne daugiau kaip 20.",
       "err_year": "Metinė suma registruojama už tų metų sausį.",
-      "err_corrects": "Taisomas mėnuo turi būti ankstesnis už eilutės mėnesį."
+      "err_corrects": "Taisomas mėnuo turi būti ankstesnis už eilutės mėnesį.",
+      "labels_toggle": "Kitos kalbos ({n})",
+      "labels_master": "Pagrindinė kalba, {lang}: {label}",
+      "labels_locale": "Kalba",
+      "labels_text": "Pavadinimas šia kalba",
+      "labels_add": "Pridėti kalbą",
+      "labels_remove": "Pašalinti",
+      "labels_save": "Išsaugoti pavadinimus",
+      "labels_saved": "Pavadinimai išsaugoti",
+      "err_labels_locale": "Kiekvieną kalbą pasirinkite vieną kartą, bet ne pagrindinę kalbą"
     },
     "operators_only": "Išlaidos skirtos tik operatoriaus administratoriams ir produkto savininkams.",
     "tokens_link": "Apmokėtos prenumeratos ir papildymai įvedami skiltyje Išlaidos → DI išlaidos.",

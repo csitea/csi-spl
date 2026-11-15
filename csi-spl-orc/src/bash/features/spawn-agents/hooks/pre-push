@@ -187,14 +187,26 @@ _pp_gate() {  # <PRE_PUSH_ONLY> <PRE_PUSH_SKIP_PASSED>
 # push published a hidden workspace slug in a commit body, every gate green),
 # so SPL_PREPUSH_OVERRIDE=1 (even on a poisoned shared config, R7 g-252 W1:
 # the sweep reads each message by sha, a wrong tree is no reason to skip it)
-# and a wip-only push do not skip it. No resolvable top: the hook's cwd. Only the
+# and a wip-only push do not skip it. Only the
 # commits each ref adds: <remote sha>..<local sha>; a new ref, the commits not
 # on <remote>/master (origin/master when the remote is a URL); a delete
 # nothing. The sweep is do_check_commit_msg_hygiene of the pushing tree (the
 # file sweep's own patterns); a hit names the sha, the line and the pattern
-# label, never the text. A tree without that action is not asked.
-_pp_mtop="$(git rev-parse --show-toplevel 2>/dev/null)" || _pp_mtop="$PWD"
-if [ -n "$_pp_mtop" ] && [ -r "$_pp_mtop/csi-spl-iac/src/bash/run/check-commit-msg-hygiene.func.sh" ] && [ -x "$_pp_mtop/csi-spl-iac/run" ]; then
+# label, never the text. The tree that runs it is the FIRST of: the hook's cwd
+# (git starts it at the pushing worktree's top), show-toplevel, the main
+# checkout of the common dir -- that has the action; all three read the pushing
+# repo's objects, and a repo that is not the spool tree has none of them. Not
+# show-toplevel alone (R7 g-266 W1): a core.worktree in the common config
+# pointing at ANOTHER dir makes show-toplevel that dir, it has no action, and
+# the override then exited 0 below with the sweep never run.
+_pp_mtop=""
+_pp_mcommon="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+for _pp_mcand in "$PWD" "$(git rev-parse --show-toplevel 2>/dev/null)" "${_pp_mcommon%/.git}"; do
+  if [ -n "$_pp_mcand" ] && [ -r "$_pp_mcand/csi-spl-iac/src/bash/run/check-commit-msg-hygiene.func.sh" ] && [ -x "$_pp_mcand/csi-spl-iac/run" ]; then
+    _pp_mtop="$_pp_mcand"; break
+  fi
+done
+if [ -n "$_pp_mtop" ]; then
   _pp_mrem="${1:-origin}"; case "$_pp_mrem" in */*|*:*) _pp_mrem=origin ;; esac
   _pp_mr=""
   while read -r _pp_lref _pp_lsha _ _pp_rsha; do

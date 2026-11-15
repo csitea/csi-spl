@@ -146,6 +146,17 @@ git -C "$R" config --unset core.worktree
 [[ $rc -ne 0 ]] && grep -q "\./$WBAD\.msg:3" "$T/out" && ! git -C "$REM" rev-parse -q --verify refs/heads/wip/c-999-x >/dev/null \
   && pass "8. SPL_PREPUSH_OVERRIDE=1 on a poisoned shared config does not skip it either" \
   || { fail "8. the override on a poisoned config skipped the message sweep (rc=$rc)"; show; }
+# R7 g-266 W1: core.worktree pointing at ANOTHER (empty) dir makes
+# show-toplevel that dir, which has no action; the sweep must still run
+mkdir -p "$T/elsewhere"
+git -C "$R" config core.worktree "$T/elsewhere"
+push SPL_PREPUSH_OVERRIDE=1 -- "$WBAD:refs/heads/wip/c-999-x"; rc=$?
+git -C "$R" config --unset core.worktree
+[[ $rc -ne 0 ]] && grep -q "\./$WBAD\.msg:3" "$T/out" && ! git -C "$REM" rev-parse -q --verify refs/heads/wip/c-999-x >/dev/null \
+  && pass "8. SPL_PREPUSH_OVERRIDE=1 with core.worktree on another dir does not skip it either" \
+  || { fail "8. the override with core.worktree on another dir skipped the message sweep (rc=$rc)"; show; }
+grep -qw "$banned" "$T/out" && fail "8. the hook output prints the matched literal (other-dir core.worktree)" \
+  || pass "8. the hook output never prints the matched literal (other-dir core.worktree)"
 push X=1 -- "$CLEAN:refs/heads/wip/c-999-y"; rc=$?
 [[ $rc -eq 0 ]] && pass "7. a clean wip push goes through (the remote's master holds the planted commit: not re-read)" \
   || { fail "7. a clean wip push was refused (rc=$rc)"; show; }

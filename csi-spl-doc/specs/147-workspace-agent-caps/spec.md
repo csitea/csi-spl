@@ -237,8 +237,8 @@ Enforcement is layered between the Cloud Run hub boundary (authoritative) and ho
                                              ┌─────────┴─────────┐
                                              ▼                   ▼
                                             YES                 NO
-                                       Refuse: 409          Commit roster
-                                    vendor_cap_exceeded    & broadcast
+                                  Seat the rest, leave      Commit roster
+                                  the capped id out (R5)    & broadcast
 ```
 
 ### 5.1 Hub WebSocket Boundary (`SetRoster` & `vendorCapGate`)
@@ -267,8 +267,8 @@ Implementation logic for `vendorCapGate`:
 3. Compute the prospective agent set: replace existing agents for `box` with the incoming `agents` list.
 4. Count prospective agents per vendor using `agentid.Kind(agent_id)`.
 5. For each vendor $V$, if configured cap $max\_live(V)$ exists and $Count(V) > max\_live(V)$, return `store.ErrVendorCapExceeded{Vendor: V, Cap: max_live, Live: Count(V)}`.
-6. **In `onAnnounce` (`ws.go:485`):** If `errors.Is(err, store.ErrVendorCapExceeded)`, trim the announce exactly as item 7 trims a hello (`admitUnderCaps`): keep the box's already-seated agents, seat each addition the caps still admit, leave out only the capped ones with a hub log line naming each (P6 text in the log), and answer no error frame. Changed by SPL-5642 (R5 below): the first build failed the whole announce 409 `vendor_cap_exceeded`.
-7. **In `seatRoster` (`ws.go:517`):** When handling `wire.THello`, trim incoming agents that would violate the vendor cap, seat only the allowed subset (retaining previously seated agents on that box), and pass only the trimmed admitted agent list to `SetSubscriptions` (`ws.go:339`).
+6. **In `onAnnounce` (`ws.go:483`, the trim call at `ws.go:500`):** If `errors.Is(err, store.ErrVendorCapExceeded)`, trim the announce exactly as item 7 trims a hello (`admitUnderCaps`): keep the box's already-seated agents, seat each addition the caps still admit, leave out only the capped ones with a hub log line naming each (P6 text in the log), and answer no error frame. Changed by SPL-5642 (R5 below): the first build failed the whole announce 409 `vendor_cap_exceeded`.
+7. **In `seatRoster` (`ws.go:536`):** When handling `wire.THello`, trim incoming agents that would violate the vendor cap, seat only the allowed subset (retaining previously seated agents on that box), and pass only the trimmed admitted agent list to `SetSubscriptions` (`ws.go:347`).
 
 ### 5.2 Host Desk Seating Action (`do_spl_desk_up`)
 
@@ -462,7 +462,7 @@ Mirrors the owner requirement from msg `dc010e3c` and verifies full enforcement.
 | **FR-001** | **Database Cap Schema**: Persist `tenant_agent_caps (tenant_id, vendor, max_live)` with RLS fail-closed policies. | Database Migration | Built R1 (rdb `0212`, SPL-2675) |
 | **FR-002** | **Spool-Hub Admin Management API**: `GET`, `PUT`, `DELETE`, `OPTIONS /v1/operator/workspaces/{id}/agent-caps` guarded by `operator.workspaces`. | Hub API (`operator`) | Built R2 (SPL-2675) |
 | **FR-003** | **Workspace Admin Read-Only API**: `GET /v1/tenant/agent-caps` returns caps and live counts; non-GET returns HTTP 405. | Hub API (`tenant`) | Built R2 (SPL-2675) |
-| **FR-004** | **Hub Roster Gate (`vendorCapGate`)**: In `SetRoster`, evaluate prospective vendor counts; reject additions exceeding `max_live` with `409 Conflict`. | Hub Store / Protocol | Built R1 (SPL-2675) |
+| **FR-004** | **Hub Roster Gate (`vendorCapGate`)**: In `SetRoster`, evaluate prospective vendor counts; a replace adding agents over `max_live` returns `ErrVendorCapExceeded` and writes nothing; hello and announce then seat the box's roster without the capped additions (`admitUnderCaps`, no 409 since R5). | Hub Store / Protocol | Built R1 (SPL-2675), R5 (SPL-5642) |
 | **FR-005** | **WebSocket Hello Handling**: In `seatRoster`, trim incoming agents violating vendor caps while retaining previously seated agents. | Hub Protocol (`ws.go`) | Built R1 (SPL-2675) |
 | **FR-006** | **Desk Seating Courtesy Check**: `do_spl_desk_up` checks vendor cap before sidecar spawn; exits 1 with fatal message naming cap and live count. | Bash Orchestration | Built R3 (SPL-2675) |
 | **FR-007** | **Explicit Desk Teardown**: `do_spl_desk_down` removes desk directory on agent exit, achieving prompt seat release. | Bash Orchestration | Planned |
@@ -554,4 +554,4 @@ The work is partitioned into 6 build rows across 2 designated lanes with complet
 
 ---
 
-<!-- version: 1.1.1 · updated: 2026-11-16 · last-edit: 2026-10-19T17:48:00Z -->
+<!-- version: 1.1.1 · updated: 2026-11-16 · last-edit: 2026-11-16T23:20:00Z -->

@@ -354,8 +354,8 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && -s "$RULES" ]] && grep -q 'rule one' "$RULES" && grep -q -- "- CHANNEL RULES (acme #ops)" "$DIST" && ! grep -q 'rule one' "$DIST" &&
   pass "8. DRY_RUN=0: the doc exported (non-empty), the distil names it, no rule copied" || fail "8. live: rc=$rc $(cat "$T/o")"
 world; rm -f "$RULES"
-act DRY_RUN=0 CHANNEL_RULES_EXPORT_CMD='exit 7' >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 1 && ! -e "$RULES" && ! -e "$DIST" && ! -e "$T/tmux/log" ]] && grep -q ' RULES FAIL FATAL channel rules: the export of qto doc' "$T/o" &&
+act DRY_RUN=0 CHANNEL_RULES_EXPORT_CMD='exit 7' CHANNEL_RULES_RETRY_DELAYS='0 0' >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 1 && ! -e "$RULES" && ! -e "$DIST" && ! -e "$T/tmux/log" ]] && grep -q ' RULES FAIL .*FATAL channel rules: the export of qto doc' "$T/o" &&
   pass "8. a failed export: RULES FAIL, no distil, no respawn" || fail "8. fail: rc=$rc $(cat "$T/o")"
 printf '# Seat\n\nNo channel.\n' >"$S/c-900/lifetime/brief.md"
 world

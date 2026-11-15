@@ -4229,14 +4229,14 @@
       "err_year": "Vuoden kokonaissumma kirjataan vuoden tammikuulle.",
       "err_corrects": "Korjattavan kuukauden on oltava ennen rivin kuukautta.",
       "labels_toggle": "Muut kielet ({n})",
-      "labels_master": "Pääkieli, {lang}: {label}",
+      "labels_master": "Pääkieli ({lang}): {label}",
       "labels_locale": "Kieli",
       "labels_text": "Nimike tällä kielellä",
       "labels_add": "Lisää kieli",
       "labels_remove": "Poista",
       "labels_save": "Tallenna nimikkeet",
       "labels_saved": "Nimikkeet tallennettu",
-      "err_labels_locale": "Valitse kukin kieli kerran, ei kuitenkaan pääkieltä"
+      "err_labels_locale": "Valitse kukin kieli vain kerran, älä pääkieltä."
     },
     "operators_only": "Kulut ovat vain operaattorin ylläpitäjille ja tuoteomistajille.",
     "tokens_link": "Maksetut tilaukset ja lisäostot kirjataan kohdassa Kulut → Tekoälykulut.",

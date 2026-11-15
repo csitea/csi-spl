@@ -31,7 +31,8 @@
 # do_check_pre_push_features - print the features a change selects, one per
 # line. The change: FEATURES_CHANGED (paths, space or newline separated) or
 # the files of FEATURES_RANGE (a git range), in PRE_PUSH_TREE (default the
-# checkout).
+# checkout). Exit 0 also when a path selects nothing; non-zero only on a
+# real failure (an undiffable FEATURES_RANGE).
 do_check_pre_push_features() {
   local tree="${PRE_PUSH_TREE:-$(git rev-parse --show-toplevel 2>/dev/null)}" changed
   if [[ -n "${FEATURES_RANGE:-}" ]]; then
@@ -62,7 +63,9 @@ _ppf_select() {
     [[ "$rel" != "$f" && -d "$feat/${rel%%/*}/tests" ]] && echo "${rel%%/*}"
     b="${f##*/}"; stem="${b%.func.sh}"; stem="${stem%.inc.sh}"; stem="${stem%.sh}"
     local -a pats=(-e "$b"); (( ${#stem} >= 5 )) && pats+=(-e "$stem")
-    grep -lwF "${pats[@]}" "$feat"/*/tests/test-*.sh 2>/dev/null \
+    # no test naming it is no error: under pipefail a bare grep made the loop,
+    # and so the action, exit 1 when the LAST path matched nothing (SPL-5651)
+    { grep -lwF "${pats[@]}" "$feat"/*/tests/test-*.sh 2>/dev/null || :; } \
       | sed 's|.*/features/\([^/]*\)/tests/.*|\1|'
   done <<<"$2" | sort -u
 }

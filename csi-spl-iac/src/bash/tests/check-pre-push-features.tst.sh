@@ -9,7 +9,9 @@
 #      features/ (the runner, ci-skip.txt) selects every feature
 #   2. another orc file selects the features whose tests name its basename
 #      or its stem; CONTROL: a .md, a file outside csi-spl-orc, and a name
-#      that only appears inside a longer word select nothing
+#      that only appears inside a longer word select nothing; a path that
+#      selects nothing, even the last one, is no error (exit 0), an
+#      undiffable FEATURES_RANGE still is (SPL-5651)
 #   3. _ppf_parts adds the part only when a feature is selected; FULL tier =
 #      every feature; PRE_PUSH_FEATURES=0 never selects it
 #   4. the part runs only the selected features present in the tree, with
@@ -73,6 +75,14 @@ eq "CONTROL: a file outside csi-spl-orc selects nothing" "" "$(sel csi-spl-wui/s
 eq "CONTROL: a stem only inside a longer word (do_spl_other) selects nothing" "" "$(sel csi-spl-orc/src/bash/run/other.sh)"
 eq "a feature dir without tests/ selects by name only" "" "$(sel csi-spl-orc/src/bash/features/gamma/x.sh)"
 eq "two changes select the union" "alpha beta" "$(sel 'csi-spl-orc/src/bash/run/lane-thing.func.sh csi-spl-orc/src/bash/features/beta/x.sh')"
+# 2b (SPL-5651): a path no test names is no error, also when it comes LAST
+# (under pipefail the bare grep made the action exit 1); a real failure still is
+out="$(PRE_PUSH_TREE="$T" FEATURES_CHANGED="csi-spl-orc/src/bash/features/beta/x.sh csi-spl-orc/src/bash/run/other.sh" do_check_pre_push_features)"; rc=$?
+eq "a last path that names no test: the action exits 0" 0 "$rc"; eq "... and still prints what the others select" "beta" "$out"
+out="$(PRE_PUSH_TREE="$T" FEATURES_CHANGED="csi-spl-orc/src/bash/run/other.sh" do_check_pre_push_features)"; rc=$?
+eq "a path that selects nothing: exit 0" 0 "$rc"; eq "... and prints nothing" "" "$out"
+out="$(PRE_PUSH_TREE="$T" FEATURES_RANGE="no-such-ref..HEAD" do_check_pre_push_features 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] && pass "CONTROL: an undiffable FEATURES_RANGE still fails (rc=$rc)" || fail "CONTROL: an undiffable range fails" "rc=$rc"
 
 # 3
 parts="hygiene orc"; _PPF_FEATS=""; _ppf_parts "csi-spl-orc/src/bash/features/beta/x.sh" "$T"

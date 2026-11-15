@@ -4,7 +4,7 @@ Class: refactor
 Kind: specs_and_docs
 Epic: SPL-2129
 Spec: csi-spl-doc/specs/166-orchestrator-daily-rhythm
-Discussion: c0b0d572-c575-4849-8792-4c3ce4d170f2
+Discussion: {DISCUSSION}
 
 Queued by `do_spl_reflection_gather` (spec 166 row B8, section 3.3), placement
 slug `reflection-{NIGHT}`. Window: {SINCE} .. {UNTIL}, the last 24 h. Report
@@ -14,7 +14,7 @@ Never post in an owner topic or a channel.
 
 ## Why
 
-Owner HUM-10, t1 topic c0b0d572, msg 421e479a: "internal reflections ...
+Owner HUM-10, t1 msg 421e479a: "internal reflections ...
 shoould be performed each 24h, starting from 20:00 till 07:00 CET". Poll
 d102c775 Q4 A: "A Qto doc page per day in the system workspace, linked from
 the morning owner digest; never git, the repo is public".

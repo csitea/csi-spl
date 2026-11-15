@@ -1,8 +1,8 @@
 # csi-spl ::: all.env.yaml, the settings shared by every env (deep-merged
 # UNDER <env>.env.yaml by do_spl_merged_cnf). It holds THE domain and the hub
 # env-var names; everything env-specific is in <env>.env.yaml.
-from typing import Any, Literal
-from pydantic import BaseModel, conint, root_validator
+from typing import Any, Literal, Optional
+from pydantic import BaseModel, conint, constr, root_validator
 from pydantic_yaml import YamlModel
 
 from .agent_split import Box
@@ -36,13 +36,18 @@ class I18n(BaseModel):
 class Rhythm(BaseModel):
     """spec 166 row B1: day and night for do_spl_rhythm_phase (night is
     night_start:00 up to night_end:00 in timezone), and the zombie sweep's
-    limits (section 3.2)."""
+    limits (section 3.2), and the live topic the nightly reflection lane's
+    brief names (row B8, SPL-5646): a uuid, or absent (the action then stops
+    with one FATAL line)."""
 
     timezone: str = "Europe/Berlin"
     night_start: conint(ge=0, le=23) = 20
     night_end: conint(ge=0, le=23) = 7
     zombie_idle_days: conint(ge=1) = 7
     zombie_max: conint(ge=0) = 500
+    reflection_discussion: Optional[
+        constr(regex=r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
+    ] = None
 
 
 class Env(YamlModel):

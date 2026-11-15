@@ -47,6 +47,19 @@ class RhythmTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Rhythm(night_end=24)
 
+    def test_all_env_yaml_carries_a_live_reflection_discussion(self):
+        r = AllEnv.parse_raw(ALL_ENV.read_text()).env.rhythm
+        self.assertRegex(r.reflection_discussion or "", r"^[0-9a-f]{8}-")
+        self.assertNotEqual(
+            r.reflection_discussion, "c0b0d572-c575-4849-8792-4c3ce4d170f2"
+        )
+
+    def test_reflection_discussion_not_a_uuid_is_refused(self):
+        for bad in ("c0b0d572", "fcf09921-8F21-4518-a117-f8ddb41bfff5", "t1"):
+            with self.assertRaises(ValidationError) as cm:
+                AllEnv.parse_obj(_all_env(reflection_discussion=bad))
+            self.assertIn("reflection_discussion", str(cm.exception))
+
     def test_absent_rhythm_is_the_spec_window(self):
         doc = _all_env()
         del doc["env"]["rhythm"]

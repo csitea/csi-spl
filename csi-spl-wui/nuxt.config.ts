@@ -586,6 +586,12 @@ function entitiesBrowserModule() {
 
 export default defineNuxtConfig({
   srcDir: "src/",
+  // SPL-5601: the workspace is this dir. Unpinned, nuxt asks pkg-types
+  // findWorkspaceDir, which in a git worktree (`.git` is a file) falls back
+  // to the FURTHEST lockfile above, so a stray one in a parent dir became the
+  // workspace (its node_modules joined modulesDir, the build cache went
+  // there). tests/unit/workspace-dir.test.mjs builds that case.
+  workspaceDir: ".",
   compatibilityDate: "2026-09-18",
   devtools: { enabled: isDev },
   ssr: true,

@@ -219,6 +219,10 @@ opening it.
   `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build`
   (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 5 files`:
   `wui-{dev,test,build,up,down}.func.sh`).
+  The workspace dir is pinned to the WUI dir (`workspaceDir: "."` in
+  `nuxt.config.ts`, SPL-5601): unpinned, a lane worktree took the furthest
+  lockfile above it as the workspace (`tests/unit/workspace-dir.test.mjs`).
+  The dev bind comes from `--host 0.0.0.0` in the `dev` script, not from it.
 - **FR-009** — Implemented: no horizontal page scroll at 390×844 and 1280×800
   (`csi-spl-wui/tests/e2e/no-x-scroll.test.mjs`, `tests/unit/no-x-scroll.test.mjs`;
   `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → `# pass 1141 # fail 0` on `28442ef6`).

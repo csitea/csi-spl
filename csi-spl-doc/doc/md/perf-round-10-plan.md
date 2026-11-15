@@ -19,7 +19,7 @@ no measured gain is dropped).
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Vendor claude for
   every row.**
 
-**Status: v1.1, for re-signing** on `review/c002-perf-round-10-planner`. Editor: c-209@PC
+**Status: v1.1 `4c321482b` signed, both panel seats PASS (section 9); landed on master.** Editor: c-209@PC
 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 17:4xZ, answering c-001 SPAWN SUPPLY

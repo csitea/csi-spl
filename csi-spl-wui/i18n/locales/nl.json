@@ -2279,7 +2279,10 @@
     "filter_all": "Alle",
     "filter_workspace": "In deze werkruimte",
     "add_contact": "Contact toevoegen",
-    "contact_tag": "contact"
+    "contact_tag": "contact",
+    "hours_norm": "Gemiddeld aantal uren per dag",
+    "hours_norm_hint": "Het eigen gemiddelde van deze persoon, bijv. 7:30. Laat leeg om het werkruimtegemiddelde te gebruiken ({workspace}); 0:00 = geen gemiddelde voor deze persoon. Een dag erboven toont een waarschuwing; er worden geen uren geweigerd.",
+    "hours_norm_no_workspace": "geen gemiddelde"
   },
   "contacts": {
     "group": "Contacten",
@@ -3103,7 +3106,7 @@
     "tab_download": "Downloaden",
     "total": "Totaal",
     "norm_of": "van {norm} gemiddeld per dag",
-    "norm_over": "{over} boven het werkruimtegemiddelde van {norm} per dag. Je uren blijven staan.",
+    "norm_over": "{over} boven je gemiddelde van {norm} per dag. Je uren blijven staan.",
     "norm_over_short": "{over} boven het gemiddelde van {norm}",
     "period_total": "Totaal periode",
     "empty": "Nog geen uren op deze dag.",

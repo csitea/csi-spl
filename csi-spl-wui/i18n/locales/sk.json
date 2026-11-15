@@ -2279,7 +2279,10 @@
     "filter_all": "Všetci",
     "filter_workspace": "V tomto pracovnom priestore",
     "add_contact": "Pridať kontakt",
-    "contact_tag": "kontakt"
+    "contact_tag": "kontakt",
+    "hours_norm": "Priemerný počet hodín za deň",
+    "hours_norm_hint": "Vlastný priemer tejto osoby, napr. 7:30. Nechajte prázdne, ak sa má použiť priemer pracovného priestoru ({workspace}); 0:00 = bez priemeru pre túto osobu. Deň nad ním zobrazí upozornenie; žiadne hodiny sa neodmietnu.",
+    "hours_norm_no_workspace": "bez priemeru"
   },
   "contacts": {
     "group": "Kontakty",
@@ -3103,7 +3106,7 @@
     "tab_download": "Stiahnuť",
     "total": "Spolu",
     "norm_of": "z priemeru {norm} za deň",
-    "norm_over": "{over} nad priemerom pracovného priestoru {norm} za deň. Vaše hodiny zostávajú zachované.",
+    "norm_over": "{over} nad vaším priemerom {norm} za deň. Vaše hodiny zostávajú zachované.",
     "norm_over_short": "{over} nad priemerom {norm}",
     "period_total": "Spolu za obdobie",
     "empty": "V tento deň zatiaľ nie sú hodiny.",

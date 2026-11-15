@@ -2279,7 +2279,10 @@
     "filter_all": "Visi",
     "filter_workspace": "Šajā darbvietā",
     "add_contact": "Pievienot kontaktu",
-    "contact_tag": "kontakts"
+    "contact_tag": "kontakts",
+    "hours_norm": "Vidējais stundu skaits dienā",
+    "hours_norm_hint": "Šīs personas vidējais rādītājs, piem., 7:30. Atstājiet tukšu, lai izmantotu darbvietas vidējo ({workspace}); 0:00 = šai personai vidējā nav. Dienai, kas to pārsniedz, rāda brīdinājumu; nevienu stundu nenoraida.",
+    "hours_norm_no_workspace": "vidējā nav"
   },
   "contacts": {
     "group": "Kontakti",
@@ -3103,7 +3106,7 @@
     "tab_download": "Lejupielādēt",
     "total": "Kopā",
     "norm_of": "no vidēji {norm} dienā",
-    "norm_over": "{over} virs darbvietas vidējā, kas ir {norm} dienā. Jūsu stundas tiek saglabātas.",
+    "norm_over": "{over} virs jūsu vidējā, kas ir {norm} dienā. Jūsu stundas tiek saglabātas.",
     "norm_over_short": "{over} virs vidējā {norm}",
     "period_total": "Perioda kopsumma",
     "empty": "Šai dienai vēl nav stundu.",

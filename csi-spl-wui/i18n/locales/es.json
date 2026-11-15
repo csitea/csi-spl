@@ -2279,7 +2279,10 @@
     "filter_all": "Todos",
     "filter_workspace": "En este espacio de trabajo",
     "add_contact": "Añadir contacto",
-    "contact_tag": "contacto"
+    "contact_tag": "contacto",
+    "hours_norm": "Media de horas al día",
+    "hours_norm_hint": "La media propia de esta persona, p. ej. 7:30. Déjalo vacío para usar la media del espacio de trabajo ({workspace}); 0:00 = sin media para esta persona. Un día por encima muestra un aviso; no se rechaza ninguna hora.",
+    "hours_norm_no_workspace": "sin media"
   },
   "contacts": {
     "group": "Contactos",
@@ -3103,7 +3106,7 @@
     "tab_download": "Descargar",
     "total": "Total horas",
     "norm_of": "de {norm} de media al día",
-    "norm_over": "{over} por encima de la media del espacio de trabajo de {norm} al día. Tus horas se conservan.",
+    "norm_over": "{over} por encima de tu media de {norm} al día. Tus horas se conservan.",
     "norm_over_short": "{over} por encima de la media de {norm}",
     "period_total": "Total del periodo",
     "empty": "Aún no hay horas este día.",

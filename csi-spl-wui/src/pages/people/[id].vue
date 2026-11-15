@@ -47,6 +47,8 @@
           <p v-if="interests" class="person-card__interestsText" data-test="person-interests">{{ interests }}</p>
           <p v-else class="muted" data-test="person-interests-empty">{{ t('people.no_interests') }}</p>
         </section>
+        <!-- SPL-5558: the member's own average hours per day, hours.norm only -->
+        <PersonHoursNorm v-if="canSetHoursNorm" :human-id="humanId" />
         <!-- CLE-77799 (owner 6da1d88e): one action row, same-size buttons with
              icon + label + a tooltip each. Message is the primary; Activity log
              (admin-only, audit.read) and Remove (admin-only) are secondary
@@ -88,6 +90,8 @@
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
 import PersonActivityDialog from '~/components/PersonActivityDialog.vue'
+import PersonHoursNorm from '~/components/PersonHoursNorm.vue'
+import { HOURS_NORM_PERM } from '~/utils/hours-norm.mjs'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanStatusStore } from '~/stores/human-status'
 import { useAccessStore } from '~/stores/access'
@@ -134,6 +138,11 @@ const removeError = ref('')
 
 /* CLE-77799: the admin-only Activity log (audit.read), a dialog off the card. */
 const canSeeActivity = computed(() => access.can('audit.read'))
+/* SPL-5558: the member's own average hours per day, for hours.norm holders
+   (biz owner, product owner, admin); the hub re-checks. A static import: an
+   async one unmounted while the reader's role lands threw in Vue's unmount
+   ("Cannot destructure property 'bum'") and left the card unrefreshed. */
+const canSetHoursNorm = computed(() => access.can(HOURS_NORM_PERM))
 const activityOpen = ref(false)
 /* the action row shows only when there is at least one action for this reader. */
 /* t1 ea0af569 (B): "Change password" on the reader's own card, same rule as the account menu. */

@@ -2279,7 +2279,10 @@
     "filter_all": "Alla",
     "filter_workspace": "I den här arbetsytan",
     "add_contact": "Lägg till kontakt",
-    "contact_tag": "kontakt"
+    "contact_tag": "kontakt",
+    "hours_norm": "Genomsnittligt antal timmar per dag",
+    "hours_norm_hint": "Personens eget genomsnitt, t.ex. 7:30. Lämna tomt för att använda arbetsytans genomsnitt ({workspace}); 0:00 = inget genomsnitt för personen. En dag över det visar en varning; inga timmar avvisas.",
+    "hours_norm_no_workspace": "inget genomsnitt"
   },
   "contacts": {
     "group": "Kontakter",
@@ -3103,7 +3106,7 @@
     "tab_download": "Ladda ner",
     "total": "Totalt",
     "norm_of": "av {norm} i genomsnitt per dag",
-    "norm_over": "{over} över arbetsytans genomsnitt på {norm} per dag. Dina timmar sparas.",
+    "norm_over": "{over} över ditt genomsnitt på {norm} per dag. Dina timmar sparas.",
     "norm_over_short": "{over} över genomsnittet {norm}",
     "period_total": "Totalt för perioden",
     "empty": "Inga timmar den här dagen ännu.",

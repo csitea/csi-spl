@@ -2279,7 +2279,10 @@
     "filter_all": "All",
     "filter_workspace": "In this workspace",
     "add_contact": "Add contact",
-    "contact_tag": "contact"
+    "contact_tag": "contact",
+    "hours_norm": "Average hours per day",
+    "hours_norm_hint": "This person's own average, e.g. 7:30. Leave it empty to use the workspace's average ({workspace}); 0:00 = no average for this person. A day above it shows a warning; no hours are refused.",
+    "hours_norm_no_workspace": "no average"
   },
   "contacts": {
     "group": "Contacts",
@@ -3103,7 +3106,7 @@
     "tab_download": "Download",
     "total": "Total",
     "norm_of": "of {norm} average per day",
-    "norm_over": "{over} above the workspace average of {norm} per day. Your hours are kept.",
+    "norm_over": "{over} above your average of {norm} per day. Your hours are kept.",
     "norm_over_short": "{over} above the {norm} average",
     "period_total": "Period total",
     "empty": "No hours on this day yet.",

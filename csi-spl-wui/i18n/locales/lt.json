@@ -2279,7 +2279,10 @@
     "filter_all": "Visi",
     "filter_workspace": "Šioje darbo srityje",
     "add_contact": "Pridėti kontaktą",
-    "contact_tag": "kontaktas"
+    "contact_tag": "kontaktas",
+    "hours_norm": "Vidutinis valandų skaičius per dieną",
+    "hours_norm_hint": "Šio asmens asmeninis vidurkis, pvz., 7:30. Palikite tuščią, kad būtų naudojamas darbo srities vidurkis ({workspace}); 0:00 = šiam asmeniui vidurkio nėra. Dienai, kuri jį viršija, rodomas įspėjimas; jokios valandos neatmetamos.",
+    "hours_norm_no_workspace": "vidurkio nėra"
   },
   "contacts": {
     "group": "Kontaktai",
@@ -3103,7 +3106,7 @@
     "tab_download": "Atsisiųsti",
     "total": "Iš viso",
     "norm_of": "iš {norm} vidurkio per dieną",
-    "norm_over": "{over} virš darbo srities vidurkio {norm} per dieną. Jūsų valandos išsaugomos.",
+    "norm_over": "{over} virš jūsų vidurkio {norm} per dieną. Jūsų valandos išsaugomos.",
     "norm_over_short": "{over} virš {norm} vidurkio",
     "period_total": "Laikotarpio suma",
     "empty": "Šią dieną valandų dar nėra.",

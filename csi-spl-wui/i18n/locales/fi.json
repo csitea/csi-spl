@@ -2279,7 +2279,10 @@
     "filter_all": "Kaikki",
     "filter_workspace": "Tässä työtilassa",
     "add_contact": "Lisää yhteystieto",
-    "contact_tag": "yhteystieto"
+    "contact_tag": "yhteystieto",
+    "hours_norm": "Keskimääräinen tuntimäärä päivässä",
+    "hours_norm_hint": "Tämän henkilön oma keskiarvo, esim. 7:30. Jätä tyhjäksi, niin käytetään työtilan keskiarvoa ({workspace}); 0:00 = ei keskiarvoa tälle henkilölle. Sen ylittävästä päivästä näytetään varoitus; tunteja ei hylätä.",
+    "hours_norm_no_workspace": "ei keskiarvoa"
   },
   "contacts": {
     "group": "Yhteystiedot",
@@ -3103,7 +3106,7 @@
     "tab_download": "Lataa",
     "total": "Yhteensä",
     "norm_of": "keskiarvosta {norm} päivässä",
-    "norm_over": "{over} yli työtilan keskiarvon {norm} päivässä. Tuntisi säilyvät.",
+    "norm_over": "{over} yli keskiarvosi {norm} päivässä. Tuntisi säilyvät.",
     "norm_over_short": "{over} yli keskiarvon {norm}",
     "period_total": "Jakso yhteensä",
     "empty": "Tälle päivälle ei ole vielä tunteja.",

@@ -2279,7 +2279,10 @@
     "filter_all": "Tümü",
     "filter_workspace": "Bu çalışma alanında",
     "add_contact": "Rehbere ekle",
-    "contact_tag": "rehberde"
+    "contact_tag": "rehberde",
+    "hours_norm": "Günlük ortalama saat",
+    "hours_norm_hint": "Bu kişinin kendi ortalaması, ör. 7:30. Çalışma alanının ortalamasını ({workspace}) kullanmak için boş bırakın; 0:00 = bu kişi için ortalama yok. Bunun üzerindeki bir gün uyarı gösterir; hiçbir saat reddedilmez.",
+    "hours_norm_no_workspace": "ortalama yok"
   },
   "contacts": {
     "group": "Rehber",
@@ -3103,7 +3106,7 @@
     "tab_download": "İndir",
     "total": "Toplam",
     "norm_of": "günlük ortalama: {norm}",
-    "norm_over": "Çalışma alanının günlük {norm} ortalamasının {over} üzerinde. Saatleriniz korunur.",
+    "norm_over": "Günlük {norm} ortalamanızın {over} üzerinde. Saatleriniz korunur.",
     "norm_over_short": "{norm} ortalamasının {over} üzerinde",
     "period_total": "Dönem toplamı",
     "empty": "Bu gün için henüz saat yok.",

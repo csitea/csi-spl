@@ -6,6 +6,11 @@
  * GET / PUT /v1/hours/norm, and every member reads it on GET /v1/me/hours
  * (`norm_day_minutes`). It refuses nothing: a day above it shows a warning.
  *
+ * A member's own norm (SPL-5558) overrides it: the same holders set it on
+ * the member's People card through GET / PUT
+ * /v1/members/<id>/hours/norm (null = none, the workspace's is in force),
+ * and GET /v1/me/hours then answers the member's effective norm.
+ *
  * Pure rules plus the two calls; loaded only by the lazy Hours settings
  * section and the calendar's lazy chunks, never the initial chunk. The mock
  * workspace keeps its value in localStorage (HOURS_MOCK_NORM). Node tests
@@ -19,7 +24,11 @@ export const HOURS_NORM_PERM = 'hours.norm'
 export const HOURS_NORM_MAX = 1440
 
 const HOURS_MOCK_NORM = 'spool.mock.hours-norm'
+const HOURS_MOCK_MEMBER_NORMS = 'spool.mock.hours-norm.members'
+/** the mock session's member (pages/people/[id], spool.mock.session) */
+export const HOURS_MOCK_SELF = 'HUM-1'
 let mockMemory = 0
+let mockMembers = {}
 
 /** A norm in minutes from an answer's field; junk or out of range = 0 (none). */
 export function hoursNormOf(v) {
@@ -68,6 +77,36 @@ export function mockSetHoursNorm(n) {
   mockMemory = n
 }
 
+function mockMemberNorms() {
+  try {
+    if (typeof localStorage !== 'undefined') return JSON.parse(localStorage.getItem(HOURS_MOCK_MEMBER_NORMS) || '{}') || {}
+  } catch { /* fall back */ }
+  return mockMembers
+}
+
+/** the mock member's norm as the hub answers it: own (null = none), workspace, effective */
+export function mockMemberHoursNorm(member) {
+  const workspace = mockHoursNorm()
+  const v = mockMemberNorms()[member]
+  const own = Number.isInteger(v) && v >= 0 && v <= HOURS_NORM_MAX ? v : null
+  return { member_id: member, norm_day_minutes: own, workspace_norm_day_minutes: workspace,
+    effective_norm_day_minutes: own ?? workspace, max_minutes: HOURS_NORM_MAX }
+}
+
+/** set (0..1440) or clear (null) the mock member's own norm; 400 bad_setting otherwise */
+export function mockSetMemberHoursNorm(member, n) {
+  if (n !== null && (!Number.isInteger(n) || n < 0 || n > HOURS_NORM_MAX)) {
+    throw Object.assign(new Error('status 400'), { status: 400, error: 'bad_setting', token: 'bad_setting', detail: '' })
+  }
+  const all = { ...mockMemberNorms() }
+  if (n === null) delete all[member]
+  else all[member] = n
+  try {
+    if (typeof localStorage !== 'undefined') { localStorage.setItem(HOURS_MOCK_MEMBER_NORMS, JSON.stringify(all)); return }
+  } catch { /* fall back */ }
+  mockMembers = all
+}
+
 function headersOf(api, write) {
   const h = { accept: 'application/json' }
   if (write) h['content-type'] = 'application/json'
@@ -99,6 +138,10 @@ export async function hoursNormCall(api, minutes) {
   } catch {
     throw Object.assign(new Error('network'), { status: 0 })
   }
+  return answerOf(res)
+}
+
+async function answerOf(res) {
   const out = await res.json().catch(() => null)
   if (!res.ok) {
     // `token` is what tenantSettingsErrorKey reads (forbidden, bad_setting)
@@ -106,4 +149,33 @@ export async function hoursNormCall(api, minutes) {
     throw Object.assign(new Error(`status ${res.status}`), { status: res.status, error: token, token, detail: String(out?.detail || '') })
   }
   return out
+}
+
+/**
+ * GET or PUT /v1/members/<member>/hours/norm (SPL-5558). Answers
+ * { member_id, norm_day_minutes (own, null = none), workspace_norm_day_minutes,
+ * effective_norm_day_minutes, max_minutes }; throws as hoursNormCall does.
+ * @param {{ base: string, token?: string, credentials?: RequestCredentials, mock?: boolean }} api
+ * @param {string} member
+ * @param {number | null} [minutes] set it, or clear it with null (PUT); omitted = read (GET)
+ */
+export async function hoursMemberNormCall(api, member, minutes) {
+  const write = minutes !== undefined
+  if (api.mock) {
+    if (write) mockSetMemberHoursNorm(member, minutes)
+    return mockMemberHoursNorm(member)
+  }
+  let res
+  try {
+    res = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/members/${encodeURIComponent(member)}/hours/norm`, {
+      method: write ? 'PUT' : 'GET',
+      credentials: api.credentials,
+      headers: headersOf(api, write),
+      body: write ? JSON.stringify({ norm_day_minutes: minutes }) : undefined,
+      signal: AbortSignal.timeout(write ? HUB_WRITE_TIMEOUT_MS : HUB_READ_TIMEOUT_MS),
+    })
+  } catch {
+    throw Object.assign(new Error('network'), { status: 0 })
+  }
+  return answerOf(res)
 }

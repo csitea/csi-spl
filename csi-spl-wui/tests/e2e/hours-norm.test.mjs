@@ -160,7 +160,7 @@ try {
   /* ---- 5 and 6 the calendar ---- */
   const on = await lastWeek(browser, 15)
   ok('5a with a 0:15 norm the last week\'s lines carry the warning mark', on.marked.includes(on.lastMon) && /0:15/.test(on.label), { marked: on.marked, label: on.label })
-  ok('5b the dialog shows "of 0:15 average per day" and the warning line; the rows stay', on.dialog.norm === 'of 0:15 average per day' && /above the workspace average of 0:15 per day/.test(on.dialog.over) && on.dialog.rows > 0, on.dialog)
+  ok('5b the dialog shows "of 0:15 average per day" and the warning line; the rows stay', on.dialog.norm === 'of 0:15 average per day' && /above your average of 0:15 per day/.test(on.dialog.over) && on.dialog.rows > 0, on.dialog)
   ok('5: no unexpected page errors', on.g.errors.length === 0, on.g.errors)
   await on.g.ctx.close()
   const off = await lastWeek(browser, 0)

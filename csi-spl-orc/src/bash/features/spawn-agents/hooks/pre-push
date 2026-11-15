@@ -205,6 +205,41 @@ if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; then
   exit 1
 fi
 
+# Commit-message hygiene (SPL-5613) -- before the wip skip and the override
+# branch: a push of ANY ref publishes its commit messages (2026-11-14: a wip
+# push published a hidden workspace slug in a commit body, every gate green),
+# so SPL_PREPUSH_OVERRIDE=1 and a wip-only push do not skip it. Only the
+# commits each ref adds: <remote sha>..<local sha>; a new ref, the commits not
+# on <remote>/master (origin/master when the remote is a URL); a delete
+# nothing. The sweep is do_check_commit_msg_hygiene of the pushing tree (the
+# file sweep's own patterns); a hit names the sha, the line and the pattern
+# label, never the text. A tree without that action is not asked.
+_pp_mtop="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -n "$_pp_mtop" ] && [ -r "$_pp_mtop/csi-spl-iac/src/bash/run/check-commit-msg-hygiene.func.sh" ] && [ -x "$_pp_mtop/csi-spl-iac/run" ]; then
+  _pp_mrem="${1:-origin}"; case "$_pp_mrem" in */*|*:*) _pp_mrem=origin ;; esac
+  _pp_mr=""
+  while read -r _pp_lref _pp_lsha _ _pp_rsha; do
+    [ -n "${_pp_lref:-}" ] && ! _pp_zero "${_pp_lsha:-0}" || continue
+    if ! _pp_zero "${_pp_rsha:-0}" && git cat-file -e "$_pp_rsha^{commit}" 2>/dev/null; then
+      _pp_mr+="$_pp_rsha..$_pp_lsha "
+    elif git rev-parse -q --verify "refs/remotes/$_pp_mrem/master^{commit}" >/dev/null 2>&1; then
+      _pp_mr+="refs/remotes/$_pp_mrem/master..$_pp_lsha "
+    else
+      _pp_mr+="$(git rev-list "$_pp_lsha" --not --remotes 2>/dev/null | sed 's/$/^!/' | tr '\n' ' ')"
+    fi
+  done <<<"$_pp_refs"
+  if [ -n "${_pp_mr// /}" ]; then
+    if ! _pp_mout="$(cd "$_pp_mtop/csi-spl-iac" && env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_OBJECT_DIRECTORY \
+        -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_QUARANTINE_PATH -u GIT_COMMON_DIR -u GIT_PREFIX \
+        HYGIENE_TREE="$_pp_mtop" HYGIENE_MSG_RANGES="$_pp_mr" ./run -a do_check_commit_msg_hygiene 2>&1)"; then
+      printf '%s\n' "$_pp_mout" >&2
+      _pp_logline "REFUSE $PWD HEAD=$head remote=$_pp_remote override=$_pp_override -- commit-message hygiene: $(grep -E '^(::error::|  \./)' <<<"$_pp_mout" | sed 's|^  \./||' | paste -sd ';' - | cut -c1-400)"
+      echo "pre-push: REFUSED -- a banned literal in a pushed commit MESSAGE (the <sha>.msg:<line> and the pattern above). Reword that commit (git commit --amend, or git rebase -i), then push again. SPL_PREPUSH_OVERRIDE=1 and a wip push do not skip this (SPL-5613)." >&2
+      exit 1
+    fi
+  fi
+fi
+
 # Spec 102 section 5.4: a push whose remote refs are ALL refs/heads/wip/* (the
 # watchdog's do_spl_lane_wip_push) is not gated: it carries unfinished work, CI
 # does not build it, and the job must not block on the gate. Read from stdin,

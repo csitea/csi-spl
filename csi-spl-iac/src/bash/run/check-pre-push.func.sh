@@ -377,9 +377,10 @@ _pp_tree_key() {  # <tree> <tier> <parts> <base>
     local pn; pn="$(_pp_pnpm 2>/dev/null)" || pn=""
     ids="node=$(node -v 2>/dev/null || echo -) pnpm=$([[ -n "$pn" ]] && "$pn" -v 2>/dev/null || echo -)"
   fi
-  # wui-lang-review reads the commit messages, which the tree does not hold:
-  # a reword that drops the Lang-review line must not re-use the pass
-  [[ " $parts " == *" wui-lang-review "* ]] \
+  # wui-lang-review and hygiene (SPL-5613) read the commit messages, which the
+  # tree does not hold: a reword (a dropped Lang-review line, a banned literal
+  # added) must not re-use the pass
+  [[ " $parts " == *" wui-lang-review "* || " $parts " == *" hygiene "* ]] \
     && ids+=" msgs=$(git -C "$tree" log --format=%B "$base..HEAD" 2>/dev/null | sha1sum | cut -c1-40)"
   printf '%s' "tree-pass v$_PP_CACHE_V gate=$(_pp_gate_id) tree=$t tier=$tier base=$mb parts=$parts $ids" \
     | sha1sum | cut -c1-40
@@ -483,10 +484,18 @@ _pp_missing_tools() {  # <part> <tree>
 # rides along: under a second, read-only, red when two rule copies disagree.
 # So does the qto doc map check (SPL-2164): read-only, ~0.1 s, red when an
 # exported md file and the qto doc map disagree.
+# The commit messages too (SPL-5613): a push publishes them, the file sweep
+# never reads them: PRE_PUSH_BASE..HEAD, handed to do_check_dist_hygiene as
+# HYGIENE_MSG_RANGES (it runs do_check_commit_msg_hygiene over them).
+# The pre-push hook also sweeps the exact pushed ranges itself, on every push
+# path (wip and override included), so this part covers the hand run.
 _pp_part_hygiene() {
   local rc=0 drift="$1/csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh"
   local qto="$1/csi-spl-orc/src/bash/run/check-qto-doc-drift.func.sh"
-  HYGIENE_TREE="$1" do_check_dist_hygiene || rc=$?
+  local mr="${PRE_PUSH_BASE:-origin/master}..HEAD"
+  git -C "$1" rev-parse -q --verify "${PRE_PUSH_BASE:-origin/master}^{commit}" >/dev/null 2>&1 ||
+    { echo "hygiene: WARN unknown base '${PRE_PUSH_BASE:-origin/master}' -- no outgoing commit messages swept"; mr=""; }
+  HYGIENE_TREE="$1" HYGIENE_MSG_RANGES="$mr" do_check_dist_hygiene || rc=$?
   if [[ -r "$drift" ]]; then
     # shellcheck source=/dev/null
     ( source "$drift" && FLEET_RULES_TREE="$1" do_check_fleet_rules_drift ) || rc=1

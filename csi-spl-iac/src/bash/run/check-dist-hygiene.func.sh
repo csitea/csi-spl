@@ -18,9 +18,19 @@
 # @description gate and this action cannot hold two lists.
 # @param HYGIENE_TREE (optional) - default: $APP_PATH, the checkout to sweep
 # @param HYGIENE_WORKFLOW (optional) - default: <tree>/.github/workflows/10_ci-quality.yml
+# @param HYGIENE_MSG_RANGES (optional) - default: none; rev-list ranges whose commit MESSAGES are swept too (do_check_commit_msg_hygiene, SPL-5613)
 # @example ./run -a do_check_dist_hygiene
 # @example HYGIENE_TREE=/path/to/other/checkout ./run -a do_check_dist_hygiene
 #------------------------------------------------------------------------------
+# <workflow> <out>: the Sweep step's run: body, read out of the workflow (never
+# a copy), so the file sweep and the commit-message sweep hold ONE pattern list.
+# A workflow this action cannot read is a REFUSAL, never a pass: a silent "ok"
+# from an empty script is the one answer that would be worse than red.
+_hyg_sweep_script() {
+  yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "$1" >"$2" 2>/dev/null
+  [[ -s "$2" ]] && grep -q 'allow_line=' "$2"
+}
+
 do_check_dist_hygiene() {
   local tree="${HYGIENE_TREE:-$APP_PATH}"
   local wf="${HYGIENE_WORKFLOW:-$tree/.github/workflows/10_ci-quality.yml}"
@@ -34,10 +44,7 @@ do_check_dist_hygiene() {
 
   tmp=$(mktemp -d) || return 1
 
-  yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "$wf" >"$tmp/sweep.sh" 2>/dev/null
-  # A workflow this action cannot read is a REFUSAL, never a pass: a silent
-  # "ok" from an empty script is the one answer that would be worse than red.
-  if [[ ! -s "$tmp/sweep.sh" ]] || ! grep -q 'allow_line=' "$tmp/sweep.sh"; then
+  if ! _hyg_sweep_script "$wf" "$tmp/sweep.sh"; then
     do_log "FATAL no distribution-hygiene Sweep step with its allow-list in $wf -- this check proved nothing"
     rm -rf "$tmp"
     return 1
@@ -54,9 +61,14 @@ do_check_dist_hygiene() {
 
   (cd "$tmp/tree" && bash "$tmp/sweep.sh") || rc=$?
   rm -rf "$tmp"
+  # The messages of the outgoing commits (SPL-5613): the pre-push hygiene part
+  # passes its range here, so one call (and one test stub) covers both sweeps.
+  if [[ -n "${HYGIENE_MSG_RANGES:-}" ]]; then
+    HYGIENE_TREE="$tree" HYGIENE_WORKFLOW="$wf" do_check_commit_msg_hygiene || rc=1
+  fi
 
   if [[ "$rc" -ne 0 ]]; then
-    do_log "FATAL the distribution-hygiene gate would FAIL on this tree (rc=$rc) -- fix the file:line named above, do not push"
+    do_log "FATAL the distribution-hygiene gate would FAIL on this tree (rc=$rc) -- fix the file:line (or reword the <sha>.msg commit) named above, do not push"
     return "$rc"
   fi
   do_log "INFO distribution-hygiene: clean over the tracked tree of $tree"

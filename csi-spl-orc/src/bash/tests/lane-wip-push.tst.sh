@@ -25,6 +25,9 @@
 #      out, each logged once; a small new source dir rides; the repo's
 #      .gitignore ignores .output.ppe-keep/; red control: on the per-file-cap
 #      code the build output rides
+#  11. SPL-5613: a banned literal in a wip commit MESSAGE -> the hook refuses
+#      the push (sha named), ONE blocker each to the lane and the
+#      orchestrator with sha:line + pattern, never the literal; not resent
 #   9. DRY_RUN=1 plans and pushes nothing; a noreply author is refused; a
 #      clean tree pushes HEAD itself, no wip commit (runs before 7, in this
 #      order: under a broken dry run G would read red too)
@@ -208,6 +211,40 @@ hook "HEAD $head0 refs/heads/master $z"; rc=$?
 rm -f "$T/gate.calls"
 hook "HEAD $head0 refs/heads/wip/ $z"; rc=$?
 [ "$rc" -eq 1 ] && [ -s "$T/gate.calls" ] && pass "7. control: a bare refs/heads/wip/ is not exempt" || fail "7. empty wip name (rc $rc)"
+
+# 11. SPL-5613: the hook sweeps the wip push's commit MESSAGES; a refusal sends
+#     ONE blocker (sha + pattern, never the literal) to the lane and the
+#     orchestrator, and the same hits are not sent again
+IAC_RUN="$APP_ROOT/csi-spl-iac/src/bash/run"
+mkdir -p "$L/csi-spl-iac/src/bash/run"
+cp "$IAC_RUN/check-commit-msg-hygiene.func.sh" "$IAC_RUN/check-dist-hygiene.func.sh" "$L/csi-spl-iac/src/bash/run/"
+cat >"$L/csi-spl-iac/run" <<EOS
+#!/usr/bin/env bash
+[ "\$2" = do_check_commit_msg_hygiene ] || { echo gate >>"$T/gate.calls"; exit 1; }
+do_log() { echo "\$*"; }
+source "$IAC_RUN/check-dist-hygiene.func.sh"; source "$IAC_RUN/check-commit-msg-hygiene.func.sh"
+HYGIENE_WORKFLOW="$APP_ROOT/.github/workflows/10_ci-quality.yml" do_check_commit_msg_hygiene
+EOS
+chmod +x "$L/csi-spl-iac/run"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s/sends.log"\n' "$T" >"$T/send11" && chmod +x "$T/send11"
+banned="y""sg"
+w11="$(wip)"
+printf 'eleven\n' >>"$L/f.txt"
+git -C "$L" "${G[@]}" commit -qam "probe11" -m "body: run it as $banned on the box"
+bad11="$(git -C "$L" rev-parse HEAD)"
+out="$(run ID=c-901 WIP_SEND="$T/send11" WIP_FROM=c-001)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(wip)" = "$w11" ] && grep -q "$bad11.msg:3" <<<"$out" \
+  && pass "11. a banned literal in a wip commit MESSAGE: push refused, wip ref unchanged, the hook names the sha" \
+  || fail "11. message hygiene on the wip push (rc $rc, wip $(wip): $out)"
+n="$(grep -c -- '--kind blocker' "$T/sends.log" 2>/dev/null)"
+[ "$n" = 2 ] && grep -q -- '--to c-901 ' "$T/sends.log" && grep -q -- '--to orchestrator ' "$T/sends.log" \
+  && grep -q "$bad11:3. literal OS user" "$T/sends.log" && pass "11. ONE blocker each to the lane and the orchestrator, naming sha:line and the pattern" \
+  || fail "11. blocker sends ($n): $(cat "$T/sends.log" 2>/dev/null)"
+grep -qw "$banned" "$T/sends.log" && fail "11. the blocker prints the matched literal" || pass "11. the blocker never prints the matched literal"
+out="$(run ID=c-901 WIP_SEND="$T/send11" WIP_FROM=c-001)"; rc=$?
+n="$(grep -c -- '--kind blocker' "$T/sends.log" 2>/dev/null)"
+[ "$rc" -eq 1 ] && [ "$n" = 2 ] && pass "11. the next refused run sends no second blocker for the same hits" \
+  || fail "11. repeat run (rc $rc, sends $n)"
 
 echo "lane-wip-push: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

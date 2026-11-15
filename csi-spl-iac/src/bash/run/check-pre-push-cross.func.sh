@@ -64,6 +64,7 @@ _PPX_MAP=(
   "hub-file-streams-030.tst.sh csi-spl-api/src/go/spool-hub-api/internal/config/config.go"
   "agent-split-one-source.tst.sh csi-spl-cnf/csi-spl/all.env.yaml csi-spl-wui/src/utils/tenant-settings.mjs csi-spl-api/src/go/spool-hub-api/internal/store/agent_split_kind.go"
   "check-pre-push.tst.sh csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh csi-spl-orc/src/bash/tests/run-all-tests.sh csi-spl-orc/src/bash/tests/changed-tests.sh"
+  "check-commit-msg-hygiene.tst.sh csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push"
 )
 # Tests that name another part's tree but need no row: what they read is
 # run by another part.

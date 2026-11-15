@@ -142,10 +142,43 @@ spl_lane_wip_send() {
   fi
   local lease
   lease="$(git -C "$wt" ls-remote "$remote" "$ref" 2>/dev/null | awk '{print $1; exit}')"
-  git -C "$wt" push -q --force-with-lease="$ref:$lease" "$remote" "$src:$ref" ||
-    { do_log "FATAL WIP $id: push to $remote $ref failed (lease '${lease:-absent}')"; return 1; }
+  local perr; perr="$(mktemp)" || return 1
+  if ! git -C "$wt" push -q --force-with-lease="$ref:$lease" "$remote" "$src:$ref" 2>"$perr"; then
+    cat "$perr" >&2
+    spl_lane_wip_hygiene_blocker "$id" "$life" "$perr"
+    rm -f "$perr"
+    do_log "FATAL WIP $id: push to $remote $ref failed (lease '${lease:-absent}')"; return 1
+  fi
+  cat "$perr" >&2; rm -f "$perr"
   printf '%s\n' "${_ws[key]}" >"$life/wip.last"
   do_log "OK WIP $id: pushed ${src:0:12} -> $remote $ref${patch:+ patch=$patch}"
+}
+
+# spl_lane_wip_hygiene_blocker ID LIFE ERRFILE: the pre-push hook refused the
+# wip push for a banned literal in a commit MESSAGE (SPL-5613, its "(SPL-5613)"
+# refusal line in ERRFILE). The work stays local; nothing here can reword a
+# lane's commit, so ONE blocker goes to the lane and to the orchestrator,
+# naming each <sha>:<line> and the pattern label (never the matched text), on
+# task wip-hygiene-<id>. The same hits are not sent again (LIFE/wip.hygiene.sent),
+# so the watchdog's 30 min / 1 h / 1 h 50 calls do not repeat it.
+# WIP_SEND / WIP_FROM: seams for the tests (spool-send.sh, the sender id).
+spl_lane_wip_hygiene_blocker() {
+  local id="$1" life="$2" err="$3" hits key to body rc=0
+  grep -q 'commit MESSAGE.*(SPL-5613)' "$err" 2>/dev/null || return 0
+  hits="$(awk '/^::error::hygiene: /{l=$0; sub(/^::error::hygiene: /,"",l); sub(/ -- [0-9]+ line\(s\)$/,"",l); next}
+    /^  \.\/[0-9a-f]+\.msg:[0-9]+$/{f=$1; sub(/^\.\//,"",f); sub(/\.msg:/,":",f); print "- `" f "` " l}' "$err")"
+  key="$(printf '%s' "$hits" | sha1sum | cut -c1-40)"
+  [[ "$(cat "$life/wip.hygiene.sent" 2>/dev/null)" == "$key" ]] && { do_log "SKIP WIP $id: the message-hygiene blocker for these hits was sent already"; return 0; }
+  body="**WIP push of $id REFUSED (SPL-5613):** a pushed commit MESSAGE holds a banned literal, so the wip ref was not pushed. The work stays local, nothing is lost. Reword the commit(s) below (\`git commit --amend\` or \`git rebase -i\`), and the next wip push goes through. <sha>:<line>, then the pattern:
+${hits:-- (no sha parsed; read the hook output in the watchdog log)}"
+  local send="${WIP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+  local from="${WIP_FROM:-$(spl_role_seat 1 2>/dev/null)}"; from="${from:-$id}"
+  for to in "$id" orchestrator; do
+    SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$from" --to "$to" --kind blocker \
+      --task "wip-hygiene-$id" --body "$body" >/dev/null 2>&1 8>&- 9>&- || { rc=1; do_log "WARN WIP $id: could not send the message-hygiene blocker to $to"; }
+  done
+  (( rc )) || printf '%s\n' "$key" >"$life/wip.hygiene.sent"
+  do_log "BLOCKER WIP $id: message hygiene refused the push; blocker sent to $id and orchestrator (rc=$rc)"
 }
 
 # spl_lane_wip_add_untracked ID: in the cwd's repo, stage into $GIT_INDEX_FILE

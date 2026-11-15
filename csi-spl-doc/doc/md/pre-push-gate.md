@@ -109,6 +109,27 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   prefix rule reads both. Keyed on the touched files alone, a rebase over
   another lane's same-numbered migration re-used the old green.
 
+- **Commit messages are swept too** (SPL-5613). csi-spl is public, and a
+  push of any branch publishes its commit messages. `do_check_dist_hygiene`
+  reads tracked files only, so on 2026-11-14 a wip push published a hidden
+  workspace slug in a commit body with every gate green.
+  `do_check_commit_msg_hygiene` (csi-spl-iac) writes each message as
+  `<sha>.msg` and runs the same Sweep step of `10_ci-quality.yml` over them:
+  one pattern list, no cnf allowances. A hit names `<sha>.msg:<line>` and the
+  pattern label, never the matched text. Two places run it:
+  - the `hygiene` part, over `PRE_PUSH_BASE..HEAD`. The tree-pass record keys
+    on those messages, so a reword re-runs the gate.
+  - the hook itself, uncached, over exactly what each pushed ref adds:
+    `<remote sha>..<local sha>`, and for a new ref the commits not on
+    `<remote>/master`. It runs before the wip skip and the override, so
+    neither `SPL_PREPUSH_OVERRIDE=1` nor a wip-only push skips it.
+  A refused watchdog wip push (`do_spl_lane_wip_push`) keeps the work local.
+  It sends ONE blocker to the lane and the orchestrator, naming the sha:line
+  and the pattern, on task `wip-hygiene-<id>`. The same hits are not sent
+  again. To fix it, reword the commit (`git commit --amend` or
+  `git rebase -i`). No CI job reads commit messages, and by the time CI runs,
+  the push is already public.
+
 <a id="ws-doc-72c4e586-63ed-4500-b316-5d48f5713b75"></a>
 ### 1.2 The override
 

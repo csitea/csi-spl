@@ -201,3 +201,44 @@ The same commit's changelog (lines 246-263) records the other seat's W1-W4 and N
 Consensus table line 273 still marks the v1.0 head pending. This file is the grok sign of that head.
 
 `cd csi-spl-iac && ./run -a do_check_dist_hygiene` on this text printed `INFO distribution-hygiene: clean` and `HYGIENE_EXIT:0`.
+
+## 8. Re-sign of plan v1.1
+
+Verdict: **REVIEW PASS** on `4c321482b69c335f8a396e85355cb3eb44ff198b`.
+
+The v0.1 and v1.0 verdicts above stay. This section signs the fast-forward from `7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12`.
+
+```
+git fetch (git-fetch-fresh.sh, origin/master)
+git rev-parse origin/review/c002-perf-round-10-planner
+git rev-parse origin/master
+git merge-base --is-ancestor 7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12 4c321482b69c335f8a396e85355cb3eb44ff198b
+git log --format='%H %s' -1 4c321482b69c335f8a396e85355cb3eb44ff198b
+git diff --stat 7cd0b3ef00bf9603bb044c6fb14818b88dc2ad12 4c321482b69c335f8a396e85355cb3eb44ff198b
+git diff --stat 0d5d699d6 origin/master -- .github/workflows/10_ci-quality.yml csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh
+git diff --stat 83cb219456a64f358f20ec35aee58030c7cc9ac0 origin/master -- .github/workflows/10_ci-quality.yml csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh csi-spl-iac/src/bash/tests/hygiene-killed-cleanup.tst.sh
+bash --version | head -1
+bash -c 'd=$(mktemp -d); trap "rm -rf $d" EXIT; exit 143'; echo bare_rm:$?
+```
+
+Printed: planner `4c321482b69c335f8a396e85355cb3eb44ff198b`, master `6a322079637eb328ed50fd6e4286d0e4219d8905` (`fix(orc, SPL-5625): a ghost queued deploy run (0 jobs) no longer defers every box restart`). The ancestor check exited 0. Subject: `docs(p10, SPL-5619): perf round 10 plan v1.1, a-225 W5 folded`. Diff stat: `csi-spl-doc/doc/md/perf-round-10-plan.md | 40 +++++++++++++++++++++-----------`, 1 file changed, 27 insertions, 13 deletions. Both row-file stats printed nothing (`DRIFT:0`, `ROWDRIFT_EXIT:0`). Bash printed `GNU bash, version 5.2.37(1)-release (x86_64-pc-linux-gnu)`, then `bare_rm:143`.
+
+On `6a3220796`, wf10 still has `fail=0` at 1681, `allowed()` at 1702-1707, `sweep()` at 1708-1736 (1736 is the closing brace, 1744 is the CONTROL comment), the seven call lines at 1745, 1746, 1748, 1750, 1751, 1777 and 1795, the hidden-workspace block at 1769-1786 with echoes at 1770, 1780, 1783 and 1785, the `.vibe/` check at 1804-1812, and `exit "$fail"` at 1813. `check-dist-hygiene.tst.sh:118` is still the doctor that inserts a sweep above `exit "$fail"`. `bash-cleancode.tst.sh` still has `LONG="` at 25-30, the comment at 36, and `measure()` at 42-51.
+
+### W5, as specified
+
+Plan line 91 names 4 edit ranges: `wf10:1708-1736` (`sweep()`), `:1769-1786` (the hidden-workspace echo branches), the traps and the join near `:1681` after `fail=0`, and one `sweep_join` call before `:1804`. Four ranges are inside the 5-site cap. The same cell lists the seven calls, `allowed()` `:1702-1707`, and `exit "$fail"` `:1813` as unchanged. Those lines match `6a3220796`.
+
+Plan lines 154-156 keep the `.vibe/` check (`:1804-1812`) in the foreground and put `sweep_join` right before it, so that check still prints last. Lines 157-165 say `sweep_join` is idempotent (`wait`, print unprinted slots in order, fold a non-0 or missing verdict into `fail`, keep the dir), runs before `:1804` and again in the EXIT trap, and that CONTROL a (`check-dist-hygiene.tst.sh:118`) is joined by that EXIT trap and needs no edit. Lines 166-172 set `exit 129` / `exit 130` / `exit 143` on HUP / INT / TERM, set a flag so EXIT skips the join and the verdict fold and only removes the dir, and point at `hygiene-killed-cleanup.tst.sh:41-55` for nothing left in `$TMPDIR`.
+
+Changelog lines 269-275 say the same fold and that the gains and the row count are unchanged. Lines 253-254 (the v1.0 entry) still say the join moved from before the `.vibe/` check into the EXIT trap only. That sentence is the v1.0 history. Lines 271-273 say that v1.0 wording would have printed the check first, and that v1.1 puts the join before `:1804`. This sign follows the v1.1 text.
+
+Row 02, the gain numbers (3,397 ms, n=7, and 1,361 ms, n=7), and the identical-output probes are outside this diff. This seat did not re-time them and did not re-run the lane map. Section 5 still stands: the plan still asks the unknown lane before the row 01 spawn.
+
+Consensus line 287 still marks the v1.1 head pending. This file is the grok sign of that head.
+
+### N1. The :51 cite is loose
+
+Plan lines 170-171 attach `hygiene-killed-cleanup.tst.sh:51` to "keeping 129 / 130 / 143". On `6a3220796` line 51 is `if [[ $rc -ne 124 && $rc -ne 143 ]]; then echo "rc=$rc, not stopped by the TERM"; return; fi`. Line 49 is `kill -TERM` of the timeout wrapper started at lines 41-42. The test accepts 124 or 143. It does not assert 129 or 130. Lines 52-55 still match the claim that `:41-55` finds nothing left in `$TMPDIR`. On this bash an EXIT trap whose body only removes the dir keeps 143 (`bare_rm:143` above). The 129 and 130 figures are the plan's own `exit` traps, not line 51. The loose cite does not change the row.
+
+`cd csi-spl-iac && ./run -a do_check_dist_hygiene` on this text printed `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/g-223` and `HYGIENE_EXIT:0`.

@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The spawn queue's placer, one tick (owner HUM-10, t1 c9beaa77
 # @description msg ca668844: "once resources are free they will be just
 # @description taken"; rdb 0180). It replaces the orchestrator's hand-kept
@@ -206,6 +207,7 @@
 # @param SPAWN_GROUP_DIR SPAWN_GROUP_POLL_MIN SPAWN_GROUP_GRACE_MIN (optional) - as do_spl_spawn_group_put
 # @example ./run -a do_spl_spawn_place
 # @example SPAWN_PLACE_GAP_MIN=0 ./run -a do_spl_spawn_place
+#------------------------------------------------------------------------------
 
 declare -F spl_spawn_group_feed >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-group-put.func.sh"

@@ -43,7 +43,8 @@ The slots and their vendor live in ONE place, `csi-spl-orc/cnf/gc/gc.conf`:
 
 A slot line is `slot <MM> <vendor> [box=<tag>[,<tag>]] [hours=<HH>[,<HH>]]`
 (SPL-5600). `box=` limits it to those box tags (the GC's box, `SPOOL_BOX_TAG`,
-else the lease machine), `hours=` to those UTC hours; a line without them is
+else the lease machine, else the box's desk id from `spl_desk_box_default`),
+`hours=` to those UTC hours; a line without them is
 every box, every hour, as before. Of the lines that match this box and hour,
 the most specific one at a minute wins (`box=` and `hours=` count one each; a
 tie, the later line). A junk `box=` or `hours=`, a key twice or any other
@@ -55,9 +56,10 @@ The agy lines are the owner's (HUM-10, t1 4ffc314b, 2026-11-14T08:40:41Z:
 anti-gravity from time to time"). agy is installed on the `<pc box>` only,
 and no box name other than sat goes in git (distribution hygiene), so the
 agy line names no box and the `box=sat` line keeps sat on grok: the `<pc
-box>` runs agy 4 times a day and grok at every other :30. A box without the
-agy CLI, or agy off, paused or at its limit, starts the fallback (claude)
-with its `FALLBACK` line, below.
+box>` runs agy 4 times a day and grok at every other :30. agy off, paused or
+at its limit starts the fallback (claude) with its `FALLBACK` line in
+`gc.log`, below. A box without the agy CLI starts the fallback from the GC
+window instead, which prints `gc-session: no agy CLI on this box`.
 
 A slot's vendor that is not the fallback starts only when the instance
 setting has it on (SPL-5241; owner HUM-10, t1 476aff8f, 11-04: grok off).

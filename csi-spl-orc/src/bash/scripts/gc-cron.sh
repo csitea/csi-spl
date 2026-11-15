@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # gc-cron.sh - start this box's GC agent (do_spl_gc GC_CMD=start) at the slot
 # minutes of cnf/gc/gc.conf (`slot 00 claude`, `slot 30 grok`; owner HUM-10,
-# t1 91a36ace, msgs 5b2b16c9 and 9c595541). Installed by do_install_box_crons
+# t1 91a36ace, msgs 5b2b16c9 and 9c595541). Which vendor a :30 start runs
+# (grok, or agy at the `hours=` lines, SPL-5600) is do_spl_gc's choice, not
+# this minute gate's. Installed by do_install_box_crons
 # as the row gc of cnf/box-crons/box-crons.manifest (`# csi-spl:box-cron:gc`),
 # every minute on every box: a minute that is no slot exits here, before
 # ./run, so the slots live in the cnf only. A cron job reads no profile: the

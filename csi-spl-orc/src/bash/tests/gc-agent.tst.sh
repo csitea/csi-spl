@@ -81,7 +81,7 @@ S="$T/spool"; D="$S/dispatch"
 mkdir -p "$T/bin"
 export T S D
 
-# 2026-10-13T21:00:00Z, a :00 slot
+# 2026-10-15T21:00:00Z, a :00 slot
 H0=1792098000
 
 reset() {

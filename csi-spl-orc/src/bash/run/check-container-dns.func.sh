@@ -103,8 +103,11 @@ do_check_container_dns() {
   fi
   con_ns="$(_dns_container_nameservers_from_resolv "$con_blob")"
 
-  if [[ -z "$host_ns" || -z "$con_ns" ]]; then
-    do_log "WARN resolver sets incomplete (host '${host_ns}', container '${con_ns}') — skipping"
+  # An empty HOST set leaves nothing to compare against: skip. An empty
+  # CONTAINER set under a non-empty host set ("NO EXTERNAL NAMESERVERS
+  # DEFINED") is the broken state this check exists for: a mismatch.
+  if [[ -z "$host_ns" ]]; then
+    do_log "WARN host resolver set empty (container '${con_ns}') — skipping container DNS check"
     return 0
   fi
 

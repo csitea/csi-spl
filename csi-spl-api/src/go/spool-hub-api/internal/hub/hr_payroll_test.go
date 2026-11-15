@@ -1,10 +1,13 @@
 package hub_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // SPL-5433 step c (rdb 0284, spec 123 16.4; owner HUM-10, t1 2d974709, poll
@@ -48,8 +51,8 @@ func TestHRPayrollEmployerSide(t *testing.T) {
 		return call(t, r.e, r.op, http.MethodPut, "/v1/operator/hr-rates/"+year+"/"+comp, as,
 			map[string]any{"rate_pct": pct, "applies_to": []string{"employee"}, "source": "made-up"})
 	}
-	if c, got := rate(po, "tyel_employer", 10); c == http.StatusOK {
-		t.Errorf("product owner sets a rate: %d %v", c, got)
+	if c, got := rate(po, "tyel_employer", 10); c != http.StatusForbidden || got["permission"] != "operator.workspaces" {
+		t.Errorf("product owner sets a rate: %d %v, want 403 operator.workspaces", c, got)
 	}
 	if c, got := rate(acc, "monthly_salary", 10); c != http.StatusBadRequest {
 		t.Errorf("rate on a pay component: %d %v, want 400", c, got)
@@ -150,5 +153,63 @@ func TestHRPayrollEmployerSide(t *testing.T) {
 		if code, got := call(t, r.e, r.op, http.MethodDelete, "/v1/operator/hr-rates/"+year+"/"+c, acc, nil); code != http.StatusNoContent {
 			t.Errorf("delete %s: %d %v", c, code, got)
 		}
+	}
+}
+
+// SPL-5433 step c, R7 g-017 N2: every new route (rates list, rate set, rate
+// delete, payroll read, book) refuses each wrong caller with the exact 403
+// operator.workspaces: a developer of the operator workspace, another
+// workspace's admin and its internal_accountant, an anonymous caller and a
+// live act-as clone of the operator admin (Postgres only: the clone store is
+// SPOOL_TEST_PG_DSN's). The product owner reads both GETs and is refused on
+// the three writes. No refusal writes a rate. CONTROL: the operator admin's
+// rates read is 200, so each refusal is the caller's.
+func TestHRPayrollRefusesWrongRoles(t *testing.T) {
+	r := newFleetTokensRig(t)
+	const month, year = "2006-05", "2006"
+	rateBody := map[string]any{"rate_pct": 10, "applies_to": []string{"employee"}, "source": "made-up"}
+	reads := [][2]string{{http.MethodGet, "/v1/operator/hr-rates?year=" + year}, {http.MethodGet, "/v1/operator/hr-payroll/" + month}}
+	writes := [][2]string{{http.MethodPut, "/v1/operator/hr-rates/" + year + "/tyel_employer"},
+		{http.MethodDelete, "/v1/operator/hr-rates/" + year + "/tyel_employer"}, {http.MethodPost, "/v1/operator/hr-payroll/" + month + "/book"}}
+	if c, got := call(t, r.e, r.op, reads[0][0], reads[0][1], r.admin, nil); c != http.StatusOK {
+		t.Fatalf("CONTROL admin reads the rates: %d %v", c, got)
+	}
+	refuse := func(name, tid, as string, routes [][2]string) {
+		t.Helper()
+		for _, rt := range routes {
+			var body any
+			if rt[0] == http.MethodPut {
+				body = rateBody
+			}
+			if c, got := call(t, r.e, tid, rt[0], rt[1], as, body); c != http.StatusForbidden || got["permission"] != "operator.workspaces" {
+				t.Errorf("%s %s %s: %d %v, want 403 operator.workspaces", name, rt[0], rt[1], c, got)
+			}
+		}
+	}
+	all := append(append([][2]string{}, reads...), writes...)
+	refuse("operator developer", r.op, r.dev, all)
+	refuse("other workspace admin", r.other, r.otherA, all)
+	refuse("other workspace accountant", r.other, seat(t, r.e, r.other, rbac.InternalAccountant), all)
+	refuse("anonymous", r.op, "", all)
+	po := seat(t, r.e, r.op, rbac.ProductOwner)
+	refuse("product owner", r.op, po, writes)
+	for _, rt := range reads {
+		if c, got := call(t, r.e, r.op, rt[0], rt[1], po, nil); c != http.StatusOK {
+			t.Errorf("product owner %s %s: %d %v, want 200", rt[0], rt[1], c, got)
+		}
+	}
+	if cs, ok := r.e.st.(dmCloneStore); ok {
+		now := time.Now().UTC().Truncate(time.Microsecond)
+		cl, err := cs.StartClone(context.Background(), store.CloneStart{TenantID: r.op, TargetHum: r.admin, AdminName: "Admin",
+			CreatedBy: r.admin, ExpiresAt: now.Add(time.Hour)}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refuse("act-as clone of the admin", r.op, cl.CloneHum, all)
+	} else {
+		t.Log("act-as clone half skipped: needs Postgres (SPOOL_TEST_PG_DSN)")
+	}
+	if _, got := call(t, r.e, r.op, reads[0][0], reads[0][1], r.admin, nil); len(got["rates"].([]any)) != 0 {
+		t.Errorf("a refusal wrote a rate: %v", got["rates"])
 	}
 }

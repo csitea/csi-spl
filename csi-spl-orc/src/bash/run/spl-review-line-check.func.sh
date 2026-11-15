@@ -7,8 +7,8 @@
 # @description carries the box-free form (SPL-5634: the commit-message sweep bans
 # @description a box shorthand and a /home/<user>/ path): `review: <id> <vendor>
 # @description ... | log: <id>:~/<path>`. A bare <id> is on this box when this
-# @description box's registry{,.retired}.tsv has a row of it, else on another box
-# @description (exit 2 as for a named one); `~/<path>` is read under the first
+# @description box's registry{,.retired}.tsv has a row of it and its log exists
+# @description here, else on another box (exit 2 as for a named one); `~/<path>` is read under the first
 # @description home (this user's, then each passwd user's, uid 1000..59999)
 # @description holding it. Header and log: use the same form. The dispatcher read
 # @description journals by hand 4 times in round 10; this is that read, named.
@@ -90,9 +90,9 @@ do_spl_review_line_check() {
     { echo "FATAL the line has no '| log: <id>[@<box>]:<path>'"; return 1; }
   rid="${BASH_REMATCH[1]}" box="${BASH_REMATCH[3]}" path="${BASH_REMATCH[4]}"
   me="$(_spl_review_line_box)"
-  [[ -n "${BASH_REMATCH[2]}" ]] || box="$(_spl_review_line_id_box "$rid" "$me")"
-  [[ "$box" == "$me" ]] || { _spl_review_line_remote "$line" "${box:-the box of $rid (no registry row here)}" "$me"; return $?; }
   path="$(_spl_review_line_tilde "$path")"
+  [[ -n "${BASH_REMATCH[2]}" ]] || box="$(_spl_review_line_id_box "$rid" "$me" "$path")"
+  [[ "$box" == "$me" ]] || { _spl_review_line_remote "$line" "${box:-the box of $rid (no registry row or no log of it here)}" "$me"; return $?; }
   _spl_review_line_reviewer "${line%%$'\n'*}" || return 1
   _spl_review_line_defects "$line" || return 1
   ran="${line#* ran: }"
@@ -161,11 +161,20 @@ _spl_review_line_e2e_files() {
   rm -rf "$tmp"
 }
 
-# _spl_review_line_id_box <id> <this box> - this box when its registry
-# (live or retired) has a row of the bare <id>, else empty (another box).
+# _spl_review_line_id_box <id> <this box> <log path> - this box when its
+# registry (live or retired) has a row of the bare <id> AND the log path
+# exists here (as is or through `sudo -n -u` its owner), else empty (another
+# box). Ids are reused across boxes: g-314 of the other box has retired rows
+# here, and the row alone read its line as local (FATAL, not exit 2).
 _spl_review_line_id_box() {
+  local owner
   awk -F'\t' -v i="$1" '{k = $1; sub(/@.*/, "", k)} k == i {f = 1} END {exit !f}' \
-    "${SPOOL_ROOT:-/var/spool-hub}"/registry{,.retired}.tsv 2>/dev/null && printf '%s' "$2"
+    "${SPOOL_ROOT:-/var/spool-hub}"/registry{,.retired}.tsv 2>/dev/null || return 0
+  if [[ ! -e "$3" ]]; then
+    owner="$(_spl_review_line_owner "$3")"
+    [[ -n "$owner" && "$owner" != "$(id -un)" ]] && _spl_review_line_as "$owner" test -e "$3" 2>/dev/null || return 0
+  fi
+  printf '%s' "$2"
 }
 
 # _spl_review_line_tilde <path> - a `~/<rest>` log path as the first home

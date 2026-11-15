@@ -546,5 +546,24 @@ rv c-097 SPL-97 SPL-97 "$RV_H" 'Author: o-208@sat (codex)'
 gate "$T_SCRIPTS" c-097
 eq "R8 a review lane of a codex author (Author: o-208@sat): exits" 0 "$RC"
 has "R8 ... the line names the codex author" "issue gate: SPL-97 is o-208's, this lane only reviews it" "$(cat "$T_TMP/e")"
+# SPL-5633: c-076, a perf round's PANEL seat (doc review), was refused as the
+# owner of the round's issue: "panel seat" and "doc review" were no review word
+RV_P='perf round 9 (p9) plan v0.2 - the PANEL seat, claude (doc review, one task)'
+: >"$RV_LOG"
+rv c-098 SPL-98 SPL-98 "$RV_P" 'Author: c-723@sat'
+gate "$T_SCRIPTS" c-098
+eq "R9 a panel-seat lane (doc review) on the author's issue: exits" 0 "$RC"
+has "R9 ... the line names the author and that it only reviews" "issue gate: SPL-98 is c-723's, this lane only reviews it" "$(cat "$T_TMP/e")"
+rv c-099 SPL-99 SPL-99 'perf round 9 plan v0.2 - the PANEL seat, grok' 'Author: c-723@sat'
+gate "$T_SCRIPTS" c-099
+eq "R10 'panel seat' alone, with Author: and the placed key: exits" 0 "$RC"
+rv c-100 SPL-100 SPL-100 'SPL-100 doc review of the plan' 'Author: c-723@sat'
+gate "$T_SCRIPTS" c-100
+eq "R11 'doc review' alone, with Author: and the placed key: exits" 0 "$RC"
+eq "R9..R11 ... the author's issue is untouched: no hub call" 0 "$(wc -l <"$RV_LOG")"
+rv c-101 SPL-101 SPL-101 "$RV_P" ''
+gate "$T_SCRIPTS" c-101
+eq "R12 a panel-seat heading with no Author: line: refused" 3 "$RC"
+has "R12 ... by the issue gate" "issue SPL-101 is still wip" "$(cat "$T_TMP/e")"
 unset LI_HUB_STATUS_CMD
 t_done

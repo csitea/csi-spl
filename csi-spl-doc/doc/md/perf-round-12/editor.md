@@ -62,10 +62,11 @@ checkouts `T` and `T2` of `a8a54cf44`, each with one planted red line in
 | run | A tree / base / total s | B tree / base / total s | load |
 |---|---|---|---|
 | 1 | 902 / 672 / 1,574 | 901 / **26** / 927 | 12.7..39.5 |
+| 2 | 670 / 553 / 1,222 | 670 / **23** / 693 | 27.2..39.3 |
 
 B's base re-check ran 1 file (A's ran 50) and named the same failure
 (`FAIL: 99. planted pre-existing red`), so the verdict stays
-WARN-pre-existing. Runs 2-5 were still running at the rotation.
+WARN-pre-existing. Runs 3-5 were still running at the rotation.
 
 ### 2.3 Candidate row 02: the iac re-check the same way (prepared, not run)
 

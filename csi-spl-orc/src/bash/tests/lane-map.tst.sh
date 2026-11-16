@@ -57,9 +57,11 @@
 #  15. the hub read retries (SPL-2180): a hub that drops one read answers on
 #      the second try, the fleet map, no alert; a hub down every try (3) is
 #      the local map opening with `LOCAL-ONLY:`, ONE #alerts note per box per
-#      15 min, and the check exit 5 with no `free`. CONTROLS: the same check
-#      with the hub up is free; a stamp older than 15 min raises the next
-#      alert. RED on the action before it: one read, no marker, no alert
+#      outage (SPL-5685: open until the hub answers, then edited to Cleared),
+#      and the check exit 5 with no `free`. CONTROLS: the same check with the
+#      hub up is free and clears the alert; the next outage is a new alert; an
+#      epoch-only stamp from before, 15 min old, is posted again. RED on the
+#      action before it: one read, no marker, no alert
 #  16. the cordon in the BOX-0 row (SPL-4380 W3): do_spl_box_cordon writes
 #      its marker on the orch holder's box only, so that box's BOX-0 row
 #      says `cordon=<box>:<until>` before live=, rewritten at once when it
@@ -84,6 +86,11 @@
 #      timeout's TERM is killed 1 s later (`timeout -k 1` in spl_lane_desk_spool),
 #      not after its own 20 s. RED on the action before it: the errors went
 #      to /dev/null, the alert said "the hub did not answer", the kill waited
+#  18b. a box with no DNS (SPL-5685): the real home-box stderr of 2026-11-13
+#      16:39Z (`lookup <host> on [::1]:53`) reads "<box> offline, not the
+#      hub" in each try's line, the LOCAL-ONLY line and the alert, which sends
+#      no one to check the hub; 4 failed maps with gap 0 are ONE alert. RED on
+#      the action before it: "failed, rc 1", "check the hub", 4 alerts
 #  19. the read asks the live rows only (SPL-4630): the map's hub call carries
 #      `--state live`, LANE_ALL=1's does not; a closed lane's worktree with a
 #      dead pane, whose done row the live read no longer returns, is not in
@@ -579,15 +586,33 @@ out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1)"; rc=$?
   fail "fallback (rc=$rc, reads=$(reads), alerts=$(cat "$T/alerts" 2>/dev/null)): $out"
 out="$(on pc 'LANE_CHECK=z/nobody-owns-this do_spl_lane_map' "${F[@]}" "${A[@]}" HUB_DOWN=1 LANE_AGENT=c-921)"; rc=$?
 [[ $rc -eq 5 && "$out" == *"LOCAL-ONLY:"* && "$(grep -cx free <<<"$out")" -eq 0 && "$(grep -c '^\*\*ALERT' "$T/alerts")" -eq 1 &&
-  "$out" == *"no second one inside 900 s"* ]] &&
+  "$out" == *"no second one until it clears"* ]] &&
   pass "the check inside 15 min: LOCAL-ONLY, exit 5, never 'free'; no second alert" || fail "local check (rc=$rc, alerts=$(grep -c '^\*\*ALERT' "$T/alerts")): $out"
 out="$(on pc 'LANE_CHECK=z/nobody-owns-this do_spl_lane_map' "${F[@]}" "${A[@]}" LANE_AGENT=c-921)"; rc=$?
-[[ $rc -eq 0 && "$(grep -cx free <<<"$out")" -eq 1 && "$out" != *LOCAL-ONLY* ]] &&
-  pass "control: the same check with the hub up is free, exit 0" || fail "control check hub up (rc=$rc): $out"
-echo "$(( $(date +%s) - 901 ))" >"$T/alert-dir/lane-map.hub-down.box-desk"
+[[ $rc -eq 0 && "$(grep -cx free <<<"$out")" -eq 1 && "$(grep -c '^LOCAL-ONLY' <<<"$out")" -eq 0 && "$(grep -c '^Cleared' "$T/alerts")" -eq 1 ]] &&
+  pass "control: the same check with the hub up is free, exit 0, and clears the open alert" || fail "control check hub up (rc=$rc): $out"
+# one open alert per outage (SPL-5685): 15 min later the same outage raises
+# no second note; the hub's next answer edits that post to Cleared; the next
+# outage is a new note. RED on the action before it: 2 notes after 15 min
+# (one per LANE_ALERT_GAP_S, 12 for one night of the home box without a link).
+age_alert() { local f="$T/alert-dir/lane-map.hub-down.box-desk"; { echo "$(( $(date +%s) - 901 ))"; tail -n +2 "$f"; } >"$f.new" && mv "$f.new" "$f"; }
+on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 >/dev/null
+age_alert
 on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 >/dev/null
 [[ "$(grep -c '^\*\*ALERT' "$T/alerts")" -eq 2 && ! -e "$T/alert-dir/lane-map.hub-down.sat" ]] &&
-  pass "control: 15 min later a second alert is raised; the stamp is per box" || fail "alert after the gap: $(cat "$T/alerts")"
+  pass "a new outage, 15 min later: still ONE alert for it (2 in all, open until it clears); the record is per box" || fail "alerts per outage: $(grep -c '^\*\*ALERT' "$T/alerts") ($(cat "$T/alerts"))"
+on pc do_spl_lane_map "${F[@]}" "${A[@]}" >/dev/null
+[[ "$(grep -c '^Cleared .* min open, nothing to do. Was: \*\*ALERT\*\* lane map on box-desk' "$T/alerts")" -eq 2 && ! -e "$T/alert-dir/lane-map.hub-down.box-desk" ]] &&
+  pass "the hub answers: the open alert is edited to Cleared, its record goes" || fail "clear: $(cat "$T/alerts")"
+on pc do_spl_lane_map "${F[@]}" "${A[@]}" >/dev/null
+on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 >/dev/null
+[[ "$(grep -c '^\*\*ALERT' "$T/alerts")" -eq 3 && "$(grep -c '^Cleared' "$T/alerts")" -eq 2 ]] &&
+  pass "control: a second hub read clears nothing more; the next outage is a new alert (3 outages, 3 alerts)" || fail "next outage: $(cat "$T/alerts")"
+echo "$(( $(date +%s) - 901 ))" >"$T/alert-dir/lane-map.hub-down.box-desk"
+on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 >/dev/null
+[[ "$(grep -c '^\*\*ALERT' "$T/alerts")" -eq 4 ]] &&
+  pass "an epoch-only stamp from before (no post id) 15 min old is posted again" || fail "old stamp: $(cat "$T/alerts")"
+rm -rf "$T/alert-dir"
 rm -f "$T/hub/reads"
 s0=$SECONDS
 out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 LANE_HUB_TRIES=9 LANE_HUB_BACKOFF=1 LANE_HUB_BUDGET=3)"
@@ -617,9 +642,9 @@ out="$(on pc 'LANE_CHECK=z/nobody-owns-this do_spl_lane_map' "${F[@]}" "${H[@]}"
 el=$(( SECONDS - s0 ))
 read -r -a c <<<"$(cuts)"
 [[ $rc -eq 5 && "$out" == *"LOCAL-ONLY: the hub did not answer after 3 tries"* && "$(grep -cx free <<<"$out")" -eq 0 && "$(reads)" -eq 3 &&
-  "$(grep -c ', 3 tries (last try timed out after ' "$T/alerts-hang")" -eq 1 && ${#c[@]} -eq 3 && "${c[0]}" -eq 4 &&
-  "${c[1]}" -ge 1 && "${c[1]}" -le 4 && "${c[2]}" -ge 1 && "${c[2]}" -le 4 && $el -lt 45 ]] &&
-  pass "a hub that hangs every try, bound by tries and cuts not the wall clock: 3 tries cut at most 4 s each ((15 s budget - backoff 1 2) / 3), LOCAL-ONLY, exit 5 (cuts $(cuts), ${el} s)" ||
+  "$(grep -c ', 3 tries (last try timed out after ' "$T/alerts-hang")" -eq 1 && ${#c[@]} -eq 3 && "${c[0]}" -eq 7 &&
+  "${c[1]}" -ge 1 && "${c[1]}" -le 7 && "${c[2]}" -ge 1 && "${c[2]}" -le 7 && $el -lt 45 ]] &&
+  pass "a hub that hangs every try, bound by tries and cuts not the wall clock: 3 tries cut at most 7 s each ((24 s budget - backoff 1 2) / 3, SPL-5685), LOCAL-ONLY, exit 5 (cuts $(cuts), ${el} s)" ||
   fail "hang always (rc=$rc, reads=$(reads), cuts=$(cuts), ${el} s, alerts=$(cat "$T/alerts-hang" 2>/dev/null)): $out"
 
 # 16. the cordon in the BOX-0 row
@@ -734,7 +759,7 @@ out="$(dchk sat d/z.txt)"; rc=$?
 [[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "known limit: another box has only the done row and says free" || fail "check other box (rc=$rc): $out"
 
 # 18. what failed: each try's rc and error reach the log and the alert. The
-# harness runs with LANE_HUB_BACKOFF=0, so a try's cut is 15 s / 3 = 5 s
+# harness runs with LANE_HUB_BACKOFF=0, so a try's cut is 24 s / 3 = 8 s
 cat >"$T/bin/hub-124" <<'STUB'
 #!/usr/bin/env bash
 case " $* " in *" --agent "*) exit 0 ;; esac
@@ -748,12 +773,12 @@ rm -rf "$T/alerts-err" "$T/alert-dir-err"
 out="$(on pc do_spl_lane_map "${F[@]}" "${E[@]}" LANE_HUB_CMD="$T/bin/hub-124" 2>&1)"; rc=$?
 err='read lanes: websocket: failed to read frame [stalled after 102400 bytes]'
 tries="$(grep '^WARN the hub read try [123]/3: ' <<<"$out")"
-[[ $rc -eq 0 && "$(wc -l <<<"$tries")" -eq 3 && "$(grep -cF "/3: timed out after 5 s, rc 124: $err" <<<"$tries")" -eq 3 &&
-  "$out" == *"WARN no complete answer from the hub in "*" s (3 tries, last: timed out after 5 s, rc 124: $err)"* ]] &&
+[[ $rc -eq 0 && "$(wc -l <<<"$tries")" -eq 3 && "$(grep -cF "/3: timed out after 8 s, rc 124: $err" <<<"$tries")" -eq 3 &&
+  "$out" == *"WARN no complete answer from the hub in "*" s (3 tries, last: timed out after 8 s, rc 124: $err)"* ]] &&
   pass "each try's rc and error are in the log (3 WARN lines), the fallback line names the last one" ||
   fail "try log (rc=$rc): $out"
 a="$(cat "$T/alerts-err" 2>/dev/null)"
-[[ "$(grep -c '^\*\*ALERT' <<<"$a")" -eq 1 && "$a" == *"no complete answer from the hub in "*" s, 3 tries (last try timed out after 5 s, rc 124: $err; fleet main), so"* &&
+[[ "$(grep -c '^\*\*ALERT' <<<"$a")" -eq 1 && "$a" == *"no complete answer from the hub in "*" s, 3 tries (last try timed out after 8 s, rc 124: $err; fleet main), so"* &&
   "$a" != *"did not answer"* ]] &&
   pass "the alert says what failed: no complete answer in N s, the last try timed out, its error" || fail "alert text: $a"
 fp="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import importlib.util as u
@@ -762,6 +787,33 @@ print(m.norm(sys.stdin.read()))' "$PROJ_ROOT/src/bash/scripts" <<<"$a" 2>&1)"
 [[ "$fp" != *stalled* && "$fp" != *websocket* && "$fp" == "lane map on box-desk: no complete answer from the hub in s tries so the lane map"* ]] &&
   pass "the error sits in the parentheses the alert fold strips: one fingerprint whatever the error ('$fp')" || fail "fingerprint: $fp"
 rm -rf "$T/alert-dir-err"
+# 18b. a box with no DNS is "<box> offline, not the hub" (SPL-5685). The stub
+# prints the real home-box line of 2026-11-13 16:39:03Z (orchestrator relay aef29ded,
+# csi-spl-orc log, pid 478330), the host replaced by example.com; the log
+# line ended after `[::1]:53: `. RED on the action before it: "failed, rc 1"
+# and an alert that says "check the hub".
+cat >"$T/bin/hub-dns" <<'STUB'
+#!/usr/bin/env bash
+case " $* " in *" --agent "*) exit 0 ;; esac
+echo 'spool: hub unreachable: failed to WebSocket dial: failed to send handshake request: Get "https://api.example.com/v1/ws": dial tcp: lookup api.example.com on [::1]:53: read udp [::1]:53050->[::1]:53: ' >&2
+exit 1
+STUB
+chmod +x "$T/bin/hub-dns"
+rm -rf "$T/alerts-dns"
+DNS_A=(LANE_ALERT_CMD="tee -a $T/alerts-dns" LANE_ALERT_DIR="$T/alert-dir-dns" LANE_HUB_CMD="$T/bin/hub-dns")
+out="$(on pc do_spl_lane_map "${F[@]}" "${DNS_A[@]}" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c '^WARN the hub read try [123]/3: box-desk offline, not the hub: no DNS or no route, rc 1: spool: hub unreachable: ' <<<"$out")" -eq 3 &&
+  "$out" == *"LOCAL-ONLY: box-desk is offline (no DNS or no route), not the hub, after 3 tries"* ]] &&
+  pass "the real home-box DNS stderr: each try reads 'box-desk offline, not the hub', the map opens LOCAL-ONLY: box-desk is offline" || fail "dns tries (rc=$rc): $out"
+a="$(cat "$T/alerts-dns" 2>/dev/null)"
+[[ "$(grep -c '^\*\*ALERT\*\* lane map on box-desk: box-desk offline, not the hub: no DNS or no route for ' <<<"$a")" -eq 1 && "$a" == *"check the network of box-desk"* && "$a" != *do_check_hub_deploy* ]] &&
+  pass "the DNS alert names the box offline, not the hub, and sends no one to check the hub" || fail "dns alert: $a"
+for i in 1 2 3; do on pc do_spl_lane_map "${F[@]}" "${DNS_A[@]}" LANE_ALERT_GAP_S=0 >/dev/null 2>&1; done
+[[ "$(grep -c '^\*\*ALERT' "$T/alerts-dns")" -eq 1 ]] &&
+  pass "proof count: 4 failed maps of one outage, gap 0, ONE alert" || fail "dns alerts per outage: $(grep -c '^\*\*ALERT' "$T/alerts-dns")"
+out="$(on pc do_spl_lane_map "${F[@]}" "${E[@]}" LANE_HUB_CMD="$T/bin/hub-124" 2>&1)"
+[[ "$out" != *"offline, not the hub"* ]] && pass "control: a timeout stderr is not called offline" || fail "timeout called offline: $out"
+rm -rf "$T/alert-dir-err" "$T/alert-dir-dns"
 out="$(on pc do_spl_lane_map "${F[@]}" "${E[@]}" LANE_HUB_CMD="$T/bin/hub-nolist" 2>&1)"
 [[ "$(grep -c '^WARN the hub read try [123]/3: rc 0 but no lane list in the answer$' <<<"$out")" -eq 3 ]] &&
   pass "a hub answer with no lane list: rc 0 but no lane list, each try" || fail "no lane list: $out"

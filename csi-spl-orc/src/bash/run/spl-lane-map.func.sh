@@ -19,13 +19,15 @@
 # @description a live pane has `files: []`: its scope is unknown, so one line per
 # @description such lane `unknown: <ID>@<box> <branch> has no files recorded; ask
 # @description it or read its brief` replaces `free`.
-# @description The hub read is tried up to 3 times inside 15 s (SPL-2180, SPL-3503). A hub
+# @description The hub read is tried up to 3 times inside 24 s (SPL-2180, SPL-3503, SPL-5685). A hub
 # @description that still does not answer leaves the local map, marked: the
 # @description table and the check open with `LOCAL-ONLY: the hub did not
 # @description answer ...`, the check says exit 5 where it would have said
 # @description `free` (other machines unread: not free), json says
-# @description `hub: unreachable`, and one #alerts note is raised per box per
-# @description 15 min (spl_lane_hub_down_alert).
+# @description `hub: unreachable`, and ONE #alerts note is raised per box per
+# @description outage, edited to Cleared by the next complete hub read
+# @description (spl_lane_hub_down_alert, SPL-5685). A try whose stderr says this
+# @description machine has no DNS or no route reads `<box> offline, not the hub`.
 # @description The default table hides the rows 2 h old or older, and those with
 # @description no age while the hub answered, behind a footer
 # @description `N older rows hidden (--all)`; LANE_ALL=1 shows every row.
@@ -51,11 +53,11 @@
 # @param LANE_REPO_DIRS (optional) - space-separated repos whose local worktrees join the map; default the repo holding this tree
 # @param LANE_WT_JOBS (optional) - how many lane worktrees --check reads at a time, default 8
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `lane <args>`, prints the hub's answer
-# @param LANE_HUB_TRIES / LANE_HUB_BACKOFF / LANE_HUB_BUDGET (optional) - the hub read: tries (default 3), seconds between them (default "1 2"), total seconds (default 15: 4 s a try)
-# @param LANE_ALERT_GAP_S (optional) - at most one hub-down #alerts note per box in this many seconds, default 900
+# @param LANE_HUB_TRIES / LANE_HUB_BACKOFF / LANE_HUB_BUDGET (optional) - the hub read: tries (default 3), seconds between them (default "1 2"), total seconds (default 24: 7 s a try)
+# @param LANE_ALERT_GAP_S (optional) - an open alert record with no post id is posted again after this many seconds, default 900
 # @param LANE_ALERT_DIR (optional) - where the alert's per-box stamp lives, default <spool root>/dispatch
 # @param LANE_ALERT_AGENT (optional) - the alert's author, default lease.conf LEASE_ORCH
-# @param LANE_ALERT_CMD (optional, tests) - replaces the #alerts post: gets the text on stdin
+# @param LANE_ALERT_CMD (optional, tests) - replaces the #alerts post and its clear: LANE_ALERT_OP=post|clear, LANE_ALERT_MSG, the text on stdin
 # @param LANE_BOX_ROW_S (optional) - rewrite this box's BOX-0 load row when it is this old, default 300 s
 # @param LANE_BOX_ROW_MAX_S (optional) - a box's BOX-0 row older than this is not read, default 3600 s
 # @param LANE_PANES_CMD (optional, tests) - replaces the tmux read: prints `<pane_dead> <window name>` lines
@@ -79,6 +81,7 @@ do_spl_lane_map() {
     if spl_lane_hub_read; then
       LANE_HUB_STATE=ok hub_json="$LANE_HUB_JSON"
       (( LANE_HUB_TRY > 1 )) && do_log "INFO the hub answered on try $LANE_HUB_TRY"
+      spl_lane_hub_up_clear
     else
       LANE_HUB_STATE=unreachable hub_json=""
       do_log "WARN no complete answer from the hub in $LANE_HUB_SECS s ($LANE_HUB_TRIED tries, last: $LANE_HUB_WHY): this map shows only this machine's lanes (local worktrees)"
@@ -170,12 +173,13 @@ spl_lane_conf() {
 
 # The hub's rows into LANE_HUB_JSON, tried LANE_HUB_TRIES times (default 3)
 # with LANE_HUB_BACKOFF seconds between them (default "1 2", the last value
-# repeats) inside LANE_HUB_BUDGET seconds (default 15): one dropped call no
+# repeats) inside LANE_HUB_BUDGET seconds (default 24): one dropped call no
 # longer turns the fleet map into this machine's (SPL-2180). A try's timeout
 # is its share of the budget: (budget - the backoff waits) / tries, at least
 # 1 s, at most LANE_TIMEOUT and what is left, so a HUNG try leaves room for
-# the next ones (SPL-3503: the whole budget on try 1 was "1 tries"). The default 15 s
-# gives 4 s a try: the real read took 1.1..2.2 s on a fleet box (n=32, 2026-10-26).
+# the next ones (SPL-3503: the whole budget on try 1 was "1 tries"). The default 24 s
+# gives 7 s a try (SPL-5685): 15 s gave 4 s, at the home box's dial p99 of 3952 ms (n=7229,
+# max 11.7 s); the real read took 1.1..2.2 s on a fleet box (n=32, 2026-10-26).
 # LANE_HUB_TRY: the try that answered (0: none); LANE_HUB_TRIED: the tries made;
 # LANE_HUB_SECS: the seconds the read took; LANE_HUB_WHY: what the last failed
 # try did (its rc and its last stderr line). Each failed try is logged with its
@@ -184,12 +188,12 @@ spl_lane_conf() {
 # LANE_HUB_LIVE=1: the read that answered asked the live rows only (no
 # LANE_ALL=1, SPL-4630); 0 when no try answered, so the local map stays whole.
 spl_lane_hub_read() {
-  local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-15}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
+  local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-24}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
   local share waits=0 w cut rc errf
   local -a back st=()
   read -r -a back <<<"${LANE_HUB_BACKOFF:-1 2}"
   [[ "$tries" =~ ^[1-9][0-9]*$ ]] || tries=3
-  [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=15
+  [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=24
   [[ "$max" =~ ^[1-9][0-9]*$ ]] || max=30
   for (( n = 1; n < tries; n++ )); do
     w="${back[n - 1]:-${back[${#back[@]} - 1]:-1}}"
@@ -228,63 +232,158 @@ spl_lane_hub_read() {
 # spl_lane_hub_why <rc> <cut s> <stderr file>: one line, what a failed try did:
 # a timeout (rc 124, or 137 when `timeout -k` had to kill), any other rc, or
 # rc 0 with no lane list, then the try's last stderr line, at most 200 chars.
+# A stderr that says this machine has no DNS or no route (spl_lane_box_offline,
+# read on the whole line: the 200-char cut can end inside it) reads "<box>
+# offline, not the hub" instead: 12 of 17 lane-map alerts in the 2026-11
+# window were `lookup ... on [::1]:53` on a box with no link, and the alert
+# sent people to check the hub (SPL-5685).
 # Brackets stand in for parentheses: the alert puts this line in parentheses,
 # which the alert fold strips from the fingerprint (alert-issue-fold.py norm).
 spl_lane_hub_why() {
-  local rc="$1" cut="$2" err why
-  err="$(grep -v '^[[:space:]]*$' "$3" 2>/dev/null | tail -n 1 | tr -d '\000-\037' | tr '()' '[]' | cut -c1-200)"
+  local rc="$1" cut="$2" line why
+  line="$(grep -v '^[[:space:]]*$' "$3" 2>/dev/null | tail -n 1 | tr -d '\000-\037' | tr '()' '[]')"
   case "$rc" in
     0) why="rc 0 but no lane list in the answer" ;;
     124 | 137) why="timed out after $cut s, rc $rc" ;;
     *) why="failed, rc $rc" ;;
   esac
-  echo "$why${err:+: $err}"
+  spl_lane_box_offline "$line" && why="$LANE_BOX offline, not the hub: no DNS or no route, rc $rc"
+  line="${line:0:200}"
+  echo "$why${line:+: $line}"
 }
+
+# spl_lane_box_offline <stderr line>: 0 when the line is this machine's
+# network, not the hub: a DNS lookup that failed (Go's `lookup <host> on
+# <resolver>:53`, `no such host`, `server misbehaving`, the libc "temporary
+# failure in name resolution") or a dial with no route.
+spl_lane_box_offline() {
+  local l="${1,,}" rx='lookup [^ ]+ on [^ ]+:53'
+  [[ "$l" =~ $rx || "$l" == *"no such host"* || "$l" == *"server misbehaving"* ||
+     "$l" == *"temporary failure in name resolution"* || "$l" == *"network is unreachable"* || "$l" == *"no route to host"* ]]
+}
+
+# 0 when the last failed try said this machine is offline (spl_lane_hub_why).
+spl_lane_hub_offline() { [[ "${LANE_HUB_WHY:-}" == "$LANE_BOX offline, not the hub"* ]]; }
 
 # The marker of a one-box map: the first line of the table, and of the
 # check's verdict. A caller must never read "free" or "every lane" from it.
 spl_lane_local_only_line() {
-  echo "LOCAL-ONLY: the hub did not answer after $LANE_HUB_TRIED tries; this map is $LANE_BOX's own lanes, not the fleet's"
+  if spl_lane_hub_offline; then
+    echo "LOCAL-ONLY: $LANE_BOX is offline (no DNS or no route), not the hub, after $LANE_HUB_TRIED tries; this map is $LANE_BOX's own lanes, not the fleet's"
+  else
+    echo "LOCAL-ONLY: the hub did not answer after $LANE_HUB_TRIED tries; this map is $LANE_BOX's own lanes, not the fleet's"
+  fi
 }
 
-# ONE #alerts note per box per LANE_ALERT_GAP_S (default 900 s) while the map
-# falls back to this machine's lanes, on the path the lease and the asks tick
-# use (do_spl_desk_post, kind note, never a blocker), authored by the orch
-# seat (lease.conf LEASE_ORCH; LANE_ALERT_AGENT overrides). The stamp
-# <LANE_ALERT_DIR, default <spool root>/dispatch>/lane-map.hub-down.<box>
-# holds the epoch of the last one; a stamp that cannot be written posts
-# nothing (no rate limit, no alert). The post runs in the background: the hub
-# just failed, and the map must not wait on it. LANE_ALERT_CMD (tests)
-# replaces it, in this shell, with the text on stdin.
+# ONE open #alerts note per box while the map falls back to this machine's
+# lanes (SPL-5685; before, one per 15 min for as long as the outage lasted:
+# 12 notes for one night of the home box without a link). Posted on the path the lease
+# and the asks tick use (do_spl_desk_post, kind note, never a blocker),
+# authored by the orch seat (lease.conf LEASE_ORCH; LANE_ALERT_AGENT
+# overrides). The record <LANE_ALERT_DIR, default <spool root>/dispatch>/
+# lane-map.hub-down.<box> holds, one per line: the epoch it was posted, the
+# post id (empty until the post answers, "unposted" when it could not), its
+# author and its text. While it is open no second note is posted; the first
+# complete hub read edits that post in place to "Cleared"
+# (spl_lane_hub_up_clear), as the asks alert does. A record with no post id
+# older than LANE_ALERT_GAP_S (default 900 s: the post failed, or an
+# epoch-only stamp from before) is posted again. A record that cannot be
+# written posts nothing. The post runs in the background: the hub just
+# failed, and the map must not wait on it. LANE_ALERT_CMD (tests) replaces it,
+# in this shell: LANE_ALERT_OP=post|clear, LANE_ALERT_MSG the post id, the
+# text on stdin; a post prints the post id as its last line.
 spl_lane_hub_down_alert() {
-  local dir="${LANE_ALERT_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch}" gap="${LANE_ALERT_GAP_S:-900}" f last=0 now text who
+  local dir="${LANE_ALERT_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch}" gap="${LANE_ALERT_GAP_S:-900}" f last=0 msg="" now text who
   f="$dir/lane-map.hub-down.$LANE_BOX"
   now="$(date +%s)"
-  [[ -r "$f" ]] && read -r last <"$f"
+  [[ -r "$f" ]] && { IFS= read -r last; IFS= read -r msg; } <"$f"
   [[ "$last" =~ ^[0-9]+$ ]] || last=0
-  if (( now - last < gap )); then
-    do_log "INFO the hub-down alert of $LANE_BOX was raised $(( now - last )) s ago: no second one inside ${gap} s"
+  if [[ -n "$msg" && "$msg" != unposted ]] || (( now - last < gap )); then
+    do_log "INFO the lane-map alert of $LANE_BOX is open since $(( now - last )) s ago (post ${msg:-pending}): no second one until it clears"
     return 0
   fi
-  if ! { mkdir -p "$dir" && echo "$now" >"$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"; } 2>/dev/null; then
-    rm -f "$f.tmp.$$" 2>/dev/null
-    do_log "WARN cannot write $f: the hub-down alert is not raised"
-    return 0
-  fi
-  text="**ALERT** lane map on $LANE_BOX: no complete answer from the hub in ${LANE_HUB_SECS:-?} s, $LANE_HUB_TRIED tries (last try ${LANE_HUB_WHY:-unknown}; fleet $LANE_FLEET), so the lane map and \`lane-map.sh --check\` there see that machine only and say LOCAL-ONLY (exit 5, not free). Do: check the hub (\`./run -a do_check_hub_deploy\`) and the desk of $LANE_BOX. At most one such alert per box per $(( gap / 60 )) min."
   who="${LANE_ALERT_AGENT:-${LEASE_ORCH:-}}"
+  text="$(spl_lane_hub_down_text)"
+  if ! { mkdir -p "$dir" && printf '%s\n\n%s\n%s\n' "$now" "$who" "$text" >"$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"; } 2>/dev/null; then
+    rm -f "$f.tmp.$$" 2>/dev/null
+    do_log "WARN cannot write $f: the lane-map alert is not raised"
+    return 0
+  fi
   if [[ -n "${LANE_ALERT_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    $LANE_ALERT_CMD <<<"$text" >/dev/null 2>&1 || do_log "WARN the hub-down alert command failed"
+    msg="$(LANE_ALERT_OP=post LANE_ALERT_MSG='' $LANE_ALERT_CMD <<<"$text" 2>/dev/null | tail -n 1)" || do_log "WARN the lane-map alert command failed"
+    spl_lane_alert_msg_put "$f" "$now" "${msg:-unposted}"
   elif [[ -n "${LANE_HUB_CMD:-}" || -z "$who" ]]; then
     do_log "ALERT (not posted: ${who:-no LEASE_ORCH}, ${LANE_HUB_CMD:+stub hub}): $text"
+    spl_lane_alert_msg_put "$f" "$now" unposted
     return 0
   else
-    ( ENV="$LANE_ENV" TENANT_ID="$LANE_TENANT" DESK_BOX="$LANE_DESK_BOX" DESK_AGENT="$who" DESK_CHANNEL=alerts \
-        DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 timeout "${LANE_ALERT_TIMEOUT:-120}" "${PROJ_PATH:-.}/run" -a do_spl_desk_post \
-        </dev/null >>"$dir/lane-map.hub-down.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
+    ( spl_lane_alert_post_bg "$f" "$now" "$who" "$text" 7>&- 8>&- & ) 2>/dev/null
   fi
-  do_log "ALERT the hub-down alert of $LANE_BOX is raised; the next one ${gap} s from now at the earliest"
+  do_log "ALERT the lane-map alert of $LANE_BOX is raised; it stays open, no second one, until a hub read clears it"
+}
+
+# spl_lane_alert_post_bg <record> <epoch> <author> <text>: the #alerts post,
+# its output to <record dir>/lane-map.hub-down.out, its id into the record.
+spl_lane_alert_post_bg() {
+  local out msg
+  out="$(ENV="$LANE_ENV" TENANT_ID="$LANE_TENANT" DESK_BOX="$LANE_DESK_BOX" DESK_AGENT="$3" DESK_CHANNEL=alerts \
+    DESK_KIND=note DESK_BODY="$4" DRY_RUN=0 timeout "${LANE_ALERT_TIMEOUT:-120}" "${PROJ_PATH:-.}/run" -a do_spl_desk_post </dev/null 2>&1)"
+  printf '%s\n' "$out" >>"$(dirname "$1")/lane-map.hub-down.out"
+  msg="$(grep '^{' <<<"$out" | tail -n 1 | jq -r '.send.msg_id // .msg_id // empty' 2>/dev/null)"
+  spl_lane_alert_msg_put "$1" "$2" "${msg:-unposted}"
+}
+
+# The alert's text: "<box> offline, not the hub" when the last try said this
+# machine has no DNS or no route (spl_lane_box_offline), else the hub's.
+spl_lane_hub_down_text() {
+  local tail="(last try ${LANE_HUB_WHY:-unknown}; fleet $LANE_FLEET), so the lane map and \`lane-map.sh --check\` there see that machine only and say LOCAL-ONLY (exit 5, not free)."
+  local end="One alert per outage, edited to Cleared when the hub answers again."
+  if spl_lane_hub_offline; then
+    echo "**ALERT** lane map on $LANE_BOX: $LANE_BOX offline, not the hub: no DNS or no route for ${LANE_HUB_SECS:-?} s, $LANE_HUB_TRIED tries $tail Do: check the network of $LANE_BOX (link, resolv.conf, sleep). $end"
+  else
+    echo "**ALERT** lane map on $LANE_BOX: no complete answer from the hub in ${LANE_HUB_SECS:-?} s, $LANE_HUB_TRIED tries $tail Do: check the hub (\`./run -a do_check_hub_deploy\`) and the desk of $LANE_BOX. $end"
+  fi
+}
+
+# spl_lane_alert_msg_put <record> <posted epoch> <post id>: the post id into
+# line 2 of the record, only while the record is still that post's (a clear
+# in between removed it: then nothing is written back).
+spl_lane_alert_msg_put() {
+  local f="$1" at="" skip by text
+  [[ -r "$f" ]] || return 0
+  { IFS= read -r at; IFS= read -r skip; IFS= read -r by; IFS= read -r text; } <"$f"
+  [[ "$at" == "$2" ]] || return 0
+  printf '%s\n%s\n%s\n%s\n' "$at" "$3" "$by" "$text" >"$f.msg.$$" && mv -f "$f.msg.$$" "$f"
+  : "$skip"
+}
+
+# The hub answered: an open lane-map alert of this box is edited in place to
+# say it cleared and how long it was open, then its record goes. A post still
+# pending (no id yet, younger than its timeout) keeps the record for a later
+# read; one never posted just goes. The edit runs in the background.
+spl_lane_hub_up_clear() {
+  local dir="${LANE_ALERT_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch}" f at="" msg="" by="" text="" body now
+  f="$dir/lane-map.hub-down.$LANE_BOX"
+  [[ -s "$f" ]] || return 0
+  { IFS= read -r at; IFS= read -r msg; IFS= read -r by; IFS= read -r text; } <"$f"
+  [[ "$at" =~ ^[0-9]+$ ]] || at=0
+  now="$(date +%s)"
+  if [[ -z "$msg" && -n "$text" ]] && (( now - at < ${LANE_ALERT_TIMEOUT:-120} + 30 )); then
+    do_log "INFO the lane-map alert of $LANE_BOX is still being posted: cleared on a later read"
+    return 0
+  fi
+  rm -f "$f"
+  [[ -n "$msg" && "$msg" != unposted ]] || { do_log "INFO the hub answers again; the lane-map alert of $LANE_BOX had no post to clear"; return 0; }
+  body="Cleared $(date -u +%Y-%m-%dT%H:%M:%SZ) after $(( (now - at) / 60 )) min open, nothing to do. Was: $text"
+  if [[ -n "${LANE_ALERT_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    LANE_ALERT_OP=clear LANE_ALERT_MSG="$msg" $LANE_ALERT_CMD <<<"$body" >/dev/null 2>&1 || do_log "WARN the lane-map alert clear command failed"
+  else
+    ( ENV="$LANE_ENV" TENANT_ID="$LANE_TENANT" DESK_BOX="$LANE_DESK_BOX" DESK_AGENT="$by" MSG_ID="$msg" DESK_BODY="$body" DRY_RUN=0 \
+        timeout "${LANE_ALERT_TIMEOUT:-120}" "${PROJ_PATH:-.}/run" -a do_spl_desk_edit </dev/null >>"$dir/lane-map.hub-down.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
+  fi
+  do_log "OK the lane-map alert of $LANE_BOX cleared (post $msg edited, no new post)"
 }
 
 # `spool lane <args>` as this machine's desk box, under a timeout.

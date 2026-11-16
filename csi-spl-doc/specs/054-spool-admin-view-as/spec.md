@@ -116,6 +116,9 @@ login page → normal login.**
 - **The clone check fails closed** (SPL-5673): a store error reading `member_clones` (other than "no row") never
   reads "not a clone". `readerIsActAsClone` (`internal/hub/actas.go`) then answers "clone", so every clone gate
   refuses that request; the realm doors (`realmRefuses`) answer 503. Test: `TestActAsCloneCheckFailsClosed`.
+  The same store error is 503 on search's contact section, on personal hours (read and write: a live clone in
+  any workspace is still 403 `person_only`) and on an act-as session's GET /v1/view/me banner (SPL-5694).
+  Tests: `TestSearchContactsCloneStoreError`, `TestRealmHoursCloneStoreError`, `TestActAsCloneCheckFailsClosed`.
 - **Technical clones are excluded** from member lists, seat/billing counts and rosters (filtered on
   `humans.technical`), so a clone never looks like a real seat.
 

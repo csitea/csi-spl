@@ -59,8 +59,9 @@ func TestActAsCloneCheckFailsClosed(t *testing.T) {
 		if got := s.readerIsActAsClone(ctx, "tfc", "HUM-9"); got != tc.clone {
 			t.Errorf("%s: readerIsActAsClone = %v, want %v", tc.name, got, tc.clone)
 		}
+		// SPL-5694 N4: every path asserts both values; a store error is (false, err).
 		got, err := s.actAsCloneState(ctx, "tfc", "HUM-9")
-		if (err != nil) != tc.err || (err == nil && got != tc.clone) {
+		if (err != nil) != tc.err || got != (tc.clone && !tc.err) {
 			t.Errorf("%s: actAsCloneState = %v, %v; want clone %v, err %v", tc.name, got, err, tc.clone, tc.err)
 		}
 		// Two gates the routes call: the file-stream read and the doc tree.
@@ -71,12 +72,16 @@ func TestActAsCloneCheckFailsClosed(t *testing.T) {
 			t.Errorf("%s: docTreeHuman = %q, want empty (refused) %v", tc.name, who, tc.clone)
 		}
 		// The realm doors turn the store error into a 503 (realmCaller), not a pass.
+		// A non-clone with no seat keeps the realm (false, nil).
 		refuse, err := s.realmRefuses(ctx, auth.Session{HumanID: "HUM-9", Tenant: "tfc"})
-		if tc.err && err == nil {
-			t.Errorf("%s: realmRefuses = %v, nil; want the store error (503)", tc.name, refuse)
+		if (err != nil) != tc.err || refuse != (tc.clone && !tc.err) {
+			t.Errorf("%s: realmRefuses = %v, %v; want refused %v, store error %v", tc.name, refuse, err, tc.clone && !tc.err, tc.err)
 		}
-		if !tc.err && tc.clone && (err != nil || !refuse) {
-			t.Errorf("%s: realmRefuses = %v, %v; want refused", tc.name, refuse, err)
+		// SPL-5694 N3: the GET /v1/view/me banner carries the store error (503),
+		// never reads it as "no clone".
+		banner, err := s.actAsMe(ctx, "tfc", "HUM-9")
+		if (err != nil) != tc.err || (banner != nil) != (tc.clone && !tc.err) {
+			t.Errorf("%s: actAsMe = %v, %v; want banner %v, store error %v", tc.name, banner, err, tc.clone && !tc.err, tc.err)
 		}
 	}
 	// An empty human is never a clone and never reads the store.

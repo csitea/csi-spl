@@ -49,13 +49,17 @@ type contactsCloneStore struct {
 	store.ContactMembers
 	// spec 154 section 12: the member card
 	store.MemberDirectory
-	mu    sync.Mutex
-	clone string
+	mu       sync.Mutex
+	clone    string
+	cloneErr error // a store error from Clone (SPL-5694)
 }
 
 func (s *contactsCloneStore) Clone(_ context.Context, tenant, clone string) (store.Clone, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.cloneErr != nil {
+		return store.Clone{}, s.cloneErr
+	}
 	if s.clone != "" && clone == s.clone {
 		return store.Clone{CloneHum: clone, TenantID: tenant}, nil
 	}
@@ -66,6 +70,12 @@ func (s *contactsCloneStore) setClone(h string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.clone = h
+}
+
+func (s *contactsCloneStore) setCloneErr(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cloneErr = err
 }
 
 // contactsClock is the hub's settable clock (C7c).

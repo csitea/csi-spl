@@ -63,22 +63,30 @@ func (s *Server) actAsCloneState(ctx context.Context, tenant, hum string) (bool,
 }
 
 // actAsMe is the act-as banner state for GET /v1/view/me: non-nil only when hum
-// is a LIVE clone of tenant. A store without clone support, a non-clone, or an
-// ended clone all yield nil (no banner).
-func (s *Server) actAsMe(ctx context.Context, tenant, hum string) *actAsMe {
+// is a LIVE clone of tenant. A store without clone support, no member_clones
+// row, or an ended clone all yield nil (no banner). A store error other than
+// "no row" is returned, never read as "no clone" (SPL-5694): the caller
+// answers 503.
+func (s *Server) actAsMe(ctx context.Context, tenant, hum string) (*actAsMe, error) {
 	cr, ok := s.o.Store.(cloneReader)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	c, err := cr.Clone(ctx, tenant, hum)
-	if err != nil || c.EndedAt != nil {
-		return nil
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if c.EndedAt != nil {
+		return nil, nil
 	}
 	name := c.TargetName
 	if name == "" {
 		name = c.TargetHum
 	}
-	return &actAsMe{TargetHum: c.TargetHum, TargetName: name, ExpiresAt: c.ExpiresAt.UTC().Format(time.RFC3339)}
+	return &actAsMe{TargetHum: c.TargetHum, TargetName: name, ExpiresAt: c.ExpiresAt.UTC().Format(time.RFC3339)}, nil
 }
 
 // cloneAudit is one row of GET /v1/audit/clones.

@@ -151,7 +151,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		writeErr(w, http.StatusBadRequest, "bad_cursor", "cursor is not from this API for this q and sort")
 		return
 	}
-	types, person := s.searchContactTypes(r, t.ID, reader, types) // spec 154 2.3, 2.9
+	// spec 154 2.3, 2.9; a failed act-as clone check is 503, never a silent
+	// missing contact section (SPL-5694).
+	types, person, err := s.searchContactTypes(r, t.ID, reader, types)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "search_unavailable", "the contact check is unavailable")
+		return
+	}
 	limit := searchLimit(r, len(types))
 	ctx, cancel := context.WithTimeout(r.Context(), s.o.SearchBudget+time.Second)
 	defer cancel()
@@ -488,38 +494,42 @@ type searchContactsKey struct{}
 // signed-in human session, no box token, and realmRefuses (no act-as clone,
 // no agent seat). A gate that fails, or errs, drops the section (fail
 // closed); the search still answers.
-func (s *Server) searchContactTypes(r *http.Request, tenant, reader string, types []search.Type) ([]search.Type, string) {
+func (s *Server) searchContactTypes(r *http.Request, tenant, reader string, types []search.Type) ([]search.Type, string, error) {
 	if !slices.Contains(types, search.TypeContact) {
-		return types, ""
+		return types, "", nil
 	}
-	if person := s.searchContactsPerson(r, tenant, reader); person != "" {
-		return types, person
+	person, err := s.searchContactsPerson(r, tenant, reader)
+	if err != nil || person != "" {
+		return types, person, err
 	}
-	return slices.DeleteFunc(slices.Clone(types), func(t search.Type) bool { return t == search.TypeContact }), ""
+	return slices.DeleteFunc(slices.Clone(types), func(t search.Type) bool { return t == search.TypeContact }), "", nil
 }
 
 // searchContactsPerson is the reader when they are a person who may read
-// their own contacts in this workspace, else "".
-func (s *Server) searchContactsPerson(r *http.Request, tenant, reader string) string {
+// their own contacts in this workspace, else "". A store error in the person
+// check is returned (SPL-5694): the search answers 503, never a 200 with the
+// contact section silently gone.
+func (s *Server) searchContactsPerson(r *http.Request, tenant, reader string) (string, error) {
 	if reader == "" || s.o.Auth == nil || !s.contactsListed(tenant) {
-		return ""
+		return "", nil
 	}
 	if _, ok := s.o.Store.(store.PersonalContacts); !ok || strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-		return ""
+		return "", nil
 	}
 	sess, ok := s.o.Auth.SessionFromRequest(r)
 	if !ok || sess.HumanID != reader {
-		return ""
+		return "", nil
 	}
 	sess.Tenant = tenant
 	refuse, err := s.realmRefuses(r.Context(), sess)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("op", "search_contacts").Msg("contacts")
+		return "", err
 	}
-	if err != nil || refuse {
-		return ""
+	if refuse {
+		return "", nil
 	}
-	return reader
+	return reader, nil
 }
 
 // contactSection is the reader's own contacts (spec 154 2.3, row B5): B2's

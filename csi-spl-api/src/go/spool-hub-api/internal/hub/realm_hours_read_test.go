@@ -41,6 +41,7 @@ type realmSpy struct {
 	fail        string         // a tenant whose reads fail
 	receipts    []store.RealmReceipt
 	clones      map[string]bool
+	cloneFail   string // a tenant whose Clone read fails (SPL-5694)
 }
 
 func (s *realmSpy) HoursEntries(ctx context.Context, tenant, member, from, to string) ([]store.HoursEntry, error) {
@@ -67,6 +68,9 @@ func (s *realmSpy) RealmReceipts(ctx context.Context, person string) ([]store.Re
 
 // Clone answers a live clone for a marked human (the act-as door).
 func (s *realmSpy) Clone(_ context.Context, tenant, clone string) (store.Clone, error) {
+	if s.cloneFail != "" && s.cloneFail == tenant {
+		return store.Clone{}, errors.New("planted: clone read down")
+	}
 	if s.clones[clone] {
 		return store.Clone{CloneHum: clone, TenantID: tenant}, nil
 	}
@@ -399,6 +403,32 @@ func TestRealmHoursUnavailable(t *testing.T) {
 	monday := realmDay(t, out, "2026-10-05")
 	if out["incomplete"] != true || monday["incomplete"] != true || monday["reported"] != float64(60) || fmt.Sprint(monday["unavailable"]) != fmt.Sprint([]any{b}) {
 		t.Fatalf("monday: %v", monday)
+	}
+}
+
+// SPL-5694 (R7 g-425 N2 on SPL-5673): one tenant's store error in the act-as
+// clone check is 503, not 403 person_only; a live clone in any tenant is still
+// 403. CONTROL: no clone row in any tenant reads the hours.
+func TestRealmHoursCloneStoreError(t *testing.T) {
+	e, spy := realmEnv(t)
+	a, _ := e.tenant()
+	b, _ := e.tenant()
+	p := person(t, e, a, b)
+	if code, _, raw := realmGet(t, e, p, realmWeek, nil); code != http.StatusOK {
+		t.Fatalf("CONTROL: no clone row: %d %s, want 200", code, raw)
+	}
+	spy.cloneFail = a
+	code, out, raw := realmGet(t, e, p, realmWeek, nil)
+	if code != http.StatusServiceUnavailable || out["error"] != "hours_unavailable" {
+		t.Errorf("a store error in %s: %d %s, want 503 hours_unavailable", a, code, raw)
+	}
+	spy.clones[p] = true // a live clone row in b (a's read still fails)
+	before := spy.reads()
+	if code, _, raw := realmGet(t, e, p, realmWeek, nil); code != http.StatusForbidden || !strings.Contains(raw, "person_only") {
+		t.Errorf("a live clone beside a store error: %d %s, want 403 person_only", code, raw)
+	}
+	if r := spy.reads(); fmt.Sprint(r) != fmt.Sprint(before) {
+		t.Errorf("a refused request read workspaces: %v, before %v", r, before)
 	}
 }
 

@@ -2,6 +2,7 @@ package hub_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -204,6 +205,26 @@ func TestSearchContactsKillSwitchAndPersonGate(t *testing.T) {
 	c.cs.setClone(c.p1)
 	if _, types, sec := c.searchAs(t, c.b2, ctFirst, ""); slices.Contains(types, "contact") || len(contactHits(sec)) != 0 {
 		t.Errorf("act-as clone = types %v %v, want no contact section", types, contactHits(sec))
+	}
+}
+
+// SPL-5694 (R7 g-425 N1 on SPL-5673): a store error in the act-as clone
+// check of the contact section is 503, never a 200 with the section silently
+// gone. CONTROL: no clone row = the section; a live clone = no section (200).
+func TestSearchContactsCloneStoreError(t *testing.T) {
+	c := newContactsRig(t, onAll)
+	id := c.create(t, c.b1, map[string]any{"first_name": ctFirst})
+	if code, _, sec := c.searchAs(t, c.b1, ctFirst, ""); code != http.StatusOK || !slices.Equal(contactHits(sec), []string{id}) {
+		t.Fatalf("CONTROL: no clone row = %d %v, want 200 [%s]", code, contactHits(sec), id)
+	}
+	c.cs.setCloneErr(errors.New("planted: clone read down"))
+	if code, _, out := c.searchAs(t, c.b1, ctFirst, ""); code != http.StatusServiceUnavailable {
+		t.Errorf("a store error = %d %v, want 503", code, out)
+	}
+	c.cs.setCloneErr(nil)
+	c.cs.setClone(c.p1)
+	if code, types, sec := c.searchAs(t, c.b1, ctFirst, ""); code != http.StatusOK || slices.Contains(types, "contact") || sec != nil {
+		t.Errorf("CONTROL: a live clone = %d types %v %v, want 200 and no contact section", code, types, sec)
 	}
 }
 

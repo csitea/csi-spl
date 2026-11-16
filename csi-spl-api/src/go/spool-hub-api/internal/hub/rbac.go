@@ -212,7 +212,12 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 		// a normal /v1/view/me adds no round trip (TestRoundTripsPerRequest).
 		if s.o.Auth != nil {
 			if sess, ok := s.o.Auth.SessionFromRequest(r); ok && sess.Provider == auth.ProviderActAs {
-				out.ActAs = s.actAsMe(r.Context(), t.ID, hum)
+				var err error
+				if out.ActAs, err = s.actAsMe(r.Context(), t.ID, hum); err != nil {
+					s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("human", hum).Msg("act-as banner: clone read failed")
+					writeErr(w, http.StatusServiceUnavailable, "unavailable", "act-as state")
+					return
+				}
 			}
 		}
 		out.OperatorReader = s.operatorReaderOf(r.Context(), t.ID, a, out.ActAs != nil)

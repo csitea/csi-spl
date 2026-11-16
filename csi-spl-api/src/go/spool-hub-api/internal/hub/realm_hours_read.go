@@ -84,14 +84,22 @@ func (s *Server) realmPerson(w http.ResponseWriter, r *http.Request) (string, bo
 }
 
 // realmClone reports a live act-as clone among the memberships: store-based,
-// so it holds however the session was formed (as readerIsActAsClone).
-func (s *Server) realmClone(ctx context.Context, hum string, ms []store.Membership) bool {
+// so it holds however the session was formed (as readerIsActAsClone). A live
+// clone in any tenant is (true, nil) even when another tenant's read failed;
+// with none found, a store error is returned (SPL-5694), and the read answers
+// 503, not 403 person_only.
+func (s *Server) realmClone(ctx context.Context, hum string, ms []store.Membership) (bool, error) {
+	var first error
 	for _, m := range ms {
-		if s.readerIsActAsClone(ctx, m.TenantID, hum) {
-			return true
+		clone, err := s.actAsCloneState(ctx, m.TenantID, hum)
+		if clone {
+			return true, nil
+		}
+		if err != nil && first == nil {
+			first = err
 		}
 	}
-	return false
+	return false, first
 }
 
 // realmWindow is the from..to of the request, civil days in zone; the
@@ -180,7 +188,13 @@ func (s *Server) handleGetRealmHours(w http.ResponseWriter, r *http.Request) {
 		s.realmHoursFail(w, hum, "memberships", err)
 		return
 	}
-	if s.realmClone(ctx, hum, ms) {
+	clone, err := s.realmClone(ctx, hum, ms)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("human_id", hum).Str("op", "act_as").Msg("realm hours")
+		writeErr(w, http.StatusServiceUnavailable, "hours_unavailable", "personal hours are unavailable: the act-as check could not read the store")
+		return
+	}
+	if clone {
 		writeErr(w, http.StatusForbidden, "person_only", "personal hours are not shown under act-as")
 		return
 	}

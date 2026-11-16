@@ -97,7 +97,13 @@ func (s *Server) realmWriter(w http.ResponseWriter, r *http.Request) string {
 		s.hoursFail(w, "", "realm memberships", err)
 		return ""
 	}
-	if s.realmClone(ctx, hum, ms) {
+	clone, err := s.realmClone(ctx, hum, ms)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("human_id", hum).Str("op", "act_as").Msg("realm hours")
+		writeErr(w, http.StatusServiceUnavailable, "hours_unavailable", "personal hours are unavailable: the act-as check could not read the store")
+		return ""
+	}
+	if clone {
 		writeErr(w, http.StatusForbidden, "person_only", "personal hours are not entered under act-as")
 		return ""
 	}

@@ -39,11 +39,9 @@ var longFuncs = map[string]bool{
 // (SPL-3689); each may take at most maxParamsListed. The list may only
 // shrink: split a function's parameters into the struct they belong to and
 // delete its line. A NEW function over maxParams fails the gate. The
-// Memory / Postgres pairs (MoveMessage, MergeTopic, CASFleetLease,
-// IssueToken) implement one interface and leave the list together.
+// Memory / Postgres pairs (MoveMessage, MergeTopic, CASFleetLease)
+// implement one interface and leave the list together.
 var wideFuncs = map[string]bool{
-	"internal/auth/native_store.go (*MemoryCredStore).IssueToken":      true,
-	"internal/auth/native_store_postgres.go (PgCredStore).IssueToken":  true,
 	"internal/store/fleet_lease.go (*Memory).CASFleetLease":            true,
 	"internal/store/fleet_lease_postgres.go (*Postgres).CASFleetLease": true,
 	"internal/store/message_move.go (*Memory).MoveMessage":             true,

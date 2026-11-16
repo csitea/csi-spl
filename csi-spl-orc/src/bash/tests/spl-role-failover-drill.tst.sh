@@ -30,6 +30,7 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+source "$TEST_DIR/wait-event.inc.sh"
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
@@ -69,9 +70,11 @@ echo "kill $*" >>"$T/kill.log"
 h=n; ls "$T/wd/"*.heldout >/dev/null 2>&1 && h=y
 echo "stop $2 held=$h" >>"$T/order.log"
 rm -rf "${T:?}/proc/$2"
-# the stub caller of case 9: its whole process group goes, as a closed pane's
+# the stub caller of case 9: its whole process group goes, as a closed pane's.
+# KILL, not the pane's HUP: a run under nohup inherits HUP ignored, the group
+# then lived on and the control went red (SPL-5713)
 c="$(cat "$T/caller.pid" 2>/dev/null)"
-[ -n "$c" ] && [ "$2" = "$c" ] && command kill -HUP -- "-$c" 2>/dev/null
+[ -n "$c" ] && [ "$2" = "$c" ] && command kill -KILL -- "-$c" 2>/dev/null
 exit 0
 EOF
 # ./run: do_spl_agent_restart records its env and whether a hold still stood,
@@ -248,6 +251,9 @@ cp="$(cat "$T/caller.pid")"
 world
 setsid "$T/bin/caller" "$T/o" ROLE_FAILOVER_ROLE=orch DRY_RUN=0 ACT_NO_DETACH=1 & cpid=$!
 { wait "$cpid"; } 2>/dev/null
+# "no failover" is final only once every process of the sandbox has ended: a
+# drill that outlived the caller's group may still be on its way to it
+wait_event 30 env_idle "SPOOL_ROOT=$S"
 cp="$(cat "$T/caller.pid")"
 [[ "$(key LEASE_ORCH)" == c-001 ]] && grep -q "^stop $cp held=y" "$T/order.log" && ! grep -q '^failover' "$T/order.log" && ! grep -q 'caller after act' "$T/o" &&
   pass "9. RED CONTROL: not detached, the drill dies with the caller's group before the failover" ||

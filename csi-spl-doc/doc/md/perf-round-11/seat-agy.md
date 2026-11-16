@@ -1,5 +1,9 @@
 # Perf round 11: agy panel seat (a-483)
 
+Verdict: **PASS** on `1f61f039db0d5ff83482c42cff2ccf51de036256` (plan v0.3),
+section 9 (`W1`–`W3` and `N1`–`N3` all verified fixed, zero open defects, one
+non-blocking implementation note `N4`). Sections 0 to 8 are the v0.2 review:
+
 Verdict: **FAIL** on `bd4b42a375e5080530fcb1b2c64e175b2950cdc7` (plan v0.2), three
 defects (`W1` on row 01's `wait "$ctl"` mechanism and non-failing C2 red control,
 `W2` on row 02's racy `$T/takeovers` count option and `settle ... || fail` site-cap
@@ -394,3 +398,132 @@ cd csi-spl-iac && ./run -a do_check_dist_hygiene
 
 Printed `EXIT=0` on both, all 7 sweeps `ok` + `ok - no tracked .vibe/ dir`, ending
 `INFO distribution-hygiene: clean over the tracked tree of <tree>`.
+
+## 9. v0.3 delta review (`1f61f039db0d5ff83482c42cff2ccf51de036256`)
+
+```text
+git fetch origin master review/c002-perf-round-11-planner
+git rev-parse FETCH_HEAD origin/master
+git log --oneline --stat bd4b42a375e5080530fcb1b2c64e175b2950cdc7..1f61f039db0d5ff83482c42cff2ccf51de036256
+git ls-remote origin refs/heads/review/c002-perf-round-11-agy-seat refs/heads/review/c002-perf-round-11-grok-seat refs/heads/review/c002-perf-round-11-planner
+```
+
+Printed:
+
+```text
+1f61f039db0d5ff83482c42cff2ccf51de036256
+938143111401126e6413676bf76d243abee72cff
+1f61f039d docs(p11-plan, SPL-5672): perf round 11 plan v0.3, fixes the agy seat's W1-W3 and takes in N1-N3
+ csi-spl-doc/doc/md/perf-round-11-plan.md   | 118 +++++++++++++++++++++++------
+ csi-spl-doc/doc/md/perf-round-11/editor.md |  30 +++++++-
+ 2 files changed, 123 insertions(+), 25 deletions(-)
+e30c18dfc0ae56edc9b6e3deb3181ed56905bb77	refs/heads/review/c002-perf-round-11-agy-seat
+12f8f85c962338a96c019bfe82f3a155c2a90689	refs/heads/review/c002-perf-round-11-grok-seat
+1f61f039db0d5ff83482c42cff2ccf51de036256	refs/heads/review/c002-perf-round-11-planner
+```
+
+New ancestors, slug status, and row/cited-file drift on `origin/master`
+(`938143111401126e6413676bf76d243abee72cff`):
+
+```text
+for s in 0a6e9d22e c1a54b63f 9499333c1; do
+  git merge-base --is-ancestor "$s" origin/master && echo "$s ancestor=yes"
+done
+git log origin/master --oneline -E --grep='\(p11-' | wc -l
+git ls-remote origin 'refs/heads/*p11-*' | wc -l
+git log origin/master --format=%s | /usr/bin/grep -cE '\((r59-06|r60-[0-9]{2}|p11-[0-9]{2})' || true
+git diff --stat 6fcc711a9 origin/master -- \
+  csi-spl-orc/src/bash/tests/spl-standby-bench.tst.sh \
+  csi-spl-orc/src/bash/tests/wd-multi-daemon.tst.sh \
+  csi-spl-iac/src/bash/run/check-pre-push.func.sh \
+  csi-spl-iac/src/bash/tests/check-pre-push.tst.sh \
+  csi-spl-orc/src/bash/tests/wait-event.inc.sh \
+  csi-spl-orc/src/bash/run/spl-watchdog.func.sh \
+  csi-spl-iac/src/bash/run/stop-pre-push.func.sh \
+  csi-spl-orc/src/bash/run/check-qto-doc-drift.func.sh \
+  csi-spl-iac/src/bash/tests/check-pre-push-budget-table.tst.sh \
+  csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh
+```
+
+Printed `ancestor=yes` for `0a6e9d22e`, `c1a54b63f`, and `9499333c1`; `0`, `0`, and
+`0` for the three slug/round counts; and on the ten paths only `8800fccb9`
+(`check-pre-push.func.sh` `:638+` and `check-pre-push.tst.sh`) plus `c1a54b63f`
+(`bash-cleancode.tst.sh` `-3` lines, `r58-08`, noted in `:129-130,192`). **Zero row
+sites drifted.**
+
+All newly added `file:line` citations in `1f61f039d` checked on `origin/master`
+(`938143111`) with `git show origin/master:<file> | sed -n '<N>p'`:
+
+| cite | what `git show origin/master:<file> \| sed -n` printed | match? |
+|---|---|---|
+| `check-pre-push.func.sh:1083` | `"$fn" "$@" > >(tee "$f") 2>&1 \|\| rc=$?` (inside `_pp_capture`, `:1081-1087`) | yes |
+| `check-pre-push.func.sh:1307-1328` | `local _pp_old_traps; _pp_old_traps="$(trap -p INT TERM HUP)"` .. `trap - INT TERM HUP` (`:1329` restores `$_pp_old_traps`) | yes |
+| `wd-multi-daemon.tst.sh:197,220,225,238,243` | the five `settle` call sites (`settle`, `settle 2`, `settle`, `settle 2`, `settle 3`), plus `SPOOL_ROOT="$S"` at `:104` and `$D` at `:101-102` | yes |
+| `wait-event.inc.sh:35` | `env_idle() { ! grep -qlzxF -- "$1" /proc/[0-9]*/environ 2>/dev/null; }` | yes |
+| `spl-watchdog.func.sh:1709,1711` | `spl_wd_log "TAKEOVER $id $code ..."` (`:1709`) and `( ID="$id" ... setsid ${WD_TAKEOVER_CMD:-...} ... & )` (`:1711`) | yes |
+| `stop-pre-push.func.sh:25` | `_pp_proc_tree() {  # <pid>` | yes |
+| `check-qto-doc-drift.func.sh:78,89` | `out="$(python3 "$py" "$1" "$2" "$3" "$4")" \|\| rc=$?` and `out="$(python3 "$py" check "$1" "$idx" "$2")" \|\| rc=$?` | yes |
+| `check-pre-push-budget-table.tst.sh:39` | `mapfile -t PARTS < <(declare -F \| awk '$3 ~ /^_pp_part_/ { print $3 }' \| sort)` | yes |
+| `bash-cleancode.tst.sh:20` | `MAX_LINES=75` | yes |
+
+Hygiene, drift, and lane-map checks on `1f61f039db0d5ff83482c42cff2ccf51de036256`:
+
+```text
+git archive 1f61f039db0d5ff83482c42cff2ccf51de036256 | tar -xf - -C "$td"
+git -C "$td" init -q && git -C "$td" add .
+(cd csi-spl-iac && HYGIENE_TREE="$td" ./run -a do_check_dist_hygiene)
+(cd csi-spl-orc && FLEET_RULES_TREE="$td" ./run -a do_check_fleet_rules_drift)
+(cd csi-spl-orc && QTO_DRIFT_TREE="$td" QTO_DRIFT_LIVE=0 ./run -a do_check_qto_doc_drift)
+(cd csi-spl-iac && HYGIENE_TREE=. HYGIENE_MSG_RANGES="6fcc711a9..1f61f039db0d5ff83482c42cff2ccf51de036256" ./run -a do_check_commit_msg_hygiene)
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh \
+  --check csi-spl-orc/src/bash/tests/spl-standby-bench.tst.sh,csi-spl-orc/src/bash/tests/wd-multi-daemon.tst.sh,csi-spl-iac/src/bash/run/check-pre-push.func.sh,csi-spl-iac/src/bash/tests/check-pre-push-hygiene-concurrent.tst.sh,csi-spl-doc/doc/md/perf-round-11/seat-agy.md \
+  --agent a-483
+```
+
+Printed `EXIT=0` on all four hygiene/drift actions (`distribution-hygiene: clean`,
+`fleet rules: no drift over 9 pinned facts`, `qto doc map: 297 rows, 297 exported md files`,
+`commit-message hygiene: clean over 3 commit message(s)`), and `LANEMAP_EXIT=4`
+(`0` owning lanes, `12` `unknown:` lanes on `sat`).
+
+### v0.2 findings verified fixed in `1f61f039d`
+
+- **W1 fixed (`perf-round-11-plan.md:112,206-215,347-349`; `editor.md:144-161`):**
+  states that `:183`'s `wait "$ctl"` blocks inside case 8 on the pipeline's unkilled
+  `sleep 30` (re-confirmed by the editor's 3 s `n=1` check in `editor.md:148-161`),
+  places the C2 assertion (`wait_event 2`, cleaning up on failure) **between case 8's
+  stop step and its `wait`**, and removes the erroneous case 9 wait lookup.
+- **W2 fixed (`perf-round-11-plan.md:113,221-235,350-352`):** specifies
+  `wait_event 30 env_idle "SPOOL_ROOT=$S"` (`wait-event.inc.sh:35`) and optionally
+  counting synchronous `TAKEOVER c-952 S9` lines in `$D/wd.log`
+  (`spl-watchdog.func.sh:1709`, `>= 1`), explicitly forbids counting `$T/takeovers`
+  (`spl-watchdog.func.sh:1711`), and places `|| fail` inside `settle()` at `:126`
+  (plus any new wait at `:220`) so only 2 edit ranges (`:121-126` and `:220`) change.
+- **W3 fixed (`perf-round-11-plan.md:114,254-267,278-282,353-356`; `editor.md:247-255`):**
+  keeps `_pp_part_hygiene` in-process (no outer subshell, no `EXIT` trap), saves and
+  restores `$(trap -p HUP INT TERM)`, tracks `j1`/`j2`, stops each drift job's whole
+  process tree before handing off to the caller's handler, specifies tree signalling
+  (or `sleep 30 & wait $!`) in `check-pre-push-hygiene-concurrent.tst.sh`, records the
+  seats' stdout-identity measurements in `editor.md:247-255`, and requires Row 03's
+  lane to compare in-process stdout (`n>=5`).
+- **N1–N3 folded (`perf-round-11-plan.md:114,129-135,160-175,192-193,268-271,278-282,298,364-370`):**
+  Row 03's test column lists the remaining R2 tests bolded where they inspect source
+  and constrains helpers to `_pp_hygiene_*`; section 3.2 updates R3 for `0a6e9d22e`
+  (`9499333c1`, `c1a54b63f`, `c-433@sat`, and `c-426`/`c-428`/`c-432`); section 9 and
+  Row 03's in-process numbers are updated.
+
+### Defects remaining in `1f61f039d`
+
+None.
+
+### Note on `1f61f039d`
+
+- **N4 (row 03 standalone sourcing, non-blocking, `:263-264`):** tests that `source`
+  `check-pre-push.func.sh` directly without `./run` (`check-commit-msg-hygiene.tst.sh`,
+  `check-pre-push-hygiene-concurrent.tst.sh`) do not automatically load
+  `stop-pre-push.func.sh`; if Row 03's lane uses `_pp_proc_tree` rather than an inline
+  child walk, guard-sourcing `stop-pre-push.func.sh` when
+  `! declare -F _pp_proc_tree >/dev/null` (mirroring `:1324`'s
+  `check-release-note.func.sh` load) keeps standalone callers self-contained. (Also
+  for provenance: `check-pre-push.func.sh:1083` and `:1307-1328` are the `origin/master`
+  `0a6e9d22e`..`938143111` line numbers after `8800fccb9`; at `6fcc711a9` they were
+  `:1058` and `:1282-1303`.)

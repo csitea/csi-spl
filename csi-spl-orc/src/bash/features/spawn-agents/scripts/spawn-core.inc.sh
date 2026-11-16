@@ -827,6 +827,13 @@ spawn_launch_session() {
   # hooks of specs/036), not with the env prepared inline here.
   # SPL-2943: a claude seat under the second login (do_spl_role_failover
   # claude2) runs with that account's own config folder
+  # SPL-5695: on a box in backup login mode (do_spl_claude_login_mode, spec 060
+  # add-on claude-account-failover.md) a new claude seat, and so a rotation,
+  # starts under the second folder; a caller's own folder wins
+  if [ "$SPAWN_KIND" = claude ] && [ -z "${SPAWN_CLAUDE_CONFIG_DIR:-}" ] &&
+    . "${_SP_DIR}/../../../../../lib/bash/funcs/spl-claude-login.func.sh" 2>/dev/null; then
+    SPAWN_CLAUDE_CONFIG_DIR="$(spl_claude_login_dir)"
+  fi
   _sp_cfg_env=""
   [ "$SPAWN_KIND" = claude ] && [ -n "${SPAWN_CLAUDE_CONFIG_DIR:-}" ] && _sp_cfg_env=" CLAUDE_CONFIG_DIR='${SPAWN_CLAUDE_CONFIG_DIR}'"
   LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}${_sp_cfg_env}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror ${SPAWN_UMASK:+--umask '${SPAWN_UMASK}' }-- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"

@@ -2382,8 +2382,9 @@ spl_fleet_role_hub() {
   [[ "$hm" == "$me" && -z "$cand" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal-alert"
   local won=false
   if [[ -n "$want" ]]; then
-    local before="$FH" age="$FA"
-    if out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$want" --if-gen "$FG" 2>&1)" && spl_fleet_read "$out"; then
+    local before="$FH" age="$FA" why
+    why="$(spl_fleet_cas_reason "$before" "$want" "$handback" "$ct" "$ht" "$age")"
+    if out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$want" --if-gen "$FG" ${why:+--reason "$why"} 2>&1)" && spl_fleet_read "$out"; then
       [[ "$FW" == true ]] && { echo "$now" > "$ok"; echo "$FG" > "$ok.gen"; won=true; }
       [[ "$FW" == true && -n "$before" && "${before##*@}" != "$me" ]] &&
         spl_lease_log "FLEET $role: $me takes over from $before (silent ${age}s, rank $(spl_fleet_rank "${before##*@}" "$role") -> $(spl_fleet_rank "$me" "$role"))"
@@ -2392,7 +2393,7 @@ spl_fleet_role_hub() {
       # a failover (not a priority handback) of the orchestrator: tell the owner
       # once; a switch to a fallback vendor on the same machine is one too
       [[ "$FW" == true && "$role" == orch && -n "$before" ]] && { [[ "${before##*@}" != "$me" ]] || (( ct != ht )); } && (( age > LEASE_STALE )) &&
-        spl_fleet_owner_dm "$want" "Orchestrator failover: $want took over from $before, silent ${age}s - its process is gone, stalled, or it sat idle with an unread message older than $(( ${LEASE_UNREAD_MAX:-600} / 60 )) min. $want acts for the fleet now and hands back when $before is able again."
+        spl_fleet_owner_dm "$want" "Orchestrator failover: $want took over from $before, silent ${age}s: $(spl_fleet_takeover_cause "$before" "$age"). $want acts for the fleet now and hands back when $before is able again."
     else
       spl_fleet_unreachable "$role" "$now" "$out"; return 0
     fi
@@ -2406,6 +2407,51 @@ spl_fleet_role_hub() {
   [[ "$won" == true ]] && { spl_fleet_mirror_bg "$role" "$FH"; rm -f "$LEASE_DIR/fleet.$role.keeping"; }
   spl_fleet_keep_mark "$role" "$cand" "$now"
   return 0
+}
+
+# ---- why a role moved (SPL-5683) ---------------------------------------------
+# Until 2026-11-16 the cas named no reason, so the hub wrote no system_events
+# lease.<reason> row (spec 162 3.3; 0 rows on prd), and every orchestrator
+# take-over notice read "its process is gone, stalled, or it sat idle with an
+# unread message older than 10 min" whatever the cause: a 2..5 min watchdog
+# S1 wait included (alerts panel 64ca0e0c, task 5.6).
+
+# spl_fleet_cas_reason <before> <want> <handback> <want tier> <holder tier>
+# <silent s>: the lease_reason of a cas that moves the role (wire.LeaseReasons),
+# empty for a renewal. A move away from a seat of this box names that seat's
+# state: a rotation hold (rotation), a limit (limit), another vendor (vendor),
+# else a seat move; a move away from another box is a failover once the row
+# was stale, else a vendor or rank move.
+spl_fleet_cas_reason() {
+  local before="$1" want="$2" st=""
+  [[ -z "$before" ]] && { echo claim; return 0; }
+  [[ "$before" == "$want" ]] && return 0
+  [[ "$3" == true ]] && { echo handback; return 0; }
+  if [[ "${before##*@}" == "$LEASE_MACHINE" ]]; then
+    st="$(spl_fleet_seat_gone "${before%@*}")" || st="$(cat "$LEASE_DIR/able.${before%@*}" 2>/dev/null)"
+    if [[ "$st" == "held: rotation"* ]]; then echo rotation
+    elif [[ "$st" == "wd S2:"* || "$st" == *"limit"* ]]; then echo limit
+    elif (( $4 != $5 )); then echo vendor
+    else echo seat_move; fi
+    return 0
+  fi
+  if (( $6 > LEASE_STALE )); then echo failover
+  elif (( $4 != $5 )); then echo vendor
+  else echo claim; fi
+}
+
+# spl_fleet_takeover_cause <before> <silent s>: what this box knows of why
+# <before> lost the role: the seat's own verdict when it ran here (able.<id>:
+# "wd S1: HIT 40s ago", "no live process", "held: rotation since 30s", ...),
+# else the silence it read on the hub row: the cause is on that box.
+spl_fleet_takeover_cause() {
+  local id="${1%@*}" st
+  if [[ "${1##*@}" == "$LEASE_MACHINE" ]]; then
+    st="$(spl_fleet_seat_gone "$id")" || st="$(cat "$LEASE_DIR/able.$id" 2>/dev/null)"
+    echo "$id on this box cannot act (${st:-no verdict recorded})"
+  else
+    echo "its box ${1##*@} renewed the row for none of the last ${2}s (LEASE_STALE ${LEASE_STALE}s); the cause is in that box's dispatch/lease.log"
+  fi
 }
 
 # ---- a same-box seat move waits out a blip (SPL-3069) ------------------------

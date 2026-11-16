@@ -660,6 +660,29 @@ resource, and its age would have come from each machine's own clock.
   `ASKS_OWNER` of `lease.conf` (`LEASE_OWNER_CMD` replaces it); no owner set =
   one `WARN` in `lease.log`, nothing sent. Logged as `OWNER-DM orch take-over`.
 
+  **The notice names the real cause, and every move names its reason**
+  (SPL-5683, alerts panel 64ca0e0c task 5.6). Until 2026-11-16 the notice read
+  "its process is gone, stalled, or it sat idle with an unread message older
+  than 10 min" for every take-over, a 2..5 min watchdog S1 wait included, and
+  the compare-and-set sent no `--reason`, so the hub wrote no `system_events`
+  row `lease.<reason>` (spec 162 3.3; 0 rows on prd). Now
+  (`spl_fleet_takeover_cause`, `spl_fleet_cas_reason` in
+  `csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`):
+
+  | the move | `--reason` | the notice's cause |
+  |---|---|---|
+  | no holder yet | `claim` | - |
+  | renewal, same holder | none | - |
+  | a better-ranked box takes it back | `handback` | - |
+  | from a seat of this box under a rotation hold | `rotation` | that seat's verdict, e.g. `held: rotation since 30s` |
+  | from a seat of this box on a limit (`wd S2:` or a limit verdict) | `limit` | that seat's verdict |
+  | from a seat of this box, to another vendor | `vendor` | that seat's verdict, e.g. `wd S1: HIT 40s ago` |
+  | from a seat of this box, same vendor | `seat_move` | that seat's verdict |
+  | from another box, row older than `LEASE_STALE` | `failover` | `its box <box> renewed the row for none of the last <n>s`: the cause is in that box's `dispatch/lease.log` |
+
+  Proof: `system_events` rows `kind LIKE 'lease.%'`, and the test
+  `csi-spl-orc/src/bash/tests/fleet-lease-cas-reason.tst.sh`.
+
 - **Only the holder acts.** The loop mirrors the result into the local lease
   files the agents read: `$SPOOL_ROOT/dispatch/lease` (dispatch) and
   `lease.orch` (orchestrator), one line `<ID>@<box> <epoch>`. **An agent acts

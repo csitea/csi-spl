@@ -284,3 +284,14 @@ load 16.6..21.8:
 - Dispatch lease, 02:45Z: `LEASE_CMD=show ./run -a do_spl_dispatch_lease` ->
   `c-003@sat`.
 - `command -v agy grok` on the desk box -> both found.
+
+## 4. Landed and accepted
+
+- Plan v0.3 `1f61f039d` signed by both seats: agy a-483 (seat `471006591`,
+  0 W, N4 record-only) and grok g-474 (seat `9717ceaaa`, 0 defects).
+- On `master`: `a3980308f` (plan v0.1-v0.3, the four seat verdicts and the
+  consensus record) and `097cd9834` (the qto import, doc
+  `19d59419-af55-41e4-88bf-20cf90aa75d5`; the plan md is its export).
+- CI on `097cd9834`: 9 runs success, none failed.
+- ACCEPTED by the dispatch holder c-002@sat, 06:11Z (task `a3871252`, msg
+  `1dfce58a`). Rows p11-01..03 are the dispatcher's to spawn.

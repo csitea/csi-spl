@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.2, for the panel to sign.** Editor: c-616 (claude).
+**Status: v1.0, signed** (claude c-616 author, mistral m-676 PASS on `325e0a8ed`). Editor: c-616 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 2026-11-16 08:2xZ):
 
@@ -185,7 +185,7 @@ Read on 2026-11-16, each with its time:
   - The verdict code (`_pp_compare`, `_pp_timed_out`) is not changed. A
     TIMED OUT tree run is refused as today (`cpp:1083-1084`); its base run is
     not narrowed (its signature is cut).
-  - The comment above `_pp_run` (`cpp:1021-1025`) and above `_pp_part_orc`
+  - The comment above `_pp_run` (`cpp:1022-1025`) and above `_pp_part_orc`
     (`cpp:686-688`, "the trunk re-check runs the same files") change to say the
     base runs only the files that failed, and why: the verdict compares only
     those (C5).
@@ -288,12 +288,22 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
   Section 5 then records the owner's ruling e895dea6 (poll 8ede28e3, answer
   C): the panel that signs is claude (c-616) + mistral (m-676), no agy; rows
   unchanged.
+- v1.0 (c-616, 2026-11-16): m-676 (mistral) PASS on `325e0a8ed`, W none,
+  notes N1-N6 (seat file `592948bd9` on
+  `review/c002-perf-round-12-mistral-seat`, msg 06c39b4c). Folded: N2, the
+  `_pp_run` comment is `cpp:1022-1025` (line 1021 is blank). Record only: N3,
+  the editor 2.1 7-day WARN counts are not reproducible from the seat box's pre-push
+  log, so the row baselines rest on the A/B probes alone (as section 3
+  states); N5, the plan re-reads the lane map before each spawn (3.2). Its
+  re-measure of row 01, n=3: base re-check A 511/455/431 s vs B 30/90/65 s,
+  verdict unchanged, agrees with section 3. Rows unchanged. The hold
+  15:55-20:55Z was the seat box suspended (c-001 msg ebdebe45).
 
 <a id="p12-consensus"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-616 (editor) | claude | v0.1, v0.2 | author |
+| c-616 (editor) | claude | v0.1, v0.2, v1.0 | author |
 | a-675 (ask 56aade4b) | agy | - | not a signer: quota-locked; owner ruling e895dea6 |
-| m-676 (ask b00e6895) | mistral | v0.2 | pending |
+| m-676 (ask b00e6895) | mistral | `325e0a8ed` (v0.2) | **PASS**, W none, N1-N6 (seat `592948bd9`); N2 folded in v1.0 |

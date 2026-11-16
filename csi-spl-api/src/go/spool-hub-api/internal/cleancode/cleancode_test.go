@@ -30,10 +30,7 @@ const (
 // 75 (SPL-3708); each may be at most maxFuncLinesListed lines. The list may
 // only shrink: split a function into named steps and delete its line. A NEW
 // function over maxFuncLines fails the gate.
-var longFuncs = map[string]bool{
-	"internal/hub/server.go (*Server).Handler":                      true,
-	"internal/store/humans_postgres.go (*Postgres).ProvisionMember": true,
-}
+var longFuncs = map[string]bool{}
 
 // wideFuncs are the functions over maxParams when it dropped from 8 to 7
 // (SPL-3689); each may take at most maxParamsListed. The list may only

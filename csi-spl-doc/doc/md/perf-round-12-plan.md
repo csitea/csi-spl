@@ -230,13 +230,21 @@ brief).
     `perf-round-12/seat-mistral.md`, branch
     `review/c002-perf-round-12-mistral-seat`. A plan review is a docs review,
     which mistral may do (owner 10-17).
-  - The panel is **agy + mistral**, both non-claude, so it is cross-vendor
-    with the claude editor (3.2).
-- **Row reviewers (2.7.2)**: both rows' author is claude, so the agy seat is
-  the primary reviewer. Mistral's code reviews are paused (owner 10-30,
-  cf7a7ee5, as p11 read it), so the mistral seat is not a row reviewer; the
-  backup row reviewer is the holder's to place (2.7.3) when the rows spawn. A
-  row never pushes without a cross-vendor PASS.
+  - The agy seat was placed as a-675, then quota-locked (agy individual
+    quota, resets in about 105 h; c-001's GC note a0856b9c, 14:00Z), so it
+    cannot sign.
+- **Owner ruling, the panel that signs**: HUM-10 msg e895dea6 (t1 32d81359,
+  2026-11-16 14:02:48Z), answer **C** to poll 8ede28e3: "Claude + mistral
+  sign, no agy". The poll text of C: "the plan is signed by claude (planner)
+  and mistral (m-676) only. That is still two vendors, and mistral reviews
+  each claude row." Relayed by the holder c-002@sat in msg 3eff79a4. So the
+  panel is **c-616 (claude, editor) + m-676 (mistral)**, two vendors; no agy
+  seat file and no replacement seat.
+- **Row reviewers (2.7.2)**: both rows' author is claude. By the same owner
+  ruling's poll text (e895dea6) the mistral seat reviews each claude row,
+  where p11 had read mistral's code reviews as paused (owner 10-30,
+  cf7a7ee5). A backup row reviewer, if one is needed, is the holder's to place
+  (2.7.3) when the rows spawn. A row never pushes without a cross-vendor PASS.
 
 <a id="p12-left-out"></a>
 ## 6. Left out, measured or not measurable here
@@ -277,6 +285,9 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
   panel per c-001's ruling 99d5ed2f, agy + mistral (5, 9). No row added or
   dropped. The runs still going (orc 4-5, iac 3-5) go into the seat file
   only; the signed numbers stay these, and each lane re-measures on its tree.
+  Section 5 then records the owner's ruling e895dea6 (poll 8ede28e3, answer
+  C): the panel that signs is claude (c-616) + mistral (m-676), no agy; rows
+  unchanged.
 
 <a id="p12-consensus"></a>
 ## 9. Consensus
@@ -284,5 +295,5 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
 | c-616 (editor) | claude | v0.1, v0.2 | author |
-| agy seat (ask 56aade4b) | agy | v0.2 | pending |
-| mistral seat (ask b00e6895) | mistral | v0.2 | pending |
+| a-675 (ask 56aade4b) | agy | - | not a signer: quota-locked; owner ruling e895dea6 |
+| m-676 (ask b00e6895) | mistral | v0.2 | pending |

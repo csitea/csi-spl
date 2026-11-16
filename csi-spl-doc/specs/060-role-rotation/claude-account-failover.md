@@ -3,7 +3,7 @@
 Status: **built, step 2 of 2, default-off** (holder c-002 build GO, msg
 d8c3c9e7). It runs only once cnf `env.box.claude_login_pool.enabled` is true,
 after the owner's step 0 (section 6). What the build changed from this design:
-section 9. Issue SPL-5695, epic SPL-2364, topic 64ca0e0c.
+section 8. Issue SPL-5695, epic SPL-2364, topic 64ca0e0c.
 This is an add-on to [spec 060](spec.md): it reuses the second login folder
 of section 5.3 (SPL-2943 / SPL-3023, `claude2`) for a new trigger.
 
@@ -151,7 +151,8 @@ is on backup, and no longer all the time. The step 2 proof counts it
   `SPAWN_CLAUDE_CONFIG_DIR=<second folder>` unless the caller set one.
   This is one function, `spl_claude_login_dir`, sourced by
   `spawn-core.inc.sh`, which already passes the folder through (line 831).
-- **rotation**: `spl_rotate_spawn` asks the same function. A running seat
+- **rotation**: a rotation spawns through spawn-core, so it gets the same
+  folder (`spl-rotate-lib.func.sh` is unchanged, section 8). A running seat
   moves at its next rotation. **Nothing is killed** on a mode change.
 - **back to own**: new spawns and the next rotation start on the main folder
   again. Backup seats finish their work and rotate home.

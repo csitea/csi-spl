@@ -86,7 +86,8 @@ func newLiveRig(t *testing.T, liveAck bool) *liveRig {
 }
 
 // postAndAck posts m into "staffed", reads GRK-36's recv on box-b and acks it
-// with outcome for agent; it waits until the hub has read the frame.
+// with outcome for agent. It does not wait: a caller that expects the ack
+// stored waits for it with waitAck, one that expects none with drained.
 func (r *liveRig) postAndAck(t *testing.T, m, task, agent, outcome string) {
 	t.Helper()
 	r.ws(m, task, "please pick this up")
@@ -95,7 +96,27 @@ func (r *liveRig) postAndAck(t *testing.T, m, task, agent, outcome string) {
 		t.Fatalf("box-b got %s, want %s", id, m)
 	}
 	wsjson.Write(context.Background(), r.b.c, wire.Frame{Type: wire.TAck, MsgID: m, Agent: agent, Outcome: outcome}) //nolint:errcheck
-	time.Sleep(150 * time.Millisecond)                                                                               // the hub reads the ack frame
+}
+
+// waitAck waits until the store holds exactly one ack of m: agent's, on
+// box-b, with outcome (SPL-5652: a fixed 150 ms nap lost to the parallel pg
+// groups in wf10). It fails naming want when that never happens.
+func (r *liveRig) waitAck(t *testing.T, m, agent, outcome, want string) {
+	t.Helper()
+	eventually(t, want, func() bool {
+		got := r.acks(t, m)
+		return len(got) == 1 && got[0].Agent == agent && got[0].Box == "box-b" && got[0].Outcome == outcome
+	})
+}
+
+// drained returns once the hub has handled every frame box-b wrote before
+// it: the hub reads one socket's frames in order (ws.go), so its reply to a
+// token frame written now comes after every earlier ack frame was handled.
+// A test that asserts NO ack waits on this event, never on a nap.
+func (r *liveRig) drained(t *testing.T) {
+	t.Helper()
+	wsjson.Write(context.Background(), r.b.c, wire.Frame{Type: wire.TToken}) //nolint:errcheck
+	r.b.next(wire.TToken)
 }
 
 func (r *liveRig) acks(t *testing.T, m string) []store.LiveAck {
@@ -111,10 +132,7 @@ func TestLiveAckIsRecorded(t *testing.T) {
 	r := newLiveRig(t, true)
 	m := "5d9e0f1a-2b3c-4d4e-9f5a-6b7c8d9e0f1a"
 	r.postAndAck(t, m, "3b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e", "GRK-36", wire.AckShown)
-	got := r.acks(t, m)
-	if len(got) != 1 || got[0].Agent != "GRK-36" || got[0].Box != "box-b" || got[0].Outcome != wire.AckShown {
-		t.Fatalf("acks %+v, want one shown ack of GRK-36 on box-b", got)
-	}
+	r.waitAck(t, m, "GRK-36", wire.AckShown, "one shown ack of GRK-36 on box-b")
 	// a later poke of the same (message, agent) replaces the outcome
 	wsjson.Write(context.Background(), r.b.c, wire.Frame{Type: wire.TAck, MsgID: m, Agent: "GRK-36", Outcome: wire.AckRefused}) //nolint:errcheck
 	eventually(t, "the second ack replaced the first", func() bool {
@@ -135,7 +153,7 @@ func TestLiveAckRefusesWhatTheBoxCannotClaim(t *testing.T) {
 	} {
 		wsjson.Write(context.Background(), r.b.c, f) //nolint:errcheck
 	}
-	time.Sleep(150 * time.Millisecond)
+	r.drained(t)
 	if got := r.acks(t, m); len(got) != 0 {
 		t.Fatalf("acks %+v, want none (CLE-001 is not box-b's, 'maybe' is no outcome)", got)
 	}
@@ -150,6 +168,7 @@ func TestLiveAckOffForABoxWithoutTheFeature(t *testing.T) {
 	r := newLiveRig(t, false)
 	m := "8a2b3c4d-5e6f-4a7b-8c8d-9e0f1a2b3c4d"
 	r.postAndAck(t, m, "5d9e0f1a-2b3c-4d4e-9f5a-6b7c8d9e0f2b", "GRK-36", wire.AckShown)
+	r.drained(t)
 	if got := r.acks(t, m); len(got) != 0 {
 		t.Fatalf("acks %+v from a box without live_ack, want none", got)
 	}
@@ -163,6 +182,7 @@ func TestNackEscalatesToTheResponderAtTheNextTick(t *testing.T) {
 	ctx := context.Background()
 	m := "9b3c4d5e-6f7a-4b8c-9d9e-0f1a2b3c4d5e"
 	r.postAndAck(t, m, "6e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a3c", "GRK-36", wire.AckNoWindow)
+	r.waitAck(t, m, "GRK-36", wire.AckNoWindow, "the no_window nack of GRK-36 stored before the ticks")
 	// CONTROL: inside the settle window nothing escalates yet.
 	r.e.srv.Relay(ctx)
 	if n := len(inbox(t, r.desk, "CLE-001")); n != 0 {
@@ -183,9 +203,10 @@ func TestShownAckDoesNotEscalate(t *testing.T) {
 	ctx := context.Background()
 	m := "0c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
 	r.postAndAck(t, m, "7f1a2b3c-4d5e-4f6a-9b7c-8d9e0f1a2b4d", "GRK-36", wire.AckShown)
+	r.waitAck(t, m, "GRK-36", wire.AckShown, "the shown ack of GRK-36 stored before the tick")
 	r.clock.Store(int64(4 * time.Second))
 	r.e.srv.Relay(ctx)
-	time.Sleep(200 * time.Millisecond)
+	watch(200*time.Millisecond, func() bool { return len(inbox(t, r.desk, "CLE-001")) != 0 })
 	if n := len(inbox(t, r.desk, "CLE-001")); n != 0 {
 		t.Fatalf("a shown post escalated: CLE-001 inbox %d", n)
 	}

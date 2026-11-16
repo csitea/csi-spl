@@ -1,6 +1,7 @@
 // Package mcp is the spool's stdio MCP server (`spool mcp`, spec 002 US4). It
 // exposes five canonical, kind-agnostic tools (plus spool_issue, specs/039,
-// spool_flow, spec 130, and spool_read_link / spool_reply, SPL-2112), each a thin wrapper over the same
+// spool_flow, spec 130, spool_read_link / spool_reply, SPL-2112, and
+// spool_note_add, spec 155 2.11), each a thin wrapper over the same
 // internal/action verb the CLI calls, so a tool and its verb return the same
 // text (contracts/mcp-tools.md). A verb's CLI failure surfaces as a tool error
 // carrying the same reason and exit code (78 = verify/refuse).
@@ -83,6 +84,19 @@ type FlowIn struct {
 	Kind   string `json:"kind,omitempty" jsonschema:"mention (takes blocked and ready too), blocked, ready or release; empty = all"`
 	Limit  int    `json:"limit,omitempty" jsonschema:"topic lines per page, 1..50 (default 30)"`
 	Before string `json:"before,omitempty" jsonschema:"the next cursor the previous page ended with"`
+}
+
+// NoteAddIn is the input of spool_note_add (spec 155 2.11).
+type NoteAddIn struct {
+	As       string               `json:"as,omitempty" jsonschema:"the acting agent id; a seated server defaults it to its seat and refuses any other"`
+	AskMsgID string               `json:"ask_msg_id" jsonschema:"the msg_id of the person's own message that asked for the note, in a topic you read; the note goes to its author, never to a person you name"`
+	Title    string               `json:"title,omitempty" jsonschema:"the title, at most 200 characters"`
+	Body     string               `json:"body,omitempty" jsonschema:"the text, at most 20 000 characters"`
+	Pinned   bool                 `json:"pinned,omitempty" jsonschema:"pin the note"`
+	Priority int                  `json:"priority,omitempty" jsonschema:"1 (highest) .. 5; empty = 5"`
+	Archived bool                 `json:"archived,omitempty" jsonschema:"archive the note at once"`
+	Items    []action.NoteItemArg `json:"items,omitempty" jsonschema:"checklist lines in order, at most 200 of at most 500 characters: {text, done}"`
+	Links    []action.NoteLinkArg `json:"links,omitempty" jsonschema:"at most 100 links {kind: msg|topic|issue|event|doc|channel|url, ref, workspace_id, day (an event's YYYY-MM-DD), label}; a workspace kind takes the ask's workspace, url an https:// address"`
 }
 
 // ReadLinkIn is the input of spool_read_link (SPL-2112).
@@ -168,6 +182,11 @@ func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 		Description: "What is happening for you (hub mode): one line per topic per UTC day of the lines that name you as <id>@<box>, " +
 			"blocked and ready included, and one line per UTC day of releases; JSON with a next cursor (== spool flow --as --json).",
 	}, t.flow)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "spool_note_add",
+		Description: "Add one note to the Notes of the person who asked you for it (hub mode): ask_msg_id is their message, " +
+			"the note goes to its author only; answers {msg_id, id, created_at} (== spool note add --as --json).",
+	}, t.noteAdd)
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "spool_read_link",
 		Description: "Read the discussion a WUI link names (paste the browser's link): the workspace comes from the link, " +
@@ -294,6 +313,19 @@ func (t tools) flow(ctx context.Context, _ *sdk.CallToolRequest, in FlowIn) (*sd
 		return nil, nil, err
 	}
 	out, err := action.Flow(ctx, t.cfg, action.FlowArgs{As: as, Kind: in.Kind, Limit: in.Limit, Before: in.Before})
+	if err != nil {
+		return nil, nil, toolErr(err)
+	}
+	return text(string(out)), nil, nil
+}
+
+func (t tools) noteAdd(ctx context.Context, _ *sdk.CallToolRequest, in NoteAddIn) (*sdk.CallToolResult, any, error) {
+	as, err := t.o.who("as", in.As)
+	if err != nil {
+		return nil, nil, err
+	}
+	out, err := action.NoteAdd(ctx, t.cfg, action.NoteAddArgs{As: as, AskMsgID: in.AskMsgID, Title: in.Title, Body: in.Body,
+		Pinned: in.Pinned, Priority: in.Priority, Archived: in.Archived, Items: in.Items, Links: in.Links})
 	if err != nil {
 		return nil, nil, toolErr(err)
 	}

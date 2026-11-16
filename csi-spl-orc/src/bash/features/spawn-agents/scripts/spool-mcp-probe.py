@@ -36,11 +36,14 @@ TOOLS = [
     "spool_flow",
     "spool_get_file",
     "spool_issue",
+    "spool_note_add",
     "spool_put_file",
+    "spool_read_link",
     "spool_recv",
+    "spool_reply",
     "spool_send",
     "spool_tail",
-]  # spool_issue: specs/039; spool_flow: spec 130
+]  # spool_issue: specs/039; spool_flow: spec 130; spool_read_link, spool_reply: SPL-2112; spool_note_add: spec 155 2.11
 
 
 class Server:

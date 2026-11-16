@@ -1,6 +1,7 @@
 package hubclient
 
-// r46-08: the one-shot cli verbs MoveMessage, TopicList and FlowRead (the
+// r46-08: the one-shot cli verbs MoveMessage, TopicList, FlowRead and
+// NoteAdd (spec 155 2.11, C40) (the
 // Client dial and the Session frame) through opsHub (opshub_test.go), and
 // DialStatusError.Unwrap. Each verb: the frame type sent, the msg_id match
 // (a decoy reply under another id is skipped) and the raw object returned;
@@ -32,6 +33,8 @@ func cvSet(f *wire.Frame, typ string, raw json.RawMessage) {
 		f.TopicList = raw
 	case wire.TFlowRead:
 		f.Flow = raw
+	case wire.TNoteAdd:
+		f.Note = raw
 	}
 }
 
@@ -66,6 +69,15 @@ type cvVerb struct {
 	typ   string
 	call  func(context.Context, *Client) (json.RawMessage, error)
 	check func(*testing.T, wire.Frame)
+}
+
+// cvNote is the note_add request the NoteAdd verbs send.
+var cvNote = json.RawMessage(`{"ask_msg_id":"6f1c2b9e-3a4d-4e5f-8a7b-0c1d2e3f4a5b","title":"t"}`)
+
+func cvNoteCheck(t *testing.T, f wire.Frame) {
+	if f.As != "c-007" || string(f.Note) != string(cvNote) {
+		t.Errorf("frame as %q note %s, want c-007 %s", f.As, f.Note, cvNote)
+	}
 }
 
 func cvQueryCheck(t *testing.T, f wire.Frame) {
@@ -110,6 +122,14 @@ var cvVerbs = []cvVerb{
 		func(ctx context.Context, c *Client) (json.RawMessage, error) {
 			return cvOnSession(ctx, c, func(s *Session) (json.RawMessage, error) { return s.FlowRead(ctx, "c-007", "limit=5") })
 		}, cvQueryCheck},
+	{"Client.NoteAdd", wire.TNoteAdd,
+		func(ctx context.Context, c *Client) (json.RawMessage, error) {
+			return c.NoteAdd(ctx, "c-007", cvNote)
+		}, cvNoteCheck},
+	{"Session.NoteAdd", wire.TNoteAdd,
+		func(ctx context.Context, c *Client) (json.RawMessage, error) {
+			return cvOnSession(ctx, c, func(s *Session) (json.RawMessage, error) { return s.NoteAdd(ctx, "c-007", cvNote) })
+		}, cvNoteCheck},
 }
 
 func TestCLIVerbsSendFrameAndReturnMatchedObject(t *testing.T) {

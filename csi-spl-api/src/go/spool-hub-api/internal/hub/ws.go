@@ -160,12 +160,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onAnnounce(ctx, x, f.Agents, f.Channels, f.AgentRun)
 		case wire.TTail:
 			s.onTail(ctx, x, f)
-		case wire.TIssue: // specs/039 §6
-			s.onIssue(ctx, x, f)
-		case wire.TFlowRead: // spec 130 section 5
-			s.onFlowRead(ctx, x, f)
-		case wire.TTopicList: // t1 1457bb6f: an agent lists a channel's topics
-			s.onTopicList(ctx, x, f)
+		case wire.TIssue, wire.TFlowRead, wire.TTopicList, wire.TNoteAdd:
+			s.onAgentOp(ctx, x, f)
 		case wire.TEdit: // specs/032 §10: a box edits its own message
 			s.onEdit(ctx, x, f)
 		case wire.TDelete:
@@ -194,6 +190,23 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		default:
 			x.fail(ctx, f.MsgID, "bad_frame", http.StatusBadRequest, "unknown frame type")
 		}
+	}
+}
+
+// onAgentOp runs one request an announced agent makes for itself on the box
+// socket (each handler checks the agent): an issue (specs/039 §6), a Flow
+// read (spec 130 section 5), a channel's topics (t1 1457bb6f), a note on a
+// person's ask (spec 155 2.11).
+func (s *Server) onAgentOp(ctx context.Context, x *session, f wire.Frame) {
+	switch f.Type {
+	case wire.TIssue:
+		s.onIssue(ctx, x, f)
+	case wire.TFlowRead:
+		s.onFlowRead(ctx, x, f)
+	case wire.TTopicList:
+		s.onTopicList(ctx, x, f)
+	case wire.TNoteAdd:
+		s.onNoteAdd(ctx, x, f)
 	}
 }
 

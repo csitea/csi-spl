@@ -429,3 +429,27 @@ func TestNotesPriority(t *testing.T) {
 		t.Errorf("after the refusals = %d %v, want priority 2", code, out)
 	}
 }
+
+// C38 (C), spec 155 2.11: a note the person made carries no provenance on
+// GET /{id} and /export (omitempty), so the routes answer as before B12;
+// the agent's note is TestNotesC35AgentAdd.
+func TestNotesOwnNoteHasNoProvenance(t *testing.T) {
+	n := newNotesRig(t, true)
+	id := n.create(t, map[string]any{"title": "mine"})
+	_, got, _ := n.do(t, nil, http.MethodGet, notesBase+"/"+id, nil, nil)
+	_, ex, _ := n.do(t, nil, http.MethodGet, notesBase+"/export", nil, nil)
+	notes, _ := ex["notes"].([]any)
+	if len(notes) != 1 {
+		t.Fatalf("export = %v, want the one note", ex)
+	}
+	for what, out := range map[string]map[string]any{"GET": got, "export": notes[0].(map[string]any)} {
+		for _, k := range []string{"added_by_agent", "ask_msg_id", "ask_workspace_id"} {
+			if v, ok := out[k]; ok {
+				t.Errorf("%s of the person's own note carries %s = %v", what, k, v)
+			}
+		}
+		if out["id"] != id {
+			t.Errorf("%s id = %v, want %s", what, out["id"], id)
+		}
+	}
+}

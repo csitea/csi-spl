@@ -291,7 +291,8 @@ func TestRecvMalformedIsToolError(t *testing.T) {
 }
 
 // TestToolNamesAreCanonical: exactly the five kind-agnostic tools plus
-// spool_issue (specs/039 FR-008) and spool_flow (spec 130), no per-kind variants (Constitution VIII,
+// spool_issue (specs/039 FR-008), spool_flow (spec 130), spool_read_link /
+// spool_reply (SPL-2112) and spool_note_add (spec 155 2.11), no per-kind variants (Constitution VIII,
 // contracts/mcp-tools.md).
 func TestToolNamesAreCanonical(t *testing.T) {
 	h := newHarness(t)
@@ -304,7 +305,7 @@ func TestToolNamesAreCanonical(t *testing.T) {
 		got = append(got, tl.Name)
 	}
 	sort.Strings(got)
-	want := "spool_flow,spool_get_file,spool_issue,spool_put_file,spool_read_link,spool_recv,spool_reply,spool_send,spool_tail"
+	want := "spool_flow,spool_get_file,spool_issue,spool_note_add,spool_put_file,spool_read_link,spool_recv,spool_reply,spool_send,spool_tail"
 	if strings.Join(got, ",") != want {
 		t.Errorf("tools = %v, want %s", got, want)
 	}
@@ -436,6 +437,21 @@ func TestSeatedFlowTool(t *testing.T) {
 		t.Fatalf("other agent: %v %q", isErr, out)
 	}
 	if out, isErr := callText(t, cs, "spool_flow", map[string]any{}); !isErr || !strings.Contains(out, "hub mode") {
+		t.Fatalf("folder mode: %v %q", isErr, out)
+	}
+}
+
+// spool_note_add (spec 155 2.11, C40) acts as the seat only: a seated server
+// called with another agent's as is refused (exit 78) before anything is
+// sent, and the note is hub-only: a folder-mode box gets a tool error.
+func TestSeatedNoteAddTool(t *testing.T) {
+	cs, _ := seated(t, "a-1")
+	ask := "6f1c2b9e-3a4d-4e5f-8a7b-0c1d2e3f4a5b"
+	if out, isErr := callText(t, cs, "spool_note_add", map[string]any{"as": "a-2", "ask_msg_id": ask}); !isErr ||
+		!strings.Contains(out, "seated as a-1") || !strings.Contains(out, "(exit 78)") {
+		t.Fatalf("other agent: %v %q", isErr, out)
+	}
+	if out, isErr := callText(t, cs, "spool_note_add", map[string]any{"ask_msg_id": ask, "title": "t"}); !isErr || !strings.Contains(out, "hub mode") {
 		t.Fatalf("folder mode: %v %q", isErr, out)
 	}
 }

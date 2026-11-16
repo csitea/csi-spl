@@ -102,6 +102,101 @@
     "name": "spool_issue"
   },
   {
+    "description": "Add one note to the Notes of the person who asked you for it (hub mode): ask_msg_id is their message, the note goes to its author only; answers {msg_id, id, created_at} (== spool note add --as --json).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "description": "archive the note at once",
+          "type": "boolean"
+        },
+        "as": {
+          "description": "the acting agent id; a seated server defaults it to its seat and refuses any other",
+          "type": "string"
+        },
+        "ask_msg_id": {
+          "description": "the msg_id of the person's own message that asked for the note, in a topic you read; the note goes to its author, never to a person you name",
+          "type": "string"
+        },
+        "body": {
+          "description": "the text, at most 20 000 characters",
+          "type": "string"
+        },
+        "items": {
+          "description": "checklist lines in order, at most 200 of at most 500 characters: {text, done}",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "done": {
+                "type": "boolean"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "links": {
+          "description": "at most 100 links {kind: msg|topic|issue|event|doc|channel|url, ref, workspace_id, day (an event's YYYY-MM-DD), label}; a workspace kind takes the ask's workspace, url an https:// address",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "day": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "ref": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "ref"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "pinned": {
+          "description": "pin the note",
+          "type": "boolean"
+        },
+        "priority": {
+          "description": "1 (highest) .. 5; empty = 5",
+          "type": "integer"
+        },
+        "title": {
+          "description": "the title, at most 200 characters",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ask_msg_id"
+      ],
+      "type": "object"
+    },
+    "name": "spool_note_add"
+  },
+  {
     "description": "Put a file into the content-addressed blob store (== spool put-file).",
     "inputSchema": {
       "additionalProperties": false,

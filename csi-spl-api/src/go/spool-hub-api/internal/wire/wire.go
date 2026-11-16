@@ -94,6 +94,14 @@ const (
 	// TopicList. A channel the agent is not in reads 0 topics. Request and
 	// reply pair on MsgID.
 	TTopicList = "topic_list"
+	// TNoteAdd is an agent adding one note to the Notes of the person who
+	// asked for it (spec 155 2.11): As the acting agent (one this box
+	// announced), Note the request {ask_msg_id, title, body, pinned,
+	// priority, archived, items, links}. The hub writes the note into the
+	// realm of the ask message's human author, never a person the agent
+	// names; the reply's Note is {msg_id, id, created_at} alone. Request and
+	// reply pair on MsgID.
+	TNoteAdd = "note_add"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it), and Withheld more were not sent because
@@ -350,6 +358,10 @@ type Frame struct {
 
 	// topic_list reply: the channel's topic page (TTopicList).
 	TopicList json.RawMessage `json:"topic_list,omitempty"`
+
+	// note_add (TNoteAdd): the request's note fields and the ask it rests
+	// on; the reply's {msg_id, id, created_at}.
+	Note json.RawMessage `json:"note,omitempty"`
 
 	// edit reply (specs/032 §10): the register revision the edit wrote.
 	Revision int `json:"revision,omitempty"`

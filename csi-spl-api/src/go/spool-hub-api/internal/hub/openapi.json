@@ -9054,7 +9054,7 @@
                     },
                     "notes": {
                       "items": {
-                        "description": "id, title, body, pinned, priority, position, archived, archived_at, created_at, updated_at, items, links (a link: id, kind, workspace_id, ref, day, label, left, position, created_at; left true = a workspace the person left, label empty)",
+                        "description": "id, title, body, pinned, priority, position, archived, archived_at, created_at, updated_at, items, links (a link: id, kind, workspace_id, ref, day, label, left, position, created_at; left true = a workspace the person left, label empty), and on a note an agent added on the person's ask (spec 155 2.11) added_by_agent, ask_msg_id, ask_workspace_id",
                         "type": "object"
                       },
                       "type": "array"
@@ -9147,7 +9147,7 @@
                 }
               }
             },
-            "description": "OK: the note. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+            "description": "OK: the note. A note an agent added on the person's ask (spec 155 2.11, the box-socket note_add frame) also carries added_by_agent (<agent>@<box>), ask_msg_id and ask_workspace_id; omitted on a note the person made. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -9224,7 +9224,7 @@
                 }
               }
             },
-            "description": "OK: the note. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+            "description": "OK: the note. A note an agent added on the person's ask (spec 155 2.11, the box-socket note_add frame) also carries added_by_agent (<agent>@<box>), ask_msg_id and ask_workspace_id; omitted on a note the person made. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -9300,7 +9300,7 @@
                 }
               }
             },
-            "description": "OK: the note. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+            "description": "OK: the note. A note an agent added on the person's ask (spec 155 2.11, the box-socket note_add frame) also carries added_by_agent (<agent>@<box>), ask_msg_id and ask_workspace_id; omitted on a note the person made. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"

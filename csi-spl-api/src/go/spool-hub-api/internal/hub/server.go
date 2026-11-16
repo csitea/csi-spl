@@ -275,6 +275,10 @@ type Options struct {
 	// (spec 155 section 6): off, every /v1/me/realm/notes route answers 404
 	// notes_off (realm_notes.go).
 	NotesEnabled bool
+	// NotesAgentAddEnabled is hub env SPOOL_HUB_NOTES_AGENT_ADD_ENABLED (spec
+	// 155 2.11, section 6): off, or NotesEnabled off, the box-socket note_add
+	// op answers 404 notes_off (notes_agent.go); the routes are untouched.
+	NotesAgentAddEnabled bool
 	// EmbedEnabled is cnf env.hub.embed.enabled (specs/121, off until T207):
 	// off, every /v1/embed/* route answers as an unknown path.
 	// EmbedTokenLife is the visitor token's sliding life and hard cap;

@@ -155,6 +155,11 @@ type noteJSON struct {
 	UpdatedAt  string         `json:"updated_at"`
 	Items      []noteItemJSON `json:"items"`
 	Links      []noteLinkJSON `json:"links"`
+	// The provenance of a note an agent added on the person's ask (2.11):
+	// omitted on a note the person made.
+	AddedByAgent   string `json:"added_by_agent,omitempty"`
+	AskMsgID       string `json:"ask_msg_id,omitempty"`
+	AskWorkspaceID string `json:"ask_workspace_id,omitempty"`
 }
 
 type noteSummaryJSON struct {
@@ -196,7 +201,8 @@ func (c notesMe) noteOut(n store.Note) noteJSON {
 	out := noteJSON{ID: n.ID, Title: n.Title, Body: n.Body, Pinned: n.Pinned, Priority: n.Priority, Position: n.Position,
 		Archived: n.ArchivedAt != nil, ArchivedAt: notesArchived(n.ArchivedAt),
 		CreatedAt: notesTime(n.CreatedAt), UpdatedAt: notesTime(n.UpdatedAt),
-		Items: make([]noteItemJSON, 0, len(n.Items)), Links: make([]noteLinkJSON, 0, len(n.Links))}
+		Items: make([]noteItemJSON, 0, len(n.Items)), Links: make([]noteLinkJSON, 0, len(n.Links)),
+		AddedByAgent: n.AddedByAgent, AskMsgID: n.AskMsgID, AskWorkspaceID: n.AskWorkspaceID}
 	for _, it := range n.Items {
 		out.Items = append(out.Items, noteItemJSON(it))
 	}

@@ -579,6 +579,12 @@ a dedicated hub switch for agent notes only, with no Settings toggle in v1
     `SPOOL_HUB_NOTES_AGENT_ADD_ENABLED` turns off `note_add` alone while human
     Notes stay live; no Settings -> Notes toggle in v1.
 
+**Built** (B12, SPL-5717, 2026-11-16): `hub/notes_agent.go` `onNoteAdd`, wired
+in `hub/ws.go`; CLI `spool note add`, MCP `spool_note_add`, switch
+`SPOOL_HUB_NOTES_AGENT_ADD_ENABLED` (`"true"` in the cnf). Steps 1-3 run in the
+order above, all in `x.tenant`, before `CreateNoteOnAsk` opens the person scope;
+what the build settled is in section 8, "B12 Implemented".
+
 ## 3. Defaults (owner may change)
 
 The owner asked to start building without a question round. Each default
@@ -740,7 +746,7 @@ and `ask_workspace_id` (`omitempty`: omitted on human-made notes; the
 route stays human-session-only (`403 person_only` to agents, box tokens and
 act-as clones).
 
-**Box-socket op** (2.11, B12 — planned):
+**Box-socket op** (2.11, B12 — **built**, SPL-5717; section 8 "B12 Implemented"):
 
 | frame / CLI / MCP | request fields | answer / refusals |
 |---|---|---|
@@ -840,6 +846,32 @@ its docs or a `Docs: none (<why>)` line.
 | B10 | Settings -> Notes: export and erase | `wui/utils/settings-nav.mjs`, `wui/pages/settings/[[section]].vue`, `wui/components/SettingsNotes.vue`, `csi-spl-doc/doc/help/user-settings.md` + its synced copy `wui/public/help-md/user-settings.md` (names `/settings/notes`, v1.1 W4), a new e2e | C31 | B5 |
 | B11 | agent-ask provenance columns + `CreateNoteOnAsk` store for every WUI note field incl. explicit `priority` `1..5` + `archived` (memory and Postgres; `PRE_PUSH_TIER=full`) | `rdb/<next>_note_agent_ask.sql`, `store/personal_notes.go`, `store/personal_notes_memory.go`, `store/personal_notes_test.go`, `store/personal_scope_test.go` (`personCallers`), `store/rls.go` (`inPerson` comment) | C33, C34 | B3 |
 | B12 | hub `note_add` box-socket op (`agentReadsAsk` + clone/seat checks), provenance on `GET /{id}` + `/export`, `SPOOL_HUB_NOTES_AGENT_ADD_ENABLED`, CLI `spool note add`, MCP `spool_note_add` (`PRE_PUSH_TIER=full`) | `api/internal/wire/wire.go` (`TNoteAdd`), `hub/notes_agent.go`, `hub/notes_agent_test.go`, `hub/ws.go`, `hub/realm_notes.go`, `hub/realm_notes_test.go`, `hub/openapi.json`, `hub/server.go` (`Options`), `api/internal/config/config.go`, `example.env.yaml` (`TestExampleEnvListsEveryHubKey`), `api/cmd/spool/hub.go`, `csi-spl-cnf/csi-spl/all.env.yaml` (+ tpl-gen), `api/internal/hubclient/note.go`, `api/internal/hubclient/cli_verbs_test.go`, `api/internal/action/note.go`, `api/internal/action/note_test.go`, `api/cmd/spool/note.go`, `api/cmd/spool/main.go` (`runBoxCmd` + `usage`), `api/internal/mcp/mcp.go`, `api/internal/mcp/mcp_test.go` (`TestToolNamesAreCanonical`, seated test), `api/internal/mcp/testdata/tools.golden`, `csi-spl-api/src/bash/tests/spool-smoke.tst.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-mcp-probe.py` (`TOOLS`); docs: mark 2.11 / section 5 built | C35-C40 | B4, B11 |
+
+**B12 Implemented** (SPL-5717, the `feat(api, SPL-5717)` commit): the frame is
+`note_add` with the request in `Frame.Note` (`{ask_msg_id, title, body, pinned,
+priority, archived, items: [{text, done}], links}`, decoded strictly: an unknown
+field such as `person_id`, or an ask that is not a lowercase uuid, is 400
+`bad_note`), and the success reply is a `note_add` frame whose `Note` is
+`{msg_id, id, created_at}` (a box frame has no HTTP status; "201" in the table
+above is the success). Refusal order: `bad_frame` (no msg_id), 403
+`from_not_announced`, 404 `notes_off` (either switch off), the workspace's
+billing (402 unpaid) and suspension (403, as for a send), 400 `bad_note`
+(the request), 404 `not_found` (missing or unread ask, one detail for every
+cause), 403 `ask_not_person`, then the store's 400 `bad_note` / `notes_full`.
+Settled at build: `store.dedicatedTailOK` is unexported, so the hub applies the
+same rule in `askScopeOK`; a store with no clone reader (Memory) has no clone
+rows, so step 3's clone check is a no-op there, while a store error other than
+"no row" answers 500 `internal`, never a pass. `noteJSON` carries the
+provenance (`omitempty`) wherever a whole note is answered (GET, PATCH, PUT
+items, export), not only on GET and export. The probe's `TOOLS`
+(`spool-mcp-probe.py`) also gained `spool_read_link` and `spool_reply`, which it
+lacked since SPL-2112. Tests: `hub/notes_agent_test.go` (C35-C39, memory and
+Postgres), `hub/realm_notes_test.go` `TestNotesOwnNoteHasNoProvenance`, C40 in
+`hubclient/cli_verbs_test.go`, `action/note_test.go`, `mcp/mcp_test.go`
+`TestSeatedNoteAddTool`, `cmd/spool/usage_test.go` and the stdio smoke. The hub
+suite runs on Postgres as the schema owner `spool_app` (rolsuper and
+rolbypassrls false): its harness migrates the database itself, which the
+runtime login `spool_rt` may not.
 
 **B8 Implemented** (SPL-4578, the `feat(wui, SPL-4578)` commit): the item is opt-in (`msgMenuItems` flag `note`), so no other menu changes. On a phone the item sits right after Archive, which keeps its index (owner order t1 7a6be5a3); the 12-row sheet tightens its rows up to 760 px of height, and up to 700 px a reason keeps one line, so it fits without scrolling and leaves at least 44 px of dimmed page to tap (`phone-card-menu.test.mjs`). The picker `wui/components/AddToNotePicker.vue` is its own chunk, mounted once with the app's context by `wui/composables/useAddToNote.ts`, which also holds the notes-off switch: the first menu that offers the item reads `GET /v1/me/realm/notes` once (lazily, never at boot: `ci_initial_gzip_kb` 154.2 on B8 rebased onto B9, n=1, generated and measured with the CI runner's node; wf 10 read 154.1 on B9 alone), and a 404 `notes_off` hides every item. The links are built by `wui/utils/add-to-note.mjs` (import-free; types `wui/types/add-to-note.d.ts`; test `wui-tests/unit/add-to-note.test.mjs`): a topic card adds its topic, any other line the message. Files widened beyond the row, each because the item could not run without it: `wui/composables/useCardKeys.ts` (Shift + N runs there), `wui/pages/issues.vue` (hands the open issue to `IssueDetailActions`), `wui/components/CalendarPhonePeek.vue` (a phone opens an entry's peek, not `CalendarEventDialog`), `wui/types/mjs-shims.d.ts`, the help page `keyboard-shortcuts.md` (both copies have the row; its Qto source `514cf337` does not: its export, `grep -c 'Shift + N'` -> 0 on 2026-11-02), and three pinning tests (`issue-detail-buttons`, `msg-make-task`, `copy-feedback`). The issue row menu reads the shared `useIssueMenu()` target, so the page's own handler is unchanged. Not built: Shift + N on the Issues list (not a case), the doc page's item (no file in the row), and the rail tab's notes-off hide (the tab is switched off by `NOTES_RAIL_ON`, outside this row). On a phone the picker is UiDialog's full screen (the move picker's shape), not a bottom sheet. No new text key. e2e `wui-tests/e2e/add-to-note.test.mjs` (C26, C27 per object and the New note twin, notes off; 1440 and 390 px).
 

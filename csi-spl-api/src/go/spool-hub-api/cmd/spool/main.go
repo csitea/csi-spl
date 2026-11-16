@@ -173,6 +173,7 @@ on a box (an agent's machine):
   issue               list, get, create, update, comment, label, delete issues
   flow                what is happening for an agent: its folded Flow (hub mode)
   topics              list a channel's topics: task id, last activity, subject (hub mode)
+  note                add a note to the Notes of the person who asked for it (add --ask-msg, hub mode)
   edit, delete        edit or delete a message this box sent
   attach-rename       name the files of a message this box sent that are named by their sha
   archive             archive (or --unarchive) a topic by its task id
@@ -338,12 +339,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdHubRSP(cfg, rest)
 	case "hub-get-file":
 		return cmdHubGetFile(cfg, rest)
-	case "issue": // specs/039 FR-008
-		return cmdIssue(cfg, rest)
-	case "flow": // spec 130 section 5
-		return cmdFlow(cfg, rest)
-	case "topics": // t1 1457bb6f
-		return cmdTopics(cfg, rest)
+	case "issue", "flow", "topics", "note":
+		return runAgentHubCmd(cfg, cmd, rest)
 	case "edit": // specs/032 §10
 		return cmdEdit(cfg, rest)
 	case "delete":
@@ -676,6 +673,21 @@ func pick(b bool, yes, no string) string {
 		return yes
 	}
 	return no
+}
+
+// runAgentHubCmd runs a verb an agent sends the hub for itself over a one-shot
+// session: issue (specs/039 FR-008), flow (spec 130 section 5), topics (t1
+// 1457bb6f), note (spec 155 2.11).
+func runAgentHubCmd(cfg *config.Config, cmd string, rest []string) int {
+	switch cmd {
+	case "issue":
+		return cmdIssue(cfg, rest)
+	case "flow":
+		return cmdFlow(cfg, rest)
+	case "topics":
+		return cmdTopics(cfg, rest)
+	}
+	return cmdNote(cfg, rest)
 }
 
 // fail prints err and returns the mapped exit code (78 for verify/refuse).

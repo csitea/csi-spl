@@ -80,9 +80,15 @@ describe('the WUI sends discussions on every create', () => {
   it('"make an issue" from a message links its topic', () => {
     assert.deepEqual(aiIssueBody({ msg_id: 'm-1', task_id: LIVE, body: 'Fix it', from: 'HUM-1' }).discussions, [LIVE])
   })
-  it('the issue view: the section above the comment box, the create forms, the subtask dialog', () => {
+  it('the issue view: the section below the comment box, the create forms, the subtask dialog', () => {
     const page = src('src/pages/issues.vue')
-    assert.match(page, /<LazyIssueDiscussions :issue-key="form\.key" :stamp="historyStamp" \/>\s*<label class="issues-field">/)
+    /* SPL-5710: comments, then the labelled comment box, then the discussions */
+    const at = (re) => page.search(re)
+    const empty = at(/data-test="issues-comment-empty"/)
+    const box = at(/<label class="issues-field issues-comment-field"/)
+    const disc = at(/<LazyIssueDiscussions :issue-key="form\.key" :stamp="historyStamp" \/>/)
+    assert.ok(empty > 0 && box > empty && disc > box, `order: comments ${empty} < box ${box} < discussions ${disc}`)
+    assert.match(page, /<span class="issues-comment-field__label" data-test="issues-comment-label">\{\{ t\('issues\.comment_placeholder'\) \}\}<\/span>/, 'a visible Comment label, not sr-only')
     assert.match(page, /data-test="issues-newrow-discussions"/)
     /* r15-01: the create body is composables/useIssueDetailForm.ts */
     assert.match(src('src/composables/useIssueDetailForm.ts'), /body\.discussions = draft\.discussions\.slice\(\)/)

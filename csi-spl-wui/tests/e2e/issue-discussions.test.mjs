@@ -1,11 +1,11 @@
 // SPL-1593 (owner HUM-10, t1 topic fcf09921, msgs 3e75e13e, 9a8e4764,
 // 28b479fd): every issue links to one or more discussions, listed in the
-// issue's bottom panel above the comment box, each one a click away; a
+// issue's bottom panel below the comment box (SPL-5710), each one a click away; a
 // deleted one opens the "no longer exists" note in place.
 //
 // In a real browser on the mock tenant, desktop (1440 px) and phone (390 px):
 //   1 SPL-1 (the mock seed links a live topic and a deleted one) shows both in
-//     the Discussions section, above the comment box, the live one by its title
+//     the Discussions section, below the comment box (SPL-5710), the live one by its title
 //   2 a click on the live one opens its topic (/t/<id>, the thread on screen)
 //   3 a click on the deleted one opens the "no longer exists" note in the panel,
 //     the page stays on SPL-1; Close shuts it
@@ -68,12 +68,12 @@ const rowsOf = (p) => p.waitForFunction((sec, row) => {
   return rows.length ? rows.map((r) => [r.dataset.task, r.dataset.state, r.querySelector('a, span')?.textContent.trim() || '']) : false
 }, { timeout: 10000 }, SECTION, ROW).then((h) => h.jsonValue()).catch(() => [])
 
-/* the section sits above the comment box, in the same panel */
-const aboveComposer = (p) => p.evaluate((sec) => {
+/* SPL-5710: the section sits below the comment box, in the same panel */
+const belowComposer = (p) => p.evaluate((sec) => {
   const s = document.querySelector(sec)
   const box = document.querySelector('[data-test=issues-comment-input]')
   if (!s || !box) return false
-  return Boolean(s.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING) && s.closest('[data-test=issues-talk]') === box.closest('[data-test=issues-talk]')
+  return Boolean(s.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_PRECEDING) && s.closest('[data-test=issues-talk]') === box.closest('[data-test=issues-talk]')
 }, SECTION)
 
 async function openSpl1(p, base) {
@@ -108,9 +108,9 @@ try {
     await applyViewport(p, vp)
 
     const rows = await rowsOf(p)
-    ok(`1 ${W}: SPL-1 lists its live and its deleted discussion, the live one by its title, above the comment box`,
+    ok(`1 ${W}: SPL-1 lists its live and its deleted discussion, the live one by its title, below the comment box`,
       rows.length === 2 && rows[0][0] === LIVE && rows[0][1] === 'live' && rows[0][2].startsWith('Review the spool WUI') &&
-      rows[1][1] === 'gone' && await aboveComposer(p), rows)
+      rows[1][1] === 'gone' && await belowComposer(p), rows)
 
     const clicked = await clickRow(p, 'live')
     const topic = await p.waitForFunction((id) => location.pathname.endsWith(`/t/${id}`) && document.querySelector('[data-test=topic-browse]'),

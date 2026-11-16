@@ -1001,11 +1001,11 @@
             @deleted="onCommentDeleted"
             @reacted="onCommentReacted"
           />
-          <!-- SPL-1593 (owner t1 fcf09921, msg 9a8e4764): the discussions it
-               links, in the bottom panel above the comment box -->
-          <LazyIssueDiscussions :issue-key="form.key" :stamp="historyStamp" />
-          <label class="issues-field">
-            <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
+          <!-- SPL-5710 (HUM-24, topic bc7c22e1): the comment box sits right
+               under the comments, with a visible "Comment" label; an
+               unlabelled box below the discussions read as "no comment field" -->
+          <label class="issues-field issues-comment-field" data-test="issues-comment-field">
+            <span class="issues-comment-field__label" data-test="issues-comment-label">{{ t('issues.comment_placeholder') }}</span>
             <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
                  sends is Settings -> Behaviour -> "Text fields" (SPL-976) -->
             <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
@@ -1066,6 +1066,9 @@
               @cancel="commentFiles.onPickCancel"
             >
           </div>
+          <!-- SPL-1593 (owner t1 fcf09921, msg 9a8e4764): the discussions it
+               links; below the comment box since SPL-5710 -->
+          <LazyIssueDiscussions :issue-key="form.key" :stamp="historyStamp" />
           </div>
         </section>
       </div>
@@ -2214,6 +2217,7 @@ select.issues-pctl { appearance: auto; }
 .issues-detail__title:hover { border-color: var(--color-border); }
 .issues-detail__title:focus { border-color: var(--color-accent); background: var(--color-bg-2); outline: none; }
 .issues-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.8125rem; color: var(--color-muted); }
+.issues-comment-field__label { font-weight: 600; color: var(--color-fg); }
 .issues-props { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; min-width: 0; }
 /* the deadline takes a row of its own: a chip beside it would stretch to its height */
 .issues-props > .issues-field { flex-basis: 100%; }

@@ -2,7 +2,9 @@
      picker of the person's notes, latest changed first, a filter box, and
      New note on top; it never adds silently to a fixed note. One click adds
      the link and the toast says "Added to <title>" with Open. New note makes
-     a note titled by the object's label, holding that one link.
+     a note titled by the object's label, holding that one link and, as its
+     text, what was typed in the box (SPL-5710); Enter with no matching note
+     does the same.
      Mounted once by composables/useAddToNote.ts (its own chunk, fetched on
      the first open). UiDialog owns focus, Escape, the phone full screen and
      the Back overlay, as for the move picker. -->
@@ -61,7 +63,7 @@
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useNotesStore, type NoteLinkIn, type NoteSummary } from '~/stores/notes'
 import { noteNotesState } from '~/composables/useAddToNote'
-import { pickerNotes } from '~/utils/add-to-note.mjs'
+import { newNoteFields, pickerEnter, pickerNotes } from '~/utils/add-to-note.mjs'
 
 /* spec 155 2.4: 2 000 notes a person (notes_full) */
 const NOTES_MAX = 2000
@@ -129,9 +131,11 @@ async function pickNew() {
       return
     }
     await store.addLink(id, link.value)
-    const title = link.value.label || ''
-    if (title) await store.patch(id, { title }).catch(() => { /* the link is in; the title stays empty */ })
-    done(id, title || t('notes.untitled'))
+    /* SPL-5710: the text typed in the box is the new note's body */
+    const fields = newNoteFields(link.value, query.value)
+    const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v))
+    if (Object.keys(patch).length) await store.patch(id, patch).catch(() => { /* the link is in; title and text stay empty */ })
+    done(id, fields.title || t('notes.untitled'))
   } catch (e) {
     error.value = refusal(e)
   } finally {
@@ -139,9 +143,12 @@ async function pickNew() {
   }
 }
 
+/* SPL-5710: Enter adds to the first match, else makes a note of the typed text */
 function pickFirst() {
   const first = rows.value[0]
-  if (first) void pick(first.id, rowTitle(first))
+  const what = pickerEnter(rows.value.length, query.value)
+  if (what === 'row' && first) void pick(first.id, rowTitle(first))
+  else if (what === 'new') void pickNew()
 }
 
 function done(id: string, title: string) {

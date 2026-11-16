@@ -594,7 +594,10 @@ named.
   of sight. Changes B6 only.
 - **D3.** Default (owner may change): "Add to note" opens a picker of the
   person's notes (latest first) with "New note" on top; it never adds
-  silently to a fixed note. Changes B8 only.
+  silently to a fixed note. Changes B8 only. Since SPL-5710 the text
+  typed in the picker's box is the body of a "New note" (it was dropped,
+  leaving a note with the object's title and no text), and Enter with no
+  matching note makes that note.
 - **D4.** Default (owner may change): after the person leaves a
   workspace, links into it stay in the note but lose their label (2.3,
   2.4). Changes B4 only.

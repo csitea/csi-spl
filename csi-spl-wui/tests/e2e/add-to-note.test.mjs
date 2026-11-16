@@ -13,6 +13,9 @@
 //       issue's button), a calendar entry and a channel row: pick a note, the
 //       note gains a link of that kind and workspace, labelled by the
 //       object's title; twin: New note makes a note holding that one link
+//   SPL-5710 the open issue's comment box is labelled, under the comments
+//       and above the discussions; text typed in the picker is a New note's
+//       body (Enter with no match). SHOTS_DIR=<dir> saves the dialog PNGs.
 //   section 6 / B8: with the notes off (the hub's 404 notes_off, read by the
 //       store as `off`) the items hide
 // The links are read back through the notes store's own get(), the one
@@ -293,6 +296,64 @@ async function notesOff(browser, base) {
   await p.close()
 }
 
+/* SPL-5710: the open issue's comment box is labelled and right under the
+   comments, above the linked discussions; text typed in the note picker is
+   the body of a New note (Enter with no match). SHOTS_DIR=<dir> saves the
+   issue dialog at 1440 and 390 px. */
+async function typedNote(browser, base) {
+  /* the New issue row is a wide-screen form: make the issue at 1440 px, then
+     open it at each width (the 390 px pass is the phone's full screen) */
+  const p = await openPage(browser, base, 1440, false)
+  await go(p, '/issues')
+  await visible(p, '[data-test=issues-page]')
+  const key = await newIssue(p, 'Pay the bill')
+  for (const width of [1440, 390]) {
+    const tag = `${width}px SPL-5710`
+    await p.setViewport({ width, height: width < 600 ? 844 : 900 })
+    await go(p, '/issues')
+    await visible(p, '[data-test=issues-page]')
+    await go(p, `/issues?issue=${key}`)
+    await visible(p, '[data-test=issues-comment-input]')
+    await visible(p, '[data-test=issue-discussions]')
+    const box = await p.evaluate(() => {
+      const label = document.querySelector('[data-test=issues-comment-label]')
+      const field = document.querySelector('[data-test=issues-comment-field]')
+      const list = document.querySelector('[data-test=issues-comment-empty]')
+      const disc = document.querySelector('[data-test=issue-discussions]')
+      const before = (a, b) => Boolean(a && b && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING))
+      const r = label?.getBoundingClientRect()
+      return { text: label?.textContent.trim() || '', shown: Boolean(r && r.width > 1 && r.height > 1 && getComputedStyle(label).visibility !== 'hidden'), order: before(list, field) && before(field, disc), inField: Boolean(field?.contains(document.querySelector('[data-test=issues-comment-input]'))) }
+    })
+    check(`${tag}: the comment box has a visible "Comment" label`, box.text === 'Comment' && box.shown && box.inField, box)
+    check(`${tag}: comments, then the comment box, then the discussions`, box.order, box)
+    if (process.env.SHOTS_DIR) {
+      /* the box in view, the last pass's toast gone */
+      await gone(p, '[data-testid=note-added-text]', 10000)
+      await p.evaluate(() => document.querySelector('[data-test=issues-comment-field]')?.scrollIntoView({ block: 'center' }))
+      await sleep(300)
+      await p.screenshot({ path: `${process.env.SHOTS_DIR}/issue-dialog-${width}.png` })
+    }
+    const before = await noteIds(p)
+    await p.evaluate(() => [...document.querySelectorAll('[data-test=issues-detail-note]')].find((e) => e.offsetParent)?.click())
+    check(`${tag}: the picker opens from the open issue`, await visible(p, '[data-test=note-picker][data-state=ready]'))
+    /* unique per pass: the last pass's note holds its text, and a matching row would take Enter */
+    const text = `Invoice registered, payment ordered on the due date zq${width}`
+    await p.type('[data-test=note-picker-filter]', text)
+    await visible(p, '[data-test=note-picker-empty]', 5000)
+    await p.keyboard.press('Enter')
+    /* the store gains the note (the last pass's toast may still be up, so wait on the note, not the toast) */
+    await p.waitForFunction((n) => (document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes')?.notes || []).length > n, { timeout: 10000 }, before.length).catch(() => null)
+    await gone(p, '[data-test=note-picker]')
+    const toast = await p.waitForSelector('[data-testid=note-added-text]', { visible: true, timeout: 10000 }).then((e) => e.evaluate((x) => x.textContent.trim()), () => '')
+    const fresh = (await noteIds(p)).find((id) => !before.includes(id))
+    const note = fresh ? await p.evaluate(async (id) => (await document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes').get(id)).note, fresh) : null
+    check(`${tag}: Enter with no match makes a new note`, Boolean(fresh) && toast === 'Added to Pay the bill', { fresh, toast })
+    check(`${tag}: the typed text is the note's text`, note?.body === text, note?.body)
+    check(`${tag}: titled by the issue, holding its link`, note?.title === 'Pay the bill' && note?.links?.length === 1 && note.links[0].kind === 'issue' && note.links[0].ref === key && note.links[0].workspace_id === WS, note && { title: note.title, links: note.links })
+  }
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -306,6 +367,7 @@ try {
   await channelRow(browser, server.base, 1440, false)
   await channelRow(browser, server.base, 390, true)
   await notesOff(browser, server.base)
+  await typedNote(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

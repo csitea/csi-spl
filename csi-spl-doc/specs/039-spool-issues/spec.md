@@ -76,7 +76,7 @@ Refined the same morning (binding where it differs from the first request):
 | parent | another issue of the tenant | sub-issues; no cycles. UI next |
 | created by / at, updated by / at | | stamped by the hub |
 | completed at / canceled at | | set when the status enters done / diss, cleared when it leaves |
-| discussion | an ordinary spool topic on the issue's `task_id` under the reserved channel id `issues` (§Discussion space) | comments are reply-level messages (033 level 2), so edit, emoji, files and agents work unchanged, and they never become cards in any feed |
+| discussion | an ordinary spool topic on the issue's `task_id` under the reserved channel id `issues` (§Discussion space) | comments are reply-level messages (033 level 2), so edit, emoji, files and agents work unchanged, and they never become cards in any feed. In the open issue the comment box sits right under the comments with a visible "Comment" label, above the linked discussions (SPL-5710) |
 
 ## Behaviour
 

@@ -10,5 +10,8 @@ declare module '~/utils/add-to-note.mjs' {
   export function eventNoteLink(ev: { id?: string, title?: string, source?: string } | null | undefined, workspace: string, day: string): NoteLinkIn | null
   export function channelNoteLink(channel: { id?: string, name?: string } | null | undefined, workspace: string): NoteLinkIn | null
   export function pickerNotes<T extends { title?: string, snippet?: string, archived?: boolean, updated_at?: string }>(list: readonly T[], query: string): T[]
+  export const NOTE_BODY_MAX: number
+  export function newNoteFields(link: { label?: string } | null | undefined, typed: string): { title: string, body: string }
+  export function pickerEnter(rows: number, typed: string): 'row' | 'new' | null
   export function withNoteItem<T extends { id: string }>(items: readonly T[], on: boolean, item: T): T[]
 }

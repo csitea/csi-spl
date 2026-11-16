@@ -112,6 +112,22 @@ phone. The archived notes in the **Archive** section have the same menu.
   **Note** hit, and choosing it opens the note. Archived notes are not
   listed there.
 
+## Add to note
+
+**Add to note** sits in the menu of a message, a topic card, an issue (the
+row menu and the notes button of an open issue), a calendar entry and a
+channel row. It opens a list of your notes, latest changed first, with
+**New note** on top and a box to filter them:
+
+- Click a note: it gains a link to the thing you were on.
+- **New note**: a new note titled with that thing's title, holding its link.
+  Text you typed in the box becomes the note's text; press **Enter** in the
+  box when no note matches to do the same.
+
+The note is yours (see above): it shows in **Notes** in every workspace you
+belong to, not inside the issue. To write something everyone on an issue
+sees, use its **Comment** box instead.
+
 ## Coming next
 
 Spec 155 adds the rest in the next steps: **Add to note** on messages,

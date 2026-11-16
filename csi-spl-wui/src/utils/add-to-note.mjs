@@ -106,6 +106,38 @@ export function pickerNotes(list, query) {
     .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
 }
 
+/* spec 155 2.4: a body <= 20 000 characters */
+export const NOTE_BODY_MAX = 20000
+
+/**
+ * SPL-5710: what "New note" writes. The title is the object's label; the
+ * text typed in the picker's box is the note's body, never dropped (a person
+ * typed a note for a task there and got a note with the task's title and no
+ * text, twice). Blank text leaves the body empty.
+ *
+ * @param {{ label?: string } | null | undefined} link
+ * @param {string} typed
+ * @returns {{ title: string, body: string }}
+ */
+export function newNoteFields(link, typed) {
+  const body = cut(String(typed ?? '').trim(), NOTE_BODY_MAX)
+  return { title: String(link?.label || ''), body }
+}
+
+/**
+ * SPL-5710: what Enter in the picker's box does: add to the first row when
+ * one matches, else make a new note holding the typed text; nothing on an
+ * empty box with no rows.
+ *
+ * @param {number} rows
+ * @param {string} typed
+ * @returns {'row' | 'new' | null}
+ */
+export function pickerEnter(rows, typed) {
+  if (rows > 0) return 'row'
+  return String(typed ?? '').trim() ? 'new' : null
+}
+
 /**
  * A menu's items with "Add to note" right before Archive (spec 1.2 row 17),
  * else at the end; unchanged when `on` is false or it is there already.

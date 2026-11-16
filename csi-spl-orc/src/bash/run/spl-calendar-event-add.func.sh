@@ -30,9 +30,12 @@
 # @param AUDIENCE (optional) - workspace (the hub default when unset), internal or private (SPL-5498)
 # @param MENTIONS (optional) - comma-separated HUM-* members of TENANT_ID who see the event; AUDIENCE=private
 # @param   needs it, with ORDERED_BY among them. A private event is read back as AGENT_ID (?as=), its creator
+# @param REMINDERS (optional) - comma-separated alerts before the start, amount + unit m, h or d, e.g. 15m,1h,1d
+# @param   (popup, the WUI's method; up to 4 weeks, at most 5); unset or empty omits the field
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=<tenant> TITLE='Payment due' DAY=2026-10-12 AGENT_ID=c-042 ./run -a do_spl_calendar_event_add
 # @example ENV=dev TENANT_ID=<tenant> TITLE='Payment due' DAY=2026-10-12 AGENT_ID=c-042 ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_calendar_event_add
+# @example ENV=dev TENANT_ID=<tenant> TITLE='Call' DAY=2026-11-20 AGENT_ID=c-042 REMINDERS=15m,1d ./run -a do_spl_calendar_event_add
 # @example ENV=dev TENANT_ID=<tenant> TITLE='Trip' DAY=2026-11-20 AGENT_ID=c-042 ORDERED_BY=HUM-10 AUDIENCE=private MENTIONS=HUM-10,HUM-42 ./run -a do_spl_calendar_event_add
 #------------------------------------------------------------------------------
 do_spl_calendar_event_add() {
@@ -67,7 +70,7 @@ do_spl_calendar_event_add() {
     || { do_log "FATAL event $id was written but its read-back answered http $SPL_HUB_OP_STATUS: $SPL_HUB_OP_BODY"; return 1; }
   local link
   link="$(_spl_calendar_event_link "$TENANT_ID" "$(jq -r '.event.starts_at // ""' <<<"$SPL_HUB_OP_BODY")" "$id")" || return 1
-  jq -c --arg link "$link" '.event | {id, title, starts_at, ends_at, all_day, creator_type, creator_id, topic_id, owner_id, issue_keys, mentions, audience, link: $link}' <<<"$SPL_HUB_OP_BODY"
+  jq -c --arg link "$link" '.event | {id, title, starts_at, ends_at, all_day, creator_type, creator_id, topic_id, owner_id, issue_keys, mentions, audience, reminders, link: $link}' <<<"$SPL_HUB_OP_BODY"
   echo "link=$link"
   do_log "OK event $id in $TENANT_ID ($ENV), read back through the hub, creator $(jq -r '.event.creator_type + " " + .event.creator_id' <<<"$SPL_HUB_OP_BODY")"
 }
@@ -165,13 +168,35 @@ _spl_calendar_mentions() {
   jq -cn '$ARGS.positional' --args "${out[@]}" || { do_log "FATAL could not encode MENTIONS"; return 1; }
 }
 
+# _spl_calendar_reminders (SPL-5718): print the JSON array of REMINDERS as the
+# hub's typed reminders ({amount, unit minutes|hours|days, method popup},
+# calendar_props.go), equal ones once, or nothing when unset or empty. A bad token, more
+# than 5, or one over 4 weeks logs FATAL and returns 1.
+_spl_calendar_reminders() {
+  [[ -n "${REMINDERS:-}" ]] || return 0
+  local tok n u mins
+  local -a toks=() out=()
+  IFS=, read -ra toks <<<"$REMINDERS"
+  for tok in "${toks[@]}"; do
+    tok="${tok// /}"
+    [[ "$tok" =~ ^([1-9][0-9]{0,4})([mhd])$ ]] || { do_log "FATAL REMINDERS takes amount+unit like 15m, 1h or 1d (1 or more), got: '$tok'"; return 1; }
+    n="${BASH_REMATCH[1]}"
+    case "${BASH_REMATCH[2]}" in m) u=minutes mins=$n ;; h) u=hours mins=$((n * 60)) ;; d) u=days mins=$((n * 1440)) ;; esac
+    (( mins <= 40320 )) || { do_log "FATAL a reminder is at most 4 weeks before the event, got: '$tok'"; return 1; }
+    [[ " ${out[*]} " == *" $n:$u "* ]] || out+=("$n:$u")
+  done
+  (( ${#out[@]} <= 5 )) || { do_log "FATAL REMINDERS lists more than 5 reminders"; return 1; }
+  jq -cn '[$ARGS.positional[] | split(":") | {amount: (.[0] | tonumber), unit: .[1], method: "popup"}]' --args "${out[@]}" \
+    || { do_log "FATAL could not encode REMINDERS"; return 1; }
+}
+
 # _spl_calendar_event_body: set the caller's local body to the request body
 # (compact JSON) from the env vars; every refusal is made here, before cnf,
 # gcloud or the hub.
 _spl_calendar_event_body() {
   local tenant="${TENANT_ID:-}" title="${TITLE:-}" day="${DAY:-}" all="${ALL_DAY:-1}" agent="${AGENT_ID:-}"
   local ordby="${ORDERED_BY:-}" topic="${TOPIC_ID:-}" start="${STARTS_AT:-}" end="${ENDS_AT:-}"
-  local issues="" owner="" mentions=""
+  local issues="" owner="" mentions="" rems=""
   spl_require_cloud_env || return 1
   spl_require_tenant_slug "$tenant" || return 1
   [[ -n "${title// /}" ]] || { do_log "FATAL TITLE is required"; return 1; }
@@ -193,8 +218,9 @@ _spl_calendar_event_body() {
   issues="$(_spl_calendar_issue_keys)" || { printf '%s\n' "$issues"; return 1; }
   owner="$(_spl_calendar_event_owner)" || { printf '%s\n' "$owner"; return 1; }
   mentions="$(_spl_calendar_mentions "$ordby")" || { printf '%s\n' "$mentions"; return 1; }
+  rems="$(_spl_calendar_reminders)" || { printf '%s\n' "$rems"; return 1; }
   body="$(jq -cn --arg tenant "$tenant" --arg agent "$agent" --arg ordby "$ordby" --arg title "$title" \
-    --arg aud "${AUDIENCE:-}" --argjson mentions "${mentions:-null}" \
+    --arg aud "${AUDIENCE:-}" --argjson mentions "${mentions:-null}" --argjson rems "${rems:-null}" \
     --arg desc "${DESCRIPTION:-}" --arg start "$start" --arg end "$end" --arg topic "$topic" --arg owner "$owner" \
     --argjson all "$([[ "$all" == 1 ]] && echo true || echo false)" --argjson issues "${issues:-null}" '
       {tenant: $tenant, agent_id: $agent, title: $title, description: $desc, starts_at: $start, ends_at: $end, all_day: $all}
@@ -203,6 +229,7 @@ _spl_calendar_event_body() {
       + (if $issues == null then {} else {issue_keys: $issues} end)
       + (if $owner != "" then {owner_id: $owner} else {} end)
       + (if $aud != "" then {audience: $aud} else {} end)
-      + (if $mentions == null then {} else {mentions: $mentions} end)')" \
+      + (if $mentions == null then {} else {mentions: $mentions} end)
+      + (if $rems == null then {} else {reminders: $rems} end)')" \
     || { do_log "FATAL could not build the request body"; return 1; }
 }

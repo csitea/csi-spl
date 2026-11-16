@@ -452,6 +452,13 @@ cannot move such an event out of private in the WUI. Action:
 `MENTIONS=HUM-n,...`; `AUDIENCE=private` needs `ORDERED_BY` among `MENTIONS`
 (checked before any call), and its read-back passes `as=$AGENT_ID`.
 
+Reminders from an agent (SPL-5718). `do_spl_calendar_event_add` takes
+`REMINDERS=15m,1h,1d`: each an amount and `m`, `h` or `d`, sent as the
+create's `reminders` (`{amount, unit: minutes|hours|days, method: popup}`,
+section 4.3's rules: 1 or more, at most 4 weeks, at most 5, equal ones once),
+refused before any call when bad; unset or empty sends none. The read-back
+line prints them.
+
 ## 5. The WUI editing surface
 
 All of it is calendar code, loaded on route entry, outside the 155 KB
@@ -814,6 +821,7 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.8 | 2026-11-16 | c-628 | `REMINDERS` on `do_spl_calendar_event_add`: an agent's event carries pop-up reminders (4.10). SPL-5718. |
 | v0.7 | 2026-11-14 | c-437 | A private event from an agent through the operator routes: mention checks, the creator-only `?as=` read-back, `AUDIENCE` / `MENTIONS` on `do_spl_calendar_event_add` (4.10). SPL-5498. |
 | v0.6 | 2026-11-13 | c-687 | The order of a day's events in every view, whole-day then `pinned` first (3.3.1); the `pinned` props key; the operator pin and delete routes and actions (4.10). SPL-5453. |
 | v0.5 | 2026-10-28 | g-523 | Discussion link, issue keys and one owner on every calendar entry (SPL-4043). Catalogue strings in all 19 locales; outside English they are drafts, and an agy review has the last word on the wording. |

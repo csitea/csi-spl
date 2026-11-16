@@ -14,6 +14,9 @@
 #   6. SPL-5498: AUDIENCE and MENTIONS go into the body; private needs
 #      MENTIONS with ORDERED_BY among them (else fail fast); a private event
 #      is read back as its creator (?as=AGENT_ID), any other event without it
+#   7. SPL-5718: REMINDERS (15m,1h,1d) become the hub's typed reminders
+#      ({amount, unit, method popup}); unset or empty omits the field; a bad
+#      value fails fast with FATAL and no call; the read-back prints them
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -99,7 +102,7 @@ run "${SET[@]}" DRY_RUN=0 STUB_CODE=404 STUB_BODY='{"error":"not_found"}'; rc=$?
 # --- 5. the entry's clickable link (SPL-2282) ---------------------------------
 L='https://wa.spool.invalid/calendar?d=2026-10-12&event=0a1b2c3d'
 run "${SET[@]}" DRY_RUN=0 STUB_BODY="$EV"; rc=$?
-[[ $rc -eq 0 ]] && grep -qxF "link=$L" "$T/o" && grep -qF '"audience":"workspace","link":"'"$L"'"}' "$T/o" \
+[[ $rc -eq 0 ]] && grep -qxF "link=$L" "$T/o" && grep -qF '"audience":"workspace","reminders":null,"link":"'"$L"'"}' "$T/o" \
   && pass "5. a workspace's entry prints link=$L, also in its JSON line" || fail "5. ws link: rc=$rc $(cat "$T/o")"
 EV_T1="${EV/2026-10-12T00:00:00Z/2026-10-14T09:30:00Z}"
 run "${SET[@]}" DRY_RUN=0 TENANT_ID=t1 STUB_BODY="$EV_T1"; rc=$?
@@ -126,5 +129,29 @@ run "${SET[@]}" "${PRIV[@]}" DRY_RUN=0 STUB_BODY="$EV_P"; rc=$?
 [[ $rc -eq 0 ]] && grep -qxF "hub GET /v1/operator/calendar/events/0a1b2c3d?tenant=wa&as=c-840 " "$T/calls" \
   && grep -qF '"mentions":["HUM-10","HUM-42"],"audience":"private"' "$T/o" \
   && pass "6. a private event is read back as its creator agent, mentions printed" || fail "6. private read-back: rc=$rc $(cat "$T/calls" "$T/o")"
+
+# --- 7. REMINDERS (SPL-5718) ---------------------------------------------------
+R15='{"amount":15,"unit":"minutes","method":"popup"}'
+run "${SET[@]}"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q reminders "$T/o" && pass "7. REMINDERS unset: no reminders key" || fail "7. unset: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" REMINDERS=; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q reminders "$T/o" && pass "7. REMINDERS empty: no reminders key" || fail "7. empty: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" REMINDERS=15m; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -qF '"reminders":['"$R15"']}' "$T/o" \
+  && pass "7. REMINDERS=15m: one popup reminder of 15 minutes, 0 calls" || fail "7. 15m: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" REMINDERS='15m, 1h,15m,2d'; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '"reminders":['"$R15"',{"amount":1,"unit":"hours","method":"popup"},{"amount":2,"unit":"days","method":"popup"}]}' "$T/o" \
+  && pass "7. REMINDERS=15m,1h,15m,2d: three, the repeat once" || fail "7. list: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" REMINDERS=28d; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '{"amount":28,"unit":"days","method":"popup"}' "$T/o" && pass "7. REMINDERS=28d (the 4-week cap) passes" || fail "7. 28d: rc=$rc $(cat "$T/o")"
+for bad in abc 0m 15 m 15s 1.5h -5m 15m,,1h 29d 40321m 673h 1m,2m,3m,4m,5m,6m; do
+  run "${SET[@]}" DRY_RUN=0 "REMINDERS=$bad"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && [[ "$(grep -c FATAL "$T/o")" -ge 1 ]] && pass "7. REMINDERS=$bad fails fast, no call" || fail "7. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
+EV_R="${EV/\"audience\":\"workspace\"/\"audience\":\"workspace\",\"reminders\":[$R15]}"
+run "${SET[@]}" DRY_RUN=0 REMINDERS=15m STUB_BODY="$EV_R"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF "hub POST /v1/operator/calendar/events ${WANT%\}},\"reminders\":[$R15]}" "$T/calls" \
+  && grep -qF '"reminders":['"$R15"'],"link":' "$T/o" \
+  && pass "7. DRY_RUN=0 POSTs the reminders, the read-back line prints them" || fail "7. write: rc=$rc $(cat "$T/calls" "$T/o")"
 
 (( fails == 0 )) && echo "ALL PASS: spl-calendar-event-add" || { echo "FAILED: $fails"; exit 1; }

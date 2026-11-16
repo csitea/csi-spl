@@ -765,7 +765,9 @@ func (s *Postgres) IssueColumns(ctx context.Context, humanID string) (map[string
 
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
-	return s.execHuman(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)
+	first, last := auth.SplitDisplayName(name) // first + last stay the source (rdb 0287, human_profile.go)
+	return s.execHuman(ctx, `UPDATE humans SET display_name = $2, first_name = $3, last_name = $4 WHERE human_id = $1`,
+		humanID, name, nullStr(first), nullStr(last))
 }
 
 func (s *Postgres) DisplayName(ctx context.Context, humanID string) (string, error) {

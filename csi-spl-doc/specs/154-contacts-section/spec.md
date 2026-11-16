@@ -1605,11 +1605,81 @@ and the demo stays pseudonymous.
   `{human_id, display_name, email: null}`. The WUI person card then shows
   no Email row (the same path as a refusal). Every other workspace is
   unchanged: the address as in 12.2, and the demo stays null.
-- **Name.** A member has one `display_name`; there is no first or last name
-  column. **Phone.** A member has no phone number (the only numbers are a
-  person's own private contacts, 2.6, never another member's card). The card
-  carries no `phone` key. Both are a follow-up lane (ask `1d9c470c`, owner
-  poll `36ec7895`).
+- **Name and phone.** Built in v1.5, section 12.5: the card in t1 carries
+  the member's first and last name, and `email` and `phone` null.
+
+### 12.5 First name, last name and phone (v1.5, SPL-5707)
+
+Owner HUM-10, t1 `#spool-hub-bugs` msg `ca3b3206` (2026-11-13): "Besides
+the first name and the last name, [...] in every workspace every member
+should be able to see the email and the phone number of the other member.
+[...] In the T1 workspace only the first name and the last name from a
+contact should be visible. Nothing else should be visible." Poll `36ec7895`
+answered A/A/A: a phone field members fill in, shown to the others; the name
+split into first and last name; every workspace on this hub except t1, and
+the demo stays pseudonymous. Plan `cad4b352`, GO by the dispatch holder (msg
+`c0e15b1e`). As built.
+
+**Schema (rdb 0287).** `humans.first_name`, `humans.last_name` and
+`humans.phone`, all `text NULL`. Each name part is 1 to 100 characters. The
+phone is E.164: `+`, a first digit 1..9, 7 to 15 digits in all
+(`humans_phone_check`). The number is the member's own. It is never read
+from a person's private contacts (`personal.contacts`, 2.6).
+
+**One source of truth: first + last name.** `display_name` stays, and every
+reader that shows a name (roster, mentions, sidebar, user menu) keeps
+reading it. Saving the two names writes `display_name = first || ' ' ||
+last` in the same statement. A `display_name` written alone (an admin's
+rename in the workspace settings) is split back into the two by the rule
+below, so the three never drift.
+
+**The split rule.** Split the trimmed `display_name` at its FIRST run of
+whitespace. The first word is the first name and the rest is the last name:
+"Mary Ann Smith" gives Mary / Ann Smith. One word is a first name only. Each
+part is cut to 100 characters. The migration backfills every human with a
+`display_name` by this rule. It writes only `first_name` and `last_name`: a
+`display_name` that is not "first last" stays byte-identical
+(`TestHumanProfileMigration`). The rule's three homes: rdb 0287,
+`auth.SplitDisplayName` (`auth/profile.go`) and `splitDisplayName`
+(`wui/utils/display-name.ts`).
+
+**Settings → Profile.** The single "Display name" field is replaced by
+First name, Last name and Phone, saved together with
+`PUT /v1/auth/preferences` `{first_name, last_name, phone}`:
+
+- `first_name` and `last_name` are sent together. The first name is
+  required and the last name may be null or "". 400 `invalid_name` otherwise.
+- `phone` null or "" clears it. Otherwise spaces, `-`, `.`, `(` and `)` are
+  dropped and the rest must be E.164. The international form only, since the
+  country cannot be guessed: `040 123 4567` gets 400 `invalid_phone`, and
+  the form asks for `+` and the country code. It is stored normalised
+  (`+358401234567`).
+- `GET /v1/auth/profile` answers the person's own
+  `{first_name, last_name, phone}` (no-store) for the form.
+- A demo visitor keeps the pseudonym: both writes get 403 `pseudonym`.
+- Neither the names nor the number are logged, only that they were set.
+
+**The card.** `GET /v1/view/members/{id}/card` answers `{human_id,
+display_name, email, first_name, last_name, phone}`, each null when none.
+Same gates as 12.2.
+
+| workspace | first_name, last_name | email | phone |
+|---|---|---|---|
+| any other workspace | yes | yes | yes |
+| name-only (t1, 12.4) | yes | null | null |
+| demo | null | null | null |
+
+A member who never saved the two names reads them split from
+`display_name` by the same rule. The roster (`/v1/view/roster`) still
+carries neither the address nor the phone.
+
+**WUI.** The person card (`wui/pages/people/[id].vue`) shows a **Phone** row
+under Email when the card has a number. It is a link built for the reader's
+`phone_app` choice, as a contact's phone is. There is no row in t1 or under
+act-as. The labels reuse `contacts.first_name`, `contacts.last_name` and
+`contacts.phone`. Changed text: `settings.display_name.label`, `.hint`
+and `.invalid`. New text: `.invalid_phone`. All are in 19 locales, with
+agy's review before the land.
 
 ### 12.3 Cases (v1.4)
 
@@ -1620,10 +1690,16 @@ and the demo stays pseudonymous.
 | C42 | the same browser with a Bearer token; P1's session as an act-as clone | 403 `person_only`, no address | `TestMemberCardPersonOnly`; twin: the plain session gets 200; red control: a gate that refuses no one turns it red |
 | C43 | any card read | `Cache-Control: no-store`; the address is not in the hub log | `TestMemberCardNoStoreNoLog` |
 | C44 | a demo visitor reads another visitor's card | 200 with `email` null, no address anywhere | `TestDemoVisitorsSeeOnlyPseudonyms` (it caught the first build, which carried the address) |
-| C46 | W1 is name-only; P1 and Q (W1) read each other's and their own card | 200, `display_name` set, `email` null, no `@` in the body, no `phone` key | `TestMemberCardNameOnlyWorkspace`; twin: P1's W2 session (not name-only) reads the address |
+| C46 | W1 is name-only; P1 and Q (W1) read each other's and their own card | 200, `display_name` set, `email` null, no `@` in the body, `phone` null (v1.5) | `TestMemberCardNameOnlyWorkspace`; twin: P1's W2 session (not name-only) reads the address |
 | C47 | `SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES` unset, empty, or `t1,w9` | `[t1]`, `[t1]`, `[t1 w9]` | `TestLoadHubMemberCardNameOnlyWorkspaces` |
 | C48 | the WUI in t1 opens a member's card | the card, no Email row, no address on the page | `csi-spl-wui/tests/e2e/people-email.test.mjs`; twin: the same card outside t1 shows the row |
 | C49 | the Add contact form and the edit form at 1440, 1920 and 390 (SPL-5504) | input / field width 0.65 +-0.01 and 27.3 px tall on a desktop, 395.2 px at 1440, Save / Cancel the input width; at 390 the input fills the card, no sideways scroll | `csi-spl-wui/tests/e2e/contact-form-size.test.mjs`; red control on e9ea1ef32 (608 x 21) |
+| C50 | Q saved first, last and a phone; P1 and Q each keep a private contact with a phone; P1 reads Q in W1 (not name-only), Q reads P1 | P1 sees Q's first, last, email, phone; Q sees P1's name split from `display_name`, phone null; no private contact's number in either body | `TestMemberCardProfileEveryWorkspace` |
+| C51 | the same in a name-only W1: P1 reads Q, Q reads self | 200, the two names, `email` and `phone` present and null, no `@`, no number | `TestMemberCardProfileNameOnly`; red control: t1 that nulls only the email turns it red |
+| C52 | R (another workspace) and P1's W2 session read Q | 404, no name, no number | `TestMemberCardProfileOtherWorkspaceIs404` |
+| C53 | GET profile; PUT a national phone, `+0...`, a first name alone, an empty first name, a 101-char name; then null phone + one name; then `display_name` alone | own profile; 400 `invalid_phone` / `invalid_name`; 200; the card splits it to Mary / Ann Smith | `TestProfilePreferences`, `TestValidPhone`, `TestSplitDisplayName` |
+| C54 | rdb 0287 on `"  Mary \t Ann  Smith "`, `"Solo"`, a human with `first_name` already set, a blank name; applied twice | first/last split, the set one kept, `display_name` byte-identical, `040 123 4567` refused by `humans_phone_check` | `TestHumanProfileMigration`; red control: a backfill that trims `display_name` turns it red |
+| C55 | the WUI: Settings fields; the card in w2, under act-as and in t1 | the three fields save together, a national phone is refused in the page; Phone row in w2 only | `csi-spl-wui/tests/e2e/display-name.test.mjs`, `people-email.test.mjs`, `tests/unit/display-name.test.mjs` |
 | C45 | cnf `[all]` | 030 carries `SPOOL_HUB_CONTACTS_WORKSPACES="all"` for dev and prd | `csi-spl-iac/src/bash/tests/hub-contacts-030.tst.sh` |
 
-<!-- version: 1.4 · updated: 2026-11-14 -->
+<!-- version: 1.5 · updated: 2026-11-16 -->

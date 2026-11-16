@@ -505,6 +505,12 @@ type Humans interface {
 	SetInterests(ctx context.Context, humanID, interests string) error
 	// Interests returns it, "" when none, or ErrNotFound.
 	Interests(ctx context.Context, humanID string) (string, error)
+	// SetProfileName, SetPhone and Profile: the human's first name, last
+	// name and phone (rdb 0287, SPL-5707, human_profile.go). Unknown human =
+	// ErrNotFound.
+	SetProfileName(ctx context.Context, humanID, first, last string) error
+	SetPhone(ctx context.Context, humanID, phone string) error
+	Profile(ctx context.Context, humanID string) (auth.Profile, error)
 	// FederatedAccount lists the providers, other than ProviderNative, whose
 	// VERIFIED identity carries email on a human that is not disabled, sorted,
 	// plus that human's picked locale ("" when none). An address nobody signs

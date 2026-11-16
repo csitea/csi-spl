@@ -96,7 +96,7 @@ func TestMemberCardNoStoreNoLog(t *testing.T) {
 // C34 (section 12.4, owner HUM-10 t1 028ac340): in a name-only workspace
 // (t1 in every deployed hub, W1 here) a member reads another member's name
 // and never the address; the twin is the same person in W2, not name-only,
-// who reads the address. The card has no phone key in any workspace.
+// who reads the address. The phone key is null in t1 (section 12.5).
 func TestMemberCardNameOnlyWorkspace(t *testing.T) {
 	c := newContactsRig(t, onAll, func(o *hub.Options, w1, _ string) { o.MemberCardNameOnlyWorkspaces = []string{w1} })
 	q, qHum := c.other(t, "developer")
@@ -109,16 +109,16 @@ func TestMemberCardNameOnlyWorkspace(t *testing.T) {
 		if code != http.StatusOK || out["human_id"] != k.id || out["display_name"] == nil || out["email"] != nil || strings.Contains(string(raw), "@") {
 			t.Errorf("%s = %d %s, want 200 with the name and no address", k.name, code, raw)
 		}
-		if _, has := out["phone"]; has {
-			t.Errorf("%s carries a phone key: %s", k.name, raw)
+		if v, has := out["phone"]; !has || v != nil { // section 12.5: the key is there, always null in t1
+			t.Errorf("%s: phone = %v (present %v), want null: %s", k.name, v, has, raw)
 		}
 	}
 	code, raw, out := c.do(t, c.b2, http.MethodGet, memberCardPath(c.p1), nil, nil)
 	if code != http.StatusOK || out["email"] != c.email {
 		t.Errorf("twin: P1 in W2 (not name-only) = %d %s, want 200 email %s", code, raw, c.email)
 	}
-	if _, has := out["phone"]; has {
-		t.Errorf("W2 card carries a phone key: %s", raw)
+	if v, has := out["phone"]; !has || v != nil { // P1 saved no phone: null (section 12.5)
+		t.Errorf("W2 card: phone = %v (present %v), want null: %s", v, has, raw)
 	}
 }
 

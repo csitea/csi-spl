@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -31,11 +32,24 @@ import (
 // Never gated by members.invite: every member reads it. The roster
 // (/v1/view/roster) stays without the address, since a view token and an
 // agent read it. The address is never logged; the answer is no-store.
+//
+// v1.5 (SPL-5707, spec 154 section 12.5; owner poll 36ec7895 A/A/A): the card
+// also carries the member's first_name, last_name and phone (humans, rdb
+// 0287), the member's OWN number, never one of anyone's private contacts
+// (personal.contacts, 0226, is not read here). Outside a name-only workspace:
+// the two names, the address and the phone. In a name-only workspace (t1):
+// the two names only, email and phone null. In the demo: the pseudonym only,
+// the two names, email and phone null. A member who never saved the two
+// names reads them split from display_name (auth.SplitDisplayName, rdb
+// 0287's backfill rule).
 
 type memberCardBody struct {
 	HumanID     string  `json:"human_id"`
 	DisplayName *string `json:"display_name"` // null = none chosen
 	Email       *string `json:"email"`        // null = none on file
+	FirstName   *string `json:"first_name"`   // null = none (or hidden: demo)
+	LastName    *string `json:"last_name"`    // null = none (or hidden: demo)
+	Phone       *string `json:"phone"`        // null = none on file, or hidden
 }
 
 func (s *Server) routeMemberCard(mux *http.ServeMux) {
@@ -83,10 +97,12 @@ func (s *Server) handleMemberCard(w http.ResponseWriter, r *http.Request) {
 	}
 	card := memberCard(*them)
 	if s.o.DemoWorkspace != "" && t.ID == s.o.DemoWorkspace {
-		card.Email = nil // specs/077 FR-007: a demo visitor is a pseudonym, never an address
+		// specs/077 FR-007: a demo visitor is a pseudonym, never an address,
+		// a number or a real name.
+		card.Email, card.Phone, card.FirstName, card.LastName = nil, nil, nil, nil
 	}
 	if slices.Contains(s.o.MemberCardNameOnlyWorkspaces, t.ID) {
-		card.Email = nil // spec 154 12.4: t1 shows the name only
+		card.Email, card.Phone = nil, nil // spec 154 12.4/12.5: t1 shows the first and last name only
 	}
 	writeJSON(w, http.StatusOK, card)
 }
@@ -99,5 +115,18 @@ func memberCard(m store.Member) memberCardBody {
 	if e := strings.TrimSpace(m.Email); e != "" {
 		out.Email = &e
 	}
+	first, last := m.FirstName, m.LastName
+	if first == "" && last == "" {
+		first, last = auth.SplitDisplayName(m.DisplayName)
+	}
+	out.FirstName, out.LastName, out.Phone = optStr(first), optStr(last), optStr(m.Phone)
 	return out
+}
+
+// optStr is the trimmed s, nil when empty.
+func optStr(s string) *string {
+	if s = strings.TrimSpace(s); s == "" {
+		return nil
+	}
+	return &s
 }

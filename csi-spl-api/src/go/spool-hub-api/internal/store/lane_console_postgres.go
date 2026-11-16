@@ -43,12 +43,13 @@ func (s *Postgres) DemandLaneConsole(ctx context.Context, tenant, box, agent, by
 }
 
 // LaneConsoleOf is LaneConsoleStore.LaneConsoleOf.
-func (s *Postgres) LaneConsoleOf(ctx context.Context, tenant, box, agent string) (LaneConsole, error) {
+func (s *Postgres) LaneConsoleOf(ctx context.Context, tenant, box, agent string, now time.Time) (LaneConsole, error) {
 	var c LaneConsole
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
 		c, err = scanLaneConsole(tx.QueryRow(ctx, `SELECT `+laneConsoleCols+` FROM lane_console
-			WHERE tenant_id = $1 AND agent_box = $2 AND agent_id = $3`, tenant, box, agent))
+			WHERE tenant_id = $1 AND agent_box = $2 AND agent_id = $3 AND demand_until >= $4`,
+			tenant, box, agent, now.Add(-LaneConsoleKeep)))
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {

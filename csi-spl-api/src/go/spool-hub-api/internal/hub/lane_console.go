@@ -104,7 +104,7 @@ func (s *Server) handleLaneConsole(operator, watch bool) http.HandlerFunc {
 		var c store.LaneConsole
 		if watch {
 			c, err = cs.DemandLaneConsole(r.Context(), tg.tenant, tg.box, tg.agent, ask.hum, now.Add(laneConsoleDemand), now)
-		} else if c, err = cs.LaneConsoleOf(r.Context(), tg.tenant, tg.box, tg.agent); errors.Is(err, store.ErrNotFound) {
+		} else if c, err = cs.LaneConsoleOf(r.Context(), tg.tenant, tg.box, tg.agent, now); errors.Is(err, store.ErrNotFound) {
 			c, err = store.LaneConsole{AgentID: tg.agent}, nil
 		}
 		if err != nil {

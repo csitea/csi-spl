@@ -119,9 +119,9 @@ plus one demand upsert every 20 s per open feed; reads are one `GET` every
 demand read every 5 s per box per hub. That pull runs on every box whether
 anyone watches or not: per box and hub, one `spool file-streams push`
 subprocess, one hub request and one indexed read every 5 s; the capture
-itself runs only on a demand. A row whose demand ended an hour ago is
-deleted by the next demand in that workspace; until then the last masked
-screen stays readable to the same readers.
+itself runs only on a demand. A row whose demand ended an hour ago
+(`LaneConsoleKeep`) is deleted by the next demand in that workspace, and a
+read past that hour finds no screen even before the delete (SPL-4835).
 
 ## 7. Cases
 

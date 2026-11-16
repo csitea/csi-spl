@@ -13,8 +13,9 @@ import (
 // screen, masked on the box. Tenant is the BOX's workspace: the box writes
 // over its own session, so the row is in that box's scope.
 
-// LaneConsoleKeep is how long a row stays after its demand ended; the next
-// demand in the workspace deletes the older ones.
+// LaneConsoleKeep is how long a row is served after its demand ended; the
+// next demand in the workspace deletes the older ones, and a read past it
+// finds none even before that delete (SPL-4835).
 const LaneConsoleKeep = time.Hour
 
 // LaneConsole is one lane's console row.
@@ -44,8 +45,9 @@ type LaneConsoleStore interface {
 	// by reader, keeping the last screen, and deletes tenant's rows whose
 	// demand ended before now - LaneConsoleKeep. It returns the row.
 	DemandLaneConsole(ctx context.Context, tenant, box, agent, by string, until, now time.Time) (LaneConsole, error)
-	// LaneConsoleOf is one row; ErrNotFound when there is none.
-	LaneConsoleOf(ctx context.Context, tenant, box, agent string) (LaneConsole, error)
+	// LaneConsoleOf is one row; ErrNotFound when there is none, or when its
+	// demand ended before now - LaneConsoleKeep (SPL-4835).
+	LaneConsoleOf(ctx context.Context, tenant, box, agent string, now time.Time) (LaneConsole, error)
 	// LaneConsoleDemands is the agents of (tenant, box) whose demand is on
 	// at now, sorted.
 	LaneConsoleDemands(ctx context.Context, tenant, box string, now time.Time) ([]string, error)
@@ -80,11 +82,11 @@ func (s *Memory) DemandLaneConsole(_ context.Context, tenant, box, agent, by str
 }
 
 // LaneConsoleOf is LaneConsoleStore.LaneConsoleOf.
-func (s *Memory) LaneConsoleOf(_ context.Context, tenant, box, agent string) (LaneConsole, error) {
+func (s *Memory) LaneConsoleOf(_ context.Context, tenant, box, agent string, now time.Time) (LaneConsole, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.laneConsole[laneConsoleKey{tenant, box, agent}]
-	if c == nil {
+	if c == nil || c.DemandUntil.Before(now.Add(-LaneConsoleKeep)) {
 		return LaneConsole{}, ErrNotFound
 	}
 	return laneConsoleCopy(c), nil

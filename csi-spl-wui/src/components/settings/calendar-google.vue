@@ -73,7 +73,7 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalView } from '~/utils/gcal-client.mjs'
+import { gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalSyncFollower, gcalView } from '~/utils/gcal-client.mjs'
 
 type GcalStatus = { connected?: boolean, google_email?: string, calendar_title?: string, status?: string, status_detail?: string, last_synced_at?: string }
 
@@ -86,7 +86,7 @@ const busy = ref(false)
 const removeImported = ref(false)
 const actionMsg = ref('')
 const actionWarn = ref(false)
-const notice = computed(() => gcalReturnNotice(route.query as Record<string, unknown>))
+const notice = computed(() => gcalReturnNotice(route.query as Record<string, unknown>, view.value))
 
 const statusKey = computed(() => {
   const s = String(status.value?.status || 'connected')
@@ -132,18 +132,31 @@ async function connect() {
   }
 }
 
+// SPL-5726: a quiet re-read (no 'loading' flash) after Sync now, until the
+// last sync moves or the reads run out: the sync ends after its 202, so the
+// read right after it still shows the old time ("Not yet" on a new link).
+// Leaving the page stops it, a read in flight included (gcalSyncFollower).
+const follower = gcalSyncFollower(() => gcalStatus(api), (st) => {
+  status.value = st as GcalStatus
+  view.value = gcalView(status.value, null)
+})
+
 async function sync() {
   busy.value = true
+  const before = status.value?.last_synced_at
   try {
     await gcalSync(api)
     said('gcal.sync_started')
     await load()
   } catch (e) {
     const err = e as { status?: number, error?: string }
-    said(err.error === 'sync_in_progress' ? 'gcal.sync_busy' : 'gcal.sync_failed', true)
+    // a sync already running is news, not a failure (SPL-5726): said plainly
+    if (err.error === 'sync_in_progress') said('gcal.sync_busy')
+    else said('gcal.sync_failed', true)
   } finally {
     busy.value = false
   }
+  if (actionMsg.value !== 'gcal.sync_failed' && status.value?.last_synced_at === before) follower.start(before)
 }
 
 async function disconnect() {
@@ -161,6 +174,7 @@ async function disconnect() {
 }
 
 onMounted(load)
+onBeforeUnmount(() => follower.stop())
 </script>
 
 <style scoped>

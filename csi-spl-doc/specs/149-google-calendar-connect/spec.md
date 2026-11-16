@@ -287,6 +287,23 @@ so ([google-review-submission.md](google-review-submission.md) section 6).
 Test: `wui/tests/e2e/calendar-gcal-banner.test.mjs`,
 `wui/tests/unit/settings-nav.test.mjs`.
 
+SPL-5726: the section's states after the way back. The notice for
+`gcal_error=<code>` shows only while it is true: not before the status is
+read, and not once the status reads `connected` (`gcalReturnNotice(query,
+view)` in `wui/utils/gcal-client.mjs`). Why: on prd (2026-11-16, 16:30 and
+16:34Z) the browser requested the callback twice, 0.4 s apart; the first
+request connected, the second found its code used (`invalid_grant`) and
+sent `gcal_error=code_expired`, the redirect the browser followed last, so
+the section said "was not connected" next to "Connected". Sync now: a 409
+`sync_in_progress` says "A sync is already running." as information, not as
+an error (the GET has no running-sync field to disable the button by), and
+after Sync now the section re-reads the status quietly, up to 6 times 5 s
+apart, until `last_synced_at` moves, so "Last sync" leaves "Not yet" once
+the first sync ends. One run at a time (`gcalSyncFollower`): a second
+Sync now or leaving the page ends the run, and a read already in flight
+then is dropped, never re-arming. Test: `wui/tests/e2e/settings-calendar-google.test.mjs`
+(N2..N4), `wui/tests/unit/settings-nav.test.mjs`.
+
 ### 2.8 Local dev and tests
 
 `SPOOL_CLOUD_PROVIDER=none` (spec 148): the connect answers 503

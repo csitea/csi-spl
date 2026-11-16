@@ -20,7 +20,7 @@ import {
   SETTINGS_SECTIONS, isSettingsPath, settingsModalTarget, settingsQuerySection, settingsSectionOf,
 } from '../../src/utils/settings-nav.mjs'
 import {
-  MOCK_GCAL_KEY, gcalBannerKey, gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalUrl, gcalView,
+  MOCK_GCAL_KEY, gcalBannerKey, gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalSyncFollower, gcalUrl, gcalView,
 } from '../../src/utils/gcal-client.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
@@ -112,6 +112,98 @@ describe('the connection views and the mock flow', () => {
     assert.equal(gcalReturnNotice({ settings: 'calendar-google', gcal: 'connected' }), 'gcal.notice_connected')
     assert.equal(gcalReturnNotice({ gcal_error: 'cancelled' }), 'gcal.notice_error')
     assert.equal(gcalReturnNotice({ settings: 'calendar-google' }), '')
+  })
+})
+
+// SPL-5726: prd 2026-11-16, the browser requested the OAuth callback twice
+// 0.4 s apart; the first connected, the second found its code used and sent
+// ?gcal_error=code_expired, so the panel said "was not connected" next to
+// "Connected". Red control: on origin/master 55dcf0449 the error shows for a
+// connected status (gcalReturnNotice ignores the view) and sync_busy is red.
+describe('SPL-5726 the callback error shows only while it is true', () => {
+  const q = { settings: 'calendar-google', gcal_error: 'code_expired' }
+  it('a status read of connected clears it', () => {
+    assert.equal(gcalReturnNotice(q, 'connected'), '')
+  })
+  it('it waits for the status read', () => {
+    assert.equal(gcalReturnNotice(q, 'loading'), '')
+  })
+  it('it stays when the status says it is true', () => {
+    for (const v of ['disconnected', 'broken', 'failed']) assert.equal(gcalReturnNotice(q, v), 'gcal.notice_error', v)
+  })
+  it('the connected notice is unchanged', () => {
+    assert.equal(gcalReturnNotice({ gcal: 'connected' }, 'connected'), 'gcal.notice_connected')
+  })
+  it('the section passes its view, and "a sync is already running" is not a warning', () => {
+    assert.match(section, /gcalReturnNotice\([^)]*,\s*view\.value\)/)
+    assert.match(section, /said\('gcal\.sync_busy'\)/)
+    assert.doesNotMatch(section, /'gcal\.sync_busy'[^\n]*,\s*true\)/)
+  })
+  it('Sync now re-reads until the last sync moves, and leaving the page stops it', () => {
+    assert.match(section, /follower\.start\(before\)/)
+    assert.match(section, /onBeforeUnmount\(\(\) => follower\.stop\(\)\)/)
+  })
+})
+
+// SPL-5726 review W1/N2: the re-read run driven with hand-fired timers and
+// reads the test resolves. Red control: the first version re-armed a timer
+// from a read that landed after the page was left (5 more GETs over 25 s).
+describe('SPL-5726 gcalSyncFollower', () => {
+  function rig() {
+    const timers = []
+    const pending = []
+    const seen = []
+    const f = gcalSyncFollower(
+      () => new Promise((res) => pending.push(res)),
+      (st) => seen.push(st),
+      { reads: 6, ms: 1, setT: (fn) => { timers.push(fn); return timers.length }, clearT: (id) => { timers[id - 1] = null } },
+    )
+    const live = () => timers.filter(Boolean).length
+    const fire = () => { const i = timers.findIndex(Boolean); const fn = timers[i]; timers[i] = null; fn() }
+    const tick = () => new Promise((r) => setImmediate(r))
+    return { f, pending, seen, live, fire, tick }
+  }
+  it('reads until last_synced_at moves', async () => {
+    const r = rig()
+    r.f.start('t0')
+    r.fire(); r.pending.shift()({ last_synced_at: 't0' }); await r.tick()
+    assert.equal(r.live(), 1)
+    r.fire(); r.pending.shift()({ last_synced_at: 't1' }); await r.tick()
+    assert.equal(r.live(), 0)
+    assert.equal(r.seen.length, 2)
+  })
+  it('stops after its reads run out', async () => {
+    const r = rig()
+    r.f.start('t0')
+    let reads = 0
+    while (r.live()) { r.fire(); reads++; r.pending.shift()({ last_synced_at: 't0' }); await r.tick() }
+    assert.equal(reads, 6)
+  })
+  it('stop() during a read in flight: the read is dropped and nothing re-arms (W1)', async () => {
+    const r = rig()
+    r.f.start('t0')
+    r.fire()
+    r.f.stop()
+    r.pending.shift()({ last_synced_at: 't0' }); await r.tick()
+    assert.equal(r.live(), 0)
+    assert.equal(r.pending.length, 0)
+    assert.equal(r.seen.length, 0)
+  })
+  it('a second start() during a read in flight leaves one run (N2)', async () => {
+    const r = rig()
+    r.f.start('t0')
+    r.fire()
+    r.f.start('t0')
+    r.pending.shift()({ last_synced_at: 't0' }); await r.tick()
+    assert.equal(r.live(), 1)
+    assert.equal(r.seen.length, 0)
+  })
+  it('a failed read stays quiet and the run goes on', async () => {
+    const r = rig()
+    r.f.start('t0')
+    r.fire(); r.pending.shift()(Promise.reject(new Error('network'))); await r.tick()
+    assert.equal(r.seen.length, 0)
+    assert.equal(r.live(), 1)
   })
 })
 

@@ -382,6 +382,9 @@ calendar.
   and allow access. Google sends you back to this section, which then shows
   your Google account, the synced calendar, the connection status and the
   last sync. **Sync now** asks for a sync at once.
+  When the status reads **Connected**, the connection works, whatever the
+  page said on the way back. If a sync is already running, **Sync now**
+  says so; the last sync time updates when that sync ends.
 - **Reconnect**: when the status reads **Access revoked** or **Sync error**,
   the reason shows under it; click **Reconnect** to connect again.
 - **Disconnect**: click **Disconnect**. Spool Hub revokes its access at

@@ -48,13 +48,67 @@ export function gcalBannerKey(status) {
   return status.status === 'revoked' ? 'gcal.status_revoked' : 'gcal.status_error'
 }
 
-/** The notice key for the callback's way back (?gcal=connected, ?gcal_error=<code>), '' for none. */
-export function gcalReturnNotice(query) {
+/**
+ * The notice key for the callback's way back (?gcal=connected,
+ * ?gcal_error=<code>), '' for none. An error shows only while it is true
+ * (SPL-5726): not before the status is read (view 'loading'), and not once
+ * the status reads connected. The browser can request the callback twice
+ * (prd 2026-11-16, 0.4 s apart): the first request connects, the second
+ * finds its code used (invalid_grant) and sends ?gcal_error=code_expired,
+ * the redirect the browser follows last.
+ * @param {Record<string, unknown> | null} query the page's route query
+ * @param {string} [view] the section's view (gcalView), when known
+ */
+export function gcalReturnNotice(query, view) {
   if (!query) return ''
   const one = (v) => String((Array.isArray(v) ? v[0] : v) ?? '')
   if (one(query.gcal) === 'connected') return 'gcal.notice_connected'
-  if (one(query.gcal_error)) return 'gcal.notice_error'
-  return ''
+  if (!one(query.gcal_error)) return ''
+  return view === 'loading' || view === 'connected' ? '' : 'gcal.notice_error'
+}
+
+/** SPL-5726: re-reads after Sync now, until the last sync moves: how many, how far apart. */
+const GCAL_SYNC_REREADS = 6
+const GCAL_SYNC_REREAD_MS = 5000
+
+/**
+ * SPL-5726: the quiet re-read after Sync now. start(before) reads the status
+ * every `ms`, up to `reads` times, until its last_synced_at is not `before`;
+ * a new start() or stop() ends the run before it. A read already in flight
+ * when that happens is dropped when it lands: it neither reports nor reads
+ * again (the review's W1: a page left mid-read kept reading for 25 s).
+ * @param {() => Promise<any>} read the status GET
+ * @param {(status: any) => void} onStatus called with each read of a live run
+ * @param {{ reads?: number, ms?: number, setT?: typeof setTimeout, clearT?: typeof clearTimeout }} [opts]
+ */
+export function gcalSyncFollower(read, onStatus, opts = {}) {
+  const reads = opts.reads ?? GCAL_SYNC_REREADS
+  const ms = opts.ms ?? GCAL_SYNC_REREAD_MS
+  const setT = opts.setT ?? setTimeout
+  const clearT = opts.clearT ?? clearTimeout
+  let gen = 0
+  let timer = null
+  const stop = () => {
+    gen++
+    if (timer) clearT(timer)
+    timer = null
+  }
+  const next = (run, before, left) => {
+    timer = null
+    if (left <= 0) return
+    timer = setT(async () => {
+      timer = null
+      let st
+      try { st = await read() } catch { st = undefined }
+      if (run !== gen) return
+      if (st !== undefined) onStatus(st)
+      if (st === undefined || st?.last_synced_at === before) next(run, before, left - 1)
+    }, ms)
+  }
+  return {
+    start(before) { stop(); next(gen, before, reads) },
+    stop,
+  }
 }
 
 /** The hub URL of a route: ?workspace=<the page's workspace> first, then params. */

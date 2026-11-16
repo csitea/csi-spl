@@ -1,4 +1,4 @@
-# Perf round 12: editor seat (c-616, claude) - WORK IN PROGRESS
+# Perf round 12: editor seat (c-616, claude)
 
 State written at the 10:20Z rotation on 2026-11-16. This is not the plan yet:
 `perf-round-12-plan.md` is not drafted. Issue SPL-5701, epic SPL-2402, spec
@@ -66,12 +66,17 @@ checkouts `T` and `T2` of `a8a54cf44`, each with one planted red line in
 
 B's base re-check ran 1 file (A's ran 50) and named the same failure
 (`FAIL: 99. planted pre-existing red`), so the verdict stays
-WARN-pre-existing. Runs 3-5 were still running at the rotation.
+WARN-pre-existing. Runs 3-5 died with the 10:16Z rotation (`pp-A-3.tree.out`
+stopped at 10:16Z, no `abpp` process left). The next session restarted them at
+10:16Z detached (`setsid nohup ./abpp-run.sh 5 3`), so a rotation no longer
+stops them; results append to `pp-runs.log` as before.
 
 ### 2.3 Candidate row 02: the iac re-check the same way (prepared, not run)
 
 `abiac.sh` / `abiac-run.sh 5` in the probe dir: arm A runs the iac suite
-(fast tier) twice; arm B runs it once, then `IAC_TEST_ONLY=<failed>`.
+(fast tier) twice; arm B runs it once, then `IAC_TEST_ONLY=<failed>`. Started
+10:16Z detached (`setsid nohup ./abiac-run.sh 5 1`), beside the orc runs 3-5,
+on the same two clones; results go to `iac-runs.log`.
 
 ### 2.4 Screened, no row (n=1, on `a8a54cf44`, `stamp.sh`)
 
@@ -97,10 +102,21 @@ WARN-pre-existing. Runs 3-5 were still running at the rotation.
 - Agent kinds, 09:24Z: `off [qwen], paused []`. `command -v agy grok vibe` on
   the desk box finds all three.
 
+### 3.1 R3 re-read at 10:17Z (on `origin/master` `302ac11ce`)
+
+- 4.4 share: `perf 16 refactor 108 perf-share 12.9% under-20`; slug 0 lines,
+  0 paths.
+- Lane map 10:17:34Z, the same paths -> exit 4: 0 `owned by`, 10 `unknown:`,
+  all sat (c-193, c-197, c-326, c-433, c-515, c-519, c-521, c-523, c-525,
+  c-762).
+- Spawn queue 10:17:41Z -> 4 queued, 2 placing (slugs in the plan, 3.2).
+- Agent kinds (through the prd SA key): `off [qwen], paused []`.
+- Dispatch lease holder 10:1xZ: **c-003@sat** (it was c-002@sat at 09:24Z).
+
 ## 4. Next
 
 1. Finish 2.2 (n=5) and run 2.3 (n=5) on `a8a54cf44`.
-2. Draft `perf-round-12-plan.md`. Rows 01 (orc) and 02 (iac) both edit
+2. Done in v0.1: `perf-round-12-plan.md`. Rows 01 (orc) and 02 (iac) both edit
    `check-pre-push.func.sh`, so they go in batch 1 and batch 2. Push it to
    `review/c002-perf-round-12-planner`.
 3. Ask the holder for a grok seat and an agy seat on the desk box.

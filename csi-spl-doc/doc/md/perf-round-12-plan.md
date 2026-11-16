@@ -1,0 +1,260 @@
+# Perf round 12 (p12) - plan (2 rows)
+
+Epic: SPL-2402  
+Spec: csi-spl-doc/specs/027-spool-performance  
+Class: refactor  
+Kind: specs_and_docs  
+Issue: SPL-5701  
+Topic: 32d81359-7971-4033-92e7-450b1e153424  
+
+This is the sixth round under section 4 of [rounds-rulebook.md](rounds-rulebook.md)
+(perf rounds). The plan points to the rules and does not copy them:
+
+- Sections 1 to 3: at most 10 rows; per row, aim for 1 push, up to 3, never
+  more than 5; R1-R16.
+- Sections 4.1 to 4.5: every row is measured first and lands with a counting or
+  timing test and its red control. A candidate with no measured gain is
+  dropped.
+
+Owner orders that bind this round:
+
+- Owner HUM-10 msg 3d22fcea: rounds need no owner go (rulebook 1.4, 4.2).
+- Owner HUM-10 msg 98dedfc4: under the 20% perf floor, the holder requests the
+  next perf round's planner instead of refactor round N+1's (rulebook 4.4).
+- Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
+  vendor is claude.**
+
+**Status: v0.1, draft, not signed.** Editor: c-616 (claude).
+
+**Why now.** The holder's brief (c-002@sat, 2026-11-16 08:2xZ):
+
+- Perf round 11 is served: p11-01 `6def8d373`, p11-02 `e6fb29099`, p11-03
+  `1e5134ac5` are on `origin/master`.
+- The 4.4 check, re-run here at 10:17:33Z on `302ac11ce`, printed
+  `perf 16 refactor 108 perf-share 12.9% under-20` (on `a8a54cf44` at 09:2xZ
+  it printed the same line). So the planner after the open refactor round is
+  a perf round.
+
+The slug, re-read at 10:17:33Z on `302ac11ce`:
+
+- `git log origin/master --oneline -E --grep='\(p12-'` -> 0 lines.
+- `git ls-tree -r --name-only origin/master | grep -c perf-round-12` -> 0.
+
+**One sha.** Every row baseline below was measured on **`a8a54cf44`**
+(`origin/master` at 09:22Z), on the desk box (16 cpus), 2026-11-16 from
+09:2xZ. The row files did not change after it:
+`git diff --stat a8a54cf44 302ac11ce -- csi-spl-iac/src/bash/run/check-pre-push.func.sh csi-spl-orc/src/bash/tests/run-all-tests.sh csi-spl-iac/src/bash/tests/run-all-tests.sh`
+prints nothing. The 1-minute load is printed beside each run. Both arms of a
+pair start together on two clones of the same sha, and the clones swap arms
+on every run. Raw commands and outputs: [perf-round-12/editor.md](perf-round-12/editor.md);
+probe scripts and result files: `/var/tmp/c616-probe/` on the desk box.
+
+**Retro.** There is no `perf-round-11-retro.md` on `origin/master`, and no p9
+or p10 retro
+(`git ls-tree -r --name-only a8a54cf44 | grep -cE 'perf-round-(9|10|11)-retro'`
+-> 0). This plan does not stand in for them and does not guess their content.
+It reads `perf-round-11-plan.md` (its section 6 first), the seat files under
+`perf-round-11/`, `perf-round-10-plan.md`, `perf-round-5-retro.md` and
+`lesson-speed-up-measure-first.md`.
+
+<a id="p12-how-to-read"></a>
+## 1. How to read this
+
+- A row is one logical change made by one lane, with the subject
+  `perf(p12-<NN>-<slug>, SPL-<n>): ...` and the review branch `review/p12-<NN>`
+  (rulebook 4.5).
+- **Baseline** = the command, the number and `n`, on `a8a54cf44`.
+- **After (probe)** = the same command on a scratch prototype of the change.
+  The prototype is never committed. It shows the gain is real; the lane
+  re-measures it on its own tree.
+- **Test + red control (C2)**: the counting test the row lands with, and the
+  plant that must turn it RED before the fix turns it GREEN. Both outputs go in
+  the commit body.
+- Paths: `orc/` = `csi-spl-orc/`, `iac/` = `csi-spl-iac/`. `cpp` =
+  `iac/src/bash/run/check-pre-push.func.sh`.
+- **Why these two.** Over 24 h on the desk box (editor 2.1), a failed `orc`
+  part costs much more than a green one: PASS n=51, mean 258 s;
+  WARN-pre-existing n=15, mean 1,405 s (928..2,318 s). Over 7 days the
+  WARN-pre-existing runs of four parts took 75,773 s: `iac` 33 runs
+  (24,742 s), `wui` 27 (22,930 s), `orc` 15 (21,081 s), `orc-features` 11
+  (7,020 s). This is the waiting the holder's brief relayed from c-426@sat
+  (SPL-5683): orc 1,645..3,206 s per try, every try lost the race to trunk.
+- **The cause** (read in `cpp` on `a8a54cf44` and `302ac11ce`): when a part
+  fails, `_pp_run` (`:1067-1078`) runs the **whole** part again on the base
+  ref, only to tell a pre-existing red from a new one. `_pp_compare`
+  (`:1265-1286`) then asks one question: does every item that fails on the
+  tree also fail on the base? The base run only needs the items that failed on
+  the tree. The other files are re-run to no purpose: a file that passed on
+  the tree is not compared at all.
+
+<a id="p12-inputs"></a>
+## 2. Where the rows come from
+
+Inputs read (brief step 2). Each carried finding was re-checked on
+`a8a54cf44`:
+
+| input | finding | on the tree | here |
+|---|---|---|---|
+| holder's brief: c-426@sat's pre-push log (SPL-5683, n=4) | orc part 1,645..3,206 s per try, rc=1 recorded as WARN-pre-existing every try | re-measured on the desk box's own log (n=15 orc WARN-pre-existing in 24 h, mean 1,405 s) and traced to the whole-part base re-check (section 1) | **rows 01, 02** |
+| `perf-round-11-plan.md` section 6, "the suite parts beyond rows 01 and 02 (`wui`, `api`, `wui-e2e`, `iac`, `orc-features`, `lint-gosec`)", counted, not probed | sums over 24 h | the largest cost in them is the red runs' re-check, not the green runs (editor 2.1) | **rows 01, 02** (orc, iac); wui and orc-features in section 6 |
+| `perf-round-11-plan.md` section 6, a per-case wait audit of `lane-rotate`, `wd-fence`, `desk-move`, `orch-rotate`, `wd-self-update` | input for round 12 | `stamp.sh`, n=1 per file: the largest single gap is 4.0..13.4 s, among many 5..10 s case waits of the code under test; no wait stands out (editor 2.4) | section 6, dropped |
+| `perf-round-11-plan.md` section 6, `commit-links`' prd key lookup, `iac-cross`, a-827's inputs 3 and 5, `fsync=off`, lab Postgres, p5 inputs, `_spool_bin_stale`, spec 027 rows | carried | not re-measured: this seat reads no key, starts no container and reads no prd data | section 6, carried |
+| `perf-round-11/seat-agy.md`, `seat-grok.md` | notes on p11 rows 01-03 | all three rows landed; no note names a new candidate | - |
+| `perf-round-10-plan.md` | read through p11 section 6 | - | - |
+| `perf-round-5-retro.md` section 5 | five inputs | as p11 says: 2 landed as p7-01; 1 and 3 need a lab; 4 and 5 are not perf work | - |
+| `lesson-speed-up-measure-first.md` | time the real waiting, count the cost, guard it with a counting test | applied: the log first (editor 2.1), then the code path, then an A/B under the same load (editor 2.2, 2.3) | - |
+| new, this seat | CI workflow 10's slowest shards | 11 green runs on master: wui e2e shards 692..1,166 s, orc shards 581..1,054 s; the slowest shard differs from run to run, so a rebalance has no measured gain | section 6, dropped |
+
+<a id="p12-rows"></a>
+## 3. The 2 rows
+
+| # | id | practice | baseline on `a8a54cf44` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
+|---|---|---|---|---|---|---|---|---|---|
+| 01 | `perf(p12-01-orc-recheck-failed-files)` | when the `orc` part fails on the tree, its base re-check runs only the orc test files the tree run named `FAILED:` (the `suite <file>` items of the tree signature, `_pp_sig`, `cpp:1246`), not the whole `--changed` plan again; with no such item (e.g. only `bash-cleancode` failed) it re-runs the whole part as today | `abpp.sh <clone> A` (editor 2.2): c-324's change set (50 orc tests), one planted red in `unanswered-sweep.tst.sh`; the base re-check: **672 s, 553 s (n=2)**; the whole failed part: **1,574 s, 1,222 s (n=2)**; load 12.7..39.5 | arm B (base re-check with `ORC_TEST_FILES=<failed> ORC_TEST_ALWAYS=`): base re-check **26 s, 23 s (n=2)**, the whole failed part **927 s, 693 s (n=2), -41% and -43%**. B's base ran 1 file (A's 50) and named the same failure (`FAIL: 99. planted pre-existing red`), so the verdict is WARN-pre-existing in both arms | `cpp:1067-1078` (`_pp_run`, hand the tree signature's suite files to the base run) and `cpp:713-731` (`_pp_part_orc`, on the base tree run only those); 2 edit ranges | new `iac/src/bash/tests/check-pre-push-recheck-narrow.tst.sh`: a stub orc runner records the files each run is asked to run; the tree run fails 1 of 3 files -> the base run is asked for **1** file (today **3**), and the verdict is WARN-pre-existing when the base fails it too, FAIL when the base passes it, as today. A tree failure with no `suite` item (only `bash-cleancode`) -> the base runs the whole part (today's behaviour kept). Red: today's `_pp_run` -> 3 files on the base, FAIL. Also run and green: **`check-pre-push-baseline.tst.sh`**, **`check-pre-push-verdict-forks.tst.sh`**, **`check-pre-push-timeout-red-trunk.tst.sh`**, **`check-pre-push-budget-table.tst.sh`**, `check-pre-push.tst.sh`, `check-pre-push-errexit.tst.sh`, `check-pre-push-orphan-pipe.tst.sh`, `bash-cleancode.tst.sh` | either fleet box | claude / simple_coding (R9: a gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1, after R3 (below) |
+| 02 | `perf(p12-02-iac-recheck-failed-files)` | the same for the `iac` part: its base re-check runs only the iac files the tree run named `FAILED:`, through the runner's own filter `IAC_TEST_ONLY` (`iac/src/bash/tests/run-all-tests.sh:28,58-64`) | `abiac.sh <clone> A` (editor 2.3): the iac suite, fast tier, one planted red in `gh-box-token.tst.sh`, run twice as today: **see editor 2.3 (n and numbers filled in v0.2)** | arm B (`IAC_TEST_ONLY=<failed>`): **editor 2.3** | `cpp:671-676` (`_pp_part_iac`); 1 edit range, using the hand-over row 01 adds to `_pp_run` | the same new test, an iac case: the tree run fails 1 iac file -> the base run is asked for **1** file (today the whole suite). Red: today's `_pp_part_iac` -> the whole suite on the base, FAIL. Same column as row 01 | either fleet box | claude / simple_coding (R9) | **2**, after row 01 lands (R1: both edit `cpp`) |
+
+Rows 01-02 are both claude. Two rules require it: rulebook R14 (an established
+vendor for every row) and the owner's 10-17 rule (no mistral coding or
+testing).
+
+<a id="p12-batches"></a>
+### 3.1 Batches and disjoint files (R1)
+
+- **Batch 1**: row 01. Files: `cpp` and the new
+  `check-pre-push-recheck-narrow.tst.sh`.
+- **Batch 2**: row 02, spawned within 30 min of row 01 landing (R16). It edits
+  `cpp` and the same new test, so it cannot run beside row 01.
+- No row file is a file of an unlanded round row: on `302ac11ce` (10:17:33Z)
+  p11-01..03 have landed and r60, r61 have 0 lines
+  (`git log origin/master --format=%s -E --grep='\(<r>-[0-9]{2}-'`).
+
+<a id="p12-r3"></a>
+### 3.2 Off every live lane, every queued row and every open round row (R3)
+
+Read on 2026-11-16, each with its time:
+
+- **Lane map, every machine** (10:17:34Z, one call): `lane-map.sh --check <cpp,
+  orc run-all-tests.sh, iac run-all-tests.sh, this plan, its seat file> --agent
+  c-616` -> exit 4. It printed `0` lines `owned by` and `10` lines `unknown:`,
+  all lanes on sat that record no files:
+  - 3 rotation seats: c-193, c-197, c-762.
+  - c-326 (`64ca-t10-fewer-rollouts-one-login`), c-433
+    (`64ca-t7-bench-back-one-post`), c-515
+    (`bug-rotate-open-takes-archived-answered`), c-519
+    (`feat-s143-b4-api-store-release-projects`), c-521
+    (`feat-invited-inactive-member`), c-523
+    (`feat-member-phone-first-last-name`), c-525 (`s155-b11-note-on-ask-store`).
+  - None of these slugs names the pre-push gate. Exit 4 is not free: the R3
+    check before each spawn re-reads the map and asks any lane still unknown.
+  - The earlier read (09:24:37Z) had 8 unknown, c-426 (SPL-5683, the lane
+    whose log the brief relayed) not among them.
+- **Spawn queue** (10:17:41Z, `ENV=prd SPAWN_QUEUE_SHARE=0 ./run -a
+  do_spl_spawn_queue`) -> `4 queued, 2 placing`:
+  `s179-pause-agents-of-a-discussion-spec` (agy, a spec),
+  `bug-hubclient-sendframe-unkeyed-error`, `agy-memory-edit-after-review-gap`,
+  `955ab0bd-event-types-causes`; placing `spl5704-open-takes-claude-waiver-reviewer`,
+  `spl4835-lane-console-keep-clear`. The one brief readable here
+  (`c002-s179-pause-agents-of-a-discussion-spec.md`) names `check-pre-push` 0
+  times; the others were queued on sat, so the holder reads them before row 01
+  spawns. No slug names the pre-push gate.
+- **Unlanded round rows** (10:17:33Z, on `302ac11ce`): p11-01..03 landed; r60
+  and r61 have 0 lines.
+
+<a id="p12-per-row"></a>
+## 4. Per row: what the lane does
+
+- **01**:
+  - `_pp_run` already has the tree signature (`tsig`, `cpp:1071`) before it
+    builds the base tree. The lane takes its `suite <file>` items and hands
+    them to the base run of the same part, e.g. in a variable the part reads
+    only when it runs on `_PP_BASE_WT` (the name is the lane's; it is unset
+    again after the base run, so the next part never sees it).
+  - `_pp_part_orc`, on the base tree with that list set, runs
+    `run-all-tests.sh --changed` with `ORC_TEST_FILES=<the failed files>` and
+    `ORC_TEST_ALWAYS=` (empty), so the always-run list is not added again; the
+    probe did exactly this (editor 2.2, arm B). It still runs
+    `bash-cleancode.tst.sh` on the base as today, so a cleancode red keeps its
+    re-check.
+  - With no `suite` item in `tsig` the base runs the whole part, as today.
+  - The verdict code (`_pp_compare`, `_pp_timed_out`) is not changed. A
+    TIMED OUT tree run is refused as today (`cpp:1083-1084`); its base run is
+    not narrowed (its signature is cut).
+  - The comment above `_pp_run` (`cpp:1021-1025`) and above `_pp_part_orc`
+    (`cpp:686-688`, "the trunk re-check runs the same files") change to say the
+    base runs only the files that failed, and why: the verdict compares only
+    those (C5).
+  - The lane re-runs `abpp.sh` (n=3) on its tree and states the base re-check
+    seconds and the verdict line of both arms.
+- **02**: after row 01 lands, `_pp_part_iac` on the base tree with the list
+  set runs `IAC_TEST_ONLY="<the failed basenames>"`. The runner exits 2 when a
+  name is not a file there (`run-all-tests.sh:60`); a file the tree added does
+  not exist on the base, so the lane drops names that are not files on the
+  base tree before it sets `IAC_TEST_ONLY` (a dropped name is NEW by
+  `_pp_compare`, which is right: it cannot fail on trunk). The lane re-runs
+  `abiac.sh` (n=3).
+- **Both rows**, the gain per red push: the base re-check falls from the whole
+  part (orc 553..672 s here) to the failed files (23..26 s). The pre-push log
+  shows how often that runs: 15 orc and 33 iac WARN-pre-existing runs in 7
+  days (editor 2.1). The plan does not multiply those into a weekly saving: the
+  red runs' plans differ in size from the probe's.
+
+<a id="p12-panel"></a>
+## 5. Panel and reviewers (R7)
+
+Read on 2026-11-16 10:1xZ: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
+`off [qwen], paused []`, so grok, agy and mistral may be placed. Mistral is for
+docs and reviews only (owner 10-17); its code reviews stay paused (owner 10-30,
+cf7a7ee5), as p11 read it. The desk box has agy, grok and vibe
+(`command -v agy grok vibe` -> three paths); sat has no agy (the holder's
+brief).
+
+- **Plan panel (rulebook 3.2)**: editor c-616 (claude). I ask the dispatch
+  holder for one **grok** seat and one **agy** seat, both on the desk box, so
+  the panel signs without needing agy on sat. Each seat signs the plan sha in
+  `perf-round-12/seat-<vendor>.md`.
+- **Row reviewers (2.7.2)**: both rows' author is claude, so the grok seat is
+  the primary reviewer and the agy seat the backup. A row never pushes without
+  that PASS (2.7.3).
+
+<a id="p12-left-out"></a>
+## 6. Left out, measured or not measurable here
+
+| candidate | why not a row | measurement |
+|---|---|---|
+| the same narrowed re-check for `wui` (27 WARN-pre-existing in 7 days, 22,930 s) and `orc-features` (11, 7,020 s) | **not probed here**: their runners (vitest and the features runner) take a file filter in another form, and this seat ran no A/B for them | counted in editor 2.1; input for round 13, after rows 01-02 show the hand-over |
+| a per-case wait audit of `lane-rotate`, `wd-fence`, `desk-move`, `orch-rotate`, `wd-self-update` (p11's input) | **dropped, no wait stands out** | `stamp.sh`, n=1 per file on `a8a54cf44`: largest single gap 4.0..13.4 s, among many 5..10 s waits of the code under test (editor 2.4) |
+| rebalancing CI workflow 10's orc and wui e2e shards | **dropped, no measured gain**: the slowest shard differs from run to run | 11 green master runs: wui e2e 692..1,166 s, orc 581..1,054 s (editor 2.4); counted, not probed |
+| `commit-links`' prd key lookup and hub call | **not here**: measuring it reads the prd key | carried from p10 and p11 for a secret-class lane |
+| `iac-cross`'s `gcloud-account-pinned.tst.sh`; a-827's inputs 3 and 5 | not re-measured | carried |
+| test Postgres `fsync=off` (spec 027 row 6), p5 inputs 1 and 3, p6-08 / p6-09 | need a container, a lab Postgres or a built bundle and Chrome; this seat starts nothing | carried |
+| p5 inputs 4 and 5; `_spool_bin_stale`, spec 027 rows 2-4 and 7, p8-03 | not perf work, or no gain (p7, p8 section 6) | not re-measured |
+
+No finding of this seat is non-perf work, so no ask went to the orchestrator.
+
+<a id="p12-counts"></a>
+## 7. Counts
+
+- Rows: 2 (rulebook 1.1: at most 10). Row 01 in batch 1, row 02 in batch 2.
+- Every row aims for one push (1.2) and lands with a counting test and its red
+  control (4.1).
+- Status (R6): `git fetch origin master && git log origin/master --grep='(p12-' --format='%h %cI %s'`.
+- Review count (2.7.5): `git log origin/master --grep='p12-' --format=%B | grep -c '^review: '` must reach 2.
+
+<a id="p12-changes"></a>
+## 8. Changes
+
+Qto (rulebook 4.5): this file is imported once into the `system` workspace with
+`do_spl_doctree_import_md` (`QTO_FS=repo`, `TENANT_ID=t1`) after the panel
+signs and the plan lands on `master`, not from the review branch, as in rounds
+8 to 11. From then on the Qto doc is the primary copy.
+
+- v0.1 (c-616, 2026-11-16): first draft, 2 rows on `a8a54cf44`. Row 01's A/B
+  has n=2 of 5 and row 02's baseline is still running (editor 2.2, 2.3); v0.2
+  fills them in before the panel signs.
+
+<a id="p12-consensus"></a>
+## 9. Consensus
+
+| seat | vendor | plan sha | verdict |
+|---|---|---|---|
+| c-616 (editor) | claude | v0.1 | author |

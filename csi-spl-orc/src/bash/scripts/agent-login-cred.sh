@@ -12,11 +12,27 @@
 #                               kept as <file>.bak-login-<UTC> (the newest
 #                               LOGIN_BAK_KEEP, default 5), written to a temp
 #                               file in the same dir, then mv; prints "<sha12>"
+#   agent-login-cred.sh acct    the account label "acct-<8 hex>" (sha256 of
+#                               oauthAccount.accountUuid), or "none"
+#   agent-login-cred.sh acctget {oauthAccount, hasCompletedOnboarding} of the
+#                               login's .claude.json (only ever into a pipe)
+#   agent-login-cred.sh acctput those two fields from stdin, merged into the
+#                               login's .claude.json (temp + mv, 600); nothing
+#                               else of the file changes; prints the new label
+#
+# Every op takes an optional SLOT, the second argument (SPL-5695, spec 060
+# add-on claude-account-failover.md): 1 (default) is the agent user's main
+# login (~/.claude/.credentials.json, ~/.claude.json), 2 its second folder
+# (LOGIN_CRED_DIR2, default ~/.claude-2: .credentials.json and .claude.json
+# inside it, the probe under CLAUDE_CONFIG_DIR=<that folder>). A slot 2 put
+# keeps the old one as .bak-login2-<UTC>.
 #
 # It never prints credential content: a sha256 prefix (12 chars) at most.
 # Settings: SPOOL_ROOT (box.env: SPOOL_AGENT_USER), LOGIN_AGENT_USER,
-# LOGIN_CLAUDE_BIN. Test seams: LOGIN_CRED_FILE (the file), LOGIN_SUDO (the
-# prefix, "" = none), LOGIN_PROBE_CMD (the probe command line).
+# LOGIN_CLAUDE_BIN. Test seams: LOGIN_CRED_FILE (the slot 1 file),
+# LOGIN_JSON_FILE (the slot 1 .claude.json), LOGIN_AGENT_HOME (the agent
+# user's home), LOGIN_SUDO (the prefix, "" = none), LOGIN_PROBE_CMD (the
+# probe command line; it sees LOGIN_PROBE_SLOT).
 # Exit: 0 done, 1 failed, 2 usage.
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
@@ -38,8 +54,15 @@ LC_USER="$(lc_user)"
 if [ -n "${LOGIN_SUDO+x}" ]; then LC_SU="$LOGIN_SUDO"
 elif [ "$LC_USER" = "$(id -un)" ]; then LC_SU=""
 else LC_SU="sudo -n -u $LC_USER"; fi
-LC_HOME="$(getent passwd "$LC_USER" | cut -d: -f6)"
-LC_FILE="${LOGIN_CRED_FILE:-$LC_HOME/.claude/.credentials.json}"
+LC_HOME="${LOGIN_AGENT_HOME:-$(getent passwd "$LC_USER" | cut -d: -f6)}"
+LC_SLOT="${2:-1}"
+case "$LC_SLOT" in
+  1) LC_DIR2=""; LC_FILE="${LOGIN_CRED_FILE:-$LC_HOME/.claude/.credentials.json}"
+     LC_JSON="${LOGIN_JSON_FILE:-$LC_HOME/.claude.json}"; LC_BAK=bak-login ;;
+  2) LC_DIR2="${LOGIN_CRED_DIR2:-$LC_HOME/.claude-2}"; LC_FILE="$LC_DIR2/.credentials.json"
+     LC_JSON="$LC_DIR2/.claude.json"; LC_BAK=bak-login2 ;;
+  *) echo "usage: the slot is 1 or 2, got: '$LC_SLOT'" >&2; exit 2 ;;
+esac
 
 # shellcheck disable=SC2086  # LC_SU is a command prefix, split on purpose
 lc_as() { $LC_SU "$@"; }
@@ -57,6 +80,7 @@ lc_stat() {
 lc_put() {
   local tmp ts
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  lc_mkdir2 || { echo "put: cannot make ${LC_FILE%/*}" >&2; return 1; }
   tmp="$(lc_as mktemp "${LC_FILE%/*}/.cred-in.XXXXXX")" || { echo "put: cannot make a temp file" >&2; return 1; }
   # shellcheck disable=SC2016  # expanded by the inner shell
   lc_as bash -c 'umask 077; cat > "$1"' _ "$tmp" || { lc_as rm -f "$tmp"; return 1; }
@@ -64,11 +88,41 @@ lc_put() {
     lc_as rm -f "$tmp"; echo "put: refused: the input is no Claude login" >&2; return 1
   fi
   lc_as chmod 600 "$tmp" || { lc_as rm -f "$tmp"; return 1; }
-  if lc_as test -e "$LC_FILE"; then lc_as cp -p "$LC_FILE" "$LC_FILE.bak-login-$ts" || { lc_as rm -f "$tmp"; return 1; }; fi
+  if lc_as test -e "$LC_FILE"; then lc_as cp -p "$LC_FILE" "$LC_FILE.$LC_BAK-$ts" || { lc_as rm -f "$tmp"; return 1; }; fi
   lc_as mv -f "$tmp" "$LC_FILE" || { lc_as rm -f "$tmp"; return 1; }
   # shellcheck disable=SC2016
-  lc_as bash -c 'ls -1 "$1".bak-login-* 2>/dev/null | sort -r | tail -n +$(( $2 + 1 )) | xargs -r rm -f' _ "$LC_FILE" "${LOGIN_BAK_KEEP:-5}"
+  lc_as bash -c 'ls -1 "$1".$3-* 2>/dev/null | sort -r | tail -n +$(( $2 + 1 )) | xargs -r rm -f' _ "$LC_FILE" "${LOGIN_BAK_KEEP:-5}" "$LC_BAK"
   lc_as sha256sum "$LC_FILE" | cut -c1-12
+}
+
+# The second folder, made 700 when a slot 2 write needs it; slot 1: nothing.
+lc_mkdir2() {
+  [ -n "$LC_DIR2" ] || return 0
+  lc_as mkdir -p "$LC_DIR2" && lc_as chmod 700 "$LC_DIR2"
+}
+
+# The account label of the slot's .claude.json: "acct-<8 hex>", or "none".
+lc_acct() {
+  local u
+  u="$(lc_as jq -r '.oauthAccount.accountUuid // empty' "$LC_JSON" 2>/dev/null)"
+  if [ -n "$u" ]; then printf 'acct-%s\n' "$(printf '%s' "$u" | sha256sum | cut -c1-8)"; else echo none; fi
+}
+
+# Merge {oauthAccount, hasCompletedOnboarding} from stdin into the slot's
+# .claude.json (Q3 of the design: nothing else crosses boxes), temp + mv, 600.
+lc_acctput() {
+  local in tmp
+  in="$(jq -c '{oauthAccount, hasCompletedOnboarding}' 2>/dev/null)"
+  jq -e '.oauthAccount.accountUuid | strings | length > 0' >/dev/null 2>&1 <<<"$in" ||
+    { echo "acctput: refused: the input names no account" >&2; return 1; }
+  lc_mkdir2 || return 1
+  tmp="$(lc_as mktemp "${LC_JSON%/*}/.acct-in.XXXXXX")" || return 1
+  # shellcheck disable=SC2016  # expanded by the inner shell
+  if ! lc_as bash -c 'umask 077; { cat "$2" 2>/dev/null || echo "{}"; } | jq -c --argjson a "$3" ". + \$a" > "$1"' _ "$tmp" "$LC_JSON" "$in" ||
+     ! lc_as chmod 600 "$tmp" || ! lc_as mv -f "$tmp" "$LC_JSON"; then
+    lc_as rm -f "$tmp"; return 1
+  fi
+  lc_acct
 }
 
 lc_probe() {
@@ -76,9 +130,9 @@ lc_probe() {
   if [ -n "${LOGIN_PROBE_CMD:-}" ]; then cmd="$LOGIN_PROBE_CMD"
   else
     bin="${LOGIN_CLAUDE_BIN:-$LC_HOME/.local/bin/claude}"
-    cmd="$LC_SU env HOME=$LC_HOME timeout ${LOGIN_PROBE_TIMEOUT:-120} $bin -p 'Reply with the single word ok.' --model haiku"
+    cmd="$LC_SU env HOME=$LC_HOME${LC_DIR2:+ CLAUDE_CONFIG_DIR=$LC_DIR2} timeout ${LOGIN_PROBE_TIMEOUT:-120} $bin -p 'Reply with the single word ok.' --model haiku"
   fi
-  out="$(cd / && bash -c "$cmd" </dev/null 2>&1)"; rc=$?
+  out="$(cd / && LOGIN_PROBE_SLOT="$LC_SLOT" bash -c "$cmd" </dev/null 2>&1)"; rc=$?
   out="$(printf '%s' "$out" | tr -s '\n\r\t' '   ' | cut -c1-160)"
   if grep -qiE "$LC_EXPIRED_RE" <<<"$out"; then echo "expired $out"
   elif grep -qiE "$LC_LIMITED_RE" <<<"$out"; then echo "limited $out"
@@ -91,5 +145,8 @@ case "${1:-}" in
   probe) lc_probe ;;
   get)   lc_as cat "$LC_FILE" ;;
   put)   lc_put ;;
-  *) echo "usage: agent-login-cred.sh stat|probe|get|put" >&2; exit 2 ;;
+  acct)  lc_acct ;;
+  acctget) lc_as jq -c '{oauthAccount, hasCompletedOnboarding}' "$LC_JSON" ;;
+  acctput) lc_acctput ;;
+  *) echo "usage: agent-login-cred.sh stat|probe|get|put|acct|acctget|acctput [1|2]" >&2; exit 2 ;;
 esac

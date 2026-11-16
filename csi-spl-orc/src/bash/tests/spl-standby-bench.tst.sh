@@ -175,12 +175,24 @@ wait "$bg" 2>/dev/null
   || fail "SIGTERM: drv=$drv alive=$(alive) out=$(cat "$T/o")"
 
 # --- 8. CONTROL: the liveness check sees a live stub -------------------------------------
+# The stub needs a stdin that stays open while the check runs. A fifo fed by a
+# `sleep 30 &` gives it one with both pids in hand, so the case stops all it
+# started. A pipeline (`sleep 30 | stub &`) would not: `kill` of its `$!` stops
+# only the stub, and `wait` on a pipeline's `$!` waits for every process of the
+# job, here the whole `sleep 30` (perf round 11, p11-01).
 fresh
-sleep 30 | STUB_LOG="$T/calls.log" STUB_PIDS="$T/pids" "$T/stub/claude" --model x >/dev/null 2>&1 &
+mkfifo "$T/stdin8"
+sleep 30 >"$T/stdin8" &
+slp=$!
+STUB_LOG="$T/calls.log" STUB_PIDS="$T/pids" "$T/stub/claude" --model x <"$T/stdin8" >/dev/null 2>&1 &
 ctl=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -s "$T/pids" ]] && break; sleep 0.2; done
 [[ -n "$(alive)" ]] && pass "CONTROL: a live stub is seen" || fail "CONTROL: liveness check blind"
-kill "$ctl" 2>/dev/null; wait "$ctl" 2>/dev/null
+kill "$ctl" "$slp" 2>/dev/null
+case8_stopped() { [[ -z "$(pgrep -P $$ -x sleep)" ]] && pid_gone "$ctl"; }
+if wait_event 2 case8_stopped; then pass "case 8 stops every process it started"
+else left=$(pgrep -P $$ -x sleep | tr '\n' ' '); kill "$ctl" "$slp" $left 2>/dev/null; fail "case 8 left running: sleep $left"; fi
+wait "$ctl" "$slp" 2>/dev/null
 
 # --- 9. mistral: vibe on PATH is skipped by its kind, never started -------------------
 fresh

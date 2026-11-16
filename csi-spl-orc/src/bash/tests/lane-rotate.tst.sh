@@ -86,6 +86,11 @@
 #      it (spl_seat_standing): a "# Seat brief" heading, "You are a STANDING
 #      seat"; control: a plain lane with ACCEPTED is still skipped. Red
 #      control (origin/master 163f10dc8): both seats SKIP accepted.
+#  32. SPL-5728: a pid whose stat vanished mid-scan (a dangling symlink,
+#      sorted before the lane's chain, awk pinned to mawk) hides neither a
+#      gate (DEFER gate) nor a busy test child (DEFER not quiet); control:
+#      the child gone, rotated. Red control (origin/master bba41d0f0): 32a
+#      and 32b FAIL, ERRTRAP on the xargs awk of the scan.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -807,6 +812,30 @@ reset; lane c-318 50; acc31 c-318
 printf '# Lane brief: bug - lane-rotate skips standing seats\n\nThe standing seat c-614 is never rotated.\n' >"$S/c-318/lifetime/brief.md"
 tick
 check "31c. control: a plain lane (its brief only names a standing seat) with ACCEPTED: skipped" 'grep -q "c-318 SKIP accepted" "$T/tick.out" && ! grep -q "lane-c-318 DONE" "$D/rotate.log"'
+
+# --- 32. a pid that exits mid-scan hides no gate and no busy child (SPL-5728) ---
+# c-666 (gate) and c-700 (tests) were rotated on sat 2026-11-16 while their runs
+# were alive: mawk drops the rest of its batch at a stat file that vanished.
+# The vanished pid is a dangling stat symlink (find lists it, nothing reads it);
+# find is sorted so it comes before the lane's chain, and awk is pinned to mawk
+# where the box has it (gawk only warns and goes on).
+vanished() { mkdir -p "$T/proc/$1"; ln -s "$T/proc/$1/gone" "$T/proc/$1/stat"; }
+mkdir -p "$T/pin"
+printf '#!/usr/bin/env bash\n%s "$@" | sort -z\n' "$(command -v find)" >"$T/pin/find"
+[ -x /usr/bin/mawk ] && ln -sf /usr/bin/mawk "$T/pin/awk"
+chmod +x "$T/pin/find"
+reset; lane c-321 70; vanished 1000
+"$T/bin/proc" 4321 600 c-321 bash 2321 "bash ./run -a do_check_pre_push"
+PATH="$T/pin:$PATH" tick
+check "32a. a gate behind a vanished pid: DEFER gate, 0 spawns" '[ "$(n "$T/spawn.log")" = 0 ] && grep -q "c-321 DEFER gate: running .bash ./run -a do_check_pre_push" "$T/tick.out"'
+reset; lane c-322 50; vanished 1000
+"$T/bin/proc" 4322 60 c-322 bash 2322 "bash csi-spl-api/src/bash/tests/run-all-tests.sh"
+PATH="$T/pin:$PATH" tick
+check "32b. a busy test child behind a vanished pid: DEFER names it, 0 spawns" '[ "$(n "$T/spawn.log")" = 0 ] && grep -q "c-322 DEFER not quiet: running .bash csi-spl-api/src/bash/tests/run-all-tests.sh" "$T/tick.out"'
+rm -rf "$T/proc/4322"
+PATH="$T/pin:$PATH" tick
+check "32c. control: the child gone, the vanished pid still there: rotated" 'grep -q "lane-c-322 DONE OK" "$D/rotate.log"'
+check "32. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

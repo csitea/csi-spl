@@ -585,11 +585,14 @@ spl_lane_rotate_busy_child() {
 spl_lane_rotate_child_match() {
   local root="${LEASE_PROC_ROOT:-/proc}" d p pp cl
   local -A kids=()
-  # one awk over every stat file ("<pid> <ppid>"), not a fork per process
+  # one cat and one awk over every stat file ("<pid> <ppid>"), not a fork per
+  # process. cat skips a stat file whose process exited mid-scan; mawk with the
+  # files as arguments dropped the rest of its batch there (SPL-5728)
   while read -r d pp; do
     [[ "$pp" =~ ^[0-9]+$ ]] && kids[$pp]+=" $d"
   done < <(find "$root" -maxdepth 2 -path "$root/[0-9]*/stat" -print0 2>/dev/null |
-    xargs -0 -r awk 'FNR == 1 {f = FILENAME; sub(/\/stat$/, "", f); sub(/^.*\//, "", f); sub(/^.*\) /, ""); print f, $2}' 2>/dev/null)
+    { xargs -0 -r cat 2>/dev/null || true; } |
+    awk '/^[0-9]+ \(/ {p = $1; sub(/^.*\) /, ""); print p, $2}')
   local -a q=("$1")
   while (( ${#q[@]} )); do
     p="${q[0]}"; q=("${q[@]:1}")

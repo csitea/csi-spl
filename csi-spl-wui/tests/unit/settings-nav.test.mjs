@@ -115,6 +115,36 @@ describe('the connection views and the mock flow', () => {
   })
 })
 
+// SPL-5726: prd 2026-11-16, the browser requested the OAuth callback twice
+// 0.4 s apart; the first connected, the second found its code used and sent
+// ?gcal_error=code_expired, so the panel said "was not connected" next to
+// "Connected". Red control: on origin/master 55dcf0449 the error shows for a
+// connected status (gcalReturnNotice ignores the view) and sync_busy is red.
+describe('SPL-5726 the callback error shows only while it is true', () => {
+  const q = { settings: 'calendar-google', gcal_error: 'code_expired' }
+  it('a status read of connected clears it', () => {
+    assert.equal(gcalReturnNotice(q, 'connected'), '')
+  })
+  it('it waits for the status read', () => {
+    assert.equal(gcalReturnNotice(q, 'loading'), '')
+  })
+  it('it stays when the status says it is true', () => {
+    for (const v of ['disconnected', 'broken', 'failed']) assert.equal(gcalReturnNotice(q, v), 'gcal.notice_error', v)
+  })
+  it('the connected notice is unchanged', () => {
+    assert.equal(gcalReturnNotice({ gcal: 'connected' }, 'connected'), 'gcal.notice_connected')
+  })
+  it('the section passes its view, and "a sync is already running" is not a warning', () => {
+    assert.match(section, /gcalReturnNotice\([^)]*,\s*view\.value\)/)
+    assert.match(section, /said\('gcal\.sync_busy'\)/)
+    assert.doesNotMatch(section, /'gcal\.sync_busy'[^\n]*,\s*true\)/)
+  })
+  it('Sync now re-reads until the last sync moves', () => {
+    assert.match(section, /followSync\(before, GCAL_SYNC_REREADS\)/)
+    assert.match(section, /onBeforeUnmount\(/)
+  })
+})
+
 // SPL-5719: a connection Google ended (invalid_grant) or one in error shows
 // on the Calendar page with Reconnect; nothing else does. Red control: on
 // origin/master before SPL-5719 there is no gcalBannerKey and no banner file.

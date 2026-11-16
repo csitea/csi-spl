@@ -48,14 +48,28 @@ export function gcalBannerKey(status) {
   return status.status === 'revoked' ? 'gcal.status_revoked' : 'gcal.status_error'
 }
 
-/** The notice key for the callback's way back (?gcal=connected, ?gcal_error=<code>), '' for none. */
-export function gcalReturnNotice(query) {
+/**
+ * The notice key for the callback's way back (?gcal=connected,
+ * ?gcal_error=<code>), '' for none. An error shows only while it is true
+ * (SPL-5726): not before the status is read (view 'loading'), and not once
+ * the status reads connected. The browser can request the callback twice
+ * (prd 2026-11-16, 0.4 s apart): the first request connects, the second
+ * finds its code used (invalid_grant) and sends ?gcal_error=code_expired,
+ * the redirect the browser follows last.
+ * @param {Record<string, unknown> | null} query the page's route query
+ * @param {string} [view] the section's view (gcalView), when known
+ */
+export function gcalReturnNotice(query, view) {
   if (!query) return ''
   const one = (v) => String((Array.isArray(v) ? v[0] : v) ?? '')
   if (one(query.gcal) === 'connected') return 'gcal.notice_connected'
-  if (one(query.gcal_error)) return 'gcal.notice_error'
-  return ''
+  if (!one(query.gcal_error)) return ''
+  return view === 'loading' || view === 'connected' ? '' : 'gcal.notice_error'
 }
+
+/** SPL-5726: re-reads after Sync now, until the last sync moves: how many, how far apart. */
+export const GCAL_SYNC_REREADS = 6
+export const GCAL_SYNC_REREAD_MS = 5000
 
 /** The hub URL of a route: ?workspace=<the page's workspace> first, then params. */
 export function gcalUrl(api, tail, params) {

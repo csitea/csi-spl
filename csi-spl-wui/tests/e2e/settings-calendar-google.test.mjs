@@ -112,6 +112,18 @@ try {
   /* N: the callback's way back */
   await load(DESKTOP, SETTINGS + '&gcal=connected')
   ok('N1 ?gcal=connected shows the connected notice', await view('disconnected') && (await text('gcal-notice')) === 'Google Calendar is connected.', { notice: await text('gcal-notice') })
+  // SPL-5726: a doubled callback lands on ?gcal_error=code_expired while the
+  // first request connected. Red control: 55dcf0449 shows the error (N3 fails).
+  await load(DESKTOP, SETTINGS + '&gcal_error=code_expired')
+  ok('N2 ?gcal_error while not connected shows the error', await view('disconnected') && (await text('gcal-notice')) === 'Google Calendar was not connected. Try again.', { notice: await text('gcal-notice') })
+  await setMock(JSON.stringify({ connected: true, google_email: 'member@example.com', calendar_title: 'Spool Hub (Mock)', status: 'connected', status_detail: '', last_synced_at: '2026-10-24T08:00:00Z' }))
+  await load(DESKTOP, SETTINGS + '&gcal_error=code_expired')
+  ok('N3 ?gcal_error with a connected status shows no error', await view('connected') && !(await has('gcal-notice')) && (await text('gcal-status')) === 'Connected', { notice: await text('gcal-notice') })
+  await shot('1440-connected-after-error')
+  await load(PHONE, SETTINGS + '&gcal_error=code_expired')
+  ok('N4 390: the same, phone width', await view('connected') && !(await has('gcal-notice')))
+  await shot('390-connected-after-error')
+  await setMock(null)
 
   /* C25b: a workspace outside gcal.workspaces */
   await setMock('off')

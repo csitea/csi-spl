@@ -99,6 +99,12 @@
 #        GO, no WAIT; controls: a real second seat that has not answered ->
 #        rc 10 for it alone; a hand-sat-<slug> sibling logged WAIT as <slug>
 #        has answered -> GO
+#    26. a section quoted verbatim (SPL-5696): RED CONTROL the r59-06 brief
+#        (ENV=prd only in plan section 5, quoted under a `verbatim` heading
+#        and the plan's own same-level heading, a `cmd` -> result
+#        measurement) -> GO; controls: the step in a task section, a command
+#        in a plan row quoted verbatim, a section after the quote at the same
+#        level, a deeper `verbatim` heading, a prd step under Context -> rc 4
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -892,6 +898,62 @@ f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 25000000-0000-4000
 run REVIEW_GO_MSG="$f"; rc=$?
 (( rc == 0 && $(gos) == 1 )) && pass "25. a hand-sat-<slug> seat whose PASS is logged WAIT under <slug> has answered -> GO" ||
   fail "25. hand sibling WAIT rc=$rc gos=$(gos) out=$(tail -3 "$T/out")"
+
+
+# --- 26. a section quoted verbatim from another document (SPL-5696) ------------------------------------------
+# real lines: the r59-06 author brief (SPL-5689) lines 37-50 and 61-62 (line 63 shortened); its only keyword is line 45, a read-only
+# measurement inside the plan's section 5, quoted under `## R7 review (plan section 5, verbatim)` and the plan's
+# own `## 5. Panel ...` heading at the same level: held rc 4 on 2026-11-16 07:20:13Z (HOLD 3517a6bf)
+fx26_verbatim=$(cat <<'EOF_FX'
+## R7 review (plan section 5, verbatim)
+
+## 5. Panel and reviewers (R7)
+
+- Editor: c-615 (claude, this box). Both seats sign the plan sha (rulebook 3.2).
+- **Panel seat:** one seat of another vendor, as rulebook 3.2 asks ("a cross-vendor
+  panel"; it names no vendor). agy is the `specs_and_docs` main, but sat has no agy and
+  agy is at quota on this box until about 2026-11-13T23:43Z (the brief). Re-read here, n=1:
+  `ENV=prd ./run -a do_spl_hub_agent_kinds` -> `prd instance agent kinds: off [qwen],
+  paused []` (2026-11-12T23:10:46Z), and the queue places a grok R7 seat tonight
+  (`c002-r58-05-grok-reviewer`, `placing`). So the request is a **grok** panel seat,
+  either box, now (queued by the holder: ask 4b41e69f); if the holder rules grok out, the plan **waits for agy** after its
+  quota resets, and no row starts before. Asked of the dispatch holder on task
+  `dispatch-refactor-r33`. The panel seat reviews this plan only, never a row.
+Push `review/r59-06-drop-gate-lines-of-r59` first and send the holder that sha; the holder names your reviewer (a fresh grok seat while grok is on; the holder confirms the vendor). Your landing commit carries the review line exactly: `review: <id>@<box> <vendor> PASS <40-char sha> ran: <commands> | read: <output> | log: <id>@<box>:<path>`. Land only on the holder's GO.
+## Report
+To the dispatch lease holder, kind result: the sha and the review line.
+EOF_FX
+)
+reset; abrief c-222 "$fx26_verbatim"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 26000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 1 )) && pass "26. RED CONTROL: ENV=prd only in a plan section quoted verbatim (r59-06 brief line 45) passes [4] -> GO" ||
+  fail "26. verbatim rc=$rc out=$(tail -2 "$T/out")"
+# shellcheck disable=SC2016 # the backticks are markdown
+for fx in 'the same step in a task section|## Steps
+1. `ENV=prd ./run -a do_spl_hub_agent_kinds` -> read the kinds.' \
+          'a section after the quote, same level|## R7 review (plan section 5, verbatim)
+
+## 5. Panel and reviewers (R7)
+- the plan text
+
+## Steps
+1. `ENV=prd ./run -a do_spl_hub_agent_kinds` -> read the kinds.' \
+          'a command in a plan row quoted verbatim (rel-10 brief)|## Your row - plan section 4, verbatim
+- **Command:** `cd csi-spl-utl && ENV=prd ./run -a do_cloud_sql_backup_verify`' \
+          'a deeper quote ends at the outer level|### Row (verbatim)
+- the plan text
+## Steps
+1. `ENV=prd ./run -a do_spl_hub_agent_kinds` -> read the kinds.' \
+          'a prd step under Context, no verbatim heading|## Context
+Read the rows with `ENV=prd ./run -a do_spl_db_query` first.
+
+## Steps
+Review the diff.'; do
+  reset; abrief c-222 "${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 26000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; refused "26. RED CONTROL: ENV=prd as an instruction step (${fx%%|*}) still holds" $? 4 "owner-go keyword 'ENV=prd'"
+done
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

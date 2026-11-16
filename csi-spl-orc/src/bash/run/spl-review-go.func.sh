@@ -51,7 +51,9 @@
 # @description       its instruction text (not in a Why / What happened /
 # @description       Symptom / Evidence / Background / Context / History /
 # @description       Trace / Observed / Measured section, a `>` quote, a
-# @description       fenced block or a negated `does not apply`, SPL-5670),
+# @description       fenced block or a negated `does not apply`, SPL-5670;
+# @description       not a `cmd` -> result measurement in a section whose
+# @description       heading says `verbatim`, SPL-5696),
 # @description       or it carries `Owner-go: <msg id>` and a message with
 # @description       that id from HUM-<n> is in the holder's spool or desk
 # @description       spools
@@ -565,7 +567,16 @@ _spl_review_go_unplaced() {
 # what to run; not Context: a brief's Context can hold a step to run),
 # without fenced blocks and `>` quote lines, and without a negated `apply`
 # (`does not apply`, `never apply`). Backticked spans stay: a command the lane
-# is told to run is written in backticks.
+# is told to run is written in backticks. A section whose heading names
+# `verbatim` (any case) quotes another document (SPL-5696): in it, and only
+# there, a measurement (a backticked command followed by `->`, its result)
+# is dropped; the rest of the quote is still scanned, since a quoted plan row
+# or request holds the steps the lane runs. The quote runs to the next
+# heading at its level or higher. A heading right after it (only blank lines
+# between) is the quoted document's own: it opens the quote, and the quote
+# ends at the next heading at the higher of the two levels or above
+# (`## R7 review (plan section 5, verbatim)` + `## 5. Panel ...` runs until
+# `## Report`).
 _spl_review_go_instr() {
   python3 - "$1" <<'EOF_PY'
 import re, sys
@@ -574,20 +585,34 @@ try:
     lines = open(sys.argv[1], encoding="utf-8", errors="replace").read().split("\n")
 except OSError:
     sys.exit(1)
-out, skip, fence = [], 0, False
+out, quote, skip, fence, verb, lead = [], [], 0, False, 0, False
 for l in lines:
     if re.match(r"\s*(```|~~~)", l):
-        fence = not fence
+        fence, lead = not fence, False
         continue
     h = None if fence else re.match(r"(#{1,6})\s+(.*)", l)
+    if verb:
+        if h and lead:
+            verb, lead = min(verb, len(h.group(1))), False
+            continue
+        if not h or len(h.group(1)) > verb:
+            lead = lead and not l.strip()
+            if not fence and not re.match(r"\s*>", l):
+                quote.append(l)
+            continue
+        verb = 0
     if h:
         if skip and len(h.group(1)) > skip:
+            continue
+        if re.search(r"(?i)verbatim", h.group(2)):
+            verb, lead, skip = len(h.group(1)), True, 0
             continue
         skip = len(h.group(1)) if NARR.match(h.group(2).strip()) else 0
     elif fence or skip or re.match(r"\s*>", l):
         continue
     out.append(l)
 neg = r"(?i)\b(?:(?:does|do|did|will|would|should|shall|may|might|can|could|must)\s+not|doesn't|don't|didn't|won't|cannot|can't|never)\s+apply\b"
+out += [re.sub(r"`[^`]*`\s*->", "", "\n".join(quote))]
 print(re.sub(neg, "", "\n".join(out)))
 EOF_PY
 }

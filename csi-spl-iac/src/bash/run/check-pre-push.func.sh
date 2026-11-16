@@ -685,7 +685,11 @@ _pp_part_iac() {
 # FULL tier: every file, as CI runs it. Both then run bash-cleancode.
 # The agent's SPOOL_* env is dropped (CI has none; an inherited SPOOL_BOX_TAG
 # reddens orch-rotate). On the base-ref tree nothing has changed, so it is
-# handed this push's change list: the trunk re-check runs the same files.
+# handed the files that failed on the tree (_PP_BASE_ONLY, from _pp_run) and
+# runs only those, without the always-run list: the verdict compares only the
+# tree's failures, and the whole plan again cost 415..672 s for them (n=3,
+# p12-01). With no such file (only bash-cleancode failed) it is handed this
+# push's change list and re-runs the same plan. bash-cleancode runs either way.
 # <base> is _pp_run's own (bash scoping).
 # On a `full` plan the fast tier runs the always-run list only: the map is
 # asked again with a change set that names no orc file (_PP_ORC_ALWAYS_ONLY,
@@ -711,11 +715,15 @@ _pp_orc_always() {
   envv+=(ORC_TEST_FILES="$_PP_ORC_ALWAYS_ONLY")
 }
 _pp_part_orc() {  # <tree>
-  local t="$1/csi-spl-orc/src/bash/tests" rc=0 plan files="" v
+  local t="$1/csi-spl-orc/src/bash/tests" rc=0 plan files="" v f
   _pp_load_read
   local -a envv=(env) args=()
   for v in $(compgen -e); do [[ "$v" == SPOOL_* ]] && envv+=(-u "$v"); done
-  if [[ "${_PP_TIER:-fast}" != full ]]; then
+  if [[ -n "${_PP_BASE_ONLY:-}" && "$1" != "${_PP_TOP:-}" ]]; then
+    for f in $_PP_BASE_ONLY; do files+="${files:+ }csi-spl-orc/src/bash/tests/$f"; done
+    echo "pre-push orc: the trunk re-check runs only the files that failed on your tree: $_PP_BASE_ONLY"
+    envv+=(ORC_TEST_BASE="$base" ORC_TEST_FILES="$files" ORC_TEST_ALWAYS=) args=(--changed)
+  elif [[ "${_PP_TIER:-fast}" != full ]]; then
     [[ "$1" != "$_PP_TOP" ]] && files="$(_pp_changed "$_PP_TOP" "$base")"
     envv+=(ORC_TEST_BASE="$base") args=(--changed)
     [[ -n "$files" ]] && envv+=(ORC_TEST_FILES="$files")
@@ -1019,10 +1027,29 @@ _pp_record() {  # <label> <STAT> <secs>
   _PP_NAMES+=("$1"); _PP_STAT+=("$2"); _PP_SECS+=("$3")
 }
 
+# The suite files a tree signature names (its `suite <file>` items), space
+# separated, for the base re-check to run alone (_PP_BASE_ONLY). Empty when it
+# names none, or names one that is not a plain *.tst.sh name (the runner's
+# live-spool-root line reads `suite a`): then the base runs the whole part.
+_pp_sig_suites() {  # <tree-sig>
+  local item out=""
+  while IFS= read -r item; do
+    [[ "$item" == "suite "* ]] || continue
+    [[ "${item#suite }" =~ ^[A-Za-z0-9._-]+\.tst\.sh$ ]] || return 0
+    out+="${out:+ }${item#suite }"
+  done <<<"$1"
+  printf '%s' "$out"
+}
+
 # Run one part: cached green -> PASS-cached; missing tool -> FAIL (never a
 # pre-existing WARN); else run it, and on failure re-run it on the base ref and
-# BLOCK only when it passes there. Optional <part> keys the cache and the log;
-# without it (the tests' stub parts) neither is touched.
+# BLOCK only when it passes there. The base re-check is handed the suite files
+# the tree run named FAILED: (_PP_BASE_ONLY, unset again after it), and a part
+# that reads it runs only those there: the verdict compares only the tree's
+# failures, so the base's other files add minutes and change nothing (p12-01).
+# Optional <part> keys the cache and the log; without it (the tests' stub
+# parts) neither is touched.
+_PP_BASE_ONLY=""
 _pp_run() {  # <label> <fn> <tree> <base> [<part>]
   local label="$1" fn="$2" tree="$3" base="$4" part="${5:-}"
   local start="$SECONDS" rc=0 key="" missing="" el
@@ -1073,7 +1100,10 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     bwt="$_PP_BASE_WT"
     bout="$(mktemp "${TMPDIR:-/tmp}/csi-spl-pre-push-out.XXXXXX")"
     do_log "INFO pre-push: $label failed ($note) -- re-checking it on $base ($bsha) to see if it is your break or trunk's"
+    # a TIMED OUT tree's signature is cut: its base run is not narrowed
+    [[ "$rc" -eq 124 || "$rc" -eq 137 ]] || _PP_BASE_ONLY="$(_pp_sig_suites "$tsig")"
     _pp_capture "$bout" "$fn" "$bwt" || brc=$?
+    _PP_BASE_ONLY=""
     bsig="$(_pp_sig "$bout" "$bwt")"
   else
     do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as $([[ "$rc" -eq 124 || "$rc" -eq 137 ]] && echo 'a timeout, not proven your break' || echo NEW)"

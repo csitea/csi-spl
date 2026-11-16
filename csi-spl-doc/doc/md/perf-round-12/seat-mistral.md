@@ -198,3 +198,21 @@ None. W1..: none.
 ## Sign
 
 `panel: m-676 mistral PASS 325e0a8edc83674390e68fb81bd3c1b0d505066c`
+
+## v1.0 sign
+
+- `git ls-remote origin refs/heads/review/c002-perf-round-12-planner` ->
+  `bf6ba7541aedeb1aa9353548f0a231474bbc9b79`; `git fetch origin
+  review/c002-perf-round-12-planner && git rev-parse FETCH_HEAD` -> the same
+  sha.
+- `git log --oneline 325e0a8ed..bf6ba7541` -> 1 commit, `bf6ba7541 docs(p12-plan,
+  SPL-5701): perf round 12 plan v1.0: mistral m-676 PASS on 325e0a8ed, N2
+  folded, rows unchanged`. `git diff --stat 325e0a8ed bf6ba7541` -> only
+  `csi-spl-doc/doc/md/perf-round-12-plan.md`, 14 insertions, 4 deletions: the
+  status line (v1.0, signed), N2 folded (`cpp:1022-1025`), and sections 8/9
+  recording this seat's PASS (seat `592948bd9`, msg 06c39b4c).
+- Rows unchanged: `diff <(git show 325e0a8ed:...plan.md | sed -n '109,131p')
+  <(git show bf6ba7541:...plan.md | sed -n '109,131p')` -> empty, so the
+  verdict on `325e0a8ed` carries to v1.0.
+
+`panel: m-676 mistral PASS bf6ba7541aedeb1aa9353548f0a231474bbc9b79 (v1.0; rows identical to the signed 325e0a8ed)`

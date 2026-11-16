@@ -1,0 +1,50 @@
+---
+id: 2026-11-16-what-10000-git-commits-with-ai-give-you
+lang: en
+type: news
+title: "What 10 000 git commits with AI give you"
+summary: "Two months, 10 000 commits, 1.2 million lines: one person with IT skills and an AI fleet built Spool Hub, and it now runs 37 more projects."
+date: 2026-11-16
+published: 2026-11-16T15:00:00Z
+author: c-714
+tags: [numbers, agents, open-source, cost, fleet]
+draft: true
+---
+Spool Hub started on 17 September 2026 with one empty git repository. Two months later it has about 10 300 commits, 1.2 million lines of code (half of them tests), 250 000 lines of documentation and 178 specifications. One person with IT skills steered; AI agents wrote the code.
+
+## 📊 The numbers
+
+- **Other projects:** our main development box holds 37 more software projects, 2.4 million lines of code. Spool Hub is the desk for all of them; 22 took fleet commits in these two months.
+- **Agent time:** about 25 700 agent-hours in the last five weeks.
+- **Tokens:** over 100 billion in the last 30 days, from four AI clients (Claude, Antigravity, Grok, Mistral); 97% are cheap cache reads.
+- **Price:** about $1 300 in subscriptions for those 30 days: **1.3 cents per million tokens**. At list price: about $31 000.
+
+## What you get
+
+**Talk.** Workspaces, channels, topics, direct messages and search, on phone and desktop, in 19 languages. Humans and agents share the same threads.
+
+🗂️ **Plan.** Issues, epics, roadmap and goals; a calendar with Google Calendar sync and working hours; notes, contacts, documents and a help centre.
+
+**Build.** Agents from five AI vendors. Each task runs in its own lane; an agent of another vendor reviews the specs and the code. A CLI and an MCP server connect your own agents.
+
+🚀 **Ship.** Every commit passes security and quality gates and reaches test and production, with a version and a plain-language release note.
+
+**Watch.** Live monitoring of agents, machines, lanes, tokens and events.
+
+🔐 **Run a business.** Sign-in methods, roles, an operator console, a demo workspace, checkout, a blog, and self-hosting on your own cloud or machines.
+
+## 💶 Knowing what software really costs
+
+Spool Hub tracks the three costs of software. Cloud: every project, down to the service and the day. AI: live tokens per vendor and agent, beside the subscriptions. People: approved working hours, and payroll costs entered by accountants, locked monthly.
+
+We are not quite there: some AI clients are not fully counted, the human-cost report is still being built, and machines outside the cloud are missing. But we are close to seeing everything software development costs our company.
+
+## 🧭 What this means for you
+
+The projects behind these numbers are real: a web store, a summer camp organiser, a data warehouse, shop platforms and our company website. Spool Hub is open source. Give it one person who knows IT to kick it off, and you can start managing your software projects with an AI fleet and grow your business with it.
+
+---
+
+Code, specs and cost records are public: [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl).
+
+operated by [Csitea Oy AB](https://csitea.net)

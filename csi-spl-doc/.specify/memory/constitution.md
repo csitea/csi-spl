@@ -609,7 +609,7 @@ A Go package's coverage never falls below its floor in
 Enforced by: `csi-spl-api/src/bash/tests/run-all-tests.sh` (its coverage
 check).
 
-<a id="ws-doc-780baad9-8b5b-4886-8667-b55f85e7c153"></a>
+<a id="ws-doc-31c0b009-54a4-4d9a-8916-b07d3335c1e3"></a>
 #### 2.12.6 Wait on events, never sleep
 
 A test waits on the event it then asserts: a file appears, a line lands in
@@ -709,6 +709,6 @@ date, and a re-run of `/speckit-analyze` on every in-flight spec. Complexity
 that deviates from a principle must be justified inline (`# WHY:`) and
 acknowledged in the spec's Clarifications section.
 
-**Version**: 0.3.7 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-15 (Coding Standards exported from developer-guide.md)
+**Version**: 0.3.8 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-11-16 (Coding Standards exported from developer-guide.md)
 
-<!-- version: 0.3.7 · updated: 2026-11-15 · last-edit: 2026-11-15T03:47:46Z -->
+<!-- version: 0.3.8 · updated: 2026-11-16 · last-edit: 2026-11-16T07:54:54Z -->

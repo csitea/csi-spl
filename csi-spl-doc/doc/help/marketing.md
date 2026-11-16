@@ -105,6 +105,7 @@ Open the avatar menu (or the gear icon at the bottom-left of the sidebar on desk
 6. To disconnect, click **Disconnect** on the row and confirm, as in section 1.4. The dialog adds: *"To remove the app's access on X as well: on X open Settings and privacy, Security and account access, Apps and sessions, Connected apps, and revoke the app."*
 
 
+<a id="ws-doc-7bb50132-ea30-40be-ad09-311622daa7e4"></a>
 ### 1.7 Connect a LinkedIn company page and publish as the company
 
 1. In **Workspace settings -> General**, find the **LinkedIn company pages** section (*"A Super admin or Content admin of your company's LinkedIn page connects it once. Then any admin or business owner of this workspace publishes blog posts as the company. Nothing is posted until someone presses Publish."*).
@@ -253,6 +254,7 @@ The Meta App Review submission package (`T038`) has **not been submitted or appr
 
 `marketing.x.inject` is `"false"` on dev and prd, so section 1.6 shows only *"X is not set up on this hub yet."* Turning it on needs the owner's X developer app and prepaid credits: the steps are in `csi-spl-doc/specs/090-marketing-automation/x-app-setup.md`.
 
+<a id="ws-doc-4bcc4288-8f23-4a93-8fa4-c2d0fd995224"></a>
 ### 4.5 LinkedIn company pages are not switched on yet
 
 `marketing.linkedin_org.inject` is `"false"` on dev and prd, so section 1.7 shows only *"LinkedIn company page publishing is not set up on this hub yet."* Turning it on needs LinkedIn's approval of the owner's Community Management API request for a second LinkedIn app, then that app's client id and secret in the hub's secrets and the step 030 apply: the owner steps are in `csi-spl-doc/specs/090-marketing-automation/linkedin-company-page.md` section 10.

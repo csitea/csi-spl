@@ -66,6 +66,8 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 command -v yq >/dev/null || { echo "FAIL: yq is required"; exit 1; }
 T=$(mktemp -d)
+# never the box's live Claude login mode (SPL-5695, spl-claude-login.func.sh)
+export LOGIN_STATE_DIR="$T/login-state"
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/spool"
 
@@ -1139,6 +1141,17 @@ out="$(gq)"
 [[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  grok weekly 95% >= 95%: not picked$' <<<"$out" &&
   grep -q $'^grok\t95\t' "$T/kept21.tsv" && pass "21. this box's grok log at 95 % -> not picked, kept with its source" || fail "21. live 95: $out $(cat "$T/kept21.tsv")"
 grep -q 'billing' "$T/kept21.tsv" && pass "21. the kept row names its source, billing" || fail "21. src: $(cat "$T/kept21.tsv")"
+
+# 22. SPL-5695: on a backup Claude login this box's claude % is the ACTIVE
+# login's (the backup's, from the login-mode line), not its own; own -> its own
+bq() { bash -c 'source "'"$PROJ_ROOT"'/src/bash/run/spl-box-pick.func.sh" >/dev/null 2>&1
+  spl_box_quota_known() { echo "claude:96,grok:10"; }; LANE_BOX=box-desk LANE_BOX_ROW_ID=BOX-0 spl_box_pick_quota "{}" claude'; }
+mkdir -p "$LOGIN_STATE_DIR"
+printf '%s backup acct-11111111 acct-22222222 96 - 40 /x/.claude-2 own at 96%%\n' "$(date +%s)" >"$LOGIN_STATE_DIR/login-mode"
+[[ "$(bq)" == '{"box-desk":40}' ]] && pass "22. backup login: this box's claude % is the backup's (40)" || fail "22. backup: $(bq)"
+printf '%s own acct-11111111 acct-22222222 96 - 40 /x/.claude-2 hold\n' "$(date +%s)" >"$LOGIN_STATE_DIR/login-mode"
+[[ "$(bq)" == '{"box-desk":96}' ]] && pass "22. CONTROL own login: its own reading (96)" || fail "22. own: $(bq)"
+rm -f "$LOGIN_STATE_DIR/login-mode"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

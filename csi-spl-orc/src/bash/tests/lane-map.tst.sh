@@ -126,6 +126,8 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 T=$(mktemp -d)
+# never the box's live Claude login mode (SPL-5695, spl-claude-login.func.sh)
+export LOGIN_STATE_DIR="$T/login-state"
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/hub"
 
@@ -665,6 +667,22 @@ out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json LANE_ALL=1 | tail -1)"
 [[ "$row" != *cordon=* && "$(jq -c '.load[] | select(.box == "sat") | .cordon' <<<"$out")" == "{}" ]] &&
   pass "control: an expired marker is no cordon= ('$row') and {} in the load" || fail "expired cordon: $row / $(jq -c '.load' <<<"$out")"
 rm -rf "$T/sat/spool/dispatch/cordon"
+
+# 17. the Claude login mode in the BOX-0 row (SPL-5695): a fresh backup line ->
+# acct=<own label> lm=backup before live=, wk=claude:<the backup's %>, and the
+# row rewritten at once (it is 0 s old); back to own -> acct= only, at once
+mkdir -p "$LOGIN_STATE_DIR"
+printf '%s backup acct-11111111 acct-22222222 91 1893486400 40 /x/.claude-2 own at 91%%\n' "$(date +%s)" >"$LOGIN_STATE_DIR/login-mode"
+on sat do_spl_lane_map "${F[@]}" LANE_PANES_CMD="cat $T/panes" LANE_MEMINFO="$T/meminfo" >/dev/null
+row="$(jq -r '.lanes[] | select(.agent_id == "BOX-0" and .agent_box == "sat") | .scope' "$T/hub/main.json")"
+[[ "$row" == *" wk=claude:40"* && "$row" == *" acct=acct-11111111 lm=backup live="* ]] &&
+  pass "17. a backup login: wk=claude:<backup %>, acct= and lm=backup before live=, at once: '$row'" || fail "17. backup row: $row"
+printf '%s own acct-11111111 acct-22222222 50 1893486400 40 /x/.claude-2 own at 50%%\n' "$(date +%s)" >"$LOGIN_STATE_DIR/login-mode"
+on sat do_spl_lane_map "${F[@]}" LANE_PANES_CMD="cat $T/panes" LANE_MEMINFO="$T/meminfo" >/dev/null
+row="$(jq -r '.lanes[] | select(.agent_id == "BOX-0" and .agent_box == "sat") | .scope' "$T/hub/main.json")"
+[[ "$row" != *lm=* && "$row" != *wk=claude:40* && "$row" == *" acct=acct-11111111 live="* ]] &&
+  pass "17. back to own: acct= only, no lm=, rewritten at once: '$row'" || fail "17. own row: $row"
+rm -f "$LOGIN_STATE_DIR/login-mode"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

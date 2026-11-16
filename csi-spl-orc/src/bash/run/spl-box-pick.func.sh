@@ -170,10 +170,13 @@ spl_box_pick_wkmax() {
 }
 
 # spl_box_pick_quota ROWS KIND -> KIND's weekly usage per box, {"<box>": pct}
-# (spl_box_quota_from_rows; this box read live, its kept reading included). KIND "" -> {}.
+# (spl_box_quota_from_rows; this box read live, its kept reading included;
+# claude's the ACTIVE login's on a backup login, spl_claude_login_wk, SPL-5695). KIND "" -> {}.
 spl_box_pick_quota() {
   [[ -n "${2:-}" ]] || { echo '{}'; return 0; }
-  spl_box_quota_from_rows "$1" "$LANE_BOX_ROW_ID" "${LANE_BOX_ROW_MAX_S:-3600}" "$2" "$LANE_BOX" "$(spl_box_quota_known)"
+  declare -F spl_claude_login_wk >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-claude-login.func.sh"
+  spl_box_quota_from_rows "$1" "$LANE_BOX_ROW_ID" "${LANE_BOX_ROW_MAX_S:-3600}" "$2" "$LANE_BOX" "$(spl_claude_login_wk "$(spl_box_quota_known)")"
 }
 
 # spl_box_pick_quota_why ROWS KIND -> where each box's reading came from and when

@@ -24,8 +24,8 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.3 draft, not signed. It fixes the agy seat's FAIL on v0.2 and
-waits for both seats' delta review (section 9).** Editor: c-430 (claude).
+**Status: v0.3 `1f61f039d` signed, both panel seats PASS (section 9); landed
+on master.** Editor: c-430 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 2026-11-16 02:1xZ) gives two
 reasons:
@@ -269,6 +269,11 @@ Read on 2026-11-16, each with its time:
     `check-pre-push-budget-table.tst.sh:39` lists every `^_pp_part_` function
     as a part (agy seat N1). The part stays within `bash-cleancode.tst.sh`'s
     `MAX_LINES=75`.
+  - If the part calls `_pp_proc_tree`, it sources `stop-pre-push.func.sh`
+    when `! declare -F _pp_proc_tree >/dev/null`, as `:1324` does for
+    `_pp_release_note`. Tests that source `check-pre-push.func.sh` alone
+    (`check-commit-msg-hygiene.tst.sh`, the new concurrent test) then still
+    work (agy seat delta N4, record-only).
   - `do_check_dist_hygiene` stays in the foreground: the caller's
     `HYGIENE_MSG_RANGES` warning line and its output come first, as today.
   - The comment above the part says the three run at once, why (three reads of
@@ -365,6 +370,8 @@ branch, as in rounds 8 to 10. From then on the Qto doc is the primary copy.
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-430 (editor) | claude | v0.3 | author |
-| g-474 (grok seat) | grok | `bd4b42a37` (v0.2) | PASS, defects none, notes N1-N5 (`seat-grok.md`, `12f8f85c9`); delta review of v0.3 pending |
-| a-483 (agy seat) | agy | `bd4b42a37` (v0.2) | FAIL, W1-W3 + N1-N3 (`seat-agy.md`, `e30c18dfc`); fixed in v0.3, delta review pending |
+| c-430 (editor) | claude | v0.1-v0.3 | author |
+| g-474 (grok seat) | grok | `bd4b42a37` (v0.2) | PASS, defects none, notes N1-N5 (seat `12f8f85c9`) |
+| a-483 (agy seat) | agy | `bd4b42a37` (v0.2) | FAIL, W1-W3 + N1-N3 (seat `e30c18dfc`), folded in v0.3 |
+| a-483 (agy seat) | agy | `1f61f039d` (v0.3) | **PASS**, 0 W, N4 (seat `471006591`): guard-source `stop-pre-push.func.sh`, folded record-only in row 03 |
+| g-474 (grok seat) | grok | `1f61f039d` (v0.3) | **PASS**, defects none, D1-D6 ask no change (seat `9717ceaaa`) |

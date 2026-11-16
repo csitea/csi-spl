@@ -2,9 +2,10 @@
      picker of the person's notes, latest changed first, a filter box, and
      New note on top; it never adds silently to a fixed note. One click adds
      the link and the toast says "Added to <title>" with Open. New note makes
-     a note titled by the object's label, holding that one link and, as its
-     text, what was typed in the box (SPL-5710); Enter with no matching note
-     does the same.
+     a note holding that one link and, as its text, what was typed in the box
+     (SPL-5710), with no title: the object's title stays on the link alone,
+     which the hub drops after a leave (D4, SPL-5725); Enter with no matching
+     note does the same.
      Mounted once by composables/useAddToNote.ts (its own chunk, fetched on
      the first open). UiDialog owns focus, Escape, the phone full screen and
      the Back overlay, as for the move picker. -->
@@ -119,7 +120,7 @@ async function pick(id: string, title: string) {
   }
 }
 
-/* twin of C27: a new note, titled by the object's label, holding that one link */
+/* twin of C27: a new note holding that one link, untitled (D4) */
 async function pickNew() {
   if (!link.value || busy.value) return
   busy.value = true
@@ -135,7 +136,7 @@ async function pickNew() {
     const fields = newNoteFields(link.value, query.value)
     const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v))
     if (Object.keys(patch).length) await store.patch(id, patch).catch(() => { /* the link is in; title and text stay empty */ })
-    done(id, fields.title || t('notes.untitled'))
+    done(id, rowTitle({ title: fields.title, snippet: fields.body } as NoteSummary))
   } catch (e) {
     error.value = refusal(e)
   } finally {

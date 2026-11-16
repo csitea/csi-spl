@@ -120,9 +120,10 @@ channel row. It opens a list of your notes, latest changed first, with
 **New note** on top and a box to filter them:
 
 - Click a note: it gains a link to the thing you were on.
-- **New note**: a new note titled with that thing's title, holding its link.
-  Text you typed in the box becomes the note's text; press **Enter** in the
-  box when no note matches to do the same.
+- **New note**: a new note holding its link, with no title, so the title of
+  a thing in a workspace you later leave does not stay in your notes. Text
+  you typed in the box becomes the note's text; press **Enter** in the box
+  when no note matches to do the same.
 
 The note is yours (see above): it shows in **Notes** in every workspace you
 belong to, not inside the issue. To write something everyone on an issue

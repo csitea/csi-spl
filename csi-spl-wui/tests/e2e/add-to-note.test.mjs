@@ -12,7 +12,7 @@
 //   C27 "Add to note" on a topic card, an issue (its row menu and the open
 //       issue's button), a calendar entry and a channel row: pick a note, the
 //       note gains a link of that kind and workspace, labelled by the
-//       object's title; twin: New note makes a note holding that one link
+//       object's title; twin: New note makes an untitled note holding that one link (D4)
 //   SPL-5710 the open issue's comment box is labelled, under the comments
 //       and above the discussions; text typed in the picker is a New note's
 //       body (Enter with no match). SHOTS_DIR=<dir> saves the dialog PNGs.
@@ -144,7 +144,7 @@ async function shiftN(browser, base) {
   const links = fresh ? await linksOf(p, fresh) : null
   check(`${tag} C27 twin: New note makes one note`, Boolean(fresh) && after.length === before.length + 1, { before: before.length, after: after.length })
   check(`${tag} C27 twin: holding that one link`, links?.length === 1 && links[0].ws === WS && ['topic', 'msg'].includes(links[0].kind), links)
-  check(`${tag} C27 twin: titled by the link's label`, toast === `Added to ${links?.[0]?.label}`, toast)
+  check(`${tag} C27 twin: untitled, the label on the link alone (D4)`, toast === 'Added to Untitled note' && Boolean(links?.[0]?.label), { toast, links })
   await clickSel(p, '[data-testid=note-added-undo]')
   check(`${tag}: Open on the toast opens the new note`, await visible(p, `[data-test=note-detail][data-note-id="${fresh}"]`))
   /* Shift + N is a desktop key: the menu is the phone's way (messageMenu at 390 px) */
@@ -347,9 +347,9 @@ async function typedNote(browser, base) {
     const toast = await p.waitForSelector('[data-testid=note-added-text]', { visible: true, timeout: 10000 }).then((e) => e.evaluate((x) => x.textContent.trim()), () => '')
     const fresh = (await noteIds(p)).find((id) => !before.includes(id))
     const note = fresh ? await p.evaluate(async (id) => (await document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes').get(id)).note, fresh) : null
-    check(`${tag}: Enter with no match makes a new note`, Boolean(fresh) && toast === 'Added to Pay the bill', { fresh, toast })
+    check(`${tag}: Enter with no match makes a new note`, Boolean(fresh) && toast === `Added to ${text}`, { fresh, toast })
     check(`${tag}: the typed text is the note's text`, note?.body === text, note?.body)
-    check(`${tag}: titled by the issue, holding its link`, note?.title === 'Pay the bill' && note?.links?.length === 1 && note.links[0].kind === 'issue' && note.links[0].ref === key && note.links[0].workspace_id === WS, note && { title: note.title, links: note.links })
+    check(`${tag}: untitled (D4), holding the issue's link`, note?.title === '' && note?.links?.length === 1 && note.links[0].kind === 'issue' && note.links[0].ref === key && note.links[0].workspace_id === WS, note && { title: note.title, links: note.links })
   }
   await p.close()
 }

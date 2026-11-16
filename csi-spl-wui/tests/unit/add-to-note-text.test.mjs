@@ -3,6 +3,9 @@
 // hub got a note titled by the task, with an empty body. The text typed in
 // the box is now the new note's body, and Enter with no matching note makes
 // that note instead of doing nothing.
+// SPL-5725 (spec 155 D4): the new note takes no title from the object. A
+// title copied from it outlived the person leaving the object's workspace,
+// while the hub drops the same text from the link's label.
 // Run: node tests/unit/add-to-note-text.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -13,13 +16,17 @@ const LINK = { kind: 'issue', workspace_id: 'w1', ref: 'CSI-77', label: 'Pay the
 const picker = readFileSync(new URL('../../src/components/AddToNotePicker.vue', import.meta.url), 'utf8')
 
 describe('add-to-note: New note keeps the typed text (SPL-5710)', () => {
-  it('the typed text is the body, the object label the title', () => {
+  it('the typed text is the body; the title stays empty (D4, SPL-5725)', () => {
     assert.equal(typeof atn.newNoteFields, 'function', 'newNoteFields is missing: New note drops the typed text')
     assert.deepEqual(atn.newNoteFields(LINK, '  Invoice registered, payment ordered on the due date.\n'),
-      { title: LINK.label, body: 'Invoice registered, payment ordered on the due date.' })
+      { title: '', body: 'Invoice registered, payment ordered on the due date.' })
   })
   it('a blank box leaves the body empty (CONTROL: the old note shape)', () => {
-    assert.deepEqual(atn.newNoteFields?.(LINK, '   '), { title: LINK.label, body: '' })
+    assert.deepEqual(atn.newNoteFields?.(LINK, '   '), { title: '', body: '' })
+  })
+  it('no field of a New note holds the object\'s title (D4, SPL-5725)', () => {
+    const f = atn.newNoteFields?.(LINK, 'groceries')
+    assert.ok(!Object.values(f || {}).some((v) => String(v).includes(LINK.label)), JSON.stringify(f))
   })
   it('the body is cut at the hub limit', () => {
     assert.equal(atn.newNoteFields?.(LINK, 'x'.repeat(atn.NOTE_BODY_MAX + 5)).body.length, 20000)

@@ -603,10 +603,15 @@ named.
   silently to a fixed note. Changes B8 only. Since SPL-5710 the text
   typed in the picker's box is the body of a "New note" (it was dropped,
   leaving a note with the object's title and no text), and Enter with no
-  matching note makes that note.
+  matching note makes that note; since SPL-5725 that note has no title
+  (D4).
 - **D4.** Default (owner may change): after the person leaves a
   workspace, links into it stay in the note but lose their label (2.3,
-  2.4). Changes B4 only.
+  2.4). Changes B4 only. Since SPL-5725 (owner may change): a "New note"
+  made from "Add to note" takes no title from the object, so the object's
+  title lives only in the link's label, which this mask drops; the title
+  is the person's own text. Changes B8 only (`wui/utils/add-to-note.mjs`
+  `newNoteFields`).
 - **D5.** Default (owner may change): the Notes tab sits after Calendar
   in the default rail order. Changes B5 only.
 - **D6.** Default (owner may change): a note = title + text + optional
@@ -808,7 +813,7 @@ workspaces.
 | C24 | B7 | open a `topic` link into W2 from W1 | n/a | opens on W2's host (`tenantOrigin`) | unit test on the href builder; twin: a W1 link stays on this host |
 | C25 | B7 | a `url` link's anchor | n/a | `target=_blank`, `rel="noopener noreferrer"` | unit test |
 | C26 | B8 | message menu, Shift+N | no item, no key | "Add to note" item; Shift+N opens the picker | `msg-menu.test.mjs`; `msg-shortcuts.test.mjs`: `N` in `MSG_SHORTCUTS` |
-| C27 | B8 | "Add to note" on a topic row, an issue, a calendar entry: pick a note | n/a | the note gains a link of that kind and workspace, label = the object's title | e2e on the mock bundle, one per object; twin: "New note" creates a note with that one link |
+| C27 | B8 | "Add to note" on a topic row, an issue, a calendar entry: pick a note | n/a | the note gains a link of that kind and workspace, label = the object's title | e2e on the mock bundle, one per object; twin: "New note" creates an untitled note with that one link (D4) |
 | C28 | B9 | `omniboxMode('/note buy milk')`, `('/n x')`, `('/notes')` | `'send'` each | `'note'`, `'note'`, `'send'` | `search.test.mjs` |
 | C29 | B9 | `/note Plan` on an open issue | n/a | a note "Plan" with that issue as its link | e2e on the mock bundle |
 | C30 | B9 | palette, type a note's title | no hit | a `notes` hit that opens it | `palette.test.mjs` |

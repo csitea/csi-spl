@@ -110,18 +110,20 @@ export function pickerNotes(list, query) {
 export const NOTE_BODY_MAX = 20000
 
 /**
- * SPL-5710: what "New note" writes. The title is the object's label; the
- * text typed in the picker's box is the note's body, never dropped (a person
- * typed a note for a task there and got a note with the task's title and no
- * text, twice). Blank text leaves the body empty.
+ * SPL-5710: what "New note" writes. The text typed in the picker's box is
+ * the note's body, never dropped (a person typed a note for a task there and
+ * got a note with the task's title and no text, twice). Blank text leaves the
+ * body empty. SPL-5725 (spec 155 D4): the title stays empty, never the
+ * object's title, which would outlive the person leaving its workspace; only
+ * the link carries that label, and the hub drops it after a leave.
  *
- * @param {{ label?: string } | null | undefined} link
+ * @param {{ label?: string } | null | undefined} _link
  * @param {string} typed
  * @returns {{ title: string, body: string }}
  */
-export function newNoteFields(link, typed) {
+export function newNoteFields(_link, typed) {
   const body = cut(String(typed ?? '').trim(), NOTE_BODY_MAX)
-  return { title: String(link?.label || ''), body }
+  return { title: '', body }
 }
 
 /**

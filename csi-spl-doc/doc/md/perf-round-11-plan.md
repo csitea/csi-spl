@@ -1,5 +1,7 @@
 # Perf round 11 (p11) - plan (3 rows)
 
+> Generated from qto doc `19d59419-af55-41e4-88bf-20cf90aa75d5`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -62,6 +64,8 @@ rows landed: p9-01 `fd3b0c647`, p9-02 `f24802938`, p9-03 `8a960d204` with its fi
 `perf-round-5-retro.md` and `lesson-speed-up-measure-first.md`.
 
 <a id="p11-how-to-read"></a>
+
+<a id="ws-doc-b1e7c9af-d439-49bc-9811-47f339e5240b"></a>
 ## 1. How to read this
 
 - A row is one logical change made by one lane, with the subject
@@ -85,6 +89,7 @@ rows landed: p9-01 `fd3b0c647`, p9-02 `f24802938`, p9-03 `8a960d204` with its fi
   under test needs.
 
 <a id="p11-inputs"></a>
+<a id="ws-doc-bdd71261-9f93-46d9-9b7f-74dd01ac2dec"></a>
 ## 2. Where the rows come from
 
 Inputs read (brief step 2). Each carried finding was re-checked on
@@ -105,6 +110,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 | new, this seat | does a `wait_event` budget run out in the 20 files that call it? | only in `wd-multi-daemon.tst.sh` (row 02); 0 in the other 17 green files (editor 2.4) | section 6 |
 
 <a id="p11-rows"></a>
+<a id="ws-doc-59cdb80a-aa40-4e91-9e24-d8cdaeec9d48"></a>
 ## 3. The 3 rows
 
 | # | id | practice | baseline on `6fcc711a9` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
@@ -118,6 +124,7 @@ vendor for every row) and the owner's 10-17 rule (no mistral coding or
 testing).
 
 <a id="p11-batches"></a>
+<a id="ws-doc-8074d3f5-71db-421c-8463-2bcb2e052102"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: rows 01, 02, 03. No path is in two rows:
@@ -139,6 +146,7 @@ testing).
   Row 03 edits `check-pre-push.func.sh`, not `check-pre-push-features.func.sh`.
 
 <a id="p11-r3"></a>
+<a id="ws-doc-18220e62-e3b6-4225-bdfa-8b372f9a3f24"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-16, each with its time:
@@ -195,6 +203,7 @@ Read on 2026-11-16, each with its time:
   lines.
 
 <a id="p11-per-row"></a>
+<a id="ws-doc-8d988565-4bc7-475c-b852-0d97518b08ec"></a>
 ## 4. Per row: what the lane does
 
 - **01**: case 8 keeps its purpose: the liveness check sees a live stub. The
@@ -287,6 +296,7 @@ Read on 2026-11-16, each with its time:
     is why it reads higher (3,766 -> 2,002 ms).
 
 <a id="p11-panel"></a>
+<a id="ws-doc-0d927a0e-344a-442f-bce1-45c7ecb16a06"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-16 02:45Z: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
@@ -306,6 +316,7 @@ agy (the holder's brief).
   code reviews are paused). A row never pushes without that PASS (2.7.3).
 
 <a id="p11-left-out"></a>
+<a id="ws-doc-38d321ce-bc0b-48b2-afff-01518399645e"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -327,6 +338,7 @@ agy (the holder's brief).
 No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 <a id="p11-counts"></a>
+<a id="ws-doc-26c3882a-86c8-44ba-898b-18987dd8ec5c"></a>
 ## 7. Counts
 
 - Rows: 3 (rulebook 1.1: at most 10). All 3 are in batch 1.
@@ -336,6 +348,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 - Review count (2.7.5): `git log origin/master --grep='p11-' --format=%B | grep -c '^review: '` must reach 3.
 
 <a id="p11-changes"></a>
+<a id="ws-doc-88dc35aa-a72b-4e42-964b-5e57b6d3c605"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -366,6 +379,7 @@ branch, as in rounds 8 to 10. From then on the Qto doc is the primary copy.
     change. Its N3 and N4 match section 3.2 and section 4 row 02.
 
 <a id="p11-consensus"></a>
+<a id="ws-doc-aba7a350-1eab-4355-895a-a1996102cc36"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

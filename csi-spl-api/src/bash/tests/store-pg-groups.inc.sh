@@ -1,6 +1,7 @@
 # shellcheck shell=bash disable=SC2034 # the variables are read by the files that source it
 # The internal/store Postgres run, split into SEQUENTIAL go test processes
-# (hub-pg.tst.sh runs them one after another, each with its own -timeout).
+# (hub-pg.tst.sh runs them one after another, each with its own -timeout, on
+# its own freshly migrated database: SPL-5654, no group sees another's rows).
 # As one process it hit the 20m GO_TEST_TIMEOUT under runner load (job
 # 114504882724, TestWriteBatchRoundTrips): breadth, not a hang. A group is a
 # -run range of test names plus a -skip, balanced by measured wall times; the

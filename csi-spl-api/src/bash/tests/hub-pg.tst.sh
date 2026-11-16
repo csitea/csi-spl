@@ -184,12 +184,12 @@ GO_TEST_TIMEOUT="${SPOOL_TEST_GO_TIMEOUT:-20m}"
 # the package's 489 s of test time, the property test alone 171 s.
 # The rest of the store suite still hit 20m on a loaded runner (job
 # 114504882724): it runs as SEQUENTIAL groups (store-pg-groups.inc.sh), each
-# its own go test process and -timeout, on the one store database, in the same
+# its own go test process and -timeout, on its own database, in the same
 # job slot; store-pg-groups.tst.sh proves each test runs in exactly one.
 # shellcheck source=store-pg-groups.inc.sh
 source "$HERE/store-pg-groups.inc.sh"
 # internal/hub likewise took 1038 s of the 20m (same job): its own SEQUENTIAL
-# groups (hub-pg-groups.inc.sh) on the one hub database; hub-pg-groups.tst.sh
+# groups (hub-pg-groups.inc.sh), each on its own database; hub-pg-groups.tst.sh
 # proves each test runs in exactly one.
 # shellcheck source=hub-pg-groups.inc.sh
 source "$HERE/hub-pg-groups.inc.sh"
@@ -203,22 +203,47 @@ pg_go_test() { # <db> <dir> <cover tag> [go test selection]: one go test process
       SPOOL_TEST_PG_PUBLIC_NAMES_DSN="$(login_dsn spool_public_names "$db")" \
       CGO_ENABLED=1 go test -race -count=1 -timeout "$GO_TEST_TIMEOUT" "${sel[@]}" "./internal/$dir/" )
 }
-store_groups() { # the store groups one after another; a red group does not stop the next
-  local g t0 rc=0
+# SPL-5654 (ci50 row 4, T1/S1 of ci-failures-50-2026-11-15.md): each store
+# and hub group runs on its OWN freshly migrated database. On the one package
+# database a group started on the rows and sequences every earlier group left:
+# a sweep test counted another group's due Meta post (F1), humans_seq crossed
+# 1000 and flipped a text sort (D1), an operator control read a third estate
+# row (F5). The migrate is printed per group, the price of a clean start.
+# One at a time (flock): the store and hub chains prepare their databases
+# concurrently, and the role files ALTER and GRANT cluster-wide roles; two at
+# once failed "tuple concurrently updated" (the first full run, n=1).
+db_lock() { # <cmd...>: run it holding the one database-setup lock
+  ( flock 9; "$@" ) 9>"$WORK/group-db.lock"
+}
+group_db_unlocked() { # <db> <dir>
+  mkdb "$1"
+  "$BIN" migrate --db "$(app_dsn "$1")" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
+  own_sql "$1" "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
+  [ "$2" != store ] || public_logins "$1"
+}
+group_db() { # <db> <dir>: a fresh database, migrated, DML granted to RT_ROLE
+  db_lock group_db_unlocked "$1" "$2"
+}
+store_groups() { # the store groups one after another, each on its own database; a red group does not stop the next
+  local g t0 m rc=0
   for g in "${STORE_PG_GROUPS[@]}"; do
     t0="$SECONDS"
-    if pg_go_test spool_hub_store store "store-$g" -run "$(store_pg_group_run "$g")" -skip "$(store_pg_group_skip "$g")"; then
-      echo "ok   - store group $g: $((SECONDS - t0)) s (timeout $GO_TEST_TIMEOUT)"
+    group_db "spool_hub_store_$g" store
+    m="$((SECONDS - t0))"
+    if pg_go_test "spool_hub_store_$g" store "store-$g" -run "$(store_pg_group_run "$g")" -skip "$(store_pg_group_skip "$g")"; then
+      echo "ok   - store group $g: $((SECONDS - t0)) s, its fresh database $m s of it (timeout $GO_TEST_TIMEOUT)"
     else echo "FAIL - store group $g after $((SECONDS - t0)) s"; rc=1; fi
   done
   return "$rc"
 }
-hub_groups() { # the hub groups one after another; a red group does not stop the next
-  local g t0 rc=0
+hub_groups() { # the hub groups one after another, each on its own database; a red group does not stop the next
+  local g t0 m rc=0
   for g in "${HUB_PG_GROUPS[@]}"; do
     t0="$SECONDS"
-    if pg_go_test spool_hub_hub hub "hub-$g" -run "$(hub_pg_group_run "$g")"; then
-      echo "ok   - hub group $g: $((SECONDS - t0)) s (timeout $GO_TEST_TIMEOUT)"
+    group_db "spool_hub_hub_$g" hub
+    m="$((SECONDS - t0))"
+    if pg_go_test "spool_hub_hub_$g" hub "hub-$g" -run "$(hub_pg_group_run "$g")"; then
+      echo "ok   - hub group $g: $((SECONDS - t0)) s, its fresh database $m s of it (timeout $GO_TEST_TIMEOUT)"
     else echo "FAIL - hub group $g after $((SECONDS - t0)) s"; rc=1; fi
   done
   return "$rc"
@@ -229,10 +254,8 @@ pids=()
 for pkg in store wsdoc hub auth repodocs channelmove; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
   db="spool_hub_$pkg" dir="$pkg"
   [ "$pkg" = wsdoc ] && dir=store
-  mkdb "$db"
-  "$BIN" migrate --db "$(app_dsn "$db")" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
-  own_sql "$db" "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
-  [ "$dir" = store ] && { public_logins "$db"; public_logins "$db"; } # the second run: idempotent
+  group_db "$db" "$dir" # store and hub: the RLS and cross-tenant runs below; their groups make their own
+  [ "$dir" != store ] || db_lock public_logins "$db" # the second run: idempotent
   case "$pkg" in
     store) store_groups & ;;
     wsdoc) pg_go_test "$db" store wsdoc -run "$STORE_PG_WSDOC" & ;;
@@ -244,7 +267,7 @@ done
 rc=0
 for p in "${pids[@]}"; do wait "$p" || rc=1; done
 [ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
-echo "ok   - internal/store (${#STORE_PG_GROUPS[@]} sequential groups; spec 113 workspace docs in their own run) + internal/hub (${#HUB_PG_GROUPS[@]} sequential groups) + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
+echo "ok   - internal/store (${#STORE_PG_GROUPS[@]} sequential groups, each on its own database; spec 113 workspace docs in their own run) + internal/hub (${#HUB_PG_GROUPS[@]} sequential groups, each on its own database) + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
 
 # 017 T021 + FR-SEC-014 CONTROL: EVERY ^TestRLS test must RUN and PASS (a
 # skip is a failure), counted from the source so a new one cannot hide.

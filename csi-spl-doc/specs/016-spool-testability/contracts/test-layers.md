@@ -29,7 +29,7 @@ Runs **A–F** (via hub-suite + wui-suite), **G** (`wui-e2e`: generate mock tena
 
 ## 3. Dual-driver rule (store)
 
-`internal/store` tests call `drivers(t)`: Memory always; Postgres only when `$SPOOL_TEST_PG_DSN` is set. `hub-pg.tst.sh` uses **one database per package** (`store`, `hub`, `auth`) so `Sweep` in store cannot purge hub rows (comment in `hub-pg.tst.sh`, CI 35436333578). New store tests MUST use `drivers(t)`, not Memory only.
+`internal/store` tests call `drivers(t)`: Memory always; Postgres only when `$SPOOL_TEST_PG_DSN` is set. `hub-pg.tst.sh` uses **one database per package** (`store`, `hub`, `auth`) so `Sweep` in store cannot purge hub rows (comment in `hub-pg.tst.sh`, CI 35436333578). Inside a package, each sequential `store` and `hub` group (`store-pg-groups.inc.sh`, `hub-pg-groups.inc.sh`) runs on its **own freshly migrated database** (`spool_hub_store_<g>`, `spool_hub_hub_<g>`; SPL-5654): no group starts on the rows or sequences an earlier group left (T1/S1 in `csi-spl-doc/doc/md/ci-failures-50-2026-11-15.md`). Each group line prints the seconds its database took. New store tests MUST use `drivers(t)`, not Memory only.
 
 ## 4. Skip policy
 

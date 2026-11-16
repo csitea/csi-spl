@@ -65,7 +65,7 @@ else echo "FAIL - CONTROL: group $g listed twice went red for the wrong reason: 
 
 # hub-pg.tst.sh must run each group, by this list, with this selection.
 # shellcheck disable=SC2016 # the literal source lines, not their expansion
-for want in 'for g in "${STORE_PG_GROUPS[@]}"' '-run "$(store_pg_group_run "$g")" -skip "$(store_pg_group_skip "$g")"' '-run "$STORE_PG_WSDOC"'; do
+for want in 'for g in "${STORE_PG_GROUPS[@]}"' 'group_db "spool_hub_store_$g" store' 'pg_go_test "spool_hub_store_$g" store' '-run "$(store_pg_group_run "$g")" -skip "$(store_pg_group_skip "$g")"' '-run "$STORE_PG_WSDOC"'; do
   if grep -qF -- "$want" "$HERE/hub-pg.tst.sh"; then echo "ok   - hub-pg.tst.sh carries: $want"
   else echo "FAIL - hub-pg.tst.sh lost: $want"; fails=$((fails + 1)); fi
 done

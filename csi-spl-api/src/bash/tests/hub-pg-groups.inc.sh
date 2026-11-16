@@ -1,7 +1,8 @@
 # shellcheck shell=bash disable=SC2034 # the variables are read by the files that source it
 # The internal/hub Postgres run, split into SEQUENTIAL go test processes
-# (hub-pg.tst.sh runs them one after another, each with its own -timeout), the
-# shape of store-pg-groups.inc.sh. As one process it took 1038 s of the 20m
+# (hub-pg.tst.sh runs them one after another, each with its own -timeout, on
+# its own freshly migrated database: SPL-5654), the shape of
+# store-pg-groups.inc.sh. As one process it took 1038 s of the 20m
 # GO_TEST_TIMEOUT in red job 114504882724 (816 s and 900 s green in jobs
 # 114633083898, 114642216718): breadth, not a hang. A group is a -run range of
 # top-level names, balanced by measured wall times; the last group's range is

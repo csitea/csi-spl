@@ -32,7 +32,7 @@
 # line. The change: FEATURES_CHANGED (paths, space or newline separated) or
 # the files of FEATURES_RANGE (a git range), in PRE_PUSH_TREE (default the
 # checkout). Exit 0 also when a path selects nothing; non-zero only on a
-# real failure (an undiffable FEATURES_RANGE).
+# real failure (an undiffable FEATURES_RANGE, a feature test grep cannot read).
 do_check_pre_push_features() {
   local tree="${PRE_PUSH_TREE:-$(git rev-parse --show-toplevel 2>/dev/null)}" changed
   if [[ -n "${FEATURES_RANGE:-}" ]]; then
@@ -53,21 +53,26 @@ _ppf_all() {
 }
 
 # _ppf_select <tree> <changed-list> - the features (see do_check_pre_push_features).
+# A path no test names is no error, also the LAST one (under pipefail a bare
+# grep made the action exit 1, SPL-5651); a test grep cannot read (grep rc 2)
+# is: the selection may miss a feature, so it says so and returns 1.
 _ppf_select() {
-  local tree="$1" feat="$1/csi-spl-orc/src/bash/features" f rel b stem
+  local tree="$1" feat="$1/csi-spl-orc/src/bash/features" f rel b stem bad=0
   [[ -d "$feat" ]] || return 0
-  while IFS= read -r f; do
+  local -a tests=("$feat"/*/tests/test-*.sh)
+  [[ -e "${tests[0]}" ]] || tests=()
+  { while IFS= read -r f; do
     [[ "$f" == csi-spl-orc/* && "$f" != *.md ]] || continue
     rel="${f#csi-spl-orc/src/bash/features/}"
     if [[ "$rel" != "$f" && "$rel" != */* ]]; then _ppf_all "$tree"; continue; fi
     [[ "$rel" != "$f" && -d "$feat/${rel%%/*}/tests" ]] && echo "${rel%%/*}"
+    (( ${#tests[@]} )) || continue
     b="${f##*/}"; stem="${b%.func.sh}"; stem="${stem%.inc.sh}"; stem="${stem%.sh}"
     local -a pats=(-e "$b"); (( ${#stem} >= 5 )) && pats+=(-e "$stem")
-    # no test naming it is no error: under pipefail a bare grep made the loop,
-    # and so the action, exit 1 when the LAST path matched nothing (SPL-5651)
-    { grep -lwF "${pats[@]}" "$feat"/*/tests/test-*.sh 2>/dev/null || :; } \
-      | sed 's|.*/features/\([^/]*\)/tests/.*|\1|'
-  done <<<"$2" | sort -u
+    { grep -lwF "${pats[@]}" "${tests[@]}" 2>/dev/null; (( $? < 2 )); } \
+      | sed 's|.*/features/\([^/]*\)/tests/.*|\1|' \
+      || { echo "ERROR orc-features: cannot read every feature test for $f" >&2; bad=1; }
+  done <<<"$2"; (( bad == 0 )); } | sort -u
 }
 
 # _ppf_parts <changed-list> <tree> - do_check_pre_push's `parts` gets

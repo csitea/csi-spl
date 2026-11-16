@@ -84,14 +84,16 @@
 #        not on origin, the sha on the local branch of that name or in the
 #        HEAD of a worktree named for the author -> GO saying 'found locally
 #        only'; the sha the tip of `<branch>-r2` / `<branch>-n2` while the
-#        branch points elsewhere -> GO naming that ref; controls: a box commit
-#        on no branch or worktree, a local-only sha while the branch is on
-#        origin, a sha on no origin ref -> rc 5; a sha nowhere -> rc 8
+#        branch points elsewhere, or of the author's <author>-* -> GO naming
+#        that ref; controls: a box commit on no branch or worktree, a
+#        local-only sha while the branch is on origin, a sha on no origin ref,
+#        only on a tag, another lane's branch or <branch>y, a failed ls-remote
+#        -> rc 5; a sha nowhere -> rc 8
 #    24. owner-go keywords in quoted text (SPL-5670): RED CONTROLS a keyword
 #        only in a What happened / Why section (and its subheadings), a `>`
 #        quote, a fenced block, a negated `does not apply` -> GO; controls: a
 #        backticked prd step, an APPLY step after a symptom section, an
-#        apply not negated -> rc 4
+#        apply not negated, a prd step under Context -> rc 4
 #    25. one review seat named with and without hand-<box>- (SPL-5670): RED
 #        CONTROL the only seat (title <slug>, brief hand-sat-<slug>.md) ->
 #        GO, no WAIT; controls: a real second seat that has not answered ->
@@ -791,6 +793,25 @@ done
 "${G[@]}" -C "$T/repo" push -q origin ":refs/heads/review/c002-x-r2" ":refs/heads/review/c002-x-n2"
 run23 "23c" review/c002-x "$RSHA" 23000000-0000-4000-8000-0000000000c9
 refused "23c. RED CONTROL: the reviewed sha on no origin ref at all -> rc 5" $rc 5 "branch 'review/c002-x' on origin is $SHA, not the reviewed ${RSHA:0:12}"
+# W1 (g-416, d9f99d24): only a related branch carries it, never a tag or another lane's branch
+RSHA=$(c23 c-222-retry "author re-push"); "${G[@]}" -C "$T/repo" push -q origin "$RSHA:refs/heads/c-222-retry"
+run23 "23c" review/c002-x "$RSHA" 23000000-0000-4000-8000-0000000000ca
+go23 "23c. RED CONTROL: the sha is the tip of the author's c-222-retry -> GO naming that ref" \
+  "$RSHA" 23000000-0000-4000-8000-0000000000ca "origin ref refs/heads/c-222-retry"
+"${G[@]}" -C "$T/repo" push -q origin ":refs/heads/c-222-retry"
+for ref in refs/tags/hold-me refs/heads/other-lane refs/heads/review/c002-xy; do
+  "${G[@]}" -C "$T/repo" push -q origin "$RSHA:$ref"
+  run23 "23c" review/c002-x "$RSHA" 23000000-0000-4000-8000-0000000000cb
+  refused "23c. RED CONTROL: the sha only on the unrelated $ref -> rc 5" $rc 5 "branch 'review/c002-x' on origin is $SHA, not the reviewed ${RSHA:0:12}"
+  "${G[@]}" -C "$T/repo" push -q origin ":$ref"
+done
+# W3 (g-416): origin unreadable while the row's branch there points elsewhere: no local-only GO
+XSHA=$(c23 review/c002-w3 "local tip of the row's branch"); "${G[@]}" -C "$T/repo" push -q origin "$SHA:refs/heads/review/c002-w3"
+OURL=$("${G[@]}" -C "$T/repo" remote get-url origin)
+"${G[@]}" -C "$T/repo" remote set-url origin "$T/no-such-origin.git"
+run23 "23a" review/c002-w3 "$XSHA" 23000000-0000-4000-8000-0000000000a6
+"${G[@]}" -C "$T/repo" remote set-url origin "$OURL"
+refused "23a. RED CONTROL: git ls-remote origin fails -> rc 5 saying so, never 'found locally only'" $rc 5 "git ls-remote origin failed"
 
 # --- 24. owner-go keywords in quoted text: the instruction text is scanned (SPL-5670) -------------------------
 # real lines: SPL-5644's brief lines 13-14 (ENV=prd in its symptom), SPL-5647's brief line 41 ("does not
@@ -835,7 +856,12 @@ none
 ## Steps
 terraform step 030 APPLY, dev then prd|APPLY' \
           'an apply that is not negated|## Do
-apply the migration to prd.|apply'; do
+apply the migration to prd.|apply' \
+          'a prd step under Context (W2, SPL-4812 reviewer brief)|## Context
+Read the rows with `ENV=prd ./run -a do_spl_db_query` first.
+
+## Steps
+Review the diff.|ENV=prd'; do
   reset; IFS='|' read -r name text kw <<<"${fx//$'\n'/$'\037'}"
   abrief c-222 "${text//$'\037'/$'\n'}"
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 24000000-0000-4000-8000-000000000002)

@@ -560,15 +560,16 @@ _spl_review_go_unplaced() {
 
 # _spl_review_go_instr <brief>: the brief's instruction text, what the
 # owner-go scan reads (SPL-5670): without the sections whose heading opens
-# with Why, What happened, Symptom(s), Evidence, Background, Context,
-# History, Trace, Observed or Measured (their subheadings too: they say what
-# went wrong, not what to run), without fenced blocks and `>` quote lines,
-# and without a negated `apply` (`does not apply`, `never apply`). Backticked
-# spans stay: a command the lane is told to run is written in backticks.
+# with Why, What happened, Symptom(s), Evidence, Background, History, Trace,
+# Observed or Measured (their subheadings too: they say what went wrong, not
+# what to run; not Context: a brief's Context can hold a step to run),
+# without fenced blocks and `>` quote lines, and without a negated `apply`
+# (`does not apply`, `never apply`). Backticked spans stay: a command the lane
+# is told to run is written in backticks.
 _spl_review_go_instr() {
   python3 - "$1" <<'EOF_PY'
 import re, sys
-NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|context|history|trace|observed|measured)\b")
+NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|history|trace|observed|measured)\b")
 try:
     lines = open(sys.argv[1], encoding="utf-8", errors="replace").read().split("\n")
 except OSError:
@@ -657,7 +658,7 @@ _spl_review_go_one() {
   why="$(_spl_review_go_tip "$branch")"
   if [[ "$why" != "$sha" ]]; then
     where="$(_spl_review_go_elsewhere "$branch" "$sha" "$author" "$why")" ||
-      { _spl_review_go_hold "$@" 5 "branch '${branch:-none}' on origin is ${why:-missing}, not the reviewed ${sha:0:12}: re-review"; return 5; }
+      { _spl_review_go_hold "$@" 5 "branch '${branch:-none}' on origin is ${why:-missing}, not the reviewed ${sha:0:12}: re-review${where:+ ($where)}"; return 5; }
     do_log "INFO msg $msg: the reviewed ${sha:0:12} $where" >&2
   fi
   why="$(_spl_review_go_siblings "$rid" "$brief" "$author" "$sha" "$log" "$holder")"
@@ -679,20 +680,26 @@ _spl_review_go_repo() { echo "${REVIEW_GO_REPO:-$(git -C "${BASH_SOURCE[0]%/*}" 
 
 # _spl_review_go_elsewhere <branch> <sha> <author> <its origin tip>: the row's
 # branch on origin is not the reviewed sha (SPL-5670). 0, where it was found
-# on stdout, when (c) the sha is the tip of another origin ref (the author
-# re-pushed the fix under a new name: any ref, the full sha, no suffix
-# guessed), or (a) origin has no such branch and the sha is a commit of this
-# box's repo reachable from the local branch of that name or from the HEAD
-# of a worktree on that branch or named for the author (local only: the
-# author must still push it). Else rc 1: a branch on origin that points
-# elsewhere, a sha on no ref, or a row that names no branch still holds rc 5.
+# on stdout, when (c) the sha is the tip of a related origin branch (the author
+# re-pushed the fix under a new name: a branch named <branch> plus any suffix
+# after a - . _ or /, or <author>-*, the full sha; no suffix guessed, never a
+# tag or another lane's branch), or (a) origin answers and has no such branch,
+# and the sha is a commit of this box's repo reachable from the local branch
+# of that name or from the HEAD of a worktree on that branch or named for the
+# author (local only: the author must still push it). Else rc 1, the why on
+# stdout when origin did not answer: a failed ls-remote, a branch on origin
+# that points elsewhere, a sha on no related ref, or a row that names no branch
+# still holds rc 5.
 _spl_review_go_elsewhere() {
-  local repo ref wt="" head="" wbr=""
+  local repo refs ref wt="" head="" wbr=""
   [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
   repo="$(_spl_review_go_repo)"
-  ref="$(git -C "$repo" ls-remote origin 2>/dev/null | awk -v s="$2" '$1 == s && $2 !~ /\^\{\}$/ {print $2; exit}')"
+  refs="$(git -C "$repo" ls-remote origin 2>/dev/null)" || { echo "git ls-remote origin failed: origin not read"; return 1; }
+  ref="$(awk -v s="$2" -v b="refs/heads/$1" -v a="refs/heads/$3-" '$1 == s && (index($2, a) == 1 ||
+    (index($2, b) == 1 && substr($2, length(b) + 1, 1) ~ /[-._\/]/)) {print $2; exit}' <<<"$refs")"
   [[ -n "$ref" ]] && { echo "is the tip of origin ref $ref (not of the row's branch '$1')"; return 0; }
-  [[ -z "$4" ]] && git -C "$repo" cat-file -e "$2^{commit}" 2>/dev/null || return 1
+  [[ -z "$4" ]] && ! awk -v b="refs/heads/$1" '$2 == b {f = 1} END {exit !f}' <<<"$refs" &&
+    git -C "$repo" cat-file -e "$2^{commit}" 2>/dev/null || return 1
   if git -C "$repo" merge-base --is-ancestor "$2" "refs/heads/$1" 2>/dev/null; then
     echo "is on this box's local branch '$1' only, not on origin: found locally only, the author must still push it"; return 0
   fi

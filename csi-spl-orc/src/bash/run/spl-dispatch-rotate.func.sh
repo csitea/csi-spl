@@ -155,6 +155,8 @@ spl_disp_rotate_auto() {
   if spl_lease_remote; then
     local src=0; spl_disp_standby_swap "$rid" || src=$?
     (( src == 3 )) || return "$src"
+    # SPL-5684: no refresh while the hub is down (it could only FAIL and alert)
+    spl_disp_hub_down "$rid" && return 0
     spl_disp_standby_refresh "$rid"; return $?
   fi
   spl_disp_rotate_age_gates "$rid" || return 0

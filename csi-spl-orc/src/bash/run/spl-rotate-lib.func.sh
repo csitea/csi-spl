@@ -556,8 +556,9 @@ spl_rotate_log() {
   echo "$line" >> "$ROTATE_LOG"
   [[ "$res" == SKIP ]] && return 0
   local sf; sf="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$(spl_rotate_family "${rid##*-}").state"
-  # a DONE OK ends the alert streak (spl_rotate_alert_repeat, SPL-2898)
-  [[ "$phase $res" == "DONE OK" ]] && rm -f "${sf%.state}.alert-streak"
+  # a DONE OK ends its own role's alert streak (spl_rotate_alert_repeat,
+  # SPL-2898), never the other role's (SPL-5684)
+  [[ "$phase $res" == "DONE OK" ]] && rm -f "$(spl_rotate_alert_streak_file "$rid")"
   printf '%s %s %s\n' "$rid" "$phase" "$(date +%s)" > "$sf.tmp.$$" && mv -f "$sf.tmp.$$" "$sf"
   return 0
 }
@@ -1817,9 +1818,13 @@ spl_rotate_alert() {
 
 # One alert per streak (SPL-2898, rotation-failures-2026-10-22.md section 2:
 # one cause gave 20 FAIL runs on the same old pid in 19 h, and 12 notices).
-# The streak is rotate.<family>.alert-streak, one line "<role> <id> <phase>
-# <old pid> <ask> <n>"; a DONE OK removes it (spl_rotate_log). Only a numeric
-# old pid makes a key: with none every failure alerts, as before.
+# The streak is rotate.<family>.<role>.alert-streak, one line "<role> <id>
+# <phase> <old pid> <ask> <n>"; a DONE OK of that role removes it
+# (spl_rotate_log). One file per role (SPL-5684, spec 175 5.3): the master and
+# the failover shared rotate.dispatch.alert-streak, so each one's alert or
+# DONE OK reset the other's streak and 19 rotation alerts came of 1..3
+# streaks. Only a numeric old pid makes a key: with none every failure
+# alerts, as before.
 # spl_rotate_alert_repeat KEY RID: 0 = KEY is the open streak: its count goes
 # up and one "ALERT SKIP repeat <n> of ask <id8>" line is logged.
 spl_rotate_alert_repeat() {
@@ -1838,7 +1843,7 @@ spl_rotate_alert_streak() {
   [[ "$1" =~ \ [0-9]+$ ]] || return 0
   echo "$1 $3 1" > "$(spl_rotate_alert_streak_file "$2")" 2>/dev/null || true
 }
-spl_rotate_alert_streak_file() { echo "${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$(spl_rotate_family "${1##*-}").alert-streak"; }
+spl_rotate_alert_streak_file() { echo "${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$(spl_rotate_family "${1##*-}").${1##*-}.alert-streak"; }
 
 # spl_rotate_owner_say RID ID ASK BODY KIND [PHASE]: the people leg of an
 # alert: a new topic in the fleet's ops channel (do_spl_fleet_notice, cnf

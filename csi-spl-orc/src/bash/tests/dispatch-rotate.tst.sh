@@ -112,6 +112,8 @@
 #  25. SPL-2899 (F): a grok master, the lease kept on an able claude failover
 #      = RELEASE SKIP vendor rank, DONE, no ask. Controls: the failover not
 #      able, or no better vendor = RELEASE FAIL + ask
+#  31. SPL-5684: a standby box with a fresh fleet.dispatch.hub-down = GATE SKIP
+#      hub-down, no STANDBY OK refresh. Control: a marker 600 s old refreshes
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -1335,6 +1337,25 @@ act DRY_RUN=0 ROTATE_RELEASE_WAIT=8 >"$T/o" 2>&1; rc=$?
   ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
   pass "30. CONTROL: the lease on another machine: RELEASE SKIP standby, no ask" || fail "30. control-remote rc=$rc $(cat "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "30. no stray failing command under the ERR trap" || fail "30. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+
+# --- 31. SPL-5684: a standby box refreshes no seat while the hub is down --------------------------
+# spec 175 section 5.3: the standby refresh ran before the hub-down gate, so a
+# box that could not reach the hub restarted its seats and alerted. A fresh
+# fleet.dispatch.hub-down = GATE SKIP hub-down, no STANDBY OK refresh, no spawn.
+sbr; echo "$(( $(date +%s) - 30 ))" >"$D/fleet.dispatch.hub-down"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$T/proc/102" && -d "$T/proc/103" ]] &&
+  grep -q ' GATE SKIP hub-down (the hub was unreachable from here [0-9]*s ago' "$T/o" &&
+  ! grep -q 'STANDBY OK refresh' "$T/o" "$D/rotate.log" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "31. standby box, a fresh hub-down marker: GATE SKIP hub-down, no STANDBY OK refresh, no spawn, no ask" ||
+  fail "31. hub-down standby rc=$rc $(cat "$T/o")"
+# CONTROL: a hub-down marker 600 s old: the seats are refreshed as in case 27
+sbr; echo "$(( $(date +%s) - 600 ))" >"$D/fleet.dispatch.hub-down"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'STANDBY OK refresh c-902' "$D/rotate.log" && ! grep -q 'hub-down' "$T/o" &&
+  pass "31. CONTROL: a hub-down marker 600s old: the standby seats are refreshed" || fail "31. control rc=$rc $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "31. no stray failing command under the ERR trap" || fail "31. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

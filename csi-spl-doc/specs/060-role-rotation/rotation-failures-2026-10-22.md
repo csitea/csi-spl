@@ -46,6 +46,16 @@ ask and a notice on every failed run.
   `DONE OK`. A run with no numeric old pid alerts as before. Red control:
   `orch-rotate.tst.sh` case 22. It found 2 asks before the fix and finds 1
   after. A SPAWN failure on the same pid still starts a new streak.
+- **Fixed**, SPL-5684 (spec 175, the alerts panel task 3): the master and
+  the failover shared `rotate.dispatch.alert-streak`, so one role's alert
+  overwrote the other's streak and either role's `DONE OK` removed both.
+  The streak is now `rotate.<family>.<role>.alert-streak` (the orchestrator's
+  `rotate.orch.orch.alert-streak`), and a `DONE OK` removes only its own
+  role's. A standby box also checks `fleet.dispatch.hub-down` before its
+  standby refresh (`GATE SKIP hub-down`), so it restarts no seat while the
+  hub is down. Red control: `rotate-alert-streak-role.tst.sh` (case (a):
+  2 asks on the master's old pid before, 1 after) and
+  `dispatch-rotate.tst.sh` case 31.
 
 ## 3. Out of scope, not touched
 

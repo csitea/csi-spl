@@ -1096,12 +1096,12 @@ grep -q " ALERT SKIP repeat 2 of ask $ask1" "$T/o2" && grep -q " ALERT SKIP repe
   pass "22. the repeat logs ALERT SKIP repeat 2 of ask <id>" || fail "22. no ALERT SKIP line: $(grep ALERT "$T/o2")"
 rm -f "$D/rotate.orch.state"; echo nopane >"$T/spawn.mode"
 act DRY_RUN=0 >"$T/o" 2>&1
-[[ "$(grep -c '^do_spl_ask_put' "$T/run.log")" == 2 ]] && grep -q ' ALERT OK ask ' "$T/o" && grep -q ' c-900 SPAWN 1001 [0-9a-f-]* 1$' "$D/rotate.orch.alert-streak" &&
+[[ "$(grep -c '^do_spl_ask_put' "$T/run.log")" == 2 ]] && grep -q ' ALERT OK ask ' "$T/o" && grep -q ' c-900 SPAWN 1001 [0-9a-f-]* 1$' "$D/rotate.orch.orch.alert-streak" &&
   pass "22. control: a SPAWN failure on the same pid is a new streak, a new ask" || fail "22. control: asks=$(grep -c '^do_spl_ask_put' "$T/run.log") $(grep ALERT "$T/o")"
 rm -f "$D/rotate.orch.state" "$T/spawn.mode" "$T/ack.mode"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -e "$D/rotate.orch.alert-streak" ]] &&
-  pass "22. DONE OK ends the streak (the streak file is gone)" || fail "22. done: rc=$rc $(ctx ROTATE_PHASE) $(cat "$D/rotate.orch.alert-streak" 2>/dev/null)"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -e "$D/rotate.orch.orch.alert-streak" ]] &&
+  pass "22. DONE OK ends the streak (the streak file is gone)" || fail "22. done: rc=$rc $(ctx ROTATE_PHASE) $(cat "$D/rotate.orch.orch.alert-streak" 2>/dev/null)"
 ! grep -q ERRTRAP "$T/o" "$T/o2" && pass "22. no stray failing command under the ERR trap" || fail "22. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/o2")"
 
 # --- 23. SPL-2898 (E): the old window is already gone when SPAWN renames it --------------------

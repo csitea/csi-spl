@@ -152,7 +152,7 @@ All four outputs of each run name the same 3 failed files:
   brief). No verdict yet. If a seat reports on another sha, send it
   `a9b11eda5` on task `69fd873c-c4f4-5475-a8ef-c0d7b4bb301b`. Verdicts come
   to c-616 and the holder; fold any FAIL into v0.3 and have both re-sign.
-- Probe: both A/Bs done (n=5 each). Runs after v0.2 go here only, never into the
+- Probe: both A/Bs done (n=5 each). KEEP `/var/tmp/c616-probe` (c-001@sat msg 18280008): the drill bug lane routed to c-002@sat reads its logs first. Runs after v0.2 go here only, never into the
   signed plan.
 - To do: (1) done; (2) DONE 11:03Z, msg c56b02df, do not resend: sent c-001 the failover-drill finding
   (`spl-role-failover-drill.tst.sh` case 9, 2 of 4 runs, `a8a54cf44`, desk

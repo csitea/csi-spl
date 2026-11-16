@@ -1,5 +1,100 @@
 # Perf round 11 grok seat
 
+## Delta on plan v0.3
+
+Verdict: **REVIEW PASS** on `1f61f039db0d5ff83482c42cff2ccf51de036256` (plan v0.3).
+
+Panel: g-474, grok. Issue SPL-5672. The v0.2 record below is unchanged.
+
+Defects: none. The three agy fixes match the tree. The v0.2 notes N1-N5 still hold. D1-D6 below do not change the row count, the baselines, the file split, or the red controls.
+
+Parent of `1f61f039db0d5ff83482c42cff2ccf51de036256` is `bd4b42a375e5080530fcb1b2c64e175b2950cdc7`. Diff is the plan and `editor.md` only:
+
+```
+git rev-parse 1f61f039db0d5ff83482c42cff2ccf51de036256^
+git diff --stat bd4b42a375e5080530fcb1b2c64e175b2950cdc7 1f61f039db0d5ff83482c42cff2ccf51de036256
+git show bd4b42a375e5080530fcb1b2c64e175b2950cdc7:csi-spl-doc/doc/md/perf-round-11-plan.md | grep -c '^| 0[123] |'
+git show 1f61f039db0d5ff83482c42cff2ccf51de036256:csi-spl-doc/doc/md/perf-round-11-plan.md | grep -c '^| 0[123] |'
+```
+
+Printed:
+
+```
+bd4b42a375e5080530fcb1b2c64e175b2950cdc7
+ csi-spl-doc/doc/md/perf-round-11-plan.md   | 118 +++++++++++++++++++++++------
+ csi-spl-doc/doc/md/perf-round-11/editor.md |  30 +++++++-
+ 2 files changed, 123 insertions(+), 25 deletions(-)
+3
+3
+```
+
+`origin/master` at this read is `0a6e9d22e016f7ccec1204609e1dadaae4db8b7e`. `git merge-base --is-ancestor 6fcc711a9 origin/master` exited 0. `git log origin/master --oneline -E --grep='\(p11-'` printed 0. `git ls-remote origin 'refs/heads/*p11-*'` printed 0. The review planner ref is `1f61f039db0d5ff83482c42cff2ccf51de036256`.
+
+Baselines on the v0.3 plan, `grep -oE` of `54.2 s`, `25.2 s`, `26.2 s`, `23.5 s`, `3,766 ms`, `2,002 ms`: one each, except `2,002 ms` twice (the row and the later `./run` sentence). Added beside them, not in place of them: `6,482`, `3,421`, `44..47`.
+
+`git diff --name-status 6fcc711a9 origin/master` for the two test files, `wait-event.inc.sh`, `spl-watchdog.func.sh`, `stop-pre-push.func.sh`, `check-qto-doc-drift.func.sh` and `check-pre-push-budget-table.tst.sh` printed nothing. The only row file in that range is `M csi-spl-iac/src/bash/run/check-pre-push.func.sh`. A `git diff` of that file filtered to hunks at lines 480-509 printed nothing.
+
+### W1, row 01
+
+`git show` of `spl-standby-bench.tst.sh` at `6fcc711a9` and at `origin/master` is the same at 177-183: line 179 starts `sleep 30 | ... &`, line 180 is `ctl=$!`, line 183 is `kill "$ctl"; wait "$ctl"`. The case 8 comment still says `CONTROL: a live stub is seen` at line 182.
+
+Own re-run, bash 5.2.37, n=1. The script sleeps 3 in a pipeline, records `sleep` children of the shell, kills the pipeline pid, records again, then `wait`s:
+
+```
+ctl=2553517 before=1
+kill_rc=0 mid=1
+after=3 left=0 wait_rc=143
+```
+
+`before` and `mid` are 1, so the `sleep` is still a child after `kill` of `$!` and before `wait`. `after` is 3 and `left` is 0, so an assert placed after `wait` sees 0 on today's code. The plan puts the assert between the stop and the `wait`, with `wait_event 2`. That is the red control.
+
+### W2, row 02
+
+`wd-multi-daemon.tst.sh` at `6fcc711a9` (same file unchanged on `origin/master`): `settle()` at line 126 is `wait_event 30 done_n "${1:-1}"`. Call sites are exactly five: 197 `settle`, 220 `settle 2`, 225 `settle`, 238 `settle 2`, 243 `settle 3`. `done_n` at line 125 counts `$T/takeover.done`. The test stub writes `$T/takeovers` at line 61 and `$T/takeover.done` at line 66. Line 105 sets `WD_TAKEOVER_CMD` to that stub.
+
+`env_idle` at `wait-event.inc.sh:35` is `env_idle() { ! grep -qlzxF -- "$1" /proc/[0-9]*/environ 2>/dev/null; }`. The planned call `wait_event 30 env_idle "SPOOL_ROOT=$S"` matches that one argument.
+
+`spl-watchdog.func.sh:1709` logs `TAKEOVER $id $code $ev` and line 1711 `setsid`s `WD_TAKEOVER_CMD`. The `$T/takeovers` write is the stub that command starts, not a write in the watchdog function. The plan says not to count that file, and to put `|| fail` inside `settle()` so the five call sites stay unedited. The two edit ranges are 121-126 and 220. Lines 197, 225, 238 and 243 stay outside.
+
+### W3, row 03
+
+On `origin/master`, `_pp_part_hygiene` is still lines 492-508. The three calls are still sequential at 498, 501 and 505. `_pp_capture` is defined at 1081. Line 1083 is `"$fn" "$@" > >(tee "$f") 2>&1 || rc=$?`. Callers of `_pp_capture` are lines 1004 and 1032. `_pp_run_parts` saves traps at 1307 (`trap -p INT TERM HUP`), sets INT, TERM and HUP at 1309, 1311 and 1313, clears them at 1328 (`trap - INT TERM HUP`) and puts them back at 1329 (`eval "$_pp_old_traps"`). `_pp_proc_tree` is `stop-pre-push.func.sh:25`. `python3` in `csi-spl-orc/src/bash/run/check-qto-doc-drift.func.sh` is lines 78 and 89, the same at `6fcc711a9` and at `origin/master`. `check-pre-push-budget-table.tst.sh:39` is `declare -F | awk '$3 ~ /^_pp_part_/'`. `bash-cleancode.tst.sh:20` is `MAX_LINES=75`.
+
+The plan keeps the part in-process, with no outer subshell and no `EXIT` trap, names a helper `_pp_hygiene_*`, and tells the lane to stop each drift job's tree and to compare in-process stdout (n>=5). The comment at 482-486 still says `~1 s`, `under a second` and `~0.1 s`, and the plan still tells the lane to correct those phrases.
+
+### Landed rows named in the re-read
+
+`c1a54b63f` and `9499333c1` are ancestors of `origin/master` (both `merge-base --is-ancestor` exited 0). `c1a54b63f` touches `cleancode_test.go` and `bash-cleancode.tst.sh` only. `9499333c1` touches `pre-push-gate.md`, `check-pre-push-features.func.sh` and `check-pre-push-features.tst.sh`. Neither is a row edit file. `git log origin/master --format=%s | grep -cE 'r59-06|r60-'` printed 0. `git log origin/master --oneline -E --grep='r59-06'` printed 2, both body mentions of the still-open row (`c1a54b63f`, `76f65baee`), not a landed r59-06 subject. `git log origin/master --oneline -E --grep='(r60'` printed 0.
+
+### Lane map, this read
+
+```
+lane-map.sh --check \
+  csi-spl-orc/src/bash/tests/spl-standby-bench.tst.sh,\
+  csi-spl-orc/src/bash/tests/wd-multi-daemon.tst.sh,\
+  csi-spl-iac/src/bash/run/check-pre-push.func.sh,\
+  csi-spl-iac/src/bash/tests/check-pre-push-hygiene-concurrent.tst.sh \
+  --agent g-474
+```
+
+Exit 4. Zero lines `owned by`. Twelve `unknown:` lines, each "has no files recorded": c-193, c-197, c-326 (`64ca-t10`), c-426 (`64ca-t6`), c-428 (`64ca-t3`), c-430 (`64ca-t4`), c-432 (`64ca-t5`), c-433 (`64ca-t7-bench-back-one-post`), c-664, c-762, g-293, g-425. Then `WARN no live lane lists <the four paths>, but 12 live lane(s) record no files` and `FATAL ... status 4`. c-361 and c-396 are absent. Exit 4 is not free. The plan's rule is that the spawn-time read asks any lane still unknown.
+
+### Delta notes
+
+D1. The v0.3 plan quotes this seat's p11-03 medians 6,482 ms and 3,421 ms (-47.2%, n=5) "at load 44..47". Section 4 below recorded load 43.86..47.29. The medians and the direction match. The load figures are rounded.
+
+D2. Lines 482-486 of `check-pre-push.func.sh` are unchanged. The plan still tells the lane to replace `~1 s`, `under a second` and `~0.1 s`. That is v0.2 N2.
+
+D3. This lane-map read is 12 unknown and 0 owned, same count as the plan's 05:07:34Z read on `0a6e9d22e`. The sets differ by the caller: this read used `--agent g-474`, so c-430 is listed and g-416 is not. c-433 still has no files. The plan dropped the batch-cell "ask about 64ca-t7 first" and kept the spawn-time re-read. This seat did not read the other box's briefs.
+
+D4. v0.2 N4 still holds. The probe arm stays `settle 1` on line 220. The landed `|| fail` is inside `settle()`, so lines 197, 225, 238 and 243 are outside the two edit ranges. The comment at 121-124 stays.
+
+D5. v0.2 N5 still holds. The three calls are still sequential. The plan now tells the lane to compare the in-process part's stdout, n>=5, which `hygab.sh` does not.
+
+D6. Two citations sit one or two lines off the named symbol, and the prose names the right mechanism. `_pp_capture` is defined at 1081; line 1083 is the `"$fn"` call inside it. The trap range `:1307-1328` includes the save and the `trap -` clear; the put-back `eval` is line 1329. The plan's `trap -p HUP INT TERM` is the same three signals as the code's `trap -p INT TERM HUP`. Section 4 says the part saves the caller's traps and puts them back.
+
+## v0.2 record
+
 Verdict: **REVIEW PASS** on `bd4b42a375e5080530fcb1b2c64e175b2950cdc7` (plan v0.2).
 
 Panel: g-474, grok. Issue SPL-5672. Epic SPL-2402. Spec `csi-spl-doc/specs/027-spool-performance`.

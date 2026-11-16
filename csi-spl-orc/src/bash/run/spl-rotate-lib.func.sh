@@ -259,6 +259,60 @@ spl_rotate_agy_why() {
   return 0
 }
 
+# spl_rotate_weekly_over KIND: "<kind> weekly <pct>% >= <mark>%" when this
+# box's last measured weekly usage of KIND (spl_box_quota_known: the pane
+# banners, claude's transcripts and cache, grok's billing log; the reading the
+# placer holds lanes on) is at or over KIND's mark (spl_box_quota_max: cnf
+# vendor_weekly_max_pct.<kind>, else weekly_max_pct, 90); nothing otherwise,
+# and nothing on no reading. The cnf: ROTATE_QUOTA_CNF, else SPL_CNF, else
+# <app>/<org-app>-cnf/<org-app>/all.env.yaml; the reading's seams are
+# spl_box_quota_read's (LANE_QUOTA_CMD).
+spl_rotate_weekly_over() {
+  local kind="$1" cnf="${ROTATE_QUOTA_CNF:-${SPL_CNF:-}}" oa wk pct max
+  declare -F spl_box_quota_known >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-quota.func.sh"
+  if [[ -z "$cnf" && -n "${APP_PATH:-}" && "$(basename "${PROJ_PATH:-}")" =~ ^([a-z]+-[a-z]+)-orc$ ]]; then
+    oa="${BASH_REMATCH[1]}" cnf="$APP_PATH/$oa-cnf/$oa/all.env.yaml"
+  fi
+  wk="$(spl_box_quota_known 2>/dev/null || true)"
+  [[ ",$wk" =~ ,$kind:([0-9]{1,3}) ]] || return 0
+  pct="$(( 10#${BASH_REMATCH[1]} ))"
+  max="$(spl_box_quota_max "$cnf" "$kind")"
+  (( pct >= max )) && echo "$kind weekly ${pct}% >= ${max}%"
+  return 0
+}
+
+# spl_rotate_weekly_first: after the successor's vendor is decided
+# (ROTATE_KIND, ROTATE_VENDOR_WHY), a claude or grok successor whose weekly
+# usage on this box is at or over its mark (spl_rotate_weekly_over) goes to
+# the other one of the two, when that one can act (grok: spl_rotate_grok_why;
+# claude: spl_rotate_claude_out) and is under its own mark; else it stays,
+# both reasons named. SPL-5697 (spec 175 task 5.8): a session spawned at
+# 17:49 hit "You've hit your weekly limit" at 18:11, rotation had started a
+# claude seat with the box at 99..100 %. A claude successor on the second
+# login (ROTATE_CLAUDE_CONFIG_DIR, its own quota) and ROTATE_GROK_STANDBY=0
+# (claude whatever its state) keep claude.
+# shellcheck disable=SC2034 # ROTATE_KIND / ROTATE_VENDOR_WHY are read by the caller
+spl_rotate_weekly_first() {
+  local kind="${ROTATE_KIND:-claude}" alt over why
+  case "$kind" in
+    claude)
+      [[ -z "${ROTATE_CLAUDE_CONFIG_DIR:-}" && "${ROTATE_GROK_STANDBY:-1}" == 1 ]] || return 0
+      alt=grok ;;
+    grok) alt=claude ;;
+    *) return 0 ;;
+  esac
+  over="$(spl_rotate_weekly_over "$kind")"
+  [[ -n "$over" ]] || return 0
+  if [[ "$alt" == grok ]]; then why="$(spl_rotate_grok_why)"; else why="$(spl_rotate_claude_out)"; fi
+  [[ -n "$why" ]] || why="$(spl_rotate_weekly_over "$alt")"
+  if [[ -n "$why" ]]; then
+    ROTATE_VENDOR_WHY="${ROTATE_VENDOR_WHY:-$kind}; $over, but $alt cannot take it ($why): $kind stays"
+    return 0
+  fi
+  ROTATE_KIND="$alt" ROTATE_VENDOR_WHY="${ROTATE_VENDOR_WHY:-$kind}; but $over: $alt"
+}
+
 # spl_rotate_claude_out: why claude cannot act on this box, nothing when it
 # can (SPL-1869). File reads, no model call, no lane-mix (to lane-mix claude
 # is always there):

@@ -318,7 +318,14 @@ spl_orch_rotate_standby_due() {
 # (spl_rotate_lease_sees) = claude: the role would lose its lease.
 # ROTATE_ROLE_VENDOR, when set, decides first (spl_rotate_role_vendor); a
 # seat an in-place failover moved before that (spl_rotate_failover_vendor).
+# A claude or grok pick at or over its weekly mark on this box goes to the
+# other one when it can act (spl_rotate_weekly_first, SPL-5697).
 spl_orch_rotate_vendor() {
+  _spl_orch_rotate_pick
+  spl_rotate_weekly_first
+}
+
+_spl_orch_rotate_pick() {
   local out pick why
   ROTATE_KIND=claude
   spl_rotate_failover_vendor "$LEASE_ORCH" && return 0

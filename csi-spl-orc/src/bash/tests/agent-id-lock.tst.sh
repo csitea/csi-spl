@@ -48,6 +48,7 @@ echo "100000.00 0.00" >"$T/proc/uptime"
 printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\n' "$(id -un)" "$(id -un)" >"$S/box.env"
 printf 'LEASE_ORCH=c-001\nLEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\n' >"$D/lease.conf"
 export T PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL_DESK_BOX=box-desk SPOOL_BOX_TAG=box \
+  LANE_QUOTA_CMD=true \
   LEASE_PROC_ROOT="$T/proc" ROTATE_TMUX="$T/bin/none" ROTATE_RUN="$T/bin/none" ROTATE_SEND="$T/bin/none" ROTATE_AI="$T/bin/none" \
   ROTATE_KILL="$T/bin/none" WD_PS_CMD="$T/bin/none" WD_SEND="$T/bin/none" ROTATE_BOOT_GRACE=0 SPOOL_BIN="$T/bin/none"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$T/bin/none"

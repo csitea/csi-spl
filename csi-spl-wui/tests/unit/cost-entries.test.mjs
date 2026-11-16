@@ -58,6 +58,10 @@ describe('the form checks what the hub checks', () => {
     ['2001 Cyrillic characters of note', { note: 'я'.repeat(2001) }, 'err_note'],
     ['201 Cyrillic characters of source', { source: 'я'.repeat(201) }, 'err_source'],
     ['21 Cyrillic characters of account', { account: 'я'.repeat(21) }, 'err_source'],
+    /* SPL-5668: the form counts what costEntryBody sends, the trimmed value */
+    ['201 characters of source', { source: 'x'.repeat(201) }, 'err_source'],
+    ['21 characters of account', { account: 'x'.repeat(21) }, 'err_source'],
+    ['201 characters of source plus trailing spaces', { source: 'x'.repeat(201) + '   ' }, 'err_source'],
   ]) it(name, () => assert.equal(checkCostEntryForm({ ...good, ...patch }, CUR), want))
   /* SPL-5639: the hub counts characters (utf8.RuneCountInString), so the form does too */
   for (const [name, patch] of [
@@ -65,6 +69,11 @@ describe('the form checks what the hub checks', () => {
     ['2000 Cyrillic characters of note', { note: 'я'.repeat(2000) }],
     ['200 Cyrillic characters of source', { source: 'я'.repeat(200) }],
     ['20 Cyrillic characters of account', { account: 'я'.repeat(20) }],
+    /* SPL-5668: the hub gets the trimmed source and account (costEntryBody) */
+    ['200 characters of source plus trailing spaces', { source: 'x'.repeat(200) + '   ' }],
+    ['20 characters of account plus trailing spaces', { account: 'x'.repeat(20) + '  ' }],
+    ['200 Cyrillic characters of source padded with spaces', { source: '  ' + 'я'.repeat(200) + '  ' }],
+    ['20 Cyrillic characters of account padded with spaces', { account: ' ' + 'я'.repeat(20) + ' ' }],
     ['100 astral characters of label (one code point, two UTF-16 units each)', { label: '😀'.repeat(100) }],
   ]) it(name + ' pass', () => assert.equal(checkCostEntryForm({ ...good, ...patch }, CUR), ''))
   it('the empty form is this UTC month and is not sendable', () => {

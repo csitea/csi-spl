@@ -126,7 +126,7 @@ export function checkCostEntryForm(f, currencies = ['USD']) {
   if (chars(str(f.note)) > NOTE_MAX) return 'err_note'
   /* SPL-5433: the hr line's own fields (rdb 0279's CHECKs) */
   if (str(f.personId) && !str(f.component)) return 'err_component'
-  if (chars(str(f.source)) > 200 || chars(str(f.account)) > 20) return 'err_source'
+  if (chars(str(f.source).trim()) > 200 || chars(str(f.account).trim()) > 20) return 'err_source'
   if (f.periodKind === 'year' && !str(f.period).endsWith('-01')) return 'err_year'
   if (str(f.correctsPeriod) && (!MONTH_RE.test(f.correctsPeriod) || f.correctsPeriod >= f.period)) return 'err_corrects'
   return ''

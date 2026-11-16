@@ -55,7 +55,8 @@ _ppf_all() {
 # _ppf_select <tree> <changed-list> - the features (see do_check_pre_push_features).
 # A path no test names is no error, also the LAST one (under pipefail a bare
 # grep made the action exit 1, SPL-5651); a test grep cannot read (grep rc 2)
-# is: the selection may miss a feature, so it says so and returns 1.
+# is: the selection may miss a feature, so it says so and returns 1, with
+# or without pipefail (grep's and the group's rc, read from PIPESTATUS).
 _ppf_select() {
   local tree="$1" feat="$1/csi-spl-orc/src/bash/features" f rel b stem bad=0
   [[ -d "$feat" ]] || return 0
@@ -69,20 +70,26 @@ _ppf_select() {
     (( ${#tests[@]} )) || continue
     b="${f##*/}"; stem="${b%.func.sh}"; stem="${stem%.inc.sh}"; stem="${stem%.sh}"
     local -a pats=(-e "$b"); (( ${#stem} >= 5 )) && pats+=(-e "$stem")
-    { grep -lwF "${pats[@]}" "${tests[@]}" 2>/dev/null; (( $? < 2 )); } \
-      | sed 's|.*/features/\([^/]*\)/tests/.*|\1|' \
-      || { echo "ERROR orc-features: cannot read every feature test for $f" >&2; bad=1; }
+    grep -lwF "${pats[@]}" "${tests[@]}" 2>/dev/null | sed 's|.*/features/\([^/]*\)/tests/.*|\1|'
+    (( PIPESTATUS[0] < 2 )) || { echo "ERROR orc-features: cannot read every feature test for $f" >&2; bad=1; }
   done <<<"$2"; (( bad == 0 )); } | sort -u
+  return "${PIPESTATUS[0]}"
 }
 
 # _ppf_parts <changed-list> <tree> - do_check_pre_push's `parts` gets
 # orc-features when the change maps to a feature (every feature on the FULL
-# tier); _PPF_FEATS holds them for the part and its trunk re-check.
+# tier); _PPF_FEATS holds them for the part and its trunk re-check. A feature
+# test the selection cannot read fails closed: the part runs every feature
+# (the full tier's set), so no test is skipped and the unreadable one goes
+# red in the run (SPL-5669; before, the plan dropped _ppf_select's rc 1).
 _ppf_parts() {
   parts="${parts/ orc-features/}"
   [[ "${PRE_PUSH_FEATURES:-1}" == 0 ]] && return 0
   if [[ "${_PP_TIER:-fast}" == full ]]; then _PPF_FEATS="$(_ppf_all "$2")"
-  else _PPF_FEATS="$(_ppf_select "$2" "$1")"; fi
+  elif ! _PPF_FEATS="$(_ppf_select "$2" "$1")"; then
+    echo "ERROR orc-features: a feature test is unreadable, the part runs every feature" >&2
+    _PPF_FEATS="$(_ppf_all "$2")"
+  fi
   [[ -n "$_PPF_FEATS" ]] && parts+=" orc-features"
   return 0
 }

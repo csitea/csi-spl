@@ -81,7 +81,10 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   `orc_features_fast` and `orc_features_full` (section 1.4), raised by
   `PRE_PUSH_FEATURES_TIMEOUT`. Print a selection:
   `FEATURES_RANGE=origin/master..HEAD ./run -a do_check_pre_push_features`.
-  `PRE_PUSH_FEATURES=0` turns it off.
+  `PRE_PUSH_FEATURES=0` turns it off. A feature test the selection cannot
+  read fails closed: the plan names `ERROR orc-features` and the part runs
+  every feature, so the unreadable test goes red instead of being skipped
+  (SPL-5669); a path no test names still selects nothing.
 - **The iac-cross part** runs the csi-spl-iac tests that read files of
   other parts, when a push touches those files but not the iac part's own
   paths (the whole iac suite runs them then). Each test has a row in

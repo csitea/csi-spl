@@ -97,6 +97,22 @@ else
   eq "... still prints what it could select" "alpha" "$out"
   grep -q 'cannot read every feature test for csi-spl-orc/src/bash/run/lane-thing.func.sh' "$ROOT/err" \
     && pass "... and says so on stderr" || fail "unreadable test named on stderr" "$(cat "$ROOT/err")"
+  # SPL-5669: the gate's plan fails closed on it (before, _ppf_parts dropped
+  # the rc and the plan ran only alpha): every feature runs, ERROR named
+  parts="hygiene orc"; _PPF_FEATS=""
+  _ppf_parts "csi-spl-orc/src/bash/run/lane-thing.func.sh" "$TU" 2>"$ROOT/err"
+  eq "an unreadable feature test: the plan runs every feature" "alpha beta delta" "$(paste -sd' ' <<<"$_PPF_FEATS")"
+  eq "... as the orc-features part" "hygiene orc orc-features" "$parts"
+  grep -q 'ERROR orc-features: a feature test is unreadable, the part runs every feature' "$ROOT/err" \
+    && pass "... and names the ERROR" || fail "plan ERROR line" "$(cat "$ROOT/err")"
+  # without pipefail too (the rc comes from PIPESTATUS, not sed or sort)
+  (set +o pipefail; _ppf_select "$TU" "csi-spl-orc/src/bash/run/lane-thing.func.sh" >/dev/null 2>&1); rc=$?
+  [[ "$rc" -ne 0 ]] && pass "_ppf_select fails without pipefail too (rc=$rc)" || fail "_ppf_select without pipefail" "rc=$rc"
+  # CONTROL: a readable no-match in the same tree keeps the narrow selection
+  parts="hygiene orc"; _PPF_FEATS=""; chmod 644 "$TU/csi-spl-orc/src/bash/features/delta/tests/test-delta.sh"
+  _ppf_parts "csi-spl-orc/src/bash/run/lane-thing.func.sh" "$TU" 2>"$ROOT/err"
+  eq "CONTROL: readable, no match in delta: only alpha" "alpha" "$_PPF_FEATS"
+  eq "CONTROL: ... and no ERROR" "" "$(cat "$ROOT/err")"
 fi
 chmod -R u+rwX "$TU"
 TN="$ROOT/notests"; mkdir -p "$TN/csi-spl-orc/src/bash/features/gamma"

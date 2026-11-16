@@ -1,5 +1,7 @@
 # Perf round 12 (p12) - plan (2 rows)
 
+> Generated from qto doc `3f77b6e8-7e02-470c-9763-9994bd7fe720`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -58,6 +60,8 @@ It reads `perf-round-11-plan.md` (its section 6 first), the seat files under
 `lesson-speed-up-measure-first.md`.
 
 <a id="p12-how-to-read"></a>
+
+<a id="ws-doc-52d88b4d-dea1-4454-b54e-fdbce5fc5993"></a>
 ## 1. How to read this
 
 - A row is one logical change made by one lane, with the subject
@@ -88,6 +92,7 @@ It reads `perf-round-11-plan.md` (its section 6 first), the seat files under
   the tree is not compared at all.
 
 <a id="p12-inputs"></a>
+<a id="ws-doc-3b3b51ea-5890-44c8-9bc9-e5d6f47a6a92"></a>
 ## 2. Where the rows come from
 
 Inputs read (brief step 2). Each carried finding was re-checked on
@@ -106,6 +111,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 | new, this seat | CI workflow 10's slowest shards | 11 green runs on master: wui e2e shards 692..1,166 s, orc shards 581..1,054 s; the slowest shard differs from run to run, so a rebalance has no measured gain | section 6, dropped |
 
 <a id="p12-rows"></a>
+<a id="ws-doc-c8e76c73-62d9-498b-817e-c51c2960d0ac"></a>
 ## 3. The 2 rows
 
 | # | id | practice | baseline on `a8a54cf44` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
@@ -118,6 +124,7 @@ vendor for every row) and the owner's 10-17 rule (no mistral coding or
 testing).
 
 <a id="p12-batches"></a>
+<a id="ws-doc-e43189f7-72c0-47c1-8088-ff53a210939e"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: row 01. Files: `cpp` and the new
@@ -129,6 +136,7 @@ testing).
   (`git log origin/master --format=%s -E --grep='\(<r>-[0-9]{2}-'`).
 
 <a id="p12-r3"></a>
+<a id="ws-doc-5ad7663d-bd75-4aa1-9f80-494afc53731b"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-16, each with its time:
@@ -167,6 +175,7 @@ Read on 2026-11-16, each with its time:
   and r61 have 0 lines.
 
 <a id="p12-per-row"></a>
+<a id="ws-doc-f16dcad0-ab6b-4206-ae1a-6ef8e887c0d5"></a>
 ## 4. Per row: what the lane does
 
 - **01**:
@@ -205,6 +214,7 @@ Read on 2026-11-16, each with its time:
   red runs' plans differ in size from the probe's.
 
 <a id="p12-panel"></a>
+<a id="ws-doc-78619ad8-ad9b-4718-99db-b3a72c2d30f8"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-16 10:1xZ: `ENV=prd ./run -a do_spl_hub_agent_kinds` ->
@@ -247,6 +257,7 @@ brief).
   (2.7.3) when the rows spawn. A row never pushes without a cross-vendor PASS.
 
 <a id="p12-left-out"></a>
+<a id="ws-doc-c563c92a-f888-4104-a215-6548e686e5ed"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -262,6 +273,7 @@ brief).
 No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 <a id="p12-counts"></a>
+<a id="ws-doc-bed6e5c5-04b0-4570-a620-f6d907e1b8fe"></a>
 ## 7. Counts
 
 - Rows: 2 (rulebook 1.1: at most 10). Row 01 in batch 1, row 02 in batch 2.
@@ -271,6 +283,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 - Review count (2.7.5): `git log origin/master --grep='p12-' --format=%B | grep -c '^review: '` must reach 2.
 
 <a id="p12-changes"></a>
+<a id="ws-doc-7497746f-b18c-4753-8f9b-4c1b375e5856"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -300,6 +313,7 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
   15:55-20:55Z was the seat box suspended (c-001 msg ebdebe45).
 
 <a id="p12-consensus"></a>
+<a id="ws-doc-95377302-4241-4fba-a38a-f2fc913fdf18"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

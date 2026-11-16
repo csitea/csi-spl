@@ -65,6 +65,7 @@ checkouts `T` and `T2` of `a8a54cf44`, each with one planted red line in
 | 2 | 670 / 553 / 1,222 | 670 / **23** / 693 | 27.2..39.3 |
 | 3 | 608 / 415 / 1,023 | 607 / **67** / 674 | 14.4..21.7 |
 | 4 | 502 / 436 / 938 | 502 / **65** / 567 | 12.4..16.1 |
+| 5 | 440 / 347 / 787 | 442 / **63** / 506 | 5.9..12.4 |
 
 B's base re-check ran 1 file (A's ran 50) and named the same failure
 (`FAIL: 99. planted pre-existing red`), so the verdict stays
@@ -72,7 +73,14 @@ WARN-pre-existing. Run 3: both arms' tree and base runs failed 2 files, the plan
 `spl-role-failover-drill.tst.sh` (`FAIL: 9. control`, on its own), so B
 re-checked 2 files (67 s). Run 4: the same 2 files in all four outputs
 (65 s). The failover drill's case 9 failed on its own in 2 of 4 orc runs on
-`a8a54cf44` on the desk box: a non-perf finding for c-001 (section 4). Runs 3-5 died with the 10:16Z rotation (`pp-A-3.tree.out`
+`a8a54cf44` on the desk box: a non-perf finding for c-001 (section 4).
+Run 5: the drill failed again (3 of 5 runs, every tree run from run 3 on;
+0 in runs 1-2). B's tree run also failed `peer-restart.tst.sh`, which then
+PASSED in B's base re-check (A's tree run passed it): a flake. Today's gate
+reads that as NEW (green on the base) and blocks; the narrowed re-check
+re-ran it and gives the same verdict, so narrowing changes no verdict here
+either. Orc A/B done, n=5: the base re-check 672 / 553 / 415 / 436 / 347 s
+-> 26 / 23 / 67 / 65 / 63 s. Runs 3-5 died with the 10:16Z rotation (`pp-A-3.tree.out`
 stopped at 10:16Z, no `abpp` process left). The next session restarted them at
 10:16Z detached (`setsid nohup ./abpp-run.sh 5 3`), so a rotation no longer
 stops them; results append to `pp-runs.log` as before.
@@ -144,10 +152,9 @@ All four outputs of each run name the same 3 failed files:
   brief). No verdict yet. If a seat reports on another sha, send it
   `a9b11eda5` on task `69fd873c-c4f4-5475-a8ef-c0d7b4bb301b`. Verdicts come
   to c-616 and the holder; fold any FAIL into v0.3 and have both re-sign.
-- Probe: iac A/B done (n=5). Orc run 5 was still running at the rotation
-  (detached, `pp-runs.log`). Runs after v0.2 go here only, never into the
+- Probe: both A/Bs done (n=5 each). Runs after v0.2 go here only, never into the
   signed plan.
-- To do: (1) orc run 5 into 2.2; (2) send c-001 the failover-drill finding
+- To do: (1) done; (2) send c-001 the failover-drill finding
   (`spl-role-failover-drill.tst.sh` case 9, 2 of 4 runs, `a8a54cf44`, desk
   box, load 12..22), kind note, task `dispatch-perf-r12`; (3) on both PASS,
   send the final result to the CURRENT lease holder (re-read it; a bare

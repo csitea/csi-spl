@@ -1,6 +1,6 @@
 # Releases: software projects of a workspace, the project drop box (SPL-4963)
 
-Status: **Draft v0.2.3**. Rows B-1 (the schema, SPL-4983), B-2 (store and hub scoped, SPL-5108) and B-3 (the contract, SPL-5475) are built; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
+Status: **Draft v0.2.4**. Rows B-1 (the schema, SPL-4983), B-2 (store and hub scoped, SPL-5108), B-3 (the contract, SPL-5475) and B-4 (the store per project, SPL-5705) are built; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
 Amends: [spec.md](spec.md) sections 2 and 6.1, and [spec 171](../171-workspace-own-repo/spec.md) where section 3 says so.
 Topic: `93b73456-c662-4785-85ea-00986338a550` (HUM-10, prd t1).
 
@@ -170,7 +170,8 @@ With no project: `{"configured": false, "default": "", "projects": []}`, and the
 | `project` | a project slug of the caller's workspace. Absent: the workspace's default project. Never "every project" (section 9, Q5) |
 | `repo` | optional, a repo slug of that project. Absent: every repo of the project |
 
-- The hub resolves them to a repo list and passes it as a new `Repos []string` on `ReleaseReportFilter`. The store **refuses an empty list** rather than reading everything, so a bug fails closed.
+- The hub resolves them to a repo list and passes it as a new `Repos []string` on `ReleaseReportFilter`. The store **refuses an empty list** (`ErrNoRepos`) rather than reading everything, so a bug fails closed.
+- Until B-5, a bridge built with B-4 (`releaseReportRepos`, `hub/reporting_releases.go`) passes the default project's repos, the answer for an absent `project`. A workspace with no project gets `200` with no rows. B-5 replaces the bridge with the two params.
 - Bad shape: `400 bad_query`, as today. A project or repo the workspace does not have: `404 unknown_project` / `404 unknown_repo`, the same answer whether it does not exist or belongs to another workspace, so the status reveals nothing.
 - No project configured: `200` with `configured: false` and no days.
 
@@ -254,7 +255,7 @@ One row, one lane, in this order. Rows B-1 to B-3 and B-6 are spec 171's Lanes 1
 | B-6 | `api`, `orc` | Spec 171 Lane 3: sync and box push per repo through `buildRows`, trailer-free state `skip` with `body`, `WORKSPACE_PROJECT` on `do_workspace_repo_register` | Sync test on a two-repo fixture with tags: versions stay per repo; `.tst.sh` for the action | The action run without `WORKSPACE_PROJECT` must exit non-zero; a row synced around `buildRows` keeps a banned word and fails |
 | B-7 | `wui` | Drop box, repo pills, URL params, Unreleased card, cloud key, mock; pushed to `review/<slug>` with all 19 locales drafted, **not landed** until B-8 passes | `pnpm run typecheck`, unit tests, `BASE_URL=<bundle> pnpm run test:e2e` at 1440 and 390 px: pick, reload keeps it, Back undoes it, stale param falls back | A cloud key without the project shows the old project's counts after a switch; the e2e must see that fail |
 | B-8 | `i18n` | agy language review of B-7's keys as the last step before they ship, per the language rule. Then B-7 lands | `i18n-parity`, `i18n-untranslated` and `i18n-no-raw-text` gates green | A missing key in one locale fails `i18n-parity` |
-| B-9 | ops | Register the first real projects through the operator route, then verify live on dev and prd | Live read of both reports on one workspace: only its own commits, zero csi-spl rows | The same read from a second workspace on the first one's project answers 404 |
+| B-9 | ops | Register the first real projects through the operator route, then verify live on dev and prd. The first one: workspace `csi-rel`, project `csi-rel`, its primary repo `csitea/csi-rel` (the slug `do_workspace_repo_register` takes); owner HUM-10, csi-rel #spool-hub topic c4e61b2f, msg `06218e90`: "The releases of this workspace should follow the Git commits from the CSI-REL project." | Live read of both reports on one workspace: only its own commits, zero csi-spl rows | The same read from a second workspace on the first one's project answers 404 |
 
 Keys B-7 adds: `reporting.releases.project_label`, `repo_label`, `kpi_unreleased`. `grep -c reporting csi-spl-wui/src/utils/i18n-first-screen.mjs` -> 0, so they should stay out of the first-screen catalogue. That is unmeasured, so B-7 still runs the WUI budget check before it lands.
 
@@ -282,4 +283,4 @@ No build row changes, and neither does the path in section 4.5; each answer is t
 - **Answer 6**: B-7's Unreleased card and repo pills are what the answer lists, and no row builds open work.
 - **Answer 4 with msg `cf6a27b3`**: no row builds a per-repo list. B-5's `notes_public` row stands, and section 6.4 names what it must read.
 
-<!-- version: 0.2.3 · updated: 2026-11-14 -->
+<!-- version: 0.2.4 · updated: 2026-11-16 -->

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 // Spec 143 T020 / T021: the Releases tab's two reads. The deploy join itself
@@ -136,5 +138,50 @@ func TestReportingReleasesRefusals(t *testing.T) {
 		if code, _ := call(t, e, tid, http.MethodGet, path, hum, nil); code != http.StatusOK {
 			t.Errorf("member %s with the default window: %d", path, code)
 		}
+	}
+}
+
+// The B-4 bridge (releaseReportRepos), which row B-5 replaces: a workspace
+// with no software project answers 200 with no rows, never an error, and a
+// workspace's report reads its default project's repos only. The t1 case
+// (one default project, its primary repo) is TestReportingReleasesDaily and
+// TestReportingReleasesCommits above: their days and commits are the same
+// through the bridge.
+func TestReportingReleasesBridgeNoProject(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	hum := seat(t, e, tid, rbac.Developer)
+	code, out := call(t, e, tid, http.MethodGet, "/v1/reporting/releases/daily", hum, nil)
+	if days, ok := out["days"].([]any); code != http.StatusOK || !ok || len(days) != 0 || out["total_commits"].(float64) != 0 {
+		t.Fatalf("daily with no project: %d %v, want 200 and no days", code, out)
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/reporting/releases/commits", hum, nil)
+	if notes, ok := out["notes"].([]any); code != http.StatusOK || !ok || len(notes) != 0 || out["total"].(float64) != 0 {
+		t.Fatalf("commits with no project: %d %v, want 200 and no notes", code, out)
+	}
+}
+
+// A repo of the workspace outside its default project is not read. CONTROL:
+// the default project's commit of the same day is.
+func TestReportingReleasesBridgeDefaultProjectOnly(t *testing.T) {
+	e, tid, hum := releaseEnv(t)
+	other := repoOf(tid, "side")
+	registerOtherProjectRepo(t, e, tid, other)
+	d0 := reportDay(t)
+	if code, out := ingest(t, e, tid, reportRow(reportSHA(t), "v6.0.1", "feat(wui): main repo", d0.Add(time.Hour))); code != http.StatusOK {
+		t.Fatalf("ingest: %d %v", code, out)
+	}
+	row := reportRow(reportSHA(t), "v6.0.1", "feat(wui): side repo", d0.Add(2*time.Hour))
+	if code, out := ingestRepo(t, e, tid, other, row); code != http.StatusOK {
+		t.Fatalf("ingest side: %d %v", code, out)
+	}
+	win := "?from=" + d0.Format(time.DateOnly) + "&to=" + d0.Format(time.DateOnly)
+	code, out := call(t, e, tid, http.MethodGet, "/v1/reporting/releases/daily"+win, hum, nil)
+	if code != http.StatusOK || out["total_commits"].(float64) != 1 || out["total_versions"].(float64) != 1 {
+		t.Fatalf("daily: %d %v, want the default project's one commit", code, out)
+	}
+	repos := out["days"].([]any)[0].(map[string]any)["repos"].(map[string]any)
+	if len(repos) != 1 || repos[repoOf(tid, "main")].(float64) != 1 {
+		t.Fatalf("day repos: %v", repos)
 	}
 }

@@ -33,7 +33,7 @@ func seedDeploys(t *testing.T, st Store, ds ...ReleaseDeploy) {
 	case *Memory:
 		memDeployMu.Lock()
 		for _, d := range ds {
-			d.TenantID = relTenant
+			d.TenantID, d.RepoSlug = relTenant, relRepo
 			memDeploys[s] = append(memDeploys[s], d)
 		}
 		memDeployMu.Unlock()
@@ -84,7 +84,7 @@ func TestReportingReleasesDaily(t *testing.T) {
 			if err := st.(ReleaseNotes).PutReleaseNotes(ctx, relTenant, relRepo, notes, d1); err != nil {
 				t.Fatal(err)
 			}
-			f := ReleaseReportFilter{Tenant: relTenant, From: d0, To: d1.AddDate(0, 0, 1)}
+			f := ReleaseReportFilter{Tenant: relTenant, From: d0, To: d1.AddDate(0, 0, 1), Repos: []string{relRepo}}
 
 			// With no deploy recorded (row 4 not landed) every day has an
 			// empty deploys list, never nil and never an error.
@@ -147,7 +147,7 @@ func TestReportingReleasesCommits(t *testing.T) {
 			if err := st.(ReleaseNotes).PutReleaseNotes(ctx, relTenant, relRepo, []ReleaseNote{a, b, c}, d0); err != nil {
 				t.Fatal(err)
 			}
-			f := ReleaseReportFilter{Tenant: relTenant, From: d0, To: d0.AddDate(0, 0, 1)}
+			f := ReleaseReportFilter{Tenant: relTenant, From: d0, To: d0.AddDate(0, 0, 1), Repos: []string{relRepo}}
 			shas := func(f ReleaseReportFilter) ([]string, int) {
 				t.Helper()
 				ns, total, err := rr.ReleaseCommits(ctx, f)

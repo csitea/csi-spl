@@ -74,7 +74,7 @@ func TestReleaseDailyDeploysStayInTheirWorkspace(t *testing.T) {
 				}
 			}
 			for tenant, sha := range shas {
-				daily, err := pg.ReleaseDaily(ctx, ReleaseReportFilter{Tenant: tenant, From: now.Add(-time.Hour), To: now.Add(time.Hour)})
+				daily, err := pg.ReleaseDaily(ctx, ReleaseReportFilter{Tenant: tenant, From: now.Add(-time.Hour), To: now.Add(time.Hour), Repos: []string{relRepo}})
 				if err != nil {
 					t.Fatal(err)
 				}

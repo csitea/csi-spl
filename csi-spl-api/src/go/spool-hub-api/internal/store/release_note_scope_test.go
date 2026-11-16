@@ -53,7 +53,7 @@ func TestReleaseNotesScopedByWorkspace(t *testing.T) {
 				t.Fatal("no repo was accepted")
 			}
 			rr := s.(ReleaseReports)
-			f := ReleaseReportFilter{Tenant: a, From: now.Add(-time.Hour), To: now.Add(time.Hour)}
+			f := ReleaseReportFilter{Tenant: a, From: now.Add(-time.Hour), To: now.Add(time.Hour), Repos: []string{relRepo}}
 			if got, total, err := rr.ReleaseCommits(ctx, f); err != nil || total != 1 || got[0].SHA != sa {
 				t.Fatalf("A's report: %+v %d %v", got, total, err)
 			}

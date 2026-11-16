@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -75,7 +76,22 @@ func (s *Server) releaseReportFilter(tenant string, q url.Values) (store.Release
 		return f, errors.New("the window may span at most " + strconv.Itoa(releaseReportMaxDays) + " days")
 	}
 	f.Kinds, f.Areas = commaList(q.Get("kind")), commaList(q.Get("area"))
-	return f, store.CheckReleaseReportFilter(f)
+	return f, store.CheckReleaseReportQuery(f)
+}
+
+// releaseReportRepos is the B-4 BRIDGE that row B-5 replaces with the
+// `project` and `repo` params (spec 143 releases-projects.md sections 6.2
+// and 8): since row B-4 the store refuses a filter with no repo, so until
+// B-5 the reports read the workspace's default project, the answer section
+// 6.2 gives for an absent `project`. ok=false: the workspace has no project
+// yet, and the caller answers 200 with no rows, never an error.
+func releaseReportRepos(ctx context.Context, rr store.ReleaseReports, f *store.ReleaseReportFilter) (ok bool, err error) {
+	projects, err := rr.ReleaseProjects(ctx, f.Tenant)
+	if err != nil || len(projects) == 0 {
+		return false, err
+	}
+	f.Repos = projects[0].RepoSlugs() // default first (ReleaseProjects' order)
+	return true, nil
 }
 
 // parseReportTime is an RFC3339 time or a UTC day; a day as the end of a
@@ -127,7 +143,11 @@ func (s *Server) handleReleasesDaily(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, releaseDailyBody{Off: true, ReleaseDaily: store.ReleaseDaily{Days: []store.ReleaseDay{}}, From: f.From, To: f.To})
 		return
 	}
-	daily, err := rr.ReleaseDaily(r.Context(), f)
+	daily := store.ReleaseDaily{Days: []store.ReleaseDay{}}
+	configured, err := releaseReportRepos(r.Context(), rr, &f)
+	if err == nil && configured {
+		daily, err = rr.ReleaseDaily(r.Context(), f)
+	}
 	if err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "the releases report is not available", err)
 		return
@@ -164,7 +184,12 @@ func (s *Server) handleReleasesCommits(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, body)
 		return
 	}
-	notes, total, err := rr.ReleaseCommits(r.Context(), f)
+	var notes []store.ReleaseNote
+	var total int
+	configured, err := releaseReportRepos(r.Context(), rr, &f)
+	if err == nil && configured {
+		notes, total, err = rr.ReleaseCommits(r.Context(), f)
+	}
 	if err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "the releases report is not available", err)
 		return

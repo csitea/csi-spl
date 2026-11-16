@@ -27,6 +27,7 @@ func registerRepo(t *testing.T, e *env, tid, repo string, primary bool) {
 	switch s := e.st.(type) {
 	case *store.Memory:
 		s.SeedWorkspaceRepo(tid, repo, primary)
+		s.SeedProjectRepo(tid, "web-shop", "Web shop", true, store.ReleaseProjectRepo{Slug: repo, WebURL: "https://example.com/repo"}, primary)
 	case *store.Postgres:
 		ctx := context.Background()
 		err := pgx.BeginFunc(ctx, s.Pool(), func(tx pgx.Tx) error {
@@ -278,4 +279,39 @@ func TestDeployReconcileNoOperatorWorkspace(t *testing.T) {
 	if res := r.Tick(context.Background()); res.Skipped != 2 || res.Errors != 0 {
 		t.Fatalf("no operator workspace: %+v, want Skipped 2", res)
 	}
+}
+
+// registerOtherProjectRepo registers repo for tid in a second, non-default
+// project "side" (row B-4's bridge reads the default project only).
+func registerOtherProjectRepo(t *testing.T, e *env, tid, repo string) {
+	t.Helper()
+	switch s := e.st.(type) {
+	case *store.Memory:
+		s.SeedWorkspaceRepo(tid, repo, false)
+		s.SeedProjectRepo(tid, "side", "Side", false, store.ReleaseProjectRepo{Slug: repo, WebURL: "https://example.com/side"}, true)
+	case *store.Postgres:
+		ctx := context.Background()
+		err := pgx.BeginFunc(ctx, s.Pool(), func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SELECT set_config('app.rls_scope', 'operator', true)`); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO software_projects (tenant_id, project_slug, name) VALUES ($1, 'side', 'Side')`, tid); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `INSERT INTO workspace_repos (tenant_id, repo_slug, project_slug, repo_web_url, is_primary)
+				VALUES ($1, $2, 'side', 'https://example.com/side', false)`, tid, repo)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	default:
+		t.Fatalf("no repo seam on %T", e.st)
+	}
+}
+
+// ingestRepo posts notes into one named repo of tid.
+func ingestRepo(t *testing.T, e *env, tid, repo string, notes ...map[string]any) (int, map[string]any) {
+	t.Helper()
+	return opCall(t, e, tid, http.MethodPost, "/v1/operator/release-notes", "good", map[string]any{"notes": notes, "repo_slug": repo})
 }

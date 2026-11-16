@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -29,12 +30,22 @@ const (
 // releaseAreaRe is one area filter value: a scope's first word.
 var releaseAreaRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
+// releaseRepoRe is one repo filter value, rdb 0266's workspace_repos_slug_chk.
+var releaseRepoRe = regexp.MustCompile(`^[a-z0-9._-]+/[a-z0-9._-]+$`)
+
+// ErrNoRepos: a report filter names no repo. The store refuses it rather
+// than read every repo of the workspace, so a caller's bug fails closed
+// (releases-projects.md section 6.2, row B-4).
+var ErrNoRepos = errors.New("the report needs at least one repo")
+
 // ReleaseReportFilter is one report query: the commits with From <=
-// committed_at < To, of one of Kinds and Areas when set, matching Search.
-// Limit and Offset page ReleaseCommits only.
+// committed_at < To, of one of Repos (required: the repos of one project,
+// releases-projects.md section 6.2), of one of Kinds and Areas when set,
+// matching Search. Limit and Offset page ReleaseCommits only.
 type ReleaseReportFilter struct {
 	Tenant        string
 	From, To      time.Time
+	Repos         []string
 	Kinds, Areas  []string
 	Search        string
 	Limit, Offset int
@@ -43,6 +54,7 @@ type ReleaseReportFilter struct {
 // ReleaseDeploy is one estate_deploys row as the report shows it (EstateDeploy less its run and writer fields).
 type ReleaseDeploy struct {
 	TenantID   string    `json:"-"`
+	RepoSlug   string    `json:"repo_slug"`
 	Env        string    `json:"env"`
 	Component  string    `json:"component"`
 	Version    string    `json:"version"`
@@ -52,22 +64,25 @@ type ReleaseDeploy struct {
 	Source     string    `json:"source"`
 }
 
-// ReleaseDay is one UTC day of the report: its commits counted by kind and by
-// area, and the deploys made that day, newest first.
+// ReleaseDay is one UTC day of the report: its commits counted by kind, by
+// area and by repo, and the deploys made that day, newest first.
 type ReleaseDay struct {
 	Date         string          `json:"date"`
 	CommitsCount int             `json:"commits_count"`
 	Kinds        map[string]int  `json:"kinds"`
 	Areas        map[string]int  `json:"areas"`
+	Repos        map[string]int  `json:"repos"`
 	Deploys      []ReleaseDeploy `json:"deploys"`
 }
 
-// ReleaseDaily is the daily report: days newest first, the commit total and
-// the count of distinct versions those commits carry.
+// ReleaseDaily is the daily report: days newest first, the commit total, the
+// count of distinct (repo, version) pairs those commits carry (two repos'
+// v1.0.0 are two releases), and the commits no version carries yet.
 type ReleaseDaily struct {
-	Days          []ReleaseDay `json:"days"`
-	TotalCommits  int          `json:"total_commits"`
-	TotalVersions int          `json:"total_versions"`
+	Days              []ReleaseDay `json:"days"`
+	TotalCommits      int          `json:"total_commits"`
+	TotalVersions     int          `json:"total_versions"`
+	UnreleasedCommits int          `json:"unreleased_commits"`
 }
 
 // ReleaseReports is the store half of the Releases tab. Optional: the hub's
@@ -80,6 +95,9 @@ type ReleaseReports interface {
 	// ReleaseCommits is one page of the filtered commits, newest first, and
 	// the count of every match.
 	ReleaseCommits(ctx context.Context, f ReleaseReportFilter) ([]ReleaseNote, int, error)
+	// ReleaseProjects is the workspace's software projects that have at
+	// least one repo, default first, then by name (release_projects.go).
+	ReleaseProjects(ctx context.Context, tenant string) ([]ReleaseProject, error)
 }
 
 // ReleaseArea is a note's area as the report groups it: the first word of
@@ -93,8 +111,24 @@ func ReleaseArea(area string) string {
 // releaseAreaSQL is ReleaseArea in SQL.
 const releaseAreaSQL = `regexp_replace(lower(btrim(split_part(area, ',', 1))), '^csi-spl-', '')`
 
-// CheckReleaseReportFilter names the first thing the filter may not carry.
+// CheckReleaseReportFilter names the first thing the filter may not carry;
+// an empty Repos is ErrNoRepos.
 func CheckReleaseReportFilter(f ReleaseReportFilter) error {
+	if err := CheckReleaseReportQuery(f); err != nil {
+		return err
+	}
+	switch {
+	case len(f.Repos) == 0:
+		return ErrNoRepos
+	case slices.ContainsFunc(f.Repos, func(r string) bool { return !releaseRepoRe.MatchString(r) }):
+		return fmt.Errorf("repo must be an owner/name slug")
+	}
+	return nil
+}
+
+// CheckReleaseReportQuery is CheckReleaseReportFilter less Repos: the hub
+// checks a request's own parameters before it resolves the repos.
+func CheckReleaseReportQuery(f ReleaseReportFilter) error {
 	switch {
 	case strings.TrimSpace(f.Tenant) == "":
 		return ErrNoTenant
@@ -116,7 +150,7 @@ func CheckReleaseReportFilter(f ReleaseReportFilter) error {
 
 // releaseMatch is the filter on one note, the Go side of releaseReportWhere.
 func releaseMatch(f ReleaseReportFilter, n ReleaseNote) bool {
-	if n.CommittedAt.Before(f.From) || !n.CommittedAt.Before(f.To) {
+	if n.CommittedAt.Before(f.From) || !n.CommittedAt.Before(f.To) || !slices.Contains(f.Repos, n.RepoSlug) {
 		return false
 	}
 	if len(f.Kinds) > 0 && !slices.Contains(f.Kinds, n.Kind) {
@@ -135,7 +169,7 @@ func releaseMatch(f ReleaseReportFilter, n ReleaseNote) bool {
 }
 
 // releaseReportWhere is the filter as a WHERE clause over release_notes, its
-// arguments numbered from $1 ($1 the tenant).
+// arguments numbered from $1 ($1 the tenant, $7 the repos).
 func releaseReportWhere(f ReleaseReportFilter) (string, []any) {
 	kinds, areas := f.Kinds, f.Areas
 	if kinds == nil {
@@ -148,8 +182,9 @@ func releaseReportWhere(f ReleaseReportFilter) (string, []any) {
 		AND (cardinality($4::text[]) = 0 OR kind = ANY($4::text[]))
 		AND (cardinality($5::text[]) = 0 OR ` + releaseAreaSQL + ` = ANY($5::text[]))
 		AND ($6::text = '' OR starts_with(sha, lower($6::text)) OR strpos(lower(concat_ws(chr(10), subject, version,
-			lay_what, lay_how, lay_why, tech_what, tech_how, tech_why)), lower($6::text)) > 0)`,
-		[]any{f.Tenant, f.From.UTC(), f.To.UTC(), kinds, areas, f.Search}
+			lay_what, lay_how, lay_why, tech_what, tech_how, tech_why)), lower($6::text)) > 0)
+		AND repo_slug = ANY($7::text[])`,
+		[]any{f.Tenant, f.From.UTC(), f.To.UTC(), kinds, areas, f.Search, f.Repos}
 }
 
 // releaseDayOf is a time's UTC day, the key both drivers group by.
@@ -157,28 +192,30 @@ func releaseDayOf(t time.Time) string { return t.UTC().Format(time.DateOnly) }
 
 // releaseDays builds the daily report from counted rows and deploys.
 type releaseDays struct {
-	byDate   map[string]*ReleaseDay
-	versions map[string]bool
-	total    int
+	byDate     map[string]*ReleaseDay
+	versions   map[[2]string]bool // (repo_slug, version)
+	total      int
+	unreleased int
 }
 
 func newReleaseDays() *releaseDays {
-	return &releaseDays{byDate: map[string]*ReleaseDay{}, versions: map[string]bool{}}
+	return &releaseDays{byDate: map[string]*ReleaseDay{}, versions: map[[2]string]bool{}}
 }
 
 func (d *releaseDays) day(date string) *ReleaseDay {
 	day := d.byDate[date]
 	if day == nil {
-		day = &ReleaseDay{Date: date, Kinds: map[string]int{}, Areas: map[string]int{}, Deploys: []ReleaseDeploy{}}
+		day = &ReleaseDay{Date: date, Kinds: map[string]int{}, Areas: map[string]int{}, Repos: map[string]int{}, Deploys: []ReleaseDeploy{}}
 		d.byDate[date] = day
 	}
 	return day
 }
 
-// add counts n commits of one day, kind, area and version.
-func (d *releaseDays) add(date, kind, area, version string, n int) {
+// add counts n commits of one day, repo, kind, area and version.
+func (d *releaseDays) add(date, repo, kind, area, version string, n int) {
 	day := d.day(date)
 	day.CommitsCount += n
+	day.Repos[repo] += n
 	if kind != "" {
 		day.Kinds[kind] += n
 	}
@@ -186,7 +223,9 @@ func (d *releaseDays) add(date, kind, area, version string, n int) {
 		day.Areas[area] += n
 	}
 	if version != "" {
-		d.versions[version] = true
+		d.versions[[2]string{repo, version}] = true
+	} else {
+		d.unreleased += n
 	}
 	d.total += n
 }
@@ -197,7 +236,7 @@ func (d *releaseDays) result(deploys []ReleaseDeploy) ReleaseDaily {
 		day := d.day(releaseDayOf(dp.DeployedAt))
 		day.Deploys = append(day.Deploys, dp)
 	}
-	out := ReleaseDaily{Days: []ReleaseDay{}, TotalCommits: d.total, TotalVersions: len(d.versions)}
+	out := ReleaseDaily{Days: []ReleaseDay{}, TotalCommits: d.total, TotalVersions: len(d.versions), UnreleasedCommits: d.unreleased}
 	for _, day := range d.byDate {
 		out.Days = append(out.Days, *day)
 	}
@@ -218,35 +257,35 @@ func (s *Postgres) ReleaseDaily(ctx context.Context, f ReleaseReportFilter) (Rel
 	}
 	where, args := releaseReportWhere(f)
 	days := newReleaseDays()
-	var date, kind, area, version string
+	var date, repo, kind, area, version string
 	var n int
-	err := s.queryTenant(ctx, f.Tenant, `SELECT to_char(committed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'), kind,
+	err := s.queryTenant(ctx, f.Tenant, `SELECT to_char(committed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'), repo_slug, kind,
 		`+releaseAreaSQL+`, coalesce(version, ''), count(*)
-		FROM release_notes WHERE `+where+` GROUP BY 1, 2, 3, 4`, args, func(r pgx.Rows) error {
-		if err := r.Scan(&date, &kind, &area, &version, &n); err != nil {
+		FROM release_notes WHERE `+where+` GROUP BY 1, 2, 3, 4, 5`, args, func(r pgx.Rows) error {
+		if err := r.Scan(&date, &repo, &kind, &area, &version, &n); err != nil {
 			return err
 		}
-		days.add(date, kind, area, version, n)
+		days.add(date, repo, kind, area, version, n)
 		return nil
 	})
 	if err != nil {
 		return ReleaseDaily{}, err
 	}
-	deploys, err := s.estateDeploys(ctx, f.Tenant, f.From, f.To)
+	deploys, err := s.estateDeploys(ctx, f)
 	if err != nil {
 		return ReleaseDaily{}, err
 	}
 	return days.result(deploys), nil
 }
 
-// estateDeploys reads tenant's deploys of [from, to), newest first.
-func (s *Postgres) estateDeploys(ctx context.Context, tenant string, from, to time.Time) ([]ReleaseDeploy, error) {
+// estateDeploys reads the deploys of f's repos in [From, To), newest first.
+func (s *Postgres) estateDeploys(ctx context.Context, f ReleaseReportFilter) ([]ReleaseDeploy, error) {
 	out := []ReleaseDeploy{}
-	err := s.queryTenant(ctx, tenant, `SELECT env, component, version, commit_sha, deployed_at, status, source
-		FROM estate_deploys WHERE tenant_id = $1 AND deployed_at >= $2 AND deployed_at < $3
-		ORDER BY deployed_at DESC LIMIT $4`, []any{tenant, from.UTC(), to.UTC(), ReleaseReportDeploysMax}, func(r pgx.Rows) error {
+	err := s.queryTenant(ctx, f.Tenant, `SELECT repo_slug, env, component, version, commit_sha, deployed_at, status, source
+		FROM estate_deploys WHERE tenant_id = $1 AND deployed_at >= $2 AND deployed_at < $3 AND repo_slug = ANY($5::text[])
+		ORDER BY deployed_at DESC LIMIT $4`, []any{f.Tenant, f.From.UTC(), f.To.UTC(), ReleaseReportDeploysMax, f.Repos}, func(r pgx.Rows) error {
 		var d ReleaseDeploy
-		if err := r.Scan(&d.Env, &d.Component, &d.Version, &d.CommitSHA, &d.DeployedAt, &d.Status, &d.Source); err != nil {
+		if err := r.Scan(&d.RepoSlug, &d.Env, &d.Component, &d.Version, &d.CommitSHA, &d.DeployedAt, &d.Status, &d.Source); err != nil {
 			return err
 		}
 		d.DeployedAt = d.DeployedAt.UTC()
@@ -267,7 +306,7 @@ func (s *Postgres) ReleaseCommits(ctx context.Context, f ReleaseReportFilter) ([
 		return nil, 0, err
 	}
 	out, err := s.queryReleaseNotes(ctx, f.Tenant, false, `SELECT `+releaseNoteCols+` FROM release_notes WHERE `+where+`
-		ORDER BY committed_at DESC, sha LIMIT $7 OFFSET $8`, append(args, releaseReportLimit(f.Limit), f.Offset)...)
+		ORDER BY committed_at DESC, sha, repo_slug LIMIT $8 OFFSET $9`, append(args, releaseReportLimit(f.Limit), f.Offset)...)
 	return out, total, err
 }
 
@@ -295,14 +334,14 @@ func (s *Memory) ReleaseDaily(_ context.Context, f ReleaseReportFilter) (Release
 	memReleaseMu.Lock()
 	for _, n := range s.tenantReleases(f.Tenant) {
 		if releaseMatch(f, n) {
-			days.add(releaseDayOf(n.CommittedAt), n.Kind, ReleaseArea(n.Area), n.Version, 1)
+			days.add(releaseDayOf(n.CommittedAt), n.RepoSlug, n.Kind, ReleaseArea(n.Area), n.Version, 1)
 		}
 	}
 	memReleaseMu.Unlock()
 	memDeployMu.Lock()
 	deploys := []ReleaseDeploy{}
 	for _, d := range memDeploys[s] {
-		if d.TenantID == f.Tenant && !d.DeployedAt.Before(f.From) && d.DeployedAt.Before(f.To) {
+		if d.TenantID == f.Tenant && slices.Contains(f.Repos, d.RepoSlug) && !d.DeployedAt.Before(f.From) && d.DeployedAt.Before(f.To) {
 			deploys = append(deploys, d)
 		}
 	}
@@ -328,7 +367,10 @@ func (s *Memory) ReleaseCommits(_ context.Context, f ReleaseReportFilter) ([]Rel
 		if c := b.CommittedAt.Compare(a.CommittedAt); c != 0 {
 			return c
 		}
-		return strings.Compare(a.SHA, b.SHA)
+		if c := strings.Compare(a.SHA, b.SHA); c != 0 {
+			return c
+		}
+		return strings.Compare(a.RepoSlug, b.RepoSlug)
 	})
 	lo := min(f.Offset, len(hit))
 	return hit[lo:min(lo+releaseReportLimit(f.Limit), len(hit))], len(hit), nil

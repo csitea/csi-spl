@@ -154,7 +154,7 @@ All four outputs of each run name the same 3 failed files:
   to c-616 and the holder; fold any FAIL into v0.3 and have both re-sign.
 - Probe: both A/Bs done (n=5 each). Runs after v0.2 go here only, never into the
   signed plan.
-- To do: (1) done; (2) send c-001 the failover-drill finding
+- To do: (1) done; (2) DONE 11:03Z, msg c56b02df, do not resend: sent c-001 the failover-drill finding
   (`spl-role-failover-drill.tst.sh` case 9, 2 of 4 runs, `a8a54cf44`, desk
   box, load 12..22), kind note, task `dispatch-perf-r12`; (3) on both PASS,
   send the final result to the CURRENT lease holder (re-read it; a bare

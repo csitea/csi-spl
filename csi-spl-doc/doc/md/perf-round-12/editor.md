@@ -64,12 +64,15 @@ checkouts `T` and `T2` of `a8a54cf44`, each with one planted red line in
 | 1 | 902 / 672 / 1,574 | 901 / **26** / 927 | 12.7..39.5 |
 | 2 | 670 / 553 / 1,222 | 670 / **23** / 693 | 27.2..39.3 |
 | 3 | 608 / 415 / 1,023 | 607 / **67** / 674 | 14.4..21.7 |
+| 4 | 502 / 436 / 938 | 502 / **65** / 567 | 12.4..16.1 |
 
 B's base re-check ran 1 file (A's ran 50) and named the same failure
 (`FAIL: 99. planted pre-existing red`), so the verdict stays
 WARN-pre-existing. Run 3: both arms' tree and base runs failed 2 files, the plant and
 `spl-role-failover-drill.tst.sh` (`FAIL: 9. control`, on its own), so B
-re-checked 2 files (67 s). Runs 3-5 died with the 10:16Z rotation (`pp-A-3.tree.out`
+re-checked 2 files (67 s). Run 4: the same 2 files in all four outputs
+(65 s). The failover drill's case 9 failed on its own in 2 of 4 orc runs on
+`a8a54cf44` on the desk box: a non-perf finding for c-001 (section 4). Runs 3-5 died with the 10:16Z rotation (`pp-A-3.tree.out`
 stopped at 10:16Z, no `abpp` process left). The next session restarted them at
 10:16Z detached (`setsid nohup ./abpp-run.sh 5 3`), so a rotation no longer
 stops them; results append to `pp-runs.log` as before.
@@ -85,6 +88,9 @@ on the same two clones; results go to `iac-runs.log`.
 |---|---|---|---|
 | 1 | 330 / 203 / 533 | 329 / **2** / 332 | 16.7..23.7 |
 | 2 | 201 / 189 / 390 | 202 / **1** / 203 | 12.8..16.7 |
+| 3 | 224 / 206 / 430 | 225 / **2** / 227 | 14.9..24.8 |
+| 4 | 224 / 193 / 416 | 223 / **1** / 224 | 13.2..15.2 |
+| 5 | 211 / 218 / 429 | 214 / **3** / 217 | 13.2..17.3 |
 
 All four outputs of each run name the same 3 failed files:
 `check-weekly-full-scan.tst.sh`, `gh-box-token.tst.sh` (the plant),
@@ -125,10 +131,28 @@ All four outputs of each run name the same 3 failed files:
 - Agent kinds (through the prd SA key): `off [qwen], paused []`.
 - Dispatch lease holder 10:1xZ: **c-003@sat** (it was c-002@sat at 09:24Z).
 
-## 4. Next
+## 4. State at the 11:16Z rotation, and next
 
-1. Finish 2.2 (n=5) and run 2.3 (n=5) on `a8a54cf44`.
-2. Done in v0.1: `perf-round-12-plan.md`. Rows 01 (orc) and 02 (iac) both edit
-   `check-pre-push.func.sh`, so they go in batch 1 and batch 2. Push it to
-   `review/c002-perf-round-12-planner`.
-3. Ask the holder for a grok seat and an agy seat on the desk box.
+- Plan v0.2 = `a9b11eda5` on `review/c002-perf-round-12-planner`, sent to
+  the holder c-002@sat (msg 6d1dc0dd, 10:35Z). The holder checked it and set
+  both seat briefs to sign `a9b11eda5` (msg 2b1856d1). Later commits on the
+  branch touch only this seat file:
+  `git diff a9b11eda5 HEAD -- csi-spl-doc/doc/md/perf-round-12-plan.md` is
+  empty.
+- Panel (c-001 ruling 99d5ed2f): agy seat ask 56aade4b (queued on the desk
+  box), mistral seat ask b00e6895 (placing at 10:4xZ, may hold the v0.1
+  brief). No verdict yet. If a seat reports on another sha, send it
+  `a9b11eda5` on task `69fd873c-c4f4-5475-a8ef-c0d7b4bb301b`. Verdicts come
+  to c-616 and the holder; fold any FAIL into v0.3 and have both re-sign.
+- Probe: iac A/B done (n=5). Orc run 5 was still running at the rotation
+  (detached, `pp-runs.log`). Runs after v0.2 go here only, never into the
+  signed plan.
+- To do: (1) orc run 5 into 2.2; (2) send c-001 the failover-drill finding
+  (`spl-role-failover-drill.tst.sh` case 9, 2 of 4 runs, `a8a54cf44`, desk
+  box, load 12..22), kind note, task `dispatch-perf-r12`; (3) on both PASS,
+  send the final result to the CURRENT lease holder (re-read it; a bare
+  `c-003` reached the desk box's c-003, not sat's), on task
+  `dispatch-perf-r12`, kind result: plan sha, 2 rows, each baseline line,
+  slug proof, panel state; (4) stay up until a message starting ACCEPTED.
+- No result was sent on `dispatch-perf-r12` yet (notes only: 24786871 and
+  16be7304 for the seats, 6d1dc0dd for the v0.2 sha).

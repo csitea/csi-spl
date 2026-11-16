@@ -139,34 +139,27 @@ All four outputs of each run name the same 3 failed files:
 - Agent kinds (through the prd SA key): `off [qwen], paused []`.
 - Dispatch lease holder 10:1xZ: **c-003@sat** (it was c-002@sat at 09:24Z).
 
-## 4. State at the 13:18Z rotation, and next
+## 4. State at the 14:19Z rotation, and next
 
-- Plan v0.2 = `a9b11eda5` on `review/c002-perf-round-12-planner`, sent to
-  the holder c-002@sat (msg 6d1dc0dd, 10:35Z). The holder checked it and set
-  both seat briefs to sign `a9b11eda5` (msg 2b1856d1). Later commits on the
-  branch touch only this seat file:
-  `git diff a9b11eda5 HEAD -- csi-spl-doc/doc/md/perf-round-12-plan.md` is
-  empty.
-- 11:2xZ, c-002@sat msg 1403d209: the agy seat (ask 56aade4b) is placed as
-  a-675 (desk box) (branch `a-675-c002-perf-round-12-agy-panel-seat`), brief: sign
-  `a9b11eda5`, report to c-616 and the holder on task `69fd873c`. The mistral
-  seat (b00e6895) is placed as m-676 (desk box) (c-002@sat msg 4aef96b9,
-  branch `m-676-c002-perf-round-12-mistral-panel-seat`), also signing
-  `a9b11eda5`. Lane map read 13:04Z: a-675 and m-676 both live. No verdict
-  from either seat by 13:04Z.
-- Panel (c-001 ruling 99d5ed2f): agy seat ask 56aade4b (queued on the desk
-  box), mistral seat ask b00e6895 (placing at 10:4xZ, may hold the v0.1
-  brief). No verdict yet. If a seat reports on another sha, send it
-  `a9b11eda5` on task `69fd873c-c4f4-5475-a8ef-c0d7b4bb301b`. Verdicts come
-  to c-616 and the holder; fold any FAIL into v0.3 and have both re-sign.
-- Probe: both A/Bs done (n=5 each). KEEP `/var/tmp/c616-probe` (c-001@sat msg 18280008): the drill bug lane routed to c-002@sat reads its logs first. Runs after v0.2 go here only, never into the
-  signed plan.
-- To do: (1) done; (2) DONE 11:03Z, msg c56b02df, do not resend: sent c-001 the failover-drill finding
-  (`spl-role-failover-drill.tst.sh` case 9, 2 of 4 runs, `a8a54cf44`, desk
-  box, load 12..22), kind note, task `dispatch-perf-r12`; (3) on both PASS,
-  send the final result to the CURRENT lease holder (re-read it; a bare
-  `c-003` reached the desk box's c-003, not sat's), on task
-  `dispatch-perf-r12`, kind result: plan sha, 2 rows, each baseline line,
-  slug proof, panel state; (4) stay up until a message starting ACCEPTED.
-- No result was sent on `dispatch-perf-r12` yet (notes only: 24786871 and
-  16be7304 for the seats, 6d1dc0dd for the v0.2 sha).
+- Plan v0.2 head = `08c10cfad` on `review/c002-perf-round-12-planner`. Since
+  `a9b11eda5` it changes only section 5 (panel), the v0.2 history line and
+  the consensus table; rows unchanged
+  (`git diff a9b11eda5 08c10cfad -- csi-spl-doc/doc/md/perf-round-12-plan.md`).
+- Panel, OWNER RULING HUM-10 msg e895dea6 (t1 32d81359, 14:02:48Z), answer C
+  to poll 8ede28e3, relayed by c-002@sat msg 3eff79a4: the plan is signed by
+  claude (c-616) + mistral (m-676) only, no agy, no replacement seat. a-675
+  (agy) is quota-locked (c-001 GC note a0856b9c, 14:00Z): never wait on it.
+- 14:0xZ: sent m-676 the new sign target `08c10cfad` (kind note, task
+  `dispatch-perf-r12`). No m-676 verdict by 14:19Z; m-676 was rotated and is
+  working (pane read 14:19Z).
+- The holder is c-002@SAT: always `--to c-002@sat`; a bare `c-002` reaches
+  the desk box's c-002 (happened at 14:01Z, msg 0f09f1a4, resent as 5cf138a8).
+- Probe: KEEP `/var/tmp/c616-probe` (c-001@sat msg 18280008) for the drill
+  bug lane. Failover-drill finding already sent (msg c56b02df): do not resend.
+- Next: (1) on m-676's verdict: PASS -> send c-002@sat, task
+  `dispatch-perf-r12`, kind result: signed head, 2 rows, each baseline line,
+  `p12-` slug proof, panel state (claude + mistral per e895dea6). FAIL ->
+  fold into v0.3, m-676 re-signs. (2) stay up until a message starting
+  ACCEPTED.
+- No result was sent on `dispatch-perf-r12` yet (notes only: 24786871,
+  16be7304, 6d1dc0dd, 0f09f1a4, 5cf138a8, the m-676 note).

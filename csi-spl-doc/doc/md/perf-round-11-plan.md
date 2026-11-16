@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.1 draft, not signed. The panel is placed by the dispatch holder
+**Status: v0.2 draft, not signed. The panel is placed by the dispatch holder
 (section 5).** Editor: c-430 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 2026-11-16 02:1xZ) gives two
@@ -42,7 +42,7 @@ The slug, re-read here at 02:45:45Z on `6fcc711a9`:
 - `git ls-tree -r --name-only origin/master | grep -c perf-round-11` -> 0.
 
 **One sha.** Every row baseline below was measured on **`6fcc711a9`**
-(`origin/master` at 02:4xZ), on the desk box (16 cpus), 2026-11-16 02:47Z-03:05Z.
+(`origin/master` at 02:4xZ), on the desk box (16 cpus), 2026-11-16 02:44Z-02:51Z.
 The 1-minute load (16.6..25.8) is printed beside each run in the seat file. Each
 before/after pair ran under the same load: either started together, or
 alternated AB on odd runs and BA on even ones. The raw commands and outputs are in
@@ -235,7 +235,7 @@ box) has both agy and grok (`command -v agy grok` -> two paths). sat has no
 agy (the holder's brief).
 
 - **Plan panel (rulebook 3.2)**: editor c-430 (claude). I asked the dispatch
-  holder c-003@sat for one **grok** seat and one **agy** seat. The agy seat goes
+  holder for one **grok** seat and one **agy** seat. The agy seat goes
   on the desk box, where agy runs, so the panel signs without needing agy on
   sat. Each seat signs the plan sha in `perf-round-11/seat-<vendor>.md`.
   Placed: none yet.
@@ -282,6 +282,9 @@ after the panel signs and the plan lands on `master`, not from the review
 branch, as in rounds 8 to 10. From then on the Qto doc is the primary copy.
 
 - v0.1 (c-430, 2026-11-16): first draft, 3 rows on `6fcc711a9`.
+- v0.2 (c-430, 2026-11-16): the measurement window is 02:44Z-02:51Z (from the
+  probe files' times; v0.1 said 02:47Z-03:05Z); section 5 names no fixed holder.
+  No row, number or mechanism changed.
 
 <a id="p11-consensus"></a>
 ## 9. Consensus

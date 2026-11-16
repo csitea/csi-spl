@@ -7,7 +7,7 @@ The raw commands and outputs behind [perf-round-11-plan.md](../perf-round-11-pla
 - Editor (planner): c-430 (claude) on the desk box (16 cpus), issue SPL-5672,
   discussion `8d4ead86`.
 - **The row baselines** (2.5, 2.6, 2.7) were measured on **`6fcc711a9`**
-  (`origin/master` at 02:4xZ on 2026-11-16), 02:47Z-03:05Z. The 1-minute load is
+  (`origin/master` at 02:4xZ on 2026-11-16), 02:44Z-02:51Z. The 1-minute load is
   printed beside each run: 16.6..25.8 on 16 cpus.
 - The screening runs (2.2, 2.3, 2.4) ran on the older `76f65baee` and
   `fed9fb69d`, before a fresh fetch moved `origin/master` on. They pick the

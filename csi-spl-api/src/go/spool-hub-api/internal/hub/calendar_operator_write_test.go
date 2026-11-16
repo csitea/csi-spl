@@ -37,8 +37,8 @@ func opEvent(t *testing.T, e *env, tid, title string) string {
 	return ev["id"].(string)
 }
 
-// SPL-5453: PATCH /v1/operator/calendar/events/{id} sets props.pinned and
-// nothing else; members read pinned on the wire, a member's own edit keeps
+// SPL-5453: PATCH /v1/operator/calendar/events/{id} sets props.pinned (and,
+// SPL-5720, the fields of TestOperatorCalendarReplacesAgentPrivate); members read pinned on the wire, a member's own edit keeps
 // it. CONTROLS: another field, another props key, a non-bool, another
 // workspace's host, a private event and no token change nothing.
 func TestOperatorCalendarPin(t *testing.T) {
@@ -72,7 +72,7 @@ func TestOperatorCalendarPin(t *testing.T) {
 		code       int
 		errCode    string
 	}{
-		{"another field", ta, map[string]any{"tenant": ta, "agent_id": "c-840", "title": "x", "props": map[string]any{"pinned": true}}, http.StatusBadRequest, "bad_json"},
+		{"another field", ta, map[string]any{"tenant": ta, "agent_id": "c-840", "audience": "private", "props": map[string]any{"pinned": true}}, http.StatusBadRequest, "bad_json"},
 		{"another props key", ta, body(map[string]any{"pinned": true, "color": "sage"}), http.StatusBadRequest, "bad_event"},
 		{"no pinned", ta, body(map[string]any{"color": "sage"}), http.StatusBadRequest, "bad_event"},
 		{"not a bool", ta, body(map[string]any{"pinned": "yes"}), http.StatusBadRequest, "bad_event"},

@@ -18,7 +18,7 @@ import (
 // member session (do_spl_calendar_event_add).
 //
 //	POST /v1/operator/calendar/events {tenant, agent_id, ordered_by?, <event>}
-//	GET  /v1/operator/calendar/events/{id}?tenant=<slug>   (the read-back)
+//	GET  /v1/operator/calendar/events/{id}?tenant=<slug>[&as=|&ordered_by=]   (the read-back)
 //
 //   - Who: the env service account's Google ID token on the operator
 //     allow-list (operatorAuth), as the other /v1/operator routes. A member
@@ -236,7 +236,9 @@ func (s *Server) operatorCalendarAudienceOK(w http.ResponseWriter, r *http.Reque
 
 // handleOperatorCalendarGet reads one event back as the operator sees it:
 // workspace and internal events; a private one only with ?as= naming the
-// agent that created it (SPL-5498), never as a human.
+// agent that created it (SPL-5498), or with ?ordered_by= naming a member it
+// was made for by an agent (SPL-5720, operatorReachesPrivate), never as a
+// human otherwise.
 func (s *Server) handleOperatorCalendarGet(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.operatorAuth(w, r); !ok {
 		return
@@ -246,12 +248,26 @@ func (s *Server) handleOperatorCalendarGet(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	as := strings.TrimSpace(r.URL.Query().Get("as"))
-	if as != "" && !humanIDRe.MatchString(as) && !agentid.IsAgent(as) {
+	orderedBy := strings.TrimSpace(r.URL.Query().Get("ordered_by"))
+	switch {
+	case as != "" && !humanIDRe.MatchString(as) && !agentid.IsAgent(as):
 		writeErr(w, http.StatusBadRequest, "bad_viewer", "as must be an agent id")
 		return
+	case orderedBy != "" && (!humanIDRe.MatchString(orderedBy) || as != ""):
+		writeErr(w, http.StatusBadRequest, "bad_ordered_by", "ordered_by must be a HUM-* id, without as")
+		return
 	}
-	e, err := c.GetCalendarEvent(r.Context(), t.ID, as, r.PathValue("id"))
-	if err == nil && e.Audience == store.CalendarPrivate && (e.CreatorType != "agent" || e.CreatorID != as) {
+	viewer := as
+	if orderedBy != "" {
+		person, err := s.operatorCalendarPerson(r.Context(), t.ID, "", orderedBy)
+		if err != nil {
+			s.writeCalendarErr(w, t.ID, "operator get", err)
+			return
+		}
+		viewer = person
+	}
+	e, err := c.GetCalendarEvent(r.Context(), t.ID, viewer, r.PathValue("id"))
+	if err == nil && e.Audience == store.CalendarPrivate && !operatorReadsPrivate(e, as, viewer, orderedBy != "") {
 		err = store.ErrNotFound // a mention, another agent or a human: the operator reads no one's private event
 	}
 	if err != nil {
@@ -259,6 +275,15 @@ func (s *Server) handleOperatorCalendarGet(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(e, s.o.Now(), "")})
+}
+
+// operatorReadsPrivate: the creator agent named by as reads its private
+// event back; with ordered_by, the rule of the writes (operatorReachesPrivate).
+func operatorReadsPrivate(e store.CalendarEvent, as, person string, byPerson bool) bool {
+	if byPerson {
+		return operatorReachesPrivate(e, person)
+	}
+	return e.CreatorType == "agent" && e.CreatorID == as
 }
 
 func (s *Server) routeOperatorCalendar(mux *http.ServeMux) {

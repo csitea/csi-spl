@@ -1,8 +1,10 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -13,27 +15,71 @@ import (
 // The operator's two writes on an existing event (SPL-5453, spec 097
 // section 4.10), beside the create of calendar_operator.go:
 //
-//	PATCH  /v1/operator/calendar/events/{id} {tenant, agent_id, ordered_by?, props: {pinned}}
+//	PATCH  /v1/operator/calendar/events/{id} {tenant, agent_id, ordered_by?, <fields>}
 //	DELETE /v1/operator/calendar/events/{id}?tenant=&agent_id=&ordered_by=
 //
 //   - Who and where: as the create (operatorAuth, one workspace, a host of
 //     another workspace is 403 tenant_mismatch, a workspace that may not
 //     write is unpaid); agent_id and ordered_by are logged.
-//   - What: a single event the operator can read (workspace or internal,
-//     never private), not a synced one (409 synced_read_only) and not a
-//     repeating one (400 bad_event).
-//   - PATCH sets only props.pinned (do_spl_calendar_event_pin); any other
-//     field of the body or of props is 400.
+//   - What: a single event (not a synced one, 409 synced_read_only; not a
+//     repeating one, 400 bad_event) the operator reaches: a workspace or
+//     internal event, or (SPL-5720) a private event an agent created for
+//     ordered_by: its creator_type is agent, ordered_by is a member of the
+//     workspace and is in its mentions. A private event a human created, or
+//     one ordered_by is not named in, is 404 (operatorReachesPrivate).
+//   - PATCH (do_spl_calendar_event_pin, do_spl_calendar_event_update) sets
+//     title, description, starts_at, ends_at, all_day, reminders and
+//     props.pinned, through the member PATCH's checks (calendarRequest.patch).
+//     Audience, mentions, guests, owner, links, kind and recurrence stay the
+//     members': another field is 400 bad_json, another props key 400
+//     bad_event, an empty change 400 bad_event.
 //   - DELETE is the member delete (spec 4.8, a soft delete): the event goes
 //     to the trash of ordered_by when that human is a member, so they can
 //     Undo it in the WUI, else of the agent (do_spl_calendar_event_delete).
+//   - Google Calendar follows the hub row: the sync's out half
+//     (gcal_sync.go) patches a changed event and deletes a trashed one at
+//     Google for every member who reads it (gcal_sync_agent_private_test.go).
 
-// operatorCalendarPinRequest is the PATCH body.
-type operatorCalendarPinRequest struct {
-	Tenant    string         `json:"tenant"`
-	AgentID   string         `json:"agent_id"`
-	OrderedBy string         `json:"ordered_by"`
-	Props     map[string]any `json:"props"`
+// operatorCalendarPatchRequest is the PATCH body: the target and the fields
+// an operator may change.
+type operatorCalendarPatchRequest struct {
+	Tenant      string         `json:"tenant"`
+	AgentID     string         `json:"agent_id"`
+	OrderedBy   string         `json:"ordered_by"`
+	Title       *string        `json:"title"`
+	Description *string        `json:"description"`
+	StartsAt    *string        `json:"starts_at"`
+	EndsAt      *string        `json:"ends_at"`
+	AllDay      *bool          `json:"all_day"`
+	Reminders   *[]any         `json:"reminders"`
+	Props       map[string]any `json:"props"`
+}
+
+// calendarRequest is the member PATCH body the operator body stands for.
+func (q operatorCalendarPatchRequest) calendarRequest() calendarRequest {
+	return calendarRequest{Title: q.Title, Description: q.Description, StartsAt: q.StartsAt, EndsAt: q.EndsAt,
+		AllDay: q.AllDay, Reminders: q.Reminders, Props: q.Props}
+}
+
+// operatorReachesPrivate (SPL-5720): a private event is the operator's only
+// when an agent created it and person (ordered_by, a member) is in its
+// mentions. Any other audience is reachable as before.
+func operatorReachesPrivate(e store.CalendarEvent, person string) bool {
+	return e.Audience != store.CalendarPrivate ||
+		(person != "" && e.CreatorType == "agent" && slices.Contains(e.Mentions, person))
+}
+
+// operatorCalendarPerson answers orderedBy when that human is a member of
+// tenant, else "": the viewer an operator call reads and writes as.
+func (s *Server) operatorCalendarPerson(ctx context.Context, tenant, agent, orderedBy string) (string, error) {
+	if orderedBy == "" {
+		return "", nil
+	}
+	ie, err := s.calendarOwnerKnown(ctx, tenant, orderedBy, agent)
+	if err != nil || ie != nil {
+		return "", err
+	}
+	return orderedBy, nil
 }
 
 // operatorCalendarWho checks agent_id and ordered_by; it writes the error.
@@ -51,13 +97,16 @@ func operatorCalendarWho(w http.ResponseWriter, agent, orderedBy string) (string
 }
 
 // operatorCalendarSingle loads the event {id} an operator may change in
-// tenant t; it writes the error itself.
-func (s *Server) operatorCalendarSingle(w http.ResponseWriter, r *http.Request, t store.Tenant, c store.Calendar) (store.CalendarEvent, bool) {
+// tenant t, read as person (operatorCalendarPerson); it writes the error.
+func (s *Server) operatorCalendarSingle(w http.ResponseWriter, r *http.Request, t store.Tenant, c store.Calendar, person string) (store.CalendarEvent, bool) {
 	if !billing.AllowsWrite(t.BillingStatus) {
 		writeUnpaid(w)
 		return store.CalendarEvent{}, false
 	}
-	e, err := c.GetCalendarEvent(r.Context(), t.ID, "", r.PathValue("id"))
+	e, err := c.GetCalendarEvent(r.Context(), t.ID, person, r.PathValue("id"))
+	if err == nil && !operatorReachesPrivate(e, person) {
+		err = store.ErrNotFound // a human's own private event, or one not made for person
+	}
 	switch {
 	case err != nil:
 		s.writeCalendarErr(w, t.ID, "operator write", err)
@@ -71,47 +120,73 @@ func (s *Server) operatorCalendarSingle(w http.ResponseWriter, r *http.Request, 
 	return e, false
 }
 
+// opCalWrite is what operatorCalendarWriteTarget loaded.
+type opCalWrite struct {
+	agent, orderedBy, person string
+	t                        store.Tenant
+	c                        store.Calendar
+	cur                      store.CalendarEvent
+}
+
+// operatorCalendarWriteTarget runs the checks both writes share: who, the
+// workspace, the person and the event; it writes the error.
+func (s *Server) operatorCalendarWriteTarget(w http.ResponseWriter, r *http.Request, tenant, agentIn, orderedByIn string) (opCalWrite, bool) {
+	var o opCalWrite
+	var ok bool
+	if o.agent, o.orderedBy, ok = operatorCalendarWho(w, agentIn, orderedByIn); !ok {
+		return o, false
+	}
+	if o.t, o.c, ok = s.operatorCalendarTarget(w, r, tenant); !ok {
+		return o, false
+	}
+	person, err := s.operatorCalendarPerson(r.Context(), o.t.ID, o.agent, o.orderedBy)
+	if err != nil {
+		s.writeCalendarErr(w, o.t.ID, "operator write", err)
+		return o, false
+	}
+	o.person = person
+	o.cur, ok = s.operatorCalendarSingle(w, r, o.t, o.c, person)
+	return o, ok
+}
+
 func (s *Server) handleOperatorCalendarPin(w http.ResponseWriter, r *http.Request) {
 	op, ok := s.operatorAuth(w, r)
 	if !ok {
 		return
 	}
-	var q operatorCalendarPinRequest
+	var q operatorCalendarPatchRequest
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, calendarMaxBody))
 	dec.DisallowUnknownFields()
+	dec.UseNumber() // a reminder's amount, as on the member PATCH
 	if err := dec.Decode(&q); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_json", `body must be {tenant, agent_id, ordered_by?, props: {"pinned": true|false}}`)
+		writeErr(w, http.StatusBadRequest, "bad_json",
+			"body must be {tenant, agent_id, ordered_by?, title?, description?, starts_at?, ends_at?, all_day?, reminders?, props?: {pinned}}")
 		return
 	}
-	if _, set := q.Props[calPropPinned]; !set || len(q.Props) != 1 {
-		writeIssueErr(w, badCalendar("an operator PATCH sets props.pinned and nothing else"))
+	if _, set := q.Props[calPropPinned]; q.Props != nil && (!set || len(q.Props) != 1) {
+		writeIssueErr(w, badCalendar("an operator PATCH sets props.pinned and no other props key"))
 		return
 	}
-	agent, orderedBy, ok := operatorCalendarWho(w, q.AgentID, q.OrderedBy)
+	o, ok := s.operatorCalendarWriteTarget(w, r, q.Tenant, q.AgentID, q.OrderedBy)
 	if !ok {
 		return
 	}
-	t, c, ok := s.operatorCalendarTarget(w, r, q.Tenant)
-	if !ok {
-		return
+	p, ie := q.calendarRequest().patch(o.cur)
+	if ie == nil && calendarPatchEmpty(p) {
+		ie = badCalendar("nothing to change")
 	}
-	cur, ok := s.operatorCalendarSingle(w, r, t, c)
-	if !ok {
-		return
-	}
-	merged, ie := mergeCalendarProps(cur.Props, q.Props)
 	if ie != nil {
 		writeIssueErr(w, ie)
 		return
 	}
-	out, err := c.UpdateCalendarEvent(r.Context(), t.ID, "", cur.ID,
-		store.CalendarPatch{Props: &merged, IfUpdatedAt: cur.UpdatedAt}, s.o.Now())
+	p.IfUpdatedAt = o.cur.UpdatedAt
+	out, err := o.c.UpdateCalendarEvent(r.Context(), o.t.ID, o.person, o.cur.ID, p, s.o.Now())
 	if err != nil {
-		s.writeCalendarErr(w, t.ID, "operator pin", err)
+		s.writeCalendarErr(w, o.t.ID, "operator patch", err)
 		return
 	}
-	s.o.Log.Info().Str("tenant", t.ID).Str("event", out.ID).Str("agent", agent).Str("operator", op).
-		Str("ordered_by", orderedBy).Bool("pinned", propsPinned(out)).Msg("operator.calendar_event_pinned")
+	s.o.Log.Info().Str("tenant", o.t.ID).Str("event", out.ID).Str("agent", o.agent).Str("operator", op).
+		Str("ordered_by", o.orderedBy).Str("audience", out.Audience).Bool("pinned", propsPinned(out)).Msg("operator.calendar_event_patched")
 	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now(), "")})
 }
 
@@ -121,35 +196,20 @@ func (s *Server) handleOperatorCalendarDelete(w http.ResponseWriter, r *http.Req
 		return
 	}
 	qs := r.URL.Query()
-	agent, orderedBy, ok := operatorCalendarWho(w, qs.Get("agent_id"), qs.Get("ordered_by"))
+	o, ok := s.operatorCalendarWriteTarget(w, r, qs.Get("tenant"), qs.Get("agent_id"), qs.Get("ordered_by"))
 	if !ok {
 		return
 	}
-	t, c, ok := s.operatorCalendarTarget(w, r, qs.Get("tenant"))
-	if !ok {
-		return
+	by := o.agent
+	if o.person != "" {
+		by = o.person
 	}
-	cur, ok := s.operatorCalendarSingle(w, r, t, c)
-	if !ok {
-		return
-	}
-	by := agent
-	if orderedBy != "" {
-		ie, err := s.calendarOwnerKnown(r.Context(), t.ID, orderedBy, agent)
-		if err != nil {
-			s.writeCalendarErr(w, t.ID, "operator delete", err)
-			return
-		}
-		if ie == nil {
-			by = orderedBy
-		}
-	}
-	out, err := c.TrashCalendarScope(r.Context(), t.ID, by, cur.ID, "", cur.UpdatedAt, s.o.Now())
+	out, err := o.c.TrashCalendarScope(r.Context(), o.t.ID, by, o.cur.ID, "", o.cur.UpdatedAt, s.o.Now())
 	if err != nil {
-		s.writeCalendarErr(w, t.ID, "operator delete", err)
+		s.writeCalendarErr(w, o.t.ID, "operator delete", err)
 		return
 	}
-	s.o.Log.Info().Str("tenant", t.ID).Str("event", out.ID).Str("agent", agent).Str("operator", op).
-		Str("ordered_by", orderedBy).Str("deleted_by", by).Msg("operator.calendar_event_trashed")
+	s.o.Log.Info().Str("tenant", o.t.ID).Str("event", out.ID).Str("agent", o.agent).Str("operator", op).
+		Str("ordered_by", o.orderedBy).Str("deleted_by", by).Msg("operator.calendar_event_trashed")
 	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now(), "")})
 }

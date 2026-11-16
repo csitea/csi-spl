@@ -5,15 +5,16 @@
 # @description (calendar_operator_write.go, SPL-5453), the member soft delete:
 # @description each event leaves the calendar and sits in ORDERED_BY's trash
 # @description (a member, who can Undo it in the WUI), else the agent's. Only a
-# @description single workspace event: a private, synced or repeating one is
-# @description refused by the hub. Each id is read back: GET answers 404 once
+# @description single event: a synced or repeating one is refused by the hub,
+# @description and a private one too unless an agent made it for ORDERED_BY
+# @description (SPL-5720). Each id is read back (GET ?ordered_by=): 404 once
 # @description it is in the trash. DRY_RUN=1 (default): print what it would
 # @description send, call no cloud, write nothing.
 # @param ENV (required) - dev or prd
 # @param TENANT_ID (required) - the workspace slug
 # @param EVENT_IDS (required) - 1..200 event ids (uuids), comma- or space-separated
 # @param AGENT_ID (required) - the agent doing it, e.g. c-042
-# @param ORDERED_BY (optional) - the human who ordered it, a HUM-* id: their trash
+# @param ORDERED_BY (optional) - the human who ordered it, a HUM-* id: their trash; a private event needs it
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=<tenant> EVENT_IDS=<uuid>,<uuid> AGENT_ID=c-042 ORDERED_BY=HUM-10 ./run -a do_spl_calendar_event_delete
 #------------------------------------------------------------------------------
@@ -75,7 +76,7 @@ _spl_calendar_event_req() {
 # _spl_calendar_event_one <verb> <tenant> <agent> <ordby> <pinned> <id>: the
 # call and its read-back for one id; one OK or FAIL line.
 _spl_calendar_event_one() {
-  local verb="$1" tenant="$2" pinned="$5" id="$6" req method path body detail
+  local verb="$1" tenant="$2" ordby="$4" pinned="$5" id="$6" req method path body detail
   req="$(_spl_calendar_event_req "$@")" || return 1
   method="${req%% *}" req="${req#* }" path="${req%% *}" body=""
   [[ "$req" == *" "* ]] && body="${req#* }"
@@ -84,7 +85,7 @@ _spl_calendar_event_one() {
   [[ "$SPL_HUB_OP_STATUS" == 200 ]] || { do_log "FAIL $verb $id: http $SPL_HUB_OP_STATUS ${detail:-$SPL_HUB_OP_BODY}"; return 1; }
   local title
   title="$(jq -r '.event.title // ""' <<<"$SPL_HUB_OP_BODY")"
-  spl_hub_operator_call GET "/v1/operator/calendar/events/$id?tenant=$tenant" || return 1
+  spl_hub_operator_call GET "/v1/operator/calendar/events/$id?tenant=$tenant${ordby:+&ordered_by=$ordby}" || return 1
   if [[ "$verb" == delete ]]; then
     [[ "$SPL_HUB_OP_STATUS" == 404 ]] || { do_log "FAIL delete $id: the read-back answered http $SPL_HUB_OP_STATUS, not 404"; return 1; }
     do_log "OK trashed $id ($title): read back 404, in the trash"

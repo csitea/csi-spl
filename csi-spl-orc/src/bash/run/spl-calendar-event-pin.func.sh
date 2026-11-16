@@ -4,9 +4,10 @@
 # @description THROUGH THE HUB: PATCH /v1/operator/calendar/events/<id> with
 # @description props.pinned and nothing else (calendar_operator_write.go,
 # @description SPL-5453). A pinned event leads its day in every calendar view
-# @description (spec 097 section 3.3.1). Only a single workspace event: a
-# @description private, synced or repeating one is refused by the hub. Each id
-# @description is read back (GET, pinned as asked). The per-id driver is
+# @description (spec 097 section 3.3.1). Only a single event: a synced or
+# @description repeating one is refused by the hub, and a private one too unless
+# @description an agent made it for ORDERED_BY (SPL-5720). Each id is read back
+# @description (GET ?ordered_by=, pinned as asked). The per-id driver is
 # @description _spl_calendar_event_each (spl-calendar-event-delete.func.sh).
 # @description DRY_RUN=1 (default): print what it would send, write nothing.
 # @param ENV (required) - dev or prd

@@ -418,8 +418,11 @@ its workspace scope (a host of another workspace is `403 tenant_mismatch`)
 and its log fields (`tenant`, `agent_id`, `ordered_by`, the operator):
 
 - `PATCH /v1/operator/calendar/events/{id}`, body `{tenant, agent_id,
-  ordered_by?, props: {"pinned": true|false}}`: sets `props.pinned` and
-  nothing else; another field is `400 bad_json`, another `props` key `400
+  ordered_by?, props: {"pinned": true|false}}`: sets `props.pinned`; another
+  `props` key is `400 bad_event`. Since SPL-5720 the body may also carry
+  `title`, `description`, `starts_at`, `ends_at`, `all_day` and `reminders`
+  (the member PATCH's checks); any other field (audience, mentions, guests,
+  owner, links, kind, rrule) is `400 bad_json`, an empty change `400
   bad_event`. Action: `cd csi-spl-orc && ENV=<env> TENANT_ID=<ws>
   EVENT_IDS=<id,...> AGENT_ID=<id> ORDERED_BY=<HUM-n> ./run -a
   do_spl_calendar_event_pin` (`PINNED=0` unpins).
@@ -428,8 +431,8 @@ and its log fields (`tenant`, `agent_id`, `ordered_by`, the operator):
   `ordered_by` when that human is a member of the workspace, so they see it
   in their trash and can Undo it in the WUI; otherwise to the agent's.
   Action: `do_spl_calendar_event_delete`, the same variables.
-- Both touch only a single event the operator can read: a private event is
-  `404`, a synced one `409 synced_read_only`, a repeating one `400
+- Both touch only a single event the operator reaches (the private rule
+  below): a synced one is `409 synced_read_only`, a repeating one `400
   bad_event`. Both actions are a dry run unless `DRY_RUN=0`, take 1..200 ids
   and read each one back (`GET`: pinned as asked; `404` once trashed).
 
@@ -443,14 +446,53 @@ reads a private event only when `as` is its creator and that creator is an
 agent: an agent reads back what it wrote. Any other `as` (another agent, a
 human, a mention included) and no `as` is `404` on a private event, so the
 operator never reads a human's private event. Workspace and internal events
-read as before. The pin and delete routes above still refuse a private event
-(`404`): a private copy stays unpinned. Who sees a private event in the WUI is
+read as before. The pin and delete routes reach a private event only under
+the rule below. Who sees a private event in the WUI is
 unchanged (the creator and the mentions). Because the creator is the agent,
 FR-010 (only the creator sets or clears private) means the mentioned humans
 cannot move such an event out of private in the WUI. Action:
 `do_spl_calendar_event_add` with `AUDIENCE=workspace|internal|private` and
 `MENTIONS=HUM-n,...`; `AUDIENCE=private` needs `ORDERED_BY` among `MENTIONS`
 (checked before any call), and its read-back passes `as=$AGENT_ID`.
+
+An agent replaces a private entry an agent made for a person (SPL-5720,
+owner HUM-10, topic b610f795, msg 18ee3ef7: "Fix it first so an agent can
+replace a private entry made for me"). **The rule (owner may change):** an
+operator call reaches a private event only when all three hold:
+
+1. its `creator_type` is `agent` (any agent, not only the caller);
+2. the call names `ordered_by`, and that human is a member of the workspace;
+3. `ordered_by` is in the event's `mentions` (the operator create always
+   puts it there).
+
+The store's private filter (spec 089 section 5: `creator_id = <viewer> OR
+<viewer> = ANY (mentions)`) is not changed; the operator reads and writes as
+the viewer `ordered_by`, and the hub adds 1 (`operatorReachesPrivate`,
+`calendar_operator_write.go`). So the operator never reaches a private event
+the person made themselves (creator human), one another person made that
+names them, or an agent's private event for another person: each is `404`
+on `PATCH`, `DELETE` and `GET ...?ordered_by=`. An event whose owner is the
+person but who is not in its mentions is not reached either: the person
+cannot read it in the WUI. Under the rule:
+
+- `PATCH` changes the fields above; audience and mentions stay, so it stays
+  private to the same people.
+- `DELETE` moves it to the person's trash, where they can Undo it.
+- `GET /v1/operator/calendar/events/{id}?tenant=&ordered_by=<HUM-n>` reads it
+  back (with `as=` it is `400`).
+- Google Calendar follows the hub row with no second path: the sync's out
+  half sends every live event the member reads, patches it when its sync hash
+  changes and deletes it at Google once trashed (`gcal_sync.go`; test
+  `gcal_sync_agent_private_test.go`).
+
+Action: `cd csi-spl-orc && ENV=<env> TENANT_ID=<ws> EVENT_ID=<id>
+AGENT_ID=<id> ORDERED_BY=<HUM-n> REMINDERS=15m ./run -a
+do_spl_calendar_event_update` (also `TITLE`, `DESCRIPTION`, `DAY` or
+`STARTS_AT` + `ENDS_AT`; a dry run unless `DRY_RUN=0`; the read-back must
+hold every field sent). `do_spl_calendar_event_delete` and `_pin` take the
+same `ORDERED_BY`, and their read-back names it. Tests:
+`calendar_operator_private_write_test.go` (memory and Postgres),
+`spl-calendar-event-update.tst.sh`.
 
 Reminders from an agent (SPL-5718). `do_spl_calendar_event_add` takes
 `REMINDERS=15m,1h,1d`: each an amount and `m`, `h` or `d`, sent as the
@@ -821,6 +863,7 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.9 | 2026-11-16 | c-647 | An agent changes or deletes a private entry an agent made for a member (`ordered_by` in its mentions), never a person's own or another person's (4.10, rule marked owner may change); operator PATCH takes title, description, times and reminders; `do_spl_calendar_event_update`. SPL-5720. |
 | v0.8 | 2026-11-16 | c-628 | `REMINDERS` on `do_spl_calendar_event_add`: an agent's event carries pop-up reminders (4.10). SPL-5718. |
 | v0.7 | 2026-11-14 | c-437 | A private event from an agent through the operator routes: mention checks, the creator-only `?as=` read-back, `AUDIENCE` / `MENTIONS` on `do_spl_calendar_event_add` (4.10). SPL-5498. |
 | v0.6 | 2026-11-13 | c-687 | The order of a day's events in every view, whole-day then `pinned` first (3.3.1); the `pinned` props key; the operator pin and delete routes and actions (4.10). SPL-5453. |
@@ -830,4 +873,4 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 0.6 · updated: 2026-11-13 -->
+<!-- version: 0.9 · updated: 2026-11-16 -->

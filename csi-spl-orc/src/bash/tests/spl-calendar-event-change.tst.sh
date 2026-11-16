@@ -6,7 +6,7 @@
 #   1. DRY_RUN (the default) prints each request and calls nothing
 #   2. a missing or bad var fails fast, before any call
 #   3. delete: DELETE per id as the SA with tenant, agent_id, ordered_by;
-#      each read back 404
+#      each read back 404, the GET naming ordered_by too (SPL-5720)
 #   4. pin: PATCH with props.pinned and nothing else; each read back pinned
 #   5. a refused id or a read-back that does not hold fails the run, the
 #      other ids still run
@@ -78,13 +78,14 @@ run $DEL "${SET[@]}" DRY_RUN=0 EVENT_IDS="$many"; rc=$?
 run $DEL "${SET[@]}" DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && [[ "$(sed -n 1p "$T/calls")" == pin ]] \
   && grep -qxF "hub DELETE /v1/operator/calendar/events/$A?tenant=wa&agent_id=c-840&ordered_by=HUM-10 " "$T/calls" \
-  && grep -qxF "hub GET /v1/operator/calendar/events/$B?tenant=wa " "$T/calls" \
+  && grep -qxF "hub GET /v1/operator/calendar/events/$B?tenant=wa&ordered_by=HUM-10 " "$T/calls" \
   && [[ "$(grep -c '^hub ' "$T/calls")" == 4 ]] && grep -q "OK trashed $A (NL): read back 404, in the trash" "$T/o" \
   && grep -q "OK delete: 2 of 2 event(s) of wa (dev) done and read back through the hub" "$T/o" \
   && pass "3. DELETE per id as the SA, each read back 404" || fail "3. delete: rc=$rc $(cat "$T/calls" "$T/o")"
 run $DEL "${SET[@]}" DRY_RUN=0 ORDERED_BY=; rc=$?
 [[ $rc -eq 0 ]] && grep -qxF "hub DELETE /v1/operator/calendar/events/$A?tenant=wa&agent_id=c-840 " "$T/calls" \
-  && pass "3. no ORDERED_BY: the query names none" || fail "3. no ordby: rc=$rc $(cat "$T/calls")"
+  && grep -qxF "hub GET /v1/operator/calendar/events/$A?tenant=wa " "$T/calls" \
+  && pass "3. no ORDERED_BY: neither query names one" || fail "3. no ordby: rc=$rc $(cat "$T/calls")"
 
 # --- 4. pin -----------------------------------------------------------------------
 run $PIN "${SET[@]}" DRY_RUN=0; rc=$?

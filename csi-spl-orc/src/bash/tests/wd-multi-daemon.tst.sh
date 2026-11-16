@@ -119,11 +119,11 @@ both() {
   wait "$a" "$b"
 }
 # settle [N]: wait (up to 30 s) until N detached restarts (default 1) have
-# made their last write. One still running when the next case resets the box
-# lands in the new rotate.log and that judge skips the id (gate 10 run
-# 37969307772: '4 S9:  /' after the S9 control's two restarts)
+# made their last write; a spent budget fails. One still running when the next
+# case resets the box lands in the new rotate.log and that judge skips the id
+# (gate 10 run 37969307772: '4 S9:  /' after the S9 control's two restarts)
 done_n() { local c; c="$(grep -c . "$T/takeover.done" 2>/dev/null)"; (( ${c:-0} >= $1 )); }
-settle() { wait_event 30 done_n "${1:-1}"; }
+settle() { wait_event 30 done_n "${1:-1}" || fail "settle: $(grep -c . "$T/takeover.done" 2>/dev/null) of ${1:-1} restarts done in 30 s"; }
 held() { [[ -f "$1" ]] && ! flock -n "$1" true; }
 none_held() { ! held "$W/run.1.lock" && ! held "$W/run.2.lock" && ! held "$W/run.3.lock"; }
 cnt() { local n; n="$(grep -c -- "$1" "$2" 2>/dev/null)"; echo "${n:-0}"; }
@@ -217,7 +217,7 @@ WD_JUDGE_LOCK=0 SIT_SLEEP=1 KEY_SLEEP=2 both 1 2
   fail "4 control did not double: $(cat "$T/evals" 2>/dev/null) / $(cat "$T/tmux/log" 2>/dev/null)"
 reset_box; agent c-952 %1 4052
 echo "HIT S9 stuck=1 poke_age=400" > "$T/hit.c-952.s9"
-WD_JUDGE_LOCK=0 SIT_SLEEP=1 SEND_SLEEP=2 both 1 2; settle 2
+WD_JUDGE_LOCK=0 SIT_SLEEP=1 SEND_SLEEP=2 both 1 2; wait_event 30 env_idle "SPOOL_ROOT=$S" || fail "4 S9 control: a restart still runs after 30 s"
 [[ "$(cnt 'WATCHDOG (102 S9): c-952' "$T/sent")" == 2 ]] && pass "4 control: no judge lock -> the S9 note goes twice (caught)" ||
   fail "4 S9 control: $(cat "$T/sent" 2>/dev/null)"
 reset_box; agent c-952 %1 4052

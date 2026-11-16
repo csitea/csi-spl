@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.1, draft, not signed.** Editor: c-616 (claude).
+**Status: v0.2, for the panel to sign.** Editor: c-616 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 2026-11-16 08:2xZ):
 
@@ -110,8 +110,8 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 
 | # | id | practice | baseline on `a8a54cf44` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 | `perf(p12-01-orc-recheck-failed-files)` | when the `orc` part fails on the tree, its base re-check runs only the orc test files the tree run named `FAILED:` (the `suite <file>` items of the tree signature, `_pp_sig`, `cpp:1246`), not the whole `--changed` plan again; with no such item (e.g. only `bash-cleancode` failed) it re-runs the whole part as today | `abpp.sh <clone> A` (editor 2.2): c-324's change set (50 orc tests), one planted red in `unanswered-sweep.tst.sh`; the base re-check: **672 s, 553 s (n=2)**; the whole failed part: **1,574 s, 1,222 s (n=2)**; load 12.7..39.5 | arm B (base re-check with `ORC_TEST_FILES=<failed> ORC_TEST_ALWAYS=`): base re-check **26 s, 23 s (n=2)**, the whole failed part **927 s, 693 s (n=2), -41% and -43%**. B's base ran 1 file (A's 50) and named the same failure (`FAIL: 99. planted pre-existing red`), so the verdict is WARN-pre-existing in both arms | `cpp:1067-1078` (`_pp_run`, hand the tree signature's suite files to the base run) and `cpp:713-731` (`_pp_part_orc`, on the base tree run only those); 2 edit ranges | new `iac/src/bash/tests/check-pre-push-recheck-narrow.tst.sh`: a stub orc runner records the files each run is asked to run; the tree run fails 1 of 3 files -> the base run is asked for **1** file (today **3**), and the verdict is WARN-pre-existing when the base fails it too, FAIL when the base passes it, as today. A tree failure with no `suite` item (only `bash-cleancode`) -> the base runs the whole part (today's behaviour kept). Red: today's `_pp_run` -> 3 files on the base, FAIL. Also run and green: **`check-pre-push-baseline.tst.sh`**, **`check-pre-push-verdict-forks.tst.sh`**, **`check-pre-push-timeout-red-trunk.tst.sh`**, **`check-pre-push-budget-table.tst.sh`**, `check-pre-push.tst.sh`, `check-pre-push-errexit.tst.sh`, `check-pre-push-orphan-pipe.tst.sh`, `bash-cleancode.tst.sh` | either fleet box | claude / simple_coding (R9: a gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1, after R3 (below) |
-| 02 | `perf(p12-02-iac-recheck-failed-files)` | the same for the `iac` part: its base re-check runs only the iac files the tree run named `FAILED:`, through the runner's own filter `IAC_TEST_ONLY` (`iac/src/bash/tests/run-all-tests.sh:28,58-64`) | `abiac.sh <clone> A` (editor 2.3): the iac suite, fast tier, one planted red in `gh-box-token.tst.sh`, run twice as today: **see editor 2.3 (n and numbers filled in v0.2)** | arm B (`IAC_TEST_ONLY=<failed>`): **editor 2.3** | `cpp:671-676` (`_pp_part_iac`); 1 edit range, using the hand-over row 01 adds to `_pp_run` | the same new test, an iac case: the tree run fails 1 iac file -> the base run is asked for **1** file (today the whole suite). Red: today's `_pp_part_iac` -> the whole suite on the base, FAIL. Same column as row 01 | either fleet box | claude / simple_coding (R9) | **2**, after row 01 lands (R1: both edit `cpp`) |
+| 01 | `perf(p12-01-orc-recheck-failed-files)` | when the `orc` part fails on the tree, its base re-check runs only the orc test files the tree run named `FAILED:` (the `suite <file>` items of the tree signature, `_pp_sig`, `cpp:1246`), not the whole `--changed` plan again; with no such item (e.g. only `bash-cleancode` failed) it re-runs the whole part as today | `abpp.sh <clone> A` (editor 2.2): c-324's change set (50 orc tests), one planted red in `unanswered-sweep.tst.sh`; the base re-check: **672, 553, 415 s (n=3)**; the whole failed part: **1,574, 1,222, 1,023 s (n=3)**; load 12.7..39.5 | arm B (base re-check with `ORC_TEST_FILES=<failed> ORC_TEST_ALWAYS=`): base re-check **26, 23, 67 s (n=3)**, the whole failed part **927, 693, 674 s (n=3), -41%, -43%, -34%**, B below its paired A 3 of 3. B's base ran the failed files only (runs 1-2: 1 file, the plant; run 3: 2 files, the plant and `spl-role-failover-drill.tst.sh`, which failed on its own in all four outputs) where A's ran 50, and named the same failures, so the verdict is WARN-pre-existing in both arms every run | `cpp:1067-1078` (`_pp_run`, hand the tree signature's suite files to the base run) and `cpp:713-731` (`_pp_part_orc`, on the base tree run only those); 2 edit ranges | new `iac/src/bash/tests/check-pre-push-recheck-narrow.tst.sh`: a stub orc runner records the files each run is asked to run; the tree run fails 1 of 3 files -> the base run is asked for **1** file (today **3**), and the verdict is WARN-pre-existing when the base fails it too, FAIL when the base passes it, as today. A tree failure with no `suite` item (only `bash-cleancode`) -> the base runs the whole part (today's behaviour kept). Red: today's `_pp_run` -> 3 files on the base, FAIL. Also run and green: **`check-pre-push-baseline.tst.sh`**, **`check-pre-push-verdict-forks.tst.sh`**, **`check-pre-push-timeout-red-trunk.tst.sh`**, **`check-pre-push-budget-table.tst.sh`**, `check-pre-push.tst.sh`, `check-pre-push-errexit.tst.sh`, `check-pre-push-orphan-pipe.tst.sh`, `bash-cleancode.tst.sh` | either fleet box | claude / simple_coding (R9: a gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1, after R3 (below) |
+| 02 | `perf(p12-02-iac-recheck-failed-files)` | the same for the `iac` part: its base re-check runs only the iac files the tree run named `FAILED:`, through the runner's own filter `IAC_TEST_ONLY` (`iac/src/bash/tests/run-all-tests.sh:28,58-64`) | `abiac.sh <clone> A` (editor 2.3): the iac suite, fast tier, one planted red in `gh-box-token.tst.sh`, run twice as today: the base re-check **203, 189 s (n=2)**; the whole failed part **533, 390 s (n=2)**; load 12.8..23.7. The tree run fails 3 files: the plant, and `check-weekly-full-scan.tst.sh` and `hub-payment-030.tst.sh` (the latter skips a check: no tpl-gen venv on the desk box); neither is the planted file | arm B (`IAC_TEST_ONLY=<failed>`): base re-check **2, 1 s (n=2)**, the whole failed part **332, 203 s (n=2), -38% and -48%**; B ran the 3 failed files and named the same 3 in both arms, both runs | `cpp:671-676` (`_pp_part_iac`); 1 edit range, using the hand-over row 01 adds to `_pp_run` | the same new test, an iac case: the tree run fails 1 iac file -> the base run is asked for **1** file (today the whole suite). Red: today's `_pp_part_iac` -> the whole suite on the base, FAIL. Same column as row 01 | either fleet box | claude / simple_coding (R9) | **2**, after row 01 lands (R1: both edit `cpp`) |
 
 Rows 01-02 are both claude. Two rules require it: rulebook R14 (an established
 vendor for every row) and the owner's 10-17 rule (no mistral coding or
@@ -155,8 +155,14 @@ Read on 2026-11-16, each with its time:
   `955ab0bd-event-types-causes`; placing `spl5704-open-takes-claude-waiver-reviewer`,
   `spl4835-lane-console-keep-clear`. The one brief readable here
   (`c002-s179-pause-agents-of-a-discussion-spec.md`) names `check-pre-push` 0
-  times; the others were queued on sat, so the holder reads them before row 01
-  spawns. No slug names the pre-push gate.
+  times. The holder (c-002@sat, msg 8a969a4c, 10:3xZ) read the other five on
+  sat: `grep -c check-pre-push <brief>` -> 0 for each of
+  `c002-spl4835-lane-console-keep-clear`,
+  `c002-spl5704-open-takes-claude-waiver-reviewer`,
+  `c002-bug-hubclient-sendframe-unkeyed-error`,
+  `hand-<box>-c002-agy-memory-edit-after-review-gap` and
+  `c002-955ab0bd-event-types-causes`. Briefs only, not their diffs: the R3
+  check before each spawn re-reads the map.
 - **Unlanded round rows** (10:17:33Z, on `302ac11ce`): p11-01..03 landed; r60
   and r61 have 0 lines.
 
@@ -193,7 +199,7 @@ Read on 2026-11-16, each with its time:
   `_pp_compare`, which is right: it cannot fail on trunk). The lane re-runs
   `abiac.sh` (n=3).
 - **Both rows**, the gain per red push: the base re-check falls from the whole
-  part (orc 553..672 s here) to the failed files (23..26 s). The pre-push log
+  part (orc 415..672 s, iac 189..203 s here) to the failed files (orc 23..67 s, iac 1..2 s). The pre-push log
   shows how often that runs: 15 orc and 33 iac WARN-pre-existing runs in 7
   days (editor 2.1). The plan does not multiply those into a weekly saving: the
   red runs' plans differ in size from the probe's.
@@ -208,13 +214,29 @@ cf7a7ee5), as p11 read it. The desk box has agy, grok and vibe
 (`command -v agy grok vibe` -> three paths); sat has no agy (the holder's
 brief).
 
-- **Plan panel (rulebook 3.2)**: editor c-616 (claude). I ask the dispatch
-  holder for one **grok** seat and one **agy** seat, both on the desk box, so
-  the panel signs without needing agy on sat. Each seat signs the plan sha in
-  `perf-round-12/seat-<vendor>.md`.
-- **Row reviewers (2.7.2)**: both rows' author is claude, so the grok seat is
-  the primary reviewer and the agy seat the backup. A row never pushes without
-  that PASS (2.7.3).
+- **Plan panel (rulebook 3.2)**: editor c-616 (claude). I asked the dispatch
+  holder for one **grok** seat and one **agy** seat on the desk box, so the
+  panel signs without needing agy on sat. Each seat signs the plan sha in
+  `perf-round-12/seat-<vendor>.md`. The holder's answer (c-002@sat, msg
+  8a969a4c):
+  - **agy seat**: queued with c-001 (ask 56aade4b), placement
+    `agy:hand-<box>-c002-perf-round-12-agy-panel-seat` on the desk box. It reads
+    v0.1 and signs the v0.2 sha.
+  - **grok seat**: none. `BOX_PICK_KIND=grok do_spl_box_pick` at 10:2xZ ->
+    `pick=hold`, grok's weekly use 98% on both boxes (reset 11-21).
+  - **mistral seat** in its place: c-001's ruling (msg 99d5ed2f, relayed by the
+    holder in msg afafa7c3): seat 2 is mistral until a mistral seat fails
+    twice; grok stays on hold. Queued as ask b00e6895 (either box), seat file
+    `perf-round-12/seat-mistral.md`, branch
+    `review/c002-perf-round-12-mistral-seat`. A plan review is a docs review,
+    which mistral may do (owner 10-17).
+  - The panel is **agy + mistral**, both non-claude, so it is cross-vendor
+    with the claude editor (3.2).
+- **Row reviewers (2.7.2)**: both rows' author is claude, so the agy seat is
+  the primary reviewer. Mistral's code reviews are paused (owner 10-30,
+  cf7a7ee5, as p11 read it), so the mistral seat is not a row reviewer; the
+  backup row reviewer is the holder's to place (2.7.3) when the rows spawn. A
+  row never pushes without a cross-vendor PASS.
 
 <a id="p12-left-out"></a>
 ## 6. Left out, measured or not measurable here
@@ -249,12 +271,18 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 8 to 11. From then on the Qto doc is the primary copy.
 
 - v0.1 (c-616, 2026-11-16): first draft, 2 rows on `a8a54cf44`. Row 01's A/B
-  has n=2 of 5 and row 02's baseline is still running (editor 2.2, 2.3); v0.2
-  fills them in before the panel signs.
+  at n=2, row 02's not run yet.
+- v0.2 (c-616, 2026-11-16): row 01 at n=3, row 02 at n=2 (both A/Bs on
+  `a8a54cf44`); R3 with the holder's read of the five sat briefs (3.2); the
+  panel per c-001's ruling 99d5ed2f, agy + mistral (5, 9). No row added or
+  dropped. The runs still going (orc 4-5, iac 3-5) go into the seat file
+  only; the signed numbers stay these, and each lane re-measures on its tree.
 
 <a id="p12-consensus"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-616 (editor) | claude | v0.1 | author |
+| c-616 (editor) | claude | v0.1, v0.2 | author |
+| agy seat (ask 56aade4b) | agy | v0.2 | pending |
+| mistral seat (ask b00e6895) | mistral | v0.2 | pending |

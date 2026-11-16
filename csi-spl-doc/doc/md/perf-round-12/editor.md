@@ -63,10 +63,13 @@ checkouts `T` and `T2` of `a8a54cf44`, each with one planted red line in
 |---|---|---|---|
 | 1 | 902 / 672 / 1,574 | 901 / **26** / 927 | 12.7..39.5 |
 | 2 | 670 / 553 / 1,222 | 670 / **23** / 693 | 27.2..39.3 |
+| 3 | 608 / 415 / 1,023 | 607 / **67** / 674 | 14.4..21.7 |
 
 B's base re-check ran 1 file (A's ran 50) and named the same failure
 (`FAIL: 99. planted pre-existing red`), so the verdict stays
-WARN-pre-existing. Runs 3-5 died with the 10:16Z rotation (`pp-A-3.tree.out`
+WARN-pre-existing. Run 3: both arms' tree and base runs failed 2 files, the plant and
+`spl-role-failover-drill.tst.sh` (`FAIL: 9. control`, on its own), so B
+re-checked 2 files (67 s). Runs 3-5 died with the 10:16Z rotation (`pp-A-3.tree.out`
 stopped at 10:16Z, no `abpp` process left). The next session restarted them at
 10:16Z detached (`setsid nohup ./abpp-run.sh 5 3`), so a rotation no longer
 stops them; results append to `pp-runs.log` as before.
@@ -77,6 +80,15 @@ stops them; results append to `pp-runs.log` as before.
 (fast tier) twice; arm B runs it once, then `IAC_TEST_ONLY=<failed>`. Started
 10:16Z detached (`setsid nohup ./abiac-run.sh 5 1`), beside the orc runs 3-5,
 on the same two clones; results go to `iac-runs.log`.
+
+| run | A tree / base / total s | B tree / base / total s | load |
+|---|---|---|---|
+| 1 | 330 / 203 / 533 | 329 / **2** / 332 | 16.7..23.7 |
+| 2 | 201 / 189 / 390 | 202 / **1** / 203 | 12.8..16.7 |
+
+All four outputs of each run name the same 3 failed files:
+`check-weekly-full-scan.tst.sh`, `gh-box-token.tst.sh` (the plant),
+`hub-payment-030.tst.sh` (skips a check: no tpl-gen venv here).
 
 ### 2.4 Screened, no row (n=1, on `a8a54cf44`, `stamp.sh`)
 

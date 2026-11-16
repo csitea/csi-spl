@@ -182,6 +182,12 @@ Task-supplied leads (two stale lease observations on Nov 12, relay SPL-5246, `/t
 
 The dispatch holder confirmed that none of these six next steps has an open t1 issue. The holder will file the six issues under epic SPL-2364 once this spec is on master, because each issue's Spec field must point to a folder on master. This lane has no t1 issue-desk seat and creates or assigns no issues. The rows are proposed deliverables, not approval for code or production changes.
 
+### 3.4 Landed alert fixes
+
+| Issue | Alert class | Change | Proof |
+|---|---|---|---|
+| SPL-5686 (alerts panel task 5.5, owner poll 80d656c5) | `SPAWN QUEUE: N review seat(s) held` (19 in 42 h, panel lane c-176) | A logged review seat is placed past the CPU overflow hold up to its own mark, cnf `env.box.fleet_load.review_seat_overflow_pct` (300 % of a box's high; the overflow mark itself stays 200); its launch carries that mark to `do_spl_box_pick`. Every other lane, and every other hold (window ceiling, gap, weekly, disk, cordon, health), is unchanged. The #alerts line names the hold's class from a fixed list (`CPU overflow`, `weekly quota`, `window ceiling`, ...), never the hold's text. Code: `spl_spawn_place_seat_take` in `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh`. | `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` case 41a: a seat 31 min in line under the overflow hold places with 0 alarms (red before: held, 1 alarm). Read after landing: review-seat alarms per day in #alerts, and review `wait_s` p50. |
+
 ## 4. Architecture challenge
 
 The design below treats the current topology as a hypothesis. It is a recommendation for decisions and staged work; no infrastructure change is authorized here.
@@ -223,4 +229,4 @@ Proof requires at least 90 days of retained minute-level SLI data, region and re
 - Measure Cloud SQL failover and restore time in an approved drill; do not propose enabling regional HA or PITR again.
 - Review additional runner capacity and second-region serving only after the per-job queue and outage-duration measurements show that each would reduce the budget burn enough to justify its recurring cost.
 
-<!-- version: 0.5.0 · updated: 2026-11-13 · last-edit: 2026-11-13T13:29Z -->
+<!-- version: 0.5.1 · updated: 2026-11-16 · last-edit: 2026-11-16T06:00Z -->

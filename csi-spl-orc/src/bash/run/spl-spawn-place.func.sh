@@ -178,10 +178,24 @@
 # @description      other hold (window ceiling, load, disk, cordon, pin, agy out) it
 # @description      stays queued like any lane; held SPAWN_PLACE_SEAT_ALARM_MIN (30)
 # @description      or more in line, the dispatch lease holder gets ONE blocker naming
-# @description      the seat and the hold, #alerts one post with neither
+# @description      the seat and the hold, #alerts one post with neither, only
+# @description      the hold's class from a fixed list (spl_spawn_place_hold_class,
+# @description      SPL-5686: "CPU overflow", "weekly quota", ...)
 # @description      (spl_spawn_place_seat_alarm)
+# @description   2a. REVIEW SEAT PAST THE CPU OVERFLOW HOLD (SPL-5686) - when the
+# @description      load pick holds every row because no box is below its overflow
+# @description      mark, the first logged review seat in line that passes the
+# @description      heading check is re-picked with BOX_PICK_OVERFLOW at the review
+# @description      seats' own mark, cnf env.box.fleet_load.review_seat_overflow_pct
+# @description      (300; unset or not above the overflow mark: no pass). A box
+# @description      below that mark -> the seat is taken this tick, its launch
+# @description      carries the same BOX_PICK_OVERFLOW; every other row holds.
+# @description      The window ceiling, the gap and every other hold stay. Why:
+# @description      the authors' lanes wait on the review, so a held seat keeps
+# @description      the load up (19 review-seat alarms in 42 h, panel task 5.5)
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_SEAT_ALARM_MIN (optional) - minutes in line after which a held logged review seat alarms, default 30
+# @param SPAWN_PLACE_SEAT_OVERFLOW (optional) - the review seats' overflow mark, % of a box's high, overrides cnf env.box.fleet_load.review_seat_overflow_pct; must be above BOX_PICK_OVERFLOW (200)
 # @param SPAWN_PLACE_SEAT_ALARM_GAP_MIN (optional) - minutes between two such alarms at least; a seat due meanwhile goes in the next one, default 30
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements at most (the ceiling), default 10
@@ -245,6 +259,7 @@ do_spl_spawn_place() {
   head="$(jq -c '.[0] // empty' <<<"$rows")"
   [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty, or holds only asks for the holder while one is with it"; return 0; }
   if why="$(spl_spawn_place_no_room)"; then
+    spl_spawn_place_seat_take "$holder" "$rows" "$why" && return 0
     do_log "INFO hold: $why; ask $(jq -r '.ask_id[0:8]' <<<"$head") stays position $(jq -r '"\(.position) of \(.queue_len)"' <<<"$head")"
     return 0
   fi
@@ -460,6 +475,65 @@ spl_spawn_place_seat_pass() {  # BRIEF
   grep -qiE '\b(review|reviewer|R7)\b' <<<"$(grep -m1 '^# ' "$1" 2>/dev/null)"
 }
 
+# 2a. The review seats' own overflow mark (SPL-5686), % of a box's high:
+# SPAWN_PLACE_SEAT_OVERFLOW, else cnf env.box.fleet_load.review_seat_overflow_pct.
+# Unset: returns 1, no pass. Not a whole number above BOX_PICK_OVERFLOW (200):
+# returns 1 with one WARN, so a typo never lowers the mark for a seat.
+spl_spawn_place_seat_overflow() {
+  local v="${SPAWN_PLACE_SEAT_OVERFLOW-}" cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
+  [[ -n "$v" || ! -r "$cnf" ]] || v="$(yq -r '.env.box.fleet_load.review_seat_overflow_pct // ""' "$cnf" 2>/dev/null)"
+  [[ -n "$v" ]] || return 1
+  [[ "$v" =~ ^[0-9]+$ ]] && (( v > ${BOX_PICK_OVERFLOW:-200} )) && { printf '%s' "$v"; return 0; }
+  do_log "WARN the review seats' overflow mark '$v' is not a whole % above the overflow mark ${BOX_PICK_OVERFLOW:-200}: no pass" >&2
+  return 1
+}
+
+# 2a. May the logged review seat PLACEMENT (<vendor>:<slug>) pass the hold WHY
+# (spl_spawn_place_no_room)? Only the load pick's CPU overflow hold, only a seat
+# whose brief's heading says review (spl_spawn_place_seat_pass), only when the
+# pick at the seats' own mark finds a box. Prints that pick, returns 0.
+spl_spawn_place_seat_past() {  # PLACEMENT WHY
+  local brief ovf pick
+  [[ "$2" == "the fleet load target says hold"*"overflow mark"* ]] || return 1
+  brief="$(spl_spawn_place_brief "${1#*:}")"
+  [[ -n "$brief" ]] && spl_spawn_place_seat_pass "$brief" || return 1
+  ovf="$(spl_spawn_place_seat_overflow)" || return 1
+  pick="$(BOX_PICK_OVERFLOW="$ovf" BOX_PICK_REVIEW_SEAT=1 spl_spawn_place_pick)"
+  [[ -n "$pick" && "$pick" != hold* ]] || return 1
+  printf '%s' "$pick"
+}
+
+# 2a. Under the hold WHY, take the first logged review seat of ROWS when it may
+# pass (spl_spawn_place_seat_past); every other row holds. 1 = nothing taken.
+spl_spawn_place_seat_take() {  # HOLDER ROWS WHY
+  local seat pick
+  seat="$(spl_spawn_place_seat "$2")"
+  [[ -n "$seat" ]] || return 1
+  pick="$(spl_spawn_place_seat_past "$(jq -r '.placement' <<<"$seat")" "$3")" || return 1
+  do_log "INFO review seat past the CPU overflow hold: ask $(jq -r '.ask_id[0:8]' <<<"$seat") launches on the review seats' overflow mark $(spl_spawn_place_seat_overflow)% (pick $pick); every other row holds: $3"
+  spl_spawn_place_take "$1" "$(jq -c 'del(._l, ._h)' <<<"$seat")" || :
+  return 0
+}
+
+# 2a. The class of a hold line WHY, from a fixed list: the one part of a hold
+# the #alerts post may carry (a hold line can name a slug, a brief or a box).
+spl_spawn_place_hold_class() {  # WHY
+  case "$1" in
+    *"no reply from"*) echo "silent box" ;;
+    *"no box to start"*) echo "vendor CLI missing" ;;
+    *"it was queued on"*) echo "brief on another box" ;;
+    *"agy "*quota*|*"agy program"*) echo "agy quota" ;;
+    *weekly*) echo "weekly quota" ;;
+    *"agent windows"*) echo "window ceiling" ;;
+    *CORDONED*) echo "box cordoned" ;;
+    *"disk headroom"*|*DISK*) echo "disk" ;;
+    *DEGRADED*|*RECOVERING*|*"recovering hold"*) echo "box health" ;;
+    *"overflow mark"*|*"load mark"*) echo "CPU overflow" ;;
+    *"CI-busy"*) echo "CI cap" ;;
+    *) echo "other" ;;
+  esac
+}
+
 # 2a. A logged review seat under a hold: on 11-06 three R7 seats waited 320-406
 # min under the weekly hold and their authors sat on written work (spec 146,
 # what-broke-20261106 3.2). A seat SPAWN_PLACE_SEAT_ALARM_MIN (30) or more in line
@@ -486,18 +560,19 @@ spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
       [[ -n "$room" ]] || room="$(SPAWN_PLACE_GAP_MIN=0 spl_spawn_place_no_room)" || room="-"
       [[ "$room" != - ]] || continue
       why="$room"
+      spl_spawn_place_seat_past "$place" "$why" >/dev/null && continue
     fi
     lines+=$'
 '"- ask ${id:0:8} ($place), $min min in line: $why"
     plines+=$'
-'"- ask ${id:0:8}, $min min in line"
+'"- ask ${id:0:8}, $min min in line, held by: $(spl_spawn_place_hold_class "$why")"
     fired+=("$id")
   done < <(spl_spawn_place_seats "$2" | jq -r --argjson s "$(( ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} * 60 ))" --rawfile seen "$f" '
     ($seen | split("
 ")) as $d | .[] | select((.wait_s // 0) >= $s and (.ask_id as $a | $d | index($a) | not))
     | "\(.ask_id)	\(.placement)	\(.wait_s / 60 | floor)"')
   (( ${#fired[@]} > 0 )) || return 0
-  tail="A logged seat passes a weekly hold below env.box.quota.review_seat_max_pct, never at 100%; no other hold is passed. The queue: \`./run -a do_spl_spawn_queue\`."
+  tail="A logged seat passes a weekly hold below env.box.quota.review_seat_max_pct, never at 100%, and the CPU overflow hold below env.box.fleet_load.review_seat_overflow_pct; no other hold is passed. The queue: \`./run -a do_spl_spawn_queue\`."
   text="**SPAWN QUEUE: ${#fired[@]} review seat(s) held ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} min or more, and their authors wait on them.**"
   post="$text$plines"$'
 
@@ -1359,13 +1434,14 @@ spl_spawn_place_brief() {  # SLUG
 # start on, a pinned one included, is measured without the program) holds the
 # same way, its reason in .place.wait (SPL-5397): no gap slot, no blocker.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
-  local holder="$1" id out err rc=0 agent why seat=0
+  local holder="$1" id out err rc=0 agent why seat=0 ovf="${BOX_PICK_OVERFLOW:-}"
   id="$(jq -r '.ask_id' <<<"$2")"
   err="$(mktemp)" || return 1
   if [[ "$(spl_spawn_place_seats "[$2]")" != '[]' ]]; then
     if spl_spawn_place_seat_pass "$5"; then
       seat=1
-      do_log "INFO ask ${id:0:8} is a logged review seat: it launches on the review-seat weekly mark (env.box.quota.review_seat_max_pct)"
+      ovf="$(spl_spawn_place_seat_overflow)" || ovf="${BOX_PICK_OVERFLOW:-}"
+      do_log "INFO ask ${id:0:8} is a logged review seat: it launches on the review-seat weekly mark (env.box.quota.review_seat_max_pct)${ovf:+ and overflow mark $ovf%}"
     else
       do_log "WARN ask ${id:0:8} is logged as a review seat by its slug ($4), but its brief's first heading does not say review: it launches on the weekly mark"
     fi
@@ -1387,9 +1463,9 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   # stdout is the launcher's "<ID>[@<box>] <PANE>"; its stderr names other ids
   if [[ -n "${SPAWN_PLACE_LAUNCH_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    out="$(SPAWN_BOX="${6:-}" BOX_PICK_REVIEW_SEAT="$seat" $SPAWN_PLACE_LAUNCH_CMD "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err")" || rc=$?
+    out="$(SPAWN_BOX="${6:-}" BOX_PICK_REVIEW_SEAT="$seat" BOX_PICK_OVERFLOW="$ovf" $SPAWN_PLACE_LAUNCH_CMD "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err")" || rc=$?
   else
-    out="$(SPAWN_BOX="${6:-}" BOX_PICK_REVIEW_SEAT="$seat" SPOOL_AGENT_ID="${holder%@*}" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
+    out="$(SPAWN_BOX="${6:-}" BOX_PICK_REVIEW_SEAT="$seat" BOX_PICK_OVERFLOW="$ovf" SPOOL_AGENT_ID="${holder%@*}" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
       "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err" 6>&-)" || rc=$?
   fi
   out="$out"$'\n'"$(tail -3 "$err")"; rm -f "$err"

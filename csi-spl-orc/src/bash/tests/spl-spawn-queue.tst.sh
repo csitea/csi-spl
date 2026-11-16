@@ -269,6 +269,7 @@ cat >"$T/bin/launch" <<'STUB'
 echo "$*${SPAWN_BOX:+ SPAWN_BOX=$SPAWN_BOX}" >>"$LAUNCH_LOG"
 echo "$5 SPAWN_LANE_TOPIC=${SPAWN_LANE_TOPIC-<unset>}" >>"$LAUNCH_LOG.env"
 echo "$5 BOX_PICK_REVIEW_SEAT=${BOX_PICK_REVIEW_SEAT-<unset>}" >>"$LAUNCH_LOG.seat"
+echo "$5 BOX_PICK_OVERFLOW=${BOX_PICK_OVERFLOW-<unset>}" >>"$LAUNCH_LOG.ovf"
 echo "spawn-window: c-001 asked for $2" >&2
 [ -z "${LAUNCH_ERR:-}" ] || echo "$LAUNCH_ERR" >&2
 if [ -n "${LAUNCH_HOLD_SLUG:-}" ] && [ "$5" = "$LAUNCH_HOLD_SLUG" ]; then
@@ -2116,6 +2117,7 @@ tick40() { on pc do_spl_spawn_place ASKS_ALERT_CMD="$T/bin/alert" LANES='[]' "$@
 alarms() { grep -c 'review seat(s) held' "$T/send.log" 2>/dev/null; }
 posts() { cat "$AS" 2>/dev/null | grep -c 'review seat(s) held'; }
 N40=0
+HOLD_CLASSES='silent box|vendor CLI missing|brief on another box|agy quota|weekly quota|window ceiling|box cordoned|disk|box health|CPU overflow|CI cap|other'
 
 seat_clear; seat_q "$K1" k1-reviewer 0
 tick40 LAUNCH_ID=c-541 >/dev/null
@@ -2133,7 +2135,7 @@ out="$(tick40 LAUNCH_HOLD_SLUG=k1-reviewer)"
 [[ "$(alarms)" == 0 ]] && grep -q 'back in line' <<<"$out" && pass "40b. first HOLD of a seat 31 min in line: no hold was known at the check, nothing yet" || fail "40b. first: $(sends) | $out"
 tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "c-001 c-002 blocker spawn-queue .*ask ${K1:0:8} (claude:k1-reviewer), 3[0-9] min in line: waiting: grok weekly >= 90% on box-a" "$T/send.log" &&
-  grep -q "^- ask ${K1:0:8}, 3[0-9] min in line$" "$AS" && pass "40c. the next tick: one blocker to the dispatch holder naming the hold, and one #alerts post" || fail "40c. $(sends) | $(cat "$AS" 2>/dev/null)"
+  grep -q "^- ask ${K1:0:8}, 3[0-9] min in line, held by: weekly quota$" "$AS" && pass "40c. the next tick: one blocker to the dispatch holder naming the hold, and one #alerts post" || fail "40c. $(sends) | $(cat "$AS" 2>/dev/null)"
 rm -f "$Q40/.place.seat-alarm.last"
 tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && pass "40d. the same seat, still held, past the alarm gap: no second alarm" || fail "40d. $(sends)"
@@ -2185,8 +2187,66 @@ tick40 WINDOWS=40 >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "(claude:acme-corp-portal-reviewer), 3[0-9] min in line: the launcher says acme-corp-portal-reviewer.md under /briefs/acme" "$T/send.log" &&
   pass "40l. a customer-style slug and a hold line naming it reach the blocker" || fail "40l. blocker: $(sends)"
 if grep -qiE 'acme|box-|/briefs' "$AS"; then fail "40l. the #alerts post carries the slug or the hold: $(cat "$AS")"
-elif [[ "$(grep '^- ' "$AS" | grep -cvE "^- ask ${K1:0:8}, [0-9]+ min in line$")" != 0 || "$(grep -c '^- ' "$AS")" != 1 ]]; then fail "40l. a seat line of the post is more than id8 and minutes: $(cat "$AS")"
-else pass "40l. ... and not the #alerts post: its seat line is id8 and minutes only"; fi
+elif [[ "$(grep '^- ' "$AS" | grep -cvE "^- ask ${K1:0:8}, [0-9]+ min in line, held by: ($HOLD_CLASSES)$")" != 0 || "$(grep -c '^- ' "$AS")" != 1 ]]; then fail "40l. a seat line of the post is more than id8, minutes and a hold class: $(cat "$AS")"
+else pass "40l. ... and not the #alerts post: its seat line is id8, minutes and a class of the fixed list only"; fi
+seat_clear
+
+# 41. SPL-5686 (alerts panel task 5.5, owner poll 80d656c5): 19 review-seat
+# alarms in 42 h were seats held by the CPU overflow hold ("no box below 200 %
+# of its high"). A logged review seat now places under its own overflow mark
+# (SPAWN_PLACE_SEAT_OVERFLOW / cnf env.box.fleet_load.review_seat_overflow_pct),
+# its launch carries that mark; every other row still holds; the #alerts line
+# names the hold class. The pick stub holds below PICK_ROOM_AT.
+PL="$T/pick-ovf.log"
+cat >"$T/bin/pick-ovf" <<'STUB'
+#!/usr/bin/env bash
+o="${BOX_PICK_OVERFLOW:-200}"
+echo "BOX_PICK_OVERFLOW=$o BOX_PICK_REVIEW_SEAT=${BOX_PICK_REVIEW_SEAT:-0}" >>"$PICK_LOG"
+if [ "$o" -ge "${PICK_ROOM_AT:-100000}" ]; then echo "pick=box-desk reason=every box is at or above its high mark; box-desk is the least past its band"
+else echo "pick=hold reason=no box with a sample is below its overflow mark (${o}% of its high): queue the lane, spawn nothing"; fi
+STUB
+chmod +x "$T/bin/pick-ovf"
+tick41() { rm -f "$PL" "$T/launch.log.ovf"; : >"$T/launch.log"; tick40 SPAWN_PLACE_PICK_CMD="$T/bin/pick-ovf" PICK_LOG="$PL" PICK_ROOM_AT=300 "$@"; }
+
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 LAUNCH_ID=c-561)"
+grep -q 'k1-reviewer$' "$T/launch.log" && grep -q '^k1-reviewer BOX_PICK_OVERFLOW=300$' "$T/launch.log.ovf" &&
+  [[ "$(alarms)" == 0 && "$(posts)" == 0 ]] && grep -q "review seat past the CPU overflow hold: ask ${K1:0:8} launches on the review seats' overflow mark 300%" <<<"$out" &&
+  pass "41a. PROOF a logged review seat 31 min in line under the CPU overflow hold: placed on its own mark 300%, the launch carries it, 0 review-seat alarms" ||
+  fail "41a. alarms=$(alarms) posts=$(posts) launch=$(cat "$T/launch.log") ovf=$(cat "$T/launch.log.ovf" 2>/dev/null) | $out"
+seat_clear; seat_q "$K2" k2-plain-fix 31
+out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 LAUNCH_ID=c-562)"
+[[ ! -s "$T/launch.log" ]] && grep -q 'INFO hold: the fleet load target says hold reason=no box with a sample is below its overflow mark (200%' <<<"$out" &&
+  pass "41b. CONTROL a row that is no logged seat, same hold: still held at the overflow mark" || fail "41b. $(cat "$T/launch.log") | $out"
+seat_clear; seat_q "$K1" k1-reviewer 31; seat_q "$K2" k2-plain-fix 40
+out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 LAUNCH_ID=c-563)"
+[[ "$(grep -c . "$T/launch.log")" == 1 ]] && grep -q 'k1-reviewer$' "$T/launch.log" && [[ "$(jq -r .state <<<"$(hubrow "$K2")")" == queued ]] &&
+  pass "41b. the seat behind a plain row is taken past the hold, the plain row stays queued" || fail "41b. behind: $(cat "$T/launch.log") | $(hubrow "$K2") | $out"
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 PICK_ROOM_AT=400)"
+[[ ! -s "$T/launch.log" && "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "^- ask ${K1:0:8}, 3[0-9] min in line, held by: CPU overflow$" "$AS" &&
+  grep -q "ask ${K1:0:8} (claude:k1-reviewer), 3[0-9] min in line: the fleet load target says hold" "$T/send.log" &&
+  pass "41c. every box past the seats' own mark too: held, one alarm, its #alerts line names the hold class CPU overflow" || fail "41c. $(sends) | $(cat "$AS" 2>/dev/null) | $out"
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick41 LAUNCH_ID=c-564)"
+[[ ! -s "$T/launch.log" && "$(alarms)" == 1 ]] && ! grep -q 'BOX_PICK_OVERFLOW=300' "$PL" &&
+  pass "41d. CONTROL no seat mark set (no cnf, no env): held as before, the pick never re-run" || fail "41d. $(cat "$T/launch.log") | $(cat "$PL") | $out"
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=150)"
+[[ ! -s "$T/launch.log" ]] && grep -q "WARN the review seats' overflow mark '150' is not a whole % above the overflow mark 200: no pass" <<<"$out" &&
+  pass "41d. a seat mark not above the overflow mark: no pass, one WARN" || fail "41d. low: $(cat "$T/launch.log") | $out"
+seat_clear; seat_q "$K1" k1-parser-reviewer 31 "fix the parser, commit and push"
+out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300)"
+[[ ! -s "$T/launch.log" ]] && pass "41e. a coding lane named -reviewer (no review heading): held at the overflow mark" || fail "41e. $(cat "$T/launch.log") | $out"
+seat_clear; seat_q "$K1" k1-reviewer 31
+printf 'env:\n  box:\n    fleet_load:\n      review_seat_overflow_pct: 300\n' >"$T/cnf41.yaml"
+out="$(tick41 SPAWN_PLACE_CNF="$T/cnf41.yaml" LAUNCH_ID=c-565)"
+grep -q 'k1-reviewer$' "$T/launch.log" && grep -q '^k1-reviewer BOX_PICK_OVERFLOW=300$' "$T/launch.log.ovf" &&
+  pass "41f. the mark read from cnf env.box.fleet_load.review_seat_overflow_pct" || fail "41f. $(cat "$T/launch.log") | $out"
+seat_clear; seat_q "$K1" k1-reviewer 31
+out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 WINDOWS=40)"
+[[ ! -s "$T/launch.log" && "$(alarms)" == 1 ]] && grep -q "held by: window ceiling$" "$AS" &&
+  pass "41g. CONTROL the window ceiling still holds a seat; its #alerts line says window ceiling" || fail "41g. $(cat "$T/launch.log") | $(cat "$AS" 2>/dev/null) | $out"
 seat_clear
 
 echo

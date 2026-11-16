@@ -89,8 +89,9 @@
 #      its next tick, then the claimant is ACTIVE once. A stale take-over waits
 #      for nobody. (4 and 7 tick once more for the same wait.)
 #  25. t1 3cfc236e, the bench alert: the same night with both loops gives ONE
-#      post when the PC box is benched and ONE when it is back, both from the
-#      satellite; the ticks in between post nothing; LEASE_ALERT=0 is the control.
+#      post when the PC box is benched, ONE escalation 60 min in (SPL-5687),
+#      and the back EDITS the bench post, all from the satellite; the ticks in
+#      between post nothing; LEASE_ALERT=0 is the control.
 #  26. a bench post that never lands is named on the one back line (the
 #      2026-10-11 16:12Z outage). CONTROL: a delivered bench keeps the short
 #      back line. Still one delivered post per state change. Both boxes silent
@@ -141,6 +142,11 @@
 #      box, then both boxes recovering from a hub stall (raw recovering, the
 #      stall view healthy). CONTROL: the raw read the .v file held before
 #      (fleet.bench.raw now) reads recovering while fleet.bench says ok.
+#  35. one post per bench episode (SPL-5687, alerts panel task 7): a bench is
+#      posted only when still bad 5 min in and the back edits that post, so
+#      bench + back posts per episode = 1 (was 2); a 40 s blip posts nothing;
+#      ONE escalation line at 60 min down. CONTROLS: an edit that fails posts
+#      the back line; LEASE_ALERT_ESCALATE_S=0 never escalates.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -957,12 +963,15 @@ t24 st 2320
 
 # --- 25. the bench alert (t1 3cfc236e, HUM-10 "yes" 0c2817c5) --------------------
 # The 2026-10-11 night of section 23, both loops running: ONE line in #alerts
-# when the PC box is benched and ONE when it is back, both from the
-# satellite (the first healthy box of the orch order that is not the PC box);
-# the PC box posts nothing about itself. The post is the LEASE_ALERT_CMD stub.
+# when the PC box is benched (once still bad 5 min in), ONE escalation 60 min
+# in, and the back edits the bench line (SPL-5687), all from the satellite (the
+# first healthy box of the orch order that is not the PC box); the PC box
+# posts nothing about itself. The post is the LEASE_ALERT_CMD stub.
 cat >"$T/bin/alert" <<'STUB'
 #!/bin/sh
+[ "${LEASE_ALERT_OP:-post}" = edit ] && { echo "$LEASE_MACHINE $HUB_NOW $LEASE_ALERT_MSG :: $(cat)" >>"$ALERTS.edit"; exit 0; }
 echo "$LEASE_MACHINE $HUB_NOW :: $(cat)" >>"$ALERTS"
+echo "m-$HUB_NOW"
 STUB
 chmod +x "$T/bin/alert"
 t25() { t23 "$1" "$2" LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert" ALERTS="$T/alerts25" "${@:3}"; }
@@ -978,7 +987,7 @@ b25() {
     spl_lease_init || exit 1
     for i in $(seq 1 100); do export HUB_NOW=$((FROM + i * 60)) LEASE_NOW=$((FROM + i * 60)); spl_fleet_bench_tick; done' >>"$T/out" 2>&1
 }
-rm -f "$T"/hub/main.* "$T"/h[ps]/spool/dispatch/fleet.* "$T/alerts25"
+rm -f "$T"/hub/main.* "$T"/h[ps]/spool/dispatch/fleet.* "$T"/alerts25*
 for now in $(seq $((B0 + 3000)) 340 $((B0 + 3600))); do t25 hp $now; t25 hs $((now + 1)); done
 [[ ! -s "$T/alerts25" ]] && pass "25. healthy beats, both loops: no post (a box seen first is recorded, not posted)" ||
   fail "25. healthy: $(cat "$T/alerts25")"
@@ -991,19 +1000,24 @@ for k in $(seq 0 25); do
   now=$((B0 + 3960 + k * 680)); t25 hp $now; t25 hs $((now + 1)); nt=$((nt + 2))
 done
 a25() { sed -n "${1}p" "$T/alerts25" 2>/dev/null; }
-[[ "$(wc -l <"$T/alerts25" 2>/dev/null)" == 2 ]] &&
-  pass "25. a bench, then a recovery: exactly 2 posts over the night ($nt ticks, 2 loops)" ||
-  fail "25. posts: $(cat "$T/alerts25" 2>&1)"
+e25="$(cat "$T/alerts25.edit" 2>/dev/null)"
+[[ "$(wc -l <"$T/alerts25" 2>/dev/null)" == 2 && "$(wc -l <<<"$e25")" == 1 ]] &&
+  pass "25. a bench, then a recovery: 2 posts (the bench, one escalation) and 1 edit (the back) over the night ($nt ticks, 2 loops)" ||
+  fail "25. posts: $(cat "$T/alerts25" 2>&1) edits: $e25"
+t1="$(a25 1 | cut -d' ' -f2)"
 [[ "$(a25 1)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ benched\ \(degraded:\ .*\;\ [0-9]+\ of\ 60\ heartbeats\ in\ 10\ min,\ last\ .*\)\ \(no\ new\ lanes,\ last\ for\ the\ roles\)$ &&
-   "$(a25 2)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ back\ after\ 30\ healthy\ min$ ]] &&
-  pass "25. both posts come from the satellite, none from the PC box: '$(a25 1 | cut -d: -f3-)'" || fail "25. lines: $(cat "$T/alerts25" 2>&1)"
-t1="$(a25 1 | cut -d' ' -f2)" t2="$(a25 2 | cut -d' ' -f2)"
-(( t1 >= B0 + 4800 && t1 <= B0 + 5580 && t2 >= B0 + 19800 && t2 <= B0 + 20400 )) &&
-  pass "25. benched at $(utc "$t1"), back at $(utc "$t2"), with the role demotion of section 23" || fail "25. times: $t1 $t2"
-[[ "$(logc hs 'ALERT #alerts: Box hp')" == 2 && "$(logc hp 'ALERT #alerts')" == 0 ]] &&
-  pass "25. lease.log: the satellite logs both posts, the PC box none" || fail "25. log: $(grep -h ALERT "$T"/h[ps]/spool/dispatch/lease.log)"
+   "$(a25 2)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ still\ benched\ after\ [0-9]+\ h\ [0-9]+\ min\ \(since\ [0-9T:-]+Z\):\ \(degraded: &&
+   "$e25" =~ ^hs\ [0-9]+\ m-$t1\ ::\ Box\ hp\ benched\ ([0-9T:-]+Z)\.\.([0-9T:-]+Z)\ \([0-9]+\ h\ [0-9]+\ min\),\ back\ after\ 30\ healthy\ min\.\ Was:\ Box\ hp\ benched\ \(degraded: ]] &&
+  pass "25. all from the satellite, none from the PC box; the back edits the bench post: '$(cut -d: -f3- <<<"$e25" | cut -c1-90)...'" ||
+  fail "25. lines: $(cat "$T/alerts25" 2>&1) edit: $e25"
+s25="$(date -u -d "${BASH_REMATCH[1]:-x}" +%s 2>/dev/null)" t2="$(cut -d' ' -f2 <<<"$e25")"
+(( s25 >= B0 + 4800 && s25 <= B0 + 5580 && t1 - s25 >= 300 && t1 - s25 <= 1400 && t2 >= B0 + 19800 && t2 <= B0 + 20400 )) &&
+  pass "25. benched from $(utc "$s25") (posted $(utc "$t1"), the first tick 5+ min in), back at $(utc "$t2"), with the role demotion of section 23" ||
+  fail "25. times: since ${s25:-?} posted $t1 back $t2"
+[[ "$(logc hs 'ALERT #alerts: Box hp')" == 2 && "$(logc hs 'ALERT #alerts edit m-')" == 1 && "$(logc hp 'ALERT #alerts')" == 0 ]] &&
+  pass "25. lease.log: the satellite logs both posts and the edit, the PC box none" || fail "25. log: $(grep -h ALERT "$T"/h[ps]/spool/dispatch/lease.log)"
 # 100 ticks on each box while benched (02:10..03:50Z, every 10-min window under 30 beats): no more posts
-rm -f "$T"/h[ps]/spool/dispatch/fleet.* "$T/alerts25"
+rm -f "$T"/h[ps]/spool/dispatch/fleet.* "$T"/alerts25*
 t25 hp $((B0 + 5940)); t25 hs $((B0 + 5941))
 b25 hp $((B0 + 5940)); b25 hs $((B0 + 5941))
 [[ "$(jq -r .hp "$T/hs/spool/dispatch/fleet.bench" 2>/dev/null)" == benched && ! -s "$T/alerts25" ]] &&
@@ -1016,7 +1030,8 @@ for now in $(seq $((B0 + 4260)) 680 $((B0 + 6300))); do t25 hp $now LEASE_ALERT=
 # --- 26. an undelivered bench is named on the one back line -------------------
 # Red without this change: the back line is "Box hp back after 30 healthy min"
 # and does not name the bench time. Verdicts are injected through the health
-# cache, so this does not replay the night.
+# cache, so this does not replay the night. LEASE_ALERT_DEBOUNCE_S=0 posts a
+# bench on its first tick, as before SPL-5687: the debounce is section 35's.
 cat >"$T/bin/alert26" <<'STUB'
 #!/usr/bin/env bash
 line=$(cat)
@@ -1039,7 +1054,7 @@ tick26() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_MACHINE="$m" \
     LEASE_PRIORITY=hp,hs LEASE_NOW="$now" HUB_NOW="$now" \
     LEASE_HEALTH_TTL=99999 LEASE_BEATS_CMD=/bin/true \
-    LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert26" ALERTS="$T/alerts26" \
+    LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert26" ALERTS="$T/alerts26" LEASE_ALERT_DEBOUNCE_S=0 \
     "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -1432,6 +1447,50 @@ tick26 hs 6100 "$VREC34" "${B26[@]}"
 [[ "$(jq -r .hp.state "$D34/fleet.bench.raw")" == recovering ]] && ! agree34 "$D34/fleet.bench.raw" &&
   pass "34. CONTROL: the raw read says recovering while fleet.bench says ok, and the check refuses it" ||
   fail "34. control: raw $(cat "$D34/fleet.bench.raw" 2>&1)"
+
+# --- 35. one post per bench episode (SPL-5687, alerts panel task 7) -------------
+# The panel's proof: bench + back posts per episode = 1 (2 before: a bench post,
+# then a back post). The back edits the bench post; a bench over within
+# LEASE_ALERT_DEBOUNCE_S (300) posts nothing; 60 min down adds ONE line.
+# Verdicts through the health cache (tick26); alert35 prints the msg id of a
+# post and records "<op> <msg> :: <text>" (op post when LEASE_ALERT_OP is unset).
+cat >"$T/bin/alert35" <<'STUB'
+#!/usr/bin/env bash
+line=$(cat); op="${LEASE_ALERT_OP:-post}"
+[[ "$op" == edit && "${EDIT_FAIL:-0}" == 1 ]] && exit 1
+echo "$op ${LEASE_ALERT_MSG:-} :: $line" >>"$ALERTS"
+[[ "$op" == post ]] && echo "m-$HUB_NOW"
+exit 0
+STUB
+chmod +x "$T/bin/alert35"
+A35=(LEASE_ALERT_CMD="$T/bin/alert35" ALERTS="$T/alerts35" LEASE_ALERT_DEBOUNCE_S=300)
+t35() { tick26 hs "$1" "$2" "${A35[@]}" "${@:3}"; }
+n35() { local n; n="$(grep -c "^$1 " "$T/alerts35" 2>/dev/null)"; echo "${n:-0}"; }
+r35() { rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts35" "$T/alerts26"; t35 1000 "$VOK"; }
+# one episode, 30 min: bench at 2000, still bad at 2300 (posted), back at 3800
+r35; t35 2000 "$VBAD"; t35 2299 "$VBAD"; p35a="$(n35 post)"; t35 2300 "$VBAD"; t35 2600 "$VBAD"; t35 3800 "$VBACK"
+want35="edit m-2300 :: Box hp benched $(iso33 2000)..$(iso33 3800) (30 min), back after 30 healthy min. Was: Box hp benched (degraded; 3 of 60 heartbeats in 10 min, last 90 s ago) (no new lanes, last for the roles)"
+[[ "$p35a" == 0 && "$(n35 post)" == 1 && "$(n35 edit)" == 1 && "$(grep '^edit' "$T/alerts35")" == "$want35" ]] &&
+  pass "35. one 30 min episode: bench + back posts = 1 (0 at 299 s, posted at 300 s), the back edits it: '$(cut -d: -f3- <<<"$want35" | cut -c1-70)...'" ||
+  fail "35. episode: posts at 299 s $p35a; $(cat "$T/alerts35" 2>&1)"
+# a 40 s blip (2026-11-15 09:05Z): benched and back inside the debounce posts nothing
+r35; t35 2000 "$VBAD"; t35 2040 "$VBACK"
+[[ ! -s "$T/alerts35" && "$(logc hs 'BENCH-BLIP hp benched since')" == 1 ]] &&
+  pass "35. a 40 s bench: 0 posts, one BENCH-BLIP log line" || fail "35. blip: $(cat "$T/alerts35" 2>&1)"
+# 60 min down: ONE escalation line, not repeated; the back still edits the bench post
+r35; t35 2000 "$VBAD"; t35 2300 "$VBAD"; t35 5599 "$VBAD"; p35b="$(n35 post)"; t35 5600 "$VBAD"; t35 6200 "$VBAD"; t35 9000 "$VBACK"
+[[ "$p35b" == 1 && "$(n35 post)" == 2 && "$(n35 edit)" == 1 &&
+   "$(grep '^post' "$T/alerts35" | sed -n 2p)" == "post  :: Box hp still benched after 1 h 0 min (since $(iso33 2000)): (degraded; 3 of 60 heartbeats in 10 min, last 90 s ago) (no new lanes, last for the roles)" &&
+   "$(grep -c '^edit m-2300 :: Box hp benched .* (1 h 56 min), back after' "$T/alerts35")" == 1 ]] &&
+  pass "35. 1 h 56 min down: the bench post, ONE escalation at 60 min, the back edits the bench post" ||
+  fail "35. escalation: posts before 60 min $p35b; $(cat "$T/alerts35" 2>&1)"
+# CONTROL: an edit that fails posts the back line (the episode still gets its end)
+r35; t35 2000 "$VBAD"; t35 2300 "$VBAD"; t35 3800 "$VBACK" EDIT_FAIL=1
+[[ "$(n35 post)" == 2 && "$(grep '^post' "$T/alerts35" | sed -n 2p)" == "post  :: Box hp back after 30 healthy min" && "$(logc hs 'edit of m-2300 failed')" == 1 ]] &&
+  pass "35. CONTROL: the edit fails: the back line is posted instead" || fail "35. edit fails: $(cat "$T/alerts35" 2>&1)"
+# CONTROL: LEASE_ALERT_ESCALATE_S=0 never escalates
+r35; t35 2000 "$VBAD" LEASE_ALERT_ESCALATE_S=0; t35 2300 "$VBAD" LEASE_ALERT_ESCALATE_S=0; t35 9000 "$VBAD" LEASE_ALERT_ESCALATE_S=0
+[[ "$(n35 post)" == 1 ]] && pass "35. CONTROL: LEASE_ALERT_ESCALATE_S=0: 2 h down, the bench post only" || fail "35. no escalation: $(cat "$T/alerts35" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

@@ -189,6 +189,21 @@ stall posts one line, `Hub stall <start>..<end>: box alerts held`; the GCP
 policies already paged it. One box degraded on its own is benched as
 before. Test: `fleet-lease.tst.sh` sections 26 and 33.
 
+**One post per bench episode (SPL-5687).** A box's bench and its back were
+two #alerts posts, and a bench of 40 s posted both. Now the bench is posted
+only when the box is still benched `LEASE_ALERT_DEBOUNCE_S` (300) after it
+started; one that ends sooner posts nothing (a `BENCH-BLIP` lease log
+line). The back edits that same post (`do_spl_desk_edit`, as the asks alert
+clears its one post) to `Box <box> benched <since>..<end> (<dur>), back
+after 30 healthy min. Was: <bench line>`; an edit that fails posts the back
+line instead. A box still benched `LEASE_ALERT_ESCALATE_S` (3600, 0 =
+never) after it started gets ONE more post, `Box <box> still benched after
+<dur> (since <UTC>): ...`, so a long outage is not one quiet line. The
+episode record is the existing `fleet.bench.sent.<box>`: since, state (`p`
+in the debounce, `1` posted, `0` not delivered, `n` another box posts), the
+post's msg id, the escalation flag, the author, and the bench line. Test:
+`fleet-lease.tst.sh` section 35 (bench + back posts per episode = 1, was 2).
+
 <a id="ws-doc-e7f0db4f-ef32-4a6b-a69d-aea120dd06e2"></a>
 ### 4.4 Shared edit log (Quorum Journal Manager)
 

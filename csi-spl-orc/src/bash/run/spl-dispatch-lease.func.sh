@@ -72,7 +72,9 @@
 # @param LEASE_HEALTH (optional) - fleet mode: 0 turns off the beat-health demotion (t1 3cfc236e): a box whose hub beats are degraded, or were within the hold-down (cnf env.box.health, lib/bash/funcs/spl-box-health.func.sh), ranks last for both roles; LEASE_HEALTH_TTL (default 60 s) is how often the beats are read; LEASE_BEATS_CMD (tests) replaces the read (with the LEASE_HUB_CMD stub and no LEASE_BEATS_CMD there is none)
 # @param SPL_DESK_AS_CMD (optional) - fleet mode: the hop to the owner of a moved lease desk (default sudo -n -u; spl_desk_moved_to reads it too)
 # @param LEASE_HOP_TIMEOUT (optional) - fleet mode: seconds one locate or read through that hop may take (default 5; a good one takes 36..550 ms)
-# @param LEASE_ALERT (optional) - fleet mode: 0 turns off the bench alert (t1 3cfc236e): one line in LEASE_TENANT's #alerts when a box is benched (beats degraded) or back (healthy for the hold-down), posted by one box only (the first healthy box of the orch order that is not the box itself); LEASE_ALERT_CMD (tests) replaces the post, the text on stdin
+# @param LEASE_ALERT (optional) - fleet mode: 0 turns off the bench alert (t1 3cfc236e): one line in LEASE_TENANT's #alerts when a box is benched (beats degraded) or back (healthy for the hold-down), posted by one box only (the first healthy box of the orch order that is not the box itself); LEASE_ALERT_CMD (tests) replaces the post and the edit (LEASE_ALERT_OP=post|edit, LEASE_ALERT_MSG), the text on stdin
+# @param LEASE_ALERT_DEBOUNCE_S (optional) - fleet mode: seconds a box must stay benched before its bench is posted, default 300; the back edits that post (SPL-5687)
+# @param LEASE_ALERT_ESCALATE_S (optional) - fleet mode: seconds benched before ONE more post about it, default 3600, 0 = never (SPL-5687)
 # @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
@@ -1517,8 +1519,9 @@ spl_fleet_outranks() {
 # benched alert could not be delivered)". Re-sending the bench line at
 # recovery would be a second post for a state that has already ended, and it
 # can land twice when the first post was only slow. The record is
-# <dir>/fleet.bench.sent.<box> ("<UTC> 0|1"), written by the poster, or by
-# every box when there is no poster. 1 = this episode's bench line was delivered.
+# <dir>/fleet.bench.sent.<box> (SPL-5687: "<UTC> <st> <msg> <esc> <author>",
+# then the bench line; see "one post per bench episode" below). Since SPL-5687
+# a bench is posted only after the debounce and the back edits that post.
 # The benched line names the verdict and its why (spl_box_health_verdicts):
 # "Box <box> benched (recovering: healthy for 1260s < hold 1800s; 61 of 60 ...)"
 # explains a box that beats fine now but had a bad window inside the hold.
@@ -1529,10 +1532,11 @@ spl_fleet_outranks() {
 # two files told two stories; the raw read, the "nothing changed" cache, is
 # <dir>/fleet.bench.raw now. A tick the stall holds writes neither file.
 
-# spl_fleet_bench_tick: record every judged box's bench state, post the
-# changes this machine owns. One jq: line 1 the new state, then one
-# tab-separated change (kind, box, poster, line). The poster of <box>'s
-# change: the first box of the orch order, then
+# spl_fleet_bench_tick: record every judged box's bench state, act on the
+# changes and the timers this machine owns. One jq: line 1 the new state, then
+# one tab-separated row (kind, box, poster, line) per change (benched, back)
+# and per box still benched (still: the debounce and the escalation timers,
+# SPL-5687). The poster of <box>: the first box of the orch order, then
 # the other judged boxes, that is healthy and is not <box>; else <box> itself
 # when healthy (alone in the fleet); else nobody.
 spl_fleet_bench_tick() {
@@ -1541,8 +1545,8 @@ spl_fleet_bench_tick() {
   local line kind box who raw
   v="$(spl_fleet_health_get)"
   [[ "$v" == '{}' || -z "$v" ]] && return 0
-  # the same verdicts as the last tick judged (the cached read): nothing can have changed
-  [[ -s "$f.raw" && "$(<"$f.raw")" == "$v" ]] && return 0
+  # the same verdicts as the last tick judged (the cached read) and no timer due: nothing can have changed
+  [[ -s "$f.raw" && "$(<"$f.raw")" == "$v" ]] && ! spl_fleet_bench_due && return 0
   [[ -n "${BH_BEAT_S:-}" ]] || spl_box_health_cnf
   # a hub stall: every box alert held (rc 1), the boxes it explains count healthy
   raw="$v"; v="$(spl_fleet_stall_view "$raw")" || return 0
@@ -1556,10 +1560,10 @@ spl_fleet_bench_tick() {
     | def poster($b): [$order[] | select(. != $b and $v[.].state == "healthy")][0]
         // (if $v[$b].state == "healthy" then $b else null end);
     ($new | tojson),
-    ($v | keys[] as $b | select($old[$b] != null and $old[$b] != $new[$b])
+    ($v | keys[] as $b | select($old[$b] != null and ($old[$b] != $new[$b] or $new[$b] == "benched"))
       | (poster($b) // "-") as $who
       | if $new[$b] == "benched" then
-          $v[$b] | "benched\t\($b)\t\($who)\tBox \($b) benched (\(.state // "benched")\(if .why == null then "" else ": \(.why)" end); \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end)) (no new lanes, last for the roles)"
+          $v[$b] | "\(if $old[$b] == "benched" then "still" else "benched" end)\t\($b)\t\($who)\tBox \($b) benched (\(.state // "benched")\(if .why == null then "" else ": \(.why)" end); \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end)) (no new lanes, last for the roles)"
         else "back\t\($b)\t\($who)\tBox \($b) back after \($h) healthy min" end)')" || return 0
   printf '%s\n' "$raw" > "$f.raw"
   { IFS= read -r new; printf '%s\n' "$new" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
@@ -1680,66 +1684,173 @@ spl_fleet_stall_view() {
   jq -c 'map_values(if .stall != null then .state = "healthy" else . end)' <<<"$m"
 }
 
-# spl_fleet_bench_sent_write BOX SINCE OK: this episode's bench delivery (1 = landed).
-spl_fleet_bench_sent_write() {
+# ---- one post per bench episode (SPL-5687, alerts panel task 7) --------------
+# A bench is posted only when the box is still benched LEASE_ALERT_DEBOUNCE_S
+# (300) after it started: a bench that ends sooner (the 40 s blips) posts
+# nothing. The back edits the bench post in place (do_spl_desk_edit, as the
+# asks alert clears its one post): "Box <box> benched <since>..<now> (<dur>),
+# back after 30 healthy min. Was: <bench line>". A box still benched
+# LEASE_ALERT_ESCALATE_S (3600, 0 = never) after it started gets ONE more post,
+# so a long outage is not a single quiet line.
+# The record: <dir>/fleet.bench.sent.<box>, line 1 "<since UTC> <st> <msg>
+# <esc> <author>", line 2 the bench line. st: p = in the debounce, 1 = the bench
+# post landed (msg = its id, - unknown; author = the desk agent that posted it,
+# the only one that may edit it), 0 = it did not land or no box could post it,
+# n = another box posts it. esc 1 = the escalation is done.
+# LEASE_ALERT_CMD (tests) gets LEASE_ALERT_OP=post|edit and LEASE_ALERT_MSG;
+# a post may print the msg id.
+
+# spl_fleet_bench_rec_read BOX: set the caller's since st msg esc by text; rc 1 = none.
+spl_fleet_bench_rec_read() {
   local f="$LEASE_DIR/fleet.bench.sent.$1"
-  printf '%s %s\n' "$2" "$3" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  since="" st="" msg="" esc="" by="" text=""
+  [[ -s "$f" ]] || return 1
+  { read -r since st msg esc by; IFS= read -r text; } <"$f" || true
+  [[ -n "$since" ]] || return 1
+  st="${st:-0}" msg="${msg:--}" esc="${esc:-0}" by="${by:--}"
 }
 
-# spl_fleet_bench_sent_ok BOX SINCE: the background post landed for this episode only.
+# spl_fleet_bench_rec_write BOX SINCE ST MSG ESC AUTHOR TEXT
+spl_fleet_bench_rec_write() {
+  local f="$LEASE_DIR/fleet.bench.sent.$1"
+  printf '%s %s %s %s %s\n%s\n' "$2" "$3" "$4" "$5" "$6" "$7" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+}
+
+# spl_fleet_bench_sent_ok BOX SINCE [MSG]: the post landed, for this episode only.
 spl_fleet_bench_sent_ok() {
-  local f="$LEASE_DIR/fleet.bench.sent.$1" cur ok
-  [[ -s "$f" ]] || return 0
-  read -r cur _ < "$f" || return 0
-  [[ "$cur" == "$2" ]] || return 0
-  spl_fleet_bench_sent_write "$1" "$2" 1
+  local since st msg esc by text id="${3:-}"
+  spl_fleet_bench_rec_read "$1" || return 0
+  [[ "$since" == "$2" ]] || return 0
+  [[ "$id" =~ ^[A-Za-z0-9._:-]+$ ]] || id=-
+  spl_fleet_bench_rec_write "$1" "$since" 1 "$id" "$esc" "${LEASE_ORCH:--}" "$text"
 }
 
 spl_fleet_bench_sent_clear() { rm -f "$LEASE_DIR/fleet.bench.sent.$1"; }
 
-# spl_fleet_back_line BOX LINE: the short back line, plus the bench time when
-# that post never landed.
-spl_fleet_back_line() {
-  local since ok f="$LEASE_DIR/fleet.bench.sent.$1"
-  [[ -s "$f" ]] || { printf '%s\n' "$2"; return 0; }
-  read -r since ok < "$f" || { printf '%s\n' "$2"; return 0; }
-  if [[ "$ok" == 0 && -n "$since" ]]; then
-    printf '%s (benched since %s; the benched alert could not be delivered)\n' "$2" "$since"
+# spl_fleet_dur SECONDS: "3 h 50 min" / "12 min".
+spl_fleet_dur() {
+  local m=$(( $1 / 60 ))
+  if (( m >= 60 )); then printf '%d h %d min' $(( m / 60 )) $(( m % 60 )); else printf '%d min' "$m"; fi
+}
+
+# spl_fleet_bench_due: 0 when a record's debounce or escalation is due now.
+spl_fleet_bench_due() {
+  local r since st msg esc by e now x="${LEASE_ALERT_ESCALATE_S:-3600}"
+  now="$(spl_lease_now)"
+  for r in "$LEASE_DIR"/fleet.bench.sent.*; do
+    [[ -s "$r" && "$r" != *.tmp.* ]] || continue
+    read -r since st msg esc by < "$r" || continue
+    e="$(date -u -d "$since" +%s 2>/dev/null)" || continue
+    [[ "$st" == p ]] && (( now - e >= ${LEASE_ALERT_DEBOUNCE_S:-300} )) && return 0
+    [[ "$st" == [01] && "${esc:-0}" == 0 ]] && (( x > 0 && now - e >= x )) && return 0
+  done
+  return 1
+}
+
+# spl_fleet_bench_post BOX WHO SINCE LINE: the debounce is over, the box is
+# still benched: the poster posts it; the others record who does.
+spl_fleet_bench_post() {
+  local box="$1" who="$2" since="$3" line="$4"
+  if [[ "$who" == "-" ]]; then spl_fleet_bench_rec_write "$box" "$since" 0 - 0 - "$line"; return 0; fi
+  [[ "$who" == "$LEASE_MACHINE" ]] || { spl_fleet_bench_rec_write "$box" "$since" n - 0 - "$line"; return 0; }
+  spl_fleet_bench_rec_write "$box" "$since" 0 - 0 - "$line"
+  spl_fleet_alert_post "$line" "$box" "$since" || true
+}
+
+# spl_fleet_bench_timer BOX WHO LINE: a box still benched: post it once the
+# debounce is over, escalate once at LEASE_ALERT_ESCALATE_S.
+spl_fleet_bench_timer() {
+  local box="$1" who="$2" line="$3" since st msg esc by text e now x="${LEASE_ALERT_ESCALATE_S:-3600}"
+  spl_fleet_bench_rec_read "$box" || return 0
+  now="$(spl_lease_now)"; e="$(date -u -d "$since" +%s 2>/dev/null)" || return 0
+  if [[ "$st" == p ]]; then
+    (( now - e >= ${LEASE_ALERT_DEBOUNCE_S:-300} )) && spl_fleet_bench_post "$box" "$who" "$since" "$line"
+    return 0
+  fi
+  [[ "$st" == [01] && "$esc" == 0 ]] && (( x > 0 && now - e >= x )) || return 0
+  spl_fleet_bench_rec_write "$box" "$since" "$st" "$msg" 1 "$by" "$text"
+  [[ "$who" == "$LEASE_MACHINE" ]] || return 0
+  spl_fleet_alert_post "Box $box still benched after $(spl_fleet_dur $(( now - e ))) (since $since): ${line#"Box $box benched "}" || true
+}
+
+# spl_fleet_bench_back BOX WHO LINE: the episode ends. In the debounce: no
+# post. The bench post landed with its id: edit it. Else the back line, naming
+# the bench time when that post never landed.
+spl_fleet_bench_back() {
+  local box="$1" who="$2" line="$3" since st msg esc by text now
+  if ! spl_fleet_bench_rec_read "$box"; then
+    [[ "$who" == "$LEASE_MACHINE" ]] && { spl_fleet_alert_post "$line" || true; }
+    return 0
+  fi
+  spl_fleet_bench_sent_clear "$box"
+  if [[ "$st" == p ]]; then
+    spl_lease_log "BENCH-BLIP $box benched since $since, back within the ${LEASE_ALERT_DEBOUNCE_S:-300} s debounce: no post"
+    return 0
+  fi
+  [[ "$who" == "$LEASE_MACHINE" ]] || return 0
+  if [[ "$st" == 0 ]]; then
+    spl_fleet_alert_post "$line (benched since $since; the benched alert could not be delivered)" || true
+  elif [[ "$st" == 1 && "$msg" != - ]]; then
+    now="$(spl_lease_now)"
+    spl_fleet_alert_edit "$msg" "$by" "Box $box benched $since..$(spl_fleet_utc "$now") ($(spl_fleet_dur $(( now - $(date -u -d "$since" +%s) )))), ${line#"Box $box "}. Was: $text" "$line"
   else
-    printf '%s\n' "$2"
+    spl_fleet_alert_post "$line" || true
   fi
 }
 
-# spl_fleet_bench_change KIND BOX WHO LINE: post when this machine is the
-# poster; remember a bench that did not land. KIND is benched or back.
+# spl_fleet_bench_change KIND BOX WHO LINE: KIND benched starts the episode
+# (every box records it, in the debounce), still runs its timers, back ends it.
 spl_fleet_bench_change() {
-  local kind="$1" box="$2" who="$3" line="$4" since rc
-  if [[ "$kind" == benched ]]; then
-    since="$(date -u -d "@$(spl_lease_now)" +%Y-%m-%dT%H:%M:%SZ)"
-    if [[ "$who" == "-" ]]; then spl_fleet_bench_sent_write "$box" "$since" 0; return 0; fi
-    [[ "$who" == "$LEASE_MACHINE" ]] || { spl_fleet_bench_sent_clear "$box"; return 0; }
-    spl_fleet_bench_sent_write "$box" "$since" 0
-    rc=0
-    spl_fleet_alert_post "$line" "$box" "$since" || rc=$?
-    (( rc == 0 )) && spl_fleet_bench_sent_write "$box" "$since" 1
-    return 0
+  local kind="$1" box="$2" who="$3" line="$4"
+  case "$kind" in
+    benched)
+      spl_fleet_bench_rec_write "$box" "$(spl_fleet_utc "$(spl_lease_now)")" p - 0 - "$line"
+      spl_fleet_bench_timer "$box" "$who" "$line" ;;
+    still) spl_fleet_bench_timer "$box" "$who" "$line" ;;
+    back) spl_fleet_bench_back "$box" "$who" "$line" ;;
+  esac
+  return 0
+}
+
+# spl_fleet_alert_edit MSG AUTHOR TEXT FALLBACK: edit post MSG in place (its
+# author edits it); an edit that fails posts FALLBACK instead.
+spl_fleet_alert_edit() {
+  local msg="$1" by="$2" text="$3" fb="$4"
+  [[ "$by" != - ]] || by="${LEASE_ORCH:-}"
+  if [[ -n "${LEASE_ALERT_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    if LEASE_ALERT_OP=edit LEASE_ALERT_MSG="$msg" $LEASE_ALERT_CMD <<<"$text" >/dev/null 2>&1; then
+      spl_lease_log "ALERT #alerts edit $msg: $text"; return 0
+    fi
+    spl_lease_log "WARN #alerts edit of $msg failed (LEASE_ALERT_CMD): posting the back line"
+    spl_fleet_alert_post "$fb"; return
   fi
-  if [[ "$who" == "$LEASE_MACHINE" ]]; then
-    line="$(spl_fleet_back_line "$box" "$line")"
-    spl_fleet_alert_post "$line" || true
+  if [[ -n "${LEASE_HUB_CMD:-}" ]]; then
+    spl_lease_log "ALERT #alerts edit $msg (not edited, stub hub): $text"; return 0
   fi
-  spl_fleet_bench_sent_clear "$box"
+  spl_lease_log "ALERT #alerts edit $msg: $text"
+  (
+    local LD LB; local -a LAS=(); spl_fleet_action_as
+    local -a E=(env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DRY_RUN=0)
+    timeout -k 1 "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" "${E[@]}" DESK_AGENT="$by" MSG_ID="$msg" DESK_BODY="$text" \
+        "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" -a do_spl_desk_edit </dev/null >>"$LEASE_DIR/alert-post.out" 2>&1 7>&- 8>&- ||
+      timeout -k 1 "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" "${E[@]}" DESK_AGENT="$LEASE_ORCH" DESK_CHANNEL=alerts DESK_KIND=note \
+        DESK_BODY="$fb" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" -a do_spl_desk_post </dev/null >>"$LEASE_DIR/alert-post.out" 2>&1 7>&- 8>&-
+  ) 2>/dev/null &
+  return 2
 }
 
 # spl_fleet_alert_post TEXT [BOX SINCE]: one post in LEASE_TENANT's #alerts.
 # Returns 0 when delivered, 1 when the attempt failed, 2 when the real post
-# is still in flight (it marks BOX/SINCE delivered if that episode is current).
+# is still in flight. With BOX/SINCE a post that lands marks that episode's
+# bench delivered (if it is still current) with the post's msg id.
 spl_fleet_alert_post() {
-  local text="$1" box="${2:-}" since="${3:-}"
+  local text="$1" box="${2:-}" since="${3:-}" out
   if [[ -n "${LEASE_ALERT_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    if $LEASE_ALERT_CMD <<<"$text" >/dev/null 2>&1; then
+    if out="$(LEASE_ALERT_OP=post LEASE_ALERT_MSG='' $LEASE_ALERT_CMD <<<"$text" 2>/dev/null)"; then
       spl_lease_log "ALERT #alerts: $text"
+      [[ -n "$box" && -n "$since" ]] && spl_fleet_bench_sent_ok "$box" "$since" "$(tail -1 <<<"$out")"
       return 0
     fi
     spl_lease_log "WARN #alerts post failed (LEASE_ALERT_CMD)"
@@ -1747,15 +1858,20 @@ spl_fleet_alert_post() {
   fi
   if [[ -n "${LEASE_HUB_CMD:-}" ]]; then
     spl_lease_log "ALERT #alerts (not posted, stub hub): $1"
+    [[ -n "$box" && -n "$since" ]] && spl_fleet_bench_sent_ok "$box" "$since"
     return 0
   fi
   spl_lease_log "ALERT #alerts: $text"
   (
     local LD LB; local -a LAS=(); spl_fleet_action_as
-    if timeout -k 1 "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="$LEASE_ORCH" DESK_CHANNEL=alerts \
+    if out="$(timeout -k 1 "${LEASE_OWNER_TIMEOUT:-120}" "${LAS[@]}" env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="$LEASE_ORCH" DESK_CHANNEL=alerts \
         DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" \
-        -a do_spl_desk_post </dev/null >>"$LEASE_DIR/alert-post.out" 2>&1 7>&- 8>&-; then
-      [[ -n "$box" && -n "$since" ]] && spl_fleet_bench_sent_ok "$box" "$since"
+        -a do_spl_desk_post </dev/null 2>>"$LEASE_DIR/alert-post.out" 7>&- 8>&-)"; then
+      printf '%s\n' "$out" >>"$LEASE_DIR/alert-post.out"
+      [[ -n "$box" && -n "$since" ]] && spl_fleet_bench_sent_ok "$box" "$since" \
+        "$(grep '^{' <<<"$out" | tail -1 | jq -r '.send.msg_id // .msg_id // empty' 2>/dev/null)"
+    else
+      printf '%s\n' "$out" >>"$LEASE_DIR/alert-post.out"
     fi
   ) 2>/dev/null &
   return 2

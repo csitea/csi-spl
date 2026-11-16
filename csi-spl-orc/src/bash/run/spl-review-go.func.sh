@@ -47,18 +47,29 @@
 # @description       on this box (unread = not verified)
 # @description   [4] that brief names no owner-go keyword (apply, do-provision,
 # @description       do-tf-apply, PROBE_PRD_GO, DRY_RUN=0, ENV=prd, IAM,
-# @description       billing, service account key, /etc/; spec 7.1.2), or it
-# @description       carries `Owner-go: <msg id>` and a message with that id
-# @description       from HUM-<n> is in the holder's spool or desk spools
+# @description       billing, service account key, /etc/; spec 7.1.2) in
+# @description       its instruction text (not in a Why / What happened /
+# @description       Symptom / Evidence / Background / Context / History /
+# @description       Trace / Observed / Measured section, a `>` quote, a
+# @description       fenced block or a negated `does not apply`, SPL-5670),
+# @description       or it carries `Owner-go: <msg id>` and a message with
+# @description       that id from HUM-<n> is in the holder's spool or desk
+# @description       spools
 # @description   [6] the reviewer's log is on this box (do_spl_review_line_check
 # @description       exit 2: never fetched), [8] and that check passes: every
 # @description       module test named in ran: is a command in the log (a
 # @description       docs-only line names none: refused)
 # @description   [5] the row's branch on origin (git ls-remote, read only) is
-# @description       still the reviewed sha
+# @description       still the reviewed sha; else (SPL-5670) the sha is the
+# @description       tip of another origin ref (a re-push under a new name),
+# @description       or the branch is not on origin and the sha is on this
+# @description       box's local branch of that name or in the HEAD of a
+# @description       worktree on it or named for the author ("found locally
+# @description       only"); the GO and its log line say which
 # @description  [10] no other review seat waits: every other dispatch/briefs/
 # @description       <slug>.md naming the same one author and the reviewed
-# @description       sha (an agy strings seat beside the grok R7, SPL-4251)
+# @description       sha (an agy strings seat beside the grok R7, SPL-4251;
+# @description       <slug> and hand-<box>-<slug> are one seat, SPL-5670)
 # @description       has its verified PASS logged as `WAIT <ts> <msg_id>
 # @description       <task_id> <author_id> <reviewer_id> <sha> <slug>`; while
 # @description       one has none, this PASS is logged as such a WAIT line
@@ -371,20 +382,27 @@ _spl_review_go_slug() {
 # without a WAIT line, space-separated; nothing when none waits. A sibling is
 # a dispatch/briefs/<slug>.md, not the reviewer's own (by slug or content),
 # whose row (_spl_review_go_row, matched by the sha only) names the author,
-# and whose seat is not gone (_spl_review_go_gone).
+# and whose seat is not gone (_spl_review_go_gone). A slug and its
+# hand-<box>-<slug> are one seat (SPL-5670: the window title, so the WAIT
+# line, drops the prefix the hand placement's brief name carries).
 _spl_review_go_siblings() {
-  local own f slug gone miss=()
-  own="$(_spl_review_go_slug "$1" "$2")"
+  local own f slug base gone miss=()
+  own="$(_spl_review_go_bare "$(_spl_review_go_slug "$1" "$2")")"
   while IFS= read -r f; do
-    slug="${f##*/}" && slug="${slug%.md}"
-    [[ "$slug" == "$own" ]] || cmp -s "$f" "$2" && continue
+    slug="${f##*/}" && slug="${slug%.md}" && base="$(_spl_review_go_bare "$slug")"
+    [[ "$base" == "$own" ]] || cmp -s "$f" "$2" && continue
     [[ "$(_spl_review_go_row "$f" "$4" '@@no-task@@' | cut -f1)" == "$3" ]] || continue
-    grep -qE "^WAIT [^ ]+ [^ ]+ [^ ]+ $3 [^ ]+ $4 $slug\$" "$5" 2>/dev/null && continue
-    gone="$(_spl_review_go_gone "$slug" "$4" "$6")" &&
+    grep -qE "^WAIT [^ ]+ [^ ]+ [^ ]+ $3 [^ ]+ $4 (hand-[A-Za-z0-9._]+-)?${base//./\\.}\$" "$5" 2>/dev/null && continue
+    gone="$(_spl_review_go_gone "$base" "$4" "$6")" &&
       { do_log "INFO review seat $slug ($gone) retired with no review line for ${4:0:12}: re-placed, not waited for" >&2; continue; }
     miss+=("$slug")
   done < <(grep -lF -- "${4:0:7}" "$SPOOL_ROOT"/dispatch/briefs/*.md 2>/dev/null)
   echo "${miss[*]}"
+}
+
+# _spl_review_go_bare <slug>: the slug without a hand-<box>- placement prefix.
+_spl_review_go_bare() {
+  if [[ "$1" =~ ^hand-[A-Za-z0-9._]+-(.+)$ ]]; then echo "${BASH_REMATCH[1]}"; else echo "$1"; fi
 }
 
 # _spl_review_go_gone <slug> <sha> <holder>: 0 (the retired ids on stdout)
@@ -540,13 +558,48 @@ _spl_review_go_unplaced() {
   fi
 }
 
-# _spl_review_go_owner_go <author brief> <holder>: 0 when the brief needs no
-# owner go, or its `Owner-go: <msg id>` names a message from HUM-<n> found in
-# the holder's spool or its desk spools; 1 (the why on stdout) otherwise.
+# _spl_review_go_instr <brief>: the brief's instruction text, what the
+# owner-go scan reads (SPL-5670): without the sections whose heading opens
+# with Why, What happened, Symptom(s), Evidence, Background, Context,
+# History, Trace, Observed or Measured (their subheadings too: they say what
+# went wrong, not what to run), without fenced blocks and `>` quote lines,
+# and without a negated `apply` (`does not apply`, `never apply`). Backticked
+# spans stay: a command the lane is told to run is written in backticks.
+_spl_review_go_instr() {
+  python3 - "$1" <<'EOF_PY'
+import re, sys
+NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|context|history|trace|observed|measured)\b")
+try:
+    lines = open(sys.argv[1], encoding="utf-8", errors="replace").read().split("\n")
+except OSError:
+    sys.exit(1)
+out, skip, fence = [], 0, False
+for l in lines:
+    if re.match(r"\s*(```|~~~)", l):
+        fence = not fence
+        continue
+    h = None if fence else re.match(r"(#{1,6})\s+(.*)", l)
+    if h:
+        if skip and len(h.group(1)) > skip:
+            continue
+        skip = len(h.group(1)) if NARR.match(h.group(2).strip()) else 0
+    elif fence or skip or re.match(r"\s*>", l):
+        continue
+    out.append(l)
+neg = r"(?i)\b(?:(?:does|do|did|will|would|should|shall|may|might|can|could|must)\s+not|doesn't|don't|didn't|won't|cannot|can't|never)\s+apply\b"
+print(re.sub(neg, "", "\n".join(out)))
+EOF_PY
+}
+
+# _spl_review_go_owner_go <author brief> <holder>: 0 when the brief's
+# instruction text (_spl_review_go_instr) names no owner-go keyword, or its
+# `Owner-go: <msg id>` names a message from HUM-<n> found in the holder's
+# spool or its desk spools; 1 (the why on stdout) otherwise.
 _spl_review_go_owner_go() {
-  local kw id
-  kw="$(grep -oiE '\bapply\b' "$1")"
-  [[ -n "$kw" ]] || kw="$(grep -oE 'do-provision|do-tf-apply|PROBE_PRD_GO|DRY_RUN=0|ENV=prd|\bIAM\b|\bbilling\b|service account key|/etc/' "$1")"
+  local kw id text
+  text="$(_spl_review_go_instr "$1")" || text="$(cat "$1")"
+  kw="$(grep -oiE '\bapply\b' <<<"$text")"
+  [[ -n "$kw" ]] || kw="$(grep -oE 'do-provision|do-tf-apply|PROBE_PRD_GO|DRY_RUN=0|ENV=prd|\bIAM\b|\bbilling\b|service account key|/etc/' <<<"$text")"
   [[ -n "$kw" ]] || return 0
   kw="${kw%%$'\n'*}"
   id="$(sed -n 's/^Owner-go:[[:space:]]*\([0-9a-f-]\{8,36\}\)[[:space:]]*$/\1/p' "$1")"
@@ -576,7 +629,7 @@ EOF_PY
 # Returns the check's exit code (see the header).
 _spl_review_go_one() {
   local holder="$1" msg="$2" task="$3" line="$4" log="$5" dry="$6" from="${7:-}" rx why rc here mbox
-  local rid rbox rven verdict sha author abox branch rtask brief abrief
+  local rid rbox rven verdict sha author abox branch rtask brief abrief where=""
   set -- "${@:1:6}"
   here="$(_spl_review_go_here)" mbox="${from##*@}"
   [[ "$from" == *@* ]] || mbox="$here"
@@ -602,35 +655,79 @@ _spl_review_go_one() {
   (( rc == 2 )) && { _spl_review_go_hold "$@" 6 "the reviewer's log is on box $rbox: run the check there (never fetched)"; return 6; }
   (( rc == 0 )) || { _spl_review_go_hold "$@" 8 "review line check failed (rc $rc): $(tail -n2 <<<"$why" | paste -sd' ')"; return 8; }
   why="$(_spl_review_go_tip "$branch")"
-  [[ "$why" == "$sha" ]] || { _spl_review_go_hold "$@" 5 "branch '${branch:-none}' on origin is ${why:-missing}, not the reviewed ${sha:0:12}: re-review"; return 5; }
+  if [[ "$why" != "$sha" ]]; then
+    where="$(_spl_review_go_elsewhere "$branch" "$sha" "$author" "$why")" ||
+      { _spl_review_go_hold "$@" 5 "branch '${branch:-none}' on origin is ${why:-missing}, not the reviewed ${sha:0:12}: re-review"; return 5; }
+    do_log "INFO msg $msg: the reviewed ${sha:0:12} $where" >&2
+  fi
   why="$(_spl_review_go_siblings "$rid" "$brief" "$author" "$sha" "$log" "$holder")"
   [[ -z "$why" ]] || { _spl_review_go_wait "$@" "$author" "$rid" "$sha" "$(_spl_review_go_slug "$rid" "$brief")" "$why"; return 10; }
-  _spl_review_go_send "$holder" "$msg" "$task" "$author" "$abox" "$rid" "$sha" "$log" "$dry" "${rtask:-$task}"
+  _spl_review_go_send "$holder" "$msg" "$task" "$author" "$abox" "$rid" "$sha" "$log" "$dry" "${rtask:-$task}" "$where"
 }
 
 # _spl_review_go_tip <branch>: the sha origin's branch points at (read only:
 # git ls-remote, nothing fetched into a shared checkout); empty when none.
 _spl_review_go_tip() {
-  local repo="${REVIEW_GO_REPO:-$(git -C "${BASH_SOURCE[0]%/*}" rev-parse --show-toplevel 2>/dev/null)}"
+  local repo
+  repo="$(_spl_review_go_repo)"
   [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] || return 0
   git -C "$repo" ls-remote origin "refs/heads/$1" 2>/dev/null | awk 'NR == 1 {print $1}'
 }
 
+# _spl_review_go_repo: the repo whose origin and local refs check [5] reads.
+_spl_review_go_repo() { echo "${REVIEW_GO_REPO:-$(git -C "${BASH_SOURCE[0]%/*}" rev-parse --show-toplevel 2>/dev/null)}"; }
+
+# _spl_review_go_elsewhere <branch> <sha> <author> <its origin tip>: the row's
+# branch on origin is not the reviewed sha (SPL-5670). 0, where it was found
+# on stdout, when (c) the sha is the tip of another origin ref (the author
+# re-pushed the fix under a new name: any ref, the full sha, no suffix
+# guessed), or (a) origin has no such branch and the sha is a commit of this
+# box's repo reachable from the local branch of that name or from the HEAD
+# of a worktree on that branch or named for the author (local only: the
+# author must still push it). Else rc 1: a branch on origin that points
+# elsewhere, a sha on no ref, or a row that names no branch still holds rc 5.
+_spl_review_go_elsewhere() {
+  local repo ref wt="" head="" wbr=""
+  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+  repo="$(_spl_review_go_repo)"
+  ref="$(git -C "$repo" ls-remote origin 2>/dev/null | awk -v s="$2" '$1 == s && $2 !~ /\^\{\}$/ {print $2; exit}')"
+  [[ -n "$ref" ]] && { echo "is the tip of origin ref $ref (not of the row's branch '$1')"; return 0; }
+  [[ -z "$4" ]] && git -C "$repo" cat-file -e "$2^{commit}" 2>/dev/null || return 1
+  if git -C "$repo" merge-base --is-ancestor "$2" "refs/heads/$1" 2>/dev/null; then
+    echo "is on this box's local branch '$1' only, not on origin: found locally only, the author must still push it"; return 0
+  fi
+  while IFS= read -r ref; do
+    case "$ref" in
+      "worktree "*) wt="${ref#worktree }" head="" wbr="" ;;
+      "HEAD "*) head="${ref#HEAD }" ;;
+      "branch "*) wbr="${ref#branch refs/heads/}" ;;
+      "")
+        if [[ -n "$head" && ( "$wbr" == "$1" || "${wt##*/}" == "$3" ) ]] &&
+          git -C "$repo" merge-base --is-ancestor "$2" "$head" 2>/dev/null; then
+          echo "is in the HEAD of this box's worktree $wt only, not on origin: found locally only, the author must still push it"; return 0
+        fi ;;
+    esac
+  done < <(git -C "$repo" worktree list --porcelain 2>/dev/null; echo)
+  return 1
+}
+
 # _spl_review_go_send <holder> <msg> <task> <author> <author box> <reviewer>
-# <sha> <log> <dry> <go task>: GO <sha> to the author on <go task> (the brief
-# row's task), then the PASS record with the message's own task_id (Rule 2
-# re-checks it against the message). A failed send logs nothing (the next
-# run tries again) and returns 9.
+# <sha> <log> <dry> <go task> [where]: GO <sha> to the author on <go task>
+# (the brief row's task), then the PASS record with the message's own task_id
+# (Rule 2 re-checks it against the message). [where]: the sha was not the
+# row's branch tip on origin (_spl_review_go_elsewhere), said in the GO and
+# the log line. A failed send logs nothing (the next run tries again) and
+# returns 9.
 _spl_review_go_send() {
   local to="$4${5:+@$5}" send="${REVIEW_GO_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   if [[ "$9" == 1 ]]; then
-    echo "PLAN GO ${7} to $to on task ${10} from $1 (review msg $2 by $6), then PASS in automation.log"
+    echo "PLAN GO ${7} to $to on task ${10} from $1 (review msg $2 by $6)${11:+; the sha ${11}}, then PASS in automation.log"
     return 0
   fi
-  SPOOL_ROOT="$SPOOL_ROOT" bash "$send" --from "$1" --to "$to" --kind task --task "${10}" --body "GO $7" \
+  SPOOL_ROOT="$SPOOL_ROOT" bash "$send" --from "$1" --to "$to" --kind task --task "${10}" --body "GO $7${11:+ (the reviewed sha ${11})}" \
     >/dev/null 2>&1 7>&- 8>&- 9>&- || { do_log "WARN msg $2: GO to $to failed; the next run tries again"; return 9; }
   printf 'PASS %s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$2" "$3" "$4" "$6" "$7" >>"$8"
-  do_log "OK msg $2: GO ${7:0:12} sent to $to (review PASS by $6)"
+  do_log "OK msg $2: GO ${7:0:12} sent to $to (review PASS by $6)${11:+; the sha ${11}}"
 }
 
 # _spl_review_go_wait <holder> <msg> <task> <line> <log> <dry> <author>

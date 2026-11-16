@@ -80,6 +80,23 @@
 #        only brief is hand-<box>-<title>.md -> found, GO; controls: two
 #        hand-*-<title>.md -> no guess (rc 3 on <title>.md); a longer
 #        hand-<box>-<x>-<title>.md is not the title's
+#    23. a reviewed sha off the row's branch (SPL-5670): RED CONTROLS the branch
+#        not on origin, the sha on the local branch of that name or in the
+#        HEAD of a worktree named for the author -> GO saying 'found locally
+#        only'; the sha the tip of `<branch>-r2` / `<branch>-n2` while the
+#        branch points elsewhere -> GO naming that ref; controls: a box commit
+#        on no branch or worktree, a local-only sha while the branch is on
+#        origin, a sha on no origin ref -> rc 5; a sha nowhere -> rc 8
+#    24. owner-go keywords in quoted text (SPL-5670): RED CONTROLS a keyword
+#        only in a What happened / Why section (and its subheadings), a `>`
+#        quote, a fenced block, a negated `does not apply` -> GO; controls: a
+#        backticked prd step, an APPLY step after a symptom section, an
+#        apply not negated -> rc 4
+#    25. one review seat named with and without hand-<box>- (SPL-5670): RED
+#        CONTROL the only seat (title <slug>, brief hand-sat-<slug>.md) ->
+#        GO, no WAIT; controls: a real second seat that has not answered ->
+#        rc 10 for it alone; a hand-sat-<slug> sibling logged WAIT as <slug>
+#        has answered -> GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -723,6 +740,132 @@ run REVIEW_GO_MSG="$f"; refused "22. two hand-*-<title>.md: no guess, today's <t
 reset22; rm -f "$S/dispatch/briefs/hand-sat-c002-x-grok-reviewer.md"; pbrief hand-sat-y-c002-x-grok-reviewer "$(prose)"
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 22000000-0000-4000-8000-000000000003)
 run REVIEW_GO_MSG="$f"; refused "22. hand-<box>-<x>-<title>.md is another slug's brief" $? 3 "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
+
+# --- 23. a reviewed sha off the row's branch: local only, another origin ref (SPL-5670) ----------------------
+# (a) SPL-5649: the reviewed 381da2e8c was a commit of the box's repo on a branch never pushed. (c) SPL-5651 /
+# SPL-5646: the author pushed the reviewed fix on a new ref (`<branch>-r2`, `<branch>-n2`).
+# c23 <branch> <message>: a commit on top of $SHA under refs/heads/<branch> of the clone, HEAD unmoved; its sha
+c23() {
+  local s; s=$("${G[@]}" -C "$T/repo" commit-tree "$SHA^{tree}" -p "$SHA" -m "$2")
+  "${G[@]}" -C "$T/repo" update-ref "refs/heads/$1" "$s"; echo "$s"
+}
+# brief23 <branch> <sha>: g-111's brief, its row on <branch> at <sha>
+brief23() {
+  printf '# Lane brief: review\n\n| author | review branch | sha | base | task |\n|---|---|---|---|---|\n| c-222@boxa (claude) | %s | %s | origin/master | %s |\n' \
+    "$1" "${2:0:12}" "$TASK" >"$S/g-111/lifetime/brief.md"
+}
+# run23 <case> <branch> <sha> <msg id>: g-111's PASS on <sha>, the row on <branch>; rc in $rc
+run23() {
+  reset; brief23 "$2" "$3"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed "s/$SHA/$3/")" "$4")
+  run REVIEW_GO_MSG="$f"; rc=$?
+}
+# go23 <case> <sha> <msg id> <where>: one GO <sha> to c-222 that says <where>, the PASS record
+go23() {
+  (( rc == 0 )) && [[ $(gos) == 1 ]] && grep -q -- "--body GO $2 (the reviewed sha .*$4" "$T/s/sent.log" &&
+    grep -qE "^PASS [^ ]+ $3 $TASK c-222 g-111 $2$" "$LOG" && pass "$1" ||
+    fail "$1: rc=$rc sent=$(cat "$T/s/sent.log") log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
+}
+LSHA=$(c23 c-346-local-only "local only")
+run23 "23a" c-346-local-only "$LSHA" 23000000-0000-4000-8000-000000000001
+go23 "23a. RED CONTROL: the row's branch is not on origin, the sha is on the local branch of that name -> GO, 'found locally only'" "$LSHA" 23000000-0000-4000-8000-000000000001 "found locally only"
+WSHA=$("${G[@]}" -C "$T/repo" commit-tree "$SHA^{tree}" -p "$SHA" -m "worktree only")
+"${G[@]}" -C "$T/repo" worktree add -q --detach "$T/wt/c-222" "$WSHA" 2>/dev/null
+run23 "23a" c-222-never-pushed "$WSHA" 23000000-0000-4000-8000-000000000002
+go23 "23a. the sha in the HEAD of a worktree named for the author (branch nowhere) -> GO, 'found locally only'" "$WSHA" 23000000-0000-4000-8000-000000000002 "worktree $T/wt/c-222 only"
+"${G[@]}" -C "$T/repo" worktree remove --force "$T/wt/c-222"
+DSHA=$(c23 c-346-dropped "dangling"); "${G[@]}" -C "$T/repo" update-ref -d refs/heads/c-346-dropped
+run23 "23a" c-346-dropped "$DSHA" 23000000-0000-4000-8000-000000000003
+refused "23a. RED CONTROL: a commit of the box on no origin ref, no local branch, no worktree -> rc 5" $rc 5 "branch 'c-346-dropped' on origin is missing, not the reviewed ${DSHA:0:12}"
+run23 "23a" c-346-dropped 0123456789abcdef0123456789abcdef01234567 23000000-0000-4000-8000-000000000004
+refused "23a. a sha absent from origin and from this box is held (the line check, rc 8)" $rc 8 "is no commit in"
+run23 "23a" review/c002-x "$LSHA" 23000000-0000-4000-8000-000000000005
+refused "23a. RED CONTROL: the row's branch on origin points elsewhere, the sha only local -> rc 5" $rc 5 "branch 'review/c002-x' on origin is $SHA, not the reviewed ${LSHA:0:12}"
+for sfx in r2 n2; do
+  RSHA=$(c23 "c002-x-$sfx" "re-pushed $sfx"); "${G[@]}" -C "$T/repo" push -q origin "$RSHA:refs/heads/review/c002-x-$sfx"
+  "${G[@]}" -C "$T/repo" update-ref -d "refs/heads/c002-x-$sfx"
+  run23 "23c" review/c002-x "$RSHA" "23000000-0000-4000-8000-0000000000c${sfx:1}"
+  go23 "23c. RED CONTROL: the row's branch on origin points elsewhere, the sha is the tip of review/c002-x-$sfx -> GO naming that ref" \
+    "$RSHA" "23000000-0000-4000-8000-0000000000c${sfx:1}" "origin ref refs/heads/review/c002-x-$sfx"
+done
+"${G[@]}" -C "$T/repo" push -q origin ":refs/heads/review/c002-x-r2" ":refs/heads/review/c002-x-n2"
+run23 "23c" review/c002-x "$RSHA" 23000000-0000-4000-8000-0000000000c9
+refused "23c. RED CONTROL: the reviewed sha on no origin ref at all -> rc 5" $rc 5 "branch 'review/c002-x' on origin is $SHA, not the reviewed ${RSHA:0:12}"
+
+# --- 24. owner-go keywords in quoted text: the instruction text is scanned (SPL-5670) -------------------------
+# real lines: SPL-5644's brief lines 13-14 (ENV=prd in its symptom), SPL-5647's brief line 41 ("does not
+# apply"), SPL-5670's own brief: its Why quotes the held keywords
+# shellcheck disable=SC2016 # the backticks are markdown
+for fx in 'SPL-5644 symptom|## What happened (measured by c-003@sat and c-002@sat, 2026-11-15 17:4x-17:52Z, n=2 seats)
+- `do_spl_desk_reply` from c-003@sat and then c-002@sat (both claude desks), ENV=prd TENANT_ID=csitea, exited 1 with:
+  `spool: hub refused: vendor_cap_exceeded (refused: grok agent cap reached)`
+
+## Do
+Fix the exit code; tests green.' \
+          'SPL-5647 negated apply|## R7 review (current rule, replaces the round 31 plan'"'"'s waiver text)
+Grok is on (round 33 and perf round 10 rows tonight had fresh grok R7 seats), so waiver 1a7c70da does not apply: the holder queues a FRESH cross-vendor reviewer.' \
+          'SPL-5670 Why, subheading|## Why
+- (b) rc 4: "the author brief names owner-go keyword '"'"'ENV=prd'"'"' and has no Owner-go: line".
+### Fixture
+- rc 4 on DRY_RUN=0 too.
+
+## What to build
+Do not count keywords in quoted text.' \
+          'quote and fence|## Do
+> the owner: ENV=prd stays mine
+```
+ENV=prd DRY_RUN=0 ./run -a do_x
+```
+Fix the parser.'; do
+  reset; abrief c-222 "${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 24000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "24. RED CONTROL: a keyword only in quoted text (${fx%%|*}) passes [4] -> GO" ||
+    fail "24. ${fx%%|*} rc=$rc out=$(tail -2 "$T/out")"
+done
+# shellcheck disable=SC2016 # the backticks are markdown
+for fx in 'a backticked prd step|## What happened
+ENV=prd failed.
+
+## Do
+1. Run `ENV=prd DRY_RUN=0 ./run -a do_x` once.|ENV=prd' \
+          'a section after the symptom|## Symptom
+none
+
+## Steps
+terraform step 030 APPLY, dev then prd|APPLY' \
+          'an apply that is not negated|## Do
+apply the migration to prd.|apply'; do
+  reset; IFS='|' read -r name text kw <<<"${fx//$'\n'/$'\037'}"
+  abrief c-222 "${text//$'\037'/$'\n'}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 24000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; refused "24. RED CONTROL: an instruction step ($name) still holds" $? 4 "owner-go keyword '$kw'"
+done
+
+# --- 25. one review seat, named with and without hand-<box>- (SPL-5670) ----------------------------------------
+# SPL-5606/5607/5657/5658: g-374, g-376, g-386, g-388 logged `WAIT ... c002-spl5606-ci50-02-grok-reviewer` (the
+# window title) and waited for `hand-sat-c002-spl5606-ci50-02-grok-reviewer`, their own placed brief
+reset25() { reset; mkdir -p "$S/dispatch/briefs"; live g-111 c002-x-grok-reviewer; pbrief hand-sat-c002-x-grok-reviewer "$(prose)"; }
+reset25
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 25000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 && $(waits) == 0 ]] && grep -qE "^PASS [^ ]+ 25000000-0000-4000-8000-000000000001 $TASK c-222 g-111 $SHA$" "$LOG" &&
+  pass "25. RED CONTROL: the only seat (title c002-x-grok-reviewer, brief hand-sat-c002-x-grok-reviewer.md) -> GO, no WAIT" ||
+  fail "25. one seat rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
+reset25; live a-333 c002-x-agy-strings
+pbrief c002-x-agy-strings "Author c-222@boxa (claude). Branch \`review/c002-x\` at \`${SHA:0:12}\`. Strings only."
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 25000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 10 && $(gos) == 0 && $(waits) == 1 )) && grep -q 'review seat(s): c002-x-agy-strings\.' "$T/s/sent.log" &&
+  pass "25. RED CONTROL: a real second seat that has not answered still WAITs rc 10, for it alone" ||
+  fail "25. second seat rc=$rc gos=$(gos) sent=$(cat "$T/s/sent.log") out=$(tail -3 "$T/out")"
+reset25; live a-333 c002-x-agy-strings
+pbrief hand-sat-c002-x-agy-strings "Author c-222@boxa (claude). Branch \`review/c002-x\` at \`${SHA:0:12}\`. Strings only."
+echo "WAIT 2026-10-28T11:58:00Z 25000000-0000-4000-8000-0000000000aa $TASK c-222 a-333 $SHA c002-x-agy-strings" >>"$LOG"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 25000000-0000-4000-8000-000000000003)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 1 )) && pass "25. a hand-sat-<slug> seat whose PASS is logged WAIT under <slug> has answered -> GO" ||
+  fail "25. hand sibling WAIT rc=$rc gos=$(gos) out=$(tail -3 "$T/out")"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

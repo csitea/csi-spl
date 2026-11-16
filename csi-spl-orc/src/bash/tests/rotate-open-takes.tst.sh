@@ -160,6 +160,8 @@ seed="$(spl_rotate_open_takes_seed 2>/dev/null)"
 # for 48 h: both archived, one answered by c-003. Row columns: ws name
 # channel topic msg epoch from to kind topic-state channel-state files body
 # anchor-epoch anchor-msg.
+# Row G is the archived case only: its last post precedes the take, so the
+# agent-answer rule alone cannot drop it (R7 W1).
 rm -f "$T/sudo.deny"
 ROTATE_TAKES_OUTBOXES=""
 G=99999999-0000-4000-8000-000000000007 H=88888888-0000-4000-8000-000000000008
@@ -170,7 +172,7 @@ take $((now - 300)) "$H" "$ID@$BOX" "I raise the cutoff"
 take $((now - 200)) "$K" "$ID@$BOX" "I queue the lanes"
 take $((now - 100)) "$L" "$ID@$BOX" "I check the relay"
 row() { printf 't1\tspool-hub\tops\t%s\tm-%s\t%s\t%s\t%s\t%s\t%s\tlive\t-\t\t\t\n' "$1" "$2" "$2" "$3" "$4" "$5" "$6"; }
-{ row "${G^^}" $((now - 390)) "$ID" HUM-10 agent archived
+{ row "${G^^}" $((now - 410)) "$ID" HUM-10 agent archived
   row "$H" $((now - 250)) c-903 HUM-10 agent open
   row "$K" $((now - 200)) "$ID" HUM-10 take open
   row "$L" $((now - 50)) "$ID" c-001 agent open; } > "$LEASE_DIR/unanswered.rows"

@@ -44,6 +44,7 @@
 # (spool-send.sh), ROTATE_KILL (kill), ROTATE_AI (the identity-map calls),
 # LEASE_PROC_ROOT (/proc), ROTATE_NOTIFY (spool-notify.sh),
 # ROTATE_TAKES_OUTBOXES (the desk outbox walk of spl_rotate_open_takes),
+# ROTATE_TAKES_ROWS (the unanswered-sweep topic rows it reads),
 # ROTATE_SUDO (sudo, the read of a desk outbox as its owner).
 #
 # NOTE ./run runs every action under `set -E` and an ERR trap that exits: a

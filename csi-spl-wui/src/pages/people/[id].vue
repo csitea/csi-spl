@@ -33,6 +33,14 @@
             <dt>{{ t('settings.email') }}</dt>
             <dd data-test="person-email"><a :href="'mailto:' + email">{{ email }}</a></dd>
           </template>
+          <!-- spec 154 section 12.5: the member's own phone, never in t1 (the hub answers null there) -->
+          <template v-if="phone">
+            <dt>{{ t('contacts.phone') }}</dt>
+            <dd data-test="person-phone">
+              <a v-if="phoneLink" :href="phoneLink" :target="/^https:/i.test(phoneLink) ? '_blank' : undefined" rel="noopener noreferrer">{{ phone }}</a>
+              <template v-else>{{ phone }}</template>
+            </dd>
+          </template>
           <dt>{{ t('people.last_seen') }}</dt>
           <dd data-test="person-last-seen">{{ lastSeen }}</dd>
           <dt>{{ t('settings.member_id') }}</dt>
@@ -105,6 +113,7 @@ import { CHANGE_PASSWORD_PATH, changePasswordOffered } from '~/utils/user-menu'
 import { useSessionStore } from '~/stores/session'
 import { contactsList } from '~/utils/contacts-client.mjs'
 import { memberCard } from '~/utils/member-card-client.mjs'
+import { contactHref } from '~/utils/contact-links.mjs'
 
 const route = useRoute()
 const roster = useRosterStore()
@@ -172,11 +181,19 @@ watch([humanId, () => access.contacts && !access.me?.actAs], async ([member, on]
    a person of this same workspace only. A refusal (403 under act-as, 404) or a
    failed read only leaves the row out. */
 const email = ref('')
+/* section 12.5 (SPL-5707): the member's phone from the same card; the hub
+   answers null in a name-only workspace (t1) and in the demo. The link
+   follows the reader's phone_app choice, as a contact's does. */
+const phone = ref('')
+const phoneLink = computed(() => (phone.value ? contactHref('tel:' + phone.value, session.claims) : null))
 watch([humanId, () => !access.me?.actAs], async ([member, person]) => {
   email.value = ''
+  phone.value = ''
   if (!person || !member) return
   const card = await memberCard(api, member).catch(() => null)
-  if (member === humanId.value) email.value = card?.email || ''
+  if (member !== humanId.value) return
+  email.value = card?.email || ''
+  phone.value = card?.phone || ''
 }, { immediate: true })
 
 /* SPL-5056: the member's whole role set. Only GET /v1/members carries it

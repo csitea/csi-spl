@@ -683,6 +683,8 @@ declare module '~/utils/auth-client.mjs' {
     savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
     saveDiagnostics(on: boolean): Promise<NativeResult>
     saveDisplayName(name: string): Promise<NativeResult>
+    saveProfile(v: { first: string, last: string, phone: string }): Promise<NativeResult>
+    getProfile(): Promise<{ ok: boolean, data: { first_name?: string | null, last_name?: string | null, phone?: string | null } | null }>
     saveInterests(interests: string): Promise<NativeResult>
     saveTheme(theme: string): Promise<NativeResult>
     saveSubmitKey(key: string): Promise<NativeResult>
@@ -720,6 +722,8 @@ declare module '~/utils/auth-client-core.mjs' {
     savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
     saveDiagnostics(on: boolean): Promise<NativeResult>
     saveDisplayName(name: string): Promise<NativeResult>
+    saveProfile(v: { first: string, last: string, phone: string }): Promise<NativeResult>
+    getProfile(): Promise<{ ok: boolean, data: { first_name?: string | null, last_name?: string | null, phone?: string | null } | null }>
     saveInterests(interests: string): Promise<NativeResult>
     saveTheme(theme: string): Promise<NativeResult>
     saveSubmitKey(key: string): Promise<NativeResult>

@@ -70,11 +70,12 @@
     "profile": "Perfil",
     "name": "Nombre",
     "display_name": {
-      "label": "Nombre visible",
-      "hint": "Cómo te ven los demás en el spool: el nombre de tu menú de usuario y de la búsqueda de personas. Una línea, hasta 200 caracteres.",
+      "label": "Nombre y teléfono",
+      "hint": "Los demás miembros de tus espacios de trabajo ven tu nombre, tus apellidos y tu teléfono. En un espacio de trabajo que solo muestra nombres, solo ven tu nombre.",
       "save": "Guardar",
       "saved": "Guardado.",
-      "invalid": "Escribe un nombre de 1 a 200 caracteres en una sola línea.",
+      "invalid": "Escribe un nombre. El nombre y los apellidos pueden tener hasta 100 caracteres cada uno, en una sola línea.",
+      "invalid_phone": "Escribe el teléfono con + y el código de país, p. ej. +358 40 123 4567.",
       "failed": "No se pudo guardar — inténtalo de nuevo."
     },
     "email": "Correo electrónico",

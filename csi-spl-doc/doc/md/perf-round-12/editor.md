@@ -179,3 +179,5 @@ All four outputs of each run name the same 3 failed files:
   `PRINCIPLES-role-failover.md` from an older Qto copy (it would drop the
   SPL-5687 "One post per bench episode" paragraph). Not committed, restored;
   reported to the orchestrator.
+- 2dc33ff8b put `Closes: SPL-5701` above the `Docs:` paragraph, so git did
+  not read it as a trailer; the next commit carries both in one block.

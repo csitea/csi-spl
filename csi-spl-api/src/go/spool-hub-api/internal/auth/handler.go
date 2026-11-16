@@ -292,6 +292,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE "+RoutePrefix+"avatar", h.deleteAvatar) // t1 ccaee528
 	mux.HandleFunc("POST "+RoutePrefix+"logout", h.logout)
 	mux.HandleFunc("PUT "+RoutePrefix+"preferences", h.putPreferences)
+	mux.HandleFunc("GET "+RoutePrefix+"profile", h.getProfile)   // SPL-5707, profile.go
 	mux.HandleFunc("POST "+RoutePrefix+"tenant", h.switchTenant) // specs/026 §6
 	if h.imp != nil {
 		mux.HandleFunc("POST "+RoutePrefix+"act-as", h.startActAs)     // specs/054
@@ -1131,6 +1132,9 @@ type preferencesReq struct {
 	HoursReading       json.RawMessage `json:"hours_reading"`
 	AwaitAnims         json.RawMessage `json:"await_anims"`
 	SecondCurrency     json.RawMessage `json:"second_currency"`
+	FirstName          json.RawMessage `json:"first_name"` // SPL-5707, profile.go
+	LastName           json.RawMessage `json:"last_name"`
+	Phone              json.RawMessage `json:"phone"`
 }
 
 // raw is the request's JSON for one ViewPrefs key.
@@ -1213,6 +1217,7 @@ type prefsIn struct {
 	hasReading, hasCur                                  bool
 	anims                                               []string // await_anims, nil = null (SPL-2113)
 	hasAnims                                            bool
+	prof                                                profileIn // first_name, last_name, phone (profile.go)
 }
 
 // parsePreferences validates the whole body before anything is written. A
@@ -1249,8 +1254,11 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if p.cur, p.hasCur, code, detail = parseSecondCurrency(req.SecondCurrency); code != "" {
 		return p, code, detail
 	}
-	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ && !p.hasKbd && !p.hasReading && !p.hasAnims && !p.hasCur {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), link_previews (on, off or null), email_client (gmail, system, outlook-web, outlook, thunderbird or null), phone_app (whatsapp, tel, viber, telegram, signal, teams or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null), keyboard_shortcuts (true, false or null), hours_reading (true, false or null), await_anims (animation ids or null) or second_currency (an ISO 4217 code or null) is required"
+	if p.prof, code, detail = parseProfile(req); code != "" {
+		return p, code, detail
+	}
+	if !p.prof.any() && !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ && !p.hasKbd && !p.hasReading && !p.hasAnims && !p.hasCur {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), link_previews (on, off or null), email_client (gmail, system, outlook-web, outlook, thunderbird or null), phone_app (whatsapp, tel, viber, telegram, signal, teams or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null), keyboard_shortcuts (true, false or null), hours_reading (true, false or null), await_anims (animation ids or null), second_currency (an ISO 4217 code or null), first_name + last_name or phone (+<country code><number> or null) is required"
 	}
 	code, detail = p.parseScalars(req)
 	return p, code, detail
@@ -1388,6 +1396,9 @@ func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum s
 		func(e *zerolog.Event) *zerolog.Event {
 			return e.Int("interests_len", utf8.RuneCountInString(p.interests))
 		}) {
+		return nil, false
+	}
+	if !h.storeProfile(w, r, hum, p.prof, out) {
 		return nil, false
 	}
 	if p.hasTheme && !set(h.prefs.SetPreferredTheme(ctx, hum, p.theme), "preferred_theme", nullable(p.theme),

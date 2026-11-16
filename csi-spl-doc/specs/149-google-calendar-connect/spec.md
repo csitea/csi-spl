@@ -274,6 +274,19 @@ imported events" tick). A `revoked` or `error` status shows its reason and a
 Reconnect button. The section is its own chunk: it does not raise
 `ci_initial_gzip_kb`.
 
+SPL-5719: the Calendar page says it too. A connection that Google ended
+(`revoked`, invalid_grant) or one in `error` shows a banner above the
+calendar, desktop and phone (`wui/components/CalendarGcalBanner.vue`, one
+lazy import in `wui/pages/calendar.vue`), with the status, the hub's reason
+and a one-click Reconnect (the same connect route as the section). No
+banner when the workspace is off (404), the hub has no gcal (503), the read
+fails, or the connection is healthy or absent. It uses the section's own
+keys, no new text. Why: on prd three of the owner's connections were revoked
+and nobody saw it for up to 10 days, because only this settings section said
+so ([google-review-submission.md](google-review-submission.md) section 6).
+Test: `wui/tests/e2e/calendar-gcal-banner.test.mjs`,
+`wui/tests/unit/settings-nav.test.mjs`.
+
 ### 2.8 Local dev and tests
 
 `SPOOL_CLOUD_PROVIDER=none` (spec 148): the connect answers 503

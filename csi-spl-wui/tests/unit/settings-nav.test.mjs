@@ -20,7 +20,7 @@ import {
   SETTINGS_SECTIONS, isSettingsPath, settingsModalTarget, settingsQuerySection, settingsSectionOf,
 } from '../../src/utils/settings-nav.mjs'
 import {
-  MOCK_GCAL_KEY, gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalUrl, gcalView,
+  MOCK_GCAL_KEY, gcalBannerKey, gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalUrl, gcalView,
 } from '../../src/utils/gcal-client.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
@@ -28,6 +28,7 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const en = JSON.parse(read('i18n/locales/en.json'))
 const section = read('src/components/settings/calendar-google.vue')
+const banner = read('src/components/CalendarGcalBanner.vue')
 
 /** a Map-backed localStorage for the mock half */
 function mockStorage() {
@@ -111,6 +112,33 @@ describe('the connection views and the mock flow', () => {
     assert.equal(gcalReturnNotice({ settings: 'calendar-google', gcal: 'connected' }), 'gcal.notice_connected')
     assert.equal(gcalReturnNotice({ gcal_error: 'cancelled' }), 'gcal.notice_error')
     assert.equal(gcalReturnNotice({ settings: 'calendar-google' }), '')
+  })
+})
+
+// SPL-5719: a connection Google ended (invalid_grant) or one in error shows
+// on the Calendar page with Reconnect; nothing else does. Red control: on
+// origin/master before SPL-5719 there is no gcalBannerKey and no banner file.
+describe('SPL-5719 the Calendar page banner', () => {
+  it('only a broken connection names a key', () => {
+    assert.equal(gcalBannerKey({ connected: true, status: 'revoked', status_detail: 'x' }), 'gcal.status_revoked')
+    assert.equal(gcalBannerKey({ connected: true, status: 'error' }), 'gcal.status_error')
+    assert.equal(gcalBannerKey({ connected: true, status: 'connected' }), '')
+    assert.equal(gcalBannerKey({ connected: false }), '')
+    assert.equal(gcalBannerKey(null), '')
+  })
+  it('calendar.vue loads the banner lazily, signed in only', () => {
+    const page = read('src/pages/calendar.vue')
+    assert.ok(page.includes("defineAsyncComponent(() => import('~/components/CalendarGcalBanner.vue'))"))
+    assert.ok(/<CalendarGcalBanner v-if="session\.state === 'in'" \/>/.test(page))
+    assert.ok(!/from\s+'~\/utils\/gcal-client/.test(page))
+  })
+  it('the banner reuses keys that exist: no new text', () => {
+    const named = [...banner.matchAll(/t\('([a-z_]+\.[a-z_]+)'\)/g)].map((m) => m[1])
+    assert.ok(named.includes('gcal.reconnect') && named.includes('settings.calendar_google'), named.join(','))
+    for (const k of named) {
+      const [ns, leaf] = k.split('.')
+      assert.equal(typeof en[ns][leaf], 'string', k)
+    }
   })
 })
 

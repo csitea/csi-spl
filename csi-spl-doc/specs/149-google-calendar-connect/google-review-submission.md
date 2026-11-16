@@ -191,3 +191,76 @@ Only after section 3.2 is fixed, S5 is applied and the connect works on dev:
 | 3.2 | wui lane: a calendar paragraph in `privacy.html` |
 | 4.2 | cnf lane: `gcal.scopes` (section 1.2), re-render, 030 apply with the owner's go |
 | S1 / S5 cnf | landed with SPL-3331: `calendar-json.googleapis.com` in the 001 list, `gcal.workspaces: ["all"]`, `SPOOL_HUB_GCAL_*` in the 030 tfvars; the 001 and 030 applies wait on the owner's go |
+
+## 6. The 7-day expiry (SPL-5719, 2026-11-16)
+
+### 6.1 What happened
+
+Every one of the owner's connections on prd was revoked by Google 7 days
+after it was made. The hub logs `gcal: connected` on the connect and
+`gcal: grant revoked at google` when a refresh answers invalid_grant
+(`internal/hub/gcal_connect.go`, `internal/hub/gcal_sync.go`); read with
+`ENV=prd FRESHNESS=30d FILTER='jsonPayload.message:"gcal: connect" OR jsonPayload.message:"gcal: grant revoked"' ./run -a do_gcp_tail_logs`
+(csi-spl-iac), n=4 revokes:
+
+| workspace | connection | connected (UTC) | revoked (UTC) | after |
+|---|---|---|---|---|
+| t1 | `9d0a6272` | 2026-10-28 06:24:25 | 2026-11-04 06:24:34 | 7 d 0 h 0 m 9 s |
+| a private workspace | `8643d95a` | 2026-10-30 06:37:58 | 2026-11-06 06:38:13 | 7 d 0 h 0 m 15 s |
+| csitea | `9869bdd7` | 2026-11-03 10:22:56 | 2026-11-10 10:22:58 | 7 d 0 h 0 m 2 s |
+| t1 | `9d0a6272` | 2026-11-07 11:17:37 | 2026-11-14 11:19:18 | 7 d 0 h 1 m 41 s |
+
+Each revoke falls within 2 minutes of its own connect plus 7 days (the
+sync runs every minute). A scope change, a client secret rotation or a
+password change would revoke every connection at one moment, not each at
+its own 7-day mark. The pattern is Google's rule for an OAuth app whose
+publishing status is Testing with external users: its refresh tokens
+expire after 7 days. The console state itself is unchecked (no lane reads
+the console); the owner sees it in step 6.2.1.
+
+The `gcal_connections` row keeps `created_at` across a reconnect
+(`ON CONFLICT ... DO UPDATE`, `internal/store/gcal_postgres.go`), so the
+row alone reads t1 as 17 days; the log has the reconnect.
+
+csitea was reconnected 2026-11-16 16:30:39Z; unless 6.2 is done first, it
+is due to be revoked again around 2026-11-23 16:31Z.
+
+### 6.2 The owner's steps to end it
+
+1. Google Cloud console, the project of the prd sign-in client (S0,
+   `csi-spl-prd`): Google Auth Platform, Audience. If the publishing
+   status says Testing, press Publish app and confirm. From then on
+   refresh tokens no longer expire after 7 days. Until the review of
+   step 4 passes, members see Google's "unverified app" page on connect
+   (Advanced, then continue), and (unchecked, I believe) at most 100 users
+   may grant the calendar scopes. Sign-in asks only `openid email`, which
+   are not sensitive scopes, so sign-in is unchanged (unchecked, I
+   believe).
+2. The same in `csi-spl-dev`.
+3. Reconnect each workspace once after step 1: Calendar page, Reconnect
+   (the banner of spec section 2.7), or Settings, Google Calendar,
+   Reconnect. Unchecked, I believe: a token minted while in Testing keeps
+   its 7-day life, so only a new connect gets the longer one.
+4. For good, without the warning: submit the review of section 4.4. cnf
+   `gcal.scopes` now also asks `calendar.readonly` (S7), so the form needs
+   a second justification, below.
+
+### 6.3 The justification for calendar.readonly
+
+> Spool Hub shows the events of a member's existing Google calendars (the
+> ones they show in Google Calendar) inside Spool as that member's private
+> events, so their Spool calendar shows everything they are booked for. No
+> other member sees them. Spool Hub only reads those calendars and never
+> changes, creates or deletes anything on them; only the one "Spool Hub"
+> calendar it created (calendar.app.created) is written. The member chooses
+> to connect and can disconnect at any time in Settings; disconnecting
+> revokes the token at Google, stops the sync and, if the member ticks
+> "remove imported events", removes the copied events. The data is not
+> sold, shared with third parties or used for advertising.
+
+The text follows `internal/hub/gcal_sync_sources.go` (the header comment:
+read-only, audience private, nothing written back) and the Disconnect of
+spec section 2.7.
+
+Unchecked, I believe: Google asks for this text per scope on the same form
+as section 2.

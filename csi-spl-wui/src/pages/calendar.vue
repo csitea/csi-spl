@@ -19,6 +19,8 @@
      the range moves keep it, the switch in the tabs sets or clears it. -->
 <template>
   <div class="feed-col calendar-page" :class="{ 'calendar-page--desk': !phone }" data-test="calendar-page">
+    <!-- SPL-5719: a broken Google Calendar connection says so here, with Reconnect -->
+    <CalendarGcalBanner v-if="session.state === 'in'" />
     <CalendarPhone v-if="phone" :focus="focus" :today="today" @move="show" />
     <template v-else>
     <h2 class="sr-only" data-test="calendar-heading">{{ t('calendar.title') }}</h2>
@@ -63,6 +65,9 @@ const CalendarPhone = defineAsyncComponent(() => import('~/components/CalendarPh
 const CalendarPhoneSearch = defineAsyncComponent(() => import('~/components/CalendarPhoneSearch.vue'))
 /* spec 107 v1.2 T011 (owner R11): the hours tabs on the right, a chunk of their own */
 const CalendarHoursPanel = defineAsyncComponent(() => import('~/components/CalendarHoursPanel.vue'))
+/* SPL-5719: the broken Google Calendar connection banner, a chunk of its own
+   with utils/gcal-client.mjs (spec 149 C27) */
+const CalendarGcalBanner = defineAsyncComponent(() => import('~/components/CalendarGcalBanner.vue'))
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()

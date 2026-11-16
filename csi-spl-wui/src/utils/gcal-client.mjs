@@ -37,6 +37,17 @@ export function gcalView(status, err) {
   return status.status === 'revoked' || status.status === 'error' ? 'broken' : 'connected'
 }
 
+/**
+ * SPL-5719: the Calendar page's banner key for a GET answer: the status key
+ * of a broken connection ('gcal.status_revoked', 'gcal.status_error'), ''
+ * for none (no answer, not connected, connected).
+ * @param {any} status the GET body, null on a refusal
+ */
+export function gcalBannerKey(status) {
+  if (gcalView(status, null) !== 'broken') return ''
+  return status.status === 'revoked' ? 'gcal.status_revoked' : 'gcal.status_error'
+}
+
 /** The notice key for the callback's way back (?gcal=connected, ?gcal_error=<code>), '' for none. */
 export function gcalReturnNotice(query) {
   if (!query) return ''

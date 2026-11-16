@@ -141,9 +141,24 @@ row 02. No other file wastes a `wait_event` budget.
 ### 2.5 Row 01: `spl-standby-bench.tst.sh`, the case 8 fixture (n=5)
 
 Case 8 (`:177-183`) starts `sleep 30 | <stub> &` and later kills only the stub
-(`kill "$ctl"`). The `sleep 30` lives on, so the next case pays for it. In
-`stamp.sh` the 30 s shows as the gap before case 9's PASS line (A 23.2 -> 54.0 s,
-B 23.5 -> 24.6 s, n=1).
+(`kill "$ctl"`). Then `wait "$ctl"` (`:183`) waits for the whole pipeline job,
+so case 8 blocks until the `sleep 30` exits. In `stamp.sh` the 30 s shows as the
+gap before case 9's PASS line (A 23.2 -> 54.0 s, B 23.5 -> 24.6 s, n=1). Case 9
+prints the next line, but the wait is in case 8. v0.2 said the `sleep` outlived
+case 8; the agy seat (W1, `probe_r01.sh`) showed it does not.
+
+Re-run by the editor (v0.3, bash 5.2, n=1), a 3 s sleep in place of 30:
+
+    s=$SECONDS
+    sleep 3 | cat >/dev/null &
+    c=$!; sleep 0.2; kill "$c"
+    echo "before_wait_sleep_children=$(pgrep -P $$ -x sleep | wc -l)"
+    wait "$c"
+    echo "after_wait=$((SECONDS-s))s sleep_children_after=$(pgrep -P $$ -x sleep | wc -l)"
+
+-> `before_wait_sleep_children=1`, `after_wait=3s sleep_children_after=0`. So
+an assert placed after the `wait` sees 0 on today's code too, and row 01 puts it
+between the stop step and the `wait`.
 
 B1 = A with case 8's stub reading a fifo fed by `sleep 30 &` (`slp=$!`), and
 `kill "$ctl" "$slp"` (2 lines changed). `abpair.sh` starts A and B together
@@ -229,6 +244,15 @@ load 16.6..21.8:
   7 of 7 runs, and the two ranges do not overlap.
 - All pieces rc 0 in both arms. The probe times the whole pieces through
   `./run`. The part sources the two drift files in subshells instead.
+- `hygab.sh` checks each piece's rc only. It throws away stdout, so it does
+  not show that the part's output stays the same (agy seat W3 (2), grok seat
+  N5). The seats compared it. agy, with the part in-process
+  (`_pp_part_hygiene`, n=7): 25 lines byte-identical 7 of 7 (sha256
+  `f217040e`), and 6 of 6 clean, failing and unknown-base cases identical in
+  rc and in `dist -> drift -> qto` order. grok, through `./run` (n=5): 15
+  piece outputs the same. The editor did not re-run either check. Row 03's lane
+  compares the in-process part's stdout before and after (n>=5) on its own
+  tree.
 
 ## 3. Reads for R1 / R3
 

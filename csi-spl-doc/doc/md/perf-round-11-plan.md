@@ -24,8 +24,8 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.2 draft, not signed. The panel is placed by the dispatch holder
-(section 5).** Editor: c-430 (claude).
+**Status: v0.3 draft, not signed. It fixes the agy seat's FAIL on v0.2 and
+waits for both seats' delta review (section 9).** Editor: c-430 (claude).
 
 **Why now.** The holder's brief (c-002@sat, 2026-11-16 02:1xZ) gives two
 reasons:
@@ -109,9 +109,9 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 
 | # | id | practice | baseline on `6fcc711a9` (command, number, n) | after (probe, same n) | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 | `perf(p11-01-orc-standby-bench-case8-sleep)` | case 8's fixture stops all it started: today `sleep 30 \| <stub> &` and `kill "$ctl"` kill only the stub, and the `sleep 30` outlives the case, so the next case pays for it | `abpair.sh spl-standby-bench.tst.sh` arm A (editor 2.5): `bash orc/src/bash/tests/spl-standby-bench.tst.sh` over a tracked-file export: **54.2 s (median, n=5; 52.4..57.5)**, cpu 15.3..17.2 s, 41 PASS, rc 0 | arm B (the stub reads a fifo fed by `sleep 30 &`, and both pids are killed): **25.2 s (median, n=5; 22.4..29.0), -54%**, B faster than its paired A 5 of 5, cpu unchanged, 41 PASS, rc 0 | `orc/src/bash/tests/spl-standby-bench.tst.sh:177-183` (case 8); 1 edit range | the same file, new assert at the end of case 8: no process the case started is left (no `sleep` child of the test shell, e.g. `pgrep -P $$ -x sleep` prints nothing, or `env_idle` on the case's own sandbox value) -> **0** left (today **1**). Red: today's case 8 -> 1 `sleep` left, FAIL. Every existing case still passes (41 PASS), and case 8 still sees the live stub (`CONTROL: a live stub is seen`) | either fleet box | claude / simple_coding | 1, after R3 (below: ask about 64ca-t7 first) |
-| 02 | `perf(p11-02-orc-wd-multi-daemon-s9-settle)` | the S9 control waits on the event that ends the case (every detached restart it launched is gone), not on a count of 2 that the race makes 1 on most runs | `abpair.sh wd-multi-daemon.tst.sh` arm A (editor 2.6): **26.2 s median, 35.9 s mean (n=5; 22.7..55.2)**. The `settle 2` budget runs out in **8 of 12** arm-A runs across editor 2.2, 2.4 and 2.6, each about 30 s longer (51.9..80.5 s against 22.7..26.8 s); CI 59.1 s | arm B (`settle 1` on `:220`, the probe only): **23.5 s median and mean (n=5; 21.9..26.2)**; expected gain ~30 s x 8/12 = **~20 s per run**; 31 PASS, rc 0, both arms | `orc/src/bash/tests/wd-multi-daemon.tst.sh:220` (the S9 control's `settle 2`), and `settle` / `done_n` `:121-126` if the wait is rebuilt there; at most 2 edit ranges | the same file: every `settle` in the file fails the test when its budget runs out (`settle ... \|\| fail "<case>: settle timed out"`), so a wasted budget can no longer pass silently -> **0** timeouts over n=5 runs on the fixed file. Red: today's `settle 2` on the S9 control -> FAIL in the runs where one restart happens (8 of 12 here); the deterministic red is a planted `settle 3` on the same line -> FAIL every run. Unchanged and green: cases 1-5 (31 PASS); the comment at `:121-124` (gate run 37969307772, a restart still running when the next case resets) still holds | either fleet box | claude / simple_coding | 1, after R3 (below) |
-| 03 | `perf(p11-03-iac-hygiene-drift-beside-sweep)` | `_pp_part_hygiene` starts the two drift checks (`do_check_fleet_rules_drift`, `do_check_qto_doc_drift`) in the background, each writing its output and rc to its own temp file, runs `do_check_dist_hygiene` in the foreground, then waits and prints the two outputs in today's order. The part's rc folds the three as today. The three read the tree only, and none reads another's result | `hygab.sh <worktree> 7` arm A (editor 2.7): the three pieces one after the other, as today: **3,766 ms (median, n=7; 3,088..5,558)** | arm B: the two drift checks in the background beside the dist sweep: **2,002 ms (median, n=7; 1,663..2,512), -47%**, B below its paired A 7 of 7, ranges not overlapping, all pieces rc 0 | `iac/src/bash/run/check-pre-push.func.sh:492-508` (`_pp_part_hygiene`), its comment `:482-486` (its "~1 s", "under a second" and "~0.1 s" no longer hold: editor 2.7 measured 1.5..2.3 s, 1.0..1.7 s and 0.5..0.7 s, so the lane corrects them, C5); 1 edit range | new `iac/src/bash/tests/check-pre-push-hygiene-concurrent.tst.sh`: the three checks stubbed to a 3-way barrier (each waits, bounded, until 3 are in flight) -> **3** in flight, **0** timeouts (today **1**, every stub times out); one drift stub fails -> the part's rc is 1 and its output comes after the dist output, as today; a TERM to the part leaves no drift job running and no temp file. Red: today's part -> 1 in flight, FAIL. Also run and green: `check-commit-msg-hygiene.tst.sh` (its `part()` drives `_pp_part_hygiene`), `check-pre-push-override.tst.sh`, `check-pre-push-errexit.tst.sh`, `check-pre-push-orphan-pipe.tst.sh` (no background job may hold the part's tee pipe, SPL-3907), `check-pre-push.tst.sh` | either fleet box | claude / simple_coding (R9: a gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1, after R3 (below: ask c-396 first) |
+| 01 | `perf(p11-01-orc-standby-bench-case8-sleep)` | case 8's fixture stops all it started: today `sleep 30 \| <stub> &` and `kill "$ctl"` kill only the stub, and `:183`'s `wait "$ctl"` then waits for the whole pipeline job, so case 8 itself blocks until the `sleep 30` exits (agy seat W1; re-run by the editor, editor 2.5) | `abpair.sh spl-standby-bench.tst.sh` arm A (editor 2.5): `bash orc/src/bash/tests/spl-standby-bench.tst.sh` over a tracked-file export: **54.2 s (median, n=5; 52.4..57.5)**, cpu 15.3..17.2 s, 41 PASS, rc 0 | arm B (the stub reads a fifo fed by `sleep 30 &`, and both pids are killed): **25.2 s (median, n=5; 22.4..29.0), -54%**, B faster than its paired A 5 of 5, cpu unchanged, 41 PASS, rc 0 | `orc/src/bash/tests/spl-standby-bench.tst.sh:177-183` (case 8); 1 edit range | the same file, new assert in case 8 **between its stop step and its `wait`** (after the `wait` today's code also shows 0 left, so an assert there never turns RED): no process the case started is left, polled with a short bound, e.g. `wait_event 2 eval '[[ -z "$(pgrep -P $$ -x sleep)" ]]'`, and on failure the case kills what is left before it fails -> **0** left (today **1**). Red: today's case 8 (`kill "$ctl"` alone) -> 1 `sleep` left, FAIL within 2 s. Every existing case still passes (41 PASS), and case 8 still sees the live stub (`CONTROL: a live stub is seen`) | either fleet box | claude / simple_coding | 1, after R3 (below) |
+| 02 | `perf(p11-02-orc-wd-multi-daemon-s9-settle)` | the S9 control waits on the event that ends the case (every detached restart it launched is gone), not on a count of 2 that the race makes 1 on most runs | `abpair.sh wd-multi-daemon.tst.sh` arm A (editor 2.6): **26.2 s median, 35.9 s mean (n=5; 22.7..55.2)**. The `settle 2` budget runs out in **8 of 12** arm-A runs across editor 2.2, 2.4 and 2.6, each about 30 s longer (51.9..80.5 s against 22.7..26.8 s); CI 59.1 s | arm B (`settle 1` on `:220`, the probe only): **23.5 s median and mean (n=5; 21.9..26.2)**; expected gain ~30 s x 8/12 = **~20 s per run**; 31 PASS, rc 0, both arms | `orc/src/bash/tests/wd-multi-daemon.tst.sh:220` (the S9 control's `settle 2`) and `settle` / `done_n` `:121-126`; exactly these 2 edit ranges (agy seat W2) | the same file: `settle()` itself (`:126`) fails the test when its budget runs out, and so does any new wait at `:220`, so a wasted budget can no longer pass silently. The `\|\| fail` goes inside `settle()`, not at each of its 5 call sites (`:197,220,225,238,243`, which would be 4-6 edit ranges) -> **0** timeouts over n=5 runs on the fixed file. Red: today's `settle 2` on the S9 control -> FAIL in the runs where one restart happens (8 of 12 here); the deterministic red is a planted `settle 3` on the same line -> FAIL every run. Unchanged and green: cases 1-5 (31 PASS); the comment at `:121-124` (gate run 37969307772, a restart still running when the next case resets) still holds | either fleet box | claude / simple_coding | 1, after R3 (below) |
+| 03 | `perf(p11-03-iac-hygiene-drift-beside-sweep)` | `_pp_part_hygiene` starts the two drift checks (`do_check_fleet_rules_drift`, `do_check_qto_doc_drift`) in the background, each writing its output and rc to its own temp file, runs `do_check_dist_hygiene` in the foreground, then waits and prints the two outputs in today's order. The part's rc folds the three as today. The three read the tree only, and none reads another's result. The part stays in-process: `_pp_capture` (`:1083`) calls it inside `_pp_run_parts`, which owns the INT/TERM/HUP traps (`:1307-1328`), so section 4 sets how the part handles signals (agy seat W3) | `hygab.sh <worktree> 7` arm A (editor 2.7): the three pieces one after the other, as today: **3,766 ms (median, n=7; 3,088..5,558)** | arm B: the two drift checks in the background beside the dist sweep: **2,002 ms (median, n=7; 1,663..2,512), -47%**, B below its paired A 7 of 7, ranges not overlapping, all pieces rc 0. The seats measured it again: agy, the in-process part, **2,948 -> 1,899 ms (-35.6%, n=7)**, 25 output lines byte-identical 7 of 7; grok, through `./run`, **6,482 -> 3,421 ms (-47.2%, n=5)** at load 44..47, piece outputs the same | `iac/src/bash/run/check-pre-push.func.sh:492-508` (`_pp_part_hygiene`), its comment `:482-486` (its "~1 s", "under a second" and "~0.1 s" no longer hold: editor 2.7 measured 1.5..2.3 s, 1.0..1.7 s and 0.5..0.7 s, so the lane corrects them, C5); 1 edit range | new `iac/src/bash/tests/check-pre-push-hygiene-concurrent.tst.sh`: the three checks stubbed to a 3-way barrier (each waits, bounded, until 3 are in flight) -> **3** in flight, **0** timeouts (today **1**, every stub times out); one drift stub fails -> the part's rc is 1 and its output comes after the dist output, as today; a TERM to the part leaves no process of a drift job running (the job's whole tree, e.g. `python3` in `check-qto-doc-drift.func.sh`, or a stub's `sleep`) and no temp file, and the caller's INT/TERM/HUP traps are the same after the part as before it. The TERM case signals the part's process tree (`_pp_proc_tree`, `stop-pre-push.func.sh:25`), or the foreground stub runs `sleep 30 & wait $!`, so bash does not hold the TERM until a foreground child exits. Red: today's part -> 1 in flight, FAIL. Also run and green: `check-commit-msg-hygiene.tst.sh` (its `part()` drives `_pp_part_hygiene`), `check-pre-push-override.tst.sh`, **`check-pre-push-errexit.tst.sh`**, **`check-pre-push-orphan-pipe.tst.sh`** (no background job may hold the part's tee pipe, SPL-3907), `check-pre-push.tst.sh`, and the other tests that read `check-pre-push.func.sh` (agy seat N1): **`check-pre-push-budget-table.tst.sh`** (`:39` lists every `^_pp_part_` function, so a new helper is named `_pp_hygiene_*`, never `_pp_part_*`), **`check-pre-push-verdict-forks.tst.sh`**, **`check-pre-push-pnpm-noninteractive.tst.sh`**, **`bash-cleancode.tst.sh`** (`MAX_LINES=75`), `check-pre-push-tree-pass.tst.sh`, `stop-pre-push.tst.sh` | either fleet box | claude / simple_coding (R9: a gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1, after R3 (below) |
 
 Rows 01-03 are all claude. Two rules require it: rulebook R14 (an established
 vendor for every row) and the owner's 10-17 rule (no mistral coding or
@@ -124,14 +124,15 @@ testing).
   - 01: `spl-standby-bench.tst.sh`.
   - 02: `wd-multi-daemon.tst.sh`.
   - 03: `check-pre-push.func.sh` and the new `check-pre-push-hygiene-concurrent.tst.sh`.
-- No row file is a file of an unlanded round row. r58-08 holds
-  `iac/src/bash/tests/bash-cleancode.tst.sh`. r59-06 holds
+- No row file is a file of an unlanded round row. r59-06 holds
   `csi-spl-api/src/go/spool-hub-api/internal/cleancode/cleancode_test.go` and
-  the WUI cleancode list.
+  the WUI cleancode list. r58-08 (`bash-cleancode.tst.sh`) has landed since
+  v0.2 (`c1a54b63f`). Row 03 only runs that test (section 3); it does not edit it.
 - No row file is a file of the live ci50 lanes the holder's brief names:
   - `hub-pg*.tst.sh`, `*-pg-groups.inc.sh` (SPL-5654)
   - `report-ci-gate.func.sh` (SPL-5659)
-  - `check-pre-push-features.func.sh` (SPL-5669)
+  - `check-pre-push-features.func.sh` (SPL-5669, landed since v0.2 as
+    `9499333c1`)
   - `spl-review-go.func.sh` (SPL-5670)
   - `spl-spawn-enqueue.func.sh`, `spl-spawn-queue.func.sh` (c-427)
 
@@ -156,6 +157,22 @@ Read on 2026-11-16, each with its time:
 
   Exit 4 is not free. The R3 check before each spawn re-reads the map and asks
   any lane that is still unknown.
+- **Lane map again, for v0.3** (05:07:34Z, on `origin/master` `0a6e9d22e`):
+  `lane-map.sh --check <the three row files and the new row 03 test> --agent
+  c-430` -> exit 4, `0` lines `owned by`, `12` lines `unknown:`, all on sat:
+  - 7 rotation seats: c-193, c-197, c-664, c-762, g-293, g-416, g-425.
+  - c-326 (`64ca-t10-fewer-rollouts-one-login`), c-426 (`64ca-t6-lease-real-outage`),
+    c-428 (`64ca-t3-rotate-streak-per-role`), c-432
+    (`64ca-t5-review-seat-past-overflow`), c-433 (`64ca-t7-bench-back-one-post`).
+  - c-361 and c-396 are gone from the map. c-396's SPL-5669 landed as
+    `9499333c1`. It touches `check-pre-push-features.{func,tst}.sh` and
+    `pre-push-gate.md`, not a row file.
+- **The holder's answers** (c-002@sat, 03:0xZ, from the sat briefs): 64ca-t7
+  (now live as c-433@sat) touches `spl-dispatch-lease.func.sh` and
+  `fleet-lease.tst.sh`, not row 01's file. 64ca-t9 adds a new read-only
+  `csi-spl-utl` action and cnf, no row file. c-426, c-428 and c-432 started
+  after that read; their briefs are on sat, and the holder reads them before
+  the batch spawns.
 - **Spawn queue** (02:45:29Z, `ENV=prd SPAWN_QUEUE_SHARE=0 ./run -a
   do_spl_spawn_queue`) -> `19 queued, 1 placing`. None of the queued briefs is
   on this box, so their files were not readable here. Two slugs may touch a row
@@ -172,6 +189,8 @@ Read on 2026-11-16, each with its time:
   - landed: r57-01..06, r58-01..07, r59-01..05, p10-01..02.
   - not landed: r58-08 (`bash-cleancode.tst.sh`) and r59-06 (the Go and WUI
     cleancode lists). No row here touches them (3.1).
+  - re-read for v0.3 on `0a6e9d22e`: r58-08 landed (`c1a54b63f`); r59-06 and
+    r60 still 0 lines.
 - **Slug** (02:45:45Z): `git log origin/master --oneline -E --grep='\(p11-'` -> 0
   lines.
 
@@ -184,19 +203,36 @@ Read on 2026-11-16, each with its time:
     is the probe's: a fifo fed by `sleep 30 &` with its pid kept, and both pids
     killed. Another is to read the pipeline's first pid and kill both. The lane
     picks one and says why in a comment.
-  - Today's leftover costs about 30 s: the gap before case 9's PASS line (editor
-    2.5). The lane finds what case 9's `$(bench ...)` waits on and names it in
-    the comment above case 8.
+  - Today's leftover costs about 30 s, inside case 8 itself: `kill "$ctl"`
+    stops only the stub, and `wait "$ctl"` (`:183`) then waits for the whole
+    pipeline job until the `sleep 30` exits (agy seat W1; editor 2.5 re-ran it
+    with a 3 s sleep). The `sleep 30` does not reach case 9. v0.2 said it did,
+    and asked the lane to name what case 9 waits on; that step is gone. The
+    comment above case 8 names the real wait: `wait` on a pipeline's `$!`
+    waits for every process of the job.
+  - The new assert goes between the stop step and the `wait`, with a short
+    bound (`wait_event 2`), and cleans up before it fails. After the `wait`,
+    today's code shows 0 left too, so an assert placed there never turns RED.
   - The lane re-runs `abpair.sh` (n=5) on its tree and states 41 PASS in both
     arms.
 - **02**: the S9 control (`:218-222`) launches one or two detached restarts,
   depending on how the two instances race without the judge lock (8 of 12 runs:
   one).
   - The case waits on the event that ends it: every restart it launched has
-    finished. Use `env_idle` (`orc/src/bash/tests/wait-event.inc.sh`, "every
-    process a sandboxed call left behind has ended") on the sandbox's own value,
-    or `settle` on the count of `takeover` lines the case wrote. It must not
-    wait for a fixed 2.
+    finished. Use `wait_event 30 env_idle "SPOOL_ROOT=$S"`
+    (`orc/src/bash/tests/wait-event.inc.sh:35`, "every process a sandboxed
+    call left behind has ended"). The case may also count the judge's own
+    `TAKEOVER c-952 S9` log lines, which `spl_wd_log` writes before it starts
+    the detached restart (`spl-watchdog.func.sh:1709`), and assert at least 1.
+    It must not wait for a fixed 2.
+  - It must not count `$T/takeovers`. The detached restart writes that file
+    itself (`setsid $WD_TAKEOVER_CMD`, `spl-watchdog.func.sh:1711`), so when
+    `both 1 2` returns at `:220` it can still hold 0 lines, or 1 of 2 under
+    load. A count of 0 passes at once and re-opens gate run 37969307772 (agy
+    seat W2).
+  - The `|| fail` for a spent budget goes inside `settle()` (`:126`), and into
+    any new wait at `:220`. Then only `:121-126` and `:220` change, 2 edit
+    ranges.
   - It must still keep the guard the comment at `:121-124` records: a restart
     still running when the next case resets the box lands in the new
     `rotate.log` (gate run 37969307772).
@@ -215,14 +251,35 @@ Read on 2026-11-16, each with its time:
   - The jobs write to files, never to the part's stdout. So no background job
     holds the tee pipe that `_pp_capture` drains (SPL-3907,
     `check-pre-push-orphan-pipe.tst.sh`).
-  - On HUP, INT or TERM the part stops its own two jobs (its own children only)
-    and removes the dir, as p10-01 does for the Sweep step.
+  - Signals (agy seat W3). p10-01 ran its Sweep as a separate `bash` process.
+    This part runs **in-process**: `_pp_capture` (`:1083`) calls it inside
+    `_pp_run_parts`, which sets its own INT/TERM/HUP traps (`:1307-1328`). So
+    the part:
+    - has no outer `( ... )` subshell, which would break the caller's
+      `_pp_part_hygiene & p=$!; kill -TERM "$p"`;
+    - sets no `EXIT` trap, which would replace the caller's;
+    - saves `$(trap -p HUP INT TERM)` first and puts it back after;
+    - keeps the two job pids (`j1`, `j2`);
+    - on a signal, stops each job's whole process tree (`_pp_proc_tree`,
+      `stop-pre-push.func.sh:25`, or a walk of its children; `kill "$j1"
+      "$j2"` alone leaves the `python3` of `check-qto-doc-drift.func.sh:78,89`
+      running), removes the dir, then hands the signal to the caller's saved
+      handler.
+  - A helper the lane adds is named `_pp_hygiene_*`, never `_pp_part_*`:
+    `check-pre-push-budget-table.tst.sh:39` lists every `^_pp_part_` function
+    as a part (agy seat N1). The part stays within `bash-cleancode.tst.sh`'s
+    `MAX_LINES=75`.
   - `do_check_dist_hygiene` stays in the foreground: the caller's
     `HYGIENE_MSG_RANGES` warning line and its output come first, as today.
   - The comment above the part says the three run at once, why (three reads of
     one tree, none reads another's result) and that the output order is kept.
   - The lane re-runs `hygab.sh` (n=7) and also the real part through
     `do_check_pre_push` on its tree, and states the PART line and its verdict.
+    It also compares the in-process part's stdout before and after (n>=5),
+    which `hygab.sh` does not do (editor 2.7). The agy seat's in-process
+    probe measured **2,948 -> 1,899 ms (-35.6%, n=7)**, 25 lines
+    byte-identical 7 of 7. `hygab.sh` runs the pieces through `./run`, which
+    is why it reads higher (3,766 -> 2,002 ms).
 
 <a id="p11-panel"></a>
 ## 5. Panel and reviewers (R7)
@@ -238,7 +295,7 @@ agy (the holder's brief).
   holder for one **grok** seat and one **agy** seat. The agy seat goes
   on the desk box, where agy runs, so the panel signs without needing agy on
   sat. Each seat signs the plan sha in `perf-round-11/seat-<vendor>.md`.
-  Placed: none yet.
+  Placed by the holder: grok g-474 and agy a-483, both on the desk box (section 9).
 - **Row reviewers (2.7.2)**: every row's author is claude, so the grok seat is
   the primary reviewer. The backup is the agy seat or a second grok seat (mistral
   code reviews are paused). A row never pushes without that PASS (2.7.3).
@@ -285,12 +342,29 @@ branch, as in rounds 8 to 10. From then on the Qto doc is the primary copy.
 - v0.2 (c-430, 2026-11-16): the measurement window is 02:44Z-02:51Z (from the
   probe files' times; v0.1 said 02:47Z-03:05Z); section 5 names no fixed holder.
   No row, number or mechanism changed.
+- v0.3 (c-430, 2026-11-16): fixes the agy seat's W1-W3 and takes in N1-N3
+  (seat-agy.md on `e30c18dfc`). No row added or dropped; no baseline changed.
+  - W1, row 01: the 30 s is spent inside case 8 (`wait "$ctl"` waits for the
+    pipeline's `sleep 30`), not in case 9. The assert moves to between case 8's
+    stop step and its `wait`. The "find what case 9 waits on" step is gone.
+  - W2, row 02: the wait is `env_idle` on the sandbox, or the judge's own
+    `TAKEOVER` log count, never `$T/takeovers` (written by the detached
+    child). `|| fail` goes inside `settle()`, so 2 edit ranges.
+  - W3, row 03: the part stays in-process, sets no `EXIT` trap, saves and puts
+    back the caller's traps, and stops each drift job's whole tree. The TERM
+    test signals the tree. The lane compares the part's stdout before and
+    after.
+  - N1: the other tests that read `check-pre-push.func.sh` are listed, and
+    helpers are named `_pp_hygiene_*`. N2: R3 re-read on `0a6e9d22e`
+    (section 3.2). N3: section 9 fixed; the in-process numbers are in row 03.
+  - The grok seat's notes N1-N5 (seat-grok.md on `12f8f85c9`) asked for no
+    change. Its N3 and N4 match section 3.2 and section 4 row 02.
 
 <a id="p11-consensus"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-430 (editor) | claude | v0.1 | author |
-| grok seat | grok | - | not placed yet |
-| agy seat | agy | - | not placed yet |
+| c-430 (editor) | claude | v0.3 | author |
+| g-474 (grok seat) | grok | `bd4b42a37` (v0.2) | PASS, defects none, notes N1-N5 (`seat-grok.md`, `12f8f85c9`); delta review of v0.3 pending |
+| a-483 (agy seat) | agy | `bd4b42a37` (v0.2) | FAIL, W1-W3 + N1-N3 (`seat-agy.md`, `e30c18dfc`); fixed in v0.3, delta review pending |

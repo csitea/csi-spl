@@ -18,6 +18,12 @@
 #      line fails check; remove restores the crontab byte for byte
 #   8. read-only: the action never kills or renices
 #   9. through the csi-spl-utl ./run harness
+#  10. a reaped child is counted once (R7 W1): a child at 100 % for 300 s,
+#      then reaped, reports 300 core-s, not 600; nested (grandchild reaped by
+#      the child, the child by the pane shell) also 300, not 900
+#  11. check / install WARN when the user sees no tmux pane (R7 N1); cron.out
+#      is cut to BOX_PROC_OUT_LINES (N2); a pid gone before its cmdline is
+#      read prints nothing on stderr (N3)
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -176,6 +182,53 @@ out="$(cd "$UTL_ROOT" && BOX_PROC_ROOT="$P" BOX_PROC_DIR="$T/run-out" BOX_PROC_P
   SPOOL_TEST=1 SPOOL_DESK_BOX=box ./run -a do_box_proc_sample 2>&1)"; rc=$?
 [[ $rc == 0 && ! -e "$T/run-out" ]] && grep -q 'no previous sample' <<<"$out" &&
   pass "9. ./run -a do_box_proc_sample: dry run, exit 0, nothing written" || fail "9. harness (rc $rc): $out"
+
+# 10. a reaped child counted once ----------------------------------------------
+# reap_report <name> <steps...>: one sample per step, then the top lane; a step is "<t offset>|<mkproc args;...>|<gone pids>"
+reap_report() {
+  local name="$1" step off procs gone a list
+  P="$T/proc-$name"; rm -rf "$P"; mkdir -p "$P"
+  shift
+  for step in "$@"; do
+    IFS='|' read -r off procs gone <<<"$step"
+    for a in $gone; do rm -rf "${P:?}/$a"; done
+    IFS=';' read -r -a list <<<"$procs"
+    for a in "${list[@]}"; do [[ -n "$a" ]] && eval "mkproc $a"; done
+    box $((1000 + HZ * off)) $((9000 + HZ * off)) 1.00 4194304
+    run_bp BOX_PROC_ROOT="$P" BOX_PROC_DIR="$T/out-$name" DRY_RUN=0 BOX_PROC_NOW=$((1700000000 + off)) >/dev/null
+  done
+  run_bp BOX_PROC_ROOT="$P" BOX_PROC_DIR="$T/out-$name" BOX_PROC_CMD=report BOX_PROC_NOW=1700001000 |
+    grep -A1 '^top by CPU' | tail -n 1
+}
+out="$(reap_report flat \
+  "0|200 1 1000 0 0 1 1000 0 bash bash;500 200 1100 0 0 1 1000 0 make make|" \
+  "300|500 200 1100 $((HZ * 300)) 0 1 1000 0 make make|" \
+  "600|200 1 1000 0 $((HZ * 300)) 1 1000 0 bash bash|500")"
+[[ "$out" =~ ^\ +300\ core-s\ +100.0%\ +c-123@box$ ]] &&
+  pass "10. a child 300 s at 100 %, then reaped: 300 core-s, not 600" || fail "10. flat: '$out'"
+out="$(reap_report nested \
+  "0|200 1 1000 0 0 1 1000 0 bash bash;500 200 1100 0 0 1 1000 0 make make;501 500 1200 0 0 1 1000 0 go go|" \
+  "300|501 500 1200 $((HZ * 300)) 0 1 1000 0 go go|" \
+  "600|500 200 1100 0 $((HZ * 300)) 1 1000 0 make make|501" \
+  "900|200 1 1000 0 $((HZ * 300)) 1 1000 0 bash bash|500")"
+[[ "$out" =~ ^\ +300\ core-s\ +100.0%\ +c-123@box$ ]] &&
+  pass "10. nested: grandchild reaped by the child, the child by the shell: 300, not 900" || fail "10. nested: '$out'"
+P="$T/proc"
+
+# 11. notes N1..N3 ------------------------------------------------------------------
+cp "$T/crontab.inst" "$CT"
+out="$(cr BOX_PROC_CMD=check BOX_PROC_PANES_CMD=true)"; rc=$?
+[[ $rc == 0 ]] && grep -q "^WARN .* sees no tmux pane" <<<"$out" &&
+  pass "11. N1: check warns when this user sees no tmux pane" || fail "11. N1 (rc $rc): $out"
+out="$(cr BOX_PROC_CMD=check)"
+! grep -q 'WARN' <<<"$out" && pass "11. N1: no warning when panes are seen" || fail "11. N1 quiet: $out"
+mkdir -p "$T/out"; seq 1 50 >"$T/out/cron.out"
+cp "$T/state.t0" "$T/out/state.tsv"
+run_bp DRY_RUN=0 BOX_PROC_NOW=1700000300 BOX_PROC_OUT_LINES=10 >/dev/null
+[[ "$(wc -l <"$T/out/cron.out")" == 10 && "$(tail -n 1 "$T/out/cron.out")" == 50 ]] &&
+  pass "11. N2: cron.out cut to its last BOX_PROC_OUT_LINES" || fail "11. N2: $(wc -l <"$T/out/cron.out") lines"
+err="$(bash -c 'do_log() { :; }; source "'"$FUNC_SH"'"; box_proc_args "'"$P"'" 99999' 2>&1 >/dev/null)"
+[[ -z "$err" ]] && pass "11. N3: a gone pid's cmdline prints nothing on stderr" || fail "11. N3: $err"
 
 echo "box-proc-sample: $fails failure(s)"
 [[ "$fails" -eq 0 ]]

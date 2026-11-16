@@ -16,14 +16,22 @@
 # @description own_pct over every process alive at both ends; the gap is CPU of
 # @description processes born and gone inside the interval. own_pct is the
 # @description process's own CPU, child_pct the CPU of its children that ended
-# @description inside the interval (their whole life: cutime + cstime). lane is
+# @description inside the interval (cutime + cstime), less what earlier rows
+# @description already showed of a child alive at the previous sample, so a
+# @description reaped child is counted once, not once per level. lane is
 # @description the first word of the tmux window the process runs under (its
 # @description ancestors are walked up to a pane), so an agent's builds and
 # @description tests count against its window.
+# @description Children reparented to pid 1 or a subreaper are reaped there, so
+# @description their CPU lands on lane "-" (e.g. -/root/systemd): mostly lane work.
 # @description BOX_PROC_CMD=report prints the last BOX_PROC_HOURS: load p50 /
 # @description p95 / max and as % of the CPUs, busy, swap, and the top lanes by
 # @description core-seconds and by peak RSS + swap. install | check | remove
-# @description manage ONE tagged crontab line (`# <org>-<app>:box-proc-sample`).
+# @description manage ONE tagged crontab line (`# <org>-<app>:box-proc-sample`)
+# @description in the CALLING user's crontab: install it as the user that owns
+# @description the agents' tmux server (the box's harness user), since the lane
+# @description comes from that user's default tmux socket; check warns when it
+# @description sees no pane. cron.out is cut to its last BOX_PROC_OUT_LINES.
 # @description READ-ONLY on the box: it never kills, renices or changes a
 # @description process. A sample writes only its own files (DRY_RUN=0) and
 # @description removes its files older than BOX_PROC_KEEP_DAYS; the dry run
@@ -35,6 +43,7 @@
 # @param BOX_PROC_TOP_MEM (optional) - proc rows kept by RSS + swap, default 15
 # @param BOX_PROC_KEEP_DAYS (optional) - days of files kept, default 14
 # @param BOX_PROC_EVERY (optional) - cron minutes between samples, default 5
+# @param BOX_PROC_OUT_LINES (optional) - lines of cron.out kept, default 2000
 # @param BOX_PROC_ROOT (optional) - the proc root (tests), default /proc
 # @param BOX_PROC_PANES_CMD (optional) - prints "<pane pid> <window name>" rows,
 # @param   default tmux list-panes -a
@@ -90,13 +99,17 @@ box_proc_lanes() {
 # "#sum <own_pct sum>"
 box_proc_delta() {
   awk -F'\t' -v iv="$4" -v hz="$5" -v pkb="$6" '
-    FILENAME == ARGV[1] { if ($1 !~ /^#/) { po[$1 "/" $3] = $4; pc[$1 "/" $3] = $5 } next }
+    FILENAME == ARGV[1] { if ($1 !~ /^#/) { po[$1 "/" $3] = $4; pc[$1 "/" $3] = $5; ppo[$1 "/" $3] = $2 } next }
     FILENAME == ARGV[3] { split($0, a, " "); pane[a[1]] = a[2]; next }
-    { n++; row[n] = $0; pp[$1] = $2 }
+    { n++; row[n] = $0; pp[$1] = $2; alive[$1 "/" $3] = 1 }
     END {
+      # a child seen at the previous sample and gone now: its parent'"'"'s cutime
+      # delta holds its whole life, but rows already showed own + child up to
+      # then; charge the parent only the rest (SPL-5698 W1)
+      for (k in po) if (!(k in alive)) seen[ppo[k]] += po[k] + pc[k]
       for (i = 1; i <= n; i++) {
         split(row[i], r, "\t"); key = r[1] "/" r[3]
-        if (key in po) { own = r[4] - po[key]; ch = r[5] - pc[key]; old = 1 } else { own = r[4]; ch = 0; old = 0 }
+        if (key in po) { own = r[4] - po[key]; ch = r[5] - pc[key] - seen[r[1]]; old = 1 } else { own = r[4]; ch = 0; old = 0 }
         if (own < 0) own = 0
         if (ch < 0) ch = 0
         lane = "-"; q = r[1]
@@ -120,7 +133,7 @@ box_proc_top() {
 # box_proc_args <proc root> <pid> - the command line, 160 chars, tab-free
 box_proc_args() {
   local a
-  a="$(tr '\0\t\n' '   ' <"$1/$2/cmdline" 2>/dev/null)"
+  a="$({ tr '\0\t\n' '   ' <"$1/$2/cmdline"; } 2>/dev/null)"
   a="${a% }"
   printf '%s' "${a:0:160}"
 }
@@ -179,6 +192,14 @@ box_proc_write() {
     mv -f "$dir/state.tsv.new" "$dir/state.tsv" || { do_log "FATAL cannot write $dir/state.tsv"; return 1; }
   find "$dir" -maxdepth 1 -type f \( -name 'box-*.tsv' -o -name 'proc-*.tsv' \) \
     -mtime "+${BOX_PROC_KEEP_DAYS:-14}" -delete 2>/dev/null || true
+  box_proc_trim_out "$dir/cron.out" "${BOX_PROC_OUT_LINES:-2000}"
+}
+
+# box_proc_trim_out <file> <lines> - keep the last <lines> of the cron log
+box_proc_trim_out() {
+  [[ -f "$1" ]] && (($(wc -l <"$1") > $2)) || return 0
+  tail -n "$2" "$1" >"$1.new" && cat "$1.new" >"$1"
+  rm -f "$1.new"
 }
 
 # box_proc_sample <dir> - one sample (see the header)
@@ -257,7 +278,7 @@ box_proc_report_box() {
 
 # box_proc_report_lanes <proc rows> - the top lanes by core-seconds and by peak memory
 box_proc_report_lanes() {
-  echo "top by CPU (core-seconds over the kept rows, a lower bound; key = lane, else user/comm):"
+  echo "top by CPU (core-seconds over the kept rows, a lower bound: only the top-N rows of each sample; key = lane, else user/comm):"
   awk -F'\t' '{ k = ($6 != "-") ? $6 : $5 "/" $11; cs[k] += ($7 + $8) / 100 * $3; all += ($7 + $8) / 100 * $3 }
     END { for (k in cs) printf "%.0f\t%.1f\t%s\n", cs[k], (all ? 100 * cs[k] / all : 0), k }' "$1" |
     sort -t$'\t' -k1,1gr | awk -F'\t' 'NR <= 15 { printf "  %8s core-s  %5s%%  %s\n", $1, $2, $3 }'
@@ -265,6 +286,12 @@ box_proc_report_lanes() {
   awk -F'\t' '{ k = ($6 != "-") ? $6 : $5 "/" $11; m[$1 SUBSEP k] += $9 + $10; key[$1 SUBSEP k] = k }
     END { for (x in m) if (m[x] > pk[key[x]]) pk[key[x]] = m[x]; for (k in pk) printf "%.0f\t%s\n", pk[k], k }' "$1" |
     sort -t$'\t' -k1,1gr | awk -F'\t' 'NR <= 10 { printf "  %8s MB  %s\n", $1, $2 }'
+}
+
+# box_proc_warn_panes - WARN when this user sees no tmux pane (every lane "-")
+box_proc_warn_panes() {
+  [[ -n "$(box_proc_lanes)" ]] && return 0
+  do_log "WARN $(id -un) sees no tmux pane, so every lane reads '-': install the cron as the user that owns the agents' tmux server"
 }
 
 # box_proc_cron <act> <dir> <app> <org> - install | check | remove the tagged line
@@ -280,10 +307,12 @@ box_proc_cron() {
   if [[ "$act" == check ]]; then
     [[ -z "$have" ]] && { do_log "FAIL the box-proc-sample cron is NOT installed (no line tagged $tag)"; return 1; }
     [[ "$have" == "$line" ]] || { do_log "FAIL the box-proc-sample line differs: have: $have want: $line"; return 1; }
+    box_proc_warn_panes
     do_log "OK the box-proc-sample cron is installed: $have"; return 0
   fi
   next="$(awk -v t=" # $tag" '!(length($0) >= length(t) && substr($0, length($0) - length(t) + 1) == t)' <<<"$cur")"
   [[ "$act" == install ]] && next="${next:+$next$'\n'}$line"
+  [[ "$act" == install ]] && box_proc_warn_panes
   [[ "$next" == "$cur" ]] && { do_log "OK nothing to change: the crontab already reads as wanted ($act)"; return 0; }
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     diff <(printf '%s\n' "$cur") <(printf '%s\n' "$next") || true

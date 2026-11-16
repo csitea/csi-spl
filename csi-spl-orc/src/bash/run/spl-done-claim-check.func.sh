@@ -158,9 +158,16 @@
 # @description     of do_spl_lane_issue: on it, landed. Such a repo's clone
 # @description     (a listed or named path whose basename is its name) runs
 # @description     no git command; gh failing is unchecked, never an alert
+# @description   - SPL-5724 (c-001 checks 9cdfc92e, 5f28a9ab on c-717's qto
+# @description     doc results, 11-16): a result with NO sha that names its
+# @description     doc-store doc by a label ("doc id <uuid>", "qto doc <8
+# @description     hex>", a line "doc: <id>"; spec 113: the DB is the
+# @description     source, no commit) is verdict doc: ledger, no note. Free
+# @description     prose never decides it; a doc label beside a sha leaves
+# @description     the sha judged as before
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
 # @description TSV row per decided message (msg_id, lane, landed | rewritten |
-# @description seat | pending | unchecked | review | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
+# @description seat | pending | unchecked | review | doc | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
 # @description fetches but sends nothing and writes no ledger.
 # @param DRY_RUN (optional) - 0 sends the notes and writes the ledger; default 1
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
@@ -204,13 +211,15 @@ do_spl_done_claim_check() {
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
   spl_done_claim_seats "$root" "$tmp/repos" >"$tmp/seats"
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
-  local id from ts task body shas bad unchk rv verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0 n_unchk=0 n_rev=0
+  local id from ts task body shas bad unchk rv verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0 n_unchk=0 n_rev=0 n_doc=0
   while IFS=$'\t' read -r id from ts task body; do
     cp "$tmp/repos" "$tmp/r" && spl_done_claim_named "$body" "$tmp/repos" "$tmp/gh" >>"$tmp/r"
     shas="$(spl_done_claim_notes "$tmp/r" "$(spl_done_claim_shas "$body" "$tmp/r")")"
     bad="" unchk="" rv=""
     if spl_done_claim_r7 "$body" || grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
+    elif [[ -z "$shas" ]] && spl_done_claim_doc "$body"; then
+      verdict=doc; n_doc=$((n_doc + 1))
     elif bad="$(spl_done_claim_missing "$tmp/r" "$shas" "$tmp/gh" "$tmp/unchk")" && [[ -n "$shas" && -z "$bad" ]]; then
       verdict=landed; n_ok=$((n_ok + 1))
     elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/r" "$bad")" == "$bad" ]] &&
@@ -241,9 +250,9 @@ do_spl_done_claim_check() {
   done <"$tmp/due"
   if [[ "$dry" == 0 ]]; then
     spl_done_claim_prune "$state/seen.tsv" "$((now - 2 * hours * 3600))"
-    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert alerted to $to, $n_rev on a review branch"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert alerted to $to, $n_rev on a review branch, $n_doc doc-store"
   else
-    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert would alert, $n_rev on a review branch (DRY_RUN=1: nothing sent, no ledger)"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert would alert, $n_rev on a review branch, $n_doc doc-store (DRY_RUN=1: nothing sent, no ledger)"
   fi
   rm -rf "$tmp"
   return $rc
@@ -752,6 +761,17 @@ spl_done_claim_rewrite() {
       awk -v lo="$3" -v re="$keys" '$1 + 0 >= lo + 0 && $0 ~ re { print $2 }')"$'\n'
   done <"$1"
   [[ "$(grep -c . <<<"$(sort -u <<<"$hits")")" == 1 ]]
+}
+
+# spl_done_claim_doc <body>: true when <body> (lines split on \x1f) names a
+# doc-store doc by a label (SPL-5724, c-717's 7bbd40b6 and de8b6dec: a qto
+# doc, "the DB is the source", spec 113): "doc id" / "doc-id" / "qto doc
+# [id]" before a UUID or its 8-hex head, or a line that starts "doc:" with
+# one. Asked only of a result with no sha; free prose never decides it.
+spl_done_claim_doc() {
+  local id='[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9a-f]{8}' end='([^[:alnum:]-]|$)'
+  grep -qiE "(^|[^[:alnum:]_-])(qto doc( id)?|doc[ _-]id)[[:space:]:*_\`]*($id)$end|^[[:space:]>*_\`-]*doc:[[:space:]*_\`]*($id)$end" \
+    <<<"${1//$'\037'/$'\n'}"
 }
 
 # spl_done_claim_r7 <body>: true when the first non-blank line of <body> (lines

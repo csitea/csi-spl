@@ -1019,4 +1019,36 @@ v="$(for k in gh25 unk25 body25 own25; do printf '%s=%s ' "$k" "$(verdict $k)"; 
   fail "25. gh down (rc $rc) got '$v': $(cat "$T/o")"
 rm -f "$T/stub/gh"
 
+# 26. SPL-5724 (c-001 checks 9cdfc92e, 5f28a9ab, 11-16, n=2 of one lane:
+# c-717's results 7bbd40b6 and de8b6dec claimed a qto doc, "No git commit
+# (spec 113: the DB is the source)", and read "no sha not in the
+# repository"; their shapes here): a result with no sha that names its doc
+# by a label (`doc id <uuid>`, `qto doc <8 hex>`, a `doc:` line) is verdict
+# doc: ledger, no note. With no such label, or with a sha off trunk, it
+# alerts as before; a doc label never hides a sha claim.
+SP="$T/spool26"
+mkdir -p "$SP"
+DOCID=341eab79-a703-43d3-8c81-f9b64858bd07
+msg c-002/archive doc1 c-717 c-002 30 "c-717 (SPL-9101) DONE, verified: the csitea Qto doc **\"Billing: how it works\"**, doc id \`$DOCID\`, workspace csitea, prd.
+No git commit (spec 113: the DB is the source)."
+msg c-002/archive doc2 c-717 c-002 30 "csitea Qto doc ${DOCID:0:8} billing how-to written (1, 1.1-1.5); SPL-9101 done, no commit
+sha: none
+detail: /var/spool-hub/reports/c-717.md"
+msg c-002/archive doc3 c-718 c-002 30 "- doc: $DOCID
+written, no commit"
+msg c-002/archive doctxt c-719 c-002 30 "the doc is written in the doc store, no commit (spec 113)"
+msg c-002/archive docsha c-720 c-002 30 "doc id $DOCID written; landed ${NOB20:0:9}"
+run DONE_CLAIM_STATE_DIR="$T/st26"; rc=$?
+v="$(for k in doc1 doc2 doc3 doctxt docsha; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "doc1=doc doc2=doc doc3=doc doctxt=would-alert docsha=would-alert " ] &&
+  grep -q '^doc1	c-717	doc	no-sha$' "$T/o" && grep -q '^OK done-claim-check: .* 2 would alert, .*, 3 doc-store' "$T/o" &&
+  pass "26. SPL-5724: a no-sha result naming its doc by a label (doc id <uuid>, Qto doc <8 hex>, a doc: line) is doc; prose without a label, and a doc id beside an unpushed sha, would alert" ||
+  fail "26. doc store (rc $rc) got '$v': $(cat "$T/o")"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st26"; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 2 ] && ! grep -q 'c-717\|c-718' "$T/calls.log" &&
+  grep -q "c-719 result doctxt .*: no sha not in the repository$" "$T/calls.log" &&
+  [ "$(grep -c '	doc	' "$T/st26/seen.tsv")" = 3 ] &&
+  pass "26. DRY_RUN=0: no note for the three doc-store results (ledger: doc); the unlabelled no-sha result and the doc id beside an unpushed sha each get their note" ||
+  fail "26. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
 exit "$fails"

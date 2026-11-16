@@ -895,6 +895,23 @@ after a switch.
   menu's words match only as its numbered option line, not quoted in a log.
   Tests: `dispatch-rotate.tst.sh` case 19, SPL-4728;
   `spawn-agents/tests/test-start-check.sh`.
+- **C5 the weekly % before a successor** (`spl_rotate_weekly_first`,
+  rotate-lib; the last step of `spl_disp_vendor` and
+  `spl_orch_rotate_vendor`, so the master and failover rotations, the
+  standby swap and refresh and the orch rotation all pass it). SPL-5697,
+  spec 175 task 5.8: a session spawned at 17:49 hit "You've hit your weekly
+  limit" at 18:11; the rotation had started a claude seat with the box at
+  99..100 %. A claude or grok successor whose weekly usage on this box
+  (`spl_box_quota_known`, the reading the placer holds lanes on) is at or
+  over its mark (`spl_box_quota_max`: cnf `vendor_weekly_max_pct.<kind>`,
+  else `weekly_max_pct`, 90) goes to the other one of the two when that one
+  can act (grok: `spl_rotate_grok_why`; claude: `spl_rotate_claude_out`)
+  and is under its own mark: the vendor reason ends `; but claude weekly
+  99% >= 90%: grok`. Else it stays, both reasons named (`..., but grok
+  cannot take it (<why>): claude stays`). No reading = no change. agy, the
+  second claude login (`ROTATE_CLAUDE_CONFIG_DIR`) and
+  `ROTATE_GROK_STANDBY=0` are left as they are. Test:
+  `csi-spl-orc/src/bash/tests/rotate-weekly-first.tst.sh`.
 
 Open, not built here (each n=1..2): #5 and #7, claude judged able while its
 login is on a limit. The watchdog's `<id>.limit` reset epoch is no guard: on

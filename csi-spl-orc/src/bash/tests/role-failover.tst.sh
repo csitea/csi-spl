@@ -190,6 +190,7 @@ EOF
 chmod +x "$T/bin/"*
 
 export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" SPOOL_BOX_ENV="$S/box.env" SPOOL_TEST=1 SPOOL_DESK_BOX=box-desk \
+  LANE_QUOTA_CMD=true \
   LEASE_PROC_ROOT="$T/proc" LEASE_PANE_CMD="$T/bin/pane" LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_ACTIVITY_CMD="$T/bin/tr" \
   ROTATE_TMUX="$T/bin/tmux" ROTATE_SPAWN="$T/bin/spawn" ROTATE_KILL="$T/bin/kill" ROTATE_AI="$T/bin/ai" ROTATE_RUN="$T/bin/run" ROTATE_SEND="$T/bin/send" \
   ROTATE_AS_AGENT_DIRECT=1 ROTATE_LEASE_KINDS="claude grok agy" ROTATE_SWITCH_DESK_ENVS="" DESK_STATE_ROOT="$T/desks" ROTATE_CLAUDE_BIN=/bin/true \

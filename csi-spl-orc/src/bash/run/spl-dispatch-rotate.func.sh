@@ -671,11 +671,14 @@ spl_disp_release() {
 # spl_disp_vendor [ID] -> ROTATE_KIND, ROTATE_VENDOR_WHY: claude, unless
 # ID (default: this rotation's seat) is a seat an in-place failover moved
 # (spl_rotate_failover_vendor, SPL-2544) or ROTATE_ROLE_VENDOR names the
-# seats' vendor (spl_rotate_role_vendor; agy only here, SPL-3395).
+# seats' vendor (spl_rotate_role_vendor; agy only here, SPL-3395). A claude
+# or grok pick at or over its weekly mark on this box goes to the other one
+# when it can act (spl_rotate_weekly_first, SPL-5697).
 spl_disp_vendor() {
-  spl_rotate_failover_vendor "${1:-$(spl_rotate_role_id "$(spl_disp_role)")}" && return 0
-  spl_rotate_role_vendor dispatch && return 0
-  ROTATE_KIND=claude ROTATE_VENDOR_WHY="dispatch seats: claude"
+  spl_rotate_failover_vendor "${1:-$(spl_rotate_role_id "$(spl_disp_role)")}" ||
+    spl_rotate_role_vendor dispatch ||
+    ROTATE_KIND=claude ROTATE_VENDOR_WHY="dispatch seats: claude"
+  spl_rotate_weekly_first
 }
 
 spl_disp_run() {

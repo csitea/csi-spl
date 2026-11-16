@@ -16,6 +16,8 @@ import (
 type memHuman struct {
 	name, email string
 	interests   string            // interests (rdb 0086, CLE-77794); "" = none
+	first, last string            // first_name, last_name (rdb 0290, SPL-5707); "" = none
+	phone       string            // phone (rdb 0290), E.164; "" = none
 	avatar      string            // file_id
 	avatarOwn   bool              // avatar_own (rdb 0150): avatar is an upload
 	idpAvatar   string            // idp_avatar_file_id (rdb 0150)
@@ -601,7 +603,10 @@ func copyCols(cols map[string]int) map[string]int {
 }
 
 func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {
-	return s.withHuman(humanID, func(hm *memHuman) { hm.name = name })
+	return s.withHuman(humanID, func(hm *memHuman) {
+		hm.name = name
+		hm.first, hm.last = auth.SplitDisplayName(name) // first + last stay the source (human_profile.go)
+	})
 }
 
 func (s *Memory) DisplayName(_ context.Context, humanID string) (string, error) {

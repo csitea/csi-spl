@@ -50,9 +50,14 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
+/* SPL-5650 (S5 / F2): a page() wait that timed out leaves here which of
+   its conditions failed; the next ok() that FAILS prints it in its note. */
+let pageMiss = null
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
-  console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
+  const why = !pass && pageMiss ? ' [' + pageMiss + ']' : ''
+  pageMiss = null
+  console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}${why}`)
 }
 
 async function launch() {
@@ -85,10 +90,34 @@ const FEATURE = 'csi-spl-doc/doc/md/csi-spl.feature.md'
 const POST = 'csi-spl-doc/doc/help/how-to-post.md'
 /* marked `public: true` (owner HUM-10 e3ce4c34) */
 const PUBLIC_DOC = 'csi-spl-doc/doc/help/getting-started.md'
+/* the doc `path` is shown: [data-test=docs-content] carries data-page=<path>
+   AND holds an md-block with data-rendered=true. On a timeout it records
+   which half failed, the data-page and data-rendered values it saw and the
+   pathname (SPL-5650: F2's two reds could not say which). */
+const pageState = (want) => {
+  const c = document.querySelector('[data-test=docs-content]')
+  if (!c) return `page(${want}) at ${location.pathname}: no [data-test=docs-content]`
+  const got = c.getAttribute('data-page')
+  const rendered = [...c.querySelectorAll('[data-testid=md-block]')].map((b) => b.getAttribute('data-rendered'))
+  const miss = []
+  if (got !== want) miss.push(`data-page=${JSON.stringify(got)}, want ${JSON.stringify(want)}`)
+  if (!rendered.includes('true')) miss.push(rendered.length ? `md-block data-rendered=${JSON.stringify(rendered)}, want "true"` : 'no md-block, so no data-rendered=true')
+  return `page(${want}) at ${location.pathname}: ${miss.length ? miss.join('; ') : 'both hold now, after the 15 s wait'}`
+}
 const page = (p, path) => p.waitForFunction((want) => {
   const c = document.querySelector('[data-test=docs-content]')
   return c && c.getAttribute('data-page') === want && c.querySelector('[data-testid=md-block][data-rendered=true]')
-}, { timeout: 15000 }, path).then(() => true, () => false)
+}, { timeout: 15000 }, path).then(() => { pageMiss = null; return true }, async () => {
+  pageMiss = await p.evaluate(pageState, path).catch((e) => `page(${path}): ${e.message}`)
+  return false
+})
+/* a click that starts a client-side navigation to /docs/<path> waits for
+   that navigation (the pathname) before the caller checks the page */
+const clickTo = async (p, el, path) => {
+  const moved = p.waitForFunction((want) => location.pathname.endsWith('/docs/' + want), { timeout: 15000 }, path).catch(() => null)
+  await el.click()
+  await moved
+}
 const h1 = (p) => p.$eval('[data-test=docs-content]', (el) => el.querySelector('h1')?.textContent || '')
 const dirs = (p) => p.$$eval('[data-test=docs-tree] [data-test=docs-dir]', (els) => els.map((e) => e.getAttribute('data-path')))
 const clickDir = async (p, path) => {
@@ -226,7 +255,7 @@ try {
     const file = await p.$(`[data-test=docs-file][data-path="${SPEC}"]`)
     ok('a spec is a file in the tree', Boolean(file))
     if (file) {
-      await file.click()
+      await clickTo(p, file, SPEC)
       ok('a click opens it at its stable /docs/<repo path>', await page(p, SPEC) && new URL(p.url()).pathname === '/docs/' + SPEC, p.url())
       ok('it renders as markdown', /Spec 072/.test(await h1(p)))
       ok('the open doc is marked in the tree', await p.$eval(`[data-test=docs-file][data-path="${SPEC}"]`, (e) => e.getAttribute('aria-current')) === 'page')
@@ -237,7 +266,7 @@ try {
     const link = await p.$(`[data-test=docs-content] a[href="/docs/${POST}"]`)
     ok('a relative ../help/x.md link became the target doc\'s /docs route', Boolean(link))
     if (link) {
-      await link.click()
+      await clickTo(p, link, POST)
       ok('it opens the target doc in the app', await page(p, POST) && new URL(p.url()).pathname === '/docs/' + POST, p.url())
       ok('it is How to Post', /How to Post/.test(await h1(p)))
       ok('the tree opened the folders the doc sits in', await p.$(`[data-test=docs-file][data-path="${POST}"]`).then(Boolean))
@@ -308,7 +337,7 @@ try {
     const file = await d.$(`[data-test=docs-file][data-path="${SPEC}"]`)
     ok(`${theme}: a file is in the tree`, Boolean(file))
     if (file) {
-      await file.click()
+      await clickTo(d, file, SPEC)
       ok(`${theme}: clicking a file loads it in pane 2`, await page(d, SPEC) && new URL(d.url()).pathname === '/docs/' + SPEC, d.url())
       const after = await panes(d)
       const an = after.map((c) => c.name)
@@ -450,7 +479,7 @@ try {
   await shot(o, 'signed-out-login-docs')
   for (const [doc, title] of [['DEPLOY.md', 'Deploying spool: choose your path'], ['README.md', 'spool-hub']]) {
     const a = await o.$(`[data-test=docs-tree] a[href$="/docs/${doc}"]`)
-    if (a) await a.click()
+    if (a) await clickTo(o, a, doc)
     ok(`signed-out: ${doc} opens from the list`, Boolean(a) && await page(o, doc) && (await h1(o)) === title, await h1(o).catch(() => ''))
   }
 
@@ -470,7 +499,7 @@ try {
   const home = await o.$$eval('[data-test=docs-tree] a', (as) => as.map((a) => a.getAttribute('href') || '')).catch(() => [])
   ok('SPL-4454: signed-out: /docs lists the public docs only', ['README.md', 'DEPLOY.md'].every((d) => home.some((h) => h.endsWith('/docs/' + d))) && !home.some((h) => h.endsWith(FEATURE) || h.endsWith('/docs/api')), home)
   const pub = await o.$('[data-test=docs-tree] a[href$="/docs/DEPLOY.md"]')
-  if (pub) await pub.click()
+  if (pub) await clickTo(o, pub, 'DEPLOY.md')
   ok('SPL-4454: signed-out: a public doc opens from /docs', Boolean(pub) && await page(o, 'DEPLOY.md') && (await h1(o)) === 'Deploying spool: choose your path', await h1(o).catch(() => ''))
   ok('SPL-4454: signed-out: /docs made 0 doctree requests', doctree.length === 0, doctree)
   o.off('request', onReq)

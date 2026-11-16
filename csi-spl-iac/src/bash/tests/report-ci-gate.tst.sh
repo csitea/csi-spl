@@ -27,9 +27,10 @@
 #      ("${{ matrix.shard }}/2") takes its job's timeout
 #  11. I9 (ci-failures-100 R-g): a run with one red and three fail-fast stops
 #      shows 1 red in the per-job table, the three under "stopped"
-#  12. T7 (ci-failures-50 row 10): 1 push red + 3 schedule reds on one sha
-#      show 1 red + 3 repeats and 1 first red; a schedule red on a sha whose
-#      push run was green stays a red
+#  12. T7 (ci-failures-50 row 10): 1 push red + 3 schedule reds of one job on
+#      one sha show 1 red + 3 repeats and 1 first red; a schedule red on a
+#      sha whose push run was green stays a red, and so does a job red only
+#      in the schedule run (R7 g-393 W1)
 #   CONTROLS -- the report cannot be silently empty:
 #     a. no runs at all               -> refused (non-zero), not "healthy"
 #     b. gh itself fails              -> refused (non-zero)
@@ -47,7 +48,7 @@
 #     i. RED CONTROL for 10: without the workflow file no job is AT RISK
 #     j. RED CONTROL for 11: with the annotations hidden the table shows 4
 #        reds, the count before I9
-#     k. RED CONTROL for 12: with the run event hidden the table shows 5
+#     k. RED CONTROL for 12: with the run event hidden the table shows 6
 #        reds, the count before T7
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -159,7 +160,7 @@ report() {
 
 # --- 1. per-job counts --------------------------------------------------------
 # job_table_section <file> - the rows of the per-job red / stopped table only
-job_table_section() { sed -n '/^== [0-9]* failed run(s), [0-9]* of them .*; per JOB/,/^== /{/^== /d;/^ *red  *stopped  *repeat  *job$/d;p}' "$1"; }
+job_table_section() { sed -n '/^== [0-9]* failed run(s), [0-9]* red job(s) of them .*; per JOB/,/^== /{/^== /d;/^ *red  *stopped  *repeat  *job$/d;p}' "$1"; }
 report; rc=$?
 tab=$(job_table_section "$T/out")
 if [[ $rc -eq 0 ]] && grep -qE '^ +2 +0 +0  iac: step contracts$' <<<"$tab" && grep -qE '^ +1 +0 +0  wui: unit tests$' <<<"$tab" \
@@ -459,27 +460,31 @@ cat >"$T/api/runs.json" <<'JSON'
 ]
 JSON
 red12='rdb: migrations (pg)'
-for r in 950 951 952 953; do
+for r in 950 951 952; do
   printf '{"jobs":[{"id":76%s,"name":"%s","conclusion":"failure"}]}\n' "${r#9}" "$red12" >"$T/api/jobs-$r.json"
 done
+# 953 also fails a job the push run 950 had green: that one is a new red
+printf '{"jobs":[{"id":7653,"name":"%s","conclusion":"failure"},{"id":7656,"name":"wui: new on schedule","conclusion":"failure"}]}\n' "$red12" >"$T/api/jobs-953.json"
 echo '{"jobs":[{"id":7654,"name":"orc: flaky","conclusion":"failure"}]}' >"$T/api/jobs-954.json"
 echo '{"jobs":[{"id":7655,"name":"orc: flaky","conclusion":"success"}]}' >"$T/api/jobs-955.json"
 # repeat_sum <file> - the repeat column of the per-job table, summed
 repeat_sum() { job_table_section "$1" | awk '{ s += $3 } END { print s + 0 }'; }
 report; rc=$?
-tab=$(job_table_section "$T/out")
+tab=$(job_table_section "$T/out"); sec=$(first_red_section "$T/out")
 if [[ $rc -eq 0 ]] && grep -qE '^ +1 +0 +3  rdb: migrations \(pg\)$' <<<"$tab" && grep -qE '^ +1 +0 +0  orc: flaky$' <<<"$tab" \
-   && grep -qE '^== 5 failed run\(s\), 3 of them a schedule repeat of a red push sha;' "$T/out" \
-   && grep -qE '^ +1 rdb: migrations \(pg\)$' <<<"$(first_red_section "$T/out")"; then
-  pass "12. 1 push red + 3 schedule reds on one sha: 1 red + 3 repeats, 1 first red; the schedule red on a green push sha stays red (rc 0)"
+   && grep -qE '^ +1 +0 +0  wui: new on schedule$' <<<"$tab" \
+   && grep -qE '^== 5 failed run\(s\), 3 red job\(s\) of them a schedule repeat of a push red;' "$T/out" \
+   && grep -qE '^ +1 rdb: migrations \(pg\)$' <<<"$sec" && grep -qE '^ +1 orc: flaky$' <<<"$sec" \
+   && grep -qE '^ +1 wui: new on schedule$' <<<"$sec"; then
+  pass "12. 1 push red + 3 schedule reds of one job on one sha: 1 red + 3 repeats, 1 first red; a schedule red on a green push sha, and a job red only on the schedule run, stay reds (rc 0)"
 else
   fail "12. the schedule re-runs of a red push sha were counted as new reds (red sum $(red_sum "$T/out"), repeat sum $(repeat_sum "$T/out"), rc=$rc)"; sed 's/^/    | /' "$T/out"
 fi
 # --- CONTROL k. without the run event every schedule red reads red ------------
 jq 'map(del(.event))' "$T/api/runs.json" >"$T/api/runs-no-event.json" && cp "$T/api/runs-no-event.json" "$T/api/runs.json"
 report
-if [[ $(red_sum "$T/out") -eq 5 && $(repeat_sum "$T/out") -eq 0 ]]; then
-  pass "CONTROL k. with the run event hidden the table shows 5 reds, 0 repeats, the count before T7, so check 12 FAILS without the event"
+if [[ $(red_sum "$T/out") -eq 6 && $(repeat_sum "$T/out") -eq 0 ]]; then
+  pass "CONTROL k. with the run event hidden the table shows 6 reds, 0 repeats, the count before T7, so check 12 FAILS without the event"
 else
   fail "CONTROL k. red sum $(red_sum "$T/out") with the run event hidden: check 12 proves nothing"; sed 's/^/    | /' "$T/out"
 fi

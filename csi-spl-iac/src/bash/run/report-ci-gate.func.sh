@@ -11,13 +11,13 @@
 # @description The per-job table counts a job's REDS apart from its fail-fast
 # @description STOPS (a "stopped" column, I9): a run with one red and three
 # @description stops shows 1 red, not 4.
-# @description A scheduled run that is red on a sha whose push run in the
-# @description window was already red is a REPEAT (a "repeat" column, T7 of
-# @description ci-failures-50-2026-11-15.md): its red jobs count under repeat,
-# @description not red, and it adds no first red. 1 push red + 3 hourly
-# @description schedule reds on one sha show 1 red + 3 repeats, not 4 reds. A
-# @description schedule red on a sha whose push run was green stays a red
-# @description (that is how a flake reads).
+# @description A job red in a scheduled run on a sha whose earlier push run in
+# @description the window already had that same job red is a REPEAT (a
+# @description "repeat" column, T7 of ci-failures-50-2026-11-15.md): it counts
+# @description under repeat, not red, and adds no first red. 1 push red + 3
+# @description hourly schedule reds of one job on one sha show 1 red + 3
+# @description repeats, not 4 reds. A schedule red on a sha whose push run was
+# @description green, or of a job the push run did not have red, stays a red.
 # @description Then the FIRST red per job (fail-fast stops left out) and, per
 # @description failed job, its last green run in the window (r7-02).
 # @description A job that hit its timeout-minutes concludes "cancelled" on
@@ -273,28 +273,40 @@ _rcg_stop_marks() {
   done <"$tmp/failed.tsv"
 }
 
-# _rcg_repeat_runs <tmp> - the ids of the failed SCHEDULE runs whose sha had
-# an earlier failed PUSH run in the window, one per line, in
-# <tmp>/repeats.txt. The hourly schedule re-runs a sha that is already red:
-# 10 of the 30 wf 10 reds to 2026-11-15 were such repeats (T7).
+# _rcg_repeat_runs <tmp> - "<run id>\t<job name>" in <tmp>/repeats.tsv for
+# every job red in a failed SCHEDULE run whose sha had an earlier failed PUSH
+# run in the window with that SAME job red (not stopped). The hourly schedule
+# re-runs a sha that is already red: 10 of the 30 wf 10 reds to 2026-11-15
+# were such repeats (T7). Keyed per job, not per run: a job that fails only
+# on the schedule run stays a red (R7 g-393 W1).
 _rcg_repeat_runs() {
-  awk -F'\t' 'NR == FNR { if ($6 == "push" && (!($4 in push) || $3 < push[$4])) push[$4] = $3; next }
-    $6 == "schedule" && ($4 in push) && push[$4] < $3 { print $1 }' "$1/failed.tsv" "$1/failed.tsv" >"$1/repeats.txt"
+  # three passes: the runs, then the push reds per sha + job, then the
+  # schedule reds checked against them
+  awk -F'\t' 'FNR == 1 { f++ }
+    f == 1 { sha[$1] = $4; at[$1] = $3; ev[$1] = $6; next }
+    $3 != "" { next }
+    f == 2 { k = sha[$1] SUBSEP $2
+      if (ev[$1] == "push" && (!(k in first) || at[$1] < first[k])) { first[k] = at[$1]; frun[k] = $1 }
+      next }
+    { k = sha[$1] SUBSEP $2
+      if (ev[$1] == "schedule" && (k in first) && first[k] < at[$1] && frun[k] != $1) print $1 "\t" $2 }' \
+    "$1/failed.tsv" "$1/stops.tsv" "$1/stops.tsv" >"$1/repeats.tsv"
 }
 
 # _rcg_job_table <tmp> <failed runs> - per job, the runs it was RED in (it
 # failed itself) apart from the runs it was STOPPED in (fail-fast, because
 # another job was red), from <tmp>/stops.tsv, and apart from the REPEAT runs
-# of <tmp>/repeats.txt (a schedule red on a sha already red on push).
+# of <tmp>/repeats.tsv (a job red again in a schedule run on a sha where a
+# push run already had it red). A fail-fast stop stays a stop either way.
 # Counted together, one red and three stops read as 4 broken jobs (I9), and
 # one push red and three schedule reds as 4 too (T7).
 _rcg_job_table() {
-  local nr; nr=$(wc -l <"$1/repeats.txt")
-  echo "== $2 failed run(s), $nr of them a schedule repeat of a red push sha; per JOB, red = it failed, stopped = fail-fast stop for another job's red, repeat = it failed again in a schedule run on a sha already red on push (a job red over ~3 is a defect that sat on trunk, or a flake)"
+  local nr; nr=$(wc -l <"$1/repeats.tsv")
+  echo "== $2 failed run(s), $nr red job(s) of them a schedule repeat of a push red; per JOB, red = it failed, stopped = fail-fast stop for another job's red, repeat = it failed again in a schedule run on a sha whose push run already had it red (a job red over ~3 is a defect that sat on trunk, or a flake)"
   printf '   %7s %7s %7s  %s\n' red stopped repeat job
-  awk -F'\t' 'FILENAME == ARGV[1] { rep[$1] = 1; next }
-    { if ($3 != "") stop[$2]++; else if ($1 in rep) again[$2]++; else red[$2]++; seen[$2] = 1 }
-    END { for (j in seen) printf "%d\t%d\t%d\t%s\n", red[j], stop[j], again[j], j }' "$1/repeats.txt" "$1/stops.tsv" |
+  awk -F'\t' 'FILENAME == ARGV[1] { rep[$1, $2] = 1; next }
+    { if ($3 != "") stop[$2]++; else if (($1, $2) in rep) again[$2]++; else red[$2]++; seen[$2] = 1 }
+    END { for (j in seen) printf "%d\t%d\t%d\t%s\n", red[j], stop[j], again[j], j }' "$1/repeats.tsv" "$1/stops.tsv" |
     sort -t$'\t' -k1,1rn -k2,2rn -k3,3rn -k4,4 | awk -F'\t' '{ printf "   %7d %7d %7d  %s\n", $1, $2, $3, $4 }'
 }
 
@@ -303,14 +315,14 @@ _rcg_job_table() {
 # no such annotation, minus the stopped jobs: a job stopped early is named by
 # the jobs stopped after it. Job names hold commas and the annotation joins
 # them with commas, so a name is matched whole against the run's own failed
-# jobs, never split. A repeat run (<tmp>/repeats.txt) broke nothing new and is
-# left out.
+# jobs, never split. A repeat (<tmp>/repeats.tsv) broke nothing new and is
+# left out; the other red jobs of that schedule run still count.
 _rcg_first_red() {
   local tmp="$1" nf="$2"
   echo "== first red per JOB, over the $nf failed run(s): the job(s) that broke each run, fail-fast stops and schedule repeats left out"
   awk -F'\t' '
-    FILENAME == ARGV[1] { rep[$1] = 1; next }
-    $1 in rep { next }
+    FILENAME == ARGV[1] { rep[$1, $2] = 1; next }
+    ($1, $2) in rep { next }
     { k = $1 SUBSEP $2; red[k] = 1; if ($3 == "") own[k] = 1; else { stop[k] = 1; list[$1] = list[$1] "," $3 } }
     END {
       for (k in red) {
@@ -319,7 +331,7 @@ _rcg_first_red() {
         if ((k in own) || index(list[p[1]] ",", "," p[2] ",")) { n[p[2]]++; runs[p[1]] = 1 }
       }
       for (j in n) printf "%7d %s\n", n[j], j
-    }' "$tmp/repeats.txt" "$tmp/stops.tsv" | sort -rn
+    }' "$tmp/repeats.tsv" "$tmp/stops.tsv" | sort -rn
 }
 
 # _rcg_last_green <tmp> <runs> - per job that failed in the window, the newest

@@ -321,3 +321,4 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 | c-616 (editor) | claude | v0.1, v0.2, v1.0 | author |
 | a-675 (ask 56aade4b) | agy | - | not a signer: quota-locked; owner ruling e895dea6 |
 | m-676 (ask b00e6895) | mistral | `325e0a8ed` (v0.2) | **PASS**, W none, N1-N6 (seat `592948bd9`); N2 folded in v1.0 |
+| m-676 (ask b00e6895) | mistral | `bf6ba7541` (v1.0) | **PASS**, W none, rows byte-identical to 325e0a8ed (seat `9dc3fed8f`, msg 48bf1e6a); the holder sent it ACCEPTED (c-002@sat note ed058669) |

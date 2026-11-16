@@ -139,7 +139,7 @@ All four outputs of each run name the same 3 failed files:
 - Agent kinds (through the prd SA key): `off [qwen], paused []`.
 - Dispatch lease holder 10:1xZ: **c-003@sat** (it was c-002@sat at 09:24Z).
 
-## 4. State at the 12:17Z rotation, and next
+## 4. State at the 13:18Z rotation, and next
 
 - Plan v0.2 = `a9b11eda5` on `review/c002-perf-round-12-planner`, sent to
   the holder c-002@sat (msg 6d1dc0dd, 10:35Z). The holder checked it and set
@@ -150,8 +150,10 @@ All four outputs of each run name the same 3 failed files:
 - 11:2xZ, c-002@sat msg 1403d209: the agy seat (ask 56aade4b) is placed as
   a-675 (desk box) (branch `a-675-c002-perf-round-12-agy-panel-seat`), brief: sign
   `a9b11eda5`, report to c-616 and the holder on task `69fd873c`. The mistral
-  seat (b00e6895) is a separate row, not yet confirmed placed. No verdict
-  from either seat by 12:17Z.
+  seat (b00e6895) is placed as m-676 (desk box) (c-002@sat msg 4aef96b9,
+  branch `m-676-c002-perf-round-12-mistral-panel-seat`), also signing
+  `a9b11eda5`. Lane map read 13:04Z: a-675 and m-676 both live. No verdict
+  from either seat by 13:04Z.
 - Panel (c-001 ruling 99d5ed2f): agy seat ask 56aade4b (queued on the desk
   box), mistral seat ask b00e6895 (placing at 10:4xZ, may hold the v0.1
   brief). No verdict yet. If a seat reports on another sha, send it

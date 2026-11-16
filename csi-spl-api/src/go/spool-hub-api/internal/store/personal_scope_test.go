@@ -21,7 +21,9 @@ import (
 // personCallers is every store method that runs in the person scope
 // (inPerson), with what it reads or writes. A new caller fails
 // TestPersonScopeCallers until it is added here, i.e. reviewed: its person
-// must come from the authenticated human session only.
+// must come from the authenticated human session only, or from one of the
+// three audited non-session sources inPerson's comment names (rls.go): 119's
+// leaver, 154's contacts_sync.human_id and 155's verified ask author.
 var personCallers = map[string]string{
 	"RealmProfileOf":      "personal.profile of the session's own person",
 	"PutRealmProfile":     "personal.profile of the session's own person",
@@ -44,6 +46,12 @@ var personCallers = map[string]string{
 	"DeleteNoteLink": "personal.note_links of the session's own person",
 	"ExportNotes":    "personal.notes, note_items, note_links of the session's own person (155 2.8 export)",
 	"EraseNotes":     "personal.notes of the session's own person (155 2.8 erase)",
+	// spec 155 v1.5 B11 (2.11): an agent adds a note on a person's ask. Its
+	// person is NOT a session's: it is m.FromID of a box-wui human message
+	// the hub verified as an ask (step 1, workspace reads that close before
+	// this call), as appendRealmReceipts takes the leaver's. It inserts one
+	// note of that person only and opens no tenant or operator scope.
+	"CreateNoteOnAsk": "personal.notes, note_items, note_links of the verified ask's author (m.FromID, not a session), the 2 000-note cap (155 2.11, C34)",
 	// spec 154 B2: the contacts store, personal.contacts of the session's
 	// own person; no contacts method opens a tenant or operator scope.
 	"ListContacts":   "personal.contacts of the session's own person: the list and the search (154 2.3, C3, C3b)",

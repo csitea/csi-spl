@@ -22,6 +22,7 @@ type notesFix struct {
 	st       Notes
 	addHuman func(t *testing.T, person string)
 	plant    func(t *testing.T, person string, n int)
+	owner    *Postgres // the migrate login (C33's raw rows); nil on Memory
 }
 
 func memNotesFix(*testing.T) notesFix {
@@ -49,7 +50,7 @@ func pgNotesFix(t *testing.T) notesFix {
 	if super || bypass {
 		t.Fatalf("the runtime role %s bypasses RLS: it would prove nothing", role)
 	}
-	return notesFix{st: rt, addHuman: rf.addHuman, plant: func(t *testing.T, person string, n int) {
+	return notesFix{st: rt, addHuman: rf.addHuman, owner: pg, plant: func(t *testing.T, person string, n int) {
 		err := pgx.BeginFunc(ctx, pg.pool, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, `SELECT set_config('app.person_id', $1, true)`, person); err != nil {
 				return err
@@ -361,6 +362,7 @@ func TestNotesRefuseBeforeSQL(t *testing.T) {
 			_, calls["CreateNote"] = st.CreateNote(context.Background(), p, Note{}, time.Now())
 			_, calls["ExportNotes"] = st.ExportNotes(context.Background(), p)
 			_, calls["EraseNotes"] = st.EraseNotes(context.Background(), p)
+			_, calls["CreateNoteOnAsk"] = st.CreateNoteOnAsk(context.Background(), p, askOf(), time.Now())
 			for call, err := range calls {
 				if !errors.Is(err, ErrNoPerson) {
 					t.Errorf("%s %s(%q): %v, want ErrNoPerson", name, call, p, err)
@@ -508,4 +510,207 @@ func TestNotesOrderTie(t *testing.T) {
 			t.Errorf("ExportNotes tie %q, want %q", strings.Join(got, " "), want)
 		}
 	})
+}
+
+// ---- spec 155 v1.5 B11 (2.11): an agent adds a note on the person's ask ----
+
+const (
+	askMsg = "00000000-0000-4000-8000-0000000155a1"
+	askWS  = "ws-1"
+	askBy  = "a-1@box-a"
+)
+
+// askOf is a valid ask with no field set beyond the provenance.
+func askOf() NoteOnAsk {
+	return NoteOnAsk{Agent: askBy, AskMsgID: askMsg, AskWorkspaceID: askWS}
+}
+
+// askFull sets every field the WUI sets on a note (OQ-2).
+func askFull() NoteOnAsk {
+	in, two := askOf(), 2
+	in.Title, in.Body, in.Pinned, in.Priority, in.Archived = "From the ask", "the agent's body", true, &two, true
+	in.Items = []NoteItem{{Text: "first", Done: true}, {Text: "second"}}
+	in.Links = []NoteLink{{Kind: NoteLinkTopic, Ref: "topic-1", Label: "the topic"},
+		{Kind: NoteLinkURL, Ref: "https://example.com/a", Label: "outside"}}
+	return in
+}
+
+// TestNotesC34OnAsk (C34): CreateNoteOnAsk stores every WUI field and the
+// provenance, on top of the person's order, and answers the id and time
+// only; a second note on the same ask is a second note (OQ-3); nil priority
+// is 5 and Archived false leaves it unarchived. A note the person makes
+// carries no provenance.
+func TestNotesC34OnAsk(t *testing.T) {
+	eachNotesDriver(t, func(t *testing.T, f notesFix) {
+		ctx := context.Background()
+		now := time.Now().UTC().Truncate(time.Second)
+		p1, p2, human := notesPair(t, f, now)
+		if human.AddedByAgent != "" || human.AskMsgID != "" || human.AskWorkspaceID != "" {
+			t.Errorf("a note the person made carries provenance: %+v", human)
+		}
+		got, err := f.st.CreateNoteOnAsk(ctx, p1, askFull(), now)
+		if err != nil || got.ID == "" || !got.CreatedAt.Equal(now) {
+			t.Fatalf("CreateNoteOnAsk: %+v, %v", got, err)
+		}
+		n, err := f.st.NoteOf(ctx, p1, got.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n.Title != "From the ask" || n.Body != "the agent's body" || !n.Pinned || n.Priority != 2 ||
+			n.ArchivedAt == nil || !n.ArchivedAt.Equal(now) {
+			t.Errorf("the fields: %+v", n)
+		}
+		if n.AddedByAgent != askBy || n.AskMsgID != askMsg || n.AskWorkspaceID != askWS {
+			t.Errorf("the provenance: %q %q %q", n.AddedByAgent, n.AskMsgID, n.AskWorkspaceID)
+		}
+		if len(n.Items) != 2 || n.Items[0].Text != "first" || !n.Items[0].Done || n.Items[1].Text != "second" {
+			t.Errorf("the checklist: %+v", n.Items)
+		}
+		if len(n.Links) != 2 || n.Links[0].WorkspaceID != askWS || n.Links[0].Label != "the topic" ||
+			n.Links[1].Kind != NoteLinkURL || n.Links[1].WorkspaceID != "" {
+			t.Errorf("the links (a topic link takes the ask's workspace): %+v", n.Links)
+		}
+		if n.Position != human.Position-1 {
+			t.Errorf("position %v, want on top of %v", n.Position, human.Position)
+		}
+		again, err := f.st.CreateNoteOnAsk(ctx, p1, askOf(), now)
+		if err != nil || again.ID == got.ID {
+			t.Fatalf("a second note on the same ask: %+v, %v", again, err)
+		}
+		bare, err := f.st.NoteOf(ctx, p1, again.ID)
+		if err != nil || bare.Priority != NotePriorityDefault || bare.ArchivedAt != nil || bare.Pinned || bare.AskMsgID != askMsg {
+			t.Errorf("the defaults: %+v, %v", bare, err)
+		}
+		if l, err := f.st.ListNotes(ctx, p1); err != nil || len(l) != 3 {
+			t.Errorf("P1 ListNotes: %d rows, %v; want 3", len(l), err)
+		}
+		if l, err := f.st.ListNotes(ctx, p2); err != nil || len(l) != 0 {
+			t.Errorf("P2 ListNotes: %d rows, %v; want 0", len(l), err)
+		}
+		ex, err := f.st.ExportNotes(ctx, p1)
+		if err != nil || len(ex) != 3 {
+			t.Fatalf("ExportNotes: %d, %v", len(ex), err)
+		}
+		for _, e := range ex {
+			if (e.ID == got.ID || e.ID == again.ID) != (e.AddedByAgent == askBy) {
+				t.Errorf("export provenance of %s: %q", e.Title, e.AddedByAgent)
+			}
+		}
+	})
+}
+
+// TestNotesC34OnAskLimits (C34): each limit is ErrRealmBad and stores
+// nothing; TWIN: priority 1 and 5, 200 lines and 100 links insert.
+func TestNotesC34OnAskLimits(t *testing.T) {
+	eachNotesDriver(t, func(t *testing.T, f notesFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		bad := map[string]func(*NoteOnAsk){
+			"priority 0":          func(in *NoteOnAsk) { z := 0; in.Priority = &z },
+			"priority 6":          func(in *NoteOnAsk) { six := 6; in.Priority = &six },
+			"201 checklist lines": func(in *NoteOnAsk) { in.Items = make([]NoteItem, NoteItemsMax+1) },
+			"101 links":           func(in *NoteOnAsk) { in.Links = urlLinks(NoteLinksMax + 1) },
+			"201-character title": func(in *NoteOnAsk) { in.Title = strings.Repeat("x", NoteTitleMax+1) },
+			"javascript: url":     func(in *NoteOnAsk) { in.Links = []NoteLink{{Kind: NoteLinkURL, Ref: "javascript:x"}} },
+			"another workspace":   func(in *NoteOnAsk) { in.Links = []NoteLink{{Kind: NoteLinkTopic, WorkspaceID: "ws-2", Ref: "t"}} },
+			"no agent":            func(in *NoteOnAsk) { in.Agent = "" },
+			"agent with no box":   func(in *NoteOnAsk) { in.Agent = "a-1" },
+			"65-character agent":  func(in *NoteOnAsk) { in.Agent = "a-1@" + strings.Repeat("b", 61) },
+			"ask not a uuid":      func(in *NoteOnAsk) { in.AskMsgID = "msg-1" },
+			"ask in upper case":   func(in *NoteOnAsk) { in.AskMsgID = strings.ToUpper(askMsg) },
+			"no ask workspace":    func(in *NoteOnAsk) { in.AskWorkspaceID = "" },
+			"NUL in the body":     func(in *NoteOnAsk) { in.Body = "a\x00b" },
+		}
+		for name, mut := range bad {
+			in := askOf()
+			mut(&in)
+			if _, err := f.st.CreateNoteOnAsk(ctx, p1, in, now); !errors.Is(err, ErrRealmBad) {
+				t.Errorf("%s: %v, want ErrRealmBad", name, err)
+			}
+		}
+		if l, err := f.st.ListNotes(ctx, p1); err != nil || len(l) != 0 {
+			t.Fatalf("a refused ask stored %d notes, %v", len(l), err)
+		}
+		for _, prio := range []int{NotePriorityHighest, NotePriorityDefault} {
+			in := askOf()
+			in.Priority, in.Items, in.Links = &prio, make([]NoteItem, NoteItemsMax), urlLinks(NoteLinksMax)
+			if _, err := f.st.CreateNoteOnAsk(ctx, p1, in, now); err != nil {
+				t.Errorf("twin: priority %d, %d lines, %d links: %v", prio, NoteItemsMax, NoteLinksMax, err)
+			}
+		}
+		ghost, _ := realmPersons()
+		if _, err := f.st.CreateNoteOnAsk(ctx, "HUM-9"+ghost[5:], askOf(), now); !errors.Is(err, ErrNotFound) {
+			t.Errorf("an ask of no such human: %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func urlLinks(n int) []NoteLink {
+	out := make([]NoteLink, n)
+	for i := range out {
+		out[i] = NoteLink{Kind: NoteLinkURL, Ref: "https://example.com"}
+	}
+	return out
+}
+
+// TestNotesC34OnAskCap (C34): the 2 001st note, made on an ask, is
+// ErrNotesFull; TWIN: the 2 000th inserts on top.
+func TestNotesC34OnAskCap(t *testing.T) {
+	eachNotesDriver(t, func(t *testing.T, f notesFix) {
+		ctx := context.Background()
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		f.plant(t, p1, NotesPerPerson-1)
+		in := askOf()
+		in.Title = "the 2000th"
+		if _, err := f.st.CreateNoteOnAsk(ctx, p1, in, time.Now()); err != nil {
+			t.Fatalf("twin: the %dth note: %v", NotesPerPerson, err)
+		}
+		if _, err := f.st.CreateNoteOnAsk(ctx, p1, askOf(), time.Now()); !errors.Is(err, ErrNotesFull) {
+			t.Errorf("the %dth note: %v, want ErrNotesFull", NotesPerPerson+1, err)
+		}
+		l, err := f.st.ListNotes(ctx, p1)
+		if err != nil || len(l) != NotesPerPerson || l[0].Title != "the 2000th" {
+			t.Errorf("ListNotes: %d rows, %v; want %d with the ask's note on top", len(l), err, NotesPerPerson)
+		}
+	})
+}
+
+// TestNotesC33AgentAskColumns (C33, Postgres only): rdb 0288's three
+// provenance columns exist; a half-filled provenance is a
+// notes_agent_ask_all_or_none violation; two notes citing the same ask
+// insert next to a human note with NULL provenance (OQ-3: no unique index).
+func TestNotesC33AgentAskColumns(t *testing.T) {
+	f := pgNotesFix(t)
+	ctx := context.Background()
+	p1, _ := realmPersons()
+	f.addHuman(t, p1)
+	ins := func(agent, msg, ws any) error {
+		return pgx.BeginFunc(ctx, f.owner.pool, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SELECT set_config('app.person_id', $1, true)`, p1); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `INSERT INTO personal.notes (person_id, position, added_by_agent, ask_msg_id, ask_workspace_id)
+				VALUES ($1, 0, $2, $3::uuid, $4)`, p1, agent, msg, ws)
+			return err
+		})
+	}
+	if err := ins(nil, nil, nil); err != nil {
+		t.Fatalf("a human note (NULL provenance): %v", err)
+	}
+	for _, c := range [][3]any{{askBy, nil, nil}, {nil, askMsg, nil}, {nil, nil, askWS}, {askBy, askMsg, nil}} {
+		if err := ins(c[0], c[1], c[2]); err == nil || !strings.Contains(err.Error(), "notes_agent_ask_all_or_none") {
+			t.Errorf("half-filled provenance %v: %v, want notes_agent_ask_all_or_none", c, err)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		if err := ins(askBy, askMsg, askWS); err != nil {
+			t.Errorf("note %d on the same ask: %v", i+1, err)
+		}
+	}
+	if l, err := f.st.ListNotes(ctx, p1); err != nil || len(l) != 3 {
+		t.Errorf("ListNotes: %d rows, %v; want 3", len(l), err)
+	}
 }

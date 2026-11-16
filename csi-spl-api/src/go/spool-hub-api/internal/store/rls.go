@@ -111,7 +111,13 @@ func humanScope(ctx context.Context) string {
 // 7.2), the twin of inTenant. It never sets app.tenant_id, and it never nests
 // with inTenant: rdb 0168's policy reads 0 realm rows while a tenant is set.
 // person comes only from the authenticated human session, never from a path,
-// query, header or body.
+// query, header or body. Three audited callers take a person that is not the
+// session's, each listed in personal_scope_test.go personCallers: 119's
+// appendRealmReceipts (the leaver of a workspace), 154's contacts sync
+// (contacts_sync.human_id of the claimed binding) and 155's CreateNoteOnAsk
+// (m.FromID of a box-wui human message the hub verified as an ask in a topic
+// the acting agent reads, spec 155 2.11), whose workspace checks close before
+// it opens this scope.
 func (s *Postgres) inPerson(ctx context.Context, person string, fn func(pgx.Tx) error) error {
 	if err := checkPerson(person); err != nil {
 		return err

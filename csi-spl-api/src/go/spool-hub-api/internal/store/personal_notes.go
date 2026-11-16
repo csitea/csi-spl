@@ -92,19 +92,50 @@ type NoteLink struct {
 }
 
 // Note is one personal.notes row with its checklist and links, each in its
-// position order. ArchivedAt nil = not archived.
+// position order. ArchivedAt nil = not archived. AddedByAgent, AskMsgID and
+// AskWorkspaceID are the provenance of a note an agent added on the person's
+// ask (rdb 0288, spec 155 2.11): all "" on a note the person made.
 type Note struct {
-	ID         string
-	Title      string
-	Body       string
-	Pinned     bool
-	Priority   int
-	Position   float64
-	ArchivedAt *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	Items      []NoteItem
-	Links      []NoteLink
+	ID             string
+	Title          string
+	Body           string
+	Pinned         bool
+	Priority       int
+	Position       float64
+	ArchivedAt     *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Items          []NoteItem
+	Links          []NoteLink
+	AddedByAgent   string
+	AskMsgID       string
+	AskWorkspaceID string
+}
+
+// NoteOnAsk is a note an agent adds on a person's ask (spec 155 2.11, build
+// row B11): every field the WUI sets on a note (OQ-2), and the provenance.
+// Priority nil = NotePriorityDefault; Archived true archives it at once.
+// A link of a workspace kind with WorkspaceID "" takes AskWorkspaceID, and
+// one naming any other workspace is refused: the agent is authenticated to
+// the ask's workspace only.
+type NoteOnAsk struct {
+	Title          string
+	Body           string
+	Pinned         bool
+	Priority       *int
+	Archived       bool
+	Items          []NoteItem
+	Links          []NoteLink
+	Agent          string // the acting agent, <agent>@<box>
+	AskMsgID       string // the person's message that asked, a lowercase uuid
+	AskWorkspaceID string // the workspace of that message
+}
+
+// NoteAdded is all an agent learns of the note it added (2.11): never its
+// position, the person's note count or any other note.
+type NoteAdded struct {
+	ID        string
+	CreatedAt time.Time
 }
 
 // NoteSummary is one row of the list (spec 5): the body cut to
@@ -170,6 +201,13 @@ type Notes interface {
 	ExportNotes(ctx context.Context, person string) ([]Note, error)
 	// EraseNotes deletes every note of the person; the notes removed.
 	EraseNotes(ctx context.Context, person string) (int, error)
+	// CreateNoteOnAsk adds one note an agent made on the person's ask, on
+	// top of the person's order (spec 155 2.11). person is m.FromID of an
+	// ask the hub has verified before this call, never a name the agent
+	// gives; the call opens the person scope only. One ask may back several
+	// notes (OQ-3). ErrRealmBad outside the limits, ErrNotesFull at
+	// NotesPerPerson.
+	CreateNoteOnAsk(ctx context.Context, person string, in NoteOnAsk, now time.Time) (NoteAdded, error)
 }
 
 var (
@@ -279,6 +317,56 @@ func checkNewNote(n Note) (Note, error) {
 	return n, nil
 }
 
+// noteAgentRe is an agent on a box, <agent>@<box>, at most noteAgentMax
+// characters (rdb 0288 notes_added_by_agent_len).
+var noteAgentRe = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$`)
+
+const noteAgentMax = 64
+
+func checkNotePriority(p int) error {
+	if p < NotePriorityHighest || p > NotePriorityDefault {
+		return fmt.Errorf("%w: priority must be %d to %d", ErrRealmBad, NotePriorityHighest, NotePriorityDefault)
+	}
+	return nil
+}
+
+// checkNoteOnAsk checks in as checkNewNote does, plus its priority, its
+// provenance and its links' workspace; the note to insert, at its priority.
+func checkNoteOnAsk(in NoteOnAsk) (Note, error) {
+	if len(in.Agent) > noteAgentMax || !noteAgentRe.MatchString(in.Agent) {
+		return Note{}, fmt.Errorf("%w: the agent is <agent>@<box>, at most %d characters", ErrRealmBad, noteAgentMax)
+	}
+	if !isUUID(in.AskMsgID) || in.AskMsgID != strings.ToLower(in.AskMsgID) {
+		return Note{}, fmt.Errorf("%w: the ask is a lowercase message uuid", ErrRealmBad)
+	}
+	if err := checkRealmWorkspace(in.AskWorkspaceID); err != nil {
+		return Note{}, err
+	}
+	prio := NotePriorityDefault
+	if in.Priority != nil {
+		prio = *in.Priority
+	}
+	if err := checkNotePriority(prio); err != nil {
+		return Note{}, err
+	}
+	links := append([]NoteLink(nil), in.Links...)
+	for i := range links {
+		if links[i].Kind == NoteLinkURL {
+			continue
+		}
+		if links[i].WorkspaceID == "" {
+			links[i].WorkspaceID = in.AskWorkspaceID
+		}
+		if links[i].WorkspaceID != in.AskWorkspaceID {
+			return Note{}, fmt.Errorf("%w: a link into another workspace than the ask's", ErrRealmBad)
+		}
+	}
+	n, err := checkNewNote(Note{Title: in.Title, Body: in.Body, Pinned: in.Pinned,
+		Items: append([]NoteItem(nil), in.Items...), Links: links})
+	n.Priority, n.AddedByAgent, n.AskMsgID, n.AskWorkspaceID = prio, in.Agent, in.AskMsgID, in.AskWorkspaceID
+	return n, err
+}
+
 // checkNotePatch checks the fields p sets.
 func checkNotePatch(p NotePatch) error {
 	if p.Title != nil {
@@ -291,8 +379,10 @@ func checkNotePatch(p NotePatch) error {
 			return err
 		}
 	}
-	if p.Priority != nil && (*p.Priority < NotePriorityHighest || *p.Priority > NotePriorityDefault) {
-		return fmt.Errorf("%w: priority must be %d to %d", ErrRealmBad, NotePriorityHighest, NotePriorityDefault)
+	if p.Priority != nil {
+		if err := checkNotePriority(*p.Priority); err != nil {
+			return err
+		}
 	}
 	if p.Position != nil {
 		return checkNotePosition(*p.Position)
@@ -349,13 +439,15 @@ func noteWorkspaces(ws []string) []string {
 
 // ---- Postgres ----
 
-const noteCols = `note_id::text, title, body, pinned, priority, position, archived_at, created_at, updated_at`
+const noteCols = `note_id::text, title, body, pinned, priority, position, archived_at, created_at, updated_at,
+	COALESCE(added_by_agent, ''), COALESCE(ask_msg_id::text, ''), COALESCE(ask_workspace_id, '')`
 
 const noteLinkCols = `link_id::text, kind, COALESCE(workspace_id, ''), ref, COALESCE(day::text, ''), label, position, created_at`
 
 func scanNote(r pgx.Row) (Note, error) {
 	var n Note
-	err := r.Scan(&n.ID, &n.Title, &n.Body, &n.Pinned, &n.Priority, &n.Position, &n.ArchivedAt, &n.CreatedAt, &n.UpdatedAt)
+	err := r.Scan(&n.ID, &n.Title, &n.Body, &n.Pinned, &n.Priority, &n.Position, &n.ArchivedAt, &n.CreatedAt, &n.UpdatedAt,
+		&n.AddedByAgent, &n.AskMsgID, &n.AskWorkspaceID)
 	return n, err
 }
 
@@ -518,17 +610,9 @@ func (s *Postgres) CreateNote(ctx context.Context, person string, n Note, now ti
 	}
 	var out Note
 	err = s.inPerson(ctx, person, func(tx pgx.Tx) error {
-		if err := lockNotes(ctx, tx, person); err != nil {
+		top, err := noteTop(ctx, tx, person)
+		if err != nil {
 			return err
-		}
-		var held int
-		var top float64
-		if err := tx.QueryRow(ctx, `SELECT count(*), COALESCE(min(position), 1) - 1 FROM personal.notes
-			WHERE person_id = $1`, person).Scan(&held, &top); err != nil {
-			return err
-		}
-		if held >= NotesPerPerson {
-			return ErrNotesFull
 		}
 		var id string
 		if err := tx.QueryRow(ctx, `
@@ -537,16 +621,74 @@ func (s *Postgres) CreateNote(ctx context.Context, person string, n Note, now ti
 			person, n.Title, n.Body, n.Pinned, top, now.UTC()).Scan(&id); err != nil {
 			return err
 		}
-		if err := insertNoteItems(ctx, tx, person, id, n.Items); err != nil {
-			return err
-		}
-		if err := insertNoteLinks(ctx, tx, person, id, n.Links, now); err != nil {
+		if err := insertNoteParts(ctx, tx, person, id, n, now); err != nil {
 			return err
 		}
 		out, err = noteTx(ctx, tx, person, id)
 		return err
 	})
 	return out, notePGErr(err)
+}
+
+// noteTop takes the person's note lock, refuses the note past the cap and
+// is the position on top of the person's order (spec 4: the store checks
+// the cap in the insert's transaction, not a trigger).
+func noteTop(ctx context.Context, tx pgx.Tx, person string) (float64, error) {
+	if err := lockNotes(ctx, tx, person); err != nil {
+		return 0, err
+	}
+	var held int
+	var top float64
+	if err := tx.QueryRow(ctx, `SELECT count(*), COALESCE(min(position), 1) - 1 FROM personal.notes
+		WHERE person_id = $1`, person).Scan(&held, &top); err != nil {
+		return 0, err
+	}
+	if held >= NotesPerPerson {
+		return 0, ErrNotesFull
+	}
+	return top, nil
+}
+
+// insertNoteParts writes n's checklist and links under the new note id.
+func insertNoteParts(ctx context.Context, tx pgx.Tx, person, id string, n Note, now time.Time) error {
+	if err := insertNoteItems(ctx, tx, person, id, n.Items); err != nil {
+		return err
+	}
+	return insertNoteLinks(ctx, tx, person, id, n.Links, now)
+}
+
+// CreateNoteOnAsk is Notes.CreateNoteOnAsk. It runs in inPerson alone: the
+// hub's workspace checks of the ask have closed before it (spec 155 2.11,
+// realmTenantCallers stays empty).
+func (s *Postgres) CreateNoteOnAsk(ctx context.Context, person string, in NoteOnAsk, now time.Time) (NoteAdded, error) {
+	if err := checkPerson(person); err != nil {
+		return NoteAdded{}, err
+	}
+	n, err := checkNoteOnAsk(in)
+	if err != nil {
+		return NoteAdded{}, err
+	}
+	var out NoteAdded
+	err = s.inPerson(ctx, person, func(tx pgx.Tx) error {
+		top, err := noteTop(ctx, tx, person)
+		if err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO personal.notes (person_id, title, body, pinned, priority, position, archived_at,
+			       added_by_agent, ask_msg_id, ask_workspace_id, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $7::boolean THEN $11::timestamptz END,
+			       $8, $9::uuid, $10, $11, $11) RETURNING note_id::text, created_at`,
+			person, n.Title, n.Body, n.Pinned, n.Priority, top, in.Archived,
+			n.AddedByAgent, n.AskMsgID, n.AskWorkspaceID, now.UTC()).Scan(&out.ID, &out.CreatedAt); err != nil {
+			return err
+		}
+		return insertNoteParts(ctx, tx, person, out.ID, n, now)
+	})
+	if err != nil {
+		return NoteAdded{}, notePGErr(err)
+	}
+	return out, nil
 }
 
 // NoteOf is Notes.NoteOf.

@@ -157,19 +157,31 @@ func (s *Memory) CreateNote(_ context.Context, person string, n Note, now time.T
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.realmLocked(person, true); err != nil {
+	n.Priority, n.ArchivedAt = NotePriorityDefault, nil
+	n.AddedByAgent, n.AskMsgID, n.AskWorkspaceID = "", "", ""
+	stored, err := s.insertNoteLocked(person, n, now)
+	if err != nil {
 		return Note{}, err
+	}
+	return copyNote(stored), nil
+}
+
+// insertNoteLocked stores n (its priority, archive and provenance as set)
+// on top of the person's order, with new ids; s.mu is held.
+func (s *Memory) insertNoteLocked(person string, n Note, now time.Time) (*Note, error) {
+	if err := s.realmLocked(person, true); err != nil {
+		return nil, err
 	}
 	held := s.notesLocked().byPerson[person]
 	if len(held) >= NotesPerPerson {
-		return Note{}, ErrNotesFull
+		return nil, ErrNotesFull
 	}
 	top := 1.0
 	for _, h := range held {
 		top = min(top, h.Position)
 	}
 	now = now.UTC()
-	n.ID, n.Priority, n.Position, n.ArchivedAt, n.CreatedAt, n.UpdatedAt = uuid.New(), NotePriorityDefault, top-1, nil, now, now
+	n.ID, n.Position, n.CreatedAt, n.UpdatedAt = uuid.New(), top-1, now, now
 	n.Items = mintNoteItems(n.Items)
 	for i := range n.Links {
 		n.Links[i].ID, n.Links[i].CreatedAt = uuid.New(), now
@@ -179,7 +191,29 @@ func (s *Memory) CreateNote(_ context.Context, person string, n Note, now time.T
 		s.notesLocked().byPerson[person] = held
 	}
 	held[n.ID] = &n
-	return copyNote(&n), nil
+	return &n, nil
+}
+
+// CreateNoteOnAsk is Notes.CreateNoteOnAsk.
+func (s *Memory) CreateNoteOnAsk(_ context.Context, person string, in NoteOnAsk, now time.Time) (NoteAdded, error) {
+	if err := checkPerson(person); err != nil {
+		return NoteAdded{}, err
+	}
+	n, err := checkNoteOnAsk(in)
+	if err != nil {
+		return NoteAdded{}, err
+	}
+	if in.Archived {
+		at := now.UTC()
+		n.ArchivedAt = &at
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored, err := s.insertNoteLocked(person, n, now)
+	if err != nil {
+		return NoteAdded{}, err
+	}
+	return NoteAdded{ID: stored.ID, CreatedAt: stored.CreatedAt}, nil
 }
 
 // NoteOf is Notes.NoteOf.

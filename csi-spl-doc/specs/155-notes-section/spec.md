@@ -610,8 +610,9 @@ named.
   2.4). Changes B4 only. Since SPL-5725 (owner may change): a "New note"
   made from "Add to note" takes no title from the object, so the object's
   title lives only in the link's label, which this mask drops; the title
-  is the person's own text. Changes B8 only (`wui/utils/add-to-note.mjs`
-  `newNoteFields`).
+  is the person's own text. Notes made before SPL-5725 keep the title
+  they copied (no data migration). Changes B8 only
+  (`wui/utils/add-to-note.mjs` `newNoteFields`).
 - **D5.** Default (owner may change): the Notes tab sits after Calendar
   in the default rail order. Changes B5 only.
 - **D6.** Default (owner may change): a note = title + text + optional

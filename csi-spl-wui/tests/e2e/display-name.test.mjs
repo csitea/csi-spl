@@ -1,14 +1,19 @@
-// The "Display name" field, proved in a REAL browser (owner
-// 2026-09-25: "there should be an option for the users to show their display
-// name" / "in their user settings").
+// The "Name and phone" fields (first name, last name, phone; SPL-5707, spec
+// 154 section 12.5, which replaced the single "Display name" field), proved
+// in a REAL browser (owner 2026-09-25: "there should be an option for the
+// users to show their display name" / "in their user settings"; t1 028ac340
+// poll 36ec7895: first + last name and a phone shown to the other members).
 //
 // Against the mock bundle, with the hub's two auth routes answered by this
 // test (GET /api/v1/auth/session and PUT /api/v1/auth/preferences, the
-// contract of auth-v1 §3): Settings → Profile shows the current name; an
-// empty name is refused in the page and never sent; a new name is PUT as
-// display_name alone, with no header the hub's auth CORS does not allow
-// (auth_cors.go: Content-Type, X-Locale); the user menu shows it without a reload; after a reload the
-// hub's answer still carries it.
+// contract of auth-v1 §3; GET /api/v1/auth/profile too on a real BASE_URL):
+// Settings → Profile shows the current name split into first and last (the
+// mock has no profile read); an empty first name and a national-form phone
+// are refused in the page and never sent; the three are PUT together as
+// first_name, last_name and phone (normalised), with no header the hub's
+// auth CORS does not allow (auth_cors.go: Content-Type, X-Locale); the user
+// menu shows the joined name without a reload; after a reload the hub's
+// answer still carries it. SHOT_DIR saves the screenshot.
 //
 // CONTROL: the user menu shows the OLD name before the save, so a menu that
 // always reads the typed text (or a selector that matches nothing) cannot
@@ -25,7 +30,9 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RED = process.env.PROVE_RED || ''
-const FIELD = '[data-test=settings-display-name]'
+const FIELD = '[data-test=settings-first-name]'
+const LAST = '[data-test=settings-last-name]'
+const PHONE = '[data-test=settings-phone]'
 const SAVE = '[data-test=settings-display-name-save]'
 const STATUS = '[data-test=settings-display-name-status]'
 
@@ -57,7 +64,7 @@ async function launch() {
 // The hub, as far as this page needs it: one signed-in human whose name the
 // PUT changes. It mirrors the hub's rule only loosely - the page must refuse
 // the bad name before it is ever sent, and step 3 counts the PUTs.
-const hub = { name: 'Old Name', puts: [] }
+const hub = { name: 'Old Name', first: 'Old', last: 'Name', phone: null, puts: [] }
 const json = (status, body) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
 function answer(req) {
   const u = new URL(req.url())
@@ -74,10 +81,17 @@ function answer(req) {
     let body = {}
     try { body = JSON.parse(req.postData() || '{}') } catch { /* counted below */ }
     hub.puts.push({ body, headers: req.headers() })
-    const name = typeof body.display_name === 'string' ? body.display_name.trim() : ''
-    if (!name) return json(400, { error: 'invalid_display_name' })
-    hub.name = name
-    return json(200, { display_name: name })
+    const first = typeof body.first_name === 'string' ? body.first_name.trim() : ''
+    if (!first) return json(400, { error: 'invalid_name' })
+    if (body.phone != null && !/^\+[1-9][0-9]{6,14}$/.test(body.phone)) return json(400, { error: 'invalid_phone' })
+    hub.first = first
+    hub.last = body.last_name || null
+    hub.phone = body.phone ?? null
+    hub.name = (first + ' ' + (hub.last || '')).trim()
+    return json(200, { first_name: first, last_name: hub.last, display_name: hub.name, phone: hub.phone })
+  }
+  if (path === 'profile' && req.method() === 'GET') {
+    return json(200, { first_name: hub.first, last_name: hub.last, phone: hub.phone })
   }
   if (path === 'providers') return json(200, { providers: [], native: true })
   return json(404, { error: 'not_found' })
@@ -105,9 +119,9 @@ async function menuName(p) {
   return text
 }
 
-async function setField(p, text) {
-  await p.$eval(FIELD, (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })) })
-  if (text) await p.type(FIELD, text)
+async function setField(p, text, sel = FIELD) {
+  await p.$eval(sel, (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })) })
+  if (text) await p.type(sel, text)
 }
 
 const server = await startServer()
@@ -138,30 +152,41 @@ try {
   await p.goto(server.base + '/settings/profile', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(FIELD, { visible: true, timeout: NAV_TIMEOUT })
 
-  // 1. the current name, in the field and (CONTROL) in the menu
+  // 1. the current name, split into the two fields, and (CONTROL) in the menu
   const v0 = await p.$eval(FIELD, (e) => e.value)
-  ok('1 the field shows the current name', v0 === 'Old Name', { v0 })
+  const l0 = await p.$eval(LAST, (e) => e.value)
+  ok('1 the fields show the current name, split at the first space', v0 === 'Old' && l0 === 'Name', { v0, l0 })
   const m0 = await menuName(p)
   ok('2 CONTROL: the user menu shows the old name before any save', m0 === 'Old Name', { m0 })
 
-  // 2. an empty name is refused in the page and never sent
+  // 2. an empty first name, and a phone without + and the country code, are
+  //    refused in the page and never sent
   await setField(p, '   ')
   await p.click(SAVE)
   await sleep(300)
   const s1 = await p.$eval(STATUS, (e) => e.textContent.trim()).catch(() => '')
-  ok('3 an empty name is refused in the page, nothing is sent', hub.puts.length === 0 && s1 !== '', { puts: hub.puts.length, s1 })
+  ok('3 an empty first name is refused in the page, nothing is sent', hub.puts.length === 0 && s1 !== '', { puts: hub.puts.length, s1 })
+  await setField(p, 'New')
+  await setField(p, '040 123 4567', PHONE)
+  await p.click(SAVE)
+  await sleep(300)
+  const s2 = await p.$eval(STATUS, (e) => e.textContent.trim()).catch(() => '')
+  ok('4 a national-form phone is refused in the page, nothing is sent', hub.puts.length === 0 && s2 !== '' && s2 !== s1, { puts: hub.puts.length, s2 })
 
-  // 3. a new name is saved and shows in the menu without a reload
-  await setField(p, 'New Name')
+  // 3. the three are saved together and the name shows in the menu without a reload
+  await setField(p, 'Person Name', LAST)
+  await setField(p, '+358 40 123 4567', PHONE)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/settings-name-phone.png` })
   if (RED !== 'no-save') await p.click(SAVE)
   await p.waitForFunction((sel) => document.querySelector(sel)?.textContent?.trim(), { timeout: 5000 }, STATUS).catch(() => null)
   const put = hub.puts[0]
-  ok('4 exactly one PUT, carrying display_name only', hub.puts.length === 1 && JSON.stringify(put?.body) === '{"display_name":"New Name"}',
-    { puts: hub.puts.map((x) => x.body) })
+  ok('5 exactly one PUT, carrying first_name, last_name and the normalised phone', hub.puts.length === 1 &&
+    JSON.stringify(put?.body) === '{"first_name":"New","last_name":"Person Name","phone":"+358401234567"}',
+  { puts: hub.puts.map((x) => x.body) })
   const custom = put ? Object.keys(put.headers).filter((h) => /^x-/i.test(h) && h.toLowerCase() !== 'x-locale') : []
-  ok('5 no header the auth CORS does not allow', Boolean(put) && custom.length === 0 && /json/.test(put.headers['content-type'] || ''), { custom })
+  ok('6 no header the auth CORS does not allow', Boolean(put) && custom.length === 0 && /json/.test(put.headers['content-type'] || ''), { custom })
   const m1 = await menuName(p)
-  ok('6 the user menu shows the new name without a reload', m1 === 'New Name', { m1 })
+  ok('7 the user menu shows the joined name without a reload', m1 === 'New Person Name', { m1 })
 
   // 4. a reload asks the hub again — the opt-in mock session reads the saved
   //    name from the control key (the network /session stub is bypassed in mock)
@@ -169,8 +194,9 @@ try {
   await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(FIELD, { visible: true, timeout: NAV_TIMEOUT })
   const v2 = await p.$eval(FIELD, (e) => e.value)
+  const l2 = await p.$eval(LAST, (e) => e.value)
   const m2 = await menuName(p)
-  ok('7 after a reload the field and the menu keep the new name', v2 === 'New Name' && m2 === 'New Name', { v2, m2 })
+  ok('8 after a reload the fields and the menu keep the new name', v2 === 'New' && l2 === 'Person Name' && m2 === 'New Person Name', { v2, l2, m2 })
 } finally {
   await browser.close()
   await server.stop()

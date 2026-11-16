@@ -70,11 +70,12 @@
     "profile": "Profile",
     "name": "Name",
     "display_name": {
-      "label": "Display name",
-      "hint": "How others see you in the spool: the name in your user menu and in people search. One line, up to 200 characters.",
+      "label": "Name and phone",
+      "hint": "Other members of your workspaces see your first and last name, and your phone. In a workspace that shows names only, they see your name and nothing else.",
       "save": "Save",
       "saved": "Saved.",
-      "invalid": "Enter a name of 1 to 200 characters on one line.",
+      "invalid": "Enter a first name. The first and last name can each have up to 100 characters on one line.",
+      "invalid_phone": "Enter the phone with + and the country code, e.g. +358 40 123 4567.",
       "failed": "Could not save — try again."
     },
     "email": "Email",

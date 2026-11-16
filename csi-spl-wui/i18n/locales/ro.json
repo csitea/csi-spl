@@ -70,11 +70,12 @@
     "profile": "Profil",
     "name": "Nume",
     "display_name": {
-      "label": "Nume afișat",
-      "hint": "Cum te văd ceilalți în spool: numele din meniul tău de utilizator și din căutarea de persoane. Un singur rând, până la 200 de caractere.",
+      "label": "Nume și telefon",
+      "hint": "Ceilalți membri ai spațiilor tale de lucru îți văd prenumele, numele și telefonul. Într-un spațiu de lucru care arată doar nume, îți văd doar prenumele și numele.",
       "save": "Salvează",
       "saved": "Salvat.",
-      "invalid": "Introdu un nume de 1 până la 200 de caractere, pe un singur rând.",
+      "invalid": "Introdu un prenume. Prenumele și numele pot avea fiecare până la 100 de caractere, pe un singur rând.",
+      "invalid_phone": "Introdu telefonul cu + și prefixul țării, de ex. +358 40 123 4567.",
       "failed": "Salvarea a eșuat — încercați din nou."
     },
     "email": "E-mail",

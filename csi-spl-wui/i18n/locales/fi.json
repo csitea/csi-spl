@@ -70,11 +70,12 @@
     "profile": "Profiili",
     "name": "Nimi",
     "display_name": {
-      "label": "Näyttönimi",
-      "hint": "Miten muut näkevät sinut spoolissa: nimi käyttäjävalikossasi ja henkilöhaussa. Yksi rivi, enintään 200 merkkiä.",
+      "label": "Nimi ja puhelin",
+      "hint": "Työtilojesi muut jäsenet näkevät etunimesi, sukunimesi ja puhelinnumerosi. Työtilassa, joka näyttää vain nimet, he näkevät vain nimesi.",
       "save": "Tallenna",
       "saved": "Tallennettu.",
-      "invalid": "Kirjoita nimi, jossa on 1–200 merkkiä yhdellä rivillä.",
+      "invalid": "Anna etunimi. Etu- ja sukunimessä voi olla kummassakin enintään 100 merkkiä yhdellä rivillä.",
+      "invalid_phone": "Anna puhelinnumero +-merkillä ja maatunnuksella, esim. +358 40 123 4567.",
       "failed": "Tallennus epäonnistui — yritä uudelleen."
     },
     "email": "Sähköposti",

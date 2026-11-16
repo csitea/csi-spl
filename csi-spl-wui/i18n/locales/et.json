@@ -70,11 +70,12 @@
     "profile": "Profiil",
     "name": "Nimi",
     "display_name": {
-      "label": "Kuvatav nimi",
-      "hint": "Kuidas teised sind spoolis näevad: nimi sinu kasutajamenüüs ja inimeste otsingus. Üks rida, kuni 200 märki.",
+      "label": "Nimi ja telefon",
+      "hint": "Sinu tööruumide teised liikmed näevad sinu ees- ja perekonnanime ning telefoni. Tööruumis, mis näitab ainult nimesid, näevad nad ainult sinu nime.",
       "save": "Salvesta",
       "saved": "Salvestatud.",
-      "invalid": "Sisesta nimi, mis on 1 kuni 200 märki pikk ja ühel real.",
+      "invalid": "Sisesta eesnimi. Ees- ja perekonnanimi võivad kumbki olla kuni 100 märki ühel real.",
+      "invalid_phone": "Sisesta telefoninumber koos +-märgi ja riigikoodiga, nt +358 40 123 4567.",
       "failed": "Salvestamine ebaõnnestus — proovi uuesti."
     },
     "email": "E-post",

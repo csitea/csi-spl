@@ -387,6 +387,41 @@ function layoutPreferenceMethods(post) {
   }
 }
 
+/**
+ * SPL-5707 (spec 154 section 12.5): the person's own first name, last name
+ * and phone, read and saved through the auth door.
+ */
+function profileMethods(post, call, mock) {
+  return {
+    /**
+     * SPL-5707 (spec 154 section 12.5): Settings -> Profile first name, last
+     * name and phone, saved together. The hub writes display_name as the
+     * join and echoes it. 200 -> `data` = { first_name, last_name,
+     * display_name, phone }; 400 invalid_name / invalid_phone; 403 pseudonym
+     * (a demo visitor); 401; 409 = no human.
+     */
+    saveProfile({ first, last, phone } = {}) {
+      const s = (v) => String(v ?? '').trim()
+      return post('/preferences', { first_name: s(first), last_name: s(last) || null, phone: s(phone) || null }, 'PUT')
+    },
+    /**
+     * SPL-5707: the signed-in person's OWN first name, last name and phone
+     * (GET /profile, no-store). Resolves (never throws) to { ok, data }; the
+     * mock has no hub and answers ok false (the form then splits the name).
+     */
+    async getProfile() {
+      if (mock) return { ok: false, data: null }
+      try {
+        const res = await call('/profile', { cache: 'no-store' })
+        const data = res.ok ? await res.json().catch(() => null) : null
+        return { ok: Boolean(res.ok && data), data }
+      } catch {
+        return { ok: false, data: null }
+      }
+    },
+  }
+}
+
 export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false, mock = false } = {}) {
   const root = authOrigin(base)
   const call = authCall(fetchFn, root, locale, sendLocale)
@@ -404,6 +439,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return probeSession(call, mock, pending)
     },
     ...accountMethods(post),
+    ...profileMethods(post, call, mock),
     ...layoutPreferenceMethods(post),
     /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub

@@ -70,11 +70,12 @@
     "profile": "Profil",
     "name": "Imię i nazwisko",
     "display_name": {
-      "label": "Wyświetlana nazwa",
-      "hint": "Jak widzą cię inni w spool: nazwa w menu użytkownika i w wyszukiwaniu osób. Jeden wiersz, do 200 znaków.",
+      "label": "Imię i telefon",
+      "hint": "Inni członkowie twoich obszarów roboczych widzą twoje imię, nazwisko i telefon. W obszarze roboczym, który pokazuje tylko imiona i nazwiska, widzą tylko twoje imię i nazwisko.",
       "save": "Zapisz",
       "saved": "Zapisano.",
-      "invalid": "Wpisz nazwę o długości od 1 do 200 znaków w jednym wierszu.",
+      "invalid": "Wpisz imię. Imię i nazwisko mogą mieć do 100 znaków każde, w jednym wierszu.",
+      "invalid_phone": "Wpisz telefon z + i kodem kraju, np. +358 40 123 4567.",
       "failed": "Nie udało się zapisać — spróbuj ponownie."
     },
     "email": "E-mail",

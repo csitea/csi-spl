@@ -70,11 +70,12 @@
     "profile": "Profils",
     "name": "Vārds",
     "display_name": {
-      "label": "Parādāmais vārds",
-      "hint": "Kā citi jūs redz spool: vārds jūsu lietotāja izvēlnē un cilvēku meklēšanā. Viena rinda, līdz 200 rakstzīmēm.",
+      "label": "Vārds un tālrunis",
+      "hint": "Citi jūsu darbvietu dalībnieki redz jūsu vārdu, uzvārdu un tālruni. Darbvietā, kurā redzami tikai vārdi, viņi redz tikai jūsu vārdu un uzvārdu.",
       "save": "Saglabāt",
       "saved": "Saglabāts.",
-      "invalid": "Ievadiet vārdu no 1 līdz 200 rakstzīmēm vienā rindā.",
+      "invalid": "Ievadiet vārdu. Vārdā un uzvārdā katrā var būt līdz 100 rakstzīmēm vienā rindā.",
+      "invalid_phone": "Ievadiet tālruni ar + un valsts kodu, piem., +358 40 123 4567.",
       "failed": "Neizdevās saglabāt — mēģiniet vēlreiz."
     },
     "email": "E-pasts",

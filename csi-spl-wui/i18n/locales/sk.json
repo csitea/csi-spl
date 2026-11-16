@@ -70,11 +70,12 @@
     "profile": "Profil",
     "name": "Meno",
     "display_name": {
-      "label": "Zobrazované meno",
-      "hint": "Ako vás vidia ostatní v spool: meno vo vašej používateľskej ponuke a vo vyhľadávaní ľudí. Jeden riadok, najviac 200 znakov.",
+      "label": "Meno a telefón",
+      "hint": "Ostatní členovia vašich pracovných priestorov vidia vaše meno, priezvisko a telefón. V pracovnom priestore, ktorý zobrazuje iba mená, vidia iba vaše meno a priezvisko.",
       "save": "Uložiť",
       "saved": "Uložené.",
-      "invalid": "Zadajte meno s dĺžkou 1 až 200 znakov na jednom riadku.",
+      "invalid": "Zadajte meno. Meno a priezvisko môžu mať každé najviac 100 znakov na jednom riadku.",
+      "invalid_phone": "Zadajte telefón s + a kódom krajiny, napr. +358 40 123 4567.",
       "failed": "Nepodarilo sa uložiť — skúste to znova."
     },
     "email": "E-mail",

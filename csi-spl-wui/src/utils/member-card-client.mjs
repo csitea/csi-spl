@@ -12,6 +12,11 @@
  * answers email null, and the card shows no Email row either. The mock
  * (useMock) answers an example.com address for a HUM-<n> id, null in t1 like
  * the hub, and 404 for anything else.
+ *
+ * Section 12.5 (SPL-5707): the card also carries first_name, last_name and
+ * phone (the member's own number, E.164), each a string or null; phone is
+ * null in a name-only workspace and in the demo. The mock answers a
+ * +3584000000<n> number for HUM-<n>, null in t1.
  */
 import { BOOT_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
@@ -26,15 +31,30 @@ export function memberCardUrl(api, id) {
 /** The card as the hub sends it: email and display_name are a string or null. */
 function shaped(out) {
   const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
-  return { human_id: String(out?.human_id || ''), display_name: str(out?.display_name), email: str(out?.email) }
+  return {
+    human_id: String(out?.human_id || ''),
+    display_name: str(out?.display_name),
+    email: str(out?.email),
+    first_name: str(out?.first_name),
+    last_name: str(out?.last_name),
+    phone: str(out?.phone),
+  }
 }
 
 /** Reads member `id`'s card; throws { status, error } on any refusal (status 0 offline). */
 export async function memberCard(api, id) {
   if (api.mock) {
     if (!/^HUM-\d+$/.test(String(id))) throw refused(404, 'not_found')
-    const email = api.tenant === 't1' ? null : String(id).toLowerCase() + '@example.com'
-    return { human_id: id, display_name: null, email }
+    const t1 = api.tenant === 't1'
+    const n = String(id).slice(4)
+    return {
+      human_id: id,
+      display_name: null,
+      email: t1 ? null : String(id).toLowerCase() + '@example.com',
+      first_name: null,
+      last_name: null,
+      phone: t1 ? null : '+3584000000' + n,
+    }
   }
   let res
   try {

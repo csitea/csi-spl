@@ -210,18 +210,21 @@ touched files' tests), `cd csi-spl-iac && ./run -a do_check_pre_push`.
    comes back to `own` if it was on backup, and refreshes the other box's
    second folder.
 
-## 7. Open questions for the holder (to the owner if needed)
+## 7. Decided questions
 
-| # | question | recommendation |
-|---|---|---|
-| Q1 | box 1's second folder today holds the owner's own login, for the role failover (SPL-3023, owner choice B). This design fills it with sat's account instead, so the role failover's `claude2` step on box 1 then runs on sat's account | A: yes, one second folder. Its job becomes "the other box's account" for both uses |
-| Q2 | the backup account's % comes from the other box's BOX-0 row (published every 300 s, 1 h max age). On no reading, should the box stay on own (hold)? | A: hold. Never move onto an account whose % is unknown |
-| Q3 | `.claude.json` of the second folder: carry only `oauthAccount` and `hasCompletedOnboarding` (proposed), or the whole file as SPL-3023 does locally? | A: the two fields only. Nothing else crosses boxes |
+All three are decided; none is open.
+
+| # | question | decision | by |
+|---|---|---|---|
+| Q1 | box 1's second folder today holds the owner's own login, for the role failover (SPL-3023, owner choice B). This design fills it with sat's account instead, so the role failover's `claude2` step on box 1 then runs on sat's account | **A**: one second folder. It holds the other box's account for both uses (the role failover and this one), replacing the owner's own login there | owner HUM-10, t1 64ca0e0c, msg 5ff9dea1 (poll b82d89b2) |
+| Q2 | the backup account's % comes from the other box's BOX-0 row (published every 300 s, 1 h max age). On no reading, should the box stay on own (hold)? | **A**: hold. Never move onto an account whose % is unknown | holder c-002@sat, msg f4ec1294 |
+| Q3 | `.claude.json` of the second folder: carry only `oauthAccount` and `hasCompletedOnboarding`, or the whole file as SPL-3023 does locally? | **A**: the two fields only. Nothing else crosses boxes | holder c-002@sat, msg f4ec1294 |
 
 ## 8. Change log
 
 | version | date | change |
 |---|---|---|
 | 0.1 | 2026-11-16 | design for the holder's review (c-560, SPL-5695) |
+| 0.2 | 2026-11-16 | section 7: Q1 decided by the owner (msg 5ff9dea1), Q2 and Q3 by the holder (msg f4ec1294) |
 
-<!-- last-edit: 2026-11-16T07:40:00Z — c-560 SPL-5695 -->
+<!-- last-edit: 2026-11-16T08:40:00Z — c-560 SPL-5695 -->

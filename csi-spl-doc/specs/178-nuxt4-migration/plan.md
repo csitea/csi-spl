@@ -1,6 +1,6 @@
 # Plan 178: the Nuxt 4 move in steps that each land
 
-Version **0.1.0** (2026-11-16). Spec: [spec.md](spec.md). Issue SPL-5661,
+Version **0.2.0** (2026-11-16; 0.2.0 folds R7 grok g-390 W1, N2, N3). Spec: [spec.md](spec.md). Issue SPL-5661,
 epic SPL-2402. Each phase is its own lane with its own issue, and the
 dispatcher places them in order. Each phase lands green on its own, and the
 WUI keeps working on nuxt 3 until P4.
@@ -33,7 +33,8 @@ of P3.
 This phase stays on nuxt 3, which runs on node 22. Three things move together:
 
 - every `node-version: 20` in `.github/workflows/*.yml` (9 lines today) to 22;
-- `csi-spl-wui/package.json` `engines.node` to `>=22.22.3`;
+- `csi-spl-wui/package.json` `engines.node` to `^22.22.3 || ^24.15.0 || >=26.0.0`, nuxt 4.6.4's own range
+  (nuxt 3.21.11 takes `^20.19.0 || >=22.12.0`, so nuxt 3 still runs on it);
 - the box node, through `do_box_pkg_install` where the owner can see it,
   never by hand.
 
@@ -49,14 +50,15 @@ is only the version bump. The areas to expect (spec section 3):
 - the head calls (unhead 3);
 - the 2 files that call `useAsyncData`;
 - the `manualChunks` split and the Rollup types in `nuxt.config.ts` (vite 8);
-- the 7 local modules in `nuxt.config.ts`.
+- the 8 local modules in `nuxt.config.ts`.
 
 ## P4. The bump (one lane, `complex_coding`)
 
 One commit holds all of it:
 
-- `nuxt ^4.6.4`, `vue-router` per F2 and the `vite` override per F4, with the
-  lockfile;
+- `nuxt ^4.6.4`, `vue-router` per F2, `@nuxtjs/i18n` 10.6.0 or later per F5
+  (it needs vue-router 5, so it cannot land earlier) and the `vite` override
+  per F4, with the lockfile;
 - the 5 ignores removed from `osv-scanner.toml`, and their ids removed from
   `pnpm.auditConfig.ignoreGhsas`, plus any id P1 showed unused;
 - the WUI README and the package `description`.
@@ -77,4 +79,4 @@ Rollback: revert the P4 commit. P2 and P3 stay.
 - R3. The box node upgrade affects every lane that runs the WUI suite on the
   box. P2 tells the orchestrator before it lands.
 
-<!-- version: 0.1.0 · updated: 2026-11-16 -->
+<!-- version: 0.2.0 · updated: 2026-11-16 -->

@@ -1,6 +1,6 @@
 # Spec 178: move the WUI from Nuxt 3 to Nuxt 4
 
-Version **0.1.0** (2026-11-16). Lane `c-385`, placement slug
+Version **0.2.0** (2026-11-16; 0.2.0 folds R7 grok g-390 W1, N1..N3). Lane `c-385`, placement slug
 `ci50-05-nuxt4-migration-spec`. Epic **SPL-2402**, issue **SPL-5661**, kind
 `specs_and_docs`. Parent spec: `csi-spl-doc/specs/011-spool-project-refactor`.
 Source: `csi-spl-doc/doc/md/ci-failures-50-2026-11-15.md` (SPL-5587) section 7
@@ -73,12 +73,12 @@ becomes a step in the plan:
 |---|---|---|---|
 | F1 | nuxt 4.6.4 needs node `^22.22.3 \|\| ^24.15.0 \|\| >=26.0.0` | `npm view nuxt@4.6.4 engines` | CI runs node 20 (`grep -rn node-version .github/workflows/*.yml` -> 9 lines, all `20`). The box runs node 20 too (`node --version` -> v20.19.2), and `csi-spl-wui/package.json` says `"node": ">=20.0.0"`. All three move to 22 first. |
 | F2 | nuxt 4.6.4 depends on `vue-router ^5.4.0` | `npm view nuxt@4.6.4 dependencies` | Our package.json pins `vue-router ^4.5.0`: bump it or drop it. Re-check `src/app/router.options.ts`, the one router file. |
-| F3 | nuxt 4.6.4 depends on `unhead` / `@unhead/vue ^3.4.3` | same | 15 lines in `src` call `useHead` / `useSeoMeta` or read `__NUXT__` (`grep -rnE '__NUXT__\|useHead\|useSeoMeta' csi-spl-wui/src` -> 15). `public-seo.mjs` also injects head tags. Re-check each one. |
+| F3 | nuxt 4.6.4 depends on `unhead` / `@unhead/vue ^3.4.3` | same | `grep -rnE '__NUXT__\|useHead\|useSeoMeta' csi-spl-wui/src` -> 16 lines; one is a comment in `src/public/sw.js`, so 15 call sites. `public-seo.mjs` also injects head tags. Re-check each one. |
 | F4 | `@nuxt/vite-builder@4.6.4` depends on `vite ^8.3.5` | `npm view @nuxt/vite-builder@4.6.4 dependencies` | Our `pnpm.overrides` forces `vite ^7.3.7`. The override goes (or moves to 8) in the same commit, and `tests/unit/override-dependents-link.test.mjs` proves it links. Re-check the Rollup-shaped code in `nuxt.config.ts` (`manualChunks`, `import type { Rollup } from "vite"`) against vite 8. |
-| F5 | `@nuxtjs/i18n@10.2.3` depends on `@nuxt/kit ^4.1.2`; `@pinia/nuxt@0.11.3` depends on `@nuxt/kit ^4.2.0` | `npm view <pkg> dependencies` | Both modules already run on the nuxt 4 kit, so the move forces no module bump. |
+| F5 | `@nuxtjs/i18n@10.2.3` depends on `@nuxt/kit ^4.1.2` and `vue-router ^4.6.3`; `@nuxtjs/i18n@10.6.0` (latest) on `@nuxt/kit ^4.5.1` and `vue-router ^5.2.0`; `@pinia/nuxt@0.11.3` on `@nuxt/kit ^4.2.0` | `npm view <pkg> dependencies` | pinia needs no bump. i18n does: its 10.2.3 `vue-router ^4.6.3` does not overlap nuxt 4.6.4's `^5.4.0` (F2), so the exact pin `@nuxtjs/i18n 10.2.3` moves to 10.6.0 or later. 10.6.0 wants vue-router 5, which nuxt 3 does not take, so the i18n bump lands in P4 with nuxt, not in P3. |
 | F6 | the config already pins the nuxt 4 directory settings | `grep -nE 'srcDir\|workspaceDir' csi-spl-wui/nuxt.config.ts` -> `srcDir: "src/"`, `workspaceDir: "."` | Nuxt 4's new default srcDir (`app/`) does not apply, and `~/` still means `src/`. |
 | F7 | 2 files call `useAsyncData` (`grep -rlE 'useAsyncData\|useFetch' csi-spl-wui/src` -> `components/LoginFeatures.vue`, `pages/blog.vue`) | | Nuxt 4 changes data fetching (`data` becomes a shallow ref, its default becomes `undefined`), so those 2 files are re-checked. The `experimental.payloadExtraction` comment in `nuxt.config.ts` ("no page uses useAsyncData/useFetch") is stale and gets corrected in P3. |
-| F8 | the config loads 10 modules, 7 of them local (`modules:` line of `nuxt.config.ts`), and uses nuxt hooks such as `modules:done` | | Each local module is rebuilt and its output compared (plan P3). |
+| F8 | the config loads 10 modules, 8 of them local (`modules:` line of `nuxt.config.ts`), and uses nuxt hooks such as `modules:done` | | Each local module is rebuilt and its output compared (plan P3). |
 
 Not measured yet, left to plan P1: whether nuxt 4 drops minimatch, glob and
 deepmerge from the tree (`pnpm why` on the migration branch).
@@ -123,4 +123,4 @@ move has not landed, the re-check lane ran.
 - A6. The WUI README (line 19 says `Nuxt 3` today) and the
   `csi-spl-wui/package.json` `description` both say Nuxt 4.
 
-<!-- version: 0.1.0 · updated: 2026-11-16 -->
+<!-- version: 0.2.0 · updated: 2026-11-16 -->

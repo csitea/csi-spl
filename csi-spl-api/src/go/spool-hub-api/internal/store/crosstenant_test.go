@@ -245,6 +245,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// workspace_use_minutes (rdb 0289, SPL-5709): one counted minute.
+	if _, err := pg.RecordUseMinute(ctx, s.tenant, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	// member_clones (rdb 0088, specs/054): a technical clone human of the
 	// seeded member and its act-as row, so the table holds a row for both
 	// tenants. humans is hub-wide (no RLS); the clone row is tenant-scoped.

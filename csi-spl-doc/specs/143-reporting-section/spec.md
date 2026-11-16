@@ -766,6 +766,9 @@ The remaining tabs defined in poll `1dd28b0e` are phased for subsequent implemen
   - Box runner distribution and hardware load correlation.
 - **Data sources**: Hub table `fleet_asks`, `box_beats`, and runner agent registry logs.
 
+### 5.5 Usage hours (SPL-5709)
+Hours each person spends in each workspace and in the whole hub: a WUI heartbeat per active, visible minute, counted once per person and minute. Who sees what, the store, the API and the build rows: [usage-hours.md](usage-hours.md).
+
 ---
 
 ## 6. Security, access control & privacy
@@ -786,6 +789,9 @@ The remaining tabs defined in poll `1dd28b0e` are phased for subsequent implemen
 | `POST /v1/operator/categories` | Operator Admins | Google ID Token (`operatorAuth`) | Operator scope |
 | `GET /v1/reporting/releases/projects` (Draft, [releases-projects.md](releases-projects.md)) | All signed-in members | Member session (`humanTenant`) | Workspace RLS; another workspace's project answers 404 |
 | `PUT /v1/operator/workspaces/{id}/projects/{project}` (Draft, [releases-projects.md](releases-projects.md)) | Operator | Google ID Token (`operatorAuth`) | Operator scope |
+| `POST /v1/me/use-minute` ([usage-hours.md](usage-hours.md)) | Members with `self.keys` (not demo visitors or channel guests) | Member session (`humanTenant`) | The session's workspace and person; the body is ignored |
+| `GET /v1/reporting/use` ([usage-hours.md](usage-hours.md)) | Workspace `biz_owner` and `admin` (every member); any member (`?human_id=<self>`) | Member session (`humanTenant`) | Workspace RLS; the hub minutes of its members only |
+| `GET /v1/operator/use` ([usage-hours.md](usage-hours.md)) | Operator workspace `admin` | Member session or operator bearer | Operator scope |
 
 ### 6.2 Data protection & hygiene rules
 

@@ -106,6 +106,8 @@ type Memory struct {
 	agentCaps map[string]map[string]memCap
 	// box_locks_memory.go (rdb 0213): box locks and their audit, guarded by mu
 	boxLocks *memBoxLocks
+	// use_minutes_memory.go (rdb 0289, SPL-5709): hours of use, guarded by mu
+	use *memUse
 	// topic_priority_memory.go (rdb 0215): (tenant, task) -> priority, guarded by mu
 	topicPrio map[[2]string]TopicPriority
 	// dm_agents.go (rdb 0228, spec 151): the agents added to a DM, nil until

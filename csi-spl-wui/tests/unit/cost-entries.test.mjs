@@ -83,6 +83,26 @@ describe('the form checks what the hub checks', () => {
   })
 })
 
+/* SPL-5693: the form trims what the hub's strings.TrimSpace trims, and counts source/account on hr only */
+describe('the form trims as the hub does, source and account on hr only', () => {
+  it('a NEL-only label is no label', () => assert.equal(checkCostEntryForm({ ...good, label: '\u0085' }, CUR), 'err_label'))
+  it('a label padded with NEL counts trimmed', () => {
+    const f = { ...good, label: '\u0085' + 'x'.repeat(100) + '\u0085' }
+    assert.equal(checkCostEntryForm(f, CUR), '')
+    assert.equal(costEntryBody('cloud', f).label, 'x'.repeat(100))
+  })
+  it('a BOM-only label is a label, as the hub keeps U+FEFF', () => assert.equal(checkCostEntryForm({ ...good, label: '\ufeff' }, CUR), ''))
+  it('the hr body trims NEL off source and account', () => {
+    const body = costEntryBody('hr', { ...good, source: '\u0085payslip\u0085', account: '\u00a0acct\u3000' })
+    assert.equal(body.source, 'payslip')
+    assert.equal(body.account, 'acct')
+  })
+  it('a cloud entry with 201 characters of source passes', () => assert.equal(checkCostEntryForm({ ...good, source: 'x'.repeat(201) }, CUR, 'cloud'), ''))
+  it('a cloud entry with 21 characters of account passes', () => assert.equal(checkCostEntryForm({ ...good, account: 'x'.repeat(21) }, CUR, 'cloud'), ''))
+  it('an hr entry with 201 characters of source is refused', () => assert.equal(checkCostEntryForm({ ...good, source: 'x'.repeat(201) }, CUR, 'hr'), 'err_source'))
+  it('the card passes its tab type', () => assert.match(read('src/components/expenses/CostEntriesCard.vue'), /checkCostEntryForm\(f, currencies\.value, props\.type\)/))
+})
+
 describe('the insert per type', () => {
   for (const type of COST_ENTRY_TYPES) {
     it(`${type}: the body carries the tab's type, the amount as a number, the label trimmed`, () => {

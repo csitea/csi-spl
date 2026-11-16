@@ -279,7 +279,7 @@ async function submit() {
   if (props.type === 'hr' && !f.label.trim() && f.component) {
     f.label = hrLineLabel(hr.people.find((p) => p.id === f.personId), hr.components.find((c) => c.component === f.component))
   }
-  problem.value = checkCostEntryForm(f, currencies.value)
+  problem.value = checkCostEntryForm(f, currencies.value, props.type)
   if (problem.value) return
   busy.value = true
   try {

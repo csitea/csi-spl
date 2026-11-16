@@ -31,6 +31,15 @@ const NOTE_MAX = 2000
 const str = (v) => (typeof v === 'string' ? v : '')
 /* the hub counts characters (Go utf8.RuneCountInString, SPL-5488, SPL-5583): code points, not bytes or UTF-16 units */
 const chars = (s) => [...s].length
+/*
+ * SPL-5693: trim what the hub trims, Go strings.TrimSpace = unicode.IsSpace:
+ * \t \n \v \f \r, space, U+0085 (NEL), U+00A0, U+1680, U+2000..U+200A,
+ * U+2028, U+2029, U+202F, U+205F, U+3000 (go1.26, every rune enumerated).
+ * JS trim() differs by two: it keeps U+0085 and strips U+FEFF, which Go keeps.
+ */
+const GO_SPACE = '\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000'
+const GO_TRIM_RE = new RegExp(`^[${GO_SPACE}]+|[${GO_SPACE}]+$`, 'g')
+const goTrim = (v) => str(v).replace(GO_TRIM_RE, '')
 const micro = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
 /** GET .../cost-entries ({entries: [...]}) as rows, the newest month first; an entry with no id is dropped. */
@@ -115,9 +124,11 @@ export function emptyCostEntryForm(now = new Date()) {
  * The first thing the form may not send, as an i18n key under expenses.entries
  * ('' = fine): store.CheckCostEntry's rules, plus a currency the hub holds a
  * rate for (`currencies`), since an unrated amount reads as no USD in Costs.
+ * `type` is the tab's (costEntryBody's): source and account count on hr only;
+ * none given checks them, the stricter reading.
  */
-export function checkCostEntryForm(f, currencies = ['USD']) {
-  const label = str(f.label).trim()
+export function checkCostEntryForm(f, currencies = ['USD'], type = 'hr') {
+  const label = goTrim(f.label)
   const amount = Number(f.amount)
   if (!label || chars(label) > LABEL_MAX) return 'err_label'
   if (f.amount === '' || !Number.isFinite(amount) || amount <= 0 || amount >= AMOUNT_MAX) return 'err_amount'
@@ -126,7 +137,8 @@ export function checkCostEntryForm(f, currencies = ['USD']) {
   if (chars(str(f.note)) > NOTE_MAX) return 'err_note'
   /* SPL-5433: the hr line's own fields (rdb 0279's CHECKs) */
   if (str(f.personId) && !str(f.component)) return 'err_component'
-  if (chars(str(f.source).trim()) > 200 || chars(str(f.account).trim()) > 20) return 'err_source'
+  /* SPL-5693: costEntryBody sends source and account on hr entries only */
+  if (type === 'hr' && (chars(goTrim(f.source)) > 200 || chars(goTrim(f.account)) > 20)) return 'err_source'
   if (f.periodKind === 'year' && !str(f.period).endsWith('-01')) return 'err_year'
   if (str(f.correctsPeriod) && (!MONTH_RE.test(f.correctsPeriod) || f.correctsPeriod >= f.period)) return 'err_corrects'
   return ''
@@ -134,10 +146,10 @@ export function checkCostEntryForm(f, currencies = ['USD']) {
 
 /** The POST body of a checked form, for one tab's type. */
 export function costEntryBody(type, f) {
-  const body = { type, label: str(f.label).trim(), amount: Number(f.amount), currency: f.currency, period: f.period, note: str(f.note) }
+  const body = { type, label: goTrim(f.label), amount: Number(f.amount), currency: f.currency, period: f.period, note: str(f.note) }
   if (type !== 'hr') return body
   /* SPL-5433: only the hr fields that are set */
-  for (const [k, v] of [['person_id', f.personId], ['component', f.component], ['source', str(f.source).trim()], ['account', str(f.account).trim()], ['corrects_period', f.correctsPeriod]]) {
+  for (const [k, v] of [['person_id', f.personId], ['component', f.component], ['source', goTrim(f.source)], ['account', goTrim(f.account)], ['corrects_period', f.correctsPeriod]]) {
     if (str(v)) body[k] = v
   }
   if (f.periodKind === 'year') body.period_kind = 'year'

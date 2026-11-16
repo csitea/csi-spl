@@ -1,5 +1,6 @@
 // SPL-5431 (spec 154 section 12): member-card-client.mjs reads the hub's
 // member card, the address only on a 200, and the mock answers the same shape.
+// SPL-5707 (section 12.5): first_name, last_name and phone ride the same card.
 import { describe, it, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { memberCard, memberCardUrl } from '../../src/utils/member-card-client.mjs'
@@ -19,16 +20,16 @@ function answers(status, body) {
 
 describe('member card client', () => {
   it('reads the session workspace route, with the cookie', async () => {
-    const sent = answers(200, { human_id: 'HUM-2', display_name: 'FirstName LastName', email: 'first.last@example.com' })
+    const sent = answers(200, { human_id: 'HUM-2', display_name: 'FirstName LastName', email: 'first.last@example.com', first_name: 'FirstName', last_name: 'LastName', phone: '+358401234567' })
     const card = await memberCard(HUB, 'HUM-2')
-    assert.deepEqual(card, { human_id: 'HUM-2', display_name: 'FirstName LastName', email: 'first.last@example.com' })
+    assert.deepEqual(card, { human_id: 'HUM-2', display_name: 'FirstName LastName', email: 'first.last@example.com', first_name: 'FirstName', last_name: 'LastName', phone: '+358401234567' })
     assert.equal(sent[0].url, 'http://hub.example.com/v1/view/members/HUM-2/card?workspace=t1')
     assert.equal(sent[0].init.credentials, 'include')
     assert.equal(sent[0].init.headers.authorization, undefined)
   })
   it('null fields stay null', async () => {
-    answers(200, { human_id: 'HUM-3', display_name: null, email: null })
-    assert.deepEqual(await memberCard(HUB, 'HUM-3'), { human_id: 'HUM-3', display_name: null, email: null })
+    answers(200, { human_id: 'HUM-3', display_name: null, email: null, first_name: 'A', last_name: null, phone: null })
+    assert.deepEqual(await memberCard(HUB, 'HUM-3'), { human_id: 'HUM-3', display_name: null, email: null, first_name: 'A', last_name: null, phone: null })
   })
   for (const [status, error] of [[404, 'not_found'], [403, 'person_only']]) {
     it(`a ${status} ${error} throws, with no address`, async () => {
@@ -48,5 +49,7 @@ describe('member card client', () => {
     await assert.rejects(memberCard({ mock: true }, 'CLE-07'), (e) => e.status === 404)
     assert.equal((await memberCard({ mock: true, tenant: 't1' }, 'HUM-2')).email, null, 't1 is name-only (spec 154 12.4)')
     assert.equal((await memberCard({ mock: true, tenant: 'w2' }, 'HUM-2')).email, 'hum-2@example.com')
+    assert.equal((await memberCard({ mock: true, tenant: 'w2' }, 'HUM-2')).phone, '+35840000002', 'section 12.5')
+    assert.equal((await memberCard({ mock: true, tenant: 't1' }, 'HUM-2')).phone, null, 't1: no phone')
   })
 })

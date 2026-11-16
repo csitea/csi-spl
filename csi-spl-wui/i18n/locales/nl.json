@@ -70,11 +70,12 @@
     "profile": "Profiel",
     "name": "Naam",
     "display_name": {
-      "label": "Weergavenaam",
-      "hint": "Hoe anderen je in de spool zien: de naam in je gebruikersmenu en bij het zoeken naar personen. Eén regel, maximaal 200 tekens.",
+      "label": "Naam en telefoon",
+      "hint": "Andere leden van je werkruimtes zien je voornaam, achternaam en telefoon. In een werkruimte die alleen namen toont, zien ze alleen je naam.",
       "save": "Opslaan",
       "saved": "Opgeslagen.",
-      "invalid": "Voer een naam in van 1 tot 200 tekens op één regel.",
+      "invalid": "Vul een voornaam in. Voornaam en achternaam mogen elk tot 100 tekens op één regel hebben.",
+      "invalid_phone": "Vul het telefoonnummer in met + en de landcode, bijv. +358 40 123 4567.",
       "failed": "Opslaan mislukt — probeer het opnieuw."
     },
     "email": "E-mail",

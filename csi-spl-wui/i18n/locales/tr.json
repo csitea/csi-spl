@@ -70,11 +70,12 @@
     "profile": "Profil",
     "name": "Ad",
     "display_name": {
-      "label": "Görünen ad",
-      "hint": "Başkalarının sizi spool'da nasıl gördüğü: kullanıcı menünüzdeki ve kişi aramasındaki ad. Tek satır, en fazla 200 karakter.",
+      "label": "Ad ve telefon",
+      "hint": "Çalışma alanlarınızın diğer üyeleri adınızı, soyadınızı ve telefonunuzu görür. Yalnızca adları gösteren bir çalışma alanında yalnızca adınızı görürler.",
       "save": "Kaydet",
       "saved": "Kaydedildi.",
-      "invalid": "Tek satırda 1 ile 200 karakter arasında bir ad girin.",
+      "invalid": "Bir ad girin. Ad ve soyadın her biri tek satırda en fazla 100 karakter olabilir.",
+      "invalid_phone": "Telefonu + ve ülke koduyla girin, ör. +358 40 123 4567.",
       "failed": "Kaydedilemedi — tekrar deneyin."
     },
     "email": "E-posta",

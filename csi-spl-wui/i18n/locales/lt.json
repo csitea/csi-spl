@@ -70,11 +70,12 @@
     "profile": "Profilis",
     "name": "Vardas",
     "display_name": {
-      "label": "Rodomas vardas",
-      "hint": "Kaip kiti jus mato spool: vardas jūsų naudotojo meniu ir žmonių paieškoje. Viena eilutė, iki 200 simbolių.",
+      "label": "Vardas ir telefonas",
+      "hint": "Kiti jūsų darbo sričių nariai mato jūsų vardą, pavardę ir telefoną. Darbo srityje, kurioje rodomi tik vardai, jie mato tik jūsų vardą.",
       "save": "Išsaugoti",
       "saved": "Išsaugota.",
-      "invalid": "Įveskite vardą nuo 1 iki 200 simbolių vienoje eilutėje.",
+      "invalid": "Įveskite vardą. Vardas ir pavardė gali būti iki 100 simbolių kiekvienas, vienoje eilutėje.",
+      "invalid_phone": "Įveskite telefoną su + ir šalies kodu, pvz., +358 40 123 4567.",
       "failed": "Nepavyko išsaugoti — bandykite dar kartą."
     },
     "email": "El. paštas",

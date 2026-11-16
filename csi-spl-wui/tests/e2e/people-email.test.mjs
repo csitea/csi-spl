@@ -7,6 +7,9 @@
 // Section 12.4 (owner t1 028ac340: "In the T1 workspace only the first name
 // and the last name ... Nothing else should be visible."): in t1 the card
 // shows the name and no Email row; the twin is the same card outside t1.
+// Section 12.5 (SPL-5707, poll 36ec7895): the card also shows the member's
+// phone (the mock answers +3584000000<n>) outside t1, as a link; in t1 and
+// under act-as no Phone row and no number on the page.
 // The hub's gates (same workspace only, person only) are hub tests:
 // hub/member_card_test.go. SHOT_DIR saves the screenshot.
 //
@@ -60,6 +63,8 @@ const setMe = (p, me) => p.evaluate(async (me) => {
   return true
 }, me)
 
+const phoneRow = (p) => p.$eval('[data-test=person-phone]', (d) => ({ text: d.textContent.trim(), href: d.querySelector('a')?.getAttribute('href') || '' })).catch(() => null)
+
 const emailRow = (p) => p.$eval('[data-test=person-email] a', (a) => ({ text: a.textContent.trim(), href: a.getAttribute('href') })).catch(() => null)
 
 async function run(browser, base) {
@@ -74,6 +79,8 @@ async function run(browser, base) {
   await p.waitForSelector('[data-test=person-email]', { timeout: NAV }).catch(() => null)
   const row = await emailRow(p)
   check('the card shows the member\'s email as a mailto: link', row?.text === 'hum-2@example.com' && row?.href === 'mailto:hum-2@example.com', row)
+  const ph = await phoneRow(p)
+  check('the card shows the member\'s phone, as a link for the reader\'s phone_app', ph?.text === '+35840000002' && /35840000002/.test(ph?.href || ''), ph)
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/people-card-email.png` })
 
   await p.setViewport({ width: 390, height: 844 })
@@ -91,6 +98,7 @@ async function run(browser, base) {
   await setMe(p, { humanId: 'HUM-1', role: 'regular_user', tenantOwner: false, permissions: ['topics.read'], channelOrder: null, actAs: { targetHum: 'HUM-1', targetName: 'HUM-1', expiresAt: '' } })
   await sleep(800)
   check('CONTROL act-as: no Email row', !(await p.$('[data-test=person-email]')))
+  check('CONTROL act-as: no Phone row', !(await p.$('[data-test=person-phone]')))
   await p.close()
 
   // t1 is name-only (spec 154 12.4): the hub answers email null, so no row
@@ -102,8 +110,9 @@ async function run(browser, base) {
   await go(t1, '/people/HUM-2')
   await t1.waitForSelector('[data-test=person-role]', { timeout: NAV }).catch(() => null)
   await sleep(800)
-  const t1Card = await t1.evaluate(() => ({ card: Boolean(document.querySelector('[data-test=person-role]')), email: Boolean(document.querySelector('[data-test=person-email]')), at: document.body.innerText.includes('@example.com') }))
+  const t1Card = await t1.evaluate(() => ({ card: Boolean(document.querySelector('[data-test=person-role]')), email: Boolean(document.querySelector('[data-test=person-email]')), at: document.body.innerText.includes('@example.com'), phone: Boolean(document.querySelector('[data-test=person-phone]')), number: document.body.innerText.includes('+3584') }))
   check('t1: the card shows, with no Email row and no address', t1Card.card && !t1Card.email && !t1Card.at, t1Card)
+  check('t1: no Phone row and no number', t1Card.card && !t1Card.phone && !t1Card.number, t1Card)
   if (process.env.SHOT_DIR) await t1.screenshot({ path: `${process.env.SHOT_DIR}/people-card-t1-name-only.png` })
   await t1.close()
 }

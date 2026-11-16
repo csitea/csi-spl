@@ -70,11 +70,12 @@
     "profile": "Profil",
     "name": "Namn",
     "display_name": {
-      "label": "Visningsnamn",
-      "hint": "Hur andra ser dig i spoolen: namnet i din användarmeny och i personsökningen. En rad, högst 200 tecken.",
+      "label": "Namn och telefon",
+      "hint": "Andra medlemmar i dina arbetsytor ser ditt förnamn, efternamn och telefonnummer. I en arbetsyta som bara visar namn ser de bara ditt namn.",
       "save": "Spara",
       "saved": "Sparat.",
-      "invalid": "Ange ett namn på 1 till 200 tecken på en rad.",
+      "invalid": "Ange ett förnamn. För- och efternamn får ha högst 100 tecken vardera, på en rad.",
+      "invalid_phone": "Ange telefonnumret med + och landsnumret, t.ex. +358 40 123 4567.",
       "failed": "Kunde inte spara — försök igen."
     },
     "email": "E-post",

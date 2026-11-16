@@ -17,6 +17,8 @@
       <HrPeopleCard :people="hr.people" :names="hr.names" :readonly="readonly" @added="loadHr()" />
       <!-- SPL-5433 step c: the month's employer side, computed from the year's rates -->
       <HrPayrollCard ref="payrollCard" :month="adding ? f.period : thisMonth" :people="hr.people" :components="hr.components" :readonly="readonly" @booked="load()" />
+      <!-- SPL-5433 step d: the worker side and the payslip check, a names reader's (costs.write) only -->
+      <HrWorkerCard v-if="hr.names" ref="workerCard" :month="adding ? f.period : thisMonth" :people="hr.people" />
     </template>
     <p v-if="state === 'loading'" class="muted" data-test="cost-loading">{{ t('expenses.entries.loading') }}</p>
     <p v-else-if="state === 'error'" class="ce-error" data-test="cost-error">
@@ -162,6 +164,7 @@ import HrPeriodBar from '~/components/expenses/HrPeriodBar.vue'
 import HrPeopleCard from '~/components/expenses/HrPeopleCard.vue'
 import HrPayrollCard from '~/components/expenses/HrPayrollCard.vue'
 import CostEntryLabels from '~/components/expenses/CostEntryLabels.vue'
+import HrWorkerCard from '~/components/expenses/HrWorkerCard.vue'
 
 /* readonly (SPL-5181): the operator's product owner reads the list, no add or delete */
 /* admin (SPL-5433): the operator admin, who reopens and closes an hr month */
@@ -193,6 +196,7 @@ const hr = reactive({ people: [] as HrPerson[], names: false, components: [] as 
 const thisMonth = new Date().toISOString().slice(0, 7)
 /* SPL-5433 step c: an hr line added or deleted moves the employer side; the card reads again once opened */
 const payrollCard = ref<{ reload: () => unknown } | null>(null)
+const workerCard = ref<{ reload: () => unknown } | null>(null)
 async function loadHr() {
   if (props.type !== 'hr') return
   try {
@@ -287,6 +291,7 @@ async function submit() {
     adding.value = false
     await load()
     void payrollCard.value?.reload()
+    void workerCard.value?.reload()
   } catch (e) {
     refused.value = hubWhy(e)
   } finally {
@@ -302,6 +307,7 @@ async function remove(id: string) {
     confirming.value = ''
     await load()
     void payrollCard.value?.reload()
+    void workerCard.value?.reload()
   } catch (e) {
     actionError.value = hubWhy(e)
   } finally {

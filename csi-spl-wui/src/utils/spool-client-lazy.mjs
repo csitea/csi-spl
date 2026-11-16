@@ -2109,6 +2109,25 @@ async function reportingSql(ctx, query) {
   })
 }
 
+/** SPL-5433 step d: fleetPaid's worker-side live calls (hr_worker_rates*, hr_tax_card*, hr_payslip*), split out of fleetPaid to keep it short. */
+const HR_WORKER_OPS = new Set(['hr_worker_rates', 'hr_worker_rates_set', 'hr_tax_cards', 'hr_tax_card_set', 'hr_tax_card_delete', 'hr_payslip_set', 'hr_payslip_delete'])
+function fleetPaidHrWorker(live, json, op, a, b) {
+  const enc = encodeURIComponent
+  if (op === 'hr_worker_rates') return live('/v1/operator/hr-worker-rates?year=' + enc(a))
+  if (op === 'hr_worker_rates_set' && b) return live('/v1/operator/hr-worker-rates/' + enc(a) + '/' + enc(b.kind), json('PUT', { bands: b.bands, source: b.source }))
+  if (op === 'hr_tax_cards') return live('/v1/operator/hr-tax-cards?year=' + enc(a))
+  if (op === 'hr_tax_card_set' && b) {
+    return live('/v1/operator/hr-tax-cards/' + enc(b.person_id) + '/' + enc(a), json('PUT', { base_pct: b.base_pct, extra_pct: b.extra_pct, income_limit: b.income_limit, source: b.source }))
+  }
+  if (op === 'hr_tax_card_delete') return live('/v1/operator/hr-tax-cards/' + enc(b) + '/' + enc(a), { method: 'DELETE' })
+  if (op === 'hr_payslip_set' && b) {
+    const { person_id: pid, ...slip } = b
+    return live('/v1/operator/hr-payslips/' + enc(a) + '/' + enc(pid), json('PUT', slip))
+  }
+  if (op === 'hr_payslip_delete' && b) return live('/v1/operator/hr-payslips/' + enc(a) + '/' + enc(b.person_id) + '?currency=' + enc(b.currency || 'EUR'), { method: 'DELETE' })
+  throw new Error('fleetPaid: unknown op ' + op)
+}
+
 /**
  * Spec 140 3.8 (SPL-2567): the operator's paid items and the effective price
  * per token, one method so the initial client carries one stub name, not
@@ -2132,6 +2151,13 @@ async function reportingSql(ctx, query) {
  *   'hr_rate_delete', y, c DELETE /v1/operator/hr-rates/{y}/{c}
  *   'hr_payroll', month   GET    /v1/operator/hr-payroll/{month}
  *   'hr_payroll_book', m  POST   /v1/operator/hr-payroll/{m}/book
+ *   'hr_worker_rates', y  GET    /v1/operator/hr-worker-rates?year= (SPL-5433 step d)
+ *   'hr_worker_rates_set', y, b PUT /v1/operator/hr-worker-rates/{y}/{b.kind} ({bands, source})
+ *   'hr_tax_cards', y     GET    /v1/operator/hr-tax-cards?year=
+ *   'hr_tax_card_set', y, b PUT  /v1/operator/hr-tax-cards/{b.person_id}/{y} ({base_pct, extra_pct, income_limit, source})
+ *   'hr_tax_card_delete', y, p DELETE /v1/operator/hr-tax-cards/{p}/{y}
+ *   'hr_payslip_set', m, b PUT   /v1/operator/hr-payslips/{m}/{b.person_id} ({currency, tyel_employee, ...})
+ *   'hr_payslip_delete', m, b DELETE /v1/operator/hr-payslips/{m}/{b.person_id}?currency=
  *   'alloc', door, month  GET    /v1/<door>/cost-allocations?month= (SPL-5291)
  *   'alloc_put', door, b  PUT    /v1/<door>/cost-allocations
  * Operator admin only, as getFleetTokens; the alloc ops' door 'tenant' is a
@@ -2163,7 +2189,10 @@ async function fleetPaid(ctx, op, a, b) {
       const h = await import('./hr-costs.mjs')
       const ops = { hr_components: () => h.mockHrComponents(), hr_people: () => h.mockHrPeople(), hr_person_create: () => h.mockHrPersonCreate(a), hr_period: () => h.mockHrPeriod(a), hr_period_set: () => h.mockHrPeriodSet(a, b && b.op, b && b.reason),
         hr_rates: () => h.mockHrRates(a), hr_rate_set: () => h.mockHrRateSet(a, b && b.component, b), hr_rate_delete: () => h.mockHrRateDelete(a, b),
-        hr_payroll: () => h.mockHrPayroll(a), hr_payroll_book: () => h.mockHrPayrollBook(a) }
+        hr_payroll: () => h.mockHrPayroll(a), hr_payroll_book: () => h.mockHrPayrollBook(a),
+        hr_worker_rates: () => h.mockHrWorkerRates(a), hr_worker_rates_set: () => h.mockHrWorkerRatesSet(a, b), hr_tax_cards: () => h.mockHrTaxCards(a),
+        hr_tax_card_set: () => h.mockHrTaxCardSet(a, b), hr_tax_card_delete: () => h.mockHrTaxCardDelete(a, b),
+        hr_payslip_set: () => h.mockHrPayslipSet(a, b), hr_payslip_delete: () => h.mockHrPayslipDelete(a, b) }
       if (!ops[op]) throw new Error('fleetPaid: unknown op ' + op)
       return ops[op]()
     }
@@ -2181,6 +2210,7 @@ async function fleetPaid(ctx, op, a, b) {
     if (op === 'hr_rate_delete') return live(rate(a, b), { method: 'DELETE' })
     if (op === 'hr_payroll') return live(payroll)
     if (op === 'hr_payroll_book') return live(payroll + '/book', json('POST', {}))
+    if (HR_WORKER_OPS.has(op)) return fleetPaidHrWorker(live, json, op, a, b)
     throw new Error('fleetPaid: unknown op ' + op)
   }
   if (mock && op.startsWith('entr')) {

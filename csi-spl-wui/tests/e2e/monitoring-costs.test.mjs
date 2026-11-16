@@ -241,6 +241,7 @@ async function expensesSection(browser, base, size) {
       && await waitFor(p, `[data-test=expenses-${id}] [data-test=cost-empty]`) && (await count(p, '[data-test=paid-card]')) === 0, where(p))
     await costEntryRound(p, id, size)
     if (id === 'hr') await hrPayrollRound(p)
+    if (id === 'hr') await hrWorkerRound(p)
   }
   await p.goBack()
   ok('SPL-4382 back: Cloud infra costs again', await waitWhere(p, '/expenses/cloud'), where(p))
@@ -294,6 +295,24 @@ async function hrPayrollRound(p) {
   ok('SPL-5433 c: Save lists the rate', await waitFor(p, '[data-test=hr-rate]') && (await count(p, '[data-test=hr-rate-error]')) === 0)
   await tap(p, '[data-test=hr-rate-delete]')
   ok('SPL-5433 c: Remove takes it away', await waitFor(p, '[data-test=hr-rates-none]') && (await count(p, '[data-test=hr-rate]')) === 0)
+}
+
+/** SPL-5433 step d (spec 123 16.5): the HR tab's worker side opens (the mock plays an accountant, a names reader) with no pay lines, no tax cards and no bands; an empty band form and an empty payslip form are named and not sent; a band saves and is listed, and Remove takes it away again. CONTROL: without HrWorkerCard in CostEntriesCard.vue there is no hr-worker, so every check here FAILS. */
+async function hrWorkerRound(p) {
+  await tap(p, '[data-test=hr-worker] > summary')
+  ok('SPL-5433 d: worker side opens: no pay lines, no tax cards, no bands', await waitFor(p, '[data-test=hr-worker-empty]')
+    && await waitFor(p, '[data-test=hr-cards-none]') && await waitFor(p, '[data-test=hr-bands-none]'))
+  await tap(p, '[data-test=hr-band-save]')
+  ok('SPL-5433 d: an empty band form is named, nothing stored', await waitFor(p, '[data-test=hr-band-error]') && (await count(p, '[data-test=hr-band]')) === 0)
+  await tap(p, '[data-test=hr-slip-save]')
+  ok('SPL-5433 d: an empty payslip form is named', await waitFor(p, '[data-test=hr-slip-error]'))
+  await setField(p, '[data-test=hr-band-from]', '17')
+  await setField(p, '[data-test=hr-band-to]', '52')
+  await setField(p, '[data-test=hr-band-pct]', '7')
+  await tap(p, '[data-test=hr-band-save]')
+  ok('SPL-5433 d: Save lists the band', await waitFor(p, '[data-test=hr-band]') && (await count(p, '[data-test=hr-band-error]')) === 0)
+  await tap(p, '[data-test=hr-band-delete]')
+  ok('SPL-5433 d: Remove takes it away', await waitFor(p, '[data-test=hr-bands-none]') && (await count(p, '[data-test=hr-band]')) === 0)
 }
 
 /** SPL-4382: one tab's insert: a bad form is named and not sent, the hub's refusal shows, an entry lands in THIS tab's list only, delete asks first. CONTROL: on the shell before the forms there is no cost-add, so every check here FAILS. */

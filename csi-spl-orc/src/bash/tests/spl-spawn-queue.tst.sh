@@ -33,6 +33,11 @@
 #   7. the launcher's HOLD (exit 10) puts it back at position 1
 #   8. do_spl_spawn_queue lists POS, PRIO, sender and summary
 #  SPL-4955: a row of an archived topic is declined, not placed (near the end)
+#  SPL-5671: the enqueue refuses an ask whose topic or ASK_DISCUSSION is
+#      archived (FATAL, no queue row), queues a live one, and queues on a
+#      failed or too-old read with one WARN; do_spl_spawn_queue marks a queued
+#      row of an archived topic, not a live one, and a failed read marks
+#      nothing with one WARN (after SPL-4955)
 #  21. spec 150 row B10b: ASK_DISCUSSION at enqueue fills the row's discussion
 #      while NULL, never overwrites; a bad id is refused
 #  10. SPL-1817 (rdb 0195, owner t1 3209f8b8 msg 8cb6cc7d): an enqueue with
@@ -280,6 +285,8 @@ fi
 echo "${LAUNCH_ID:-c-281} %42"
 STUB
 chmod +x "$T/bin/launch"
+# the archive read (SPL-4955, SPL-5671): every topic live unless a case says otherwise
+printf '#!/usr/bin/env bash\necho "{\\"lanes\\":[]}"\n' >"$T/bin/archived-live"; chmod +x "$T/bin/archived-live"
 # shellcheck disable=SC2016 # expanded by the stub, not here
 printf '#!/usr/bin/env bash\necho "${WINDOWS:-12}"\n' >"$T/bin/windows"; chmod +x "$T/bin/windows"
 # shellcheck disable=SC2016 # expanded by the stub, not here
@@ -301,7 +308,8 @@ menv() {
     "LAUNCH_LOG=$T/launch.log" "SPAWN_PLACE_BRIEF_DIR=$T/briefs" "SPAWN_PLACE_WORKDIR=$T" "SPAWN_PLACE_GAP_MIN=0" "SPOOL_AGENT_ID=" \
     "SPAWN_SHARE_LANES_CMD=$T/bin/lanes" "SPAWN_SHARE_DISPATCH=c-002@box-desk" \
     "SPAWN_SHARE_BANDS={\"refactor\": [20, 30], \"bug\": [20, 30], \"feature\": [40, 100]}" "RHYTHM_NOW=2026-01-15T12:00Z" \
-    "TOKEN_BURN_STATE_DIR=$T/burn" "SPAWN_PLACE_BURN_CMD=$T/bin/burn" "BURN_JSON=$T/burn.json"
+    "TOKEN_BURN_STATE_DIR=$T/burn" "SPAWN_PLACE_BURN_CMD=$T/bin/burn" "BURN_JSON=$T/burn.json" \
+    "SPAWN_PLACE_ARCHIVED_CMD=$T/bin/archived-live"
 }
 on() {  # <machine> <action> [env...]
   local m="$1" a="$2"; shift 2
@@ -2033,6 +2041,58 @@ rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place "${EH2[@]}" SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-older" LAUNCH_ID=c-733 2>&1)"
 grep -q arch-d "$T/launch.log" && grep -q "too old to read the archive state of topic aaaaaaaa" <<<"$out" &&
   pass "SPL-4955 lanes with no stamp prove old code: placed as before, one WARN" || fail "SPL-4955 old code: $out | $(cat "$T/launch.log")"
+# SPL-5671 (c-001@sat msg d327a69e: asks db9ba132, 8b754281, 75457836, e1de40f2,
+# 34ba5041 queued on archived topics, each dropped at the head and re-raised by
+# hand): the enqueue reads the archive state the placer reads and refuses an
+# archived topic or ASK_DISCUSSION; the queue view marks a queued row of one.
+# RED CONTROL: on origin/master's func files (no spl_spawn_q_enqueue_archived,
+# no spl_spawn_q_archived) J1 and J3 queue and the queue view marks nothing.
+jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+printf '#!/usr/bin/env bash\ncase "$1" in aaaaaaaa*) echo "{\\"lanes\\":[],\\"topic_archived_at\\":\\"2026-11-15T16:22:00Z\\"}";; *) echo "{\\"lanes\\":[]}";; esac\n' >"$T/bin/archived-j"; chmod +x "$T/bin/archived-j"
+J1=56710001-0000-4000-8000-000000000001 J2=56710002-0000-4000-8000-000000000002 J3=56710003-0000-4000-8000-000000000003
+J4=56710004-0000-4000-8000-000000000004 J5=56710005-0000-4000-8000-000000000005 JD=aaaaaaaa-0000-4000-8000-000000005671
+put "$J1" c-002@box-desk dispatch-aaaaaaaa "SPAWN REQUEST on an archived topic"
+put "$J2" c-002@box-desk dispatch-bbbbbbbb "SPAWN REQUEST on a live topic"
+put "$J3" c-002@box-desk dispatch-bbbbbbbb "SPAWN REQUEST for an archived discussion"
+put "$J4" c-002@box-desk dispatch-aaaaaaaa "SPAWN REQUEST, the read fails"
+put "$J5" c-002@box-desk dispatch-aaaaaaaa "SPAWN REQUEST, the read is too old"
+: >"$T/send.log"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$J1" SPAWN_CLASS=bug SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-j" 2>&1)"; rc=$?
+if (( rc != 0 )) && [[ "$(jq -r .state <<<"$(hubrow "$J1")")" == open ]] && ! grep -q "$J1\|${J1:0:8}" "$T/send.log" &&
+   grep -q "^FATAL ask ${J1:0:8} not queued: its topic aaaaaaaa was archived at 2026-11-15T16:22:00Z, so the placer would decline it (SPL-4955): re-raise the request on a live task" <<<"$out"; then
+  pass "SPL-5671 an ask whose topic is archived is not queued (rc $rc): one FATAL line names the topic, its archived-at and the fix; its sender is told nothing"
+else fail "SPL-5671 archived topic: rc $rc | $out | $(hubrow "$J1") | $(sends)"; fi
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$J2" SPAWN_CLASS=bug SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-j" 2>&1)"; rc=$?
+(( rc == 0 )) && [[ "$(jq -r .state <<<"$(hubrow "$J2")")" == queued ]] && ! grep -q 'WARN\|FATAL' <<<"$out" &&
+  pass "SPL-5671 CONTROL: an ask on a live topic is queued, no WARN" || fail "SPL-5671 live topic: rc $rc | $out | $(hubrow "$J2")"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$J3" SPAWN_CLASS=bug ASK_DISCUSSION="$JD" SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-j" 2>&1)"; rc=$?
+r="$(hubrow "$J3")"
+(( rc != 0 )) && [[ "$(jq -r .state <<<"$r")" == open && "$(jq -r '.discussion // ""' <<<"$r")" == "" ]] &&
+  grep -q "^FATAL ask ${J3:0:8} not queued: its topic $JD was archived at" <<<"$out" &&
+  pass "SPL-5671 an archived ASK_DISCUSSION on a live task is refused before the discussion is written" || fail "SPL-5671 ASK_DISCUSSION: rc $rc | $out | $r"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$J4" SPAWN_CLASS=bug SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-old" 2>&1)"; rc=$?
+(( rc == 0 )) && [[ "$(jq -r .state <<<"$(hubrow "$J4")")" == queued ]] &&
+  [[ "$(grep -c "^WARN ask ${J4:0:8}: the archive state of topic aaaaaaaa could not be read: queued as before. flag provided but not defined: -topic$" <<<"$out")" == 1 ]] &&
+  pass "SPL-5671 a failed read queues as before, one WARN with the read's last line" || fail "SPL-5671 failed read: rc $rc | $out | $(hubrow "$J4")"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$J5" SPAWN_CLASS=bug SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-older" 2>&1)"; rc=$?
+(( rc == 0 )) && [[ "$(jq -r .state <<<"$(hubrow "$J5")")" == queued ]] &&
+  [[ "$(grep -c "^WARN ask ${J5:0:8}: the spool binary or hub is too old to read the archive state of topic aaaaaaaa: queued as before$" <<<"$out")" == 1 ]] &&
+  pass "SPL-5671 a binary or hub too old for the read queues as before, one WARN" || fail "SPL-5671 too old: rc $rc | $out | $(hubrow "$J5")"
+# the queue view: J4 and J5 (aaaaaaaa, archived since) are marked, J2 (bbbbbbbb) is not; one read per topic
+printf '#!/usr/bin/env bash\necho "$1" >>"%s"\nexec "%s" "$1"\n' "$T/archived-j.calls" "$T/bin/archived-j" >"$T/bin/archived-jc"; chmod +x "$T/bin/archived-jc"
+out="$(on pc do_spl_spawn_queue SPAWN_QUEUE_SHARE=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-jc" 2>&1)"
+if grep -q "^WARN ask ${J4:0:8} (position [0-9]*/3): its topic aaaaaaaa was archived at 2026-11-15T16:22:00Z, the placer will decline it: re-raise it on a live task" <<<"$out" &&
+   grep -q "^WARN ask ${J5:0:8} (position [0-9]*/3): its topic aaaaaaaa was archived" <<<"$out" &&
+   ! grep -q "WARN ask ${J2:0:8}" <<<"$out" && [[ "$(sort -u "$T/archived-j.calls" | wc -l)" == "$(wc -l <"$T/archived-j.calls")" ]]; then
+  pass "SPL-5671 the queue view marks each queued row of an archived topic, not the live one; one read per topic"
+else fail "SPL-5671 queue marks: $out | calls $(tr '\n' ' ' <"$T/archived-j.calls" 2>/dev/null)"; fi
+out="$(on pc do_spl_spawn_queue SPAWN_QUEUE_SHARE=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-old" 2>&1)"
+[[ "$(grep -c 'archive state of 3 queued ask(s) could not be read, so none of them is marked: flag provided but not defined: -topic' <<<"$out")" == 1 ]] &&
+  ! grep -q 'was archived' <<<"$out" && grep -q "${J2:0:8}" <<<"$out" &&
+  pass "SPL-5671 a failed read marks nothing in the queue view, one WARN says so" || fail "SPL-5671 queue failed read: $out"
+out="$(on pc do_spl_spawn_queue SPAWN_QUEUE_SHARE=0 SPAWN_QUEUE_ARCHIVED=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived-j" 2>&1)"
+! grep -q 'was archived\|archive state' <<<"$out" && pass "SPL-5671 SPAWN_QUEUE_ARCHIVED=0 skips the read" || fail "SPL-5671 skip: $out"
+jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
 # 40. SPL-4966 (spec 146, what-broke-20261106 section 7 item 3). A logged review
 # seat's launch carries the review-seat mark, any other row's does not; a seat
 # a hold stops 30 min alarms once, through both channels: the blocker names the

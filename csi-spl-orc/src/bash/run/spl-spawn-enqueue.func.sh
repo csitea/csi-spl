@@ -25,6 +25,13 @@
 # @description topic is no hub topic (a dispatch-<word> task), is refused the
 # @description same way, with the placer's "lane refused, no discussion" line
 # @description (SPL-5325; the placer's check, spl_spawn_place_no_links).
+# @description An ask whose topic (its discussion, else a hub topic or a
+# @description dispatch-<topic8> task) or ASK_DISCUSSION is archived on the hub
+# @description is refused the same way (SPL-5671), with the placer's read
+# @description (spl_spawn_topic_archived): at the head the placer would decline
+# @description it (SPL-4955). Re-raise the request on a live task. A read that
+# @description fails, or a binary or hub too old for it, queues as before with
+# @description one WARN line.
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349), queued as a feature + bypass, the hub's one flag ahead of the bands (SPL-5638); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
@@ -46,6 +53,7 @@ do_spl_spawn_enqueue() {
   spl_asks_discussion_ok || return 1
   by="$(spl_asks_by)" || return 1
   id="$(spl_spawn_q_resolve)" || return 1
+  spl_spawn_q_enqueue_archived "$id" || return 1
   # before the queue op: the position it answers ranks by this discussion's priority
   spl_spawn_q_discussion "$id"
   row="$(spl_spawn_q_enqueue "$id" "$by" "${SPAWN_PLACE:-}" "${SPAWN_CLASS:-}" "${SPAWN_URGENT:-0}" "${SPAWN_BYPASS:-}")" || rc=$?
@@ -143,11 +151,43 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
 # ask in neither is left to the placer.
 spl_spawn_q_enqueue_links() {  # ID BRIEF
   local row why
-  row="$(spool_ask_journal_get "$1" 2>/dev/null)" ||
-    row="$(jq -c --arg i "$1" 'first(.[] | select(.ask_id == $i)) // empty' <<<"${ASKS_ROWS:-[]}" 2>/dev/null)"
+  row="$(spl_spawn_q_row "$1")"
   [[ -n "$row" ]] || return 0
   why="$(spl_spawn_place_no_links "$row" "$2")"
   [[ -z "$why" ]] || { do_log "FATAL ask not queued: $why" >&2; return 1; }
+}
+
+# The row of ask ID: the journal's (the hub's mirror), else the loaded book's;
+# nothing for an ask in neither.
+spl_spawn_q_row() {  # ID
+  local row
+  row="$(spool_ask_journal_get "$1" 2>/dev/null)" ||
+    row="$(jq -c --arg i "$1" 'first(.[] | select(.ask_id == $i)) // empty' <<<"${ASKS_ROWS:-[]}" 2>/dev/null)"
+  printf '%s' "$row"
+}
+
+# SPL-5671: the placer's archive read (spl_spawn_topic_archived) at the
+# enqueue. An ask whose topic (spl_spawn_place_row_topic) or ASK_DISCUSSION is
+# archived is refused now, while its sender can re-raise it on a live task, not
+# declined at the head (asks db9ba132, 8b754281, 75457836, e1de40f2, 34ba5041
+# on 2026-11-15/16, each re-raised by hand). A failed or too-old read is one
+# WARN line and the ask queues as before.
+spl_spawn_q_enqueue_archived() {  # ID
+  local row topic at rc seen=" "
+  declare -F spl_spawn_topic_archived >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+  row="$(spl_spawn_q_row "$1")"
+  for topic in "${ASK_DISCUSSION:-}" "$([[ -z "$row" ]] || spl_spawn_place_row_topic "$row")"; do
+    [[ -n "$topic" && "$seen" != *" $topic "* ]] || continue
+    seen+="$topic "
+    rc=0; at="$(spl_spawn_topic_archived "$topic")" || rc=$?
+    case "$rc" in
+      0) do_log "FATAL ask ${1:0:8} not queued: its topic $topic was archived at $at, so the placer would decline it (SPL-4955): re-raise the request on a live task (SPL-5671)" >&2
+         return 1 ;;
+      2) do_log "WARN ask ${1:0:8}: the archive state of topic $topic could not be read: queued as before. $at" >&2 ;;
+      3) do_log "WARN ask ${1:0:8}: the spool binary or hub is too old to read the archive state of topic $topic: queued as before" >&2 ;;
+    esac
+  done
+  return 0
 }
 
 # The owner's review-seat GO (HUM-10, msg 994f2257, 2026-10-16): every review

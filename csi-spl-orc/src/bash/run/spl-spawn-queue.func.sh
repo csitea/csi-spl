@@ -21,12 +21,17 @@
 # @description (do_spl_spawn_share; the rule: fleet-rules-index.md). A queued
 # @description ask the launcher held gets one WAIT line with its reason
 # @description (do_spl_spawn_place's .place.wait, e.g. "waiting: claude weekly
-# @description >= 90% on box-a, box-b", SPL-2035).
+# @description >= 90% on box-a, box-b", SPL-2035). A queued ask whose topic is
+# @description archived gets one WARN line (SPL-5671, the placer's read
+# @description spl_spawn_topic_archived): the placer would decline it at the
+# @description head, so re-raise it on a live task now; reads that fail mark
+# @description nothing and say so in one WARN line.
 # @description The order is the hub's (priority, then class, then time in
 # @description line: spec 150 3.4, poll Q5 A); the placer
 # @description may take a lower row to keep the bands (do_spl_spawn_place).
 # @param SPAWN_QUEUE_FORMAT (optional) - table (default) or json
 # @param SPAWN_QUEUE_SHARE (optional) - 0 skips the share line (it reads the lane map)
+# @param SPAWN_QUEUE_ARCHIVED (optional) - 0 skips the archive read of the queued rows' topics (one hub read per topic)
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_spawn_queue
 # @example SPAWN_QUEUE_FORMAT=json ./run -a do_spl_spawn_queue
@@ -53,6 +58,7 @@ do_spl_spawn_queue() {
              (.age_s | dur), (.wait_s | dur), (.placement // "" | if . == "" then "-" else . end),
              (.topic | cut(12)), (.summary | cut(70)) ] | @tsv)' <<<"$rows" | column -t -s $'\t' -c 1000
   spl_spawn_q_waits "$rows"
+  [[ "${SPAWN_QUEUE_ARCHIVED:-1}" == 0 ]] || spl_spawn_q_archived "$rows"
   do_log "INFO $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued, $(jq '[.[] | select(.state == "acked")] | length' <<<"$rows") placing (fleet $LANE_FLEET)"
   if [[ "${SPAWN_QUEUE_SHARE:-1}" != 0 ]]; then
     if share="$(spl_spawn_share)"; then do_log "INFO $(spl_spawn_share_line "$share")"
@@ -70,6 +76,32 @@ spl_spawn_q_waits() {  # ROWS
     [[ "$at" =~ ^[0-9]+$ ]] && jq -e --arg id "$id" 'any(.[]; .ask_id == $id and .state == "queued")' >/dev/null <<<"$1" || continue
     echo "WAIT ${id:0:8} $why (held $(( (now - at) / 60 ))m ago)"
   done <"$(spool_asks_dir)/.place.wait" 2>/dev/null
+  return 0
+}
+
+# SPL-5671: one WARN line per queued ask in ROWS whose topic is archived (the
+# placer's read, spl_spawn_topic_archived, once per topic), so the holder
+# re-raises it before it reaches the head, where the placer declines it. A
+# read that fails marks nothing: one WARN line says how many.
+spl_spawn_q_archived() {  # ROWS
+  local row topic at rc failed=0 why=""
+  local -A seen=()
+  declare -F spl_spawn_topic_archived >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+  while IFS= read -r row; do
+    topic="$(spl_spawn_place_row_topic "$row")"
+    [[ -n "$topic" ]] || continue
+    if [[ -z "${seen[$topic]+x}" ]]; then
+      rc=0; at="$(spl_spawn_topic_archived "$topic")" || rc=$?
+      seen[$topic]="$rc"$'\t'"$at"
+    fi
+    rc="${seen[$topic]%%$'\t'*}"; at="${seen[$topic]#*$'\t'}"
+    case "$rc" in
+      0) do_log "WARN ask $(jq -r '.ask_id[0:8] + " (position \(.position // 0)/\(.queue_len // 0))"' <<<"$row"): its topic $topic was archived at $at, the placer will decline it: re-raise it on a live task (SPL-5671)" ;;
+      2) failed=$((failed + 1)); why="$at" ;;
+      3) failed=$((failed + 1)); why="the spool binary or hub is too old" ;;
+    esac
+  done < <(jq -c '.[] | select(.state == "queued")' <<<"$1")
+  (( failed == 0 )) || do_log "WARN the archive state of $failed queued ask(s) could not be read, so none of them is marked: $why"
   return 0
 }
 

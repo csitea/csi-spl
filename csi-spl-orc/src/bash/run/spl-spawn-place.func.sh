@@ -734,33 +734,48 @@ spl_spawn_place_row_topic() {  # ROW
   fi
 }
 
+# The archive state of TOPIC (a full or an 8-hex id): the one read of the
+# placer (spl_spawn_place_drop_archived), the enqueue and the queue view
+# (SPL-5671). SPAWN_PLACE_ARCHIVED_CMD <topic> replaces `spool lane --archived
+# --topic` (tests). 0 = archived, its archived-at on stdout; 1 = live; 2 = no
+# readable answer, its last line on stdout; 3 = an older binary or hub that
+# ignored --topic.
+spl_spawn_topic_archived() {  # TOPIC
+  local out at
+  if [[ -n "${SPAWN_PLACE_ARCHIVED_CMD:-}" ]]; then
+    out="$($SPAWN_PLACE_ARCHIVED_CMD "$1" 2>&1)"
+  else
+    out="$(spl_lane_hub --fleet "$LANE_FLEET" --archived --topic "$1" 2>&1)"
+  fi
+  if ! jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
+    tail -1 <<<"$out" | cut -c1-160
+    return 2
+  fi
+  at="$(jq -r '.topic_archived_at // ""' <<<"$out")"
+  [[ -z "$at" ]] || { printf '%s\n' "$at"; return 0; }
+  # a topic read always answers no lanes on a hub with SPL-4955: lanes prove
+  # that an older binary or hub ignored --topic
+  jq -e '.lanes | length > 0' >/dev/null 2>&1 <<<"$out" && return 3
+  return 1
+}
+
 # SPL-4955: 0 when ROW's discussion is archived, so it must not be placed. The
 # row is declined with the reason and its sender and the holder told; a decline
 # the hub refused still returns 0 and the next tick tries again. A row with no
 # topic, a live topic or a failed read returns 1 (t1 2e46fcb6: archived
 # 11-01 08:59Z, its queued row 1bd6c305 placed 11-06 23:42Z as c-702).
 spl_spawn_place_drop_archived() {  # HOLDER ROW
-  local topic out at id8 why row
+  local topic at id8 why row rc=0
   topic="$(spl_spawn_place_row_topic "$2")"
   [[ -n "$topic" ]] || return 1
-  if [[ -n "${SPAWN_PLACE_ARCHIVED_CMD:-}" ]]; then
-    out="$($SPAWN_PLACE_ARCHIVED_CMD "$topic" 2>&1)"
-  else
-    out="$(spl_lane_hub --fleet "$LANE_FLEET" --archived --topic "$topic" 2>&1)"
-  fi
   id8="$(jq -r '.ask_id[0:8]' <<<"$2")"
-  if ! jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
-    do_log "WARN ask $id8: the archive state of topic $topic could not be read: placed as before. $(tail -1 <<<"$out" | cut -c1-160)" >&2
-    return 1
-  fi
-  at="$(jq -r '.topic_archived_at // ""' <<<"$out")"
-  if [[ -z "$at" ]]; then
-    # a topic read always answers no lanes on a hub with SPL-4955: lanes prove
-    # that an older binary or hub ignored --topic
-    jq -e '.lanes | length > 0' >/dev/null 2>&1 <<<"$out" &&
-      do_log "WARN ask $id8: the spool binary or hub is too old to read the archive state of topic $topic: placed as before" >&2
-    return 1
-  fi
+  at="$(spl_spawn_topic_archived "$topic")" || rc=$?
+  case "$rc" in
+    0) ;;
+    2) do_log "WARN ask $id8: the archive state of topic $topic could not be read: placed as before. $at" >&2; return 1 ;;
+    3) do_log "WARN ask $id8: the spool binary or hub is too old to read the archive state of topic $topic: placed as before" >&2; return 1 ;;
+    *) return 1 ;;
+  esac
   why="discussion archived: topic $topic was archived at $at, so this row is not placed (SPL-4955)"
   if ! row="$(spl_spawn_q_op decline "$(jq -r '.ask_id' <<<"$2")" "$1" "$why")"; then
     do_log "WARN ask $id8: not placed, its topic $topic is archived, but the decline failed: the next tick tries again" >&2

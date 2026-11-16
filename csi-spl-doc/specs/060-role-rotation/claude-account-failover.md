@@ -1,7 +1,9 @@
 # 060 add-on: cross-box Claude login failover (design, SPL-5695)
 
-Status: **design, step 1 of 2**. Nothing is built until the dispatch holder
-gives a GO on this page. Issue SPL-5695, epic SPL-2364, topic 64ca0e0c.
+Status: **built, step 2 of 2, default-off** (holder c-002 build GO, msg
+d8c3c9e7). It runs only once cnf `env.box.claude_login_pool.enabled` is true,
+after the owner's step 0 (section 6). What the build changed from this design:
+section 9. Issue SPL-5695, epic SPL-2364, topic 64ca0e0c.
 This is an add-on to [spec 060](spec.md): it reuses the second login folder
 of section 5.3 (SPL-2943 / SPL-3023, `claude2`) for a new trigger.
 
@@ -83,7 +85,8 @@ existing `agent-login-cred.sh get | put` does. Output is a sha12 at most.
 It runs on each box, every minute, inside the existing `agent-login-check`
 tick, so there is no new cron row. It is a dry run unless `DRY_RUN=0`. It
 writes one file, `<login-check state>/login-mode`:
-`<epoch> <own|backup> <own label> <backup label> <reason>`.
+`<epoch> <own|backup> <own label> <backup label> <own pct> <own reset> <backup pct> <second folder> <reason>`
+(`-` for an unknown value; built: section 8).
 
 | from | to | when |
 |---|---|---|
@@ -164,7 +167,6 @@ is on backup, and no longer all the time. The step 2 proof counts it
 |---|---|---|
 | cnf `env.box.claude_login_pool.enabled` | `false` | the mode action plans only (it logs what it would do) until the owner turns it on |
 | cnf `env.box.claude_login_pool.back_below_pct` | `85` | back to own under this %, a 5-point hysteresis under the mark |
-| cnf `env.box.claude_login_pool.max_copy_age_s` | `600` | a backup copy older than this, with no sync since, is not used to start a seat |
 | box.env `SPOOL_LOGIN2_PEER` (box 1 only) | none | `<tag>=<ssh dest>`, the peer whose account is the backup. Set with `box-config.sh` |
 | box.env `SPOOL_LOGIN_PEERS` (box 1) | `sat=satellite` | **emptied** in the owner's step 0: the main-to-main push would overwrite sat's own account |
 
@@ -220,11 +222,41 @@ All three are decided; none is open.
 | Q2 | the backup account's % comes from the other box's BOX-0 row (published every 300 s, 1 h max age). On no reading, should the box stay on own (hold)? | **A**: hold. Never move onto an account whose % is unknown | holder c-002@sat, msg f4ec1294 |
 | Q3 | `.claude.json` of the second folder: carry only `oauthAccount` and `hasCompletedOnboarding`, or the whole file as SPL-3023 does locally? | **A**: the two fields only. Nothing else crosses boxes | holder c-002@sat, msg f4ec1294 |
 
-## 8. Change log
+## 8. As built (step 2)
+
+| part | where | test |
+|---|---|---|
+| slot 2 and the account label in the credential helper: `stat`, `probe`, `get`, `put` take a slot (1 main, 2 the second folder); `acct` prints the label, `acctget` / `acctput` carry the two `.claude.json` fields | `csi-spl-orc/src/bash/scripts/agent-login-cred.sh` | L1-L4 |
+| the peer source of the login2 sync, both directions, by label (4.3 rules 1-4, 6); refused while the same tag is in `SPOOL_LOGIN_PEERS` (step 0 not done) | `csi-spl-orc/src/bash/run/spl-agent-login2-sync.func.sh` | L1-L4 |
+| every tick (4.3 rule 5): the login check runs the peer sync when box.env sets `SPOOL_LOGIN2_PEER`, then the mode when the pool is enabled. The 5 min `login2-sync` cron row takes the tick's lock, and skips while the tick holds it | `csi-spl-orc/src/bash/run/spl-agent-login-check.func.sh` (`_lc_pool`) | login check case 21, L1 (lock) |
+| the mode (4.2) | `csi-spl-orc/src/bash/run/spl-claude-login-mode.func.sh` | M1-M6 |
+| the readers of the mode line: the folder for a new seat, the active login's % for `wk=`, the row fields; a line over 180 s old reads as own | `csi-spl-orc/lib/bash/funcs/spl-claude-login.func.sh` | M6, S1 |
+| new seats and rotations (4.4): spawn-core picks the folder when the caller names none. A rotation spawns through spawn-core, so `spl-rotate-lib.func.sh` is unchanged | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh` | S1 (`spawn-agents/tests/test-spawn-claude-login-dir.sh`) |
+| the BOX-0 row (4.4): `wk=claude:` is the active login's %, plus `acct=<own label>` and, on backup, `lm=backup`, before `live=`; a change rewrites the row at once | `spl_lane_box_report`, `csi-spl-orc/src/bash/run/spl-lane-map.func.sh` | lane-map case 17 |
+| the box pick reads this box's claude % the same way | `spl_box_pick_quota`, `csi-spl-orc/src/bash/run/spl-box-pick.func.sh` | box pick case 22 |
+
+What the build changed from the design:
+
+- **The backup's % is found by label, not by box name.** A box publishes
+  `acct=<own label>`, and the mode reads the % of the row whose `acct=`
+  equals its second folder's label. No setting names the peer box, and sat
+  (which names no peer) finds its backup the same way. A row with
+  `lm=backup` means that box's own account is at the mark, so it reads as
+  unusable (hold).
+- **On backup, reaching the mark returns the box to own** (the backup's %
+  is at or over the mark). The placement hold then applies as before.
+- **`max_copy_age_s` is dropped.** Only the box that drives the sync
+  knows when it last ran, and sat drives nothing. A stale copy is caught
+  instead by its label (no fresh peer row carries it: forced own) and by
+  the probe (expired or limited: forced own).
+- **The cnf has two keys**, `enabled` (false) and `back_below_pct` (85).
+
+## 9. Change log
 
 | version | date | change |
 |---|---|---|
 | 0.1 | 2026-11-16 | design for the holder's review (c-560, SPL-5695) |
 | 0.2 | 2026-11-16 | section 7: Q1 decided by the owner (msg 5ff9dea1), Q2 and Q3 by the holder (msg f4ec1294) |
+| 0.3 | 2026-11-16 | built, default-off (holder GO msg d8c3c9e7): section 8, the login-mode line format, `max_copy_age_s` dropped |
 
-<!-- last-edit: 2026-11-16T08:40:00Z — c-560 SPL-5695 -->
+<!-- last-edit: 2026-11-16T10:30:00Z — c-560 SPL-5695 -->

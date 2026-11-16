@@ -9990,6 +9990,31 @@
         ]
       }
     },
+    "/v1/me/use-minute": {
+      "post": {
+        "operationId": "postMeUseMinute",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {counted, minute}. The session's person and workspace, the hub clock's minute; the body is ignored. counted is false when that minute was already counted (a second tab) or the session is an act-as clone. Contract: csi-spl-doc/specs/143-reporting-section/usage-hours.md (SPL-5709)."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Count one minute of use of this workspace (the WUI heartbeat)",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/members": {
       "get": {
         "operationId": "getMembers",
@@ -16036,6 +16061,55 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/use": {
+      "get": {
+        "operationId": "getOperatorUse",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the first UTC day YYYY-MM-DD; default 29 days before to",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the last UTC day YYYY-MM-DD, inclusive; default today; at most 400 days in all",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {from, to, minutes, people, days: [{day, minutes, people}], workspaces: [{id, minutes, people}]}. Contract: csi-spl-doc/specs/143-reporting-section/usage-hours.md (SPL-5709)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "The hub's total hours of use",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/workspaces": {
       "get": {
         "operationId": "getOperatorWorkspaces",
@@ -17425,6 +17499,63 @@
           "operator"
         ],
         "x-role": "operator"
+      }
+    },
+    "/v1/reporting/use": {
+      "get": {
+        "operationId": "getReportingUse",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the first UTC day YYYY-MM-DD; default 29 days before to",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the last UTC day YYYY-MM-DD, inclusive; default today; at most 400 days in all",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "one member only; any member may name themself, only the biz_owner or an admin another member",
+            "in": "query",
+            "name": "human_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {from, to, minutes_here, members: [{human_id, name, minutes_here, minutes_hub}]}. Contract: csi-spl-doc/specs/143-reporting-section/usage-hours.md (SPL-5709)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Hours of use per member of this workspace, here and across the hub",
+        "tags": [
+          "reporting"
+        ]
       }
     },
     "/v1/takeover-ladder": {

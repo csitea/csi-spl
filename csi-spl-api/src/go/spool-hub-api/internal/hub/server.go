@@ -555,6 +555,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeHRPayroll(mux)       // SPL-5433 step c, rdb 0284: hr rates, the employer side, book, hr_payroll.go
 	s.routeHRWorker(mux)        // SPL-5433 step d, rdb 0286: worker shares, tax cards, payslips, hr_worker.go
 	s.routeCostAllocations(mux) // SPL-5291, rdb 0275: an estate cost split to workspaces, cost_allocations.go
+	s.routeUseMinutes(mux)      // SPL-5709, rdb 0289: hours of use per person and workspace, use_minutes.go
 	s.routeFleetDesks(mux)      // spec 158 4.2.2, rdb 0230: PUT/DELETE /v1/operator/fleet-desks/{box}, operator_fleet_desks.go
 	s.routeFleet(mux)           // spec 158 4.2.3-4, rdb 0243: GET /v1/fleet/workspaces, POST /v1/fleet/enrol, fleet_workspaces.go
 	s.routeReportingSQL(mux)    // spec 143 3: POST /v1/reporting/sql, workspace admins, reporting_sql.go
@@ -708,6 +709,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepClones(ctx)
 			s.SweepEmbed(ctx)          // specs/121 T105: expired visitor tokens, stale embed counters
 			s.sweepMemberActivity(ctx) // CLE-77799: Activity-log auth-row retention
+			s.sweepUseMinutes(ctx)     // SPL-5709, rdb 0289: 400-day hours-of-use rows
 			s.sweepAgentLifecycle(ctx) // spec 063 section 12: 90-day event log
 			s.sweepPerfSamples(ctx)    // spec 066 section 4: 30-day WUI perf samples
 			s.sweepBoxStats(ctx)       // rdb 0117: 30-day box load + memory history

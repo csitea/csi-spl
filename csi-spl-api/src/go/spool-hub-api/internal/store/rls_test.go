@@ -82,6 +82,8 @@ var rlsTables = []string{
 	"marketing_drafts",
 	// the contract, spec 171 Step C, spec 143 releases-projects row B-3 (SPL-5475)
 	"release_notes", "estate_deploys",
+	// rdb 0289, SPL-5709: hours of use per person and workspace
+	"workspace_use_minutes",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

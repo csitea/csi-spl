@@ -113,6 +113,9 @@ login page → normal login.**
   entries) all refuse it. The lane console's POST is a watch demand, a read, and stays open
   (`operatorAdmin`). The reads `operator_read.go` serves stay refused to a clone (spec 123 section 14).
   Test: `TestOperatorRoutesActAsCloneReadOnly` (Postgres).
+- **The clone check fails closed** (SPL-5673): a store error reading `member_clones` (other than "no row") never
+  reads "not a clone". `readerIsActAsClone` (`internal/hub/actas.go`) then answers "clone", so every clone gate
+  refuses that request; the realm doors (`realmRefuses`) answer 503. Test: `TestActAsCloneCheckFailsClosed`.
 - **Technical clones are excluded** from member lists, seat/billing counts and rosters (filtered on
   `humans.technical`), so a clone never looks like a real seat.
 

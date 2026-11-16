@@ -26,16 +26,40 @@ type cloneReader interface {
 // channels and issues, NEVER their DMs, so every DM endpoint refuses it. This
 // is store-based (a live member_clones row), not session-based, so it holds
 // however the session was formed — including the hub's own read door.
+//
+// It fails CLOSED (SPL-5673): a store error other than "no row" reads as a
+// clone, so every gate refuses (each caller refuses on true). A DB hiccup
+// therefore refuses a person for that one request, never lets a clone through.
+// A caller that can answer 503 uses actAsCloneState instead.
 func (s *Server) readerIsActAsClone(ctx context.Context, tenant, hum string) bool {
+	clone, err := s.actAsCloneState(ctx, tenant, hum)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("human", hum).Msg("act-as clone check failed: refusing")
+		return true
+	}
+	return clone
+}
+
+// actAsCloneState is the clone check with its store error: (false, nil) for
+// no member_clones row or an ended clone, (true, nil) for a live clone, and
+// (false, err) when the store could not say. A store without clone support
+// cannot mint a clone, so it answers (false, nil).
+func (s *Server) actAsCloneState(ctx context.Context, tenant, hum string) (bool, error) {
 	if hum == "" {
-		return false
+		return false, nil
 	}
 	cr, ok := s.o.Store.(cloneReader)
 	if !ok {
-		return false
+		return false, nil
 	}
 	c, err := cr.Clone(ctx, tenant, hum)
-	return err == nil && c.EndedAt == nil
+	if errors.Is(err, store.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return c.EndedAt == nil, nil
 }
 
 // actAsMe is the act-as banner state for GET /v1/view/me: non-nil only when hum

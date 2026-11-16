@@ -109,8 +109,10 @@ func (s *Server) realmRefuses(ctx context.Context, sess auth.Session) (bool, err
 	if sess.Provider == auth.ProviderActAs || !realmPersonRe.MatchString(sess.HumanID) {
 		return true, nil
 	}
-	if sess.Tenant != "" && s.readerIsActAsClone(ctx, sess.Tenant, sess.HumanID) {
-		return true, nil
+	if sess.Tenant != "" {
+		if clone, err := s.actAsCloneState(ctx, sess.Tenant, sess.HumanID); err != nil || clone {
+			return clone, err
+		}
 	}
 	ml, ok := s.o.Store.(store.MembershipLister)
 	if !ok {

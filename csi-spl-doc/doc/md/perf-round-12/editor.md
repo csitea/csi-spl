@@ -163,3 +163,19 @@ All four outputs of each run name the same 3 failed files:
   ACCEPTED.
 - No result was sent on `dispatch-perf-r12` yet (notes only: 24786871,
   16be7304, 6d1dc0dd, 0f09f1a4, 5cf138a8, the m-676 note).
+
+## 5. Landed and ACCEPTED (21:2xZ)
+
+- m-676 (mistral) PASS on `325e0a8ed` (seat `592948bd9`, msg 06c39b4c), then
+  on v1.0 `bf6ba7541` (seat `9dc3fed8f`, msg 48bf1e6a). The hold
+  15:55-20:55Z was the seat box suspended (c-001 msg ebdebe45).
+- LAND GO c-002@sat msg 8a941d0b. On origin/master: plan v1.0 `ddbdc136e`
+  (the rebased `bf6ba7541`, conflict-free), Qto import `d8730b2fe` (qto doc
+  `3f77b6e8-7e02-470c-9763-9994bd7fe720`, workspace system), the v1.0
+  signature row `7bea737d4` (edited in Qto, then exported).
+- ACCEPTED: c-003@sat msg 7681b512. Row p12-01 queued (ask d78e9819);
+  p12-02 follows after p12-01 lands.
+- Found while exporting: `do_spl_doctree_export_md` (all t1 docs) rewrote
+  `PRINCIPLES-role-failover.md` from an older Qto copy (it would drop the
+  SPL-5687 "One post per bench episode" paragraph). Not committed, restored;
+  reported to the orchestrator.

@@ -22,9 +22,13 @@
 #       desk user (sudo -n -u), so an answered take is not listed
 #   (g) SPL-5629: that read fails too: section 10 is ONE warning line
 #       "outboxes unreadable as <caller>: takes unverified", no take rows
+#   (h) SPL-5704: no desk take line (workspace ?), but the sweep's topic rows
+#       (<lease dir>/unanswered.rows) say the topic is archived, or its last
+#       post is another agent's to a person after the take: not listed; a
+#       topic whose last line is the take itself, or an agent relay, stays
 #
 # Red control: ROTATE_LIB=<origin/master's spl-rotate-lib.func.sh> lists 0;
-# the lib before SPL-5629 fails (f) and (g).
+# the lib before SPL-5629 fails (f) and (g); before SPL-5704 fails (h).
 # Run: bash csi-spl-orc/src/bash/tests/rotate-open-takes.tst.sh </dev/null
 # shellcheck disable=SC2034 # the ROTATE_* / LEASE_* globals are read by the sourced lib
 set -uo pipefail
@@ -150,6 +154,33 @@ seed="$(spl_rotate_open_takes_seed 2>/dev/null)"
   grep -q '^Open takes: unverified' <<<"$seed" && ! grep -q 'They are yours now' <<<"$seed" &&
   pass "(g) unreadable outboxes: one warning line, no take rows, the seed says unverified" ||
   fail "(g) section 10: $sec; seed: $seed"
+
+# (h) SPL-5704: the topic rows of the unanswered sweep. 2026-11-15 the c-002
+# seed listed two takes (ledger rows 1794641518, 1794662030) as "workspace ?"
+# for 48 h: both archived, one answered by c-003. Row columns: ws name
+# channel topic msg epoch from to kind topic-state channel-state files body
+# anchor-epoch anchor-msg.
+rm -f "$T/sudo.deny"
+ROTATE_TAKES_OUTBOXES=""
+G=99999999-0000-4000-8000-000000000007 H=88888888-0000-4000-8000-000000000008
+K=77777777-0000-4000-8000-000000000009 L=66666666-0000-4000-8000-00000000000a
+: > "$LEASE_DIR/take.log"
+take $((now - 400)) "$G" "$ID@$BOX" "I close the issue"
+take $((now - 300)) "$H" "$ID@$BOX" "I raise the cutoff"
+take $((now - 200)) "$K" "$ID@$BOX" "I queue the lanes"
+take $((now - 100)) "$L" "$ID@$BOX" "I check the relay"
+row() { printf 't1\tspool-hub\tops\t%s\tm-%s\t%s\t%s\t%s\t%s\t%s\tlive\t-\t\t\t\n' "$1" "$2" "$2" "$3" "$4" "$5" "$6"; }
+{ row "${G^^}" $((now - 390)) "$ID" HUM-10 agent archived
+  row "$H" $((now - 250)) c-903 HUM-10 agent open
+  row "$K" $((now - 200)) "$ID" HUM-10 take open
+  row "$L" $((now - 50)) "$ID" c-001 agent open; } > "$LEASE_DIR/unanswered.rows"
+spl_rotate_handoff master "$ID" rid-5 "$T/handoff5.md" >/dev/null 2>&1 || true
+sec="$(sed -n '/^## 10\. Open takes/,$p' "$T/handoff5.md" 2>/dev/null)"
+! grep -q "$G" <<<"$sec" && pass "(h) an archived topic is not listed" || fail "(h) archived $G listed: $sec"
+! grep -q "$H" <<<"$sec" && pass "(h) another agent's later post to a person answers the take" || fail "(h) answered $H listed: $sec"
+grep -q "^- topic $K, workspace ?, ?, " <<<"$sec" && grep -q "^- topic $L, workspace ?, ?, " <<<"$sec" &&
+  pass "(h) a topic whose last line is the take, or an agent relay, stays listed" || fail "(h) want $K and $L: $sec"
+rm -f "$LEASE_DIR/unanswered.rows"
 
 echo
 (( fails == 0 )) && { echo "rotate-open-takes: all passed"; exit 0; }

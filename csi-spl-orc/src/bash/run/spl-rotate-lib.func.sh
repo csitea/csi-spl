@@ -1099,6 +1099,11 @@ spl_rotate_handoff_body() {
 # When even that fails the one line is "!unreadable\t<caller>\t<owner>\t<n
 # takes>" and section 10 says the takes are unverified, never lists each take
 # as open (SPL-5629: 2026-11-15 every handoff listed ~20 answered takes).
+# A take is also answered when the unanswered sweep's topic row
+# (ROTATE_TAKES_ROWS, default <lease dir>/unanswered.rows: one row per topic,
+# its last line) says the topic is archived, or its last line is any agent's
+# post to a person or the channel after the take (SPL-5704: 2026-11-15 two
+# archived topics, one answered by c-003, sat as "workspace ?" for 48 h).
 spl_rotate_open_takes() {
   local id="$1" f="${ROTATE_TAKE_LOG:-$LEASE_DIR/take.log}" since
   [[ -s "$f" ]] || return 0
@@ -1109,7 +1114,7 @@ spl_rotate_open_takes() {
   local py
   py="$(cat <<'EOF_OPEN_TAKES'
 import calendar, json, re, sys, time
-log, by, since, me = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+log, by, since, me, rows = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
 TAKE = re.compile(r"^Taken by .*: .* I post the result here\.$", re.S)
 takes = {}
 for line in open(log, encoding="utf-8", errors="replace"):
@@ -1119,6 +1124,14 @@ for line in open(log, encoding="utf-8", errors="replace"):
     t = f[1].lower()
     if t not in takes or int(f[0]) >= takes[t]["at"]:
         takes[t] = {"at": int(f[0]), "plan": f[3], "ws": "?", "to": "?", "line": 0}
+try:  # the sweep's topic rows (SPL-5704): archived, or a later agent answer
+    for f in (x.rstrip("\n").split("\t") for x in open(rows, encoding="utf-8", errors="replace")):
+        k = takes.get(f[3].lower()) if len(f) >= 10 and f[5].isdigit() else None
+        if k and (f[9] == "archived" or f[8] == "agent" and int(f[5]) > k["at"]
+                  and re.match(r"(ALL-0|HUM-)", f[7].split("@")[0])):
+            takes.pop(f[3].lower())
+except OSError:
+    pass
 def epoch(ts):
     try:
         return calendar.timegm(time.strptime(str(ts)[:19], "%Y-%m-%dT%H:%M:%S"))
@@ -1146,7 +1159,7 @@ for raw in sys.stdin:
             k.update(ws=str(m.get("ws", "?")), to=to, line=at)
     elif to == "ALL-0" or to.startswith("HUM-"):
         answers[t] = max(answers.get(t, 0), at)
-if deny:
+if deny and takes:
     # an outbox nobody could read: no take is proven open or answered
     print("\t".join(["!unreadable", me, deny, str(len(takes))]))
     sys.exit(0)
@@ -1159,7 +1172,8 @@ for _, r in sorted(rows, reverse=True)[:20]:
     print(r)
 EOF_OPEN_TAKES
 )"
-  spl_rotate_take_msgs "$id" | python3 -c "$py" "$f" "$id@$ROTATE_BOX" "$since" "$(id -un)" 2>/dev/null || true
+  spl_rotate_take_msgs "$id" | python3 -c "$py" "$f" "$id@$ROTATE_BOX" "$since" "$(id -un)" \
+    "${ROTATE_TAKES_ROWS:-$LEASE_DIR/unanswered.rows}" 2>/dev/null || true
   return 0
 }
 

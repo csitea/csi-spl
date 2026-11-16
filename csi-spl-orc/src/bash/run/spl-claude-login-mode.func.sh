@@ -28,7 +28,7 @@
 # @param LOGIN_MODE_ENABLED (optional) - true|false, overrides cnf env.box.claude_login_pool.enabled (false)
 # @param LOGIN_MODE_BACK_PCT (optional) - overrides cnf env.box.claude_login_pool.back_below_pct (85)
 # @param CLAUDE2_CONFIG_DIR (optional) - the second folder, default <agent home>/.claude-2
-# @param LOGIN_STATE_DIR (optional) - default /var/csi/csi-spl/agent-login-check
+# @param LOGIN_STATE_DIR (optional) - default SPL_VAR_APP_DIR/agent-login-check
 # @param LOGIN_PROBE_EVERY (optional) - s between probes of the backup login, default 300
 # @param LOGIN_MODE_OWN_JSON (optional, tests) - the main login's .claude.json in place of the agent user's
 # @param LOGIN_MODE_ROWS_CMD (optional, tests) - prints the fleet's lane rows in place of the hub read
@@ -57,7 +57,8 @@ do_spl_claude_login_mode() {
   [[ "$back" =~ ^[0-9]{1,3}$ ]] || back=85
   [[ -n "${SPOOL_AGENT_USER:-}" ]] || SPOOL_AGENT_USER="$(SPOOL_AGENT_USER=''; _spool_box_env_load; printf '%s' "${SPOOL_AGENT_USER:-}")"
   home="${LOGIN_AGENT_HOME:-$(getent passwd "${SPOOL_AGENT_USER:-$(id -un)}" | cut -d: -f6)}"
-  LM_STATE="$(spl_claude_login_state_dir)"; LM_NOW="${LOGIN_NOW:-$(date +%s)}"
+  LM_STATE="$(spl_claude_login_state_dir)" || { do_log "FATAL cannot derive the login-check state dir: set LOGIN_STATE_DIR"; return 1; }
+  LM_NOW="${LOGIN_NOW:-$(date +%s)}"
   LM_DIR2="${CLAUDE2_CONFIG_DIR:-$home/.claude-2}"
   LM_CRED="${LOGIN_CRED_CMD:-bash $PROJ_PATH/src/bash/scripts/agent-login-cred.sh}"
   mkdir -p "$LM_STATE" 2>/dev/null || { do_log "FATAL cannot create $LM_STATE"; return 1; }
@@ -192,7 +193,9 @@ _lm_alert_text() {
 
 _lm_alert() {
   local to send="${LOGIN_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  LC_TAG="$(_lm_here)"; to="$(_lc_alert_to)"
+  # shellcheck disable=SC2034 # LC_TAG is read by _lc_alert_to and _lc_alert_from (login check)
+  LC_TAG="$(_lm_here)"
+  to="$(_lc_alert_to)"
   SPOOL_ROOT="$SPOOL_ROOT" SPOOL_ASKS=0 bash "$send" --from "$(_lc_alert_from)" --to "$to" --kind note \
     --task "${LOGIN_ALERT_TASK:-dispatch-sat-login}" --no-ask --body "$1" >/dev/null 2>&1 ||
     { do_log "WARN the login-mode alert to $to was not sent"; return 0; }

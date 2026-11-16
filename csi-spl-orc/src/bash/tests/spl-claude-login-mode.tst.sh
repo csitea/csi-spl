@@ -46,7 +46,7 @@ out="$(run)"; rc=$?
 [[ $rc == 0 && "$(mode)" == backup && "$(wc -l < "$SENT")" == 1 ]] && grep -q 'own -> backup' "$SENT" && pass "M1. own 91 %, backup 40 % -> backup, one alert" || fail "M1. rc=$rc mode=$(mode) out=$out sent=$(cat "$SENT")"
 read -r _ _ o b op or bp d _ < "$ST/login-mode"
 [[ "$o" == "$(lab uuid-here)" && "$b" == "$BL" && "$op" == 91 && "$or" == "$RESET" && "$bp" == 40 && "$d" == "$T/home/.claude-2" ]] && pass "M1. the line: labels, own % and reset, backup %, the second folder" || fail "M1. line: $(cat "$ST/login-mode")"
-{ cat "$ST/login-mode" "$SENT"; echo "$out"; } | grep -q uuid- && fail "M1. an account id leaked" || pass "M1. labels only, no account id"
+grep -q uuid- <<<"$(cat "$ST/login-mode" "$SENT"; echo "$out")" && fail "M1. an account id leaked" || pass "M1. labels only, no account id"
 
 rm -f "$ST"/login-mode*; : > "$SENT"; rows "wk=claude:92 acct=$BL live=c-001"
 run >/dev/null; run >/dev/null; out="$(run)"

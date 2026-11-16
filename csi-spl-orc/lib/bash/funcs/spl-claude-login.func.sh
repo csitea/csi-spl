@@ -16,7 +16,15 @@
 #                           (its peer finds its backup's % by that label)
 #------------------------------------------------------------------------------
 
-spl_claude_login_state_dir() { echo "${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}"; }
+declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-run-paths.func.sh"
+
+# The login-check state dir: LOGIN_STATE_DIR, else SPL_VAR_APP_DIR's
+# agent-login-check (spl_run_paths); rc 1 and nothing when neither is known.
+spl_claude_login_state_dir() {
+  [[ -n "${LOGIN_STATE_DIR:-}" ]] && { echo "$LOGIN_STATE_DIR"; return 0; }
+  spl_run_paths 2>/dev/null || return 1
+  echo "$SPL_VAR_APP_DIR/agent-login-check"
+}
 
 # The login-mode line (epoch first) while fresh, else nothing.
 spl_claude_login_mode_line() {

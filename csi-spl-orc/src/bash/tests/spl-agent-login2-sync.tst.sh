@@ -95,7 +95,8 @@ lab_of() { lab "$(jq -r '.oauthAccount.accountUuid' "$1")"; }
 mkcred "$HH/.claude" 1893456000000; mkacct "$HH/.claude.json" uuid-here
 mkcred "$PH/.claude" 1861920000000; mkacct "$PH/.claude.json" uuid-peer
 PCMD="f() { LOGIN_AGENT_USER=$(id -un) LOGIN_AGENT_HOME=$PH bash $CRED \"\$2\" \"\$3\"; }; f"
-prun() { run LOGIN2_AGENT_HOME="$HH" CLAUDE2_CONFIG_DIR="$H2" LOGIN2_PEER_DEST=peer-dest LOGIN2_PEER_CMD="$PCMD" LOGIN_PEERS= "$@"; }
+mkdir -p "$T/lcstate"
+prun() { run LOGIN_STATE_DIR="$T/lcstate" LOGIN2_AGENT_HOME="$HH" CLAUDE2_CONFIG_DIR="$H2" LOGIN2_PEER_DEST=peer-dest LOGIN2_PEER_CMD="$PCMD" LOGIN_PEERS= "$@"; }
 ALL=""
 out="$(prun LOGIN2_SYNC_SRC=peer:sat DRY_RUN=0)"; rc=$?; ALL+="$out"
 cmp -s "$PH/.claude/.credentials.json" "$H2/.credentials.json" && cmp -s "$HH/.claude/.credentials.json" "$P2/.credentials.json" &&
@@ -131,6 +132,9 @@ grep -q 1800000000000 "$H2/.credentials.json" && [[ "$(lab_of "$H2/.claude.json"
 [[ "$(lab_of "$PH/.claude.json")" == "$(lab uuid-swapped)" ]] && grep -q 1800000000000 "$PH/.claude/.credentials.json" &&
   [[ "$(sha256sum < "$HH/.claude/.credentials.json")" == "$here_main" && "$(lab_of "$HH/.claude.json")" == "$(lab uuid-here)" ]] &&
   pass "L3. no other label ever reaches a main login (sat keeps the swap, here keeps its own)" || fail "L3. a main login changed"
+
+out="$( exec 9>>"$T/lcstate/tick.lock"; flock 9; prun LOGIN2_SYNC_SRC=peer:sat DRY_RUN=0 )"; ALL+="$out"
+[[ "$out" == *"the login check tick holds"*"skipped"* && "$out" != *"[sat -> here]"* ]] && pass "L1. a held login check tick lock: the cron's peer sync skips" || fail "L1. lock: $out"
 
 [[ "$ALL" != *"$SECRET"* && "$ALL" != *uuid-* ]] && pass "L4. no credential content and no account id in any output" || fail "L4. content leaked"
 

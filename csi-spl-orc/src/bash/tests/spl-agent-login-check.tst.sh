@@ -48,6 +48,9 @@
 #      lines up, above the dialog) with an API-error transcript is stuck;
 #      controls: the same pane with an ok transcript, and a banner 9 lines up
 #      with no dialog under it, are not
+#  21. SPL-5695: box.env SPOOL_LOGIN2_PEER -> the peer sync runs in the tick,
+#      both directions, under the tick's own lock; the pool enabled -> the
+#      login mode runs and writes its line; neither without its setting
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -386,6 +389,25 @@ grep -q 'stuck_login=0 stuck_limit=0 ' <<<"$out" && pass "20. control: the dialo
 reset; { limit_dialog | sed -n '1,4p'; printf 'line %s\n' 1 2 3 4 5 6 7 8; } >"$T/panes/%12"; echo error >"$T/turn/999999702"
 out="$(DRY=1 tick)"
 grep -q 'stuck_login=0 stuck_limit=0 ' <<<"$out" && pass "20. control: a banner 9 lines up with no dialog under it is not read" || fail "20. no dialog ($out)"
+
+# 21. the cross-box login failover in the tick (SPL-5695): a login2 peer in
+# box.env -> its sync runs every tick, both directions, under the tick's lock;
+# the pool enabled -> the login mode runs; neither without its setting
+reset
+printf '#!/bin/bash\necho "l2 here $*" >>%q\necho none\n' "$T/calls" >"$T/bin/l2here"
+printf '#!/bin/bash\necho "l2 peer $*" >>%q\necho none\n' "$T/calls" >"$T/bin/l2peer"
+chmod +x "$T/bin/l2here" "$T/bin/l2peer"
+echo '{"oauthAccount":{"accountUuid":"u-21"}}' >"$T/own21.json"
+out="$(NOPEERS=1 tick)"
+[[ "$out" != *login2-sync* && "$out" != *login-mode:* ]] && pass "21. no SPOOL_LOGIN2_PEER, the pool off: neither runs" || fail "21. off ($out)"
+echo "SPOOL_LOGIN2_PEER=sat=satellite" >"$T/spool/box.env"
+out="$(NOPEERS=1 LOGIN2_CRED_CMD="$T/bin/l2here" LOGIN2_PEER_CMD="$T/bin/l2peer" LOGIN_MODE_ENABLED=true \
+  LOGIN_MODE_OWN_JSON="$T/own21.json" LOGIN_MODE_ROWS_CMD="echo {}" LOGIN_MODE_HERE=box1 tick)"
+[[ "$out" == *"login2-sync[sat -> here]: WARN the lender's main login names no account"* && "$out" == *"login2-sync[here -> sat]: WARN"* ]] &&
+  grep -q '^l2 peer satellite acct 1$' "$T/calls" && grep -q '^l2 here acct 1$' "$T/calls" &&
+  pass "21. SPOOL_LOGIN2_PEER: the peer sync runs in the tick, both directions" || fail "21. sync ($out)"
+[[ "$out" != *"holds"*"skipped"* ]] && pass "21. the tick's own lock does not skip its sync" || fail "21. skipped under its own lock ($out)"
+[[ "$out" == *"login-mode: own -> own"* && -s "$T/state/login-mode" ]] && pass "21. the pool enabled: the login mode runs and writes its line" || fail "21. mode ($out)"
 
 echo "spl-agent-login-check: $fails failed"
 exit $(( fails > 0 ))

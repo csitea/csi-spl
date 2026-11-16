@@ -106,6 +106,7 @@ do_spl_agent_login_check() {
   verdict0="$(_lc_probe "$every" "$stuck0")"
   verdict="$verdict0"
   _lc_peers verdict
+  _lc_pool
   [[ -n "$stuck0" ]] && _lc_repair "$verdict" "$stuck0" "$wait"
   _lc_expiry
   if (( LC_STOPPED + LC_COPIED > 0 )) && [[ "$dry" == 0 ]]; then stuck1="$(_lc_scan)"; else stuck1="$stuck0"; fi
@@ -113,6 +114,24 @@ do_spl_agent_login_check() {
   echo "login-check@${LC_TAG:-box}: probe=${verdict%% *} stuck_login=$(_lc_n login "$stuck0") stuck_limit=$(_lc_n limit "$stuck0") copied=$LC_COPIED stopped=$LC_STOPPED restored=$LC_RESTORED failed=$LC_FAILED alerted=$alerted$([[ "$dry" == 1 ]] && echo ' (DRY_RUN)')"
   exec 8>&-
   (( LC_FAILED == 0 ))
+}
+
+# The cross-box Claude login failover (SPL-5695, spec 060 add-on
+# claude-account-failover.md), under this tick's lock: with a login2 peer
+# (box.env SPOOL_LOGIN2_PEER) its sync, both directions, every tick; with cnf
+# env.box.claude_login_pool.enabled true, the login mode.
+_lc_pool() {
+  local d oa cnf
+  d="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+  if grep -q '^SPOOL_LOGIN2_PEER=.' "${SPOOL_BOX_ENV:-$SPOOL_ROOT/box.env}" 2>/dev/null; then
+    declare -F do_spl_agent_login2_sync >/dev/null || source "$d/spl-agent-login2-sync.func.sh"
+    L2_IN_TICK=1 DRY_RUN="$LC_DRY" LOGIN_STATE_DIR="$LC_STATE" do_spl_agent_login2_sync 2>&1 | sed 's/^/  /'
+  fi
+  oa="$(basename "$PROJ_PATH")"; oa="${oa%-orc}"
+  cnf="${LOGIN_CNF:-$PROJ_PATH/../$oa-cnf/$oa/all.env.yaml}"
+  [[ "${LOGIN_MODE_ENABLED:-$(yq -r '.env.box.claude_login_pool.enabled // false' "$cnf" 2>/dev/null)}" == true ]] || return 0
+  declare -F do_spl_claude_login_mode >/dev/null || source "$d/spl-claude-login-mode.func.sh"
+  DRY_RUN="$LC_DRY" LOGIN_STATE_DIR="$LC_STATE" LOGIN_CNF="$cnf" do_spl_claude_login_mode 2>&1 | sed 's/^/  /'
 }
 
 # The cool-down in minutes: LOGIN_COOLDOWN_MIN, else cnf

@@ -46,6 +46,7 @@
 # @param LOGIN2_SYNC_SRC (optional) - the backup config folder, the box user's own Claude config folder, or peer:<tag> (default: SPOOL_LOGIN2_PEER of box.env as peer:<tag>, else SPOOL_LOGIN2_SRC; none = WARN, no-op)
 # @param LOGIN2_PEER_DEST (optional) - the ssh destination of the peer, default the <ssh dest> of SPOOL_LOGIN2_PEER in box.env
 # @param LOGIN2_PEER_CMD (optional, tests) - runs a credential op on the peer in place of ssh: called with <dest> <op> <slot>
+# @param LOGIN_STATE_DIR (optional) - the login check's state dir, whose tick.lock a peer sync takes (default /var/csi/csi-spl/agent-login-check)
 # @param LOGIN2_CRED_CMD (optional, tests) - the credential helper script here, default agent-login-cred.sh
 # @param CLAUDE2_CONFIG_DIR (optional) - the agent user's second config folder, default <agent home>/.claude-2 (the same default as do_spl_role_failover)
 # @param SPOOL_AGENT_USER (optional) - default SPOOL_AGENT_USER of box.env, else this user
@@ -166,9 +167,16 @@ _l2_peer_sync() {
   if _l2_main_peers | grep -qx "$tag"; then
     echo "login2-sync: REFUSED peer $tag is also in SPOOL_LOGIN_PEERS: the main-to-main push would overwrite its own account (empty it first, the owner's step 0)"; return 2
   fi
+  # one writer at a time: the login check's tick runs this with L2_IN_TICK=1
+  # under its lock; the cron row waits for nothing and skips while it is held
+  if [[ "${L2_IN_TICK:-0}" != 1 ]]; then
+    local lock="${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}/tick.lock"
+    exec 7>>"$lock" 2>/dev/null && flock -n 7 || { echo "login2-sync: the login check tick holds $lock (it syncs the peer every tick): skipped"; return 0; }
+  fi
   L2_DEST="$dest"; L2_DIR2="$dst"; L2_DRY="$dry"; L2_RC=0
   _l2_dir "$tag -> here" peer here
   _l2_dir "here -> $tag" here peer
+  [[ "${L2_IN_TICK:-0}" == 1 ]] || exec 7>&-
   return "$L2_RC"
 }
 

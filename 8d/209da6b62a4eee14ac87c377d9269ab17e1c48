@@ -1,0 +1,11 @@
+Lay-What: A failover drill test no longer fails at random on a busy machine.
+
+Lay-How: The test now stops its pretend caller in a way that cannot be ignored, and waits for all its helpers to finish before it checks.
+
+Lay-Why: Its random failures blocked unrelated work from being saved; nothing a user sees changes.
+
+Tech-What: spl-role-failover-drill.tst.sh case 9 RED CONTROL is deterministic; the orc drill function is unchanged.
+
+Tech-How: the kill stub ends the caller's group with KILL, not HUP; the control waits on wait_event env_idle SPOOL_ROOT before asserting no failover.
+
+Tech-Why: runs started under nohup inherited SIGHUP ignored, so the group survived the HUP stub and the non-detached drill ran the failover.
